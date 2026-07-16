@@ -47,6 +47,34 @@ void main() {
       });
     });
 
+    test('wordMatchMode ו-wordMatchCount מגיעים לבקשה; ברירת מחדל all',
+        () async {
+      final engine = _RecordingSearchEngineOperations();
+      final repository = SearchRepository(engineProvider: () async => engine);
+
+      await repository.searchTexts(
+        'שלום עולם',
+        const ['/'],
+        10,
+        searchMode: SearchMode.advanced,
+      );
+      expect(engine.lastRequest!.wordMatchMode, WordMatchMode.all);
+      expect(engine.lastRequest!.wordMatchCount, isNull);
+
+      await repository
+          .searchTextsStreamWithCounts(
+            'שלום עולם',
+            const ['/'],
+            10,
+            searchMode: SearchMode.advanced,
+            wordMatchMode: WordMatchMode.atLeast,
+            wordMatchCount: 3,
+          )
+          .toList();
+      expect(engine.lastRequest!.wordMatchMode, WordMatchMode.atLeast);
+      expect(engine.lastRequest!.wordMatchCount, 3);
+    });
+
     test('fuzzy=true גובר על searchMode ומנתב לחיפוש מקורב', () async {
       final engine = _RecordingSearchEngineOperations();
       final repository = SearchRepository(engineProvider: () async => engine);
@@ -142,7 +170,9 @@ enum _EngineCall {
   getFacetCountsFuzzy,
 }
 
-class _RecordingSearchEngineOperations implements SearchEngineOperations {
+// extends (ולא implements) כדי לרשת את מימושי ברירת המחדל של הממשק —
+// למשל searchStreamWithCounts, שמורכב מהמתודות שה-fake כבר מממש.
+class _RecordingSearchEngineOperations extends SearchEngineOperations {
   _RecordingSearchEngineOperations({
     List<List<SearchResult>>? streamChunks,
   }) : streamChunks = streamChunks ?? const [];
@@ -180,7 +210,7 @@ class _RecordingSearchEngineOperations implements SearchEngineOperations {
     SearchEngineRequest request,
   ) async {
     _record(_EngineCall.searchAndCountExact, request);
-    return SearchPageResult(totalCount: 42, results: [
+    return SearchPageResult(totalCount: 42, truncated: false, results: [
       _result(id: 4, text: 'page result'),
     ]);
   }
@@ -190,7 +220,7 @@ class _RecordingSearchEngineOperations implements SearchEngineOperations {
     SearchEngineRequest request,
   ) async {
     _record(_EngineCall.searchAndCountAdvanced, request);
-    return const SearchPageResult(totalCount: 0, results: []);
+    return const SearchPageResult(totalCount: 0, results: [], truncated: false);
   }
 
   @override
@@ -198,7 +228,7 @@ class _RecordingSearchEngineOperations implements SearchEngineOperations {
     SearchEngineRequest request,
   ) async {
     _record(_EngineCall.searchAndCountFuzzy, request);
-    return const SearchPageResult(totalCount: 0, results: []);
+    return const SearchPageResult(totalCount: 0, results: [], truncated: false);
   }
 
   @override
@@ -305,16 +335,20 @@ class _RecordingSearchEngineOperations implements SearchEngineOperations {
     _record(_EngineCall.getFacetCountsFuzzy, request);
     return const [];
   }
+
+  @override
+  void primeHighlightPattern(SearchEngineRequest request) {}
 }
 
 SearchResult _result({required int id, required String text}) {
   return SearchResult(
-    id: BigInt.from(id),
-    title: 'ספר',
-    reference: 'סימן',
-    text: text,
-    segment: BigInt.from(id),
-    isPdf: false,
-    filePath: 'book.txt',
-  );
+      id: BigInt.from(id),
+      title: 'ספר',
+      reference: 'סימן',
+      text: text,
+      segment: BigInt.from(id),
+      isPdf: false,
+      filePath: 'book.txt',
+      mergedCount: 1,
+      merged: const []);
 }

@@ -17,11 +17,21 @@ class ClearFilter extends SearchEvent {
 
 class UpdateSearchQuery extends SearchEvent {
   final String query;
+  final String? negativeQuery;
   final Map<String, String>? customSpacing;
   final Map<int, List<String>>? alternativeWords;
   final Map<String, Map<String, bool>>? searchOptions;
+  final Map<String, String>? negativeCustomSpacing;
+  final Map<int, List<String>>? negativeAlternativeWords;
+  final Map<String, Map<String, bool>>? negativeSearchOptions;
   UpdateSearchQuery(this.query,
-      {this.customSpacing, this.alternativeWords, this.searchOptions});
+      {this.negativeQuery,
+      this.customSpacing,
+      this.alternativeWords,
+      this.searchOptions,
+      this.negativeCustomSpacing,
+      this.negativeAlternativeWords,
+      this.negativeSearchOptions});
 }
 
 class UpdateDistance extends SearchEvent {
@@ -32,6 +42,31 @@ class UpdateDistance extends SearchEvent {
 class UpdateDistanceWithoutSearch extends SearchEvent {
   final int distance;
   UpdateDistanceWithoutSearch(this.distance);
+}
+
+/// עדכון טווח הקרבה בין מילות החיפוש (מרווח מילים / פסקה / כותרת).
+class UpdateProximityScope extends SearchEvent {
+  final SearchScope scope;
+  UpdateProximityScope(this.scope);
+}
+
+class UpdateProximityScopeWithoutSearch extends SearchEvent {
+  final SearchScope scope;
+  UpdateProximityScopeWithoutSearch(this.scope);
+}
+
+/// עדכון מצב התאמת המילים (כל המילים / מילה אחת / רוב / לפחות X).
+/// [count] רלוונטי רק ל-atLeast; null משאיר את הערך הקיים.
+class UpdateWordMatchMode extends SearchEvent {
+  final WordMatchMode mode;
+  final int? count;
+  UpdateWordMatchMode(this.mode, {this.count});
+}
+
+class UpdateWordMatchModeWithoutSearch extends SearchEvent {
+  final WordMatchMode mode;
+  final int? count;
+  UpdateWordMatchModeWithoutSearch(this.mode, {this.count});
 }
 
 class ToggleSearchMode extends SearchEvent {}
@@ -81,6 +116,13 @@ class UpdateSortOrder extends SearchEvent {
   UpdateSortOrder(this.order);
 }
 
+/// שינוי מצב איחוד התוצאות (ללא / לפי סעיף / טקסט זהה) — מריץ את החיפוש
+/// מחדש, כי הקיבוץ מתבצע במנוע.
+class UpdateResultGrouping extends SearchEvent {
+  final ResultGroupingMode grouping;
+  UpdateResultGrouping(this.grouping);
+}
+
 class UpdateNumResults extends SearchEvent {
   final int numResults;
   UpdateNumResults(this.numResults);
@@ -124,6 +166,14 @@ class LoadMoreResults extends SearchEvent {
   final Map<String, String>? customSpacing;
   final Map<int, List<String>>? alternativeWords;
   final Map<String, Map<String, bool>>? searchOptions;
+  final Map<String, String>? negativeCustomSpacing;
+  final Map<int, List<String>>? negativeAlternativeWords;
+  final Map<String, Map<String, bool>>? negativeSearchOptions;
   LoadMoreResults(
-      {this.customSpacing, this.alternativeWords, this.searchOptions});
+      {this.customSpacing,
+      this.alternativeWords,
+      this.searchOptions,
+      this.negativeCustomSpacing,
+      this.negativeAlternativeWords,
+      this.negativeSearchOptions});
 }

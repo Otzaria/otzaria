@@ -23,6 +23,7 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentary_content.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
+import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
 import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
@@ -235,6 +236,11 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   final Map<String, int> _searchResultsPerLink = {};
   Timer? _searchUpdateDebounce;
   final Map<String, int> _pendingCounts = {};
+  // חישוב ספירות חיפוש ברקע על כל הקישורים — הרשימה וירטואלית ופריטים שלא
+  // נבנו אינם מדווחים, לכן אסור להסתמך על ה-widgets לספירה.
+  Timer? _searchComputeDebounce;
+  int _searchComputeGen = 0;
+  int _lastLinksSignature = 0;
 
   // Scroll support
   final ItemScrollController _itemScrollController = ItemScrollController();
@@ -320,6 +326,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   }
 
   void _clearSearchAndCloseField() {
+    _searchComputeDebounce?.cancel();
     _searchController.clear();
     setState(() {
       _searchQuery = '';
@@ -367,6 +374,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     });
     widget.externalTotalResultsNotifier?.value = _totalSearchResults;
     widget.externalCurrentIndexNotifier?.value = _currentSearchIndex;
+    _scheduleSearchCompute();
   }
 
   void _onOpenFilterRequest() {
@@ -528,6 +536,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   @override
   void dispose() {
     _searchUpdateDebounce?.cancel();
+    _searchComputeDebounce?.cancel();
     _tabController.removeListener(_tabControllerListener);
     widget.openFilterRequest?.removeListener(_handleOpenFilterRequest);
     widget.openFilterNotifier?.removeListener(_onOpenFilterRequest);
@@ -578,6 +587,44 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       }
     });
     widget.externalAllExpandedNotifier?.value = _allExpanded;
+  }
+
+  void _scheduleSearchCompute() {
+    _searchComputeDebounce?.cancel();
+    // כשאין קישורים אין מה לחשב — טעינתם תפעיל תזמון מחדש (לפי חתימה).
+    if (_orderedLinks.isEmpty) return;
+    _searchComputeDebounce =
+        Timer(const Duration(milliseconds: 250), _computeSearchCounts);
+  }
+
+  /// עובר על כל הקישורים ומזין את משפך העדכון של ספירות החיפוש, במקביל
+  /// לדיווח (הזהה) מה-widgets שנבנו בפועל.
+  Future<void> _computeSearchCounts() async {
+    if (!mounted || _searchQuery.isEmpty) return;
+    final query = _searchQuery;
+    final links = List<Link>.from(_orderedLinks);
+    if (links.isEmpty) return;
+    final gen = ++_searchComputeGen;
+
+    for (final link in links) {
+      String data;
+      try {
+        data = await link.content;
+      } catch (_) {
+        data = '';
+      }
+      if (!mounted || gen != _searchComputeGen || _searchQuery != query) {
+        return;
+      }
+      _updateSearchResultsCount(
+        link,
+        countCommentarySearchMatches(
+          content: data,
+          query: query,
+          removePunctuation: widget.removePunctuation,
+        ),
+      );
+    }
   }
 
   void _updateSearchResultsCount(Link link, int count) {
@@ -972,6 +1019,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
             _totalSearchResults = 0;
           }
         });
+        _scheduleSearchCompute();
       },
     );
   }
@@ -1108,6 +1156,14 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
         // Initialize keys
         final currentLinkKeys =
             _orderedLinks.map((l) => _getLinkKey(l)).toSet();
+
+        // קישורים חדשים (טעינה/מעבר קטע) — חישוב ספירות חיפוש מחדש אם יש
+        // שאילתה פעילה.
+        final linksSignature = Object.hashAll(currentLinkKeys);
+        if (linksSignature != _lastLinksSignature) {
+          _lastLinksSignature = linksSignature;
+          _scheduleSearchCompute();
+        }
         _itemKeys.removeWhere((key, value) => !currentLinkKeys.contains(key));
         for (final key in currentLinkKeys) {
           if (!_itemKeys.containsKey(key)) {

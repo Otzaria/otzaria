@@ -71,6 +71,23 @@ void main() {
       );
     });
 
+    test('חיפוש מתקדם — ללא ברירת מחדל (המשתמש יבחר)', () {
+      expect(
+        ShortcutValidator.shortcutKeys,
+        contains(ShortcutValidator.openAdvancedSearchKey),
+      );
+      expect(
+        ShortcutValidator
+            .defaultShortcuts[ShortcutValidator.openAdvancedSearchKey],
+        '',
+      );
+      expect(
+        ShortcutValidator
+            .shortcutNames[ShortcutValidator.openAdvancedSearchKey],
+        'חיפוש מתקדם',
+      );
+    });
+
     test('שמות תצוגה בעברית קיימים', () {
       expect(
         ShortcutValidator.shortcutNames['key-shortcut-toggle-nav-pane'],

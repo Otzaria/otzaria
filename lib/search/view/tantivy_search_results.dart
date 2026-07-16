@@ -20,6 +20,8 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart'
+    show MergedSibling;
 
 class TantivySearchResults extends StatefulWidget {
   final SearchingTab tab;
@@ -128,7 +130,8 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     }
 
     final state = context.read<SearchBloc>().state;
-    final hasMoreResults = state.results.length < state.totalResults;
+    // במצב איחוד הרשימה נספרת בקבוצות — displayTotal מחזיר totalGroups.
+    final hasMoreResults = state.results.length < state.displayTotal;
 
     if (state.isLoading || !hasMoreResults) {
       return;
@@ -142,6 +145,11 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
             searchOptions: widget.tab.effectiveSearchOptions(
               query: context.read<SearchBloc>().state.searchQuery,
             ),
+            negativeCustomSpacing: widget.tab.negativeSpacingValues,
+            negativeAlternativeWords: widget.tab.negativeAlternativeWords,
+            negativeSearchOptions: widget.tab.effectiveNegativeSearchOptions(
+              query: context.read<SearchBloc>().state.negativeQuery,
+            ),
           ),
         );
   }
@@ -151,8 +159,11 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     required String reference,
     required int segment,
     required bool isPdf,
+    required String filePath,
   }) {
-    return 'search:${isPdf ? 'pdf' : 'text'}|$title|$reference|$segment';
+    // filePath הוא מפתח האינדקס היציב ('uid:5'/'id:5' או נתיב PDF) — בלעדיו
+    // תוצאה מספר אישי הייתה מתמקדת בטאב פתוח של ספר רשמי באותה כותרת.
+    return 'search:${isPdf ? 'pdf' : 'text'}|$title|$reference|$segment|$filePath';
   }
 
   String _formatTitleForWrapping(String title) {
@@ -185,6 +196,112 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// פתיחת מיקום של תוצאה (או של תוצאה מאוחדת) בטאב קריאה — נתיב קוד
+  /// משותף ללחיצה על כרטיס ראשי וללחיצה על שורת sibling בקבוצה מאוחדת.
+  Future<void> _openResultLocation({
+    required String title,
+    required String reference,
+    required int segment,
+    required bool isPdf,
+    required String filePath,
+    required Map<String, Map<String, bool>> effectiveOptions,
+  }) async {
+    // שחזור הספר מהקטלוג לפי מפתח האינדקס היציב — פתיחה לפי כותרת בלבד
+    // הייתה פותחת ספר רשמי במקום ספר אישי בעל אותה כותרת.
+    final resolvedBook =
+        await widget.tab.searchBloc.resolveBookForIndexedPath(filePath);
+    if (!mounted) return;
+
+    final rawQuery = widget.tab.queryController.text;
+    final hasEnabledOptions =
+        effectiveOptions.values.any((m) => m.values.any((v) => v == true));
+    final hasAlternativeWords = widget.tab.alternativeWords.values
+        .any((alts) => alts.any((w) => w.trim().isNotEmpty));
+    final hasSpacingValues =
+        widget.tab.spacingValues.values.any((v) => v.trim().isNotEmpty);
+    final currentMode = widget.tab.searchBloc.state.configuration.searchMode;
+
+    // אין צורך בזיהוי "שאילתת רגקס": המנוע מנקה מטא-תווים
+    // ב-sanitize_query לפני בניית השאילתה, כך שקלט המשתמש
+    // לעולם אינו מפורש כתבנית — שאילתה בלי אפשרויות מיוחדות
+    // היא תמיד ליטרלית וניתנת לחיפוש פשוט בתוך הספר.
+    final shouldUseSimpleInBook = !hasEnabledOptions &&
+        !hasAlternativeWords &&
+        !hasSpacingValues &&
+        currentMode != SearchMode.fuzzy;
+
+    final inBookMode = shouldUseSimpleInBook ? SearchMode.exact : currentMode;
+    final inBookDistance = shouldUseSimpleInBook
+        ? 0
+        : widget.tab.searchBloc.state.configuration.distance;
+
+    final openLeftPane =
+        (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
+            (Settings.getValue<bool>('key-default-sidebar-open') ?? false);
+
+    if (isPdf) {
+      final pageNumber = segment + 1;
+      context.read<TabsBloc>().add(
+            OpenOrFocusTab(
+              PdfBookTab(
+                book: resolvedBook is PdfBook
+                    ? resolvedBook
+                    : PdfBook(title: title, path: filePath),
+                pageNumber: pageNumber,
+                dedupeKey: _searchResultDedupeKey(
+                  title: title,
+                  reference: reference,
+                  segment: segment,
+                  isPdf: true,
+                  filePath: filePath,
+                ),
+                searchText: rawQuery,
+                searchOptions: effectiveOptions,
+                alternativeWords: widget.tab.alternativeWords,
+                spacingValues: widget.tab.spacingValues,
+                searchMode: inBookMode,
+                searchDistance: inBookDistance,
+                openLeftPane: openLeftPane,
+                requiresStableLayout: true,
+              ),
+              targetTitle: reference,
+              insertAdjacent: true,
+            ),
+          );
+    } else {
+      context.read<TabsBloc>().add(
+            OpenOrFocusTab(
+              TextBookTab(
+                book: switch (resolvedBook) {
+                  final TextBook book => book,
+                  final DocxBook book => book.toTextBook(),
+                  _ => TextBook(title: title),
+                },
+                index: segment,
+                dedupeKey: _searchResultDedupeKey(
+                  title: title,
+                  reference: reference,
+                  segment: segment,
+                  isPdf: false,
+                  filePath: filePath,
+                ),
+                searchText: rawQuery,
+                searchOptions: effectiveOptions,
+                alternativeWords: widget.tab.alternativeWords,
+                spacingValues: widget.tab.spacingValues,
+                searchMode: inBookMode,
+                searchDistance: inBookDistance,
+                showPageShapeView:
+                    PageShapeSettingsManager.getViewModePreference(title),
+                openLeftPane: openLeftPane,
+              ),
+              targetTitle: reference,
+              insertAdjacent: true,
+            ),
+          );
+    }
   }
 
   @override
@@ -269,7 +386,8 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     }
 
     // תמיד נשתמש ב-ListView גם לתוצאה אחת - כך היא תופיע למעלה
-    final hasMoreResults = state.results.length < state.totalResults;
+    // (במצב איחוד הספירה היא בקבוצות — displayTotal).
+    final hasMoreResults = state.results.length < state.displayTotal;
     final showInlineLoadingIndicator =
         state.isLoading && state.results.isNotEmpty && !hasMoreResults;
     final showLoadMoreButton = hasMoreResults;
@@ -280,7 +398,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
       query: state.searchQuery,
     );
 
-    return ListView.builder(
+    final resultsList = ListView.builder(
       key: PageStorageKey(widget.tab),
       controller: _scrollController,
       padding: const EdgeInsets.all(16),
@@ -306,7 +424,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
           }
 
           final remainingText =
-              'טען תוצאות נוספות (${state.totalResults - state.results.length})';
+              'טען תוצאות נוספות (${state.displayTotal - state.results.length})';
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 16.0),
             child: Center(
@@ -320,6 +438,14 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                             customSpacing: widget.tab.spacingValues,
                             alternativeWords: widget.tab.alternativeWords,
                             searchOptions: effectiveOptions,
+                            negativeCustomSpacing:
+                                widget.tab.negativeSpacingValues,
+                            negativeAlternativeWords:
+                                widget.tab.negativeAlternativeWords,
+                            negativeSearchOptions:
+                                widget.tab.effectiveNegativeSearchOptions(
+                              query: state.negativeQuery,
+                            ),
                           ),
                         );
                   },
@@ -394,94 +520,14 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                 borderRadius: AppTokens.borderRadiusAll,
               ),
               child: InkWell(
-                onTap: () {
-                  final rawQuery = widget.tab.queryController.text;
-                  final hasEnabledOptions = effectiveOptions.values
-                      .any((m) => m.values.any((v) => v == true));
-                  final hasAlternativeWords = widget.tab.alternativeWords.values
-                      .any((alts) => alts.any((w) => w.trim().isNotEmpty));
-                  final hasSpacingValues = widget.tab.spacingValues.values
-                      .any((v) => v.trim().isNotEmpty);
-                  final looksLikeRegex =
-                      RegExp(r'[\\.\*\+\?\|\(\)\[\]\{\}\^\$]')
-                          .hasMatch(rawQuery);
-                  final currentMode =
-                      widget.tab.searchBloc.state.configuration.searchMode;
-
-                  final shouldUseSimpleInBook = !hasEnabledOptions &&
-                      !hasAlternativeWords &&
-                      !hasSpacingValues &&
-                      !looksLikeRegex &&
-                      currentMode != SearchMode.fuzzy;
-
-                  final inBookMode =
-                      shouldUseSimpleInBook ? SearchMode.exact : currentMode;
-
-                  if (result.isPdf) {
-                    final pageNumber = result.segment.toInt() + 1;
-                    context.read<TabsBloc>().add(
-                          OpenOrFocusTab(
-                            PdfBookTab(
-                              book: PdfBook(
-                                  title: result.title, path: result.filePath),
-                              pageNumber: pageNumber,
-                              dedupeKey: _searchResultDedupeKey(
-                                title: result.title,
-                                reference: result.reference,
-                                segment: result.segment.toInt(),
-                                isPdf: true,
-                              ),
-                              searchText: rawQuery,
-                              searchOptions: effectiveOptions,
-                              alternativeWords: widget.tab.alternativeWords,
-                              spacingValues: widget.tab.spacingValues,
-                              searchMode: inBookMode,
-                              openLeftPane:
-                                  (Settings.getValue<bool>('key-pin-sidebar') ??
-                                          false) ||
-                                      (Settings.getValue<bool>(
-                                              'key-default-sidebar-open') ??
-                                          false),
-                              requiresStableLayout: true,
-                            ),
-                            targetTitle: result.reference,
-                            insertAdjacent: true,
-                          ),
-                        );
-                  } else {
-                    context.read<TabsBloc>().add(
-                          OpenOrFocusTab(
-                            TextBookTab(
-                              book: TextBook(
-                                title: result.title,
-                              ),
-                              index: result.segment.toInt(),
-                              dedupeKey: _searchResultDedupeKey(
-                                title: result.title,
-                                reference: result.reference,
-                                segment: result.segment.toInt(),
-                                isPdf: false,
-                              ),
-                              searchText: rawQuery,
-                              searchOptions: effectiveOptions,
-                              alternativeWords: widget.tab.alternativeWords,
-                              spacingValues: widget.tab.spacingValues,
-                              searchMode: inBookMode,
-                              showPageShapeView: PageShapeSettingsManager
-                                  .getViewModePreference(result.title),
-                              openLeftPane:
-                                  (Settings.getValue<bool>('key-pin-sidebar') ??
-                                          false) ||
-                                      (Settings.getValue<bool>(
-                                              'key-default-sidebar-open') ??
-                                          false),
-                            ),
-                            targetTitle: result.reference,
-                            insertAdjacent: true,
-                          ),
-                        );
-                  }
-                },
+                onTap: () => _openResultLocation(
+                  title: result.title,
+                  reference: result.reference,
+                  segment: result.segment.toInt(),
+                  isPdf: result.isPdf,
+                  filePath: result.filePath,
+                  effectiveOptions: effectiveOptions,
+                ),
                 borderRadius: AppTokens.borderRadiusAll,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -597,6 +643,21 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                                 children: snippetSpans,
                               ),
                             ),
+                            // תוצאות שאוחדו לכרטיס זה (במצב איחוד תוצאות)
+                            if (result.mergedCount > 1)
+                              _MergedSiblingsSection(
+                                mergedCount: result.mergedCount,
+                                siblings: result.merged,
+                                groupingMode: state.resultGrouping,
+                                onOpenSibling: (sibling) => _openResultLocation(
+                                  title: sibling.title,
+                                  reference: sibling.reference,
+                                  segment: sibling.segment.toInt(),
+                                  isPdf: sibling.isPdf,
+                                  filePath: sibling.filePath,
+                                  effectiveOptions: effectiveOptions,
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -608,6 +669,179 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
           },
         );
       },
+    );
+
+    if (!state.resultsTruncated) {
+      return resultsList;
+    }
+    // תוצאות חלקיות: השאילתה חרגה מתקציב איסוף-הטרמים במנוע, כך שרק
+    // ההרחבות בעדיפות הגבוהה הוגשו. מציגים באנר קבוע מעל הרשימה.
+    return Column(
+      children: [
+        _buildTruncatedBanner(context),
+        Expanded(child: resultsList),
+      ],
+    );
+  }
+
+  Widget _buildTruncatedBanner(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      color: colorScheme.tertiaryContainer,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          Icon(
+            FluentIcons.warning_24_regular,
+            size: 18,
+            color: colorScheme.onTertiaryContainer,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'ייתכן שהתוצאות חלקיות: החיפוש רחב מדי ולכן הוצגו רק חלק '
+              'מההתאמות. צמצמו את החיפוש (למשל הוסיפו אות או מילה).',
+              style: TextStyle(
+                fontSize: 13,
+                color: colorScheme.onTertiaryContainer,
+              ),
+              textAlign: TextAlign.right,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// חיווי "תוצאות מאוחדות" בתחתית כרטיס תוצאה: שורת מונה עדינה שנפתחת
+/// ללחיצה ומציגה את שאר חברות הקבוצה ([MergedSibling]) כשורות קומפקטיות.
+/// לחיצה על שורה פותחת את המיקום בדיוק כמו לחיצה על תוצאה ראשית.
+class _MergedSiblingsSection extends StatefulWidget {
+  const _MergedSiblingsSection({
+    required this.mergedCount,
+    required this.siblings,
+    required this.groupingMode,
+    required this.onOpenSibling,
+  });
+
+  /// גודל הקבוצה כולה (כולל הנציג המוצג בכרטיס).
+  final int mergedCount;
+
+  /// שאר חברות הקבוצה (עד התקרה במנוע — ייתכן ש-mergedCount גדול יותר).
+  final List<MergedSibling> siblings;
+
+  final ResultGroupingMode groupingMode;
+  final ValueChanged<MergedSibling> onOpenSibling;
+
+  @override
+  State<_MergedSiblingsSection> createState() => _MergedSiblingsSectionState();
+}
+
+class _MergedSiblingsSectionState extends State<_MergedSiblingsSection> {
+  bool _expanded = false;
+
+  String get _badgeText => switch (widget.groupingMode) {
+        ResultGroupingMode.sameSection =>
+          'נמצאו ${widget.mergedCount} תוצאות בטווח זה',
+        ResultGroupingMode.identicalText =>
+          'מופיע ב-${widget.mergedCount} מקומות',
+        ResultGroupingMode.none => 'נמצאו ${widget.mergedCount} תוצאות',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    // כמה חברות קבוצה נחתכו בתקרת המנוע ואינן זמינות כקישורים.
+    final hiddenCount = widget.mergedCount - widget.siblings.length - 1;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: AppTokens.borderRadiusAll,
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    FluentIcons.layer_24_regular,
+                    size: 16,
+                    color: colorScheme.secondary,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _badgeText,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: colorScheme.secondary,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    _expanded
+                        ? FluentIcons.chevron_up_16_regular
+                        : FluentIcons.chevron_down_16_regular,
+                    size: 16,
+                    color: colorScheme.secondary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_expanded)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, right: 22),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final sibling in widget.siblings)
+                    InkWell(
+                      onTap: () => widget.onOpenSibling(sibling),
+                      borderRadius: AppTokens.borderRadiusAll,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4.0,
+                          vertical: 4.0,
+                        ),
+                        child: Text(
+                          '${sibling.title} — ${sibling.reference}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: colorScheme.primary,
+                          ),
+                          textAlign: TextAlign.right,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  if (hiddenCount > 0)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4.0,
+                        vertical: 4.0,
+                      ),
+                      child: Text(
+                        'ועוד $hiddenCount תוצאות…',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontStyle: FontStyle.italic,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

@@ -4,6 +4,8 @@ import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 
+import '../../support/search_engine_test_init.dart';
+
 Widget _wrap(Widget child) {
   return MaterialApp(
     home: Directionality(
@@ -13,7 +15,11 @@ Widget _wrap(Widget child) {
   );
 }
 
-void main() {
+Future<void> main() async {
+  // sanitizeQuery/splitQueryWords מאצילים למנוע ה-Rust; הטסטים שלהם דורשים
+  // את הספרייה הנייטיבית ומדולגים כשאין build זמין.
+  final engineReady = await tryInitSearchEngine();
+
   group('SmartTextWidget — בחירת מסלול רינדור', () {
     testWidgets('שורה פשוטה מרונדרת ב-Text.rich בלי HtmlWidget',
         (tester) async {
@@ -68,7 +74,7 @@ void main() {
       // השורה עם ההתאמה מקבלת span של הדגשה → HtmlWidget;
       // השורה בלי התאמה נשארת במסלול המהיר.
       expect(find.byType(HtmlWidget), findsOneWidget);
-    });
+    }, skip: !engineReady);
 
     testWidgets('טקסט ריק לא תופס גובה', (tester) async {
       await tester.pumpWidget(_wrap(const SmartTextWidget(

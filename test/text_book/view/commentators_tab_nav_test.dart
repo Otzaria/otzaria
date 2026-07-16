@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/text_book/view/commentators_tab_screen.dart';
 
 // טסטים לרדוסרים הטהורים שמפעילים את מצב הניווט ב-[CommentatorsTabScreen].
@@ -400,6 +401,29 @@ void main() {
         ),
         equals(0),
       );
+    });
+  });
+
+  group('resolveSelectedSnippetGlobalIndex — סימון השורה בניווט היקרויות', () {
+    // מפרש א' עם 3 היקרויות (0-2), מפרש ב' עם 2 (3-4) — שורה אחת לכל מפרש.
+    const snippets = [
+      CommentarySearchSnippet(path: 'a', snippet: 's1', globalIndex: 0),
+      CommentarySearchSnippet(path: 'b', snippet: 's2', globalIndex: 3),
+    ];
+
+    test('היקרות ראשונה של מפרש בוחרת את שורתו', () {
+      expect(resolveSelectedSnippetGlobalIndex(snippets, 0), 0);
+      expect(resolveSelectedSnippetGlobalIndex(snippets, 3), 3);
+    });
+
+    test('היקרויות המשך באותו מפרש נשארות על שורתו', () {
+      expect(resolveSelectedSnippetGlobalIndex(snippets, 1), 0);
+      expect(resolveSelectedSnippetGlobalIndex(snippets, 2), 0);
+      expect(resolveSelectedSnippetGlobalIndex(snippets, 4), 3);
+    });
+
+    test('רשימה ריקה — אין שורה נבחרת', () {
+      expect(resolveSelectedSnippetGlobalIndex(const [], 0), -1);
     });
   });
 }

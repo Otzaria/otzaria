@@ -8,10 +8,16 @@ import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
+import '../support/search_engine_test_init.dart';
+
 class MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
 
-void main() {
+Future<void> main() async {
+  // הקוד הנבדק קורא ל-sanitizeQuery/splitQueryWords שמאצילים למנוע ה-Rust;
+  // הטסטים המסומנים מדולגים כשאין build נייטיבי זמין.
+  final engineReady = await tryInitSearchEngine();
+
   group('PdfBookSearchView.computeTargetVisualIndexForTesting', () {
     test('תוצאות ריקות מחזירות 0', () {
       expect(
@@ -129,7 +135,7 @@ void main() {
       ));
 
       expect(_highlightedText(tester), 'שלום');
-    });
+    }, skip: !engineReady);
 
     testWidgets('מכבד HTML מודגש מתוצאות מנוע החיפוש', (tester) async {
       await tester.pumpWidget(_buildTile(
@@ -156,14 +162,15 @@ Widget _buildTile({
       child: Scaffold(
         body: SearchResultTile(
           result: SearchResult(
-            id: BigInt.one,
-            title: 'ספר',
-            reference: 'עמוד א',
-            text: text,
-            segment: BigInt.zero,
-            isPdf: true,
-            filePath: 'book.pdf',
-          ),
+              id: BigInt.one,
+              title: 'ספר',
+              reference: 'עמוד א',
+              text: text,
+              segment: BigInt.zero,
+              isPdf: true,
+              filePath: 'book.pdf',
+              mergedCount: 1,
+              merged: const []),
           onTap: () {},
           height: 50,
           query: query,

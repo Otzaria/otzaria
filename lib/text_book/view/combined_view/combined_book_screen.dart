@@ -60,6 +60,7 @@ import 'package:otzaria/text_book/view/combined_view/link_preview_overlay.dart';
 import 'package:otzaria/text_book/utils/note_inline_render.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
+import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/utils/text/html_link_handler.dart';
@@ -472,10 +473,20 @@ class _CombinedViewState extends State<CombinedView> {
       if (!_hasScrolledToInitialPosition && state.visibleIndices.isNotEmpty) {
         _hasScrolledToInitialPosition = true;
         final initialIndex = state.visibleIndices.first;
-        debugPrint('DEBUG: גלילה אוטומטית למיקום שמור: $initialIndex');
+        // פתיחה מחיפוש: גלילה למילה שנמצאה בתוך הקטע ולא רק לתחילתו, וממוקמת
+        // סביב מרכז התצוגה — בעקביות עם ניווט מסרגל תוצאות החיפוש שבתוך הספר.
+        final isFromSearch = state.searchText.isNotEmpty &&
+            initialIndex < state.content.length;
+        final intraLineFraction = isFromSearch
+            ? matchFractionInLine(state.content[initialIndex], state.searchText)
+            : 0.0;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && widget.tab.scrollController.isAttached) {
-            unawaited(_scrollToSourceLine(state, initialIndex));
+            unawaited(_scrollToSourceLine(state, initialIndex,
+                intraLineFraction: intraLineFraction,
+                alignment: isFromSearch
+                    ? kSearchResultAnchorAlignment
+                    : kReadingAnchorAlignment));
           }
         });
       }
@@ -685,6 +696,8 @@ class _CombinedViewState extends State<CombinedView> {
     TextBookLoaded state,
     int lineIndex, {
     Duration duration = const Duration(milliseconds: 300),
+    double intraLineFraction = 0,
+    double alignment = kReadingAnchorAlignment,
   }) {
     return scrollToSourceLine(
       scrollController: widget.tab.scrollController,
@@ -695,7 +708,8 @@ class _CombinedViewState extends State<CombinedView> {
       viewportExtent: _viewportHeight > 0
           ? _viewportHeight
           : (context.size?.height ?? MediaQuery.sizeOf(context).height),
-      alignment: 0.05,
+      alignment: alignment,
+      intraLineFraction: intraLineFraction,
       duration: duration,
       curve: Curves.easeInOut,
     );

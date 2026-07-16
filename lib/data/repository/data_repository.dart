@@ -470,7 +470,7 @@ bool _wordPairMatches(String queryWord, String textWord) {
 }
 
 /// התאמת מילת שאילתה לטקסט שלם (כותרת/מחבר מנורמלים) עם סלחנות לשגיאות כתיב.
-@visibleForTesting
+/// משמשת גם את תחביר `@` בחיפוש (ראה `parseCategoryQuery`).
 bool bookSearchWordMatchesFuzzy(String queryWord, String text) {
   for (final textWord in text.split(' ')) {
     if (textWord.isEmpty) continue;

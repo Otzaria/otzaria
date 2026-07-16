@@ -1,10 +1,16 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/search/utils/find_match_utils.dart';
 
-void main() {
+import '../support/search_engine_test_init.dart';
+
+Future<void> main() async {
+  // sanitizeQuery/splitQueryWords מאצילים למנוע ה-Rust; הטסטים שלהם דורשים
+  // את הספרייה הנייטיבית ומדולגים כשאין build זמין.
+  final engineReady = await tryInitSearchEngine();
+
   test('normalizeFindQuery מנרמל ניקוד וגרשיים כמו איתור', () {
     expect(normalizeFindQuery('שַׁבָּת "דף" ע׳'), 'שבת דף ע');
-  });
+  }, skip: engineReady ? false : searchEngineSkipReason);
 
   test('findNormalizedTextMatchRank מעדיף התאמה מדויקת על contains', () {
     const query = 'שבת דף ע';

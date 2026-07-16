@@ -222,6 +222,8 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
                     segment: BigInt.from(m.pageNumber - 1),
                     isPdf: true,
                     filePath: widget.pdfFilePath ?? '',
+                    mergedCount: 1,
+                    merged: const [],
                   ))
               .toList()
             ..sort((a, b) => a.segment.compareTo(b.segment));

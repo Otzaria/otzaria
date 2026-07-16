@@ -2,7 +2,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 
-void main() {
+import '../../support/search_engine_test_init.dart';
+
+Future<void> main() async {
+  // sanitizeQuery/splitQueryWords מאצילים למנוע ה-Rust; הטסטים שלהם דורשים
+  // את הספרייה הנייטיבית ומדולגים כשאין build זמין.
+  final engineReady = await tryInitSearchEngine();
+
   group('TextRendererService - סימוני הערות שוליים', () {
     const settings = RenderSettings();
 
@@ -143,6 +149,6 @@ void main() {
       final fresh = TextRendererService.render(text, settings);
 
       expect(cached, equals(fresh));
-    });
+    }, skip: engineReady ? false : searchEngineSkipReason);
   });
 }

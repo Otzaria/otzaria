@@ -2,9 +2,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
+import '../support/search_engine_test_init.dart';
+
 // ignore_for_file: dead_code
 
-void main() {
+Future<void> main() async {
+  // sanitizeQuery ו-countMatches מאצילים למנוע ה-Rust; הטסטים שלהם דורשים
+  // את הספרייה הנייטיבית ומדולגים כשאין build זמין.
+  final engineReady = await tryInitSearchEngine();
+
   group('Nikud Detection and Removal Tests', () {
     test('hasNikud should detect nikud in text', () {
       // טקסט עם ניקוד
@@ -88,11 +94,11 @@ void main() {
     test('sanitizeQuery should remove commas and convert Hebrew quotes', () {
       expect(SearchQueryBuilder.sanitizeQuery("שלום, עולם'"), "שלום עולם'");
       expect(SearchQueryBuilder.sanitizeQuery('שלום, עולם׳״'), 'שלום עולם\'"');
-    });
+    }, skip: engineReady ? false : searchEngineSkipReason);
 
     test('countMatches should ignore commas and exclamation in query', () {
       expect(countMatches('שלום עולם שלום', 'שלום,!'), 2);
-    });
+    }, skip: engineReady ? false : searchEngineSkipReason);
 
     test('Complex nikud patterns', () {
       // דגש חזק

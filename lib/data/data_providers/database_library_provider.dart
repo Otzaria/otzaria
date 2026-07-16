@@ -1074,12 +1074,17 @@ class ScanResult {
   final Object? fatalError;
   final List<(String title, String reason)> failedDetails;
 
+  /// מזהי ספרים (ב-user_books.db) שקובצם השתנה מאז הסריקה הקודמת —
+  /// דורשים אינדוקס מחדש בחיפוש.
+  final List<int> updatedBookIds;
+
   const ScanResult({
     this.addedBooks = 0,
     this.updatedBooks = 0,
     this.failedBooks = 0,
     this.fatalError,
     this.failedDetails = const [],
+    this.updatedBookIds = const [],
   });
 
   bool get isSuccess => fatalError == null;
@@ -3388,6 +3393,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     int updated = 0;
     int failed = 0;
     final failedDetails = <(String, String)>[];
+    final updatedBookIds = <int>[];
 
     try {
       final dir = Directory(folderPath);
@@ -3448,6 +3454,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
             debugPrint(
                 '📁 Updated external book (metadata+TOC): ${book.title}');
             updated++;
+            updatedBookIds.add(book.existingBookId!);
             continue;
           }
 
@@ -3503,7 +3510,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
           addedBooks: added,
           updatedBooks: updated,
           failedBooks: failed,
-          failedDetails: failedDetails);
+          failedDetails: failedDetails,
+          updatedBookIds: updatedBookIds);
     } catch (e) {
       debugPrint('⚠️ Scan failed for $folderPath: $e');
       return ScanResult(fatalError: e);

@@ -47,6 +47,9 @@ class LibraryUpdateState extends Equatable {
   /// התוכנית שנבחרה — זמינה במצב [LibraryUpdateStatus.needsFullConfirmation].
   final LibraryUpdatePlan? plan;
 
+  /// מזהי ספרים (seforim.db) שתוכנם השתנה בעדכון דלתא — לרענון אינדקס החיפוש.
+  final Set<int> changedBookIds;
+
   final String? errorMessage;
 
   const LibraryUpdateState({
@@ -59,6 +62,7 @@ class LibraryUpdateState extends Equatable {
     this.bytesTotal,
     this.applyProgress,
     this.plan,
+    this.changedBookIds = const {},
     this.errorMessage,
   });
 
@@ -75,6 +79,11 @@ class LibraryUpdateState extends Equatable {
       previous.status != current.status ||
       previous.hasUpdate != current.hasUpdate;
 
+  /// האם התוכנית שבוצעה היא הורדה מלאה — אז אין מידע מי השתנה, וה-UI
+  /// מפעיל reconcile של האינדקס מול הספרייה במקום רשימת ספרים ידועה.
+  bool get isFullDownloadPlan =>
+      plan?.kind == LibraryUpdatePlanKind.fullDownload;
+
   static const _sentinel = Object();
 
   LibraryUpdateState copyWith({
@@ -89,6 +98,7 @@ class LibraryUpdateState extends Equatable {
     // משאירים אחוז שאריתי מהאימות הקודם (למשל בין צעדי דלתא).
     Object? applyProgress = _sentinel,
     LibraryUpdatePlan? plan,
+    Set<int>? changedBookIds,
     String? errorMessage,
   }) {
     return LibraryUpdateState(
@@ -103,6 +113,7 @@ class LibraryUpdateState extends Equatable {
           ? this.applyProgress
           : applyProgress as double?,
       plan: plan ?? this.plan,
+      changedBookIds: changedBookIds ?? this.changedBookIds,
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }
@@ -118,6 +129,7 @@ class LibraryUpdateState extends Equatable {
         bytesTotal,
         applyProgress,
         plan,
+        changedBookIds,
         errorMessage,
       ];
 }

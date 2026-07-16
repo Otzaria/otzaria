@@ -13,14 +13,20 @@ import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
 import 'package:otzaria/indexing/bloc/indexing_state.dart';
+import 'package:otzaria/library/bloc/library_bloc.dart';
+import 'package:otzaria/library/bloc/library_event.dart';
+import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+
+import '../support/search_engine_test_init.dart';
 import '../test_helpers/memory_cache_provider.dart';
 
 class MockHistoryBloc extends MockBloc<HistoryEvent, HistoryState>
@@ -31,6 +37,20 @@ class MockIndexingBloc extends MockBloc<IndexingEvent, IndexingState>
 
 class MockNavigationBloc extends MockBloc<NavigationEvent, NavigationState>
     implements NavigationBloc {}
+
+class MockLibraryBloc extends MockBloc<LibraryEvent, LibraryState>
+    implements LibraryBloc {}
+
+/// LibraryBloc מדומה עם ספרייה ריקה — מספיק ל-parseCategoryQuery בדיאלוג.
+MockLibraryBloc _stubLibraryBloc() {
+  final bloc = MockLibraryBloc();
+  whenListen(
+    bloc,
+    const Stream<LibraryState>.empty(),
+    initialState: const LibraryState(),
+  );
+  return bloc;
+}
 
 Widget _buildDialogHarness({
   required ThemeData theme,
@@ -46,18 +66,23 @@ Widget _buildDialogHarness({
         BlocProvider<HistoryBloc>.value(value: historyBloc),
         BlocProvider<IndexingBloc>.value(value: indexingBloc),
         BlocProvider<NavigationBloc>.value(value: navigationBloc),
+        BlocProvider<LibraryBloc>.value(value: _stubLibraryBloc()),
       ],
       child: Scaffold(body: dialog),
     ),
   );
 }
 
-void main() {
+Future<void> main() async {
+  // הווידג'טים הנבדקים קוראים ל-sanitizeQuery/splitQueryWords שמאצילים למנוע
+  // ה-Rust; הטסטים המסומנים מדולגים כשאין build נייטיבי זמין.
+  final engineReady = await tryInitSearchEngine();
+
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
-  testWidgets('מגירת ההיסטוריה משתמשת ברקע של הדיאלוג',
+  testWidgets('תפריט ההיסטוריה משתמש ברקע של הדיאלוג',
       (WidgetTester tester) async {
     final historyBloc = MockHistoryBloc();
     final indexingBloc = MockIndexingBloc();
@@ -115,21 +140,153 @@ void main() {
     await tester.tap(find.byIcon(FluentIcons.history_24_regular));
     await tester.pumpAndSettle();
 
-    final dropdownContainer = tester.widget<Container>(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is Container &&
-            widget.margin == const EdgeInsets.only(top: 4) &&
-            widget.decoration is BoxDecoration &&
-            (widget.decoration as BoxDecoration).color ==
-                theme.colorScheme.surfaceContainerHigh,
-      ),
+    final historyMenuAnchor = find.byWidgetPredicate(
+      (widget) => widget is MenuAnchor && widget.controller != null,
     );
-
-    final decoration = dropdownContainer.decoration! as BoxDecoration;
-    expect(decoration.color, theme.colorScheme.surfaceContainerHigh);
+    final menuAnchor = tester.widget<MenuAnchor>(historyMenuAnchor);
+    expect(
+      menuAnchor.style!.backgroundColor!.resolve({}),
+      theme.colorScheme.surfaceContainerHigh,
+    );
+    expect(find.byKey(const ValueKey('search-history-menu')), findsOneWidget);
     expect(find.text('משה'), findsWidgets);
   });
+
+  testWidgets('פאנל הקטגוריות עקבי ומופיע לצד כל סוגי החיפוש',
+      (WidgetTester tester) async {
+    final historyBloc = MockHistoryBloc();
+    final indexingBloc = MockIndexingBloc();
+    final navigationBloc = MockNavigationBloc();
+    final theme = ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFB85C38)),
+    );
+
+    whenListen(
+      historyBloc,
+      const Stream<HistoryState>.empty(),
+      initialState: HistoryLoaded([]),
+    );
+    whenListen(
+      indexingBloc,
+      const Stream<IndexingState>.empty(),
+      initialState: IndexingInitial(),
+    );
+    whenListen(
+      navigationBloc,
+      const Stream<NavigationState>.empty(),
+      initialState: const NavigationState(currentScreen: Screen.search),
+    );
+
+    addTearDown(() async {
+      await tester.binding.setSurfaceSize(null);
+      await historyBloc.close();
+      await indexingBloc.close();
+      await navigationBloc.close();
+    });
+
+    await tester.binding.setSurfaceSize(const Size(1400, 900));
+    await tester.pumpWidget(_buildDialogHarness(
+      theme: theme,
+      historyBloc: historyBloc,
+      indexingBloc: indexingBloc,
+      navigationBloc: navigationBloc,
+      dialog: const SearchDialog(),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Switch), findsOneWidget);
+    await tester.ensureVisible(find.byType(Switch));
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+
+    void expectCategoryBeside() {
+      final categoryRect =
+          tester.getRect(find.byKey(const ValueKey('search-category-panel')));
+      final controlsRect =
+          tester.getRect(find.byKey(const ValueKey('search-mode-controls')));
+      expect(
+        categoryRect.right <= controlsRect.left ||
+            controlsRect.right <= categoryRect.left,
+        isTrue,
+      );
+    }
+
+    expectCategoryBeside();
+
+    for (final mode in ['מתקדם', 'מקורב', 'מדויק']) {
+      await tester.ensureVisible(find.text(mode).first);
+      await tester.tap(find.text(mode).first);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: 'המעבר אל $mode נכשל');
+      expectCategoryBeside();
+    }
+  });
+
+  testWidgets(
+      'פתיחה מחדש בתוך ספר: אפשרות פר-מילה משוחזרת מוצגת מסומנת במצב מתקדם',
+      (WidgetTester tester) async {
+    final historyBloc = MockHistoryBloc();
+    final indexingBloc = MockIndexingBloc();
+    final navigationBloc = MockNavigationBloc();
+    final theme = ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFB85C38)),
+    );
+    // מדמה את ה-tempTab שבונה מסך החיפוש בתוך הספר בפתיחה חוזרת: מפת פר-מילה
+    // עם האפשרות שנבחרה, ו-useGlobalSearchOptions=false (התיקון).
+    final tab = SearchingTab('חיפוש', 'חכמה');
+    tab.searchOptions.addAll({
+      'חכמה_0': {'קידומות דקדוקיות': true},
+    });
+    tab.useGlobalSearchOptions.value = false;
+    tab.searchBloc.add(SetSearchMode(SearchMode.advanced));
+
+    whenListen(
+      historyBloc,
+      const Stream<HistoryState>.empty(),
+      initialState: HistoryLoaded([]),
+    );
+    whenListen(
+      indexingBloc,
+      const Stream<IndexingState>.empty(),
+      initialState: IndexingInitial(),
+    );
+    whenListen(
+      navigationBloc,
+      const Stream<NavigationState>.empty(),
+      initialState: const NavigationState(currentScreen: Screen.search),
+    );
+
+    addTearDown(() async {
+      await tester.binding.setSurfaceSize(null);
+      tab.dispose();
+      await historyBloc.close();
+      await indexingBloc.close();
+      await navigationBloc.close();
+    });
+
+    await tester.binding.setSurfaceSize(const Size(1400, 900));
+    await tester.pumpWidget(_buildDialogHarness(
+      theme: theme,
+      historyBloc: historyBloc,
+      indexingBloc: indexingBloc,
+      navigationBloc: navigationBloc,
+      dialog: SearchDialog(
+        existingTab: tab,
+        bookTitle: 'ספר',
+        returnResultOnSubmit: true,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final chipFinder = find.byWidgetPredicate((widget) =>
+        widget is FilterChip &&
+        (widget.label as Text).data == 'קידומות דקדוקיות');
+    expect(chipFinder, findsOneWidget);
+    expect(tester.widget<FilterChip>(chipFinder).selected, isTrue,
+        reason: 'אפשרות פר-מילה משוחזרת חייבת להופיע מסומנת בפתיחה מחדש');
+  }, skip: !engineReady);
 
   testWidgets('onSearch לא מעביר פרמטרים מתקדמים במצב exact',
       (WidgetTester tester) async {
@@ -141,9 +298,13 @@ void main() {
       colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFB85C38)),
     );
     final tab = SearchingTab('חיפוש', 'חכמה בינה');
+    // "קידומות דקדוקיות" נתמכת ברגיל ועוברת; "קידומות" הכללית בלעדית
+    // למתקדם ומסוננת.
     tab.searchOptions.addAll({
-      'חכמה_0': {'קידומות': true}
+      'חכמה_0': {'קידומות דקדוקיות': true, 'קידומות': true}
     });
+    // אפשרויות פר-מילה נלקחות בחשבון רק כשמצב האפשרויות אינו גלובלי
+    tab.useGlobalSearchOptions.value = false;
     tab.alternativeWords.addAll({
       0: ['דעת']
     });
@@ -208,10 +369,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(capturedSearchMode, SearchMode.exact);
-    expect(capturedSearchOptions, isEmpty);
+    // רק אפשרויות המילה של המצב הרגיל (exactWordOptionKeys) עוברות;
+    // "קידומות" הכללית, מילים חלופיות ומרווחים ידניים נשארים בלעדיים
+    // למצב המתקדם.
+    expect(capturedSearchOptions, {
+      'חכמה_0': {'קידומות דקדוקיות': true},
+    });
     expect(capturedAlternativeWords, isEmpty);
     expect(capturedSpacingValues, isEmpty);
-  });
+  }, skip: !engineReady);
 
   testWidgets('onSearch לא מעביר פרמטרים מתקדמים במצב fuzzy',
       (WidgetTester tester) async {
@@ -293,7 +459,7 @@ void main() {
     expect(capturedSearchOptions, isEmpty);
     expect(capturedAlternativeWords, isEmpty);
     expect(capturedSpacingValues, isEmpty);
-  });
+  }, skip: !engineReady);
 
   testWidgets('בדיאלוג צר בתוך ספר אין overflow כששדה המרחק מוצג',
       (WidgetTester tester) async {
@@ -416,7 +582,7 @@ void main() {
 
     expect(onSearchCalls, 0);
     expect(find.byType(SearchDialog), findsOneWidget);
-  });
+  }, skip: !engineReady);
 
   testWidgets('returnResultOnSubmit מחזיר תוצאת חיפוש אחרי סגירת הדיאלוג',
       (WidgetTester tester) async {
@@ -462,6 +628,7 @@ void main() {
           BlocProvider<HistoryBloc>.value(value: historyBloc),
           BlocProvider<IndexingBloc>.value(value: indexingBloc),
           BlocProvider<NavigationBloc>.value(value: navigationBloc),
+          BlocProvider<LibraryBloc>.value(value: _stubLibraryBloc()),
         ],
         child: MaterialApp(
           theme: theme,
@@ -497,7 +664,7 @@ void main() {
     expect(capturedResult, isNotNull);
     expect(capturedResult!.query, 'חכמה בינה');
     expect(find.byType(SearchDialog), findsNothing);
-  });
+  }, skip: !engineReady);
 
   testWidgets('דיאלוג החיפוש מציג tooltip למצבי החיפוש והסבר למרחק',
       (WidgetTester tester) async {
@@ -553,5 +720,137 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('סימון אפשרות בחיפוש רגיל נשמר לסשן ומוצג בפתיחה מחדש',
+      (WidgetTester tester) async {
+    final historyBloc = MockHistoryBloc();
+    final indexingBloc = MockIndexingBloc();
+    final navigationBloc = MockNavigationBloc();
+    final theme = ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFB85C38)),
+    );
+
+    whenListen(
+      historyBloc,
+      const Stream<HistoryState>.empty(),
+      initialState: HistoryLoaded([]),
+    );
+    whenListen(
+      indexingBloc,
+      const Stream<IndexingState>.empty(),
+      initialState: IndexingInitial(),
+    );
+    whenListen(
+      navigationBloc,
+      const Stream<NavigationState>.empty(),
+      initialState: const NavigationState(currentScreen: Screen.search),
+    );
+
+    addTearDown(() async {
+      await tester.binding.setSurfaceSize(null);
+      await historyBloc.close();
+      await indexingBloc.close();
+      await navigationBloc.close();
+    });
+
+    await tester.binding.setSurfaceSize(const Size(1400, 900));
+
+    final typoChipFinder = find.byWidgetPredicate((widget) =>
+        widget is FilterChip && (widget.label as Text).data == 'שגיאות כתיב');
+    FilterChip typoChip() => tester.widget<FilterChip>(typoChipFinder);
+
+    // דיאלוג ראשון: מצב מדויק (ברירת המחדל), מסמנים "שגיאות כתיב" וסוגרים.
+    await tester.pumpWidget(_buildDialogHarness(
+      theme: theme,
+      historyBloc: historyBloc,
+      indexingBloc: indexingBloc,
+      navigationBloc: navigationBloc,
+      dialog: const SearchDialog(),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(typoChip().selected, isFalse);
+    await tester.ensureVisible(typoChipFinder);
+    await tester.tap(typoChipFinder);
+    await tester.pumpAndSettle();
+    expect(typoChip().selected, isTrue);
+
+    // סגירת הדיאלוג (unmount ⇒ dispose ⇒ זכירת סשן)
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+
+    // הזכירה עצמה: הסשן חייב להכיל את האפשרות שסומנה.
+    expect(
+        SearchDefaults.initialExactOptionsForNewSearch()['שגיאות כתיב'], isTrue,
+        reason: 'סגירת הדיאלוג צריכה לזכור את האפשרויות לסשן');
+
+    // דיאלוג שני: הסימון מהסשן צריך להופיע מסומן.
+    await tester.pumpWidget(_buildDialogHarness(
+      theme: theme,
+      historyBloc: historyBloc,
+      indexingBloc: indexingBloc,
+      navigationBloc: navigationBloc,
+      dialog: const SearchDialog(),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(typoChip().selected, isTrue,
+        reason: 'אפשרות שסומנה בסשן הנוכחי צריכה להישאר מסומנת בדיאלוג חדש');
+  });
+
+  testWidgets('חיפוש רגיל מציג רק קידומות/סיומות דקדוקיות',
+      (WidgetTester tester) async {
+    final historyBloc = MockHistoryBloc();
+    final indexingBloc = MockIndexingBloc();
+    final navigationBloc = MockNavigationBloc();
+    final theme = ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFB85C38)),
+    );
+
+    whenListen(
+      historyBloc,
+      const Stream<HistoryState>.empty(),
+      initialState: HistoryLoaded([]),
+    );
+    whenListen(
+      indexingBloc,
+      const Stream<IndexingState>.empty(),
+      initialState: IndexingInitial(),
+    );
+    whenListen(
+      navigationBloc,
+      const Stream<NavigationState>.empty(),
+      initialState: const NavigationState(currentScreen: Screen.search),
+    );
+
+    addTearDown(() async {
+      await tester.binding.setSurfaceSize(null);
+      await historyBloc.close();
+      await indexingBloc.close();
+      await navigationBloc.close();
+    });
+
+    await tester.binding.setSurfaceSize(const Size(1400, 900));
+    await tester.pumpWidget(_buildDialogHarness(
+      theme: theme,
+      historyBloc: historyBloc,
+      indexingBloc: indexingBloc,
+      navigationBloc: navigationBloc,
+      dialog: const SearchDialog(),
+    ));
+    await tester.pumpAndSettle();
+
+    Finder chip(String label) => find.byWidgetPredicate((widget) =>
+        widget is FilterChip && (widget.label as Text).data == label);
+
+    expect(chip('קידומות דקדוקיות'), findsOneWidget);
+    expect(chip('סיומות דקדוקיות'), findsOneWidget);
+    expect(chip('קידומות'), findsNothing,
+        reason: 'קידומות כלליות בלעדיות למצב המתקדם');
+    expect(chip('סיומות'), findsNothing,
+        reason: 'סיומות כלליות בלעדיות למצב המתקדם');
   });
 }

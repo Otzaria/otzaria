@@ -4,9 +4,9 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 
 class _FakeSearchResult {
-  final BigInt id;
+  final String filePath;
 
-  _FakeSearchResult(this.id);
+  _FakeSearchResult(this.filePath);
 }
 
 void main() {
@@ -23,27 +23,19 @@ void main() {
         categoryPath: '/משנה/זרעים',
       );
 
-      final bookByCatalogueOrder = <int, Book>{
-        0: genesis,
-        1: berachot,
+      final bookByIndexedFilePath = <String, Book>{
+        IndexingRepository.buildIndexedBookFilePath(genesis): genesis,
+        IndexingRepository.buildIndexedBookFilePath(berachot): berachot,
       };
 
       final counts = FacetHelper.buildFacetCountsFromResults(
         [
           _FakeSearchResult(
-            IndexingRepository.buildCatalogueDocumentId(
-              catalogueOrder: 0,
-              ordinal: 0,
-            ),
-          ),
+              IndexingRepository.buildIndexedBookFilePath(genesis)),
           _FakeSearchResult(
-            IndexingRepository.buildCatalogueDocumentId(
-              catalogueOrder: 1,
-              ordinal: 0,
-            ),
-          ),
+              IndexingRepository.buildIndexedBookFilePath(berachot)),
         ],
-        bookByCatalogueOrder,
+        bookByIndexedFilePath,
       );
 
       expect(counts['/'], 2);
@@ -55,7 +47,7 @@ void main() {
       expect(counts['/משנה/זרעים/id:202'], 1);
     });
 
-    test('מבדיל בין ספרים עם אותו שם לפי מזהה המסמך הקטלוגי', () {
+    test('מבדיל בין ספרים עם אותו שם לפי מפתח ה-filePath היציב', () {
       final firstBook = TextBook(
         id: 11,
         title: 'שבת',
@@ -70,26 +62,27 @@ void main() {
       final counts = FacetHelper.buildFacetCountsFromResults(
         [
           _FakeSearchResult(
-            IndexingRepository.buildCatalogueDocumentId(
-              catalogueOrder: 0,
-              ordinal: 0,
-            ),
-          ),
+              IndexingRepository.buildIndexedBookFilePath(firstBook)),
           _FakeSearchResult(
-            IndexingRepository.buildCatalogueDocumentId(
-              catalogueOrder: 1,
-              ordinal: 0,
-            ),
-          ),
+              IndexingRepository.buildIndexedBookFilePath(secondBook)),
         ],
         {
-          0: firstBook,
-          1: secondBook,
+          IndexingRepository.buildIndexedBookFilePath(firstBook): firstBook,
+          IndexingRepository.buildIndexedBookFilePath(secondBook): secondBook,
         },
       );
 
       expect(counts['/תלמוד בבלי/סדר מועד/id:11'], 1);
       expect(counts['/הלכה/id:22'], 1);
+    });
+
+    test('תוצאה של ספר שכבר אינו בספרייה מדולגת בשקט', () {
+      final counts = FacetHelper.buildFacetCountsFromResults(
+        [_FakeSearchResult('uid:99')],
+        const <String, Book>{},
+      );
+
+      expect(counts, isEmpty);
     });
   });
 

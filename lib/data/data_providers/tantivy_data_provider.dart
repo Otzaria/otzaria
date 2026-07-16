@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:path/path.dart' as p;
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_engine_gateway.dart';
@@ -38,8 +40,9 @@ class TantivyDataProvider {
   static final Map<String, int> _globalFacetCache = {};
   static String _lastCachedQuery = '';
 
-  // Track ongoing counts to prevent duplicates
-  static final Set<String> _ongoingCounts = {};
+  // ספירות שכבר רצות: קריאה חוזרת לאותו מפתח ממתינה על אותו Future במקום
+  // לרוץ שוב (מחליף את לולאת ה-polling הישנה של 50ms).
+  static final Map<String, Future<int>> _inflightCounts = {};
 
   /// תוצאת בדיקת התאימות של האינדקס, כפי שנקראה מהאינדקס עצמו
   /// (otzaria_index_meta.json או meta.json של Tantivy) דרך מנוע החיפוש.
@@ -51,7 +54,7 @@ class TantivyDataProvider {
     debugPrint(
         '🧹 Clearing global facet cache (${_globalFacetCache.length} entries)');
     _globalFacetCache.clear();
-    _ongoingCounts.clear();
+    _inflightCounts.clear();
     _lastCachedQuery = '';
   }
 
@@ -139,6 +142,65 @@ class TantivyDataProvider {
   /// האם החיפוש המקורב משתמש כרגע בהרחבה מורפולוגית (מילון טעון).
   Future<bool> get hasMagicDictionary async =>
       (await engine).hasMagicDictionary();
+
+  /// טוען אל המנוע את מילוני ההרחבה של החיפוש המתקדם — מילון התרגום
+  /// הארמי-עברי (אפשרות "תרגום ארמי") ומילון ראשי-התיבות (אפשרות
+  /// "ראשי תיבות"). המילונים הם assets מוטמעים, אך המנוע קורא רק מנתיב
+  /// קובץ — לכן הם מחולצים לדיסק תחילה. best-effort: כשל אינו שובר את
+  /// אתחול המנוע, האפשרות פשוט לא תרחיב דבר.
+  Future<void> _attachSearchLexicons(SearchEngine engine) async {
+    final translationPath = await _materializeBundledAsset(
+        'assets/dictionary.json', 'dictionary.json');
+    if (translationPath != null) {
+      final loaded = engine.setTranslationDictionaryPath(path: translationPath);
+      debugPrint(loaded
+          ? '🔤 מילון תרגום ארמי נטען: $translationPath'
+          : '⚠️ מילון התרגום הארמי לא נטען ($translationPath)');
+    }
+    final acronymsPath =
+        await _materializeBundledAsset('assets/Acronyms.json', 'Acronyms.json');
+    if (acronymsPath != null) {
+      final loaded = engine.setAcronymsDictionaryPath(path: acronymsPath);
+      debugPrint(loaded
+          ? '🔤 מילון ראשי-תיבות נטען: $acronymsPath'
+          : '⚠️ מילון ראשי-התיבות לא נטען ($acronymsPath)');
+    }
+  }
+
+  /// מחלץ asset מוטמע לקובץ בדיסק ומחזיר את נתיבו, או null בכשל.
+  /// נכתב מחדש כשהתוכן בדיסק שונה מה-asset — השוואת בייטים מלאה, לא רק
+  /// גודל: עדכון מילון ששומר על אותו אורך (תיקון ערך בודד) חייב להתפיס.
+  /// הקריאה החוזרת זולה יחסית (המילונים 1-3MB, פעם אחת באתחול).
+  Future<String?> _materializeBundledAsset(
+      String assetKey, String fileName) async {
+    try {
+      final data = await rootBundle.load(assetKey);
+      final bytes =
+          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+      final dir =
+          Directory(p.join(await AppPaths.getDataRootPath(), 'dictionaries'));
+      await dir.create(recursive: true);
+      final file = File(p.join(dir.path, fileName));
+      final upToDate = await file.exists() &&
+          await file.length() == bytes.length &&
+          _bytesEqual(await file.readAsBytes(), bytes);
+      if (!upToDate) {
+        await file.writeAsBytes(bytes, flush: true);
+      }
+      return file.path;
+    } catch (e) {
+      debugPrint('⚠️ חילוץ $assetKey נכשל: $e');
+      return null;
+    }
+  }
+
+  static bool _bytesEqual(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 
   /// מוריד את מילון המורפולוגיה האחרון (אם חסר/ישן) וטוען אותו אל המנוע
   /// החי, כך שהחיפוש המקורב יתחיל להשתמש בו מיד — בלי הפעלה מחדש.
@@ -239,6 +301,9 @@ class TantivyDataProvider {
 
       // טעינת מילון מורפולוגי לחיפוש המקורב (best-effort, לא חוסם).
       await _attachMagicDictionary(engine);
+
+      // מילוני החיפוש המתקדם: תרגום ארמי + ראשי-תיבות (best-effort).
+      await _attachSearchLexicons(engine);
 
       // If we got here, success! Remove sentinel.
       try {
@@ -358,13 +423,24 @@ class TantivyDataProvider {
   Future<int> countTexts(String query, List<String> books, List<String> facets,
       {bool fuzzy = false,
       int distance = 0,
+      String negativeQuery = '',
+      int? negativeDistance,
+      SearchScope scope = SearchScope.wordDistance,
+      SearchScope? negativeScope,
       SearchMode searchMode = SearchMode.exact,
       Map<String, String>? customSpacing,
+      Map<String, String>? negativeCustomSpacing,
       Map<int, List<String>>? alternativeWords,
-      Map<String, Map<String, bool>>? searchOptions}) async {
+      Map<int, List<String>>? negativeAlternativeWords,
+      Map<String, Map<String, bool>>? searchOptions,
+      Map<String, Map<String, bool>>? negativeSearchOptions,
+      bool matchNikud = false,
+      bool matchTaamim = false,
+      WordMatchMode wordMatchMode = WordMatchMode.all,
+      int? wordMatchCount}) async {
     // Global cache check
     final cacheKey =
-        '$query|${facets.join(',')}|$fuzzy|$searchMode|$distance|${customSpacing.toString()}|${alternativeWords.toString()}|${searchOptions.toString()}';
+        '$query|not=$negativeQuery|${facets.join(',')}|$fuzzy|$searchMode|$distance|${negativeDistance ?? distance}|$scope|${negativeScope ?? scope}|${customSpacing.toString()}|${negativeCustomSpacing.toString()}|${alternativeWords.toString()}|${negativeAlternativeWords.toString()}|${searchOptions.toString()}|${negativeSearchOptions.toString()}|$matchNikud|$matchTaamim|$wordMatchMode|$wordMatchCount';
 
     if (_lastCachedQuery == query && _globalFacetCache.containsKey(cacheKey)) {
       debugPrint(
@@ -372,24 +448,15 @@ class TantivyDataProvider {
       return _globalFacetCache[cacheKey]!;
     }
 
-    // Check if this count is already in progress
-    if (_ongoingCounts.contains(cacheKey)) {
-      debugPrint('⏳ Count already in progress for $facets, waiting...');
-      // Wait for the ongoing count to complete
-      while (_ongoingCounts.contains(cacheKey)) {
-        await Future.delayed(const Duration(milliseconds: 50));
-        if (_globalFacetCache.containsKey(cacheKey)) {
-          debugPrint(
-              '🎯 DELAYED CACHE HIT for $facets: ${_globalFacetCache[cacheKey]}');
-          return _globalFacetCache[cacheKey]!;
-        }
-      }
+    // ספירה זהה שכבר רצה: ממתינים על אותו Future במקום להריץ שוב
+    // (ובלי לולאת ה-polling של 50ms שהייתה כאן).
+    final inflight = _inflightCounts[cacheKey];
+    if (inflight != null) {
+      debugPrint('⏳ Count already in progress for $facets, awaiting...');
+      return inflight;
     }
 
-    // Mark this count as in progress
-    _ongoingCounts.add(cacheKey);
-
-    try {
+    final future = () async {
       final count = await _searchGateway.count(
         RustSearchEngineOperations(await engine),
         SearchEngineRequest(
@@ -397,25 +464,36 @@ class TantivyDataProvider {
           facets: facets,
           searchMode: fuzzy ? SearchMode.fuzzy : searchMode,
           distance: distance,
+          negativeQuery: negativeQuery,
+          negativeDistance: negativeDistance ?? distance,
+          scope: scope,
+          negativeScope: negativeScope ?? scope,
           customSpacing: customSpacing ?? const {},
+          negativeCustomSpacing: negativeCustomSpacing ?? const {},
           alternativeWords: alternativeWords ?? const {},
+          negativeAlternativeWords: negativeAlternativeWords ?? const {},
           searchOptions: searchOptions ?? const {},
+          negativeSearchOptions: negativeSearchOptions ?? const {},
+          matchNikud: matchNikud,
+          matchTaamim: matchTaamim,
+          wordMatchMode: wordMatchMode,
+          wordMatchCount: wordMatchCount,
         ),
       );
 
       // Save to global cache
       _lastCachedQuery = query;
       _globalFacetCache[cacheKey] = count;
-      _ongoingCounts.remove(cacheKey); // Mark as completed
       debugPrint('💾 GLOBAL CACHE SAVE for $facets: $count');
 
       return count;
-    } catch (e) {
-      // Log error in production
-      rethrow;
+    }();
+
+    _inflightCounts[cacheKey] = future;
+    try {
+      return await future;
     } finally {
-      // Remove from ongoing counts even on error
-      _ongoingCounts.remove(cacheKey);
+      _inflightCounts.remove(cacheKey);
     }
   }
 
@@ -454,10 +532,21 @@ class TantivyDataProvider {
     List<String> facets, {
     bool fuzzy = false,
     int distance = 0,
+    String negativeQuery = '',
+    int? negativeDistance,
+    SearchScope scope = SearchScope.wordDistance,
+    SearchScope? negativeScope,
     SearchMode searchMode = SearchMode.exact,
     Map<String, String>? customSpacing,
+    Map<String, String>? negativeCustomSpacing,
     Map<int, List<String>>? alternativeWords,
+    Map<int, List<String>>? negativeAlternativeWords,
     Map<String, Map<String, bool>>? searchOptions,
+    Map<String, Map<String, bool>>? negativeSearchOptions,
+    bool matchNikud = false,
+    bool matchTaamim = false,
+    WordMatchMode wordMatchMode = WordMatchMode.all,
+    int? wordMatchCount,
   }) async {
     final results = await _searchGateway.countByBook(
       RustSearchEngineOperations(await engine),
@@ -466,9 +555,20 @@ class TantivyDataProvider {
         facets: facets,
         searchMode: fuzzy ? SearchMode.fuzzy : searchMode,
         distance: distance,
+        negativeQuery: negativeQuery,
+        negativeDistance: negativeDistance ?? distance,
+        scope: scope,
+        negativeScope: negativeScope ?? scope,
         customSpacing: customSpacing ?? const {},
+        negativeCustomSpacing: negativeCustomSpacing ?? const {},
         alternativeWords: alternativeWords ?? const {},
+        negativeAlternativeWords: negativeAlternativeWords ?? const {},
         searchOptions: searchOptions ?? const {},
+        negativeSearchOptions: negativeSearchOptions ?? const {},
+        matchNikud: matchNikud,
+        matchTaamim: matchTaamim,
+        wordMatchMode: wordMatchMode,
+        wordMatchCount: wordMatchCount,
       ),
     );
 
@@ -504,10 +604,21 @@ class TantivyDataProvider {
       String query, List<String> books, List<String> facets,
       {bool fuzzy = false,
       int distance = 0,
+      String negativeQuery = '',
+      int? negativeDistance,
+      SearchScope scope = SearchScope.wordDistance,
+      SearchScope? negativeScope,
       SearchMode searchMode = SearchMode.exact,
       Map<String, String>? customSpacing,
+      Map<String, String>? negativeCustomSpacing,
       Map<int, List<String>>? alternativeWords,
+      Map<int, List<String>>? negativeAlternativeWords,
       Map<String, Map<String, bool>>? searchOptions,
+      Map<String, Map<String, bool>>? negativeSearchOptions,
+      bool matchNikud = false,
+      bool matchTaamim = false,
+      WordMatchMode wordMatchMode = WordMatchMode.all,
+      int? wordMatchCount,
       bool allowEarlyStop = true}) async {
     debugPrint(
         '🔍 TantivyDataProvider: Starting batch count for ${facets.length} facets');
@@ -520,9 +631,20 @@ class TantivyDataProvider {
       facets: facets,
       searchMode: fuzzy ? SearchMode.fuzzy : searchMode,
       distance: distance,
+      negativeQuery: negativeQuery,
+      negativeDistance: negativeDistance ?? distance,
+      scope: scope,
+      negativeScope: negativeScope ?? scope,
       customSpacing: customSpacing ?? const {},
+      negativeCustomSpacing: negativeCustomSpacing ?? const {},
       alternativeWords: alternativeWords ?? const {},
+      negativeAlternativeWords: negativeAlternativeWords ?? const {},
       searchOptions: searchOptions ?? const {},
+      negativeSearchOptions: negativeSearchOptions ?? const {},
+      matchNikud: matchNikud,
+      matchTaamim: matchTaamim,
+      wordMatchMode: wordMatchMode,
+      wordMatchCount: wordMatchCount,
     );
 
     // קיבוץ facets לפי parent prefix כדי לחסוך קריאות FFI
@@ -533,10 +655,12 @@ class TantivyDataProvider {
       (byParent[parent] ??= []).add(facet);
     }
 
-    for (final entry in byParent.entries) {
-      final parent = entry.key;
-      final siblings = entry.value;
-
+    // הקבוצות בלתי-תלויות והמנוע תומך בקריאות במקביל (RwLock — קוראים
+    // אינם חוסמים זה את זה), לכן כל הקבוצות נשלחות יחד במקום await סדרתי
+    // פר-קבוצה; מטמון הטרמים במנוע הופך את הקריאות לאותה שאילתה לזולות.
+    Future<Map<String, int>> countGroup(
+        String parent, List<String> siblings) async {
+      final groupResults = <String, int>{};
       if (siblings.length > 1) {
         // כמה siblings מאותו parent - קריאה אחת ל-getFacetCounts מספיקה
         try {
@@ -551,7 +675,7 @@ class TantivyDataProvider {
             for (final fc in facetCounts) fc.path: fc.count.toInt(),
           };
           for (final sibling in siblings) {
-            results[sibling] = countMap[sibling] ?? 0;
+            groupResults[sibling] = countMap[sibling] ?? 0;
           }
           debugPrint(
               '✅ getFacetCounts: ${countMap.entries.where((e) => e.value > 0).length} non-zero');
@@ -560,13 +684,13 @@ class TantivyDataProvider {
           // fallback לקריאות count נפרדות
           for (final facet in siblings) {
             try {
-              results[facet] = await _searchGateway.count(
+              groupResults[facet] = await _searchGateway.count(
                 operations,
                 baseRequest.copyWith(facets: [facet]),
               );
             } catch (e2) {
               debugPrint('❌ count failed for $facet: $e2');
-              results[facet] = 0;
+              groupResults[facet] = 0;
             }
           }
         }
@@ -574,15 +698,23 @@ class TantivyDataProvider {
         // sibling יחיד - count ישיר יעיל יותר
         final facet = siblings[0];
         try {
-          results[facet] = await _searchGateway.count(
+          groupResults[facet] = await _searchGateway.count(
             operations,
             baseRequest.copyWith(facets: [facet]),
           );
         } catch (e) {
           debugPrint('❌ count failed for $facet: $e');
-          results[facet] = 0;
+          groupResults[facet] = 0;
         }
       }
+      return groupResults;
+    }
+
+    final groupResults = await Future.wait([
+      for (final entry in byParent.entries) countGroup(entry.key, entry.value),
+    ]);
+    for (final group in groupResults) {
+      results.addAll(group);
     }
 
     stopwatch.stop();

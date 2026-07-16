@@ -20,7 +20,13 @@ class TextRendererService {
   /// התוצאה ממוזגת ב-LRU לפי (טקסט, הגדרות): שרשרת ה-regex רצה מחדש לכל
   /// קטע נראה בכל build (גלילה = עשרות קריאות לפריים) — המטמון מנטרל את זה.
   static String processText(String rawText, RenderSettings settings) {
-    final key = _RenderCacheKey(rawText, _processingOnlySettings(settings));
+    // כשיש חיפוש, מפתח המטמון נושא את גרסת תבנית ההדגשה — כך שכשתבנית
+    // מבוססת-אינדקס חדשה מגיעה (אחרי הרינדור עם ה-fallback), הקריאה הבאה
+    // מחשבת מחדש במקום להגיש הדגשה ישנה.
+    final revision =
+        settings.searchText.isEmpty ? 0 : utils.highlightPatternRevision.value;
+    final key =
+        _RenderCacheKey(rawText, _processingOnlySettings(settings), revision);
     final cached = _renderCache.remove(key);
     if (cached != null) {
       _renderCache[key] = cached;
@@ -286,17 +292,19 @@ class TextRendererService {
 class _RenderCacheKey {
   final String text;
   final RenderSettings settings;
+  final int revision;
 
   @override
   final int hashCode;
 
-  _RenderCacheKey(this.text, this.settings)
-      : hashCode = Object.hash(text, settings);
+  _RenderCacheKey(this.text, this.settings, this.revision)
+      : hashCode = Object.hash(text, settings, revision);
 
   @override
   bool operator ==(Object other) =>
       other is _RenderCacheKey &&
       hashCode == other.hashCode &&
       text == other.text &&
+      revision == other.revision &&
       settings == other.settings;
 }

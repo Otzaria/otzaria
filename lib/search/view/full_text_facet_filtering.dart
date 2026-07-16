@@ -12,6 +12,7 @@ import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
+import 'package:otzaria/search/view/search_dimension_filters.dart';
 import 'package:otzaria/search/utils/search_catalogue_order_helper.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
@@ -95,30 +96,87 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
   void _handleFacetToggle(BuildContext context, String facet) {
     final searchBloc = context.read<SearchBloc>();
     final state = searchBloc.state;
-    if (state.currentFacets.contains(facet)) {
-      searchBloc.add(RemoveFacet(facet));
-    } else {
-      searchBloc.add(AddFacet(facet));
+    final dimensionFacets = FacetHelper.dimensionFacetsOf(state.currentFacets);
+    if (dimensionFacets.isEmpty) {
+      if (state.currentFacets.contains(facet)) {
+        searchBloc.add(RemoveFacet(facet));
+      } else {
+        searchBloc.add(AddFacet(facet));
+      }
+      return;
     }
+
+    // כשפעילים facets ממדיים (/base, /era/, /author/) עוקפים את AddFacet/
+    // RemoveFacet: המסלול הממוזער בצד-לקוח שלהם מסנן לפי נתיבי קטגוריה
+    // בלבד ואינו מכיר את סמנטיקת ה-AND של הממדים במנוע.
+    final categories = FacetHelper.categoryFacetsOf(state.currentFacets);
+    if (categories.contains(facet)) {
+      categories.remove(facet);
+    } else {
+      categories.add(facet);
+    }
+    _dispatchCategoriesWithDimensions(searchBloc, categories, dimensionFacets);
   }
 
   void _setFacet(BuildContext context, String facet) {
     final searchBloc = context.read<SearchBloc>();
-    final searchMode = searchBloc.state.configuration.searchMode;
+    final state = searchBloc.state;
     final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
-      searchMode,
+      state.configuration.searchMode,
       customSpacing: widget.tab.spacingValues,
       alternativeWords: widget.tab.alternativeWords,
       searchOptions: widget.tab.effectiveSearchOptions(
-        query: searchBloc.state.searchQuery,
+        query: state.searchQuery,
       ),
     );
-    context.read<SearchBloc>().add(SetFacet(
-          facet,
-          customSpacing: normalizedParameters.customSpacing,
-          alternativeWords: normalizedParameters.alternativeWords,
-          searchOptions: normalizedParameters.searchOptions,
-        ));
+
+    final dimensionFacets = FacetHelper.dimensionFacetsOf(state.currentFacets);
+    if (dimensionFacets.isEmpty) {
+      searchBloc.add(SetFacet(
+        facet,
+        customSpacing: normalizedParameters.customSpacing,
+        alternativeWords: normalizedParameters.alternativeWords,
+        searchOptions: normalizedParameters.searchOptions,
+      ));
+      return;
+    }
+
+    // שחזור סמנטיקת SetFacet('/') — "כל הספרים בתוך ההיקף" — תוך שימור
+    // ה-facets הממדיים שרוכבים על אותה רשימה.
+    final categories = facet == '/'
+        ? FacetHelper.categoryFacetsOf(state.searchScopeFacets)
+        : <String>[facet];
+    _dispatchCategoriesWithDimensions(
+      searchBloc,
+      categories,
+      dimensionFacets,
+      customSpacing: normalizedParameters.customSpacing,
+      alternativeWords: normalizedParameters.alternativeWords,
+      searchOptions: normalizedParameters.searchOptions,
+    );
+  }
+
+  /// שולח בחירת קטגוריות חדשה יחד עם ה-facets הממדיים הפעילים, ומריץ את
+  /// החיפוש מחדש דרך המנוע (הממדים חייבים להגיע למנוע — סינון מקומי לפי
+  /// קטגוריות היה מתעלם מהם).
+  void _dispatchCategoriesWithDimensions(
+    SearchBloc searchBloc,
+    List<String> categories,
+    List<String> dimensionFacets, {
+    Map<String, String>? customSpacing,
+    Map<int, List<String>>? alternativeWords,
+    Map<String, Map<String, bool>>? searchOptions,
+  }) {
+    final effectiveCategories = categories.isEmpty ? const ['/'] : categories;
+    searchBloc.add(
+      SetFacetsWithoutSearch([...effectiveCategories, ...dimensionFacets]),
+    );
+    searchBloc.add(UpdateSearchQuery(
+      searchBloc.state.searchQuery,
+      customSpacing: customSpacing,
+      alternativeWords: alternativeWords,
+      searchOptions: searchOptions,
+    ));
   }
 
   Widget _buildSearchField() {
@@ -541,6 +599,8 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
       children: [
         _buildSearchField(),
         const ThinDivider(), // Now perfectly aligned
+        SearchDimensionFilters(tab: widget.tab),
+        const ThinDivider(),
         Expanded(
           child: _buildFacetTree(),
         ),

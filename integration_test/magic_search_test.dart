@@ -86,6 +86,8 @@ void main() {
         limit: 10,
         offset: 0,
         order: ResultsOrder.relevance,
+        matchNikud: false,
+        matchTaamim: false,
       );
 
   Future<List<SearchResult>> fuzzy(SearchEngine e, String q) => e.searchFuzzy(
@@ -95,6 +97,8 @@ void main() {
         offset: 0,
         maxDistance: 2,
         order: ResultsOrder.relevance,
+        matchNikud: false,
+        matchTaamim: false,
       );
 
   testWidgets('מקורב מוצא הטיה דרך המילון; מדויק לא דולף', (tester) async {

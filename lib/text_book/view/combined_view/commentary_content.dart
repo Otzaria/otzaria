@@ -10,7 +10,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/feedback/app_future_builder.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
-import 'package:otzaria/search/utils/snippet_builder.dart';
+import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_restore.dart';
 
@@ -82,10 +82,6 @@ class _CommentaryContentState extends State<CommentaryContent> {
     }
   }
 
-  int _countSearchMatches(String text, String searchQuery) {
-    return TextRendererService.countSearchMatches(text, searchQuery);
-  }
-
   Future<bool> _resolveRemoveNikud(SettingsState settingsState) {
     final title = utils.getTitleFromPath(widget.link.path2);
     final cacheKey =
@@ -138,35 +134,23 @@ class _CommentaryContentState extends State<CommentaryContent> {
                         snapshot.data ?? widget.removeNikud;
 
                     if (widget.searchQuery.isNotEmpty) {
-                      // ספירה תמיד על טקסט ללא ניקוד — תואמת את ה-regex
-                      // הגמיש לניקוד שמשמש ב-highLight.
-                      String countText = utils.removeVolwels(data);
-                      if (widget.removePunctuation) {
-                        countText = utils.removePunctuation(countText);
-                      }
-                      final searchCount =
-                          _countSearchMatches(countText, widget.searchQuery);
-                      // textForSnippet משמר העדפת ניקוד משתמש (לקטעי תצוגה)
-                      String textForSnippet = data;
-                      if (effectiveRemoveNikud) {
-                        textForSnippet = utils.removeVolwels(textForSnippet);
-                      }
-                      if (widget.removePunctuation) {
-                        textForSnippet =
-                            utils.removePunctuation(textForSnippet);
-                      }
+                      final searchCount = countCommentarySearchMatches(
+                        content: data,
+                        query: widget.searchQuery,
+                        removePunctuation: widget.removePunctuation,
+                      );
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         widget.onSearchResultsCountChanged?.call(searchCount);
                         if (widget.onSearchSnippetsChanged != null &&
                             searchCount > 0) {
-                          final plainText =
-                              utils.stripHtmlIfNeeded(textForSnippet);
-                          final excerpt = SnippetBuilder.buildExcerptText(
-                            fullText: plainText,
-                            query: widget.searchQuery,
-                            maxChars: 220,
-                          );
-                          widget.onSearchSnippetsChanged!.call([excerpt]);
+                          widget.onSearchSnippetsChanged!.call([
+                            buildCommentarySearchSnippet(
+                              content: data,
+                              query: widget.searchQuery,
+                              removeNikud: effectiveRemoveNikud,
+                              removePunctuation: widget.removePunctuation,
+                            ),
+                          ]);
                         }
                       });
                     }

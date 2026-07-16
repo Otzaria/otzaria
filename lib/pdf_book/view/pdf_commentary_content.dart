@@ -6,6 +6,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 
@@ -95,8 +96,11 @@ class _PdfCommentaryContentState extends State<PdfCommentaryContent> {
 
             // ספירת תוצאות חיפוש
             if (widget.searchQuery.isNotEmpty) {
-              final searchCount = TextRendererService.countSearchMatches(
-                  text, widget.searchQuery);
+              final searchCount = countCommentarySearchMatches(
+                content: text,
+                query: widget.searchQuery,
+                removePunctuation: widget.removePunctuation,
+              );
               _reportSearchCountIfNeeded(searchCount);
             } else {
               _reportSearchCountIfNeeded(0);

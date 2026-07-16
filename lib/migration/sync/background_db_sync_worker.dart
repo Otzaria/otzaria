@@ -106,6 +106,7 @@ Future<FileSyncResult> runCustomFoldersDbSyncInIsolate({
     skippedFiles: folders.skippedFiles + links.skippedFiles,
     errors: [...folders.errors, ...links.errors],
     duration: folders.duration + links.duration,
+    updatedBookIds: [...folders.updatedBookIds, ...links.updatedBookIds],
   );
 }
 
@@ -139,6 +140,8 @@ FileSyncResult _resultFromMap(Map<String, Object?> resultMap) => FileSyncResult(
       skippedFiles: resultMap['skippedFiles'] as int,
       errors: List<String>.from(resultMap['errors'] as List),
       duration: Duration(milliseconds: resultMap['durationMs'] as int),
+      updatedBookIds:
+          List<int>.from((resultMap['updatedBookIds'] as List?) ?? const []),
     );
 
 /// מטען ההודעה לאיזולייט. נושא רק ערכים שליחים (SendPort + מפת payload + דגל),
@@ -295,6 +298,7 @@ Future<Map<String, Object?>> _syncWorkerEntryPoint(
       'skippedFiles': result.skippedFiles,
       'errors': result.errors,
       'durationMs': result.duration.inMilliseconds,
+      'updatedBookIds': result.updatedBookIds,
     };
   } finally {
     database.close();

@@ -11,7 +11,15 @@ abstract class LibraryEvent extends Equatable {
 
 class LoadLibrary extends LibraryEvent {}
 
-class RefreshLibrary extends LibraryEvent {}
+class RefreshLibrary extends LibraryEvent {
+  /// מפתחות catalogueOrderKey של ספרים שתוכנם השתנה ודורשים אינדוקס מחדש.
+  final Set<String> changedBookKeys;
+
+  const RefreshLibrary({this.changedBookKeys = const {}});
+
+  @override
+  List<Object?> get props => [changedBookKeys];
+}
 
 class UpdateLibraryPath extends LibraryEvent {
   final String path;

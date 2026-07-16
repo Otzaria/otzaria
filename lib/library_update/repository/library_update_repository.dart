@@ -58,7 +58,9 @@ typedef FullDbExtractor = Future<void> Function(
 abstract interface class LibraryUpdateService {
   Future<RecoveryResult> recoverIfNeeded();
   Future<LibraryUpdatePlan> checkForUpdate({required bool allowPrerelease});
-  Future<void> applyDeltaPlan(
+
+  /// מחזיר את מזהי הספרים שתוכנם השתנה בעדכון — לרענון אינדקס החיפוש שלהם.
+  Future<Set<int>> applyDeltaPlan(
     LibraryUpdatePlan plan, {
     LibraryUpdateProgressCallback? onProgress,
     bool Function()? isCancelled,
@@ -136,7 +138,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
   /// כל apply רץ ב-Isolate (חוסם ~דקה עם חישוב hash) בתוך operationQueue, עם
   /// סגירת ה-DO לכתיבה חיצונית וגיבוי/שחזור.
   @override
-  Future<void> applyDeltaPlan(
+  Future<Set<int>> applyDeltaPlan(
     LibraryUpdatePlan plan, {
     LibraryUpdateProgressCallback? onProgress,
     bool Function()? isCancelled,
@@ -151,6 +153,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     var verifyTotalHint = _readIntQuietly(hintFile);
     var lastVerifyDone = 0;
 
+    final booksTouched = <int>{};
     final steps = plan.deltaSteps;
     for (var i = 0; i < steps.length; i++) {
       final step = steps[i];
@@ -189,7 +192,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
           stepIndex: i,
           totalSteps: steps.length,
         ));
-        await _applyStepInQueue(
+        booksTouched.addAll(await _applyStepInQueue(
           dbPath: dbPath,
           patchPath: patchPath,
           step: step,
@@ -210,7 +213,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
               applyProgress: total > 0 ? (done / total).clamp(0.0, 1.0) : null,
             ));
           },
-        );
+        ));
         // הדיווח האחרון מ-compute הוא הסך המדויק — total לריצות הבאות.
         if (lastVerifyDone > 0) {
           verifyTotalHint = lastVerifyDone;
@@ -227,6 +230,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
 
     onProgress
         ?.call(const LibraryUpdateProgress(phase: LibraryUpdatePhase.done));
+    return booksTouched;
   }
 
   /// מבצע הורדה מלאה: מוריד את `seforim.db.zst`, מחלץ בזרימה ליד ה-DB,
@@ -356,7 +360,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     });
   }
 
-  Future<void> _applyStepInQueue({
+  Future<Set<int>> _applyStepInQueue({
     required String dbPath,
     required String patchPath,
     required PatchEdge step,
@@ -382,7 +386,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
           timestamp: nowTimestamp(),
           createBackup: false,
         );
-        await _applyPatchInIsolate(
+        final booksTouched = await _applyPatchInIsolate(
           dbPath: dbPath,
           patchPath: patchPath,
           manifest: step.manifest,
@@ -391,6 +395,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
           onVerifyProgress: onVerifyProgress,
         );
         recovery.finishSuccess(dbPath);
+        return booksTouched;
       } catch (_) {
         await recovery.rollback(dbPath);
         rethrow;
@@ -433,7 +438,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
 
   // מאזין לתת-שלבי ה-apply דרך ReceivePort ומעביר ל-onStage (רץ ב-main isolate).
   // ה-onStage עצמו אסור שייכנס ל-scope של ה-Isolate.run (ראה [_runApplyIsolate]).
-  static Future<void> _applyPatchInIsolate({
+  static Future<Set<int>> _applyPatchInIsolate({
     required String dbPath,
     required String patchPath,
     required DeltaManifest manifest,
@@ -451,7 +456,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       }
     });
     try {
-      await _runApplyIsolate(
+      return await _runApplyIsolate(
         dbPath: dbPath,
         patchPath: patchPath,
         manifest: manifest,
@@ -467,14 +472,15 @@ class LibraryUpdateRepository implements LibraryUpdateService {
   // ה-Isolate.run מבודד כאן: closure לוכד את כל ה-scope של המתודה (גם פרמטרים
   // שאינם בשימוש), לכן המתודה מקבלת *רק* ערכים sendable. onStage/onProgress
   // נשארים ב-caller — אחרת הם גוררים את ה-bloc הלא-sendable ל-spawn.
-  static Future<void> _runApplyIsolate({
+  static Future<Set<int>> _runApplyIsolate({
     required String dbPath,
     required String patchPath,
     required DeltaManifest manifest,
     required SendPort sendPort,
     int? verifyTotalBytesHint,
   }) {
-    return Isolate.run(() => const PatchApplier().apply(
+    return Isolate.run(() => const PatchApplier()
+        .apply(
           dbPath: dbPath,
           patchPath: patchPath,
           manifest: manifest,
@@ -488,7 +494,8 @@ class LibraryUpdateRepository implements LibraryUpdateService {
           checkForeignKeys: false,
           onStage: (stage) => sendPort.send(stage),
           onVerifyProgress: (done, total) => sendPort.send((done, total)),
-        ));
+        )
+        .booksTouched);
   }
 
   // static מאותה סיבה כמו [_applyPatchInIsolate] — מונע לכידת `this`.

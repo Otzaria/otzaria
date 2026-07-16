@@ -5,6 +5,7 @@ import 'package:otzaria/data/cache/generation_cache.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/migration/sync/background_db_sync_worker.dart';
@@ -82,7 +83,10 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
               event.path, folderName, repository);
 
       if (result.isSuccess) {
-        _libraryBloc.add(RefreshLibrary());
+        _libraryBloc.add(RefreshLibrary(changedBookKeys: {
+          for (final id in result.updatedBookIds)
+            IndexingRepository.userBookKey(id),
+        }));
         if (result.hasPartialFailure) {
           final failedMsg = result.failedDetails.isNotEmpty
               ? result.failedDetails.map((d) => '"${d.$1}": ${d.$2}').join('\n')
@@ -177,7 +181,10 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
               : null,
         ));
       }
-      _libraryBloc.add(RefreshLibrary());
+      _libraryBloc.add(RefreshLibrary(changedBookKeys: {
+        for (final id in result.updatedBookIds)
+          IndexingRepository.userBookKey(id),
+      }));
     } catch (e) {
       emit(state.copyWith(isSyncing: false, error: 'שגיאה בסנכרון: $e'));
     }
@@ -202,7 +209,10 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
               ? 'הסריקה הושלמה. לא נמצאו ספרים חדשים.'
               : null;
       emit(state.copyWith(isSyncing: false, message: message));
-      _libraryBloc.add(RefreshLibrary());
+      _libraryBloc.add(RefreshLibrary(changedBookKeys: {
+        for (final id in result.updatedBookIds)
+          IndexingRepository.userBookKey(id),
+      }));
     } catch (e) {
       emit(state.copyWith(
           isSyncing: false, error: 'שגיאה בסריקת תיקיות אישיות: $e'));

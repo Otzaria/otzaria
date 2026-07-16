@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -479,11 +480,43 @@ class SqliteDataProvider {
       if (resolvedBook == null) return null;
       final book = resolvedBook.book;
 
-      final lines = await resolvedBook.repository
-          .getLines(book.id, 0, book.totalLines - 1);
-      return migrationLinesToText(lines);
+      // מסלול רזה: תוכן בלבד, בלי בניית Map ואובייקט Line לכל שורה —
+      // האינדוקס (הקורא הכבד ביותר של טקסט מלא) רק מאחה שורות לטקסט אחד.
+      final lines = await resolvedBook.repository.getLineContents(book.id);
+      if (lines.isEmpty) return null;
+      return lines.join('\n');
     } catch (e, st) {
       debugPrint('[SqliteDataProvider] getBookTextFromDb failed for '
+          '"$title": $e\n$st');
+      return null;
+    }
+  }
+
+  /// כמו [getBookTextFromDb], אבל כבייטים גולמיים (UTF-8 כפי שמאוחסן),
+  /// מאוחים ב-`\n` — מסלול האינדוקס מעביר אותם למנוע כמות-שהם
+  /// (addTextBookBytes) בלי פענוח ל-String וקידוד חוזר על גשר ה-FFI.
+  Future<Uint8List?> getBookTextBytesFromDb(String title,
+      [int? categoryId, String? fileType, bool preferUserBooks = false]) async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+    if (!_isInitialized) return null;
+
+    try {
+      final resolvedBook = await _resolveBookRecord(
+        title,
+        categoryId: categoryId,
+        fileType: fileType,
+        preferUserBooks: preferUserBooks,
+      );
+      if (resolvedBook == null) return null;
+
+      final bytes = await resolvedBook.repository
+          .getLineContentBytes(resolvedBook.book.id);
+      if (bytes.isEmpty) return null;
+      return bytes;
+    } catch (e, st) {
+      debugPrint('[SqliteDataProvider] getBookTextBytesFromDb failed for '
           '"$title": $e\n$st');
       return null;
     }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
 
+import '../support/search_engine_test_init.dart';
+
 String _highlighted(List<InlineSpan> spans) => spans
     .whereType<TextSpan>()
     .where((span) => span.style?.fontWeight == FontWeight.bold)
@@ -14,7 +16,11 @@ String _allText(List<InlineSpan> spans) =>
 const _defaultStyle = TextStyle();
 const _highlightStyle = TextStyle(fontWeight: FontWeight.bold);
 
-void main() {
+Future<void> main() async {
+  // sanitizeQuery/splitQueryWords מאצילים למנוע ה-Rust; הטסטים שלהם דורשים
+  // את הספרייה הנייטיבית ומדולגים כשאין build זמין.
+  final engineReady = await tryInitSearchEngine();
+
   group('fromHighlightedHtml - הדגשות מהמנוע', () {
     test('מדגיש טקסט שעטוף בתג font ומשאיר את השאר רגיל', () {
       final spans = SnippetBuilder.fromHighlightedHtml(
@@ -126,7 +132,7 @@ void main() {
       expect(_highlighted(spans), isEmpty);
       expect(_allText(spans), 'שלום עולם');
     });
-  });
+  }, skip: engineReady ? false : searchEngineSkipReason);
 
   group('buildExcerptText', () {
     test('טקסט קצר מהמגבלה מוחזר כמות שהוא', () {
@@ -151,7 +157,7 @@ void main() {
       expect(excerpt, contains('מצרים'));
       expect(excerpt, contains('...'));
       expect(excerpt.length, lessThan(fullText.length));
-    });
+    }, skip: engineReady ? false : searchEngineSkipReason);
 
     test('ללא התאמה מחזיר את תחילת הטקסט עם "..."', () {
       final fullText = 'אבגד ' * 60;
@@ -163,6 +169,58 @@ void main() {
 
       expect(excerpt.trimRight(), endsWith('...'));
       expect(excerpt.length, lessThan(fullText.trim().length));
+    }, skip: engineReady ? false : searchEngineSkipReason);
+  });
+
+  group('htmlToPlainText - חילוץ טקסט גולמי', () {
+    test('מסיר תגי הדגשה של המנוע ומנרמל רווחים', () {
+      final plain = SnippetBuilder.htmlToPlainText(
+        'בראשית <font color="red">ברא</font>   אלהים',
+      );
+      expect(plain, 'בראשית ברא אלהים');
+    });
+  });
+
+  group('spansFromRanges - הדגשת חלק מטוקן בסרגל התוצאות', () {
+    test('מדגיש רק את הטווח שהתקבל ולא את המילה השלמה', () {
+      const text = 'דכוותי כוונתו';
+      // "כוו" בתוך "דכוותי" (אופסט 1) ובתוך "כוונתו" (אופסט 7)
+      final spans = SnippetBuilder.spansFromRanges(
+        plainText: text,
+        ranges: const [
+          [1, 4],
+          [7, 10],
+        ],
+        defaultStyle: _defaultStyle,
+        highlightStyle: _highlightStyle,
+      );
+
+      expect(_highlighted(spans), 'כווכוו');
+      expect(_allText(spans), text);
+    });
+
+    test('רשימת טווחים ריקה משאירה את הטקסט ללא הדגשה', () {
+      final spans = SnippetBuilder.spansFromRanges(
+        plainText: 'טקסט בלי התאמה',
+        ranges: const [],
+        defaultStyle: _defaultStyle,
+        highlightStyle: _highlightStyle,
+      );
+      expect(_highlighted(spans), isEmpty);
+      expect(_allText(spans), 'טקסט בלי התאמה');
+    });
+
+    test('מתעלם מטווח חורג מגבולות הטקסט', () {
+      const text = 'קצר';
+      final spans = SnippetBuilder.spansFromRanges(
+        plainText: text,
+        ranges: const [
+          [0, 99],
+        ],
+        defaultStyle: _defaultStyle,
+        highlightStyle: _highlightStyle,
+      );
+      expect(_allText(spans), text);
     });
   });
 }

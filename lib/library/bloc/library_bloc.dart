@@ -143,6 +143,15 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
               .contains(IndexingRepository.catalogueOrderKey(b)))
           .toList();
 
+      // מיפוי מפתחות הספרים שהשתנו (שדווחו ע"י הקורא) לספרים מהקטלוג הטרי
+      final changedBooksToIndex = event.changedBookKeys.isEmpty
+          ? const <Book>[]
+          : library
+              .getAllBooks()
+              .where((b) => event.changedBookKeys
+                  .contains(IndexingRepository.catalogueOrderKey(b)))
+              .toList();
+
       // חזרה לאותה תיקייה שהיתה פתוחה קודם
       final targetCategory = _findCategoryByPath(library, currentCategoryPath);
 
@@ -151,6 +160,8 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         currentCategory: targetCategory ?? library,
         isLoading: false,
         newBooksToIndex: newBooksToIndex.isNotEmpty ? newBooksToIndex : null,
+        changedBooksToIndex:
+            changedBooksToIndex.isNotEmpty ? changedBooksToIndex : null,
       ));
     } catch (e) {
       emit(state.copyWith(

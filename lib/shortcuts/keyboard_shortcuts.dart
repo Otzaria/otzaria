@@ -16,6 +16,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/bookmarks/view/bookmark_screen.dart';
 import 'package:otzaria/history/view/history_screen.dart';
@@ -133,6 +134,8 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     final readingScreenShortcut =
         shortcutOf('key-shortcut-open-reading-screen');
     final newSearchShortcut = shortcutOf('key-shortcut-open-new-search');
+    final advancedSearchShortcut =
+        shortcutOf(ShortcutValidator.openAdvancedSearchKey);
     final settingsShortcut = shortcutOf('key-shortcut-open-settings');
     final moreShortcut = shortcutOf('key-shortcut-open-more');
     final bookmarksShortcut = shortcutOf('key-shortcut-open-bookmarks');
@@ -296,6 +299,18 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
       showDialog(
         context: context,
         builder: (context) => const SearchDialog(existingTab: null),
+      );
+      return KeyEventResult.handled;
+    }
+
+    if (advancedSearchShortcut.isNotEmpty &&
+        ShortcutHelper.matchesShortcut(event, advancedSearchShortcut)) {
+      showDialog(
+        context: context,
+        builder: (context) => const SearchDialog(
+          existingTab: null,
+          initialSearchMode: SearchMode.advanced,
+        ),
       );
       return KeyEventResult.handled;
     }

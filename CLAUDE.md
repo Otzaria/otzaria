@@ -663,7 +663,7 @@ dart format lib/file.dart    # Format ONLY files you modified
 | File sync asset parsing | `test/file_sync_test.dart` |
 | Background sync initializer | `test/migration/sync/background_sync_initializer_test.dart` |
 | DB migration / generator | `test/migration/generator_create_and_process_book_test.dart`, `…database_locked_test.dart` |
-| Indexing repository/service | `test/indexing/repository/indexing_repository_test.dart`, `…indexing_isolate_service_test.dart` |
+| Indexing repository | `test/indexing/repository/indexing_repository_test.dart` |
 | External catalog | `test/external_catalog/external_catalog_repository_test.dart`, `…settings_helper_test.dart` |
 | Plugins | `test/plugins/utils/reader_location_resolver_test.dart`, `…plugin_store_link_parser_test.dart`, `…plugin_bridge_adapter_test.dart` |
 | Shamor Zachor | `test/shamor_zachor/shamor_zachor_test.dart` (+ 4 more in that dir) |

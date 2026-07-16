@@ -3,6 +3,8 @@ import 'dart:isolate';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
 
+import 'literal_pattern_test_helper.dart';
+
 /// עוטף את [SectionSearchWorkerRuntime] עם [ReceivePort] שאוסף את
 /// ההודעות היוצאות, ומאפשר להזרים בקשות אל ה־runtime ישירות בלי isolate.
 class _RuntimeHarness {
@@ -49,6 +51,7 @@ void main() {
         'requestId': 7,
         'content': 123,
         'query': 'בראשית',
+        'patternSource': literalPatternSource('בראשית'),
       });
 
       final response = await harness.waitForMessage(requestId: 7);
@@ -67,6 +70,7 @@ void main() {
         'requestId': 1,
         'content': 'not-a-list',
         'query': 'אברהם',
+        'patternSource': literalPatternSource('אברהם'),
       });
 
       final errorResponse = await harness.waitForMessage(requestId: 1);
@@ -78,6 +82,7 @@ void main() {
         'requestId': 2,
         'content': <String>['בראשית ברא אלוהים', 'את השמים ואת הארץ'],
         'query': 'בראשית',
+        'patternSource': literalPatternSource('בראשית'),
       });
 
       final okResponse = await harness.waitForMessage(requestId: 2);
@@ -97,6 +102,7 @@ void main() {
         'requestId': 42,
         'content': <String>['אברהם הלך', 'יצחק גר בארץ', 'אברהם חזר'],
         'query': 'אברהם',
+        'patternSource': literalPatternSource('אברהם'),
       });
 
       final response = await harness.waitForMessage(requestId: 42);
@@ -117,6 +123,7 @@ void main() {
         'contentId': 1,
         'content': <String>['אברהם הלך', 'יצחק גר בארץ'],
         'query': 'אברהם',
+        'patternSource': literalPatternSource('אברהם'),
       });
       final first = await harness.waitForMessage(requestId: 1);
       expect(first['type'], 'result');
@@ -129,6 +136,7 @@ void main() {
         'requestId': 2,
         'contentId': 1,
         'query': 'יצחק',
+        'patternSource': literalPatternSource('יצחק'),
       });
       final second = await harness.waitForMessage(requestId: 2);
       expect(second['type'], 'result');
@@ -147,6 +155,7 @@ void main() {
         'contentId': 1,
         'content': <String>['אברהם'],
         'query': 'אברהם',
+        'patternSource': literalPatternSource('אברהם'),
       });
       expect((await harness.waitForMessage(requestId: 1))['type'], 'result');
 
@@ -157,6 +166,7 @@ void main() {
         'contentId': 2,
         'content': <String>['יצחק', 'יעקב'],
         'query': 'אברהם',
+        'patternSource': literalPatternSource('אברהם'),
       });
       final afterSwap = await harness.waitForMessage(requestId: 2);
       expect(afterSwap['type'], 'result');
@@ -169,6 +179,7 @@ void main() {
         'requestId': 3,
         'contentId': 2,
         'query': 'יעקב',
+        'patternSource': literalPatternSource('יעקב'),
       });
       final reuse = await harness.waitForMessage(requestId: 3);
       expect(reuse['type'], 'result');
@@ -184,6 +195,7 @@ void main() {
         'requestId': 1,
         'contentId': 9,
         'query': 'אברהם',
+        'patternSource': literalPatternSource('אברהם'),
       });
       final response = await harness.waitForMessage(requestId: 1);
       expect(response['type'], 'error');
@@ -207,6 +219,7 @@ void main() {
         'contentId': 1,
         'content': bigOld,
         'query': 'אברהם',
+        'patternSource': literalPatternSource('אברהם'),
       });
       harness.deliver({
         'type': 'search',
@@ -214,6 +227,7 @@ void main() {
         'contentId': 2,
         'content': newContent,
         'query': 'יצחק',
+        'patternSource': literalPatternSource('יצחק'),
       });
 
       // הבקשה החדשה מעובדת נכון על התוכן החדש.

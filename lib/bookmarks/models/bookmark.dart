@@ -1,6 +1,7 @@
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/utils/file/hive_utils.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 /// מחזירה מזהה יציב לספר לצורך השוואה בין סימניות/טאבים.
 ///
@@ -52,9 +53,17 @@ class Bookmark {
   final Map<String, Map<String, bool>>? searchOptions;
   final Map<int, List<String>>? alternativeWords;
   final Map<String, String>? spacingValues;
+  final String? negativeSearchText;
+  final Map<String, Map<String, bool>>? negativeSearchOptions;
+  final Map<int, List<String>>? negativeAlternativeWords;
+  final Map<String, String>? negativeSpacingValues;
   final String? workspaceName;
   final List<String>? searchScopeFacets;
   final SearchMode? searchMode;
+
+  /// טווח הקרבה בין מילות החיפוש (מרווח מילים / פסקה / כותרת).
+  /// null בפריטים שנשמרו לפני הוספת השדה — מתפרש כמרווח מילים.
+  final SearchScope? proximityScope;
   final BookmarkTargetKind targetKind;
 
   /// טקסט תיאור שהמשתמש רואה ויכול לערוך. בעת יצירה מאותחל למילים הראשונות
@@ -85,9 +94,14 @@ class Bookmark {
     this.searchOptions,
     this.alternativeWords,
     this.spacingValues,
+    this.negativeSearchText,
+    this.negativeSearchOptions,
+    this.negativeAlternativeWords,
+    this.negativeSpacingValues,
     this.workspaceName,
     this.searchScopeFacets,
     this.searchMode,
+    this.proximityScope,
     this.targetKind = BookmarkTargetKind.book,
     this.label,
     this.createdAt,
@@ -108,9 +122,14 @@ class Bookmark {
       searchOptions: searchOptions,
       alternativeWords: alternativeWords,
       spacingValues: spacingValues,
+      negativeSearchText: negativeSearchText,
+      negativeSearchOptions: negativeSearchOptions,
+      negativeAlternativeWords: negativeAlternativeWords,
+      negativeSpacingValues: negativeSpacingValues,
       workspaceName: workspaceName,
       searchScopeFacets: searchScopeFacets,
       searchMode: searchMode,
+      proximityScope: proximityScope,
       targetKind: targetKind,
       label: clearLabel ? null : (label ?? this.label),
       createdAt: createdAt,
@@ -146,12 +165,36 @@ class Bookmark {
           ? castMap(json['spacingValues'])
               .map((key, value) => MapEntry(key, value.toString()))
           : null,
+      negativeSearchText: json['negativeSearchText'] as String?,
+      negativeSearchOptions: json['negativeSearchOptions'] != null
+          ? castMap(json['negativeSearchOptions']).map(
+              (key, value) => MapEntry(
+                key,
+                (castMap(value)).map((k, v) => MapEntry(k, v as bool)),
+              ),
+            )
+          : null,
+      negativeAlternativeWords: json['negativeAlternativeWords'] != null
+          ? castMap(json['negativeAlternativeWords']).map(
+              (key, value) => MapEntry(
+                int.parse(key),
+                (value as List<dynamic>).map((e) => e.toString()).toList(),
+              ),
+            )
+          : null,
+      negativeSpacingValues: json['negativeSpacingValues'] != null
+          ? castMap(json['negativeSpacingValues'])
+              .map((key, value) => MapEntry(key, value.toString()))
+          : null,
       workspaceName: json['workspaceName'] as String?,
       searchScopeFacets: json['searchScopeFacets'] != null
           ? List<String>.from(json['searchScopeFacets'] as List)
           : null,
       searchMode: json['searchMode'] != null
           ? _trySearchModeFromName(json['searchMode'] as String)
+          : null,
+      proximityScope: json['proximityScope'] != null
+          ? _tryProximityScopeFromName(json['proximityScope'] as String)
           : null,
       targetKind: json['targetKind'] != null
           ? BookmarkTargetKind.values.firstWhere(
@@ -176,6 +219,16 @@ class Bookmark {
     return null;
   }
 
+  static SearchScope? _tryProximityScopeFromName(String rawScope) {
+    for (final scope in SearchScope.values) {
+      if (scope.name == rawScope) {
+        return scope;
+      }
+    }
+
+    return null;
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'ref': ref,
@@ -187,9 +240,15 @@ class Bookmark {
       'alternativeWords': alternativeWords
           ?.map((key, value) => MapEntry(key.toString(), value)),
       'spacingValues': spacingValues,
+      'negativeSearchText': negativeSearchText,
+      'negativeSearchOptions': negativeSearchOptions,
+      'negativeAlternativeWords': negativeAlternativeWords
+          ?.map((key, value) => MapEntry(key.toString(), value)),
+      'negativeSpacingValues': negativeSpacingValues,
       'workspaceName': workspaceName,
       'searchScopeFacets': searchScopeFacets,
       'searchMode': searchMode?.name,
+      'proximityScope': proximityScope?.name,
       'targetKind': targetKind.name,
       'label': label,
       'createdAt': createdAt?.toIso8601String(),

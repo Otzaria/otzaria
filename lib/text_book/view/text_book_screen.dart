@@ -2402,9 +2402,11 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         ? pickByMinLeadingEdge(atOrBelowFold)
         : pickByMinLeadingEdge(visible);
 
+    // itemLeadingEdge יכול להיות שלילי כשקטע ארוך מתחיל מעל התצוגה (גלילה
+    // לעומק הקטע). clamp ל-0 היה מיישר את תחילת הקטע לראש התצוגה = קפיצה.
     controller.jumpTo(
       index: anchor.index,
-      alignment: anchor.itemLeadingEdge.clamp(0.0, 1.0),
+      alignment: anchor.itemLeadingEdge,
     );
   }
 

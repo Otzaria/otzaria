@@ -13,6 +13,8 @@ import 'package:otzaria/search/view/full_text_facet_filtering.dart';
 import 'package:otzaria/search/view/full_text_settings_widgets.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 
+import '../support/search_engine_test_init.dart';
+
 class _MockLibraryBloc extends MockBloc<LibraryEvent, LibraryState>
     implements LibraryBloc {}
 
@@ -24,7 +26,11 @@ class _StubSearchBloc extends SearchBloc {
   void emitState(SearchState s) => emit(s);
 }
 
-void main() {
+Future<void> main() async {
+  // הווידג'טים הנבדקים קוראים ל-sanitizeQuery/splitQueryWords שמאצילים למנוע
+  // ה-Rust; הטסטים המסומנים מדולגים כשאין build נייטיבי זמין.
+  final engineReady = await tryInitSearchEngine();
+
   TestWidgetsFlutterBinding.ensureInitialized();
 
   // עוזר לבניית Category בסיסית לטסטים
@@ -108,7 +114,7 @@ void main() {
         await tester.pump();
         expect(tester.takeException(), isNull);
       });
-    });
+    }, skip: engineReady ? false : searchEngineSkipReason);
 
     group('SearchFacetFiltering - category tile', () {
       late _StubSearchBloc searchBloc;

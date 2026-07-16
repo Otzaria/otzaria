@@ -10,10 +10,18 @@ import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
+import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
+import 'package:otzaria/indexing/bloc/indexing_event.dart';
+import 'package:otzaria/indexing/bloc/indexing_state.dart';
+import 'package:otzaria/library/bloc/library_bloc.dart';
+import 'package:otzaria/library/bloc/library_event.dart';
+import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -35,6 +43,12 @@ import '../helpers/memory_settings_cache.dart';
 
 class MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
+
+class MockIndexingBloc extends MockBloc<IndexingEvent, IndexingState>
+    implements IndexingBloc {}
+
+class MockLibraryBloc extends MockBloc<LibraryEvent, LibraryState>
+    implements LibraryBloc {}
 
 class _StubTabsBloc extends Cubit<TabsState> implements TabsBloc {
   _StubTabsBloc(super.initialState);
@@ -270,6 +284,99 @@ void main() {
       expect(tab.toggleCommentatorsPaneNotifier.value, 0);
       await sendCtrlShift(tester, LogicalKeyboardKey.keyC);
       expect(tab.toggleCommentatorsPaneNotifier.value, 1);
+    });
+  });
+
+  group('KeyboardShortcuts - חיפוש מתקדם אופציונלי', () {
+    late MockSettingsBloc settingsBlocLocal;
+    late MockIndexingBloc indexingBloc;
+    late MockLibraryBloc libraryBloc;
+    late StreamController<SettingsState> settingsControllerLocal;
+
+    setUpAll(() async {
+      await Settings.init(cacheProvider: MemorySettingsCache());
+    });
+
+    setUp(() {
+      FocusRepository().resetForTesting();
+      settingsBlocLocal = MockSettingsBloc();
+      indexingBloc = MockIndexingBloc();
+      libraryBloc = MockLibraryBloc();
+      settingsControllerLocal = StreamController<SettingsState>.broadcast();
+
+      whenListen(
+        settingsBlocLocal,
+        settingsControllerLocal.stream,
+        initialState: SettingsState.initial().copyWith(
+          shortcuts: const {
+            'key-shortcut-open-advanced-search': 'ctrl+shift+g',
+          },
+        ),
+      );
+      whenListen(
+        indexingBloc,
+        const Stream<IndexingState>.empty(),
+        initialState: IndexingInitial(),
+      );
+      whenListen(
+        libraryBloc,
+        const Stream<LibraryState>.empty(),
+        initialState: const LibraryState(),
+      );
+    });
+
+    tearDown(() async {
+      await settingsControllerLocal.close();
+      await indexingBloc.close();
+      await libraryBloc.close();
+      FocusRepository().resetForTesting();
+    });
+
+    testWidgets('פותח את דיאלוג החיפוש במצב מתקדם', (tester) async {
+      final tabsBloc = _StubTabsBloc(
+        const TabsState(tabs: [], currentTabIndex: 0),
+      );
+      final historyBloc = _StubHistoryBloc();
+      final navigationBloc = _StubNavigationBloc();
+      addTearDown(() async {
+        await tabsBloc.close();
+        await historyBloc.close();
+        await navigationBloc.close();
+      });
+
+      await tester.pumpWidget(
+        MultiBlocProvider(
+          providers: [
+            BlocProvider<SettingsBloc>.value(value: settingsBlocLocal),
+            BlocProvider<TabsBloc>.value(value: tabsBloc),
+            BlocProvider<HistoryBloc>.value(value: historyBloc),
+            BlocProvider<NavigationBloc>.value(value: navigationBloc),
+            BlocProvider<IndexingBloc>.value(value: indexingBloc),
+            BlocProvider<LibraryBloc>.value(value: libraryBloc),
+            Provider<FocusRepository>.value(value: FocusRepository()),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: KeyboardShortcuts(
+                onFindRefRequested: () {},
+                child: const SizedBox(width: 100, height: 100),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyG);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyG);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+
+      final dialog = tester.widget<SearchDialog>(find.byType(SearchDialog));
+      expect(dialog.initialSearchMode, SearchMode.advanced);
     });
   });
 

@@ -1,25 +1,55 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/search/saved_alternatives_store.dart';
+import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
 /// ווידג'ט לניהול אפשרויות חיפוש מתקדמות לכל מילה בנפרד.
-/// מחליף את שכפול הקוד בין SearchDialog ל-SearchEditPanel.
 class AdvancedSearchControls extends StatefulWidget {
   final SearchingTab tab;
-  final bool compactMode;
   final VoidCallback? onEmptySubmit;
   final ValueNotifier<bool>? inputFocusNotifier;
+
+  /// האם להציג את תיבות "ניקוד"/"טעמים" — רק במסלולים שמריצים חיפוש
+  /// אינדקס. חיפוש בתוך ספר פתוח רץ מקומית ואינו תומך בהתאמת ניקוד,
+  /// והצגת הפקד שם הייתה בחירה שנבלעת בלי השפעה.
+  final bool supportsVocalized;
+  final TextEditingController? queryController;
+  final FocusNode? searchFieldFocusNode;
+  final Map<String, Map<String, bool>>? searchOptions;
+  final Map<String, bool>? globalSearchOptions;
+  final ValueNotifier<bool>? useGlobalSearchOptions;
+  final Map<int, List<String>>? alternativeWords;
+  final Map<String, String>? spacingValues;
+  final ValueNotifier<int>? searchOptionsChanged;
+  final ValueNotifier<int>? alternativeWordsChanged;
+  final ValueNotifier<int>? spacingValuesChanged;
+  final bool enableSavedAlternatives;
 
   const AdvancedSearchControls({
     super.key,
     required this.tab,
-    this.compactMode = false,
     this.onEmptySubmit,
     this.inputFocusNotifier,
+    this.supportsVocalized = false,
+    this.queryController,
+    this.searchFieldFocusNode,
+    this.searchOptions,
+    this.globalSearchOptions,
+    this.useGlobalSearchOptions,
+    this.alternativeWords,
+    this.spacingValues,
+    this.searchOptionsChanged,
+    this.alternativeWordsChanged,
+    this.spacingValuesChanged,
+    this.enableSavedAlternatives = true,
   });
 
   @override
@@ -38,21 +68,46 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
   int? _wordIndex;
   List<String> _words = [];
 
+  // כל מילות-המנוע שהבחירה בשדה חופפת. בסמן נקודתי — מילה בודדת;
+  // בבחירת טווח — כל מה שהבחירה תופסת. תיבות האפשרויות חלות על כולן.
+  List<QueryWordSpan> _selectedSpans = [];
+
+  TextEditingController get _queryController =>
+      widget.queryController ?? widget.tab.queryController;
+  FocusNode get _searchFieldFocusNode =>
+      widget.searchFieldFocusNode ?? widget.tab.searchFieldFocusNode;
+  Map<String, Map<String, bool>> get _searchOptions =>
+      widget.searchOptions ?? widget.tab.searchOptions;
+  Map<String, bool> get _globalSearchOptions =>
+      widget.globalSearchOptions ?? widget.tab.globalSearchOptions;
+  ValueNotifier<bool> get _useGlobalSearchOptions =>
+      widget.useGlobalSearchOptions ?? widget.tab.useGlobalSearchOptions;
+  Map<int, List<String>> get _alternativeWords =>
+      widget.alternativeWords ?? widget.tab.alternativeWords;
+  Map<String, String> get _spacingValues =>
+      widget.spacingValues ?? widget.tab.spacingValues;
+  ValueNotifier<int> get _searchOptionsChanged =>
+      widget.searchOptionsChanged ?? widget.tab.searchOptionsChanged;
+  ValueNotifier<int> get _alternativeWordsChanged =>
+      widget.alternativeWordsChanged ?? widget.tab.alternativeWordsChanged;
+  ValueNotifier<int> get _spacingValuesChanged =>
+      widget.spacingValuesChanged ?? widget.tab.spacingValuesChanged;
+
   @override
   void initState() {
     super.initState();
-    widget.tab.queryController.addListener(_onQueryChanged);
-    widget.tab.searchFieldFocusNode.addListener(_onFocusChanged);
-    widget.tab.useGlobalSearchOptions.addListener(_onGlobalModeChanged);
+    _queryController.addListener(_onQueryChanged);
+    _searchFieldFocusNode.addListener(_onFocusChanged);
+    _useGlobalSearchOptions.addListener(_onGlobalModeChanged);
     _alternativeWordFocusNode.addListener(_updateInputFocusState);
     _analyzeCurrentWord();
   }
 
   @override
   void dispose() {
-    widget.tab.queryController.removeListener(_onQueryChanged);
-    widget.tab.searchFieldFocusNode.removeListener(_onFocusChanged);
-    widget.tab.useGlobalSearchOptions.removeListener(_onGlobalModeChanged);
+    _queryController.removeListener(_onQueryChanged);
+    _searchFieldFocusNode.removeListener(_onFocusChanged);
+    _useGlobalSearchOptions.removeListener(_onGlobalModeChanged);
     _alternativeWordFocusNode.removeListener(_updateInputFocusState);
     _alternativeWordController.dispose();
     _alternativeWordFocusNode.dispose();
@@ -86,14 +141,15 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
   }
 
   void _analyzeCurrentWord() {
-    final text = widget.tab.queryController.text;
-    final selection = widget.tab.queryController.selection;
+    final text = _queryController.text;
+    final selection = _queryController.selection;
 
     if (text.isEmpty || selection.baseOffset < 0) {
-      if (_currentWord != null) {
+      if (_currentWord != null || _selectedSpans.isNotEmpty) {
         setState(() {
           _currentWord = null;
           _wordIndex = null;
+          _selectedSpans = [];
           _currentAlternatives.clear();
         });
       }
@@ -104,35 +160,43 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
     // כך שמפתחות `${_currentWord}_$_wordIndex` ואינדקסי `alternativeWords` /
     // `spacingValues` שנשמרים פר-מילה יתאימו לחיפוש בפועל.
     // ללא יישור זה, שאילתות כמו `רמב"ם` מצרות מפתחות שאינם נקראים.
-    final words = SearchQueryBuilder.splitQueryWords(text);
-    _words = words;
+    _words = SearchQueryBuilder.splitQueryWords(text);
 
-    int currentPos = 0;
-    int? foundIndex;
-    String? foundWord;
+    // המיפוי מהבחירה למילים — דרך queryWordSpans, שמאתר כל מילת-מנוע
+    // בטקסט הגולמי (כולל ׳/״ עבריים בשדה ומקטעים משני-אורך כמו
+    // `רמב''ם`, שמקבלים את גבולות המקטע כולו).
+    final spans = SearchQueryBuilder.queryWordSpans(text);
+    final base = selection.baseOffset;
+    final extent = selection.extentOffset < 0 ? base : selection.extentOffset;
+    final selStart = base < extent ? base : extent;
+    final selEnd = base < extent ? extent : base;
 
-    for (int i = 0; i < words.length; i++) {
-      final word = words[i];
-      if (word.isEmpty) continue;
-
-      final wordStart = text.indexOf(word, currentPos);
-      if (wordStart == -1) continue;
-      final wordEnd = wordStart + word.length;
-
-      if (selection.baseOffset >= wordStart &&
-          selection.baseOffset <= wordEnd) {
-        foundIndex = i;
-        foundWord = word;
-        break;
-      }
-      currentPos = wordEnd;
+    final List<QueryWordSpan> selected;
+    if (selStart == selEnd) {
+      // סמן נקודתי — המילה הבודדת שהסמן בתוכה
+      final span = spans.cast<QueryWordSpan?>().firstWhere(
+          (s) => selStart >= s!.start && selStart <= s.end,
+          orElse: () => null);
+      selected = span == null ? const [] : [span];
+    } else {
+      // בחירת טווח — כל מילה שהבחירה חופפת בפועל
+      selected =
+          spans.where((s) => s.end > selStart && s.start < selEnd).toList();
     }
 
-    if (foundIndex != _wordIndex || foundWord != _currentWord) {
+    final anchor = selected.isNotEmpty ? selected.first : null;
+    // השוואה לפי המפתח המלא `word_index` — אינדקס לבדו יחמיץ שינוי טקסט
+    // של מילה לא-ראשונה בטווח, וישאיר מפתח ישן לכתיבת האפשרויות.
+    final changed = !listEquals(
+        selected.map((s) => '${s.word}_${s.index}').toList(),
+        _selectedSpans.map((s) => '${s.word}_${s.index}').toList());
+
+    if (changed) {
       setState(() {
-        _wordIndex = foundIndex;
-        _currentWord = foundWord;
-        _updateLocalStateForWord(foundIndex);
+        _selectedSpans = selected;
+        _wordIndex = anchor?.index;
+        _currentWord = anchor?.word;
+        _updateLocalStateForWord(anchor?.index);
       });
     }
   }
@@ -144,15 +208,26 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
     }
 
     _currentAlternatives.clear();
-    final alts = widget.tab.alternativeWords[index];
+    final alts = _alternativeWords[index];
     if (alts != null) {
       _currentAlternatives.addAll(alts);
+    }
+    // כשהמתג דלוק — החלופות השמורות של המילה מוצגות ברשימה כרגילות
+    if (widget.enableSavedAlternatives &&
+        widget.tab.useSavedAlternatives &&
+        index < _words.length) {
+      final word = _words[index];
+      for (final alt in SavedAlternativesStore.alternativesFor(word)) {
+        if (alt != word && !_currentAlternatives.contains(alt)) {
+          _currentAlternatives.add(alt);
+        }
+      }
     }
 
     final wordsCount = _words.where((w) => w.isNotEmpty).length;
     if (index < wordsCount - 1) {
       final key = '$index-${index + 1}';
-      final spacing = widget.tab.spacingValues[key] ?? '';
+      final spacing = _spacingValues[key] ?? '';
       _getSpacingController(index, index + 1).text = spacing;
     }
   }
@@ -174,115 +249,205 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
   void _navigateToWord(int newIndex) {
     if (newIndex < 0 || newIndex >= _words.length) return;
 
-    final text = widget.tab.queryController.text;
-    int currentPos = 0;
-    for (int i = 0; i < newIndex; i++) {
-      final wordStart = text.indexOf(_words[i], currentPos);
-      // המילים מגיעות מ-splitQueryWords על raw text שעבר sanitize, ולכן
-      // ייתכן שמילה מסוימת לא תימצא ככל שהיא (למשל אחרי מחיקת `!,;.`).
-      // במקרה כזה נעצור את הניווט במקום לחשב offset שגוי שיקרוס/יקפוץ.
-      if (wordStart == -1) return;
-      currentPos = wordStart + _words[i].length;
-    }
-
-    final targetWordStart = text.indexOf(_words[newIndex], currentPos);
-    if (targetWordStart != -1) {
-      final newOffset = targetWordStart + (_words[newIndex].length ~/ 2);
-      widget.tab.queryController.selection =
-          TextSelection.collapsed(offset: newOffset);
-    }
+    // queryWordSpans מחזיר טווח לכל מילת-מנוע בטקסט הגולמי; מילה
+    // שאינה ניתנת לאיתור מדויק (נורמליזציה משנת-אורך) מקבלת את גבולות
+    // המקטע שלה — הצבת הסמן באמצע הטווח נכונה בשני המקרים.
+    final spans = SearchQueryBuilder.queryWordSpans(
+      _queryController.text,
+    );
+    if (newIndex >= spans.length) return;
+    final span = spans[newIndex];
+    _queryController.selection = TextSelection.collapsed(
+      offset: span.start + (span.end - span.start) ~/ 2,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final isWordSelected = _currentWord != null && _wordIndex != null;
-    final useGlobal = widget.tab.useGlobalSearchOptions.value;
-    // הצ'קבוקסים פעילים אם במצב גלובלי או אם נבחרה מילה
-    final checkboxesEnabled = useGlobal || isWordSelected;
-    // ההגדרות הפר-מיליות (מילים חילופיות + מרווח) תמיד פר-מילה
-    final perWordInputsEnabled = isWordSelected;
+    final useGlobal = _useGlobalSearchOptions.value;
+    // תיבות האפשרויות פעילות אם במצב גלובלי או אם נבחרה מילה
+    final optionsEnabled = useGlobal || isWordSelected;
+    // מרווח/מילה חילופית עובדים על מילה בודדת בלבד — מנוטרלים בבחירת טווח
+    final perWordInputsEnabled = isWordSelected && _selectedSpans.length <= 1;
 
-    if (!checkboxesEnabled && !widget.compactMode) {
-      final colorScheme = Theme.of(context).colorScheme;
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32.0),
-          child: Column(
-            children: [
-              Icon(
-                FluentIcons.cursor_click_24_regular,
-                size: 48,
-                color: colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'לחץ על מילה בשדה החיפוש כדי להגדיר אפשרויות מתקדמות',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // המתג ממוקם לצד שורת הניווט (במקום הריק) כדי לא לתפוס שורה נפרדת
-    final navigationWithToggle = Row(
-      children: [
-        Expanded(child: _buildNavigationRow(perWordInputsEnabled)),
-        _buildScopeToggle(),
-      ],
-    );
-
-    if (widget.compactMode) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          navigationWithToggle,
-          if (perWordInputsEnabled) ...[
-            const SizedBox(height: 16),
-            _buildInputColumn(perWordInputsEnabled),
+    // המתגים ממוקמים לצד שורת הניווט; ברוחב צר יורדים לשורה נפרדת
+    final navigationWithToggle = LayoutBuilder(
+      builder: (context, constraints) {
+        final toggles = Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          alignment: WrapAlignment.center,
+          children: [
+            _buildSavedAlternativesToggle(),
+            _buildScopeToggle(),
           ],
-          const SizedBox(height: 16),
-          _buildCheckboxGrid(checkboxesEnabled, compactMode: true),
-        ],
-      );
-    }
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          flex: 2,
-          child: Column(
-            children: [
-              navigationWithToggle,
-              const SizedBox(height: 16),
-              _buildInputColumn(perWordInputsEnabled),
-            ],
-          ),
-        ),
-        const SizedBox(width: 24),
-        Expanded(
-          flex: 3,
-          child: Column(
+        );
+        if (constraints.maxWidth < 720) {
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildCheckboxGrid(checkboxesEnabled, compactMode: false),
+              _buildNavigationRow(isWordSelected),
+              const SizedBox(height: 4),
+              toggles,
             ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: _buildNavigationRow(isWordSelected)),
+            toggles,
+          ],
+        );
+      },
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        navigationWithToggle,
+        const SizedBox(height: 12),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: Text(
+            'אפשרויות מילה',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
         ),
+        const SizedBox(height: 8),
+        _buildOptionChips(optionsEnabled),
+        if (perWordInputsEnabled) ...[
+          const SizedBox(height: 12),
+          _buildInputColumn(perWordInputsEnabled),
+        ],
+        const SizedBox(height: 4),
+        _buildSaveDefaultsRow(),
       ],
+    );
+  }
+
+  /// מתג הרחבת החיפוש בחלופות השמורות — כבוי בכל חיפוש חדש.
+  Widget _buildSavedAlternativesToggle() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final enabled =
+        widget.enableSavedAlternatives && widget.tab.useSavedAlternatives;
+
+    return Tooltip(
+      message: enabled
+          ? 'החיפוש יורחב במילים החילופיות שנשמרו עבור מילות השאילתה'
+          : 'הפעל כדי להרחיב את החיפוש במילים החילופיות שנשמרו',
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppSurfaces.togglePill(colorScheme, active: enabled),
+          borderRadius: AppTokens.borderRadiusAll,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'חלופות שמורות',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: enabled
+                    ? colorScheme.primary
+                    : colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Transform.scale(
+              scale: 0.75,
+              child: Switch(
+                value: enabled,
+                onChanged: (value) {
+                  setState(() {
+                    widget.tab.useSavedAlternatives = value;
+                    _updateLocalStateForWord(_wordIndex);
+                  });
+                },
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// תפריט נפתח לסימון אילו אפשרויות מופעלות כברירת מחדל בחיפוש חדש,
+  /// ולצדו לחצן שמאפס את האפשרויות הנוכחיות לברירת המחדל השמורה.
+  Widget _buildSaveDefaultsRow() {
+    final defaults = SearchDefaults.loadDefaults();
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Wrap(
+        spacing: 4,
+        children: [
+          MenuAnchor(
+            menuChildren: [
+              // "ניקוד"/"טעמים" מוצעות רק במסלולים שתומכים בחיפוש מנוקד —
+              // כברירת מחדל הן מגבילות כל חיפוש חדש לטקסטים מנוקדים בלבד.
+              for (final key in [
+                ...SearchQueryBuilder.availableWordOptionKeys,
+                ...SearchQueryBuilder.advancedOnlyWordOptionKeys,
+                if (widget.supportsVocalized)
+                  ...SearchQueryBuilder.vocalizedWordOptionKeys,
+              ])
+                CheckboxMenuButton(
+                  value: defaults[key] ?? false,
+                  closeOnActivate: false,
+                  onChanged: (checked) {
+                    setState(() {
+                      SearchDefaults.saveDefaults(
+                          {...defaults, key: checked ?? false});
+                      // שינוי ברירת מחדל מוחל מיד גם על הריבוע בחלונית הפתוחה
+                      _globalSearchOptions[key] = checked ?? false;
+                    });
+                    _searchOptionsChanged.value++;
+                  },
+                  child: Text(key),
+                ),
+            ],
+            builder: (context, controller, _) => Tooltip(
+              message: 'סמן אילו אפשרויות יופעלו אוטומטית בכל חיפוש חדש',
+              child: ActionButton.ghost(
+                text: 'ברירת מחדל לחיפוש חדש',
+                icon: FluentIcons.options_24_regular,
+                onPressed: () =>
+                    controller.isOpen ? controller.close() : controller.open(),
+              ),
+            ),
+          ),
+          Tooltip(
+            message: 'החזרת האפשרויות המסומנות למצב ברירת המחדל השמורה',
+            child: ActionButton.ghost(
+              text: 'חזרה לברירת מחדל',
+              icon: FluentIcons.arrow_reset_24_regular,
+              onPressed: () {
+                setState(() {
+                  _globalSearchOptions
+                    ..clear()
+                    ..addAll(SearchDefaults.loadDefaults());
+                  _searchOptions.clear();
+                });
+                _searchOptionsChanged.value++;
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   /// מתג קומפקטי לבחירת היקף ההגדרות: גלובלי לכל המילים או פר-מילה.
   Widget _buildScopeToggle() {
     final colorScheme = Theme.of(context).colorScheme;
-    final useGlobal = widget.tab.useGlobalSearchOptions.value;
+    final useGlobal = _useGlobalSearchOptions.value;
 
     return Tooltip(
       message: useGlobal
@@ -290,9 +455,7 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
           : 'ההגדרות נשמרות לכל מילה בנפרד',
       child: Container(
         decoration: BoxDecoration(
-          color: useGlobal
-              ? colorScheme.primaryContainer.withValues(alpha: 0.6)
-              : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+          color: AppSurfaces.togglePill(colorScheme, active: useGlobal),
           borderRadius: AppTokens.borderRadiusAll,
         ),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -315,8 +478,8 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
               child: Switch(
                 value: useGlobal,
                 onChanged: (value) {
-                  widget.tab.useGlobalSearchOptions.value = value;
-                  widget.tab.searchOptionsChanged.value++;
+                  _useGlobalSearchOptions.value = value;
+                  _searchOptionsChanged.value++;
                 },
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
@@ -348,7 +511,11 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
               borderRadius: AppTokens.borderRadiusAll,
             ),
             child: Text(
-              isEnabled ? _currentWord! : 'בחר מילה',
+              !isEnabled
+                  ? 'בחר מילה'
+                  : _selectedSpans.length > 1
+                      ? '${_selectedSpans.length} מילים נבחרו'
+                      : _currentWord!,
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -402,8 +569,8 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
                       onPressed: isEnabled && _wordIndex != null
                           ? () {
                               final key = '${_wordIndex!}-${_wordIndex! + 1}';
-                              widget.tab.spacingValues.remove(key);
-                              widget.tab.spacingValuesChanged.value++;
+                              _spacingValues.remove(key);
+                              _spacingValuesChanged.value++;
                               _getSpacingController(
                                       _wordIndex!, _wordIndex! + 1)
                                   .clear();
@@ -425,15 +592,15 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
                         _wordIndex != null &&
                         text.trim().isNotEmpty) {
                       final key = '${_wordIndex!}-${_wordIndex! + 1}';
-                      widget.tab.spacingValues[key] = text.trim();
-                      widget.tab.spacingValuesChanged.value++;
+                      _spacingValues[key] = text.trim();
+                      _spacingValuesChanged.value++;
                     }
                   },
                   onSubmitted: (text) {
                     if (text.trim().isNotEmpty && _wordIndex != null) {
                       final key = '${_wordIndex!}-${_wordIndex! + 1}';
-                      widget.tab.spacingValues[key] = text.trim();
-                      widget.tab.spacingValuesChanged.value++;
+                      _spacingValues[key] = text.trim();
+                      _spacingValuesChanged.value++;
                       widget.onEmptySubmit?.call();
                     } else {
                       widget.onEmptySubmit?.call();
@@ -520,11 +687,13 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
       }
     });
 
-    widget.tab.alternativeWords.putIfAbsent(_wordIndex!, () => []);
-    if (!widget.tab.alternativeWords[_wordIndex!]!.contains(text)) {
-      widget.tab.alternativeWords[_wordIndex!]!.add(text);
+    _alternativeWords.putIfAbsent(_wordIndex!, () => []);
+    if (!_alternativeWords[_wordIndex!]!.contains(text)) {
+      _alternativeWords[_wordIndex!]!.add(text);
     }
-    widget.tab.alternativeWordsChanged.value++;
+    _alternativeWordsChanged.value++;
+    // כל חלופה שנוספת נשמרת גם במאגר הגלובלי עבור המילה הנוכחית
+    SavedAlternativesStore.addAlternative(_currentWord!, text);
     _alternativeWordController.clear();
   }
 
@@ -536,138 +705,93 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
       _currentAlternatives.removeAt(index);
     });
 
-    widget.tab.alternativeWords[_wordIndex!]?.remove(word);
-    if (widget.tab.alternativeWords[_wordIndex!]?.isEmpty ?? false) {
-      widget.tab.alternativeWords.remove(_wordIndex!);
+    _alternativeWords[_wordIndex!]?.remove(word);
+    if (_alternativeWords[_wordIndex!]?.isEmpty ?? false) {
+      _alternativeWords.remove(_wordIndex!);
     }
-    widget.tab.alternativeWordsChanged.value++;
+    _alternativeWordsChanged.value++;
+    // הסרה מוחקת את החלופה גם מהמאגר הגלובלי של המילה הנוכחית
+    if (_currentWord != null) {
+      SavedAlternativesStore.removeAlternative(_currentWord!, word);
+    }
   }
 
-  Widget _buildCheckboxGrid(bool isEnabled, {required bool compactMode}) {
-    const options = SearchQueryBuilder.availableWordOptionKeys;
+  /// הסברים לאפשרויות שהמשמעות שלהן אינה מובנת מהשם לבדו.
+  static const Map<String, String> _optionTooltips = {
+    SearchQueryBuilder.matchNikudOptionKey:
+        'התאמת ניקוד: ניקוד שיוקלד במילה יידרש להופיע בטקסט. החיפוש מוגבל לטקסטים מנוקדים.',
+    SearchQueryBuilder.matchTaamimOptionKey:
+        'התאמת טעמי המקרא: טעם שיוקלד במילה יידרש להופיע בטקסט. החיפוש מוגבל לטקסטים מוטעמים.',
+    'קידומות ארמיות':
+        'קידומות ארמיות (ד/כד/מד/אד...) לפני המילה: מלכא ימצא גם דמלכא, כדמלכא.',
+    'סיומות ארמיות':
+        'שקילות אות סופית ארמית: ה↔א (מלכה↔מלכא) ו-ם↔ן (חכמים↔חכמין).',
+    'התעלם מגרשיים':
+        'גרש/גרשיים שהוקלדו במילה לא יידרשו בטקסט: רמב"ם ימצא גם רמבם, ולהפך.',
+    'תרגום ארמי':
+        'הרחבת המילה בתרגומיה מהמילון הארמי-עברי, בשני הכיוונים (איתא↔יש).',
+    'ראשי תיבות':
+        'פענוח ראשי-תיבות בשני הכיוונים: רמב"ם ימצא גם "רבי משה בן מיימון", ולהפך. פועל כשהשאילתה היא ראשי-התיבות או הפענוח בשלמותו.',
+  };
 
-    final useGlobal = widget.tab.useGlobalSearchOptions.value;
+  /// תיבות אפשרויות המילה כ-FilterChips — אותו מראה כמו בחיפוש הרגיל.
+  /// במצב גלובלי הסימון חל על כל המילים; במצב פר-מילה על המילה הנבחרת.
+  Widget _buildOptionChips(bool isEnabled) {
+    final options = [
+      ...SearchQueryBuilder.availableWordOptionKeys,
+      ...SearchQueryBuilder.advancedOnlyWordOptionKeys,
+      if (widget.supportsVocalized)
+        ...SearchQueryBuilder.vocalizedWordOptionKeys,
+    ];
 
-    Widget buildCheckbox(String option) {
-      final colorScheme = Theme.of(context).colorScheme;
+    final useGlobal = _useGlobalSearchOptions.value;
+
+    Widget buildChip(String option) {
       bool isChecked = false;
       if (isEnabled) {
         if (useGlobal) {
-          isChecked = widget.tab.globalSearchOptions[option] ?? false;
+          isChecked = _globalSearchOptions[option] ?? false;
         } else {
-          final key = '${_currentWord}_$_wordIndex';
-          isChecked = widget.tab.searchOptions[key]?[option] ?? false;
+          // מסומן רק אם כל המילים הנבחרות מסומנות — אחרת מצב מעורב מוצג ככבוי
+          isChecked = _selectedSpans.isNotEmpty &&
+              _selectedSpans.every(
+                (s) => _searchOptions['${s.word}_${s.index}']?[option] ?? false,
+              );
         }
       }
 
-      return Opacity(
-        opacity: isEnabled ? 1.0 : 0.5,
-        child: InkWell(
-          onTap: isEnabled
-              ? () {
-                  setState(() {
-                    if (useGlobal) {
-                      widget.tab.globalSearchOptions[option] = !isChecked;
-                    } else {
-                      final key = '${_currentWord}_$_wordIndex';
-                      widget.tab.searchOptions.putIfAbsent(key, () => {});
-                      widget.tab.searchOptions[key]![option] = !isChecked;
+      final chip = FilterChip(
+        label: Text(option),
+        visualDensity: VisualDensity.compact,
+        selected: isChecked,
+        onSelected: isEnabled
+            ? (selected) {
+                setState(() {
+                  if (useGlobal) {
+                    _globalSearchOptions[option] = selected;
+                  } else {
+                    for (final s in _selectedSpans) {
+                      final key = '${s.word}_${s.index}';
+                      _searchOptions.putIfAbsent(key, () => {});
+                      _searchOptions[key]![option] = selected;
                     }
-                  });
-                  widget.tab.searchOptionsChanged.value++;
-                }
-              : null,
-          borderRadius: AppTokens.borderRadiusAll,
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IgnorePointer(
-                    child: Checkbox(
-                      value: isChecked,
-                      onChanged: isEnabled ? (_) {} : null,
-                      visualDensity: VisualDensity.compact,
-                      side: BorderSide(color: colorScheme.outline),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    option,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isEnabled
-                          ? colorScheme.onSurface
-                          : colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+                  }
+                });
+                _searchOptionsChanged.value++;
+              }
+            : null,
       );
+      final tooltip = _optionTooltips[option];
+      return tooltip == null ? chip : Tooltip(message: tooltip, child: chip);
     }
 
-    if (!compactMode) {
-      return Wrap(
-        spacing: 16,
-        runSpacing: 8,
-        children: options
-            .map((option) => SizedBox(width: 180, child: buildCheckbox(option)))
-            .toList(),
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final useSingleColumn = constraints.maxWidth < 600;
-
-        if (useSingleColumn) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: options.map(buildCheckbox).toList(),
-          );
-        }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(child: buildCheckbox(options[0])),
-                const SizedBox(width: 8),
-                Expanded(child: buildCheckbox(options[1])),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(child: buildCheckbox(options[2])),
-                const SizedBox(width: 8),
-                Expanded(child: buildCheckbox(options[3])),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(child: buildCheckbox(options[4])),
-                const SizedBox(width: 8),
-                Expanded(child: buildCheckbox(options[5])),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(child: buildCheckbox(options[6])),
-              ],
-            ),
-          ],
-        );
-      },
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        children: options.map(buildChip).toList(),
+      ),
     );
   }
 }

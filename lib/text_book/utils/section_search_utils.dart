@@ -2,12 +2,27 @@ import 'dart:async';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/search/utils/literal_search_pattern.dart';
 import 'package:otzaria/text_book/models/search_results.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 
 const int _maxSearchResults = 1000;
 const int _searchChunkSize = 128;
+
+final RegExp _whitespaceRun = RegExp(r'\s+');
+
+/// ניקוי שורה לחיפוש: הסרת הערות/HTML/ניקוד ואז כיווץ רצפי רווח לרווח יחיד.
+/// הכיווץ חיוני — הסרת תגים ("x </b> y") והמרת מקף/פסק לרווח ב-removeVolwels
+/// מייצרות רווח כפול, והחיפוש הליטרלי לא מוצא שאילתה עם רווח בודד.
+String cleanLineForSearch(String rawLine) => utils
+    .removeVolwels(
+        utils.stripHtmlIfNeeded(notes.stripInlineNotesForSearch(rawLine)))
+    .replaceAll(_whitespaceRun, ' ')
+    .trim();
+
+String _normalizeQueryWhitespace(String query) =>
+    query.replaceAll(_whitespaceRun, ' ').trim();
 
 void _updateAddress(List<String> address, String line) {
   if (line.length < 4) {
@@ -25,44 +40,46 @@ void _updateAddress(List<String> address, String line) {
   address.add(line);
 }
 
-bool _isHebrewLetter(int codeUnit) {
-  return (codeUnit >= 0x05D0 && codeUnit <= 0x05EA) ||
-      (codeUnit >= 0x05F0 && codeUnit <= 0x05F4) ||
-      (codeUnit >= 0xFB1D && codeUnit <= 0xFB4F);
-}
-
-/// מיקום ההתאמה הראשונה של [query] כמילה שלמה ב-[text], או -1 אם אין.
-int _wholeWordMatchOffset(String text, String query) {
-  if (query.isEmpty || !text.contains(query)) return -1;
-
-  int idx = text.indexOf(query);
-  while (idx != -1) {
-    final before = idx > 0 ? text.codeUnitAt(idx - 1) : -1;
-    final after = idx + query.length < text.length
-        ? text.codeUnitAt(idx + query.length)
-        : -1;
-
-    if (!_isHebrewLetter(before) && !_isHebrewLetter(after)) return idx;
-
-    idx = text.indexOf(query, idx + 1);
-  }
-  return -1;
-}
-
-bool _containsWholeWord(String text, String query) =>
-    _wholeWordMatchOffset(text, query) >= 0;
-
 /// מיקום יחסי (0..1) של ההתאמה ל-[query] בשורת המקור [rawLine], לאחר ניקוי
 /// זהה לחיפוש. משמש לדיוק גלילה אל המילה בתוך פסקה ארוכה. 0 אם אין התאמה.
-double matchFractionInLine(String rawLine, String query) {
-  final q = utils.hasNikud(query) ? utils.removeVolwels(query) : query;
-  if (q.isEmpty) return 0;
-  final clean = utils.removeVolwels(
-      utils.stripHtmlIfNeeded(notes.stripInlineNotesForSearch(rawLine)));
+/// [pattern] מוזרק בבדיקות בלבד — בייצור נבנה מהמנוע.
+double matchFractionInLine(
+  String rawLine,
+  String query, {
+  @visibleForTesting RegExp? pattern,
+}) {
+  final regExp = pattern ?? buildLiteralPattern(query)?.regExp;
+  if (regExp == null) return 0;
+  final clean = cleanLineForSearch(rawLine);
   if (clean.isEmpty) return 0;
-  final offset = _wholeWordMatchOffset(clean, q);
+  final offset = regExp.firstMatch(clean)?.start ?? -1;
   if (offset <= 0) return 0;
   return (offset / clean.length).clamp(0.0, 1.0);
+}
+
+/// האם תוצאת החיפוש [query] נחתה בגוף הערת שוליים של [rawLine] בלבד —
+/// המונח נמצא בהערה אך לא בטקסט הראשי. משמש לפתיחת חלונית ההערות בפתיחת
+/// תוצאה, כשהספר לבדו אינו מציג את ההתאמה (גוף ההערה מוסר מהטקסט הראשי).
+/// [pattern] מוזרק בבדיקות בלבד — בייצור נבנה מהמנוע.
+bool queryMatchesInlineNoteOnly(
+  String rawLine,
+  String query, {
+  @visibleForTesting RegExp? pattern,
+}) {
+  if (!rawLine.contains('footnote')) return false;
+  final regExp = pattern ?? buildLiteralPattern(query)?.regExp;
+  if (regExp == null) return false;
+
+  final noteBody = notes.notesForLines([rawLine], const [0]).join(' ');
+  final cleanNote = utils
+      .removeVolwels(utils.stripHtmlIfNeeded(noteBody))
+      .replaceAll(_whitespaceRun, ' ');
+  if (!regExp.hasMatch(cleanNote)) return false;
+
+  final cleanMain = utils
+      .removeVolwels(utils.stripHtmlIfNeeded(notes.stripInlineNotes(rawLine)))
+      .replaceAll(_whitespaceRun, ' ');
+  return !regExp.hasMatch(cleanMain);
 }
 
 class _SearchWorkerHost {
@@ -87,6 +104,7 @@ class _SearchWorkerHost {
   Future<List<TextSearchResult>> search({
     required List<String> content,
     required String query,
+    required String patternSource,
   }) async {
     await _ensureStarted();
 
@@ -105,6 +123,7 @@ class _SearchWorkerHost {
       'requestId': requestId,
       'contentId': _lastContentId,
       'query': query,
+      'patternSource': patternSource,
     };
     if (contentChanged) {
       message['content'] = content;
@@ -274,7 +293,9 @@ class SectionSearchWorkerRuntime {
 
         try {
           final contentId = request['contentId'] as int?;
-          final query = request['query'] as String;
+          final query = _normalizeQueryWhitespace(request['query'] as String);
+          final pattern =
+              compileLiteralPattern(request['patternSource'] as String);
 
           // ודא שה-cache תואם לתוכן המבוקש; אחרת בנה אותו פעם אחת.
           // בקשה ללא contentId (תאימות לאחור) נחשבת תמיד כתוכן חדש.
@@ -314,7 +335,7 @@ class SectionSearchWorkerRuntime {
               _updateAddress(address, rawLine);
             }
 
-            if (_containsWholeWord(cleanLines[i], query)) {
+            if (pattern.hasMatch(cleanLines[i])) {
               results.add({
                 'index': i,
                 'snippet': cleanLines[i],
@@ -371,8 +392,7 @@ class SectionSearchWorkerRuntime {
   Future<bool> _buildCache(int? contentId, List<String> content) async {
     final clean = List<String>.filled(content.length, '', growable: false);
     for (int i = 0; i < content.length; i++) {
-      clean[i] = utils.removeVolwels(
-          utils.stripHtmlIfNeeded(notes.stripInlineNotesForSearch(content[i])));
+      clean[i] = cleanLineForSearch(content[i]);
       if ((i + 1) % _searchChunkSize == 0) {
         await Future<void>.delayed(Duration.zero);
         final next = _queuedRequest;
@@ -388,15 +408,22 @@ class SectionSearchWorkerRuntime {
   }
 }
 
+/// [patternSource] מוזרק בבדיקות בלבד (הן אינן יכולות לקרוא למנוע);
+/// בייצור התבנית נבנית מהמנוע ב-isolate הראשי ונשלחת ל-worker.
 Future<List<TextSearchResult>> searchInContent({
   required List<String> content,
   required String query,
+  @visibleForTesting String? patternSource,
 }) async {
-  if (query.isEmpty || content.isEmpty) return [];
+  if (content.isEmpty) return [];
+
+  final source = patternSource ?? buildLiteralPattern(query)?.source;
+  if (source == null) return [];
 
   return _SearchWorkerHost.instance.search(
     content: content,
     query: query,
+    patternSource: source,
   );
 }
 

@@ -59,6 +59,24 @@ int chapterEndLineIndex(
   return contentLength - 1;
 }
 
+/// ה-globalIndex של שורת התוצאה שתסומן ברשימת קטעי החיפוש.
+///
+/// כל מפרש תורם שורה אחת אך [currentIdx] מונה היקרויות — לכן השורה הנבחרת
+/// היא האחרונה שה-globalIndex שלה <= currentIdx (ההיקרויות הבאות באותו מפרש
+/// שייכות לשורתו). השוואת שוויון ישירה השאירה את הניווט ללא סימון.
+@visibleForTesting
+int resolveSelectedSnippetGlobalIndex(
+  List<CommentarySearchSnippet> snippets,
+  int currentIdx,
+) {
+  var selected = -1;
+  for (final snippet in snippets) {
+    if (snippet.globalIndex > currentIdx) break;
+    selected = snippet.globalIndex;
+  }
+  return selected;
+}
+
 /// קובע אם ה-listener של מסך המפרשים צריך לפעול עבור מעבר state נתון.
 ///
 /// חובה לפעול במעבר הראשון למצב טעון (`TextBookLoading → TextBookLoaded`)
@@ -1362,6 +1380,9 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
       );
     }
 
+    final selectedGlobalIndex =
+        resolveSelectedSnippetGlobalIndex(snippets, currentIdx);
+
     // בניית רשימה מקובצת עם כותרות מפרשים
     final List<_SearchResultItem> items = [];
     String? lastPath;
@@ -1408,7 +1429,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
         }
 
         final snippet = item.snippet!;
-        final isSelected = snippet.globalIndex == currentIdx;
+        final isSelected = snippet.globalIndex == selectedGlobalIndex;
         return BlocBuilder<SettingsBloc, SettingsState>(
           builder: (context, settingsState) {
             final highlightedSpans = _buildSnippetHighlightSpans(

@@ -41,8 +41,7 @@ class AppSurfaces {
 
   /// צבע מפריד פנימי בין שורות בתוך כרטיס תוכן.
   /// משמש בהגדרות עם עץ נפתח
-  static Color cardRowDivider(BuildContext context) =>
-      panelBackground(context);
+  static Color cardRowDivider(BuildContext context) => panelBackground(context);
 
   /// שכבת בחירה לכרטיסי תוכן.
   ///
@@ -73,6 +72,11 @@ class AppSurfaces {
       isDragging
           ? cs.primary.withValues(alpha: 0.8)
           : cs.onSurfaceVariant.withValues(alpha: 0.4);
+
+  /// רקע מתג קומפקטי בסגנון גלולה (מתגי דיאלוג החיפוש) — מודגש כשדלוק.
+  static Color togglePill(ColorScheme cs, {required bool active}) => active
+      ? cs.primaryContainer.withValues(alpha: 0.6)
+      : cs.surfaceContainerHighest.withValues(alpha: 0.5);
 
   /// overlayColor ל-TabBar שמצייר hover מותאם אישית (foregroundPainter)
   /// ולכן רוצה לבטל את ה-hover/focus הגלובלי של [TabBarTheme].

@@ -13,9 +13,14 @@ import 'package:otzaria/text_book/models/search_results.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/text_book/view/text_book_search_screen.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+import '../../support/search_engine_test_init.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 
-void main() {
+Future<void> main() async {
+  // sanitizeQuery/splitQueryWords מאצילים למנוע ה-Rust; הטסטים שלהם דורשים
+  // את הספרייה הנייטיבית ומדולגים כשאין build זמין.
+  final engineReady = await tryInitSearchEngine();
+
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(() async {
@@ -96,7 +101,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.text('כתובת-אב'), findsNothing);
-  });
+  }, skip: !engineReady);
 
   testWidgets(
       'didUpdateWidget מונע חיפוש כפול בהד הקלדה אך מריץ על שינוי חיצוני',
@@ -182,7 +187,7 @@ void main() {
     expect(runnerCalls, callsAfterTyping + 1,
         reason: 'שינוי query חיצוני אמור להריץ חיפוש פעם אחת בלבד');
     expect(queriesSeen.last, 'אברהם');
-  });
+  }, skip: !engineReady);
 
   testWidgets('חיפוש ישן לא דורס תוצאות של חיפוש חדש יותר', (tester) async {
     final textBookBloc = _TestTextBookBloc(_loadedState());
@@ -253,7 +258,7 @@ void main() {
 
     expect(find.text('חדש'), findsOneWidget);
     expect(find.text('ישן'), findsNothing);
-  });
+  }, skip: !engineReady);
 
   Future<void> pumpSearchWithResults({
     required WidgetTester tester,
@@ -343,6 +348,7 @@ void main() {
       expect(prevInkWell.onTap, isNotNull,
           reason: 'אמורות להיות לפחות 2 תוצאות לפני הנבחרת');
     },
+    skip: !engineReady,
   );
 
   testWidgets(
@@ -369,6 +375,7 @@ void main() {
       expect(nextInkWell.onTap, isNull,
           reason: 'התוצאה הנבחרת היא האחרונה (index 10 >= currentLine 6)');
     },
+    skip: !engineReady,
   );
 
   testWidgets(
@@ -461,6 +468,7 @@ void main() {
       expect(prevInkWell.onTap, isNull,
           reason: 'הבחירה אמורה לעבור לאינדקס 0 של תוצאות xy (line=50)');
     },
+    skip: !engineReady,
   );
 
   testWidgets(
@@ -542,6 +550,7 @@ void main() {
       expect(tester.getTopLeft(find.text('כתובת_0')), initialTopLeft,
           reason: 'אסור לגלול את רשימת התוצאות אם היעד כבר גלוי');
     },
+    skip: !engineReady,
   );
 
   testWidgets(
@@ -626,6 +635,7 @@ void main() {
       expect(nextInkWell.onTap, isNull,
           reason: 'הבחירה נפלה ל-closestIndex (אחרון) כי line=50 לא קיים');
     },
+    skip: !engineReady,
   );
 }
 

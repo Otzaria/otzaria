@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:logging/logging.dart';
 
 import '../../../utils/text/text_manipulation.dart';
@@ -504,6 +506,28 @@ class SeforimRepository {
     return result.map((row) => PubDate.fromJson(row)).toList();
   }
 
+  /// חיפוש קל-משקל של שמות מחברים לפי מחרוזת חלקית — להשלמה אוטומטית
+  /// בסינון "לפי ממדים" של החיפוש. מחזיר שמות בלבד, בלי לטעון ספרים.
+  Future<List<String>> searchAuthorNames(String prefix, {int limit = 20}) async {
+    final trimmed = prefix.trim();
+    if (trimmed.isEmpty || limit <= 0) {
+      return const [];
+    }
+    final db = await _database.database;
+    final escaped = trimmed
+        .replaceAll('\\', '\\\\')
+        .replaceAll('%', '\\%')
+        .replaceAll('_', '\\_');
+    final result = db.select(
+      "SELECT name FROM author WHERE name LIKE ? ESCAPE '\\' ORDER BY name LIMIT ?",
+      ['%$escaped%', limit],
+    ).toMapList();
+    return [
+      for (final row in result)
+        if (row['name'] is String) row['name'] as String,
+    ];
+  }
+
   // Get an author by name, returns null if not found
   Future<Author?> getAuthorByName(String name) async {
     return await _database.authorDao.getAuthorByName(name);
@@ -971,6 +995,18 @@ class SeforimRepository {
   Future<List<Line>> getLines(int bookId, int startIndex, int endIndex) async {
     return await _database.lineDao
         .selectByBookIdRange(bookId, startIndex, endIndex);
+  }
+
+  /// תוכן כל שורות הספר בסדר השורות — מסלול קריאה רזה לאינדוקס
+  /// (ראה [LineDao.selectContentByBookId]).
+  Future<List<String>> getLineContents(int bookId) async {
+    return await _database.lineDao.selectContentByBookId(bookId);
+  }
+
+  /// תוכן הספר כבייטים גולמיים (UTF-8) מאוחים ב-`\n` — מסלול האינדוקס
+  /// (ראה [LineDao.selectContentBytesByBookId]).
+  Future<Uint8List> getLineContentBytes(int bookId) async {
+    return await _database.lineDao.selectContentBytesByBookId(bookId);
   }
 
   /// Gets only IDs and indices for all lines in a book.

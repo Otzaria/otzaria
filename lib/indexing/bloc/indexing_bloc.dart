@@ -1,9 +1,12 @@
 import 'package:bloc_concurrency/bloc_concurrency.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
 import 'package:otzaria/indexing/bloc/indexing_state.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
+import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/books.dart';
 
 class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
   final IndexingRepository _repository;
@@ -36,7 +39,95 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     }
 
     if (event is IndexSpecificBooks) {
-      await _onIndexSpecificBooks(event, emit);
+      await _onBooksWork(event.books, event.library, emit, reindex: false);
+      return;
+    }
+
+    if (event is ReindexChangedBooks) {
+      await _onBooksWork(event.books, event.library, emit, reindex: true);
+      return;
+    }
+
+    if (event is ReconcileIndex) {
+      await _onReconcileIndex(event, emit);
+      return;
+    }
+
+    if (event is DropOrphanedIndexEntries) {
+      // עבודת רקע שקטה — בלי מצבי התקדמות; כשל אינו קריטי (ינוקה ברענון הבא).
+      try {
+        await _repository.dropOrphanedIndexEntries(event.library);
+      } catch (e) {
+        debugPrint('⚠️ ניקוי רשומות יתומות מהאינדקס נכשל: $e');
+      }
+    }
+  }
+
+  /// Handles the ReconcileIndex event — סריקת התאמה בין האינדקס לספרייה,
+  /// ואינדוקס מחדש של הספרים שנמצאו שונים.
+  Future<void> _onReconcileIndex(
+    ReconcileIndex event,
+    Emitter<IndexingState> emit,
+  ) async {
+    final workId = ++_nextWorkId;
+    _activeWorkId = workId;
+
+    final totalCandidates = event.library
+        .getAllBooks()
+        .where((b) => IndexingRepository.isIndexableBook(b))
+        .length;
+    if (totalCandidates == 0) {
+      _activeWorkId = null;
+      return;
+    }
+
+    emit(IndexingInProgress(
+      booksProcessed: 0,
+      totalBooks: totalCandidates,
+      isCreatingIndex: false,
+    ));
+
+    try {
+      final completed = await _repository.reconcileIndexWithLibrary(
+        event.library,
+        // שלב הסריקה מדווח דרך emit ישיר (ולא UpdateIndexingProgress) כדי
+        // ש-processed==total בסוף הסריקה לא ייתפס כ"אינדוקס הושלם" לפני
+        // שלב האינדוקס-מחדש.
+        onScanProgress: (processed, total) {
+          if (_activeWorkId != workId) return;
+          emit(IndexingInProgress(
+            booksProcessed: processed,
+            totalBooks: total,
+            isCreatingIndex: state.isCreatingIndex,
+          ));
+        },
+        onActualIndexingStarted: () {
+          add(ActualIndexingStarted(workId));
+        },
+        onProgress: (processed, total) {
+          add(UpdateIndexingProgress(
+            workId: workId,
+            processed: processed,
+            total: total,
+          ));
+        },
+      );
+      if (_activeWorkId != workId) {
+        return;
+      }
+      _activeWorkId = null;
+      if (completed) {
+        emit(const IndexingComplete());
+      } else {
+        emit(IndexingInitial());
+      }
+    } catch (e) {
+      if (_activeWorkId != workId) {
+        return;
+      }
+      _activeWorkId = null;
+      emit(IndexingError(e.toString(),
+          booksProcessed: state.booksProcessed, totalBooks: state.totalBooks));
     }
   }
 
@@ -116,20 +207,23 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     ));
   }
 
-  /// Handles the IndexSpecificBooks event
-  Future<void> _onIndexSpecificBooks(
-    IndexSpecificBooks event,
-    Emitter<IndexingState> emit,
-  ) async {
+  /// מטפל באינדוקס של רשימת ספרים — חדשים (IndexSpecificBooks) או
+  /// כאלה שתוכנם השתנה (ReindexChangedBooks, עם [reindex] פעיל).
+  Future<void> _onBooksWork(
+    List<Book> books,
+    Library library,
+    Emitter<IndexingState> emit, {
+    required bool reindex,
+  }) async {
     final workId = ++_nextWorkId;
     _activeWorkId = workId;
 
-    if (event.books.isEmpty) {
+    if (books.isEmpty) {
       _activeWorkId = null;
       return;
     }
 
-    final totalBooks = event.books.length;
+    final totalBooks = books.length;
     emit(IndexingInProgress(
       booksProcessed: 0,
       totalBooks: totalBooks,
@@ -137,20 +231,25 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     ));
 
     try {
-      final completed = await _repository.indexBooks(
-        event.books,
-        event.library,
-        onActualIndexingStarted: () {
-          add(ActualIndexingStarted(workId));
-        },
-        onProgress: (processed, total) {
-          add(UpdateIndexingProgress(
+      onActualIndexingStarted() => add(ActualIndexingStarted(workId));
+      onProgress(int processed, int total) => add(UpdateIndexingProgress(
             workId: workId,
             processed: processed,
             total: total,
           ));
-        },
-      );
+      final completed = reindex
+          ? await _repository.reindexChangedBooks(
+              books,
+              library,
+              onActualIndexingStarted: onActualIndexingStarted,
+              onProgress: onProgress,
+            )
+          : await _repository.indexBooks(
+              books,
+              library,
+              onActualIndexingStarted: onActualIndexingStarted,
+              onProgress: onProgress,
+            );
       if (_activeWorkId != workId) {
         return;
       }
@@ -226,13 +325,11 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
       return;
     }
 
-    // If indexing is complete
-    if (event.processed >= event.total) {
-      emit(const IndexingComplete());
-    } else if (!_repository.isIndexing()) {
+    // processed==total כאן פירושו "בעבודה על הספר האחרון" — ההשלמה נפלטת
+    // ממטפל העבודה עצמו אחרי שה-repository מסיים (כולל commit ו-optimize).
+    if (!_repository.isIndexing()) {
       emit(IndexingInitial());
     } else {
-      // Update progress state
       emit(IndexingInProgress(
         booksProcessed: event.processed,
         totalBooks: event.total,

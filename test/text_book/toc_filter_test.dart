@@ -2,6 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/view/toc_filter.dart';
 
+import '../support/search_engine_test_init.dart';
+
 TocEntry _entry({
   required String text,
   required int index,
@@ -19,7 +21,11 @@ TocEntry _entry({
   return entry;
 }
 
-void main() {
+Future<void> main() async {
+  // הקוד הנבדק קורא ל-sanitizeQuery/splitQueryWords שמאצילים למנוע ה-Rust;
+  // הטסטים המסומנים מדולגים כשאין build נייטיבי זמין.
+  final engineReady = await tryInitSearchEngine();
+
   test('filterTocEntriesForSearch keeps only matching branches', () {
     final root = _entry(text: 'Book', index: 0, level: 1);
     final chapterA =
@@ -42,7 +48,7 @@ void main() {
     expect(filtered.first.children.length, 2);
     expect(filtered.first.children[0].text, 'Chapter A');
     expect(filtered.first.children[1].text, 'Chapter B');
-  });
+  }, skip: engineReady ? false : searchEngineSkipReason);
 
   test('filterTocEntriesForSearch returns empty list for empty query', () {
     final root = _entry(text: 'Book', index: 0, level: 1);
@@ -51,7 +57,7 @@ void main() {
     final filtered = filterTocEntriesForSearch(entries, '   ');
 
     expect(filtered, isEmpty);
-  });
+  }, skip: engineReady ? false : searchEngineSkipReason);
 
   test('shouldExpandInSearch defaults to true when no state is stored', () {
     expect(shouldExpandInSearch(null), isTrue);
@@ -73,7 +79,7 @@ void main() {
       'שבת דף ע',
       'מאירי על שבת דף ע',
     ]);
-  });
+  }, skip: engineReady ? false : searchEngineSkipReason);
 
   test('container parents keep book order when only descendants match', () {
     TocEntry section(String title, int index, String childTitle) {
@@ -99,5 +105,5 @@ void main() {
       'אבן העזר',
       'חושן משפט',
     ]);
-  });
+  }, skip: engineReady ? false : searchEngineSkipReason);
 }

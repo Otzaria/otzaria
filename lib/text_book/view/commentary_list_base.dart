@@ -15,6 +15,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/text_book/view/combined_view/commentary_content.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
+import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
 import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/view/commentators_list_screen.dart';
@@ -22,6 +23,7 @@ import 'package:otzaria/widgets/misc/commentators_filter_button.dart';
 import 'package:otzaria/widgets/layout/commentators_filter_screen.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
+import 'package:otzaria/settings/services/nikud_display_service.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/ui/context_menu_utils.dart';
@@ -185,6 +187,11 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
   // Anti-jitter search stats
   Timer? _searchUpdateDebounce;
   final Map<String, int> _pendingCounts = {};
+  // חישוב ספירות חיפוש ברקע על כל הקישורים — הרשימה וירטואלית ופריטים שלא
+  // נבנו אינם מדווחים, לכן אסור להסתמך על ה-widgets לספירה.
+  Timer? _searchComputeDebounce;
+  int _searchComputeGen = 0;
+  int _lastLinksSignature = 0;
   // מפה: link key → path2 (לצורך קיבוץ תוצאות לפי מפרש)
   final Map<String, String> _linkKeyToPath = {};
   // מפה: link key → קטעי טקסט (snippets) לתוצאות החיפוש
@@ -353,6 +360,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     _totalSearchResultsNotifier.value = 0;
     _searchResultsPerLink.clear();
     _pendingCounts.clear();
+    _scheduleSearchCompute();
   }
 
   void _onExternalSearchChanged() {
@@ -375,6 +383,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
       _searchSnippetsPerLink.clear();
       widget.externalSearchResultsByPathNotifier?.value = {};
       widget.externalSearchSnippetsNotifier?.value = [];
+      _scheduleSearchCompute();
     }
   }
 
@@ -396,6 +405,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
   }
 
   void _clearSearchAndCloseField() {
+    _searchComputeDebounce?.cancel();
     _searchController.clear();
     _searchQueryNotifier.value = '';
     _currentSearchIndexNotifier.value = 0;
@@ -631,6 +641,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                             _totalSearchResultsNotifier.value = 0;
                             _searchResultsPerLink.clear();
                             _pendingCounts.clear();
+                            _scheduleSearchCompute();
                           }
                         },
                         onSubmitted: (_) {
@@ -740,10 +751,17 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
   }
 
   void _updateLastScrollIndex() {
+    // הרשימה מדווחת גם פריטים שנבנו מחוץ למסך (cache) — מסננים לנראים בלבד.
     final positions = _itemPositionsListener.itemPositions.value;
-    if (positions.isNotEmpty) {
-      // שומר את האינדקס של הפריט הראשון הנראה
-      _lastScrollIndex = positions.first.index;
+    ItemPosition? firstVisible;
+    for (final p in positions) {
+      if (p.itemTrailingEdge <= 0 || p.itemLeadingEdge >= 1) continue;
+      if (firstVisible == null || p.index < firstVisible.index) {
+        firstVisible = p;
+      }
+    }
+    if (firstVisible != null) {
+      _lastScrollIndex = firstVisible.index;
     }
   }
 
@@ -820,6 +838,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
   @override
   void dispose() {
     _searchUpdateDebounce?.cancel();
+    _searchComputeDebounce?.cancel();
     _itemPositionsListener.itemPositions.removeListener(_updateLastScrollIndex);
     widget.selectionSyncController
         ?.removeListener(_handleExternalSelectionChange);
@@ -983,6 +1002,67 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
         }
       }
     });
+  }
+
+  void _scheduleSearchCompute() {
+    _searchComputeDebounce?.cancel();
+    // כשאין קישורים אין מה לחשב — טעינתם תפעיל תזמון מחדש (לפי חתימה).
+    if (_orderedLinks.isEmpty) return;
+    _searchComputeDebounce =
+        Timer(const Duration(milliseconds: 250), _computeSearchCounts);
+  }
+
+  /// עובר על כל הקישורים ומזין את משפך העדכון של ספירות/קטעי חיפוש, במקביל
+  /// לדיווח (הזהה) מה-widgets שנבנו בפועל.
+  Future<void> _computeSearchCounts() async {
+    if (!mounted) return;
+    final internalQuery = widget.showSearch ? _searchQueryNotifier.value : '';
+    final query = internalQuery.isNotEmpty
+        ? internalQuery
+        : (widget.highlightQueryListenable?.value ?? '');
+    final links = List<Link>.from(_orderedLinks);
+    if (query.isEmpty || links.isEmpty) return;
+    final gen = ++_searchComputeGen;
+
+    final blocState = context.read<TextBookBloc>().state;
+    final removePunctuation =
+        blocState is TextBookLoaded && blocState.removePunctuation;
+    final stateRemoveNikud =
+        blocState is TextBookLoaded && blocState.removeNikud;
+    final settings = context.read<SettingsBloc>().state;
+    final wantSnippets = widget.externalSearchSnippetsNotifier != null;
+
+    for (final link in links) {
+      String data;
+      try {
+        data = await link.content;
+      } catch (_) {
+        data = '';
+      }
+      if (!mounted || gen != _searchComputeGen) return;
+      final count = countCommentarySearchMatches(
+        content: data,
+        query: query,
+        removePunctuation: removePunctuation,
+      );
+      _updateSearchResultsCount(link, count);
+      if (wantSnippets && count > 0) {
+        final removeNikud = await resolveRemoveNikudForBook(
+          title: utils.getTitleFromPath(link.path2),
+          defaultRemoveNikud: settings.defaultRemoveNikud || stateRemoveNikud,
+          removeNikudFromTanach: settings.removeNikudFromTanach,
+        );
+        if (!mounted || gen != _searchComputeGen) return;
+        _updateSearchSnippets(link, [
+          buildCommentarySearchSnippet(
+            content: data,
+            query: query,
+            removeNikud: removeNikud,
+            removePunctuation: removePunctuation,
+          ),
+        ]);
+      }
+    }
   }
 
   void _updateSearchResultsCount(Link link, int count) {
@@ -1446,6 +1526,14 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                     // מנקה מפתחות ישנים ומכין מפתחות חדשים
                     final currentLinkKeys =
                         data.map((l) => _getLinkKey(l)).toSet();
+
+                    // קישורים חדשים (טעינה/מעבר שורה) — חישוב ספירות חיפוש
+                    // מחדש אם יש שאילתה פעילה.
+                    final linksSignature = Object.hashAll(currentLinkKeys);
+                    if (linksSignature != _lastLinksSignature) {
+                      _lastLinksSignature = linksSignature;
+                      _scheduleSearchCompute();
+                    }
                     _itemKeys.removeWhere(
                         (key, value) => !currentLinkKeys.contains(key));
                     for (final key in currentLinkKeys) {
@@ -2011,8 +2099,13 @@ class _CollapsibleCommentaryGroupState
                           widget.highlightQueryListenable!,
                       ]),
                       builder: (context, _) {
-                        final searchQuery = widget.showSearch
+                        // שדה החיפוש הפנימי גובר כשהוקלד בו; כשהוא ריק נופלים
+                        // להדגשת מונח החיפוש החיצוני (מתוצאה שנחתה בהערה).
+                        final internalQuery = widget.showSearch
                             ? widget.searchQueryListenable.value
+                            : '';
+                        final searchQuery = internalQuery.isNotEmpty
+                            ? internalQuery
                             : (widget.highlightQueryListenable?.value ?? '');
                         final currentSearchIndex = (widget.showSearch ||
                                 widget.highlightQueryListenable != null)

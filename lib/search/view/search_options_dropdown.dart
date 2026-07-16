@@ -62,6 +62,12 @@ class SearchOptionsRow extends StatefulWidget {
   final Map<String, Map<String, bool>>? wordOptions; // אפשרויות מהטאב
   final VoidCallback? onOptionsChanged; // קולבק לעדכון
 
+  /// האם להציג גם את האפשרויות הבלעדיות למצב המתקדם (קידומות/סיומות
+  /// ארמיות, התעלם מגרשיים, תרגום ארמי, ראשי תיבות). מוזן ממצב החיפוש של
+  /// הטאב — במצב רגיל הן מסוננות ממילא ([normalizeParametersForMode]),
+  /// והצגתן שם הייתה בחירה שנבלעת בלי השפעה.
+  final bool showAdvancedOnlyOptions;
+
   const SearchOptionsRow({
     super.key,
     required this.isVisible,
@@ -69,6 +75,7 @@ class SearchOptionsRow extends StatefulWidget {
     this.wordIndex,
     this.wordOptions,
     this.onOptionsChanged,
+    this.showAdvancedOnlyOptions = false,
   });
 
   @override
@@ -76,9 +83,16 @@ class SearchOptionsRow extends StatefulWidget {
 }
 
 class _SearchOptionsRowState extends State<SearchOptionsRow> {
-  // רשימת האפשרויות הזמינות
-  static const List<String> _availableOptions =
-      SearchQueryBuilder.availableWordOptionKeys;
+  // רשימת האפשרויות הזמינות — כולל "ניקוד"/"טעמים": השדה הזה חי בטאב
+  // תוצאות, שתמיד מריץ חיפוש אינדקס (ראה supportsVocalized בדיאלוג).
+  // האפשרויות הבלעדיות למתקדם מצטרפות רק כשהמצב מתקדם
+  // (widget.showAdvancedOnlyOptions).
+  List<String> get _availableOptions => [
+        ...SearchQueryBuilder.availableWordOptionKeys,
+        if (widget.showAdvancedOnlyOptions)
+          ...SearchQueryBuilder.advancedOnlyWordOptionKeys,
+        ...SearchQueryBuilder.vocalizedWordOptionKeys,
+      ];
 
   Map<String, bool> _getCurrentWordOptions() {
     final currentWord = widget.currentWord;
@@ -127,8 +141,9 @@ class _SearchOptionsRowState extends State<SearchOptionsRow> {
                     SearchQueryBuilder.disabledWordOptionsTemplate();
               }
 
-              // עדכן את האפשרות
-              wordOptions[key]![option] = !wordOptions[key]![option]!;
+              // עדכן את האפשרות. גישה סלחנית: מפה פר-מילה שנוצרה בדיאלוג
+              // מכילה רק אפשרויות שהודלקו, לא את התבנית המלאה.
+              wordOptions[key]![option] = !(wordOptions[key]![option] ?? false);
 
               // קרא לקולבק
               widget.onOptionsChanged?.call();
@@ -146,7 +161,7 @@ class _SearchOptionsRowState extends State<SearchOptionsRow> {
             children: [
               IgnorePointer(
                 child: Checkbox(
-                  value: currentOptions[option]!,
+                  value: currentOptions[option] ?? false,
                   onChanged: (_) {},
                   visualDensity: VisualDensity.compact,
                   side: BorderSide(color: colorScheme.outline),

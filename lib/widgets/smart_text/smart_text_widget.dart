@@ -4,6 +4,7 @@ import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/utils/text/html_link_handler.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/simple_inline_html.dart';
 import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
@@ -62,6 +63,18 @@ class SmartTextWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // כשיש חיפוש, מאזינים לגרסת תבנית ההדגשה: תבנית מבוססת-אינדקס שמגיעה
+    // אחרי הרינדור הראשוני (fallback) גורמת להתרנדר מחדש עם ההדגשה המדויקת.
+    if (settings.searchText.isEmpty) {
+      return _buildContent(context);
+    }
+    return ListenableBuilder(
+      listenable: utils.highlightPatternRevision,
+      builder: (context, _) => _buildContent(context),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     // עיבוד הטקסט דרך השירות המרכזי
     final processedHtml = TextRendererService.processText(text, settings);
     final textStyle = TextStyle(

@@ -17,7 +17,13 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
-void main() {
+import '../../support/search_engine_test_init.dart';
+
+Future<void> main() async {
+  // הקוד הנבדק קורא ל-sanitizeQuery/splitQueryWords שמאצילים למנוע ה-Rust;
+  // הטסטים המסומנים מדולגים כשאין build נייטיבי זמין.
+  final engineReady = await tryInitSearchEngine();
+
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late _TestTextBookBloc textBookBloc;
@@ -68,7 +74,7 @@ void main() {
 
       expect(_searchFocusNode(tester).hasFocus, isTrue);
       expect(find.text('מפרש'), findsOneWidget);
-    });
+    }, skip: !engineReady);
 
     testWidgets('לחיצה על dismiss סוגרת את שדה החיפוש ומנקה את הטקסט',
         (tester) async {
@@ -98,7 +104,7 @@ void main() {
       expect(find.byType(TextField), findsNothing);
       expect(find.byIcon(FluentIcons.search_24_regular), findsWidgets);
       expect(controller.text, isEmpty);
-    });
+    }, skip: !engineReady);
   });
 }
 

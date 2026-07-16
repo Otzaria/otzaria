@@ -10,6 +10,8 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/search/search_scope_preferences.dart';
 import 'package:otzaria/search/view/category_tree_selector.dart';
 
+import '../support/search_engine_test_init.dart';
+
 class _MockLibraryBloc extends MockBloc<LibraryEvent, LibraryState>
     implements LibraryBloc {}
 
@@ -45,7 +47,11 @@ Library _buildLibraryWithMidrashChildren() {
   return library;
 }
 
-void main() {
+Future<void> main() async {
+  // הווידג'טים הנבדקים קוראים ל-sanitizeQuery/splitQueryWords שמאצילים למנוע
+  // ה-Rust; הטסטים המסומנים מדולגים כשאין build נייטיבי זמין.
+  final engineReady = await tryInitSearchEngine();
+
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('CategoryTreeSelector', () {
@@ -85,7 +91,7 @@ void main() {
 
       expect(resetCalled, isTrue);
       expect(lastSelection, isNull);
-    });
+    }, skip: !engineReady);
 
     testWidgets('כיבוי חיפוש בכל הקטגוריות מפיץ scope ידני ריק',
         (tester) async {
@@ -114,7 +120,7 @@ void main() {
 
       expect(emittedSelections, isNotEmpty);
       expect(emittedSelections.last, isEmpty);
-    });
+    }, skip: !engineReady);
 
     testWidgets('האתחול לא מפעיל setState בזמן build אצל הווידג׳ט ההורה',
         (tester) async {
@@ -170,7 +176,7 @@ void main() {
 
       final switchWidget = tester.widget<Switch>(find.byType(Switch));
       expect(switchWidget.value, isFalse);
-    });
+    }, skip: !engineReady);
 
     testWidgets(
         'ביטול סימון תת-קטגוריה לא בוחר את כל הקטגוריות העליונות האחרות',
@@ -252,7 +258,7 @@ void main() {
       expect(finalSelection.contains('/תנ״ך'), isFalse);
       expect(finalSelection.contains('/משנה'), isFalse);
       expect(finalSelection.contains('/תלמוד בבלי'), isFalse);
-    });
+    }, skip: !engineReady);
 
     testWidgets('מצב ידני ריק נשמר גם אחרי rebuild של ההורה', (tester) async {
       await tester.pumpWidget(
@@ -273,7 +279,7 @@ void main() {
 
       final switchWidget = tester.widget<Switch>(find.byType(Switch));
       expect(switchWidget.value, isFalse);
-    });
+    }, skip: !engineReady);
   });
 }
 

@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_query_builder.dart';
+import 'package:otzaria/search/utils/category_query_parser.dart';
 import 'package:otzaria/search/view/tantivy_full_text_search.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
@@ -112,8 +116,10 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     _detachTabListeners(widget.tab);
     _keyboardListenerFocusNode.dispose();
     _textFieldKeyboardListenerFocusNode.dispose();
-    widget.tab.searchOptions.clear();
-    widget.tab.globalSearchOptions.clear();
+    // בכוונה לא מנקים כאן את אפשרויות הטאב: הטאב שייך לבעליו (דיאלוג
+    // החיפוש או טאב תוצאות חי), וה-dispose של השדה רץ לפני זה של הדיאלוג
+    // — ניקוי כאן היה מרוקן את האפשרויות רגע לפני שהדיאלוג זוכר אותן
+    // לסשן, ובטאב חי היה מוחק אפשרויות של חיפוש פעיל.
     super.dispose();
   }
 
@@ -121,10 +127,12 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     final bool drawerWasOpen = _searchOptionsOverlay != null;
     final text = widget.tab.queryController.text;
 
-    // אם שדה החיפוש התרוקן, נקה הכל ונסגור את המגירה
+    // אם שדה החיפוש התרוקן, נקה את האפשרויות הפר-מיליות (המפתחות שלהן
+    // נגזרים ממילים שכבר אינן) ונסגור את המגירה. האפשרויות הגלובליות
+    // אינן תלויות בשאילתה ונשארות — הן נזרעות מברירת המחדל/הסשן ומחיקתן
+    // כאן הייתה מוחקת את הסימונים בכל התרוקנות של השדה.
     if (text.trim().isEmpty) {
       widget.tab.searchOptions.clear();
-      widget.tab.globalSearchOptions.clear();
       if (drawerWasOpen) {
         _hideSearchOptionsOverlay();
         _notifyDropdownClosed();
@@ -293,29 +301,26 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     _searchOptionsOverlay?.markNeedsBuild();
   }
 
-  // המילה הנוכחית (לפי מיקום הסמן)
+  // המילה הנוכחית (לפי מיקום הסמן), במונחי splitQueryWords של המנוע:
+  // ה-word וה-index חייבים להתאים למפתחות "{word}_{index}" שבונה
+  // advanced_search_controls, אחרת האפשרויות ייקשרו למילה הלא-נכונה.
+  // המיפוי לטווחים בטקסט הגולמי — כולל סמן על `דין` בתוך `בית-דין`
+  // ומקטעים שהנורמליזציה שינתה את אורכם (`רמב''ם`) — ב-queryWordSpans.
   Map<String, dynamic>? _getCurrentWordInfo() {
     final text = widget.tab.queryController.text;
     final cursorPosition = widget.tab.queryController.selection.baseOffset;
 
     if (text.isEmpty || cursorPosition < 0) return null;
 
-    final words = text.trim().split(RegExp(r'\s+'));
-    int currentPos = 0;
-
-    for (int i = 0; i < words.length; i++) {
-      final word = words[i];
-      if (word.isEmpty) continue;
-
-      final wordStart = text.indexOf(word, currentPos);
-      if (wordStart == -1) continue;
-      final wordEnd = wordStart + word.length;
-
-      if (cursorPosition >= wordStart && cursorPosition <= wordEnd) {
-        return {'word': word, 'index': i, 'start': wordStart, 'end': wordEnd};
+    for (final span in SearchQueryBuilder.queryWordSpans(text)) {
+      if (cursorPosition >= span.start && cursorPosition <= span.end) {
+        return {
+          'word': span.word,
+          'index': span.index,
+          'start': span.start,
+          'end': span.end,
+        };
       }
-
-      currentPos = wordEnd;
     }
 
     return null;
@@ -342,6 +347,9 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
       currentWord: wordInfo['word'],
       wordIndex: wordInfo['index'],
       wordOptions: widget.tab.searchOptions,
+      showAdvancedOnlyOptions:
+          widget.tab.searchBloc.state.configuration.searchMode ==
+              SearchMode.advanced,
       onOptionsChanged: _onSearchOptionsChanged,
       key: ValueKey(
         '${wordInfo['word']}_${wordInfo['index']}',
@@ -381,8 +389,40 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
 
     String query = widget.tab.queryController.text.trim();
     if (query.isNotEmpty) {
-      // החיפוש עובד תמיד על טקסט ללא ניקוד.
-      if (utils.hasNikud(query)) {
+      // תחביר קטגוריה: `מונח@קטגוריה` מצמצם את החיפוש לקטגוריה לפי שם.
+      final parsedCategory = parseCategoryQuery(
+        query,
+        context.read<LibraryBloc>().state.library,
+      );
+      if (parsedCategory.hasCategoryToken && !parsedCategory.categoryFound) {
+        UiSnack.showError(
+            'הקטגוריה או הספר "${parsedCategory.notFoundNames.join('", "')}" לא נמצאו');
+        return;
+      }
+      query = parsedCategory.query;
+      if (query.isEmpty) return;
+
+      // אם הוקלד תחביר `@`, מנקים אותו מהשדה — ההיסטוריה שומרת את טקסט השדה,
+      // והשחזור ממנה אינו מפענח `@` מחדש (אחרת יחפש מילולית "שלום@תורה").
+      if (widget.tab.queryController.text != query) {
+        widget.tab.queryController.value = TextEditingValue(
+          text: query,
+          selection: TextSelection.collapsed(offset: query.length),
+        );
+      }
+
+      // חיפוש רגיל עובד על טקסט ללא ניקוד; כשאפשרות "ניקוד"/"טעמים" מסומנת
+      // (במצב מתקדם, גלובלית או פר-מילה) הסימנים שהוקלדו הם חלק מהשאילתה —
+      // המנוע דורש אותם — ואסור למחוק. הבדיקה על מפות המקור, כי האפשרויות
+      // האפקטיביות נבנות מהשאילתה אחרי המחיקה.
+      final fieldConfig = widget.tab.searchBloc.state.configuration;
+      final vocalizedSearch = fieldConfig.searchMode == SearchMode.advanced &&
+          (widget.tab.useGlobalSearchOptions.value
+              ? SearchQueryBuilder.globalOptionsRequestVocalized(
+                  widget.tab.globalSearchOptions)
+              : SearchQueryBuilder.optionsRequestVocalized(
+                  widget.tab.searchOptions));
+      if (!vocalizedSearch && utils.hasNikud(query)) {
         query = utils.removeVolwels(query);
       }
 
@@ -394,15 +434,40 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
         alternativeWords: widget.tab.alternativeWords,
         searchOptions: widget.tab.effectiveSearchOptions(query: query),
       );
+      final normalizedNegativeParameters =
+          SearchQueryBuilder.normalizeParametersForMode(
+        searchMode,
+        customSpacing: widget.tab.negativeSpacingValues,
+        alternativeWords: widget.tab.negativeAlternativeWords,
+        searchOptions: widget.tab.effectiveNegativeSearchOptions(
+          query: widget.tab.negativeQueryController.text,
+        ),
+      );
 
       widget.tab.updateTitleFromAppliedQuery(query);
-      context.read<HistoryBloc>().add(AddHistory(widget.tab));
+      // תחביר `@קטגוריה`/`@ספר` גובר על scope הקיים של הטאב. מעבירים את
+      // ה-scope במפורש להיסטוריה כדי שלא ייאבד עד שה-SearchBloc יעדכן state.
+      context.read<HistoryBloc>().add(AddHistory(
+            widget.tab,
+            scopeFacets:
+                parsedCategory.categoryFound ? parsedCategory.facets : null,
+          ));
+      if (parsedCategory.categoryFound) {
+        context
+            .read<SearchBloc>()
+            .add(SetFacetsWithoutSearch(parsedCategory.facets!));
+      }
       context.read<SearchBloc>().add(
             UpdateSearchQuery(
               query,
+              negativeQuery: widget.tab.negativeQueryController.text,
               customSpacing: normalizedParameters.customSpacing,
               alternativeWords: normalizedParameters.alternativeWords,
               searchOptions: normalizedParameters.searchOptions,
+              negativeCustomSpacing: normalizedNegativeParameters.customSpacing,
+              negativeAlternativeWords:
+                  normalizedNegativeParameters.alternativeWords,
+              negativeSearchOptions: normalizedNegativeParameters.searchOptions,
             ),
           );
       widget.tab.isLeftPaneOpen.value = false;
@@ -489,21 +554,13 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
                           border: const OutlineInputBorder(),
                           hintText: 'הקלד מילות חיפוש',
                           labelText: 'חיפוש',
-                          contentPadding: widget.showInlineSearchButton
-                              ? null
-                              : const EdgeInsets.only(
-                                  left: 12,
-                                  right: 48,
-                                  top: 16,
-                                  bottom: 16,
-                                ),
                           prefixIcon: widget.showInlineSearchButton
                               ? IconButton(
                                   onPressed: _performSearch,
                                   icon:
                                       const Icon(FluentIcons.search_24_regular),
                                 )
-                              : null,
+                              : const Icon(FluentIcons.search_24_regular),
                           suffixIcon: widget.trailingAction != null
                               ? Row(
                                   mainAxisSize: MainAxisSize.min,

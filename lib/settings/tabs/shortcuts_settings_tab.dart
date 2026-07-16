@@ -66,6 +66,14 @@ class ShortcutsSettingsTab extends StatelessWidget {
       keywords: ['חיפוש', 'ctrl+shift+f', 'מקלדת'],
     ),
     SettingsSearchEntry(
+      id: 'shortcuts.nav.advanced_search',
+      title: 'קיצור לחיפוש מתקדם',
+      subtitle: 'פתיחת חלון חיפוש במצב מתקדם',
+      tab: SettingsTab.shortcuts,
+      cardId: 'shortcuts.main',
+      keywords: ['חיפוש', 'מתקדם', 'מקלדת'],
+    ),
+    SettingsSearchEntry(
       id: 'shortcuts.nav.settings',
       title: 'קיצור להגדרות',
       subtitle: 'פתיחת מסך ההגדרות',
@@ -595,6 +603,12 @@ class ShortcutsSettingsTab extends StatelessWidget {
               settingKey: 'key-shortcut-open-new-search',
               label: 'חיפוש חדש בכל הספרים',
               icon: FluentIcons.search_24_regular,
+              allShortcuts: _shortcutsList,
+            ),
+            _ShortcutTile(
+              settingKey: ShortcutValidator.openAdvancedSearchKey,
+              label: 'חיפוש מתקדם',
+              icon: FluentIcons.search_info_24_regular,
               allShortcuts: _shortcutsList,
             ),
             _ShortcutTile(

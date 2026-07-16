@@ -5,6 +5,8 @@ class ShortcutValidator {
   static const String currentWindowSearchKey =
       'key-shortcut-search-current-window';
   static const String legacySearchInBookKey = 'key-shortcut-search-in-book';
+  static const String openAdvancedSearchKey =
+      'key-shortcut-open-advanced-search';
 
   static const Set<Set<String>> _compatibleShortcutGroups = {
     {
@@ -84,6 +86,7 @@ class ShortcutValidator {
     'key-shortcut-restore-closed-tab',
     'key-shortcut-open-reading-screen',
     'key-shortcut-open-new-search',
+    openAdvancedSearchKey,
     'key-shortcut-open-settings',
     'key-shortcut-open-more',
     'key-shortcut-open-bookmarks',
@@ -131,6 +134,7 @@ class ShortcutValidator {
     'key-shortcut-restore-closed-tab': 'ctrl+shift+t',
     'key-shortcut-open-reading-screen': 'ctrl+r',
     'key-shortcut-open-new-search': 'ctrl+shift+f',
+    openAdvancedSearchKey: '',
     'key-shortcut-open-settings': 'ctrl+comma',
     'key-shortcut-open-more': 'ctrl+m',
     'key-shortcut-open-bookmarks': 'ctrl+shift+b',
@@ -179,6 +183,7 @@ class ShortcutValidator {
     'key-shortcut-restore-closed-tab': 'פתח כרטיסייה אחרונה שנסגרה',
     'key-shortcut-open-reading-screen': 'עיון',
     'key-shortcut-open-new-search': 'חיפוש חדש בכל הספרים',
+    openAdvancedSearchKey: 'חיפוש מתקדם',
     'key-shortcut-open-settings': 'הגדרות',
     'key-shortcut-open-more': 'כלים',
     'key-shortcut-open-bookmarks': 'סימניות',

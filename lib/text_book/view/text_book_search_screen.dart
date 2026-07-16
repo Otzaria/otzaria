@@ -575,7 +575,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       viewportExtent: context.size?.height ?? MediaQuery.sizeOf(context).height,
       duration: const Duration(milliseconds: 250),
       curve: Curves.ease,
-      alignment: 0.35,
+      alignment: kSearchResultAnchorAlignment,
       intraLineFraction: intraLineFraction,
     );
 
@@ -683,153 +683,173 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       resultCountString: searchResults.isNotEmpty
           ? 'נמצאו ${searchResults.length} תוצאות'
           : null,
-      resultsWidget: ScrollablePositionedList.builder(
-        itemScrollController: _resultsScrollController,
-        itemPositionsListener: _resultsPositionsListener,
-        padding: const EdgeInsets.all(16),
-        itemCount: items.length,
-        itemBuilder: (context, index) {
-          final item = items[index];
+      // כשתבנית ההדגשה מבוססת-האינדקס מגיעה (אסינכרונית), ה-snippets מחושבים
+      // מחדש כדי לכלול את הווריאנטים שה-fallback החמיץ.
+      resultsWidget: ListenableBuilder(
+          listenable: utils.highlightPatternRevision,
+          builder: (context, _) => ScrollablePositionedList.builder(
+                itemScrollController: _resultsScrollController,
+                itemPositionsListener: _resultsPositionsListener,
+                padding: const EdgeInsets.all(16),
+                itemCount: items.length,
+                itemBuilder: (context, index) {
+                  final item = items[index];
 
-          // אם זו כותרת קבוצה
-          if (item.isHeader) {
-            return BlocBuilder<SettingsBloc, SettingsState>(
-              builder: (context, settingsState) {
-                String text = item.header!;
-                if (settingsState.replaceHolyNames) {
-                  text = utils.replaceHolyNames(text);
-                }
-                return Padding(
-                  padding: const EdgeInsets.only(
-                    top: 8.0,
-                    bottom: 8.0,
-                    right: 4.0,
-                    left: 4.0,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        FluentIcons.text_align_right_24_regular,
-                        size: 18,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          text,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: Theme.of(context).colorScheme.primary,
+                  // אם זו כותרת קבוצה
+                  if (item.isHeader) {
+                    return BlocBuilder<SettingsBloc, SettingsState>(
+                      builder: (context, settingsState) {
+                        String text = item.header!;
+                        if (settingsState.replaceHolyNames) {
+                          text = utils.replaceHolyNames(text);
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.only(
+                            top: 8.0,
+                            bottom: 8.0,
+                            right: 4.0,
+                            left: 4.0,
                           ),
-                          textAlign: TextAlign.right,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            );
-          }
-
-          // אם זו תוצאה רגילה
-          final result = item.result!;
-          final resultListIndex = item.resultListIndex!;
-          return BlocBuilder<SettingsBloc, SettingsState>(
-            builder: (context, settingsState) {
-              String snippet = result.snippet;
-              if (settingsState.replaceHolyNames) {
-                snippet = utils.replaceHolyNames(snippet);
-              }
-
-              final defaultStyle = TextStyle(
-                fontSize: 16,
-                fontFamily: settingsState.fontFamily,
-                color: Theme.of(context).colorScheme.onSurface,
-                height: 1.5,
-              );
-              final highlightStyle = TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-                color: Theme.of(context).colorScheme.error,
-              );
-
-              // בחיפוש פשוט התוצאה היא טקסט מקומי — חותכים קטע ומדגישים את
-              // השאילתה הליטרלית. בחיפוש מתקדם/מקורב התוצאה מגיעה מהמנוע עם
-              // הדגשות מוטמעות ב-HTML.
-              final List<InlineSpan> highlightedSnippet;
-              if (_isSimpleSearch) {
-                final excerpt = SnippetBuilder.buildExcerptText(
-                  fullText: snippet,
-                  query: result.query,
-                  maxChars: _maxResultSnippetChars,
-                );
-                highlightedSnippet = SnippetBuilder.highlightLiteral(
-                  plainText: excerpt,
-                  query: result.query,
-                  defaultStyle: defaultStyle,
-                  highlightStyle: highlightStyle,
-                );
-              } else {
-                highlightedSnippet = SnippetBuilder.fromHighlightedHtml(
-                  html: snippet,
-                  defaultStyle: defaultStyle,
-                  highlightStyle: highlightStyle,
-                );
-              }
-
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                decoration: BoxDecoration(
-                  color: _selectedSearchResultIndex == resultListIndex
-                      ? Theme.of(context)
-                          .colorScheme
-                          .primaryContainer
-                          .withValues(alpha: 0.35)
-                      : null,
-                  border: Border.all(
-                    color: _selectedSearchResultIndex == resultListIndex
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context)
-                            .colorScheme
-                            .outline
-                            .withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                  borderRadius: AppTokens.borderRadiusAll,
-                ),
-                child: InkWell(
-                  onTap: () {
-                    _navigateToSearchResult(
-                      resultListIndex,
-                      closePaneOnAndroid: true,
+                          child: Row(
+                            children: [
+                              Icon(
+                                FluentIcons.text_align_right_24_regular,
+                                size: 18,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  text,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                  ),
+                                  textAlign: TextAlign.right,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     );
-                  },
-                  borderRadius: AppTokens.borderRadiusAll,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    child: RichText(
-                      textAlign: TextAlign.justify,
-                      text: TextSpan(
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontFamily: settingsState.fontFamily,
-                          color: Theme.of(context).colorScheme.onSurface,
-                          height: 1.5,
+                  }
+
+                  // אם זו תוצאה רגילה
+                  final result = item.result!;
+                  final resultListIndex = item.resultListIndex!;
+                  return BlocBuilder<SettingsBloc, SettingsState>(
+                    builder: (context, settingsState) {
+                      String snippet = result.snippet;
+                      if (settingsState.replaceHolyNames) {
+                        snippet = utils.replaceHolyNames(snippet);
+                      }
+
+                      final defaultStyle = TextStyle(
+                        fontSize: 16,
+                        fontFamily: settingsState.fontFamily,
+                        color: Theme.of(context).colorScheme.onSurface,
+                        height: 1.5,
+                      );
+                      final highlightStyle = TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: Theme.of(context).colorScheme.error,
+                      );
+
+                      // בחיפוש פשוט התוצאה היא טקסט מקומי — חותכים קטע ומדגישים את
+                      // השאילתה הליטרלית. בחיפוש מתקדם/מקורב התוצאה מגיעה מהמנוע עם
+                      // הדגשות מוטמעות ב-HTML.
+                      final List<InlineSpan> highlightedSnippet;
+                      if (_isSimpleSearch) {
+                        final excerpt = SnippetBuilder.buildExcerptText(
+                          fullText: snippet,
+                          query: result.query,
+                          maxChars: _maxResultSnippetChars,
+                        );
+                        highlightedSnippet = SnippetBuilder.highlightLiteral(
+                          plainText: excerpt,
+                          query: result.query,
+                          defaultStyle: defaultStyle,
+                          highlightStyle: highlightStyle,
+                        );
+                      } else {
+                        // המנוע מדגיש את הטוקן השלם; מדגישים מחדש בצד האפליקציה את
+                        // החלק המותאם בלבד, בעקביות עם הדגשת פאנל הקריאה. אם לא נמצאה
+                        // התאמה (וריאנט שהתבנית לא מכסה) — נשארים בהדגשת המנוע.
+                        final plain = SnippetBuilder.htmlToPlainText(snippet);
+                        final ranges = utils.computeHighlightRanges(
+                          plain,
+                          result.query,
+                          searchOptions: _searchOptions,
+                          alternativeWords: _alternativeWords,
+                          spacingValues: _spacingValues,
+                          isFuzzy: _searchMode == SearchMode.fuzzy,
+                          searchDistance: _searchDistance,
+                        );
+                        highlightedSnippet = ranges.isEmpty
+                            ? SnippetBuilder.fromHighlightedHtml(
+                                html: snippet,
+                                defaultStyle: defaultStyle,
+                                highlightStyle: highlightStyle,
+                              )
+                            : SnippetBuilder.spansFromRanges(
+                                plainText: plain,
+                                ranges: ranges,
+                                defaultStyle: defaultStyle,
+                                highlightStyle: highlightStyle,
+                              );
+                      }
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          color: _selectedSearchResultIndex == resultListIndex
+                              ? Theme.of(context).colorScheme.secondaryContainer
+                              : null,
+                          border: Border.all(
+                            color: _selectedSearchResultIndex == resultListIndex
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).colorScheme.outlineVariant,
+                            width: 1,
+                          ),
+                          borderRadius: AppTokens.borderRadiusAll,
                         ),
-                        children: highlightedSnippet,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
+                        child: InkWell(
+                          onTap: () {
+                            _navigateToSearchResult(
+                              resultListIndex,
+                              closePaneOnAndroid: true,
+                            );
+                          },
+                          borderRadius: AppTokens.borderRadiusAll,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            child: RichText(
+                              textAlign: TextAlign.justify,
+                              text: TextSpan(
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontFamily: settingsState.fontFamily,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
+                                  height: 1.5,
+                                ),
+                                children: highlightedSnippet,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              )),
       isNoResults: searchResults.isEmpty &&
           searchTextController.text.isNotEmpty &&
           !_isSearching,
@@ -887,6 +907,9 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         tempTab.searchOptions.addAll(_searchOptions);
         tempTab.alternativeWords.addAll(_alternativeWords);
         tempTab.spacingValues.addAll(_spacingValues);
+        // התוצאה החוזרת מהדיאלוג היא תמיד מפת פר-מילה; קריאה במצב גלובלי
+        // הייתה קוראת מהמפה הגלובלית הריקה ומאבדת את הבחירות המשוחזרות.
+        tempTab.useGlobalSearchOptions.value = false;
 
         final bookTitle =
             (context.read<TextBookBloc>().state as TextBookLoaded).book.title;
@@ -999,21 +1022,18 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
             color: isEnabled
-                ? colorScheme.primaryContainer.withValues(alpha: 0.55)
-                : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                ? colorScheme.primaryContainer
+                : colorScheme.surfaceContainerHigh,
             borderRadius: AppTokens.borderRadiusAll,
             border: Border.all(
-              color: isEnabled
-                  ? colorScheme.primary.withValues(alpha: 0.6)
-                  : colorScheme.outline.withValues(alpha: 0.3),
+              color: isEnabled ? colorScheme.primary : colorScheme.outlineVariant,
             ),
           ),
           child: Icon(
             icon,
             size: 16,
-            color: isEnabled
-                ? colorScheme.primary
-                : colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+            color:
+                isEnabled ? colorScheme.primary : colorScheme.onSurfaceVariant,
           ),
         ),
       ),

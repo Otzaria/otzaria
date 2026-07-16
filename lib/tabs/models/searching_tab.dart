@@ -11,6 +11,7 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 class SearchingTab extends OpenedTab {
   late final SearchBloc searchBloc;
   final queryController = TextEditingController();
+  final negativeQueryController = TextEditingController();
   final searchFieldFocusNode = FocusNode();
   late final ValueNotifier<String> titleNotifier;
   final ValueNotifier<bool> isLeftPaneOpen = ValueNotifier(true);
@@ -19,28 +20,40 @@ class SearchingTab extends OpenedTab {
 
   // אפשרויות חיפוש לכל מילה (מילה_אינדקס -> אפשרויות)
   final Map<String, Map<String, bool>> searchOptions = {};
+  final Map<String, Map<String, bool>> negativeSearchOptions = {};
 
   // אפשרויות חיפוש גלובליות החלות על כל המילים יחד
   // (אינן נאבדות בשינוי מילים בשאילתה)
   final Map<String, bool> globalSearchOptions = {};
+  final Map<String, bool> negativeGlobalSearchOptions = {};
 
   // האם להשתמש בהגדרות הגלובליות (true) או בהגדרות פר-מילה (false)
   final ValueNotifier<bool> useGlobalSearchOptions = ValueNotifier(true);
+  final ValueNotifier<bool> useGlobalNegativeSearchOptions =
+      ValueNotifier(true);
 
   // מילים חילופיות לכל מילה (אינדקס_מילה -> רשימת מילים חילופיות)
   final Map<int, List<String>> alternativeWords = {};
+  final Map<int, List<String>> negativeAlternativeWords = {};
+
+  // הרחבת החיפוש בחלופות השמורות הגלובליות — כבוי בכל חיפוש חדש (לא נשמר)
+  bool useSavedAlternatives = false;
 
   // מרווחים בין מילים (מפתח_מרווח -> ערך_מרווח)
   final Map<String, String> spacingValues = {};
+  final Map<String, String> negativeSpacingValues = {};
 
   // notifier לעדכון התצוגה כשמשתמש משנה אפשרויות
   final ValueNotifier<int> searchOptionsChanged = ValueNotifier(0);
+  final ValueNotifier<int> negativeSearchOptionsChanged = ValueNotifier(0);
 
   // notifier לעדכון התצוגה כשמשתמש משנה מילים חילופיות
   final ValueNotifier<int> alternativeWordsChanged = ValueNotifier(0);
+  final ValueNotifier<int> negativeAlternativeWordsChanged = ValueNotifier(0);
 
   // notifier לעדכון התצוגה כשמשתמש משנה מרווחים
   final ValueNotifier<int> spacingValuesChanged = ValueNotifier(0);
+  final ValueNotifier<int> negativeSpacingValuesChanged = ValueNotifier(0);
 
   // מטמון של בקשות ספירה פעילות כדי למנוע קריאות כפולות
   final Map<String, Future<int>> _inflight = {};
@@ -86,13 +99,29 @@ class SearchingTab extends OpenedTab {
       ),
     );
     cloned.globalSearchOptions.addAll(other.globalSearchOptions);
+    cloned.negativeSearchOptions.addAll(
+      other.negativeSearchOptions.map(
+        (key, value) => MapEntry(key, Map<String, bool>.from(value)),
+      ),
+    );
+    cloned.negativeGlobalSearchOptions
+        .addAll(other.negativeGlobalSearchOptions);
     cloned.useGlobalSearchOptions.value = other.useGlobalSearchOptions.value;
+    cloned.useGlobalNegativeSearchOptions.value =
+        other.useGlobalNegativeSearchOptions.value;
     cloned.alternativeWords.addAll(
       other.alternativeWords.map(
         (key, value) => MapEntry(key, List<String>.from(value)),
       ),
     );
     cloned.spacingValues.addAll(other.spacingValues);
+    cloned.negativeAlternativeWords.addAll(
+      other.negativeAlternativeWords.map(
+        (key, value) => MapEntry(key, List<String>.from(value)),
+      ),
+    );
+    cloned.negativeSpacingValues.addAll(other.negativeSpacingValues);
+    cloned.negativeQueryController.text = other.negativeQueryController.text;
     cloned.isLeftPaneOpen.value = other.isLeftPaneOpen.value;
 
     if (other.searchBloc.state.searchQuery.trim().isNotEmpty) {
@@ -123,6 +152,14 @@ class SearchingTab extends OpenedTab {
       normMap(globalSearchOptions),
       useGlobalSearchOptions.value.toString(),
       normMap(spacingValues),
+      negativeQueryController.text.trim(),
+      normMap(negativeSearchOptions),
+      normMap(negativeGlobalSearchOptions),
+      useGlobalNegativeSearchOptions.value.toString(),
+      normMap(negativeSpacingValues),
+      Map.fromEntries(negativeAlternativeWords.entries.toList()
+            ..sort((a, b) => a.key.compareTo(b.key)))
+          .toString(),
       Map.fromEntries(alternativeWords.entries.toList()
             ..sort((a, b) => a.key.compareTo(b.key)))
           .toString(),
@@ -148,6 +185,17 @@ class SearchingTab extends OpenedTab {
     );
   }
 
+  Map<String, Map<String, bool>> effectiveNegativeSearchOptions({
+    String? query,
+  }) {
+    return SearchQueryBuilder.effectiveSearchOptions(
+      query: query ?? negativeQueryController.text,
+      useGlobalOptions: useGlobalNegativeSearchOptions.value,
+      globalOptions: negativeGlobalSearchOptions,
+      perWordOptions: negativeSearchOptions,
+    );
+  }
+
   Future<int> countForFacet(String facet) {
     final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
       searchBloc.state.configuration.searchMode,
@@ -157,11 +205,22 @@ class SearchingTab extends OpenedTab {
         query: searchBloc.state.searchQuery,
       ),
     );
+    final negativeParameters = SearchQueryBuilder.normalizeParametersForMode(
+      searchBloc.state.configuration.searchMode,
+      customSpacing: negativeSpacingValues,
+      alternativeWords: negativeAlternativeWords,
+      searchOptions: effectiveNegativeSearchOptions(
+        query: searchBloc.state.negativeQuery,
+      ),
+    );
     return searchBloc.countForFacet(
       facet,
       customSpacing: normalizedParameters.customSpacing,
       alternativeWords: normalizedParameters.alternativeWords,
       searchOptions: normalizedParameters.searchOptions,
+      negativeCustomSpacing: negativeParameters.customSpacing,
+      negativeAlternativeWords: negativeParameters.alternativeWords,
+      negativeSearchOptions: negativeParameters.searchOptions,
     );
   }
 
@@ -175,11 +234,22 @@ class SearchingTab extends OpenedTab {
         query: searchBloc.state.searchQuery,
       ),
     );
+    final negativeParameters = SearchQueryBuilder.normalizeParametersForMode(
+      searchBloc.state.configuration.searchMode,
+      customSpacing: negativeSpacingValues,
+      alternativeWords: negativeAlternativeWords,
+      searchOptions: effectiveNegativeSearchOptions(
+        query: searchBloc.state.negativeQuery,
+      ),
+    );
     return searchBloc.countForMultipleFacets(
       facets,
       customSpacing: normalizedParameters.customSpacing,
       alternativeWords: normalizedParameters.alternativeWords,
       searchOptions: normalizedParameters.searchOptions,
+      negativeCustomSpacing: negativeParameters.customSpacing,
+      negativeAlternativeWords: negativeParameters.alternativeWords,
+      negativeSearchOptions: negativeParameters.searchOptions,
     );
   }
 
@@ -231,11 +301,16 @@ class SearchingTab extends OpenedTab {
   void dispose() {
     titleNotifier.dispose();
     queryController.dispose();
+    negativeQueryController.dispose();
     searchFieldFocusNode.dispose();
     searchOptionsChanged.dispose();
     alternativeWordsChanged.dispose();
     spacingValuesChanged.dispose();
+    negativeSearchOptionsChanged.dispose();
+    negativeAlternativeWordsChanged.dispose();
+    negativeSpacingValuesChanged.dispose();
     useGlobalSearchOptions.dispose();
+    useGlobalNegativeSearchOptions.dispose();
     // סגירת ה-bloc כדי למנוע דליפה
     searchBloc.close();
     super.dispose();
@@ -274,6 +349,17 @@ class SearchingTab extends OpenedTab {
     final initialScopeFacets = rawScopeFacets is List
         ? rawScopeFacets.map((e) => e.toString()).toList(growable: false)
         : defaultConfig.searchScopeFacets;
+    final wordMatchModeIndex = json['wordMatchMode'];
+    final initialWordMatchMode = (wordMatchModeIndex is int &&
+            wordMatchModeIndex >= 0 &&
+            wordMatchModeIndex < WordMatchMode.values.length)
+        ? WordMatchMode.values[wordMatchModeIndex]
+        : defaultConfig.wordMatchMode;
+    final wordMatchCountJson = json['wordMatchCount'];
+    final initialWordMatchCount =
+        wordMatchCountJson is int && wordMatchCountJson >= 1
+            ? wordMatchCountJson
+            : defaultConfig.wordMatchCount;
 
     final initialConfig = SearchConfiguration(
       distance: initialDistance,
@@ -282,6 +368,8 @@ class SearchingTab extends OpenedTab {
       sortBy: initialSortBy,
       currentFacets: initialCurrentFacets,
       searchScopeFacets: initialScopeFacets,
+      wordMatchMode: initialWordMatchMode,
+      wordMatchCount: initialWordMatchCount,
       regexEnabled: json['regexEnabled'] == true,
       caseSensitive: json['caseSensitive'] == true,
       multiline: json['multiline'] == true,
@@ -297,6 +385,7 @@ class SearchingTab extends OpenedTab {
       isPinned: json['isPinned'] ?? false,
       initialConfiguration: initialConfig,
     );
+    tab.negativeQueryController.text = json['negativeSearchText'] ?? '';
 
     final rawSearchOptions = json['searchOptions'];
     if (rawSearchOptions is Map) {
@@ -318,9 +407,35 @@ class SearchingTab extends OpenedTab {
       }
     }
 
+    final rawNegativeSearchOptions = json['negativeSearchOptions'];
+    if (rawNegativeSearchOptions is Map) {
+      for (final entry in rawNegativeSearchOptions.entries) {
+        final value = entry.value;
+        if (value is Map) {
+          tab.negativeSearchOptions[entry.key.toString()] = {
+            for (final inner in value.entries)
+              inner.key.toString(): inner.value == true,
+          };
+        }
+      }
+    }
+
+    final rawNegativeGlobalOptions = json['negativeGlobalSearchOptions'];
+    if (rawNegativeGlobalOptions is Map) {
+      for (final entry in rawNegativeGlobalOptions.entries) {
+        tab.negativeGlobalSearchOptions[entry.key.toString()] =
+            entry.value == true;
+      }
+    }
+
     final useGlobal = json['useGlobalSearchOptions'];
     if (useGlobal is bool) {
       tab.useGlobalSearchOptions.value = useGlobal;
+    }
+
+    final useGlobalNegative = json['useGlobalNegativeSearchOptions'];
+    if (useGlobalNegative is bool) {
+      tab.useGlobalNegativeSearchOptions.value = useGlobalNegative;
     }
 
     final rawAlternatives = json['alternativeWords'];
@@ -342,7 +457,73 @@ class SearchingTab extends OpenedTab {
       }
     }
 
+    final rawNegativeAlternatives = json['negativeAlternativeWords'];
+    if (rawNegativeAlternatives is Map) {
+      for (final entry in rawNegativeAlternatives.entries) {
+        final key = int.tryParse(entry.key.toString());
+        final value = entry.value;
+        if (key != null && value is List) {
+          tab.negativeAlternativeWords[key] =
+              value.map((e) => e.toString()).toList(growable: true);
+        }
+      }
+    }
+
+    final rawNegativeSpacing = json['negativeSpacingValues'];
+    if (rawNegativeSpacing is Map) {
+      for (final entry in rawNegativeSpacing.entries) {
+        tab.negativeSpacingValues[entry.key.toString()] =
+            entry.value.toString();
+      }
+    }
+
+    tab.dropStalePerWordStateIfNeeded();
+
     return tab;
+  }
+
+  /// state פר-מילה משוחזר שנבנה על ספירת מילים ישנה (חוקי הפיצול של
+  /// המנוע השתנו מאז השמירה, למשל `רמב"ם` שהפך משתי מילים לאחת) נופל
+  /// בשקט או זולג למילה הלא-נכונה — במקרה כזה עדיף למחוק אותו כליל
+  /// והמשתמש יגדיר מחדש.
+  void dropStalePerWordStateIfNeeded() {
+    final query = queryController.text;
+    if (query.trim().isNotEmpty) {
+      bool matches;
+      try {
+        matches = SearchQueryBuilder.restoredPerWordStateMatches(
+          query,
+          searchOptions: searchOptions,
+          alternativeWords: alternativeWords,
+          spacingValues: spacingValues,
+        );
+      } catch (_) {
+        // המנוע עדיין לא אותחל — אין דרך לאמת; משאירים כמות שהוא.
+        return;
+      }
+      if (!matches) {
+        searchOptions.clear();
+        alternativeWords.clear();
+        spacingValues.clear();
+      }
+    }
+    if (negativeQueryController.text.trim().isEmpty) return;
+    bool negativeMatches;
+    try {
+      negativeMatches = SearchQueryBuilder.restoredPerWordStateMatches(
+        negativeQueryController.text,
+        searchOptions: negativeSearchOptions,
+        alternativeWords: negativeAlternativeWords,
+        spacingValues: negativeSpacingValues,
+      );
+    } catch (_) {
+      return;
+    }
+    if (!negativeMatches) {
+      negativeSearchOptions.clear();
+      negativeAlternativeWords.clear();
+      negativeSpacingValues.clear();
+    }
   }
 
   @override
@@ -351,6 +532,7 @@ class SearchingTab extends OpenedTab {
     return {
       'title': title,
       'searchText': queryController.text,
+      'negativeSearchText': negativeQueryController.text,
       'isPinned': isPinned,
       'type': 'SearchingTabWindow',
       'distance': config.distance,
@@ -359,19 +541,29 @@ class SearchingTab extends OpenedTab {
       'sortBy': config.sortBy.index,
       'currentFacets': config.currentFacets,
       'searchScopeFacets': config.searchScopeFacets,
+      'wordMatchMode': config.wordMatchMode.index,
+      'wordMatchCount': config.wordMatchCount,
       'regexEnabled': config.regexEnabled,
       'caseSensitive': config.caseSensitive,
       'multiline': config.multiline,
       'dotAll': config.dotAll,
       'unicode': config.unicode,
       'searchOptions': searchOptions,
+      'negativeSearchOptions': negativeSearchOptions,
       'globalSearchOptions': globalSearchOptions,
+      'negativeGlobalSearchOptions': negativeGlobalSearchOptions,
       'useGlobalSearchOptions': useGlobalSearchOptions.value,
+      'useGlobalNegativeSearchOptions': useGlobalNegativeSearchOptions.value,
       'alternativeWords': {
         for (final entry in alternativeWords.entries)
           entry.key.toString(): entry.value,
       },
+      'negativeAlternativeWords': {
+        for (final entry in negativeAlternativeWords.entries)
+          entry.key.toString(): entry.value,
+      },
       'spacingValues': spacingValues,
+      'negativeSpacingValues': negativeSpacingValues,
     };
   }
 }

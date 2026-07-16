@@ -59,6 +59,10 @@ const List<String> pluginNetworkAllowlist = <String>[
 
   // דיווח תוספים יאיר דניאל
   'https://formsubmit.co/ajax/575cd25953ea11970a7a017b6913a3ee',
+
+  // הורדת ויקיישיבה וויקיסוגיה
+  'https://drive.usercontent.google.com/download?id=1fX-GwDn4f-JUaxrZJPb8y0dVlH38_dMW&export=download&confirm=t',
+  'https://drive.usercontent.google.com/download?id=1x0-hX0KSW_DYCDWu2ZgH1MqFye2iMd3d&export=download&confirm=t',
 ];
 
 /// דומייני ה-CDN שאליהם GitHub מפנה (redirect) בהורדת asset של release.

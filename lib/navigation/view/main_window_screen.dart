@@ -291,6 +291,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
   // מסומן כשעדכון ספרייה הוחל, כדי להפעיל אינדוקס אחרי הטעינה מחדש הבאה
   // (ה-_checkAndStartIndexing הרגיל רץ פעם אחת בעלייה ולא מכסה עדכון חי).
   bool _indexAfterLibraryReload = false;
+  // מסומן אחרי הורדה מלאה: אין דיווח אילו ספרים השתנו, ולכן אחרי הטעינה
+  // מחדש מריצים reconcile — השוואת טביעות-אצבע ואינדוקס מחדש של השונים.
+  bool _reconcileAfterLibraryReload = false;
   // אחרי עדכון DB, StartIndexing מכסה את כל הספרייה; ה-gate מונע מ-listener
   // ה-newBooksToIndex להריץ מסלול אינדוקס שני על אותו refresh.
   bool _dbUpdateTriggeredFullIndex = false;
@@ -696,7 +699,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
           // Refresh the library browser to show new books
           try {
-            context.read<LibraryBloc>().add(RefreshLibrary());
+            context.read<LibraryBloc>().add(RefreshLibrary(changedBookKeys: {
+                  for (final id in result.updatedBookIds)
+                    IndexingRepository.userBookKey(id),
+                }));
           } catch (e) {
             debugPrint('Could not refresh library: $e');
           }
@@ -796,14 +802,24 @@ class MainWindowScreenState extends State<MainWindowScreen>
   ) {
     if (!_indexAfterLibraryReload) {
       _dbUpdateTriggeredFullIndex = false;
+      _reconcileAfterLibraryReload = false;
       return;
     }
     _indexAfterLibraryReload = false;
+    final reconcile = _reconcileAfterLibraryReload;
+    _reconcileAfterLibraryReload = false;
     final autoUpdateIndex = context.read<SettingsBloc>().state.autoUpdateIndex;
     // StartIndexing מאנדקס את כל הספרייה — מסמן ל-newBooksToIndex listener לדלג.
     _dbUpdateTriggeredFullIndex = autoUpdateIndex;
     if (autoUpdateIndex) {
-      context.read<IndexingBloc>().add(StartIndexing(library));
+      final indexingBloc = context.read<IndexingBloc>();
+      // StartIndexing מוסיף ספרים חדשים (מדלג על קיימים); אחרי הורדה מלאה
+      // אין דיווח מי השתנה, אז ReconcileIndex משווה טביעות-אצבע ומאנדקס
+      // מחדש רק את הספרים ששונים. האירועים רצים סדרתית (sequential).
+      indexingBloc.add(StartIndexing(library));
+      if (reconcile) {
+        indexingBloc.add(ReconcileIndex(library));
+      }
     }
   }
 
@@ -2304,7 +2320,13 @@ class MainWindowScreenState extends State<MainWindowScreen>
               if (state.status == LibraryUpdateStatus.completed &&
                   state.hasUpdate) {
                 _indexAfterLibraryReload = true;
-                context.read<LibraryBloc>().add(RefreshLibrary());
+                _reconcileAfterLibraryReload = state.isFullDownloadPlan;
+                context.read<LibraryBloc>().add(RefreshLibrary(
+                      changedBookKeys: {
+                        for (final id in state.changedBookIds)
+                          IndexingRepository.officialBookKey(id),
+                      },
+                    ));
               } else if (state.status ==
                   LibraryUpdateStatus.needsFullConfirmation) {
                 _promptFullDownload(context, state);
@@ -2324,6 +2346,12 @@ class MainWindowScreenState extends State<MainWindowScreen>
               if (state.library != null) {
                 _checkAndStartIndexing(context, state.library!);
                 _indexAfterDbUpdateIfNeeded(context, state.library!);
+                // ניקוי רשומות אינדקס של ספרים שכבר אינם בספרייה (ספר אישי
+                // שנמחק, תיקייה שהוסרה). רץ על כל טעינת/רענון ספרייה, בתור
+                // העבודה הסדרתי — אחרי מסלולי האינדוקס של אותו רענון.
+                context
+                    .read<IndexingBloc>()
+                    .add(DropOrphanedIndexEntries(state.library!));
               }
               final navigationState = context.read<NavigationBloc>().state;
               if (navigationState.hasCheckedLibrary &&
@@ -2331,6 +2359,18 @@ class MainWindowScreenState extends State<MainWindowScreen>
                 if (_tourCubit.startIfNeeded(libraryLoaded: true)) {
                   _tourStartedAutomaticallyThisLaunch = true;
                 }
+              }
+            },
+          ),
+          BlocListener<LibraryBloc, LibraryState>(
+            listenWhen: (previous, current) =>
+                current.changedBooksToIndex != null &&
+                current.changedBooksToIndex!.isNotEmpty,
+            listener: (context, state) {
+              // ספרים שתוכנם השתנה — רשומותיהם הישנות מוסרות ומאונדקסות מחדש.
+              if (context.read<SettingsBloc>().state.autoUpdateIndex) {
+                context.read<IndexingBloc>().add(ReindexChangedBooks(
+                    state.changedBooksToIndex!, state.library!));
               }
             },
           ),

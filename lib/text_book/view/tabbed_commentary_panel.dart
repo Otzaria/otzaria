@@ -35,6 +35,10 @@ class TabbedCommentaryPanel extends StatefulWidget {
   final ValueNotifier<int>? closeCommentatorsFilterNotifier;
   final TextBookTab? tab; // עבור פתיחת כרטסיית מפרשים
 
+  /// מדגיש מונח חיפוש בטאב המפרשים בלי להציג ממשק חיפוש — מונח התוצאה
+  /// שנחתה בהערה, כדי שיודגש כשהחלונית נפתחת אוטומטית.
+  final ValueListenable<String>? highlightQueryListenable;
+
   const TabbedCommentaryPanel({
     super.key,
     required this.openBookCallback,
@@ -49,6 +53,7 @@ class TabbedCommentaryPanel extends StatefulWidget {
     this.openCommentatorsFilterNotifier,
     this.closeCommentatorsFilterNotifier,
     this.tab,
+    this.highlightQueryListenable,
   });
 
   @override
@@ -189,6 +194,8 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                         showSearch: widget.showSearch,
                         selectionSyncController: widget.selectionSyncController,
                         openFilterRequest: widget.openFilterRequest,
+                        highlightQueryListenable:
+                            widget.highlightQueryListenable,
                         selectedCommentatorsOverride: state.activeCommentators,
                         openFilterNotifier:
                             widget.openCommentatorsFilterNotifier,

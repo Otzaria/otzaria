@@ -36,6 +36,10 @@ class TextBookTab extends OpenedTab {
   final Map<String, String> spacingValues;
   final SearchMode searchMode;
 
+  /// מרחק העריכה לחיפוש מקורב. בלעדיו fuzzy במרחק 0 מתנהג כחיפוש מדויק,
+  /// ותוצאה שנפתחה מהחיפוש הגלובלי לא תימצא שוב בסרגל החיפוש שבתוך הספר.
+  final int searchDistance;
+
   /// תת-מחרוזת להדגשה ממוקדת **רק** בסעיף שצוין. נטענת מקישור עומק
   /// (`otzaria://open/book/<id>?index=<n>&highlight=<text>`) ואינה פותחת חלונית
   /// חיפוש. אם null — אין הדגשה ממוקדת.
@@ -102,6 +106,7 @@ class TextBookTab extends OpenedTab {
     this.alternativeWords = const {},
     this.spacingValues = const {},
     this.searchMode = SearchMode.exact,
+    this.searchDistance = 0,
     this.commentators,
     bool openLeftPane = false,
     bool? splitedView,
@@ -149,6 +154,7 @@ class TextBookTab extends OpenedTab {
             alternativeWords: alternativeWords,
             spacingValues: spacingValues,
             searchMode: searchMode,
+            searchDistance: searchDistance,
             splitedView: effectiveSplitedView,
             showPageShapeView: effectiveShowPageShapeView,
             highlightText: highlightText,

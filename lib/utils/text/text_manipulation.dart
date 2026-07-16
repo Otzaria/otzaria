@@ -1,21 +1,17 @@
+import 'dart:collection';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
-import 'package:otzaria/search/search_query_builder.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart'
+    show HighlightPattern, generateHighlightPattern;
 
 /// רגקס להסרת תגי HTML וישויות.
 final RegExp _htmlStripper = RegExp(r'<[^>]*>|&[^;]+;');
 
 /// רגקס להסרת ניקוד וטעמים.
 final RegExp _vowelsAndCantillation = RegExp(r'[֑-ׇ]');
-
-/// מחלקת-תווים של ניקוד וטעמים *הצמודים לאות* — ללא מקף (U+05BE) ופסק (U+05C0),
-/// שהם מפרידי מילים. אילו נכללו, ה-`*` היה בולע מקף בין מילים ושובר את
-/// זיהוי גבול המילה (וכך את הדגשת ביטוי כמו "אשר־שמע").
-const String _attachedNikudClass = '֑-ֽֿׁ-ׇ';
-final RegExp _attachedNikud = RegExp('[$_attachedNikudClass]');
 
 /// רגקס להסרת טעמים בלבד.
 final RegExp _cantillationOnly = RegExp(r'[֑-֯]');
@@ -231,78 +227,203 @@ bool hasNikud(String text) {
   return _vowelsAndCantillation.hasMatch(text);
 }
 
-List<String> generateFullPartialSpellingVariations(String word) {
-  if (word.isEmpty) return [word];
+/// תבנית הדגשה מקומפלת שמקורה במנוע החיפוש (Rust).
+///
+/// כל בניית הרג'קסים — וריאציות כתיב, מילים חילופיות, סובלנות ניקוד,
+/// מפרידים ומרווחים — מתבצעת במנוע (`generateHighlightPattern`); צד ה-Dart
+/// רק מקמפל את המחרוזות שהתקבלו ומחיל אותן.
+class _CompiledHighlightPattern {
+  /// רגקס שתופס את הביטוי השלם (כל המילים והמפרידים ביניהן).
+  final RegExp combined;
 
-  final variations = <String>{word}; // המילה המקורית
+  /// רגקס פר-מילה — לאיתור תת-הטווח של כל מילה בתוך התאמה משולבת.
+  final List<RegExp> words;
 
-  // מוצא את כל המיקומים של י, ו, וגרשיים
-  final chars = word.split('');
-  final optionalIndices = <int>[];
+  /// פר-מילה: האם מותר לדרוש גבולות מילה סביב ההתאמה (אין למילה
+  /// אפשרות הרחבה מורפולוגית).
+  final List<bool> boundaryEligible;
 
-  // מוצא אינדקסים של תווים שיכולים להיות אופציונליים
-  for (int i = 0; i < chars.length; i++) {
-    if (chars[i] == 'י' ||
-        chars[i] == 'ו' ||
-        chars[i] == "'" ||
-        chars[i] == '"') {
-      optionalIndices.add(i);
-    }
+  const _CompiledHighlightPattern(
+    this.combined,
+    this.words,
+    this.boundaryEligible,
+  );
+}
+
+/// ההדגשה רצה פר-פסקה ברינדור, עם אותם פרמטרי חיפוש — לכן התבנית נבנית
+/// פעם אחת לכל שינוי פרמטרים ונשמרת. `_highlightCacheValid` נדרש כי גם
+/// `null` (שאילתה ללא מילים ברות-הדגשה) הוא תוצאה שנשמרת.
+String? _highlightCacheKey;
+_CompiledHighlightPattern? _highlightCacheValue;
+bool _highlightCacheValid = false;
+
+/// תבניות הדגשה מבוססות-אינדקס שהוזנו מראש, לפי מפתח פרמטרי החיפוש.
+///
+/// המנוע נסרק אסינכרונית בזמן ריצת החיפוש (ראה `search_engine_gateway`) —
+/// שניות לפני שספר נפתח מהתוצאות — כך שהרינדור הסינכרוני מוצא כאן תבנית
+/// שמדגישה את הווריאנטים שהחיפוש באמת התאים באינדקס (שגיאות כתיב, קידומות,
+/// חלק ממילה), בזהות מלאה להדגשת ה-snippets. רשומה יכולה להיות null (שאילתה
+/// ללא מילים ברות-הדגשה) — לכן containsKey ולא lookup.
+///
+/// כשאין רשומה (חיפוש שלא עבר דרך ה-gateway, או שההזנה נכשלה/טרם הסתיימה)
+/// ממשיכים ל-fallback הסינכרוני שמכיר רק את צורת השאילתה — ההתנהגות הקודמת.
+final LinkedHashMap<String, _CompiledHighlightPattern?> _primedHighlightCache =
+    LinkedHashMap();
+const int _maxPrimedHighlightEntries = 8;
+final Set<String> _primedHighlightInFlight = <String>{};
+
+final ValueNotifier<int> _highlightPatternRevision = ValueNotifier<int>(0);
+
+/// מתעדכן כשתבנית הדגשה מבוססת-אינדקס חדשה נכנסת למטמון. הרינדור שכבר צויר
+/// עם ה-fallback (צורת-השאילתה בלבד) מאזין לזה ומתרנדר מחדש עם התבנית
+/// המדויקת — אחרת התאמות קידומת/וריאנט נשארות ללא הדגשה עד גלילה.
+ValueListenable<int> get highlightPatternRevision => _highlightPatternRevision;
+
+/// מקמפל את תבניות ה-RegExp שהמנוע החזיר. כל הלוגיקה של בניית התבניות חיה
+/// ב-Rust; כאן קומפילציה בלבד.
+_CompiledHighlightPattern? _compileHighlightPattern(HighlightPattern? pattern) {
+  if (pattern == null) return null;
+  return _CompiledHighlightPattern(
+    RegExp(pattern.combinedPattern, caseSensitive: false),
+    [
+      for (final wordPattern in pattern.wordPatterns)
+        RegExp(wordPattern, caseSensitive: false),
+    ],
+    pattern.wordBoundaryEligible,
+  );
+}
+
+/// מזין מראש תבנית הדגשה מבוססת-אינדקס לפרמטרי חיפוש נתונים.
+///
+/// `fetch` מביא את התבנית מהמנוע (סריקת FST של מילון האינדקס עם אוטומטי
+/// החיפוש עצמם). שגיאה בהבאה נבלעת בכוונה — מסלול ה-fallback ממשיך לשרת.
+Future<void> primeHighlightPattern({
+  required String searchQuery,
+  required Map<String, Map<String, bool>> searchOptions,
+  required Map<int, List<String>> alternativeWords,
+  required Map<String, String> spacingValues,
+  required int searchDistance,
+  required bool isFuzzy,
+  required Future<HighlightPattern?> Function() fetch,
+}) async {
+  final key = _highlightRequestKey(
+    searchQuery,
+    searchOptions,
+    alternativeWords,
+    spacingValues,
+    searchDistance,
+    isFuzzy,
+  );
+  if (_primedHighlightCache.containsKey(key) ||
+      !_primedHighlightInFlight.add(key)) {
+    return;
   }
+  try {
+    final pattern = await fetch();
+    final compiled = _compileHighlightPattern(pattern);
+    _primedHighlightCache[key] = compiled;
+    while (_primedHighlightCache.length > _maxPrimedHighlightEntries) {
+      _primedHighlightCache.remove(_primedHighlightCache.keys.first);
+    }
+    // תבנית מדויקת חדשה זמינה — מאותת לרינדור להתרנן מחדש.
+    if (compiled != null) {
+      _highlightPatternRevision.value++;
+    }
+  } catch (error) {
+    debugPrint('primeHighlightPattern failed: $error');
+  } finally {
+    _primedHighlightInFlight.remove(key);
+  }
+}
 
-  // יוצר את כל הצירופים האפשריים (2^n אפשרויות)
-  final numCombinations = 1 << optionalIndices.length; // 2^n
-
-  for (int combination = 0; combination < numCombinations; combination++) {
-    final variant = <String>[];
-
-    for (int i = 0; i < chars.length; i++) {
-      // אם התו הוא לא אופציונלי, תמיד מוסיפים אותו
-      if (!optionalIndices.contains(i)) {
-        variant.add(chars[i]);
-      } else {
-        // אם התו אופציונלי, בודקים אם הביט המתאים דולק
-        final optionalIndex = optionalIndices.indexOf(i);
-        if ((combination >> optionalIndex) & 1 == 1) {
-          variant.add(chars[i]);
-        }
+String _highlightRequestKey(
+  String searchQuery,
+  Map<String, Map<String, bool>> searchOptions,
+  Map<int, List<String>> alternativeWords,
+  Map<String, String> spacingValues,
+  int searchDistance,
+  bool isFuzzy,
+) {
+  // מצב fuzzy מפיק תבנית שונה מהותית (וריאנטי מרחק-עריכה וצורות מילון) גם
+  // עבור אותם query/distance — בלעדי הסמן, חיפוש advanced ו-fuzzy עם אותם
+  // פרמטרים היו חולקים רשומת מטמון בטעות.
+  final buffer = StringBuffer()
+    ..write(isFuzzy ? 'f' : 'a')
+    ..write(' ')
+    ..write(searchDistance)
+    ..write(' ')
+    ..write(searchQuery)
+    ..write(' ');
+  for (final key in searchOptions.keys.toList()..sort()) {
+    buffer
+      ..write(key)
+      ..write(':');
+    final options = searchOptions[key]!;
+    for (final option in options.keys.toList()..sort()) {
+      if (options[option] == true) {
+        buffer
+          ..write(option)
+          ..write(',');
       }
     }
-    variations.add(variant.join());
+    buffer.write(';');
   }
-
-  return variations.toList();
+  buffer.write(' ');
+  for (final key in alternativeWords.keys.toList()..sort()) {
+    buffer
+      ..write(key)
+      ..write(':')
+      ..write(alternativeWords[key]!.join(','))
+      ..write(';');
+  }
+  buffer.write(' ');
+  for (final key in spacingValues.keys.toList()..sort()) {
+    buffer
+      ..write(key)
+      ..write(':')
+      ..write(spacingValues[key])
+      ..write(';');
+  }
+  return buffer.toString();
 }
 
-String _highlightWordSeparator({int maxIntermediateWords = 0}) {
-  const separator =
-      r'''(?:\s|[\u0591-\u05C7]|<[^>]*>|[.,:;!?'"״׳־\-–—()\[\]{}])+''';
-  if (maxIntermediateWords <= 0) {
-    return separator;
-  }
-
-  return '$separator(?:\\S+$separator){0,$maxIntermediateWords}';
-}
-
-int _maxSpacingValue(Map<String, String> spacingValues) {
-  var maxSpacing = 0;
-  for (final value in spacingValues.values) {
-    final spacing = int.tryParse(value) ?? 0;
-    if (spacing > maxSpacing) {
-      maxSpacing = spacing;
-    }
-  }
-  return maxSpacing;
-}
-
-String _highlightSeparatorForIndex(
+_CompiledHighlightPattern? _resolveHighlightPattern(
+  String searchQuery,
+  Map<String, Map<String, bool>> searchOptions,
+  Map<int, List<String>> alternativeWords,
   Map<String, String> spacingValues,
-  int index,
+  int searchDistance,
+  bool isFuzzy,
 ) {
-  final maxIntermediateWords =
-      int.tryParse(spacingValues['$index-${index + 1}'] ?? '') ??
-          _maxSpacingValue(spacingValues);
-  return _highlightWordSeparator(maxIntermediateWords: maxIntermediateWords);
+  final key = _highlightRequestKey(
+    searchQuery,
+    searchOptions,
+    alternativeWords,
+    spacingValues,
+    searchDistance,
+    isFuzzy,
+  );
+  // תבנית מבוססת-אינדקס שהוזנה מראש קודמת ל-fallback: היא מדגישה את
+  // הווריאנטים שהחיפוש באמת התאים, לא רק את צורת השאילתה.
+  if (_primedHighlightCache.containsKey(key)) {
+    return _primedHighlightCache[key];
+  }
+  if (_highlightCacheValid && key == _highlightCacheKey) {
+    return _highlightCacheValue;
+  }
+
+  final compiled = _compileHighlightPattern(generateHighlightPattern(
+    query: searchQuery,
+    distance: searchDistance < 0 ? 0 : searchDistance,
+    customSpacing: spacingValues,
+    alternativeWords: alternativeWords,
+    searchOptions: searchOptions,
+  ));
+
+  _highlightCacheKey = key;
+  _highlightCacheValue = compiled;
+  _highlightCacheValid = true;
+  return compiled;
 }
 
 class _HighlightMatch {
@@ -319,12 +440,30 @@ class _HighlightRange {
   const _HighlightRange(this.start, this.end);
 }
 
+/// ניקוד/טעמים הצמודים לאות; מפרידי מילים שבטווח נשארים מחוץ לסט כדי
+/// שבדיקת גבולות לא תדלג מעל מקף, פסק, סוף-פסוק או נו"ן הפוכה.
 bool _isHebrewMark(String char) {
-  return _attachedNikud.hasMatch(char);
+  if (char.isEmpty) return false;
+  final code = char.codeUnitAt(0);
+  return (code >= 0x0591 && code <= 0x05BD) ||
+      code == 0x05BF ||
+      code == 0x05C1 ||
+      code == 0x05C2 ||
+      code == 0x05C4 ||
+      code == 0x05C5 ||
+      code == 0x05C7;
 }
 
+/// תו שנחשב חלק ממילת חיפוש, כולל ליגטורות יידיש וצורות תצוגה עבריות.
 bool _isSearchTokenChar(String char) {
-  return RegExp(r'[א-תA-Za-z0-9]').hasMatch(char);
+  if (char.isEmpty) return false;
+  final code = char.codeUnitAt(0);
+  return (code >= 0x05D0 && code <= 0x05EA) ||
+      (code >= 0x05F0 && code <= 0x05F2) ||
+      (code >= 0xFB1D && code <= 0xFB4F) ||
+      (code >= 0x41 && code <= 0x5A) ||
+      (code >= 0x61 && code <= 0x7A) ||
+      (code >= 0x30 && code <= 0x39);
 }
 
 bool _hasTokenBoundaryBefore(String text, int start) {
@@ -349,17 +488,14 @@ List<_HighlightRange>? _collectMatchedSearchWordRanges(
   String fullText,
   String matchedText,
   int matchStart,
-  List<List<String>> patternGroups,
+  List<RegExp> wordRegexes,
   List<bool> requireTokenBoundaries,
 ) {
   final ranges = <_HighlightRange>[];
   var searchOffset = 0;
 
-  for (var i = 0; i < patternGroups.length; i++) {
-    final group = patternGroups[i];
-    final wordPattern =
-        group.length == 1 ? group.first : '(?:${group.join('|')})';
-    final wordRegex = RegExp(wordPattern, caseSensitive: false);
+  for (var i = 0; i < wordRegexes.length; i++) {
+    final wordRegex = wordRegexes[i];
     final searchText = matchedText.substring(searchOffset);
     final wordMatch = wordRegex.firstMatch(searchText);
     if (wordMatch == null) {
@@ -368,12 +504,17 @@ List<_HighlightRange>? _collectMatchedSearchWordRanges(
 
     final wordStart = searchOffset + wordMatch.start;
     final wordEnd = searchOffset + wordMatch.end;
-    final absoluteStart = matchStart + wordStart;
-    final absoluteEnd = matchStart + wordEnd;
 
+    // הגבול נבדק בקצוות ההתאמה כולה, לא בקצה טווח-המילה: קידומת/סיומת שבתוך
+    // ההתאמה (כמו "ב" ב"במיעוט") היא חלק מהטוקן ואומתה בתבנית המנוע — אין
+    // לפסול בגללה. גבולות פנימיים בין מילים מאומתים אף הם בתבנית.
+    final isFirst = i == 0;
+    final isLast = i == wordRegexes.length - 1;
     if (requireTokenBoundaries[i] &&
-        (!_hasTokenBoundaryBefore(fullText, absoluteStart) ||
-            !_hasTokenBoundaryAfter(fullText, absoluteEnd))) {
+        ((isFirst && !_hasTokenBoundaryBefore(fullText, matchStart)) ||
+            (isLast &&
+                !_hasTokenBoundaryAfter(
+                    fullText, matchStart + matchedText.length)))) {
       return null;
     }
 
@@ -429,6 +570,31 @@ String _highlightMatchedSearchWords(
   return result.toString();
 }
 
+/// מאתר את התאמות ההדגשה בטקסט: התאמות התבנית המשולבת שעוברות גם את
+/// בדיקת גבולות המילה פר-מילה. משותף ל-[highLight] ול-[countMatches], כך
+/// שהמונה סופר בדיוק את מה שמודגש בפועל.
+List<_HighlightMatch> _findHighlightMatches(
+  String data,
+  _CompiledHighlightPattern compiled,
+  List<bool> requireTokenBoundaries,
+) {
+  return compiled.combined
+      .allMatches(data)
+      .map((match) {
+        final matchedText = match.group(0)!;
+        final ranges = _collectMatchedSearchWordRanges(
+          data,
+          matchedText,
+          match.start,
+          compiled.words,
+          requireTokenBoundaries,
+        );
+        return ranges == null ? null : _HighlightMatch(match, ranges);
+      })
+      .whereType<_HighlightMatch>()
+      .toList();
+}
+
 String highLight(
   String data,
   String searchQuery, {
@@ -443,118 +609,27 @@ String highLight(
 }) {
   if (searchQuery.isEmpty) return data;
 
-  // 1. חילוץ מילות החיפוש כולל מילים חילופיות
-  final originalWords = SearchQueryBuilder.sanitizeQuery(searchQuery)
-      .split(RegExp(r'\s+'))
-      .where((s) => s.isNotEmpty)
-      .toList();
-  final effectiveSpacingValues = SearchQueryBuilder.effectiveSpacingValues(
-    wordCount: originalWords.length,
-    spacingValues: spacingValues,
-    searchDistance: searchDistance,
+  // בניית תבניות ההדגשה מתבצעת כולה במנוע החיפוש (Rust) — כולל וריאציות
+  // כתיב, מילים חילופיות, סובלנות ניקוד ומרווחים בין מילים. כאן רק
+  // מקמפלים את התבניות שהתקבלו ומחילים אותן על הטקסט.
+  final compiled = _resolveHighlightPattern(
+    searchQuery,
+    searchOptions,
+    alternativeWords,
+    spacingValues,
+    searchDistance,
+    isFuzzy,
   );
+  if (compiled == null) return data;
 
-  // בניית קבוצת patterns לכל מילה בנפרד (כולל חלופות לכל מיקום)
-  final patternGroups = <List<String>>[];
-  final requireTokenBoundaries = <bool>[];
-  for (int i = 0; i < originalWords.length; i++) {
-    final word = originalWords[i];
-    final wordKey = '${word}_$i';
+  // בהדגשת ציטוט (רקע צהוב) הטקסט הועתק מהמקטע עצמו ועשוי להיקטע
+  // באמצע מילה — דרישת גבולות מילה תפסול אז את כל ההדגשה.
+  final requireTokenBoundaries = [
+    for (final eligible in compiled.boundaryEligible)
+      eligible && !yellowBackground && !partialWordMatch,
+  ];
 
-    // בדיקת אפשרויות החיפוש למילה הזו
-    final wordOptions = searchOptions[wordKey] ?? {};
-    final hasPrefix = wordOptions['קידומות'] == true;
-    final hasSuffix = wordOptions['סיומות'] == true;
-    final hasGrammaticalPrefixes = wordOptions['קידומות דקדוקיות'] == true;
-    final hasGrammaticalSuffixes = wordOptions['סיומות דקדוקיות'] == true;
-    final hasFullPartialSpelling = wordOptions['כתיב מלא/חסר'] == true;
-    final hasPartialWord = wordOptions['חלק ממילה'] == true;
-    final hasWordExpansion = hasPrefix ||
-        hasSuffix ||
-        hasGrammaticalPrefixes ||
-        hasGrammaticalSuffixes ||
-        hasPartialWord;
-
-    final wordTerms = <String>[];
-    if (hasFullPartialSpelling) {
-      wordTerms.addAll(generateFullPartialSpellingVariations(word));
-    } else {
-      wordTerms.add(word);
-    }
-
-    // הוספת מילים חילופיות אם יש
-    final alternatives = alternativeWords[i];
-    if (alternatives != null && alternatives.isNotEmpty) {
-      if (hasFullPartialSpelling) {
-        for (final alt in alternatives) {
-          wordTerms.addAll(generateFullPartialSpellingVariations(alt));
-        }
-      } else {
-        wordTerms.addAll(alternatives);
-      }
-    }
-
-    // המרת כל term ל-pattern regex עם תמיכה בניקוד
-    final wordPatterns = wordTerms.map((term) {
-      final cleanTerm = removeVolwels(term);
-      return cleanTerm.split('').map((char) {
-        if (RegExp(r'[א-ת]').hasMatch(char)) {
-          return '${RegExp.escape(char)}[$_attachedNikudClass]*';
-        }
-        if (char == '"') return '["״]';
-        if (char == "'") return "['׳]";
-        return RegExp.escape(char);
-      }).join();
-    }).toList();
-
-    patternGroups.add(wordPatterns);
-    // בהדגשת ציטוט (רקע צהוב) הטקסט הועתק מהמקטע עצמו ועשוי להיקטע
-    // באמצע מילה — דרישת גבולות מילה תפסול אז את כל ההדגשה.
-    requireTokenBoundaries
-        .add(!hasWordExpansion && !yellowBackground && !partialWordMatch);
-  }
-
-  if (patternGroups.isEmpty) return data;
-
-  // בניית ה-pattern המשולב:
-  // - מילה אחת: OR פשוט בין החלופות
-  // - כמה מילים: pattern רצפי - כל מילה חייבת להופיע לפי הסדר
-  //   ובין מילים: רווח לבן, ניקוד, או תגי HTML (למניעת החמצה בגלל HTML בטקסט)
-  String combinedPattern;
-  if (patternGroups.length == 1) {
-    final patterns = patternGroups.first;
-    combinedPattern =
-        patterns.length == 1 ? patterns.first : '(?:${patterns.join('|')})';
-  } else {
-    final wordPatternStrings = patternGroups.map((group) {
-      return group.length == 1 ? group.first : '(?:${group.join('|')})';
-    }).toList();
-    final patternParts = <String>[];
-    for (var i = 0; i < wordPatternStrings.length; i++) {
-      patternParts.add(wordPatternStrings[i]);
-      if (i < wordPatternStrings.length - 1) {
-        patternParts
-            .add(_highlightSeparatorForIndex(effectiveSpacingValues, i));
-      }
-    }
-    combinedPattern = patternParts.join();
-  }
-  final regex = RegExp(combinedPattern, caseSensitive: false);
-  final matches = regex
-      .allMatches(data)
-      .map((match) {
-        final matchedText = match.group(0)!;
-        final ranges = _collectMatchedSearchWordRanges(
-          data,
-          matchedText,
-          match.start,
-          patternGroups,
-          requireTokenBoundaries,
-        );
-        return ranges == null ? null : _HighlightMatch(match, ranges);
-      })
-      .whereType<_HighlightMatch>()
-      .toList();
+  final matches = _findHighlightMatches(data, compiled, requireTokenBoundaries);
 
   if (matches.isEmpty) return data;
 
@@ -617,6 +692,44 @@ String highLight(
   return result;
 }
 
+/// מחזיר את טווחי ההדגשה (offsets גולמיים) של מילות החיפוש ב-[data], באותה
+/// התאמה בדיוק כמו [highLight] — לבניית InlineSpans (סרגל תוצאות) בעקביות
+/// מלאה עם הדגשת פאנל הקריאה. כל טווח הוא זוג [start, end].
+List<List<int>> computeHighlightRanges(
+  String data,
+  String searchQuery, {
+  Map<String, Map<String, bool>> searchOptions = const {},
+  Map<int, List<String>> alternativeWords = const {},
+  Map<String, String> spacingValues = const {},
+  bool isFuzzy = false,
+  int searchDistance = 0,
+  bool partialWordMatch = false,
+}) {
+  if (searchQuery.isEmpty || data.isEmpty) return const [];
+  final compiled = _resolveHighlightPattern(
+    searchQuery,
+    searchOptions,
+    alternativeWords,
+    spacingValues,
+    searchDistance,
+    isFuzzy,
+  );
+  if (compiled == null) return const [];
+  final requireTokenBoundaries = [
+    for (final eligible in compiled.boundaryEligible)
+      eligible && !partialWordMatch,
+  ];
+  final matches = _findHighlightMatches(data, compiled, requireTokenBoundaries);
+  final ranges = <List<int>>[];
+  for (final highlightMatch in matches) {
+    final base = highlightMatch.match.start;
+    for (final range in highlightMatch.ranges) {
+      ranges.add([base + range.start, base + range.end]);
+    }
+  }
+  return ranges;
+}
+
 String getTitleFromPath(String path) {
   path = path
       .replaceAll('/', Platform.pathSeparator)
@@ -649,20 +762,22 @@ const List<String> _eraCategories = [
 ];
 const String _defaultCategory = 'מפרשים נוספים';
 
+/// סופר את הופעות השאילתה בטקסט — באותה התאמה בדיוק כמו [highLight]
+/// (תבנית מהמנוע, סובלנות ניקוד ובדיקת גבולות מילה), כך שהמונה המוצג
+/// לעולם לא סוטה ממספר ההדגשות בפועל.
 int countMatches(String text, String searchQuery) {
   if (searchQuery.isEmpty) return 0;
-
-  // ניקוי תווים מיוחדים מהשאילתה
-  final cleanedQuery = SearchQueryBuilder.sanitizeQuery(searchQuery);
-
-  if (cleanedQuery.isEmpty) return 0;
-
-  // אותו רג'קס כמו ב-highLight
-  final RegExp regex = RegExp(
-    RegExp.escape(cleanedQuery),
-    caseSensitive: false,
+  final compiled = _resolveHighlightPattern(
+    searchQuery,
+    const {},
+    const {},
+    const {},
+    0,
+    false,
   );
-  return regex.allMatches(text).length;
+  if (compiled == null) return 0;
+  return _findHighlightMatches(text, compiled, compiled.boundaryEligible)
+      .length;
 }
 
 Future<bool> hasTopic(String title, String topic) async {

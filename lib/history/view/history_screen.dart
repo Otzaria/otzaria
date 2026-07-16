@@ -21,6 +21,7 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/widgets/lists/items_list_view.dart';
 
@@ -233,14 +234,32 @@ class _HistoryViewState extends State<HistoryView> {
                 onItemTap: (ctx, item, originalIndex) {
                   if (item.isSearch) {
                     final tabsBloc = ctx.read<TabsBloc>();
-                    // Always create a new search tab instead of reusing existing one
-                    final searchTab = SearchingTab('חיפוש', null);
-                    tabsBloc.add(AddTab(searchTab));
+                    final searchMode = item.searchMode ?? SearchMode.advanced;
+                    final scopeFacets = (item.searchScopeFacets != null &&
+                            item.searchScopeFacets!.isNotEmpty)
+                        ? List<String>.from(item.searchScopeFacets!)
+                        : const ['/'];
+                    // ה-configuration מוזרקת בבנייה ולא דרך events אחרי AddTab,
+                    // אחרת snapshot השמירה מצלם advanced והמצב אובד בהפעלה הבאה.
+                    final searchTab = SearchingTab(
+                      'חיפוש',
+                      null,
+                      initialConfiguration: SearchConfiguration(
+                        searchMode: searchMode,
+                        distance: searchMode == SearchMode.fuzzy ? 2 : 0,
+                        proximityScope:
+                            item.proximityScope ?? SearchScope.wordDistance,
+                        currentFacets: scopeFacets,
+                        searchScopeFacets: scopeFacets,
+                      ),
+                    );
 
                     // Restore search query and options
                     // ההיסטוריה שומרת אפשרויות מורחבות פר-מילה,
                     // לכן עוברים למצב פר-מילה כדי שהן יוצגו ויפעלו בדיוק כפי שנשמרו
                     searchTab.queryController.text = item.book.title;
+                    searchTab.negativeQueryController.text =
+                        item.negativeSearchText ?? '';
                     searchTab.searchOptions.clear();
                     searchTab.searchOptions.addAll(item.searchOptions ?? {});
                     searchTab.useGlobalSearchOptions.value = false;
@@ -249,23 +268,34 @@ class _HistoryViewState extends State<HistoryView> {
                         .addAll(item.alternativeWords ?? {});
                     searchTab.spacingValues.clear();
                     searchTab.spacingValues.addAll(item.spacingValues ?? {});
-                    searchTab.searchBloc.add(
-                      SetSearchMode(item.searchMode ?? SearchMode.advanced),
-                    );
-
-                    if (item.searchScopeFacets != null &&
-                        item.searchScopeFacets!.isNotEmpty) {
-                      searchTab.searchBloc
-                          .add(SetFacetsWithoutSearch(item.searchScopeFacets!));
-                    }
+                    searchTab.negativeSearchOptions.clear();
+                    searchTab.negativeSearchOptions
+                        .addAll(item.negativeSearchOptions ?? {});
+                    searchTab.useGlobalNegativeSearchOptions.value = false;
+                    searchTab.negativeAlternativeWords.clear();
+                    searchTab.negativeAlternativeWords
+                        .addAll(item.negativeAlternativeWords ?? {});
+                    searchTab.negativeSpacingValues.clear();
+                    searchTab.negativeSpacingValues
+                        .addAll(item.negativeSpacingValues ?? {});
+                    // פריט שנשמר תחת חוקי-פיצול ישנים של המנוע ימופה
+                    // למילים הלא-נכונות — עדיף לנקות מאשר לזלוג.
+                    searchTab.dropStalePerWordStateIfNeeded();
 
                     searchTab.updateTitleFromAppliedQuery(
                         searchTab.queryController.text);
+                    // AddTab רק אחרי שכל מצב הטאב מולא — saveTabs מצלם אותו כאן
+                    tabsBloc.add(AddTab(searchTab));
                     searchTab.searchBloc.add(UpdateSearchQuery(
                       searchTab.queryController.text,
+                      negativeQuery: searchTab.negativeQueryController.text,
                       customSpacing: searchTab.spacingValues,
                       alternativeWords: searchTab.alternativeWords,
                       searchOptions: searchTab.searchOptions,
+                      negativeCustomSpacing: searchTab.negativeSpacingValues,
+                      negativeAlternativeWords:
+                          searchTab.negativeAlternativeWords,
+                      negativeSearchOptions: searchTab.negativeSearchOptions,
                     ));
 
                     // Navigate to search screen

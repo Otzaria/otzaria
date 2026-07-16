@@ -1,7 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart'
+    show HighlightPattern;
 
-void main() {
+import '../support/search_engine_test_init.dart';
+
+Future<void> main() async {
+  final engineReady = await tryInitSearchEngine();
+
   group('highLight', () {
     test('single word - highlights the word', () {
       const text = 'כל יום טוב';
@@ -228,7 +234,10 @@ void main() {
       expect(result, contains('<span style="color: red">פַּרְעֹה</span>'));
       expect(result, contains('<span style="color: red">נָבוֹן</span>'));
     });
-  });
+  },
+      skip: engineReady
+          ? false
+          : 'ספריית מנוע החיפוש הנייטיבית לא נמצאה — הריצו cargo build בחבילה');
 
   group('stripHtmlPreservingBreaks', () {
     test('ממיר <br> למעבר שורה במקום לדחוס לרצף', () {
@@ -431,4 +440,180 @@ void main() {
       expect(tocTextMatchesRef('דף סד:', ''), isFalse);
     });
   });
+
+  group('primeHighlightPattern', () {
+    // תבנית "מבוססת אינדקס" מזויפת: מדגישה גם את וריאנט שגיאת הכתיב מסה,
+    // שה-fallback (שמכיר רק את צורת השאילתה משה) לעולם לא היה מדגיש.
+    const primedPattern = HighlightPattern(
+      combinedPattern: '(?:משה|מסה)',
+      wordPatterns: ['(?:משה|מסה)'],
+      wordBoundaryEligible: [true],
+    );
+
+    test('highLight משתמש בתבנית שהוזנה מראש לאותם פרמטרים', () async {
+      const query = 'משה';
+      const options = {
+        'משה_0': {'שגיאות כתיב': true},
+      };
+
+      await primeHighlightPattern(
+        searchQuery: query,
+        searchOptions: options,
+        alternativeWords: const {},
+        spacingValues: const {},
+        searchDistance: 0,
+        isFuzzy: false,
+        fetch: () async => primedPattern,
+      );
+
+      final result = highLight(
+        'ויקח מסה גדולה',
+        query,
+        searchOptions: options,
+      );
+      expect(result, contains('<span style="color: red">מסה</span>'));
+    });
+
+    test('פרמטרים שונים לא פוגעים בתבנית שהוזנה — מפתח לפי פרמטרים', () async {
+      const query = 'משה אמר';
+      await primeHighlightPattern(
+        searchQuery: query,
+        searchOptions: const {},
+        alternativeWords: const {},
+        spacingValues: const {},
+        searchDistance: 0,
+        isFuzzy: false,
+        fetch: () async => primedPattern,
+      );
+
+      // distance שונה → מפתח שונה → אין פגיעת מטמון, וזו לא שגיאה.
+      final miss = highLight('ויקח מסה', query, searchDistance: 3);
+      expect(miss, isNot(contains('<span')));
+
+      // הפרמטרים המקוריים עדיין מוצאים את התבנית שהוזנה.
+      final hit = highLight('ויקח מסה', query);
+      expect(hit, contains('<span style="color: red">מסה</span>'));
+    });
+
+    test('כשל בהבאה נבלע וה-fallback ממשיך לשרת', () async {
+      const query = 'שלום';
+      await primeHighlightPattern(
+        searchQuery: query,
+        searchOptions: const {},
+        alternativeWords: const {},
+        spacingValues: const {},
+        searchDistance: 0,
+        isFuzzy: false,
+        fetch: () async => throw StateError('index unavailable'),
+      );
+
+      // ה-fallback הסינכרוני (תבנית מבוססת-שאילתה) עדיין עובד.
+      final result = highLight('שלום עולם', query);
+      expect(result, contains('<span style="color: red">שלום</span>'));
+    });
+
+    test('תבנית advanced אינה משמשת רינדור fuzzy — המצב חלק מהמפתח', () async {
+      const query = 'משה רבנו';
+      await primeHighlightPattern(
+        searchQuery: query,
+        searchOptions: const {},
+        alternativeWords: const {},
+        spacingValues: const {},
+        searchDistance: 0,
+        isFuzzy: false,
+        fetch: () async => primedPattern,
+      );
+
+      // רינדור במצב fuzzy עם אותם פרמטרים לא מוצא את תבנית ה-advanced,
+      // ונופל ל-fallback (שדורש את שתי המילים — אין התאמה כאן).
+      final fuzzyRender = highLight('ויקח מסה', query, isFuzzy: true);
+      expect(fuzzyRender, isNot(contains('<span')));
+
+      // רינדור advanced כן פוגע בתבנית.
+      final advancedRender = highLight('ויקח מסה', query);
+      expect(advancedRender, contains('<span style="color: red">מסה</span>'));
+    });
+
+    test('קידומת בתוך ההתאמה אינה פוסלת הדגשה — "מיעוט" ב"במיעוט"', () async {
+      const query = 'מיעוט';
+      await primeHighlightPattern(
+        searchQuery: query,
+        searchOptions: const {},
+        alternativeWords: const {},
+        spacingValues: const {},
+        searchDistance: 0,
+        isFuzzy: false,
+        fetch: () async => const HighlightPattern(
+          combinedPattern: '(?:[בכלמהוש])?מיעוט',
+          wordPatterns: ['מיעוט'],
+          wordBoundaryEligible: [true],
+        ),
+      );
+
+      final result = highLight('ראה במיעוט גדול', query);
+      // רק "מיעוט" מודגש; ה"ב" של הקידומת נשאר מחוץ להדגשה.
+      expect(result, contains('ב<span style="color: red">מיעוט</span>'));
+    });
+
+    test('תת-מחרוזת אקראית עדיין נדחית — "מיעוט" ב"שמיעוטי" לא מודגש',
+        () async {
+      const query = 'זריזות';
+      await primeHighlightPattern(
+        searchQuery: query,
+        searchOptions: const {},
+        alternativeWords: const {},
+        spacingValues: const {},
+        searchDistance: 0,
+        isFuzzy: false,
+        fetch: () async => const HighlightPattern(
+          combinedPattern: 'מיעוט',
+          wordPatterns: ['מיעוט'],
+          wordBoundaryEligible: [true],
+        ),
+      );
+
+      // התבנית מתאימה את "מיעוט" בתוך "שמיעוטי", אך הגבול בקצה ההתאמה נכשל
+      // (לפניו "ש", אחריו "י") — אין הדגשה.
+      final result = highLight('ראה שמיעוטי כאן', query);
+      expect(result, isNot(contains('<span')));
+    });
+
+    test('הזנת תבנית חדשה מעדכנת את גרסת ההדגשה לרינדור-מחדש', () async {
+      final before = highlightPatternRevision.value;
+      await primeHighlightPattern(
+        searchQuery: 'דוד המלך',
+        searchOptions: const {},
+        alternativeWords: const {},
+        spacingValues: const {},
+        searchDistance: 0,
+        isFuzzy: false,
+        fetch: () async => primedPattern,
+      );
+      expect(highlightPatternRevision.value, greaterThan(before));
+    });
+  }, skip: engineReady ? false : searchEngineSkipReason);
+
+  group('גבולות מילה מול מפרידים עבריים', () {
+    test('סוף-פסוק דבוק אינו נבלע בגבול המילה', () {
+      // ׃ (U+05C3) מפריד מילים כמו במנוע — "ברא" לפני ׃ הוא טוקן שלם
+      // וההדגשה חייבת לעבור את בדיקת הגבול, גם ללא רווח אחרי ה-׃.
+      final result = highLight('בְּרֵאשִׁית ברא\u{05C3}והארץ היתה', 'ברא');
+      expect(result, contains('<span style="color: red">ברא</span>'));
+    });
+
+    test('נו"ן הפוכה אינה נבלעת בגבול המילה', () {
+      final result = highLight('פסוק\u{05C6} אחר', 'פסוק');
+      expect(result, contains('<span style="color: red">פסוק</span>'));
+    });
+
+    test('ליגטורת יידיש לפני התאמה אינה נחשבת גבול מילה', () {
+      final result = highLight('אב\u{05F0}שלום', 'שלום');
+      expect(result, isNot(contains('<span')));
+    });
+
+    test('צורת תצוגה עברית לפני התאמה אינה נחשבת גבול מילה', () {
+      final result = highLight('אב\u{FB1D}שלום', 'שלום');
+      expect(result, isNot(contains('<span')));
+    });
+  }, skip: engineReady ? false : searchEngineSkipReason);
 }

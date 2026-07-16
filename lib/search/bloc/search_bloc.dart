@@ -12,9 +12,9 @@ import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/search_repository.dart';
+import 'package:otzaria/search/utils/search_catalogue_order_helper.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
-import 'package:otzaria/search/utils/search_catalogue_order_helper.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
@@ -26,6 +26,10 @@ typedef _FacetRecountInputs = ({
   bool fuzzy,
   int distance,
   SearchMode searchMode,
+  String negativeQuery,
+  SearchScope proximityScope,
+  WordMatchMode wordMatchMode,
+  int wordMatchCount,
 });
 
 class SearchBloc extends Bloc<SearchEvent, SearchState> {
@@ -74,6 +78,10 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     on<UpdateSearchQuery>(_onUpdateSearchQuery);
     on<UpdateDistance>(_onUpdateDistance);
     on<UpdateDistanceWithoutSearch>(_onUpdateDistanceWithoutSearch);
+    on<UpdateProximityScope>(_onUpdateProximityScope);
+    on<UpdateProximityScopeWithoutSearch>(_onUpdateProximityScopeWithoutSearch);
+    on<UpdateWordMatchMode>(_onUpdateWordMatchMode);
+    on<UpdateWordMatchModeWithoutSearch>(_onUpdateWordMatchModeWithoutSearch);
     on<ToggleSearchMode>(_onToggleSearchMode);
     on<SetSearchMode>(_onSetSearchMode);
     on<SetSearchModeWithoutSearch>(_onSetSearchModeWithoutSearch);
@@ -83,6 +91,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     on<SetFacet>(_onSetFacet);
     on<SetFacetsWithoutSearch>(_onSetFacetsWithoutSearch);
     on<UpdateSortOrder>(_onUpdateSortOrder);
+    on<UpdateResultGrouping>(_onUpdateResultGrouping);
     on<UpdateNumResults>(_onUpdateNumResults);
     on<ResetSearch>(_onResetSearch);
     on<UpdateFilterQuery>(_onUpdateFilterQuery);
@@ -105,11 +114,14 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   ) async {
     final requestId = ++_searchRequestId;
     final query = event.query;
+    final negativeQuery = event.negativeQuery ?? state.negativeQuery;
     if (event.query.isEmpty) {
       emit(state.copyWith(
         searchQuery: event.query,
+        negativeQuery: negativeQuery,
         results: [],
         totalResults: 0,
+        totalGroups: null,
         facetCounts: const {},
       ));
       return;
@@ -118,8 +130,10 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     if (state.currentFacets.isEmpty) {
       emit(state.copyWith(
         searchQuery: event.query,
+        negativeQuery: negativeQuery,
         results: [],
         totalResults: 0,
+        totalGroups: null,
         isLoading: false,
         facetCounts: const {},
       ));
@@ -142,82 +156,107 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
 
     emit(state.copyWith(
       searchQuery: query,
+      negativeQuery: negativeQuery,
       isLoading: true,
       facetCounts: shouldPreserveFacetCounts ? state.facetCounts : const {},
       // איפוס שגיאה קודמת בתחילת חיפוש חדש, אחרת הודעת שגיאה ישנה הייתה
       // נשארת ב-state ומבלבלת את המשתמש במהלך החיפוש החדש.
       errorMessage: null,
+      // איפוס דגל התוצאות-החלקיות; ייקבע מחדש מאירוע הספירות אם השאילתה
+      // חורגת מתקציב האיסוף במנוע.
+      resultsTruncated: false,
     ));
 
-    final booksToSearch = state.booksToSearch.map((e) => e.title).toList();
-    Map<int, Book>? bookByCatalogueOrder;
+    Map<String, Book>? bookByIndexedFilePath;
 
-    if (!shouldPreserveFacetCounts) {
-      final library = await DataRepository.instance.library;
-      bookByCatalogueOrder = _buildBooksByCatalogueOrder(library);
-    }
+    // עץ ה-facets נבנה על טווח הסריקה המקורי. כשהחיפוש רץ על אותו טווח
+    // (המקרה הרגיל), הספירות של ה-stream המשולב משרתות גם את העץ וגם את
+    // הספירה הכוללת — ריצה אחת של השאילתה במקום שלוש. רק כשהמשתמש צמצם
+    // לתת-בחירה מהעץ נדרשת ספירת-ספרים נפרדת על הטווח המלא.
+    final scopeEqualsSearch = setEquals(
+      requestedFacets.toSet(),
+      state.searchScopeFacets.toSet(),
+    );
 
     try {
-      // התחל לבנות את עץ ה-facets המלא במקביל כבר מתחילת החיפוש —
-      // אלא אם הספירות שב-state כבר חושבו עבור בדיוק אותה חתימה.
-      if (!shouldSkipFacetRecount) {
+      // ספירת-ספרים נפרדת נדרשת רק כשהחיפוש רץ על תת-בחירה מהעץ (אחרת
+      // ה-stream המשולב מספק את הספירות), וגם אז רק אם החתימה השתנתה.
+      if (!scopeEqualsSearch && !shouldSkipFacetRecount) {
         unawaited(_refreshFacetCountsForAllBooks(
             event, requestId, recountSignature, recountInputs));
       }
 
-      // שימוש ב-streaming לתוצאות מהירות יותר
-      final stream = _repository.searchTextsStream(
+      // stream משולב: האירוע הראשון נושא ספירה כוללת + ספירה לפי ספר
+      // מאותו מעבר אינדקס, ואחריו chunks של תוצאות.
+      final stream = _repository.searchTextsStreamWithCounts(
         SearchQueryBuilder.sanitizeQuery(query),
         requestedFacets,
         state.numResults,
         chunkSize: 50, // 50 תוצאות בכל chunk
         fuzzy: state.fuzzy,
         distance: state.distance,
+        negativeQuery: SearchQueryBuilder.sanitizeQuery(negativeQuery),
+        negativeDistance: state.distance,
+        scope: state.proximityScope,
+        negativeScope: state.proximityScope,
         searchMode: state.configuration.searchMode,
         order: state.sortBy,
         customSpacing: event.customSpacing,
         alternativeWords: event.alternativeWords,
         searchOptions: event.searchOptions,
+        negativeCustomSpacing: event.negativeCustomSpacing,
+        negativeAlternativeWords: event.negativeAlternativeWords,
+        negativeSearchOptions: event.negativeSearchOptions,
+        grouping: state.configuration.resultGrouping.engineGrouping,
+        wordMatchMode: state.wordMatchMode,
+        wordMatchCount: state.wordMatchCount,
       );
 
       final allResults = <SearchResult>[];
-      bool isFirstChunk = true;
 
-      await for (final chunk in stream) {
+      await for (final update in stream) {
         if (requestId != _searchRequestId) {
           return; // החיפוש בוטל
         }
 
-        allResults.addAll(chunk);
-
-        // עדכון ה-UI עם כל chunk
-        if (isFirstChunk) {
-          // Chunk ראשון - בנה ספירות חלקיות
-          isFirstChunk = false;
-          final partialFacetCounts = bookByCatalogueOrder == null
-              ? const <String, int>{}
-              : FacetHelper.buildFacetCountsFromResults(
-                  allResults,
-                  bookByCatalogueOrder,
-                );
-
+        final bookCounts = update.bookCounts;
+        if (update.totalCount != null) {
+          // אירוע הספירות — מגיע עוד לפני ה-chunk הראשון של התוצאות.
+          Map<String, int>? aggregated;
+          if (scopeEqualsSearch && bookCounts != null) {
+            bookByIndexedFilePath ??= _buildBooksByIndexedFilePath(
+              await DataRepository.instance.library,
+            );
+            aggregated = FacetHelper.buildFacetCountsFromBookCounts(
+              bookCounts,
+              bookByIndexedFilePath,
+            );
+            // הספירות שנכנסות ל-state חושבו עבור החתימה הנוכחית — שמירה שלה
+            // מאפשרת לדלג על ספירה חוזרת בלחיצה על קטגוריה מהעץ.
+            _facetCountsSignature = recountSignature;
+          }
           emit(state.copyWith(
-            results: List.from(allResults),
-            totalResults: allResults.length,
-            isLoading: true, // עדיין טוען
-            facetCounts:
-                shouldPreserveFacetCounts || state.facetCounts.isNotEmpty
-                    ? state.facetCounts
-                    : partialFacetCounts,
-          ));
-        } else {
-          // Chunks נוספים - רק עדכן תוצאות
-          emit(state.copyWith(
-            results: List.from(allResults),
-            totalResults: allResults.length,
-            isLoading: true, // עדיין טוען
+            totalResults: update.totalCount,
+            // מספר הקבוצות כשהאיחוד פעיל; null בחיפוש שטוח — ואז הרשימה
+            // נמדדת ב-totalResults כרגיל.
+            totalGroups: update.groupCount,
+            // null משאיר את הספירות הקיימות (למשל כשהעץ מתעדכן בנפרד
+            // דרך ReplaceFacetCounts במקרה של תת-בחירה).
+            facetCounts: aggregated,
+            isLoading: true,
+            // דגל התוצאות-החלקיות מגיע באירוע הספירות בלבד.
+            resultsTruncated: update.truncated,
           ));
         }
+
+        if (update.results.isEmpty) {
+          continue;
+        }
+        allResults.addAll(update.results);
+        emit(state.copyWith(
+          results: List.from(allResults),
+          isLoading: true, // עדיין טוען
+        ));
       }
 
       // סיום - כל התוצאות התקבלו
@@ -225,30 +264,23 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         return;
       }
 
+      // יישוב הספירה: כשהעמוד הראשון ביקש את כל התוצאות (total <= limit)
+      // אך המנוע החזיר פחות ממה שספר (מסמך שנספר אבל נכשל בשליפה מה-store,
+      // נרשם ביומן המנוע), המונה הגולמי היה מצייר "3/4 תוצאות" עם כפתור
+      // "טען עוד" שלעולם לא מספק. מיישרים את הספירה למה שבאמת ניתן להצגה.
+      // במצב איחוד הרשימה נמדדת בקבוצות — היישוב חל על מונה הקבוצות.
+      final effectiveTotal = state.displayTotal;
+      final reconciledTotal = (effectiveTotal <= state.numResults &&
+              allResults.length < effectiveTotal)
+          ? allResults.length
+          : effectiveTotal;
+
       emit(state.copyWith(
         results: allResults,
-        totalResults: allResults.length,
+        totalResults:
+            state.totalGroups == null ? reconciledTotal : state.totalResults,
+        totalGroups: state.totalGroups == null ? null : reconciledTotal,
         isLoading: false,
-      ));
-
-      // ספירה כוללת (אם צריך - אבל בעצם allResults.length כבר נותן את זה)
-      final totalResults = await TantivyDataProvider.instance.countTexts(
-        SearchQueryBuilder.sanitizeQuery(query),
-        booksToSearch,
-        requestedFacets,
-        fuzzy: state.fuzzy,
-        distance: state.distance,
-        searchMode: state.configuration.searchMode,
-        customSpacing: event.customSpacing,
-        alternativeWords: event.alternativeWords,
-        searchOptions: event.searchOptions,
-      );
-
-      if (requestId != _searchRequestId) {
-        return;
-      }
-      emit(state.copyWith(
-        totalResults: totalResults,
       ));
     } catch (e, stackTrace) {
       // זיהוי שגיאה: שגיאת מנוע (למשל כשל קומפילציית רגקס) פעם נבלעה כאן
@@ -260,6 +292,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       emit(state.copyWith(
         results: [],
         totalResults: 0,
+        totalGroups: null,
         isLoading: false,
         errorMessage: 'אירעה שגיאה בעת החיפוש',
       ));
@@ -273,6 +306,10 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       fuzzy: state.fuzzy,
       distance: state.distance,
       searchMode: state.configuration.searchMode,
+      negativeQuery: state.negativeQuery,
+      proximityScope: state.proximityScope,
+      wordMatchMode: state.wordMatchMode,
+      wordMatchCount: state.wordMatchCount,
     );
   }
 
@@ -286,16 +323,26 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       inputs.fuzzy,
       inputs.distance,
       inputs.scopeFacets.join(','),
+      event.negativeQuery ?? inputs.negativeQuery,
+      inputs.proximityScope.name,
+      inputs.wordMatchMode.name,
+      inputs.wordMatchCount,
       jsonEncode(event.customSpacing ?? const <String, String>{}),
       jsonEncode((event.alternativeWords ?? const <int, List<String>>{})
           .map((k, v) => MapEntry(k.toString(), v))),
       jsonEncode(event.searchOptions ?? const <String, Map<String, bool>>{}),
+      jsonEncode(event.negativeCustomSpacing ?? const <String, String>{}),
+      jsonEncode((event.negativeAlternativeWords ?? const <int, List<String>>{})
+          .map((k, v) => MapEntry(k.toString(), v))),
+      jsonEncode(
+          event.negativeSearchOptions ?? const <String, Map<String, bool>>{}),
     ].join('|');
   }
 
   Future<void> _refreshFacetCountsForAllBooks(UpdateSearchQuery event,
       int requestId, String signature, _FacetRecountInputs inputs) async {
     final query = event.query;
+    final negativeQuery = event.negativeQuery ?? inputs.negativeQuery;
     if (query.isEmpty) return;
     if (requestId != _searchRequestId) return;
 
@@ -312,10 +359,19 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         inputs.scopeFacets,
         fuzzy: inputs.fuzzy,
         distance: inputs.distance,
+        negativeQuery: SearchQueryBuilder.sanitizeQuery(negativeQuery),
+        negativeDistance: inputs.distance,
+        scope: inputs.proximityScope,
+        negativeScope: inputs.proximityScope,
         searchMode: inputs.searchMode,
+        wordMatchMode: inputs.wordMatchMode,
+        wordMatchCount: inputs.wordMatchCount,
         customSpacing: event.customSpacing,
         alternativeWords: event.alternativeWords,
         searchOptions: event.searchOptions,
+        negativeCustomSpacing: event.negativeCustomSpacing,
+        negativeAlternativeWords: event.negativeAlternativeWords,
+        negativeSearchOptions: event.negativeSearchOptions,
       );
     } catch (e, stackTrace) {
       // עדכון ה-facets רץ ב-fire-and-forget (unawaited). המנוע דוחה שאילתה
@@ -399,6 +455,70 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     Emitter<SearchState> emit,
   ) {
     _updateDistanceConfiguration(event.distance, emit);
+  }
+
+  void _onUpdateProximityScope(
+    UpdateProximityScope event,
+    Emitter<SearchState> emit,
+  ) {
+    if (!_updateProximityScopeConfiguration(event.scope, emit)) {
+      return;
+    }
+    add(UpdateSearchQuery(state.searchQuery));
+  }
+
+  void _onUpdateProximityScopeWithoutSearch(
+    UpdateProximityScopeWithoutSearch event,
+    Emitter<SearchState> emit,
+  ) {
+    _updateProximityScopeConfiguration(event.scope, emit);
+  }
+
+  bool _updateProximityScopeConfiguration(
+    SearchScope scope,
+    Emitter<SearchState> emit,
+  ) {
+    final newConfig = state.configuration.copyWith(proximityScope: scope);
+    if (newConfig == state.configuration) {
+      return false;
+    }
+
+    emit(state.copyWith(configuration: newConfig));
+    return true;
+  }
+
+  void _onUpdateWordMatchMode(
+    UpdateWordMatchMode event,
+    Emitter<SearchState> emit,
+  ) {
+    if (!_updateWordMatchConfiguration(event.mode, event.count, emit)) {
+      return;
+    }
+    add(UpdateSearchQuery(state.searchQuery));
+  }
+
+  void _onUpdateWordMatchModeWithoutSearch(
+    UpdateWordMatchModeWithoutSearch event,
+    Emitter<SearchState> emit,
+  ) {
+    _updateWordMatchConfiguration(event.mode, event.count, emit);
+  }
+
+  bool _updateWordMatchConfiguration(
+    WordMatchMode mode,
+    int? count,
+    Emitter<SearchState> emit,
+  ) {
+    final newConfig = state.configuration.copyWith(
+      wordMatchMode: mode,
+      wordMatchCount: count,
+    );
+    if (newConfig == state.configuration) {
+      return false;
+    }
+
+    emit(state.copyWith(configuration: newConfig));
+    return true;
   }
 
   void _onToggleSearchMode(
@@ -576,11 +696,18 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   ) async {
     // הסט שבידינו שלם רק כשהמנוע החזיר פחות מהמכסה — אחרת התוצאות חתוכות
     // וסינון מקומי היה מאבד התאמות שמעבר להן.
+    //
+    // איחוד תוצאות פוסל את המסלול המקומי משתי סיבות: (1) הנציג של קבוצה
+    // (במיוחד ב-identicalText) עשוי להיות מספר אחד בעוד חברות הקבוצה
+    // (merged) מספרים אחרים — סינון לפי ספר-הנציג בלבד היה מפיל/משאיר
+    // קבוצות שלא כדין; (2) totalGroups לא היה מתעדכן כאן והדפדוף היה
+    // נשבר. במקום זה החיפוש חוזר למנוע, שמקבץ מחדש בתוך הסינון.
     if (state.searchQuery.isEmpty ||
         state.isLoading ||
         state.errorMessage != null ||
         state.currentFacets.isEmpty ||
-        state.results.length >= state.numResults) {
+        state.results.length >= state.numResults ||
+        state.configuration.resultGrouping != ResultGroupingMode.none) {
       return false;
     }
 
@@ -653,6 +780,17 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     add(UpdateSearchQuery(state.searchQuery));
   }
 
+  void _onUpdateResultGrouping(
+    UpdateResultGrouping event,
+    Emitter<SearchState> emit,
+  ) {
+    if (event.grouping == state.configuration.resultGrouping) return;
+    final newConfig =
+        state.configuration.copyWith(resultGrouping: event.grouping);
+    emit(state.copyWith(configuration: newConfig, totalGroups: null));
+    add(UpdateSearchQuery(state.searchQuery));
+  }
+
   void _onUpdateNumResults(
     UpdateNumResults event,
     Emitter<SearchState> emit,
@@ -676,6 +814,9 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     Map<String, String>? customSpacing,
     Map<int, List<String>>? alternativeWords,
     Map<String, Map<String, bool>>? searchOptions,
+    Map<String, String>? negativeCustomSpacing,
+    Map<int, List<String>>? negativeAlternativeWords,
+    Map<String, Map<String, bool>>? negativeSearchOptions,
   }) async {
     if (state.searchQuery.isEmpty || state.currentFacets.isEmpty) {
       return 0;
@@ -697,10 +838,19 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       [facet],
       fuzzy: state.fuzzy,
       distance: state.distance,
+      negativeQuery: SearchQueryBuilder.sanitizeQuery(state.negativeQuery),
+      negativeDistance: state.distance,
+      scope: state.proximityScope,
+      negativeScope: state.proximityScope,
       searchMode: state.configuration.searchMode,
+      wordMatchMode: state.wordMatchMode,
+      wordMatchCount: state.wordMatchCount,
       customSpacing: customSpacing,
       alternativeWords: alternativeWords,
       searchOptions: searchOptions,
+      negativeCustomSpacing: negativeCustomSpacing,
+      negativeAlternativeWords: negativeAlternativeWords,
+      negativeSearchOptions: negativeSearchOptions,
     );
     debugPrint('🔢 Count result for $facet: $result');
     return result;
@@ -712,6 +862,9 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     Map<String, String>? customSpacing,
     Map<int, List<String>>? alternativeWords,
     Map<String, Map<String, bool>>? searchOptions,
+    Map<String, String>? negativeCustomSpacing,
+    Map<int, List<String>>? negativeAlternativeWords,
+    Map<String, Map<String, bool>>? negativeSearchOptions,
   }) async {
     if (state.searchQuery.isEmpty || state.currentFacets.isEmpty) {
       return {for (final facet in facets) facet: 0};
@@ -738,10 +891,19 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         missingFacets,
         fuzzy: state.fuzzy,
         distance: state.distance,
+        negativeQuery: SearchQueryBuilder.sanitizeQuery(state.negativeQuery),
+        negativeDistance: state.distance,
+        scope: state.proximityScope,
+        negativeScope: state.proximityScope,
         searchMode: state.configuration.searchMode,
+        wordMatchMode: state.wordMatchMode,
+        wordMatchCount: state.wordMatchCount,
         customSpacing: customSpacing,
         alternativeWords: alternativeWords,
         searchOptions: searchOptions,
+        negativeCustomSpacing: negativeCustomSpacing,
+        negativeAlternativeWords: negativeAlternativeWords,
+        negativeSearchOptions: negativeSearchOptions,
       );
       results.addAll(missingResults);
     }
@@ -846,7 +1008,9 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       return;
     }
 
-    final canLoadMore = state.results.length < state.totalResults;
+    // במצב איחוד הרשימה והדפדוף נספרים בקבוצות (displayTotal מחזיר את
+    // מונה הקבוצות כשהוא קיים).
+    final canLoadMore = state.results.length < state.displayTotal;
 
     if (!canLoadMore) {
       return;
@@ -863,15 +1027,36 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         offset: state.results.length,
         fuzzy: state.fuzzy,
         distance: state.distance,
+        negativeQuery: SearchQueryBuilder.sanitizeQuery(state.negativeQuery),
+        negativeDistance: state.distance,
+        scope: state.proximityScope,
+        negativeScope: state.proximityScope,
         searchMode: state.configuration.searchMode,
         order: state.sortBy,
         customSpacing: event.customSpacing,
         alternativeWords: event.alternativeWords,
         searchOptions: event.searchOptions,
+        negativeCustomSpacing: event.negativeCustomSpacing,
+        negativeAlternativeWords: event.negativeAlternativeWords,
+        negativeSearchOptions: event.negativeSearchOptions,
+        grouping: state.configuration.resultGrouping.engineGrouping,
+        wordMatchMode: state.wordMatchMode,
+        wordMatchCount: state.wordMatchCount,
       );
 
+      final combined = [...state.results, ...nextResults];
+      final exhausted = nextResults.isEmpty;
       emit(state.copyWith(
-        results: [...state.results, ...nextResults],
+        results: combined,
+        // עמוד ריק למרות שהמונה מבטיח עוד: ההיטים הנותרים נספרו אך
+        // אינם ניתנים לשליפה (ראה יומן המנוע). בלי היישור הזה הכפתור היה
+        // מציג "טען תוצאות נוספות (N)" לנצח ומסתובב בלי להביא כלום.
+        // היישור חל על המונה שהרשימה נמדדת בו: קבוצות במצב איחוד.
+        totalResults:
+            exhausted && state.totalGroups == null ? combined.length : null,
+        totalGroups: exhausted && state.totalGroups != null
+            ? combined.length
+            : state.totalGroups,
         isLoading: false,
       ));
     } catch (e, stackTrace) {
@@ -881,23 +1066,44 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     }
   }
 
+  /// הספר האמיתי של תוצאת חיפוש לפי שדה ה-filePath של המסמך — מפתח יציב
+  /// שאינו תלוי בסדר הקטלוג בזמן האינדוקס ('uid:5'/'id:5' או נתיב PDF).
+  ///
+  /// פתיחה לפי כותרת בלבד מאבדת את זהות הספר (isUserBook/categoryId),
+  /// וספר אישי שכותרתו זהה לספר רשמי היה נפתח כרשמי. מחזירה null אם
+  /// המפתח לא אותר בקטלוג (ואז נופלים לבנייה לפי כותרת).
+  Future<Book?> resolveBookForIndexedPath(String indexedFilePath) async {
+    final library = await DataRepository.instance.library;
+    if (!identical(library, _resolveCacheLibrary)) {
+      _resolveCacheLibrary = library;
+      _booksByIndexedFilePathCache = bookForIndexedFilePathMap(library);
+    }
+    return _booksByIndexedFilePathCache?[indexedFilePath];
+  }
+
+  Library? _resolveCacheLibrary;
+  Map<String, Book>? _booksByIndexedFilePathCache;
+
+  @visibleForTesting
+  static Map<String, Book> bookForIndexedFilePathMap(Library library) =>
+      _buildBooksByIndexedFilePath(library);
+
   Map<int, Book> _buildBooksByCatalogueOrder(Library library) {
-    final orderByBookKey = SearchCatalogueOrderHelper.buildKeyOrderMap(
+    final keyOrder = SearchCatalogueOrderHelper.buildKeyOrderMap(
       library,
       keyOf: (book) => IndexingRepository.catalogueOrderKey(book as Book),
     );
-    final booksByCatalogueOrder = <int, Book>{};
-
+    final booksByOrder = <int, Book>{};
     for (final book in library.getAllBooks()) {
-      final order = orderByBookKey[IndexingRepository.catalogueOrderKey(book)];
-      if (order == null) continue;
-      booksByCatalogueOrder.putIfAbsent(order, () => book);
+      final order = keyOrder[IndexingRepository.catalogueOrderKey(book)];
+      if (order != null) {
+        booksByOrder.putIfAbsent(order, () => book);
+      }
     }
-
-    return booksByCatalogueOrder;
+    return booksByOrder;
   }
 
-  Map<String, Book> _buildBooksByIndexedFilePath(Library library) {
+  static Map<String, Book> _buildBooksByIndexedFilePath(Library library) {
     final booksByIndexedFilePath = <String, Book>{};
 
     for (final book in library.getAllBooks()) {

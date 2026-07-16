@@ -6,7 +6,10 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
+import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/models/commentator_group.dart';
+import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
@@ -56,6 +59,10 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   bool _paneOpen = false;
   // פתיחה אוטומטית של פאנל המפרשים מתבצעת פעם אחת בלבד לכל טעינת מסך.
   bool _didAutoOpenCommentary = false;
+  // פתיחה אוטומטית של חלונית ההערות כשתוצאת החיפוש נחתה בהערה — פעם אחת.
+  bool _didOpenNotesForSearch = false;
+  // מונח החיפוש להדגשה בטאב המפרשים (התוצאה שנחתה בהערה).
+  late final ValueNotifier<String> _searchHighlightNotifier;
   int? _currentTabIndex;
   late double _leftPaneWidth;
   final ValueNotifier<String?> _savedSelectedText =
@@ -72,6 +79,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   void initState() {
     super.initState();
     _controller = MultiSplitViewController();
+    _searchHighlightNotifier = ValueNotifier<String>(widget.tab.searchText);
     _currentTabIndex = _getInitialTabIndex();
     if (widget.initialTabIndex != null) {
       _paneOpen = true;
@@ -85,6 +93,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     // לכן בודקים גם פעם אחת אחרי ה-frame הראשון.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _maybeAutoOpenCommentaryPane();
+      _maybeOpenNotesForSearchMatch();
     });
   }
 
@@ -275,12 +284,41 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
         );
   }
 
+  /// כשתוצאת החיפוש נחתה בגוף הערת שוליים (המונח אינו נראה בטקסט הראשי),
+  /// פותח את חלונית ההערות על טאב המפרשים ומוודא שמפרש "הערות" פעיל — גם אם
+  /// הגדרת הפתיחה האוטומטית כבויה, כי בלעדיה אין דרך לראות את ההתאמה.
+  /// פעם אחת בלבד, ורק במצב "מפרשים בצד".
+  void _maybeOpenNotesForSearchMatch() {
+    if (!mounted || _didOpenNotesForSearch || !widget.showSplitView) return;
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return;
+    // ערך אמין: state.searchText מתעדכן בחיפוש בתוך הספר (UpdateSearchText),
+    // בעוד widget.tab.searchText הוא הערך ההתחלתי בלבד.
+    final query = state.searchText.trim();
+    if (query.isEmpty) return;
+    final idx = state.selectedIndex ?? widget.tab.index;
+    if (idx < 0 || idx >= state.content.length) return;
+    if (!queryMatchesInlineNoteOnly(state.content[idx], query)) return;
+
+    _didOpenNotesForSearch = true;
+    if (!state.activeCommentators.contains(kNotesCommentatorTitle)) {
+      context.read<TextBookBloc>().add(UpdateCommentators(
+            [...state.activeCommentators, kNotesCommentatorTitle],
+          ));
+    }
+    setState(() {
+      _paneOpen = true;
+      _currentTabIndex = _commentaryTabIndex;
+    });
+  }
+
   @override
   void dispose() {
     widget.tab.toggleCommentatorsPaneNotifier
         .removeListener(_onToggleCommentatorsPaneRequest);
     widget.tab.openNotesTabNotifier.removeListener(_onOpenNotesTabRequest);
     _controller.dispose();
+    _searchHighlightNotifier.dispose();
     _savedSelectedText.dispose();
     _selectionSyncController.dispose();
     _openFilterRequest.dispose();
@@ -293,17 +331,26 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   Widget build(BuildContext context) {
     return BlocListener<TextBookBloc, TextBookState>(
       listenWhen: (previous, current) {
-        // האזן רק אם הוספנו מפרשים (לא אם הסרנו)
         if (previous is TextBookLoaded && current is TextBookLoaded) {
+          // הוספת מפרשים, טעינת/הרחבת תוכן, שינוי שורת התוצאה או מונח החיפוש —
+          // כולם רלוונטיים לפתיחה האוטומטית ולזיהוי תוצאה שנחתה בהערה.
           return current.activeCommentators.length >
-              previous.activeCommentators.length;
+                  previous.activeCommentators.length ||
+              previous.content.length != current.content.length ||
+              previous.selectedIndex != current.selectedIndex ||
+              previous.searchText != current.searchText;
         }
-        return false;
+        return true;
       },
       listener: (context, state) {
         // כשמפרשים נטענים בפתיחה (ברירת מחדל/שמורים) — פתח את הפאנל אוטומטית
         // אם ההגדרה דולקת.
         _maybeAutoOpenCommentaryPane();
+        _maybeOpenNotesForSearchMatch();
+        if (state is TextBookLoaded &&
+            _searchHighlightNotifier.value != state.searchText) {
+          _searchHighlightNotifier.value = state.searchText;
+        }
       },
       child: TextBookStateBuilder(
         buildWhen: (previous, current) {
@@ -339,6 +386,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                     fontSize: state.fontSize,
                     openBookCallback: widget.openBookCallback,
                     showSearch: true,
+                    highlightQueryListenable: _searchHighlightNotifier,
                     selectionSyncController: _selectionSyncController,
                     openFilterRequest: _openFilterRequest,
                     onClosePane: _togglePane,

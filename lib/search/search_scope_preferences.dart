@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/search/utils/facet_helper.dart';
 
 class SearchScopePreferencesData {
   final bool searchAllCategories;
@@ -16,6 +17,7 @@ class SearchScopePreferencesData {
 class SearchScopePreferences {
   static const String _searchAllKey = 'key-search-all-categories-enabled';
   static const String _manualFacetsKey = 'key-search-manual-category-facets';
+  static const String _dimensionFacetsKey = 'key-search-dimension-facets';
 
   SearchScopePreferences._();
 
@@ -82,6 +84,55 @@ class SearchScopePreferences {
       _manualFacetsKey,
       jsonEncode(canonicalized.manualFacets.toList()..sort()),
     );
+  }
+
+  /// ה-facets הממדיים השמורים (`/base`, `/era/<שם>`, `/author/<שם>`).
+  /// נשמרים תחת מפתח נפרד מבחירת הקטגוריות הידנית, כדי שעץ הקטגוריות
+  /// והממדים לא יזהמו זה את זה.
+  static Set<String> loadDimensionFacets() {
+    final String? raw;
+    try {
+      raw = Settings.getValue<String>(_dimensionFacetsKey);
+    } catch (e) {
+      // Settings לא אותחל (בדיקות ווידג'ט / אתחול מוקדם) — אין העדפות.
+      debugPrint('[SearchScope] settings unavailable for dimensions: $e');
+      return const {};
+    }
+    if (raw == null || raw.trim().isEmpty) {
+      return const {};
+    }
+
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        return const {};
+      }
+      return decoded
+          .whereType<String>()
+          .map((facet) => facet.trim())
+          .where(FacetHelper.isDimensionFacet)
+          .toSet();
+    } catch (e) {
+      debugPrint('[SearchScope] dimension facets JSON parse failed: $e');
+      return const {};
+    }
+  }
+
+  static Future<void> saveDimensionFacets(Set<String> facets) async {
+    final normalized = facets
+        .map((facet) => facet.trim())
+        .where(FacetHelper.isDimensionFacet)
+        .toList()
+      ..sort();
+    try {
+      await Settings.setValue<String>(
+        _dimensionFacetsKey,
+        jsonEncode(normalized),
+      );
+    } catch (e) {
+      // Settings לא אותחל (בדיקות ווידג'ט) — ההעדפה פשוט לא תישמר.
+      debugPrint('[SearchScope] settings unavailable, dimensions not saved: $e');
+    }
   }
 
   static SearchScopePreferencesData _canonicalize({

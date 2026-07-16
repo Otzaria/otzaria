@@ -46,6 +46,7 @@ import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
+import 'package:otzaria/utils/text/global_search_helper.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:provider/provider.dart';
@@ -990,6 +991,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         onTap: _ensureSearchTabIsActive,
       ),
       AppContextMenuEntry(
+        label: 'חפש מקבילות',
+        icon: FluentIcons.book_search_24_regular,
+        enabled: _hasPdfTextSelection(),
+        onTap: _searchParallelsFromSelection,
+      ),
+      AppContextMenuEntry(
         label: 'מפרשים',
         icon: FluentIcons.book_24_regular,
         // התת-תפריט פעיל אם יש בדף מפרשים זמינים, או אם ניתן לפתוח את
@@ -1022,6 +1029,41 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         onTap: () => _handleAddNotePress(menuContext),
       ),
     ];
+  }
+
+  /// האם יש כרגע טקסט מסומן ב-PDF (מפעיל את "חפש מקבילות" בתפריט).
+  ///
+  /// ב-PDF סרוק ללא שכבת טקסט אין אפשרות לסמן טקסט, ולכן הפריט יופיע
+  /// מנוטרל.
+  bool _hasPdfTextSelection() {
+    final controller = widget.tab.pdfViewerController;
+    if (!controller.isReady) return false;
+    return controller.textSelectionDelegate.hasSelectedText;
+  }
+
+  /// מנרמל את הטקסט המסומן לשאילתת "חפש מקבילות": הסרת ניקוד/טעמים,
+  /// כיווץ רווחים (כולל מעברי שורה שמגיעים מסימון על פני כמה שורות ב-PDF),
+  /// והגבלה ל-10 המילים הראשונות — בחירה ארוכה הופכת חיפוש מדויק לקפדני
+  /// מדי ומחמיצה מקבילות.
+  static String _parallelsQueryFromSelection(String raw) {
+    var text = raw.trim();
+    if (utils.hasNikud(text)) {
+      text = utils.removeVolwels(text);
+    }
+    final words = text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
+    return words.take(10).join(' ');
+  }
+
+  /// "חפש מקבילות": מריץ את הטקסט המסומן כחיפוש בכל הספרייה (ללא צמצום
+  /// לקטגוריה), כדי לאתר מקבילות גם ל-PDF שאין לו ספר טקסט מקביל.
+  Future<void> _searchParallelsFromSelection() async {
+    final controller = widget.tab.pdfViewerController;
+    if (!controller.isReady) return;
+    final raw = await controller.textSelectionDelegate.getSelectedText();
+    if (!mounted) return;
+    // טאב חיפוש חדש נפתח עם תצורת ברירת המחדל — כל הספרייה, בלי facets.
+    openGlobalSearch(context, _parallelsQueryFromSelection(raw),
+        insertAdjacent: true);
   }
 
   /// מחזיר את צבע הרקע שיועבר ל-[PdfViewerParams.backgroundColor].

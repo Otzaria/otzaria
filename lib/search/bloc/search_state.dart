@@ -14,7 +14,13 @@ class SearchState {
   final Set<Book> booksToSearch;
   final bool isLoading;
   final String searchQuery;
+  final String negativeQuery;
   final int totalResults;
+
+  /// מספר הקבוצות כשהחיפוש רץ עם איחוד תוצאות (group_count מהמנוע);
+  /// null בחיפוש שטוח. במצב מאוחד הרשימה והדפדוף נספרים בקבוצות, בעוד
+  /// [totalResults] נשאר ספירת התוצאות הגולמית.
+  final int? totalGroups;
 
   // מידע על ספירות לכל facet - מתעדכן עם כל חיפוש
   final Map<String, int> facetCounts;
@@ -28,17 +34,26 @@ class SearchState {
   /// לגיטימי. השדה מתאפס בתחילת חיפוש חדש (clear-then-set), ונשמר אחרת.
   final String? errorMessage;
 
+  /// `true` כאשר שאילתת מילה-יחידה רחבה חרגה מתקציב איסוף הטרמים במנוע, כך
+  /// שגם הספירה וגם התוצאות חלקיות (רק ההרחבות בעדיפות הגבוהה הוגשו). ה-UI
+  /// מציג באנר "ייתכן שהתוצאות חלקיות — צמצמו את החיפוש". מתאפס בתחילת כל
+  /// חיפוש חדש.
+  final bool resultsTruncated;
+
   const SearchState({
     this.results = const [],
     this.booksToSearch = const {},
     this.isLoading = false,
     this.searchQuery = '',
+    this.negativeQuery = '',
     this.totalResults = 0,
+    this.totalGroups,
     this.filterQuery,
     this.filteredBooks,
     this.facetCounts = const {},
     this.configuration = const SearchConfiguration(),
     this.errorMessage,
+    this.resultsTruncated = false,
   });
 
   SearchState copyWith({
@@ -46,19 +61,26 @@ class SearchState {
     Set<Book>? booksToSearch,
     bool? isLoading,
     String? searchQuery,
+    String? negativeQuery,
     int? totalResults,
+    Object? totalGroups = _unset,
     String? filterQuery,
     List<Book>? filteredBooks,
     Map<String, int>? facetCounts,
     SearchConfiguration? configuration,
     Object? errorMessage = _unset,
+    bool? resultsTruncated,
   }) {
     return SearchState(
       results: results ?? this.results,
       booksToSearch: booksToSearch ?? this.booksToSearch,
       isLoading: isLoading ?? this.isLoading,
       searchQuery: searchQuery ?? this.searchQuery,
+      negativeQuery: negativeQuery ?? this.negativeQuery,
       totalResults: totalResults ?? this.totalResults,
+      totalGroups: identical(totalGroups, _unset)
+          ? this.totalGroups
+          : totalGroups as int?,
       filterQuery: filterQuery,
       filteredBooks: filteredBooks,
       facetCounts: facetCounts ?? this.facetCounts,
@@ -66,11 +88,15 @@ class SearchState {
       errorMessage: identical(errorMessage, _unset)
           ? this.errorMessage
           : errorMessage as String?,
+      resultsTruncated: resultsTruncated ?? this.resultsTruncated,
     );
   }
 
   // Getters לנוחות גישה להגדרות (backward compatibility)
   int get distance => configuration.distance;
+  SearchScope get proximityScope => configuration.proximityScope;
+  WordMatchMode get wordMatchMode => configuration.wordMatchMode;
+  int get wordMatchCount => configuration.wordMatchCount;
   bool get fuzzy => configuration.fuzzy;
   bool get isAdvancedSearchEnabled => configuration.isAdvancedSearchEnabled;
   List<String> get currentFacets => configuration.currentFacets;
@@ -80,6 +106,10 @@ class SearchState {
       searchScopeFacets.isNotEmpty && !searchScopeFacets.contains('/');
   ResultsOrder get sortBy => configuration.sortBy;
   int get numResults => configuration.numResults;
+  ResultGroupingMode get resultGrouping => configuration.resultGrouping;
+
+  /// המונה שהרשימה והדפדוף נמדדים בו: קבוצות כשהאיחוד פעיל, אחרת תוצאות.
+  int get displayTotal => totalGroups ?? totalResults;
 
   // Getters חדשים לרגקס
   bool get regexEnabled => configuration.regexEnabled;

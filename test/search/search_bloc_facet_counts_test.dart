@@ -7,7 +7,13 @@ import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
-void main() {
+import '../support/search_engine_test_init.dart';
+
+Future<void> main() async {
+  // sanitizeQuery/splitQueryWords מאצילים למנוע ה-Rust; הטסטים שלהם דורשים
+  // את הספרייה הנייטיבית ומדולגים כשאין build זמין.
+  final engineReady = await tryInitSearchEngine();
+
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('סינון צד-לקוח בלחיצת קטגוריה — פונקציות ההכלה', () {
@@ -353,65 +359,68 @@ void main() {
       );
     });
 
-    blocTest<SearchBloc, SearchState>(
-      'LoadMoreResults מבקש תוצאות מה-offset הנוכחי ומצרף אותן',
-      build: () => SearchBloc(
-        repository: _FakeSearchRepository(
-          nextResults: [_searchResult(id: 2, text: 'תוצאה חדשה')],
+    // blocTest אינו תומך בדילוג ישיר (skip שלו סופר states) — לכן העטיפה בקבוצה.
+    group('דורש מנוע נייטיבי', () {
+      blocTest<SearchBloc, SearchState>(
+        'LoadMoreResults מבקש תוצאות מה-offset הנוכחי ומצרף אותן',
+        build: () => SearchBloc(
+          repository: _FakeSearchRepository(
+            nextResults: [_searchResult(id: 2, text: 'תוצאה חדשה')],
+          ),
         ),
-      ),
-      seed: () => SearchState(
-        searchQuery: 'שלום, עולם',
-        results: [_searchResult(id: 1, text: 'תוצאה קיימת')],
-        totalResults: 2,
-        configuration: const SearchConfiguration(
-          currentFacets: ['/ספרים'],
-          searchMode: SearchMode.advanced,
-          distance: 4,
-          sortBy: ResultsOrder.catalogue,
-          numResults: 25,
+        seed: () => SearchState(
+          searchQuery: 'שלום, עולם',
+          results: [_searchResult(id: 1, text: 'תוצאה קיימת')],
+          totalResults: 2,
+          configuration: const SearchConfiguration(
+            currentFacets: ['/ספרים'],
+            searchMode: SearchMode.advanced,
+            distance: 4,
+            sortBy: ResultsOrder.catalogue,
+            numResults: 25,
+          ),
         ),
-      ),
-      act: (bloc) => bloc.add(LoadMoreResults(
-        customSpacing: const {'0-1': '3'},
-        alternativeWords: const {
-          0: ['ברכה'],
+        act: (bloc) => bloc.add(LoadMoreResults(
+          customSpacing: const {'0-1': '3'},
+          alternativeWords: const {
+            0: ['ברכה'],
+          },
+          searchOptions: const {
+            'שלום_0': {'קידומות': true},
+          },
+        )),
+        expect: () => [
+          isA<SearchState>()
+              .having((state) => state.isLoading, 'isLoading', true),
+          isA<SearchState>()
+              .having((state) => state.isLoading, 'isLoading', false)
+              .having((state) => state.results.length, 'results length', 2)
+              .having(
+                (state) => state.results.last.text,
+                'last result text',
+                'תוצאה חדשה',
+              ),
+        ],
+        verify: (bloc) {
+          final repository = bloc.repositoryForTesting as _FakeSearchRepository;
+          expect(repository.searchCalls, 1);
+          expect(repository.lastQuery, 'שלום עולם');
+          expect(repository.lastFacets, ['/ספרים']);
+          expect(repository.lastLimit, 25);
+          expect(repository.lastOffset, 1);
+          expect(repository.lastOrder, ResultsOrder.catalogue);
+          expect(repository.lastSearchMode, SearchMode.advanced);
+          expect(repository.lastDistance, 4);
+          expect(repository.lastCustomSpacing, {'0-1': '3'});
+          expect(repository.lastAlternativeWords, {
+            0: ['ברכה'],
+          });
+          expect(repository.lastSearchOptions, {
+            'שלום_0': {'קידומות': true},
+          });
         },
-        searchOptions: const {
-          'שלום_0': {'קידומות': true},
-        },
-      )),
-      expect: () => [
-        isA<SearchState>()
-            .having((state) => state.isLoading, 'isLoading', true),
-        isA<SearchState>()
-            .having((state) => state.isLoading, 'isLoading', false)
-            .having((state) => state.results.length, 'results length', 2)
-            .having(
-              (state) => state.results.last.text,
-              'last result text',
-              'תוצאה חדשה',
-            ),
-      ],
-      verify: (bloc) {
-        final repository = bloc.repositoryForTesting as _FakeSearchRepository;
-        expect(repository.searchCalls, 1);
-        expect(repository.lastQuery, 'שלום עולם');
-        expect(repository.lastFacets, ['/ספרים']);
-        expect(repository.lastLimit, 25);
-        expect(repository.lastOffset, 1);
-        expect(repository.lastOrder, ResultsOrder.catalogue);
-        expect(repository.lastSearchMode, SearchMode.advanced);
-        expect(repository.lastDistance, 4);
-        expect(repository.lastCustomSpacing, {'0-1': '3'});
-        expect(repository.lastAlternativeWords, {
-          0: ['ברכה'],
-        });
-        expect(repository.lastSearchOptions, {
-          'שלום_0': {'קידומות': true},
-        });
-      },
-    );
+      );
+    }, skip: engineReady ? false : searchEngineSkipReason);
 
     blocTest<SearchBloc, SearchState>(
       'LoadMoreResults לא מחפש כשאין עוד תוצאות',
@@ -453,14 +462,15 @@ void main() {
 
 SearchResult _searchResult({required int id, required String text}) {
   return SearchResult(
-    id: BigInt.from(id),
-    title: 'ספר',
-    reference: 'סימן',
-    text: text,
-    segment: BigInt.from(id),
-    isPdf: false,
-    filePath: 'book.txt',
-  );
+      id: BigInt.from(id),
+      title: 'ספר',
+      reference: 'סימן',
+      text: text,
+      segment: BigInt.from(id),
+      isPdf: false,
+      filePath: 'book.txt',
+      mergedCount: 1,
+      merged: const []);
 }
 
 class _FakeSearchRepository extends SearchRepository {
@@ -494,10 +504,22 @@ class _FakeSearchRepository extends SearchRepository {
     ResultsOrder order = ResultsOrder.relevance,
     bool fuzzy = false,
     int distance = 0,
+    String negativeQuery = '',
+    int? negativeDistance,
+    SearchScope scope = SearchScope.wordDistance,
+    SearchScope? negativeScope,
     SearchMode searchMode = SearchMode.exact,
+    bool matchNikud = false,
+    bool matchTaamim = false,
     Map<String, String>? customSpacing,
+    Map<String, String>? negativeCustomSpacing,
     Map<int, List<String>>? alternativeWords,
+    Map<int, List<String>>? negativeAlternativeWords,
     Map<String, Map<String, bool>>? searchOptions,
+    Map<String, Map<String, bool>>? negativeSearchOptions,
+    ResultGrouping? grouping,
+    WordMatchMode wordMatchMode = WordMatchMode.all,
+    int? wordMatchCount,
   }) async {
     searchCalls++;
     lastQuery = query;

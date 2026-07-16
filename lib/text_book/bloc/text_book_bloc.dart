@@ -15,7 +15,9 @@ import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/search_engine_gateway.dart';
 import 'package:otzaria/settings/services/nikud_display_service.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
@@ -619,6 +621,29 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       return;
     } else {
       return;
+    }
+
+    // ספר שנפתח עם חיפוש פעיל (מתוצאות חיפוש או טאב משוחזר): מזינים ברקע את
+    // תבנית ההדגשה מבוססת-האינדקס, במקביל לטעינת התוכן — כך הרינדור מדגיש
+    // את הווריאנטים שהחיפוש באמת התאים (שגיאות כתיב, קידומות, חלק ממילה).
+    // אחרי חיפוש טרי זו פגיעת מטמון; הערך האמיתי הוא טאבים משוחזרים, שבהם
+    // אף חיפוש לא רץ דרך ה-gateway בהפעלה הנוכחית.
+    if (searchText.isNotEmpty && searchMode != SearchMode.exact) {
+      final request = SearchEngineRequest(
+        query: searchText,
+        facets: const [],
+        searchMode: searchMode,
+        distance: searchDistance,
+        customSpacing: spacingValues,
+        alternativeWords: alternativeWords,
+        searchOptions: searchOptions,
+      );
+      unawaited(TantivyDataProvider.instance.engine.then(
+        (engine) =>
+            RustSearchEngineOperations(engine).primeHighlightPattern(request),
+        onError: (Object error) =>
+            debugPrint('highlight prime skipped: $error'),
+      ));
     }
 
     try {

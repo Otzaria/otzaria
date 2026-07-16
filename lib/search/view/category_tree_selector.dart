@@ -34,6 +34,17 @@ class _SearchScopeSelectorState extends State<SearchScopeSelector> {
   bool _searchAllCategories = true;
   Set<String> _manualSelectedFacets = {};
 
+  /// facets ממדיים (/base, /era/, /author/) שהתקבלו בבחירה — עוברים הלאה
+  /// כמות שהם ואינם חלק מלוגיקת "כל הקטגוריות"/בחירה ידנית.
+  Set<String> _dimensionFacets = {};
+
+  static Set<String> _categoryPartOf(Set<String> selection) => selection
+      .where((facet) => !FacetHelper.isDimensionFacet(facet))
+      .toSet();
+
+  static Set<String> _dimensionPartOf(Set<String> selection) =>
+      selection.where(FacetHelper.isDimensionFacet).toSet();
+
   @override
   void initState() {
     super.initState();
@@ -53,11 +64,12 @@ class _SearchScopeSelectorState extends State<SearchScopeSelector> {
 
   Future<void> _initialize() async {
     final persisted = SearchScopePreferences.load();
-    final explicitSelection = widget.selectedFacets;
+    final explicitCategories = _categoryPartOf(widget.selectedFacets);
+    _dimensionFacets = _dimensionPartOf(widget.selectedFacets);
 
     final hasExplicitManualSelection =
-        explicitSelection.isNotEmpty && !explicitSelection.contains('/');
-    final isExplicitAllSelection = explicitSelection.contains('/');
+        explicitCategories.isNotEmpty && !explicitCategories.contains('/');
+    final isExplicitAllSelection = explicitCategories.contains('/');
 
     _searchAllCategories = hasExplicitManualSelection
         ? false
@@ -65,7 +77,7 @@ class _SearchScopeSelectorState extends State<SearchScopeSelector> {
             ? true
             : persisted.searchAllCategories;
     _manualSelectedFacets = hasExplicitManualSelection
-        ? Set<String>.from(explicitSelection)
+        ? explicitCategories
         : persisted.manualFacets;
 
     if (!mounted) {
@@ -89,14 +101,16 @@ class _SearchScopeSelectorState extends State<SearchScopeSelector> {
       return;
     }
 
+    final categories = _categoryPartOf(selection);
     final hasExplicitManualSelection =
-        selection.isNotEmpty && !selection.contains('/');
+        categories.isNotEmpty && !categories.contains('/');
 
     setState(() {
+      _dimensionFacets = _dimensionPartOf(selection);
       if (hasExplicitManualSelection) {
         _searchAllCategories = false;
-        _manualSelectedFacets = Set<String>.from(selection);
-      } else if (selection.contains('/')) {
+        _manualSelectedFacets = categories;
+      } else if (categories.contains('/')) {
         _searchAllCategories = true;
       } else {
         _searchAllCategories = false;
@@ -109,8 +123,10 @@ class _SearchScopeSelectorState extends State<SearchScopeSelector> {
     return a.length == b.length && a.containsAll(b);
   }
 
-  Set<String> get _selectionState =>
-      _searchAllCategories ? {'/'} : Set<String>.from(_manualSelectedFacets);
+  Set<String> get _selectionState => {
+        ...(_searchAllCategories ? const {'/'} : _manualSelectedFacets),
+        ..._dimensionFacets,
+      };
 
   void _setSearchAllCategories(bool value) {
     setState(() {
@@ -125,7 +141,10 @@ class _SearchScopeSelectorState extends State<SearchScopeSelector> {
 
   void _onManualSelectionChanged(Set<String> selection) {
     setState(() {
-      _manualSelectedFacets = Set<String>.from(selection);
+      // עץ הקטגוריות מחזיר את הבחירה כולל ה-facets הממדיים ששומרו בה —
+      // מפצלים כדי שההעדפה הידנית של הקטגוריות תישאר נקייה מממדים.
+      _dimensionFacets = _dimensionPartOf(selection);
+      _manualSelectedFacets = _categoryPartOf(selection);
     });
     SearchScopePreferences.save(
       searchAllCategories: _searchAllCategories,
@@ -274,7 +293,23 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
   List<_ScopeNode> _rootNodes = const [];
   Map<String, _ScopeNode> _nodesByFacet = const {};
 
-  bool get _isAllSelected => widget.selectedFacets.contains('/');
+  /// facets ממדיים (/base, /era/, /author/) שרוכבים על אותה רשימת בחירה —
+  /// אינם נתיבי קטגוריה, ולכן לוגיקת העץ מתעלמת מהם, אבל כל שינוי בחירה
+  /// שנפלט החוצה משמר אותם כמות שהם.
+  Set<String> get _dimensionFacets =>
+      widget.selectedFacets.where(FacetHelper.isDimensionFacet).toSet();
+
+  /// בחירת הקטגוריות/ספרים בלבד — הקלט היחיד לכל חישובי מצב העץ.
+  Set<String> get _categoryFacets => widget.selectedFacets
+      .where((facet) => !FacetHelper.isDimensionFacet(facet))
+      .toSet();
+
+  /// פולט בחירת קטגוריות חדשה תוך צירוף ה-facets הממדיים ששמורים ברשימה.
+  void _emitSelection(Set<String> categorySelection) {
+    widget.onSelectionChanged({...categorySelection, ..._dimensionFacets});
+  }
+
+  bool get _isAllSelected => _categoryFacets.contains('/');
 
   String get _normalizedSearchQuery =>
       normalizeFindQuery(_searchController.text);
@@ -292,9 +327,9 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
 
   void _toggleAll(bool select) {
     if (select) {
-      widget.onSelectionChanged({'/'}); // הכל נבחר
+      _emitSelection({'/'}); // הכל נבחר
     } else {
-      widget.onSelectionChanged({}); // שום דבר לא נבחר
+      _emitSelection({}); // שום דבר לא נבחר
     }
   }
 
@@ -311,10 +346,10 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
     if (_isAllSelected) return true;
 
     // נבחרה ישירות
-    if (widget.selectedFacets.contains(category.path)) return true;
+    if (_categoryFacets.contains(category.path)) return true;
 
     // הורה נבחר = מסומן
-    for (final facet in widget.selectedFacets) {
+    for (final facet in _categoryFacets) {
       if (facet != '/' && category.path.startsWith('$facet/')) return true;
     }
 
@@ -325,7 +360,7 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
   }
 
   bool _hasSelectedDescendant(Category category) {
-    for (final facet in widget.selectedFacets) {
+    for (final facet in _categoryFacets) {
       if (facet.startsWith('${category.path}/')) return true;
     }
     return false;
@@ -395,7 +430,7 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
   }
 
   Widget _buildHeader(BuildContext context) {
-    final hasSelection = widget.selectedFacets.isNotEmpty && !_isAllSelected;
+    final hasSelection = _categoryFacets.isNotEmpty && !_isAllSelected;
 
     return Row(
       children: [
@@ -434,7 +469,7 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
         Checkbox(
           value: _isAllSelected
               ? true
-              : widget.selectedFacets.isEmpty
+              : _categoryFacets.isEmpty
                   ? false
                   : null,
           tristate: true,
@@ -626,19 +661,19 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
   }
 
   void _selectAllSearchResults(List<_ScopeSearchResultItem> results) {
-    var selection = Set<String>.from(widget.selectedFacets);
+    var selection = _categoryFacets;
     for (final result in results) {
       selection = _selectFacet(result.facet, selection);
     }
-    widget.onSelectionChanged(selection);
+    _emitSelection(selection);
   }
 
   void _clearSearchResultsSelection(List<_ScopeSearchResultItem> results) {
-    var selection = Set<String>.from(widget.selectedFacets);
+    var selection = _categoryFacets;
     for (final result in results) {
       selection = _deselectFacet(result.facet, selection);
     }
-    widget.onSelectionChanged(selection);
+    _emitSelection(selection);
   }
 
   void _rebuildScopeTree(Library library) {
@@ -752,11 +787,11 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
       return true;
     }
 
-    if (widget.selectedFacets.contains(facet)) {
+    if (_categoryFacets.contains(facet)) {
       return true;
     }
 
-    for (final selected in widget.selectedFacets) {
+    for (final selected in _categoryFacets) {
       if (selected == '/' || selected == facet) {
         continue;
       }
@@ -770,9 +805,9 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
 
   void _toggleFacet(String facet, bool select) {
     final nextSelection = select
-        ? _selectFacet(facet, Set<String>.from(widget.selectedFacets))
-        : _deselectFacet(facet, Set<String>.from(widget.selectedFacets));
-    widget.onSelectionChanged(nextSelection);
+        ? _selectFacet(facet, _categoryFacets)
+        : _deselectFacet(facet, _categoryFacets);
+    _emitSelection(nextSelection);
   }
 
   Set<String> _selectFacet(String facet, Set<String> selection) {

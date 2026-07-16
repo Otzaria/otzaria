@@ -142,7 +142,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     int opId,
   ) async {
     try {
-      await repository.applyDeltaPlan(
+      final changedBookIds = await repository.applyDeltaPlan(
         plan,
         isCancelled: () => _isStale(opId),
         onProgress: (progress) => add(_LibraryUpdateProgressed(progress, opId)),
@@ -155,6 +155,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
         status: LibraryUpdateStatus.completed,
         message: 'הספרייה עודכנה לגרסה ${plan.targetVersion}',
         hasUpdate: true,
+        changedBookIds: changedBookIds,
       );
       await _runCompanionAssets(emit, opId);
       final completed = _pendingCompleted;

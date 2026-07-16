@@ -29,13 +29,14 @@ class _FakeService implements LibraryUpdateService {
   }
 
   @override
-  Future<void> applyDeltaPlan(
+  Future<Set<int>> applyDeltaPlan(
     LibraryUpdatePlan plan, {
     LibraryUpdateProgressCallback? onProgress,
     bool Function()? isCancelled,
   }) async {
     applyCalled = true;
     if (throwOnApply) throw Exception('apply failed');
+    return {7, 12};
   }
 
   @override
@@ -65,7 +66,7 @@ class _GatedAtApplyService implements LibraryUpdateService {
       plan;
 
   @override
-  Future<void> applyDeltaPlan(
+  Future<Set<int>> applyDeltaPlan(
     LibraryUpdatePlan plan, {
     LibraryUpdateProgressCallback? onProgress,
     bool Function()? isCancelled,
@@ -74,6 +75,7 @@ class _GatedAtApplyService implements LibraryUpdateService {
         ?.call(const LibraryUpdateProgress(phase: LibraryUpdatePhase.applying));
     await gate
         .future; // מדמה apply ארוך; אחריו ה-DB עודכן — מתעלמים מ-isCancelled
+    return const {};
   }
 
   @override
@@ -100,7 +102,7 @@ class _VerifyThenCommitService implements LibraryUpdateService {
       plan;
 
   @override
-  Future<void> applyDeltaPlan(
+  Future<Set<int>> applyDeltaPlan(
     LibraryUpdatePlan plan, {
     LibraryUpdateProgressCallback? onProgress,
     bool Function()? isCancelled,
@@ -116,6 +118,7 @@ class _VerifyThenCommitService implements LibraryUpdateService {
       stage: 'commit',
     ));
     await Future<void>.delayed(const Duration(milliseconds: 10));
+    return const {};
   }
 
   @override
@@ -142,12 +145,13 @@ class _GatedService implements LibraryUpdateService {
       plan;
 
   @override
-  Future<void> applyDeltaPlan(
+  Future<Set<int>> applyDeltaPlan(
     LibraryUpdatePlan plan, {
     LibraryUpdateProgressCallback? onProgress,
     bool Function()? isCancelled,
   }) async {
     await gate.future; // נחסם עד שהבדיקה משחררת
+    return const {};
   }
 
   @override

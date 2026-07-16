@@ -24,6 +24,10 @@ class FileSyncResult {
   final List<String> errors;
   final Duration duration;
 
+  /// מזהי ספרים (ב-user_books.db) שקובצם השתנה ועודכנו — דורשים אינדוקס
+  /// מחדש בחיפוש.
+  final List<int> updatedBookIds;
+
   const FileSyncResult({
     this.addedBooks = 0,
     this.updatedBooks = 0,
@@ -32,6 +36,7 @@ class FileSyncResult {
     this.skippedFiles = 0,
     this.errors = const [],
     this.duration = Duration.zero,
+    this.updatedBookIds = const [],
   });
 
   @override
@@ -435,6 +440,7 @@ class FileSyncService {
     int addedCategories = 0;
     int skippedFiles = 0;
     final errors = <String>[];
+    final updatedBookIds = <int>[];
 
     // Find new files
     final newFiles = await _findNewFiles(rootPath);
@@ -465,6 +471,9 @@ class FileSyncService {
           addedCategories += result.categoriesCreated;
         } else if (result.wasUpdated) {
           updatedBooks++;
+          if (result.updatedBookId != null) {
+            updatedBookIds.add(result.updatedBookId!);
+          }
         } else {
           skippedFiles++;
         }
@@ -486,6 +495,7 @@ class FileSyncService {
       addedCategories: addedCategories,
       skippedFiles: skippedFiles,
       errors: errors,
+      updatedBookIds: updatedBookIds,
     );
   }
 
@@ -591,6 +601,7 @@ class FileSyncService {
       wasAdded: wasAdded,
       wasUpdated: wasUpdated,
       categoriesCreated: categoriesCreated,
+      updatedBookId: wasUpdated ? existingBook?.id : null,
     );
   }
 
@@ -626,6 +637,7 @@ class FileSyncService {
     int addedLinks = 0;
     int skippedFiles = 0;
     final errors = <String>[];
+    final updatedBookIds = <int>[];
 
     try {
       if (syncFolders) {
@@ -671,6 +683,7 @@ class FileSyncService {
             addedCategories += result.addedCategories;
             skippedFiles += result.skippedFiles;
             errors.addAll(result.errors);
+            updatedBookIds.addAll(result.updatedBookIds);
 
             // הסרת ספרים מה-DB שקובצם נמחק מהתיקייה. רץ רק אם הסריקה
             // הושלמה (לא בוטלה) — אחרת folderValidKeys חלקי והיינו עלולים
@@ -725,6 +738,7 @@ class FileSyncService {
       skippedFiles: skippedFiles,
       errors: errors,
       duration: stopwatch.elapsed,
+      updatedBookIds: updatedBookIds,
     );
 
     _log.info('Sync completed: $result');
@@ -825,10 +839,14 @@ class _FileProcessResult {
   final bool wasUpdated;
   final int categoriesCreated;
 
+  /// מזהה הספר הקיים שעודכן (כאשר [wasUpdated] פעיל).
+  final int? updatedBookId;
+
   const _FileProcessResult({
     required this.wasAdded,
     required this.wasUpdated,
     this.categoriesCreated = 0,
+    this.updatedBookId,
   });
 }
 

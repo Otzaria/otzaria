@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_spinbox/flutter_spinbox.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/search/view/tantivy_search_results.dart';
@@ -68,12 +68,9 @@ class SearchModeToggle extends StatelessWidget {
                   newMode = SearchMode.advanced;
               }
               context.read<SearchBloc>().add(SetSearchMode(newMode));
-              final modeString = switch (newMode) {
-                SearchMode.advanced => 'advanced',
-                SearchMode.exact => 'exact',
-                SearchMode.fuzzy => 'fuzzy',
-              };
-              Settings.setValue<String>('key-last-search-mode', modeString);
+              // מעבר ידני נשמר לסשן הנוכחי; בהפעלה הבאה חיפוש חדש נפתח
+              // שוב בברירת המחדל (חיפוש רגיל).
+              SearchDefaults.rememberSessionMode(newMode);
             },
           ),
         );
@@ -131,52 +128,230 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
   Widget build(BuildContext context) {
     return BlocBuilder<SearchBloc, SearchState>(
       builder: (context, state) {
+        // טווח קרבה "פסקה"/"כותרת" מייתר את מגבלת המרווח — השדה מושבת
+        // ומציג את שם הטווח במקומה. גם התאמה חלקית (לא "כל המילים")
+        // מוותרת על סדר ומרחק ולכן מייתרת אותו.
+        final scope = state.proximityScope;
+        final wordMatchMode = state.wordMatchMode;
+        final modeOverridesDistance =
+            state.isAdvancedSearchEnabled && wordMatchMode != WordMatchMode.all;
+        final scopeOverridesDistance =
+            state.isAdvancedSearchEnabled && scope != SearchScope.wordDistance;
         // בדיקה אם יש מרווחים מותאמים אישית
         final hasCustomSpacing = state.isAdvancedSearchEnabled &&
-            widget.tab.spacingValues.isNotEmpty;
-        final isEnabled = !hasCustomSpacing;
+            widget.tab.spacingValues.isNotEmpty &&
+            !scopeOverridesDistance &&
+            !modeOverridesDistance;
+        final isEnabled = !hasCustomSpacing &&
+            !scopeOverridesDistance &&
+            !modeOverridesDistance;
 
-        return SizedBox(
-          width: 140,
-          child: Tooltip(
-            message:
-                'קובע כמה מילים יכולות להופיע בין מילות החיפוש. כאשר מוגדרים מרווחים ידניים בין מילים, השדה הזה מושבת.',
-            child: Focus(
-              focusNode: _focusNode,
-              child: SpinBox(
-                enabled: isEnabled,
-                decoration: InputDecoration(
-                  labelText: hasCustomSpacing
-                      ? 'מרווח בין מילים (מושבת)'
-                      : 'מרווח בין מילים',
-                  labelStyle: TextStyle(
-                    color: hasCustomSpacing
-                        ? Theme.of(context).colorScheme.onSurfaceVariant
-                        : null,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: AppTokens.borderRadiusAll,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 16.0,
-                  ),
+        // במקורב המספר הוא מרחק עריכה בין המילה שהוקלדה לתוצאה,
+        // לא מרווח בין מילים — התווית וההסבר משקפים זאת.
+        final isFuzzy = state.configuration.searchMode == SearchMode.fuzzy;
+        final String label;
+        if (modeOverridesDistance) {
+          label = wordMatchMode.label;
+        } else if (scopeOverridesDistance) {
+          label = scope.label;
+        } else if (hasCustomSpacing) {
+          label = 'מרווח בין מילים (מושבת)';
+        } else if (isFuzzy) {
+          label = 'מרחק חיפוש';
+        } else {
+          label = 'מרווח בין מילים';
+        }
+
+        final spinBox = Tooltip(
+          message: modeOverridesDistance
+              ? wordMatchMode.tooltip
+              : scopeOverridesDistance
+                  ? scope.tooltip
+                  : isFuzzy
+                      ? 'קובע עד כמה מותר לתוצאה להיות שונה מהמילים שהוקלדו.'
+                      : 'קובע כמה מילים יכולות להופיע בין מילות החיפוש. כאשר מוגדרים מרווחים ידניים בין מילים, השדה הזה מושבת.',
+          child: Focus(
+            focusNode: _focusNode,
+            child: SpinBox(
+              enabled: isEnabled,
+              decoration: InputDecoration(
+                labelText: label,
+                labelStyle: TextStyle(
+                  color: hasCustomSpacing ||
+                          scopeOverridesDistance ||
+                          modeOverridesDistance
+                      ? Theme.of(context).colorScheme.onSurfaceVariant
+                      : null,
                 ),
-                min: 0,
-                max: 30,
-                value: state.distance.toDouble(),
-                onChanged: isEnabled
-                    ? (value) => context.read<SearchBloc>().add(
-                          widget.triggerSearch
-                              ? UpdateDistance(value.toInt())
-                              : UpdateDistanceWithoutSearch(value.toInt()),
-                        )
-                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: AppTokens.borderRadiusAll,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 16.0,
+                ),
               ),
+              min: 0,
+              max: 30,
+              value: state.distance.toDouble(),
+              onChanged: isEnabled
+                  ? (value) => context.read<SearchBloc>().add(
+                        widget.triggerSearch
+                            ? UpdateDistance(value.toInt())
+                            : UpdateDistanceWithoutSearch(value.toInt()),
+                      )
+                  : null,
             ),
           ),
         );
+
+        // במצב "לפחות X מילים" שדה המרווח (חסר המשמעות) מוחלף בשדה מספר
+        // המילים הנדרש.
+        final countBox = Tooltip(
+          message: 'מספר מילות החיפוש המזערי שחייב להופיע בכל תוצאה.',
+          child: Focus(
+            focusNode: _focusNode,
+            child: SpinBox(
+              decoration: InputDecoration(
+                labelText: 'מספר מילים',
+                border: OutlineInputBorder(
+                  borderRadius: AppTokens.borderRadiusAll,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 16.0,
+                ),
+              ),
+              min: 1,
+              max: 30,
+              value: state.wordMatchCount.toDouble(),
+              onChanged: (value) => context.read<SearchBloc>().add(
+                    widget.triggerSearch
+                        ? UpdateWordMatchMode(wordMatchMode,
+                            count: value.toInt())
+                        : UpdateWordMatchModeWithoutSearch(wordMatchMode,
+                            count: value.toInt()),
+                  ),
+            ),
+          ),
+        );
+
+        // בורר הטווח רלוונטי רק לחיפוש המתקדם: במדויק אין קרבה כלל,
+        // ובמקורב המרווח משמש כמרחק עריכה.
+        if (!state.isAdvancedSearchEnabled) {
+          return SizedBox(width: 140, child: spinBox);
+        }
+
+        return SizedBox(
+          width: 228,
+          child: Row(
+            children: [
+              _ProximityScopeMenu(
+                scope: scope,
+                onSelected: (selected) => context.read<SearchBloc>().add(
+                      widget.triggerSearch
+                          ? UpdateProximityScope(selected)
+                          : UpdateProximityScopeWithoutSearch(selected),
+                    ),
+              ),
+              const SizedBox(width: 4),
+              _WordMatchModeMenu(
+                mode: wordMatchMode,
+                onSelected: (selected) => context.read<SearchBloc>().add(
+                      widget.triggerSearch
+                          ? UpdateWordMatchMode(selected)
+                          : UpdateWordMatchModeWithoutSearch(selected),
+                    ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child:
+                    wordMatchMode == WordMatchMode.atLeast ? countBox : spinBox,
+              ),
+            ],
+          ),
+        );
       },
+    );
+  }
+}
+
+/// תפריט בחירת טווח הקרבה בין מילות החיפוש: מרווח מילים (ברירת המחדל),
+/// באותה פסקה, או תחת אותה כותרת.
+class _ProximityScopeMenu extends StatelessWidget {
+  const _ProximityScopeMenu({
+    required this.scope,
+    required this.onSelected,
+  });
+
+  final SearchScope scope;
+  final ValueChanged<SearchScope> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDefault = scope == SearchScope.wordDistance;
+    return Tooltip(
+      message: 'טווח הקרבה בין מילות החיפוש: ${scope.label}',
+      child: PopupMenuButton<SearchScope>(
+        initialValue: scope,
+        onSelected: onSelected,
+        icon: Icon(
+          FluentIcons.apps_list_24_regular,
+          color: isDefault ? null : colorScheme.primary,
+        ),
+        itemBuilder: (context) => [
+          for (final option in SearchScope.values)
+            CheckedPopupMenuItem<SearchScope>(
+              value: option,
+              checked: option == scope,
+              child: Tooltip(
+                message: option.tooltip,
+                child: Text(option.label),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// תפריט מצב התאמת המילים: כל המילים (ברירת המחדל), מילה אחת לפחות,
+/// רוב המילים, או לפחות מספר מילים לבחירה.
+class _WordMatchModeMenu extends StatelessWidget {
+  const _WordMatchModeMenu({
+    required this.mode,
+    required this.onSelected,
+  });
+
+  final WordMatchMode mode;
+  final ValueChanged<WordMatchMode> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDefault = mode == WordMatchMode.all;
+    return Tooltip(
+      message: 'כמה ממילות החיפוש חייבות להופיע: ${mode.label}',
+      child: PopupMenuButton<WordMatchMode>(
+        initialValue: mode,
+        onSelected: onSelected,
+        icon: Icon(
+          FluentIcons.multiselect_rtl_24_regular,
+          color: isDefault ? null : colorScheme.primary,
+        ),
+        itemBuilder: (context) => [
+          for (final option in WordMatchMode.values)
+            CheckedPopupMenuItem<WordMatchMode>(
+              value: option,
+              checked: option == mode,
+              child: Tooltip(
+                message: option.tooltip,
+                child: Text(option.label),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -273,7 +448,10 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
   List<TextSpan> _buildFormattedTextSpans(String text, BuildContext context) {
     if (text.trim().isEmpty) return [const TextSpan(text: '')];
 
-    final words = text.trim().split(RegExp(r'\s+'));
+    // פיצול דרך המנוע — המפתחות "{word}_{index}" חייבים להתאים לאלו
+    // שבונה advanced_search_controls מ-splitQueryWords (רמב"ם מילה אחת,
+    // בית-דין שתיים), אחרת האפשרויות יוצגו ליד המילה הלא-נכונה.
+    final words = SearchQueryBuilder.splitQueryWords(text);
     final List<TextSpan> spans = [];
     final activeParameters = SearchQueryBuilder.normalizeParametersForMode(
       widget.tab.searchBloc.state.configuration.searchMode,
@@ -290,10 +468,19 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
       'סיומות דקדוקיות': 'סד',
       'כתיב מלא/חסר': 'מח',
       'חלק ממילה': 'ש',
+      'קידומות ארמיות': 'קא',
+      'סיומות ארמיות': 'סא',
+      'התעלם מגרשיים': 'גר',
+      'תרגום ארמי': 'תא',
+      'ראשי תיבות': 'רת',
     };
 
     // אפשרויות שמופיעות אחרי המילה (סיומות)
-    const Set<String> suffixOptions = {'סיומות', 'סיומות דקדוקיות'};
+    const Set<String> suffixOptions = {
+      'סיומות',
+      'סיומות דקדוקיות',
+      'סיומות ארמיות'
+    };
 
     for (int i = 0; i < words.length; i++) {
       final word = words[i];
@@ -529,6 +716,7 @@ class OrderOfResults extends StatelessWidget {
   static const _entries = [
     AppMenuEntry(value: ResultsOrder.relevance, label: 'לפי רלוונטיות'),
     AppMenuEntry(value: ResultsOrder.catalogue, label: 'לפי סדר קטלוגי'),
+    AppMenuEntry(value: ResultsOrder.generation, label: 'לפי סדר הדורות'),
   ];
 
   @override
@@ -589,6 +777,95 @@ class OrderOfResults extends StatelessWidget {
                   context.read<SearchBloc>().add(UpdateSortOrder(value));
                 }
               },
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// בורר מצב איחוד תוצאות — מקביל ויזואלית ל-[OrderOfResults]:
+/// dropdown במסך רחב וכפתור תפריט קומפקטי במסך צר.
+class GroupingOfResults extends StatelessWidget {
+  const GroupingOfResults({super.key, this.compact = false});
+
+  /// במצב קומפקטי מוצג כפתור "איחוד" שפותח תפריט נפתח במקום dropdown רגיל.
+  final bool compact;
+
+  static final _entries = [
+    for (final mode in ResultGroupingMode.values)
+      AppMenuEntry(
+        value: mode,
+        label: mode.label,
+        labelWidget: Tooltip(
+          message: mode.tooltip,
+          child: Text(mode.label),
+        ),
+      ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<SearchBloc, SearchState>(
+      builder: (context, state) {
+        if (compact) {
+          return AppPopupMenuButton<ResultGroupingMode>(
+            tooltip: 'איחוד תוצאות',
+            initialValue: state.resultGrouping,
+            entries: _entries,
+            onSelected: (value) {
+              context.read<SearchBloc>().add(UpdateResultGrouping(value));
+            },
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+                borderRadius: AppTokens.borderRadiusAll,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'איחוד',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    FluentIcons.chevron_down_12_regular,
+                    size: 12,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        return SizedBox(
+          width: 183,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+            child: Tooltip(
+              message: state.resultGrouping.tooltip,
+              child: AppDropdownField<ResultGroupingMode>(
+                value: state.resultGrouping,
+                decoration: const InputDecoration(
+                  labelText: 'איחוד תוצאות',
+                  border: OutlineInputBorder(),
+                ),
+                entries: _entries,
+                onSelected: (value) {
+                  if (value != null) {
+                    context.read<SearchBloc>().add(UpdateResultGrouping(value));
+                  }
+                },
+              ),
             ),
           ),
         );

@@ -13,6 +13,18 @@ AND lineIndex >= ?
 AND lineIndex <= ?
 ORDER BY lineIndex;
 
+-- מסלול האינדוקס: תוכן בלבד, בסדר השורות. SELECT * היה גורר בניית Map
+-- ואובייקט Line מלא לכל שורה (מיליוני שורות בספרייה) רק כדי לזרוק הכול
+-- חוץ מ-content.
+selectContentByBookId:
+SELECT content FROM line WHERE bookId = ? ORDER BY lineIndex;
+
+-- כמו selectContentByBookId אך כבייטים גולמיים (UTF-8 כפי שמאוחסן):
+-- מסלול האינדוקס מעביר אותם למנוע כמות-שהם ונמנע מפענוח ל-String
+-- וקידוד חוזר על גשר ה-FFI.
+selectContentBlobByBookId:
+SELECT CAST(content AS BLOB) FROM line WHERE bookId = ? ORDER BY lineIndex;
+
 selectByBookIdAndIndex:
 SELECT * FROM line WHERE bookId = ? AND lineIndex = ?;
 

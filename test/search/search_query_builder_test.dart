@@ -4,22 +4,129 @@ import 'package:otzaria/search/search_engine_gateway.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
-void main() {
+import '../support/search_engine_test_init.dart';
+
+Future<void> main() async {
+  // sanitizeQuery/splitQueryWords מאצילים למנוע ה-Rust; הטסטים שלהם דורשים
+  // את הספרייה הנייטיבית ומדולגים כשאין build זמין.
+  final engineReady = await tryInitSearchEngine();
+
   group('SearchQueryBuilder - אחריות UI בלבד', () {
     test('sanitizeQuery מנקה תווים שמגיעים מהקלט בלי לבנות שאילתת מנוע', () {
       expect(SearchQueryBuilder.sanitizeQuery('תורה, ומצוות'), 'תורה ומצוות');
       expect(SearchQueryBuilder.sanitizeQuery('אל־משה'), 'אל משה');
       expect(SearchQueryBuilder.sanitizeQuery('!?.,*'), '');
-    });
+    }, skip: engineReady ? false : searchEngineSkipReason);
 
     test('splitQueryWords שומר תאימות לטוקנייזר עבור ראשי תיבות', () {
+      // גרשיים וגרש בין אותיות הם חלק מהמילה; ״/׳ וזוג גרשים ('')
+      // מנורמלים ל-"/' ASCII — כמו בטוקנייזר של האינדקס.
       expect(SearchQueryBuilder.splitQueryWords('רמב"ם משה'), [
-        'רמב',
-        'ם',
+        'רמב"ם',
         'משה',
       ]);
+      expect(SearchQueryBuilder.splitQueryWords('רמב״ם'), ['רמב"ם']);
+      expect(SearchQueryBuilder.splitQueryWords("רמב''ם"), ['רמב"ם']);
+      expect(SearchQueryBuilder.splitQueryWords("ג'ורג'"), ["ג'ורג'"]);
       expect(SearchQueryBuilder.splitQueryWords("ה'"), ["ה'"]);
-    });
+      // גרשיים בקצה מילה נשארות מפריד.
+      expect(SearchQueryBuilder.splitQueryWords('אמר "שלום" לו'), [
+        'אמר',
+        'שלום',
+        'לו',
+      ]);
+    }, skip: engineReady ? false : searchEngineSkipReason);
+
+    test('queryWordSpans ממפה כל מילת-מנוע לטווח נפרד בטקסט הגולמי', () {
+      // מקטע שמתפצל לכמה מילים (בית-דין): הסמן על `דין` חייב לבחור את
+      // דין_1, לא את בית_0.
+      final spans = SearchQueryBuilder.queryWordSpans('בית-דין צדק');
+      expect(spans.map((s) => s.word).toList(), ['בית', 'דין', 'צדק']);
+      expect(spans.map((s) => s.index).toList(), [0, 1, 2]);
+      expect(spans[0].start, 0);
+      expect(spans[0].end, 3);
+      expect(spans[1].start, 4);
+      expect(spans[1].end, 7);
+      expect(spans[2].start, 8);
+      expect(spans[2].end, 11);
+    }, skip: engineReady ? false : searchEngineSkipReason);
+
+    test('queryWordSpans מאתר מילים עם צורות גרש עבריות ומשני-אורך', () {
+      // ״ עברי בשדה: קיפול שומר-אורך — טווח מדויק.
+      final hebrew = SearchQueryBuilder.queryWordSpans('רמב״ם משה');
+      expect(hebrew[0].word, 'רמב"ם');
+      expect(hebrew[0].start, 0);
+      expect(hebrew[0].end, 5);
+      expect(hebrew[1].word, 'משה');
+      expect(hebrew[1].index, 1);
+
+      // גרשיים טיפוגרפיים (Word/OCR): מקופלים שומר-אורך כמו במנוע —
+      // טווח מדויק גם עבור רמח”ל.
+      final typographic = SearchQueryBuilder.queryWordSpans('רמח”ל משה');
+      expect(typographic[0].word, 'רמח"ל');
+      expect(typographic[0].start, 0);
+      expect(typographic[0].end, 5);
+      expect(typographic[1].word, 'משה');
+      expect(typographic[1].index, 1);
+
+      // '' שמאוחד ל-" משנה אורך — המילה מקבלת את גבולות המקטע כולו,
+      // כך שהסמן בכל מקום בתוכו עדיין בוחר אותה.
+      final doubled = SearchQueryBuilder.queryWordSpans("רמב''ם משה");
+      expect(doubled[0].word, 'רמב"ם');
+      expect(doubled[0].start, 0);
+      expect(doubled[0].end, 6);
+      expect(doubled[1].word, 'משה');
+      expect(doubled[1].start, 7);
+    }, skip: engineReady ? false : searchEngineSkipReason);
+
+    test('queryWordSpans: מקטע מעורב — משנה-אורך שגם מתפצל לכמה מילים', () {
+      // כישלון איתור של מילה אחת אינו גורר את שאר מילות המקטע: במקטע
+      // רמב''ם-משה המילה רמב"ם מקבלת את הפער עד משה, ומשה מאותרת
+      // במדויק — הסמן עליה בוחר אותה ולא את הראשונה.
+      final spans = SearchQueryBuilder.queryWordSpans("רמב''ם-משה");
+      expect(spans.map((s) => s.word).toList(), ['רמב"ם', 'משה']);
+      expect(spans[0].start, 0);
+      expect(spans[0].end, 7);
+      expect(spans[1].start, 7);
+      expect(spans[1].end, 10);
+
+      // וגם בכיוון ההפוך: המילה הראשונה מאותרת, השנייה משנת-אורך.
+      final reversed = SearchQueryBuilder.queryWordSpans("משה-רמב''ם");
+      expect(reversed.map((s) => s.word).toList(), ['משה', 'רמב"ם']);
+      expect(reversed[0].start, 0);
+      expect(reversed[0].end, 3);
+      expect(reversed[1].start, 3);
+      expect(reversed[1].end, 10);
+    }, skip: engineReady ? false : searchEngineSkipReason);
+
+    test('restoredPerWordStateMatches מזהה state שנשמר על פיצול ישן', () {
+      // state שנשמר כשרמב"ם היה שתי מילים ("רמב_0", "ם_1") חייב להיפסל,
+      // אחרת המרווחים/החלופות זולגים למילה הלא-נכונה.
+      expect(
+        SearchQueryBuilder.restoredPerWordStateMatches(
+          'רמב"ם משה',
+          searchOptions: const {
+            'רמב_0': {'קידומות': true},
+            'ם_1': {'קידומות': true},
+          },
+          spacingValues: const {'1-2': '3'},
+        ),
+        isFalse,
+      );
+      expect(
+        SearchQueryBuilder.restoredPerWordStateMatches(
+          'רמב"ם משה',
+          searchOptions: const {
+            'רמב"ם_0': {'קידומות': true},
+          },
+          alternativeWords: const {
+            1: ['רבינו'],
+          },
+          spacingValues: const {'0-1': '2'},
+        ),
+        isTrue,
+      );
+    }, skip: engineReady ? false : searchEngineSkipReason);
 
     test('effectiveSearchOptions מרחיב אפשרויות גלובליות לפי מילים', () {
       final options = SearchQueryBuilder.effectiveSearchOptions(
@@ -33,7 +140,7 @@ void main() {
         'חכמה_0': {'קידומות': true},
         'בינה_1': {'קידומות': true},
       });
-    });
+    }, skip: engineReady ? false : searchEngineSkipReason);
 
     test('normalizeParametersForMode משאיר פרמטרים ידניים רק במצב מתקדם', () {
       final advanced = SearchQueryBuilder.normalizeParametersForMode(
@@ -55,16 +162,35 @@ void main() {
         'חכמה_0': {'קידומות': true},
       });
 
+      // מצב רגיל (מדויק): רק חמש אפשרויות המילה שלו (exactWordOptionKeys)
+      // עוברות; מילים חלופיות ומרווחים ידניים נשארים בלעדיים למצב המתקדם.
+      // "ניקוד"/"טעמים", קידומות/סיומות כלליות והאפשרויות הבלעדיות למתקדם
+      // מסוננים — גם כשהם מגיעים ממצב משוחזר שה-UI כבר לא מציג.
       final exact = SearchQueryBuilder.normalizeParametersForMode(
         SearchMode.exact,
         customSpacing: advanced.customSpacing,
         alternativeWords: advanced.alternativeWords,
-        searchOptions: advanced.searchOptions,
+        searchOptions: const {
+          'חכמה_0': {
+            'קידומות דקדוקיות': true,
+            'קידומות': true,
+            'ניקוד': true,
+            'ראשי תיבות': true,
+          },
+        },
       );
 
       expect(exact.customSpacing, isEmpty);
       expect(exact.alternativeWords, isEmpty);
-      expect(exact.searchOptions, isEmpty);
+      expect(exact.searchOptions, {
+        'חכמה_0': {'קידומות דקדוקיות': true},
+      });
+
+      final fuzzy = SearchQueryBuilder.normalizeParametersForMode(
+        SearchMode.fuzzy,
+        searchOptions: advanced.searchOptions,
+      );
+      expect(fuzzy.searchOptions, isEmpty);
     });
   });
 
@@ -231,7 +357,8 @@ enum _EngineCall {
   getFacetCountsFuzzy,
 }
 
-class _RecordingSearchEngineOperations implements SearchEngineOperations {
+// extends (ולא implements) כדי לרשת את מימושי ברירת המחדל של הממשק (searchStreamWithCounts).
+class _RecordingSearchEngineOperations extends SearchEngineOperations {
   final List<_EngineCall> calls = [];
 
   @override
@@ -257,7 +384,7 @@ class _RecordingSearchEngineOperations implements SearchEngineOperations {
     SearchEngineRequest request,
   ) async {
     calls.add(_EngineCall.searchAndCountExact);
-    return const SearchPageResult(totalCount: 0, results: []);
+    return const SearchPageResult(totalCount: 0, results: [], truncated: false);
   }
 
   @override
@@ -265,7 +392,7 @@ class _RecordingSearchEngineOperations implements SearchEngineOperations {
     SearchEngineRequest request,
   ) async {
     calls.add(_EngineCall.searchAndCountAdvanced);
-    return const SearchPageResult(totalCount: 0, results: []);
+    return const SearchPageResult(totalCount: 0, results: [], truncated: false);
   }
 
   @override
@@ -273,7 +400,7 @@ class _RecordingSearchEngineOperations implements SearchEngineOperations {
     SearchEngineRequest request,
   ) async {
     calls.add(_EngineCall.searchAndCountFuzzy);
-    return const SearchPageResult(totalCount: 0, results: []);
+    return const SearchPageResult(totalCount: 0, results: [], truncated: false);
   }
 
   @override
@@ -371,4 +498,7 @@ class _RecordingSearchEngineOperations implements SearchEngineOperations {
     calls.add(_EngineCall.getFacetCountsFuzzy);
     return const [];
   }
+
+  @override
+  void primeHighlightPattern(SearchEngineRequest request) {}
 }
