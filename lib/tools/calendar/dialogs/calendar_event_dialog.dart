@@ -160,7 +160,9 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
         TextEditingController(text: _formatPrimaryDate(_selectedDate));
     _dateFocusNode = FocusNode();
 
-    _notificationMinutes = _smartDefaultNotification();
+    _notificationMinutes =
+        ev?.notificationMinutes ?? _smartDefaultNotification();
+    _userOverrodeNotification = ev?.notificationMinutes != null;
   }
 
   @override

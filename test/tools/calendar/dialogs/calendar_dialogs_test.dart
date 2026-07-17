@@ -330,6 +330,13 @@ void main() {
     });
 
     testWidgets('בחירת צבע מוחזרת ב-colorIndex', (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      await tester.binding.setSurfaceSize(const Size(1200, 900));
+      addTearDown(() {
+        tester.view.resetDevicePixelRatio();
+        tester.binding.setSurfaceSize(null);
+      });
+
       CalendarEventDialogResult? result;
 
       await tester.pumpWidget(

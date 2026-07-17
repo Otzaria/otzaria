@@ -95,14 +95,6 @@ class CalendarSettingsTab extends StatefulWidget {
       ],
     ),
     SettingsSearchEntry(
-      id: 'tools.calendar.reminder_offset',
-      title: 'זמן תזכורת לפני האירוע',
-      subtitle: 'כמה זמן לפני תחילת האירוע תופיע התראה',
-      tab: SettingsTab.tools,
-      cardId: 'tools.calendar',
-      keywords: ['תזכורת', 'זמן', 'התראה'],
-    ),
-    SettingsSearchEntry(
       id: 'tools.calendar.google_calendar',
       title: 'לוח שנה של Google',
       subtitle: 'סנכרן אירועים עם Google Calendar',
@@ -263,29 +255,6 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                         .changeCalendarNotificationMode(mode);
                   },
                 ),
-                if (state.notificationMode != CalendarNotificationMode.off) ...[
-                  SettingsActionTile.dropdownTile<int>(
-                    icon: FluentIcons.timer_24_regular,
-                    title: 'מועד ההתראה',
-                    value: state.calendarNotificationTime,
-                    entries: _notificationTimeLabels.entries
-                        .map((e) => AppMenuEntry<int>(
-                              value: e.key,
-                              label: e.value,
-                              subtitle: e.key == 0
-                                  ? 'התראה תישלח בדיוק בזמן האירוע'
-                                  : 'ההתראה תופיע ${e.value} לפני מועד האירוע',
-                            ))
-                        .toList(),
-                    onSelected: (value) {
-                      if (value != null) {
-                        context
-                            .read<CalendarCubit>()
-                            .changeCalendarNotificationTime(value);
-                      }
-                    },
-                  ),
-                ],
 
                 // ── לוח שנה גוגל ──
                 SettingsActionTile.switchTile(
@@ -462,14 +431,6 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
     );
   }
 }
-
-const Map<int, String> _notificationTimeLabels = {
-  0: 'בזמן האירוע',
-  60: 'שעה',
-  720: '12 שעות',
-  1440: 'יום',
-  2880: 'יומיים',
-};
 
 Future<List<T>?> _showCalendarMultiSelectionDialog<T>({
   required BuildContext context,

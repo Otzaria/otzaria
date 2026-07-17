@@ -756,6 +756,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
           eventTime: result.eventTime,
           endGregorianDate: () => result.endGregorianDate,
           colorIndex: () => result.colorIndex,
+          notificationMinutes: result.notificationMinutes,
         ));
       } else {
         cubit.addEvent(
@@ -767,6 +768,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
           eventTime: result.eventTime,
           endGregorianDate: result.endGregorianDate,
           colorIndex: result.colorIndex,
+          notificationMinutes: result.notificationMinutes,
         );
       }
     });
