@@ -234,6 +234,141 @@ void main() {
         throwsA(isA<Exception>()),
       );
     });
+
+    group('resume', () {
+      test('מצרף ל-206 כשה-offset תואם (Content-Range) ושולח Range נכון',
+          () async {
+        final destPath = p.join(tempDir.path, 'big.zip');
+        await File(destPath).writeAsBytes([1, 2, 3]);
+        String? sentRange;
+        final client = MockClient((request) async {
+          sentRange = request.headers['range'];
+          return http.Response.bytes([4, 5], 206,
+              headers: {'content-range': 'bytes 3-4/5'});
+        });
+        final service = PluginFileDownloadService(client: client);
+
+        final result = await service.downloadToPath(
+          Uri.parse(
+              'https://github.com/Owner/Repo/releases/latest/download/big.zip'),
+          destPath,
+          isAllowed: allowAll,
+          resume: true,
+        );
+
+        expect(sentRange, 'bytes=3-');
+        expect(result.path, destPath);
+        expect(await File(destPath).readAsBytes(), [1, 2, 3, 4, 5]);
+      });
+
+      test('416 על קובץ שכבר הושלם → הצלחה, הקובץ נשמר כמות שהוא', () async {
+        final destPath = p.join(tempDir.path, 'done.zip');
+        await File(destPath).writeAsBytes([1, 2, 3, 4, 5]);
+        final client = MockClient((request) async {
+          return http.Response.bytes([], 416,
+              headers: {'content-range': 'bytes */5'});
+        });
+        final service = PluginFileDownloadService(client: client);
+
+        final result = await service.downloadToPath(
+          Uri.parse(
+              'https://github.com/Owner/Repo/releases/latest/download/done.zip'),
+          destPath,
+          isAllowed: allowAll,
+          resume: true,
+        );
+
+        expect(result.path, destPath);
+        expect(await File(destPath).readAsBytes(), [1, 2, 3, 4, 5]);
+      });
+
+      test('200 (השרת מתעלם מ-Range) → כתיבה מחדש מ-0', () async {
+        final destPath = p.join(tempDir.path, 'restart.zip');
+        await File(destPath).writeAsBytes([9, 9]);
+        final client = MockClient((request) async {
+          return http.Response.bytes([1, 2, 3], 200);
+        });
+        final service = PluginFileDownloadService(client: client);
+
+        await service.downloadToPath(
+          Uri.parse(
+              'https://github.com/Owner/Repo/releases/latest/download/restart.zip'),
+          destPath,
+          isAllowed: allowAll,
+          resume: true,
+        );
+
+        expect(await File(destPath).readAsBytes(), [1, 2, 3]);
+      });
+
+      test('206 עם offset לא תואם → זריקה ומחיקת הקובץ החלקי', () async {
+        final destPath = p.join(tempDir.path, 'bad.zip');
+        await File(destPath).writeAsBytes([1, 2, 3]);
+        final client = MockClient((request) async {
+          // ביקשנו bytes=3- אך השרת מתחיל מ-1 (לא 3 ולא 0) — צירוף היה מקלקל.
+          return http.Response.bytes([2, 3, 4, 5], 206,
+              headers: {'content-range': 'bytes 1-4/5'});
+        });
+        final service = PluginFileDownloadService(client: client);
+
+        await expectLater(
+          service.downloadToPath(
+            Uri.parse(
+                'https://github.com/Owner/Repo/releases/latest/download/bad.zip'),
+            destPath,
+            isAllowed: allowAll,
+            resume: true,
+          ),
+          throwsA(isA<Exception>()),
+        );
+        expect(await File(destPath).exists(), isFalse);
+      });
+
+      test('206 שנקטע לפני הסוף → זריקה, הקובץ החלקי נשמר להמשך', () async {
+        final destPath = p.join(tempDir.path, 'partial.zip');
+        await File(destPath).writeAsBytes([1, 2, 3]);
+        final client = MockClient((request) async {
+          // total=10 אך הגוף מכיל רק 2 בייטים → 5 מתוך 10 בסיום.
+          return http.Response.bytes([4, 5], 206,
+              headers: {'content-range': 'bytes 3-9/10'});
+        });
+        final service = PluginFileDownloadService(client: client);
+
+        await expectLater(
+          service.downloadToPath(
+            Uri.parse(
+                'https://github.com/Owner/Repo/releases/latest/download/partial.zip'),
+            destPath,
+            isAllowed: allowAll,
+            resume: true,
+          ),
+          throwsA(isA<Exception>()),
+        );
+        // הקובץ נשמר עם מה שהתקבל, לניסיון resume נוסף.
+        expect(await File(destPath).readAsBytes(), [1, 2, 3, 4, 5]);
+      });
+
+      test('resume ללא קובץ קיים → הורדה רגילה מ-0 ללא כותרת Range', () async {
+        final destPath = p.join(tempDir.path, 'fresh.zip');
+        String? sentRange = 'unset';
+        final client = MockClient((request) async {
+          sentRange = request.headers['range'];
+          return http.Response.bytes([1, 2, 3], 200);
+        });
+        final service = PluginFileDownloadService(client: client);
+
+        await service.downloadToPath(
+          Uri.parse(
+              'https://github.com/Owner/Repo/releases/latest/download/fresh.zip'),
+          destPath,
+          isAllowed: allowAll,
+          resume: true,
+        );
+
+        expect(sentRange, isNull);
+        expect(await File(destPath).readAsBytes(), [1, 2, 3]);
+      });
+    });
   });
 
   test('זורק TimeoutException כשהזרם נתקע (אין בייטים בחלון התקיעה)', () async {

@@ -113,13 +113,24 @@ class PluginFileDownloadService {
   ///
   /// בשונה מ-[downloadToDownloads], היעד הוא קובץ ספציפי (ולא תיקיית
   /// ההורדות), המאפשר לתוסף לשמור את הקובץ למבנה תיקיות שהמשתמש בחר.
-  /// תיקיית האב נוצרת במידת הצורך, וקובץ קיים באותו נתיב נדרס.
+  /// תיקיית האב נוצרת במידת הצורך. ללא [resume] קובץ קיים באותו נתיב נדרס;
+  /// עם [resume] הוא עשוי להתווסף אליו (ראה למטה).
   ///
   /// כאשר [resume] הוא `true` ויש קובץ חלקי בנתיב [destPath], ההורדה ממשיכה
-  /// מנקודת הסיום של הקובץ הקיים באמצעות `Range: bytes=N-`. אם השרת מחזיר
-  /// 206 Partial Content — הנתונים מצורפים לקובץ; אם הוא מחזיר 200 (התעלם
-  /// מה-Range) — הקובץ נכתב מחדש. במצב resume כשל לא ימחק את הקובץ החלקי,
-  /// כך שניסיון נוסף יוכל להמשיך מאותה נקודה.
+  /// מנקודת הסיום של הקובץ הקיים באמצעות `Range: bytes=N-`:
+  ///  * **206 Partial Content** עם `Content-Range` שמתחיל בדיוק ב-offset
+  ///    המבוקש → הנתונים מצורפים לקובץ. offset שאינו תואם אינו מצורף בעיוור
+  ///    (היה יוצר קובץ פגום) — הקובץ החלקי נמחק ונזרקת שגיאה כדי שניסיון נקי
+  ///    יתחיל מ-0.
+  ///  * **200 OK** (השרת התעלם מה-Range) → הקובץ נכתב מחדש מ-0.
+  ///  * **416 Range Not Satisfiable** → אם ה-total ב-`Content-Range` שווה
+  ///    לגודל הקובץ הקיים, ההורדה כבר הושלמה בעבר ומוחזרת הצלחה; אחרת הקובץ
+  ///    החלקי אינו תואם לשרת, הוא נמחק ונזרקת שגיאה.
+  ///
+  /// אם ידוע הגודל הכולל (מ-`Content-Range`/`Content-Length`) ובסיום התקבלו
+  /// פחות בייטים — ההורדה נחשבת חלקית ונזרקת שגיאה (הקובץ אינו מדווח כהצלחה).
+  /// במצב [resume] כשל אינו מוחק את הקובץ החלקי, כך שניסיון נוסף יוכל להמשיך
+  /// מאותה נקודה.
   ///
   /// **גבול אבטחה:** השירות אינו מאמת את [destPath] — האחריות לוודא שהוא
   /// בתוך תיקייה שהמשתמש אישר מוטלת על הקורא (האדפטר). אכיפת ה-allowlist על
@@ -150,12 +161,55 @@ class PluginFileDownloadService {
       rangeStart: existingBytes,
     );
 
-    // 206 = השרת כיבד את ה-Range → צרף לקובץ קיים; 200 = כתוב מחדש
-    final shouldAppend = existingBytes > 0 && response.statusCode == 206;
-    final sink = outFile.openWrite(
-      mode: shouldAppend ? FileMode.append : FileMode.write,
-    );
+    final contentRange = response.headers['content-range'];
 
+    // 416 Range Not Satisfiable — נמסר מ-[_fetchFollowingAllowedRedirects]
+    // (במקום שגיאה) רק כשביקשנו Range. אם ה-total ב-Content-Range שווה בדיוק
+    // לגודל הקובץ הקיים → ההורדה כבר הושלמה בעבר; מחזירים הצלחה. אחרת הקובץ
+    // החלקי אינו תואם למה שבשרת (למשל שריד של קובץ אחר) — מוחקים אותו וזורקים,
+    // כדי שניסיון נוסף יתחיל נקי.
+    if (response.statusCode == 416) {
+      await response.stream.timeout(_stallTimeout).drain<void>();
+      final total = _contentRangeTotal(contentRange);
+      if (existingBytes > 0 && total == existingBytes) {
+        return PluginFileDownloadResult(outFile.path, p.basename(outFile.path));
+      }
+      if (await outFile.exists()) {
+        await outFile.delete();
+      }
+      throw Exception('שגיאה בהורדת הקובץ (416)');
+    }
+
+    // קביעת מצב הכתיבה — עם אימות ש-206 באמת ממשיך מ-existingBytes לפני
+    // צירוף (append עיוור על offset לא תואם יוצר קובץ פגום בשקט).
+    // expectedTotal = הגודל הסופי הצפוי של הקובץ על הדיסק, לבדיקת שלמות.
+    final FileMode writeMode;
+    int? expectedTotal;
+    if (response.statusCode == 206) {
+      final serverStart = _contentRangeStart(contentRange);
+      expectedTotal = _contentRangeTotal(contentRange);
+      if (existingBytes > 0 && serverStart == existingBytes) {
+        // השרת כיבד את ה-Range והמשיך בדיוק מהנקודה הנכונה → צירוף.
+        writeMode = FileMode.append;
+      } else if (serverStart == 0) {
+        // 206 שמתחיל מ-0 → הגוף מייצג את הקובץ המלא; כתיבה מחדש.
+        writeMode = FileMode.write;
+      } else {
+        // 206 עם offset שאינו תואם ל-existingBytes ואינו 0 → אי אפשר לצרף
+        // בבטחה. מנקזים, מוחקים את החלקי וזורקים כדי שניסיון נוסף יתחיל נקי.
+        await response.stream.timeout(_stallTimeout).drain<void>();
+        if (await outFile.exists()) {
+          await outFile.delete();
+        }
+        throw Exception('שגיאה בהורדת הקובץ (206 עם טווח לא תואם)');
+      }
+    } else {
+      // 200 — השרת התעלם מה-Range (או שלא ביקשנו); כתיבה מחדש מ-0.
+      writeMode = FileMode.write;
+      expectedTotal = response.contentLength;
+    }
+
+    final sink = outFile.openWrite(mode: writeMode);
     try {
       await sink.addStream(response.stream.timeout(_stallTimeout));
       await sink.flush();
@@ -171,6 +225,20 @@ class PluginFileDownloadService {
       rethrow;
     }
 
+    // בדיקת שלמות: אם ידוע הגודל הכולל וברשותנו פחות — ההורדה נקטעה (השרת
+    // סגר את החיבור נקי לפני שהסתיים). זורקים כדי שהתוסף לא יחשוב שההצלחה
+    // מלאה; במצב resume הקובץ החלקי נשמר להמשך.
+    if (expectedTotal != null) {
+      final finalBytes = await outFile.length();
+      if (finalBytes != expectedTotal) {
+        if (!resume && await outFile.exists()) {
+          await outFile.delete();
+        }
+        throw Exception(
+            'שגיאה בהורדת הקובץ (התקבלו $finalBytes מתוך $expectedTotal בייטים)');
+      }
+    }
+
     return PluginFileDownloadResult(outFile.path, p.basename(outFile.path));
   }
 
@@ -178,7 +246,9 @@ class PluginFileDownloadService {
   /// ועבור יעדי redirect גם מול [isRedirectAllowed] (בהינתן ה-hop הקודם).
   /// מחזירה את התשובה הסופית (2xx). מנקזת תשובות-ביניים כדי לשחרר sockets.
   /// [rangeStart] אופציונלי — אם גדול מ-0, מוסיף `Range: bytes=N-` לכל בקשה
-  /// בשרשרת ה-redirects כדי לתמוך בהמשך הורדה (resume).
+  /// בשרשרת ה-redirects כדי לתמוך בהמשך הורדה (resume). כאשר [rangeStart] > 0
+  /// גם תשובת **416** מוחזרת לקורא (במקום שגיאה), כדי שיוכל לזהות קובץ שכבר
+  /// הושלם או טווח לא-תואם ולטפל בהם.
   Future<http.StreamedResponse> _fetchFollowingAllowedRedirects(
     Uri initialUri,
     Future<bool> Function(Uri) isAllowed,
@@ -218,6 +288,11 @@ class PluginFileDownloadService {
       }
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
+        // 416 בעת resume נמסר לקורא לטיפול (קובץ שכבר הושלם / טווח לא תואם)
+        // במקום שגיאה. הגוף אינו מנוקז כאן — הקורא מנקז אותו.
+        if (rangeStart > 0 && response.statusCode == 416) {
+          return response;
+        }
         await response.stream.timeout(_stallTimeout).drain<void>();
         throw Exception('שגיאה בהורדת הקובץ (${response.statusCode})');
       }
@@ -225,6 +300,25 @@ class PluginFileDownloadService {
       return response;
     }
     throw Exception('שגיאה בהורדת הקובץ (יותר מדי redirects)');
+  }
+
+  /// מחלצת את ה-offset ההתחלתי (הבייט הראשון) מכותרת `Content-Range` בצורה
+  /// `bytes 12345-99999/123456`. מחזירה `null` אם הכותרת חסרה או בפורמט לא
+  /// מוכר (למשל `bytes */123456` בתשובת 416).
+  static int? _contentRangeStart(String? header) {
+    if (header == null) return null;
+    final match = RegExp(r'bytes\s+(\d+)-').firstMatch(header);
+    if (match == null) return null;
+    return int.tryParse(match.group(1)!);
+  }
+
+  /// מחלצת את האורך הכולל של המשאב (החלק שאחרי `/`) מכותרת `Content-Range`.
+  /// מחזירה `null` אם הכותרת חסרה או שהאורך אינו ידוע (`*`).
+  static int? _contentRangeTotal(String? header) {
+    if (header == null) return null;
+    final match = RegExp(r'/(\d+)\s*$').firstMatch(header);
+    if (match == null) return null;
+    return int.tryParse(match.group(1)!);
   }
 
   bool _isRedirect(int statusCode) =>
