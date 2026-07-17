@@ -7,17 +7,6 @@ abstract class EmptyLibraryEvent extends Equatable {
 
 class PickDirectoryRequested extends EmptyLibraryEvent {}
 
-class PickArchiveFileRequested extends EmptyLibraryEvent {
-  /// כשמסופק, מדלגים על FilePicker ומשתמשים בנתיב ישירות.
-  /// משמש לטסטים שלא יכולים לפתוח את ה-FilePicker האמיתי.
-  final String? overrideFilePath;
-
-  PickArchiveFileRequested({this.overrideFilePath});
-
-  @override
-  List<Object?> get props => [overrideFilePath];
-}
-
 class DownloadLibraryRequested extends EmptyLibraryEvent {
   /// מיקום היעד שאליו תורד הספרייה. null → נתיב ברירת המחדל של האפליקציה.
   final String? targetPath;

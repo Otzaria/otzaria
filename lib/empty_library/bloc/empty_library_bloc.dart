@@ -53,7 +53,6 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
        ) {
     HttpClientRegistry.register(_httpClient.close);
     on<PickDirectoryRequested>(_onPickDirectoryRequested);
-    on<PickArchiveFileRequested>(_onPickArchiveFileRequested);
     on<DownloadLibraryRequested>(_onDownloadLibraryRequested);
     on<ImportExistingLibraryRequested>(_onImportExistingLibraryRequested);
     on<ImportLibraryFolderRequested>(_onImportLibraryFolderRequested);
@@ -113,41 +112,6 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
 
     emit(EmptyLibraryLoading(selectedPath: result));
     await _handleDirectorySelection(result, emit);
-  }
-
-  Future<void> _onPickArchiveFileRequested(
-    PickArchiveFileRequested event,
-    Emitter<EmptyLibraryState> emit,
-  ) async {
-    String? selectedFile = event.overrideFilePath;
-    if (selectedFile == null) {
-      final result = await FilePicker.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['zip', 'zst'],
-        dialogTitle: 'בחר קובץ דחוס (ZIP או ZST)',
-        lockParentWindow: true,
-      );
-
-      if (result == null || result.files.isEmpty) return;
-
-      selectedFile = result.files.first.path;
-      if (selectedFile == null) return;
-    }
-
-    emit(EmptyLibraryLoading(selectedPath: selectedFile));
-
-    if (selectedFile.toLowerCase().endsWith('.zip')) {
-      await _handleZipFile(selectedFile, emit);
-    } else if (selectedFile.toLowerCase().endsWith('.zst')) {
-      await _handleZstFile(selectedFile, emit);
-    } else {
-      emit(
-        _error(
-          errorMessage: 'סוג קובץ לא נתמך. בחר קובץ .zip או .zst',
-          selectedPath: selectedFile,
-        ),
-      );
-    }
   }
 
   /// מייבא ספרייה קיימת אל מיקום היעד: חילוץ ארכיון או העתקת תיקיית DB.
