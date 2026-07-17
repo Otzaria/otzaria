@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:kosher_dart/kosher_dart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -741,13 +742,15 @@ class CalendarWidgetState extends State<CalendarWidget> {
       _isCreateEventDialogOpen = false;
       if (result == null || !context.mounted) return;
       final cubit = context.read<CalendarCubit>();
-      final displayedDate = existingEvent != null
-          ? existingEvent.baseGregorianDate
-          : (specificDate ?? state.selectedGregorianDate);
       if (existingEvent != null) {
+        final jd = JewishDate.fromDateTime(result.selectedDate);
         cubit.updateEvent(existingEvent.copyWith(
           title: result.title,
           description: result.description,
+          baseGregorianDate: result.selectedDate,
+          baseJewishYear: jd.getJewishYear(),
+          baseJewishMonth: jd.getJewishMonth(),
+          baseJewishDay: jd.getJewishDayOfMonth(),
           recurrenceType: result.recurrenceType,
           recurringYears: result.recurringYears,
           eventTime: result.eventTime,
@@ -758,7 +761,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
         cubit.addEvent(
           title: result.title,
           description: result.description,
-          baseGregorianDate: displayedDate,
+          baseGregorianDate: result.selectedDate,
           recurrenceType: result.recurrenceType,
           recurringYears: result.recurringYears,
           eventTime: result.eventTime,

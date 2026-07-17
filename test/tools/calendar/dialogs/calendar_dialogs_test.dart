@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/tools/calendar/calendar_screen.dart';
 import 'package:otzaria/tools/calendar/dialogs/calendar_event_dialog.dart';
@@ -6,6 +7,8 @@ import 'package:otzaria/tools/calendar/dialogs/jump_to_date_dialog.dart'
     show JumpToDatePanel;
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_print_helpers.dart';
+import 'package:otzaria/tools/calendar/utils/calendar_cubit.dart';
+import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 void main() {
@@ -202,8 +205,76 @@ void main() {
       expect(confirmed, isFalse);
     });
 
+    testWidgets('desktop: הוספת שעה — עורך HH∶MM, הקלדה ו-✕ לניקוי',
+        (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      await tester.binding.setSurfaceSize(const Size(1200, 900));
+      addTearDown(() {
+        tester.view.resetDevicePixelRatio();
+        tester.binding.setSurfaceSize(null);
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => showCalendarEventDialog(
+                  context: context,
+                  state: CalendarState.initial(),
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      // ברירת מחדל: אין שעה → צ'יפ 'הוספת שעה'
+      expect(find.text('הוספת שעה'), findsOneWidget);
+
+      await tester.tap(find.text('הוספת שעה'));
+      await tester.pumpAndSettle();
+
+      // העורך מוצג (מפריד ':') והצ'יפ נעלם
+      expect(find.text('הוספת שעה'), findsNothing);
+      expect(find.text(':'), findsOneWidget);
+
+      // הקלדה מעדכנת את התאים: 09:45. pump בין הקשות כדי שהמעבר האוטומטי
+      // שעה→דקות ייכנס לתוקף (כמו פריים בין הקשות אמיתיות).
+      await tester.tap(find.byKey(const Key('time-hour')));
+      await tester.pumpAndSettle();
+      for (final key in [
+        LogicalKeyboardKey.digit0,
+        LogicalKeyboardKey.digit9,
+        LogicalKeyboardKey.digit4,
+        LogicalKeyboardKey.digit5,
+      ]) {
+        await tester.sendKeyEvent(key);
+        await tester.pump();
+      }
+      await tester.pumpAndSettle();
+      expect(find.text('09'), findsOneWidget);
+      expect(find.text('45'), findsOneWidget);
+
+      // ✕ מנקה חזרה ל'הוספת שעה'
+      await tester.tap(find.byTooltip('כל היום'));
+      await tester.pumpAndSettle();
+      expect(find.text('הוספת שעה'), findsOneWidget);
+    });
+
     testWidgets('recurring event requires a positive number of years',
         (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      await tester.binding.setSurfaceSize(const Size(1200, 900));
+      addTearDown(() {
+        tester.view.resetDevicePixelRatio();
+        tester.binding.setSurfaceSize(null);
+      });
+
       CalendarEventDialogResult? result;
 
       await tester.pumpWidget(
@@ -231,9 +302,11 @@ void main() {
         find.byType(TextField).first,
         'אירוע בדיקה',
       );
-      final recurringSwitch =
-          tester.widget<SwitchListTile>(find.byType(SwitchListTile));
-      recurringSwitch.onChanged!(true);
+      final recurrenceDropdown =
+          tester.widget<AppDropdownField<RecurrenceType>>(
+        find.byType(AppDropdownField<RecurrenceType>),
+      );
+      recurrenceDropdown.onSelected!(RecurrenceType.annualHebrew);
       await tester.pumpAndSettle();
 
       final recurringLimitToggle =
