@@ -1,8 +1,17 @@
 /// רשימת ה-URLs המאושרים גישה לרשת עבור תוספים.
 ///
-/// **מקור האמת היחיד** עבור כל גישת רשת של תוספים. גם אם תוסף
-/// מצהיר ב-manifest על דומיין מסוים — הגישה תיחסם אם ה-URL לא
-/// נמצא ברשימה כאן.
+/// ## איך מאשרים כתובת חדשה (אין צורך ב-release!)
+/// מקור האמת הוא הקובץ `plugin_network_allowlist.txt` בענף הייעודי
+/// **`plugin-network-allowlist`** בריפו `Otzaria/otzaria` ב-GitHub:
+/// <https://github.com/Otzaria/otzaria/blob/plugin-network-allowlist/plugin_network_allowlist.txt>
+///
+/// 1. מוסיפים את הכתובת לקובץ בענף הזה (שורה = קידומת URL, `#` = הערה) —
+///    האישור נכנס לתוקף **מיד** אצל כל המשתמשים, בכל גרסה מותקנת.
+/// 2. מוסיפים אותה גם לרשימה המקומפלת כאן — כך היא תעבוד גם בלי גישה
+///    ל-GitHub, החל מהגרסה הבאה.
+///
+/// כל כתובת ברשימה המקומפלת **חייבת** להופיע גם בקובץ שבענף הייעודי —
+/// נאכף בבדיקה plugin_network_allowlist_branch_sync_test.dart.
 ///
 /// כל ערך הוא **קידומת** (prefix) — מאושרים ה-URL עצמו וכל
 /// תתי-הנתיבים תחתיו, ולא שאר הדומיין.
@@ -27,7 +36,6 @@
 ///   יתיר כל URL שמתחיל ב-`https://api.example.com/`.
 /// - אין להשאיר `/` סופי — הוא לא משנה את ההתנהגות אך מבלבל.
 const List<String> pluginNetworkAllowlist = <String>[
-  // הוסיפו כאן URLs מאושרים — דוגמה (להסיר/להשאיר לפי הצורך):
   // אתר אוצריא — חנות תוספים ודפים ציבוריים
   'https://otzaria.org',
   // אתר אוצר החכמה
@@ -117,40 +125,29 @@ String? matchingLoopbackPrefix(Uri uri, Iterable<String> allowlist) {
   return null;
 }
 
-/// מחלץ מתוך קובץ Dart את הערכים של `pluginNetworkAllowlist`.
-///
-/// משמש לקריאת קובץ ה-allowlist הרשמי מהריפו של אוצריא ב-GitHub, בלי
-/// לשמור עותק בדיסק המקומי. אם לא נמצא מבנה תואם מוחזרת רשימה ריקה.
-List<String> extractPluginNetworkAllowlistFromDartSource(String source) {
-  final listMatch = RegExp(
-    r'const\s+List<String>\s+pluginNetworkAllowlist\s*=\s*<String>\s*\[(.*?)\];',
-    dotAll: true,
-  ).firstMatch(source);
-  if (listMatch == null) return const <String>[];
-
-  final body = listMatch.group(1)!;
-  return RegExp(r"'([^']*)'").allMatches(body).map((m) => m.group(1)!).toList();
-}
+/// מפרקת את קובץ ה-allowlist הרשמי (`plugin_network_allowlist.txt`):
+/// שורה = קידומת URL אחת; שורות ריקות ושורות `#` (הערות) מדולגות.
+List<String> parsePluginNetworkAllowlistText(String source) => source
+    .split('\n')
+    .map((line) => line.trim())
+    .where((line) => line.isNotEmpty && !line.startsWith('#'))
+    .toList();
 
 /// בודקת האם מותר לעקוב אחרי redirect מ-[previous] אל [target].
 ///
 /// מתירה אך ורק את התרחיש של הורדת asset מ-GitHub Releases: ה-hop הקודם
-/// הוא URL מורשה (לפי [isUriAllowedForPluginNetwork]) של `github.com`,
-/// והיעד הוא אחד מדומייני ה-CDN של גיטהאב. מאחר שלא ניתן להגיע לדומיין
-/// CDN ככתובת התחלתית (הוא אינו ברשימה הגלובלית), שרשרת redirect שכבר
-/// הגיעה ל-CDN לגיטימית רשאית להמשיך בין דומייני CDN בלבד.
-///
-/// כך נסגרת עקיפת ה-allowlist דרך redirects, מבלי לפתוח את ה-CDN לגישה
-/// ישירה מצד תוספים.
+/// הוא ב-`github.com` והיעד הוא אחד מדומייני ה-CDN של גיטהאב. **חוזה:**
+/// הקורא מבטיח ש-[previous] כבר אושר בעצמו (לולאת ההורדה בודקת כל hop) —
+/// לכן אין כאן בדיקת allowlist נוספת עליו. מאחר שלא ניתן להגיע לדומיין
+/// CDN ככתובת התחלתית, שרשרת שהגיעה ל-CDN לגיטימית רשאית להמשיך בין
+/// דומייני CDN בלבד.
 bool isGithubReleaseRedirectAllowed(Uri previous, Uri target) {
   if (target.scheme != 'https') return false;
   if (!_githubReleaseCdnHosts.contains(target.host.toLowerCase())) return false;
 
   final previousHost = previous.host.toLowerCase();
-  if (previousHost == 'github.com') {
-    return isUriAllowedForPluginNetwork(previous);
-  }
-  return _githubReleaseCdnHosts.contains(previousHost);
+  return previousHost == 'github.com' ||
+      _githubReleaseCdnHosts.contains(previousHost);
 }
 
 /// בודקת האם [uri] מורשה לגישה על-ידי תוספים.

@@ -2190,7 +2190,7 @@ class PluginBridgeAdapter {
             .isUriAllowedForPlugin(uri, plugin.manifest);
         if (!allowed) {
           throw Exception(
-            'error.forbidden: URL not in plugin network allowlist',
+            'error.forbidden: הכתובת אינה ברשימת ההיתר לגישת רשת של תוספים',
           );
         }
 
@@ -2262,7 +2262,7 @@ class PluginBridgeAdapter {
             .isUriAllowedForPlugin(uri, plugin.manifest);
         if (!allowed) {
           throw Exception(
-            'error.forbidden: URL not in plugin network allowlist',
+            'error.forbidden: הכתובת אינה ברשימת ההיתר לגישת רשת של תוספים',
           );
         }
 
