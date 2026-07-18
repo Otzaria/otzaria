@@ -102,6 +102,20 @@ class LineDao {
         .toList();
   }
 
+  /// זוגות (lineIndex, heRef) של כל השורות בעלות heRef בספר, בסדר השורות.
+  /// מסלול רזה — בלי content — לרזולוציית הפניה לרמת שורה.
+  Future<List<({int lineIndex, String heRef})>> selectRefsByBookId(
+      int bookId) async {
+    final db = await database;
+    return db
+        .select(_queries['selectRefsByBookId']!, [bookId])
+        .map((row) => (
+              lineIndex: row['lineIndex'] as int,
+              heRef: row['heRef'] as String,
+            ))
+        .toList();
+  }
+
   Future<int> insertLine(Line line) async {
     final db = await database;
     db.execute(_queries['insert']!, [

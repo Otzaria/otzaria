@@ -24,6 +24,7 @@ import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
 import 'package:otzaria/plugins/models/plugin_network_allowlist.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/plugin_network_access_resolver.dart';
+import 'package:otzaria/plugins/services/plugin_ref_line_resolver.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/view/webview_environment_holder.dart';
@@ -328,6 +329,8 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
                 (title: r.title, index: r.segment.toInt(), isPdf: r.isPdf))
             .toList();
       },
+      resolveRefToLine: (book, ref) =>
+          PluginRefLineResolver().resolve(book: book, ref: ref),
       themePayloadBuilder: () {
         if (!mounted) {
           return {

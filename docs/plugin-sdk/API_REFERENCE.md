@@ -410,16 +410,30 @@ const { data } = await Otzaria.call('reader.openBook', {
 ### `reader.openBookAtRef`
 **הרשאה:** `reader.open`
 
-פתיחת ספר בהתייחסות (כותרת פרק/סעיף).
+פתיחת ספר בהתייחסות. תומך גם ברמת תת-כותרת — פסוק בתוך פרק, סעיף בתוך סימן —
+בפורמט `רכיב-על:רכיב-משנה` (או עם פסיק/רווח/מילות מיקום כמו "פרק"/"סעיף").
 
 ```javascript
-const { data } = await Otzaria.call('reader.openBookAtRef', {
+// רמת כותרת (TOC):
+await Otzaria.call('reader.openBookAtRef', {
   bookId: 'בראשית',
   ref: 'פרק א',
   index: 0  // אופציונלי, גיבוי אם ההתייחסות לא נמצאה
 });
+
+// רמת תת-כותרת (מגרסה 0.9.96) — פסוק/סעיף מדויק, עם הדגשה:
+await Otzaria.call('reader.openBookAtRef', {
+  bookId: 'במדבר',
+  ref: 'לג:ה',        // גם 'לג, ה' / 'פרק לג פסוק ה'
+  highlight: true      // אופציונלי (ברירת מחדל false) — הדגשת רקע ליעד
+});
 // true
 ```
+
+הערות:
+- אם ההתייחסות כוללת טווח (`'לג:ה-ז'`) — הניווט הוא לתחילת הטווח.
+- `highlight` חל גם על התאמה ברמת כותרת; אם ההתייחסות לא נמצאה כלל — אין הדגשה,
+  והטקסט מועבר לתיבת החיפוש כגיבוי (התנהגות קיימת).
 
 ### `reader.getCurrentState`
 **הרשאה:** `reader.open`

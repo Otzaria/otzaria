@@ -263,6 +263,11 @@ class PluginBridgeDependencies {
   )?
   resolveReference;
 
+  /// פותר הפניה לרמת שורה (פסוק/סעיף) דרך ה-heRef הפר-שורתי — מדויק מתחת
+  /// לרזולוציית ה-TOC. אופציונלי — אם לא סופק או שאין התאמה, `openBookAtRef`
+  /// ממשיך במסלולי ה-TOC הקיימים.
+  final Future<int?> Function(TextBook book, String ref)? resolveRefToLine;
+
   const PluginBridgeDependencies({
     required this.historyBloc,
     required this.tabsBloc,
@@ -279,6 +284,7 @@ class PluginBridgeDependencies {
     this.pickFolder,
     this.pickFile,
     this.resolveReference,
+    this.resolveRefToLine,
   });
 }
 
@@ -723,10 +729,11 @@ class PluginBridgeAdapter {
         );
         return true;
       case 'openBookAtRef':
-        // spec: openBookAtRef({ bookId, ref, index? })
+        // spec: openBookAtRef({ bookId, ref, index?, highlight? })
         final bookId = (args['bookId'] ?? args['title']) as String?;
         final ref = args['ref'] as String?;
         int index = args['index'] as int? ?? 0;
+        final highlight = args['highlight'] as bool? ?? false;
         if (bookId == null) throw Exception('bookId required');
         final allBooks = (await DataRepository.instance.library).getAllBooks();
         final book = allBooks.cast<dynamic>().firstWhere(
@@ -736,7 +743,25 @@ class PluginBridgeAdapter {
         if (book == null) return false;
         var refFound = false;
         if (ref != null && ref.isNotEmpty && book is TextBook) {
-          // מנוע find_ref ראשון — מודע-הקשר, מפענח הפניות מובנות
+          // רזולוציה לרמת שורה (פסוק/סעיף) דרך heRef — מדויקת מתחת ל-TOC,
+          // ולכן נבדקת ראשונה.
+          final resolveLine = _dependencies.resolveRefToLine;
+          if (resolveLine != null) {
+            try {
+              final lineIndex = await resolveLine(book, ref);
+              if (lineIndex != null) {
+                _dependencies.bookOpenCoordinator.openBook(
+                  book,
+                  lineIndex,
+                  '',
+                  ignoreHistory: true,
+                  markSection: highlight,
+                );
+                return true;
+              }
+            } catch (_) {}
+          }
+          // מנוע find_ref — מודע-הקשר, מפענח הפניות מובנות
           // (פרק/הלכה/סימן) שתלויות בסוג הספר. ההפניה כוללת את שם הספר.
           final resolve = _dependencies.resolveReference;
           if (resolve != null) {
@@ -775,6 +800,7 @@ class PluginBridgeAdapter {
           index,
           refFound ? '' : (ref ?? ''),
           ignoreHistory: true,
+          markSection: highlight && refFound,
         );
         return true;
       case 'getCurrentState':
