@@ -97,8 +97,9 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   int? _selectedSearchResultIndex;
   // מספר השורה בספר של התוצאה הנבחרת — משמש לשמירת הבחירה לפי זהות בין
   // חיפושים. אינדקס סידורי לבדו אינו אמין כי תוכן הרשימה משתנה כשהשאילתה
-  // משתנה.
+  // משתנה. ההיסט מבחין בין כמה הופעות באותה שורה.
   int? _selectedResultLine;
+  int? _selectedResultOffset;
   int _activeSearchRequestId = 0;
   final ItemScrollController _resultsScrollController = ItemScrollController();
   final ItemPositionsListener _resultsPositionsListener =
@@ -436,8 +437,14 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     int? selectedIndex;
     final lastSelectedLine = _selectedResultLine;
     if (lastSelectedLine != null) {
-      final preservedIdx =
-          results.indexWhere((r) => r.index == lastSelectedLine);
+      // התאמה מלאה (שורה + היסט הופעה), ואם לא נמצאה — לפי שורה בלבד
+      // (השאילתה השתנתה וההיסטים זזו, או תוצאות מנוע ללא היסט).
+      var preservedIdx = results.indexWhere((r) =>
+          r.index == lastSelectedLine &&
+          r.matchOffset == _selectedResultOffset);
+      if (preservedIdx == -1) {
+        preservedIdx = results.indexWhere((r) => r.index == lastSelectedLine);
+      }
       if (preservedIdx != -1) {
         selectedIndex = preservedIdx;
       }
@@ -470,6 +477,8 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       _selectedSearchResultIndex = selectedIndex;
       _selectedResultLine =
           selectedIndex != null ? results[selectedIndex].index : null;
+      _selectedResultOffset =
+          selectedIndex != null ? results[selectedIndex].matchOffset : null;
     });
 
     if (scrollIndex != null) {
@@ -554,6 +563,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     setState(() {
       _selectedSearchResultIndex = resultListIndex;
       _selectedResultLine = result.index;
+      _selectedResultOffset = result.matchOffset;
     });
 
     final bloc = context.read<TextBookBloc>();
@@ -565,8 +575,13 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       return;
     }
     final lineText = _lineTextAt(result.index, loadedState);
-    final intraLineFraction =
-        lineText == null ? 0.0 : matchFractionInLine(lineText, result.query);
+    final intraLineFraction = lineText == null
+        ? 0.0
+        : matchFractionInLine(
+            lineText,
+            result.query,
+            matchOffset: result.matchOffset,
+          );
     final navigation = scrollToSourceLine(
       scrollController: widget.scrollControler,
       scrollOffsetController: loadedState.scrollOffsetController,
@@ -873,6 +888,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           searchResults = [];
           _selectedSearchResultIndex = null;
           _selectedResultLine = null;
+          _selectedResultOffset = null;
           _forceSearchEngine = false;
           _searchOptions = {};
           _alternativeWords = {};
