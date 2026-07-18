@@ -1,0 +1,63 @@
+# רשימת ה-URLs המאושרים לגישת רשת של תוספי אוצריא.
+#
+# ענף זה (plugin-network-allowlist) ייעודי לקובץ הזה בלבד. עריכה כאן
+# נכנסת לתוקף מיד אצל כל המשתמשים, בכל גרסה מותקנת — אין צורך ב-release.
+#
+# פורמט: שורה = קידומת URL אחת. שורות ריקות ושורות שמתחילות ב-# מדולגות.
+# כל ערך הוא קידומת (prefix): מאושרים ה-URL עצמו וכל תתי-הנתיבים תחתיו
+# (מופרדים ב-/, ? או #), ולא שאר הדומיין.
+#
+# כללים:
+# - חובה scheme מלא (https:// או http://).
+# - דומיין שלם מתיר את כולו: https://api.example.com
+# - אין להשאיר / סופי.
+#
+# זכרו: תוסף חייב להצהיר על הכתובת גם ב-network.allowlist במניפסט שלו —
+# הרשימה כאן היא תנאי נוסף, לא תחליף.
+
+# אתר אוצריא — חנות תוספים ודפים ציבוריים
+https://otzaria.org
+
+# אתר אוצר החכמה
+https://tablet.otzar.org
+
+# אתר היברבוקס
+https://hebrewbooks.org
+
+# ספריית על התורה
+https://library.alhatorah.org
+
+# על התורה — מקראות גדולות, רמב"ם, ש"ס, טור
+https://mg.alhatorah.org
+https://rambam.alhatorah.org
+https://shas.alhatorah.org
+https://turshulchanarukh.alhatorah.org
+
+# שרתי הנקדן של Dicta
+https://nakdan.dicta.org.il/api
+https://nakdan-u1-0.loadbalancer.dicta.org.il/api
+https://nakdan-5-1.loadbalancer.dicta.org.il/api
+
+# Google Apps Script — תוסף ספריית אוצריא
+https://script.google.com/macros/s/AKfycbwU7ktk7_VdSqIxlMBnj4L8dIOKX7C5XIYxxyJsr2gohCtJuLEKA4RPUWO6d88Ry8TAoA/exec
+https://api.github.com/repos/Open-Otzarya-Projects/Otzarya-Unofficial-Books
+https://github.com/Open-Otzarya-Projects/Otzarya-Unofficial-Books
+https://raw.githubusercontent.com/Open-Otzarya-Projects/Otzarya-Unofficial-Books
+
+# תוסף עיון ההלכה
+https://api.github.com/repos/Y-PLONI/iyun_h-halacha_plugin
+https://github.com/Y-PLONI/iyun_h-halacha_plugin
+https://raw.githubusercontent.com/Y-PLONI/iyun_h-halacha_plugin
+
+# דיווח תוספים יאיר דניאל
+https://formsubmit.co/ajax/575cd25953ea11970a7a017b6913a3ee
+
+# הורדת ויקיישיבה וויקיסוגיה
+https://drive.usercontent.google.com/download?id=1fX-GwDn4f-JUaxrZJPb8y0dVlH38_dMW&export=download&confirm=t
+https://drive.usercontent.google.com/download?id=1x0-hX0KSW_DYCDWu2ZgH1MqFye2iMd3d&export=download&confirm=t
+
+# תוסף zim (יאיר דניאל) — קבצי milon/wikisugya/wikishiva/otzaria-wiki
+https://github.com/YairDaniel11/otzaria-zim-plugin/releases/download/v0.5.0/milon-klei-kodesh.zim
+https://github.com/YairDaniel11/otzaria-zim-plugin/releases/download/v0.5.0/wikisugya.zim
+https://github.com/YairDaniel11/otzaria-zim-plugin/releases/download/v0.5.0/wikishiva.zim
+https://github.com/YairDaniel11/otzaria-zim-plugin/releases/download/v0.5.0/otzaria-wiki.zim
