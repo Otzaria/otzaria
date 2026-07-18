@@ -174,7 +174,8 @@ class PluginFileDownloadService {
           (previous != null &&
               (isRedirectAllowed?.call(previous, current) ?? false));
       if (!permitted) {
-        throw Exception('error.forbidden: URL not in plugin network allowlist');
+        throw Exception(
+            'error.forbidden: הכתובת אינה ברשימת ההיתר לגישת רשת של תוספים');
       }
 
       final request = http.Request('GET', current)..followRedirects = false;

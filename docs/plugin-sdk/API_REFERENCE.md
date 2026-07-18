@@ -342,7 +342,7 @@ if (res.success && res.data.ok) {
 מתבצעת בצד אוצריא (Flutter), כך שאין צורך ב-`showDirectoryPicker` או
 ב-File System Access API (שאינם זמינים ל-WebView של התוסף).
 
-- ה-`url` חייב להופיע גם ב-`network.allowlist` של התוסף וגם ברשימת ההיתר הרשמית של אוצריא (`pluginNetworkAllowlist` המקומי או הקובץ המקביל הרשמי ב-GitHub).
+- ה-`url` חייב להופיע גם ב-`network.allowlist` של התוסף וגם ברשימת ההיתר הרשמית של אוצריא (הקובץ בענף `plugin-network-allowlist` ב-GitHub, או הגיבוי המקומפל `pluginNetworkAllowlist`).
   redirect של גיטהאב ל-CDN מטופל אוטומטית בצד אוצריא.
 - `filename` אופציונלי; אם לא סופק, שם הקובץ נגזר מה-URL.
 - אם קיים כבר קובץ באותו שם, נוספת סיומת מספרית (` (1)`) כדי לא לדרוס.
@@ -1696,25 +1696,25 @@ Otzaria.on('plugin.boot', async (payload) => {
 
 ---
 
-## ⚠️ הרשאת `network.access` — דרישה מיוחדת: PR לאוצריא
+## ⚠️ הרשאת `network.access` — דרישה מיוחדת: אישור מאוצריא
 
 הצהרה על ההרשאה `network.access` ב-`manifest.json` **אינה מספיקה** כדי שתוסף יוכל לגשת לרשת. בפועל, ה-URL חייב לעבור שתי בדיקות מצטברות:
 
 1. להופיע ב-`network.allowlist` של התוסף עצמו.
-2. להופיע במקור אמון רשמי של אוצריא — או בקוד המקומי המובנה, או בקובץ המקביל הרשמי ב-GitHub.
+2. להופיע ברשימת ההיתר הרשמית של אוצריא.
 
-מקור האמון המקומי נמצא בקובץ:
+רשימת ההיתר הרשמית מנוהלת בקובץ `plugin_network_allowlist.txt` בענף הייעודי **`plugin-network-allowlist`** של הריפו `Otzaria/otzaria`:
 
-[`lib/plugins/models/plugin_network_allowlist.dart`](../../lib/plugins/models/plugin_network_allowlist.dart) → הקבוע `pluginNetworkAllowlist`.
+<https://github.com/Otzaria/otzaria/blob/plugin-network-allowlist/plugin_network_allowlist.txt>
 
-בנוסף, אוצריא בודקת גם את הקובץ המקביל בריפו הרשמי `Otzaria/otzaria` ב-GitHub, וטוענת אישורים ממנו **לזיכרון בלבד** עד סגירת האפליקציה.
+אוצריא מושכת את הקובץ הזה בזמן ריצה וטוענת אישורים ממנו **לזיכרון בלבד** עד סגירת האפליקציה. עריכת הקובץ בענף נכנסת לתוקף **מיד אצל כל המשתמשים, בכל גרסה מותקנת** — אין צורך ב-release חדש של אוצריא.
 
 ### תהליך הוספת URL חדש
 
 כל תוסף שזקוק לגישה ל-URL כלשהו ברשת **חייב**:
 
 1. להצהיר על ה-URL ב-`manifest.json` תחת `network.allowlist`.
-2. לפתוח Pull Request למאגר אוצריא שמוסיף את ה-URL לקובץ הנ"ל.
+2. לפנות למתחזקי אוצריא (או לפתוח Pull Request לענף `plugin-network-allowlist`) כדי להוסיף את ה-URL לקובץ הנ"ל.
 
 ללא שני השלבים יחד — ה-URL ייחסם ב-runtime עם `403 Forbidden`, גם אם המשתמש אישר את הרשאת `network.access`.
 
@@ -1737,21 +1737,17 @@ Otzaria.on('plugin.boot', async (payload) => {
 חובה לכלול **כתובות URL מדויקות ומלאות**, ולא דומיינים גנריים:
 
 ✅ **נכון** — כתובת מדויקת לנתיב הספציפי הנדרש:
-```dart
-const List<String> pluginNetworkAllowlist = <String>[
-  'https://api.example.com/v1/specific-endpoint',
-  'https://github.com/Otzaria/otzaria-library',
-  'https://raw.githubusercontent.com/MyOrg/my-plugin-data/main',
-];
+```text
+https://api.example.com/v1/specific-endpoint
+https://github.com/Otzaria/otzaria-library
+https://raw.githubusercontent.com/MyOrg/my-plugin-data/main
 ```
 
 ❌ **אסור** — כתובות גנריות שמתירות גישה רחבה מדי:
-```dart
-const List<String> pluginNetworkAllowlist = <String>[
-  'https://github.com',          // ❌ פותח את כל גיטהאב
-  'https://api.example.com',     // ❌ פותח את כל ה-API
-  'https://googleapis.com',      // ❌ פותח את כל שירותי גוגל
-];
+```text
+https://github.com          # ❌ פותח את כל גיטהאב
+https://api.example.com     # ❌ פותח את כל ה-API
+https://googleapis.com      # ❌ פותח את כל שירותי גוגל
 ```
 
 ### איך ההתאמה עובדת
