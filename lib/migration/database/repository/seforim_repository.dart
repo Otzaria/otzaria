@@ -509,7 +509,8 @@ class SeforimRepository {
 
   /// חיפוש קל-משקל של שמות מחברים לפי מחרוזת חלקית — להשלמה אוטומטית
   /// בסינון "לפי ממדים" של החיפוש. מחזיר שמות בלבד, בלי לטעון ספרים.
-  Future<List<String>> searchAuthorNames(String prefix, {int limit = 20}) async {
+  Future<List<String>> searchAuthorNames(String prefix,
+      {int limit = 20}) async {
     final trimmed = prefix.trim();
     if (trimmed.isEmpty || limit <= 0) {
       return const [];
@@ -1027,6 +1028,12 @@ class SeforimRepository {
   /// (ראה [LineDao.selectContentBytesByBookId]).
   Future<Uint8List> getLineContentBytes(int bookId) async {
     return await _database.lineDao.selectContentBytesByBookId(bookId);
+  }
+
+  /// זוגות (lineIndex, heRef) של כל שורות הספר בעלות heRef — לרזולוציית
+  /// הפניה לרמת שורה (פסוק/סעיף) בלי לטעון content.
+  Future<List<({int lineIndex, String heRef})>> getLineRefs(int bookId) async {
+    return await _database.lineDao.selectRefsByBookId(bookId);
   }
 
   /// Gets only IDs and indices for all lines in a book.

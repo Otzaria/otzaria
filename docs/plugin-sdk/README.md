@@ -302,7 +302,7 @@ Otzaria.on('plugin.suspended', stop);   // עצירת timers / polling / WebSock
 | Method | הרשאה | פרמטרים | החזרה |
 |--------|-------|----------|-------|
 | `reader.openBook` | `reader.open` | `{ bookId, index?, searchQuery? }` | `boolean` |
-| `reader.openBookAtRef` | `reader.open` | `{ bookId, ref, index? }` | `boolean` |
+| `reader.openBookAtRef` | `reader.open` | `{ bookId, ref, index?, highlight? }` | `boolean` |
 | `reader.getCurrentState` | `reader.open` | — | `ReaderState` |
 
 ### navigation.*

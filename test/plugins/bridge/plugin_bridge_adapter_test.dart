@@ -460,6 +460,7 @@ void main() {
     PluginBridgeAdapter buildAdapter({
       Future<List<({String title, int index, bool isPdf})>> Function(String)?
           resolveReference,
+      Future<int?> Function(TextBook book, String ref)? resolveRefToLine,
     }) {
       return PluginBridgeAdapter(
         _buildInstalledPlugin(permissions: const ['reader.open']),
@@ -483,6 +484,7 @@ void main() {
           }) async =>
               true,
           resolveReference: resolveReference,
+          resolveRefToLine: resolveRefToLine,
         ),
         pluginRepository: _StubPluginRegistryRepository(),
       );
@@ -526,7 +528,53 @@ void main() {
       expect(result, isTrue);
       // קפיצה ל-index של find_ref, וללא searchText (כי הכותרת נמצאה)
       verify(mockCoordinator.openBook(yerushalmi, 1234, '',
-              ignoreHistory: true))
+              ignoreHistory: true, markSection: false))
+          .called(1);
+    });
+
+    test('רזולוציה לרמת שורה קודמת ל-find_ref ומכבדת highlight', () async {
+      var findRefCalled = false;
+      final adapter = buildAdapter(
+        resolveReference: (reference) async {
+          findRefCalled = true;
+          return [(title: 'תלמוד ירושלמי עירובין', index: 1, isPdf: false)];
+        },
+        resolveRefToLine: (book, ref) async =>
+            (book.title == 'תלמוד ירושלמי עירובין' && ref == 'לג:ה')
+                ? 1194
+                : null,
+      );
+
+      final result = await adapter.execute('reader', 'openBookAtRef', {
+        'bookId': 'תלמוד ירושלמי עירובין',
+        'ref': 'לג:ה',
+        'highlight': true,
+      });
+
+      expect(result, isTrue);
+      expect(findRefCalled, isFalse);
+      verify(mockCoordinator.openBook(yerushalmi, 1194, '',
+              ignoreHistory: true, markSection: true))
+          .called(1);
+    });
+
+    test('כשאין התאמה ברמת שורה — נופלים ל-find_ref, בלי הדגשה כברירת מחדל',
+        () async {
+      final adapter = buildAdapter(
+        resolveReference: (reference) async => [
+          (title: 'תלמוד ירושלמי עירובין', index: 1234, isPdf: false),
+        ],
+        resolveRefToLine: (book, ref) async => null,
+      );
+
+      final result = await adapter.execute('reader', 'openBookAtRef', {
+        'bookId': 'תלמוד ירושלמי עירובין',
+        'ref': 'פ"ו ה"ז',
+      });
+
+      expect(result, isTrue);
+      verify(mockCoordinator.openBook(yerushalmi, 1234, '',
+              ignoreHistory: true, markSection: false))
           .called(1);
     });
   });

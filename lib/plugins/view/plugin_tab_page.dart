@@ -12,6 +12,7 @@ import 'dart:convert';
 import 'dart:collection';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
+import 'package:otzaria/plugins/services/plugin_ref_line_resolver.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
@@ -166,6 +167,8 @@ class _PluginTabPageState extends State<PluginTabPage> {
                 (title: r.title, index: r.segment.toInt(), isPdf: r.isPdf))
             .toList();
       },
+      resolveRefToLine: (book, ref) =>
+          PluginRefLineResolver().resolve(book: book, ref: ref),
       themePayloadBuilder: () {
         if (!mounted) {
           return {
