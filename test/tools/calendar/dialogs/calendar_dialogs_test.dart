@@ -361,6 +361,9 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(TextField).first, 'אירוע צבעוני');
+      // בורר הצבע נפתח בכפתור ייעודי; הגוונים מוצגים ב-popup צמוד לכפתור
+      await tester.tap(find.text('בחר צבע'));
+      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('ירוק'));
       await tester.pumpAndSettle();
 

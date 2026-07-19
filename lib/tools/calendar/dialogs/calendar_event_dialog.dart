@@ -594,41 +594,80 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
     }
   }
 
-  Widget _buildColorPicker() {
-    final cs = Theme.of(context).colorScheme;
-    final brightness = Theme.of(context).brightness;
+  String _colorSubtitle() => CalendarEventColors.labelOf(_selectedColorIndex);
+
+  Widget _buildColorField() {
+    if (!_isDesktop) {
+      return _pickerButton(
+        icon: FluentIcons.color_24_regular,
+        label: 'בחר צבע',
+        onTap: _pickColorWithDialog,
+      );
+    }
+    return _AnchoredMenu(
+      popupWidth: 280,
+      buttonBuilder: (ctx, open) => _pickerButton(
+        icon: FluentIcons.color_24_regular,
+        label: 'בחר צבע',
+        onTap: open,
+      ),
+      popupBuilder: (ctx, close) => _buildColorPopup(close),
+    );
+  }
+
+  Widget _buildColorPopup(VoidCallback close) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.all(12),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'צבע האירוע',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: cs.onSurfaceVariant,
-            ),
-          ),
+          Text('בחירת צבע', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
-          Wrap(
-            children: [
-              _ColorSwatch(
-                color: null,
-                selected: _selectedColorIndex == null,
-                tooltip: 'ללא צבע',
-                onTap: () => setState(() => _selectedColorIndex = null),
-              ),
-              for (int i = 0; i < CalendarEventColors.count; i++)
-                _ColorSwatch(
-                  color: CalendarEventColors.colorForIndex(i, brightness),
-                  selected: _selectedColorIndex == i,
-                  tooltip: CalendarEventColors.nameOf(i),
-                  onTap: () => setState(() => _selectedColorIndex = i),
-                ),
-            ],
-          ),
+          _buildColorSwatches(onSelected: close),
         ],
       ),
+    );
+  }
+
+  /// מובייל: דיאלוג בחירת צבע.
+  Future<void> _pickColorWithDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => AppDialog.singleAction(
+        title: 'בחירת צבע',
+        confirmText: 'סגור',
+        customContent: _buildColorSwatches(
+          onSelected: () => Navigator.of(dialogCtx).pop(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildColorSwatches({required VoidCallback onSelected}) {
+    final brightness = Theme.of(context).brightness;
+    return Wrap(
+      children: [
+        _ColorSwatch(
+          color: null,
+          selected: _selectedColorIndex == null,
+          tooltip: CalendarEventColors.noColorLabel,
+          onTap: () {
+            setState(() => _selectedColorIndex = null);
+            onSelected();
+          },
+        ),
+        for (int i = 0; i < CalendarEventColors.count; i++)
+          _ColorSwatch(
+            color: CalendarEventColors.colorForIndex(i, brightness),
+            selected: _selectedColorIndex == i,
+            tooltip: CalendarEventColors.nameOf(i),
+            onTap: () {
+              setState(() => _selectedColorIndex = i);
+              onSelected();
+            },
+          ),
+      ],
     );
   }
 
@@ -832,7 +871,12 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
                   maxLines: 3,
                 ),
               ),
-              _buildColorPicker(),
+              SettingsActionTile.text(
+                icon: FluentIcons.color_24_regular,
+                title: 'צבע האירוע',
+                subtitle: _colorSubtitle(),
+                actions: [_buildColorField()],
+              ),
             ],
           ),
           SettingsCard(
