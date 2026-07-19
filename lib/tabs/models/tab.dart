@@ -82,17 +82,20 @@ abstract class OpenedTab {
     return tab.clone();
   }
 
-  factory OpenedTab.fromBook(Book book, int index,
-      {String searchText = '',
-      String highlightText = '',
-      int? permanentHighlightLine,
-      List<String>? commentators,
-      bool openLeftPane = false,
-      bool isPinned = false,
-      bool? showPageShapeView,
-      bool requiresStableLayout = false,
-      String? pinpointHighlight,
-      int? pinpointHighlightSectionIndex}) {
+  factory OpenedTab.fromBook(
+    Book book,
+    int index, {
+    String searchText = '',
+    String highlightText = '',
+    int? permanentHighlightLine,
+    List<String>? commentators,
+    bool openLeftPane = false,
+    bool isPinned = false,
+    bool? showPageShapeView,
+    bool requiresStableLayout = false,
+    String? pinpointHighlight,
+    int? pinpointHighlightSectionIndex,
+  }) {
     if (book is PdfBook) {
       return PdfBookTab(
         book: book,
@@ -102,11 +105,13 @@ abstract class OpenedTab {
         isPinned: isPinned,
         requiresStableLayout: requiresStableLayout,
       );
-    } else if (book is DocxBook) {
-      // DOCX רץ דרך זרימת TextBook — העטיפה דרך DocxBook.toTextBook
+    } else if (book is DocxBook || book is EpubBook) {
+      // DOCX/EPUB רצים דרך זרימת TextBook — העטיפה דרך toTextBook
       // משמרת id/categoryId/externalLibraryId שדרושים ל-LibraryProviderManager.
       return TextBookTab(
-        book: book.toTextBook(),
+        book: book is DocxBook
+            ? book.toTextBook()
+            : (book as EpubBook).toTextBook(),
         index: index,
         searchText: searchText,
         highlightText: highlightText,

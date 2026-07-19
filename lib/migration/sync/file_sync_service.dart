@@ -130,7 +130,8 @@ class FileSyncService {
       // Delete the book completely (including lines, TOC, links, etc.)
       await _repository.deleteBookCompletely(existingBook.id);
       _log.info(
-          'Successfully deleted book from DB: $title (id: ${existingBook.id})');
+        'Successfully deleted book from DB: $title (id: ${existingBook.id})',
+      );
       return true;
     } catch (e, stackTrace) {
       _log.warning('Error deleting book from DB: $filePath', e, stackTrace);
@@ -145,34 +146,40 @@ class FileSyncService {
     // First, delete all books in this category
     final books = await repo.getBooksByCategory(categoryId);
     debugPrint(
-        '[FileSyncService] _deleteCategoryRecursive: categoryId=$categoryId, found ${books.length} books');
+      '[FileSyncService] _deleteCategoryRecursive: categoryId=$categoryId, found ${books.length} books',
+    );
     for (final book in books) {
       debugPrint(
-          '[FileSyncService]   deleting book: id=${book.id}, title="${book.title}"');
+        '[FileSyncService]   deleting book: id=${book.id}, title="${book.title}"',
+      );
       try {
         await repo.deleteBookCompletely(book.id);
       } catch (e, st) {
         _log.warning(
-            'Failed to delete book ${book.id} ("${book.title}"), continuing',
-            e,
-            st);
+          'Failed to delete book ${book.id} ("${book.title}"), continuing',
+          e,
+          st,
+        );
       }
     }
 
     // Then, recursively delete subcategories
     final subCategories = await repo.getCategoryChildren(categoryId);
     debugPrint(
-        '[FileSyncService] _deleteCategoryRecursive: categoryId=$categoryId, found ${subCategories.length} subcategories');
+      '[FileSyncService] _deleteCategoryRecursive: categoryId=$categoryId, found ${subCategories.length} subcategories',
+    );
     for (final subCat in subCategories) {
       debugPrint(
-          '[FileSyncService]   recursing into subcategory: id=${subCat.id}, title="${subCat.title}"');
+        '[FileSyncService]   recursing into subcategory: id=${subCat.id}, title="${subCat.title}"',
+      );
       try {
         await _deleteCategoryRecursive(subCat.id);
       } catch (e, st) {
         _log.warning(
-            'Failed to delete subcategory ${subCat.id} ("${subCat.title}"), continuing',
-            e,
-            st);
+          'Failed to delete subcategory ${subCat.id} ("${subCat.title}"), continuing',
+          e,
+          st,
+        );
       }
     }
 
@@ -269,9 +276,11 @@ class FileSyncService {
     List<String> otherFolderPaths,
   ) {
     final folderDepth = _normalizeFolderPath(folderPath).length;
-    return otherFolderPaths.any((other) =>
-        _normalizeFolderPath(other).length > folderDepth &&
-        _isPathInsideFolder(bookPath, other));
+    return otherFolderPaths.any(
+      (other) =>
+          _normalizeFolderPath(other).length > folderDepth &&
+          _isPathInsideFolder(bookPath, other),
+    );
   }
 
   Future<bool> _categoryBelongsToAnyConfiguredFolder(
@@ -287,10 +296,12 @@ class FileSyncService {
       for (final book in books) {
         final sourceName = sourceNameCache.containsKey(book.sourceId)
             ? sourceNameCache[book.sourceId]
-            : (sourceNameCache[book.sourceId] =
-                (await repo.getSourceById(book.sourceId))?.name);
-        final sourceFolderPath =
-            _extractCustomFolderPathFromSourceName(sourceName);
+            : (sourceNameCache[book.sourceId] = (await repo.getSourceById(
+                book.sourceId,
+              ))?.name);
+        final sourceFolderPath = _extractCustomFolderPathFromSourceName(
+          sourceName,
+        );
         if (sourceFolderPath != null &&
             customFolders.any(
               (folder) => _normalizeFolderPath(folder.path) == sourceFolderPath,
@@ -302,8 +313,9 @@ class FileSyncService {
         if (bookPath == null || bookPath.isEmpty) {
           continue;
         }
-        if (customFolders
-            .any((folder) => _isPathInsideFolder(bookPath, folder.path))) {
+        if (customFolders.any(
+          (folder) => _isPathInsideFolder(bookPath, folder.path),
+        )) {
           return true;
         }
       }
@@ -326,14 +338,17 @@ class FileSyncService {
       return;
     }
 
-    final personalSubCategories =
-        await repo.getCategoryChildren(personalCategory.id);
+    final personalSubCategories = await repo.getCategoryChildren(
+      personalCategory.id,
+    );
 
     final staleFolderCategories = <Category>[];
     for (final category in personalSubCategories) {
       final belongsToConfiguredFolder =
           await _categoryBelongsToAnyConfiguredFolder(
-              category.id, customFolders);
+            category.id,
+            customFolders,
+          );
       if (!belongsToConfiguredFolder) {
         staleFolderCategories.add(category);
       }
@@ -365,12 +380,11 @@ class FileSyncService {
     CustomFolder folder,
     Set<String> validBookKeys, {
     List<String> otherConfiguredFolderPaths = const [],
-  }) =>
-      _removeFolderBooksBySource(
-        folder.path,
-        keepKeys: validBookKeys,
-        otherConfiguredFolderPaths: otherConfiguredFolderPaths,
-      );
+  }) => _removeFolderBooksBySource(
+    folder.path,
+    keepKeys: validBookKeys,
+    otherConfiguredFolderPaths: otherConfiguredFolderPaths,
+  );
 
   /// מסיר מ-`user_books.db` את ספרי התיקייה [folderPath], לפי שם ה-`source`
   /// הייחודי (הנתיב המלא) — לא לפי שם הקטגוריה. כך שתי תיקיות שונות בעלות
@@ -410,8 +424,9 @@ class FileSyncService {
       for (final book in books) {
         final sourceName = sourceNameCache.containsKey(book.sourceId)
             ? sourceNameCache[book.sourceId]
-            : (sourceNameCache[book.sourceId] =
-                (await repo.getSourceById(book.sourceId))?.name);
+            : (sourceNameCache[book.sourceId] = (await repo.getSourceById(
+                book.sourceId,
+              ))?.name);
         // שיוך לתיקייה לפי שם ה-source. נפילה-חזרה לפי נתיב הקובץ מוגבלת
         // *אך ורק* למקור ה-legacy המדויק שמסלול ההוספה הישן ייצר
         // ('external'), כדי לזהות נתונים ישנים בלי לגעת בספרים ממקור אחר
@@ -419,13 +434,17 @@ class FileSyncService {
         // ספר legacy משויך רק לתיקייה המוגדרת *העמוקה ביותר* שמכילה אותו —
         // אחרת מחיקת תיקיית-אב הייתה גוררת גם ספרי תיקיית-בן מקוננת.
         final bookPath = book.filePath;
-        final belongsToFolder = sourceName == folderSourceName ||
+        final belongsToFolder =
+            sourceName == folderSourceName ||
             (sourceName == CustomFolderSource.legacyExternalSourceName &&
                 bookPath != null &&
                 bookPath.isNotEmpty &&
                 _isPathInsideFolder(bookPath, folderPath) &&
                 !_belongsToDeeperFolder(
-                    bookPath, folderPath, otherConfiguredFolderPaths));
+                  bookPath,
+                  folderPath,
+                  otherConfiguredFolderPaths,
+                ));
         if (!belongsToFolder) continue;
         if (keepKeys != null) {
           // זרימת prune (רענון): ספר "עותק עצמאי" (התוכן נשמר בתוכנה,
@@ -433,7 +452,8 @@ class FileSyncService {
           // הרעיון של ההכנסה לתוכנה. לכן מוחקים רק ספרי "קריאה מהקבצים"
           // (file-backed) שקובצם נעלם; עותק עצמאי נמחק רק דרך הספרייה.
           if (!book.isFileBacked) continue;
-          final key = '${book.categoryId}|${book.title}|'
+          final key =
+              '${book.categoryId}|${book.title}|'
               '${(book.fileType ?? '').toLowerCase()}';
           if (keepKeys.contains(key)) continue;
         }
@@ -468,14 +488,15 @@ class FileSyncService {
   }
 
   /// Internal method to scan a single path and import files
-  Future<FileSyncResult> _scanAndImportPath(
-      {required String rootPath,
-      required List<String> categoryPrefix,
-      required bool insertContent,
-      String? customSourceName,
-      required DatabaseGenerator generator,
-      Set<String>? validBookKeys,
-      _FolderScanCaches? caches}) async {
+  Future<FileSyncResult> _scanAndImportPath({
+    required String rootPath,
+    required List<String> categoryPrefix,
+    required bool insertContent,
+    String? customSourceName,
+    required DatabaseGenerator generator,
+    Set<String>? validBookKeys,
+    _FolderScanCaches? caches,
+  }) async {
     int addedBooks = 0;
     int updatedBooks = 0;
     int addedCategories = 0;
@@ -559,9 +580,10 @@ class FileSyncService {
     final title = path.basenameWithoutExtension(filePath);
     final extension = path.extension(filePath).toLowerCase();
 
-    // PDF and DOCX files always act as external (content never in DB)
-    final isPdfOrDocx = extension == '.pdf' || extension == '.docx';
-    final effectiveInsertContent = isPdfOrDocx ? false : insertContent;
+    // PDF, DOCX and EPUB files always act as external (content never in DB)
+    final isBinaryFormat =
+        extension == '.pdf' || extension == '.docx' || extension == '.epub';
+    final effectiveInsertContent = isBinaryFormat ? false : insertContent;
 
     // Build category path
     final relativeCategories = _parsePathToCategories(filePath, basePath);
@@ -576,13 +598,14 @@ class FileSyncService {
     final chainKey = categoryPath.join('\u0000');
     var categoryResult = caches.categoryChains[chainKey];
     final isFirstChainResolution = categoryResult == null;
-    categoryResult ??= caches.categoryChains[chainKey] =
-        await generator.findOrCreateCategoryChain(categoryPath);
+    categoryResult ??= caches.categoryChains[chainKey] = await generator
+        .findOrCreateCategoryChain(categoryPath);
     final categoryId = categoryResult.categoryId;
     // הקטגוריות נוצרו רק בפתרון הראשון של השרשרת; קבצים נוספים באותה
     // תיקייה לא סופרים אותן שוב.
-    final categoriesCreated =
-        isFirstChainResolution ? categoryResult.categoriesCreated : 0;
+    final categoriesCreated = isFirstChainResolution
+        ? categoryResult.categoriesCreated
+        : 0;
 
     // Extract file type from extension (remove the dot)
     final fileType = extension.replaceFirst('.', '').toLowerCase();
@@ -601,10 +624,13 @@ class FileSyncService {
 
     if (existingBook != null) {
       debugPrint(
-          '[FileSyncService] Found existing book: title=$title, id=${existingBook.id}, filePath=${existingBook.filePath}, isFileBacked=${existingBook.isFileBacked}, totalLines=${existingBook.totalLines}');
+        '[FileSyncService] Found existing book: title=$title, id=${existingBook.id}, filePath=${existingBook.filePath}, isFileBacked=${existingBook.isFileBacked}, totalLines=${existingBook.totalLines}',
+      );
 
       final existingSourceName = await caches.sourceNameById(
-          existingBook.sourceId, _customFoldersRepo);
+        existingBook.sourceId,
+        _customFoldersRepo,
+      );
 
       // Book exists - check if file has changed
       final file = File(filePath);
@@ -613,7 +639,8 @@ class FileSyncService {
       final lastModified = fileStat.modified.millisecondsSinceEpoch;
 
       // Only update if file has actually changed
-      final fileChanged = existingBook.fileSize != fileSize ||
+      final fileChanged =
+          existingBook.fileSize != fileSize ||
           existingBook.lastModified != lastModified;
 
       // Also update if the storage preference changed (e.g. user toggled addToDatabase)
@@ -625,11 +652,13 @@ class FileSyncService {
       if (fileChanged || storageChanged || sourceChanged) {
         if (storageChanged) {
           debugPrint(
-              '[FileSyncService] Storage preference changed for ${existingBook.title}: isFileBacked=${existingBook.isFileBacked} -> $expectedIsContentExternal');
+            '[FileSyncService] Storage preference changed for ${existingBook.title}: isFileBacked=${existingBook.isFileBacked} -> $expectedIsContentExternal',
+          );
         }
         if (sourceChanged) {
           debugPrint(
-              '[FileSyncService] Source changed for ${existingBook.title}: $existingSourceName -> $customSourceName');
+            '[FileSyncService] Source changed for ${existingBook.title}: $existingSourceName -> $customSourceName',
+          );
         }
         wasUpdated = true;
         await generator.createAndProcessBook(
@@ -741,10 +770,12 @@ class FileSyncService {
             }
 
             _log.info(
-                'Scanning custom folder: ${folder.path} (addToDatabase: ${folder.addToDatabase})');
+              'Scanning custom folder: ${folder.path} (addToDatabase: ${folder.addToDatabase})',
+            );
 
-            sharedCaches ??=
-                _FolderScanCaches(await _customFoldersRepo.getAllBooks());
+            sharedCaches ??= _FolderScanCaches(
+              await _customFoldersRepo.getAllBooks(),
+            );
 
             final folderValidKeys = <String>{};
             final result = await _scanAndImportPath(
@@ -845,20 +876,22 @@ class FileSyncService {
       return const FileSyncResult(errors: ['Sync already in progress']);
     }
 
-    final libraryPath =
-        Settings.getValue<String>(SettingsRepository.keyLibraryPath);
+    final libraryPath = Settings.getValue<String>(
+      SettingsRepository.keyLibraryPath,
+    );
     if (libraryPath == null || libraryPath.isEmpty) {
       _log.warning('Library path not set, skipping sync');
       return const FileSyncResult(errors: ['Library path not set']);
     }
 
-    final customFoldersJson =
-        Settings.getValue<String>(SettingsRepository.keyCustomFolders);
+    final customFoldersJson = Settings.getValue<String>(
+      SettingsRepository.keyCustomFolders,
+    );
     final customFolders = CustomFoldersManager.loadFolders(customFoldersJson);
 
     final libraryFolderName =
         Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
-            '';
+        '';
     final result = await syncCustomFoldersWithInputs(
       libraryPath: libraryPath,
       customFolders: customFolders,
@@ -874,7 +907,7 @@ class FileSyncService {
   Future<List<String>> _findNewFiles(String basePath) async {
     final newFiles = <String>[];
     final dir = Directory(basePath);
-    final supportedExtensions = {'.txt', '.pdf', '.docx'};
+    final supportedExtensions = {'.txt', '.pdf', '.docx', '.epub'};
 
     if (!await dir.exists()) return newFiles;
 
@@ -946,11 +979,12 @@ class _FileProcessResult {
 /// שרשרת קטגוריות — במקום כמה שאילתות DB לכל קובץ.
 class _FolderScanCaches {
   _FolderScanCaches(List<Book> books)
-      : booksByKey = {
-          for (final book in books)
-            '${book.categoryId}|${book.title}|'
-                '${(book.fileType ?? '').toLowerCase()}': book,
-        };
+    : booksByKey = {
+        for (final book in books)
+          '${book.categoryId}|${book.title}|'
+                  '${(book.fileType ?? '').toLowerCase()}':
+              book,
+      };
 
   /// מפתח: `categoryId|title|fileType` — זהה לבדיקת הקיום המקורית.
   final Map<String, Book> booksByKey;
@@ -964,8 +998,9 @@ class _FolderScanCaches {
     if (_sourceNamesById.containsKey(sourceId)) {
       return _sourceNamesById[sourceId];
     }
-    return _sourceNamesById[sourceId] =
-        (await repo.getSourceById(sourceId))?.name;
+    return _sourceNamesById[sourceId] = (await repo.getSourceById(
+      sourceId,
+    ))?.name;
   }
 }
 

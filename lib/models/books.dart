@@ -83,6 +83,8 @@ abstract class Book {
         return PdfBook.fromJson(json);
       case 'DocxBook':
         return DocxBook.fromJson(json);
+      case 'EpubBook':
+        return EpubBook.fromJson(json);
       case 'ExternalLibraryBook':
         return ExternalLibraryBook.fromJson(json);
       default:
@@ -93,30 +95,31 @@ abstract class Book {
   /// Creates a new `Book` instance.
   ///
   /// The [title] parameter is required and cannot be null.
-  Book(
-      {this.id,
-      required this.title,
-      this.category,
-      this.author,
-      this.heCategories,
-      this.heEra,
-      this.compDateStringHe,
-      this.compPlaceStringHe,
-      this.pubDateStringHe,
-      this.pubPlaceStringHe,
-      this.heShortDesc,
-      this.heDesc,
-      this.pubDate,
-      this.pubPlace,
-      this.order = 999,
-      this.topics = '',
-      this.filePath,
-      this.fileType,
-      this.categoryPath,
-      this.categoryId,
-      this.extraTitles,
-      this.isUserBook = false,
-      this.externalLibraryId});
+  Book({
+    this.id,
+    required this.title,
+    this.category,
+    this.author,
+    this.heCategories,
+    this.heEra,
+    this.compDateStringHe,
+    this.compPlaceStringHe,
+    this.pubDateStringHe,
+    this.pubPlaceStringHe,
+    this.heShortDesc,
+    this.heDesc,
+    this.pubDate,
+    this.pubPlace,
+    this.order = 999,
+    this.topics = '',
+    this.filePath,
+    this.fileType,
+    this.categoryPath,
+    this.categoryId,
+    this.extraTitles,
+    this.isUserBook = false,
+    this.externalLibraryId,
+  });
 }
 
 ///a representation of a text book (opposite PDF book).
@@ -127,31 +130,32 @@ class TextBook extends Book {
   /// נטען מ-version_line במקום הטקסט הממוזג.
   final String? versionTitle;
 
-  TextBook(
-      {super.id,
-      required super.title,
-      super.category,
-      super.author,
-      super.heCategories,
-      super.heEra,
-      super.compDateStringHe,
-      super.compPlaceStringHe,
-      super.pubDateStringHe,
-      super.pubPlaceStringHe,
-      super.heShortDesc,
-      super.heDesc,
-      super.pubDate,
-      super.pubPlace,
-      super.order = 999,
-      super.topics,
-      super.filePath,
-      super.fileType = 'txt',
-      super.categoryPath,
-      super.categoryId,
-      super.extraTitles,
-      super.isUserBook,
-      super.externalLibraryId,
-      this.versionTitle});
+  TextBook({
+    super.id,
+    required super.title,
+    super.category,
+    super.author,
+    super.heCategories,
+    super.heEra,
+    super.compDateStringHe,
+    super.compPlaceStringHe,
+    super.pubDateStringHe,
+    super.pubPlaceStringHe,
+    super.heShortDesc,
+    super.heDesc,
+    super.pubDate,
+    super.pubPlace,
+    super.order = 999,
+    super.topics,
+    super.filePath,
+    super.fileType = 'txt',
+    super.categoryPath,
+    super.categoryId,
+    super.extraTitles,
+    super.isUserBook,
+    super.externalLibraryId,
+    this.versionTitle,
+  });
 
   /// Retrieves the table of contents of the book.
   ///
@@ -178,7 +182,10 @@ class TextBook extends Book {
     );
     if (provider != null && categoryId != null) {
       return await provider.getAllLinksForBook(
-          title, categoryId!, fileType ?? 'txt');
+        title,
+        categoryId!,
+        fileType ?? 'txt',
+      );
     }
     return [];
   }
@@ -285,28 +292,28 @@ class ExternalLibraryBook extends Book {
   ///
   /// [title] and [id] are required. Other parameters are optional.
   /// [link] is required for online access to the book.
-  ExternalLibraryBook(
-      {required super.title,
-      required int id,
-      super.author,
-      super.heCategories,
-      super.heEra,
-      super.compDateStringHe,
-      super.compPlaceStringHe,
-      super.pubDateStringHe,
-      super.pubPlaceStringHe,
-      super.pubPlace,
-      super.pubDate,
-      super.topics,
-      super.heShortDesc,
-      super.heDesc,
-      required this.link,
-      super.categoryPath,
-      super.categoryId,
-      super.fileType = 'link',
-      super.isUserBook,
-      super.externalLibraryId})
-      : super(id: id);
+  ExternalLibraryBook({
+    required super.title,
+    required int id,
+    super.author,
+    super.heCategories,
+    super.heEra,
+    super.compDateStringHe,
+    super.compPlaceStringHe,
+    super.pubDateStringHe,
+    super.pubPlaceStringHe,
+    super.pubPlace,
+    super.pubDate,
+    super.topics,
+    super.heShortDesc,
+    super.heDesc,
+    required this.link,
+    super.categoryPath,
+    super.categoryId,
+    super.fileType = 'link',
+    super.isUserBook,
+    super.externalLibraryId,
+  }) : super(id: id);
 
   /// Returns the publication date of the book.
   ///
@@ -388,30 +395,31 @@ abstract class FileBook extends Book {
 ///represents a PDF format book, which is always a file on the device, and there for the [String] fiels 'path'
 ///is required
 class PdfBook extends FileBook {
-  PdfBook(
-      {super.id,
-      required super.title,
-      super.category,
-      required super.path,
-      super.topics,
-      super.author,
-      super.heCategories,
-      super.heEra,
-      super.compDateStringHe,
-      super.compPlaceStringHe,
-      super.pubDateStringHe,
-      super.pubPlaceStringHe,
-      super.heShortDesc,
-      super.heDesc,
-      super.pubDate,
-      super.pubPlace,
-      super.filePath,
-      super.categoryPath,
-      super.categoryId,
-      super.fileType = 'pdf',
-      super.order = 999,
-      super.isUserBook,
-      super.externalLibraryId});
+  PdfBook({
+    super.id,
+    required super.title,
+    super.category,
+    required super.path,
+    super.topics,
+    super.author,
+    super.heCategories,
+    super.heEra,
+    super.compDateStringHe,
+    super.compPlaceStringHe,
+    super.pubDateStringHe,
+    super.pubPlaceStringHe,
+    super.heShortDesc,
+    super.heDesc,
+    super.pubDate,
+    super.pubPlace,
+    super.filePath,
+    super.categoryPath,
+    super.categoryId,
+    super.fileType = 'pdf',
+    super.order = 999,
+    super.isUserBook,
+    super.externalLibraryId,
+  });
 
   factory PdfBook.fromJson(Map<String, dynamic> json) {
     return PdfBook(
@@ -452,30 +460,31 @@ class PdfBook extends FileBook {
 
 /// Represents a DOCX format book.
 class DocxBook extends FileBook {
-  DocxBook(
-      {super.id,
-      required super.title,
-      super.category,
-      required super.path,
-      super.topics,
-      super.author,
-      super.heCategories,
-      super.heEra,
-      super.compDateStringHe,
-      super.compPlaceStringHe,
-      super.pubDateStringHe,
-      super.pubPlaceStringHe,
-      super.heShortDesc,
-      super.heDesc,
-      super.pubDate,
-      super.pubPlace,
-      super.filePath,
-      super.categoryPath,
-      super.categoryId,
-      super.fileType = 'docx',
-      super.order = 999,
-      super.isUserBook,
-      super.externalLibraryId});
+  DocxBook({
+    super.id,
+    required super.title,
+    super.category,
+    required super.path,
+    super.topics,
+    super.author,
+    super.heCategories,
+    super.heEra,
+    super.compDateStringHe,
+    super.compPlaceStringHe,
+    super.pubDateStringHe,
+    super.pubPlaceStringHe,
+    super.heShortDesc,
+    super.heDesc,
+    super.pubDate,
+    super.pubPlace,
+    super.filePath,
+    super.categoryPath,
+    super.categoryId,
+    super.fileType = 'docx',
+    super.order = 999,
+    super.isUserBook,
+    super.externalLibraryId,
+  });
 
   factory DocxBook.fromJson(Map<String, dynamic> json) {
     return DocxBook(
@@ -546,6 +555,100 @@ class DocxBook extends FileBook {
   }
 }
 
+/// Represents an EPUB format book.
+class EpubBook extends FileBook {
+  EpubBook({
+    super.id,
+    required super.title,
+    super.category,
+    required super.path,
+    super.topics,
+    super.author,
+    super.heCategories,
+    super.heEra,
+    super.compDateStringHe,
+    super.compPlaceStringHe,
+    super.pubDateStringHe,
+    super.pubPlaceStringHe,
+    super.heShortDesc,
+    super.heDesc,
+    super.pubDate,
+    super.pubPlace,
+    super.filePath,
+    super.categoryPath,
+    super.categoryId,
+    super.fileType = 'epub',
+    super.order = 999,
+    super.isUserBook,
+    super.externalLibraryId,
+  });
+
+  factory EpubBook.fromJson(Map<String, dynamic> json) {
+    return EpubBook(
+      title: json['title'],
+      path: json['path'],
+      author: json['author'],
+      filePath: json['filePath'],
+      categoryPath: json['categoryPath'],
+      heCategories: json['heCategories'],
+      heEra: json['heEra'],
+      isUserBook: json['isUserBook'] ?? false,
+      externalLibraryId: json['externalLibraryId'],
+    );
+  }
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      'title': title,
+      'path': path,
+      'type': 'EpubBook',
+      'author': author,
+      'filePath': filePath,
+      'fileType': fileType,
+      'categoryPath': categoryPath,
+      'heCategories': heCategories,
+      'heEra': heEra,
+      'isUserBook': isUserBook,
+      'externalLibraryId': externalLibraryId,
+    };
+  }
+
+  @override
+  String toString() => 'EpubBook(title: $title, path: $path)';
+
+  /// עוטף את ה-EpubBook ל-TextBook, באותו דפוס כמו [DocxBook.toTextBook] —
+  /// שימור `id`/`categoryId`/`externalLibraryId` חיוני לאיתור ב-cache,
+  /// ו-`filePath` נופל ל-`path` כדי שזרימת getBookText תפעיל epubToText.
+  TextBook toTextBook() {
+    return TextBook(
+      id: id,
+      title: title,
+      category: category,
+      author: author,
+      heCategories: heCategories,
+      heEra: heEra,
+      compDateStringHe: compDateStringHe,
+      compPlaceStringHe: compPlaceStringHe,
+      pubDateStringHe: pubDateStringHe,
+      pubPlaceStringHe: pubPlaceStringHe,
+      heShortDesc: heShortDesc,
+      heDesc: heDesc,
+      pubDate: pubDate,
+      pubPlace: pubPlace,
+      order: order,
+      topics: topics,
+      filePath: filePath ?? path,
+      fileType: fileType ?? 'epub',
+      categoryPath: categoryPath,
+      categoryId: categoryId,
+      extraTitles: extraTitles,
+      isUserBook: isUserBook,
+      externalLibraryId: externalLibraryId,
+    );
+  }
+}
+
 ///represents an entry in table of content , which is a node in a hirarchial tree of topics.
 ///every entry has its 'level' in the tree, and an index of the line in the book that it is refers to
 class TocEntry {
@@ -555,16 +658,16 @@ class TocEntry {
   final TocEntry? parent;
   List<TocEntry> children = [];
   String get fullText => () {
-        TocEntry? parent = this.parent;
-        String text = this.text;
-        while (parent != null && parent.level > 1) {
-          if (parent.text != '') {
-            text = '${parent.text}, $text';
-          }
-          parent = parent.parent;
-        }
-        return text;
-      }();
+    TocEntry? parent = this.parent;
+    String text = this.text;
+    while (parent != null && parent.level > 1) {
+      if (parent.text != '') {
+        text = '${parent.text}, $text';
+      }
+      parent = parent.parent;
+    }
+    return text;
+  }();
 
   ///creats [TocEntry]
   TocEntry({

@@ -44,14 +44,24 @@ void main() {
     });
 
     test('מדלג על סיומות לא נתמכות', () async {
-      final epub = await createSourceFile('ספר.epub', 'x');
+      final mobi = await createSourceFile('ספר.mobi', 'x');
       final txt = await createSourceFile('ספר.txt', 'תוכן');
 
-      final result = await service.copyFiles([epub, txt]);
+      final result = await service.copyFiles([mobi, txt]);
 
       expect(result.copied, 1);
       expect(result.skippedUnsupported, 1);
-      expect(File(p.join(importPath, 'ספר.epub')).existsSync(), isFalse);
+      expect(File(p.join(importPath, 'ספר.mobi')).existsSync(), isFalse);
+    });
+
+    test('קובץ EPUB נתמך ומועתק', () async {
+      final epub = await createSourceFile('ספר.epub', 'epub-bytes');
+
+      final result = await service.copyFiles([epub]);
+
+      expect(result.copied, 1);
+      expect(result.skippedUnsupported, 0);
+      expect(File(p.join(importPath, 'ספר.epub')).existsSync(), isTrue);
     });
 
     test('קובץ בשם קיים דורס את הגרסה הקודמת', () async {

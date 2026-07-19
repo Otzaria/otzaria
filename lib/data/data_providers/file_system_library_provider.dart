@@ -75,7 +75,8 @@ class FileSystemLibraryProvider implements LibraryProvider {
 
   @override
   Future<Map<String, List<Book>>> loadBooks(
-      Map<String, Map<String, dynamic>> metadata) async {
+    Map<String, Map<String, dynamic>> metadata,
+  ) async {
     if (!_isInitialized) await initialize();
 
     final Map<String, List<Book>> booksByCategory = {};
@@ -91,8 +92,9 @@ class FileSystemLibraryProvider implements LibraryProvider {
     final personalBooksPath = getPersonalBooksPath();
     final personalBooksDir = Directory(personalBooksPath);
     if (await personalBooksDir.exists()) {
-      await _loadBooksRecursively(
-          personalBooksDir, metadata, booksByCategory, ['ספרים אישיים'], map);
+      await _loadBooksRecursively(personalBooksDir, metadata, booksByCategory, [
+        'ספרים אישיים',
+      ], map);
     }
 
     await _loadBundledTalmudBavliBooks(metadata, booksByCategory, map);
@@ -140,7 +142,7 @@ class FileSystemLibraryProvider implements LibraryProvider {
   Future<Directory?> _resolveBundledTalmudBavliDirectory() async {
     final folderName =
         Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
-            '';
+        '';
 
     for (final candidatePath in DatabaseConstants.getTalmudBavliDirectoryPaths(
       _libraryPath,
@@ -174,12 +176,18 @@ class FileSystemLibraryProvider implements LibraryProvider {
         if (entity is Directory) {
           final newPath = [...currentPath, getTitleFromPath(entity.path)];
           await _loadBooksRecursively(
-              entity, metadata, booksByCategory, newPath, keyToPath);
+            entity,
+            metadata,
+            booksByCategory,
+            newPath,
+            keyToPath,
+          );
         } else if (entity is File) {
           final book = _createBookFromFile(entity, metadata, currentPath);
           if (book != null) {
-            final categoryName =
-                currentPath.isNotEmpty ? currentPath.last : 'ללא קטגוריה';
+            final categoryName = currentPath.isNotEmpty
+                ? currentPath.last
+                : 'ללא קטגוריה';
             booksByCategory.putIfAbsent(categoryName, () => []);
             booksByCategory[categoryName]!.add(book);
 
@@ -235,7 +243,9 @@ class FileSystemLibraryProvider implements LibraryProvider {
       );
     }
 
-    if (path.endsWith('.txt') || path.endsWith('.docx')) {
+    if (path.endsWith('.txt') ||
+        path.endsWith('.docx') ||
+        path.endsWith('.epub')) {
       final categoryPathStr = categoryPath.join(', ');
       final categoryId = categoryPathStr.hashCode;
       _categoryIdToPath[categoryId] = categoryPathStr;
@@ -288,6 +298,8 @@ class FileSystemLibraryProvider implements LibraryProvider {
 
     if (path.endsWith('.docx')) {
       return convertDocxWithCache(file, title);
+    } else if (path.endsWith('.epub')) {
+      return convertEpubWithCache(file, title);
     } else {
       return readTextFileSmart(file);
     }
@@ -319,7 +331,10 @@ class FileSystemLibraryProvider implements LibraryProvider {
   }
 
   Future<String?> _getBookPath(
-      String title, int categoryId, String fileType) async {
+    String title,
+    int categoryId,
+    String fileType,
+  ) async {
     final map = await keyToPath;
     final key = _generateKey(title, categoryId, fileType);
     return map[key];
@@ -330,8 +345,11 @@ class FileSystemLibraryProvider implements LibraryProvider {
     _categoryIdToPath.clear();
 
     // Helper to add path
-    void addPath(String path, String rootPath,
-        [List<String> prefix = const []]) {
+    void addPath(
+      String path,
+      String rootPath, [
+      List<String> prefix = const [],
+    ]) {
       final title = getTitleFromPath(path);
       final fileType = path.split('.').last.toLowerCase();
 
@@ -397,6 +415,7 @@ class FileSystemLibraryProvider implements LibraryProvider {
         final lower = entity.path.toLowerCase();
         if (lower.endsWith('.txt') ||
             lower.endsWith('.docx') ||
+            lower.endsWith('.epub') ||
             lower.endsWith('.pdf')) {
           results.add(entity.path);
         }
@@ -441,8 +460,11 @@ class FileSystemLibraryProvider implements LibraryProvider {
   }
 
   /// Checks if a book is in the personal folder or a custom folder
-  Future<bool> isPersonalBook(String title,
-      {String? category, String? fileType}) async {
+  Future<bool> isPersonalBook(
+    String title, {
+    String? category,
+    String? fileType,
+  }) async {
     String? bookPath;
     if (category != null && fileType != null) {
       bookPath = await _getBookPath(title, category.hashCode, fileType);
@@ -460,14 +482,16 @@ class FileSystemLibraryProvider implements LibraryProvider {
     if (bookPath == null) return false;
 
     // Check if in the built-in personal folder
-    if (bookPath
-        .contains('${Platform.pathSeparator}אישי${Platform.pathSeparator}')) {
+    if (bookPath.contains(
+      '${Platform.pathSeparator}אישי${Platform.pathSeparator}',
+    )) {
       return true;
     }
 
     // Check if in any custom folder
-    final customFoldersJson =
-        Settings.getValue<String>(SettingsRepository.keyCustomFolders);
+    final customFoldersJson = Settings.getValue<String>(
+      SettingsRepository.keyCustomFolders,
+    );
     final customFolders = CustomFoldersManager.loadFolders(customFoldersJson);
 
     for (final folder in customFolders) {
@@ -496,9 +520,10 @@ class FileSystemLibraryProvider implements LibraryProvider {
     }
     if (path == null) throw Exception('Book not found: $title');
 
-    if (path.endsWith('.docx')) {
+    if (path.endsWith('.docx') || path.endsWith('.epub')) {
       throw Exception(
-          'Cannot save to DOCX files. Only text files are supported.');
+        'Cannot save to DOCX/EPUB files. Only text files are supported.',
+      );
     }
 
     final file = File(path);
@@ -591,8 +616,11 @@ class FileSystemLibraryProvider implements LibraryProvider {
         );
 
         // Create book with proper category reference
-        final bookWithCategory =
-            _createBookWithCategory(book, category, metadata);
+        final bookWithCategory = _createBookWithCategory(
+          book,
+          category,
+          metadata,
+        );
         category.books.add(bookWithCategory);
       }
     }
@@ -601,7 +629,8 @@ class FileSystemLibraryProvider implements LibraryProvider {
     _sortLibraryRecursive(library);
 
     debugPrint(
-        '📁 FileSystem catalog built with ${library.subCategories.length} top-level categories');
+      '📁 FileSystem catalog built with ${library.subCategories.length} top-level categories',
+    );
     return library;
   }
 
@@ -734,7 +763,10 @@ class FileSystemLibraryProvider implements LibraryProvider {
 
   @override
   Future<List<Link>> getAllLinksForBook(
-      String title, int categoryId, String fileType) async {
+    String title,
+    int categoryId,
+    String fileType,
+  ) async {
     if (!_isInitialized) await initialize();
 
     try {

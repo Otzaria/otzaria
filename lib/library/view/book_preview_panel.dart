@@ -85,12 +85,17 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
   void _createNewTab() {
     if (widget.book == null) return;
 
-    // DocxBook יורש מ-FileBook ולא מ-TextBook — העטיפה דרך
-    // DocxBook.toTextBook משמרת id/categoryId/externalLibraryId שדרושים
+    // DocxBook/EpubBook יורשים מ-FileBook ולא מ-TextBook — העטיפה דרך
+    // toTextBook משמרת id/categoryId/externalLibraryId שדרושים
     // ל-LibraryProviderManager (בלעדיהם getBookContent יחזיר תוכן ריק).
     final book = widget.book;
-    final TextBook? textBook =
-        book is TextBook ? book : (book is DocxBook ? book.toTextBook() : null);
+    final TextBook? textBook = book is TextBook
+        ? book
+        : book is DocxBook
+        ? book.toTextBook()
+        : book is EpubBook
+        ? book.toTextBook()
+        : null;
 
     if (textBook != null) {
       setState(() {
@@ -195,10 +200,9 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
             Icon(
               FluentIcons.book_24_regular,
               size: 64,
-              color: Theme.of(context)
-                  .colorScheme
-                  .secondary
-                  .withValues(alpha: 0.3),
+              color: Theme.of(
+                context,
+              ).colorScheme.secondary.withValues(alpha: 0.3),
             ),
             const SizedBox(height: 16),
             Text(
@@ -222,10 +226,9 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
             Icon(
               FluentIcons.link_24_regular,
               size: 64,
-              color: Theme.of(context)
-                  .colorScheme
-                  .secondary
-                  .withValues(alpha: 0.3),
+              color: Theme.of(
+                context,
+              ).colorScheme.secondary.withValues(alpha: 0.3),
             ),
             const SizedBox(height: 16),
             Text(
@@ -385,8 +388,9 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
             backgroundColor: Theme.of(context).colorScheme.surface,
             zoomStepsDelegateProvider:
                 const PdfViewerZoomStepsDelegateProviderSmart(),
-            sizeDelegateProvider:
-                PdfViewerSizeDelegateProviderLegacy(maxScale: 10),
+            sizeDelegateProvider: PdfViewerSizeDelegateProviderLegacy(
+              maxScale: 10,
+            ),
             horizontalCacheExtent: 0,
             verticalCacheExtent: 1,
             pageAnchor: PdfPageAnchor.top,
@@ -481,13 +485,15 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
 
   List<Widget> _buildParagraph(List<double> widths, Color color) {
     return widths
-        .map((width) => Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 10.0),
-                child: _SkeletonLine(width: width, height: 18, color: color),
-              ),
-            ))
+        .map(
+          (width) => Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 10.0),
+              child: _SkeletonLine(width: width, height: 18, color: color),
+            ),
+          ),
+        )
         .toList();
   }
 }

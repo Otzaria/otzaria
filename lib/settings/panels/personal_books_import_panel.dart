@@ -54,15 +54,17 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
   void initState() {
     super.initState();
     _service = widget.service ?? PersonalBooksImportService();
-    DatabaseLibraryProvider.operationQueue.busyCount
-        .addListener(_onQueueBusyChanged);
+    DatabaseLibraryProvider.operationQueue.busyCount.addListener(
+      _onQueueBusyChanged,
+    );
     _refreshFileList();
   }
 
   @override
   void dispose() {
-    DatabaseLibraryProvider.operationQueue.busyCount
-        .removeListener(_onQueueBusyChanged);
+    DatabaseLibraryProvider.operationQueue.busyCount.removeListener(
+      _onQueueBusyChanged,
+    );
     super.dispose();
   }
 
@@ -79,7 +81,7 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
     final result = await FilePicker.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
-      allowedExtensions: const ['txt', 'pdf', 'docx'],
+      allowedExtensions: const ['txt', 'pdf', 'docx', 'epub'],
       dialogTitle: 'בחר קבצי ספרים לייבוא',
     );
     if (result == null) return null;
@@ -98,11 +100,13 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
 
       if (result.errors.isNotEmpty) {
         UiSnack.showError(
-            SettingsMessages.importErrors(result.errors.join('\n')));
+          SettingsMessages.importErrors(result.errors.join('\n')),
+        );
       }
       if (result.skippedUnsupported > 0) {
-        UiSnack.show(SettingsMessages.unsupportedFilesSkipped(
-            result.skippedUnsupported));
+        UiSnack.show(
+          SettingsMessages.unsupportedFilesSkipped(result.skippedUnsupported),
+        );
       }
       if (result.copied == 0) return;
 
@@ -112,12 +116,17 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
 
       // ההודעות על תוצאת הסריקה מגיעות מה-BLoC דרך ה-listener למטה.
       final folderPath = await _service.getFolderPath();
-      final alreadyRegistered =
-          bloc.state.folders.any((f) => f.path == folderPath);
-      bloc.add(alreadyRegistered
-          ? RescanCustomFolders(
-              showNoChangesMessage: false, onlyFolderPath: folderPath)
-          : AddCustomFolder(folderPath));
+      final alreadyRegistered = bloc.state.folders.any(
+        (f) => f.path == folderPath,
+      );
+      bloc.add(
+        alreadyRegistered
+            ? RescanCustomFolders(
+                showNoChangesMessage: false,
+                onlyFolderPath: folderPath,
+              )
+            : AddCustomFolder(folderPath),
+      );
     } finally {
       if (mounted) setState(() => _isCopying = false);
     }
@@ -143,10 +152,12 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
     }
     await _refreshFileList();
     // הסריקה מסירה מה-DB ספרים שקובצם נמחק (prune) ומרעננת את הספרייה.
-    bloc.add(RescanCustomFolders(
-      showNoChangesMessage: false,
-      onlyFolderPath: await _service.getFolderPath(),
-    ));
+    bloc.add(
+      RescanCustomFolders(
+        showNoChangesMessage: false,
+        onlyFolderPath: await _service.getFolderPath(),
+      ),
+    );
     UiSnack.show(SettingsMessages.bookDeleted(title));
   }
 
@@ -156,6 +167,8 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
         return 'PDF';
       case '.docx':
         return 'Word';
+      case '.epub':
+        return 'EPUB';
       default:
         return 'טקסט';
     }
@@ -174,14 +187,15 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
         if (!state.isSyncing) _refreshFileList();
       },
       builder: (context, state) {
-        final isBusy = _isCopying ||
+        final isBusy =
+            _isCopying ||
             state.isSyncing ||
             DatabaseLibraryProvider.operationQueue.isBusy;
         return ExpandableSection(
           icon: FluentIcons.book_add_24_regular,
           title: 'הספרים שלי',
           subtitle: _importedFiles.isEmpty
-              ? 'ייבוא קבצי TXT, PDF ו-Word לספרייה'
+              ? 'ייבוא קבצי TXT, PDF, Word ו-EPUB לספרייה'
               : '${_importedFiles.length} ספרים מיובאים',
           trailing: ActionButton.recommended(
             text: 'ייבוא ספרים',
@@ -217,8 +231,11 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
     return ListTile(
       dense: true,
       hoverColor: Colors.transparent,
-      leading:
-          RtlIcon(FluentIcons.book_24_regular, color: cs.primary, size: 20),
+      leading: RtlIcon(
+        FluentIcons.book_24_regular,
+        color: cs.primary,
+        size: 20,
+      ),
       title: Text(
         p.basenameWithoutExtension(file.path),
         style: const TextStyle(fontSize: 14),

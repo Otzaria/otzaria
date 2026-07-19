@@ -86,6 +86,9 @@ class TextBookRepository {
           if (ext == 'docx') {
             return await convertDocxWithCache(file, title);
           }
+          if (ext == 'epub') {
+            return await convertEpubWithCache(file, title);
+          }
           if (ext == 'pdf') return '';
           return await readTextFileSmart(file);
         }
@@ -319,6 +322,8 @@ class TextBookRepository {
           final String content;
           if (ext == 'docx') {
             content = await convertDocxWithCache(file, title);
+          } else if (ext == 'epub') {
+            content = await convertEpubWithCache(file, title);
           } else if (ext == 'pdf') {
             content = '';
           } else {
