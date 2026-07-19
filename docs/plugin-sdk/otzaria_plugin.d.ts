@@ -239,8 +239,12 @@ export interface CalendarEventPayload {
 export interface OtzariaEventMap {
   /** Fired once after the SDK is ready, carries full boot context. */
   'plugin.boot': BootPayload;
-  /** Fired once after boot. No payload. */
-  'plugin.ready': undefined;
+  /** Fired once after boot. Payload is null. */
+  'plugin.ready': null;
+  /** The plugin's foreground WebView is about to be paused (user navigated away). Payload is null. */
+  'plugin.suspended': null;
+  /** The plugin's foreground WebView was resumed (user navigated back). Payload is null. */
+  'plugin.resumed': null;
   /** Theme / dark-mode changed. */
   'theme.changed': ThemePayload;
   /** Top-level screen navigation changed. */
