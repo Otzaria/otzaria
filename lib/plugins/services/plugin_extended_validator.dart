@@ -129,6 +129,8 @@ const Set<String> _knownUndocumentedMethods = {
 const Set<String> _knownEvents = {
   'plugin.boot',
   'plugin.ready',
+  'plugin.suspended',
+  'plugin.resumed',
   'theme.changed',
   'navigation.changed',
   'reader.current_book_changed',
@@ -388,14 +390,16 @@ class PluginExtendedValidator {
         continue;
       }
       warnings.add(
-          'קריאה ל-API לא מוכר: $method (קבצים: ${entry.value.join(', ')})');
+        'קריאה ל-API לא מוכר: $method (קבצים: ${entry.value.join(', ')})',
+      );
     }
 
     for (final entry in eventUsage.entries) {
       final ev = entry.key;
       if (_knownEvents.contains(ev)) continue;
-      warnings
-          .add('רישום ל-event לא מוכר: $ev (קבצים: ${entry.value.join(', ')})');
+      warnings.add(
+        'רישום ל-event לא מוכר: $ev (קבצים: ${entry.value.join(', ')})',
+      );
     }
 
     // Cross-check: method משומש אך ההרשאה לא הוכרזה.
@@ -410,7 +414,8 @@ class PluginExtendedValidator {
         continue;
       }
       warnings.add(
-          'התוסף משתמש ב-$method אך לא ביקש את ההרשאה "$required" ב-manifest');
+        'התוסף משתמש ב-$method אך לא ביקש את ההרשאה "$required" ב-manifest',
+      );
     }
 
     // Cross-check: method חדש מ-minAppVersion שהוצהר — שגיאה חוסמת. תוסף שקורא
@@ -423,7 +428,8 @@ class PluginExtendedValidator {
       if (!pluginValidPermissions.contains(eventPerm)) continue;
       if (!declaredPermissions.contains(eventPerm)) {
         warnings.add(
-            'רישום ל-event "$ev" דורש את ההרשאה "$eventPerm" שלא הוכרזה ב-manifest');
+          'רישום ל-event "$ev" דורש את ההרשאה "$eventPerm" שלא הוכרזה ב-manifest',
+        );
       }
     }
 
@@ -455,9 +461,10 @@ class PluginExtendedValidator {
       }
       if (cmp > 0) {
         errors.add(
-            'התוסף משתמש ב-$method הקיים החל מגרסה $since, אך minAppVersion '
-            'שהוצהר הוא $minAppVersion. עדכן את minAppVersion ל-$since לפחות '
-            '(קבצים: ${entry.value.join(', ')})');
+          'התוסף משתמש ב-$method הקיים החל מגרסה $since, אך minAppVersion '
+          'שהוצהר הוא $minAppVersion. עדכן את minAppVersion ל-$since לפחות '
+          '(קבצים: ${entry.value.join(', ')})',
+        );
       }
     }
   }
@@ -476,7 +483,8 @@ class PluginExtendedValidator {
   ) {
     final network = manifestJson['network'];
     final networkEnabled = network is Map && network['enabled'] == true;
-    final networkRequested = networkEnabled ||
+    final networkRequested =
+        networkEnabled ||
         declaredPermissions.contains('network.access') ||
         declaredPermissions.contains('network.localhost');
     if (!networkRequested) return;
@@ -484,14 +492,16 @@ class PluginExtendedValidator {
     final allowlistRaw = network is Map ? network['allowlist'] : null;
     if (allowlistRaw is! List || allowlistRaw.isEmpty) {
       warnings.add(
-          'התוסף מבקש גישת רשת (network.access / network.localhost / network.enabled) אך network.allowlist ריק. השדה הוא הצהרתי בלבד (התיעוד בפועל מוגדר באוצריא), אך מומלץ לפרט את הכתובות שבהן התוסף עושה שימוש לטובת שקיפות מול המשתמש');
+        'התוסף מבקש גישת רשת (network.access / network.localhost / network.enabled) אך network.allowlist ריק. השדה הוא הצהרתי בלבד (התיעוד בפועל מוגדר באוצריא), אך מומלץ לפרט את הכתובות שבהן התוסף עושה שימוש לטובת שקיפות מול המשתמש',
+      );
       return;
     }
     final urlPattern = RegExp(r'^https?://', caseSensitive: false);
     for (final raw in allowlistRaw) {
       if (raw is! String) {
         warnings.add(
-            'כתובת לא תקינה ב-network.allowlist: ${jsonEncode(raw)} (מומלץ http(s) URL מלא, או שם host מקומי כמו 127.0.0.1)');
+          'כתובת לא תקינה ב-network.allowlist: ${jsonEncode(raw)} (מומלץ http(s) URL מלא, או שם host מקומי כמו 127.0.0.1)',
+        );
         continue;
       }
       final trimmed = raw.trim();
@@ -500,7 +510,8 @@ class PluginExtendedValidator {
       if (isLoopbackHost(trimmed)) continue;
       if (!urlPattern.hasMatch(trimmed)) {
         warnings.add(
-            'כתובת לא תקינה ב-network.allowlist: ${jsonEncode(raw)} (מומלץ http(s) URL מלא, או שם host מקומי כמו 127.0.0.1)');
+          'כתובת לא תקינה ב-network.allowlist: ${jsonEncode(raw)} (מומלץ http(s) URL מלא, או שם host מקומי כמו 127.0.0.1)',
+        );
       } else if (trimmed.contains('*')) {
         warnings.add('network.allowlist אינו תומך ב-wildcard: $trimmed');
       }
@@ -538,24 +549,32 @@ class PluginExtendedValidator {
     return out;
   }
 
-  static final RegExp _codeFileRe =
-      RegExp(r'\.(?:js|mjs|cjs|html?|vue|svelte)$', caseSensitive: false);
-  static final RegExp _styleFileRe =
-      RegExp(r'\.(?:css|html?)$', caseSensitive: false);
+  static final RegExp _codeFileRe = RegExp(
+    r'\.(?:js|mjs|cjs|html?|vue|svelte)$',
+    caseSensitive: false,
+  );
+  static final RegExp _styleFileRe = RegExp(
+    r'\.(?:css|html?)$',
+    caseSensitive: false,
+  );
 
   static bool _isCodeLikeFile(String name) => _codeFileRe.hasMatch(name);
   static bool _isStyleLikeFile(String name) => _styleFileRe.hasMatch(name);
 
   // ===== Code scanning =====
 
-  static final RegExp _callRe =
-      RegExp(r'''Otzaria\s*\.\s*call\s*\(\s*['"]([a-zA-Z][\w.]*)['"]''');
-  static final RegExp _onRe =
-      RegExp(r'''Otzaria\s*\.\s*on\s*\(\s*['"]([a-zA-Z][\w.]*)['"]''');
-  static final RegExp _offRe =
-      RegExp(r'''Otzaria\s*\.\s*off\s*\(\s*['"]([a-zA-Z][\w.]*)['"]''');
+  static final RegExp _callRe = RegExp(
+    r'''Otzaria\s*\.\s*call\s*\(\s*['"]([a-zA-Z][\w.]*)['"]''',
+  );
+  static final RegExp _onRe = RegExp(
+    r'''Otzaria\s*\.\s*on\s*\(\s*['"]([a-zA-Z][\w.]*)['"]''',
+  );
+  static final RegExp _offRe = RegExp(
+    r'''Otzaria\s*\.\s*off\s*\(\s*['"]([a-zA-Z][\w.]*)['"]''',
+  );
   static final RegExp _shorthandRe = RegExp(
-      r'''Otzaria\s*\.\s*([a-z][a-zA-Z0-9_]*)\s*\.\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\(''');
+    r'''Otzaria\s*\.\s*([a-z][a-zA-Z0-9_]*)\s*\.\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\(''',
+  );
 
   static _ApiUsage _scanCodeForApiUsage(String text) {
     final cleaned = _stripCommentsForScan(text);
@@ -664,17 +683,22 @@ class PluginExtendedValidator {
   };
 
   static final RegExp _namedColorRe = RegExp(
-      r'\b(black|white|red|green|blue|yellow|gray|grey|purple|orange|pink|brown|cyan|magenta|silver|gold|maroon|navy|teal|olive|aqua|fuchsia|lime|violet|indigo|coral|crimson|salmon|khaki|beige|ivory|wheat|tan|chocolate|tomato|turquoise|orchid)\b',
-      caseSensitive: false);
+    r'\b(black|white|red|green|blue|yellow|gray|grey|purple|orange|pink|brown|cyan|magenta|silver|gold|maroon|navy|teal|olive|aqua|fuchsia|lime|violet|indigo|coral|crimson|salmon|khaki|beige|ivory|wheat|tan|chocolate|tomato|turquoise|orchid)\b',
+    caseSensitive: false,
+  );
   static final RegExp _hexColorRe = RegExp(r'#[0-9a-fA-F]{3,8}\b');
-  static final RegExp _rgbHslRe =
-      RegExp(r'\b(?:rgb|rgba|hsl|hsla)\s*\(', caseSensitive: false);
+  static final RegExp _rgbHslRe = RegExp(
+    r'\b(?:rgb|rgba|hsl|hsla)\s*\(',
+    caseSensitive: false,
+  );
   static final RegExp _colorPropRe = RegExp(
-      r'(?:^|[\s;{])(color|background(?:-color)?|border(?:-(?:top|right|bottom|left))?(?:-color)?|outline(?:-color)?|fill|stroke)\s*:\s*([^;}]+)',
-      caseSensitive: false);
+    r'(?:^|[\s;{])(color|background(?:-color)?|border(?:-(?:top|right|bottom|left))?(?:-color)?|outline(?:-color)?|fill|stroke)\s*:\s*([^;}]+)',
+    caseSensitive: false,
+  );
 
   static DesignComplianceReport _checkDesignCompliance(
-      Map<String, File> files) {
+    Map<String, File> files,
+  ) {
     final violations = <String>[];
     final cssChunks = <_CssChunk>[];
     var sawAnyHtml = false;
@@ -698,24 +722,30 @@ class PluginExtendedValidator {
           continue;
         }
 
-        final rootMatch =
-            RegExp(r'<html\b([^>]*)>', caseSensitive: false).firstMatch(html);
+        final rootMatch = RegExp(
+          r'<html\b([^>]*)>',
+          caseSensitive: false,
+        ).firstMatch(html);
         if (rootMatch != null) {
           final attrs = rootMatch.group(1) ?? '';
-          if (!RegExp(r'''\bdir\s*=\s*['"]\s*rtl\s*['"]''',
-                  caseSensitive: false)
-              .hasMatch(attrs)) {
+          if (!RegExp(
+            r'''\bdir\s*=\s*['"]\s*rtl\s*['"]''',
+            caseSensitive: false,
+          ).hasMatch(attrs)) {
             violations.add('$name: תג <html> חייב לכלול dir="rtl"');
           }
-          if (!RegExp(r'''\blang\s*=\s*['"]\s*he\s*['"]''',
-                  caseSensitive: false)
-              .hasMatch(attrs)) {
+          if (!RegExp(
+            r'''\blang\s*=\s*['"]\s*he\s*['"]''',
+            caseSensitive: false,
+          ).hasMatch(attrs)) {
             violations.add('$name: תג <html> חייב לכלול lang="he"');
           }
         }
 
-        final styleRe =
-            RegExp(r'<style[^>]*>([\s\S]*?)</style>', caseSensitive: false);
+        final styleRe = RegExp(
+          r'<style[^>]*>([\s\S]*?)</style>',
+          caseSensitive: false,
+        );
         for (final m in styleRe.allMatches(html)) {
           cssChunks.add(_CssChunk('$name (<style>)', m.group(1) ?? ''));
         }
@@ -726,7 +756,7 @@ class PluginExtendedValidator {
       return const DesignComplianceReport(
         compliant: false,
         violations: [
-          'לא נמצאו קבצי HTML/CSS שניתן לבדוק את תאימות העיצוב שלהם'
+          'לא נמצאו קבצי HTML/CSS שניתן לבדוק את תאימות העיצוב שלהם',
         ],
       );
     }
@@ -737,8 +767,10 @@ class PluginExtendedValidator {
       // `--font-size-base: 18px;`, וכד') מותרות במפורש לפי DESIGN_GUIDE —
       // הן ברירות מחדל לפני applyTheme. מוציאים אותן מהמחרוזת לפני סריקה
       // כדי שלא יזוהו כהפרה.
-      stripped =
-          stripped.replaceAll(RegExp(r'--[a-zA-Z_][\w-]*\s*:\s*[^;}]+;?'), '');
+      stripped = stripped.replaceAll(
+        RegExp(r'--[a-zA-Z_][\w-]*\s*:\s*[^;}]+;?'),
+        '',
+      );
       final seen = <String>{};
       void addOnce(String type, String message) {
         if (!seen.add(type)) return;
@@ -746,18 +778,24 @@ class PluginExtendedValidator {
       }
 
       // 1. צבעי hex
-      final hexMatches =
-          _hexColorRe.allMatches(stripped).map((m) => m.group(0)!).toList();
+      final hexMatches = _hexColorRe
+          .allMatches(stripped)
+          .map((m) => m.group(0)!)
+          .toList();
       if (hexMatches.isNotEmpty) {
         final sample = hexMatches.toSet().take(3).join(', ');
-        addOnce('hex',
-            '${chunk.name}: צבעי hex מקודדים ($sample). חובה var(--color-*)');
+        addOnce(
+          'hex',
+          '${chunk.name}: צבעי hex מקודדים ($sample). חובה var(--color-*)',
+        );
       }
 
       // 2. rgb/hsl
       if (_rgbHslRe.hasMatch(stripped)) {
-        addOnce('rgb',
-            '${chunk.name}: ערכי rgb()/rgba()/hsl()/hsla() מקודדים. חובה var(--color-*)');
+        addOnce(
+          'rgb',
+          '${chunk.name}: ערכי rgb()/rgba()/hsl()/hsla() מקודדים. חובה var(--color-*)',
+        );
       }
 
       // 3. שמות צבעים באנגלית בערכי color/background/border/outline/fill/stroke
@@ -769,67 +807,86 @@ class PluginExtendedValidator {
         if (RegExp(r'^[\d.]+(px|em|rem|%)?$').hasMatch(firstToken)) continue;
         if (_namedColorRe.hasMatch(value)) {
           final preview = value.length > 40 ? value.substring(0, 40) : value;
-          addOnce('named',
-              '${chunk.name}: שם צבע באנגלית בערך CSS ("$preview"). חובה var(--color-*)');
+          addOnce(
+            'named',
+            '${chunk.name}: שם צבע באנגלית בערך CSS ("$preview"). חובה var(--color-*)',
+          );
           break;
         }
       }
 
       // 4. font-family שאינו var(--font-*)
-      for (final m
-          in RegExp(r'font-family\s*:\s*([^;}]+)', caseSensitive: false)
-              .allMatches(stripped)) {
+      for (final m in RegExp(
+        r'font-family\s*:\s*([^;}]+)',
+        caseSensitive: false,
+      ).allMatches(stripped)) {
         final value = (m.group(1) ?? '').trim();
-        if (!RegExp(r'var\s*\(\s*--font', caseSensitive: false)
-            .hasMatch(value)) {
+        if (!RegExp(
+          r'var\s*\(\s*--font',
+          caseSensitive: false,
+        ).hasMatch(value)) {
           final preview = value.length > 50 ? value.substring(0, 50) : value;
-          addOnce('font-family',
-              '${chunk.name}: font-family מקודד ("$preview"). חובה var(--font-main)');
+          addOnce(
+            'font-family',
+            '${chunk.name}: font-family מקודד ("$preview"). חובה var(--font-main)',
+          );
           break;
         }
       }
 
       // 5. font-size ב-px קבוע
-      for (final m in RegExp(r'font-size\s*:\s*([^;}]+)', caseSensitive: false)
-          .allMatches(stripped)) {
+      for (final m in RegExp(
+        r'font-size\s*:\s*([^;}]+)',
+        caseSensitive: false,
+      ).allMatches(stripped)) {
         final value = (m.group(1) ?? '').trim();
         if (RegExp(r'var\s*\(').hasMatch(value)) continue;
-        if (RegExp(r'^\d+(?:\.\d+)?\s*(?:em|rem|%)$', caseSensitive: false)
-            .hasMatch(value)) {
+        if (RegExp(
+          r'^\d+(?:\.\d+)?\s*(?:em|rem|%)$',
+          caseSensitive: false,
+        ).hasMatch(value)) {
           continue;
         }
         if (RegExp(r'^0(?:px)?$').hasMatch(value)) continue;
         if (RegExp(r'\d+\s*px', caseSensitive: false).hasMatch(value)) {
           final preview = value.length > 30 ? value.substring(0, 30) : value;
-          addOnce('font-size-px',
-              '${chunk.name}: font-size ב-px קבוע ("$preview"). חובה em/rem או var(--font-size-base)');
+          addOnce(
+            'font-size-px',
+            '${chunk.name}: font-size ב-px קבוע ("$preview"). חובה em/rem או var(--font-size-base)',
+          );
           break;
         }
       }
 
       // 6. border-radius ב-px ארביטררי
-      for (final m
-          in RegExp(r'border-radius\s*:\s*([^;}]+)', caseSensitive: false)
-              .allMatches(stripped)) {
+      for (final m in RegExp(
+        r'border-radius\s*:\s*([^;}]+)',
+        caseSensitive: false,
+      ).allMatches(stripped)) {
         final value = (m.group(1) ?? '').trim();
         if (RegExp(r'var\s*\(').hasMatch(value)) continue;
         if (RegExp(r'^0(?:px)?(?:\s+0(?:px)?)*$').hasMatch(value)) continue;
         if (RegExp(r'^\d+(?:\.\d+)?\s*%$').hasMatch(value)) continue;
         if (RegExp(r'\d+\s*px', caseSensitive: false).hasMatch(value)) {
           final preview = value.length > 30 ? value.substring(0, 30) : value;
-          addOnce('radius-px',
-              '${chunk.name}: border-radius ב-px קבוע ("$preview"). חובה var(--radius-sm/md/lg/pill)');
+          addOnce(
+            'radius-px',
+            '${chunk.name}: border-radius ב-px קבוע ("$preview"). חובה var(--radius-sm/md/lg/pill)',
+          );
           break;
         }
       }
     }
 
     // נדרש שימוש כלשהו ב-var(--color-*)
-    final usesColorVar = cssChunks.any((c) =>
-        RegExp(r'var\s*\(\s*--color-', caseSensitive: false).hasMatch(c.css));
+    final usesColorVar = cssChunks.any(
+      (c) =>
+          RegExp(r'var\s*\(\s*--color-', caseSensitive: false).hasMatch(c.css),
+    );
     if (cssChunks.isNotEmpty && !usesColorVar) {
       violations.add(
-          'לא נמצא שימוש כלשהו ב-var(--color-*) — חובה להזין צבעים מ-API לפי תיעוד העיצוב');
+        'לא נמצא שימוש כלשהו ב-var(--color-*) — חובה להזין צבעים מ-API לפי תיעוד העיצוב',
+      );
     }
 
     return DesignComplianceReport(
