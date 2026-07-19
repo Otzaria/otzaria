@@ -37,6 +37,36 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   bool _hasMoreResults = false; // האם יש יותר תוצאות מהמקסימום
   bool _hasSearched = false; // האם בוצע חיפוש בפועל
   bool _showingSettings = false;
+  List<String> _activeParams = []; // פרמטרי החיפוש האחרון, לתצוגה למשתמש
+  int _latestSearchId = 0;
+
+  /// בונה את תוויות פרמטרי הגימטריה הפעילים להצגה למשתמש (שיטה + דגלים).
+  @visibleForTesting
+  static List<String> buildActiveParamLabels({
+    required String gematriaMethod,
+    required bool useWithKolel,
+    required bool wholeVerseOnly,
+    required bool torahOnly,
+    required bool filterDuplicates,
+  }) {
+    final labels = <String>[
+      switch (gematriaMethod) {
+        'small' => 'גימטריה קטנה',
+        'finalLetters' => 'אותיות סופיות',
+        _ => 'גימטריה רגילה',
+      },
+    ];
+    if (useWithKolel) labels.add('עם הכולל');
+    if (wholeVerseOnly) labels.add('פסוק שלם');
+    if (torahOnly) labels.add('תורה בלבד');
+    if (filterDuplicates) labels.add('ללא כפילויות');
+    return labels;
+  }
+
+  /// מחזירה אם תוצאת החיפוש שייכת לבקשה העדכנית ביותר.
+  @visibleForTesting
+  static bool isLatestSearch(int searchId, int latestSearchId) =>
+      searchId == latestSearchId;
 
   // סדר ספרי התנ"ך
   static const List<String> _tanachOrder = [
@@ -64,8 +94,9 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _searchFocusNode.requestFocus());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _searchFocusNode.requestFocus(),
+    );
   }
 
   void requestKeyboardFocus() {
@@ -109,10 +140,14 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   }
 
   void _clearResults() {
+    _latestSearchId++;
     setState(() {
       _searchResults = [];
       _lastGematriaValue = null;
+      _hasMoreResults = false;
       _hasSearched = false;
+      _isSearching = false;
+      _activeParams = [];
     });
   }
 
@@ -177,11 +212,21 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
 
     if (targetGimatria == 0) return;
 
+    final searchId = ++_latestSearchId;
+    final activeParams = buildActiveParamLabels(
+      gematriaMethod: gematriaMethod,
+      useWithKolel: useWithKolel,
+      wholeVerseOnly: wholeVerseOnly,
+      torahOnly: torahOnly,
+      filterDuplicates: filterDuplicates,
+    );
+
     setState(() {
       _isSearching = true;
       _searchResults = [];
       _lastGematriaValue = targetGimatria;
       _hasSearched = true;
+      _activeParams = activeParams;
     });
 
     try {
@@ -221,8 +266,10 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
         bookTitles: bookTitlesToSearch,
       );
 
+      if (!mounted || !isLatestSearch(searchId, _latestSearchId)) return;
+
       // בדיקה אם יש יותר תוצאות מהמקסימום
-      _hasMoreResults = allResults.length > maxResults;
+      final hasMoreResults = allResults.length > maxResults;
       var finalResults = allResults.take(maxResults).toList();
 
       // סינון כפילויות אם נדרש
@@ -241,10 +288,12 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
 
       // המרת התוצאות לפורמט של המסך
       setState(() {
+        _hasMoreResults = hasMoreResults;
         _searchResults = finalResults.map((result) {
           // חילוץ שם הקובץ
-          final relativePath =
-              result.file.replaceFirst(libraryPath, '').replaceAll('\\', '/');
+          final relativePath = result.file
+              .replaceFirst(libraryPath, '')
+              .replaceAll('\\', '/');
           final fileName = relativePath.split('/').last.replaceAll('.txt', '');
 
           // בניית הנתיב עם מספר הפסוק
@@ -280,6 +329,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
         _isSearching = false;
       });
     } catch (e) {
+      if (!mounted || !isLatestSearch(searchId, _latestSearchId)) return;
       setState(() {
         _isSearching = false;
         _searchResults = [];
@@ -365,23 +415,53 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
           ),
         ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            resultsText,
-            style: const TextStyle(
-              fontSize: 14,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                resultsText,
+                style: const TextStyle(
+                  fontSize: 14,
+                ),
+              ),
+              Text(
+                'ערך גימטריה: $_lastGematriaValue',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
-          Text(
-            'ערך גימטריה: $_lastGematriaValue',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
+          if (_activeParams.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: _activeParams.map(_buildParamChip).toList(),
             ),
-          ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildParamChip(String label) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: cs.secondaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(
+          context,
+        ).textTheme.labelSmall?.copyWith(color: cs.onSecondaryContainer),
       ),
     );
   }
