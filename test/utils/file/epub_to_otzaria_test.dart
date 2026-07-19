@@ -268,6 +268,29 @@ void main() {
       expect(lines, contains('    1. בן'));
     });
 
+    test('טבלה מקוננת מרונדרת בתוך התא ולא משוטחת לשורות הטבלה החיצונית', () {
+      final epub = _buildEpub(
+        chapters: {
+          'ch1.xhtml': _xhtml(
+            '<table>'
+            '<tr><td>חיצוני<table><tr><td>פנימי</td></tr></table></td></tr>'
+            '<tr><td>שורה שנייה</td></tr>'
+            '</table>',
+          ),
+        },
+      );
+      final result = epubToText(epub, 'ספר');
+      final tableLine = result
+          .split('\n')
+          .firstWhere((l) => l.startsWith('<table'), orElse: () => '');
+
+      // הטבלה הפנימית שלמה בתוך התא, והתוכן שלה לא מוכפל.
+      expect(tableLine, contains('פנימי'));
+      expect(RegExp('פנימי').allMatches(tableLine).length, 1);
+      // לטבלה החיצונית בדיוק 2 שורות ישירות + שורת הטבלה הפנימית = 3 <tr>.
+      expect(RegExp('<tr>').allMatches(tableLine).length, 3);
+    });
+
     test('טבלה נשמרת כשורת פלט אחת עם colspan', () {
       final epub = _buildEpub(
         chapters: {
@@ -305,6 +328,36 @@ void main() {
         result,
         contains('data:image/png;base64,${base64Encode(pngBytes)}'),
       );
+    });
+
+    test('תמונה מעל תקרת הגודל אינה מוטמעת (מניעת ניפוח זיכרון/מטמון)', () {
+      final hugeImage = List<int>.filled(4 * 1024 * 1024 + 1, 0x42);
+      final epub = _buildEpub(
+        chapters: {
+          'ch1.xhtml': _xhtml('<p>לפני</p><img src="big.png"/><p>אחרי</p>'),
+        },
+        binaryFiles: {'big.png': hugeImage},
+        extraManifest: '<item id="big" href="big.png" media-type="image/png"/>',
+      );
+      final result = epubToText(epub, 'ספר');
+
+      expect(result, isNot(contains('<img')));
+      expect(result, contains('לפני'));
+      expect(result, contains('אחרי'));
+    });
+
+    test('תמונה עם כתובת חיצונית (http) אינה מוטמעת ואינה מפילה', () {
+      final epub = _buildEpub(
+        chapters: {
+          'ch1.xhtml': _xhtml(
+            '<p>טקסט</p><img src="https://example.com/pic.png"/>',
+          ),
+        },
+      );
+      final result = epubToText(epub, 'ספר');
+
+      expect(result, isNot(contains('<img')));
+      expect(result, contains('טקסט'));
     });
 
     test('תמונה חסרה בארכיון לא מפילה את ההמרה', () {
@@ -423,6 +476,22 @@ void main() {
 
       expect(result, isNot(contains('footnote-marker')));
       expect(result, contains('תוכן ארוך מאוד.'));
+    });
+
+    test('קישור חיצוני (http) עם fragment אינו מסווג כהערה', () {
+      final epub = _buildEpub(
+        chapters: {
+          'ch1.xhtml': _xhtml(
+            '<p>ראה<a href="https://example.com/page#fn1">1</a> במקור</p>'
+            '<p id="fn1">פסקה מקומית שאינה קשורה</p>',
+          ),
+        },
+      );
+      final result = epubToText(epub, 'ספר');
+
+      expect(result, isNot(contains('footnote-marker')));
+      // הפסקה המקומית לא דוכאה בטעות.
+      expect(result, contains('פסקה מקומית שאינה קשורה'));
     });
 
     test('קישור לעוגן של הערה מזוהה גם בלי epub:type על הקישור', () {

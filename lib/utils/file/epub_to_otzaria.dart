@@ -13,9 +13,9 @@ import 'package:otzaria/utils/file/docx_to_otzaria.dart' show escapeHtmlText;
 /// העלאה כאן פוסלת אוטומטית רשומות ישנות וגורמת להמרה מחדש.
 /// v2: הערות שוליים מבוססות-קישור (בלי epub:type) — זיהוי היריסטי לפי
 /// טקסט-סַמָּן, הזרקה חוצת-פרקים (קובץ הערות נפרד), ודיכוי כפילות היעד.
-const int kEpubConverterVersion = 2;
-
-ZipDecoder? _zipDecoder;
+/// v3: סינון קישורים חיצוניים (scheme), תקרת גודל לתמונות מוטמעות,
+/// וטבלאות מקוננות — שורות ישירות בלבד + רינדור רקורסיבי בתאים.
+const int kEpubConverterVersion = 3;
 
 /// ממיר קובץ EPUB לפורמט הטקסט של אוצריא: שורת `<h1>` עם שם הספר, ואחריה
 /// שורה לכל בלוק (פסקה/כותרת/טבלה/תמונה) לפי סדר פרקי ה-spine.
@@ -26,13 +26,13 @@ ZipDecoder? _zipDecoder;
 /// מבוססות-קישור ([_resolveNoteref]) — מוצגות בפורמט ההערות של אוצריא,
 /// כמו בממיר ה-DOCX.
 String epubToText(Uint8List bytes, String title) {
-  _zipDecoder ??= ZipDecoder();
-
   final List<String> output = ['<h1>${escapeHtmlText(title)}</h1>'];
 
+  // ZipDecoder הוא stateful — מופע מקומי לכל המרה מונע דריסת מצב בין
+  // קריאות מקבילות באותו isolate.
   final Archive archive;
   try {
-    archive = _zipDecoder!.decodeBytes(bytes);
+    archive = ZipDecoder().decodeBytes(bytes);
   } catch (_) {
     // ZIP פגום — מחזירים לפחות את כותרת הספר במקום לקרוס.
     return output.join('\n');
@@ -173,11 +173,16 @@ String _dirOf(String path) {
   return i < 0 ? '' : path.substring(0, i);
 }
 
+/// href עם scheme (http:, mailto:, data:…) — יעד חיצוני לארכיון.
+final _schemeRegExp = RegExp('^[a-zA-Z][a-zA-Z0-9+.-]*:');
+
 /// פותר href יחסי (כולל percent-encoding) לנתיב מנורמל בארכיון, בלי fragment.
+/// קישור חיצוני (עם scheme) מחזיר '' — אינו קובץ בארכיון.
 String _resolveHref(String baseDir, String href) {
   var h = href;
   final hash = h.indexOf('#');
   if (hash >= 0) h = h.substring(0, hash);
+  if (_schemeRegExp.hasMatch(h)) return '';
   try {
     h = Uri.decodeFull(h);
   } catch (_) {}
@@ -272,6 +277,10 @@ String? _mediaTypeFromExtension(String path) {
   return null;
 }
 
+/// תקרת גודל לתמונה מוטמעת. הטקסט המלא (כולל ה-base64) נשמר במטמון
+/// cache.db ובזיכרון — תמונה ענקית הייתה מנפחת את שניהם; מעליה מדולגת.
+const _maxEmbeddedImageBytes = 4 * 1024 * 1024;
+
 /// נתיב מנורמל → data URI, לכל תמונות ה-manifest (עובד גם offline).
 Map<String, String> _buildImageMap(
   _ArchiveFiles files,
@@ -283,7 +292,7 @@ Map<String, String> _buildImageMap(
         _imageMediaTypes[item.mediaType] ?? _mediaTypeFromExtension(item.path);
     if (mediaType == null) continue;
     final bytes = files.read(item.path);
-    if (bytes == null) continue;
+    if (bytes == null || bytes.length > _maxEmbeddedImageBytes) continue;
     images[item.path.toLowerCase()] =
         'data:$mediaType;base64,${base64Encode(bytes)}';
   }
@@ -555,9 +564,24 @@ void _processList(
   }
 }
 
-/// טבלה → `<table>` בשורת פלט אחת (שורה=widget בקורא), כולל colspan/rowspan.
+/// שורות הטבלה הישירות בלבד (כולל דרך thead/tbody/tfoot) — לא שורות של
+/// טבלאות מקוננות בתאים, שמרונדרות רקורסיבית בתוך התא שלהן.
+List<dom.Element> _directTableRows(dom.Element table) {
+  final rows = <dom.Element>[];
+  for (final child in table.children) {
+    if (child.localName == 'tr') {
+      rows.add(child);
+    } else if (const {'thead', 'tbody', 'tfoot'}.contains(child.localName)) {
+      rows.addAll(child.children.where((e) => e.localName == 'tr'));
+    }
+  }
+  return rows;
+}
+
+/// טבלה → `<table>` בשורת פלט אחת (שורה=widget בקורא), כולל colspan/rowspan
+/// וטבלאות מקוננות בתאים.
 String? _buildTableHtml(dom.Element table, _EpubContext ctx) {
-  final rows = table.querySelectorAll('tr');
+  final rows = _directTableRows(table);
   if (rows.isEmpty) return null;
 
   final buf = StringBuffer(
@@ -573,10 +597,18 @@ String? _buildTableHtml(dom.Element table, _EpubContext ctx) {
       final rowspan = cell.attributes['rowspan'];
       if (colspan != null) attrs.write(' colspan="$colspan"');
       if (rowspan != null) attrs.write(' rowspan="$rowspan"');
-      final content = _renderInlineChildren(cell, ctx).trim();
+      final content = StringBuffer();
+      for (final node in cell.nodes) {
+        if (node is dom.Element && node.localName == 'table') {
+          final nested = _buildTableHtml(node, ctx);
+          if (nested != null) content.write(nested);
+        } else {
+          _renderInlineNode(node, ctx, content);
+        }
+      }
       buf.write(
         '<$tag$attrs style="border: 1px solid #999; padding: 4px;">'
-        '$content</$tag>',
+        '${content.toString().trim()}</$tag>',
       );
     }
     buf.write('</tr>');

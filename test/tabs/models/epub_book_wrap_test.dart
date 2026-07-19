@@ -69,10 +69,12 @@ void main() {
   group('EpubBook — סריאליזציה', () {
     test('toJson/fromJson משמרים את השדות דרך Book.fromJson', () {
       final epub = EpubBook(
+        id: 77,
         title: 'ספר',
         path: r'C:\books\ספר.epub',
         author: 'מחבר',
         categoryPath: 'קטגוריה',
+        categoryId: 42,
         isUserBook: true,
       );
 
@@ -85,6 +87,9 @@ void main() {
       expect(restoredEpub.author, 'מחבר');
       expect(restoredEpub.isUserBook, isTrue);
       expect(restoredEpub.fileType, 'epub');
+      // בלי id/categoryId שחזור טאב שמור נכשל באיתור התוכן (BookCompositeKey).
+      expect(restoredEpub.id, 77);
+      expect(restoredEpub.categoryId, 42);
     });
   });
 }
