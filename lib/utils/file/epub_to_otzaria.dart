@@ -15,7 +15,8 @@ import 'package:otzaria/utils/file/docx_to_otzaria.dart' show escapeHtmlText;
 /// טקסט-סַמָּן, הזרקה חוצת-פרקים (קובץ הערות נפרד), ודיכוי כפילות היעד.
 /// v3: סינון קישורים חיצוניים (scheme), תקרת גודל לתמונות מוטמעות,
 /// וטבלאות מקוננות — שורות ישירות בלבד + רינדור רקורסיבי בתאים.
-const int kEpubConverterVersion = 3;
+/// v4: אבטחה — colspan/rowspan עוברים אימות מספרי (מניעת הזרקת HTML).
+const int kEpubConverterVersion = 4;
 
 /// ממיר קובץ EPUB לפורמט הטקסט של אוצריא: שורת `<h1>` עם שם הספר, ואחריה
 /// שורה לכל בלוק (פסקה/כותרת/טבלה/תמונה) לפי סדר פרקי ה-spine.
@@ -593,8 +594,9 @@ String? _buildTableHtml(dom.Element table, _EpubContext ctx) {
       final tag = cell.localName;
       if (tag != 'td' && tag != 'th') continue;
       final attrs = StringBuffer();
-      final colspan = cell.attributes['colspan'];
-      final rowspan = cell.attributes['rowspan'];
+      // אימות מספרי — העתקה מילולית הייתה מאפשרת הזרקת HTML מ-EPUB זדוני.
+      final colspan = int.tryParse(cell.attributes['colspan'] ?? '');
+      final rowspan = int.tryParse(cell.attributes['rowspan'] ?? '');
       if (colspan != null) attrs.write(' colspan="$colspan"');
       if (rowspan != null) attrs.write(' rowspan="$rowspan"');
       final content = StringBuffer();
