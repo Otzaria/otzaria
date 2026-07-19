@@ -31,6 +31,11 @@ class NavRailItem extends StatelessWidget {
   static const double width = 74;
   static const double compactWidth = 60;
 
+  /// רוחב מינימלי לאינדיקטור הבחירה (ה-pill) — מצטמצם במצב קומפקטי כדי
+  /// לשמור על יחס שוליים דומה לרוחב הסרגל.
+  static const double _indicatorWidth = 56;
+  static const double _compactIndicatorWidth = 44;
+
   /// אייקון רגיל (כשלא נבחר). חובה כשלא הועבר [imageAsset].
   final IconData? icon;
 
@@ -81,15 +86,18 @@ class NavRailItem extends StatelessWidget {
     this.tourItemKey,
     this.isTourHighlighted = false,
     this.compact = false,
-  }) : assert(icon != null || imageAsset != null,
-            'NavRailItem requires either icon or imageAsset');
+  }) : assert(
+         icon != null || imageAsset != null,
+         'NavRailItem requires either icon or imageAsset',
+       );
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    final iconColor =
-        isSelected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
+    final iconColor = isSelected
+        ? cs.onSecondaryContainer
+        : cs.onSurfaceVariant;
 
     // ── אייקון עם אנימציה regular ↔ filled ──────────────────────────────
     // עבור image-asset אין נפרד "filled" — מתחלף רק הצבע. עבור IconData
@@ -140,8 +148,8 @@ class NavRailItem extends StatelessWidget {
                   color: isSelected
                       ? cs.secondaryContainer
                       : isTourHighlighted
-                          ? cs.primary.withAlpha((0.08 * 255).round())
-                          : Colors.transparent,
+                      ? cs.primary.withAlpha((0.08 * 255).round())
+                      : Colors.transparent,
                   borderRadius: AppTokens.borderRadiusAll,
                 ),
                 child: IconButton(
@@ -153,7 +161,10 @@ class NavRailItem extends StatelessWidget {
                     shape: RoundedRectangleBorder(
                       borderRadius: AppTokens.borderRadiusAll,
                     ),
-                    minimumSize: const Size(56, 25),
+                    minimumSize: Size(
+                      compact ? _compactIndicatorWidth : _indicatorWidth,
+                      25,
+                    ),
                   ),
                 ),
               ),
@@ -168,10 +179,11 @@ class NavRailItem extends StatelessWidget {
                 color: isSelected
                     ? cs.onSecondaryContainer
                     : isTourHighlighted
-                        ? cs.primary
-                        : cs.onSurfaceVariant,
-                fontWeight:
-                    isTourHighlighted ? FontWeight.bold : FontWeight.normal,
+                    ? cs.primary
+                    : cs.onSurfaceVariant,
+                fontWeight: isTourHighlighted
+                    ? FontWeight.bold
+                    : FontWeight.normal,
               ),
               child: Text(
                 label,
