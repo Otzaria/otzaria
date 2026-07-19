@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:archive/archive_io.dart';
 import 'package:bloc/bloc.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:file_picker/file_picker.dart';
@@ -17,7 +16,6 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/utils/download_eta_estimator.dart';
 import 'package:otzaria/utils/download_sidecar.dart';
 import 'package:otzaria/utils/file/tar_zst_extractor.dart';
-import 'package:otzaria/utils/file/zip_extractor_service.dart';
 import 'package:otzaria/utils/move_directory.dart';
 import 'package:otzaria/utils/file/zstd_stream_extractor.dart';
 import 'package:path/path.dart' as path;
@@ -54,10 +52,8 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     HttpClientRegistry.register(_httpClient.close);
     on<PickDirectoryRequested>(_onPickDirectoryRequested);
     on<DownloadLibraryRequested>(_onDownloadLibraryRequested);
-    on<ImportExistingLibraryRequested>(_onImportExistingLibraryRequested);
     on<ImportLibraryFolderRequested>(_onImportLibraryFolderRequested);
     on<UpdateLibraryRequested>(_onUpdateLibraryRequested);
-    on<DeleteZipAnswered>(_onDeleteZipAnswered);
     on<PickDbFileRequested>(_onPickDbFileRequested);
     on<CheckDiskSpaceRequested>(_onCheckDiskSpaceRequested);
     on<StorageLocationSelected>(_onStorageLocationSelected);
@@ -99,6 +95,8 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   String? _downloadDisabledReason = 'בודק מקום פנוי...';
   final String? _defaultLibraryPathOverride;
 
+  // [בדיקת אנדרואיד] לא נגיש מ-UI כרגע (PickDirectoryRequested לא משוגר). מפעיל
+  // את זרימת בחירת התיקייה + SAF — לאמת על מכשיר לפני חיבור מחדש או מחיקה.
   Future<void> _onPickDirectoryRequested(
     PickDirectoryRequested event,
     Emitter<EmptyLibraryState> emit,
@@ -112,28 +110,6 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
 
     emit(EmptyLibraryLoading(selectedPath: result));
     await _handleDirectorySelection(result, emit);
-  }
-
-  /// מייבא ספרייה קיימת אל מיקום היעד: חילוץ ארכיון או העתקת תיקיית DB.
-  Future<void> _onImportExistingLibraryRequested(
-    ImportExistingLibraryRequested event,
-    Emitter<EmptyLibraryState> emit,
-  ) async {
-    try {
-      await _importExisting(
-        event.sourcePath,
-        event.targetPath,
-        event.isArchive,
-        emit,
-      );
-    } catch (e) {
-      emit(
-        _error(
-          errorMessage: 'שגיאה בייבוא הספרייה: $e',
-          selectedPath: event.sourcePath,
-        ),
-      );
-    }
   }
 
   /// מייבא נכסי ספרייה מתיקייה שנבחרה: מזהה כל נכס (seforim.db, קטלוג, מילון,
@@ -273,49 +249,11 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     await _checkAndSaveExtractedDatabase(target, emit);
   }
 
-  /// ליבת הייבוא (זורקת בכשל). חילוץ ארכיון אל היעד, או העתקת תיקיית DB שלמה.
-  Future<void> _importExisting(
-    String sourcePath,
-    String targetPath,
-    bool isArchive,
-    Emitter<EmptyLibraryState> emit,
-  ) async {
-    emit(EmptyLibraryLoading(selectedPath: sourcePath));
-    await Directory(targetPath).create(recursive: true);
-    if (isArchive) {
-      final lower = sourcePath.toLowerCase();
-      if (lower.endsWith('.zip')) {
-        await _handleZipFile(sourcePath, emit, outputDir: targetPath);
-      } else if (lower.endsWith('.zst')) {
-        await _handleZstFile(sourcePath, emit, outputDir: targetPath);
-      } else {
-        emit(
-          _error(
-            errorMessage: 'סוג קובץ לא נתמך. בחר קובץ .zip או .zst',
-            selectedPath: sourcePath,
-          ),
-        );
-      }
-      return;
-    }
-    // תיקייה עם DB קיים — מעתיקים את כל תכולתה אל היעד ואז מאמתים ושומרים.
-    emit(
-      EmptyLibraryExtracting(
-        selectedPath: targetPath,
-        progress: 0.0,
-        message: 'מעתיק את קבצי הספרייה למיקום היעד...',
-      ),
-    );
-    await copyDirectoryEntries(sourcePath, targetPath);
-    await _handleDirectorySelection(targetPath, emit);
-  }
-
   /// שמות קבצי ה-DB שמגובים/מועתקים בעדכון ספרייה (seforim.db והלוואי שלו).
   static const _dbFileSuffixes = ['', '-shm', '-wal', '-journal'];
 
   /// עדכון ספרייה קיימת עם גיבוי בטוח: ה-DB הישן מגובה לתיקייה זמנית, נמחק
-  /// לצמיתות רק בהצלחה ומשוחזר בכישלון. הורדה מחדש, חילוץ ארכיון (ZIP/ZST),
-  /// או העתקת seforim.db מתיקייה.
+  /// לצמיתות רק בהצלחה ומשוחזר בכישלון. הורדה מחדש או העתקת seforim.db מתיקייה.
   Future<void> _onUpdateLibraryRequested(
     UpdateLibraryRequested event,
     Emitter<EmptyLibraryState> emit,
@@ -326,22 +264,6 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       backupDir = await _backupDatabaseFiles(event.existingLibraryPath);
       if (event.isDownload) {
         await _downloadLibrary(target, emit);
-      } else if (event.isArchive) {
-        await Directory(target).create(recursive: true);
-        final source = event.sourceFolder!;
-        final lower = source.toLowerCase();
-        if (lower.endsWith('.zip')) {
-          await _handleZipFile(source, emit, outputDir: target);
-        } else if (lower.endsWith('.zst')) {
-          await _handleZstFile(source, emit, outputDir: target);
-        } else {
-          emit(
-            _error(
-              errorMessage: 'סוג קובץ לא נתמך. בחר קובץ .zip או .zst',
-              selectedPath: source,
-            ),
-          );
-        }
       } else {
         emit(
           EmptyLibraryExtracting(
@@ -489,9 +411,8 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         return;
       }
 
-      // Android: בדוק אם sqlite3 native יכול לפתוח את הקובץ ישירות.
-      // אחסון Scoped Storage (כגון /storage/emulated/0/...) נגיש ל-dart:io
-      // בחלק מהמכשירים אבל לא לספריית sqlite3 native.
+      // [בדיקת אנדרואיד] זרימת SAF: העתקת seforim.db מאחסון לא-נגיש ל-native
+      // אל אחסון פנימי. לא נגישה מ-UI כרגע — לאמת על מכשיר לפני שינוי.
       if (Platform.isAndroid && !_isPathNativeAccessible(dbFilePath)) {
         final internalDbPath = await _getInternalDbPath();
         final dbStat = await dbFile.stat();
@@ -770,9 +691,9 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   );
 
   /// בוחר את קובץ seforim.db ישירות דרך FilePicker (SAF-aware).
-  ///
   /// משמש כאשר הנתיב הפיזי אינו נגיש ל-dart:io ב-Android Scoped Storage.
-  /// FilePicker.pickFiles() מטפל ב-SAF ומחזיר נתיב נגיש (מ-cache אם נדרש).
+  // [בדיקת אנדרואיד] המשך זרימת ה-SAF (אחרי EmptyLibraryAskingDbCopy). מגיע רק
+  // מ-system_settings_tab, וזרימה זו אינה ניתנת-להתנעה כרגע — לאמת על מכשיר.
   Future<void> _onPickDbFileRequested(
     PickDbFileRequested event,
     Emitter<EmptyLibraryState> emit,
@@ -864,224 +785,6 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
                 'או פנה מקום ידנית ונסה שוב.'
           : 'שגיאה בהעתקת קובץ הספרייה: $e';
       emit(_error(errorMessage: msg, selectedPath: event.libraryPath));
-    }
-  }
-
-  /// מחלץ קובץ `.zst` של ה-DB. [outputDir] קובע לאן נחלץ ה-DB: null → תיקיית
-  /// המקור (חילוץ במקום, עם שאלת מחיקת הקובץ הדחוס); ערך מפורש → מיקום יעד
-  /// (ייבוא), ואז שומרים ובוחרים ישירות ללא שאלת מחיקה.
-  Future<void> _handleZstFile(
-    String zstFilePath,
-    Emitter<EmptyLibraryState> emit, {
-    String? outputDir,
-  }) async {
-    try {
-      // יעד מפורש (ייבוא) גובר; אחרת חילוץ אל מיקום ברירת המחדל של הספרייה.
-      final targetDir =
-          outputDir ??
-          _defaultLibraryPathOverride ??
-          await AppPaths.getDefaultLibraryPath();
-      await Directory(targetDir).create(recursive: true);
-      final outputPath = path.join(
-        targetDir,
-        DatabaseConstants.databaseFileName,
-      );
-
-      emit(
-        EmptyLibraryExtracting(
-          selectedPath: zstFilePath,
-          progress: 0.0,
-          message: 'מחלץ קובץ DB דחוס...',
-        ),
-      );
-
-      await _extractCompressedDatabase(
-        zstFilePath,
-        outputPath,
-        _extractProgress(emit, zstFilePath, 'מחלץ קובץ DB דחוס...'),
-      );
-
-      // אם הקובץ שנבחר הוא ה-DB הראשי, חפש את 2 הקבצים האחרים של חבילת FULL
-      // (קטלוג ו-תלמוד בבלי) באותה תיקייה וחלץ גם אותם. זה חוסך למשתמש
-      // הורדה מהרשת של ~3GB אחרי שהוא כבר הוריד אותם בחבילת ה-FULL.
-      final basename = path.basename(zstFilePath).toLowerCase();
-      if (basename == DatabaseConstants.databaseArchiveFileName.toLowerCase()) {
-        await _extractBundleSiblings(
-          path.dirname(zstFilePath),
-          targetDir,
-          emit,
-        );
-      }
-
-      emit(
-        EmptyLibraryExtracting(
-          selectedPath: zstFilePath,
-          progress: 1.0,
-          message: 'החילוץ הושלם',
-        ),
-      );
-
-      // ייבוא ליעד — שומרים ובוחרים ישירות ומשאירים את קובץ המקור של המשתמש.
-      if (outputDir != null) {
-        await _checkAndSaveExtractedDatabase(targetDir, emit);
-        return;
-      }
-
-      emit(
-        EmptyLibraryAskingDeleteZip(
-          zipPath: zstFilePath,
-          extractedPath: targetDir,
-        ),
-      );
-    } catch (e) {
-      emit(
-        _error(
-          errorMessage: 'שגיאה בחילוץ קובץ דחוס: $e',
-          selectedPath: zstFilePath,
-        ),
-      );
-    }
-  }
-
-  /// מחלץ קבצי FULL bundle נלווים (קטלוג חיצוני ו-תלמוד בבלי) אם הם
-  /// נמצאים ליד הארכיון הראשי שנבחר. best-effort: כישלון בקובץ אחד
-  /// לא עוצר את האחרים, כי ה-DB הראשי כבר נחלץ בהצלחה והאפליקציה תוכל
-  /// לעבוד גם בלי הקבצים הנלווים (הם יורדו דרך הזרימה הרגילה בעת הצורך).
-  /// [sourceDir] — התיקייה שבה מחפשים את הארכיונים הנלווים (ליד ה-DB הראשי).
-  /// [outputDir] — התיקייה שאליה מחלצים אותם (זהה ל-[sourceDir] בחילוץ במקום).
-  Future<void> _extractBundleSiblings(
-    String sourceDir,
-    String outputDir,
-    Emitter<EmptyLibraryState> emit,
-  ) async {
-    final catalogArchive = File(
-      path.join(sourceDir, DatabaseConstants.externalCatalogArchiveFileName),
-    );
-    if (await catalogArchive.exists()) {
-      try {
-        emit(
-          EmptyLibraryExtracting(
-            selectedPath: catalogArchive.path,
-            progress: 0.0,
-            message: 'מחלץ קטלוג אוצר החכמה...',
-          ),
-        );
-        await _extractCompressedDatabase(
-          catalogArchive.path,
-          path.join(
-            outputDir,
-            DatabaseConstants.externalCatalogDatabaseFileName,
-          ),
-          _extractProgress(
-            emit,
-            catalogArchive.path,
-            'מחלץ קטלוג אוצר החכמה...',
-          ),
-        );
-      } catch (e) {
-        debugPrint('Failed to extract bundled catalog archive: $e');
-      }
-    }
-
-    final talmudArchive = File(
-      path.join(sourceDir, DatabaseConstants.talmudBavliArchiveFileName),
-    );
-    if (await talmudArchive.exists()) {
-      try {
-        emit(
-          EmptyLibraryExtracting(
-            selectedPath: talmudArchive.path,
-            progress: 0.0,
-            message: 'מחלץ ספרי תלמוד בבלי...',
-          ),
-        );
-        await _extractTarArchive(
-          talmudArchive.path,
-          outputDir,
-          _extractProgress(emit, talmudArchive.path, 'מחלץ ספרי תלמוד בבלי...'),
-        );
-      } catch (e) {
-        debugPrint('Failed to extract bundled Talmud Bavli archive: $e');
-      }
-    }
-  }
-
-  Future<void> _handleZipFile(
-    String zipFilePath,
-    Emitter<EmptyLibraryState> emit, {
-    String? outputDir,
-  }) async {
-    // ייבוא ליעד — מחלצים את הקובץ שנבחר ישירות אל תיקיית היעד.
-    if (outputDir != null) {
-      try {
-        emit(
-          EmptyLibraryExtracting(
-            selectedPath: zipFilePath,
-            progress: 0.1,
-            message: 'מחלץ קובץ דחוס...',
-          ),
-        );
-        await extractFileToDisk(zipFilePath, outputDir);
-        await _checkAndSaveExtractedDatabase(outputDir, emit);
-      } catch (e) {
-        emit(_error(errorMessage: 'שגיאה בחילוץ קובץ דחוס: $e'));
-      }
-      return;
-    }
-    try {
-      emit(
-        const EmptyLibraryExtracting(
-          selectedPath: '',
-          progress: 0.0,
-          message: 'מתחיל חילוץ...',
-        ),
-      );
-
-      final libraryPath =
-          _defaultLibraryPathOverride ?? await AppPaths.getDefaultLibraryPath();
-      await Directory(libraryPath).create(recursive: true);
-
-      final extractionResult =
-          await ZipExtractorService.checkAndExtractZipIfNeeded(
-            path.dirname(zipFilePath),
-            outputDirectoryPath: libraryPath,
-            onProgress: (p, m) {
-              emit(
-                EmptyLibraryExtracting(
-                  selectedPath: zipFilePath,
-                  progress: p,
-                  message: m,
-                ),
-              );
-            },
-            onAskDeleteZip: () async => false,
-          );
-
-      if (!extractionResult.success) {
-        emit(
-          _error(
-            errorMessage: extractionResult.errorMessage ?? 'שגיאה בחילוץ',
-            zipFiles: extractionResult.zipFiles,
-          ),
-        );
-        return;
-      }
-
-      // אם החילוץ הצליח, נשאל את המשתמש אם למחוק את ה-ZIP
-      if (extractionResult.successfullyExtracted) {
-        emit(
-          EmptyLibraryAskingDeleteZip(
-            zipPath: zipFilePath,
-            extractedPath: libraryPath,
-          ),
-        );
-        return;
-      }
-
-      // אם לא היה חילוץ, נמשיך ישירות לבדיקת הקובץ
-      await _checkAndSaveExtractedDatabase(path.dirname(zipFilePath), emit);
-    } catch (e) {
-      emit(_error(errorMessage: 'שגיאה: $e'));
     }
   }
 
@@ -1311,25 +1014,6 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       await Settings.setValue(SettingsRepository.keyDbEffectivePath, '');
 
       emit(EmptyLibraryDirectorySelected(selectedPath: libraryPath));
-    }
-  }
-
-  Future<void> _onDeleteZipAnswered(
-    DeleteZipAnswered event,
-    Emitter<EmptyLibraryState> emit,
-  ) async {
-    try {
-      if (event.shouldDelete) {
-        final zipFile = File(event.zipPath);
-        if (await zipFile.exists()) {
-          await zipFile.delete();
-        }
-      }
-
-      // המשך לבדיקת הקובץ המחולץ
-      await _checkAndSaveExtractedDatabase(event.extractedPath, emit);
-    } catch (e) {
-      emit(_error(errorMessage: 'שגיאה: $e'));
     }
   }
 

@@ -835,6 +835,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
               UiSnack.showError(librarySelectionState.errorMessage!);
             }
 
+            // [בדיקת אנדרואיד] דיאלוג ה-SAF להעתקת seforim.db לאחסון פנימי.
+            // אינו ניתן-להתנעה כרגע (שום דבר לא משגר PickDirectoryRequested
+            // ל-bloc זה) — לאמת על מכשיר לפני חיבור מחדש או מחיקה.
             if (librarySelectionState is EmptyLibraryAskingDbCopy) {
               if (librarySelectionState.errorMessage != null) {
                 UiSnack.showError(librarySelectionState.errorMessage!);

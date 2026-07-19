@@ -20,25 +20,23 @@ class DownloadLibraryRequested extends EmptyLibraryEvent {
 /// עדכון ספרייה קיימת (מההגדרות) עם גיבוי בטוח של ה-DB הישן.
 /// ה-DB הישן ב-[existingLibraryPath] מגובה, ונמחק לצמיתות רק בהצלחה (ומשוחזר
 /// בכישלון). [isDownload] → הורדה מחדש; אחרת [sourceFolder] הוא תיקייה עם
-/// seforim.db (כש-[isArchive] false) או קובץ ארכיון ZIP/ZST (כש-true).
+/// seforim.db.
 class UpdateLibraryRequested extends EmptyLibraryEvent {
   final bool isDownload;
   final String? sourceFolder;
   final String targetPath;
   final String existingLibraryPath;
-  final bool isArchive;
 
   UpdateLibraryRequested({
     required this.isDownload,
     this.sourceFolder,
     required this.targetPath,
     required this.existingLibraryPath,
-    this.isArchive = false,
   });
 
   @override
   List<Object?> get props =>
-      [isDownload, sourceFolder, targetPath, existingLibraryPath, isArchive];
+      [isDownload, sourceFolder, targetPath, existingLibraryPath];
 }
 
 /// ייבוא ספרייה מתיקייה שנבחרה: מזהה אוטומטית את נכסי הספרייה שבתוכה (seforim.db,
@@ -60,27 +58,6 @@ class ImportLibraryFolderRequested extends EmptyLibraryEvent {
   List<Object?> get props => [sourceFolder, targetPath, backupExistingPath];
 }
 
-/// ייבוא ספרייה קיימת אל [targetPath]: העתקת תיקיית DB או חילוץ ארכיון.
-class ImportExistingLibraryRequested extends EmptyLibraryEvent {
-  /// המקור שנבחר — תיקייה המכילה seforim.db, או קובץ דחוס (zip/zst).
-  final String sourcePath;
-
-  /// מיקום היעד שאליו יועתקו/יחולצו קבצי הספרייה.
-  final String targetPath;
-
-  /// true → [sourcePath] הוא קובץ דחוס; false → תיקייה עם DB קיים.
-  final bool isArchive;
-
-  ImportExistingLibraryRequested({
-    required this.sourcePath,
-    required this.targetPath,
-    required this.isArchive,
-  });
-
-  @override
-  List<Object?> get props => [sourcePath, targetPath, isArchive];
-}
-
 /// בודק מקום פנוי בהתקנה וקובע אם כפתור ההורדה זמין.
 /// נשלח בעת טעינת המסך.
 class CheckDiskSpaceRequested extends EmptyLibraryEvent {}
@@ -97,20 +74,6 @@ class StorageLocationSelected extends EmptyLibraryEvent {
   List<Object?> get props => [libraryRoot];
 }
 
-class DeleteZipAnswered extends EmptyLibraryEvent {
-  final bool shouldDelete;
-  final String zipPath;
-  final String extractedPath;
-
-  DeleteZipAnswered({
-    required this.shouldDelete,
-    required this.zipPath,
-    required this.extractedPath,
-  });
-
-  @override
-  List<Object?> get props => [shouldDelete, zipPath, extractedPath];
-}
 
 /// בחירת קובץ seforim.db ישירות דרך file picker (SAF-aware).
 /// משמש כאשר הגישה לנתיב הפיזי נכשלת ב-Android Scoped Storage.
