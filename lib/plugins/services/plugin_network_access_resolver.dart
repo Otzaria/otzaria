@@ -17,10 +17,9 @@ import 'package:otzaria/plugins/models/plugin_network_allowlist.dart';
 /// האפליקציה; לא נכתבת שום קובץ cache לדיסק.
 class PluginNetworkAccessResolver {
   PluginNetworkAccessResolver({
-    http.Client? client,
+    this._client,
     DateTime Function()? nowProvider,
-  }) : _client = client,
-       _nowProvider = nowProvider ?? DateTime.now;
+  }) : _nowProvider = nowProvider ?? DateTime.now;
 
   static PluginNetworkAccessResolver instance = PluginNetworkAccessResolver();
 
