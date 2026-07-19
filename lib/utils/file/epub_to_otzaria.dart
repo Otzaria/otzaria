@@ -326,9 +326,9 @@ const _maxHeuristicNoteLength = 1000;
 /// טקסט-סַמָּן של הפניית הערה: מספר, כוכבית/פגיון, אות בודדת, או אות/יות
 /// עבריות עם גרש/גרשיים (א׳, י"א) — אופציונלית בסוגריים ([1], (א)).
 final _noteMarkerRegExp = RegExp(
-  '^[\\[\\(]?([0-9]{1,4}|[*†‡§]|[a-zA-Z]|'
-  "[א-ת]{1,2}[\"״]?[א-ת]?[׳']?)"
-  '[\\]\\)]?\$',
+  r'^[\[\(]?([0-9]{1,4}|[*†‡§]|[a-zA-Z]|'
+  "[א-ת]{1,2}[\"״]?[א-ת]?[׳']?"
+  r')[\]\)]?$',
 );
 
 bool _isNoteMarkerText(String raw) {
@@ -394,10 +394,10 @@ String _extractNoteBody(dom.Element target, String marker) {
   walk(target);
   var text = _collapseWhitespace(buf.toString()).trim();
 
-  final core = marker.replaceAll(RegExp('^[\\[\\(]+|[\\]\\)]+\$'), '');
+  final core = marker.replaceAll(RegExp(r'^[\[\(]+|[\]\)]+$'), '');
   if (core.isNotEmpty) {
     text = text.replaceFirst(
-      RegExp('^[\\[\\(]?${RegExp.escape(core)}[\\]\\)]?[\\s.,:;\\)\\-]+'),
+      RegExp(r'^[\[\(]?' + RegExp.escape(core) + r'[\]\)]?[\s.,:;)\-]+'),
       '',
     );
   }
