@@ -11,9 +11,61 @@ String renderSelectionLine({
   required RenderSettings settings,
 }) {
   final processed = TextRendererService.processText(rawText, settings);
-  final stripped = TextRendererService.stripHtml(processed);
+  // <br> מוצג כמעבר שורה (תו רווח) — המרה לרווח לפני הסרת התגים, אחרת
+  // stripHtml מוחק אותו ומבנה הרווחים לא יתאם את הבחירה בבדיקת העקביות.
+  final withBreakGaps = processed.replaceAll(
+    RegExp(r'<br\s*/?>', caseSensitive: false),
+    ' ',
+  );
+  final stripped = TextRendererService.stripHtml(withBreakGaps);
   return stripped.replaceAll(RegExp(r'\s+'), ' ').trim();
 }
+
+/// תוצאת שחזור: הטקסט המשוחזר, ואם ההתאמה המדויקת הצליחה — גם מיקומה:
+/// שורת ההתחלה/סיום (אינדקסים ב-visibleLines) ועמודת ההתחלה בשורה הראשונה.
+/// [ambiguous] — נמצאו כמה מופעים תואמים ולא ניתן להכריע ביניהם; במצב זה
+/// אסור לקוראים לשמר אינדקס ישן או ליפול לאינדקס ברירת מחדל.
+typedef RestoredSelection = ({
+  String text,
+  int? startLine,
+  int? endLine,
+  int? startColumn,
+  bool ambiguous,
+});
+
+/// מיישב את מיקום הבחירה עבור שכבת התצוגה מתוך תוצאת השחזור:
+/// מיקום ידוע → ממופה יחסית ל-[baseIndex]; התאמה עמומה → הכל null (שימור
+/// אינדקס ישן היה משייך הערה/תפריט/plugin לשורה שגויה); אחרת [fallbackIndex].
+({int? selectedIndex, int? lineStart, int? lineEnd, int? startColumn})
+resolveSelectionLocation({
+  required RestoredSelection restored,
+  required int baseIndex,
+  required int? fallbackIndex,
+}) {
+  if (restored.startLine != null) {
+    final selectedIndex = baseIndex + restored.startLine!;
+    return (
+      selectedIndex: selectedIndex,
+      lineStart: selectedIndex,
+      lineEnd: baseIndex + restored.endLine!,
+      startColumn: restored.startColumn,
+    );
+  }
+  return (
+    selectedIndex: restored.ambiguous ? null : fallbackIndex,
+    lineStart: null,
+    lineEnd: null,
+    startColumn: null,
+  );
+}
+
+/// האינדקס השמור תקף כרמז (preferredLine) וכ-fallback רק בתוך סשן הבחירה
+/// הנוכחי: כשאין טקסט בחירה שמור, האינדקס שייך לבחירה קודמת שנוקתה ואסור
+/// להסתמך עליו — הוא היה משייך את הבחירה החדשה למופע/שורה של הבחירה הישנה.
+int? sessionSelectionIndex({
+  required String? savedSelectedText,
+  required int? savedSelectedIndex,
+}) => savedSelectedText == null ? null : savedSelectedIndex;
 
 /// משחזר מעברי שורה בטקסט שנבחר מ-SelectionArea כאשר Flutter מחזיר טקסט שטוח.
 ///
@@ -24,50 +76,200 @@ String restoreSelectedTextLineBreaks({
   required String selectedText,
   required List<String> visibleLines,
 }) {
-  if (selectedText.isEmpty ||
-      visibleLines.isEmpty ||
-      selectedText.contains('\n')) {
-    return selectedText;
+  return restoreSelectedTextLineBreaksDetailed(
+    selectedText: selectedText,
+    visibleLines: visibleLines,
+  ).text;
+}
+
+/// כמו [restoreSelectedTextLineBreaks], ומחזיר גם את מיקום ההתאמה בשורות —
+/// חישוב המיקום חייב להיעשות כאן (בהתעלמות מתווי רווח) כי הטקסט המשוחזר עשוי
+/// להכיל NBSP/רווח-דק שלא קיימים בשורות המרונדרות, ו-indexOf רגיל ייכשל עליו.
+/// [preferredLine] — שורת הבחירה הידועה מהעדכון הקודם; כשיש כמה מופעים
+/// תואמים, מופע שמכיל אותה מוכרע לטובתה במקום להיחשב עמימות.
+RestoredSelection restoreSelectedTextLineBreaksDetailed({
+  required String selectedText,
+  required List<String> visibleLines,
+  int? preferredLine,
+}) {
+  RestoredSelection withoutLocation(String text) => (
+    text: text,
+    startLine: null,
+    endLine: null,
+    startColumn: null,
+    ambiguous: false,
+  );
+
+  if (selectedText.isEmpty || visibleLines.isEmpty) {
+    return withoutLocation(selectedText);
   }
 
-  final exact = _restoreExact(selectedText, visibleLines);
+  final exact = _restoreExact(selectedText, visibleLines, preferredLine);
   if (exact != null) {
     return exact;
   }
-  return _restoreGreedy(selectedText, visibleLines);
+  if (selectedText.contains('\n')) {
+    return withoutLocation(selectedText);
+  }
+  return withoutLocation(_restoreGreedy(selectedText, visibleLines));
 }
 
-/// התאמה מדויקת: הבחירה השטוחה חייבת להיות תת-מחרוזת רציפה של איחוד השורות.
-/// מחזיר `null` כשאין התאמה, כדי לאפשר נפילה לשחזור הסלחני.
-String? _restoreExact(String selectedText, List<String> visibleLines) {
-  final visibleText = visibleLines.join('\n');
-  final normalizedVisible = visibleText.replaceAll('\n', '');
-  final normalizedSelected = selectedText.replaceAll('\n', '');
+/// תואם את קבוצת `\s` של Dart RegExp (כולל NBSP ורווח-דק) — חייב להישאר
+/// עקבי עם כיווץ הרווחים ב-[renderSelectionLine].
+bool _isWhitespace(int codeUnit) =>
+    codeUnit == 0x20 ||
+    (codeUnit >= 0x09 && codeUnit <= 0x0D) ||
+    codeUnit == 0xA0 ||
+    codeUnit == 0x1680 ||
+    (codeUnit >= 0x2000 && codeUnit <= 0x200A) ||
+    codeUnit == 0x2028 ||
+    codeUnit == 0x2029 ||
+    codeUnit == 0x202F ||
+    codeUnit == 0x205F ||
+    codeUnit == 0x3000 ||
+    codeUnit == 0xFEFF;
 
-  if (normalizedSelected.isEmpty) {
-    return selectedText;
+/// התאמה מדויקת תוך התעלמות מתווי רווח: בתצוגה מופיעים NBSP/רווח-דק
+/// (מ-&nbsp;/&thinsp;) ו-\n (מ-<br>) שהשורות המרונדרות מכווצות לרווח רגיל,
+/// ולכן ההשוואה נעשית על התווים שאינם רווח בלבד. מחזיר את הבחירה המקורית
+/// כלשונה עם `\n` מוזרק בגבולות השורות + מיקום ההתאמה, או `null` כשאין התאמה.
+RestoredSelection? _restoreExact(
+  String selectedText,
+  List<String> visibleLines,
+  int? preferredLine,
+) {
+  // הבחירה ללא תווי רווח + מיפוי כל תו לאינדקסו במחרוזת המקורית.
+  final selectedIndexMap = <int>[];
+  final selectedBuffer = StringBuffer();
+  for (var i = 0; i < selectedText.length; i++) {
+    if (!_isWhitespace(selectedText.codeUnitAt(i))) {
+      selectedBuffer.write(selectedText[i]);
+      selectedIndexMap.add(i);
+    }
+  }
+  final selectedCompact = selectedBuffer.toString();
+  if (selectedCompact.isEmpty) {
+    return (
+      text: selectedText,
+      startLine: null,
+      endLine: null,
+      startColumn: null,
+      ambiguous: false,
+    );
   }
 
-  final startNonNewline = normalizedVisible.indexOf(normalizedSelected);
-  if (startNonNewline < 0) {
+  // איחוד השורות ללא תווי רווח + מספר השורה והעמודה של כל תו.
+  final lineOfChar = <int>[];
+  final columnOfChar = <int>[];
+  final visibleBuffer = StringBuffer();
+  for (var lineIndex = 0; lineIndex < visibleLines.length; lineIndex++) {
+    final line = visibleLines[lineIndex];
+    for (var i = 0; i < line.length; i++) {
+      if (!_isWhitespace(line.codeUnitAt(i))) {
+        visibleBuffer.write(line[i]);
+        lineOfChar.add(lineIndex);
+        columnOfChar.add(i);
+      }
+    }
+  }
+  final visibleCompact = visibleBuffer.toString();
+
+  // ההשוואה חסרת-הרווחים עלולה להשוות בין מופעים עם פיזור רווחים שונה —
+  // מאמתים שקיום רווח בין תווים סמוכים זהה בבחירה ובתצוגה (גבול שורות הוא
+  // wildcard: שם הבחירה השטוחה חסרת רווח באופן לגיטימי).
+  bool selectedHasGap(int k) =>
+      selectedIndexMap[k] > selectedIndexMap[k - 1] + 1;
+  bool visibleHasGap(int pos) => columnOfChar[pos] > columnOfChar[pos - 1] + 1;
+
+  bool isConsistentAt(int start) {
+    for (var k = 1; k < selectedCompact.length; k++) {
+      if (lineOfChar[start + k] != lineOfChar[start + k - 1]) continue;
+      if (selectedHasGap(k) != visibleHasGap(start + k)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // הזרקת \n לפני התו הראשון של כל שורה חדשה בתוך ההתאמה — אלא אם רווחי
+  // הגבול בבחירה כבר מכילים \n (למשל מ-<br>), כדי לא להכפיל מעבר קיים.
+  String restoreAt(int start) {
+    final result = StringBuffer();
+    var writtenUpTo = 0;
+    for (var k = 1; k < selectedCompact.length; k++) {
+      if (lineOfChar[start + k] != lineOfChar[start + k - 1]) {
+        final breakAt = selectedIndexMap[k];
+        final boundaryGap = selectedText.substring(
+          selectedIndexMap[k - 1] + 1,
+          breakAt,
+        );
+        result.write(selectedText.substring(writtenUpTo, breakAt));
+        if (!boundaryGap.contains('\n')) {
+          result.write('\n');
+        }
+        writtenUpTo = breakAt;
+      }
+    }
+    result.write(selectedText.substring(writtenUpTo));
+    return result.toString();
+  }
+
+  final candidateStarts = <int>[];
+  var found = -1;
+  for (
+    var from = 0;
+    (found = visibleCompact.indexOf(selectedCompact, from)) >= 0;
+    from = found + 1
+  ) {
+    if (isConsistentAt(found)) {
+      candidateStarts.add(found);
+    }
+  }
+  if (candidateStarts.isEmpty) {
     return null;
   }
 
-  final nonNewlineToVisible = <int>[];
-  for (var i = 0; i < visibleText.length; i++) {
-    if (visibleText[i] != '\n') {
-      nonNewlineToVisible.add(i);
+  RestoredSelection resultAt(int start) => (
+    text: restoreAt(start),
+    startLine: lineOfChar[start],
+    endLine: lineOfChar[start + selectedCompact.length - 1],
+    startColumn: columnOfChar[start],
+    ambiguous: false,
+  );
+
+  // מועמד יחיד — תוצאה מלאה כולל מיקום.
+  if (candidateStarts.length == 1) {
+    return resultAt(candidateStarts.first);
+  }
+
+  // כמה מועמדים: אם בדיוק אחד מהם מכיל את השורה הידועה מהעדכון הקודם —
+  // הוא המופע שנבחר.
+  if (preferredLine != null) {
+    final preferred = candidateStarts
+        .where(
+          (start) =>
+              lineOfChar[start] <= preferredLine &&
+              preferredLine <= lineOfChar[start + selectedCompact.length - 1],
+        )
+        .toList();
+    if (preferred.length == 1) {
+      return resultAt(preferred.single);
     }
   }
 
-  final endNonNewline = startNonNewline + normalizedSelected.length - 1;
-  if (endNonNewline >= nonNewlineToVisible.length) {
-    return null;
-  }
-
-  final startVisible = nonNewlineToVisible[startNonNewline];
-  final endVisible = nonNewlineToVisible[endNonNewline];
-  return visibleText.substring(startVisible, endVisible + 1);
+  // עמימות: אם כל המופעים משחזרים אותו טקסט מחזירים אותו; אם השחזורים שונים
+  // עדיף להחזיר את הבחירה כמות שהיא מאשר לנחש מעברים. בשני המצבים אין מיקום.
+  final restoredText = restoreAt(candidateStarts.first);
+  final allSameText = candidateStarts
+      .skip(1)
+      .every((start) => restoreAt(start) == restoredText);
+  return (
+    text: allSameText ? restoredText : selectedText,
+    startLine: null,
+    endLine: null,
+    startColumn: null,
+    ambiguous: true,
+  );
 }
 
 /// שחזור סלחני: מזריק `\n` לתוך הבחירה השטוחה בלבד — לעולם אינו משנה תווים.
@@ -83,8 +285,10 @@ String _restoreGreedy(String selectedText, List<String> visibleLines) {
 
   // צריכת החלק שנבחר מהשורה הראשונה (הבחירה עשויה להתחיל באמצע שורה).
   final firstLine = visibleLines[startLine];
-  final firstContribution =
-      (firstLine.length - startOffset).clamp(0, selectedText.length);
+  final firstContribution = (firstLine.length - startOffset).clamp(
+    0,
+    selectedText.length,
+  );
   result.write(selectedText.substring(0, firstContribution));
   var pos = firstContribution;
 
