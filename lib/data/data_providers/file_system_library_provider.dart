@@ -296,9 +296,10 @@ class FileSystemLibraryProvider implements LibraryProvider {
       return null;
     }
 
-    if (path.endsWith('.docx')) {
+    final lowerPath = path.toLowerCase();
+    if (lowerPath.endsWith('.docx')) {
       return convertDocxWithCache(file, title);
-    } else if (path.endsWith('.epub')) {
+    } else if (lowerPath.endsWith('.epub')) {
       return convertEpubWithCache(file, title);
     } else {
       return readTextFileSmart(file);
@@ -520,7 +521,8 @@ class FileSystemLibraryProvider implements LibraryProvider {
     }
     if (path == null) throw Exception('Book not found: $title');
 
-    if (path.endsWith('.docx') || path.endsWith('.epub')) {
+    final lowerPath = path.toLowerCase();
+    if (lowerPath.endsWith('.docx') || lowerPath.endsWith('.epub')) {
       throw Exception(
         'Cannot save to DOCX/EPUB files. Only text files are supported.',
       );

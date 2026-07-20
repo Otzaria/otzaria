@@ -12,7 +12,7 @@ import 'package:otzaria/utils/file/text_encoding.dart'
 
 /// גרסת הממיר [epubToText] — **חובה להעלות בכל שינוי שמשפיע על הפלט**:
 /// מטמון התוכן כולל את הגרסה במפתח-התוקף, והעלאה פוסלת רשומות ישנות.
-const int kEpubConverterVersion = 6;
+const int kEpubConverterVersion = 7;
 
 /// ממיר קובץ EPUB לפורמט הטקסט של אוצריא: שורת `<h1>` עם שם הספר, ואחריה
 /// שורה לכל בלוק (פסקה/כותרת/טבלה/תמונה) לפי סדר פרקי ה-spine.
@@ -185,6 +185,8 @@ String _resolveHref(String baseDir, String href) {
   var h = href;
   final hash = h.indexOf('#');
   if (hash >= 0) h = h.substring(0, hash);
+  final query = h.indexOf('?');
+  if (query >= 0) h = h.substring(0, query);
   if (_schemeRegExp.hasMatch(h)) return '';
   try {
     h = Uri.decodeFull(h);
@@ -343,6 +345,9 @@ bool _isNoteMarkerText(String raw) {
 /// קישור-חזרה בתוך גוף הערה (חץ/סימן שמוביל בחזרה לטקסט) — מדולג בשליפה.
 final _backlinkSymbolRegExp = RegExp('^[↩↵⤴⤶←→↑⬆^«»]+\$');
 
+/// סוגריים עוטפים של סַמָּן הערה — להסרה לפני השוואה לגוף ההערה.
+final _markerTrimRegExp = RegExp(r'^[\[\(]+|[\]\)]+$');
+
 /// יעד הפניית הערה שנפתר. [target] יכול להיות null עבור `epub:type="noteref"`
 /// מפורש שהעוגן שלו חסר — עדיין מרונדר כסמן, רק בלי גוף.
 class _NoterefResolution {
@@ -400,7 +405,7 @@ String _extractNoteBody(dom.Element target, String marker) {
   walk(target);
   var text = _collapseWhitespace(buf.toString()).trim();
 
-  final core = marker.replaceAll(RegExp(r'^[\[\(]+|[\]\)]+$'), '');
+  final core = marker.replaceAll(_markerTrimRegExp, '');
   if (core.isNotEmpty) {
     text = text.replaceFirst(
       RegExp(r'^[\[\(]?' + RegExp.escape(core) + r'[\]\)]?[\s.,:;)\-]+'),

@@ -477,6 +477,21 @@ void main() {
       expect(result, contains('כותרת ההערות'));
     });
 
+    test('href עם פרמטרי שאילתה (?v=1) נפתר לעוגן הנכון', () {
+      final epub = _buildEpub(
+        chapters: {
+          'ch1.xhtml': _xhtml(
+            '<p>טקסט<a href="notes.xhtml?v=1#q1">3</a>.</p>',
+          ),
+          'notes.xhtml': _xhtml('<p id="q1">3. הערה עם שאילתה</p>'),
+        },
+      );
+      final result = epubToText(epub, 'ספר');
+
+      expect(result, contains('<sup class="footnote-marker">3</sup>'));
+      expect(result, contains('<i class="footnote">הערה עם שאילתה</i>'));
+    });
+
     test('סמן אות עברית (א) מזוהה כהפניית הערה', () {
       final epub = _buildEpub(
         chapters: {
