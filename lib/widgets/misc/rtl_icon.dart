@@ -66,6 +66,7 @@ class RtlIcon extends StatelessWidget {
   static final Set<IconData> _flippableIcons = {
     FluentIcons.book_24_regular,
     FluentIcons.book_24_filled,
+    FluentIcons.book_star_24_regular,
     FluentIcons.book_information_24_regular,
     FluentIcons.text_align_distributed_24_regular,
     FluentIcons.list_24_regular,

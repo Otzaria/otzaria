@@ -11,7 +11,7 @@ import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/search/search_scope_preferences.dart';
-import 'package:otzaria/search/view/category_tree_selector.dart';
+import 'package:otzaria/search/view/search_scope_menu.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_state.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
@@ -25,7 +25,6 @@ import 'package:otzaria/search/saved_alternatives_store.dart';
 import 'package:otzaria/search/utils/category_query_parser.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/search/view/enhanced_search_field.dart';
-import 'package:otzaria/search/view/search_dimension_filters.dart';
 import 'package:otzaria/search/view/advanced_search_controls.dart';
 import 'package:otzaria/search/view/full_text_settings_widgets.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -100,16 +99,13 @@ class _SearchDialogState extends State<SearchDialog> {
   late SearchingTab _searchTab;
   FocusRestorer? _focusRestorer;
   bool _showIndexInProgressWarning = false;
-  bool _searchAllCategories = true;
-  Set<String> _manualFacets = {};
 
-  /// ה-facets הממדיים שנבחרו בדיאלוג (תקופה/מחבר/ספרי יסוד) — מצטרפים
-  /// ב-AND לבחירת הקטגוריות בעת שיגור החיפוש.
-  Set<String> _dimensionFacets = {};
+  /// בחירת היקף החיפוש המאוחדת — facets קטגוריאליים (עץ/ספרים) וממדיים
+  /// (תקופה/מחבר/ספרי יסוד) יחד. נשלט ע"י [SearchScopeMenuButton].
+  Set<String> _scopeSelection = {'/'};
   final ValueNotifier<bool> _advancedControlsHasFocus = ValueNotifier(false);
   final MenuController _historyMenuController = MenuController();
   late final VoidCallback _queryListener;
-  Set<String> _selectedCategoryFacets = {'/'}; // ברירת מחדל: הכל
   late final bool _ownsSearchTab;
 
   bool get _usesStagedSubmit =>
@@ -164,29 +160,27 @@ class _SearchDialogState extends State<SearchDialog> {
     final persisted = SearchScopePreferences.load();
     final initialScopeFacets = _searchTab.searchBloc.state.searchScopeFacets;
     // ה-scope של הטאב עשוי לשאת גם facets ממדיים (תקופה/מחבר/ספרי יסוד) —
-    // מפצלים: הקטגוריות מזינות את עץ הבחירה, הממדים את פקדי הממדים.
+    // מפצלים: הקטגוריות והממדים מתאחדים לבחירה אחת עבור תפריט הסינון.
     final initialCategories = FacetHelper.categoryFacetsOf(initialScopeFacets);
     final initialDimensions = FacetHelper.dimensionFacetsOf(
       initialScopeFacets,
     ).toSet();
-    _dimensionFacets = initialDimensions.isNotEmpty
+    final dimensions = initialDimensions.isNotEmpty
         ? initialDimensions
         : SearchScopePreferences.loadDimensionFacets();
 
+    final Set<String> categories;
     if (initialCategories.isNotEmpty) {
       // הטאב מגדיר scope מפורש — כבד אותו תמיד
-      final isExplicitAll = initialCategories.contains('/');
-      _searchAllCategories = isExplicitAll;
-      _manualFacets = isExplicitAll
-          ? Set<String>.from(persisted.manualFacets)
+      categories = initialCategories.contains('/')
+          ? {'/'}
           : Set<String>.from(initialCategories);
     } else {
-      _searchAllCategories = persisted.searchAllCategories;
-      _manualFacets = Set<String>.from(persisted.manualFacets);
+      categories = persisted.searchAllCategories
+          ? {'/'}
+          : Set<String>.from(persisted.manualFacets);
     }
-    _selectedCategoryFacets = _searchAllCategories
-        ? {'/'}
-        : Set<String>.from(_manualFacets);
+    _scopeSelection = {...categories, ...dimensions};
 
     // בדיקה אם האינדקס בתהליך בנייה - האזהרה ניתנת לסגירה ואינה חוסמת חיפוש
     final indexingState = context.read<IndexingBloc>().state;
@@ -625,16 +619,17 @@ class _SearchDialogState extends State<SearchDialog> {
     }
 
     // ה-facets שנבחרו לחיפוש. תחביר `@קטגוריה`/`@ספר` גובר על הבחירה הידנית.
+    final selectedCategories = FacetHelper.categoryFacetsOf(_scopeSelection);
     final categoriesToSearch = parsedCategory.categoryFound
         ? parsedCategory.facets!
-        : _selectedCategoryFacets.isEmpty
+        : selectedCategories.isEmpty
         ? ['/']
-        : _selectedCategoryFacets.toList();
+        : selectedCategories;
     // ממדי הסינון שנבחרו בדיאלוג (תקופה/מחבר/ספרי יסוד) מצטרפים ב-AND —
     // גם כשהקטגוריה נקבעה בתחביר `@`.
     final facetsToSearch = [
       ...categoriesToSearch,
-      ...(_dimensionFacets.toList()..sort()),
+      ...(FacetHelper.dimensionFacetsOf(_scopeSelection).toList()..sort()),
     ];
     final distance = _searchTab.searchBloc.state.distance;
     final proximityScope = currentState.configuration.proximityScope;
@@ -833,121 +828,16 @@ class _SearchDialogState extends State<SearchDialog> {
     });
   }
 
-  void _setSearchAllCategories(bool value) {
-    setState(() {
-      _searchAllCategories = value;
-      _selectedCategoryFacets = _searchAllCategories
-          ? {'/'}
-          : Set<String>.from(_manualFacets);
-    });
+  void _onScopeChanged(Set<String> selection) {
+    setState(() => _scopeSelection = selection);
+    final categories = FacetHelper.categoryFacetsOf(selection).toSet();
+    final dimensions = FacetHelper.dimensionFacetsOf(selection).toSet();
+    final isAll = categories.isEmpty || categories.contains('/');
     SearchScopePreferences.save(
-      searchAllCategories: _searchAllCategories,
-      manualFacets: _manualFacets,
+      searchAllCategories: isAll,
+      manualFacets: isAll ? <String>{} : categories,
     );
-  }
-
-  void _onManualFacetsChanged(Set<String> selection) {
-    setState(() {
-      // עץ הבחירה עשוי להחזיר גם facets ממדיים ששומרו בבחירה — מפצלים
-      // כדי שההעדפה הידנית של הקטגוריות תישאר נקייה מממדים.
-      _manualFacets = FacetHelper.categoryFacetsOf(selection).toSet();
-      if (!_searchAllCategories) {
-        _selectedCategoryFacets = Set<String>.from(_manualFacets);
-      }
-    });
-    SearchScopePreferences.save(
-      searchAllCategories: _searchAllCategories,
-      manualFacets: _manualFacets,
-    );
-  }
-
-  /// חלונית מתקפלת "תקופה, מחבר וספרי יסוד" — סינון שמצטרף ב-AND לבחירת
-  /// הקטגוריות (וגם למצב "חיפוש בכל הקטגוריות").
-  Widget _buildDimensionFilters() {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: AppTokens.borderRadiusAll,
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: ExpansionTile(
-        initiallyExpanded: _dimensionFacets.isNotEmpty,
-        dense: true,
-        tilePadding: const EdgeInsets.symmetric(horizontal: 12),
-        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        shape: const Border(),
-        collapsedShape: const Border(),
-        leading: Icon(
-          FluentIcons.filter_add_20_regular,
-          size: 20,
-          color: colorScheme.primary,
-        ),
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: Text(
-                _dimensionFacets.isEmpty
-                    ? 'תקופה, מחבר וספרי יסוד'
-                    : 'תקופה, מחבר וספרי יסוד (${_dimensionFacets.length})',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.primary,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-        children: [
-          SearchDimensionControls(
-            selected: _dimensionFacets,
-            onChanged: (next) {
-              setState(() => _dimensionFacets = next);
-              SearchScopePreferences.saveDimensionFacets(next);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCategoriesToggle(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isSpecific = !_searchAllCategories;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppSurfaces.togglePill(colorScheme, active: isSpecific),
-        borderRadius: AppTokens.borderRadiusAll,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'כל הקטגוריות',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
-              color: isSpecific
-                  ? colorScheme.primary
-                  : colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(width: 4),
-          Transform.scale(
-            scale: 0.75,
-            child: Switch(
-              value: _searchAllCategories,
-              onChanged: _setSearchAllCategories,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
-        ],
-      ),
-    );
+    SearchScopePreferences.saveDimensionFacets(dimensions);
   }
 
   // ── שכבת התצוגה ─────────────────────────────────────────────────────
@@ -1173,28 +1063,42 @@ class _SearchDialogState extends State<SearchDialog> {
       triggerSearch: !_usesStagedSubmit,
     );
 
+    // תפריט הסינון המאוחד רלוונטי רק לחיפוש בספרייה (לא בחיפוש בתוך ספר).
+    final scopeButton = widget.bookTitle == null
+        ? SearchScopeMenuButton(
+            selected: _scopeSelection,
+            onChanged: _onScopeChanged,
+          )
+        : null;
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 560) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              searchField,
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                child: Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: distanceWidget,
-                ),
-              ),
-            ],
-          );
-        }
-        return Row(
+        final narrow = constraints.maxWidth < 560;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(child: searchField),
-            Padding(
-              padding: const EdgeInsetsDirectional.only(end: 8.0),
+            if (narrow) ...[
+              searchField,
+              if (scopeButton != null) ...[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: scopeButton,
+                ),
+              ],
+            ] else
+              Row(
+                children: [
+                  Expanded(child: searchField),
+                  if (scopeButton != null) ...[
+                    const SizedBox(width: 8),
+                    scopeButton,
+                  ],
+                ],
+              ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
               child: distanceWidget,
             ),
           ],
@@ -1277,54 +1181,6 @@ class _SearchDialogState extends State<SearchDialog> {
     );
   }
 
-  /// שורת היקף החיפוש: סינון תקופה/מחבר/ספרי יסוד + מתג "כל הקטגוריות".
-  Widget _buildScopeRow() {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppSurfaces.card(context),
-        borderRadius: AppTokens.borderRadiusAll,
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _sectionLabel('היכן לחפש'),
-          const SizedBox(height: 8),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth < 560) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildDimensionFilters(),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: _buildCategoriesToggle(context),
-                    ),
-                  ],
-                );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: _buildDimensionFilters()),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    height: 48,
-                    child: Center(child: _buildCategoriesToggle(context)),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   /// מסגרת אחידה לאזורי האפשרויות של המצבים השונים.
   Widget _optionsCard({required Widget child}) {
     return Container(
@@ -1394,70 +1250,13 @@ class _SearchDialogState extends State<SearchDialog> {
     );
   }
 
-  Widget _buildModeContentLayout({
-    required Widget controls,
-    required Widget? categoryPanel,
-  }) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (categoryPanel != null && constraints.maxWidth < 480) {
-          return SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                KeyedSubtree(
-                  key: const ValueKey('search-mode-controls'),
-                  child: controls,
-                ),
-                const SizedBox(height: 12),
-                ConstrainedBox(
-                  key: const ValueKey('search-category-panel'),
-                  constraints: const BoxConstraints(maxHeight: 220),
-                  child: categoryPanel,
-                ),
-              ],
-            ),
-          );
-        }
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                key: const ValueKey('search-mode-controls'),
-                child: controls,
-              ),
-            ),
-            AnimatedSize(
-              duration: AppTokens.animNormal,
-              curve: Curves.easeInOut,
-              child: categoryPanel == null
-                  ? const SizedBox.shrink()
-                  : SizedBox(
-                      key: const ValueKey('search-category-panel'),
-                      width: 260,
-                      height: constraints.maxHeight,
-                      child: Padding(
-                        padding: const EdgeInsetsDirectional.only(start: 12.0),
-                        child: categoryPanel,
-                      ),
-                    ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   /// תוכן האזור התחתון לפי מצב החיפוש: אפשרויות המילה (מדויק), פקדי
-  /// המצב המתקדם, או רמז למצב המקורב — לצד עץ הקטגוריות כשנבחר היקף ידני.
+  /// המצב המתקדם, או רמז למצב המקורב. בחירת ההיקף עברה כולה לתפריט הסינון.
   Widget _buildModeContent(SearchState state) {
-    final showCategory = !_searchAllCategories && widget.bookTitle == null;
-
+    final Widget controls;
     if (!state.isAdvancedSearchEnabled) {
       final isExact = state.configuration.searchMode == SearchMode.exact;
-      final modeControls = isExact
+      controls = isExact
           ? _optionsCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1474,47 +1273,31 @@ class _SearchDialogState extends State<SearchDialog> {
               ),
             )
           : _optionsCard(child: _buildFuzzyHint());
-
-      return _buildModeContentLayout(
-        controls: modeControls,
-        categoryPanel: showCategory
-            ? CategoryTreeSelector(
-                selectedFacets: _manualFacets,
-                onSelectionChanged: _onManualFacetsChanged,
-              )
-            : null,
+    } else {
+      controls = _optionsCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AdvancedSearchControls(
+              tab: _searchTab,
+              onEmptySubmit: _performSearch,
+              inputFocusNotifier: _advancedControlsHasFocus,
+              supportsVocalized: _supportsVocalizedSearch,
+            ),
+            if (widget.onSearch == null && !widget.returnResultOnSubmit) ...[
+              const SizedBox(height: 12),
+              const Divider(height: 1),
+              const SizedBox(height: 12),
+              _buildNegativeSection(),
+            ],
+          ],
+        ),
       );
     }
 
-    final advancedControls = _optionsCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          AdvancedSearchControls(
-            tab: _searchTab,
-            onEmptySubmit: _performSearch,
-            inputFocusNotifier: _advancedControlsHasFocus,
-            supportsVocalized: _supportsVocalizedSearch,
-          ),
-          if (widget.onSearch == null && !widget.returnResultOnSubmit) ...[
-            const SizedBox(height: 12),
-            const Divider(height: 1),
-            const SizedBox(height: 12),
-            _buildNegativeSection(),
-          ],
-        ],
-      ),
-    );
-    final categoryPanel = showCategory
-        ? CategoryTreeSelector(
-            selectedFacets: _manualFacets,
-            onSelectionChanged: _onManualFacetsChanged,
-          )
-        : null;
-
-    return _buildModeContentLayout(
-      controls: advancedControls,
-      categoryPanel: categoryPanel,
+    return SingleChildScrollView(
+      key: const ValueKey('search-mode-controls'),
+      child: controls,
     );
   }
 
@@ -1634,10 +1417,6 @@ class _SearchDialogState extends State<SearchDialog> {
                                   children: [
                                     _buildIndexWarning(),
                                     _buildSearchComposer(state),
-                                    if (widget.bookTitle == null) ...[
-                                      const SizedBox(height: 12),
-                                      _buildScopeRow(),
-                                    ],
                                     const SizedBox(height: 12),
                                     SizedBox(
                                       height: 260,

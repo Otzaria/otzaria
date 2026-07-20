@@ -599,6 +599,19 @@ class SeforimRepository {
     ];
   }
 
+  /// מזהי כל ספרי היסוד (`isBaseBook = 1`) ב-DB זה — לשילוב רשימת ספרי
+  /// היסוד בתפריט סינון החיפוש. המיפוי לספרי הספרייה נעשה לפי `book.id`.
+  Future<Set<int>> loadBaseBookIds() async {
+    final db = await _database.database;
+    final result = db
+        .select('SELECT id FROM book WHERE isBaseBook = 1')
+        .toMapList();
+    return {
+      for (final row in result)
+        if (row['id'] is int) row['id'] as int,
+    };
+  }
+
   // Get an author by name, returns null if not found
   Future<Author?> getAuthorByName(String name) async {
     return await _database.authorDao.getAuthorByName(name);
