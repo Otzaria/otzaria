@@ -68,10 +68,12 @@ class SnippetBuilder {
       if (child is dom.Text) {
         final text = child.text.replaceAll(_whitespace, ' ');
         if (text.isEmpty) continue;
-        spans.add(TextSpan(
-          text: text,
-          style: highlighted ? highlightStyle : defaultStyle,
-        ));
+        spans.add(
+          TextSpan(
+            text: text,
+            style: highlighted ? highlightStyle : defaultStyle,
+          ),
+        );
       } else if (child is dom.Element) {
         final isHighlight =
             highlighted || _highlightTags.contains(child.localName);
@@ -81,6 +83,36 @@ class SnippetBuilder {
           spans: spans,
           defaultStyle: defaultStyle,
           highlightStyle: highlightStyle,
+        );
+      }
+    }
+  }
+
+  /// מחלץ את המונחים שהמנוע סימן כהתאמות (תוכן תגי [_highlightTags]) מתוך
+  /// [html]. משמש להדגשת ההתאמות האמיתיות על גבי דפי PDF.
+  static Set<String> extractHighlightedTerms(String html) {
+    final body = html_parser.parse(html).body;
+    if (body == null) return const {};
+    final terms = <String>{};
+    _collectHighlightedTerms(body, highlighted: false, terms: terms);
+    return terms;
+  }
+
+  static void _collectHighlightedTerms(
+    dom.Node node, {
+    required bool highlighted,
+    required Set<String> terms,
+  }) {
+    for (final child in node.nodes) {
+      if (child is dom.Text) {
+        if (!highlighted) continue;
+        final text = child.text.replaceAll(_whitespace, ' ').trim();
+        if (text.isNotEmpty) terms.add(text);
+      } else if (child is dom.Element) {
+        _collectHighlightedTerms(
+          child,
+          highlighted: highlighted || _highlightTags.contains(child.localName),
+          terms: terms,
         );
       }
     }
@@ -111,20 +143,25 @@ class SnippetBuilder {
       final end = range[1];
       if (start < position || start >= end || end > plainText.length) continue;
       if (start > position) {
-        spans.add(TextSpan(
-          text: plainText.substring(position, start),
-          style: defaultStyle,
-        ));
+        spans.add(
+          TextSpan(
+            text: plainText.substring(position, start),
+            style: defaultStyle,
+          ),
+        );
       }
-      spans.add(TextSpan(
-        text: plainText.substring(start, end),
-        style: highlightStyle,
-      ));
+      spans.add(
+        TextSpan(
+          text: plainText.substring(start, end),
+          style: highlightStyle,
+        ),
+      );
       position = end;
     }
     if (position < plainText.length) {
       spans.add(
-          TextSpan(text: plainText.substring(position), style: defaultStyle));
+        TextSpan(text: plainText.substring(position), style: defaultStyle),
+      );
     }
     return spans;
   }
@@ -156,22 +193,28 @@ class SnippetBuilder {
     var position = 0;
     for (final match in matches) {
       if (match.start > position) {
-        spans.add(TextSpan(
-          text: plainText.substring(position, match.start),
-          style: defaultStyle,
-        ));
+        spans.add(
+          TextSpan(
+            text: plainText.substring(position, match.start),
+            style: defaultStyle,
+          ),
+        );
       }
-      spans.add(TextSpan(
-        text: plainText.substring(match.start, match.end),
-        style: highlightStyle,
-      ));
+      spans.add(
+        TextSpan(
+          text: plainText.substring(match.start, match.end),
+          style: highlightStyle,
+        ),
+      );
       position = match.end;
     }
     if (position < plainText.length) {
-      spans.add(TextSpan(
-        text: plainText.substring(position),
-        style: defaultStyle,
-      ));
+      spans.add(
+        TextSpan(
+          text: plainText.substring(position),
+          style: defaultStyle,
+        ),
+      );
     }
     return spans;
   }

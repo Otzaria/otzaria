@@ -667,6 +667,7 @@ dart format lib/file.dart    # Format ONLY files you modified
 | Library browser | `test/library/view/library_browser_preview_width_test.dart`, `…grid_items_test.dart` |
 | Empty library screen | `test/empty_library/empty_library_screen_test.dart` |
 | PDF isolate / rasterizer | `test/pdf_isolate_test.dart`, `test/printing/pdf_text_rasterizer_test.dart` |
+| PDF in-book search highlight pattern | `test/pdf_book/pdf_search_highlight_pattern_test.dart` |
 | Printing models | `test/printing/print_content_models_test.dart` |
 | File sync BLoC | `test/file_sync/file_sync_bloc_test.dart`, `…library_diff_sync_worker_test.dart` |
 | File sync asset parsing | `test/file_sync_test.dart` |
