@@ -24,6 +24,7 @@ Uint8List _buildEpub({
   Map<String, List<int>>? binaryFiles,
   String? extraManifest,
   String? extraSpine,
+  String? extraMetadata,
 }) {
   final order = spineOrder ?? chapters.keys.toList();
 
@@ -52,6 +53,7 @@ Uint8List _buildEpub({
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:identifier id="uid">test-book</dc:identifier>
     <dc:title>ספר בדיקה</dc:title>
+${extraMetadata ?? ''}
   </metadata>
   <manifest>
 $manifestItems
@@ -415,6 +417,82 @@ void main() {
 
       expect(result, isNot(contains('<img')));
       expect(result, contains('טקסט'));
+    });
+
+    test('תמונת כריכה בעטיפת SVG‏ (<svg><image>) מוטמעת', () {
+      const png = [0x89, 0x50, 0x4E, 0x47];
+      final epub = _buildEpub(
+        chapters: {
+          'cover.xhtml': _xhtml(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800">'
+            '<image xlink:href="img/cover.png" width="600" height="800"/>'
+            '</svg>',
+          ),
+          'ch1.xhtml': _xhtml('<p>תוכן</p>'),
+        },
+        binaryFiles: {'img/cover.png': png},
+        extraManifest:
+            '<item id="cimg" href="img/cover.png" media-type="image/png"/>',
+      );
+      final result = epubToText(epub, 'ספר');
+
+      expect(result, contains('data:image/png;base64,${base64Encode(png)}'));
+    });
+
+    test('כריכה מוצהרת (cover-image) שדולגה מוזרקת אחרי הכותרת', () {
+      const png = [0x89, 0x50, 0x4E, 0x47, 0x01];
+      // עמוד הכריכה linear="no" ולכן מדולג — הכריכה מגיעה מה-manifest.
+      final epub = _buildEpub(
+        chapters: {
+          'ch1.xhtml': _xhtml('<p>תוכן הספר</p>'),
+        },
+        binaryFiles: {'img/cover.png': png},
+        extraManifest:
+            '<item id="cimg" href="img/cover.png" '
+            'media-type="image/png" properties="cover-image"/>',
+      );
+      final result = epubToText(epub, 'ספר');
+      final lines = result.split('\n');
+
+      expect(lines[1], startsWith('<img src="data:image/png'));
+      expect(
+        RegExp(base64Encode(png)).allMatches(result).length,
+        1,
+      );
+    });
+
+    test('כריכה שכבר מופיעה בפרק אינה מוזרקת שוב (אין כפילות)', () {
+      const png = [0x89, 0x50, 0x4E, 0x47, 0x02];
+      final epub = _buildEpub(
+        chapters: {
+          'cover.xhtml': _xhtml('<p><img src="img/cover.png"/></p>'),
+          'ch1.xhtml': _xhtml('<p>תוכן</p>'),
+        },
+        binaryFiles: {'img/cover.png': png},
+        extraManifest:
+            '<item id="cimg" href="img/cover.png" '
+            'media-type="image/png" properties="cover-image"/>',
+      );
+      final result = epubToText(epub, 'ספר');
+
+      expect(RegExp(base64Encode(png)).allMatches(result).length, 1);
+    });
+
+    test('כריכת EPUB2‏ (meta name="cover") מזוהה ומוזרקת', () {
+      const png = [0x89, 0x50, 0x4E, 0x47, 0x03];
+      final epub = _buildEpub(
+        chapters: {
+          'ch1.xhtml': _xhtml('<p>תוכן</p>'),
+        },
+        binaryFiles: {'img/old_cover.png': png},
+        extraManifest:
+            '<item id="oldcover" href="img/old_cover.png" '
+            'media-type="image/png"/>',
+        extraMetadata: '<meta name="cover" content="oldcover"/>',
+      );
+      final result = epubToText(epub, 'ספר');
+
+      expect(result, contains(base64Encode(png)));
     });
 
     test('תמונה חסרה בארכיון לא מפילה את ההמרה', () {

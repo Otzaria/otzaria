@@ -12,7 +12,7 @@ import 'package:otzaria/utils/file/text_encoding.dart'
 
 /// גרסת הממיר [epubToText] — **חובה להעלות בכל שינוי שמשפיע על הפלט**:
 /// מטמון התוכן כולל את הגרסה במפתח-התוקף, והעלאה פוסלת רשומות ישנות.
-const int kEpubConverterVersion = 8;
+const int kEpubConverterVersion = 9;
 
 /// ממיר קובץ EPUB לפורמט הטקסט של אוצריא: שורת `<h1>` עם שם הספר, ואחריה
 /// שורה לכל בלוק (פסקה/כותרת/טבלה/תמונה) לפי סדר פרקי ה-spine.
@@ -53,10 +53,11 @@ String epubToText(Uint8List bytes, String title) {
   final opfDir = _dirOf(opfPath);
   final manifest = _parseManifest(opf, opfDir);
   final spine = _parseSpine(opf, manifest);
+  final coverPath = _findCoverPath(opf, manifest);
 
   final ctx = _EpubContext(
     files: files,
-    images: _buildImageMap(files, manifest),
+    images: _buildImageMap(files, manifest, coverPath: coverPath),
   );
 
   // שלב 1: פירוק כל הפרקים ובניית אינדקס עוגנים (id) גלובלי — נדרש להערות
@@ -101,7 +102,34 @@ String epubToText(Uint8List bytes, String title) {
     _processBlockChildren(ch.body.nodes, ctx, output);
   }
 
+  // כריכה מוצהרת (manifest) שלא הופיעה באף פרק — למשל עמוד כריכה
+  // linear="no" שדולג — מוזרקת אחרי הכותרת, כך שהכריכה תמיד מוצגת.
+  final coverUri = coverPath == null
+      ? null
+      : ctx.images[coverPath.toLowerCase()];
+  if (coverUri != null && !output.any((l) => l.contains(coverUri))) {
+    output.insert(1, '<img src="$coverUri" style="max-width: 100%;"/>');
+  }
+
   return output.join('\n');
+}
+
+/// מאתר את תמונת הכריכה המוצהרת: EPUB3 — פריט manifest עם
+/// `properties="cover-image"`; EPUB2 — `<meta name="cover" content="id">`.
+String? _findCoverPath(
+  xml.XmlDocument opf,
+  Map<String, _ManifestItem> manifest,
+) {
+  for (final item in manifest.values) {
+    if (item.properties.split(' ').contains('cover-image')) return item.path;
+  }
+  for (final meta in _elementsByLocal(opf, 'meta')) {
+    if (meta.getAttribute('name') == 'cover') {
+      final item = manifest[meta.getAttribute('content')];
+      if (item != null) return item.path;
+    }
+  }
+  return null;
 }
 
 /// גישה לקבצי הארכיון לפי נתיב, עם fallback חסר-רגישות-לרישיות — קבצי EPUB
@@ -291,18 +319,25 @@ String? _mediaTypeFromExtension(String path) {
 /// cache.db ובזיכרון — תמונה ענקית הייתה מנפחת את שניהם; מעליה מדולגת.
 const _maxEmbeddedImageBytes = 4 * 1024 * 1024;
 
+/// תקרה מוגדלת לתמונת הכריכה — כריכות סרוקות כבדות במיוחד, ויש רק אחת.
+const _maxEmbeddedCoverBytes = 10 * 1024 * 1024;
+
 /// נתיב מנורמל → data URI, לכל תמונות ה-manifest (עובד גם offline).
 Map<String, String> _buildImageMap(
   _ArchiveFiles files,
-  Map<String, _ManifestItem> manifest,
-) {
+  Map<String, _ManifestItem> manifest, {
+  String? coverPath,
+}) {
   final images = <String, String>{};
   for (final item in manifest.values) {
     final mediaType =
         _imageMediaTypes[item.mediaType] ?? _mediaTypeFromExtension(item.path);
     if (mediaType == null) continue;
+    final maxBytes = item.path == coverPath
+        ? _maxEmbeddedCoverBytes
+        : _maxEmbeddedImageBytes;
     final bytes = files.read(item.path);
-    if (bytes == null || bytes.length > _maxEmbeddedImageBytes) continue;
+    if (bytes == null || bytes.length > maxBytes) continue;
     // ??= — המופע הראשון גובר (עקבי עם קדימות ההתאמה המדויקת בארכיון).
     images[item.path.toLowerCase()] ??=
         'data:$mediaType;base64,${base64Encode(bytes)}';
@@ -646,7 +681,9 @@ String? _buildTableHtml(dom.Element table, _EpubContext ctx) {
 }
 
 String? _imgHtml(dom.Element e, _EpubContext ctx) {
-  final src = e.attributes['src'] ?? _attr(e, 'xlink:href');
+  // גם `<image>` של SVG (עטיפת הכריכה הנפוצה) — href/xlink:href.
+  final src =
+      e.attributes['src'] ?? e.attributes['href'] ?? _attr(e, 'xlink:href');
   if (src == null || src.isEmpty) return null;
   final resolved = _resolveHref(ctx.baseDir, src).toLowerCase();
   final uri = ctx.images[resolved];
@@ -689,7 +726,7 @@ void _renderInlineNode(dom.Node node, _EpubContext ctx, StringBuffer buf) {
     buf.write('<br>');
     return;
   }
-  if (tag == 'img') {
+  if (tag == 'img' || tag == 'image') {
     final img = _imgHtml(node, ctx);
     if (img != null) buf.write(img);
     return;
