@@ -65,9 +65,6 @@ const double _kAppBarControlsWidth = 105.0;
 const double _kWindowCaptionButtonsWidth = 138.0;
 const double _kWindowCaptionButtonWidth = 46.0;
 
-/// רוחב אזור כפתורי המערכת של macOS (traffic lights) המצוירים מעל התוכן.
-const double _kMacosTrafficLightsWidth = 78.0;
-
 /// רוחב מרבי לטאב בודד: טאב לא נמתח מעבר לזה גם כשיש מעט טאבים ומלא מקום.
 const double _kTabMaxWidth = 140.0;
 
@@ -114,8 +111,11 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
   /// בלי להסתמך על gesture arena.
   bool _hitTestTab(BuildContext context, Offset globalPosition) {
     final result = HitTestResult();
-    WidgetsBinding.instance
-        .hitTestInView(result, globalPosition, View.of(context).viewId);
+    WidgetsBinding.instance.hitTestInView(
+      result,
+      globalPosition,
+      View.of(context).viewId,
+    );
     for (final entry in result.path) {
       final target = entry.target;
       if (target is RenderMetaData && target.metaData == _kTabHitMarker) {
@@ -131,8 +131,11 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
   /// לפני שה-onPressed שלו יורה, כך שהטאב מתחלף במקום להיסגר.
   bool _hitTestCloseButton(BuildContext context, Offset globalPosition) {
     final result = HitTestResult();
-    WidgetsBinding.instance
-        .hitTestInView(result, globalPosition, View.of(context).viewId);
+    WidgetsBinding.instance.hitTestInView(
+      result,
+      globalPosition,
+      View.of(context).viewId,
+    );
     for (final entry in result.path) {
       final target = entry.target;
       if (target is RenderMetaData &&
@@ -154,7 +157,8 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
   }
 
   bool _useStackedTabs(BuildContext context, NavigationState navState) {
-    final isReading = navState.currentScreen == Screen.reading ||
+    final isReading =
+        navState.currentScreen == Screen.reading ||
         navState.currentScreen == Screen.search;
     if (!isReading) return false;
     return MediaQuery.of(context).orientation == Orientation.portrait;
@@ -170,7 +174,8 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
             // במסך עיון ללא טאבים פתוחים אין תוכן קריאה אמיתי, ולכן המסגרת
             // העליונה נצבעת כשאר מסכי הלוח (רקע לוח + גבול תחתון) במקום ברקע
             // מסך העיון. בחיפוש תמיד קיים טאב, לכן נשאר בסגנון הקריאה.
-            final useReaderStyle = navState.currentScreen == Screen.search ||
+            final useReaderStyle =
+                navState.currentScreen == Screen.search ||
                 (navState.currentScreen == Screen.reading &&
                     context.select((TabsBloc bloc) => bloc.state.hasOpenTabs));
             final topBar = SizedBox(
@@ -232,28 +237,11 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                           child: _buildContent(context, navState),
                         ),
 
-                        // ב-macOS אין כפתורי חלון מותאמים — רק כפתורי המערכת
-                        // המובנים (traffic lights), שמצוירים מעל התוכן בפינה
-                        // השמאלית; שומרים להם מרווח פנוי הניתן לגרירת החלון.
-                        if (!kIsWeb && Platform.isMacOS)
-                          SizedBox(
-                            height: 50,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const ManagedUpdateTitleBarIndicator(),
-                                if (!settingsState.isFullscreen)
-                                  const SizedBox(
-                                    width: _kMacosTrafficLightsWidth,
-                                    child: DragToMoveArea(
-                                        child: SizedBox.expand()),
-                                  ),
-                              ],
-                            ),
-                          ),
-
-                        // כפתורי חלון מותאמים (Windows/Linux בלבד)
-                        if (!kIsWeb && (Platform.isWindows || Platform.isLinux))
+                        // כפתורי חלון (רק בדסקטופ)
+                        if (!kIsWeb &&
+                            (Platform.isWindows ||
+                                Platform.isLinux ||
+                                Platform.isMacOS))
                           SizedBox(
                             height: 50,
                             child: Row(
@@ -261,7 +249,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                               children: [
                                 const ManagedUpdateTitleBarIndicator(),
                                 _buildFullscreenCaptionButton(
-                                    context, settingsState),
+                                  context,
+                                  settingsState,
+                                ),
                                 if (settingsState.isFullscreen)
                                   _CaptionActionButton(
                                     brightness: Theme.of(context).brightness,
@@ -269,7 +259,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                                     icon: FluentIcons.subtract_24_regular,
                                     onPressed: () async {
                                       await FullscreenHelper.toggleFullscreen(
-                                          context, false);
+                                        context,
+                                        false,
+                                      );
                                       await windowManager.minimize();
                                     },
                                   ),
@@ -319,7 +311,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         Settings.getValue<String>('key-shortcut-open-history') ?? 'ctrl+h';
     final bookmarksShortcut =
         Settings.getValue<String>('key-shortcut-open-bookmarks') ??
-            'ctrl+shift+b';
+        'ctrl+shift+b';
     final workspaceShortcut =
         Settings.getValue<String>('key-shortcut-switch-workspace') ?? 'ctrl+k';
 
@@ -412,8 +404,11 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     return _buildPanelTitle(context, title);
   }
 
-  Widget _buildPanelTitle(BuildContext context, String title,
-      {String? subtitle}) {
+  Widget _buildPanelTitle(
+    BuildContext context,
+    String title, {
+    String? subtitle,
+  }) {
     final color = Theme.of(context).colorScheme.onSurfaceVariant;
     final textStyle = TextStyle(
       color: color,
@@ -512,7 +507,8 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     // בדסקטופ גרירת-עכבר על טאב מסדרת אותו מיד (כמו כרום); בנייד נדרשת לחיצה
     // ארוכה כדי שהחלקה/גלילה במגע לא תזיז טאב בטעות.
     final platform = Theme.of(context).platform;
-    final isDesktop = platform == TargetPlatform.windows ||
+    final isDesktop =
+        platform == TargetPlatform.windows ||
         platform == TargetPlatform.linux ||
         platform == TargetPlatform.macOS;
 
@@ -586,15 +582,17 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         child: RawGestureDetector(
           behavior: HitTestBehavior.translucent,
           gestures: {
-            _EmptyAreaDoubleTapRecognizer: GestureRecognizerFactoryWithHandlers<
-                _EmptyAreaDoubleTapRecognizer>(
-              () => _EmptyAreaDoubleTapRecognizer(debugOwner: this),
-              (recognizer) {
-                recognizer.isPointerOnTab =
-                    (position) => _hitTestTab(context, position);
-                recognizer.onDoubleTap = _onTabsAreaDoubleTap;
-              },
-            ),
+            _EmptyAreaDoubleTapRecognizer:
+                GestureRecognizerFactoryWithHandlers<
+                  _EmptyAreaDoubleTapRecognizer
+                >(
+                  () => _EmptyAreaDoubleTapRecognizer(debugOwner: this),
+                  (recognizer) {
+                    recognizer.isPointerOnTab = (position) =>
+                        _hitTestTab(context, position);
+                    recognizer.onDoubleTap = _onTabsAreaDoubleTap;
+                  },
+                ),
           },
           child: KeyedSubtree(
             key: tourReadingTabsTargetKey,
@@ -618,7 +616,8 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
             size: 18,
           ),
           tooltip: 'הגדרות תצוגת הספרים',
-          onPressed: widget.onReadingSettingsPressed ??
+          onPressed:
+              widget.onReadingSettingsPressed ??
               () => showReadingSettingsDialog(context),
           style: _kIconButtonStyle,
         ),
@@ -664,7 +663,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
   }
 
   Widget _buildFullscreenCaptionButton(
-      BuildContext context, SettingsState settingsState) {
+    BuildContext context,
+    SettingsState settingsState,
+  ) {
     // הכפתור מוצג רק בהקשר שמתיר מסך מלא (עיון/כלים).
     if (!FullscreenHelper.isAllowedInContext(context)) {
       return const SizedBox.shrink();
@@ -719,7 +720,11 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
   }
 
   Widget _buildTab(
-      BuildContext context, OpenedTab tab, TabsState state, double tabWidth) {
+    BuildContext context,
+    OpenedTab tab,
+    TabsState state,
+    double tabWidth,
+  ) {
     final index = state.tabs.indexOf(tab);
     final isSelected = index == state.currentTabIndex;
     final closeTabShortcut =
@@ -794,7 +799,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                 ? '${tab.title}, $currentTitleValue'
                 : tab.title;
             return Tooltip(
-                message: tooltipMessage, child: fadedTitle(tab.title));
+              message: tooltipMessage,
+              child: fadedTitle(tab.title),
+            );
           },
         );
       }
@@ -807,7 +814,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                 ? '${tab.title}, $currentTitleValue'
                 : tab.title;
             return Tooltip(
-                message: tooltipMessage, child: fadedTitle(tab.title));
+              message: tooltipMessage,
+              child: fadedTitle(tab.title),
+            );
           },
         );
       }
@@ -846,7 +855,8 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       // הכותרת תמיד ב-Expanded ומתכווצת לאפס בעת הצורך.
       final extrasBudget =
           tabWidth - 2 * (outerPad + innerPad) - (isSelected ? 4 : 0);
-      final showClose = extrasBudget >= 25 &&
+      final showClose =
+          extrasBudget >= 25 &&
           (tabWidth >= _kTabCloseHideBelowWidth || isSelected || isTabHovered);
       final showPin =
           tab.isPinned && (extrasBudget - (showClose ? 25 : 0)) >= 20;
@@ -874,11 +884,13 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
               child: CustomPaint(
                 painter: isSelected
                     ? _TabBackgroundPainter(
-                        AppSurfaces.topBarBackground(context))
+                        AppSurfaces.topBarBackground(context),
+                      )
                     : null,
                 foregroundPainter: isTabHovered && !isSelected
                     ? _TabBackgroundPainter(
-                        colorScheme.onSurface.withValues(alpha: 0.08))
+                        colorScheme.onSurface.withValues(alpha: 0.08),
+                      )
                     : null,
                 child: Tab(
                   child: Padding(
@@ -886,8 +898,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                     child: DefaultTextStyle(
                       style: TextStyle(
                         color: colorScheme.onSurface,
-                        fontWeight:
-                            isSelected ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                         fontSize: 14,
                       ),
                       child: Row(
@@ -978,7 +991,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
   /// בונה פריט תפריט להעברת טאב לשולחן עבודה אחר
   AppContextMenuEntry _buildMoveToWorkspaceMenuEntry(
-      BuildContext context, OpenedTab tab) {
+    BuildContext context,
+    OpenedTab tab,
+  ) {
     final workspaceState = context.read<WorkspaceBloc>().state;
 
     final otherWorkspaces = workspaceState.workspaces
@@ -1007,14 +1022,18 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
   /// מעביר טאב לשולחן עבודה אחר
   void _moveTabToWorkspace(
-      BuildContext context, OpenedTab tab, String targetWorkspaceId) {
+    BuildContext context,
+    OpenedTab tab,
+    String targetWorkspaceId,
+  ) {
     final tabsBloc = context.read<TabsBloc>();
     final workspaceBloc = context.read<WorkspaceBloc>();
     final tabsState = tabsBloc.state;
     final workspaceState = workspaceBloc.state;
 
-    final targetWorkspace =
-        workspaceState.workspaces.firstWhere((w) => w.id == targetWorkspaceId);
+    final targetWorkspace = workspaceState.workspaces.firstWhere(
+      (w) => w.id == targetWorkspaceId,
+    );
 
     tabsBloc.add(RemoveTab(tab));
 
@@ -1023,12 +1042,14 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         ? 0
         : tabsState.currentTabIndex.clamp(0, currentTabs.length - 1);
 
-    workspaceBloc.add(MoveTabToWorkspace(
-      tab: tab,
-      targetWorkspaceId: targetWorkspaceId,
-      currentTabs: currentTabs,
-      currentTabIndex: newActiveIndex,
-    ));
+    workspaceBloc.add(
+      MoveTabToWorkspace(
+        tab: tab,
+        targetWorkspaceId: targetWorkspaceId,
+        currentTabs: currentTabs,
+        currentTabIndex: newActiveIndex,
+      ),
+    );
 
     UiSnack.show(LibraryMessages.tabMovedToWorkspace(targetWorkspace.name));
   }
@@ -1064,31 +1085,36 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
     if (tab is! CombinedTab) {
       if (state.tabs.length > 1) {
-        final otherTabsList =
-            state.tabs.where((t) => t != tab && t is! CombinedTab).toList();
+        final otherTabsList = state.tabs
+            .where((t) => t != tab && t is! CombinedTab)
+            .toList();
         final otherTabs = otherTabsList.asMap().entries.map((mapEntry) {
           final otherTab = mapEntry.value;
           return AppContextMenuEntry(
             label: otherTab.title,
             onTap: () {
               context.read<TabsBloc>().add(
-                    EnableSideBySideMode(
-                      rightTab: tab,
-                      leftTab: otherTab,
-                    ),
-                  );
+                EnableSideBySideMode(
+                  rightTab: tab,
+                  leftTab: otherTab,
+                ),
+              );
             },
           );
         }).toList();
-        entries.add(AppContextMenuEntry(
-          label: 'הצג לצד',
-          children: otherTabs,
-        ));
+        entries.add(
+          AppContextMenuEntry(
+            label: 'הצג לצד',
+            children: otherTabs,
+          ),
+        );
       } else {
-        entries.add(AppContextMenuEntry(
-          label: 'הצג לצד',
-          enabled: false,
-        ));
+        entries.add(
+          AppContextMenuEntry(
+            label: 'הצג לצד',
+            enabled: false,
+          ),
+        );
       }
     }
 
@@ -1100,9 +1126,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         ),
         AppContextMenuEntry(
           label: 'חזרה לתצוגה רגילה',
-          onTap: () => context
-              .read<TabsBloc>()
-              .add(DisableSideBySideMode(state.tabs.indexOf(tab))),
+          onTap: () => context.read<TabsBloc>().add(
+            DisableSideBySideMode(state.tabs.indexOf(tab)),
+          ),
         ),
       ]);
     }
@@ -1246,8 +1272,9 @@ class _CaptionActionButtonState extends State<_CaptionActionButton> {
     final isDark = widget.brightness == Brightness.dark;
 
     Color bgColor = Colors.transparent;
-    Color iconColor =
-        isDark ? Colors.white : Colors.black.withValues(alpha: 0.8956);
+    Color iconColor = isDark
+        ? Colors.white
+        : Colors.black.withValues(alpha: 0.8956);
 
     if (_isHovering) {
       bgColor = isDark

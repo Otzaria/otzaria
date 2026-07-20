@@ -1476,14 +1476,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
     if (!mounted || !context.mounted) return;
 
     // מסך מלא זמין רק בעיון (עם טאב פתוח) או בכלים — יציאה אוטומטית בניווט החוצה.
-    // ב-macOS מסך מלא הוא Space נייטיבי (הכפתור הירוק) — לעולם לא יוצאים ממנו
-    // אוטומטית, אחרת ניווט להגדרות מקפיץ את המשתמש החוצה בלי דרך לחזור.
-    final fullscreenAllowed =
-        (!kIsWeb && Platform.isMacOS) ||
-        FullscreenHelper.isContextAllowed(
-          state.currentScreen,
-          context.read<TabsBloc>().state.hasOpenTabs,
-        );
+    final fullscreenAllowed = FullscreenHelper.isContextAllowed(
+      state.currentScreen,
+      context.read<TabsBloc>().state.hasOpenTabs,
+    );
     if (!fullscreenAllowed && context.read<SettingsBloc>().state.isFullscreen) {
       FullscreenHelper.toggleFullscreen(context, false);
     }

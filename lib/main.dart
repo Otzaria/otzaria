@@ -144,9 +144,9 @@ Map<String, String?> _flutterErrorDetailsForLog(FlutterErrorDetails details) {
   final collectedInformation = informationCollector == null
       ? null
       : informationCollector()
-          .map((node) => node.toDescription())
-          .where((description) => description.trim().isNotEmpty)
-          .join('\n');
+            .map((node) => node.toDescription())
+            .where((description) => description.trim().isNotEmpty)
+            .join('\n');
 
   return {
     'Library': details.library,
@@ -321,10 +321,12 @@ void main(List<String> args) async {
 
     // Log all other errors normally
     if (kDebugMode) {
-      FlutterError.dumpErrorToConsole(FlutterErrorDetails(
-        exception: error,
-        stack: stack,
-      ));
+      FlutterError.dumpErrorToConsole(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+        ),
+      );
     } else {
       _appendUnhandledErrorToLocalLog(
         title: 'Unhandled Error',
@@ -373,10 +375,10 @@ Future<void> _initializeSentry() async {
 
         options.beforeSend = (event, hint) {
           return shouldReportSentryEvent(
-            event: event,
-            currentBuild: currentBuild,
-            latestReleasedBuildNumber: _latestReleasedBuildNumber,
-          )
+                event: event,
+                currentBuild: currentBuild,
+                latestReleasedBuildNumber: _latestReleasedBuildNumber,
+              )
               ? event
               : null;
         };
@@ -406,7 +408,8 @@ Future<void> _runAppBootstrap() async {
     Logger('fwfh').level = Level.INFO;
     Logger.root.onRecord.listen((record) {
       debugPrint(
-          '${record.level.name}: ${record.loggerName}: ${record.message}');
+        '${record.level.name}: ${record.loggerName}: ${record.message}',
+      );
     });
   }
 
@@ -497,7 +500,10 @@ Future<void> _initializeProcessSingletons() async {
       // ה-fallback משנה את מקור ההגדרות; קוד אחר (גיבוי, טיוטות) ניגש
       // ישירות ל-Hive box ויקבל ריק — חובה שהכשל יהיה גלוי בלוג.
       _logNonFatalInitializationError(
-          'Settings.init with HiveCache', error, stackTrace);
+        'Settings.init with HiveCache',
+        error,
+        stackTrace,
+      );
       await Settings.init(cacheProvider: SharePreferenceCache());
     }
 
@@ -521,11 +527,12 @@ Future<void> _initializeProcessSingletons() async {
       // שנייה עד שפריים חדש הספיק להתרסטר. כאן השינוי קורה לפני שפריים התוכן
       // הראשון מצויר בכלל — והוא נצבע ישר במסגרת ובגודל הסופיים.
       await windowManager.setMinimumSize(WindowPersistence.minSize);
-      // ב-macOS כפתורי החלון המובנים (traffic lights) נשארים גלויים — הם
-      // כפתורי החלון היחידים; אין כפתורים מותאמים בשורת הכותרת.
+      // windowButtonVisibility ברירת מחדל true — חובה false מפורש כדי להסתיר
+      // את כפתורי המערכת של macOS (traffic lights) שאחרת יופיעו כפול לצד
+      // הכפתורים המותאמים.
       await windowManager.setTitleBarStyle(
         TitleBarStyle.hidden,
-        windowButtonVisibility: Platform.isMacOS,
+        windowButtonVisibility: false,
       );
     }
   }
@@ -602,10 +609,15 @@ Future<void> _initializeRestartableRuntime() async {
   // PluginTabPage.markLoadAttemptSync דורש state אתחל (אחרת ה-canary לא נשמר
   // והתוסף לא ייכנס ל-quarantine אם יקרוס), ו-PluginCrashGuard.isBlocked
   // מחזיר false כל עוד _blocked הוא null. הקריאה זולה (קריאת JSON קטן).
-  await PluginCrashGuard.ensureInitialized()
-      .catchError((Object error, StackTrace stackTrace) {
+  await PluginCrashGuard.ensureInitialized().catchError((
+    Object error,
+    StackTrace stackTrace,
+  ) {
     _logNonFatalInitializationError(
-        'Plugin crash guard initialization', error, stackTrace);
+      'Plugin crash guard initialization',
+      error,
+      stackTrace,
+    );
   });
 
   // גיבוי אוטומטי ורישום פרוטוקול אינם נחוצים להצגת ה-UI הראשי (טאבים,
@@ -652,7 +664,10 @@ Future<void> _runDeferredErrorReportFlush() async {
     await reportService.startAutomaticFlush();
   } catch (error, stackTrace) {
     _logNonFatalInitializationError(
-        'Direct error report queue', error, stackTrace);
+      'Direct error report queue',
+      error,
+      stackTrace,
+    );
   }
 }
 
@@ -696,8 +711,9 @@ Future<void> _runDeferredProtocolRegistration() async {
 /// החשיפה קורית תוך שניות (כולל failsafe של 8 שניות ב-MainWindowScreen).
 Future<void> _runDeferredCacheWarmups() async {
   try {
-    await _mainWindowRevealedCompleter.future
-        .timeout(const Duration(seconds: 15));
+    await _mainWindowRevealedCompleter.future.timeout(
+      const Duration(seconds: 15),
+    );
   } on TimeoutException {
     // ממשיכים בכל זאת — עדיף חימום מאוחר מאשר אף פעם.
   }
@@ -706,23 +722,33 @@ Future<void> _runDeferredCacheWarmups() async {
       if (kDebugMode) debugPrint('Failed to warm up dictionary: $e');
     }),
   );
-  unawaited(BooksCache.instance.warmUp().catchError((e) {
-    if (kDebugMode) debugPrint('Failed to warm up BooksCache: $e');
-  }));
-  unawaited(AcronymsCache.instance.warmUp().catchError((e) {
-    if (kDebugMode) debugPrint('Failed to warm up AcronymsCache: $e');
-  }));
-  unawaited(GenerationCache.instance.warmUp().catchError((e) {
-    if (kDebugMode) debugPrint('Failed to warm up GenerationCache: $e');
-  }));
-  unawaited(AppFonts.warmUpSystemFontsCache().catchError((e) {
-    if (kDebugMode) debugPrint('Failed to warm up system fonts: $e');
-  }));
-  unawaited(ReferenceBooksCache.instance.warmUp().catchError((e) {
-    if (kDebugMode) {
-      debugPrint('Failed to warm up ReferenceBooksCache: $e');
-    }
-  }));
+  unawaited(
+    BooksCache.instance.warmUp().catchError((e) {
+      if (kDebugMode) debugPrint('Failed to warm up BooksCache: $e');
+    }),
+  );
+  unawaited(
+    AcronymsCache.instance.warmUp().catchError((e) {
+      if (kDebugMode) debugPrint('Failed to warm up AcronymsCache: $e');
+    }),
+  );
+  unawaited(
+    GenerationCache.instance.warmUp().catchError((e) {
+      if (kDebugMode) debugPrint('Failed to warm up GenerationCache: $e');
+    }),
+  );
+  unawaited(
+    AppFonts.warmUpSystemFontsCache().catchError((e) {
+      if (kDebugMode) debugPrint('Failed to warm up system fonts: $e');
+    }),
+  );
+  unawaited(
+    ReferenceBooksCache.instance.warmUp().catchError((e) {
+      if (kDebugMode) {
+        debugPrint('Failed to warm up ReferenceBooksCache: $e');
+      }
+    }),
+  );
   // פרי-וורם של ספרי היברובוקס המקומיים (אם הוגדרה תיקייה): סריקת
   // התיקייה וטעינת המטא-דאטה מהקטלוג מבוצעות ברקע כדי שהחיפוש הראשון
   // לא ישלם עבורן. כשאין תיקייה — הקריאה מתקצרת מיד ללא עלות.
@@ -775,8 +801,9 @@ Future<void> _preWarmWebViewEnvironment() async {
 Future<void>? _processInitializationFuture;
 
 Future<void> _ensureBootstrapInitialized() {
-  return (_processInitializationFuture ??= _initializeProcessSingletons())
-      .then((_) => _initializeRestartableRuntime());
+  return (_processInitializationFuture ??= _initializeProcessSingletons()).then(
+    (_) => _initializeRestartableRuntime(),
+  );
 }
 
 @visibleForTesting
@@ -785,7 +812,8 @@ void scheduleAfterTwoFrames(
   WidgetsBinding? binding,
   void Function(FrameCallback callback)? scheduleFrameCallback,
 }) {
-  final schedule = scheduleFrameCallback ??
+  final schedule =
+      scheduleFrameCallback ??
       (binding ?? WidgetsBinding.instance).addPostFrameCallback;
   schedule((_) {
     schedule((_) {
@@ -877,8 +905,9 @@ Future<bool> _maybeRunCliCommand(List<String> args) async {
 
   final command = args.first.trim().toLowerCase();
   // תמיכה גם ב-`pack-plugin`, ב-`--pack-plugin` וב-`/pack-plugin` (Windows style).
-  final normalized =
-      command.replaceFirst(RegExp(r'^(--|/)'), '').replaceAll('_', '-');
+  final normalized = command
+      .replaceFirst(RegExp(r'^(--|/)'), '')
+      .replaceAll('_', '-');
 
   if (normalized == 'pack-plugin') {
     final exitCode = await PluginPackagerCli.run(args.skip(1).toList());
@@ -906,26 +935,28 @@ class _AppBootstrapState extends State<AppBootstrap> {
   @override
   void initState() {
     super.initState();
-    _ensureBootstrapInitialized().then((_) {
-      if (!mounted) return;
-      setState(() {
-        _historyRepository = HistoryRepository();
-        _settingsRepository = SettingsRepository();
-        _ready = true;
-      });
-      unawaited(_runDeferredCacheWarmups());
-    }).catchError((Object error, StackTrace stackTrace) {
-      _appendUnhandledErrorToLocalLog(
-        title: 'Bootstrap Error',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      if (!mounted) return;
-      setState(() {
-        _error = error;
-        _ready = true;
-      });
-    });
+    _ensureBootstrapInitialized()
+        .then((_) {
+          if (!mounted) return;
+          setState(() {
+            _historyRepository = HistoryRepository();
+            _settingsRepository = SettingsRepository();
+            _ready = true;
+          });
+          unawaited(_runDeferredCacheWarmups());
+        })
+        .catchError((Object error, StackTrace stackTrace) {
+          _appendUnhandledErrorToLocalLog(
+            title: 'Bootstrap Error',
+            error: error,
+            stackTrace: stackTrace,
+          );
+          if (!mounted) return;
+          setState(() {
+            _error = error;
+            _ready = true;
+          });
+        });
   }
 
   @override
@@ -1013,8 +1044,8 @@ class _AppBootstrapState extends State<AppBootstrap> {
                 repository: WorkspaceRepository(),
                 onWorkspaceTabsChanged:
                     (List<OpenedTab> tabs, int activeIndex) {
-                  tabsBloc.add(ReplaceAllTabs(tabs, activeIndex));
-                },
+                      tabsBloc.add(ReplaceAllTabs(tabs, activeIndex));
+                    },
               )..add(LoadWorkspaces());
             },
           ),
@@ -1046,7 +1077,8 @@ class _AppBootstrapState extends State<AppBootstrap> {
                   false,
               areUpdatesEnabled: () =>
                   Settings.getValue<bool>(
-                      SettingsRepository.keySoftwareAndBookUpdatesEnabled) ??
+                    SettingsRepository.keySoftwareAndBookUpdatesEnabled,
+                  ) ??
                   true,
               // עדכוני ספרייה תמיד ליציב בלבד — מנותק מערוץ הפיתוח, שמשפיע רק
               // על עדכוני התוכנה.
@@ -1081,8 +1113,9 @@ Future<void> loadCerts() async {
   final certs = ['assets/ca/netfree_cas.pem'];
   for (var cert in certs) {
     final certBytes = await rootBundle.load(cert);
-    SecurityContext.defaultContext
-        .setTrustedCertificatesBytes(certBytes.buffer.asUint8List());
+    SecurityContext.defaultContext.setTrustedCertificatesBytes(
+      certBytes.buffer.asUint8List(),
+    );
   }
 }
 

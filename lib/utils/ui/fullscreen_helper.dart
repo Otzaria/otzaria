@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:window_manager/window_manager.dart';
@@ -34,13 +32,6 @@ class FullscreenHelper {
     final settingsBloc = context.read<SettingsBloc>();
     if (settingsBloc.state.isFullscreen != isFullscreen) {
       settingsBloc.add(UpdateIsFullscreen(isFullscreen));
-    }
-
-    // ב-macOS מסך מלא נייטיבי מנהל את כפתורי המערכת בעצמו — אסור לגעת
-    // בעיצוב המסגרת, אחרת ה-traffic lights נעלמים.
-    if (Platform.isMacOS) {
-      await windowManager.setFullScreen(isFullscreen);
-      return;
     }
 
     // פעולות על מנהל החלונות
