@@ -84,6 +84,55 @@ void main() {
     expect(paneWidth, isNot(300));
   });
 
+  testWidgets('onLayoutModeChanged מדווח push במסך רחב ו-overlay במסך צר',
+      (tester) async {
+    // ה-reanchor בטקסט צריך לרוץ רק כשהחלונית דוחקת את התוכן (push). בדיקה
+    // שהדיווח מבחין בין רחב (push=true) לצר (overlay=false).
+    late StateSetter setRootState;
+    var containerWidth = 1200.0;
+    final reported = <bool>[];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              setRootState = setState;
+              return Scaffold(
+                body: Center(
+                  child: SizedBox(
+                    width: containerWidth,
+                    height: 700,
+                    child: AdaptiveSidePane(
+                      isOpen: true,
+                      alignment: AlignmentDirectional.centerEnd,
+                      paneWidth: 300,
+                      minMainContentWidth: 420,
+                      onClose: () {},
+                      mainContent: const SizedBox.expand(),
+                      paneContent: const Text('pane'),
+                      onLayoutModeChanged: reported.add,
+                      autoHandleResponsiveVisibility: false,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(reported.last, isTrue);
+
+    setRootState(() => containerWidth = 500);
+    await tester.pumpAndSettle();
+
+    expect(reported.last, isFalse);
+  });
+
   testWidgets('AdaptiveSidePane preserves wide pane state across close/open',
       (tester) async {
     late StateSetter setRootState;

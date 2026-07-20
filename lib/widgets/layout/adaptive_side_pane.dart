@@ -31,6 +31,10 @@ class AdaptiveSidePane extends StatefulWidget {
   final double? maxPaneWidth;
   final ValueChanged<double>? onPaneWidthChanged;
   final VoidCallback? onPaneResizeEnd;
+
+  /// נקרא כשמצב הפריסה משתנה: true = דחיקת תוכן (wide), false = overlay (narrow).
+  /// משמש הורים שצריכים לדעת אם פתיחה/סגירה משנה את רוחב התוכן.
+  final ValueChanged<bool>? onLayoutModeChanged;
   final Widget Function(
     BuildContext context,
     Widget paneContent,
@@ -62,6 +66,7 @@ class AdaptiveSidePane extends StatefulWidget {
     this.maxPaneWidth,
     this.onPaneWidthChanged,
     this.onPaneResizeEnd,
+    this.onLayoutModeChanged,
     this.widePaneBuilder,
     this.narrowPaneBuilder,
     this.autoHandleResponsiveVisibility = true,
@@ -74,6 +79,7 @@ class AdaptiveSidePane extends StatefulWidget {
 
 class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
   bool? _lastHadRoomForSideBySide;
+  bool? _lastReportedLayoutMode;
 
   // ── Drag state ──────────────────────────────────────────────────────────────
   // רוחב פנימי בזמן גרירה — מנוהל דרך ValueNotifier כדי לא לגרום ל-parent rebuild
@@ -273,6 +279,14 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
         // עדכון ה-snapshot גם כשלא גוררים
         if (!_isDragging) {
           _lastHadRoomForSideBySide = hasRoomForSideBySide;
+        }
+
+        if (widget.onLayoutModeChanged != null &&
+            _lastReportedLayoutMode != hasRoomForSideBySide) {
+          _lastReportedLayoutMode = hasRoomForSideBySide;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) widget.onLayoutModeChanged!(hasRoomForSideBySide);
+          });
         }
 
         if (hasRoomForSideBySide) {

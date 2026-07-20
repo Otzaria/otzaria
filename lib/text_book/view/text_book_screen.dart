@@ -255,6 +255,14 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   bool _leftPaneAutoCloseQueuedByScroll = false;
   // מצב חלונית הצד שזוהה לאחרונה, לעיגון-מחדש של הטקסט בעת פתיחה/סגירה.
   bool _lastShowLeftPaneForReanchor = false;
+  // האם החלונית דוחקת את התוכן (wide). ב-overlay הרוחב לא משתנה ולכן ה-reanchor
+  // מיותר — וה-jumpTo שלו מבטל אנימציית ניווט פעילה מבחירה בסרגל הצד.
+  bool _paneUsesPushLayout = false;
+
+  /// מונה כמה פעמים רץ ה-reanchor בעקבות פתיחה/סגירת החלונית. לבדיקת הרגרסיה:
+  /// חייב לרוץ במצב push ולהידכא ב-overlay.
+  @visibleForTesting
+  int reanchorOnPaneToggleCount = 0;
 
   // Key עבור PageShapeScreen
   final Key _pageShapeKey = UniqueKey();
@@ -1168,7 +1176,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                   // לפריט העליון הנראה כדי שהתצוגה לא תקפוץ בזרימה-מחדש.
                   if (state.showLeftPane != _lastShowLeftPaneForReanchor) {
                     _lastShowLeftPaneForReanchor = state.showLeftPane;
-                    _reanchorMainContentToTopmostVisible();
+                    if (_paneUsesPushLayout) {
+                      reanchorOnPaneToggleCount++;
+                      _reanchorMainContentToTopmostVisible();
+                    }
                   }
                   final pendingSidebarTab = Settings.getValue<int>(
                     'key-sidebar-tab-index-pending',
@@ -2528,6 +2539,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         context.read<SettingsBloc>().add(
           UpdateSidebarWidth(_sidebarWidth.value),
         );
+      },
+      onLayoutModeChanged: (usesPushLayout) {
+        _paneUsesPushLayout = usesPushLayout;
       },
       autoHandleResponsiveVisibility: false,
       scrollbarTopMargin: 0,
