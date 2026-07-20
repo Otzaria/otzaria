@@ -39,6 +39,16 @@ class WebViewEnvironmentHolder {
     _runtimeAvailableOverride = value;
   }
 
+  /// override לבדיקות בלבד: מחליף את גוף [initialize]. בלעדיו הבדיקה יוצרת
+  /// סביבת WebView2 אמיתית — נתקעת ב-flutter_tester שאין בו platform channel.
+  static Future<void> Function()? _initializeOverride;
+
+  /// מחליף את מימוש [initialize] בבדיקות. העבר `null` לאיפוס.
+  @visibleForTesting
+  static void debugOverrideInitialize(Future<void> Function()? override) {
+    _initializeOverride = override;
+  }
+
   /// בודק אם WebView2 Runtime מותקן במחשב (Windows בלבד).
   ///
   /// מחזיר `true` בכל פלטפורמה שאינה Windows — שם הבדיקה אינה רלוונטית.
@@ -67,6 +77,7 @@ class WebViewEnvironmentHolder {
   /// אותה התוצאה. במקרה של כשל, ה-future מנוקה כך שניסיון הבא יבצע
   /// retry במקום להחזיר את אותה שגיאה שמורה.
   static Future<void> initialize() {
+    if (_initializeOverride != null) return _initializeOverride!();
     if (!Platform.isWindows) return Future<void>.value();
     if (_environment != null) return Future<void>.value();
     return _initializeFuture ??= _runInitialize();

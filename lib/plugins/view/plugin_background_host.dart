@@ -50,8 +50,9 @@ bool _isDevServerUri(Uri uri, String? devRootPath) {
   const localhosts = {'localhost', '127.0.0.1', '::1'};
   if (!localhosts.contains(reqHost) || reqHost != devHost) return false;
   if (uri.scheme != devUri.scheme) return false;
-  final devPort =
-      devUri.hasPort ? devUri.port : (devUri.scheme == 'https' ? 443 : 80);
+  final devPort = devUri.hasPort
+      ? devUri.port
+      : (devUri.scheme == 'https' ? 443 : 80);
   final reqPort = uri.hasPort ? uri.port : (uri.scheme == 'https' ? 443 : 80);
   return reqPort == devPort;
 }
@@ -234,6 +235,8 @@ class _PluginBackgroundHostState extends State<PluginBackgroundHost> {
         final shouldRun = granted == true;
         final isRunning = _activeBackgroundPlugins.containsKey(plugin.pluginId);
         if (shouldRun && !isRunning) {
+          if (!await _ensureWebViewEnvironment()) return;
+          if (!mounted) return;
           setState(() {
             _activeBackgroundPlugins[plugin.pluginId] = plugin;
           });
@@ -259,6 +262,19 @@ class _PluginBackgroundHostState extends State<PluginBackgroundHost> {
       } finally {
         _pluginsBeingEvaluated.remove(plugin.pluginId);
       }
+    }
+  }
+
+  /// מאתחל את סביבת WebView2 עם userDataFolder הניתן לכתיבה. בלעדיה WebView2
+  /// כותב לתיקיית ברירת מחדל ליד ה-EXE (Program Files = read-only) ונכשל.
+  /// נקרא רק כשעומדים באמת להריץ תוסף רקע — האתחול מצמיח תהליכי Edge.
+  Future<bool> _ensureWebViewEnvironment() async {
+    try {
+      await WebViewEnvironmentHolder.initialize();
+      return true;
+    } catch (e) {
+      debugPrint('PluginBackgroundHost: WebView2 environment init failed — $e');
+      return false;
     }
   }
 }
@@ -325,8 +341,9 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
       resolveReference: (reference) async {
         final results = await findRefRepository.findRefs(reference);
         return results
-            .map((r) =>
-                (title: r.title, index: r.segment.toInt(), isPdf: r.isPdf))
+            .map(
+              (r) => (title: r.title, index: r.segment.toInt(), isPdf: r.isPdf),
+            )
             .toList();
       },
       resolveRefToLine: (book, ref) =>
@@ -343,38 +360,40 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
       },
       // דיאלוגים מתוך תוסף-רקע מנותבים דרך ה-navigatorKey הגלובלי
       // כדי שלא יהיו תלויים ב-context של widget מוסתר.
-      showConfirmDialog: ({
-        required String title,
-        required String content,
-      }) async {
-        final ctx = navigatorKey.currentContext;
-        if (ctx == null) return false;
-        return await showTwoActionsDialog(
-              context: ctx,
-              title: title,
-              content: content,
-              cancelText: 'ביטול',
-              confirmText: 'אישור',
-            ) ==
-            true;
-      },
-      showWarningDialog: ({
-        required String title,
-        required String content,
-        required String subtitle,
-      }) async {
-        final ctx = navigatorKey.currentContext;
-        if (ctx == null) return false;
-        return await showWarningDialog(
-              context: ctx,
-              title: title,
-              content: content,
-              subtitle: subtitle,
-              cancelText: 'ביטול',
-              confirmText: 'המשך',
-            ) ==
-            true;
-      },
+      showConfirmDialog:
+          ({
+            required String title,
+            required String content,
+          }) async {
+            final ctx = navigatorKey.currentContext;
+            if (ctx == null) return false;
+            return await showTwoActionsDialog(
+                  context: ctx,
+                  title: title,
+                  content: content,
+                  cancelText: 'ביטול',
+                  confirmText: 'אישור',
+                ) ==
+                true;
+          },
+      showWarningDialog:
+          ({
+            required String title,
+            required String content,
+            required String subtitle,
+          }) async {
+            final ctx = navigatorKey.currentContext;
+            if (ctx == null) return false;
+            return await showWarningDialog(
+                  context: ctx,
+                  title: title,
+                  content: content,
+                  subtitle: subtitle,
+                  cancelText: 'ביטול',
+                  confirmText: 'המשך',
+                ) ==
+                true;
+          },
       requestPluginInstall: (downloadUrl) {
         _pluginSystemBloc.add(InstallRemotePluginRequested(downloadUrl));
       },
@@ -440,7 +459,8 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
       }
     } catch (e) {
       debugPrint(
-          'Background plugin [${widget.plugin.pluginId}] reload error: $e');
+        'Background plugin [${widget.plugin.pluginId}] reload error: $e',
+      );
     }
   }
 
@@ -461,6 +481,10 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
   @override
   Widget build(BuildContext context) {
     if (!widget.plugin.isLocalhostDev && !File(_localHtmlPath).existsSync()) {
+      return const SizedBox.shrink();
+    }
+
+    if (Platform.isWindows && WebViewEnvironmentHolder.environment == null) {
       return const SizedBox.shrink();
     }
 
@@ -500,7 +524,8 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
             instanceId: _backgroundInstanceId,
           );
           debugPrint(
-              'Background plugin [${widget.plugin.pluginId}] init error: $e');
+            'Background plugin [${widget.plugin.pluginId}] init error: $e',
+          );
         }
       },
       shouldOverrideUrlLoading: (controller, navigationAction) async {
@@ -509,8 +534,9 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
           if (uri == null) return NavigationActionPolicy.CANCEL;
           if (uri.scheme == 'file') {
             final normalizedUri = p.normalize(uri.toFilePath());
-            final normalizedInstall =
-                p.normalize(widget.plugin.resolvedRootPath);
+            final normalizedInstall = p.normalize(
+              widget.plugin.resolvedRootPath,
+            );
             if (p.isWithin(normalizedInstall, normalizedUri) ||
                 normalizedUri == normalizedInstall) {
               return NavigationActionPolicy.ALLOW;
@@ -531,7 +557,8 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
                 widget.plugin.pluginId,
                 requiredNetworkPermissionFor(uri),
               );
-              final allowed = granted == true &&
+              final allowed =
+                  granted == true &&
                   await PluginNetworkAccessResolver.instance
                       .isUriAllowedForPlugin(uri, widget.plugin.manifest);
               if (allowed) {
@@ -542,7 +569,8 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
           return NavigationActionPolicy.CANCEL;
         } catch (e) {
           debugPrint(
-              'Background plugin [${widget.plugin.pluginId}] URL override error: $e');
+            'Background plugin [${widget.plugin.pluginId}] URL override error: $e',
+          );
           return NavigationActionPolicy.CANCEL;
         }
       },
@@ -551,12 +579,15 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
           final uri = request.url;
           if (uri.scheme == 'file') {
             final normalizedUri = p.normalize(uri.toFilePath());
-            final normalizedInstall =
-                p.normalize(widget.plugin.resolvedRootPath);
+            final normalizedInstall = p.normalize(
+              widget.plugin.resolvedRootPath,
+            );
             if (!p.isWithin(normalizedInstall, normalizedUri) &&
                 normalizedUri != normalizedInstall) {
               return WebResourceResponse(
-                  statusCode: 403, reasonPhrase: 'Forbidden');
+                statusCode: 403,
+                reasonPhrase: 'Forbidden',
+              );
             }
           }
           if ((uri.scheme == 'http' || uri.scheme == 'https') &&
@@ -570,7 +601,8 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
                 widget.plugin.pluginId,
                 requiredNetworkPermissionFor(uri),
               );
-              final allowed = granted == true &&
+              final allowed =
+                  granted == true &&
                   await PluginNetworkAccessResolver.instance
                       .isUriAllowedForPlugin(uri, widget.plugin.manifest);
               if (allowed) {
@@ -578,14 +610,19 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
               }
             }
             return WebResourceResponse(
-                statusCode: 403, reasonPhrase: 'Forbidden');
+              statusCode: 403,
+              reasonPhrase: 'Forbidden',
+            );
           }
           return null;
         } catch (e) {
           debugPrint(
-              'Background plugin [${widget.plugin.pluginId}] intercept request error: $e');
+            'Background plugin [${widget.plugin.pluginId}] intercept request error: $e',
+          );
           return WebResourceResponse(
-              statusCode: 403, reasonPhrase: 'Forbidden');
+            statusCode: 403,
+            reasonPhrase: 'Forbidden',
+          );
         }
       },
       onLoadStop: (controller, url) async {
@@ -599,10 +636,10 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
                 };
           final packageInfo =
               _cachedPackageInfo ?? await PackageInfo.fromPlatform();
-          final permissions =
-              await _pluginRegistryRepository.getPluginPermissions(
-            widget.plugin.pluginId,
-          );
+          final permissions = await _pluginRegistryRepository
+              .getPluginPermissions(
+                widget.plugin.pluginId,
+              );
           final bootPayload = {
             'plugin': {
               'id': widget.plugin.pluginId,
@@ -627,7 +664,9 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
                 .toList(),
           };
           final jsonPayload = jsonEncode(bootPayload);
-          await controller.evaluateJavascript(source: '''
+          await controller.evaluateJavascript(
+            source:
+                '''
 (function () {
   var _ls = {};
   var realSdk = {
@@ -657,12 +696,17 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
   };
   window.Otzaria._boot(realSdk, $jsonPayload);
 })();
-''');
+''',
+          );
         } catch (e, st) {
           debugPrint(
-              'Background plugin [${widget.plugin.pluginId}] boot error: $e\n$st');
+            'Background plugin [${widget.plugin.pluginId}] boot error: $e\n$st',
+          );
           PluginSystemDatabase.instance.writeLog(
-              widget.plugin.pluginId, 'ERROR', 'Background boot failed: $e');
+            widget.plugin.pluginId,
+            'ERROR',
+            'Background boot failed: $e',
+          );
         }
       },
       onConsoleMessage: (controller, consoleMessage) {
@@ -676,7 +720,8 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
             );
           }
           debugPrint(
-              'Background plugin [${widget.plugin.pluginId}]: ${consoleMessage.message}');
+            'Background plugin [${widget.plugin.pluginId}]: ${consoleMessage.message}',
+          );
         } catch (_) {}
       },
     );
