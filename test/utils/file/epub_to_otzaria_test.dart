@@ -677,6 +677,99 @@ void main() {
     });
   });
 
+  group('epubToText - תוכן עניינים מ-NCX/nav', () {
+    const ncx = '''
+<?xml version="1.0" encoding="UTF-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <navMap>
+    <navPoint id="n1" playOrder="1">
+      <navLabel><text>שער ראשון</text></navLabel>
+      <content src="ch1.xhtml"/>
+      <navPoint id="n2" playOrder="2">
+        <navLabel><text>סימן א</text></navLabel>
+        <content src="ch1.xhtml#s1"/>
+      </navPoint>
+    </navPoint>
+  </navMap>
+</ncx>''';
+
+    test('ספר בלי תגיות כותרת מקבל כותרות מסונתזות מה-NCX', () {
+      final epub = _buildEpub(
+        chapters: {
+          'ch1.xhtml': _xhtml(
+            '<p>שער ראשון</p>'
+            '<p>פתיחה לשער.</p>'
+            '<p id="s1">דין ראשון בסימן.</p>',
+          ),
+        },
+        binaryFiles: {'toc.ncx': utf8.encode(ncx)},
+        extraManifest:
+            '<item id="ncx" href="toc.ncx" '
+            'media-type="application/x-dtbncx+xml"/>',
+      );
+      final result = epubToText(epub, 'ספר');
+      final lines = result.split('\n');
+
+      expect(lines, contains('<h2>שער ראשון</h2>'));
+      expect(lines, contains('<h3>סימן א</h3>'));
+      // פסקת-הכותרת הכפולה דולגה, ושאר התוכן נשמר בסדר.
+      expect(RegExp('שער ראשון').allMatches(result).length, 1);
+      expect(
+        result.indexOf('<h3>סימן א</h3>'),
+        lessThan(result.indexOf('דין ראשון')),
+      );
+    });
+
+    test('ספר שיש לו כותרות אמיתיות אינו מקבל כפילות מה-NCX', () {
+      final epub = _buildEpub(
+        chapters: {
+          'ch1.xhtml': _xhtml('<h1>שער ראשון</h1><p>תוכן.</p>'),
+        },
+        binaryFiles: {'toc.ncx': utf8.encode(ncx)},
+        extraManifest:
+            '<item id="ncx" href="toc.ncx" '
+            'media-type="application/x-dtbncx+xml"/>',
+      );
+      final result = epubToText(epub, 'ספר');
+
+      expect(RegExp('שער ראשון').allMatches(result).length, 1);
+      expect(result, contains('<h2>שער ראשון</h2>'));
+    });
+
+    test('מסמך ניווט EPUB3 (nav) משמש לסינתוז כשאין NCX', () {
+      const nav = '''
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:epub="http://www.idpf.org/2007/ops">
+<body><nav epub:type="toc"><ol>
+  <li><a href="ch1.xhtml">פרק הפתיחה</a>
+    <ol><li><a href="ch1.xhtml#p2">חלק שני</a></li></ol>
+  </li>
+</ol></nav></body>
+</html>''';
+      final epub = _buildEpub(
+        chapters: {
+          'ch1.xhtml': _xhtml(
+            '<p>תוכן ראשון.</p><p id="p2">תוכן שני.</p>',
+          ),
+        },
+        binaryFiles: {'nav.xhtml': utf8.encode(nav)},
+        extraManifest:
+            '<item id="nav" href="nav.xhtml" properties="nav" '
+            'media-type="application/xhtml+xml"/>',
+      );
+      final result = epubToText(epub, 'ספר');
+      final lines = result.split('\n');
+
+      expect(lines, contains('<h2>פרק הפתיחה</h2>'));
+      expect(lines, contains('<h3>חלק שני</h3>'));
+      expect(
+        result.indexOf('<h3>חלק שני</h3>'),
+        lessThan(result.indexOf('תוכן שני')),
+      );
+    });
+  });
+
   group('epubToText - עטיפות בלוק', () {
     test('div עוטף עם בלוקים פנימיים שקוף; div עם inline בלבד הופך לשורה', () {
       final epub = _buildEpub(

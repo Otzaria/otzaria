@@ -12,7 +12,7 @@ import 'package:otzaria/utils/file/text_encoding.dart'
 
 /// גרסת הממיר [epubToText] — **חובה להעלות בכל שינוי שמשפיע על הפלט**:
 /// מטמון התוכן כולל את הגרסה במפתח-התוקף, והעלאה פוסלת רשומות ישנות.
-const int kEpubConverterVersion = 9;
+const int kEpubConverterVersion = 10;
 
 /// ממיר קובץ EPUB לפורמט הטקסט של אוצריא: שורת `<h1>` עם שם הספר, ואחריה
 /// שורה לכל בלוק (פסקה/כותרת/טבלה/תמונה) לפי סדר פרקי ה-spine.
@@ -84,6 +84,24 @@ String epubToText(Uint8List bytes, String title) {
     }
   }
 
+  // כותרות מה-TOC של הספר (NCX/nav) — לספרים שפרקיהם בלי תגיות כותרת:
+  // רשומה בלי עוגן ממופה לתחילת הפרק, רשומה עם עוגן — לבלוק היעד.
+  final chapterTocHeading = <String, (String, int)>{};
+  for (final t in _parseTocEntries(files, manifest)) {
+    final level = (t.depth + 1).clamp(2, 6).toInt();
+    if (t.fragment == null || t.fragment!.isEmpty) {
+      chapterTocHeading.putIfAbsent(t.pathLower, () => (t.title, level));
+    } else {
+      dom.Element? el = ctx.anchors['${t.pathLower}#${t.fragment}'];
+      // עוגן inline (למשל <a id>) — מטפסים לבלוק העוטף, שם מקום הכותרת.
+      while (el != null && !_isBlockElement(el)) {
+        el = el.parent;
+      }
+      if (el == null || _headingTags.contains(el.localName)) continue;
+      ctx.tocHeadings.putIfAbsent(el, () => (t.title, level));
+    }
+  }
+
   // שלב 2: סריקה מקדימה — סימון יעדי הערות לדיכוי, לפני הרינדור, כדי
   // שגוף הערה לא יופיע פעמיים גם כשהיעד קודם להפניה בסדר הפרקים.
   for (final ch in chapters) {
@@ -99,8 +117,10 @@ String epubToText(Uint8List bytes, String title) {
   for (final ch in chapters) {
     ctx.baseDir = _dirOf(ch.path);
     ctx.chapterPath = ch.path;
+    ctx.pendingChapterHeading = chapterTocHeading[ch.path.toLowerCase()];
     _processBlockChildren(ch.body.nodes, ctx, output);
   }
+  ctx.pendingChapterHeading = null;
 
   // כריכה מוצהרת (manifest) שלא הופיעה באף פרק — למשל עמוד כריכה
   // linear="no" שדולג — מוזרקת אחרי הכותרת, כך שהכריכה תמיד מוצגת.
@@ -112,6 +132,133 @@ String epubToText(Uint8List bytes, String title) {
   }
 
   return output.join('\n');
+}
+
+/// רשומת תוכן-עניינים מ-NCX/nav: יעד (נתיב+עוגן), כותרת ועומק קינון.
+class _TocRef {
+  final String pathLower;
+  final String? fragment;
+  final String title;
+  final int depth;
+  const _TocRef(this.pathLower, this.fragment, this.title, this.depth);
+}
+
+xml.XmlElement? _childByLocal(xml.XmlElement parent, String local) {
+  for (final c in parent.childElements) {
+    if (c.name.local == local) return c;
+  }
+  return null;
+}
+
+/// קורא את רשומות ה-TOC של הספר: קודם מסמך הניווט של EPUB3 (`nav`), ואם
+/// אין — `toc.ncx` של EPUB2. משמש לסינתוז כותרות בספרים שפרקיהם בלי
+/// תגיות `<h1>`–`<h6>` (שמהן נבנה תוכן העניינים של אוצריא).
+List<_TocRef> _parseTocEntries(
+  _ArchiveFiles files,
+  Map<String, _ManifestItem> manifest,
+) {
+  final entries = <_TocRef>[];
+
+  void addEntry(String baseDir, String href, String title, int depth) {
+    if (title.isEmpty || href.isEmpty) return;
+    final hash = href.indexOf('#');
+    final fragment = hash >= 0 ? href.substring(hash + 1) : null;
+    final path = _resolveHref(baseDir, href);
+    if (path.isEmpty) return;
+    entries.add(_TocRef(path.toLowerCase(), fragment, title, depth));
+  }
+
+  // EPUB3: מסמך ניווט (properties="nav") — עץ <ol>/<li>/<a>.
+  for (final item in manifest.values) {
+    if (!item.properties.split(' ').contains('nav')) continue;
+    final bytes = files.read(item.path);
+    if (bytes == null) break;
+    final dom.Document doc;
+    try {
+      doc = html_parser.parse(_decodeBytes(bytes));
+    } catch (_) {
+      break;
+    }
+    final navBase = _dirOf(item.path);
+    dom.Element? toc;
+    for (final nav in doc.querySelectorAll('nav')) {
+      if (_hasEpubType(nav, const {'toc'})) {
+        toc = nav;
+        break;
+      }
+      toc ??= nav;
+    }
+    if (toc == null) break;
+
+    void walkOl(dom.Element ol, int depth) {
+      for (final li in ol.children.where((e) => e.localName == 'li')) {
+        dom.Element? link;
+        dom.Element? childOl;
+        for (final c in li.children) {
+          if (c.localName == 'a' && link == null) link = c;
+          if (c.localName == 'ol' && childOl == null) childOl = c;
+        }
+        if (link != null) {
+          addEntry(
+            navBase,
+            link.attributes['href'] ?? '',
+            _collapseWhitespace(link.text).trim(),
+            depth,
+          );
+        }
+        if (childOl != null) walkOl(childOl, depth + 1);
+      }
+    }
+
+    for (final ol in toc.children.where((e) => e.localName == 'ol')) {
+      walkOl(ol, 1);
+    }
+    break;
+  }
+  if (entries.isNotEmpty) return entries;
+
+  // EPUB2: קובץ NCX — עץ <navMap>/<navPoint>.
+  for (final item in manifest.values) {
+    final isNcx =
+        item.mediaType == 'application/x-dtbncx+xml' ||
+        item.path.toLowerCase().endsWith('.ncx');
+    if (!isNcx) continue;
+    final bytes = files.read(item.path);
+    if (bytes == null) break;
+    final xml.XmlDocument doc;
+    try {
+      doc = xml.XmlDocument.parse(_decodeBytes(bytes));
+    } catch (_) {
+      break;
+    }
+    final ncxBase = _dirOf(item.path);
+
+    void walkNavPoints(Iterable<xml.XmlElement> elements, int depth) {
+      for (final np in elements.where((e) => e.name.local == 'navPoint')) {
+        final label = _childByLocal(np, 'navLabel');
+        final text = label == null ? null : _childByLocal(label, 'text');
+        final src = _childByLocal(np, 'content')?.getAttribute('src');
+        if (text != null && src != null) {
+          addEntry(
+            ncxBase,
+            src,
+            _collapseWhitespace(text.innerText).trim(),
+            depth,
+          );
+        }
+        walkNavPoints(np.childElements, depth + 1);
+      }
+    }
+
+    for (final el in doc.descendantElements) {
+      if (el.name.local == 'navMap') {
+        walkNavPoints(el.childElements, 1);
+        break;
+      }
+    }
+    break;
+  }
+  return entries;
 }
 
 /// מאתר את תמונת הכריכה המוצהרת: EPUB3 — פריט manifest עם
@@ -171,6 +318,13 @@ class _EpubContext {
 
   /// מטמון סיווג ההפניות — הסריקה המקדימה והרינדור עוברים על אותם קישורים.
   final Map<dom.Element, _NoterefResolution?> noterefCache = {};
+
+  /// בלוק-יעד של רשומת TOC (עוגן) → (כותרת, רמה) לסינתוז לפני הבלוק —
+  /// לספרים שמבנה הפרקים שלהם מוגדר ב-NCX/nav ולא בתגיות כותרת.
+  final Map<dom.Element, (String, int)> tocHeadings = {};
+
+  /// כותרת-פרק מה-TOC הממתינה לבלוק הראשון של הפרק הנוכחי.
+  (String, int)? pendingChapterHeading;
 
   String baseDir = '';
   String chapterPath = '';
@@ -498,7 +652,15 @@ void _processBlockChildren(
     }
     inlineRun.clear();
     final text = buf.toString().trim();
-    if (text.isNotEmpty) output.add(text);
+    if (text.isEmpty) return;
+    // תוכן inline ראשון בפרק — פולט לפניו כותרת-פרק ממתינה מה-TOC.
+    final pending = ctx.pendingChapterHeading;
+    if (pending != null) {
+      ctx.pendingChapterHeading = null;
+      output.add(_tocHeadingLine(pending));
+      if (_isDupOfSynthesized(text, pending.$1)) return;
+    }
+    output.add(text);
   }
 
   for (final node in nodes) {
@@ -524,6 +686,32 @@ void _processBlockElement(
   }
 
   final tag = e.localName ?? '';
+  final isHeading = _headingTags.contains(tag);
+  const leafTags = {
+    'p', 'figcaption', 'summary', 'dt', 'dd', 'pre', //
+    'ol', 'ul', 'table', 'img', 'hr',
+  };
+  final isTransparentWrapper =
+      !isHeading && !leafTags.contains(tag) && _containsBlockChildren(e);
+
+  // כותרות מסונתזות מה-TOC (ספרים בלי תגיות כותרת): כותרת-עוגן נפלטת לפני
+  // בלוק היעד, וכותרת-פרק ממתינה — לפני הבלוק הראשון שאינו עטיפה. פרק
+  // שנפתח בכותרת אמיתית מייתר את הסינתוז.
+  String? synthesizedTitle;
+  final anchorHeading = ctx.tocHeadings.remove(e);
+  if (isHeading) {
+    ctx.pendingChapterHeading = null;
+  } else if (anchorHeading != null) {
+    ctx.pendingChapterHeading = null;
+    output.add(_tocHeadingLine(anchorHeading));
+    synthesizedTitle = anchorHeading.$1;
+  } else if (!isTransparentWrapper && ctx.pendingChapterHeading != null) {
+    final pending = ctx.pendingChapterHeading!;
+    ctx.pendingChapterHeading = null;
+    output.add(_tocHeadingLine(pending));
+    synthesizedTitle = pending.$1;
+  }
+
   switch (tag) {
     case 'h1':
     case 'h2':
@@ -543,7 +731,8 @@ void _processBlockElement(
     case 'dd':
     case 'pre':
       final text = _renderInlineChildren(e, ctx).trim();
-      if (text.isNotEmpty) output.add(text);
+      if (text.isEmpty || _isDupOfSynthesized(text, synthesizedTitle)) return;
+      output.add(text);
     case 'ol':
       _processList(e, ctx, output, ordered: true, depth: 0);
     case 'ul':
@@ -561,7 +750,8 @@ void _processBlockElement(
         _processBlockChildren(e.nodes, ctx, output);
       } else {
         final text = _renderInlineChildren(e, ctx).trim();
-        if (text.isNotEmpty) output.add(text);
+        if (text.isEmpty || _isDupOfSynthesized(text, synthesizedTitle)) return;
+        output.add(text);
       }
     default:
       // div/section/article/aside/figure וכו' — עטיפות שקופות: יורדים
@@ -570,9 +760,21 @@ void _processBlockElement(
         _processBlockChildren(e.nodes, ctx, output);
       } else {
         final text = _renderInlineChildren(e, ctx).trim();
-        if (text.isNotEmpty) output.add(text);
+        if (text.isEmpty || _isDupOfSynthesized(text, synthesizedTitle)) return;
+        output.add(text);
       }
   }
+}
+
+String _tocHeadingLine((String, int) heading) =>
+    '<h${heading.$2}>${escapeHtmlText(heading.$1)}</h${heading.$2}>';
+
+/// האם הבלוק הוא רק כפילות של הכותרת שסונתזה זה-עתה מה-TOC (פסקת-כותרת
+/// מעוצבת שממנה נלקחה הכותרת) — ואז מדלגים עליו למניעת טקסט כפול.
+bool _isDupOfSynthesized(String blockHtml, String? synthesizedTitle) {
+  if (synthesizedTitle == null) return false;
+  final plain = blockHtml.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+  return plain == synthesizedTitle.trim();
 }
 
 /// רשימות מרונדרות כשורות עם קידומת והזחה לפי עומק — לא `<ol>`/`<ul>`
