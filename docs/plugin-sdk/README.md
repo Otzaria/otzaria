@@ -290,6 +290,8 @@ Otzaria.on('plugin.suspended', stop);   // עצירת timers / polling / WebSock
 | `library.listRecentBooks` | `library.books.read` | — | `{ bookId, title, ref }[]` |
 | `library.getBookContent` | `library.content.read` | `{ bookId, offset?, limit?, section? }` | `string` (max 5000 תווים) |
 | `library.getBookToc` | `library.content.read` | `{ bookId }` | `TocEntry[]` |
+| `library.listBookAltStructures` | `library.content.read` | `{ bookId }` | `AltStructure[]` |
+| `library.getBookAltToc` | `library.content.read` | `{ bookId, structureKey? }` | `TocEntry[]` |
 
 ### search.*
 

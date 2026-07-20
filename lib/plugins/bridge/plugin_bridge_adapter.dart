@@ -13,7 +13,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
+import 'package:otzaria/migration/models/alt_toc_structure.dart';
 import 'package:otzaria/text_book/text_book_repository.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
@@ -218,6 +220,16 @@ Future<String> buildPluginFontFaceCss() async {
   return parts.join('\n');
 }
 
+/// שורת ערך AltToc עם ה-lineIndex שלה (או null לכותרת-אב ללא שורה), לבניית
+/// העץ וחישוב ה-index ב-`getBookAltToc`.
+typedef AltTocEntryRow = ({
+  int id,
+  int? parentId,
+  int level,
+  int? lineIndex,
+  String text,
+});
+
 class PluginBridgeDependencies {
   final HistoryBloc historyBloc;
   final TabsBloc tabsBloc;
@@ -268,6 +280,17 @@ class PluginBridgeDependencies {
   /// ממשיך במסלולי ה-TOC הקיימים.
   final Future<int?> Function(TextBook book, String ref)? resolveRefToLine;
 
+  /// מחזיר את מבני ה-AltToc של ספר לפי כותרתו. אופציונלי — אם לא סופק,
+  /// האדפטר משתמש ב-[DatabaseLibraryProvider.instance]. קיים בעיקר להזרקה
+  /// בבדיקות (ה-DB אינו זמין בהן).
+  final Future<List<AltTocStructure>> Function(String bookTitle)?
+  altStructuresProvider;
+
+  /// מחזיר את ערכי מבנה ה-AltToc עם ה-lineIndex, לבניית העץ. אופציונלי —
+  /// אם לא סופק, האדפטר משתמש ב-[DatabaseLibraryProvider.instance].
+  final Future<List<AltTocEntryRow>> Function(int structureId)?
+  altTocEntriesProvider;
+
   const PluginBridgeDependencies({
     required this.historyBloc,
     required this.tabsBloc,
@@ -285,6 +308,8 @@ class PluginBridgeDependencies {
     this.pickFile,
     this.resolveReference,
     this.resolveRefToLine,
+    this.altStructuresProvider,
+    this.altTocEntriesProvider,
   });
 }
 
@@ -597,6 +622,64 @@ class PluginBridgeAdapter {
               .toList();
         }
         return [];
+      case 'listBookAltStructures':
+        {
+          final bookId = args['bookId'] ?? args['title'];
+          if (bookId is! String || bookId.isEmpty) {
+            throw Exception('error.invalid_params: bookId required');
+          }
+          final structures = await _loadAltStructures(bookId);
+          // ה-id הפנימי של ה-DB אינו יציב בין גרסאות ספרייה — לא נחשף לתוסף.
+          return structures
+              .map(
+                (s) => {
+                  'key': s.key,
+                  'title': s.title,
+                  'heTitle': s.heTitle,
+                },
+              )
+              .toList();
+        }
+      case 'getBookAltToc':
+        {
+          final bookId = args['bookId'] ?? args['title'];
+          if (bookId is! String || bookId.isEmpty) {
+            throw Exception('error.invalid_params: bookId required');
+          }
+          final rawKey = args['structureKey'];
+          if (rawKey != null && (rawKey is! String || rawKey.isEmpty)) {
+            throw Exception(
+              'error.invalid_params: structureKey must be a string',
+            );
+          }
+          final structureKey = rawKey as String?;
+          final structures = await _loadAltStructures(bookId);
+          if (structures.isEmpty) {
+            // ספר בלי AltToc (או ספר אישי/קובץ). key שלא קיים → שגיאה.
+            if (structureKey != null) {
+              throw Exception(
+                'error.not_found: structureKey "$structureKey" not found',
+              );
+            }
+            return [];
+          }
+          AltTocStructure selected;
+          if (structureKey == null) {
+            selected = structures.first;
+          } else {
+            final match = structures
+                .where((s) => s.key == structureKey)
+                .toList();
+            if (match.isEmpty) {
+              throw Exception(
+                'error.not_found: structureKey "$structureKey" not found',
+              );
+            }
+            selected = match.first;
+          }
+          final entries = await _loadAltTocEntries(selected.id);
+          return _flattenAltToc(entries);
+        }
       case 'getTree':
         // spec: getTree({ path?, includeBooks? }) -> מבנה עץ הספרייה המלא
         // path אופציונלי: מצמצם את העץ לתת-קטגוריה לפי הנתיב שלה (כמו '/תנך/ראשונים').
@@ -612,6 +695,59 @@ class PluginBridgeAdapter {
       default:
         throw Exception('Unknown action in library: $action');
     }
+  }
+
+  /// טוען את מבני ה-AltToc של ספר (דרך התלות המוזרקת או ה-DB).
+  Future<List<AltTocStructure>> _loadAltStructures(String bookId) {
+    final provider =
+        _dependencies.altStructuresProvider ??
+        DatabaseLibraryProvider.instance.getAlternativeStructuresForBook;
+    return provider(bookId);
+  }
+
+  /// טוען את ערכי מבנה ה-AltToc עם ה-lineIndex (דרך התלות המוזרקת או ה-DB).
+  Future<List<AltTocEntryRow>> _loadAltTocEntries(int structureId) {
+    final provider =
+        _dependencies.altTocEntriesProvider ??
+        DatabaseLibraryProvider.instance.getAltTocEntriesWithLineIndex;
+    return provider(structureId);
+  }
+
+  /// מסדר את ערכי ה-AltToc בסדר מסמך (depth-first) למערך שטוח זהה במבנה
+  /// ל-`getBookToc`: `[{text, index, level}]`.
+  ///
+  /// ל-index של ערך ללא שורה (בעיקר כותרות-אב) נלקח ה-lineIndex של הצאצא
+  /// הראשון (depth-first) שיש לו שורה. ערך שאין לו ולאף צאצא שורה — מושמט.
+  List<Map<String, dynamic>> _flattenAltToc(List<AltTocEntryRow> entries) {
+    final childrenByParent = <int?, List<AltTocEntryRow>>{};
+    for (final e in entries) {
+      childrenByParent.putIfAbsent(e.parentId, () => []).add(e);
+    }
+
+    int? firstDescendantLine(AltTocEntryRow node) {
+      if (node.lineIndex != null) return node.lineIndex;
+      for (final child in childrenByParent[node.id] ?? const []) {
+        final found = firstDescendantLine(child);
+        if (found != null) return found;
+      }
+      return null;
+    }
+
+    final result = <Map<String, dynamic>>[];
+    void visit(AltTocEntryRow node) {
+      final index = node.lineIndex ?? firstDescendantLine(node);
+      if (index != null) {
+        result.add({'text': node.text, 'index': index, 'level': node.level});
+      }
+      for (final child in childrenByParent[node.id] ?? const []) {
+        visit(child);
+      }
+    }
+
+    for (final root in childrenByParent[null] ?? const []) {
+      visit(root);
+    }
+    return result;
   }
 
   /// בונה ייצוג JSON רקורסיבי של קטגוריה כולל תתי-קטגוריות וספרים.

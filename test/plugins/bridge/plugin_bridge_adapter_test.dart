@@ -21,6 +21,7 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
+import 'package:otzaria/migration/models/alt_toc_structure.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_adapter.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
@@ -83,7 +84,8 @@ class _StubPluginRegistryRepository extends PluginRegistryRepository {
 
   @override
   Future<List<PluginPermissionGrant>> getPluginPermissions(
-      String pluginId) async {
+    String pluginId,
+  ) async {
     return permissions;
   }
 
@@ -95,7 +97,11 @@ class _StubPluginRegistryRepository extends PluginRegistryRepository {
 
   @override
   Future<void> setKV(
-      String pluginId, String namespace, String key, String valueJson) async {
+    String pluginId,
+    String namespace,
+    String key,
+    String valueJson,
+  ) async {
     kv['$namespace/$key'] = valueJson;
   }
 
@@ -161,12 +167,12 @@ PluginBridgeDependencies _buildNetworkDeps() {
     bookOpenCoordinator: _MockBookOpenCoordinator(),
     themePayloadBuilder: () => <String, dynamic>{},
     showConfirmDialog: ({required title, required content}) async => true,
-    showWarningDialog: ({
-      required title,
-      required content,
-      required subtitle,
-    }) async =>
-        true,
+    showWarningDialog:
+        ({
+          required title,
+          required content,
+          required subtitle,
+        }) async => true,
   );
 }
 
@@ -198,12 +204,12 @@ void main() {
           bookOpenCoordinator: _MockBookOpenCoordinator(),
           themePayloadBuilder: () => <String, dynamic>{},
           showConfirmDialog: ({required title, required content}) async => true,
-          showWarningDialog: ({
-            required title,
-            required content,
-            required subtitle,
-          }) async =>
-              true,
+          showWarningDialog:
+              ({
+                required title,
+                required content,
+                required subtitle,
+              }) async => true,
         ),
         pluginRepository: _StubPluginRegistryRepository(),
       );
@@ -220,8 +226,9 @@ void main() {
 
       calendarCubit.currentState = state;
 
-      final response = await adapter.execute('calendar', 'getJewishDate', {})
-          as Map<String, dynamic>;
+      final response =
+          await adapter.execute('calendar', 'getJewishDate', {})
+              as Map<String, dynamic>;
 
       expect(response['year'], jewishCalendar.getJewishYear());
       expect(response['month'], jewishCalendar.getJewishMonth());
@@ -230,8 +237,8 @@ void main() {
       expect(response['isLeapYear'], jewishCalendar.isJewishLeapYear());
       expect(response['isShabbat'], jewishCalendar.getDayOfWeek() == 7);
 
-      final holidays =
-          (response['holidays'] as List<dynamic>).cast<Map<String, String>>();
+      final holidays = (response['holidays'] as List<dynamic>)
+          .cast<Map<String, String>>();
       expect(
         holidays,
         contains(
@@ -254,10 +261,11 @@ void main() {
 
       calendarCubit.currentState = state;
 
-      final response = await adapter.execute('calendar', 'getJewishDate', {})
-          as Map<String, dynamic>;
-      final holidays =
-          (response['holidays'] as List<dynamic>).cast<Map<String, String>>();
+      final response =
+          await adapter.execute('calendar', 'getJewishDate', {})
+              as Map<String, dynamic>;
+      final holidays = (response['holidays'] as List<dynamic>)
+          .cast<Map<String, String>>();
 
       expect(
         holidays,
@@ -297,45 +305,48 @@ void main() {
           bookOpenCoordinator: _MockBookOpenCoordinator(),
           themePayloadBuilder: () => <String, dynamic>{},
           showConfirmDialog: ({required title, required content}) async => true,
-          showWarningDialog: ({
-            required title,
-            required content,
-            required subtitle,
-          }) async =>
-              true,
+          showWarningDialog:
+              ({
+                required title,
+                required content,
+                required subtitle,
+              }) async => true,
         ),
         pluginRepository: pluginRegistryRepository,
       );
     });
 
-    test('app.getGrantedPermissions returns only granted permissions',
-        () async {
-      pluginRegistryRepository.permissions = [
-        PluginPermissionGrant(
-          pluginId: 'test.plugin',
-          permission: 'reader.open',
-          granted: true,
-          grantedAt: DateTime(2026, 1, 1),
-        ),
-        PluginPermissionGrant(
-          pluginId: 'test.plugin',
-          permission: 'app.info.read',
-          granted: true,
-          grantedAt: DateTime(2026, 1, 1),
-        ),
-        PluginPermissionGrant(
-          pluginId: 'test.plugin',
-          permission: 'notes.write',
-          granted: false,
-          grantedAt: DateTime(2026, 1, 1),
-        ),
-      ];
+    test(
+      'app.getGrantedPermissions returns only granted permissions',
+      () async {
+        pluginRegistryRepository.permissions = [
+          PluginPermissionGrant(
+            pluginId: 'test.plugin',
+            permission: 'reader.open',
+            granted: true,
+            grantedAt: DateTime(2026, 1, 1),
+          ),
+          PluginPermissionGrant(
+            pluginId: 'test.plugin',
+            permission: 'app.info.read',
+            granted: true,
+            grantedAt: DateTime(2026, 1, 1),
+          ),
+          PluginPermissionGrant(
+            pluginId: 'test.plugin',
+            permission: 'notes.write',
+            granted: false,
+            grantedAt: DateTime(2026, 1, 1),
+          ),
+        ];
 
-      final response = await adapter.execute('app', 'getGrantedPermissions', {})
-          as Map<String, dynamic>;
+        final response =
+            await adapter.execute('app', 'getGrantedPermissions', {})
+                as Map<String, dynamic>;
 
-      expect(response['permissions'], ['app.info.read', 'reader.open']);
-    });
+        expect(response['permissions'], ['app.info.read', 'reader.open']);
+      },
+    );
 
     test('app.openUrl דוחה סכמה שאינה http/https (לפני שיגור)', () async {
       // file://, otzaria:// וכו' היו מאפשרים הרצת פעולות מחוץ לדפדפן.
@@ -349,66 +360,86 @@ void main() {
       await expectLater(
         adapter.execute('app', 'openUrl', const {}),
         throwsA(
-            predicate((e) => e.toString().contains('error.invalid_params'))),
+          predicate((e) => e.toString().contains('error.invalid_params')),
+        ),
       );
     });
 
-    test('reader.getCurrentRef returns current reference for active pdf tab',
-        () async {
-      final currentTab = PdfBookTab(
-        book: PdfBook(title: 'מסילת ישרים', path: '/tmp/mesilat.pdf'),
-        pageNumber: 17,
-      )..currentTitle.value = 'פרק ב';
-      tabsBloc.currentState = TabsState(tabs: [currentTab], currentTabIndex: 0);
+    test(
+      'reader.getCurrentRef returns current reference for active pdf tab',
+      () async {
+        final currentTab = PdfBookTab(
+          book: PdfBook(title: 'מסילת ישרים', path: '/tmp/mesilat.pdf'),
+          pageNumber: 17,
+        )..currentTitle.value = 'פרק ב';
+        tabsBloc.currentState = TabsState(
+          tabs: [currentTab],
+          currentTabIndex: 0,
+        );
 
-      final response = await adapter.execute('reader', 'getCurrentRef', {})
-          as Map<String, dynamic>;
+        final response =
+            await adapter.execute('reader', 'getCurrentRef', {})
+                as Map<String, dynamic>;
 
-      expect(response['currentBook'], 'מסילת ישרים');
-      expect(response['currentBookId'], 'מסילת ישרים');
-      expect(response['currentIndex'], 17);
-      expect(response['currentRef'], 'פרק ב');
-    });
+        expect(response['currentBook'], 'מסילת ישרים');
+        expect(response['currentBookId'], 'מסילת ישרים');
+        expect(response['currentIndex'], 17);
+        expect(response['currentRef'], 'פרק ב');
+      },
+    );
 
-    test('reader.getCurrentRef returns null ref for pdf tab without title',
-        () async {
-      final currentTab = PdfBookTab(
-        book: PdfBook(title: 'מסילת ישרים', path: '/tmp/mesilat.pdf'),
-        pageNumber: 0,
-      );
-      tabsBloc.currentState = TabsState(tabs: [currentTab], currentTabIndex: 0);
+    test(
+      'reader.getCurrentRef returns null ref for pdf tab without title',
+      () async {
+        final currentTab = PdfBookTab(
+          book: PdfBook(title: 'מסילת ישרים', path: '/tmp/mesilat.pdf'),
+          pageNumber: 0,
+        );
+        tabsBloc.currentState = TabsState(
+          tabs: [currentTab],
+          currentTabIndex: 0,
+        );
 
-      final response = await adapter.execute('reader', 'getCurrentRef', {})
-          as Map<String, dynamic>;
+        final response =
+            await adapter.execute('reader', 'getCurrentRef', {})
+                as Map<String, dynamic>;
 
-      expect(response['currentBook'], 'מסילת ישרים');
-      expect(response['currentBookId'], 'מסילת ישרים');
-      expect(response['currentIndex'], 0);
-      expect(response['currentRef'], isNull);
-    });
+        expect(response['currentBook'], 'מסילת ישרים');
+        expect(response['currentBookId'], 'מסילת ישרים');
+        expect(response['currentIndex'], 0);
+        expect(response['currentRef'], isNull);
+      },
+    );
 
-    test('reader.getCurrentRef returns current reference for active text tab',
-        () async {
-      final currentTab = TextBookTab(
-        book: TextBook(title: 'בראשית'),
-        index: 42,
-      )..currentTitle.value = 'פרק ג';
-      tabsBloc.currentState = TabsState(tabs: [currentTab], currentTabIndex: 0);
+    test(
+      'reader.getCurrentRef returns current reference for active text tab',
+      () async {
+        final currentTab = TextBookTab(
+          book: TextBook(title: 'בראשית'),
+          index: 42,
+        )..currentTitle.value = 'פרק ג';
+        tabsBloc.currentState = TabsState(
+          tabs: [currentTab],
+          currentTabIndex: 0,
+        );
 
-      final response = await adapter.execute('reader', 'getCurrentRef', {})
-          as Map<String, dynamic>;
+        final response =
+            await adapter.execute('reader', 'getCurrentRef', {})
+                as Map<String, dynamic>;
 
-      expect(response['currentBook'], 'בראשית');
-      expect(response['currentBookId'], 'בראשית');
-      expect(response['currentIndex'], 42);
-      expect(response['currentRef'], 'פרק ג');
-    });
+        expect(response['currentBook'], 'בראשית');
+        expect(response['currentBookId'], 'בראשית');
+        expect(response['currentIndex'], 42);
+        expect(response['currentRef'], 'פרק ג');
+      },
+    );
 
     test('reader.getCurrentRef returns null when no tab is active', () async {
       tabsBloc.currentState = TabsState.initial();
 
-      final response = await adapter.execute('reader', 'getCurrentRef', {})
-          as Map<String, dynamic>;
+      final response =
+          await adapter.execute('reader', 'getCurrentRef', {})
+              as Map<String, dynamic>;
 
       expect(response['currentBook'], isNull);
       expect(response['currentBookId'], isNull);
@@ -417,40 +448,44 @@ void main() {
     });
 
     test(
-        'reader.getSelection returns current text selection for active text tab',
-        () async {
-      final currentTab = TextBookTab(
-        book: TextBook(title: 'בראשית'),
-        index: 42,
-      )..currentTitle.value = 'פרק ג';
-      currentTab.bloc.emit(
-        TextBookLoaded.initial(
-          book: currentTab.book,
-          index: currentTab.index,
-          showLeftPane: false,
-          splitView: false,
-        ).copyWith(
-          visibleIndices: [42],
-          currentTitle: 'פרק ג',
-          selectedTextForNote: 'ויאמר אלהים',
-          selectedTextStart: 120,
-          selectedTextEnd: 131,
-        ),
-      );
-      tabsBloc.currentState = TabsState(tabs: [currentTab], currentTabIndex: 0);
+      'reader.getSelection returns current text selection for active text tab',
+      () async {
+        final currentTab = TextBookTab(
+          book: TextBook(title: 'בראשית'),
+          index: 42,
+        )..currentTitle.value = 'פרק ג';
+        currentTab.bloc.emit(
+          TextBookLoaded.initial(
+            book: currentTab.book,
+            index: currentTab.index,
+            showLeftPane: false,
+            splitView: false,
+          ).copyWith(
+            visibleIndices: [42],
+            currentTitle: 'פרק ג',
+            selectedTextForNote: 'ויאמר אלהים',
+            selectedTextStart: 120,
+            selectedTextEnd: 131,
+          ),
+        );
+        tabsBloc.currentState = TabsState(
+          tabs: [currentTab],
+          currentTabIndex: 0,
+        );
 
-      final response = await adapter.execute('reader', 'getSelection', {});
+        final response = await adapter.execute('reader', 'getSelection', {});
 
-      expect(response, isA<Map<String, dynamic>>());
-      final data = response as Map<String, dynamic>;
-      expect(data['text'], 'ויאמר אלהים');
-      expect(data['start'], 120);
-      expect(data['end'], 131);
-      expect(data['currentRef'], 'פרק ג');
-      expect(data['currentBook'], 'בראשית');
-      expect(data['currentBookId'], 'בראשית');
-      expect(data['currentIndex'], 42);
-    });
+        expect(response, isA<Map<String, dynamic>>());
+        final data = response as Map<String, dynamic>;
+        expect(data['text'], 'ויאמר אלהים');
+        expect(data['start'], 120);
+        expect(data['end'], 131);
+        expect(data['currentRef'], 'פרק ג');
+        expect(data['currentBook'], 'בראשית');
+        expect(data['currentBookId'], 'בראשית');
+        expect(data['currentIndex'], 42);
+      },
+    );
   });
 
   group('PluginBridgeAdapter.reader.openBookAtRef', () {
@@ -459,7 +494,7 @@ void main() {
 
     PluginBridgeAdapter buildAdapter({
       Future<List<({String title, int index, bool isPdf})>> Function(String)?
-          resolveReference,
+      resolveReference,
       Future<int?> Function(TextBook book, String ref)? resolveRefToLine,
     }) {
       return PluginBridgeAdapter(
@@ -477,12 +512,12 @@ void main() {
           bookOpenCoordinator: mockCoordinator,
           themePayloadBuilder: () => <String, dynamic>{},
           showConfirmDialog: ({required title, required content}) async => true,
-          showWarningDialog: ({
-            required title,
-            required content,
-            required subtitle,
-          }) async =>
-              true,
+          showWarningDialog:
+              ({
+                required title,
+                required content,
+                required subtitle,
+              }) async => true,
           resolveReference: resolveReference,
           resolveRefToLine: resolveRefToLine,
         ),
@@ -511,26 +546,34 @@ void main() {
       DataRepository.instance.library = Future.value(library);
     });
 
-    test('find_ref מפענח הפניה מובנית → קופץ ל-index בלי להשאיר חיפוש',
-        () async {
-      // ירושלמי: "פ\"ו ה\"ז" דו-משמעי; find_ref מודע-הקשר מחזיר את ה-index.
-      final adapter = buildAdapter(
-        resolveReference: (reference) async => [
-          (title: 'תלמוד ירושלמי עירובין', index: 1234, isPdf: false),
-        ],
-      );
+    test(
+      'find_ref מפענח הפניה מובנית → קופץ ל-index בלי להשאיר חיפוש',
+      () async {
+        // ירושלמי: "פ\"ו ה\"ז" דו-משמעי; find_ref מודע-הקשר מחזיר את ה-index.
+        final adapter = buildAdapter(
+          resolveReference: (reference) async => [
+            (title: 'תלמוד ירושלמי עירובין', index: 1234, isPdf: false),
+          ],
+        );
 
-      final result = await adapter.execute('reader', 'openBookAtRef', {
-        'bookId': 'תלמוד ירושלמי עירובין',
-        'ref': 'פ"ו ה"ז',
-      });
+        final result = await adapter.execute('reader', 'openBookAtRef', {
+          'bookId': 'תלמוד ירושלמי עירובין',
+          'ref': 'פ"ו ה"ז',
+        });
 
-      expect(result, isTrue);
-      // קפיצה ל-index של find_ref, וללא searchText (כי הכותרת נמצאה)
-      verify(mockCoordinator.openBook(yerushalmi, 1234, '',
-              ignoreHistory: true, markSection: false))
-          .called(1);
-    });
+        expect(result, isTrue);
+        // קפיצה ל-index של find_ref, וללא searchText (כי הכותרת נמצאה)
+        verify(
+          mockCoordinator.openBook(
+            yerushalmi,
+            1234,
+            '',
+            ignoreHistory: true,
+            markSection: false,
+          ),
+        ).called(1);
+      },
+    );
 
     test('רזולוציה לרמת שורה קודמת ל-find_ref ומכבדת highlight', () async {
       var findRefCalled = false;
@@ -541,8 +584,8 @@ void main() {
         },
         resolveRefToLine: (book, ref) async =>
             (book.title == 'תלמוד ירושלמי עירובין' && ref == 'לג:ה')
-                ? 1194
-                : null,
+            ? 1194
+            : null,
       );
 
       final result = await adapter.execute('reader', 'openBookAtRef', {
@@ -553,30 +596,44 @@ void main() {
 
       expect(result, isTrue);
       expect(findRefCalled, isFalse);
-      verify(mockCoordinator.openBook(yerushalmi, 1194, '',
-              ignoreHistory: true, markSection: true))
-          .called(1);
+      verify(
+        mockCoordinator.openBook(
+          yerushalmi,
+          1194,
+          '',
+          ignoreHistory: true,
+          markSection: true,
+        ),
+      ).called(1);
     });
 
-    test('כשאין התאמה ברמת שורה — נופלים ל-find_ref, בלי הדגשה כברירת מחדל',
-        () async {
-      final adapter = buildAdapter(
-        resolveReference: (reference) async => [
-          (title: 'תלמוד ירושלמי עירובין', index: 1234, isPdf: false),
-        ],
-        resolveRefToLine: (book, ref) async => null,
-      );
+    test(
+      'כשאין התאמה ברמת שורה — נופלים ל-find_ref, בלי הדגשה כברירת מחדל',
+      () async {
+        final adapter = buildAdapter(
+          resolveReference: (reference) async => [
+            (title: 'תלמוד ירושלמי עירובין', index: 1234, isPdf: false),
+          ],
+          resolveRefToLine: (book, ref) async => null,
+        );
 
-      final result = await adapter.execute('reader', 'openBookAtRef', {
-        'bookId': 'תלמוד ירושלמי עירובין',
-        'ref': 'פ"ו ה"ז',
-      });
+        final result = await adapter.execute('reader', 'openBookAtRef', {
+          'bookId': 'תלמוד ירושלמי עירובין',
+          'ref': 'פ"ו ה"ז',
+        });
 
-      expect(result, isTrue);
-      verify(mockCoordinator.openBook(yerushalmi, 1234, '',
-              ignoreHistory: true, markSection: false))
-          .called(1);
-    });
+        expect(result, isTrue);
+        verify(
+          mockCoordinator.openBook(
+            yerushalmi,
+            1234,
+            '',
+            ignoreHistory: true,
+            markSection: false,
+          ),
+        ).called(1);
+      },
+    );
   });
 
   group('PluginBridgeAdapter.library.getBookContent', () {
@@ -604,17 +661,19 @@ void main() {
         fileType: 'pdf',
       );
 
-      final library = Library(categories: [
-        Category(
-          title: 'בדיקה',
-          description: '',
-          shortDescription: '',
-          order: 0,
-          subCategories: const [],
-          books: [textBookDocx, textBookTxt, pdfBookEntry],
-          parent: null,
-        ),
-      ]);
+      final library = Library(
+        categories: [
+          Category(
+            title: 'בדיקה',
+            description: '',
+            shortDescription: '',
+            order: 0,
+            subCategories: const [],
+            books: [textBookDocx, textBookTxt, pdfBookEntry],
+            parent: null,
+          ),
+        ],
+      );
       DataRepository.instance.library = Future.value(library);
 
       // 2. תוספי תוכן ל-LibraryProviderManager: נשים מיפויים שמדמים מצב של
@@ -688,12 +747,12 @@ void main() {
           bookOpenCoordinator: _MockBookOpenCoordinator(),
           themePayloadBuilder: () => <String, dynamic>{},
           showConfirmDialog: ({required title, required content}) async => true,
-          showWarningDialog: ({
-            required title,
-            required content,
-            required subtitle,
-          }) async =>
-              true,
+          showWarningDialog:
+              ({
+                required title,
+                required content,
+                required subtitle,
+              }) async => true,
         ),
         pluginRepository: _StubPluginRegistryRepository(),
       );
@@ -710,72 +769,90 @@ void main() {
       );
     });
 
-    test(
-        'TextBook עם fileType=docx מנותב דרך TextBookRepository עם ה-fileType '
+    test('TextBook עם fileType=docx מנותב דרך TextBookRepository עם ה-fileType '
         'הנכון (תיקון d94133731)', () async {
       // הבאג: הקוד הישן קרא ל-DataRepository.getBookText שמשתמש ב-fileType=
       // 'txt' כברירת מחדל. עבור משתמש עם seforim.db בלבד, זה היה מחזיר
       // נתון שגוי (או תוכן txt שאינו קיים, או כשל). התיקון: שימוש ב-
       // TextBookRepository שלוקח את ה-fileType מ-metadata של ה-TextBook.
-      final result = await adapter
-          .execute('library', 'getBookContent', const {'bookId': 'ספר-docx'});
+      final result = await adapter.execute('library', 'getBookContent', const {
+        'bookId': 'ספר-docx',
+      });
 
       expect(result, 'תוכן docx של הספר - נכון');
-      expect(result, isNot(contains('שגוי')),
-          reason: 'אסור שהקוד יפול חזרה ל-fileType=txt לספר docx');
-    });
-
-    test('TextBook עם fileType=txt עובר דרך TextBookRepository כרגיל',
-        () async {
-      final result = await adapter
-          .execute('library', 'getBookContent', const {'bookId': 'ספר-txt'});
-
-      expect(result, 'תוכן txt רגיל');
+      expect(
+        result,
+        isNot(contains('שגוי')),
+        reason: 'אסור שהקוד יפול חזרה ל-fileType=txt לספר docx',
+      );
     });
 
     test(
-        'ספר שאינו בקטלוג נופל ל-DataRepository.getBookText (ברירת המחדל '
+      'TextBook עם fileType=txt עובר דרך TextBookRepository כרגיל',
+      () async {
+        final result = await adapter.execute(
+          'library',
+          'getBookContent',
+          const {'bookId': 'ספר-txt'},
+        );
+
+        expect(result, 'תוכן txt רגיל');
+      },
+    );
+
+    test('ספר שאינו בקטלוג נופל ל-DataRepository.getBookText (ברירת המחדל '
         'fileType=txt)', () async {
-      final result = await adapter
-          .execute('library', 'getBookContent', const {'bookId': 'שלא-בקטלוג'});
+      final result = await adapter.execute('library', 'getBookContent', const {
+        'bookId': 'שלא-בקטלוג',
+      });
 
       expect(result, 'תוכן fallback של ספר שאינו בקטלוג');
     });
 
-    test('PdfBook בקטלוג (לא TextBook) נופל ל-DataRepository.getBookText',
-        () async {
-      // ה-discriminator הוא `cataloged is TextBook`. PdfBook נכשל בבדיקה
-      // ולכן נכנס לענף ה-else במקום ל-TextBookRepository.
-      final result = await adapter
-          .execute('library', 'getBookContent', const {'bookId': 'ספר-pdf'});
+    test(
+      'PdfBook בקטלוג (לא TextBook) נופל ל-DataRepository.getBookText',
+      () async {
+        // ה-discriminator הוא `cataloged is TextBook`. PdfBook נכשל בבדיקה
+        // ולכן נכנס לענף ה-else במקום ל-TextBookRepository.
+        final result = await adapter.execute(
+          'library',
+          'getBookContent',
+          const {'bookId': 'ספר-pdf'},
+        );
 
-      expect(result, 'תוכן fallback של ה-pdf');
-    });
+        expect(result, 'תוכן fallback של ה-pdf');
+      },
+    );
 
     test('title כ-alias ל-bookId נתמך (תאימות לאחור)', () async {
-      final result = await adapter
-          .execute('library', 'getBookContent', const {'title': 'ספר-txt'});
+      final result = await adapter.execute('library', 'getBookContent', const {
+        'title': 'ספר-txt',
+      });
 
       expect(result, 'תוכן txt רגיל');
     });
 
     test('offset חותך מתחילת הטקסט כשלא ניתן section', () async {
       // טקסט "ABCDEFGHIJKLMNOP" באורך 16, offset=4 — מתחיל מ-'E'.
-      final result = await adapter.execute('library', 'getBookContent',
-          const {'bookId': 'ספר-לחיתוך', 'offset': 4, 'limit': 5});
+      final result = await adapter.execute('library', 'getBookContent', const {
+        'bookId': 'ספר-לחיתוך',
+        'offset': 4,
+        'limit': 5,
+      });
 
       expect(result, 'EFGHI');
     });
 
     test('limit שולט בגודל המקטע המוחזר', () async {
-      final result = await adapter.execute('library', 'getBookContent',
-          const {'bookId': 'ספר-לחיתוך', 'limit': 3});
+      final result = await adapter.execute('library', 'getBookContent', const {
+        'bookId': 'ספר-לחיתוך',
+        'limit': 3,
+      });
 
       expect(result, 'ABC');
     });
 
-    test(
-        'section + offset: ה-offset נספר יחסית למיקום ה-section, לא לתחילת '
+    test('section + offset: ה-offset נספר יחסית למיקום ה-section, לא לתחילת '
         'הטקסט (תיקון 00ccfa63d)', () async {
       // טקסט "ABCDEFGHIJKLMNOP". section='C' נמצא ב-index 2.
       // offset=3 פירושו 3 תווים אחרי 'C', כלומר מתחילים מ-index 5 ('F').
@@ -791,25 +868,30 @@ void main() {
         },
       );
 
-      expect(result, 'FGHI',
-          reason: 'section ב-index 2 + offset 3 → התחלה ב-index 5');
-    });
-
-    test('section ב-offset=0 מתחיל מהמיקום של section (התנהגות שלא השתנתה)',
-        () async {
-      final result = await adapter.execute(
-        'library',
-        'getBookContent',
-        const {
-          'bookId': 'ספר-לחיתוך',
-          'section': 'D',
-          'offset': 0,
-          'limit': 3,
-        },
+      expect(
+        result,
+        'FGHI',
+        reason: 'section ב-index 2 + offset 3 → התחלה ב-index 5',
       );
-
-      expect(result, 'DEF');
     });
+
+    test(
+      'section ב-offset=0 מתחיל מהמיקום של section (התנהגות שלא השתנתה)',
+      () async {
+        final result = await adapter.execute(
+          'library',
+          'getBookContent',
+          const {
+            'bookId': 'ספר-לחיתוך',
+            'section': 'D',
+            'offset': 0,
+            'limit': 3,
+          },
+        );
+
+        expect(result, 'DEF');
+      },
+    );
 
     test('section שלא נמצא מתעלם וחוזר ל-offset רגיל מתחילת הטקסט', () async {
       final result = await adapter.execute(
@@ -823,22 +905,30 @@ void main() {
         },
       );
 
-      expect(result, 'CDE',
-          reason: 'section שלא נמצא → startIndex נשאר offset (2)');
+      expect(
+        result,
+        'CDE',
+        reason: 'section שלא נמצא → startIndex נשאר offset (2)',
+      );
     });
 
     test('limit > 5000 חתוך ל-5000', () async {
       // לוקחים תוכן קצר ולכן באמת הקליפ יהיה אורך הטקסט.
-      final result = await adapter.execute('library', 'getBookContent',
-          const {'bookId': 'ספר-לחיתוך', 'limit': 99999});
+      final result = await adapter.execute('library', 'getBookContent', const {
+        'bookId': 'ספר-לחיתוך',
+        'limit': 99999,
+      });
 
       // limit מקבוע ל-5000, end = (0 + 5000).clamp(0, 16) = 16 → כל הטקסט
       expect(result, 'ABCDEFGHIJKLMNOP');
     });
 
     test('offset החורג מהאורך מקובע לסוף הטקסט (clamp)', () async {
-      final result = await adapter.execute('library', 'getBookContent',
-          const {'bookId': 'ספר-לחיתוך', 'offset': 999, 'limit': 5});
+      final result = await adapter.execute('library', 'getBookContent', const {
+        'bookId': 'ספר-לחיתוך',
+        'offset': 999,
+        'limit': 5,
+      });
 
       expect(result, '');
     });
@@ -900,20 +990,21 @@ void main() {
           bookOpenCoordinator: _MockBookOpenCoordinator(),
           themePayloadBuilder: () => <String, dynamic>{},
           showConfirmDialog: ({required title, required content}) async => true,
-          showWarningDialog: ({
-            required title,
-            required content,
-            required subtitle,
-          }) async =>
-              true,
+          showWarningDialog:
+              ({
+                required title,
+                required content,
+                required subtitle,
+              }) async => true,
         ),
         pluginRepository: _StubPluginRegistryRepository(),
       );
     });
 
     test('מחזיר את העץ המלא עם קטגוריות מקוננות וספרים', () async {
-      final result = await adapter.execute('library', 'getTree', const {})
-          as Map<String, dynamic>;
+      final result =
+          await adapter.execute('library', 'getTree', const {})
+              as Map<String, dynamic>;
 
       expect(result['title'], 'ספריית אוצריא');
       expect(result['path'], '/');
@@ -942,9 +1033,11 @@ void main() {
     });
 
     test('path מצמצם את העץ לתת-קטגוריה', () async {
-      final result = await adapter
-              .execute('library', 'getTree', const {'path': '/תנך/ראשונים'})
-          as Map<String, dynamic>;
+      final result =
+          await adapter.execute('library', 'getTree', const {
+                'path': '/תנך/ראשונים',
+              })
+              as Map<String, dynamic>;
 
       expect(result['title'], 'ראשונים');
       final books = result['books'] as List<dynamic>;
@@ -952,16 +1045,19 @@ void main() {
     });
 
     test('path שאינו קיים מחזיר null', () async {
-      final result = await adapter
-          .execute('library', 'getTree', const {'path': '/לא-קיים'});
+      final result = await adapter.execute('library', 'getTree', const {
+        'path': '/לא-קיים',
+      });
 
       expect(result, isNull);
     });
 
     test('includeBooks=false משמיט את רשימות הספרים', () async {
-      final result = await adapter
-              .execute('library', 'getTree', const {'includeBooks': false})
-          as Map<String, dynamic>;
+      final result =
+          await adapter.execute('library', 'getTree', const {
+                'includeBooks': false,
+              })
+              as Map<String, dynamic>;
 
       expect(result.containsKey('books'), isFalse);
       final tanach =
@@ -998,62 +1094,66 @@ void main() {
           bookOpenCoordinator: _MockBookOpenCoordinator(),
           themePayloadBuilder: () => <String, dynamic>{},
           showConfirmDialog: ({required title, required content}) async => true,
-          showWarningDialog: ({
-            required title,
-            required content,
-            required subtitle,
-          }) async =>
-              true,
+          showWarningDialog:
+              ({
+                required title,
+                required content,
+                required subtitle,
+              }) async => true,
         ),
         pluginRepository: pluginRegistryRepository,
       );
     });
 
-    test('network.fetch חוסם גם URL מובנה אם המניפסט של התוסף לא הצהיר עליו',
-        () async {
-      await expectLater(
-        () => adapter.execute('network', 'fetch', const {
-          'url': 'https://nakdan.dicta.org.il/api',
-        }),
-        throwsA(
-          isA<Exception>().having(
-            (e) => e.toString(),
-            'message',
-            contains('error.forbidden'),
+    test(
+      'network.fetch חוסם גם URL מובנה אם המניפסט של התוסף לא הצהיר עליו',
+      () async {
+        await expectLater(
+          () => adapter.execute('network', 'fetch', const {
+            'url': 'https://nakdan.dicta.org.il/api',
+          }),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('error.forbidden'),
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
-    test('network.fetch ל-localhost נחסם כשיש רק network.access (לא localhost)',
-        () async {
-      pluginRegistryRepository.permissionGrants = const {
-        'network.access': true,
-        'network.localhost': false,
-      };
-      final loopbackAdapter = PluginBridgeAdapter(
-        _buildInstalledPlugin(
-          permissions: const ['network.localhost'],
-          networkEnabled: true,
-          networkAllowlist: const ['127.0.0.1'],
-        ),
-        dependencies: _buildNetworkDeps(),
-        pluginRepository: pluginRegistryRepository,
-      );
-
-      await expectLater(
-        () => loopbackAdapter.execute('network', 'fetch', const {
-          'url': 'http://127.0.0.1:11434/api/tags',
-        }),
-        throwsA(
-          isA<Exception>().having(
-            (e) => e.toString(),
-            'message',
-            contains('error.permission_denied'),
+    test(
+      'network.fetch ל-localhost נחסם כשיש רק network.access (לא localhost)',
+      () async {
+        pluginRegistryRepository.permissionGrants = const {
+          'network.access': true,
+          'network.localhost': false,
+        };
+        final loopbackAdapter = PluginBridgeAdapter(
+          _buildInstalledPlugin(
+            permissions: const ['network.localhost'],
+            networkEnabled: true,
+            networkAllowlist: const ['127.0.0.1'],
           ),
-        ),
-      );
-    });
+          dependencies: _buildNetworkDeps(),
+          pluginRepository: pluginRegistryRepository,
+        );
+
+        await expectLater(
+          () => loopbackAdapter.execute('network', 'fetch', const {
+            'url': 'http://127.0.0.1:11434/api/tags',
+          }),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('error.permission_denied'),
+            ),
+          ),
+        );
+      },
+    );
 
     test('network.fetch לאינטרנט נחסם כשיש רק network.localhost', () async {
       pluginRegistryRepository.permissionGrants = const {
@@ -1085,50 +1185,52 @@ void main() {
     });
 
     test(
-        'network.fetch חסום כשהמניפסט כיבה network.enabled גם אם יש grant ו-allowlist',
-        () async {
-      final disabledAdapter = PluginBridgeAdapter(
-        _buildInstalledPlugin(
-          permissions: const ['network.access'],
-          networkEnabled: false,
-          networkAllowlist: const ['https://nakdan.dicta.org.il/api'],
-        ),
-        dependencies: PluginBridgeDependencies(
-          historyBloc: _MockHistoryBloc(),
-          tabsBloc: _StubTabsBloc(),
-          navigationBloc: _MockNavigationBloc(),
-          calendarCubit: _StubCalendarCubit(
-            _buildCalendarState(DateTime(2026, 1, 1), inIsrael: true),
+      'network.fetch חסום כשהמניפסט כיבה network.enabled גם אם יש grant ו-allowlist',
+      () async {
+        final disabledAdapter = PluginBridgeAdapter(
+          _buildInstalledPlugin(
+            permissions: const ['network.access'],
+            networkEnabled: false,
+            networkAllowlist: const ['https://nakdan.dicta.org.il/api'],
           ),
-          workspaceBloc: _MockWorkspaceBloc(),
-          searchRepository: _MockSearchRepository(),
-          personalNotesRepository: _MockPersonalNotesRepository(),
-          bookOpenCoordinator: _MockBookOpenCoordinator(),
-          themePayloadBuilder: () => <String, dynamic>{},
-          showConfirmDialog: ({required title, required content}) async => true,
-          showWarningDialog: ({
-            required title,
-            required content,
-            required subtitle,
-          }) async =>
-              true,
-        ),
-        pluginRepository: pluginRegistryRepository,
-      );
+          dependencies: PluginBridgeDependencies(
+            historyBloc: _MockHistoryBloc(),
+            tabsBloc: _StubTabsBloc(),
+            navigationBloc: _MockNavigationBloc(),
+            calendarCubit: _StubCalendarCubit(
+              _buildCalendarState(DateTime(2026, 1, 1), inIsrael: true),
+            ),
+            workspaceBloc: _MockWorkspaceBloc(),
+            searchRepository: _MockSearchRepository(),
+            personalNotesRepository: _MockPersonalNotesRepository(),
+            bookOpenCoordinator: _MockBookOpenCoordinator(),
+            themePayloadBuilder: () => <String, dynamic>{},
+            showConfirmDialog: ({required title, required content}) async =>
+                true,
+            showWarningDialog:
+                ({
+                  required title,
+                  required content,
+                  required subtitle,
+                }) async => true,
+          ),
+          pluginRepository: pluginRegistryRepository,
+        );
 
-      await expectLater(
-        () => disabledAdapter.execute('network', 'fetch', const {
-          'url': 'https://nakdan.dicta.org.il/api',
-        }),
-        throwsA(
-          isA<Exception>().having(
-            (e) => e.toString(),
-            'message',
-            contains('error.permission_denied'),
+        await expectLater(
+          () => disabledAdapter.execute('network', 'fetch', const {
+            'url': 'https://nakdan.dicta.org.il/api',
+          }),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('error.permission_denied'),
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
   });
 
   group('PluginBridgeAdapter.network.fetch (HTTP contract)', () {
@@ -1154,12 +1256,12 @@ void main() {
           bookOpenCoordinator: _MockBookOpenCoordinator(),
           themePayloadBuilder: () => <String, dynamic>{},
           showConfirmDialog: ({required title, required content}) async => true,
-          showWarningDialog: ({
-            required title,
-            required content,
-            required subtitle,
-          }) async =>
-              true,
+          showWarningDialog:
+              ({
+                required title,
+                required content,
+                required subtitle,
+              }) async => true,
         ),
         pluginRepository: pluginRegistryRepository,
         networkFetchService: fetchService,
@@ -1181,17 +1283,21 @@ void main() {
       );
       final adapter = buildAdapter(fetchService);
 
-      final result = await adapter.execute('network', 'fetch', const {
-        'url': 'https://nakdan.dicta.org.il/api',
-        'method': 'POST',
-        'headers': {'Content-Type': 'application/json;charset=UTF-8'},
-        'body': '{"task":"nakdan"}',
-      }) as Map<String, dynamic>;
+      final result =
+          await adapter.execute('network', 'fetch', const {
+                'url': 'https://nakdan.dicta.org.il/api',
+                'method': 'POST',
+                'headers': {'Content-Type': 'application/json;charset=UTF-8'},
+                'body': '{"task":"nakdan"}',
+              })
+              as Map<String, dynamic>;
 
       expect(captured.method, 'POST');
       expect(captured.body, '{"task":"nakdan"}');
       expect(
-          captured.headers['content-type'], 'application/json;charset=UTF-8');
+        captured.headers['content-type'],
+        'application/json;charset=UTF-8',
+      );
       expect(result['status'], 200);
       expect(result['ok'], isTrue);
       expect(result['body'], '{"data":[]}');
@@ -1203,9 +1309,11 @@ void main() {
       );
       final adapter = buildAdapter(fetchService);
 
-      final result = await adapter.execute('network', 'fetch', const {
-        'url': 'https://nakdan.dicta.org.il/api',
-      }) as Map<String, dynamic>;
+      final result =
+          await adapter.execute('network', 'fetch', const {
+                'url': 'https://nakdan.dicta.org.il/api',
+              })
+              as Map<String, dynamic>;
 
       expect(result['status'], 500);
       expect(result['ok'], isFalse);
@@ -1226,11 +1334,13 @@ void main() {
           'url': 'https://nakdan.dicta.org.il/api',
           'method': 'POST DELETE',
         }),
-        throwsA(isA<Exception>().having(
-          (e) => e.toString(),
-          'message',
-          contains('invalid method'),
-        )),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('invalid method'),
+          ),
+        ),
       );
       expect(hit, isFalse);
     });
@@ -1263,7 +1373,7 @@ void main() {
           permissions: const ['ui.feedback', 'network.access'],
           networkEnabled: true,
           networkAllowlist: const [
-            'https://github.com/Open-Otzarya-Projects/Otzarya-Unofficial-Books'
+            'https://github.com/Open-Otzarya-Projects/Otzarya-Unofficial-Books',
           ],
         ),
         dependencies: PluginBridgeDependencies(
@@ -1279,12 +1389,12 @@ void main() {
           bookOpenCoordinator: _MockBookOpenCoordinator(),
           themePayloadBuilder: () => <String, dynamic>{},
           showConfirmDialog: ({required title, required content}) async => true,
-          showWarningDialog: ({
-            required title,
-            required content,
-            required subtitle,
-          }) async =>
-              true,
+          showWarningDialog:
+              ({
+                required title,
+                required content,
+                required subtitle,
+              }) async => true,
           pickFolder: pickFolder,
         ),
         pluginRepository: registry,
@@ -1310,8 +1420,9 @@ void main() {
       expect(res['path'], tempDir.path);
 
       final file = File(p.join(tempDir.path, 'x.zip'))..writeAsBytesSync([1]);
-      final del =
-          await adapter.execute('fs', 'deleteFile', {'path': file.path});
+      final del = await adapter.execute('fs', 'deleteFile', {
+        'path': file.path,
+      });
       expect(del, isTrue);
       expect(file.existsSync(), isFalse);
     });
@@ -1325,8 +1436,13 @@ void main() {
       final file = File(p.join(tempDir.path, 'y.zip'))..writeAsBytesSync([1]);
       await expectLater(
         adapter.execute('fs', 'deleteFile', {'path': file.path}),
-        throwsA(isA<Exception>()
-            .having((e) => e.toString(), 'message', contains('forbidden'))),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('forbidden'),
+          ),
+        ),
       );
       // הקובץ לא נמחק — הפעולה נחסמה.
       expect(file.existsSync(), isTrue);
@@ -1338,8 +1454,10 @@ void main() {
 
       final zipPath = buildZip(tempDir.path, 'a.zip');
       final dest = p.join(tempDir.path, 'out');
-      final ok = await adapter.execute(
-          'fs', 'extractZip', {'zipPath': zipPath, 'destFolder': dest});
+      final ok = await adapter.execute('fs', 'extractZip', {
+        'zipPath': zipPath,
+        'destFolder': dest,
+      });
 
       expect(ok, isTrue);
       expect(File(p.join(dest, 'hello.txt')).existsSync(), isTrue);
@@ -1356,14 +1474,20 @@ void main() {
           'zipPath': zipPath,
           'destFolder': p.join(tempDir.path, 'evil'),
         }),
-        throwsA(isA<Exception>()
-            .having((e) => e.toString(), 'message', contains('forbidden'))),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('forbidden'),
+          ),
+        ),
       );
     });
 
     test('network.download עם destPath שומר בתוך תיקייה מאושרת', () async {
-      final client =
-          MockClient((req) async => http.Response.bytes([7, 8, 9], 200));
+      final client = MockClient(
+        (req) async => http.Response.bytes([7, 8, 9], 200),
+      );
       final adapter = buildAdapter(
         pickFolder: ({title}) async => tempDir.path,
         fileDownloadService: PluginFileDownloadService(client: client),
@@ -1371,39 +1495,49 @@ void main() {
       await adapter.execute('ui', 'pickFolder', {});
 
       final destPath = p.join(tempDir.path, 'books.zip');
-      final res = await adapter.execute('network', 'download', {
-        'url': downloadUrl,
-        'destPath': destPath,
-      }) as Map;
+      final res =
+          await adapter.execute('network', 'download', {
+                'url': downloadUrl,
+                'destPath': destPath,
+              })
+              as Map;
 
       expect(res['path'], destPath);
       expect(File(destPath).readAsBytesSync(), [7, 8, 9]);
     });
 
-    test('network.download עם destPath מחוץ לתיקייה מאושרת נחסם ואינו מוריד',
-        () async {
-      var hit = false;
-      final client = MockClient((req) async {
-        hit = true;
-        return http.Response.bytes([0], 200);
-      });
-      final granted = Directory(p.join(tempDir.path, 'granted'))..createSync();
-      final adapter = buildAdapter(
-        pickFolder: ({title}) async => granted.path,
-        fileDownloadService: PluginFileDownloadService(client: client),
-      );
-      await adapter.execute('ui', 'pickFolder', {});
+    test(
+      'network.download עם destPath מחוץ לתיקייה מאושרת נחסם ואינו מוריד',
+      () async {
+        var hit = false;
+        final client = MockClient((req) async {
+          hit = true;
+          return http.Response.bytes([0], 200);
+        });
+        final granted = Directory(p.join(tempDir.path, 'granted'))
+          ..createSync();
+        final adapter = buildAdapter(
+          pickFolder: ({title}) async => granted.path,
+          fileDownloadService: PluginFileDownloadService(client: client),
+        );
+        await adapter.execute('ui', 'pickFolder', {});
 
-      await expectLater(
-        adapter.execute('network', 'download', {
-          'url': downloadUrl,
-          'destPath': p.join(tempDir.path, 'evil', 'books.zip'),
-        }),
-        throwsA(isA<Exception>()
-            .having((e) => e.toString(), 'message', contains('forbidden'))),
-      );
-      expect(hit, isFalse);
-    });
+        await expectLater(
+          adapter.execute('network', 'download', {
+            'url': downloadUrl,
+            'destPath': p.join(tempDir.path, 'evil', 'books.zip'),
+          }),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('forbidden'),
+            ),
+          ),
+        );
+        expect(hit, isFalse);
+      },
+    );
 
     test('fs.deleteFile חסום דרך symlink שמצביע מחוץ לתיקייה מאושרת', () async {
       final granted = Directory(p.join(tempDir.path, 'granted'))..createSync();
@@ -1428,10 +1562,16 @@ void main() {
       // נתיב שעובר דרך ה-symlink "נראה" בתוך התיקייה המאושרת מבחינת מחרוזת,
       // אבל מצביע בפועל מחוצה לה — ולכן חייב להיחסם.
       await expectLater(
-        adapter.execute(
-            'fs', 'deleteFile', {'path': p.join(link.path, 'secret.txt')}),
-        throwsA(isA<Exception>()
-            .having((e) => e.toString(), 'message', contains('forbidden'))),
+        adapter.execute('fs', 'deleteFile', {
+          'path': p.join(link.path, 'secret.txt'),
+        }),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('forbidden'),
+          ),
+        ),
       );
       expect(secret.existsSync(), isTrue); // הקובץ החיצוני לא נמחק
     });
@@ -1462,7 +1602,8 @@ void main() {
       required Future<String?> Function({
         List<String>? allowedExtensions,
         String? title,
-      }) pickFile,
+      })
+      pickFile,
     }) {
       return PluginBridgeAdapter(
         _buildInstalledPlugin(permissions: const ['fs.user_files.read']),
@@ -1479,12 +1620,12 @@ void main() {
           bookOpenCoordinator: _MockBookOpenCoordinator(),
           themePayloadBuilder: () => <String, dynamic>{},
           showConfirmDialog: ({required title, required content}) async => true,
-          showWarningDialog: ({
-            required title,
-            required content,
-            required subtitle,
-          }) async =>
-              true,
+          showWarningDialog:
+              ({
+                required title,
+                required content,
+                required subtitle,
+              }) async => true,
           pickFile: pickFile,
         ),
         pluginRepository: registry,
@@ -1499,65 +1640,81 @@ void main() {
       return utf8.decode(await response.expand((chunk) => chunk).toList());
     }
 
-    test('pickUserFile רושם token, מתמיד אותו ב-KV וה-URL מגיש את הקובץ',
-        () async {
-      final pdf = File(p.join(tempDir.path, 'book.pdf'))
-        ..writeAsStringSync('%PDF content');
-      final adapter = buildAdapter(
-          pickFile: ({allowedExtensions, title}) async => pdf.path);
+    test(
+      'pickUserFile רושם token, מתמיד אותו ב-KV וה-URL מגיש את הקובץ',
+      () async {
+        final pdf = File(p.join(tempDir.path, 'book.pdf'))
+          ..writeAsStringSync('%PDF content');
+        final adapter = buildAdapter(
+          pickFile: ({allowedExtensions, title}) async => pdf.path,
+        );
 
-      final res = await adapter.execute('fs', 'pickUserFile', {}) as Map;
+        final res = await adapter.execute('fs', 'pickUserFile', {}) as Map;
 
-      expect(res['cancelled'], isFalse);
-      expect(res['name'], 'book.pdf');
-      expect(res['size'], '%PDF content'.length);
-      final token = res['token'] as String;
-      expect(token, isNotEmpty);
-      // ה-grant הותמד ב-KV תחת namespace פנימי.
-      expect(registry.kv['_internal/user_file_grants'], contains(token));
-      // ה-URL מגיש את תוכן הקובץ בפועל.
-      expect(await fetch(res['url'] as String), '%PDF content');
-    });
+        expect(res['cancelled'], isFalse);
+        expect(res['name'], 'book.pdf');
+        expect(res['size'], '%PDF content'.length);
+        final token = res['token'] as String;
+        expect(token, isNotEmpty);
+        // ה-grant הותמד ב-KV תחת namespace פנימי.
+        expect(registry.kv['_internal/user_file_grants'], contains(token));
+        // ה-URL מגיש את תוכן הקובץ בפועל.
+        expect(await fetch(res['url'] as String), '%PDF content');
+      },
+    );
 
-    test('ביטול pickUserFile מחזיר {cancelled:true} בלי להתמיד grant',
-        () async {
-      final adapter =
-          buildAdapter(pickFile: ({allowedExtensions, title}) async => null);
+    test(
+      'ביטול pickUserFile מחזיר {cancelled:true} בלי להתמיד grant',
+      () async {
+        final adapter = buildAdapter(
+          pickFile: ({allowedExtensions, title}) async => null,
+        );
 
-      final res = await adapter.execute('fs', 'pickUserFile', {}) as Map;
+        final res = await adapter.execute('fs', 'pickUserFile', {}) as Map;
 
-      expect(res['cancelled'], isTrue);
-      expect(registry.kv['_internal/user_file_grants'], isNull);
-    });
+        expect(res['cancelled'], isTrue);
+        expect(registry.kv['_internal/user_file_grants'], isNull);
+      },
+    );
 
-    test('resolveFileUrl בונה URL חדש מ-token שהותמד (סימולציית reload)',
-        () async {
-      final file = File(p.join(tempDir.path, 'notes.txt'))
-        ..writeAsStringSync('שלום עולם');
-      final adapter = buildAdapter(
-          pickFile: ({allowedExtensions, title}) async => file.path);
+    test(
+      'resolveFileUrl בונה URL חדש מ-token שהותמד (סימולציית reload)',
+      () async {
+        final file = File(p.join(tempDir.path, 'notes.txt'))
+          ..writeAsStringSync('שלום עולם');
+        final adapter = buildAdapter(
+          pickFile: ({allowedExtensions, title}) async => file.path,
+        );
 
-      final picked = await adapter.execute('fs', 'pickUserFile', {}) as Map;
-      final token = picked['token'] as String;
+        final picked = await adapter.execute('fs', 'pickUserFile', {}) as Map;
+        final token = picked['token'] as String;
 
-      // reload: רישום הזיכרון של השרת אבד, אך ה-grant נשמר ב-KV.
-      await fileServer.close();
+        // reload: רישום הזיכרון של השרת אבד, אך ה-grant נשמר ב-KV.
+        await fileServer.close();
 
-      final resolved = await adapter
-          .execute('fs', 'resolveFileUrl', {'token': token}) as Map;
-      expect(resolved['token'], token);
-      expect(resolved['name'], 'notes.txt');
-      expect(await fetch(resolved['url'] as String), 'שלום עולם');
-    });
+        final resolved =
+            await adapter.execute('fs', 'resolveFileUrl', {'token': token})
+                as Map;
+        expect(resolved['token'], token);
+        expect(resolved['name'], 'notes.txt');
+        expect(await fetch(resolved['url'] as String), 'שלום עולם');
+      },
+    );
 
     test('resolveFileUrl על token לא מוכר זורק error.not_found', () async {
-      final adapter =
-          buildAdapter(pickFile: ({allowedExtensions, title}) async => null);
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => null,
+      );
 
       await expectLater(
         adapter.execute('fs', 'resolveFileUrl', {'token': 'nope'}),
-        throwsA(isA<Exception>()
-            .having((e) => e.toString(), 'message', contains('not_found'))),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('not_found'),
+          ),
+        ),
       );
     });
 
@@ -1565,11 +1722,13 @@ void main() {
       final file = File(p.join(tempDir.path, 'a.txt'))
         ..writeAsStringSync('תוכן טקסטואלי');
       final adapter = buildAdapter(
-          pickFile: ({allowedExtensions, title}) async => file.path);
+        pickFile: ({allowedExtensions, title}) async => file.path,
+      );
 
       final picked = await adapter.execute('fs', 'pickUserFile', {}) as Map;
-      final content = await adapter
-          .execute('fs', 'readTextFile', {'token': picked['token']});
+      final content = await adapter.execute('fs', 'readTextFile', {
+        'token': picked['token'],
+      });
 
       expect(content, 'תוכן טקסטואלי');
     });
@@ -1577,20 +1736,27 @@ void main() {
     test('revokeFile מסיר את ה-grant — resolveFileUrl לאחריו נכשל', () async {
       final file = File(p.join(tempDir.path, 'x.txt'))..writeAsStringSync('x');
       final adapter = buildAdapter(
-          pickFile: ({allowedExtensions, title}) async => file.path);
+        pickFile: ({allowedExtensions, title}) async => file.path,
+      );
 
       final picked = await adapter.execute('fs', 'pickUserFile', {}) as Map;
       final token = picked['token'] as String;
 
-      final revoked =
-          await adapter.execute('fs', 'revokeFile', {'token': token});
+      final revoked = await adapter.execute('fs', 'revokeFile', {
+        'token': token,
+      });
       expect(revoked, isTrue);
       expect(registry.kv['_internal/user_file_grants'], isNot(contains(token)));
 
       await expectLater(
         adapter.execute('fs', 'resolveFileUrl', {'token': token}),
-        throwsA(isA<Exception>()
-            .having((e) => e.toString(), 'message', contains('not_found'))),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('not_found'),
+          ),
+        ),
       );
     });
   });
@@ -1601,7 +1767,8 @@ void main() {
     setUp(() {
       adapter = PluginBridgeAdapter(
         _buildInstalledPlugin(
-            permissions: const ['navigation.write', 'reader.context_menu']),
+          permissions: const ['navigation.write', 'reader.context_menu'],
+        ),
         dependencies: _buildNetworkDeps(),
         pluginRepository: _StubPluginRegistryRepository(),
       );
@@ -1616,8 +1783,9 @@ void main() {
       final navigations = <String>[];
       PluginPageLauncher.instance.navigator = navigations.add;
 
-      final result =
-          await adapter.execute('plugin', 'openSelf', {'param': 'x'});
+      final result = await adapter.execute('plugin', 'openSelf', {
+        'param': 'x',
+      });
 
       expect(result, isTrue);
       expect(navigations, ['test.plugin']);
@@ -1649,6 +1817,231 @@ void main() {
       expect(item.param, isNull);
     });
   });
+
+  group('PluginBridgeAdapter.library alt toc', () {
+    // מבנים לבדיקה: parasha (id 10) ו-seder (id 20).
+    final structures = [
+      const AltTocStructure(
+        id: 10,
+        bookId: 1,
+        key: 'parasha',
+        title: 'Parashah',
+        heTitle: 'פרשה',
+      ),
+      const AltTocStructure(
+        id: 20,
+        bookId: 1,
+        key: 'seder',
+        title: 'Seder',
+        heTitle: 'סדר',
+      ),
+    ];
+
+    // עץ ל-parasha: A(אין שורה)→[A1(5), A2(10)]; B(אין שורה)→[B1(אין שורה)];
+    // C(שורה ישירה 20). B ו-B1 אמורים להיות מושמטים.
+    final parashaEntries = <AltTocEntryRow>[
+      (id: 1, parentId: null, level: 1, lineIndex: null, text: 'ספר בראשית'),
+      (id: 2, parentId: 1, level: 2, lineIndex: 5, text: 'פרשת בראשית'),
+      (id: 3, parentId: 1, level: 2, lineIndex: 10, text: 'פרשת נח'),
+      (id: 4, parentId: null, level: 1, lineIndex: null, text: 'ריק'),
+      (id: 5, parentId: 4, level: 2, lineIndex: null, text: 'גם ריק'),
+      (id: 6, parentId: null, level: 1, lineIndex: 20, text: 'שורה ישירה'),
+    ];
+    final sederEntries = <AltTocEntryRow>[
+      (id: 100, parentId: null, level: 1, lineIndex: 99, text: 'סדר ראשון'),
+    ];
+
+    PluginBridgeAdapter buildAdapter({
+      List<AltTocStructure> Function(String bookTitle)? structuresFor,
+      List<AltTocEntryRow> Function(int structureId)? entriesFor,
+    }) {
+      return PluginBridgeAdapter(
+        _buildInstalledPlugin(permissions: const ['library.content.read']),
+        dependencies: PluginBridgeDependencies(
+          historyBloc: _MockHistoryBloc(),
+          tabsBloc: _StubTabsBloc(),
+          navigationBloc: _MockNavigationBloc(),
+          calendarCubit: _StubCalendarCubit(
+            _buildCalendarState(DateTime(2026, 1, 1), inIsrael: true),
+          ),
+          workspaceBloc: _MockWorkspaceBloc(),
+          searchRepository: _MockSearchRepository(),
+          personalNotesRepository: _MockPersonalNotesRepository(),
+          bookOpenCoordinator: _MockBookOpenCoordinator(),
+          themePayloadBuilder: () => <String, dynamic>{},
+          showConfirmDialog: ({required title, required content}) async => true,
+          showWarningDialog:
+              ({
+                required title,
+                required content,
+                required subtitle,
+              }) async => true,
+          altStructuresProvider: (bookTitle) async =>
+              (structuresFor ?? (_) => structures)(bookTitle),
+          altTocEntriesProvider: (structureId) async =>
+              (entriesFor ?? (id) => id == 20 ? sederEntries : parashaEntries)(
+                structureId,
+              ),
+        ),
+        pluginRepository: _StubPluginRegistryRepository(),
+      );
+    }
+
+    test(
+      'listBookAltStructures מחזיר key/title/heTitle בלי id פנימי',
+      () async {
+        final adapter = buildAdapter();
+        final result = await adapter.execute(
+          'library',
+          'listBookAltStructures',
+          const {'bookId': 'בראשית'},
+        );
+
+        expect(result, [
+          {'key': 'parasha', 'title': 'Parashah', 'heTitle': 'פרשה'},
+          {'key': 'seder', 'title': 'Seder', 'heTitle': 'סדר'},
+        ]);
+        final first = (result as List).first as Map;
+        expect(first.containsKey('id'), isFalse);
+      },
+    );
+
+    test('listBookAltStructures ללא bookId זורק', () async {
+      final adapter = buildAdapter();
+      await expectLater(
+        adapter.execute('library', 'listBookAltStructures', const {}),
+        throwsA(isA<Exception>()),
+      );
+    });
+
+    test(
+      'bookId מטיפוס שגוי או ריק → error.invalid_params (לא TypeError פנימי)',
+      () async {
+        final adapter = buildAdapter();
+        final invalidParams = throwsA(
+          predicate(
+            (e) => e.toString().contains('error.invalid_params'),
+          ),
+        );
+        for (final args in [
+          {'bookId': 42},
+          {'bookId': ''},
+          {
+            'bookId': ['בראשית'],
+          },
+        ]) {
+          await expectLater(
+            adapter.execute('library', 'listBookAltStructures', args),
+            invalidParams,
+          );
+          await expectLater(
+            adapter.execute('library', 'getBookAltToc', args),
+            invalidParams,
+          );
+        }
+        await expectLater(
+          adapter.execute('library', 'getBookAltToc', const {
+            'bookId': 'בראשית',
+            'structureKey': 7,
+          }),
+          invalidParams,
+        );
+        await expectLater(
+          adapter.execute('library', 'getBookAltToc', const {
+            'bookId': 'בראשית',
+            'structureKey': '',
+          }),
+          invalidParams,
+        );
+      },
+    );
+
+    test('listBookAltStructures לספר בלי מבנים מחזיר מערך ריק', () async {
+      final adapter = buildAdapter(structuresFor: (_) => const []);
+      final result = await adapter.execute(
+        'library',
+        'listBookAltStructures',
+        const {'bookId': 'ספר אישי'},
+      );
+      expect(result, isEmpty);
+    });
+
+    test('getBookAltToc ברירת מחדל = מבנה ראשון; flatten בסדר מסמך', () async {
+      final adapter = buildAdapter();
+      final result = await adapter.execute('library', 'getBookAltToc', const {
+        'bookId': 'בראשית',
+      });
+
+      // כותרת-אב A מקבלת index מהצאצא הראשון (5); B ו-B1 מושמטים (אין שורה).
+      expect(result, [
+        {'text': 'ספר בראשית', 'index': 5, 'level': 1},
+        {'text': 'פרשת בראשית', 'index': 5, 'level': 2},
+        {'text': 'פרשת נח', 'index': 10, 'level': 2},
+        {'text': 'שורה ישירה', 'index': 20, 'level': 1},
+      ]);
+    });
+
+    test(
+      'getBookAltToc: כותרת-אב יורשת index גם מנכד (לא רק מילד ישיר)',
+      () async {
+        final adapter = buildAdapter(
+          entriesFor: (_) => const <AltTocEntryRow>[
+            (id: 1, parentId: null, level: 1, lineIndex: null, text: 'סבא'),
+            (id: 2, parentId: 1, level: 2, lineIndex: null, text: 'אבא'),
+            (id: 3, parentId: 2, level: 3, lineIndex: 7, text: 'נכד'),
+          ],
+        );
+        final result = await adapter.execute('library', 'getBookAltToc', const {
+          'bookId': 'בראשית',
+        });
+
+        expect(result, [
+          {'text': 'סבא', 'index': 7, 'level': 1},
+          {'text': 'אבא', 'index': 7, 'level': 2},
+          {'text': 'נכד', 'index': 7, 'level': 3},
+        ]);
+      },
+    );
+
+    test('getBookAltToc עם structureKey בוחר את המבנה המבוקש', () async {
+      final adapter = buildAdapter();
+      final result = await adapter.execute('library', 'getBookAltToc', const {
+        'bookId': 'בראשית',
+        'structureKey': 'seder',
+      });
+
+      expect(result, [
+        {'text': 'סדר ראשון', 'index': 99, 'level': 1},
+      ]);
+    });
+
+    test('getBookAltToc עם structureKey לא קיים זורק', () async {
+      final adapter = buildAdapter();
+      await expectLater(
+        adapter.execute('library', 'getBookAltToc', const {
+          'bookId': 'בראשית',
+          'structureKey': 'לא-קיים',
+        }),
+        throwsA(isA<Exception>()),
+      );
+    });
+
+    test('getBookAltToc ללא bookId זורק', () async {
+      final adapter = buildAdapter();
+      await expectLater(
+        adapter.execute('library', 'getBookAltToc', const {}),
+        throwsA(isA<Exception>()),
+      );
+    });
+
+    test('getBookAltToc לספר בלי מבנים מחזיר מערך ריק', () async {
+      final adapter = buildAdapter(structuresFor: (_) => const []);
+      final result = await adapter.execute('library', 'getBookAltToc', const {
+        'bookId': 'ספר אישי',
+      });
+      expect(result, isEmpty);
+    });
+  });
 }
 
 /// Provider פיקטיבי שמחזיר טקסט לפי מפתחות מוגדרים מראש.
@@ -1678,7 +2071,8 @@ class _FakeBookProvider implements LibraryProvider {
 
   @override
   Future<Map<String, List<Book>>> loadBooks(
-      Map<String, Map<String, dynamic>> metadata) async {
+    Map<String, Map<String, dynamic>> metadata,
+  ) async {
     return const {};
   }
 
@@ -1732,7 +2126,10 @@ class _FakeBookProvider implements LibraryProvider {
 
   @override
   Future<List<Link>> getAllLinksForBook(
-      String title, int categoryId, String fileType) async {
+    String title,
+    int categoryId,
+    String fileType,
+  ) async {
     return const [];
   }
 

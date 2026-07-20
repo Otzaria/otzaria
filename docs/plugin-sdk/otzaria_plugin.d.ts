@@ -149,6 +149,17 @@ export interface TocEntry {
   level: number;
 }
 
+/**
+ * מבנה תוכן-עניינים חלופי ("כותרות") של ספר, כפי שמוחזר מ-
+ * `library.listBookAltStructures`. ה-`key` יציב בין גרסאות ספרייה ומשמש
+ * כ-`structureKey` ב-`library.getBookAltToc`.
+ */
+export interface AltStructure {
+  key: string;
+  title: string | null;
+  heTitle: string | null;
+}
+
 export type JewishHolidayKind =
   | 'yomTov'
   | 'roshChodesh'
@@ -432,6 +443,8 @@ export type OtzariaMethod =
   | 'library.listRecentBooks'
   | 'library.getBookContent'
   | 'library.getBookToc'
+  | 'library.listBookAltStructures'
+  | 'library.getBookAltToc'
   | 'search.fullText'
   | 'reader.openBook'
   | 'reader.openBookAtRef'
