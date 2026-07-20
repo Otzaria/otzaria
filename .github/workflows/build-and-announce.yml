@@ -800,9 +800,19 @@ jobs:
           echo "Attempting to build with flutter_distributor, it might fail..."
           flutter_distributor release --name=production --jobs=release-linux-deb || true
 
-          # 2. מצא את קובץ ה-control שנוצר. אם לא נמצא, זה כישלון אמיתי
+          # 2. שני מסלולים: אם ה-distributor הצליח (Depends תקין) — נפרק את ה-deb
+          # שיצר כדי להזריק את ה-WPE runtime; אם נכשל — נשאר עץ מפורק עם control.
+          DEB_BUILT=$(find dist -type f -name "*.deb" | head -n 1)
           CONTROL_FILE=$(find dist -type f -name "control" | head -n 1)
-          if [ -z "$CONTROL_FILE" ]; then
+          if [ -z "$CONTROL_FILE" ] && [ -n "$DEB_BUILT" ]; then
+            EXTRACT_DIR="dist/otzaria-deb-tree"
+            rm -rf "$EXTRACT_DIR"
+            dpkg-deb -R "$DEB_BUILT" "$EXTRACT_DIR"
+            DEB_PREBUILT_NAME=$(basename "$DEB_BUILT")
+            rm -f "$DEB_BUILT"
+            CONTROL_FILE="$EXTRACT_DIR/DEBIAN/control"
+          fi
+          if [ -z "$CONTROL_FILE" ] || [ ! -f "$CONTROL_FILE" ]; then
             echo "::error::Fatal: Could not find the DEBIAN/control file. The distributor failed before creating it."
             exit 1
           fi
@@ -826,7 +836,11 @@ jobs:
 
           # 4. בנה את חבילת ה-deb מחדש מהקבצים המתוקנים
           DEB_DIR=$(dirname "$CONTROL_FILE" | xargs dirname)
-          DEB_OUTPUT_FILE="dist/$(basename "$DEB_DIR" | sed 's/-linux_deb$//')-linux.deb"
+          if [ -n "${DEB_PREBUILT_NAME:-}" ]; then
+            DEB_OUTPUT_FILE="dist/$DEB_PREBUILT_NAME"
+          else
+            DEB_OUTPUT_FILE="dist/$(basename "$DEB_DIR" | sed 's/-linux_deb$//')-linux.deb"
+          fi
 
           # אריזת runtime של WPE לתוך עץ ה-deb לפני ה-repack (dpkg-deb אורז את
           # העץ כמות שהוא) — כדי שה-deb יהיה self-contained באותה רמה כמו ה-raw.
