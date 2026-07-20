@@ -194,22 +194,27 @@ begin
     end;
 end;
 
-// Exec/ShellExec המובנות מסרבות להריץ את קובץ ה-Setup עצמו מתוך InitializeSetup;
+// Exec/ShellExec המובנות מסרבות להריץ את קובץ ה-Setup עצמו לפני תחילת ההתקנה;
 // ייבוא ישיר של ה-API עוקף זאת, וכך ה-UAC מציג את מתקין אוצריא ולא את cmd.exe.
 function ShellExecuteW(hwnd: HWND; lpOperation, lpFile, lpParameters,
   lpDirectory: String; nShowCmd: Integer): THandle;
   external 'ShellExecuteW@shell32.dll stdcall';
 
-function RelaunchSetupElevated(Params: String; ShowCmd: Integer; var ErrorCode: Integer): Boolean;
+function RelaunchSetup(Verb, Params: String; ShowCmd: Integer; var ErrorCode: Integer): Boolean;
 var
   InstanceHandle: THandle;
 begin
   InstanceHandle :=
-    ShellExecuteW(0, 'runas', ExpandConstant('{srcexe}'), Params, '', ShowCmd);
+    ShellExecuteW(0, Verb, ExpandConstant('{srcexe}'), Params, '', ShowCmd);
   // ערך מעל 32 = הצלחה; אחרת זהו קוד שגיאת SE_ERR, נשמר לדיווח הכשל.
   Result := InstanceHandle > 32;
   if not Result then
     ErrorCode := InstanceHandle;
+end;
+
+function RelaunchSetupElevated(Params: String; ShowCmd: Integer; var ErrorCode: Integer): Boolean;
+begin
+  Result := RelaunchSetup('runas', Params, ShowCmd, ErrorCode);
 end;
 
 // מחזירה את תיקיית ההתקנה הקודמת. RequiresAdmin נקבע לפי מקור הזיהוי
@@ -708,26 +713,14 @@ begin
       PrivilegeFlag := '/CURRENTUSER';
     end;
 
-    Launched := Exec(ExpandConstant('{srcexe}'),
+    Launched := RelaunchSetup('open',
          '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART ' + PrivilegeFlag,
-         '', SW_HIDE, ewNoWait, ResultCode);
+         SW_HIDE, ResultCode);
 
     if Launched then
     begin
       // השיגור הצליח — יוצאים מהריצה הנוכחית בשקט (Result := False
       // יוצא ללא הודעת ביטול), והעותק השקט ימשיך מכאן.
-      Result := False;
-      exit;
-    end;
-
-    // ניסיון fallback ב-ShellExec — לפעמים CreateProcess נכשל בגלל
-    // אנטי-וירוס/מנעולי קובץ אבל ShellExecute (דרך ה-shell) עובר.
-    Launched := ShellExec('open', ExpandConstant('{srcexe}'),
-         '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART ' + PrivilegeFlag,
-         '', SW_HIDE, ewNoWait, ResultCode);
-
-    if Launched then
-    begin
       Result := False;
       exit;
     end;
@@ -1123,9 +1116,11 @@ begin
 
     // בחירה מוקדמת בעמוד סוג ההתקנה: ‎/PORTABLE — מצב נייד; ריצה במצב מנהל
     // (שיגור-מחדש עם /ALLUSERS) או תהליך מורם — לכל המשתמשים.
+    // ‎/CURRENTUSER = שיגור-מחדש מתהליך מורם שבחר במפורש התקנת משתמש.
     if CmdLineParamExists('/PORTABLE') then
       PortableModeRadio.Checked := True
-    else if IsAdminInstallMode or IsAdmin then
+    else if IsAdminInstallMode or
+      (IsAdmin and not CmdLineParamExists('/CURRENTUSER')) then
       AllUsersModeRadio.Checked := True;
   end;
   InitializeSlideshow;
@@ -1190,8 +1185,7 @@ begin
     begin
       if IsAdmin then
         // התהליך כבר מורם אבל במצב משתמש — שיגור-מחדש עם /ALLUSERS, בלי UAC.
-        Launched := Exec(ExpandConstant('{srcexe}'), '/ALLUSERS',
-          '', SW_SHOWNORMAL, ewNoWait, ResultCode)
+        Launched := RelaunchSetup('open', '/ALLUSERS', SW_SHOWNORMAL, ResultCode)
       else
         Launched := RelaunchSetupElevated('/ALLUSERS', SW_SHOWNORMAL, ResultCode);
 
@@ -1211,8 +1205,7 @@ begin
     if CurrentUserModeRadio.Checked and IsAdminInstallMode then
     begin
       // התהליך כבר במצב מנהל — חזרה להתקנת משתמש דורשת שיגור-מחדש.
-      Launched := Exec(ExpandConstant('{srcexe}'), '/CURRENTUSER',
-        '', SW_SHOWNORMAL, ewNoWait, ResultCode);
+      Launched := RelaunchSetup('open', '/CURRENTUSER', SW_SHOWNORMAL, ResultCode);
       if Launched then
       begin
         RelaunchingForModeChange := True;
