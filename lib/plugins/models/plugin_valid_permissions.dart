@@ -13,6 +13,8 @@ const Map<String, String> apiCallToPermissionHint = {
   'library.getTree': 'library.books.read',
   'library.getBookContent': 'library.content.read',
   'library.getBookToc': 'library.content.read',
+  'library.listBookAltStructures': 'library.content.read',
+  'library.getBookAltToc': 'library.content.read',
 
   // app.*
   'app.getUserEmail': 'app.user_email.read',

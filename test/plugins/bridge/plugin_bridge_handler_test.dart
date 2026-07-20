@@ -20,7 +20,10 @@ class _FakeAdapter implements PluginBridgeAdapter {
 
   @override
   Future<dynamic> execute(
-      String domain, String action, Map<String, dynamic> args) async {
+    String domain,
+    String action,
+    Map<String, dynamic> args,
+  ) async {
     executeCalls++;
     lastDomain = domain;
     lastAction = action;
@@ -92,44 +95,66 @@ InstalledPlugin _buildInstalledPlugin({List<String> permissions = const []}) {
 
 /// בקשת RPC ל-getBookContent (הקריאה היחידה המוחרגת ממגביל הקצב).
 List<dynamic> _getBookContentRequest() => [
-      {
-        'method': 'library.getBookContent',
-        'payload': {'bookId': 'ספר-כלשהו'},
-      }
-    ];
+  {
+    'method': 'library.getBookContent',
+    'payload': {'bookId': 'ספר-כלשהו'},
+  },
+];
+
+/// בקשת RPC ל-library.listBookAltStructures.
+List<dynamic> _listAltStructuresRequest() => [
+  {
+    'method': 'library.listBookAltStructures',
+    'payload': {'bookId': 'בראשית'},
+  },
+];
+
+/// בקשת RPC ל-library.getBookAltToc.
+List<dynamic> _getBookAltTocRequest() => [
+  {
+    'method': 'library.getBookAltToc',
+    'payload': {'bookId': 'בראשית'},
+  },
+];
 
 /// בקשת RPC ל-shortcut.create.
 List<dynamic> _shortcutCreateRequest() => [
-      {
-        'method': 'shortcut.create',
-        'payload': {'label': 'בדיקה'},
-      }
-    ];
+  {
+    'method': 'shortcut.create',
+    'payload': {'label': 'בדיקה'},
+  },
+];
 
 /// בקשת RPC ל-app.openUrl.
 List<dynamic> _openUrlRequest() => [
-      {
-        'method': 'app.openUrl',
-        'payload': {'url': 'https://example.com'},
-      }
-    ];
+  {
+    'method': 'app.openUrl',
+    'payload': {'url': 'https://example.com'},
+  },
+];
 
 void main() {
   group('PluginBridgeHandler.isRateLimitExempt', () {
     test('library.getBookContent מוחרג ממגביל הקצב', () {
       // טעינת ספר מלא מחולקת ל-chunks ומחייבת עשרות קריאות רצופות; ספירתן
       // במגביל הקצב חתכה את הטעינה באמצע (חצי ספר).
-      expect(PluginBridgeHandler.isRateLimitExempt('library.getBookContent'),
-          isTrue);
+      expect(
+        PluginBridgeHandler.isRateLimitExempt('library.getBookContent'),
+        isTrue,
+      );
     });
 
     test('קריאות אחרות אינן מוחרגות וממשיכות להיות מוגבלות', () {
       expect(
-          PluginBridgeHandler.isRateLimitExempt('library.getBookToc'), isFalse);
+        PluginBridgeHandler.isRateLimitExempt('library.getBookToc'),
+        isFalse,
+      );
       expect(PluginBridgeHandler.isRateLimitExempt('library.getTree'), isFalse);
       expect(PluginBridgeHandler.isRateLimitExempt('storage.set'), isFalse);
-      expect(PluginBridgeHandler.isRateLimitExempt('reader.setHighlight'),
-          isFalse);
+      expect(
+        PluginBridgeHandler.isRateLimitExempt('reader.setHighlight'),
+        isFalse,
+      );
       expect(PluginBridgeHandler.isRateLimitExempt(''), isFalse);
     });
   });
@@ -145,7 +170,9 @@ void main() {
       expect(PluginBridgeHandler.hasOwnTimeout('network.fetch'), isFalse);
       expect(PluginBridgeHandler.hasOwnTimeout('fs.deleteFile'), isFalse);
       expect(
-          PluginBridgeHandler.hasOwnTimeout('library.getBookContent'), isFalse);
+        PluginBridgeHandler.hasOwnTimeout('library.getBookContent'),
+        isFalse,
+      );
       expect(PluginBridgeHandler.hasOwnTimeout(''), isFalse);
     });
   });
@@ -185,42 +212,46 @@ void main() {
     }
 
     test(
-        'הרשאה הוצהרה אך לא הוענקה → permission_denied, adapter.execute לא נקרא',
-        () async {
-      final adapter = _FakeAdapter();
-      final handler = buildHandler(
-        declaredPermissions: const [contentPermission],
-        granted: false,
-        adapter: adapter,
-      );
+      'הרשאה הוצהרה אך לא הוענקה → permission_denied, adapter.execute לא נקרא',
+      () async {
+        final adapter = _FakeAdapter();
+        final handler = buildHandler(
+          declaredPermissions: const [contentPermission],
+          granted: false,
+          adapter: adapter,
+        );
 
-      final resp = await handler.handleRpcForTesting(_getBookContentRequest())
-          as Map<String, dynamic>;
+        final resp =
+            await handler.handleRpcForTesting(_getBookContentRequest())
+                as Map<String, dynamic>;
 
-      expect(resp['success'], isFalse);
-      expect(resp['error']['code'], 'permission_denied');
-      expect(adapter.executeCalls, 0);
-    });
-
-    test('הרשאה לא הוצהרה כלל במניפסט → permission_denied, execute לא נקרא',
-        () async {
-      final adapter = _FakeAdapter();
-      final handler = buildHandler(
-        declaredPermissions: const [], // המניפסט ריק
-        granted: true, // גם אם ה-DB היה מאשר — ההצהרה חסרה
-        adapter: adapter,
-      );
-
-      final resp = await handler.handleRpcForTesting(_getBookContentRequest())
-          as Map<String, dynamic>;
-
-      expect(resp['success'], isFalse);
-      expect(resp['error']['code'], 'permission_denied');
-      expect(adapter.executeCalls, 0);
-    });
+        expect(resp['success'], isFalse);
+        expect(resp['error']['code'], 'permission_denied');
+        expect(adapter.executeCalls, 0);
+      },
+    );
 
     test(
-        'shortcut.create ללא ui.create_shortcut במניפסט → permission_denied, '
+      'הרשאה לא הוצהרה כלל במניפסט → permission_denied, execute לא נקרא',
+      () async {
+        final adapter = _FakeAdapter();
+        final handler = buildHandler(
+          declaredPermissions: const [], // המניפסט ריק
+          granted: true, // גם אם ה-DB היה מאשר — ההצהרה חסרה
+          adapter: adapter,
+        );
+
+        final resp =
+            await handler.handleRpcForTesting(_getBookContentRequest())
+                as Map<String, dynamic>;
+
+        expect(resp['success'], isFalse);
+        expect(resp['error']['code'], 'permission_denied');
+        expect(adapter.executeCalls, 0);
+      },
+    );
+
+    test('shortcut.create ללא ui.create_shortcut במניפסט → permission_denied, '
         'execute לא נקרא', () async {
       // מוודא ש-domain shortcut נאכף בשכבת ה-RPC (לא רק ב-adapter): תוסף שלא
       // הצהיר על ui.create_shortcut נחסם לפני adapter.execute, גם אם ה-DB מאשר.
@@ -231,16 +262,16 @@ void main() {
         adapter: adapter,
       );
 
-      final resp = await handler.handleRpcForTesting(_shortcutCreateRequest())
-          as Map<String, dynamic>;
+      final resp =
+          await handler.handleRpcForTesting(_shortcutCreateRequest())
+              as Map<String, dynamic>;
 
       expect(resp['success'], isFalse);
       expect(resp['error']['code'], 'permission_denied');
       expect(adapter.executeCalls, 0);
     });
 
-    test(
-        'app.openUrl ללא app.open_url במניפסט → permission_denied, '
+    test('app.openUrl ללא app.open_url במניפסט → permission_denied, '
         'execute לא נקרא', () async {
       final adapter = _FakeAdapter();
       final handler = buildHandler(
@@ -249,8 +280,9 @@ void main() {
         adapter: adapter,
       );
 
-      final resp = await handler.handleRpcForTesting(_openUrlRequest())
-          as Map<String, dynamic>;
+      final resp =
+          await handler.handleRpcForTesting(_openUrlRequest())
+              as Map<String, dynamic>;
 
       expect(resp['success'], isFalse);
       expect(resp['error']['code'], 'permission_denied');
@@ -265,8 +297,9 @@ void main() {
         adapter: adapter,
       );
 
-      final resp = await handler.handleRpcForTesting(_openUrlRequest())
-          as Map<String, dynamic>;
+      final resp =
+          await handler.handleRpcForTesting(_openUrlRequest())
+              as Map<String, dynamic>;
 
       expect(resp['success'], isTrue);
       expect(adapter.executeCalls, 1);
@@ -282,8 +315,9 @@ void main() {
         adapter: adapter,
       );
 
-      final resp = await handler.handleRpcForTesting(_getBookContentRequest())
-          as Map<String, dynamic>;
+      final resp =
+          await handler.handleRpcForTesting(_getBookContentRequest())
+              as Map<String, dynamic>;
 
       expect(resp['success'], isTrue);
       expect(resp['data'], 'תוכן-הספר');
@@ -293,29 +327,112 @@ void main() {
     });
 
     test(
-        'ההחרגה ממגביל הקצב חלה רק כשההרשאה הוענקה: מגביל מרוקן + הרשאה מוענקת '
-        '→ עדיין מצליח (consume לא נקרא)', () async {
-      // grantedEarly=true ⇒ exempt=true ⇒ הקוד לא קורא ל-consume כלל.
-      final adapter = _FakeAdapter(result: 'תוכן');
-      final limiter = _BlockingRateLimiter();
+      'listBookAltStructures ממופה ל-library.content.read (מוצהרת+מוענקת)',
+      () async {
+        final adapter = _FakeAdapter(result: const []);
+        final handler = buildHandler(
+          declaredPermissions: const [contentPermission],
+          granted: true,
+          adapter: adapter,
+        );
+
+        final resp =
+            await handler.handleRpcForTesting(_listAltStructuresRequest())
+                as Map<String, dynamic>;
+
+        expect(resp['success'], isTrue);
+        expect(adapter.lastDomain, 'library');
+        expect(adapter.lastAction, 'listBookAltStructures');
+      },
+    );
+
+    test(
+      'listBookAltStructures ללא ההרשאה במניפסט → permission_denied',
+      () async {
+        final adapter = _FakeAdapter();
+        final handler = buildHandler(
+          declaredPermissions: const [],
+          granted: true,
+          adapter: adapter,
+        );
+
+        final resp =
+            await handler.handleRpcForTesting(_listAltStructuresRequest())
+                as Map<String, dynamic>;
+
+        expect(resp['error']['code'], 'permission_denied');
+        expect(adapter.executeCalls, 0);
+      },
+    );
+
+    test(
+      'getBookAltToc ממופה ל-library.content.read (מוצהרת+מוענקת)',
+      () async {
+        final adapter = _FakeAdapter(result: const []);
+        final handler = buildHandler(
+          declaredPermissions: const [contentPermission],
+          granted: true,
+          adapter: adapter,
+        );
+
+        final resp =
+            await handler.handleRpcForTesting(_getBookAltTocRequest())
+                as Map<String, dynamic>;
+
+        expect(resp['success'], isTrue);
+        expect(adapter.lastDomain, 'library');
+        expect(adapter.lastAction, 'getBookAltToc');
+      },
+    );
+
+    test('getBookAltToc ללא ההרשאה במניפסט → permission_denied', () async {
+      final adapter = _FakeAdapter();
       final handler = buildHandler(
-        declaredPermissions: const [contentPermission],
+        declaredPermissions: const [],
         granted: true,
         adapter: adapter,
-        rateLimiter: limiter,
       );
 
-      final resp = await handler.handleRpcForTesting(_getBookContentRequest())
-          as Map<String, dynamic>;
+      final resp =
+          await handler.handleRpcForTesting(_getBookAltTocRequest())
+              as Map<String, dynamic>;
 
-      expect(resp['success'], isTrue,
-          reason: 'getBookContent עם הרשאה מוענקת מוחרג ממגביל הקצב');
-      expect(limiter.consumeCalls, 0,
-          reason: 'נתיב מוחרג לא אמור לגעת במגביל הקצב בכלל');
+      expect(resp['error']['code'], 'permission_denied');
+      expect(adapter.executeCalls, 0);
     });
 
     test(
-        'תוסף ללא הרשאה מוענקת אינו עוקף את ה-throttle: מגביל מרוקן + הרשאה לא '
+      'ההחרגה ממגביל הקצב חלה רק כשההרשאה הוענקה: מגביל מרוקן + הרשאה מוענקת '
+      '→ עדיין מצליח (consume לא נקרא)',
+      () async {
+        // grantedEarly=true ⇒ exempt=true ⇒ הקוד לא קורא ל-consume כלל.
+        final adapter = _FakeAdapter(result: 'תוכן');
+        final limiter = _BlockingRateLimiter();
+        final handler = buildHandler(
+          declaredPermissions: const [contentPermission],
+          granted: true,
+          adapter: adapter,
+          rateLimiter: limiter,
+        );
+
+        final resp =
+            await handler.handleRpcForTesting(_getBookContentRequest())
+                as Map<String, dynamic>;
+
+        expect(
+          resp['success'],
+          isTrue,
+          reason: 'getBookContent עם הרשאה מוענקת מוחרג ממגביל הקצב',
+        );
+        expect(
+          limiter.consumeCalls,
+          0,
+          reason: 'נתיב מוחרג לא אמור לגעת במגביל הקצב בכלל',
+        );
+      },
+    );
+
+    test('תוסף ללא הרשאה מוענקת אינו עוקף את ה-throttle: מגביל מרוקן + הרשאה לא '
         'מוענקת → rate_limited (עובר דרך המגביל)', () async {
       // grantedEarly=false ⇒ exempt=false ⇒ הקריאה עוברת דרך consume, שמרוקן
       // ולכן חוסם. כך תוסף לא-מורשה לא מנצל את ההחרגה כדי לעקוף את ה-throttle.
@@ -328,13 +445,17 @@ void main() {
         rateLimiter: limiter,
       );
 
-      final resp = await handler.handleRpcForTesting(_getBookContentRequest())
-          as Map<String, dynamic>;
+      final resp =
+          await handler.handleRpcForTesting(_getBookContentRequest())
+              as Map<String, dynamic>;
 
       expect(resp['success'], isFalse);
       expect(resp['error']['code'], 'error.rate_limited');
-      expect(limiter.consumeCalls, 1,
-          reason: 'תוסף לא-מורשה חייב לעבור דרך מגביל הקצב, לא לעקוף אותו');
+      expect(
+        limiter.consumeCalls,
+        1,
+        reason: 'תוסף לא-מורשה חייב לעבור דרך מגביל הקצב, לא לעקוף אותו',
+      );
       expect(adapter.executeCalls, 0);
     });
   });
@@ -346,11 +467,11 @@ void main() {
   group('PluginBridgeHandler._handleRpc — מיפוי קודי שגיאה מ-adapter', () {
     // fs.* אינו דורש הרשאת manifest, לכן הקריאה מגיעה ל-execute ללא חסימה.
     List<dynamic> fsDeleteRequest() => [
-          {
-            'method': 'fs.deleteFile',
-            'payload': {'path': '/tmp/x'},
-          }
-        ];
+      {
+        'method': 'fs.deleteFile',
+        'payload': {'path': '/tmp/x'},
+      },
+    ];
 
     PluginBridgeHandler buildHandler(_FakeAdapter adapter) {
       return PluginBridgeHandler(
@@ -360,36 +481,57 @@ void main() {
       );
     }
 
-    test('Exception עם קידומת error.forbidden מוחזר עם code=error.forbidden',
-        () async {
-      final handler = buildHandler(_FakeAdapter(
-          errorToThrow: Exception(
-              'error.forbidden: path outside a user-selected folder')));
+    test(
+      'Exception עם קידומת error.forbidden מוחזר עם code=error.forbidden',
+      () async {
+        final handler = buildHandler(
+          _FakeAdapter(
+            errorToThrow: Exception(
+              'error.forbidden: path outside a user-selected folder',
+            ),
+          ),
+        );
 
-      final resp = await handler.handleRpcForTesting(fsDeleteRequest()) as Map;
+        final resp =
+            await handler.handleRpcForTesting(fsDeleteRequest()) as Map;
 
-      expect(resp['success'], isFalse);
-      expect(resp['error']['code'], 'error.forbidden');
-      expect(resp['error']['message'], 'path outside a user-selected folder');
-    });
+        expect(resp['success'], isFalse);
+        expect(resp['error']['code'], 'error.forbidden');
+        expect(resp['error']['message'], 'path outside a user-selected folder');
+      },
+    );
 
-    test('קידומת error.invalid_params ו-error.not_found ממופות גם הן',
-        () async {
-      final invalid = await buildHandler(_FakeAdapter(
-              errorToThrow: Exception('error.invalid_params: path required')))
-          .handleRpcForTesting(fsDeleteRequest()) as Map;
-      expect(invalid['error']['code'], 'error.invalid_params');
+    test(
+      'קידומת error.invalid_params ו-error.not_found ממופות גם הן',
+      () async {
+        final invalid =
+            await buildHandler(
+                  _FakeAdapter(
+                    errorToThrow: Exception(
+                      'error.invalid_params: path required',
+                    ),
+                  ),
+                ).handleRpcForTesting(fsDeleteRequest())
+                as Map;
+        expect(invalid['error']['code'], 'error.invalid_params');
 
-      final notFound = await buildHandler(_FakeAdapter(
-              errorToThrow:
-                  Exception('error.not_found: zip file does not exist')))
-          .handleRpcForTesting(fsDeleteRequest()) as Map;
-      expect(notFound['error']['code'], 'error.not_found');
-    });
+        final notFound =
+            await buildHandler(
+                  _FakeAdapter(
+                    errorToThrow: Exception(
+                      'error.not_found: zip file does not exist',
+                    ),
+                  ),
+                ).handleRpcForTesting(fsDeleteRequest())
+                as Map;
+        expect(notFound['error']['code'], 'error.not_found');
+      },
+    );
 
     test('Exception ללא קידומת מוכרת נשאר error.internal', () async {
-      final handler =
-          buildHandler(_FakeAdapter(errorToThrow: Exception('משהו נשבר')));
+      final handler = buildHandler(
+        _FakeAdapter(errorToThrow: Exception('משהו נשבר')),
+      );
 
       final resp = await handler.handleRpcForTesting(fsDeleteRequest()) as Map;
 
@@ -402,25 +544,27 @@ void main() {
   // שהמשתמש בחר ולכן אינן דורשות הרשאה.
   group('PluginBridgeHandler._handleRpc — אכיפת fs.user_files.read', () {
     List<dynamic> pickUserFileRequest() => [
-          {'method': 'fs.pickUserFile', 'payload': const <String, dynamic>{}}
-        ];
+      {'method': 'fs.pickUserFile', 'payload': const <String, dynamic>{}},
+    ];
 
-    test('pickUserFile ללא ההרשאה במניפסט → permission_denied, execute לא נקרא',
-        () async {
-      final adapter = _FakeAdapter();
-      final handler = PluginBridgeHandler(
-        _buildInstalledPlugin(permissions: const []),
-        adapter: adapter,
-        registry: _StubRegistry(true), // גם אם ה-DB מאשר — ההצהרה חסרה
-      );
+    test(
+      'pickUserFile ללא ההרשאה במניפסט → permission_denied, execute לא נקרא',
+      () async {
+        final adapter = _FakeAdapter();
+        final handler = PluginBridgeHandler(
+          _buildInstalledPlugin(permissions: const []),
+          adapter: adapter,
+          registry: _StubRegistry(true), // גם אם ה-DB מאשר — ההצהרה חסרה
+        );
 
-      final resp =
-          await handler.handleRpcForTesting(pickUserFileRequest()) as Map;
+        final resp =
+            await handler.handleRpcForTesting(pickUserFileRequest()) as Map;
 
-      expect(resp['success'], isFalse);
-      expect(resp['error']['code'], 'permission_denied');
-      expect(adapter.executeCalls, 0);
-    });
+        expect(resp['success'], isFalse);
+        expect(resp['error']['code'], 'permission_denied');
+        expect(adapter.executeCalls, 0);
+      },
+    );
 
     test('pickUserFile עם הרשאה מוצהרת ומוענקת → execute נקרא', () async {
       final adapter = _FakeAdapter(result: {'cancelled': true});
@@ -439,24 +583,28 @@ void main() {
       expect(adapter.lastAction, 'pickUserFile');
     });
 
-    test('deleteFile נשאר ללא הרשאת manifest (execute נקרא גם בלי הרשאה)',
-        () async {
-      final adapter = _FakeAdapter(result: true);
-      final handler = PluginBridgeHandler(
-        _buildInstalledPlugin(permissions: const []),
-        adapter: adapter,
-        registry: _StubRegistry(null),
-      );
+    test(
+      'deleteFile נשאר ללא הרשאת manifest (execute נקרא גם בלי הרשאה)',
+      () async {
+        final adapter = _FakeAdapter(result: true);
+        final handler = PluginBridgeHandler(
+          _buildInstalledPlugin(permissions: const []),
+          adapter: adapter,
+          registry: _StubRegistry(null),
+        );
 
-      final resp = await handler.handleRpcForTesting([
-        {
-          'method': 'fs.deleteFile',
-          'payload': {'path': '/tmp/x'},
-        }
-      ]) as Map;
+        final resp =
+            await handler.handleRpcForTesting([
+                  {
+                    'method': 'fs.deleteFile',
+                    'payload': {'path': '/tmp/x'},
+                  },
+                ])
+                as Map;
 
-      expect(resp['success'], isTrue);
-      expect(adapter.executeCalls, 1);
-    });
+        expect(resp['success'], isTrue);
+        expect(adapter.executeCalls, 1);
+      },
+    );
   });
 }

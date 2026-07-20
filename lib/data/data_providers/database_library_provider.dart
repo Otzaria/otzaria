@@ -100,7 +100,8 @@ class _DiscoveredBook {
 /// and parses TXT / DOCX TOC for genuinely NEW books.
 /// PDF TOC is intentionally skipped here (pdfrx uses platform channels).
 Future<List<_DiscoveredBook>> _scanExternalFolderInIsolate(
-    (String folderPath, String folderName, String dbPath) args) async {
+  (String folderPath, String folderName, String dbPath) args,
+) async {
   // Open a read-only sqlite3 connection to check existing books without
   // going through the Drift/sqflite layer (which requires platform channels).
   sqlite3.Database? db;
@@ -210,17 +211,19 @@ Future<void> _collectBookFilesRecursive(
         }
         // PDF: rawToc stays null — parsed on the main isolate.
 
-        books.add(_DiscoveredBook(
-          path: entity.path,
-          title: title,
-          fileType: fileType,
-          fileSize: fileSize,
-          lastModified: lastModified,
-          categoryPath: categoryPath,
-          tocEntries: rawToc,
-          conversionError: conversionError,
-          existingBookId: existingBookId,
-        ));
+        books.add(
+          _DiscoveredBook(
+            path: entity.path,
+            title: title,
+            fileType: fileType,
+            fileSize: fileSize,
+            lastModified: lastModified,
+            categoryPath: categoryPath,
+            tocEntries: rawToc,
+            conversionError: conversionError,
+            existingBookId: existingBookId,
+          ),
+        );
       }
     } catch (e) {
       debugPrint('⚠️ Skipping inaccessible entity: ${entity.path}: $e');
@@ -235,9 +238,15 @@ Future<void> _collectBookFilesRecursive(
 /// the list.
 @visibleForTesting
 Future<List<Map<String, Object?>>> scanExternalFolderForTest(
-    String folderPath, String folderName, String dbPath) async {
-  final result =
-      await _scanExternalFolderInIsolate((folderPath, folderName, dbPath));
+  String folderPath,
+  String folderName,
+  String dbPath,
+) async {
+  final result = await _scanExternalFolderInIsolate((
+    folderPath,
+    folderName,
+    dbPath,
+  ));
   return result
       .map((b) => {'path': b.path, 'existingBookId': b.existingBookId})
       .toList();
@@ -258,12 +267,14 @@ void _flattenRawRecursive(
 ) {
   for (final entry in entries) {
     final myIndex = flat.length;
-    flat.add(_RawTocEntry(
-      text: entry.text,
-      level: entry.level,
-      lineIndex: entry.index,
-      parentIndex: parentIndex,
-    ));
+    flat.add(
+      _RawTocEntry(
+        text: entry.text,
+        level: entry.level,
+        lineIndex: entry.index,
+        parentIndex: parentIndex,
+      ),
+    );
     if (entry.children.isNotEmpty) {
       _flattenRawRecursive(entry.children, flat, myIndex);
     }
@@ -428,9 +439,9 @@ String _rangeEndSelectColumns(bool hasLinkRanges) => hasLinkRanges
 /// JOIN לקצה-הטווח של צד-הפאנל (`panelSide`: 0 = צד המקור השמור, 1 = היעד).
 String _rangeEndJoinClause(bool hasLinkRanges, {required int panelSide}) =>
     hasLinkRanges
-        ? '''LEFT JOIN link_range lr ON lr.linkId = l.id AND lr.side = $panelSide
+    ? '''LEFT JOIN link_range lr ON lr.linkId = l.id AND lr.side = $panelSide
         LEFT JOIN line rl ON rl.id = lr.endLineId'''
-        : '';
+    : '';
 
 String _anchorSelectColumns(bool hasLinkAnchor) => hasLinkAnchor
     ? '''la.charStart as anchorCharStart,
@@ -458,8 +469,9 @@ String _anchorSelectColumns(bool hasLinkAnchor) => hasLinkAnchor
 /// שורת הפאנל היא תמיד שורת ההתחלה של הקישור.
 String _anchorJoinClause(bool hasLinkAnchor, {required int displayedSide}) {
   if (!hasLinkAnchor) return '';
-  final displayedSideLine =
-      displayedSide == 0 ? 'l.sourceLineId' : 'l.targetLineId';
+  final displayedSideLine = displayedSide == 0
+      ? 'l.sourceLineId'
+      : 'l.targetLineId';
   return '''LEFT JOIN (
           SELECT linkId, MIN(charStart) AS charStart, charEnd, label,
                  GROUP_CONCAT(charStart || ':' || COALESCE(charEnd, '') || ':' || COALESCE(label, ''), ';') AS spans
@@ -481,11 +493,13 @@ List<LinkAnchorSpan> _parseAnchorSpans(String? spans) {
     if (start == null) continue;
     final end = fields.length > 1 ? int.tryParse(fields[1]) : null;
     final label = fields.length > 2 ? fields.sublist(2).join(':') : '';
-    result.add(LinkAnchorSpan(
-      start: start,
-      end: end,
-      label: label.isEmpty ? null : label,
-    ));
+    result.add(
+      LinkAnchorSpan(
+        start: start,
+        end: end,
+        label: label.isEmpty ? null : label,
+      ),
+    );
   }
   result.sort((a, b) => a.start.compareTo(b.start));
   return result;
@@ -523,7 +537,9 @@ List<Map<String, dynamic>> _loadBookLinksRowsInIsolate({
           JOIN link cl ON cl.id = lc.linkId
           WHERE lc.side = 0 AND cl.sourceBookId = ?'''
         : '';
-    final forwardRows = db.select('''
+    final forwardRows = db
+        .select(
+          '''
         WITH anchors(linkId, anchorLineId) AS (
           SELECT id, sourceLineId FROM link WHERE sourceBookId = ?
           $coverageArm
@@ -549,7 +565,10 @@ List<Map<String, dynamic>> _loadBookLinksRowsInIsolate({
         ${_rangeEndJoinClause(hasLinkRanges, panelSide: 1)}
         ${_anchorJoinClause(hasLinkAnchor, displayedSide: 0)}
         ORDER BY sl.lineIndex
-      ''', [bookId, if (hasLinkRanges) bookId]).toMapList();
+      ''',
+          [bookId, if (hasLinkRanges) bookId],
+        )
+        .toMapList();
     return [...forwardRows, ..._loadInverseSourceRows(db, bookId)];
   } finally {
     db?.close();
@@ -559,7 +578,7 @@ List<Map<String, dynamic>> _loadBookLinksRowsInIsolate({
 /// Top-level worker לסיכום קישורי ספר לפי (ספר-יעד, סוג חיבור) — שאילתת
 /// GROUP BY זולה במקום למשוך עשרות אלפי שורות קישורים לדארט.
 ({List<Map<String, dynamic>> rows, int? maxSourceLineIndex})
-    _loadBookLinkTargetsSummaryRowsInIsolate({
+_loadBookLinkTargetsSummaryRowsInIsolate({
   required String dbPath,
   required String title,
   required int categoryId,
@@ -588,7 +607,9 @@ List<Map<String, dynamic>> _loadBookLinksRowsInIsolate({
           JOIN link cl ON cl.id = lc.linkId
           WHERE lc.side = 0 AND cl.sourceBookId = ?'''
         : '';
-    final forwardRows = db.select('''
+    final forwardRows = db
+        .select(
+          '''
         WITH anchors(linkId) AS (
           SELECT id FROM link WHERE sourceBookId = ?
           $coverageArm
@@ -601,13 +622,18 @@ List<Map<String, dynamic>> _loadBookLinksRowsInIsolate({
         JOIN book tb ON l.targetBookId = tb.id
         LEFT JOIN connection_type ct ON l.connectionTypeId = ct.id
         GROUP BY tb.title, ct.name
-      ''', [bookId, if (hasLinkRanges) bookId]).toMapList();
+      ''',
+          [bookId, if (hasLinkRanges) bookId],
+        )
+        .toMapList();
 
     // הזרוע ההפוכה — מפרשים ששמורים כקישור מהם אל הספר הזה (מוצגים כ-SOURCE),
     // כמו ב-_loadInverseSourceRows.
     final depTypes = LinkTypes.dependentTextTypes.toList();
     final typePlaceholders = List.filled(depTypes.length, '?').join(', ');
-    final inverseRows = db.select('''
+    final inverseRows = db
+        .select(
+          '''
         SELECT sb.title as targetBookTitle,
                'SOURCE' as connectionTypeName,
                COUNT(*) as linkCount
@@ -618,15 +644,19 @@ List<Map<String, dynamic>> _loadBookLinksRowsInIsolate({
           AND ct.name IN ($typePlaceholders)
           AND l.sourceBookId != l.targetBookId
         GROUP BY sb.title
-      ''', [bookId, ...depTypes]).toMapList();
+      ''',
+          [bookId, ...depTypes],
+        )
+        .toMapList();
 
     final maxRows = db.select(
       'SELECT MAX(sl.lineIndex) as maxIdx FROM link l '
       'JOIN line sl ON sl.id = l.sourceLineId WHERE l.sourceBookId = ?',
       [bookId],
     ).toMapList();
-    final maxSourceLineIndex =
-        maxRows.isEmpty ? null : maxRows.first['maxIdx'] as int?;
+    final maxSourceLineIndex = maxRows.isEmpty
+        ? null
+        : maxRows.first['maxIdx'] as int?;
 
     return (
       rows: [...forwardRows, ...inverseRows],
@@ -640,7 +670,7 @@ List<Map<String, dynamic>> _loadBookLinksRowsInIsolate({
 /// Top-level wrapper עבור סיכום קישורי ספר ב-isolate.
 /// ראה ההסבר ב-[_runAlternativeStructuresInIsolate].
 Future<({List<Map<String, dynamic>> rows, int? maxSourceLineIndex})>
-    _runBookLinkTargetsSummaryInIsolate({
+_runBookLinkTargetsSummaryInIsolate({
   required String dbPath,
   required String title,
   required int categoryId,
@@ -701,13 +731,14 @@ List<Map<String, dynamic>> _loadBookLinksRowsInRangeInIsolate({
     // null     → ללא פילטר (כל הקישורים)
     // ריק      → רק קישורים שאינם מפרשים (REFERENCE וכד׳)
     // לא ריק   → קישורים שאינם מפרשים + המפרשים הנבחרים
-    final depTypesIn =
-        LinkTypes.dependentTextTypes.map((t) => "'$t'").join(', ');
+    final depTypesIn = LinkTypes.dependentTextTypes
+        .map((t) => "'$t'")
+        .join(', ');
     final commentaryFilterClause = targetBookTitles == null
         ? ''
         : hasCommentaryFilter
-            ? 'AND (ct.name IS NULL OR ct.name NOT IN ($depTypesIn) OR tb.title IN ($targetBookPlaceholders))'
-            : 'AND (ct.name IS NULL OR ct.name NOT IN ($depTypesIn))';
+        ? 'AND (ct.name IS NULL OR ct.name NOT IN ($depTypesIn) OR tb.title IN ($targetBookPlaceholders))'
+        : 'AND (ct.name IS NULL OR ct.name NOT IN ($depTypesIn))';
 
     // שורות ה-anchors כוללות גם שורות מכוסות של קישורי-טווח (side=0). הזרוע
     // מסוננת לחלון כבר כאן דרך ה-PK של link_coverage (lineId ראשון) — שורות
@@ -751,8 +782,12 @@ List<Map<String, dynamic>> _loadBookLinksRowsInRangeInIsolate({
       ''', parameters).toMapList();
     return [
       ...rows,
-      ..._loadInverseSourceRows(db, bookId,
-          startLineIndex: startLineIndex, endLineIndex: endLineIndex),
+      ..._loadInverseSourceRows(
+        db,
+        bookId,
+        startLineIndex: startLineIndex,
+        endLineIndex: endLineIndex,
+      ),
     ];
   } catch (error) {
     rethrow;
@@ -852,7 +887,7 @@ Future<List<Map<String, Object?>>> _runBookLinksInRangeInIsolate({
 /// Top-level worker לטעינת טווח שורות על חיבור RO חדש ב-isolate; ה-join+split
 /// מתבצע כאן כדי לא לחסום את ה-UI thread. ראה [_runAlternativeStructuresInIsolate].
 ({int startLine, int endLine, int totalLines, List<String> lines})?
-    _loadBookTextRangeRowsInIsolate({
+_loadBookTextRangeRowsInIsolate({
   required String dbPath,
   required String title,
   required int categoryId,
@@ -894,14 +929,19 @@ Future<List<Map<String, Object?>>> _runBookLinksInRangeInIsolate({
       // מהדורה חלופית: שורות מבנה (heRef NULL — כותרות/מחברים) נשארות מהשלד;
       // שורת תוכן מקבלת את נוסח המהדורה, וסגמנט שחסר בה מוצג ריק — לעולם לא
       // נופלים בשקט לנוסח הממוזג.
-      rows = db.select('''
+      rows = db
+          .select(
+            '''
         SELECT CASE WHEN l.heRef IS NULL THEN l.content
                     ELSE COALESCE(vl.content, '') END AS content
         FROM line l
         LEFT JOIN version_line vl ON vl.versionId = ? AND vl.lineId = l.id
         WHERE l.bookId = ? AND l.lineIndex >= ? AND l.lineIndex <= ?
         ORDER BY l.lineIndex
-      ''', [versionId, bookId, normalizedStart, normalizedEnd]).toMapList();
+      ''',
+            [versionId, bookId, normalizedStart, normalizedEnd],
+          )
+          .toMapList();
     } else {
       rows = db.select(
         'SELECT content FROM line WHERE bookId = ? AND lineIndex >= ? AND lineIndex <= ? ORDER BY lineIndex',
@@ -927,7 +967,7 @@ Future<List<Map<String, Object?>>> _runBookLinksInRangeInIsolate({
 /// Top-level wrapper עבור טעינת טווח תוכן ב-isolate.
 /// ראה ההסבר ב-[_runAlternativeStructuresInIsolate].
 Future<({int startLine, int endLine, int totalLines, List<String> lines})?>
-    _runBookTextRangeInIsolate({
+_runBookTextRangeInIsolate({
   required String dbPath,
   required String title,
   required int categoryId,
@@ -968,13 +1008,18 @@ List<Map<String, dynamic>> _loadBookVersionsRowsInIsolate({
     if (bookResults.isEmpty) return const [];
     final bookId = bookResults.first['id'] as int;
 
-    return db.select('''
+    return db
+        .select(
+          '''
       SELECT versionTitle, heVersionTitle, versionSource, priority, license,
              versionNotes, heVersionNotes, hasContent
       FROM book_version
       WHERE bookId = ?
       ORDER BY hasContent DESC, priority DESC, versionTitle
-    ''', [bookId]).toMapList();
+    ''',
+          [bookId],
+        )
+        .toMapList();
   } finally {
     db?.close();
   }
@@ -1212,7 +1257,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
   @visibleForTesting
   static ({List<Map<String, dynamic>> rows, int? maxSourceLineIndex})
-      loadBookLinkTargetsSummaryRowsForTesting({
+  loadBookLinkTargetsSummaryRowsForTesting({
     required String dbPath,
     required String title,
     required int categoryId,
@@ -1239,7 +1284,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
   @visibleForTesting
   static ({int startLine, int endLine, int totalLines, List<String> lines})?
-      loadBookTextRangeRowsForTesting({
+  loadBookTextRangeRowsForTesting({
     required String dbPath,
     required String title,
     required int categoryId,
@@ -1373,11 +1418,13 @@ class DatabaseLibraryProvider implements LibraryProvider {
       targetCategory.books.add(pdfBook);
       existingPdfTitles.add(title);
       modifiedCategories.add(targetCategory);
-      _cachedKeys.add(BookCompositeKey.create(
-        title: title,
-        categoryId: targetCategoryId,
-        fileType: 'pdf',
-      ));
+      _cachedKeys.add(
+        BookCompositeKey.create(
+          title: title,
+          categoryId: targetCategoryId,
+          fileType: 'pdf',
+        ),
+      );
       _categoryIdToPath[targetCategoryId] =
           DatabaseConstants.talmudBavliFolderName;
     }
@@ -1440,7 +1487,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
   @override
   Future<Map<String, List<Book>>> loadBooks(
-      Map<String, Map<String, dynamic>> metadata) async {
+    Map<String, Map<String, dynamic>> metadata,
+  ) async {
     final Map<String, List<Book>> booksByCategory = {};
 
     if (!_sqliteProvider.isInitialized || _sqliteProvider.repository == null) {
@@ -1457,7 +1505,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
       // Build category paths and caches
       final Map<int, db_models.Category> categoryMap = {
-        for (var c in categories) c.id: c
+        for (var c in categories) c.id: c,
       };
       final Map<int, String> categoryPaths = {};
 
@@ -1500,14 +1548,17 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
         final categoryPath = getPath(dbBook.categoryId);
         _categoryIdToPath[dbBook.categoryId] = categoryPath;
-        _cachedKeys.add(BookCompositeKey.create(
-          title: dbBook.title,
-          categoryId: dbBook.categoryId,
-          fileType: dbBook.fileType,
-        ));
+        _cachedKeys.add(
+          BookCompositeKey.create(
+            title: dbBook.title,
+            categoryId: dbBook.categoryId,
+            fileType: dbBook.fileType,
+          ),
+        );
 
-        final categoryName =
-            dbBook.topics.isNotEmpty ? dbBook.topics.first.name : 'ללא קטגוריה';
+        final categoryName = dbBook.topics.isNotEmpty
+            ? dbBook.topics.first.name
+            : 'ללא קטגוריה';
 
         final topics = _buildTopics(dbBook, categoryPath);
 
@@ -1516,10 +1567,12 @@ class DatabaseLibraryProvider implements LibraryProvider {
           title: dbBook.title,
           author: dbBook.authors.isNotEmpty ? dbBook.authors.first.name : null,
           heShortDesc: dbBook.heShortDesc,
-          pubDate:
-              dbBook.pubDates.isNotEmpty ? dbBook.pubDates.first.date : null,
-          pubPlace:
-              dbBook.pubPlaces.isNotEmpty ? dbBook.pubPlaces.first.name : null,
+          pubDate: dbBook.pubDates.isNotEmpty
+              ? dbBook.pubDates.first.date
+              : null,
+          pubPlace: dbBook.pubPlaces.isNotEmpty
+              ? dbBook.pubPlaces.first.name
+              : null,
           order: dbBook.order.toInt(),
           topics: topics,
           fileType: dbBook.fileType,
@@ -1534,7 +1587,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
       _titlesCached = true;
       debugPrint(
-          '💾 Database loaded ${dbBooks.length} books into ${booksByCategory.length} categories');
+        '💾 Database loaded ${dbBooks.length} books into ${booksByCategory.length} categories',
+      );
     } catch (e) {
       debugPrint('⚠️ Error loading books from database: $e');
     }
@@ -1680,7 +1734,9 @@ class DatabaseLibraryProvider implements LibraryProvider {
       try {
         final repository = await UserBooksDatabaseHolder.instance.repository;
         final categoryPath = await BookDatabaseResolver.buildCategoryPath(
-            repository, categoryId);
+          repository,
+          categoryId,
+        );
         if (categoryPath.isNotEmpty && !fromUserBooks) {
           _categoryIdToPath[categoryId] = categoryPath;
         }
@@ -1803,7 +1859,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
       try {
         final repo = await UserBooksDatabaseHolder.instance.repository;
         final book = await repo.getBookByTitleCategoryAndFileType(
-            title, categoryId, fileType);
+          title,
+          categoryId,
+          fileType,
+        );
         if (book == null) return null;
         if (book.isFileBacked && book.filePath != null) {
           final file = File(book.filePath!);
@@ -1819,7 +1878,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
         }
         // נופל לטעינה מתוך ה-DB עצמו (טבלת `line`).
         return await _readBookTextFromUserBooksDb(
-            repo, book.id, book.totalLines);
+          repo,
+          book.id,
+          book.totalLines,
+        );
       } catch (e) {
         debugPrint('⚠️ Error reading user book text: $e');
         return null;
@@ -1858,7 +1920,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
   /// קורא את תוכן הספר משורות ה-`line` של `user_books.db` ומחזיר טקסט מאוחד.
   Future<String?> _readBookTextFromUserBooksDb(
-      SeforimRepository repo, int bookId, int totalLines) async {
+    SeforimRepository repo,
+    int bookId,
+    int totalLines,
+  ) async {
     try {
       if (totalLines <= 0) return null;
       final lines = await repo.getLines(bookId, 0, totalLines - 1);
@@ -1886,7 +1951,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
       try {
         final repo = await UserBooksDatabaseHolder.instance.repository;
         final book = await repo.getBookByTitleCategoryAndFileType(
-            title, categoryId, fileType);
+          title,
+          categoryId,
+          fileType,
+        );
         if (book == null) return null;
         return await _loadTocFromUserBooksRepo(repo, book.id);
       } catch (e) {
@@ -1906,7 +1974,9 @@ class DatabaseLibraryProvider implements LibraryProvider {
   /// משתמש ב-`getBookTocs` של ה-repository (שכבר עושה JOIN ל-tocText
   /// ומחזיר רשומות migration עם `text` מאוכלס).
   Future<List<TocEntry>?> _loadTocFromUserBooksRepo(
-      SeforimRepository repo, int bookId) async {
+    SeforimRepository repo,
+    int bookId,
+  ) async {
     final tocEntries = await repo.getBookTocs(bookId);
     if (tocEntries.isEmpty) return null;
     final idToEntry = <int, TocEntry>{};
@@ -1963,7 +2033,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
       _categoriesById
         ..clear()
         ..addEntries(
-            categories.map((category) => MapEntry(category.id, category)));
+          categories.map((category) => MapEntry(category.id, category)),
+        );
 
       for (final book in books) {
         if (!shouldIncludeBookByPath(
@@ -1974,11 +2045,13 @@ class DatabaseLibraryProvider implements LibraryProvider {
           continue;
         }
 
-        _cachedKeys.add(BookCompositeKey.create(
-          title: book.title,
-          categoryId: book.categoryId,
-          fileType: book.fileType,
-        ));
+        _cachedKeys.add(
+          BookCompositeKey.create(
+            title: book.title,
+            categoryId: book.categoryId,
+            fileType: book.fileType,
+          ),
+        );
 
         if (!_categoryIdToPath.containsKey(book.categoryId)) {
           final categoryPath = await _getPathForCategoryId(book.categoryId);
@@ -2093,7 +2166,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
     });
 
     debugPrint(
-        '⏱️ Transaction (books+categories): ${DateTime.now().difference(tQuery).inMilliseconds}ms (${allDbBooks.length} books, ${allCatRows.length} categories)');
+      '⏱️ Transaction (books+categories): ${DateTime.now().difference(tQuery).inMilliseconds}ms (${allDbBooks.length} books, ${allCatRows.length} categories)',
+    );
 
     final booksByCategory = <int, List<Map<String, dynamic>>>{};
     for (final bookData in allDbBooks) {
@@ -2153,7 +2227,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
       totalCategories += _countCategories(catalogCategory);
     }
     debugPrint(
-        '⏱️ Category tree build: ${DateTime.now().difference(tTree).inMilliseconds}ms');
+      '⏱️ Category tree build: ${DateTime.now().difference(tTree).inMilliseconds}ms',
+    );
 
     final talmudBavliCategory = library.subCategories.where((category) {
       return category.title == DatabaseConstants.talmudBavliFolderName;
@@ -2176,7 +2251,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
     _titlesCached = true;
 
     debugPrint(
-        '💾 Database catalog built with $totalCategories categories and ${allDbBooks.length} books from DB');
+      '💾 Database catalog built with $totalCategories categories and ${allDbBooks.length} books from DB',
+    );
 
     // NOTE: Library is now built ONLY from the database.
     // Files that are not in the DB will not appear in the library browser.
@@ -2197,8 +2273,9 @@ class DatabaseLibraryProvider implements LibraryProvider {
   ) async {
     if (categoryPath.isEmpty) {
       // Return default category
-      final defaultCategory =
-          await repository.getCategoryByTitle('ללא קטגוריה');
+      final defaultCategory = await repository.getCategoryByTitle(
+        'ללא קטגוריה',
+      );
       if (defaultCategory != null) {
         return defaultCategory.id;
       }
@@ -2220,8 +2297,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
     // Walk through each level of the category hierarchy
     for (final categoryName in categoryPath) {
       // Try to find existing category with this name under the current parent
-      final existingCategory =
-          await repository.getCategoryByTitleAndParent(categoryName, parentId);
+      final existingCategory = await repository.getCategoryByTitleAndParent(
+        categoryName,
+        parentId,
+      );
 
       if (existingCategory != null) {
         // Category exists - use it as parent for next level
@@ -2438,8 +2517,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
       // (ספרי המשתמש שכבר נטענו) נשמר עד הניסיון הבא, במקום להיעלם.
       final db = await repo.database.database;
       withTransaction(db, () {
-        userBooks =
-            repo.database.bookDao.getAllBooksMinimal(db, withFileColumns: true);
+        userBooks = repo.database.bookDao.getAllBooksMinimal(
+          db,
+          withFileColumns: true,
+        );
         userCats = repo.database.categoryDao.getAllCategoryRows(db);
         userAuthors = repo.database.bookDao.getBookAuthorsMap(db);
       });
@@ -2463,8 +2544,9 @@ class DatabaseLibraryProvider implements LibraryProvider {
       }
 
       // קיבוץ קטגוריות לפי parentId.
-      final allUserCategories =
-          userCats.map((row) => db_models.Category.fromJson(row)).toList();
+      final allUserCategories = userCats
+          .map((row) => db_models.Category.fromJson(row))
+          .toList();
       final categoriesByParent = <int?, List<db_models.Category>>{};
       for (final cat in allUserCategories) {
         categoriesByParent.putIfAbsent(cat.parentId, () => []).add(cat);
@@ -2472,8 +2554,9 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
       // חיפוש קטגוריית "ספרים אישיים" ברמת השורש של user_books.db.
       final rootCats = categoriesByParent[null] ?? [];
-      final personalRootInUserDb =
-          rootCats.where((c) => c.title == 'ספרים אישיים').firstOrNull;
+      final personalRootInUserDb = rootCats
+          .where((c) => c.title == 'ספרים אישיים')
+          .firstOrNull;
       if (personalRootInUserDb == null) {
         return;
       }
@@ -2484,7 +2567,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
       // הגדרה: האם למזג תיקיות מותאמות אישית ישירות לעץ הראשי לפי שם
       // (במקום להציג אותן תחת קטגוריית "ספרים אישיים" נפרדת).
-      final mergeIntoLibraryRoot = Settings.getValue<bool>(
+      final mergeIntoLibraryRoot =
+          Settings.getValue<bool>(
             SettingsRepository.keyMergeUserBooksIntoLibrary,
             defaultValue: false,
           ) ??
@@ -2500,12 +2584,11 @@ class DatabaseLibraryProvider implements LibraryProvider {
       // ספרים שיושבים ישירות תחת "ספרים אישיים" (בד"כ אין כאלה — תיקיות
       // הן רמה אחת מתחת — אבל מטפלים ליתר ביטחון).
       final directBooksUnderRoot =
-          (booksByCategory[personalRootInUserDb.id] ?? [])
-            ..sort((a, b) {
-              final orderA = (a['orderIndex'] as num?)?.toDouble() ?? 999.0;
-              final orderB = (b['orderIndex'] as num?)?.toDouble() ?? 999.0;
-              return orderA.compareTo(orderB);
-            });
+          (booksByCategory[personalRootInUserDb.id] ?? [])..sort((a, b) {
+            final orderA = (a['orderIndex'] as num?)?.toDouble() ?? 999.0;
+            final orderB = (b['orderIndex'] as num?)?.toDouble() ?? 999.0;
+            return orderA.compareTo(orderB);
+          });
 
       if (mergeIntoLibraryRoot) {
         // במצב מיזוג: גם "ספרים אישיים" וגם שם התיקייה שהמשתמש בחר
@@ -2525,12 +2608,14 @@ class DatabaseLibraryProvider implements LibraryProvider {
           );
           if (book == null) continue;
           library.books.add(book);
-          _userBooksCachedKeys.add(BookCompositeKey.create(
-            title: book.title,
-            categoryId: personalRootId,
-            fileType: book.fileType,
-            isUserBook: true,
-          ));
+          _userBooksCachedKeys.add(
+            BookCompositeKey.create(
+              title: book.title,
+              categoryId: personalRootId,
+              fileType: book.fileType,
+              isUserBook: true,
+            ),
+          );
         }
 
         for (final pickedFolder in pickedFolders) {
@@ -2555,12 +2640,14 @@ class DatabaseLibraryProvider implements LibraryProvider {
             );
             if (book == null) continue;
             library.books.add(book);
-            _userBooksCachedKeys.add(BookCompositeKey.create(
-              title: book.title,
-              categoryId: pickedFolder.id,
-              fileType: book.fileType,
-              isUserBook: true,
-            ));
+            _userBooksCachedKeys.add(
+              BookCompositeKey.create(
+                title: book.title,
+                categoryId: pickedFolder.id,
+                fileType: book.fileType,
+                isUserBook: true,
+              ),
+            );
           }
 
           // תת-תיקיות של התיקייה הנבחרת — מתמזגות בשורש הספרייה לפי שם.
@@ -2625,12 +2712,14 @@ class DatabaseLibraryProvider implements LibraryProvider {
           );
           if (book == null) continue;
           personalCategoryInLibrary.books.add(book);
-          _userBooksCachedKeys.add(BookCompositeKey.create(
-            title: book.title,
-            categoryId: personalRootId,
-            fileType: book.fileType,
-            isUserBook: true,
-          ));
+          _userBooksCachedKeys.add(
+            BookCompositeKey.create(
+              title: book.title,
+              categoryId: personalRootId,
+              fileType: book.fileType,
+              isUserBook: true,
+            ),
+          );
         }
 
         for (final child in pickedFolders) {
@@ -2733,13 +2822,14 @@ class DatabaseLibraryProvider implements LibraryProvider {
     final nativeCategoryId = dbCategory.id;
     _userBooksCategoryIds.add(nativeCategoryId);
 
-    final dbBooks = [
-      ...?booksByCategory[dbCategory.id],
-    ]..sort((a, b) {
-        final orderA = (a['orderIndex'] as num?)?.toDouble() ?? 999.0;
-        final orderB = (b['orderIndex'] as num?)?.toDouble() ?? 999.0;
-        return orderA.compareTo(orderB);
-      });
+    final dbBooks =
+        [
+          ...?booksByCategory[dbCategory.id],
+        ]..sort((a, b) {
+          final orderA = (a['orderIndex'] as num?)?.toDouble() ?? 999.0;
+          final orderB = (b['orderIndex'] as num?)?.toDouble() ?? 999.0;
+          return orderA.compareTo(orderB);
+        });
     for (final dbBook in dbBooks) {
       final book = _convertMinimalBookMapToBook(
         dbBook,
@@ -2752,12 +2842,14 @@ class DatabaseLibraryProvider implements LibraryProvider {
       );
       if (book == null) continue;
       category.books.add(book);
-      _userBooksCachedKeys.add(BookCompositeKey.create(
-        title: book.title,
-        categoryId: nativeCategoryId,
-        fileType: book.fileType,
-        isUserBook: true,
-      ));
+      _userBooksCachedKeys.add(
+        BookCompositeKey.create(
+          title: book.title,
+          categoryId: nativeCategoryId,
+          fileType: book.fileType,
+          isUserBook: true,
+        ),
+      );
     }
 
     final children = [
@@ -2922,13 +3014,18 @@ class DatabaseLibraryProvider implements LibraryProvider {
   /// Counts the total number of categories in the tree.
   int _countCategories(Category category) {
     return 1 +
-        category.subCategories
-            .fold(0, (sum, sub) => sum + _countCategories(sub));
+        category.subCategories.fold(
+          0,
+          (sum, sub) => sum + _countCategories(sub),
+        );
   }
 
   @override
   Future<List<Link>> getAllLinksForBook(
-      String title, int categoryId, String fileType) async {
+    String title,
+    int categoryId,
+    String fileType,
+  ) async {
     if (!_sqliteProvider.isInitialized || _sqliteProvider.repository == null) {
       return [];
     }
@@ -2969,8 +3066,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
           anchorSpans: _parseAnchorSpans(row['anchorSpans'] as String?),
           heRefEnd:
               (row['targetRangeEndHeRef'] as String?)?.trim().isNotEmpty == true
-                  ? (row['targetRangeEndHeRef'] as String).trim()
-                  : null,
+              ? (row['targetRangeEndHeRef'] as String).trim()
+              : null,
           index2End: row['targetRangeEndLineIndex'] != null
               ? (row['targetRangeEndLineIndex'] as int) + 1
               : null,
@@ -2993,12 +3090,13 @@ class DatabaseLibraryProvider implements LibraryProvider {
     required int endLineIndex,
     Iterable<String>? targetBookTitles,
   }) async {
-    final normalizedTargetBookTitles = targetBookTitles
-        ?.map((targetTitle) => targetTitle.trim())
-        .where((targetTitle) => targetTitle.isNotEmpty)
-        .toSet()
-        .toList()
-      ?..sort();
+    final normalizedTargetBookTitles =
+        targetBookTitles
+            ?.map((targetTitle) => targetTitle.trim())
+            .where((targetTitle) => targetTitle.isNotEmpty)
+            .toSet()
+            .toList()
+          ?..sort();
     if (!_sqliteProvider.isInitialized || _sqliteProvider.repository == null) {
       return [];
     }
@@ -3041,8 +3139,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
           anchorSpans: _parseAnchorSpans(row['anchorSpans'] as String?),
           heRefEnd:
               (row['targetRangeEndHeRef'] as String?)?.trim().isNotEmpty == true
-                  ? (row['targetRangeEndHeRef'] as String).trim()
-                  : null,
+              ? (row['targetRangeEndHeRef'] as String).trim()
+              : null,
           index2End: row['targetRangeEndLineIndex'] != null
               ? (row['targetRangeEndLineIndex'] as int) + 1
               : null,
@@ -3060,7 +3158,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
   /// מיועד לבניית רשימת המפרשים של ספר בלי לטעון את כל הקישורים לזיכרון.
   /// מחזיר null אם המסד לא זמין או שהשאילתה נכשלה.
   Future<({List<LinkTargetSummary> targets, int maxSourceLine})?>
-      getBookLinkTargetsSummary(String title, int categoryId) async {
+  getBookLinkTargetsSummary(String title, int categoryId) async {
     if (!_sqliteProvider.isInitialized || _sqliteProvider.repository == null) {
       return null;
     }
@@ -3096,7 +3194,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
   /// שהשאילתה וה-split לא יחסמו את ה-UI thread בזמן גלילה. כש-[versionTitle]
   /// לא null נטען נוסח המהדורה הזו (version_line) על שלד שורות הספר.
   Future<({int startLine, int endLine, int totalLines, List<String> lines})?>
-      getBookTextRange(
+  getBookTextRange(
     String title,
     int categoryId,
     String fileType, {
@@ -3157,15 +3255,16 @@ class DatabaseLibraryProvider implements LibraryProvider {
     if (!_sqliteProvider.isInitialized || _sqliteProvider.repository == null) {
       return false;
     }
-    final keys =
-        await (_selectableVersionKeysFuture ??= _loadSelectableVersionKeys());
+    final keys = await (_selectableVersionKeysFuture ??=
+        _loadSelectableVersionKeys());
     return keys.contains('$title $categoryId');
   }
 
   Future<Set<String>> _loadSelectableVersionKeys() async {
     try {
       final rows = await _runSelectableVersionKeysInIsolate(
-          dbPath: _sqliteProvider.dbPath);
+        dbPath: _sqliteProvider.dbPath,
+      );
       return rows.map((r) => '${r['title']} ${r['categoryId']}').toSet();
     } catch (e) {
       debugPrint('⚠️ Error loading selectable version keys: $e');
@@ -3194,16 +3293,21 @@ class DatabaseLibraryProvider implements LibraryProvider {
       if (resolvedBook == null) return 'שגיאה: הספר לא נמצא במסד הנתונים';
 
       // link.index2 is 1-based; lineIndex in DB is 0-based
-      final line = await resolvedBook.repository
-          .getLineByIndex(resolvedBook.book.id, link.index2 - 1);
+      final line = await resolvedBook.repository.getLineByIndex(
+        resolvedBook.book.id,
+        link.index2 - 1,
+      );
       if (line == null) return 'שגיאה: אינדקס מחוץ לטווח';
 
       // קישור-טווח: מצרפים את כל שורות הטווח עד index2End (1-based, כולל)
       // בשאילתת טווח אחת במקום שאילתה פר-שורה.
       final end0 = (link.index2End ?? link.index2) - 1;
       if (end0 <= link.index2 - 1) return line.content;
-      final rangeLines = await resolvedBook.repository
-          .getLines(resolvedBook.book.id, link.index2 - 1, end0);
+      final rangeLines = await resolvedBook.repository.getLines(
+        resolvedBook.book.id,
+        link.index2 - 1,
+        end0,
+      );
       if (rangeLines.isEmpty) return line.content;
       return rangeLines.map((l) => l.content).join('<br>');
     } catch (e) {
@@ -3214,7 +3318,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
   /// Get all alternative TOC structures available in the database for a specific book
   Future<List<AltTocStructure>> getAlternativeStructuresForBook(
-      String bookTitle) async {
+    String bookTitle,
+  ) async {
     if (!_sqliteProvider.isInitialized || _sqliteProvider.repository == null) {
       return [];
     }
@@ -3235,7 +3340,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
       return results.map((json) => AltTocStructure.fromJson(json)).toList();
     } catch (e) {
       debugPrint(
-          '⚠️ Error in getAlternativeStructuresForBook "$bookTitle": $e');
+        '⚠️ Error in getAlternativeStructuresForBook "$bookTitle": $e',
+      );
       return [];
     }
   }
@@ -3244,8 +3350,9 @@ class DatabaseLibraryProvider implements LibraryProvider {
   Future<List<AltTocStructure>> getAlternativeStructures() async {
     return _dbOperation<List<AltTocStructure>>(
       (db) async {
-        final results =
-            db.select('SELECT * FROM alt_toc_structure').toMapList();
+        final results = db
+            .select('SELECT * FROM alt_toc_structure')
+            .toMapList();
         return results.map((json) => AltTocStructure.fromJson(json)).toList();
       },
       [],
@@ -3259,13 +3366,18 @@ class DatabaseLibraryProvider implements LibraryProvider {
       (db) async {
         // We join with tocText to get the actual text
         // Order by ID to ensure consistent order (or maybe level/parentId)
-        final results = db.select('''
+        final results = db
+            .select(
+              '''
           SELECT e.*, t.text
           FROM alt_toc_entry e
           JOIN tocText t ON e.textId = t.id
           WHERE e.structureId = ?
           ORDER BY e.id
-        ''', [structureId]).toMapList();
+        ''',
+              [structureId],
+            )
+            .toMapList();
 
         return results.map((json) => AltTocEntry.fromJson(json)).toList();
       },
@@ -3276,23 +3388,31 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
   /// מחזיר רשימת (lineIndex, text) לכל ערכי כותרות משנה בעלי שורה מוגדרת
   Future<List<({int lineIndex, String text})>> getAltTocLineIndices(
-      int structureId) async {
+    int structureId,
+  ) async {
     return _dbOperation<List<({int lineIndex, String text})>>(
       (db) async {
-        final results = db.select('''
+        final results = db
+            .select(
+              '''
           SELECT l.lineIndex, t.text
           FROM alt_toc_entry e
           JOIN tocText t ON e.textId = t.id
           JOIN line l ON e.lineId = l.id
           WHERE e.structureId = ?
           ORDER BY l.lineIndex
-        ''', [structureId]).toMapList();
+        ''',
+              [structureId],
+            )
+            .toMapList();
 
         return results
-            .map((r) => (
-                  lineIndex: r['lineIndex'] as int,
-                  text: r['text'] as String,
-                ))
+            .map(
+              (r) => (
+                lineIndex: r['lineIndex'] as int,
+                text: r['text'] as String,
+              ),
+            )
             .toList();
       },
       [],
@@ -3300,13 +3420,60 @@ class DatabaseLibraryProvider implements LibraryProvider {
     );
   }
 
+  /// מחזיר את ערכי מבנה ה-AltToc עם ה-lineIndex של כל ערך (או null לכותרות-אב
+  /// ללא שורה), לצד id/parentId/level/text — כדי לבנות את העץ ולחשב index
+  /// לכותרות. LEFT JOIN על line שומר גם ערכים חסרי שורה; הסדר לפי e.id
+  /// כדי לשמר את סדר המסמך של ה-DB.
+  Future<
+    List<({int id, int? parentId, int level, int? lineIndex, String text})>
+  >
+  getAltTocEntriesWithLineIndex(int structureId) async {
+    return _dbOperation<
+      List<({int id, int? parentId, int level, int? lineIndex, String text})>
+    >(
+      (db) async {
+        final results = db
+            .select(
+              '''
+          SELECT e.id, e.parentId, e.level, l.lineIndex, t.text
+          FROM alt_toc_entry e
+          JOIN tocText t ON e.textId = t.id
+          LEFT JOIN line l ON e.lineId = l.id
+          WHERE e.structureId = ?
+          ORDER BY e.id
+        ''',
+              [structureId],
+            )
+            .toMapList();
+
+        return results
+            .map(
+              (r) => (
+                id: r['id'] as int,
+                parentId: r['parentId'] as int?,
+                level: r['level'] as int,
+                lineIndex: r['lineIndex'] as int?,
+                text: r['text'] as String,
+              ),
+            )
+            .toList();
+      },
+      [],
+      'getAltTocEntriesWithLineIndex $structureId',
+    );
+  }
+
   /// Get links (books/lines) associated with a specific alternative TOC entry
   Future<List<Link>> getLinksForAltTocEntry(
-      int structureId, int altTocEntryId) async {
+    int structureId,
+    int altTocEntryId,
+  ) async {
     return _dbOperation<List<Link>>(
       (db) async {
         // Join line_alt_toc -> line -> book
-        final results = db.select('''
+        final results = db
+            .select(
+              '''
           SELECT 
             b.title as bookTitle,
             l.lineIndex,
@@ -3316,7 +3483,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
           JOIN book b ON l.bookId = b.id
           WHERE lat.structureId = ? AND lat.altTocEntryId = ?
           ORDER BY b.title, l.lineIndex
-        ''', [structureId, altTocEntryId]).toMapList();
+        ''',
+              [structureId, altTocEntryId],
+            )
+            .toMapList();
 
         return results.map((row) {
           final bookTitle = row['bookTitle'] as String;
@@ -3338,17 +3508,25 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
   /// Get the alternative TOC entry associated with a specific book line
   Future<int?> getAltTocEntryForLine(
-      String bookTitle, int lineIndex, int structureId) async {
+    String bookTitle,
+    int lineIndex,
+    int structureId,
+  ) async {
     return _dbOperation<int?>(
       (db) async {
-        final results = db.select('''
+        final results = db
+            .select(
+              '''
           SELECT lat.altTocEntryId
           FROM line_alt_toc lat
           JOIN line l ON lat.lineId = l.id
           JOIN book b ON l.bookId = b.id
           WHERE b.title = ? AND l.lineIndex = ? AND lat.structureId = ?
           LIMIT 1
-  ''', [bookTitle, lineIndex, structureId]).toMapList();
+  ''',
+              [bookTitle, lineIndex, structureId],
+            )
+            .toMapList();
 
         if (results.isNotEmpty) {
           return results.first['altTocEntryId'] as int;
@@ -3414,7 +3592,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
         () => _scanExternalFolderInIsolate((folderPath, folderName, dbPath)),
       );
       debugPrint(
-          '📁 Isolate found ${discovered.length} books to process in $folderPath');
+        '📁 Isolate found ${discovered.length} books to process in $folderPath',
+      );
 
       // Phase 2 (main isolate): only metadata updates + new-book inserts.
       // This is deliberately light: unchanged books were already filtered in
@@ -3436,7 +3615,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
         }
         if (book.conversionError != null) {
           debugPrint(
-              '⚠️ DOCX conversion failed for ${book.title}: ${book.conversionError}');
+            '⚠️ DOCX conversion failed for ${book.title}: ${book.conversionError}',
+          );
           failedDetails.add((book.title, book.conversionError!));
           failed++;
           continue;
@@ -3457,7 +3637,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
               );
             }
             debugPrint(
-                '📁 Updated external book (metadata+TOC): ${book.title}');
+              '📁 Updated external book (metadata+TOC): ${book.title}',
+            );
             updated++;
             updatedBookIds.add(book.existingBookId!);
             continue;
@@ -3467,12 +3648,18 @@ class DatabaseLibraryProvider implements LibraryProvider {
           // Re-check authoritatively before inserting (guards against Phase-1
           // fallback duplicates and concurrent-scan races).
           if (await _recheckBeforeInsert(
-              repository, book.path, book.fileSize, book.lastModified)) {
+            repository,
+            book.path,
+            book.fileSize,
+            book.lastModified,
+          )) {
             continue;
           }
 
-          final categoryId =
-              await _getOrCreateCategoryInDb(book.categoryPath, repository);
+          final categoryId = await _getOrCreateCategoryInDb(
+            book.categoryPath,
+            repository,
+          );
 
           List<db_models.TocEntry>? tocEntries;
           if (book.tocEntries != null && book.tocEntries!.isNotEmpty) {
@@ -3504,7 +3691,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
             sourceId: scanSourceId,
           );
           debugPrint(
-              '📁 Inserted external book to DB: ${book.title} (type: ${book.fileType})');
+            '📁 Inserted external book to DB: ${book.title} (type: ${book.fileType})',
+          );
           added++;
         } catch (e) {
           debugPrint('⚠️ Failed to process book: ${book.path} - $e');
@@ -3512,14 +3700,17 @@ class DatabaseLibraryProvider implements LibraryProvider {
         }
       }
 
-      debugPrint('📁 Finished scanning custom folder: $folderPath '
-          '(added=$added, updated=$updated, failed=$failed)');
+      debugPrint(
+        '📁 Finished scanning custom folder: $folderPath '
+        '(added=$added, updated=$updated, failed=$failed)',
+      );
       return ScanResult(
-          addedBooks: added,
-          updatedBooks: updated,
-          failedBooks: failed,
-          failedDetails: failedDetails,
-          updatedBookIds: updatedBookIds);
+        addedBooks: added,
+        updatedBooks: updated,
+        failedBooks: failed,
+        failedDetails: failedDetails,
+        updatedBookIds: updatedBookIds,
+      );
     } catch (e) {
       debugPrint('⚠️ Scan failed for $folderPath: $e');
       return ScanResult(fatalError: e);
@@ -3542,7 +3733,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
     if (alreadyInDb.fileSize != fileSize ||
         alreadyInDb.lastModified != lastModified) {
       await repository.updateExternalBookMetadata(
-          alreadyInDb.id, fileSize, lastModified);
+        alreadyInDb.id,
+        fileSize,
+        lastModified,
+      );
       debugPrint('📁 Updated metadata (recheck): $filePath');
     }
     return true;

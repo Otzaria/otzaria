@@ -34,6 +34,8 @@ if (response.success) {
 | `library.listRecentBooks` | 0.9.89 |
 | `library.getBookContent` | 0.9.89 |
 | `library.getBookToc` | 0.9.89 |
+| `library.listBookAltStructures` | 0.9.96 |
+| `library.getBookAltToc` | 0.9.96 |
 | `library.getTree` | 0.9.93 |
 | `network.fetch` | 0.9.93 |
 | `network.download` | 0.9.93 |
@@ -294,6 +296,50 @@ const { data } = await Otzaria.call('library.getBookToc', {
   bookId: 'בראשית'
 });
 // [{ text: "פרק א", index: 0, level: 1 }, ...]
+```
+
+---
+
+### `library.listBookAltStructures`
+**הרשאה:** `library.content.read`
+
+קבלת רשימת מבני תוכן-העניינים החלופיים ("כותרות") של ספר — למשל חלוקה לפי
+פרשות לצד החלוקה לפי פרקים. כל מבנה מוחזר עם `key` (מזהה יציב בין גרסאות
+ספרייה, לשימוש כ-`structureKey` ב-`getBookAltToc`), `title` ו-`heTitle`.
+
+ספר ללא מבנים חלופיים, ספר אישי או קובץ מקומי — מחזיר מערך ריק.
+
+```javascript
+const { data } = await Otzaria.call('library.listBookAltStructures', {
+  bookId: 'בראשית'
+});
+// [{ key: "Parasha", title: "Parasha", heTitle: "פרשה" }, ...]
+```
+
+---
+
+### `library.getBookAltToc`
+**הרשאה:** `library.content.read`
+
+קבלת מבנה תוכן-עניינים חלופי של ספר כמערך שטוח — באותו מבנה בדיוק כמו
+`getBookToc`: `[{ text, index, level }]`.
+
+פרמטרים: `bookId` (חובה), `structureKey` (אופציונלי — ה-`key` שהתקבל מ-
+`listBookAltStructures`; תלוי-רישיות — למשל `"Parasha"`). אם לא סופק
+`structureKey`, נבחר המבנה הראשון. אם סופק `key` שאינו קיים — נזרקת שגיאה
+עם קוד `error.not_found`.
+
+הסדר הוא סדר המסמך (flatten היררכי depth-first). כותרת-אב ללא שורה משלה
+מקבלת את ה-`index` של הצאצא הראשון (depth-first) שיש לו שורה; כותרת שאין
+לה ולאף צאצא שורה — מושמטת. ספר ללא מבנים חלופיים / ספר אישי / קובץ —
+מחזיר מערך ריק.
+
+```javascript
+const { data } = await Otzaria.call('library.getBookAltToc', {
+  bookId: 'בראשית',
+  structureKey: 'Parasha' // אופציונלי; ברירת מחדל = המבנה הראשון
+});
+// [{ text: "בראשית", index: 0, level: 1 }, ...]
 ```
 
 ---

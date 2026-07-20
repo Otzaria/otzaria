@@ -51,6 +51,8 @@ const Set<String> _knownApiMethods = {
   'library.listRecentBooks',
   'library.getBookContent',
   'library.getBookToc',
+  'library.listBookAltStructures',
+  'library.getBookAltToc',
   'library.getTree',
   'search.fullText',
   'reader.openBook',
@@ -158,6 +160,8 @@ const Map<String, String> _methodRequiredPermission = {
   'library.getTree': 'library.books.read',
   'library.getBookContent': 'library.content.read',
   'library.getBookToc': 'library.content.read',
+  'library.listBookAltStructures': 'library.content.read',
+  'library.getBookAltToc': 'library.content.read',
   'search.fullText': 'search.fulltext.read',
   'reader.openBook': 'reader.open',
   'reader.openBookAtRef': 'reader.open',
@@ -315,6 +319,8 @@ const Map<String, String> _methodMinVersion = {
   'app.openUrl': '0.9.95',
   // 0.9.96
   'plugin.openSelf': '0.9.96',
+  'library.listBookAltStructures': '0.9.96',
+  'library.getBookAltToc': '0.9.96',
 };
 
 /// שדות שמורים שאינם API methods (כדי שלא ייתפסו ב-shorthand scanner).
