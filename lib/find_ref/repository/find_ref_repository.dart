@@ -471,6 +471,10 @@ class FindRefRepository {
     // התאמה ישירה לספר עצמו (למשל "בראשית" עבור "בראשית א").
     final secondaryHits = <ReferenceBookHit>[];
 
+    // אורך ה-phrase שהתיר כל hit משני — הם נאספים ב-n גדול מזה שנקבע לבסוף
+    // ב-bookQueryTokenCount, ובליעת ה-prefix שלהם חייבת את ה-n שלהם עצמם.
+    final secondaryPhraseTokenCount = <ReferenceBookHit, int>{};
+
     for (var n = maxPhraseTokens; n >= 1; n--) {
       final phrase = queryTokens.take(n).join(' ');
       final hits = searchBooks(phrase, limit: bookSearchLimit);
@@ -505,6 +509,7 @@ class FindRefRepository {
         if (!_phraseAppearsAsTokens(titleTokens, phraseTokens)) continue;
         if (hit.matchRank == 2) {
           secondaryHits.add(hit);
+          secondaryPhraseTokenCount[hit] = n;
         } else {
           primaryHits.add(hit);
         }
@@ -589,6 +594,9 @@ class FindRefRepository {
         queryTokens,
         titleTokens,
         stripLeadingTokensCount: matchedByAcronym ? bookQueryTokenCount : 0,
+        prefixMatchTokensCount: matchedByAcronym
+            ? 0
+            : (secondaryPhraseTokenCount[hit] ?? bookQueryTokenCount),
       );
 
       // הטוקן שאחרי שם-הספר עלול להיות בעצמו ספר עצמאי ("תורה אור" — "אור" ספר),
@@ -992,7 +1000,11 @@ class FindRefRepository {
         if (matchedN == null) continue;
 
         final isPdf = book.fileType == 'pdf';
-        final remainingTokens = _getRemainingTokens(queryTokens, titleTokens);
+        final remainingTokens = _getRemainingTokens(
+          queryTokens,
+          titleTokens,
+          prefixMatchTokensCount: matchedN,
+        );
 
         if (queryTokens.length == 1) {
           // Single-word: only the book title, no TOC (mirrors main loop)
@@ -1149,6 +1161,7 @@ class FindRefRepository {
     List<String> queryTokens,
     List<String> titleTokens, {
     int stripLeadingTokensCount = 0,
+    int prefixMatchTokensCount = 0,
   }) {
     final remaining = List<String>.from(queryTokens);
 
@@ -1157,12 +1170,26 @@ class FindRefRepository {
       remaining.removeRange(0, toRemove);
     }
 
+    // בליעת-תחילית מותרת רק לטוקנים שהרכיבו את התאמת שם-הספר — טוקן מיקום
+    // (סימן בן 4 אותיות כמו "תרלד") לעולם אינו חלק מה-phrase המוביל הזה.
+    final prefixEligible = queryTokens.take(prefixMatchTokensCount).toSet();
+
     for (final token in titleTokens) {
       var idx = remaining.indexOf(token);
       // ה' הידיעה: כותרת "הרא"ש"/"הטור" מול שאילתה "ראש"/"טור" בלי ה'. מסירים
       // רק כשהשארית באורך >=2, כדי לא לבלוע טוקן מיקום של אות בודדת ("עמוד א").
       if (idx == -1 && token.length >= 3 && token.startsWith('ה')) {
         idx = remaining.indexOf(token.substring(1));
+      }
+      // כתיב מקוצר של שם הספר: "ירמיה" מול "ירמיהו". רצפת 2 תווים —
+      // כמו בחריג ה' הידיעה, אות בודדת נשארת תמיד טוקן מיקום.
+      if (idx == -1 && prefixEligible.isNotEmpty) {
+        idx = remaining.indexWhere(
+          (t) =>
+              t.length >= 2 &&
+              prefixEligible.contains(t) &&
+              token.startsWith(t),
+        );
       }
       if (idx != -1) {
         remaining.removeAt(idx);
