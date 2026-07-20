@@ -12,7 +12,7 @@ import 'package:otzaria/utils/file/text_encoding.dart'
 
 /// גרסת הממיר [epubToText] — **חובה להעלות בכל שינוי שמשפיע על הפלט**:
 /// מטמון התוכן כולל את הגרסה במפתח-התוקף, והעלאה פוסלת רשומות ישנות.
-const int kEpubConverterVersion = 5;
+const int kEpubConverterVersion = 6;
 
 /// ממיר קובץ EPUB לפורמט הטקסט של אוצריא: שורת `<h1>` עם שם הספר, ואחריה
 /// שורה לכל בלוק (פסקה/כותרת/טבלה/תמונה) לפי סדר פרקי ה-spine.
@@ -79,7 +79,7 @@ String epubToText(Uint8List bytes, String title) {
     chapters.add((path: itemPath, body: body));
     for (final e in body.querySelectorAll('[id]')) {
       if (e.id.isEmpty) continue;
-      ctx.anchors.putIfAbsent('${itemPath.toLowerCase()}#${e.id}', () => e);
+      ctx.anchors['${itemPath.toLowerCase()}#${e.id}'] ??= e;
     }
   }
 
@@ -603,11 +603,12 @@ String? _buildTableHtml(dom.Element table, _EpubContext ctx) {
       final tag = cell.localName;
       if (tag != 'td' && tag != 'th') continue;
       final attrs = StringBuffer();
-      // אימות מספרי — העתקה מילולית הייתה מאפשרת הזרקת HTML מ-EPUB זדוני.
+      // אימות מספרי-חיובי — העתקה מילולית הייתה מאפשרת הזרקת HTML מ-EPUB
+      // זדוני, וערכי אפס/שלילי שוברים רינדור במנועי תצוגה מסוימים.
       final colspan = int.tryParse(cell.attributes['colspan'] ?? '');
       final rowspan = int.tryParse(cell.attributes['rowspan'] ?? '');
-      if (colspan != null) attrs.write(' colspan="$colspan"');
-      if (rowspan != null) attrs.write(' rowspan="$rowspan"');
+      if (colspan != null && colspan > 0) attrs.write(' colspan="$colspan"');
+      if (rowspan != null && rowspan > 0) attrs.write(' rowspan="$rowspan"');
       final content = StringBuffer();
       for (final node in cell.nodes) {
         if (node is dom.Element && node.localName == 'table') {

@@ -313,13 +313,14 @@ void main() {
       expect(RegExp('<tr>').allMatches(tableLine).length, 3);
     });
 
-    test('ערכי colspan/rowspan לא-מספריים נדחים (מניעת הזרקת HTML)', () {
+    test('ערכי colspan/rowspan לא-מספריים או לא-חיוביים נדחים', () {
       final epub = _buildEpub(
         chapters: {
           'ch1.xhtml': _xhtml(
             '<table><tr>'
             "<td colspan='2&quot; onclick=&quot;evil()'>תא</td>"
             '<td rowspan="abc">שני</td>'
+            '<td colspan="0" rowspan="-1">שלישי</td>'
             '</tr></table>',
           ),
         },
@@ -329,8 +330,10 @@ void main() {
       expect(result, isNot(contains('onclick')));
       expect(result, isNot(contains('evil')));
       expect(result, isNot(contains('rowspan')));
+      expect(result, isNot(contains('colspan')));
       expect(result, contains('תא'));
       expect(result, contains('שני'));
+      expect(result, contains('שלישי'));
     });
 
     test('טבלה נשמרת כשורת פלט אחת עם colspan', () {

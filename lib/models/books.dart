@@ -585,17 +585,17 @@ class EpubBook extends FileBook {
 
   factory EpubBook.fromJson(Map<String, dynamic> json) {
     return EpubBook(
-      id: json['id'],
-      title: json['title'],
-      path: json['path'],
-      author: json['author'],
-      filePath: json['filePath'],
-      categoryPath: json['categoryPath'],
-      categoryId: json['categoryId'],
-      heCategories: json['heCategories'],
-      heEra: json['heEra'],
-      isUserBook: json['isUserBook'] ?? false,
-      externalLibraryId: json['externalLibraryId'],
+      id: json['id'] as int?,
+      title: json['title'] as String,
+      path: json['path'] as String,
+      author: json['author'] as String?,
+      filePath: json['filePath'] as String?,
+      categoryPath: json['categoryPath'] as String?,
+      categoryId: json['categoryId'] as int?,
+      heCategories: json['heCategories'] as String?,
+      heEra: json['heEra'] as String?,
+      isUserBook: json['isUserBook'] as bool? ?? false,
+      externalLibraryId: json['externalLibraryId'] as String?,
     );
   }
 
