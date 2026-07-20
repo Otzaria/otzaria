@@ -11,6 +11,7 @@ import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/personal_notes/view/personal_notes_screen.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/tools/built_in_tools_catalog.dart';
 import 'package:otzaria/tools/measurement_converter/measurement_converter_screen.dart';
 import 'package:otzaria/tools/gematria/gematria_search_screen.dart';
 import 'package:otzaria/tools/acronyms_dictionary/acronyms_dictionary_screen.dart';
@@ -460,67 +461,31 @@ class ToolsScreenState extends State<ToolsScreen>
   /// בונה את כל הכלים המובנים, ללא סינון. רשימה זו מהווה את המקור הסמכותי
   /// לזיהוי כלים מובנים תקפים גם עבור מסך הגדרות הניהול.
   List<BuiltInToolDescriptor> _buildAllBuiltInDescriptors() {
+    // מזהה → בונה עמוד. שאר המטא-דאטה (תווית, סדר, אייקונים) מגיע מהמקור
+    // הסמכותי היחיד [kBuiltInToolsCatalog]. ה-pageBuilder תלוי במצב המסך
+    // (מפתחות, מופעי widgets) ולכן נשאר כאן.
+    final pageBuilders = <String, Widget Function()>{
+      'builtin.calendar': () => BlocBuilder<CalendarCubit, CalendarState>(
+        builder: (context, _) => CalendarWidget(key: _calendarKey),
+      ),
+      'builtin.shamor_zachor': () => ShamorZachorWidget(onTitleChanged: (_) {}),
+      'builtin.measurements': () => const MeasurementConverterScreen(),
+      'builtin.notes': () => const PersonalNotesManagerScreen(),
+      'builtin.gematria': () => GematriaSearchScreen(key: _gematriaKey),
+      'builtin.aramaic_dictionary': () => const AramaicDictionaryScreen(),
+      'builtin.acronyms_dictionary': () => const AcronymsDictionaryScreen(),
+    };
     return [
-      BuiltInToolDescriptor(
-        toolId: 'builtin.calendar',
-        label: 'לוח שנה',
-        icon: FluentIcons.calendar_24_regular,
-        iconFilled: FluentIcons.calendar_24_filled,
-        order: 10,
-        pageBuilder: () => BlocBuilder<CalendarCubit, CalendarState>(
-          builder: (context, _) => CalendarWidget(key: _calendarKey),
+      for (final meta in kBuiltInToolsCatalog)
+        BuiltInToolDescriptor(
+          toolId: meta.toolId,
+          label: meta.label,
+          order: meta.order,
+          icon: meta.icon,
+          iconFilled: meta.iconFilled,
+          imageIcon: meta.imageIcon,
+          pageBuilder: pageBuilders[meta.toolId]!,
         ),
-      ),
-      BuiltInToolDescriptor(
-        toolId: 'builtin.shamor_zachor',
-        label: 'שמור וזכור',
-        imageIcon: 'assets/icon/שמור וזכור שחור ריק.png',
-        order: 20,
-        pageBuilder: () => ShamorZachorWidget(onTitleChanged: (_) {}),
-      ),
-      BuiltInToolDescriptor(
-        toolId: 'builtin.measurements',
-        label: 'מדות ושיעורים',
-        icon: FluentIcons.ruler_24_regular,
-        iconFilled: FluentIcons.ruler_24_filled,
-        order: 30,
-        pageBuilder: () => const MeasurementConverterScreen(),
-      ),
-      BuiltInToolDescriptor(
-        toolId: 'builtin.notes',
-        label: 'הערות אישיות',
-        icon: FluentIcons.note_24_regular,
-        iconFilled: FluentIcons.note_24_filled,
-        // order 25 ממקם את "הערות אישיות" צמוד ל"שמור וזכור" (20) — שניהם
-        // בקבוצת "תורה שלמדתי". אחרת notes חוצה את קבוצת "דקדוקי סופרים"
-        // (measurements=30 ... gematria=50) ומפצל את הכותרת שלה לשתיים.
-        order: 25,
-        pageBuilder: () => const PersonalNotesManagerScreen(),
-      ),
-      BuiltInToolDescriptor(
-        toolId: 'builtin.gematria',
-        label: 'גימטריה',
-        icon: FluentIcons.calculator_24_regular,
-        iconFilled: FluentIcons.calculator_24_filled,
-        order: 50,
-        pageBuilder: () => GematriaSearchScreen(key: _gematriaKey),
-      ),
-      BuiltInToolDescriptor(
-        toolId: 'builtin.aramaic_dictionary',
-        label: 'מילון ארמי-עברי',
-        icon: FluentIcons.translate_24_regular,
-        iconFilled: FluentIcons.translate_24_filled,
-        order: 60,
-        pageBuilder: () => const AramaicDictionaryScreen(),
-      ),
-      BuiltInToolDescriptor(
-        toolId: 'builtin.acronyms_dictionary',
-        label: 'ראשי תיבות',
-        icon: FluentIcons.text_quote_24_regular,
-        iconFilled: FluentIcons.text_quote_24_filled,
-        order: 70,
-        pageBuilder: () => const AcronymsDictionaryScreen(),
-      ),
     ];
   }
 
