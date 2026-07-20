@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:file_picker/file_picker.dart';
@@ -16,6 +15,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/dialogs/zip_extraction_progress_dialog.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 /// סיווג הרכב הקבצים בתיקייה מותאמת אישית — קובע אילו אפשרויות אחסון
 /// רלוונטיות ואילו הסברים להציג למשתמש.
@@ -297,70 +297,32 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
             state.isSyncing || DatabaseLibraryProvider.operationQueue.isBusy;
         return SettingsCard(
           cardId: 'library.custom_folders',
-          title: 'תיקיות מותאמות אישית',
+          title: 'ספרים אישיים',
           subtitle:
-              'לאחר הוספת ספרים חדשים לתיקייה קיימת, יש ללחוץ על סמל הרענון.',
+              'הוסף תיקיות עם ספרים או קבצים, בהוספת/הסרת קבצים יש לסרוק את התיקיה מחדש.',
           children: [
             ExpandableSection(
               icon: FluentIcons.folder_add_24_regular,
-              title: 'הוסף תיקייה לאוצריא',
+              title: 'הוסף תיקייה',
               subtitle: folders.isEmpty
                   ? 'לחץ להוספת תיקיות אישיות'
                   : '${folders.length} תיקיות',
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (folders.isNotEmpty)
-                    IconButton(
-                      icon: isSyncing
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(FluentIcons.arrow_clockwise_24_regular),
-                      onPressed: isSyncing
-                          ? null
-                          : () => context
-                              .read<CustomFoldersBloc>()
-                              .add(const RescanCustomFolders()),
-                      tooltip: 'סרוק מחדש תיקיות אישיות',
-                    ),
-                  ActionButton.recommended(
-                    text: 'הוסף תיקייה',
-                    icon: FluentIcons.folder_add_24_regular,
-                    onPressed: _addFolder,
-                    isLoading: isSyncing,
-                  ),
-                ],
+              trailing: ActionButton.recommended(
+                text: 'הוסף תיקייה',
+                icon: FluentIcons.folder_add_24_regular,
+                onPressed: _addFolder,
+                isLoading: isSyncing,
               ),
               isExpanded: _isExpanded,
               onTap: () => setState(() => _isExpanded = !_isExpanded),
               hasContent: folders.isNotEmpty,
               children: [
-                Container(
-                  margin: const EdgeInsets.only(right: 16, left: 16, bottom: 8),
-                  decoration: BoxDecoration(
-                    color:
-                        Theme.of(context).colorScheme.surfaceContainerHighest,
-                    borderRadius: AppTokens.borderRadiusAll,
-                  ),
-                  child: Column(
-                    children: [
-                      _buildStorageLegend(),
-                      Divider(
-                        height: 1,
-                        thickness: 1,
-                        color: Theme.of(context).colorScheme.outlineVariant,
-                      ),
-                      ...folders.map(
-                        (folder) => _buildFolderItem(
-                          folder,
-                          isSyncing,
-                          state.activePath,
-                        ),
-                      ),
-                    ],
+                ..._buildStorageLegendTiles(isSyncing),
+                ...folders.map(
+                  (folder) => _buildFolderItem(
+                    folder,
+                    isSyncing,
+                    state.activePath,
                   ),
                 ),
               ],
@@ -431,12 +393,12 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
                 options: const [
                   SegmentOption(
                     value: false,
-                    label: 'קריאה מהקבצים',
+                    label: 'הצגה',
                     icon: FluentIcons.document_24_regular,
                   ),
                   SegmentOption(
                     value: true,
-                    label: 'עותק עצמאי',
+                    label: 'הוספה',
                     icon: FluentIcons.database_24_regular,
                   ),
                 ],
@@ -454,59 +416,112 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
     );
   }
 
-  /// מקרא המסביר את ההבדל בין מצבי האחסון. מוצג פעם אחת מעל רשימת
-  /// התיקיות, במקום הסבר/אזהרה חוזרים תחת כל תיקייה.
-  Widget _buildStorageLegend() {
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
+  /// מסביר בקצרה את ההבדל בין "הצגה" ל"הוספה", עם כפתור מידע נוסף
+  /// וכפתור סריקה מחדש בסוף הכרטיס.
+  List<Widget> _buildStorageLegendTiles(bool isSyncing) {
+    return [
+      SettingsActionTile.text(
+        icon: FluentIcons.info_24_regular,
+        title: 'הצגה או הוספה של הקבצים למערכת',
+        subtitle:
+            'הצגה: בודק את הקבצים בכל פתיחה של התוכנה ובכל פתיחת ספר, שינוי הספר מוצג מיידית בתוכנה.\n'
+            'הוספה: מוסיף את התוכן הקיים לתוכנה, תוכן הקבצים ישתנה רק בסריקה מחדש, (קבצי PDF/Word רק יוצגו בתוכנה)',
+        actions: [
+          IconButton(
+            icon: const Icon(FluentIcons.info_24_regular),
+            onPressed: _showStorageInfoDialog,
+            tooltip: 'מידע נוסף',
+          ),
+          IconButton(
+            icon: isSyncing
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(FluentIcons.arrow_clockwise_24_regular),
+            onPressed: isSyncing
+                ? null
+                : () => context.read<CustomFoldersBloc>().add(
+                    const RescanCustomFolders(),
+                  ),
+            tooltip: 'סרוק מחדש תיקיות אישיות',
+          ),
+        ],
+      ),
+    ];
+  }
+
+  /// דיאלוג מידע נוסף — מפרט את מצבי האחסון וסוגי הקבצים.
+  Future<void> _showStorageInfoDialog() async {
+    final cs = Theme.of(context).colorScheme;
+    Widget item(IconData icon, String title, String subtitle) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _legendRow(
-            FluentIcons.document_24_regular,
-            'קריאה מהקבצים: הספרים נקראים ישירות מהקבצים שבדיסק. אל תזיז '
-            'אותם — אחרת לא ייפתחו. למחיקה: מחק את הקובץ מהדיסק וסרוק מחדש.',
-          ),
-          const SizedBox(height: 8),
-          _legendRow(
-            FluentIcons.database_24_regular,
-            'עותק עצמאי: התוכן נשמר בתוך התוכנה ועובד גם אם הקבצים יוסרו. '
-            'אחרי עריכת קובץ לחץ "סרוק מחדש" לעדכון; מחיקה רק דרך הספרייה.',
-          ),
-          const SizedBox(height: 8),
-          _legendRow(
-            FluentIcons.info_24_regular,
-            'קבצי PDF ו-Word נקראים תמיד ישירות מהקבצים '
-            '(לא נשמרים כעותק עצמאי).',
-          ),
-          const SizedBox(height: 8),
-          _legendRow(
-            FluentIcons.link_24_regular,
-            'דורות וקישורים: לייבוא סדר דורות וקישורים לספרים האישיים השתמש '
-            'בכפתור "ייבוא דורות וקישורים" שלהלן.',
+          Icon(icon, size: 22, color: cs.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppTextStyles.settingTitle.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: AppTextStyles.settingSubtitle.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
-  }
 
-  Widget _legendRow(IconData icon, String text) {
-    final cs = Theme.of(context).colorScheme;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 1),
-          child: Icon(icon, size: 16, color: cs.primary),
+    await showSingleActionDialog(
+      context: context,
+      title: 'הצגה או הוספה של הקבצים',
+      confirmText: 'סגור',
+      customContent: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            item(
+              FluentIcons.document_24_regular,
+              'הצגה',
+              'הספרים נקראים ישירות מהקבצים שבדיסק. אל תזיז אותם — אחרת '
+                  'הם לא ייפתחו. למחיקה: מחק את הקובץ מהדיסק וסרוק מחדש.',
+            ),
+            item(
+              FluentIcons.database_24_regular,
+              'הוספה',
+              'התוכן נשמר בתוך התוכנה ועובד גם אם הקבצים יוסרו. אחרי '
+                  'עריכת קובץ לחץ "סרוק מחדש" לעדכון; מחיקה רק דרך הספרייה.',
+            ),
+            item(
+              FluentIcons.info_24_regular,
+              'קבצי PDF ו-Word',
+              'אין אפשרות להוספה, והם רק מוצגים ונקראים ישירות מהקבצים שבדיסק.',
+            ),
+            item(
+              FluentIcons.link_24_regular,
+              'דורות וקישורים',
+              'לייבוא סדר דורות וקישורים לספרים האישיים השתמש בכפתור '
+                  '"ייבוא דורות וקישורים" שבהמשך.',
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
