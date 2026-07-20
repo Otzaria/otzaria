@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.otzaria.Otzaria</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
+  <name>אוצריא</name>
+  <name xml:lang="en">Otzaria</name>
+  <summary xml:lang="he">ספריית ספרי קודש</summary>
+  <summary>A Jewish books library</summary>
+  <description>
+    <p xml:lang="he">ארון הספרים היהודי — עיון, חיפוש ולימוד באלפי ספרי קודש.</p>
+    <p>The Jewish bookshelf — browse, search and study thousands of Torah texts.</p>
+  </description>
+  <launchable type="desktop-id">otzaria.desktop</launchable>
+  <url type="homepage">https://otzaria.org</url>
+  <provides><binary>otzaria</binary></provides>
+</component>

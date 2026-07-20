@@ -834,6 +834,11 @@ jobs:
           [ -n "$DEB_LIB_SO" ] || { echo "::error::libWPEWebKit-2.0 לא נמצא בעץ ה-deb"; exit 1; }
           bash /tmp/bundle_wpe.sh "$(dirname "$DEB_LIB_SO")"
 
+          # AppStream metainfo — בלעדיו GNOME Software מציג גלגל-שיניים גנרי
+          # במסך ההתקנה. (ל-rpm זה מגיע נטיבית דרך make_config.yaml.)
+          mkdir -p "$DEB_DIR/usr/share/metainfo"
+          cp linux/packaging/otzaria.metainfo.xml "$DEB_DIR/usr/share/metainfo/otzaria.metainfo.xml"
+
           echo "Re-packaging from directory: $DEB_DIR into $DEB_OUTPUT_FILE"
           dpkg-deb --build --root-owner-group "$DEB_DIR" "$DEB_OUTPUT_FILE"
 
