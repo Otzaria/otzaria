@@ -1435,8 +1435,11 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final titleStyle = AppTopBar.titleStyle(context);
-        final authorStyle = AppTopBar.subtitleStyle(context);
+        // line-height מרוסן כדי ששתי השורות ייכנסו בגובה הסרגל הקומפקטי
+        // (פונטים עבריים בעלי מטריקות גבוהות גרמו לחריגת RenderFlex).
+        final titleStyle = AppTopBar.titleStyle(context).copyWith(height: 1.1);
+        final authorStyle =
+            AppTopBar.subtitleStyle(context).copyWith(height: 1.1);
         final textPainter = TextPainter(
           text: TextSpan(text: displayText, style: titleStyle),
           textDirection: Directionality.of(context),
