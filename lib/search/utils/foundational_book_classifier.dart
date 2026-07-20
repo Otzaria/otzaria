@@ -98,9 +98,14 @@ class FoundationalBookClassifier {
         : normalized.split('/');
     return [
       for (final part in parts)
-        if (part.trim().isNotEmpty) part.trim(),
+        if (part.trim().isNotEmpty) _normalizeQuotes(part.trim()),
     ];
   }
+
+  // שמות קטגוריות ב-seforim.db כתובים בגרשיים עבריים (תנ״ך, U+05F4) —
+  // בלי נרמול, ההשוואה מול הליטרלים ב-ASCII נכשלת ותנ"ך מאבד את דירוג היסוד.
+  static String _normalizeQuotes(String s) =>
+      s.replaceAll('״', '"').replaceAll('׳', "'");
 
   static bool _titleSuggestsCommentary(String title) {
     return title.contains(' על ') ||
