@@ -73,8 +73,10 @@ class _SearchDimensionControlsState extends State<SearchDimensionControls> {
         trimmed,
         limit: _authorSuggestionsLimit,
       );
-      return names.where((name) =>
-          !selectedAuthorFacets.contains(FacetHelper.buildAuthorFacet(name)));
+      return names.where(
+        (name) =>
+            !selectedAuthorFacets.contains(FacetHelper.buildAuthorFacet(name)),
+      );
     } catch (e) {
       debugPrint('[SearchDimensionControls] author suggestions failed: $e');
       return const Iterable<String>.empty();
@@ -148,8 +150,9 @@ class _SearchDimensionControlsState extends State<SearchDimensionControls> {
               FilterChip(
                 label: Text(eraName, style: const TextStyle(fontSize: 12)),
                 visualDensity: VisualDensity.compact,
-                selected: selectedEraFacets
-                    .contains(FacetHelper.buildEraFacet(eraName)),
+                selected: selectedEraFacets.contains(
+                  FacetHelper.buildEraFacet(eraName),
+                ),
                 onSelected: (selected) => _toggle(
                   FacetHelper.buildEraFacet(eraName),
                   selected: selected,
@@ -166,11 +169,14 @@ class _SearchDimensionControlsState extends State<SearchDimensionControls> {
     Set<String> selectedAuthorFacets,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
-    final selectedAuthors = selectedAuthorFacets
-        .map((facet) =>
-            facet.substring(FacetHelper.authorDimensionPrefix.length))
-        .toList()
-      ..sort();
+    final selectedAuthors =
+        selectedAuthorFacets
+            .map(
+              (facet) =>
+                  facet.substring(FacetHelper.authorDimensionPrefix.length),
+            )
+            .toList()
+          ..sort();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -179,7 +185,9 @@ class _SearchDimensionControlsState extends State<SearchDimensionControls> {
         const SizedBox(height: 4),
         Autocomplete<String>(
           optionsBuilder: (textEditingValue) => _buildAuthorSuggestions(
-              textEditingValue.text, selectedAuthorFacets),
+            textEditingValue.text,
+            selectedAuthorFacets,
+          ),
           onSelected: (authorName) {
             _toggle(
               FacetHelper.buildAuthorFacet(authorName),
@@ -189,23 +197,26 @@ class _SearchDimensionControlsState extends State<SearchDimensionControls> {
           },
           fieldViewBuilder:
               (context, textEditingController, focusNode, onFieldSubmitted) {
-            _authorFieldController = textEditingController;
-            return RtlTextField(
-              controller: textEditingController,
-              focusNode: focusNode,
-              onSubmitted: (_) => onFieldSubmitted(),
-              style: const TextStyle(fontSize: 13),
-              decoration: InputDecoration(
-                hintText: 'הקלד שם מחבר…',
-                hintStyle: const TextStyle(fontSize: 13),
-                isDense: true,
-                prefixIcon: const Icon(FluentIcons.person_24_regular, size: 18),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            );
-          },
+                _authorFieldController = textEditingController;
+                return RtlTextField(
+                  controller: textEditingController,
+                  focusNode: focusNode,
+                  onSubmitted: (_) => onFieldSubmitted(),
+                  style: const TextStyle(fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'הקלד שם מחבר…',
+                    hintStyle: const TextStyle(fontSize: 13),
+                    isDense: true,
+                    prefixIcon: const Icon(
+                      FluentIcons.person_24_regular,
+                      size: 18,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                );
+              },
           optionsViewBuilder: (context, onSelected, options) {
             return Align(
               alignment: AlignmentDirectional.topStart,
@@ -214,8 +225,10 @@ class _SearchDimensionControlsState extends State<SearchDimensionControls> {
                 borderRadius: BorderRadius.circular(8),
                 clipBehavior: Clip.antiAlias,
                 child: ConstrainedBox(
-                  constraints:
-                      const BoxConstraints(maxHeight: 220, maxWidth: 280),
+                  constraints: const BoxConstraints(
+                    maxHeight: 220,
+                    maxWidth: 280,
+                  ),
                   child: ListView.builder(
                     padding: EdgeInsets.zero,
                     shrinkWrap: true,
@@ -304,7 +317,8 @@ class _SearchDimensionFiltersState extends State<SearchDimensionFilters> {
     final effectiveCategories = categories.isEmpty ? const ['/'] : categories;
     final sortedDimensions = persisted.toList()..sort();
     searchBloc.add(
-        SetFacetsWithoutSearch([...effectiveCategories, ...sortedDimensions]));
+      SetFacetsWithoutSearch([...effectiveCategories, ...sortedDimensions]),
+    );
   }
 
   /// מחליף את קבוצת הממדים הפעילה, משמר את בחירת הקטגוריות הנוכחית,
@@ -319,7 +333,8 @@ class _SearchDimensionFiltersState extends State<SearchDimensionFilters> {
 
     SearchScopePreferences.saveDimensionFacets(newDimensions);
     searchBloc.add(
-        SetFacetsWithoutSearch([...effectiveCategories, ...sortedDimensions]));
+      SetFacetsWithoutSearch([...effectiveCategories, ...sortedDimensions]),
+    );
 
     if (state.searchQuery.isEmpty) return;
     final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
@@ -330,12 +345,14 @@ class _SearchDimensionFiltersState extends State<SearchDimensionFilters> {
         query: state.searchQuery,
       ),
     );
-    searchBloc.add(UpdateSearchQuery(
-      state.searchQuery,
-      customSpacing: normalizedParameters.customSpacing,
-      alternativeWords: normalizedParameters.alternativeWords,
-      searchOptions: normalizedParameters.searchOptions,
-    ));
+    searchBloc.add(
+      UpdateSearchQuery(
+        state.searchQuery,
+        customSpacing: normalizedParameters.customSpacing,
+        alternativeWords: normalizedParameters.alternativeWords,
+        searchOptions: normalizedParameters.searchOptions,
+      ),
+    );
   }
 
   @override
@@ -344,8 +361,9 @@ class _SearchDimensionFiltersState extends State<SearchDimensionFilters> {
       buildWhen: (previous, current) =>
           previous.currentFacets != current.currentFacets,
       builder: (context, state) {
-        final dimensions =
-            FacetHelper.dimensionFacetsOf(state.currentFacets).toSet();
+        final dimensions = FacetHelper.dimensionFacetsOf(
+          state.currentFacets,
+        ).toSet();
 
         // בלי PageStorageKey בכוונה: ExpansionTile שומר את מצב-הפתיחה
         // (bool) ב-PageStorage תחת המפתח, ושרשרת המפתחות של שדה

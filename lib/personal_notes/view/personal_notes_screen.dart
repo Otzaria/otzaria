@@ -221,8 +221,10 @@ class _PersonalNotesManagerScreenState
     if (!_contentScrollController.hasClients) return;
     final position = _contentScrollController.position;
     final delta = (position.viewportDimension * 0.85) * (forward ? 1 : -1);
-    final target =
-        (position.pixels + delta).clamp(0.0, position.maxScrollExtent);
+    final target = (position.pixels + delta).clamp(
+      0.0,
+      position.maxScrollExtent,
+    );
     _contentScrollController.animateTo(
       target,
       duration: const Duration(milliseconds: 180),
@@ -291,8 +293,9 @@ class _PersonalNotesManagerScreenState
               });
 
               // If this is a new book (not in _books list), refresh the books list
-              final bookExists =
-                  _books.any((book) => book.bookId == state.bookId);
+              final bookExists = _books.any(
+                (book) => book.bookId == state.bookId,
+              );
               if (!bookExists &&
                   (state.locatedNotes.isNotEmpty ||
                       state.missingNotes.isNotEmpty)) {
@@ -357,8 +360,10 @@ class _PersonalNotesManagerScreenState
                 icon: AnimatedSwitcher(
                   duration: AppTokens.animFast,
                   transitionBuilder: (child, animation) => RotationTransition(
-                    turns:
-                        Tween<double>(begin: 0.5, end: 0.0).animate(animation),
+                    turns: Tween<double>(
+                      begin: 0.5,
+                      end: 0.0,
+                    ).animate(animation),
                     child: FadeTransition(opacity: animation, child: child),
                   ),
                   child: Icon(
@@ -566,8 +571,9 @@ class _PersonalNotesManagerScreenState
             child: const Text('שמור גם וגם'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context)
-                .pop(NotesImportConflictStrategy.overwrite),
+            onPressed: () => Navigator.of(
+              context,
+            ).pop(NotesImportConflictStrategy.overwrite),
             child: const Text('דרוס'),
           ),
         ],
@@ -582,12 +588,14 @@ class _PersonalNotesManagerScreenState
     );
 
     if (!mounted) return;
-    UiSnack.show(NotesMessages.importCompleted(
-      inserted: summary.inserted,
-      updated: summary.updated,
-      skipped: summary.skipped,
-      duplicated: summary.duplicated,
-    ));
+    UiSnack.show(
+      NotesMessages.importCompleted(
+        inserted: summary.inserted,
+        updated: summary.updated,
+        skipped: summary.skipped,
+        duplicated: summary.duplicated,
+      ),
+    );
     _loadBooks();
   }
 
@@ -696,10 +704,9 @@ class _PersonalNotesManagerScreenState
         ),
         decoration: BoxDecoration(
           color: isSelected
-              ? Theme.of(context)
-                  .colorScheme
-                  .primaryContainer
-                  .withValues(alpha: 0.3)
+              ? Theme.of(
+                  context,
+                ).colorScheme.primaryContainer.withValues(alpha: 0.3)
               : null,
           border: Border(
             bottom: BorderSide(
@@ -845,8 +852,9 @@ class _PersonalNotesManagerScreenState
         }
         if (_selectedFilter == '__missing__' || _selectedFilter == null) {
           for (final note in state.missingNotes) {
-            allNotes.add(_NoteWithBook(
-                note: note, bookId: book.bookId, isMissing: true));
+            allNotes.add(
+              _NoteWithBook(note: note, bookId: book.bookId, isMissing: true),
+            );
           }
         }
       }
@@ -906,13 +914,15 @@ class _PersonalNotesManagerScreenState
       }
     } else {
       // Book selected
-      filteredNotes =
-          allNotes.where((n) => n.bookId == _selectedFilter).toList();
+      filteredNotes = allNotes
+          .where((n) => n.bookId == _selectedFilter)
+          .toList();
     }
 
     // Filter missing notes if not showing missing filter
-    final displayNotes =
-        _selectedFilter == '__missing__' ? filteredNotes : filteredNotes;
+    final displayNotes = _selectedFilter == '__missing__'
+        ? filteredNotes
+        : filteredNotes;
 
     // Sort by book and line number
     displayNotes.sort((a, b) {
@@ -935,8 +945,9 @@ class _PersonalNotesManagerScreenState
     for (final note in displayNotes) {
       if (note.bookId != currentBookId) {
         if (currentGroup.isNotEmpty) {
-          groupedNotes
-              .add(_NotesGroup(bookId: currentBookId!, notes: currentGroup));
+          groupedNotes.add(
+            _NotesGroup(bookId: currentBookId!, notes: currentGroup),
+          );
         }
         currentBookId = note.bookId;
         currentGroup = [note];
@@ -945,8 +956,9 @@ class _PersonalNotesManagerScreenState
       }
     }
     if (currentGroup.isNotEmpty) {
-      groupedNotes
-          .add(_NotesGroup(bookId: currentBookId!, notes: currentGroup));
+      groupedNotes.add(
+        _NotesGroup(bookId: currentBookId!, notes: currentGroup),
+      );
     }
 
     return ListView.builder(
@@ -973,9 +985,9 @@ class _PersonalNotesManagerScreenState
                       child: Text(
                         group.bookId,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                       ),
                     ),
                   ],
@@ -1048,9 +1060,9 @@ class _PersonalNotesManagerScreenState
             child: Text(
               'מציג הערות מ-${_formatDate(range.start)} עד ${_formatDate(range.end)}',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: cs.onSecondaryContainer,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: cs.onSecondaryContainer,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           IconButton(
@@ -1095,9 +1107,9 @@ class _PersonalNotesManagerScreenState
                 child: Text(
                   isMissing ? 'הערה ללא מיקום' : note.title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: cs.onSurface,
-                      ),
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1109,8 +1121,8 @@ class _PersonalNotesManagerScreenState
             Text(
               locationRef,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: cs.onSurfaceVariant,
-                  ),
+                color: cs.onSurfaceVariant,
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -1135,9 +1147,9 @@ class _PersonalNotesManagerScreenState
                     allowSelection: false,
                     maxPreviewChars: 280,
                     textStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: cs.onSurfaceVariant,
-                          height: 1.45,
-                        ),
+                      color: cs.onSurfaceVariant,
+                      height: 1.45,
+                    ),
                   ),
                 ),
               ),
@@ -1231,14 +1243,14 @@ class _PersonalNotesManagerScreenState
 
     if (!mounted) return;
     context.read<PersonalNotesBloc>().add(
-          UpdatePersonalNote(
-            bookId: note.bookId,
-            noteId: note.id,
-            content: result.content,
-            contentPlain: result.contentPlain,
-            contentFormat: result.contentFormat,
-          ),
-        );
+      UpdatePersonalNote(
+        bookId: note.bookId,
+        noteId: note.id,
+        content: result.content,
+        contentPlain: result.contentPlain,
+        contentFormat: result.contentFormat,
+      ),
+    );
     UiSnack.show(NotesMessages.noteUpdated);
   }
 
@@ -1254,11 +1266,11 @@ class _PersonalNotesManagerScreenState
     if (shouldDelete == true) {
       if (!mounted) return;
       context.read<PersonalNotesBloc>().add(
-            DeletePersonalNote(
-              bookId: note.bookId,
-              noteId: note.id,
-            ),
-          );
+        DeletePersonalNote(
+          bookId: note.bookId,
+          noteId: note.id,
+        ),
+      );
       UiSnack.show(NotesMessages.noteDeleted);
     }
   }
@@ -1280,12 +1292,12 @@ class _PersonalNotesManagerScreenState
     if (newLine != null) {
       if (!mounted) return;
       context.read<PersonalNotesBloc>().add(
-            RepositionPersonalNote(
-              bookId: note.bookId,
-              noteId: note.id,
-              lineNumber: newLine,
-            ),
-          );
+        RepositionPersonalNote(
+          bookId: note.bookId,
+          noteId: note.id,
+          lineNumber: newLine,
+        ),
+      );
       UiSnack.show(NotesMessages.noteMovedToLine(newLine));
     }
   }
@@ -1312,13 +1324,20 @@ class _PersonalNotesManagerScreenState
 
     final lineIndex = (note.lineNumber! - 1).clamp(0, 1 << 30);
     final tabsBloc = context.read<TabsBloc>();
-    final previousSidebarTab =
-        Settings.getValue<int>('key-sidebar-tab-index-combined');
+    final previousSidebarTab = Settings.getValue<int>(
+      'key-sidebar-tab-index-combined',
+    );
     Settings.setValue<int>('key-sidebar-tab-index-combined', 2);
     Settings.setValue<int>('key-sidebar-tab-index-pending', 2);
 
-    openBook(context, book, lineIndex, '',
-        ignoreHistory: true, requiresStableLayout: true);
+    openBook(
+      context,
+      book,
+      lineIndex,
+      '',
+      ignoreHistory: true,
+      requiresStableLayout: true,
+    );
 
     Future.delayed(const Duration(milliseconds: 350), () {
       if (!mounted) return;
@@ -1333,7 +1352,9 @@ class _PersonalNotesManagerScreenState
 
       if (previousSidebarTab != null) {
         Settings.setValue<int>(
-            'key-sidebar-tab-index-combined', previousSidebarTab);
+          'key-sidebar-tab-index-combined',
+          previousSidebarTab,
+        );
       } else {
         Settings.setValue<int>('key-sidebar-tab-index-combined', 0);
       }
@@ -1374,9 +1395,9 @@ class _InfoChip extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: foregroundColor,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  color: foregroundColor,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],

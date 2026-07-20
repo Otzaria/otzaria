@@ -21,7 +21,7 @@ class OtzarBookDialog extends StatelessWidget {
         child: FutureBuilder<(bool, bool)>(
           future: Future.wait([
             OtzarUtils.canLaunchLocally(),
-            OtzarUtils.checkBookExistence(book.id!)
+            OtzarUtils.checkBookExistence(book.id!),
           ]).then((results) => (results[0], results[1])),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -34,15 +34,15 @@ class OtzarBookDialog extends StatelessWidget {
             return Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Theme.of(context).dialogTheme.backgroundColor ??
+                color:
+                    Theme.of(context).dialogTheme.backgroundColor ??
                     Theme.of(context).colorScheme.surface,
                 borderRadius: AppTokens.borderRadiusAll,
                 boxShadow: [
                   BoxShadow(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .shadow
-                        .withValues(alpha: 0.26),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.shadow.withValues(alpha: 0.26),
                     blurRadius: 10.0,
                     offset: Offset(0.0, 10.0),
                   ),
@@ -56,21 +56,41 @@ class OtzarBookDialog extends StatelessWidget {
                     Text(
                       book.title,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                        fontWeight: FontWeight.bold,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 24),
-                    _buildInfoRow(context, FluentIcons.document_text_24_regular,
-                        'תיאור', book.heShortDesc ?? 'לא קיים'),
-                    _buildInfoRow(context, FluentIcons.person_24_regular,
-                        'מחבר', book.author ?? 'לא ידוע'),
-                    _buildInfoRow(context, FluentIcons.location_24_regular,
-                        'מקום הדפסה', book.pubPlace ?? 'לא ידוע'),
-                    _buildInfoRow(context, FluentIcons.calendar_24_regular,
-                        'שנת הדפסה', book.pubDate ?? 'לא ידוע'),
-                    _buildInfoRow(context, FluentIcons.apps_24_regular,
-                        'נושאים', book.topics),
+                    _buildInfoRow(
+                      context,
+                      FluentIcons.document_text_24_regular,
+                      'תיאור',
+                      book.heShortDesc ?? 'לא קיים',
+                    ),
+                    _buildInfoRow(
+                      context,
+                      FluentIcons.person_24_regular,
+                      'מחבר',
+                      book.author ?? 'לא ידוע',
+                    ),
+                    _buildInfoRow(
+                      context,
+                      FluentIcons.location_24_regular,
+                      'מקום הדפסה',
+                      book.pubPlace ?? 'לא ידוע',
+                    ),
+                    _buildInfoRow(
+                      context,
+                      FluentIcons.calendar_24_regular,
+                      'שנת הדפסה',
+                      book.pubDate ?? 'לא ידוע',
+                    ),
+                    _buildInfoRow(
+                      context,
+                      FluentIcons.apps_24_regular,
+                      'נושאים',
+                      book.topics,
+                    ),
                     const SizedBox(height: 24),
                     _buildButtons(context, canLaunchLocally, bookExists),
                   ],
@@ -84,13 +104,21 @@ class OtzarBookDialog extends StatelessWidget {
   }
 
   Widget _buildInfoRow(
-      BuildContext context, IconData icon, String label, String value) {
+    BuildContext context,
+    IconData icon,
+    String label,
+    String value,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: Theme.of(context).colorScheme.secondary),
+          Icon(
+            icon,
+            size: 20,
+            color: Theme.of(context).colorScheme.secondary,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: RichText(
@@ -112,7 +140,10 @@ class OtzarBookDialog extends StatelessWidget {
   }
 
   Widget _buildButtons(
-      BuildContext context, bool canLaunchLocally, bool bookExists) {
+    BuildContext context,
+    bool canLaunchLocally,
+    bool bookExists,
+  ) {
     return Wrap(
       alignment: WrapAlignment.center,
       spacing: 8,

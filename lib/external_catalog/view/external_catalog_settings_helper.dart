@@ -32,10 +32,12 @@ class ExternalCatalogSettingsHelper {
     }
 
     settingsBloc.add(const UpdateShowExternalBooks(true));
-    settingsBloc
-        .add(UpdateShowOtzarHachochma(mode == 'all' || mode == 'otzar'));
-    settingsBloc
-        .add(UpdateShowHebrewBooks(mode == 'all' || mode == 'hebrewbooks'));
+    settingsBloc.add(
+      UpdateShowOtzarHachochma(mode == 'all' || mode == 'otzar'),
+    );
+    settingsBloc.add(
+      UpdateShowHebrewBooks(mode == 'all' || mode == 'hebrewbooks'),
+    );
     if (!wasEnabled) {
       settingsBloc.add(const UpdateAutoSyncCatalogs(true));
     }

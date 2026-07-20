@@ -37,8 +37,9 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
   void initState() {
     super.initState();
     _loadDictionary();
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _searchFocusNode.requestFocus());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _searchFocusNode.requestFocus(),
+    );
   }
 
   void requestKeyboardFocus() {
@@ -170,8 +171,9 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
             'עברית',
             style: TextStyle(
               fontSize: AppTokens.fontLG,
-              fontWeight:
-                  _isHebrewToAramaic ? FontWeight.bold : FontWeight.normal,
+              fontWeight: _isHebrewToAramaic
+                  ? FontWeight.bold
+                  : FontWeight.normal,
               color: _isHebrewToAramaic ? cs.primary : cs.onSurface,
             ),
           ),
@@ -194,8 +196,9 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
             'ארמית',
             style: TextStyle(
               fontSize: AppTokens.fontLG,
-              fontWeight:
-                  !_isHebrewToAramaic ? FontWeight.bold : FontWeight.normal,
+              fontWeight: !_isHebrewToAramaic
+                  ? FontWeight.bold
+                  : FontWeight.normal,
               color: !_isHebrewToAramaic ? cs.primary : cs.onSurface,
             ),
           ),

@@ -448,7 +448,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     final thresholdDays = frequency == 'weekly' ? 7 : 30;
     final isUpToDate =
         DateTime.now().difference(status.lastBackupDate!).inDays <=
-            thresholdDays;
+        thresholdDays;
     final unitLabel = frequency == 'weekly' ? 'שבוע' : 'חודש';
 
     if (isUpToDate) {
@@ -717,7 +717,8 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     final proceed = await showTwoActionsDialog(
       context: context,
       title: 'הקובץ מיועד למחשב Windows',
-      content: 'במכשיר זה אי אפשר להריץ את סקריפט השליחה. יורד קובץ עבור '
+      content:
+          'במכשיר זה אי אפשר להריץ את סקריפט השליחה. יורד קובץ עבור '
           'מחשב Windows מחובר — העבירו אליו את הקובץ והפעילו אותו שם.',
       cancelText: 'ביטול',
       confirmText: 'המשך',
@@ -747,8 +748,10 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       return;
     }
 
-    final script =
-        reportService.buildOfflineSendScript(reports, target: target);
+    final script = reportService.buildOfflineSendScript(
+      reports,
+      target: target,
+    );
 
     final downloadsDirectory = await getDownloadsDirectory();
     final path = await FilePicker.saveFile(
@@ -911,9 +914,11 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 if (!mounted) return;
                 final ctx = _networkModeTileKey.currentContext;
                 if (ctx != null) {
-                  Scrollable.ensureVisible(ctx,
-                      duration: const Duration(milliseconds: 200),
-                      alignment: 0.0);
+                  Scrollable.ensureVisible(
+                    ctx,
+                    duration: const Duration(milliseconds: 200),
+                    alignment: 0.0,
+                  );
                 }
               });
             },
@@ -925,16 +930,16 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
           subtitle: state.isOfflineMode
               ? 'מושבת במצב מנותק'
               : state.softwareAndBookUpdatesEnabled
-                  ? 'עדכוני תוכנה וספרים פעילים'
-                  : 'עדכוני מערכת של התוכנה והספרים מושבתים',
+              ? 'עדכוני תוכנה וספרים פעילים'
+              : 'עדכוני מערכת של התוכנה והספרים מושבתים',
           value: state.canUseSoftwareAndBookUpdates,
           enabled: !state.isOfflineMode,
           onChanged: state.isOfflineMode
               ? null
               : (value) {
                   context.read<SettingsBloc>().add(
-                        UpdateSoftwareAndBookUpdatesEnabled(value),
-                      );
+                    UpdateSoftwareAndBookUpdatesEnabled(value),
+                  );
                 },
         ),
         if (!(Platform.isAndroid || Platform.isIOS) &&
@@ -942,8 +947,8 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
           SettingsActionTile.switchTile(
             icon: FluentIcons.arrow_sync_24_regular,
             title: 'סינכרון הספרייה באופן אוטומטי',
-            subtitle: (Settings.getValue<bool>(
-                        SettingsRepository.keyAutoSync) ??
+            subtitle:
+                (Settings.getValue<bool>(SettingsRepository.keyAutoSync) ??
                     true)
                 ? 'מסד הנתונים של הספרייה יתעדכן אוטומטית בטעינת הספרייה'
                 : 'סינכרון הספרייה לא יופעל אוטומטית, אך עדיין אפשר להפעיל סינכרון ידני',
@@ -959,10 +964,11 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             title: 'עדכון לגרסאות מפתחים',
             subtitle:
                 Settings.getValue<bool>(SettingsRepository.keyDevChannel) ??
-                        false
-                    ? 'בדיקת העדכונים הבאה תחפש גם גרסאות בדיקה — ייתכנו באגים'
-                    : 'בדיקת העדכונים הבאה תחפש גרסאות יציבות בלבד',
-            value: Settings.getValue<bool>(SettingsRepository.keyDevChannel) ??
+                    false
+                ? 'בדיקת העדכונים הבאה תחפש גם גרסאות בדיקה — ייתכנו באגים'
+                : 'בדיקת העדכונים הבאה תחפש גרסאות יציבות בלבד',
+            value:
+                Settings.getValue<bool>(SettingsRepository.keyDevChannel) ??
                 false,
             onChanged: (value) {
               Settings.setValue<bool>(SettingsRepository.keyDevChannel, value);
@@ -1288,7 +1294,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildVersionAndPathSection(
-      BuildContext context, SettingsState state) {
+    BuildContext context,
+    SettingsState state,
+  ) {
     return SettingsCard(
       cardId: 'system.versions',
       title: 'מערכת אוצריא',
@@ -1328,11 +1336,13 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
               icon: FluentIcons.play_24_regular,
               text: 'הפעל',
               onPressed: () {
-                final libraryLoaded =
-                    !context.read<NavigationBloc>().state.isLibraryEmpty;
+                final libraryLoaded = !context
+                    .read<NavigationBloc>()
+                    .state
+                    .isLibraryEmpty;
                 context.read<NavigationBloc>().add(
-                      const CheckLibrary(),
-                    );
+                  const CheckLibrary(),
+                );
                 context.read<TourCubit>().restart(libraryLoaded: libraryLoaded);
               },
             ),
@@ -1393,7 +1403,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         final sizeStr = '${(size / 1024).toStringAsFixed(1)} KB';
         final message = partial
             ? SettingsMessages.partialBackupSaved(
-                sizeStr, result.skippedSections.join(", "))
+                sizeStr,
+                result.skippedSections.join(", "),
+              )
             : SettingsMessages.backupSaved(sizeStr);
         UiSnack.showWithAction(
           message: message,
@@ -1453,7 +1465,8 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     final confirmed = await showWarningDialog(
       context: context,
       title: 'שחזור מהארכיון?',
-      content: 'הארכיון מאחד את כל הגיבויים הישנים, ולכן הוא כולל גם פריטים '
+      content:
+          'הארכיון מאחד את כל הגיבויים הישנים, ולכן הוא כולל גם פריטים '
           '(סימניות, הערות, תוספים ועוד) שנמחקו מאז בכוונה — הם ישוחזרו גם הם.',
       subtitle: 'פעולה זו אינה הפיכה!',
       cancelText: 'ביטול',
@@ -1471,7 +1484,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       final content = skipped.isEmpty
           ? 'הנתונים שוחזרו בהצלחה. האפליקציה תיטען מחדש כעת.'
           : 'שחזור חלקי — חסרים בקובץ הגיבוי: ${skipped.join(", ")}.'
-              '\nהאפליקציה תיטען מחדש כעת.';
+                '\nהאפליקציה תיטען מחדש כעת.';
       await showSingleActionDialog(
         context: context,
         title: skipped.isEmpty ? 'השחזור הושלם' : 'שחזור חלקי',
@@ -1505,9 +1518,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         if (result.freedBytes > 0)
           SettingsMessages.backupSpaceFreed(_formatBytes(result.freedBytes)),
       ];
-      UiSnack.show(actions.isEmpty
-          ? SettingsMessages.nothingToClean
-          : actions.join(', '));
+      UiSnack.show(
+        actions.isEmpty ? SettingsMessages.nothingToClean : actions.join(', '),
+      );
       await _loadBackupStatus();
     } catch (e) {
       if (!mounted) return;
@@ -1536,9 +1549,11 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     if (verified != true) return;
     if (context.mounted) {
       context.read<SettingsBloc>().add(UpdateProtectedModeEnabled(newValue));
-      UiSnack.show(newValue
-          ? SettingsMessages.protectedModeEnabled
-          : SettingsMessages.protectedModeDisabled);
+      UiSnack.show(
+        newValue
+            ? SettingsMessages.protectedModeEnabled
+            : SettingsMessages.protectedModeDisabled,
+      );
     }
   }
 
@@ -1580,15 +1595,16 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       final activate = await showTwoActionsDialog(
         context: context,
         title: 'הפעלת מצב סייפר',
-        content: 'האם להפעיל כעת את מצב הסייפר?\n'
+        content:
+            'האם להפעיל כעת את מצב הסייפר?\n'
             'ניתן להפעיל ולבטל אותו מאוחר יותר דרך ההגדרות.',
         cancelText: 'לא עכשיו',
         confirmText: 'הפעל',
       );
       if (activate == true && context.mounted) {
-        context
-            .read<SettingsBloc>()
-            .add(const UpdateProtectedModeEnabled(true));
+        context.read<SettingsBloc>().add(
+          const UpdateProtectedModeEnabled(true),
+        );
       }
     }
   }
@@ -1601,7 +1617,8 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     final autoFrequency =
         Settings.getValue<String>(_keyAutoBackupFrequency) ?? 'weekly';
     final retentionProfile = RetentionProfile.fromName(
-        Settings.getValue<String>(BackupMaintenance.keyRetentionProfile));
+      Settings.getValue<String>(BackupMaintenance.keyRetentionProfile),
+    );
     final repository = RepositoryProvider.of<SettingsRepository>(context);
     final hasPassword = state.protectedModePasswordSet;
 
@@ -1673,13 +1690,17 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
               currentPath: _resolvedBackupPath,
               placeholder: 'שימוש בתיקיית ברירת המחדל',
               simpleButtonWhenEmpty: false,
-              clearPathEnabled: (Settings.getValue<String>(
-                          SettingsRepository.keyBackupPath) ??
-                      '')
-                  .isNotEmpty,
+              clearPathEnabled:
+                  (Settings.getValue<String>(
+                            SettingsRepository.keyBackupPath,
+                          ) ??
+                          '')
+                      .isNotEmpty,
               onFolderChanged: (path) async {
                 Settings.setValue<String>(
-                    SettingsRepository.keyBackupPath, path);
+                  SettingsRepository.keyBackupPath,
+                  path,
+                );
                 _loadResolvedBackupPath();
               },
               requestChangeLocation: makeChangeLocationCallback(
@@ -1687,18 +1708,23 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 folderName: _backupFolderName,
                 onPathChanged: (newPath) async {
                   Settings.setValue<String>(
-                      SettingsRepository.keyBackupPath, newPath);
+                    SettingsRepository.keyBackupPath,
+                    newPath,
+                  );
                   _loadResolvedBackupPath();
                 },
                 onAfterMove: _resolvedBackupPath.isNotEmpty
                     ? (newPath) async {
                         Settings.setValue<String>(
-                            SettingsRepository.keyBackupPath, newPath);
+                          SettingsRepository.keyBackupPath,
+                          newPath,
+                        );
                         _loadResolvedBackupPath();
                       }
                     : null,
-                defaultPath:
-                    _defaultBackupPath.isNotEmpty ? _defaultBackupPath : null,
+                defaultPath: _defaultBackupPath.isNotEmpty
+                    ? _defaultBackupPath
+                    : null,
               ),
               onOpenFolder: () {
                 final path = _resolvedBackupPath;
@@ -1751,7 +1777,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
               onSelected: (value) {
                 if (value == null) return;
                 Settings.setValue<String>(
-                    BackupMaintenance.keyRetentionProfile, value);
+                  BackupMaintenance.keyRetentionProfile,
+                  value,
+                );
                 setState(() {});
               },
             ),
@@ -1905,8 +1933,12 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
               ActionButton.recommended(
                 icon: FluentIcons.key_24_regular,
                 text: 'בחר סיסמה',
-                onPressed: () => _handleSetPassword(context, repository,
-                    hasPassword, state.protectedModeEnabled),
+                onPressed: () => _handleSetPassword(
+                  context,
+                  repository,
+                  hasPassword,
+                  state.protectedModeEnabled,
+                ),
               ),
             ],
           ),
@@ -1919,8 +1951,12 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
               ActionButton.recommended(
                 icon: FluentIcons.key_24_regular,
                 text: 'אפשרויות',
-                onPressed: () => _handleSetPassword(context, repository,
-                    hasPassword, state.protectedModeEnabled),
+                onPressed: () => _handleSetPassword(
+                  context,
+                  repository,
+                  hasPassword,
+                  state.protectedModeEnabled,
+                ),
               ),
             ],
           ),

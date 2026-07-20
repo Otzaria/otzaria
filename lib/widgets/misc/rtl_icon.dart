@@ -80,15 +80,23 @@ class RtlIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final isRtl = Directionality.of(context) == TextDirection.rtl;
 
-    final baseIcon =
-        Icon(icon, size: size, color: color, semanticLabel: semanticLabel);
+    final baseIcon = Icon(
+      icon,
+      size: size,
+      color: color,
+      semanticLabel: semanticLabel,
+    );
 
     if (!isRtl) return baseIcon;
 
     final mirroredIcon = _materialMirrorMap[icon] ?? _fluentMirrorMap[icon];
     if (mirroredIcon != null) {
-      return Icon(mirroredIcon,
-          size: size, color: color, semanticLabel: semanticLabel);
+      return Icon(
+        mirroredIcon,
+        size: size,
+        color: color,
+        semanticLabel: semanticLabel,
+      );
     }
 
     if (_flippableIcons.contains(icon)) {

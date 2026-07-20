@@ -11,7 +11,7 @@ import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 class CalendarEventsPanel extends StatefulWidget {
   final CalendarState state;
   final void Function({CustomEvent? existingEvent, DateTime? specificDate})
-      onCreateEvent;
+  onCreateEvent;
 
   const CalendarEventsPanel({
     super.key,
@@ -100,10 +100,10 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                 icon: widget.state.searchInDescriptions
                     ? FluentIcons.document_text_24_regular
                     : FluentIcons.text_t_24_regular,
-                onPressed: () => context
-                    .read<CalendarCubit>()
-                    .toggleSearchInDescriptions(
-                        !widget.state.searchInDescriptions),
+                onPressed: () =>
+                    context.read<CalendarCubit>().toggleSearchInDescriptions(
+                      !widget.state.searchInDescriptions,
+                    ),
               ),
             ],
           ),
@@ -174,7 +174,9 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                 final iconOnlyDelete = width < 560;
                 final splitDate = width < 360;
                 final eventColor = CalendarEventColors.colorForIndex(
-                    event.colorIndex, Theme.of(context).brightness);
+                  event.colorIndex,
+                  Theme.of(context).brightness,
+                );
 
                 final deleteAction = _DeleteEventAction(
                   iconOnly: iconOnlyDelete,
@@ -234,9 +236,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                                 event.title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
+                                style: Theme.of(context).textTheme.titleMedium
                                     ?.copyWith(fontWeight: FontWeight.w700),
                               ),
                             ),
@@ -289,10 +289,10 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                           truncateDescription(event.description),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: scheme.onSurfaceVariant,
-                                  ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
                         ),
                       ),
                     ],
@@ -320,8 +320,9 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                             child: _EventMetaChip(
                               icon: FluentIcons.calendar_24_regular,
                               text: splitDate
-                                  ? formatEventDate(event.baseGregorianDate)
-                                      .replaceFirst(' • ', '\n')
+                                  ? formatEventDate(
+                                      event.baseGregorianDate,
+                                    ).replaceFirst(' • ', '\n')
                                   : formatEventDate(event.baseGregorianDate),
                               tooltip: formatEventDate(event.baseGregorianDate),
                               backgroundColor: scheme.primary,
@@ -414,9 +415,9 @@ class _EventMetaChip extends StatelessWidget {
                   maxLines: maxLines,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: foregroundColor,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    color: foregroundColor,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],

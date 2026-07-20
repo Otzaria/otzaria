@@ -122,14 +122,14 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
   }
 
   static int _tabToIndex(SettingsTab tab) => switch (tab) {
-        SettingsTab.design => 0,
-        SettingsTab.text => 1,
-        SettingsTab.library => 2,
-        SettingsTab.tools => 3,
-        SettingsTab.shortcuts => 4,
-        SettingsTab.system => 5,
-        SettingsTab.about => 6,
-      };
+    SettingsTab.design => 0,
+    SettingsTab.text => 1,
+    SettingsTab.library => 2,
+    SettingsTab.tools => 3,
+    SettingsTab.shortcuts => 4,
+    SettingsTab.system => 5,
+    SettingsTab.about => 6,
+  };
 
   /// מדווח ל-TourCubit על כניסה לטאב קיצורים/מערכת — פותר טיפי "הידעת".
   void _recordTabTourInteraction(int index) {
@@ -233,12 +233,14 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
 
   // ── הגדרת רשימת הטאבים ────────────────────────────────────────────────────
   late final List<
-      ({
-        String label,
-        IconData icon,
-        IconData iconFilled,
-        Widget Function() pageBuilder
-      })> _tabsData = [
+    ({
+      String label,
+      IconData icon,
+      IconData iconFilled,
+      Widget Function() pageBuilder,
+    })
+  >
+  _tabsData = [
     (
       label: 'מראה',
       icon: FluentIcons.paint_brush_24_regular,
@@ -262,8 +264,8 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
       icon: FluentIcons.apps_24_regular,
       iconFilled: FluentIcons.apps_24_filled,
       pageBuilder: () => ToolsSettingsTab(
-            calendarCubit: context.read<CalendarCubit>(),
-          ),
+        calendarCubit: context.read<CalendarCubit>(),
+      ),
     ),
     (
       label: 'קיצורי מקשים',
@@ -327,7 +329,8 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                             message: 'חזור (Esc)',
                             child: IconButton(
                               icon: const RtlIcon(
-                                  FluentIcons.arrow_right_24_regular),
+                                FluentIcons.arrow_right_24_regular,
+                              ),
                               onPressed: _handleMobileBack,
                             ),
                           )
@@ -402,9 +405,11 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                   appBar: AppBar(
                     backgroundColor: bgColor,
                     elevation: 0,
-                    title: Text(isSearching
-                        ? 'תוצאות חיפוש'
-                        : _tabsData[_selectedIndex].label),
+                    title: Text(
+                      isSearching
+                          ? 'תוצאות חיפוש'
+                          : _tabsData[_selectedIndex].label,
+                    ),
                     leading: Tooltip(
                       message: 'חזור (Esc)',
                       child: IconButton(
@@ -470,18 +475,21 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                       child: Container(
                         color: bgColor,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 28),
+                          horizontal: 10,
+                          vertical: 28,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
                               padding: const EdgeInsets.only(
-                                  right: 12, left: 12, bottom: 20),
+                                right: 12,
+                                left: 12,
+                                bottom: 20,
+                              ),
                               child: Text(
                                 'הגדרות',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineSmall
+                                style: Theme.of(context).textTheme.headlineSmall
                                     ?.copyWith(fontWeight: FontWeight.bold),
                               ),
                             ),
@@ -593,16 +601,18 @@ class _SettingsContentPaneState extends State<_SettingsContentPane> {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.only(
-                      top: 28, right: 16, left: 16, bottom: 4),
+                    top: 28,
+                    right: 16,
+                    left: 16,
+                    bottom: 4,
+                  ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Expanded(
                         child: Text(
                           widget.label,
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineMedium
+                          style: Theme.of(context).textTheme.headlineMedium
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -623,8 +633,9 @@ class _SettingsContentPaneState extends State<_SettingsContentPane> {
                   mainAxisMargin: 0,
                 ),
                 child: ScrollConfiguration(
-                  behavior: ScrollConfiguration.of(context)
-                      .copyWith(scrollbars: false),
+                  behavior: ScrollConfiguration.of(
+                    context,
+                  ).copyWith(scrollbars: false),
                   child: Scrollbar(
                     controller: widget.scrollController,
                     thumbVisibility: true,

@@ -8,8 +8,11 @@ import '../models/book_model.dart';
 class ShamorZachorSidebar extends StatefulWidget {
   // Updated callback signature to include Top Level Name
   final Function(
-          String categoryName, BookCategory category, String topLevelName)
-      onCategorySelected;
+    String categoryName,
+    BookCategory category,
+    String topLevelName,
+  )
+  onCategorySelected;
   final String? selectedCategoryName;
 
   const ShamorZachorSidebar({
@@ -47,8 +50,9 @@ class _ShamorZachorSidebarState extends State<ShamorZachorSidebar> {
                 return Center(
                   child: Text(
                     'שגיאה בטעינת נתונים',
-                    style:
-                        TextStyle(color: Theme.of(context).colorScheme.error),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 );
               }
@@ -69,57 +73,66 @@ class _ShamorZachorSidebarState extends State<ShamorZachorSidebar> {
 
     // Create 'All Books' as a parent node wrapper
     final allBooksCategory = BookCategory(
-        name: 'כל הספרים',
-        books: {},
-        subcategories: sortedKeys.map((key) => allCategories[key]!).toList(),
-        isCustom: false,
-        sourceFile: 'virtual',
-        schemaVersion: 1,
-        contentType: 'text',
-        defaultStartPage: 1);
+      name: 'כל הספרים',
+      books: {},
+      subcategories: sortedKeys.map((key) => allCategories[key]!).toList(),
+      isCustom: false,
+      sourceFile: 'virtual',
+      schemaVersion: 1,
+      contentType: 'text',
+      defaultStartPage: 1,
+    );
 
     final isAllBooksExpanded = _expansionState['all_books_virtual'] ?? true;
     final isAllBooksSelected =
         widget.selectedCategoryName == 'all_books_virtual' ||
-            widget.selectedCategoryName == 'כל הספרים';
+        widget.selectedCategoryName == 'כל הספרים';
 
     return ListView(
       children: [
         // All Books Root Node
         Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              NavigationTreeTile.category(
-                title: 'כל הספרים',
-                level: 0,
-                isSelected: isAllBooksSelected,
-                isExpanded: isAllBooksExpanded,
-                hasChildren: true,
-                onTap: () {
-                  widget.onCategorySelected(
-                      'כל הספרים', allBooksCategory, 'all_books_virtual');
-                },
-                onToggleExpand: () => _toggleCategory('all_books_virtual'),
-              ),
-              if (isAllBooksExpanded)
-                ...sortedKeys.map((key) {
-                  final category = allCategories[key]!;
-                  // Start standard recursion from Level 1, passing Key as TopLevelName
-                  return _buildCategoryNode(category, category.name, level: 1);
-                })
-            ])
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            NavigationTreeTile.category(
+              title: 'כל הספרים',
+              level: 0,
+              isSelected: isAllBooksSelected,
+              isExpanded: isAllBooksExpanded,
+              hasChildren: true,
+              onTap: () {
+                widget.onCategorySelected(
+                  'כל הספרים',
+                  allBooksCategory,
+                  'all_books_virtual',
+                );
+              },
+              onToggleExpand: () => _toggleCategory('all_books_virtual'),
+            ),
+            if (isAllBooksExpanded)
+              ...sortedKeys.map((key) {
+                final category = allCategories[key]!;
+                // Start standard recursion from Level 1, passing Key as TopLevelName
+                return _buildCategoryNode(category, category.name, level: 1);
+              }),
+          ],
+        ),
       ],
     );
   }
 
-  Widget _buildCategoryNode(BookCategory category, String topLevelName,
-      {required int level}) {
+  Widget _buildCategoryNode(
+    BookCategory category,
+    String topLevelName, {
+    required int level,
+  }) {
     final path = category.name;
     // קטגוריות פנימיות סגורות כברירת מחדל (רק "כל הספרים" פתוח)
     final isExpanded = _expansionState[path] ?? false;
     final hasChildren = category.subcategories?.isNotEmpty == true;
-    final isSelected = widget.selectedCategoryName == path ||
+    final isSelected =
+        widget.selectedCategoryName == path ||
         widget.selectedCategoryName == category.name;
 
     final childrenWidgets = <Widget>[];
@@ -128,8 +141,9 @@ class _ShamorZachorSidebarState extends State<ShamorZachorSidebar> {
         // Use natural order from DataProvider (already sorted by orderIndex from DB)
         for (final sub in category.subcategories!) {
           // Pass the SAME topLevelName down
-          childrenWidgets
-              .add(_buildCategoryNode(sub, topLevelName, level: level + 1));
+          childrenWidgets.add(
+            _buildCategoryNode(sub, topLevelName, level: level + 1),
+          );
         }
       }
     }

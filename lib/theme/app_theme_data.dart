@@ -183,8 +183,9 @@ class AppThemeData {
       style: MenuStyle(
         backgroundColor: WidgetStatePropertyAll(backgroundColor),
         surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-        shadowColor:
-            WidgetStatePropertyAll(Colors.black.withValues(alpha: 0.22)),
+        shadowColor: WidgetStatePropertyAll(
+          Colors.black.withValues(alpha: 0.22),
+        ),
         elevation: const WidgetStatePropertyAll(AppTokens.elevation2),
         shape: const WidgetStatePropertyAll(AppTokens.roundedShape),
         padding: WidgetStatePropertyAll(metrics.menuPadding),
@@ -211,8 +212,9 @@ class AppThemeData {
       menuStyle: MenuStyle(
         backgroundColor: WidgetStatePropertyAll(_menuBackground(cs)),
         surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-        shadowColor:
-            WidgetStatePropertyAll(Colors.black.withValues(alpha: 0.22)),
+        shadowColor: WidgetStatePropertyAll(
+          Colors.black.withValues(alpha: 0.22),
+        ),
         elevation: const WidgetStatePropertyAll(AppTokens.elevation2),
         shape: const WidgetStatePropertyAll(AppTokens.roundedShape),
         padding: WidgetStatePropertyAll(metrics.menuPadding),
@@ -335,34 +337,34 @@ class AppThemeData {
   // ══════════════════════════════════════════════════════════════════════════
 
   static TabBarThemeData _tabBarTheme(ColorScheme cs) => TabBarThemeData(
-        dividerColor: Colors.transparent,
-        dividerHeight: 0,
-        indicator: BoxDecoration(
-          borderRadius: AppTokens.borderRadiusAll,
-          color: cs.secondaryContainer,
-        ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        labelColor: cs.onSurface,
-        unselectedLabelColor: cs.onSurfaceVariant,
-        labelStyle: const TextStyle(
-          fontSize: AppTokens.fontMD,
-          fontWeight: FontWeight.w600,
-        ),
-        unselectedLabelStyle: const TextStyle(
-          fontSize: AppTokens.fontMD,
-          fontWeight: FontWeight.w400,
-        ),
-        // primary (לא אפור) — hover תואם את צבעי האפליקציה
-        overlayColor: WidgetStateProperty.resolveWith((s) {
-          if (s.contains(WidgetState.hovered)) {
-            return cs.primary.withValues(alpha: 0.08);
-          }
-          if (s.contains(WidgetState.pressed)) {
-            return cs.primary.withValues(alpha: 0.12);
-          }
-          return null;
-        }),
-      );
+    dividerColor: Colors.transparent,
+    dividerHeight: 0,
+    indicator: BoxDecoration(
+      borderRadius: AppTokens.borderRadiusAll,
+      color: cs.secondaryContainer,
+    ),
+    indicatorSize: TabBarIndicatorSize.tab,
+    labelColor: cs.onSurface,
+    unselectedLabelColor: cs.onSurfaceVariant,
+    labelStyle: const TextStyle(
+      fontSize: AppTokens.fontMD,
+      fontWeight: FontWeight.w600,
+    ),
+    unselectedLabelStyle: const TextStyle(
+      fontSize: AppTokens.fontMD,
+      fontWeight: FontWeight.w400,
+    ),
+    // primary (לא אפור) — hover תואם את צבעי האפליקציה
+    overlayColor: WidgetStateProperty.resolveWith((s) {
+      if (s.contains(WidgetState.hovered)) {
+        return cs.primary.withValues(alpha: 0.08);
+      }
+      if (s.contains(WidgetState.pressed)) {
+        return cs.primary.withValues(alpha: 0.12);
+      }
+      return null;
+    }),
+  );
 }
 
 /// עזרי דחיסות ותזוזות עבור תפריטים

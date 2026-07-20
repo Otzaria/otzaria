@@ -38,9 +38,8 @@ class _SearchScopeSelectorState extends State<SearchScopeSelector> {
   /// כמות שהם ואינם חלק מלוגיקת "כל הקטגוריות"/בחירה ידנית.
   Set<String> _dimensionFacets = {};
 
-  static Set<String> _categoryPartOf(Set<String> selection) => selection
-      .where((facet) => !FacetHelper.isDimensionFacet(facet))
-      .toSet();
+  static Set<String> _categoryPartOf(Set<String> selection) =>
+      selection.where((facet) => !FacetHelper.isDimensionFacet(facet)).toSet();
 
   static Set<String> _dimensionPartOf(Set<String> selection) =>
       selection.where(FacetHelper.isDimensionFacet).toSet();
@@ -74,8 +73,8 @@ class _SearchScopeSelectorState extends State<SearchScopeSelector> {
     _searchAllCategories = hasExplicitManualSelection
         ? false
         : isExplicitAllSelection
-            ? true
-            : persisted.searchAllCategories;
+        ? true
+        : persisted.searchAllCategories;
     _manualSelectedFacets = hasExplicitManualSelection
         ? explicitCategories
         : persisted.manualFacets;
@@ -124,9 +123,9 @@ class _SearchScopeSelectorState extends State<SearchScopeSelector> {
   }
 
   Set<String> get _selectionState => {
-        ...(_searchAllCategories ? const {'/'} : _manualSelectedFacets),
-        ..._dimensionFacets,
-      };
+    ...(_searchAllCategories ? const {'/'} : _manualSelectedFacets),
+    ..._dimensionFacets,
+  };
 
   void _setSearchAllCategories(bool value) {
     setState(() {
@@ -179,8 +178,8 @@ class _SearchScopeSelectorState extends State<SearchScopeSelector> {
     final helperText = _searchAllCategories
         ? 'מופעל כברירת מחדל. כבה כדי לבחור קטגוריות או ספרים ידנית.'
         : manualCount == 0
-            ? 'אפשר לחפש בעץ ולבחור קטגוריות או ספרים. עד שתיבחר בחירה ידנית, החיפוש יישאר בכל הקטגוריות.'
-            : 'נשמרו $manualCount פריטים לבחירה הידנית הכללית.';
+        ? 'אפשר לחפש בעץ ולבחור קטגוריות או ספרים. עד שתיבחר בחירה ידנית, החיפוש יישאר בכל הקטגוריות.'
+        : 'נשמרו $manualCount פריטים לבחירה הידנית הכללית.';
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -379,8 +378,11 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
         _library = libraryState.library!;
         _rebuildScopeTree(_library!);
         final topCategories = _library!.subCategories.toList()
-          ..sort((a, b) => SearchCatalogueOrderHelper.topCategoryOrder(a)
-              .compareTo(SearchCatalogueOrderHelper.topCategoryOrder(b)));
+          ..sort(
+            (a, b) => SearchCatalogueOrderHelper.topCategoryOrder(
+              a,
+            ).compareTo(SearchCatalogueOrderHelper.topCategoryOrder(b)),
+          );
         final searchResults = _hasActiveSearch
             ? _buildScopeSearchResults(_normalizedSearchQuery)
             : const <_ScopeSearchResultItem>[];
@@ -388,8 +390,9 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
         final treeBody = Container(
           decoration: BoxDecoration(
             border: Border.all(
-              color:
-                  Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.3),
             ),
             borderRadius: AppTokens.borderRadiusAll,
           ),
@@ -458,10 +461,12 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
               constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
               padding: const EdgeInsets.all(6),
               style: IconButton.styleFrom(
-                backgroundColor:
-                    Theme.of(context).colorScheme.secondaryContainer,
-                foregroundColor:
-                    Theme.of(context).colorScheme.onSecondaryContainer,
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.secondaryContainer,
+                foregroundColor: Theme.of(
+                  context,
+                ).colorScheme.onSecondaryContainer,
                 shape: AppTokens.roundedShape,
               ),
             ),
@@ -470,8 +475,8 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
           value: _isAllSelected
               ? true
               : _categoryFacets.isEmpty
-                  ? false
-                  : null,
+              ? false
+              : null,
           tristate: true,
           onChanged: (value) => _toggleAll(value == true),
         ),
@@ -681,11 +686,17 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
 
     _ScopeNode buildCategoryNode(Category category) {
       final sortedCategories = category.subCategories.toList()
-        ..sort((a, b) => SearchCatalogueOrderHelper.normalizeOrder(a.order)
-            .compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)));
+        ..sort(
+          (a, b) => SearchCatalogueOrderHelper.normalizeOrder(
+            a.order,
+          ).compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)),
+        );
       final sortedBooks = category.books.toList()
-        ..sort((a, b) => SearchCatalogueOrderHelper.normalizeOrder(a.order)
-            .compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)));
+        ..sort(
+          (a, b) => SearchCatalogueOrderHelper.normalizeOrder(
+            a.order,
+          ).compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)),
+        );
 
       final children = <_ScopeNode>[
         for (final subCategory in sortedCategories)
@@ -709,13 +720,14 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
     }
 
     _rootNodes = [
-      for (final category in library.subCategories) buildCategoryNode(category)
+      for (final category in library.subCategories) buildCategoryNode(category),
     ];
     _nodesByFacet = nodesByFacet;
   }
 
   List<_ScopeSearchResultItem> _buildScopeSearchResults(
-      String normalizedQuery) {
+    String normalizedQuery,
+  ) {
     if (normalizedQuery.isEmpty) {
       return const [];
     }
@@ -918,7 +930,8 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
     }
 
     final result = Set<String>.from(selection);
-    final allCovered = _rootNodes.isNotEmpty &&
+    final allCovered =
+        _rootNodes.isNotEmpty &&
         _rootNodes.every((node) => _consolidateNode(node, result));
 
     if (allCovered) {
@@ -943,8 +956,9 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
       return false;
     }
 
-    final allChildrenCovered =
-        node.children.every((child) => _consolidateNode(child, selection));
+    final allChildrenCovered = node.children.every(
+      (child) => _consolidateNode(child, selection),
+    );
     if (!allChildrenCovered) {
       return false;
     }
@@ -1005,15 +1019,15 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
               InkWell(
                 onTap: hasChildren
                     ? () => setState(() {
-                          _expansionState[category.path] = !isExpanded;
-                        })
+                        _expansionState[category.path] = !isExpanded;
+                      })
                     : null,
                 borderRadius: AppTokens.borderRadiusAll,
                 child: Icon(
                   hasChildren
                       ? (isExpanded
-                          ? FluentIcons.folder_open_24_regular
-                          : FluentIcons.folder_24_regular)
+                            ? FluentIcons.folder_open_24_regular
+                            : FluentIcons.folder_24_regular)
                       : FluentIcons.folder_24_regular,
                   size: 18,
                   color: Theme.of(context).colorScheme.primary,
@@ -1025,15 +1039,16 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
                 child: InkWell(
                   onTap: hasChildren
                       ? () => setState(() {
-                            _expansionState[category.path] = !isExpanded;
-                          })
+                          _expansionState[category.path] = !isExpanded;
+                        })
                       : null,
                   child: Text(
                     category.title,
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight:
-                          level == 0 ? FontWeight.w600 : FontWeight.normal,
+                      fontWeight: level == 0
+                          ? FontWeight.w600
+                          : FontWeight.normal,
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
                     maxLines: 1,
@@ -1078,8 +1093,11 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
     int level,
   ) {
     final sorted = category.subCategories.toList()
-      ..sort((a, b) => SearchCatalogueOrderHelper.normalizeOrder(a.order)
-          .compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)));
+      ..sort(
+        (a, b) => SearchCatalogueOrderHelper.normalizeOrder(
+          a.order,
+        ).compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)),
+      );
 
     return [
       for (final sub in sorted) _buildCategoryNode(context, sub, level),
@@ -1108,10 +1126,10 @@ class _CategoryScopeNode extends _ScopeNode {
     required Category category,
     required super.children,
   }) : super(
-          facet: category.path,
-          title: category.title,
-          subtitle: category.path == '/' ? '' : category.path.substring(1),
-        );
+         facet: category.path,
+         title: category.title,
+         subtitle: category.path == '/' ? '' : category.path.substring(1),
+       );
 
   @override
   bool get isBook => false;
@@ -1119,16 +1137,15 @@ class _CategoryScopeNode extends _ScopeNode {
 
 class _BookScopeNode extends _ScopeNode {
   _BookScopeNode({required Book book, required super.facet})
-      : super(
-          title: book.title,
-          subtitle: [
-            if ((FacetHelper.resolveCategoryPath(book) ?? '').isNotEmpty)
-              (FacetHelper.resolveCategoryPath(book) ?? '')
-                  .replaceFirst('/', ''),
-            if ((book.author ?? '').trim().isNotEmpty) book.author!.trim(),
-          ].join(' • '),
-          children: const [],
-        );
+    : super(
+        title: book.title,
+        subtitle: [
+          if ((FacetHelper.resolveCategoryPath(book) ?? '').isNotEmpty)
+            (FacetHelper.resolveCategoryPath(book) ?? '').replaceFirst('/', ''),
+          if ((book.author ?? '').trim().isNotEmpty) book.author!.trim(),
+        ].join(' • '),
+        children: const [],
+      );
 
   @override
   bool get isBook => true;

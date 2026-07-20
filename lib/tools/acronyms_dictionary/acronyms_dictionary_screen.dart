@@ -35,8 +35,9 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen> {
   void initState() {
     super.initState();
     _loadDictionary();
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _searchFocusNode.requestFocus());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _searchFocusNode.requestFocus(),
+    );
   }
 
   void requestKeyboardFocus() {

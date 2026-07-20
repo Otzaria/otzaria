@@ -55,11 +55,11 @@ String _notificationSubtitle(int minutes) {
 }
 
 int _toMinutes(int qty, String unit) => switch (unit) {
-      'שעות' => qty * 60,
-      'ימים' => qty * 1440,
-      'שבועות' => qty * 10080,
-      _ => qty, // דקות
-    };
+  'שעות' => qty * 60,
+  'ימים' => qty * 1440,
+  'שבועות' => qty * 10080,
+  _ => qty, // דקות
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  CalendarEventDialogResult
@@ -145,7 +145,8 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
       text: ev?.recurringYears?.toString() ?? '',
     );
 
-    _selectedDate = ev?.baseGregorianDate ??
+    _selectedDate =
+        ev?.baseGregorianDate ??
         (widget.specificDate ?? widget.state.selectedGregorianDate);
     _selectedJewishDate = JewishDate.fromDateTime(_selectedDate);
 
@@ -156,8 +157,9 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
     _selectedColorIndex = ev?.colorIndex;
 
     _dateShowHebrew = calendarDefaultShowHebrew(widget.state.calendarType);
-    _dateController =
-        TextEditingController(text: _formatPrimaryDate(_selectedDate));
+    _dateController = TextEditingController(
+      text: _formatPrimaryDate(_selectedDate),
+    );
     _dateFocusNode = FocusNode();
 
     _notificationMinutes =
@@ -249,11 +251,14 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
       final label =
           baseLabel ?? _formatNotificationMinutes(_notificationMinutes);
       entries.insert(
-          0, AppMenuEntry<int>(value: _notificationMinutes, label: label));
+        0,
+        AppMenuEntry<int>(value: _notificationMinutes, label: label),
+      );
     }
 
-    entries.add(const AppMenuEntry<int>(
-        value: _kCustomSentinel, label: 'התאמה אישית...'));
+    entries.add(
+      const AppMenuEntry<int>(value: _kCustomSentinel, label: 'התאמה אישית...'),
+    );
     return entries;
   }
 
@@ -554,10 +559,16 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
     // תאריך סיום זמין רק לאירוע חד-פעמי; טווח של יום בודד נשמר כ-null
     DateTime? endDate;
     if (!isRecurring && _selectedEndDate != null) {
-      final start =
-          DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
-      final end = DateTime(_selectedEndDate!.year, _selectedEndDate!.month,
-          _selectedEndDate!.day);
+      final start = DateTime(
+        _selectedDate.year,
+        _selectedDate.month,
+        _selectedDate.day,
+      );
+      final end = DateTime(
+        _selectedEndDate!.year,
+        _selectedEndDate!.month,
+        _selectedEndDate!.day,
+      );
       if (end.isBefore(start)) {
         UiSnack.showError('תאריך הסיום חייב להיות אחרי תאריך ההתחלה.');
         return;
@@ -581,8 +592,11 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
   }
 
   Future<void> _pickEndDate() async {
-    final start =
-        DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+    final start = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+    );
     final picked = await showDatePicker(
       context: context,
       initialDate: _selectedEndDate ?? start,
@@ -925,9 +939,13 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
                 value: _selectedRecurrenceType,
                 entries: [
                   const AppMenuEntry(
-                      value: RecurrenceType.none, label: 'ללא חזרה'),
+                    value: RecurrenceType.none,
+                    label: 'ללא חזרה',
+                  ),
                   const AppMenuEntry(
-                      value: RecurrenceType.weekly, label: 'שבועי'),
+                    value: RecurrenceType.weekly,
+                    label: 'שבועי',
+                  ),
                   AppMenuEntry(
                     value: RecurrenceType.monthlyHebrew,
                     label:
@@ -1133,8 +1151,10 @@ class _AnchoredMenuState extends State<_AnchoredMenu> {
         overlaySize.height - (target.dy + box.size.height) - gap - margin;
     final spaceAbove = target.dy - gap - margin;
     final openDown = spaceBelow >= spaceAbove;
-    final maxHeight =
-        (openDown ? spaceBelow : spaceAbove).clamp(120.0, overlaySize.height);
+    final maxHeight = (openDown ? spaceBelow : spaceAbove).clamp(
+      120.0,
+      overlaySize.height,
+    );
 
     final popup = Material(
       elevation: 8,
@@ -1337,21 +1357,32 @@ class _InlineTimeEditorState extends State<_InlineTimeEditor> {
         clipBehavior: Clip.antiAlias,
         child: Padding(
           padding: const EdgeInsetsDirectional.only(
-              start: 8, end: 4, top: 4, bottom: 4),
+            start: 8,
+            end: 4,
+            top: 4,
+            bottom: 4,
+          ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               _segment(const Key('time-hour'), _hourNode, _hour, _onHourKey),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Text(':',
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: cs.onSurface)),
+                child: Text(
+                  ':',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
+                  ),
+                ),
               ),
               _segment(
-                  const Key('time-minute'), _minuteNode, _minute, _onMinuteKey),
+                const Key('time-minute'),
+                _minuteNode,
+                _minute,
+                _onMinuteKey,
+              ),
               IconButton(
                 icon: Icon(FluentIcons.dismiss_24_regular, size: 18),
                 tooltip: 'כל היום',

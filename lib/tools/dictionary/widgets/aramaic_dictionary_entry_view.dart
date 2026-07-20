@@ -87,8 +87,9 @@ class _MeaningView extends StatelessWidget {
                     vertical: compact ? 6 : 8,
                   ),
                   decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest
-                        .withValues(alpha: 0.55),
+                    color: colorScheme.surfaceContainerHighest.withValues(
+                      alpha: 0.55,
+                    ),
                     borderRadius: AppTokens.borderRadiusAll,
                   ),
                   child: Text(

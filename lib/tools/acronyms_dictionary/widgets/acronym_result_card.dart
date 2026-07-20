@@ -97,9 +97,10 @@ class AcronymResultCard extends StatelessWidget {
           ),
           const SizedBox(width: AppTokens.spaceXS),
           SecondaryIconButton(
-              icon: FluentIcons.copy_24_regular,
-              tooltip: 'העתק',
-              onPressed: () => _copy(context)),
+            icon: FluentIcons.copy_24_regular,
+            tooltip: 'העתק',
+            onPressed: () => _copy(context),
+          ),
         ],
       ),
     );

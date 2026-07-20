@@ -258,7 +258,9 @@ class _AdPopupDialogState extends State<AdPopupDialog>
                     opacity: c,
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 10),
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
                       child: _OrganizationsList(),
                     ),
                   ),
@@ -328,8 +330,10 @@ class _AdPopupDialogState extends State<AdPopupDialog>
             child: OutlinedButton.icon(
               onPressed: null, // הכפתור עצמו לא עושה כלום, רק פותח תפריט
               style: OutlinedButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 side: BorderSide(color: Colors.grey.shade400),
               ),
               icon: const Icon(FluentIcons.dismiss_24_regular, size: 18),
@@ -649,7 +653,7 @@ class _OrganizationsList extends StatelessWidget {
         gradient: LinearGradient(
           colors: [
             color.withValues(alpha: 0.08),
-            color.withValues(alpha: 0.02)
+            color.withValues(alpha: 0.02),
           ],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
@@ -671,7 +675,10 @@ class _OrganizationsList extends StatelessWidget {
   }
 
   Widget _buildOrgCard(
-      BuildContext context, Map<String, dynamic> org, bool isEmergency) {
+    BuildContext context,
+    Map<String, dynamic> org,
+    bool isEmergency,
+  ) {
     return _ExpandableOrgCard(org: org, isEmergency: isEmergency);
   }
 }
@@ -713,27 +720,33 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
     for (final match in _detailsRegex.allMatches(details)) {
       // טקסט רגיל לפני ההדגשה
       if (match.start > lastIndex) {
-        spans.add(TextSpan(
-          text: details.substring(lastIndex, match.start),
-          style: _defaultDetailsStyle,
-        ));
+        spans.add(
+          TextSpan(
+            text: details.substring(lastIndex, match.start),
+            style: _defaultDetailsStyle,
+          ),
+        );
       }
 
       // טקסט מודגש (ללא הכוכביות)
-      spans.add(TextSpan(
-        text: match.group(1),
-        style: _boldDetailsStyle,
-      ));
+      spans.add(
+        TextSpan(
+          text: match.group(1),
+          style: _boldDetailsStyle,
+        ),
+      );
 
       lastIndex = match.end;
     }
 
     // שאר הטקסט
     if (lastIndex < details.length) {
-      spans.add(TextSpan(
-        text: details.substring(lastIndex),
-        style: _defaultDetailsStyle,
-      ));
+      spans.add(
+        TextSpan(
+          text: details.substring(lastIndex),
+          style: _defaultDetailsStyle,
+        ),
+      );
     }
 
     return Text.rich(
@@ -780,8 +793,10 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
                         widget.org['logo'],
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
-                          return const Icon(FluentIcons.building_24_regular,
-                              size: 30);
+                          return const Icon(
+                            FluentIcons.building_24_regular,
+                            size: 30,
+                          );
                         },
                       ),
                     ),
@@ -873,21 +888,22 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    ...((widget.org['phones'] as List).map((phone) => Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Row(
-                            children: [
-                              const Icon(FluentIcons.phone_24_regular,
-                                  size: 16),
-                              const SizedBox(width: 8),
-                              Text(
-                                phone,
-                                style: const TextStyle(fontSize: 14),
-                                textDirection: TextDirection.ltr,
-                              ),
-                            ],
-                          ),
-                        ))),
+                    ...((widget.org['phones'] as List).map(
+                      (phone) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          children: [
+                            const Icon(FluentIcons.phone_24_regular, size: 16),
+                            const SizedBox(width: 8),
+                            Text(
+                              phone,
+                              style: const TextStyle(fontSize: 14),
+                              textDirection: TextDirection.ltr,
+                            ),
+                          ],
+                        ),
+                      ),
+                    )),
                     const SizedBox(height: 12),
                   ],
                   // פרטים

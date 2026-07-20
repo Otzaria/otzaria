@@ -76,19 +76,21 @@ class SearchDialog extends StatefulWidget {
     Map<String, String> spacingValues,
     SearchMode searchMode,
     int distance,
-  )? onSearch;
+  )?
+  onSearch;
   final String? bookTitle;
   final bool returnResultOnSubmit;
   final SearchMode? initialSearchMode;
 
-  const SearchDialog(
-      {super.key,
-      this.existingTab,
-      this.editTab,
-      this.onSearch,
-      this.bookTitle,
-      this.returnResultOnSubmit = false,
-      this.initialSearchMode});
+  const SearchDialog({
+    super.key,
+    this.existingTab,
+    this.editTab,
+    this.onSearch,
+    this.bookTitle,
+    this.returnResultOnSubmit = false,
+    this.initialSearchMode,
+  });
 
   @override
   State<SearchDialog> createState() => _SearchDialogState();
@@ -164,8 +166,9 @@ class _SearchDialogState extends State<SearchDialog> {
     // ה-scope של הטאב עשוי לשאת גם facets ממדיים (תקופה/מחבר/ספרי יסוד) —
     // מפצלים: הקטגוריות מזינות את עץ הבחירה, הממדים את פקדי הממדים.
     final initialCategories = FacetHelper.categoryFacetsOf(initialScopeFacets);
-    final initialDimensions =
-        FacetHelper.dimensionFacetsOf(initialScopeFacets).toSet();
+    final initialDimensions = FacetHelper.dimensionFacetsOf(
+      initialScopeFacets,
+    ).toSet();
     _dimensionFacets = initialDimensions.isNotEmpty
         ? initialDimensions
         : SearchScopePreferences.loadDimensionFacets();
@@ -181,8 +184,9 @@ class _SearchDialogState extends State<SearchDialog> {
       _searchAllCategories = persisted.searchAllCategories;
       _manualFacets = Set<String>.from(persisted.manualFacets);
     }
-    _selectedCategoryFacets =
-        _searchAllCategories ? {'/'} : Set<String>.from(_manualFacets);
+    _selectedCategoryFacets = _searchAllCategories
+        ? {'/'}
+        : Set<String>.from(_manualFacets);
 
     // בדיקה אם האינדקס בתהליך בנייה - האזהרה ניתנת לסגירה ואינה חוסמת חיפוש
     final indexingState = context.read<IndexingBloc>().state;
@@ -274,8 +278,10 @@ class _SearchDialogState extends State<SearchDialog> {
                   closeOnActivate: false,
                   onChanged: (checked) {
                     setState(() {
-                      SearchDefaults.saveExactDefaults(
-                          {...defaults, key: checked ?? false});
+                      SearchDefaults.saveExactDefaults({
+                        ...defaults,
+                        key: checked ?? false,
+                      });
                       // שינוי ברירת מחדל מוחל מיד גם על התיבה בחלונית הפתוחה
                       _searchTab.globalSearchOptions[key] = checked ?? false;
                       _searchTab.useGlobalSearchOptions.value = true;
@@ -292,10 +298,12 @@ class _SearchDialogState extends State<SearchDialog> {
                     SearchDefaults.saveDistanceDefault(state.distance);
                   });
                   UiSnack.show(
-                      LibraryMessages.distanceSetAsDefault(state.distance));
+                    LibraryMessages.distanceSetAsDefault(state.distance),
+                  );
                 },
                 child: Text(
-                    'קבע את המרווח הנוכחי (${state.distance}) כברירת מחדל'),
+                  'קבע את המרווח הנוכחי (${state.distance}) כברירת מחדל',
+                ),
               ),
             ],
             builder: (context, controller, _) => Tooltip(
@@ -339,8 +347,9 @@ class _SearchDialogState extends State<SearchDialog> {
   Widget _buildHistoryDropdown() {
     return BlocBuilder<HistoryBloc, HistoryState>(
       builder: (context, state) {
-        final searchHistory =
-            state.history.where((item) => item.isSearch).toList();
+        final searchHistory = state.history
+            .where((item) => item.isSearch)
+            .toList();
 
         if (searchHistory.isEmpty) return const SizedBox.shrink();
 
@@ -357,54 +366,59 @@ class _SearchDialogState extends State<SearchDialog> {
                   thickness: 1,
                   color: Theme.of(context).colorScheme.outlineVariant,
                 ),
-              Builder(builder: (context) {
-                final bookmark = recentSearches[index];
-                final query = bookmark.book.title;
-                final displayText = bookmark.ref;
-                final originalIndex = state.history.indexOf(bookmark);
+              Builder(
+                builder: (context) {
+                  final bookmark = recentSearches[index];
+                  final query = bookmark.book.title;
+                  final displayText = bookmark.ref;
+                  final originalIndex = state.history.indexOf(bookmark);
 
-                return ListTile(
-                  dense: true,
-                  leading: const Icon(FluentIcons.search_24_regular, size: 18),
-                  title: Text(
-                    displayText,
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(FluentIcons.delete_24_regular, size: 18),
-                    tooltip: 'מחק מההיסטוריה',
-                    onPressed: () => context
-                        .read<HistoryBloc>()
-                        .add(RemoveHistory(originalIndex)),
-                  ),
-                  onTap: () {
-                    _searchTab.queryController.text = query;
+                  return ListTile(
+                    dense: true,
+                    leading: const Icon(
+                      FluentIcons.search_24_regular,
+                      size: 18,
+                    ),
+                    title: Text(
+                      displayText,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(FluentIcons.delete_24_regular, size: 18),
+                      tooltip: 'מחק מההיסטוריה',
+                      onPressed: () => context.read<HistoryBloc>().add(
+                        RemoveHistory(originalIndex),
+                      ),
+                    ),
+                    onTap: () {
+                      _searchTab.queryController.text = query;
 
-                    // חיפוש היסטורי מורחב משוחזר במצב פר-מילה.
-                    if (bookmark.searchOptions != null) {
-                      _searchTab.searchOptions
-                        ..clear()
-                        ..addAll(bookmark.searchOptions!);
-                      _searchTab.globalSearchOptions.clear();
-                      _searchTab.useGlobalSearchOptions.value = false;
-                    }
-                    if (bookmark.alternativeWords != null) {
-                      _searchTab.alternativeWords
-                        ..clear()
-                        ..addAll(bookmark.alternativeWords!);
-                    }
-                    if (bookmark.spacingValues != null) {
-                      _searchTab.spacingValues
-                        ..clear()
-                        ..addAll(bookmark.spacingValues!);
-                    }
+                      // חיפוש היסטורי מורחב משוחזר במצב פר-מילה.
+                      if (bookmark.searchOptions != null) {
+                        _searchTab.searchOptions
+                          ..clear()
+                          ..addAll(bookmark.searchOptions!);
+                        _searchTab.globalSearchOptions.clear();
+                        _searchTab.useGlobalSearchOptions.value = false;
+                      }
+                      if (bookmark.alternativeWords != null) {
+                        _searchTab.alternativeWords
+                          ..clear()
+                          ..addAll(bookmark.alternativeWords!);
+                      }
+                      if (bookmark.spacingValues != null) {
+                        _searchTab.spacingValues
+                          ..clear()
+                          ..addAll(bookmark.spacingValues!);
+                      }
 
-                    _historyMenuController.close();
-                    _searchTab.searchFieldFocusNode.requestFocus();
-                  },
-                );
-              }),
+                      _historyMenuController.close();
+                      _searchTab.searchFieldFocusNode.requestFocus();
+                    },
+                  );
+                },
+              ),
             ],
           ],
         );
@@ -451,7 +465,8 @@ class _SearchDialogState extends State<SearchDialog> {
         SearchDefaults.rememberSessionOptions(_searchTab.globalSearchOptions);
       case SearchMode.exact:
         SearchDefaults.rememberSessionExactOptions(
-            _searchTab.globalSearchOptions);
+          _searchTab.globalSearchOptions,
+        );
       case SearchMode.fuzzy:
         break;
     }
@@ -505,7 +520,8 @@ class _SearchDialogState extends State<SearchDialog> {
     );
     if (parsedCategory.hasCategoryToken && !parsedCategory.categoryFound) {
       UiSnack.showError(
-          LibraryMessages.categoryOrBookNotFound(parsedCategory.notFoundNames));
+        LibraryMessages.categoryOrBookNotFound(parsedCategory.notFoundNames),
+      );
       return;
     }
     query = parsedCategory.query;
@@ -519,13 +535,16 @@ class _SearchDialogState extends State<SearchDialog> {
     // המנוע דורש אותם בטקסט — ואסור למחוק אותם. הבדיקה רצה על מפות המקור
     // (לא על האפשרויות האפקטיביות) כי אלה נבנות מהשאילתה אחרי המחיקה.
     final dialogMode = _searchTab.searchBloc.state.configuration.searchMode;
-    final vocalizedSearch = _supportsVocalizedSearch &&
+    final vocalizedSearch =
+        _supportsVocalizedSearch &&
         dialogMode == SearchMode.advanced &&
         (_searchTab.useGlobalSearchOptions.value
             ? SearchQueryBuilder.globalOptionsRequestVocalized(
-                _searchTab.globalSearchOptions)
+                _searchTab.globalSearchOptions,
+              )
             : SearchQueryBuilder.optionsRequestVocalized(
-                _searchTab.searchOptions));
+                _searchTab.searchOptions,
+              ));
     if (!vocalizedSearch && utils.hasNikud(query)) {
       query = utils.removeVolwels(query);
     }
@@ -547,7 +566,9 @@ class _SearchDialogState extends State<SearchDialog> {
     // כשמתג "חלופות שמורות" דלוק — הרחבת החיפוש בחלופות הגלובליות השמורות
     final effectiveAlternatives = _searchTab.useSavedAlternatives
         ? SavedAlternativesStore.mergeIntoQuery(
-            query, _searchTab.alternativeWords)
+            query,
+            _searchTab.alternativeWords,
+          )
         : _searchTab.alternativeWords;
     final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
       currentMode,
@@ -563,11 +584,11 @@ class _SearchDialogState extends State<SearchDialog> {
     );
     final normalizedNegativeParameters =
         SearchQueryBuilder.normalizeParametersForMode(
-      currentMode,
-      customSpacing: _searchTab.negativeSpacingValues,
-      alternativeWords: _searchTab.negativeAlternativeWords,
-      searchOptions: effectiveNegativeOptions,
-    );
+          currentMode,
+          customSpacing: _searchTab.negativeSpacingValues,
+          alternativeWords: _searchTab.negativeAlternativeWords,
+          searchOptions: effectiveNegativeOptions,
+        );
     if (widget.returnResultOnSubmit) {
       Navigator.of(context).pop(
         SearchDialogResult(
@@ -607,8 +628,8 @@ class _SearchDialogState extends State<SearchDialog> {
     final categoriesToSearch = parsedCategory.categoryFound
         ? parsedCategory.facets!
         : _selectedCategoryFacets.isEmpty
-            ? ['/']
-            : _selectedCategoryFacets.toList();
+        ? ['/']
+        : _selectedCategoryFacets.toList();
     // ממדי הסינון שנבחרו בדיאלוג (תקופה/מחבר/ספרי יסוד) מצטרפים ב-AND —
     // גם כשהקטגוריה נקבעה בתחביר `@`.
     final facetsToSearch = [
@@ -649,9 +670,11 @@ class _SearchDialogState extends State<SearchDialog> {
     );
 
     // העתקת כל ההגדרות מהטאב הנוכחי לטאב החדש
-    newSearchTab.searchOptions.addAll(_searchTab.searchOptions.map(
-      (key, value) => MapEntry(key, Map<String, bool>.from(value)),
-    ));
+    newSearchTab.searchOptions.addAll(
+      _searchTab.searchOptions.map(
+        (key, value) => MapEntry(key, Map<String, bool>.from(value)),
+      ),
+    );
     newSearchTab.globalSearchOptions.addAll(_searchTab.globalSearchOptions);
     newSearchTab.useGlobalSearchOptions.value =
         _searchTab.useGlobalSearchOptions.value;
@@ -661,14 +684,17 @@ class _SearchDialogState extends State<SearchDialog> {
         (key, value) => MapEntry(key, Map<String, bool>.from(value)),
       ),
     );
-    newSearchTab.negativeGlobalSearchOptions
-        .addAll(_searchTab.negativeGlobalSearchOptions);
+    newSearchTab.negativeGlobalSearchOptions.addAll(
+      _searchTab.negativeGlobalSearchOptions,
+    );
     newSearchTab.useGlobalNegativeSearchOptions.value =
         _searchTab.useGlobalNegativeSearchOptions.value;
     // חלופות שמורות שמוזגו הופכות לחלק מהטאב — נשמרות ומשוחזרות איתו
-    newSearchTab.alternativeWords.addAll(effectiveAlternatives.map(
-      (key, value) => MapEntry(key, List<String>.from(value)),
-    ));
+    newSearchTab.alternativeWords.addAll(
+      effectiveAlternatives.map(
+        (key, value) => MapEntry(key, List<String>.from(value)),
+      ),
+    );
     newSearchTab.spacingValues.addAll(_searchTab.spacingValues);
     newSearchTab.negativeAlternativeWords.addAll(
       _searchTab.negativeAlternativeWords.map(
@@ -679,9 +705,9 @@ class _SearchDialogState extends State<SearchDialog> {
 
     // מעבירים את ה-scope במפורש להיסטוריה — SetFacetsWithoutSearch מעדכן את
     // state אסינכרונית, ובלי זה החיפוש היה נשמר בלי ה-scope שנבחר.
-    context
-        .read<HistoryBloc>()
-        .add(AddHistory(newSearchTab, scopeFacets: facetsToSearch));
+    context.read<HistoryBloc>().add(
+      AddHistory(newSearchTab, scopeFacets: facetsToSearch),
+    );
 
     // ביצוע החיפוש בטאב החדש
     newSearchTab.searchBloc.add(
@@ -728,17 +754,21 @@ class _SearchDialogState extends State<SearchDialog> {
     target.negativeQueryController.text = negativeQuery;
     target.searchOptions
       ..clear()
-      ..addAll(_searchTab.searchOptions.map(
-        (key, value) => MapEntry(key, Map<String, bool>.from(value)),
-      ));
+      ..addAll(
+        _searchTab.searchOptions.map(
+          (key, value) => MapEntry(key, Map<String, bool>.from(value)),
+        ),
+      );
     target.globalSearchOptions
       ..clear()
       ..addAll(_searchTab.globalSearchOptions);
     target.negativeSearchOptions
       ..clear()
-      ..addAll(_searchTab.negativeSearchOptions.map(
-        (key, value) => MapEntry(key, Map<String, bool>.from(value)),
-      ));
+      ..addAll(
+        _searchTab.negativeSearchOptions.map(
+          (key, value) => MapEntry(key, Map<String, bool>.from(value)),
+        ),
+      );
     target.negativeGlobalSearchOptions
       ..clear()
       ..addAll(_searchTab.negativeGlobalSearchOptions);
@@ -748,17 +778,21 @@ class _SearchDialogState extends State<SearchDialog> {
         _searchTab.useGlobalNegativeSearchOptions.value;
     target.alternativeWords
       ..clear()
-      ..addAll(effectiveAlternatives.map(
-        (key, value) => MapEntry(key, List<String>.from(value)),
-      ));
+      ..addAll(
+        effectiveAlternatives.map(
+          (key, value) => MapEntry(key, List<String>.from(value)),
+        ),
+      );
     target.spacingValues
       ..clear()
       ..addAll(_searchTab.spacingValues);
     target.negativeAlternativeWords
       ..clear()
-      ..addAll(_searchTab.negativeAlternativeWords.map(
-        (key, value) => MapEntry(key, List<String>.from(value)),
-      ));
+      ..addAll(
+        _searchTab.negativeAlternativeWords.map(
+          (key, value) => MapEntry(key, List<String>.from(value)),
+        ),
+      );
     target.negativeSpacingValues
       ..clear()
       ..addAll(_searchTab.negativeSpacingValues);
@@ -770,21 +804,25 @@ class _SearchDialogState extends State<SearchDialog> {
     // facetsToSearch כבר כולל את ממדי הסינון שנבחרו בדיאלוג (הם אותחלו
     // מה-state של טאב היעד וניתנים לעריכה בדיאלוג עצמו).
     target.searchBloc.add(SetFacetsWithoutSearch(facetsToSearch));
-    context.read<HistoryBloc>().add(AddHistory(
-          target,
-          scopeFacets: facetsToSearch,
-          proximityScope: proximityScope,
-        ));
-    target.searchBloc.add(UpdateSearchQuery(
-      query,
-      negativeQuery: negativeQuery,
-      customSpacing: normalizedParameters.customSpacing,
-      alternativeWords: normalizedParameters.alternativeWords,
-      searchOptions: normalizedParameters.searchOptions,
-      negativeCustomSpacing: normalizedNegativeParameters.customSpacing,
-      negativeAlternativeWords: normalizedNegativeParameters.alternativeWords,
-      negativeSearchOptions: normalizedNegativeParameters.searchOptions,
-    ));
+    context.read<HistoryBloc>().add(
+      AddHistory(
+        target,
+        scopeFacets: facetsToSearch,
+        proximityScope: proximityScope,
+      ),
+    );
+    target.searchBloc.add(
+      UpdateSearchQuery(
+        query,
+        negativeQuery: negativeQuery,
+        customSpacing: normalizedParameters.customSpacing,
+        alternativeWords: normalizedParameters.alternativeWords,
+        searchOptions: normalizedParameters.searchOptions,
+        negativeCustomSpacing: normalizedNegativeParameters.customSpacing,
+        negativeAlternativeWords: normalizedNegativeParameters.alternativeWords,
+        negativeSearchOptions: normalizedNegativeParameters.searchOptions,
+      ),
+    );
 
     final tabsBloc = context.read<TabsBloc>();
     Navigator.of(context).pop();
@@ -798,8 +836,9 @@ class _SearchDialogState extends State<SearchDialog> {
   void _setSearchAllCategories(bool value) {
     setState(() {
       _searchAllCategories = value;
-      _selectedCategoryFacets =
-          _searchAllCategories ? {'/'} : Set<String>.from(_manualFacets);
+      _selectedCategoryFacets = _searchAllCategories
+          ? {'/'}
+          : Set<String>.from(_manualFacets);
     });
     SearchScopePreferences.save(
       searchAllCategories: _searchAllCategories,
@@ -918,13 +957,13 @@ class _SearchDialogState extends State<SearchDialog> {
     final title = widget.editTab != null
         ? 'עריכת חיפוש'
         : widget.bookTitle != null
-            ? 'חיפוש ב${widget.bookTitle}'
-            : 'חיפוש בספרייה';
+        ? 'חיפוש ב${widget.bookTitle}'
+        : 'חיפוש בספרייה';
     final subtitle = widget.editTab != null
         ? 'עדכן את השאילתה ואת אפשרויות החיפוש'
         : widget.bookTitle != null
-            ? 'חיפוש ממוקד בתוך הספר הפתוח'
-            : 'בחר שאילתה, סוג חיפוש והיקף בספרייה';
+        ? 'חיפוש ממוקד בתוך הספר הפתוח'
+        : 'בחר שאילתה, סוג חיפוש והיקף בספרייה';
     return ColoredBox(
       color: AppSurfaces.card(context),
       child: Padding(
@@ -1024,8 +1063,9 @@ class _SearchDialogState extends State<SearchDialog> {
                     mode.shortLabel,
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight:
-                          isSelected ? FontWeight.w600 : FontWeight.w400,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w400,
                       color: foreground,
                     ),
                   ),
@@ -1051,12 +1091,17 @@ class _SearchDialogState extends State<SearchDialog> {
               child: Row(
                 children: [
                   buildSegment(
-                      FluentIcons.text_quote_24_regular, SearchMode.exact),
+                    FluentIcons.text_quote_24_regular,
+                    SearchMode.exact,
+                  ),
                   buildSegment(
-                      FluentIcons.search_info_24_regular, SearchMode.advanced),
+                    FluentIcons.search_info_24_regular,
+                    SearchMode.advanced,
+                  ),
                   buildSegment(
-                      FluentIcons.arrow_bidirectional_left_right_24_regular,
-                      SearchMode.fuzzy),
+                    FluentIcons.arrow_bidirectional_left_right_24_regular,
+                    SearchMode.fuzzy,
+                  ),
                 ],
               ),
             ),
@@ -1093,8 +1138,9 @@ class _SearchDialogState extends State<SearchDialog> {
         alignmentOffset: const Offset(0, 4),
         style: MenuStyle(
           padding: const WidgetStatePropertyAll(EdgeInsets.zero),
-          backgroundColor:
-              WidgetStatePropertyAll(colorScheme.surfaceContainerHigh),
+          backgroundColor: WidgetStatePropertyAll(
+            colorScheme.surfaceContainerHigh,
+          ),
           shape: WidgetStatePropertyAll(
             RoundedRectangleBorder(
               borderRadius: AppTokens.borderRadiusAll,

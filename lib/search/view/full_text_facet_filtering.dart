@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/material.dart';
@@ -132,12 +132,14 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
 
     final dimensionFacets = FacetHelper.dimensionFacetsOf(state.currentFacets);
     if (dimensionFacets.isEmpty) {
-      searchBloc.add(SetFacet(
-        facet,
-        customSpacing: normalizedParameters.customSpacing,
-        alternativeWords: normalizedParameters.alternativeWords,
-        searchOptions: normalizedParameters.searchOptions,
-      ));
+      searchBloc.add(
+        SetFacet(
+          facet,
+          customSpacing: normalizedParameters.customSpacing,
+          alternativeWords: normalizedParameters.alternativeWords,
+          searchOptions: normalizedParameters.searchOptions,
+        ),
+      );
       return;
     }
 
@@ -171,12 +173,14 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
     searchBloc.add(
       SetFacetsWithoutSearch([...effectiveCategories, ...dimensionFacets]),
     );
-    searchBloc.add(UpdateSearchQuery(
-      searchBloc.state.searchQuery,
-      customSpacing: customSpacing,
-      alternativeWords: alternativeWords,
-      searchOptions: searchOptions,
-    ));
+    searchBloc.add(
+      UpdateSearchQuery(
+        searchBloc.state.searchQuery,
+        customSpacing: customSpacing,
+        alternativeWords: alternativeWords,
+        searchOptions: searchOptions,
+      ),
+    );
   }
 
   Widget _buildSearchField() {
@@ -464,13 +468,17 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
 
     final filteredSubCategories = category.subCategories.toList();
     if (category is Library) {
-      filteredSubCategories.sort((a, b) =>
-          SearchCatalogueOrderHelper.topCategoryOrder(a)
-              .compareTo(SearchCatalogueOrderHelper.topCategoryOrder(b)));
+      filteredSubCategories.sort(
+        (a, b) => SearchCatalogueOrderHelper.topCategoryOrder(
+          a,
+        ).compareTo(SearchCatalogueOrderHelper.topCategoryOrder(b)),
+      );
     } else {
-      filteredSubCategories.sort((a, b) =>
-          SearchCatalogueOrderHelper.normalizeOrder(a.order)
-              .compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)));
+      filteredSubCategories.sort(
+        (a, b) => SearchCatalogueOrderHelper.normalizeOrder(
+          a.order,
+        ).compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)),
+      );
     }
 
     // הוספת תת-קטגוריות
@@ -525,13 +533,17 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
 
       final sortedSubCategories = cat.subCategories.toList();
       if (cat is Library) {
-        sortedSubCategories.sort((a, b) =>
-            SearchCatalogueOrderHelper.topCategoryOrder(a)
-                .compareTo(SearchCatalogueOrderHelper.topCategoryOrder(b)));
+        sortedSubCategories.sort(
+          (a, b) => SearchCatalogueOrderHelper.topCategoryOrder(
+            a,
+          ).compareTo(SearchCatalogueOrderHelper.topCategoryOrder(b)),
+        );
       } else {
-        sortedSubCategories.sort((a, b) =>
-            SearchCatalogueOrderHelper.normalizeOrder(a.order)
-                .compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)));
+        sortedSubCategories.sort(
+          (a, b) => SearchCatalogueOrderHelper.normalizeOrder(
+            a.order,
+          ).compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)),
+        );
       }
 
       for (final subCat in sortedSubCategories) {
@@ -568,9 +580,11 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
               // סינון ידנית מהספרייה
               final allBooks = _getAllBooksFromLibrary(rootCategory);
               final filtered = allBooks
-                  .where((book) => book.title
-                      .toLowerCase()
-                      .contains(_filterQuery.text.toLowerCase()))
+                  .where(
+                    (book) => book.title.toLowerCase().contains(
+                      _filterQuery.text.toLowerCase(),
+                    ),
+                  )
                   .toList();
               return _buildBooksList(filtered, searchState, facetCounts);
             }

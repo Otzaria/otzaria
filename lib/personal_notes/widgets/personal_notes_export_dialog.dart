@@ -72,15 +72,18 @@ class _PersonalNotesExportDialogState extends State<PersonalNotesExportDialog> {
         _dateRange!.end,
       ).add(const Duration(days: 1));
       result = notes
-          .where((note) =>
-              !note.updatedAt.isBefore(start) &&
-              note.updatedAt.isBefore(endExclusive))
+          .where(
+            (note) =>
+                !note.updatedAt.isBefore(start) &&
+                note.updatedAt.isBefore(endExclusive),
+          )
           .toList();
       description =
           'הערות בתאריכים ${_dateRange!.start.toIso8601String()} - ${_dateRange!.end.toIso8601String()}';
     } else if (_mode == NotesExportMode.manual) {
-      result =
-          notes.where((note) => _manualSelection[note.id] == true).toList();
+      result = notes
+          .where((note) => _manualSelection[note.id] == true)
+          .toList();
       description = 'בחירה ידנית (${result.length})';
     }
 
@@ -139,9 +142,11 @@ class _PersonalNotesExportDialogState extends State<PersonalNotesExportDialog> {
             if (_mode == NotesExportMode.byDateRange)
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(_dateRange == null
-                    ? 'בחר טווח תאריכים'
-                    : '${_dateRange!.start.toString().split(' ').first} - ${_dateRange!.end.toString().split(' ').first}'),
+                title: Text(
+                  _dateRange == null
+                      ? 'בחר טווח תאריכים'
+                      : '${_dateRange!.start.toString().split(' ').first} - ${_dateRange!.end.toString().split(' ').first}',
+                ),
                 trailing: const Icon(FluentIcons.calendar_24_regular),
                 onTap: () async {
                   final picked = await showDateRangePicker(
@@ -173,9 +178,11 @@ class _PersonalNotesExportDialogState extends State<PersonalNotesExportDialog> {
                     final selected = _manualSelection[note.id] ?? false;
                     return CheckboxListTile(
                       value: selected,
-                      title: Text(note.displayTitle?.isNotEmpty == true
-                          ? note.displayTitle!
-                          : note.bookId),
+                      title: Text(
+                        note.displayTitle?.isNotEmpty == true
+                            ? note.displayTitle!
+                            : note.bookId,
+                      ),
                       subtitle: Text(
                         note.contentPlain,
                         maxLines: 1,
@@ -183,7 +190,8 @@ class _PersonalNotesExportDialogState extends State<PersonalNotesExportDialog> {
                       ),
                       onChanged: (value) {
                         setState(
-                            () => _manualSelection[note.id] = value ?? false);
+                          () => _manualSelection[note.id] = value ?? false,
+                        );
                       },
                     );
                   },

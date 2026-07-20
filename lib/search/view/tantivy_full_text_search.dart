@@ -51,7 +51,8 @@ bool shouldShowFacetFilterBanner({
   // המונה בכותרת חלונית "תקופה, מחבר וספרי יסוד").
   final normalizedScope = searchScopeFacets.toSet()
     ..removeWhere(
-        (facet) => facet == '/' || FacetHelper.isDimensionFacet(facet));
+      (facet) => facet == '/' || FacetHelper.isDimensionFacet(facet),
+    );
 
   return normalizedScope.isNotEmpty;
 }
@@ -256,17 +257,21 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
       final searchMode = widget.tab.searchBloc.state.configuration.searchMode;
       final normalizedParameters =
           SearchQueryBuilder.normalizeParametersForMode(
-        searchMode,
-        customSpacing: widget.tab.spacingValues,
-        alternativeWords: widget.tab.alternativeWords,
-        searchOptions: widget.tab.effectiveSearchOptions(query: pendingQuery),
+            searchMode,
+            customSpacing: widget.tab.spacingValues,
+            alternativeWords: widget.tab.alternativeWords,
+            searchOptions: widget.tab.effectiveSearchOptions(
+              query: pendingQuery,
+            ),
+          );
+      widget.tab.searchBloc.add(
+        UpdateSearchQuery(
+          pendingQuery,
+          customSpacing: normalizedParameters.customSpacing,
+          alternativeWords: normalizedParameters.alternativeWords,
+          searchOptions: normalizedParameters.searchOptions,
+        ),
       );
-      widget.tab.searchBloc.add(UpdateSearchQuery(
-        pendingQuery,
-        customSpacing: normalizedParameters.customSpacing,
-        alternativeWords: normalizedParameters.alternativeWords,
-        searchOptions: normalizedParameters.searchOptions,
-      ));
     }
   }
 
@@ -486,8 +491,9 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                               const SizedBox(width: 4),
                               Flexible(
                                 child: ScrollConfiguration(
-                                  behavior: ScrollConfiguration.of(context)
-                                      .copyWith(scrollbars: false),
+                                  behavior: ScrollConfiguration.of(
+                                    context,
+                                  ).copyWith(scrollbars: false),
                                   child: SingleChildScrollView(
                                     scrollDirection: Axis.horizontal,
                                     child: SearchTermsDisplay(tab: widget.tab),
@@ -516,9 +522,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                                     : '${state.results.length}/${state.totalResults} תוצאות',
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurface
+                                  color: Theme.of(context).colorScheme.onSurface
                                       .withValues(alpha: 0.7),
                                 ),
                               ),
@@ -627,10 +631,11 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
         // נכללים ברשימת "חיפוש בקטגוריות" (כמו בתנאי ההצגה של הבאנר).
         .where((facet) => facet != '/' && !FacetHelper.isDimensionFacet(facet))
         .map((facet) {
-      // facet בפורמט "/תנ"ך" או "/תנ"ך/ראשונים" - ניקח את החלק האחרון
-      final parts = facet.split('/').where((p) => p.isNotEmpty).toList();
-      return parts.isNotEmpty ? parts.last : facet;
-    }).toList();
+          // facet בפורמט "/תנ"ך" או "/תנ"ך/ראשונים" - ניקח את החלק האחרון
+          final parts = facet.split('/').where((p) => p.isNotEmpty).toList();
+          return parts.isNotEmpty ? parts.last : facet;
+        })
+        .toList();
     final tooltipMessage = 'חיפוש בקטגוריות: ${facetNames.join(', ')}';
     const bannerTitle = 'החיפוש הוגבל לקטגוריות מסוימות';
 
@@ -733,10 +738,9 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                     'חיפוש: ',
                     style: TextStyle(
                       fontSize: 14,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.7),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -771,10 +775,9 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                   : '${state.results.length}/${state.totalResults} תוצאות',
               style: TextStyle(
                 fontSize: 13,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.7),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.7),
               ),
             ),
             const SizedBox(width: 4),

@@ -508,8 +508,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     required bool dafYomiInline,
   }) {
     final isCompact = settingsState.compactMenuMode;
-    final isLibraryEmpty =
-        context.select<NavigationBloc, bool>((b) => b.state.isLibraryEmpty);
+    final isLibraryEmpty = context.select<NavigationBloc, bool>(
+      (b) => b.state.isLibraryEmpty,
+    );
     final previewSelected =
         !isLibraryEmpty && _isPreviewPanelVisible(settingsState);
 
@@ -840,8 +841,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         // כשאין ספרייה מוגדרת מציגים את מסך ההגדרה בתוך אזור התוכן — הסרגל
         // העליון נשאר, ורק התוכן מתחלף. מגיב לשינוי isLibraryEmpty (למשל אחרי
         // הורדה/ייבוא) ומחליף לעץ הספרייה.
-        final isLibraryEmpty =
-            ctx.select<NavigationBloc, bool>((b) => b.state.isLibraryEmpty);
+        final isLibraryEmpty = ctx.select<NavigationBloc, bool>(
+          (b) => b.state.isLibraryEmpty,
+        );
         final mainContent = isLibraryEmpty
             ? LibrarySetupView(onLibraryLoaded: _handleLibraryLoaded)
             : _buildContent(state);
