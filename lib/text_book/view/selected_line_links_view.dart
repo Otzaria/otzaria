@@ -3,19 +3,17 @@ import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-import 'package:otzaria/models/books.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/tab.dart';
-import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/widgets/feedback/app_future_builder.dart';
+import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/ui/context_menu_utils.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -85,7 +83,7 @@ class SelectedLineLinksView extends StatefulWidget {
   final Function(OpenedTab) openBookCallback;
   final double fontSize;
   final bool
-      showVisibleLinksIfNoSelection; // האם להציג קישורים נראים אם אין בחירה
+  showVisibleLinksIfNoSelection; // האם להציג קישורים נראים אם אין בחירה
   final SelectionSyncController? selectionSyncController;
 
   const SelectedLineLinksView({
@@ -122,8 +120,9 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
 
   @override
   void dispose() {
-    widget.selectionSyncController
-        ?.removeListener(_handleExternalSelectionChange);
+    widget.selectionSyncController?.removeListener(
+      _handleExternalSelectionChange,
+    );
     _searchController.dispose();
     super.dispose();
   }
@@ -132,10 +131,12 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
   void didUpdateWidget(covariant SelectedLineLinksView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.selectionSyncController != widget.selectionSyncController) {
-      oldWidget.selectionSyncController
-          ?.removeListener(_handleExternalSelectionChange);
-      widget.selectionSyncController
-          ?.addListener(_handleExternalSelectionChange);
+      oldWidget.selectionSyncController?.removeListener(
+        _handleExternalSelectionChange,
+      );
+      widget.selectionSyncController?.addListener(
+        _handleExternalSelectionChange,
+      );
     }
   }
 
@@ -353,10 +354,12 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
   Widget _buildExpansionTile(Link link) {
     final instanceKey = buildSelectedLinkInstanceKey(link);
     final contentKey = buildSelectedLinkContentKey(link);
-    final restoredExpanded = PageStorage.maybeOf(context)?.readState(
-      context,
-      identifier: instanceKey,
-    ) as bool?;
+    final restoredExpanded =
+        PageStorage.maybeOf(context)?.readState(
+              context,
+              identifier: instanceKey,
+            )
+            as bool?;
     final isExpanded = _expanded[instanceKey] ?? restoredExpanded ?? false;
     return ExpansionTile(
       key: PageStorageKey(instanceKey),
@@ -386,7 +389,8 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
               fontSize: settingsState.commentatorsFontSize - 2,
               fontWeight: FontWeight.bold,
               fontVariations: AppFonts.boldFontVariations(
-                  settingsState.commentatorsFontFamily),
+                settingsState.commentatorsFontFamily,
+              ),
               fontFamily: settingsState.commentatorsFontFamily,
             ),
           );
@@ -458,23 +462,25 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
       children: [
         if (isExpanded)
           Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
             child: AppFutureBuilder<String>(
               future: _contentCache[contentKey],
               builder: (context, content) => _buildLinkContent(content, link),
               errorBuilder: (context, error) =>
                   BlocBuilder<SettingsBloc, SettingsState>(
-                builder: (context, settingsState) {
-                  return Text(
-                    'שגיאה בטעינת התוכן: $error',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                      fontSize: settingsState.commentatorsFontSize,
-                    ),
-                  );
-                },
-              ),
+                    builder: (context, settingsState) {
+                      return Text(
+                        'שגיאה בטעינת התוכן: $error',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                          fontSize: settingsState.commentatorsFontSize,
+                        ),
+                      );
+                    },
+                  ),
             ),
           ),
       ],
@@ -499,96 +505,83 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
     // יירוט Ctrl+C ממוקם *מעל* ה-SelectionArea — שם מנגנון ה-override של
     // CopySelectionTextIntent מאתר אותו (מתחתיו הוא נשאר בלתי-נראה).
     return SelectionCopyShortcuts(
-        onCopy: () => ContextMenuUtils.copyFormattedText(
-              context: context,
-              savedSelectedText: _savedSelectedText,
-              fontSize: widget.fontSize,
-              link: _savedSelectedLink,
-            ),
-        child: RtlSelectionShortcuts(
-          child: SelectionArea(
-            key: ValueKey(
-              'selected_link_${buildSelectedLinkInstanceKey(link)}_$_selectionRevision',
-            ),
-            contextMenuBuilder: (context, selectableRegionState) {
-              return const SizedBox.shrink();
+      onCopy: () => ContextMenuUtils.copyFormattedText(
+        context: context,
+        savedSelectedText: _savedSelectedText,
+        fontSize: widget.fontSize,
+        link: _savedSelectedLink,
+      ),
+      child: RtlSelectionShortcuts(
+        child: SelectionArea(
+          key: ValueKey(
+            'selected_link_${buildSelectedLinkInstanceKey(link)}_$_selectionRevision',
+          ),
+          contextMenuBuilder: (context, selectableRegionState) {
+            return const SizedBox.shrink();
+          },
+          onSelectionChanged: (selection) {
+            // עדכון מעקב כיוון הגרירה (ל-RtlSelectionShortcuts).
+            trackRtlSelection(selection?.plainText);
+            // שינוי בחירה זמני בזמן priming — לא לעבד.
+            if (rtlSelectionPriming) return;
+            if (selection != null && selection.plainText.isNotEmpty) {
+              widget.selectionSyncController?.activate(_selectionOwner);
+              _savedSelectedText = selection.plainText;
+              _savedSelectedLink = link;
+            } else if (selection == null ||
+                selection.plainText.trim().isEmpty) {
+              widget.selectionSyncController?.clear(_selectionOwner);
+              _savedSelectedText = null;
+              _savedSelectedLink = null;
+            }
+          },
+          child: AppContextMenuRegion(
+            // לחיצה ימנית על הטקסט המסומן בפועל לא תשחרר את הבחירה (התנהגות ברירת
+            // המחדל של SelectableRegion ב-Windows); לחיצה על חלק לא-מסומן מבטלת
+            // כרגיל. הבחירה מנוהלת ע"י SelectionArea פר-קישור, לכן מחשבים את קטע
+            // הבחירה ישירות מול הפסקה שעליה לחצו.
+            shouldPreserveSelectionOnSecondaryTap: (globalPosition) {
+              final selected = _savedSelectedText;
+              if (selected == null || selected.isEmpty) return false;
+              final root = context.findRenderObject();
+              if (root == null) return true; // סלחני
+              return clickIsOnSelectionWithinArea(
+                    root: root,
+                    globalPosition: globalPosition,
+                    selectedText: selected,
+                  ) ??
+                  true; // לא הוכרע — סלחני
             },
-            onSelectionChanged: (selection) {
-              // עדכון מעקב כיוון הגרירה (ל-RtlSelectionShortcuts).
-              trackRtlSelection(selection?.plainText);
-              // שינוי בחירה זמני בזמן priming — לא לעבד.
-              if (rtlSelectionPriming) return;
-              if (selection != null && selection.plainText.isNotEmpty) {
-                widget.selectionSyncController?.activate(_selectionOwner);
-                _savedSelectedText = selection.plainText;
-                _savedSelectedLink = link;
-              } else if (selection == null ||
-                  selection.plainText.trim().isEmpty) {
-                widget.selectionSyncController?.clear(_selectionOwner);
-                _savedSelectedText = null;
-                _savedSelectedLink = null;
-              }
-            },
-            child: AppContextMenuRegion(
-              // לחיצה ימנית על הטקסט המסומן בפועל לא תשחרר את הבחירה (התנהגות ברירת
-              // המחדל של SelectableRegion ב-Windows); לחיצה על חלק לא-מסומן מבטלת
-              // כרגיל. הבחירה מנוהלת ע"י SelectionArea פר-קישור, לכן מחשבים את קטע
-              // הבחירה ישירות מול הפסקה שעליה לחצו.
-              shouldPreserveSelectionOnSecondaryTap: (globalPosition) {
-                final selected = _savedSelectedText;
-                if (selected == null || selected.isEmpty) return false;
-                final root = context.findRenderObject();
-                if (root == null) return true; // סלחני
-                return clickIsOnSelectionWithinArea(
-                      root: root,
-                      globalPosition: globalPosition,
-                      selectedText: selected,
-                    ) ??
-                    true; // לא הוכרע — סלחני
-              },
-              menuBuilder: (menuCtx, _) =>
-                  ContextMenuUtils.buildCommentaryContextMenu(
-                context: menuCtx,
-                link: link,
-                openBookCallback: widget.openBookCallback,
-                fontSize: widget.fontSize,
-                savedSelectedText: _savedSelectedText,
-                onCopySelected: () => ContextMenuUtils.copyFormattedText(
+            menuBuilder: (menuCtx, _) =>
+                ContextMenuUtils.buildCommentaryContextMenu(
                   context: menuCtx,
-                  savedSelectedText: _savedSelectedText,
+                  link: link,
+                  openBookCallback: widget.openBookCallback,
                   fontSize: widget.fontSize,
-                  link: _savedSelectedLink,
+                  savedSelectedText: _savedSelectedText,
+                  onCopySelected: () => ContextMenuUtils.copyFormattedText(
+                    context: menuCtx,
+                    savedSelectedText: _savedSelectedText,
+                    fontSize: widget.fontSize,
+                    link: _savedSelectedLink,
+                  ),
                 ),
-              ),
-              child: GestureDetector(
-                onTap: () {
-                  widget.openBookCallback(
-                    TextBookTab(
-                      book: TextBook(
-                        title: utils.getTitleFromPath(link.path2),
-                        isUserBook: link.targetIsUserBook,
-                        categoryId: link.targetCategoryId,
-                        fileType: link.targetFileType,
-                      ),
-                      index: link.index2 - 1,
-                      openLeftPane:
-                          (Settings.getValue<bool>('key-pin-sidebar') ??
-                                  false) ||
-                              (Settings.getValue<bool>(
-                                      'key-default-sidebar-open') ??
-                                  false),
-                    ),
-                  );
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12.0),
-                  child: _buildHighlightedText(content, link),
-                ),
+            child: GestureDetector(
+              onTap: () async {
+                final tab = await buildLinkTargetTab(link);
+                if (!mounted) return;
+                widget.openBookCallback(tab);
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12.0),
+                child: _buildHighlightedText(content, link),
               ),
             ),
           ),
-        ));
+        ),
+      ),
+    );
   }
 
   Widget _buildHighlightedText(String content, Link link) {
