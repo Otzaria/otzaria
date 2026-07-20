@@ -1630,17 +1630,43 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         SettingsActionTile.text(
           icon: FluentIcons.arrow_sync_24_regular,
           title: 'גיבוי ושחזור',
-          subtitle: 'צור גיבוי או שחזר את הגיבוי מהקובץ האחרון שנוצר',
+          subtitle: 'צור גיבוי, או שחזר מהגיבוי האחרון או מהארכיון המלא',
           actions: [
             ActionButton.recommended(
               icon: FluentIcons.arrow_upload_24_regular,
               text: 'צור כעת',
               onPressed: _createBackup,
             ),
-            ActionButton.neutral(
-              icon: FluentIcons.arrow_download_24_regular,
-              text: 'שחזור',
-              onPressed: _restoreBackup,
+            AppDropdownField<String>(
+              value: null,
+              isExpanded: false,
+              selectedBuilder: (context, _) => const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(FluentIcons.arrow_download_24_regular),
+                  SizedBox(width: 8),
+                  Text('שחזור'),
+                ],
+              ),
+              entries: const [
+                AppMenuEntry(
+                  value: 'latest',
+                  label: 'מהגיבוי האחרון',
+                  icon: FluentIcons.arrow_download_24_regular,
+                ),
+                AppMenuEntry(
+                  value: 'archive',
+                  label: 'מהארכיון (כולל שנמחקו)',
+                  icon: FluentIcons.archive_24_regular,
+                ),
+              ],
+              onSelected: (value) {
+                if (value == 'latest') {
+                  _restoreBackup();
+                } else if (value == 'archive') {
+                  _restoreFromArchive();
+                }
+              },
             ),
           ],
         ),
@@ -1742,47 +1768,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 _loadResolvedBackupPath();
               },
             ),
-            SettingsActionTile.dropdownTile<String>(
-              icon: FluentIcons.calendar_clock_24_regular,
-              title: 'גיבוי אוטומטי',
-              subtitle: switch (autoFrequency) {
-                'daily' => 'יתבצע גיבוי בכל יום',
-                'weekly' => 'יתבצע גיבוי כל שבוע',
-                'monthly' => 'יתבצע גיבוי כל חודש',
-                _ => 'גיבוי אוטומטי מושבת',
-              },
-              value: autoFrequency,
-              entries: const [
-                AppMenuEntry(value: 'none', label: 'ללא'),
-                AppMenuEntry(value: 'daily', label: 'יומי'),
-                AppMenuEntry(value: 'weekly', label: 'שבועי'),
-                AppMenuEntry(value: 'monthly', label: 'חודשי'),
-              ],
-              onSelected: (value) {
-                if (value == null) return;
-                Settings.setValue<String>(_keyAutoBackupFrequency, value);
-                setState(() {});
-              },
-            ),
-            SettingsActionTile.dropdownTile<String>(
-              icon: FluentIcons.broom_24_regular,
-              title: 'ניקוי גיבויים ישנים',
-              subtitle: _buildOverviewSubtitle(retentionProfile),
-              value: retentionProfile.name,
-              entries: const [
-                AppMenuEntry(value: 'economy', label: 'חסכוני'),
-                AppMenuEntry(value: 'balanced', label: 'מאוזן'),
-                AppMenuEntry(value: 'keepAll', label: 'שמור הכל'),
-              ],
-              onSelected: (value) {
-                if (value == null) return;
-                Settings.setValue<String>(
-                  BackupMaintenance.keyRetentionProfile,
-                  value,
-                );
-                setState(() {});
-              },
-            ),
             SettingsActionTile.segmentedTile<_BackupMode>(
               icon: FluentIcons.options_24_regular,
               title: 'מצב גיבוי',
@@ -1859,50 +1844,34 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 onChanged: () => setState(() {}),
               ),
             ],
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: ActionButton.recommended(
-                      icon: FluentIcons.arrow_upload_24_regular,
-                      text: 'צור גיבוי עכשיו',
-                      onPressed: _createBackup,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: ActionButton.neutral(
-                      icon: FluentIcons.arrow_download_24_regular,
-                      text: 'שחזר מגיבוי',
-                      onPressed: _restoreBackup,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: ActionButton.neutral(
-                      icon: FluentIcons.broom_24_regular,
-                      text: 'נקה עכשיו',
-                      isLoading: _isRunningMaintenance,
-                      onPressed: _runMaintenanceNow,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: ActionButton.neutral(
-                      icon: FluentIcons.archive_24_regular,
-                      text: 'שחזר מהארכיון',
-                      onPressed: _restoreFromArchive,
-                    ),
-                  ),
-                ],
-              ),
+            SettingsActionTile.text(
+              icon: FluentIcons.broom_24_regular,
+              title: 'ניקוי גיבויים ישנים',
+              subtitle: _buildOverviewSubtitle(retentionProfile),
+              actions: [
+                AppDropdownField<String>(
+                  value: retentionProfile.name,
+                  isExpanded: false,
+                  entries: const [
+                    AppMenuEntry(value: 'economy', label: 'חסכוני'),
+                    AppMenuEntry(value: 'balanced', label: 'מאוזן'),
+                    AppMenuEntry(value: 'keepAll', label: 'שמור הכל'),
+                  ],
+                  onSelected: (value) {
+                    if (value == null) return;
+                    Settings.setValue<String>(
+                      BackupMaintenance.keyRetentionProfile,
+                      value,
+                    );
+                    setState(() {});
+                  },
+                ),
+                ActionButton.neutral(
+                  text: 'נקה עכשיו',
+                  isLoading: _isRunningMaintenance,
+                  onPressed: _runMaintenanceNow,
+                ),
+              ],
             ),
           ],
         ),
