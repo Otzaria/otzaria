@@ -593,14 +593,16 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       return;
     }
 
+    // תוכן מלא מה-repository — state.content יכול להיות חלקי (חימום/שחרור).
+    // חובה לקרוא כאן: בתוך ה-builder ה-context הוא של הדיאלוג וחסר לו provider ל-TextBookBloc.
+    final contentData = context.read<TextBookBloc>().repository.getBookContent(
+      state.book,
+    );
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => PrintingScreen(
-        // תוכן מלא מה-repository — state.content יכול להיות חלקי (חימום/שחרור)
-        data: context.read<TextBookBloc>().repository.getBookContent(
-          state.book,
-        ),
+        data: contentData,
         bookId: state.book.title,
         book: state.book,
         links: state.links,
@@ -2292,14 +2294,17 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           TourInteraction(type: TourInteractionType.printUsed),
         );
         final settingsState = context.read<SettingsBloc>().state;
+        // תוכן מלא מה-repository — state.content יכול להיות חלקי (חימום/שחרור).
+        // חובה לקרוא כאן: בתוך ה-builder ה-context הוא של הדיאלוג וחסר לו provider ל-TextBookBloc.
+        final contentData = context
+            .read<TextBookBloc>()
+            .repository
+            .getBookContent(state.book);
         showDialog(
           context: context,
           barrierDismissible: false,
           builder: (context) => PrintingScreen(
-            // תוכן מלא מה-repository — state.content יכול להיות חלקי (חימום/שחרור)
-            data: context.read<TextBookBloc>().repository.getBookContent(
-              state.book,
-            ),
+            data: contentData,
             bookId: state.book.title,
             book: state.book,
             links: state.links,
@@ -2882,14 +2887,16 @@ bool _handleGlobalKeyEvent(
       TourInteraction(type: TourInteractionType.printUsed),
     );
     final settingsState = context.read<SettingsBloc>().state;
+    // תוכן מלא מה-repository — state.content יכול להיות חלקי (חימום/שחרור).
+    // חובה לקרוא כאן: בתוך ה-builder ה-context הוא של הדיאלוג וחסר לו provider ל-TextBookBloc.
+    final contentData = context.read<TextBookBloc>().repository.getBookContent(
+      state.book,
+    );
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => PrintingScreen(
-        // תוכן מלא מה-repository — state.content יכול להיות חלקי (חימום/שחרור)
-        data: context.read<TextBookBloc>().repository.getBookContent(
-          state.book,
-        ),
+        data: contentData,
         bookId: state.book.title,
         book: state.book,
         links: state.links,
