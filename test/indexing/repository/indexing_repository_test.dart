@@ -694,6 +694,84 @@ void main() {
       expect(provider.indexedFilePaths, {r'C:\missing\א.pdf'});
     });
 
+    test('חילוץ PDF שהסתיים בזמן שלב הטקסטים מאונדקס מיד ולא פעמיים', () async {
+      // רגרסיה: ה-prefetch היה חד-סלוטי בלי ניקוז — לאורך כל שלב הטקסטים
+      // חולץ PDF אחד בלבד, והשאר חולצו סדרתית רק בסוף.
+      final engine = _RecordingSearchEngine();
+      final provider = _RecordingTantivyDataProvider(engine);
+      final library = Library(categories: []);
+      final indexedText1 = TextBook(id: 1, title: 'ט1');
+      final indexedText2 = TextBook(id: 2, title: 'ט2');
+      final pdf1 = PdfBook(title: 'א', path: r'C:\pdfs\א.pdf');
+      final pdf2 = PdfBook(title: 'ב', path: r'C:\pdfs\ב.pdf');
+      library.books.addAll([indexedText1, indexedText2, pdf1, pdf2]);
+      // ספרי הטקסט כבר מאונדקסים — מדולגים, אך נותנים ללולאה "זמן טקסטים"
+      // שבו חילוץ ה-prefetch מסתיים ומנוקז.
+      provider.indexedFilePaths.addAll([
+        IndexingRepository.buildIndexedBookFilePath(indexedText1),
+        IndexingRepository.buildIndexedBookFilePath(indexedText2),
+      ]);
+      final repository = _FakeExtractionRepository(provider);
+
+      // יומן אירועים משולב — מוכיח את *סדר* הכתיבות ביחס להתקדמות הלולאה.
+      final events = <String>[];
+      engine.onPdfAdded = (title) => events.add('pdf:$title');
+
+      final result = await repository.indexAllBooks(
+        library,
+        onProgress: (p, _) => events.add('progress:$p'),
+      );
+
+      expect(result, isTrue);
+      // 'א' (מיקום 3) נכתב בזמן שהלולאה עוד עמדה על ט2 (מיקום 2), ו-'ב'
+      // (מיקום 4) נכתב בזמן שהלולאה עמדה על 'א' — הניקוז המוקדם; במימוש
+      // הישן כל כתיבה הייתה קורית רק אחרי דיווח המיקום של אותו ספר עצמו.
+      expect(events, [
+        'progress:2',
+        'pdf:א',
+        'progress:3',
+        'pdf:ב',
+        'progress:4',
+      ]);
+      // כל PDF חולץ ואונדקס בדיוק פעם אחת — הניקוז המוקדם לא מכפיל.
+      expect(repository.extractedTitles, ['א', 'ב']);
+      expect(engine.addedPdfTitles, ['א', 'ב']);
+      expect(
+        provider.indexedFilePaths,
+        containsAll([pdf1.path, pdf2.path]),
+      );
+    });
+
+    test('כשל באינדוקס מוקדם של PDF — לא מנוסה שוב באותה ריצה', () async {
+      final engine = _RecordingSearchEngine()..failPdfAddForTitle = 'א';
+      final provider = _RecordingTantivyDataProvider(engine);
+      final library = Library(categories: []);
+      final indexedText1 = TextBook(id: 1, title: 'ט1');
+      final indexedText2 = TextBook(id: 2, title: 'ט2');
+      final pdf1 = PdfBook(title: 'א', path: r'C:\pdfs\א.pdf');
+      final pdf2 = PdfBook(title: 'ב', path: r'C:\pdfs\ב.pdf');
+      library.books.addAll([indexedText1, indexedText2, pdf1, pdf2]);
+      provider.indexedFilePaths.addAll([
+        IndexingRepository.buildIndexedBookFilePath(indexedText1),
+        IndexingRepository.buildIndexedBookFilePath(indexedText2),
+      ]);
+      final repository = _FakeExtractionRepository(provider);
+
+      final result = await repository.indexAllBooks(
+        library,
+        onProgress: (_, _) {},
+      );
+
+      expect(result, isTrue);
+      // 'א' נוסה פעם אחת (בניקוז המוקדם) ולא שוב כשהלולאה הגיעה אליו.
+      expect(repository.extractedTitles, ['א', 'ב']);
+      expect(engine.addedPdfTitles, ['א', 'ב']);
+      // המסמכים החלקיים של 'א' נוקו; 'ב' אונדקס כרגיל.
+      expect(engine.removedFilePaths, [pdf1.path]);
+      expect(provider.indexedFilePaths, contains(pdf2.path));
+      expect(provider.indexedFilePaths, isNot(contains(pdf1.path)));
+    });
+
     test(
       'כשל גם בניקוי המסמכים החלקיים — עוצר בלי commit ומבצע rollback',
       () async {
@@ -1033,10 +1111,58 @@ class _ReindexProbeRepository extends IndexingRepository {
   }
 }
 
+/// מחליף את חילוץ ה-PDF (pdfrx) בתוכן מזויף — לבדיקת צינור ה-prefetch
+/// והניקוז המוקדם בלי קבצים אמיתיים.
+class _FakeExtractionRepository extends IndexingRepository {
+  _FakeExtractionRepository(super.provider);
+
+  final extractedTitles = <String>[];
+
+  @override
+  Future<PdfExtraction> extractPdfPagesGuarded(PdfBook book) async {
+    extractedTitles.add(book.title);
+    final PdfExtraction extraction = (
+      pages: [
+        (reference: '${book.title}, עמוד 1', text: 'תוכן', pageIndex: 0),
+      ],
+      outline: const [],
+      error: null,
+      stackTrace: null,
+      extractMs: 0,
+    );
+    return extraction;
+  }
+}
+
 class _RecordingSearchEngine implements SearchEngine {
   final List<String> removedFilePaths = [];
   final List<DocumentInput> addedDocuments = [];
+  final List<String> addedPdfTitles = [];
   int commitCount = 0;
+
+  /// כתיבת PDF בעל כותרת זו נכשלת — לבדיקת מסלול הכשל בניקוז המוקדם.
+  String? failPdfAddForTitle;
+
+  /// נקרא בכל כתיבת PDF — ליומן אירועים משולב עם דיווחי ההתקדמות.
+  void Function(String title)? onPdfAdded;
+
+  @override
+  Future<int> addPdfBook({
+    required String title,
+    required String topics,
+    required String filePath,
+    required int catalogueOrder,
+    required int generationOrder,
+    required List<PdfPageInput> pages,
+    List<String>? extraFacets,
+  }) async {
+    addedPdfTitles.add(title);
+    onPdfAdded?.call(title);
+    if (title == failPdfAddForTitle) {
+      throw StateError('engine pdf write failed');
+    }
+    return pages.length;
+  }
 
   /// טביעות-אצבע פר-ספר שהמנוע "קרא מהאינדקס" — לבדיקות reconcile.
   Map<String, BigInt> fingerprints = {};
