@@ -281,7 +281,7 @@ class DesignSettingsTab extends StatelessWidget {
                           value: 'text',
                           label: 'טקסט',
                           subtitle: 'מסכתות הבבלי ייפתחו במהדורת הטקסט '
-                              '(מאיתור מקורות ומקישורים)',
+                              '(מתוצאות חיפוש, מאיתור מקורות, ומקישורים)',
                         ),
                         SegmentOption(
                           value: 'pdf',
