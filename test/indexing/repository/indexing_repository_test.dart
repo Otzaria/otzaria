@@ -872,6 +872,23 @@ void main() {
       );
     });
 
+    test('תנ״ך בגרשיים עבריים (כתיב ה-DB) מסווג כספר יסוד ראשון', () {
+      final chumash = TextBook(
+        title: 'בראשית',
+        categoryPath: 'תנ״ך, תורה',
+      );
+      final mishna = TextBook(
+        title: 'שבת',
+        categoryPath: 'משנה, סדר מועד',
+      );
+
+      expect(IndexingRepository.foundationalTierForBook(chumash), 1);
+      expect(
+        IndexingRepository.chronologicalOrderForBook(chumash),
+        lessThan(IndexingRepository.chronologicalOrderForBook(mishna)),
+      );
+    });
+
     test('פירוש תחת קטגוריית יסוד אינו מסווג כספר יסוד', () {
       final commentary = TextBook(
         title: 'הסולם על ספר הזהר',
