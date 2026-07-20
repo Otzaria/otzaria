@@ -368,6 +368,77 @@ void main() {
     }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
   });
 
+  group('reanchor בפתיחת/סגירת החלונית', () {
+    // רגרסיה: ב-overlay (מסך צר) רוחב הטקסט לא משתנה, ולכן ה-reanchor אסור
+    // שירוץ — ה-jumpTo שלו מבטל את אנימציית הניווט מבחירה בסרגל הצד ומשאיר
+    // את המשתמש במקום. ב-push (מסך רחב) הרוחב משתנה וה-reanchor נחוץ.
+
+    Future<int> pumpAndToggleLeftPane(
+      WidgetTester tester, {
+      required Size size,
+    }) async {
+      final book = TextBook(title: 'ספר בדיקה');
+      final loaded = _loadedState(book);
+      final bloc = _TestTextBookBloc(loaded);
+      final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+        await bloc.close();
+        await tabsBloc.close();
+        await settingsBloc.close();
+        tab.dispose();
+      });
+
+      await _setSurfaceSize(tester, size);
+      await _pumpTextBookScreen(
+        tester,
+        tab: tab,
+        textBookBloc: bloc,
+        tabsBloc: tabsBloc,
+        settingsBloc: settingsBloc,
+        focusRepository: focusRepository,
+        shamorZachorDataProvider: shamorZachorDataProvider,
+        shamorZachorProgressProvider: shamorZachorProgressProvider,
+        bookmarkBloc: bookmarkBloc,
+        personalNotesBloc: personalNotesBloc,
+        tourCubit: tourCubit,
+        isInCombinedView: false,
+      );
+      // מתן זמן ל-onLayoutModeChanged (post-frame) לעדכן את _paneUsesPushLayout
+      await tester.pump();
+
+      // פתיחת החלונית (false→true) מפעילה את בדיקת ה-reanchor
+      bloc.emitStateForTest(loaded.copyWith(showLeftPane: true));
+      await tester.pump();
+
+      final dynamic state = tester.state(find.byType(TextBookViewerBloc));
+      return state.reanchorOnPaneToggleCount as int;
+    }
+
+    testWidgets('במסך רחב (push) ה-reanchor רץ בפתיחת החלונית', (tester) async {
+      final count = await pumpAndToggleLeftPane(
+        tester,
+        size: const Size(1600, 900),
+      );
+      expect(count, greaterThan(0));
+    });
+
+    testWidgets('במסך צר (overlay) ה-reanchor מדוכא בפתיחת החלונית',
+        (tester) async {
+      final count = await pumpAndToggleLeftPane(
+        tester,
+        size: const Size(820, 900),
+      );
+      expect(count, 0);
+    });
+  });
+
   group('שמירת פוקוס מקלדת', () {
     testWidgets(
         'מסך הספר לא חוטף פוקוס משדה קלט בדיאלוג כשה-viewport משתנה (מקלדת וירטואלית)',
@@ -528,6 +599,8 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
   _TestTextBookBloc(super.initialState) {
     on<TextBookEvent>((event, emit) {});
   }
+
+  void emitStateForTest(TextBookState state) => emit(state);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
