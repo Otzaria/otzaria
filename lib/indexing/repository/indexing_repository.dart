@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' hide Category;
+import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/cache/generation_cache.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -104,6 +106,18 @@ class IndexingRepository {
     return parts.isEmpty ? null : parts.join(', ');
   }
 
+  /// המנוע רץ על אינדקס זמני (כשל בפתיחת אינדקס הדיסק) — אינדוקס במצב זה
+  /// היה נכתב לתיקייה זמנית ונזרק בהפעלה הבאה. מדווח למשתמש ומחזיר true.
+  Future<bool> _blockIndexingOnTempFallback() async {
+    // הדגל נקבע רק בסיום אתחול המנוע — בדיקה לפני ההמתנה הייתה מחמיצה
+    // כשל פתיחה שמתרחש בזמן שהאתחול עוד רץ.
+    await _tantivyDataProvider.engine;
+    if (!_tantivyDataProvider.isTempFallback) return false;
+    debugPrint('⚠️ המנוע על אינדקס זמני — האינדוקס מושהה כדי לא לאבד עבודה');
+    UiSnack.showError(LibraryMessages.searchIndexOpenFailed);
+    return true;
+  }
+
   /// האם הספר כבר מאונדקס — לפי המסמכים החיים שנקראו מהאינדקס עצמו.
   bool isBookIndexed(Book book) => _tantivyDataProvider.indexedFilePaths
       .contains(buildIndexedBookFilePath(book));
@@ -128,6 +142,8 @@ class IndexingRepository {
     void Function()? onActualIndexingStarted,
     required void Function(int processed, int total) onProgress,
   }) async {
+    if (await _blockIndexingOnTempFallback()) return false;
+
     final allBooks = orderBooksForIndexing(library.getAllBooks());
     final totalBooks = allBooks.length;
 
@@ -970,6 +986,7 @@ class IndexingRepository {
     required void Function(int processed, int total) onProgress,
   }) async {
     if (books.isEmpty) return true;
+    if (await _blockIndexingOnTempFallback()) return false;
 
     _tantivyDataProvider.isIndexing.value = true;
 
@@ -1258,6 +1275,7 @@ class IndexingRepository {
     @visibleForTesting
     Future<BigInt> Function(TextBook book, String text)? fingerprintOf,
   }) async {
+    if (await _blockIndexingOnTempFallback()) return false;
     if (await requiresManualReindex(library)) return false;
 
     final engine = await _tantivyDataProvider.engine;

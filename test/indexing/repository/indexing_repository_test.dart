@@ -615,6 +615,40 @@ void main() {
       expect(progressCalls, 0);
     });
 
+    test('מנוע על אינדקס זמני (temp fallback) — האינדוקס מושהה', () async {
+      // רגרסיה כפולה: כשל בפתיחת אינדקס הדיסק נפל בשקט לאינדקס זמני וכל
+      // האינדוקס נזרק בהפעלה הבאה; והדגל נבדק לפני שהאתחול הסתיים — כאן
+      // הדגל נדלק רק בהמתנה למנוע, כמו במציאות (אתחול שרץ ברקע).
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final engine = _RecordingSearchEngine();
+      final provider = _DelayedTempFallbackProvider(engine);
+      final library = Library(categories: []);
+      library.books.add(PdfBook(title: 'א', path: r'C:\missing\א.pdf'));
+      final repository = IndexingRepository(provider);
+      var progressCalls = 0;
+
+      final fullRun = await repository.indexAllBooks(
+        library,
+        onProgress: (_, _) => progressCalls++,
+      );
+      final specificRun = await repository.indexBooks(
+        library.books.cast<Book>(),
+        library,
+        onProgress: (_, _) => progressCalls++,
+      );
+      final reconcileRun = await repository.reconcileIndexWithLibrary(
+        library,
+        onProgress: (_, _) => progressCalls++,
+      );
+
+      expect(fullRun, isFalse);
+      expect(specificRun, isFalse);
+      expect(reconcileRun, isFalse);
+      expect(progressCalls, 0);
+      expect(engine.addedDocuments, isEmpty);
+      expect(provider.isIndexing.value, isFalse);
+    });
+
     test('לא מדלג ב-fast path כשנדרש manual reindex', () async {
       final library = _buildLibrary(bavliBooks: const [('שבת', 1)]);
       final indexedFilePaths = library
@@ -1027,6 +1061,9 @@ class FakeTantivyDataProvider implements TantivyDataProvider {
   final bool _requiresManualReindexValue;
 
   @override
+  bool isTempFallback = false;
+
+  @override
   final Set<String> indexedFilePaths;
 
   @override
@@ -1061,6 +1098,9 @@ class _RecordingTantivyDataProvider implements TantivyDataProvider {
   bool? lastReopenForce;
 
   @override
+  bool isTempFallback = false;
+
+  @override
   final Set<String> indexedFilePaths = {};
 
   /// כמו האמיתי: reader טרי + טעינת המעקב מחדש מהמצב החתום של האינדקס.
@@ -1089,6 +1129,19 @@ class _RecordingTantivyDataProvider implements TantivyDataProvider {
   @override
   dynamic noSuchMethod(Invocation invocation) {
     throw UnimplementedError('Unexpected call: $invocation');
+  }
+}
+
+/// מדמה אתחול מנוע שנופל ל-temp fallback: הדגל נדלק רק כשממתינים למנוע —
+/// כמו במציאות, שבה האתחול רץ ברקע והכשל מתגלה רק בסיומו.
+class _DelayedTempFallbackProvider extends _RecordingTantivyDataProvider {
+  _DelayedTempFallbackProvider(super.engine);
+
+  @override
+  Future<SearchEngine> get engine async {
+    await Future<void>.delayed(Duration.zero);
+    isTempFallback = true;
+    return super.engine;
   }
 }
 
