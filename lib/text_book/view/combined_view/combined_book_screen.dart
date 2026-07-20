@@ -1549,38 +1549,31 @@ class _CombinedViewState extends State<CombinedView> {
                       loadedState,
                       settingsState,
                     );
-                    final visibleText = visibleLines.join('\n');
-
-                    fixedPlain = restoreSelectedTextLineBreaks(
+                    final previousIndex = sessionSelectionIndex(
+                      savedSelectedText: _savedSelectedText.value,
+                      savedSelectedIndex: _savedSelectedIndex.value,
+                    );
+                    final restored = restoreSelectedTextLineBreaksDetailed(
                       selectedText: plain!,
                       visibleLines: visibleLines,
+                      preferredLine: previousIndex == null
+                          ? null
+                          : previousIndex - baseIndex,
                     );
+                    fixedPlain = restored.text;
 
-                    // מוצא את המיקום של הטקסט המודגש
-                    final selectionStart = visibleText.indexOf(fixedPlain);
-
-                    if (selectionStart >= 0) {
-                      // סופר כמה שורות יש לפני הטקסט המודגש
-                      final before = visibleText.substring(0, selectionStart);
-                      final offset = '\n'.allMatches(before).length;
-                      foundIndex = baseIndex + offset;
-                      // טווח השורות שהבחירה משתרעת עליהן — לזיהוי סלחני של לחיצה
-                      // ימנית על הבחירה (כולל ברווח שבין שורות נבחרות).
-                      _selectionLineStart = foundIndex;
-                      _selectionLineEnd =
-                          foundIndex + '\n'.allMatches(fixedPlain).length;
-                      // עמודת ההתחלה של הבחירה בשורה הראשונה — רמז לזיהוי המופע
-                      // הנכון כאשר אותו טקסט חוזר באותה שורה.
-                      _selectionStartColumn =
-                          selectionStart - (before.lastIndexOf('\n') + 1);
-                    } else {
-                      _selectionLineStart = null;
-                      _selectionLineEnd = null;
-                      _selectionStartColumn = null;
-                    }
-
-                    // fallback: אם לא הצלחנו לחשב אינדקס, נשתמש בשורה שנבחרה (אם קיימת)
-                    foundIndex ??= loadedState.selectedIndex;
+                    final location = resolveSelectionLocation(
+                      restored: restored,
+                      baseIndex: baseIndex,
+                      fallbackIndex: loadedState.selectedIndex,
+                    );
+                    foundIndex = location.selectedIndex;
+                    // טווח השורות שהבחירה משתרעת עליהן — לזיהוי סלחני של לחיצה
+                    // ימנית על הבחירה, ועמודת ההתחלה — רמז לזיהוי המופע הנכון
+                    // כשאותו טקסט חוזר באותה שורה.
+                    _selectionLineStart = location.lineStart;
+                    _selectionLineEnd = location.lineEnd;
+                    _selectionStartColumn = location.startColumn;
                   }
 
                   if (mounted) {

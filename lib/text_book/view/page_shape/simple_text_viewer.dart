@@ -1089,35 +1089,31 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         )
         .toList();
 
-    final restoredText = restoreSelectedTextLineBreaks(
+    final baseIndex = sourceIndices.isNotEmpty ? sourceIndices.first : 0;
+    final previousIndex = sessionSelectionIndex(
+      savedSelectedText: _savedSelectedText,
+      savedSelectedIndex: _savedSelectedIndex,
+    );
+    final restored = restoreSelectedTextLineBreaksDetailed(
       selectedText: persistedText!,
       visibleLines: renderedLines,
+      preferredLine: previousIndex == null ? null : previousIndex - baseIndex,
     );
+    final restoredText = restored.text;
 
-    int? selectedIndex = _savedSelectedIndex;
-    int? lineStart;
-    int? lineEnd;
-    int? startColumn;
-    final visibleText = renderedLines.join('\n');
-    final selectionStart = visibleText.indexOf(restoredText);
-    if (selectionStart >= 0 && sourceIndices.isNotEmpty) {
-      final before = visibleText.substring(0, selectionStart);
-      selectedIndex = sourceIndices.first + '\n'.allMatches(before).length;
-      // השורה הראשונה והאחרונה שהבחירה משתרעת עליהן (לפי מעברי השורה בתוכה).
-      lineStart = selectedIndex;
-      lineEnd = selectedIndex + '\n'.allMatches(restoredText).length;
-      // עמודת ההתחלה של הבחירה בתוך השורה הראשונה — רמז לזיהוי המופע הנכון
-      // כאשר אותו טקסט חוזר באותה שורה.
-      startColumn = selectionStart - (before.lastIndexOf('\n') + 1);
-    }
+    final location = resolveSelectionLocation(
+      restored: restored,
+      baseIndex: baseIndex,
+      fallbackIndex: previousIndex,
+    );
 
     if (!mounted) return;
     setState(() {
       _savedSelectedText = restoredText;
-      _savedSelectedIndex = selectedIndex;
-      _selectionLineStart = lineStart;
-      _selectionLineEnd = lineEnd;
-      _selectionStartColumn = startColumn;
+      _savedSelectedIndex = location.selectedIndex;
+      _selectionLineStart = location.lineStart;
+      _selectionLineEnd = location.lineEnd;
+      _selectionStartColumn = location.startColumn;
     });
     _prefetchDictionaryLookups(restoredText);
   }
