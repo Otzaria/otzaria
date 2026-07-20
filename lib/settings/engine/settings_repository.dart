@@ -50,7 +50,6 @@ class SettingsRepository {
   static const String keyTalmudBavliOpenFormat = 'key-talmud-bavli-open-format';
   static const String keyOfflineMode = 'key-offline-mode';
   static const String keyAutoSync = 'key-auto-sync';
-  static const String keyAutoSyncCatalogs = 'key-auto-sync-catalogs';
   static const String keySoftwareAndBookUpdatesEnabled =
       'key-software-and-book-updates-enabled';
   static const String keyErrorReportSenderEmail =
@@ -301,13 +300,6 @@ class SettingsRepository {
       'isOfflineMode': _settings.getValue<bool>(
         keyOfflineMode,
         defaultValue: false,
-      ),
-      'autoSyncCatalogs': _settings.getValue<bool>(
-        keyAutoSyncCatalogs,
-        defaultValue: _settings.getValue<bool>(
-          keyShowExternalBooks,
-          defaultValue: false,
-        ),
       ),
       'softwareAndBookUpdatesEnabled': _settings.getValue<bool>(
         keySoftwareAndBookUpdatesEnabled,
@@ -572,10 +564,6 @@ class SettingsRepository {
 
   Future<void> updateOfflineMode(bool value) async {
     await _settings.setValue(keyOfflineMode, value);
-  }
-
-  Future<void> updateAutoSyncCatalogs(bool value) async {
-    await _settings.setValue(keyAutoSyncCatalogs, value);
   }
 
   Future<void> updateSoftwareAndBookUpdatesEnabled(bool value) async {

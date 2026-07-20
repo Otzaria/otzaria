@@ -7,7 +7,6 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/empty_library/empty_library_screen.dart';
-import 'package:otzaria/external_catalog/view/external_catalog_settings_helper.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
@@ -285,14 +284,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     _topBarTotalHeight = ValueNotifier<double>(0);
     context.read<LibraryBloc>().add(LoadLibrary());
     _syncLibraryPanelController();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      unawaited(
-        ExternalCatalogSettingsHelper.maybeAutoSyncCatalogs(
-          context.read<SettingsBloc>().state,
-        ),
-      );
-    });
   }
 
   @override
@@ -368,13 +359,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               context.read<LibraryBloc>().add(SelectBookForPreview(book));
             }
           },
-        ),
-        BlocListener<SettingsBloc, SettingsState>(
-          listenWhen: (p, c) =>
-              p.showExternalBooks != c.showExternalBooks ||
-              p.autoSyncCatalogs != c.autoSyncCatalogs,
-          listener: (ctx, s) =>
-              unawaited(ExternalCatalogSettingsHelper.maybeAutoSyncCatalogs(s)),
         ),
         BlocListener<SettingsBloc, SettingsState>(
           listenWhen: (p, c) =>

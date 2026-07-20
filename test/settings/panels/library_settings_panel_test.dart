@@ -15,13 +15,13 @@ class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
     bool showExternalBooks = false,
     bool showOtzarHachochma = false,
     bool showHebrewBooks = false,
-    bool autoSyncCatalogs = false,
-  }) : super(SettingsState.initial().copyWith(
-          showExternalBooks: showExternalBooks,
-          showOtzarHachochma: showOtzarHachochma,
-          showHebrewBooks: showHebrewBooks,
-          autoSyncCatalogs: autoSyncCatalogs,
-        )) {
+  }) : super(
+         SettingsState.initial().copyWith(
+           showExternalBooks: showExternalBooks,
+           showOtzarHachochma: showOtzarHachochma,
+           showHebrewBooks: showHebrewBooks,
+         ),
+       ) {
     on<SettingsEvent>((event, emit) {
       dispatched.add(event);
       if (event is UpdateShowExternalBooks) {
@@ -30,8 +30,6 @@ class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
         emit(state.copyWith(showOtzarHachochma: event.showOtzarHachochma));
       } else if (event is UpdateShowHebrewBooks) {
         emit(state.copyWith(showHebrewBooks: event.showHebrewBooks));
-      } else if (event is UpdateAutoSyncCatalogs) {
-        emit(state.copyWith(autoSyncCatalogs: event.autoSyncCatalogs));
       }
     });
   }
@@ -40,15 +38,17 @@ class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
   dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
 
-Widget _wrap(SettingsBloc settingsBloc) {
+Widget _wrap(SettingsBloc settingsBloc, {bool catalogExists = true}) {
   return MaterialApp(
     home: Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         body: BlocProvider<SettingsBloc>.value(
           value: settingsBloc,
-          child: const SingleChildScrollView(
-            child: LibrarySettingsPanel(),
+          child: SingleChildScrollView(
+            child: LibrarySettingsPanel(
+              catalogExistsChecker: () async => catalogExists,
+            ),
           ),
         ),
       ),
@@ -69,63 +69,61 @@ void main() {
   });
 
   testWidgets('מציג "הצג הכל" כששני המקורות מופעלים', (tester) async {
-    await tester.pumpWidget(_wrap(_FakeSettingsBloc(
-      showExternalBooks: true,
-      showOtzarHachochma: true,
-      showHebrewBooks: true,
-    )));
+    await tester.pumpWidget(
+      _wrap(
+        _FakeSettingsBloc(
+          showExternalBooks: true,
+          showOtzarHachochma: true,
+          showHebrewBooks: true,
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('הצג הכל'), findsOneWidget);
     expect(
       find.text(
-          'יוצגו ספרים מאוצר החכמה ומהיברובוקס בתוצאות החיפוש במסך הספרייה'),
+        'יוצגו ספרים מאוצר החכמה ומהיברובוקס בתוצאות החיפוש במסך הספרייה',
+      ),
       findsOneWidget,
     );
   });
 
   testWidgets('מציג "אוצר החכמה בלבד" כשרק אוצר החכמה מופעל', (tester) async {
-    await tester.pumpWidget(_wrap(_FakeSettingsBloc(
-      showExternalBooks: true,
-      showOtzarHachochma: true,
-    )));
+    await tester.pumpWidget(
+      _wrap(
+        _FakeSettingsBloc(
+          showExternalBooks: true,
+          showOtzarHachochma: true,
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('אוצר החכמה בלבד'), findsOneWidget);
   });
 
   testWidgets('מציג "היברובוקס בלבד" כשרק היברובוקס מופעל', (tester) async {
-    await tester.pumpWidget(_wrap(_FakeSettingsBloc(
-      showExternalBooks: true,
-      showHebrewBooks: true,
-    )));
+    await tester.pumpWidget(
+      _wrap(
+        _FakeSettingsBloc(
+          showExternalBooks: true,
+          showHebrewBooks: true,
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('היברובוקס בלבד'), findsOneWidget);
   });
 
-  testWidgets('שורת הסנכרון האוטומטי מוצגת רק כשהצגת חיצוניים מופעלת',
-      (tester) async {
-    await tester.pumpWidget(_wrap(_FakeSettingsBloc()));
-    await tester.pumpAndSettle();
-    expect(find.text('סנכרון קטלוגים אוטומטי'), findsNothing);
-
-    await tester.pumpWidget(_wrap(_FakeSettingsBloc(
-      showExternalBooks: true,
-      showOtzarHachochma: true,
-    )));
-    await tester.pumpAndSettle();
-    expect(find.text('סנכרון קטלוגים אוטומטי'), findsOneWidget);
-  });
-
   testWidgets(
-    'בחירת "אל תציג" מכבה את כל המקורות ואת הסנכרון האוטומטי',
+    'בחירת "אל תציג" מכבה את כל המקורות',
     (tester) async {
       final settingsBloc = _FakeSettingsBloc(
         showExternalBooks: true,
         showOtzarHachochma: true,
         showHebrewBooks: true,
-        autoSyncCatalogs: true,
       );
 
       await tester.pumpWidget(_wrap(settingsBloc));
@@ -139,7 +137,16 @@ void main() {
       expect(settingsBloc.state.showExternalBooks, isFalse);
       expect(settingsBloc.state.showOtzarHachochma, isFalse);
       expect(settingsBloc.state.showHebrewBooks, isFalse);
-      expect(settingsBloc.state.autoSyncCatalogs, isFalse);
     },
   );
+
+  testWidgets('כשהקטלוג חסר — מוצג כפתור הורדה במקום התפריט', (tester) async {
+    await tester.pumpWidget(_wrap(_FakeSettingsBloc(), catalogExists: false));
+    await tester.pumpAndSettle();
+
+    expect(find.text('הורד קטלוג'), findsOneWidget);
+    expect(find.textContaining('חסר במערכת'), findsOneWidget);
+    // תפריט המקורות אינו מוצג כשאין קטלוג.
+    expect(find.text('אל תציג'), findsNothing);
+  });
 }
