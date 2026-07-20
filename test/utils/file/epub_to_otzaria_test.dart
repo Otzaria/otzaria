@@ -155,6 +155,28 @@ void main() {
     });
   });
 
+  group('epubToText - קידוד', () {
+    test('פרק בקידוד UTF-16LE (עם BOM) מפוענח לעברית תקינה', () {
+      final xhtml = _xhtml('<p>בדיקת קידוד</p>');
+      final utf16Bytes = <int>[0xFF, 0xFE];
+      for (final unit in xhtml.codeUnits) {
+        utf16Bytes.add(unit & 0xFF);
+        utf16Bytes.add((unit >> 8) & 0xFF);
+      }
+      final epub = _buildEpub(
+        chapters: {},
+        binaryFiles: {'ch1.xhtml': utf16Bytes},
+        extraManifest:
+            '<item id="u16" href="ch1.xhtml" '
+            'media-type="application/xhtml+xml"/>',
+        extraSpine: '<itemref idref="u16"/>',
+      );
+      final result = epubToText(epub, 'ספר');
+
+      expect(result, contains('בדיקת קידוד'));
+    });
+  });
+
   group('epubToText - כותרות', () {
     test('כותרות מוסטות רמה אחת מטה (h1 בפרק → h2) לטובת תוכן העניינים', () {
       final epub = _buildEpub(

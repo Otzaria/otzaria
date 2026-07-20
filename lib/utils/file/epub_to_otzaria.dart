@@ -7,16 +7,12 @@ import 'package:html/parser.dart' as html_parser;
 import 'package:xml/xml.dart' as xml;
 
 import 'package:otzaria/utils/file/docx_to_otzaria.dart' show escapeHtmlText;
+import 'package:otzaria/utils/file/text_encoding.dart'
+    show decodeTextBytesSmart;
 
-/// גרסת הממיר [epubToText]. **חובה להעלות ערך זה בכל שינוי שמשפיע על הפלט**
-/// (עיצוב, כותרות, תמונות, טבלאות…). מטמון התוכן כולל את הגרסה במפתח-התוקף:
-/// העלאה כאן פוסלת אוטומטית רשומות ישנות וגורמת להמרה מחדש.
-/// v2: הערות שוליים מבוססות-קישור (בלי epub:type) — זיהוי היריסטי לפי
-/// טקסט-סַמָּן, הזרקה חוצת-פרקים (קובץ הערות נפרד), ודיכוי כפילות היעד.
-/// v3: סינון קישורים חיצוניים (scheme), תקרת גודל לתמונות מוטמעות,
-/// וטבלאות מקוננות — שורות ישירות בלבד + רינדור רקורסיבי בתאים.
-/// v4: אבטחה — colspan/rowspan עוברים אימות מספרי (מניעת הזרקת HTML).
-const int kEpubConverterVersion = 4;
+/// גרסת הממיר [epubToText] — **חובה להעלות בכל שינוי שמשפיע על הפלט**:
+/// מטמון התוכן כולל את הגרסה במפתח-התוקף, והעלאה פוסלת רשומות ישנות.
+const int kEpubConverterVersion = 5;
 
 /// ממיר קובץ EPUB לפורמט הטקסט של אוצריא: שורת `<h1>` עם שם הספר, ואחריה
 /// שורה לכל בלוק (פסקה/כותרת/טבלה/תמונה) לפי סדר פרקי ה-spine.
@@ -49,7 +45,7 @@ String epubToText(Uint8List bytes, String title) {
 
   final xml.XmlDocument opf;
   try {
-    opf = xml.XmlDocument.parse(_decodeUtf8(opfBytes));
+    opf = xml.XmlDocument.parse(_decodeBytes(opfBytes));
   } catch (_) {
     return output.join('\n');
   }
@@ -72,7 +68,7 @@ String epubToText(Uint8List bytes, String title) {
 
     final dom.Document doc;
     try {
-      doc = html_parser.parse(_decodeUtf8(chapterBytes));
+      doc = html_parser.parse(_decodeBytes(chapterBytes));
     } catch (_) {
       continue; // פרק פגום — ממשיכים לפרק הבא במקום לקרוס.
     }
@@ -145,6 +141,9 @@ class _EpubContext {
   /// יעדי הערות שגופן מוזרק בנקודת ההפניה — מדולגים ברינדור (מניעת כפילות).
   final Set<dom.Element> consumedNotes = {};
 
+  /// מטמון סיווג ההפניות — הסריקה המקדימה והרינדור עוברים על אותם קישורים.
+  final Map<dom.Element, _NoterefResolution?> noterefCache = {};
+
   String baseDir = '';
   String chapterPath = '';
   int footnoteCounter = 1;
@@ -152,7 +151,10 @@ class _EpubContext {
   _EpubContext({required this.files, required this.images});
 }
 
-String _decodeUtf8(List<int> bytes) => utf8.decode(bytes, allowMalformed: true);
+/// פענוח בייטים לטקסט עם זיהוי BOM/UTF-16 — EPUB רשאי להישמר גם ב-UTF-16.
+String _decodeBytes(List<int> bytes) => decodeTextBytesSmart(
+  bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
+);
 
 /// מנרמל נתיב בתוך הארכיון: מפריד `/`, פתרון `.`/`..`, והסרת `/` מוביל.
 String _normalizePath(String path) {
@@ -202,7 +204,7 @@ String? _findOpfPath(_ArchiveFiles files) {
   final containerBytes = files.read('META-INF/container.xml');
   if (containerBytes != null) {
     try {
-      final doc = xml.XmlDocument.parse(_decodeUtf8(containerBytes));
+      final doc = xml.XmlDocument.parse(_decodeBytes(containerBytes));
       for (final rootfile in _elementsByLocal(doc, 'rootfile')) {
         final fullPath = rootfile.getAttribute('full-path');
         if (fullPath != null && fullPath.isNotEmpty) {
@@ -352,7 +354,10 @@ class _NoterefResolution {
 /// `epub:type="noteref"` מפורש; יעד שהוא הערה סמנטית (`epub:type="footnote"`);
 /// או היריסטיקה — טקסט-סַמָּן קצר ([_isNoteMarkerText]) שמצביע לעוגן קיים
 /// ולא-ארוך. מחזיר null כשהקישור אינו הערה.
-_NoterefResolution? _resolveNoteref(dom.Element a, _EpubContext ctx) {
+_NoterefResolution? _resolveNoteref(dom.Element a, _EpubContext ctx) =>
+    ctx.noterefCache.putIfAbsent(a, () => _resolveNoterefUncached(a, ctx));
+
+_NoterefResolution? _resolveNoterefUncached(dom.Element a, _EpubContext ctx) {
   final href = a.attributes['href'] ?? '';
   final hash = href.indexOf('#');
   final id = hash >= 0 ? href.substring(hash + 1) : '';
@@ -407,7 +412,11 @@ String _extractNoteBody(dom.Element target, String marker) {
 
 final _whitespaceRun = RegExp(r'[ \t\r\n\f]+');
 
-String _collapseWhitespace(String s) => s.replaceAll(_whitespaceRun, ' ');
+/// רק כשיש באמת מה לכווץ — רווח בודד רגיל אינו מצדיק אלוקציה.
+final _collapsibleWhitespace = RegExp(r'[\t\r\n\f]| {2,}');
+
+String _collapseWhitespace(String s) =>
+    s.contains(_collapsibleWhitespace) ? s.replaceAll(_whitespaceRun, ' ') : s;
 
 const _blockTags = {
   'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'section', 'article',
