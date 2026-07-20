@@ -363,7 +363,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                                         for (final idx in group.indices)
                                           ListTile(
                                             key: tourSettingsTabTargetKeys[idx],
-                                            leading: Icon(
+                                            leading: RtlIcon(
                                               _tabsData[idx].icon,
                                               color: colorScheme.primary,
                                             ),

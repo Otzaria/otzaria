@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
@@ -406,6 +407,7 @@ class _PersonalNotesManagerScreenState
                 icon: _dateRange != null
                     ? FluentIcons.calendar_checkmark_24_filled
                     : FluentIcons.calendar_24_regular,
+                flipInRtl: true,
                 onPressed: _pickDateRange,
               ),
             ),
@@ -1050,7 +1052,7 @@ class _PersonalNotesManagerScreenState
       ),
       child: Row(
         children: [
-          Icon(
+          RtlIcon(
             FluentIcons.calendar_24_regular,
             size: 18,
             color: cs.onSecondaryContainer,
@@ -1315,7 +1317,8 @@ class _PersonalNotesManagerScreenState
       return;
     }
 
-    final book = library.findBookByTitle(note.bookId, TextBook) ??
+    final book =
+        library.findBookByTitle(note.bookId, TextBook) ??
         library.findBookByTitle(note.bookId, null);
     if (book == null) {
       UiSnack.show(NotesMessages.bookNotFound(note.bookId));
@@ -1387,7 +1390,7 @@ class _InfoChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 12, color: foregroundColor),
+            RtlIcon(icon, size: 12, color: foregroundColor),
             const SizedBox(width: 6),
             Flexible(
               child: Text(

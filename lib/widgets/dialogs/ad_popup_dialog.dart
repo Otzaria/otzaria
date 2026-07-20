@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/services/ad_popup_service.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 
@@ -300,7 +301,7 @@ class _AdPopupDialogState extends State<AdPopupDialog>
                 value: 'week',
                 child: Row(
                   children: [
-                    Icon(FluentIcons.calendar_24_regular, size: 20),
+                    RtlIcon(FluentIcons.calendar_24_regular, size: 20),
                     SizedBox(width: 12),
                     Text('למשך שבוע'),
                   ],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import '../../models/books.dart';
 import '../../utils/navigation/otzar_utils.dart';
 import '../../core/ui_snack.dart';
@@ -114,7 +115,7 @@ class OtzarBookDialog extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
+          RtlIcon(
             icon,
             size: 20,
             color: Theme.of(context).colorScheme.secondary,

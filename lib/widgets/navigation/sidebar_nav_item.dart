@@ -179,7 +179,7 @@ class TopNavItem extends StatelessWidget {
               opacity: animation,
               child: ScaleTransition(scale: animation, child: child),
             ),
-            child: Icon(
+            child: RtlIcon(
               isSelected && iconFilled != null ? iconFilled! : icon!,
               key: ValueKey<bool>(isSelected),
               size: 20,

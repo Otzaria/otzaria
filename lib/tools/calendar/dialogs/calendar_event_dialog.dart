@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kosher_dart/kosher_dart.dart';
@@ -710,7 +711,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 18),
+              RtlIcon(icon, size: 18),
               const SizedBox(width: 8),
               Text(label),
               if (trailing != null) ...[const SizedBox(width: 4), trailing],
@@ -899,7 +900,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
               // תחילת האירוע — תאריך + שעה מאוחדים.
               // מיקום הכפתורים והגלישה שלהם מנוהלים ע"י SettingsActionTile.
               SettingsActionTile.text(
-                icon: FluentIcons.calendar_24_regular,
+                rtlIcon: FluentIcons.calendar_24_regular,
                 title: 'תחילת האירוע',
                 subtitle: _startSubtitle(),
                 actions: [

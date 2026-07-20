@@ -196,7 +196,7 @@ class BuiltInToolDescriptor extends ToolDescriptor {
     }
     return SizedBox(
       width: 100,
-      child: Tab(text: label, icon: Icon(icon, size: 20)),
+      child: Tab(text: label, icon: RtlIcon(icon!, size: 20)),
     );
   }
 
@@ -257,7 +257,7 @@ class PluginToolDescriptor extends ToolDescriptor {
       width: 100,
       child: Tab(
         text: label,
-        icon: iconData != null ? Icon(iconData, size: 20) : null,
+        icon: iconData != null ? RtlIcon(iconData, size: 20) : null,
       ),
     );
   }
@@ -944,10 +944,10 @@ class ToolsScreenState extends State<ToolsScreen>
             color: cs.primary,
           );
         }
-        return Icon(descriptor.icon, color: cs.primary);
+        return RtlIcon(descriptor.icon!, color: cs.primary);
       }
       if (descriptor is PluginToolDescriptor) {
-        return Icon(descriptor._pluginIcon, color: cs.primary);
+        return RtlIcon(descriptor._pluginIcon, color: cs.primary);
       }
       return Icon(FluentIcons.puzzle_piece_24_regular, color: cs.primary);
     }

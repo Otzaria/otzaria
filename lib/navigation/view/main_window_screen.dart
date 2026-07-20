@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:collection/collection.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -169,7 +170,7 @@ class _PinnedToolNavItem {
     if (imageAsset != null) {
       return ImageIcon(AssetImage(imageAsset!), size: 24);
     }
-    return Icon(icon);
+    return RtlIcon(icon!);
   }
 }
 
@@ -1341,9 +1342,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
           preferBelow: false,
           message: (ShortcutValidator.getShortcutValue(item.shortcutKey) ?? '')
               .toUpperCase(),
-          child: Icon(item.icon),
+          child: RtlIcon(item.icon),
         ),
-        selectedIcon: Icon(item.iconFilled),
+        selectedIcon: RtlIcon(item.iconFilled),
         label: item.label,
       );
     }

@@ -27,6 +27,7 @@ import 'package:otzaria/tools/calendar/dialogs/jump_to_date_dialog.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_date_picker_panel.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_side_panel.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -818,8 +819,8 @@ class _CalendarTopBarState extends State<CalendarTopBar>
       children: [
         _ViewBtn(
           label: 'שבוע',
-          regularIcon: FluentIcons.calendar_week_numbers_24_regular,
-          filledIcon: FluentIcons.calendar_week_numbers_24_filled,
+          regularIcon: FluentIcons.calendar_week_start_24_regular,
+          filledIcon: FluentIcons.calendar_week_start_24_filled,
           selected: state.calendarView == CalendarView.week,
           onPressed: _withClose(() => widget.onViewChanged(CalendarView.week)),
         ),
@@ -891,7 +892,7 @@ class _ViewBtn extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
+              RtlIcon(
                 selected ? filledIcon : regularIcon,
                 size: 16,
                 color: fg,

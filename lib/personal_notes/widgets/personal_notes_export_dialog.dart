@@ -4,6 +4,7 @@ import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
 enum NotesExportMode {
   all,
@@ -147,7 +148,7 @@ class _PersonalNotesExportDialogState extends State<PersonalNotesExportDialog> {
                       ? 'בחר טווח תאריכים'
                       : '${_dateRange!.start.toString().split(' ').first} - ${_dateRange!.end.toString().split(' ').first}',
                 ),
-                trailing: const Icon(FluentIcons.calendar_24_regular),
+                trailing: const RtlIcon(FluentIcons.calendar_24_regular),
                 onTap: () async {
                   final picked = await showDateRangePicker(
                     context: context,

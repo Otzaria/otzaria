@@ -1,4 +1,5 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -407,7 +408,7 @@ class _EventMetaChip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 12, color: foregroundColor),
+              RtlIcon(icon, size: 12, color: foregroundColor),
               const SizedBox(width: 6),
               Flexible(
                 child: Text(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
@@ -941,7 +942,7 @@ class _ShortcutTile extends StatelessWidget {
         subtitle: subtitle,
         selected: ShortcutValidator.defaultShortcuts[settingKey] ?? '',
         allShortcuts: allShortcuts,
-        leading: Icon(icon),
+        leading: RtlIcon(icon),
       ),
     );
   }
