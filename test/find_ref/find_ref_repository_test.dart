@@ -948,6 +948,142 @@ void main() {
     });
 
     test(
+      'כתיב מקוצר "ירמיה ג" — שם הספר נבלע וה-TOC מחפש רק את המיקום',
+      () async {
+        // "ירמיה" תופס את "ירמיהו" כ-prefix (rank 1), אבל אינו שווה לטוקן
+        // הכותרת — בלי בליעת-prefix הוא נשאר בטוקני ה-TOC ומפיל את החיפוש.
+        List<String>? tocTokens;
+
+        final repo = FindRefRepository(
+          dataRepository: MockDataRepository(),
+          isReferenceBooksCacheLoaded: () => true,
+          warmUpReferenceBooksCache: () async {},
+          getCategoryPath: (_) async => '',
+          searchReferenceBooks: (query, {int limit = 50}) {
+            if (query == 'ירמיה') {
+              return [
+                _hit(
+                  bookId: 13,
+                  title: 'ירמיהו',
+                  normalizedTitle: 'ירמיהו',
+                  matchRank: 1,
+                ),
+              ];
+            }
+            return const <ReferenceBookHit>[];
+          },
+          getTocEntriesForReference: (bookId, bookTitle, {queryTokens}) async {
+            tocTokens = queryTokens;
+            return [
+              {'reference': 'ירמיהו פרק ג', 'segment': 7, 'level': 1},
+            ];
+          },
+        );
+
+        final results = await repo.findRefs('ירמיה ג');
+
+        expect(
+          tocTokens,
+          equals(const ['ג']),
+          reason: 'טוקן שם-הספר המקוצר נבלע ואינו מגיע לחיפוש ה-TOC',
+        );
+        expect(results.map((r) => r.reference), contains('ירמיהו פרק ג'));
+      },
+    );
+
+    test(
+      'hit משני שנתפס ב-phrase ארוך — בליעת ה-prefix לפי ה-n שלו עצמו',
+      () async {
+        // "אור החי" תופס את "פירוש אור החיים" כ-contains (n=2, משני), ואז
+        // "אור" תופס ספר ראשי (n=1). בליעת "החי" חייבת את n=2 של ההיט המשני.
+        final tocTokensByBook = <int, List<String>?>{};
+
+        final repo = FindRefRepository(
+          dataRepository: MockDataRepository(),
+          isReferenceBooksCacheLoaded: () => true,
+          warmUpReferenceBooksCache: () async {},
+          getCategoryPath: (_) async => '',
+          searchReferenceBooks: (query, {int limit = 50}) {
+            if (query == 'אור החי') {
+              return [
+                _hit(
+                  bookId: 51,
+                  title: 'פירוש אור החיים',
+                  normalizedTitle: 'פירוש אור החיים',
+                  matchRank: 2,
+                ),
+              ];
+            }
+            if (query == 'אור') {
+              return [
+                _hit(
+                  bookId: 50,
+                  title: 'אור',
+                  normalizedTitle: 'אור',
+                  matchRank: 0,
+                ),
+              ];
+            }
+            return const <ReferenceBookHit>[];
+          },
+          getTocEntriesForReference: (bookId, bookTitle, {queryTokens}) async {
+            tocTokensByBook[bookId] = queryTokens;
+            return const [];
+          },
+        );
+
+        await repo.findRefs('אור החי ג');
+
+        expect(
+          tocTokensByBook[51],
+          equals(const ['ג']),
+          reason: '"החי" נבלע בכותרת "אור החיים" לפי ה-phrase המשני (n=2)',
+        );
+      },
+    );
+
+    test(
+      'טוקן מיקום שאינו חלק מהתאמת שם-הספר לא נבלע כתחילית של מילת כותרת',
+      () async {
+        // "אברה" (4 אותיות) הוא תחילית של "אברהם" בכותרת, אבל אינו חלק
+        // מה-phrase שתפס את הספר ("מגן") — חייב להישאר לחיפוש ה-TOC.
+        List<String>? tocTokens;
+
+        final repo = FindRefRepository(
+          dataRepository: MockDataRepository(),
+          isReferenceBooksCacheLoaded: () => true,
+          warmUpReferenceBooksCache: () async {},
+          getCategoryPath: (_) async => '',
+          searchReferenceBooks: (query, {int limit = 50}) {
+            if (query == 'מגן') {
+              return [
+                _hit(
+                  bookId: 77,
+                  title: 'מגן אברהם',
+                  normalizedTitle: 'מגן אברהם',
+                  matchRank: 1,
+                ),
+              ];
+            }
+            return const <ReferenceBookHit>[];
+          },
+          getTocEntriesForReference: (bookId, bookTitle, {queryTokens}) async {
+            tocTokens = queryTokens;
+            return const [];
+          },
+        );
+
+        await repo.findRefs('מגן אברה');
+
+        expect(
+          tocTokens,
+          equals(const ['אברה']),
+          reason: 'בליעת-prefix מוגבלת לטוקני התאמת שם-הספר בלבד',
+        );
+      },
+    );
+
+    test(
       'שאילתה מקוצרת "ראש ברכות ג ה" — ה\' הידיעה לא מפילה את חיפוש ה-TOC',
       () async {
         // "ראש" תופס את "פסקי הרא"ש על ברכות" כ-contains (rank 2), "ברכות" מזוהה
