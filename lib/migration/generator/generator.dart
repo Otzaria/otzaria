@@ -435,12 +435,13 @@ class DatabaseGenerator {
 
     if (ext == '.docx' || ext == '.epub') {
       final title = path.basenameWithoutExtension(bookPath);
-      final bytes = await File(bookPath).readAsBytes();
-      final content = await Isolate.run(
-        () => ext == '.docx'
+      // הקריאה בתוך ה-isolate — נמנעת העתקת buffer גדול בין isolates.
+      final content = await Isolate.run(() {
+        final bytes = File(bookPath).readAsBytesSync();
+        return ext == '.docx'
             ? docxToText(bytes, title)
-            : epubToText(bytes, title),
-      );
+            : epubToText(bytes, title);
+      });
       final lines = content.split('\n');
 
       await processLinesWithTocEntries(bookId, lines);

@@ -140,6 +140,18 @@ void main() {
       expect(result, isNot(contains('עמוד שער')));
     });
 
+    test('spine שמפנה לאותו פרק פעמיים אינו מכפיל את התוכן', () {
+      final epub = _buildEpub(
+        chapters: {
+          'ch1.xhtml': _xhtml('<p>תוכן יחיד</p>'),
+        },
+        spineOrder: ['ch1.xhtml', 'ch1.xhtml'],
+      );
+      final result = epubToText(epub, 'ספר');
+
+      expect(RegExp('תוכן יחיד').allMatches(result).length, 1);
+    });
+
     test('מסמך הניווט (properties="nav") מדולג', () {
       final epub = _buildEpub(
         chapters: {
@@ -505,6 +517,23 @@ void main() {
 
       expect(result, contains('<sup class="footnote-marker">א</sup>'));
       expect(result, contains('<i class="footnote">מקור הדין</i>'));
+    });
+
+    test('קישור-סַמָּן לכותרת אינו הופך אותה להערה — הכותרת נשמרת', () {
+      final epub = _buildEpub(
+        chapters: {
+          'ch1.xhtml': _xhtml(
+            '<p>ראה סימן<a href="#sec">א</a>.</p>'
+            '<h2 id="sec">קצר</h2>'
+            '<p>תוכן הסימן.</p>',
+          ),
+        },
+      );
+      final result = epubToText(epub, 'ספר');
+
+      expect(result, contains('<h3>קצר</h3>'));
+      expect(result, isNot(contains('footnote-marker')));
+      expect(RegExp('קצר').allMatches(result).length, 1);
     });
 
     test('קישור עם טקסט ארוך (ניווט פנימי) אינו מזוהה כהערה והיעד נשמר', () {

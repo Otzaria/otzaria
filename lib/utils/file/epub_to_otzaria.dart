@@ -12,7 +12,7 @@ import 'package:otzaria/utils/file/text_encoding.dart'
 
 /// גרסת הממיר [epubToText] — **חובה להעלות בכל שינוי שמשפיע על הפלט**:
 /// מטמון התוכן כולל את הגרסה במפתח-התוקף, והעלאה פוסלת רשומות ישנות.
-const int kEpubConverterVersion = 7;
+const int kEpubConverterVersion = 8;
 
 /// ממיר קובץ EPUB לפורמט הטקסט של אוצריא: שורת `<h1>` עם שם הספר, ואחריה
 /// שורה לכל בלוק (פסקה/כותרת/טבלה/תמונה) לפי סדר פרקי ה-spine.
@@ -192,6 +192,8 @@ String _resolveHref(String baseDir, String href) {
     h = Uri.decodeFull(h);
   } catch (_) {}
   if (h.isEmpty) return '';
+  // נתיב שורש-מוחלט ('/x') נפתר משורש הארכיון, לא מתיקיית הפרק.
+  if (h.startsWith('/')) return _normalizePath(h);
   return _normalizePath(baseDir.isEmpty ? h : '$baseDir/$h');
 }
 
@@ -251,12 +253,15 @@ List<String> _parseSpine(
   Map<String, _ManifestItem> manifest,
 ) {
   final result = <String>[];
+  final seen = <String>{};
   for (final itemref in _elementsByLocal(opf, 'itemref')) {
     if (itemref.getAttribute('linear') == 'no') continue;
     final idref = itemref.getAttribute('idref');
     final item = idref != null ? manifest[idref] : null;
     if (item == null) continue;
     if (item.properties.split(' ').contains('nav')) continue;
+    // spine פגום שמפנה לאותו קובץ פעמיים — בלי הסינון התוכן היה מוכפל.
+    if (!seen.add(item.path)) continue;
     result.add(item.path);
   }
   return result;
@@ -298,7 +303,8 @@ Map<String, String> _buildImageMap(
     if (mediaType == null) continue;
     final bytes = files.read(item.path);
     if (bytes == null || bytes.length > _maxEmbeddedImageBytes) continue;
-    images[item.path.toLowerCase()] =
+    // ??= — המופע הראשון גובר (עקבי עם קדימות ההתאמה המדויקת בארכיון).
+    images[item.path.toLowerCase()] ??=
         'data:$mediaType;base64,${base64Encode(bytes)}';
   }
   return images;
@@ -378,10 +384,15 @@ _NoterefResolution? _resolveNoterefUncached(dom.Element a, _EpubContext ctx) {
   if (isExplicit) return _NoterefResolution(target);
   if (target == null) return null;
   if (_hasEpubType(target, _footnoteTypes)) return _NoterefResolution(target);
+  // כותרות הן יעדי ניווט, לא גופי הערות — בלי הבדיקה קישור-סַמָּן קצר
+  // לכותרת קצרה היה מעלים אותה מהספר ומתוכן העניינים.
+  if (_headingTags.contains(target.localName)) return null;
   if (!_isNoteMarkerText(a.text)) return null;
   if (target.text.length > _maxHeuristicNoteLength) return null;
   return _NoterefResolution(target);
 }
+
+const _headingTags = {'h1', 'h2', 'h3', 'h4', 'h5', 'h6'};
 
 /// שולף את טקסט ההערה מהיעד: מדלג על קישורי-חזרה (סַמָּן/חץ), ומסיר סַמָּן
 /// פותח שמשכפל את סמן ההפניה (ההערה "1. גוף" כשהקישור הוא "1").
