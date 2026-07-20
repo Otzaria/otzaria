@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/utils/http_redirect_download.dart';
 
 /// מידע על ה-release האחרון של מילון המורפולוגיה (`lexical.db`).
 class MagicDictionaryRelease {
@@ -45,6 +46,7 @@ class MagicDictionaryDownloader {
 
   final http.Client _client;
   final bool _ownsClient;
+  final Future<String> Function() _destinationProvider;
 
   /// משך מרבי ללא התקדמות לפני קטיעה ([TimeoutException]). מתאפס עם כל בייט,
   /// כך שהורדה איטית של קובץ גדול (~57MB) נמשכת כל עוד יש זרימה.
@@ -52,9 +54,12 @@ class MagicDictionaryDownloader {
 
   MagicDictionaryDownloader({
     http.Client? client,
+    Future<String> Function()? destinationProvider,
     this._stallTimeout = const Duration(seconds: 60),
   }) : _client = client ?? http.Client(),
-       _ownsClient = client == null;
+       _ownsClient = client == null,
+       _destinationProvider =
+           destinationProvider ?? AppPaths.getMagicDictionaryPath;
 
   void dispose() {
     if (_ownsClient) _client.close();
@@ -70,7 +75,7 @@ class MagicDictionaryDownloader {
     void Function(double progress)? onProgress,
     bool force = false,
   }) async {
-    final dest = await AppPaths.getMagicDictionaryPath();
+    final dest = await _destinationProvider();
     try {
       final release = await fetchLatestRelease();
       final upToDate =
@@ -128,7 +133,7 @@ class MagicDictionaryDownloader {
 
   /// הגרסה המותקנת כעת (תג ה-release), או `null` אם אין מילון/סימון גרסה.
   Future<String?> installedVersion() async {
-    final dest = await AppPaths.getMagicDictionaryPath();
+    final dest = await _destinationProvider();
     final marker = File(_versionPath(dest));
     if (!await marker.exists()) return null;
     final tag = (await marker.readAsString()).trim();
@@ -149,7 +154,9 @@ class MagicDictionaryDownloader {
       await response.stream.drain<void>();
       throw Exception('הורדת המילון נכשלה (${response.statusCode})');
     }
-    final total = response.contentLength ?? release.sizeBytes;
+    // גודל ה-asset מה-API הוא החוזה היציב; כשאינו זמין נופלים ל-Content-Length.
+    // בלי אימות זה גוף קטוע אך לא-ריק היה מותקן ומסומן כגרסה העדכנית.
+    final expectedSize = release.sizeBytes ?? response.contentLength;
 
     final outFile = File('$dest.part');
     await outFile.parent.create(recursive: true);
@@ -157,14 +164,24 @@ class MagicDictionaryDownloader {
     var received = 0;
     try {
       await for (final chunk in response.stream.timeout(_stallTimeout)) {
+        if (expectedSize != null && received + chunk.length > expectedSize) {
+          throw Exception(
+            'הורדת המילון חרגה מהגודל הצפוי ($expectedSize בייטים)',
+          );
+        }
         sink.add(chunk);
         received += chunk.length;
-        if (onProgress != null && total != null && total > 0) {
-          onProgress(received / total);
+        if (onProgress != null && expectedSize != null && expectedSize > 0) {
+          onProgress(received / expectedSize);
         }
       }
       await sink.flush();
       await sink.close();
+      if (expectedSize != null && received != expectedSize) {
+        throw Exception(
+          'הורדת המילון נקטעה: צפויים $expectedSize בייטים, התקבלו $received',
+        );
+      }
 
       await _replaceDownloadedFile(outFile, dest);
     } catch (_) {
@@ -231,29 +248,13 @@ class MagicDictionaryDownloader {
   Future<http.StreamedResponse> _send(
     Uri uri, {
     Map<String, String>? headers,
-  }) async {
-    var current = uri;
-    for (var hop = 0; hop <= _maxRedirects; hop++) {
-      final request = http.Request('GET', current)
-        ..followRedirects = false
-        ..headers['User-Agent'] = 'otzaria-search';
-      if (headers != null) request.headers.addAll(headers);
-
-      final response = await _client.send(request).timeout(_stallTimeout);
-      if (_isRedirect(response.statusCode)) {
-        final location = response.headers['location'];
-        await response.stream.timeout(_stallTimeout).drain<void>();
-        if (location == null || location.isEmpty) {
-          throw Exception('redirect ללא Location');
-        }
-        current = current.resolve(location);
-        continue;
-      }
-      return response;
-    }
-    throw Exception('יותר מדי redirects');
+  }) {
+    return sendGetFollowingRedirects(
+      _client,
+      uri,
+      headers: {'User-Agent': 'otzaria-search', ...?headers},
+      maxRedirects: _maxRedirects,
+      stallTimeout: _stallTimeout,
+    );
   }
-
-  bool _isRedirect(int code) =>
-      code == 301 || code == 302 || code == 303 || code == 307 || code == 308;
 }

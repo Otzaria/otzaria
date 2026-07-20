@@ -37,7 +37,7 @@ void main() {
               {
                 'name': DatabaseConstants.talmudBavliArchiveFileName,
                 'browser_download_url': assetUrl,
-              }
+              },
             ],
           }),
           200,
@@ -69,8 +69,9 @@ void main() {
         extractions?.add((archive: archive, outputDir: outputDir));
         onProgress?.call(0.5);
         onProgress?.call(1.0);
-        Directory(p.join(outputDir, DatabaseConstants.talmudBavliFolderName))
-            .createSync(recursive: true);
+        Directory(
+          p.join(outputDir, DatabaseConstants.talmudBavliFolderName),
+        ).createSync(recursive: true);
       },
       talmudDirsProvider: () =>
           talmudDirs ??
@@ -87,15 +88,29 @@ void main() {
     final dir = Directory(talmudDir())..createSync(recursive: true);
     File(p.join(dir.path, 'ברכות.pdf')).writeAsStringSync('pdf');
     if (markerTag != null) {
-      File(p.join(dir.path, CompanionAssetsService.talmudVersionFileName))
-          .writeAsStringSync(markerTag);
+      File(
+        p.join(dir.path, CompanionAssetsService.talmudVersionFileName),
+      ).writeAsStringSync(markerTag);
     }
   }
 
   String? readMarker() {
-    final f =
-        File(p.join(talmudDir(), CompanionAssetsService.talmudVersionFileName));
+    final f = File(
+      p.join(talmudDir(), CompanionAssetsService.talmudVersionFileName),
+    );
     return f.existsSync() ? f.readAsStringSync().trim() : null;
+  }
+
+  void writeResumeState(File file, String identity, {String etag = '"e1"'}) {
+    File('${file.path}.resume').writeAsStringSync('$identity\n$etag');
+  }
+
+  void cleanupTalmudTemp(File file) {
+    if (file.existsSync()) file.deleteSync();
+    for (final suffix in const ['.meta', '.resume']) {
+      final sidecar = File('${file.path}$suffix');
+      if (sidecar.existsSync()) sidecar.deleteSync();
+    }
   }
 
   group('תלמוד בבלי', () {
@@ -104,21 +119,28 @@ void main() {
       final statuses = <String>[];
       final progress = <int>[];
       var libraryInvalidated = 0;
-      final changed = await service(
-        extractions: extractions,
-        invalidateLibrary: () => libraryInvalidated++,
-      ).verifyAndUpdate(
-        onStatus: statuses.add,
-        onDownloadProgress: (done, total) => progress.add(done),
-      );
+      final changed =
+          await service(
+            extractions: extractions,
+            invalidateLibrary: () => libraryInvalidated++,
+          ).verifyAndUpdate(
+            onStatus: statuses.add,
+            onDownloadProgress: (done, total) => progress.add(done),
+          );
 
       expect(extractions, hasLength(1));
       expect(extractions.single.outputDir, tmp.path);
       expect(readMarker(), tag);
-      expect(changed, isTrue,
-          reason: 'התקנת תלמוד משנה את הספרייה — נדרש ריענון');
-      expect(libraryInvalidated, 1,
-          reason: 'בלי ניקוי ה-cache הריענון לא יגלה את התיקייה החדשה');
+      expect(
+        changed,
+        isTrue,
+        reason: 'התקנת תלמוד משנה את הספרייה — נדרש ריענון',
+      );
+      expect(
+        libraryInvalidated,
+        1,
+        reason: 'בלי ניקוי ה-cache הריענון לא יגלה את התיקייה החדשה',
+      );
       // מד בזמן החילוץ (שלב ה-zst), ומעבר לספינר בשלב פריסת ה-tar.
       expect(statuses, contains('מחלץ את התלמוד הבבלי'));
       expect(statuses, contains('פורס את קבצי התלמוד'));
@@ -166,6 +188,451 @@ void main() {
       expect(readMarker(), tag);
     });
 
+    test(
+      'כשל בחילוץ (קובץ שלם-אך-פגום) מוחק את ה-temp, וההרצה הבאה מורידה מחדש',
+      () async {
+        final talmudTemp = File(
+          p.join(
+            Directory.systemTemp.path,
+            'otzaria_${DatabaseConstants.talmudBavliArchiveFileName}',
+          ),
+        );
+        cleanupTalmudTemp(talmudTemp);
+        addTearDown(() => cleanupTalmudTemp(talmudTemp));
+
+        final assetRanges = <String?>[];
+        final client = MockClient((request) async {
+          if (request.url.path.contains('releases/latest')) {
+            return http.Response(
+              jsonEncode({
+                'tag_name': tag,
+                'assets': [
+                  {
+                    'name': DatabaseConstants.talmudBavliArchiveFileName,
+                    'browser_download_url': assetUrl,
+                  },
+                ],
+              }),
+              200,
+            );
+          }
+          if (request.url.toString() == assetUrl) {
+            assetRanges.add(request.headers['range']);
+            return http.Response.bytes(List.filled(100, 5), 200);
+          }
+          return http.Response('not found', 404);
+        });
+
+        // הרצה 1: ההורדה מצליחה אך החילוץ נכשל — ה-temp השלם-אך-פגום חייב להימחק,
+        // אחרת ההרצה הבאה תזהה 416 (קובץ שלם) ותיתקע בלולאה בלי להוריד מחדש.
+        await service(client: client, failExtraction: true).verifyAndUpdate();
+        expect(
+          talmudTemp.existsSync(),
+          isFalse,
+          reason: 'כשל בחילוץ חייב למחוק את ה-temp כדי לכפות הורדה מחדש',
+        );
+
+        // הרצה 2: הורדה טרייה מלאה (בלי Range), החילוץ מצליח וה-temp נמחק.
+        final extractions = <({String archive, String outputDir})>[];
+        await service(
+          client: client,
+          extractions: extractions,
+        ).verifyAndUpdate();
+        expect(assetRanges, [
+          null,
+          null,
+        ], reason: 'שתי ההרצות מורידות מ-0 — אין Range על קובץ שנמחק');
+        expect(extractions, hasLength(1));
+        expect(
+          talmudTemp.existsSync(),
+          isFalse,
+          reason: 'אחרי חילוץ מוצלח הקובץ הזמני נמחק',
+        );
+      },
+    );
+
+    test(
+      'temp חלקי + 206 בלי Content-Range → בקשה שנייה בלי Range, קובץ תקין מ-0',
+      () async {
+        final talmudTemp = File(
+          p.join(
+            Directory.systemTemp.path,
+            'otzaria_${DatabaseConstants.talmudBavliArchiveFileName}',
+          ),
+        );
+        // שריד חלקי של 50 בייטים + sidecar תואם לזהות (תג+גודל=0 כי אין size
+        // ב-JSON), כדי שקישור-הגרסה לא ימחק את השריד וה-resume ימשיך.
+        talmudTemp.writeAsBytesSync(List.filled(50, 9));
+        writeResumeState(talmudTemp, '$tag|0||');
+        addTearDown(() => cleanupTalmudTemp(talmudTemp));
+
+        final ranges = <String?>[];
+        final ifRanges = <String?>[];
+        final client = MockClient((request) async {
+          if (request.url.path.contains('releases/latest')) {
+            return http.Response(
+              jsonEncode({
+                'tag_name': tag,
+                'assets': [
+                  {
+                    'name': DatabaseConstants.talmudBavliArchiveFileName,
+                    'browser_download_url': assetUrl,
+                  },
+                ],
+              }),
+              200,
+            );
+          }
+          if (request.url.toString() == assetUrl) {
+            ranges.add(request.headers['range']);
+            ifRanges.add(request.headers['if-range']);
+            if (request.headers['range'] != null) {
+              // 206 ללא Content-Range — offset הגוף לא מאומת; יש לנקז ולהוריד מ-0.
+              return http.Response.bytes(List.filled(50, 5), 206);
+            }
+            return http.Response.bytes(List.filled(100, 7), 200);
+          }
+          return http.Response('not found', 404);
+        });
+
+        List<int>? archiveBytes;
+        final svc = CompanionAssetsService(
+          clientFactory: () => client,
+          catalogRepository: () => _FakeCatalogRepository(exists: true),
+          dictionaryFactory: () => _FakeDictionaryDownloader(),
+          extractTarArchive: (archive, outputDir, onProgress) async {
+            archiveBytes = File(archive).readAsBytesSync();
+            Directory(
+              p.join(outputDir, DatabaseConstants.talmudBavliFolderName),
+            ).createSync(recursive: true);
+          },
+          talmudDirsProvider: () => [
+            p.join(tmp.path, DatabaseConstants.talmudBavliFolderName),
+          ],
+          invalidateExternalBooksCache: () {},
+          invalidateLibraryCaches: () {},
+        );
+        await svc.verifyAndUpdate();
+
+        expect(ranges, [
+          'bytes=50-',
+          null,
+        ], reason: 'ניסיון resume ואז בקשה שנייה בלי Range');
+        expect(ifRanges, ['"e1"', null]);
+        expect(archiveBytes, hasLength(100));
+        expect(
+          archiveBytes!.every((b) => b == 7),
+          isTrue,
+          reason: 'הקובץ נכתב מ-0 מהגוף השלם, בלי צירוף לשריד הישן',
+        );
+      },
+    );
+
+    test(
+      'temp שלם מגרסה ישנה + תג חדש → לא מחלץ ישן; מוריד מחדש ומחתים תג חדש',
+      () async {
+        createTalmudDir(markerTag: 'v1.0.0');
+        final talmudTemp = File(
+          p.join(
+            Directory.systemTemp.path,
+            'otzaria_${DatabaseConstants.talmudBavliArchiveFileName}',
+          ),
+        );
+        // שריד שלם מגרסה קודמת + sidecar עם זהות ישנה — חייב להימחק כדי שלא
+        // יזוהה כשלם (416) ויוחתם בתג החדש בלי להוריד את התוכן העדכני.
+        talmudTemp.writeAsBytesSync(List.filled(100, 9));
+        writeResumeState(talmudTemp, 'v1.0.0|3');
+        addTearDown(() => cleanupTalmudTemp(talmudTemp));
+
+        final ranges = <String?>[];
+        final client = MockClient((request) async {
+          if (request.url.path.contains('releases/latest')) {
+            return http.Response(
+              jsonEncode({
+                'tag_name': tag,
+                'assets': [
+                  {
+                    'name': DatabaseConstants.talmudBavliArchiveFileName,
+                    'browser_download_url': assetUrl,
+                    'size': 3,
+                  },
+                ],
+              }),
+              200,
+            );
+          }
+          if (request.url.toString() == assetUrl) {
+            ranges.add(request.headers['range']);
+            // התנהגות שרת לקובץ-שלם: Range → 416. הקוד הישן היה מדלג ומחלץ ישן.
+            if (request.headers['range'] != null) {
+              return http.Response('', 416);
+            }
+            return http.Response.bytes(List.filled(3, 5), 200);
+          }
+          return http.Response('not found', 404);
+        });
+
+        List<int>? archiveBytes;
+        final svc = CompanionAssetsService(
+          clientFactory: () => client,
+          catalogRepository: () => _FakeCatalogRepository(exists: true),
+          dictionaryFactory: () => _FakeDictionaryDownloader(),
+          extractTarArchive: (archive, outputDir, onProgress) async {
+            archiveBytes = File(archive).readAsBytesSync();
+            Directory(
+              p.join(outputDir, DatabaseConstants.talmudBavliFolderName),
+            ).createSync(recursive: true);
+          },
+          talmudDirsProvider: () => [
+            p.join(tmp.path, DatabaseConstants.talmudBavliFolderName),
+          ],
+          invalidateExternalBooksCache: () {},
+          invalidateLibraryCaches: () {},
+        );
+        await svc.verifyAndUpdate();
+
+        expect(
+          ranges,
+          [null],
+          reason: 'זהות שונה → השריד נמחק, בקשה טרייה בלי Range (לא 416/דילוג)',
+        );
+        expect(archiveBytes, [
+          5,
+          5,
+          5,
+        ], reason: 'חולץ התוכן החדש, לא שריד הגרסה הישנה');
+        expect(readMarker(), tag);
+      },
+    );
+
+    test(
+      '206 מ-offset לא צפוי → בקשה שנייה בלי Range, קובץ תקין מ-0',
+      () async {
+        final talmudTemp = File(
+          p.join(
+            Directory.systemTemp.path,
+            'otzaria_${DatabaseConstants.talmudBavliArchiveFileName}',
+          ),
+        );
+        // שריד חלקי 50 בייט + sidecar תואם → resume מנוסה, אך השרת מחזיר 206
+        // מ-offset 30 (לא 50 ולא 0) — append היה פוגם, ולכן נדרשת הורדה מ-0.
+        talmudTemp.writeAsBytesSync(List.filled(50, 9));
+        writeResumeState(talmudTemp, '$tag|0||');
+        addTearDown(() => cleanupTalmudTemp(talmudTemp));
+
+        final ranges = <String?>[];
+        final client = MockClient((request) async {
+          if (request.url.path.contains('releases/latest')) {
+            return http.Response(
+              jsonEncode({
+                'tag_name': tag,
+                'assets': [
+                  {
+                    'name': DatabaseConstants.talmudBavliArchiveFileName,
+                    'browser_download_url': assetUrl,
+                  },
+                ],
+              }),
+              200,
+            );
+          }
+          if (request.url.toString() == assetUrl) {
+            ranges.add(request.headers['range']);
+            if (request.headers['range'] != null) {
+              return http.Response.bytes(
+                List.filled(70, 1),
+                206,
+                headers: const {'content-range': 'bytes 30-99/100'},
+              );
+            }
+            return http.Response.bytes(List.filled(100, 7), 200);
+          }
+          return http.Response('not found', 404);
+        });
+
+        List<int>? archiveBytes;
+        final svc = CompanionAssetsService(
+          clientFactory: () => client,
+          catalogRepository: () => _FakeCatalogRepository(exists: true),
+          dictionaryFactory: () => _FakeDictionaryDownloader(),
+          extractTarArchive: (archive, outputDir, onProgress) async {
+            archiveBytes = File(archive).readAsBytesSync();
+            Directory(
+              p.join(outputDir, DatabaseConstants.talmudBavliFolderName),
+            ).createSync(recursive: true);
+          },
+          talmudDirsProvider: () => [
+            p.join(tmp.path, DatabaseConstants.talmudBavliFolderName),
+          ],
+          invalidateExternalBooksCache: () {},
+          invalidateLibraryCaches: () {},
+        );
+        await svc.verifyAndUpdate();
+
+        expect(ranges, [
+          'bytes=50-',
+          null,
+        ], reason: 'ניסיון resume ואז בקשה שנייה בלי Range');
+        expect(archiveBytes, hasLength(100));
+        expect(
+          archiveBytes!.every((b) => b == 7),
+          isTrue,
+          reason: 'הקובץ נכתב מ-0 מהגוף השלם, בלי צירוף לשריד הישן',
+        );
+      },
+    );
+
+    test('416 שסותר את אורך החלקי גורם להורדה מלאה מחדש', () async {
+      createTalmudDir(markerTag: 'v1.0.0');
+      final talmudTemp = File(
+        p.join(
+          Directory.systemTemp.path,
+          'otzaria_${DatabaseConstants.talmudBavliArchiveFileName}',
+        ),
+      );
+      cleanupTalmudTemp(talmudTemp);
+      talmudTemp.writeAsBytesSync(List.filled(5, 9));
+      writeResumeState(talmudTemp, '$tag|10|1|t1');
+      addTearDown(() => cleanupTalmudTemp(talmudTemp));
+
+      final ranges = <String?>[];
+      final client = MockClient((request) async {
+        if (request.url.path.contains('releases/latest')) {
+          return http.Response(
+            jsonEncode({
+              'tag_name': tag,
+              'assets': [
+                {
+                  'name': DatabaseConstants.talmudBavliArchiveFileName,
+                  'browser_download_url': assetUrl,
+                  'size': 10,
+                  'id': 1,
+                  'updated_at': 't1',
+                },
+              ],
+            }),
+            200,
+          );
+        }
+        if (request.url.toString() == assetUrl) {
+          ranges.add(request.headers['range']);
+          if (request.headers['range'] != null) {
+            return http.Response(
+              '',
+              416,
+              headers: const {'content-range': 'bytes */10'},
+            );
+          }
+          return http.Response.bytes(
+            List.filled(10, 5),
+            200,
+            headers: const {'etag': '"e1"'},
+          );
+        }
+        return http.Response('not found', 404);
+      });
+
+      List<int>? archiveBytes;
+      final svc = CompanionAssetsService(
+        clientFactory: () => client,
+        catalogRepository: () => _FakeCatalogRepository(exists: true),
+        dictionaryFactory: () => _FakeDictionaryDownloader(),
+        extractTarArchive: (archive, outputDir, onProgress) async {
+          archiveBytes = File(archive).readAsBytesSync();
+          Directory(
+            p.join(outputDir, DatabaseConstants.talmudBavliFolderName),
+          ).createSync(recursive: true);
+        },
+        talmudDirsProvider: () => [
+          p.join(tmp.path, DatabaseConstants.talmudBavliFolderName),
+        ],
+        invalidateExternalBooksCache: () {},
+        invalidateLibraryCaches: () {},
+      );
+      await svc.verifyAndUpdate();
+
+      expect(ranges, ['bytes=5-', null]);
+      expect(archiveBytes, hasLength(10));
+      expect(readMarker(), tag);
+    });
+
+    test(
+      'אותו תג+גודל אך asset id שונה (העלאה-מחדש) → מוחק את ה-temp ומוריד מחדש',
+      () async {
+        final talmudTemp = File(
+          p.join(
+            Directory.systemTemp.path,
+            'otzaria_${DatabaseConstants.talmudBavliArchiveFileName}',
+          ),
+        );
+        // שריד שלם התואם תג+גודל, אך sidecar עם id ישן — העלאה-מחדש תחת אותו תג
+        // וגודל שינתה את ה-id, ולכן יש למחוק את השריד ולהוריד את התוכן העדכני.
+        talmudTemp.writeAsBytesSync(List.filled(3, 9));
+        writeResumeState(talmudTemp, '$tag|3|111|old-ts');
+        addTearDown(() => cleanupTalmudTemp(talmudTemp));
+
+        final ranges = <String?>[];
+        final client = MockClient((request) async {
+          if (request.url.path.contains('releases/latest')) {
+            return http.Response(
+              jsonEncode({
+                'tag_name': tag,
+                'assets': [
+                  {
+                    'name': DatabaseConstants.talmudBavliArchiveFileName,
+                    'browser_download_url': assetUrl,
+                    'size': 3,
+                    'id': 222,
+                    'updated_at': 'new-ts',
+                  },
+                ],
+              }),
+              200,
+            );
+          }
+          if (request.url.toString() == assetUrl) {
+            ranges.add(request.headers['range']);
+            // שריד שלם יחזיר 416 ב-Range — אם הזהות לא נבדקה יחולץ תוכן ישן.
+            if (request.headers['range'] != null) {
+              return http.Response('', 416);
+            }
+            return http.Response.bytes(List.filled(3, 5), 200);
+          }
+          return http.Response('not found', 404);
+        });
+
+        List<int>? archiveBytes;
+        final svc = CompanionAssetsService(
+          clientFactory: () => client,
+          catalogRepository: () => _FakeCatalogRepository(exists: true),
+          dictionaryFactory: () => _FakeDictionaryDownloader(),
+          extractTarArchive: (archive, outputDir, onProgress) async {
+            archiveBytes = File(archive).readAsBytesSync();
+            Directory(
+              p.join(outputDir, DatabaseConstants.talmudBavliFolderName),
+            ).createSync(recursive: true);
+          },
+          talmudDirsProvider: () => [
+            p.join(tmp.path, DatabaseConstants.talmudBavliFolderName),
+          ],
+          invalidateExternalBooksCache: () {},
+          invalidateLibraryCaches: () {},
+        );
+        await svc.verifyAndUpdate();
+
+        expect(
+          ranges,
+          [null],
+          reason: 'id שונה → השריד נמחק, בקשה טרייה בלי Range (לא 416/דילוג)',
+        );
+        expect(archiveBytes, [
+          5,
+          5,
+          5,
+        ], reason: 'חולץ התוכן החדש שהועלה-מחדש, לא שריד הזהות הישנה');
+      },
+    );
+
     test('עדכון מנקה קובץ ישן שהוסר ב-release החדש', () async {
       createTalmudDir(markerTag: 'v1.0.0');
       final stale = File(p.join(talmudDir(), 'מסכת_שהוסרה.pdf'))
@@ -173,8 +640,11 @@ void main() {
 
       await service().verifyAndUpdate();
 
-      expect(stale.existsSync(), isFalse,
-          reason: 'קבצים ישנים לא אמורים לשרוד עדכון');
+      expect(
+        stale.existsSync(),
+        isFalse,
+        reason: 'קבצים ישנים לא אמורים לשרוד עדכון',
+      );
       expect(readMarker(), tag);
     });
 
@@ -182,8 +652,11 @@ void main() {
       final catalog = _FakeCatalogRepository(exists: true);
       final dictionary = _FakeDictionaryDownloader();
       final failing = MockClient((_) async => http.Response('boom', 500));
-      await service(client: failing, catalog: catalog, dictionary: dictionary)
-          .verifyAndUpdate();
+      await service(
+        client: failing,
+        catalog: catalog,
+        dictionary: dictionary,
+      ).verifyAndUpdate();
 
       expect(catalog.updateCalled, isTrue);
       expect(dictionary.ensureCalled, isTrue);
@@ -192,9 +665,7 @@ void main() {
     test('ביטול אחרי התלמוד מדלג על השאר', () async {
       createTalmudDir(markerTag: tag);
       final catalog = _FakeCatalogRepository(exists: true);
-      await service(catalog: catalog).verifyAndUpdate(
-        isCancelled: () => true,
-      );
+      await service(catalog: catalog).verifyAndUpdate(isCancelled: () => true);
       expect(catalog.updateCalled, isFalse);
     });
   });
@@ -204,9 +675,10 @@ void main() {
       final catalog = _FakeCatalogRepository(exists: true, updateResult: true);
       var invalidated = 0;
       createTalmudDir(markerTag: tag);
-      final changed =
-          await service(catalog: catalog, invalidate: () => invalidated++)
-              .verifyAndUpdate();
+      final changed = await service(
+        catalog: catalog,
+        invalidate: () => invalidated++,
+      ).verifyAndUpdate();
 
       expect(catalog.updateCalled, isTrue);
       expect(catalog.downloadCalled, isFalse);
@@ -241,7 +713,7 @@ void main() {
 
 class _FakeCatalogRepository extends ExternalCatalogRepository {
   _FakeCatalogRepository({required this.exists, this.updateResult = false})
-      : super(httpClient: MockClient((_) async => http.Response('', 404)));
+    : super(httpClient: MockClient((_) async => http.Response('', 404)));
 
   final bool exists;
   final bool updateResult;
@@ -265,7 +737,7 @@ class _FakeCatalogRepository extends ExternalCatalogRepository {
 
 class _FakeDictionaryDownloader extends MagicDictionaryDownloader {
   _FakeDictionaryDownloader()
-      : super(client: MockClient((_) async => http.Response('', 404)));
+    : super(client: MockClient((_) async => http.Response('', 404)));
 
   bool ensureCalled = false;
   bool disposed = false;

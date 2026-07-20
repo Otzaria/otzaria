@@ -48,11 +48,11 @@ class LibraryUpdateProgress {
   });
 }
 
-typedef LibraryUpdateProgressCallback = void Function(
-    LibraryUpdateProgress progress);
+typedef LibraryUpdateProgressCallback =
+    void Function(LibraryUpdateProgress progress);
 
-typedef FullDbExtractor = Future<void> Function(
-    String archivePath, String outputPath);
+typedef FullDbExtractor =
+    Future<void> Function(String archivePath, String outputPath);
 
 /// ממשק שירות עדכון הספרייה — מאפשר ל-BLoC להיבדק מול מימוש מזויף.
 abstract interface class LibraryUpdateService {
@@ -99,10 +99,10 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     String Function()? dbPathProvider,
     Future<String> Function()? dataRootProvider,
     String Function()? nowTimestamp,
-  })  : dbPathProvider = dbPathProvider ?? DatabaseConstants.getDatabasePath,
-        dataRootProvider = dataRootProvider ?? AppPaths.getDataRootPath,
-        nowTimestamp = nowTimestamp ?? (() => DateTime.now().toIso8601String()),
-        fullDbExtractor = fullDbExtractor ?? _defaultFullDbExtractor;
+  }) : dbPathProvider = dbPathProvider ?? DatabaseConstants.getDatabasePath,
+       dataRootProvider = dataRootProvider ?? AppPaths.getDataRootPath,
+       nowTimestamp = nowTimestamp ?? (() => DateTime.now().toIso8601String()),
+       fullDbExtractor = fullDbExtractor ?? _defaultFullDbExtractor;
 
   static Future<void> _defaultFullDbExtractor(
     String archivePath,
@@ -144,8 +144,9 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     bool Function()? isCancelled,
   }) async {
     final dbPath = dbPathProvider();
-    final cacheDir =
-        Directory(p.join(await dataRootProvider(), 'library_update_cache'));
+    final cacheDir = Directory(
+      p.join(await dataRootProvider(), 'library_update_cache'),
+    );
 
     // סך-הבתים של ה-hash מהריצה הקודמת — total מדויק למד ההתקדמות (גודל
     // הקובץ הוא הערכת-יתר של ~25%). בריצה הראשונה נופלים לגודל הקובץ.
@@ -163,11 +164,13 @@ class LibraryUpdateRepository implements LibraryUpdateService {
         throw StateError('חסר URL להורדת ${patchFile.file}');
       }
 
-      onProgress?.call(LibraryUpdateProgress(
-        phase: LibraryUpdatePhase.downloading,
-        stepIndex: i,
-        totalSteps: steps.length,
-      ));
+      onProgress?.call(
+        LibraryUpdateProgress(
+          phase: LibraryUpdatePhase.downloading,
+          stepIndex: i,
+          totalSteps: steps.length,
+        ),
+      );
       final patchPath = await downloader.downloadAndExtract(
         patchFile: patchFile,
         downloadUrl: url,
@@ -187,33 +190,43 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       try {
         // ביטול בדיוק אחרי החילוץ ולפני ההחלה — עוצרים לפני שנוגעים ב-DB.
         _throwIfCancelled(isCancelled);
-        onProgress?.call(LibraryUpdateProgress(
-          phase: LibraryUpdatePhase.applying,
-          stepIndex: i,
-          totalSteps: steps.length,
-        ));
-        booksTouched.addAll(await _applyStepInQueue(
-          dbPath: dbPath,
-          patchPath: patchPath,
-          step: step,
-          verifyTotalBytesHint: verifyTotalHint,
-          onStage: (stage) => onProgress?.call(LibraryUpdateProgress(
+        onProgress?.call(
+          LibraryUpdateProgress(
             phase: LibraryUpdatePhase.applying,
             stepIndex: i,
             totalSteps: steps.length,
-            stage: stage,
-          )),
-          onVerifyProgress: (done, total) {
-            lastVerifyDone = done;
-            onProgress?.call(LibraryUpdateProgress(
-              phase: LibraryUpdatePhase.applying,
-              stepIndex: i,
-              totalSteps: steps.length,
-              stage: 'verifyToHash',
-              applyProgress: total > 0 ? (done / total).clamp(0.0, 1.0) : null,
-            ));
-          },
-        ));
+          ),
+        );
+        booksTouched.addAll(
+          await _applyStepInQueue(
+            dbPath: dbPath,
+            patchPath: patchPath,
+            step: step,
+            verifyTotalBytesHint: verifyTotalHint,
+            onStage: (stage) => onProgress?.call(
+              LibraryUpdateProgress(
+                phase: LibraryUpdatePhase.applying,
+                stepIndex: i,
+                totalSteps: steps.length,
+                stage: stage,
+              ),
+            ),
+            onVerifyProgress: (done, total) {
+              lastVerifyDone = done;
+              onProgress?.call(
+                LibraryUpdateProgress(
+                  phase: LibraryUpdatePhase.applying,
+                  stepIndex: i,
+                  totalSteps: steps.length,
+                  stage: 'verifyToHash',
+                  applyProgress: total > 0
+                      ? (done / total).clamp(0.0, 1.0)
+                      : null,
+                ),
+              );
+            },
+          ),
+        );
         // הדיווח האחרון מ-compute הוא הסך המדויק — total לריצות הבאות.
         if (lastVerifyDone > 0) {
           verifyTotalHint = lastVerifyDone;
@@ -225,11 +238,13 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     }
 
     onProgress?.call(
-        const LibraryUpdateProgress(phase: LibraryUpdatePhase.refreshing));
+      const LibraryUpdateProgress(phase: LibraryUpdatePhase.refreshing),
+    );
     await refreshService.refreshAfterDbUpdate();
 
-    onProgress
-        ?.call(const LibraryUpdateProgress(phase: LibraryUpdatePhase.done));
+    onProgress?.call(
+      const LibraryUpdateProgress(phase: LibraryUpdatePhase.done),
+    );
     return booksTouched;
   }
 
@@ -248,20 +263,31 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       throw StateError('אין DB מלא בתוכנית');
     }
     final dbPath = dbPathProvider();
-    final cacheDir =
-        Directory(p.join(await dataRootProvider(), 'library_update_cache'));
+    final cacheDir = Directory(
+      p.join(await dataRootProvider(), 'library_update_cache'),
+    );
     if (!cacheDir.existsSync()) cacheDir.createSync(recursive: true);
     final archivePath = p.join(cacheDir.path, 'seforim.db.zst');
+    final sidecarPath = PatchDownloader.resumeSidecarPath(archivePath);
     // מחולץ ליד ה-DB (אותו filesystem) כדי שה-rename יהיה אטומי.
     final newDbPath = '$dbPath.new';
+    // digest מגיע מה-API בפורמט 'sha256:<hex>' — נחלץ ל-expectedSha256.
+    final digestHex = asset.digest?.startsWith('sha256:') == true
+        ? asset.digest!.substring('sha256:'.length)
+        : null;
 
     try {
       onProgress?.call(
-          const LibraryUpdateProgress(phase: LibraryUpdatePhase.downloading));
+        const LibraryUpdateProgress(phase: LibraryUpdatePhase.downloading),
+      );
       await downloader.downloadToFile(
         url: asset.downloadUrl,
         destPath: archivePath,
         expectedSize: asset.size > 0 ? asset.size : null,
+        expectedSha256: digestHex,
+        // קושר את הקובץ החלקי ל-release — מונע resume על ארכיון מגרסה אחרת.
+        resumeToken:
+            '${asset.downloadUrl}|${asset.size}|${asset.id ?? ''}|${asset.updatedAt ?? ''}',
         isCancelled: isCancelled,
         onProgress: (downloaded, total) => onProgress?.call(
           LibraryUpdateProgress(
@@ -274,14 +300,22 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       _throwIfCancelled(isCancelled);
 
       onProgress?.call(
-          const LibraryUpdateProgress(phase: LibraryUpdatePhase.applying));
+        const LibraryUpdateProgress(phase: LibraryUpdatePhase.applying),
+      );
       _deleteQuietly(newDbPath);
-      await fullDbExtractor(archivePath, newDbPath);
-      _deleteQuietly(archivePath);
+      try {
+        await fullDbExtractor(archivePath, newDbPath);
+      } catch (_) {
+        // ארכיון שלם-אך-פגום: בלי מחיקה ה-resume ידלג על ההורדה וייתקע בלולאה.
+        _deleteDownloadStateQuietly(archivePath, sidecarPath);
+        rethrow;
+      }
+      _deleteDownloadStateQuietly(archivePath, sidecarPath);
       _throwIfCancelled(isCancelled);
 
       onProgress?.call(
-          const LibraryUpdateProgress(phase: LibraryUpdatePhase.verifying));
+        const LibraryUpdateProgress(phase: LibraryUpdatePhase.verifying),
+      );
       // האימות הכבד (quick_check על ~5.5GB) רץ ב-isolate כדי לא לחסום UI.
       await _verifyFullDbInIsolate(newDbPath, plan.targetVersion);
       _throwIfCancelled(isCancelled);
@@ -290,16 +324,24 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       await _replaceDbInQueue(dbPath: dbPath, newDbPath: newDbPath, plan: plan);
 
       onProgress?.call(
-          const LibraryUpdateProgress(phase: LibraryUpdatePhase.refreshing));
+        const LibraryUpdateProgress(phase: LibraryUpdatePhase.refreshing),
+      );
       await refreshService.refreshAfterDbUpdate();
 
-      onProgress
-          ?.call(const LibraryUpdateProgress(phase: LibraryUpdatePhase.done));
+      onProgress?.call(
+        const LibraryUpdateProgress(phase: LibraryUpdatePhase.done),
+      );
     } catch (_) {
-      _deleteQuietly(archivePath);
+      // הארכיון החלקי נשמר בכוונה — ההורדה תתחדש ממנו בניסיון הבא.
       _deleteQuietly(newDbPath);
       rethrow;
     }
+  }
+
+  void _deleteDownloadStateQuietly(String dataPath, String sidecarPath) {
+    _deleteQuietly(dataPath);
+    // אם מחיקת הארכיון נכשלה, ה-sidecar עדיין נחוץ כדי לאמת/לחדש אותו.
+    if (!File(dataPath).existsSync()) _deleteQuietly(sidecarPath);
   }
 
   void _throwIfCancelled(bool Function()? isCancelled) {
@@ -406,7 +448,8 @@ class LibraryUpdateRepository implements LibraryUpdateService {
           await SqliteDataProvider.instance.closeForExternalWrite();
           if (!_trySetJournalMode(dbPath, 'DELETE')) {
             debugPrint(
-                '[LibraryUpdate] failed to revert journal_mode to DELETE');
+              '[LibraryUpdate] failed to revert journal_mode to DELETE',
+            );
           }
         }
         await SqliteDataProvider.instance.reopenAfterExternalWrite();
@@ -479,23 +522,25 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     required SendPort sendPort,
     int? verifyTotalBytesHint,
   }) {
-    return Isolate.run(() => const PatchApplier()
-        .apply(
-          dbPath: dbPath,
-          patchPath: patchPath,
-          manifest: manifest,
-          verifyTotalBytesHint: verifyTotalBytesHint,
-          // verifyFromHash=false: verifyToHash אחרי ה-apply הוא הערובה האמיתית —
-          // אם המקור שונה, ה-toHash ייכשל וה-transaction יתגלגל אחורה. הבדיקה
-          // המקדימה רק כפילה קריאה של כל ה-DB (5.5GB) לחינם.
-          verifyFromHash: false,
-          // checkForeignKeys=false: verifyToHash מאמת את כל 28 הטבלאות (וכל ה-FK
-          // שביניהן) מול ה-DB התקין, אז התאמת hash כבר שוללת הפרות FK — חוסך ~60ש.
-          checkForeignKeys: false,
-          onStage: (stage) => sendPort.send(stage),
-          onVerifyProgress: (done, total) => sendPort.send((done, total)),
-        )
-        .booksTouched);
+    return Isolate.run(
+      () => const PatchApplier()
+          .apply(
+            dbPath: dbPath,
+            patchPath: patchPath,
+            manifest: manifest,
+            verifyTotalBytesHint: verifyTotalBytesHint,
+            // verifyFromHash=false: verifyToHash אחרי ה-apply הוא הערובה האמיתית —
+            // אם המקור שונה, ה-toHash ייכשל וה-transaction יתגלגל אחורה. הבדיקה
+            // המקדימה רק כפילה קריאה של כל ה-DB (5.5GB) לחינם.
+            verifyFromHash: false,
+            // checkForeignKeys=false: verifyToHash מאמת את כל 28 הטבלאות (וכל ה-FK
+            // שביניהן) מול ה-DB התקין, אז התאמת hash כבר שוללת הפרות FK — חוסך ~60ש.
+            checkForeignKeys: false,
+            onStage: (stage) => sendPort.send(stage),
+            onVerifyProgress: (done, total) => sendPort.send((done, total)),
+          )
+          .booksTouched,
+    );
   }
 
   // static מאותה סיבה כמו [_applyPatchInIsolate] — מונע לכידת `this`.
