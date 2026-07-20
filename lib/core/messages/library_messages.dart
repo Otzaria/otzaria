@@ -21,6 +21,9 @@ abstract class LibraryMessages {
   static const String searchIndexMissing =
       'אינדקס לא קיים, לא ניתן לבצע חיפוש זה ללא אינדקס.';
 
+  static const String searchIndexOpenFailed =
+      'פתיחת אינדקס החיפוש נכשלה — האינדוקס הושהה. נסה להפעיל מחדש את התוכנה';
+
   static const String emptySearchQuery = 'נא להזין טקסט לחיפוש';
 
   static String categoryOrBookNotFound(List<String> names) =>
