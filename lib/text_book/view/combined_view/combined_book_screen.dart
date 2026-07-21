@@ -57,6 +57,7 @@ import 'package:otzaria/plugins/utils/fluent_icon_resolver.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
     as inline_notes;
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
+import 'package:otzaria/text_book/utils/link_preview_utils.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/text_book/utils/note_inline_render.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
@@ -321,8 +322,13 @@ class _CombinedViewState extends State<CombinedView> {
     widget.openBookCallback(tab);
   }
 
-  void _showAnchorPreview(
-    ({Link link, int line, int index}) anchor,
+  Link? _previewLinkFromUrl(String url) {
+    final anchor = _anchorLinkFromUrl(url);
+    return anchor?.link ?? inlineLinkFromPreviewUrl(url);
+  }
+
+  void _showLinkPreview(
+    Link link,
     Offset globalPosition, {
     required bool hoverMode,
   }) {
@@ -330,12 +336,12 @@ class _CombinedViewState extends State<CombinedView> {
     final loaded = state is TextBookLoaded ? state : null;
     LinkPreviewOverlay.show(
       context,
-      link: anchor.link,
+      link: link,
       globalPosition: globalPosition,
       hoverMode: hoverMode,
       removeNikud: loaded?.removeNikud,
       removePunctuation: loaded?.removePunctuation,
-      onOpen: () => _openAnchorTarget(anchor.link),
+      onOpen: () => _openAnchorTarget(link),
     );
   }
 
@@ -360,6 +366,8 @@ class _CombinedViewState extends State<CombinedView> {
     }
     LinkPreviewOverlay.cancelScheduledHide();
     _anchorHoverTimer?.cancel();
+    final previewLink = _previewLinkFromUrl(url);
+    if (previewLink != null) prefetchLinkPreview(previewLink);
     _anchorHoverTimer = Timer(const Duration(milliseconds: 280), () {
       if (_disposed || !mounted) return;
       final state = _textBookBloc.state;
@@ -405,9 +413,9 @@ class _CombinedViewState extends State<CombinedView> {
         return;
       }
 
-      final anchor = _anchorLinkFromUrl(url);
-      if (anchor == null) return;
-      _showAnchorPreview(anchor, globalPosition, hoverMode: true);
+      final link = _previewLinkFromUrl(url);
+      if (link == null) return;
+      _showLinkPreview(link, globalPosition, hoverMode: true);
     });
   }
 

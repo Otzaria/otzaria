@@ -89,7 +89,7 @@ void main() {
     },
   );
 
-  testWidgets('הערה מוטמעת והערה אישית מקבלות אירועי ריחוף', (tester) async {
+  testWidgets('הערות וקישור־טווח מקבלים אירועי ריחוף', (tester) async {
     final hovered = <String>[];
     await tester.pumpWidget(
       MaterialApp(
@@ -98,7 +98,8 @@ void main() {
             text:
                 '<a class="book-note-marker" '
                 'href="otzaria://book-note?line=1&note=0">א</a> '
-                '<a href="otzaria://note?line=1">מילה</a>',
+                '<a href="otzaria://note?line=1">מילה</a> '
+                '<a href="otzaria://inline-link?path=%D7%A4%D7%99%D7%A8%D7%95%D7%A9&index=2&ref=%D7%90">קישור</a>',
             settings: const RenderSettings(fontSize: 20),
             onNoteTap: (_) {},
             onAnchorHover: (url, _) => hovered.add(url),
@@ -110,10 +111,12 @@ void main() {
 
     _findHoverableSpan(tester, 'א')!.onEnter!(const PointerEnterEvent());
     _findHoverableSpan(tester, 'מילה')!.onEnter!(const PointerEnterEvent());
+    _findHoverableSpan(tester, 'קישור')!.onEnter!(const PointerEnterEvent());
 
     expect(hovered, [
       'otzaria://book-note?line=1&note=0',
       'otzaria://note?line=1',
+      'otzaria://inline-link?path=%D7%A4%D7%99%D7%A8%D7%95%D7%A9&index=2&ref=%D7%90',
     ]);
   });
 }

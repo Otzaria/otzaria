@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/text_book/utils/link_preview_utils.dart';
 
 /// תגובה ללחיצה על קישור inline בתוך פסקה של מצב טקסט רציף.
 /// יוחזר `true` אם הטיפול בקישור הסתיים והעיבוד הרגיל (לחיצה על שורה) לא נדרש.
@@ -312,7 +313,7 @@ List<InlineSpan> _nodeToSpans(
       recognizerSink?.add(recognizer);
       // קישורי עוגן והערה מקבלים תצוגה מקדימה בריחוף.
       final isHoverableAnchor =
-          _isPreviewUrl(href) &&
+          isPreviewHoverableUrl(href) &&
           (onAnchorHover != null || onAnchorExit != null);
       return [
         TextSpan(
@@ -392,11 +393,6 @@ TextStyle _styleForElement(dom.Element element, TextStyle parentStyle) {
 
   return style;
 }
-
-bool _isPreviewUrl(String url) =>
-    url.startsWith('otzaria://anchor') ||
-    url.startsWith('otzaria://book-note') ||
-    url.startsWith('otzaria://note');
 
 Color? _inlineColor(dom.Element element) {
   final inlineStyle = element.attributes['style'] ?? '';

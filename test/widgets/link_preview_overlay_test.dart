@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
@@ -69,6 +70,29 @@ void main() {
     await tester.pump();
 
     expect(find.text('תוכן הערה'), findsOneWidget);
+  });
+
+  testWidgets('לחיצה ימנית מחוץ לחלונית מקובעת סוגרת אותה', (tester) async {
+    final hostContext = await pumpListHost(tester);
+
+    LinkPreviewOverlay.showPinned(
+      hostContext,
+      contentBuilder: (_) => const Text('תוכן חלונית'),
+      panelPosition: const Offset(200, 300),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('תוכן חלונית'), findsOneWidget);
+
+    final gesture = await tester.startGesture(
+      const Offset(700, 550),
+      kind: PointerDeviceKind.mouse,
+      buttons: kSecondaryButton,
+    );
+    await gesture.up();
+    await tester.pump();
+
+    expect(find.text('תוכן חלונית'), findsNothing);
   });
 
   testWidgets('חלונית מקובעת זזה יחד עם גלילת הרשימה שעליה נפתחה', (

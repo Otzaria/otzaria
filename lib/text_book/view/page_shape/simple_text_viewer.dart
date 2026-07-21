@@ -65,6 +65,7 @@ import 'package:otzaria/text_book/utils/note_inline_render.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
     as inline_notes;
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
+import 'package:otzaria/text_book/utils/link_preview_utils.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
@@ -430,6 +431,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     return (link: anchorLinks[index], line: line, index: index);
   }
 
+  Link? _previewLinkFromUrl(String url, TextBookLoaded state) {
+    final anchor = _anchorLinkFromUrl(url, state);
+    return anchor?.link ?? inlineLinkFromPreviewUrl(url);
+  }
+
   Future<void> _openAnchorTarget(Link link) async {
     LinkPreviewOverlay.dismiss();
     final tab = await buildLinkTargetTab(link);
@@ -453,6 +459,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
     LinkPreviewOverlay.cancelScheduledHide();
     _previewHoverTimer?.cancel();
+    final currentState = context.read<TextBookBloc>().state;
+    if (currentState is TextBookLoaded) {
+      final previewLink = _previewLinkFromUrl(url, currentState);
+      if (previewLink != null) prefetchLinkPreview(previewLink);
+    }
     _previewHoverTimer = Timer(const Duration(milliseconds: 280), () {
       if (!mounted) return;
       final state = context.read<TextBookBloc>().state;
@@ -498,16 +509,16 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         return;
       }
 
-      final anchor = _anchorLinkFromUrl(url, state);
-      if (anchor == null) return;
+      final link = _previewLinkFromUrl(url, state);
+      if (link == null) return;
       LinkPreviewOverlay.show(
         context,
-        link: anchor.link,
+        link: link,
         globalPosition: globalPosition,
         hoverMode: true,
         removeNikud: state.removeNikud,
         removePunctuation: state.removePunctuation,
-        onOpen: () => _openAnchorTarget(anchor.link),
+        onOpen: () => _openAnchorTarget(link),
       );
     });
   }

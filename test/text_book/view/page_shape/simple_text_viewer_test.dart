@@ -177,6 +177,73 @@ void main() {
     expect(find.byType(LinkHoverPreviewContent), findsOneWidget);
   });
 
+  testWidgets('בצורת הדף ריחוף על Linker מסוג start/end מציג פופאפ', (
+    tester,
+  ) async {
+    final inlineLink = Link(
+      heRef: 'מקור א, א',
+      index1: 1,
+      path2: 'מקור א',
+      index2: 1,
+      connectionType: 'linker',
+      start: 0,
+      end: 6,
+    );
+    final textBookBloc = _TestTextBookBloc(
+      _loadedState().copyWith(
+        links: [inlineLink],
+        linksByLine: {
+          1: [inlineLink],
+        },
+      ),
+    );
+    final personalNotesBloc = _TestPersonalNotesBloc(
+      const PersonalNotesState(
+        isLoading: false,
+        bookId: 'ספר בדיקה',
+        locatedNotes: [],
+        missingNotes: [],
+        errorMessage: null,
+        filteredLocatedNotes: [],
+        filteredMissingNotes: [],
+      ),
+    );
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    addTearDown(LinkPreviewOverlay.dismiss);
+
+    await tester.pumpWidget(
+      MultiBlocProvider(
+        providers: [
+          BlocProvider<TextBookBloc>.value(value: textBookBloc),
+          BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
+          BlocProvider<SettingsBloc>.value(value: settingsBloc),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SimpleTextViewer(
+              content: const ['abcdef'],
+              fontSize: 18,
+              openBookCallback: (_) {},
+              isMainText: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final smartText = tester
+        .widgetList<SmartTextWidget>(find.byType(SmartTextWidget))
+        .firstWhere((widget) => widget.onAnchorHover != null);
+    const url =
+        'otzaria://inline-link?path=%D7%9E%D7%A7%D7%95%D7%A8%20%D7%90&index=1&ref=%D7%9E%D7%A7%D7%95%D7%A8%20%D7%90%2C%20%D7%90';
+    expect(smartText.text, contains(url));
+
+    smartText.onAnchorHover!(url, const Offset(100, 100));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(LinkHoverPreviewContent), findsOneWidget);
+  });
+
   testWidgets('ריחוף על הסרגל בצורת הדף מציג תווית יעד מתוך labelForIndex', (
     tester,
   ) async {

@@ -81,25 +81,29 @@ class LinkPreviewOverlay {
     required Offset panelPosition,
     OverlayScrollAnchor? scrollAnchor,
     VoidCallback? onDismissed,
+    Size? panelSize,
   }) {
     _show(
       context,
       // תוכן שהגיע מתפריט ההקשר אינו קצוץ-שורות — מגבילים גובה עם גלילה
       // פנימית כדי שחלונית ארוכה לא תגלוש מהמסך.
-      contentBuilder: (context) => ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.5,
-        ),
-        child: SingleChildScrollView(
-          child: Builder(builder: contentBuilder),
-        ),
-      ),
+      contentBuilder: panelSize == null
+          ? (context) => ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.5,
+              ),
+              child: SingleChildScrollView(
+                child: Builder(builder: contentBuilder),
+              ),
+            )
+          : contentBuilder,
       anchorPosition: panelPosition,
       onDismissed: onDismissed,
       hoverMode: false,
       startPinned: true,
       initialPanelOffset: panelPosition,
       scrollAnchorOverride: scrollAnchor,
+      fixedPanelSize: panelSize,
     );
   }
 
@@ -112,6 +116,7 @@ class LinkPreviewOverlay {
     bool startPinned = false,
     Offset? initialPanelOffset,
     OverlayScrollAnchor? scrollAnchorOverride,
+    Size? fixedPanelSize,
   }) {
     final overlay = Overlay.maybeOf(context, rootOverlay: true);
     if (overlay == null) return;
@@ -135,6 +140,7 @@ class LinkPreviewOverlay {
         startPinned: startPinned,
         initialPanelOffset: initialPanelOffset,
         scrollAnchor: scrollAnchor,
+        fixedPanelSize: fixedPanelSize,
       ),
     );
     overlay.insert(_entry!);
@@ -203,6 +209,7 @@ class _LinkPreviewPanel extends StatefulWidget {
   final bool startPinned;
   final Offset? initialPanelOffset;
   final OverlayScrollAnchor? scrollAnchor;
+  final Size? fixedPanelSize;
 
   const _LinkPreviewPanel({
     required this.contentBuilder,
@@ -212,6 +219,7 @@ class _LinkPreviewPanel extends StatefulWidget {
     this.startPinned = false,
     this.initialPanelOffset,
     this.scrollAnchor,
+    this.fixedPanelSize,
   });
 
   @override
@@ -368,6 +376,30 @@ class _LinkPreviewPanelState extends State<_LinkPreviewPanel> {
     });
   }
 
+  Widget _buildPanelChild(double maxWidth) {
+    final fixedSize = widget.fixedPanelSize;
+    if (fixedSize != null) {
+      return SizedBox.fromSize(
+        size: fixedSize,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(12),
+          child: SelectionArea(
+            child: Builder(builder: widget.contentBuilder),
+          ),
+        ),
+      );
+    }
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: SelectionArea(
+          child: Builder(builder: widget.contentBuilder),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final maxWidth = (MediaQuery.of(context).size.width - _screenPadding * 2)
@@ -386,6 +418,7 @@ class _LinkPreviewPanelState extends State<_LinkPreviewPanel> {
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
               onTap: widget.onDismiss,
+              onSecondaryTapDown: (_) => widget.onDismiss(),
             ),
           ),
         Positioned(
@@ -414,18 +447,7 @@ class _LinkPreviewPanelState extends State<_LinkPreviewPanel> {
                       elevation: 8,
                       color: colorScheme.surface,
                       borderRadius: AppTokens.borderRadiusAll,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: maxWidth),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
-                          child: SelectionArea(
-                            child: Builder(builder: widget.contentBuilder),
-                          ),
-                        ),
-                      ),
+                      child: _buildPanelChild(maxWidth),
                     ),
                   ),
                 ),

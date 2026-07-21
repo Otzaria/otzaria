@@ -88,8 +88,9 @@ class LinkHoverPreviewContent extends StatelessWidget {
                   maxLines: compact ? 1 : null,
                   overflow: compact ? TextOverflow.ellipsis : null,
                   style: TextStyle(
-                    fontSize:
-                        compact ? 11 : settingsState.commentatorsFontSize - 2,
+                    fontSize: compact
+                        ? 11
+                        : settingsState.commentatorsFontSize - 2,
                     fontWeight: FontWeight.bold,
                     fontFamily: settingsState.commentatorsFontFamily,
                     color: colorScheme.primary,
@@ -126,9 +127,14 @@ class LinkHoverPreviewContent extends StatelessWidget {
                   );
                 }
                 if (!snapshot.hasData) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: Center(
+                  final placeholderHeight = maxContentLines != null
+                      ? settingsState.commentatorsFontSize *
+                            settingsState.lineHeight *
+                            maxContentLines!
+                      : 72.0;
+                  return SizedBox(
+                    height: placeholderHeight,
+                    child: const Center(
                       child: SizedBox(
                         width: 20,
                         height: 20,
@@ -138,12 +144,13 @@ class LinkHoverPreviewContent extends StatelessWidget {
                   );
                 }
 
-                final cleanContent = TextRendererService.stripHtml(
-                  snapshot.data!,
-                )
-                    .replaceAll('&nbsp;', ' ')
-                    .replaceAll(RegExp(r'[^\S\r\n]+'), ' ')
-                    .trim();
+                final cleanContent =
+                    TextRendererService.stripHtml(
+                          snapshot.data!,
+                        )
+                        .replaceAll('&nbsp;', ' ')
+                        .replaceAll(RegExp(r'[^\S\r\n]+'), ' ')
+                        .trim();
                 if (cleanContent.isEmpty) {
                   return Text(
                     'אין תוכן זמין',

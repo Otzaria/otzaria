@@ -4,6 +4,7 @@ import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/text_book/utils/link_preview_utils.dart';
 import 'package:otzaria/utils/text/html_link_handler.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
@@ -247,7 +248,7 @@ class _SmartTextWidgetFactory extends WidgetFactory {
   }) {
     final recognizer = super.buildGestureRecognizer(tree, onTap: onTap);
     final href = tree.element.attributes['href'];
-    if (recognizer != null && href != null && _isPreviewUrl(href)) {
+    if (recognizer != null && href != null && isPreviewHoverableUrl(href)) {
       _previewHrefByRecognizer[recognizer] = href;
     }
     return recognizer;
@@ -302,11 +303,6 @@ class _SmartTextWidgetFactory extends WidgetFactory {
     super.reset(state);
   }
 }
-
-bool _isPreviewUrl(String url) =>
-    url.startsWith('otzaria://anchor') ||
-    url.startsWith('otzaria://book-note') ||
-    url.startsWith('otzaria://note');
 
 /// הווריאנט הטיפוגרפי של סמן/טווח עוגן-מילה לפי מחלקת ה-style שהוקצתה למפרש.
 Map<String, String> _linkAnchorVariantStyle(dom.Element element) {
