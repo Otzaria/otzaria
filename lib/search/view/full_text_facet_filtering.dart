@@ -1,6 +1,4 @@
-import 'dart:async';
 import 'dart:io' show Platform;
-import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -11,16 +9,12 @@ import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/search_query_builder.dart';
+import 'package:otzaria/search/search_scope_preferences.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
-import 'package:otzaria/search/view/search_dimension_filters.dart';
-import 'package:otzaria/search/utils/search_catalogue_order_helper.dart';
-import 'package:otzaria/models/books.dart';
-import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/search/view/search_navigation_tree.dart';
+import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
-import 'package:otzaria/widgets/text/rtl_text_field.dart';
-import 'package:otzaria/widgets/misc/thin_divider.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
 // Constants
 const double _kMinQueryLength = 2;
@@ -44,20 +38,6 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
   final TextEditingController _filterQuery = TextEditingController();
   final Map<String, bool> _expansionState = {};
 
-  String _bookDedupKey(Book book) {
-    final baseTitle = book.title.trim();
-    final externalKey = book.externalLibraryId;
-    if (externalKey != null && externalKey.isNotEmpty) {
-      return 'ext:$externalKey';
-    }
-    final idKey = book.id;
-    if (idKey != null) {
-      return 'id:$idKey';
-    }
-    final categoryKey = book.categoryId?.toString() ?? book.categoryPath ?? '';
-    return '$baseTitle|$categoryKey';
-  }
-
   @override
   void dispose() {
     _filterQuery.dispose();
@@ -73,6 +53,29 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
   void initState() {
     _filterQuery.text = context.read<SearchBloc>().state.filterQuery ?? '';
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _restorePersistedDimensions();
+    });
+  }
+
+  /// שחזור הבחירה הממדית השמורה לטאב "נקי" בלבד: אם כבר רץ חיפוש (או שה-state
+  /// כבר נושא ממדים) לא דורסים את ההיקף שנקבע לו.
+  void _restorePersistedDimensions() {
+    if (!mounted) return;
+    final persisted = SearchScopePreferences.loadDimensionFacets();
+    if (persisted.isEmpty) return;
+
+    final searchBloc = context.read<SearchBloc>();
+    final state = searchBloc.state;
+    if (state.searchQuery.isNotEmpty || state.isLoading) return;
+    if (FacetHelper.dimensionFacetsOf(state.currentFacets).isNotEmpty) return;
+
+    final categories = FacetHelper.categoryFacetsOf(state.currentFacets);
+    final effectiveCategories = categories.isEmpty ? const ['/'] : categories;
+    final sortedDimensions = persisted.toList()..sort();
+    searchBloc.add(
+      SetFacetsWithoutSearch([...effectiveCategories, ...sortedDimensions]),
+    );
   }
 
   void _onQueryChanged(String query) {
@@ -182,381 +185,142 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
     );
   }
 
+  /// התקופות המוצעות לסינון. 'שאר מפרשים' לעולם לא מוטבעת, ו'תורה שבכתב'
+  /// אינה תקופת פרשנות רלוונטית לסינון.
+  static final List<String> _eraNames = [
+    for (final era in CommentaryEra.values)
+      if (era != CommentaryEra.other && era != CommentaryEra.torahShebichtav)
+        era.hebrewName,
+  ];
+
+  /// מוסיף/מסיר facet ממדי (ספרי יסוד/תקופה), שומר בהעדפות ומריץ חיפוש מחדש
+  /// דרך המנוע יחד עם הקטגוריות הפעילות.
+  void _toggleDimension(BuildContext context, String dimFacet) {
+    final searchBloc = context.read<SearchBloc>();
+    final state = searchBloc.state;
+    final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
+      state.configuration.searchMode,
+      customSpacing: widget.tab.spacingValues,
+      alternativeWords: widget.tab.alternativeWords,
+      searchOptions: widget.tab.effectiveSearchOptions(
+        query: state.searchQuery,
+      ),
+    );
+
+    final categories = FacetHelper.categoryFacetsOf(state.currentFacets);
+    final dimensions = FacetHelper.dimensionFacetsOf(
+      state.currentFacets,
+    ).toSet();
+    if (dimensions.contains(dimFacet)) {
+      dimensions.remove(dimFacet);
+    } else {
+      dimensions.add(dimFacet);
+    }
+    SearchScopePreferences.saveDimensionFacets(dimensions);
+
+    _dispatchCategoriesWithDimensions(
+      searchBloc,
+      categories,
+      dimensions.toList()..sort(),
+      customSpacing: normalizedParameters.customSpacing,
+      alternativeWords: normalizedParameters.alternativeWords,
+      searchOptions: normalizedParameters.searchOptions,
+    );
+  }
+
+  /// מנקה את כל הסינון (קטגוריות + ממדים) — חזרה ל"כל הספרים".
+  void _clearAllScope(BuildContext context) {
+    final searchBloc = context.read<SearchBloc>();
+    final state = searchBloc.state;
+    final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
+      state.configuration.searchMode,
+      customSpacing: widget.tab.spacingValues,
+      alternativeWords: widget.tab.alternativeWords,
+      searchOptions: widget.tab.effectiveSearchOptions(
+        query: state.searchQuery,
+      ),
+    );
+    SearchScopePreferences.saveDimensionFacets(const {});
+    _dispatchCategoriesWithDimensions(
+      searchBloc,
+      const ['/'],
+      const [],
+      customSpacing: normalizedParameters.customSpacing,
+      alternativeWords: normalizedParameters.alternativeWords,
+      searchOptions: normalizedParameters.searchOptions,
+    );
+  }
+
   Widget _buildSearchField() {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
-      child: Column(
-        children: [
-          SizedBox(
-            height: 52,
-            child: RtlTextField(
-              controller: _filterQuery,
-              decoration: InputDecoration(
-                hintText: 'איתור ספר…',
-                prefixIcon: const Icon(FluentIcons.filter_24_regular),
-                suffixIcon: IconButton(
-                  onPressed: _clearFilter,
-                  icon: const Icon(FluentIcons.dismiss_24_regular),
-                ),
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(
-                    color: colorScheme.primary,
-                    width: 2,
-                  ),
-                ),
-              ),
-              onChanged: _onQueryChanged,
-            ),
-          ),
-        ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: OtzariaSearchField(
+        controller: _filterQuery,
+        hintText: 'איתור ספר…',
+        slim: true,
+        onChanged: _onQueryChanged,
+        onClear: _clearFilter,
+        trailingActions: [_buildDimensionFilterButton()],
       ),
     );
   }
 
-  int _getBookFacetCount(Book book, Map<String, int> counts) {
-    final categoryPath = FacetHelper.resolveCategoryPath(book);
-    final bookFacet = FacetHelper.buildBookFacet(categoryPath, book);
-    return counts[bookFacet] ?? 0;
-  }
+  /// כפתור סינון בשדה — פותח תפריט שטוח (בלי תתי-תפריטים) של מאפייני הספר:
+  /// ספרי יסוד ותקופות. סימון מרובה נשמר פתוח (closeOnActivate: false).
+  Widget _buildDimensionFilterButton() {
+    return BlocBuilder<SearchBloc, SearchState>(
+      buildWhen: (p, c) => p.currentFacets != c.currentFacets,
+      builder: (context, state) {
+        final cs = Theme.of(context).colorScheme;
+        final dims = FacetHelper.dimensionFacetsOf(state.currentFacets).toSet();
+        final activeCount = dims.length;
 
-  Widget _buildBookTile(
-    Book book,
-    int count,
-    int level,
-    SearchState state, {
-    String? categoryPath,
-  }) {
-    if (count == 0) {
-      return const SizedBox.shrink();
-    }
-
-    // בניית facet בהתאם לפורמט האינדקס: /<topics>/<bookKey>
-    final resolvedCategoryPath =
-        categoryPath ?? FacetHelper.resolveCategoryPath(book);
-    final facet = FacetHelper.buildBookFacet(resolvedCategoryPath, book);
-    final isSelected = state.currentFacets.contains(facet);
-    return InkWell(
-      // ב-Mac המוסכמה היא Cmd+Click לריבוי בחירה; בשאר הפלטפורמות Ctrl+Click.
-      onTap: () => _isMultiSelectModifierPressed()
-          ? _handleFacetToggle(context, facet)
-          : _setFacet(context, facet),
-      onDoubleTap: () => _handleFacetToggle(context, facet),
-      onLongPress: () => _handleFacetToggle(context, facet),
-      child: Container(
-        padding: EdgeInsets.only(
-          right: 16.0 + (level * 12.0) + 24.0, // הזחה נוספת לספרים
-          left: 16.0,
-          top: 10.0,
-          bottom: 10.0,
-        ),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppSurfaces.selectedItem(Theme.of(context).colorScheme)
-              : null,
-          border: Border(
-            bottom: BorderSide(
-              color: Theme.of(context).dividerColor,
-              width: 0.5,
-            ),
-          ),
-        ),
-        child: Row(
-          children: [
-            RtlIcon(
-              FluentIcons.book_24_regular,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+        Widget checkItem(String label, String facet) {
+          final selected = dims.contains(facet);
+          return MenuItemButton(
+            closeOnActivate: false,
+            leadingIcon: Icon(
+              selected
+                  ? FluentIcons.checkbox_checked_24_filled
+                  : FluentIcons.checkbox_unchecked_24_regular,
               size: 18,
+              color: selected ? cs.primary : cs.onSurfaceVariant,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _MaybeTooltipText(
-                text: book.title,
-                style: const TextStyle(fontSize: 14),
-              ),
-            ),
-            // מספר התוצאות
-            if (count != -1)
-              Text(
-                '($count)',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            if (count == -1)
-              const SizedBox(
-                width: 12,
-                height: 12,
-                child: CircularProgressIndicator(strokeWidth: 1.5),
-              ),
+            onPressed: () => _toggleDimension(context, facet),
+            child: Text(label),
+          );
+        }
+
+        return MenuAnchor(
+          menuChildren: [
+            checkItem('ספרי יסוד', FacetHelper.baseDimensionFacet),
+            for (final era in _eraNames)
+              checkItem(era, FacetHelper.buildEraFacet(era)),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBooksList(
-    List<Book> books,
-    SearchState state,
-    Map<String, int> facetCounts,
-  ) {
-    // אם אין ספרים, הצג הודעה
-    if (books.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Text(
-            'לא נמצאו ספרים',
+          builder: (context, controller, child) => SizedBox(
+            width: 32,
+            height: 32,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
+              tooltip: 'סינון לפי מאפיין',
+              color: activeCount > 0 ? cs.primary : cs.onSurfaceVariant,
+              icon: activeCount > 0
+                  ? Badge(
+                      label: Text('$activeCount'),
+                      child: const Icon(
+                        FluentIcons.filter_24_regular,
+                        size: 20,
+                      ),
+                    )
+                  : const Icon(FluentIcons.filter_24_regular, size: 20),
+              onPressed: () =>
+                  controller.isOpen ? controller.close() : controller.open(),
+            ),
           ),
-        ),
-      );
-    }
-
-    if (state.isLoading && state.results.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return ListView.builder(
-      shrinkWrap: true,
-      itemCount: books.length,
-      itemBuilder: (context, index) {
-        final book = books[index];
-        final count = _getBookFacetCount(book, facetCounts);
-        return _buildBookTile(book, count, 0, state);
+        );
       },
     );
-  }
-
-  Widget _buildCategoryTile(
-    Category category,
-    int count,
-    int level,
-    SearchState state,
-    Map<String, int> facetCounts,
-  ) {
-    if (count == 0) return const SizedBox.shrink();
-    final isSelected = state.currentFacets.contains(category.path);
-
-    // שורש העץ ('ספריית אוצריא', path '/') הוא גם פעולת "נקה סינון": כשיש
-    // צמצום קטגוריות פעיל הוא מציג כפתור ניקוי מפורש במקום מספר התוצאות.
-    // השורש תמיד פתוח (ללא כפתור חץ) — אין טעם לכווץ את כל הספרייה.
-    final isRoot = level == 0;
-    final isExpanded = isRoot
-        ? true
-        : (_expansionState[category.path] ?? false);
-    final categoryFilterActive = FacetHelper.categoryFacetsOf(
-      state.currentFacets,
-    ).where((f) => f != '/').isNotEmpty;
-    final showClearOnRoot = isRoot && categoryFilterActive;
-
-    void toggle() {
-      setState(() {
-        _expansionState[category.path] = !isExpanded;
-      });
-    }
-
-    return Column(
-      children: [
-        // שורת הקטגוריה - סגנון ספרייה
-        InkWell(
-          onTap: () {
-            // Ctrl+לחיצה (Cmd ב-Mac) = toggle, לחיצה רגילה = set
-            if (_isMultiSelectModifierPressed()) {
-              _handleFacetToggle(context, category.path);
-            } else {
-              _setFacet(context, category.path);
-            }
-          },
-          onLongPress: () => _handleFacetToggle(context, category.path),
-          child: Container(
-            padding: EdgeInsets.only(
-              right: 16.0 + (level * 12.0),
-              left: 16.0,
-              top: 12.0,
-              bottom: 12.0,
-            ),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? AppSurfaces.selectedItem(Theme.of(context).colorScheme)
-                  : null,
-              border: Border(
-                bottom: BorderSide(
-                  color: Theme.of(context).dividerColor,
-                  width: 0.5,
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                RtlIcon(
-                  isExpanded
-                      ? FluentIcons.folder_open_24_regular
-                      : FluentIcons.folder_24_regular,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _MaybeTooltipText(
-                    text: category.title,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                ),
-                // בשורש עם סינון פעיל — כפתור ניקוי מפורש במקום מספר התוצאות.
-                if (showClearOnRoot)
-                  _ClearFilterButton(onTap: () => _setFacet(context, '/'))
-                else if (count != -1)
-                  Text(
-                    '($count)',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                if (count == -1)
-                  const SizedBox(
-                    width: 12,
-                    height: 12,
-                    child: CircularProgressIndicator(strokeWidth: 1.5),
-                  ),
-                // כפתור החץ - מרחיב/מכווץ בלבד (לא בשורש — תמיד פתוח)
-                if (!isRoot) ...[
-                  const SizedBox(width: 8),
-                  InkWell(
-                    onTap: toggle,
-                    borderRadius: AppTokens.borderRadiusAll,
-                    child: Padding(
-                      padding: const EdgeInsets.all(4.0),
-                      child: Icon(
-                        isExpanded
-                            ? FluentIcons.chevron_up_24_regular
-                            : FluentIcons.chevron_down_24_regular,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-
-        // ילדים
-        if (isExpanded)
-          Column(
-            children: _buildCategoryChildren(
-              category,
-              level,
-              state,
-              facetCounts,
-            ),
-          ),
-      ],
-    );
-  }
-
-  List<Widget> _buildCategoryChildren(
-    Category category,
-    int level,
-    SearchState state,
-    Map<String, int> facetCounts,
-  ) {
-    final List<Widget> children = [];
-
-    final filteredSubCategories = category.subCategories.toList();
-    if (category is Library) {
-      filteredSubCategories.sort(
-        (a, b) => SearchCatalogueOrderHelper.topCategoryOrder(
-          a,
-        ).compareTo(SearchCatalogueOrderHelper.topCategoryOrder(b)),
-      );
-    } else {
-      filteredSubCategories.sort(
-        (a, b) => SearchCatalogueOrderHelper.normalizeOrder(
-          a.order,
-        ).compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)),
-      );
-    }
-
-    // הוספת תת-קטגוריות
-    for (final subCategory in filteredSubCategories) {
-      final count = facetCounts[subCategory.path] ?? 0;
-      children.add(
-        _buildCategoryTile(subCategory, count, level + 1, state, facetCounts),
-      );
-    }
-
-    // איחוד ספרים כפולים (למשל PDF וטקסט של אותו ספר) לאותה כותרת
-    final uniqueBooksInCategory = <String, Book>{};
-    for (final book in category.books) {
-      uniqueBooksInCategory[_bookDedupKey(book)] ??= book;
-    }
-
-    final filteredBooks = uniqueBooksInCategory.values.toList();
-    filteredBooks.sort((a, b) => a.order.compareTo(b.order));
-
-    // הוספת ספרים
-    for (final book in filteredBooks) {
-      final categoryPath = category.path;
-      final fullFacet = FacetHelper.buildBookFacet(categoryPath, book);
-      final count = facetCounts[fullFacet] ?? 0;
-      children.add(
-        _buildBookTile(
-          book,
-          count,
-          level + 1,
-          state,
-          categoryPath: category.path,
-        ),
-      );
-    }
-
-    return children;
-  }
-
-  List<Book> _getAllBooksFromLibrary(Category category) {
-    final List<Book> allBooks = [];
-
-    void collectBooks(Category cat) {
-      // איחוד ספרים כפולים (למשל PDF וטקסט של אותו ספר) לאותה כותרת
-      final uniqueBooksInCategory = <String, Book>{};
-      for (final book in cat.books) {
-        uniqueBooksInCategory[_bookDedupKey(book)] ??= book;
-      }
-
-      final sortedBooks = uniqueBooksInCategory.values.toList();
-      sortedBooks.sort((a, b) => a.order.compareTo(b.order));
-      allBooks.addAll(sortedBooks);
-
-      final sortedSubCategories = cat.subCategories.toList();
-      if (cat is Library) {
-        sortedSubCategories.sort(
-          (a, b) => SearchCatalogueOrderHelper.topCategoryOrder(
-            a,
-          ).compareTo(SearchCatalogueOrderHelper.topCategoryOrder(b)),
-        );
-      } else {
-        sortedSubCategories.sort(
-          (a, b) => SearchCatalogueOrderHelper.normalizeOrder(
-            a.order,
-          ).compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)),
-        );
-      }
-
-      for (final subCat in sortedSubCategories) {
-        collectBooks(subCat);
-      }
-    }
-
-    collectBooks(category);
-    return allBooks;
   }
 
   Widget _buildFacetTree() {
@@ -572,37 +336,26 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
 
         return BlocBuilder<SearchBloc, SearchState>(
           builder: (context, searchState) {
-            if (libraryState.library == null) {
+            final library = libraryState.library;
+            if (library == null) {
               return const Center(child: Text('No library data available'));
             }
 
-            final rootCategory = libraryState.library!;
-            final facetCounts = searchState.facetCounts;
-
-            // בדיקה אם יש סינון ספרים
-            if (_filterQuery.text.length >= _kMinQueryLength) {
-              // סינון ידנית מהספרייה
-              final allBooks = _getAllBooksFromLibrary(rootCategory);
-              final filtered = allBooks
-                  .where(
-                    (book) => book.title.toLowerCase().contains(
-                      _filterQuery.text.toLowerCase(),
-                    ),
-                  )
-                  .toList();
-              return _buildBooksList(filtered, searchState, facetCounts);
-            }
-
-            final rootCount = facetCounts[rootCategory.path] ?? 0;
-            return SingleChildScrollView(
-              key: PageStorageKey(widget.tab),
-              child: _buildCategoryTile(
-                rootCategory,
-                rootCount,
-                0,
-                searchState,
-                facetCounts,
-              ),
+            return SearchNavigationTree(
+              library: library,
+              facetCounts: searchState.facetCounts,
+              selectedFacets: searchState.currentFacets,
+              expansion: _expansionState,
+              filterQuery: _filterQuery.text,
+              isLoading: searchState.isLoading,
+              hasResults: searchState.results.isNotEmpty,
+              onSetFacet: (facet) => _setFacet(context, facet),
+              onToggleFacet: (facet) => _handleFacetToggle(context, facet),
+              onToggleExpand: (path) => setState(() {
+                _expansionState[path] = !(_expansionState[path] ?? false);
+              }),
+              isMultiSelectPressed: _isMultiSelectModifierPressed,
+              onClearAll: () => _clearAllScope(context),
             );
           },
         );
@@ -616,167 +369,10 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
     return Column(
       children: [
         _buildSearchField(),
-        const ThinDivider(), // Now perfectly aligned
-        SearchDimensionFilters(tab: widget.tab),
-        const ThinDivider(),
         Expanded(
           child: _buildFacetTree(),
         ),
       ],
-    );
-  }
-}
-
-/// כפתור "נקה סינון" המוצג בשורש העץ כשיש צמצום קטגוריות פעיל — מסמן
-/// שהתוצאות מסוננות ושלחיצה תחזיר את כל הספרייה.
-class _ClearFilterButton extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _ClearFilterButton({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Material(
-      color: colorScheme.primaryContainer,
-      borderRadius: AppTokens.borderRadiusAll,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        // גובה קבוע התואם לאייקון התיקייה (20) — כדי שהכפתור לא יגדיל את
-        // גובה הכרטיס; הטקסט שלצד הוא Expanded ומתקצר בעצמו לפי המקום.
-        child: SizedBox(
-          height: 20,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  FluentIcons.dismiss_24_regular,
-                  size: 14,
-                  color: colorScheme.onPrimaryContainer,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'נקה סינון',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: colorScheme.onPrimaryContainer,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// טקסט של עד 2 שורות שמקבל tooltip רק אם הוא נחתך. תוצאת בדיקת החיתוך
-/// ממוזגת סטטית — TextPainter.layout פר-צומת בכל build היה עלות מרכזית
-/// בעץ ה-facets בחיפוש.
-class _MaybeTooltipText extends StatelessWidget {
-  final String text;
-  final TextStyle style;
-
-  const _MaybeTooltipText({required this.text, required this.style});
-
-  static final Map<String, bool> _overflowCache = {};
-  static const int _overflowCacheMaxEntries = 4096;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // style.hashCode ולא שדות בודדים: TextStyle ממש hashCode מלא, כך
-        // שכל שינוי עיצוב (גופן, letterSpacing וכד') יפסל את הרשומה הישנה.
-        final cacheKey =
-            '$text|${constraints.maxWidth.round()}|${style.hashCode}';
-        // חסם גס לצבירה בעקבות שינויי רוחב חוזרים; אין צורך ב-LRU — חישוב
-        // מחדש של ערך בודד זול.
-        if (_overflowCache.length >= _overflowCacheMaxEntries) {
-          _overflowCache.clear();
-        }
-        final exceedsMaxLines = _overflowCache.putIfAbsent(cacheKey, () {
-          final textPainter = TextPainter(
-            text: TextSpan(text: text, style: style),
-            maxLines: 2,
-            textDirection: TextDirection.rtl,
-          )..layout(maxWidth: constraints.maxWidth);
-          return textPainter.didExceedMaxLines;
-        });
-
-        final textWidget = Text(
-          text,
-          style: style,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        );
-
-        if (exceedsMaxLines) {
-          return _IsolatedTooltip(message: text, child: textWidget);
-        }
-        return textWidget;
-      },
-    );
-  }
-}
-
-class _IsolatedTooltip extends StatefulWidget {
-  final String message;
-  final Widget child;
-
-  const _IsolatedTooltip({
-    required this.message,
-    required this.child,
-  });
-
-  @override
-  State<_IsolatedTooltip> createState() => _IsolatedTooltipState();
-}
-
-class _IsolatedTooltipState extends State<_IsolatedTooltip> {
-  bool _showTooltip = false;
-  Timer? _timer;
-  final GlobalKey<TooltipState> _tooltipKey = GlobalKey<TooltipState>();
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) {
-        _timer?.cancel();
-        _timer = Timer(const Duration(milliseconds: 500), () {
-          if (mounted) {
-            setState(() => _showTooltip = true);
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _tooltipKey.currentState?.ensureTooltipVisible();
-            });
-          }
-        });
-      },
-      onExit: (_) {
-        _timer?.cancel();
-        if (_showTooltip && mounted) {
-          setState(() => _showTooltip = false);
-        }
-      },
-      child: _showTooltip
-          ? Tooltip(
-              key: _tooltipKey,
-              message: widget.message,
-              triggerMode: TooltipTriggerMode.manual,
-              child: widget.child,
-            )
-          : widget.child,
     );
   }
 }

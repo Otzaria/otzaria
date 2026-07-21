@@ -81,7 +81,7 @@ Future<void> main() async {
   }
 
   group(
-    'SearchDimensionFilters - סרגל התוצאות',
+    'סרגל התוצאות - סינון ממדים דרך כפתור הסינון',
     () {
       late _StubSearchBloc searchBloc;
       late SearchingTab tab;
@@ -117,12 +117,18 @@ Future<void> main() async {
         await tester.pump();
       }
 
-      testWidgets('בחירת תקופה מתפריט ההיקף מוסיפה /era ל-currentFacets', (
+      testWidgets('בחירת תקופה מכפתור הסינון מוסיפה /era ל-currentFacets', (
         tester,
       ) async {
         await pumpSidebar(tester);
 
-        await openMenuAndTap(tester, 'ראשונים');
+        // פתיחת התפריט השטוח (כפתור הסינון בשדה) ובחירת תקופה.
+        await tester.tap(find.byTooltip('סינון לפי מאפיין'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.tap(find.text('ראשונים'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
 
         expect(tester.takeException(), isNull);
         expect(

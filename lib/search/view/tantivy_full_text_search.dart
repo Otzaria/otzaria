@@ -19,9 +19,8 @@ import 'package:otzaria/search/view/full_text_settings_widgets.dart';
 import 'package:otzaria/search/view/tantivy_search_results.dart';
 import 'package:otzaria/search/view/full_text_facet_filtering.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
-import 'package:otzaria/widgets/layout/resizable_facet_filtering.dart';
+import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/feedback/indexing_warning.dart';
-import 'package:otzaria/widgets/misc/thin_divider.dart';
 
 class TantivyFullTextSearch extends StatefulWidget {
   final SearchingTab tab;
@@ -71,6 +70,8 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
   // לפתוח אותו ידנית, וזה לא משפיע על מסכים רחבים שבהם השניים מוצגים זה
   // לצד זה.
   bool _appliedNarrowLeftPaneDefault = false;
+  // רוחב חי של פאנל הסינון בזמן גרירה; נשמר להגדרות ב-onPaneResizeEnd.
+  double? _facetPaneWidthOverride;
 
   void _openEditDialog() {
     showDialog(
@@ -376,7 +377,6 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
               _buildIndexingWarning(),
               // השורה התחתונה - מוצגת תמיד!
               _buildBottomRow(state),
-              const ThinDivider(),
               // חיווי סינון קטגוריות
               if (_shouldShowFacetFilterBanner(state))
                 _buildFacetFilterBanner(context, state),
@@ -538,79 +538,53 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                             ),
                           ],
                   ),
-                  const ThinDivider(),
                   if (_shouldShowFacetFilterBanner(state))
                     _buildFacetFilterBanner(context, state),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(
-                          child: Row(
-                            children: [
-                              // עץ הסינון - עם אפשרות להסתיר/להציג
-                              ValueListenableBuilder(
-                                valueListenable: widget.tab.isLeftPaneOpen,
-                                builder: (context, isOpen, child) {
-                                  return AnimatedContainer(
-                                    duration: const Duration(milliseconds: 300),
-                                    width: isOpen ? null : 0,
-                                    child: isOpen
-                                        ? ResizableFacetFiltering(
-                                            tab: widget.tab)
-                                        : const SizedBox.shrink(),
+                    child: ValueListenableBuilder<bool>(
+                      valueListenable: widget.tab.isLeftPaneOpen,
+                      builder: (context, isOpen, _) {
+                        return BlocBuilder<SettingsBloc, SettingsState>(
+                          buildWhen: (p, c) =>
+                              p.facetFilteringWidth != c.facetFilteringWidth,
+                          builder: (context, settingsState) {
+                            final paneWidth =
+                                (_facetPaneWidthOverride ??
+                                        settingsState.facetFilteringWidth)
+                                    .clamp(220.0, 600.0);
+                            return AdaptiveSidePane(
+                              isOpen: isOpen,
+                              alignment: AlignmentDirectional.centerEnd,
+                              mainContent: _buildResultsContent(
+                                context,
+                                state,
+                                showBlockingLoader,
+                              ),
+                              paneContent: SearchFacetFiltering(
+                                tab: widget.tab,
+                              ),
+                              paneWidth: paneWidth,
+                              minMainContentWidth: 300,
+                              onClose: () =>
+                                  widget.tab.isLeftPaneOpen.value = false,
+                              isResizable: true,
+                              minPaneWidth: 220,
+                              maxPaneWidth: 600,
+                              autoHandleResponsiveVisibility: false,
+                              onPaneWidthChanged: (w) =>
+                                  _facetPaneWidthOverride = w,
+                              onPaneResizeEnd: () {
+                                final w = _facetPaneWidthOverride;
+                                if (w != null) {
+                                  context.read<SettingsBloc>().add(
+                                    UpdateFacetFilteringWidth(w),
                                   );
-                                },
-                              ),
-                              // תוצאות החיפוש
-                              Expanded(
-                                child: Builder(
-                                  builder: (context) {
-                                    if (showBlockingLoader) {
-                                      return const Center(
-                                        child: CircularProgressIndicator(),
-                                      );
-                                    }
-                                    if (state.searchQuery.isEmpty) {
-                                      return _buildInitialSearchState(context);
-                                    }
-                                    if (state.hasNoSelectedFacets) {
-                                      return _buildNoCategoriesSelectedMessage(
-                                          context);
-                                    }
-                                    if (state.results.isEmpty) {
-                                      if (state.errorMessage != null) {
-                                        return Center(
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(8.0),
-                                            child: Text(
-                                              state.errorMessage!,
-                                              style: TextStyle(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .error,
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                      return _buildNoResultsState(context);
-                                    }
-                                    return Container(
-                                      clipBehavior: Clip.hardEdge,
-                                      decoration: const BoxDecoration(),
-                                      child: TantivySearchResults(
-                                        tab: widget.tab,
-                                        onEditSearch: _openEditDialog,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                                }
+                              },
+                            );
+                          },
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -619,6 +593,45 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
           ),
         ),
       ],
+    );
+  }
+
+  /// תוכן אזור התוצאות (loader / מצב התחלתי / אין קטגוריות / שגיאה / תוצאות).
+  Widget _buildResultsContent(
+    BuildContext context,
+    SearchState state,
+    bool showBlockingLoader,
+  ) {
+    if (showBlockingLoader) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (state.searchQuery.isEmpty) {
+      return _buildInitialSearchState(context);
+    }
+    if (state.hasNoSelectedFacets) {
+      return _buildNoCategoriesSelectedMessage(context);
+    }
+    if (state.results.isEmpty) {
+      if (state.errorMessage != null) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text(
+              state.errorMessage!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        );
+      }
+      return _buildNoResultsState(context);
+    }
+    return Container(
+      clipBehavior: Clip.hardEdge,
+      decoration: const BoxDecoration(),
+      child: TantivySearchResults(
+        tab: widget.tab,
+        onEditSearch: _openEditDialog,
+      ),
     );
   }
 

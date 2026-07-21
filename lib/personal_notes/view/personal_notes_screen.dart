@@ -23,7 +23,7 @@ import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/widgets/lists/navigation_tree_tile.dart';
+import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -619,39 +619,115 @@ class _PersonalNotesManagerScreenState
         final rootCategory = libraryState.library!;
         final totalNotesCount =
             _getNotesCountForCategory(rootCategory) + _getMissingNotesCount();
-        final isRootExpanded = _expansionState['/personal_notes_root'] ?? true;
-        final isRootSelected = _selectedFilter == null;
 
-        return ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            Column(
-              children: [
-                // Root "הערות אישיות" folder
-                NavigationTreeTile.category(
-                  title: 'הערות אישיות',
-                  level: 0,
-                  isSelected: isRootSelected,
-                  isExpanded: isRootExpanded,
-                  hasChildren: true,
-                  count: totalNotesCount > 0 ? totalNotesCount : null,
-                  onTap: () => _onFilterChanged(null),
-                  onToggleExpand: () {
-                    setState(() {
-                      _expansionState['/personal_notes_root'] = !isRootExpanded;
-                    });
-                  },
-                ),
-                if (isRootExpanded) ...[
-                  ..._buildCategoryChildren(rootCategory, 0),
-                  _buildMissingNotesTile(),
-                ],
-              ],
-            ),
-          ],
+        // שיטוח לרשימת שורות + ListView.builder (בנייה עצלה) — ספריית ההערות
+        // דינמית ועלולה להיות ארוכה; בנייה מוקדמת של כל העץ הכבידה.
+        final rows = <_NotesNavRow>[_NotesNavRow.root(totalNotesCount)];
+        _flattenNotes(rootCategory, 0, rows);
+        rows.add(_NotesNavRow.missing());
+        // כל הקטגוריות/הספרים הם כרטיס אחד רציף (מעוגל בקצוות, מפריד בין
+        // כל השורות). השורש וה"הערות ללא מיקום" נשארים מחוץ לכרטיס.
+        int? firstGrouped;
+        int? lastGrouped;
+        for (var i = 0; i < rows.length; i++) {
+          final k = rows[i].kind;
+          if (k == _NotesNavRowKind.root || k == _NotesNavRowKind.missing) {
+            continue;
+          }
+          firstGrouped ??= i;
+          lastGrouped = i;
+        }
+        if (firstGrouped != null) {
+          rows[firstGrouped].isGroupStart = true;
+          rows[lastGrouped!].isGroupEnd = true;
+        }
+
+        return ListView.builder(
+          // שוליים אופקיים — הכרטיסים לא נוגעים בקצה, וקו הגלילה ברווח.
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          itemCount: rows.length,
+          itemBuilder: (context, index) => _buildNotesNavRow(rows[index]),
         );
       },
     );
+  }
+
+  void _flattenNotes(Category category, int level, List<_NotesNavRow> rows) {
+    for (final sub in category.subCategories) {
+      final count = _getNotesCountForCategory(sub);
+      if (count <= 0) continue;
+      final childLevel = level + 1;
+      final isExpanded = _expansionState[sub.path] ?? childLevel <= 1;
+      rows.add(_NotesNavRow.category(sub, childLevel, count, isExpanded));
+      if (isExpanded) _flattenNotes(sub, childLevel, rows);
+    }
+
+    // איחוד ספרים כפולים לפי כותרת (טקסט + PDF של אותו ספר).
+    final seenTitles = <String>{};
+    for (final book in category.books) {
+      if (seenTitles.contains(book.title)) continue;
+      final count = _getNotesCountForBook(book.title);
+      if (count <= 0) continue;
+      seenTitles.add(book.title);
+      rows.add(_NotesNavRow.book(book, level + 1, count));
+    }
+  }
+
+  Widget _buildNotesNavRow(_NotesNavRow row) {
+    switch (row.kind) {
+      case _NotesNavRowKind.root:
+        // שורש "הערות אישיות" — תמיד פתוח וללא כפתור חץ (כמו בחיפוש).
+        // שורש — כותרת על רקע החלונית (בלי כרטיס/קופסת-אייקון).
+        return NavTreeHeader(
+          title: 'הערות אישיות',
+          count: row.count > 0 ? row.count : null,
+          isSelected: _selectedFilter == null,
+          // "נקה סינון" לצד השורש כשקיים סינון פעיל (כמו בתוצאות החיפוש).
+          onClearFilter: _selectedFilter != null
+              ? () => _onFilterChanged(null)
+              : null,
+          onTap: () => _onFilterChanged(null),
+        );
+      case _NotesNavRowKind.category:
+        final category = row.category!;
+        final isSelected = _selectedFilter == category.path;
+        final isExpanded = _expansionState[category.path] ?? row.level <= 1;
+        return NavTreeGroupCard(
+          isGroupStart: row.isGroupStart,
+          isGroupEnd: row.isGroupEnd,
+          child: KeyedSubtree(
+            key: ValueKey(category.path),
+            child: NavTreeTile.category(
+              title: category.title,
+              // level-1: תיקיות עליונות מתחילות ב-0 (השורש הוא כותרת).
+              level: row.level - 1,
+              isSelected: isSelected,
+              isExpanded: isExpanded,
+              hasChildren:
+                  category.subCategories.isNotEmpty ||
+                  category.books.isNotEmpty,
+              count: row.count > 0 ? row.count : null,
+              onTap: () => _onFilterChanged(category.path),
+              onToggleExpand: () {
+                setState(() {
+                  _expansionState[category.path] = !isExpanded;
+                });
+              },
+            ),
+          ),
+        );
+      case _NotesNavRowKind.book:
+        return NavTreeGroupCard(
+          isGroupStart: row.isGroupStart,
+          isGroupEnd: row.isGroupEnd,
+          child: KeyedSubtree(
+            key: ObjectKey(row.book),
+            child: _buildBookTile(row.book!, row.count, row.level - 1),
+          ),
+        );
+      case _NotesNavRowKind.missing:
+        return _buildMissingNotesTile();
+    }
   }
 
   int _getMissingNotesCount() {
@@ -749,67 +825,6 @@ class _PersonalNotesManagerScreenState
     );
   }
 
-  Widget _buildCategoryTile(Category category, int count, int level) {
-    if (count == 0) {
-      return const SizedBox.shrink();
-    }
-
-    final isExpanded = _expansionState[category.path] ?? level <= 1;
-    final isSelected = _selectedFilter == category.path;
-    final hasChildren =
-        category.subCategories.isNotEmpty || category.books.isNotEmpty;
-
-    return Column(
-      children: [
-        NavigationTreeTile.category(
-          title: category.title,
-          level: level,
-          isSelected: isSelected,
-          isExpanded: isExpanded,
-          hasChildren: hasChildren,
-          count: count > 0 ? count : null,
-          onTap: () => _onFilterChanged(category.path),
-          onToggleExpand: () {
-            setState(() {
-              _expansionState[category.path] = !isExpanded;
-            });
-          },
-        ),
-        if (isExpanded && category.path != '/__missing__')
-          ..._buildCategoryChildren(category, level),
-      ],
-    );
-  }
-
-  List<Widget> _buildCategoryChildren(Category category, int level) {
-    final List<Widget> children = [];
-
-    for (final subCategory in category.subCategories) {
-      final count = _getNotesCountForCategory(subCategory);
-      if (count > 0) {
-        children.add(_buildCategoryTile(subCategory, count, level + 1));
-      }
-    }
-
-    // Deduplicate books by title - keep only first occurrence
-    // This handles cases where the same book exists in both PDF and text formats
-    final seenTitles = <String>{};
-    for (final book in category.books) {
-      // Skip if we already added a book with this title
-      if (seenTitles.contains(book.title)) {
-        continue;
-      }
-
-      final count = _getNotesCountForBook(book.title);
-      if (count > 0) {
-        children.add(_buildBookTile(book, count, level + 1));
-        seenTitles.add(book.title);
-      }
-    }
-
-    return children;
-  }
-
   Widget _buildBookTile(Book book, int count, int level) {
     if (count == 0) {
       return const SizedBox.shrink();
@@ -817,7 +832,7 @@ class _PersonalNotesManagerScreenState
 
     final isSelected = _selectedFilter == book.title;
 
-    return NavigationTreeTile.book(
+    return NavTreeTile.book(
       title: book.title,
       level: level,
       isSelected: isSelected,
@@ -1419,6 +1434,55 @@ bool noteWithinDateRange(PersonalNote note, DateTimeRange? range) {
   if (range == null) return true;
   final noteDay = DateUtils.dateOnly(note.updatedAt);
   return !noteDay.isBefore(range.start) && !noteDay.isAfter(range.end);
+}
+
+enum _NotesNavRowKind { root, category, book, missing }
+
+/// שורה משוטחת בעץ ההערות (לבנייה עצלה ב-ListView.builder).
+class _NotesNavRow {
+  final _NotesNavRowKind kind;
+  final Category? category;
+  final Book? book;
+  final int level;
+  final int count;
+  final bool isExpanded;
+  bool isGroupStart = false;
+  bool isGroupEnd = false;
+
+  _NotesNavRow._({
+    required this.kind,
+    this.category,
+    this.book,
+    this.level = 0,
+    this.count = 0,
+    this.isExpanded = false,
+  });
+
+  _NotesNavRow.root(int count)
+    : this._(kind: _NotesNavRowKind.root, count: count);
+
+  _NotesNavRow.missing() : this._(kind: _NotesNavRowKind.missing);
+
+  _NotesNavRow.category(
+    Category category,
+    int level,
+    int count,
+    bool isExpanded,
+  ) : this._(
+        kind: _NotesNavRowKind.category,
+        category: category,
+        level: level,
+        count: count,
+        isExpanded: isExpanded,
+      );
+
+  _NotesNavRow.book(Book book, int level, int count)
+    : this._(
+        kind: _NotesNavRowKind.book,
+        book: book,
+        level: level,
+        count: count,
+      );
 }
 
 class _NoteWithBook {
