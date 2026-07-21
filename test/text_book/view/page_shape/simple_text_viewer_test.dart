@@ -6,6 +6,7 @@ import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
@@ -23,6 +24,8 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 import 'package:otzaria/widgets/misc/app_context_menu.dart';
+import 'package:otzaria/widgets/misc/link_context_menu_entry.dart';
+import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 import 'package:otzaria/text_book/view/selection/selection_persistence.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -35,8 +38,9 @@ void main() {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
-  testWidgets('סימון הערה inline מוזרק לטקסט ולחיצתו פותחת את טאב ההערות',
-      (tester) async {
+  testWidgets('סימון הערה inline מוזרק לטקסט ולחיצתו פותחת את טאב ההערות', (
+    tester,
+  ) async {
     final textBookBloc = _TestTextBookBloc(_loadedState());
     final personalNotesBloc = _TestPersonalNotesBloc(
       PersonalNotesState(
@@ -88,8 +92,161 @@ void main() {
     expect(openedTab, 1);
   });
 
-  testWidgets('ריחוף על הסרגל בצורת הדף מציג תווית יעד מתוך labelForIndex',
-      (tester) async {
+  testWidgets('בצורת הדף ריחוף על עוגן נקודה ועל עוגן טווח מציג פופאפ', (
+    tester,
+  ) async {
+    final pointLink = Link(
+      heRef: 'מפרש א, א',
+      index1: 1,
+      path2: 'מפרש א',
+      index2: 1,
+      connectionType: 'commentary',
+      anchorStart: 0,
+      anchorLabel: 'א',
+    );
+    final rangeLink = Link(
+      heRef: 'מקור א, א',
+      index1: 1,
+      path2: 'מקור א',
+      index2: 1,
+      connectionType: 'linker',
+      anchorStart: 2,
+      anchorEnd: 5,
+    );
+    final loadedState = _loadedState().copyWith(
+      links: [pointLink, rangeLink],
+      linksByLine: {
+        1: [pointLink, rangeLink],
+      },
+    );
+    final textBookBloc = _TestTextBookBloc(loadedState);
+    final personalNotesBloc = _TestPersonalNotesBloc(
+      const PersonalNotesState(
+        isLoading: false,
+        bookId: 'ספר בדיקה',
+        locatedNotes: [],
+        missingNotes: [],
+        errorMessage: null,
+        filteredLocatedNotes: [],
+        filteredMissingNotes: [],
+      ),
+    );
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    addTearDown(LinkPreviewOverlay.dismiss);
+
+    await tester.pumpWidget(
+      MultiBlocProvider(
+        providers: [
+          BlocProvider<TextBookBloc>.value(value: textBookBloc),
+          BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
+          BlocProvider<SettingsBloc>.value(value: settingsBloc),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SimpleTextViewer(
+              content: const ['abcdef'],
+              fontSize: 18,
+              openBookCallback: (_) {},
+              isMainText: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final smartText = tester
+        .widgetList<SmartTextWidget>(find.byType(SmartTextWidget))
+        .firstWhere((widget) => widget.onAnchorHover != null);
+    expect(smartText.text, contains('otzaria://anchor?ref=0_0'));
+    expect(smartText.text, contains('otzaria://anchor?ref=0_1&range=1'));
+
+    smartText.onAnchorHover!(
+      'otzaria://anchor?ref=0_0',
+      const Offset(100, 100),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(LinkHoverPreviewContent), findsOneWidget);
+
+    LinkPreviewOverlay.dismiss();
+    smartText.onAnchorHover!(
+      'otzaria://anchor?ref=0_1&range=1',
+      const Offset(120, 100),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(LinkHoverPreviewContent), findsOneWidget);
+  });
+
+  testWidgets('בצורת הדף ריחוף על Linker מסוג start/end מציג פופאפ', (
+    tester,
+  ) async {
+    final inlineLink = Link(
+      heRef: 'מקור א, א',
+      index1: 1,
+      path2: 'מקור א',
+      index2: 1,
+      connectionType: 'linker',
+      start: 0,
+      end: 6,
+    );
+    final textBookBloc = _TestTextBookBloc(
+      _loadedState().copyWith(
+        links: [inlineLink],
+        linksByLine: {
+          1: [inlineLink],
+        },
+      ),
+    );
+    final personalNotesBloc = _TestPersonalNotesBloc(
+      const PersonalNotesState(
+        isLoading: false,
+        bookId: 'ספר בדיקה',
+        locatedNotes: [],
+        missingNotes: [],
+        errorMessage: null,
+        filteredLocatedNotes: [],
+        filteredMissingNotes: [],
+      ),
+    );
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    addTearDown(LinkPreviewOverlay.dismiss);
+
+    await tester.pumpWidget(
+      MultiBlocProvider(
+        providers: [
+          BlocProvider<TextBookBloc>.value(value: textBookBloc),
+          BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
+          BlocProvider<SettingsBloc>.value(value: settingsBloc),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SimpleTextViewer(
+              content: const ['abcdef'],
+              fontSize: 18,
+              openBookCallback: (_) {},
+              isMainText: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final smartText = tester
+        .widgetList<SmartTextWidget>(find.byType(SmartTextWidget))
+        .firstWhere((widget) => widget.onAnchorHover != null);
+    const url =
+        'otzaria://inline-link?path=%D7%9E%D7%A7%D7%95%D7%A8%20%D7%90&index=1&ref=%D7%9E%D7%A7%D7%95%D7%A8%20%D7%90%2C%20%D7%90';
+    expect(smartText.text, contains(url));
+
+    smartText.onAnchorHover!(url, const Offset(100, 100));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(LinkHoverPreviewContent), findsOneWidget);
+  });
+
+  testWidgets('ריחוף על הסרגל בצורת הדף מציג תווית יעד מתוך labelForIndex', (
+    tester,
+  ) async {
     final textBookBloc = _TestTextBookBloc(_loadedState());
     final personalNotesBloc = _TestPersonalNotesBloc(
       PersonalNotesState(
@@ -141,194 +298,217 @@ void main() {
   });
 
   testWidgets(
-      'הוספת הערה ממפרש פותחת דיאלוג עצמאי ולא עוברת דרך הסיידבר של הספר הראשי',
-      (tester) async {
-    // רגרסיה: בצורת הדף המפרש חולק את ה-TextBookBloc של הספר הראשי. הוספת הערה
-    // ממפרש חייבת להישמר תחת ספר המפרש (דרך דיאלוג עצמאי), ולא לשלוח
-    // StartCreatingPersonalNote — שהיה שומר תחת הספר הראשי במספר שורה שגוי.
-    final textBookBloc = _TestTextBookBloc(_loadedState());
-    final personalNotesBloc = _TestPersonalNotesBloc(
-      PersonalNotesState(
-        isLoading: false,
-        bookId: 'ספר בדיקה',
-        locatedNotes: const [],
-        missingNotes: const [],
-        errorMessage: null,
-        filteredLocatedNotes: const [],
-        filteredMissingNotes: const [],
-      ),
-    );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    'הוספת הערה ממפרש פותחת דיאלוג עצמאי ולא עוברת דרך הסיידבר של הספר הראשי',
+    (tester) async {
+      // רגרסיה: בצורת הדף המפרש חולק את ה-TextBookBloc של הספר הראשי. הוספת הערה
+      // ממפרש חייבת להישמר תחת ספר המפרש (דרך דיאלוג עצמאי), ולא לשלוח
+      // StartCreatingPersonalNote — שהיה שומר תחת הספר הראשי במספר שורה שגוי.
+      final textBookBloc = _TestTextBookBloc(_loadedState());
+      final personalNotesBloc = _TestPersonalNotesBloc(
+        PersonalNotesState(
+          isLoading: false,
+          bookId: 'ספר בדיקה',
+          locatedNotes: const [],
+          missingNotes: const [],
+          errorMessage: null,
+          filteredLocatedNotes: const [],
+          filteredMissingNotes: const [],
+        ),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MultiBlocProvider(
-          providers: [
-            BlocProvider<TextBookBloc>.value(value: textBookBloc),
-            BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
-            BlocProvider<SettingsBloc>.value(value: settingsBloc),
-          ],
-          child: Scaffold(
-            body: SimpleTextViewer(
-              content: const ['שורת מפרש'],
-              fontSize: 18,
-              openBookCallback: (_) {},
-              isMainText: false, // מפרש — לא הטקסט הראשי
-              bookTitle: 'רש"י',
-              reportBook: TextBook(title: 'רש"י'),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<TextBookBloc>.value(value: textBookBloc),
+              BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
+              BlocProvider<SettingsBloc>.value(value: settingsBloc),
+            ],
+            child: Scaffold(
+              body: SimpleTextViewer(
+                content: const ['שורת מפרש'],
+                fontSize: 18,
+                openBookCallback: (_) {},
+                isMainText: false, // מפרש — לא הטקסט הראשי
+                bookTitle: 'רש"י',
+                reportBook: TextBook(title: 'רש"י'),
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    await tester.pumpAndSettle();
+      await tester.pumpAndSettle();
 
-    // פתיחת תפריט ההקשר בלחיצה ימנית על שורת המפרש
-    final gesture = await tester.createGesture(
-      kind: PointerDeviceKind.mouse,
-      buttons: kSecondaryButton,
-    );
-    await gesture.addPointer(location: Offset.zero);
-    addTearDown(gesture.removePointer);
+      // פתיחת תפריט ההקשר בלחיצה ימנית על שורת המפרש
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryButton,
+      );
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
 
-    final regionCenter =
-        tester.getCenter(find.byType(AppContextMenuRegion).first);
-    await gesture.moveTo(regionCenter);
-    await gesture.down(regionCenter);
-    await tester.pump();
-    await gesture.up();
-    await tester.pumpAndSettle();
+      final regionCenter = tester.getCenter(
+        find.byType(AppContextMenuRegion).first,
+      );
+      await gesture.moveTo(regionCenter);
+      await gesture.down(regionCenter);
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
 
-    final addNoteFinder = find.textContaining('הוסף הערה אישית');
-    expect(addNoteFinder, findsOneWidget,
-        reason: 'תפריט ההקשר במפרש חייב לכלול "הוסף הערה אישית"');
+      final addNoteFinder = find.textContaining('הוסף הערה אישית');
+      expect(
+        addNoteFinder,
+        findsOneWidget,
+        reason: 'תפריט ההקשר במפרש חייב לכלול "הוסף הערה אישית"',
+      );
 
-    await tester.tap(addNoteFinder);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(addNoteFinder);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
-    // נפתח דיאלוג עורך עצמאי לשמירה תחת ספר המפרש
-    expect(find.byType(PersonalNoteEditorDialog), findsOneWidget,
-        reason: 'הוספת הערה ממפרש צריכה לפתוח דיאלוג עצמאי');
+      // נפתח דיאלוג עורך עצמאי לשמירה תחת ספר המפרש
+      expect(
+        find.byType(PersonalNoteEditorDialog),
+        findsOneWidget,
+        reason: 'הוספת הערה ממפרש צריכה לפתוח דיאלוג עצמאי',
+      );
 
-    // ה-bloc של הספר הראשי לא קיבל StartCreatingPersonalNote
-    expect(
-      personalNotesBloc.receivedEvents.whereType<StartCreatingPersonalNote>(),
-      isEmpty,
-      reason: 'הערה על מפרש לא צריכה לעבור דרך הסיידבר של הספר הראשי',
-    );
+      // ה-bloc של הספר הראשי לא קיבל StartCreatingPersonalNote
+      expect(
+        personalNotesBloc.receivedEvents.whereType<StartCreatingPersonalNote>(),
+        isEmpty,
+        reason: 'הערה על מפרש לא צריכה לעבור דרך הסיידבר של הספר הראשי',
+      );
 
-    // ניקוי: סגירת הדיאלוג כדי לא להשאיר טיימרים של העורך פתוחים
-    await tester.tap(find.text('ביטול'));
-    await tester.pumpAndSettle();
-  });
+      // ניקוי: סגירת הדיאלוג כדי לא להשאיר טיימרים של העורך פתוחים
+      await tester.tap(find.text('ביטול'));
+      await tester.pumpAndSettle();
+    },
+  );
 
   testWidgets(
-      'דיאלוג ההערה ממפרש מכוון לספר המפרש ולשורה הנכונה (bookId + draftLineNumber)',
-      (tester) async {
-    // מאמת את היעד של השמירה: הדיאלוג חייב לקבל את ה-bookId של המפרש ואת מספר
-    // השורה המקומי בתוך תוכן המפרש — אותם ערכים שמועברים גם ל-addNote.
-    final textBookBloc = _TestTextBookBloc(_loadedState());
-    final personalNotesBloc = _TestPersonalNotesBloc(
-      PersonalNotesState(
-        isLoading: false,
-        bookId: 'ספר בדיקה',
-        locatedNotes: const [],
-        missingNotes: const [],
-        errorMessage: null,
-        filteredLocatedNotes: const [],
-        filteredMissingNotes: const [],
-      ),
-    );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    'דיאלוג ההערה ממפרש מכוון לספר המפרש ולשורה הנכונה (bookId + draftLineNumber)',
+    (tester) async {
+      // מאמת את היעד של השמירה: הדיאלוג חייב לקבל את ה-bookId של המפרש ואת מספר
+      // השורה המקומי בתוך תוכן המפרש — אותם ערכים שמועברים גם ל-addNote.
+      final textBookBloc = _TestTextBookBloc(_loadedState());
+      final personalNotesBloc = _TestPersonalNotesBloc(
+        PersonalNotesState(
+          isLoading: false,
+          bookId: 'ספר בדיקה',
+          locatedNotes: const [],
+          missingNotes: const [],
+          errorMessage: null,
+          filteredLocatedNotes: const [],
+          filteredMissingNotes: const [],
+        ),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MultiBlocProvider(
-          providers: [
-            BlocProvider<TextBookBloc>.value(value: textBookBloc),
-            BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
-            BlocProvider<SettingsBloc>.value(value: settingsBloc),
-          ],
-          child: Scaffold(
-            body: SimpleTextViewer(
-              // שלוש שורות — נבחר את השנייה כדי לוודא lineNumber=2 ולא 1
-              content: const ['שורה ראשונה', 'שורה שנייה', 'שורה שלישית'],
-              fontSize: 18,
-              openBookCallback: (_) {},
-              isMainText: false,
-              bookTitle: 'רש"י',
-              reportBook: TextBook(title: 'רש"י'),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<TextBookBloc>.value(value: textBookBloc),
+              BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
+              BlocProvider<SettingsBloc>.value(value: settingsBloc),
+            ],
+            child: Scaffold(
+              body: SimpleTextViewer(
+                // שלוש שורות — נבחר את השנייה כדי לוודא lineNumber=2 ולא 1
+                content: const ['שורה ראשונה', 'שורה שנייה', 'שורה שלישית'],
+                fontSize: 18,
+                openBookCallback: (_) {},
+                isMainText: false,
+                bookTitle: 'רש"י',
+                reportBook: TextBook(title: 'רש"י'),
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    await tester.pumpAndSettle();
+      await tester.pumpAndSettle();
 
-    final gesture = await tester.createGesture(
-      kind: PointerDeviceKind.mouse,
-      buttons: kSecondaryButton,
-    );
-    await gesture.addPointer(location: Offset.zero);
-    addTearDown(gesture.removePointer);
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryButton,
+      );
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
 
-    // ה-regions מסודרים לפי סדר השורות; השני (index 1) = שורה שנייה = lineNumber 2
-    final regions = find.byType(AppContextMenuRegion);
-    expect(regions, findsNWidgets(3));
-    final secondLineCenter = tester.getCenter(regions.at(1));
-    await gesture.moveTo(secondLineCenter);
-    await gesture.down(secondLineCenter);
-    await tester.pump();
-    await gesture.up();
-    await tester.pumpAndSettle();
+      // ה-regions מסודרים לפי סדר השורות; השני (index 1) = שורה שנייה = lineNumber 2
+      final regions = find.byType(AppContextMenuRegion);
+      expect(regions, findsNWidgets(3));
+      final secondLineCenter = tester.getCenter(regions.at(1));
+      await gesture.moveTo(secondLineCenter);
+      await gesture.down(secondLineCenter);
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.textContaining('הוסף הערה אישית'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(find.textContaining('הוסף הערה אישית'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
-    final dialog = tester.widget<PersonalNoteEditorDialog>(
-      find.byType(PersonalNoteEditorDialog),
-    );
-    expect(dialog.bookId, 'רש"י',
-        reason: 'הדיאלוג חייב לכוון לספר המפרש, לא לספר הראשי');
-    expect(dialog.draftLineNumber, 2,
-        reason: 'מספר השורה חייב להתאים לשורה שנבחרה בתוך תוכן המפרש');
+      final dialog = tester.widget<PersonalNoteEditorDialog>(
+        find.byType(PersonalNoteEditorDialog),
+      );
+      expect(
+        dialog.bookId,
+        'רש"י',
+        reason: 'הדיאלוג חייב לכוון לספר המפרש, לא לספר הראשי',
+      );
+      expect(
+        dialog.draftLineNumber,
+        2,
+        reason: 'מספר השורה חייב להתאים לשורה שנבחרה בתוך תוכן המפרש',
+      );
 
-    // ניקוי: סגירת הדיאלוג כדי לא להשאיר טיימרים של העורך פתוחים
-    await tester.tap(find.text('ביטול'));
-    await tester.pumpAndSettle();
-  });
+      // ניקוי: סגירת הדיאלוג כדי לא להשאיר טיימרים של העורך פתוחים
+      await tester.tap(find.text('ביטול'));
+      await tester.pumpAndSettle();
+    },
+  );
 
-  test('saveCommentaryNoteToRepository ממפה את תוצאת העורך לקריאת addNote',
-      () async {
-    final repo = _RecordingNotesRepository();
+  test(
+    'saveCommentaryNoteToRepository ממפה את תוצאת העורך לקריאת addNote',
+    () async {
+      final repo = _RecordingNotesRepository();
 
-    await saveCommentaryNoteToRepository(
-      repository: repo,
-      bookId: 'רש"י',
-      lineNumber: 2,
-      result: const PersonalNoteEditorResult(
-        content: 'דלתא',
-        contentPlain: 'תוכן ההערה',
-        contentFormat: PersonalNoteContentFormat.quillDelta,
-      ),
-      selectedText: 'טקסט נבחר',
-      selectionColumn: 12,
-      categoryId: 7,
-    );
+      await saveCommentaryNoteToRepository(
+        repository: repo,
+        bookId: 'רש"י',
+        lineNumber: 2,
+        result: const PersonalNoteEditorResult(
+          content: 'דלתא',
+          contentPlain: 'תוכן ההערה',
+          contentFormat: PersonalNoteContentFormat.quillDelta,
+        ),
+        selectedText: 'טקסט נבחר',
+        selectionColumn: 12,
+        categoryId: 7,
+      );
 
-    expect(repo.addNoteCallCount, 1,
-        reason: 'חייבת להתבצע קריאה אחת בדיוק ל-addNote');
-    expect(repo.capturedBookId, 'רש"י', reason: 'ההערה נשמרת תחת ספר המפרש');
-    expect(repo.capturedLineNumber, 2);
-    expect(repo.capturedContentPlain, 'תוכן ההערה');
-    expect(repo.capturedCategoryId, 7);
-    expect(repo.capturedSelectionColumn, 12,
-        reason: 'רמז עמודת הבחירה מועבר לזיהוי המופע הנכון בטקסט חוזר');
-  });
+      expect(
+        repo.addNoteCallCount,
+        1,
+        reason: 'חייבת להתבצע קריאה אחת בדיוק ל-addNote',
+      );
+      expect(repo.capturedBookId, 'רש"י', reason: 'ההערה נשמרת תחת ספר המפרש');
+      expect(repo.capturedLineNumber, 2);
+      expect(repo.capturedContentPlain, 'תוכן ההערה');
+      expect(repo.capturedCategoryId, 7);
+      expect(
+        repo.capturedSelectionColumn,
+        12,
+        reason: 'רמז עמודת הבחירה מועבר לזיהוי המופע הנכון בטקסט חוזר',
+      );
+    },
+  );
 
   test('שומר בחירה אחרונה רק כאשר הטקסט הנבחר אינו ריק', () {
     expect(shouldPersistSelectedText('טקסט נבחר'), isTrue);
@@ -487,15 +667,16 @@ void main() {
     KeyDownEvent keyDown(
       PhysicalKeyboardKey physical,
       LogicalKeyboardKey logical,
-    ) =>
-        KeyDownEvent(
-          physicalKey: physical,
-          logicalKey: logical,
-          timeStamp: Duration.zero,
-        );
+    ) => KeyDownEvent(
+      physicalKey: physical,
+      logicalKey: logical,
+      timeStamp: Duration.zero,
+    );
 
-    final addNoteEvent =
-        keyDown(PhysicalKeyboardKey.keyN, LogicalKeyboardKey.keyN);
+    final addNoteEvent = keyDown(
+      PhysicalKeyboardKey.keyN,
+      LogicalKeyboardKey.keyN,
+    );
 
     test('קיצור הוסף-הערה במפרש הפעיל עם בחירה ושורה ידועה → addNote', () {
       expect(
@@ -655,78 +836,80 @@ void main() {
   });
 
   testWidgets(
-      'פוקוס על תת-תפריט בתפריט הקשר אינו נגנב חזרה לטקסט הראשי בצורת הדף',
-      (tester) async {
-    final textBookBloc = _TestTextBookBloc(_loadedState());
-    final personalNotesBloc = _TestPersonalNotesBloc(
-      PersonalNotesState(
-        isLoading: false,
-        bookId: 'ספר בדיקה',
-        locatedNotes: const [],
-        missingNotes: const [],
-        errorMessage: null,
-        filteredLocatedNotes: const [],
-        filteredMissingNotes: const [],
-      ),
-    );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
-    final menuItemFocusNode = FocusNode(debugLabel: 'TestMenuItem');
+    'פוקוס על תת-תפריט בתפריט הקשר אינו נגנב חזרה לטקסט הראשי בצורת הדף',
+    (tester) async {
+      final textBookBloc = _TestTextBookBloc(_loadedState());
+      final personalNotesBloc = _TestPersonalNotesBloc(
+        PersonalNotesState(
+          isLoading: false,
+          bookId: 'ספר בדיקה',
+          locatedNotes: const [],
+          missingNotes: const [],
+          errorMessage: null,
+          filteredLocatedNotes: const [],
+          filteredMissingNotes: const [],
+        ),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final menuItemFocusNode = FocusNode(debugLabel: 'TestMenuItem');
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MultiBlocProvider(
-          providers: [
-            BlocProvider<TextBookBloc>.value(value: textBookBloc),
-            BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
-            BlocProvider<SettingsBloc>.value(value: settingsBloc),
-          ],
-          child: Scaffold(
-            body: Column(
-              children: [
-                SizedBox(
-                  height: 200,
-                  child: SimpleTextViewer(
-                    content: const ['שורה א'],
-                    fontSize: 18,
-                    openBookCallback: (_) {},
-                    isMainText: true,
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<TextBookBloc>.value(value: textBookBloc),
+              BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
+              BlocProvider<SettingsBloc>.value(value: settingsBloc),
+            ],
+            child: Scaffold(
+              body: Column(
+                children: [
+                  SizedBox(
+                    height: 200,
+                    child: SimpleTextViewer(
+                      content: const ['שורה א'],
+                      fontSize: 18,
+                      openBookCallback: (_) {},
+                      isMainText: true,
+                    ),
                   ),
-                ),
-                MenuItemButton(
-                  focusNode: menuItemFocusNode,
-                  onPressed: () {},
-                  child: const Text('פריט תת-תפריט'),
-                ),
-              ],
+                  MenuItemButton(
+                    focusNode: menuItemFocusNode,
+                    onPressed: () {},
+                    child: const Text('פריט תת-תפריט'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    // initState של SimpleTextViewer גורם ל-_requestKeyboardFocus
-    // שמציב _shouldPreserveKeyboardFocus = true.
-    await tester.pumpAndSettle();
+      // initState של SimpleTextViewer גורם ל-_requestKeyboardFocus
+      // שמציב _shouldPreserveKeyboardFocus = true.
+      await tester.pumpAndSettle();
 
-    // המשתמש פותח תת-תפריט (החלף מפרש / קישורים) - הפוקוס עובר אליו.
-    menuItemFocusNode.requestFocus();
-    await tester.pump();
-    // postFrame שלאחר איבוד הפוקוס - לפני התיקון היה גוזל את הפוקוס בחזרה.
-    await tester.pump();
-    await tester.pump();
+      // המשתמש פותח תת-תפריט (החלף מפרש / קישורים) - הפוקוס עובר אליו.
+      menuItemFocusNode.requestFocus();
+      await tester.pump();
+      // postFrame שלאחר איבוד הפוקוס - לפני התיקון היה גוזל את הפוקוס בחזרה.
+      await tester.pump();
+      await tester.pump();
 
-    expect(
-      menuItemFocusNode.hasFocus,
-      isTrue,
-      reason:
-          'תת-התפריט אמור להישאר פתוח: הטקסט הראשי לא צריך לגנוב פוקוס מתפריט פעיל',
-    );
+      expect(
+        menuItemFocusNode.hasFocus,
+        isTrue,
+        reason:
+            'תת-התפריט אמור להישאר פתוח: הטקסט הראשי לא צריך לגנוב פוקוס מתפריט פעיל',
+      );
 
-    menuItemFocusNode.dispose();
-  });
+      menuItemFocusNode.dispose();
+    },
+  );
 
-  testWidgets('אחרי סגירת תת-תפריט הפוקוס חוזר לטקסט הראשי בצורת הדף',
-      (tester) async {
+  testWidgets('אחרי סגירת תת-תפריט הפוקוס חוזר לטקסט הראשי בצורת הדף', (
+    tester,
+  ) async {
     final textBookBloc = _TestTextBookBloc(_loadedState());
     final personalNotesBloc = _TestPersonalNotesBloc(
       PersonalNotesState(
@@ -803,8 +986,9 @@ void main() {
     menuItemFocusNode.dispose();
   });
 
-  testWidgets('"העתק" בתפריט ההקשר מנוטרל כשאין טקסט נבחר בעת פתיחת התפריט',
-      (tester) async {
+  testWidgets('"העתק" בתפריט ההקשר מנוטרל כשאין טקסט נבחר בעת פתיחת התפריט', (
+    tester,
+  ) async {
     // ——————————————————————————————————————————————————————————————————————
     // מבדק זה מוודא שה-capturedText שנלכד ב-_buildLine (ב-savedTextAtBuild)
     // הוא null כשאין בחירה, ולכן "העתק" מנוטרל — גם אחרי שתוקן הבאג שגרם
@@ -855,8 +1039,11 @@ void main() {
 
     // AppContextMenuRegion נמצא בתוך כל item ברשימה — מטרגטים אותו ישירות
     final regionFinder = find.byType(AppContextMenuRegion);
-    expect(regionFinder, findsWidgets,
-        reason: 'SimpleTextViewer חייב לרנדר AppContextMenuRegion לכל שורה');
+    expect(
+      regionFinder,
+      findsWidgets,
+      reason: 'SimpleTextViewer חייב לרנדר AppContextMenuRegion לכל שורה',
+    );
 
     final regionCenter = tester.getCenter(regionFinder.first);
     await gesture.moveTo(regionCenter);
@@ -866,8 +1053,11 @@ void main() {
     await tester.pumpAndSettle();
 
     // בטקסט ראשי "העתק" הוא אייקון בשורה העליונה (כיתוב "העתקה").
-    expect(find.text('העתקה'), findsOneWidget,
-        reason: 'שורת האייקונים חייבת להכיל את אייקון ההעתקה');
+    expect(
+      find.text('העתקה'),
+      findsOneWidget,
+      reason: 'שורת האייקונים חייבת להכיל את אייקון ההעתקה',
+    );
 
     final copyInkWell = tester.widget<InkWell>(
       find
@@ -880,13 +1070,15 @@ void main() {
     expect(
       copyInkWell.onTap,
       isNull,
-      reason: 'אייקון ההעתקה חייב להיות מנוטרל כשאין בחירה — '
+      reason:
+          'אייקון ההעתקה חייב להיות מנוטרל כשאין בחירה — '
           'capturedText=null בזמן הבנייה',
     );
   });
 
-  testWidgets('אחרי סגירת תפריט, פוקוס שהמשתמש העביר לכפתור אחר אינו נגנב',
-      (tester) async {
+  testWidgets('אחרי סגירת תפריט, פוקוס שהמשתמש העביר לכפתור אחר אינו נגנב', (
+    tester,
+  ) async {
     final textBookBloc = _TestTextBookBloc(_loadedState());
     final personalNotesBloc = _TestPersonalNotesBloc(
       PersonalNotesState(
@@ -966,197 +1158,207 @@ void main() {
   });
 
   testWidgets(
-      'SelectableRegion לא נבנה מחדש כשאזור חיצוני נעשה פעיל ואין לנו בחירה משלנו '
-      '(מונע טעינה מחדש של תוכן בעת בחירה במפרש בצורת הדף)', (tester) async {
-    // רגרסיה: לפני התיקון, כל הפעלה של אזור חיצוני גרמה לבנייה מחדש של
-    // ה-SelectionArea — מה שהשמיד את עץ הצאצאים (ScrollablePositionedList)
-    // וגרם לאיפוס מצב פנימי/קפיצות גלילה. אם אין לנו בחירה משלנו אין מה
-    // לנקות, ולכן אסור לבנות מחדש.
-    final controller = SelectionSyncController();
-    addTearDown(controller.dispose);
-    final otherOwner = Object();
+    'SelectableRegion לא נבנה מחדש כשאזור חיצוני נעשה פעיל ואין לנו בחירה משלנו '
+    '(מונע טעינה מחדש של תוכן בעת בחירה במפרש בצורת הדף)',
+    (tester) async {
+      // רגרסיה: לפני התיקון, כל הפעלה של אזור חיצוני גרמה לבנייה מחדש של
+      // ה-SelectionArea — מה שהשמיד את עץ הצאצאים (ScrollablePositionedList)
+      // וגרם לאיפוס מצב פנימי/קפיצות גלילה. אם אין לנו בחירה משלנו אין מה
+      // לנקות, ולכן אסור לבנות מחדש.
+      final controller = SelectionSyncController();
+      addTearDown(controller.dispose);
+      final otherOwner = Object();
 
-    final textBookBloc = _TestTextBookBloc(_loadedState());
-    final personalNotesBloc = _TestPersonalNotesBloc(
-      PersonalNotesState(
-        isLoading: false,
-        bookId: 'ספר בדיקה',
-        locatedNotes: const [],
-        missingNotes: const [],
-        errorMessage: null,
-        filteredLocatedNotes: const [],
-        filteredMissingNotes: const [],
-      ),
-    );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final textBookBloc = _TestTextBookBloc(_loadedState());
+      final personalNotesBloc = _TestPersonalNotesBloc(
+        PersonalNotesState(
+          isLoading: false,
+          bookId: 'ספר בדיקה',
+          locatedNotes: const [],
+          missingNotes: const [],
+          errorMessage: null,
+          filteredLocatedNotes: const [],
+          filteredMissingNotes: const [],
+        ),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MultiBlocProvider(
-          providers: [
-            BlocProvider<TextBookBloc>.value(value: textBookBloc),
-            BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
-            BlocProvider<SettingsBloc>.value(value: settingsBloc),
-          ],
-          child: Scaffold(
-            body: SimpleTextViewer(
-              content: const ['שורה א'],
-              fontSize: 18,
-              openBookCallback: (_) {},
-              isMainText: true,
-              selectionSyncController: controller,
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<TextBookBloc>.value(value: textBookBloc),
+              BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
+              BlocProvider<SettingsBloc>.value(value: settingsBloc),
+            ],
+            child: Scaffold(
+              body: SimpleTextViewer(
+                content: const ['שורה א'],
+                fontSize: 18,
+                openBookCallback: (_) {},
+                isMainText: true,
+                selectionSyncController: controller,
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    await tester.pumpAndSettle();
+      await tester.pumpAndSettle();
 
-    final elementBefore = _findSelectableRegionElement(tester);
-    expect(elementBefore, isNotNull);
+      final elementBefore = _findSelectableRegionElement(tester);
+      expect(elementBefore, isNotNull);
 
-    controller.activate(otherOwner);
-    await tester.pump();
+      controller.activate(otherOwner);
+      await tester.pump();
 
-    final elementAfter = _findSelectableRegionElement(tester);
-    expect(
-      elementAfter,
-      same(elementBefore),
-      reason: 'בלי בחירה משלנו, הפעלת אזור חיצוני אסור שתגרום ל-rebuild — '
-          'אחרת עץ הצאצאים נהרס לחינם',
-    );
-  });
+      final elementAfter = _findSelectableRegionElement(tester);
+      expect(
+        elementAfter,
+        same(elementBefore),
+        reason:
+            'בלי בחירה משלנו, הפעלת אזור חיצוני אסור שתגרום ל-rebuild — '
+            'אחרת עץ הצאצאים נהרס לחינם',
+      );
+    },
+  );
 
   testWidgets(
-      'SelectableRegion לא נבנה מחדש כשהבחירה התנקתה (activeOwner הופך ל-null)',
-      (tester) async {
-    // רגרסיה: לפני התיקון, ניקוי בחירה גרם להחלפת ה-key של ה-SelectionArea
-    // ולבנייה מחדש של ה-ScrollablePositionedList — והגלילה קפצה לתחילת הקטע.
-    final controller = SelectionSyncController();
-    addTearDown(controller.dispose);
-    final otherOwner = Object();
+    'SelectableRegion לא נבנה מחדש כשהבחירה התנקתה (activeOwner הופך ל-null)',
+    (tester) async {
+      // רגרסיה: לפני התיקון, ניקוי בחירה גרם להחלפת ה-key של ה-SelectionArea
+      // ולבנייה מחדש של ה-ScrollablePositionedList — והגלילה קפצה לתחילת הקטע.
+      final controller = SelectionSyncController();
+      addTearDown(controller.dispose);
+      final otherOwner = Object();
 
-    final textBookBloc = _TestTextBookBloc(_loadedState());
-    final personalNotesBloc = _TestPersonalNotesBloc(
-      PersonalNotesState(
-        isLoading: false,
-        bookId: 'ספר בדיקה',
-        locatedNotes: const [],
-        missingNotes: const [],
-        errorMessage: null,
-        filteredLocatedNotes: const [],
-        filteredMissingNotes: const [],
-      ),
-    );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final textBookBloc = _TestTextBookBloc(_loadedState());
+      final personalNotesBloc = _TestPersonalNotesBloc(
+        PersonalNotesState(
+          isLoading: false,
+          bookId: 'ספר בדיקה',
+          locatedNotes: const [],
+          missingNotes: const [],
+          errorMessage: null,
+          filteredLocatedNotes: const [],
+          filteredMissingNotes: const [],
+        ),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MultiBlocProvider(
-          providers: [
-            BlocProvider<TextBookBloc>.value(value: textBookBloc),
-            BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
-            BlocProvider<SettingsBloc>.value(value: settingsBloc),
-          ],
-          child: Scaffold(
-            body: SimpleTextViewer(
-              content: const ['שורה א'],
-              fontSize: 18,
-              openBookCallback: (_) {},
-              isMainText: true,
-              selectionSyncController: controller,
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<TextBookBloc>.value(value: textBookBloc),
+              BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
+              BlocProvider<SettingsBloc>.value(value: settingsBloc),
+            ],
+            child: Scaffold(
+              body: SimpleTextViewer(
+                content: const ['שורה א'],
+                fontSize: 18,
+                openBookCallback: (_) {},
+                isMainText: true,
+                selectionSyncController: controller,
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    await tester.pumpAndSettle();
+      await tester.pumpAndSettle();
 
-    // האזור החיצוני מפעיל ומיד מנקה — דמוי משתמש שבחר ושחרר את הבחירה.
-    controller.activate(otherOwner);
-    await tester.pump();
-    final elementAfterActivate = _findSelectableRegionElement(tester);
+      // האזור החיצוני מפעיל ומיד מנקה — דמוי משתמש שבחר ושחרר את הבחירה.
+      controller.activate(otherOwner);
+      await tester.pump();
+      final elementAfterActivate = _findSelectableRegionElement(tester);
 
-    controller.clear(otherOwner);
-    await tester.pump();
-    final elementAfterClear = _findSelectableRegionElement(tester);
+      controller.clear(otherOwner);
+      await tester.pump();
+      final elementAfterClear = _findSelectableRegionElement(tester);
 
-    expect(
-      elementAfterClear,
-      same(elementAfterActivate),
-      reason:
-          'ניקוי בחירה (activeOwner=null) אסור שיגרום ל-rebuild — אחרת הגלילה קופצת',
-    );
-  });
+      expect(
+        elementAfterClear,
+        same(elementAfterActivate),
+        reason:
+            'ניקוי בחירה (activeOwner=null) אסור שיגרום ל-rebuild — אחרת הגלילה קופצת',
+      );
+    },
+  );
 
   testWidgets(
-      'SelectableRegion במפרש לא נהרס כשאזור חיצוני (טקסט ראשי) נעשה פעיל — '
-      'מונע קפיצת גלילה לתחילת הספר בצורת הדף', (tester) async {
-    // רגרסיה: כשבחרו טקסט במפרש ואחר כך בטקסט הראשי, ה-SelectionArea של
-    // המפרש נבנה מחדש עם מפתח חדש (כדי לנקות בחירה ויזואלית). הבנייה מחדש
-    // השמידה את ה-ScrollablePositionedList ואיפסה את מיקום הגלילה לשורה 0.
-    // התיקון: שימוש ב-SelectableRegion עם GlobalKey יציב + clearSelection()
-    // ישיר — ללא שינוי מפתח ולכן ללא קפיצה.
-    final controller = SelectionSyncController();
-    addTearDown(controller.dispose);
-    final mainTextOwner = Object();
+    'SelectableRegion במפרש לא נהרס כשאזור חיצוני (טקסט ראשי) נעשה פעיל — '
+    'מונע קפיצת גלילה לתחילת הספר בצורת הדף',
+    (tester) async {
+      // רגרסיה: כשבחרו טקסט במפרש ואחר כך בטקסט הראשי, ה-SelectionArea של
+      // המפרש נבנה מחדש עם מפתח חדש (כדי לנקות בחירה ויזואלית). הבנייה מחדש
+      // השמידה את ה-ScrollablePositionedList ואיפסה את מיקום הגלילה לשורה 0.
+      // התיקון: שימוש ב-SelectableRegion עם GlobalKey יציב + clearSelection()
+      // ישיר — ללא שינוי מפתח ולכן ללא קפיצה.
+      final controller = SelectionSyncController();
+      addTearDown(controller.dispose);
+      final mainTextOwner = Object();
 
-    final textBookBloc = _TestTextBookBloc(_loadedState());
-    final personalNotesBloc = _TestPersonalNotesBloc(
-      PersonalNotesState(
-        isLoading: false,
-        bookId: 'ספר בדיקה',
-        locatedNotes: const [],
-        missingNotes: const [],
-        errorMessage: null,
-        filteredLocatedNotes: const [],
-        filteredMissingNotes: const [],
-      ),
-    );
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final textBookBloc = _TestTextBookBloc(_loadedState());
+      final personalNotesBloc = _TestPersonalNotesBloc(
+        PersonalNotesState(
+          isLoading: false,
+          bookId: 'ספר בדיקה',
+          locatedNotes: const [],
+          missingNotes: const [],
+          errorMessage: null,
+          filteredLocatedNotes: const [],
+          filteredMissingNotes: const [],
+        ),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MultiBlocProvider(
-          providers: [
-            BlocProvider<TextBookBloc>.value(value: textBookBloc),
-            BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
-            BlocProvider<SettingsBloc>.value(value: settingsBloc),
-          ],
-          child: Scaffold(
-            body: SimpleTextViewer(
-              content: const ['שורה א', 'שורה ב', 'שורה ג'],
-              fontSize: 18,
-              openBookCallback: (_) {},
-              isMainText: false, // מפרש — כאן התרחש הבאג
-              selectionSyncController: controller,
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<TextBookBloc>.value(value: textBookBloc),
+              BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
+              BlocProvider<SettingsBloc>.value(value: settingsBloc),
+            ],
+            child: Scaffold(
+              body: SimpleTextViewer(
+                content: const ['שורה א', 'שורה ב', 'שורה ג'],
+                fontSize: 18,
+                openBookCallback: (_) {},
+                isMainText: false, // מפרש — כאן התרחש הבאג
+                selectionSyncController: controller,
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    await tester.pumpAndSettle();
+      await tester.pumpAndSettle();
 
-    final elementBefore = _findSelectableRegionElement(tester);
-    expect(elementBefore, isNotNull,
-        reason: 'SimpleTextViewer חייב לרנדר SelectableRegion');
+      final elementBefore = _findSelectableRegionElement(tester);
+      expect(
+        elementBefore,
+        isNotNull,
+        reason: 'SimpleTextViewer חייב לרנדר SelectableRegion',
+      );
 
-    // דמוי בחירת טקסט בטקסט הראשי (הפעלת אזור חיצוני) —
-    // לפני התיקון זה היה גורם לבנייה מחדש של SelectionArea של המפרש
-    controller.activate(mainTextOwner);
-    await tester.pump();
+      // דמוי בחירת טקסט בטקסט הראשי (הפעלת אזור חיצוני) —
+      // לפני התיקון זה היה גורם לבנייה מחדש של SelectionArea של המפרש
+      controller.activate(mainTextOwner);
+      await tester.pump();
 
-    final elementAfter = _findSelectableRegionElement(tester);
-    expect(
-      elementAfter,
-      same(elementBefore),
-      reason: 'SelectableRegion של המפרש לא אמור להיהרס ולהיווצר מחדש — '
-          'הרס כזה היה מאפס את ScrollablePositionedList לשורה 0 וגורם לקפיצה',
-    );
-  });
+      final elementAfter = _findSelectableRegionElement(tester);
+      expect(
+        elementAfter,
+        same(elementBefore),
+        reason:
+            'SelectableRegion של המפרש לא אמור להיהרס ולהיווצר מחדש — '
+            'הרס כזה היה מאפס את ScrollablePositionedList לשורה 0 וגורם לקפיצה',
+      );
+    },
+  );
 
   testWidgets('פוקוס בתוך עורך Quill מזוהה כשדה קלט', (tester) async {
     final focusNode = FocusNode();

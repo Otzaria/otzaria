@@ -1,6 +1,11 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/plugins/models/plugin_highlight.dart';
+import 'package:otzaria/plugins/models/plugin_reader_selection.dart';
+import 'package:otzaria/plugins/models/text_source_map.dart';
+import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
+import 'package:otzaria/plugins/view/plugin_highlight_frame_overlay.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
 
 /// טסטים לפיצ'ר ההצגה הרציפה. עיקר הסיכון הוא ב-`_styleForElement` החדש —
@@ -59,6 +64,45 @@ void main() {
 
       final richText = tester.widget<RichText>(find.byType(RichText));
       expect(richText.textAlign, TextAlign.justify);
+    });
+
+    testWidgets('טווחי מסגרת מוזזים לפי השורות והרווח המחבר', (tester) async {
+      final highlight = _frameHighlight();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ContinuousReadingParagraph(
+              lines: [
+                const ContinuousReadingParagraphLine(
+                  lineIndex: 0,
+                  text: 'אב',
+                  style: TextStyle(fontSize: 20),
+                ),
+                ContinuousReadingParagraphLine(
+                  lineIndex: 1,
+                  text: 'גד',
+                  style: const TextStyle(fontSize: 20),
+                  frameRanges: [
+                    PluginHighlightRenderedRange(
+                      start: 0,
+                      end: 1,
+                      highlight: highlight,
+                    ),
+                  ],
+                ),
+              ],
+              baseStyle: const TextStyle(fontSize: 20),
+              onLineTap: _noopLineTap,
+            ),
+          ),
+        ),
+      );
+
+      final overlay = tester.widget<PluginHighlightFrameOverlay>(
+        find.byType(PluginHighlightFrameOverlay),
+      );
+      expect(overlay.ranges.single.start, 3);
+      expect(overlay.ranges.single.end, 4);
     });
   });
 
@@ -160,7 +204,7 @@ void main() {
       final spans = buildInlineHtmlSpans(
         'לפני <a class="link-anchor link-anchor-0" '
         'href="otzaria://anchor?ref=3_0">(א)</a> '
-        '<a href="otzaria://inline-link?path=x">קישור</a> אחרי',
+        '<a href="https://example.com">קישור</a> אחרי',
         const TextStyle(fontSize: 20, color: Color(0xFF111111)),
         onTapUrl: (_) async => true,
         onAnchorHover: (url, position) => hovered.add(url),
@@ -179,6 +223,30 @@ void main() {
       anchorSpan.onExit!(const PointerExitEvent());
       expect(hovered, ['otzaria://anchor?ref=3_0']);
       expect(exited, ['otzaria://anchor?ref=3_0']);
+      for (final r in recognizers) {
+        r.dispose();
+      }
+    });
+
+    test('סימוני הערות מקבלים onEnter/onExit במצב רציף', () {
+      final recognizers = <TapGestureRecognizer>[];
+      final hovered = <String>[];
+      final spans = buildInlineHtmlSpans(
+        '<a class="book-note-marker" '
+        'href="otzaria://book-note?line=3&note=0">א</a> '
+        '<a href="otzaria://note?line=3">הערה</a>',
+        const TextStyle(fontSize: 20),
+        onTapUrl: (_) async => true,
+        onAnchorHover: (url, _) => hovered.add(url),
+        recognizerSink: recognizers,
+      );
+
+      _findSpanContaining(spans, 'א')!.onEnter!(const PointerEnterEvent());
+      _findSpanContaining(spans, 'הערה')!.onEnter!(const PointerEnterEvent());
+      expect(hovered, [
+        'otzaria://book-note?line=3&note=0',
+        'otzaria://note?line=3',
+      ]);
       for (final r in recognizers) {
         r.dispose();
       }
@@ -245,9 +313,71 @@ void main() {
       expect(colored!.style?.color, const Color(0xFF333333));
     });
   });
+
+  test('underline preserves its rgba color and thickness', () {
+    final spans = buildInlineHtmlSpans(
+      '<span style="text-decoration: underline; '
+      'text-decoration-color: rgba(10, 20, 30, 0.5); '
+      'text-decoration-thickness: 2px">marked</span>',
+      const TextStyle(fontSize: 20),
+    );
+    final underlined = _findUnderlinedSpan(spans);
+    expect(underlined, isNotNull);
+    expect(underlined!.style?.decoration, TextDecoration.underline);
+    expect(underlined.style?.decorationColor, const Color(0x800A141E));
+    expect(underlined.style?.decorationThickness, 2);
+  });
+
+  test('inline colors support CSS alpha without a leading zero', () {
+    final spans = buildInlineHtmlSpans(
+      '<span style="text-decoration: underline; '
+      'text-decoration-color: rgba(10, 20, 30, .5)">marked</span>',
+      const TextStyle(fontSize: 20),
+    );
+    final underlined = _findUnderlinedSpan(spans);
+    expect(underlined?.style?.decorationColor, const Color(0x800A141E));
+  });
+
+  test('inline #RRGGBBAA colors keep CSS channel order', () {
+    final spans = buildInlineHtmlSpans(
+      '<span style="background-color: #ff000080">marked</span>',
+      const TextStyle(fontSize: 20),
+    );
+    final colored = _findColoredSpan(spans);
+    expect(colored?.style?.backgroundColor, const Color(0x80FF0000));
+  });
 }
 
 void _noopLineTap(int lineIndex) {}
+
+PluginHighlight _frameHighlight() {
+  const context = PluginAnchorContext(
+    raw: '',
+    normalized: '',
+    maxGraphemes: 30,
+    actualGraphemes: 0,
+    truncatedAtBoundary: true,
+  );
+  return PluginHighlight(
+    highlightId: 'frame',
+    ownerPluginId: 'plugin',
+    bookId: 'book',
+    sectionIndex: 1,
+    range: const PluginTextRangeAnchor(
+      layer: 'source',
+      start: PluginTextOffset(grapheme: 0, codePoint: 0, utf16: 0),
+      end: PluginTextOffset(grapheme: 1, codePoint: 1, utf16: 1),
+      exactText: 'ג',
+      beforeText: context,
+      afterText: context,
+      occurrenceIndexInSection: 0,
+      occurrenceCountInSection: 1,
+    ),
+    style: const PluginHighlightStyle(backgroundColor: '#FFE066'),
+    createdAt: DateTime.utc(2026, 7, 21),
+    updatedAt: DateTime.utc(2026, 7, 21),
+  );
+}
 
 /// מאתר את ה-`TextSpan` של קישור — מזוהה לפי recognizer מחובר.
 /// ה-span הלחיץ (עם recognizer) שהטקסט השטוח שלו מכיל את [needle].
@@ -304,6 +434,21 @@ TextSpan? _findColoredSpan(List<InlineSpan> spans) {
     visit(span);
     if (result != null) return result;
   }
+  return result;
+}
+
+TextSpan? _findUnderlinedSpan(List<InlineSpan> spans) {
+  TextSpan? result;
+  void visit(InlineSpan span) {
+    if (result != null || span is! TextSpan) return;
+    if (span.style?.decoration == TextDecoration.underline) {
+      result = span;
+      return;
+    }
+    span.children?.forEach(visit);
+  }
+
+  spans.forEach(visit);
   return result;
 }
 

@@ -9,8 +9,10 @@ import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/external_catalog/repository/external_catalog_repository.dart';
 import 'package:otzaria/search/magic_dictionary_downloader.dart';
+import 'package:otzaria/utils/download_sidecar.dart';
 import 'package:otzaria/utils/file/tar_zst_extractor.dart';
 import 'package:path/path.dart' as p;
+import 'package:seforim_library_updater/seforim_library_updater.dart';
 
 /// מוודא שהקבצים הנלווים לספרייה — התלמוד הבבלי, קטלוג otzar-HB ומילון
 /// החיפוש — קיימים ומעודכנים, כחלק מזרימת עדכון הספרייה.
@@ -29,12 +31,18 @@ class CompanionAssetsService {
   static const String talmudInstallingMarker =
       DatabaseConstants.talmudBavliInstallingMarker;
   static const Duration _apiTimeout = Duration(seconds: 15);
+  static const Duration _downloadConnectTimeout = Duration(seconds: 20);
+  static const Duration _downloadStallTimeout = Duration(seconds: 60);
 
   final http.Client Function() _clientFactory;
   final ExternalCatalogRepository Function() _catalogRepository;
   final MagicDictionaryDownloader Function() _dictionaryFactory;
-  final Future<void> Function(String archivePath, String outputDir,
-      void Function(double progress)? onProgress) _extractTarArchive;
+  final Future<void> Function(
+    String archivePath,
+    String outputDir,
+    void Function(double progress)? onProgress,
+  )
+  _extractTarArchive;
   final List<String> Function() _talmudDirsProvider;
   final VoidCallback _invalidateExternalBooksCache;
   final VoidCallback _invalidateLibraryCaches;
@@ -45,25 +53,28 @@ class CompanionAssetsService {
     ExternalCatalogRepository Function()? catalogRepository,
     MagicDictionaryDownloader Function()? dictionaryFactory,
     Future<void> Function(String, String, void Function(double)?)?
-        extractTarArchive,
+    extractTarArchive,
     List<String> Function()? talmudDirsProvider,
     VoidCallback? invalidateExternalBooksCache,
     VoidCallback? invalidateLibraryCaches,
     String? talmudReleaseApiUrl,
-  })  : _clientFactory = clientFactory ?? http.Client.new,
-        _catalogRepository =
-            catalogRepository ?? (() => ExternalCatalogRepository.instance),
-        _dictionaryFactory = dictionaryFactory ?? MagicDictionaryDownloader.new,
-        _extractTarArchive = extractTarArchive ??
-            ((archive, outputDir, onProgress) =>
-                extractTarZstToDir(archive, outputDir, onProgress: onProgress)),
-        _talmudDirsProvider = talmudDirsProvider ??
-            DatabaseConstants.getTalmudBavliDirectoryPaths,
-        _invalidateExternalBooksCache = invalidateExternalBooksCache ??
-            (() => DataRepository.instance.invalidateExternalBooksCache()),
-        _invalidateLibraryCaches = invalidateLibraryCaches ??
-            (() => FileSystemData.instance.clearBookCache()),
-        _talmudReleaseApiUrl = talmudReleaseApiUrl ?? talmudReleaseApi;
+  }) : _clientFactory = clientFactory ?? http.Client.new,
+       _catalogRepository =
+           catalogRepository ?? (() => ExternalCatalogRepository.instance),
+       _dictionaryFactory = dictionaryFactory ?? MagicDictionaryDownloader.new,
+       _extractTarArchive =
+           extractTarArchive ??
+           ((archive, outputDir, onProgress) =>
+               extractTarZstToDir(archive, outputDir, onProgress: onProgress)),
+       _talmudDirsProvider =
+           talmudDirsProvider ?? DatabaseConstants.getTalmudBavliDirectoryPaths,
+       _invalidateExternalBooksCache =
+           invalidateExternalBooksCache ??
+           (() => DataRepository.instance.invalidateExternalBooksCache()),
+       _invalidateLibraryCaches =
+           invalidateLibraryCaches ??
+           (() => FileSystemData.instance.clearBookCache()),
+       _talmudReleaseApiUrl = talmudReleaseApiUrl ?? talmudReleaseApi;
 
   /// מריץ אימות ועדכון של שלושת הפריטים הנלווים, לפי הסדר: תלמוד, קטלוג,
   /// מילון. מחזיר האם תוכן הספרייה השתנה (תלמוד/קטלוג הותקנו או עודכנו) —
@@ -98,14 +109,16 @@ class CompanionAssetsService {
       try {
         // ensureLatest מדווח 1.0 גם כשהמילון כבר מעודכן — לא מציגים "מוריד".
         var announced = false;
-        await downloader.ensureLatest(onProgress: (progress) {
-          if (progress >= 1.0) return;
-          if (!announced) {
-            announced = true;
-            onStatus?.call('מוריד מילון לחיפוש המקורב');
-          }
-          onDownloadProgress?.call((progress * 10000).round(), 10000);
-        });
+        await downloader.ensureLatest(
+          onProgress: (progress) {
+            if (progress >= 1.0) return;
+            if (!announced) {
+              announced = true;
+              onStatus?.call('מוריד מילון לחיפוש המקורב');
+            }
+            onDownloadProgress?.call((progress * 10000).round(), 10000);
+          },
+        );
       } finally {
         downloader.dispose();
       }
@@ -140,8 +153,9 @@ class CompanionAssetsService {
       final release = await _fetchTalmudRelease(client);
       if (existingDir != null) {
         final marker = File(p.join(existingDir, talmudVersionFileName));
-        final installed =
-            marker.existsSync() ? marker.readAsStringSync().trim() : '';
+        final installed = marker.existsSync()
+            ? marker.readAsStringSync().trim()
+            : '';
         if (installed.isEmpty) {
           // התקנה קיימת ללא סימון גרסה — מחתימים את התג הנוכחי בלי להוריד
           // מחדש; עדכונים יזוהו מה-release הבא ואילך.
@@ -154,35 +168,43 @@ class CompanionAssetsService {
 
       onStatus?.call('מוריד את התלמוד הבבלי');
       final targetDir = existingDir ?? dirs.first;
-      final tempPath = p.join(Directory.systemTemp.path,
-          'otzaria_${DatabaseConstants.talmudBavliArchiveFileName}');
-      try {
-        await _downloadToFile(
-          client,
-          release.assetUrl,
-          tempPath,
-          onDownloadProgress,
-          cancelled,
-        );
-        if (cancelled()) return false;
+      final tempPath = p.join(
+        Directory.systemTemp.path,
+        'otzaria_${DatabaseConstants.talmudBavliArchiveFileName}',
+      );
+      // כשל/ביטול משאירים את הקובץ החלקי בכוונה — ההרצה הבאה תמשיך דרך Range.
+      // הזהות (תג+גודל+id+updated_at) קושרת את השריד לגרסה: העלאה-מחדש תחת אותו
+      // תג וגודל משנה את id/updated_at, כך ששריד ישן לא ייחשב עדכני.
+      await _downloadToFile(
+        client,
+        release.assetUrl,
+        tempPath,
+        '${release.tag}|${release.size}|${release.id}|${release.updatedAt}',
+        release.size,
+        release.sha256,
+        onDownloadProgress,
+        cancelled,
+      );
+      if (cancelled()) return false;
 
-        onStatus?.call('מחלץ את התלמוד הבבלי');
-        final dir = Directory(targetDir);
-        dir.createSync(recursive: true);
-        final markerFile = File(p.join(targetDir, talmudVersionFileName));
-        markerFile.writeAsStringSync(talmudInstallingMarker);
-        // עדכון מעל התקנה קיימת: מנקים קבצים ישנים שאולי הוסרו ב-release החדש.
-        // הסימון-ביניים כבר נכתב, כך שקטיעה בשלב הזה מותירה התקנה חלקית מסומנת.
-        for (final entity in dir.listSync()) {
-          if (entity is File &&
-              p.basename(entity.path) != talmudVersionFileName) {
-            entity.deleteSync();
-          }
+      onStatus?.call('מחלץ את התלמוד הבבלי');
+      final dir = Directory(targetDir);
+      dir.createSync(recursive: true);
+      final markerFile = File(p.join(targetDir, talmudVersionFileName));
+      markerFile.writeAsStringSync(talmudInstallingMarker);
+      // עדכון מעל התקנה קיימת: מנקים קבצים ישנים שאולי הוסרו ב-release החדש.
+      // הסימון-ביניים כבר נכתב, כך שקטיעה בשלב הזה מותירה התקנה חלקית מסומנת.
+      for (final entity in dir.listSync()) {
+        if (entity is File &&
+            p.basename(entity.path) != talmudVersionFileName) {
+          entity.deleteSync();
         }
-        // הארכיון מכיל את התיקייה 'תלמוד בבלי/' — מחולץ לתיקיית האב.
-        // ההתקדמות מכסה את שלב ה-zst; שלב פריסת ה-tar ללא מדידה — עוברים
-        // להודעת ספינר כדי שהמד לא ייתקע על 100%.
-        var zstDone = false;
+      }
+      // הארכיון מכיל את התיקייה 'תלמוד בבלי/' — מחולץ לתיקיית האב.
+      // ההתקדמות מכסה את שלב ה-zst; שלב פריסת ה-tar ללא מדידה — עוברים
+      // להודעת ספינר כדי שהמד לא ייתקע על 100%.
+      var zstDone = false;
+      try {
         await _extractTarArchive(tempPath, p.dirname(targetDir), (progress) {
           if (zstDone) return;
           if (progress >= 0.999) {
@@ -192,12 +214,19 @@ class CompanionAssetsService {
             onDownloadProgress?.call((progress * 10000).round(), 10000);
           }
         });
-      } finally {
-        // גם הורדה שנכשלה/בוטלה משאירה קובץ חלקי של מאות MB — מנקים תמיד.
+      } catch (_) {
+        // חילוץ שנכשל על קובץ שלם משאיר temp שיחזיר 416 בניסיון הבא (דילוג על
+        // ההורדה) ולולאה אינסופית — מוחקים כדי לכפות הורדה מחדש.
         await File(tempPath).delete().catchError((_) => File(tempPath));
+        await _deleteTalmudDownloadState(tempPath);
+        rethrow;
       }
-      File(p.join(targetDir, talmudVersionFileName))
-          .writeAsStringSync(release.tag);
+      // מחיקת הקובץ הזמני לאחר חילוץ מוצלח.
+      await File(tempPath).delete().catchError((_) => File(tempPath));
+      await _deleteTalmudDownloadState(tempPath);
+      File(
+        p.join(targetDir, talmudVersionFileName),
+      ).writeAsStringSync(release.tag);
       // קיום תיקיית התלמוד ממוטמן ב-DatabaseLibraryProvider — בלי ניקוי,
       // הריענון שאחרי העדכון לא יגלה את התיקייה החדשה עד הפעלה מחדש.
       _invalidateLibraryCaches();
@@ -207,15 +236,26 @@ class CompanionAssetsService {
     }
   }
 
-  Future<({String tag, String assetUrl})> _fetchTalmudRelease(
-      http.Client client) async {
-    final response = await client.get(
-      Uri.parse(_talmudReleaseApiUrl),
-      headers: const {
-        'Accept': 'application/vnd.github+json',
-        'User-Agent': 'otzaria',
-      },
-    ).timeout(_apiTimeout);
+  Future<
+    ({
+      String tag,
+      String assetUrl,
+      int size,
+      String id,
+      String updatedAt,
+      String? sha256,
+    })
+  >
+  _fetchTalmudRelease(http.Client client) async {
+    final response = await client
+        .get(
+          Uri.parse(_talmudReleaseApiUrl),
+          headers: const {
+            'Accept': 'application/vnd.github+json',
+            'User-Agent': 'otzaria',
+          },
+        )
+        .timeout(_apiTimeout);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('GitHub API החזיר ${response.statusCode}');
     }
@@ -231,50 +271,68 @@ class CompanionAssetsService {
         return (
           tag: tag,
           assetUrl: asset['browser_download_url'] as String,
+          size: (asset['size'] as num?)?.toInt() ?? 0,
+          id: asset['id']?.toString() ?? '',
+          updatedAt: asset['updated_at']?.toString() ?? '',
+          sha256: switch (asset['digest']) {
+            final String digest when digest.startsWith('sha256:') =>
+              digest.substring('sha256:'.length),
+            _ => null,
+          },
         );
       }
     }
     throw Exception(
-        'לא נמצא ${DatabaseConstants.talmudBavliArchiveFileName} ב-release $tag');
+      'לא נמצא ${DatabaseConstants.talmudBavliArchiveFileName} ב-release $tag',
+    );
   }
 
+  /// מוריד את [url] דרך מנגנון ה-resume המאומת של חבילת העדכון. [identity]
+  /// קושר את השריד ל-release, ו-ETag חזק שנשמר ב-sidecar קושר את הבייטים לייצוג
+  /// השרת דרך If-Range. 206/416, אורך, digest, timeout וביטול מאומתים בחבילה.
   Future<void> _downloadToFile(
     http.Client client,
     String url,
     String destPath,
+    String identity,
+    int expectedSize,
+    String? expectedSha256,
     void Function(int received, int? total)? onProgress,
     bool Function() cancelled,
   ) async {
-    final request = http.Request('GET', Uri.parse(url));
-    final response = await client.send(request);
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      await response.stream.drain<void>();
-      throw Exception('הורדה נכשלה (${response.statusCode})');
-    }
-    final total = response.contentLength;
-    final sink = File(destPath).openWrite();
-    var received = 0;
-    try {
-      await for (final chunk in response.stream) {
-        if (cancelled()) {
-          throw Exception('ההורדה בוטלה');
-        }
-        sink.add(chunk);
-        received += chunk.length;
-        onProgress?.call(received, total);
-      }
-      await sink.flush();
-    } finally {
-      await sink.close();
-    }
+    // מסיר sidecar מהפורמט המקומי הישן. PatchDownloader משתמש ב-.resume
+    // ושומר בו גם ETag חזק, כך שכל המשך נשלח עם If-Range ונמנע frankenfile.
+    await deleteDownloadSidecar(destPath);
+    final downloader = PatchDownloader(
+      decompress: (_) async => null,
+      httpClient: client,
+      connectTimeout: _downloadConnectTimeout,
+      stallTimeout: _downloadStallTimeout,
+    );
+    await downloader.downloadToFile(
+      url: url,
+      destPath: destPath,
+      expectedSize: expectedSize > 0 ? expectedSize : null,
+      expectedSha256: expectedSha256,
+      resumeToken: identity,
+      onProgress: onProgress,
+      isCancelled: cancelled,
+    );
+  }
+
+  Future<void> _deleteTalmudDownloadState(String destPath) async {
+    // משאירים את ה-sidecar אם מחיקת הארכיון נכשלה, כדי שהניסיון הבא יוכל
+    // לזהות/לאמת את השריד ולא יאבד את נקודת החידוש.
+    if (await File(destPath).exists()) return;
+    await deleteDownloadSidecar(destPath); // פורמט .meta הישן
+    final resume = File(PatchDownloader.resumeSidecarPath(destPath));
+    await resume.delete().catchError((_) => resume);
   }
 
   // ── קטלוג otzar-HB ────────────────────────────────────────────────────
 
   /// מחזיר `true` כשהקטלוג הורד או עודכן בפועל.
-  Future<bool> _ensureCatalog(
-    void Function(String message)? onStatus,
-  ) async {
+  Future<bool> _ensureCatalog(void Function(String message)? onStatus) async {
     final repository = _catalogRepository();
     if (await repository.databaseExists()) {
       onStatus?.call('בודק עדכון קטלוגים');

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -28,8 +30,14 @@ PluginManifest _buildManifest({List<String> networkAllowlist = const []}) {
 
 void main() {
   group('PluginNetworkAccessResolver', () {
-    test('מתיר URL מובנה רק אם הוא הוצהר גם במניפסט', () async {
-      final resolver = PluginNetworkAccessResolver();
+    test('מתיר URL מהרשימה הרשמית רק אם הוא הוצהר גם במניפסט', () async {
+      var fetches = 0;
+      final client = MockClient((request) async {
+        fetches++;
+        expect(request.url, PluginNetworkAccessResolver.officialAllowlistUri);
+        return http.Response('https://nakdan.dicta.org.il/api\n', 200);
+      });
+      final resolver = PluginNetworkAccessResolver(client: client);
       final localUri = Uri.parse('https://nakdan.dicta.org.il/api?text=שלום');
 
       expect(
@@ -49,30 +57,84 @@ void main() {
         ),
         isFalse,
       );
+      expect(fetches, 1);
     });
 
-    test('מתיר loopback מקומי כשהמניפסט מצהיר עליו, בלי allowlist גלובלי',
-        () async {
-      final resolver = PluginNetworkAccessResolver();
-      final manifest = _buildManifest(
-        networkAllowlist: const ['127.0.0.1', 'localhost'],
-      );
+    test('הרשימה הרשמית יכולה לבטל כתובת שקיימת ברשימה המקומפלת', () async {
+      final client = MockClient((_) async {
+        return http.Response('https://approved.example.com/api\n', 200);
+      });
+      final resolver = PluginNetworkAccessResolver(client: client);
+      final compiledUri = Uri.parse('https://nakdan.dicta.org.il/api');
 
       expect(
         await resolver.isUriAllowedForPlugin(
-          Uri.parse('http://127.0.0.1:11434/api/tags'),
-          manifest,
+          compiledUri,
+          _buildManifest(
+            networkAllowlist: const ['https://nakdan.dicta.org.il/api'],
+          ),
         ),
-        isTrue,
+        isFalse,
       );
+    });
+
+    test('רשימה רשמית ריקה חוסמת גם כתובות מקומפלות', () async {
+      final client = MockClient(
+        (_) async => http.Response('# emergency\n', 200),
+      );
+      final resolver = PluginNetworkAccessResolver(client: client);
+
       expect(
         await resolver.isUriAllowedForPlugin(
-          Uri.parse('http://localhost:1234/v1/models'),
-          manifest,
+          Uri.parse('https://nakdan.dicta.org.il/api'),
+          _buildManifest(
+            networkAllowlist: const ['https://nakdan.dicta.org.il/api'],
+          ),
+        ),
+        isFalse,
+      );
+    });
+
+    test('כשל בטעינת הרשימה הרשמית נופל לרשימה המקומפלת', () async {
+      final client = MockClient((_) async => http.Response('unavailable', 503));
+      final resolver = PluginNetworkAccessResolver(client: client);
+      final compiledUri = Uri.parse('https://nakdan.dicta.org.il/api');
+
+      expect(
+        await resolver.isUriAllowedForPlugin(
+          compiledUri,
+          _buildManifest(
+            networkAllowlist: const ['https://nakdan.dicta.org.il/api'],
+          ),
         ),
         isTrue,
       );
     });
+
+    test(
+      'מתיר loopback מקומי כשהמניפסט מצהיר עליו, בלי allowlist גלובלי',
+      () async {
+        final resolver = PluginNetworkAccessResolver();
+        final manifest = _buildManifest(
+          networkAllowlist: const ['127.0.0.1', 'localhost'],
+        );
+
+        expect(
+          await resolver.isUriAllowedForPlugin(
+            Uri.parse('http://127.0.0.1:11434/api/tags'),
+            manifest,
+          ),
+          isTrue,
+        );
+        expect(
+          await resolver.isUriAllowedForPlugin(
+            Uri.parse('http://localhost:1234/v1/models'),
+            manifest,
+          ),
+          isTrue,
+        );
+      },
+    );
 
     test('חוסם loopback אם המניפסט לא מצהיר עליו', () async {
       final resolver = PluginNetworkAccessResolver();
@@ -108,22 +170,21 @@ void main() {
       );
     });
 
-    test('מתיר URL מהרשימה הרשמית ב-GitHub אם הוא הוצהר במניפסט', () async {
-      final client = MockClient((request) async {
-        expect(
-          request.url,
-          PluginNetworkAccessResolver.officialAllowlistUriForTag('1.2.3'),
+    test('מפרק את קובץ הטקסט הרשמי: הערות ושורות ריקות מדולגות', () async {
+      final client = MockClient((_) async {
+        // Response.bytes + utf8: הערות בעברית בקובץ האמיתי אינן latin1
+        return http.Response.bytes(
+          utf8.encode('''
+# הערה
+https://api.example.com/root
+
+# עוד הערה
+https://other.example.com
+'''),
+          200,
         );
-        return http.Response('''
-const List<String> pluginNetworkAllowlist = <String>[
-  'https://api.example.com/root',
-];
-''', 200);
       });
-      final resolver = PluginNetworkAccessResolver(
-        client: client,
-        officialTagNameProvider: () async => '1.2.3',
-      );
+      final resolver = PluginNetworkAccessResolver(client: client);
 
       final allowed = await resolver.isUriAllowedForPlugin(
         Uri.parse('https://api.example.com/root/v1/items'),
@@ -137,16 +198,9 @@ const List<String> pluginNetworkAllowlist = <String>[
 
     test('חוסם URL מהרשימה הרשמית אם המניפסט לא הצהיר עליו', () async {
       final client = MockClient((_) async {
-        return http.Response('''
-const List<String> pluginNetworkAllowlist = <String>[
-  'https://api.example.com/root',
-];
-''', 200);
+        return http.Response('https://api.example.com/root\n', 200);
       });
-      final resolver = PluginNetworkAccessResolver(
-        client: client,
-        officialTagNameProvider: () async => '1.2.3',
-      );
+      final resolver = PluginNetworkAccessResolver(client: client);
 
       final allowed = await resolver.isUriAllowedForPlugin(
         Uri.parse('https://api.example.com/root/v1/items'),
@@ -162,16 +216,9 @@ const List<String> pluginNetworkAllowlist = <String>[
       var fetches = 0;
       final client = MockClient((_) async {
         fetches++;
-        return http.Response('''
-const List<String> pluginNetworkAllowlist = <String>[
-  'https://cached.example.com/api',
-];
-''', 200);
+        return http.Response('https://cached.example.com/api\n', 200);
       });
-      final resolver = PluginNetworkAccessResolver(
-        client: client,
-        officialTagNameProvider: () async => '1.2.3',
-      );
+      final resolver = PluginNetworkAccessResolver(client: client);
       final manifest = _buildManifest(
         networkAllowlist: const ['https://cached.example.com/api'],
       );
@@ -191,7 +238,6 @@ const List<String> pluginNetworkAllowlist = <String>[
       var now = DateTime(2026, 6, 3, 12, 0, 0);
       final resolver = PluginNetworkAccessResolver(
         client: client,
-        officialTagNameProvider: () async => '1.2.3',
         nowProvider: () => now,
       );
       final manifest = _buildManifest(
@@ -208,38 +254,12 @@ const List<String> pluginNetworkAllowlist = <String>[
       expect(fetches, 2);
     });
 
-    test('מנסה גם תג בלי v וגם תג עם v לתאימות ל-release stable', () async {
-      var calls = 0;
-      final client = MockClient((request) async {
-        calls++;
-        if (request.url ==
-            PluginNetworkAccessResolver.officialAllowlistUriForTag('1.2.3')) {
-          return http.Response('missing', 404);
-        }
-        expect(
-          request.url,
-          PluginNetworkAccessResolver.officialAllowlistUriForTag('v1.2.3'),
-        );
-        return http.Response('''
-const List<String> pluginNetworkAllowlist = <String>[
-  'https://fallback.example.com/root',
-];
-''', 200);
-      });
-      final resolver = PluginNetworkAccessResolver(
-        client: client,
-        officialTagNameProvider: () async => '1.2.3',
+    test('כתובת הרשימה הרשמית מצביעה על הענף הייעודי', () {
+      expect(
+        PluginNetworkAccessResolver.officialAllowlistUri.toString(),
+        'https://raw.githubusercontent.com/Otzaria/otzaria/'
+        'plugin-network-allowlist/plugin_network_allowlist.txt',
       );
-
-      final allowed = await resolver.isUriAllowedForPlugin(
-        Uri.parse('https://fallback.example.com/root/x'),
-        _buildManifest(
-          networkAllowlist: const ['https://fallback.example.com/root'],
-        ),
-      );
-
-      expect(allowed, isTrue);
-      expect(calls, 2);
     });
   });
 }

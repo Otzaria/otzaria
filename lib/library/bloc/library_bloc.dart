@@ -25,6 +25,13 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
   final DataRepository _repository = DataRepository.instance;
   int _searchGeneration = 0;
 
+  // קיבוץ רענונים: כשרענון כבר רץ, בקשות נוספות נצברות ומתמזגות לרענון יחיד
+  // שרץ בסיום — במקום לבנות מחדש את הקטלוג (~7030 ספרים) לכל בקשה.
+  bool _refreshInFlight = false;
+  bool _refreshPending = false;
+  final Set<String> _pendingChangedKeys = {};
+  RefreshSource _pendingSource = RefreshSource.customFoldersScan;
+
   LibraryBloc() : super(LibraryState.initial()) {
     // droppable: בעלייה נשלחים שני LoadLibrary סמוכים (reveal + LibraryBrowser.
     // initState). droppable זורק את השני בזמן שהראשון מעובד; ה-guard ב-
@@ -63,14 +70,16 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       DataRepository.instance.invalidateExternalBooksCache();
       Library library = await _repository.library;
 
-      emit(state.copyWith(
-        library: library,
-        currentCategory: library,
-        isLoading: false,
-        searchResults: null,
-        searchQuery: null,
-        selectedTopics: null,
-      ));
+      emit(
+        state.copyWith(
+          library: library,
+          currentCategory: library,
+          isLoading: false,
+          searchResults: null,
+          searchQuery: null,
+          selectedTopics: null,
+        ),
+      );
 
       // prune של תיקיות מותאמות שנמחקו מהדיסק הוא משימת תחזוקה — לא חיוני
       // להצגת הספרייה הראשונית. הוא כולל I/O סינכרוני כבד (File.exists,
@@ -85,15 +94,21 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         },
       );
 
-      developer.log('📚 LibraryBloc: State emitted with isLoading=false',
-          name: 'LibraryBloc');
+      developer.log(
+        '📚 LibraryBloc: State emitted with isLoading=false',
+        name: 'LibraryBloc',
+      );
     } catch (e) {
-      developer.log('📚 LibraryBloc: Error loading library: $e',
-          name: 'LibraryBloc');
-      emit(state.copyWith(
-        error: e.toString(),
-        isLoading: false,
-      ));
+      developer.log(
+        '📚 LibraryBloc: Error loading library: $e',
+        name: 'LibraryBloc',
+      );
+      emit(
+        state.copyWith(
+          error: e.toString(),
+          isLoading: false,
+        ),
+      );
     }
   }
 
@@ -101,23 +116,63 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     RefreshLibrary event,
     Emitter<LibraryState> emit,
   ) async {
+    // רענון כבר רץ — נצבור את המטען ונריץ רענון יחיד מאוחד בסיום. general גובר
+    // על customFoldersScan כדי שלא נדלג על prune כשמישהו כן צריך אותו.
+    if (_refreshInFlight) {
+      _refreshPending = true;
+      _pendingChangedKeys.addAll(event.changedBookKeys);
+      if (event.source == RefreshSource.general) {
+        _pendingSource = RefreshSource.general;
+      }
+      return;
+    }
+
+    _refreshInFlight = true;
+    try {
+      await _runRefresh(event, emit);
+    } finally {
+      _refreshInFlight = false;
+    }
+
+    if (_refreshPending) {
+      final mergedEvent = RefreshLibrary(
+        changedBookKeys: Set<String>.from(_pendingChangedKeys),
+        source: _pendingSource,
+      );
+      _refreshPending = false;
+      _pendingChangedKeys.clear();
+      _pendingSource = RefreshSource.customFoldersScan;
+      add(mergedEvent);
+    }
+  }
+
+  Future<void> _runRefresh(
+    RefreshLibrary event,
+    Emitter<LibraryState> emit,
+  ) async {
     emit(state.copyWith(isLoading: true));
     try {
-      await _pruneRemovedCustomFoldersIfNeeded();
+      // רענון בעקבות סריקת תיקיות אישיות — התיקיות כבר סונכרנו, prune מיותר.
+      if (event.source != RefreshSource.customFoldersScan) {
+        await _pruneRemovedCustomFoldersIfNeeded();
+      }
 
       // שמירת המיקום הנוכחי בספרייה
-      final currentCategoryPath =
-          _getCurrentCategoryPath(state.currentCategory);
+      final currentCategoryPath = _getCurrentCategoryPath(
+        state.currentCategory,
+      );
 
       // צלם את מפתחות הספרים לפני הרענון לצורך זיהוי ספרים חדשים
-      final keysBeforeRefresh = state.library
+      final keysBeforeRefresh =
+          state.library
               ?.getAllBooks()
               .map((b) => IndexingRepository.catalogueOrderKey(b))
               .toSet() ??
           <String>{};
 
-      final libraryPath =
-          Settings.getValue<String>(SettingsRepository.keyLibraryPath);
+      final libraryPath = Settings.getValue<String>(
+        SettingsRepository.keyLibraryPath,
+      );
       if (libraryPath != null) {
         FileSystemData.instance.libraryPath = libraryPath;
       }
@@ -132,42 +187,56 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       } catch (e) {
         // אם יש בעיה עם פתיחת האינדקס מחדש, נמשיך בלי זה
         // הספרייה עדיין תתרענן אבל החיפוש עלול לא לעבוד עד להפעלה מחדש
-        developer.log('Warning: Could not reopen search index',
-            name: 'LibraryBloc', error: e);
+        developer.log(
+          'Warning: Could not reopen search index',
+          name: 'LibraryBloc',
+          error: e,
+        );
       }
 
       // זיהוי ספרים חדשים שנוספו ברענון
       final newBooksToIndex = library
           .getAllBooks()
-          .where((b) => !keysBeforeRefresh
-              .contains(IndexingRepository.catalogueOrderKey(b)))
+          .where(
+            (b) => !keysBeforeRefresh.contains(
+              IndexingRepository.catalogueOrderKey(b),
+            ),
+          )
           .toList();
 
       // מיפוי מפתחות הספרים שהשתנו (שדווחו ע"י הקורא) לספרים מהקטלוג הטרי
       final changedBooksToIndex = event.changedBookKeys.isEmpty
           ? const <Book>[]
           : library
-              .getAllBooks()
-              .where((b) => event.changedBookKeys
-                  .contains(IndexingRepository.catalogueOrderKey(b)))
-              .toList();
+                .getAllBooks()
+                .where(
+                  (b) => event.changedBookKeys.contains(
+                    IndexingRepository.catalogueOrderKey(b),
+                  ),
+                )
+                .toList();
 
       // חזרה לאותה תיקייה שהיתה פתוחה קודם
       final targetCategory = _findCategoryByPath(library, currentCategoryPath);
 
-      emit(state.copyWith(
-        library: library,
-        currentCategory: targetCategory ?? library,
-        isLoading: false,
-        newBooksToIndex: newBooksToIndex.isNotEmpty ? newBooksToIndex : null,
-        changedBooksToIndex:
-            changedBooksToIndex.isNotEmpty ? changedBooksToIndex : null,
-      ));
+      emit(
+        state.copyWith(
+          library: library,
+          currentCategory: targetCategory ?? library,
+          isLoading: false,
+          newBooksToIndex: newBooksToIndex.isNotEmpty ? newBooksToIndex : null,
+          changedBooksToIndex: changedBooksToIndex.isNotEmpty
+              ? changedBooksToIndex
+              : null,
+        ),
+      );
     } catch (e) {
-      emit(state.copyWith(
-        error: e.toString(),
-        isLoading: false,
-      ));
+      emit(
+        state.copyWith(
+          error: e.toString(),
+          isLoading: false,
+        ),
+      );
     }
   }
 
@@ -182,8 +251,9 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       return;
     }
 
-    final customFoldersJson =
-        Settings.getValue<String>(SettingsRepository.keyCustomFolders);
+    final customFoldersJson = Settings.getValue<String>(
+      SettingsRepository.keyCustomFolders,
+    );
     final customFolders = CustomFoldersManager.loadFolders(customFoldersJson);
 
     // התיקיות המותאמות אישית חיות ב-user_books.db. ה-FileSyncService
@@ -262,32 +332,43 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
           await ZipExtractorService.checkAndExtractZipIfNeeded(event.path);
 
       if (!extractionResult.success) {
-        emit(state.copyWith(
-          error: extractionResult.errorMessage ?? 'שגיאה בחילוץ קובץ דחוס',
-          isLoading: false,
-        ));
+        emit(
+          state.copyWith(
+            error: extractionResult.errorMessage ?? 'שגיאה בחילוץ קובץ דחוס',
+            isLoading: false,
+          ),
+        );
         return;
       }
 
       // אם חולץ קובץ, נמתין רגע
       if (extractionResult.successfullyExtracted) {
         developer.log(
-            'ZIP file extracted: ${extractionResult.extractedFileName}',
-            name: 'LibraryBloc');
+          'ZIP file extracted: ${extractionResult.extractedFileName}',
+          name: 'LibraryBloc',
+        );
         await Future.delayed(const Duration(milliseconds: 500));
       }
 
       await Settings.setValue<String>(
-          SettingsRepository.keyLibraryPath, event.path);
+        SettingsRepository.keyLibraryPath,
+        event.path,
+      );
       await Settings.setValue<String>(
-          SettingsRepository.keyLibraryFolderName, '');
+        SettingsRepository.keyLibraryFolderName,
+        '',
+      );
       // ניקוי override Android — DB החדש נמצא ישירות בספרייה
       await Settings.setValue<String>(
-          SettingsRepository.keyDbEffectivePath, '');
+        SettingsRepository.keyDbEffectivePath,
+        '',
+      );
       // האינדקס יושב לצד הספרייה; בלי הצמדה מפורשת getIndexPath נופל ל-fallback
       // ה-legacy וממשיך לכתוב אינדקס במיקום הישן.
-      await Settings.setValue<String>(SettingsRepository.keyIndexPath,
-          p.join(p.dirname(event.path), 'index'));
+      await Settings.setValue<String>(
+        SettingsRepository.keyIndexPath,
+        p.join(p.dirname(event.path), 'index'),
+      );
 
       FileSystemData.instance.libraryPath = event.path;
       DataRepository.instance.library = FileSystemData.instance.getLibrary();
@@ -297,25 +378,32 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       try {
         await TantivyDataProvider.instance.reopenIndex();
       } catch (e) {
-        developer.log('Warning: Could not reopen search index',
-            name: 'LibraryBloc', error: e);
+        developer.log(
+          'Warning: Could not reopen search index',
+          name: 'LibraryBloc',
+          error: e,
+        );
       }
 
       final library = await _repository.library;
 
-      emit(state.copyWith(
-        library: library,
-        currentCategory: library,
-        isLoading: false,
-        searchResults: null,
-        searchQuery: null,
-        selectedTopics: null,
-      ));
+      emit(
+        state.copyWith(
+          library: library,
+          currentCategory: library,
+          isLoading: false,
+          searchResults: null,
+          searchQuery: null,
+          selectedTopics: null,
+        ),
+      );
     } catch (e) {
-      emit(state.copyWith(
-        error: e.toString(),
-        isLoading: false,
-      ));
+      emit(
+        state.copyWith(
+          error: e.toString(),
+          isLoading: false,
+        ),
+      );
     }
   }
 
@@ -330,18 +418,21 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
           await ZipExtractorService.checkAndExtractZipIfNeeded(event.path);
 
       if (!extractionResult.success) {
-        emit(state.copyWith(
-          error: extractionResult.errorMessage ?? 'שגיאה בחילוץ קובץ דחוס',
-          isLoading: false,
-        ));
+        emit(
+          state.copyWith(
+            error: extractionResult.errorMessage ?? 'שגיאה בחילוץ קובץ דחוס',
+            isLoading: false,
+          ),
+        );
         return;
       }
 
       // אם חולץ קובץ, נמתין רגע
       if (extractionResult.successfullyExtracted) {
         developer.log(
-            'ZIP file extracted: ${extractionResult.extractedFileName}',
-            name: 'LibraryBloc');
+          'ZIP file extracted: ${extractionResult.extractedFileName}',
+          name: 'LibraryBloc',
+        );
         await Future.delayed(const Duration(milliseconds: 500));
       }
 
@@ -353,19 +444,23 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
 
       final library = await _repository.library;
 
-      emit(state.copyWith(
-        library: library,
-        currentCategory: library,
-        isLoading: false,
-        searchResults: null,
-        searchQuery: null,
-        selectedTopics: null,
-      ));
+      emit(
+        state.copyWith(
+          library: library,
+          currentCategory: library,
+          isLoading: false,
+          searchResults: null,
+          searchQuery: null,
+          selectedTopics: null,
+        ),
+      );
     } catch (e) {
-      emit(state.copyWith(
-        error: e.toString(),
-        isLoading: false,
-      ));
+      emit(
+        state.copyWith(
+          error: e.toString(),
+          isLoading: false,
+        ),
+      );
     }
   }
 
@@ -378,7 +473,9 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     try {
       // מחיקת הנתיב מההגדרות
       await Settings.setValue<String>(
-          SettingsRepository.keyHebrewBooksPath, '');
+        SettingsRepository.keyHebrewBooksPath,
+        '',
+      );
 
       // רענון הספרייה כדי להסיר את ספרי היברובוקס
       DataRepository.instance.library = FileSystemData.instance.getLibrary();
@@ -386,22 +483,28 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
 
       final library = await _repository.library;
 
-      emit(state.copyWith(
-        library: library,
-        currentCategory: library,
-        isLoading: false,
-        searchResults: null,
-        searchQuery: null,
-        selectedTopics: null,
-      ));
+      emit(
+        state.copyWith(
+          library: library,
+          currentCategory: library,
+          isLoading: false,
+          searchResults: null,
+          searchQuery: null,
+          selectedTopics: null,
+        ),
+      );
 
-      developer.log('Hebrew books path removed successfully',
-          name: 'LibraryBloc');
+      developer.log(
+        'Hebrew books path removed successfully',
+        name: 'LibraryBloc',
+      );
     } catch (e) {
-      emit(state.copyWith(
-        error: e.toString(),
-        isLoading: false,
-      ));
+      emit(
+        state.copyWith(
+          error: e.toString(),
+          isLoading: false,
+        ),
+      );
     }
   }
 
@@ -409,12 +512,14 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     NavigateToCategory event,
     Emitter<LibraryState> emit,
   ) {
-    emit(state.copyWith(
-      currentCategory: event.category,
-      searchQuery: null,
-      searchResults: null,
-      selectedTopics: null,
-    ));
+    emit(
+      state.copyWith(
+        currentCategory: event.category,
+        searchQuery: null,
+        searchResults: null,
+        selectedTopics: null,
+      ),
+    );
   }
 
   void _onNavigateUp(
@@ -422,12 +527,14 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     Emitter<LibraryState> emit,
   ) {
     if (state.currentCategory?.parent != null) {
-      emit(state.copyWith(
-        currentCategory: state.currentCategory!.parent!,
-        searchQuery: null,
-        searchResults: null,
-        selectedTopics: null,
-      ));
+      emit(
+        state.copyWith(
+          currentCategory: state.currentCategory!.parent!,
+          searchQuery: null,
+          searchResults: null,
+          selectedTopics: null,
+        ),
+      );
     }
   }
 
@@ -435,10 +542,12 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     UpdateSearchQuery event,
     Emitter<LibraryState> emit,
   ) {
-    emit(state.copyWith(
-      searchQuery: event.query,
-      searchResults: state.searchResults,
-    ));
+    emit(
+      state.copyWith(
+        searchQuery: event.query,
+        searchResults: state.searchResults,
+      ),
+    );
   }
 
   Future<void> _onSearchBooks(
@@ -446,10 +555,12 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     Emitter<LibraryState> emit,
   ) async {
     if (state.searchQuery == null || state.searchQuery!.length < 3) {
-      emit(state.copyWith(
-        searchResults: null,
-        isSearching: false,
-      ));
+      emit(
+        state.copyWith(
+          searchResults: null,
+          isSearching: false,
+        ),
+      );
       return;
     }
 
@@ -460,10 +571,12 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       final includeOtzar = event.showOtzarHachochma ?? false;
       final includeHebrewBooks = event.showHebrewBooks ?? false;
 
-      emit(state.copyWith(
-        isSearching: true,
-        searchResults: state.searchResults,
-      ));
+      emit(
+        state.copyWith(
+          isSearching: true,
+          searchResults: state.searchResults,
+        ),
+      );
 
       // החיפוש מחזיר את כל ההתאמות; סינון הקטגוריות נעשה מקומית בתצוגה בלבד.
       final results = await _repository.findBooks(
@@ -479,10 +592,12 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         // אם אין חיפוש חדש שעקף (אותה גנרציה), נאפס את דגל הטעינה
         // כדי שלא יישאר תקוע (למשל אחרי NavigateToCategory מבלי SearchBooks).
         if (searchGeneration == _searchGeneration) {
-          emit(state.copyWith(
-            isSearching: false,
-            searchResults: state.searchResults,
-          ));
+          emit(
+            state.copyWith(
+              isSearching: false,
+              searchResults: state.searchResults,
+            ),
+          );
         }
         return;
       }
@@ -497,17 +612,21 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         );
       }
 
-      emit(state.copyWith(
-        searchResults: results,
-        previewBook: firstBook,
-        isSearching: false,
-      ));
+      emit(
+        state.copyWith(
+          searchResults: results,
+          previewBook: firstBook,
+          isSearching: false,
+        ),
+      );
     } catch (e) {
-      emit(state.copyWith(
-        error: e.toString(),
-        searchResults: null,
-        isSearching: false,
-      ));
+      emit(
+        state.copyWith(
+          error: e.toString(),
+          searchResults: null,
+          isSearching: false,
+        ),
+      );
     }
   }
 
@@ -522,8 +641,10 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       final filteredResults = event.topics.isEmpty
           ? state.searchResults!
           : state.searchResults!.where((book) {
-              final bookTopics =
-                  book.topics.split(',').map((t) => t.trim()).toSet();
+              final bookTopics = book.topics
+                  .split(',')
+                  .map((t) => t.trim())
+                  .toSet();
               return event.topics.any(bookTopics.contains);
             }).toList();
 
@@ -535,21 +656,25 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       }
     }
 
-    emit(state.copyWith(
-      selectedTopics: event.topics,
-      previewBook: firstBook,
-      searchResults: state.searchResults,
-    ));
+    emit(
+      state.copyWith(
+        selectedTopics: event.topics,
+        previewBook: firstBook,
+        searchResults: state.searchResults,
+      ),
+    );
   }
 
   void _onSelectBookForPreview(
     SelectBookForPreview event,
     Emitter<LibraryState> emit,
   ) {
-    emit(state.copyWith(
-      previewBook: event.book,
-      searchResults: state.searchResults,
-    ));
+    emit(
+      state.copyWith(
+        previewBook: event.book,
+        searchResults: state.searchResults,
+      ),
+    );
   }
 }
 
@@ -558,7 +683,9 @@ void launchBackgroundLibraryMaintenance(
   Future<void> Function() task, {
   void Function(Object error)? onError,
 }) {
-  unawaited(task().catchError((Object error) {
-    onError?.call(error);
-  }));
+  unawaited(
+    task().catchError((Object error) {
+      onError?.call(error);
+    }),
+  );
 }

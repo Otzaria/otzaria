@@ -29,9 +29,13 @@ void main() {
     tmp = Directory.systemTemp.createTempSync('library_update_repository_test');
     await Settings.init(cacheProvider: MemorySettingsCache());
     await Settings.setValue<String>(
-        SettingsRepository.keyLibraryPath, tmp.path);
+      SettingsRepository.keyLibraryPath,
+      tmp.path,
+    );
     await Settings.setValue<String>(
-        SettingsRepository.keyLibraryFolderName, '');
+      SettingsRepository.keyLibraryFolderName,
+      '',
+    );
     await Settings.setValue<String>(SettingsRepository.keyDbEffectivePath, '');
   });
 
@@ -98,10 +102,135 @@ void main() {
       expect(File('$dbPath.backup').existsSync(), isFalse);
       expect(File('$dbPath.new').existsSync(), isFalse);
       expect(
-        File(p.join(tmp.path, 'library_update_cache', 'seforim.db.zst'))
-            .existsSync(),
+        File(
+          p.join(tmp.path, 'library_update_cache', 'seforim.db.zst'),
+        ).existsSync(),
         isFalse,
       );
+    },
+    timeout: const Timeout(Duration(seconds: 30)),
+  );
+
+  test(
+    'applyFullDownload: ביטול באמצע ההורדה משאיר ארכיון חלקי ו-sidecar ל-resume',
+    () async {
+      final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
+      _writeDb(dbPath, version: 1, marker: 'old');
+      final bytes = Uint8List.fromList(
+        List<int>.generate(4096, (i) => i % 251),
+      );
+      var cancelled = false;
+      final downloader = PatchDownloader(
+        httpClient: MockClient.streaming((request, bodyStream) async {
+          // ETag חזק — בלעדיו חלקי אינו בר-חידוש ונמחק בכשל (כמו בייצור מול GitHub).
+          return http.StreamedResponse(
+            Stream.fromIterable([bytes.sublist(0, 1024), bytes.sublist(1024)]),
+            200,
+            contentLength: bytes.length,
+            headers: {'etag': '"e-1"'},
+          );
+        }),
+        decompress: (b) async => b,
+      );
+      final repository = LibraryUpdateRepository(
+        discovery: _unusedDiscovery(),
+        downloader: downloader,
+        refreshService: _NoopRefreshService(),
+        dbPathProvider: () => dbPath,
+        dataRootProvider: () async => tmp.path,
+        nowTimestamp: () => '2026-07-19T00:00:00Z',
+        fullDbExtractor: (a, o) async =>
+            fail('ביטול בהורדה — אסור להגיע לחילוץ'),
+      );
+      final plan = LibraryUpdatePlan.fullDownload(
+        localVersion: 1,
+        targetVersion: 2,
+        asset: ReleaseAsset(
+          name: DatabaseConstants.databaseArchiveFileName,
+          downloadUrl: 'https://x/seforim.db.zst',
+          size: bytes.length,
+          id: 7,
+          updatedAt: '2026-07-01T00:00:00Z',
+        ),
+        releaseTag: 'v2',
+      );
+
+      await expectLater(
+        repository.applyFullDownload(
+          plan,
+          isCancelled: () => cancelled,
+          onProgress: (progress) {
+            if ((progress.bytesDownloaded ?? 0) > 0) cancelled = true;
+          },
+        ),
+        throwsA(isA<PatchDownloadCancelled>()),
+      );
+
+      final archive = File(
+        p.join(tmp.path, 'library_update_cache', 'seforim.db.zst'),
+      );
+      final sidecar = File(PatchDownloader.resumeSidecarPath(archive.path));
+      expect(archive.existsSync(), isTrue);
+      expect(archive.lengthSync(), lessThan(bytes.length));
+      expect(
+        sidecar.readAsStringSync(),
+        startsWith('https://x/seforim.db.zst|4096|7|2026-07-01T00:00:00Z'),
+      );
+      expect(File('$dbPath.new').existsSync(), isFalse);
+    },
+    timeout: const Timeout(Duration(seconds: 30)),
+  );
+
+  test(
+    'applyFullDownload: כשל חילוץ מוחק ארכיון ו-sidecar — מונע לולאת resume',
+    () async {
+      final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
+      _writeDb(dbPath, version: 1, marker: 'old');
+      final bytes = Uint8List.fromList(List<int>.filled(2048, 7));
+      final downloader = PatchDownloader(
+        httpClient: MockClient.streaming((request, bodyStream) async {
+          return http.StreamedResponse(
+            Stream.value(bytes),
+            200,
+            contentLength: bytes.length,
+          );
+        }),
+        decompress: (b) async => b,
+      );
+      final repository = LibraryUpdateRepository(
+        discovery: _unusedDiscovery(),
+        downloader: downloader,
+        refreshService: _NoopRefreshService(),
+        dbPathProvider: () => dbPath,
+        dataRootProvider: () async => tmp.path,
+        nowTimestamp: () => '2026-07-19T00:00:00Z',
+        fullDbExtractor: (a, o) async => throw Exception('ארכיון פגום'),
+      );
+      final plan = LibraryUpdatePlan.fullDownload(
+        localVersion: 1,
+        targetVersion: 2,
+        asset: ReleaseAsset(
+          name: DatabaseConstants.databaseArchiveFileName,
+          downloadUrl: 'https://x/seforim.db.zst',
+          size: bytes.length,
+        ),
+        releaseTag: 'v2',
+      );
+
+      await expectLater(
+        repository.applyFullDownload(plan),
+        throwsA(isA<Exception>()),
+      );
+
+      final archive = File(
+        p.join(tmp.path, 'library_update_cache', 'seforim.db.zst'),
+      );
+      expect(archive.existsSync(), isFalse);
+      expect(
+        File(PatchDownloader.resumeSidecarPath(archive.path)).existsSync(),
+        isFalse,
+      );
+      expect(File('$dbPath.new').existsSync(), isFalse);
     },
     timeout: const Timeout(Duration(seconds: 30)),
   );
@@ -177,8 +306,10 @@ void main() {
       _writeDb(dbPath, version: 1, marker: 'old');
 
       // קורא שנפתח לפני ההמרה ל-WAL — כמו חיבור ה-RO של האפליקציה.
-      final reader =
-          sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
+      final reader = sqlite3.sqlite3.open(
+        dbPath,
+        mode: sqlite3.OpenMode.readOnly,
+      );
       final writer = sqlite3.sqlite3.open(dbPath);
       try {
         writer.execute('PRAGMA journal_mode=WAL');
@@ -302,8 +433,7 @@ class _LocalPatchDownloader extends PatchDownloader {
     required Directory destDir,
     void Function(int downloaded, int? total)? onProgress,
     bool Function()? isCancelled,
-  }) async =>
-      patchPath;
+  }) async => patchPath;
 }
 
 LibraryUpdatePlan _deltaPlan() {
@@ -322,7 +452,7 @@ LibraryUpdatePlan _deltaPlan() {
         'size': 1,
         'uncompressedSha256': 'bb',
         'uncompressedSize': 1,
-      }
+      },
     ],
   });
   return LibraryUpdatePlan.delta(

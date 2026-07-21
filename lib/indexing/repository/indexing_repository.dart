@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' hide Category;
+import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/cache/generation_cache.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -104,6 +106,18 @@ class IndexingRepository {
     return parts.isEmpty ? null : parts.join(', ');
   }
 
+  /// המנוע רץ על אינדקס זמני (כשל בפתיחת אינדקס הדיסק) — אינדוקס במצב זה
+  /// היה נכתב לתיקייה זמנית ונזרק בהפעלה הבאה. מדווח למשתמש ומחזיר true.
+  Future<bool> _blockIndexingOnTempFallback() async {
+    // הדגל נקבע רק בסיום אתחול המנוע — בדיקה לפני ההמתנה הייתה מחמיצה
+    // כשל פתיחה שמתרחש בזמן שהאתחול עוד רץ.
+    await _tantivyDataProvider.engine;
+    if (!_tantivyDataProvider.isTempFallback) return false;
+    debugPrint('⚠️ המנוע על אינדקס זמני — האינדוקס מושהה כדי לא לאבד עבודה');
+    UiSnack.showError(LibraryMessages.searchIndexOpenFailed);
+    return true;
+  }
+
   /// האם הספר כבר מאונדקס — לפי המסמכים החיים שנקראו מהאינדקס עצמו.
   bool isBookIndexed(Book book) => _tantivyDataProvider.indexedFilePaths
       .contains(buildIndexedBookFilePath(book));
@@ -128,6 +142,8 @@ class IndexingRepository {
     void Function()? onActualIndexingStarted,
     required void Function(int processed, int total) onProgress,
   }) async {
+    if (await _blockIndexingOnTempFallback()) return false;
+
     final allBooks = orderBooksForIndexing(library.getAllBooks());
     final totalBooks = allBooks.length;
 
@@ -187,10 +203,15 @@ class IndexingRepository {
       // ‏prefetch של PDF אחד קדימה: חילוץ ה-PDF (pdfrx) היה 41% מזמן
       // האינדוקס ורץ סדרתית בין ספרי הטקסט; כאן חילוץ ה-PDF הבא שטרם
       // אונדקס רץ ברקע בזמן שהמנוע מאנדקס את הספרים שלפניו. סלוט יחיד —
-      // לכל היותר תוכן ספר אחד ממתין בזיכרון.
+      // לכל היותר תוכן ספר אחד ממתין בזיכרון; חילוץ שהסתיים באמצע שלב
+      // הטקסטים מאונדקס מיד (ראה הניקוז בלולאה) כדי שהצינור ימשיך לרוץ.
       PdfBook? prefetchedBook;
       Future<PdfExtraction>? prefetchedExtraction;
+      var prefetchReady = false;
       var pdfScanIndex = 0;
+      // ספרי PDF שטופלו בניקוז המוקדם (הצלחה או כשל) — הלולאה לא מנסה
+      // אותם שוב ולא סופרת אותם כמדולגים (כבר נספרו כאינדוקס/שגיאה).
+      final earlyHandledBooks = <Book>{};
       void ensurePdfPrefetch(int fromIndex) {
         if (prefetchedExtraction != null) return;
         if (pdfScanIndex < fromIndex) pdfScanIndex = fromIndex;
@@ -199,7 +220,9 @@ class IndexingRepository {
           pdfScanIndex++;
           if (candidate is PdfBook && !isBookIndexed(candidate)) {
             prefetchedBook = candidate;
-            prefetchedExtraction = _extractPdfPagesGuarded(candidate);
+            prefetchReady = false;
+            prefetchedExtraction = extractPdfPagesGuarded(candidate)
+              ..whenComplete(() => prefetchReady = true);
             return;
           }
         }
@@ -213,6 +236,53 @@ class IndexingRepository {
           break;
         }
         ensurePdfPrefetch(bookIndex);
+
+        // ניקוז: חילוץ PDF שהסתיים בזמן עיבוד הספרים שלפניו מאונדקס מיד,
+        // וחילוץ ה-PDF הבא מוזנק — כך החילוץ רץ ברציפות לאורך כל שלב
+        // הטקסטים במקום להיעצר אחרי ספר אחד. כשהספר הנוכחי הוא עצמו
+        // ה-prefetch, מסלול הצריכה הרגיל מטפל בו (כולל דיווח התקדמות).
+        if (prefetchReady && !identical(prefetchedBook, book)) {
+          final readyBook = prefetchedBook!;
+          final readyExtraction = prefetchedExtraction!;
+          prefetchedBook = null;
+          prefetchedExtraction = null;
+          prefetchReady = false;
+          ensurePdfPrefetch(bookIndex);
+          earlyHandledBooks.add(readyBook);
+          // דיווח לפני הכתיבה — כמו במסלול הרגיל — אחרת המונה נראה תקוע
+          // לאורך אינדוקס PDF גדול שרץ כאן לפני הספר הנוכחי.
+          onProgress(bookIndex + 1, totalBooks);
+          try {
+            await _indexPdfBook(
+              readyBook,
+              catalogueOrderByBookKey: catalogueOrderByBookKey,
+              preExtracted: readyExtraction,
+              onActualIndexingStarted: () {
+                if (didStartActualIndexing) return;
+                didStartActualIndexing = true;
+                onActualIndexingStarted?.call();
+              },
+            );
+            if (!_tantivyDataProvider.isIndexing.value) {
+              cancelled = true;
+              break;
+            }
+            _tantivyDataProvider.indexedFilePaths.add(
+              buildIndexedBookFilePath(readyBook),
+            );
+            actuallyIndexed++;
+            indexedSinceCommit++;
+          } catch (e) {
+            debugPrint('❌ שגיאה באינדוקס מוקדם של ${readyBook.title}: $e');
+            errors++;
+            if (!isBookIndexed(readyBook) &&
+                !await _discardPartialBookWrites(readyBook)) {
+              await _recoverEngineAfterWriteFailure();
+              cancelled = true;
+              break;
+            }
+          }
+        }
 
         var bookWasIndexed = false;
         try {
@@ -254,7 +324,9 @@ class IndexingRepository {
               skipped++;
             }
           } else if (book is PdfBook) {
-            if (!isBookIndexed(book)) {
+            if (earlyHandledBooks.contains(book)) {
+              // טופל בניקוז המוקדם — כבר נספר שם (אינדוקס או שגיאה).
+            } else if (!isBookIndexed(book)) {
               onProgress(bookIndex + 1, totalBooks);
               // צריכת ה-prefetch אם הוא של הספר הנוכחי; מיד אחריה מוזנק
               // חילוץ ה-PDF הבא, שירוץ במקביל לאינדוקס של הספר הזה.
@@ -474,7 +546,7 @@ class IndexingRepository {
     // אונדקסו; בהיעדרו מחלצים כאן. שני המסלולים עוברים דרך העטיפה
     // ששומרת את השגיאה בתוצאה, כדי שסמנטיקת ה-sidecar/הפצת-שגיאה תישאר
     // זהה.
-    final extracted = await (preExtracted ?? _extractPdfPagesGuarded(book));
+    final extracted = await (preExtracted ?? extractPdfPagesGuarded(book));
     final pages = extracted.pages;
     final outline = extracted.outline;
     final openError = extracted.error;
@@ -644,7 +716,8 @@ class IndexingRepository {
   /// עוטפת את [_extractPdfPages] כך שהתוצאה לעולם אינה זריקה: שגיאת פתיחה
   /// נשמרת בתוצאה (הקורא מכריע בין sidecar להפצתה), ומשך החילוץ נמדד כאן —
   /// כך גם חילוץ שרץ מראש (prefetch) מדווח את זמנו האמיתי.
-  Future<PdfExtraction> _extractPdfPagesGuarded(PdfBook book) async {
+  @visibleForTesting
+  Future<PdfExtraction> extractPdfPagesGuarded(PdfBook book) async {
     final stopwatch = Stopwatch()..start();
     try {
       final extracted = await _extractPdfPages(book);
@@ -924,6 +997,7 @@ class IndexingRepository {
     required void Function(int processed, int total) onProgress,
   }) async {
     if (books.isEmpty) return true;
+    if (await _blockIndexingOnTempFallback()) return false;
 
     _tantivyDataProvider.isIndexing.value = true;
 
@@ -1210,6 +1284,7 @@ class IndexingRepository {
     @visibleForTesting
     Future<BigInt> Function(TextBook book, String text)? fingerprintOf,
   }) async {
+    if (await _blockIndexingOnTempFallback()) return false;
     if (await requiresManualReindex(library)) return false;
 
     final engine = await _tantivyDataProvider.engine;

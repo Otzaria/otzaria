@@ -13,6 +13,7 @@ import 'package:otzaria/search/book_facet.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/search_repository.dart';
+import 'package:otzaria/search/utils/literal_search_pattern.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/settings/settings_exports.dart';
@@ -102,6 +103,28 @@ class PdfBookSearchView extends StatefulWidget {
     return visualIdx;
   }
 
+  /// תקרת מונחים ייחודיים לתבנית ההדגשה, כדי שהרגקס לא יתנפח.
+  static const int _maxHighlightTerms = 50;
+
+  /// בונה תבנית הדגשה אחת מהמונחים שהמנוע סימן כהתאמות ב-[resultHtmls]
+  /// (עד [_maxHighlightTerms] מונחים). מחזיר null כשאין מונחים.
+  @visibleForTesting
+  static RegExp? buildAdvancedHighlightPattern(Iterable<String> resultHtmls) {
+    final terms = <String>{};
+    for (final html in resultHtmls) {
+      terms.addAll(SnippetBuilder.extractHighlightedTerms(html));
+      if (terms.length >= _maxHighlightTerms) break;
+    }
+
+    final sources = <String>[];
+    for (final term in terms.take(_maxHighlightTerms)) {
+      final literal = buildLiteralPattern(term);
+      if (literal != null) sources.add('(?:${literal.source})');
+    }
+    if (sources.isEmpty) return null;
+    return RegExp(sources.join('|'), caseSensitive: false, unicode: true);
+  }
+
   @override
   State<PdfBookSearchView> createState() => _PdfBookSearchViewState();
 }
@@ -124,7 +147,11 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
   int _searchDistance = 0;
 
   Timer? _pdfHighlightDebounce;
-  String _lastPdfHighlightQuery = '';
+  String _lastPdfHighlightSource = '';
+  int _searchGeneration = 0;
+
+  /// התבנית שנבנתה מהמונחים שהמנוע מצא בפועל — לשימוש חוזר בלחיצה על תוצאה.
+  RegExp? _lastAdvancedHighlightPattern;
 
   /// השאילתה שעבורה תוזמנה גלילה לעמוד הנוכחי בסיום חיפוש פשוט.
   /// בחיפוש פשוט התוצאות מגיעות אסינכרונית דרך ה-listener של pdfrx, ולכן
@@ -147,18 +174,27 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
 
   int _getPdfPageNumber(SearchResult result) => result.segment.toInt() + 1;
 
-  void _schedulePdfHighlight(String query) {
-    final normalized = query.trim();
-    if (normalized == _lastPdfHighlightQuery) return;
-    _lastPdfHighlightQuery = normalized;
+  void _schedulePdfHighlight(RegExp? pattern) {
+    final source = pattern?.pattern ?? '';
+    if (source == _lastPdfHighlightSource) return;
+    _lastPdfHighlightSource = source;
 
     _pdfHighlightDebounce?.cancel();
     _pdfHighlightDebounce = Timer(const Duration(milliseconds: 250), () {
       widget.textSearcher.startTextSearch(
-        normalized,
+        pattern ?? '',
         goToFirstMatch: false,
       );
     });
+  }
+
+  /// מדגיש על העמוד את מה שהמנוע מצא בפועל (כולל fuzzy/מילים חלופיות).
+  void _updateAdvancedHighlight(List<SearchResult> results) {
+    final pattern = PdfBookSearchView.buildAdvancedHighlightPattern(
+      results.map((r) => r.text),
+    );
+    _lastAdvancedHighlightPattern = pattern;
+    _schedulePdfHighlight(pattern);
   }
 
   @override
@@ -169,7 +205,8 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
     _spacingValues = widget.initialSpacingValues;
     _searchMode = widget.initialSearchMode;
     _searchDistance = widget.initialSearchDistance;
-    _forceSearchEngine = _searchMode != SearchMode.exact ||
+    _forceSearchEngine =
+        _searchMode != SearchMode.exact ||
         _searchDistance > 0 ||
         _activeSearchParameters.searchOptions.isNotEmpty ||
         _activeSearchParameters.alternativeWords.isNotEmpty ||
@@ -212,22 +249,25 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
       if (mounted) {
         setState(() {
           final query = widget.searchController.text;
-          _searchResults = widget.textSearcher.matches
-              .map((m) => SearchResult(
-                    id: BigInt.zero,
-                    title: widget.bookTitle ?? '',
-                    reference: '', // Populated by _pageTitles in build
-                    // Use query as text so it appears in the list and is highlighted.
-                    // Ideally we would fetch the surrounding text but that requires async page loading.
-                    text: query,
-                    segment: BigInt.from(m.pageNumber - 1),
-                    isPdf: true,
-                    filePath: widget.pdfFilePath ?? '',
-                    mergedCount: 1,
-                    merged: const [],
-                  ))
-              .toList()
-            ..sort((a, b) => a.segment.compareTo(b.segment));
+          _searchResults =
+              widget.textSearcher.matches
+                  .map(
+                    (m) => SearchResult(
+                      id: BigInt.zero,
+                      title: widget.bookTitle ?? '',
+                      reference: '', // Populated by _pageTitles in build
+                      // Use query as text so it appears in the list and is highlighted.
+                      // Ideally we would fetch the surrounding text but that requires async page loading.
+                      text: query,
+                      segment: BigInt.from(m.pageNumber - 1),
+                      isPdf: true,
+                      filePath: widget.pdfFilePath ?? '',
+                      mergedCount: 1,
+                      merged: const [],
+                    ),
+                  )
+                  .toList()
+                ..sort((a, b) => a.segment.compareTo(b.segment));
           _isSearching = widget.textSearcher.isSearching;
         });
         // גלילה לעמוד הנוכחי בסיום החיפוש — רק אם השאילתה הממתינה עדיין
@@ -279,6 +319,9 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
   }
 
   Future<void> _searchTextUpdated() async {
+    // כל שינוי בשאילתה/במצב החיפוש מבטל תוצאות אסינכרוניות ישנות. בלי מזהה
+    // דור, חיפוש איטי קודם יכול להסתיים אחרי החדש ולדרוס תוצאות והדגשות.
+    final generation = ++_searchGeneration;
     String query = widget.searchController.text.trim();
 
     if (query.isEmpty || (!_isSimpleSearch && _bookPath == null)) {
@@ -291,10 +334,11 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
           _isSearching = false;
         });
       }
+      _lastAdvancedHighlightPattern = null;
       if (_isSimpleSearch) {
         widget.textSearcher.startTextSearch('', goToFirstMatch: false);
       } else {
-        _schedulePdfHighlight('');
+        _schedulePdfHighlight(null);
       }
       return;
     }
@@ -306,11 +350,15 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
     if (_isSimpleSearch) {
       _pdfHighlightDebounce?.cancel();
       _pendingSimpleSearchScrollFor = query;
-      widget.textSearcher.startTextSearch(query, goToFirstMatch: false);
+      // תבנית סובלנית-ניקוד מהמנוע, כדי שגם PDF ששכבת הטקסט שלו מנוקדת יודגש.
+      final literal = buildLiteralPattern(query);
+      _lastPdfHighlightSource = literal?.source ?? query;
+      widget.textSearcher.startTextSearch(
+        literal?.regExp ?? query,
+        goToFirstMatch: false,
+      );
       return;
     }
-
-    _schedulePdfHighlight(query);
 
     if (mounted) {
       setState(() {
@@ -334,31 +382,36 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
       );
 
       final pdfPath = widget.pdfFilePath;
-      final results = rawResults.where((r) {
-        if (!r.isPdf) return false;
-        if (pdfPath == null || pdfPath.isEmpty) return true;
-        return r.filePath == pdfPath;
-      }).toList(growable: true)
-        ..sort((a, b) {
-          final sa = a.segment.toInt();
-          final sb = b.segment.toInt();
-          if (sa != sb) return sa.compareTo(sb);
-          return a.reference.compareTo(b.reference);
-        });
+      final results =
+          rawResults
+              .where((r) {
+                if (!r.isPdf) return false;
+                if (pdfPath == null || pdfPath.isEmpty) return true;
+                return r.filePath == pdfPath;
+              })
+              .toList(growable: true)
+            ..sort((a, b) {
+              final sa = a.segment.toInt();
+              final sb = b.segment.toInt();
+              if (sa != sb) return sa.compareTo(sb);
+              return a.reference.compareTo(b.reference);
+            });
 
-      if (!mounted) return;
+      if (!mounted || generation != _searchGeneration) return;
       setState(() {
         _searchResults = results;
         _isSearching = false;
       });
+      _updateAdvancedHighlight(results);
       _scheduleScrollToCurrentPage();
     } catch (e, st) {
       debugPrint('[PdfSearch] search failed for "$query": $e\n$st');
-      if (!mounted) return;
+      if (!mounted || generation != _searchGeneration) return;
       setState(() {
         _searchResults = [];
         _isSearching = false;
       });
+      _updateAdvancedHighlight(const []);
       UiSnack.showError(PdfMessages.searchError);
     }
   }
@@ -372,8 +425,9 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
     }
 
     final List<dynamic> items = [];
-    for (final entry in resultsByPage.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key))) {
+    for (final entry
+        in resultsByPage.entries.toList()
+          ..sort((a, b) => a.key.compareTo(b.key))) {
       items.add(entry.key);
       items.addAll(entry.value);
 
@@ -395,8 +449,9 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
     return SearchPaneBase(
       searchController: widget.searchController,
       focusNode: widget.focusNode,
-      progressWidget:
-          _isSearching ? const LinearProgressIndicator(minHeight: 4) : null,
+      progressWidget: _isSearching
+          ? const LinearProgressIndicator(minHeight: 4)
+          : null,
       resultCountString: _searchResults.isNotEmpty
           ? 'נמצאו ${_searchResults.length} תוצאות'
           : null,
@@ -465,11 +520,18 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
                 final page = layout.pageLayouts[safePage - 1];
                 final halfViewHeight =
                     controller.viewSize.height / 2 / controller.value.zoom;
-                await controller.goTo(controller.calcMatrixFor(
-                    page.topCenter.translate(0, halfViewHeight)));
+                await controller.goTo(
+                  controller.calcMatrixFor(
+                    page.topCenter.translate(0, halfViewHeight),
+                  ),
+                );
               }
 
-              _schedulePdfHighlight(widget.searchController.text);
+              _schedulePdfHighlight(
+                _isSimpleSearch
+                    ? buildLiteralPattern(widget.searchController.text)?.regExp
+                    : _lastAdvancedHighlightPattern,
+              );
               widget.onSearchResultNavigated?.call();
             },
             height: 50,
@@ -478,12 +540,14 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
           );
         },
       ),
-      isNoResults: widget.searchController.text.isNotEmpty &&
+      isNoResults:
+          widget.searchController.text.isNotEmpty &&
           _searchResults.isEmpty &&
           !_isSearching,
       onSearchTextChanged: (_) => _searchTextUpdated(),
       resetSearchCallback: () {
         _pendingSimpleSearchScrollFor = null;
+        _lastAdvancedHighlightPattern = null;
         setState(() {
           _searchResults = [];
           _forceSearchEngine = false;
@@ -493,14 +557,16 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
           _searchMode = SearchMode.exact;
           _searchDistance = 0;
         });
-        context.read<PdfBookBloc>().add(const UpdateSearchOptions(
-              searchOptions: {},
-              alternativeWords: {},
-              spacingValues: {},
-              searchMode: SearchMode.exact,
-              searchDistance: 0,
-            ));
-        _schedulePdfHighlight('');
+        context.read<PdfBookBloc>().add(
+          const UpdateSearchOptions(
+            searchOptions: {},
+            alternativeWords: {},
+            spacingValues: {},
+            searchMode: SearchMode.exact,
+            searchDistance: 0,
+          ),
+        );
+        _schedulePdfHighlight(null);
       },
       additionalActions: const [],
       hintText: 'חפש כאן..',
@@ -542,11 +608,11 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
 
         final normalizedParameters =
             SearchQueryBuilder.normalizeParametersForMode(
-          result.searchMode,
-          customSpacing: result.spacingValues,
-          alternativeWords: result.alternativeWords,
-          searchOptions: result.searchOptions,
-        );
+              result.searchMode,
+              customSpacing: result.spacingValues,
+              alternativeWords: result.alternativeWords,
+              searchOptions: result.searchOptions,
+            );
         final queryChanged = widget.searchController.text != result.query;
 
         setState(() {
@@ -555,19 +621,22 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
           _spacingValues = normalizedParameters.customSpacing;
           _searchMode = result.searchMode;
           _searchDistance = result.distance;
-          _forceSearchEngine = _searchMode != SearchMode.exact ||
+          _forceSearchEngine =
+              _searchMode != SearchMode.exact ||
               _searchDistance > 0 ||
               _searchOptions.isNotEmpty ||
               _alternativeWords.isNotEmpty ||
               _spacingValues.isNotEmpty;
         });
-        pdfBookBloc.add(UpdateSearchOptions(
-          searchOptions: normalizedParameters.searchOptions,
-          alternativeWords: normalizedParameters.alternativeWords,
-          spacingValues: normalizedParameters.customSpacing,
-          searchMode: result.searchMode,
-          searchDistance: result.distance,
-        ));
+        pdfBookBloc.add(
+          UpdateSearchOptions(
+            searchOptions: normalizedParameters.searchOptions,
+            alternativeWords: normalizedParameters.alternativeWords,
+            spacingValues: normalizedParameters.customSpacing,
+            searchMode: result.searchMode,
+            searchDistance: result.distance,
+          ),
+        );
 
         syncSearchControllerQuery(widget.searchController, result.query);
         if (!queryChanged) {
@@ -611,10 +680,9 @@ class SearchResultTile extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               border: Border.all(
-                color: Theme.of(context)
-                    .colorScheme
-                    .outline
-                    .withValues(alpha: 0.3),
+                color: Theme.of(
+                  context,
+                ).colorScheme.outline.withValues(alpha: 0.3),
                 width: 1,
               ),
               borderRadius: AppTokens.borderRadiusAll,
@@ -623,8 +691,10 @@ class SearchResultTile extends StatelessWidget {
               onTap: onTap,
               borderRadius: AppTokens.borderRadiusAll,
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 child: text,
               ),
             ),

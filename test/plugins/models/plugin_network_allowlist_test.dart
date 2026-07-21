@@ -2,6 +2,47 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/models/plugin_network_allowlist.dart';
 
 void main() {
+  group('matchingNetworkAllowlistPrefix', () {
+    const allowlist = [
+      'https://github.com/Open-Otzarya-Projects/Otzarya-Unofficial-Books',
+      'https://nakdan.dicta.org.il/api',
+    ];
+
+    test('מתיר URL מהרשימה ותתי-נתיביו', () {
+      expect(
+        matchingNetworkAllowlistPrefix(
+            Uri.parse(
+                'https://github.com/Open-Otzarya-Projects/Otzarya-Unofficial-Books/releases/latest/download/a.zip'),
+            allowlist),
+        isNotNull,
+      );
+      expect(
+        matchingNetworkAllowlistPrefix(
+            Uri.parse('https://nakdan.dicta.org.il/api?text=שלום'), allowlist),
+        isNotNull,
+      );
+    });
+
+    test('חוסם נתיב אחר, קידומת חלקית ודומיין אחר', () {
+      expect(
+        matchingNetworkAllowlistPrefix(
+            Uri.parse('https://github.com/Someone/Other/releases'), allowlist),
+        isNull,
+      );
+      expect(
+        matchingNetworkAllowlistPrefix(
+            Uri.parse('https://nakdan.dicta.org.il/apix'), allowlist),
+        isNull,
+      );
+      expect(
+        matchingNetworkAllowlistPrefix(
+            Uri.parse('https://objects.githubusercontent.com/abc/a.zip'),
+            allowlist),
+        isNull,
+      );
+    });
+  });
+
   group('isUriAllowedForPluginNetwork', () {
     test('מתיר URL של מאגר הספרים המאושר ותתי-נתיביו', () {
       expect(
@@ -29,24 +70,6 @@ void main() {
         isUriAllowedForPluginNetwork(
             Uri.parse('https://github.com/Someone/Other/releases')),
         isFalse,
-      );
-    });
-
-    test('מתיר גישה לשרתי הנקדן המאושרים של Dicta', () {
-      expect(
-        isUriAllowedForPluginNetwork(
-            Uri.parse('https://nakdan.dicta.org.il/api')),
-        isTrue,
-      );
-      expect(
-        isUriAllowedForPluginNetwork(
-            Uri.parse('https://nakdan-u1-0.loadbalancer.dicta.org.il/api')),
-        isTrue,
-      );
-      expect(
-        isUriAllowedForPluginNetwork(Uri.parse(
-            'https://nakdan-5-1.loadbalancer.dicta.org.il/api?text=שלום')),
-        isTrue,
       );
     });
   });
@@ -110,30 +133,31 @@ void main() {
     });
   });
 
-  group('extractPluginNetworkAllowlistFromDartSource', () {
-    test('מחלץ את הערכים מתוך קובץ ה-Dart הרשמי', () {
+  group('parsePluginNetworkAllowlistText', () {
+    test('מפרק שורות ומדלג על הערות ושורות ריקות', () {
       const source = '''
-const List<String> pluginNetworkAllowlist = <String>[
-  'https://a.example.com',
-  'https://b.example.com/path',
-];
+# הערה בראש הקובץ
+https://a.example.com
+
+  https://b.example.com/path
+# הערה נוספת
 ''';
 
       expect(
-        extractPluginNetworkAllowlistFromDartSource(source),
+        parsePluginNetworkAllowlistText(source),
         ['https://a.example.com', 'https://b.example.com/path'],
       );
     });
   });
 
   group('isGithubReleaseRedirectAllowed', () {
-    final allowedGithubRelease = Uri.parse(
+    final githubRelease = Uri.parse(
         'https://github.com/Open-Otzarya-Projects/Otzarya-Unofficial-Books/releases/latest/download/a.zip');
     final cdn =
         Uri.parse('https://release-assets.githubusercontent.com/abc/a.zip');
 
-    test('מתיר redirect מ-release מאושר ב-github.com אל ה-CDN', () {
-      expect(isGithubReleaseRedirectAllowed(allowedGithubRelease, cdn), isTrue);
+    test('מתיר redirect מ-github.com אל ה-CDN', () {
+      expect(isGithubReleaseRedirectAllowed(githubRelease, cdn), isTrue);
     });
 
     test('מתיר המשך שרשרת redirect בין דומייני CDN', () {
@@ -141,19 +165,12 @@ const List<String> pluginNetworkAllowlist = <String>[
       expect(isGithubReleaseRedirectAllowed(cdn, cdn2), isTrue);
     });
 
-    test('חוסם redirect ל-CDN כשה-hop הקודם הוא github.com לא מאושר', () {
-      final otherRepo =
-          Uri.parse('https://github.com/Someone/Other/releases/download/a.zip');
-      expect(isGithubReleaseRedirectAllowed(otherRepo, cdn), isFalse);
-    });
-
     test('חוסם redirect ליעד שאינו דומיין CDN של גיטהאב', () {
       final evil = Uri.parse('https://evil.example.com/a.zip');
-      expect(
-          isGithubReleaseRedirectAllowed(allowedGithubRelease, evil), isFalse);
+      expect(isGithubReleaseRedirectAllowed(githubRelease, evil), isFalse);
     });
 
-    test('חוסם redirect ל-CDN ממקור שרירותי שאינו github/CDN', () {
+    test('חוסם redirect ל-CDN ממקור שאינו github/CDN', () {
       final arbitrary = Uri.parse('https://otzaria.org/x');
       expect(isGithubReleaseRedirectAllowed(arbitrary, cdn), isFalse);
     });

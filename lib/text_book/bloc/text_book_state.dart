@@ -11,13 +11,16 @@ String _searchOptionsSignature(Map<String, Map<String, bool>> options) {
   if (options.isEmpty) return '';
 
   final keys = options.keys.toList()..sort();
-  return keys.map((key) {
-    final inner = options[key]!;
-    final innerKeys = inner.keys.toList()..sort();
-    final innerSignature =
-        innerKeys.map((innerKey) => '$innerKey=${inner[innerKey]}').join(',');
-    return '$key:{$innerSignature}';
-  }).join('|');
+  return keys
+      .map((key) {
+        final inner = options[key]!;
+        final innerKeys = inner.keys.toList()..sort();
+        final innerSignature = innerKeys
+            .map((innerKey) => '$innerKey=${inner[innerKey]}')
+            .join(',');
+        return '$key:{$innerSignature}';
+      })
+      .join('|');
 }
 
 String _alternativeWordsSignature(Map<int, List<String>> words) {
@@ -40,7 +43,11 @@ abstract class TextBookState extends Equatable {
   final bool showLeftPane;
   final List<String> commentators;
   const TextBookState(
-      this.book, this.index, this.showLeftPane, this.commentators);
+    this.book,
+    this.index,
+    this.showLeftPane,
+    this.commentators,
+  );
 
   @override
   List<Object?> get props => [];
@@ -69,19 +76,23 @@ class TextBookInitial extends TextBookState {
   final String? pinpointHighlightText;
 
   const TextBookInitial(
-      super.book, super.index, super.showLeftPane, super.commentators,
-      [this.searchText = '',
-      this.searchOptions = const {},
-      this.alternativeWords = const {},
-      this.spacingValues = const {},
-      this.searchMode = SearchMode.exact,
-      this.searchDistance = 0,
-      this.splitedView = true,
-      this.showPageShapeView = false,
-      this.highlightText = '',
-      this.permanentHighlightLine,
-      this.pinpointHighlightIndex,
-      this.pinpointHighlightText]);
+    super.book,
+    super.index,
+    super.showLeftPane,
+    super.commentators, [
+    this.searchText = '',
+    this.searchOptions = const {},
+    this.alternativeWords = const {},
+    this.spacingValues = const {},
+    this.searchMode = SearchMode.exact,
+    this.searchDistance = 0,
+    this.splitedView = true,
+    this.showPageShapeView = false,
+    this.highlightText = '',
+    this.permanentHighlightLine,
+    this.pinpointHighlightIndex,
+    this.pinpointHighlightText,
+  ]);
 
   // קונסטרקטור עם פרמטרים בשם
   const TextBookInitial.named(
@@ -105,25 +116,29 @@ class TextBookInitial extends TextBookState {
 
   @override
   List<Object?> get props => [
-        book.title,
-        searchText,
-        highlightText,
-        permanentHighlightLine,
-        _searchOptionsSignature(searchOptions),
-        _alternativeWordsSignature(alternativeWords),
-        _spacingValuesSignature(spacingValues),
-        searchMode,
-        searchDistance,
-        splitedView,
-        showPageShapeView,
-        pinpointHighlightIndex,
-        pinpointHighlightText,
-      ];
+    book.title,
+    searchText,
+    highlightText,
+    permanentHighlightLine,
+    _searchOptionsSignature(searchOptions),
+    _alternativeWordsSignature(alternativeWords),
+    _spacingValuesSignature(spacingValues),
+    searchMode,
+    searchDistance,
+    splitedView,
+    showPageShapeView,
+    pinpointHighlightIndex,
+    pinpointHighlightText,
+  ];
 }
 
 class TextBookLoading extends TextBookState {
   const TextBookLoading(
-      super.book, super.index, super.showLeftPane, super.commentators);
+    super.book,
+    super.index,
+    super.showLeftPane,
+    super.commentators,
+  );
 
   @override
   List<Object?> get props => [book.title];
@@ -132,8 +147,13 @@ class TextBookLoading extends TextBookState {
 class TextBookError extends TextBookState {
   final String message;
 
-  const TextBookError(this.message, super.book, super.index, super.showLeftPane,
-      super.commentators);
+  const TextBookError(
+    this.message,
+    super.book,
+    super.index,
+    super.showLeftPane,
+    super.commentators,
+  );
 
   @override
   List<Object?> get props => [message, book.title];
@@ -184,6 +204,7 @@ class TextBookLoaded extends TextBookState {
   final int searchDistance;
   final String? currentTitle;
   final String? selectedTextForNote;
+  final int? selectedTextSectionIndex;
   final int? selectedTextStart;
   final int? selectedTextEnd;
   final int? highlightedLine;
@@ -256,6 +277,7 @@ class TextBookLoaded extends TextBookState {
     this.scrollOffsetController,
     this.currentTitle,
     this.selectedTextForNote,
+    this.selectedTextSectionIndex,
     this.selectedTextStart,
     this.selectedTextEnd,
     this.highlightedLine,
@@ -306,6 +328,7 @@ class TextBookLoaded extends TextBookState {
       scrollOffsetController: null,
       visibleIndices: [index],
       selectedTextForNote: null,
+      selectedTextSectionIndex: null,
       selectedTextStart: null,
       selectedTextEnd: null,
       highlightedLine: null,
@@ -359,8 +382,10 @@ class TextBookLoaded extends TextBookState {
     ScrollOffsetController? scrollOffsetController,
     String? currentTitle,
     String? selectedTextForNote,
+    int? selectedTextSectionIndex,
     int? selectedTextStart,
     int? selectedTextEnd,
+    bool clearSelectedText = false,
     int? highlightedLine,
     bool clearHighlight = false,
     bool? linksLoading,
@@ -405,8 +430,9 @@ class TextBookLoaded extends TextBookState {
           continuousReadingMode ?? this.continuousReadingMode,
       readingSegments: readingSegments ?? this.readingSegments,
       visibleIndices: visibleIndices ?? this.visibleIndices,
-      selectedIndex:
-          clearSelectedIndex ? null : (selectedIndex ?? this.selectedIndex),
+      selectedIndex: clearSelectedIndex
+          ? null
+          : (selectedIndex ?? this.selectedIndex),
       selectedIndices: clearSelectedIndices
           ? const {}
           : (selectedIndices ?? this.selectedIndices),
@@ -422,11 +448,21 @@ class TextBookLoaded extends TextBookState {
       scrollOffsetController:
           scrollOffsetController ?? this.scrollOffsetController,
       currentTitle: currentTitle ?? this.currentTitle,
-      selectedTextForNote: selectedTextForNote ?? this.selectedTextForNote,
-      selectedTextStart: selectedTextStart ?? this.selectedTextStart,
-      selectedTextEnd: selectedTextEnd ?? this.selectedTextEnd,
-      highlightedLine:
-          clearHighlight ? null : (highlightedLine ?? this.highlightedLine),
+      selectedTextForNote: clearSelectedText
+          ? null
+          : (selectedTextForNote ?? this.selectedTextForNote),
+      selectedTextSectionIndex: clearSelectedText
+          ? null
+          : (selectedTextSectionIndex ?? this.selectedTextSectionIndex),
+      selectedTextStart: clearSelectedText
+          ? null
+          : (selectedTextStart ?? this.selectedTextStart),
+      selectedTextEnd: clearSelectedText
+          ? null
+          : (selectedTextEnd ?? this.selectedTextEnd),
+      highlightedLine: clearHighlight
+          ? null
+          : (highlightedLine ?? this.highlightedLine),
       linksLoading: linksLoading ?? this.linksLoading,
       pinpointHighlightIndex: clearPinpointHighlight
           ? null
@@ -459,65 +495,66 @@ class TextBookLoaded extends TextBookState {
   /// אם יש highlightText ממוקד לשורה זו — מחזיר אותו, אחרת את searchText הרגיל.
   String getEffectiveSearchText(int index) =>
       (highlightText.isNotEmpty && permanentHighlightLine == index)
-          ? highlightText
-          : searchText;
+      ? highlightText
+      : searchText;
 
   @override
   List<Object?> get props => [
-        book.title,
-        book.id,
-        // שדות שההעשרה ברקע (UpdateResolvedBookId) מעדכנת — בלעדיהם ה-emit
-        // של העדכון נבלע כשווה-ערך והדיאלוגים לא רואים את הקטגוריות.
-        book.heCategories,
-        book.author,
-        book.heEra,
-        contentVersion,
-        content.length,
-        fontSize,
-        showLeftPane,
-        showSplitView,
-        showTzuratHadafView,
-        showPageShapeView,
-        // השוואה לפי תוכן (לא רק אורך) — אחרת החלפת מפרש אחד באחר באותו אורך
-        // נבלעת ע"י השוואת ה-state והבחירה לא מתעדכנת.
-        activeCommentators,
-        commentatorGroups,
-        availableCommentators.length,
-        rareCommentators,
-        links.length,
-        visibleLinks.length,
-        tableOfContents.length,
-        removeNikud,
-        removePunctuation,
-        isTanach,
-        supportsContinuousReadingMode,
-        continuousReadingMode,
-        readingSegments.length,
-        visibleIndices,
-        selectedIndex,
-        selectedIndices,
-        pinLeftPane,
-        searchText,
-        _searchOptionsSignature(searchOptions),
-        _alternativeWordsSignature(alternativeWords),
-        _spacingValuesSignature(spacingValues),
-        searchMode,
-        searchDistance,
-        currentTitle,
-        selectedTextForNote,
-        selectedTextStart,
-        selectedTextEnd,
-        highlightedLine,
-        linksLoading,
-        pinpointHighlightIndex,
-        pinpointHighlightText,
-        isEditorOpen,
-        editorIndex,
-        editorSectionId,
-        editorText,
-        hasDraft,
-        hasLinksFile,
-        highlightText,
-        permanentHighlightLine,
-      ];
+    book.title,
+    book.id,
+    // שדות שההעשרה ברקע (UpdateResolvedBookId) מעדכנת — בלעדיהם ה-emit
+    // של העדכון נבלע כשווה-ערך והדיאלוגים לא רואים את הקטגוריות.
+    book.heCategories,
+    book.author,
+    book.heEra,
+    contentVersion,
+    content.length,
+    fontSize,
+    showLeftPane,
+    showSplitView,
+    showTzuratHadafView,
+    showPageShapeView,
+    // השוואה לפי תוכן (לא רק אורך) — אחרת החלפת מפרש אחד באחר באותו אורך
+    // נבלעת ע"י השוואת ה-state והבחירה לא מתעדכנת.
+    activeCommentators,
+    commentatorGroups,
+    availableCommentators.length,
+    rareCommentators,
+    links.length,
+    visibleLinks.length,
+    tableOfContents.length,
+    removeNikud,
+    removePunctuation,
+    isTanach,
+    supportsContinuousReadingMode,
+    continuousReadingMode,
+    readingSegments.length,
+    visibleIndices,
+    selectedIndex,
+    selectedIndices,
+    pinLeftPane,
+    searchText,
+    _searchOptionsSignature(searchOptions),
+    _alternativeWordsSignature(alternativeWords),
+    _spacingValuesSignature(spacingValues),
+    searchMode,
+    searchDistance,
+    currentTitle,
+    selectedTextForNote,
+    selectedTextSectionIndex,
+    selectedTextStart,
+    selectedTextEnd,
+    highlightedLine,
+    linksLoading,
+    pinpointHighlightIndex,
+    pinpointHighlightText,
+    isEditorOpen,
+    editorIndex,
+    editorSectionId,
+    editorText,
+    hasDraft,
+    hasLinksFile,
+    highlightText,
+    permanentHighlightLine,
+  ];
 }

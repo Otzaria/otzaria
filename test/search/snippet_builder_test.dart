@@ -59,80 +59,115 @@ Future<void> main() async {
     });
   });
 
-  group('highlightLiteral - חיפוש מקומי', () {
-    test('מדגיש את השאילתה הליטרלית', () {
-      final spans = SnippetBuilder.highlightLiteral(
-        plainText: 'אמר שלום לכל אדם',
-        query: 'שלום',
-        defaultStyle: _defaultStyle,
-        highlightStyle: _highlightStyle,
+  group('extractHighlightedTerms - חילוץ מונחי התאמה להדגשת PDF', () {
+    test('מחלץ את תוכן תגי font ו-mark בלבד, ללא כפילויות', () {
+      final terms = SnippetBuilder.extractHighlightedTerms(
+        'בראשית <font color="red">ברא</font> אלהים '
+        '<mark>שבתות</mark> וגם <font color="red">ברא</font>',
       );
-
-      expect(_highlighted(spans), 'שלום');
+      expect(terms, {'ברא', 'שבתות'});
     });
 
-    test('סובלני לניקוד בטקסט המוצג', () {
-      // "פַרעה" — פ עם פתח ואחריה רעה.
-      final spans = SnippetBuilder.highlightLiteral(
-        plainText: 'פַרעה אמר',
-        query: 'פרעה',
-        defaultStyle: _defaultStyle,
-        highlightStyle: _highlightStyle,
+    test('תגי עיצוב של תוכן הספר (b) אינם נחשבים התאמה', () {
+      final terms = SnippetBuilder.extractHighlightedTerms(
+        '<b>כותרת</b> טקסט <font>מצא</font>',
       );
-
-      final stripped = _highlighted(spans).replaceAll(RegExp(r'[֑-ׇ]'), '');
-      expect(stripped, 'פרעה');
+      expect(terms, {'מצא'});
     });
 
-    test('מכבד גבולות מילה ולא מדגיש חלק ממילה', () {
-      // "אמר" מופיע בתוך "נאמרו" ולכן אסור להדגיש.
-      final spans = SnippetBuilder.highlightLiteral(
-        plainText: 'נאמרו דברים',
-        query: 'אמר',
-        defaultStyle: _defaultStyle,
-        highlightStyle: _highlightStyle,
+    test('HTML ללא תגי הדגשה מחזיר קבוצה ריקה', () {
+      expect(
+        SnippetBuilder.extractHighlightedTerms('טקסט רגיל בלי הדגשות'),
+        isEmpty,
       );
-
-      expect(_highlighted(spans), isEmpty);
     });
 
-    test('מתאים גרשיים לועזיים בשאילתה לגרשיים עבריים בטקסט', () {
-      // הטקסט מכיל ראשי תיבות עם ״ (U+05F4), השאילתה עם " רגיל.
-      final spans = SnippetBuilder.highlightLiteral(
-        plainText: 'רמב״ם אמר',
-        query: 'רמב"ם',
-        defaultStyle: _defaultStyle,
-        highlightStyle: _highlightStyle,
+    test('מנרמל רווחים בתוך מונח מודגש', () {
+      final terms = SnippetBuilder.extractHighlightedTerms(
+        '<font>אבג   דהו</font>',
       );
-
-      expect(_highlighted(spans), 'רמב״ם');
+      expect(terms, {'אבג דהו'});
     });
+  });
 
-    test('מדגיש ביטוי רב-מילים כשמופיע ברצף', () {
-      final spans = SnippetBuilder.highlightLiteral(
-        plainText: 'פתיח אבג דהו סוף',
-        query: 'אבג דהו',
-        defaultStyle: _defaultStyle,
-        highlightStyle: _highlightStyle,
-      );
+  group(
+    'highlightLiteral - חיפוש מקומי',
+    () {
+      test('מדגיש את השאילתה הליטרלית', () {
+        final spans = SnippetBuilder.highlightLiteral(
+          plainText: 'אמר שלום לכל אדם',
+          query: 'שלום',
+          defaultStyle: _defaultStyle,
+          highlightStyle: _highlightStyle,
+        );
 
-      final highlighted = _highlighted(spans);
-      expect(highlighted, contains('אבג'));
-      expect(highlighted, contains('דהו'));
-    });
+        expect(_highlighted(spans), 'שלום');
+      });
 
-    test('ללא התאמה מחזיר את הטקסט כמות שהוא ללא הדגשה', () {
-      final spans = SnippetBuilder.highlightLiteral(
-        plainText: 'שלום עולם',
-        query: 'ברכה',
-        defaultStyle: _defaultStyle,
-        highlightStyle: _highlightStyle,
-      );
+      test('סובלני לניקוד בטקסט המוצג', () {
+        // "פַרעה" — פ עם פתח ואחריה רעה.
+        final spans = SnippetBuilder.highlightLiteral(
+          plainText: 'פַרעה אמר',
+          query: 'פרעה',
+          defaultStyle: _defaultStyle,
+          highlightStyle: _highlightStyle,
+        );
 
-      expect(_highlighted(spans), isEmpty);
-      expect(_allText(spans), 'שלום עולם');
-    });
-  }, skip: engineReady ? false : searchEngineSkipReason);
+        final stripped = _highlighted(spans).replaceAll(RegExp(r'[֑-ׇ]'), '');
+        expect(stripped, 'פרעה');
+      });
+
+      test('מכבד גבולות מילה ולא מדגיש חלק ממילה', () {
+        // "אמר" מופיע בתוך "נאמרו" ולכן אסור להדגיש.
+        final spans = SnippetBuilder.highlightLiteral(
+          plainText: 'נאמרו דברים',
+          query: 'אמר',
+          defaultStyle: _defaultStyle,
+          highlightStyle: _highlightStyle,
+        );
+
+        expect(_highlighted(spans), isEmpty);
+      });
+
+      test('מתאים גרשיים לועזיים בשאילתה לגרשיים עבריים בטקסט', () {
+        // הטקסט מכיל ראשי תיבות עם ״ (U+05F4), השאילתה עם " רגיל.
+        final spans = SnippetBuilder.highlightLiteral(
+          plainText: 'רמב״ם אמר',
+          query: 'רמב"ם',
+          defaultStyle: _defaultStyle,
+          highlightStyle: _highlightStyle,
+        );
+
+        expect(_highlighted(spans), 'רמב״ם');
+      });
+
+      test('מדגיש ביטוי רב-מילים כשמופיע ברצף', () {
+        final spans = SnippetBuilder.highlightLiteral(
+          plainText: 'פתיח אבג דהו סוף',
+          query: 'אבג דהו',
+          defaultStyle: _defaultStyle,
+          highlightStyle: _highlightStyle,
+        );
+
+        final highlighted = _highlighted(spans);
+        expect(highlighted, contains('אבג'));
+        expect(highlighted, contains('דהו'));
+      });
+
+      test('ללא התאמה מחזיר את הטקסט כמות שהוא ללא הדגשה', () {
+        final spans = SnippetBuilder.highlightLiteral(
+          plainText: 'שלום עולם',
+          query: 'ברכה',
+          defaultStyle: _defaultStyle,
+          highlightStyle: _highlightStyle,
+        );
+
+        expect(_highlighted(spans), isEmpty);
+        expect(_allText(spans), 'שלום עולם');
+      });
+    },
+    skip: engineReady ? false : searchEngineSkipReason,
+  );
 
   group('buildExcerptText', () {
     test('טקסט קצר מהמגבלה מוחזר כמות שהוא', () {
@@ -146,30 +181,38 @@ Future<void> main() async {
       );
     });
 
-    test('חותך קטע סביב ההתאמה ומוסיף "..."', () {
-      final fullText = '${'מילה ' * 60}מצרים ${'עוד ' * 60}';
-      final excerpt = SnippetBuilder.buildExcerptText(
-        fullText: fullText,
-        query: 'מצרים',
-        maxChars: 60,
-      );
+    test(
+      'חותך קטע סביב ההתאמה ומוסיף "..."',
+      () {
+        final fullText = '${'מילה ' * 60}מצרים ${'עוד ' * 60}';
+        final excerpt = SnippetBuilder.buildExcerptText(
+          fullText: fullText,
+          query: 'מצרים',
+          maxChars: 60,
+        );
 
-      expect(excerpt, contains('מצרים'));
-      expect(excerpt, contains('...'));
-      expect(excerpt.length, lessThan(fullText.length));
-    }, skip: engineReady ? false : searchEngineSkipReason);
+        expect(excerpt, contains('מצרים'));
+        expect(excerpt, contains('...'));
+        expect(excerpt.length, lessThan(fullText.length));
+      },
+      skip: engineReady ? false : searchEngineSkipReason,
+    );
 
-    test('ללא התאמה מחזיר את תחילת הטקסט עם "..."', () {
-      final fullText = 'אבגד ' * 60;
-      final excerpt = SnippetBuilder.buildExcerptText(
-        fullText: fullText,
-        query: 'מצרים',
-        maxChars: 60,
-      );
+    test(
+      'ללא התאמה מחזיר את תחילת הטקסט עם "..."',
+      () {
+        final fullText = 'אבגד ' * 60;
+        final excerpt = SnippetBuilder.buildExcerptText(
+          fullText: fullText,
+          query: 'מצרים',
+          maxChars: 60,
+        );
 
-      expect(excerpt.trimRight(), endsWith('...'));
-      expect(excerpt.length, lessThan(fullText.trim().length));
-    }, skip: engineReady ? false : searchEngineSkipReason);
+        expect(excerpt.trimRight(), endsWith('...'));
+        expect(excerpt.length, lessThan(fullText.trim().length));
+      },
+      skip: engineReady ? false : searchEngineSkipReason,
+    );
   });
 
   group('htmlToPlainText - חילוץ טקסט גולמי', () {

@@ -255,6 +255,14 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   bool _leftPaneAutoCloseQueuedByScroll = false;
   // מצב חלונית הצד שזוהה לאחרונה, לעיגון-מחדש של הטקסט בעת פתיחה/סגירה.
   bool _lastShowLeftPaneForReanchor = false;
+  // האם החלונית דוחקת את התוכן (wide). ב-overlay הרוחב לא משתנה ולכן ה-reanchor
+  // מיותר — וה-jumpTo שלו מבטל אנימציית ניווט פעילה מבחירה בסרגל הצד.
+  bool _paneUsesPushLayout = false;
+
+  /// מונה כמה פעמים רץ ה-reanchor בעקבות פתיחה/סגירת החלונית. לבדיקת הרגרסיה:
+  /// חייב לרוץ במצב push ולהידכא ב-overlay.
+  @visibleForTesting
+  int reanchorOnPaneToggleCount = 0;
 
   // Key עבור PageShapeScreen
   final Key _pageShapeKey = UniqueKey();
@@ -593,14 +601,16 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       return;
     }
 
+    // תוכן מלא מה-repository — state.content יכול להיות חלקי (חימום/שחרור).
+    // חובה לקרוא כאן: בתוך ה-builder ה-context הוא של הדיאלוג וחסר לו provider ל-TextBookBloc.
+    final contentData = context.read<TextBookBloc>().repository.getBookContent(
+      state.book,
+    );
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => PrintingScreen(
-        // תוכן מלא מה-repository — state.content יכול להיות חלקי (חימום/שחרור)
-        data: context.read<TextBookBloc>().repository.getBookContent(
-          state.book,
-        ),
+        data: contentData,
         bookId: state.book.title,
         book: state.book,
         links: state.links,
@@ -1061,6 +1071,18 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     _selectedTextForSearch = selectedText;
     _selectedLineForNote = lineIndex;
     _selectedColumnForNote = column;
+    final selectedLines = selectedText?.split('\n');
+    final isSingleSectionSelection = selectedLines?.length == 1;
+    context.read<TextBookBloc>().add(
+      UpdateSelectedTextForNote(
+        text: selectedText,
+        sectionIndex: lineIndex,
+        start: isSingleSectionSelection ? column : null,
+        end: isSingleSectionSelection && column != null && selectedText != null
+            ? column + selectedText.length
+            : null,
+      ),
+    );
     if (selectedText == null || selectedText.trim().isEmpty) {
       return;
     }
@@ -1166,7 +1188,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                   // לפריט העליון הנראה כדי שהתצוגה לא תקפוץ בזרימה-מחדש.
                   if (state.showLeftPane != _lastShowLeftPaneForReanchor) {
                     _lastShowLeftPaneForReanchor = state.showLeftPane;
-                    _reanchorMainContentToTopmostVisible();
+                    if (_paneUsesPushLayout) {
+                      reanchorOnPaneToggleCount++;
+                      _reanchorMainContentToTopmostVisible();
+                    }
                   }
                   final pendingSidebarTab = Settings.getValue<int>(
                     'key-sidebar-tab-index-pending',
@@ -2292,14 +2317,17 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           TourInteraction(type: TourInteractionType.printUsed),
         );
         final settingsState = context.read<SettingsBloc>().state;
+        // תוכן מלא מה-repository — state.content יכול להיות חלקי (חימום/שחרור).
+        // חובה לקרוא כאן: בתוך ה-builder ה-context הוא של הדיאלוג וחסר לו provider ל-TextBookBloc.
+        final contentData = context
+            .read<TextBookBloc>()
+            .repository
+            .getBookContent(state.book);
         showDialog(
           context: context,
           barrierDismissible: false,
           builder: (context) => PrintingScreen(
-            // תוכן מלא מה-repository — state.content יכול להיות חלקי (חימום/שחרור)
-            data: context.read<TextBookBloc>().repository.getBookContent(
-              state.book,
-            ),
+            data: contentData,
             bookId: state.book.title,
             book: state.book,
             links: state.links,
@@ -2523,6 +2551,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         context.read<SettingsBloc>().add(
           UpdateSidebarWidth(_sidebarWidth.value),
         );
+      },
+      onLayoutModeChanged: (usesPushLayout) {
+        _paneUsesPushLayout = usesPushLayout;
       },
       autoHandleResponsiveVisibility: false,
       scrollbarTopMargin: 0,
@@ -2882,14 +2913,16 @@ bool _handleGlobalKeyEvent(
       TourInteraction(type: TourInteractionType.printUsed),
     );
     final settingsState = context.read<SettingsBloc>().state;
+    // תוכן מלא מה-repository — state.content יכול להיות חלקי (חימום/שחרור).
+    // חובה לקרוא כאן: בתוך ה-builder ה-context הוא של הדיאלוג וחסר לו provider ל-TextBookBloc.
+    final contentData = context.read<TextBookBloc>().repository.getBookContent(
+      state.book,
+    );
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => PrintingScreen(
-        // תוכן מלא מה-repository — state.content יכול להיות חלקי (חימום/שחרור)
-        data: context.read<TextBookBloc>().repository.getBookContent(
-          state.book,
-        ),
+        data: contentData,
         bookId: state.book.title,
         book: state.book,
         links: state.links,

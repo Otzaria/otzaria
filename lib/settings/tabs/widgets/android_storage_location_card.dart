@@ -35,8 +35,8 @@ class _AndroidStorageLocationCardState
     final currentRoot = libraryPath.isEmpty
         ? internalRoot
         : (p.basename(libraryPath).toLowerCase() == 'books'
-            ? p.dirname(libraryPath)
-            : libraryPath);
+              ? p.dirname(libraryPath)
+              : libraryPath);
     return _StorageView(
       options: options,
       internalRoot: internalRoot,
@@ -52,17 +52,24 @@ class _AndroidStorageLocationCardState
       p.equals(_targetRoot(option, view.internalRoot), view.currentRoot);
 
   Future<void> _changeLocation(
-      AndroidStorageOption option, _StorageView view) async {
+    AndroidStorageOption option,
+    _StorageView view,
+  ) async {
     final booksPath =
         Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '';
     if (booksPath.isEmpty) return;
     final target = _targetRoot(option, view.internalRoot);
+    final removalWarning = option.isRemovable
+        ? ' אם הכרטיס יוסר, האפליקציה לא תוכל לגשת לספרים עד שיוחזר.'
+        : '';
 
     final confirmed = await showWarningDialog(
       context: context,
       title: 'העברת הספרייה אל ${option.label}',
-      content: 'הספרייה, האינדקס ומסדי הנתונים יועברו אל ${option.label}. '
-          'בזמן ההעברה התוכנה תיטען מחדש ולא תהיה זמינה עד לסיום הפעולה.',
+      content:
+          'הספרייה, האינדקס ומסדי הנתונים יועברו אל ${option.label}. '
+          'בזמן ההעברה התוכנה תיטען מחדש ולא תהיה זמינה עד לסיום הפעולה.'
+          '$removalWarning',
       subtitle: 'העברה של ספרייה גדולה עשויה לקחת מספר דקות.',
       cancelText: 'ביטול',
       confirmText: 'העבר',
@@ -97,7 +104,10 @@ class _AndroidStorageLocationCardState
   }
 
   Widget _buildOptionTile(
-      BuildContext context, AndroidStorageOption option, _StorageView view) {
+    BuildContext context,
+    AndroidStorageOption option,
+    _StorageView view,
+  ) {
     final cs = Theme.of(context).colorScheme;
     final isCurrent = _isCurrent(option, view);
     final freeText = option.freeBytes >= 0
@@ -109,8 +119,10 @@ class _AndroidStorageLocationCardState
 
     Widget? trailing;
     if (isCurrent) {
-      trailing = Text('בשימוש',
-          style: TextStyle(color: cs.primary, fontWeight: FontWeight.w600));
+      trailing = Text(
+        'בשימוש',
+        style: TextStyle(color: cs.primary, fontWeight: FontWeight.w600),
+      );
     } else if (option.supportsLargeFiles) {
       trailing = ActionButton.recommended(
         text: 'העבר לכאן',

@@ -146,7 +146,7 @@ my-plugin/
 | `icon` | `null` | נתיב לאייקון (PNG, 64×64 מומלץ) |
 | `maxAppVersion` | `null` | גרסת אוצריא המקסימלית הנתמכת |
 | `network.enabled` | `false` | האם להצהיר על שימוש ברשת (חובה כדי להפעיל את מנגנון הרשת בתוסף) |
-| `network.allowlist` | `[]` | רשימת ה-URLs שהתוסף מצהיר שהוא צריך. ה-URL חייב להופיע כאן **וגם** להיות מאושר ע"י אוצריא: או ברשימה המובנית `pluginNetworkAllowlist`, או בקובץ המקביל הרשמי ב-GitHub של אוצריא. הצהרה ב-manifest לבדה **אינה** מספיקה. |
+| `network.allowlist` | `[]` | רשימת ה-URLs שהתוסף מצהיר שהוא צריך. ה-URL חייב להופיע כאן **וגם** להיות מאושר ע"י אוצריא בקובץ `plugin_network_allowlist.txt` בענף `plugin-network-allowlist` של ריפו אוצריא ב-GitHub. הצהרה ב-manifest לבדה **אינה** מספיקה. |
 | `contributes.toolTab.title` | שם התוסף | כותרת הטאב. אם מגדירים אותה במפורש — חייבת להיות זהה ל-`name` (עד 14 תווים), אחרת התוסף יידחה |
 | `contributes.toolTab.order` | `900` | סדר הופעה בטאבים (מספר נמוך = קודם) |
 | `contributes.toolTab.allowOrderBeforeBuiltIns` | `false` | חריג מפורש שמאפשר לתוסף להתחרות מול הכלים המובנים ולהופיע לפניהם במסך "כלים" |
@@ -290,6 +290,8 @@ Otzaria.on('plugin.suspended', stop);   // עצירת timers / polling / WebSock
 | `library.listRecentBooks` | `library.books.read` | — | `{ bookId, title, ref }[]` |
 | `library.getBookContent` | `library.content.read` | `{ bookId, offset?, limit?, section? }` | `string` (max 5000 תווים) |
 | `library.getBookToc` | `library.content.read` | `{ bookId }` | `TocEntry[]` |
+| `library.listBookAltStructures` | `library.content.read` | `{ bookId }` | `AltStructure[]` |
+| `library.getBookAltToc` | `library.content.read` | `{ bookId, structureKey? }` | `TocEntry[]` |
 
 ### search.*
 
@@ -302,7 +304,7 @@ Otzaria.on('plugin.suspended', stop);   // עצירת timers / polling / WebSock
 | Method | הרשאה | פרמטרים | החזרה |
 |--------|-------|----------|-------|
 | `reader.openBook` | `reader.open` | `{ bookId, index?, searchQuery? }` | `boolean` |
-| `reader.openBookAtRef` | `reader.open` | `{ bookId, ref, index? }` | `boolean` |
+| `reader.openBookAtRef` | `reader.open` | `{ bookId, ref, index?, highlight? }` | `boolean` |
 | `reader.getCurrentState` | `reader.open` | — | `ReaderState` |
 
 ### navigation.*
@@ -494,7 +496,7 @@ const { data: keys } = await Otzaria.call('storage.list');
 | `published_data.write` | פרסום נתונים לאפליקציה |
 | `ui.feedback` | הצגת הודעות ודיאלוגים |
 | `ui.create_shortcut` | יצירת קיצור דרך (deep-link) בשולחן העבודה / תפריט ההתחל — דורש אישור משתמש |
-| `network.access` | גישה לאינטרנט (דורש `network.enabled: true` במניפסט + שה-URL מופיע ב-allowlist הגלובלי של אוצריא בקוד) |
+| `network.access` | גישה לאינטרנט (דורש `network.enabled: true` במניפסט + שה-URL מופיע ב-allowlist הרשמי של אוצריא ב-GitHub) |
 | `network.localhost` | גישה לשירות מקומי על המחשב (`localhost` / `127.0.0.1`), כמו Ollama / LM Studio. נפרדת מ-`network.access` — אינה מתירה אינטרנט, ואינה דורשת allowlist גלובלי |
 | `fs.user_files.read` | בחירה וקריאה של קובץ אישי (PDF/טקסט) שהמשתמש בוחר בדיאלוג — מוגבל לקובץ שנבחר בלבד |
 | `notifications.send` | הצגת הודעות בתוך האפליקציה (UiSnack) |
@@ -615,7 +617,7 @@ Otzaria.on('plugin.boot', async (payload) => {
 - כדי שתוסף יוכל לגשת ל**אינטרנט** (לשירות מקומי יש מסלול נפרד — ראו בהמשך) חייבות להתקיים **שלוש שכבות** במצטבר:
   1. **הצהרה במניפסט** — `network.enabled: true`, ההרשאה `network.access`, וגם שה-URL המבוקש יופיע ב-`network.allowlist` של התוסף.
   2. **אישור המשתמש** — המשתמש אישר את הרשאת `network.access` בעת ההתקנה.
-  3. **מקור אמון רשמי של אוצריא** — ה-URL חייב להיות תואם קידומת לערך שמופיע או ב-`pluginNetworkAllowlist` המובנה בקובץ [`lib/plugins/models/plugin_network_allowlist.dart`](../../lib/plugins/models/plugin_network_allowlist.dart), או באותו קובץ בריפו הרשמי של אוצריא ב-GitHub. אישור מה-GitHub נטען לזיכרון בלבד עד סגירת האפליקציה.
+  3. **מקור אמון רשמי של אוצריא** — ה-URL חייב להיות תואם קידומת לערך שמופיע בקובץ [`plugin_network_allowlist.txt` בענף הייעודי `plugin-network-allowlist`](https://github.com/Otzaria/otzaria/blob/plugin-network-allowlist/plugin_network_allowlist.txt) של ריפו אוצריא ב-GitHub. עריכה בענף נכנסת לתוקף מיד, בלי release. האישור נטען לזיכרון בלבד עד סגירת האפליקציה.
 - ההתאמה היא **התאמת קידומת מלאה** — אם ברשימה רשום `https://github.com/Otzaria/otzaria-library`, יותרו רק URLs שמתחילים במחרוזת זו (ואחריה `/`, `?`, `#` או סוף המחרוזת). `https://github.com/` או `https://github.com/Otzaria/another-repo` ייחסמו.
 - ה-`network.allowlist` במניפסט הוא **תנאי חובה אך לא תנאי מספיק** — בלי הצהרה במניפסט ה-URL ייחסם, וגם עם הצהרה הוא ייחסם אם אינו מופיע במקור אמון רשמי של אוצריא.
 - אם תוסף מבקש גישה ל-URL שאינו ב-allowlist הגלובלי, יש לפנות למתחזקי אוצריא בבקשה להוסיף אותו.
@@ -1090,6 +1092,24 @@ otzaria://open/plugin/<plugin-id>
 
 ## שגיאות נפוצות
 
+קריאה שנכשלה מחזירה סכמת שגיאה v1. השדות `code` ו־`message` הוותיקים נשמרו, ונוספו שדות שמאפשרים לתוסף להחליט אם להציע ניסיון חוזר:
+
+```javascript
+{
+  success: false,
+  data: null,
+  error: {
+    schemaVersion: 1,
+    code: 'error.highlight_not_found',
+    message: 'Highlight was not found',
+    retryable: false,
+    category: 'not_found'
+  }
+}
+```
+
+`category` הוא אחד מהערכים `permission`,‏ `validation`,‏ `not_found`,‏ `conflict`,‏ `timeout`,‏ `too_large`,‏ `internal` או `unsupported`. מטעמי תאימות, שגיאת הרשאה כללית עשויה עדיין להחזיר את הקוד הוותיק `permission_denied`; הקטגוריה שלה תמיד `permission`.
+
 | קוד שגיאה | סיבה | פתרון |
 |-----------|------|--------|
 | `permission_denied` | הרשאה לא הוצהרה ב-manifest או לא אושרה | הוסף לרשימת `permissions` ב-manifest |
@@ -1097,6 +1117,16 @@ otzaria://open/plugin/<plugin-id>
 | `error.timeout` | הפעולה לא הושלמה תוך 30 שניות | חלק לפעולות קטנות יותר |
 | `error.invalid_params` | פרמטרים חסרים או שגויים | בדוק את החתימה של ה-method |
 | `error.internal` | שגיאה פנימית בצד אוצריא | בדוק לוגים בהגדרות → תוספים |
+
+---
+
+## מגבלות Highlights בגרסה הנוכחית
+
+- ההדגשות זמניות בזיכרון. התוסף אחראי לשמור אותן ב־storage שלו ולהקים אותן מחדש ב־`plugin.boot`.
+- אין בשלב זה סנכרון בין מכשירים, undo/redo מרכזי או פתרון קונפליקטים מרכזי.
+- ה־Host מבודד בעלות לפי מזהה התוסף; תוסף אינו יכול לקרוא, לעדכן או למחוק הדגשות של תוסף אחר.
+- החתימה הוותיקה לפי `index` נשמרת לתאימות, אך תוסף חדש צריך להשתמש ב־`TextRangeAnchor` מתוך `reader.getSelection`.
+- בחירה שחוצה כמה מקטעים אינה נתמכת כעוגן יחיד בשלב זה.
 
 ---
 

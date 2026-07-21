@@ -43,7 +43,7 @@ class AppContextMenuRegion extends StatefulWidget {
   /// הבחירה (התנהגות ברירת המחדל ב-Windows). כשהלחיצה מחוץ לטקסט המסומן — מחזיר
   /// `false`, וה-recognizer אינו מתערב כך שההתנהגות הרגילה (ביטול) נשמרת.
   final bool Function(Offset globalPosition)?
-      shouldPreserveSelectionOnSecondaryTap;
+  shouldPreserveSelectionOnSecondaryTap;
 
   const AppContextMenuRegion({
     super.key,
@@ -103,9 +103,13 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
     if (renderObject is! RenderBox || !renderObject.hasSize) {
       return;
     }
-    await _openContextMenu(renderObject.localToGlobal(renderObject.size.center(
-      Offset.zero,
-    )));
+    await _openContextMenu(
+      renderObject.localToGlobal(
+        renderObject.size.center(
+          Offset.zero,
+        ),
+      ),
+    );
   }
 
   Future<void> openMenuAt(Offset globalPosition) =>
@@ -140,7 +144,8 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
     List<AppContextMenuEntry> entries,
     AppMenuMetrics metrics,
   ) {
-    final estimatedHeight = entries.fold<double>(
+    final estimatedHeight =
+        entries.fold<double>(
           metrics.menuPadding.vertical,
           (sum, entry) =>
               sum +
@@ -148,8 +153,8 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
                   ? metrics.dividerHeight
                   // שורת אייקונים גבוהה מפריט רגיל (אייקון + כיתוב + ריפודים).
                   : entry.iconRowActions != null
-                      ? metrics.iconSize + 28
-                      : metrics.itemHeight),
+                  ? metrics.iconSize + 28
+                  : metrics.itemHeight),
         ) +
         8;
     final spaceAbove = overlayPosition.dy;
@@ -157,17 +162,20 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
     final shouldOpenAbove =
         spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
     final dx = overlayPosition.dx
-        .clamp(_contextMenuScreenPadding,
-            overlayRenderBox.size.width - _contextMenuScreenPadding)
+        .clamp(
+          _contextMenuScreenPadding,
+          overlayRenderBox.size.width - _contextMenuScreenPadding,
+        )
         .toDouble();
     final rawDy = shouldOpenAbove
         ? overlayPosition.dy - estimatedHeight
         : overlayPosition.dy;
-    final maxDy = (overlayRenderBox.size.height -
-            metrics.itemHeight -
-            _contextMenuScreenPadding)
-        .clamp(_contextMenuScreenPadding, double.infinity)
-        .toDouble();
+    final maxDy =
+        (overlayRenderBox.size.height -
+                metrics.itemHeight -
+                _contextMenuScreenPadding)
+            .clamp(_contextMenuScreenPadding, double.infinity)
+            .toDouble();
     final dy = rawDy.clamp(_contextMenuScreenPadding, maxDy).toDouble();
 
     return (Offset(dx, dy), shouldOpenAbove);
@@ -176,7 +184,8 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
   /// כשהתפריט נפתח כלפי מעלה, שורת האייקונים (שמטבעה בראש) מתרחקת מהעכבר.
   /// מעבירים אותה לתחתית כדי שתישאר צמודה לעכבר — כמו ב-Windows 11.
   List<AppContextMenuEntry> _iconRowAtBottom(
-      List<AppContextMenuEntry> entries) {
+    List<AppContextMenuEntry> entries,
+  ) {
     final index = entries.indexWhere((e) => e.iconRowActions != null);
     if (index < 0) return entries;
     final iconRow = entries[index];
@@ -225,12 +234,15 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
   }
 
   Future<void> _openContextMenu(Offset globalPosition) async {
-    final entries =
-        _normalizeEntries(widget.menuBuilder(context, globalPosition));
+    final entries = _normalizeEntries(
+      widget.menuBuilder(context, globalPosition),
+    );
     if (entries.isEmpty) return;
 
-    _menuOpenScrollAnchor =
-        OverlayScrollAnchor.capture(context, globalPosition);
+    _menuOpenScrollAnchor = OverlayScrollAnchor.capture(
+      context,
+      globalPosition,
+    );
 
     final overlay = Overlay.of(context, rootOverlay: true);
     final overlayRenderObject = overlay.context.findRenderObject();
@@ -241,7 +253,8 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
     final overlayPosition = overlayRenderObject.globalToLocal(globalPosition);
     if (!overlayPosition.dx.isFinite || !overlayPosition.dy.isFinite) return;
     _menuAnchorX = overlayPosition.dx;
-    final metrics = Theme.of(context).extension<AppMenuMetrics>() ??
+    final metrics =
+        Theme.of(context).extension<AppMenuMetrics>() ??
         AppMenuMetrics.create(compactMenus: false);
     final (menuOffset, openAbove) = _calculateMenuOffset(
       overlayRenderObject,
@@ -312,12 +325,12 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
                     maxHeight: maxMenuHeight,
                     buildChildren: (panelContext, panelEntries) =>
                         _buildMenuPanelChildren(
-                      panelContext,
-                      panelEntries,
-                      metrics,
-                      maxMenuWidth,
-                      submenuControllers,
-                    ),
+                          panelContext,
+                          panelEntries,
+                          metrics,
+                          maxMenuWidth,
+                          submenuControllers,
+                        ),
                   ),
                 ),
               ),
@@ -364,15 +377,17 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
           // למנוע מ-SelectableRegion לשחרר את הבחירה (ראו תיעוד השדה).
           _PreserveSelectionSecondaryTapRecognizer:
               GestureRecognizerFactoryWithHandlers<
-                  _PreserveSelectionSecondaryTapRecognizer>(
-            () => _PreserveSelectionSecondaryTapRecognizer(
-              shouldPreserve: (globalPosition) =>
-                  widget.shouldPreserveSelectionOnSecondaryTap
-                      ?.call(globalPosition) ??
-                  false,
-            ),
-            (instance) {},
-          ),
+                _PreserveSelectionSecondaryTapRecognizer
+              >(
+                () => _PreserveSelectionSecondaryTapRecognizer(
+                  shouldPreserve: (globalPosition) =>
+                      widget.shouldPreserveSelectionOnSecondaryTap?.call(
+                        globalPosition,
+                      ) ??
+                      false,
+                ),
+                (instance) {},
+              ),
         },
         child: Listener(
           behavior: HitTestBehavior.translucent,
@@ -405,6 +420,14 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
     // התווית לא יגלוש (כמו submenuContentMaxWidth בתת-התפריט).
     final contentMaxWidth = maxWidth - metrics.itemPadding.horizontal;
     return entries.map<Widget>((entry) {
+      if (entry.colorRowActions != null) {
+        return _AppContextMenuColorRow(
+          actions: entry.colorRowActions!,
+          metrics: metrics,
+          maxWidth: maxWidth,
+          closeMenu: _closeContextMenu,
+        );
+      }
       if (entry.iconRowActions != null) {
         return _AppContextMenuIconRow(
           actions: entry.iconRowActions!,
@@ -458,19 +481,20 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
           },
           buildChildren: (submenuEntries, submenuMaxWidth) =>
               _buildSubmenuChildren(
-            context,
-            submenuEntries,
-            metrics,
-            submenuMaxWidth,
-          ),
+                context,
+                submenuEntries,
+                metrics,
+                submenuMaxWidth,
+              ),
         );
       }
 
       final rawChildren = entry.children;
       if (rawChildren != null && rawChildren.isNotEmpty) {
         final normalizedChildren = _normalizeEntries(rawChildren);
-        final hasEnabledChildren =
-            hasEnabledAppContextMenuEntries(normalizedChildren);
+        final hasEnabledChildren = hasEnabledAppContextMenuEntries(
+          normalizedChildren,
+        );
         if (!entry.enabled || !hasEnabledChildren) {
           return MenuItemButton(
             key: widget.menuItemKeysByLabel?[entry.label ?? ''],
@@ -507,11 +531,11 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
           },
           buildChildren: (submenuEntries, submenuMaxWidth) =>
               _buildSubmenuChildren(
-            context,
-            submenuEntries,
-            metrics,
-            submenuMaxWidth,
-          ),
+                context,
+                submenuEntries,
+                metrics,
+                submenuMaxWidth,
+              ),
         );
       }
 
@@ -561,7 +585,8 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
   }
 
   List<AppContextMenuEntry> _normalizeEntries(
-      List<AppContextMenuEntry> entries) {
+    List<AppContextMenuEntry> entries,
+  ) {
     final result = <AppContextMenuEntry>[];
     for (final e in entries) {
       if (e.isDivider) {
@@ -586,6 +611,14 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
     final submenuContentMaxWidth = maxWidth - metrics.itemPadding.horizontal;
 
     return entries.map((entry) {
+      if (entry.colorRowActions != null) {
+        return _AppContextMenuColorRow(
+          actions: entry.colorRowActions!,
+          metrics: metrics,
+          maxWidth: maxWidth,
+          closeMenu: _closeContextMenu,
+        );
+      }
       if (entry.isDivider) {
         return const Padding(
           padding: EdgeInsets.symmetric(vertical: 4),
@@ -621,19 +654,20 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
           menuStyle: _menuStyle(context, metrics),
           buildChildren: (submenuEntries, submenuMaxWidth) =>
               _buildSubmenuChildren(
-            context,
-            submenuEntries,
-            metrics,
-            submenuMaxWidth,
-          ),
+                context,
+                submenuEntries,
+                metrics,
+                submenuMaxWidth,
+              ),
         );
       }
 
       final rawChildren = entry.children;
       if (rawChildren != null && rawChildren.isNotEmpty) {
         final normalizedChildren = _normalizeEntries(rawChildren);
-        final hasEnabledChildren =
-            hasEnabledAppContextMenuEntries(normalizedChildren);
+        final hasEnabledChildren = hasEnabledAppContextMenuEntries(
+          normalizedChildren,
+        );
         if (!entry.enabled || !hasEnabledChildren) {
           return MenuItemButton(
             requestFocusOnHover: false,
@@ -661,11 +695,11 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
           menuStyle: _menuStyle(context, metrics),
           buildChildren: (submenuEntries, submenuMaxWidth) =>
               _buildSubmenuChildren(
-            context,
-            submenuEntries,
-            metrics,
-            submenuMaxWidth,
-          ),
+                context,
+                submenuEntries,
+                metrics,
+                submenuMaxWidth,
+              ),
         );
       }
 
@@ -787,8 +821,9 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton>
     });
     // רענון הילדים בכל פעימה של הסטרים — בונה מחדש מ-entriesBuilder עם נתונים
     // טריים. הסטרים פולט אחרי עדכון מקור הנתונים, כך שהרשימה מעודכנת.
-    _refreshSubscription =
-        widget.entry.childrenRefreshStream?.listen((_) => _refreshChildren());
+    _refreshSubscription = widget.entry.childrenRefreshStream?.listen(
+      (_) => _refreshChildren(),
+    );
   }
 
   @override
@@ -887,12 +922,15 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton>
   Widget build(BuildContext context) {
     final isRtl = Directionality.of(context) == TextDirection.rtl;
     final openToRight = _openToRight ?? !isRtl;
-    final menuTextDirection =
-        openToRight ? TextDirection.ltr : TextDirection.rtl;
-    final submenuAlignment =
-        openToRight ? Alignment.topRight : Alignment.topLeft;
+    final menuTextDirection = openToRight
+        ? TextDirection.ltr
+        : TextDirection.rtl;
+    final submenuAlignment = openToRight
+        ? Alignment.topRight
+        : Alignment.topLeft;
     final contentTextDirection = isRtl ? TextDirection.rtl : TextDirection.ltr;
-    final submenuArrow = widget.entry.trailing ??
+    final submenuArrow =
+        widget.entry.trailing ??
         Icon(
           isRtl
               ? FluentIcons.chevron_right_16_regular
@@ -982,7 +1020,7 @@ class _AppContextMenuPanel extends StatelessWidget {
   final double maxWidth;
   final double maxHeight;
   final List<Widget> Function(BuildContext, List<AppContextMenuEntry>)
-      buildChildren;
+  buildChildren;
 
   const _AppContextMenuPanel({
     super.key,
@@ -1003,37 +1041,40 @@ class _AppContextMenuPanel extends StatelessWidget {
     // דרך ה-_buttonFocusNode הפנימי שלו (שאינו נשלט מחוץ ל-Flutter).
     // trade-off: ניווט מקלדת (Tab/חצים) בתוך התפריט אינו פועל — מקובל עבור תפריט הקשר.
     return FocusScope(
-        skipTraversal: true,
-        descendantsAreFocusable: false,
-        child: Material(
-          color: menuStyle?.backgroundColor?.resolve(const <WidgetState>{}) ??
-              colorScheme.surfaceContainer,
-          elevation: menuStyle?.elevation
-                  ?.resolve(const <WidgetState>{})?.toDouble() ??
-              3,
-          shape: menuStyle?.shape?.resolve(const <WidgetState>{}) ??
-              RoundedRectangleBorder(
-                borderRadius: AppTokens.borderRadiusAll,
-              ),
-          clipBehavior: Clip.antiAlias,
-          child: IntrinsicWidth(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minWidth: metrics.menuMinWidth,
-                maxWidth: maxWidth,
-                maxHeight: maxHeight,
-              ),
-              child: SingleChildScrollView(
-                padding: metrics.menuPadding,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: buildChildren(context, entries),
-                ),
+      skipTraversal: true,
+      descendantsAreFocusable: false,
+      child: Material(
+        color:
+            menuStyle?.backgroundColor?.resolve(const <WidgetState>{}) ??
+            colorScheme.surfaceContainer,
+        elevation:
+            menuStyle?.elevation?.resolve(const <WidgetState>{})?.toDouble() ??
+            3,
+        shape:
+            menuStyle?.shape?.resolve(const <WidgetState>{}) ??
+            RoundedRectangleBorder(
+              borderRadius: AppTokens.borderRadiusAll,
+            ),
+        clipBehavior: Clip.antiAlias,
+        child: IntrinsicWidth(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: metrics.menuMinWidth,
+              maxWidth: maxWidth,
+              maxHeight: maxHeight,
+            ),
+            child: SingleChildScrollView(
+              padding: metrics.menuPadding,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: buildChildren(context, entries),
               ),
             ),
           ),
-        ));
+        ),
+      ),
+    );
   }
 }
 
@@ -1050,9 +1091,9 @@ class _AppContextMenuPanel extends StatelessWidget {
 
 class _PreserveSelectionSecondaryTapRecognizer extends EagerGestureRecognizer {
   _PreserveSelectionSecondaryTapRecognizer({required this.shouldPreserve})
-      : super(
-          allowedButtonsFilter: (buttons) => buttons & kSecondaryButton != 0,
-        );
+    : super(
+        allowedButtonsFilter: (buttons) => buttons & kSecondaryButton != 0,
+      );
 
   final bool Function(Offset globalPosition) shouldPreserve;
 
@@ -1120,6 +1161,7 @@ class _MenuItemHoverPreviewState extends State<_MenuItemHoverPreview> {
   Timer? _hideTimer;
   final GlobalKey _panelKey = GlobalKey();
   Offset? _panelOffset;
+  Size? _panelSize;
   bool _panelVisible = false;
   // נפתח בלחיצה ארוכה (מגע) ולא ברפרוף — נסגר בהקשה מחוץ לחלונית.
   bool _touchTriggered = false;
@@ -1136,6 +1178,7 @@ class _MenuItemHoverPreviewState extends State<_MenuItemHoverPreview> {
     _previewEntry?.remove();
     _previewEntry = null;
     _panelOffset = null;
+    _panelSize = null;
     _panelVisible = false;
     _touchTriggered = false;
   }
@@ -1287,8 +1330,8 @@ class _MenuItemHoverPreviewState extends State<_MenuItemHoverPreview> {
       dx = spaceLeft > spaceRight
           ? _screenPadding
           : (overlaySize.width - panelSize.width - _screenPadding)
-              .clamp(_screenPadding, double.infinity)
-              .toDouble();
+                .clamp(_screenPadding, double.infinity)
+                .toDouble();
     }
 
     final maxDy = (overlaySize.height - panelSize.height - _screenPadding)
@@ -1297,6 +1340,7 @@ class _MenuItemHoverPreviewState extends State<_MenuItemHoverPreview> {
     final dy = itemRect.top.clamp(_screenPadding, maxDy).toDouble();
 
     _panelOffset = Offset(dx, dy);
+    _panelSize = panelSize;
     _panelVisible = true;
     _previewEntry?.markNeedsBuild();
   }
@@ -1340,6 +1384,7 @@ class _MenuItemHoverPreviewState extends State<_MenuItemHoverPreview> {
       contentBuilder: widget.previewBuilder,
       panelPosition: offset,
       scrollAnchor: widget.pinScrollAnchor?.call(),
+      panelSize: _panelSize,
     );
     _removePreview();
     widget.onPinned?.call();
@@ -1427,6 +1472,90 @@ class _HoverableHighlightedRow extends StatelessWidget {
 // _AppContextMenuIconRow — שורת כפתורי אייקון בראש התפריט (סגנון Windows 11)
 // ═══════════════════════════════════════════════════════════════════════════
 
+class _AppContextMenuColorRow extends StatelessWidget {
+  final List<AppContextMenuColorAction> actions;
+  final AppMenuMetrics metrics;
+  final double maxWidth;
+  final VoidCallback closeMenu;
+
+  const _AppContextMenuColorRow({
+    required this.actions,
+    required this.metrics,
+    required this.maxWidth,
+    required this.closeMenu,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: SizedBox(
+        key: const ValueKey('context-color-row'),
+        height: metrics.itemHeight,
+        child: Center(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final action in actions)
+                  Tooltip(
+                    message: action.label,
+                    child: Semantics(
+                      button: true,
+                      selected: action.selected,
+                      label: action.label,
+                      child: InkWell(
+                        key: ValueKey('context-color-${action.id}'),
+                        onTap: action.onTap == null
+                            ? null
+                            : () {
+                                closeMenu();
+                                action.onTap!.call();
+                              },
+                        borderRadius: BorderRadius.circular(6),
+                        child: SizedBox.square(
+                          dimension: 32,
+                          child: Center(
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 120),
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: action.icon == null
+                                    ? action.color
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(5),
+                                border: Border.all(
+                                  color: action.selected
+                                      ? colorScheme.primary
+                                      : colorScheme.outlineVariant,
+                                  width: action.selected ? 3 : 1,
+                                ),
+                              ),
+                              child: action.icon == null
+                                  ? null
+                                  : Icon(
+                                      action.icon,
+                                      size: 18,
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AppContextMenuIconRow extends StatelessWidget {
   final List<AppContextMenuIconAction> actions;
   final AppMenuMetrics metrics;
@@ -1482,8 +1611,9 @@ class _IconRowButton extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final hasSubmenu = action.submenuBuilder != null;
     final enabled = action.enabled && (action.onTap != null || hasSubmenu);
-    final color =
-        enabled ? colorScheme.onSurface : Theme.of(context).disabledColor;
+    final color = enabled
+        ? colorScheme.onSurface
+        : Theme.of(context).disabledColor;
 
     final content = Padding(
       padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
@@ -1505,8 +1635,11 @@ class _IconRowButton extends StatelessWidget {
                 ),
               ),
               if (hasSubmenu)
-                Icon(FluentIcons.chevron_down_12_regular,
-                    size: 12, color: color),
+                Icon(
+                  FluentIcons.chevron_down_12_regular,
+                  size: 12,
+                  color: color,
+                ),
             ],
           ),
         ],

@@ -554,6 +554,113 @@ Future<void> main() async {
   );
 
   testWidgets(
+    'שימור בחירה מבחין בין הופעות באותה שורה לפי matchOffset',
+    (tester) async {
+      final textBookBloc = _TestTextBookBloc(_loadedState());
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final focusNode = FocusNode();
+
+      addTearDown(textBookBloc.close);
+      addTearDown(settingsBloc.close);
+      addTearDown(focusNode.dispose);
+      addTearDown(resetSectionSearchWorkerForTesting);
+
+      Future<List<TextSearchResult>> simpleSearchRunner(
+        List<String> content,
+        String query,
+      ) async {
+        if (query == 'x') {
+          // שתי הופעות באותה שורה (50) והופעה נוספת לפניהן.
+          return [
+            TextSearchResult(snippet: 'a', index: 10, query: 'x', address: 'א'),
+            TextSearchResult(
+                snippet: 'b1',
+                index: 50,
+                query: 'x',
+                address: 'ב',
+                matchOffset: 0),
+            TextSearchResult(
+                snippet: 'b2',
+                index: 50,
+                query: 'x',
+                address: 'ב',
+                matchOffset: 30),
+          ];
+        }
+        if (query == 'xy') {
+          // רק שתי ההופעות של שורה 50 — הנבחרת (offset 30) עכשיו אחרונה.
+          return [
+            TextSearchResult(
+                snippet: 'b1',
+                index: 50,
+                query: 'xy',
+                address: 'ב',
+                matchOffset: 0),
+            TextSearchResult(
+                snippet: 'b2',
+                index: 50,
+                query: 'xy',
+                address: 'ב',
+                matchOffset: 30),
+          ];
+        }
+        return const [];
+      }
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<TextBookBloc>.value(value: textBookBloc),
+              BlocProvider<SettingsBloc>.value(value: settingsBloc),
+            ],
+            child: Scaffold(
+              body: TextBookSearchView(
+                contentLoader: () async => ['שורה'],
+                scrollControler: ItemScrollController(),
+                focusNode: focusNode,
+                closeLeftPaneCallback: () {},
+                initialQuery: '',
+                simpleSearchRunner: simpleSearchRunner,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'x');
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // ניווט להופעה השנייה בשורה 50 (אינדקס 2).
+      final nextButton = find.byTooltip('התוצאה הבאה');
+      await tester.tap(nextButton);
+      await tester.pump();
+      tester.takeException();
+      await tester.tap(nextButton);
+      await tester.pump();
+      tester.takeException();
+
+      await tester.enterText(find.byType(TextField), 'xy');
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // הבחירה נשמרה על ההופעה עם offset 30 — האחרונה — ולכן "הבא" מנוטרל.
+      // שימור לפי שורה בלבד היה בוחר את ההופעה הראשונה ומאפשר את "הבא".
+      final nextInkWell = tester.widget<InkWell>(
+        find.descendant(
+          of: find.byTooltip('התוצאה הבאה'),
+          matching: find.byType(InkWell),
+        ),
+      );
+      expect(nextInkWell.onTap, isNull,
+          reason: 'הבחירה אמורה להישמר על ההופעה עם matchOffset=30');
+    },
+    skip: !engineReady,
+  );
+
+  testWidgets(
     'נפילה ל-closestIndex כשהשורה הנבחרת לא קיימת בתוצאות החדשות',
     (tester) async {
       // line=50 נבחר. שאילתה חדשה לא מכילה line=50 — נפילה ל-closestIndex.

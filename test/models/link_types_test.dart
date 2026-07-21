@@ -12,6 +12,7 @@ void main() {
         'PARSHANUT',
         'DIBUR_HAMATCHIL',
         'ELUCIDATION',
+        'EXPLICATION',
       ]) {
         expect(LinkTypes.isDependentTextLink(type), isTrue, reason: type);
       }
@@ -46,6 +47,7 @@ void main() {
       expect(LinkTypes.isReferenceLikeLink('EIN_MISHPAT'), isTrue);
       expect(LinkTypes.isReferenceLikeLink('OTHER'), isTrue);
       expect(LinkTypes.isReferenceLikeLink('COMMENTARY'), isFalse);
+      expect(LinkTypes.isReferenceLikeLink('EXPLICATION'), isFalse);
       expect(LinkTypes.isReferenceLikeLink('SOURCE'), isFalse);
       expect(LinkTypes.isReferenceLikeLink(null), isFalse);
     });

@@ -26,7 +26,7 @@ jobs:
           if [ -z "$COMMIT_MESSAGE" ]; then
             COMMIT_MESSAGE=$(git log -1 --pretty=%B)
           fi
-          COMMIT_MESSAGE=$(printf '%s' "$COMMIT_MESSAGE" | head -n 1 | xargs)
+          COMMIT_MESSAGE=$(printf '%s' "$COMMIT_MESSAGE" | head -n 1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
           echo "Commit message: $COMMIT_MESSAGE"
           if printf '%s' "$COMMIT_MESSAGE" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "is_version=true" >> "$GITHUB_OUTPUT"
@@ -483,12 +483,38 @@ jobs:
           path: otzaria-windows.zip
 
   build_linux:
+    # רץ בקונטיינר debian:bookworm — רצפת התאימות של ההפצה: glibc 2.36. רקע:
+    # noble (Ubuntu 24.04) הסירה את wpewebkit מהארכיון, וה-WPE החבילתי (גם ב-trixie)
+    # נבנה בלי DEVELOPER_MODE ולכן מתעלם מ-WEBKIT_EXEC_PATH — לא ניתן ל-self-contained.
+    # לכן מורידים SDK של WPE 2.48.7 שנבנה מהמקור (Otzaria/otzaria-wpe-runtime על
+    # bookworm, DEVELOPER_MODE=ON) ל-/opt/wpe-sdk ובונים מולו.
     if: github.event_name != 'release' && github.event_name != 'pull_request'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    container:
+      image: debian:bookworm-slim
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup
       CARGO_HOME:  ${{ github.workspace }}/.cargo
+      DEBIAN_FRONTEND: noninteractive
+      # ה-SDK של WPE נפרס ל-/opt/wpe-sdk; pkg-config וה-loader מוצאים אותו דרך אלה.
+      PKG_CONFIG_PATH: /opt/wpe-sdk/lib/pkgconfig
+      LD_LIBRARY_PATH: /opt/wpe-sdk/lib
+      # הפלאגין jni דורש כותרות JDK בזמן CMake (ב-runner הרגיל JDK מותקן מראש)
+      JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
     steps:
+      # חובה לפני actions/checkout: הקונטיינר מינימלי וחסרים בו git/curl/unzip/zstd.
+      # בלי git ה-checkout מוריד tarball בלי היסטוריה ושלב בדיקת הגרסה (git log) נשבר;
+      # zstd נדרש ל-cache של actions וגם לחילוץ ה-SDK (tar.zst).
+      - name: Prepare container base tools
+        shell: bash
+        run: |
+          set -e
+          apt-get update -y
+          # jq נדרש ע"י flutter-action (setup.sh)
+          apt-get install -y ca-certificates curl git unzip zip xz-utils zstd jq
+          # בקונטיינר בעלי הקבצים שונים ממשתמש ה-git (checkout וגם Flutter SDK) —
+          # בלי wildcard כל פקודת git (כולל flutter עצמו) נופלת על dubious ownership.
+          git config --global --add safe.directory '*'
       - name: Clone repository
         uses: actions/checkout@v4.2.2
 
@@ -501,7 +527,7 @@ jobs:
             echo "Commit message not available in event payload; using checked-out HEAD commit message instead"
             COMMIT_MESSAGE=$(git log -1 --pretty=%B)
           fi
-          COMMIT_MESSAGE=$(printf '%s' "$COMMIT_MESSAGE" | head -n 1 | xargs)
+          COMMIT_MESSAGE=$(printf '%s' "$COMMIT_MESSAGE" | head -n 1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
           echo "Commit message: $COMMIT_MESSAGE"
 
           if printf '%s' "$COMMIT_MESSAGE" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
@@ -555,25 +581,136 @@ jobs:
             ${{ runner.os }}-cargo-
       
       - name: Install Linux build dependencies
+        shell: bash
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y \
+          set -e
+          apt-get update -y
+          # ריצה כ-root בקונטיינר — אין ולא נדרש sudo. חבילות ה-WPE (webkit/platform/
+          # libwpe) לא מגיעות מ-apt אלא מ-SDK שנבנה מהמקור (ראה השלב הבא); כאן רק
+          # תלויות הבנייה של התוסף + התלויות הציבוריות שה-.pc של ה-SDK מפנה אליהן
+          # (glib/soup/xkbcommon). epoxy/wayland/gtk נמשכים דרך libgtk-3-dev.
+          apt-get install -y \
             build-essential ninja-build libgtk-3-dev libblkid1 liblzma5 \
-            clang-15 lld-15 cmake git pkg-config liblzma-dev rpm patchelf curl xz-utils zstd \
+            clang-14 lld-14 cmake git pkg-config liblzma-dev rpm cpio patchelf curl xz-utils zstd \
             libcurl4-openssl-dev \
-            libwpewebkit-1.0-dev \
-            libwpebackend-fdo-1.0-dev \
+            libsecret-1-dev \
+            libglib2.0-dev libsoup-3.0-dev libxkbcommon-dev openjdk-17-jdk-headless \
             libwebkit2gtk-4.1-dev
-          # Pin ל-clang-15 כדי לייצב את ה-toolchain על Ubuntu 22.04.
-          # הערה: sentry-native מוסיף כיום גם דגלי warning שמוכרים רק ב-Clang
-          # חדש יותר, ולכן בשלבי הבנייה עצמם אנחנו מרככים unknown-warning-option
-          # מ-error ל-warning.
-          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-15 100
-          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-15 100
+          # bookworm מספקת clang-14 בלבד; יוצרים סימלינק לא-מגורסן ל-toolchain.
+          update-alternatives --install /usr/bin/clang clang /usr/bin/clang-14 100
+          update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-14 100
           # Fallback אם מסיבה כלשהי cargo לא קיים (למשל כשל זמני ב-rustup)
           if ! command -v cargo >/dev/null 2>&1; then
-            sudo apt-get install -y rustc cargo
+            apt-get install -y rustc cargo
           fi
+
+      - name: Download prebuilt WPE runtime SDK
+        shell: bash
+        env:
+          # גרסת ה-SDK; שם ה-asset נגזר ממנה (ראה Otzaria/otzaria-wpe-runtime).
+          WPE_RUNTIME_VERSION: "2.48.7"
+          # digest שמפרסם GitHub לנכס של tag זה. עדכון גרסה מחייב עדכון מפורש
+          # של ה-hash, כדי שנכס שהוחלף ב-release לא ייכנס לבנייה בשקט.
+          WPE_RUNTIME_SHA256: "d89fa37074898afe3fb6087628f3c8b983f962c53651c393efafbed8556de49d"
+        run: |
+          set -euo pipefail
+          # pin ל-tag מפורש (לא latest) — גרסת ה-SDK נגזרת רק מ-WPE_RUNTIME_VERSION.
+          # מוסכמת ה-tag בריפו otzaria-wpe-runtime: wpe-<version>.
+          tag="wpe-${WPE_RUNTIME_VERSION}"
+          asset="wpe-runtime-${WPE_RUNTIME_VERSION}-linux-x86_64.tar.zst"
+          base="https://github.com/Otzaria/otzaria-wpe-runtime/releases/download/${tag}"
+          echo "Downloading ${asset} ..."
+          curl -fSL --retry 3 --retry-delay 5 -o "/tmp/${asset}" "${base}/${asset}"
+          printf '%s  %s\n' "$WPE_RUNTIME_SHA256" "/tmp/${asset}" | sha256sum -c -
+          mkdir -p /opt
+          # ה-tarball נארז מ-$(dirname PREFIX) עם basename → מכיל תיקיית wpe-sdk/ עליונה.
+          tar -C /opt -I zstd -xf "/tmp/${asset}"
+          test -f /opt/wpe-sdk/lib/pkgconfig/wpe-webkit-2.0.pc
+          cat /opt/wpe-sdk/VERSIONS 2>/dev/null || true
+          echo "--- אימות שה-.pc של ה-SDK נפתרים ---"
+          pkg-config --print-errors --exists \
+            wpe-webkit-2.0 wpe-platform-2.0 wpe-platform-headless-2.0 wpe-1.0
+          echo "wpe-webkit-2.0 = $(pkg-config --modversion wpe-webkit-2.0)"
+
+      - name: Prepare WPE bundling script (shared)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # סקריפט משותף המוזרק ל-bundle נתון: מעתיק את תהליכי העזר של WPE
+          # (WPEWebProcess/WPENetworkProcess) + סוגר את התלויות הטרנזיטיביות של
+          # libWPEWebKit דרך ldd, למעט ספריות מארח. מופעל שלוש פעמים — על ה-bundle
+          # הראשי (raw/FULL) ועל עצי ה-deb/rpm — כדי שכל אריזה תהיה self-contained.
+          cat > /tmp/bundle_wpe.sh <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          LIBDIR="${1:?usage: bundle_wpe.sh <bundle-lib-dir>}"
+          [ -d "$LIBDIR" ] || { echo "::error::bundle lib dir not found: $LIBDIR"; exit 1; }
+          export LD_LIBRARY_PATH="/opt/wpe-sdk/lib:$LIBDIR:${LD_LIBRARY_PATH:-}"
+
+          # תהליכי העזר של WPE — WEBKIT_EXEC_PATH של הפלאגין מפנה אליהם בתוך תיקיית
+          # הפלאגין (lib/), והם פותרים ספריות מ-$ORIGIN באותה תיקייה.
+          find /opt/wpe-sdk -type f \( -name 'WPEWebProcess' -o -name 'WPENetworkProcess' -o -name 'WPEGPUProcess' \) \
+            -exec cp -v {} "$LIBDIR/" \;
+          test -e "$LIBDIR/WPEWebProcess" || { echo "::error::WPEWebProcess not found in SDK"; exit 1; }
+          # cp על קובץ יעד קיים משמר את הרשאות היעד (0644 מ-install של flutter) —
+          # בלי אכיפת +x כאן, g_chmod בזמן ריצה נכשל בחבילה שהותקנה בבעלות root.
+          chmod 755 "$LIBDIR"/WPE*Process
+
+          # רשימת החרגה בסגנון AppImage: ספריות שחייבות להגיע מהמארח — glibc, C++
+          # runtime, GL/הצגה (X11/Wayland/DRM/GBM), וכל ה-stack שגם GTK של המארח
+          # טוען לאותו תהליך (glib/cairo/pango/harfbuzz...): אריזת עותק bookworm
+          # ישן לצד GTK מערכתי חדש גורמת symbol lookup error. רצפת bookworm
+          # מבטיחה שגרסת המארח תמיד ≥ מה ש-WPE נבנה מולו (תאימות קדימה).
+          # שאר הסגירה (icu/soup/jpeg/webp...) נארזת — sonames שונים בין הפצות
+          # (למשל Ubuntu 24.04 = icu74 מול icu72 של bookworm).
+          is_excluded() {
+            case "$1" in
+              ld-linux*|libc.so*|libm.so*|libdl.so*|libpthread.so*|librt.so*|libresolv.so*|libutil.so*|libnsl.so*|\
+              libstdc++.so*|libgcc_s.so*|\
+              libGL.so*|libGLX.so*|libGLdispatch.so*|libOpenGL.so*|libEGL.so*|libGLESv2.so*|libGLU.so*|libgbm.so*|libdrm.so*|libepoxy.so*|\
+              libX11.so*|libX11-xcb.so*|libxcb*.so*|libXext.so*|libXi.so*|libXfixes.so*|libXrender.so*|libXrandr.so*|libXcursor.so*|libXdamage.so*|libXcomposite.so*|libXau.so*|libXdmcp.so*|libXtst.so*|libXinerama.so*|\
+              libwayland-*.so*|\
+              libglib-2.0.so*|libgobject-2.0.so*|libgio-2.0.so*|libgmodule-2.0.so*|libgthread-2.0.so*|\
+              libgtk-3.so*|libgdk-3.so*|libatk*.so*|\
+              libcairo*.so*|libpango*.so*|libharfbuzz*.so*|libgdk_pixbuf*.so*|libfreetype.so*|libfontconfig.so*|\
+              libdbus-1.so*|libsystemd.so*|libudev.so*|libselinux.so*) return 0;;
+            esac
+            return 1
+          }
+
+          tmp="$(mktemp)"
+          for elf in "$LIBDIR"/libWPEWebKit-2.0.so* "$LIBDIR"/libwpe-1.0.so* \
+                     "$LIBDIR"/libWPEInjectedBundle.so \
+                     "$LIBDIR"/WPEWebProcess "$LIBDIR"/WPENetworkProcess; do
+            [ -e "$elf" ] || continue
+            ldd "$elf" 2>/dev/null | awk '/=> \//{print $3}'
+          done | sort -u > "$tmp"
+
+          copied=0
+          while IFS= read -r dep; do
+            [ -n "$dep" ] || continue
+            b="$(basename "$dep")"
+            is_excluded "$b" && continue
+            [ -e "$LIBDIR/$b" ] && continue
+            real="$(readlink -f "$dep")"
+            [ -f "$real" ] || continue
+            cp -v "$real" "$LIBDIR/$b"
+            copied=$((copied+1))
+          done < "$tmp"
+          rm -f "$tmp"
+          # dedup: DT_NEEDED מפנה תמיד ל-soname (libX.so.N) — עותק נוסף בשם הגרסה
+          # המלאה (libX.so.N.x.y) זהה בייטית ומיותר; חוסך ~162MB על libWPEWebKit.
+          for f in "$LIBDIR"/lib*.so.*.*; do
+            [ -f "$f" ] || continue
+            short="$f"
+            while [[ "$short" == *.so.*.* ]]; do short="${short%.*}"; done
+            if [ -f "$short" ] && [ "$(stat -c%s "$f")" = "$(stat -c%s "$short")" ]; then
+              rm -v "$f"
+            fi
+          done
+          echo "bundle_wpe: injected helper processes + $copied transitive libs into $LIBDIR"
+          SCRIPT
+          chmod +x /tmp/bundle_wpe.sh
 
       - name: Download library assets for Linux FULL bundle
         if: true
@@ -598,21 +735,22 @@ jobs:
           dart run tool/generate_search_index.dart
 
       - name: Build Flutter Linux app (with retry)
+        shell: bash
         env:
-          CC: clang-15
-          CXX: clang++-15
-          # sentry-native (תלות של sentry_flutter) משתמש בדגלי warning שהוכרו רק
-          # ב-Clang 17+ (למשל -Wno-deprecated-literal-operator). ב-Ubuntu 22.04
-          # יש לכל היותר clang-15, וכשהוא נתקל בדגל warning לא מוכר עם -Werror
-          # זה הופך לשגיאה. הדגל הזה מבטל את ההסלמה לשגיאה ומאפשר לבנות בכל clang.
+          # clang-14 של bookworm לא מכיר חלק מדגלי ה-warning של sentry-native/nlohmann,
+          # לכן מרככים unknown-warning-option מ-error ל-warning (רצפת התאימות: bookworm/glibc 2.36).
+          CC: clang
+          CXX: clang++
           CFLAGS: -Wno-error=unknown-warning-option
           CXXFLAGS: -Wno-error=unknown-warning-option
         run: |
-          set -e
+          # pipefail חובה: בלעדיו ה-tee מסתיר כשל של flutter build בתוך ה-if
+          set -eo pipefail
           tries=0
+          : > "$GITHUB_WORKSPACE/build_linux.log"
           until [ $tries -ge 3 ]
           do
-            if flutter build linux --verbose; then
+            if flutter build linux --verbose 2>&1 | tee -a "$GITHUB_WORKSPACE/build_linux.log"; then
               break
             fi
             tries=$((tries+1))
@@ -623,12 +761,38 @@ jobs:
             echo "::error::flutter build linux failed after 3 attempts"
             exit 1
           fi
-      
+
+      - name: Verify WPE SDK (WPEPlatform) was used, not FDO/system
+        shell: bash
+        run: |
+          set -e
+          log="$GITHUB_WORKSPACE/build_linux.log"
+          if grep -q "WPEPlatform API - DEFAULT" "$log" \
+             && grep -q "WebKit has WPEPlatform API support" "$log"; then
+            echo "OK: נבנה מול wpe-platform-2.0 מה-SDK"
+          else
+            echo "::error::WPEPlatform (wpe-platform-2.0) מה-SDK לא זוהה — ייתכן fallback ל-FDO/WPE מערכת"
+            grep -in "wpe" "$log" | head -n 40 || true
+            exit 1
+          fi
+          if grep -q "Found wpebackend-fdo-1.0 (Legacy FDO API)" "$log"; then
+            echo "::error::הפלאגין נפל ל-backend הישן (FDO) במקום WPEPlatform"
+            exit 1
+          fi
+
+      - name: Dump CMake error log on failure
+        if: failure()
+        shell: bash
+        run: |
+          tail -n 120 build/linux/x64/release/CMakeFiles/CMakeError.log 2>/dev/null || true
+          tail -n 40 build/linux/x64/release/CMakeFiles/CMakeConfigureLog.yaml 2>/dev/null || true
+
       - name: Build and Patch Linux DEB package
         shell: bash
         env:
-          CC: clang-15
-          CXX: clang++-15
+          CC: clang
+          CXX: clang++
+          # clang-14 של bookworm — ראה ההסבר בשלב הבנייה הראשי.
           CFLAGS: -Wno-error=unknown-warning-option
           CXXFLAGS: -Wno-error=unknown-warning-option
         run: |
@@ -638,9 +802,19 @@ jobs:
           echo "Attempting to build with flutter_distributor, it might fail..."
           flutter_distributor release --name=production --jobs=release-linux-deb || true
 
-          # 2. מצא את קובץ ה-control שנוצר. אם לא נמצא, זה כישלון אמיתי
+          # 2. שני מסלולים: אם ה-distributor הצליח (Depends תקין) — נפרק את ה-deb
+          # שיצר כדי להזריק את ה-WPE runtime; אם נכשל — נשאר עץ מפורק עם control.
+          DEB_BUILT=$(find dist -type f -name "*.deb" | head -n 1)
           CONTROL_FILE=$(find dist -type f -name "control" | head -n 1)
-          if [ -z "$CONTROL_FILE" ]; then
+          if [ -z "$CONTROL_FILE" ] && [ -n "$DEB_BUILT" ]; then
+            EXTRACT_DIR="dist/otzaria-deb-tree"
+            rm -rf "$EXTRACT_DIR"
+            dpkg-deb -R "$DEB_BUILT" "$EXTRACT_DIR"
+            DEB_PREBUILT_NAME=$(basename "$DEB_BUILT")
+            rm -f "$DEB_BUILT"
+            CONTROL_FILE="$EXTRACT_DIR/DEBIAN/control"
+          fi
+          if [ -z "$CONTROL_FILE" ] || [ ! -f "$CONTROL_FILE" ]; then
             echo "::error::Fatal: Could not find the DEBIAN/control file. The distributor failed before creating it."
             exit 1
           fi
@@ -664,8 +838,23 @@ jobs:
 
           # 4. בנה את חבילת ה-deb מחדש מהקבצים המתוקנים
           DEB_DIR=$(dirname "$CONTROL_FILE" | xargs dirname)
-          DEB_OUTPUT_FILE="dist/$(basename "$DEB_DIR" | sed 's/-linux_deb$//')-linux.deb"
-          
+          if [ -n "${DEB_PREBUILT_NAME:-}" ]; then
+            DEB_OUTPUT_FILE="dist/$DEB_PREBUILT_NAME"
+          else
+            DEB_OUTPUT_FILE="dist/$(basename "$DEB_DIR" | sed 's/-linux_deb$//')-linux.deb"
+          fi
+
+          # אריזת runtime של WPE לתוך עץ ה-deb לפני ה-repack (dpkg-deb אורז את
+          # העץ כמות שהוא) — כדי שה-deb יהיה self-contained באותה רמה כמו ה-raw.
+          DEB_LIB_SO=$(find "$DEB_DIR" -name 'libWPEWebKit-2.0.so*' -print -quit)
+          [ -n "$DEB_LIB_SO" ] || { echo "::error::libWPEWebKit-2.0 לא נמצא בעץ ה-deb"; exit 1; }
+          bash /tmp/bundle_wpe.sh "$(dirname "$DEB_LIB_SO")"
+
+          # AppStream metainfo — בלעדיו GNOME Software מציג גלגל-שיניים גנרי
+          # במסך ההתקנה. (ל-rpm זה מגיע נטיבית דרך make_config.yaml.)
+          mkdir -p "$DEB_DIR/usr/share/metainfo"
+          cp linux/packaging/otzaria.metainfo.xml "$DEB_DIR/usr/share/metainfo/otzaria.metainfo.xml"
+
           echo "Re-packaging from directory: $DEB_DIR into $DEB_OUTPUT_FILE"
           dpkg-deb --build --root-owner-group "$DEB_DIR" "$DEB_OUTPUT_FILE"
 
@@ -674,8 +863,9 @@ jobs:
       - name: Build and Patch Linux RPM package
         shell: bash
         env:
-          CC: clang-15
-          CXX: clang++-15
+          CC: clang
+          CXX: clang++
+          # clang-14 של bookworm — ראה ההסבר בשלב הבנייה הראשי.
           CFLAGS: -Wno-error=unknown-warning-option
           CXXFLAGS: -Wno-error=unknown-warning-option
         run: |
@@ -705,12 +895,66 @@ jobs:
           # 4. בנה את חבילת ה-rpm מחדש, תוך שימוש בנתיב מוחלט
           RPM_TOP_DIR_REL=$(dirname "$SPEC_FILE" | xargs dirname)
           RPM_TOP_DIR_ABS="$(pwd)/$RPM_TOP_DIR_REL"
-          
+
+          # אריזת runtime של WPE לתוך עץ המקור של ה-rpm לפני rpmbuild. ה-spec של
+          # flutter_app_packager חסר %prep/%setup/Source — %install רק מעתיק את
+          # %{name}/* מ-BUILD/, לכן הזרקה ל-BUILD/<name>/lib שורדת את rpmbuild -bb
+          # (הזרקה ל-BUILDROOT הייתה נדרסת בהעתקת %install).
+          RPM_LIB_SO=$(find "$RPM_TOP_DIR_ABS/BUILD" -name 'libWPEWebKit-2.0.so*' -print -quit)
+          [ -n "$RPM_LIB_SO" ] || { echo "::error::libWPEWebKit-2.0 לא נמצא בעץ ה-rpm (BUILD)"; exit 1; }
+          bash /tmp/bundle_wpe.sh "$(dirname "$RPM_LIB_SO")"
+
           echo "Re-packaging using absolute top directory: $RPM_TOP_DIR_ABS"
           rpmbuild --define "_topdir $RPM_TOP_DIR_ABS" -bb "$SPEC_FILE"
 
           echo "Successfully patched and rebuilt the .rpm package."
       
+      - name: Bundle WPE runtime into main bundle (raw + FULL)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # רץ אחרי בניות ה-deb/rpm של flutter_distributor (שבונות מחדש את ה-bundle
+          # ולכן דורסות הזרקה מוקדמת) כדי שחבילות ה-raw וה-FULL, המועתקות מ-bundle
+          # זה בשלב הבא, יהיו self-contained.
+          bash /tmp/bundle_wpe.sh "build/linux/x64/release/bundle/lib"
+
+      - name: Verify WPE runtime in packaged artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          # מוודא שבכל אריזה תהליכי WPE* קיימים עם הרשאת הרצה וה-injected bundle
+          # קיים — בלי זה החבילה נופלת בשקט ל-WPE מערכתי (שלרוב לא מותקן).
+          verify_tree() { # verify_tree <label> <root-dir>
+            local label="$1" root="$2" libdir proc
+            libdir=$(find "$root" -name 'libWPEWebKit-2.0.so*' -print -quit | xargs -r dirname)
+            [ -n "$libdir" ] || { echo "::error::$label: libWPEWebKit-2.0 לא נמצא"; exit 1; }
+            for proc in WPEWebProcess WPENetworkProcess; do
+              [ -f "$libdir/$proc" ] || { echo "::error::$label: $proc חסר"; exit 1; }
+              [ -x "$libdir/$proc" ] || { echo "::error::$label: $proc ללא הרשאת הרצה"; exit 1; }
+            done
+            if [ -f "$libdir/WPEGPUProcess" ] && [ ! -x "$libdir/WPEGPUProcess" ]; then
+              echo "::error::$label: WPEGPUProcess ללא הרשאת הרצה"; exit 1
+            fi
+            [ -f "$libdir/libWPEInjectedBundle.so" ] || { echo "::error::$label: libWPEInjectedBundle.so חסר"; exit 1; }
+            echo "$label: WPE runtime תקין ($libdir)"
+          }
+
+          DEB_FILE=$(find dist -name '*.deb' -print -quit)
+          if [ -n "$DEB_FILE" ]; then
+            rm -rf /tmp/verify-deb && mkdir -p /tmp/verify-deb
+            dpkg-deb -x "$DEB_FILE" /tmp/verify-deb
+            verify_tree "deb" /tmp/verify-deb
+          fi
+
+          RPM_FILE=$(find dist -name '*.rpm' -print -quit)
+          if [ -n "$RPM_FILE" ]; then
+            rm -rf /tmp/verify-rpm && mkdir -p /tmp/verify-rpm
+            (cd /tmp/verify-rpm && rpm2cpio "$GITHUB_WORKSPACE/$RPM_FILE" | cpio -idm --quiet)
+            verify_tree "rpm" /tmp/verify-rpm
+          fi
+
+          verify_tree "raw-bundle" "build/linux/x64/release/bundle"
+
       - name: Find and prepare Linux packages
         id: find_packages
         run: |
@@ -817,7 +1061,7 @@ jobs:
             echo "Commit message not available in event payload; using checked-out HEAD commit message instead"
             COMMIT_MESSAGE=$(git log -1 --pretty=%B)
           fi
-          COMMIT_MESSAGE=$(printf '%s' "$COMMIT_MESSAGE" | head -n 1 | xargs)
+          COMMIT_MESSAGE=$(printf '%s' "$COMMIT_MESSAGE" | head -n 1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
           echo "Commit message: $COMMIT_MESSAGE"
 
           if printf '%s' "$COMMIT_MESSAGE" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
@@ -1079,7 +1323,7 @@ jobs:
             echo "Commit message not available in event payload; using checked-out HEAD commit message instead"
             COMMIT_MESSAGE=$(git log -1 --pretty=%B)
           fi
-          COMMIT_MESSAGE=$(printf '%s' "$COMMIT_MESSAGE" | head -n 1 | xargs)
+          COMMIT_MESSAGE=$(printf '%s' "$COMMIT_MESSAGE" | head -n 1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
           echo "Commit message: $COMMIT_MESSAGE"
 
           if printf '%s' "$COMMIT_MESSAGE" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
@@ -1654,4 +1898,3 @@ jobs:
           TOKEN_YEMOT: ${{ secrets.TOKEN_YEMOT }}
         run: |
           python webhooks/main.py
-

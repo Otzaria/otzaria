@@ -47,8 +47,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   /// ספר קצר מזה לא משוחרר במעבר לרקע — הרווח זניח והשחרור גורר rebuild.
   static const int _releaseContentMinLines = 2000;
   static const int _contentReloadThresholdLines = 60;
-  static const Duration _visibleIndicesDebounceDuration =
-      Duration(milliseconds: 160);
+  static const Duration _visibleIndicesDebounceDuration = Duration(
+    milliseconds: 160,
+  );
   static const String _allTargetBookTitlesSignature =
       '__all_target_book_titles__';
 
@@ -59,7 +60,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     int? categoryId,
     String? fileType,
     bool preferUserBooks,
-  }) _quickPreviewLoader;
+  })
+  _quickPreviewLoader;
   final ItemScrollController scrollController;
   final ItemPositionsListener positionsListener;
   final ScrollOffsetController? scrollOffsetController;
@@ -134,14 +136,16 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       int? categoryId,
       String? fileType,
       bool preferUserBooks,
-    })? quickPreviewLoader,
+    })?
+    quickPreviewLoader,
     required TextBookInitial initialState,
     required this.scrollController,
     required this.positionsListener,
     this.scrollOffsetController,
-  })  : _quickPreviewLoader = quickPreviewLoader ??
-            SqliteDataProvider.instance.getBookQuickPreview,
-        super(initialState) {
+  }) : _quickPreviewLoader =
+           quickPreviewLoader ??
+           SqliteDataProvider.instance.getBookQuickPreview,
+       super(initialState) {
     on<LoadContent>(_onLoadContent);
     on<UpdateResolvedBookId>(_onUpdateResolvedBookId);
     on<UpdateFontSize>(_onUpdateFontSize);
@@ -189,7 +193,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
     if (event.visible) {
       _loadContentRangeInBackground(
-          currentState.book, currentState.visibleIndices);
+        currentState.book,
+        currentState.visibleIndices,
+      );
       _warmContentCacheInBackground(currentState.book);
     } else {
       _releaseContentOutsideWindow(currentState, emit);
@@ -238,15 +244,17 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     _setLoadedContentFlags(currentState.book, nextFlags);
     _markLoadedContentRange(currentState.book, keepStart, keepEnd);
 
-    emit(currentState.copyWith(
-      content: nextContent,
-      contentVersion: currentState.contentVersion + 1,
-      readingSegments: buildReadingSegments(
-        nextContent,
-        continuous: currentState.continuousReadingMode,
-        loadedLineFlags: nextFlags,
+    emit(
+      currentState.copyWith(
+        content: nextContent,
+        contentVersion: currentState.contentVersion + 1,
+        readingSegments: buildReadingSegments(
+          nextContent,
+          continuous: currentState.continuousReadingMode,
+          loadedLineFlags: nextFlags,
+        ),
       ),
-    ));
+    );
   }
 
   /// מחזירה את הערך האפקטיבי של מצב הרצף לאחר אירוע
@@ -258,8 +266,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   static bool computeEffectiveContinuousReading({
     required bool requestedEnabled,
     required bool stateSupportsContinuous,
-  }) =>
-      requestedEnabled && stateSupportsContinuous;
+  }) => requestedEnabled && stateSupportsContinuous;
 
   /// קובעת את הערך של `continuousReadingMode` ב-`emit` של `_onLoadContent`.
   ///
@@ -384,7 +391,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
     final normalizedStart = startLine < 0 ? 0 : startLine;
     for (final range in loadedRanges) {
-      final hasStartMargin = (normalizedStart == 0 && range.startLine == 0) ||
+      final hasStartMargin =
+          (normalizedStart == 0 && range.startLine == 0) ||
           normalizedStart >= range.startLine + reloadThresholdLines;
       if (hasStartMargin && endLine <= range.endLine - reloadThresholdLines) {
         return true;
@@ -438,8 +446,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     }
 
     final firstVisible = visibleIndices.isEmpty ? 0 : visibleIndices.first;
-    final lastVisible =
-        visibleIndices.isEmpty ? firstVisible : visibleIndices.last;
+    final lastVisible = visibleIndices.isEmpty
+        ? firstVisible
+        : visibleIndices.last;
 
     ({int startLine, int endLine})? anchorRange;
     for (final range in loadedRanges) {
@@ -476,24 +485,22 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
   @visibleForTesting
   static ({bool shouldIgnore, bool shouldDispatchImmediately})
-      classifyRawPositionsDuringInitialPageShapeVisibleSyncForTesting({
+  classifyRawPositionsDuringInitialPageShapeVisibleSyncForTesting({
     required bool awaitingInitialPageShapeVisibleSync,
     required bool showPageShapeView,
     required List<int> currentVisibleIndices,
     required int? selectedIndex,
     required List<int> nextVisibleIndices,
-  }) =>
-          _classifyRawPositionsDuringInitialPageShapeVisibleSync(
-            awaitingInitialPageShapeVisibleSync:
-                awaitingInitialPageShapeVisibleSync,
-            showPageShapeView: showPageShapeView,
-            currentVisibleIndices: currentVisibleIndices,
-            selectedIndex: selectedIndex,
-            nextVisibleIndices: nextVisibleIndices,
-          );
+  }) => _classifyRawPositionsDuringInitialPageShapeVisibleSync(
+    awaitingInitialPageShapeVisibleSync: awaitingInitialPageShapeVisibleSync,
+    showPageShapeView: showPageShapeView,
+    currentVisibleIndices: currentVisibleIndices,
+    selectedIndex: selectedIndex,
+    nextVisibleIndices: nextVisibleIndices,
+  );
 
   static ({bool shouldIgnore, bool shouldDispatchImmediately})
-      _classifyRawPositionsDuringInitialPageShapeVisibleSync({
+  _classifyRawPositionsDuringInitialPageShapeVisibleSync({
     required bool awaitingInitialPageShapeVisibleSync,
     required bool showPageShapeView,
     required List<int> currentVisibleIndices,
@@ -518,7 +525,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       visibleIndices: currentVisibleIndices,
       selectedIndex: selectedIndex,
     );
-    final shouldIgnore = !isAligned &&
+    final shouldIgnore =
+        !isAligned &&
         _looksLikeStaleInitialStartReport(
           expectedIndex: expectedIndex,
           nextVisibleIndices: nextVisibleIndices,
@@ -535,13 +543,15 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
   @visibleForTesting
   static List<Link> mergeLinksForTesting(
-          List<Link> existing, List<Link> incoming) =>
-      mergeLinksByIdentity(existing, incoming);
+    List<Link> existing,
+    List<Link> incoming,
+  ) => mergeLinksByIdentity(existing, incoming);
 
   @visibleForTesting
   static List<String> buildPreviewLinesForTesting(
-          String previewContent, int previewStartLine) =>
-      buildPreviewLines(previewContent, previewStartLine);
+    String previewContent,
+    int previewStartLine,
+  ) => buildPreviewLines(previewContent, previewStartLine);
 
   Future<void> _onLoadContent(
     LoadContent event,
@@ -615,8 +625,14 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       pinpointHighlightIndex = initial.pinpointHighlightIndex;
       pinpointHighlightText = initial.pinpointHighlightText;
 
-      emit(TextBookLoading(
-          book, initial.index, initial.showLeftPane, initial.commentators));
+      emit(
+        TextBookLoading(
+          book,
+          initial.index,
+          initial.showLeftPane,
+          initial.commentators,
+        ),
+      );
     } else if (!event.preserveState) {
       if (state is TextBookLoaded) {
         emit(state);
@@ -641,12 +657,14 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         alternativeWords: alternativeWords,
         searchOptions: searchOptions,
       );
-      unawaited(TantivyDataProvider.instance.engine.then(
-        (engine) =>
-            RustSearchEngineOperations(engine).primeHighlightPattern(request),
-        onError: (Object error) =>
-            debugPrint('highlight prime skipped: $error'),
-      ));
+      unawaited(
+        TantivyDataProvider.instance.engine.then(
+          (engine) =>
+              RustSearchEngineOperations(engine).primeHighlightPattern(request),
+          onError: (Object error) =>
+              debugPrint('highlight prime skipped: $error'),
+        ),
+      );
     }
 
     try {
@@ -685,8 +703,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           );
 
           if (preview != null && preview.isNotEmpty) {
-            final previewStartLine =
-                (visibleIndices.first - 10).clamp(0, visibleIndices.first);
+            final previewStartLine = (visibleIndices.first - 10).clamp(
+              0,
+              visibleIndices.first,
+            );
             contentLines = buildPreviewLines(preview, previewStartLine);
             loadedLineFlags = _buildPreviewLoadedLineFlags(
               preview,
@@ -724,7 +744,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       if (visibleIndices.isNotEmpty) {
         try {
           currentTitle = await refFromIndex(
-              visibleIndices.first, Future.value(tableOfContents));
+            visibleIndices.first,
+            Future.value(tableOfContents),
+          );
         } catch (_) {
           currentTitle = null;
         }
@@ -739,19 +761,20 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         categoryId: book.categoryId,
         fileType: book.fileType,
       );
-      final supportsContinuousReading =
-          await FileSystemData.instance.supportsContinuousReadingMode(
-        book.title,
-        categoryId: book.categoryId,
-        fileType: book.fileType,
-      );
+      final supportsContinuousReading = await FileSystemData.instance
+          .supportsContinuousReadingMode(
+            book.title,
+            categoryId: book.categoryId,
+            fileType: book.fileType,
+          );
       final removeNikud = shouldRemoveNikudForBook(
         defaultRemoveNikud: defaultRemoveNikud,
         removeNikudFromTanach: removeNikudFromTanach,
         isTanach: isTanach,
       );
       // הסרת פיסוק אינה חלה על תנ"ך (הכפתור מוסתר שם).
-      final defaultRemovePunctuation = !isTanach &&
+      final defaultRemovePunctuation =
+          !isTanach &&
           (Settings.getValue<bool>('key-default-remove-punctuation') ?? false);
 
       // מצב הרצף שומר את הערך הנוכחי רק כש-preserveContinuousReadingMode=true.
@@ -777,8 +800,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       const List<Link> emptyVisibleLinks = [];
 
       if (_positionListenerCallback != null) {
-        positionsListener.itemPositions
-            .removeListener(_positionListenerCallback!);
+        positionsListener.itemPositions.removeListener(
+          _positionListenerCallback!,
+        );
       }
 
       _positionListenerCallback = () {
@@ -806,13 +830,13 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
         final initialSyncClassification =
             _classifyRawPositionsDuringInitialPageShapeVisibleSync(
-          awaitingInitialPageShapeVisibleSync:
-              _awaitingInitialPageShapeVisibleSync,
-          showPageShapeView: currentState.showPageShapeView,
-          currentVisibleIndices: currentState.visibleIndices,
-          selectedIndex: currentState.selectedIndex,
-          nextVisibleIndices: visibleIndicesNow,
-        );
+              awaitingInitialPageShapeVisibleSync:
+                  _awaitingInitialPageShapeVisibleSync,
+              showPageShapeView: currentState.showPageShapeView,
+              currentVisibleIndices: currentState.visibleIndices,
+              selectedIndex: currentState.selectedIndex,
+              nextVisibleIndices: visibleIndicesNow,
+            );
         if (initialSyncClassification.shouldIgnore) {
           return;
         }
@@ -829,9 +853,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             return;
           }
 
-          final debouncedRawPositions = positionsListener.itemPositions.value
-              .toList()
-            ..sort((a, b) => a.index.compareTo(b.index));
+          final debouncedRawPositions =
+              positionsListener.itemPositions.value.toList()
+                ..sort((a, b) => a.index.compareTo(b.index));
           final latestState = state;
           if (latestState is TextBookLoaded) {
             final visibleIndicesNow = _resolveVisibleSourceIndices(
@@ -875,7 +899,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         removeNikud: (event.preserveRemoveNikud && preservedRemoveNikud != null)
             ? preservedRemoveNikud
             : removeNikud,
-        removePunctuation: (event.preserveRemovePunctuation &&
+        removePunctuation:
+            (event.preserveRemovePunctuation &&
                 preservedRemovePunctuation != null)
             ? preservedRemovePunctuation
             : defaultRemovePunctuation,
@@ -885,7 +910,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         readingSegments: readingSegments,
         linksLoading: false,
         visibleIndices: visibleIndices,
-        pinLeftPane: preservedPinLeftPane ??
+        pinLeftPane:
+            preservedPinLeftPane ??
             (Settings.getValue<bool>('key-pin-sidebar') ?? false),
         searchText: searchText,
         searchOptions: searchOptions,
@@ -944,22 +970,39 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       debugPrint('Error loading textbook: $e\n$st');
       if (state is TextBookInitial) {
         final initial = state as TextBookInitial;
-        emit(TextBookError(e.toString(), initial.book, initial.index,
-            initial.showLeftPane, initial.commentators));
+        emit(
+          TextBookError(
+            e.toString(),
+            initial.book,
+            initial.index,
+            initial.showLeftPane,
+            initial.commentators,
+          ),
+        );
       } else if (state is TextBookLoading) {
         final loading = state as TextBookLoading;
-        emit(TextBookError(e.toString(), loading.book, loading.index,
-            loading.showLeftPane, loading.commentators));
+        emit(
+          TextBookError(
+            e.toString(),
+            loading.book,
+            loading.index,
+            loading.showLeftPane,
+            loading.commentators,
+          ),
+        );
       } else if (state is TextBookLoaded && event.preserveState) {
         final current = state as TextBookLoaded;
-        emit(TextBookError(
+        emit(
+          TextBookError(
             e.toString(),
             current.book,
             current.visibleIndices.isNotEmpty
                 ? current.visibleIndices.first
                 : 0,
             current.showLeftPane,
-            current.activeCommentators));
+            current.activeCommentators,
+          ),
+        );
       }
     }
   }
@@ -970,10 +1013,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   ) {
     if (state is TextBookLoaded) {
       final currentState = state as TextBookLoaded;
-      emit(currentState.copyWith(
-        fontSize: event.fontSize,
-        selectedIndex: currentState.selectedIndex,
-      ));
+      emit(
+        currentState.copyWith(
+          fontSize: event.fontSize,
+          selectedIndex: currentState.selectedIndex,
+        ),
+      );
     } else {
       // האירוע הגיע לפני סיום הטעינה (מרוץ בעליית התוכנה). שומרים כ-pending
       // כדי שלא יאבד, ומחילים ב-_onLoadContent בבניית מצב ה-Loaded.
@@ -1040,12 +1085,14 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     if (state is TextBookLoaded) {
       final currentState = state as TextBookLoaded;
 
-      emit(currentState.copyWith(
-        showTzuratHadafView: event.show,
-        showPageShapeView: false,
-        selectedIndex: currentState.selectedIndex,
-        showLeftPane: event.show ? false : currentState.showLeftPane,
-      ));
+      emit(
+        currentState.copyWith(
+          showTzuratHadafView: event.show,
+          showPageShapeView: false,
+          selectedIndex: currentState.selectedIndex,
+          showLeftPane: event.show ? false : currentState.showLeftPane,
+        ),
+      );
     }
   }
 
@@ -1107,10 +1154,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         // שמירה פר-ספר של בחירת המשתמש (כולל בחירה ריקה) — תמיד, כדי שתיטען
         // בכל פתיחה. ספרים אישיים אינם נשמרים פר-ספר.
         if (!currentState.book.isUserBook) {
-          unawaited(_saveActiveCommentatorsPerBook(
-            currentState.book,
-            event.commentators,
-          ));
+          unawaited(
+            _saveActiveCommentatorsPerBook(
+              currentState.book,
+              event.commentators,
+            ),
+          );
         }
       }
 
@@ -1124,8 +1173,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         _loadLinksInBackground(
           updatedState.book,
           targetIndices,
-          targetBookTitlesOverride:
-              _normalizeCommentaryTargets(updatedState.activeCommentators),
+          targetBookTitlesOverride: _normalizeCommentaryTargets(
+            updatedState.activeCommentators,
+          ),
         );
       }
     }
@@ -1137,10 +1187,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   ) {
     if (state is TextBookLoaded) {
       final currentState = state as TextBookLoaded;
-      emit(currentState.copyWith(
-        removeNikud: event.remove,
-        selectedIndex: currentState.selectedIndex,
-      ));
+      emit(
+        currentState.copyWith(
+          removeNikud: event.remove,
+          selectedIndex: currentState.selectedIndex,
+        ),
+      );
     }
   }
 
@@ -1150,10 +1202,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   ) {
     if (state is TextBookLoaded) {
       final currentState = state as TextBookLoaded;
-      emit(currentState.copyWith(
-        removePunctuation: event.remove,
-        selectedIndex: currentState.selectedIndex,
-      ));
+      emit(
+        currentState.copyWith(
+          removePunctuation: event.remove,
+          selectedIndex: currentState.selectedIndex,
+        ),
+      );
     }
   }
 
@@ -1176,14 +1230,16 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       return;
     }
 
-    emit(currentState.copyWith(
-      continuousReadingMode: effectiveEnabled,
-      readingSegments: buildReadingSegments(
-        currentState.content,
-        continuous: effectiveEnabled,
-        loadedLineFlags: _loadedContentFlags,
+    emit(
+      currentState.copyWith(
+        continuousReadingMode: effectiveEnabled,
+        readingSegments: buildReadingSegments(
+          currentState.content,
+          continuous: effectiveEnabled,
+          loadedLineFlags: _loadedContentFlags,
+        ),
       ),
-    ));
+    );
   }
 
   Future<void> _onUpdateVisibleIndecies(
@@ -1197,13 +1253,13 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           currentState.showPageShapeView) {
         final initialSyncClassification =
             _classifyRawPositionsDuringInitialPageShapeVisibleSync(
-          awaitingInitialPageShapeVisibleSync:
-              _awaitingInitialPageShapeVisibleSync,
-          showPageShapeView: currentState.showPageShapeView,
-          currentVisibleIndices: currentState.visibleIndices,
-          selectedIndex: currentState.selectedIndex,
-          nextVisibleIndices: event.visibleIndecies,
-        );
+              awaitingInitialPageShapeVisibleSync:
+                  _awaitingInitialPageShapeVisibleSync,
+              showPageShapeView: currentState.showPageShapeView,
+              currentVisibleIndices: currentState.visibleIndices,
+              selectedIndex: currentState.selectedIndex,
+              nextVisibleIndices: event.visibleIndecies,
+            );
         if (initialSyncClassification.shouldIgnore) {
           return;
         }
@@ -1221,8 +1277,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           (currentState.visibleIndices.isEmpty ||
               currentState.visibleIndices.first !=
                   event.visibleIndecies.first)) {
-        newTitle = await refFromIndex(event.visibleIndecies.first,
-            Future.value(currentState.tableOfContents));
+        newTitle = await refFromIndex(
+          event.visibleIndecies.first,
+          Future.value(currentState.tableOfContents),
+        );
       }
 
       int? index = currentState.selectedIndex;
@@ -1241,8 +1299,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       }
 
       // גלילה רחוקה אִפסה את העוגן הראשי — מנקים גם את ריבוי-הבחירה.
-      final newIndices =
-          index == null ? const <int>{} : currentState.selectedIndices;
+      final newIndices = index == null
+          ? const <int>{}
+          : currentState.selectedIndices;
 
       final List<Link> visibleLinks;
       if (currentState.showLeftPane || index != null) {
@@ -1256,15 +1315,18 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         visibleLinks = currentState.visibleLinks;
       }
 
-      emit(currentState.copyWith(
-        visibleIndices: event.visibleIndecies,
-        currentTitle: newTitle,
-        selectedIndex: index,
-        clearSelectedIndex: index == null && currentState.selectedIndex != null,
-        selectedIndices: newIndices,
-        clearSelectedIndices: newIndices.isEmpty,
-        visibleLinks: visibleLinks,
-      ));
+      emit(
+        currentState.copyWith(
+          visibleIndices: event.visibleIndecies,
+          currentTitle: newTitle,
+          selectedIndex: index,
+          clearSelectedIndex:
+              index == null && currentState.selectedIndex != null,
+          selectedIndices: newIndices,
+          clearSelectedIndices: newIndices.isEmpty,
+          visibleLinks: visibleLinks,
+        ),
+      );
 
       _loadContentRangeInBackground(currentState.book, event.visibleIndecies);
 
@@ -1366,8 +1428,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     final candidateCommentators = {
       ...state.availableCommentators,
       ...state.activeCommentators,
-    }.where((commentator) => commentator.trim().isNotEmpty).toList()
-      ..sort();
+    }.where((commentator) => commentator.trim().isNotEmpty).toList()..sort();
 
     if (candidateCommentators.isEmpty) {
       return null;
@@ -1435,8 +1496,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     String? workspaceId,
   ) async {
     if (state.showPageShapeView) {
-      final pageShapeTargets =
-          await _resolvePageShapeTargetBookTitlesForLinks(state, workspaceId);
+      final pageShapeTargets = await _resolvePageShapeTargetBookTitlesForLinks(
+        state,
+        workspaceId,
+      );
       return pageShapeTargets ?? const <String>[];
     }
 
@@ -1543,8 +1606,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   @visibleForTesting
   static List<ItemPosition> filterBarelyVisiblePositionsForTesting(
     List<ItemPosition> positions,
-  ) =>
-      _filterBarelyVisiblePositions(positions);
+  ) => _filterBarelyVisiblePositions(positions);
 
   static List<ItemPosition> _filterBarelyVisiblePositions(
     List<ItemPosition> positions,
@@ -1597,13 +1659,15 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       selectedIndices: newIndices,
       linksByLine: currentState.linksByLine,
     );
-    emit(currentState.copyWith(
-      selectedIndex: newPrimary,
-      clearSelectedIndex: newPrimary == null,
-      selectedIndices: newIndices,
-      clearSelectedIndices: newIndices.isEmpty,
-      visibleLinks: visibleLinks,
-    ));
+    emit(
+      currentState.copyWith(
+        selectedIndex: newPrimary,
+        clearSelectedIndex: newPrimary == null,
+        selectedIndices: newIndices,
+        clearSelectedIndices: newIndices.isEmpty,
+        visibleLinks: visibleLinks,
+      ),
+    );
     if (_isCommentariesBelowMode(currentState) &&
         !currentState.showPageShapeView &&
         event.index != null &&
@@ -1655,15 +1719,18 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       // ניווט deep-link לא נשען על ה-position listener של גלילת הטקסט (שנבלע
       // כשהטאב ברקע וה-controller לא מחובר). מעדכנים ישירות את המיקום הגלוי
       // וטוענים את קישורי חלון היעד, אחרת חלוניות המפרשים נשארות על המיקום הקודם.
-      final navigateCommentary = scrollIndex != null &&
+      final navigateCommentary =
+          scrollIndex != null &&
           _shouldLoadLinksForVisibleIndicesChange(currentState);
-      emit(currentState.copyWith(
-        highlightText: event.highlightText,
-        permanentHighlightLine: event.permanentHighlightLine,
-        clearPermanentHighlight: event.permanentHighlightLine == null,
-        searchText: '',
-        visibleIndices: navigateCommentary ? [scrollIndex] : null,
-      ));
+      emit(
+        currentState.copyWith(
+          highlightText: event.highlightText,
+          permanentHighlightLine: event.permanentHighlightLine,
+          clearPermanentHighlight: event.permanentHighlightLine == null,
+          searchText: '',
+          visibleIndices: navigateCommentary ? [scrollIndex] : null,
+        ),
+      );
       // גלילה לסעיף המבוקש כדי שההדגשה תהיה גלויה
       if (scrollIndex != null && scrollController.isAttached) {
         scrollController.scrollTo(
@@ -1690,10 +1757,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   ) {
     if (state is TextBookLoaded) {
       final currentState = state as TextBookLoaded;
-      emit(currentState.copyWith(
-        pinLeftPane: event.pin,
-        selectedIndex: currentState.selectedIndex,
-      ));
+      emit(
+        currentState.copyWith(
+          pinLeftPane: event.pin,
+          selectedIndex: currentState.selectedIndex,
+        ),
+      );
     }
   }
 
@@ -1705,16 +1774,18 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       final currentState = state as TextBookLoaded;
       // חיפוש ידני חדש מנקה הדגשה ממוקדת קודמת מ‑deep link, אחרת ההדגשה
       // הממוקדת הייתה ממשיכה לחסום את החיפוש החדש בשאר הסעיפים.
-      emit(currentState.copyWith(
-        searchText: event.text,
-        searchOptions: event.searchOptions,
-        alternativeWords: event.alternativeWords,
-        spacingValues: event.spacingValues,
-        searchMode: event.searchMode,
-        searchDistance: event.searchDistance,
-        selectedIndex: currentState.selectedIndex,
-        clearPinpointHighlight: true,
-      ));
+      emit(
+        currentState.copyWith(
+          searchText: event.text,
+          searchOptions: event.searchOptions,
+          alternativeWords: event.alternativeWords,
+          spacingValues: event.spacingValues,
+          searchMode: event.searchMode,
+          searchDistance: event.searchDistance,
+          selectedIndex: currentState.selectedIndex,
+          clearPinpointHighlight: true,
+        ),
+      );
     }
   }
 
@@ -1734,7 +1805,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     final nextLoadedFlags = List<bool>.filled(event.content.length, true);
     final hasLoadedFlagsChanged =
         _loadedContentFlags.length != event.content.length ||
-            _loadedContentFlags.any((loaded) => !loaded);
+        _loadedContentFlags.any((loaded) => !loaded);
     if (listEquals(currentState.content, event.content) &&
         !hasLoadedFlagsChanged) {
       return;
@@ -1742,15 +1813,17 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
     _setLoadedContentFlags(currentState.book, nextLoadedFlags);
 
-    final updatedState = _withInlineNotesCommentator(currentState.copyWith(
-      content: event.content,
-      contentVersion: currentState.contentVersion + 1,
-      readingSegments: buildReadingSegments(
-        event.content,
-        continuous: currentState.continuousReadingMode,
-        loadedLineFlags: nextLoadedFlags,
+    final updatedState = _withInlineNotesCommentator(
+      currentState.copyWith(
+        content: event.content,
+        contentVersion: currentState.contentVersion + 1,
+        readingSegments: buildReadingSegments(
+          event.content,
+          continuous: currentState.continuousReadingMode,
+          loadedLineFlags: nextLoadedFlags,
+        ),
       ),
-    ));
+    );
     // אחרי שסרקנו את התוכן המלא, אין יותר טעם בסריקה נוספת על הרחבות
     // טווח עתידיות — או שכבר הוסף 'הערות' ל-availableCommentators (ואז
     // early-return שומר עלינו), או שאין הערות בכלל בספר.
@@ -1889,16 +1962,18 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       );
     }
 
-    emit(_withInlineNotesCommentator(
-      currentState.copyWith(
-        content: nextContent,
-        contentVersion: currentState.contentVersion + 1,
-        readingSegments: readingSegments,
+    emit(
+      _withInlineNotesCommentator(
+        currentState.copyWith(
+          content: nextContent,
+          contentVersion: currentState.contentVersion + 1,
+          readingSegments: readingSegments,
+        ),
+        // אופטימיזציה: לסרוק רק את השורות החדשות במקום את כל ה-content
+        // המצטבר (מונע עבודה ריבועית במהלך warming הדרגתי של ספר ארוך).
+        scanOnly: [for (final range in applicable) ...range.lines],
       ),
-      // אופטימיזציה: לסרוק רק את השורות החדשות במקום את כל ה-content
-      // המצטבר (מונע עבודה ריבועית במהלך warming הדרגתי של ספר ארוך).
-      scanOnly: [for (final range in applicable) ...range.lines],
-    ));
+    );
   }
 
   /// בודק אם בתוכן העדכני יש הערות inline. אם כן ועדיין לא הוסף המפרש
@@ -1971,10 +2046,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       return group;
     }).toList();
     if (!inserted) {
-      next.add(const CommentatorGroup(
-        title: otherGroupTitle,
-        commentators: [kNotesCommentatorTitle],
-      ));
+      next.add(
+        const CommentatorGroup(
+          title: otherGroupTitle,
+          commentators: [kNotesCommentatorTitle],
+        ),
+      );
     }
     return next;
   }
@@ -1992,11 +2069,15 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   ) {
     if (state is TextBookLoaded) {
       final currentState = state as TextBookLoaded;
-      emit(currentState.copyWith(
-        selectedTextForNote: event.text,
-        selectedTextStart: event.start,
-        selectedTextEnd: event.end,
-      ));
+      emit(
+        currentState.copyWith(
+          selectedTextForNote: event.text,
+          selectedTextSectionIndex: event.sectionIndex,
+          selectedTextStart: event.start,
+          selectedTextEnd: event.end,
+          clearSelectedText: event.text == null,
+        ),
+      );
     }
   }
 
@@ -2006,8 +2087,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     _highlightTimer?.cancel();
 
     if (_positionListenerCallback != null) {
-      positionsListener.itemPositions
-          .removeListener(_positionListenerCallback!);
+      positionsListener.itemPositions.removeListener(
+        _positionListenerCallback!,
+      );
     }
 
     return super.close();
@@ -2020,8 +2102,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   // שלפני תחילת החלון.
   int _fullContentLength(BookContentRange range) =>
       range.totalLines > range.endLine + 1
-          ? range.totalLines
-          : range.endLine + 1;
+      ? range.totalLines
+      : range.endLine + 1;
 
   List<String> _contentWithAppliedRange(BookContentRange range) {
     final content = List<String>.filled(_fullContentLength(range), '');
@@ -2049,10 +2131,13 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     String previewContent,
     int previewStartLine,
   ) {
-    final previewLineCount =
-        previewContent.isEmpty ? 0 : previewContent.split('\n').length;
-    final loadedFlags =
-        List<bool>.filled(previewStartLine + previewLineCount, false);
+    final previewLineCount = previewContent.isEmpty
+        ? 0
+        : previewContent.split('\n').length;
+    final loadedFlags = List<bool>.filled(
+      previewStartLine + previewLineCount,
+      false,
+    );
     for (var index = previewStartLine; index < loadedFlags.length; index++) {
       loadedFlags[index] = true;
     }
@@ -2109,8 +2194,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     List<int> visibleIndices,
   ) {
     final firstVisible = visibleIndices.isEmpty ? 0 : visibleIndices.first;
-    final lastVisible =
-        visibleIndices.isEmpty ? firstVisible : visibleIndices.last;
+    final lastVisible = visibleIndices.isEmpty
+        ? firstVisible
+        : visibleIndices.last;
 
     return (
       startLine: firstVisible - _contentLookBehindLines,
@@ -2142,17 +2228,20 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         endLine: window.endLine,
       );
       if (range != null && !isClosed) {
-        add(ApplyBookContentRange(
-          bookTitle: book.title,
-          startLine: range.startLine,
-          totalLines: range.totalLines,
-          lines: range.lines,
-        ));
+        add(
+          ApplyBookContentRange(
+            bookTitle: book.title,
+            startLine: range.startLine,
+            totalLines: range.totalLines,
+            lines: range.lines,
+          ),
+        );
       }
     } catch (e) {
       if (kDebugMode) {
         debugPrint(
-            '⚠️ TextBookBloc::loadContentRange failed for ${book.title}: $e');
+          '⚠️ TextBookBloc::loadContentRange failed for ${book.title}: $e',
+        );
       }
     } finally {
       _isLoadingContentRange = false;
@@ -2195,10 +2284,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         pendingChunks.clear();
         return;
       }
-      add(ApplyBookContentRanges(
-        bookTitle: book.title,
-        ranges: List.of(pendingChunks),
-      ));
+      add(
+        ApplyBookContentRanges(
+          bookTitle: book.title,
+          ranges: List.of(pendingChunks),
+        ),
+      );
       pendingChunks.clear();
     }
 
@@ -2279,7 +2370,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     } catch (e) {
       if (kDebugMode) {
         debugPrint(
-            '⚠️ TextBookBloc::warmContentCache failed for ${book.title}: $e');
+          '⚠️ TextBookBloc::warmContentCache failed for ${book.title}: $e',
+        );
       }
     } finally {
       flushPendingChunks();
@@ -2308,14 +2400,17 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       if (isClosed) {
         return;
       }
-      add(ApplyFullBookContent(
-        bookTitle: book.title,
-        content: lines,
-      ));
+      add(
+        ApplyFullBookContent(
+          bookTitle: book.title,
+          content: lines,
+        ),
+      );
     } catch (e) {
       if (kDebugMode) {
         debugPrint(
-            '⚠️ TextBookBloc::loadFullBook failed for ${book.title}: $e');
+          '⚠️ TextBookBloc::loadFullBook failed for ${book.title}: $e',
+        );
       }
     }
   }
@@ -2363,8 +2458,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           runtimeState,
           workspaceId,
         );
-        targetBookTitlesSignature =
-            _targetBookTitlesSignature(targetBookTitles);
+        targetBookTitlesSignature = _targetBookTitlesSignature(
+          targetBookTitles,
+        );
       }
     }
 
@@ -2413,18 +2509,21 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       _loadedLinksEnd = window.end;
       _loadedLinksTargetBookTitlesSignature = targetBookTitlesSignature;
       _isLoadingLinks = false;
-      final replaceExistingLinks = currentState.links.isNotEmpty &&
+      final replaceExistingLinks =
+          currentState.links.isNotEmpty &&
           _activeLinksTargetBookTitlesSignature != targetBookTitlesSignature;
 
       if (isClosed) {
         _isLoadingLinks = false;
         return;
       }
-      add(UpdateLinks(
-        links,
-        replaceExisting: replaceExistingLinks,
-        targetBookTitlesSignature: targetBookTitlesSignature,
-      ));
+      add(
+        UpdateLinks(
+          links,
+          replaceExisting: replaceExistingLinks,
+          targetBookTitlesSignature: targetBookTitlesSignature,
+        ),
+      );
 
       if (!isClosed && state is TextBookLoaded) {
         final latestState = state as TextBookLoaded;
@@ -2492,12 +2591,14 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     final currentState = state as TextBookLoaded;
     if (currentState.book.title != stateBeforeAwait.book.title) return;
 
-    emit(currentState.copyWith(
-      links: processedLinks.links,
-      linksByLine: processedLinks.linksByLine,
-      visibleLinks: processedLinks.visibleLinks,
-      linksLoading: false,
-    ));
+    emit(
+      currentState.copyWith(
+        links: processedLinks.links,
+        linksByLine: processedLinks.linksByLine,
+        visibleLinks: processedLinks.visibleLinks,
+        linksLoading: false,
+      ),
+    );
     _activeLinksTargetBookTitlesSignature =
         event.targetBookTitlesSignature ?? _allTargetBookTitlesSignature;
 
@@ -2534,11 +2635,13 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     if (state is TextBookLoaded) {
       final currentState = state as TextBookLoaded;
 
-      final updatedState = _withInlineNotesCommentator(currentState.copyWith(
-        availableCommentators: event.availableCommentators,
-        commentatorGroups: event.commentatorGroups.cast<CommentatorGroup>(),
-        rareCommentators: event.rareCommentators,
-      ));
+      final updatedState = _withInlineNotesCommentator(
+        currentState.copyWith(
+          availableCommentators: event.availableCommentators,
+          commentatorGroups: event.commentatorGroups.cast<CommentatorGroup>(),
+          rareCommentators: event.rareCommentators,
+        ),
+      );
       emit(updatedState);
 
       if (updatedState.showPageShapeView) {
@@ -2583,8 +2686,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       final commentatorsData = await repository.getCommentatorsWithRarity(book);
       final availableCommentators = commentatorsData.all;
       final rareCommentators = commentatorsData.rare;
-      final baseCommentators =
-          await DefaultCommentators.getBaseCommentators(book);
+      final baseCommentators = await DefaultCommentators.getBaseCommentators(
+        book,
+      );
 
       final eras = await utils.splitByEra(availableCommentators);
       final groups = buildCommentatorGroups(
@@ -2605,19 +2709,30 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       // הזיהוי של 'הערות' כמפרש וירטואלי נעשה בנפרד דרך
       // _withInlineNotesCommentator שמופעל בכל עדכון של ה-content.
       if (isClosed) return;
-      add(UpdateAvailableCommentators(
-          availableCommentators, groups, rareCommentators));
+      add(
+        UpdateAvailableCommentators(
+          availableCommentators,
+          groups,
+          rareCommentators,
+        ),
+      );
 
       // בחירה שמורה פר-ספר גוברת על ברירת המחדל: אם המשתמש בחר בעבר (כולל
       // בחירה ריקה) — משחזרים אותה; אחרת בוחרים את מפרשי ברירת המחדל.
-      final saved =
-          book.isUserBook ? null : await TextBookPerBookSettings.load(book);
+      final saved = book.isUserBook
+          ? null
+          : await TextBookPerBookSettings.load(book);
       if (isClosed) return;
 
       if (saved?.activeCommentators != null) {
         if (isClosed) return;
-        add(UpdateCommentators(saved!.activeCommentators!,
-            isUserAction: false, isRestore: true));
+        add(
+          UpdateCommentators(
+            saved!.activeCommentators!,
+            isUserAction: false,
+            isRestore: true,
+          ),
+        );
         return;
       }
 
@@ -2645,8 +2760,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     try {
       await TextBookPerBookSettings.mutate(
         book,
-        (existing) => (existing ?? TextBookPerBookSettings())
-            .copyWith(activeCommentators: List<String>.from(commentators)),
+        (existing) => (existing ?? TextBookPerBookSettings()).copyWith(
+          activeCommentators: List<String>.from(commentators),
+        ),
       );
     } catch (e) {
       debugPrint('⚠️ Failed to save active commentators per book: $e');
@@ -2657,7 +2773,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     final enriched = await enrichHeCategories(book);
     if (isClosed) return;
 
-    final heCategoriesChanged = enriched.heCategories != null &&
+    final heCategoriesChanged =
+        enriched.heCategories != null &&
         enriched.heCategories != book.heCategories;
     final authorChanged =
         enriched.author != null && enriched.author != book.author;
@@ -2671,13 +2788,15 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         authorChanged ||
         heEraChanged) {
       if (isClosed) return;
-      add(UpdateResolvedBookId(
-        bookTitle: book.title,
-        resolvedId: enriched.resolvedId,
-        heCategories: heCategoriesChanged ? enriched.heCategories : null,
-        author: authorChanged ? enriched.author : null,
-        heEra: heEraChanged ? enriched.heEra : null,
-      ));
+      add(
+        UpdateResolvedBookId(
+          bookTitle: book.title,
+          resolvedId: enriched.resolvedId,
+          heCategories: heCategoriesChanged ? enriched.heCategories : null,
+          author: authorChanged ? enriched.author : null,
+          heEra: heEraChanged ? enriched.heEra : null,
+        ),
+      );
     }
   }
 
@@ -2690,7 +2809,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     if (current.book.title != event.bookTitle) return;
 
     final needsIdUpdate = current.book.id == null && event.resolvedId != null;
-    final needsCategoriesUpdate = event.heCategories != null &&
+    final needsCategoriesUpdate =
+        event.heCategories != null &&
         event.heCategories != current.book.heCategories;
     final needsAuthorUpdate =
         event.author != null && event.author != current.book.author;

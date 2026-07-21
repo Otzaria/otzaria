@@ -16,8 +16,10 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
+import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
@@ -276,37 +278,66 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
         ),
       );
     } else {
-      context.read<TabsBloc>().add(
-        OpenOrFocusTab(
-          TextBookTab(
-            book: switch (resolvedBook) {
-              final TextBook book => book,
-              final DocxBook book => book.toTextBook(),
-              final EpubBook book => book.toTextBook(),
-              _ => TextBook(title: title),
-            },
-            index: segment,
-            dedupeKey: _searchResultDedupeKey(
-              title: title,
-              reference: reference,
-              segment: segment,
-              isPdf: false,
-              filePath: filePath,
-            ),
-            searchText: rawQuery,
-            searchOptions: effectiveOptions,
-            alternativeWords: widget.tab.alternativeWords,
-            spacingValues: widget.tab.spacingValues,
-            searchMode: inBookMode,
-            searchDistance: inBookDistance,
-            showPageShapeView: PageShapeSettingsManager.getViewModePreference(
-              title,
-            ),
-            openLeftPane: openLeftPane,
-          ),
-          targetTitle: reference,
-          insertAdjacent: true,
+      final textBook = switch (resolvedBook) {
+        final TextBook book => book,
+        final DocxBook book => book.toTextBook(),
+        final EpubBook book => book.toTextBook(),
+        _ => TextBook(title: title),
+      };
+
+      final dedupeKey = _searchResultDedupeKey(
+        title: title,
+        reference: reference,
+        segment: segment,
+        isPdf: false,
+        filePath: filePath,
+      );
+
+      TextBookTab buildTextTab() => TextBookTab(
+        book: textBook,
+        index: segment,
+        dedupeKey: dedupeKey,
+        searchText: rawQuery,
+        searchOptions: effectiveOptions,
+        alternativeWords: widget.tab.alternativeWords,
+        spacingValues: widget.tab.spacingValues,
+        searchMode: inBookMode,
+        searchDistance: inBookDistance,
+        showPageShapeView: PageShapeSettingsManager.getViewModePreference(
+          title,
         ),
+        openLeftPane: openLeftPane,
+      );
+
+      // הגדרת "פורמט פתיחת תלמוד בבלי": תוצאת טקסט של מסכת בבלי נפתחת
+      // מיידית כטאב טעינה, ומיפוי העמוד ל-PDF רץ בתוך הטאב עצמו.
+      final target = await resolveTalmudBavliPdfBook(textBook);
+      if (!mounted) return;
+
+      final OpenedTab tab = target == null
+          ? buildTextTab()
+          : buildTalmudBavliResolvingTab(
+              target: target,
+              textIndex: segment,
+              dedupeKey: dedupeKey,
+              buildTextTab: (_) => buildTextTab(),
+              buildPdfTab: (page, _) => PdfBookTab(
+                book: target.pdfBook,
+                pageNumber: page,
+                dedupeKey: dedupeKey,
+                searchText: rawQuery,
+                searchOptions: effectiveOptions,
+                alternativeWords: widget.tab.alternativeWords,
+                spacingValues: widget.tab.spacingValues,
+                searchMode: inBookMode,
+                searchDistance: inBookDistance,
+                openLeftPane: openLeftPane,
+                requiresStableLayout: true,
+              ),
+            );
+
+      context.read<TabsBloc>().add(
+        OpenOrFocusTab(tab, targetTitle: reference, insertAdjacent: true),
       );
     }
   }

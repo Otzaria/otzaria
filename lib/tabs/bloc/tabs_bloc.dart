@@ -46,6 +46,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     on<ReplaceAllTabs>(_onReplaceAllTabs, transformer: sequential());
     on<AddTab>(_onAddTab, transformer: sequential());
     on<OpenOrFocusTab>(_onOpenOrFocusTab, transformer: sequential());
+    on<ReplaceTab>(_onReplaceTab, transformer: sequential());
     on<RemoveTab>(_onRemoveTab, transformer: sequential());
     on<SetCurrentTab>(_onSetCurrentTab, transformer: sequential());
     on<CloseAllTabs>(_onCloseAllTabs, transformer: sequential());
@@ -267,6 +268,27 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       AddTab(event.tab, insertAdjacent: event.insertAdjacent),
       emit,
     );
+  }
+
+  Future<void> _onReplaceTab(ReplaceTab event, Emitter<TabsState> emit) async {
+    final index = state.tabs.indexOf(event.oldTab);
+    if (index == -1) {
+      // הטאב נסגר בזמן הרזולוציה — אין את מי להחליף.
+      _disposeTabLater(event.newTab);
+      return;
+    }
+
+    event.newTab.isPinned = event.oldTab.isPinned;
+    final newTabs = List<OpenedTab>.from(state.tabs);
+    newTabs[index] = event.newTab;
+
+    emit(state.copyWith(tabs: newTabs, forceUpdate: true));
+    await _repository.saveTabs(
+      newTabs,
+      state.currentTabIndex,
+      state.sideBySideMode,
+    );
+    _disposeTabLater(event.oldTab);
   }
 
   void _propagatePinpointHighlightToExistingTab({

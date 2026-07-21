@@ -38,12 +38,14 @@ class PluginBridgeHandler {
     required this.adapter,
     PluginRegistryRepository? registry,
     RateLimiter? rateLimiter,
-  })  : _registry = registry ?? PluginRegistryRepository(),
-        _rateLimiter = rateLimiter ?? RateLimiter();
+  }) : _registry = registry ?? PluginRegistryRepository(),
+       _rateLimiter = rateLimiter ?? RateLimiter();
 
   void register(InAppWebViewController controller) {
     controller.addJavaScriptHandler(
-        handlerName: 'otzaria_rpc', callback: _handleRpc);
+      handlerName: 'otzaria_rpc',
+      callback: _handleRpc,
+    );
   }
 
   /// נקודת כניסה לבדיקות בלבד: מריצה את אותו נתיב RPC שמופעל מ-JavaScript,
@@ -91,7 +93,8 @@ class PluginBridgeHandler {
     final action = parts[1];
 
     final requiredPermission = _getRequiredPermission(domain, action);
-    final declaresPermission = requiredPermission == null ||
+    final declaresPermission =
+        requiredPermission == null ||
         plugin.manifest.permissions.contains(requiredPermission);
 
     // ההחרגה ממגביל הקצב חלה רק על קריאת תוכן שההרשאה לה *הוענקה בפועל* (לא רק
@@ -104,7 +107,7 @@ class PluginBridgeHandler {
     if (isContentRead && declaresPermission && requiredPermission != null) {
       grantedEarly =
           await _registry.getPermission(plugin.pluginId, requiredPermission) ==
-              true;
+          true;
     }
 
     final exempt = isContentRead && (grantedEarly ?? false);
@@ -116,15 +119,22 @@ class PluginBridgeHandler {
       if (requiredPermission != null) {
         if (!declaresPermission) {
           return _errorResp(
-              "permission_denied", "Missing permission: $requiredPermission");
+            "permission_denied",
+            "Missing permission: $requiredPermission",
+          );
         }
-        final granted = grantedEarly ??
+        final granted =
+            grantedEarly ??
             (await _registry.getPermission(
-                    plugin.pluginId, requiredPermission) ==
+                  plugin.pluginId,
+                  requiredPermission,
+                ) ==
                 true);
         if (!granted) {
           return _errorResp(
-              "permission_denied", "Permission denied: $requiredPermission");
+            "permission_denied",
+            "Permission denied: $requiredPermission",
+          );
         }
       }
 
@@ -138,12 +148,18 @@ class PluginBridgeHandler {
     } on PluginDatabaseException catch (e) {
       return _errorResp(e.code, e.message);
     } on TimeoutException {
-      PluginSystemDatabase.instance
-          .writeLog(plugin.pluginId, 'ERROR', 'RPC timeout: $domain.$action');
+      PluginSystemDatabase.instance.writeLog(
+        plugin.pluginId,
+        'ERROR',
+        'RPC timeout: $domain.$action',
+      );
       return _errorResp("error.timeout", "Request timed out");
     } catch (e) {
-      PluginSystemDatabase.instance
-          .writeLog(plugin.pluginId, 'ERROR', 'RPC error $domain.$action: $e');
+      PluginSystemDatabase.instance.writeLog(
+        plugin.pluginId,
+        'ERROR',
+        'RPC error $domain.$action: $e',
+      );
       // ה-adapter מקדד את קוד השגיאה בתחילת הודעת ה-Exception בפורמט
       // `error.<code>: <detail>` (למשל error.forbidden, error.invalid_params).
       // ה-RPC חושף שדה `code` נפרד שתוספים מסתמכים עליו (ראה
@@ -161,8 +177,10 @@ class PluginBridgeHandler {
   /// תבנית לחילוץ קוד שגיאה מקודד מהודעת Exception של ה-adapter, בפורמט
   /// `error.<code>: <detail>` (עם או בלי הקידומת `Exception: ` ש-[Object.toString]
   /// מוסיף). שומר על אותה רשימת קודים שה-API מבטיח לתוספים.
-  static final RegExp _codedErrorPattern =
-      RegExp(r'^(?:Exception: )?(error\.[a-z_]+): (.*)$', dotAll: true);
+  static final RegExp _codedErrorPattern = RegExp(
+    r'^(?:Exception: )?(error\.[a-z_]+): (.*)$',
+    dotAll: true,
+  );
 
   String? _getRequiredPermission(String domain, String action) {
     switch (domain) {
@@ -175,7 +193,10 @@ class PluginBridgeHandler {
         }
         return 'app.info.read';
       case 'library':
-        if (action == 'getBookContent' || action == 'getBookToc') {
+        if (action == 'getBookContent' ||
+            action == 'getBookToc' ||
+            action == 'listBookAltStructures' ||
+            action == 'getBookAltToc') {
           return 'library.content.read';
         }
         return 'library.books.read';
@@ -185,9 +206,15 @@ class PluginBridgeHandler {
         switch (action) {
           case 'addContextMenuItem':
           case 'removeContextMenuItem':
+          case 'updateContextMenuItem':
             return 'reader.context_menu';
+          case 'findTextOccurrences':
+          case 'getSectionTextMap':
+            return 'reader.open';
           case 'setHighlight':
+          case 'updateHighlight':
           case 'getHighlights':
+          case 'revealHighlight':
           case 'clearHighlight':
           case 'clearAllHighlights':
             return 'reader.highlight';

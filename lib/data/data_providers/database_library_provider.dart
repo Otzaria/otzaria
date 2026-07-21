@@ -3344,9 +3344,36 @@ class DatabaseLibraryProvider implements LibraryProvider {
     try {
       final resolvedBook = await BookDatabaseResolver.resolveBook(
         title: targetTitle,
+        categoryId: link.targetCategoryId,
+        fileType: link.targetFileType,
         preferUserBooks: link.targetIsUserBook,
       );
       if (resolvedBook == null) return 'שגיאה: הספר לא נמצא במסד הנתונים';
+
+      // ספר file-backed (תיקייה שנוספה בלי "הוסף למסד הנתונים") — אין שורות
+      // ב-DB, התוכן נקרא מהקובץ עצמו לפי אותו פיצול שורות של הסורק.
+      final dbBook = resolvedBook.book;
+      final dbBookFileType = (dbBook.fileType ?? 'txt').toLowerCase();
+      if (dbBook.isFileBacked &&
+          dbBook.filePath != null &&
+          (dbBookFileType == 'txt' || dbBookFileType == 'docx')) {
+        final file = File(dbBook.filePath!);
+        if (!await file.exists()) return 'שגיאה: הקובץ לא נמצא';
+        final text = dbBookFileType == 'docx'
+            ? await convertDocxWithCache(file, dbBook.title)
+            : await readTextFileSmart(file);
+        final lines = text.split('\n');
+        final start = link.index2 - 1;
+        if (start >= lines.length) return 'שגיאה: אינדקס מחוץ לטווח';
+        final end0 = ((link.index2End ?? link.index2) - 1).clamp(
+          start,
+          lines.length - 1,
+        );
+        return lines
+            .sublist(start, end0 + 1)
+            .map((l) => l.trimRight())
+            .join('<br>');
+      }
 
       // link.index2 is 1-based; lineIndex in DB is 0-based
       final line = await resolvedBook.repository.getLineByIndex(
@@ -3473,6 +3500,49 @@ class DatabaseLibraryProvider implements LibraryProvider {
       },
       [],
       'getAltTocLineIndices $structureId',
+    );
+  }
+
+  /// מחזיר את ערכי מבנה ה-AltToc עם ה-lineIndex של כל ערך (או null לכותרות-אב
+  /// ללא שורה), לצד id/parentId/level/text — כדי לבנות את העץ ולחשב index
+  /// לכותרות. LEFT JOIN על line שומר גם ערכים חסרי שורה; הסדר לפי e.id
+  /// כדי לשמר את סדר המסמך של ה-DB.
+  Future<
+    List<({int id, int? parentId, int level, int? lineIndex, String text})>
+  >
+  getAltTocEntriesWithLineIndex(int structureId) async {
+    return _dbOperation<
+      List<({int id, int? parentId, int level, int? lineIndex, String text})>
+    >(
+      (db) async {
+        final results = db
+            .select(
+              '''
+          SELECT e.id, e.parentId, e.level, l.lineIndex, t.text
+          FROM alt_toc_entry e
+          JOIN tocText t ON e.textId = t.id
+          LEFT JOIN line l ON e.lineId = l.id
+          WHERE e.structureId = ?
+          ORDER BY e.id
+        ''',
+              [structureId],
+            )
+            .toMapList();
+
+        return results
+            .map(
+              (r) => (
+                id: r['id'] as int,
+                parentId: r['parentId'] as int?,
+                level: r['level'] as int,
+                lineIndex: r['lineIndex'] as int?,
+                text: r['text'] as String,
+              ),
+            )
+            .toList();
+      },
+      [],
+      'getAltTocEntriesWithLineIndex $structureId',
     );
   }
 
@@ -3611,21 +3681,14 @@ class DatabaseLibraryProvider implements LibraryProvider {
       // Phase 2 (main isolate): only metadata updates + new-book inserts.
       // This is deliberately light: unchanged books were already filtered in
       // Phase 1, so no TOC parse or DB read happens here for them.
-      //
-      // ה-insert עצמו סינכרוני (sqlite3 חוסם את ה-thread), ולכן הוספה של
-      // ספרים רבים בבת אחת תוקעת את ה-UI. כדי למנוע זאת אנו משחררים את
-      // לולאת האירועים אחת לכמה ספרים — ה-UI ממשיך להגיב בלי לשנות את
-      // לוגיקת ה-DB עצמה.
-      var processedSinceYield = 0;
       // source פר-תיקייה (Personal::<נתיב>) — זהה לזה שמסלול הסנכרון/מחיקה
       // מצפה לו, כדי שה-prune והמחיקה יזהו את הספרים לפי שם ה-source.
       final folderSourceName = CustomFolderSource.nameForFolder(folderPath);
       int? scanSourceId;
       for (final book in discovered) {
-        if (++processedSinceYield >= 8) {
-          processedSinceYield = 0;
-          await Future<void>.delayed(Duration.zero);
-        }
+        // ה-insert סינכרוני (sqlite3 חוסם את ה-thread); משחררים את לולאת
+        // האירועים לפני כל ספר כדי שה-UI יגיב גם בתיקייה עם ספרים רבים.
+        await Future<void>.delayed(Duration.zero);
         if (book.conversionError != null) {
           debugPrint(
             '⚠️ DOCX conversion failed for ${book.title}: ${book.conversionError}',

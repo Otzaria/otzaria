@@ -38,13 +38,13 @@ class AndroidStorageService {
     if (!Platform.isAndroid) return const [];
 
     final internalDir = await getApplicationDocumentsDirectory();
+    final primaryExternalDir = await getExternalStorageDirectory();
     final externals = await getExternalStorageDirectories() ?? const [];
-
-    // כרך פנימי מזוהה לפי /storage/emulated/ (אחסון משותף על המכשיר עצמו).
-    // כל כרך אחר הוא נשלף — כרטיס SD או USB.
-    final removable =
-        externals.where((d) => !d.path.contains('/storage/emulated/')).toList();
-    if (removable.isEmpty) return const [];
+    final removablePaths = removableStoragePaths(
+      externals.map((directory) => directory.path).toList(),
+      primaryPath: primaryExternalDir?.path,
+    );
+    if (removablePaths.isEmpty) return const [];
 
     final options = <AndroidStorageOption>[
       AndroidStorageOption(
@@ -54,17 +54,29 @@ class AndroidStorageService {
         isRemovable: false,
       ),
     ];
-    for (final dir in removable) {
-      options.add(AndroidStorageOption(
-        label: 'כרטיס SD',
-        libraryRoot: dir.path,
-        freeBytes: await _freeBytes(dir.path),
-        isRemovable: true,
-        supportsLargeFiles: await volumeSupportsLargeFiles(dir.path),
-      ));
+    for (final path in removablePaths) {
+      options.add(
+        AndroidStorageOption(
+          label: 'כרטיס SD',
+          libraryRoot: path,
+          freeBytes: await _freeBytes(path),
+          isRemovable: true,
+          supportsLargeFiles: await volumeSupportsLargeFiles(path),
+        ),
+      );
     }
     return options;
   }
+
+  /// מסיר מרשימת נפחי האחסון את הנפח הראשי ומשאיר את כל הנפחים המשניים.
+  /// אם הנפח הראשי אינו זמין, כל הנתיבים שהוחזרו נחשבים משניים.
+  @visibleForTesting
+  static List<String> removableStoragePaths(
+    List<String> volumePaths, {
+    required String? primaryPath,
+  }) => volumePaths
+      .where((volumePath) => volumePath != primaryPath)
+      .toList(growable: false);
 
   /// האם הכרך שעליו יושב [dirPath] תומך בקבצים מעל 4GB (seforim.db גדול מכך).
   /// fail-open: כשלא ניתן לקבוע מחזיר true — הכשל האמיתי יעלה בכתיבה עצמה.
@@ -83,8 +95,9 @@ class AndroidStorageService {
   /// ה-FUSE/sdcardfs ולא מערכת הקבצים האמיתית).
   @visibleForTesting
   static bool? largeFileSupportFromMounts(String mounts, String dirPath) {
-    final volume =
-        RegExp(r'^/storage/([^/]+)/').firstMatch('$dirPath/')?.group(1);
+    final volume = RegExp(
+      r'^/storage/([^/]+)/',
+    ).firstMatch('$dirPath/')?.group(1);
     // אחסון פנימי (או נתיב שאינו תחת /storage) — ext4/f2fs, תומך תמיד.
     if (volume == null || volume == 'emulated' || volume == 'self') {
       return true;
@@ -113,8 +126,10 @@ class AndroidStorageService {
   /// הנתמך גם ב-toybox של Android; הדגל -k (בלוקים של 1024B) נייד בין המימושים.
   static Future<int> _freeBytes(String dirPath) async {
     try {
-      final result =
-          await Process.run('df', ['-k', dirPath], runInShell: false);
+      final result = await Process.run('df', [
+        '-k',
+        dirPath,
+      ], runInShell: false);
       if (result.exitCode != 0) return -1;
       final lines = result.stdout.toString().trim().split('\n');
       if (lines.length < 2) return -1;

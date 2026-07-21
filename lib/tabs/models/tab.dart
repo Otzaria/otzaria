@@ -95,6 +95,7 @@ abstract class OpenedTab {
     bool requiresStableLayout = false,
     String? pinpointHighlight,
     int? pinpointHighlightSectionIndex,
+    String? dedupeKey,
   }) {
     if (book is PdfBook) {
       return PdfBookTab(
@@ -104,6 +105,7 @@ abstract class OpenedTab {
         searchText: searchText,
         isPinned: isPinned,
         requiresStableLayout: requiresStableLayout,
+        dedupeKey: dedupeKey,
       );
     } else if (book is DocxBook || book is EpubBook) {
       // DOCX/EPUB רצים דרך זרימת TextBook — העטיפה דרך toTextBook
@@ -122,6 +124,7 @@ abstract class OpenedTab {
         showPageShapeView: showPageShapeView,
         pinpointHighlight: pinpointHighlight,
         pinpointHighlightSectionIndex: pinpointHighlightSectionIndex,
+        dedupeKey: dedupeKey,
       );
     } else if (book is TextBook) {
       return TextBookTab(
@@ -136,6 +139,7 @@ abstract class OpenedTab {
         showPageShapeView: showPageShapeView,
         pinpointHighlight: pinpointHighlight,
         pinpointHighlightSectionIndex: pinpointHighlightSectionIndex,
+        dedupeKey: dedupeKey,
       );
     }
     throw UnsupportedError("Unsupported book type: ${book.runtimeType}");

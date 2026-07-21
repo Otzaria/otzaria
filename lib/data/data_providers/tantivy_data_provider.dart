@@ -52,7 +52,8 @@ class TantivyDataProvider {
   /// Clear global cache when starting new search
   static void clearGlobalCache() {
     debugPrint(
-        '🧹 Clearing global facet cache (${_globalFacetCache.length} entries)');
+      '🧹 Clearing global facet cache (${_globalFacetCache.length} entries)',
+    );
     _globalFacetCache.clear();
     _inflightCounts.clear();
     _lastCachedQuery = '';
@@ -60,6 +61,10 @@ class TantivyDataProvider {
 
   /// Indicates whether the indexing process is currently running
   ValueNotifier<bool> isIndexing = ValueNotifier(false);
+
+  /// המנוע רץ על אינדקס זמני כי פתיחת אינדקס הדיסק נכשלה. במצב זה אסור
+  /// לאנדקס — הכתיבות היו הולכות לתיקייה זמנית שנזרקת בהפעלה הבאה.
+  bool isTempFallback = false;
 
   /// מסמן שקריאת מצב האינדקס מהאינדקס עצמו ([indexedFilePaths]) הסתיימה.
   /// עד שהערך הופך ל-true, אסור להסיק "אין אינדקס" מ-indexedFilePaths.isEmpty.
@@ -116,7 +121,8 @@ class TantivyDataProvider {
     try {
       indexedFilePaths.addAll(await engine.getIndexedFilePaths());
       debugPrint(
-          '📚 נקראו ${indexedFilePaths.length} ספרים מאונדקסים מהאינדקס');
+        '📚 נקראו ${indexedFilePaths.length} ספרים מאונדקסים מהאינדקס',
+      );
     } catch (e) {
       debugPrint('⚠️ קריאת הספרים המאונדקסים מהאינדקס נכשלה: $e');
     }
@@ -129,9 +135,11 @@ class TantivyDataProvider {
     try {
       final dictPath = await AppPaths.getMagicDictionaryPath();
       final loaded = engine.setMagicDictionaryPath(path: dictPath);
-      debugPrint(loaded
-          ? '🔤 מילון מורפולוגי נטען לחיפוש המקורב: $dictPath'
-          : 'ℹ️ אין מילון מורפולוגי ($dictPath) — חיפוש מקורב ללא הרחבה');
+      debugPrint(
+        loaded
+            ? '🔤 מילון מורפולוגי נטען לחיפוש המקורב: $dictPath'
+            : 'ℹ️ אין מילון מורפולוגי ($dictPath) — חיפוש מקורב ללא הרחבה',
+      );
       return loaded;
     } catch (e) {
       debugPrint('⚠️ טעינת המילון המורפולוגי נכשלה: $e');
@@ -150,20 +158,28 @@ class TantivyDataProvider {
   /// אתחול המנוע, האפשרות פשוט לא תרחיב דבר.
   Future<void> _attachSearchLexicons(SearchEngine engine) async {
     final translationPath = await _materializeBundledAsset(
-        'assets/dictionary.json', 'dictionary.json');
+      'assets/dictionary.json',
+      'dictionary.json',
+    );
     if (translationPath != null) {
       final loaded = engine.setTranslationDictionaryPath(path: translationPath);
-      debugPrint(loaded
-          ? '🔤 מילון תרגום ארמי נטען: $translationPath'
-          : '⚠️ מילון התרגום הארמי לא נטען ($translationPath)');
+      debugPrint(
+        loaded
+            ? '🔤 מילון תרגום ארמי נטען: $translationPath'
+            : '⚠️ מילון התרגום הארמי לא נטען ($translationPath)',
+      );
     }
-    final acronymsPath =
-        await _materializeBundledAsset('assets/Acronyms.json', 'Acronyms.json');
+    final acronymsPath = await _materializeBundledAsset(
+      'assets/Acronyms.json',
+      'Acronyms.json',
+    );
     if (acronymsPath != null) {
       final loaded = engine.setAcronymsDictionaryPath(path: acronymsPath);
-      debugPrint(loaded
-          ? '🔤 מילון ראשי-תיבות נטען: $acronymsPath'
-          : '⚠️ מילון ראשי-התיבות לא נטען ($acronymsPath)');
+      debugPrint(
+        loaded
+            ? '🔤 מילון ראשי-תיבות נטען: $acronymsPath'
+            : '⚠️ מילון ראשי-התיבות לא נטען ($acronymsPath)',
+      );
     }
   }
 
@@ -172,16 +188,22 @@ class TantivyDataProvider {
   /// גודל: עדכון מילון ששומר על אותו אורך (תיקון ערך בודד) חייב להתפיס.
   /// הקריאה החוזרת זולה יחסית (המילונים 1-3MB, פעם אחת באתחול).
   Future<String?> _materializeBundledAsset(
-      String assetKey, String fileName) async {
+    String assetKey,
+    String fileName,
+  ) async {
     try {
       final data = await rootBundle.load(assetKey);
-      final bytes =
-          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-      final dir =
-          Directory(p.join(await AppPaths.getDataRootPath(), 'dictionaries'));
+      final bytes = data.buffer.asUint8List(
+        data.offsetInBytes,
+        data.lengthInBytes,
+      );
+      final dir = Directory(
+        p.join(await AppPaths.getDataRootPath(), 'dictionaries'),
+      );
       await dir.create(recursive: true);
       final file = File(p.join(dir.path, fileName));
-      final upToDate = await file.exists() &&
+      final upToDate =
+          await file.exists() &&
           await file.length() == bytes.length &&
           _bytesEqual(await file.readAsBytes(), bytes);
       if (!upToDate) {
@@ -234,8 +256,10 @@ class TantivyDataProvider {
   }) async {
     final downloader = MagicDictionaryDownloader();
     try {
-      final ok =
-          await downloader.ensureLatest(onProgress: onProgress, force: force);
+      final ok = await downloader.ensureLatest(
+        onProgress: onProgress,
+        force: force,
+      );
       if (!ok) return false;
       return await _attachMagicDictionary(await engine);
     } finally {
@@ -243,9 +267,22 @@ class TantivyDataProvider {
     }
   }
 
+  /// מספר ניסיונות הפתיחה שנכשלו לפי תוכן קובץ הסנטינל. תוכן לא-מספרי
+  /// (פורמט ישן ששמר תאריך) נספר ככישלון יחיד.
+  @visibleForTesting
+  static int sentinelFailedAttempts(String? content) =>
+      int.tryParse(content?.trim() ?? '') ?? 1;
+
+  /// האם להזיז את האינדקס הצידה: רק אחרי שני כשלונות פתיחה רצופים.
+  /// כישלון בודד עשוי להיות kill של המשתמש בזמן האתחול — ניגוב מיידי
+  /// היה זורק אינדקס תקין של שעות עבודה.
+  @visibleForTesting
+  static bool shouldDiscardIndex(int failedAttempts) => failedAttempts >= 2;
+
   Future<SearchEngine> _initEngine() async {
     String? indexPath;
     File? sentinelFile;
+    isTempFallback = false;
 
     try {
       indexPath = await AppPaths.getIndexPath();
@@ -256,10 +293,19 @@ class TantivyDataProvider {
 
       sentinelFile = File('${parentDir.path}/.engine_init_started');
 
-      // Check for previous crash
+      // סנטינל שנשאר = הריצה הקודמת מתה בזמן פתיחת המנוע.
+      var failedAttempts = 0;
       if (sentinelFile.existsSync()) {
-        debugPrint(
-            '⚠️ Detected crash during previous engine init. Moving corrupted index aside.');
+        String? content;
+        try {
+          content = sentinelFile.readAsStringSync();
+        } catch (_) {}
+        failedAttempts = sentinelFailedAttempts(content);
+        debugPrint('⚠️ נמצא סנטינל פתיחה ($failedAttempts כשלונות קודמים)');
+      }
+
+      if (shouldDiscardIndex(failedAttempts)) {
+        debugPrint('⚠️ שני כשלונות פתיחה רצופים — מזיז את האינדקס הצידה');
         try {
           if (Directory(indexPath).existsSync()) {
             // Use rename instead of delete - much safer on Windows
@@ -274,16 +320,13 @@ class TantivyDataProvider {
           indexPath =
               '${indexPath}_new_${DateTime.now().millisecondsSinceEpoch}';
         }
-
-        // Try to clear sentinel
-        try {
-          sentinelFile.deleteSync();
-        } catch (_) {}
+        failedAttempts = 0;
       }
 
-      // Create sentinel for THIS run
+      // הסנטינל מכסה רק את קריאת הפתיחה הנייטיבית: קריסה בטעינת המילונים
+      // שאחריה אינה מעידה על אינדקס פגום ואסור שתנגב אותו.
       try {
-        await sentinelFile.writeAsString(DateTime.now().toString());
+        await sentinelFile.writeAsString('${failedAttempts + 1}');
       } catch (e) {
         debugPrint('⚠️ Failed to create sentinel file: $e');
       }
@@ -299,34 +342,34 @@ class TantivyDataProvider {
       // If it throws an Exception, we catch it below.
       final engine = SearchEngine(path: indexPath);
 
+      // הפתיחה הנייטיבית הצליחה — האינדקס תקין, הסנטינל מוסר מיד.
+      try {
+        await sentinelFile.delete();
+      } catch (_) {}
+
       // טעינת מילון מורפולוגי לחיפוש המקורב (best-effort, לא חוסם).
       await _attachMagicDictionary(engine);
 
       // מילוני החיפוש המתקדם: תרגום ארמי + ראשי-תיבות (best-effort).
       await _attachSearchLexicons(engine);
 
-      // If we got here, success! Remove sentinel.
-      try {
-        await sentinelFile.delete();
-      } catch (_) {}
-
       return engine;
     } catch (e) {
       debugPrint('❌ Failed to initialize search engine: $e');
 
-      // Cleanup sentinel since it was a soft error
-      if (sentinelFile != null && sentinelFile.existsSync()) {
-        try {
-          sentinelFile.deleteSync();
-        } catch (_) {}
-      }
+      // הסנטינל נשאר בכוונה: גם כשל פתיחה שנתפס כחריגה (לא קריסה) חייב
+      // להיצבר במונה — אחרת אינדקס שפתיחתו נכשלת שוב ושוב לעולם לא היה
+      // מגיע לסף שני הכשלונות ולא היה מוזז הצידה.
 
       // Recover by falling back to temp memory index
       debugPrint('⚠️ Falling back to temporary in-memory index');
       try {
-        final tempDir =
-            Directory.systemTemp.createTempSync('otzaria_temp_index_');
-        return SearchEngine(path: tempDir.path);
+        final tempDir = Directory.systemTemp.createTempSync(
+          'otzaria_temp_index_',
+        );
+        final tempEngine = SearchEngine(path: tempDir.path);
+        isTempFallback = true;
+        return tempEngine;
       } catch (e2) {
         debugPrint('❌ CRITICAL: Failed to create temp index: $e2');
         rethrow;
@@ -404,31 +447,36 @@ class TantivyDataProvider {
     }
   }
 
-  Future<int> countTexts(String query, List<String> books, List<String> facets,
-      {bool fuzzy = false,
-      int distance = 0,
-      String negativeQuery = '',
-      int? negativeDistance,
-      SearchScope scope = SearchScope.wordDistance,
-      SearchScope? negativeScope,
-      SearchMode searchMode = SearchMode.exact,
-      Map<String, String>? customSpacing,
-      Map<String, String>? negativeCustomSpacing,
-      Map<int, List<String>>? alternativeWords,
-      Map<int, List<String>>? negativeAlternativeWords,
-      Map<String, Map<String, bool>>? searchOptions,
-      Map<String, Map<String, bool>>? negativeSearchOptions,
-      bool matchNikud = false,
-      bool matchTaamim = false,
-      WordMatchMode wordMatchMode = WordMatchMode.all,
-      int? wordMatchCount}) async {
+  Future<int> countTexts(
+    String query,
+    List<String> books,
+    List<String> facets, {
+    bool fuzzy = false,
+    int distance = 0,
+    String negativeQuery = '',
+    int? negativeDistance,
+    SearchScope scope = SearchScope.wordDistance,
+    SearchScope? negativeScope,
+    SearchMode searchMode = SearchMode.exact,
+    Map<String, String>? customSpacing,
+    Map<String, String>? negativeCustomSpacing,
+    Map<int, List<String>>? alternativeWords,
+    Map<int, List<String>>? negativeAlternativeWords,
+    Map<String, Map<String, bool>>? searchOptions,
+    Map<String, Map<String, bool>>? negativeSearchOptions,
+    bool matchNikud = false,
+    bool matchTaamim = false,
+    WordMatchMode wordMatchMode = WordMatchMode.all,
+    int? wordMatchCount,
+  }) async {
     // Global cache check
     final cacheKey =
         '$query|not=$negativeQuery|${facets.join(',')}|$fuzzy|$searchMode|$distance|${negativeDistance ?? distance}|$scope|${negativeScope ?? scope}|${customSpacing.toString()}|${negativeCustomSpacing.toString()}|${alternativeWords.toString()}|${negativeAlternativeWords.toString()}|${searchOptions.toString()}|${negativeSearchOptions.toString()}|$matchNikud|$matchTaamim|$wordMatchMode|$wordMatchCount';
 
     if (_lastCachedQuery == query && _globalFacetCache.containsKey(cacheKey)) {
       debugPrint(
-          '🎯 GLOBAL CACHE HIT for $facets: ${_globalFacetCache[cacheKey]}');
+        '🎯 GLOBAL CACHE HIT for $facets: ${_globalFacetCache[cacheKey]}',
+      );
       return _globalFacetCache[cacheKey]!;
     }
 
@@ -568,7 +616,11 @@ class TantivyDataProvider {
   ///
   /// Returns a Stream of search results that can be listened to for real-time updates
   Stream<List<SearchResult>> searchTextsStream(
-      String query, List<String> facets, int limit, bool fuzzy) async* {
+    String query,
+    List<String> facets,
+    int limit,
+    bool fuzzy,
+  ) async* {
     yield* _searchGateway.searchStream(
       RustSearchEngineOperations(await engine),
       SearchEngineRequest(
@@ -585,27 +637,31 @@ class TantivyDataProvider {
   /// מקבץ facets לפי parent prefix ומשתמש ב-getFacetCounts כשיש כמה siblings,
   /// כדי לחסוך קריאות FFI מיותרות.
   Future<Map<String, int>> countTextsForMultipleFacets(
-      String query, List<String> books, List<String> facets,
-      {bool fuzzy = false,
-      int distance = 0,
-      String negativeQuery = '',
-      int? negativeDistance,
-      SearchScope scope = SearchScope.wordDistance,
-      SearchScope? negativeScope,
-      SearchMode searchMode = SearchMode.exact,
-      Map<String, String>? customSpacing,
-      Map<String, String>? negativeCustomSpacing,
-      Map<int, List<String>>? alternativeWords,
-      Map<int, List<String>>? negativeAlternativeWords,
-      Map<String, Map<String, bool>>? searchOptions,
-      Map<String, Map<String, bool>>? negativeSearchOptions,
-      bool matchNikud = false,
-      bool matchTaamim = false,
-      WordMatchMode wordMatchMode = WordMatchMode.all,
-      int? wordMatchCount,
-      bool allowEarlyStop = true}) async {
+    String query,
+    List<String> books,
+    List<String> facets, {
+    bool fuzzy = false,
+    int distance = 0,
+    String negativeQuery = '',
+    int? negativeDistance,
+    SearchScope scope = SearchScope.wordDistance,
+    SearchScope? negativeScope,
+    SearchMode searchMode = SearchMode.exact,
+    Map<String, String>? customSpacing,
+    Map<String, String>? negativeCustomSpacing,
+    Map<int, List<String>>? alternativeWords,
+    Map<int, List<String>>? negativeAlternativeWords,
+    Map<String, Map<String, bool>>? searchOptions,
+    Map<String, Map<String, bool>>? negativeSearchOptions,
+    bool matchNikud = false,
+    bool matchTaamim = false,
+    WordMatchMode wordMatchMode = WordMatchMode.all,
+    int? wordMatchCount,
+    bool allowEarlyStop = true,
+  }) async {
     debugPrint(
-        '🔍 TantivyDataProvider: Starting batch count for ${facets.length} facets');
+      '🔍 TantivyDataProvider: Starting batch count for ${facets.length} facets',
+    );
     final stopwatch = Stopwatch()..start();
 
     final operations = RustSearchEngineOperations(await engine);
@@ -643,13 +699,16 @@ class TantivyDataProvider {
     // אינם חוסמים זה את זה), לכן כל הקבוצות נשלחות יחד במקום await סדרתי
     // פר-קבוצה; מטמון הטרמים במנוע הופך את הקריאות לאותה שאילתה לזולות.
     Future<Map<String, int>> countGroup(
-        String parent, List<String> siblings) async {
+      String parent,
+      List<String> siblings,
+    ) async {
       final groupResults = <String, int>{};
       if (siblings.length > 1) {
         // כמה siblings מאותו parent - קריאה אחת ל-getFacetCounts מספיקה
         try {
           debugPrint(
-              '🔍 getFacetCounts: parent=$parent (${siblings.length} siblings)');
+            '🔍 getFacetCounts: parent=$parent (${siblings.length} siblings)',
+          );
           final facetCounts = await _searchGateway.getFacetCounts(
             operations,
             baseRequest.copyWith(facets: [parent]),
@@ -662,7 +721,8 @@ class TantivyDataProvider {
             groupResults[sibling] = countMap[sibling] ?? 0;
           }
           debugPrint(
-              '✅ getFacetCounts: ${countMap.entries.where((e) => e.value > 0).length} non-zero');
+            '✅ getFacetCounts: ${countMap.entries.where((e) => e.value > 0).length} non-zero',
+          );
         } catch (e) {
           debugPrint('⚠️ getFacetCounts failed for $parent, fallback: $e');
           // fallback לקריאות count נפרדות
@@ -703,9 +763,11 @@ class TantivyDataProvider {
 
     stopwatch.stop();
     debugPrint(
-        '✅ TantivyDataProvider: Batch count completed in ${stopwatch.elapsedMilliseconds}ms');
+      '✅ TantivyDataProvider: Batch count completed in ${stopwatch.elapsedMilliseconds}ms',
+    );
     debugPrint(
-        '📊 Results: ${results.entries.where((e) => e.value > 0).map((e) => '${e.key}: ${e.value}').join(', ')}');
+      '📊 Results: ${results.entries.where((e) => e.value > 0).map((e) => '${e.key}: ${e.value}').join(', ')}',
+    );
 
     return results;
   }

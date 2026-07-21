@@ -10,6 +10,35 @@ import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 const int _maxSearchResults = 1000;
 const int _searchChunkSize = 128;
 
+// הקשר קצר מגבול תצוגת ה-snippet במסך (220 תווים), כדי שהתצוגה לא תחתוך
+// שוב סביב ההופעה הראשונה ותעלים הופעות מאוחרות באותה שורה.
+const int _snippetContextChars = 90;
+
+/// חלון טקסט סביב [match] בגבולות מילים, תחום ב-[lowerBound]..[upperBound]
+/// (חצי הדרך להופעות השכנות) — כך שכל תוצאה מציגה ומדגישה רק את ההופעה שלה.
+String _snippetAroundMatch(
+  String line,
+  Match match, {
+  required int lowerBound,
+  required int upperBound,
+}) {
+  var start = match.start - _snippetContextChars;
+  var end = match.end + _snippetContextChars;
+  if (start <= lowerBound) {
+    start = lowerBound;
+  } else {
+    final space = line.lastIndexOf(' ', start);
+    start = space < lowerBound ? lowerBound : space + 1;
+  }
+  if (end >= upperBound) {
+    end = upperBound;
+  } else {
+    final space = line.indexOf(' ', end);
+    end = space == -1 || space > upperBound ? upperBound : space;
+  }
+  return line.substring(start, end).trim();
+}
+
 final RegExp _whitespaceRun = RegExp(r'\s+');
 
 /// ניקוי שורה לחיפוש: הסרת הערות/HTML/ניקוד ואז כיווץ רצפי רווח לרווח יחיד.
@@ -42,17 +71,25 @@ void _updateAddress(List<String> address, String line) {
 
 /// מיקום יחסי (0..1) של ההתאמה ל-[query] בשורת המקור [rawLine], לאחר ניקוי
 /// זהה לחיפוש. משמש לדיוק גלילה אל המילה בתוך פסקה ארוכה. 0 אם אין התאמה.
+/// [matchOffset] — היסט הופעה ספציפית בשורה הנקייה (ראה
+/// TextSearchResult.matchOffset); בלעדיו נלקחת ההופעה הראשונה.
 /// [pattern] מוזרק בבדיקות בלבד — בייצור נבנה מהמנוע.
 double matchFractionInLine(
   String rawLine,
   String query, {
+  int? matchOffset,
   @visibleForTesting RegExp? pattern,
 }) {
-  final regExp = pattern ?? buildLiteralPattern(query)?.regExp;
-  if (regExp == null) return 0;
   final clean = cleanLineForSearch(rawLine);
   if (clean.isEmpty) return 0;
-  final offset = regExp.firstMatch(clean)?.start ?? -1;
+  int offset;
+  if (matchOffset != null) {
+    offset = matchOffset;
+  } else {
+    final regExp = pattern ?? buildLiteralPattern(query)?.regExp;
+    if (regExp == null) return 0;
+    offset = regExp.firstMatch(clean)?.start ?? -1;
+  }
   if (offset <= 0) return 0;
   return (offset / clean.length).clamp(0.0, 1.0);
 }
@@ -208,6 +245,7 @@ class _SearchWorkerHost {
                   snippet: raw['snippet'] as String,
                   address: raw['address'] as String,
                   query: raw['query'] as String,
+                  matchOffset: raw['matchOffset'] as int?,
                 ),
               )
               .toList(growable: false),
@@ -335,17 +373,41 @@ class SectionSearchWorkerRuntime {
               _updateAddress(address, rawLine);
             }
 
-            if (pattern.hasMatch(cleanLines[i])) {
+            // תוצאה לכל הופעה בשורה — לא אחת לשורה — כדי ששתי הופעות
+            // באותו קטע יופיעו שתיהן ברשימת התוצאות. המטריאליזציה מוגבלת
+            // לקיבולת שנותרה, עם התאמה עודפת אחת שמשמשת רק כגבול ל-snippet.
+            final remainingCapacity = _maxSearchResults - results.length;
+            final lineMatches = pattern
+                .allMatches(cleanLines[i])
+                .where((m) => m.end > m.start)
+                .take(remainingCapacity + 1)
+                .toList(growable: false);
+            String? cleanAddress;
+            for (int m = 0; m < lineMatches.length; m++) {
+              final match = lineMatches[m];
+              cleanAddress ??= utils
+                  .removeVolwels(utils.stripHtmlIfNeeded(address.join(', ')));
               results.add({
                 'index': i,
-                'snippet': cleanLines[i],
-                'address': utils
-                    .removeVolwels(utils.stripHtmlIfNeeded(address.join(', '))),
+                'snippet': _snippetAroundMatch(
+                  cleanLines[i],
+                  match,
+                  lowerBound:
+                      m > 0 ? (lineMatches[m - 1].end + match.start) ~/ 2 : 0,
+                  upperBound: m < lineMatches.length - 1
+                      ? (match.end + lineMatches[m + 1].start) ~/ 2
+                      : cleanLines[i].length,
+                ),
+                'address': cleanAddress,
                 'query': query,
+                'matchOffset': match.start,
               });
               if (results.length >= _maxSearchResults) {
                 break;
               }
+            }
+            if (results.length >= _maxSearchResults) {
+              break;
             }
 
             if ((i + 1) % _searchChunkSize == 0) {

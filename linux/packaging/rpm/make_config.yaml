@@ -26,3 +26,6 @@ categories:
   - Utility
 
 startup_notify: true
+
+# AppStream metainfo — נצרך ע"י GNOME Software במסך ההתקנה (סמל+תיאור)
+metainfo: linux/packaging/otzaria.metainfo.xml

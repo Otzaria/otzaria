@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/utils/http_redirect_download.dart';
 
 /// מידע על ה-release האחרון של מילון המורפולוגיה (`lexical.db`).
 class MagicDictionaryRelease {
@@ -45,6 +47,7 @@ class MagicDictionaryDownloader {
 
   final http.Client _client;
   final bool _ownsClient;
+  final Future<String> Function() _destinationProvider;
 
   /// משך מרבי ללא התקדמות לפני קטיעה ([TimeoutException]). מתאפס עם כל בייט,
   /// כך שהורדה איטית של קובץ גדול (~57MB) נמשכת כל עוד יש זרימה.
@@ -52,9 +55,12 @@ class MagicDictionaryDownloader {
 
   MagicDictionaryDownloader({
     http.Client? client,
+    Future<String> Function()? destinationProvider,
     this._stallTimeout = const Duration(seconds: 60),
   }) : _client = client ?? http.Client(),
-       _ownsClient = client == null;
+       _ownsClient = client == null,
+       _destinationProvider =
+           destinationProvider ?? AppPaths.getMagicDictionaryPath;
 
   void dispose() {
     if (_ownsClient) _client.close();
@@ -70,7 +76,7 @@ class MagicDictionaryDownloader {
     void Function(double progress)? onProgress,
     bool force = false,
   }) async {
-    final dest = await AppPaths.getMagicDictionaryPath();
+    final dest = await _destinationProvider();
     try {
       final release = await fetchLatestRelease();
       final upToDate =
@@ -82,7 +88,7 @@ class MagicDictionaryDownloader {
         return true;
       }
       await _download(release, dest, onProgress);
-      await _writeVersion(dest, release.tag);
+      await writeVersionMarker(dest, release.tag);
       return true;
     } catch (_) {
       // אם נכשלנו אבל כבר יש קובץ שמיש מהורדה קודמת — עדיין שמיש.
@@ -94,9 +100,7 @@ class MagicDictionaryDownloader {
   Future<MagicDictionaryRelease> fetchLatestRelease() async {
     final response = await _send(
       Uri.parse(latestReleaseApi),
-      headers: {
-        'Accept': 'application/vnd.github+json',
-      },
+      headers: {'Accept': 'application/vnd.github+json'},
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       await response.stream.drain<void>();
@@ -128,7 +132,7 @@ class MagicDictionaryDownloader {
 
   /// הגרסה המותקנת כעת (תג ה-release), או `null` אם אין מילון/סימון גרסה.
   Future<String?> installedVersion() async {
-    final dest = await AppPaths.getMagicDictionaryPath();
+    final dest = await _destinationProvider();
     final marker = File(_versionPath(dest));
     if (!await marker.exists()) return null;
     final tag = (await marker.readAsString()).trim();
@@ -149,7 +153,9 @@ class MagicDictionaryDownloader {
       await response.stream.drain<void>();
       throw Exception('הורדת המילון נכשלה (${response.statusCode})');
     }
-    final total = response.contentLength ?? release.sizeBytes;
+    // גודל ה-asset מה-API הוא החוזה היציב; כשאינו זמין נופלים ל-Content-Length.
+    // בלי אימות זה גוף קטוע אך לא-ריק היה מותקן ומסומן כגרסה העדכנית.
+    final expectedSize = release.sizeBytes ?? response.contentLength;
 
     final outFile = File('$dest.part');
     await outFile.parent.create(recursive: true);
@@ -157,16 +163,26 @@ class MagicDictionaryDownloader {
     var received = 0;
     try {
       await for (final chunk in response.stream.timeout(_stallTimeout)) {
+        if (expectedSize != null && received + chunk.length > expectedSize) {
+          throw Exception(
+            'הורדת המילון חרגה מהגודל הצפוי ($expectedSize בייטים)',
+          );
+        }
         sink.add(chunk);
         received += chunk.length;
-        if (onProgress != null && total != null && total > 0) {
-          onProgress(received / total);
+        if (onProgress != null && expectedSize != null && expectedSize > 0) {
+          onProgress(received / expectedSize);
         }
       }
       await sink.flush();
       await sink.close();
+      if (expectedSize != null && received != expectedSize) {
+        throw Exception(
+          'הורדת המילון נקטעה: צפויים $expectedSize בייטים, התקבלו $received',
+        );
+      }
 
-      await _replaceDownloadedFile(outFile, dest);
+      await replaceDownloadedFile(outFile, dest);
     } catch (_) {
       try {
         await sink.close();
@@ -186,7 +202,8 @@ class MagicDictionaryDownloader {
     }
   }
 
-  Future<void> _replaceDownloadedFile(File source, String dest) async {
+  @visibleForTesting
+  Future<void> replaceDownloadedFile(File source, String dest) async {
     final destFile = File(dest);
     if (!Platform.isWindows) {
       await source.rename(dest);
@@ -199,7 +216,17 @@ class MagicDictionaryDownloader {
     }
     final hadExistingDest = await destFile.exists();
     if (hadExistingDest) {
-      await destFile.rename(backupFile.path);
+      try {
+        await destFile.rename(backupFile.path);
+      } on FileSystemException {
+        // מנוע החיפוש מחזיק את הקובץ פתוח (Windows חוסם rename). אם התוכן
+        // שהורד זהה לקיים — היעד כבר עדכני ודי במחיקת הזמני וכתיבת הסימון.
+        if (await _filesIdentical(source, destFile)) {
+          await source.delete();
+          return;
+        }
+        rethrow;
+      }
     }
 
     try {
@@ -217,43 +244,50 @@ class MagicDictionaryDownloader {
     }
   }
 
-  String _versionPath(String dest) => '$dest.version';
+  static String _versionPath(String dest) => '$dest.version';
 
-  Future<void> _writeVersion(String dest, String tag) async {
+  /// כותב את סימון הגרסה של מילון שהותקן ב-[dest] — משמש גם את מסלול
+  /// ההתקנה הראשונית. best-effort: כישלון בו לא אמור להפיל את ההתקנה.
+  static Future<void> writeVersionMarker(String dest, String tag) async {
     try {
       await File(_versionPath(dest)).writeAsString(tag);
-    } catch (_) {
-      // סימון גרסה הוא נחמד-שיהיה; כישלון בו לא אמור להפיל את ההורדה.
+    } catch (_) {}
+  }
+
+  /// השוואת תוכן מלאה בקריאת chunks — בלי לטעון 57MB לזיכרון.
+  Future<bool> _filesIdentical(File a, File b) async {
+    final length = await a.length();
+    if (length != await b.length()) return false;
+    final ra = await a.open();
+    final rb = await b.open();
+    try {
+      const chunkSize = 1 << 20;
+      var remaining = length;
+      while (remaining > 0) {
+        final want = remaining < chunkSize ? remaining : chunkSize;
+        final ca = await ra.read(want);
+        final cb = await rb.read(want);
+        if (ca.isEmpty || ca.length != cb.length) return false;
+        for (var i = 0; i < ca.length; i++) {
+          if (ca[i] != cb[i]) return false;
+        }
+        remaining -= ca.length;
+      }
+      return true;
+    } finally {
+      await ra.close();
+      await rb.close();
     }
   }
 
   /// GET עם מעקב ידני אחרי redirects (נכסי GitHub Releases מפנים ל-CDN).
-  Future<http.StreamedResponse> _send(
-    Uri uri, {
-    Map<String, String>? headers,
-  }) async {
-    var current = uri;
-    for (var hop = 0; hop <= _maxRedirects; hop++) {
-      final request = http.Request('GET', current)
-        ..followRedirects = false
-        ..headers['User-Agent'] = 'otzaria-search';
-      if (headers != null) request.headers.addAll(headers);
-
-      final response = await _client.send(request).timeout(_stallTimeout);
-      if (_isRedirect(response.statusCode)) {
-        final location = response.headers['location'];
-        await response.stream.timeout(_stallTimeout).drain<void>();
-        if (location == null || location.isEmpty) {
-          throw Exception('redirect ללא Location');
-        }
-        current = current.resolve(location);
-        continue;
-      }
-      return response;
-    }
-    throw Exception('יותר מדי redirects');
+  Future<http.StreamedResponse> _send(Uri uri, {Map<String, String>? headers}) {
+    return sendGetFollowingRedirects(
+      _client,
+      uri,
+      headers: {'User-Agent': 'otzaria-search', ...?headers},
+      maxRedirects: _maxRedirects,
+      stallTimeout: _stallTimeout,
+    );
   }
-
-  bool _isRedirect(int code) =>
-      code == 301 || code == 302 || code == 303 || code == 307 || code == 308;
 }

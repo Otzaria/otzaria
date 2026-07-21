@@ -8,13 +8,23 @@ import 'package:otzaria/find_ref/bloc/find_ref_bloc.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_event.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_state.dart';
 import 'package:otzaria/find_ref/repository/db_reference_result.dart';
+import 'package:otzaria/history/bloc/history_bloc.dart';
+import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/external_uri_router.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
+import 'package:otzaria/navigation/bloc/navigation_event.dart';
+import 'package:otzaria/navigation/bloc/navigation_state.dart' show Screen;
+import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/bloc/tabs_event.dart';
+import 'package:otzaria/tabs/models/pdf_tab.dart';
+import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
+import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/library/view/grid_items.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -86,27 +96,39 @@ TextBook? findOfficialTextBookById(Category category, int bookId) {
   return null;
 }
 
-Book? _findBookInLibraryByTitle(Category category, String title,
-    {bool preferTextBook = false}) {
+Book? _findBookInLibraryByTitle(
+  Category category,
+  String title, {
+  bool preferTextBook = false,
+}) {
   // עוברים פעמיים אם preferTextBook: ראשונה — רק TextBook; שנייה — כל סוג.
   for (final passOnlyText in preferTextBook ? [true, false] : [false]) {
-    final result = _findBookInLibraryByTitlePass(category, title,
-        onlyTextBook: passOnlyText);
+    final result = _findBookInLibraryByTitlePass(
+      category,
+      title,
+      onlyTextBook: passOnlyText,
+    );
     if (result != null) return result;
   }
   return null;
 }
 
-Book? _findBookInLibraryByTitlePass(Category category, String title,
-    {required bool onlyTextBook}) {
+Book? _findBookInLibraryByTitlePass(
+  Category category,
+  String title, {
+  required bool onlyTextBook,
+}) {
   for (final b in category.books) {
     if (b.title != title) continue;
     if (onlyTextBook && b is! TextBook) continue;
     return b;
   }
   for (final subCat in category.subCategories) {
-    final found = _findBookInLibraryByTitlePass(subCat, title,
-        onlyTextBook: onlyTextBook);
+    final found = _findBookInLibraryByTitlePass(
+      subCat,
+      title,
+      onlyTextBook: onlyTextBook,
+    );
     if (found != null) return found;
   }
   return null;
@@ -114,7 +136,8 @@ Book? _findBookInLibraryByTitlePass(Category category, String title,
 
 class _FindRefDialogState extends State<FindRefDialog> {
   int _selectedIndex = 0;
-  bool _includePersonalBooks = Settings.getValue<bool>(
+  bool _includePersonalBooks =
+      Settings.getValue<bool>(
         FindRefDialog._keyIncludePersonalBooks,
         defaultValue: false,
       ) ??
@@ -187,7 +210,8 @@ class _FindRefDialogState extends State<FindRefDialog> {
     } else {
       final pos = _resultsScrollController.position;
       // hasContentDimensions=false לפני שה-ListView סיים מדידה ראשונית.
-      next = pos.hasContentDimensions &&
+      next =
+          pos.hasContentDimensions &&
           // 8 פיקסלים של סף — מונע flicker כשהמשתמש כמעט בתחתית.
           pos.maxScrollExtent - pos.pixels > 8;
     }
@@ -243,7 +267,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
               // אך מזהה אחר; ה-fallback ל-title שומר על תאימות.
               book:
                   _resolveCommentatorBook(library, e.title, bookId: e.bookId) ??
-                      TextBook(title: e.title),
+                  TextBook(title: e.title),
             ),
         ];
         setState(() {
@@ -339,50 +363,95 @@ class _FindRefDialogState extends State<FindRefDialog> {
       }
 
       // הגדרת "פורמט פתיחת תלמוד בבלי": תוצאת טקסט של מסכת בבלי נפתחת
-      // במהדורת ה-PDF בדף הממופה. מזהים את ספר המקור בעץ לפי bookId (זהות
-      // יציבה) ומעבירים אותו ל-resolver; בלי זיהוי ודאי לא ממירים ל-PDF,
-      // אחרת בחירה לפי כותרת בלבד עלולה לפתוח ספר אחר בעל שם זהה.
+      // מיידית כטאב טעינה שממופה ל-PDF בתוכו. מזהים את ספר המקור בעץ לפי
+      // bookId (זהות יציבה); בלי זיהוי ודאי לא ממירים ל-PDF, אחרת בחירה
+      // לפי כותרת בלבד עלולה לפתוח ספר אחר בעל שם זהה.
       if (!needsTextBook &&
           !ref.isUserBook &&
           library != null &&
           ref.bookId > 0) {
         final sourceBook = findOfficialTextBookById(library, ref.bookId);
         if (sourceBook != null) {
-          final pdfTarget =
-              await resolveTalmudBavliPdfTarget(sourceBook, segment);
-          if (pdfTarget != null) {
-            book = pdfTarget.book;
-            segment = pdfTarget.page;
-            openAsPdf = true;
+          final target = await resolveTalmudBavliPdfBook(sourceBook);
+          if (target != null) {
+            if (!mounted) return;
+            final tabsBloc = context.read<TabsBloc>();
+            final navigationBloc = context.read<NavigationBloc>();
+            final historyBloc = context.read<HistoryBloc>();
+            Navigator.of(context).pop();
+            // כמו ב-BookOpenCoordinator.openBook: שמירת מיקום הקריאה של הטאב
+            // הנוכחי להיסטוריה לפני שהטאב הדחוי תופס את המוקד.
+            if (tabsBloc.state.hasOpenTabs) {
+              historyBloc.add(
+                CaptureStateForHistory(tabsBloc.state.currentTab!),
+              );
+            }
+            final openLeftPane = shouldAutoOpenReadingLeftPane();
+            final coordinator = BookOpenCoordinator(
+              tabsBloc: tabsBloc,
+              historyBloc: historyBloc,
+              navigationBloc: navigationBloc,
+            );
+            final resolvingTab = buildTalmudBavliResolvingTab(
+              target: target,
+              textIndex: segment,
+              // ה-fallback לטקסט נבנה דרך סמנטיקת openBook — שחזור מיקום
+              // ומפרשים מההיסטוריה וצורת-דף שמורה, כמו במסלול הפתיחה הישיר.
+              buildTextTab: (dedupeKey) => coordinator.buildTab(
+                sourceBook,
+                segment,
+                '',
+                initialCommentators: initialCommentators,
+                dedupeKey: dedupeKey,
+              ),
+              buildPdfTab: (page, dedupeKey) => PdfBookTab(
+                book: target.pdfBook,
+                pageNumber: page,
+                dedupeKey: dedupeKey,
+                openLeftPane: openLeftPane,
+                requiresStableLayout: true,
+              ),
+            );
+            tabsBloc.add(OpenOrFocusTab(resolvingTab));
+            navigationBloc.add(const NavigateToScreen(Screen.reading));
+            return;
           }
         }
       }
 
-      if (book == null) {
-        if (library != null) {
-          // ספרים אישיים: ה-`bookId` שלהם שייך ל-user_books.db ואין לו תאומים
-          // ב-library object, לכן ניפול ל-title; ספר רשמי עם `bookId > 0`
-          // נפתח דרך ה-id כדי שלא יחליף שני ספרים בעלי אותה כותרת.
-          final officialBookId =
-              (ref.bookId > 0 && !ref.isUserBook) ? ref.bookId : null;
-          book = _findBookInLibraryByIdThenTitle(library, ref.title,
-              bookId: officialBookId, preferTextBook: needsTextBook);
-          // ספרי בבלי מופיעים בעץ הספרייה כ-PdfBook גם כשה-DB מכיר אותם
-          // כ-txt; ה-segment הוא אינדקס טקסט, לכן נפתחת מהדורת הטקסט.
-          if (book is PdfBook && isTalmudBavliBook(book)) {
-            book = null;
-          }
+      if (library != null) {
+        // ספרים אישיים: ה-`bookId` שלהם שייך ל-user_books.db ואין לו תאומים
+        // ב-library object, לכן ניפול ל-title; ספר רשמי עם `bookId > 0`
+        // נפתח דרך ה-id כדי שלא יחליף שני ספרים בעלי אותה כותרת.
+        final officialBookId = (ref.bookId > 0 && !ref.isUserBook)
+            ? ref.bookId
+            : null;
+        book = _findBookInLibraryByIdThenTitle(
+          library,
+          ref.title,
+          bookId: officialBookId,
+          preferTextBook: needsTextBook,
+        );
+        // ספרי בבלי מופיעים בעץ הספרייה כ-PdfBook גם כשה-DB מכיר אותם
+        // כ-txt; ה-segment הוא אינדקס טקסט, לכן נפתחת מהדורת הטקסט.
+        if (book is PdfBook && isTalmudBavliBook(book)) {
+          book = null;
         }
-        book ??= TextBook(title: ref.title);
       }
+      book ??= TextBook(title: ref.title);
     }
 
     if (!mounted) return;
     Navigator.of(context).pop();
-    openBook(context, book, segment, '',
-        ignoreHistory: openAsPdf,
-        requiresStableLayout: openAsPdf,
-        initialCommentators: initialCommentators);
+    openBook(
+      context,
+      book,
+      segment,
+      '',
+      ignoreHistory: openAsPdf,
+      requiresStableLayout: openAsPdf,
+      initialCommentators: initialCommentators,
+    );
   }
 
   /// פותח תפריט עם רשימת המפרשים הזמינים (כבר preloaded — כולל `Book` לכל
@@ -400,8 +469,10 @@ class _FindRefDialogState extends State<FindRefDialog> {
         Overlay.of(context).context.findRenderObject() as RenderBox;
     final box = buttonContext.findRenderObject() as RenderBox;
     final topLeft = box.localToGlobal(Offset.zero, ancestor: overlayBox);
-    final bottomRight = box.localToGlobal(box.size.bottomRight(Offset.zero),
-        ancestor: overlayBox);
+    final bottomRight = box.localToGlobal(
+      box.size.bottomRight(Offset.zero),
+      ancestor: overlayBox,
+    );
 
     // אנו רוצים שה-popup ייפתח לכיוון שמאל פיזית: הקצה הימני של ה-popup
     // יסיים בקצה השמאלי של ה-button (=topLeft.dx) וה-popup יתפשט שמאלה.
@@ -459,8 +530,11 @@ class _FindRefDialogState extends State<FindRefDialog> {
       final byId = findOfficialTextBookById(category, bookId);
       if (byId != null) return byId;
     }
-    return _findBookInLibraryByTitle(category, title,
-        preferTextBook: preferTextBook);
+    return _findBookInLibraryByTitle(
+      category,
+      title,
+      preferTextBook: preferTextBook,
+    );
   }
 
   /// בודק אם מחרוזת היא קישור otzaria:// או zayit:// תקין וניתן לפענוח.
@@ -606,16 +680,20 @@ class _FindRefDialogState extends State<FindRefDialog> {
                     if (refs.isNotEmpty) {
                       if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
                         setState(() {
-                          _selectedIndex =
-                              (_selectedIndex + 1).clamp(0, refs.length - 1);
+                          _selectedIndex = (_selectedIndex + 1).clamp(
+                            0,
+                            refs.length - 1,
+                          );
                         });
                         _scrollToSelected();
                         return KeyEventResult.handled;
                       } else if (event.logicalKey ==
                           LogicalKeyboardKey.arrowUp) {
                         setState(() {
-                          _selectedIndex =
-                              (_selectedIndex - 1).clamp(0, refs.length - 1);
+                          _selectedIndex = (_selectedIndex - 1).clamp(
+                            0,
+                            refs.length - 1,
+                          );
                         });
                         _scrollToSelected();
                         return KeyEventResult.handled;
@@ -636,10 +714,12 @@ class _FindRefDialogState extends State<FindRefDialog> {
                           // קודם מבטלים חיפוש שעדיין רץ (restartable יקטוף
                           // את ה-handler הקודם), ורק אחר-כך מחזירים את
                           // ה-state ל-Initial.
-                          BlocProvider.of<FindRefBloc>(context)
-                              .add(const SearchRefRequested(''));
-                          BlocProvider.of<FindRefBloc>(context)
-                              .add(ClearSearchRequested());
+                          BlocProvider.of<FindRefBloc>(
+                            context,
+                          ).add(const SearchRefRequested(''));
+                          BlocProvider.of<FindRefBloc>(
+                            context,
+                          ).add(ClearSearchRequested());
                           setState(() {
                             _selectedIndex = 0;
                           });
@@ -681,8 +761,8 @@ class _FindRefDialogState extends State<FindRefDialog> {
                 Text(
                   'כלול ספרים אישיים',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(width: 4),
                 Transform.scale(
@@ -699,11 +779,11 @@ class _FindRefDialogState extends State<FindRefDialog> {
                       final text = focusRepository.findRefSearchController.text;
                       if (text.length >= 2) {
                         context.read<FindRefBloc>().add(
-                              SearchRefRequested(
-                                text,
-                                includePersonalBooks: v,
-                              ),
-                            );
+                          SearchRefRequested(
+                            text,
+                            includePersonalBooks: v,
+                          ),
+                        );
                       }
                     },
                   ),
@@ -764,62 +844,71 @@ class _FindRefDialogState extends State<FindRefDialog> {
                               _commentatorsByRef[_commentatorsKey(ref)];
                           final showButton =
                               eligible && cached != null && cached.isNotEmpty;
-                          final menuButtonKey =
-                              _getCommentatorsButtonKey(index);
+                          final menuButtonKey = _getCommentatorsButtonKey(
+                            index,
+                          );
                           return Container(
                             key: _getKeyForIndex(index),
                             margin: const EdgeInsets.symmetric(
-                                horizontal: 8.0, vertical: 4.0),
+                              horizontal: 8.0,
+                              vertical: 4.0,
+                            ),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? Theme.of(context)
-                                      .colorScheme
-                                      .primaryContainer
+                                  ? Theme.of(
+                                      context,
+                                    ).colorScheme.primaryContainer
                                   : null,
                               borderRadius: AppTokens.borderRadiusAll,
                             ),
                             child: ListTile(
-                                hoverColor:
-                                    showButton ? Colors.transparent : null,
-                                leading: ref.isPdf
-                                    ? const Icon(
-                                        FluentIcons.document_pdf_24_regular)
-                                    : null,
-                                title: Text(
-                                  ref.reference,
-                                  style: TextStyle(
-                                    fontWeight: isSelected
-                                        ? FontWeight.w600
-                                        : FontWeight.normal,
-                                  ),
+                              hoverColor: showButton
+                                  ? Colors.transparent
+                                  : null,
+                              leading: ref.isPdf
+                                  ? const Icon(
+                                      FluentIcons.document_pdf_24_regular,
+                                    )
+                                  : null,
+                              title: Text(
+                                ref.reference,
+                                style: TextStyle(
+                                  fontWeight: isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
                                 ),
-                                subtitle: ref.bookPath.isEmpty
-                                    ? null
-                                    : LibraryOverflowTooltipText(
-                                        text: ref.bookPath,
-                                        maxLines: 1,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .onSurfaceVariant,
-                                            ),
+                              ),
+                              subtitle: ref.bookPath.isEmpty
+                                  ? null
+                                  : LibraryOverflowTooltipText(
+                                      text: ref.bookPath,
+                                      maxLines: 1,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onSurfaceVariant,
+                                          ),
+                                    ),
+                              trailing: showButton
+                                  ? IconButton(
+                                      key: menuButtonKey,
+                                      icon: const Icon(
+                                        FluentIcons.library_24_regular,
                                       ),
-                                trailing: showButton
-                                    ? IconButton(
-                                        key: menuButtonKey,
-                                        icon: const Icon(
-                                            FluentIcons.library_24_regular),
-                                        tooltip: 'הצג מפרשים זמינים',
-                                        onPressed: () => _showCommentatorsMenu(
-                                            menuButtonKey, cached),
-                                      )
-                                    : null,
-                                onTap: () {
-                                  _openRef(ref);
-                                }),
+                                      tooltip: 'הצג מפרשים זמינים',
+                                      onPressed: () => _showCommentatorsMenu(
+                                        menuButtonKey,
+                                        cached,
+                                      ),
+                                    )
+                                  : null,
+                              onTap: () {
+                                _openRef(ref);
+                              },
+                            ),
                           );
                         },
                       ),

@@ -546,9 +546,10 @@ class DatabaseGenerator {
   }
 
   /// Processes lines of a book, identifying and creating TOC entries.
-  /// OPTIMIZED: Batch inserts for lines; sequential inserts for tocEntries (needed for
-  /// correct parent-ID resolution). After all insertions, tocEntry.lineId is fixed
-  /// via SQL (matching on lineIndex) and line_toc is rebuilt correctly.
+  /// Lines are inserted in batches; TOC entries in one transaction, in order,
+  /// so each child's parentId resolves to its parent's real DB id. After that,
+  /// tocEntry.lineId is fixed via SQL (matching on lineIndex) and line_toc is
+  /// rebuilt correctly.
   ///
   /// [bookId] The ID of the book in the database
   /// [lines] The lines of the book content
@@ -571,15 +572,24 @@ class DatabaseGenerator {
     const batchSize = 1000;
     final linesBatch = <Line>[];
 
+    // heRef נגזר מ-currentReference ומשתנה רק בשורות כותרת — מחשבים פעם אחת
+    // לכל שינוי כותרת ומשתמשים מחדש בשאר השורות.
+    String? cachedHeRef;
+
     // ── PASS 1: Insert lines in batches, collect TOC structure ──────────────
     for (var lineIndex = 0; lineIndex < lines.length; lineIndex++) {
       final line = lines[lineIndex];
-      final plainText = cleanHtml(line);
       final level = detectHeaderLevel(line);
 
       if (level > 0) {
+        // מעבר לכותרת באותה רמה או ברמה גבוהה יותר סוגר את כל הענפים
+        // העמוקים הקודמים. בלעדיו h4 שבא אחרי h3 ואז h2 היה מקבל בטעות את
+        // ה-h3 הישן כהורה במקום את ה-h2 החדש.
+        localParentStack.removeWhere((stackLevel, _) => stackLevel >= level);
+
+        // cleanHtml יקר — מחשבים רק לשורות כותרת שבהן הטקסט נצרך.
+        final plainText = cleanHtml(line);
         if (plainText.trim().isEmpty) {
-          localParentStack.remove(level);
           if (currentReference.length >= level) {
             currentReference.removeRange(level - 1, currentReference.length);
           }
@@ -612,11 +622,12 @@ class DatabaseGenerator {
           localParentStack[level] = localIdx;
           entriesByParent.putIfAbsent(parentLocalIdx, () => []).add(localIdx);
         }
-      }
 
-      final lineHeRef = currentReference.isEmpty
-          ? null
-          : currentReference.join(', ').trim();
+        cachedHeRef = currentReference.isEmpty
+            ? null
+            : currentReference.join(', ').trim();
+        if (cachedHeRef != null && cachedHeRef.isEmpty) cachedHeRef = null;
+      }
 
       linesBatch.add(
         Line(
@@ -624,7 +635,7 @@ class DatabaseGenerator {
           bookId: bookId,
           lineIndex: lineIndex,
           content: line,
-          heRef: lineHeRef?.isEmpty == true ? null : lineHeRef,
+          heRef: cachedHeRef,
         ),
       );
 
@@ -638,39 +649,27 @@ class DatabaseGenerator {
       await repository.insertLinesBatch(linesBatch);
     }
 
-    // ── PASS 2: Insert TOC entries one by one to get real DB IDs ─────────────
-    // We need sequential insertion because each child's parentId must reference
-    // the actual auto-incremented DB ID of its parent (not a placeholder).
-    final localIdxToDbId = <int, int>{}; // local index → actual DB ID
-    final actualParentStack = <int, int>{}; // level → actual DB ID
-
-    for (final entryData in allTocEntries) {
-      // Resolve parent's actual DB ID
-      int? parentDbId;
-      for (int l = entryData.level - 1; l >= 1; l--) {
-        if (actualParentStack.containsKey(l)) {
-          parentDbId = actualParentStack[l];
-          break;
-        }
-      }
-
-      final actualId = await repository.insertTocEntry(
-        TocEntry(
-          id: 0, // auto-assign
-          bookId: bookId,
-          parentId: parentDbId,
-          text: entryData.text,
-          level: entryData.level,
-          lineIndex: entryData.lineIndex,
-          lineId: null, // fixed by SQL below
-          isLastChild: false,
-          hasChildren: false,
-        ),
-      );
-
-      localIdxToDbId[entryData.id] = actualId;
-      actualParentStack[entryData.level] = actualId;
-    }
+    // ── PASS 2: Insert TOC entries in one transaction to get real DB IDs ──────
+    // parentId/id are local indices; the repository resolves each child's parent
+    // to its parent's real DB ID and returns the local→DB id mapping.
+    final localIdxToDbId = await repository.insertGeneratedTocEntries(
+      bookId,
+      allTocEntries
+          .map(
+            (e) => TocEntry(
+              id: e.id,
+              bookId: bookId,
+              parentId: e.parentId,
+              text: e.text,
+              level: e.level,
+              lineIndex: e.lineIndex,
+              lineId: null, // fixed by SQL below
+              isLastChild: false,
+              hasChildren: false,
+            ),
+          )
+          .toList(),
+    );
 
     // ── PASS 3: Fix lineId on tocEntries + rebuild line_toc via SQL ──────────
     if (allTocEntries.isNotEmpty) {

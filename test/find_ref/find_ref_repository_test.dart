@@ -4,6 +4,7 @@ import 'package:mockito/mockito.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
+import 'package:otzaria/search/utils/foundational_book_classifier.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
@@ -443,7 +444,7 @@ void main() {
 
   // ─── ספרי יסוד (foundational tier) ─────────────────────────────────────────
 
-  group('FindRef.classifyFoundationalTier — סיווג ספרי יסוד', () {
+  group('FoundationalBookClassifier.classify — סיווג ספרי יסוד', () {
     // ה-categoryPath שמוזן ל-classifier הוא הפלט המדויק של
     // `BookDatabaseResolver.buildCategoryPath` — כלומר נתיב הקטגוריות מהשורש
     // ועד ולא כולל הספר עצמו.
@@ -459,23 +460,27 @@ void main() {
 
     test('תנ"ך: תורה/נביאים/כתובים → tier 1', () {
       expect(
-        FindRefRepository.classifyFoundationalTier('תנ"ך, תורה', 'בראשית'),
+        FoundationalBookClassifier.classify('תנ"ך, תורה', 'בראשית'),
         1,
       );
       expect(
-        FindRefRepository.classifyFoundationalTier('תנ"ך, נביאים', 'יהושע'),
+        FoundationalBookClassifier.classify('תנ"ך, נביאים', 'יהושע'),
         1,
       );
       expect(
-        FindRefRepository.classifyFoundationalTier('תנ"ך, כתובים', 'תהילים'),
+        FoundationalBookClassifier.classify('תנ"ך, כתובים', 'תהילים'),
         1,
       );
+    });
+
+    test('תנ״ך בגרשיים עבריים (כתיב ה-DB) → tier 1', () {
+      expect(FoundationalBookClassifier.classify('תנ״ך, תורה', 'בראשית'), 1);
     });
 
     test('תנ"ך עם תת-קטגוריה של מפרשים → null', () {
       // "תנ"ך, ראשונים, רש"י, תורה" — פירוש רש"י, לא ספר יסוד.
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'תנ"ך, ראשונים, רש"י, תורה',
           'רש"י על בראשית',
         ),
@@ -485,14 +490,14 @@ void main() {
 
     test('משנה: "סדר X" → tier 2', () {
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'משנה, סדר מועד',
           'משנה שבת',
         ),
         2,
       );
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'משנה, סדר זרעים',
           'משנה ברכות',
         ),
@@ -503,14 +508,14 @@ void main() {
     test('משנה עם פירוש (ברטנורא, תוספות יו"ט) → null', () {
       // "משנה, ראשונים, ברטנורא, סדר מועד" — פירוש על המשנה, לא יסוד.
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'משנה, ראשונים, ברטנורא, סדר מועד',
           'ברטנורא על משנה שבת',
         ),
         isNull,
       );
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'משנה, אחרונים, תוספות יום טוב, סדר מועד',
           'תוספות יום טוב על משנה שבת',
         ),
@@ -520,7 +525,7 @@ void main() {
 
     test('תלמוד בבלי: "סדר X" → tier 3', () {
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'תלמוד בבלי, סדר מועד',
           'שבת',
         ),
@@ -530,7 +535,7 @@ void main() {
 
     test('תלמוד בבלי עם פירוש (רש"י, תוספות) → null', () {
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'תלמוד בבלי, ראשונים, רש"י, סדר מועד',
           'רש"י על שבת',
         ),
@@ -540,7 +545,7 @@ void main() {
 
     test('תלמוד ירושלמי → tier 4', () {
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'תלמוד ירושלמי, סדר מועד',
           'ירושלמי שבת',
         ),
@@ -550,7 +555,7 @@ void main() {
 
     test('תלמוד ירושלמי עם פירוש → null', () {
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'תלמוד ירושלמי, מפרשים, פני משה, סדר מועד',
           'פני משה על ירושלמי שבת',
         ),
@@ -560,11 +565,11 @@ void main() {
 
     test('מדרשי הלכה: tier 5', () {
       expect(
-        FindRefRepository.classifyFoundationalTier('מדרש, הלכה', 'ספרא'),
+        FoundationalBookClassifier.classify('מדרש, הלכה', 'ספרא'),
         5,
       );
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'מדרש, הלכה',
           'מכילתא דרבי ישמעאל',
         ),
@@ -574,7 +579,7 @@ void main() {
 
     test('מדרשי אגדה: tier 6', () {
       expect(
-        FindRefRepository.classifyFoundationalTier('מדרש, אגדה', 'מדרש תנחומא'),
+        FoundationalBookClassifier.classify('מדרש, אגדה', 'מדרש תנחומא'),
         6,
       );
     });
@@ -583,14 +588,14 @@ void main() {
       // "הערות בובר על מדרש משלי" — title-based filter כי הוא יושב באותה
       // קטגוריה ("מדרש, אגדה") כמו ספרי היסוד.
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'מדרש, אגדה',
           'הערות בובר על מדרש משלי',
         ),
         isNull,
       );
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'מדרש, הלכה',
           'הערות שוליים על מכילתא דרבי שמעון בן יוחאי',
         ),
@@ -600,29 +605,29 @@ void main() {
 
     test('זוהר: ספרי היסוד → tier 7', () {
       expect(
-        FindRefRepository.classifyFoundationalTier('קבלה, זהר', 'ספר הזהר'),
+        FoundationalBookClassifier.classify('קבלה, זהר', 'ספר הזהר'),
         7,
       );
       expect(
-        FindRefRepository.classifyFoundationalTier('קבלה, זהר', 'תקוני הזהר'),
+        FoundationalBookClassifier.classify('קבלה, זהר', 'תקוני הזהר'),
         7,
       );
       expect(
-        FindRefRepository.classifyFoundationalTier('קבלה, זהר', 'זוהר חדש'),
+        FoundationalBookClassifier.classify('קבלה, זהר', 'זוהר חדש'),
         7,
       );
     });
 
     test('זוהר עם פירוש → null (כותרת לא ברשימה)', () {
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'קבלה, זהר',
           'הסולם על ספר הזהר',
         ),
         isNull,
       );
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'קבלה, זהר',
           'יהל אור על ספר הזהר',
         ),
@@ -632,14 +637,14 @@ void main() {
 
     test('רמב"ם (משנה תורה): "ספר X" → tier 8', () {
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'הלכה, משנה תורה, ספר זמנים',
           'משנה תורה, הלכות שבת',
         ),
         8,
       );
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'הלכה, משנה תורה, הקדמה',
           'הקדמת הרמב"ם',
         ),
@@ -649,7 +654,7 @@ void main() {
 
     test('רמב"ם עם פירוש (מפרשים, ראשונים) → null', () {
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'הלכה, משנה תורה, מפרשים, אבן האזל',
           'אבן האזל על משנה תורה',
         ),
@@ -658,12 +663,12 @@ void main() {
     });
 
     test('טור (בלי הסתעפויות) → tier 9', () {
-      expect(FindRefRepository.classifyFoundationalTier('הלכה, טור', 'טור'), 9);
+      expect(FoundationalBookClassifier.classify('הלכה, טור', 'טור'), 9);
     });
 
     test('טור עם מפרשים → null', () {
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'הלכה, טור, מפרשים',
           'כפי אהרן על טור',
         ),
@@ -673,7 +678,7 @@ void main() {
 
     test('שולחן ערוך → tier 10', () {
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'הלכה, שולחן ערוך',
           'שולחן ערוך, אורח חיים',
         ),
@@ -685,7 +690,7 @@ void main() {
       // "שולחן ערוך הרב" יושב תחת קטגוריה נפרדת, לא תחת "שולחן ערוך" עצמו.
       // הוא לא נכלל ב-tier 10.
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'הלכה, שולחן ערוך הרב',
           'שולחן ערוך הרב',
         ),
@@ -695,7 +700,7 @@ void main() {
 
     test('שו"ע עם מפרשים (בית מאיר, מגן אברהם) → null', () {
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'הלכה, שולחן ערוך, מפרשים',
           'בית מאיר על שולחן ערוך',
         ),
@@ -705,22 +710,22 @@ void main() {
 
     test('categoryPath ריק / null → null', () {
       expect(
-        FindRefRepository.classifyFoundationalTier(null, 'בראשית'),
+        FoundationalBookClassifier.classify(null, 'בראשית'),
         isNull,
       );
-      expect(FindRefRepository.classifyFoundationalTier('', 'בראשית'), isNull);
+      expect(FoundationalBookClassifier.classify('', 'בראשית'), isNull);
     });
 
     test('קטגוריה לא יסודית (חסידות, שו"ת, וכו\') → null', () {
       expect(
-        FindRefRepository.classifyFoundationalTier(
+        FoundationalBookClassifier.classify(
           'חסידות, ספר אחר',
           'ספר חסידות כלשהו',
         ),
         isNull,
       );
       expect(
-        FindRefRepository.classifyFoundationalTier('שו"ת', 'שו"ת כלשהו'),
+        FoundationalBookClassifier.classify('שו"ת', 'שו"ת כלשהו'),
         isNull,
       );
     });
@@ -941,6 +946,142 @@ void main() {
         contains('פסקי הרא"ש על ברכות פרק ג הלכה ה'),
       );
     });
+
+    test(
+      'כתיב מקוצר "ירמיה ג" — שם הספר נבלע וה-TOC מחפש רק את המיקום',
+      () async {
+        // "ירמיה" תופס את "ירמיהו" כ-prefix (rank 1), אבל אינו שווה לטוקן
+        // הכותרת — בלי בליעת-prefix הוא נשאר בטוקני ה-TOC ומפיל את החיפוש.
+        List<String>? tocTokens;
+
+        final repo = FindRefRepository(
+          dataRepository: MockDataRepository(),
+          isReferenceBooksCacheLoaded: () => true,
+          warmUpReferenceBooksCache: () async {},
+          getCategoryPath: (_) async => '',
+          searchReferenceBooks: (query, {int limit = 50}) {
+            if (query == 'ירמיה') {
+              return [
+                _hit(
+                  bookId: 13,
+                  title: 'ירמיהו',
+                  normalizedTitle: 'ירמיהו',
+                  matchRank: 1,
+                ),
+              ];
+            }
+            return const <ReferenceBookHit>[];
+          },
+          getTocEntriesForReference: (bookId, bookTitle, {queryTokens}) async {
+            tocTokens = queryTokens;
+            return [
+              {'reference': 'ירמיהו פרק ג', 'segment': 7, 'level': 1},
+            ];
+          },
+        );
+
+        final results = await repo.findRefs('ירמיה ג');
+
+        expect(
+          tocTokens,
+          equals(const ['ג']),
+          reason: 'טוקן שם-הספר המקוצר נבלע ואינו מגיע לחיפוש ה-TOC',
+        );
+        expect(results.map((r) => r.reference), contains('ירמיהו פרק ג'));
+      },
+    );
+
+    test(
+      'hit משני שנתפס ב-phrase ארוך — בליעת ה-prefix לפי ה-n שלו עצמו',
+      () async {
+        // "אור החי" תופס את "פירוש אור החיים" כ-contains (n=2, משני), ואז
+        // "אור" תופס ספר ראשי (n=1). בליעת "החי" חייבת את n=2 של ההיט המשני.
+        final tocTokensByBook = <int, List<String>?>{};
+
+        final repo = FindRefRepository(
+          dataRepository: MockDataRepository(),
+          isReferenceBooksCacheLoaded: () => true,
+          warmUpReferenceBooksCache: () async {},
+          getCategoryPath: (_) async => '',
+          searchReferenceBooks: (query, {int limit = 50}) {
+            if (query == 'אור החי') {
+              return [
+                _hit(
+                  bookId: 51,
+                  title: 'פירוש אור החיים',
+                  normalizedTitle: 'פירוש אור החיים',
+                  matchRank: 2,
+                ),
+              ];
+            }
+            if (query == 'אור') {
+              return [
+                _hit(
+                  bookId: 50,
+                  title: 'אור',
+                  normalizedTitle: 'אור',
+                  matchRank: 0,
+                ),
+              ];
+            }
+            return const <ReferenceBookHit>[];
+          },
+          getTocEntriesForReference: (bookId, bookTitle, {queryTokens}) async {
+            tocTokensByBook[bookId] = queryTokens;
+            return const [];
+          },
+        );
+
+        await repo.findRefs('אור החי ג');
+
+        expect(
+          tocTokensByBook[51],
+          equals(const ['ג']),
+          reason: '"החי" נבלע בכותרת "אור החיים" לפי ה-phrase המשני (n=2)',
+        );
+      },
+    );
+
+    test(
+      'טוקן מיקום שאינו חלק מהתאמת שם-הספר לא נבלע כתחילית של מילת כותרת',
+      () async {
+        // "אברה" (4 אותיות) הוא תחילית של "אברהם" בכותרת, אבל אינו חלק
+        // מה-phrase שתפס את הספר ("מגן") — חייב להישאר לחיפוש ה-TOC.
+        List<String>? tocTokens;
+
+        final repo = FindRefRepository(
+          dataRepository: MockDataRepository(),
+          isReferenceBooksCacheLoaded: () => true,
+          warmUpReferenceBooksCache: () async {},
+          getCategoryPath: (_) async => '',
+          searchReferenceBooks: (query, {int limit = 50}) {
+            if (query == 'מגן') {
+              return [
+                _hit(
+                  bookId: 77,
+                  title: 'מגן אברהם',
+                  normalizedTitle: 'מגן אברהם',
+                  matchRank: 1,
+                ),
+              ];
+            }
+            return const <ReferenceBookHit>[];
+          },
+          getTocEntriesForReference: (bookId, bookTitle, {queryTokens}) async {
+            tocTokens = queryTokens;
+            return const [];
+          },
+        );
+
+        await repo.findRefs('מגן אברה');
+
+        expect(
+          tocTokens,
+          equals(const ['אברה']),
+          reason: 'בליעת-prefix מוגבלת לטוקני התאמת שם-הספר בלבד',
+        );
+      },
+    );
 
     test(
       'שאילתה מקוצרת "ראש ברכות ג ה" — ה\' הידיעה לא מפילה את חיפוש ה-TOC',

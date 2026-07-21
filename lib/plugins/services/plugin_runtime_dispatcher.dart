@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
+import 'package:otzaria/plugins/services/context_menu_registry.dart';
+import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 
 enum _PluginRuntimeShutdownMode { idle, restart, exit }
 
@@ -17,7 +19,7 @@ class PluginRuntimeDispatcher {
   /// מקומות במקביל: instance רגיל ב-PluginTabPage + instance רקע
   /// ב-PluginBackgroundHost כשהוענקה ההרשאה `app.run_on_startup`.
   final Map<String, Map<PluginInstanceId, InAppWebViewController>>
-      _controllersByPlugin = {};
+  _controllersByPlugin = {};
   PluginRegistryRepository _repository = PluginRegistryRepository();
 
   @visibleForTesting
@@ -32,10 +34,16 @@ class PluginRuntimeDispatcher {
   // (ה-WebView מוקפא), ולכן מסנכרנים אותו מחדש בהתעוררות.
   Map<String, dynamic>? _lastThemePayload;
 
+  /// Events whose work must continue in the non-suspended background host.
+  /// All other broadcast events retain the legacy foreground-first behavior.
+  static const Set<String> _backgroundEventTopics = {
+    'reader.sectionContentChanged',
+  };
+
   /// callback לטעינה מחדש של תוסף — מופעל פר instance כדי שכל
   /// host יוכל לרענן את ה-webview שלו בנפרד.
   final Map<String, Map<PluginInstanceId, Future<void> Function()>>
-      _reloadCallbacks = {};
+  _reloadCallbacks = {};
 
   // ── מחזור חיים של ה-instance ה-foreground (PluginTabPage) ────────────────
   // משהים את ה-WebView של תוסף שעזבו כדי לא לצרוך CPU/RAM ברקע. pause נייטיב =
@@ -240,7 +248,8 @@ class PluginRuntimeDispatcher {
       } catch (e) {
         // The underlying WebView may already be tearing down.
         debugPrint(
-            'PluginRuntimeDispatcher: error during controller teardown: $e');
+          'PluginRuntimeDispatcher: error during controller teardown: $e',
+        );
       }
     }
   }
@@ -269,6 +278,8 @@ class PluginRuntimeDispatcher {
 
   Future<void> reloadPlugin(String pluginId) async {
     if (_shutdownMode != _PluginRuntimeShutdownMode.idle) return;
+    ContextMenuRegistry.instance.removeAll(pluginId);
+    PluginHighlightRegistry.instance.removePlugin(pluginId);
     final callbacks = _reloadCallbacks[pluginId];
     if (callbacks == null || callbacks.isEmpty) return;
     // עותק כדי לא לקרוס אם callback משתמש ב-unregister באמצעו
@@ -289,8 +300,10 @@ class PluginRuntimeDispatcher {
     _permissionCache[pluginId] ??= {};
     final permKey = 'events.subscribe:$topic';
     if (!_permissionCache[pluginId]!.containsKey(permKey)) {
-      _permissionCache[pluginId]![permKey] =
-          await _repository.getPermission(pluginId, permKey);
+      _permissionCache[pluginId]![permKey] = await _repository.getPermission(
+        pluginId,
+        permKey,
+      );
     }
     return _permissionCache[pluginId]![permKey] == true;
   }
@@ -309,16 +322,18 @@ class PluginRuntimeDispatcher {
       try {
         if (!await _canReceiveEvent(pluginId, topic)) continue;
 
-        // כשקיים instance foreground ('default') ו-instance background במקביל,
-        // שולחים רק ל-foreground — מונע כפילות של handlers גלובליים.
-        final targetControllers = instances.containsKey('default')
-            ? [instances['default']!]
-            : instances.values.toList();
+        // אירועי עבודה שייכים ל-instance הרקע, שאינו מושהה ביציאה ממסך
+        // הכלים. theme הוא אירוע UI ולכן מעדיפים עבורו את ה-foreground.
+        final targetControllers = _selectEventControllers(
+          instances,
+          preferBackground: _backgroundEventTopics.contains(topic),
+        );
         for (final controller in targetControllers) {
           try {
             await controller.evaluateJavascript(
-                source:
-                    "window.dispatchEvent(new CustomEvent('$topic', { detail: $jsonPayload }));");
+              source:
+                  "window.dispatchEvent(new CustomEvent('$topic', { detail: $jsonPayload }));",
+            );
           } catch (e) {
             debugPrint('Failed to dispatch $topic to plugin $pluginId: $e');
           }
@@ -334,8 +349,9 @@ class PluginRuntimeDispatcher {
   Future<void> dispatchEventToPlugin(
     String pluginId,
     String topic,
-    Map<String, dynamic> payload,
-  ) async {
+    Map<String, dynamic> payload, {
+    bool preferBackground = false,
+  }) async {
     if (_shutdownMode != _PluginRuntimeShutdownMode.idle) return;
     final instances = _controllersByPlugin[pluginId];
     if (instances == null || instances.isEmpty) return;
@@ -345,9 +361,14 @@ class PluginRuntimeDispatcher {
       _enabledCache[pluginId] = isEnabled;
       if (!isEnabled) return;
       final jsonPayload = jsonEncode(payload);
-      final targetControllers = instances.containsKey('default')
-          ? [instances['default']!]
-          : instances.values.toList();
+      // אירועים ממוקדים (למשל לחיצה בתפריט הקשר) חייבים להגיע למנוע הרקע
+      // הפעיל. foreground עשוי להישאר רשום אך להיות מושהה אחרי היציאה מכלים.
+      // Targeted callers opt in only when their handler belongs to the
+      // non-suspended background host (for example, context-menu actions).
+      final targetControllers = _selectEventControllers(
+        instances,
+        preferBackground: preferBackground,
+      );
       for (final controller in targetControllers) {
         try {
           await controller.evaluateJavascript(
@@ -361,5 +382,21 @@ class PluginRuntimeDispatcher {
     } catch (e) {
       debugPrint('Failed to dispatch $topic to plugin $pluginId: $e');
     }
+  }
+
+  List<InAppWebViewController> _selectEventControllers(
+    Map<PluginInstanceId, InAppWebViewController> instances, {
+    bool preferBackground = false,
+  }) {
+    if (preferBackground && instances.containsKey('background')) {
+      return [instances['background']!];
+    }
+    if (instances.containsKey('default')) {
+      return [instances['default']!];
+    }
+    if (instances.containsKey('background')) {
+      return [instances['background']!];
+    }
+    return instances.values.toList(growable: false);
   }
 }

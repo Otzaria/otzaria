@@ -27,19 +27,26 @@ String? _letterFor(Link link, String? storedLabel) {
   return tail;
 }
 
-/// הקצאת וריאנט טיפוגרפי קבוע לכל מפרש שיש לו עוגני-מילה: לפי סדר אלפביתי של
-/// כותרות המפרשים — דטרמיניסטי לאורך כל הספר, כך שכל מפרש שומר על עיצובו.
+/// הקצאת וריאנט טיפוגרפי קבוע לכל מפרש שיש לו עוגני-מילה.
+///
+/// הווריאנט נגזר מהכותרת עצמה, ולכן אינו משתנה כשטעינת חלון גלילה מוסיפה
+/// מפרשים חדשים לרשימה.
 Map<String, int> anchorStyleIndexByCommentator(Iterable<Link> links) {
   final titles = links
       .where((link) => link.anchorStart != null)
       .map((link) => link.path2)
-      .toSet()
-      .toList()
-    ..sort();
+      .toSet();
   return {
-    for (var i = 0; i < titles.length; i++)
-      titles[i]: i % kLinkAnchorStyleCount,
+    for (final title in titles) title: _stableStyleIndex(title),
   };
+}
+
+int _stableStyleIndex(String title) {
+  var hash = 0x811c9dc5;
+  for (final rune in title.runes) {
+    hash = ((hash ^ rune) * 0x01000193) & 0xffffffff;
+  }
+  return hash % kLinkAnchorStyleCount;
 }
 
 /// מזריק את סמני העוגן לשורת ה-HTML הגולמית. הליכה אחת על השורה ממירה את
@@ -89,13 +96,15 @@ String injectLinkAnchorMarkers({
           final href = lineIndex == null
               ? ''
               : ' href="otzaria://anchor?ref=${lineIndex}_$linkIndex&range=1"';
-          ranges.add(HtmlWrapRange(
-            start: rawStart,
-            end: rawEnd,
-            openTag:
-                '<$tag class="link-anchor-range link-anchor-$styleIndex"$href>',
-            closeTag: '</$tag>',
-          ));
+          ranges.add(
+            HtmlWrapRange(
+              start: rawStart,
+              end: rawEnd,
+              openTag:
+                  '<$tag class="link-anchor-range link-anchor-$styleIndex"$href>',
+              closeTag: '</$tag>',
+            ),
+          );
         }
       } else {
         final letter = _letterFor(link, span.label);
@@ -106,8 +115,9 @@ String injectLinkAnchorMarkers({
         final href = lineIndex == null
             ? ''
             : ' href="otzaria://anchor?ref=${lineIndex}_$linkIndex"';
-        final activeClass =
-            linkIndex == activeIndex ? ' link-anchor-active' : '';
+        final activeClass = linkIndex == activeIndex
+            ? ' link-anchor-active'
+            : '';
         points.add((
           at: span.start,
           order: 1,

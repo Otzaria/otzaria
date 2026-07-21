@@ -165,6 +165,77 @@ void main() {
     });
   });
 
+  group('searchInContent - הופעות מרובות באותה שורה', () {
+    test('שתי הופעות באותה שורה — שתי תוצאות על אותו אינדקס', () async {
+      final results = await searchInContent(
+        content: ['אמר רבי יהודה דבר אחד ועוד אמר יהודה בן גרוש דבר אחר'],
+        query: 'יהודה',
+        patternSource: literalPatternSource('יהודה'),
+      );
+      expect(results.length, 2);
+      expect(results[0].index, 0);
+      expect(results[1].index, 0);
+    });
+
+    test('הופעות קרובות — כל snippet מכיל רק את ההופעה שלו', () async {
+      final results = await searchInContent(
+        content: ['אמר רבי יהודה דבר אחד ועוד אמר יהודה בן גרוש דבר אחר'],
+        query: 'יהודה',
+        patternSource: literalPatternSource('יהודה'),
+      );
+      expect(results.length, 2);
+      for (final result in results) {
+        expect('יהודה'.allMatches(result.snippet).length, 1);
+      }
+      expect(results[0].snippet, contains('רבי'));
+      expect(results[1].snippet, contains('בן גרוש'));
+    });
+
+    test('בשורה ארוכה — כל תוצאה מקבלת snippet סביב ההופעה שלה', () async {
+      final padding = List.generate(60, (i) => 'מלל$i').join(' ');
+      final results = await searchInContent(
+        content: ['יהודה בתחילה $padding יהודה בסוף'],
+        query: 'יהודה',
+        patternSource: literalPatternSource('יהודה'),
+      );
+      expect(results.length, 2);
+      expect(results[0].snippet, contains('בתחילה'));
+      expect(results[0].snippet, isNot(contains('בסוף')));
+      expect(results[1].snippet, contains('בסוף'));
+      expect(results[1].snippet, isNot(contains('בתחילה')));
+    });
+
+    test('כל תוצאה נושאת את היסט ההופעה שלה בשורה', () async {
+      final results = await searchInContent(
+        content: ['אמר רבי יהודה דבר אחד ועוד אמר יהודה בן גרוש דבר אחר'],
+        query: 'יהודה',
+        patternSource: literalPatternSource('יהודה'),
+      );
+      expect(results.length, 2);
+      expect(results[0].matchOffset, 8);
+      expect(results[1].matchOffset, 31);
+    });
+
+    test('שורה קצרה — ה-snippet הוא השורה המלאה', () async {
+      final results = await searchInContent(
+        content: ['שמע ישראל'],
+        query: 'שמע',
+        patternSource: literalPatternSource('שמע'),
+      );
+      expect(results.single.snippet, 'שמע ישראל');
+    });
+
+    test('תקרת 1000 התוצאות נאכפת גם על הופעות באותה שורה', () async {
+      final line = List.filled(1005, 'שמע').join(' ');
+      final results = await searchInContent(
+        content: [line],
+        query: 'שמע',
+        patternSource: literalPatternSource('שמע'),
+      );
+      expect(results.length, 1000);
+    });
+  });
+
   group('searchInContent - whitespace normalization', () {
     test('מוצא ביטוי כשיש תג HTML עם רווחים סביבו', () async {
       final results = await searchInContent(
@@ -309,6 +380,24 @@ void main() {
 
     test('שורה ריקה — שבר 0', () {
       expect(matchFractionInLine('', 'שמע', pattern: literalPattern('שמע')), 0);
+    });
+
+    test('matchOffset מפורש גובר על ההופעה הראשונה', () {
+      const line = 'יהודה אמר ועוד אמר יהודה דבר';
+      final firstFraction = matchFractionInLine(
+        line,
+        'יהודה',
+        matchOffset: 0,
+        pattern: literalPattern('יהודה'),
+      );
+      final secondFraction = matchFractionInLine(
+        line,
+        'יהודה',
+        matchOffset: 19,
+        pattern: literalPattern('יהודה'),
+      );
+      expect(firstFraction, 0);
+      expect(secondFraction, greaterThan(0.5));
     });
 
     test('שבר גלילה מתעלם מתג HTML עם רווחים בין המילים', () {

@@ -55,7 +55,7 @@ class GimatriaSearch {
     'ק': 100,
     'ר': 200,
     'ש': 300,
-    'ת': 400
+    'ת': 400,
   };
 
   // גימטריה קטנה
@@ -86,7 +86,7 @@ class GimatriaSearch {
     'ק': 1,
     'ר': 2,
     'ש': 3,
-    'ת': 4
+    'ת': 4,
   };
 
   // גימטריה עם אותיות סופיות שונות
@@ -117,7 +117,7 @@ class GimatriaSearch {
     'ק': 100,
     'ר': 200,
     'ש': 300,
-    'ת': 400
+    'ת': 400,
   };
 
   static int gimatria(String text, {String method = 'regular'}) {
@@ -148,18 +148,22 @@ class GimatriaSearch {
   /// Falls back to file search across all [folders] if database is not available
   /// or fails mid-query. [maxPhraseWords] bounds phrase length to avoid explosion.
   static Future<List<SearchResult>> searchInFiles(
-      List<String> folders, int targetGimatria,
-      {int maxPhraseWords = 8,
-      int fileLimit = 1000,
-      bool wholeVerseOnly = false,
-      bool debug = false,
-      String gematriaMethod = 'regular',
-      bool useWithKolel = false,
-      List<String>? bookTitles}) async {
-    // Try database search first
+    List<String> folders,
+    int targetGimatria, {
+    int maxPhraseWords = 8,
+    int fileLimit = 1000,
+    bool wholeVerseOnly = false,
+    bool debug = false,
+    String gematriaMethod = 'regular',
+    bool useWithKolel = false,
+    List<String>? bookTitles,
+  }) async {
+    // initialize אקטיבי (לא isInitialized פסיבי): חיפוש בזמן שה-DB לא מאותחל
+    // (למשל sync פעיל) חייב להמתין ולא ליפול ל-fallback ריק = "אין תוצאות".
     final dbProvider = SqliteDataProvider.instance;
-    if (await dbProvider.databaseExists() && dbProvider.isInitialized) {
-      try {
+    try {
+      await dbProvider.initialize();
+      if (dbProvider.isInitialized) {
         return await _searchInDatabase(
           targetGimatria,
           maxPhraseWords: maxPhraseWords,
@@ -170,12 +174,12 @@ class GimatriaSearch {
           useWithKolel: useWithKolel,
           bookTitles: bookTitles,
         );
-      } catch (e) {
-        if (debug) {
-          debugPrint('Database search failed, falling back to file search: $e');
-        }
-        // Fall through to file search across all folders
       }
+    } catch (e) {
+      if (debug) {
+        debugPrint('Database search failed, falling back to file search: $e');
+      }
+      // Fall through to file search across all folders
     }
 
     // Fallback to file search across all folders.
@@ -201,14 +205,16 @@ class GimatriaSearch {
   }
 
   /// Search in SQLite database for phrases whose gimatria equals [targetGimatria]
-  static Future<List<SearchResult>> _searchInDatabase(int targetGimatria,
-      {int maxPhraseWords = 8,
-      int fileLimit = 1000,
-      bool wholeVerseOnly = false,
-      bool debug = false,
-      String gematriaMethod = 'regular',
-      bool useWithKolel = false,
-      List<String>? bookTitles}) async {
+  static Future<List<SearchResult>> _searchInDatabase(
+    int targetGimatria, {
+    int maxPhraseWords = 8,
+    int fileLimit = 1000,
+    bool wholeVerseOnly = false,
+    bool debug = false,
+    String gematriaMethod = 'regular',
+    bool useWithKolel = false,
+    List<String>? bookTitles,
+  }) async {
     final List<SearchResult> found = [];
     final dbProvider = SqliteDataProvider.instance;
     final repository = dbProvider.repository;
@@ -257,8 +263,11 @@ class GimatriaSearch {
         if (book == null) continue;
 
         // Get all lines for this book
-        final lines =
-            await searchRepository.getLines(bookId, 0, book.totalLines - 1);
+        final lines = await searchRepository.getLines(
+          bookId,
+          0,
+          book.totalLines - 1,
+        );
 
         if (debug) {
           debugPrint('Scanning book: ${book.title} (lines: ${lines.length})');
@@ -313,26 +322,31 @@ class GimatriaSearch {
                 tocEntries: tocEntries,
               );
               final cleanPhrase = _cleanHtml(phrase);
-              found.add(SearchResult(
-                file: book.title,
-                line: line.lineIndex + 1,
-                text: cleanPhrase,
-                path: path,
-                verseNumber: verseNumber,
-                contextBefore: '',
-                contextAfter: '',
-              ));
+              found.add(
+                SearchResult(
+                  file: book.title,
+                  line: line.lineIndex + 1,
+                  text: cleanPhrase,
+                  path: path,
+                  verseNumber: verseNumber,
+                  contextBefore: '',
+                  contextAfter: '',
+                ),
+              );
               if (found.length >= fileLimit) return found;
             }
           } else {
             // Regular search - any phrase
-            final wordValues =
-                words.map((w) => gimatria(w, method: gematriaMethod)).toList();
+            final wordValues = words
+                .map((w) => gimatria(w, method: gematriaMethod))
+                .toList();
             for (int start = 0; start < words.length; start++) {
               int acc = 0;
-              for (int offset = 0;
-                  offset < maxPhraseWords && start + offset < words.length;
-                  offset++) {
+              for (
+                int offset = 0;
+                offset < maxPhraseWords && start + offset < words.length;
+                offset++
+              ) {
                 acc += wordValues[start + offset];
 
                 var finalValue = acc;
@@ -341,8 +355,9 @@ class GimatriaSearch {
                 }
 
                 if (finalValue == targetGimatria) {
-                  final phrase =
-                      words.sublist(start, start + offset + 1).join(' ');
+                  final phrase = words
+                      .sublist(start, start + offset + 1)
+                      .join(' ');
                   final path = extractPathFromTocEntries(
                     currentLineIndex: line.lineIndex,
                     bookTitle: book.title,
@@ -352,12 +367,13 @@ class GimatriaSearch {
 
                   // Extract context - 2-3 words before and after
                   final contextWordsCount = 3;
-                  final contextStart =
-                      start > contextWordsCount ? start - contextWordsCount : 0;
+                  final contextStart = start > contextWordsCount
+                      ? start - contextWordsCount
+                      : 0;
                   final contextEnd =
                       start + offset + 1 + contextWordsCount < words.length
-                          ? start + offset + 1 + contextWordsCount
-                          : words.length;
+                      ? start + offset + 1 + contextWordsCount
+                      : words.length;
 
                   final contextBefore = contextStart < start
                       ? words.sublist(contextStart, start).join(' ')
@@ -366,15 +382,17 @@ class GimatriaSearch {
                       ? words.sublist(start + offset + 1, contextEnd).join(' ')
                       : '';
 
-                  found.add(SearchResult(
-                    file: book.title,
-                    line: line.lineIndex + 1,
-                    text: cleanPhrase,
-                    path: path,
-                    verseNumber: verseNumber,
-                    contextBefore: contextBefore,
-                    contextAfter: contextAfter,
-                  ));
+                  found.add(
+                    SearchResult(
+                      file: book.title,
+                      line: line.lineIndex + 1,
+                      text: cleanPhrase,
+                      path: path,
+                      verseNumber: verseNumber,
+                      contextBefore: contextBefore,
+                      contextAfter: contextAfter,
+                    ),
+                  );
                   if (found.length >= fileLimit) return found;
                 } else if (finalValue > targetGimatria) {
                   break;
@@ -446,13 +464,15 @@ class GimatriaSearch {
 
   /// Legacy file-based search (fallback)
   static Future<List<SearchResult>> _searchInFilesLegacy(
-      String folder, int targetGimatria,
-      {int maxPhraseWords = 8,
-      int fileLimit = 1000,
-      bool wholeVerseOnly = false,
-      bool debug = false,
-      String gematriaMethod = 'regular',
-      bool useWithKolel = false}) async {
+    String folder,
+    int targetGimatria, {
+    int maxPhraseWords = 8,
+    int fileLimit = 1000,
+    bool wholeVerseOnly = false,
+    bool debug = false,
+    String gematriaMethod = 'regular',
+    bool useWithKolel = false,
+  }) async {
     final List<SearchResult> found = [];
     final dir = Directory(folder);
     if (!await dir.exists()) return found;
@@ -515,25 +535,31 @@ class GimatriaSearch {
               final phrase = words.join(' ');
               final path = _extractPathFromLines(lines, i);
               final cleanPhrase = _cleanHtml(phrase);
-              found.add(SearchResult(
+              found.add(
+                SearchResult(
                   file: file.path,
                   line: i + 1,
                   text: cleanPhrase,
                   path: path,
                   verseNumber: verseNumber,
                   contextBefore: '',
-                  contextAfter: ''));
+                  contextAfter: '',
+                ),
+              );
               if (found.length >= fileLimit) return found;
             }
           } else {
             // חיפוש רגיל - כל קטע
-            final wordValues =
-                words.map((w) => gimatria(w, method: gematriaMethod)).toList();
+            final wordValues = words
+                .map((w) => gimatria(w, method: gematriaMethod))
+                .toList();
             for (int start = 0; start < words.length; start++) {
               int acc = 0;
-              for (int offset = 0;
-                  offset < maxPhraseWords && start + offset < words.length;
-                  offset++) {
+              for (
+                int offset = 0;
+                offset < maxPhraseWords && start + offset < words.length;
+                offset++
+              ) {
                 acc += wordValues[start + offset];
 
                 // הוספת הכולל אם נדרש
@@ -543,20 +569,22 @@ class GimatriaSearch {
                 }
 
                 if (finalValue == targetGimatria) {
-                  final phrase =
-                      words.sublist(start, start + offset + 1).join(' ');
+                  final phrase = words
+                      .sublist(start, start + offset + 1)
+                      .join(' ');
                   final path = _extractPathFromLines(lines, i);
                   // ניקוי תגיות HTML מהטקסט
                   final cleanPhrase = _cleanHtml(phrase);
 
                   // חילוץ ההקשר - 2-3 מילים לפני ואחרי
                   final contextWordsCount = 3;
-                  final contextStart =
-                      start > contextWordsCount ? start - contextWordsCount : 0;
+                  final contextStart = start > contextWordsCount
+                      ? start - contextWordsCount
+                      : 0;
                   final contextEnd =
                       start + offset + 1 + contextWordsCount < words.length
-                          ? start + offset + 1 + contextWordsCount
-                          : words.length;
+                      ? start + offset + 1 + contextWordsCount
+                      : words.length;
 
                   final contextBefore = contextStart < start
                       ? words.sublist(contextStart, start).join(' ')
@@ -565,14 +593,17 @@ class GimatriaSearch {
                       ? words.sublist(start + offset + 1, contextEnd).join(' ')
                       : '';
 
-                  found.add(SearchResult(
+                  found.add(
+                    SearchResult(
                       file: file.path,
                       line: i + 1,
                       text: cleanPhrase,
                       path: path,
                       verseNumber: verseNumber,
                       contextBefore: contextBefore,
-                      contextAfter: contextAfter));
+                      contextAfter: contextAfter,
+                    ),
+                  );
                   if (found.length >= fileLimit) return found;
                 } else if (finalValue > targetGimatria) {
                   break;

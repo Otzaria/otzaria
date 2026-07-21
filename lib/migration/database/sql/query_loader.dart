@@ -8,10 +8,10 @@ class QueryLoader {
   /// Returns a snapshot of the loaded cache for transport to another isolate.
   /// Call [initialize] first on the source isolate.
   static Map<String, Map<String, String>> get cacheSnapshot => Map.fromEntries(
-        _queryCache.entries.map(
-          (e) => MapEntry(e.key, Map<String, String>.from(e.value)),
-        ),
-      );
+    _queryCache.entries.map(
+      (e) => MapEntry(e.key, Map<String, String>.from(e.value)),
+    ),
+  );
 
   /// Seeds the cache from a snapshot received from another isolate.
   /// After this call [initialize] is a no-op; no [rootBundle] access needed.
@@ -39,6 +39,7 @@ class QueryLoader {
       'LineQueries.sq',
       'LineTocQueries.sq',
       'LinkQueries.sq',
+      'PdfAnchorCacheQueries.sq',
       'PdfOutlineCacheQueries.sq',
       'PubDateQueries.sq',
       'PubPlaceQueries.sq',
@@ -71,7 +72,8 @@ class QueryLoader {
   static Map<String, String> loadQueries(String fileName) {
     if (!_initialized) {
       throw StateError(
-          'QueryLoader not initialized. Call QueryLoader.initialize() first.');
+        'QueryLoader not initialized. Call QueryLoader.initialize() first.',
+      );
     }
 
     final queries = _queryCache[fileName];

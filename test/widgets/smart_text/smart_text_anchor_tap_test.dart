@@ -14,7 +14,8 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: SmartTextWidget(
-            text: 'לפני <a class="link-anchor link-anchor-0" '
+            text:
+                'לפני <a class="link-anchor link-anchor-0" '
                 'href="otzaria://anchor?ref=3_0">(א)</a> אחרי',
             settings: const RenderSettings(fontSize: 20),
             onAnchorTap: (url) => tappedUrl = url,
@@ -25,8 +26,11 @@ void main() {
     await tester.pumpAndSettle();
 
     final recognizer = _findAnchorRecognizer(tester);
-    expect(recognizer, isNotNull,
-        reason: 'העוגן צריך להיות TextSpan עם TapGestureRecognizer');
+    expect(
+      recognizer,
+      isNotNull,
+      reason: 'העוגן צריך להיות TextSpan עם TapGestureRecognizer',
+    );
     recognizer!.onTap!();
     await tester.pump();
 
@@ -34,45 +38,86 @@ void main() {
   });
 
   testWidgets(
-      'עם onAnchorHover — גם אות-הסמן וגם טווח-הציטוט מקבלים onEnter/onExit '
-      'ו-recognizer ללחיצה', (tester) async {
-    final hovered = <String>[];
-    final exited = <String>[];
+    'עם onAnchorHover — גם אות-הסמן וגם טווח-הציטוט מקבלים onEnter/onExit '
+    'ו-recognizer ללחיצה',
+    (tester) async {
+      final hovered = <String>[];
+      final exited = <String>[];
 
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SmartTextWidget(
+              text:
+                  'לפני <a class="link-anchor link-anchor-0" '
+                  'href="otzaria://anchor?ref=3_0">(א)</a> '
+                  '<a class="link-anchor-range link-anchor-0" '
+                  'href="otzaria://anchor?ref=3_1&range=1">שמות כט מג</a> אחרי',
+              settings: const RenderSettings(fontSize: 20),
+              onAnchorTap: (_) {},
+              onAnchorHover: (url, position) => hovered.add(url),
+              onAnchorHoverExit: exited.add,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final markerSpan = _findHoverableSpan(tester, '(א)');
+      final rangeSpan = _findHoverableSpan(tester, 'שמות');
+      expect(
+        markerSpan,
+        isNotNull,
+        reason: 'אות-הסמן צריכה TextSpan עם onEnter',
+      );
+      expect(
+        rangeSpan,
+        isNotNull,
+        reason: 'טווח-הציטוט צריך TextSpan עם onEnter',
+      );
+      expect(markerSpan!.recognizer, isA<TapGestureRecognizer>());
+      expect(rangeSpan!.recognizer, isA<TapGestureRecognizer>());
+
+      markerSpan.onEnter!(const PointerEnterEvent(position: Offset(3, 4)));
+      rangeSpan.onEnter!(const PointerEnterEvent(position: Offset(5, 6)));
+      markerSpan.onExit!(const PointerExitEvent());
+      expect(hovered, [
+        'otzaria://anchor?ref=3_0',
+        'otzaria://anchor?ref=3_1&range=1',
+      ]);
+      expect(exited, ['otzaria://anchor?ref=3_0']);
+    },
+  );
+
+  testWidgets('הערות וקישור־טווח מקבלים אירועי ריחוף', (tester) async {
+    final hovered = <String>[];
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: SmartTextWidget(
-            text: 'לפני <a class="link-anchor link-anchor-0" '
-                'href="otzaria://anchor?ref=3_0">(א)</a> '
-                '<a class="link-anchor-range link-anchor-0" '
-                'href="otzaria://anchor?ref=3_1&range=1">שמות כט מג</a> אחרי',
+            text:
+                '<a class="book-note-marker" '
+                'href="otzaria://book-note?line=1&note=0">א</a> '
+                '<a href="otzaria://note?line=1">מילה</a> '
+                '<a href="otzaria://inline-link?path=%D7%A4%D7%99%D7%A8%D7%95%D7%A9&index=2&ref=%D7%90">קישור</a>',
             settings: const RenderSettings(fontSize: 20),
-            onAnchorTap: (_) {},
-            onAnchorHover: (url, position) => hovered.add(url),
-            onAnchorHoverExit: exited.add,
+            onNoteTap: (_) {},
+            onAnchorHover: (url, _) => hovered.add(url),
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    final markerSpan = _findHoverableSpan(tester, '(א)');
-    final rangeSpan = _findHoverableSpan(tester, 'שמות');
-    expect(markerSpan, isNotNull, reason: 'אות-הסמן צריכה TextSpan עם onEnter');
-    expect(rangeSpan, isNotNull,
-        reason: 'טווח-הציטוט צריך TextSpan עם onEnter');
-    expect(markerSpan!.recognizer, isA<TapGestureRecognizer>());
-    expect(rangeSpan!.recognizer, isA<TapGestureRecognizer>());
+    _findHoverableSpan(tester, 'א')!.onEnter!(const PointerEnterEvent());
+    _findHoverableSpan(tester, 'מילה')!.onEnter!(const PointerEnterEvent());
+    _findHoverableSpan(tester, 'קישור')!.onEnter!(const PointerEnterEvent());
 
-    markerSpan.onEnter!(const PointerEnterEvent(position: Offset(3, 4)));
-    rangeSpan.onEnter!(const PointerEnterEvent(position: Offset(5, 6)));
-    markerSpan.onExit!(const PointerExitEvent());
     expect(hovered, [
-      'otzaria://anchor?ref=3_0',
-      'otzaria://anchor?ref=3_1&range=1',
+      'otzaria://book-note?line=1&note=0',
+      'otzaria://note?line=1',
+      'otzaria://inline-link?path=%D7%A4%D7%99%D7%A8%D7%95%D7%A9&index=2&ref=%D7%90',
     ]);
-    expect(exited, ['otzaria://anchor?ref=3_0']);
   });
 }
 

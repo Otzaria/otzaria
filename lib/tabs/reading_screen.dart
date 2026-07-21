@@ -21,6 +21,8 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
+import 'package:otzaria/tabs/models/resolving_tab.dart';
+import 'package:otzaria/tabs/resolving_tab_screen.dart';
 import 'package:otzaria/tabs/utils/tab_swipe_direction.dart';
 import 'package:otzaria/search/view/full_text_search_screen.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -131,39 +133,43 @@ class _ReadingScreenState extends State<ReadingScreen>
     if (Platform.isAndroid || Platform.isIOS) return child;
     return RawGestureDetector(
       gestures: <Type, GestureRecognizerFactory>{
-        HorizontalDragGestureRecognizer: GestureRecognizerFactoryWithHandlers<
-            HorizontalDragGestureRecognizer>(
-          () => HorizontalDragGestureRecognizer(
-            supportedDevices: const {
-              PointerDeviceKind.trackpad,
-              PointerDeviceKind.touch,
-            },
-          ),
-          (recognizer) {
-            recognizer
-              ..onStart = (_) {
-                _swipeAccum = 0;
-                _swipeFired = false;
-              }
-              ..onUpdate = (details) {
-                if (_swipeFired) return;
-                _swipeAccum += details.delta.dx;
-                if (_swipeAccum.abs() >= _kTabSwipeThreshold) {
-                  _swipeFired = true;
-                  _switchTabBySwipe(tabSwipeDirection(
-                    accumulatedDx: _swipeAccum,
-                    textDirection: Directionality.of(context),
-                  ));
-                }
-              }
-              ..onEnd = (_) {
-                _swipeFired = false;
-              }
-              ..onCancel = () {
-                _swipeFired = false;
-              };
-          },
-        ),
+        HorizontalDragGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<
+              HorizontalDragGestureRecognizer
+            >(
+              () => HorizontalDragGestureRecognizer(
+                supportedDevices: const {
+                  PointerDeviceKind.trackpad,
+                  PointerDeviceKind.touch,
+                },
+              ),
+              (recognizer) {
+                recognizer
+                  ..onStart = (_) {
+                    _swipeAccum = 0;
+                    _swipeFired = false;
+                  }
+                  ..onUpdate = (details) {
+                    if (_swipeFired) return;
+                    _swipeAccum += details.delta.dx;
+                    if (_swipeAccum.abs() >= _kTabSwipeThreshold) {
+                      _swipeFired = true;
+                      _switchTabBySwipe(
+                        tabSwipeDirection(
+                          accumulatedDx: _swipeAccum,
+                          textDirection: Directionality.of(context),
+                        ),
+                      );
+                    }
+                  }
+                  ..onEnd = (_) {
+                    _swipeFired = false;
+                  }
+                  ..onCancel = () {
+                    _swipeFired = false;
+                  };
+              },
+            ),
       },
       child: child,
     );
@@ -213,9 +219,9 @@ class _ReadingScreenState extends State<ReadingScreen>
         BlocListener<TabsBloc, TabsState>(
           listener: (context, state) {
             if (state.hasOpenTabs) {
-              context
-                  .read<HistoryBloc>()
-                  .add(CaptureStateForHistory(state.currentTab!));
+              context.read<HistoryBloc>().add(
+                CaptureStateForHistory(state.currentTab!),
+              );
               // אין צורך לקרוא כאן ל-SaveTabs: כל פעולה שמשנה את הטאבים או את
               // הטאב הנוכחי (SetCurrentTab/AddTab/RemoveTab/MoveTab וכו') כבר
               // שומרת בעצמה ב-TabsBloc. קריאה נוספת כאן גרמה לשמירה כפולה
@@ -246,8 +252,8 @@ class _ReadingScreenState extends State<ReadingScreen>
               _pageController?.dispose();
               _pageController = null;
               context.read<NavigationBloc>().add(
-                    const NavigateToScreen(Screen.library),
-                  );
+                const NavigateToScreen(Screen.library),
+              );
             }
           },
           listenWhen: (previous, current) =>
@@ -287,8 +293,8 @@ class _ReadingScreenState extends State<ReadingScreen>
                             child: ElevatedButton.icon(
                               onPressed: () {
                                 context.read<NavigationBloc>().add(
-                                      const NavigateToScreen(Screen.library),
-                                    );
+                                  const NavigateToScreen(Screen.library),
+                                );
                               },
                               icon: const Icon(FluentIcons.library_24_regular),
                               label: const Text('דפדף בספרייה'),
@@ -301,46 +307,48 @@ class _ReadingScreenState extends State<ReadingScreen>
                       key: tourReadingScreenTargetKey,
                       child: SizedBox.fromSize(
                         size: MediaQuery.of(context).size,
-                        child: _wrapWithDesktopTabSwipe(PageView(
-                          key: const ValueKey('normal_tab_view'),
-                          controller: _pageController,
-                          // גלילת PageView רק במובייל; בדסקטופ
-                          // PageScrollPhysics מתנגשת עם סימון טקסט אופקי,
-                          // עם גלילה אופקית ב-PDF ועם אירועי גלגלת.
-                          // החלקת טאצ'פד/מגע בדסקטופ ממומשת בנפרד
-                          // ב-_wrapWithDesktopTabSwipe.
-                          physics: Platform.isAndroid || Platform.isIOS
-                              ? const PageScrollPhysics()
-                              : const NeverScrollableScrollPhysics(),
-                          // רק במובייל הגלילה ידנית ולכן onPageChanged משקף
-                          // בחירת משתמש שצריך להזין חזרה ל-currentTabIndex.
-                          // בדסקטופ (NeverScrollable) אי-אפשר לגלול ידנית,
-                          // וה-callback היה יורה רק על קפיצות תוכנתיות —
-                          // כולל ערך clamp שגוי רגעי בעת פתיחת טאב חדש —
-                          // ודורס את האינדקס הנכון. לכן מנוטרל.
-                          onPageChanged: Platform.isAndroid || Platform.isIOS
-                              ? (index) {
-                                  if (index < state.tabs.length) {
-                                    context
-                                        .read<TabsBloc>()
-                                        .add(SetCurrentTab(index));
+                        child: _wrapWithDesktopTabSwipe(
+                          PageView(
+                            key: const ValueKey('normal_tab_view'),
+                            controller: _pageController,
+                            // גלילת PageView רק במובייל; בדסקטופ
+                            // PageScrollPhysics מתנגשת עם סימון טקסט אופקי,
+                            // עם גלילה אופקית ב-PDF ועם אירועי גלגלת.
+                            // החלקת טאצ'פד/מגע בדסקטופ ממומשת בנפרד
+                            // ב-_wrapWithDesktopTabSwipe.
+                            physics: Platform.isAndroid || Platform.isIOS
+                                ? const PageScrollPhysics()
+                                : const NeverScrollableScrollPhysics(),
+                            // רק במובייל הגלילה ידנית ולכן onPageChanged משקף
+                            // בחירת משתמש שצריך להזין חזרה ל-currentTabIndex.
+                            // בדסקטופ (NeverScrollable) אי-אפשר לגלול ידנית,
+                            // וה-callback היה יורה רק על קפיצות תוכנתיות —
+                            // כולל ערך clamp שגוי רגעי בעת פתיחת טאב חדש —
+                            // ודורס את האינדקס הנכון. לכן מנוטרל.
+                            onPageChanged: Platform.isAndroid || Platform.isIOS
+                                ? (index) {
+                                    if (index < state.tabs.length) {
+                                      context.read<TabsBloc>().add(
+                                        SetCurrentTab(index),
+                                      );
+                                    }
                                   }
-                                }
-                              : null,
-                          children: [
-                            for (var i = 0; i < state.tabs.length; i++)
-                              // טאבי רקע נשארים חיים (keepAlive) והאנימציות
-                              // שלהם (ספינרים וכד') ממשיכות לתזמן פריימים
-                              // ברציפות — TickerMode מכבה אותן עד שהטאב מוצג.
-                              TickerMode(
-                                enabled: i == validIndex,
-                                child: _buildTabView(
-                                  state.tabs[i],
-                                  enableTourTargets: i == validIndex,
+                                : null,
+                            children: [
+                              for (var i = 0; i < state.tabs.length; i++)
+                                // טאבי רקע נשארים חיים (keepAlive) והאנימציות
+                                // שלהם (ספינרים וכד') ממשיכות לתזמן פריימים
+                                // ברציפות — TickerMode מכבה אותן עד שהטאב מוצג.
+                                TickerMode(
+                                  enabled: i == validIndex,
+                                  child: _buildTabView(
+                                    state.tabs[i],
+                                    enableTourTargets: i == validIndex,
+                                  ),
                                 ),
-                              ),
-                          ],
-                        )),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
             ),
@@ -365,20 +373,21 @@ class _ReadingScreenState extends State<ReadingScreen>
       );
     } else if (tab is TextBookTab) {
       return BlocProvider.value(
-          key: ValueKey(tab),
-          value: tab.bloc,
-          child: _TabVisibilityBridge(
-            bloc: tab.bloc,
-            child: TextBookViewerBloc(
-              openBookCallback: (tab, {int index = 1}) {
-                context
-                    .read<TabsBloc>()
-                    .add(OpenOrFocusTab(tab, insertAdjacent: true));
-              },
-              tab: tab,
-              enableTourTargets: enableTourTargets,
-            ),
-          ));
+        key: ValueKey(tab),
+        value: tab.bloc,
+        child: _TabVisibilityBridge(
+          bloc: tab.bloc,
+          child: TextBookViewerBloc(
+            openBookCallback: (tab, {int index = 1}) {
+              context.read<TabsBloc>().add(
+                OpenOrFocusTab(tab, insertAdjacent: true),
+              );
+            },
+            tab: tab,
+            enableTourTargets: enableTourTargets,
+          ),
+        ),
+      );
     } else if (tab is SearchingTab) {
       return FullTextSearchScreen(key: ValueKey(tab), tab: tab);
     } else if (tab is CommentatorsTab) {
@@ -388,9 +397,9 @@ class _ReadingScreenState extends State<ReadingScreen>
         child: CommentatorsTabScreen(
           tab: tab,
           openBookCallback: (t, {int index = 1}) {
-            context
-                .read<TabsBloc>()
-                .add(OpenOrFocusTab(t, insertAdjacent: true));
+            context.read<TabsBloc>().add(
+              OpenOrFocusTab(t, insertAdjacent: true),
+            );
           },
         ),
       );
@@ -399,6 +408,8 @@ class _ReadingScreenState extends State<ReadingScreen>
         key: ValueKey(tab),
         tab: tab,
       );
+    } else if (tab is ResolvingTab) {
+      return ResolvingTabScreen(key: ValueKey(tab), tab: tab);
     }
     return const SizedBox.shrink();
   }
@@ -406,7 +417,8 @@ class _ReadingScreenState extends State<ReadingScreen>
   Widget _buildCombinedTabView(CombinedTab combinedTab) {
     return _SideBySideViewWidget(
       key: ValueKey(
-          'combined_${combinedTab.rightTab.title}_${combinedTab.leftTab.title}'),
+        'combined_${combinedTab.rightTab.title}_${combinedTab.leftTab.title}',
+      ),
       rightTab: combinedTab.rightTab,
       leftTab: combinedTab.leftTab,
       initialSplitRatio: combinedTab.splitRatio,
@@ -418,8 +430,10 @@ class _ReadingScreenState extends State<ReadingScreen>
     );
   }
 
-  Widget _buildSingleTabContent(OpenedTab tab,
-      {bool isInCombinedView = false}) {
+  Widget _buildSingleTabContent(
+    OpenedTab tab, {
+    bool isInCombinedView = false,
+  }) {
     if (tab is PdfBookTab) {
       return PdfBookScreen(
         key: ValueKey(tab),
@@ -429,20 +443,21 @@ class _ReadingScreenState extends State<ReadingScreen>
       );
     } else if (tab is TextBookTab) {
       return BlocProvider.value(
-          value: tab.bloc,
-          child: _TabVisibilityBridge(
-            bloc: tab.bloc,
-            child: TextBookViewerBloc(
-              openBookCallback: (tab, {int index = 1}) {
-                context
-                    .read<TabsBloc>()
-                    .add(OpenOrFocusTab(tab, insertAdjacent: true));
-              },
-              tab: tab,
-              isInCombinedView: isInCombinedView,
-              enableTourTargets: false,
-            ),
-          ));
+        value: tab.bloc,
+        child: _TabVisibilityBridge(
+          bloc: tab.bloc,
+          child: TextBookViewerBloc(
+            openBookCallback: (tab, {int index = 1}) {
+              context.read<TabsBloc>().add(
+                OpenOrFocusTab(tab, insertAdjacent: true),
+              );
+            },
+            tab: tab,
+            isInCombinedView: isInCombinedView,
+            enableTourTargets: false,
+          ),
+        ),
+      );
     } else if (tab is SearchingTab) {
       return FullTextSearchScreen(tab: tab);
     } else if (tab is CommentatorsTab) {
@@ -452,9 +467,9 @@ class _ReadingScreenState extends State<ReadingScreen>
         child: CommentatorsTabScreen(
           tab: tab,
           openBookCallback: (t, {int index = 1}) {
-            context
-                .read<TabsBloc>()
-                .add(OpenOrFocusTab(t, insertAdjacent: true));
+            context.read<TabsBloc>().add(
+              OpenOrFocusTab(t, insertAdjacent: true),
+            );
           },
         ),
       );
@@ -463,6 +478,8 @@ class _ReadingScreenState extends State<ReadingScreen>
         key: ValueKey(tab),
         tab: tab,
       );
+    } else if (tab is ResolvingTab) {
+      return ResolvingTabScreen(key: ValueKey(tab), tab: tab);
     }
     return const SizedBox.shrink();
   }
@@ -531,7 +548,8 @@ class _SideBySideViewWidgetState extends State<_SideBySideViewWidget> {
                   // ספר זה יושב בקצה ההתחלתי של השורה (ימין ב-RTL) — השוליים
                   // מוזרקים בצד הדופן החיצוני שלו.
                   contentInset: const EdgeInsetsDirectional.only(
-                      start: _combinedDividerWidth),
+                    start: _combinedDividerWidth,
+                  ),
                   child: widget.buildTabView(widget.rightTab),
                 ),
               ),
@@ -552,8 +570,10 @@ class _SideBySideViewWidgetState extends State<_SideBySideViewWidget> {
                         setState(() {
                           // תיקון: הפיכת הכיוון כי אנחנו ב-RTL
                           final ratioDelta = -details.delta.dx / totalWidth;
-                          _splitRatio =
-                              (_splitRatio + ratioDelta).clamp(0.2, 0.8);
+                          _splitRatio = (_splitRatio + ratioDelta).clamp(
+                            0.2,
+                            0.8,
+                          );
                         });
                       },
                       onPanEnd: (_) => widget.onSplitRatioChanged(_splitRatio),
@@ -569,7 +589,8 @@ class _SideBySideViewWidgetState extends State<_SideBySideViewWidget> {
                   // ספר זה יושב בקצה הסופי של השורה (שמאל ב-RTL) — השוליים
                   // מוזרקים בצד הדופן החיצוני שלו.
                   contentInset: const EdgeInsetsDirectional.only(
-                      end: _combinedDividerWidth),
+                    end: _combinedDividerWidth,
+                  ),
                   child: widget.buildTabView(widget.leftTab),
                 ),
               ),

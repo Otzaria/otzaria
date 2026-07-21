@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
@@ -27,8 +28,9 @@ void main() {
     return hostContext;
   }
 
-  testWidgets('חלונית מקובעת נשארת פתוחה ונסגרת רק בלחיצה מחוץ לה',
-      (tester) async {
+  testWidgets('חלונית מקובעת נשארת פתוחה ונסגרת רק בלחיצה מחוץ לה', (
+    tester,
+  ) async {
     final hostContext = await pumpListHost(tester);
 
     LinkPreviewOverlay.showPinned(
@@ -55,8 +57,47 @@ void main() {
     expect(find.text('תוכן חלונית'), findsNothing);
   });
 
-  testWidgets('חלונית מקובעת זזה יחד עם גלילת הרשימה שעליה נפתחה',
-      (tester) async {
+  testWidgets('showContent מציג תוכן כללי במצב ריחוף', (tester) async {
+    final hostContext = await pumpListHost(tester);
+
+    LinkPreviewOverlay.showContent(
+      hostContext,
+      contentBuilder: (_) => const Text('תוכן הערה'),
+      globalPosition: const Offset(200, 300),
+      hoverMode: true,
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('תוכן הערה'), findsOneWidget);
+  });
+
+  testWidgets('לחיצה ימנית מחוץ לחלונית מקובעת סוגרת אותה', (tester) async {
+    final hostContext = await pumpListHost(tester);
+
+    LinkPreviewOverlay.showPinned(
+      hostContext,
+      contentBuilder: (_) => const Text('תוכן חלונית'),
+      panelPosition: const Offset(200, 300),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('תוכן חלונית'), findsOneWidget);
+
+    final gesture = await tester.startGesture(
+      const Offset(700, 550),
+      kind: PointerDeviceKind.mouse,
+      buttons: kSecondaryButton,
+    );
+    await gesture.up();
+    await tester.pump();
+
+    expect(find.text('תוכן חלונית'), findsNothing);
+  });
+
+  testWidgets('חלונית מקובעת זזה יחד עם גלילת הרשימה שעליה נפתחה', (
+    tester,
+  ) async {
     final hostContext = await pumpListHost(tester);
 
     final anchorPosition = tester.getCenter(find.text('פריט 3'));

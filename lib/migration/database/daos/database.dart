@@ -10,6 +10,7 @@ import 'docx_text_cache_dao.dart';
 import 'generation_dao.dart';
 import 'line_dao.dart';
 import 'link_dao.dart';
+import 'pdf_anchor_cache_dao.dart';
 import 'pdf_outline_cache_dao.dart';
 import 'pub_date_dao.dart';
 import 'pub_place_dao.dart';
@@ -47,6 +48,7 @@ class MyDatabase {
   GenerationDao? _generationDao;
   LineDao? _lineDao;
   LinkDao? _linkDao;
+  PdfAnchorCacheDao? _pdfAnchorCacheDao;
   PdfOutlineCacheDao? _pdfOutlineCacheDao;
   PubDateDao? _pubDateDao;
   PubPlaceDao? _pubPlaceDao;
@@ -103,6 +105,11 @@ class MyDatabase {
   LinkDao get linkDao {
     _ensureDaosInitialized();
     return _linkDao!;
+  }
+
+  PdfAnchorCacheDao get pdfAnchorCacheDao {
+    _ensureDaosInitialized();
+    return _pdfAnchorCacheDao!;
   }
 
   PdfOutlineCacheDao get pdfOutlineCacheDao {
@@ -293,6 +300,7 @@ class MyDatabase {
     _generationDao = GenerationDao(this);
     _lineDao = LineDao(this);
     _linkDao = LinkDao(this);
+    _pdfAnchorCacheDao = PdfAnchorCacheDao(this);
     _pdfOutlineCacheDao = PdfOutlineCacheDao(this);
     _pubDateDao = PubDateDao(this);
     _pubPlaceDao = PubPlaceDao(this);
@@ -567,6 +575,19 @@ class MyDatabase {
         );
         ''',
       'CREATE INDEX IF NOT EXISTS idx_pdf_outline_cache_accessed_at ON pdf_outline_cache(accessedAt);',
+
+      // Persistent cache of PDF page-map anchors (text<->PDF page conversion)
+      '''
+        CREATE TABLE IF NOT EXISTS pdf_anchor_cache (
+          filePath TEXT PRIMARY KEY,
+          fileSize INTEGER NOT NULL,
+          lastModified INTEGER NOT NULL,
+          anchorsJson TEXT NOT NULL,
+          createdAt INTEGER NOT NULL,
+          accessedAt INTEGER NOT NULL
+        );
+        ''',
+      'CREATE INDEX IF NOT EXISTS idx_pdf_anchor_cache_accessed_at ON pdf_anchor_cache(accessedAt);',
 
       // Persistent cache of converted external DOCX text (populated in cache.db)
       '''

@@ -20,6 +20,66 @@ final RegExp _footnoteMarkerRegExp = RegExp(
 
 const String _supCloseTag = '</sup>';
 
+/// הופך את סימוני ההערות המוטמעים לקישורי-ריחוף, בלי לשנות את הטקסט הגלוי.
+String addInlineNotePreviewLinks(String html, {required int lineIndex}) {
+  if (!html.contains('footnote')) return html;
+
+  final replacements = <({int start, int end, String value})>[];
+  var noteIndex = 0;
+  for (final bodyMatch in _footnoteBodyRegExp.allMatches(html)) {
+    final before = html.substring(0, bodyMatch.start);
+    final closeIndex = before.lastIndexOf(_supCloseTag);
+    if (closeIndex < 0 ||
+        before.substring(closeIndex + _supCloseTag.length).trim().isNotEmpty) {
+      noteIndex++;
+      continue;
+    }
+    final openIndex = before.lastIndexOf('<sup', closeIndex);
+    final contentStart = openIndex < 0 ? -1 : html.indexOf('>', openIndex) + 1;
+    if (openIndex < 0 || contentStart <= openIndex) {
+      noteIndex++;
+      continue;
+    }
+    final marker = html.substring(contentStart, closeIndex);
+    replacements.add((
+      start: openIndex,
+      end: closeIndex + _supCloseTag.length,
+      value:
+          '<a class="book-note-marker" '
+          'href="otzaria://book-note?line=$lineIndex&note=$noteIndex">'
+          '$marker</a>',
+    ));
+    noteIndex++;
+  }
+
+  var result = html;
+  for (final replacement in replacements.reversed) {
+    result = result.replaceRange(
+      replacement.start,
+      replacement.end,
+      replacement.value,
+    );
+  }
+  return result;
+}
+
+/// מחזיר את תוכן ההערה המוטמעת שאליה מפנה [url].
+String? inlineNoteFromPreviewUrl(List<String> content, String url) {
+  final uri = Uri.tryParse(url);
+  if (uri?.scheme != 'otzaria' || uri?.host != 'book-note') return null;
+  final lineIndex = int.tryParse(uri!.queryParameters['line'] ?? '');
+  final noteIndex = int.tryParse(uri.queryParameters['note'] ?? '');
+  if (lineIndex == null ||
+      noteIndex == null ||
+      lineIndex < 0 ||
+      lineIndex >= content.length) {
+    return null;
+  }
+  final lineNotes = notesForLines(content, [lineIndex]);
+  if (noteIndex < 0 || noteIndex >= lineNotes.length) return null;
+  return lineNotes[noteIndex];
+}
+
 /// מסיר את גוף ההערות (<i class="footnote">...</i>) משורה אחת.
 /// משאיר את ה-<sup> במקומו כעוגן ויזואלי לאיפה הייתה ההערה.
 String stripInlineNotes(String html) {
@@ -81,8 +141,10 @@ List<String> notesForLines(
         if (tail.trim().isEmpty) {
           final openIdx = before.lastIndexOf('<sup', closeIdx);
           if (openIdx >= 0) {
-            final supTag =
-                before.substring(openIdx, closeIdx + _supCloseTag.length);
+            final supTag = before.substring(
+              openIdx,
+              closeIdx + _supCloseTag.length,
+            );
             results.add('$supTag $body');
             continue;
           }
