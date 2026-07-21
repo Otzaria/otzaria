@@ -23,6 +23,13 @@ class AppDropdownField<T> extends StatefulWidget {
   final int initialFilter;
   final double? menuMinWidth;
 
+  /// בונה מותאם לפריטי התפריט (למשל תת-תפריטים). כשמסופק הוא מחליף את
+  /// מיפוי ברירת המחדל של [entries]. אינו נתמך יחד עם [enableSearch].
+  final List<PopupMenuEntry<T>> Function(
+    BuildContext context,
+    AppMenuMetrics metrics,
+  )? menuItemsBuilder;
+
   const AppDropdownField({
     super.key,
     required this.value,
@@ -38,6 +45,7 @@ class AppDropdownField<T> extends StatefulWidget {
     this.filterPredicates,
     this.initialFilter = 0,
     this.menuMinWidth,
+    this.menuItemsBuilder,
   });
 
   @override
@@ -111,16 +119,18 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
             anchorContext: anchorContext,
             initialValue: widget.value,
             minWidth: _preferredMenuWidth(context),
-            itemsBuilder: (metrics) => widget.entries
-                .map<PopupMenuEntry<T>>(
-                  (entry) => buildAppPopupMenuItem<T>(
-                    context,
-                    entry,
-                    metrics,
-                    widget.value,
-                  ),
-                )
-                .toList(),
+            itemsBuilder: (metrics) =>
+                widget.menuItemsBuilder?.call(context, metrics) ??
+                widget.entries
+                    .map<PopupMenuEntry<T>>(
+                      (entry) => buildAppPopupMenuItem<T>(
+                        context,
+                        entry,
+                        metrics,
+                        widget.value,
+                      ),
+                    )
+                    .toList(),
           );
 
     if (!mounted) return;

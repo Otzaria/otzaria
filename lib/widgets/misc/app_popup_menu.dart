@@ -1399,12 +1399,9 @@ class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
     _submenuOpen = true;
     _completer = Completer<T?>();
 
-    final menuLeft = openToRight
-        ? itemRect.right
-        : (itemRect.left - estimatedSubmenuWidth).clamp(
-            0.0,
-            overlaySize.width - estimatedSubmenuWidth,
-          );
+    // הצמדת התת-תפריט לפריט האב: בפתיחה ימינה הקצה השמאלי צמוד לימין הפריט;
+    // בפתיחה שמאלה הקצה הימני צמוד לשמאל הפריט (עיגון לפי הקצה, לא לפי רוחב
+    // משוער, כדי שלא ייווצר מרווח כשהתת-תפריט צר מ-estimatedSubmenuWidth).
     final menuTop = itemRect.top.clamp(0.0, overlaySize.height - 10.0);
 
     _overlayEntry = OverlayEntry(
@@ -1417,7 +1414,8 @@ class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
         return Stack(
           children: [
             Positioned(
-              left: menuLeft,
+              left: openToRight ? itemRect.right : null,
+              right: openToRight ? null : (overlaySize.width - itemRect.left),
               top: menuTop,
               child: MouseRegion(
                 // כניסה לסאבמנו מבטלת את סגירת ה-hover

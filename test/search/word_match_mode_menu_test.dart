@@ -24,7 +24,20 @@ void main() {
     );
   }
 
-  group('תפריט מצב התאמת המילים', () {
+  // פותח את תת-התפריט של טווח "מרווח בין מילים" בתוך התפריט המרוכז.
+  Future<void> openWordDistanceSubmenu(WidgetTester tester) async {
+    await tester.tap(find.byIcon(FluentIcons.apps_list_24_regular));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(PopupMenuItem<(SearchScope, WordMatchMode)>),
+        matching: find.text(SearchScope.wordDistance.label),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  group('תפריט הטווח והתאמת המילים המרוכז', () {
     testWidgets('בחירת "מילה אחת לפחות" מעדכנת את ה-state ומשביתה את המרווח',
         (tester) async {
       final tab = SearchingTab('חיפוש', null);
@@ -34,9 +47,8 @@ void main() {
       await tester.pumpWidget(harness(bloc, tab));
       expect(bloc.state.wordMatchMode, WordMatchMode.all);
 
-      await tester.tap(find.byIcon(FluentIcons.multiselect_rtl_24_regular));
-      await tester.pumpAndSettle();
-      // כל ארבע האפשרויות מוצגות בתפריט.
+      await openWordDistanceSubmenu(tester);
+      // כל ארבע אפשרויות ההתאמה מוצגות בתת-התפריט.
       for (final mode in WordMatchMode.values) {
         expect(find.text(mode.label), findsOneWidget);
       }
@@ -58,8 +70,7 @@ void main() {
       addTearDown(bloc.close);
 
       await tester.pumpWidget(harness(bloc, tab));
-      await tester.tap(find.byIcon(FluentIcons.multiselect_rtl_24_regular));
-      await tester.pumpAndSettle();
+      await openWordDistanceSubmenu(tester);
       await tester.tap(find.text(WordMatchMode.atLeast.label));
       await tester.pumpAndSettle();
 
@@ -81,7 +92,7 @@ void main() {
       await tester.pumpWidget(harness(bloc, tab));
       await tester.pumpAndSettle();
       expect(
-        find.byIcon(FluentIcons.multiselect_rtl_24_regular),
+        find.byIcon(FluentIcons.apps_list_24_regular),
         findsNothing,
       );
     });
