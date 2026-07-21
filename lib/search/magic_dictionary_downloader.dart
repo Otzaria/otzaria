@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/utils/http_redirect_download.dart';
@@ -87,7 +88,7 @@ class MagicDictionaryDownloader {
         return true;
       }
       await _download(release, dest, onProgress);
-      await _writeVersion(dest, release.tag);
+      await writeVersionMarker(dest, release.tag);
       return true;
     } catch (_) {
       // אם נכשלנו אבל כבר יש קובץ שמיש מהורדה קודמת — עדיין שמיש.
@@ -99,9 +100,7 @@ class MagicDictionaryDownloader {
   Future<MagicDictionaryRelease> fetchLatestRelease() async {
     final response = await _send(
       Uri.parse(latestReleaseApi),
-      headers: {
-        'Accept': 'application/vnd.github+json',
-      },
+      headers: {'Accept': 'application/vnd.github+json'},
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       await response.stream.drain<void>();
@@ -183,7 +182,7 @@ class MagicDictionaryDownloader {
         );
       }
 
-      await _replaceDownloadedFile(outFile, dest);
+      await replaceDownloadedFile(outFile, dest);
     } catch (_) {
       try {
         await sink.close();
@@ -203,7 +202,8 @@ class MagicDictionaryDownloader {
     }
   }
 
-  Future<void> _replaceDownloadedFile(File source, String dest) async {
+  @visibleForTesting
+  Future<void> replaceDownloadedFile(File source, String dest) async {
     final destFile = File(dest);
     if (!Platform.isWindows) {
       await source.rename(dest);
@@ -216,7 +216,17 @@ class MagicDictionaryDownloader {
     }
     final hadExistingDest = await destFile.exists();
     if (hadExistingDest) {
-      await destFile.rename(backupFile.path);
+      try {
+        await destFile.rename(backupFile.path);
+      } on FileSystemException {
+        // מנוע החיפוש מחזיק את הקובץ פתוח (Windows חוסם rename). אם התוכן
+        // שהורד זהה לקיים — היעד כבר עדכני ודי במחיקת הזמני וכתיבת הסימון.
+        if (await _filesIdentical(source, destFile)) {
+          await source.delete();
+          return;
+        }
+        rethrow;
+      }
     }
 
     try {
@@ -234,21 +244,44 @@ class MagicDictionaryDownloader {
     }
   }
 
-  String _versionPath(String dest) => '$dest.version';
+  static String _versionPath(String dest) => '$dest.version';
 
-  Future<void> _writeVersion(String dest, String tag) async {
+  /// כותב את סימון הגרסה של מילון שהותקן ב-[dest] — משמש גם את מסלול
+  /// ההתקנה הראשונית. best-effort: כישלון בו לא אמור להפיל את ההתקנה.
+  static Future<void> writeVersionMarker(String dest, String tag) async {
     try {
       await File(_versionPath(dest)).writeAsString(tag);
-    } catch (_) {
-      // סימון גרסה הוא נחמד-שיהיה; כישלון בו לא אמור להפיל את ההורדה.
+    } catch (_) {}
+  }
+
+  /// השוואת תוכן מלאה בקריאת chunks — בלי לטעון 57MB לזיכרון.
+  Future<bool> _filesIdentical(File a, File b) async {
+    final length = await a.length();
+    if (length != await b.length()) return false;
+    final ra = await a.open();
+    final rb = await b.open();
+    try {
+      const chunkSize = 1 << 20;
+      var remaining = length;
+      while (remaining > 0) {
+        final want = remaining < chunkSize ? remaining : chunkSize;
+        final ca = await ra.read(want);
+        final cb = await rb.read(want);
+        if (ca.isEmpty || ca.length != cb.length) return false;
+        for (var i = 0; i < ca.length; i++) {
+          if (ca[i] != cb[i]) return false;
+        }
+        remaining -= ca.length;
+      }
+      return true;
+    } finally {
+      await ra.close();
+      await rb.close();
     }
   }
 
   /// GET עם מעקב ידני אחרי redirects (נכסי GitHub Releases מפנים ל-CDN).
-  Future<http.StreamedResponse> _send(
-    Uri uri, {
-    Map<String, String>? headers,
-  }) {
+  Future<http.StreamedResponse> _send(Uri uri, {Map<String, String>? headers}) {
     return sendGetFollowingRedirects(
       _client,
       uri,

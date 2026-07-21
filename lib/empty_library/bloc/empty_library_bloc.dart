@@ -11,6 +11,7 @@ import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_event.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_state.dart';
 import 'package:otzaria/empty_library/services/android_storage_service.dart';
+import 'package:otzaria/search/magic_dictionary_downloader.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/utils/download_eta_estimator.dart';
 import 'package:otzaria/utils/download_sidecar.dart';
@@ -552,12 +553,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
           ? 'אין מספיק מקום פנוי. בחר "העבר" (מחיקת מקור) כדי לפנות מקום, '
                 'או פנה מקום ידנית ונסה שוב.'
           : 'שגיאה בהעתקת קובץ הספרייה: $e';
-      emit(
-        _error(
-          errorMessage: msg,
-          selectedPath: event.libraryPath,
-        ),
-      );
+      emit(_error(errorMessage: msg, selectedPath: event.libraryPath));
     }
   }
 
@@ -634,10 +630,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     Emitter<EmptyLibraryState> emit,
   ) async {
     final catalogArchive = File(
-      path.join(
-        sourceDir,
-        DatabaseConstants.externalCatalogArchiveFileName,
-      ),
+      path.join(sourceDir, DatabaseConstants.externalCatalogArchiveFileName),
     );
     if (await catalogArchive.exists()) {
       try {
@@ -666,10 +659,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     }
 
     final talmudArchive = File(
-      path.join(
-        sourceDir,
-        DatabaseConstants.talmudBavliArchiveFileName,
-      ),
+      path.join(sourceDir, DatabaseConstants.talmudBavliArchiveFileName),
     );
     if (await talmudArchive.exists()) {
       try {
@@ -748,11 +738,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       // אם לא היה חילוץ, נמשיך ישירות לבדיקת הקובץ
       await _checkAndSaveExtractedDatabase(path.dirname(zipFilePath), emit);
     } catch (e) {
-      emit(
-        _error(
-          errorMessage: 'שגיאה: $e',
-        ),
-      );
+      emit(_error(errorMessage: 'שגיאה: $e'));
     }
   }
 
@@ -796,11 +782,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
 
       emit(EmptyLibraryDirectorySelected(selectedPath: rootPath));
     } catch (e) {
-      emit(
-        _error(
-          errorMessage: 'שגיאה: $e',
-        ),
-      );
+      emit(_error(errorMessage: 'שגיאה: $e'));
     }
   }
 
@@ -858,10 +840,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       ];
 
       emit(
-        const EmptyLibraryDownloading(
-          progress: 0.0,
-          message: 'מתחבר לשרת...',
-        ),
+        const EmptyLibraryDownloading(progress: 0.0, message: 'מתחבר לשרת...'),
       );
 
       // פתרון redirect-ים מראש (package:http מאבד את ה-Range בעת redirect) +
@@ -872,6 +851,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
           asset.resolvedUrl = resolved.url;
           asset.compressedSize = resolved.size;
           asset.identity = resolved.identity;
+          asset.releaseTag = resolved.releaseTag;
         } catch (e) {
           if (!asset.optional) rethrow;
           debugPrint('פתרון כתובת ${asset.tempFileName} (אופציונלי) נכשל: $e');
@@ -993,11 +973,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       // המשך לבדיקת הקובץ המחולץ
       await _checkAndSaveExtractedDatabase(event.extractedPath, emit);
     } catch (e) {
-      emit(
-        _error(
-          errorMessage: 'שגיאה: $e',
-        ),
-      );
+      emit(_error(errorMessage: 'שגיאה: $e'));
     }
   }
 
@@ -1135,7 +1111,17 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         await _extractTarArchive(tempPath, outputDir, report);
       } else if (!asset.isCompressed) {
         // קובץ לא דחוס (lexical.db) — מועתק מ-temp ליעד ללא חילוץ.
-        await File(tempPath).copy(path.join(outputDir, asset.outputFileName!));
+        final outputPath = path.join(outputDir, asset.outputFileName!);
+        await File(tempPath).copy(outputPath);
+        // בלי סימון גרסה, בדיקת העדכון הבאה תוריד את המילון מחדש בכל הפעלה.
+        final releaseTag = asset.releaseTag;
+        if (asset.outputFileName == DatabaseConstants.lexicalDatabaseFileName &&
+            releaseTag != null) {
+          await MagicDictionaryDownloader.writeVersionMarker(
+            outputPath,
+            releaseTag,
+          );
+        }
         report(1.0);
       } else {
         final outputPath = path.join(outputDir, asset.outputFileName!);
@@ -1196,13 +1182,15 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   /// (Content-Length) ו-[identity] המקשר שריד temp לגרסה המרוחקת. נדרש כי
   /// package:http מאבד את ה-Range header בעת redirect; הגודל משמש לפס התקדמות
   /// וזמן משוער מאוחדים. [identity] = `<etag>|<size>` (fallback: last-modified,
-  /// ואז ה-URL הסופי). מחזיר size=0 אם השרת לא סיפק Content-Length.
-  Future<({String url, int size, String identity})> _resolveRedirectWithSize(
-    String url,
-  ) async {
+  /// ואז ה-URL הסופי). מחזיר size=0 אם השרת לא סיפק Content-Length, ואת תג
+  /// ה-release אם הופיע באחד מנתיבי ה-redirect.
+  Future<({String url, int size, String identity, String? releaseTag})>
+  _resolveRedirectWithSize(String url) async {
     var current = Uri.parse(url);
+    String? releaseTag;
     const maxRedirects = 5;
     for (var i = 0; i <= maxRedirects; i++) {
+      releaseTag = releaseTagFromUrl(current.path) ?? releaseTag;
       final request = http.Request('HEAD', current)..followRedirects = false;
       final response = await _httpClient
           .send(request)
@@ -1233,9 +1221,21 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       try {
         await response.stream.listen((_) {}).cancel();
       } catch (_) {}
-      return (url: current.toString(), size: size, identity: '$tag|$size');
+      return (
+        url: current.toString(),
+        size: size,
+        identity: '$tag|$size',
+        releaseTag: releaseTag,
+      );
     }
     throw Exception('יותר מדי redirects: $url');
+  }
+
+  /// מחלץ את תג ה-release מתוך נתיב הורדה של GitHub — שרשרת ה-redirect של
+  /// `releases/latest/download` עוברת דרך `releases/download/<tag>/<file>`.
+  @visibleForTesting
+  static String? releaseTagFromUrl(String urlPath) {
+    return RegExp(r'/releases/download/([^/]+)/').firstMatch(urlPath)?.group(1);
   }
 
   Future<DatabaseReleaseAsset> _fetchLatestDatabaseAsset() async {
@@ -1286,10 +1286,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       final name = asset['name']?.toString() ?? '';
       final downloadUrl = asset['browser_download_url']?.toString() ?? '';
       if (name == 'seforim.db.zst' && downloadUrl.isNotEmpty) {
-        return DatabaseReleaseAsset(
-          assetName: name,
-          downloadUrl: downloadUrl,
-        );
+        return DatabaseReleaseAsset(assetName: name, downloadUrl: downloadUrl);
       }
     }
 
@@ -1362,6 +1359,9 @@ class _DownloadAsset {
 
   /// מזהה גרסת הקובץ המרוחק (`<etag>|<size>`), לקישור שריד ה-temp לגרסה.
   String? identity;
+
+  /// תג ה-release שחולץ משרשרת ה-redirect — לכתיבת סימון גרסת המילון.
+  String? releaseTag;
 
   /// סומן לדילוג לאחר כשל best-effort (resolve/download) — מונע ניסיון חילוץ.
   bool skipped = false;
