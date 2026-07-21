@@ -28,10 +28,15 @@ class PanelScrollableContent extends StatefulWidget {
   /// ברירת מחדל: 16px אופקי — שמרחק זה הוא גם המרווח שמפריד בין הגלילה לתוכן.
   final EdgeInsetsGeometry padding;
 
+  /// מציג את פס הגלילה בצד ההפוך לכיוון הקריאה (ימין ב-RTL).
+  /// נדרש כשהקצה הטבעי של הגלילה מתנגש עם ידית שינוי-גודל של הפאנל.
+  final bool scrollbarOnOppositeSide;
+
   const PanelScrollableContent({
     super.key,
     required this.child,
     this.padding = const EdgeInsets.symmetric(horizontal: 16),
+    this.scrollbarOnOppositeSide = false,
   });
 
   @override
@@ -49,15 +54,39 @@ class _PanelScrollableContentState extends State<PanelScrollableContent> {
 
   @override
   Widget build(BuildContext context) {
+    // מכבים את ה-Scrollbar האוטומטי של ScrollBehavior כדי שיישאר רק המפורש,
+    // אחרת בהיפוך הצד מתקבל פס כפול (מפורש בצד אחד, אוטומטי בשני).
+    final scrollView = ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: SingleChildScrollView(
+        controller: _scrollController,
+        padding: widget.padding,
+        child: widget.child,
+      ),
+    );
+
     // crossAxisMargin:2 — זהה ל-adaptive_side_pane; צמוד לגבול עם רווח קל.
     return ScrollbarTheme(
       data: const ScrollbarThemeData(crossAxisMargin: 2),
+      child: widget.scrollbarOnOppositeSide
+          ? _buildOppositeSideScrollbar(context, scrollView)
+          : Scrollbar(controller: _scrollController, child: scrollView),
+    );
+  }
+
+  /// היפוך כיוון ה-Scrollbar בלבד כדי להצמידו לצד השני, תוך שמירת כיוון התוכן.
+  Widget _buildOppositeSideScrollbar(BuildContext context, Widget scrollView) {
+    final contentDirection = Directionality.of(context);
+    final scrollbarDirection = contentDirection == TextDirection.rtl
+        ? TextDirection.ltr
+        : TextDirection.rtl;
+    return Directionality(
+      textDirection: scrollbarDirection,
       child: Scrollbar(
         controller: _scrollController,
-        child: SingleChildScrollView(
-          controller: _scrollController,
-          padding: widget.padding,
-          child: widget.child,
+        child: Directionality(
+          textDirection: contentDirection,
+          child: scrollView,
         ),
       ),
     );
