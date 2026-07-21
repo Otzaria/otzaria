@@ -217,6 +217,65 @@ void main() {
     );
   });
 
+
+  test('snapshot ישן לא מוחק ספר ששויך מחדש במהלך אותה סריקה', () async {
+    final libraryPath = path.join(tempDir.path, 'library');
+    final alphaShared = path.join(tempDir.path, 'alpha', 'shared');
+    final betaShared = path.join(tempDir.path, 'beta', 'shared');
+    await Directory(path.join(libraryPath, 'אוצריא')).create(recursive: true);
+    await Directory(alphaShared).create(recursive: true);
+    await Directory(betaShared).create(recursive: true);
+    final alphaFile = File(path.join(alphaShared, 'ספר זהה.txt'));
+    final betaFile = File(path.join(betaShared, 'ספר זהה.txt'));
+    await alphaFile.writeAsString('תוכן אלפא');
+    await betaFile.writeAsString('תוכן בטא');
+
+    final folders = [
+      CustomFolder(
+        path: alphaShared,
+        addToDatabase: false,
+        addedAt: DateTime(2026, 4, 13),
+      ),
+      CustomFolder(
+        path: betaShared,
+        addToDatabase: false,
+        addedAt: DateTime(2026, 4, 13),
+      ),
+    ];
+    await Settings.setValue<String>(
+      SettingsRepository.keyLibraryPath,
+      libraryPath,
+    );
+    await Settings.setValue<String>(
+      SettingsRepository.keyCustomFolders,
+      CustomFoldersManager.saveFolders(folders),
+    );
+
+    final service = await FileSyncService.getInstance(repository);
+    await service!.syncFiles();
+
+    // בסריקה הראשונה הרשומה המשותפת שויכה לתיקייה השנייה. לאחר שקובץ beta
+    // נעלם, סריקת alpha משייכת אותה מחדש ל-alpha; ה-prune של beta חייב לקרוא
+    // את ה-source העדכני ולא למחוק לפי ה-snapshot שנבנה בתחילת הסריקה.
+    await betaFile.delete();
+    await service.syncFiles();
+
+    final personalCategory = (await repository.getRootCategories())
+        .where((category) => category.title == 'ספרים אישיים')
+        .first;
+    final sharedCategory = await repository.getCategoryByTitleAndParent(
+      'shared',
+      personalCategory.id,
+    );
+    final books = await repository.getBooksByCategory(sharedCategory!.id);
+    expect(books.map((book) => book.title), ['ספר זהה']);
+    expect(books.single.filePath, alphaFile.path);
+    expect(
+      (await repository.getSourceById(books.single.sourceId))?.name,
+      _sourceNameForFolder(alphaShared),
+    );
+  });
+
   test(
       'pruneRemovedCustomFoldersFromDatabase משאיר תיקייה פעילה בלי filePath ומוחק ישנה',
       () async {

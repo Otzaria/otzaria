@@ -494,9 +494,42 @@ class FileSyncService {
               '${(book.fileType ?? '').toLowerCase()}';
           if (keepKeys.contains(key)) continue;
         }
-        _log.info('Removing book from DB: "${book.title}" (id=${book.id})');
+
+        // ה-snapshot נבנה לפני הסריקה. בתיקיות בעלות basename זהה גם מפתח
+        // הספר יכול להתנגש, וסריקה מוקדמת עשויה לשנות בינתיים source/אחסון של
+        // אותה רשומה. מאמתים מחדש רק מועמד למחיקה (מסלול נדיר), כדי לא למחוק
+        // ספר לפי שיוך מיושן בלי להחזיר שאילתות פר-ספר למסלול הרגיל.
+        final currentBook = await repo.getBook(book.id);
+        if (currentBook == null) continue;
+        final currentSourceName = (await repo.getSourceById(
+          currentBook.sourceId,
+        ))?.name;
+        final currentPath = currentBook.filePath;
+        final stillBelongsToFolder =
+            currentSourceName == folderSourceName ||
+            (currentSourceName == CustomFolderSource.legacyExternalSourceName &&
+                currentPath != null &&
+                currentPath.isNotEmpty &&
+                _isPathInsideFolder(currentPath, folderPath) &&
+                !_belongsToDeeperFolder(
+                  currentPath,
+                  folderPath,
+                  otherConfiguredFolderPaths,
+                ));
+        if (!stillBelongsToFolder) continue;
+        if (keepKeys != null) {
+          if (!currentBook.isFileBacked) continue;
+          final currentKey =
+              '${currentBook.categoryId}|${currentBook.title}|'
+              '${(currentBook.fileType ?? '').toLowerCase()}';
+          if (keepKeys.contains(currentKey)) continue;
+        }
+
+        _log.info(
+          'Removing book from DB: "${currentBook.title}" (id=${currentBook.id})',
+        );
         try {
-          await repo.deleteBookCompletely(book.id);
+          await repo.deleteBookCompletely(currentBook.id);
           removed++;
           affectedCategoryIds.add(categoryId);
         } catch (e, st) {

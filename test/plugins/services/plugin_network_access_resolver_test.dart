@@ -31,7 +31,9 @@ PluginManifest _buildManifest({List<String> networkAllowlist = const []}) {
 void main() {
   group('PluginNetworkAccessResolver', () {
     test('מתיר URL מהרשימה הרשמית רק אם הוא הוצהר גם במניפסט', () async {
+      var fetches = 0;
       final client = MockClient((request) async {
+        fetches++;
         expect(request.url, PluginNetworkAccessResolver.officialAllowlistUri);
         return http.Response('https://nakdan.dicta.org.il/api\n', 200);
       });
@@ -55,30 +57,84 @@ void main() {
         ),
         isFalse,
       );
+      expect(fetches, 1);
     });
 
-    test('מתיר loopback מקומי כשהמניפסט מצהיר עליו, בלי allowlist גלובלי',
-        () async {
-      final resolver = PluginNetworkAccessResolver();
-      final manifest = _buildManifest(
-        networkAllowlist: const ['127.0.0.1', 'localhost'],
-      );
+    test('הרשימה הרשמית יכולה לבטל כתובת שקיימת ברשימה המקומפלת', () async {
+      final client = MockClient((_) async {
+        return http.Response('https://approved.example.com/api\n', 200);
+      });
+      final resolver = PluginNetworkAccessResolver(client: client);
+      final compiledUri = Uri.parse('https://nakdan.dicta.org.il/api');
 
       expect(
         await resolver.isUriAllowedForPlugin(
-          Uri.parse('http://127.0.0.1:11434/api/tags'),
-          manifest,
+          compiledUri,
+          _buildManifest(
+            networkAllowlist: const ['https://nakdan.dicta.org.il/api'],
+          ),
         ),
-        isTrue,
+        isFalse,
       );
+    });
+
+    test('רשימה רשמית ריקה חוסמת גם כתובות מקומפלות', () async {
+      final client = MockClient(
+        (_) async => http.Response('# emergency\n', 200),
+      );
+      final resolver = PluginNetworkAccessResolver(client: client);
+
       expect(
         await resolver.isUriAllowedForPlugin(
-          Uri.parse('http://localhost:1234/v1/models'),
-          manifest,
+          Uri.parse('https://nakdan.dicta.org.il/api'),
+          _buildManifest(
+            networkAllowlist: const ['https://nakdan.dicta.org.il/api'],
+          ),
+        ),
+        isFalse,
+      );
+    });
+
+    test('כשל בטעינת הרשימה הרשמית נופל לרשימה המקומפלת', () async {
+      final client = MockClient((_) async => http.Response('unavailable', 503));
+      final resolver = PluginNetworkAccessResolver(client: client);
+      final compiledUri = Uri.parse('https://nakdan.dicta.org.il/api');
+
+      expect(
+        await resolver.isUriAllowedForPlugin(
+          compiledUri,
+          _buildManifest(
+            networkAllowlist: const ['https://nakdan.dicta.org.il/api'],
+          ),
         ),
         isTrue,
       );
     });
+
+    test(
+      'מתיר loopback מקומי כשהמניפסט מצהיר עליו, בלי allowlist גלובלי',
+      () async {
+        final resolver = PluginNetworkAccessResolver();
+        final manifest = _buildManifest(
+          networkAllowlist: const ['127.0.0.1', 'localhost'],
+        );
+
+        expect(
+          await resolver.isUriAllowedForPlugin(
+            Uri.parse('http://127.0.0.1:11434/api/tags'),
+            manifest,
+          ),
+          isTrue,
+        );
+        expect(
+          await resolver.isUriAllowedForPlugin(
+            Uri.parse('http://localhost:1234/v1/models'),
+            manifest,
+          ),
+          isTrue,
+        );
+      },
+    );
 
     test('חוסם loopback אם המניפסט לא מצהיר עליו', () async {
       final resolver = PluginNetworkAccessResolver();
@@ -117,13 +173,16 @@ void main() {
     test('מפרק את קובץ הטקסט הרשמי: הערות ושורות ריקות מדולגות', () async {
       final client = MockClient((_) async {
         // Response.bytes + utf8: הערות בעברית בקובץ האמיתי אינן latin1
-        return http.Response.bytes(utf8.encode('''
+        return http.Response.bytes(
+          utf8.encode('''
 # הערה
 https://api.example.com/root
 
 # עוד הערה
 https://other.example.com
-'''), 200);
+'''),
+          200,
+        );
       });
       final resolver = PluginNetworkAccessResolver(client: client);
 

@@ -148,6 +148,7 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
 
   Timer? _pdfHighlightDebounce;
   String _lastPdfHighlightSource = '';
+  int _searchGeneration = 0;
 
   /// התבנית שנבנתה מהמונחים שהמנוע מצא בפועל — לשימוש חוזר בלחיצה על תוצאה.
   RegExp? _lastAdvancedHighlightPattern;
@@ -318,6 +319,9 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
   }
 
   Future<void> _searchTextUpdated() async {
+    // כל שינוי בשאילתה/במצב החיפוש מבטל תוצאות אסינכרוניות ישנות. בלי מזהה
+    // דור, חיפוש איטי קודם יכול להסתיים אחרי החדש ולדרוס תוצאות והדגשות.
+    final generation = ++_searchGeneration;
     String query = widget.searchController.text.trim();
 
     if (query.isEmpty || (!_isSimpleSearch && _bookPath == null)) {
@@ -393,7 +397,7 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
               return a.reference.compareTo(b.reference);
             });
 
-      if (!mounted) return;
+      if (!mounted || generation != _searchGeneration) return;
       setState(() {
         _searchResults = results;
         _isSearching = false;
@@ -402,7 +406,7 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
       _scheduleScrollToCurrentPage();
     } catch (e, st) {
       debugPrint('[PdfSearch] search failed for "$query": $e\n$st');
-      if (!mounted) return;
+      if (!mounted || generation != _searchGeneration) return;
       setState(() {
         _searchResults = [];
         _isSearching = false;

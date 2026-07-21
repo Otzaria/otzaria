@@ -189,4 +189,61 @@ void main() {
     expect(rows[2]['tocEntryId'], equals(toc2));
     expect(rows[3]['tocEntryId'], equals(toc2));
   });
+  test('6. כותרות באותה שורה מוכרעות דטרמיניסטית לטובת העמוקה', () async {
+    final catId = await createCategory();
+    final bookId = await createBook(catId, 'ספר 6');
+    await insertLines(bookId, ['<h1>פרק</h1>', 'תוכן']);
+
+    final shallowId = await insertToc(bookId, 0);
+    final deepId = await repository.insertTocEntry(
+      TocEntry(
+        id: 0,
+        bookId: bookId,
+        parentId: shallowId,
+        text: 'סעיף',
+        level: 2,
+        lineIndex: 0,
+        lineId: null,
+        isLastChild: true,
+        hasChildren: false,
+      ),
+    );
+
+    await repository.updateTocEntryLineIdsByLineIndex(bookId);
+    await repository.rebuildLineTocForBook(bookId);
+
+    final rows = await getLineTocRows(bookId);
+    expect(rows, hasLength(2));
+    expect(rows.map((row) => row['tocEntryId']), everyElement(deepId));
+  });
+
+  test('7. parent מקומי חסר מבטל את טרנזקציית הכנסת ה-TOC', () async {
+    final catId = await createCategory();
+    final bookId = await createBook(catId, 'ספר 7');
+
+    await expectLater(
+      repository.insertGeneratedTocEntries(bookId, [
+        TocEntry(
+          id: 1,
+          bookId: bookId,
+          parentId: 999,
+          text: 'ילד יתום',
+          level: 2,
+          lineIndex: 0,
+          lineId: null,
+          isLastChild: false,
+          hasChildren: false,
+        ),
+      ]),
+      throwsA(isA<StateError>()),
+    );
+
+    final db = await database.database;
+    final count = db.select(
+      'SELECT COUNT(*) AS count FROM tocEntry WHERE bookId = ?',
+      [bookId],
+    ).toMapList().single['count'];
+    expect(count, 0);
+  });
+
 }
