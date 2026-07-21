@@ -1,4 +1,4 @@
-/// קבועים ועזרים לסיווג סוגי קישורים, בהתאם ל-14 הסוגים ב-seforim.db v3.
+/// קבועים ועזרים לסיווג סוגי קישורים ב־seforim.db.
 class LinkTypes {
   LinkTypes._();
 
@@ -17,8 +17,9 @@ class LinkTypes {
   static const String related = 'RELATED';
   static const String other = 'OTHER';
 
-  /// סוג תלוי חדש (למשל "עין איה") — נחשב כמפרש, לא כהפניה.
+  /// ביאורים תלויי־טקסט, ולכן מוצגים כמפרשים ולא כהפניות.
   static const String elucidation = 'ELUCIDATION';
+  static const String explication = 'EXPLICATION';
 
   /// סוגי קישור תלויי-טקסט — טקסטים שתלויים בטקסט הבסיס (פירוש/תרגום/מדרש
   /// וכד׳) ומוצגים בפאנל המפרשים. "עין משפט" הוא כלי הפניה ולכן מוצג בקישורים.
@@ -30,6 +31,7 @@ class LinkTypes {
     parshanut,
     diburHamatchil,
     elucidation,
+    explication,
   };
 
   /// האם הקישור הוא תלוי-טקסט (מפרש) — מוצג בפאנל המפרשים ולא כהפניה צדדית.
