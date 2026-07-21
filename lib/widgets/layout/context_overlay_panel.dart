@@ -237,8 +237,13 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
     final horizontalPadding =
         EdgeInsets.only(left: resolved.left, right: resolved.right);
 
+    // centerEnd = פאנל בשמאל → ידית בקצה ימין, פס גלילה נשאר בשמאל (ללא חפיפה).
+    // centerStart = פאנל בימין → ידית בקצה שמאל; פס הגלילה חייב לעבור לימין.
+    final isLeft = widget.alignment == AlignmentDirectional.centerEnd;
+
     final scrollableChild = PanelScrollableContent(
       padding: horizontalPadding,
+      scrollbarOnOppositeSide: !isLeft,
       child: widget.child,
     );
 

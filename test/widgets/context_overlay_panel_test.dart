@@ -221,6 +221,69 @@ void main() {
     });
   });
 
+  group('ContextOverlayPanel — צד פס הגלילה מול ידית הגרירה', () {
+    Widget buildAligned(AlignmentDirectional alignment) {
+      return MaterialApp(
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(
+            body: Stack(
+              children: [
+                const SizedBox.expand(),
+                ContextOverlayPanel(
+                  isOpen: true,
+                  onClose: () {},
+                  scrollable: true,
+                  alignment: alignment,
+                  child: const Text('תוכן', textDirection: TextDirection.rtl),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets('פאנל מימין (centerStart) — פס גלילה יחיד בצד ימין, תוכן RTL',
+        (tester) async {
+      await tester.pumpWidget(buildAligned(AlignmentDirectional.centerStart));
+      await tester.pump();
+
+      expect(find.byType(Scrollbar), findsOneWidget,
+          reason: 'פס גלילה יחיד בלבד — האוטומטי מבוטל דרך ScrollConfiguration');
+
+      final scrollbarContext = tester.element(find.byType(Scrollbar));
+      expect(
+        Directionality.of(scrollbarContext),
+        TextDirection.ltr,
+        reason: 'כיוון ה-Scrollbar מהופך ל-LTR כדי להצמידו לימין, הרחק מהידית',
+      );
+
+      final contentContext =
+          tester.element(find.byType(SingleChildScrollView));
+      expect(
+        Directionality.of(contentContext),
+        TextDirection.rtl,
+        reason: 'התוכן נשאר RTL למרות היפוך כיוון ה-Scrollbar',
+      );
+    });
+
+    testWidgets('פאנל משמאל (centerEnd) — פס גלילה נשאר בצד שמאל (RTL)',
+        (tester) async {
+      await tester.pumpWidget(buildAligned(AlignmentDirectional.centerEnd));
+      await tester.pump();
+
+      expect(find.byType(Scrollbar), findsOneWidget);
+
+      final scrollbarContext = tester.element(find.byType(Scrollbar));
+      expect(
+        Directionality.of(scrollbarContext),
+        TextDirection.rtl,
+        reason: 'משמאל הידית בקצה ימין — פס הגלילה נשאר בשמאל ללא היפוך',
+      );
+    });
+  });
+
   group('ContextOverlayPanel — כפתור סגירה (X)', () {
     testWidgets('הכפתור מוצג כשיש title ולחיצה עליו קוראת ל-onClose',
         (tester) async {
