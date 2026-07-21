@@ -11,6 +11,7 @@ import '../../models/category.dart';
 import '../../models/docx_text_cache_entry.dart';
 import '../../models/line.dart';
 import '../../models/link.dart';
+import '../../models/pdf_anchor_cache_entry.dart';
 import '../../models/pdf_outline_cache_entry.dart';
 import '../../models/pub_date.dart';
 import '../../models/pub_place.dart';
@@ -110,8 +111,9 @@ class SeforimRepository {
     withTransaction(db, () {
       for (final pair in pairs) {
         db.execute(
-            'INSERT OR REPLACE INTO line_toc (lineId, tocEntryId) VALUES (?, ?)',
-            [pair.lineId, pair.tocId]);
+          'INSERT OR REPLACE INTO line_toc (lineId, tocEntryId) VALUES (?, ?)',
+          [pair.lineId, pair.tocId],
+        );
       }
     });
   }
@@ -120,8 +122,9 @@ class SeforimRepository {
   Future<List<int>> getLineIdsForTocEntry(int tocEntryId) async {
     final db = await _database.database;
     final result = db.select(
-        'SELECT lineId FROM line_toc WHERE tocEntryId = ? ORDER BY lineId',
-        [tocEntryId]).toMapList();
+      'SELECT lineId FROM line_toc WHERE tocEntryId = ? ORDER BY lineId',
+      [tocEntryId],
+    ).toMapList();
     return result.map((row) => row['lineId'] as int).toList();
   }
 
@@ -131,14 +134,16 @@ class SeforimRepository {
     final db = await _database.database;
     // Clear existing mappings for the book
     db.execute(
-        'DELETE FROM line_toc WHERE lineId IN (SELECT id FROM line WHERE bookId = ?)',
-        [bookId]);
+      'DELETE FROM line_toc WHERE lineId IN (SELECT id FROM line WHERE bookId = ?)',
+      [bookId],
+    );
 
     // Insert computed mappings.
     // Lines that appear before the first heading have no tocEntry covering them;
     // the subquery returns NULL for those rows.  We skip them rather than
     // violating the NOT NULL constraint on line_toc.tocEntryId.
-    db.execute('''
+    db.execute(
+      '''
       INSERT INTO line_toc(lineId, tocEntryId)
       SELECT lineId, tocEntryId
       FROM (
@@ -157,7 +162,9 @@ class SeforimRepository {
           WHERE l.bookId = ?
       )
       WHERE tocEntryId IS NOT NULL
-    ''', [bookId]);
+    ''',
+      [bookId],
+    );
   }
 
   // --- Transactions ---
@@ -247,8 +254,9 @@ class SeforimRepository {
 
       // Self
       db.execute(
-          'INSERT INTO category_closure (ancestorId, descendantId) VALUES (?, ?)',
-          [descId, descId]);
+        'INSERT INTO category_closure (ancestorId, descendantId) VALUES (?, ?)',
+        [descId, descId],
+      );
 
       ancId = parentMap[descId];
       var guard = 0;
@@ -256,8 +264,9 @@ class SeforimRepository {
 
       while (ancId != null && guard++ < safety) {
         db.execute(
-            'INSERT INTO category_closure (ancestorId, descendantId) VALUES (?, ?)',
-            [ancId, descId]);
+          'INSERT INTO category_closure (ancestorId, descendantId) VALUES (?, ?)',
+          [ancId, descId],
+        );
         ancId = parentMap[ancId];
       }
     }
@@ -270,14 +279,16 @@ class SeforimRepository {
     final db = await _database.database;
     // הפניה עצמית — כל קטגוריה היא צאצא של עצמה.
     db.execute(
-        'INSERT OR IGNORE INTO category_closure (ancestorId, descendantId) VALUES (?, ?)',
-        [categoryId, categoryId]);
+      'INSERT OR IGNORE INTO category_closure (ancestorId, descendantId) VALUES (?, ?)',
+      [categoryId, categoryId],
+    );
     // ירושת כל האבות של ההורה — כולל ההורה עצמו (דרך ה-self-loop שלו).
     if (parentId != null) {
       db.execute(
-          'INSERT OR IGNORE INTO category_closure (ancestorId, descendantId) '
-          'SELECT ancestorId, ? FROM category_closure WHERE descendantId = ?',
-          [categoryId, parentId]);
+        'INSERT OR IGNORE INTO category_closure (ancestorId, descendantId) '
+        'SELECT ancestorId, ? FROM category_closure WHERE descendantId = ?',
+        [categoryId, parentId],
+      );
     }
   }
 
@@ -286,8 +297,9 @@ class SeforimRepository {
   Future<List<int>> getDescendantCategoryIds(int ancestorId) async {
     final db = await _database.database;
     final result = db.select(
-        'SELECT descendantId FROM category_closure WHERE ancestorId = ?',
-        [ancestorId]).toMapList();
+      'SELECT descendantId FROM category_closure WHERE ancestorId = ?',
+      [ancestorId],
+    ).toMapList();
     return result.map((row) => row['descendantId'] as int).toList();
   }
 
@@ -332,8 +344,9 @@ class SeforimRepository {
   Future<int> insertCategory(Category category) async {
     try {
       // בדוק אם קיימת קטגוריה עם אותו שם ואותו הורה
-      final existingCategories =
-          await _getCategoriesByParent(category.parentId);
+      final existingCategories = await _getCategoriesByParent(
+        category.parentId,
+      );
       final existingCategory = existingCategories.firstWhere(
         (cat) => cat.title == category.title,
         orElse: () => Category(id: 0, title: '', parentId: null, level: 0),
@@ -351,8 +364,9 @@ class SeforimRepository {
       // ודא שההכנסה הצליחה
       if (insertedId == 0) {
         // בדוק שוב אם הקטגוריה נוספה למרות הכל
-        final updatedCategories =
-            await _getCategoriesByParent(category.parentId);
+        final updatedCategories = await _getCategoriesByParent(
+          category.parentId,
+        );
         final newCategory = updatedCategories.firstWhere(
           (cat) => cat.title == category.title,
           orElse: () => Category(id: 0, title: '', parentId: null, level: 0),
@@ -363,14 +377,16 @@ class SeforimRepository {
           return newCategory.id;
         }
         throw Exception(
-            'Failed to insert category \'${category.title}\' with parent ${category.parentId}');
+          'Failed to insert category \'${category.title}\' with parent ${category.parentId}',
+        );
       }
       // עדכון אינקרמנטלי של category_closure — מונע rebuild גלובלי בעלייה.
       await _insertClosureForCategory(insertedId, category.parentId);
       return insertedId;
     } catch (e) {
       _logger.warning(
-          'Repository: Error inserting category \'${category.title}\': ${e.toString()}');
+        'Repository: Error inserting category \'${category.title}\': ${e.toString()}',
+      );
       // במקרה של שגיאה, בדוק אם הקטגוריה קיימת בכל זאת
       final categories = await _getCategoriesByParent(category.parentId);
       final existingCategory = categories.firstWhere(
@@ -399,9 +415,13 @@ class SeforimRepository {
 
   /// Gets a category by its title and parent ID.
   Future<Category?> getCategoryByTitleAndParent(
-      String title, int? parentId) async {
-    return await _database.categoryDao
-        .getCategoryByTitleAndParent(title, parentId);
+    String title,
+    int? parentId,
+  ) async {
+    return await _database.categoryDao.getCategoryByTitleAndParent(
+      title,
+      parentId,
+    );
   }
 
   // --- Books ---
@@ -433,84 +453,110 @@ class SeforimRepository {
   /// @return A list of books in the category
   Future<List<Book>> getBooksByCategory(int categoryId) async {
     final books = await _database.bookDao.getBooksByCategory(categoryId);
-    return Future.wait(books.map((bookData) async {
-      final authors = await _getBookAuthors(bookData.id);
-      final topics = await _getBookTopics(bookData.id);
-      final pubPlaces = await _getBookPubPlaces(bookData.id);
-      final pubDates = await _getBookPubDates(bookData.id);
-      return bookData.copyWith(
-        authors: authors,
-        topics: topics,
-        pubPlaces: pubPlaces,
-        pubDates: pubDates,
-      );
-    }));
+    return Future.wait(
+      books.map((bookData) async {
+        final authors = await _getBookAuthors(bookData.id);
+        final topics = await _getBookTopics(bookData.id);
+        final pubPlaces = await _getBookPubPlaces(bookData.id);
+        final pubDates = await _getBookPubDates(bookData.id);
+        return bookData.copyWith(
+          authors: authors,
+          topics: topics,
+          pubPlaces: pubPlaces,
+          pubDates: pubDates,
+        );
+      }),
+    );
   }
 
   Future<List<Book>> searchBooksByAuthor(String authorName) async {
     final books = await _database.bookDao.getBooksByAuthor(authorName);
-    return Future.wait(books.map((bookData) async {
-      final authors = await _getBookAuthors(bookData.id);
-      final topics = await _getBookTopics(bookData.id);
-      final pubPlaces = await _getBookPubPlaces(bookData.id);
-      final pubDates = await _getBookPubDates(bookData.id);
-      return bookData.copyWith(
-        authors: authors,
-        topics: topics,
-        pubPlaces: pubPlaces,
-        pubDates: pubDates,
-      );
-    }));
+    return Future.wait(
+      books.map((bookData) async {
+        final authors = await _getBookAuthors(bookData.id);
+        final topics = await _getBookTopics(bookData.id);
+        final pubPlaces = await _getBookPubPlaces(bookData.id);
+        final pubDates = await _getBookPubDates(bookData.id);
+        return bookData.copyWith(
+          authors: authors,
+          topics: topics,
+          pubPlaces: pubPlaces,
+          pubDates: pubDates,
+        );
+      }),
+    );
   }
 
   // Get all authors for a book
   Future<List<Author>> _getBookAuthors(int bookId) async {
     final db = await _database.database;
-    final result = db.select('''
+    final result = db
+        .select(
+          '''
       SELECT a.* FROM author a
       JOIN book_author ba ON a.id = ba.authorId
       WHERE ba.bookId = ?
-    ''', [bookId]).toMapList();
+    ''',
+          [bookId],
+        )
+        .toMapList();
     return result.map((row) => Author.fromJson(row)).toList();
   }
 
   // Get all topics for a book
   Future<List<Topic>> _getBookTopics(int bookId) async {
     final db = await _database.database;
-    final result = db.select('''
+    final result = db
+        .select(
+          '''
       SELECT t.* FROM topic t
       JOIN book_topic bt ON t.id = bt.topicId
       WHERE bt.bookId = ?
-    ''', [bookId]).toMapList();
+    ''',
+          [bookId],
+        )
+        .toMapList();
     return result.map((row) => Topic.fromJson(row)).toList();
   }
 
   // Get all publication places for a book
   Future<List<PubPlace>> _getBookPubPlaces(int bookId) async {
     final db = await _database.database;
-    final result = db.select('''
+    final result = db
+        .select(
+          '''
       SELECT pp.* FROM pub_place pp
       JOIN book_pub_place bpp ON pp.id = bpp.pubPlaceId
       WHERE bpp.bookId = ?
-    ''', [bookId]).toMapList();
+    ''',
+          [bookId],
+        )
+        .toMapList();
     return result.map((row) => PubPlace.fromJson(row)).toList();
   }
 
   // Get all publication dates for a book
   Future<List<PubDate>> _getBookPubDates(int bookId) async {
     final db = await _database.database;
-    final result = db.select('''
+    final result = db
+        .select(
+          '''
       SELECT pd.* FROM pub_date pd
       JOIN book_pub_date bpd ON pd.id = bpd.pubDateId
       WHERE bpd.bookId = ?
-    ''', [bookId]).toMapList();
+    ''',
+          [bookId],
+        )
+        .toMapList();
     return result.map((row) => PubDate.fromJson(row)).toList();
   }
 
   /// חיפוש קל-משקל של שמות מחברים לפי מחרוזת חלקית — להשלמה אוטומטית
   /// בסינון "לפי ממדים" של החיפוש. מחזיר שמות בלבד, בלי לטעון ספרים.
-  Future<List<String>> searchAuthorNames(String prefix,
-      {int limit = 20}) async {
+  Future<List<String>> searchAuthorNames(
+    String prefix, {
+    int limit = 20,
+  }) async {
     final trimmed = prefix.trim();
     if (trimmed.isEmpty || limit <= 0) {
       return const [];
@@ -554,7 +600,8 @@ class SeforimRepository {
 
     // If all else fails, return a dummy ID that will be used for this session only
     _logger.warning(
-        'Could not insert author \'$name\' after multiple attempts, using temporary ID');
+      'Could not insert author \'$name\' after multiple attempts, using temporary ID',
+    );
     return 999999;
   }
 
@@ -581,8 +628,10 @@ class SeforimRepository {
   }
 
   Future<Book?> getBookByTitleAndCategory(String title, int categoryId) async {
-    final bookData =
-        await _database.bookDao.getBookByTitleAndCategory(title, categoryId);
+    final bookData = await _database.bookDao.getBookByTitleAndCategory(
+      title,
+      categoryId,
+    );
     if (bookData == null) return null;
 
     final authors = await _getBookAuthors(bookData.id);
@@ -599,9 +648,15 @@ class SeforimRepository {
   }
 
   Future<Book?> getBookByTitleCategoryAndFileType(
-      String title, int categoryId, String fileType) async {
-    final bookData = await _database.bookDao
-        .getBookByTitleCategoryAndFileType(title, categoryId, fileType);
+    String title,
+    int categoryId,
+    String fileType,
+  ) async {
+    final bookData = await _database.bookDao.getBookByTitleCategoryAndFileType(
+      title,
+      categoryId,
+      fileType,
+    );
     if (bookData == null) return null;
 
     final authors = await _getBookAuthors(bookData.id);
@@ -619,8 +674,10 @@ class SeforimRepository {
 
   /// מחזיר ספר לפי כותרת וסוג קובץ.
   Future<Book?> getBookByTitleAndFileType(String title, String fileType) async {
-    final bookData =
-        await _database.bookDao.getBookByTitleAndFileType(title, fileType);
+    final bookData = await _database.bookDao.getBookByTitleAndFileType(
+      title,
+      fileType,
+    );
     if (bookData == null) return null;
 
     final authors = await _getBookAuthors(bookData.id);
@@ -670,7 +727,8 @@ class SeforimRepository {
 
     // If all else fails, return a dummy ID that will be used for this session only
     _logger.warning(
-        'Could not insert topic \'$name\' after multiple attempts, using temporary ID');
+      'Could not insert topic \'$name\' after multiple attempts, using temporary ID',
+    );
     return 999999;
   }
 
@@ -698,7 +756,8 @@ class SeforimRepository {
 
     // If all else fails, return a dummy ID that will be used for this session only
     _logger.warning(
-        'Could not insert publication place \'$name\' after multiple attempts, using temporary ID');
+      'Could not insert publication place \'$name\' after multiple attempts, using temporary ID',
+    );
     return 999999;
   }
 
@@ -721,7 +780,8 @@ class SeforimRepository {
 
     // If all else fails, return a dummy ID that will be used for this session only
     _logger.warning(
-        'Could not insert publication date \'$date\' after multiple attempts, using temporary ID');
+      'Could not insert publication date \'$date\' after multiple attempts, using temporary ID',
+    );
     return 999999;
   }
 
@@ -790,8 +850,9 @@ class SeforimRepository {
   /// Returns a Source by id, or null if not found.
   Future<Source?> getSourceById(int id) async {
     final db = await _database.database;
-    final result =
-        db.select('SELECT * FROM source WHERE id = ?', [id]).toMapList();
+    final result = db.select('SELECT * FROM source WHERE id = ?', [
+      id,
+    ]).toMapList();
     if (result.isEmpty) return null;
     return Source.fromJson(result.first);
   }
@@ -799,8 +860,9 @@ class SeforimRepository {
   /// Returns a Source by name, or null if not found.
   Future<Source?> getSourceByName(String name) async {
     final db = await _database.database;
-    final result =
-        db.select('SELECT * FROM source WHERE name = ?', [name]).toMapList();
+    final result = db.select('SELECT * FROM source WHERE name = ?', [
+      name,
+    ]).toMapList();
     if (result.isEmpty) return null;
     return Source.fromJson(result.first);
   }
@@ -900,17 +962,25 @@ class SeforimRepository {
 
   /// Updates an external book's metadata (file size and last modified).
   Future<void> updateExternalBookMetadata(
-      int bookId, int fileSize, int lastModified) async {
+    int bookId,
+    int fileSize,
+    int lastModified,
+  ) async {
     _logger.fine('Updating external book metadata: bookId=$bookId');
-    await _database.bookDao
-        .updateExternalMetadata(bookId, fileSize, lastModified);
+    await _database.bookDao.updateExternalMetadata(
+      bookId,
+      fileSize,
+      lastModified,
+    );
   }
 
   /// מחליף את ה-TOC של ספר חיצוני קיים (מחיקת הישן + הוספת החדש). נדרש
   /// כשקובץ DOCX/TXT נערך — כדי שהניווט יתעדכן לפי התוכן החדש, ולא יישאר
   /// לפי הגרסה הישנה.
   Future<void> replaceExternalBookToc(
-      int bookId, List<TocEntry> tocEntries) async {
+    int bookId,
+    List<TocEntry> tocEntries,
+  ) async {
     await deleteBookTocEntries(bookId);
     if (tocEntries.isNotEmpty) {
       await _insertTocEntriesForExternalBook(bookId, tocEntries);
@@ -920,12 +990,17 @@ class SeforimRepository {
   /// Updates a book's storage details (file path, file size, last modified).
   /// Required when a book transitions between being stored externally and within the DB.
   Future<void> updateBookStorage(
-      int bookId, String? filePath, int? fileSize, int? lastModified) async {
+    int bookId,
+    String? filePath,
+    int? fileSize,
+    int? lastModified,
+  ) async {
     _logger.fine('Updating book storage: bookId=$bookId, filePath=$filePath');
     final db = await _database.database;
     db.execute(
-        'UPDATE book SET filePath = ?, fileSize = ?, lastModified = ? WHERE id = ?',
-        [filePath, fileSize, lastModified, bookId]);
+      'UPDATE book SET filePath = ?, fileSize = ?, lastModified = ? WHERE id = ?',
+      [filePath, fileSize, lastModified, bookId],
+    );
   }
 
   Future<void> updateBookSourceId(int bookId, int sourceId) async {
@@ -944,14 +1019,18 @@ class SeforimRepository {
 
   /// Gets an external book by its file path and file type.
   Future<Book?> getExternalBookByFilePathAndType(
-      String filePath, String fileType) async {
+    String filePath,
+    String fileType,
+  ) async {
     return await _database.bookDao.getBookByFilePathAndType(filePath, fileType);
   }
 
   /// Inserts TOC entries for an external book.
   /// Creates toc_text entries and toc_entry entries.
   Future<void> _insertTocEntriesForExternalBook(
-      int bookId, List<TocEntry> entries) async {
+    int bookId,
+    List<TocEntry> entries,
+  ) async {
     final db = await _database.database;
     withTransaction(db, () {
       _insertTocEntriesForExternalBookSync(db, bookId, entries);
@@ -961,18 +1040,23 @@ class SeforimRepository {
   /// גרעין סינכרוני של [_insertTocEntriesForExternalBook] — רץ בתוך
   /// טרנזקציה פתוחה, עם קאש מקומי של tocText למניעת שאילתות כפולות.
   void _insertTocEntriesForExternalBookSync(
-      sqlite3.Database db, int bookId, List<TocEntry> entries) {
+    sqlite3.Database db,
+    int bookId,
+    List<TocEntry> entries,
+  ) {
     _invalidateTocCache(bookId: bookId);
     _logger.fine(
-        'Inserting ${entries.length} TOC entries for external book $bookId');
+      'Inserting ${entries.length} TOC entries for external book $bookId',
+    );
     final localToActualIds = <int, int>{};
     final tocTextIdCache = <String, int>{};
 
     for (final entry in entries) {
-      final textId = tocTextIdCache[entry.text] ??=
-          _database.tocTextDao.getOrCreateIdSync(db, entry.text);
-      final actualParentId =
-          entry.parentId == null ? null : localToActualIds[entry.parentId];
+      final textId = tocTextIdCache[entry.text] ??= _database.tocTextDao
+          .getOrCreateIdSync(db, entry.text);
+      final actualParentId = entry.parentId == null
+          ? null
+          : localToActualIds[entry.parentId];
 
       if (entry.parentId != null && actualParentId == null) {
         throw StateError(
@@ -1014,8 +1098,11 @@ class SeforimRepository {
   }
 
   Future<List<Line>> getLines(int bookId, int startIndex, int endIndex) async {
-    return await _database.lineDao
-        .selectByBookIdRange(bookId, startIndex, endIndex);
+    return await _database.lineDao.selectByBookIdRange(
+      bookId,
+      startIndex,
+      endIndex,
+    );
   }
 
   /// תוכן כל שורות הספר בסדר השורות — מסלול קריאה רזה לאינדוקס
@@ -1079,7 +1166,8 @@ class SeforimRepository {
       }
 
       throw Exception(
-          'Failed to insert line for book ${line.bookId} at index ${line.lineIndex} - insertion returned ID 0. Context: content=\'${line.content.substring(0, line.content.length < 50 ? line.content.length : 50)}${line.content.length > 50 ? "..." : ""}\'');
+        'Failed to insert line for book ${line.bookId} at index ${line.lineIndex} - insertion returned ID 0. Context: content=\'${line.content.substring(0, line.content.length < 50 ? line.content.length : 50)}${line.content.length > 50 ? "..." : ""}\'',
+      );
     }
 
     return lineId;
@@ -1093,14 +1181,15 @@ class SeforimRepository {
     withTransaction(db, () {
       for (final line in lines) {
         db.execute(
-            'INSERT INTO line (bookId, lineIndex, content, heRef, tocEntryId) VALUES (?, ?, ?, ?, ?)',
-            [
-              line.bookId,
-              line.lineIndex,
-              line.content,
-              line.heRef,
-              null,
-            ]);
+          'INSERT INTO line (bookId, lineIndex, content, heRef, tocEntryId) VALUES (?, ?, ?, ?, ?)',
+          [
+            line.bookId,
+            line.lineIndex,
+            line.content,
+            line.heRef,
+            null,
+          ],
+        );
       }
     });
   }
@@ -1147,7 +1236,9 @@ class SeforimRepository {
   }
 
   Future<void> touchPdfOutlineCacheEntry(
-      String filePath, int accessedAt) async {
+    String filePath,
+    int accessedAt,
+  ) async {
     await _database.pdfOutlineCacheDao.updateAccessedAt(filePath, accessedAt);
   }
 
@@ -1157,6 +1248,28 @@ class SeforimRepository {
 
   Future<void> prunePdfOutlineCacheAccessedBefore(int cutoffMillis) async {
     await _database.pdfOutlineCacheDao.deleteAccessedBefore(cutoffMillis);
+  }
+
+  // --- Persistent PDF page-map anchor cache ---
+
+  Future<PdfAnchorCacheEntry?> getPdfAnchorCacheEntry(String filePath) async {
+    return _database.pdfAnchorCacheDao.selectByFilePath(filePath);
+  }
+
+  Future<void> upsertPdfAnchorCacheEntry(PdfAnchorCacheEntry entry) async {
+    await _database.pdfAnchorCacheDao.upsert(entry);
+  }
+
+  Future<void> touchPdfAnchorCacheEntry(String filePath, int accessedAt) async {
+    await _database.pdfAnchorCacheDao.updateAccessedAt(filePath, accessedAt);
+  }
+
+  Future<void> deletePdfAnchorCacheEntry(String filePath) async {
+    await _database.pdfAnchorCacheDao.deleteByFilePath(filePath);
+  }
+
+  Future<void> prunePdfAnchorCacheAccessedBefore(int cutoffMillis) async {
+    await _database.pdfAnchorCacheDao.deleteAccessedBefore(cutoffMillis);
   }
 
   // --- Persistent external DOCX text cache ---
@@ -1182,7 +1295,8 @@ class SeforimRepository {
   }
 
   Future<void> prunePdfOutlineCacheExceptFilePaths(
-      Set<String> keepFilePaths) async {
+    Set<String> keepFilePaths,
+  ) async {
     await _database.pdfOutlineCacheDao.deleteAllExceptFilePaths(keepFilePaths);
   }
 
@@ -1191,8 +1305,9 @@ class SeforimRepository {
   // Get or create a tocText entry and return its ID
   Future<int> _getOrCreateTocText(String text) async {
     // Truncate text for logging if it's too long
-    final truncatedText =
-        text.length > 50 ? '${text.substring(0, 50)}...' : text;
+    final truncatedText = text.length > 50
+        ? '${text.substring(0, 50)}...'
+        : text;
 
     try {
       // Check if the text already exists
@@ -1214,13 +1329,16 @@ class SeforimRepository {
       // If we can't find the text by exact match, this is unexpected
       final totalTocTexts = await _database.tocTextDao.countAll();
       _logger.warning(
-          'Failed to insert tocText and couldn\'t find it after insertion. Text: \'$truncatedText\', Length: ${text.length}, Total TocTexts: $totalTocTexts');
+        'Failed to insert tocText and couldn\'t find it after insertion. Text: \'$truncatedText\', Length: ${text.length}, Total TocTexts: $totalTocTexts',
+      );
 
       throw Exception(
-          'Failed to insert tocText \'$truncatedText\' - couldn\'t find text afterward. Context: textLength=${text.length}, totalTocTexts=$totalTocTexts');
+        'Failed to insert tocText \'$truncatedText\' - couldn\'t find text afterward. Context: textLength=${text.length}, totalTocTexts=$totalTocTexts',
+      );
     } catch (e) {
       _logger.warning(
-          'Exception in getOrCreateTocText for text: \'$truncatedText\', Length: ${text.length}}. Error: ${e.toString()}');
+        'Exception in getOrCreateTocText for text: \'$truncatedText\', Length: ${text.length}}. Error: ${e.toString()}',
+      );
       rethrow;
     }
   }
@@ -1247,7 +1365,9 @@ class SeforimRepository {
 
   // Nouvelle méthode pour mettre à jour hasChildren
   Future<void> updateTocEntryHasChildren(
-      int tocEntryId, bool hasChildren) async {
+    int tocEntryId,
+    bool hasChildren,
+  ) async {
     // bookId לא ידוע כאן — ניקוי גורף בטוח יותר מ-stale data.
     _invalidateTocCache();
     await _database.tocDao.updateHasChildren(tocEntryId, hasChildren);
@@ -1259,47 +1379,58 @@ class SeforimRepository {
   }
 
   Future<void> updateTocEntryIsLastChild(
-      int tocEntryId, bool isLastChild) async {
+    int tocEntryId,
+    bool isLastChild,
+  ) async {
     _invalidateTocCache();
     await _database.tocDao.updateIsLastChild(tocEntryId, isLastChild);
   }
 
   /// Bulk update TOC entry lineIds
   Future<void> bulkUpdateTocEntryLineIds(
-      List<({int tocId, int lineId})> updates) async {
+    List<({int tocId, int lineId})> updates,
+  ) async {
     if (updates.isEmpty) return;
     _invalidateTocCache();
     final db = await _database.database;
     withTransaction(db, () {
       for (final update in updates) {
-        db.execute('UPDATE tocEntry SET lineId = ? WHERE id = ?',
-            [update.lineId, update.tocId]);
+        db.execute('UPDATE tocEntry SET lineId = ? WHERE id = ?', [
+          update.lineId,
+          update.tocId,
+        ]);
       }
     });
   }
 
   /// Bulk update TOC entries hasChildren flag
   Future<void> bulkUpdateTocEntryHasChildren(
-      List<int> tocEntryIds, bool hasChildren) async {
+    List<int> tocEntryIds,
+    bool hasChildren,
+  ) async {
     if (tocEntryIds.isEmpty) return;
     _invalidateTocCache();
     final db = await _database.database;
     final placeholders = List.filled(tocEntryIds.length, '?').join(',');
     db.execute(
-        'UPDATE tocEntry SET hasChildren = ? WHERE id IN ($placeholders)',
-        [hasChildren ? 1 : 0, ...tocEntryIds]);
+      'UPDATE tocEntry SET hasChildren = ? WHERE id IN ($placeholders)',
+      [hasChildren ? 1 : 0, ...tocEntryIds],
+    );
   }
 
   /// Bulk update TOC entries isLastChild flag
   Future<void> bulkUpdateTocEntryIsLastChild(
-      List<int> tocEntryIds, bool isLastChild) async {
+    List<int> tocEntryIds,
+    bool isLastChild,
+  ) async {
     if (tocEntryIds.isEmpty) return;
     _invalidateTocCache();
     final db = await _database.database;
     final placeholders = List.filled(tocEntryIds.length, '?').join(',');
     db.execute(
-        'UPDATE tocEntry SET isLastChild = ? WHERE id IN ($placeholders)',
-        [isLastChild ? 1 : 0, ...tocEntryIds]);
+      'UPDATE tocEntry SET isLastChild = ? WHERE id IN ($placeholders)',
+      [isLastChild ? 1 : 0, ...tocEntryIds],
+    );
   }
 
   // --- Connection Types ---
@@ -1343,14 +1474,17 @@ class SeforimRepository {
   Future<int> _fetchOrCreateConnectionType(String name) async {
     final db = await _database.database;
     final existingResult = db.select(
-        'SELECT id FROM connection_type WHERE name = ?', [name]).toMapList();
+      'SELECT id FROM connection_type WHERE name = ?',
+      [name],
+    ).toMapList();
     if (existingResult.isNotEmpty) {
       return existingResult.first['id'] as int;
     }
 
     if (_database.isReadOnly) {
       throw StateError(
-          'Connection type "$name" is missing in a read-only database');
+        'Connection type "$name" is missing in a read-only database',
+      );
     }
 
     db.execute('INSERT INTO connection_type (name) VALUES (?)', [name]);
@@ -1358,7 +1492,9 @@ class SeforimRepository {
 
     if (typeId == 0) {
       final insertedResult = db.select(
-          'SELECT id FROM connection_type WHERE name = ?', [name]).toMapList();
+        'SELECT id FROM connection_type WHERE name = ?',
+        [name],
+      ).toMapList();
       if (insertedResult.isNotEmpty) {
         return insertedResult.first['id'] as int;
       }
@@ -1389,8 +1525,9 @@ class SeforimRepository {
   /// @return A list of all connection types
   Future<List<String>> getAllConnectionTypes() async {
     final db = await _database.database;
-    final result =
-        db.select('SELECT name FROM connection_type ORDER BY name').toMapList();
+    final result = db
+        .select('SELECT name FROM connection_type ORDER BY name')
+        .toMapList();
     return result.map((row) => row['name'] as String).toList();
   }
 
@@ -1403,8 +1540,9 @@ class SeforimRepository {
 
   Future<Link?> getLink(int id) async {
     final db = await _database.database;
-    final result =
-        db.select('SELECT * FROM link WHERE id = ?', [id]).toMapList();
+    final result = db.select('SELECT * FROM link WHERE id = ?', [
+      id,
+    ]).toMapList();
     if (result.isEmpty) return null;
     return Link.fromJson(result.first);
   }
@@ -1416,10 +1554,14 @@ class SeforimRepository {
   }
 
   Future<List<CommentaryWithText>> getCommentariesForLines(
-      List<int> lineIds, Set<int> activeCommentatorIds) async {
+    List<int> lineIds,
+    Set<int> activeCommentatorIds,
+  ) async {
     final db = await _database.database;
     final placeholders = List.filled(lineIds.length, '?').join(',');
-    final result = db.select('''
+    final result = db
+        .select(
+          '''
       SELECT l.*, b.title as targetBookTitle, ln.plainText as targetText
       FROM link l
       JOIN book b ON l.targetBookId = b.id
@@ -1427,7 +1569,10 @@ class SeforimRepository {
       WHERE l.sourceLineId IN ($placeholders)
       ${activeCommentatorIds.isNotEmpty ? 'AND l.targetBookId IN (${List.filled(activeCommentatorIds.length, '?').join(',')})' : ''}
       ORDER BY l.targetBookId, l.targetLineId
-    ''', [...lineIds, ...activeCommentatorIds]).toMapList();
+    ''',
+          [...lineIds, ...activeCommentatorIds],
+        )
+        .toMapList();
 
     return result.map((row) {
       final link = Link(
@@ -1436,8 +1581,9 @@ class SeforimRepository {
         targetBookId: row['targetBookId'] as int,
         sourceLineId: row['sourceLineId'] as int,
         targetLineId: row['targetLineId'] as int,
-        connectionType: ConnectionType.fromString(row['connectionTypeId']
-            .toString()), // This needs to be mapped properly
+        connectionType: ConnectionType.fromString(
+          row['connectionTypeId'].toString(),
+        ), // This needs to be mapped properly
       );
       return CommentaryWithText(
         link: link,
@@ -1449,7 +1595,9 @@ class SeforimRepository {
 
   Future<List<CommentatorInfo>> getAvailableCommentators(int bookId) async {
     final db = await _database.database;
-    final result = db.select('''
+    final result = db
+        .select(
+          '''
       SELECT b.id as targetBookId, b.title as targetBookTitle, a.name as author, COUNT(l.id) as linkCount
       FROM link l
       JOIN book b ON l.targetBookId = b.id
@@ -1458,15 +1606,20 @@ class SeforimRepository {
       WHERE l.sourceBookId = ?
       GROUP BY b.id, b.title, a.name
       ORDER BY b.title
-    ''', [bookId]).toMapList();
+    ''',
+          [bookId],
+        )
+        .toMapList();
 
     return result
-        .map((row) => CommentatorInfo(
-              bookId: row['targetBookId'] as int,
-              title: row['targetBookTitle'] as String,
-              author: row['author'] as String?,
-              linkCount: row['linkCount'] as int,
-            ))
+        .map(
+          (row) => CommentatorInfo(
+            bookId: row['targetBookId'] as int,
+            title: row['targetBookTitle'] as String,
+            author: row['author'] as String?,
+            linkCount: row['linkCount'] as int,
+          ),
+        )
         .toList();
   }
 
@@ -1476,14 +1629,19 @@ class SeforimRepository {
   /// מחזיר [BookGenerationInfo] עם שם הדור וסדר המיון, או null אם לא נמצא
   Future<BookGenerationInfo?> getBookGenerationInfo(int bookId) async {
     final db = await _database.database;
-    final result = db.select('''
+    final result = db
+        .select(
+          '''
       SELECT g.id, g.name
       FROM book b
       LEFT JOIN book_generation bg ON bg.bookId = b.id
       LEFT JOIN generation g ON g.id = bg.generationId
       WHERE b.id = ?
       LIMIT 1
-    ''', [bookId]).toMapList();
+    ''',
+          [bookId],
+        )
+        .toMapList();
 
     if (result.isEmpty || result.first['id'] == null) {
       return null;
@@ -1500,16 +1658,22 @@ class SeforimRepository {
   /// [bookTitle] - שם הספר
   /// מחזיר [BookGenerationInfo] עם שם הדור וסדר המיון, או null אם לא נמצא
   Future<BookGenerationInfo?> getBookGenerationInfoByTitle(
-      String bookTitle) async {
+    String bookTitle,
+  ) async {
     final db = await _database.database;
-    final result = db.select('''
+    final result = db
+        .select(
+          '''
       SELECT g.id, g.name
       FROM book b
       LEFT JOIN book_generation bg ON bg.bookId = b.id
       LEFT JOIN generation g ON g.id = bg.generationId
       WHERE b.title = ?
       LIMIT 1
-    ''', [bookTitle]).toMapList();
+    ''',
+          [bookTitle],
+        )
+        .toMapList();
 
     if (result.isEmpty || result.first['id'] == null) {
       return null;
@@ -1528,8 +1692,10 @@ class SeforimRepository {
     int offset,
     int limit,
   ) async {
-    final commentaries =
-        await getCommentariesForLines(lineIds, activeCommentatorIds);
+    final commentaries = await getCommentariesForLines(
+      lineIds,
+      activeCommentatorIds,
+    );
     return commentaries.skip(offset).take(limit).toList();
   }
 
@@ -1545,23 +1711,26 @@ class SeforimRepository {
   Future<int> insertLink(Link link) async {
     try {
       // Get or create the connection type
-      final connectionTypeId =
-          await getOrCreateConnectionType(link.connectionType.name);
+      final connectionTypeId = await getOrCreateConnectionType(
+        link.connectionType.name,
+      );
       final linkId = await _database.linkDao.insertLink(link, connectionTypeId);
       // Check if insertion failed
       if (linkId == 0) {
         // Try to find a matching link
         final existingResult = await _database.linkDao.selectLinkByDetails(
-            link.sourceBookId,
-            link.targetBookId,
-            link.sourceLineId,
-            link.targetLineId);
+          link.sourceBookId,
+          link.targetBookId,
+          link.sourceLineId,
+          link.targetLineId,
+        );
 
         if (existingResult != null) {
           return existingResult.id;
         }
         throw Exception(
-            'Failed to insert link from book ${link.sourceBookId} to book ${link.targetBookId} - insertion returned ID 0. Context: sourceLineId=${link.sourceLineId}, targetLineId=${link.targetLineId}, connectionType=${link.connectionType.name}');
+          'Failed to insert link from book ${link.sourceBookId} to book ${link.targetBookId} - insertion returned ID 0. Context: sourceLineId=${link.sourceLineId}, targetLineId=${link.targetLineId}, connectionType=${link.connectionType.name}',
+        );
       }
 
       return linkId;
@@ -1585,18 +1754,20 @@ class SeforimRepository {
     final db = await _database.database;
 
     // Build VALUES string with all links in a single SQL statement
-    final values = links.map((link) {
-      // שמות הסוגים ב-DB באותיות גדולות (COMMENTARY), אך enum.name קטן
-      // (commentary) — בלי toUpperCase הלוקאפ מחטיא וכל לינק נופל ל-default.
-      int? connectionTypeId =
-          _connectionTypeCache[link.connectionType.name.toUpperCase()];
+    final values = links
+        .map((link) {
+          // שמות הסוגים ב-DB באותיות גדולות (COMMENTARY), אך enum.name קטן
+          // (commentary) — בלי toUpperCase הלוקאפ מחטיא וכל לינק נופל ל-default.
+          int? connectionTypeId =
+              _connectionTypeCache[link.connectionType.name.toUpperCase()];
 
-      // אם הסוג לא נמצא — נופלים ל-OTHER (מובטח קיים ב-DB כתיב), לא ל-1 קשיח
-      // שב-v3 הוא דווקא COMMENTARY ולכן היה ממפה לינק לא-מזוהה כמפרש.
-      connectionTypeId ??= _connectionTypeCache['OTHER'] ?? 1;
+          // אם הסוג לא נמצא — נופלים ל-OTHER (מובטח קיים ב-DB כתיב), לא ל-1 קשיח
+          // שב-v3 הוא דווקא COMMENTARY ולכן היה ממפה לינק לא-מזוהה כמפרש.
+          connectionTypeId ??= _connectionTypeCache['OTHER'] ?? 1;
 
-      return '(${link.sourceBookId}, ${link.targetBookId}, ${link.sourceLineId}, ${link.targetLineId}, $connectionTypeId)';
-    }).join(',');
+          return '(${link.sourceBookId}, ${link.targetBookId}, ${link.sourceLineId}, ${link.targetLineId}, $connectionTypeId)';
+        })
+        .join(',');
 
     db.execute('''
       INSERT OR IGNORE INTO link (sourceBookId, targetBookId, sourceLineId, targetLineId, connectionTypeId)
@@ -1615,7 +1786,9 @@ class SeforimRepository {
   Future<List<SearchResult>> search(String query, int limit, int offset) async {
     final ftsQuery = _prepareFtsQuery(query);
     final db = await _database.database;
-    final result = db.select('''
+    final result = db
+        .select(
+          '''
       SELECT l.id, l.bookId, l.lineIndex, b.title as bookTitle, l.plainText,
              snippet(line_search, 4, '<b>', '</b>', '...', 50) as snippet
       FROM line_search
@@ -1624,17 +1797,22 @@ class SeforimRepository {
       WHERE line_search.plainText MATCH ?
       ORDER BY rank
       LIMIT ? OFFSET ?
-    ''', [ftsQuery, limit, offset]).toMapList();
+    ''',
+          [ftsQuery, limit, offset],
+        )
+        .toMapList();
 
     return result
-        .map((row) => SearchResult(
-              bookId: row['bookId'] as int,
-              bookTitle: row['bookTitle'] as String,
-              lineId: row['id'] as int,
-              lineIndex: row['lineIndex'] as int,
-              snippet: row['snippet'] as String? ?? '',
-              rank: 1.0, // Default rank since FTS doesn't provide it directly
-            ))
+        .map(
+          (row) => SearchResult(
+            bookId: row['bookId'] as int,
+            bookTitle: row['bookTitle'] as String,
+            lineId: row['id'] as int,
+            lineIndex: row['lineIndex'] as int,
+            snippet: row['snippet'] as String? ?? '',
+            rank: 1.0, // Default rank since FTS doesn't provide it directly
+          ),
+        )
         .toList();
   }
 
@@ -1646,10 +1824,16 @@ class SeforimRepository {
   /// @param offset Number of results to skip (for pagination)
   /// @return A list of search results
   Future<List<SearchResult>> searchInBook(
-      int bookId, String query, int limit, int offset) async {
+    int bookId,
+    String query,
+    int limit,
+    int offset,
+  ) async {
     final ftsQuery = _prepareFtsQuery(query);
     final db = await _database.database;
-    final result = db.select('''
+    final result = db
+        .select(
+          '''
       SELECT l.id, l.bookId, l.lineIndex, b.title as bookTitle, l.plainText,
              snippet(line_search, 4, '<b>', '</b>', '...', 50) as snippet
       FROM line_search
@@ -1658,17 +1842,22 @@ class SeforimRepository {
       WHERE line_search.bookId = ? AND line_search.plainText MATCH ?
       ORDER BY rank
       LIMIT ? OFFSET ?
-    ''', [bookId, ftsQuery, limit, offset]).toMapList();
+    ''',
+          [bookId, ftsQuery, limit, offset],
+        )
+        .toMapList();
 
     return result
-        .map((row) => SearchResult(
-              bookId: row['bookId'] as int,
-              bookTitle: row['bookTitle'] as String,
-              lineId: row['id'] as int,
-              lineIndex: row['lineIndex'] as int,
-              snippet: row['snippet'] as String? ?? '',
-              rank: 1.0, // Default rank since FTS doesn't provide it directly
-            ))
+        .map(
+          (row) => SearchResult(
+            bookId: row['bookId'] as int,
+            bookTitle: row['bookTitle'] as String,
+            lineId: row['id'] as int,
+            lineIndex: row['lineIndex'] as int,
+            snippet: row['snippet'] as String? ?? '',
+            rank: 1.0, // Default rank since FTS doesn't provide it directly
+          ),
+        )
         .toList();
   }
 
@@ -1680,10 +1869,16 @@ class SeforimRepository {
   /// @param offset Number of results to skip (for pagination)
   /// @return A list of search results
   Future<List<SearchResult>> searchByAuthor(
-      String author, String query, int limit, int offset) async {
+    String author,
+    String query,
+    int limit,
+    int offset,
+  ) async {
     final ftsQuery = _prepareFtsQuery(query);
     final db = await _database.database;
-    final result = db.select('''
+    final result = db
+        .select(
+          '''
       SELECT l.id, l.bookId, l.lineIndex, b.title as bookTitle, l.plainText,
              snippet(line_search, 4, '<b>', '</b>', '...', 50) as snippet
       FROM line_search
@@ -1694,17 +1889,22 @@ class SeforimRepository {
       WHERE a.name LIKE ? AND line_search.plainText MATCH ?
       ORDER BY rank
       LIMIT ? OFFSET ?
-    ''', ['%$author%', ftsQuery, limit, offset]).toMapList();
+    ''',
+          ['%$author%', ftsQuery, limit, offset],
+        )
+        .toMapList();
 
     return result
-        .map((row) => SearchResult(
-              bookId: row['bookId'] as int,
-              bookTitle: row['bookTitle'] as String,
-              lineId: row['id'] as int,
-              lineIndex: row['lineIndex'] as int,
-              snippet: row['snippet'] as String? ?? '',
-              rank: 1.0, // Default rank since FTS doesn't provide it directly
-            ))
+        .map(
+          (row) => SearchResult(
+            bookId: row['bookId'] as int,
+            bookTitle: row['bookTitle'] as String,
+            lineId: row['id'] as int,
+            lineIndex: row['lineIndex'] as int,
+            snippet: row['snippet'] as String? ?? '',
+            rank: 1.0, // Default rank since FTS doesn't provide it directly
+          ),
+        )
         .toList();
   }
 
@@ -1765,64 +1965,89 @@ class SeforimRepository {
   /// @param hasSourceLinks Whether the book has source links (true) or not (false)
   /// @param hasTargetLinks Whether the book has target links (true) or not (false)
   Future<void> updateBookHasLinks(
-      int bookId, bool hasSourceLinks, bool hasTargetLinks) async {
+    int bookId,
+    bool hasSourceLinks,
+    bool hasTargetLinks,
+  ) async {
     final db = await _database.database;
-    db.execute('''
+    db.execute(
+      '''
       INSERT OR REPLACE INTO book_has_links (bookId, hasSourceLinks, hasTargetLinks)
       VALUES (?, ?, ?)
-    ''', [bookId, hasSourceLinks ? 1 : 0, hasTargetLinks ? 1 : 0]);
+    ''',
+      [bookId, hasSourceLinks ? 1 : 0, hasTargetLinks ? 1 : 0],
+    );
   }
 
   // --- Connection type specific helpers ---
 
   Future<int> countLinksBySourceBookAndType(int bookId, String typeName) async {
     final db = await _database.database;
-    final result = db.select('''
+    final result = db.select(
+      '''
       SELECT COUNT(*) FROM link l
       JOIN connection_type ct ON l.connectionTypeId = ct.id
       WHERE l.sourceBookId = ? AND ct.name = ?
-    ''', [bookId, typeName]);
+    ''',
+      [bookId, typeName],
+    );
     return result.first.values.first as int;
   }
 
   Future<int> countLinksByTargetBookAndType(int bookId, String typeName) async {
     final db = await _database.database;
-    final result = db.select('''
+    final result = db.select(
+      '''
       SELECT COUNT(*) FROM link l
       JOIN connection_type ct ON l.connectionTypeId = ct.id
       WHERE l.targetBookId = ? AND ct.name = ?
-    ''', [bookId, typeName]);
+    ''',
+      [bookId, typeName],
+    );
     return result.first.values.first as int;
   }
 
   /// ספירת קישורים לפי מזהה סוג הקישור (במקום שם)
   Future<int> countLinksBySourceBookAndTypeId(int bookId, int typeId) async {
     final db = await _database.database;
-    final result = db.select('''
+    final result = db.select(
+      '''
       SELECT COUNT(*) FROM link
       WHERE sourceBookId = ? AND connectionTypeId = ?
-    ''', [bookId, typeId]);
+    ''',
+      [bookId, typeId],
+    );
     return result.first.values.first as int;
   }
 
   Future<int> countLinksByTargetBookAndTypeId(int bookId, int typeId) async {
     final db = await _database.database;
-    final result = db.select('''
+    final result = db.select(
+      '''
       SELECT COUNT(*) FROM link
       WHERE targetBookId = ? AND connectionTypeId = ?
-    ''', [bookId, typeId]);
+    ''',
+      [bookId, typeId],
+    );
     return result.first.values.first as int;
   }
 
   Future<void> updateBookConnectionFlags(
-      int bookId,
-      bool hasTargum,
-      bool hasReference,
-      bool hasSource,
-      bool hasCommentary,
-      bool hasOther) async {
+    int bookId,
+    bool hasTargum,
+    bool hasReference,
+    bool hasSource,
+    bool hasCommentary,
+    bool hasOther,
+  ) async {
     await _database.bookDao.updateBookConnectionFlags(
-        bookId, hasTargum, hasReference, hasSource, hasCommentary, hasOther);
+      bookId,
+      hasTargum,
+      hasReference,
+      hasSource,
+      hasCommentary,
+      hasOther,
+    );
   }
 
   /// Optimized version that updates all book connection flags in a single query
@@ -1841,7 +2066,9 @@ class SeforimRepository {
     final typeIds = <String, int>{};
     for (final type in types) {
       final result = db.select(
-          'SELECT id FROM connection_type WHERE name = ?', [type]).toMapList();
+        'SELECT id FROM connection_type WHERE name = ?',
+        [type],
+      ).toMapList();
       if (result.isNotEmpty) {
         typeIds[type] = result.first['id'] as int;
       }
@@ -1917,19 +2144,21 @@ class SeforimRepository {
     ''').toMapList();
 
     // Convert the database books to model books
-    return Future.wait(result.map((row) async {
-      final bookData = Book.fromJson(row);
-      final authors = await _getBookAuthors(bookData.id);
-      final topics = await _getBookTopics(bookData.id);
-      final pubPlaces = await _getBookPubPlaces(bookData.id);
-      final pubDates = await _getBookPubDates(bookData.id);
-      return bookData.copyWith(
-        authors: authors,
-        topics: topics,
-        pubPlaces: pubPlaces,
-        pubDates: pubDates,
-      );
-    }));
+    return Future.wait(
+      result.map((row) async {
+        final bookData = Book.fromJson(row);
+        final authors = await _getBookAuthors(bookData.id);
+        final topics = await _getBookTopics(bookData.id);
+        final pubPlaces = await _getBookPubPlaces(bookData.id);
+        final pubDates = await _getBookPubDates(bookData.id);
+        return bookData.copyWith(
+          authors: authors,
+          topics: topics,
+          pubPlaces: pubPlaces,
+          pubDates: pubDates,
+        );
+      }),
+    );
   }
 
   /// Gets all books that have source links.
@@ -1945,19 +2174,21 @@ class SeforimRepository {
     ''').toMapList();
 
     // Convert the database books to model books
-    return Future.wait(result.map((row) async {
-      final bookData = Book.fromJson(row);
-      final authors = await _getBookAuthors(bookData.id);
-      final topics = await _getBookTopics(bookData.id);
-      final pubPlaces = await _getBookPubPlaces(bookData.id);
-      final pubDates = await _getBookPubDates(bookData.id);
-      return bookData.copyWith(
-        authors: authors,
-        topics: topics,
-        pubPlaces: pubPlaces,
-        pubDates: pubDates,
-      );
-    }));
+    return Future.wait(
+      result.map((row) async {
+        final bookData = Book.fromJson(row);
+        final authors = await _getBookAuthors(bookData.id);
+        final topics = await _getBookTopics(bookData.id);
+        final pubPlaces = await _getBookPubPlaces(bookData.id);
+        final pubDates = await _getBookPubDates(bookData.id);
+        return bookData.copyWith(
+          authors: authors,
+          topics: topics,
+          pubPlaces: pubPlaces,
+          pubDates: pubDates,
+        );
+      }),
+    );
   }
 
   /// Gets all books that have target links.
@@ -1973,19 +2204,21 @@ class SeforimRepository {
     ''').toMapList();
 
     // Convert the database books to model books
-    return Future.wait(result.map((row) async {
-      final bookData = Book.fromJson(row);
-      final authors = await _getBookAuthors(bookData.id);
-      final topics = await _getBookTopics(bookData.id);
-      final pubPlaces = await _getBookPubPlaces(bookData.id);
-      final pubDates = await _getBookPubDates(bookData.id);
-      return bookData.copyWith(
-        authors: authors,
-        topics: topics,
-        pubPlaces: pubPlaces,
-        pubDates: pubDates,
-      );
-    }));
+    return Future.wait(
+      result.map((row) async {
+        final bookData = Book.fromJson(row);
+        final authors = await _getBookAuthors(bookData.id);
+        final topics = await _getBookTopics(bookData.id);
+        final pubPlaces = await _getBookPubPlaces(bookData.id);
+        final pubDates = await _getBookPubDates(bookData.id);
+        return bookData.copyWith(
+          authors: authors,
+          topics: topics,
+          pubPlaces: pubPlaces,
+          pubDates: pubDates,
+        );
+      }),
+    );
   }
 
   /// Counts the number of books that have any links (source or target).
@@ -1995,7 +2228,8 @@ class SeforimRepository {
     _logger.fine('Counting books with any links');
     final db = await _database.database;
     final result = db.select(
-        'SELECT COUNT(*) FROM book_has_links WHERE hasSourceLinks = 1 OR hasTargetLinks = 1');
+      'SELECT COUNT(*) FROM book_has_links WHERE hasSourceLinks = 1 OR hasTargetLinks = 1',
+    );
     final count = result.first.values.first as int;
     _logger.fine('Found $count books with any links');
     return count;
@@ -2007,8 +2241,9 @@ class SeforimRepository {
   Future<int> countBooksWithSourceLinks() async {
     _logger.fine('Counting books with source links');
     final db = await _database.database;
-    final result = db
-        .select('SELECT COUNT(*) FROM book_has_links WHERE hasSourceLinks = 1');
+    final result = db.select(
+      'SELECT COUNT(*) FROM book_has_links WHERE hasSourceLinks = 1',
+    );
     final count = result.first.values.first as int;
     _logger.fine('Found $count books with source links');
     return count;
@@ -2020,8 +2255,9 @@ class SeforimRepository {
   Future<int> countBooksWithTargetLinks() async {
     _logger.fine('Counting books with target links');
     final db = await _database.database;
-    final result = db
-        .select('SELECT COUNT(*) FROM book_has_links WHERE hasTargetLinks = 1');
+    final result = db.select(
+      'SELECT COUNT(*) FROM book_has_links WHERE hasTargetLinks = 1',
+    );
     final count = result.first.values.first as int;
     _logger.fine('Found $count books with target links');
     return count;
@@ -2035,13 +2271,14 @@ class SeforimRepository {
 
     // Use the optimized query that loads all relations in a single batch
     // External catalog books (fileType='link') are excluded since they are in a separate DB
-    final booksWithRelations =
-        await _database.bookDao.getAllBooksWithRelations();
+    final booksWithRelations = await _database.bookDao
+        .getAllBooksWithRelations();
     _logger.fine('Found ${booksWithRelations.length} books');
 
     // Convert to Book objects
-    var all =
-        booksWithRelations.map((bookData) => Book.fromJson(bookData)).toList();
+    var all = booksWithRelations
+        .map((bookData) => Book.fromJson(bookData))
+        .toList();
     return all;
   }
 
@@ -2062,8 +2299,10 @@ class SeforimRepository {
   Future<int> countLinksBySourceBook(int bookId) async {
     _logger.fine('Counting links where book $bookId is the source');
     final db = await _database.database;
-    final result =
-        db.select('SELECT COUNT(*) FROM link WHERE sourceBookId = ?', [bookId]);
+    final result = db.select(
+      'SELECT COUNT(*) FROM link WHERE sourceBookId = ?',
+      [bookId],
+    );
     final count = result.first.values.first as int;
     _logger.fine('Found $count links where book $bookId is the source');
     return count;
@@ -2076,8 +2315,10 @@ class SeforimRepository {
   Future<int> countLinksByTargetBook(int bookId) async {
     _logger.fine('Counting links where book $bookId is the target');
     final db = await _database.database;
-    final result =
-        db.select('SELECT COUNT(*) FROM link WHERE targetBookId = ?', [bookId]);
+    final result = db.select(
+      'SELECT COUNT(*) FROM link WHERE targetBookId = ?',
+      [bookId],
+    );
     final count = result.first.values.first as int;
     _logger.fine('Found $count links where book $bookId is the target');
     return count;
@@ -2127,10 +2368,16 @@ class SeforimRepository {
   /// Checks if a book with the given title, category and file type already exists in the database.
   /// Returns the book if found, null otherwise.
   Future<Book?> checkBookExistsInCategoryWithFileType(
-      String title, int categoryId, String fileType) async {
+    String title,
+    int categoryId,
+    String fileType,
+  ) async {
     //_logger.fine('Checking if book exists in category with file type: $title (categoryId: $categoryId, fileType: $fileType)');
-    return await _database.bookDao
-        .getBookByTitleCategoryAndFileType(title, categoryId, fileType);
+    return await _database.bookDao.getBookByTitleCategoryAndFileType(
+      title,
+      categoryId,
+      fileType,
+    );
   }
 
   /// Deletes a book and all its related data (lines, TOC entries, links, etc.)
@@ -2142,21 +2389,25 @@ class SeforimRepository {
     final db = await _database.database;
     withTransaction(db, () {
       // Delete links where this book is source or target
-      db.execute('DELETE FROM link WHERE sourceBookId = ? OR targetBookId = ?',
-          [bookId, bookId]);
+      db.execute(
+        'DELETE FROM link WHERE sourceBookId = ? OR targetBookId = ?',
+        [bookId, bookId],
+      );
 
       // Delete book_has_links
       db.execute('DELETE FROM book_has_links WHERE bookId = ?', [bookId]);
 
       // Delete line_toc mappings for lines of this book
       db.execute(
-          'DELETE FROM line_toc WHERE lineId IN (SELECT id FROM line WHERE bookId = ?)',
-          [bookId]);
+        'DELETE FROM line_toc WHERE lineId IN (SELECT id FROM line WHERE bookId = ?)',
+        [bookId],
+      );
 
       // Delete line_toc mappings for tocEntries of this book
       db.execute(
-          'DELETE FROM line_toc WHERE tocEntryId IN (SELECT id FROM tocEntry WHERE bookId = ?)',
-          [bookId]);
+        'DELETE FROM line_toc WHERE tocEntryId IN (SELECT id FROM tocEntry WHERE bookId = ?)',
+        [bookId],
+      );
 
       // Delete TOC entries
       db.execute('DELETE FROM tocEntry WHERE bookId = ?', [bookId]);
@@ -2182,7 +2433,8 @@ class SeforimRepository {
   Future<void> deleteOrphanedTocTexts() async {
     final db = await _database.database;
     db.execute(
-        'DELETE FROM tocText WHERE id NOT IN (SELECT DISTINCT textId FROM tocEntry) AND id NOT IN (SELECT DISTINCT textId FROM alt_toc_entry)');
+      'DELETE FROM tocText WHERE id NOT IN (SELECT DISTINCT textId FROM tocEntry) AND id NOT IN (SELECT DISTINCT textId FROM alt_toc_entry)',
+    );
     final count = db.updatedRows;
     _logger.info('Deleted $count orphaned tocText entries');
   }
@@ -2192,12 +2444,15 @@ class SeforimRepository {
   Future<void> updateTocEntryLineIdsByLineIndex(int bookId) async {
     _invalidateTocCache(bookId: bookId);
     final db = await _database.database;
-    db.execute('''
+    db.execute(
+      '''
       UPDATE tocEntry SET lineId = (
         SELECT l.id FROM line l
         WHERE l.bookId = tocEntry.bookId AND l.lineIndex = tocEntry.lineIndex
       ) WHERE bookId = ? AND lineIndex IS NOT NULL
-    ''', [bookId]);
+    ''',
+      [bookId],
+    );
     final count = db.updatedRows;
     _logger.info('Updated lineId for $count tocEntry rows in book $bookId');
   }
@@ -2223,8 +2478,9 @@ class SeforimRepository {
     // Delete from category_closure table first to maintain hierarchy integrity
     final db = await _database.database;
     db.execute(
-        'DELETE FROM category_closure WHERE ancestorId = ? OR descendantId = ?',
-        [categoryId, categoryId]);
+      'DELETE FROM category_closure WHERE ancestorId = ? OR descendantId = ?',
+      [categoryId, categoryId],
+    );
 
     // Delete the category itself
     await _database.categoryDao.deleteCategory(categoryId);
@@ -2376,8 +2632,10 @@ extension FileSyncRepository on SeforimRepository {
 extension BookAcronymRepository on SeforimRepository {
   /// Searches for books by acronym term.
   Future<List<int>> searchBooksByAcronym(String term, {int? limit}) async {
-    return await _database.bookAcronymDao
-        .searchBooksByAcronym(term, limit: limit);
+    return await _database.bookAcronymDao.searchBooksByAcronym(
+      term,
+      limit: limit,
+    );
   }
 
   /// Searches for books by title or acronym for reference finding.
@@ -2385,8 +2643,10 @@ extension BookAcronymRepository on SeforimRepository {
   ///
   /// [query] - The search query (book name or acronym)
   /// [limit] - Maximum number of results to return
-  Future<List<Map<String, dynamic>>> searchBooksForReference(String query,
-      {int limit = 100}) async {
+  Future<List<Map<String, dynamic>>> searchBooksForReference(
+    String query, {
+    int limit = 100,
+  }) async {
     if (query.isEmpty) return [];
 
     final db = await _database.database;
@@ -2398,7 +2658,9 @@ extension BookAcronymRepository on SeforimRepository {
     final queryPattern = '%$normalizedQuery%';
 
     // 1. Search by book title (LIKE search)
-    final titleResults = db.select('''
+    final titleResults = db
+        .select(
+          '''
         SELECT b.id, b.title, b.categoryId
         FROM book b
         WHERE LOWER(b.title) LIKE ?
@@ -2408,12 +2670,10 @@ extension BookAcronymRepository on SeforimRepository {
                ELSE 2 END,
           b.orderIndex
         LIMIT ?
-      ''', [
-      queryPattern,
-      normalizedQuery,
-      '$normalizedQuery%',
-      limit
-    ]).toMapList();
+      ''',
+          [queryPattern, normalizedQuery, '$normalizedQuery%', limit],
+        )
+        .toMapList();
 
     for (final row in titleResults) {
       final bookId = row['id'] as int;
@@ -2430,7 +2690,9 @@ extension BookAcronymRepository on SeforimRepository {
     }
 
     // 2. Search by acronym
-    final acronymResults = db.select('''
+    final acronymResults = db
+        .select(
+          '''
         SELECT DISTINCT b.id, b.title, b.categoryId, ba.term
         FROM book_acronym ba
         JOIN book b ON ba.bookId = b.id
@@ -2441,12 +2703,10 @@ extension BookAcronymRepository on SeforimRepository {
                ELSE 2 END,
           b.orderIndex
         LIMIT ?
-      ''', [
-      queryPattern,
-      normalizedQuery,
-      '$normalizedQuery%',
-      limit
-    ]).toMapList();
+      ''',
+          [queryPattern, normalizedQuery, '$normalizedQuery%', limit],
+        )
+        .toMapList();
 
     for (final row in acronymResults) {
       final bookId = row['id'] as int;
@@ -2477,8 +2737,10 @@ extension BookAcronymRepository on SeforimRepository {
   /// נשמרת במטמון פר-ספר. שיחות חוזרות (אופייניות בעת הקלדה הדרגתית של
   /// המשתמש) מסננות in-memory בלבד.
   Future<List<Map<String, dynamic>>> getTocEntriesForReference(
-      int bookId, String bookTitle,
-      {List<String>? queryTokens}) async {
+    int bookId,
+    String bookTitle, {
+    List<String>? queryTokens,
+  }) async {
     final cache = await _buildTocCacheForBook(bookId, bookTitle);
 
     if (cache.all.isEmpty || queryTokens == null || queryTokens.isEmpty) {
@@ -2545,8 +2807,11 @@ extension BookAcronymRepository on SeforimRepository {
       endIdx = maxLineIndex;
     }
 
-    return _database.linkDao
-        .selectCommentatorsByLineRange(bookId, startIdx, endIdx);
+    return _database.linkDao.selectCommentatorsByLineRange(
+      bookId,
+      startIdx,
+      endIdx,
+    );
   }
 
   /// מחזיר את כל **המפרשים על הקטע** שבו יושבת שורת מקור שרירותית [lineIndex]
@@ -2581,7 +2846,12 @@ extension BookAcronymRepository on SeforimRepository {
         : _nextHeadingLineIndex(cache, startIdx, containing.level);
 
     return _database.linkDao.selectCommentaryLinksByLineRange(
-        bookId, startIdx, endIdx, excludeBookId, lineIndex);
+      bookId,
+      startIdx,
+      endIdx,
+      excludeBookId,
+      lineIndex,
+    );
   }
 
   /// מחזיר את ה-`segment` (=lineIndex) של ערך ה-TOC הבא **ברמה <= [level]**
@@ -2589,7 +2859,10 @@ extension BookAcronymRepository on SeforimRepository {
   /// הכותרת הבאה באותה רמה או רדודה יותר חוסמת את הקטע, בעוד תת-כותרות
   /// (רמה עמוקה יותר) נכללות בו.
   int _nextHeadingLineIndex(
-      _TocBookCache cache, int afterLineIndex, int level) {
+    _TocBookCache cache,
+    int afterLineIndex,
+    int level,
+  ) {
     var end = 0x7fffffff;
     for (final e in cache.all) {
       if (e.level >= 1 &&
@@ -2606,13 +2879,17 @@ extension BookAcronymRepository on SeforimRepository {
   /// כל ערך כולל את ה-reference המלא (כולל נתיב אבות שלם) ואת הטוקנים המנורמלים
   /// שלו מראש. מבנה היררכי (childrenByParentId) מאפשר חיפוש רמה-אחר-רמה.
   Future<_TocBookCache> _buildTocCacheForBook(
-      int bookId, String bookTitle) async {
+    int bookId,
+    String bookTitle,
+  ) async {
     final cached = _tocCache[bookId];
     if (cached != null) return cached;
 
     final db = await _database.database;
 
-    final tocEntries = db.select('''
+    final tocEntries = db
+        .select(
+          '''
         SELECT t.id, tt.text, t.level,
                COALESCE(l.lineIndex, t.lineId) as lineIndex,
                COALESCE(t.lineId, 0) as dbLineId,
@@ -2622,7 +2899,10 @@ extension BookAcronymRepository on SeforimRepository {
         LEFT JOIN line l ON t.lineId = l.id
         WHERE t.bookId = ?
         ORDER BY COALESCE(l.lineIndex, t.lineId), t.level
-      ''', [bookId]).toMapList();
+      ''',
+          [bookId],
+        )
+        .toMapList();
 
     if (tocEntries.isEmpty) {
       _tocCache[bookId] = _TocBookCache.empty;
@@ -2665,10 +2945,9 @@ extension BookAcronymRepository on SeforimRepository {
       final ancestorPath = buildPath(parentId);
       final fullRef = text.isNotEmpty ? '$ancestorPath $text' : ancestorPath;
 
-      final ownTokens = normalizeForFindRefMatch(text)
-          .split(' ')
-          .where((t) => t.isNotEmpty)
-          .toList(growable: false);
+      final ownTokens = normalizeForFindRefMatch(
+        text,
+      ).split(' ').where((t) => t.isNotEmpty).toList(growable: false);
 
       final entry = _CachedTocEntry(
         id: id,
@@ -2710,15 +2989,18 @@ extension BookAcronymRepository on SeforimRepository {
   /// חיפוש היררכי ב-TOC: יורד רמה-אחר-רמה עבור כל טוקן.
   /// תומך בטרנספוזיציה של שתי אותיות עבריות ("טל" ↔ "לט").
   List<_CachedTocEntry> _searchTocHierarchically(
-      _TocBookCache cache, List<String> tokens) {
+    _TocBookCache cache,
+    List<String> tokens,
+  ) {
     // קיצור ציטוט-דף: כשהרמה העליונה מורכבת מערכי "דף" (מסכת גמרא רגילה)
     // והשאילתה היא ציטוט דף, התאמה מיקומית מכריעה — גם כשהתוצאה ריקה.
     // נפילה לחיפוש הרגיל הייתה מציפה: טוקן "ב" בודד נתפס ע"י סימון צד ע"ב
     // של כל דף (פירוש דליל שאין בו דף ב' החזיר את דפי ה:/ו:/ז:).
     final cite = parseDafCitation(tokens);
     if (cite != null) {
-      final rootHasDaf = cache.rootEntries
-          .any((e) => e.ownTokens.isNotEmpty && e.ownTokens.first == 'דף');
+      final rootHasDaf = cache.rootEntries.any(
+        (e) => e.ownTokens.isNotEmpty && e.ownTokens.first == 'דף',
+      );
       if (rootHasDaf) {
         return cache.rootEntries
             .where((e) => matchDafCitation(e.ownTokens, cite) == true)
@@ -2734,8 +3016,9 @@ extension BookAcronymRepository on SeforimRepository {
 
       List<_CachedTocEntry> found = const [];
       for (final alt in alts) {
-        final hits =
-            searchScope.where((e) => e.ownTokens.contains(alt)).toList();
+        final hits = searchScope
+            .where((e) => e.ownTokens.contains(alt))
+            .toList();
         if (hits.isNotEmpty) {
           found = hits;
           break;
@@ -2755,8 +3038,9 @@ extension BookAcronymRepository on SeforimRepository {
       // אם יש ילדים ישירים — יורדים אליהם (+ כל צאצאיהם).
       // אם אין ילדים — נשארים ב-currentMatches לסינון נוסף באותה רמה.
       final directChildren = currentMatches
-          .expand((m) =>
-              cache.childrenByParentId[m.id] ?? const <_CachedTocEntry>[])
+          .expand(
+            (m) => cache.childrenByParentId[m.id] ?? const <_CachedTocEntry>[],
+          )
           .toList();
 
       if (directChildren.isNotEmpty) {
@@ -2779,7 +3063,9 @@ extension BookAcronymRepository on SeforimRepository {
 
   /// מחזיר את כל הצאצאים (ילדים, נכדים, ...) של [entry].
   Iterable<_CachedTocEntry> _getAllDescendants(
-      _TocBookCache cache, _CachedTocEntry entry) sync* {
+    _TocBookCache cache,
+    _CachedTocEntry entry,
+  ) sync* {
     final children =
         cache.childrenByParentId[entry.id] ?? const <_CachedTocEntry>[];
     for (final child in children) {
@@ -2793,7 +3079,9 @@ extension BookAcronymRepository on SeforimRepository {
   /// משמש כ-fallback בלבד (ראה [getTocEntriesForReference]); ההגנה מפני הצפה
   /// זהה: הטוקן האחרון חייב להופיע בעלה עצמו, וכל הטוקנים בנתיב המלא.
   List<_CachedTocEntry> _searchTocFlat(
-      _TocBookCache cache, List<String> tokens) {
+    _TocBookCache cache,
+    List<String> tokens,
+  ) {
     if (tokens.isEmpty) return const [];
 
     final cite = parseDafCitation(tokens);
@@ -2805,10 +3093,9 @@ extension BookAcronymRepository on SeforimRepository {
         if (m != null) return m; // ערך "דף" — התאמה מיקומית מכריעה
       }
       if (!lastAlts.any((a) => e.ownTokens.contains(a))) return false;
-      final pathTokens = normalizeForFindRefMatch(e.reference)
-          .split(' ')
-          .where((t) => t.isNotEmpty)
-          .toList(growable: false);
+      final pathTokens = normalizeForFindRefMatch(
+        e.reference,
+      ).split(' ').where((t) => t.isNotEmpty).toList(growable: false);
       for (final token in tokens) {
         final alts = hebrewTokenAlternatives(token);
         if (!alts.any((a) => pathTokens.contains(a))) return false;
@@ -2827,8 +3114,10 @@ extension BookAcronymRepository on SeforimRepository {
   /// `{'reference': ..., 'segment': ..., 'level': ...}`.
   /// אם אין מבנים חלופיים לספר, מחזיר רשימה ריקה.
   Future<List<Map<String, dynamic>>> getAltTocEntriesForReference(
-      int bookId, String bookTitle,
-      {List<String>? queryTokens}) async {
+    int bookId,
+    String bookTitle, {
+    List<String>? queryTokens,
+  }) async {
     if (queryTokens == null || queryTokens.isEmpty) return const [];
 
     final cache = await _buildAltTocCacheForBook(bookId, bookTitle);
@@ -2849,7 +3138,9 @@ extension BookAcronymRepository on SeforimRepository {
   ///
   /// תומך בטרנספוזיציית אותיות עבריות ("טל" ↔ "לט") כמו החיפוש ההיררכי.
   List<_CachedTocEntry> _searchAltTocFlat(
-      _TocBookCache cache, List<String> tokens) {
+    _TocBookCache cache,
+    List<String> tokens,
+  ) {
     if (tokens.isEmpty) return const [];
 
     final cite = parseDafCitation(tokens);
@@ -2876,13 +3167,17 @@ extension BookAcronymRepository on SeforimRepository {
   /// כל ערך כולל את `pathTokens` (טוקני הנתיב המלא) עבור החיפוש השטוח
   /// ב-[_searchAltTocFlat].
   Future<_TocBookCache> _buildAltTocCacheForBook(
-      int bookId, String bookTitle) async {
+    int bookId,
+    String bookTitle,
+  ) async {
     final cached = _altTocCache[bookId];
     if (cached != null) return cached;
 
     final db = await _database.database;
 
-    final entries = db.select('''
+    final entries = db
+        .select(
+          '''
         SELECT e.id, t.text, e.level,
                COALESCE(l.lineIndex, 0) as lineIndex,
                COALESCE(e.lineId, 0) as dbLineId,
@@ -2894,7 +3189,10 @@ extension BookAcronymRepository on SeforimRepository {
             SELECT id FROM alt_toc_structure WHERE bookId = ?
         )
         ORDER BY COALESCE(l.lineIndex, 0), e.level
-      ''', [bookId]).toMapList();
+      ''',
+          [bookId],
+        )
+        .toMapList();
 
     if (entries.isEmpty) {
       _altTocCache[bookId] = _TocBookCache.empty;
@@ -2908,10 +3206,9 @@ extension BookAcronymRepository on SeforimRepository {
       final id = e['id'] as int;
       entryTexts[id] = e['text'] as String;
       entryParentIds[id] = e['parentId'] as int?;
-      entryOwnTokens[id] = normalizeForFindRefMatch(e['text'] as String)
-          .split(' ')
-          .where((t) => t.isNotEmpty)
-          .toList(growable: false);
+      entryOwnTokens[id] = normalizeForFindRefMatch(
+        e['text'] as String,
+      ).split(' ').where((t) => t.isNotEmpty).toList(growable: false);
     }
 
     // בונה נתיב reference **ללא** שם הספר — AltToc references הם יחסיים לספר.
@@ -2985,16 +3282,20 @@ extension BookAcronymRepository on SeforimRepository {
   /// משמש ל-fallback גלובלי של חיפוש כותרות-משנה ללא שם ספר בשאילתה.
   Future<List<({int bookId, String bookTitle})>> getAllBooksWithAltToc() async {
     final db = await _database.database;
-    final rows = db.select(
-      'SELECT DISTINCT s.bookId, b.title '
-      'FROM alt_toc_structure s JOIN book b ON b.id = s.bookId',
-      [],
-    ).toMapList();
+    final rows = db
+        .select(
+          'SELECT DISTINCT s.bookId, b.title '
+          'FROM alt_toc_structure s JOIN book b ON b.id = s.bookId',
+          [],
+        )
+        .toMapList();
     return rows
-        .map((r) => (
-              bookId: r['bookId'] as int,
-              bookTitle: r['title'] as String,
-            ))
+        .map(
+          (r) => (
+            bookId: r['bookId'] as int,
+            bookTitle: r['title'] as String,
+          ),
+        )
         .toList();
   }
 
@@ -3100,11 +3401,11 @@ class _CachedTocEntry {
   });
 
   Map<String, dynamic> toMap() => {
-        'reference': reference,
-        'segment': segment,
-        'level': level,
-        'dbLineId': dbLineId,
-      };
+    'reference': reference,
+    'segment': segment,
+    'level': level,
+    'dbLineId': dbLineId,
+  };
 }
 
 /// קאש TOC לספר יחיד: רשימה שטוחה + מבנה היררכי לחיפוש.

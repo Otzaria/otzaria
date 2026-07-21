@@ -6,6 +6,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
+import 'package:otzaria/tabs/models/resolving_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
@@ -38,8 +39,10 @@ bool isTalmudBavliBook(Book book) {
     // PDF ללא קטגוריה: מסכת רק אם הקובץ יושב ישירות בתיקיית 'תלמוד בבלי'.
     // פיצול על שני סוגי הלוכסנים — נתיב Windows חייב להתפרש נכון גם בבדיקות
     // שרצות על Linux (package:path מפרש לפי מערכת ההפעלה הנוכחית בלבד).
-    final segments =
-        book.path.split(RegExp(r'[/\\]+')).where((s) => s.isNotEmpty).toList();
+    final segments = book.path
+        .split(RegExp(r'[/\\]+'))
+        .where((s) => s.isNotEmpty)
+        .toList();
     return segments.length >= 2 &&
         segments[segments.length - 2] ==
             DatabaseConstants.talmudBavliFolderName;
@@ -67,14 +70,12 @@ TextBook? findTextBookByExactCategory(
   return null;
 }
 
-/// יעד PDF חלופי לפתיחת [textBook] במיקום [textIndex], כאשר הגדרת פורמט
-/// הפתיחה של הבבלי היא PDF.
+/// שלב הזיהוי המהיר של המרת בבלי ל-PDF: איתור מופע הטקסט בעץ ומהדורת
+/// ה-PDF הנלווית, **ללא** מיפוי העמודים הכבד (פתיחת קובץ ה-PDF).
 ///
-/// מחזיר null כשהיעד אינו בבלי, אין מהדורת PDF בספרייה, או שאין מיפוי
-/// עמודים אמין — ואז הקורא פותח את מהדורת הטקסט כרגיל.
-Future<({PdfBook book, int page})?> resolveTalmudBavliPdfTarget(
+/// מחזיר null כשהיעד אינו מסכת בבלי, ההגדרה אינה PDF, או שאין מהדורת PDF.
+Future<({TextBook textBook, PdfBook pdfBook})?> resolveTalmudBavliPdfBook(
   TextBook textBook,
-  int textIndex,
 ) async {
   if (textBook.isUserBook || !talmudBavliOpensInPdf()) return null;
   try {
@@ -91,16 +92,67 @@ Future<({PdfBook book, int page})?> resolveTalmudBavliPdfTarget(
     if (resolvedText == null || !isTalmudBavliBook(resolvedText)) return null;
     final pdfBook = library.getCompanionBook(resolvedText, PdfBook) as PdfBook?;
     if (pdfBook == null || !isTalmudBavliBook(pdfBook)) return null;
-    final page = await textToPdfPage(resolvedText, textIndex);
-    if (page == null) return null;
-    return (book: pdfBook, page: page);
+    return (textBook: resolvedText, pdfBook: pdfBook);
   } catch (_) {
     return null;
   }
 }
 
+/// יעד PDF חלופי לפתיחת [textBook] במיקום [textIndex], כאשר הגדרת פורמט
+/// הפתיחה של הבבלי היא PDF.
+///
+/// מחזיר null כשהיעד אינו בבלי, אין מהדורת PDF בספרייה, או שאין מיפוי
+/// עמודים אמין — ואז הקורא פותח את מהדורת הטקסט כרגיל.
+Future<({PdfBook book, int page})?> resolveTalmudBavliPdfTarget(
+  TextBook textBook,
+  int textIndex,
+) async {
+  final target = await resolveTalmudBavliPdfBook(textBook);
+  if (target == null) return null;
+  try {
+    final page = await textToPdfPage(
+      target.textBook,
+      textIndex,
+      pdfBook: target.pdfBook,
+    );
+    if (page == null) return null;
+    return (book: target.pdfBook, page: page);
+  } catch (_) {
+    return null;
+  }
+}
+
+/// טאב דחוי ליעד בבלי שכבר זוהה ([target]): נפתח מיידית עם מחוון טעינה,
+/// מיפוי העמוד רץ בתוכו, ובסיום מוחלף ב-PDF — או בטאב הטקסט אם אין מיפוי.
+///
+/// מפתח ה-dedupe (קנוני אם לא סופק) מוצמד גם לטאב הדחוי וגם לטאב הסופי,
+/// כך שלחיצה חוזרת — בזמן הרזולוציה או אחריה — ממקדת במקום לפתוח כפילות.
+ResolvingTab buildTalmudBavliResolvingTab({
+  required ({TextBook textBook, PdfBook pdfBook}) target,
+  required int textIndex,
+  required OpenedTab Function(String? dedupeKey) buildTextTab,
+  required PdfBookTab Function(int page, String? dedupeKey) buildPdfTab,
+  String? dedupeKey,
+}) {
+  final key = dedupeKey ?? 'talmud-bavli-pdf:${target.pdfBook.path}|$textIndex';
+  return ResolvingTab(
+    fallbackTab: buildTextTab(key),
+    dedupeKey: key,
+    resolve: () async {
+      final page = await textToPdfPage(
+        target.textBook,
+        textIndex,
+        pdfBook: target.pdfBook,
+      );
+      // הטאב החלופי שבבעלות ה-ResolvingTab ייסגר איתו — בונים עותק טרי.
+      if (page == null) return buildTextTab(key);
+      return buildPdfTab(page, key);
+    },
+  );
+}
+
 /// בונה טאב לפתיחת יעד קישור (תפריט הקשר, עוגן-מילה, מפרשים אחאים).
-/// יעד השייך לתלמוד בבלי נפתח כ-PDF בדף הממופה בהתאם להגדרת פורמט הפתיחה.
+/// יעד השייך לתלמוד בבלי נפתח מיידית כטאב טעינה שמוחלף ב-PDF בדף הממופה.
 Future<OpenedTab> buildLinkTargetTab(Link link) async {
   final textBook = TextBook(
     title: utils.getTitleFromPath(link.path2),
@@ -109,18 +161,25 @@ Future<OpenedTab> buildLinkTargetTab(Link link) async {
     fileType: link.targetFileType,
   );
   final textIndex = link.index2 - 1;
-  final pdfTarget = await resolveTalmudBavliPdfTarget(textBook, textIndex);
-  if (pdfTarget != null) {
-    return PdfBookTab(
-      book: pdfTarget.book,
-      pageNumber: pdfTarget.page,
-      requiresStableLayout: true,
-    );
-  }
-  return TextBookTab(
+  TextBookTab buildTextTab(String? dedupeKey) => TextBookTab(
     book: textBook,
     index: textIndex,
-    openLeftPane: (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
+    dedupeKey: dedupeKey,
+    openLeftPane:
+        (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
         (Settings.getValue<bool>('key-default-sidebar-open') ?? false),
+  );
+  final target = await resolveTalmudBavliPdfBook(textBook);
+  if (target == null) return buildTextTab(null);
+  return buildTalmudBavliResolvingTab(
+    target: target,
+    textIndex: textIndex,
+    buildTextTab: buildTextTab,
+    buildPdfTab: (page, dedupeKey) => PdfBookTab(
+      book: target.pdfBook,
+      pageNumber: page,
+      dedupeKey: dedupeKey,
+      requiresStableLayout: true,
+    ),
   );
 }
