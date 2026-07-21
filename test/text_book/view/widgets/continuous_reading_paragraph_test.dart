@@ -184,6 +184,30 @@ void main() {
       }
     });
 
+    test('סימוני הערות מקבלים onEnter/onExit במצב רציף', () {
+      final recognizers = <TapGestureRecognizer>[];
+      final hovered = <String>[];
+      final spans = buildInlineHtmlSpans(
+        '<a class="book-note-marker" '
+        'href="otzaria://book-note?line=3&note=0">א</a> '
+        '<a href="otzaria://note?line=3">הערה</a>',
+        const TextStyle(fontSize: 20),
+        onTapUrl: (_) async => true,
+        onAnchorHover: (url, _) => hovered.add(url),
+        recognizerSink: recognizers,
+      );
+
+      _findSpanContaining(spans, 'א')!.onEnter!(const PointerEnterEvent());
+      _findSpanContaining(spans, 'הערה')!.onEnter!(const PointerEnterEvent());
+      expect(hovered, [
+        'otzaria://book-note?line=3&note=0',
+        'otzaria://note?line=3',
+      ]);
+      for (final r in recognizers) {
+        r.dispose();
+      }
+    });
+
     test('עוגן-מילה (a.link-anchor) שומר על צבע הטקסט ובלי קו תחתון', () {
       final recognizers = <TapGestureRecognizer>[];
       final spans = buildInlineHtmlSpans(

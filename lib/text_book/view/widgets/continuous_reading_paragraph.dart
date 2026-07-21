@@ -9,8 +9,8 @@ import 'package:otzaria/theme/app_fonts.dart';
 typedef ContinuousReadingUrlTap = Future<bool> Function(String url);
 
 /// ריחוף מעל עוגן-מילה (`otzaria://anchor`) — מקבל את מיקום הסמן הגלובלי.
-typedef ContinuousReadingAnchorHover = void Function(
-    String url, Offset globalPosition);
+typedef ContinuousReadingAnchorHover =
+    void Function(String url, Offset globalPosition);
 
 /// יציאת הסמן מעוגן-מילה.
 typedef ContinuousReadingAnchorExit = void Function(String url);
@@ -186,8 +186,8 @@ class _ContinuousReadingParagraphState
       final recognizer = TapGestureRecognizer()
         ..onTap = () => widget.onLineTap(widget.lines[i].lineIndex);
       if (widget.onLineSecondaryTap != null) {
-        recognizer.onSecondaryTap =
-            () => widget.onLineSecondaryTap!(widget.lines[i].lineIndex);
+        recognizer.onSecondaryTap = () =>
+            widget.onLineSecondaryTap!(widget.lines[i].lineIndex);
       }
       _lineRecognizers.add(recognizer);
     }
@@ -234,15 +234,17 @@ List<InlineSpan> _nodesToSpans(
 }) {
   final spans = <InlineSpan>[];
   for (final node in nodes) {
-    spans.addAll(_nodeToSpans(
-      node,
-      style,
-      onTapUrl: onTapUrl,
-      onAnchorHover: onAnchorHover,
-      onAnchorExit: onAnchorExit,
-      linkStyle: linkStyle,
-      recognizerSink: recognizerSink,
-    ));
+    spans.addAll(
+      _nodeToSpans(
+        node,
+        style,
+        onTapUrl: onTapUrl,
+        onAnchorHover: onAnchorHover,
+        onAnchorExit: onAnchorExit,
+        linkStyle: linkStyle,
+        recognizerSink: recognizerSink,
+      ),
+    );
   }
   return spans;
 }
@@ -279,18 +281,21 @@ List<InlineSpan> _nodeToSpans(
       // primary); שאר הקישורים — קו תחתון + צבע theme.
       final effectiveLinkStyle = node.classes.contains('link-anchor')
           ? (node.classes.contains('link-anchor-active')
-              ? childStyle.merge(linkStyle).copyWith(
-                    decoration: TextDecoration.none,
-                    fontWeight: FontWeight.bold,
-                    fontVariations:
-                        AppFonts.boldFontVariations(childStyle.fontFamily),
-                  )
-              : childStyle)
+                ? childStyle
+                      .merge(linkStyle)
+                      .copyWith(
+                        decoration: TextDecoration.none,
+                        fontWeight: FontWeight.bold,
+                        fontVariations: AppFonts.boldFontVariations(
+                          childStyle.fontFamily,
+                        ),
+                      )
+                : childStyle)
           : node.classes.contains('link-anchor-range')
-              ? childStyle.copyWith(decoration: TextDecoration.underline)
-              : linkStyle == null
-                  ? childStyle.copyWith(decoration: TextDecoration.underline)
-                  : childStyle.merge(linkStyle);
+          ? childStyle.copyWith(decoration: TextDecoration.underline)
+          : linkStyle == null
+          ? childStyle.copyWith(decoration: TextDecoration.underline)
+          : childStyle.merge(linkStyle);
       final children = _nodesToSpans(
         node.nodes,
         effectiveLinkStyle,
@@ -305,9 +310,9 @@ List<InlineSpan> _nodeToSpans(
           onTapUrl(href);
         };
       recognizerSink?.add(recognizer);
-      // עוגן (אות-סמן או טווח-ציטוט): תצוגה מקדימה גם בריחוף (TextSpan תומך
-      // onEnter/onExit). מזוהה לפי ה-href — תופס גם link-anchor וגם ...-range.
-      final isHoverableAnchor = href.startsWith('otzaria://anchor') &&
+      // קישורי עוגן והערה מקבלים תצוגה מקדימה בריחוף.
+      final isHoverableAnchor =
+          _isPreviewUrl(href) &&
           (onAnchorHover != null || onAnchorExit != null);
       return [
         TextSpan(
@@ -354,6 +359,7 @@ TextStyle _styleForElement(dom.Element element, TextStyle parentStyle) {
   }
   if (localName == 'sup' ||
       element.classes.contains('footnote-marker-number') ||
+      element.classes.contains('book-note-marker') ||
       element.classes.contains('link-anchor')) {
     style = style.copyWith(
       fontSize: (style.fontSize ?? 18) * 0.75,
@@ -386,6 +392,11 @@ TextStyle _styleForElement(dom.Element element, TextStyle parentStyle) {
 
   return style;
 }
+
+bool _isPreviewUrl(String url) =>
+    url.startsWith('otzaria://anchor') ||
+    url.startsWith('otzaria://book-note') ||
+    url.startsWith('otzaria://note');
 
 Color? _inlineColor(dom.Element element) {
   final inlineStyle = element.attributes['style'] ?? '';
@@ -465,8 +476,10 @@ double? _inlineFontSize(dom.Element element, double parentFontSize) {
 
 bool _hasFontStyle(dom.Element element, String value) {
   final inlineStyle = element.attributes['style'] ?? '';
-  return RegExp('font-style\\s*:\\s*$value', caseSensitive: false)
-      .hasMatch(inlineStyle);
+  return RegExp(
+    'font-style\\s*:\\s*$value',
+    caseSensitive: false,
+  ).hasMatch(inlineStyle);
 }
 
 InlineSpan _withRecognizer(

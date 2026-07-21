@@ -1,10 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/misc/link_context_menu_entry.dart';
 import 'package:otzaria/widgets/misc/overlay_scroll_anchor.dart';
+import 'package:otzaria/widgets/smart_text/smart_text.dart';
 
 /// חלונית צפה עם תצוגה מקדימה של מפרש, שנפתחת בריחוף או בלחיצה על עוגן-מילה.
 ///
@@ -45,6 +48,23 @@ class LinkPreviewOverlay {
         removeNikud: removeNikud,
         removePunctuation: removePunctuation,
       ),
+      anchorPosition: globalPosition,
+      onDismissed: onDismissed,
+      hoverMode: hoverMode,
+    );
+  }
+
+  /// מציגה תוכן כללי באותה חלונית המשמשת תצוגות מקדימות של קישורים.
+  static void showContent(
+    BuildContext context, {
+    required WidgetBuilder contentBuilder,
+    required Offset globalPosition,
+    VoidCallback? onDismissed,
+    bool hoverMode = false,
+  }) {
+    _show(
+      context,
+      contentBuilder: contentBuilder,
       anchorPosition: globalPosition,
       onDismissed: onDismissed,
       hoverMode: hoverMode,
@@ -104,7 +124,7 @@ class LinkPreviewOverlay {
     final scrollAnchor = startPinned
         ? scrollAnchorOverride
         : (scrollAnchorOverride ??
-            OverlayScrollAnchor.capture(context, anchorPosition));
+              OverlayScrollAnchor.capture(context, anchorPosition));
     _onDismissed = onDismissed;
     _entry = OverlayEntry(
       builder: (_) => _LinkPreviewPanel(
@@ -132,6 +152,46 @@ class LinkPreviewOverlay {
     final onDismissed = _onDismissed;
     _onDismissed = null;
     onDismissed?.call();
+  }
+}
+
+/// תוכן תצוגה מקדימה להערה המוטמעת בגוף הספר.
+class InlineBookNotePreviewContent extends StatelessWidget {
+  final String content;
+  final bool removeNikud;
+  final bool removePunctuation;
+
+  const InlineBookNotePreviewContent({
+    super.key,
+    required this.content,
+    required this.removeNikud,
+    required this.removePunctuation,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<SettingsBloc, SettingsState>(
+      builder: (context, settings) => ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 220),
+        child: SingleChildScrollView(
+          child: SmartTextWidget(
+            text: content,
+            settings: RenderSettings(
+              removeNikud: removeNikud,
+              removePunctuation: removePunctuation,
+              removeTeamim: !settings.showTeamim,
+              replaceHolyNames: settings.replaceHolyNames,
+              fontSize: settings.commentatorsFontSize,
+              fontFamily: settings.commentatorsFontFamily,
+              fontWeight: settings.commentatorsFontBold
+                  ? FontWeight.bold
+                  : null,
+              lineHeight: settings.lineHeight,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -239,8 +299,10 @@ class _LinkPreviewPanelState extends State<_LinkPreviewPanel> {
 
   void _reposition() {
     final panelBox = _panelKey.currentContext?.findRenderObject();
-    final overlayBox =
-        Overlay.maybeOf(context, rootOverlay: true)?.context.findRenderObject();
+    final overlayBox = Overlay.maybeOf(
+      context,
+      rootOverlay: true,
+    )?.context.findRenderObject();
     if (panelBox is! RenderBox ||
         !panelBox.hasSize ||
         overlayBox is! RenderBox ||
@@ -257,13 +319,17 @@ class _LinkPreviewPanelState extends State<_LinkPreviewPanel> {
         _offset = Offset(
           fixedOffset.dx.clamp(
             _screenPadding,
-            (overlaySize.width - panelSize.width - _screenPadding)
-                .clamp(_screenPadding, double.infinity),
+            (overlaySize.width - panelSize.width - _screenPadding).clamp(
+              _screenPadding,
+              double.infinity,
+            ),
           ),
           fixedOffset.dy.clamp(
             _screenPadding,
-            (overlaySize.height - panelSize.height - _screenPadding)
-                .clamp(_screenPadding, double.infinity),
+            (overlaySize.height - panelSize.height - _screenPadding).clamp(
+              _screenPadding,
+              double.infinity,
+            ),
           ),
         );
         _visible = true;
@@ -280,16 +346,20 @@ class _LinkPreviewPanelState extends State<_LinkPreviewPanel> {
     }
     top = top.clamp(
       _screenPadding,
-      (overlaySize.height - panelSize.height - _screenPadding)
-          .clamp(_screenPadding, double.infinity),
+      (overlaySize.height - panelSize.height - _screenPadding).clamp(
+        _screenPadding,
+        double.infinity,
+      ),
     );
 
     // אופקית (RTL): הצמדת קצה ימני לנקודה, ואז חיתוך לגבולות המסך.
     double left = anchor.dx - panelSize.width;
     left = left.clamp(
       _screenPadding,
-      (overlaySize.width - panelSize.width - _screenPadding)
-          .clamp(_screenPadding, double.infinity),
+      (overlaySize.width - panelSize.width - _screenPadding).clamp(
+        _screenPadding,
+        double.infinity,
+      ),
     );
 
     setState(() {
@@ -348,7 +418,9 @@ class _LinkPreviewPanelState extends State<_LinkPreviewPanel> {
                         constraints: BoxConstraints(maxWidth: maxWidth),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
                           child: SelectionArea(
                             child: Builder(builder: widget.contentBuilder),
                           ),

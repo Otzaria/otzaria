@@ -40,7 +40,7 @@ class SplitedViewScreen extends StatefulWidget {
   final TextEditingValue searchTextController;
   final void Function(int, {String? searchText}) openLeftPaneTab;
   final void Function(String? text, int? lineIndex, int? column)?
-      onSelectedTextChanged;
+  onSelectedTextChanged;
   final TextBookTab tab;
   final int? initialTabIndex;
   final bool showSplitView;
@@ -66,13 +66,15 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   late final ValueNotifier<String> _searchHighlightNotifier;
   int? _currentTabIndex;
   late double _leftPaneWidth;
-  final ValueNotifier<String?> _savedSelectedText =
-      ValueNotifier<String?>(null); // טקסט נבחר לתפריט הקשר
+  final ValueNotifier<String?> _savedSelectedText = ValueNotifier<String?>(
+    null,
+  ); // טקסט נבחר לתפריט הקשר
   final SelectionSyncController _selectionSyncController =
       SelectionSyncController();
   final ValueNotifier<int> _openFilterRequest = ValueNotifier<int>(0);
-  final ValueNotifier<int> _openCommentatorsFilterNotifier =
-      ValueNotifier<int>(0);
+  final ValueNotifier<int> _openCommentatorsFilterNotifier = ValueNotifier<int>(
+    0,
+  );
   final ValueNotifier<int> _closeCommentatorsFilterNotifier =
       ValueNotifier<int>(0);
 
@@ -87,8 +89,9 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     }
     // טען את רוחב הפאנל מההגדרות
     _leftPaneWidth = context.read<SettingsBloc>().state.commentaryPaneWidth;
-    widget.tab.toggleCommentatorsPaneNotifier
-        .addListener(_onToggleCommentatorsPaneRequest);
+    widget.tab.toggleCommentatorsPaneNotifier.addListener(
+      _onToggleCommentatorsPaneRequest,
+    );
     widget.tab.openNotesTabNotifier.addListener(_onOpenNotesTabRequest);
     // אם המפרשים כבר נטענו עד שהמסך נבנה — ה-BlocListener לא יראה מעבר,
     // לכן בודקים גם פעם אחת אחרי ה-frame הראשון.
@@ -124,11 +127,11 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
       // רישום interaction של TourCubit לפני הפתיחה — בעקבי עם השאר
       // המסלולים שפותחים את חלונית המפרשים (ע' text_book_screen).
       context.read<TourCubit>().recordInteraction(
-            TourInteraction(
-              type: TourInteractionType.commentaryUsed,
-              primaryValue: widget.tab.title,
-            ),
-          );
+        TourInteraction(
+          type: TourInteractionType.commentaryUsed,
+          primaryValue: widget.tab.title,
+        ),
+      );
       setState(() {
         _paneOpen = true;
         _currentTabIndex = _commentaryTabIndex;
@@ -140,10 +143,12 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   void didUpdateWidget(SplitedViewScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.tab != widget.tab) {
-      oldWidget.tab.toggleCommentatorsPaneNotifier
-          .removeListener(_onToggleCommentatorsPaneRequest);
-      widget.tab.toggleCommentatorsPaneNotifier
-          .addListener(_onToggleCommentatorsPaneRequest);
+      oldWidget.tab.toggleCommentatorsPaneNotifier.removeListener(
+        _onToggleCommentatorsPaneRequest,
+      );
+      widget.tab.toggleCommentatorsPaneNotifier.addListener(
+        _onToggleCommentatorsPaneRequest,
+      );
       oldWidget.tab.openNotesTabNotifier.removeListener(_onOpenNotesTabRequest);
       widget.tab.openNotesTabNotifier.addListener(_onOpenNotesTabRequest);
     }
@@ -185,14 +190,18 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   }
 
   ({double paneWidth, double minPaneWidth, double maxPaneWidth})
-      _calculatePaneWidths(double availableWidth) {
+  _calculatePaneWidths(double availableWidth) {
     const minPaneWidth = 280.0;
     const minTextWidth = 300.0;
-    final maxPaneWidth =
-        (availableWidth * 0.75).clamp(minPaneWidth, double.infinity);
+    final maxPaneWidth = (availableWidth * 0.75).clamp(
+      minPaneWidth,
+      double.infinity,
+    );
     // נדחס אם אין מספיק מקום לטקסט, אבל לא עולה על 75%
-    final effectiveMax =
-        ((availableWidth - minTextWidth).clamp(minPaneWidth, maxPaneWidth));
+    final effectiveMax = ((availableWidth - minTextWidth).clamp(
+      minPaneWidth,
+      maxPaneWidth,
+    ));
     final paneWidth = _leftPaneWidth.clamp(minPaneWidth, effectiveMax);
 
     return (
@@ -278,11 +287,11 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     });
     // פתיחה אוטומטית נחשבת כ"שימוש במפרשים" — מדכאת את טיפ "כדאי לפתוח מפרשים".
     context.read<TourCubit>().recordInteraction(
-          TourInteraction(
-            type: TourInteractionType.commentaryUsed,
-            primaryValue: widget.tab.title,
-          ),
-        );
+      TourInteraction(
+        type: TourInteractionType.commentaryUsed,
+        primaryValue: widget.tab.title,
+      ),
+    );
   }
 
   /// כשתוצאת החיפוש נחתה בגוף הערת שוליים (המונח אינו נראה בטקסט הראשי),
@@ -303,9 +312,11 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
 
     _didOpenNotesForSearch = true;
     if (!state.activeCommentators.contains(kNotesCommentatorTitle)) {
-      context.read<TextBookBloc>().add(UpdateCommentators(
-            [...state.activeCommentators, kNotesCommentatorTitle],
-          ));
+      context.read<TextBookBloc>().add(
+        UpdateCommentators(
+          [...state.activeCommentators, kNotesCommentatorTitle],
+        ),
+      );
     }
     setState(() {
       _paneOpen = true;
@@ -315,8 +326,9 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
 
   @override
   void dispose() {
-    widget.tab.toggleCommentatorsPaneNotifier
-        .removeListener(_onToggleCommentatorsPaneRequest);
+    widget.tab.toggleCommentatorsPaneNotifier.removeListener(
+      _onToggleCommentatorsPaneRequest,
+    );
     widget.tab.openNotesTabNotifier.removeListener(_onOpenNotesTabRequest);
     _controller.dispose();
     _searchHighlightNotifier.dispose();
@@ -400,16 +412,20 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                         _closeCommentatorsFilterNotifier,
                     onTabChanged: (index) {
                       debugPrint(
-                          'DEBUG: Tab changed to $index, showSplitView: ${widget.showSplitView}');
+                        'DEBUG: Tab changed to $index, showSplitView: ${widget.showSplitView}',
+                      );
                       setState(() {
                         _currentTabIndex = index;
                       });
                       widget.onSidebarTabChanged?.call(index);
                       if (!widget.showSplitView) {
                         debugPrint(
-                            'DEBUG: Saving tab $index to combined settings');
+                          'DEBUG: Saving tab $index to combined settings',
+                        );
                         Settings.setValue<int>(
-                            'key-sidebar-tab-index-combined', index);
+                          'key-sidebar-tab-index-combined',
+                          index,
+                        );
                       } else {
                         debugPrint('DEBUG: NOT saving tab (split view mode)');
                       }
@@ -469,6 +485,8 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                             _paneOpen && _currentTabIndex == 0,
                         isLinksTabActive: () =>
                             _paneOpen && _currentTabIndex == _linksTabIndex,
+                        isPersonalNotesTabActive: () =>
+                            _paneOpen && _currentTabIndex == _notesTabIndex,
                       ),
                     ),
                     if (!_paneOpen)
@@ -486,9 +504,9 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                   _leftPaneWidth = nextWidth;
                 },
                 onPaneResizeEnd: () {
-                  context
-                      .read<SettingsBloc>()
-                      .add(UpdateCommentaryPaneWidth(_leftPaneWidth));
+                  context.read<SettingsBloc>().add(
+                    UpdateCommentaryPaneWidth(_leftPaneWidth),
+                  );
                 },
                 autoHandleResponsiveVisibility: false,
                 scrollbarTopMargin: 0,

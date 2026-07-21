@@ -2,6 +2,36 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
 
 void main() {
+  group('addInlineNotePreviewLinks', () {
+    test('מחליף את הסמן הצמוד בקישור להערה', () {
+      const line =
+          'גוף<sup class="footnote-marker">א</sup>'
+          '<i class="footnote">תוכן</i>';
+
+      final result = addInlineNotePreviewLinks(line, lineIndex: 7);
+
+      expect(result, contains('href="otzaria://book-note?line=7&note=0"'));
+      expect(result, contains('>א</a><i class="footnote">תוכן</i>'));
+    });
+
+    test('מחלץ את ההערה לפי כתובת הריחוף', () {
+      const content = [
+        'גוף<sup class="footnote-marker">א</sup>'
+            '<i class="footnote">ראשונה</i>'
+            '<sup class="footnote-marker">ב</sup>'
+            '<i class="footnote">שנייה</i>',
+      ];
+
+      expect(
+        inlineNoteFromPreviewUrl(
+          content,
+          'otzaria://book-note?line=0&note=1',
+        ),
+        contains('שנייה'),
+      );
+    });
+  });
+
   group('stripInlineNotes', () {
     test('מסיר <i class="footnote"> מהשורה ומשאיר את <sup>', () {
       const input =
@@ -123,8 +153,7 @@ void main() {
       expect(result[1], isNot(contains('ראשונה')));
     });
 
-    test('מחלץ 4 הערות עם markers אותיות עבריות שונות (Beit Yaakov pattern)',
-        () {
+    test('מחלץ 4 הערות עם markers אותיות עבריות שונות (Beit Yaakov pattern)', () {
       final content = [
         'גוף<sup class="footnote-marker">א</sup><i class="footnote">A</i>'
             '. עוד<sup class="footnote-marker">ב</sup><i class="footnote">B</i>'

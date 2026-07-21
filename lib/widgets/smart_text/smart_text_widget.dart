@@ -36,8 +36,7 @@ class SmartTextWidget extends StatelessWidget {
   /// מזהה את הקישור ומקפיץ תצוגה מקדימה של המפרש.
   final void Function(String url)? onAnchorTap;
 
-  /// callback לריחוף מעל עוגן-מילה — מקבל את ה-URL ואת מיקום הסמן הגלובלי.
-  /// כשמסופק, סמני העוגן מרונדרים כווידג'ט inline (ל-fwfh אין hover על <a>).
+  /// callback לריחוף מעל קישור תצוגה מקדימה — עוגן או הערה.
   final void Function(String url, Offset globalPosition)? onAnchorHover;
 
   /// callback ליציאת הסמן מעוגן-מילה.
@@ -83,7 +82,9 @@ class SmartTextWidget extends StatelessWidget {
       fontFamily: settings.fontFamily,
       fontWeight: settings.fontWeight,
       fontVariations: AppFonts.boldFontVariations(
-          settings.fontFamily, settings.fontWeight ?? FontWeight.normal),
+        settings.fontFamily,
+        settings.fontWeight ?? FontWeight.normal,
+      ),
       height: settings.lineHeight,
     );
 
@@ -103,8 +104,9 @@ class SmartTextWidget extends StatelessWidget {
           child: Text.rich(
             simpleSpan,
             style: textStyle,
-            textAlign:
-                settings.justifyText ? TextAlign.justify : TextAlign.right,
+            textAlign: settings.justifyText
+                ? TextAlign.justify
+                : TextAlign.right,
           ),
         );
       }
@@ -116,13 +118,16 @@ class SmartTextWidget extends StatelessWidget {
     String toCssHex(Color color) =>
         '#${(color.toARGB32() & 0x00FFFFFF).toRadixString(16).padLeft(6, '0')}';
     final anchorColorCss = toCssHex(
-        DefaultTextStyle.of(context).style.color ?? colorScheme.onSurface);
+      DefaultTextStyle.of(context).style.color ?? colorScheme.onSurface,
+    );
     final anchorActiveColorCss = toCssHex(colorScheme.primary);
     final anchorActiveBgCss = toCssHex(colorScheme.primaryContainer);
 
     return HtmlWidget(
-      TextRendererService.wrapWithRtlDiv(processedHtml,
-          justifyText: settings.justifyText),
+      TextRendererService.wrapWithRtlDiv(
+        processedHtml,
+        justifyText: settings.justifyText,
+      ),
       key: widgetKey,
       renderMode: renderMode,
       textStyle: textStyle,
@@ -142,6 +147,17 @@ class SmartTextWidget extends StatelessWidget {
             'font-style': 'italic',
             'position': 'relative',
             'top': '-0.55em',
+          };
+        }
+        if (element.localName == 'a' &&
+            element.classes.contains('book-note-marker')) {
+          return {
+            'font-size': '0.75em',
+            'font-style': 'italic',
+            'position': 'relative',
+            'top': '-0.55em',
+            'color': anchorColorCss,
+            'text-decoration': 'none',
           };
         }
         // סמני עוגן-מילה (link_anchor): אות קטנה מורמת (עוגן-נקודה) או קו
@@ -188,13 +204,15 @@ class SmartTextWidget extends StatelessWidget {
               }
               // סימון הערה אישית inline — נטפל לפני שאר הקישורים.
               if (url.startsWith('otzaria://note')) {
-                final lineIndex =
-                    int.tryParse(Uri.parse(url).queryParameters['line'] ?? '');
+                final lineIndex = int.tryParse(
+                  Uri.parse(url).queryParameters['line'] ?? '',
+                );
                 if (lineIndex != null) {
                   onNoteTap?.call(lineIndex);
                 }
                 return true;
               }
+              if (url.startsWith('otzaria://book-note')) return true;
               if (onOpenBook == null) return false;
               return await HtmlLinkHandler.handleLink(
                 context,
@@ -209,13 +227,13 @@ class SmartTextWidget extends StatelessWidget {
 
 /// WidgetFactory ל-fwfh עם שתי אחריות:
 /// 1. בולד אמיתי לגופן משתנה — מזריק FontVariation('wght') לספאנים מודגשים.
-/// 2. ריחוף על עוגני-מילה — fwfh בונה recognizer לכל `<a>`; זוכרים אילו
-///    recognizers שייכים ל-href של עוגן, וכשה-TextSpan נבנה מזריקים
+/// 2. ריחוף על קישורי תצוגה מקדימה — זוכרים את ה-href וכשה-TextSpan נבנה
+///    מזריקים
 ///    onEnter/onExit לצד ה-recognizer הקיים.
 class _SmartTextWidgetFactory extends WidgetFactory {
   final void Function(String url, Offset globalPosition)? onAnchorHover;
   final void Function(String url)? onAnchorHoverExit;
-  final _anchorHrefByRecognizer = <GestureRecognizer, String>{};
+  final _previewHrefByRecognizer = <GestureRecognizer, String>{};
 
   _SmartTextWidgetFactory({
     this.onAnchorHover,
@@ -229,10 +247,8 @@ class _SmartTextWidgetFactory extends WidgetFactory {
   }) {
     final recognizer = super.buildGestureRecognizer(tree, onTap: onTap);
     final href = tree.element.attributes['href'];
-    if (recognizer != null &&
-        href != null &&
-        href.startsWith('otzaria://anchor')) {
-      _anchorHrefByRecognizer[recognizer] = href;
+    if (recognizer != null && href != null && _isPreviewUrl(href)) {
+      _previewHrefByRecognizer[recognizer] = href;
     }
     return recognizer;
   }
@@ -246,8 +262,9 @@ class _SmartTextWidgetFactory extends WidgetFactory {
   }) {
     style = _withBoldVariations(style);
 
-    final href =
-        recognizer == null ? null : _anchorHrefByRecognizer[recognizer];
+    final href = recognizer == null
+        ? null
+        : _previewHrefByRecognizer[recognizer];
     if (onAnchorHover == null || href == null) {
       return super.buildTextSpan(
         children: children,
@@ -272,17 +289,24 @@ class _SmartTextWidgetFactory extends WidgetFactory {
   TextStyle? _withBoldVariations(TextStyle? style) {
     if (style == null || style.fontVariations != null) return style;
     final variations = AppFonts.boldFontVariations(
-        style.fontFamily, style.fontWeight ?? FontWeight.normal);
+      style.fontFamily,
+      style.fontWeight ?? FontWeight.normal,
+    );
     if (variations == null) return style;
     return style.copyWith(fontVariations: variations);
   }
 
   @override
   void reset(State state) {
-    _anchorHrefByRecognizer.clear();
+    _previewHrefByRecognizer.clear();
     super.reset(state);
   }
 }
+
+bool _isPreviewUrl(String url) =>
+    url.startsWith('otzaria://anchor') ||
+    url.startsWith('otzaria://book-note') ||
+    url.startsWith('otzaria://note');
 
 /// הווריאנט הטיפוגרפי של סמן/טווח עוגן-מילה לפי מחלקת ה-style שהוקצתה למפרש.
 Map<String, String> _linkAnchorVariantStyle(dom.Element element) {

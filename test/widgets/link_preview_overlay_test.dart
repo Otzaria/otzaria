@@ -27,8 +27,9 @@ void main() {
     return hostContext;
   }
 
-  testWidgets('חלונית מקובעת נשארת פתוחה ונסגרת רק בלחיצה מחוץ לה',
-      (tester) async {
+  testWidgets('חלונית מקובעת נשארת פתוחה ונסגרת רק בלחיצה מחוץ לה', (
+    tester,
+  ) async {
     final hostContext = await pumpListHost(tester);
 
     LinkPreviewOverlay.showPinned(
@@ -55,8 +56,24 @@ void main() {
     expect(find.text('תוכן חלונית'), findsNothing);
   });
 
-  testWidgets('חלונית מקובעת זזה יחד עם גלילת הרשימה שעליה נפתחה',
-      (tester) async {
+  testWidgets('showContent מציג תוכן כללי במצב ריחוף', (tester) async {
+    final hostContext = await pumpListHost(tester);
+
+    LinkPreviewOverlay.showContent(
+      hostContext,
+      contentBuilder: (_) => const Text('תוכן הערה'),
+      globalPosition: const Offset(200, 300),
+      hoverMode: true,
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('תוכן הערה'), findsOneWidget);
+  });
+
+  testWidgets('חלונית מקובעת זזה יחד עם גלילת הרשימה שעליה נפתחה', (
+    tester,
+  ) async {
     final hostContext = await pumpListHost(tester);
 
     final anchorPosition = tester.getCenter(find.text('פריט 3'));

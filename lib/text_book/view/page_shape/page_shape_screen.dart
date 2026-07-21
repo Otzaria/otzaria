@@ -61,6 +61,7 @@ const double _kCommentaryLabelAndSpacingWidth = 32.0;
 
 /// אינדקס לשונית "קישורים" ב-[LinksNotesSidebar] (0 = קישורים, 1 = הערות)
 const int _kLinksTabIndex = 0;
+const int _kNotesTabIndex = 1;
 
 /// מסך תצוגת צורת הדף - מציג את הטקסט המרכזי עם מפרשים מסביב
 class PageShapeScreen extends StatefulWidget {
@@ -1042,6 +1043,10 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                   positionsListener:
                                                       state.positionsListener,
                                                   isMainText: true,
+                                                  isPersonalNotesTabActive:
+                                                      _isLeftSidebarOpen &&
+                                                      _leftSidebarTabIndex ==
+                                                          _kNotesTabIndex,
                                                   tab: widget.tab,
                                                   labelForIndex:
                                                       state

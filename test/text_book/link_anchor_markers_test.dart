@@ -64,7 +64,8 @@ void main() {
     // שורת שולחן ערוך או"ח א:א כפי שהיא שמורה במסד (הקטע הרלוונטי): התגים
     // המקוריים של ספריא אינם נספרים כתווים גלויים, והעוגן של באר הגולה יושב
     // באופסט גלוי 35 — מיד לפני "יתגבר".
-    const saLine = '(א) <b>דין השכמת הבוקר. ובו ט סעיפים:</b> '
+    const saLine =
+        '(א) <b>דין השכמת הבוקר. ובו ט סעיפים:</b> '
         '<i data-commentator="Be\'er HaGolah" data-label="א" data-order="1"></i>'
         '<i data-commentator="Turei Zahav" data-order="1"></i>יתגבר '
         '<i data-commentator="Ba\'er Hetev" data-order="1"></i>כארי לעמוד בבוקר';
@@ -93,9 +94,10 @@ void main() {
       final wordIndex = result.indexOf('יתגבר');
       expect(markerIndex, lessThan(wordIndex));
       final between = result.substring(
-          markerIndex +
-              '<span class="link-anchor link-anchor-0">(א)</span>'.length,
-          wordIndex);
+        markerIndex +
+            '<span class="link-anchor link-anchor-0">(א)</span>'.length,
+        wordIndex,
+      );
       expect(between.replaceAll(RegExp(r'<[^>]*>'), ''), isEmpty);
     });
 
@@ -124,7 +126,8 @@ void main() {
       expect(
         result,
         contains(
-            '<a class="link-anchor link-anchor-0" href="otzaria://anchor?ref=7_0">(א)</a>'),
+          '<a class="link-anchor link-anchor-0" href="otzaria://anchor?ref=7_0">(א)</a>',
+        ),
       );
       expect(result, contains('href="otzaria://anchor?ref=7_1"'));
       expect(result, isNot(contains('<span class="link-anchor')));
@@ -148,8 +151,10 @@ void main() {
       );
       expect(
         result,
-        contains('<a class="link-anchor-range link-anchor-2" '
-            'href="otzaria://anchor?ref=12_0&range=1">'),
+        contains(
+          '<a class="link-anchor-range link-anchor-2" '
+          'href="otzaria://anchor?ref=12_0&range=1">',
+        ),
       );
       // בלי lineIndex — נשאר span לא-אינטראקטיבי.
       final passive = injectLinkAnchorMarkers(
@@ -158,7 +163,9 @@ void main() {
         styleIndexByCommentator: const {'שמות': 2},
       );
       expect(
-          passive, contains('<span class="link-anchor-range link-anchor-2">'));
+        passive,
+        contains('<span class="link-anchor-range link-anchor-2">'),
+      );
       expect(passive, isNot(contains('href=')));
     });
 
@@ -219,6 +226,30 @@ void main() {
           '<span class="link-anchor link-anchor-${styles[baerHetev.path2]}">(א)</span>';
       expect(result.indexOf(hetevMarker), lessThan(result.indexOf('כארי')));
       expect(result.indexOf(hetevMarker), greaterThan(result.indexOf('יתגבר')));
+    });
+
+    test('סגנון מפרש נשאר זהה כשנטענים מפרשים נוספים', () {
+      final target = _anchorLink(
+        heRef: 'מפרש ב, א',
+        path2: 'מפרש',
+        anchorStart: 1,
+      );
+      final before = anchorStyleIndexByCommentator([target]);
+      final after = anchorStyleIndexByCommentator([
+        _anchorLink(
+          heRef: 'א א, א',
+          path2: 'א',
+          anchorStart: 1,
+        ),
+        target,
+        _anchorLink(
+          heRef: 'ת א, א',
+          path2: 'ת',
+          anchorStart: 1,
+        ),
+      ]);
+
+      expect(after[target.path2], before[target.path2]);
     });
 
     test('entity נספר כתו גלוי אחד', () {

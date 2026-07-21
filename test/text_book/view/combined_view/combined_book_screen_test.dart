@@ -94,17 +94,19 @@ void main() {
   });
 
   group('shouldShowOpenCommentatorsPaneEntry', () {
-    test('מחזירה true כשיש מפרשים נבחרים, החלונית בצד וטאב המפרשים אינו פעיל',
-        () {
-      expect(
-        shouldShowOpenCommentatorsPaneEntry(
-          hasSelectedCommentators: true,
-          showCommentaryAsExpansionTiles: false,
-          isCommentatorsTabActive: false,
-        ),
-        isTrue,
-      );
-    });
+    test(
+      'מחזירה true כשיש מפרשים נבחרים, החלונית בצד וטאב המפרשים אינו פעיל',
+      () {
+        expect(
+          shouldShowOpenCommentatorsPaneEntry(
+            hasSelectedCommentators: true,
+            showCommentaryAsExpansionTiles: false,
+            isCommentatorsTabActive: false,
+          ),
+          isTrue,
+        );
+      },
+    );
 
     test('מחזירה false כשאין מפרשים נבחרים', () {
       expect(
@@ -135,6 +137,22 @@ void main() {
           showCommentaryAsExpansionTiles: false,
           isCommentatorsTabActive: true,
         ),
+        isFalse,
+      );
+    });
+  });
+
+  group('shouldShowPersonalNotePreview', () {
+    test('מציג תצוגה מקדימה כשטאב ההערות אינו פעיל', () {
+      expect(
+        shouldShowPersonalNotePreview(isPersonalNotesTabActive: false),
+        isTrue,
+      );
+    });
+
+    test('לא מציג תצוגה מקדימה כשטאב ההערות פעיל', () {
+      expect(
+        shouldShowPersonalNotePreview(isPersonalNotesTabActive: true),
         isFalse,
       );
     });
@@ -204,26 +222,27 @@ void main() {
     });
 
     test(
-        'בניגוד ל-shouldShowOpenCommentatorsPaneEntry, מציג גם בלי מפרשים נבחרים',
-        () {
-      // הלוגיקה כאן לא תלויה ב-hasSelectedCommentators כלל — היחס בין
-      // שני ה-predicates אמור להישאר עקבי גם כשהבחירה ריקה.
-      expect(
-        shouldShowOpenCommentatorsPaneEntry(
-          hasSelectedCommentators: false,
-          showCommentaryAsExpansionTiles: false,
-          isCommentatorsTabActive: false,
-        ),
-        isFalse,
-      );
-      expect(
-        shouldShowSelectCommentatorsEntry(
-          hasOpenCommentatorsPaneWithFilterCallback: true,
-          isCommentatorsTabActive: false,
-        ),
-        isTrue,
-      );
-    });
+      'בניגוד ל-shouldShowOpenCommentatorsPaneEntry, מציג גם בלי מפרשים נבחרים',
+      () {
+        // הלוגיקה כאן לא תלויה ב-hasSelectedCommentators כלל — היחס בין
+        // שני ה-predicates אמור להישאר עקבי גם כשהבחירה ריקה.
+        expect(
+          shouldShowOpenCommentatorsPaneEntry(
+            hasSelectedCommentators: false,
+            showCommentaryAsExpansionTiles: false,
+            isCommentatorsTabActive: false,
+          ),
+          isFalse,
+        );
+        expect(
+          shouldShowSelectCommentatorsEntry(
+            hasOpenCommentatorsPaneWithFilterCallback: true,
+            isCommentatorsTabActive: false,
+          ),
+          isTrue,
+        );
+      },
+    );
   });
 
   group('shouldRebuildSelectionAreaOnExternalChange', () {
@@ -254,25 +273,26 @@ void main() {
     });
 
     test(
-        "מחזירה false כשאזור חיצוני מקבל בעלות אבל אין לנו בחירה משלנו לנקות "
-        "(תרחיש 'מפרשים מתחת': בחירת טקסט במפרש המקונן לא צריכה להרוס את עץ הצאצאים)",
-        () {
-      // הבאג שתוקן: במצב 'מפרשים מתחת' ה-CommentaryListBase מקונן בעץ
-      // ה-SelectionArea של ה-CombinedView. כשהמשתמש מסמן טקסט במפרש,
-      // ה-controller מעביר בעלות לאזור המפרש. לפני התיקון, ה-CombinedView
-      // היה מעלה את revision ובונה את ה-SelectionArea מחדש — מה שהשמיד את
-      // ה-CommentaryListBase וגרם לטעינה מחדש של המפרש.
-      final selfOwner = Object();
-      final commentaryOwner = Object();
-      expect(
-        shouldRebuildSelectionAreaOnExternalChange(
-          activeOwner: commentaryOwner,
-          selfOwner: selfOwner,
-          hasOwnSelection: false,
-        ),
-        isFalse,
-      );
-    });
+      "מחזירה false כשאזור חיצוני מקבל בעלות אבל אין לנו בחירה משלנו לנקות "
+      "(תרחיש 'מפרשים מתחת': בחירת טקסט במפרש המקונן לא צריכה להרוס את עץ הצאצאים)",
+      () {
+        // הבאג שתוקן: במצב 'מפרשים מתחת' ה-CommentaryListBase מקונן בעץ
+        // ה-SelectionArea של ה-CombinedView. כשהמשתמש מסמן טקסט במפרש,
+        // ה-controller מעביר בעלות לאזור המפרש. לפני התיקון, ה-CombinedView
+        // היה מעלה את revision ובונה את ה-SelectionArea מחדש — מה שהשמיד את
+        // ה-CommentaryListBase וגרם לטעינה מחדש של המפרש.
+        final selfOwner = Object();
+        final commentaryOwner = Object();
+        expect(
+          shouldRebuildSelectionAreaOnExternalChange(
+            activeOwner: commentaryOwner,
+            selfOwner: selfOwner,
+            hasOwnSelection: false,
+          ),
+          isFalse,
+        );
+      },
+    );
 
     test('מחזירה true כשאזור חיצוני מקבל בעלות ויש לנו בחירה משלנו לנקות', () {
       final selfOwner = Object();
@@ -523,28 +543,31 @@ void main() {
     const plainLine = 'שורה רגילה ללא הערות';
 
     test(
-        'מחזירה true כש"הערות" פעיל ויש הערת inline בשורה — גם בלי קישורי מפרשים',
-        () {
-      // באג: בספרים שבהם ההערות הן המפרש היחיד, "מפרשים מתחת" לא הציג כלום.
-      final result = hasCommentariesForLine(
-        activeCommentators: const [kNotesCommentatorTitle],
-        content: const [noteLine],
-        linksByLine: const {},
-        index: 0,
-      );
-      expect(result, isTrue);
-    });
+      'מחזירה true כש"הערות" פעיל ויש הערת inline בשורה — גם בלי קישורי מפרשים',
+      () {
+        // באג: בספרים שבהם ההערות הן המפרש היחיד, "מפרשים מתחת" לא הציג כלום.
+        final result = hasCommentariesForLine(
+          activeCommentators: const [kNotesCommentatorTitle],
+          content: const [noteLine],
+          linksByLine: const {},
+          index: 0,
+        );
+        expect(result, isTrue);
+      },
+    );
 
-    test('מחזירה false כש"הערות" פעיל אך אין הערת inline בשורה ואין קישורים',
-        () {
-      final result = hasCommentariesForLine(
-        activeCommentators: const [kNotesCommentatorTitle],
-        content: const [plainLine],
-        linksByLine: const {},
-        index: 0,
-      );
-      expect(result, isFalse);
-    });
+    test(
+      'מחזירה false כש"הערות" פעיל אך אין הערת inline בשורה ואין קישורים',
+      () {
+        final result = hasCommentariesForLine(
+          activeCommentators: const [kNotesCommentatorTitle],
+          content: const [plainLine],
+          linksByLine: const {},
+          index: 0,
+        );
+        expect(result, isFalse);
+      },
+    );
 
     test('מחזירה false כשאין מפרשים פעילים ואין קישורים', () {
       final result = hasCommentariesForLine(
