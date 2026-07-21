@@ -138,33 +138,54 @@ class SeforimRepository {
       [bookId],
     );
 
-    // Insert computed mappings.
-    // Lines that appear before the first heading have no tocEntry covering them;
-    // the subquery returns NULL for those rows.  We skip them rather than
-    // violating the NOT NULL constraint on line_toc.tocEntryId.
-    db.execute(
-      '''
-      INSERT INTO line_toc(lineId, tocEntryId)
-      SELECT lineId, tocEntryId
-      FROM (
-          SELECT l.id AS lineId,
-                 (
-                     SELECT t.id
-                     FROM tocEntry t
-                     JOIN line sl ON sl.id = t.lineId
-                     WHERE t.bookId = l.bookId
-                       AND t.lineId IS NOT NULL
-                       AND sl.lineIndex <= l.lineIndex
-                     ORDER BY sl.lineIndex DESC
-                     LIMIT 1
-                 ) AS tocEntryId
-          FROM line l
-          WHERE l.bookId = ?
-      )
-      WHERE tocEntryId IS NOT NULL
-    ''',
+    // מיזוג לינארי במקום שאילתת-משנה מתואמת פר-שורה (80 אלף פעמים):
+    // כל שורה ממופה ל-tocEntry האחרון שה-lineIndex שלו <= lineIndex של השורה.
+    final tocRows = db
+        .select(
+          '''
+          SELECT t.id AS tocId, sl.lineIndex AS lineIndex
+          FROM tocEntry t
+          JOIN line sl ON sl.id = t.lineId
+          WHERE t.bookId = ? AND t.lineId IS NOT NULL
+          ORDER BY sl.lineIndex ASC
+          ''',
+          [bookId],
+        )
+        .toMapList();
+    if (tocRows.isEmpty) return;
+
+    final tocLineIndex = <int>[];
+    final tocId = <int>[];
+    for (final row in tocRows) {
+      tocLineIndex.add(row['lineIndex'] as int);
+      tocId.add(row['tocId'] as int);
+    }
+
+    final lineRows = db.select(
+      'SELECT id, lineIndex FROM line WHERE bookId = ? ORDER BY lineIndex ASC',
       [bookId],
-    );
+    ).toMapList();
+
+    withTransaction(db, () {
+      final stmt = db.prepare(
+        'INSERT INTO line_toc(lineId, tocEntryId) VALUES (?, ?)',
+      );
+      try {
+        var ti = 0;
+        for (final row in lineRows) {
+          final lineIndex = row['lineIndex'] as int;
+          while (ti + 1 < tocLineIndex.length &&
+              tocLineIndex[ti + 1] <= lineIndex) {
+            ti++;
+          }
+          // שורות לפני הכותרת הראשונה אינן ממופות (NOT NULL על tocEntryId).
+          if (tocLineIndex[ti] > lineIndex) continue;
+          stmt.execute([row['id'] as int, tocId[ti]]);
+        }
+      } finally {
+        stmt.close();
+      }
+    });
   }
 
   // --- Transactions ---
@@ -1087,6 +1108,48 @@ class SeforimRepository {
     _logger.fine('Inserted TOC entries for external book $bookId');
   }
 
+  /// מוסיף בטרנזקציה אחת את כל רשומות ה-TOC של ספר שנוצר, עם קאש tocText.
+  /// [entries] בסדר הוספה; `id` הוא האינדקס המקומי ו-`parentId` מפנה ל-`id`
+  /// המקומי של ההורה. מחזיר מיפוי id-מקומי → id אמיתי ב-DB.
+  Future<Map<int, int>> insertGeneratedTocEntries(
+    int bookId,
+    List<TocEntry> entries,
+  ) async {
+    _invalidateTocCache(bookId: bookId);
+    final db = await _database.database;
+    final localToDbId = <int, int>{};
+    final tocTextIdCache = <String, int>{};
+
+    withTransaction(db, () {
+      for (final entry in entries) {
+        final textId = tocTextIdCache[entry.text] ??= _database.tocTextDao
+            .getOrCreateIdSync(db, entry.text);
+        final parentDbId = entry.parentId == null
+            ? null
+            : localToDbId[entry.parentId];
+
+        final tocEntry = TocEntry(
+          id: 0,
+          bookId: bookId,
+          parentId: parentDbId,
+          textId: textId,
+          level: entry.level,
+          lineId: null,
+          lineIndex: entry.lineIndex,
+          isLastChild: false,
+          hasChildren: false,
+        );
+
+        localToDbId[entry.id] = _database.tocDao.insertTocEntrySync(
+          db,
+          tocEntry,
+        );
+      }
+    });
+
+    return localToDbId;
+  }
+
   // --- Lines ---
 
   Future<Line?> getLine(int id) async {
@@ -1179,17 +1242,23 @@ class SeforimRepository {
 
     final db = await _database.database;
     withTransaction(db, () {
-      for (final line in lines) {
-        db.execute(
-          'INSERT INTO line (bookId, lineIndex, content, heRef, tocEntryId) VALUES (?, ?, ?, ?, ?)',
-          [
+      // הכנה חד-פעמית של ה-statement — sqlite3 מכין מחדש בכל db.execute,
+      // ובאצווה של 80 אלף שורות זה הצוואר.
+      final stmt = db.prepare(
+        'INSERT INTO line (bookId, lineIndex, content, heRef, tocEntryId) VALUES (?, ?, ?, ?, ?)',
+      );
+      try {
+        for (final line in lines) {
+          stmt.execute([
             line.bookId,
             line.lineIndex,
             line.content,
             line.heRef,
             null,
-          ],
-        );
+          ]);
+        }
+      } finally {
+        stmt.close();
       }
     });
   }
@@ -2280,6 +2349,14 @@ class SeforimRepository {
         .map((bookData) => Book.fromJson(bookData))
         .toList();
     return all;
+  }
+
+  /// כל הספרים בשאילתה רזה אחת — *ללא* טעינת יחסים (authors/topics/pub).
+  /// לשימוש בסנכרון התיקיות האישיות ו-prune, שזקוקים רק לשדות הבסיס של הספר
+  /// (id, title, categoryId, sourceId, filePath, fileType, fileSize,
+  /// lastModified), ולכן חוסכים את מעברי היחסים היקרים של [getAllBooks].
+  Future<List<Book>> getAllBooksLean() async {
+    return _database.bookDao.getAllBooks();
   }
 
   /// Counts the total number of books in the database.
