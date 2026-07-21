@@ -1257,11 +1257,18 @@ class FindRefRepository {
       // citationMatch=false → אינו מתאים (ירד מתחת לספרים שמתאימים)
       final citationMatch = !isDafCitation || r.reference.contains('דף');
       // tier יסוד: 1=מקרא ... 10=שו"ע, null=מפרש/ספרות עזר.
-      final categoryPath = r.bookId > 0 ? pathResolver(r.bookId) : null;
+      // ספרים אישיים: ה-bookId שלהם ב-namespace של user_books.db ועלול להתנגש
+      // במזהה רשמי — שליפת נתיב לפיו הייתה מסווגת אותם לפי ספר זר.
+      final categoryPath = (r.bookId > 0 && !r.isUserBook)
+          ? pathResolver(r.bookId)
+          : null;
       final foundationalTier = FoundationalBookClassifier.classify(
         categoryPath,
         r.title,
       );
+      final era = categoryPath == null
+          ? CommentaryEra.other
+          : ReferenceBooksCache.eraFromCategoryPath(categoryPath);
       return _RankKey(
         result: r,
         normTitle: normTitle,
@@ -1270,10 +1277,11 @@ class FindRefRepository {
         titleTokens: needsTokenWiseRanking ? _tokenize(normTitle) : const [],
         citationMatch: citationMatch,
         foundationalTier: foundationalTier,
+        era: era,
       );
     });
 
-    // משווה שתי תוצאות לפי **רלוונטיות** בלבד (שכבות 1-7). שובר-השוויון
+    // משווה שתי תוצאות לפי **רלוונטיות** בלבד (שכבות 1-8). שובר-השוויון
     // האלפביתי/אורך-ה-reference אינו רלוונטיות אלא סדר-תצוגה, ולכן אינו כאן —
     // כך ה-cap המודע-רלוונטיות לא יחתוך באמצע קבוצת תוצאות שווֹת-רלוונטיות.
     int compareRelevance(_RankKey a, _RankKey b) {
@@ -1318,12 +1326,18 @@ class FindRefRepository {
         return aTier.compareTo(bTier); // שניהם יסודות — tier קטן יותר ראשון
       }
 
-      // 6. סדר ספר בספרייה — ספרים בסדר הספרייה (בתוך אותו tier יסוד או
-      // אותה רמת מפרשות, מיון לפי orderIndex).
+      // 6. סדר הדורות בין מפרשים (ראשונים → אחרונים → מחברי זמננו) — לפי
+      // תיוג הדור בנתיב הקטגוריה. orderIndex לבדו מערבב דורות מענפי-עץ שונים.
+      if (aTier == null && a.era != b.era) {
+        return a.era.order.compareTo(b.era.order);
+      }
+
+      // 7. סדר ספר בספרייה — ספרים בסדר הספרייה (בתוך אותו tier יסוד או
+      // אותו דור, מיון לפי orderIndex).
       final orderCmp = a.result.orderIndex.compareTo(b.result.orderIndex);
       if (orderCmp != 0) return orderCmp;
 
-      // 7. סדר: TOC L1 < TOC L2 < AltToc < TOC L3+
+      // 8. סדר: TOC L1 < TOC L2 < AltToc < TOC L3+
       // AltToc (כותרות-משנה) מופיע אחרי הכותרות הבסיסיות (רמה 2) אך לפני הכותרות הפנימיות (רמה 3+).
       final aRank = a.result.isAltToc
           ? 3
@@ -1344,7 +1358,13 @@ class FindRefRepository {
       final rel = compareRelevance(a, b);
       if (rel != 0) return rel;
       // שובר-שוויון לתצוגה בלבד: ציון קצר יותר עולה קודם.
-      return a.result.reference.length.compareTo(b.result.reference.length);
+      final lenCmp = a.result.reference.length.compareTo(
+        b.result.reference.length,
+      );
+      if (lenCmp != 0) return lenCmp;
+      // "כג." ו-"כג:" שווי-אורך — בלי הכרעה לפי מיקום בספר, המיון (הלא-יציב)
+      // עלול להציג עמוד ב לפני עמוד א.
+      return a.result.segment.compareTo(b.result.segment);
     });
 
     // cap מודע-רלוונטיות: חותכים ב-[_baseResultCap], אך מרחיבים לכל מי שחולק
@@ -1473,6 +1493,9 @@ class _RankKey {
   /// ספרים שאינם יסוד (מפרשים וכד'). ראה [FoundationalBookClassifier.classify].
   final int? foundationalTier;
 
+  /// דור הספר לפי נתיב הקטגוריה — ממיין מפרשים בסדר הדורות.
+  final CommentaryEra era;
+
   const _RankKey({
     required this.result,
     required this.normTitle,
@@ -1481,5 +1504,6 @@ class _RankKey {
     required this.titleTokens,
     required this.citationMatch,
     required this.foundationalTier,
+    required this.era,
   });
 }

@@ -2911,6 +2911,149 @@ void main() {
         );
       },
     );
+
+    test('מפרשים ממוינים בסדר הדורות גם כש-orderIndex הפוך', () async {
+      // אחרון עם orderIndex נמוך מול ראשון עם orderIndex גבוה — הדור מנצח.
+      final repo = FindRefRepository(
+        dataRepository: MockDataRepository(),
+        isReferenceBooksCacheLoaded: () => true,
+        warmUpReferenceBooksCache: () async {},
+        searchReferenceBooks: (query, {int limit = 50}) {
+          if (query == 'שבת') {
+            return [
+              _hit(
+                bookId: 1,
+                title: 'פני יהושע על שבת',
+                normalizedTitle: 'פני יהושע על שבת',
+                matchRank: 2,
+                orderIndex: 1000.0,
+              ),
+              _hit(
+                bookId: 2,
+                title: 'חידושי הרמב"ן על שבת',
+                normalizedTitle: 'חידושי הרמבן על שבת',
+                matchRank: 2,
+                orderIndex: 8000.0,
+              ),
+            ];
+          }
+          return const <ReferenceBookHit>[];
+        },
+        getTocEntriesForReference: (id, title, {queryTokens}) async => [
+          {'reference': '$title דף יג', 'segment': 13, 'level': 2},
+        ],
+        getCategoryPathSync: (bookId) {
+          if (bookId == 1) return 'תלמוד בבלי, מפרשים, אחרונים, סדר מועד';
+          if (bookId == 2) return 'תלמוד בבלי, מפרשים, ראשונים, סדר מועד';
+          return null;
+        },
+      );
+
+      final results = await repo.findRefs('שבת יג');
+      final rishonIdx = results.indexWhere((r) => r.title.contains('הרמב"ן'));
+      final acharonIdx = results.indexWhere(
+        (r) => r.title.contains('פני יהושע'),
+      );
+
+      expect(rishonIdx, isNot(-1), reason: 'הראשון חייב להופיע');
+      expect(acharonIdx, isNot(-1), reason: 'האחרון חייב להופיע');
+      expect(
+        rishonIdx,
+        lessThan(acharonIdx),
+        reason: 'ראשונים לפני אחרונים גם כשה-orderIndex שלהם גבוה יותר',
+      );
+    });
+
+    test('ספר אישי עם bookId מתנגש אינו יורש דור של ספר רשמי', () async {
+      // bookId=1 הוא "ראשונים" ב-DB הרשמי; לספר האישי אותו מזהה ב-namespace
+      // נפרד — אסור שיסווג כראשונים ויקדים את המפרש האחרון הרשמי.
+      final repo = FindRefRepository(
+        dataRepository: MockDataRepository(),
+        isReferenceBooksCacheLoaded: () => true,
+        warmUpReferenceBooksCache: () async {},
+        searchReferenceBooks: (query, {int limit = 50}) {
+          if (query == 'שבת') {
+            return [
+              _hit(
+                bookId: 2,
+                title: 'שבת אחרונים',
+                normalizedTitle: 'שבת אחרונים',
+                matchRank: 1,
+                orderIndex: 5000.0,
+              ),
+            ];
+          }
+          return const <ReferenceBookHit>[];
+        },
+        getTocEntriesForReference: (id, title, {queryTokens}) async => const [],
+        getAllUserBooks: () async => [
+          (
+            id: 1,
+            title: 'שבת אישית',
+            filePath: 'c:/books/personal.txt',
+            fileType: 'txt',
+            orderIndex: 1.0,
+          ),
+        ],
+        getCategoryPathSync: (bookId) {
+          if (bookId == 1) return 'תלמוד בבלי, מפרשים, ראשונים, סדר מועד';
+          if (bookId == 2) return 'תלמוד בבלי, מפרשים, אחרונים, סדר מועד';
+          return null;
+        },
+      );
+
+      final results = await repo.findRefs('שבת', includePersonalBooks: true);
+      final officialIdx = results.indexWhere((r) => r.title == 'שבת אחרונים');
+      final personalIdx = results.indexWhere((r) => r.title == 'שבת אישית');
+
+      expect(officialIdx, isNot(-1), reason: 'הספר הרשמי חייב להופיע');
+      expect(personalIdx, isNot(-1), reason: 'הספר האישי חייב להופיע');
+      expect(
+        officialIdx,
+        lessThan(personalIdx),
+        reason: 'הספר האישי (ללא דור) אחרי האחרון הרשמי — לא יורש "ראשונים"',
+      );
+    });
+
+    test('עמוד א ("כג.") לפני עמוד ב ("כג:") גם כשה-DB מחזיר הפוך', () async {
+      // שני העמודים חולקים מפתח-רלוונטיות ואורך reference זהים — בלי שובר-שוויון
+      // לפי segment, המיון הלא-יציב עלול להציג "כג:" לפני "כג.".
+      final repo = FindRefRepository(
+        dataRepository: MockDataRepository(),
+        isReferenceBooksCacheLoaded: () => true,
+        warmUpReferenceBooksCache: () async {},
+        searchReferenceBooks: (query, {int limit = 50}) {
+          if (query == 'שבת') {
+            return [
+              _hit(
+                bookId: 10,
+                title: 'שבת',
+                normalizedTitle: 'שבת',
+                matchRank: 0,
+                orderIndex: 3000.0,
+              ),
+            ];
+          }
+          return const <ReferenceBookHit>[];
+        },
+        getTocEntriesForReference: (id, title, {queryTokens}) async => [
+          {'reference': '$title דף כג:', 'segment': 235, 'level': 2},
+          {'reference': '$title דף כג.', 'segment': 230, 'level': 2},
+        ],
+      );
+
+      final results = await repo.findRefs('שבת כג');
+      final alefIdx = results.indexWhere((r) => r.reference.endsWith('כג.'));
+      final betIdx = results.indexWhere((r) => r.reference.endsWith('כג:'));
+
+      expect(alefIdx, isNot(-1), reason: 'עמוד א חייב להופיע');
+      expect(betIdx, isNot(-1), reason: 'עמוד ב חייב להופיע');
+      expect(
+        alefIdx,
+        lessThan(betIdx),
+        reason: 'עמוד א (segment נמוך) לפני עמוד ב, ללא תלות בסדר מה-DB',
+      );
+    });
   });
 
   // ─── contains-only לרב-מילים — מקובל כ-secondary ─────────────────────────────
