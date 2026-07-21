@@ -187,8 +187,10 @@ Widget _buildAcronymDialogContent(String meaning) {
   return SizedBox(
     width: 460,
     child: SingleChildScrollView(
-      child: Text(
-        meaning,
+      child: SelectionArea(
+        child: Text(
+          meaning,
+        ),
       ),
     ),
   );
@@ -275,14 +277,16 @@ Widget _buildAramaicDialogContent(AramaicDictionaryEntry entry) {
   return SizedBox(
     width: 520,
     child: SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AramaicDictionaryEntryView(
-            definition: entry.hebrew,
-          ),
-        ],
+      child: SelectionArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AramaicDictionaryEntryView(
+              definition: entry.hebrew,
+            ),
+          ],
+        ),
       ),
     ),
   );

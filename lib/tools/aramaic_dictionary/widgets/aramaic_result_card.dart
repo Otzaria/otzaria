@@ -120,7 +120,7 @@ class _DictionaryValue extends StatelessWidget {
       );
     }
 
-    return Text(
+    return SelectableText(
       value,
       style: textStyle,
       textAlign: TextAlign.right,

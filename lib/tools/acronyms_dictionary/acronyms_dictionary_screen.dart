@@ -83,16 +83,44 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen> {
     }
 
     setState(() {
-      _filteredResults = _dictionaryData.entries
-          .where((entry) =>
-              entry.key.contains(query) ||
-              _dictionaryRepository.acronymMatchesQuery(
-                acronym: entry.key,
-                query: query,
-              ) ||
-              entry.value.any((meaning) => meaning.contains(query)))
-          .toList();
+      _filteredResults =
+          _dictionaryData.entries
+              .where(
+                (entry) =>
+                    entry.key.contains(query) ||
+                    _dictionaryRepository.acronymMatchesQuery(
+                      acronym: entry.key,
+                      query: query,
+                    ) ||
+                    entry.value.any((meaning) => meaning.contains(query)),
+              )
+              .toList()
+            ..sort((a, b) {
+              final rankCompare = _matchRank(
+                a.key,
+                query,
+              ).compareTo(_matchRank(b.key, query));
+              if (rankCompare != 0) return rankCompare;
+              final lengthCompare = a.key.length.compareTo(b.key.length);
+              if (lengthCompare != 0) return lengthCompare;
+              return a.key.compareTo(b.key);
+            });
     });
+  }
+
+  /// דירוג התאמת מפתח לשאילתה: נמוך = דומה יותר.
+  /// התאמה מדויקת < מתחיל ב- < מכיל < התאמה בפירוש בלבד.
+  int _matchRank(String key, String query) {
+    if (key == query) return 0;
+    if (key.startsWith(query)) return 1;
+    if (key.contains(query)) return 2;
+    if (_dictionaryRepository.acronymMatchesQuery(
+      acronym: key,
+      query: query,
+    )) {
+      return 3;
+    }
+    return 4;
   }
 
   @override
