@@ -19,8 +19,15 @@ import 'file_sync_service.dart';
 class BackgroundSyncInitializer {
   static final _log = Logger('BackgroundSyncInitializer');
   static bool _hasRun = false;
+  static bool _customFoldersSyncedThisSession = false;
   static Completer<FileSyncResult?>? _syncCompleter;
   static SettingsWrapper settings = SettingsWrapper();
+
+  /// מסמן שסריקת תיקיות אישיות ידנית כבר הסתיימה בסשן — כדי שסנכרון הרקע
+  /// בהפעלה ידלג על סריקה חוזרת של אותן תיקיות.
+  static void markCustomFoldersSyncedThisSession() {
+    _customFoldersSyncedThisSession = true;
+  }
 
   /// Initialize background sync after a delay.
   ///
@@ -64,6 +71,15 @@ class BackgroundSyncInitializer {
         return;
       }
 
+      if (_customFoldersSyncedThisSession) {
+        _log.info(
+          'Custom-folders sync already ran this session, skipping background '
+          'sync',
+        );
+        _syncCompleter?.complete(null);
+        return;
+      }
+
       _log.info('Starting background file sync...');
 
       final sqliteProvider = SqliteDataProvider.instance;
@@ -78,20 +94,22 @@ class BackgroundSyncInitializer {
       }
 
       final dbPath = sqliteProvider.dbPath;
-      final libraryPath =
-          Settings.getValue<String>(SettingsRepository.keyLibraryPath);
+      final libraryPath = Settings.getValue<String>(
+        SettingsRepository.keyLibraryPath,
+      );
       if (libraryPath == null || libraryPath.isEmpty) {
         _log.warning('Library path not set, skipping sync');
         _syncCompleter?.complete(null);
         return;
       }
 
-      final customFoldersJson =
-          Settings.getValue<String>(SettingsRepository.keyCustomFolders);
+      final customFoldersJson = Settings.getValue<String>(
+        SettingsRepository.keyCustomFolders,
+      );
       final customFolders = CustomFoldersManager.loadFolders(customFoldersJson);
       final folderName =
           Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
-              '';
+          '';
 
       final userBooksDbPath = await UserBooksDatabaseHolder.resolveDbPath();
 
@@ -114,10 +132,12 @@ class BackgroundSyncInitializer {
       if (result.addedBooks > 0 ||
           result.updatedBooks > 0 ||
           result.addedLinks > 0) {
-        debugPrint('📚 סנכרון קבצים הושלם: '
-            '${result.addedBooks} ספרים חדשים, '
-            '${result.updatedBooks} ספרים עודכנו, '
-            '${result.addedLinks} קישורים נוספו');
+        debugPrint(
+          '📚 סנכרון קבצים הושלם: '
+          '${result.addedBooks} ספרים חדשים, '
+          '${result.updatedBooks} ספרים עודכנו, '
+          '${result.addedLinks} קישורים נוספו',
+        );
       }
 
       onComplete?.call(result);
@@ -141,6 +161,7 @@ class BackgroundSyncInitializer {
   @visibleForTesting
   static void reset() {
     _hasRun = false;
+    _customFoldersSyncedThisSession = false;
     _syncCompleter = null;
     settings = SettingsWrapper();
   }

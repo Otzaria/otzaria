@@ -130,7 +130,8 @@ class FileSyncService {
       // Delete the book completely (including lines, TOC, links, etc.)
       await _repository.deleteBookCompletely(existingBook.id);
       _log.info(
-          'Successfully deleted book from DB: $title (id: ${existingBook.id})');
+        'Successfully deleted book from DB: $title (id: ${existingBook.id})',
+      );
       return true;
     } catch (e, stackTrace) {
       _log.warning('Error deleting book from DB: $filePath', e, stackTrace);
@@ -145,34 +146,40 @@ class FileSyncService {
     // First, delete all books in this category
     final books = await repo.getBooksByCategory(categoryId);
     debugPrint(
-        '[FileSyncService] _deleteCategoryRecursive: categoryId=$categoryId, found ${books.length} books');
+      '[FileSyncService] _deleteCategoryRecursive: categoryId=$categoryId, found ${books.length} books',
+    );
     for (final book in books) {
       debugPrint(
-          '[FileSyncService]   deleting book: id=${book.id}, title="${book.title}"');
+        '[FileSyncService]   deleting book: id=${book.id}, title="${book.title}"',
+      );
       try {
         await repo.deleteBookCompletely(book.id);
       } catch (e, st) {
         _log.warning(
-            'Failed to delete book ${book.id} ("${book.title}"), continuing',
-            e,
-            st);
+          'Failed to delete book ${book.id} ("${book.title}"), continuing',
+          e,
+          st,
+        );
       }
     }
 
     // Then, recursively delete subcategories
     final subCategories = await repo.getCategoryChildren(categoryId);
     debugPrint(
-        '[FileSyncService] _deleteCategoryRecursive: categoryId=$categoryId, found ${subCategories.length} subcategories');
+      '[FileSyncService] _deleteCategoryRecursive: categoryId=$categoryId, found ${subCategories.length} subcategories',
+    );
     for (final subCat in subCategories) {
       debugPrint(
-          '[FileSyncService]   recursing into subcategory: id=${subCat.id}, title="${subCat.title}"');
+        '[FileSyncService]   recursing into subcategory: id=${subCat.id}, title="${subCat.title}"',
+      );
       try {
         await _deleteCategoryRecursive(subCat.id);
       } catch (e, st) {
         _log.warning(
-            'Failed to delete subcategory ${subCat.id} ("${subCat.title}"), continuing',
-            e,
-            st);
+          'Failed to delete subcategory ${subCat.id} ("${subCat.title}"), continuing',
+          e,
+          st,
+        );
       }
     }
 
@@ -269,9 +276,11 @@ class FileSyncService {
     List<String> otherFolderPaths,
   ) {
     final folderDepth = _normalizeFolderPath(folderPath).length;
-    return otherFolderPaths.any((other) =>
-        _normalizeFolderPath(other).length > folderDepth &&
-        _isPathInsideFolder(bookPath, other));
+    return otherFolderPaths.any(
+      (other) =>
+          _normalizeFolderPath(other).length > folderDepth &&
+          _isPathInsideFolder(bookPath, other),
+    );
   }
 
   Future<bool> _categoryBelongsToAnyConfiguredFolder(
@@ -287,10 +296,12 @@ class FileSyncService {
       for (final book in books) {
         final sourceName = sourceNameCache.containsKey(book.sourceId)
             ? sourceNameCache[book.sourceId]
-            : (sourceNameCache[book.sourceId] =
-                (await repo.getSourceById(book.sourceId))?.name);
-        final sourceFolderPath =
-            _extractCustomFolderPathFromSourceName(sourceName);
+            : (sourceNameCache[book.sourceId] = (await repo.getSourceById(
+                book.sourceId,
+              ))?.name);
+        final sourceFolderPath = _extractCustomFolderPathFromSourceName(
+          sourceName,
+        );
         if (sourceFolderPath != null &&
             customFolders.any(
               (folder) => _normalizeFolderPath(folder.path) == sourceFolderPath,
@@ -302,8 +313,9 @@ class FileSyncService {
         if (bookPath == null || bookPath.isEmpty) {
           continue;
         }
-        if (customFolders
-            .any((folder) => _isPathInsideFolder(bookPath, folder.path))) {
+        if (customFolders.any(
+          (folder) => _isPathInsideFolder(bookPath, folder.path),
+        )) {
           return true;
         }
       }
@@ -326,14 +338,17 @@ class FileSyncService {
       return;
     }
 
-    final personalSubCategories =
-        await repo.getCategoryChildren(personalCategory.id);
+    final personalSubCategories = await repo.getCategoryChildren(
+      personalCategory.id,
+    );
 
     final staleFolderCategories = <Category>[];
     for (final category in personalSubCategories) {
       final belongsToConfiguredFolder =
           await _categoryBelongsToAnyConfiguredFolder(
-              category.id, customFolders);
+            category.id,
+            customFolders,
+          );
       if (!belongsToConfiguredFolder) {
         staleFolderCategories.add(category);
       }
@@ -365,12 +380,58 @@ class FileSyncService {
     CustomFolder folder,
     Set<String> validBookKeys, {
     List<String> otherConfiguredFolderPaths = const [],
-  }) =>
-      _removeFolderBooksBySource(
-        folder.path,
-        keepKeys: validBookKeys,
-        otherConfiguredFolderPaths: otherConfiguredFolderPaths,
+    _PersonalBooksSnapshot? snapshot,
+  }) => _removeFolderBooksBySource(
+    folder.path,
+    keepKeys: validBookKeys,
+    otherConfiguredFolderPaths: otherConfiguredFolderPaths,
+    snapshot: snapshot,
+  );
+
+  /// בונה פעם אחת את תמונת-המצב של עץ הספרים האישיים (קטגוריות → ספרים → שמות
+  /// source), כדי שה-prune של כל תיקייה יסנן אותה במקום לסרוק את כל העץ מחדש.
+  /// [allBooks] — רשימת הספרים הרזה שכבר נטענה בסנכרון; אם null (מסלול מחיקת
+  /// תיקייה בודדת) היא נטענת כאן בקריאה רזה אחת.
+  Future<_PersonalBooksSnapshot> _buildPersonalBooksSnapshot([
+    List<Book>? allBooks,
+  ]) async {
+    final repo = _customFoldersRepo;
+    final rootCategories = await repo.getRootCategories();
+    final personalCategory = rootCategories
+        .where((category) => category.title == 'ספרים אישיים')
+        .firstOrNull;
+    if (personalCategory == null) {
+      return const _PersonalBooksSnapshot(
+        personalCategoryId: null,
+        booksByCategory: {},
+        sourceNamesById: {},
       );
+    }
+
+    final categoryIds = <int>{
+      personalCategory.id,
+      ...await repo.getDescendantCategoryIds(personalCategory.id),
+    };
+
+    final books = allBooks ?? await repo.getAllBooksLean();
+    final booksByCategory = <int, List<Book>>{};
+    final sourceNamesById = <int, String?>{};
+    for (final book in books) {
+      if (!categoryIds.contains(book.categoryId)) continue;
+      booksByCategory.putIfAbsent(book.categoryId, () => []).add(book);
+      if (!sourceNamesById.containsKey(book.sourceId)) {
+        sourceNamesById[book.sourceId] = (await repo.getSourceById(
+          book.sourceId,
+        ))?.name;
+      }
+    }
+
+    return _PersonalBooksSnapshot(
+      personalCategoryId: personalCategory.id,
+      booksByCategory: booksByCategory,
+      sourceNamesById: sourceNamesById,
+    );
+  }
 
   /// מסיר מ-`user_books.db` את ספרי התיקייה [folderPath], לפי שם ה-`source`
   /// הייחודי (הנתיב המלא) — לא לפי שם הקטגוריה. כך שתי תיקיות שונות בעלות
@@ -387,31 +448,22 @@ class FileSyncService {
     String folderPath, {
     Set<String>? keepKeys,
     List<String> otherConfiguredFolderPaths = const [],
+    _PersonalBooksSnapshot? snapshot,
   }) async {
     final repo = _customFoldersRepo;
-    final rootCategories = await repo.getRootCategories();
-    final personalCategory = rootCategories
-        .where((category) => category.title == 'ספרים אישיים')
-        .firstOrNull;
-    if (personalCategory == null) return 0;
+    // תמונת-המצב של עץ הספרים האישיים נבנית פעם אחת לכל סנכרון ומועברת לכאן;
+    // בקריאה בודדת (מחיקת תיקייה) היא נבנית כאן.
+    final snap = snapshot ?? await _buildPersonalBooksSnapshot();
+    if (snap.personalCategoryId == null) return 0;
 
     final folderSourceName = _buildCustomFolderSourceName(folderPath);
 
-    final categoryIds = <int>{
-      personalCategory.id,
-      ...await repo.getDescendantCategoryIds(personalCategory.id),
-    };
-
-    final sourceNameCache = <int, String?>{};
     final affectedCategoryIds = <int>{};
     var removed = 0;
-    for (final categoryId in categoryIds) {
-      final books = await repo.getBooksByCategory(categoryId);
-      for (final book in books) {
-        final sourceName = sourceNameCache.containsKey(book.sourceId)
-            ? sourceNameCache[book.sourceId]
-            : (sourceNameCache[book.sourceId] =
-                (await repo.getSourceById(book.sourceId))?.name);
+    for (final entry in snap.booksByCategory.entries) {
+      final categoryId = entry.key;
+      for (final book in entry.value) {
+        final sourceName = snap.sourceNamesById[book.sourceId];
         // שיוך לתיקייה לפי שם ה-source. נפילה-חזרה לפי נתיב הקובץ מוגבלת
         // *אך ורק* למקור ה-legacy המדויק שמסלול ההוספה הישן ייצר
         // ('external'), כדי לזהות נתונים ישנים בלי לגעת בספרים ממקור אחר
@@ -419,13 +471,17 @@ class FileSyncService {
         // ספר legacy משויך רק לתיקייה המוגדרת *העמוקה ביותר* שמכילה אותו —
         // אחרת מחיקת תיקיית-אב הייתה גוררת גם ספרי תיקיית-בן מקוננת.
         final bookPath = book.filePath;
-        final belongsToFolder = sourceName == folderSourceName ||
+        final belongsToFolder =
+            sourceName == folderSourceName ||
             (sourceName == CustomFolderSource.legacyExternalSourceName &&
                 bookPath != null &&
                 bookPath.isNotEmpty &&
                 _isPathInsideFolder(bookPath, folderPath) &&
                 !_belongsToDeeperFolder(
-                    bookPath, folderPath, otherConfiguredFolderPaths));
+                  bookPath,
+                  folderPath,
+                  otherConfiguredFolderPaths,
+                ));
         if (!belongsToFolder) continue;
         if (keepKeys != null) {
           // זרימת prune (רענון): ספר "עותק עצמאי" (התוכן נשמר בתוכנה,
@@ -433,7 +489,8 @@ class FileSyncService {
           // הרעיון של ההכנסה לתוכנה. לכן מוחקים רק ספרי "קריאה מהקבצים"
           // (file-backed) שקובצם נעלם; עותק עצמאי נמחק רק דרך הספרייה.
           if (!book.isFileBacked) continue;
-          final key = '${book.categoryId}|${book.title}|'
+          final key =
+              '${book.categoryId}|${book.title}|'
               '${(book.fileType ?? '').toLowerCase()}';
           if (keepKeys.contains(key)) continue;
         }
@@ -468,14 +525,15 @@ class FileSyncService {
   }
 
   /// Internal method to scan a single path and import files
-  Future<FileSyncResult> _scanAndImportPath(
-      {required String rootPath,
-      required List<String> categoryPrefix,
-      required bool insertContent,
-      String? customSourceName,
-      required DatabaseGenerator generator,
-      Set<String>? validBookKeys,
-      _FolderScanCaches? caches}) async {
+  Future<FileSyncResult> _scanAndImportPath({
+    required String rootPath,
+    required List<String> categoryPrefix,
+    required bool insertContent,
+    String? customSourceName,
+    required DatabaseGenerator generator,
+    Set<String>? validBookKeys,
+    _FolderScanCaches? caches,
+  }) async {
     int addedBooks = 0;
     int updatedBooks = 0;
     int addedCategories = 0;
@@ -495,7 +553,7 @@ class FileSyncService {
 
     // תמונת-מצב אחת של ה-DB — במקום כמה שאילתות פר-קובץ, קובץ ללא שינוי
     // עולה stat בלבד. הקאש משותף לכל התיקיות בפעולת סנכרון אחת.
-    caches ??= _FolderScanCaches(await _customFoldersRepo.getAllBooks());
+    caches ??= _FolderScanCaches(await _customFoldersRepo.getAllBooksLean());
 
     for (final filePath in newFiles) {
       if (!_isSyncing) break;
@@ -576,13 +634,14 @@ class FileSyncService {
     final chainKey = categoryPath.join('\u0000');
     var categoryResult = caches.categoryChains[chainKey];
     final isFirstChainResolution = categoryResult == null;
-    categoryResult ??= caches.categoryChains[chainKey] =
-        await generator.findOrCreateCategoryChain(categoryPath);
+    categoryResult ??= caches.categoryChains[chainKey] = await generator
+        .findOrCreateCategoryChain(categoryPath);
     final categoryId = categoryResult.categoryId;
     // הקטגוריות נוצרו רק בפתרון הראשון של השרשרת; קבצים נוספים באותה
     // תיקייה לא סופרים אותן שוב.
-    final categoriesCreated =
-        isFirstChainResolution ? categoryResult.categoriesCreated : 0;
+    final categoriesCreated = isFirstChainResolution
+        ? categoryResult.categoriesCreated
+        : 0;
 
     // Extract file type from extension (remove the dot)
     final fileType = extension.replaceFirst('.', '').toLowerCase();
@@ -601,10 +660,13 @@ class FileSyncService {
 
     if (existingBook != null) {
       debugPrint(
-          '[FileSyncService] Found existing book: title=$title, id=${existingBook.id}, filePath=${existingBook.filePath}, isFileBacked=${existingBook.isFileBacked}, totalLines=${existingBook.totalLines}');
+        '[FileSyncService] Found existing book: title=$title, id=${existingBook.id}, filePath=${existingBook.filePath}, isFileBacked=${existingBook.isFileBacked}, totalLines=${existingBook.totalLines}',
+      );
 
       final existingSourceName = await caches.sourceNameById(
-          existingBook.sourceId, _customFoldersRepo);
+        existingBook.sourceId,
+        _customFoldersRepo,
+      );
 
       // Book exists - check if file has changed
       final file = File(filePath);
@@ -613,7 +675,8 @@ class FileSyncService {
       final lastModified = fileStat.modified.millisecondsSinceEpoch;
 
       // Only update if file has actually changed
-      final fileChanged = existingBook.fileSize != fileSize ||
+      final fileChanged =
+          existingBook.fileSize != fileSize ||
           existingBook.lastModified != lastModified;
 
       // Also update if the storage preference changed (e.g. user toggled addToDatabase)
@@ -625,11 +688,13 @@ class FileSyncService {
       if (fileChanged || storageChanged || sourceChanged) {
         if (storageChanged) {
           debugPrint(
-              '[FileSyncService] Storage preference changed for ${existingBook.title}: isFileBacked=${existingBook.isFileBacked} -> $expectedIsContentExternal');
+            '[FileSyncService] Storage preference changed for ${existingBook.title}: isFileBacked=${existingBook.isFileBacked} -> $expectedIsContentExternal',
+          );
         }
         if (sourceChanged) {
           debugPrint(
-              '[FileSyncService] Source changed for ${existingBook.title}: $existingSourceName -> $customSourceName');
+            '[FileSyncService] Source changed for ${existingBook.title}: $existingSourceName -> $customSourceName',
+          );
         }
         wasUpdated = true;
         await generator.createAndProcessBook(
@@ -723,60 +788,91 @@ class FileSyncService {
         if (customFolders.isNotEmpty) {
           _log.info('Found ${customFolders.length} custom folders to sync');
 
-          // תמונת-מצב אחת של ה-DB לכל התיקיות — נטענת פעם אחת, מתעדכנת
-          // נקודתית אחרי כל כתיבה, ונבנית מחדש רק אם prune מחק ספרים.
-          _FolderScanCaches? sharedCaches;
-
-          for (final folder in customFolders) {
-            if (onlyFolderPath != null &&
-                _normalizeFolderPath(folder.path) !=
-                    _normalizeFolderPath(onlyFolderPath)) {
-              continue;
+          // מעלה זמנית cache/mmap לטובת ה-inserts הכבדים של "עותק עצמאי".
+          // בכוונה *לא* setMaxPerformanceMode — synchronous=OFF/journal=MEMORY
+          // עלול להשחית את user_books.db (שם תוכן העותק העצמאי) בקריסה תוך כדי.
+          final willInsertContent = customFolders.any(
+            (f) =>
+                f.addToDatabase &&
+                (onlyFolderPath == null ||
+                    _normalizeFolderPath(f.path) ==
+                        _normalizeFolderPath(onlyFolderPath)),
+          );
+          // כל מה שעלול לזרוק — כולל setReadBoostMode עצמו (שני PRAGMA-ים,
+          // שהראשון עלול להיתפס גם אם השני נכשל) ובניית תמונות-המצב — רץ
+          // בתוך ה-try, כדי שה-finally ישחזר את פרופיל הסרק בכל מסלול כשל.
+          try {
+            if (willInsertContent) {
+              await _customFoldersRepo.setReadBoostMode();
             }
-            final folderDir = Directory(folder.path);
-            if (!await folderDir.exists()) {
-              _log.warning('Custom folder does not exist: ${folder.path}');
-              errors.add('תיקייה לא קיימת: ${folder.name}');
-              continue;
-            }
+            // קריאה רזה אחת של כל ספרי user_books.db (ללא טעינת יחסים) מזינה
+            // גם את קאש הסריקה וגם את תמונת עץ ה-prune — במקום getAllBooks
+            // (עם יחסים) + מעבר getBooksByCategory נפרד.
+            final leanBooks = await _customFoldersRepo.getAllBooksLean();
+            // תמונת-מצב לכל התיקיות — נבנית פעם אחת, מתעדכנת נקודתית אחרי כל
+            // כתיבה, ונבנית מחדש רק אם prune מחק ספרים.
+            _FolderScanCaches? sharedCaches = _FolderScanCaches(leanBooks);
+            final pruneSnapshot = await _buildPersonalBooksSnapshot(leanBooks);
 
-            _log.info(
-                'Scanning custom folder: ${folder.path} (addToDatabase: ${folder.addToDatabase})');
+            for (final folder in customFolders) {
+              if (onlyFolderPath != null &&
+                  _normalizeFolderPath(folder.path) !=
+                      _normalizeFolderPath(onlyFolderPath)) {
+                continue;
+              }
+              final folderDir = Directory(folder.path);
+              if (!await folderDir.exists()) {
+                _log.warning('Custom folder does not exist: ${folder.path}');
+                errors.add('תיקייה לא קיימת: ${folder.name}');
+                continue;
+              }
 
-            sharedCaches ??=
-                _FolderScanCaches(await _customFoldersRepo.getAllBooks());
-
-            final folderValidKeys = <String>{};
-            final result = await _scanAndImportPath(
-              rootPath: folder.path,
-              categoryPrefix: ['ספרים אישיים', folder.name],
-              insertContent: folder.addToDatabase,
-              customSourceName: _buildCustomFolderSourceName(folder.path),
-              generator: customFoldersGenerator,
-              validBookKeys: folderValidKeys,
-              caches: sharedCaches,
-            );
-
-            addedBooks += result.addedBooks;
-            updatedBooks += result.updatedBooks;
-            addedCategories += result.addedCategories;
-            skippedFiles += result.skippedFiles;
-            errors.addAll(result.errors);
-            updatedBookIds.addAll(result.updatedBookIds);
-
-            // הסרת ספרים מה-DB שקובצם נמחק מהתיקייה. רץ רק אם הסריקה
-            // הושלמה (לא בוטלה) — אחרת folderValidKeys חלקי והיינו עלולים
-            // למחוק ספרים שקבציהם עדיין קיימים.
-            if (_isSyncing) {
-              final removed = await _pruneDeletedBooksInFolder(
-                folder,
-                folderValidKeys,
-                otherConfiguredFolderPaths: [
-                  for (final other in customFolders)
-                    if (!identical(other, folder)) other.path,
-                ],
+              _log.info(
+                'Scanning custom folder: ${folder.path} (addToDatabase: ${folder.addToDatabase})',
               );
-              if (removed > 0) sharedCaches = null;
+
+              // אחרי prune שמחק ספרים הקאש אופס — נטען מחדש בקריאה רזה.
+              sharedCaches ??= _FolderScanCaches(
+                await _customFoldersRepo.getAllBooksLean(),
+              );
+
+              final folderValidKeys = <String>{};
+              final result = await _scanAndImportPath(
+                rootPath: folder.path,
+                categoryPrefix: ['ספרים אישיים', folder.name],
+                insertContent: folder.addToDatabase,
+                customSourceName: _buildCustomFolderSourceName(folder.path),
+                generator: customFoldersGenerator,
+                validBookKeys: folderValidKeys,
+                caches: sharedCaches,
+              );
+
+              addedBooks += result.addedBooks;
+              updatedBooks += result.updatedBooks;
+              addedCategories += result.addedCategories;
+              skippedFiles += result.skippedFiles;
+              errors.addAll(result.errors);
+              updatedBookIds.addAll(result.updatedBookIds);
+
+              // הסרת ספרים מה-DB שקובצם נמחק מהתיקייה. רץ רק אם הסריקה
+              // הושלמה (לא בוטלה) — אחרת folderValidKeys חלקי והיינו עלולים
+              // למחוק ספרים שקבציהם עדיין קיימים.
+              if (_isSyncing) {
+                final removed = await _pruneDeletedBooksInFolder(
+                  folder,
+                  folderValidKeys,
+                  otherConfiguredFolderPaths: [
+                    for (final other in customFolders)
+                      if (!identical(other, folder)) other.path,
+                  ],
+                  snapshot: pruneSnapshot,
+                );
+                if (removed > 0) sharedCaches = null;
+              }
+            }
+          } finally {
+            if (willInsertContent) {
+              await _customFoldersRepo.restoreReadCacheDefaults();
             }
           }
         }
@@ -845,20 +941,22 @@ class FileSyncService {
       return const FileSyncResult(errors: ['Sync already in progress']);
     }
 
-    final libraryPath =
-        Settings.getValue<String>(SettingsRepository.keyLibraryPath);
+    final libraryPath = Settings.getValue<String>(
+      SettingsRepository.keyLibraryPath,
+    );
     if (libraryPath == null || libraryPath.isEmpty) {
       _log.warning('Library path not set, skipping sync');
       return const FileSyncResult(errors: ['Library path not set']);
     }
 
-    final customFoldersJson =
-        Settings.getValue<String>(SettingsRepository.keyCustomFolders);
+    final customFoldersJson = Settings.getValue<String>(
+      SettingsRepository.keyCustomFolders,
+    );
     final customFolders = CustomFoldersManager.loadFolders(customFoldersJson);
 
     final libraryFolderName =
         Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
-            '';
+        '';
     final result = await syncCustomFoldersWithInputs(
       libraryPath: libraryPath,
       customFolders: customFolders,
@@ -946,11 +1044,12 @@ class _FileProcessResult {
 /// שרשרת קטגוריות — במקום כמה שאילתות DB לכל קובץ.
 class _FolderScanCaches {
   _FolderScanCaches(List<Book> books)
-      : booksByKey = {
-          for (final book in books)
-            '${book.categoryId}|${book.title}|'
-                '${(book.fileType ?? '').toLowerCase()}': book,
-        };
+    : booksByKey = {
+        for (final book in books)
+          '${book.categoryId}|${book.title}|'
+                  '${(book.fileType ?? '').toLowerCase()}':
+              book,
+      };
 
   /// מפתח: `categoryId|title|fileType` — זהה לבדיקת הקיום המקורית.
   final Map<String, Book> booksByKey;
@@ -964,9 +1063,24 @@ class _FolderScanCaches {
     if (_sourceNamesById.containsKey(sourceId)) {
       return _sourceNamesById[sourceId];
     }
-    return _sourceNamesById[sourceId] =
-        (await repo.getSourceById(sourceId))?.name;
+    return _sourceNamesById[sourceId] = (await repo.getSourceById(
+      sourceId,
+    ))?.name;
   }
+}
+
+/// תמונת-מצב של עץ הספרים האישיים לסנכרון אחד — נבנית פעם אחת ומשותפת לכל
+/// ה-prune-ים של התיקיות, במקום סריקת עץ נפרדת לכל תיקייה.
+class _PersonalBooksSnapshot {
+  final int? personalCategoryId;
+  final Map<int, List<Book>> booksByCategory;
+  final Map<int, String?> sourceNamesById;
+
+  const _PersonalBooksSnapshot({
+    required this.personalCategoryId,
+    required this.booksByCategory,
+    required this.sourceNamesById,
+  });
 }
 
 /// Result of restoring a folder from DB

@@ -11,14 +11,29 @@ abstract class LibraryEvent extends Equatable {
 
 class LoadLibrary extends LibraryEvent {}
 
+/// מקור בקשת הרענון — קובע אם צריך prune של תיקיות מותאמות שנמחקו מהדיסק.
+enum RefreshSource {
+  /// רענון כללי — כולל prune (בדיקת תיקיות שנמחקו מהדיסק).
+  general,
+
+  /// רענון בעקבות סריקת תיקיות אישיות שהסתיימה — התיקיות כבר סונכרנו,
+  /// לכן prune מיותר ומדלגים עליו.
+  customFoldersScan,
+}
+
 class RefreshLibrary extends LibraryEvent {
   /// מפתחות catalogueOrderKey של ספרים שתוכנם השתנה ודורשים אינדוקס מחדש.
   final Set<String> changedBookKeys;
 
-  const RefreshLibrary({this.changedBookKeys = const {}});
+  final RefreshSource source;
+
+  const RefreshLibrary({
+    this.changedBookKeys = const {},
+    this.source = RefreshSource.general,
+  });
 
   @override
-  List<Object?> get props => [changedBookKeys];
+  List<Object?> get props => [changedBookKeys, source];
 }
 
 class UpdateLibraryPath extends LibraryEvent {

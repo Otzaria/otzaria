@@ -8,6 +8,7 @@ import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/migration/sync/background_db_sync_worker.dart';
+import 'package:otzaria/migration/sync/background_sync_initializer.dart';
 import 'package:otzaria/migration/sync/file_sync_service.dart'
     show FileSyncResult;
 import 'package:otzaria/services/commentary_service.dart';
@@ -63,6 +64,24 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
     emit(state.copyWith(folders: _loadFolders()));
   }
 
+  /// רענון הספרייה בעקבות סריקת תיקיות אישיות שהסתיימה, בדילוג על prune
+  /// מיותר. רק סריקה שכיסתה את כל התיקיות מייתרת את סנכרון הרקע של הסשן —
+  /// סריקה ממוקדת (תיקייה אחת) לא מכסה תיקיות אחרות וקובצי links.
+  void _refreshLibraryAfterScan(
+    Set<String> changedBookKeys, {
+    bool coversAllFolders = false,
+  }) {
+    if (coversAllFolders) {
+      BackgroundSyncInitializer.markCustomFoldersSyncedThisSession();
+    }
+    _addLibraryEvent(
+      RefreshLibrary(
+        changedBookKeys: changedBookKeys,
+        source: RefreshSource.customFoldersScan,
+      ),
+    );
+  }
+
   Future<void> _onAdd(
     AddCustomFolder event,
     Emitter<CustomFoldersState> emit,
@@ -94,14 +113,10 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
           );
 
       if (result.isSuccess) {
-        _addLibraryEvent(
-          RefreshLibrary(
-            changedBookKeys: {
-              for (final id in result.updatedBookIds)
-                IndexingRepository.userBookKey(id),
-            },
-          ),
-        );
+        _refreshLibraryAfterScan({
+          for (final id in result.updatedBookIds)
+            IndexingRepository.userBookKey(id),
+        });
         if (result.hasPartialFailure) {
           final failedMsg = result.failedDetails.isNotEmpty
               ? result.failedDetails.map((d) => '"${d.$1}": ${d.$2}').join('\n')
@@ -201,7 +216,12 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
     );
 
     try {
-      final result = await _syncCustomFolders(newFolders);
+      // סריקה ממוקדת לתיקייה שהוחלפה בלבד — שינוי תיקייה אחת לא צריך לסרוק
+      // מחדש את כל התיקיות ולהריץ prune מלא על כל הספרים האישיים.
+      final result = await _syncCustomFolders(
+        newFolders,
+        onlyFolderPath: event.folder.path,
+      );
       if (!event.value) {
         emit(
           state.copyWith(
@@ -222,14 +242,10 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
           ),
         );
       }
-      _addLibraryEvent(
-        RefreshLibrary(
-          changedBookKeys: {
-            for (final id in result.updatedBookIds)
-              IndexingRepository.userBookKey(id),
-          },
-        ),
-      );
+      _refreshLibraryAfterScan({
+        for (final id in result.updatedBookIds)
+          IndexingRepository.userBookKey(id),
+      });
     } catch (e) {
       emit(state.copyWith(isSyncing: false, error: 'שגיאה בסנכרון: $e'));
     }
@@ -261,13 +277,13 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
           ? 'הסריקה הושלמה. לא נמצאו ספרים חדשים.'
           : null;
       emit(state.copyWith(isSyncing: false, message: message));
-      _addLibraryEvent(
-        RefreshLibrary(
-          changedBookKeys: {
-            for (final id in result.updatedBookIds)
-              IndexingRepository.userBookKey(id),
-          },
-        ),
+      _refreshLibraryAfterScan(
+        {
+          for (final id in result.updatedBookIds)
+            IndexingRepository.userBookKey(id),
+        },
+        // כשל חלקי לא מסומן כהשלמה — סנכרון הרקע יקבל הזדמנות לנסות שוב.
+        coversAllFolders: event.onlyFolderPath == null && result.errors.isEmpty,
       );
     } catch (e) {
       emit(
