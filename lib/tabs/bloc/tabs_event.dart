@@ -40,8 +40,23 @@ class OpenOrFocusTab extends TabsEvent {
   });
 
   @override
-  List<Object?> get props =>
-      [tab, targetTitle, insertAdjacent, navigateToPositionIfReused];
+  List<Object?> get props => [
+    tab,
+    targetTitle,
+    insertAdjacent,
+    navigateToPositionIfReused,
+  ];
+}
+
+/// החלפת טאב קיים בטאב אחר באותו מיקום — סיום רזולוציה של ResolvingTab.
+class ReplaceTab extends TabsEvent {
+  final OpenedTab oldTab;
+  final OpenedTab newTab;
+
+  const ReplaceTab({required this.oldTab, required this.newTab});
+
+  @override
+  List<Object?> get props => [oldTab, newTab];
 }
 
 class ReplaceAllTabs extends TabsEvent {

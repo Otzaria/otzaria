@@ -1,0 +1,37 @@
+-- Queries for persistent cache of PDF page-map anchors (text<->PDF conversion)
+
+selectByFilePath:
+SELECT *
+FROM pdf_anchor_cache
+WHERE filePath = ?
+LIMIT 1;
+
+upsert:
+INSERT INTO pdf_anchor_cache (
+  filePath,
+  fileSize,
+  lastModified,
+  anchorsJson,
+  createdAt,
+  accessedAt
+)
+VALUES (?, ?, ?, ?, ?, ?)
+ON CONFLICT(filePath) DO UPDATE SET
+  fileSize = excluded.fileSize,
+  lastModified = excluded.lastModified,
+  anchorsJson = excluded.anchorsJson,
+  createdAt = excluded.createdAt,
+  accessedAt = excluded.accessedAt;
+
+updateAccessedAt:
+UPDATE pdf_anchor_cache
+SET accessedAt = ?
+WHERE filePath = ?;
+
+deleteByFilePath:
+DELETE FROM pdf_anchor_cache
+WHERE filePath = ?;
+
+deleteAccessedBefore:
+DELETE FROM pdf_anchor_cache
+WHERE accessedAt < ?;

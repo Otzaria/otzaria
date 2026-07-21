@@ -82,17 +82,21 @@ abstract class OpenedTab {
     return tab.clone();
   }
 
-  factory OpenedTab.fromBook(Book book, int index,
-      {String searchText = '',
-      String highlightText = '',
-      int? permanentHighlightLine,
-      List<String>? commentators,
-      bool openLeftPane = false,
-      bool isPinned = false,
-      bool? showPageShapeView,
-      bool requiresStableLayout = false,
-      String? pinpointHighlight,
-      int? pinpointHighlightSectionIndex}) {
+  factory OpenedTab.fromBook(
+    Book book,
+    int index, {
+    String searchText = '',
+    String highlightText = '',
+    int? permanentHighlightLine,
+    List<String>? commentators,
+    bool openLeftPane = false,
+    bool isPinned = false,
+    bool? showPageShapeView,
+    bool requiresStableLayout = false,
+    String? pinpointHighlight,
+    int? pinpointHighlightSectionIndex,
+    String? dedupeKey,
+  }) {
     if (book is PdfBook) {
       return PdfBookTab(
         book: book,
@@ -101,6 +105,7 @@ abstract class OpenedTab {
         searchText: searchText,
         isPinned: isPinned,
         requiresStableLayout: requiresStableLayout,
+        dedupeKey: dedupeKey,
       );
     } else if (book is DocxBook) {
       // DOCX רץ דרך זרימת TextBook — העטיפה דרך DocxBook.toTextBook
@@ -117,6 +122,7 @@ abstract class OpenedTab {
         showPageShapeView: showPageShapeView,
         pinpointHighlight: pinpointHighlight,
         pinpointHighlightSectionIndex: pinpointHighlightSectionIndex,
+        dedupeKey: dedupeKey,
       );
     } else if (book is TextBook) {
       return TextBookTab(
@@ -131,6 +137,7 @@ abstract class OpenedTab {
         showPageShapeView: showPageShapeView,
         pinpointHighlight: pinpointHighlight,
         pinpointHighlightSectionIndex: pinpointHighlightSectionIndex,
+        dedupeKey: dedupeKey,
       );
     }
     throw UnsupportedError("Unsupported book type: ${book.runtimeType}");

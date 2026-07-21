@@ -41,6 +41,41 @@ class BookOpenCoordinator {
       historyBloc.add(CaptureStateForHistory(tabsState.currentTab!));
     }
 
+    final tab = buildTab(
+      book,
+      index,
+      searchQuery,
+      ignoreHistory: ignoreHistory,
+      requiresStableLayout: requiresStableLayout,
+      pinpointHighlight: pinpointHighlight,
+      markSection: markSection,
+      markText: markText,
+      initialCommentators: initialCommentators,
+    );
+    tabsBloc.add(
+      OpenOrFocusTab(
+        tab,
+        insertAdjacent: insertAdjacent,
+        navigateToPositionIfReused: navigateToPositionIfReused,
+      ),
+    );
+    navigationBloc.add(const NavigateToScreen(Screen.reading));
+  }
+
+  /// בונה את הטאב עם אותה סמנטיקת פתיחה של [openBook] (שחזור מיקום ומפרשים
+  /// מההיסטוריה, צורת-דף שמורה) — למסלולים שמוסיפים את הטאב בעצמם.
+  OpenedTab buildTab(
+    Book book,
+    int index,
+    String searchQuery, {
+    bool ignoreHistory = false,
+    bool requiresStableLayout = false,
+    String? pinpointHighlight,
+    bool markSection = false,
+    String? markText,
+    List<String>? initialCommentators,
+    String? dedupeKey,
+  }) {
     // deep link עם הדגשה ממוקדת מציין במפורש סעיף יעד; חייבים לכבד אותו במדויק
     // (גם כש‑index=0) ולא ליפול חזרה להיסטוריית קריאה — אחרת ההדגשה תופיע במקום
     // הלא נכון ביחס לסעיף שהמשתמש ביקש.
@@ -56,8 +91,9 @@ class BookOpenCoordinator {
     final bookKey = bookIdentity(book);
     final lastOpened = (ignoreHistory || hasAnyHighlight)
         ? null
-        : historyState.history
-            .firstWhereOrNull((b) => bookIdentity(b.book) == bookKey);
+        : historyState.history.firstWhereOrNull(
+            (b) => bookIdentity(b.book) == bookKey,
+          );
     // ערך המיקום ההתחלתי ה"דיפולטי" תלוי בסוג הספר: בטקסט האינדקס מבוסס-0
     // (0 = "ללא מיקום ספציפי"), אבל ב-PDF העמודים מבוססי-1 (1 = העמוד הראשון).
     // הספרייה מעבירה את הדיפולט הזה. רק כשהמתקשר מעביר ערך שונה מהדיפולט מדובר
@@ -65,8 +101,8 @@ class BookOpenCoordinator {
     final int defaultIndex = book is PdfBook ? 1 : 0;
     final initialIndex =
         (ignoreHistory || hasAnyHighlight || index != defaultIndex)
-            ? index
-            : (lastOpened?.index ?? defaultIndex);
+        ? index
+        : (lastOpened?.index ?? defaultIndex);
     // סמנטיקה של [initialCommentators]:
     //   null   → ברירת מחדל: נופלים להיסטוריה (commentatorsToShow).
     //   []     → bypass מפורש: פתיחה בלי מפרשים, גם אם בעבר נשמרו ב-history.
@@ -75,8 +111,9 @@ class BookOpenCoordinator {
         initialCommentators ?? lastOpened?.commentatorsToShow;
 
     final shouldOpenLeftPane = shouldAutoOpenReadingLeftPane();
-    final savedViewMode =
-        PageShapeSettingsManager.getViewModePreference(book.title);
+    final savedViewMode = PageShapeSettingsManager.getViewModePreference(
+      book.title,
+    );
 
     // חישוב highlightText ו-permanentHighlightLine לפי סדר עדיפות:
     // markText > markSection > pinpointHighlight
@@ -93,7 +130,7 @@ class BookOpenCoordinator {
     final String? effectivePinpoint =
         hasPinpoint && !hasMarkText && !markSection ? pinpointHighlight : null;
 
-    final tab = OpenedTab.fromBook(
+    return OpenedTab.fromBook(
       book,
       initialIndex,
       searchText: searchQuery,
@@ -104,14 +141,10 @@ class BookOpenCoordinator {
       showPageShapeView: savedViewMode,
       requiresStableLayout: requiresStableLayout,
       pinpointHighlight: effectivePinpoint,
-      pinpointHighlightSectionIndex:
-          effectivePinpoint != null ? initialIndex : null,
+      pinpointHighlightSectionIndex: effectivePinpoint != null
+          ? initialIndex
+          : null,
+      dedupeKey: dedupeKey,
     );
-    tabsBloc.add(OpenOrFocusTab(
-      tab,
-      insertAdjacent: insertAdjacent,
-      navigateToPositionIfReused: navigateToPositionIfReused,
-    ));
-    navigationBloc.add(const NavigateToScreen(Screen.reading));
   }
 }

@@ -241,6 +241,18 @@ CREATE TABLE IF NOT EXISTS pdf_outline_cache (
 
 CREATE INDEX IF NOT EXISTS idx_pdf_outline_cache_accessed_at ON pdf_outline_cache(accessedAt);
 
+-- Persistent cache of PDF page-map anchors (text<->PDF page conversion)
+CREATE TABLE IF NOT EXISTS pdf_anchor_cache (
+    filePath TEXT PRIMARY KEY,
+    fileSize INTEGER NOT NULL,
+    lastModified INTEGER NOT NULL,
+    anchorsJson TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    accessedAt INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_pdf_anchor_cache_accessed_at ON pdf_anchor_cache(accessedAt);
+
 -- Persistent cache of converted external DOCX text
 CREATE TABLE IF NOT EXISTS docx_text_cache (
     filePath TEXT PRIMARY KEY,
