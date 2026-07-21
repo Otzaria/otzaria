@@ -3625,21 +3625,14 @@ class DatabaseLibraryProvider implements LibraryProvider {
       // Phase 2 (main isolate): only metadata updates + new-book inserts.
       // This is deliberately light: unchanged books were already filtered in
       // Phase 1, so no TOC parse or DB read happens here for them.
-      //
-      // ה-insert עצמו סינכרוני (sqlite3 חוסם את ה-thread), ולכן הוספה של
-      // ספרים רבים בבת אחת תוקעת את ה-UI. כדי למנוע זאת אנו משחררים את
-      // לולאת האירועים אחת לכמה ספרים — ה-UI ממשיך להגיב בלי לשנות את
-      // לוגיקת ה-DB עצמה.
-      var processedSinceYield = 0;
       // source פר-תיקייה (Personal::<נתיב>) — זהה לזה שמסלול הסנכרון/מחיקה
       // מצפה לו, כדי שה-prune והמחיקה יזהו את הספרים לפי שם ה-source.
       final folderSourceName = CustomFolderSource.nameForFolder(folderPath);
       int? scanSourceId;
       for (final book in discovered) {
-        if (++processedSinceYield >= 8) {
-          processedSinceYield = 0;
-          await Future<void>.delayed(Duration.zero);
-        }
+        // ה-insert סינכרוני (sqlite3 חוסם את ה-thread); משחררים את לולאת
+        // האירועים לפני כל ספר כדי שה-UI יגיב גם בתיקייה עם ספרים רבים.
+        await Future<void>.delayed(Duration.zero);
         if (book.conversionError != null) {
           debugPrint(
             '⚠️ DOCX conversion failed for ${book.title}: ${book.conversionError}',

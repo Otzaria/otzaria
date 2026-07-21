@@ -11,12 +11,20 @@ import '../database/sql/query_loader.dart';
 import '../../settings/services/custom_folders/custom_folder.dart';
 import 'file_sync_service.dart';
 
-/// תקרת זמן לעבודת האיזולייט. בפקיעתה [_runWorkerIsolate] *הורג* את האיזולייט
-/// (`Isolate.kill`) ואז ה-finally הפנימי מריץ את [restoreAfterWrite]. ההריגה
-/// חיונית: בלעדיה (כמו ב-`Isolate.run().timeout()`) האיזולייט היה ממשיך לכתוב
-/// ל-seforim.db בזמן שה-RO כבר נפתח מחדש והתור שוחרר — כותב יתום במרוץ עם
-/// קוראים/כותבים אחרים.
-const Duration _isolateSyncWatchdog = Duration(seconds: 90);
+/// חלון "אין התקדמות" — האיזולייט נהרג רק אם לא דווחה שום התקדמות אמיתית
+/// (שלב או ספר) במשך פרק זמן זה. גדול דיו כדי לכסות insert סינכרוני של ספר
+/// גדול יחיד שחוסם את לולאת האירועים; רק תקיעה שמעֵברת אותו נחשבת אמיתית.
+/// ההריגה (`Isolate.kill`) חיונית: בלעדיה האיזולייט היה ממשיך לכתוב אחרי
+/// שה-RO נפתח מחדש — כותב יתום במרוץ.
+const Duration _isolateNoProgressTimeout = Duration(minutes: 8);
+
+/// תקרת-זמן כוללת קשיחה: גם אם ההתקדמות נמשכת, סנכרון שחורג ממנה נהרג.
+/// גיבוי אחרון מפני לולאה פתולוגית שמדווחת התקדמות אך לעולם אינה מסתיימת.
+const Duration _isolateTotalCeiling = Duration(minutes: 45);
+
+/// סמן פינג-ההתקדמות שנשלח על ה-SendPort. מחרוזת (לא Map), כדי להבחין בבירור
+/// ממפת התוצאה הסופית.
+const String _workerHeartbeat = 'otzaria.sync.progress';
 
 /// Runs a full custom-folders DB sync inside a background isolate.
 ///
@@ -50,31 +58,31 @@ Future<FileSyncResult> runCustomFoldersDbSyncInIsolate({
   Map<String, Object?> buildPayload({
     required bool syncFolders,
     required bool syncLinks,
-  }) =>
-      <String, Object?>{
-        'queryCache': QueryLoader.cacheSnapshot,
-        'dbPath': dbPath,
-        'userBooksDbPath': userBooksDbPath,
-        'libraryPath': libraryPath,
-        'folderName': folderName,
-        'customFolders': customFolders.map((f) => f.toJson()).toList(),
-        'syncFolders': syncFolders,
-        'syncLinks': syncLinks,
-        'onlyFolderPath': onlyFolderPath,
-      };
+  }) => <String, Object?>{
+    'queryCache': QueryLoader.cacheSnapshot,
+    'dbPath': dbPath,
+    'userBooksDbPath': userBooksDbPath,
+    'libraryPath': libraryPath,
+    'folderName': folderName,
+    'customFolders': customFolders.map((f) => f.toJson()).toList(),
+    'syncFolders': syncFolders,
+    'syncLinks': syncLinks,
+    'onlyFolderPath': onlyFolderPath,
+  };
 
   // שלב 1 — כתיבת הספרים האישיים ל-user_books.db. seforim.db נפתח RO (רק
   // קריאות), ולכן *אין* קריאה ל-prepareForWrite/restoreAfterWrite: ה-RO הראשי
   // נשאר פתוח וקריאות עובדות לכל אורך החלק הכבד הזה.
-  final folders =
-      await DatabaseLibraryProvider.operationQueue.enqueue(() async {
-    await QueryLoader.initialize();
-    final resultMap = await _runWorkerIsolate(
-      buildPayload(syncFolders: true, syncLinks: false),
-      isDelete: false,
-    );
-    return _resultFromMap(resultMap);
-  });
+  final folders = await DatabaseLibraryProvider.operationQueue.enqueue(
+    () async {
+      await QueryLoader.initialize();
+      final resultMap = await _runWorkerIsolate(
+        buildPayload(syncFolders: true, syncLinks: false),
+        isDelete: false,
+      );
+      return _resultFromMap(resultMap);
+    },
+  );
 
   // שלב 2 — עיבוד ה-links → seforim.db (RW). רץ *רק* כשיש קבצי links שטרם
   // עובדו: קבצי links מעובדים פעם אחת ונמחקים (ראה
@@ -135,16 +143,17 @@ Future<bool> _hasPendingLinkFiles(String libraryPath) async {
 }
 
 FileSyncResult _resultFromMap(Map<String, Object?> resultMap) => FileSyncResult(
-      addedBooks: resultMap['addedBooks'] as int,
-      updatedBooks: resultMap['updatedBooks'] as int,
-      addedCategories: resultMap['addedCategories'] as int,
-      addedLinks: resultMap['addedLinks'] as int,
-      skippedFiles: resultMap['skippedFiles'] as int,
-      errors: List<String>.from(resultMap['errors'] as List),
-      duration: Duration(milliseconds: resultMap['durationMs'] as int),
-      updatedBookIds:
-          List<int>.from((resultMap['updatedBookIds'] as List?) ?? const []),
-    );
+  addedBooks: resultMap['addedBooks'] as int,
+  updatedBooks: resultMap['updatedBooks'] as int,
+  addedCategories: resultMap['addedCategories'] as int,
+  addedLinks: resultMap['addedLinks'] as int,
+  skippedFiles: resultMap['skippedFiles'] as int,
+  errors: List<String>.from(resultMap['errors'] as List),
+  duration: Duration(milliseconds: resultMap['durationMs'] as int),
+  updatedBookIds: List<int>.from(
+    (resultMap['updatedBookIds'] as List?) ?? const [],
+  ),
+);
 
 /// מטען ההודעה לאיזולייט. נושא רק ערכים שליחים (SendPort + מפת payload + דגל),
 /// כך ש-[_workerIsolateMain] נשאר top-level וסוגר על כלום — ולעולם לא "סוחב"
@@ -165,14 +174,21 @@ Future<void> _workerIsolateMain(_WorkerMessage message) async {
     await _deleteWorkerEntryPoint(message.payload);
     result = const <String, Object?>{};
   } else {
-    result = await _syncWorkerEntryPoint(message.payload);
+    // כל התקדמות אמיתית (שלב/ספר) שולחת פינג שמאפס את ה-watchdog בצד הקורא —
+    // כך תקיעה אמיתית (ללא התקדמות) נהרגת, אך ייבוא איטי שמתקדם לא.
+    result = await _syncWorkerEntryPoint(
+      message.payload,
+      onProgress: () => message.responsePort.send(_workerHeartbeat),
+    );
   }
   message.responsePort.send(result);
 }
 
-/// מריץ worker באיזולייט עם watchdog שמסוגל *להרוג* אותו בפועל. ב-timeout
-/// קוראים ל-[Isolate.kill] לפני שה-finally של הקורא פותח מחדש את ה-RO, כך
-/// שהכתיבה באמת נפסקת ולא נשאר כותב יתום. ההריגה ב-finally רצה גם בנתיב
+/// מריץ worker באיזולייט עם watchdog מבוסס-התקדמות שמסוגל *להרוג* אותו בפועל.
+/// כל פינג-התקדמות מאפס את שעון "אין-התקדמות"; רק היעדר התקדמות ל-
+/// [_isolateNoProgressTimeout] רצוף (תקיעה אמיתית), או חריגה מ-
+/// [_isolateTotalCeiling] הכולל, הורגים את האיזולייט לפני שה-finally של הקורא
+/// פותח מחדש את ה-RO, כך שלא נשאר כותב יתום. ההריגה ב-finally רצה גם בנתיב
 /// ההצלחה — איזולייט מ-[Isolate.spawn] אינו מסתיים מעצמו (בניגוד ל-Isolate.run).
 Future<Map<String, Object?>> _runWorkerIsolate(
   Map<String, Object?> payload, {
@@ -182,7 +198,28 @@ Future<Map<String, Object?>> _runWorkerIsolate(
   final errorPort = ReceivePort();
   final completer = Completer<Map<String, Object?>>();
 
+  Timer? noProgressWatchdog;
+  void armNoProgressWatchdog() {
+    noProgressWatchdog?.cancel();
+    noProgressWatchdog = Timer(_isolateNoProgressTimeout, () {
+      if (!completer.isCompleted) {
+        completer.completeError(
+          TimeoutException(
+            'sync worker hang: no progress',
+            _isolateNoProgressTimeout,
+          ),
+        );
+      }
+    });
+  }
+
   responsePort.listen((message) {
+    // פינג-התקדמות — מאפס את שעון "אין-התקדמות" ואינו מסיים את הפעולה. כל
+    // הודעה אחרת היא מפת התוצאה הסופית.
+    if (message == _workerHeartbeat) {
+      armNoProgressWatchdog();
+      return;
+    }
     if (!completer.isCompleted) {
       completer.complete((message as Map).cast<String, Object?>());
     }
@@ -204,9 +241,23 @@ Future<Map<String, Object?>> _runWorkerIsolate(
     errorsAreFatal: true,
   );
 
+  armNoProgressWatchdog();
+  // תקרה כוללת קשיחה — לא מתאפסת בהתקדמות, גיבוי אחרון לסנכרון שלא נגמר.
+  final totalCeiling = Timer(_isolateTotalCeiling, () {
+    if (!completer.isCompleted) {
+      completer.completeError(
+        TimeoutException(
+          'sync worker exceeded total ceiling',
+          _isolateTotalCeiling,
+        ),
+      );
+    }
+  });
   try {
-    return await completer.future.timeout(_isolateSyncWatchdog);
+    return await completer.future;
   } finally {
+    noProgressWatchdog?.cancel();
+    totalCeiling.cancel();
     isolate.kill(priority: Isolate.immediate);
     responsePort.close();
     errorPort.close();
@@ -258,7 +309,9 @@ Future<void> runDeleteFolderFromDbInIsolate({
 // ── worker entry points (top-level so they're transferable) ──────────────────
 
 Future<Map<String, Object?>> _syncWorkerEntryPoint(
-    Map<String, Object?> payload) async {
+  Map<String, Object?> payload, {
+  void Function()? onProgress,
+}) async {
   QueryLoader.seedCache(
     (payload['queryCache'] as Map).cast<String, Map<String, String>>(),
   );
@@ -270,8 +323,8 @@ Future<Map<String, Object?>> _syncWorkerEntryPoint(
   final syncFolders = (payload['syncFolders'] as bool?) ?? true;
   final syncLinks = (payload['syncLinks'] as bool?) ?? true;
   final onlyFolderPath = payload['onlyFolderPath'] as String?;
-  final rawFolders =
-      (payload['customFolders'] as List).cast<Map<String, dynamic>>();
+  final rawFolders = (payload['customFolders'] as List)
+      .cast<Map<String, dynamic>>();
   final customFolders = rawFolders.map(CustomFolder.fromJson).toList();
 
   // seforim.db נפתח RW *רק* כשמעבדים links (היחיד שכותב לשם). בשלב הספרים
@@ -298,6 +351,7 @@ Future<Map<String, Object?>> _syncWorkerEntryPoint(
       syncFolders: syncFolders,
       syncLinks: syncLinks,
       onlyFolderPath: onlyFolderPath,
+      onProgress: onProgress == null ? null : (_, _) => onProgress(),
     );
     return {
       'addedBooks': result.addedBooks,
