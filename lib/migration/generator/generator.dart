@@ -53,7 +53,7 @@ class DatabaseGenerator {
   final Map<String, List<String>> _bookContentCache = {};
 
   DatabaseGenerator(this.sourceDirectory, this.repository, {this.onProgress})
-      : _libraryRoot = sourceDirectory;
+    : _libraryRoot = sourceDirectory;
 
   /// Sets the total books to process for progress reporting.
   void setTotalBooksToProcess(int total) {
@@ -82,7 +82,8 @@ class DatabaseGenerator {
       final libraryDir = Directory(libraryPath);
       if (!await libraryDir.exists()) {
         throw StateError(
-            'התיקייה "אוצריא" לא נמצאה בתיקייה שנבחרה. נא לבחור את תיקיית האב של אוצריא.');
+          'התיקייה "אוצריא" לא נמצאה בתיקייה שנבחרה. נא לבחור את תיקיית האב של אוצריא.',
+        );
       }
 
       _libraryRoot = libraryPath;
@@ -109,7 +110,9 @@ class DatabaseGenerator {
         await repository.restoreNormalMode();
       } catch (innerEx) {
         _log.warning(
-            'Error restoring database settings after failure', innerEx);
+          'Error restoring database settings after failure',
+          innerEx,
+        );
       }
 
       _log.severe('Error during generation', e, stackTrace);
@@ -124,7 +127,10 @@ class DatabaseGenerator {
   /// [level] The current level in the directory hierarchy
   /// [metadata] The metadata for books
   Future<void> processDirectory(
-      String directory, int? parentCategoryId, int level) async {
+    String directory,
+    int? parentCategoryId,
+    int level,
+  ) async {
     final dir = Directory(directory);
     final entities = await dir.list().toList();
     final sortedEntities = entities
@@ -132,12 +138,18 @@ class DatabaseGenerator {
 
     for (final entity in sortedEntities) {
       if (entity is Directory) {
-        final categoryId =
-            await createCategory(entity.path, parentCategoryId, level);
+        final categoryId = await createCategory(
+          entity.path,
+          parentCategoryId,
+          level,
+        );
         await processDirectory(entity.path, categoryId, level + 1);
       } else if (entity is File &&
-          ['.txt', '.pdf', '.docx']
-              .contains(path.extension(entity.path).toLowerCase())) {
+          [
+            '.txt',
+            '.pdf',
+            '.docx',
+          ].contains(path.extension(entity.path).toLowerCase())) {
         // Skip if already processed from priority list
         final key = _toLibraryRelativeKey(entity.path);
         if (_processedPriorityBookKeys.contains(key)) {
@@ -222,7 +234,9 @@ class DatabaseGenerator {
 
   /// Finds a category by name and parent ID
   Future<Category?> _findCategoryByNameAndParent(
-      String name, int? parentId) async {
+    String name,
+    int? parentId,
+  ) async {
     final categories = parentId == null
         ? await repository.getRootCategories()
         : await repository.getCategoryChildren(parentId);
@@ -251,8 +265,10 @@ class DatabaseGenerator {
     try {
       final filename = path.basename(bookPath);
       final title = path.basenameWithoutExtension(filename);
-      final sourceId =
-          await _resolveSourceIdFor(bookPath, sourceName: sourceName);
+      final sourceId = await _resolveSourceIdFor(
+        bookPath,
+        sourceName: sourceName,
+      );
 
       // Extract file type from the file path
       final fileExtension = path.extension(bookPath).toLowerCase();
@@ -276,13 +292,20 @@ class DatabaseGenerator {
           try {
             final file = File(bookPath);
             final stat = await file.stat();
-            final targetFilePath =
-                (fileType != "txt" || !insertContent) ? bookPath : null;
-            await repository.updateBookStorage(existingBook.id, targetFilePath,
-                stat.size, stat.modified.millisecondsSinceEpoch);
+            final targetFilePath = (fileType != "txt" || !insertContent)
+                ? bookPath
+                : null;
+            await repository.updateBookStorage(
+              existingBook.id,
+              targetFilePath,
+              stat.size,
+              stat.modified.millisecondsSinceEpoch,
+            );
           } catch (e) {
             _log.warning(
-                'Failed to update storage stats for file: $bookPath', e);
+              'Failed to update storage stats for file: $bookPath',
+              e,
+            );
           }
         } else {
           try {
@@ -293,13 +316,20 @@ class DatabaseGenerator {
             }
             final file = File(bookPath);
             final stat = await file.stat();
-            final targetFilePath =
-                (fileType != "txt" || !insertContent) ? bookPath : null;
-            await repository.updateBookStorage(existingBook.id, targetFilePath,
-                stat.size, stat.modified.millisecondsSinceEpoch);
+            final targetFilePath = (fileType != "txt" || !insertContent)
+                ? bookPath
+                : null;
+            await repository.updateBookStorage(
+              existingBook.id,
+              targetFilePath,
+              stat.size,
+              stat.modified.millisecondsSinceEpoch,
+            );
           } catch (e) {
             _log.warning(
-                'Failed to update storage stats for file: $bookPath', e);
+              'Failed to update storage stats for file: $bookPath',
+              e,
+            );
           }
         }
 
@@ -308,9 +338,10 @@ class DatabaseGenerator {
             ? (_processedBooksCount * 100 ~/ _totalBooksToProcess)
             : 0;
         onProgress?.call(
-            _processedBooksCount /
-                (_totalBooksToProcess > 0 ? _totalBooksToProcess : 1),
-            'עודכן ספר: $title ($pct%)');
+          _processedBooksCount /
+              (_totalBooksToProcess > 0 ? _totalBooksToProcess : 1),
+          'עודכן ספר: $title ($pct%)',
+        );
         // The book was updated; no need to fall through to the duplicate-skip
         // or delete-and-re-insert logic.
         return;
@@ -361,16 +392,20 @@ class DatabaseGenerator {
           ? (_processedBooksCount * 100 ~/ _totalBooksToProcess)
           : 0;
       onProgress?.call(
-          _processedBooksCount /
-              (_totalBooksToProcess > 0 ? _totalBooksToProcess : 1),
-          'מעבד ספר: $title ($pct%)');
+        _processedBooksCount /
+            (_totalBooksToProcess > 0 ? _totalBooksToProcess : 1),
+        'מעבד ספר: $title ($pct%)',
+      );
 
       // NOTE: Original files are never deleted. The DB is the single source of truth
       // but original files are always preserved on disk.
     } catch (e, stackTrace) {
       final title = path.basenameWithoutExtension(bookPath);
-      _log.severe('❌ Critical error processing book: $title at $bookPath', e,
-          stackTrace);
+      _log.severe(
+        '❌ Critical error processing book: $title at $bookPath',
+        e,
+        stackTrace,
+      );
       debugPrint('❌ Critical error processing book: $title');
       debugPrint('   Path: $bookPath');
       debugPrint('   Error: $e');
@@ -491,22 +526,26 @@ class DatabaseGenerator {
         return content.split('\n');
       } catch (e2) {
         debugPrint(
-            '❌ Failed to read file with both UTF-8 and latin1: $bookPath');
+          '❌ Failed to read file with both UTF-8 and latin1: $bookPath',
+        );
         rethrow;
       }
     }
   }
 
   /// Processes lines of a book, identifying and creating TOC entries.
-  /// OPTIMIZED: Batch inserts for lines; sequential inserts for tocEntries (needed for
-  /// correct parent-ID resolution). After all insertions, tocEntry.lineId is fixed
-  /// via SQL (matching on lineIndex) and line_toc is rebuilt correctly.
+  /// Lines are inserted in batches; TOC entries in one transaction, in order,
+  /// so each child's parentId resolves to its parent's real DB id. After that,
+  /// tocEntry.lineId is fixed via SQL (matching on lineIndex) and line_toc is
+  /// rebuilt correctly.
   ///
   /// [bookId] The ID of the book in the database
   /// [lines] The lines of the book content
 
   Future<void> processLinesWithTocEntries(
-      int bookId, List<String> lines) async {
+    int bookId,
+    List<String> lines,
+  ) async {
     // Collect all TOC entry metadata in a single pass.
     // We use the entry's position in allTocEntries as its local ID.
     final allTocEntries = <TocEntryData>[];
@@ -521,13 +560,18 @@ class DatabaseGenerator {
     const batchSize = 1000;
     final linesBatch = <Line>[];
 
+    // heRef נגזר מ-currentReference ומשתנה רק בשורות כותרת — מחשבים פעם אחת
+    // לכל שינוי כותרת ומשתמשים מחדש בשאר השורות.
+    String? cachedHeRef;
+
     // ── PASS 1: Insert lines in batches, collect TOC structure ──────────────
     for (var lineIndex = 0; lineIndex < lines.length; lineIndex++) {
       final line = lines[lineIndex];
-      final plainText = cleanHtml(line);
       final level = detectHeaderLevel(line);
 
       if (level > 0) {
+        // cleanHtml יקר — מחשבים רק לשורות כותרת שבהן הטקסט נצרך.
+        final plainText = cleanHtml(line);
         if (plainText.trim().isEmpty) {
           localParentStack.remove(level);
           if (currentReference.length >= level) {
@@ -544,13 +588,15 @@ class DatabaseGenerator {
           }
 
           final localIdx = allTocEntries.length;
-          allTocEntries.add(TocEntryData(
-            id: localIdx,
-            parentId: parentLocalIdx,
-            level: level,
-            text: plainText,
-            lineIndex: lineIndex,
-          ));
+          allTocEntries.add(
+            TocEntryData(
+              id: localIdx,
+              parentId: parentLocalIdx,
+              level: level,
+              text: plainText,
+              lineIndex: lineIndex,
+            ),
+          );
 
           if (currentReference.length >= level) {
             currentReference.removeRange(level - 1, currentReference.length);
@@ -560,18 +606,22 @@ class DatabaseGenerator {
           localParentStack[level] = localIdx;
           entriesByParent.putIfAbsent(parentLocalIdx, () => []).add(localIdx);
         }
+
+        cachedHeRef = currentReference.isEmpty
+            ? null
+            : currentReference.join(', ').trim();
+        if (cachedHeRef != null && cachedHeRef.isEmpty) cachedHeRef = null;
       }
 
-      final lineHeRef =
-          currentReference.isEmpty ? null : currentReference.join(', ').trim();
-
-      linesBatch.add(Line(
-        id: 0, // auto-assigned by SQLite
-        bookId: bookId,
-        lineIndex: lineIndex,
-        content: line,
-        heRef: lineHeRef?.isEmpty == true ? null : lineHeRef,
-      ));
+      linesBatch.add(
+        Line(
+          id: 0, // auto-assigned by SQLite
+          bookId: bookId,
+          lineIndex: lineIndex,
+          content: line,
+          heRef: cachedHeRef,
+        ),
+      );
 
       if (linesBatch.length >= batchSize) {
         await repository.insertLinesBatch(linesBatch);
@@ -583,37 +633,27 @@ class DatabaseGenerator {
       await repository.insertLinesBatch(linesBatch);
     }
 
-    // ── PASS 2: Insert TOC entries one by one to get real DB IDs ─────────────
-    // We need sequential insertion because each child's parentId must reference
-    // the actual auto-incremented DB ID of its parent (not a placeholder).
-    final localIdxToDbId = <int, int>{}; // local index → actual DB ID
-    final actualParentStack = <int, int>{}; // level → actual DB ID
-
-    for (final entryData in allTocEntries) {
-      // Resolve parent's actual DB ID
-      int? parentDbId;
-      for (int l = entryData.level - 1; l >= 1; l--) {
-        if (actualParentStack.containsKey(l)) {
-          parentDbId = actualParentStack[l];
-          break;
-        }
-      }
-
-      final actualId = await repository.insertTocEntry(TocEntry(
-        id: 0, // auto-assign
-        bookId: bookId,
-        parentId: parentDbId,
-        text: entryData.text,
-        level: entryData.level,
-        lineIndex: entryData.lineIndex,
-        lineId: null, // fixed by SQL below
-        isLastChild: false,
-        hasChildren: false,
-      ));
-
-      localIdxToDbId[entryData.id] = actualId;
-      actualParentStack[entryData.level] = actualId;
-    }
+    // ── PASS 2: Insert TOC entries in one transaction to get real DB IDs ──────
+    // parentId/id are local indices; the repository resolves each child's parent
+    // to its parent's real DB ID and returns the local→DB id mapping.
+    final localIdxToDbId = await repository.insertGeneratedTocEntries(
+      bookId,
+      allTocEntries
+          .map(
+            (e) => TocEntry(
+              id: e.id,
+              bookId: bookId,
+              parentId: e.parentId,
+              text: e.text,
+              level: e.level,
+              lineIndex: e.lineIndex,
+              lineId: null, // fixed by SQL below
+              isLastChild: false,
+              hasChildren: false,
+            ),
+          )
+          .toList(),
+    );
 
     // ── PASS 3: Fix lineId on tocEntries + rebuild line_toc via SQL ──────────
     if (allTocEntries.isNotEmpty) {
@@ -701,8 +741,9 @@ class DatabaseGenerator {
   /// Compute a normalized key for a book file relative to the library root
   String _toLibraryRelativeKey(String filePath) {
     try {
-      final rel =
-          path.relative(filePath, from: _libraryRoot).replaceAll('\\', '/');
+      final rel = path
+          .relative(filePath, from: _libraryRoot)
+          .replaceAll('\\', '/');
       return rel;
     } catch (e) {
       return path.basename(filePath);
@@ -729,8 +770,11 @@ class DatabaseGenerator {
       var count = 0;
       await for (final entity in dir.list(recursive: true)) {
         if (entity is File &&
-            ['.txt', '.pdf', '.docx']
-                .contains(path.extension(entity.path).toLowerCase())) {
+            [
+              '.txt',
+              '.pdf',
+              '.docx',
+            ].contains(path.extension(entity.path).toLowerCase())) {
           count++;
         }
       }
