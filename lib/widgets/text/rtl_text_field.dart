@@ -203,6 +203,9 @@ class _RtlTextFieldState extends State<RtlTextField> {
     // עטיפה בתיקון חיצים אם RTL
     // שימוש ב-CallbackShortcuts כדי להבטיח קדימות על פני ה-TextField
     if (isRtl) {
+      // רמת מילה: Ctrl ב-Windows/Linux, Alt ב-macOS/iOS — תואם למיפוי
+      // הפלטפורמה של Flutter (ב-Windows/Linux Alt+חץ שמור לקפיצת שורה).
+      final bool wordByAlt = Platform.isMacOS || Platform.isIOS;
       textField = CallbackShortcuts(
         bindings: {
           // חיצים רגילים (ללא Shift)
@@ -212,31 +215,58 @@ class _RtlTextFieldState extends State<RtlTextField> {
               _handleArrowKey(isVisualRight: true, extendSelection: false),
 
           // Shift+חיצים (בחירה ברמת תו)
-          const SingleActivator(LogicalKeyboardKey.arrowLeft, shift: true):
-              () =>
-                  _handleArrowKey(isVisualRight: false, extendSelection: true),
-          const SingleActivator(LogicalKeyboardKey.arrowRight, shift: true):
-              () => _handleArrowKey(isVisualRight: true, extendSelection: true),
+          const SingleActivator(
+            LogicalKeyboardKey.arrowLeft,
+            shift: true,
+          ): () =>
+              _handleArrowKey(isVisualRight: false, extendSelection: true),
+          const SingleActivator(
+            LogicalKeyboardKey.arrowRight,
+            shift: true,
+          ): () =>
+              _handleArrowKey(isVisualRight: true, extendSelection: true),
 
-          // Ctrl+Shift+חיצים (בחירה ברמת מילה — Windows/Linux)
-          const SingleActivator(LogicalKeyboardKey.arrowLeft,
-                  shift: true, control: true):
-              () => _handleArrowKey(
-                  isVisualRight: false, extendSelection: true, byWord: true),
-          const SingleActivator(LogicalKeyboardKey.arrowRight,
-                  shift: true, control: true):
-              () => _handleArrowKey(
-                  isVisualRight: true, extendSelection: true, byWord: true),
+          // Ctrl/Alt+חיצים (הזזת סמן ברמת מילה)
+          SingleActivator(
+            LogicalKeyboardKey.arrowLeft,
+            control: !wordByAlt,
+            alt: wordByAlt,
+          ): () => _handleArrowKey(
+            isVisualRight: false,
+            extendSelection: false,
+            byWord: true,
+          ),
+          SingleActivator(
+            LogicalKeyboardKey.arrowRight,
+            control: !wordByAlt,
+            alt: wordByAlt,
+          ): () => _handleArrowKey(
+            isVisualRight: true,
+            extendSelection: false,
+            byWord: true,
+          ),
 
-          // Alt+Shift+חיצים (בחירה ברמת מילה — macOS)
-          const SingleActivator(LogicalKeyboardKey.arrowLeft,
-                  shift: true, alt: true):
-              () => _handleArrowKey(
-                  isVisualRight: false, extendSelection: true, byWord: true),
-          const SingleActivator(LogicalKeyboardKey.arrowRight,
-                  shift: true, alt: true):
-              () => _handleArrowKey(
-                  isVisualRight: true, extendSelection: true, byWord: true),
+          // Ctrl/Alt+Shift+חיצים (בחירה ברמת מילה)
+          SingleActivator(
+            LogicalKeyboardKey.arrowLeft,
+            shift: true,
+            control: !wordByAlt,
+            alt: wordByAlt,
+          ): () => _handleArrowKey(
+            isVisualRight: false,
+            extendSelection: true,
+            byWord: true,
+          ),
+          SingleActivator(
+            LogicalKeyboardKey.arrowRight,
+            shift: true,
+            control: !wordByAlt,
+            alt: wordByAlt,
+          ): () => _handleArrowKey(
+            isVisualRight: true,
+            extendSelection: true,
+            byWord: true,
+          ),
         },
         child: textField,
       );
@@ -268,7 +298,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
         focusContext,
         ExtendSelectionToNextWordBoundaryIntent(
           forward: !isVisualRight,
-          collapseSelection: false,
+          collapseSelection: !extendSelection,
         ),
       );
     } else {
@@ -312,12 +342,14 @@ class _RtlTextFieldState extends State<RtlTextField> {
       ]);
     }
 
-    menuItems.add(_buildMenuItem(
-      context,
-      'paste',
-      'הדבק',
-      FluentIcons.clipboard_paste_24_regular,
-    ));
+    menuItems.add(
+      _buildMenuItem(
+        context,
+        'paste',
+        'הדבק',
+        FluentIcons.clipboard_paste_24_regular,
+      ),
+    );
 
     if (controller.text.isNotEmpty) {
       menuItems.addAll([
@@ -356,27 +388,35 @@ class _RtlTextFieldState extends State<RtlTextField> {
       switch (value) {
         case 'cut':
           final selectedText = currentText.substring(
-              currentSelection.start, currentSelection.end);
+            currentSelection.start,
+            currentSelection.end,
+          );
           await Clipboard.setData(ClipboardData(text: selectedText));
-          controller.text = currentText.substring(0, currentSelection.start) +
+          controller.text =
+              currentText.substring(0, currentSelection.start) +
               currentText.substring(currentSelection.end);
-          controller.selection =
-              TextSelection.collapsed(offset: currentSelection.start);
+          controller.selection = TextSelection.collapsed(
+            offset: currentSelection.start,
+          );
           break;
         case 'copy':
           final selectedText = currentText.substring(
-              currentSelection.start, currentSelection.end);
+            currentSelection.start,
+            currentSelection.end,
+          );
           await Clipboard.setData(ClipboardData(text: selectedText));
           break;
         case 'paste':
           final data = await Clipboard.getData('text/plain');
           if (data?.text != null) {
-            final newText = currentText.substring(0, currentSelection.start) +
+            final newText =
+                currentText.substring(0, currentSelection.start) +
                 data!.text! +
                 currentText.substring(currentSelection.end);
             controller.text = newText;
             controller.selection = TextSelection.collapsed(
-                offset: currentSelection.start + data.text!.length);
+              offset: currentSelection.start + data.text!.length,
+            );
           }
           break;
         case 'selectAll':

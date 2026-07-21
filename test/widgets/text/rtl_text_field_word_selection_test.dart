@@ -6,8 +6,10 @@ import 'package:otzaria/widgets/text/rtl_text_field.dart';
 /// בודק בחירה ברמת מילה (Ctrl/Alt+Shift+חץ) ב-[RtlTextField] בכיווניות RTL:
 /// בעברית offset 0 מימין; חץ שמאל ויזואלי = offset עולה.
 void main() {
-  Future<TextEditingController> pumpField(WidgetTester tester,
-      {String text = 'אבג דהו זחט'}) async {
+  Future<TextEditingController> pumpField(
+    WidgetTester tester, {
+    String text = 'אבג דהו זחט',
+  }) async {
     final controller = TextEditingController(text: text);
     final focusNode = FocusNode();
     await tester.pumpWidget(
@@ -44,8 +46,9 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('Ctrl+Shift+חץ שמאל בוחר מילה לכיוון הסוף (offset עולה)',
-      (tester) async {
+  testWidgets('Ctrl+Shift+חץ שמאל בוחר מילה לכיוון הסוף (offset עולה)', (
+    tester,
+  ) async {
     final controller = await pumpField(tester);
     // קורסר בתחילת הטקסט (offset 0, הצד הימני).
     controller.selection = const TextSelection.collapsed(offset: 0);
@@ -61,8 +64,9 @@ void main() {
     expect(controller.selection.extentOffset, 7);
   });
 
-  testWidgets('Ctrl+Shift+חץ ימין מצמצם מילה לכיוון ההתחלה (offset יורד)',
-      (tester) async {
+  testWidgets('Ctrl+Shift+חץ ימין מצמצם מילה לכיוון ההתחלה (offset יורד)', (
+    tester,
+  ) async {
     final controller = await pumpField(tester);
     // בחירה "אבג דהו" (extent בקצה השמאלי, offset 7).
     controller.selection = const TextSelection(baseOffset: 0, extentOffset: 7);
@@ -83,8 +87,11 @@ void main() {
 
     await wordSelect(tester, LogicalKeyboardKey.arrowLeft);
     expect(controller.selection.baseOffset, 0);
-    expect(controller.selection.extentOffset, 3,
-        reason: 'בחירת מילה צריכה לעצור לפני הפסיק, לא לבלוע אותו');
+    expect(
+      controller.selection.extentOffset,
+      3,
+      reason: 'בחירת מילה צריכה לעצור לפני הפסיק, לא לבלוע אותו',
+    );
   });
 
   testWidgets('בחירת תו מכבדת אשכול-גרפמה (ניקוד אינו נחצה)', (tester) async {
@@ -98,8 +105,61 @@ void main() {
     // חץ שמאל ויזואלי → קדימה ב-offset.
     await charSelect(tester, LogicalKeyboardKey.arrowLeft);
     expect(controller.selection.baseOffset, 0);
-    expect(controller.selection.extentOffset, 2,
-        reason: 'התזוזה חייבת לדלג על האות+ניקוד כיחידה אחת');
+    expect(
+      controller.selection.extentOffset,
+      2,
+      reason: 'התזוזה חייבת לדלג על האות+ניקוד כיחידה אחת',
+    );
+  });
+
+  Future<void> wordMove(WidgetTester tester, LogicalKeyboardKey arrow) async {
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(arrow);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+  }
+
+  testWidgets('Ctrl+חץ שמאל (בלי Shift) מזיז סמן מילה קדימה (offset עולה)', (
+    tester,
+  ) async {
+    final controller = await pumpField(tester);
+    controller.selection = const TextSelection.collapsed(offset: 0);
+    await tester.pump();
+
+    // חץ שמאל ויזואלי → סמן קופץ מילה קדימה ב-offset: 0 → 3.
+    await wordMove(tester, LogicalKeyboardKey.arrowLeft);
+    expect(controller.selection.isCollapsed, isTrue);
+    expect(controller.selection.extentOffset, 3);
+
+    // עוד אחד → סוף "דהו" (7).
+    await wordMove(tester, LogicalKeyboardKey.arrowLeft);
+    expect(controller.selection.extentOffset, 7);
+  });
+
+  testWidgets('Ctrl+חץ ימין (בלי Shift) מזיז סמן מילה אחורה (offset יורד)', (
+    tester,
+  ) async {
+    final controller = await pumpField(tester);
+    controller.selection = const TextSelection.collapsed(offset: 7);
+    await tester.pump();
+
+    // חץ ימין ויזואלי → סמן קופץ מילה אחורה ב-offset: 7 → 4.
+    await wordMove(tester, LogicalKeyboardKey.arrowRight);
+    expect(controller.selection.isCollapsed, isTrue);
+    expect(controller.selection.extentOffset, 4);
+  });
+
+  testWidgets('Ctrl+חץ עם בחירה קיימת מכווץ אותה וממשיך מילה', (tester) async {
+    final controller = await pumpField(tester);
+    controller.selection = const TextSelection(baseOffset: 0, extentOffset: 3);
+    await tester.pump();
+
+    await wordMove(tester, LogicalKeyboardKey.arrowLeft);
+    expect(
+      controller.selection.isCollapsed,
+      isTrue,
+      reason: 'Ctrl+חץ בלי Shift חייב לכווץ את הבחירה, לא להרחיבה',
+    );
   });
 
   testWidgets('חץ רגיל מכווץ בחירה לקצה שבכיוון החץ', (tester) async {
@@ -123,8 +183,9 @@ void main() {
     expect(controller.selection.extentOffset, 7);
   });
 
-  testWidgets('חץ ימין ב-offset 0 אינו קורס (אין אינדקס שלילי)',
-      (tester) async {
+  testWidgets('חץ ימין ב-offset 0 אינו קורס (אין אינדקס שלילי)', (
+    tester,
+  ) async {
     // ויזואלית-ימין מ-offset 0 = אחורה אל מעבר לתחילת הטקסט. אסור להעביר
     // אינדקס שלילי ל-CharacterBoundary; נשארים ב-0.
     final controller = await pumpField(tester, text: 'אבג');

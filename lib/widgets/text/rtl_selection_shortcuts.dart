@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -75,40 +76,95 @@ class _PhysicalExtendSelectionIntent extends Intent {
   const _PhysicalExtendSelectionIntent({
     required this.physicalLeft,
     required this.word,
+    this.collapse = false,
   });
 
   /// האם נלחץ חץ שמאל (אחרת — חץ ימין).
   final bool physicalLeft;
 
-  /// האם זו הרחבה ברמת מילה (Ctrl/Alt+Shift+חץ) ולא ברמת תו.
+  /// האם זו פעולה ברמת מילה (Ctrl/Alt+חץ) ולא ברמת תו.
   final bool word;
+
+  /// true = הזזת סמן בלי Shift (הבחירה מתכווצת), false = הרחבת בחירה.
+  final bool collapse;
 }
 
 /// מתקן את כיוון מקשי Shift+חץ בבחירת טקסט RTL.
 ///
 /// רקע: ב-`SelectableRegion` של Flutter מקשי החצים אינם מתחשבים בכיווניות
-/// (flutter/flutter#78660 ואחרים). עוטפים ומיירטים Shift+חץ בלבד.
-/// ב-LTR ה-widget שקוף.
+/// (flutter/flutter#78660 ואחרים). מיירטים Shift+חץ (הרחבת בחירה) וגם
+/// Ctrl/Alt+חץ בלי Shift (הזזת סמן מילה). ב-LTR ה-widget שקוף.
 class RtlSelectionShortcuts extends StatelessWidget {
   const RtlSelectionShortcuts({super.key, required this.child});
 
   final Widget child;
 
-  static const Map<ShortcutActivator, Intent> _shortcuts =
+  static const Map<ShortcutActivator, Intent> _charShortcuts =
       <ShortcutActivator, Intent>{
-    SingleActivator(LogicalKeyboardKey.arrowLeft, shift: true):
-        _PhysicalExtendSelectionIntent(physicalLeft: true, word: false),
-    SingleActivator(LogicalKeyboardKey.arrowRight, shift: true):
-        _PhysicalExtendSelectionIntent(physicalLeft: false, word: false),
+        SingleActivator(LogicalKeyboardKey.arrowLeft, shift: true):
+            _PhysicalExtendSelectionIntent(physicalLeft: true, word: false),
+        SingleActivator(LogicalKeyboardKey.arrowRight, shift: true):
+            _PhysicalExtendSelectionIntent(physicalLeft: false, word: false),
+      };
+
+  // רמת מילה: Ctrl ב-Windows/Linux, Alt ב-macOS/iOS — תואם למיפוי הפלטפורמה
+  // של Flutter (ב-Windows/Linux Alt+חץ שמור לקפיצת שורה ואסור לדרוס אותו).
+  static const Map<ShortcutActivator, Intent>
+  _ctrlWordShortcuts = <ShortcutActivator, Intent>{
     SingleActivator(LogicalKeyboardKey.arrowLeft, shift: true, control: true):
         _PhysicalExtendSelectionIntent(physicalLeft: true, word: true),
     SingleActivator(LogicalKeyboardKey.arrowRight, shift: true, control: true):
         _PhysicalExtendSelectionIntent(physicalLeft: false, word: true),
-    SingleActivator(LogicalKeyboardKey.arrowLeft, shift: true, alt: true):
-        _PhysicalExtendSelectionIntent(physicalLeft: true, word: true),
-    SingleActivator(LogicalKeyboardKey.arrowRight, shift: true, alt: true):
-        _PhysicalExtendSelectionIntent(physicalLeft: false, word: true),
+    SingleActivator(
+      LogicalKeyboardKey.arrowLeft,
+      control: true,
+    ): _PhysicalExtendSelectionIntent(
+      physicalLeft: true,
+      word: true,
+      collapse: true,
+    ),
+    SingleActivator(
+      LogicalKeyboardKey.arrowRight,
+      control: true,
+    ): _PhysicalExtendSelectionIntent(
+      physicalLeft: false,
+      word: true,
+      collapse: true,
+    ),
   };
+
+  static const Map<ShortcutActivator, Intent> _altWordShortcuts =
+      <ShortcutActivator, Intent>{
+        SingleActivator(LogicalKeyboardKey.arrowLeft, shift: true, alt: true):
+            _PhysicalExtendSelectionIntent(physicalLeft: true, word: true),
+        SingleActivator(LogicalKeyboardKey.arrowRight, shift: true, alt: true):
+            _PhysicalExtendSelectionIntent(physicalLeft: false, word: true),
+        SingleActivator(
+          LogicalKeyboardKey.arrowLeft,
+          alt: true,
+        ): _PhysicalExtendSelectionIntent(
+          physicalLeft: true,
+          word: true,
+          collapse: true,
+        ),
+        SingleActivator(
+          LogicalKeyboardKey.arrowRight,
+          alt: true,
+        ): _PhysicalExtendSelectionIntent(
+          physicalLeft: false,
+          word: true,
+          collapse: true,
+        ),
+      };
+
+  static final Map<ShortcutActivator, Intent> _shortcuts =
+      <ShortcutActivator, Intent>{
+        ..._charShortcuts,
+        ...(defaultTargetPlatform == TargetPlatform.macOS ||
+                defaultTargetPlatform == TargetPlatform.iOS
+            ? _altWordShortcuts
+            : _ctrlWordShortcuts),
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -156,7 +212,12 @@ class _PhysicalExtendSelectionAction
     // מילה Flutter אינו מהפך (באג) → מהפכים.
     if (_isTextInputContext(focusContext)) {
       final forward = intent.word ? intent.physicalLeft : !intent.physicalLeft;
-      _dispatch(focusContext, word: intent.word, forward: forward);
+      _dispatch(
+        focusContext,
+        word: intent.word,
+        forward: forward,
+        collapse: intent.collapse,
+      );
       return _handled;
     }
 
@@ -166,6 +227,9 @@ class _PhysicalExtendSelectionAction
       // המקש (כדי לא לחסום גלילה/קיצורים אחרים במעלה העץ).
       return null;
     }
+
+    // ב-SelectableRegion אין סמן — הפריימוורק מתעלם מ-collapseSelection
+    // והפעולה תמיד מרחיבה, ולכן ממשיכים למסלול ה-priming הרגיל.
 
     // איפוס ה-tracker הגלובלי בעת מעבר בין אזורי בחירה — כיוון גרירה שנשאר
     // מאזור קודם לא יזהם בחירה רב-שורתית באזור הנוכחי.
@@ -211,7 +275,9 @@ class _PhysicalExtendSelectionAction
 
   @override
   KeyEventResult toKeyEventResult(
-      _PhysicalExtendSelectionIntent intent, Object? invokeResult) {
+    _PhysicalExtendSelectionIntent intent,
+    Object? invokeResult,
+  ) {
     // בלע את המקש רק אם באמת טיפלנו ביעד בחירה; אחרת השאר ignored כדי
     // ש-Shortcuts/ברירת המחדל במעלה העץ יוכלו לטפל בו.
     return identical(invokeResult, _handled)
@@ -219,13 +285,21 @@ class _PhysicalExtendSelectionAction
         : KeyEventResult.ignored;
   }
 
-  Object? _dispatch(BuildContext context,
-      {required bool word, required bool forward}) {
+  Object? _dispatch(
+    BuildContext context, {
+    required bool word,
+    required bool forward,
+    bool collapse = false,
+  }) {
     final Intent intent = word
         ? ExtendSelectionToNextWordBoundaryIntent(
-            forward: forward, collapseSelection: false)
+            forward: forward,
+            collapseSelection: collapse,
+          )
         : ExtendSelectionByCharacterIntent(
-            forward: forward, collapseSelection: false);
+            forward: forward,
+            collapseSelection: collapse,
+          );
     return Actions.maybeInvoke(context, intent);
   }
 
@@ -240,7 +314,8 @@ class _PhysicalExtendSelectionAction
   ///
   /// מחזיר null כשאין בחירה פעילה או שאי אפשר לקבוע.
   ({bool multiLine, bool reversed})? _selectionGeometry(
-      SelectableRegionState state) {
+    SelectableRegionState state,
+  ) {
     try {
       final points = state.selectionEndpoints;
       if (points.length < 2) return null;
