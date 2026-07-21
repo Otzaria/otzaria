@@ -390,6 +390,13 @@ TextStyle _styleForElement(dom.Element element, TextStyle parentStyle) {
   if (inlineBackground != null) {
     style = style.copyWith(backgroundColor: inlineBackground);
   }
+  if (_hasTextDecoration(element, 'underline')) {
+    style = style.copyWith(
+      decoration: TextDecoration.underline,
+      decorationColor: _inlineDecorationColor(element),
+      decorationThickness: _inlineDecorationThickness(element),
+    );
+  }
 
   return style;
 }
@@ -415,8 +422,40 @@ Color? _inlineBackgroundColor(dom.Element element) {
   return _parseCssColor(match.group(1)!.trim());
 }
 
+Color? _inlineDecorationColor(dom.Element element) {
+  final inlineStyle = element.attributes['style'] ?? '';
+  final match = RegExp(
+    r'text-decoration-color\s*:\s*([^;]+)',
+    caseSensitive: false,
+  ).firstMatch(inlineStyle);
+  if (match == null) return null;
+  return _parseCssColor(match.group(1)!.trim());
+}
+
+double? _inlineDecorationThickness(dom.Element element) {
+  final inlineStyle = element.attributes['style'] ?? '';
+  final match = RegExp(
+    r'text-decoration-thickness\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*px',
+    caseSensitive: false,
+  ).firstMatch(inlineStyle);
+  return match == null ? null : double.tryParse(match.group(1)!);
+}
+
 Color? _parseCssColor(String value) {
   final v = value.toLowerCase().trim();
+  final rgba = RegExp(
+    r'^rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(0(?:\.\d+)?|\.\d+|1(?:\.0+)?)\s*\)$',
+  ).firstMatch(v);
+  if (rgba != null) {
+    final red = int.parse(rgba.group(1)!).clamp(0, 255).toInt();
+    final green = int.parse(rgba.group(2)!).clamp(0, 255).toInt();
+    final blue = int.parse(rgba.group(3)!).clamp(0, 255).toInt();
+    final alpha = (double.parse(rgba.group(4)!) * 255)
+        .round()
+        .clamp(0, 255)
+        .toInt();
+    return Color.fromARGB(alpha, red, green, blue);
+  }
   // צבעים פשוטים שהחיפוש משתמש בהם.
   switch (v) {
     case 'red':
@@ -443,8 +482,9 @@ Color? _parseCssColor(String value) {
       if (n != null) return Color(0xFF000000 | n);
     }
     if (hex.length == 8) {
-      final n = int.tryParse(hex, radix: 16);
-      if (n != null) return Color(n);
+      final rgb = int.tryParse(hex.substring(0, 6), radix: 16);
+      final alpha = int.tryParse(hex.substring(6, 8), radix: 16);
+      if (rgb != null && alpha != null) return Color((alpha << 24) | rgb);
     }
   }
   return null;
@@ -474,6 +514,14 @@ bool _hasFontStyle(dom.Element element, String value) {
   final inlineStyle = element.attributes['style'] ?? '';
   return RegExp(
     'font-style\\s*:\\s*$value',
+    caseSensitive: false,
+  ).hasMatch(inlineStyle);
+}
+
+bool _hasTextDecoration(dom.Element element, String value) {
+  final inlineStyle = element.attributes['style'] ?? '';
+  return RegExp(
+    'text-decoration\\s*:\\s*[^;]*\\b$value\\b',
     caseSensitive: false,
   ).hasMatch(inlineStyle);
 }

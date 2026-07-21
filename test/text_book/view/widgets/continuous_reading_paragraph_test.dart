@@ -160,7 +160,7 @@ void main() {
       final spans = buildInlineHtmlSpans(
         'לפני <a class="link-anchor link-anchor-0" '
         'href="otzaria://anchor?ref=3_0">(א)</a> '
-        '<a href="otzaria://inline-link?path=x">קישור</a> אחרי',
+        '<a href="https://example.com">קישור</a> אחרי',
         const TextStyle(fontSize: 20, color: Color(0xFF111111)),
         onTapUrl: (_) async => true,
         onAnchorHover: (url, position) => hovered.add(url),
@@ -269,6 +269,39 @@ void main() {
       expect(colored!.style?.color, const Color(0xFF333333));
     });
   });
+
+  test('underline preserves its rgba color and thickness', () {
+    final spans = buildInlineHtmlSpans(
+      '<span style="text-decoration: underline; '
+      'text-decoration-color: rgba(10, 20, 30, 0.5); '
+      'text-decoration-thickness: 2px">marked</span>',
+      const TextStyle(fontSize: 20),
+    );
+    final underlined = _findUnderlinedSpan(spans);
+    expect(underlined, isNotNull);
+    expect(underlined!.style?.decoration, TextDecoration.underline);
+    expect(underlined.style?.decorationColor, const Color(0x800A141E));
+    expect(underlined.style?.decorationThickness, 2);
+  });
+
+  test('inline colors support CSS alpha without a leading zero', () {
+    final spans = buildInlineHtmlSpans(
+      '<span style="text-decoration: underline; '
+      'text-decoration-color: rgba(10, 20, 30, .5)">marked</span>',
+      const TextStyle(fontSize: 20),
+    );
+    final underlined = _findUnderlinedSpan(spans);
+    expect(underlined?.style?.decorationColor, const Color(0x800A141E));
+  });
+
+  test('inline #RRGGBBAA colors keep CSS channel order', () {
+    final spans = buildInlineHtmlSpans(
+      '<span style="background-color: #ff000080">marked</span>',
+      const TextStyle(fontSize: 20),
+    );
+    final colored = _findColoredSpan(spans);
+    expect(colored?.style?.backgroundColor, const Color(0x80FF0000));
+  });
 }
 
 void _noopLineTap(int lineIndex) {}
@@ -328,6 +361,21 @@ TextSpan? _findColoredSpan(List<InlineSpan> spans) {
     visit(span);
     if (result != null) return result;
   }
+  return result;
+}
+
+TextSpan? _findUnderlinedSpan(List<InlineSpan> spans) {
+  TextSpan? result;
+  void visit(InlineSpan span) {
+    if (result != null || span is! TextSpan) return;
+    if (span.style?.decoration == TextDecoration.underline) {
+      result = span;
+      return;
+    }
+    span.children?.forEach(visit);
+  }
+
+  spans.forEach(visit);
   return result;
 }
 

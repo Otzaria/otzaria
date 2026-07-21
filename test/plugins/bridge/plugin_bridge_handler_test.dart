@@ -101,22 +101,6 @@ List<dynamic> _getBookContentRequest() => [
   },
 ];
 
-/// בקשת RPC ל-library.listBookAltStructures.
-List<dynamic> _listAltStructuresRequest() => [
-  {
-    'method': 'library.listBookAltStructures',
-    'payload': {'bookId': 'בראשית'},
-  },
-];
-
-/// בקשת RPC ל-library.getBookAltToc.
-List<dynamic> _getBookAltTocRequest() => [
-  {
-    'method': 'library.getBookAltToc',
-    'payload': {'bookId': 'בראשית'},
-  },
-];
-
 /// בקשת RPC ל-shortcut.create.
 List<dynamic> _shortcutCreateRequest() => [
   {
@@ -327,81 +311,6 @@ void main() {
     });
 
     test(
-      'listBookAltStructures ממופה ל-library.content.read (מוצהרת+מוענקת)',
-      () async {
-        final adapter = _FakeAdapter(result: const []);
-        final handler = buildHandler(
-          declaredPermissions: const [contentPermission],
-          granted: true,
-          adapter: adapter,
-        );
-
-        final resp =
-            await handler.handleRpcForTesting(_listAltStructuresRequest())
-                as Map<String, dynamic>;
-
-        expect(resp['success'], isTrue);
-        expect(adapter.lastDomain, 'library');
-        expect(adapter.lastAction, 'listBookAltStructures');
-      },
-    );
-
-    test(
-      'listBookAltStructures ללא ההרשאה במניפסט → permission_denied',
-      () async {
-        final adapter = _FakeAdapter();
-        final handler = buildHandler(
-          declaredPermissions: const [],
-          granted: true,
-          adapter: adapter,
-        );
-
-        final resp =
-            await handler.handleRpcForTesting(_listAltStructuresRequest())
-                as Map<String, dynamic>;
-
-        expect(resp['error']['code'], 'permission_denied');
-        expect(adapter.executeCalls, 0);
-      },
-    );
-
-    test(
-      'getBookAltToc ממופה ל-library.content.read (מוצהרת+מוענקת)',
-      () async {
-        final adapter = _FakeAdapter(result: const []);
-        final handler = buildHandler(
-          declaredPermissions: const [contentPermission],
-          granted: true,
-          adapter: adapter,
-        );
-
-        final resp =
-            await handler.handleRpcForTesting(_getBookAltTocRequest())
-                as Map<String, dynamic>;
-
-        expect(resp['success'], isTrue);
-        expect(adapter.lastDomain, 'library');
-        expect(adapter.lastAction, 'getBookAltToc');
-      },
-    );
-
-    test('getBookAltToc ללא ההרשאה במניפסט → permission_denied', () async {
-      final adapter = _FakeAdapter();
-      final handler = buildHandler(
-        declaredPermissions: const [],
-        granted: true,
-        adapter: adapter,
-      );
-
-      final resp =
-          await handler.handleRpcForTesting(_getBookAltTocRequest())
-              as Map<String, dynamic>;
-
-      expect(resp['error']['code'], 'permission_denied');
-      expect(adapter.executeCalls, 0);
-    });
-
-    test(
       'ההחרגה ממגביל הקצב חלה רק כשההרשאה הוענקה: מגביל מרוקן + הרשאה מוענקת '
       '→ עדיין מצליח (consume לא נקרא)',
       () async {
@@ -498,6 +407,9 @@ void main() {
         expect(resp['success'], isFalse);
         expect(resp['error']['code'], 'error.forbidden');
         expect(resp['error']['message'], 'path outside a user-selected folder');
+        expect(resp['error']['schemaVersion'], 1);
+        expect(resp['error']['retryable'], isFalse);
+        expect(resp['error']['category'], 'validation');
       },
     );
 

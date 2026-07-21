@@ -11,6 +11,85 @@ import 'package:flutter/rendering.dart';
 /// - [substring] — מסומן קטע באמצע (בחירת שורה בודדת).
 enum SelectionSegmentEdge { full, prefix, suffix, substring }
 
+/// מאתר בחירה חד-שורתית לפי מיקום ה-pointer. נדרש במיוחד ללחיצה כפולה:
+/// הטקסט הנבחר הוא לעיתים מילה נפוצה, וחיפוש גלובלי היה בוחר את המופע הראשון
+/// באזור הנראה במקום את המילה שעליה המשתמש לחץ.
+({int lineIndex, int column})? locateSingleLineSelectionAtPointer({
+  required List<String> renderedLines,
+  required List<int> sourceIndices,
+  required String selectedText,
+  required int? pointerLineIndex,
+  required int? pointerColumn,
+}) {
+  if (selectedText.isEmpty || selectedText.contains('\n')) return null;
+  if (pointerLineIndex == null || pointerColumn == null) return null;
+  final linePosition = sourceIndices.indexOf(pointerLineIndex);
+  if (linePosition < 0 || linePosition >= renderedLines.length) return null;
+  final line = renderedLines[linePosition];
+  final occurrences = <int>[];
+  for (var from = 0; ;) {
+    final found = line.indexOf(selectedText, from);
+    if (found < 0) break;
+    occurrences.add(found);
+    from = found + 1;
+  }
+  if (occurrences.isEmpty) return null;
+  final column = occurrences.reduce((a, b) {
+    final aDistance =
+        pointerColumn.clamp(a, a + selectedText.length) - pointerColumn;
+    final bDistance =
+        pointerColumn.clamp(b, b + selectedText.length) - pointerColumn;
+    return aDistance.abs() <= bDistance.abs() ? a : b;
+  });
+  return (lineIndex: pointerLineIndex, column: column);
+}
+
+/// Returns the start offset of the occurrence under [globalPosition].
+/// This disambiguates repeated selected text inside the same paragraph.
+int? renderedSelectionStartAtPosition({
+  required RenderObject root,
+  required Offset globalPosition,
+  required String selectedSegment,
+}) {
+  if (selectedSegment.isEmpty) return null;
+  final paragraph = _findParagraphContaining(root, globalPosition);
+  if (paragraph == null) return null;
+  final text = paragraph.text.toPlainText(includeSemanticsLabels: false);
+  final occurrences = <int>[];
+  for (var from = 0; ;) {
+    final found = text.indexOf(selectedSegment, from);
+    if (found < 0) break;
+    occurrences.add(found);
+    from = found + 1;
+  }
+  if (occurrences.isEmpty) return null;
+
+  final local = paragraph.globalToLocal(globalPosition);
+  final clickedOffset = paragraph.getPositionForOffset(local).offset;
+  for (final start in occurrences) {
+    if (clickedOffset >= start &&
+        clickedOffset <= start + selectedSegment.length) {
+      return start;
+    }
+  }
+  return occurrences.reduce(
+    (a, b) => (a - clickedOffset).abs() <= (b - clickedOffset).abs() ? a : b,
+  );
+}
+
+/// Returns the rendered text offset under a pointer before Flutter collapses
+/// the selection into plain text. Used as a stable occurrence hint.
+int? renderedTextOffsetAtPosition({
+  required RenderObject root,
+  required Offset globalPosition,
+}) {
+  final paragraph = _findParagraphContaining(root, globalPosition);
+  if (paragraph == null) return null;
+  return paragraph
+      .getPositionForOffset(paragraph.globalToLocal(globalPosition))
+      .offset;
+}
+
 /// בודק אם נקודת הלחיצה [globalPosition] נופלת על הטקסט המסומן בפועל.
 ///
 /// מאתר בתת-העץ של [root] את ה-RenderParagraph שמכיל את הנקודה, מחשב את טווח
@@ -57,7 +136,7 @@ bool? clickIsOnRenderedSelection({
       if (selectedSegment.isEmpty) return null;
       // אוספים את כל המופעים של הקטע בפסקה.
       final occurrences = <int>[];
-      for (var from = 0;;) {
+      for (var from = 0; ;) {
         final i = pText.indexOf(selectedSegment, from);
         if (i < 0) break;
         occurrences.add(i);
@@ -70,10 +149,11 @@ bool? clickIsOnRenderedSelection({
       } else if (segmentStartHint != null) {
         // מופע כפול — בוחרים את המופע הקרוב ביותר לרמז המיקום של הבחירה בפועל,
         // כך שלחיצה על המופע הלא-מסומן תיחשב מחוץ לבחירה (ותבטל).
-        chosen = occurrences.reduce((a, b) =>
-            (a - segmentStartHint).abs() <= (b - segmentStartHint).abs()
-                ? a
-                : b);
+        chosen = occurrences.reduce(
+          (a, b) => (a - segmentStartHint).abs() <= (b - segmentStartHint).abs()
+              ? a
+              : b,
+        );
       } else {
         return null; // מופע כפול וללא רמז — דו-משמעי, נחזור לסלחני
       }

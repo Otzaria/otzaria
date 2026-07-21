@@ -1092,6 +1092,24 @@ otzaria://open/plugin/<plugin-id>
 
 ## שגיאות נפוצות
 
+קריאה שנכשלה מחזירה סכמת שגיאה v1. השדות `code` ו־`message` הוותיקים נשמרו, ונוספו שדות שמאפשרים לתוסף להחליט אם להציע ניסיון חוזר:
+
+```javascript
+{
+  success: false,
+  data: null,
+  error: {
+    schemaVersion: 1,
+    code: 'error.highlight_not_found',
+    message: 'Highlight was not found',
+    retryable: false,
+    category: 'not_found'
+  }
+}
+```
+
+`category` הוא אחד מהערכים `permission`,‏ `validation`,‏ `not_found`,‏ `conflict`,‏ `timeout`,‏ `too_large`,‏ `internal` או `unsupported`. מטעמי תאימות, שגיאת הרשאה כללית עשויה עדיין להחזיר את הקוד הוותיק `permission_denied`; הקטגוריה שלה תמיד `permission`.
+
 | קוד שגיאה | סיבה | פתרון |
 |-----------|------|--------|
 | `permission_denied` | הרשאה לא הוצהרה ב-manifest או לא אושרה | הוסף לרשימת `permissions` ב-manifest |
@@ -1099,6 +1117,16 @@ otzaria://open/plugin/<plugin-id>
 | `error.timeout` | הפעולה לא הושלמה תוך 30 שניות | חלק לפעולות קטנות יותר |
 | `error.invalid_params` | פרמטרים חסרים או שגויים | בדוק את החתימה של ה-method |
 | `error.internal` | שגיאה פנימית בצד אוצריא | בדוק לוגים בהגדרות → תוספים |
+
+---
+
+## מגבלות Highlights בגרסה הנוכחית
+
+- ההדגשות זמניות בזיכרון. התוסף אחראי לשמור אותן ב־storage שלו ולהקים אותן מחדש ב־`plugin.boot`.
+- אין בשלב זה סנכרון בין מכשירים, undo/redo מרכזי או פתרון קונפליקטים מרכזי.
+- ה־Host מבודד בעלות לפי מזהה התוסף; תוסף אינו יכול לקרוא, לעדכן או למחוק הדגשות של תוסף אחר.
+- החתימה הוותיקה לפי `index` נשמרת לתאימות, אך תוסף חדש צריך להשתמש ב־`TextRangeAnchor` מתוך `reader.getSelection`.
+- בחירה שחוצה כמה מקטעים אינה נתמכת כעוגן יחיד בשלב זה.
 
 ---
 

@@ -42,7 +42,6 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/plugins/database/plugin_database_service.dart';
 import 'package:otzaria/plugins/utils/reader_location_resolver.dart';
-import 'package:otzaria/plugins/models/plugin_highlight.dart';
 import 'package:otzaria/plugins/models/plugin_context_menu_item.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
@@ -54,6 +53,14 @@ import 'package:otzaria/plugins/services/plugin_file_server.dart';
 import 'package:otzaria/plugins/services/plugin_shortcut_service.dart';
 import 'package:otzaria/plugins/services/plugin_path_safety.dart';
 import 'package:otzaria/plugins/services/plugin_network_fetch_service.dart';
+import 'package:otzaria/plugins/services/reader_selection_service.dart';
+import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
+import 'package:otzaria/plugins/services/plugin_highlight_reveal_service.dart';
+import 'package:otzaria/plugins/models/plugin_text_normalization.dart';
+import 'package:otzaria/plugins/services/plugin_section_text_map_service.dart';
+import 'package:otzaria/plugins/services/plugin_text_occurrence_service.dart';
+import 'package:otzaria/plugins/services/text_source_map_service.dart';
+import 'package:otzaria/widgets/smart_text/render_settings.dart';
 
 // ===================================================================
 // Spec-compliant allowlist for settings.get/getMany
@@ -322,6 +329,7 @@ class PluginBridgeAdapter {
   final PluginBridgeDependencies _dependencies;
   final NotificationService _notificationService;
   final PluginDatabaseService _databaseService;
+  final PluginHighlightRegistry _highlightRegistry;
 
   PluginBridgeAdapter(
     this.plugin, {
@@ -334,9 +342,12 @@ class PluginBridgeAdapter {
     PluginFsService? fsService,
     PluginShortcutService? shortcutService,
     PluginFileServer? fileServer,
+    PluginHighlightRegistry? highlightRegistry,
   }) : _pluginRepo = pluginRepository ?? PluginRegistryRepository(),
        _notificationService = notificationService ?? NotificationService(),
        _databaseService = databaseService ?? PluginDatabaseService(),
+       _highlightRegistry =
+           highlightRegistry ?? PluginHighlightRegistry.instance,
        _pluginFsService = fsService,
        _pluginShortcutService = shortcutService,
        _fileServer = fileServer ?? PluginFileServer.instance;
@@ -375,9 +386,6 @@ class PluginBridgeAdapter {
   PluginNetworkFetchService? _networkFetchService;
   PluginNetworkFetchService get _fetchService =>
       _networkFetchService ??= PluginNetworkFetchService();
-
-  // bookId → index → PluginHighlight (in-memory, per adapter instance)
-  final Map<String, Map<int, PluginHighlight>> _highlights = {};
 
   // bookId → טקסט מלא של הספר (מטמון LRU קצר, per adapter instance) עבור
   // getBookContent. ראה _loadBookRawText.
@@ -994,69 +1002,422 @@ class PluginBridgeAdapter {
         final currentTab = _dependencies.tabsBloc.state.currentTab;
         final snapshot = await resolveReaderLocation(currentTab);
         return _buildCurrentSelection(currentTab, snapshot?.currentRef);
+      case 'findTextOccurrences':
+        return _findTextOccurrences(args);
+      case 'getSectionTextMap':
+        return _getSectionTextMap(args);
       case 'addContextMenuItem':
-        final id = args['id'] as String?;
-        final label = args['label'] as String?;
-        if (id == null || label == null) {
-          throw Exception('error.invalid_params: id and label required');
-        }
-        ContextMenuRegistry.instance.register(
-          plugin.pluginId,
-          PluginContextMenuItem(
-            id: id,
-            label: label,
-            icon: args['icon'] as String?,
-            openPlugin: args['openPlugin'] == true,
-            param: args['param'],
-          ),
-        );
+        ContextMenuRegistry.instance.registerPayload(plugin.pluginId, args);
         return true;
       case 'removeContextMenuItem':
         final id = args['id'] as String?;
         if (id == null) throw Exception('error.invalid_params: id required');
         ContextMenuRegistry.instance.remove(plugin.pluginId, id);
         return true;
-      case 'setHighlight':
-        final bookId = args['bookId'] as String?;
-        final index = args['index'] as int?;
-        if (bookId == null || index == null) {
-          throw Exception('error.invalid_params: bookId and index required');
+      case 'updateContextMenuItem':
+        final id = args['id'];
+        final patch = args['patch'];
+        if (id is! String || patch is! Map) {
+          throw const PluginContextMenuException(
+            'error.invalid_params',
+            'id and patch are required',
+          );
         }
-        _highlights.putIfAbsent(bookId, () => {})[index] = PluginHighlight(
-          bookId: bookId,
-          index: index,
-          color: args['color'] as String?,
-          label: args['label'] as String?,
-          pluginId: plugin.pluginId,
+        ContextMenuRegistry.instance.update(
+          plugin.pluginId,
+          id,
+          Map<String, dynamic>.from(patch),
         );
         return true;
-      case 'getHighlights':
-        final bookId = args['bookId'] as String?;
-        if (bookId == null) {
-          throw Exception('error.invalid_params: bookId required');
+      case 'setHighlight':
+        if (args['range'] is Map && args['style'] is Map) {
+          return _highlightRegistry
+              .setHighlight(ownerPluginId: plugin.pluginId, payload: args)
+              .toJson();
         }
-        return (_highlights[bookId]?.values.toList() ?? [])
+        final bookId = args['bookId'];
+        final index = args['index'];
+        final color = args['color'];
+        final label = args['label'];
+        if (bookId is! String ||
+            index is! int ||
+            index < 0 ||
+            (color != null && color is! String) ||
+            (label != null && label is! String)) {
+          throw const PluginHighlightException(
+            'error.invalid_params',
+            'bookId and index are required for the legacy API',
+          );
+        }
+        _highlightRegistry.setLegacyHighlight(
+          ownerPluginId: plugin.pluginId,
+          bookId: bookId,
+          sectionIndex: index,
+          color: color as String?,
+          label: label as String?,
+        );
+        return true;
+      case 'updateHighlight':
+        return _highlightRegistry
+            .updateHighlight(ownerPluginId: plugin.pluginId, payload: args)
+            .toJson();
+      case 'getHighlights':
+        final bookId = args['bookId'];
+        final sectionIndex = args['sectionIndex'];
+        if ((bookId != null && bookId is! String) ||
+            (sectionIndex != null && sectionIndex is! int)) {
+          throw const PluginHighlightException(
+            'error.invalid_params',
+            'sectionIndex must be an integer',
+          );
+        }
+        return _highlightRegistry
+            .getHighlights(
+              ownerPluginId: plugin.pluginId,
+              bookId: bookId as String?,
+              sectionIndex: sectionIndex as int?,
+              includeStale: args['includeStale'] == true,
+            )
             .map((h) => h.toJson())
             .toList();
-      case 'clearHighlight':
-        final bookId = args['bookId'] as String?;
-        final index = args['index'] as int?;
-        if (bookId == null || index == null) {
-          throw Exception('error.invalid_params: bookId and index required');
+      case 'revealHighlight':
+        final highlightId = args['highlightId'];
+        if (highlightId is! String || highlightId.isEmpty) {
+          throw const PluginHighlightException(
+            'error.invalid_params',
+            'highlightId is required',
+          );
         }
-        _highlights[bookId]?.remove(index); // idempotent
+        final matches = _highlightRegistry.getHighlights(
+          ownerPluginId: plugin.pluginId,
+          includeStale: true,
+        );
+        final highlight = matches.cast<dynamic>().firstWhere(
+          (item) => item.highlightId == highlightId,
+          orElse: () => null,
+        );
+        if (highlight == null) {
+          throw const PluginHighlightException(
+            'error.highlight_not_found',
+            'highlight was not found',
+          );
+        }
+        final allBooks = (await DataRepository.instance.library).getAllBooks();
+        final book = allBooks.cast<dynamic>().firstWhere(
+          (item) => item?.title == highlight.bookId,
+          orElse: () => null,
+        );
+        if (book == null) return false;
+        _dependencies.bookOpenCoordinator.openBook(
+          book,
+          highlight.sectionIndex,
+          '',
+          ignoreHistory: true,
+        );
+        PluginHighlightRevealService.instance.reveal(highlight);
+        return true;
+      case 'clearHighlight':
+        final highlightId = args['highlightId'];
+        if (highlightId is String) {
+          final removed = _highlightRegistry.clearHighlight(
+            ownerPluginId: plugin.pluginId,
+            highlightId: highlightId,
+            expectedVersion: args['expectedVersion'],
+            expectedEtag: args['expectedEtag'],
+          );
+          if (!removed) {
+            throw const PluginHighlightException(
+              'error.highlight_not_found',
+              'highlight was not found',
+            );
+          }
+          return true;
+        }
+        final legacyBookId = args['bookId'];
+        final legacyIndex = args['index'];
+        if (legacyBookId is! String || legacyIndex is! int) {
+          throw const PluginHighlightException(
+            'error.invalid_params',
+            'highlightId is required',
+          );
+        }
+        final matches = _highlightRegistry.getHighlights(
+          ownerPluginId: plugin.pluginId,
+          bookId: legacyBookId,
+          sectionIndex: legacyIndex,
+          includeStale: true,
+        );
+        for (final match in matches) {
+          _highlightRegistry.clearHighlight(
+            ownerPluginId: plugin.pluginId,
+            highlightId: match.highlightId,
+          );
+        }
         return true;
       case 'clearAllHighlights':
-        final bookId = args['bookId'] as String?;
-        if (bookId != null) {
-          _highlights.remove(bookId);
-        } else {
-          _highlights.clear();
+        final bookId = args['bookId'];
+        final sectionIndex = args['sectionIndex'];
+        if ((bookId != null && bookId is! String) ||
+            (sectionIndex != null && sectionIndex is! int)) {
+          throw const PluginHighlightException(
+            'error.invalid_params',
+            'sectionIndex must be an integer',
+          );
         }
+        _highlightRegistry.clearAll(
+          ownerPluginId: plugin.pluginId,
+          bookId: bookId as String?,
+          sectionIndex: sectionIndex as int?,
+        );
         return true;
       default:
         throw Exception('Unknown action in reader: $action');
     }
+  }
+
+  Future<Map<String, dynamic>> _findTextOccurrences(
+    Map<String, dynamic> args,
+  ) async {
+    final bookId = args['bookId'];
+    final sectionIndex = args['sectionIndex'];
+    final query = args['query'];
+    final layer = args['layer'] ?? 'source';
+    final limit = args['limit'] ?? PluginTextOccurrenceService.defaultLimit;
+    final cursor = args['cursor'];
+    if (bookId is! String ||
+        bookId.isEmpty ||
+        sectionIndex is! int ||
+        query is! String ||
+        layer is! String ||
+        limit is! int ||
+        (cursor != null && cursor is! String)) {
+      throw const PluginTextOccurrenceException(
+        'error.invalid_params',
+        'bookId, sectionIndex, and query are required',
+      );
+    }
+    final section = await _loadPluginTextSection(bookId, sectionIndex);
+    final map = const TextSourceMapService().build(
+      bookId: bookId,
+      sectionIndex: sectionIndex,
+      rawText: section.rawText,
+      settings: section.settings,
+    );
+    final normalizeJson = _normalizationJson(
+      args['normalize'],
+      (message) => throw PluginTextOccurrenceException(
+        'error.invalid_params',
+        message,
+      ),
+    );
+    try {
+      final options = _normalizationOptions(normalizeJson, section.settings);
+      return const PluginTextOccurrenceService()
+          .find(
+            bookId: bookId,
+            sectionIndex: sectionIndex,
+            layer: layer,
+            text: layer == 'rendered' ? map.renderedText : map.sourceText,
+            textHash: layer == 'rendered'
+                ? map.renderedTextHash
+                : map.sourceTextHash,
+            query: query,
+            normalize: options,
+            currentRef: section.currentRef,
+            limit: limit,
+            cursor: cursor as String?,
+          )
+          .toJson();
+    } on FormatException catch (error) {
+      throw PluginTextOccurrenceException(
+        'error.invalid_params',
+        error.message,
+      );
+    }
+  }
+
+  Future<({String rawText, RenderSettings settings, String? currentRef})>
+  _loadPluginTextSection(String bookId, int sectionIndex) async {
+    if (sectionIndex < 0) {
+      throw const PluginTextOccurrenceException(
+        'error.invalid_params',
+        'sectionIndex must be non-negative',
+      );
+    }
+    final tabs = _dependencies.tabsBloc.state.tabs;
+    for (final tab in tabs) {
+      if (tab is! TextBookTab || tab.title != bookId) continue;
+      final state = tab.bloc.state;
+      if (state is! TextBookLoaded || sectionIndex >= state.content.length) {
+        continue;
+      }
+      final snapshot =
+          tab == _dependencies.tabsBloc.state.currentTab &&
+              tab.index == sectionIndex
+          ? await resolveReaderLocation(tab)
+          : null;
+      return (
+        rawText: state.content[sectionIndex],
+        settings: RenderSettings(
+          removeNikud: state.removeNikud,
+          removePunctuation: state.removePunctuation,
+          removeTeamim:
+              !(Settings.getValue<bool>(SettingsRepository.keyShowTeamim) ??
+                  true),
+          replaceHolyNames:
+              Settings.getValue<bool>(
+                SettingsRepository.keyReplaceHolyNames,
+              ) ??
+              false,
+        ),
+        currentRef: snapshot?.currentRef,
+      );
+    }
+
+    final library = await DataRepository.instance.library;
+    TextBook? book;
+    for (final candidate in library.getAllBooks().whereType<TextBook>()) {
+      if (candidate.title == bookId) {
+        book = candidate;
+        break;
+      }
+    }
+    if (book == null) {
+      throw const PluginTextOccurrenceException(
+        'error.not_found',
+        'text book was not found',
+      );
+    }
+    final range = await TextBookRepository(fileSystem: FileSystemData.instance)
+        .getBookContentRange(
+          book,
+          startLine: sectionIndex,
+          endLine: sectionIndex + 1,
+        );
+    if (range == null || range.lines.isEmpty) {
+      throw const PluginTextOccurrenceException(
+        'error.not_found',
+        'section was not found',
+      );
+    }
+    return (
+      rawText: range.lines.first,
+      settings: RenderSettings(
+        removeTeamim:
+            !(Settings.getValue<bool>(SettingsRepository.keyShowTeamim) ??
+                true),
+        replaceHolyNames:
+            Settings.getValue<bool>(
+              SettingsRepository.keyReplaceHolyNames,
+            ) ??
+            false,
+      ),
+      currentRef: null,
+    );
+  }
+
+  Future<Map<String, dynamic>> _getSectionTextMap(
+    Map<String, dynamic> args,
+  ) async {
+    final bookId = args['bookId'];
+    final sectionIndex = args['sectionIndex'];
+    final layer = args['layer'] ?? 'both';
+    final includeWords = args['includeWords'] ?? false;
+    final includeChars = args['includeChars'] ?? false;
+    final includeSourceMap = args['includeSourceMap'] ?? false;
+    final includeDomRects = args['includeDomRects'] ?? false;
+    final limit = args['limit'] ?? PluginSectionTextMapService.defaultLimit;
+    final cursor = args['cursor'];
+    if (bookId is! String ||
+        bookId.isEmpty ||
+        sectionIndex is! int ||
+        layer is! String ||
+        includeWords is! bool ||
+        includeChars is! bool ||
+        includeSourceMap is! bool ||
+        includeDomRects is! bool ||
+        limit is! int ||
+        (cursor != null && cursor is! String)) {
+      throw const PluginSectionTextMapException(
+        'error.invalid_params',
+        'section text map parameters are invalid',
+      );
+    }
+    if (includeDomRects) {
+      throw const PluginSectionTextMapException(
+        'error.unsupported_context',
+        'DOM rectangles are not available in this SDK version',
+      );
+    }
+    final normalizeJson = _normalizationJson(
+      args['normalize'],
+      (message) => throw PluginSectionTextMapException(
+        'error.invalid_params',
+        message,
+      ),
+    );
+    final section = await _loadPluginTextSection(bookId, sectionIndex);
+    final map = const TextSourceMapService().build(
+      bookId: bookId,
+      sectionIndex: sectionIndex,
+      rawText: section.rawText,
+      settings: section.settings,
+    );
+    try {
+      final options = _normalizationOptions(normalizeJson, section.settings);
+      return const PluginSectionTextMapService()
+          .build(
+            map: map,
+            layer: layer,
+            includeWords: includeWords,
+            includeChars: includeChars,
+            includeSourceMap: includeSourceMap,
+            normalize: options,
+            currentRef: section.currentRef,
+            limit: limit,
+            cursor: cursor as String?,
+          )
+          .toJson();
+    } on FormatException catch (error) {
+      throw PluginSectionTextMapException(
+        'error.invalid_params',
+        error.message,
+      );
+    }
+  }
+
+  Map<String, dynamic> _normalizationJson(
+    Object? value,
+    Never Function(String message) invalid,
+  ) {
+    if (value != null &&
+        (value is! Map || value.keys.any((key) => key is! String))) {
+      invalid('normalize must be an object');
+    }
+    final json = value == null
+        ? const <String, dynamic>{}
+        : Map<String, dynamic>.from(value as Map);
+    final overrides = json['overrides'];
+    if (overrides != null &&
+        (overrides is! Map || overrides.keys.any((key) => key is! String))) {
+      invalid('normalize.overrides must be an object');
+    }
+    return json;
+  }
+
+  PluginNormalizeOptions _normalizationOptions(
+    Map<String, dynamic> json,
+    RenderSettings settings,
+  ) {
+    final overrides = json['overrides'];
+    return PluginNormalizeOptions.forProfile(
+      PluginNormalizationProfile.parse(json['profile']),
+      displayIgnoreNikud: settings.removeNikud,
+      displayIgnoreTeamim: settings.removeTeamim,
+      overrides: overrides == null
+          ? const {}
+          : Map<String, dynamic>.from(overrides as Map),
+    );
   }
 
   // ----------------------------------------------------------------
@@ -2220,7 +2581,7 @@ class PluginBridgeAdapter {
       return null;
     }
 
-    return {
+    final legacySelection = <String, dynamic>{
       'text': selectedText,
       'start': state.selectedTextStart,
       'end': state.selectedTextEnd,
@@ -2229,6 +2590,40 @@ class PluginBridgeAdapter {
       'currentBookId': currentTab.title,
       'currentIndex': currentTab.index,
     };
+
+    final start = state.selectedTextStart;
+    final end = state.selectedTextEnd;
+    final sectionIndex = state.selectedTextSectionIndex ?? currentTab.index;
+    if (start == null ||
+        end == null ||
+        sectionIndex < 0 ||
+        sectionIndex >= state.content.length) {
+      return legacySelection;
+    }
+
+    final selection = const ReaderSelectionService().build(
+      bookId: currentTab.title,
+      bookTitle: currentTab.title,
+      sectionIndex: sectionIndex,
+      rawText: state.content[sectionIndex],
+      settings: RenderSettings(
+        removeNikud: state.removeNikud,
+        removePunctuation: state.removePunctuation,
+        removeTeamim:
+            !(Settings.getValue<bool>(SettingsRepository.keyShowTeamim) ??
+                true),
+        replaceHolyNames:
+            Settings.getValue<bool>(
+              SettingsRepository.keyReplaceHolyNames,
+            ) ??
+            false,
+      ),
+      renderedStartUtf16: start,
+      renderedEndUtf16: end,
+      currentRef: currentRef,
+    );
+    if (selection == null) return legacySelection;
+    return {...legacySelection, ...selection.toJson()};
   }
 
   String? _currentBookId() {

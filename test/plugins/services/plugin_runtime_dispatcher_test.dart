@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/plugins/models/plugin_context_menu_item.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
+import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 
 // ── fake repository לשליטה ב-enabled/permission בלי SQLite ────────────────
@@ -102,8 +104,8 @@ class _SlowController extends Fake implements InAppWebViewController {
     final kind = source.contains('suspended')
         ? 'suspended'
         : source.contains('resumed')
-            ? 'resumed'
-            : 'other';
+        ? 'resumed'
+        : 'other';
     log.add('$name:js:$kind');
     return null;
   }
@@ -138,32 +140,34 @@ void main() {
     dispatcher.unregisterController('__test_reset__');
   });
 
-  test('prepareForAppShutdown tears down controllers and blocks re-registering',
-      () async {
-    final firstController = _FakeWebViewController();
-    dispatcher.registerController('plugin-a', firstController);
+  test(
+    'prepareForAppShutdown tears down controllers and blocks re-registering',
+    () async {
+      final firstController = _FakeWebViewController();
+      dispatcher.registerController('plugin-a', firstController);
 
-    await dispatcher.prepareForAppShutdown();
+      await dispatcher.prepareForAppShutdown();
 
-    expect(firstController.loadUrlCalls, 1);
-    expect(
-      firstController.lastUrlRequest?.url?.toString(),
-      'about:blank',
-    );
+      expect(firstController.loadUrlCalls, 1);
+      expect(
+        firstController.lastUrlRequest?.url?.toString(),
+        'about:blank',
+      );
 
-    final lateController = _FakeWebViewController();
-    dispatcher.registerController('plugin-a', lateController);
+      final lateController = _FakeWebViewController();
+      dispatcher.registerController('plugin-a', lateController);
 
-    await dispatcher.dispatchEventToPlugin(
-      'plugin-a',
-      'reader.current_ref_changed',
-      {'currentBook': 'בראשית'},
-    );
+      await dispatcher.dispatchEventToPlugin(
+        'plugin-a',
+        'reader.current_ref_changed',
+        {'currentBook': 'בראשית'},
+      );
 
-    expect(lateController.evaluateJavascriptCalls, 0);
+      expect(lateController.evaluateJavascriptCalls, 0);
 
-    await dispatcher.prepareForAppRestart();
-  });
+      await dispatcher.prepareForAppRestart();
+    },
+  );
 
   // ── register / unregister ─────────────────────────────────────────────────
 
@@ -195,27 +199,27 @@ void main() {
     });
   });
 
-  // ── foreground-preference selection logic ─────────────────────────────────
+  // ── background-preference selection logic ─────────────────────────────────
   //
   // בודק את הלוגיקה שהוספנו ב-dispatchEvent ו-dispatchEventToPlugin:
-  //   final targets = instances.containsKey('default')
-  //       ? [instances['default']!]
-  //       : instances.values.toList();
+  // אירועי עבודה נשלחים לרקע שאינו מושהה; בהיעדרו נופלים ל-foreground.
   //
   // הטסטים מכסים את ארבע הצירופים האפשריים של instances.
 
-  group('foreground-preference selection', () {
+  group('background-preference selection', () {
     Map<String, String> selectTargets(Map<String, String> instances) =>
-        instances.containsKey('default')
-            ? {'default': instances['default']!}
-            : Map.fromEntries(instances.entries);
+        instances.containsKey('background')
+        ? {'background': instances['background']!}
+        : instances.containsKey('default')
+        ? {'default': instances['default']!}
+        : Map.fromEntries(instances.entries);
 
-    test('כשיש foreground וגם background — נבחר רק foreground', () {
+    test('כשיש foreground וגם background — נבחר רק background', () {
       final instances = {'default': 'fg', 'background': 'bg'};
       final result = selectTargets(instances);
-      expect(result.keys, equals(['default']));
-      expect(result.values, equals(['fg']));
-      expect(result.containsValue('bg'), isFalse);
+      expect(result.keys, equals(['background']));
+      expect(result.values, equals(['bg']));
+      expect(result.containsValue('fg'), isFalse);
     });
 
     test('כשיש רק background — נבחר background', () {
@@ -236,13 +240,140 @@ void main() {
       expect(result, isEmpty);
     });
 
-    test(
-        'instance נוסף (לא default/background) — נבחר גם הוא בהיעדר foreground',
-        () {
+    test('instance נוסף אינו נבחר כשקיים background', () {
       final instances = {'background': 'bg', 'extra': 'ex'};
       final result = selectTargets(instances);
       expect(result.containsKey('background'), isTrue);
-      expect(result.containsKey('extra'), isTrue);
+      expect(result.containsKey('extra'), isFalse);
+    });
+  });
+
+  group('event routing policy', () {
+    const pluginId = 'routing.test.plugin';
+
+    setUp(() {
+      _d.repositoryForTesting = _FakeRegistryRepo(
+        enabled: true,
+        permission: true,
+      );
+      _d.invalidatePlugin(pluginId);
+    });
+
+    tearDown(() {
+      _d.unregisterController(pluginId);
+      _d.unregisterController(pluginId, instanceId: 'background');
+      _d.repositoryForTesting = PluginRegistryRepository();
+    });
+
+    test(
+      'UI broadcast is delivered to foreground when both hosts exist',
+      () async {
+        final foreground = _LifecycleFakeController();
+        final background = _LifecycleFakeController();
+        _d.registerController(pluginId, foreground);
+        _d.registerController(
+          pluginId,
+          background,
+          instanceId: 'background',
+        );
+
+        await _d.dispatchEvent('navigation.changed', {'screen': 'library'});
+
+        expect(foreground.jsEvents, hasLength(1));
+        expect(foreground.jsEvents.single, contains('navigation.changed'));
+        expect(background.jsEvents, isEmpty);
+      },
+    );
+
+    test(
+      'theme.changed keeps its foreground behavior when both hosts exist',
+      () async {
+        final foreground = _LifecycleFakeController();
+        final background = _LifecycleFakeController();
+        _d.registerController(pluginId, foreground);
+        _d.registerController(
+          pluginId,
+          background,
+          instanceId: 'background',
+        );
+
+        await _d.dispatchEvent('theme.changed', {'mode': 'dark'});
+
+        expect(foreground.jsEvents, hasLength(1));
+        expect(foreground.jsEvents.single, contains('theme.changed'));
+        expect(background.jsEvents, isEmpty);
+      },
+    );
+
+    test('dedicated work broadcast is delivered to background', () async {
+      final foreground = _LifecycleFakeController();
+      final background = _LifecycleFakeController();
+      _d.registerController(pluginId, foreground);
+      _d.registerController(
+        pluginId,
+        background,
+        instanceId: 'background',
+      );
+
+      await _d.dispatchEvent('reader.sectionContentChanged', {'revision': 2});
+
+      expect(foreground.jsEvents, isEmpty);
+      expect(background.jsEvents, hasLength(1));
+      expect(
+        background.jsEvents.single,
+        contains('reader.sectionContentChanged'),
+      );
+    });
+
+    test(
+      'background work falls back to foreground when no background exists',
+      () async {
+        final foreground = _LifecycleFakeController();
+        _d.registerController(pluginId, foreground);
+
+        await _d.dispatchEvent('reader.sectionContentChanged', {'revision': 3});
+
+        expect(foreground.jsEvents, hasLength(1));
+      },
+    );
+
+    test(
+      'foreground event falls back to background when no foreground exists',
+      () async {
+        final background = _LifecycleFakeController();
+        _d.registerController(
+          pluginId,
+          background,
+          instanceId: 'background',
+        );
+
+        await _d.dispatchEvent('theme.changed', {'mode': 'dark'});
+
+        expect(background.jsEvents, hasLength(1));
+        expect(background.jsEvents.single, contains('theme.changed'));
+      },
+    );
+
+    test('targeted context-menu event explicitly prefers background', () async {
+      final foreground = _LifecycleFakeController();
+      final background = _LifecycleFakeController();
+      _d.registerController(pluginId, foreground);
+      _d.registerController(
+        pluginId,
+        background,
+        instanceId: 'background',
+      );
+
+      await _d.dispatchEventToPlugin(
+        pluginId,
+        'marker.customColorClick',
+        {'color': 'yellow'},
+        preferBackground: true,
+      );
+
+      expect(foreground.jsEvents, isEmpty);
+      expect(background.jsEvents, hasLength(1));
+      expect(background.jsEvents.single, contains('marker.customColorClick'));
     });
   });
 
@@ -255,6 +386,25 @@ void main() {
       await expectLater(_d.reloadPlugin(_kPid), completes);
     });
 
+    test(
+      'reload clears stale context-menu items without an active host',
+      () async {
+        ContextMenuRegistry.instance.register(
+          _kPid,
+          const PluginContextMenuItem(id: 'stale', label: 'Stale'),
+        );
+
+        await _d.reloadPlugin(_kPid);
+
+        expect(
+          ContextMenuRegistry.instance.getAll().where(
+            (record) => record.$1 == _kPid,
+          ),
+          isEmpty,
+        );
+      },
+    );
+
     test('callback רשום מופעל', () async {
       var called = false;
       _d.registerReloadCallback(_kPid, () async {
@@ -262,6 +412,24 @@ void main() {
       });
       await _d.reloadPlugin(_kPid);
       expect(called, isTrue);
+    });
+
+    test('reload clears stale context-menu items before callbacks', () async {
+      var registryWasCleanWhenReloadStarted = false;
+      ContextMenuRegistry.instance.register(
+        _kPid,
+        const PluginContextMenuItem(id: 'stale', label: 'Stale'),
+      );
+      _d.registerReloadCallback(_kPid, () async {
+        registryWasCleanWhenReloadStarted = ContextMenuRegistry.instance
+            .getAll()
+            .where((record) => record.$1 == _kPid)
+            .isEmpty;
+      });
+
+      await _d.reloadPlugin(_kPid);
+
+      expect(registryWasCleanWhenReloadStarted, isTrue);
     });
 
     test('callback מנוסח מחדש לאחר unregister — לא מופעל', () async {
@@ -392,30 +560,36 @@ void main() {
       expect(a.pauseCalls, 1);
     });
 
-    test('חידוש תוסף מסנכרן מחדש את ה-theme האחרון (שאבד בזמן ההשהיה)',
-        () async {
-      _d.repositoryForTesting =
-          _FakeRegistryRepo(enabled: true, permission: true);
-      // dispatchEvent ללא controllers רשומים — שומר רק את ה-payload האחרון
-      // ומדמה החלפת מצב כהה בזמן שהתוסף מושהה.
-      await _d.dispatchEvent('theme.changed', {'mode': 'dark'});
+    test(
+      'חידוש תוסף מסנכרן מחדש את ה-theme האחרון (שאבד בזמן ההשהיה)',
+      () async {
+        _d.repositoryForTesting = _FakeRegistryRepo(
+          enabled: true,
+          permission: true,
+        );
+        // dispatchEvent ללא controllers רשומים — שומר רק את ה-payload האחרון
+        // ומדמה החלפת מצב כהה בזמן שהתוסף מושהה.
+        await _d.dispatchEvent('theme.changed', {'mode': 'dark'});
 
-      final a = _LifecycleFakeController();
-      _d.registerController(pidA, a);
+        final a = _LifecycleFakeController();
+        _d.registerController(pidA, a);
 
-      _d.setSelectedToolPlugin(pidA);
-      await pumpEventQueue();
+        _d.setSelectedToolPlugin(pidA);
+        await pumpEventQueue();
 
-      expect(a.resumeCalls, 1);
-      expect(
-        a.jsEvents,
-        contains(allOf(contains('theme.changed'), contains('dark'))),
-      );
-    });
+        expect(a.resumeCalls, 1);
+        expect(
+          a.jsEvents,
+          contains(allOf(contains('theme.changed'), contains('dark'))),
+        );
+      },
+    );
 
     test('חידוש לא שולח theme כשאין הרשאת events.subscribe', () async {
-      _d.repositoryForTesting =
-          _FakeRegistryRepo(enabled: true, permission: false);
+      _d.repositoryForTesting = _FakeRegistryRepo(
+        enabled: true,
+        permission: false,
+      );
       await _d.dispatchEvent('theme.changed', {'mode': 'dark'});
 
       final a = _LifecycleFakeController();
@@ -463,44 +637,49 @@ void main() {
       _d.unregisterController(pidB);
     });
 
-    test('reconcile חופף לא רץ עד שהקודם הסתיים, והפעולות אינן משתלבות',
-        () async {
-      final log = <String>[];
-      final a = _SlowController('a', log);
-      final b = _SlowController('b', log);
-      _d.registerController(pidA, a);
-      _d.registerController(pidB, b);
+    test(
+      'reconcile חופף לא רץ עד שהקודם הסתיים, והפעולות אינן משתלבות',
+      () async {
+        final log = <String>[];
+        final a = _SlowController('a', log);
+        final b = _SlowController('b', log);
+        _d.registerController(pidA, a);
+        _d.registerController(pidB, b);
 
-      // חוסמים את resume של A כדי לדמות reconcile איטי שעדיין רץ.
-      a.resumeGate = Completer<void>();
+        // חוסמים את resume של A כדי לדמות reconcile איטי שעדיין רץ.
+        a.resumeGate = Completer<void>();
 
-      _d.setSelectedToolPlugin(pidA); // reconcile #1: resume A (נחסם)
-      await pumpEventQueue();
-      // המעבר ל-B נכנס לתור — אסור שיתחיל כל עוד #1 חסום.
-      _d.setSelectedToolPlugin(pidB);
-      await pumpEventQueue();
-      expect(log, equals(['a:resume:start']),
-          reason: 'reconcile #2 לא אמור להתחיל בזמן ש-#1 חסום');
+        _d.setSelectedToolPlugin(pidA); // reconcile #1: resume A (נחסם)
+        await pumpEventQueue();
+        // המעבר ל-B נכנס לתור — אסור שיתחיל כל עוד #1 חסום.
+        _d.setSelectedToolPlugin(pidB);
+        await pumpEventQueue();
+        expect(
+          log,
+          equals(['a:resume:start']),
+          reason: 'reconcile #2 לא אמור להתחיל בזמן ש-#1 חסום',
+        );
 
-      // משחררים את #1; כעת #2 רץ אחריו ברצף.
-      a.resumeGate!.complete();
-      await pumpEventQueue();
+        // משחררים את #1; כעת #2 רץ אחריו ברצף.
+        a.resumeGate!.complete();
+        await pumpEventQueue();
 
-      expect(
-        log,
-        equals([
-          'a:resume:start',
-          'a:resume:end',
-          'a:js:resumed',
-          'a:js:suspended',
-          'a:pause:start',
-          'a:pause:end',
-          'b:resume:start',
-          'b:resume:end',
-          'b:js:resumed',
-        ]),
-      );
-    });
+        expect(
+          log,
+          equals([
+            'a:resume:start',
+            'a:resume:end',
+            'a:js:resumed',
+            'a:js:suspended',
+            'a:pause:start',
+            'a:pause:end',
+            'b:resume:start',
+            'b:resume:end',
+            'b:js:resumed',
+          ]),
+        );
+      },
+    );
   });
 
   // ── controller שנרשם אחרי הבחירה (טעינה ראשונה / נטען לרקע) ───────────────

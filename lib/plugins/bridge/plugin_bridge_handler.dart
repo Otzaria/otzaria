@@ -206,9 +206,15 @@ class PluginBridgeHandler {
         switch (action) {
           case 'addContextMenuItem':
           case 'removeContextMenuItem':
+          case 'updateContextMenuItem':
             return 'reader.context_menu';
+          case 'findTextOccurrences':
+          case 'getSectionTextMap':
+            return 'reader.open';
           case 'setHighlight':
+          case 'updateHighlight':
           case 'getHighlights':
+          case 'revealHighlight':
           case 'clearHighlight':
           case 'clearAllHighlights':
             return 'reader.highlight';

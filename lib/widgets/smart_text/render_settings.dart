@@ -178,6 +178,25 @@ class RenderSettings {
     this.partialWordHighlight = false,
   });
 
+  /// Stable signature for reader content snapshots.
+  ///
+  /// Search query state and result highlighting are intentionally excluded:
+  /// navigating search results is transient UI state, not a section-content
+  /// or persistent rendering change.
+  Object get sectionContentRenderingSignature => (
+    removeNikud: removeNikud,
+    removePunctuation: removePunctuation,
+    removeTeamim: removeTeamim,
+    replaceHolyNames: replaceHolyNames,
+    fontSize: fontSize,
+    fontFamily: fontFamily,
+    fontWeight: fontWeight,
+    lineHeight: lineHeight,
+    enableInlineLinks: enableInlineLinks,
+    formatParentheses: formatParentheses,
+    justifyText: justifyText,
+  );
+
   /// יוצר עותק עם שינויים
   RenderSettings copyWith({
     bool? removeNikud,
