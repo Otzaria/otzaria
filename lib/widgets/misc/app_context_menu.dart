@@ -420,6 +420,14 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
     // התווית לא יגלוש (כמו submenuContentMaxWidth בתת-התפריט).
     final contentMaxWidth = maxWidth - metrics.itemPadding.horizontal;
     return entries.map<Widget>((entry) {
+      if (entry.colorRowActions != null) {
+        return _AppContextMenuColorRow(
+          actions: entry.colorRowActions!,
+          metrics: metrics,
+          maxWidth: maxWidth,
+          closeMenu: _closeContextMenu,
+        );
+      }
       if (entry.iconRowActions != null) {
         return _AppContextMenuIconRow(
           actions: entry.iconRowActions!,
@@ -603,6 +611,14 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
     final submenuContentMaxWidth = maxWidth - metrics.itemPadding.horizontal;
 
     return entries.map((entry) {
+      if (entry.colorRowActions != null) {
+        return _AppContextMenuColorRow(
+          actions: entry.colorRowActions!,
+          metrics: metrics,
+          maxWidth: maxWidth,
+          closeMenu: _closeContextMenu,
+        );
+      }
       if (entry.isDivider) {
         return const Padding(
           padding: EdgeInsets.symmetric(vertical: 4),
@@ -1455,6 +1471,90 @@ class _HoverableHighlightedRow extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════════
 // _AppContextMenuIconRow — שורת כפתורי אייקון בראש התפריט (סגנון Windows 11)
 // ═══════════════════════════════════════════════════════════════════════════
+
+class _AppContextMenuColorRow extends StatelessWidget {
+  final List<AppContextMenuColorAction> actions;
+  final AppMenuMetrics metrics;
+  final double maxWidth;
+  final VoidCallback closeMenu;
+
+  const _AppContextMenuColorRow({
+    required this.actions,
+    required this.metrics,
+    required this.maxWidth,
+    required this.closeMenu,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: SizedBox(
+        key: const ValueKey('context-color-row'),
+        height: metrics.itemHeight,
+        child: Center(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final action in actions)
+                  Tooltip(
+                    message: action.label,
+                    child: Semantics(
+                      button: true,
+                      selected: action.selected,
+                      label: action.label,
+                      child: InkWell(
+                        key: ValueKey('context-color-${action.id}'),
+                        onTap: action.onTap == null
+                            ? null
+                            : () {
+                                closeMenu();
+                                action.onTap!.call();
+                              },
+                        borderRadius: BorderRadius.circular(6),
+                        child: SizedBox.square(
+                          dimension: 32,
+                          child: Center(
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 120),
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: action.icon == null
+                                    ? action.color
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(5),
+                                border: Border.all(
+                                  color: action.selected
+                                      ? colorScheme.primary
+                                      : colorScheme.outlineVariant,
+                                  width: action.selected ? 3 : 1,
+                                ),
+                              ),
+                              child: action.icon == null
+                                  ? null
+                                  : Icon(
+                                      action.icon,
+                                      size: 18,
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _AppContextMenuIconRow extends StatelessWidget {
   final List<AppContextMenuIconAction> actions;

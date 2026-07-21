@@ -1093,7 +1093,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
         if (query.isNotEmpty) {
           context.read<FindRefBloc>().add(SearchRefRequested(query));
         }
-        _handleFindRefOpen(context, transparentBarrier: false);
+        _handleFindRefOpen(context);
         return true;
       case OpenInspectionAction():
         context.read<NavigationBloc>().add(
@@ -1792,11 +1792,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     focusRepository.findRefSearchController.selection =
         const TextSelection.collapsed(offset: 'בראשית'.length);
     context.read<FindRefBloc>().add(const SearchRefRequested('בראשית'));
-    _handleFindRefOpen(
-      context,
-      closeIfOpen: false,
-      transparentBarrier: true,
-    );
+    _handleFindRefOpen(context, closeIfOpen: false);
     _scheduleBringTourOverlayToFront(remainingFrames: 6);
   }
 
@@ -3330,7 +3326,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
   void _handleFindRefOpen(
     BuildContext context, {
     bool closeIfOpen = true,
-    bool transparentBarrier = true,
   }) {
     if (_isFindRefOpen) {
       if (closeIfOpen) {
@@ -3346,9 +3341,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     showDialog(
       context: context,
       useRootNavigator: true,
-      barrierColor: transparentBarrier
-          ? Colors.transparent
-          : Theme.of(context).colorScheme.scrim.withValues(alpha: 0.62),
+      barrierColor: Colors.transparent,
       builder: (context) => FindRefDialog(),
     ).then((_) {
       if (!mounted) return;

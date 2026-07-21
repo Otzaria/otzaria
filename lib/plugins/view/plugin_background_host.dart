@@ -118,6 +118,12 @@ class _PluginBackgroundHostState extends State<PluginBackgroundHost> {
   /// משמש כדי למנוע בקשות חוזרות מקבילות.
   final Set<String> _pluginsBeingEvaluated = {};
 
+  /// הסנכרון אסינכרוני (בדיקת Runtime והרשאות ב-SQLite). התקנה/עדכון יכולים
+  /// להגיע בזמן שסנכרון קודם עדיין רץ. במקום לדלג על הרשימה החדשה, שומרים את
+  /// הרשימה העדכנית ומעבדים אותה מיד לאחר הסבב הנוכחי.
+  List<InstalledPlugin>? _pendingPlugins;
+  bool _syncInProgress = false;
+
   /// האם WebView2 Runtime זמין. ברגע שנמצא זמין הערך נשמר ולא נבדק שוב —
   /// Runtime אינו "נעלם" בזמן ריצה. אך כל עוד הוא חסר, הבדיקה חוזרת בכל
   /// סנכרון: כך אם המשתמש מתקין WebView2 בזמן שהאפליקציה פתוחה, הסנכרון
@@ -136,7 +142,7 @@ class _PluginBackgroundHostState extends State<PluginBackgroundHost> {
       if (!mounted) return;
       final state = context.read<PluginSystemBloc>().state;
       if (state is PluginSystemLoaded) {
-        _syncBackgroundPlugins(state.plugins);
+        _queueBackgroundSync(state.plugins);
       }
     });
   }
@@ -146,7 +152,7 @@ class _PluginBackgroundHostState extends State<PluginBackgroundHost> {
     return BlocListener<PluginSystemBloc, PluginSystemState>(
       listener: (context, state) {
         if (state is PluginSystemLoaded) {
-          _syncBackgroundPlugins(state.plugins);
+          _queueBackgroundSync(state.plugins);
         }
       },
       child: Offstage(
@@ -174,6 +180,29 @@ class _PluginBackgroundHostState extends State<PluginBackgroundHost> {
         ),
       ),
     );
+  }
+
+  void _queueBackgroundSync(List<InstalledPlugin> plugins) {
+    _pendingPlugins = List<InstalledPlugin>.of(plugins);
+    if (_syncInProgress) return;
+    unawaited(_drainBackgroundSyncQueue());
+  }
+
+  Future<void> _drainBackgroundSyncQueue() async {
+    _syncInProgress = true;
+    try {
+      while (mounted && _pendingPlugins != null) {
+        final plugins = _pendingPlugins!;
+        _pendingPlugins = null;
+        await _syncBackgroundPlugins(plugins);
+      }
+    } finally {
+      _syncInProgress = false;
+      // רשימה יכולה להגיע בדיוק בין תנאי ה-while ל-finally.
+      if (mounted && _pendingPlugins != null) {
+        _queueBackgroundSync(_pendingPlugins!);
+      }
+    }
   }
 
   Future<void> _syncBackgroundPlugins(List<InstalledPlugin> plugins) async {

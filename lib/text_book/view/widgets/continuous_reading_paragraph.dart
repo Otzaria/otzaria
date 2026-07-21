@@ -4,6 +4,8 @@ import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
+import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
+import 'package:otzaria/plugins/view/plugin_highlight_frame_overlay.dart';
 
 /// תגובה ללחיצה על קישור inline בתוך פסקה של מצב טקסט רציף.
 /// יוחזר `true` אם הטיפול בקישור הסתיים והעיבוד הרגיל (לחיצה על שורה) לא נדרש.
@@ -21,12 +23,14 @@ class ContinuousReadingParagraphLine {
   final String text;
   final String? htmlText;
   final TextStyle style;
+  final List<PluginHighlightRenderedRange> frameRanges;
 
   const ContinuousReadingParagraphLine({
     required this.lineIndex,
     required this.text,
     required this.style,
     this.htmlText,
+    this.frameRanges = const [],
   });
 }
 
@@ -115,6 +119,8 @@ class _ContinuousReadingParagraphState
     _disposeLinkRecognizers();
 
     final spans = <InlineSpan>[];
+    final frameRanges = <PluginHighlightRenderedRange>[];
+    var graphemeOffset = 0;
     for (var i = 0; i < widget.lines.length; i++) {
       final line = widget.lines[i];
       final hasNext = i < widget.lines.length - 1;
@@ -122,15 +128,29 @@ class _ContinuousReadingParagraphState
       for (final span in lineSpans) {
         spans.add(_withRecognizer(span, _lineRecognizers[i], line.style));
       }
+      for (final range in line.frameRanges) {
+        final mode = range.highlight.style.markerMode;
+        if (mode == 'text-background' || mode == 'box') {
+          frameRanges.add(
+            PluginHighlightRenderedRange(
+              start: range.start + graphemeOffset,
+              end: range.end + graphemeOffset,
+              highlight: range.highlight,
+            ),
+          );
+        }
+      }
+      graphemeOffset += line.text.characters.length;
       if (hasNext) {
         spans.add(TextSpan(text: ' ', style: line.style));
+        graphemeOffset++;
       }
     }
 
     final textSpan = TextSpan(style: widget.baseStyle, children: spans);
     return LayoutBuilder(
       builder: (context, constraints) {
-        return Text.rich(
+        final text = Text.rich(
           textSpan,
           textAlign: _effectiveTextAlign(
             textSpan: textSpan,
@@ -138,6 +158,8 @@ class _ContinuousReadingParagraphState
             textScaler: MediaQuery.textScalerOf(context),
           ),
         );
+        if (frameRanges.isEmpty) return text;
+        return PluginHighlightFrameOverlay(ranges: frameRanges, child: text);
       },
     );
   }
@@ -390,6 +412,13 @@ TextStyle _styleForElement(dom.Element element, TextStyle parentStyle) {
   if (inlineBackground != null) {
     style = style.copyWith(backgroundColor: inlineBackground);
   }
+  if (_hasTextDecoration(element, 'underline')) {
+    style = style.copyWith(
+      decoration: TextDecoration.underline,
+      decorationColor: _inlineDecorationColor(element),
+      decorationThickness: _inlineDecorationThickness(element),
+    );
+  }
 
   return style;
 }
@@ -415,8 +444,40 @@ Color? _inlineBackgroundColor(dom.Element element) {
   return _parseCssColor(match.group(1)!.trim());
 }
 
+Color? _inlineDecorationColor(dom.Element element) {
+  final inlineStyle = element.attributes['style'] ?? '';
+  final match = RegExp(
+    r'text-decoration-color\s*:\s*([^;]+)',
+    caseSensitive: false,
+  ).firstMatch(inlineStyle);
+  if (match == null) return null;
+  return _parseCssColor(match.group(1)!.trim());
+}
+
+double? _inlineDecorationThickness(dom.Element element) {
+  final inlineStyle = element.attributes['style'] ?? '';
+  final match = RegExp(
+    r'text-decoration-thickness\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*px',
+    caseSensitive: false,
+  ).firstMatch(inlineStyle);
+  return match == null ? null : double.tryParse(match.group(1)!);
+}
+
 Color? _parseCssColor(String value) {
   final v = value.toLowerCase().trim();
+  final rgba = RegExp(
+    r'^rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(0(?:\.\d+)?|\.\d+|1(?:\.0+)?)\s*\)$',
+  ).firstMatch(v);
+  if (rgba != null) {
+    final red = int.parse(rgba.group(1)!).clamp(0, 255).toInt();
+    final green = int.parse(rgba.group(2)!).clamp(0, 255).toInt();
+    final blue = int.parse(rgba.group(3)!).clamp(0, 255).toInt();
+    final alpha = (double.parse(rgba.group(4)!) * 255)
+        .round()
+        .clamp(0, 255)
+        .toInt();
+    return Color.fromARGB(alpha, red, green, blue);
+  }
   // צבעים פשוטים שהחיפוש משתמש בהם.
   switch (v) {
     case 'red':
@@ -443,8 +504,9 @@ Color? _parseCssColor(String value) {
       if (n != null) return Color(0xFF000000 | n);
     }
     if (hex.length == 8) {
-      final n = int.tryParse(hex, radix: 16);
-      if (n != null) return Color(n);
+      final rgb = int.tryParse(hex.substring(0, 6), radix: 16);
+      final alpha = int.tryParse(hex.substring(6, 8), radix: 16);
+      if (rgb != null && alpha != null) return Color((alpha << 24) | rgb);
     }
   }
   return null;
@@ -474,6 +536,14 @@ bool _hasFontStyle(dom.Element element, String value) {
   final inlineStyle = element.attributes['style'] ?? '';
   return RegExp(
     'font-style\\s*:\\s*$value',
+    caseSensitive: false,
+  ).hasMatch(inlineStyle);
+}
+
+bool _hasTextDecoration(dom.Element element, String value) {
+  final inlineStyle = element.attributes['style'] ?? '';
+  return RegExp(
+    'text-decoration\\s*:\\s*[^;]*\\b$value\\b',
     caseSensitive: false,
   ).hasMatch(inlineStyle);
 }

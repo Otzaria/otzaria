@@ -79,6 +79,24 @@ class AppContextMenuIconAction {
   });
 }
 
+class AppContextMenuColorAction {
+  final String id;
+  final Color color;
+  final String label;
+  final IconData? icon;
+  final VoidCallback? onTap;
+  final bool selected;
+
+  const AppContextMenuColorAction({
+    required this.id,
+    required this.color,
+    required this.label,
+    this.icon,
+    this.onTap,
+    this.selected = false,
+  });
+}
+
 /// פריט פעולה פשוט בתת-תפריט של כפתור אייקון בשורה העליונה.
 /// מכיל בדיוק את מה שתת-התפריט מרנדר — בלי divider/trailing/קינון של
 /// [AppContextMenuEntry] שלא נתמכים שם.
@@ -124,6 +142,7 @@ class AppContextMenuEntry {
   /// כשמוגדר, הערך מרונדר כשורה אופקית של כפתורי אייקון בראש התפריט
   /// (סגנון Windows 11) במקום שורת טקסט רגילה.
   final List<AppContextMenuIconAction>? iconRowActions;
+  final List<AppContextMenuColorAction>? colorRowActions;
 
   const AppContextMenuEntry({
     required this.label,
@@ -140,46 +159,69 @@ class AppContextMenuEntry {
     this.childrenBuilder,
     this.childrenRefreshStream,
     this.hoverPreviewBuilder,
-  })  : iconRowActions = null,
-        isDivider = false;
+  }) : iconRowActions = null,
+       colorRowActions = null,
+       isDivider = false;
 
   /// שורת כפתורי אייקון בראש התפריט (סגנון Windows 11).
   const AppContextMenuEntry.iconRow(List<AppContextMenuIconAction> actions)
-      : assert(actions.length > 0, 'iconRow דורש לפחות פעולה אחת'),
-        iconRowActions = actions,
-        key = null,
-        label = null,
-        labelWidget = null,
-        icon = null,
-        enabled = true,
-        isDivider = false,
-        isDestructive = false,
-        isSelected = false,
-        isHighlighted = false,
-        onTap = null,
-        trailing = null,
-        children = null,
-        childrenBuilder = null,
-        childrenRefreshStream = null,
-        hoverPreviewBuilder = null;
+    : assert(actions.length > 0, 'iconRow דורש לפחות פעולה אחת'),
+      iconRowActions = actions,
+      colorRowActions = null,
+      key = null,
+      label = null,
+      labelWidget = null,
+      icon = null,
+      enabled = true,
+      isDivider = false,
+      isDestructive = false,
+      isSelected = false,
+      isHighlighted = false,
+      onTap = null,
+      trailing = null,
+      children = null,
+      childrenBuilder = null,
+      childrenRefreshStream = null,
+      hoverPreviewBuilder = null;
+
+  const AppContextMenuEntry.colorRow(List<AppContextMenuColorAction> actions)
+    : assert(actions.length > 0, 'colorRow דורש לפחות צבע אחד'),
+      colorRowActions = actions,
+      iconRowActions = null,
+      key = null,
+      label = null,
+      labelWidget = null,
+      icon = null,
+      enabled = true,
+      isDivider = false,
+      isDestructive = false,
+      isSelected = false,
+      isHighlighted = false,
+      onTap = null,
+      trailing = null,
+      children = null,
+      childrenBuilder = null,
+      childrenRefreshStream = null,
+      hoverPreviewBuilder = null;
 
   const AppContextMenuEntry.divider()
-      : key = null,
-        label = null,
-        labelWidget = null,
-        icon = null,
-        enabled = false,
-        isDivider = true,
-        isDestructive = false,
-        isSelected = false,
-        isHighlighted = false,
-        onTap = null,
-        trailing = null,
-        children = null,
-        childrenBuilder = null,
-        childrenRefreshStream = null,
-        hoverPreviewBuilder = null,
-        iconRowActions = null;
+    : key = null,
+      label = null,
+      labelWidget = null,
+      icon = null,
+      enabled = false,
+      isDivider = true,
+      isDestructive = false,
+      isSelected = false,
+      isHighlighted = false,
+      onTap = null,
+      trailing = null,
+      children = null,
+      childrenBuilder = null,
+      childrenRefreshStream = null,
+      hoverPreviewBuilder = null,
+      iconRowActions = null,
+      colorRowActions = null;
 }
 
 bool hasEnabledAppContextMenuEntries(List<AppContextMenuEntry> entries) {
@@ -381,13 +423,14 @@ Future<T?> showAnchoredAppMenu<T>({
   required BuildContext context,
   required BuildContext anchorContext,
   required List<PopupMenuEntry<T>> Function(AppMenuMetrics metrics)
-      itemsBuilder,
+  itemsBuilder,
   PopupMenuPosition position = PopupMenuPosition.under,
   Offset offset = const Offset(0, 4),
   T? initialValue,
   double? minWidth,
 }) async {
-  final metrics = Theme.of(context).extension<AppMenuMetrics>() ??
+  final metrics =
+      Theme.of(context).extension<AppMenuMetrics>() ??
       AppMenuMetrics.create(compactMenus: false);
   final items = itemsBuilder(metrics);
   if (items.isEmpty) return null;
@@ -399,7 +442,8 @@ Future<T?> showAnchoredAppMenu<T>({
     Offset.zero & renderBox.size,
   );
 
-  final menuHeight = items.fold<double>(
+  final menuHeight =
+      items.fold<double>(
         metrics.menuPadding.vertical,
         (sum, item) => sum + item.height,
       ) +
@@ -430,8 +474,9 @@ Future<T?> showAnchoredAppMenu<T>({
     initialValue: initialValue,
     // רוחב מינימלי: רוחב הטריגר, או רוחב התוכן הרצוי (calculateAppMenuPreferredWidth) — הגדול מביניהם.
     // התוכן בפועל עדיין קובע את הרוחב הסופי (IntrinsicWidth בתוך _PopupMenu).
-    constraints:
-        BoxConstraints(minWidth: max(targetRect.width, minWidth ?? 0.0)),
+    constraints: BoxConstraints(
+      minWidth: max(targetRect.width, minWidth ?? 0.0),
+    ),
   );
 }
 
@@ -457,7 +502,8 @@ Future<T?> showAnchoredAppSearchMenu<T>({
 }) async {
   if (entries.isEmpty) return null;
 
-  final metrics = Theme.of(context).extension<AppMenuMetrics>() ??
+  final metrics =
+      Theme.of(context).extension<AppMenuMetrics>() ??
       AppMenuMetrics.create(compactMenus: false);
 
   final renderBox = anchorContext.findRenderObject() as RenderBox;
@@ -472,7 +518,8 @@ Future<T?> showAnchoredAppSearchMenu<T>({
   const double filterRowHeight = 40.0;
   const int maxItemsVisible = 8;
   final hasFilters = filterLabels != null && filterLabels.isNotEmpty;
-  final maxMenuHeight = searchBarHeight +
+  final maxMenuHeight =
+      searchBarHeight +
       (hasFilters ? filterRowHeight : 0.0) +
       (metrics.itemHeight * maxItemsVisible) +
       metrics.menuPadding.vertical +
@@ -498,21 +545,24 @@ Future<T?> showAnchoredAppSearchMenu<T>({
   // לפריט הארוך ביותר, רוחב שורת צ'יפי הסינון (כדי שכולם ייראו בלי גלילה),
   // ורוחב השדה המפעיל. מוגבל לרוחב ה-overlay כדי שה-clamp לא יקבל גבול שלילי.
   final preferredWidth = calculateAppMenuPreferredWidth(metrics, entries);
-  final filterRowWidth =
-      hasFilters ? _calculateFilterRowWidth(metrics, filterLabels) : 0.0;
+  final filterRowWidth = hasFilters
+      ? _calculateFilterRowWidth(metrics, filterLabels)
+      : 0.0;
   final effectiveWidth = [
     menuMinWidth ?? 0.0,
     preferredWidth,
     filterRowWidth,
-    targetRect.width
+    targetRect.width,
   ].reduce(max).clamp(0.0, overlay.size.width);
   // ברירת מחדל (RTL): הקצה הימני של התפריט מיושר לקצה הימני של הכפתור,
   // והתפריט מתרחב שמאלה. אם ההתרחבות שמאלה חורגת מקצה החלון — מיישרים לקצה
   // השמאלי של הכפתור ומתרחבים ימינה (פנימה), כדי שהתפריט לא יבלוט מהחלון.
   final rawMenuLeft = targetRect.right - effectiveWidth;
   final maxLeft = max(0.0, overlay.size.width - effectiveWidth);
-  final menuLeft =
-      (rawMenuLeft >= 0 ? rawMenuLeft : targetRect.left).clamp(0.0, maxLeft);
+  final menuLeft = (rawMenuLeft >= 0 ? rawMenuLeft : targetRect.left).clamp(
+    0.0,
+    maxLeft,
+  );
 
   return Navigator.of(context).push<T>(
     _AnchoredSearchMenuRoute<T>(
@@ -626,8 +676,9 @@ class _AnchoredSearchMenuContentState<T>
   void initState() {
     super.initState();
     final filterCount = widget.filterLabels?.length ?? 0;
-    _activeFilter =
-        filterCount == 0 ? 0 : widget.initialFilter.clamp(0, filterCount - 1);
+    _activeFilter = filterCount == 0
+        ? 0
+        : widget.initialFilter.clamp(0, filterCount - 1);
     _searchController = TextEditingController();
     _searchFocus = FocusNode();
     _scrollController = ScrollController();
@@ -752,9 +803,11 @@ class _AnchoredSearchMenuContentState<T>
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           children: [
-                            for (int i = 0;
-                                i < widget.filterLabels!.length;
-                                i++) ...[
+                            for (
+                              int i = 0;
+                              i < widget.filterLabels!.length;
+                              i++
+                            ) ...[
                               if (i > 0) const SizedBox(width: 6),
                               FilterChip(
                                 label: Text(
@@ -767,8 +820,9 @@ class _AnchoredSearchMenuContentState<T>
                                 selected: _activeFilter == i,
                                 onSelected: (_) {
                                   setState(() => _activeFilter = i);
-                                  WidgetsBinding.instance
-                                      .addPostFrameCallback((_) {
+                                  WidgetsBinding.instance.addPostFrameCallback((
+                                    _,
+                                  ) {
                                     if (mounted &&
                                         _scrollController.hasClients) {
                                       _scrollController.jumpTo(0);
@@ -778,8 +832,9 @@ class _AnchoredSearchMenuContentState<T>
                                 materialTapTargetSize:
                                     MaterialTapTargetSize.shrinkWrap,
                                 visualDensity: VisualDensity.compact,
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 2,
+                                ),
                                 showCheckmark: false,
                               ),
                             ],
@@ -806,12 +861,13 @@ class _AnchoredSearchMenuContentState<T>
                             itemCount: filtered.length,
                             itemBuilder: (ctx, i) {
                               final entry = filtered[i];
-                              final isSelected = widget.initialValue != null &&
+                              final isSelected =
+                                  widget.initialValue != null &&
                                   entry.value == widget.initialValue;
                               return InkWell(
                                 onTap: entry.enabled
                                     ? () =>
-                                        Navigator.of(context).pop(entry.value)
+                                          Navigator.of(context).pop(entry.value)
                                     : null,
                                 child: SizedBox(
                                   width: double.infinity,
@@ -823,21 +879,21 @@ class _AnchoredSearchMenuContentState<T>
                                     // לקבל, כי הוא כבר מחסיר את itemPadding בעצמו.
                                     builder: (ctx, constraints) =>
                                         buildAppMenuRowContent(
-                                      context,
-                                      widget.metrics,
-                                      label: entry.label,
-                                      labelWidget: entry.labelWidget,
-                                      maxWidth: constraints.maxWidth,
-                                      icon: entry.icon,
-                                      trailing: entry.trailing,
-                                      isSelected: isSelected,
-                                      isDestructive: entry.isDestructive,
-                                      enabled: entry.enabled,
-                                      reserveTrailingGap:
-                                          entry.reserveTrailingGap,
-                                      trailingReservedWidth:
-                                          entry.trailingReservedWidth,
-                                    ),
+                                          context,
+                                          widget.metrics,
+                                          label: entry.label,
+                                          labelWidget: entry.labelWidget,
+                                          maxWidth: constraints.maxWidth,
+                                          icon: entry.icon,
+                                          trailing: entry.trailing,
+                                          isSelected: isSelected,
+                                          isDestructive: entry.isDestructive,
+                                          enabled: entry.enabled,
+                                          reserveTrailingGap:
+                                              entry.reserveTrailingGap,
+                                          trailingReservedWidth:
+                                              entry.trailingReservedWidth,
+                                        ),
                                   ),
                                 ),
                               );
@@ -890,15 +946,16 @@ Widget buildAppMenuRowContent(
   final foregroundColor = !enabled
       ? colorScheme.onSurface.withValues(alpha: 0.38)
       : isDestructive
-          ? colorScheme.error
-          : isSelected
-              ? colorScheme.primary
-              : colorScheme.onSurface;
+      ? colorScheme.error
+      : isSelected
+      ? colorScheme.primary
+      : colorScheme.onSurface;
 
   final hasTrailingWidget = isSelected || trailing != null;
   // selected+trailing מציג גם trailing וגם checkmark → slot נוסף.
   // non-selected+trailing+reserve מציג trailing + SizedBox ריק → slot נוסף.
-  final hasExtraSlot = (isSelected && trailing != null) ||
+  final hasExtraSlot =
+      (isSelected && trailing != null) ||
       (!isSelected && reserveTrailingGap && trailing != null);
   final labelMaxWidth = calculateAppMenuLabelMaxWidth(
     metrics,
@@ -914,7 +971,8 @@ Widget buildAppMenuRowContent(
     fontWeight: isSelected ? _kSelectedItemFontWeight : metrics.itemFontWeight,
     color: foregroundColor,
   );
-  final labelChild = labelWidget ??
+  final labelChild =
+      labelWidget ??
       Text(
         label,
         overflow: TextOverflow.ellipsis,
@@ -922,8 +980,9 @@ Widget buildAppMenuRowContent(
       );
 
   final row = Row(
-    mainAxisSize:
-        (isSelected || trailing != null) ? MainAxisSize.max : MainAxisSize.min,
+    mainAxisSize: (isSelected || trailing != null)
+        ? MainAxisSize.max
+        : MainAxisSize.min,
     children: [
       if (icon != null) ...[
         RtlIcon(icon, size: metrics.iconSize, color: foregroundColor),
@@ -1005,7 +1064,8 @@ double? calculateAppMenuLabelMaxWidth(
   final trailingSlot = hasTrailingWidget
       ? (trailingWidth > 0 ? trailingWidth : metrics.iconSize + 8)
       : 0.0;
-  final occupiedWidth = metrics.itemPadding.horizontal +
+  final occupiedWidth =
+      metrics.itemPadding.horizontal +
       (hasLeadingIcon ? metrics.iconSize + 8 : 0) +
       trailingSlot +
       (hasExtraSlot ? metrics.iconSize + 8 : 0);
@@ -1056,7 +1116,8 @@ double calculateAppMenuPreferredWidth<T>(
   }
 
   // תמיד משוריין מקום לסימן ה-✓ שמוצג ליד הפריט הנבחר, יהיה אשר יהיה.
-  final occupiedWidth = metrics.itemPadding.horizontal +
+  final occupiedWidth =
+      metrics.itemPadding.horizontal +
       (hasIcon ? metrics.iconSize + 8 : 0) +
       metrics.iconSize +
       _kCheckmarkGap +
@@ -1098,9 +1159,13 @@ double _calculateFilterRowWidth(AppMenuMetrics metrics, List<String> labels) {
 // buildAppPopupMenuItem
 // ═══════════════════════════════════════════════════════════════════════════
 
-PopupMenuEntry<T> buildAppPopupMenuItem<T>(BuildContext context,
-    AppMenuEntry<T> entry, AppMenuMetrics metrics, T? selectedValue,
-    {Key? key}) {
+PopupMenuEntry<T> buildAppPopupMenuItem<T>(
+  BuildContext context,
+  AppMenuEntry<T> entry,
+  AppMenuMetrics metrics,
+  T? selectedValue, {
+  Key? key,
+}) {
   final isSelected = selectedValue != null && entry.value == selectedValue;
 
   return PopupMenuItem<T>(
@@ -1156,8 +1221,9 @@ ButtonStyle buildAppSubmenuItemStyle(
   final colorScheme = Theme.of(context).colorScheme;
   return ButtonStyle(
     padding: WidgetStatePropertyAll(metrics.itemPadding),
-    minimumSize:
-        WidgetStatePropertyAll(Size(metrics.menuMinWidth, metrics.itemHeight)),
+    minimumSize: WidgetStatePropertyAll(
+      Size(metrics.menuMinWidth, metrics.itemHeight),
+    ),
     visualDensity: metrics.visualDensity,
     shape: WidgetStatePropertyAll(
       RoundedRectangleBorder(
@@ -1324,7 +1390,8 @@ class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
         spaceToRight >= estimatedSubmenuWidth || spaceToRight >= spaceToLeft;
 
     // צבע רקע מה-theme (כמו showMenu)
-    final menuColor = Theme.of(context).popupMenuTheme.color ??
+    final menuColor =
+        Theme.of(context).popupMenuTheme.color ??
         Theme.of(context).colorScheme.surface;
     final menuBorderRadius = AppTokens.borderRadiusAll;
     final menuPadding = widget.metrics.menuPadding;
@@ -1334,8 +1401,10 @@ class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
 
     final menuLeft = openToRight
         ? itemRect.right
-        : (itemRect.left - estimatedSubmenuWidth)
-            .clamp(0.0, overlaySize.width - estimatedSubmenuWidth);
+        : (itemRect.left - estimatedSubmenuWidth).clamp(
+            0.0,
+            overlaySize.width - estimatedSubmenuWidth,
+          );
     final menuTop = itemRect.top.clamp(0.0, overlaySize.height - 10.0);
 
     _overlayEntry = OverlayEntry(
@@ -1458,7 +1527,8 @@ Future<T?> showAppMenu<T>({
   required RelativeRect position,
   required List<AppMenuEntry<T>> entries,
 }) {
-  final metrics = Theme.of(context).extension<AppMenuMetrics>() ??
+  final metrics =
+      Theme.of(context).extension<AppMenuMetrics>() ??
       AppMenuMetrics.create(compactMenus: false);
   return showMenu<T>(
     context: context,

@@ -1071,6 +1071,18 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     _selectedTextForSearch = selectedText;
     _selectedLineForNote = lineIndex;
     _selectedColumnForNote = column;
+    final selectedLines = selectedText?.split('\n');
+    final isSingleSectionSelection = selectedLines?.length == 1;
+    context.read<TextBookBloc>().add(
+      UpdateSelectedTextForNote(
+        text: selectedText,
+        sectionIndex: lineIndex,
+        start: isSingleSectionSelection ? column : null,
+        end: isSingleSectionSelection && column != null && selectedText != null
+            ? column + selectedText.length
+            : null,
+      ),
+    );
     if (selectedText == null || selectedText.trim().isEmpty) {
       return;
     }

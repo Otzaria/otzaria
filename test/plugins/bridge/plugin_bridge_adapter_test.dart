@@ -21,7 +21,6 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
-import 'package:otzaria/migration/models/alt_toc_structure.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_adapter.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
@@ -168,11 +167,7 @@ PluginBridgeDependencies _buildNetworkDeps() {
     themePayloadBuilder: () => <String, dynamic>{},
     showConfirmDialog: ({required title, required content}) async => true,
     showWarningDialog:
-        ({
-          required title,
-          required content,
-          required subtitle,
-        }) async => true,
+        ({required title, required content, required subtitle}) async => true,
   );
 }
 
@@ -205,11 +200,8 @@ void main() {
           themePayloadBuilder: () => <String, dynamic>{},
           showConfirmDialog: ({required title, required content}) async => true,
           showWarningDialog:
-              ({
-                required title,
-                required content,
-                required subtitle,
-              }) async => true,
+              ({required title, required content, required subtitle}) async =>
+                  true,
         ),
         pluginRepository: _StubPluginRegistryRepository(),
       );
@@ -306,11 +298,8 @@ void main() {
           themePayloadBuilder: () => <String, dynamic>{},
           showConfirmDialog: ({required title, required content}) async => true,
           showWarningDialog:
-              ({
-                required title,
-                required content,
-                required subtitle,
-              }) async => true,
+              ({required title, required content, required subtitle}) async =>
+                  true,
         ),
         pluginRepository: pluginRegistryRepository,
       );
@@ -486,6 +475,114 @@ void main() {
         expect(data['currentIndex'], 42);
       },
     );
+
+    test('reader.getSelection adds a verified source anchor', () async {
+      final currentTab = TextBookTab(book: TextBook(title: 'בראשית'), index: 1)
+        ..currentTitle.value = 'פרק א';
+      currentTab.bloc.emit(
+        TextBookLoaded.initial(
+          book: currentTab.book,
+          index: currentTab.index,
+          showLeftPane: false,
+          splitView: false,
+        ).copyWith(
+          content: const ['כותרת', 'אני אומר שאני יודע'],
+          currentTitle: 'פרק א',
+          selectedTextForNote: 'אני',
+          selectedTextSectionIndex: 1,
+          selectedTextStart: 10,
+          selectedTextEnd: 13,
+        ),
+      );
+      tabsBloc.currentState = TabsState(tabs: [currentTab], currentTabIndex: 0);
+
+      final data =
+          await adapter.execute('reader', 'getSelection', {})
+              as Map<String, dynamic>;
+
+      expect(data['schemaVersion'], 1);
+      expect(data['renderedSelectedText'], 'אני');
+      expect(data['sourceSelectedText'], 'אני');
+      expect(data['sectionIndex'], 1);
+      final sourceRange = data['sourceRange'] as Map<String, dynamic>;
+      expect(sourceRange['type'], 'text-range-v1');
+      expect(sourceRange['occurrenceIndexInSection'], 1);
+      expect(sourceRange['occurrenceCountInSection'], 2);
+    });
+
+    test('reader.findTextOccurrences searches the loaded section', () async {
+      final currentTab = TextBookTab(
+        book: TextBook(title: 'ספר בדיקה'),
+        index: 1,
+      )..currentTitle.value = 'פרק א';
+      currentTab.bloc.emit(
+        TextBookLoaded.initial(
+          book: currentTab.book,
+          index: currentTab.index,
+          showLeftPane: false,
+          splitView: false,
+        ).copyWith(
+          content: const ['כותרת', 'אני אומר שאני יודע שאני'],
+          currentTitle: 'פרק א',
+        ),
+      );
+      tabsBloc.currentState = TabsState(tabs: [currentTab], currentTabIndex: 0);
+
+      final data =
+          await adapter.execute('reader', 'findTextOccurrences', {
+                'bookId': 'ספר בדיקה',
+                'sectionIndex': 1,
+                'query': 'שאני',
+                'normalize': {'profile': 'strict'},
+                'limit': 1,
+              })
+              as Map<String, dynamic>;
+
+      expect(data['schemaVersion'], 1);
+      expect(data['totalCount'], 2);
+      expect(data['hasMore'], isTrue);
+      expect(data['nextCursor'], isA<String>());
+      final results = data['results'] as List<dynamic>;
+      expect(results, hasLength(1));
+      expect(results.single['text'], 'שאני');
+      expect(results.single['currentRef'], 'פרק א');
+      expect(results.single['range']['layer'], 'source');
+    });
+
+    test('reader.getSectionTextMap maps the loaded section', () async {
+      final currentTab = TextBookTab(book: TextBook(title: 'ספר מפה'), index: 1)
+        ..currentTitle.value = 'פרק א';
+      currentTab.bloc.emit(
+        TextBookLoaded.initial(
+          book: currentTab.book,
+          index: currentTab.index,
+          showLeftPane: false,
+          splitView: false,
+        ).copyWith(
+          content: const ['כותרת', 'בְּרֵאשִׁית ברא'],
+          currentTitle: 'פרק א',
+          removeNikud: true,
+        ),
+      );
+      tabsBloc.currentState = TabsState(tabs: [currentTab], currentTabIndex: 0);
+
+      final data =
+          await adapter.execute('reader', 'getSectionTextMap', {
+                'bookId': 'ספר מפה',
+                'sectionIndex': 1,
+                'layer': 'both',
+                'includeWords': true,
+                'includeSourceMap': true,
+              })
+              as Map<String, dynamic>;
+
+      expect(data['schemaVersion'], 1);
+      expect(data['sourceText'], 'בְּרֵאשִׁית ברא');
+      expect(data['renderedText'], 'בראשית ברא');
+      expect(data['sourceMap']['mappings'], isNotEmpty);
+      expect(data['words'], hasLength(4));
+      expect(data['currentRef'], 'פרק א');
+    });
   });
 
   group('PluginBridgeAdapter.reader.openBookAtRef', () {
@@ -495,7 +592,6 @@ void main() {
     PluginBridgeAdapter buildAdapter({
       Future<List<({String title, int index, bool isPdf})>> Function(String)?
       resolveReference,
-      Future<int?> Function(TextBook book, String ref)? resolveRefToLine,
     }) {
       return PluginBridgeAdapter(
         _buildInstalledPlugin(permissions: const ['reader.open']),
@@ -513,13 +609,9 @@ void main() {
           themePayloadBuilder: () => <String, dynamic>{},
           showConfirmDialog: ({required title, required content}) async => true,
           showWarningDialog:
-              ({
-                required title,
-                required content,
-                required subtitle,
-              }) async => true,
+              ({required title, required content, required subtitle}) async =>
+                  true,
           resolveReference: resolveReference,
-          resolveRefToLine: resolveRefToLine,
         ),
         pluginRepository: _StubPluginRegistryRepository(),
       );
@@ -564,73 +656,7 @@ void main() {
         expect(result, isTrue);
         // קפיצה ל-index של find_ref, וללא searchText (כי הכותרת נמצאה)
         verify(
-          mockCoordinator.openBook(
-            yerushalmi,
-            1234,
-            '',
-            ignoreHistory: true,
-            markSection: false,
-          ),
-        ).called(1);
-      },
-    );
-
-    test('רזולוציה לרמת שורה קודמת ל-find_ref ומכבדת highlight', () async {
-      var findRefCalled = false;
-      final adapter = buildAdapter(
-        resolveReference: (reference) async {
-          findRefCalled = true;
-          return [(title: 'תלמוד ירושלמי עירובין', index: 1, isPdf: false)];
-        },
-        resolveRefToLine: (book, ref) async =>
-            (book.title == 'תלמוד ירושלמי עירובין' && ref == 'לג:ה')
-            ? 1194
-            : null,
-      );
-
-      final result = await adapter.execute('reader', 'openBookAtRef', {
-        'bookId': 'תלמוד ירושלמי עירובין',
-        'ref': 'לג:ה',
-        'highlight': true,
-      });
-
-      expect(result, isTrue);
-      expect(findRefCalled, isFalse);
-      verify(
-        mockCoordinator.openBook(
-          yerushalmi,
-          1194,
-          '',
-          ignoreHistory: true,
-          markSection: true,
-        ),
-      ).called(1);
-    });
-
-    test(
-      'כשאין התאמה ברמת שורה — נופלים ל-find_ref, בלי הדגשה כברירת מחדל',
-      () async {
-        final adapter = buildAdapter(
-          resolveReference: (reference) async => [
-            (title: 'תלמוד ירושלמי עירובין', index: 1234, isPdf: false),
-          ],
-          resolveRefToLine: (book, ref) async => null,
-        );
-
-        final result = await adapter.execute('reader', 'openBookAtRef', {
-          'bookId': 'תלמוד ירושלמי עירובין',
-          'ref': 'פ"ו ה"ז',
-        });
-
-        expect(result, isTrue);
-        verify(
-          mockCoordinator.openBook(
-            yerushalmi,
-            1234,
-            '',
-            ignoreHistory: true,
-            markSection: false,
-          ),
+          mockCoordinator.openBook(yerushalmi, 1234, '', ignoreHistory: true),
         ).called(1);
       },
     );
@@ -748,11 +774,8 @@ void main() {
           themePayloadBuilder: () => <String, dynamic>{},
           showConfirmDialog: ({required title, required content}) async => true,
           showWarningDialog:
-              ({
-                required title,
-                required content,
-                required subtitle,
-              }) async => true,
+              ({required title, required content, required subtitle}) async =>
+                  true,
         ),
         pluginRepository: _StubPluginRegistryRepository(),
       );
@@ -857,16 +880,12 @@ void main() {
       // טקסט "ABCDEFGHIJKLMNOP". section='C' נמצא ב-index 2.
       // offset=3 פירושו 3 תווים אחרי 'C', כלומר מתחילים מ-index 5 ('F').
       // הקוד הישן התעלם מה-offset כש-section ניתן (startIndex = idx בלבד).
-      final result = await adapter.execute(
-        'library',
-        'getBookContent',
-        const {
-          'bookId': 'ספר-לחיתוך',
-          'section': 'C',
-          'offset': 3,
-          'limit': 4,
-        },
-      );
+      final result = await adapter.execute('library', 'getBookContent', const {
+        'bookId': 'ספר-לחיתוך',
+        'section': 'C',
+        'offset': 3,
+        'limit': 4,
+      });
 
       expect(
         result,
@@ -894,16 +913,12 @@ void main() {
     );
 
     test('section שלא נמצא מתעלם וחוזר ל-offset רגיל מתחילת הטקסט', () async {
-      final result = await adapter.execute(
-        'library',
-        'getBookContent',
-        const {
-          'bookId': 'ספר-לחיתוך',
-          'section': 'XYZ',
-          'offset': 2,
-          'limit': 3,
-        },
-      );
+      final result = await adapter.execute('library', 'getBookContent', const {
+        'bookId': 'ספר-לחיתוך',
+        'section': 'XYZ',
+        'offset': 2,
+        'limit': 3,
+      });
 
       expect(
         result,
@@ -991,11 +1006,8 @@ void main() {
           themePayloadBuilder: () => <String, dynamic>{},
           showConfirmDialog: ({required title, required content}) async => true,
           showWarningDialog:
-              ({
-                required title,
-                required content,
-                required subtitle,
-              }) async => true,
+              ({required title, required content, required subtitle}) async =>
+                  true,
         ),
         pluginRepository: _StubPluginRegistryRepository(),
       );
@@ -1095,11 +1107,8 @@ void main() {
           themePayloadBuilder: () => <String, dynamic>{},
           showConfirmDialog: ({required title, required content}) async => true,
           showWarningDialog:
-              ({
-                required title,
-                required content,
-                required subtitle,
-              }) async => true,
+              ({required title, required content, required subtitle}) async =>
+                  true,
         ),
         pluginRepository: pluginRegistryRepository,
       );
@@ -1208,11 +1217,8 @@ void main() {
             showConfirmDialog: ({required title, required content}) async =>
                 true,
             showWarningDialog:
-                ({
-                  required title,
-                  required content,
-                  required subtitle,
-                }) async => true,
+                ({required title, required content, required subtitle}) async =>
+                    true,
           ),
           pluginRepository: pluginRegistryRepository,
         );
@@ -1257,11 +1263,8 @@ void main() {
           themePayloadBuilder: () => <String, dynamic>{},
           showConfirmDialog: ({required title, required content}) async => true,
           showWarningDialog:
-              ({
-                required title,
-                required content,
-                required subtitle,
-              }) async => true,
+              ({required title, required content, required subtitle}) async =>
+                  true,
         ),
         pluginRepository: pluginRegistryRepository,
         networkFetchService: fetchService,
@@ -1390,11 +1393,8 @@ void main() {
           themePayloadBuilder: () => <String, dynamic>{},
           showConfirmDialog: ({required title, required content}) async => true,
           showWarningDialog:
-              ({
-                required title,
-                required content,
-                required subtitle,
-              }) async => true,
+              ({required title, required content, required subtitle}) async =>
+                  true,
           pickFolder: pickFolder,
         ),
         pluginRepository: registry,
@@ -1621,11 +1621,8 @@ void main() {
           themePayloadBuilder: () => <String, dynamic>{},
           showConfirmDialog: ({required title, required content}) async => true,
           showWarningDialog:
-              ({
-                required title,
-                required content,
-                required subtitle,
-              }) async => true,
+              ({required title, required content, required subtitle}) async =>
+                  true,
           pickFile: pickFile,
         ),
         pluginRepository: registry,
@@ -1815,231 +1812,6 @@ void main() {
       final item = ContextMenuRegistry.instance.getAll().single.$2;
       expect(item.openPlugin, isFalse);
       expect(item.param, isNull);
-    });
-  });
-
-  group('PluginBridgeAdapter.library alt toc', () {
-    // מבנים לבדיקה: parasha (id 10) ו-seder (id 20).
-    final structures = [
-      const AltTocStructure(
-        id: 10,
-        bookId: 1,
-        key: 'parasha',
-        title: 'Parashah',
-        heTitle: 'פרשה',
-      ),
-      const AltTocStructure(
-        id: 20,
-        bookId: 1,
-        key: 'seder',
-        title: 'Seder',
-        heTitle: 'סדר',
-      ),
-    ];
-
-    // עץ ל-parasha: A(אין שורה)→[A1(5), A2(10)]; B(אין שורה)→[B1(אין שורה)];
-    // C(שורה ישירה 20). B ו-B1 אמורים להיות מושמטים.
-    final parashaEntries = <AltTocEntryRow>[
-      (id: 1, parentId: null, level: 1, lineIndex: null, text: 'ספר בראשית'),
-      (id: 2, parentId: 1, level: 2, lineIndex: 5, text: 'פרשת בראשית'),
-      (id: 3, parentId: 1, level: 2, lineIndex: 10, text: 'פרשת נח'),
-      (id: 4, parentId: null, level: 1, lineIndex: null, text: 'ריק'),
-      (id: 5, parentId: 4, level: 2, lineIndex: null, text: 'גם ריק'),
-      (id: 6, parentId: null, level: 1, lineIndex: 20, text: 'שורה ישירה'),
-    ];
-    final sederEntries = <AltTocEntryRow>[
-      (id: 100, parentId: null, level: 1, lineIndex: 99, text: 'סדר ראשון'),
-    ];
-
-    PluginBridgeAdapter buildAdapter({
-      List<AltTocStructure> Function(String bookTitle)? structuresFor,
-      List<AltTocEntryRow> Function(int structureId)? entriesFor,
-    }) {
-      return PluginBridgeAdapter(
-        _buildInstalledPlugin(permissions: const ['library.content.read']),
-        dependencies: PluginBridgeDependencies(
-          historyBloc: _MockHistoryBloc(),
-          tabsBloc: _StubTabsBloc(),
-          navigationBloc: _MockNavigationBloc(),
-          calendarCubit: _StubCalendarCubit(
-            _buildCalendarState(DateTime(2026, 1, 1), inIsrael: true),
-          ),
-          workspaceBloc: _MockWorkspaceBloc(),
-          searchRepository: _MockSearchRepository(),
-          personalNotesRepository: _MockPersonalNotesRepository(),
-          bookOpenCoordinator: _MockBookOpenCoordinator(),
-          themePayloadBuilder: () => <String, dynamic>{},
-          showConfirmDialog: ({required title, required content}) async => true,
-          showWarningDialog:
-              ({
-                required title,
-                required content,
-                required subtitle,
-              }) async => true,
-          altStructuresProvider: (bookTitle) async =>
-              (structuresFor ?? (_) => structures)(bookTitle),
-          altTocEntriesProvider: (structureId) async =>
-              (entriesFor ?? (id) => id == 20 ? sederEntries : parashaEntries)(
-                structureId,
-              ),
-        ),
-        pluginRepository: _StubPluginRegistryRepository(),
-      );
-    }
-
-    test(
-      'listBookAltStructures מחזיר key/title/heTitle בלי id פנימי',
-      () async {
-        final adapter = buildAdapter();
-        final result = await adapter.execute(
-          'library',
-          'listBookAltStructures',
-          const {'bookId': 'בראשית'},
-        );
-
-        expect(result, [
-          {'key': 'parasha', 'title': 'Parashah', 'heTitle': 'פרשה'},
-          {'key': 'seder', 'title': 'Seder', 'heTitle': 'סדר'},
-        ]);
-        final first = (result as List).first as Map;
-        expect(first.containsKey('id'), isFalse);
-      },
-    );
-
-    test('listBookAltStructures ללא bookId זורק', () async {
-      final adapter = buildAdapter();
-      await expectLater(
-        adapter.execute('library', 'listBookAltStructures', const {}),
-        throwsA(isA<Exception>()),
-      );
-    });
-
-    test(
-      'bookId מטיפוס שגוי או ריק → error.invalid_params (לא TypeError פנימי)',
-      () async {
-        final adapter = buildAdapter();
-        final invalidParams = throwsA(
-          predicate(
-            (e) => e.toString().contains('error.invalid_params'),
-          ),
-        );
-        for (final args in [
-          {'bookId': 42},
-          {'bookId': ''},
-          {
-            'bookId': ['בראשית'],
-          },
-        ]) {
-          await expectLater(
-            adapter.execute('library', 'listBookAltStructures', args),
-            invalidParams,
-          );
-          await expectLater(
-            adapter.execute('library', 'getBookAltToc', args),
-            invalidParams,
-          );
-        }
-        await expectLater(
-          adapter.execute('library', 'getBookAltToc', const {
-            'bookId': 'בראשית',
-            'structureKey': 7,
-          }),
-          invalidParams,
-        );
-        await expectLater(
-          adapter.execute('library', 'getBookAltToc', const {
-            'bookId': 'בראשית',
-            'structureKey': '',
-          }),
-          invalidParams,
-        );
-      },
-    );
-
-    test('listBookAltStructures לספר בלי מבנים מחזיר מערך ריק', () async {
-      final adapter = buildAdapter(structuresFor: (_) => const []);
-      final result = await adapter.execute(
-        'library',
-        'listBookAltStructures',
-        const {'bookId': 'ספר אישי'},
-      );
-      expect(result, isEmpty);
-    });
-
-    test('getBookAltToc ברירת מחדל = מבנה ראשון; flatten בסדר מסמך', () async {
-      final adapter = buildAdapter();
-      final result = await adapter.execute('library', 'getBookAltToc', const {
-        'bookId': 'בראשית',
-      });
-
-      // כותרת-אב A מקבלת index מהצאצא הראשון (5); B ו-B1 מושמטים (אין שורה).
-      expect(result, [
-        {'text': 'ספר בראשית', 'index': 5, 'level': 1},
-        {'text': 'פרשת בראשית', 'index': 5, 'level': 2},
-        {'text': 'פרשת נח', 'index': 10, 'level': 2},
-        {'text': 'שורה ישירה', 'index': 20, 'level': 1},
-      ]);
-    });
-
-    test(
-      'getBookAltToc: כותרת-אב יורשת index גם מנכד (לא רק מילד ישיר)',
-      () async {
-        final adapter = buildAdapter(
-          entriesFor: (_) => const <AltTocEntryRow>[
-            (id: 1, parentId: null, level: 1, lineIndex: null, text: 'סבא'),
-            (id: 2, parentId: 1, level: 2, lineIndex: null, text: 'אבא'),
-            (id: 3, parentId: 2, level: 3, lineIndex: 7, text: 'נכד'),
-          ],
-        );
-        final result = await adapter.execute('library', 'getBookAltToc', const {
-          'bookId': 'בראשית',
-        });
-
-        expect(result, [
-          {'text': 'סבא', 'index': 7, 'level': 1},
-          {'text': 'אבא', 'index': 7, 'level': 2},
-          {'text': 'נכד', 'index': 7, 'level': 3},
-        ]);
-      },
-    );
-
-    test('getBookAltToc עם structureKey בוחר את המבנה המבוקש', () async {
-      final adapter = buildAdapter();
-      final result = await adapter.execute('library', 'getBookAltToc', const {
-        'bookId': 'בראשית',
-        'structureKey': 'seder',
-      });
-
-      expect(result, [
-        {'text': 'סדר ראשון', 'index': 99, 'level': 1},
-      ]);
-    });
-
-    test('getBookAltToc עם structureKey לא קיים זורק', () async {
-      final adapter = buildAdapter();
-      await expectLater(
-        adapter.execute('library', 'getBookAltToc', const {
-          'bookId': 'בראשית',
-          'structureKey': 'לא-קיים',
-        }),
-        throwsA(isA<Exception>()),
-      );
-    });
-
-    test('getBookAltToc ללא bookId זורק', () async {
-      final adapter = buildAdapter();
-      await expectLater(
-        adapter.execute('library', 'getBookAltToc', const {}),
-        throwsA(isA<Exception>()),
-      );
-    });
-
-    test('getBookAltToc לספר בלי מבנים מחזיר מערך ריק', () async {
-      final adapter = buildAdapter(structuresFor: (_) => const []);
-      final result = await adapter.execute('library', 'getBookAltToc', const {
-        'bookId': 'ספר אישי',
-      });
-      expect(result, isEmpty);
     });
   });
 }

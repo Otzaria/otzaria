@@ -57,8 +57,13 @@ const Map<String, String> apiCallToPermissionHint = {
   // reader.* (new APIs)
   'reader.addContextMenuItem': 'reader.context_menu',
   'reader.removeContextMenuItem': 'reader.context_menu',
+  'reader.updateContextMenuItem': 'reader.context_menu',
+  'reader.findTextOccurrences': 'reader.open',
+  'reader.getSectionTextMap': 'reader.open',
   'reader.setHighlight': 'reader.highlight',
+  'reader.updateHighlight': 'reader.highlight',
   'reader.getHighlights': 'reader.highlight',
+  'reader.revealHighlight': 'reader.highlight',
   'reader.clearHighlight': 'reader.highlight',
   'reader.clearAllHighlights': 'reader.highlight',
 };
@@ -214,4 +219,5 @@ const pluginValidPermissions = <String>[
 
   /// הרשמה לאירועי סימון טקסט בקורא
   'events.subscribe:reader.selection_changed',
+  'events.subscribe:reader.sectionContentChanged',
 ];

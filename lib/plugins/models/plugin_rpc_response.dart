@@ -10,15 +10,15 @@ class PluginRpcResponse {
   });
 
   const PluginRpcResponse.success(dynamic data)
-      : this._(success: true, data: data);
+    : this._(success: true, data: data);
 
   PluginRpcResponse.error({
     required String code,
     required String message,
   }) : this._(
-          success: false,
-          error: PluginRpcError(code: code, message: message),
-        );
+         success: false,
+         error: PluginRpcError(code: code, message: message),
+       );
 
   Map<String, dynamic> toJson() {
     return {
@@ -30,18 +30,57 @@ class PluginRpcResponse {
 }
 
 class PluginRpcError {
+  static const int schemaVersion = 1;
+
   final String code;
   final String message;
+  final Object? details;
+  final bool retryable;
+  final String category;
 
-  const PluginRpcError({
+  PluginRpcError({
     required this.code,
     required this.message,
-  });
+    this.details,
+    bool? retryable,
+    String? category,
+  }) : retryable = retryable ?? _isRetryable(code),
+       category = category ?? _categoryFor(code);
 
   Map<String, dynamic> toJson() {
     return {
+      'schemaVersion': schemaVersion,
       'code': code,
       'message': message,
+      if (details != null) 'details': details,
+      'retryable': retryable,
+      'category': category,
     };
+  }
+
+  static bool _isRetryable(String code) =>
+      code == 'error.timeout' || code == 'error.rate_limited';
+
+  static String _categoryFor(String code) {
+    if (code == 'permission_denied' || code == 'error.permission_denied') {
+      return 'permission';
+    }
+    if (code == 'error.timeout') return 'timeout';
+    if (code == 'error.conflict') return 'conflict';
+    if (code == 'error.not_found' || code == 'error.highlight_not_found') {
+      return 'not_found';
+    }
+    if (code == 'error.section_too_large' ||
+        code == 'error.payload_too_large' ||
+        code == 'error.rate_limited') {
+      return 'too_large';
+    }
+    if (code == 'error.unsupported_context' ||
+        code == 'error.unsupported_layer' ||
+        code == 'error.unsupported') {
+      return 'unsupported';
+    }
+    if (code == 'error.internal') return 'internal';
+    return 'validation';
   }
 }

@@ -15,7 +15,7 @@ class LoadContent extends TextBookEvent {
   final bool preserveState; // Whether to preserve current state during reload
   final bool loadCommentators; // Whether to load commentators
   final bool
-      forceCloseLeftPane; // Force close left pane (for side-by-side mode)
+  forceCloseLeftPane; // Force close left pane (for side-by-side mode)
   // When true and state is already loaded, keep current removeNikud (user's
   // per-book toggle) instead of applying the new value from settings.
   // Use this for font-only reloads where nikud settings did NOT change.
@@ -44,16 +44,16 @@ class LoadContent extends TextBookEvent {
 
   @override
   List<Object?> get props => [
-        fontSize,
-        showSplitView,
-        removeNikud,
-        preserveState,
-        loadCommentators,
-        forceCloseLeftPane,
-        preserveRemoveNikud,
-        preserveRemovePunctuation,
-        preserveContinuousReadingMode,
-      ];
+    fontSize,
+    showSplitView,
+    removeNikud,
+    preserveState,
+    loadCommentators,
+    forceCloseLeftPane,
+    preserveRemoveNikud,
+    preserveRemovePunctuation,
+    preserveContinuousReadingMode,
+  ];
 }
 
 /// החלפת מצב קריאה רציף. **רינדור בלבד** — לא משנה content, search, links,
@@ -203,8 +203,11 @@ class ApplyMarkHighlight extends TextBookEvent {
   });
 
   @override
-  List<Object?> get props =>
-      [highlightText, permanentHighlightLine, scrollToIndex];
+  List<Object?> get props => [
+    highlightText,
+    permanentHighlightLine,
+    scrollToIndex,
+  ];
 }
 
 class TogglePinLeftPane extends TextBookEvent {
@@ -235,13 +238,13 @@ class UpdateSearchText extends TextBookEvent {
 
   @override
   List<Object?> get props => [
-        text,
-        searchOptions,
-        alternativeWords,
-        spacingValues,
-        searchMode,
-        searchDistance,
-      ];
+    text,
+    searchOptions,
+    alternativeWords,
+    spacingValues,
+    searchMode,
+    searchDistance,
+  ];
 }
 
 class ApplyFullBookContent extends TextBookEvent {
@@ -316,13 +319,19 @@ class CreateNoteFromToolbar extends TextBookEvent {
 
 class UpdateSelectedTextForNote extends TextBookEvent {
   final String? text;
+  final int? sectionIndex;
   final int? start;
   final int? end;
 
-  const UpdateSelectedTextForNote(this.text, this.start, this.end);
+  const UpdateSelectedTextForNote({
+    required this.text,
+    required this.sectionIndex,
+    required this.start,
+    required this.end,
+  });
 
   @override
-  List<Object?> get props => [text, start, end];
+  List<Object?> get props => [text, sectionIndex, start, end];
 }
 
 // Editor Events
@@ -414,8 +423,11 @@ class UpdateLinks extends TextBookEvent {
   });
 
   @override
-  List<Object?> get props =>
-      [links, replaceExisting, targetBookTitlesSignature];
+  List<Object?> get props => [
+    links,
+    replaceExisting,
+    targetBookTitlesSignature,
+  ];
 }
 
 class SetLinksLoading extends TextBookEvent {
@@ -434,12 +446,17 @@ class UpdateAvailableCommentators extends TextBookEvent {
   final Set<String> rareCommentators;
 
   const UpdateAvailableCommentators(
-      this.availableCommentators, this.commentatorGroups,
-      [this.rareCommentators = const {}]);
+    this.availableCommentators,
+    this.commentatorGroups, [
+    this.rareCommentators = const {},
+  ]);
 
   @override
-  List<Object?> get props =>
-      [availableCommentators, commentatorGroups, rareCommentators];
+  List<Object?> get props => [
+    availableCommentators,
+    commentatorGroups,
+    rareCommentators,
+  ];
 }
 
 class RefreshLinksForCurrentWindow extends TextBookEvent {
@@ -491,6 +508,11 @@ class UpdateResolvedBookId extends TextBookEvent {
   });
 
   @override
-  List<Object?> get props =>
-      [bookTitle, resolvedId, heCategories, author, heEra];
+  List<Object?> get props => [
+    bookTitle,
+    resolvedId,
+    heCategories,
+    author,
+    heEra,
+  ];
 }

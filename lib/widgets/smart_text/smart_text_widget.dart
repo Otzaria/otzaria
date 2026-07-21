@@ -1,15 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:otzaria/tabs/models/tab.dart';
-import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
+import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/utils/text/html_link_handler.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/simple_inline_html.dart';
 import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
+import 'package:otzaria/plugins/models/plugin_highlight.dart';
+import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
+import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
+import 'package:otzaria/plugins/services/plugin_highlight_reveal_service.dart';
+import 'package:otzaria/plugins/services/reader_section_content_tracker.dart';
+import 'package:otzaria/plugins/view/plugin_highlight_frame_overlay.dart';
 
 /// ווידג'ט חכם להצגת טקסט עברי
 ///
@@ -37,7 +45,8 @@ class SmartTextWidget extends StatelessWidget {
   /// מזהה את הקישור ומקפיץ תצוגה מקדימה של המפרש.
   final void Function(String url)? onAnchorTap;
 
-  /// callback לריחוף מעל קישור תצוגה מקדימה — עוגן או הערה.
+  /// callback לריחוף מעל עוגן-מילה — מקבל את ה-URL ואת מיקום הסמן הגלובלי.
+  /// כשמסופק, סמני העוגן מרונדרים כווידג'ט inline (ל-fwfh אין hover על <a>).
   final void Function(String url, Offset globalPosition)? onAnchorHover;
 
   /// callback ליציאת הסמן מעוגן-מילה.
@@ -48,6 +57,11 @@ class SmartTextWidget extends StatelessWidget {
 
   /// מצב רינדור של HtmlWidget
   final RenderMode renderMode;
+
+  /// כאשר שניהם מסופקים, הווידג'ט מצייר Highlights זמניים של תוספים.
+  final String? highlightBookId;
+  final int? highlightSectionIndex;
+  final String? highlightSourceText;
 
   const SmartTextWidget({
     super.key,
@@ -60,24 +74,87 @@ class SmartTextWidget extends StatelessWidget {
     this.onAnchorHoverExit,
     this.widgetKey,
     this.renderMode = RenderMode.column,
+    this.highlightBookId,
+    this.highlightSectionIndex,
+    this.highlightSourceText,
   });
 
   @override
   Widget build(BuildContext context) {
+    final bookId = highlightBookId;
+    final sectionIndex = highlightSectionIndex;
+    final listenables = <Listenable>[];
     // כשיש חיפוש, מאזינים לגרסת תבנית ההדגשה: תבנית מבוססת-אינדקס שמגיעה
     // אחרי הרינדור הראשוני (fallback) גורמת להתרנדר מחדש עם ההדגשה המדויקת.
-    if (settings.searchText.isEmpty) {
-      return _buildContent(context);
+    if (settings.searchText.isNotEmpty) {
+      listenables.add(utils.highlightPatternRevision);
     }
+    if (bookId != null && sectionIndex != null) {
+      listenables.addAll([
+        PluginHighlightRegistry.instance,
+        PluginHighlightRevealService.instance,
+      ]);
+    }
+    Widget buildResolved() => _buildResolved(
+      context,
+      bookId != null && sectionIndex != null
+          ? PluginHighlightRegistry.instance.getAllHighlights(
+              bookId: bookId,
+              sectionIndex: sectionIndex,
+            )
+          : const [],
+    );
+    if (listenables.isEmpty) return buildResolved();
     return ListenableBuilder(
-      listenable: utils.highlightPatternRevision,
-      builder: (context, _) => _buildContent(context),
+      listenable: Listenable.merge(listenables),
+      builder: (context, _) => buildResolved(),
     );
   }
 
-  Widget _buildContent(BuildContext context) {
+  Widget _buildResolved(
+    BuildContext context,
+    List<PluginHighlight> highlights,
+  ) {
     // עיבוד הטקסט דרך השירות המרכזי
-    final processedHtml = TextRendererService.processText(text, settings);
+    var processedHtml = TextRendererService.processText(text, settings);
+    final bookId = highlightBookId;
+    final sectionIndex = highlightSectionIndex;
+    if (bookId != null && sectionIndex != null) {
+      final sourceText = TextRendererService.stripHtml(
+        highlightSourceText ?? text,
+      );
+      final renderedText = TextRendererService.stripHtml(processedHtml);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        PluginHighlightRegistry.instance.reanchorSection(
+          bookId: bookId,
+          sectionIndex: sectionIndex,
+          sourceText: sourceText,
+        );
+        unawaited(
+          _recordSectionContentSnapshot(
+            bookId: bookId,
+            sectionIndex: sectionIndex,
+            sourceText: sourceText,
+            renderedText: renderedText,
+            renderingSignature: settings.sectionContentRenderingSignature,
+          ),
+        );
+      });
+    }
+    var frameRanges = const <PluginHighlightRenderedRange>[];
+    if (highlights.isNotEmpty) {
+      const highlightRenderer = PluginHighlightRenderer();
+      final rendering = highlightRenderer.renderWithRanges(
+        bookId: highlightBookId!,
+        sectionIndex: highlightSectionIndex!,
+        rawText: highlightSourceText ?? text,
+        processedHtml: processedHtml,
+        highlights: highlights,
+        revealedHighlightId: PluginHighlightRevealService.instance.highlightId,
+      );
+      processedHtml = rendering.html;
+      frameRanges = rendering.ranges;
+    }
     final textStyle = TextStyle(
       fontSize: settings.fontSize,
       fontFamily: settings.fontFamily,
@@ -99,15 +176,18 @@ class SmartTextWidget extends StatelessWidget {
         }
         // רוחב מלא כמו <div> בלוק ב-HtmlWidget - אחרת מסכים שעוטפים שורה
         // ב-Center (הגבלת רוחב קריאה) ימרכזו שורות קצרות בטעות.
-        return SizedBox(
-          key: widgetKey,
-          width: double.infinity,
-          child: Text.rich(
-            simpleSpan,
-            style: textStyle,
-            textAlign: settings.justifyText
-                ? TextAlign.justify
-                : TextAlign.right,
+        return _withPluginFrames(
+          frameRanges,
+          SizedBox(
+            key: widgetKey,
+            width: double.infinity,
+            child: Text.rich(
+              simpleSpan,
+              style: textStyle,
+              textAlign: settings.justifyText
+                  ? TextAlign.justify
+                  : TextAlign.right,
+            ),
           ),
         );
       }
@@ -124,122 +204,138 @@ class SmartTextWidget extends StatelessWidget {
     final anchorActiveColorCss = toCssHex(colorScheme.primary);
     final anchorActiveBgCss = toCssHex(colorScheme.primaryContainer);
 
-    return HtmlWidget(
-      TextRendererService.wrapWithRtlDiv(
-        processedHtml,
-        justifyText: settings.justifyText,
-      ),
-      key: widgetKey,
-      renderMode: renderMode,
-      textStyle: textStyle,
-      // WidgetFactory מותאם לשתי מטרות: (1) בולד אמיתי לגופן משתנה — fwfh בונה
-      // font-weight:bold בלי FontVariation, לכן מזריקים אותו לפי הגופן שנפתר.
-      // (2) ריחוף על עוגני-מילה — fwfh לא חושף hover על <a>, לכן מזריקים
-      // onEnter/onExit ל-TextSpan של כל עוגן, בלי לגעת בזרימת הטקסט.
-      factoryBuilder: () => _SmartTextWidgetFactory(
-        onAnchorHover: onAnchorHover,
-        onAnchorHoverExit: onAnchorHoverExit,
-      ),
-      customStylesBuilder: (dom.Element element) {
-        if (element.localName == 'span' &&
-            element.classes.contains('footnote-marker-number')) {
-          return {
-            'font-size': '0.75em',
-            'font-style': 'italic',
-            'position': 'relative',
-            'top': '-0.55em',
-          };
-        }
-        if (element.localName == 'a' &&
-            element.classes.contains('book-note-marker')) {
-          return {
-            'font-size': '0.75em',
-            'font-style': 'italic',
-            'position': 'relative',
-            'top': '-0.55em',
-            'color': anchorColorCss,
-            'text-decoration': 'none',
-          };
-        }
-        // סמני עוגן-מילה (link_anchor): אות קטנה מורמת (עוגן-נקודה) או קו
-        // תחתון על טווח מצוטט (עוגן-טווח), עם וריאנט טיפוגרפי קבוע לכל מפרש
-        // (ראו anchorStyleIndexByCommentator). כ-<a> לחיץ — מנטרלים את עיצוב
-        // הקישור המובנה (צבע/קו) כדי שהמראה יישאר זהה לסמן הלא-לחיץ.
-        if ((element.localName == 'span' || element.localName == 'a') &&
-            element.classes.contains('link-anchor')) {
-          final style = <String, String>{
-            'font-size': '0.7em',
-            'position': 'relative',
-            'top': '-0.55em',
-            'white-space': 'nowrap',
-            'color': anchorColorCss,
-            'text-decoration': 'none',
-            ..._linkAnchorVariantStyle(element),
-          };
-          // האות שחלונית התצוגה שלה פתוחה — מודגשת (צבע primary + רקע + מודגש).
-          if (element.classes.contains('link-anchor-active')) {
-            style['color'] = anchorActiveColorCss;
-            style['background-color'] = anchorActiveBgCss;
-            style['font-weight'] = 'bold';
+    return _withPluginFrames(
+      frameRanges,
+      HtmlWidget(
+        TextRendererService.wrapWithRtlDiv(
+          processedHtml,
+          justifyText: settings.justifyText,
+        ),
+        key: widgetKey,
+        renderMode: renderMode,
+        textStyle: textStyle,
+        // WidgetFactory מותאם לשתי מטרות: (1) בולד אמיתי לגופן משתנה — fwfh בונה
+        // font-weight:bold בלי FontVariation, לכן מזריקים אותו לפי הגופן שנפתר.
+        // (2) ריחוף על עוגני-מילה — fwfh לא חושף hover על <a>, לכן מזריקים
+        // onEnter/onExit ל-TextSpan של כל עוגן, בלי לגעת בזרימת הטקסט.
+        factoryBuilder: () => _SmartTextWidgetFactory(
+          onAnchorHover: onAnchorHover,
+          onAnchorHoverExit: onAnchorHoverExit,
+        ),
+        customStylesBuilder: (dom.Element element) {
+          if (element.localName == 'span' &&
+              element.classes.contains('footnote-marker-number')) {
+            return {
+              'font-size': '0.75em',
+              'font-style': 'italic',
+              'position': 'relative',
+              'top': '-0.55em',
+            };
           }
-          return style;
-        }
-        // טווח-ציטוט: קו תחתון בצבע הטקסט. כ-<a> לחיץ (ריחוף/ניווט) — מנטרלים
-        // את צבע ה-primary שהקישור המובנה היה מקבל.
-        if ((element.localName == 'span' || element.localName == 'a') &&
-            element.classes.contains('link-anchor-range')) {
-          return <String, String>{
-            'text-decoration': 'underline',
-            'color': anchorColorCss,
-            ..._linkAnchorVariantStyle(element),
-          };
-        }
-        return null;
-      },
-      onTapUrl: (onOpenBook != null || onNoteTap != null || onAnchorTap != null)
-          ? (url) async {
-              // עוגן-מילה — תצוגה מקדימה של המפרש, לפני שאר הקישורים.
-              if (url.startsWith('otzaria://anchor') && onAnchorTap != null) {
-                onAnchorTap!(url);
-                return true;
-              }
-              // סימון הערה אישית inline — נטפל לפני שאר הקישורים.
-              if (url.startsWith('otzaria://note')) {
-                final lineIndex = int.tryParse(
-                  Uri.parse(url).queryParameters['line'] ?? '',
-                );
-                if (lineIndex != null) {
-                  onNoteTap?.call(lineIndex);
-                }
-                return true;
-              }
-              if (url.startsWith('otzaria://book-note')) return true;
-              if (onOpenBook == null) return false;
-              return await HtmlLinkHandler.handleLink(
-                context,
-                url,
-                (tab) => onOpenBook!(tab),
-              );
+          if (element.localName == 'a' &&
+              element.classes.contains('book-note-marker')) {
+            return {
+              'font-size': '0.75em',
+              'font-style': 'italic',
+              'position': 'relative',
+              'top': '-0.55em',
+              'color': anchorColorCss,
+              'text-decoration': 'none',
+            };
+          }
+          // סמני עוגן-מילה (link_anchor): אות קטנה מורמת (עוגן-נקודה) או קו
+          // תחתון על טווח מצוטט (עוגן-טווח), עם וריאנט טיפוגרפי קבוע לכל מפרש
+          // (ראו anchorStyleIndexByCommentator). כ-<a> לחיץ — מנטרלים את עיצוב
+          // הקישור המובנה (צבע/קו) כדי שהמראה יישאר זהה לסמן הלא-לחיץ.
+          if ((element.localName == 'span' || element.localName == 'a') &&
+              element.classes.contains('link-anchor')) {
+            final style = <String, String>{
+              'font-size': '0.7em',
+              'position': 'relative',
+              'top': '-0.55em',
+              'white-space': 'nowrap',
+              'color': anchorColorCss,
+              'text-decoration': 'none',
+              ..._linkAnchorVariantStyle(element),
+            };
+            // האות שחלונית התצוגה שלה פתוחה — מודגשת (צבע primary + רקע + מודגש).
+            if (element.classes.contains('link-anchor-active')) {
+              style['color'] = anchorActiveColorCss;
+              style['background-color'] = anchorActiveBgCss;
+              style['font-weight'] = 'bold';
             }
-          : null,
+            return style;
+          }
+          // טווח-ציטוט: קו תחתון בצבע הטקסט. כ-<a> לחיץ (ריחוף/ניווט) — מנטרלים
+          // את צבע ה-primary שהקישור המובנה היה מקבל.
+          if ((element.localName == 'span' || element.localName == 'a') &&
+              element.classes.contains('link-anchor-range')) {
+            return <String, String>{
+              'text-decoration': 'underline',
+              'color': anchorColorCss,
+              ..._linkAnchorVariantStyle(element),
+            };
+          }
+          return null;
+        },
+        onTapUrl:
+            (onOpenBook != null || onNoteTap != null || onAnchorTap != null)
+            ? (url) async {
+                // עוגן-מילה — תצוגה מקדימה של המפרש, לפני שאר הקישורים.
+                if (url.startsWith('otzaria://anchor') && onAnchorTap != null) {
+                  onAnchorTap!(url);
+                  return true;
+                }
+                // סימון הערה אישית inline — נטפל לפני שאר הקישורים.
+                if (url.startsWith('otzaria://note')) {
+                  final lineIndex = int.tryParse(
+                    Uri.parse(url).queryParameters['line'] ?? '',
+                  );
+                  if (lineIndex != null) {
+                    onNoteTap?.call(lineIndex);
+                  }
+                  return true;
+                }
+                if (url.startsWith('otzaria://book-note')) return true;
+                if (onOpenBook == null) return false;
+                return await HtmlLinkHandler.handleLink(
+                  context,
+                  url,
+                  (tab) => onOpenBook!(tab),
+                );
+              }
+            : null,
+      ),
     );
+  }
+
+  Widget _withPluginFrames(
+    List<PluginHighlightRenderedRange> ranges,
+    Widget child,
+  ) {
+    if (!ranges.any(
+      (range) => const {
+        'text-background',
+        'box',
+      }.contains(range.highlight.style.markerMode),
+    )) {
+      return child;
+    }
+    return PluginHighlightFrameOverlay(ranges: ranges, child: child);
   }
 }
 
 /// WidgetFactory ל-fwfh עם שתי אחריות:
 /// 1. בולד אמיתי לגופן משתנה — מזריק FontVariation('wght') לספאנים מודגשים.
-/// 2. ריחוף על קישורי תצוגה מקדימה — זוכרים את ה-href וכשה-TextSpan נבנה
-///    מזריקים
+/// 2. ריחוף על עוגני-מילה — fwfh בונה recognizer לכל `<a>`; זוכרים אילו
+///    recognizers שייכים ל-href של עוגן, וכשה-TextSpan נבנה מזריקים
 ///    onEnter/onExit לצד ה-recognizer הקיים.
 class _SmartTextWidgetFactory extends WidgetFactory {
   final void Function(String url, Offset globalPosition)? onAnchorHover;
   final void Function(String url)? onAnchorHoverExit;
   final _previewHrefByRecognizer = <GestureRecognizer, String>{};
 
-  _SmartTextWidgetFactory({
-    this.onAnchorHover,
-    this.onAnchorHoverExit,
-  });
+  _SmartTextWidgetFactory({this.onAnchorHover, this.onAnchorHoverExit});
 
   @override
   GestureRecognizer? buildGestureRecognizer(
@@ -329,6 +425,27 @@ Map<String, String> _linkAnchorVariantStyle(dom.Element element) {
 
 /// גרסה פשוטה יותר של SmartTextWidget שמקבלת פרמטרים בודדים
 /// במקום RenderSettings - נוחה למקרים פשוטים
+Future<void> _recordSectionContentSnapshot({
+  required String bookId,
+  required int sectionIndex,
+  required String sourceText,
+  required String renderedText,
+  required Object renderingSignature,
+}) async {
+  try {
+    await ReaderSectionContentTracker.instance.recordSnapshot(
+      bookId: bookId,
+      sectionIndex: sectionIndex,
+      sourceText: sourceText,
+      renderedText: renderedText,
+      renderingSignature: renderingSignature,
+    );
+  } catch (error, stackTrace) {
+    debugPrint('Failed to track reader section content: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
+}
+
 class SimpleSmartText extends StatelessWidget {
   final String text;
   final double fontSize;

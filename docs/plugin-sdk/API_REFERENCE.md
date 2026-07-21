@@ -9,9 +9,14 @@ const response = await Otzaria.call('method.name', { param: value });
 if (response.success) {
   console.log(response.data);
 } else {
-  console.error(response.error.message);
+  console.error(response.error.code, response.error.message);
+  if (response.error.retryable) {
+    // אפשר להציע למשתמש לנסות שוב.
+  }
 }
 ```
+
+כל שגיאה כוללת `schemaVersion: 1`,‏ `code`,‏ `message`,‏ `retryable` ו־`category`. השדות הקיימים נשמרו לתאימות לאחור.
 
 ---
 
@@ -45,10 +50,15 @@ if (response.success) {
 | `reader.getCurrentState` | 0.9.89 |
 | `reader.getCurrentRef` | 0.9.89 |
 | `reader.getSelection` | 0.9.89 |
+| `reader.findTextOccurrences` | 0.9.95 |
+| `reader.getSectionTextMap` | 0.9.95 |
 | `reader.addContextMenuItem` | 0.9.89 |
 | `reader.removeContextMenuItem` | 0.9.89 |
+| `reader.updateContextMenuItem` | 0.9.95 |
 | `reader.setHighlight` | 0.9.89 |
+| `reader.updateHighlight` | 0.9.95 |
 | `reader.getHighlights` | 0.9.89 |
+| `reader.revealHighlight` | 0.9.96 |
 | `reader.clearHighlight` | 0.9.89 |
 | `reader.clearAllHighlights` | 0.9.89 |
 | `navigation.goTo` | 0.9.89 |
@@ -518,7 +528,9 @@ const { data } = await Otzaria.call('reader.getCurrentRef');
 ### `reader.getSelection`
 **הרשאה:** `reader.open`
 
-מחזיר את הבחירה הנוכחית בטאב טקסט פעיל. אם אין בחירה פעילה, או שהטאב הפעיל אינו טאב טקסט, הערך יהיה `null`.
+**העוגן המורחב זמין מגרסה:** `0.9.95` (השדות הוותיקים זמינים מ־`0.9.89`)
+
+מחזיר את הבחירה הנוכחית בטאב טקסט פעיל. אם אין בחירה פעילה, או שהטאב הפעיל אינו טאב טקסט, הערך יהיה `null`. כאשר ה־Host יכול לאמת את הטווח, מוחזר גם עוגן v1 המבוסס על טקסט המקור. השדות הוותיקים נשמרים לתאימות.
 
 ```javascript
 const { data } = await Otzaria.call('reader.getSelection');
@@ -529,9 +541,97 @@ const { data } = await Otzaria.call('reader.getSelection');
 //   currentRef: "בראשית פרק א",
 //   currentBook: "בראשית",
 //   currentBookId: "בראשית",
-//   currentIndex: 42
+//   currentIndex: 42,
+//   schemaVersion: 1,
+//   selectionId: "...",
+//   bookId: "בראשית",
+//   sectionIndex: 42,
+//   renderedSelectedText: "ויאמר אלהים",
+//   sourceSelectedText: "וַיֹּאמֶר אֱלֹהִים",
+//   sourceRange: {
+//     type: "text-range-v1",
+//     schemaVersion: 1,
+//     layer: "source",
+//     sourceTextHash: "...",
+//     start: { grapheme: 10, codePoint: 10, utf16: 10 },
+//     end: { grapheme: 23, codePoint: 27, utf16: 27 },
+//     exactText: "וַיֹּאמֶר אֱלֹהִים",
+//     beforeText: { raw: "...", normalized: "...", maxGraphemes: 30, actualGraphemes: 10, truncatedAtBoundary: true },
+//     afterText: { raw: "...", normalized: "...", maxGraphemes: 30, actualGraphemes: 30, truncatedAtBoundary: false },
+//     occurrenceIndexInSection: 0,
+//     occurrenceCountInSection: 1
+//   }
 // }
 ```
+
+יחידת המיקום הקנונית היא grapheme cluster לפי חלוקת Unicode של ה־Host. `codePoint` ו־`utf16` נמסרים לצורכי שילוב בלבד; אין להשתמש ב־`String.length` של JavaScript כעוגן קנוני.
+
+### `reader.findTextOccurrences`
+**הרשאה:** `reader.open`
+
+**זמין מגרסה:** `0.9.95`
+
+מחפש מופעים במקטע יחיד ומחזיר עוגן מדויק לכל תוצאה. ברירת המחדל היא חיפוש ב־source עם פרופיל `strict`. המקטע נטען לבדו; אין טעינה של ספר שלם.
+
+```javascript
+const { data } = await Otzaria.call('reader.findTextOccurrences', {
+  bookId: 'בראשית',
+  sectionIndex: 42,
+  query: 'בראשית',
+  layer: 'source',
+  normalize: { profile: 'search' },
+  limit: 50
+});
+
+for (const occurrence of data.results) {
+  console.log(occurrence.text, occurrence.range);
+}
+
+if (data.hasMore) {
+  const next = await Otzaria.call('reader.findTextOccurrences', {
+    bookId: 'בראשית',
+    sectionIndex: 42,
+    query: 'בראשית',
+    layer: 'source',
+    normalize: { profile: 'search' },
+    limit: 50,
+    cursor: data.nextCursor
+  });
+}
+```
+
+פרופילי הנרמול:
+
+- `strict` — ללא הסרת סימנים.
+- `display` — בהתאם להגדרות התצוגה הפעילות.
+- `search` — מתעלם מניקוד וטעמים ומאחד רווחים.
+- `lenient` — מוסיף הסרת פיסוק ואיחוד אותיות סופיות.
+
+ה־cursor קשור לספר, למקטע, לשכבה, לשאילתה, לפרופיל ול־hash של הטקסט. שימוש בו לאחר שינוי אחד מהם מחזיר `error.invalid_params`. מקטע מעל 50,000 grapheme clusters מחזיר `error.section_too_large`.
+
+### `reader.getSectionTextMap`
+**הרשאה:** `reader.open`
+
+**זמין מגרסה:** `0.9.95`
+
+מחזיר את טקסט המקור, הטקסט המוצג או שניהם עבור מקטע יחיד. אפשר לצרף מיפוי Source↔Rendered, טוקני מילים וטוקני תווים.
+
+```javascript
+const { data } = await Otzaria.call('reader.getSectionTextMap', {
+  bookId: 'בראשית',
+  sectionIndex: 42,
+  layer: 'both',
+  includeSourceMap: true,
+  includeWords: true,
+  includeChars: false,
+  normalize: { profile: 'search' },
+  limit: 500
+});
+```
+
+`WordToken` כולל offsets ועוגנים הן למקור והן לתצוגה כאשר ניתן למפות אותם. `CharToken` מייצג grapheme cluster אחד ומחזיר offsets בכל שלוש היחידות. טוקני מילים ותווים מחולקים לעמודים משותפים; `nextCursor` ממשיך בדיוק מאותה בקשה.
+
+המגבלות הן 2,000 טוקנים לעמוד ו־50,000 grapheme clusters למקטע. מקטעי מפת המקור משתמשים רק בסוגים `identity`,‏ `substitution`,‏ `hidden` ו־`inserted`.
 
 ---
 
@@ -1843,7 +1943,13 @@ https://googleapis.com      # ❌ פותח את כל שירותי גוגל
 ## reader.* — APIs חדשים (v2)
 
 ### `reader.addContextMenuItem`
+
+כל תוסף יכול לרשום לכל היותר **שני פריטים עליונים** בתפריט ההקשר.
+כל אחד מהם יכול להיות פריט רגיל, תת־תפריט או שורת צבעים. עדכון פריט קיים
+באותו `id` אינו צורך מקום נוסף במכסה.
 **הרשאה:** `reader.context_menu`
+
+**מבנה התפריט המורחב זמין מגרסה:** `0.9.95`
 
 רישום פריט תפריט הקשר מותאם אישית. הפריט יופיע בתפריט שנפתח בלחיצה ימנית על טקסט בקורא.
 
@@ -1865,6 +1971,11 @@ await Otzaria.call('reader.addContextMenuItem', {
   `reader.context_menu_item_clicked` נמסר לדף — גם אם הוא נטען רק עכשיו
   (האירוע ממתין לסיום ה-boot). כך תוסף ללא instance רקע יכול לקבל את
   הטקסט המסומן ולפעול עליו בדף שלו.
+- `type` יכול להיות `item`,‏ `submenu`,‏ `color-row` או `separator`
+- תת־תפריט מקבל `children`; שורת צבעים מקבלת `colors` עם `id`,‏ `color`,‏ `label`,‏ `selected` ו־`icon` אופציונלי. כאשר `icon` קיים הוא מוצג במקום גוש הצבע ומתאים לפעולות קומפקטיות כמו מחק
+- `contexts` הוא מערך ויכול להכיל את `reader-selection`, את `reader-page-shape-selection`, או את שניהם באותו פריט. ערכי `contexts` חייבים להיות חוקיים וייחודיים. פריט שלא מגדיר `contexts` מופיע בשני ההקשרים (כהתנהגות הרישום המקורית).
+- ילד שלא מגדיר `contexts` יורש את המערך של אביו. ילד שמגדיר `contexts` במפורש מוצג רק בהקשרים שלו, ללא איחוד אוטומטי עם הקשר האב; ההקשרים המפורשים חייבים להיות תת־קבוצה של הקשרי האב.
+- אפשר להגדיר `onClickEvent` או `onColorClickEvent` כאירוע מותאם אישית
 
 ---
 
@@ -1878,6 +1989,27 @@ await Otzaria.call('reader.removeContextMenuItem', {
   id: 'my-save-item'
 });
 // true
+```
+
+---
+
+### `reader.updateContextMenuItem`
+**הרשאה:** `reader.context_menu`
+
+**זמין מגרסה:** `0.9.95`
+
+מעדכן פריט של התוסף הקורא ללא טעינה מחדש. ניסיון לעדכן פריט שאינו שייך לתוסף או שאינו קיים מחזיר `error.not_found`.
+
+```javascript
+await Otzaria.call('reader.updateContextMenuItem', {
+  id: 'marker-colors',
+  patch: {
+    colors: [
+      { id: 'yellow', color: '#FFEB3B', label: 'צהוב', selected: true },
+      { id: 'green', color: '#4CAF50', label: 'ירוק' }
+    ]
+  }
+});
 ```
 
 ---
@@ -1929,49 +2061,123 @@ Otzaria.on('reader.selection_changed', (data) => {
 
 ---
 
+### `reader.sectionContentChanged` (Event)
+**הרשאה:** `events.subscribe:reader.sectionContentChanged`
+
+**זמין מגרסה:** `0.9.95`
+
+נשלח כאשר התוכן של סעיף שכבר נצפה משתנה. התצפית הראשונה משמשת כקו בסיס ואינה שולחת אירוע; snapshots זהים מסוננים אוטומטית.
+
+```javascript
+Otzaria.on('reader.sectionContentChanged', (change) => {
+  if (change.changeType === 'source-content') {
+    // יש לבדוק מחדש עוגנים שנשמרו על ידי התוסף.
+  } else {
+    // המקור לא השתנה; רק אופן ההצגה השתנה.
+  }
+});
+```
+
+השדה `changeType` הוא `source-content` כאשר נוסח המקור השתנה, או `rendering-only` כאשר רק הטקסט המוצג השתנה. האירוע כולל hashes ישנים וחדשים ואינו כולל את תוכן הספר עצמו.
+
+סיבות אפשריות כוללות `book-updated`,‏ `settings-changed`,‏ `nikud-toggle`,‏ `teamim-toggle`,‏ `font-render-change`,‏ `name-substitution` ו־`layout-change`.
+
+---
+
 ### `reader.setHighlight`
 **הרשאה:** `reader.highlight`
 
-הוספת הדגשה צבעונית לשורה בטקסט.
+**עוגן source זמין מגרסה:** `0.9.95` (החתימה לפי שורה נשמרת לתאימות)
+
+יוצר או מחליף הדגשה זמנית על טווח מדויק בטקסט. `ownerPluginId` נקבע בלעדית על־ידי ה־Host ואסור להעבירו ב־payload.
 
 ```javascript
 await Otzaria.call('reader.setHighlight', {
-  bookId: 'בראשית',   // מזהה הספר (חובה)
-  index: 42,           // אינדקס השורה (חובה)
-  color: '#FFFF00',    // צבע CSS (אופציונלי)
-  label: 'שמרתי'      // תווית (אופציונלי)
+  highlightId: 'marker-42',
+  bookId: 'בראשית',
+  sectionIndex: 42,
+  range: selection.sourceRange,
+  style: {
+    backgroundColor: '#FFEB3B',
+    opacity: 0.65,
+    borderRadius: 3,
+    priority: 10
+  },
+  metadata: { source: 'manual', tags: ['לימוד'] }
 });
-// true
+// HighlightRecord
 ```
+
+הצבעים חייבים להיות `#RRGGBB` או `#RRGGBBAA`. ההדגשה ממופה מחדש אל הטקסט המוצג לאחר שינויי ניקוד, טעמים והחלפות תצוגה. ההדגשות אינן נשמרות בדיסק: התוסף אחראי להתמדה ולהקמה מחדש לאחר `plugin.boot`.
+
+---
+
+### `reader.updateHighlight`
+**הרשאה:** `reader.highlight`
+
+**זמין מגרסה:** `0.9.95`
+
+מעדכן חלקית את העיצוב או המטא־נתונים של הדגשה קיימת. המזהה, העוגן, הספר וזמן היצירה אינם משתנים. כל עדכון מוצלח מגדיל את `version` ומרענן מיד את התצוגה.
+
+אפשר להעביר `expectedVersion` או `expectedEtag` כדי למנוע דריסה של שינוי חדש יותר. במקרה שהערך אינו תואם מוחזרת השגיאה `error.conflict`. כל עדכון מוצלח מחזיר `version` ו־`etag` חדשים. תוסף רשאי לעדכן רק הדגשות שבבעלותו; מזהה של תוסף אחר מוחזר כ־`error.highlight_not_found`.
+
+```javascript
+const { data: updated } = await Otzaria.call('reader.updateHighlight', {
+  highlightId: 'marker-42',
+  expectedVersion: 1,
+  style: { backgroundColor: '#FF9800', opacity: 0.8 },
+  metadata: { note: 'חזרה חשובה' }
+});
+// updated.version === 2
+```
+
+האחסון נשאר באחריות התוסף: הפעולה משנה את הרשומה הזמנית של ה־Host ואינה שומרת אותה בדיסק.
 
 ---
 
 ### `reader.getHighlights`
 **הרשאה:** `reader.highlight`
 
-קבלת כל ההדגשות של ספר מסוים.
+קבלת ההדגשות שבבעלות התוסף הקורא. אפשר לסנן לפי `bookId` ו־`sectionIndex`; תוסף אינו יכול לקרוא הדגשות של תוסף אחר.
+
+ברירת המחדל מחזירה רק רשומות `active`. כאשר נוסח המקור משתנה, ה־Host מנסה לעגן מחדש לפי hash ו־offset, הטקסט המדויק, ההקשר לפני ואחרי, טקסט מנורמל ולבסוף occurrence index. התאמה עמומה מסומנת `stale`, והיעדר התאמה מסומן `failed_to_anchor`; שני המצבים אינם מצוירים. השתמשו ב־`includeStale: true` כדי לקבל גם אותם ולשמור או לתקן אותם בצד התוסף.
 
 ```javascript
 const { data } = await Otzaria.call('reader.getHighlights', {
-  bookId: 'בראשית'
-});
-// [
-//   { bookId: "בראשית", index: 42, color: "#FFFF00", label: "שמרתי", pluginId: "my-plugin" },
-//   ...
-// ]
+  bookId: 'בראשית',
+  sectionIndex: 42,
+  includeStale: true
+}); // HighlightRecord[]
 ```
+
+---
+
+### `reader.revealHighlight`
+**הרשאה:** `reader.highlight`
+
+**זמין מגרסה:** `0.9.96`
+
+פותח את הספר והמקטע של הדגשה השייכת לתוסף, גולל אליה ומבליט אותה זמנית. הפעולה מקבלת `highlightId` בלבד; הבעלות, הספר, המקטע והעוגן נלקחים מהרשומה הסמכותית של ה־Host.
+
+```javascript
+await Otzaria.call('reader.revealHighlight', {
+  highlightId: 'marker-42'
+});
+```
+
+מזהה שאינו קיים או שאינו שייך לתוסף מחזיר `error.highlight_not_found`.
 
 ---
 
 ### `reader.clearHighlight`
 **הרשאה:** `reader.highlight`
 
-הסרת הדגשה ספציפית. פעולה idempotent — לא תחזיר שגיאה אם ה-index לא קיים.
+הסרת הדגשה לפי `highlightId`. מזהה שאינו קיים בבעלות התוסף מחזיר `error.highlight_not_found`.
 
 ```javascript
 await Otzaria.call('reader.clearHighlight', {
-  bookId: 'בראשית',
-  index: 42
+  highlightId: 'marker-42',
+  expectedVersion: 2 // או expectedEtag
 });
 // true
 ```
@@ -1981,7 +2187,7 @@ await Otzaria.call('reader.clearHighlight', {
 ### `reader.clearAllHighlights`
 **הרשאה:** `reader.highlight`
 
-ניקוי הדגשות — לספר מסוים או לכולן.
+ניקוי ההדגשות שבבעלות התוסף — לספר מסוים או לכולן. הפעולה אינה משפיעה על תוספים אחרים.
 
 ```javascript
 // ניקוי ספר ספציפי

@@ -194,4 +194,8 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     label: 'אירועי שינוי הרשאות',
     description: 'קבלת עדכון בכל פעם שהרשאות התוסף משתנות',
   ),
+  'events.subscribe:reader.sectionContentChanged': PluginPermissionInfo(
+    label: 'אירועי שינוי תוכן בקורא',
+    description: 'קבלת עדכון כאשר נוסח של סעיף או אופן ההצגה שלו משתנים בקורא',
+  ),
 };

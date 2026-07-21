@@ -28,11 +28,11 @@ class ReaderLocationSnapshot {
 
   /// ממיר ל-JSON לשליחה לתוספים
   Map<String, dynamic> toJson() => {
-        'currentBook': currentBook,
-        'currentBookId': currentBookId,
-        'currentIndex': currentIndex,
-        'currentRef': currentRef,
-      };
+    'currentBook': currentBook,
+    'currentBookId': currentBookId,
+    'currentIndex': currentIndex,
+    'currentRef': currentRef,
+  };
 
   @override
   bool operator ==(Object other) =>
@@ -50,7 +50,8 @@ class ReaderLocationSnapshot {
 /// פונקציה מרכזית אחת שמשמשת גם את reader.getCurrentRef
 /// וגם את האירוע reader.current_ref_changed
 Future<ReaderLocationSnapshot?> resolveReaderLocation(
-    OpenedTab? currentTab) async {
+  OpenedTab? currentTab,
+) async {
   if (currentTab == null) {
     return null;
   }
@@ -68,15 +69,21 @@ Future<ReaderLocationSnapshot?> resolveReaderLocation(
   return null;
 }
 
+// TODO(plugin-sdk): currentBookId is temporarily backed by the display title
+// because OpenedTab does not yet expose one stable cross-provider identifier.
+// Titles are not guaranteed to be unique; new code must not use this value as
+// a database key until the library layer provides a canonical plugin book ID.
+
 /// פותר מיקום עבור ספר טקסט
 Future<ReaderLocationSnapshot?> _resolveTextBookLocation(
-    TextBookTab tab) async {
+  TextBookTab tab,
+) async {
   final state = tab.bloc.state;
   final resolvedIndex = state is TextBookLoaded
       ? state.selectedIndex ??
-          (state.visibleIndices.isNotEmpty
-              ? state.visibleIndices.first
-              : tab.index)
+            (state.visibleIndices.isNotEmpty
+                ? state.visibleIndices.first
+                : tab.index)
       : tab.index;
   // ניסיון ראשון: currentTitle מה-ValueNotifier
   final notifierTitle = tab.currentTitle.value.trim();
