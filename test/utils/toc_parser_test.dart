@@ -21,6 +21,18 @@ void main() {
       expect(toc.first.children.first.level, 2);
     });
 
+    test('כותרת עם $kTocExcludeAttr מדולגת (תוכן עניינים מוטמע קובע)', () {
+      final content =
+          '<h1>ראשית</h1>\n'
+          '<h2 $kTocExcludeAttr>כותרת עיצובית</h2>\n'
+          '<h2>כותרת אמיתית</h2>';
+
+      final toc = TocParser.parseEntriesFromContent(content);
+
+      expect(toc.length, 1);
+      expect(toc.first.children.map((e) => e.text), ['כותרת אמיתית']);
+    });
+
     test('parses Markdown headings (#..######)', () {
       final content = '''
 # פרק א

@@ -583,6 +583,28 @@ void main() {
     });
   });
 
+  group('IndexingRepository.stripDataUrisForIndex', () {
+    test('מסלק תמונות base64 ומשמר את מבנה השורות', () {
+      final img = 'data:image/png;base64,${'A' * 500}';
+      final text = 'שורה ראשונה\n<img src="$img" style="x"/>\nשורה שלישית';
+
+      final stripped = IndexingRepository.stripDataUrisForIndex(text);
+
+      expect(stripped.split('\n'), hasLength(3));
+      expect(stripped, isNot(contains('base64')));
+      expect(stripped, contains('שורה ראשונה'));
+      expect(stripped, contains('שורה שלישית'));
+    });
+
+    test('טקסט ללא data URI חוזר כמו שהוא (אותו מופע)', () {
+      const text = 'טקסט רגיל בלי תמונות';
+      expect(
+        identical(IndexingRepository.stripDataUrisForIndex(text), text),
+        isTrue,
+      );
+    });
+  });
+
   group('IndexingRepository.indexAllBooks', () {
     test('fast path מחזיר מוקדם בלי להפעיל isolate ובלי callbacks', () async {
       final library = _buildLibrary(bavliBooks: const [('שבת', 1)]);

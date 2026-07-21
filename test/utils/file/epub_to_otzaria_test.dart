@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/utils/file/epub_to_otzaria.dart';
+import 'package:otzaria/utils/file/toc_parser.dart';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -272,6 +273,26 @@ void main() {
       expect(result, isNot(contains('color')));
       expect(result, isNot(contains('alert')));
     });
+
+    test('script סוגר-עצמי (<script/>) אינו בולע את שאר הפרק', () {
+      // ב-XHTML זה חוקי, אבל בפרסינג HTML תג script לא באמת נסגר —
+      // בלי הנרמול כל התוכן שאחריו נבלע כטקסט סקריפט (קבצי kobo).
+      final epub = _buildEpub(
+        chapters: {
+          'ch1.xhtml':
+              '<?xml version="1.0" encoding="UTF-8"?>'
+              '<html xmlns="http://www.w3.org/1999/xhtml">'
+              '<head><title>פרק</title>'
+              '<script type="text/javascript" src="../js/kobo.js"/>'
+              '</head>'
+              '<body><p>תוכן אחרי הסקריפט</p></body></html>',
+        },
+      );
+      final result = epubToText(epub, 'ספר');
+
+      expect(result, contains('תוכן אחרי הסקריפט'));
+      expect(result, isNot(contains('kobo')));
+    });
   });
 
   group('epubToText - רשימות וטבלאות', () {
@@ -510,6 +531,66 @@ void main() {
   });
 
   group('epubToText - הערות שוליים', () {
+    test('הערות ממוספרות בסגנון InDesign (קישור-חזרה בגוף ההערה)', () {
+      // המבנה המדויק שגרם להיעלמות ההערות: קישור-החזרה שבגוף ההערה מצביע
+      // אל סַמָּן ההפניה שבטקסט, וזוהה בטעות כהפניה שבולעת את הסַמָּן.
+      final epub = _buildEpub(
+        chapters: {
+          'ch1.xhtml': _xhtml(
+            '<p>טקסט עם הערה'
+            '<a id="footnote-001-backlink" class="_idFootnoteLink" '
+            'href="ch1.xhtml#footnote-001">1</a> ממוספרת.</p>'
+            '<section class="_idFootnotes" role="doc-endnotes" '
+            'epub:type="endnotes"><ol>'
+            '<li id="footnote-001" class="_idFootnote"><p>'
+            '<a class="_idFootnoteAnchor" role="doc-backlink" '
+            'href="ch1.xhtml#footnote-001-backlink">1</a>'
+            '\tגוף ההערה הממוספרת.</p></li>'
+            '</ol></section>',
+          ),
+        },
+      );
+      final result = epubToText(epub, 'ספר');
+
+      // הסַמָּן נשאר בטקסט והגוף מוזרק בפורמט ההערות.
+      expect(result, contains('<sup class="footnote-marker">1</sup>'));
+      expect(result, contains('גוף ההערה הממוספרת'));
+      expect(result, contains('טקסט עם הערה'));
+      // הגוף מופיע פעם אחת בלבד — רשימת ההערות שבסוף הפרק מדוכאת.
+      expect(RegExp('גוף ההערה הממוספרת').allMatches(result).length, 1);
+    });
+
+    test('הערת כוכבית עם עוגן ריק, הפנייתה בתוך כותרת (ביו של מחבר)', () {
+      final epub = _buildEpub(
+        chapters: {
+          'ch1.xhtml': _xhtml(
+            '<h3>שם המחבר<a id="anchor-back"></a>'
+            '<a href="ch1.xhtml#anchor-note"><span class="up">*</span></a>'
+            '</h3>'
+            '<p>גוף המאמר.</p>'
+            '<p class="footnote"><a id="anchor-note"></a>'
+            '<a href="ch1.xhtml#anchor-back">*</a>'
+            '\tביוגרפיה של המחברת.</p>',
+          ),
+        },
+      );
+      final result = epubToText(epub, 'ספר');
+      final lines = result.split('\n');
+
+      // שורת הכותרת נקייה מגוף ההערה, והגוף מופיע בשורה נפרדת אחריה.
+      final headingIdx = lines.indexWhere((l) => l.startsWith('<h4'));
+      expect(headingIdx, greaterThan(0));
+      expect(lines[headingIdx], contains('שם המחבר'));
+      expect(lines[headingIdx], isNot(contains('ביוגרפיה')));
+      expect(
+        lines[headingIdx + 1],
+        '<i class="footnote">ביוגרפיה של המחברת.</i>',
+      );
+      // פסקת ההערה שבסוף הפרק מדוכאת — הגוף מופיע פעם אחת בלבד.
+      expect(RegExp('ביוגרפיה').allMatches(result).length, 1);
+      expect(result, contains('גוף המאמר.'));
+    });
+
     test('הערה סמנטית (epub:type) מוזרקת בפורמט ההערות של אוצריא', () {
       final epub = _buildEpub(
         chapters: {
@@ -632,7 +713,7 @@ void main() {
     });
 
     test('סמן מספרי שמצביע על יעד ארוך (קישור לפרק) אינו הופך להערה', () {
-      final longText = 'תוכן ארוך מאוד. ' * 100; // מעל תקרת ההיריסטיקה
+      final longText = 'תוכן ארוך מאוד. ' * 200; // מעל תקרת ההיריסטיקה
       final epub = _buildEpub(
         chapters: {
           'toc.xhtml': _xhtml('<p>פרק <a href="ch1.xhtml#c1">1</a></p>'),
@@ -734,6 +815,77 @@ void main() {
 
       expect(RegExp('שער ראשון').allMatches(result).length, 1);
       expect(result, contains('<h2>שער ראשון</h2>'));
+    });
+
+    test('תוכן עניינים מוטמע קובע: כותרת שאינה בו מודרת מה-TOC', () {
+      final epub = _buildEpub(
+        chapters: {
+          'ch1.xhtml': _xhtml(
+            '<h1>שער ראשון</h1>'
+            '<p>תוכן.</p>'
+            '<h2>כותרת עיצובית שאינה ב-TOC</h2>'
+            '<p id="s1">דין ראשון בסימן.</p>',
+          ),
+        },
+        binaryFiles: {'toc.ncx': utf8.encode(ncx)},
+        extraManifest:
+            '<item id="ncx" href="toc.ncx" '
+            'media-type="application/x-dtbncx+xml"/>',
+      );
+      final result = epubToText(epub, 'ספר');
+      final lines = result.split('\n');
+
+      // הכותרת המודרת נשמרת חזותית עם סימון ההדרה.
+      expect(
+        lines,
+        contains('<h3 $kTocExcludeAttr>כותרת עיצובית שאינה ב-TOC</h3>'),
+      );
+      // תוכן העניינים שנבנה מהתוכן משקף בדיוק את ה-NCX: שער ראשון > סימן א.
+      final toc = TocParser.parseEntriesFromContent(result);
+      expect(toc, hasLength(1)); // <h1> שם הספר
+      final bookRoot = toc.first;
+      expect(bookRoot.children.map((e) => e.text), ['שער ראשון']);
+      expect(
+        bookRoot.children.first.children.map((e) => e.text),
+        ['סימן א'],
+      );
+    });
+
+    test('כותרת שהיא יעד עוגן ב-TOC מקבלת את רמת ה-TOC', () {
+      const anchoredNcx = '''
+<?xml version="1.0" encoding="UTF-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <navMap>
+    <navPoint id="n1" playOrder="1">
+      <navLabel><text>שער ראשון</text></navLabel>
+      <content src="ch1.xhtml"/>
+      <navPoint id="n2" playOrder="2">
+        <navLabel><text>סימן א</text></navLabel>
+        <content src="ch1.xhtml#s1"/>
+      </navPoint>
+    </navPoint>
+  </navMap>
+</ncx>''';
+      final epub = _buildEpub(
+        chapters: {
+          // הכותרת הפנימית h5 — אבל ב-TOC היא ברמה 3 (בת של הפרק).
+          'ch1.xhtml': _xhtml(
+            '<h1>שער ראשון</h1>'
+            '<p>תוכן.</p>'
+            '<h5 id="s1">סימן א</h5>'
+            '<p>דין ראשון.</p>',
+          ),
+        },
+        binaryFiles: {'toc.ncx': utf8.encode(anchoredNcx)},
+        extraManifest:
+            '<item id="ncx" href="toc.ncx" '
+            'media-type="application/x-dtbncx+xml"/>',
+      );
+      final result = epubToText(epub, 'ספר');
+      final lines = result.split('\n');
+
+      expect(lines, contains('<h2>שער ראשון</h2>'));
+      expect(lines, contains('<h3>סימן א</h3>'));
     });
 
     test('מסמך ניווט EPUB3 (nav) משמש לסינתוז כשאין NCX', () {

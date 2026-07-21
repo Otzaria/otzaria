@@ -27,8 +27,9 @@ void main() {
   late SeforimRepository repository;
 
   setUp(() async {
-    tempDir = await Directory.systemTemp
-        .createTemp('generator-create-and-process-book-test-');
+    tempDir = await Directory.systemTemp.createTemp(
+      'generator-create-and-process-book-test-',
+    );
     database = MyDatabase.withPath(p.join(tempDir.path, 'test.db'));
     repository = SeforimRepository(database);
     await repository.ensureInitialized();
@@ -44,8 +45,8 @@ void main() {
   // ── helpers ──────────────────────────────────────────────────────────────
 
   Future<int> createCategory() => repository.insertCategory(
-        const Category(title: 'ספרים אישיים', parentId: null, level: 0),
-      );
+    const Category(title: 'ספרים אישיים', parentId: null, level: 0),
+  );
 
   /// כותב קובץ txt עם שורה ריקה לפני heading ראשון ומחזיר את הנתיב.
   Future<String> writeTxtWithPrefix(String title) async {
@@ -58,10 +59,10 @@ void main() {
   }
 
   DatabaseGenerator buildGenerator(List<String> log) => DatabaseGenerator(
-        tempDir.path,
-        repository,
-        onProgress: (_, msg) => log.add(msg),
-      );
+    tempDir.path,
+    repository,
+    onProgress: (_, msg) => log.add(msg),
+  );
 
   // ── tests ─────────────────────────────────────────────────────────────────
 
@@ -75,8 +76,11 @@ void main() {
 
       // await directly — if it throws the test fails; no need for returnsNormally
       // because the inner Future has actual await points that returnsNormally doesn't await.
-      await generator.createAndProcessBook(bookPath, catId,
-          insertContent: true);
+      await generator.createAndProcessBook(
+        bookPath,
+        catId,
+        insertContent: true,
+      );
     },
   );
 
@@ -88,23 +92,33 @@ void main() {
 
       // הכנסה ראשונה (ספר חדש)
       final log1 = <String>[];
-      await buildGenerator(log1)
-          .createAndProcessBook(bookPath, catId, insertContent: true);
+      await buildGenerator(
+        log1,
+      ).createAndProcessBook(bookPath, catId, insertContent: true);
 
       // הכנסה שנייה (ספר קיים → update path)
       final log2 = <String>[];
-      await buildGenerator(log2)
-          .createAndProcessBook(bookPath, catId, insertContent: true);
+      await buildGenerator(
+        log2,
+      ).createAndProcessBook(bookPath, catId, insertContent: true);
 
-      final updateMessages =
-          log2.where((m) => m.contains('עודכן ספר')).toList();
-      final duplicateMessages =
-          log2.where((m) => m.contains('מדלג על כפילות')).toList();
+      final updateMessages = log2
+          .where((m) => m.contains('עודכן ספר'))
+          .toList();
+      final duplicateMessages = log2
+          .where((m) => m.contains('מדלג על כפילות'))
+          .toList();
 
-      expect(updateMessages, hasLength(1),
-          reason: 'צריכה להיות בדיוק הודעת "עודכן ספר" אחת');
-      expect(duplicateMessages, isEmpty,
-          reason: 'לא צריכה להיות הודעת "מדלג על כפילות" אחרי update');
+      expect(
+        updateMessages,
+        hasLength(1),
+        reason: 'צריכה להיות בדיוק הודעת "עודכן ספר" אחת',
+      );
+      expect(
+        duplicateMessages,
+        isEmpty,
+        reason: 'לא צריכה להיות הודעת "מדלג על כפילות" אחרי update',
+      );
     },
   );
 
@@ -132,29 +146,57 @@ void main() {
 
       // וידוא שהספר אכן file-backed לפני ההמרה
       final before = await repository.checkBookExistsInCategoryWithFileType(
-          'ספר המרה', catId, 'txt');
+        'ספר המרה',
+        catId,
+        'txt',
+      );
       expect(before, isNotNull);
-      expect(before!.isFileBacked, isTrue,
-          reason: 'הספר צריך להיות file-backed לפני ההמרה');
+      expect(
+        before!.isFileBacked,
+        isTrue,
+        reason: 'הספר צריך להיות file-backed לפני ההמרה',
+      );
 
       // מפעיל את ה-createAndProcessBook עם insertContent=true —
       // מסלול ה-update כפי שה-generator מבצע אותו בפועל.
       final log = <String>[];
-      await buildGenerator(log)
-          .createAndProcessBook(bookPath, catId, insertContent: true);
+      await buildGenerator(
+        log,
+      ).createAndProcessBook(bookPath, catId, insertContent: true);
 
       // (א) הודעת progress: רק "עודכן ספר", ללא "מדלג על כפילות"
-      expect(log.where((m) => m.contains('עודכן ספר')), hasLength(1),
-          reason: 'צריכה להיות הודעת עדכון אחת בדיוק');
-      expect(log.where((m) => m.contains('מדלג על כפילות')), isEmpty,
-          reason: 'לא צריכה להיות הודעת כפילות');
+      expect(
+        log.where((m) => m.contains('עודכן ספר')),
+        hasLength(1),
+        reason: 'צריכה להיות הודעת עדכון אחת בדיוק',
+      );
+      expect(
+        log.where((m) => m.contains('מדלג על כפילות')),
+        isEmpty,
+        reason: 'לא צריכה להיות הודעת כפילות',
+      );
 
       // (ב) הספר הפך DB-backed: filePath → null
       final after = await repository.checkBookExistsInCategoryWithFileType(
-          'ספר המרה', catId, 'txt');
+        'ספר המרה',
+        catId,
+        'txt',
+      );
       expect(after, isNotNull);
-      expect(after!.isFileBacked, isFalse,
-          reason: 'לאחר insertContent=true ה-filePath צריך להיות null');
+      expect(
+        after!.isFileBacked,
+        isFalse,
+        reason: 'לאחר insertContent=true ה-filePath צריך להיות null',
+      );
     },
   );
+
+  group('detectHeaderLevel', () {
+    test('כותרת רגילה מזוהה, כותרת עם סימון ההדרה — לא', () {
+      expect(detectHeaderLevel('<h2>פרק א</h2>'), 2);
+      expect(detectHeaderLevel('<h2 class="x">פרק א</h2>'), 2);
+      expect(detectHeaderLevel('<h3 data-toc="none">עיצובית</h3>'), 0);
+      expect(detectHeaderLevel('טקסט רגיל'), 0);
+    });
+  });
 }

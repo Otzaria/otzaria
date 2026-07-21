@@ -1872,6 +1872,11 @@ class DatabaseLibraryProvider implements LibraryProvider {
         if (book.isFileBacked && book.filePath != null) {
           final file = File(book.filePath!);
           if (await file.exists()) {
+            // PDF אינו טקסט — הקוראים עוברים דרך זרימת ה-PDF, לא לקרוא כקובץ.
+            if ((book.fileType ?? '').toLowerCase() == 'pdf' ||
+                file.path.toLowerCase().endsWith('.pdf')) {
+              return null;
+            }
             // DOCX/EPUB הם בינאריים — חובה להמיר, לא readAsString (זבל/זורק).
             if ((book.fileType ?? '').toLowerCase() == 'docx' ||
                 file.path.toLowerCase().endsWith('.docx')) {
@@ -1968,6 +1973,24 @@ class DatabaseLibraryProvider implements LibraryProvider {
           fileType,
         );
         if (book == null) return null;
+        // DOCX/EPUB: ה-TOC נגזר מהתוכן המומר (במטמון) ולא משורות ה-DB —
+        // רשומות ה-DB נבנות בסריקה ומתיישנות כשגרסת הממיר עולה (אינדקסי
+        // השורות זזים ותוכן העניינים המוטמע לא היה נלקח בחשבון).
+        if (book.isFileBacked && book.filePath != null) {
+          final file = File(book.filePath!);
+          final ext = (book.fileType ?? '').toLowerCase();
+          if ((ext == 'docx' || ext == 'epub') && await file.exists()) {
+            final content = ext == 'docx'
+                ? await convertDocxWithCache(file, title)
+                : await convertEpubWithCache(file, title);
+            if (content.isNotEmpty) {
+              final toc = await Isolate.run(
+                () => TocParser.parseEntriesFromContent(content),
+              );
+              if (toc.isNotEmpty) return toc;
+            }
+          }
+        }
         return await _loadTocFromUserBooksRepo(repo, book.id);
       } catch (e) {
         debugPrint('⚠️ Error reading user book TOC: $e');

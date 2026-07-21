@@ -73,6 +73,7 @@ class TextBookRepository {
       title,
       category: book.category,
       categoryId: book.categoryId,
+      fileType: book.fileType,
     );
     if (dbBook != null) {
       // Best-effort enrichment for subsequent calls.
@@ -310,6 +311,7 @@ class TextBookRepository {
       title,
       category: book.category,
       categoryId: book.categoryId,
+      fileType: book.fileType,
     );
     if (dbBook != null) {
       book.fileType ??= dbBook.fileType;

@@ -9,10 +9,22 @@ import 'package:xml/xml.dart' as xml;
 import 'package:otzaria/utils/file/docx_to_otzaria.dart' show escapeHtmlText;
 import 'package:otzaria/utils/file/text_encoding.dart'
     show decodeTextBytesSmart;
+import 'package:otzaria/utils/file/toc_parser.dart' show kTocExcludeAttr;
 
 /// גרסת הממיר [epubToText] — **חובה להעלות בכל שינוי שמשפיע על הפלט**:
 /// מטמון התוכן כולל את הגרסה במפתח-התוקף, והעלאה פוסלת רשומות ישנות.
-const int kEpubConverterVersion = 10;
+const int kEpubConverterVersion = 13;
+
+/// תג raw-text סוגר-עצמו (`<script/>`, `<title/>` וכד') — חוקי ב-XHTML אך
+/// בפרסינג HTML התג נחשב פתוח וכל שאר המסמך נבלע כטקסט גולמי. מסירים לפני
+/// הפרסינג (תג כזה ריק ממילא, אין אובדן תוכן).
+final RegExp _selfClosingRawTextTag = RegExp(
+  r'<(?:script|style|title|textarea)\b[^<>]*/>',
+  caseSensitive: false,
+);
+
+String _stripSelfClosingRawTextTags(String html) =>
+    html.replaceAll(_selfClosingRawTextTag, '');
 
 /// ממיר קובץ EPUB לפורמט הטקסט של אוצריא: שורת `<h1>` עם שם הספר, ואחריה
 /// שורה לכל בלוק (פסקה/כותרת/טבלה/תמונה) לפי סדר פרקי ה-spine.
@@ -69,7 +81,9 @@ String epubToText(Uint8List bytes, String title) {
 
     final dom.Document doc;
     try {
-      doc = html_parser.parse(_decodeBytes(chapterBytes));
+      doc = html_parser.parse(
+        _stripSelfClosingRawTextTags(_decodeBytes(chapterBytes)),
+      );
     } catch (_) {
       continue; // פרק פגום — ממשיכים לפרק הבא במקום לקרוס.
     }
@@ -84,8 +98,9 @@ String epubToText(Uint8List bytes, String title) {
     }
   }
 
-  // כותרות מה-TOC של הספר (NCX/nav) — לספרים שפרקיהם בלי תגיות כותרת:
-  // רשומה בלי עוגן ממופה לתחילת הפרק, רשומה עם עוגן — לבלוק היעד.
+  // תוכן העניינים המוטמע (NCX/nav) הוא המקור הקובע כשהוא קיים: רשומה בלי
+  // עוגן ממופה לתחילת הפרק, רשומה עם עוגן — לבלוק היעד; יעד שהוא כותרת
+  // אמיתית שומר את הטקסט שלו ורק רמתו מיושרת לעומק שב-TOC.
   final chapterTocHeading = <String, (String, int)>{};
   for (final t in _parseTocEntries(files, manifest)) {
     final level = (t.depth + 1).clamp(2, 6).toInt();
@@ -97,10 +112,20 @@ String epubToText(Uint8List bytes, String title) {
       while (el != null && !_isBlockElement(el)) {
         el = el.parent;
       }
-      if (el == null || _headingTags.contains(el.localName)) continue;
+      if (el == null) continue;
+      if (_headingTags.contains(el.localName)) {
+        ctx.headingLevelOverrides.putIfAbsent(el, () => level);
+        continue;
+      }
       ctx.tocHeadings.putIfAbsent(el, () => (t.title, level));
     }
   }
+  // כשנקלט תוכן עניינים מוטמע — כותרות שאינן חלק ממנו מסומנות להדרה
+  // (kTocExcludeAttr) כדי שתוכן העניינים של אוצריא ישקף אותו במדויק.
+  ctx.embeddedTocActive =
+      chapterTocHeading.isNotEmpty ||
+      ctx.tocHeadings.isNotEmpty ||
+      ctx.headingLevelOverrides.isNotEmpty;
 
   // שלב 2: סריקה מקדימה — סימון יעדי הערות לדיכוי, לפני הרינדור, כדי
   // שגוף הערה לא יופיע פעמיים גם כשהיעד קודם להפניה בסדר הפרקים.
@@ -175,7 +200,9 @@ List<_TocRef> _parseTocEntries(
     if (bytes == null) break;
     final dom.Document doc;
     try {
-      doc = html_parser.parse(_decodeBytes(bytes));
+      doc = html_parser.parse(
+        _stripSelfClosingRawTextTags(_decodeBytes(bytes)),
+      );
     } catch (_) {
       break;
     }
@@ -323,8 +350,21 @@ class _EpubContext {
   /// לספרים שמבנה הפרקים שלהם מוגדר ב-NCX/nav ולא בתגיות כותרת.
   final Map<dom.Element, (String, int)> tocHeadings = {};
 
+  /// תגית כותרת שהיא יעד ישיר של רשומת TOC → הרמה מה-TOC (דורסת את רמת
+  /// התגית, הטקסט המוצג נשאר של המחבר).
+  final Map<dom.Element, int> headingLevelOverrides = {};
+
+  /// האם נקלט תוכן עניינים מוטמע (NCX/nav) — ואז הוא המקור הקובע, וכותרות
+  /// שאינן חלק ממנו מודרות מתוכן העניינים של אוצריא.
+  bool embeddedTocActive = false;
+
   /// כותרת-פרק מה-TOC הממתינה לבלוק הראשון של הפרק הנוכחי.
   (String, int)? pendingChapterHeading;
+
+  /// גופי הערות שהפנייתן יושבת בתוך כותרת — נפלטים כשורות נפרדות אחרי
+  /// שורת הכותרת (גוף הערה בשורת הכותרת היה מזהם אותה ואת תוכן העניינים).
+  final List<String> deferredNoteBodies = [];
+  bool renderingHeading = false;
 
   String baseDir = '';
   String chapterPath = '';
@@ -520,8 +560,9 @@ bool _hasEpubType(dom.Element e, Set<String> types) {
 
 /// תקרת אורך (בתווים) ליעד של הערה *היריסטית*. קישור-סַמָּן מספרי עלול
 /// להצביע גם על פרק שלם (עמוד תוכן עניינים ממוספר) — יעד ארוך מכך אינו
-/// הערה, והקישור נשאר טקסט רגיל בלי לדכא את היעד.
-const _maxHeuristicNoteLength = 1000;
+/// הערה, והקישור נשאר טקסט רגיל בלי לדכא את היעד. הערות אקדמיות אמיתיות
+/// נמדדו עד ~1,600 תווים.
+const _maxHeuristicNoteLength = 2000;
 
 /// טקסט-סַמָּן של הפניית הערה: מספר, כוכבית/פגיון, אות בודדת, או אות/יות
 /// עבריות עם גרש/גרשיים (א׳, י"א) — אופציונלית בסוגריים ([1], (א)).
@@ -568,10 +609,31 @@ _NoterefResolution? _resolveNoterefUncached(dom.Element a, _EpubContext ctx) {
   final targetPath = pathPart.isEmpty
       ? ctx.chapterPath
       : _resolveHref(ctx.baseDir, href);
-  final target = ctx.anchors['${targetPath.toLowerCase()}#$id'];
+  var target = ctx.anchors['${targetPath.toLowerCase()}#$id'];
 
   if (isExplicit) return _NoterefResolution(target);
   if (target == null) return null;
+  // קישור-חזרה מגוף הערה אל סַמָּן ההפניה — אינו הפניה בעצמו; בלעדי הבדיקה
+  // סַמָּן ההפניה שבטקסט היה נחשב "גוף הערה" ונבלע יחד עם ההערה כולה.
+  final role = _attr(a, 'role');
+  if (role != null && role.split(' ').contains('doc-backlink')) return null;
+  if (target.localName == 'a' && _isNoteMarkerText(target.text)) return null;
+  // עוגן ריק (<a id/>) — גוף ההערה הוא הבלוק העוטף. מטפסים אליו רק כשהוא
+  // נפתח בסַמָּן התואם (מוסכמת גוף-הערה), כדי לא לבלוע פסקת תוכן רגילה.
+  if (!_isBlockElement(target) && target.text.trim().isEmpty) {
+    dom.Element? block = target.parent;
+    while (block != null && !_isBlockElement(block)) {
+      block = block.parent;
+    }
+    if (block == null) return null;
+    final core = _collapseWhitespace(a.text).trim().replaceAll(
+      _markerTrimRegExp,
+      '',
+    );
+    final lead = _collapseWhitespace(block.text).trimLeft();
+    if (core.isEmpty || !lead.startsWith(core)) return null;
+    target = block;
+  }
   if (_hasEpubType(target, _footnoteTypes)) return _NoterefResolution(target);
   // כותרות הן יעדי ניווט, לא גופי הערות — בלי הבדיקה קישור-סַמָּן קצר
   // לכותרת קצרה היה מעלים אותה מהספר ומתוכן העניינים.
@@ -696,10 +758,12 @@ void _processBlockElement(
 
   // כותרות מסונתזות מה-TOC (ספרים בלי תגיות כותרת): כותרת-עוגן נפלטת לפני
   // בלוק היעד, וכותרת-פרק ממתינה — לפני הבלוק הראשון שאינו עטיפה. פרק
-  // שנפתח בכותרת אמיתית מייתר את הסינתוז.
+  // שנפתח בכותרת אמיתית מייתר את הסינתוז — הכותרת מקבלת את רמת רשומת ה-TOC.
   String? synthesizedTitle;
+  (String, int)? chapterEntryForHeading;
   final anchorHeading = ctx.tocHeadings.remove(e);
   if (isHeading) {
+    chapterEntryForHeading = ctx.pendingChapterHeading;
     ctx.pendingChapterHeading = null;
   } else if (anchorHeading != null) {
     ctx.pendingChapterHeading = null;
@@ -719,11 +783,26 @@ void _processBlockElement(
     case 'h4':
     case 'h5':
     case 'h6':
+      ctx.renderingHeading = true;
       final text = _renderInlineChildren(e, ctx).trim();
-      if (text.isEmpty) return;
-      // הסטה רמה אחת מטה — h1 שמור לשם הספר (שורת הפתיחה).
-      final level = (int.parse(tag.substring(1)) + 1).clamp(2, 6);
-      output.add('<h$level>$text</h$level>');
+      ctx.renderingHeading = false;
+      final headingNoteBodies = List<String>.of(ctx.deferredNoteBodies);
+      ctx.deferredNoteBodies.clear();
+      if (text.isNotEmpty) {
+        // הסטה רמה אחת מטה — h1 שמור לשם הספר (שורת הפתיחה).
+        final ownLevel = (int.parse(tag.substring(1)) + 1).clamp(2, 6);
+        final tocLevel =
+            ctx.headingLevelOverrides[e] ?? chapterEntryForHeading?.$2;
+        if (!ctx.embeddedTocActive) {
+          output.add('<h$ownLevel>$text</h$ownLevel>');
+        } else if (tocLevel != null) {
+          output.add('<h$tocLevel>$text</h$tocLevel>');
+        } else {
+          // כותרת שאינה ברשומות ה-TOC המוטמע — נשמרת חזותית, מודרת מה-TOC.
+          output.add('<h$ownLevel $kTocExcludeAttr>$text</h$ownLevel>');
+        }
+      }
+      output.addAll(headingNoteBodies);
     case 'p':
     case 'figcaption':
     case 'summary':
@@ -969,7 +1048,12 @@ bool _renderNoteref(dom.Element a, _EpubContext ctx, StringBuffer buf) {
   if (target != null) {
     final body = _extractNoteBody(target, markerText);
     if (body.isNotEmpty) {
-      buf.write('<i class="footnote">${escapeHtmlText(body)}</i>');
+      final html = '<i class="footnote">${escapeHtmlText(body)}</i>';
+      if (ctx.renderingHeading) {
+        ctx.deferredNoteBodies.add(html);
+      } else {
+        buf.write(html);
+      }
     }
   }
   return true;

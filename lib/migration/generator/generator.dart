@@ -17,6 +17,8 @@ import 'link_processor.dart';
 import 'hebrew_text_utils.dart' as hebrew_text_utils;
 import 'package:otzaria/utils/file/docx_to_otzaria.dart';
 import 'package:otzaria/utils/file/epub_to_otzaria.dart';
+import 'package:otzaria/utils/file/toc_parser.dart'
+    show isTocExcludedHeadingLine;
 
 /// DatabaseGenerator is responsible for generating the Otzaria database from source files.
 /// It processes directories, books, and links to create a structured database.
@@ -858,11 +860,23 @@ String cleanHtml(String html) {
 
 int detectHeaderLevel(String line) {
   final lowerLine = line.toLowerCase();
-  if (lowerLine.startsWith('<h1')) return 1;
-  if (lowerLine.startsWith('<h2')) return 2;
-  if (lowerLine.startsWith('<h3')) return 3;
-  if (lowerLine.startsWith('<h4')) return 4;
-  if (lowerLine.startsWith('<h5')) return 5;
-  if (lowerLine.startsWith('<h6')) return 6;
-  return 0;
+  final int level;
+  if (lowerLine.startsWith('<h1')) {
+    level = 1;
+  } else if (lowerLine.startsWith('<h2')) {
+    level = 2;
+  } else if (lowerLine.startsWith('<h3')) {
+    level = 3;
+  } else if (lowerLine.startsWith('<h4')) {
+    level = 4;
+  } else if (lowerLine.startsWith('<h5')) {
+    level = 5;
+  } else if (lowerLine.startsWith('<h6')) {
+    level = 6;
+  } else {
+    return 0;
+  }
+  // כותרת שהודרה מתוכן העניינים (תוכן עניינים מוטמע קובע) — אינה נספרת.
+  if (isTocExcludedHeadingLine(lowerLine)) return 0;
+  return level;
 }

@@ -24,6 +24,7 @@ class BookLocator {
     String bookTitle, {
     Category? category,
     int? categoryId,
+    String? fileType,
   }) async {
     try {
       // קודם ננסה למצוא ב-DB
@@ -31,6 +32,7 @@ class BookLocator {
         bookTitle,
         category,
         categoryId: categoryId,
+        fileType: fileType,
       );
       if (dbLocation != null) {
         return dbLocation;
@@ -54,14 +56,19 @@ class BookLocator {
     String bookTitle,
     Category? category, {
     int? categoryId,
+    String? fileType,
   }) async {
     try {
       if (categoryId != null) {
+        // fileType קריטי כשלספר יש "תאום" באותה כותרת וקטגוריה בסוג קובץ
+        // אחר (EPUB לצד PDF) — בלעדיו נשלפת השורה הראשונה שנמצאה.
         final resolved = await BookDatabaseResolver.resolveBook(
           title: bookTitle,
           categoryId: categoryId,
+          fileType: fileType,
           preferUserBooks: BookDatabaseResolver.isLikelyUserBook(
-              categoryPath: category?.path),
+            categoryPath: category?.path,
+          ),
         );
         if (resolved != null) {
           return BookLocation(
@@ -124,8 +131,9 @@ class BookLocator {
     Category category,
   ) async {
     try {
-      final preferUserBooks =
-          BookDatabaseResolver.isLikelyUserBook(categoryPath: category.path);
+      final preferUserBooks = BookDatabaseResolver.isLikelyUserBook(
+        categoryPath: category.path,
+      );
       final repositories = await BookDatabaseResolver.loadRepositoryCandidates(
         preferUserBooks: preferUserBooks,
       );
@@ -142,8 +150,9 @@ class BookLocator {
           continue;
         }
 
-        final booksInCategory =
-            await candidate.repository.getBooksByCategory(categoryId);
+        final booksInCategory = await candidate.repository.getBooksByCategory(
+          categoryId,
+        );
         for (final dbBook in booksInCategory) {
           if (dbBook.title == bookTitle) {
             return ResolvedDbBookRecord(
@@ -197,7 +206,8 @@ class BookLocator {
       final keyToPath = await FileSystemLibraryProvider.instance.keyToPath;
       String? filePath;
 
-      final resolvedCategoryId = categoryId ??
+      final resolvedCategoryId =
+          categoryId ??
           category?.path
               .split('/')
               .where((part) => part.isNotEmpty)
@@ -298,8 +308,10 @@ class BookLocator {
     }
 
     if (!location.isUserBooks) {
-      debugPrint('⛔ Refusing to delete official (read-only) book: '
-          '${location.book!.title}');
+      debugPrint(
+        '⛔ Refusing to delete official (read-only) book: '
+        '${location.book!.title}',
+      );
       return false;
     }
 
@@ -364,11 +376,13 @@ class BookLocator {
     String bookTitle, {
     Category? category,
     int? categoryId,
+    String? fileType,
   }) async {
     final location = await locateBook(
       bookTitle,
       category: category,
       categoryId: categoryId,
+      fileType: fileType,
     );
     if (location == null || location.source != BookSource.database) {
       return null;

@@ -397,8 +397,9 @@ class IndexingRepository {
       );
     }
     if (bytes == null || bytes.isEmpty) {
-      // מסלול הנפילה (docx, ספר בלי categoryId): טקסט דרך LibraryProvider.
-      text = await book.text;
+      // מסלול הנפילה (docx/epub, ספר בלי categoryId): טקסט דרך LibraryProvider.
+      // תמונות מוטמעות מסולקות — ראו [stripDataUrisForIndex].
+      text = stripDataUrisForIndex(await book.text);
     }
     loadStopwatch.stop();
 
@@ -771,6 +772,17 @@ class IndexingRepository {
     return pages;
   }
 
+  /// data URIs (תמונות מוטמעות בספרי EPUB/DOCX מומרים) — עשרות MB לספר
+  /// מצויר. אינם ניתנים לחיפוש, מנפחים את האינדקס, וגרמו ל-abort של ה-VM
+  /// בזמן אינדוקס. ההחלפה משמרת את מבנה השורות (אין מחיקת שורות).
+  static final RegExp _dataUriPattern = RegExp(
+    r'data:[A-Za-z0-9+/;,=.\-]{64,}',
+  );
+
+  @visibleForTesting
+  static String stripDataUrisForIndex(String text) =>
+      text.contains('data:') ? text.replaceAll(_dataUriPattern, '') : text;
+
   Future<String?> _loadTextBookText(TextBook book) async {
     String? text;
 
@@ -794,7 +806,8 @@ class IndexingRepository {
       return null;
     }
 
-    return text;
+    // עקבי עם מסלול האינדוקס — טביעת האצבע מחושבת על הטקסט המנוקה.
+    return stripDataUrisForIndex(text);
   }
 
   /// ממדי ה-facet הנוספים של הספר (מחבר/תקופה/ספר-יסוד) — משותף לכל

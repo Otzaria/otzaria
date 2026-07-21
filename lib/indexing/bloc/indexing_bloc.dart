@@ -81,11 +81,13 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
       return;
     }
 
-    emit(IndexingInProgress(
-      booksProcessed: 0,
-      totalBooks: totalCandidates,
-      isCreatingIndex: false,
-    ));
+    emit(
+      IndexingInProgress(
+        booksProcessed: 0,
+        totalBooks: totalCandidates,
+        isCreatingIndex: false,
+      ),
+    );
 
     try {
       final completed = await _repository.reconcileIndexWithLibrary(
@@ -95,21 +97,25 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
         // שלב האינדוקס-מחדש.
         onScanProgress: (processed, total) {
           if (_activeWorkId != workId) return;
-          emit(IndexingInProgress(
-            booksProcessed: processed,
-            totalBooks: total,
-            isCreatingIndex: state.isCreatingIndex,
-          ));
+          emit(
+            IndexingInProgress(
+              booksProcessed: processed,
+              totalBooks: total,
+              isCreatingIndex: state.isCreatingIndex,
+            ),
+          );
         },
         onActualIndexingStarted: () {
           add(ActualIndexingStarted(workId));
         },
         onProgress: (processed, total) {
-          add(UpdateIndexingProgress(
-            workId: workId,
-            processed: processed,
-            total: total,
-          ));
+          add(
+            UpdateIndexingProgress(
+              workId: workId,
+              processed: processed,
+              total: total,
+            ),
+          );
         },
       );
       if (_activeWorkId != workId) {
@@ -126,8 +132,13 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
         return;
       }
       _activeWorkId = null;
-      emit(IndexingError(e.toString(),
-          booksProcessed: state.booksProcessed, totalBooks: state.totalBooks));
+      emit(
+        IndexingError(
+          e.toString(),
+          booksProcessed: state.booksProcessed,
+          totalBooks: state.totalBooks,
+        ),
+      );
     }
   }
 
@@ -147,11 +158,13 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
       emit(IndexingInitial());
       return;
     }
-    emit(IndexingInProgress(
-      booksProcessed: 0,
-      totalBooks: totalBooks,
-      isCreatingIndex: false,
-    ));
+    emit(
+      IndexingInProgress(
+        booksProcessed: 0,
+        totalBooks: totalBooks,
+        isCreatingIndex: false,
+      ),
+    );
 
     try {
       final completed = await _repository.indexAllBooks(
@@ -161,11 +174,13 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
         },
         onProgress: (processed, total) {
           // Update progress through event
-          add(UpdateIndexingProgress(
-            workId: workId,
-            processed: processed,
-            total: total,
-          ));
+          add(
+            UpdateIndexingProgress(
+              workId: workId,
+              processed: processed,
+              total: total,
+            ),
+          );
         },
       );
       if (_activeWorkId != workId) {
@@ -182,8 +197,13 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
         return;
       }
       _activeWorkId = null;
-      emit(IndexingError(e.toString(),
-          booksProcessed: state.booksProcessed, totalBooks: state.totalBooks));
+      emit(
+        IndexingError(
+          e.toString(),
+          booksProcessed: state.booksProcessed,
+          totalBooks: state.totalBooks,
+        ),
+      );
     }
   }
 
@@ -200,11 +220,13 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
       return;
     }
 
-    emit(IndexingInProgress(
-      booksProcessed: currentState.booksProcessed,
-      totalBooks: currentState.totalBooks,
-      isCreatingIndex: true,
-    ));
+    emit(
+      IndexingInProgress(
+        booksProcessed: currentState.booksProcessed,
+        totalBooks: currentState.totalBooks,
+        isCreatingIndex: true,
+      ),
+    );
   }
 
   /// מטפל באינדוקס של רשימת ספרים — חדשים (IndexSpecificBooks) או
@@ -224,19 +246,23 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     }
 
     final totalBooks = books.length;
-    emit(IndexingInProgress(
-      booksProcessed: 0,
-      totalBooks: totalBooks,
-      isCreatingIndex: false,
-    ));
+    emit(
+      IndexingInProgress(
+        booksProcessed: 0,
+        totalBooks: totalBooks,
+        isCreatingIndex: false,
+      ),
+    );
 
     try {
       onActualIndexingStarted() => add(ActualIndexingStarted(workId));
-      onProgress(int processed, int total) => add(UpdateIndexingProgress(
-            workId: workId,
-            processed: processed,
-            total: total,
-          ));
+      onProgress(int processed, int total) => add(
+        UpdateIndexingProgress(
+          workId: workId,
+          processed: processed,
+          total: total,
+        ),
+      );
       final completed = reindex
           ? await _repository.reindexChangedBooks(
               books,
@@ -264,8 +290,13 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
         return;
       }
       _activeWorkId = null;
-      emit(IndexingError(e.toString(),
-          booksProcessed: state.booksProcessed, totalBooks: state.totalBooks));
+      emit(
+        IndexingError(
+          e.toString(),
+          booksProcessed: state.booksProcessed,
+          totalBooks: state.totalBooks,
+        ),
+      );
     }
   }
 
@@ -310,7 +341,9 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
 
   /// Handles the EraseIndex event
   Future<void> _onEraseIndex(
-      ClearIndex event, Emitter<IndexingState> emit) async {
+    ClearIndex event,
+    Emitter<IndexingState> emit,
+  ) async {
     _activeWorkId = null;
     await _repository.clearIndex();
     emit(IndexingInitial());
@@ -330,11 +363,13 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     if (!_repository.isIndexing()) {
       emit(IndexingInitial());
     } else {
-      emit(IndexingInProgress(
-        booksProcessed: event.processed,
-        totalBooks: event.total,
-        isCreatingIndex: state.isCreatingIndex,
-      ));
+      emit(
+        IndexingInProgress(
+          booksProcessed: event.processed,
+          totalBooks: event.total,
+          isCreatingIndex: state.isCreatingIndex,
+        ),
+      );
     }
   }
 }

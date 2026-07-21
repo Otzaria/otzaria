@@ -7,15 +7,28 @@ import 'package:otzaria/utils/file/text_encoding.dart';
 /// Shared TOC parsing utilities used by both the TextBook navigator and
 /// the Shamor Zachor scanner. This ensures a single source of truth for
 /// how headings are detected and converted to structures.
+/// סימון על תגית כותרת שמוציא אותה מתוכן העניינים (ומ-heRef): כותרת
+/// עיצובית שאינה חלק מתוכן העניינים המוטמע של הספר (ראו epub_to_otzaria).
+const String kTocExcludeAttr = 'data-toc="none"';
+
+/// האם שורת `<h#...>` נושאת את סימון ההדרה בתגית הפתיחה.
+bool isTocExcludedHeadingLine(String lowerLine) {
+  final tagEnd = lowerLine.indexOf('>');
+  return tagEnd > 0 && lowerLine.substring(0, tagEnd).contains(kTocExcludeAttr);
+}
+
 class TocParser {
   /// Parse TOC from a file path or database and return a flat structure compatible with
   /// Shamor Zachor scanner (list of maps with text/index/level).
   static Future<List<Map<String, dynamic>>> parseFlatFromFile(
-      String bookPath) async {
+    String bookPath,
+  ) async {
     try {
       // Extract book title from path
-      final bookTitle =
-          bookPath.split(Platform.pathSeparator).last.replaceAll('.txt', '');
+      final bookTitle = bookPath
+          .split(Platform.pathSeparator)
+          .last
+          .replaceAll('.txt', '');
 
       // Try to get TOC from LibraryProviderManager (handles both DB and files)
       try {
@@ -56,11 +69,13 @@ class TocParser {
       final content = await readTextFileSmart(file);
       final headers = _extractHeaders(content);
       return headers
-          .map((h) => {
-                'text': h.text,
-                'index': h.index,
-                'level': h.level,
-              })
+          .map(
+            (h) => {
+              'text': h.text,
+              'index': h.index,
+              'level': h.level,
+            },
+          )
           .toList();
     } catch (e) {
       if (kDebugMode) debugPrint('Error parsing TOC from $bookPath: $e');
@@ -101,6 +116,7 @@ class TocParser {
         final c = lower[2];
         final code = c.codeUnitAt(0);
         if (code >= '1'.codeUnitAt(0) && code <= '6'.codeUnitAt(0)) {
+          if (isTocExcludedHeadingLine(lower)) continue;
           final level = int.tryParse(c) ?? 1;
           final text = _stripHtmlTags(line);
           if (text.isNotEmpty) {
