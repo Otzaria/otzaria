@@ -64,6 +64,28 @@ void main() {
       expect(state.errorMessage, contains('TimeoutException'));
     });
 
+    test('releaseTagFromUrl מחלץ תג מנתיב redirect של GitHub', () {
+      expect(
+        EmptyLibraryBloc.releaseTagFromUrl(
+          '/Otzaria/SeforimMagicIndexer/releases/download/v0.3.0/lexical.db',
+        ),
+        'v0.3.0',
+      );
+      // הנתיב לפני ה-redirect (latest) והנתיב הסופי ב-CDN — ללא תג.
+      expect(
+        EmptyLibraryBloc.releaseTagFromUrl(
+          '/Otzaria/SeforimMagicIndexer/releases/latest/download/lexical.db',
+        ),
+        isNull,
+      );
+      expect(
+        EmptyLibraryBloc.releaseTagFromUrl(
+          '/github-production-release-asset/123/456',
+        ),
+        isNull,
+      );
+    });
+
     test(
       'בחירת seforim.db.zst מחבילת FULL מחלצת גם קטלוג ותלמוד בבלי למיקום הספרייה המוגדר',
       () async {
@@ -147,9 +169,7 @@ void main() {
           '${DatabaseConstants.databaseArchiveFileName}→${DatabaseConstants.databaseFileName}',
           '${DatabaseConstants.externalCatalogArchiveFileName}→${DatabaseConstants.externalCatalogDatabaseFileName}',
         ]);
-        expect(tarExtractions, [
-          DatabaseConstants.talmudBavliArchiveFileName,
-        ]);
+        expect(tarExtractions, [DatabaseConstants.talmudBavliArchiveFileName]);
       },
     );
 
@@ -211,147 +231,153 @@ void main() {
       },
     );
 
-    test(
-      'DownloadLibraryRequested מוריד DB מהרליס האחרון ומחלץ אותו',
-      () async {
-        final tempDir = await Directory.systemTemp.createTemp(
-          'otzaria-empty-library-test-',
-        );
-        addTearDown(() async {
-          if (await tempDir.exists()) {
-            await tempDir.delete(recursive: true);
-          }
-        });
+    test('DownloadLibraryRequested מוריד DB מהרליס האחרון ומחלץ אותו', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'otzaria-empty-library-test-',
+      );
+      addTearDown(() async {
+        if (await tempDir.exists()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
 
-        await Settings.init(cacheProvider: _MemoryCacheProvider());
-        await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
-        await Settings.setValue<String>(
-          SettingsRepository.keyLibraryFolderName,
-          '',
-        );
+      await Settings.init(cacheProvider: _MemoryCacheProvider());
+      await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
+      await Settings.setValue<String>(
+        SettingsRepository.keyLibraryFolderName,
+        '',
+      );
 
-        final downloadedBytes = utf8.encode('compressed-db');
-        final talmudBytes = utf8.encode('compressed-talmud');
-        final catalogBytes = utf8.encode('compressed-catalog');
-        final lexicalBytes = utf8.encode('lexical-dictionary');
-        final client = MockClient((request) async {
-          if (request.url.path.endsWith('/releases/latest')) {
-            return http.Response(
-              jsonEncode({
-                'assets': [
-                  {
-                    'name': '2-3.DIFF.zst',
-                    'browser_download_url':
-                        'https://example.com/releases/2-3.DIFF.zst',
-                  },
-                  {
-                    'name': 'seforim.db.zst',
-                    'browser_download_url':
-                        'https://example.com/releases/seforim.db.zst',
-                  },
-                ],
-              }),
-              200,
-              headers: const {'content-type': 'application/json'},
+      final downloadedBytes = utf8.encode('compressed-db');
+      final talmudBytes = utf8.encode('compressed-talmud');
+      final catalogBytes = utf8.encode('compressed-catalog');
+      final lexicalBytes = utf8.encode('lexical-dictionary');
+      final client = MockClient((request) async {
+        if (request.url.path.endsWith('/releases/latest')) {
+          return http.Response(
+            jsonEncode({
+              'assets': [
+                {
+                  'name': '2-3.DIFF.zst',
+                  'browser_download_url':
+                      'https://example.com/releases/2-3.DIFF.zst',
+                },
+                {
+                  'name': 'seforim.db.zst',
+                  'browser_download_url':
+                      'https://example.com/releases/seforim.db.zst',
+                },
+              ],
+            }),
+            200,
+            headers: const {'content-type': 'application/json'},
+          );
+        }
+
+        if (request.url.toString() ==
+            'https://example.com/releases/seforim.db.zst') {
+          return http.Response.bytes(downloadedBytes, 200);
+        }
+
+        if (request.url.host == 'github.com' &&
+            request.url.path.endsWith('talmud_bavli_latest.tar.zst')) {
+          return http.Response.bytes(talmudBytes, 200);
+        }
+
+        if (request.url.host == 'github.com' &&
+            request.url.path.endsWith('otzar-HB_catalog.db.zst')) {
+          return http.Response.bytes(catalogBytes, 200);
+        }
+
+        // כמו GitHub: releases/latest/download מפנה לנתיב עם תג ה-release.
+        if (request.url.host == 'github.com' &&
+            request.url.path.contains('/releases/latest/download/') &&
+            request.url.path.endsWith('/lexical.db')) {
+          return http.Response(
+            '',
+            302,
+            headers: const {
+              'location':
+                  'https://github.com/Otzaria/SeforimMagicIndexer/releases/download/v0.3.0/lexical.db',
+            },
+          );
+        }
+
+        if (request.url.host == 'github.com' &&
+            request.url.path.endsWith('/lexical.db')) {
+          return http.Response.bytes(lexicalBytes, 200);
+        }
+
+        return http.Response('not found', 404);
+      });
+
+      final bloc = EmptyLibraryBloc(
+        httpClient: client,
+        defaultLibraryPathOverride: tempDir.path,
+        extractCompressedDatabase: (archivePath, outputPath, onProgress) async {
+          // הקובץ הזמני חייב להיות בתיקיית temp של המערכת
+          expect(archivePath, startsWith(Directory.systemTemp.path));
+          // יכול להיות גם seforim.db.zst וגם otzar-HB_catalog.db.zst
+          final basename = path.basename(archivePath);
+          if (basename == 'otzaria_seforim.db.zst') {
+            expect(await File(archivePath).readAsBytes(), downloadedBytes);
+            expect(
+              outputPath,
+              path.join(tempDir.path, DatabaseConstants.databaseFileName),
             );
+            await File(outputPath).writeAsBytes(const [1, 2, 3], flush: true);
+          } else if (basename == 'otzaria_otzar-HB_catalog.db.zst') {
+            expect(await File(archivePath).readAsBytes(), catalogBytes);
+            await File(outputPath).writeAsBytes(const [4, 5, 6], flush: true);
+          } else {
+            fail('Unexpected archive: $archivePath');
           }
+        },
+        extractTarArchive: (archivePath, outputDir, onProgress) async {
+          expect(archivePath, startsWith(Directory.systemTemp.path));
+          expect(path.basename(archivePath), 'otzaria_talmud_bavli.tar.zst');
+          expect(await File(archivePath).readAsBytes(), talmudBytes);
+          // לא יוצרים קבצי tar אמיתיים בטסט — מדמים חילוץ
+        },
+      );
+      addTearDown(bloc.close);
 
-          if (request.url.toString() ==
-              'https://example.com/releases/seforim.db.zst') {
-            return http.Response.bytes(downloadedBytes, 200);
-          }
+      final directorySelectedFuture = bloc.stream
+          .where((state) => state is EmptyLibraryDirectorySelected)
+          .cast<EmptyLibraryDirectorySelected>()
+          .first;
 
-          if (request.url.host == 'github.com' &&
-              request.url.path.endsWith('talmud_bavli_latest.tar.zst')) {
-            return http.Response.bytes(talmudBytes, 200);
-          }
+      bloc.add(DownloadLibraryRequested());
 
-          if (request.url.host == 'github.com' &&
-              request.url.path.endsWith('otzar-HB_catalog.db.zst')) {
-            return http.Response.bytes(catalogBytes, 200);
-          }
+      final selectedState = await directorySelectedFuture.timeout(
+        const Duration(seconds: 5),
+      );
 
-          if (request.url.host == 'github.com' &&
-              request.url.path.endsWith('/lexical.db')) {
-            return http.Response.bytes(lexicalBytes, 200);
-          }
-
-          return http.Response('not found', 404);
-        });
-
-        final bloc = EmptyLibraryBloc(
-          httpClient: client,
-          defaultLibraryPathOverride: tempDir.path,
-          extractCompressedDatabase:
-              (archivePath, outputPath, onProgress) async {
-                // הקובץ הזמני חייב להיות בתיקיית temp של המערכת
-                expect(archivePath, startsWith(Directory.systemTemp.path));
-                // יכול להיות גם seforim.db.zst וגם otzar-HB_catalog.db.zst
-                final basename = path.basename(archivePath);
-                if (basename == 'otzaria_seforim.db.zst') {
-                  expect(
-                    await File(archivePath).readAsBytes(),
-                    downloadedBytes,
-                  );
-                  expect(
-                    outputPath,
-                    path.join(tempDir.path, DatabaseConstants.databaseFileName),
-                  );
-                  await File(
-                    outputPath,
-                  ).writeAsBytes(const [1, 2, 3], flush: true);
-                } else if (basename == 'otzaria_otzar-HB_catalog.db.zst') {
-                  expect(await File(archivePath).readAsBytes(), catalogBytes);
-                  await File(
-                    outputPath,
-                  ).writeAsBytes(const [4, 5, 6], flush: true);
-                } else {
-                  fail('Unexpected archive: $archivePath');
-                }
-              },
-          extractTarArchive: (archivePath, outputDir, onProgress) async {
-            expect(archivePath, startsWith(Directory.systemTemp.path));
-            expect(path.basename(archivePath), 'otzaria_talmud_bavli.tar.zst');
-            expect(await File(archivePath).readAsBytes(), talmudBytes);
-            // לא יוצרים קבצי tar אמיתיים בטסט — מדמים חילוץ
-          },
-        );
-        addTearDown(bloc.close);
-
-        final directorySelectedFuture = bloc.stream
-            .where((state) => state is EmptyLibraryDirectorySelected)
-            .cast<EmptyLibraryDirectorySelected>()
-            .first;
-
-        bloc.add(DownloadLibraryRequested());
-
-        final selectedState = await directorySelectedFuture.timeout(
-          const Duration(seconds: 5),
-        );
-
-        expect(selectedState.selectedPath, tempDir.path);
-        expect(
-          Settings.getValue<String>(SettingsRepository.keyLibraryPath),
-          tempDir.path,
-        );
-        expect(
-          Settings.getValue<String>(SettingsRepository.keyLibraryFolderName),
-          '',
-        );
-        // הקובץ הזמני נמחק אוטומטית
-        expect(
-          File(
-            path.join(Directory.systemTemp.path, 'otzaria_seforim.db.zst'),
-          ).existsSync(),
-          isFalse,
-        );
-        // מילון החיפוש המקורב (לא דחוס) הועתק לתיקיית הספרייה ליד seforim.db.
-        expect(
-          File(path.join(tempDir.path, 'lexical.db')).existsSync(),
-          isTrue,
-        );
-      },
-    );
+      expect(selectedState.selectedPath, tempDir.path);
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+        tempDir.path,
+      );
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyLibraryFolderName),
+        '',
+      );
+      // הקובץ הזמני נמחק אוטומטית
+      expect(
+        File(
+          path.join(Directory.systemTemp.path, 'otzaria_seforim.db.zst'),
+        ).existsSync(),
+        isFalse,
+      );
+      // מילון החיפוש המקורב (לא דחוס) הועתק לתיקיית הספרייה ליד seforim.db.
+      expect(File(path.join(tempDir.path, 'lexical.db')).existsSync(), isTrue);
+      // סימון הגרסה נכתב מהתג שבשרשרת ה-redirect — בלעדיו בדיקת העדכון
+      // הבאה תוריד את המילון מחדש בכל הפעלה.
+      expect(
+        File(path.join(tempDir.path, 'lexical.db.version')).readAsStringSync(),
+        'v0.3.0',
+      );
+    });
 
     test('פס ההתקדמות מאוחד על פני כל הקבצים — רק הכותרת מתחלפת', () async {
       final tempDir = await Directory.systemTemp.createTemp(
@@ -929,11 +955,9 @@ void main() {
             .first;
         bloc2.add(DownloadLibraryRequested());
         await done.timeout(const Duration(seconds: 5));
-        expect(
-          seforimGetRanges,
-          [null],
-          reason: 'הורדה מחדש מ-0 — בלי Range כי ה-temp נמחק',
-        );
+        expect(seforimGetRanges, [
+          null,
+        ], reason: 'הורדה מחדש מ-0 — בלי Range כי ה-temp נמחק');
       },
     );
 
@@ -1028,11 +1052,10 @@ void main() {
         bloc.add(DownloadLibraryRequested());
         await done.timeout(const Duration(seconds: 5));
 
-        expect(
-          seforimGetRanges,
-          ['bytes=50-', null],
-          reason: 'ניסיון resume ואז בקשה שנייה בלי Range',
-        );
+        expect(seforimGetRanges, [
+          'bytes=50-',
+          null,
+        ], reason: 'ניסיון resume ואז בקשה שנייה בלי Range');
         expect(seforimArchiveBytes, hasLength(100));
         expect(
           seforimArchiveBytes!.every((b) => b == 7),
@@ -1125,11 +1148,9 @@ void main() {
         bloc.add(DownloadLibraryRequested());
         await done.timeout(const Duration(seconds: 5));
 
-        expect(
-          seforimGetRanges,
-          [null],
-          reason: 'זהות שונה → השריד נמחק והורדה מ-0 בלי Range',
-        );
+        expect(seforimGetRanges, [
+          null,
+        ], reason: 'זהות שונה → השריד נמחק והורדה מ-0 בלי Range');
         expect(seforimArchiveBytes, hasLength(100));
         expect(
           seforimArchiveBytes!.every((b) => b == 5),
@@ -1226,11 +1247,10 @@ void main() {
         bloc.add(DownloadLibraryRequested());
         await done.timeout(const Duration(seconds: 5));
 
-        expect(
-          seforimGetRanges,
-          ['bytes=50-', null],
-          reason: 'ניסיון resume ואז בקשה שנייה בלי Range',
-        );
+        expect(seforimGetRanges, [
+          'bytes=50-',
+          null,
+        ], reason: 'ניסיון resume ואז בקשה שנייה בלי Range');
         expect(seforimArchiveBytes, hasLength(100));
         expect(
           seforimArchiveBytes!.every((b) => b == 7),
