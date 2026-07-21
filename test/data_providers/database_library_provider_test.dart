@@ -1,9 +1,13 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
+import 'package:otzaria/data/data_providers/cache_database_holder.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
@@ -18,6 +22,26 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:path/path.dart' as path;
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
+
+/// בונה DOCX מינימלי תקין (ZIP עם word/document.xml) המכיל פסקה אחת.
+Uint8List _buildMinimalDocx(String paragraphText) {
+  final documentXml = utf8.encode('''
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r>
+        <w:t>$paragraphText</w:t>
+      </w:r>
+    </w:p>
+  </w:body>
+</w:document>''');
+  final archive = Archive()
+    ..addFile(
+      ArchiveFile('word/document.xml', documentXml.length, documentXml),
+    );
+  return Uint8List.fromList(ZipEncoder().encode(archive));
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -1635,6 +1659,241 @@ void main() {
         expect(nestedCategory.books, hasLength(1));
         expect(nestedCategory.books.single.title, 'ספר פנימי');
         expect(nestedCategory.books.single.category, same(nestedCategory));
+      },
+    );
+
+    test(
+      'getLinkContent קורא מהקובץ עבור ספר משתמש file-backed (ללא שורות ב-DB)',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'otzaria_file_backed_link_content',
+        );
+        final libraryPath = path.join(tempDir.path, 'library');
+        final dataRootPath = path.join(tempDir.path, 'data_root');
+        final dbPath = path.join(
+          libraryPath,
+          DatabaseConstants.databaseFileName,
+        );
+        final database = MyDatabase.withPath(dbPath);
+        final repository = SeforimRepository(database);
+        final provider = DatabaseLibraryProvider.instance;
+        final previousLibraryPath = Settings.getValue<String>(
+          SettingsRepository.keyLibraryPath,
+        );
+        final previousFolderName = Settings.getValue<String>(
+          SettingsRepository.keyLibraryFolderName,
+        );
+        final previousEffectiveDbPath = Settings.getValue<String>(
+          SettingsRepository.keyDbEffectivePath,
+        );
+        final previousDataRootPath = AppPaths.cachedDataRootPath;
+
+        addTearDown(() => tempDir.delete(recursive: true));
+        addTearDown(() => provider.clearCache());
+        addTearDown(() => provider.sqliteProvider.dispose());
+        addTearDown(
+          () => AppPaths.debugOverrideDataRootPath(previousDataRootPath),
+        );
+        // cache.db נפתח תחת ה-dataRoot הזמני ע"י מטמון ה-docx — חובה לסגור
+        // לפני מחיקת התיקייה.
+        addTearDown(() => CacheDatabaseHolder.instance.close());
+        addTearDown(() => UserBooksDatabaseHolder.instance.close());
+        addTearDown(() async {
+          await Settings.setValue<String>(
+            SettingsRepository.keyDbEffectivePath,
+            previousEffectiveDbPath ?? '',
+          );
+        });
+        addTearDown(() async {
+          await Settings.setValue<String>(
+            SettingsRepository.keyLibraryFolderName,
+            previousFolderName ?? '',
+          );
+        });
+        addTearDown(() async {
+          await Settings.setValue<String>(
+            SettingsRepository.keyLibraryPath,
+            previousLibraryPath ?? '',
+          );
+        });
+
+        await Directory(libraryPath).create(recursive: true);
+        await provider.sqliteProvider.dispose();
+        provider.clearCache();
+        await UserBooksDatabaseHolder.instance.close();
+        AppPaths.debugOverrideDataRootPath(dataRootPath);
+        // יוצר את סכימת ה-DB הרשמי ונסגר מיד — provider.initialize פותח את
+        // אותו קובץ, וחיבור פתוח מקביל גורם ל-"database is locked".
+        await repository.ensureInitialized();
+        database.close();
+
+        await Settings.setValue<String>(
+          SettingsRepository.keyLibraryPath,
+          libraryPath,
+        );
+        await Settings.setValue<String>(
+          SettingsRepository.keyLibraryFolderName,
+          '',
+        );
+        await Settings.setValue<String>(
+          SettingsRepository.keyDbEffectivePath,
+          '',
+        );
+
+        // קובץ טקסט בסגנון תיקייה מותאמת בלי "הוסף למסד הנתונים" — CRLF,
+        // והספר נרשם ב-user_books.db עם filePath בלבד (totalLines=0).
+        final bookFile = File(path.join(tempDir.path, 'הערות לבדיקה.txt'));
+        await bookFile.writeAsString(
+          'שורה ראשונה\r\nשורה שנייה\r\nשורה שלישית',
+        );
+
+        final userBooksRepository =
+            await UserBooksDatabaseHolder.instance.repository;
+        final userSourceId = await userBooksRepository.insertSource(
+          'user-test',
+          -20,
+        );
+        final userCategoryId = await userBooksRepository.insertCategory(
+          const migration_models.Category(
+            title: 'ספרים אישיים',
+            parentId: null,
+            level: 0,
+            orderIndex: 1,
+          ),
+        );
+        await userBooksRepository.insertBook(
+          migration_models.Book(
+            categoryId: userCategoryId,
+            sourceId: userSourceId,
+            title: 'הערות לבדיקה',
+            filePath: bookFile.path,
+            fileType: 'txt',
+          ),
+        );
+
+        // ספר שני באותה כותרת בקטגוריה אחרת — לאימות הבחנה לפי targetCategoryId.
+        final otherFile = File(path.join(tempDir.path, 'הערות אחרות.txt'));
+        await otherFile.writeAsString('תוכן מהקטגוריה השנייה');
+        final otherCategoryId = await userBooksRepository.insertCategory(
+          const migration_models.Category(
+            title: 'תיקייה שנייה',
+            parentId: null,
+            level: 0,
+            orderIndex: 2,
+          ),
+        );
+        await userBooksRepository.insertBook(
+          migration_models.Book(
+            categoryId: otherCategoryId,
+            sourceId: userSourceId,
+            title: 'הערות לבדיקה',
+            filePath: otherFile.path,
+            fileType: 'txt',
+          ),
+        );
+
+        await provider.initialize();
+
+        final single = await provider.getLinkContent(
+          Link(
+            heRef: 'הערות',
+            index1: 1,
+            path2: 'הערות לבדיקה',
+            index2: 2,
+            connectionType: 'commentary',
+            targetIsUserBook: true,
+          ),
+        );
+        expect(single, 'שורה שנייה');
+
+        final range = await provider.getLinkContent(
+          Link(
+            heRef: 'הערות',
+            index1: 1,
+            path2: 'הערות לבדיקה',
+            index2: 2,
+            index2End: 3,
+            connectionType: 'commentary',
+            targetIsUserBook: true,
+          ),
+        );
+        expect(range, 'שורה שנייה<br>שורה שלישית');
+
+        final outOfRange = await provider.getLinkContent(
+          Link(
+            heRef: 'הערות',
+            index1: 1,
+            path2: 'הערות לבדיקה',
+            index2: 99,
+            connectionType: 'commentary',
+            targetIsUserBook: true,
+          ),
+        );
+        expect(outOfRange, 'שגיאה: אינדקס מחוץ לטווח');
+
+        // targetCategoryId מבחין בין שני ספרים בעלי אותה כותרת.
+        final fromOtherCategory = await provider.getLinkContent(
+          Link(
+            heRef: 'הערות',
+            index1: 1,
+            path2: 'הערות לבדיקה',
+            index2: 1,
+            connectionType: 'commentary',
+            targetIsUserBook: true,
+            targetCategoryId: otherCategoryId,
+          ),
+        );
+        expect(fromOtherCategory, 'תוכן מהקטגוריה השנייה');
+
+        // ספר docx file-backed — התוכן עובר דרך ממיר ה-docx, ושורה 1 היא
+        // תמיד <h1> עם כותרת הספר.
+        final docxFile = File(path.join(tempDir.path, 'ספר דוקס.docx'));
+        await docxFile.writeAsBytes(_buildMinimalDocx('תוכן פסקה'));
+        await userBooksRepository.insertBook(
+          migration_models.Book(
+            categoryId: userCategoryId,
+            sourceId: userSourceId,
+            title: 'ספר דוקס',
+            filePath: docxFile.path,
+            fileType: 'docx',
+          ),
+        );
+        final docxContent = await provider.getLinkContent(
+          Link(
+            heRef: 'דוקס',
+            index1: 1,
+            path2: 'ספר דוקס',
+            index2: 1,
+            connectionType: 'commentary',
+            targetIsUserBook: true,
+          ),
+        );
+        expect(docxContent, '<h1>ספר דוקס</h1>');
+
+        // ספר PDF file-backed — קובץ בינארי לא מועבר למפענח הטקסט; נופל
+        // למסלול ה-DB (שאין בו שורות) ומחזיר את הודעת השגיאה הרגילה.
+        final pdfFile = File(path.join(tempDir.path, 'ספר סרוק.pdf'));
+        await pdfFile.writeAsBytes([0x25, 0x50, 0x44, 0x46, 0x00, 0xFF, 0xFE]);
+        await userBooksRepository.insertBook(
+          migration_models.Book(
+            categoryId: userCategoryId,
+            sourceId: userSourceId,
+            title: 'ספר סרוק',
+            filePath: pdfFile.path,
+            fileType: 'pdf',
+          ),
+        );
+        final pdfContent = await provider.getLinkContent(
+          Link(
+            heRef: 'סרוק',
+            index1: 1,
+            path2: 'ספר סרוק',
+            index2: 1,
+            connectionType: 'commentary',
+            targetIsUserBook: true,
+          ),
+        );
+        expect(pdfContent, 'שגיאה: אינדקס מחוץ לטווח');
       },
     );
 
