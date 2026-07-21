@@ -56,6 +56,20 @@ void main() {
       expect(tab.showLeftPane.value, isTrue);
     });
 
+    test('requiresStableLayout=false כברירת מחדל (פתיחה ישירה מהירה)', () {
+      final tab = _tab();
+      expect(tab.requiresStableLayout, isFalse);
+    });
+
+    test('requiresStableLayout ניתן להפעלה (תרחישי סיכון)', () {
+      final tab = PdfBookTab(
+        book: _book(),
+        pageNumber: 1,
+        requiresStableLayout: true,
+      );
+      expect(tab.requiresStableLayout, isTrue);
+    });
+
     test('searchText מועבר ל-searchController', () {
       final tab = PdfBookTab(book: _book(), pageNumber: 1, searchText: 'תורה');
       expect(tab.searchController.text, 'תורה');
@@ -164,6 +178,22 @@ void main() {
       final tab = PdfBookTab(book: _book(), pageNumber: 1, openLeftPane: true);
       final restored = PdfBookTab.fromJson(tab.toJson());
       expect(restored.showLeftPane.value, isTrue);
+    });
+
+    test('fromJson משחזר requiresStableLayout=true', () {
+      final tab = PdfBookTab(
+        book: _book(),
+        pageNumber: 1,
+        requiresStableLayout: true,
+      );
+      final restored = PdfBookTab.fromJson(tab.toJson());
+      expect(restored.requiresStableLayout, isTrue);
+    });
+
+    test('fromJson ללא requiresStableLayout → false', () {
+      final json = {'path': '/path/to/book.pdf', 'book': _book().toJson()};
+      final tab = PdfBookTab.fromJson(json);
+      expect(tab.requiresStableLayout, isFalse);
     });
 
     test('fromJson עם pageNumber חסר → מגדיר 1', () {

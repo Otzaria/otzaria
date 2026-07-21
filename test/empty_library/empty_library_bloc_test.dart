@@ -1533,6 +1533,93 @@ void main() {
         );
       },
     );
+
+    test(
+      'כתובות ההורדה הקבועות (תלמוד, קטלוג, מילון) מדויקות במלואן — '
+      'commit 168081fe6 תיקן טעות דומה בשם קובץ ה-DB (seforim.zip → '
+      'seforim.db.zip) שנשלחה לפורום ולא נתפסה, כי בדיקה לפי סיומת בלבד '
+      'הייתה מפספסת אותה',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'otzaria-exact-urls-',
+        );
+        addTearDown(() async {
+          if (await tempDir.exists()) await tempDir.delete(recursive: true);
+        });
+        await _cleanDownloadTemps();
+        addTearDown(_cleanDownloadTemps);
+        await Settings.init(cacheProvider: _MemoryCacheProvider());
+        await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
+        await Settings.setValue<String>(
+          SettingsRepository.keyLibraryFolderName,
+          '',
+        );
+
+        const seforimUrl = 'https://example.com/releases/seforim.db.zst';
+        const talmudUrl =
+            'https://github.com/Otzaria/otzaria-library/releases/latest/download/talmud_bavli_latest.tar.zst';
+        const catalogUrl =
+            'https://github.com/Otzaria/otzar-HB_catalog/releases/latest/download/otzar-HB_catalog.db.zst';
+        const lexicalUrl =
+            'https://github.com/Otzaria/SeforimMagicIndexer/releases/latest/download/lexical.db';
+
+        final client = MockClient((request) async {
+          if (request.url.path.endsWith('/releases/latest')) {
+            return http.Response(
+              jsonEncode({
+                'assets': [
+                  {
+                    'name': 'seforim.db.zst',
+                    'browser_download_url': seforimUrl,
+                  },
+                ],
+              }),
+              200,
+              headers: const {'content-type': 'application/json'},
+            );
+          }
+          // התאמה מדויקת ומלאה (owner+repo+file) — כתובת שגויה בכל דרגה
+          // (repo לא נכון או שם קובץ שגוי) נופלת ל-404 ומכשילה את הטסט.
+          if (request.url.toString() == talmudUrl ||
+              request.url.toString() == catalogUrl ||
+              request.url.toString() == lexicalUrl) {
+            return http.Response.bytes(utf8.encode('ok'), 200);
+          }
+          if (request.url.toString() == seforimUrl) {
+            return http.Response.bytes(utf8.encode('ok'), 200);
+          }
+          return http.Response('not found', 404);
+        });
+
+        final bloc = EmptyLibraryBloc(
+          httpClient: client,
+          defaultLibraryPathOverride: tempDir.path,
+          extractCompressedDatabase:
+              (archivePath, outputPath, onProgress) async {
+                await File(outputPath).writeAsBytes(const [1], flush: true);
+              },
+          extractTarArchive: (archivePath, outputDir, onProgress) async {},
+        );
+        addTearDown(bloc.close);
+
+        final done = bloc.stream
+            .where((s) => s is EmptyLibraryDirectorySelected)
+            .first;
+        final error = bloc.stream
+            .where((s) => s is EmptyLibraryError)
+            .cast<EmptyLibraryError>();
+        bloc.add(DownloadLibraryRequested());
+
+        // אם אחת הכתובות הקבועות שגויה, ההורדה הלא-אופציונלית (תלמוד/קטלוג)
+        // נכשלת עם 404 ומגיעה ל-EmptyLibraryError במקום DirectorySelected.
+        final result = await Future.any([
+          done.then((_) => 'success'),
+          error.first.then((e) => 'error: ${e.errorMessage}'),
+        ]).timeout(const Duration(seconds: 5));
+
+        expect(result, 'success');
+      },
+    );
   });
 }
 

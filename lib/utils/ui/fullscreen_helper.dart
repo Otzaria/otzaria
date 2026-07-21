@@ -1,4 +1,7 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
@@ -23,6 +26,13 @@ class FullscreenHelper {
     );
   }
 
+  /// מצב ה-System UI המתאים: מסתיר את שורת המצב במסך מלא, ומשיב אותה כשיוצאים.
+  static SystemUiMode systemUiModeForFullscreen(bool isFullscreen) {
+    return isFullscreen
+        ? SystemUiMode.immersiveSticky
+        : SystemUiMode.edgeToEdge;
+  }
+
   /// Toggle fullscreen mode with proper window manager handling
   static Future<void> toggleFullscreen(
     BuildContext context,
@@ -32,6 +42,14 @@ class FullscreenHelper {
     final settingsBloc = context.read<SettingsBloc>();
     if (settingsBloc.state.isFullscreen != isFullscreen) {
       settingsBloc.add(UpdateIsFullscreen(isFullscreen));
+    }
+
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      // בנייד אין title bar/window manager - שורת המצב נשלטת ישירות דרך SystemChrome.
+      await SystemChrome.setEnabledSystemUIMode(
+        systemUiModeForFullscreen(isFullscreen),
+      );
+      return;
     }
 
     // פעולות על מנהל החלונות

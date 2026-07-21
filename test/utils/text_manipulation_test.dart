@@ -593,6 +593,26 @@ Future<void> main() async {
     });
   }, skip: engineReady ? false : searchEngineSkipReason);
 
+  group('replaceHolyNames', () {
+    test('שם הקודש בתוך פסוק מוחלף', () {
+      expect(replaceHolyNames('ויאמר יהוה אל משה'), equals('ויאמר יקוק אל משה'));
+    });
+
+    test('שם הקודש מנוקד מוחלף', () {
+      expect(replaceHolyNames('לַֽיהֹוָֽה'), equals('לַֽיקֹוָֽק'));
+    });
+
+    test('"ויגביהוהו" אינה מוחלפת — 3 אותיות עבריות רצופות לפני התבנית',
+        () {
+      // https://otzaria.org/forum/post/6829 - "יהוה" בתוך מילה חילונית
+      expect(replaceHolyNames('ויגביהוהו'), equals('ויגביהוהו'));
+    });
+
+    test('מילה חילונית דומה נוספת אינה מוחלפת', () {
+      expect(replaceHolyNames('מגביהוהי'), equals('מגביהוהי'));
+    });
+  });
+
   group('גבולות מילה מול מפרידים עבריים', () {
     test('סוף-פסוק דבוק אינו נבלע בגבול המילה', () {
       // ׃ (U+05C3) מפריד מילים כמו במנוע — "ברא" לפני ׃ הוא טוקן שלם

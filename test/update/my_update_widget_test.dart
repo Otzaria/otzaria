@@ -156,6 +156,21 @@ void main() {
     });
   });
 
+  group('shouldDestroyWindowAfterInstallNow', () {
+    // רגרסיה לתקלה מהפורום (topic 1530): לפני התיקון "התקן עכשיו" נתקע
+    // לנצח כי אוצריא נסגרה/נשארה פתוחה בלי קשר להצלחת שיגור המתקין.
+    test('closes the window only when the installer actually launched', () {
+      expect(
+        shouldDestroyWindowAfterInstallNow(installerLaunched: true),
+        isTrue,
+      );
+      expect(
+        shouldDestroyWindowAfterInstallNow(installerLaunched: false),
+        isFalse,
+      );
+    });
+  });
+
   group('pickPreferredReleaseForDevChannel', () {
     test('selects stable when stable core version is newer than dev', () {
       final selected = pickPreferredReleaseForDevChannel(

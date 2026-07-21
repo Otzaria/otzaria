@@ -3,8 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/navigation/search_pane_base.dart';
 
 void main() {
-  testWidgets('מציג toolbar של תוצאות באותה שורה מול מונה התוצאות',
-      (tester) async {
+  testWidgets('מציג toolbar של תוצאות באותה שורה מול מונה התוצאות', (
+    tester,
+  ) async {
     final controller = TextEditingController(text: 'נחל');
     final focusNode = FocusNode();
 
@@ -45,5 +46,48 @@ void main() {
       lessThan(4),
     );
     expect(toolbarRect.left, greaterThan(counterRect.left));
+  });
+
+  testWidgets('צובע את אזור התוצאות ב-Material שקוף כך שהדגשת הכרטיסייה הפעילה '
+      'לא דולפת אליו ולא לשדה החיפוש', (tester) async {
+    final controller = TextEditingController();
+    final focusNode = FocusNode();
+    const resultsKey = ValueKey('resultsContent');
+    const tabHighlightColor = Colors.orange;
+
+    addTearDown(() {
+      controller.dispose();
+      focusNode.dispose();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          // מדמה כרטיסייה פעילה עם צבע הדגשה מסביב לפאנל
+          body: Material(
+            color: tabHighlightColor,
+            child: SearchPaneBase(
+              searchController: controller,
+              focusNode: focusNode,
+              resultsWidget: const SizedBox(key: resultsKey),
+              isNoResults: false,
+              resetSearchCallback: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final nearestMaterial = tester.widget<Material>(
+      find
+          .ancestor(of: find.byKey(resultsKey), matching: find.byType(Material))
+          .first,
+    );
+    expect(nearestMaterial.color, Colors.transparent);
+
+    final searchFieldDecoration = tester
+        .widget<TextField>(find.byType(TextField))
+        .decoration;
+    expect(searchFieldDecoration?.fillColor, isNot(tabHighlightColor));
   });
 }
