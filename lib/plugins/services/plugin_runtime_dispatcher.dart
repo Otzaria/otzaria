@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
+import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 
 enum _PluginRuntimeShutdownMode { idle, restart, exit }
 
@@ -278,6 +279,7 @@ class PluginRuntimeDispatcher {
   Future<void> reloadPlugin(String pluginId) async {
     if (_shutdownMode != _PluginRuntimeShutdownMode.idle) return;
     ContextMenuRegistry.instance.removeAll(pluginId);
+    PluginHighlightRegistry.instance.removePlugin(pluginId);
     final callbacks = _reloadCallbacks[pluginId];
     if (callbacks == null || callbacks.isEmpty) return;
     // עותק כדי לא לקרוס אם callback משתמש ב-unregister באמצעו

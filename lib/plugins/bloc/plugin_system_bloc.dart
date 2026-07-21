@@ -436,7 +436,6 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     ReloadDevelopmentPluginRequested event,
     Emitter<PluginSystemState> emit,
   ) async {
-    PluginHighlightRegistry.instance.removePlugin(event.pluginId);
     PluginRuntimeDispatcher.instance.reloadPlugin(event.pluginId);
   }
 

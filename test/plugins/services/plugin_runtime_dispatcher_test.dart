@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/models/plugin_context_menu_item.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
+import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 
 // ── fake repository לשליטה ב-enabled/permission בלי SQLite ────────────────
@@ -125,6 +126,7 @@ void _cleanupControllers() {
 void _cleanupCallbacks() {
   _d.unregisterReloadCallback(_kPid);
   _d.unregisterReloadCallback(_kPid, instanceId: 'background');
+  PluginHighlightRegistry.instance.removePlugin(_kPid);
 }
 
 void main() {
@@ -404,6 +406,23 @@ void main() {
         );
       },
     );
+
+    test('reload clears stale highlights without an active host', () async {
+      PluginHighlightRegistry.instance.setLegacyHighlight(
+        ownerPluginId: _kPid,
+        bookId: 'book',
+        sectionIndex: 1,
+      );
+
+      await _d.reloadPlugin(_kPid);
+
+      expect(
+        PluginHighlightRegistry.instance.getHighlights(
+          ownerPluginId: _kPid,
+        ),
+        isEmpty,
+      );
+    });
 
     test('callback רשום מופעל', () async {
       var called = false;

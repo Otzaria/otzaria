@@ -32,6 +32,27 @@ void main() {
     expect(registry.getHighlights(ownerPluginId: 'plugin.b'), hasLength(1));
   });
 
+  test('setHighlight מחליף מזהה קיים ומגדיל גרסה', () {
+    final createdAt = DateTime.utc(2026, 7, 14, 10);
+    final updatedAt = DateTime.utc(2026, 7, 14, 11);
+    final first = registry.setHighlight(
+      ownerPluginId: 'plugin.a',
+      payload: _payload(id: 'marker-1'),
+      now: createdAt,
+    );
+    final second = registry.setHighlight(
+      ownerPluginId: 'plugin.a',
+      payload: _payload(id: 'marker-1', sectionIndex: 2),
+      now: updatedAt,
+    );
+
+    expect(registry.getHighlights(ownerPluginId: 'plugin.a'), hasLength(1));
+    expect(second.version, first.version + 1);
+    expect(second.createdAt, createdAt);
+    expect(second.updatedAt, updatedAt);
+    expect(second.sectionIndex, 2);
+  });
+
   test('דוחה ניסיון לזייף pluginId', () {
     expect(
       () => registry.setHighlight(

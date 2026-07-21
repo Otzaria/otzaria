@@ -91,12 +91,7 @@ class PluginHighlightRegistry extends ChangeNotifier {
         ? _generateId(ownerPluginId, timestamp)
         : _validateId(requestedId);
     final ownRecords = _recordsByPlugin.putIfAbsent(ownerPluginId, () => {});
-    if (ownRecords.containsKey(highlightId)) {
-      throw const PluginHighlightException(
-        'error.conflict',
-        'highlightId already exists for this plugin',
-      );
-    }
+    final existing = ownRecords[highlightId];
 
     final record = PluginHighlight(
       highlightId: highlightId,
@@ -107,7 +102,8 @@ class PluginHighlightRegistry extends ChangeNotifier {
       range: range,
       style: style,
       metadata: metadata,
-      createdAt: timestamp,
+      version: (existing?.version ?? 0) + 1,
+      createdAt: existing?.createdAt ?? timestamp,
       updatedAt: timestamp,
     );
     ownRecords[highlightId] = record;
