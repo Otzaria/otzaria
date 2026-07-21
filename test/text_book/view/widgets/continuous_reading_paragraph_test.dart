@@ -1,6 +1,11 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/plugins/models/plugin_highlight.dart';
+import 'package:otzaria/plugins/models/plugin_reader_selection.dart';
+import 'package:otzaria/plugins/models/text_source_map.dart';
+import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
+import 'package:otzaria/plugins/view/plugin_highlight_frame_overlay.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
 
 /// טסטים לפיצ'ר ההצגה הרציפה. עיקר הסיכון הוא ב-`_styleForElement` החדש —
@@ -59,6 +64,45 @@ void main() {
 
       final richText = tester.widget<RichText>(find.byType(RichText));
       expect(richText.textAlign, TextAlign.justify);
+    });
+
+    testWidgets('טווחי מסגרת מוזזים לפי השורות והרווח המחבר', (tester) async {
+      final highlight = _frameHighlight();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ContinuousReadingParagraph(
+              lines: [
+                const ContinuousReadingParagraphLine(
+                  lineIndex: 0,
+                  text: 'אב',
+                  style: TextStyle(fontSize: 20),
+                ),
+                ContinuousReadingParagraphLine(
+                  lineIndex: 1,
+                  text: 'גד',
+                  style: const TextStyle(fontSize: 20),
+                  frameRanges: [
+                    PluginHighlightRenderedRange(
+                      start: 0,
+                      end: 1,
+                      highlight: highlight,
+                    ),
+                  ],
+                ),
+              ],
+              baseStyle: const TextStyle(fontSize: 20),
+              onLineTap: _noopLineTap,
+            ),
+          ),
+        ),
+      );
+
+      final overlay = tester.widget<PluginHighlightFrameOverlay>(
+        find.byType(PluginHighlightFrameOverlay),
+      );
+      expect(overlay.ranges.single.start, 3);
+      expect(overlay.ranges.single.end, 4);
     });
   });
 
@@ -305,6 +349,35 @@ void main() {
 }
 
 void _noopLineTap(int lineIndex) {}
+
+PluginHighlight _frameHighlight() {
+  const context = PluginAnchorContext(
+    raw: '',
+    normalized: '',
+    maxGraphemes: 30,
+    actualGraphemes: 0,
+    truncatedAtBoundary: true,
+  );
+  return PluginHighlight(
+    highlightId: 'frame',
+    ownerPluginId: 'plugin',
+    bookId: 'book',
+    sectionIndex: 1,
+    range: const PluginTextRangeAnchor(
+      layer: 'source',
+      start: PluginTextOffset(grapheme: 0, codePoint: 0, utf16: 0),
+      end: PluginTextOffset(grapheme: 1, codePoint: 1, utf16: 1),
+      exactText: 'ג',
+      beforeText: context,
+      afterText: context,
+      occurrenceIndexInSection: 0,
+      occurrenceCountInSection: 1,
+    ),
+    style: const PluginHighlightStyle(backgroundColor: '#FFE066'),
+    createdAt: DateTime.utc(2026, 7, 21),
+    updatedAt: DateTime.utc(2026, 7, 21),
+  );
+}
 
 /// מאתר את ה-`TextSpan` של קישור — מזוהה לפי recognizer מחובר.
 /// ה-span הלחיץ (עם recognizer) שהטקסט השטוח שלו מכיל את [needle].

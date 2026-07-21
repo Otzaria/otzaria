@@ -4,6 +4,8 @@ import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
+import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
+import 'package:otzaria/plugins/view/plugin_highlight_frame_overlay.dart';
 
 /// תגובה ללחיצה על קישור inline בתוך פסקה של מצב טקסט רציף.
 /// יוחזר `true` אם הטיפול בקישור הסתיים והעיבוד הרגיל (לחיצה על שורה) לא נדרש.
@@ -21,12 +23,14 @@ class ContinuousReadingParagraphLine {
   final String text;
   final String? htmlText;
   final TextStyle style;
+  final List<PluginHighlightRenderedRange> frameRanges;
 
   const ContinuousReadingParagraphLine({
     required this.lineIndex,
     required this.text,
     required this.style,
     this.htmlText,
+    this.frameRanges = const [],
   });
 }
 
@@ -115,6 +119,8 @@ class _ContinuousReadingParagraphState
     _disposeLinkRecognizers();
 
     final spans = <InlineSpan>[];
+    final frameRanges = <PluginHighlightRenderedRange>[];
+    var graphemeOffset = 0;
     for (var i = 0; i < widget.lines.length; i++) {
       final line = widget.lines[i];
       final hasNext = i < widget.lines.length - 1;
@@ -122,15 +128,29 @@ class _ContinuousReadingParagraphState
       for (final span in lineSpans) {
         spans.add(_withRecognizer(span, _lineRecognizers[i], line.style));
       }
+      for (final range in line.frameRanges) {
+        final mode = range.highlight.style.markerMode;
+        if (mode == 'text-background' || mode == 'box') {
+          frameRanges.add(
+            PluginHighlightRenderedRange(
+              start: range.start + graphemeOffset,
+              end: range.end + graphemeOffset,
+              highlight: range.highlight,
+            ),
+          );
+        }
+      }
+      graphemeOffset += line.text.characters.length;
       if (hasNext) {
         spans.add(TextSpan(text: ' ', style: line.style));
+        graphemeOffset++;
       }
     }
 
     final textSpan = TextSpan(style: widget.baseStyle, children: spans);
     return LayoutBuilder(
       builder: (context, constraints) {
-        return Text.rich(
+        final text = Text.rich(
           textSpan,
           textAlign: _effectiveTextAlign(
             textSpan: textSpan,
@@ -138,6 +158,8 @@ class _ContinuousReadingParagraphState
             textScaler: MediaQuery.textScalerOf(context),
           ),
         );
+        if (frameRanges.isEmpty) return text;
+        return PluginHighlightFrameOverlay(ranges: frameRanges, child: text);
       },
     );
   }

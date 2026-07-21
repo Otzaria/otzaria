@@ -587,11 +587,15 @@ class _CombinedViewState extends State<CombinedView> {
       if (!mounted || !widget.tab.scrollController.isAttached) {
         return;
       }
-      widget.tab.scrollController.scrollTo(
-        index: highlight.sectionIndex,
-        alignment: .35,
-        duration: const Duration(milliseconds: 450),
-        curve: Curves.easeInOut,
+      final state = context.read<TextBookBloc>().state;
+      if (state is! TextBookLoaded) return;
+      unawaited(
+        _scrollToSourceLine(
+          state,
+          highlight.sectionIndex,
+          alignment: .35,
+          duration: const Duration(milliseconds: 450),
+        ),
       );
     });
   }
@@ -2360,7 +2364,7 @@ class _CombinedViewState extends State<CombinedView> {
       final style = backgroundColor == null
           ? baseTextStyle
           : baseTextStyle.copyWith(backgroundColor: backgroundColor);
-      final htmlText = _continuousLineHtml(
+      final rendering = _continuousLineRendering(
         widget.data[lineIndex],
         lineIndex: lineIndex,
         state: state,
@@ -2371,9 +2375,10 @@ class _CombinedViewState extends State<CombinedView> {
       lines.add(
         ContinuousReadingParagraphLine(
           lineIndex: lineIndex,
-          text: utils.stripHtmlIfNeeded(htmlText).trim(),
-          htmlText: htmlText,
+          text: utils.stripHtmlIfNeeded(rendering.html).trim(),
+          htmlText: rendering.html,
           style: style,
+          frameRanges: rendering.ranges,
         ),
       );
     }
@@ -2381,7 +2386,8 @@ class _CombinedViewState extends State<CombinedView> {
     return lines;
   }
 
-  String _continuousLineHtml(
+  ({String html, List<PluginHighlightRenderedRange> ranges})
+  _continuousLineRendering(
     String rawText, {
     required int lineIndex,
     required TextBookLoaded state,
@@ -2457,7 +2463,7 @@ class _CombinedViewState extends State<CombinedView> {
       textWithLinks.trim(),
       renderSettings,
     );
-    return const PluginHighlightRenderer().apply(
+    return const PluginHighlightRenderer().renderWithRanges(
       bookId: widget.tab.book.title,
       sectionIndex: lineIndex,
       rawText: rawText,

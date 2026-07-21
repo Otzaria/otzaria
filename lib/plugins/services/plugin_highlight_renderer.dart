@@ -19,8 +19,27 @@ class PluginHighlightRenderer {
     required String processedHtml,
     required List<PluginHighlight> highlights,
     String? revealedHighlightId,
+  }) => renderWithRanges(
+    bookId: bookId,
+    sectionIndex: sectionIndex,
+    rawText: rawText,
+    processedHtml: processedHtml,
+    highlights: highlights,
+    revealedHighlightId: revealedHighlightId,
+  ).html;
+
+  /// מחיל הדגשות ומחזיר גם את טווחי הציור, תוך בניית מפת מקור פעם אחת.
+  ({String html, List<PluginHighlightRenderedRange> ranges}) renderWithRanges({
+    required String bookId,
+    required int sectionIndex,
+    required String rawText,
+    required String processedHtml,
+    required List<PluginHighlight> highlights,
+    String? revealedHighlightId,
   }) {
-    if (highlights.isEmpty) return processedHtml;
+    if (highlights.isEmpty) {
+      return (html: processedHtml, ranges: const []);
+    }
     final map = _sourceMapService.buildFromProcessedHtml(
       bookId: bookId,
       sectionIndex: sectionIndex,
@@ -28,8 +47,25 @@ class PluginHighlightRenderer {
       processedHtml: processedHtml,
     );
     final intervals = _resolveIntervals(map, highlights);
-    if (intervals.isEmpty) return processedHtml;
+    if (intervals.isEmpty) {
+      return (html: processedHtml, ranges: const []);
+    }
 
+    return (
+      html: _applyIntervals(
+        processedHtml,
+        intervals,
+        revealedHighlightId: revealedHighlightId,
+      ),
+      ranges: intervals,
+    );
+  }
+
+  String _applyIntervals(
+    String processedHtml,
+    List<PluginHighlightRenderedRange> intervals, {
+    String? revealedHighlightId,
+  }) {
     final fragment = html_parser.parseFragment(processedHtml);
     var renderedCursor = 0;
     final textNodes = fragment.nodes

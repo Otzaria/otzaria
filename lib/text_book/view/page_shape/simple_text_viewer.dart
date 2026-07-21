@@ -776,7 +776,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         return;
       }
       _scrollController.scrollTo(
-        index: highlight.sectionIndex,
+        index: _segmentIndexForSourceLine(highlight.sectionIndex),
         alignment: .35,
         duration: const Duration(milliseconds: 450),
         curve: Curves.easeInOut,
@@ -2661,7 +2661,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       final style = backgroundColor == null
           ? baseTextStyle
           : baseTextStyle.copyWith(backgroundColor: backgroundColor);
-      final htmlText = _continuousLineHtml(
+      final rendering = _continuousLineRendering(
         widget.content[lineIndex],
         lineIndex: lineIndex,
         state: state,
@@ -2672,9 +2672,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       lines.add(
         ContinuousReadingParagraphLine(
           lineIndex: lineIndex,
-          text: utils.stripHtmlIfNeeded(htmlText).trim(),
-          htmlText: htmlText,
+          text: utils.stripHtmlIfNeeded(rendering.html).trim(),
+          htmlText: rendering.html,
           style: style,
+          frameRanges: rendering.ranges,
         ),
       );
     }
@@ -2682,7 +2683,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     return lines;
   }
 
-  String _continuousLineHtml(
+  ({String html, List<PluginHighlightRenderedRange> ranges})
+  _continuousLineRendering(
     String rawText, {
     required int lineIndex,
     required TextBookLoaded state,
@@ -2745,8 +2747,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       textWithLinks.trim(),
       renderSettings,
     );
-    if (!widget.isMainText) return processedHtml;
-    return const PluginHighlightRenderer().apply(
+    if (!widget.isMainText) {
+      return (html: processedHtml, ranges: const []);
+    }
+    return const PluginHighlightRenderer().renderWithRanges(
       bookId: state.book.title,
       sectionIndex: lineIndex,
       rawText: rawText,

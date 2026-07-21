@@ -287,6 +287,24 @@ void main() {
     expect(style, contains('text-decoration: underline'));
     expect(style, contains('text-decoration-thickness: 2px'));
   });
+
+  test('renderWithRanges מחזיר HTML וטווחי ציור מאותה מפה', () {
+    const raw = 'אבג';
+    final result = renderer.renderWithRanges(
+      bookId: 'book',
+      sectionIndex: 0,
+      rawText: raw,
+      processedHtml: raw,
+      highlights: [
+        _highlight(id: 'frame', start: 1, end: 3, exactText: 'בג'),
+      ],
+    );
+
+    expect(TextRendererService.stripHtml(result.html), raw);
+    expect(result.ranges, hasLength(1));
+    expect(result.ranges.single.start, 1);
+    expect(result.ranges.single.end, 3);
+  });
 }
 
 PluginHighlight _highlight({
