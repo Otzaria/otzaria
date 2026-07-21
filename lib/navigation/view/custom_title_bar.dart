@@ -20,6 +20,7 @@ import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
+import 'package:otzaria/tabs/models/resolving_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/history/view/history_screen.dart';
@@ -821,7 +822,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         );
       }
 
-      if (tab is CommentatorsTab) {
+      if (tab is CommentatorsTab || tab is ResolvingTab) {
         return Tooltip(message: tab.title, child: fadedTitle(tab.title));
       }
 
