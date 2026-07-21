@@ -20,7 +20,6 @@ import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/misc/thin_divider.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
-import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 
 // Constants
@@ -212,16 +211,6 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
               onChanged: _onQueryChanged,
             ),
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Spacer(),
-              ActionButton.neutral(
-                text: 'הצג הכל',
-                onPressed: () => _setFacet(context, '/'),
-              ),
-            ],
-          ),
         ],
       ),
     );
@@ -350,7 +339,18 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
   ) {
     if (count == 0) return const SizedBox.shrink();
     final isSelected = state.currentFacets.contains(category.path);
-    final isExpanded = _expansionState[category.path] ?? level == 0;
+
+    // שורש העץ ('ספריית אוצריא', path '/') הוא גם פעולת "נקה סינון": כשיש
+    // צמצום קטגוריות פעיל הוא מציג כפתור ניקוי מפורש במקום מספר התוצאות.
+    // השורש תמיד פתוח (ללא כפתור חץ) — אין טעם לכווץ את כל הספרייה.
+    final isRoot = level == 0;
+    final isExpanded = isRoot
+        ? true
+        : (_expansionState[category.path] ?? false);
+    final categoryFilterActive = FacetHelper.categoryFacetsOf(
+      state.currentFacets,
+    ).where((f) => f != '/').isNotEmpty;
+    final showClearOnRoot = isRoot && categoryFilterActive;
 
     void toggle() {
       setState(() {
@@ -409,8 +409,10 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
                     ),
                   ),
                 ),
-                // מספר התוצאות
-                if (count != -1)
+                // בשורש עם סינון פעיל — כפתור ניקוי מפורש במקום מספר התוצאות.
+                if (showClearOnRoot)
+                  _ClearFilterButton(onTap: () => _setFacet(context, '/'))
+                else if (count != -1)
                   Text(
                     '($count)',
                     style: TextStyle(
@@ -424,21 +426,23 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
                     height: 12,
                     child: CircularProgressIndicator(strokeWidth: 1.5),
                   ),
-                const SizedBox(width: 8),
-                // כפתור החץ - מרחיב/מכווץ בלבד
-                InkWell(
-                  onTap: toggle,
-                  borderRadius: AppTokens.borderRadiusAll,
-                  child: Padding(
-                    padding: const EdgeInsets.all(4.0),
-                    child: RtlIcon(
-                      isExpanded
-                          ? FluentIcons.chevron_up_24_regular
-                          : FluentIcons.chevron_down_24_regular,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                // כפתור החץ - מרחיב/מכווץ בלבד (לא בשורש — תמיד פתוח)
+                if (!isRoot) ...[
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: toggle,
+                    borderRadius: AppTokens.borderRadiusAll,
+                    child: Padding(
+                      padding: const EdgeInsets.all(4.0),
+                      child: Icon(
+                        isExpanded
+                            ? FluentIcons.chevron_up_24_regular
+                            : FluentIcons.chevron_down_24_regular,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -619,6 +623,54 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
           child: _buildFacetTree(),
         ),
       ],
+    );
+  }
+}
+
+/// כפתור "נקה סינון" המוצג בשורש העץ כשיש צמצום קטגוריות פעיל — מסמן
+/// שהתוצאות מסוננות ושלחיצה תחזיר את כל הספרייה.
+class _ClearFilterButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _ClearFilterButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      color: colorScheme.primaryContainer,
+      borderRadius: AppTokens.borderRadiusAll,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        // גובה קבוע התואם לאייקון התיקייה (20) — כדי שהכפתור לא יגדיל את
+        // גובה הכרטיס; הטקסט שלצד הוא Expanded ומתקצר בעצמו לפי המקום.
+        child: SizedBox(
+          height: 20,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  FluentIcons.dismiss_24_regular,
+                  size: 14,
+                  color: colorScheme.onPrimaryContainer,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'נקה סינון',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
