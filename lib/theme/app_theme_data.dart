@@ -169,6 +169,16 @@ class AppThemeData {
       decoration: BoxDecoration(
         color: cs.surfaceContainerHigh,
         borderRadius: AppTokens.borderRadiusAll,
+        border: Border.all(color: cs.outlineVariant),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha: 0.22,
+            ), // כמו בשאר התפריטים בקובץ
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       textStyle: TextStyle(color: cs.onSurface),
     );
