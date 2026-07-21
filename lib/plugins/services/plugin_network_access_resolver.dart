@@ -35,7 +35,6 @@ class PluginNetworkAccessResolver {
   Future<List<String>?>? _pendingOfficialAllowlistFetch;
   List<String>? _officialAllowlistCache;
   DateTime? _officialAllowlistFailureUntil;
-  final Set<String> _sessionApprovedOfficialPrefixes = <String>{};
 
   /// URL ה-raw של קובץ ה-allowlist הרשמי בענף הייעודי בריפו אוצריא.
   static Uri get officialAllowlistUri => Uri(
@@ -63,26 +62,16 @@ class PluginNetworkAccessResolver {
       return false;
     }
 
-    if (isUriAllowedForPluginNetwork(uri)) {
-      return true;
-    }
-
-    if (matchingNetworkAllowlistPrefix(uri, _sessionApprovedOfficialPrefixes) !=
-        null) {
-      return true;
-    }
-
     final officialAllowlist = await _loadOfficialAllowlist();
-    if (officialAllowlist == null) return false;
+    if (officialAllowlist != null) {
+      // הקובץ בענף הייעודי הוא מקור האמת כשהוא זמין. חשוב לא לבדוק קודם את
+      // הרשימה המקומפלת: אחרת אי-אפשר לבטל במהירות כתובת שנפרצה או הוסרה.
+      return matchingNetworkAllowlistPrefix(uri, officialAllowlist) != null;
+    }
 
-    final matchedOfficialPrefix = matchingNetworkAllowlistPrefix(
-      uri,
-      officialAllowlist,
-    );
-    if (matchedOfficialPrefix == null) return false;
-
-    _sessionApprovedOfficialPrefixes.add(matchedOfficialPrefix);
-    return true;
+    // גיבוי לא-מקוון בלבד. הוא שומר על תוספים קיימים כש-GitHub אינו זמין,
+    // אך אינו גובר על רשימה רשמית שהצלחנו לטעון.
+    return isUriAllowedForPluginNetwork(uri);
   }
 
   Future<List<String>?> _loadOfficialAllowlist() async {
@@ -126,7 +115,9 @@ class PluginNetworkAccessResolver {
       }
 
       final allowlist = parsePluginNetworkAllowlistText(response.body);
-      return allowlist.isEmpty ? null : allowlist;
+      // גם רשימה ריקה היא תשובה רשמית תקפה (למשל השבתת-חירום של כל הגישה).
+      // רק כשל HTTP/רשת מפעיל את הרשימה המקומפלת כגיבוי.
+      return allowlist;
     } catch (_) {
       return null;
     } finally {

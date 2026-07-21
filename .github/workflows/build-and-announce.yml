@@ -609,6 +609,9 @@ jobs:
         env:
           # גרסת ה-SDK; שם ה-asset נגזר ממנה (ראה Otzaria/otzaria-wpe-runtime).
           WPE_RUNTIME_VERSION: "2.48.7"
+          # digest שמפרסם GitHub לנכס של tag זה. עדכון גרסה מחייב עדכון מפורש
+          # של ה-hash, כדי שנכס שהוחלף ב-release לא ייכנס לבנייה בשקט.
+          WPE_RUNTIME_SHA256: "d89fa37074898afe3fb6087628f3c8b983f962c53651c393efafbed8556de49d"
         run: |
           set -euo pipefail
           # pin ל-tag מפורש (לא latest) — גרסת ה-SDK נגזרת רק מ-WPE_RUNTIME_VERSION.
@@ -618,11 +621,7 @@ jobs:
           base="https://github.com/Otzaria/otzaria-wpe-runtime/releases/download/${tag}"
           echo "Downloading ${asset} ..."
           curl -fSL --retry 3 --retry-delay 5 -o "/tmp/${asset}" "${base}/${asset}"
-          if curl -fSL --retry 3 --retry-delay 5 -o "/tmp/${asset}.sha256" "${base}/${asset}.sha256"; then
-            ( cd /tmp && sha256sum -c "${asset}.sha256" )
-          else
-            echo "::warning::לא נמצא ${asset}.sha256 — מדלגים על אימות ה-hash"
-          fi
+          printf '%s  %s\n' "$WPE_RUNTIME_SHA256" "/tmp/${asset}" | sha256sum -c -
           mkdir -p /opt
           # ה-tarball נארז מ-$(dirname PREFIX) עם basename → מכיל תיקיית wpe-sdk/ עליונה.
           tar -C /opt -I zstd -xf "/tmp/${asset}"
@@ -1859,4 +1858,3 @@ jobs:
           TOKEN_YEMOT: ${{ secrets.TOKEN_YEMOT }}
         run: |
           python webhooks/main.py
-

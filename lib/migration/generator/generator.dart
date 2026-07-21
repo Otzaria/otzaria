@@ -570,10 +570,14 @@ class DatabaseGenerator {
       final level = detectHeaderLevel(line);
 
       if (level > 0) {
+        // מעבר לכותרת באותה רמה או ברמה גבוהה יותר סוגר את כל הענפים
+        // העמוקים הקודמים. בלעדיו h4 שבא אחרי h3 ואז h2 היה מקבל בטעות את
+        // ה-h3 הישן כהורה במקום את ה-h2 החדש.
+        localParentStack.removeWhere((stackLevel, _) => stackLevel >= level);
+
         // cleanHtml יקר — מחשבים רק לשורות כותרת שבהן הטקסט נצרך.
         final plainText = cleanHtml(line);
         if (plainText.trim().isEmpty) {
-          localParentStack.remove(level);
           if (currentReference.length >= level) {
             currentReference.removeRange(level - 1, currentReference.length);
           }

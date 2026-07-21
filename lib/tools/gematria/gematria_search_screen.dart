@@ -153,6 +153,9 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
 
   Future<void> _performSearch() async {
     final searchText = _searchController.text.trim();
+    // כל ניסיון חדש מבטל תוצאה אסינכרונית קודמת — גם אם הקלט החדש ריק,
+    // לא תקין או שערכו אפס ואיננו מגיע לשלב הרצת החיפוש.
+    final searchId = ++_latestSearchId;
 
     if (searchText.isEmpty) {
       return;
@@ -212,7 +215,6 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
 
     if (targetGimatria == 0) return;
 
-    final searchId = ++_latestSearchId;
     final activeParams = buildActiveParamLabels(
       gematriaMethod: gematriaMethod,
       useWithKolel: useWithKolel,

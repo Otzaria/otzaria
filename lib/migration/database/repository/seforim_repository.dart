@@ -132,41 +132,43 @@ class SeforimRepository {
   /// the latest TOC entry whose start line index is <= line's index.
   Future<void> rebuildLineTocForBook(int bookId) async {
     final db = await _database.database;
-    // Clear existing mappings for the book
-    db.execute(
-      'DELETE FROM line_toc WHERE lineId IN (SELECT id FROM line WHERE bookId = ?)',
-      [bookId],
-    );
+    // המחיקה והבנייה חייבות להיות אטומיות: כשל באמצע אינו רשאי להשאיר ספר
+    // ללא מיפויי line_toc. כל העבודה כאן סינכרונית בתוך טרנזקציית sqlite3.
+    withTransaction(db, () {
+      db.execute(
+        'DELETE FROM line_toc WHERE lineId IN (SELECT id FROM line WHERE bookId = ?)',
+        [bookId],
+      );
 
-    // מיזוג לינארי במקום שאילתת-משנה מתואמת פר-שורה (80 אלף פעמים):
-    // כל שורה ממופה ל-tocEntry האחרון שה-lineIndex שלו <= lineIndex של השורה.
-    final tocRows = db
-        .select(
-          '''
+      // מיזוג לינארי במקום שאילתת-משנה מתואמת פר-שורה (80 אלף פעמים):
+      // כל שורה ממופה ל-tocEntry האחרון שה-lineIndex שלו <= lineIndex שלה.
+      // אם כמה כותרות מתחילות באותה שורה, העמוקה ביותר היא הפעילה.
+      final tocRows = db
+          .select(
+            '''
           SELECT t.id AS tocId, sl.lineIndex AS lineIndex
           FROM tocEntry t
           JOIN line sl ON sl.id = t.lineId
           WHERE t.bookId = ? AND t.lineId IS NOT NULL
-          ORDER BY sl.lineIndex ASC
+          ORDER BY sl.lineIndex ASC, t.level ASC, t.id ASC
           ''',
-          [bookId],
-        )
-        .toMapList();
-    if (tocRows.isEmpty) return;
+            [bookId],
+          )
+          .toMapList();
+      if (tocRows.isEmpty) return;
 
-    final tocLineIndex = <int>[];
-    final tocId = <int>[];
-    for (final row in tocRows) {
-      tocLineIndex.add(row['lineIndex'] as int);
-      tocId.add(row['tocId'] as int);
-    }
+      final tocLineIndex = <int>[];
+      final tocId = <int>[];
+      for (final row in tocRows) {
+        tocLineIndex.add(row['lineIndex'] as int);
+        tocId.add(row['tocId'] as int);
+      }
 
-    final lineRows = db.select(
-      'SELECT id, lineIndex FROM line WHERE bookId = ? ORDER BY lineIndex ASC',
-      [bookId],
-    ).toMapList();
+      final lineRows = db.select(
+        'SELECT id, lineIndex FROM line WHERE bookId = ? ORDER BY lineIndex ASC',
+        [bookId],
+      ).toMapList();
 
-    withTransaction(db, () {
       final stmt = db.prepare(
         'INSERT INTO line_toc(lineId, tocEntryId) VALUES (?, ?)',
       );
@@ -1127,6 +1129,12 @@ class SeforimRepository {
         final parentDbId = entry.parentId == null
             ? null
             : localToDbId[entry.parentId];
+        if (entry.parentId != null && parentDbId == null) {
+          throw StateError(
+            'TOC entry ${entry.id} references missing local parent '
+            '${entry.parentId}',
+          );
+        }
 
         final tocEntry = TocEntry(
           id: 0,

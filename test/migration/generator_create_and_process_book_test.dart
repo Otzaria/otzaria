@@ -16,6 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/migration/models/category.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
+import 'package:otzaria/migration/database/sql/sqlite3_utils.dart';
 import 'package:otzaria/migration/generator/generator.dart';
 import 'package:path/path.dart' as p;
 
@@ -157,4 +158,44 @@ void main() {
           reason: 'לאחר insertContent=true ה-filePath צריך להיות null');
     },
   );
+  test('4. מעבר לרמת כותרת גבוהה סוגר הורים עמוקים ישנים', () async {
+    final catId = await createCategory();
+    final file = File(p.join(tempDir.path, 'עץ כותרות.txt'));
+    await file.writeAsString(
+      '<h1>א</h1>\n<h2>ב</h2>\n<h3>ג</h3>\n<h2>ד</h2>\n<h4>ה</h4>',
+      flush: true,
+    );
+
+    await buildGenerator(<String>[]).createAndProcessBook(
+      file.path,
+      catId,
+      insertContent: true,
+    );
+
+    final book = await repository.checkBookExistsInCategoryWithFileType(
+      'עץ כותרות',
+      catId,
+      'txt',
+    );
+    expect(book, isNotNull);
+    final db = await database.database;
+    final row = db.select(
+      '''
+      SELECT parentText.text AS parentText
+      FROM tocEntry child
+      JOIN tocText childText ON childText.id = child.textId
+      LEFT JOIN tocEntry parent ON parent.id = child.parentId
+      LEFT JOIN tocText parentText ON parentText.id = parent.textId
+      WHERE child.bookId = ? AND childText.text = ?
+      ''',
+      [book!.id, 'ה'],
+    ).toMapList().single;
+
+    expect(
+      row['parentText'],
+      'ד',
+      reason: 'h4 שאחרי h2 חדש חייב להשתייך ל-h2, לא ל-h3 מהענף הקודם',
+    );
+  });
+
 }
