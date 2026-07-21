@@ -30,6 +30,11 @@ class PluginHighlightRegistry extends ChangeNotifier {
 
   final PluginHighlightAnchorService _anchorService;
   final Map<String, Map<String, PluginHighlight>> _recordsByPlugin = {};
+  final Map<
+    _PluginHighlightSectionKey,
+    Map<_PluginHighlightRecordKey, PluginHighlight>
+  >
+  _recordsBySection = {};
   int _idCounter = 0;
 
   PluginHighlight setHighlight({
@@ -106,7 +111,7 @@ class PluginHighlightRegistry extends ChangeNotifier {
       createdAt: existing?.createdAt ?? timestamp,
       updatedAt: timestamp,
     );
-    ownRecords[highlightId] = record;
+    _store(record);
     notifyListeners();
     return record;
   }
@@ -171,7 +176,7 @@ class PluginHighlightRegistry extends ChangeNotifier {
       createdAt: existing?.createdAt ?? timestamp,
       updatedAt: timestamp,
     );
-    records[record.highlightId] = record;
+    _store(record);
     notifyListeners();
     return record;
   }
@@ -254,7 +259,7 @@ class PluginHighlightRegistry extends ChangeNotifier {
       createdAt: existing.createdAt,
       updatedAt: (now ?? DateTime.now()).toUtc(),
     );
-    _recordsByPlugin[ownerPluginId]![highlightId] = updated;
+    _store(updated);
     notifyListeners();
     return updated;
   }
@@ -288,14 +293,10 @@ class PluginHighlightRegistry extends ChangeNotifier {
     required int sectionIndex,
   }) {
     final result =
-        _recordsByPlugin.values
-            .expand((records) => records.values)
-            .where(
-              (record) =>
-                  record.bookId == bookId &&
-                  record.sectionIndex == sectionIndex &&
-                  record.status == 'active',
-            )
+        (_recordsBySection[(bookId: bookId, sectionIndex: sectionIndex)]
+                    ?.values ??
+                const <PluginHighlight>[])
+            .where((record) => record.status == 'active')
             .toList()
           ..sort((a, b) {
             final priority = b.style.priority.compareTo(a.style.priority);
@@ -356,7 +357,7 @@ class PluginHighlightRegistry extends ChangeNotifier {
           createdAt: existing.createdAt,
           updatedAt: timestamp,
         );
-        records[entry.key] = updated;
+        _store(updated);
         changed.add(updated);
       }
     }
@@ -378,7 +379,7 @@ class PluginHighlightRegistry extends ChangeNotifier {
       expectedVersion: expectedVersion,
       expectedEtag: expectedEtag,
     );
-    final removed = records!.remove(highlightId) != null;
+    final removed = _remove(ownerPluginId, highlightId) != null;
     if (removed) notifyListeners();
     return removed;
   }
@@ -399,15 +400,60 @@ class PluginHighlightRegistry extends ChangeNotifier {
         .map((record) => record.highlightId)
         .toList();
     for (final id in ids) {
-      records.remove(id);
+      _remove(ownerPluginId, id);
     }
-    if (records.isEmpty) _recordsByPlugin.remove(ownerPluginId);
     if (ids.isNotEmpty) notifyListeners();
     return ids.length;
   }
 
   void removePlugin(String pluginId) {
-    if (_recordsByPlugin.remove(pluginId) != null) notifyListeners();
+    final records = _recordsByPlugin.remove(pluginId);
+    if (records == null) return;
+    for (final record in records.values) {
+      _removeFromSection(record);
+    }
+    notifyListeners();
+  }
+
+  void _store(PluginHighlight record) {
+    final records = _recordsByPlugin.putIfAbsent(
+      record.ownerPluginId,
+      () => {},
+    );
+    final previous = records[record.highlightId];
+    if (previous != null) _removeFromSection(previous);
+    records[record.highlightId] = record;
+    final sectionKey = (
+      bookId: record.bookId,
+      sectionIndex: record.sectionIndex,
+    );
+    _recordsBySection.putIfAbsent(sectionKey, () => {})[(
+          ownerPluginId: record.ownerPluginId,
+          highlightId: record.highlightId,
+        )] =
+        record;
+  }
+
+  PluginHighlight? _remove(String ownerPluginId, String highlightId) {
+    final records = _recordsByPlugin[ownerPluginId];
+    final removed = records?.remove(highlightId);
+    if (removed == null) return null;
+    if (records!.isEmpty) _recordsByPlugin.remove(ownerPluginId);
+    _removeFromSection(removed);
+    return removed;
+  }
+
+  void _removeFromSection(PluginHighlight record) {
+    final sectionKey = (
+      bookId: record.bookId,
+      sectionIndex: record.sectionIndex,
+    );
+    final records = _recordsBySection[sectionKey];
+    records?.remove((
+      ownerPluginId: record.ownerPluginId,
+      highlightId: record.highlightId,
+    ));
+    if (records?.isEmpty ?? false) _recordsBySection.remove(sectionKey);
   }
 
   String _generateId(String pluginId, DateTime timestamp) {
@@ -630,3 +676,9 @@ class PluginHighlightRegistry extends ChangeNotifier {
     }
   }
 }
+
+typedef _PluginHighlightSectionKey = ({String bookId, int sectionIndex});
+typedef _PluginHighlightRecordKey = ({
+  String ownerPluginId,
+  String highlightId,
+});

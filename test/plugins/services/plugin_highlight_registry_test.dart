@@ -30,6 +30,13 @@ void main() {
     );
     expect(registry.getHighlights(ownerPluginId: 'plugin.a'), isEmpty);
     expect(registry.getHighlights(ownerPluginId: 'plugin.b'), hasLength(1));
+    expect(
+      registry
+          .getAllHighlights(bookId: 'book', sectionIndex: 1)
+          .single
+          .ownerPluginId,
+      'plugin.b',
+    );
   });
 
   test('setHighlight מחליף מזהה קיים ומגדיל גרסה', () {
@@ -51,6 +58,14 @@ void main() {
     expect(second.createdAt, createdAt);
     expect(second.updatedAt, updatedAt);
     expect(second.sectionIndex, 2);
+    expect(
+      registry.getAllHighlights(bookId: 'book', sectionIndex: 1),
+      isEmpty,
+    );
+    expect(
+      registry.getAllHighlights(bookId: 'book', sectionIndex: 2),
+      [second],
+    );
   });
 
   test('דוחה ניסיון לזייף pluginId', () {
@@ -97,6 +112,10 @@ void main() {
         sectionIndex: 2,
       ),
       1,
+    );
+    expect(
+      registry.getAllHighlights(bookId: 'book', sectionIndex: 2),
+      isEmpty,
     );
     expect(registry.getHighlights(ownerPluginId: 'plugin.a'), hasLength(2));
   });
@@ -408,6 +427,10 @@ void main() {
 
       expect(changed.single.status, 'failed_to_anchor');
       expect(registry.getHighlights(ownerPluginId: 'plugin.a'), isEmpty);
+      expect(
+        registry.getAllHighlights(bookId: 'book', sectionIndex: 1),
+        isEmpty,
+      );
       expect(
         registry.getHighlights(
           ownerPluginId: 'plugin.a',

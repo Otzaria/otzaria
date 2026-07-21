@@ -122,4 +122,27 @@ void main() {
 
     expect(selection, isNull);
   });
+
+  test('בונה עוגנים באצווה עם מופעים ואינדקסי מילים זהים', () {
+    final anchors = service.buildRangeAnchors(
+      text: '  אב אבא אב ',
+      ranges: const [
+        (startGrapheme: 2, endGrapheme: 4),
+        (startGrapheme: 5, endGrapheme: 8),
+        (startGrapheme: 9, endGrapheme: 11),
+        (startGrapheme: 12, endGrapheme: 12),
+      ],
+      layer: 'source',
+    );
+
+    expect(anchors, hasLength(4));
+    expect(anchors[0]!.occurrenceIndexInSection, 0);
+    expect(anchors[0]!.occurrenceCountInSection, 3);
+    expect(anchors[0]!.startWordIndex, 0);
+    expect(anchors[1]!.occurrenceCountInSection, 1);
+    expect(anchors[1]!.startWordIndex, 1);
+    expect(anchors[2]!.occurrenceIndexInSection, 2);
+    expect(anchors[2]!.startWordIndex, 2);
+    expect(anchors[3], isNull);
+  });
 }

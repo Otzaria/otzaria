@@ -164,22 +164,58 @@ class ReaderSelectionService {
     String? sourceTextHash,
     String? renderedTextHash,
     String? normalizationProfile,
+  }) => buildRangeAnchors(
+    text: text,
+    ranges: [(startGrapheme: startGrapheme, endGrapheme: endGrapheme)],
+    layer: layer,
+    sourceTextHash: sourceTextHash,
+    renderedTextHash: renderedTextHash,
+    normalizationProfile: normalizationProfile,
+  ).single;
+
+  /// בונה קבוצת עוגנים לאותו טקסט תוך שיתוף חישובי הגבולות והמופעים.
+  List<PluginTextRangeAnchor?> buildRangeAnchors({
+    required String text,
+    required List<({int startGrapheme, int endGrapheme})> ranges,
+    required String layer,
+    String? sourceTextHash,
+    String? renderedTextHash,
+    String? normalizationProfile,
   }) {
+    if (ranges.isEmpty) return const [];
     final boundaries = _GraphemeBoundaries(text);
-    if (startGrapheme < 0 ||
-        endGrapheme > boundaries.length ||
-        startGrapheme >= endGrapheme) {
-      return null;
+    final exactByRange = <int, String>{};
+    for (final entry in ranges.asMap().entries) {
+      final range = entry.value;
+      if (range.startGrapheme < 0 ||
+          range.endGrapheme > boundaries.length ||
+          range.startGrapheme >= range.endGrapheme) {
+        continue;
+      }
+      exactByRange[entry.key] = boundaries.slice(
+        range.startGrapheme,
+        range.endGrapheme,
+      );
     }
-    return _anchor(
-      text: boundaries,
-      start: startGrapheme,
-      end: endGrapheme,
-      layer: layer,
-      sourceTextHash: sourceTextHash,
-      renderedTextHash: renderedTextHash,
-      normalizationProfile: normalizationProfile ?? 'strict',
-    );
+    final occurrences = boundaries.occurrencesFor(exactByRange.values);
+    final wordIndices = boundaries.wordIndices();
+    return [
+      for (final entry in ranges.asMap().entries)
+        if (exactByRange[entry.key] case final exact?)
+          _anchor(
+            text: boundaries,
+            start: entry.value.startGrapheme,
+            end: entry.value.endGrapheme,
+            layer: layer,
+            sourceTextHash: sourceTextHash,
+            renderedTextHash: renderedTextHash,
+            normalizationProfile: normalizationProfile ?? 'strict',
+            occurrences: occurrences[exact],
+            wordIndices: wordIndices,
+          )
+        else
+          null,
+    ];
   }
 
   PluginTextRangeAnchor _anchor({
@@ -190,9 +226,11 @@ class ReaderSelectionService {
     String? sourceTextHash,
     String? renderedTextHash,
     String? normalizationProfile,
+    List<int>? occurrences,
+    List<int>? wordIndices,
   }) {
     final exact = text.slice(start, end);
-    final occurrences = text.occurrences(exact);
+    final exactOccurrences = occurrences ?? text.occurrences(exact);
     return PluginTextRangeAnchor(
       layer: layer,
       sourceTextHash: sourceTextHash,
@@ -210,10 +248,10 @@ class ReaderSelectionService {
         end,
         (end + contextLength).clamp(end, text.length).toInt(),
       ),
-      occurrenceIndexInSection: occurrences.indexOf(start),
-      occurrenceCountInSection: occurrences.length,
-      startWordIndex: _wordIndex(text.slice(0, start)),
-      endWordIndex: _wordIndex(text.slice(0, end)),
+      occurrenceIndexInSection: exactOccurrences.indexOf(start),
+      occurrenceCountInSection: exactOccurrences.length,
+      startWordIndex: wordIndices?[start] ?? _wordIndex(text.slice(0, start)),
+      endWordIndex: wordIndices?[end] ?? _wordIndex(text.slice(0, end)),
       normalizationProfile: normalizationProfile ?? 'strict',
     );
   }
@@ -253,6 +291,8 @@ class ReaderSelectionService {
 }
 
 class _GraphemeBoundaries {
+  static final RegExp _whitespace = RegExp(r'^\s+$');
+
   final List<String> values;
   final List<PluginTextOffset> offsets;
 
@@ -290,6 +330,52 @@ class _GraphemeBoundaries {
     return result;
   }
 
+  Map<String, List<int>> occurrencesFor(Iterable<String> queries) {
+    final uniqueQueries = queries.toSet();
+    final result = {for (final query in uniqueQueries) query: <int>[]};
+    final root = _GraphemeTrieNode();
+    for (final query in uniqueQueries) {
+      final needle = query.characters.toList(growable: false);
+      if (needle.isEmpty || needle.length > values.length) continue;
+      var node = root;
+      for (final grapheme in needle) {
+        node = node.children.putIfAbsent(grapheme, _GraphemeTrieNode.new);
+      }
+      node.queries.add(query);
+    }
+    for (var start = 0; start < values.length; start++) {
+      var node = root;
+      for (var offset = start; offset < values.length; offset++) {
+        final child = node.children[values[offset]];
+        if (child == null) break;
+        node = child;
+        for (final query in node.queries) {
+          result[query]!.add(start);
+        }
+      }
+    }
+    return result;
+  }
+
+  List<int> wordIndices() {
+    final result = List<int>.filled(values.length + 1, 0);
+    var hasText = false;
+    var inWhitespace = false;
+    var wordIndex = 0;
+    for (var index = 0; index < values.length; index++) {
+      final isWhitespace = _whitespace.hasMatch(values[index]);
+      if (isWhitespace) {
+        if (hasText && !inWhitespace) wordIndex++;
+        inWhitespace = true;
+      } else {
+        hasText = true;
+        inWhitespace = false;
+      }
+      result[index + 1] = wordIndex;
+    }
+    return result;
+  }
+
   static List<PluginTextOffset> _offsets(String text) {
     final result = <PluginTextOffset>[
       const PluginTextOffset(grapheme: 0, codePoint: 0, utf16: 0),
@@ -308,4 +394,9 @@ class _GraphemeBoundaries {
     }
     return result;
   }
+}
+
+class _GraphemeTrieNode {
+  final Map<String, _GraphemeTrieNode> children = {};
+  final List<String> queries = [];
 }

@@ -76,6 +76,28 @@ class PluginSectionTextMapService {
           currentLayer == 'source' ? map.sourceText : map.renderedText,
         ),
     };
+    final wordDescriptors = page
+        .where((descriptor) => descriptor.isWord)
+        .toList(growable: false);
+    const sourceMapService = TextSourceMapService();
+    final mappedRanges = [
+      for (final descriptor in wordDescriptors)
+        _mappedWordRanges(map, descriptor, sourceMapService),
+    ];
+    const anchorService = ReaderSelectionService();
+    final sourceAnchors = anchorService.buildRangeAnchors(
+      text: map.sourceText,
+      ranges: [for (final ranges in mappedRanges) ranges.source],
+      layer: 'source',
+      sourceTextHash: map.sourceTextHash,
+    );
+    final renderedAnchors = anchorService.buildRangeAnchors(
+      text: map.renderedText,
+      ranges: [for (final ranges in mappedRanges) ranges.rendered],
+      layer: 'rendered',
+      renderedTextHash: map.renderedTextHash,
+    );
+    var wordOffset = 0;
     for (final descriptor in page) {
       final normalized = const PluginTextNormalizationService()
           .normalize(descriptor.text, normalize)
@@ -83,12 +105,14 @@ class PluginSectionTextMapService {
       if (descriptor.isWord) {
         words!.add(
           _wordToken(
-            map,
             descriptor,
             normalized,
             offsets[descriptor.layer]!,
+            sourceAnchors[wordOffset],
+            renderedAnchors[wordOffset],
           ),
         );
+        wordOffset++;
       } else {
         chars!.add(
           PluginCharToken(
@@ -121,12 +145,29 @@ class PluginSectionTextMapService {
   }
 
   PluginWordToken _wordToken(
-    PluginTextSourceMap map,
     _TokenDescriptor descriptor,
     String normalized,
     _GraphemeOffsets offsets,
+    PluginTextRangeAnchor? sourceRange,
+    PluginTextRangeAnchor? renderedRange,
   ) {
-    const sourceMapService = TextSourceMapService();
+    return PluginWordToken(
+      wordIndex: descriptor.index,
+      layer: descriptor.layer,
+      text: descriptor.text,
+      normalizedText: normalized,
+      start: offsets.at(descriptor.start),
+      end: offsets.at(descriptor.end),
+      sourceRange: sourceRange,
+      renderedRange: renderedRange,
+    );
+  }
+
+  _MappedWordRanges _mappedWordRanges(
+    PluginTextSourceMap map,
+    _TokenDescriptor descriptor,
+    TextSourceMapService sourceMapService,
+  ) {
     final sourceStart = descriptor.layer == 'source'
         ? descriptor.start
         : sourceMapService.renderedBoundaryToSource(map, descriptor.start);
@@ -139,28 +180,9 @@ class PluginSectionTextMapService {
     final renderedEnd = descriptor.layer == 'rendered'
         ? descriptor.end
         : sourceMapService.sourceBoundaryToRendered(map, descriptor.end);
-    const anchors = ReaderSelectionService();
-    return PluginWordToken(
-      wordIndex: descriptor.index,
-      layer: descriptor.layer,
-      text: descriptor.text,
-      normalizedText: normalized,
-      start: offsets.at(descriptor.start),
-      end: offsets.at(descriptor.end),
-      sourceRange: anchors.buildRangeAnchor(
-        text: map.sourceText,
-        startGrapheme: sourceStart,
-        endGrapheme: sourceEnd,
-        layer: 'source',
-        sourceTextHash: map.sourceTextHash,
-      ),
-      renderedRange: anchors.buildRangeAnchor(
-        text: map.renderedText,
-        startGrapheme: renderedStart,
-        endGrapheme: renderedEnd,
-        layer: 'rendered',
-        renderedTextHash: map.renderedTextHash,
-      ),
+    return (
+      source: (startGrapheme: sourceStart, endGrapheme: sourceEnd),
+      rendered: (startGrapheme: renderedStart, endGrapheme: renderedEnd),
     );
   }
 
@@ -269,6 +291,11 @@ typedef _TokenDescriptor = ({
   int start,
   int end,
   bool isWord,
+});
+
+typedef _MappedWordRanges = ({
+  ({int startGrapheme, int endGrapheme}) source,
+  ({int startGrapheme, int endGrapheme}) rendered,
 });
 
 class PluginWordToken {

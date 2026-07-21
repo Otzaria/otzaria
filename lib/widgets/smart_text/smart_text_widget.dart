@@ -144,14 +144,7 @@ class SmartTextWidget extends StatelessWidget {
     var frameRanges = const <PluginHighlightRenderedRange>[];
     if (highlights.isNotEmpty) {
       const highlightRenderer = PluginHighlightRenderer();
-      frameRanges = highlightRenderer.resolveRenderedRanges(
-        bookId: highlightBookId!,
-        sectionIndex: highlightSectionIndex!,
-        rawText: highlightSourceText ?? text,
-        processedHtml: processedHtml,
-        highlights: highlights,
-      );
-      processedHtml = highlightRenderer.apply(
+      final rendering = highlightRenderer.renderWithRanges(
         bookId: highlightBookId!,
         sectionIndex: highlightSectionIndex!,
         rawText: highlightSourceText ?? text,
@@ -159,6 +152,8 @@ class SmartTextWidget extends StatelessWidget {
         highlights: highlights,
         revealedHighlightId: PluginHighlightRevealService.instance.highlightId,
       );
+      processedHtml = rendering.html;
+      frameRanges = rendering.ranges;
     }
     final textStyle = TextStyle(
       fontSize: settings.fontSize,
