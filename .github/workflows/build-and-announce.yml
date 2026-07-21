@@ -591,7 +591,7 @@ jobs:
           # (glib/soup/xkbcommon). epoxy/wayland/gtk נמשכים דרך libgtk-3-dev.
           apt-get install -y \
             build-essential ninja-build libgtk-3-dev libblkid1 liblzma5 \
-            clang-14 lld-14 cmake git pkg-config liblzma-dev rpm patchelf curl xz-utils zstd \
+            clang-14 lld-14 cmake git pkg-config liblzma-dev rpm cpio patchelf curl xz-utils zstd \
             libcurl4-openssl-dev \
             libsecret-1-dev \
             libglib2.0-dev libsoup-3.0-dev libxkbcommon-dev openjdk-17-jdk-headless \
@@ -649,9 +649,12 @@ jobs:
 
           # תהליכי העזר של WPE — WEBKIT_EXEC_PATH של הפלאגין מפנה אליהם בתוך תיקיית
           # הפלאגין (lib/), והם פותרים ספריות מ-$ORIGIN באותה תיקייה.
-          find /opt/wpe-sdk -type f \( -name 'WPEWebProcess' -o -name 'WPENetworkProcess' \) \
+          find /opt/wpe-sdk -type f \( -name 'WPEWebProcess' -o -name 'WPENetworkProcess' -o -name 'WPEGPUProcess' \) \
             -exec cp -v {} "$LIBDIR/" \;
           test -e "$LIBDIR/WPEWebProcess" || { echo "::error::WPEWebProcess not found in SDK"; exit 1; }
+          # cp על קובץ יעד קיים משמר את הרשאות היעד (0644 מ-install של flutter) —
+          # בלי אכיפת +x כאן, g_chmod בזמן ריצה נכשל בחבילה שהותקנה בבעלות root.
+          chmod 755 "$LIBDIR"/WPE*Process
 
           # רשימת החרגה בסגנון AppImage: ספריות שחייבות להגיע מהמארח — glibc, C++
           # runtime, GL/הצגה (X11/Wayland/DRM/GBM), וכל ה-stack שגם GTK של המארח
@@ -914,6 +917,43 @@ jobs:
           # ולכן דורסות הזרקה מוקדמת) כדי שחבילות ה-raw וה-FULL, המועתקות מ-bundle
           # זה בשלב הבא, יהיו self-contained.
           bash /tmp/bundle_wpe.sh "build/linux/x64/release/bundle/lib"
+
+      - name: Verify WPE runtime in packaged artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          # מוודא שבכל אריזה תהליכי WPE* קיימים עם הרשאת הרצה וה-injected bundle
+          # קיים — בלי זה החבילה נופלת בשקט ל-WPE מערכתי (שלרוב לא מותקן).
+          verify_tree() { # verify_tree <label> <root-dir>
+            local label="$1" root="$2" libdir proc
+            libdir=$(find "$root" -name 'libWPEWebKit-2.0.so*' -print -quit | xargs -r dirname)
+            [ -n "$libdir" ] || { echo "::error::$label: libWPEWebKit-2.0 לא נמצא"; exit 1; }
+            for proc in WPEWebProcess WPENetworkProcess; do
+              [ -f "$libdir/$proc" ] || { echo "::error::$label: $proc חסר"; exit 1; }
+              [ -x "$libdir/$proc" ] || { echo "::error::$label: $proc ללא הרשאת הרצה"; exit 1; }
+            done
+            if [ -f "$libdir/WPEGPUProcess" ] && [ ! -x "$libdir/WPEGPUProcess" ]; then
+              echo "::error::$label: WPEGPUProcess ללא הרשאת הרצה"; exit 1
+            fi
+            [ -f "$libdir/libWPEInjectedBundle.so" ] || { echo "::error::$label: libWPEInjectedBundle.so חסר"; exit 1; }
+            echo "$label: WPE runtime תקין ($libdir)"
+          }
+
+          DEB_FILE=$(find dist -name '*.deb' -print -quit)
+          if [ -n "$DEB_FILE" ]; then
+            rm -rf /tmp/verify-deb && mkdir -p /tmp/verify-deb
+            dpkg-deb -x "$DEB_FILE" /tmp/verify-deb
+            verify_tree "deb" /tmp/verify-deb
+          fi
+
+          RPM_FILE=$(find dist -name '*.rpm' -print -quit)
+          if [ -n "$RPM_FILE" ]; then
+            rm -rf /tmp/verify-rpm && mkdir -p /tmp/verify-rpm
+            (cd /tmp/verify-rpm && rpm2cpio "$GITHUB_WORKSPACE/$RPM_FILE" | cpio -idm --quiet)
+            verify_tree "rpm" /tmp/verify-rpm
+          fi
+
+          verify_tree "raw-bundle" "build/linux/x64/release/bundle"
 
       - name: Find and prepare Linux packages
         id: find_packages
