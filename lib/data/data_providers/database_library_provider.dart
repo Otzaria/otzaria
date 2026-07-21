@@ -3288,9 +3288,36 @@ class DatabaseLibraryProvider implements LibraryProvider {
     try {
       final resolvedBook = await BookDatabaseResolver.resolveBook(
         title: targetTitle,
+        categoryId: link.targetCategoryId,
+        fileType: link.targetFileType,
         preferUserBooks: link.targetIsUserBook,
       );
       if (resolvedBook == null) return 'שגיאה: הספר לא נמצא במסד הנתונים';
+
+      // ספר file-backed (תיקייה שנוספה בלי "הוסף למסד הנתונים") — אין שורות
+      // ב-DB, התוכן נקרא מהקובץ עצמו לפי אותו פיצול שורות של הסורק.
+      final dbBook = resolvedBook.book;
+      final dbBookFileType = (dbBook.fileType ?? 'txt').toLowerCase();
+      if (dbBook.isFileBacked &&
+          dbBook.filePath != null &&
+          (dbBookFileType == 'txt' || dbBookFileType == 'docx')) {
+        final file = File(dbBook.filePath!);
+        if (!await file.exists()) return 'שגיאה: הקובץ לא נמצא';
+        final text = dbBookFileType == 'docx'
+            ? await convertDocxWithCache(file, dbBook.title)
+            : await readTextFileSmart(file);
+        final lines = text.split('\n');
+        final start = link.index2 - 1;
+        if (start >= lines.length) return 'שגיאה: אינדקס מחוץ לטווח';
+        final end0 = ((link.index2End ?? link.index2) - 1).clamp(
+          start,
+          lines.length - 1,
+        );
+        return lines
+            .sublist(start, end0 + 1)
+            .map((l) => l.trimRight())
+            .join('<br>');
+      }
 
       // link.index2 is 1-based; lineIndex in DB is 0-based
       final line = await resolvedBook.repository.getLineByIndex(
