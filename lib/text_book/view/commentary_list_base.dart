@@ -26,7 +26,10 @@ import 'package:otzaria/widgets/layout/commentators_filter_screen.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/tools/dictionary/dictionary_context_menu_entries.dart';
+import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
+import 'package:otzaria/utils/text/word_at_position.dart';
 import 'package:otzaria/utils/ui/context_menu_utils.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -2202,7 +2205,7 @@ class _CollapsibleCommentaryGroupState
                                     ) ??
                                     true; // לא הוכרע — סלחני
                               },
-                          menuBuilder: (menuCtx, _) {
+                          menuBuilder: (menuCtx, tapPosition) {
                             final savedTextAtBuild = captureSelectedTextForMenu(
                               widget.savedSelectedTextListenable,
                             );
@@ -2212,6 +2215,7 @@ class _CollapsibleCommentaryGroupState
                               openBookCallback: widget.openBookCallback,
                               fontSize: widget.fontSize,
                               savedSelectedText: savedTextAtBuild,
+                              tapPosition: tapPosition,
                               onCopySelected: () => ContextMenuUtils.copyFormattedText(
                                 context: menuCtx,
                                 savedSelectedText:
@@ -2345,37 +2349,53 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
                     ) ??
                     true;
               },
-              menuBuilder: (menuCtx, _) => [
-                AppContextMenuEntry(
-                  label: 'העתק',
-                  icon: FluentIcons.copy_24_regular,
-                  enabled:
-                      _selectedText != null && _selectedText!.trim().isNotEmpty,
-                  onTap: () => ContextMenuUtils.copyFormattedText(
-                    context: menuCtx,
-                    savedSelectedText: _selectedText,
-                    fontSize: widget.fontSize,
-                  ),
-                ),
-                if (!widget.state.book.isUserBook) ...[
-                  const AppContextMenuEntry.divider(),
+              menuBuilder: (menuCtx, tapPosition) {
+                final dictionaryText =
+                    (_selectedText?.trim().isNotEmpty == true)
+                    ? _selectedText
+                    : wordAtGlobalPosition(tapPosition);
+                final dictionaryEntries = buildDictionaryContextMenuEntries(
+                  context: menuCtx,
+                  selectedText: dictionaryText,
+                  repository: DictionaryLookupRepository.instance,
+                );
+                return [
                   AppContextMenuEntry(
-                    label: 'דווח על טעות בספר',
-                    icon: FluentIcons.error_circle_24_regular,
+                    label: 'העתק',
+                    icon: FluentIcons.copy_24_regular,
                     enabled:
                         _selectedText != null &&
                         _selectedText!.trim().isNotEmpty,
-                    onTap: () => ErrorReportHelper.showErrorReportDialog(
+                    onTap: () => ContextMenuUtils.copyFormattedText(
                       context: menuCtx,
-                      selectedText: _selectedText ?? '',
-                      state: widget.state,
+                      savedSelectedText: _selectedText,
                       fontSize: widget.fontSize,
-                      bookTitle: widget.state.book.title,
-                      savedSelectedIndex: widget.reportLineIndex,
                     ),
                   ),
-                ],
-              ],
+                  if (dictionaryEntries.isNotEmpty) ...[
+                    const AppContextMenuEntry.divider(),
+                    ...dictionaryEntries,
+                  ],
+                  if (!widget.state.book.isUserBook) ...[
+                    const AppContextMenuEntry.divider(),
+                    AppContextMenuEntry(
+                      label: 'דווח על טעות בספר',
+                      icon: FluentIcons.error_circle_24_regular,
+                      enabled:
+                          _selectedText != null &&
+                          _selectedText!.trim().isNotEmpty,
+                      onTap: () => ErrorReportHelper.showErrorReportDialog(
+                        context: menuCtx,
+                        selectedText: _selectedText ?? '',
+                        state: widget.state,
+                        fontSize: widget.fontSize,
+                        bookTitle: widget.state.book.title,
+                        savedSelectedIndex: widget.reportLineIndex,
+                      ),
+                    ),
+                  ],
+                ];
+              },
               child: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,

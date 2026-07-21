@@ -109,7 +109,9 @@ LinkTargetsAggregation aggregateLinkTargetsFromLinks(Iterable<Link> links) {
 /// כמו [aggregateLinkTargetsFromLinks], בלי לטעון את הקישורים עצמם.
 @visibleForTesting
 LinkTargetsAggregation aggregateLinkTargetsFromSummary(
-    List<LinkTargetSummary> targets, int maxSourceLine) {
+  List<LinkTargetSummary> targets,
+  int maxSourceLine,
+) {
   final commentators = <String>{};
   final linkCountByTitle = <String, int>{};
   final nonCommentaryTitles = <String>{};
@@ -398,7 +400,9 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       if (repo == null) return null;
       final dbBook = companion.categoryId != null
           ? await repo.getBookByTitleAndCategory(
-              companion.title, companion.categoryId!)
+              companion.title,
+              companion.categoryId!,
+            )
           : await repo.getBookByTitle(companion.title);
       final lines = dbBook?.totalLines ?? 0;
       return lines > 0 ? lines : null;
@@ -410,7 +414,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   /// סיכום קישורי הספר (יעדים + ספירות) מהמסד — תחליף קל לסריקת כל הקישורים
   /// כש-tab.links מחזיק רק חלון סביב המיקום הנוכחי.
   Future<({List<LinkTargetSummary> targets, int maxSourceLine})?>
-      _loadLinkTargetsSummary() async {
+  _loadLinkTargetsSummary() async {
     try {
       final library = await DataRepository.instance.library;
       final companion =
@@ -423,7 +427,9 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       );
       if (provider is! DatabaseLibraryProvider) return null;
       return provider.getBookLinkTargetsSummary(
-          companion.title, companion.categoryId!);
+        companion.title,
+        companion.categoryId!,
+      );
     } catch (_) {
       return null;
     }
@@ -437,7 +443,9 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       final summary = await _loadLinkTargetsSummary();
       aggregation = summary != null
           ? aggregateLinkTargetsFromSummary(
-              summary.targets, summary.maxSourceLine)
+              summary.targets,
+              summary.maxSourceLine,
+            )
           // הסיכום נכשל — נבנה לפחות מחלון הקישורים הטעון (חלקי, עדיף מריק).
           : aggregateLinkTargetsFromLinks(widget.tab.links);
     }
@@ -573,8 +581,10 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     _searchComputeDebounce?.cancel();
     // כשאין קישורים אין מה לחשב — טעינתם תפעיל תזמון מחדש (לפי חתימה).
     if (_orderedLinks.isEmpty) return;
-    _searchComputeDebounce =
-        Timer(const Duration(milliseconds: 250), _computeSearchCounts);
+    _searchComputeDebounce = Timer(
+      const Duration(milliseconds: 250),
+      _computeSearchCounts,
+    );
   }
 
   /// עובר על כל הקישורים ומזין את משפך העדכון של ספירות החיפוש, במקביל
@@ -635,8 +645,10 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       setState(() {
         _searchResultsPerLink.addAll(_pendingCounts);
         _pendingCounts.clear();
-        _totalSearchResults =
-            _searchResultsPerLink.values.fold(0, (sum, count) => sum + count);
+        _totalSearchResults = _searchResultsPerLink.values.fold(
+          0,
+          (sum, count) => sum + count,
+        );
 
         // Reset current index if out of bounds
         if (_currentSearchIndex >= _totalSearchResults &&
@@ -660,7 +672,10 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
 
   /// בניית תפריט הקשר למפרש ספציפי
   List<AppContextMenuEntry> _buildCommentaryContextMenuEntries(
-      BuildContext menuCtx, Link link) {
+    BuildContext menuCtx,
+    Link link,
+    Offset tapPosition,
+  ) {
     return ContextMenuUtils.buildCommentaryContextMenu(
       context: menuCtx,
       link: link,
@@ -668,6 +683,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       fontSize: widget.fontSize,
       savedSelectedText: _savedSelectedText,
       onCopySelected: _copyFormattedText,
+      tapPosition: tapPosition,
     );
   }
 
@@ -788,7 +804,11 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     for (final link in widget.tab.links) {
       if (!LinkTypes.isDependentTextLink(link.connectionType)) continue;
       if (!pdfLinkInVisibleScope(
-          link.index1, range.startLine, range.endLine, extra)) {
+        link.index1,
+        range.startLine,
+        range.endLine,
+        extra,
+      )) {
         continue;
       }
       final title = utils.getTitleFromPath(link.path2);
@@ -883,11 +903,11 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
           icon: const Icon(FluentIcons.open_24_regular),
           tooltip: 'פתח כרטסיית מפרשים',
           onPressed: () => context.read<TabsBloc>().add(
-                AddTab(
-                  PdfCommentatorsTab(sourceTab: widget.tab),
-                  insertAdjacent: true,
-                ),
-              ),
+            AddTab(
+              PdfCommentatorsTab(sourceTab: widget.tab),
+              insertAdjacent: true,
+            ),
+          ),
         ),
         const SizedBox(width: gap),
         // 4. הפעלת שדה החיפוש
@@ -1134,8 +1154,9 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
         }
 
         // Initialize keys
-        final currentLinkKeys =
-            _orderedLinks.map((l) => _getLinkKey(l)).toSet();
+        final currentLinkKeys = _orderedLinks
+            .map((l) => _getLinkKey(l))
+            .toSet();
 
         // קישורים חדשים (טעינה/מעבר קטע) — חישוב ספירות חיפוש מחדש אם יש
         // שאילתה פעילה.
@@ -1159,12 +1180,15 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
           for (final key in staleSearchKeys) {
             _searchResultsPerLink.remove(key);
           }
-          _pendingCounts
-              .removeWhere((key, _) => !currentLinkKeys.contains(key));
+          _pendingCounts.removeWhere(
+            (key, _) => !currentLinkKeys.contains(key),
+          );
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
-            final newTotal =
-                _searchResultsPerLink.values.fold(0, (sum, c) => sum + c);
+            final newTotal = _searchResultsPerLink.values.fold(
+              0,
+              (sum, c) => sum + c,
+            );
             if (_totalSearchResults != newTotal ||
                 _currentSearchIndex >= newTotal) {
               setState(() {
@@ -1179,7 +1203,8 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
 
         return ScrollablePositionedList.builder(
           key: PageStorageKey(
-              'commentary_${widget.tab.currentTextLineNumber}_${widget.tab.activeCommentators.hashCode}_$_allExpanded'),
+            'commentary_${widget.tab.currentTextLineNumber}_${widget.tab.activeCommentators.hashCode}_$_allExpanded',
+          ),
           itemCount: sortedGroups.length,
           itemScrollController: _itemScrollController,
           itemPositionsListener: _itemPositionsListener,
@@ -1258,7 +1283,8 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       final BuildContext? itemContext = itemKey?.currentContext;
 
       // בודק אם הפריט כבר בעץ הרינדור (לא נדרשת גלילה גסה)
-      final bool itemInRenderTree = itemContext != null &&
+      final bool itemInRenderTree =
+          itemContext != null &&
           itemContext.mounted &&
           itemContext.findRenderObject() is RenderBox;
 
@@ -1303,7 +1329,8 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       builder: (context, settingsState) {
         return _CollapsibleCommentaryGroup(
           key: PageStorageKey(
-              '${group.bookTitle}_${widget.tab.currentTextLineNumber}'),
+            '${group.bookTitle}_${widget.tab.currentTextLineNumber}',
+          ),
           group: group,
           settingsState: settingsState,
           tab: widget.tab,
@@ -1381,10 +1408,12 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
 
     return BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, settingsState) {
-        final restoredExpanded = PageStorage.maybeOf(context)?.readState(
-          context,
-          identifier: keyStr,
-        ) as bool?;
+        final restoredExpanded =
+            PageStorage.maybeOf(context)?.readState(
+                  context,
+                  identifier: keyStr,
+                )
+                as bool?;
         final isExpanded =
             _expandedLinkStates[keyStr] ?? restoredExpanded ?? false;
 
@@ -1399,10 +1428,9 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
             child: RtlIcon(
               FluentIcons.chevron_left_24_regular,
               size: 20,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.6),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.6),
             ),
           ),
           backgroundColor: Theme.of(context).colorScheme.surface,
@@ -1413,7 +1441,8 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
               fontSize: settingsState.commentatorsFontSize - 2,
               fontWeight: FontWeight.bold,
               fontVariations: AppFonts.boldFontVariations(
-                  settingsState.commentatorsFontFamily),
+                settingsState.commentatorsFontFamily,
+              ),
               fontFamily: settingsState.commentatorsFontFamily,
             ),
           ),
@@ -1426,10 +1455,9 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
                   fontSize: settingsState.commentatorsFontSize - 4,
                   fontWeight: FontWeight.normal,
                   fontFamily: settingsState.commentatorsFontFamily,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.5),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
               );
             },
@@ -1466,8 +1494,12 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
                       ) ??
                       true; // לא הוכרע — סלחני
                 },
-                menuBuilder: (menuCtx, _) =>
-                    _buildCommentaryContextMenuEntries(menuCtx, link),
+                menuBuilder: (menuCtx, tapPosition) =>
+                    _buildCommentaryContextMenuEntries(
+                      menuCtx,
+                      link,
+                      tapPosition,
+                    ),
                 child: GestureDetector(
                   onTap: () {
                     widget.openBookCallback(
@@ -1478,10 +1510,11 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
                         index: link.index2 - 1,
                         openLeftPane:
                             (Settings.getValue<bool>('key-pin-sidebar') ??
-                                    false) ||
-                                (Settings.getValue<bool>(
-                                        'key-default-sidebar-open') ??
-                                    false),
+                                false) ||
+                            (Settings.getValue<bool>(
+                                  'key-default-sidebar-open',
+                                ) ??
+                                false),
                       ),
                     );
                   },
@@ -1493,11 +1526,13 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
                           return const Center(
-                              child: CircularProgressIndicator());
+                            child: CircularProgressIndicator(),
+                          );
                         }
                         if (snapshot.hasError) {
                           debugPrint(
-                              'Error loading link content: ${snapshot.error}');
+                            'Error loading link content: ${snapshot.error}',
+                          );
                           debugPrint('Stack trace: ${snapshot.stackTrace}');
                           return Text('שגיאה: ${snapshot.error}');
                         }
@@ -1505,7 +1540,8 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
                           builder: (context, settingsState) {
                             return Text(
                               utils.stripHtmlPreservingBreaks(
-                                  snapshot.data ?? ''),
+                                snapshot.data ?? '',
+                              ),
                               textAlign: TextAlign.justify,
                               style: TextStyle(
                                 fontSize: settingsState.commentatorsFontSize,
@@ -1514,10 +1550,11 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
                                 fontWeight: settingsState.commentatorsFontBold
                                     ? FontWeight.bold
                                     : null,
-                                fontVariations: settingsState
-                                        .commentatorsFontBold
+                                fontVariations:
+                                    settingsState.commentatorsFontBold
                                     ? AppFonts.boldFontVariations(
-                                        settingsState.commentatorsFontFamily)
+                                        settingsState.commentatorsFontFamily,
+                                      )
                                     : null,
                               ),
                             );
@@ -1557,8 +1594,9 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
 
               if (targetPage != null) {
                 if (widget.tab.pdfViewerController.isReady) {
-                  widget.tab.pdfViewerController
-                      .goToPage(pageNumber: targetPage);
+                  widget.tab.pdfViewerController.goToPage(
+                    pageNumber: targetPage,
+                  );
                 }
                 return;
               }
@@ -1583,8 +1621,8 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     }
 
     final range = _getCurrentRange(currentLine);
-    final commentatorsKey =
-        (widget.tab.activeCommentators.toList()..sort()).join('|');
+    final commentatorsKey = (widget.tab.activeCommentators.toList()..sort())
+        .join('|');
     final extraKey = widget.extraLineIndices == null
         ? ''
         : (widget.extraLineIndices!.toList()..sort()).join(',');
@@ -1609,7 +1647,11 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     final extraLines = widget.extraLineIndices;
     for (final link in widget.tab.links) {
       if (!pdfLinkInVisibleScope(
-          link.index1, range.startLine, range.endLine, extraLines)) {
+        link.index1,
+        range.startLine,
+        range.endLine,
+        extraLines,
+      )) {
         continue;
       }
 
@@ -1618,8 +1660,9 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       if (isCommentary) {
         hasAnyCommentaryLinks = true;
         if (showAllWhenEmpty ||
-            widget.tab.activeCommentators
-                .contains(utils.getTitleFromPath(link.path2))) {
+            widget.tab.activeCommentators.contains(
+              utils.getTitleFromPath(link.path2),
+            )) {
           commentaryLinks.add(link);
         }
         continue;
@@ -1639,8 +1682,9 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       }
       return a.index1.compareTo(b.index1);
     });
-    final sortedNonCommentaryLinks =
-        CommentaryService.sortLinksByEraSync(nonCommentaryLinks);
+    final sortedNonCommentaryLinks = CommentaryService.sortLinksByEraSync(
+      nonCommentaryLinks,
+    );
 
     final groups = _groupConsecutiveLinks(commentaryLinks);
     final cache = _PdfVisibleContentCache(
@@ -1655,7 +1699,8 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   }
 
   ({int startLine, int endLine}) _getCurrentRange(int currentLine) {
-    final endLine = widget.lineEndOverride ??
+    final endLine =
+        widget.lineEndOverride ??
         (widget.tab.currentTextLineNumberEnd ?? currentLine + 50);
     return (startLine: currentLine, endLine: endLine);
   }
@@ -1737,7 +1782,8 @@ class _CollapsibleCommentaryGroup extends StatefulWidget {
   final PdfBookTab tab;
   final double fontSize;
   final Function(OpenedTab) openBookCallback;
-  final List<AppContextMenuEntry> Function(BuildContext, Link) buildContextMenu;
+  final List<AppContextMenuEntry> Function(BuildContext, Link, Offset)
+  buildContextMenu;
   // מחזיר את הטקסט הנבחר הנוכחי (מנוהל ע"י ה-SelectionArea היחיד של הפאנל),
   // לבדיקה אם לחיצה ימנית נופלת על הבחירה ולכן יש לשמרה.
   final String? Function() getSavedSelectedText;
@@ -1787,8 +1833,10 @@ class _CollapsibleCommentaryGroupState
             widget.onExpansionChanged(!widget.isExpanded);
           },
           child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 12.0,
+            ),
             child: Row(
               children: [
                 AnimatedRotation(
@@ -1797,10 +1845,9 @@ class _CollapsibleCommentaryGroupState
                   child: RtlIcon(
                     FluentIcons.chevron_left_24_regular,
                     size: 20,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.6),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1811,7 +1858,8 @@ class _CollapsibleCommentaryGroupState
                       fontSize: widget.settingsState.commentatorsFontSize - 2,
                       fontWeight: FontWeight.bold,
                       fontVariations: AppFonts.boldFontVariations(
-                          widget.settingsState.commentatorsFontFamily),
+                        widget.settingsState.commentatorsFontFamily,
+                      ),
                       fontFamily: widget.settingsState.commentatorsFontFamily,
                     ),
                   ),
@@ -1824,10 +1872,15 @@ class _CollapsibleCommentaryGroupState
         if (widget.isExpanded)
           ...widget.group.links.map((link) {
             return Padding(
-              key: widget.getKeyForLink
-                  ?.call(link), // Attach the key here for scrolling
+              key: widget.getKeyForLink?.call(
+                link,
+              ), // Attach the key here for scrolling
               padding: const EdgeInsets.only(
-                  right: 32.0, left: 16.0, top: 8.0, bottom: 8.0),
+                right: 32.0,
+                left: 16.0,
+                top: 8.0,
+                bottom: 8.0,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1842,10 +1895,9 @@ class _CollapsibleCommentaryGroupState
                           fontWeight: FontWeight.normal,
                           fontFamily:
                               widget.settingsState.commentatorsFontFamily,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.5),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.5),
                         ),
                       );
                     },
@@ -1868,11 +1920,12 @@ class _CollapsibleCommentaryGroupState
                           ) ??
                           true; // לא הוכרע — סלחני
                     },
-                    menuBuilder: (menuCtx, _) =>
-                        widget.buildContextMenu(menuCtx, link),
+                    menuBuilder: (menuCtx, tapPosition) =>
+                        widget.buildContextMenu(menuCtx, link, tapPosition),
                     child: PdfCommentaryContent(
                       key: ValueKey(
-                          '${link.path2}_${link.index1}_${link.index2}_${widget.tab.currentTextLineNumber}'),
+                        '${link.path2}_${link.index1}_${link.index2}_${widget.tab.currentTextLineNumber}',
+                      ),
                       link: link,
                       fontSize: widget.fontSize,
                       openBookCallback: widget.openBookCallback,
