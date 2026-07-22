@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,8 +22,11 @@ void main() {
     });
 
     group('parseCalendarDate — לועזי', () {
-      DateTime? parse(String input) => parseCalendarDate(input,
-          currentJewishYear: 5786, currentGregorianYear: 2026);
+      DateTime? parse(String input) => parseCalendarDate(
+        input,
+        currentJewishYear: 5786,
+        currentGregorianYear: 2026,
+      );
 
       test('שנה בת 4 ספרות', () {
         expect(parse('15/3/2025'), DateTime(2025, 3, 15));
@@ -55,8 +59,10 @@ void main() {
         expect(short, equals(full));
       });
       test('שנה חסרה → שנה עברית נוכחית', () {
-        final withYear =
-            parseCalendarDate('טו תמוז תשפו', currentJewishYear: 5786);
+        final withYear = parseCalendarDate(
+          'טו תמוז תשפו',
+          currentJewishYear: 5786,
+        );
         final noYear = parseCalendarDate('טו תמוז', currentJewishYear: 5786);
         expect(noYear, equals(withYear));
       });
@@ -142,8 +148,40 @@ void main() {
       expect(confirmed, isTrue);
     });
 
-    testWidgets('quick taps on different date cells do not call onConfirm',
-        (tester) async {
+    testWidgets('taps outside the double tap timeout do not call onConfirm', (
+      tester,
+    ) async {
+      bool confirmed = false;
+      final initialDate = DateTime(2026, 4, 3);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: JumpToDatePanel(
+              selectedDate: initialDate,
+              currentDate: initialDate,
+              showHebrew: false,
+              onDateChanged: (_) {},
+              onCancel: () {},
+              onConfirm: () => confirmed = true,
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('15'));
+      await tester.pump();
+      await tester.pump(kDoubleTapTimeout);
+      await tester.tap(find.text('15'));
+      await tester.pump();
+
+      expect(confirmed, isFalse);
+      await tester.pump(kDoubleTapTimeout);
+    });
+
+    testWidgets('quick taps on different date cells do not call onConfirm', (
+      tester,
+    ) async {
       bool confirmed = false;
       DateTime? changedTo;
       final initialDate = DateTime(2026, 4, 3);
@@ -172,8 +210,9 @@ void main() {
       expect(confirmed, isFalse);
     });
 
-    testWidgets('double click on navigation arrows does not call onConfirm',
-        (tester) async {
+    testWidgets('double click on navigation arrows does not call onConfirm', (
+      tester,
+    ) async {
       bool confirmed = false;
       final initialDate = DateTime(2026, 4, 3);
 
@@ -205,8 +244,9 @@ void main() {
       expect(confirmed, isFalse);
     });
 
-    testWidgets('desktop: הוספת שעה — עורך HH∶MM, הקלדה ו-✕ לניקוי',
-        (tester) async {
+    testWidgets('desktop: הוספת שעה — עורך HH∶MM, הקלדה ו-✕ לניקוי', (
+      tester,
+    ) async {
       tester.view.devicePixelRatio = 1.0;
       await tester.binding.setSurfaceSize(const Size(1200, 900));
       addTearDown(() {
@@ -266,8 +306,9 @@ void main() {
       expect(find.text('הוספת שעה'), findsOneWidget);
     });
 
-    testWidgets('recurring event requires a positive number of years',
-        (tester) async {
+    testWidgets('recurring event requires a positive number of years', (
+      tester,
+    ) async {
       tester.view.devicePixelRatio = 1.0;
       await tester.binding.setSurfaceSize(const Size(1200, 900));
       addTearDown(() {
@@ -302,15 +343,16 @@ void main() {
         find.byType(TextField).first,
         'אירוע בדיקה',
       );
-      final recurrenceDropdown =
-          tester.widget<AppDropdownField<RecurrenceType>>(
-        find.byType(AppDropdownField<RecurrenceType>),
-      );
+      final recurrenceDropdown = tester
+          .widget<AppDropdownField<RecurrenceType>>(
+            find.byType(AppDropdownField<RecurrenceType>),
+          );
       recurrenceDropdown.onSelected!(RecurrenceType.annualHebrew);
       await tester.pumpAndSettle();
 
-      final recurringLimitToggle =
-          tester.widget<CheckboxListTile>(find.byType(CheckboxListTile));
+      final recurringLimitToggle = tester.widget<CheckboxListTile>(
+        find.byType(CheckboxListTile),
+      );
       recurringLimitToggle.onChanged!(false);
       await tester.pumpAndSettle();
 

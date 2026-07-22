@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_date_picker_panel.dart';
@@ -44,39 +46,44 @@ class JumpToDatePanel extends StatefulWidget {
 }
 
 class _JumpToDatePanelState extends State<JumpToDatePanel> {
-  // זמן ה-pointer-down האחרון על האזור
-  DateTime? _lastPointerDownTime;
+  Timer? _doubleTapTimer;
   Offset? _lastPointerDownPosition;
-  // האם CalendarDatePicker קרא ל-onDateChanged מאז הלחיצה הקודמת —
-  // רק אז זוהי לחיצה על תא תאריך (לא על חיצי ניווט)
   bool _dateSelectedSinceLastDown = false;
 
+  void _resetDoubleTap() {
+    _doubleTapTimer?.cancel();
+    _doubleTapTimer = null;
+    _lastPointerDownPosition = null;
+    _dateSelectedSinceLastDown = false;
+  }
+
   void _handlePointerDown(PointerDownEvent event) {
-    final now = DateTime.now();
-    final last = _lastPointerDownTime;
     final lastPosition = _lastPointerDownPosition;
-    final isNearLastPointerDown = lastPosition != null &&
+    final isNearLastPointerDown =
+        lastPosition != null &&
         (event.position - lastPosition).distanceSquared <=
             kDoubleTapSlop * kDoubleTapSlop;
-    if (last != null &&
-        now.difference(last) < kDoubleTapTimeout &&
+    if ((_doubleTapTimer?.isActive ?? false) &&
         isNearLastPointerDown &&
         _dateSelectedSinceLastDown) {
-      _lastPointerDownTime = null;
-      _lastPointerDownPosition = null;
-      _dateSelectedSinceLastDown = false;
+      _resetDoubleTap();
       widget.onConfirm();
     } else {
-      _lastPointerDownTime = now;
+      _resetDoubleTap();
+      _doubleTapTimer = Timer(kDoubleTapTimeout, _resetDoubleTap);
       _lastPointerDownPosition = event.position;
-      _dateSelectedSinceLastDown = false;
     }
   }
 
   void _onDateChanged(DateTime date) {
-    // מסמן שתא תאריך נבחר — לא ניווט
     _dateSelectedSinceLastDown = true;
     widget.onDateChanged(date);
+  }
+
+  @override
+  void dispose() {
+    _doubleTapTimer?.cancel();
+    super.dispose();
   }
 
   @override
