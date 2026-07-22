@@ -406,6 +406,9 @@ if (res.success && res.data.ok) {
   ההורדות. **הנתיב חייב להיות בתוך תיקייה שהמשתמש בחר דרך `ui.pickFolder`**
   (ראו [`ui.pickFolder`](#uipickfolder)); אחרת מוחזרת `error.forbidden`.
   כאשר `destPath` סופק, תיקיית האב נוצרת במידת הצורך וקובץ קיים נדרס.
+- `resume` אופציונלי ורלוונטי רק יחד עם `destPath`. כאשר ערכו `true`, אוצריא
+  שומר הורדה חלקית וממשיך אותה בניסיון הבא באמצעות `Range` ו-`If-Range`.
+  המשך מתבצע רק כשיש `ETag` חזק שמוכיח שהמשאב לא השתנה; אחרת מתחילים מחדש.
 
 ```javascript
 const { data } = await Otzaria.call('network.download', {
@@ -419,7 +422,8 @@ const folder = await Otzaria.call('ui.pickFolder', { title: 'בחר תיקיית
 if (folder.success && folder.data.path) {
   await Otzaria.call('network.download', {
     url: 'https://github.com/Owner/Repo/releases/latest/download/books.zip',
-    destPath: folder.data.path + '/books.zip'
+    destPath: folder.data.path + '/books.zip',
+    resume: true
   });
 }
 ```
