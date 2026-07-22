@@ -23,6 +23,14 @@ void main() {
 
   Future<bool> allowAll(Uri _) async => true;
 
+  Future<void> seedResumeState(
+    String destPath,
+    Uri uri, {
+    String etag = '"v1"',
+  }) async {
+    await File('$destPath.resume').writeAsString('$uri\n$etag');
+  }
+
   PluginFileDownloadService serviceReturning(
     List<int> body, {
     int status = 200,
@@ -99,7 +107,8 @@ void main() {
     expect(
       () => service.downloadToDownloads(
         Uri.parse(
-            'https://github.com/Owner/Repo/releases/latest/download/a.zip'),
+          'https://github.com/Owner/Repo/releases/latest/download/a.zip',
+        ),
         isAllowed: allowAll,
         targetDir: tempDir,
       ),
@@ -142,32 +151,38 @@ void main() {
     expect(result.filename, 'a.zip');
   });
 
-  test('חוסם redirect ליעד שאינו ב-allowlist (לא עוקף את ה-allowlist)',
-      () async {
-    var hitEvil = false;
-    final client = MockClient((request) async {
-      if (request.url.host == 'github.com') {
-        return http.Response('', 302,
-            headers: {'location': 'https://evil.example.com/a.zip'});
-      }
-      hitEvil = true;
-      return http.Response.bytes([0], 200);
-    });
-    final service = PluginFileDownloadService(client: client);
+  test(
+    'חוסם redirect ליעד שאינו ב-allowlist (לא עוקף את ה-allowlist)',
+    () async {
+      var hitEvil = false;
+      final client = MockClient((request) async {
+        if (request.url.host == 'github.com') {
+          return http.Response(
+            '',
+            302,
+            headers: {'location': 'https://evil.example.com/a.zip'},
+          );
+        }
+        hitEvil = true;
+        return http.Response.bytes([0], 200);
+      });
+      final service = PluginFileDownloadService(client: client);
 
-    await expectLater(
-      service.downloadToDownloads(
-        Uri.parse(
-            'https://github.com/Owner/Repo/releases/latest/download/a.zip'),
-        isAllowed: globalAllowsGithubOnly,
-        isRedirectAllowed: redirectAllowsCdnFromGithub,
-        targetDir: tempDir,
-      ),
-      throwsA(isA<Exception>()),
-    );
-    // ודא שהבקשה ליעד האסור מעולם לא יצאה.
-    expect(hitEvil, isFalse);
-  });
+      await expectLater(
+        service.downloadToDownloads(
+          Uri.parse(
+            'https://github.com/Owner/Repo/releases/latest/download/a.zip',
+          ),
+          isAllowed: globalAllowsGithubOnly,
+          isRedirectAllowed: redirectAllowsCdnFromGithub,
+          targetDir: tempDir,
+        ),
+        throwsA(isA<Exception>()),
+      );
+      // ודא שהבקשה ליעד האסור מעולם לא יצאה.
+      expect(hitEvil, isFalse);
+    },
+  );
 
   test('חוסם גישה ישירה ל-CDN ככתובת התחלתית (ללא redirect)', () async {
     var hit = false;
@@ -197,7 +212,8 @@ void main() {
 
       final result = await service.downloadToPath(
         Uri.parse(
-            'https://github.com/Owner/Repo/releases/latest/download/books.zip'),
+          'https://github.com/Owner/Repo/releases/latest/download/books.zip',
+        ),
         destPath,
         isAllowed: allowAll,
       );
@@ -214,7 +230,8 @@ void main() {
 
       await service.downloadToPath(
         Uri.parse(
-            'https://github.com/Owner/Repo/releases/latest/download/books.zip'),
+          'https://github.com/Owner/Repo/releases/latest/download/books.zip',
+        ),
         destPath,
         isAllowed: allowAll,
       );
@@ -227,7 +244,8 @@ void main() {
       await expectLater(
         service.downloadToPath(
           Uri.parse(
-              'https://github.com/Owner/Repo/releases/latest/download/a.zip'),
+            'https://github.com/Owner/Repo/releases/latest/download/a.zip',
+          ),
           p.join(tempDir.path, 'a.zip'),
           isAllowed: allowAll,
         ),
@@ -236,43 +254,62 @@ void main() {
     });
 
     group('resume', () {
-      test('מצרף ל-206 כשה-offset תואם (Content-Range) ושולח Range נכון',
-          () async {
-        final destPath = p.join(tempDir.path, 'big.zip');
-        await File(destPath).writeAsBytes([1, 2, 3]);
-        String? sentRange;
-        final client = MockClient((request) async {
-          sentRange = request.headers['range'];
-          return http.Response.bytes([4, 5], 206,
-              headers: {'content-range': 'bytes 3-4/5'});
-        });
-        final service = PluginFileDownloadService(client: client);
+      test(
+        'מצרף ל-206 כשה-offset תואם (Content-Range) ושולח Range נכון',
+        () async {
+          final destPath = p.join(tempDir.path, 'big.zip');
+          final uri = Uri.parse(
+            'https://github.com/Owner/Repo/releases/latest/download/big.zip',
+          );
+          await File(destPath).writeAsBytes([1, 2, 3]);
+          await seedResumeState(destPath, uri);
+          String? sentRange;
+          String? sentIfRange;
+          final client = MockClient((request) async {
+            sentRange = request.headers['range'];
+            sentIfRange = request.headers['if-range'];
+            return http.Response.bytes(
+              [4, 5],
+              206,
+              headers: {'content-range': 'bytes 3-4/5', 'etag': '"v1"'},
+            );
+          });
+          final service = PluginFileDownloadService(client: client);
 
-        final result = await service.downloadToPath(
-          Uri.parse(
-              'https://github.com/Owner/Repo/releases/latest/download/big.zip'),
-          destPath,
-          isAllowed: allowAll,
-          resume: true,
-        );
+          final result = await service.downloadToPath(
+            uri,
+            destPath,
+            isAllowed: allowAll,
+            resume: true,
+          );
 
-        expect(sentRange, 'bytes=3-');
-        expect(result.path, destPath);
-        expect(await File(destPath).readAsBytes(), [1, 2, 3, 4, 5]);
-      });
+          expect(sentRange, 'bytes=3-');
+          expect(sentIfRange, '"v1"');
+          expect(result.path, destPath);
+          expect(await File(destPath).readAsBytes(), [1, 2, 3, 4, 5]);
+          expect(await File('$destPath.resume').exists(), isFalse);
+        },
+      );
 
       test('416 על קובץ שכבר הושלם → הצלחה, הקובץ נשמר כמות שהוא', () async {
         final destPath = p.join(tempDir.path, 'done.zip');
+        final uri = Uri.parse(
+          'https://github.com/Owner/Repo/releases/latest/download/done.zip',
+        );
         await File(destPath).writeAsBytes([1, 2, 3, 4, 5]);
+        await seedResumeState(destPath, uri);
         final client = MockClient((request) async {
-          return http.Response.bytes([], 416,
-              headers: {'content-range': 'bytes */5'});
+          expect(request.headers['if-range'], '"v1"');
+          return http.Response.bytes(
+            [],
+            416,
+            headers: {'content-range': 'bytes */5'},
+          );
         });
         final service = PluginFileDownloadService(client: client);
 
         final result = await service.downloadToPath(
-          Uri.parse(
-              'https://github.com/Owner/Repo/releases/latest/download/done.zip'),
+          uri,
           destPath,
           isAllowed: allowAll,
           resume: true,
@@ -280,19 +317,25 @@ void main() {
 
         expect(result.path, destPath);
         expect(await File(destPath).readAsBytes(), [1, 2, 3, 4, 5]);
+        expect(await File('$destPath.resume').exists(), isFalse);
       });
 
       test('200 (השרת מתעלם מ-Range) → כתיבה מחדש מ-0', () async {
         final destPath = p.join(tempDir.path, 'restart.zip');
+        final uri = Uri.parse(
+          'https://github.com/Owner/Repo/releases/latest/download/restart.zip',
+        );
         await File(destPath).writeAsBytes([9, 9]);
+        await seedResumeState(destPath, uri);
         final client = MockClient((request) async {
-          return http.Response.bytes([1, 2, 3], 200);
+          expect(request.headers['range'], 'bytes=2-');
+          expect(request.headers['if-range'], '"v1"');
+          return http.Response.bytes([1, 2, 3], 200, headers: {'etag': '"v2"'});
         });
         final service = PluginFileDownloadService(client: client);
 
         await service.downloadToPath(
-          Uri.parse(
-              'https://github.com/Owner/Repo/releases/latest/download/restart.zip'),
+          uri,
           destPath,
           isAllowed: allowAll,
           resume: true,
@@ -303,18 +346,24 @@ void main() {
 
       test('206 עם offset לא תואם → זריקה ומחיקת הקובץ החלקי', () async {
         final destPath = p.join(tempDir.path, 'bad.zip');
+        final uri = Uri.parse(
+          'https://github.com/Owner/Repo/releases/latest/download/bad.zip',
+        );
         await File(destPath).writeAsBytes([1, 2, 3]);
+        await seedResumeState(destPath, uri);
         final client = MockClient((request) async {
           // ביקשנו bytes=3- אך השרת מתחיל מ-1 (לא 3 ולא 0) — צירוף היה מקלקל.
-          return http.Response.bytes([2, 3, 4, 5], 206,
-              headers: {'content-range': 'bytes 1-4/5'});
+          return http.Response.bytes(
+            [2, 3, 4, 5],
+            206,
+            headers: {'content-range': 'bytes 1-4/5'},
+          );
         });
         final service = PluginFileDownloadService(client: client);
 
         await expectLater(
           service.downloadToPath(
-            Uri.parse(
-                'https://github.com/Owner/Repo/releases/latest/download/bad.zip'),
+            uri,
             destPath,
             isAllowed: allowAll,
             resume: true,
@@ -326,18 +375,24 @@ void main() {
 
       test('206 שנקטע לפני הסוף → זריקה, הקובץ החלקי נשמר להמשך', () async {
         final destPath = p.join(tempDir.path, 'partial.zip');
+        final uri = Uri.parse(
+          'https://github.com/Owner/Repo/releases/latest/download/partial.zip',
+        );
         await File(destPath).writeAsBytes([1, 2, 3]);
+        await seedResumeState(destPath, uri);
         final client = MockClient((request) async {
           // total=10 אך הגוף מכיל רק 2 בייטים → 5 מתוך 10 בסיום.
-          return http.Response.bytes([4, 5], 206,
-              headers: {'content-range': 'bytes 3-9/10'});
+          return http.Response.bytes(
+            [4, 5],
+            206,
+            headers: {'content-range': 'bytes 3-9/10', 'etag': '"v1"'},
+          );
         });
         final service = PluginFileDownloadService(client: client);
 
         await expectLater(
           service.downloadToPath(
-            Uri.parse(
-                'https://github.com/Owner/Repo/releases/latest/download/partial.zip'),
+            uri,
             destPath,
             isAllowed: allowAll,
             resume: true,
@@ -346,6 +401,7 @@ void main() {
         );
         // הקובץ נשמר עם מה שהתקבל, לניסיון resume נוסף.
         expect(await File(destPath).readAsBytes(), [1, 2, 3, 4, 5]);
+        expect(await File('$destPath.resume').exists(), isTrue);
       });
 
       test('resume ללא קובץ קיים → הורדה רגילה מ-0 ללא כותרת Range', () async {
@@ -359,7 +415,8 @@ void main() {
 
         await service.downloadToPath(
           Uri.parse(
-              'https://github.com/Owner/Repo/releases/latest/download/fresh.zip'),
+            'https://github.com/Owner/Repo/releases/latest/download/fresh.zip',
+          ),
           destPath,
           isAllowed: allowAll,
           resume: true,
@@ -367,6 +424,262 @@ void main() {
 
         expect(sentRange, isNull);
         expect(await File(destPath).readAsBytes(), [1, 2, 3]);
+      });
+
+      test('כשל עם ETag נשמר וממשיך בבקשה הבאה עם Range ו-If-Range', () async {
+        final destPath = p.join(tempDir.path, 'retry.zip');
+        final uri = Uri.parse('https://github.com/Owner/Repo/retry.zip');
+        var requestCount = 0;
+        final client = MockClient.streaming((request, bodyStream) async {
+          requestCount++;
+          if (requestCount == 1) {
+            Stream<List<int>> interrupted() async* {
+              yield [1, 2];
+              await Future<void>.delayed(const Duration(seconds: 1));
+              yield [3];
+            }
+
+            return http.StreamedResponse(
+              interrupted(),
+              200,
+              contentLength: 5,
+              headers: {'etag': '"v1"'},
+            );
+          }
+          expect(request.headers['range'], 'bytes=2-');
+          expect(request.headers['if-range'], '"v1"');
+          return http.StreamedResponse(
+            Stream.value([3, 4, 5]),
+            206,
+            contentLength: 3,
+            headers: {
+              'content-range': 'bytes 2-4/5',
+              'etag': '"v1"',
+            },
+          );
+        });
+        final service = PluginFileDownloadService(
+          client: client,
+          stallTimeout: const Duration(milliseconds: 50),
+        );
+
+        await expectLater(
+          service.downloadToPath(
+            uri,
+            destPath,
+            isAllowed: allowAll,
+            resume: true,
+          ),
+          throwsA(isA<TimeoutException>()),
+        );
+        expect(await File(destPath).readAsBytes(), [1, 2]);
+
+        await service.downloadToPath(
+          uri,
+          destPath,
+          isAllowed: allowAll,
+          resume: true,
+        );
+        expect(await File(destPath).readAsBytes(), [1, 2, 3, 4, 5]);
+      });
+
+      test('כשל ללא ETag חזק אינו משאיר חלקי שאי אפשר לאמת', () async {
+        final destPath = p.join(tempDir.path, 'weak-etag.zip');
+        final client = MockClient.streaming((request, bodyStream) async {
+          Stream<List<int>> interrupted() async* {
+            yield [1, 2];
+            await Future<void>.delayed(const Duration(seconds: 1));
+            yield [3];
+          }
+
+          return http.StreamedResponse(
+            interrupted(),
+            200,
+            contentLength: 5,
+            headers: {'etag': 'W/"v1"'},
+          );
+        });
+        final service = PluginFileDownloadService(
+          client: client,
+          stallTimeout: const Duration(milliseconds: 50),
+        );
+
+        await expectLater(
+          service.downloadToPath(
+            Uri.parse('https://github.com/Owner/Repo/weak-etag.zip'),
+            destPath,
+            isAllowed: allowAll,
+            resume: true,
+          ),
+          throwsA(isA<TimeoutException>()),
+        );
+        expect(await File(destPath).exists(), isFalse);
+        expect(await File('$destPath.resume').exists(), isFalse);
+      });
+
+      test('קובץ ללא מצב resume אינו מצורף למשאב', () async {
+        final destPath = p.join(tempDir.path, 'untrusted.zip');
+        await File(destPath).writeAsBytes([1, 1, 1]);
+        final client = MockClient((request) async {
+          expect(request.headers['range'], isNull);
+          expect(request.headers['if-range'], isNull);
+          return http.Response.bytes([2, 2, 2, 2, 2], 200);
+        });
+        final service = PluginFileDownloadService(client: client);
+
+        await service.downloadToPath(
+          Uri.parse('https://github.com/Owner/Repo/untrusted.zip'),
+          destPath,
+          isAllowed: allowAll,
+          resume: true,
+        );
+
+        expect(await File(destPath).readAsBytes(), [2, 2, 2, 2, 2]);
+      });
+
+      test('If-Range שהייצוג שלו השתנה גורם לכתיבה מלאה מ-0', () async {
+        final destPath = p.join(tempDir.path, 'changed.zip');
+        final uri = Uri.parse('https://github.com/Owner/Repo/changed.zip');
+        await File(destPath).writeAsBytes([1, 1, 1]);
+        await seedResumeState(destPath, uri, etag: '"old"');
+        final client = MockClient((request) async {
+          expect(request.headers['if-range'], '"old"');
+          return http.Response.bytes(
+            [2, 2, 2, 2, 2],
+            200,
+            headers: {'etag': '"new"'},
+          );
+        });
+        final service = PluginFileDownloadService(client: client);
+
+        await service.downloadToPath(
+          uri,
+          destPath,
+          isAllowed: allowAll,
+          resume: true,
+        );
+
+        expect(await File(destPath).readAsBytes(), [2, 2, 2, 2, 2]);
+      });
+
+      test('416 עם גוף שאינו נסגר מוחק שריד לא תואם בלי להיתקע', () async {
+        final destPath = p.join(tempDir.path, 'stale.zip');
+        final uri = Uri.parse('https://github.com/Owner/Repo/stale.zip');
+        await File(destPath).writeAsBytes([1, 2, 3]);
+        await seedResumeState(destPath, uri);
+        final client = MockClient.streaming((request, bodyStream) async {
+          Stream<List<int>> stalled() async* {
+            await Future<void>.delayed(const Duration(seconds: 1));
+            yield [0];
+          }
+
+          return http.StreamedResponse(
+            stalled(),
+            416,
+            headers: {'content-range': 'bytes */5'},
+          );
+        });
+        final service = PluginFileDownloadService(
+          client: client,
+          stallTimeout: const Duration(milliseconds: 50),
+        );
+        final stopwatch = Stopwatch()..start();
+
+        await expectLater(
+          service.downloadToPath(
+            uri,
+            destPath,
+            isAllowed: allowAll,
+            resume: true,
+          ),
+          throwsA(isA<Exception>()),
+        );
+        stopwatch.stop();
+        expect(stopwatch.elapsed, lessThan(const Duration(milliseconds: 500)));
+        expect(await File(destPath).exists(), isFalse);
+      });
+
+      test('Content-Range מפוענח ללא תלות ברישיות range-unit', () async {
+        final destPath = p.join(tempDir.path, 'case.zip');
+        final uri = Uri.parse('https://github.com/Owner/Repo/case.zip');
+        await File(destPath).writeAsBytes([1, 2, 3]);
+        await seedResumeState(destPath, uri);
+        final client = MockClient(
+          (request) async => http.Response.bytes(
+            [4, 5],
+            206,
+            headers: {'content-range': 'Bytes 3-4/5', 'etag': '"v1"'},
+          ),
+        );
+        final service = PluginFileDownloadService(client: client);
+
+        await service.downloadToPath(
+          uri,
+          destPath,
+          isAllowed: allowAll,
+          resume: true,
+        );
+
+        expect(await File(destPath).readAsBytes(), [1, 2, 3, 4, 5]);
+      });
+
+      test('גוף 206 ארוך מהטווח המוצהר נדחה ונמחק', () async {
+        final destPath = p.join(tempDir.path, 'range-end.zip');
+        final uri = Uri.parse('https://github.com/Owner/Repo/range-end.zip');
+        await File(destPath).writeAsBytes([1, 2, 3]);
+        await seedResumeState(destPath, uri);
+        final client = MockClient(
+          (request) async => http.Response.bytes(
+            [4, 5, 6, 7, 8, 9, 10],
+            206,
+            headers: {'content-range': 'bytes 3-4/10', 'etag': '"v1"'},
+          ),
+        );
+        final service = PluginFileDownloadService(client: client);
+
+        await expectLater(
+          service.downloadToPath(
+            uri,
+            destPath,
+            isAllowed: allowAll,
+            resume: true,
+          ),
+          throwsA(isA<Exception>()),
+        );
+        expect(await File(destPath).exists(), isFalse);
+        expect(await File('$destPath.resume').exists(), isFalse);
+      });
+
+      test('שגיאת stream אחרי חריגה מהטווח אינה משמרת חלקי פגום', () async {
+        final destPath = p.join(tempDir.path, 'range-error.zip');
+        final uri = Uri.parse('https://github.com/Owner/Repo/range-error.zip');
+        await File(destPath).writeAsBytes([1, 2, 3]);
+        await seedResumeState(destPath, uri);
+        final client = MockClient.streaming((request, bodyStream) async {
+          Stream<List<int>> invalidBody() async* {
+            yield [4, 5, 6, 7, 8, 9, 10];
+            throw Exception('connection reset');
+          }
+
+          return http.StreamedResponse(
+            invalidBody(),
+            206,
+            headers: {'content-range': 'bytes 3-4/10', 'etag': '"v1"'},
+          );
+        });
+        final service = PluginFileDownloadService(client: client);
+
+        await expectLater(
+          service.downloadToPath(
+            uri,
+            destPath,
+            isAllowed: allowAll,
+            resume: true,
+          ),
+          throwsA(isA<Exception>()),
+        );
+        expect(await File(destPath).exists(), isFalse);
+        expect(await File('$destPath.resume').exists(), isFalse);
       });
     });
   });
@@ -389,7 +702,8 @@ void main() {
     await expectLater(
       service.downloadToDownloads(
         Uri.parse(
-            'https://github.com/Owner/Repo/releases/latest/download/a.zip'),
+          'https://github.com/Owner/Repo/releases/latest/download/a.zip',
+        ),
         isAllowed: allowAll,
         targetDir: tempDir,
       ),
@@ -422,7 +736,8 @@ void main() {
     await expectLater(
       service.downloadToDownloads(
         Uri.parse(
-            'https://github.com/Owner/Repo/releases/latest/download/a.zip'),
+          'https://github.com/Owner/Repo/releases/latest/download/a.zip',
+        ),
         isAllowed: allowAll,
         targetDir: tempDir,
       ),

@@ -1506,6 +1506,34 @@ void main() {
       expect(File(destPath).readAsBytesSync(), [7, 8, 9]);
     });
 
+    test('network.download מעביר resume לשירות ההורדה', () async {
+      final destPath = p.join(tempDir.path, 'resume.zip');
+      await File(destPath).writeAsBytes([7, 8]);
+      await File('$destPath.resume').writeAsString('$downloadUrl\n"v1"');
+      final client = MockClient((request) async {
+        expect(request.headers['range'], 'bytes=2-');
+        expect(request.headers['if-range'], '"v1"');
+        return http.Response.bytes(
+          [9],
+          206,
+          headers: {'content-range': 'bytes 2-2/3', 'etag': '"v1"'},
+        );
+      });
+      final adapter = buildAdapter(
+        pickFolder: ({title}) async => tempDir.path,
+        fileDownloadService: PluginFileDownloadService(client: client),
+      );
+      await adapter.execute('ui', 'pickFolder', {});
+
+      await adapter.execute('network', 'download', {
+        'url': downloadUrl,
+        'destPath': destPath,
+        'resume': true,
+      });
+
+      expect(File(destPath).readAsBytesSync(), [7, 8, 9]);
+    });
+
     test(
       'network.download עם destPath מחוץ לתיקייה מאושרת נחסם ואינו מוריד',
       () async {

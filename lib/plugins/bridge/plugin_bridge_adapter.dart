@@ -2827,8 +2827,6 @@ class PluginBridgeAdapter {
         // תיקיית ההורדות. הנתיב חייב להיות בתוך תיקייה שהמשתמש אישר דרך
         // ui.pickFolder — אותו גבול אבטחה של פעולות ה-fs.
         final destPath = args['destPath'] as String?;
-        // `== true` ולא `as bool?` — ערך לא-בוליאני מהתוסף (מחרוזת/מספר) לא
-        // יזרוק TypeError אלא פשוט ייחשב false.
         final resume = args['resume'] == true;
         if (destPath != null && destPath.isNotEmpty) {
           if (!_isPathInGrantedFolder(destPath)) {
