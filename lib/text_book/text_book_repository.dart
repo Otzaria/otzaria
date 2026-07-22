@@ -325,7 +325,7 @@ class TextBookRepository {
           if (ext == 'docx') {
             content = await convertDocxWithCache(file, title);
           } else if (ext == 'epub') {
-            content = await convertEpubWithCache(file, title);
+            content = await convertEpubWithoutEmbeddedImages(file, title);
           } else if (ext == 'pdf') {
             content = '';
           } else {

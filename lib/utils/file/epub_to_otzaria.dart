@@ -13,7 +13,7 @@ import 'package:otzaria/utils/file/toc_parser.dart' show kTocExcludeAttr;
 
 /// גרסת הממיר [epubToText] — **חובה להעלות בכל שינוי שמשפיע על הפלט**:
 /// מטמון התוכן כולל את הגרסה במפתח-התוקף, והעלאה פוסלת רשומות ישנות.
-const int kEpubConverterVersion = 13;
+const int kEpubConverterVersion = 14;
 
 /// תג raw-text סוגר-עצמו (`<script/>`, `<title/>` וכד') — חוקי ב-XHTML אך
 /// בפרסינג HTML התג נחשב פתוח וכל שאר המסמך נבלע כטקסט גולמי. מסירים לפני
@@ -34,7 +34,14 @@ String _stripSelfClosingRawTextTags(String html) =>
 /// תמונות מוטמעות כ-data URI, והערות שוליים — סמנטיות (epub:type) או
 /// מבוססות-קישור ([_resolveNoteref]) — מוצגות בפורמט ההערות של אוצריא,
 /// כמו בממיר ה-DOCX.
-String epubToText(Uint8List bytes, String title) {
+/// [embedImages] משמר את תגי התמונות בלי לקרוא את קובצי התמונה כשהוא false;
+/// [maxTotalEmbeddedImageBytes] מגביל את סך תמונות הגוף המוטמעות.
+String epubToText(
+  Uint8List bytes,
+  String title, {
+  bool embedImages = true,
+  int maxTotalEmbeddedImageBytes = _maxTotalEmbeddedImageBytes,
+}) {
   final List<String> output = ['<h1>${escapeHtmlText(title)}</h1>'];
 
   // ZipDecoder הוא stateful — מופע מקומי לכל המרה מונע דריסת מצב בין
@@ -69,7 +76,13 @@ String epubToText(Uint8List bytes, String title) {
 
   final ctx = _EpubContext(
     files: files,
-    images: _buildImageMap(files, manifest, coverPath: coverPath),
+    images: _EpubImageResolver(
+      files,
+      manifest,
+      coverPath: coverPath,
+      embedImages: embedImages,
+      maxTotalBytes: maxTotalEmbeddedImageBytes,
+    ),
   );
 
   // שלב 1: פירוק כל הפרקים ובניית אינדקס עוגנים (id) גלובלי — נדרש להערות
@@ -149,10 +162,10 @@ String epubToText(Uint8List bytes, String title) {
 
   // כריכה מוצהרת (manifest) שלא הופיעה באף פרק — למשל עמוד כריכה
   // linear="no" שדולג — מוזרקת אחרי הכותרת, כך שהכריכה תמיד מוצגת.
-  final coverUri = coverPath == null
-      ? null
-      : ctx.images[coverPath.toLowerCase()];
-  if (coverUri != null && !output.any((l) => l.contains(coverUri))) {
+  final coverWasRendered =
+      coverPath != null && ctx.images.wasRequested(coverPath);
+  final coverUri = coverPath == null ? null : ctx.images.resolve(coverPath);
+  if (coverUri != null && !coverWasRendered) {
     output.insert(1, '<img src="$coverUri" style="max-width: 100%;"/>');
   }
 
@@ -187,7 +200,12 @@ List<_TocRef> _parseTocEntries(
   void addEntry(String baseDir, String href, String title, int depth) {
     if (title.isEmpty || href.isEmpty) return;
     final hash = href.indexOf('#');
-    final fragment = hash >= 0 ? href.substring(hash + 1) : null;
+    var fragment = hash >= 0 ? href.substring(hash + 1) : null;
+    if (fragment != null) {
+      try {
+        fragment = Uri.decodeComponent(fragment);
+      } catch (_) {}
+    }
     final path = _resolveHref(baseDir, href);
     if (path.isEmpty) return;
     entries.add(_TocRef(path.toLowerCase(), fragment, title, depth));
@@ -322,9 +340,13 @@ class _ArchiveFiles {
   }
 
   List<int>? read(String path) {
-    final file = _byPath[path] ?? _byLowerPath[path.toLowerCase()];
-    return file?.content;
+    return _find(path)?.content;
   }
+
+  int? size(String path) => _find(path)?.size;
+
+  ArchiveFile? _find(String path) =>
+      _byPath[path] ?? _byLowerPath[path.toLowerCase()];
 
   Iterable<String> get paths => _byPath.keys;
 }
@@ -334,8 +356,8 @@ class _ArchiveFiles {
 class _EpubContext {
   final _ArchiveFiles files;
 
-  /// נתיב מנורמל בארכיון → `data:image/...;base64,...` מוכן להטמעה.
-  final Map<String, String> images;
+  /// פותר משאבי תמונה לפי נתיב מנורמל בארכיון.
+  final _EpubImageResolver images;
 
   /// `path#id` (path באותיות קטנות) → האלמנט, מכל פרקי ה-spine.
   final Map<String, dom.Element> anchors = {};
@@ -516,27 +538,79 @@ const _maxEmbeddedImageBytes = 4 * 1024 * 1024;
 /// תקרה מוגדלת לתמונת הכריכה — כריכות סרוקות כבדות במיוחד, ויש רק אחת.
 const _maxEmbeddedCoverBytes = 10 * 1024 * 1024;
 
-/// נתיב מנורמל → data URI, לכל תמונות ה-manifest (עובד גם offline).
-Map<String, String> _buildImageMap(
-  _ArchiveFiles files,
-  Map<String, _ManifestItem> manifest, {
-  String? coverPath,
-}) {
-  final images = <String, String>{};
-  for (final item in manifest.values) {
-    final mediaType =
-        _imageMediaTypes[item.mediaType] ?? _mediaTypeFromExtension(item.path);
-    if (mediaType == null) continue;
-    final maxBytes = item.path == coverPath
+/// תקרת גודל מצטברת לתמונות גוף, בנוסף לתקרה לכל תמונה בנפרד.
+const _maxTotalEmbeddedImageBytes = 32 * 1024 * 1024;
+
+class _EpubImageResource {
+  final String path;
+  final String mediaType;
+  final bool isCover;
+
+  const _EpubImageResource(this.path, this.mediaType, this.isCover);
+}
+
+/// פותר תמונות רק כשהן מופיעות בתוכן ושומר תקציב מצטבר. במצב ללא הטמעה
+/// מוחזר URI ריק, כדי שמבנה שורות התוכן יישאר זהה למסלול התצוגה.
+class _EpubImageResolver {
+  final _ArchiveFiles files;
+  final bool embedImages;
+  final int maxTotalBytes;
+  final Map<String, _EpubImageResource> _resources = {};
+  final Map<String, String?> _resolved = {};
+  final Set<String> _requested = {};
+  int _embeddedBodyBytes = 0;
+
+  _EpubImageResolver(
+    this.files,
+    Map<String, _ManifestItem> manifest, {
+    required String? coverPath,
+    required this.embedImages,
+    required this.maxTotalBytes,
+  }) {
+    final coverPathLower = coverPath?.toLowerCase();
+    for (final item in manifest.values) {
+      final mediaType =
+          _imageMediaTypes[item.mediaType] ??
+          _mediaTypeFromExtension(item.path);
+      if (mediaType == null) continue;
+      final pathLower = item.path.toLowerCase();
+      _resources[pathLower] ??= _EpubImageResource(
+        item.path,
+        mediaType,
+        pathLower == coverPathLower,
+      );
+    }
+  }
+
+  bool wasRequested(String path) => _requested.contains(path.toLowerCase());
+
+  String? resolve(String path) {
+    final pathLower = path.toLowerCase();
+    _requested.add(pathLower);
+    if (_resolved.containsKey(pathLower)) return _resolved[pathLower];
+
+    final resource = _resources[pathLower];
+    if (resource == null) return _resolved[pathLower] = null;
+    final maxBytes = resource.isCover
         ? _maxEmbeddedCoverBytes
         : _maxEmbeddedImageBytes;
-    final bytes = files.read(item.path);
-    if (bytes == null || bytes.length > maxBytes) continue;
-    // ??= — המופע הראשון גובר (עקבי עם קדימות ההתאמה המדויקת בארכיון).
-    images[item.path.toLowerCase()] ??=
-        'data:$mediaType;base64,${base64Encode(bytes)}';
+    final size = files.size(resource.path);
+    if (size == null || size > maxBytes) {
+      return _resolved[pathLower] = null;
+    }
+    if (!resource.isCover) {
+      if (_embeddedBodyBytes + size > maxTotalBytes) {
+        return _resolved[pathLower] = null;
+      }
+      _embeddedBodyBytes += size;
+    }
+    if (!embedImages) return _resolved[pathLower] = '';
+
+    final bytes = files.read(resource.path);
+    if (bytes == null) return _resolved[pathLower] = null;
+    return _resolved[pathLower] =
+        'data:${resource.mediaType};base64,${base64Encode(bytes)}';
   }
-  return images;
 }
 
 /// ערך מאפיין גם כשהמפתח אינו String רגיל (package:html שומר מאפייני
@@ -601,7 +675,10 @@ _NoterefResolution? _resolveNoteref(dom.Element a, _EpubContext ctx) =>
 _NoterefResolution? _resolveNoterefUncached(dom.Element a, _EpubContext ctx) {
   final href = a.attributes['href'] ?? '';
   final hash = href.indexOf('#');
-  final id = hash >= 0 ? href.substring(hash + 1) : '';
+  var id = hash >= 0 ? href.substring(hash + 1) : '';
+  try {
+    id = Uri.decodeComponent(id);
+  } catch (_) {}
   final isExplicit = _hasEpubType(a, const {'noteref'});
   if (id.isEmpty) return isExplicit ? const _NoterefResolution(null) : null;
 
@@ -611,8 +688,7 @@ _NoterefResolution? _resolveNoterefUncached(dom.Element a, _EpubContext ctx) {
       : _resolveHref(ctx.baseDir, href);
   var target = ctx.anchors['${targetPath.toLowerCase()}#$id'];
 
-  if (isExplicit) return _NoterefResolution(target);
-  if (target == null) return null;
+  if (target == null) return isExplicit ? const _NoterefResolution(null) : null;
   // קישור-חזרה מגוף הערה אל סַמָּן ההפניה — אינו הפניה בעצמו; בלעדי הבדיקה
   // סַמָּן ההפניה שבטקסט היה נחשב "גוף הערה" ונבלע יחד עם ההערה כולה.
   final role = _attr(a, 'role');
@@ -626,14 +702,17 @@ _NoterefResolution? _resolveNoterefUncached(dom.Element a, _EpubContext ctx) {
       block = block.parent;
     }
     if (block == null) return null;
-    final core = _collapseWhitespace(a.text).trim().replaceAll(
-      _markerTrimRegExp,
-      '',
-    );
-    final lead = _collapseWhitespace(block.text).trimLeft();
-    if (core.isEmpty || !lead.startsWith(core)) return null;
+    if (!isExplicit) {
+      final core = _collapseWhitespace(a.text).trim().replaceAll(
+        _markerTrimRegExp,
+        '',
+      );
+      final lead = _collapseWhitespace(block.text).trimLeft();
+      if (core.isEmpty || !lead.startsWith(core)) return null;
+    }
     target = block;
   }
+  if (isExplicit) return _NoterefResolution(target);
   if (_hasEpubType(target, _footnoteTypes)) return _NoterefResolution(target);
   // כותרות הן יעדי ניווט, לא גופי הערות — בלי הבדיקה קישור-סַמָּן קצר
   // לכותרת קצרה היה מעלים אותה מהספר ומתוכן העניינים.
@@ -967,7 +1046,7 @@ String? _imgHtml(dom.Element e, _EpubContext ctx) {
       e.attributes['src'] ?? e.attributes['href'] ?? _attr(e, 'xlink:href');
   if (src == null || src.isEmpty) return null;
   final resolved = _resolveHref(ctx.baseDir, src).toLowerCase();
-  final uri = ctx.images[resolved];
+  final uri = ctx.images.resolve(resolved);
   if (uri == null) return null; // תמונה חיצונית/חסרה — אין מה להטמיע.
   return '<img src="$uri" style="max-width: 100%;"/>';
 }

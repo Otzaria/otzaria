@@ -528,6 +528,51 @@ void main() {
       expect(result, contains('אחרי'));
       expect(result, isNot(contains('<img')));
     });
+
+    test('מצב ללא הטמעת תמונות משמר placeholder ללא Base64', () {
+      const png = [0x89, 0x50, 0x4E, 0x47, 0x01];
+      final epub = _buildEpub(
+        chapters: {
+          'ch1.xhtml': _xhtml(
+            '<p>לפני</p><img src="img/p.png"/><p>אחרי</p>',
+          ),
+        },
+        binaryFiles: {'img/p.png': png},
+        extraManifest:
+            '<item id="pic" href="img/p.png" media-type="image/png"/>',
+      );
+
+      final result = epubToText(epub, 'ספר', embedImages: false);
+
+      expect(result, contains('<img src="" style="max-width: 100%;"/>'));
+      expect(result, isNot(contains('base64,')));
+      expect(result.split('\n'), hasLength(4));
+    });
+
+    test('תקציב מצטבר חוסם תמונות נוספות גם כשהן קטנות בנפרד', () {
+      final epub = _buildEpub(
+        chapters: {
+          'ch1.xhtml': _xhtml(
+            '<img src="img/a.png"/><img src="img/b.png"/>',
+          ),
+        },
+        binaryFiles: {
+          'img/a.png': [1, 2, 3, 4],
+          'img/b.png': [5, 6, 7, 8],
+        },
+        extraManifest:
+            '<item id="a" href="img/a.png" media-type="image/png"/>'
+            '<item id="b" href="img/b.png" media-type="image/png"/>',
+      );
+
+      final result = epubToText(
+        epub,
+        'ספר',
+        maxTotalEmbeddedImageBytes: 4,
+      );
+
+      expect(RegExp('base64,').allMatches(result), hasLength(1));
+    });
   });
 
   group('epubToText - הערות שוליים', () {
@@ -606,6 +651,23 @@ void main() {
       expect(result, contains('<i class="footnote">תוכן ההערה</i>'));
       // גוף ההערה אינו מופיע גם כפסקה נפרדת.
       expect(RegExp('תוכן ההערה').allMatches(result).length, 1);
+    });
+
+    test('noteref מפורש לעוגן ריק מטפס לבלוק גוף ההערה', () {
+      final epub = _buildEpub(
+        chapters: {
+          'ch1.xhtml': _xhtml(
+            '<p>גוף<a epub:type="noteref" href="#fn1">1</a> המשך</p>'
+            '<p><a id="fn1"></a>1. גוף ההערה</p>',
+          ),
+        },
+      );
+
+      final result = epubToText(epub, 'ספר');
+
+      expect(result, contains('<sup class="footnote-marker">1</sup>'));
+      expect(result, contains('<i class="footnote">גוף ההערה</i>'));
+      expect(RegExp('גוף ההערה').allMatches(result), hasLength(1));
     });
 
     test('הערה מבוססת-קישור (בלי epub:type בכלל): סמן מספרי + דיכוי היעד', () {

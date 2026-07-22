@@ -250,6 +250,38 @@ class FileSystemLibraryProvider implements LibraryProvider {
       final categoryId = categoryPathStr.hashCode;
       _categoryIdToPath[categoryId] = categoryPathStr;
 
+      if (path.endsWith('.docx')) {
+        return DocxBook(
+          title: title,
+          path: file.path,
+          filePath: file.path,
+          author: metadata[title]?['author'],
+          heShortDesc: metadata[title]?['heShortDesc'],
+          pubDate: metadata[title]?['pubDate'],
+          pubPlace: metadata[title]?['pubPlace'],
+          order: metadata[title]?['order'] ?? 999,
+          topics: finalTopics,
+          categoryPath: categoryPathStr,
+          categoryId: categoryId,
+        );
+      }
+
+      if (path.endsWith('.epub')) {
+        return EpubBook(
+          title: title,
+          path: file.path,
+          filePath: file.path,
+          author: metadata[title]?['author'],
+          heShortDesc: metadata[title]?['heShortDesc'],
+          pubDate: metadata[title]?['pubDate'],
+          pubPlace: metadata[title]?['pubPlace'],
+          order: metadata[title]?['order'] ?? 999,
+          topics: finalTopics,
+          categoryPath: categoryPathStr,
+          categoryId: categoryId,
+        );
+      }
+
       return TextBook(
         title: title,
         author: metadata[title]?['author'],
@@ -259,6 +291,7 @@ class FileSystemLibraryProvider implements LibraryProvider {
         order: metadata[title]?['order'] ?? 999,
         topics: finalTopics,
         extraTitles: metadata[title]?['extraTitles'],
+        filePath: file.path,
         categoryPath: categoryPathStr,
         categoryId: categoryId,
       );

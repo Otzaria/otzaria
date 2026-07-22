@@ -36,37 +36,76 @@ void main() {
       }
     });
 
-    test('loads Brakhot PDF from bundled talmud bavli folder at library root',
-        () async {
-      final talmudDir = Directory(path.join(
-        tempDir.path,
-        DatabaseConstants.talmudBavliFolderName,
-      ));
-      await talmudDir.create(recursive: true);
+    test(
+      'loads Brakhot PDF from bundled talmud bavli folder at library root',
+      () async {
+        final talmudDir = Directory(
+          path.join(
+            tempDir.path,
+            DatabaseConstants.talmudBavliFolderName,
+          ),
+        );
+        await talmudDir.create(recursive: true);
 
-      final pdfPath = path.join(talmudDir.path, 'ברכות.pdf');
-      await File(pdfPath).writeAsBytes(const [37, 80, 68, 70]);
+        final pdfPath = path.join(talmudDir.path, 'ברכות.pdf');
+        await File(pdfPath).writeAsBytes(const [37, 80, 68, 70]);
+
+        final provider = FileSystemLibraryProvider.instance;
+        await provider.initialize();
+
+        final booksByCategory = await provider.loadBooks({});
+        final talmudBooks =
+            booksByCategory[DatabaseConstants.talmudBavliFolderName];
+
+        expect(talmudBooks, isNotNull);
+        expect(talmudBooks, hasLength(1));
+        expect(talmudBooks!.single, isA<PdfBook>());
+        expect(talmudBooks.single.title, 'ברכות');
+
+        final keyToPath = await provider.keyToPath;
+        final storageKey = BookCompositeKey.create(
+          title: 'ברכות',
+          categoryId: DatabaseConstants.talmudBavliFolderName.hashCode,
+          fileType: 'pdf',
+        ).toStorageKey();
+
+        expect(keyToPath[storageKey], pdfPath);
+      },
+    );
+
+    test('מסווג TXT, DOCX ו-EPUB תאומים כסוגים נפרדים', () async {
+      final personalDir = Directory(path.join(tempDir.path, 'אוצריא', 'אישי'));
+      await personalDir.create(recursive: true);
+      final txtPath = path.join(personalDir.path, 'ספר.txt');
+      final docxPath = path.join(personalDir.path, 'ספר.docx');
+      final epubPath = path.join(personalDir.path, 'ספר.epub');
+      await File(txtPath).writeAsString('טקסט');
+      await File(docxPath).writeAsBytes(const [1]);
+      await File(epubPath).writeAsBytes(const [2]);
 
       final provider = FileSystemLibraryProvider.instance;
       await provider.initialize();
+      final books = (await provider.loadBooks({}))['ספרים אישיים']!;
 
-      final booksByCategory = await provider.loadBooks({});
-      final talmudBooks =
-          booksByCategory[DatabaseConstants.talmudBavliFolderName];
+      expect(books.whereType<TextBook>().single.fileType, 'txt');
+      expect(books.whereType<DocxBook>().single.fileType, 'docx');
+      expect(books.whereType<EpubBook>().single.fileType, 'epub');
+      expect(books.whereType<EpubBook>().single.path, epubPath);
 
-      expect(talmudBooks, isNotNull);
-      expect(talmudBooks, hasLength(1));
-      expect(talmudBooks!.single, isA<PdfBook>());
-      expect(talmudBooks.single.title, 'ברכות');
-
+      final categoryId = 'ספרים אישיים'.hashCode;
       final keyToPath = await provider.keyToPath;
-      final storageKey = BookCompositeKey.create(
-        title: 'ברכות',
-        categoryId: DatabaseConstants.talmudBavliFolderName.hashCode,
-        fileType: 'pdf',
-      ).toStorageKey();
-
-      expect(keyToPath[storageKey], pdfPath);
+      for (final entry in {
+        'txt': txtPath,
+        'docx': docxPath,
+        'epub': epubPath,
+      }.entries) {
+        final key = BookCompositeKey.create(
+          title: 'ספר',
+          categoryId: categoryId,
+          fileType: entry.key,
+        ).toStorageKey();
+        expect(keyToPath[key], entry.value);
+      }
     });
   });
 }

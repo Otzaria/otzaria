@@ -442,7 +442,7 @@ class DatabaseGenerator {
         final bytes = File(bookPath).readAsBytesSync();
         return ext == '.docx'
             ? docxToText(bytes, title)
-            : epubToText(bytes, title);
+            : epubToText(bytes, title, embedImages: false);
       });
       final lines = content.split('\n');
 

@@ -24,9 +24,8 @@ final Random _pruneSampler = Random();
 /// בכל פתיחה.
 bool _shouldOpportunisticPrune() => _pruneSampler.nextInt(20) == 0;
 
-/// המרות פעילות (מפתח: `path|size|mtime`) — מבטל המרה כפולה מקבילה
-/// כשגם `getBookContent` וגם `getBookToc` פותחים את אותו ספר *לפני*
-/// שהמטמון נכתב (פתיחה ראשונה ממש).
+/// המרות פעילות לפי קובץ, גרסת ממיר ווריאנט פלט; מונע עבודה כפולה מקבילה
+/// לפני שהמטמון נכתב.
 final Map<String, Future<String>> _inFlight = {};
 
 /// ממיר קובץ docx חיצוני לטקסט של אוצריא, עם מטמון מתמשך ב-`cache.db`.
@@ -48,26 +47,44 @@ Future<String> convertDocxWithCache(File file, String title) =>
 Future<String> convertEpubWithCache(File file, String title) =>
     _convertWithCache(file, title, kEpubConverterVersion, epubToText);
 
+/// ממיר EPUB ללא נתוני התמונות, תוך שימור placeholders ואינדקסי השורות.
+/// מיועד ל-TOC, טביעות אצבע ואינדוקס ואינו מקצה מחרוזות Base64 גדולות.
+Future<String> convertEpubWithoutEmbeddedImages(File file, String title) =>
+    _convertWithCache(
+      file,
+      title,
+      kEpubConverterVersion,
+      _epubToTextWithoutEmbeddedImages,
+      cacheVariant: 'epub-without-images',
+    );
+
+String _epubToTextWithoutEmbeddedImages(Uint8List bytes, String title) =>
+    epubToText(bytes, title, embedImages: false);
+
 Future<String> _convertWithCache(
   File file,
   String title,
   int converterVersion,
-  String Function(Uint8List, String) converter,
-) async {
+  String Function(Uint8List, String) converter, {
+  String? cacheVariant,
+}) async {
   final stat = await file.stat();
   final size = stat.size;
   final mtime = stat.modified.millisecondsSinceEpoch;
   final path = file.path;
+  final cachePath = cacheVariant == null ? path : '$path#$cacheVariant';
 
   // ── נתיב cache-hit ──────────────────────────────────────────────────────
   try {
     final repo = await CacheDatabaseHolder.instance.repository;
-    final entry = await repo.getDocxTextCacheEntry(path);
+    final entry = await repo.getDocxTextCacheEntry(cachePath);
     if (entry != null && entry.isValidFor(size, mtime, converterVersion)) {
       final now = DateTime.now().millisecondsSinceEpoch;
       // throttle: touch לכל היותר פעם ביום (מונע כתיבת WAL בכל פתיחה).
       if (now - entry.accessedAt > _touchThrottleMs) {
-        unawaited(repo.touchDocxTextCacheEntry(path, now).catchError((_) {}));
+        unawaited(
+          repo.touchDocxTextCacheEntry(cachePath, now).catchError((_) {}),
+        );
       }
       if (_shouldOpportunisticPrune()) {
         unawaited(
@@ -86,7 +103,7 @@ Future<String> _convertWithCache(
 
   // ── נתיב המרה ──────────────────────────────────────────────────────────
   // דה-דופ המרות מקבילות: אם כבר רצה המרה לאותו קובץ, נצרף אליה.
-  final key = '$path|$size|$mtime';
+  final key = '$cachePath|$size|$mtime|$converterVersion';
   final pending = _inFlight[key];
   if (pending != null) return _withFreshTitle(await pending, title);
 
@@ -100,7 +117,7 @@ Future<String> _convertWithCache(
   }
 
   // שמירה ברקע (fire-and-forget): הטקסט כבר מוכן, אין צורך להמתין ל-DB.
-  unawaited(_persist(path, size, mtime, converterVersion, text));
+  unawaited(_persist(cachePath, size, mtime, converterVersion, text));
   return text;
 }
 

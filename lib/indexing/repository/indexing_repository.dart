@@ -15,6 +15,7 @@ import 'package:otzaria/search/book_facet.dart';
 import 'package:otzaria/search/utils/search_catalogue_order_helper.dart';
 import 'package:otzaria/search/utils/foundational_book_classifier.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
+import 'package:otzaria/utils/file/docx_cache.dart';
 import 'package:path/path.dart' as p;
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
@@ -471,7 +472,7 @@ class IndexingRepository {
     if (bytes == null || bytes.isEmpty) {
       // מסלול הנפילה (docx/epub, ספר בלי categoryId): טקסט דרך LibraryProvider.
       // תמונות מוטמעות מסולקות — ראו [stripDataUrisForIndex].
-      text = stripDataUrisForIndex(await book.text);
+      text = await _loadTextForIndex(book);
     }
     loadStopwatch.stop();
 
@@ -869,7 +870,7 @@ class IndexingRepository {
     }
 
     if (text == null || text.isEmpty) {
-      text = await book.text;
+      text = await _loadTextForIndex(book);
     }
 
     if (text.isEmpty) {
@@ -881,6 +882,17 @@ class IndexingRepository {
 
     // עקבי עם מסלול האינדוקס — טביעת האצבע מחושבת על הטקסט המנוקה.
     return stripDataUrisForIndex(text);
+  }
+
+  Future<String> _loadTextForIndex(TextBook book) async {
+    final filePath = book.filePath;
+    if ((book.fileType ?? '').toLowerCase() == 'epub' && filePath != null) {
+      final file = File(filePath);
+      if (await file.exists()) {
+        return convertEpubWithoutEmbeddedImages(file, book.title);
+      }
+    }
+    return stripDataUrisForIndex(await book.text);
   }
 
   /// ממדי ה-facet הנוספים של הספר (מחבר/תקופה/ספר-יסוד) — משותף לכל

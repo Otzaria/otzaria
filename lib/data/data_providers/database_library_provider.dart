@@ -203,7 +203,7 @@ Future<void> _collectBookFilesRecursive(
             final bytes = await entity.readAsBytes();
             final content = fileType == 'docx'
                 ? docxToText(bytes, title)
-                : epubToText(bytes, title);
+                : epubToText(bytes, title, embedImages: false);
             try {
               final parsed = TocParser.parseEntriesFromContent(content);
               rawToc = _flattenTocToRaw(parsed);
@@ -1982,7 +1982,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
           if ((ext == 'docx' || ext == 'epub') && await file.exists()) {
             final content = ext == 'docx'
                 ? await convertDocxWithCache(file, title)
-                : await convertEpubWithCache(file, title);
+                : await convertEpubWithoutEmbeddedImages(file, title);
             if (content.isNotEmpty) {
               final toc = await Isolate.run(
                 () => TocParser.parseEntriesFromContent(content),
