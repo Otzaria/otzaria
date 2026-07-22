@@ -2,6 +2,7 @@ import 'dart:ffi';
 import 'dart:io';
 
 import 'package:ffi/ffi.dart';
+import 'package:flutter/foundation.dart';
 
 // FILE_ATTRIBUTE_HIDDEN  = 0x2
 // FILE_ATTRIBUTE_SYSTEM  = 0x4
@@ -14,9 +15,11 @@ typedef _GetFileAttributesW = Uint32 Function(Pointer<Utf16>);
 typedef _GetFileAttributesDart = int Function(Pointer<Utf16>);
 
 final _GetFileAttributesDart? _getFileAttributes = Platform.isWindows
-    ? DynamicLibrary.open('kernel32.dll')
-        .lookupFunction<_GetFileAttributesW, _GetFileAttributesDart>(
-            'GetFileAttributesW')
+    ? DynamicLibrary.open(
+        'kernel32.dll',
+      ).lookupFunction<_GetFileAttributesW, _GetFileAttributesDart>(
+        'GetFileAttributesW',
+      )
     : null;
 
 /// מחזיר true אם הקובץ/תיקייה מוסתרים או קובץ מערכת.
@@ -32,15 +35,20 @@ bool isHiddenOrSystem(String entityPath) {
     final ptr = entityPath.toNativeUtf16();
     try {
       final attrs = _getFileAttributes!(ptr);
-      if (attrs != _kInvalid) {
-        if ((attrs & _kHidden) != 0 || (attrs & _kSystem) != 0) return true;
-      }
+      if (hasHiddenOrSystemWindowsAttributes(attrs)) return true;
     } finally {
       calloc.free(ptr);
     }
   }
 
   return false;
+}
+
+/// מחזיר האם מאפייני קובץ של Windows מסמנים קובץ מוסתר או קובץ מערכת.
+@visibleForTesting
+bool hasHiddenOrSystemWindowsAttributes(int attributes) {
+  return attributes != _kInvalid &&
+      ((attributes & _kHidden) != 0 || (attributes & _kSystem) != 0);
 }
 
 bool _isHiddenOrSystemName(String name) {

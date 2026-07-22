@@ -1533,6 +1533,92 @@ void main() {
         );
       },
     );
+
+    test(
+      'משתמש בכתובות ההורדה המדויקות של התלמוד, הקטלוג והמילון',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'otzaria-exact-urls-',
+        );
+        addTearDown(() async {
+          if (await tempDir.exists()) await tempDir.delete(recursive: true);
+        });
+        await _cleanDownloadTemps();
+        addTearDown(_cleanDownloadTemps);
+        await Settings.init(cacheProvider: _MemoryCacheProvider());
+        await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
+        await Settings.setValue<String>(
+          SettingsRepository.keyLibraryFolderName,
+          '',
+        );
+
+        const seforimUrl = 'https://example.com/releases/seforim.db.zst';
+        const talmudUrl =
+            'https://github.com/Otzaria/otzaria-library/releases/latest/download/talmud_bavli_latest.tar.zst';
+        const catalogUrl =
+            'https://github.com/Otzaria/otzar-HB_catalog/releases/latest/download/otzar-HB_catalog.db.zst';
+        const lexicalUrl =
+            'https://github.com/Otzaria/SeforimMagicIndexer/releases/latest/download/lexical.db';
+        final requestedUrls = <String>[];
+
+        final client = MockClient((request) async {
+          requestedUrls.add(request.url.toString());
+          if (request.url.path.endsWith('/releases/latest')) {
+            return http.Response(
+              jsonEncode({
+                'assets': [
+                  {
+                    'name': 'seforim.db.zst',
+                    'browser_download_url': seforimUrl,
+                  },
+                ],
+              }),
+              200,
+              headers: const {'content-type': 'application/json'},
+            );
+          }
+          if (request.url.toString() == talmudUrl ||
+              request.url.toString() == catalogUrl ||
+              request.url.toString() == lexicalUrl) {
+            return http.Response.bytes(utf8.encode('ok'), 200);
+          }
+          if (request.url.toString() == seforimUrl) {
+            return http.Response.bytes(utf8.encode('ok'), 200);
+          }
+          return http.Response('not found', 404);
+        });
+
+        final bloc = EmptyLibraryBloc(
+          httpClient: client,
+          defaultLibraryPathOverride: tempDir.path,
+          extractCompressedDatabase:
+              (archivePath, outputPath, onProgress) async {
+                await File(outputPath).writeAsBytes(const [1], flush: true);
+              },
+          extractTarArchive: (archivePath, outputDir, onProgress) async {},
+        );
+        addTearDown(bloc.close);
+
+        final done = bloc.stream
+            .where((s) => s is EmptyLibraryDirectorySelected)
+            .first;
+        final error = bloc.stream
+            .where((s) => s is EmptyLibraryError)
+            .cast<EmptyLibraryError>();
+        bloc.add(DownloadLibraryRequested());
+
+        final result = await Future.any([
+          done.then((_) => 'success'),
+          error.first.then((e) => 'error: ${e.errorMessage}'),
+        ]).timeout(const Duration(seconds: 5));
+
+        expect(result, 'success');
+        expect(
+          requestedUrls,
+          containsAll([seforimUrl, talmudUrl, catalogUrl, lexicalUrl]),
+        );
+      },
+    );
   });
 }
 

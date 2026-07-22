@@ -168,6 +168,39 @@ Future<void> main() async {
     });
   });
 
+  group('SearchingTab title updates', () {
+    // רגרסיה מפורום 884: כותרת הכרטיסייה לא התעדכנה כששאילתת החיפוש
+    // השתנתה, כי דבר לא האזין ל-titleNotifier ולא קרא ל-updateTitleFromAppliedQuery.
+    test('updateTitleFromAppliedQuery מעדכן title ו-titleNotifier לפי השאילתה',
+        () {
+      final tab = SearchingTab('חיפוש', null);
+      addTearDown(tab.dispose);
+
+      tab.updateTitleFromAppliedQuery('צדיק גאולה');
+
+      expect(tab.title, 'חיפוש: צדיק גאולה');
+      expect(tab.titleNotifier.value, 'חיפוש: צדיק גאולה');
+    });
+
+    test('updateTitleFromAppliedQuery עם שאילתה ריקה מחזיר לכותרת ברירת המחדל',
+        () {
+      final tab = SearchingTab('חיפוש: ישן', 'ישן');
+      addTearDown(tab.dispose);
+
+      tab.updateTitleFromAppliedQuery('   ');
+
+      expect(tab.title, 'חיפוש');
+      expect(tab.titleNotifier.value, 'חיפוש');
+    });
+
+    test('titleNotifier מאותחל עם הכותרת ההתחלתית של הטאב', () {
+      final tab = SearchingTab('חיפוש: התחלתי', 'התחלתי');
+      addTearDown(tab.dispose);
+
+      expect(tab.titleNotifier.value, 'חיפוש: התחלתי');
+    });
+  });
+
   group('SearchingTab.clone', () {
     test(
         'clone מטמיע את כל ה-configuration סינכרונית, '
