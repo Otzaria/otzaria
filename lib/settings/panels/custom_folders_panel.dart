@@ -26,10 +26,10 @@ enum _FolderContentKind {
   /// רק קבצי טקסט (TXT) — ניתן לשמור כעותק עצמאי בתוכנה.
   textOnly,
 
-  /// רק קבצי PDF/Word — נקראים תמיד ישירות מהקבצים.
+  /// רק קבצי PDF/Word/EPUB — נקראים תמיד ישירות מהקבצים.
   binaryOnly,
 
-  /// גם טקסט וגם PDF/Word — רק הטקסט יישמר כעותק עצמאי.
+  /// גם טקסט וגם PDF/Word/EPUB — רק הטקסט יישמר כעותק עצמאי.
   mixed,
 }
 
@@ -92,7 +92,9 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
         final lower = entity.path.toLowerCase();
         if (lower.endsWith('.txt')) {
           hasText = true;
-        } else if (lower.endsWith('.pdf') || lower.endsWith('.docx')) {
+        } else if (lower.endsWith('.pdf') ||
+            lower.endsWith('.docx') ||
+            lower.endsWith('.epub')) {
           hasBinary = true;
         }
         if (hasText && hasBinary) break;

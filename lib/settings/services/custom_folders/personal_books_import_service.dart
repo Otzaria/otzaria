@@ -32,7 +32,12 @@ class PersonalBooksImportService {
   final String? _folderPathOverride;
 
   /// הסיומות שמנוע הסנכרון יודע לקלוט (תואם ל-FileSyncService).
-  static const Set<String> supportedExtensions = {'.txt', '.pdf', '.docx'};
+  static const Set<String> supportedExtensions = {
+    '.txt',
+    '.pdf',
+    '.docx',
+    '.epub',
+  };
 
   /// נתיב תיקיית הספרים האישיים.
   Future<String> getFolderPath() async =>

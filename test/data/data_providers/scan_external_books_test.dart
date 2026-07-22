@@ -159,7 +159,7 @@ void main() {
     );
   });
 
-  test('קבצים שאינם נתמכים (.epub, .log) מסוננים', () async {
+  test('קבצים שאינם נתמכים (.log) מסוננים; ‎.epub נתמך ונסרק', () async {
     await createTxtFile('book.txt');
     await File(p.join(tmpDir.path, 'notes.log')).writeAsString('x');
     await File(p.join(tmpDir.path, 'book.epub')).writeAsString('x');
@@ -168,7 +168,7 @@ void main() {
 
     final paths = result.map((r) => r['path'] as String).toList();
     expect(paths.any((p) => p.endsWith('.log')), isFalse);
-    expect(paths.any((p) => p.endsWith('.epub')), isFalse);
+    expect(paths.any((p) => p.endsWith('.epub')), isTrue);
   });
 
   test(

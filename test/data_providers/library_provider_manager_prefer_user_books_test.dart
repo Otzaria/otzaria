@@ -397,4 +397,50 @@ void main() {
       expect(userBook?.first.text, 'משתמש');
     });
   });
+
+  group('LibraryProviderManager — מיפוי ספרים לספקים', () {
+    test(
+      'ספרי קבצים אישיים (EPUB/DOCX) ממופים ל-DB provider ולא ל-FS',
+      () async {
+        final userEpub = EpubBook(
+          title: 'ספר אישי',
+          path: r'C:\books\a.epub',
+          filePath: r'C:\books\a.epub',
+          categoryId: 7,
+          isUserBook: true,
+        );
+        final officialPdf = PdfBook(
+          title: 'ספר רשמי',
+          path: r'C:\lib\b.pdf',
+          categoryId: 8,
+        );
+        final category = Category(
+          title: 'קטגוריה',
+          description: '',
+          shortDescription: '',
+          subCategories: [],
+          books: [userEpub, officialPdf],
+          parent: null,
+          order: 0,
+        );
+        final userEpubKey = BookCompositeKey.fromBook(userEpub)!;
+        final officialPdfKey = BookCompositeKey.fromBook(officialPdf)!;
+
+        manager.seedMappingsForTesting(mapping: {}, providers: []);
+        manager.mapBooksForTesting(category, {userEpubKey});
+
+        expect(
+          manager.providerForKeyForTesting(userEpubKey),
+          same(DatabaseLibraryProvider.instance),
+          reason:
+              'ספר משתמש file-backed חייב את ה-DB provider — '
+              'ה-FS provider מכיר רק את הספרייה הראשית',
+        );
+        expect(
+          manager.providerForKeyForTesting(officialPdfKey),
+          same(FileSystemLibraryProvider.instance),
+        );
+      },
+    );
+  });
 }

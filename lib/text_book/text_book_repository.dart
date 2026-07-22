@@ -73,6 +73,7 @@ class TextBookRepository {
       title,
       category: book.category,
       categoryId: book.categoryId,
+      fileType: book.fileType,
     );
     if (dbBook != null) {
       // Best-effort enrichment for subsequent calls.
@@ -85,6 +86,9 @@ class TextBookRepository {
           final ext = (dbBook.fileType ?? '').toLowerCase();
           if (ext == 'docx') {
             return await convertDocxWithCache(file, title);
+          }
+          if (ext == 'epub') {
+            return await convertEpubWithCache(file, title);
           }
           if (ext == 'pdf') return '';
           return await readTextFileSmart(file);
@@ -307,6 +311,7 @@ class TextBookRepository {
       title,
       category: book.category,
       categoryId: book.categoryId,
+      fileType: book.fileType,
     );
     if (dbBook != null) {
       book.fileType ??= dbBook.fileType;
@@ -319,6 +324,8 @@ class TextBookRepository {
           final String content;
           if (ext == 'docx') {
             content = await convertDocxWithCache(file, title);
+          } else if (ext == 'epub') {
+            content = await convertEpubWithoutEmbeddedImages(file, title);
           } else if (ext == 'pdf') {
             content = '';
           } else {

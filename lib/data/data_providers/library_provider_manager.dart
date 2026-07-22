@@ -74,13 +74,15 @@ class LibraryProviderManager {
         debugPrint('✅ Initialized provider: ${provider.displayName}');
       } catch (e) {
         debugPrint(
-            '⚠️ Failed to initialize provider ${provider.displayName}: $e');
+          '⚠️ Failed to initialize provider ${provider.displayName}: $e',
+        );
       }
     }
 
     _isInitialized = true;
     debugPrint(
-        '📚 LibraryProviderManager initialized with ${_providers.length} providers');
+      '📚 LibraryProviderManager initialized with ${_providers.length} providers',
+    );
   }
 
   /// Loads all books from all providers.
@@ -88,7 +90,8 @@ class LibraryProviderManager {
   /// Returns a map of category name -> list of books.
   /// Books from higher priority providers take precedence.
   Future<Map<String, List<Book>>> loadAllBooks(
-      Map<String, Map<String, dynamic>> metadata) async {
+    Map<String, Map<String, dynamic>> metadata,
+  ) async {
     if (!_isInitialized) await initialize();
 
     final Map<String, List<Book>> allBooksByCategory = {};
@@ -115,7 +118,8 @@ class LibraryProviderManager {
             final key = BookCompositeKey.fromBook(book);
             if (key == null) {
               debugPrint(
-                  '⚠️ Book "${book.title}" has no categoryId, skipping provider map');
+                '⚠️ Book "${book.title}" has no categoryId, skipping provider map',
+              );
               continue;
             }
 
@@ -125,13 +129,15 @@ class LibraryProviderManager {
               _bookToProvider[key] = provider;
             } else {
               debugPrint(
-                  'ℹ️ Duplicate book "${book.title}" from ${provider.displayName} - keeping primary mapping to ${_bookToProvider[key]?.displayName}');
+                'ℹ️ Duplicate book "${book.title}" from ${provider.displayName} - keeping primary mapping to ${_bookToProvider[key]?.displayName}',
+              );
             }
           }
         }
 
         debugPrint(
-            '📚 Loaded ${books.values.expand((b) => b).length} books from ${provider.displayName}');
+          '📚 Loaded ${books.values.expand((b) => b).length} books from ${provider.displayName}',
+        );
       } catch (e) {
         debugPrint('⚠️ Error loading books from ${provider.displayName}: $e');
       }
@@ -232,7 +238,7 @@ class LibraryProviderManager {
   }
 
   Future<({BookCompositeKey key, LibraryProvider provider})?>
-      _locateBookInProviders(
+  _locateBookInProviders(
     String title, {
     int? categoryId,
     String? fileType,
@@ -244,8 +250,11 @@ class LibraryProviderManager {
       if (!provider.isInitialized) continue;
 
       if (categoryId != null) {
-        final exists =
-            await provider.hasBook(title, categoryId, normalizedFileType);
+        final exists = await provider.hasBook(
+          title,
+          categoryId,
+          normalizedFileType,
+        );
         if (exists) {
           return (
             key: BookCompositeKey.create(
@@ -256,7 +265,7 @@ class LibraryProviderManager {
               // משתמשים בהעדפת הקורא להתאים את המפתח למה שב-cache.
               isUserBook: preferUserBooks,
             ),
-            provider: provider
+            provider: provider,
           );
         }
         continue;
@@ -489,6 +498,15 @@ class LibraryProviderManager {
   }
 
   @visibleForTesting
+  void mapBooksForTesting(Category category, Set<BookCompositeKey> dbKeys) {
+    _mapBooksRecursiveWithCache(category, dbKeys);
+  }
+
+  @visibleForTesting
+  LibraryProvider? providerForKeyForTesting(BookCompositeKey key) =>
+      _bookToProvider[key];
+
+  @visibleForTesting
   void resetForTesting() {
     _bookToProvider.clear();
     _providers.clear();
@@ -518,7 +536,8 @@ class LibraryProviderManager {
         }
       } catch (e) {
         debugPrint(
-            'LibraryProviderManager: provider failed for $targetTitle, continuing to fallback: $e');
+          'LibraryProviderManager: provider failed for $targetTitle, continuing to fallback: $e',
+        );
       }
     }
 
@@ -583,7 +602,8 @@ class LibraryProviderManager {
         await _updateBookToProviderMapping(library);
 
         debugPrint(
-            '✅ Library catalog built with ${library.subCategories.length} top-level categories');
+          '✅ Library catalog built with ${library.subCategories.length} top-level categories',
+        );
         return library;
       }
     }
@@ -627,8 +647,9 @@ class LibraryProviderManager {
       final key = BookCompositeKey.fromBook(book);
       if (key == null) continue;
 
-      if (book is FileBook) {
-        // PDF/DOCX books are always file-based
+      // ספרי משתמש (user_books.db) חייבים את ה-DB provider גם כשהם קבצים
+      // (docx/epub) — ה-FS provider מכיר רק את הספרייה הראשית ומחזיר null.
+      if (book is FileBook && !book.isUserBook) {
         _bookToProvider[key] = fileSystemProvider;
       } else {
         if (dbKeys.contains(key)) {

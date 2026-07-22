@@ -71,26 +71,33 @@ void main() {
   }
 
   group('CalendarWidget — פריסה רספונסיבית', () {
-    testWidgets('מסך צר (<600): הלוח למעלה והחלונית למטה (מוערם)',
-        (tester) async {
+    testWidgets('מסך צר (<600): הלוח למעלה והחלונית למטה (מוערם)', (
+      tester,
+    ) async {
       await pumpCalendar(tester, const Size(580, 1000));
 
       // שני הרכיבים מוצגים גם יחד במסך צר.
       expect(find.byType(CalendarMainPanel), findsOneWidget);
       expect(find.byType(CalendarSidePanel), findsOneWidget);
 
-      final mainBottom =
-          tester.getBottomLeft(find.byType(CalendarMainPanel)).dy;
+      final mainBottom = tester
+          .getBottomLeft(find.byType(CalendarMainPanel))
+          .dy;
       final sideTop = tester.getTopLeft(find.byType(CalendarSidePanel)).dy;
 
       // החלונית מתחת ללוח (פריסה מוערמת).
-      expect(sideTop, greaterThanOrEqualTo(mainBottom - 1),
-          reason: 'CalendarSidePanel צריך להופיע מתחת ל-CalendarMainPanel '
-              'במסך צר (פריסה מוערמת בעמודה).');
+      expect(
+        sideTop,
+        greaterThanOrEqualTo(mainBottom - 1),
+        reason:
+            'CalendarSidePanel צריך להופיע מתחת ל-CalendarMainPanel '
+            'במסך צר (פריסה מוערמת בעמודה).',
+      );
     });
 
-    testWidgets('מסך צר: שני הפאנלים חולקים את אותו הציר האופקי',
-        (tester) async {
+    testWidgets('מסך צר: שני הפאנלים חולקים את אותו הציר האופקי', (
+      tester,
+    ) async {
       // וידוא שהם אחד מעל השני, לא זה-לצד-זה.
       await pumpCalendar(tester, const Size(580, 1000));
 
@@ -99,9 +106,13 @@ void main() {
 
       // ב-stacked layout שני הפאנלים מתחילים מאותו x (בלי הזחה).
       // ב-side-by-side הם היו מופרדים אופקית.
-      expect((mainLeft - sideLeft).abs(), lessThan(20),
-          reason: 'במסך צר שני הפאנלים אמורים להתחיל מאותו x (מוערמים '
-              'אנכית), לא זה לצד זה.');
+      expect(
+        (mainLeft - sideLeft).abs(),
+        lessThan(20),
+        reason:
+            'במסך צר שני הפאנלים אמורים להתחיל מאותו x (מוערמים '
+            'אנכית), לא זה לצד זה.',
+      );
     });
 
     testWidgets('מסך רחב (≥840): שני הפאנלים זה-לצד-זה', (tester) async {
@@ -110,13 +121,14 @@ void main() {
       expect(find.byType(CalendarMainPanel), findsOneWidget);
       expect(find.byType(CalendarSidePanel), findsOneWidget);
 
-      final mainTop = tester.getTopLeft(find.byType(CalendarMainPanel)).dy;
-      final sideTop = tester.getTopLeft(find.byType(CalendarSidePanel)).dy;
+      final mainRect = tester.getRect(find.byType(CalendarMainPanel));
+      final sideRect = tester.getRect(find.byType(CalendarSidePanel));
 
-      // ב-side-by-side שני הפאנלים מתחילים בגובה דומה (אותה שורה).
-      expect((mainTop - sideTop).abs(), lessThan(40),
-          reason: 'במסך רחב שני הפאנלים אמורים להיות באותה שורה אופקית '
-              '(זה לצד זה), לא מוערמים.');
+      expect(
+        mainRect.right <= sideRect.left || sideRect.right <= mainRect.left,
+        isTrue,
+        reason: 'במסך רחב הפאנלים צריכים לתפוס אזורים אופקיים נפרדים.',
+      );
     });
 
     testWidgets('מסך רחב: הפאנלים מופרדים אופקית', (tester) async {
@@ -125,8 +137,11 @@ void main() {
       final mainLeft = tester.getTopLeft(find.byType(CalendarMainPanel)).dx;
       final sideLeft = tester.getTopLeft(find.byType(CalendarSidePanel)).dx;
 
-      expect((mainLeft - sideLeft).abs(), greaterThan(100),
-          reason: 'במסך רחב הפאנלים אמורים להיות מופרדים אופקית.');
+      expect(
+        (mainLeft - sideLeft).abs(),
+        greaterThan(100),
+        reason: 'במסך רחב הפאנלים אמורים להיות מופרדים אופקית.',
+      );
     });
   });
 }
@@ -183,6 +198,5 @@ class _FakeGoogleCalendarService extends GoogleCalendarService {
   @override
   Future<GoogleCalendarApiClient?> getApiClient({
     bool interactive = false,
-  }) async =>
-      null;
+  }) async => null;
 }

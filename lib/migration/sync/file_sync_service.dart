@@ -650,9 +650,10 @@ class FileSyncService {
     final title = path.basenameWithoutExtension(filePath);
     final extension = path.extension(filePath).toLowerCase();
 
-    // PDF and DOCX files always act as external (content never in DB)
-    final isPdfOrDocx = extension == '.pdf' || extension == '.docx';
-    final effectiveInsertContent = isPdfOrDocx ? false : insertContent;
+    // PDF, DOCX and EPUB files always act as external (content never in DB)
+    final isBinaryFormat =
+        extension == '.pdf' || extension == '.docx' || extension == '.epub';
+    final effectiveInsertContent = isBinaryFormat ? false : insertContent;
 
     // Build category path
     final relativeCategories = _parsePathToCategories(filePath, basePath);
@@ -1005,7 +1006,7 @@ class FileSyncService {
   Future<List<String>> _findNewFiles(String basePath) async {
     final newFiles = <String>[];
     final dir = Directory(basePath);
-    final supportedExtensions = {'.txt', '.pdf', '.docx'};
+    final supportedExtensions = {'.txt', '.pdf', '.docx', '.epub'};
 
     if (!await dir.exists()) return newFiles;
 

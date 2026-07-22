@@ -281,6 +281,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
       final textBook = switch (resolvedBook) {
         final TextBook book => book,
         final DocxBook book => book.toTextBook(),
+        final EpubBook book => book.toTextBook(),
         _ => TextBook(title: title),
       };
 

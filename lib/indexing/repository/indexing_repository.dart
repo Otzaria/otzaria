@@ -15,6 +15,7 @@ import 'package:otzaria/search/book_facet.dart';
 import 'package:otzaria/search/utils/search_catalogue_order_helper.dart';
 import 'package:otzaria/search/utils/foundational_book_classifier.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
+import 'package:otzaria/utils/file/docx_cache.dart';
 import 'package:path/path.dart' as p;
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
@@ -286,14 +287,12 @@ class IndexingRepository {
 
         var bookWasIndexed = false;
         try {
-          // DocxBook עובר אינדוקס דרך זרימת TextBook (העטיפה משמרת
-          // id/categoryId כדי ש-`book.text` יחלץ docx → text).
-          // catalogueOrderKey של DocxBook ו-TextBook העטוף זהה: כשיש id
-          // המפתח הוא 'id:<id>', וכשאין — title+categoryKey+'docx'+path
-          // (העטיפה מעבירה filePath ?? path, ו-fileType נשאר 'docx').
-          final TextBook? textBookForIndex = book is TextBook
-              ? book
-              : (book is DocxBook ? book.toTextBook() : null);
+          // DocxBook/EpubBook עוברים אינדוקס דרך זרימת TextBook (העטיפה
+          // משמרת id/categoryId כדי ש-`book.text` יחלץ קובץ → text).
+          // catalogueOrderKey של העטוף זהה למקור: כשיש id המפתח הוא
+          // 'id:<id>', וכשאין — title+categoryKey+fileType+path
+          // (העטיפה מעבירה filePath ?? path, ו-fileType נשמר).
+          final TextBook? textBookForIndex = _asTextBookForIndex(book);
           if (textBookForIndex != null) {
             if (!isBookIndexed(book)) {
               // דיווח הספר הנוכחי כבר בתחילת עיבודו — אחרת המונה נראה
@@ -471,8 +470,9 @@ class IndexingRepository {
       );
     }
     if (bytes == null || bytes.isEmpty) {
-      // מסלול הנפילה (docx, ספר בלי categoryId): טקסט דרך LibraryProvider.
-      text = await book.text;
+      // מסלול הנפילה (docx/epub, ספר בלי categoryId): טקסט דרך LibraryProvider.
+      // תמונות מוטמעות מסולקות — ראו [stripDataUrisForIndex].
+      text = await _loadTextForIndex(book);
     }
     loadStopwatch.stop();
 
@@ -846,6 +846,17 @@ class IndexingRepository {
     return pages;
   }
 
+  /// data URIs (תמונות מוטמעות בספרי EPUB/DOCX מומרים) — עשרות MB לספר
+  /// מצויר. אינם ניתנים לחיפוש, מנפחים את האינדקס, וגרמו ל-abort של ה-VM
+  /// בזמן אינדוקס. ההחלפה משמרת את מבנה השורות (אין מחיקת שורות).
+  static final RegExp _dataUriPattern = RegExp(
+    r'data:[A-Za-z0-9+/;,=.\-]{64,}',
+  );
+
+  @visibleForTesting
+  static String stripDataUrisForIndex(String text) =>
+      text.contains('data:') ? text.replaceAll(_dataUriPattern, '') : text;
+
   Future<String?> _loadTextBookText(TextBook book) async {
     String? text;
 
@@ -859,7 +870,7 @@ class IndexingRepository {
     }
 
     if (text == null || text.isEmpty) {
-      text = await book.text;
+      text = await _loadTextForIndex(book);
     }
 
     if (text.isEmpty) {
@@ -869,7 +880,19 @@ class IndexingRepository {
       return null;
     }
 
-    return text;
+    // עקבי עם מסלול האינדוקס — טביעת האצבע מחושבת על הטקסט המנוקה.
+    return stripDataUrisForIndex(text);
+  }
+
+  Future<String> _loadTextForIndex(TextBook book) async {
+    final filePath = book.filePath;
+    if ((book.fileType ?? '').toLowerCase() == 'epub' && filePath != null) {
+      final file = File(filePath);
+      if (await file.exists()) {
+        return convertEpubWithoutEmbeddedImages(file, book.title);
+      }
+    }
+    return stripDataUrisForIndex(await book.text);
   }
 
   /// ממדי ה-facet הנוספים של הספר (מחבר/תקופה/ספר-יסוד) — משותף לכל
@@ -1023,10 +1046,8 @@ class IndexingRepository {
         }
 
         try {
-          // DocxBook ממופה ל-TextBook (ראה הסבר ב-indexAllBooks).
-          final TextBook? textBookForIndex = book is TextBook
-              ? book
-              : (book is DocxBook ? book.toTextBook() : null);
+          // DocxBook/EpubBook ממופים ל-TextBook (ראה הסבר ב-indexAllBooks).
+          final TextBook? textBookForIndex = _asTextBookForIndex(book);
           if (textBookForIndex != null) {
             if (!isBookIndexed(book)) {
               onProgress(processedBooks + 1, totalBooks);
@@ -1309,7 +1330,7 @@ class IndexingRepository {
 
     final candidates = library
         .getAllBooks()
-        .where((b) => b is TextBook || b is DocxBook)
+        .where((b) => b is TextBook || b is DocxBook || b is EpubBook)
         .toList();
     final total = candidates.length;
     final changed = <Book>[];
@@ -1336,9 +1357,7 @@ class IndexingRepository {
           continue;
         }
 
-        final TextBook textBook = book is TextBook
-            ? book
-            : (book as DocxBook).toTextBook();
+        final TextBook textBook = _asTextBookForIndex(book)!;
         final text = await textLoader(textBook);
         if (text == null) {
           // אין תוכן להשוואה (כשל טעינה) — לא נוגעים ברשומה הקיימת.
@@ -1382,11 +1401,22 @@ class IndexingRepository {
   /// Returns true for book types that the indexer actually processes.
   /// Non-indexable types (ExternalLibraryBook וכו') מדולגים בשקט
   /// ב-indexAllBooks, ולכן חייבים להיות מחוץ לבדיקות הסטטוס.
-  /// DocxBook נכלל — הוא ממופה ל-TextBook ב-indexAllBooks באמצעות
-  /// `DocxBook.toTextBook()`, ו-`book.text` כבר יודע לחלץ את התוכן
-  /// דרך `docxToText` (ראה DatabaseLibraryProvider.getBookText).
+  /// DocxBook/EpubBook נכללים — הם ממופים ל-TextBook ב-indexAllBooks דרך
+  /// `toTextBook()`, ו-`book.text` כבר יודע לחלץ את התוכן דרך הממיר
+  /// המתאים (ראה DatabaseLibraryProvider.getBookText).
   static bool isIndexableBook(Book book) =>
-      book is TextBook || book is PdfBook || book is DocxBook;
+      book is TextBook ||
+      book is PdfBook ||
+      book is DocxBook ||
+      book is EpubBook;
+
+  /// ממפה ספר לזרימת האינדוקס של TextBook; null לסוגים שאינם טקסטואליים.
+  static TextBook? _asTextBookForIndex(Book book) => switch (book) {
+    final TextBook b => b,
+    final DocxBook b => b.toTextBook(),
+    final EpubBook b => b.toTextBook(),
+    _ => null,
+  };
 
   /// Waits until the underlying data provider is fully initialized
   /// (indexedFilePaths loaded from the index itself).

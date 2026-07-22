@@ -7,9 +7,10 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/data_providers/cache_database_holder.dart';
 import 'package:otzaria/migration/models/docx_text_cache_entry.dart';
 import 'package:otzaria/utils/file/docx_to_otzaria.dart';
+import 'package:otzaria/utils/file/epub_to_otzaria.dart';
 
-/// משך חיים של רשומת מטמון docx ללא גישה. רשומות של ספרים שלא נפתחו
-/// מעבר לפרק זמן זה מנוקות — כדי ש-`cache.db` לא יגדל ללא הגבלה (כל
+/// משך חיים של רשומת מטמון המרה (docx/epub) ללא גישה. רשומות של ספרים שלא
+/// נפתחו מעבר לפרק זמן זה מנוקות — כדי ש-`cache.db` לא יגדל ללא הגבלה (כל
 /// רשומה מכילה את טקסט הספר המלא, כולל base64 של תמונות).
 const Duration _docxCacheTtl = Duration(days: 90);
 
@@ -23,9 +24,8 @@ final Random _pruneSampler = Random();
 /// בכל פתיחה.
 bool _shouldOpportunisticPrune() => _pruneSampler.nextInt(20) == 0;
 
-/// המרות docx פעילות (מפתח: `path|size|mtime`) — מבטל המרה כפולה מקבילה
-/// כשגם `getBookContent` וגם `getBookToc` פותחים את אותו ספר *לפני*
-/// שהמטמון נכתב (פתיחה ראשונה ממש).
+/// המרות פעילות לפי קובץ, גרסת ממיר ווריאנט פלט; מונע עבודה כפולה מקבילה
+/// לפני שהמטמון נכתב.
 final Map<String, Future<String>> _inFlight = {};
 
 /// ממיר קובץ docx חיצוני לטקסט של אוצריא, עם מטמון מתמשך ב-`cache.db`.
@@ -39,27 +39,61 @@ final Map<String, Future<String>> _inFlight = {};
 /// הכותרת ([title]) אינה חלק ממפתח המטמון — היא מוזרקת מחדש בכל קריאה
 /// (ראו [_withFreshTitle]), כך ששינוי שם הספר אינו פוסל את המטמון אך
 /// הכותרת המוצגת תמיד עדכנית.
-Future<String> convertDocxWithCache(File file, String title) async {
+Future<String> convertDocxWithCache(File file, String title) =>
+    _convertWithCache(file, title, kDocxConverterVersion, docxToText);
+
+/// ממיר קובץ EPUB לטקסט של אוצריא — אותו מנגנון מטמון כמו
+/// [convertDocxWithCache] (הרשומות חולקות טבלה; המפתח הוא נתיב הקובץ).
+Future<String> convertEpubWithCache(File file, String title) =>
+    _convertWithCache(file, title, kEpubConverterVersion, epubToText);
+
+/// ממיר EPUB ללא נתוני התמונות, תוך שימור placeholders ואינדקסי השורות.
+/// מיועד ל-TOC, טביעות אצבע ואינדוקס ואינו מקצה מחרוזות Base64 גדולות.
+Future<String> convertEpubWithoutEmbeddedImages(File file, String title) =>
+    _convertWithCache(
+      file,
+      title,
+      kEpubConverterVersion,
+      _epubToTextWithoutEmbeddedImages,
+      cacheVariant: 'epub-without-images',
+    );
+
+String _epubToTextWithoutEmbeddedImages(Uint8List bytes, String title) =>
+    epubToText(bytes, title, embedImages: false);
+
+Future<String> _convertWithCache(
+  File file,
+  String title,
+  int converterVersion,
+  String Function(Uint8List, String) converter, {
+  String? cacheVariant,
+}) async {
   final stat = await file.stat();
   final size = stat.size;
   final mtime = stat.modified.millisecondsSinceEpoch;
   final path = file.path;
+  final cachePath = cacheVariant == null ? path : '$path#$cacheVariant';
 
   // ── נתיב cache-hit ──────────────────────────────────────────────────────
   try {
     final repo = await CacheDatabaseHolder.instance.repository;
-    final entry = await repo.getDocxTextCacheEntry(path);
-    if (entry != null && entry.isValidFor(size, mtime, kDocxConverterVersion)) {
+    final entry = await repo.getDocxTextCacheEntry(cachePath);
+    if (entry != null && entry.isValidFor(size, mtime, converterVersion)) {
       final now = DateTime.now().millisecondsSinceEpoch;
       // throttle: touch לכל היותר פעם ביום (מונע כתיבת WAL בכל פתיחה).
       if (now - entry.accessedAt > _touchThrottleMs) {
-        unawaited(repo.touchDocxTextCacheEntry(path, now).catchError((_) {}));
+        unawaited(
+          repo.touchDocxTextCacheEntry(cachePath, now).catchError((_) {}),
+        );
       }
       if (_shouldOpportunisticPrune()) {
-        unawaited(repo
-            .pruneDocxTextCacheAccessedBefore(
-                now - _docxCacheTtl.inMilliseconds)
-            .catchError((_) {}));
+        unawaited(
+          repo
+              .pruneDocxTextCacheAccessedBefore(
+                now - _docxCacheTtl.inMilliseconds,
+              )
+              .catchError((_) {}),
+        );
       }
       return _withFreshTitle(entry.text, title);
     }
@@ -69,11 +103,11 @@ Future<String> convertDocxWithCache(File file, String title) async {
 
   // ── נתיב המרה ──────────────────────────────────────────────────────────
   // דה-דופ המרות מקבילות: אם כבר רצה המרה לאותו קובץ, נצרף אליה.
-  final key = '$path|$size|$mtime';
+  final key = '$cachePath|$size|$mtime|$converterVersion';
   final pending = _inFlight[key];
   if (pending != null) return _withFreshTitle(await pending, title);
 
-  final future = _convert(path, title);
+  final future = _convert(path, title, converter);
   _inFlight[key] = future;
   final String text;
   try {
@@ -83,37 +117,50 @@ Future<String> convertDocxWithCache(File file, String title) async {
   }
 
   // שמירה ברקע (fire-and-forget): הטקסט כבר מוכן, אין צורך להמתין ל-DB.
-  unawaited(_persist(path, size, mtime, text));
+  unawaited(_persist(cachePath, size, mtime, converterVersion, text));
   return text;
 }
 
 /// ההמרה עצמה. ה-bytes נקראים *בתוך* ה-[Isolate.run] (לא לפניו) כדי לא
 /// להעתיק buffer גדול (עשרות MB) בין ה-main isolate ל-worker — רק הנתיב
 /// והכותרת (מחרוזות קטנות) עוברים.
-Future<String> _convert(String path, String title) {
+Future<String> _convert(
+  String path,
+  String title,
+  String Function(Uint8List, String) converter,
+) {
   return Isolate.run(() {
     final bytes = File(path).readAsBytesSync();
-    return docxToText(bytes, title);
+    return converter(bytes, title);
   });
 }
 
 /// שמירת התוצאה במטמון + ניקוי TTL. best-effort — כשל אינו פוגע בטקסט שכבר
 /// הוחזר למשתמש.
-Future<void> _persist(String path, int size, int mtime, String text) async {
+Future<void> _persist(
+  String path,
+  int size,
+  int mtime,
+  int converterVersion,
+  String text,
+) async {
   try {
     final repo = await CacheDatabaseHolder.instance.repository;
     final now = DateTime.now().millisecondsSinceEpoch;
-    await repo.upsertDocxTextCacheEntry(DocxTextCacheEntry(
-      filePath: path,
-      fileSize: size,
-      lastModified: mtime,
-      converterVersion: kDocxConverterVersion,
-      text: text,
-      createdAt: now,
-      accessedAt: now,
-    ));
-    await repo
-        .pruneDocxTextCacheAccessedBefore(now - _docxCacheTtl.inMilliseconds);
+    await repo.upsertDocxTextCacheEntry(
+      DocxTextCacheEntry(
+        filePath: path,
+        fileSize: size,
+        lastModified: mtime,
+        converterVersion: converterVersion,
+        text: text,
+        createdAt: now,
+        accessedAt: now,
+      ),
+    );
+    await repo.pruneDocxTextCacheAccessedBefore(
+      now - _docxCacheTtl.inMilliseconds,
+    );
   } catch (e) {
     debugPrint('⚠️ docx cache write failed (text still returned): $e');
   }

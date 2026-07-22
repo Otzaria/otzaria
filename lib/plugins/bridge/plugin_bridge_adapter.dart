@@ -786,6 +786,7 @@ class PluginBridgeAdapter {
       'type': switch (book) {
         PdfBook() => 'pdf',
         DocxBook() => 'docx',
+        EpubBook() => 'epub',
         _ => 'text',
       },
     };

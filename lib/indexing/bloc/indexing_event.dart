@@ -100,8 +100,8 @@ class UpdateIndexingProgress extends IndexingEvent {
 
   @override
   List<Object?> get props => [
-        workId,
-        processed,
-        total,
-      ];
+    workId,
+    processed,
+    total,
+  ];
 }

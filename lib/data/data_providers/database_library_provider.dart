@@ -31,6 +31,7 @@ import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/utils/file/toc_parser.dart';
 import 'package:otzaria/utils/file/docx_to_otzaria.dart';
 import 'package:otzaria/utils/file/docx_cache.dart';
+import 'package:otzaria/utils/file/epub_to_otzaria.dart';
 import 'package:otzaria/utils/file/file_book_path_resolver.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -65,7 +66,7 @@ class _RawTocEntry {
 class _DiscoveredBook {
   final String path;
   final String title;
-  final String fileType; // 'txt' | 'docx' | 'pdf'
+  final String fileType; // 'txt' | 'docx' | 'epub' | 'pdf'
   final int fileSize;
   final int lastModified;
   final List<String> categoryPath;
@@ -148,6 +149,8 @@ Future<void> _collectBookFilesRecursive(
           fileType = 'txt';
         } else if (lower.endsWith('.docx')) {
           fileType = 'docx';
+        } else if (lower.endsWith('.epub')) {
+          fileType = 'epub';
         } else if (lower.endsWith('.pdf')) {
           fileType = 'pdf';
         } else {
@@ -183,7 +186,7 @@ Future<void> _collectBookFilesRecursive(
         }
         // ──────────────────────────────────────────────────────────────────
 
-        // New or changed book — parse TOC for TXT / DOCX.
+        // New or changed book — parse TOC for TXT / DOCX / EPUB.
         List<_RawTocEntry>? rawToc;
         String? conversionError;
         if (fileType == 'txt') {
@@ -195,10 +198,12 @@ Future<void> _collectBookFilesRecursive(
           } catch (_) {
             // TOC parse failure is non-fatal.
           }
-        } else if (fileType == 'docx') {
+        } else if (fileType == 'docx' || fileType == 'epub') {
           try {
             final bytes = await entity.readAsBytes();
-            final content = docxToText(bytes, title);
+            final content = fileType == 'docx'
+                ? docxToText(bytes, title)
+                : epubToText(bytes, title, embedImages: false);
             try {
               final parsed = TocParser.parseEntriesFromContent(content);
               rawToc = _flattenTocToRaw(parsed);
@@ -1867,10 +1872,19 @@ class DatabaseLibraryProvider implements LibraryProvider {
         if (book.isFileBacked && book.filePath != null) {
           final file = File(book.filePath!);
           if (await file.exists()) {
-            // DOCX הוא בינארי — חובה להמיר, לא readAsString (שמחזיר זבל/זורק).
+            // PDF אינו טקסט — הקוראים עוברים דרך זרימת ה-PDF, לא לקרוא כקובץ.
+            if ((book.fileType ?? '').toLowerCase() == 'pdf' ||
+                file.path.toLowerCase().endsWith('.pdf')) {
+              return null;
+            }
+            // DOCX/EPUB הם בינאריים — חובה להמיר, לא readAsString (זבל/זורק).
             if ((book.fileType ?? '').toLowerCase() == 'docx' ||
                 file.path.toLowerCase().endsWith('.docx')) {
               return await convertDocxWithCache(file, title);
+            }
+            if ((book.fileType ?? '').toLowerCase() == 'epub' ||
+                file.path.toLowerCase().endsWith('.epub')) {
+              return await convertEpubWithCache(file, title);
             }
             // קבצים אישיים ישנים עשויים להיות ב-Windows-1255/UTF-16 ולא UTF-8.
             return await readTextFileSmart(file);
@@ -1898,6 +1912,9 @@ class DatabaseLibraryProvider implements LibraryProvider {
           if (await file.exists()) {
             if ((book.fileType ?? '').toLowerCase() == 'docx') {
               return await convertDocxWithCache(file, title);
+            }
+            if ((book.fileType ?? '').toLowerCase() == 'epub') {
+              return await convertEpubWithCache(file, title);
             }
             return await readTextFileSmart(file);
           }
@@ -1956,6 +1973,24 @@ class DatabaseLibraryProvider implements LibraryProvider {
           fileType,
         );
         if (book == null) return null;
+        // DOCX/EPUB: ה-TOC נגזר מהתוכן המומר (במטמון) ולא משורות ה-DB —
+        // רשומות ה-DB נבנות בסריקה ומתיישנות כשגרסת הממיר עולה (אינדקסי
+        // השורות זזים ותוכן העניינים המוטמע לא היה נלקח בחשבון).
+        if (book.isFileBacked && book.filePath != null) {
+          final file = File(book.filePath!);
+          final ext = (book.fileType ?? '').toLowerCase();
+          if ((ext == 'docx' || ext == 'epub') && await file.exists()) {
+            final content = ext == 'docx'
+                ? await convertDocxWithCache(file, title)
+                : await convertEpubWithoutEmbeddedImages(file, title);
+            if (content.isNotEmpty) {
+              final toc = await Isolate.run(
+                () => TocParser.parseEntriesFromContent(content),
+              );
+              if (toc.isNotEmpty) return toc;
+            }
+          }
+        }
         return await _loadTocFromUserBooksRepo(repo, book.id);
       } catch (e) {
         debugPrint('⚠️ Error reading user book TOC: $e');
@@ -2972,6 +3007,27 @@ class DatabaseLibraryProvider implements LibraryProvider {
     if (filePath != null && fileType == 'docx') {
       final resolvedFilePath = resolveMovedFileBookPath(filePath);
       return DocxBook(
+        id: id,
+        title: title,
+        category: category,
+        path: resolvedFilePath,
+        filePath: resolvedFilePath,
+        author: author,
+        heShortDesc: metaHeShortDesc,
+        heDesc: metaHeDesc,
+        pubDate: pubDate,
+        pubPlace: pubPlace,
+        order: order,
+        topics: topics,
+        categoryPath: categoryPath,
+        categoryId: categoryId,
+        isUserBook: isUserBook,
+      );
+    }
+
+    if (filePath != null && fileType == 'epub') {
+      final resolvedFilePath = resolveMovedFileBookPath(filePath);
+      return EpubBook(
         id: id,
         title: title,
         category: category,
