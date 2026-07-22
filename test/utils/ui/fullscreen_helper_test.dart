@@ -7,7 +7,6 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('FullscreenHelper.systemUiModeForFullscreen', () {
-    // רגרסיה לפורום #866: באנדרואיד מסך מלא לא הסתיר את שורת המצב.
     test('מסך מלא בוחר immersiveSticky - מסתיר את שורת המצב', () {
       expect(
         FullscreenHelper.systemUiModeForFullscreen(true),
@@ -20,37 +19,6 @@ void main() {
         FullscreenHelper.systemUiModeForFullscreen(false),
         SystemUiMode.edgeToEdge,
       );
-    });
-  });
-
-  group('SystemChrome.setEnabledSystemUIMode עם מצבי מסך מלא', () {
-    // בודק שהקריאה בפועל לערוץ הפלטפורמה מעבירה את המצב הנכון,
-    // כלומר immersiveSticky ולא מצב שמשאיר את שורת המצב גלויה.
-    late List<MethodCall> calls;
-
-    setUp(() {
-      calls = [];
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
-            calls.add(call);
-            return null;
-          });
-    });
-
-    tearDown(() {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(SystemChannels.platform, null);
-    });
-
-    test('כניסה למסך מלא שולחת SystemUiMode.immersiveSticky', () async {
-      await SystemChrome.setEnabledSystemUIMode(
-        FullscreenHelper.systemUiModeForFullscreen(true),
-      );
-
-      final call = calls.singleWhere(
-        (c) => c.method == 'SystemChrome.setEnabledSystemUIMode',
-      );
-      expect(call.arguments, 'SystemUiMode.immersiveSticky');
     });
   });
   group('FullscreenHelper.isContextAllowed', () {

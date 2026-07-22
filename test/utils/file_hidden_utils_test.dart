@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/utils/file/file_hidden_utils.dart';
 import 'package:path/path.dart' as path;
@@ -33,42 +31,17 @@ void main() {
     });
   });
 
-  group('isHiddenOrSystem - Windows attribute-based detection', () {
-    late Directory tempDir;
-
-    setUp(() {
-      tempDir = Directory.systemTemp.createTempSync('file_hidden_utils_test');
+  group('hasHiddenOrSystemWindowsAttributes', () {
+    test('מזהה את מאפייני hidden ו-system', () {
+      expect(hasHiddenOrSystemWindowsAttributes(0x2), isTrue);
+      expect(hasHiddenOrSystemWindowsAttributes(0x4), isTrue);
+      expect(hasHiddenOrSystemWindowsAttributes(0x6), isTrue);
     });
 
-    tearDown(() {
-      if (tempDir.existsSync()) {
-        tempDir.deleteSync(recursive: true);
-      }
+    test('דוחה מאפיינים רגילים וערך מאפיינים לא תקין', () {
+      expect(hasHiddenOrSystemWindowsAttributes(0), isFalse);
+      expect(hasHiddenOrSystemWindowsAttributes(0x20), isFalse);
+      expect(hasHiddenOrSystemWindowsAttributes(0xFFFFFFFF), isFalse);
     });
-
-    test(
-      'מזהה קובץ גיבוי Word (~\$שם.docx) כמוסתר כשהמערכת מסמנת אותו hidden',
-      () async {
-        // שם הגיבוי של Word מתחיל ב-~$ ולא ב-$, לכן ההגנה נסמכת על
-        // מאפיין ה-hidden של Windows ולא על בדיקת השם בלבד.
-        final file = File(path.join(tempDir.path, '~\$document.docx'));
-        file.writeAsStringSync('backup');
-        await Process.run('attrib', ['+h', file.path]);
-
-        expect(isHiddenOrSystem(file.path), isTrue);
-      },
-      skip: !Platform.isWindows ? 'רלוונטי רק ב-Windows' : null,
-    );
-
-    test(
-      'קובץ רגיל ללא מאפיין hidden לא מזוהה כמוסתר',
-      () {
-        final file = File(path.join(tempDir.path, 'regular_book.txt'));
-        file.writeAsStringSync('content');
-
-        expect(isHiddenOrSystem(file.path), isFalse);
-      },
-      skip: !Platform.isWindows ? 'רלוונטי רק ב-Windows' : null,
-    );
   });
 }

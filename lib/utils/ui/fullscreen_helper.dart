@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -33,7 +32,7 @@ class FullscreenHelper {
         : SystemUiMode.edgeToEdge;
   }
 
-  /// Toggle fullscreen mode with proper window manager handling
+  /// מעדכן את מצב המסך המלא ואת ממשק המערכת בפלטפורמה הנוכחית.
   static Future<void> toggleFullscreen(
     BuildContext context,
     bool isFullscreen,
@@ -44,7 +43,11 @@ class FullscreenHelper {
       settingsBloc.add(UpdateIsFullscreen(isFullscreen));
     }
 
-    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+    final isMobilePlatform =
+        !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS);
+    if (isMobilePlatform) {
       // בנייד אין title bar/window manager - שורת המצב נשלטת ישירות דרך SystemChrome.
       await SystemChrome.setEnabledSystemUIMode(
         systemUiModeForFullscreen(isFullscreen),

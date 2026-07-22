@@ -13,21 +13,17 @@ import 'package:path/path.dart' as p;
 
 import '../test_helpers/memory_cache_provider.dart';
 
-/// רגרסיה לתיקון האיטיות בקומיט 2f10b7662: splitByEra עברה מ-N*5 קריאות
-/// hasTopic אסינכרוניות (await בלולאה) לטעינת cache פעם אחת + מיון סינכרוני
-/// (_getTopicSync). הטסט מוודא שהמיון עדיין תואם את הנתונים ב-DB, ושה-cache
-/// אכן משמש בקריאה חוזרת (לא נטען מחדש בכל קריאה).
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late Directory tempDir;
-  late MyDatabase seforimDb;
+  late String dbPath;
 
   setUp(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
     tempDir = await Directory.systemTemp.createTemp('otzaria-split-era-');
-    final dbPath = p.join(tempDir.path, 'seforim.db');
-    seforimDb = MyDatabase.withPath(dbPath);
+    dbPath = p.join(tempDir.path, 'seforim.db');
+    final seforimDb = MyDatabase.withPath(dbPath);
     final repo = SeforimRepository(seforimDb);
     await repo.ensureInitialized();
 
@@ -73,12 +69,12 @@ void main() {
     if (SqliteDataProvider.instance.isInitialized) {
       await SqliteDataProvider.instance.dispose();
     }
+    seforimDb.close();
   });
 
   tearDown(() async {
     clearCommentatorOrderCache();
     await SqliteDataProvider.instance.dispose();
-    seforimDb.close();
     if (await tempDir.exists()) await tempDir.delete(recursive: true);
   });
 
@@ -91,7 +87,6 @@ void main() {
 
       expect(result['ראשונים'], containsAll(['רמב"ם', 'ספר החינוך']));
       expect(result['מפרשים נוספים'], contains('ספר שאינו קיים ב-DB'));
-      // כל ספר משויך לקטגוריה אחת בדיוק - אין אובדן ואין שכפול
       final totalAssigned = result.values.fold<int>(
         0,
         (sum, list) => sum + list.length,
@@ -106,13 +101,14 @@ void main() {
       final first = await splitByEra(['רמב"ם']);
       expect(first['ראשונים'], contains('רמב"ם'));
 
-      // משנים את הדור ב-DB ישירות בלי לנקות את ה-cache - קריאה חוזרת אמורה
-      // עדיין להחזיר את התוצאה הישנה, כי היא נטענת פעם אחת בלבד.
-      final db = await seforimDb.database;
+      await SqliteDataProvider.instance.dispose();
+      final mutationDb = MyDatabase.withPath(dbPath);
+      final db = await mutationDb.database;
       db.execute(
         "UPDATE book_generation SET generationId = 2 WHERE bookId = "
         "(SELECT id FROM book WHERE title = 'רמב\"ם')",
       );
+      mutationDb.close();
 
       final second = await splitByEra(['רמב"ם']);
       expect(
@@ -121,7 +117,6 @@ void main() {
         reason: 'לא אמורה להיטען מחדש בלי clearCommentatorOrderCache',
       );
 
-      // אחרי ניקוי מפורש ה-cache אכן נטען מחדש ומשקף את הנתון העדכני
       clearCommentatorOrderCache();
       final third = await splitByEra(['רמב"ם']);
       expect(third['אחרונים'], contains('רמב"ם'));

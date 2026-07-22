@@ -1535,10 +1535,7 @@ void main() {
     );
 
     test(
-      'כתובות ההורדה הקבועות (תלמוד, קטלוג, מילון) מדויקות במלואן — '
-      'commit 168081fe6 תיקן טעות דומה בשם קובץ ה-DB (seforim.zip → '
-      'seforim.db.zip) שנשלחה לפורום ולא נתפסה, כי בדיקה לפי סיומת בלבד '
-      'הייתה מפספסת אותה',
+      'משתמש בכתובות ההורדה המדויקות של התלמוד, הקטלוג והמילון',
       () async {
         final tempDir = await Directory.systemTemp.createTemp(
           'otzaria-exact-urls-',
@@ -1562,8 +1559,10 @@ void main() {
             'https://github.com/Otzaria/otzar-HB_catalog/releases/latest/download/otzar-HB_catalog.db.zst';
         const lexicalUrl =
             'https://github.com/Otzaria/SeforimMagicIndexer/releases/latest/download/lexical.db';
+        final requestedUrls = <String>[];
 
         final client = MockClient((request) async {
+          requestedUrls.add(request.url.toString());
           if (request.url.path.endsWith('/releases/latest')) {
             return http.Response(
               jsonEncode({
@@ -1578,8 +1577,6 @@ void main() {
               headers: const {'content-type': 'application/json'},
             );
           }
-          // התאמה מדויקת ומלאה (owner+repo+file) — כתובת שגויה בכל דרגה
-          // (repo לא נכון או שם קובץ שגוי) נופלת ל-404 ומכשילה את הטסט.
           if (request.url.toString() == talmudUrl ||
               request.url.toString() == catalogUrl ||
               request.url.toString() == lexicalUrl) {
@@ -1610,14 +1607,16 @@ void main() {
             .cast<EmptyLibraryError>();
         bloc.add(DownloadLibraryRequested());
 
-        // אם אחת הכתובות הקבועות שגויה, ההורדה הלא-אופציונלית (תלמוד/קטלוג)
-        // נכשלת עם 404 ומגיעה ל-EmptyLibraryError במקום DirectorySelected.
         final result = await Future.any([
           done.then((_) => 'success'),
           error.first.then((e) => 'error: ${e.errorMessage}'),
         ]).timeout(const Duration(seconds: 5));
 
         expect(result, 'success');
+        expect(
+          requestedUrls,
+          containsAll([seforimUrl, talmudUrl, catalogUrl, lexicalUrl]),
+        );
       },
     );
   });

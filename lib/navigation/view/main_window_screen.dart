@@ -293,7 +293,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
   bool _hasScheduledSplashReveal = false;
   Timer? _splashFailsafeTimer;
   bool _isShowingStartupManualReindexDialog = false;
-  bool _hasStartedFileSync = false;
   // מסומן כשעדכון ספרייה הוחל, כדי להפעיל אינדוקס אחרי הטעינה מחדש הבאה
   // (ה-_checkAndStartIndexing הרגיל רץ פעם אחת בעלייה ולא מכסה עדכון חי).
   bool _indexAfterLibraryReload = false;
@@ -690,23 +689,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
     }
   }
 
-  /// מפעיל את עדכון הספרייה אחרי שהספרייה נטענה. רץ פעם אחת בסשן.
-  void _startFileSync() {
-    if (_hasStartedFileSync) return;
-    _hasStartedFileSync = true;
-
-    final isAutoSync =
-        Settings.getValue<bool>(SettingsRepository.keyAutoSync) ?? true;
-    final settingsState = context.read<SettingsBloc>().state;
-    if (isAutoSync && settingsState.canUseSoftwareAndBookUpdates) {
-      try {
-        context.read<LibraryUpdateBloc>().add(const StartLibraryUpdate());
-      } catch (e) {
-        debugPrint('Could not start library update: $e');
-      }
-    }
-  }
-
   /// Initialize background file sync AFTER library is loaded.
   /// This avoids DB lock contention that caused 17s delays.
   void _initializeBackgroundSync() {
@@ -741,12 +723,15 @@ class MainWindowScreenState extends State<MainWindowScreen>
   }
 
   void _tryStartDeferredStartupWork() {
-    if (!_startupWorkGate.consumeStartPermission()) {
-      return;
-    }
-
-    _initializeBackgroundSync();
-    _startFileSync();
+    tryStartDeferredStartupWork(
+      gate: _startupWorkGate,
+      startBackgroundSync: _initializeBackgroundSync,
+      isAutoSyncEnabled: () =>
+          Settings.getValue<bool>(SettingsRepository.keyAutoSync) ?? true,
+      canUseSoftwareAndBookUpdates: () =>
+          context.read<SettingsBloc>().state.canUseSoftwareAndBookUpdates,
+      libraryUpdateBloc: context.read<LibraryUpdateBloc>,
+    );
   }
 
   /// Setup synchronization between window fullscreen state and settings

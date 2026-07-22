@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,18 +8,15 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 import '../../unit/mocks/mock_settings_repository.mocks.dart';
 
-/// רגרסיה ל-98f1ae119: מסך ההגדרות עדכן את מצב המסך המלא ישירות מול
-/// windowManager, בעוד מסך העיון עבר דרך FullscreenHelper.toggleFullscreen —
-/// כך ה-titlebar וה-SettingsBloc יצאו מסונכרנים בין המסכים. הבדיקות מוודאות
-/// שקריאה אחת ל-toggleFullscreen (מכל מסך) מעדכנת את ה-SettingsBloc המשותף,
-/// כך שכל מסך אחר שקורא ממנו את isFullscreen יראה את אותו ערך.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late List<MethodCall> windowManagerCalls;
+  late List<MethodCall> platformCalls;
 
   setUp(() {
     windowManagerCalls = [];
+    platformCalls = [];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(const MethodChannel('window_manager'), (
           call,
@@ -26,17 +24,33 @@ void main() {
           windowManagerCalls.add(call);
           return null;
         });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+          platformCalls.add(call);
+          return null;
+        });
   });
 
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(const MethodChannel('window_manager'), null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null);
   });
 
   Future<SettingsBloc> buildSettingsBloc() async {
     final bloc = SettingsBloc(repository: MockSettingsRepository());
     addTearDown(bloc.close);
     return bloc;
+  }
+
+  Future<void> toggleAsDesktop(BuildContext context, bool isFullscreen) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    try {
+      await FullscreenHelper.toggleFullscreen(context, isFullscreen);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   }
 
   testWidgets(
@@ -76,12 +90,9 @@ void main() {
         isFalse,
       );
 
-      // מדמים לחיצה על כפתור מסך מלא במסך העיון.
-      await FullscreenHelper.toggleFullscreen(readingScreenContext, true);
-      // bloc.add מתוזמן אסינכרונית; pump מפנה את התור לפני קריאת ה-state.
+      await toggleAsDesktop(readingScreenContext, true);
       await tester.pump();
 
-      // מסך ההגדרות קורא מאותו ה-bloc המשותף — חייב לראות את אותו מצב.
       expect(
         settingsScreenContext.read<SettingsBloc>().state.isFullscreen,
         isTrue,
@@ -113,7 +124,7 @@ void main() {
         ),
       );
 
-      await FullscreenHelper.toggleFullscreen(context, true);
+      await toggleAsDesktop(context, true);
 
       final methodsWhenEntering = windowManagerCalls
           .map((c) => c.method)
@@ -125,7 +136,7 @@ void main() {
       );
 
       windowManagerCalls.clear();
-      await FullscreenHelper.toggleFullscreen(context, false);
+      await toggleAsDesktop(context, false);
 
       expect(
         windowManagerCalls.map((c) => c.method),
@@ -159,9 +170,9 @@ void main() {
       final subscription = settingsBloc.stream.listen(emitted.add);
       addTearDown(subscription.cancel);
 
-      await FullscreenHelper.toggleFullscreen(context, true);
+      await toggleAsDesktop(context, true);
       await tester.pump();
-      await FullscreenHelper.toggleFullscreen(context, true);
+      await toggleAsDesktop(context, true);
       await tester.pump();
 
       final fullscreenEmits = emitted.where((s) => s.isFullscreen).toList();
@@ -172,4 +183,36 @@ void main() {
       );
     },
   );
+
+  testWidgets('במובייל toggleFullscreen מפעיל את SystemChrome', (tester) async {
+    final settingsBloc = await buildSettingsBloc();
+    late BuildContext context;
+
+    await tester.pumpWidget(
+      BlocProvider<SettingsBloc>.value(
+        value: settingsBloc,
+        child: MaterialApp(
+          home: Builder(
+            builder: (currentContext) {
+              context = currentContext;
+              return const SizedBox();
+            },
+          ),
+        ),
+      ),
+    );
+
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    try {
+      await FullscreenHelper.toggleFullscreen(context, true);
+
+      final call = platformCalls.singleWhere(
+        (item) => item.method == 'SystemChrome.setEnabledSystemUIMode',
+      );
+      expect(call.arguments, 'SystemUiMode.immersiveSticky');
+      expect(windowManagerCalls, isEmpty);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
 }

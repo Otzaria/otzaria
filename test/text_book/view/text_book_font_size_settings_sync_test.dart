@@ -1,11 +1,14 @@
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_state.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
@@ -22,6 +25,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/text_book_repository.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/view/text_book_screen.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
@@ -30,10 +34,6 @@ import 'package:otzaria/tour/bloc/tour_cubit.dart';
 import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
-// רגרסיה (פורום #61 / קומיט 1572d9637): שינוי גודל גופן הספר בהגדרות לא
-// השתקף מיד בתצוגה - היה צריך פעולה נוספת (למשל מעבר טאב) כדי לראות אותו.
-// התיקון הוסיף listener על SettingsBloc.stream ב-initState של המסך ששולח
-// UpdateFontSize ל-TextBookBloc ברגע שגודל הגופן משתנה.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -64,10 +64,16 @@ void main() {
     focusRepository.resetForTesting();
   });
 
-  testWidgets('שינוי גודל גופן ב-SettingsBloc משתקף מיד בתצוגת הספר, ללא צורך '
-      'בפעולה נוספת', (tester) async {
+  testWidgets('שינוי גודל גופן ב-SettingsBloc שולח מיד UpdateFontSize', (
+    tester,
+  ) async {
     final book = TextBook(title: 'ספר בדיקה');
-    final bloc = _TestTextBookBloc(_loadedState(book, fontSize: 18));
+    final bloc = _MockTextBookBloc();
+    whenListen(
+      bloc,
+      const Stream<TextBookState>.empty(),
+      initialState: _loadedState(book, fontSize: 18),
+    );
     final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
     final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
     final settingsBloc = _TestSettingsBloc(SettingsState.initial());
@@ -119,21 +125,63 @@ void main() {
       18,
     );
 
-    // שינוי גודל הגופן בהגדרות - כמו שקורה כשהמשתמש גורר את המחוון בהגדרות
     settingsBloc.emitStateForTest(
       SettingsState.initial().copyWith(fontSize: 30),
     );
-    // sink מעבד את ה-event באופן א-סינכרוני (microtask), לכן צריך פריים
-    // נוסף - לא מעבר טאב או פעולה אחרת מהמשתמש.
     await tester.pump();
     await tester.pump();
 
-    // בלי שום פעולה נוספת (בלי מעבר טאב, בלי pumpAndSettle) - התצוגה כבר
-    // מציגה את הגודל החדש
+    verify(() => bloc.add(const UpdateFontSize(30))).called(1);
+  });
+
+  test('TextBookBloc מחיל UpdateFontSize על מצב טעון', () async {
+    final book = TextBook(title: 'ספר בדיקה');
+    final bloc = TextBookBloc(
+      repository: _FontSizeRepository(),
+      quickPreviewLoader:
+          (
+            String title,
+            int currentLine, {
+            int? categoryId,
+            String? fileType,
+            bool preferUserBooks = false,
+          }) async => null,
+      initialState: TextBookInitial.named(
+        book,
+        0,
+        false,
+        const [],
+        searchMode: SearchMode.exact,
+        showPageShapeView: false,
+      ),
+      scrollController: ItemScrollController(),
+      positionsListener: ItemPositionsListener.create(),
+    );
+    addTearDown(bloc.close);
+
+    final loaded = bloc.stream
+        .where((state) => state is TextBookLoaded)
+        .cast<TextBookLoaded>()
+        .first;
+    bloc.add(
+      const LoadContent(
+        fontSize: 18,
+        showSplitView: false,
+        removeNikud: false,
+        loadCommentators: false,
+      ),
+    );
+    await loaded.timeout(const Duration(seconds: 5));
+
+    final updated = bloc.stream
+        .where((state) => state is TextBookLoaded)
+        .cast<TextBookLoaded>()
+        .firstWhere((state) => state.fontSize == 30);
+    bloc.add(const UpdateFontSize(30));
+
     expect(
-      tester.widget<CombinedView>(find.byType(CombinedView).first).textSize,
+      (await updated.timeout(const Duration(seconds: 5))).fontSize,
       30,
-      reason: 'גודל הגופן אמור להתעדכן מיידית, ללא פעולה נוספת מהמשתמש',
     );
   });
 }
@@ -165,23 +213,52 @@ TextBookLoaded _loadedState(TextBook book, {required double fontSize}) {
   );
 }
 
-/// בלוק בדיקה שמממש את UpdateFontSize באופן זהה ל-TextBookBloc האמיתי
-/// (_onUpdateFontSize), כדי לוודא שהחיווט מ-text_book_screen.dart אכן מגיע
-/// עד לעדכון ה-state, ולא רק שהאירוע נשלח.
-class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
-    implements TextBookBloc {
-  _TestTextBookBloc(super.initialState) {
-    on<UpdateFontSize>((event, emit) {
-      final current = state;
-      if (current is TextBookLoaded) {
-        emit(current.copyWith(fontSize: event.fontSize));
-      }
-    });
-    on<TextBookEvent>((event, emit) {});
+class _MockTextBookBloc extends MockBloc<TextBookEvent, TextBookState>
+    implements TextBookBloc {}
+
+class _MockFileSystemData extends Mock implements FileSystemData {}
+
+class _FontSizeRepository extends TextBookRepository {
+  _FontSizeRepository() : super(fileSystem: _MockFileSystemData());
+
+  @override
+  Future<String> getBookContent(TextBook book) async {
+    return 'שורה א\nשורה ב\nשורה ג';
   }
 
   @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+  Future<BookContentRange?> getBookContentRange(
+    TextBook book, {
+    required int startLine,
+    required int endLine,
+  }) async {
+    return const BookContentRange(
+      startLine: 0,
+      endLine: 2,
+      totalLines: 3,
+      lines: ['שורה א', 'שורה ב', 'שורה ג'],
+    );
+  }
+
+  @override
+  Future<List<TocEntry>> getTableOfContents(TextBook book) async {
+    return const [];
+  }
+
+  @override
+  Future<List<Link>> getBookLinksInRange(
+    TextBook book, {
+    required int startIndex,
+    required int endIndex,
+    Iterable<String>? targetBookTitles,
+  }) async {
+    return const [];
+  }
+
+  @override
+  Future<List<String>> getAvailableCommentators(TextBook book) async {
+    return const [];
+  }
 }
 
 class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
