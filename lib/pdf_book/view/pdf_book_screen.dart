@@ -8,7 +8,7 @@ import 'package:flutter/rendering.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
+import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/link_context_menu_entry.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
@@ -4075,18 +4075,16 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       builder: (context) {
         return AlertDialog(
           title: const Text('לעבור לURL?'),
-          content: RtlSelectionShortcuts(
-            child: SelectionArea(
-              child: Text.rich(
-                TextSpan(
-                  children: [
-                    const TextSpan(text: 'האם לעבור לכתובת הבאה\n'),
-                    TextSpan(
-                      text: url.toString(),
-                      style: const TextStyle(color: Colors.blue),
-                    ),
-                  ],
-                ),
+          content: AppSelectionArea(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  const TextSpan(text: 'האם לעבור לכתובת הבאה\n'),
+                  TextSpan(
+                    text: url.toString(),
+                    style: const TextStyle(color: Colors.blue),
+                  ),
+                ],
               ),
             ),
           ),
@@ -4373,14 +4371,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         if (value.isNotEmpty && !value.contains(widget.tab.book.title)) {
           displayTitle = '${widget.tab.book.title}, $value';
         }
-        return RtlSelectionShortcuts(
-          child: SelectionArea(
-            child: Text(
-              displayTitle,
-              style: AppTopBar.titleStyle(context),
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
-            ),
+        return AppSelectionArea(
+          child: Text(
+            displayTitle,
+            style: AppTopBar.titleStyle(context),
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
           ),
         );
       },

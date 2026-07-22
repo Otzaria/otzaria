@@ -261,6 +261,41 @@ void main() {
         expect(s.outline, isNotNull);
       },
     );
+
+    // תרחיש רגיל (פתיחה ישירה, ללא סיכון לקפיצות): requiresStableLayout=false
+    // ועמוד ראשון → אין overlay טעינה, כדי לא לאט את הפתיחה (רגרסיית fbed10c5d).
+    blocTest<PdfBookBloc, PdfBookState>(
+      'עמוד ראשון בלי requiresStableLayout → isLoading=false (מהיר)',
+      build: () => _makeBloc(_tab(page: 1)),
+      seed: () => PdfBookLoading(book: _book()),
+      act: (b) =>
+          b.add(DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 50)),
+      verify: (b) => expect((b.state as PdfBookLoaded).isLoading, isFalse),
+    );
+
+    // תרחיש סיכון: requiresStableLayout=true (דף יומי / מעבר טקסט→PDF וכדומה)
+    // → overlay טעינה עד שה-layout מתייצב, גם אם זה עמוד 1.
+    blocTest<PdfBookBloc, PdfBookState>(
+      'requiresStableLayout=true → isLoading=true גם בעמוד ראשון',
+      build: () => _makeBloc(
+        PdfBookTab(book: _book(), pageNumber: 1, requiresStableLayout: true),
+      ),
+      seed: () => PdfBookLoading(book: _book()),
+      act: (b) =>
+          b.add(DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 50)),
+      verify: (b) => expect((b.state as PdfBookLoaded).isLoading, isTrue),
+    );
+
+    // עמוד עמוק (היסטוריה/סימנייה) גם בלי requiresStableLayout מפורש עדיין
+    // בסיכון לקפיצות → overlay טעינה.
+    blocTest<PdfBookBloc, PdfBookState>(
+      'עמוד>1 בלי requiresStableLayout → isLoading=true',
+      build: () => _makeBloc(_tab(page: 10)),
+      seed: () => PdfBookLoading(book: _book()),
+      act: (b) =>
+          b.add(DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 50)),
+      verify: (b) => expect((b.state as PdfBookLoaded).isLoading, isTrue),
+    );
   });
 
   // ──────────────────────────────────────────────────────────────────────────

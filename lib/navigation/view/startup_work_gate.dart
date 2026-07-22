@@ -1,3 +1,6 @@
+import 'package:flutter/foundation.dart';
+import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
+
 /// מתאם פשוט שמונע הרצת עבודות startup כבדות לפני שהוחלט
 /// אם האינדוקס האוטומטי ירוץ, ולפני שהוא הסתיים בפועל.
 class StartupWorkGate {
@@ -34,4 +37,29 @@ class StartupWorkGate {
     _startupWorkStarted = true;
     return true;
   }
+}
+
+/// מתחיל עבודות אתחול מושהות פעם אחת לאחר פתיחת [gate].
+///
+/// עדכון הספרייה נשלח רק כשהסנכרון האוטומטי ועדכוני הרשת מותרים.
+bool tryStartDeferredStartupWork({
+  required StartupWorkGate gate,
+  required VoidCallback startBackgroundSync,
+  required bool Function() isAutoSyncEnabled,
+  required bool Function() canUseSoftwareAndBookUpdates,
+  required LibraryUpdateBloc Function() libraryUpdateBloc,
+}) {
+  if (!gate.consumeStartPermission()) {
+    return false;
+  }
+
+  startBackgroundSync();
+  if (isAutoSyncEnabled() && canUseSoftwareAndBookUpdates()) {
+    try {
+      libraryUpdateBloc().add(const StartLibraryUpdate());
+    } catch (error) {
+      debugPrint('Could not start library update: $error');
+    }
+  }
+  return true;
 }

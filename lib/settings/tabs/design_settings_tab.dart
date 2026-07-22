@@ -231,12 +231,12 @@ class DesignSettingsTab extends StatelessWidget {
                         options: const [
                           SegmentOption(
                             value: false,
-                            label: 'רחב',
+                            label: 'רגיל',
                             subtitle: 'הצג פריטים במרווחים נוחים ללחיצה',
                           ),
                           SegmentOption(
                             value: true,
-                            label: 'קומפקטי',
+                            label: 'מצומצם',
                             subtitle: 'הצג יותר תוכן על ידי הקטנת המרווחים',
                           ),
                         ],

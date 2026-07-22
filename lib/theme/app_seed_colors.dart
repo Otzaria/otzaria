@@ -41,7 +41,7 @@ class AppSeedColors {
     (color: brown, name: 'חום'),
     (color: parchment, name: 'פרגמנט / בז\''),
     (color: grey, name: 'אפור'),
-    (color: darkBrown, name: 'חום עמוק'),
+    (color: darkBrown, name: 'חום זהבהב'),
   ];
 
   /// מחזיר את השם העברי של צבע, או null אם לא נמצא ברשימה.

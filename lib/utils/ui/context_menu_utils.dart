@@ -11,8 +11,11 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
+import 'package:otzaria/tools/dictionary/dictionary_context_menu_entries.dart';
+import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/text/copy_utils.dart';
+import 'package:otzaria/utils/text/word_at_position.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
@@ -53,8 +56,10 @@ class ContextMenuUtils {
     required double fontSize,
     String? savedSelectedText,
     required VoidCallback onCopySelected,
+    Offset? tapPosition,
+    DictionaryLookupRepository? dictionaryRepository,
   }) {
-    return [
+    final entries = <AppContextMenuEntry>[
       AppContextMenuEntry(
         label: 'העתק',
         icon: FluentIcons.copy_24_regular,
@@ -76,17 +81,36 @@ class ContextMenuUtils {
         label: 'פתח ספר זה בחלון נפרד',
         icon: FluentIcons.open_24_regular,
         onTap: () {
-          openBookCallback(TextBookTab(
-            book: _targetBookFromLink(link),
-            index: link.index2 - 1,
-            openLeftPane: (Settings.getValue<bool>('key-pin-sidebar') ??
-                    false) ||
-                (Settings.getValue<bool>('key-default-sidebar-open') ?? false),
-          ));
+          openBookCallback(
+            TextBookTab(
+              book: _targetBookFromLink(link),
+              index: link.index2 - 1,
+              openLeftPane:
+                  (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
+                  (Settings.getValue<bool>('key-default-sidebar-open') ??
+                      false),
+            ),
+          );
         },
       ),
-      if (!link.targetIsUserBook) ...[
-        const AppContextMenuEntry.divider(),
+    ];
+
+    final dictionaryText = (savedSelectedText?.trim().isNotEmpty == true)
+        ? savedSelectedText
+        : (tapPosition != null ? wordAtGlobalPosition(tapPosition) : null);
+    final dictionaryEntries = buildDictionaryContextMenuEntries(
+      context: context,
+      selectedText: dictionaryText,
+      repository: dictionaryRepository ?? DictionaryLookupRepository.instance,
+    );
+    if (dictionaryEntries.isNotEmpty) {
+      entries.add(const AppContextMenuEntry.divider());
+      entries.addAll(dictionaryEntries);
+    }
+
+    if (!link.targetIsUserBook) {
+      entries.add(const AppContextMenuEntry.divider());
+      entries.add(
         AppContextMenuEntry(
           label: 'דווח על טעות בספר',
           icon: FluentIcons.error_circle_24_regular,
@@ -97,8 +121,10 @@ class ContextMenuUtils {
             savedSelectedText: savedSelectedText,
           ),
         ),
-      ],
-    ];
+      );
+    }
+
+    return entries;
   }
 
   /// ממפה מפרש ([link] + תוכנו [rawContent]) לפרמטרי דיווח הטעות: הדיווח מופנה
@@ -109,7 +135,8 @@ class ContextMenuUtils {
     int lineIndex,
     String bookTitle,
     String selectedText,
-  }) commentaryReportArgs({
+  })
+  commentaryReportArgs({
     required Link link,
     required String rawContent,
     String? savedSelectedText,

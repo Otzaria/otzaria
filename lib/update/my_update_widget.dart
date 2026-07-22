@@ -56,6 +56,12 @@ bool shouldLaunchInstallerOnExit({
       status == UpdatStatus.dismissed;
 }
 
+/// כשל בשיגור המתקין חייב להשאיר את אוצריא פתוחה עם מצב שגיאה לניסיון חוזר —
+/// סגירה בכל מקרה (ההתנהגות הישנה) תוקעת את המשתמש בלי מתקין רץ ובלי אוצריא.
+@visibleForTesting
+bool shouldDestroyWindowAfterInstallNow({required bool installerLaunched}) =>
+    installerLaunched;
+
 /// בוחר את קובץ העדכון המתאים ל-Windows מתוך נכסי ה-release.
 ///
 /// בהתקנה רגילה (exe) נבחר המתקין הרגיל — הוא מזהה שדרוג מגרסה קיימת
@@ -589,7 +595,7 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
   Future<void> _installNow() async {
     if (_installerFile == null) return;
     final launched = await _launchInstaller(relaunchApp: true);
-    if (launched) {
+    if (shouldDestroyWindowAfterInstallNow(installerLaunched: launched)) {
       // איפוס הקובץ מונע שיגור מתקין כפול אם יגיע אירוע סגירת חלון נוסף
       // (למשל מהמתקין עצמו) לפני שה-destroy מסתיים.
       _installerFile = null;

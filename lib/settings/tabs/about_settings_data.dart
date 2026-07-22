@@ -9,6 +9,11 @@ const aboutDevelopers = <Map<String, String>>[
     'url': 'https://github.com/rachelGrayover',
     'description': 'השקעה עצומה במעבר ל-SQLite',
   },
+  {
+    'name': 'ב.ש. כלטוב',
+    'url': 'https://github.com/BatshevaRich',
+    'description': 'שיפור ושכלול מסד הנתונים',
+  },
   {'name': 'Y.PL.', 'url': 'https://github.com/Y-PLONI'},
   {'name': 'palmoni', 'url': 'https://github.com/palmoni5'},
   {'name': 'YOSEFTT', 'url': 'https://github.com/YOSEFTT'},
@@ -51,7 +56,7 @@ const aboutTopEditors = <Map<String, String>>[
   },
   {
     'name': 'ס. כב.', // sivan22
-    'url': 'https://mitmachim.top/user/sivan22'
+    'url': 'https://mitmachim.top/user/sivan22',
   },
   {
     'name': 'י. צ.', // יהודי צעיר
@@ -213,6 +218,6 @@ const aboutAdditionalSources = <Map<String, String>>[
   },
   {
     'name': 'פרויקט בן י.',
-    'url': 'https://github.com/projectbenyehuda/public_domain_dump'
+    'url': 'https://github.com/projectbenyehuda/public_domain_dump',
   },
 ];

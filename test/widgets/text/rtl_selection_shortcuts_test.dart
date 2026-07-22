@@ -16,37 +16,44 @@ void main() {
     trackRtlSelection('');
   });
 
-  Future<void> pumpRegion(WidgetTester tester,
-      {required String text, required double width}) async {
+  Future<void> pumpRegion(
+    WidgetTester tester, {
+    required String text,
+    required double width,
+  }) async {
     regionKey = GlobalKey<SelectableRegionState>();
     sel = null;
     final focusNode = FocusNode();
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: Directionality(
-          textDirection: TextDirection.rtl,
-          child: Center(
-            child: SizedBox(
-              width: width,
-              child: RtlSelectionShortcuts(
-                child: SelectableRegion(
-                  key: regionKey,
-                  focusNode: focusNode,
-                  selectionControls: emptyTextSelectionControls,
-                  // מתעלמים משינויי priming זמניים — מתעדים רק בחירה אמיתית.
-                  onSelectionChanged: (v) {
-                    if (!rtlSelectionPriming) sel = v?.plainText;
-                  },
-                  child: Text(text,
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Center(
+              child: SizedBox(
+                width: width,
+                child: RtlSelectionShortcuts(
+                  child: SelectableRegion(
+                    key: regionKey,
+                    focusNode: focusNode,
+                    selectionControls: emptyTextSelectionControls,
+                    // מתעלמים משינויי priming זמניים — מתעדים רק בחירה אמיתית.
+                    onSelectionChanged: (v) {
+                      if (!rtlSelectionPriming) sel = v?.plainText;
+                    },
+                    child: Text(
+                      text,
                       textDirection: TextDirection.rtl,
-                      style: const TextStyle(fontSize: 24)),
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
         ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
     focusNode.requestFocus();
     await tester.pump();
@@ -61,23 +68,29 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('שורה אחת: Shift+ימין מקצר מה-focus, Shift+שמאל מאריך (priming)',
-      (tester) async {
-    await pumpRegion(tester, text: 'אבגדהוז', width: 600);
-    expect(sel, equals('אבגדהוז'));
+  testWidgets(
+    'שורה אחת: Shift+ימין מקצר מה-focus, Shift+שמאל מאריך (priming)',
+    (tester) async {
+      await pumpRegion(tester, text: 'אבגדהוז', width: 600);
+      expect(sel, equals('אבגדהוז'));
 
-    // Shift+ימין → מקצר מהקצה השמאלי (focus); ההתחלה (anchor) נשמרת.
-    await shiftPress(tester, LogicalKeyboardKey.arrowRight);
-    expect(sel, equals('אבגדהו'),
-        reason: 'מקצר מה-focus, לא משחית מההתחלה — לא "$sel"');
+      // Shift+ימין → מקצר מהקצה השמאלי (focus); ההתחלה (anchor) נשמרת.
+      await shiftPress(tester, LogicalKeyboardKey.arrowRight);
+      expect(
+        sel,
+        equals('אבגדהו'),
+        reason: 'מקצר מה-focus, לא משחית מההתחלה — לא "$sel"',
+      );
 
-    // Shift+שמאל → מאריך בחזרה בקצה השמאלי (focus).
-    await shiftPress(tester, LogicalKeyboardKey.arrowLeft);
-    expect(sel, equals('אבגדהוז'), reason: 'Shift+שמאל מאריך ב-focus');
-  });
+      // Shift+שמאל → מאריך בחזרה בקצה השמאלי (focus).
+      await shiftPress(tester, LogicalKeyboardKey.arrowLeft);
+      expect(sel, equals('אבגדהוז'), reason: 'Shift+שמאל מאריך ב-focus');
+    },
+  );
 
-  testWidgets('שורה אחת מתעלמת מ-tracker גלובלי תקוע (אנטי-זיהום בין-אזורי)',
-      (tester) async {
+  testWidgets('שורה אחת מתעלמת מ-tracker גלובלי תקוע (אנטי-זיהום בין-אזורי)', (
+    tester,
+  ) async {
     // מדמים מצב גלובלי "תקוע" מאזור אחר: reversed=false.
     rtlSelectionPriming = false;
     trackRtlSelection('');
@@ -90,12 +103,16 @@ void main() {
     // אילו היה משתמש ב-tracker הגלובלי התקוע, היה נועל את ה-anchor והתוצאה
     // הייתה שונה.
     await shiftPress(tester, LogicalKeyboardKey.arrowRight);
-    expect(sel, equals('אבגד'),
-        reason: 'שורה-אחת חייבת להשתמש בגאומטריה מקומית, לא ב-tracker הגלובלי');
+    expect(
+      sel,
+      equals('אבגד'),
+      reason: 'שורה-אחת חייבת להשתמש בגאומטריה מקומית, לא ב-tracker הגלובלי',
+    );
   });
 
-  testWidgets('רב-שורתי: Shift+חץ אינו משחית את ההתחלה (anchor)',
-      (tester) async {
+  testWidgets('רב-שורתי: Shift+חץ אינו משחית את ההתחלה (anchor)', (
+    tester,
+  ) async {
     const text = 'אבגדה והוזח טיכלמ נסעפצ קרשת אבגדה והוזח טיכלמ נסעפצ קרשת';
     await pumpRegion(tester, text: text, width: 120);
     // ברב-שורתי ההיפוך פועל על ה-focus; הדרישה הקריטית: תחילת המחרוזת
@@ -103,12 +120,16 @@ void main() {
     // שאין השחתה מההתחלה).
     await shiftPress(tester, LogicalKeyboardKey.arrowLeft);
     expect(sel, isNotNull);
-    expect(text.startsWith(sel!), isTrue,
-        reason: 'תחילת הבחירה (anchor) חייבת להישמר — לא "$sel"');
+    expect(
+      text.startsWith(sel!),
+      isTrue,
+      reason: 'תחילת הבחירה (anchor) חייבת להישמר — לא "$sel"',
+    );
   });
 
-  testWidgets('רב-שורתי מאפס כיוון גרירה מאזור קודם (אנטי-זיהום בין-אזורי)',
-      (tester) async {
+  testWidgets('רב-שורתי מאפס כיוון גרירה מאזור קודם (אנטי-זיהום בין-אזורי)', (
+    tester,
+  ) async {
     // מצב גלובלי "תקוע" מאזור אחר: reversed=false.
     trackRtlSelection('');
     trackRtlSelection('בג');
@@ -123,74 +144,94 @@ void main() {
 
     // ה-Action זיהה אזור חדש ואיפס את ה-tracker (ה-onSelectionChanged של
     // ה-harness אינו קורא ל-trackRtlSelection, ולכן הערך נשאר מאופס).
-    expect(rtlInferredReversed, isNull,
-        reason: 'מעבר אזור חייב לאפס כיוון גרירה ישן, לא לזהם בחירה רב-שורתית');
+    expect(
+      rtlInferredReversed,
+      isNull,
+      reason: 'מעבר אזור חייב לאפס כיוון גרירה ישן, לא לזהם בחירה רב-שורתית',
+    );
   });
 
-  testWidgets('אין יעד בחירה → לא בולע את המקש (משוחרר במעלה העץ)',
-      (tester) async {
+  testWidgets('אין יעד בחירה → לא בולע את המקש (משוחרר במעלה העץ)', (
+    tester,
+  ) async {
     var outerFired = false;
     final focusNode = FocusNode();
     addTearDown(focusNode.dispose);
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: Directionality(
-          textDirection: TextDirection.rtl,
-          child: CallbackShortcuts(
-            bindings: {
-              const SingleActivator(LogicalKeyboardKey.arrowLeft, shift: true):
-                  () => outerFired = true,
-            },
-            child: RtlSelectionShortcuts(
-              child: Focus(
-                focusNode: focusNode,
-                autofocus: true,
-                child: const SizedBox(width: 50, height: 50),
-              ),
-            ),
-          ),
-        ),
-      ),
-    ));
-    await tester.pump();
-    focusNode.requestFocus();
-    await tester.pump();
-
-    await shiftPress(tester, LogicalKeyboardKey.arrowLeft);
-    expect(outerFired, isTrue,
-        reason: 'בלי EditableText/SelectableRegion אסור לבלוע את Shift+חץ');
-  });
-
-  testWidgets('יעד LTR מקונן ב-wrapper RTL → לא מוחל היפוך RTL',
-      (tester) async {
-    var outerFired = false;
-    final focusNode = FocusNode();
-    addTearDown(focusNode.dispose);
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: Directionality(
-          textDirection: TextDirection.rtl,
-          child: CallbackShortcuts(
-            bindings: {
-              const SingleActivator(LogicalKeyboardKey.arrowLeft, shift: true):
-                  () => outerFired = true,
-            },
-            child: RtlSelectionShortcuts(
-              // אזור LTR מקונן בתוך wrapper RTL.
-              child: Directionality(
-                textDirection: TextDirection.ltr,
-                child: SelectableRegion(
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Directionality(
+            textDirection: TextDirection.rtl,
+            child: CallbackShortcuts(
+              bindings: {
+                const SingleActivator(
+                  LogicalKeyboardKey.arrowLeft,
+                  shift: true,
+                ): () =>
+                    outerFired = true,
+              },
+              child: RtlSelectionShortcuts(
+                child: Focus(
                   focusNode: focusNode,
-                  selectionControls: emptyTextSelectionControls,
-                  child: const Text('hello world',
-                      textDirection: TextDirection.ltr),
+                  autofocus: true,
+                  child: const SizedBox(width: 50, height: 50),
                 ),
               ),
             ),
           ),
         ),
       ),
-    ));
+    );
+    await tester.pump();
+    focusNode.requestFocus();
+    await tester.pump();
+
+    await shiftPress(tester, LogicalKeyboardKey.arrowLeft);
+    expect(
+      outerFired,
+      isTrue,
+      reason: 'בלי EditableText/SelectableRegion אסור לבלוע את Shift+חץ',
+    );
+  });
+
+  testWidgets('יעד LTR מקונן ב-wrapper RTL → לא מוחל היפוך RTL', (
+    tester,
+  ) async {
+    var outerFired = false;
+    final focusNode = FocusNode();
+    addTearDown(focusNode.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Directionality(
+            textDirection: TextDirection.rtl,
+            child: CallbackShortcuts(
+              bindings: {
+                const SingleActivator(
+                  LogicalKeyboardKey.arrowLeft,
+                  shift: true,
+                ): () =>
+                    outerFired = true,
+              },
+              child: RtlSelectionShortcuts(
+                // אזור LTR מקונן בתוך wrapper RTL.
+                child: Directionality(
+                  textDirection: TextDirection.ltr,
+                  child: SelectableRegion(
+                    focusNode: focusNode,
+                    selectionControls: emptyTextSelectionControls,
+                    child: const Text(
+                      'hello world',
+                      textDirection: TextDirection.ltr,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
     focusNode.requestFocus();
     await tester.pump();
@@ -198,6 +239,108 @@ void main() {
     await shiftPress(tester, LogicalKeyboardKey.arrowLeft);
     // ההכרעה לפי כיווניות היעד (LTR) → לא מוחלת לוגיקת RTL, והמקש משוחרר.
     expect(outerFired, isTrue, reason: 'יעד LTR אינו אמור לקבל לוגיקת RTL');
+  });
+
+  group('Ctrl/Alt+חץ בלי Shift — הזזת סמן מילה', () {
+    Future<TextEditingController> pumpField(
+      WidgetTester tester, {
+      required String text,
+      required int cursorAt,
+    }) async {
+      final controller = TextEditingController(text: text);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Directionality(
+              textDirection: TextDirection.rtl,
+              // TextField גולמי בכוונה: RtlTextField בולע Ctrl+חץ בעצמו,
+              // וכאן נבדק מסלול ה-fallback של RtlSelectionShortcuts ליעד קלט.
+              child: RtlSelectionShortcuts(
+                child: TextField(controller: controller, autofocus: true),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      controller.selection = TextSelection.collapsed(offset: cursorAt);
+      await tester.pump();
+      return controller;
+    }
+
+    Future<void> wordPress(WidgetTester tester, LogicalKeyboardKey k) async {
+      final modifier = usesAltForWordNavigation()
+          ? LogicalKeyboardKey.altLeft
+          : LogicalKeyboardKey.controlLeft;
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyEvent(k);
+      await tester.sendKeyUpEvent(modifier);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('קיצור מילה+שמאל מזיז את הסמן קדימה ב-RTL', (
+      tester,
+    ) async {
+      final controller = await pumpField(
+        tester,
+        text: 'אבג דהו זחט',
+        cursorAt: 0,
+      );
+      await wordPress(tester, LogicalKeyboardKey.arrowLeft);
+      expect(controller.selection.isCollapsed, isTrue);
+      expect(
+        controller.selection.baseOffset,
+        greaterThan(0),
+        reason: 'קיצור מילה+שמאל חייב להתקדם במחרוזת, לא להישאר בהתחלה',
+      );
+    });
+
+    testWidgets('קיצור מילה+ימין מזיז את הסמן אחורה ב-RTL', (
+      tester,
+    ) async {
+      const text = 'אבג דהו זחט';
+      final controller = await pumpField(
+        tester,
+        text: text,
+        cursorAt: text.length,
+      );
+      await wordPress(tester, LogicalKeyboardKey.arrowRight);
+      expect(controller.selection.isCollapsed, isTrue);
+      expect(
+        controller.selection.baseOffset,
+        lessThan(text.length),
+        reason: 'קיצור מילה+ימין חייב לחזור אחורה במחרוזת, לא להישאר בסוף',
+      );
+    });
+
+    testWidgets('SelectableRegion: קיצור מילה מקצר מה-focus ושומר anchor', (
+      tester,
+    ) async {
+      const text = 'אבג דהו זחט';
+      await pumpRegion(tester, text: text, width: 600);
+      await wordPress(tester, LogicalKeyboardKey.arrowRight);
+      expect(sel, isNotNull);
+      expect(
+        sel,
+        isNot(equals(text)),
+        reason: 'קיצור מילה אמור לקצר את הבחירה ברמת מילה',
+      );
+      expect(
+        text.startsWith(sel!),
+        isTrue,
+        reason: 'הקיצור חייב להיות מקצה ה-focus (הסוף), לא מה-anchor',
+      );
+    });
+  });
+
+  test('בחירת מקש הקיצור למילה תואמת את מוסכמות הפלטפורמה', () {
+    expect(usesAltForWordNavigation(TargetPlatform.macOS), isTrue);
+    expect(usesAltForWordNavigation(TargetPlatform.iOS), isTrue);
+    expect(usesAltForWordNavigation(TargetPlatform.windows), isFalse);
+    expect(usesAltForWordNavigation(TargetPlatform.linux), isFalse);
+    expect(usesAltForWordNavigation(TargetPlatform.android), isFalse);
+    expect(usesAltForWordNavigation(TargetPlatform.fuchsia), isFalse);
   });
 
   group('trackRtlSelection — הסקת כיוון הגרירה', () {

@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria/widgets/misc/link_context_menu_entry.dart';
 import 'package:otzaria/widgets/misc/overlay_scroll_anchor.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
@@ -383,7 +384,7 @@ class _LinkPreviewPanelState extends State<_LinkPreviewPanel> {
         size: fixedSize,
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(12),
-          child: SelectionArea(
+          child: AppSelectionArea(
             child: Builder(builder: widget.contentBuilder),
           ),
         ),
@@ -393,7 +394,7 @@ class _LinkPreviewPanelState extends State<_LinkPreviewPanel> {
       constraints: BoxConstraints(maxWidth: maxWidth),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        child: SelectionArea(
+        child: AppSelectionArea(
           child: Builder(builder: widget.contentBuilder),
         ),
       ),

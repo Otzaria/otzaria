@@ -24,7 +24,7 @@ const List<String> commonEmailDomains = [
 Future<String?> showErrorReportSenderEmailDialog({
   required BuildContext context,
   String initialValue = '',
-  String title = 'כתובת מייל לזיהוי',
+  String title = 'כתובת דואר אלקטרוני לזיהוי',
   String subtitle =
       'כתובת זו תצורף לדיווח כדי שצוות אוצריא יוכל לחזור אליכם במקרה הצורך.',
   String? Function(String)? validator,

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
 
 void main() {
@@ -303,10 +304,46 @@ void main() {
     });
 
     test('שורה אמצעית בפסקה — fraction באמצע', () {
-      final segments =
-          buildReadingSegments(['א', 'ב', 'ג', 'ד'], continuous: true);
-      // 4 שורות באותה פסקה. שורה 2 = offset 2 → 0.5.
-      expect(lineFractionWithinSegment(segments.first, 2), 0.5);
+      final segments = buildReadingSegments([
+        'א',
+        'ב',
+        'ג',
+        'ד',
+      ], continuous: true);
+      // הטקסט הממוזג 'א ב ג ד' (7 תווים), שורה 2 מתחילה בתו 4 → 4/7.
+      expect(
+        lineFractionWithinSegment(segments.first, 2),
+        closeTo(4 / 7, 1e-9),
+      );
+    });
+
+    test('משקל שורה מתעלם מגוף הערת inline ומניקוד', () {
+      const noteLine =
+          'קצר<sup class="footnote-marker">א</sup>'
+          '<i class="footnote">גוף הערה ארוך מאוד שמוסר לחלוטין ברינדור</i>';
+      final segments = buildReadingSegments(
+        ['אָאָאָאָ', noteLine, 'סוף'],
+        continuous: true,
+      );
+      // תצוגה: 'אָאָאָאָ'=4 graphemes, noteLine='קצרא'=4, ורווח אחרי כל שורה
+      // → שורה 2 מתחילה ב-10 מתוך 13.
+      expect(
+        lineFractionWithinSegment(segments.first, 2),
+        closeTo(10 / 13, 1e-9),
+      );
+    });
+
+    test('שקלול לפי אורך טקסט — שורה ארוכה מזיזה את השורות שאחריה', () {
+      final segments = buildReadingSegments(
+        ['אאאאאאאאאא', 'ב', 'ג'],
+        continuous: true,
+      );
+      // 'אאאאאאאאאא ב ג' (14 תווים): שורה 1 מתחילה בתו 11 → 11/14,
+      // הרבה אחרי 1/3 של חלוקה שווה.
+      expect(
+        lineFractionWithinSegment(segments.first, 1),
+        closeTo(11 / 14, 1e-9),
+      );
     });
 
     test('סגמנט שורה אחת מחזיר 0', () {
@@ -322,13 +359,18 @@ void main() {
       );
     });
 
-    test('intraLineFraction בפסקה רב-שורתית משוקלל לפי מספר השורות', () {
-      final segments =
-          buildReadingSegments(['א', 'ב', 'ג', 'ד'], continuous: true);
-      // שורה 2 (offset 2) מתוך 4, + חצי שורה פנימה → (2 + 0.5) / 4 = 0.625.
+    test('intraLineFraction בפסקה רב-שורתית משוקלל לפי אורך הטקסט', () {
+      final segments = buildReadingSegments([
+        'א',
+        'ב',
+        'ג',
+        'ד',
+      ], continuous: true);
+      // 'א ב ג ד' (7 תווים): שורה 2 מתחילה בתו 4, רוחבה (כולל רווח מפריד)
+      // 2 תווים, + חצי פנימה → (4 + 1)/7.
       expect(
         lineFractionWithinSegment(segments.first, 2, intraLineFraction: 0.5),
-        0.625,
+        closeTo(5 / 7, 1e-9),
       );
     });
   });
@@ -392,8 +434,12 @@ void main() {
 
     test('סגמנט רב-שורתי — חישוב fraction מחזיר תת-קבוצה של שורות', () {
       // 4 שורות בפסקה אחת.
-      final segments =
-          buildReadingSegments(['a', 'b', 'c', 'd'], continuous: true);
+      final segments = buildReadingSegments([
+        'a',
+        'b',
+        'c',
+        'd',
+      ], continuous: true);
 
       // viewport שמתחיל מעט לפני הסגמנט, מסתיים באמצעו:
       // leadingEdge=0, trailingEdge=1 → extent=1, startFraction=0, endFraction=1
@@ -446,6 +492,37 @@ void main() {
       expect(result, isEmpty);
     });
 
+    test('isLineRemnant מסנן שורות שנגמרות בקו העוגן בתוך סגמנט ממוזג', () {
+      // 10 שורות בפסקה ממוזגת אחת. ניווט לשורה 5 מיישר אותה לקו העוגן
+      // (0.05) לפי אותו שקלול שהניווט משתמש בו: הסגמנט תופס extent=1.0.
+      final segments = buildReadingSegments(
+        List<String>.generate(10, (i) => 'line$i'),
+        continuous: true,
+      );
+
+      final targetFraction = lineFractionWithinSegment(segments.first, 5);
+      final viewport = ReadingSegmentViewport(
+        segmentIndex: 0,
+        leadingEdge: 0.05 - targetFraction,
+        trailingEdge: 0.05 - targetFraction + 1.0,
+      );
+
+      // בלי הסינון - שורות שמעל קו העוגן (כולל ריפוד) נכללות ראשונות.
+      final unfiltered = sourceLineIndicesForSegmentViewports(segments, [
+        viewport,
+      ]);
+      expect(unfiltered.first, lessThan(5));
+
+      // עם הסינון - השורה שאליה ניווטו היא הראשונה.
+      final filtered = sourceLineIndicesForSegmentViewports(
+        segments,
+        [viewport],
+        isLineRemnant: isRemnantAbovePositionAnchor,
+      );
+      expect(filtered.first, 5);
+      expect(filtered, contains(6));
+    });
+
     test('viewports ממספר סגמנטים מחוברים יחד וממוינים', () {
       // 5 שורות: 0=header, 1-2 פסקה ראשונה, 3=header, 4 פסקה שניה
       final segments = buildReadingSegments(
@@ -457,9 +534,15 @@ void main() {
         segments,
         [
           const ReadingSegmentViewport(
-              segmentIndex: 1, leadingEdge: 0, trailingEdge: 1),
+            segmentIndex: 1,
+            leadingEdge: 0,
+            trailingEdge: 1,
+          ),
           const ReadingSegmentViewport(
-              segmentIndex: 3, leadingEdge: 0, trailingEdge: 1),
+            segmentIndex: 3,
+            leadingEdge: 0,
+            trailingEdge: 1,
+          ),
         ],
       );
       expect(result, [1, 2, 4]);

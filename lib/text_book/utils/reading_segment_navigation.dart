@@ -12,10 +12,13 @@ const double kReadingAnchorAlignment = 0.05;
 /// ולפתיחת ספר מהחיפוש הכללי.
 const double kSearchResultAnchorAlignment = 0.35;
 
-/// נוכחות מינימלית (חלק מה-viewport) שקטע חייב להשתרע מתחת לקו העוגן כדי
-/// להיחשב כמיקום הנוכחי. סופג רעש מדידה (עד ~כמה פיקסלים) כך ששייר של הסעיף
-/// הקודם שנגמר ממש סביב קו העוגן לא נספר כמיקום הנוכחי.
-const double _anchorRemnantTolerance = 0.02;
+/// סבילות סיווג סביב קו העוגן. חייבת להיות גדולה מ-[kAnchorLandingEpsilon]
+/// (שגיאת נחיתה מותרת) וקטנה מגובה שורת טקסט (~0.025) - אחרת הסיווג מתהפך.
+const double _anchorRemnantTolerance = 0.008;
+
+/// סף עצירה לדיוק העדין האיטרטיבי (חלק מה-viewport): מתחת למרחק הזה מהעוגן
+/// הניווט נחשב "הגיע". חייב להישאר קטן מ-[_anchorRemnantTolerance].
+const double kAnchorLandingEpsilon = 0.003;
 
 /// כמה מהקטע (חלק מה-viewport) נמצא ב"אזור הקריאה" - מתחת לקו העוגן.
 double _readingZonePresence(double leadingEdge, double trailingEdge) {
@@ -27,12 +30,10 @@ double _readingZonePresence(double leadingEdge, double trailingEdge) {
   return presence < 0 ? 0 : presence;
 }
 
-/// האם קטע ([leadingEdge]..[trailingEdge], חלק מה-viewport) הוא שייר של הסעיף
-/// הקודם: מתחיל מעל קו העוגן (מגיע מלמעלה) ונוכחותו מתחת לעוגן זניחה, כלומר
-/// נגמר בקו העוגן (או ממש סביבו, בגבול רעש המדידה) - המקום שאליו הניווט מיישר
-/// את הסעיף הבא. קטע קצר שמתחיל *בקו העוגן עצמו* הוא יעד הניווט, לא שייר.
+/// האם קטע ([leadingEdge]..[trailingEdge]) הוא שייר של הסעיף הקודם: מתחיל
+/// משמעותית מעל קו העוגן ונגמר בו. קטע שמתחיל בעוגן עצמו הוא יעד הניווט.
 bool isRemnantAbovePositionAnchor(double leadingEdge, double trailingEdge) =>
-    leadingEdge < kReadingAnchorAlignment &&
+    kReadingAnchorAlignment - leadingEdge > _anchorRemnantTolerance &&
     _readingZonePresence(leadingEdge, trailingEdge) <= _anchorRemnantTolerance;
 
 /// סוגר את חלונית הצד רק אחרי שגלילת [navigation] הסתיימה: סגירה תוך כדי
@@ -116,42 +117,46 @@ Future<void> scrollToSourceLine({
 
   // משך הגלילה היחסית. `animateScroll` עוטף את `ScrollController.animateTo`,
   // שזורק assert על `Duration.zero`; לכן מצב מיידי מתורגם לדיוק עדין קצר.
-  final fineDuration =
-      duration == Duration.zero ? const Duration(milliseconds: 120) : duration;
+  final fineDuration = duration == Duration.zero
+      ? const Duration(milliseconds: 120)
+      : duration;
 
-  // הסגמנט כבר גלוי — גלילה יחסית אחת ישירות אל היעד, בלי קפיצה ביניים.
-  final visible = _findPosition(positionsListener, segmentIndex);
-  if (visible != null) {
-    final extent =
-        (visible.itemTrailingEdge - visible.itemLeadingEdge) * viewportExtent;
-    if (extent.isFinite && extent > 0) {
-      final delta = visible.itemLeadingEdge * viewportExtent +
-          fraction * extent -
-          alignment * viewportExtent;
-      await scrollOffsetController.animateScroll(
-        offset: delta,
-        duration: fineDuration,
-        curve: curve,
-      );
+  // הסגמנט אינו גלוי — גלילה גסה אליו תחילה.
+  if (_findPosition(positionsListener, segmentIndex) == null) {
+    await scrollToSegment();
+    await WidgetsBinding.instance.endOfFrame;
+  }
+
+  // דיוק עדין איטרטיבי: viewportExtent הוא קירוב מההקשר הקורא, ולכן צעד
+  // יחיד מפספס ביחס הסטייה - מודדים ומתקנים עד שהיעד יושב על קו העוגן.
+  var stepDuration = fineDuration;
+  var previousDistance = double.infinity;
+  for (var attempt = 0; attempt < 5; attempt++) {
+    final measured = _findPosition(positionsListener, segmentIndex);
+    if (measured == null) {
       return;
     }
+    final extent =
+        (measured.itemTrailingEdge - measured.itemLeadingEdge) * viewportExtent;
+    if (!extent.isFinite || extent <= 0) {
+      return;
+    }
+    final delta =
+        measured.itemLeadingEdge * viewportExtent +
+        fraction * extent -
+        alignment * viewportExtent;
+    // יעד קרוב מספיק, או שאין התכנסות (קירוב גובה קיצוני) - עוצרים.
+    if (delta.abs() <= viewportExtent * kAnchorLandingEpsilon ||
+        delta.abs() >= previousDistance) {
+      return;
+    }
+    previousDistance = delta.abs();
+    await scrollOffsetController.animateScroll(
+      offset: delta,
+      duration: stepDuration,
+      curve: attempt == 0 ? curve : Curves.easeOut,
+    );
+    await WidgetsBinding.instance.endOfFrame;
+    stepDuration = const Duration(milliseconds: 120);
   }
-
-  // הסגמנט אינו גלוי — גלילה אליו, מדידה, ואז דיוק עדין אל היעד.
-  await scrollToSegment();
-  await WidgetsBinding.instance.endOfFrame;
-  final measured = _findPosition(positionsListener, segmentIndex);
-  if (measured == null) {
-    return;
-  }
-  final extent =
-      (measured.itemTrailingEdge - measured.itemLeadingEdge) * viewportExtent;
-  if (!extent.isFinite || extent <= 0) {
-    return;
-  }
-  await scrollOffsetController.animateScroll(
-    offset: extent * fraction,
-    duration: const Duration(milliseconds: 120),
-    curve: Curves.easeOut,
-  );
 }

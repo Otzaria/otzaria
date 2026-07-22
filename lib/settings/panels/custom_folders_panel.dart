@@ -588,7 +588,7 @@ class UserContentImportTile extends StatelessWidget {
           title: 'ייבוא דורות וקישורים',
           subtitle:
               'בחר קובצי "דורות.csv", "<שם הספר>.links.csv" או קובצי קישורים '
-              'של אוצריא ("<שם הספר>_links.json") והם ייקלטו לצמיתות. '
+              'של אוצריא ("<שם הספר>_links.json") והם יכנסו לספרייה. '
               'ייבוא חוזר מעדכן ערכים קיימים ומוסיף חדשים.',
           actions: [
             ActionButton.warning(
