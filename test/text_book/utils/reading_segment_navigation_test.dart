@@ -7,6 +7,25 @@ import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 void main() {
+  group('isRemnantAbovePositionAnchor', () {
+    test('קטע שנגמר בקו העוגן ומתחיל מעליו - שייר', () {
+      expect(isRemnantAbovePositionAnchor(-0.2, 0.05), isTrue);
+      expect(isRemnantAbovePositionAnchor(0.0, 0.055), isTrue);
+      // שייר קצר שנגמר בדיוק בעוגן - עדיין שייר, לא יעד.
+      expect(isRemnantAbovePositionAnchor(0.04, 0.05), isTrue);
+    });
+
+    test('קטע קצר שמתחיל בקו העוגן (בגבול הרעש) הוא יעד הניווט, לא שייר', () {
+      // פסוק קצר בפתיחת פרשה: רוחבו קטן מהסבילות אך הוא מתחיל בעוגן עצמו.
+      expect(isRemnantAbovePositionAnchor(0.0499, 0.0677), isFalse);
+      expect(isRemnantAbovePositionAnchor(0.05, 0.065), isFalse);
+    });
+
+    test('קטע עם נוכחות משמעותית מתחת לעוגן אינו שייר', () {
+      expect(isRemnantAbovePositionAnchor(-0.1, 0.3), isFalse);
+    });
+  });
+
   testWidgets(
     'scrollToSourceLine: duration zero + סגמנט גלוי + fraction>0 לא קורס',
     (tester) async {
@@ -54,6 +73,17 @@ void main() {
       await scrollFuture;
 
       expect(tester.takeException(), isNull);
+      final position = positionsListener.itemPositions.value.singleWhere(
+        (item) => item.index == 0,
+      );
+      final targetEdge =
+          position.itemLeadingEdge +
+          0.5 * (position.itemTrailingEdge - position.itemLeadingEdge);
+      expect(
+        targetEdge,
+        closeTo(kReadingAnchorAlignment, kAnchorLandingEpsilon),
+        reason: 'היעד בתוך הסגמנט חייב לנחות על קו העוגן',
+      );
     },
   );
 

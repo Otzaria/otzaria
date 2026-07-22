@@ -12,6 +12,9 @@
 /// **אסור** להזליג segmentIndex אל ה-state של ה-bloc. הוא מקומי לרינדור.
 library;
 
+import 'package:characters/characters.dart';
+import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
+
 class ReadingLineRange {
   final int lineIndex;
   final int start;
@@ -65,6 +68,86 @@ final Expando<List<ReadingSegment>> _lineSegmentsCache =
     Expando<List<ReadingSegment>>('lineReadingSegments');
 final Expando<List<ReadingSegment>> _continuousSegmentsCache =
     Expando<List<ReadingSegment>>('continuousReadingSegments');
+final Expando<List<double>> _lineBoundaryFractionsCache = Expando<List<double>>(
+  'lineBoundaryFractions',
+);
+
+final RegExp _htmlTagPattern = RegExp(r'<[^>]*>');
+final RegExp _htmlEntityPattern = RegExp(r'&[a-zA-Z]+;|&#\d+;');
+
+/// אורך התצוגה של הטקסט: ללא גוף הערות inline (כמו ברינדור), ללא תגיות,
+/// בספירת graphemes - כך שניקוד וישויות HTML אינם מטים את המשקל.
+int _visibleTextLength(String text) => notes
+    .stripInlineNotes(text)
+    .replaceAll(_htmlTagPattern, '')
+    .replaceAll(_htmlEntityPattern, ' ')
+    .characters
+    .length;
+
+/// גבולות מצטברים (0..1) של שורות הסגמנט לפי אורך הטקסט הנראה - קירוב
+/// לחלקן היחסי של השורות בגובה המרונדר. מחושב פעם אחת לכל סגמנט.
+List<double>? _lineBoundaryFractions(ReadingSegment segment) {
+  if (!segment.isLoaded) {
+    return null;
+  }
+  final lineCount = segment.sourceLineIndices.length;
+  if (segment.lineRanges.length != lineCount || segment.text.isEmpty) {
+    return null;
+  }
+  final cached = _lineBoundaryFractionsCache[segment];
+  if (cached != null) {
+    return cached;
+  }
+
+  final boundaries = List<double>.filled(lineCount + 1, 0);
+  var total = 0.0;
+  for (var i = 0; i < lineCount; i++) {
+    final range = segment.lineRanges[i];
+    final visible = _visibleTextLength(
+      segment.text.substring(range.start, range.end),
+    );
+    total += visible + (i < lineCount - 1 ? 1 : 0);
+    boundaries[i + 1] = total;
+  }
+  if (total <= 0) {
+    return null;
+  }
+  for (var i = 1; i <= lineCount; i++) {
+    boundaries[i] /= total;
+  }
+  _lineBoundaryFractionsCache[segment] = boundaries;
+  return boundaries;
+}
+
+/// האינדקס הגדול ביותר שבו `boundaries[i] <= value` (חיפוש בינארי).
+int _lastIndexAtOrBelow(List<double> boundaries, double value) {
+  var low = 0;
+  var high = boundaries.length - 1;
+  while (low < high) {
+    final mid = (low + high + 1) >> 1;
+    if (boundaries[mid] <= value) {
+      low = mid;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return low;
+}
+
+/// האינדקס הקטן ביותר שבו `boundaries[i] >= value` (חיפוש בינארי).
+int _firstIndexAtOrAbove(List<double> boundaries, double value) {
+  var low = 0;
+  var high = boundaries.length;
+  while (low < high) {
+    final mid = (low + high) >> 1;
+    if (boundaries[mid] < value) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  return low;
+}
 
 bool isReadingHeaderLine(String line) {
   final headerPattern = RegExp(r'^\s*<h[1-6]', caseSensitive: false);
@@ -285,8 +368,9 @@ List<ReadingSegment> updateReadingSegmentsForRange(
   }
 
   final normalizedStart = startLine < 0 ? 0 : startLine;
-  final normalizedEnd =
-      endLine >= nextLines.length ? nextLines.length - 1 : endLine;
+  final normalizedEnd = endLine >= nextLines.length
+      ? nextLines.length - 1
+      : endLine;
   if (normalizedStart > normalizedEnd) {
     return currentSegments;
   }
@@ -394,8 +478,9 @@ List<ReadingSegment> updateReadingSegmentsForRange(
   final expandedWindowStart = replaceStartSegment.isLoaded
       ? replaceStartSegment.startLineIndex
       : windowStart;
-  final expandedWindowEnd =
-      replaceEndSegment.isLoaded ? replaceEndSegment.endLineIndex : windowEnd;
+  final expandedWindowEnd = replaceEndSegment.isLoaded
+      ? replaceEndSegment.endLineIndex
+      : windowEnd;
   final replacementSegments = _buildContinuousSegments(
     nextLines,
     startIndex: expandedWindowStart,
@@ -446,8 +531,9 @@ int segmentIndexForLine(List<ReadingSegment> segments, int lineIndex) {
   if (segments.isEmpty) {
     return 0;
   }
-  final exact =
-      segments.indexWhere((segment) => segment.containsLine(lineIndex));
+  final exact = segments.indexWhere(
+    (segment) => segment.containsLine(lineIndex),
+  );
   if (exact >= 0) {
     return exact;
   }
@@ -482,6 +568,14 @@ double lineFractionWithinSegment(
   if (lineCount <= 1) {
     return within;
   }
+  // שקלול לפי אורך הטקסט הנראה: שורות (פסוקים) נבדלות מאוד באורכן, וחלוקה
+  // שווה לפי מספר שורות מפספסת את היעד בכמה שורות בפסקאות ארוכות.
+  final boundaries = _lineBoundaryFractions(segment);
+  if (boundaries != null) {
+    final offset = lineOffset.clamp(0, lineCount - 1);
+    final start = boundaries[offset];
+    return start + within * (boundaries[offset + 1] - start);
+  }
   return ((lineOffset.clamp(0, lineCount - 1)) + within) / lineCount;
 }
 
@@ -492,8 +586,9 @@ double lineFractionWithinSegment(
 /// להבדיל בין המצבים.
 List<int> sourceLineIndicesForSegmentViewports(
   List<ReadingSegment> segments,
-  Iterable<ReadingSegmentViewport> viewports,
-) {
+  Iterable<ReadingSegmentViewport> viewports, {
+  bool Function(double leadingEdge, double trailingEdge)? isLineRemnant,
+}) {
   final sourceIndices = <int>{};
   for (final viewport in viewports) {
     if (viewport.segmentIndex < 0 || viewport.segmentIndex >= segments.length) {
@@ -515,31 +610,65 @@ List<int> sourceLineIndicesForSegmentViewports(
 
     if (!segment.isLoaded) {
       final startFraction = (-viewport.leadingEdge / extent).clamp(0.0, 1.0);
-      final endFraction =
-          ((1.0 - viewport.leadingEdge) / extent).clamp(0.0, 1.0);
+      final endFraction = ((1.0 - viewport.leadingEdge) / extent).clamp(
+        0.0,
+        1.0,
+      );
       final centerFraction = (startFraction + endFraction) / 2;
       final centerOffset = (centerFraction * (lineCount - 1)).round();
       final sliceStart = (centerOffset - 1).clamp(0, lineCount - 1);
       final sliceEnd = (centerOffset + 2).clamp(sliceStart + 1, lineCount);
-      sourceIndices.addAll(segment.sourceLineIndices.sublist(
-        sliceStart,
-        sliceEnd,
-      ));
+      sourceIndices.addAll(
+        segment.sourceLineIndices.sublist(
+          sliceStart,
+          sliceEnd,
+        ),
+      );
       continue;
     }
 
     final startFraction = (-viewport.leadingEdge / extent).clamp(0.0, 1.0);
     final endFraction = ((1.0 - viewport.leadingEdge) / extent).clamp(0.0, 1.0);
-    var startOffset = (startFraction * lineCount).floor() - 1;
-    var endOffset = (endFraction * lineCount).ceil() + 1;
 
-    startOffset = startOffset.clamp(0, lineCount - 1);
-    endOffset = endOffset.clamp(startOffset + 1, lineCount);
+    // גבולות השורות משוקללים לפי אורך הטקסט הנראה - חייב להיות זהה לשקלול
+    // ב-lineFractionWithinSegment כדי שהנחיתה וההדגשה יצביעו על אותה שורה.
+    final boundaries = _lineBoundaryFractions(segment);
+    double lineStartFraction(int offset) =>
+        boundaries != null ? boundaries[offset] : offset / lineCount;
+    double lineEndFraction(int offset) =>
+        boundaries != null ? boundaries[offset + 1] : (offset + 1) / lineCount;
 
-    sourceIndices.addAll(segment.sourceLineIndices.sublist(
-      startOffset,
-      endOffset,
-    ));
+    // חיפוש בינארי - סגמנט ללא כותרות עשוי להכיל אלפי שורות, והמסלול רץ
+    // בכל עדכון גלילה.
+    var startOffset = boundaries != null
+        ? _lastIndexAtOrBelow(boundaries, startFraction).clamp(0, lineCount - 1)
+        : (startFraction * lineCount).floor();
+    startOffset = (startOffset - 1).clamp(0, lineCount - 1);
+
+    var endOffset = boundaries != null
+        ? _firstIndexAtOrAbove(boundaries, endFraction)
+        : (endFraction * lineCount).ceil();
+    endOffset = (endOffset + 1).clamp(startOffset + 1, lineCount);
+
+    // שורות מעל קו העוגן בתוך פסקה ממוזגת הן שייר של הסעיף הקודם -
+    // בלעדי הסינון ההדגשה בסרגל הניווט נופלת על הפרשה/הסעיף הקודמים.
+    if (isLineRemnant != null) {
+      while (startOffset < endOffset - 1) {
+        final lineLeading =
+            viewport.leadingEdge + extent * lineStartFraction(startOffset);
+        final lineTrailing =
+            viewport.leadingEdge + extent * lineEndFraction(startOffset);
+        if (!isLineRemnant(lineLeading, lineTrailing)) break;
+        startOffset++;
+      }
+    }
+
+    sourceIndices.addAll(
+      segment.sourceLineIndices.sublist(
+        startOffset,
+        endOffset,
+      ),
+    );
   }
   return sourceIndices.toList()..sort();
 }

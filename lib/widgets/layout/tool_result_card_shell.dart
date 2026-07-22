@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/misc/app_selection_area.dart';
 
 /// מעטפת משותפת לכרטיסי תוצאה במסכי כלים.
 class ToolResultCardShell extends StatelessWidget {
@@ -43,7 +44,7 @@ class ToolResultCardShell extends StatelessWidget {
           onTap: onTap,
           borderRadius: AppTokens.borderRadiusAll,
           focusColor: Colors.transparent,
-          child: SelectionArea(
+          child: AppSelectionArea(
             child: Padding(
               padding: padding,
               child: child,

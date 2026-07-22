@@ -18,6 +18,7 @@ import 'package:otzaria/services/book_details_service.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/dialogs/error_report_sender_email_dialog.dart';
+import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria/widgets/misc/phone_report_tab.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -74,31 +75,36 @@ class _DirectReportDetails extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: 560,
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _ReportDetailRow(label: 'ספר', value: report.bookTitle),
-            _ReportDetailRow(label: 'מיקום', value: report.currentRef),
-            _ReportDetailRow(
-              label: 'שורה',
-              value: report.lineNumber.toString(),
-            ),
-            _ReportDetailRow(label: 'כתובת זיהוי', value: report.senderEmail),
-            _ReportDetailRow(label: 'טקסט שנבחר', value: report.selectedText),
-            _ReportDetailRow(label: 'פירוט הטעות', value: report.errorDetails),
-            _ReportDetailRow(label: 'הקשר', value: report.contextText),
-            _ReportDetailRow(label: 'נתיב קובץ', value: report.filePath),
-            _ReportDetailRow(
-              label: 'תיקיית מקור',
-              value: report.sourceFolder,
-            ),
-            _ReportDetailRow(
-              label: 'גרסת ספרייה',
-              value: report.libraryVersion,
-            ),
-          ],
+      child: AppSelectionArea(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _ReportDetailRow(label: 'ספר', value: report.bookTitle),
+              _ReportDetailRow(label: 'מיקום', value: report.currentRef),
+              _ReportDetailRow(
+                label: 'שורה',
+                value: report.lineNumber.toString(),
+              ),
+              _ReportDetailRow(label: 'כתובת זיהוי', value: report.senderEmail),
+              _ReportDetailRow(label: 'טקסט שנבחר', value: report.selectedText),
+              _ReportDetailRow(
+                label: 'פירוט הטעות',
+                value: report.errorDetails,
+              ),
+              _ReportDetailRow(label: 'הקשר', value: report.contextText),
+              _ReportDetailRow(label: 'נתיב קובץ', value: report.filePath),
+              _ReportDetailRow(
+                label: 'תיקיית מקור',
+                value: report.sourceFolder,
+              ),
+              _ReportDetailRow(
+                label: 'גרסת ספרייה',
+                value: report.libraryVersion,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -127,7 +133,7 @@ class _ReportDetailRow extends StatelessWidget {
             style: Theme.of(context).textTheme.labelMedium,
           ),
           const SizedBox(height: 3),
-          SelectableText(
+          Text(
             displayValue,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
@@ -167,9 +173,9 @@ class ErrorReportHelper {
     }
     if (text.isNotEmpty) params['text'] = text;
 
-    return Uri.parse('$dictaEditUrl/goto')
-        .replace(queryParameters: params)
-        .toString();
+    return Uri.parse(
+      '$dictaEditUrl/goto',
+    ).replace(queryParameters: params).toString();
   }
 
   static List<String> resolveReportContent({
@@ -195,7 +201,8 @@ class ErrorReportHelper {
       return sanitizeReportText(selectedText);
     }
 
-    final hasValidPreferredLine = preferredLineNumber != null &&
+    final hasValidPreferredLine =
+        preferredLineNumber != null &&
         preferredLineNumber >= 0 &&
         preferredLineNumber < content.length;
     if (!hasValidPreferredLine) {
@@ -275,8 +282,9 @@ class ErrorReportHelper {
       }
     }
 
-    final ctxStart =
-        (startWordIndex - wordsBefore) < 0 ? 0 : (startWordIndex - wordsBefore);
+    final ctxStart = (startWordIndex - wordsBefore) < 0
+        ? 0
+        : (startWordIndex - wordsBefore);
     final ctxEnd = (endWordIndex + wordsAfter) >= matches.length
         ? matches.length - 1
         : (endWordIndex + wordsAfter);
@@ -308,15 +316,18 @@ class ErrorReportHelper {
       );
     }
 
-    final hasValidPreferredLine = preferredLineNumber != null &&
+    final hasValidPreferredLine =
+        preferredLineNumber != null &&
         preferredLineNumber >= 0 &&
         preferredLineNumber < content.length;
 
     final int? lineNumber = hasValidPreferredLine ? preferredLineNumber : null;
-    final lineStart =
-        lineNumber != null ? _lineStartOffset(content, lineNumber) : 0;
-    final lineEnd =
-        lineNumber != null ? lineStart + content[lineNumber].length : 0;
+    final lineStart = lineNumber != null
+        ? _lineStartOffset(content, lineNumber)
+        : 0;
+    final lineEnd = lineNumber != null
+        ? lineStart + content[lineNumber].length
+        : 0;
 
     int selectionStart = -1;
     bool usedLineFallback = false;
@@ -444,7 +455,8 @@ class ErrorReportHelper {
 
     final detailsSection = (() {
       final base = errorDetails.isEmpty ? '' : '\n$errorDetails';
-      final extra = '''
+      final extra =
+          '''
       
     מספר שורה: $lineNumber
     הקשר (4 מילים לפני ואחרי):
@@ -537,8 +549,9 @@ $detailsSection
     required String contextText,
     required String libraryVersion,
   }) {
-    final normalizedLibraryVersion =
-        libraryVersion.trim().isEmpty ? 'unknown' : libraryVersion.trim();
+    final normalizedLibraryVersion = libraryVersion.trim().isEmpty
+        ? 'unknown'
+        : libraryVersion.trim();
     return DirectErrorReport(
       id: '${DateTime.now().microsecondsSinceEpoch}-${widgetHash(bookTitle, currentRef, reportData.selectedText)}',
       senderEmail: senderEmail,
@@ -734,12 +747,12 @@ $detailsSection
       final emailAddress = sourceFolder == null
           ? _fallbackMail
           : sourceToEmailMap.entries
-                  .firstWhereOrNull(
-                    (entry) =>
-                        normalizedSource.contains(entry.key.toLowerCase()),
-                  )
-                  ?.value ??
-              _fallbackMail;
+                    .firstWhereOrNull(
+                      (entry) =>
+                          normalizedSource.contains(entry.key.toLowerCase()),
+                    )
+                    ?.value ??
+                _fallbackMail;
 
       final emailUri = Uri(
         scheme: 'mailto',
@@ -829,7 +842,8 @@ $detailsSection
     currentLineNumber = savedSelectedIndex;
 
     // אם אין savedSelectedIndex, נשתמש ב-state
-    currentLineNumber ??= state.selectedIndex ??
+    currentLineNumber ??=
+        state.selectedIndex ??
         (state.visibleIndices.isNotEmpty ? state.visibleIndices.first : 0);
 
     final resolvedSelectedText = resolveReportTargetText(
@@ -837,8 +851,9 @@ $detailsSection
       selectedText: selectedText,
       preferredLineNumber: currentLineNumber,
     );
-    final bookDetails =
-        await BookDetailsService().getBookDetails(effectiveBook);
+    final bookDetails = await BookDetailsService().getBookDetails(
+      effectiveBook,
+    );
     final directReportTargetLabel = resolveDirectReportTargetLabel(
       bookDetails['תיקיית המקור'],
     );
@@ -1002,8 +1017,9 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
 
   Future<void> _loadPhoneReportData() async {
     try {
-      final availability =
-          await _dataService.checkDataAvailability(widget.bookTitle);
+      final availability = await _dataService.checkDataAvailability(
+        widget.bookTitle,
+      );
 
       if (mounted) {
         setState(() {
@@ -1028,7 +1044,8 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
   Widget build(BuildContext context) {
     // חישוב גובה זמין בפועל (ללא שורת המשימות ואזורים מוגנים אחרים)
     final mediaQuery = MediaQuery.of(context);
-    final availableHeight = mediaQuery.size.height -
+    final availableHeight =
+        mediaQuery.size.height -
         mediaQuery.padding.top -
         mediaQuery.padding.bottom;
 
@@ -1128,13 +1145,15 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
-            ..._dataErrors.map((error) => Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    error,
-                    textAlign: TextAlign.center,
-                  ),
-                )),
+            ..._dataErrors.map(
+              (error) => Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  error,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -1160,8 +1179,9 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
           bookId: _bookId!,
           lineNumber: lineNumber,
         );
-        Navigator.of(context)
-            .pop(ReportDialogResult(ErrorReportAction.phone, reportData));
+        Navigator.of(
+          context,
+        ).pop(ReportDialogResult(ErrorReportAction.phone, reportData));
       },
       onCancel: () {
         Navigator.of(context).pop();
@@ -1260,16 +1280,16 @@ class _RegularReportTabState extends State<RegularReportTab> {
                     Text(
                       'לחץ כאן על מנת לתקן את הספר בעצמך',
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            color: colorScheme.onPrimaryContainer,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        color: colorScheme.onPrimaryContainer,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       'ספר זה מקורו בדיקטה — התיקון ייפתח באתר אוצריא ישירות בקטע שנבחר. לחילופין, ניתן להמשיך בדיווח רגיל.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onPrimaryContainer,
-                          ),
+                        color: colorScheme.onPrimaryContainer,
+                      ),
                     ),
                   ],
                 ),
@@ -1309,8 +1329,9 @@ class _RegularReportTabState extends State<RegularReportTab> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    border:
-                        Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                    ),
                     borderRadius: AppTokens.borderRadiusAll,
                   ),
                   child: SingleChildScrollView(
@@ -1334,10 +1355,9 @@ class _RegularReportTabState extends State<RegularReportTab> {
                   alignment: Alignment.centerRight,
                   child: Text(
                     'פירוט הטעות: (חובה לפרט מהי הטעות, בלא פירוט לא נוכל לטפל)',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -1419,7 +1439,8 @@ class _RegularReportTabState extends State<RegularReportTab> {
                 final shouldSend = await showTwoActionsDialog(
                   context: context,
                   title: 'אישור שליחת דיווח',
-                  content: 'לחיצה על שלח דיווח תשלח את השגיאה ישירות '
+                  content:
+                      'לחיצה על שלח דיווח תשלח את השגיאה ישירות '
                       'ל${widget.directReportTargetLabel}, יש לשים לב '
                       'לתקינות הדיווח לפני השליחה',
                   cancelText: 'ביטול',
@@ -1442,8 +1463,10 @@ class _RegularReportTabState extends State<RegularReportTab> {
 /// מנסה לפתוח את עמוד התיקון העצמי של ספרי דיקטה באתר, ממוקד בקטע שנבחר
 /// (כשנמסר). מחזיר אם הפתיחה הצליחה (כדי שהקורא יוכל להציג הודעת שגיאה
 /// כשהדפדפן לא נפתח).
-Future<bool> launchDictaEditPage(String bookTitle,
-    {String selectedText = ''}) async {
+Future<bool> launchDictaEditPage(
+  String bookTitle, {
+  String selectedText = '',
+}) async {
   try {
     final uri = Uri.parse(
       ErrorReportHelper.dictaEditUrlFor(bookTitle, selectedText: selectedText),

@@ -37,6 +37,9 @@ class AppContextMenuRegion extends StatefulWidget {
   /// משמש לשמירת ההקשר (למשל אינדקס השורה) עבור פעולות התפריט.
   final GestureTapDownCallback? onSecondaryTapDown;
 
+  /// האם לחיצה ארוכה במגע או בעט פותחת את תפריט ההקשר.
+  final bool openOnLongPress;
+
   /// מקבל את מיקום הלחיצה הגלובלי ומחזיר `true` כאשר יש לשמר את הבחירה הקיימת
   /// (הלחיצה נופלת על הטקסט המסומן). במצב זה לחיצה ימנית זוכה באופן מיידי (eager)
   /// בכפתור הימני, וכך מונעת מ-[SelectableRegion] של Flutter לאסוף/לשחרר את
@@ -52,6 +55,7 @@ class AppContextMenuRegion extends StatefulWidget {
     this.menuItemKeysByLabel,
     this.onSecondaryTapDown,
     this.shouldPreserveSelectionOnSecondaryTap,
+    this.openOnLongPress = true,
   });
 
   @override
@@ -369,7 +373,9 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
         PointerDeviceKind.stylus,
         PointerDeviceKind.invertedStylus,
       },
-      onLongPressStart: (details) => _openContextMenu(details.globalPosition),
+      onLongPressStart: widget.openOnLongPress
+          ? (details) => _openContextMenu(details.globalPosition)
+          : null,
       child: RawGestureDetector(
         behavior: HitTestBehavior.translucent,
         gestures: <Type, GestureRecognizerFactory>{

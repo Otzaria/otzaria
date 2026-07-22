@@ -52,7 +52,7 @@ class ReferenceBooksCache {
   /// ה-I/O הממשי בפעולה דטרמיניסטית, בלי להוציא את התלות ב-pdfrx לחוץ.
   @visibleForTesting
   Future<List<(String, String, int)>> Function(String filePath)
-      pdfOutlineParser = _parsePdfOutlineEntries;
+  pdfOutlineParser = _parsePdfOutlineEntries;
 
   /// Injection לבדיקות בלבד: repository ייעודי ל-persistent cache של
   /// outlines. אם לא סופק — נשתמש ב-[SqliteDataProvider.instance.repository].
@@ -63,7 +63,7 @@ class ReferenceBooksCache {
   /// מחזיר `null` אם הקובץ לא זמין ולכן אין טעם לגשת ל-persistent cache.
   @visibleForTesting
   Future<({int fileSize, int lastModified})?> Function(String filePath)?
-      pdfFileMetadataProviderOverride;
+  pdfFileMetadataProviderOverride;
 
   /// Injection לבדיקות בלבד: שעון מילישניות.
   @visibleForTesting
@@ -194,8 +194,9 @@ class ReferenceBooksCache {
       if (myGen != _generation) return;
       if (!pathsOk) {
         debugPrint(
-            '[ReferenceBooksCache] aborting warmUp — category-path prewarm failed; '
-            'next warmUp() will retry');
+          '[ReferenceBooksCache] aborting warmUp — category-path prewarm failed; '
+          'next warmUp() will retry',
+        );
         return;
       }
 
@@ -207,9 +208,9 @@ class ReferenceBooksCache {
 
       final knownFsPdfPaths = FileSystemLibraryProvider.instance.isInitialized
           ? localFsPdfBooks
-              .map((entry) => entry.$2.filePath)
-              .where((path) => path.isNotEmpty)
-              .toSet()
+                .map((entry) => entry.$2.filePath)
+                .where((path) => path.isNotEmpty)
+                .toSet()
           : null;
 
       unawaited(
@@ -225,9 +226,11 @@ class ReferenceBooksCache {
       // each requiring a file open + outline parse on first FindRef hit.
       // Running here (post-swap) keeps `warmUp()`'s returned Future fast,
       // while the throttled parse fills the cache before the user types.
-      unawaited(prewarmAllPdfOutlines().catchError((Object e) {
-        debugPrint('[ReferenceBooksCache] PDF outline pre-warm failed: $e');
-      }));
+      unawaited(
+        prewarmAllPdfOutlines().catchError((Object e) {
+          debugPrint('[ReferenceBooksCache] PDF outline pre-warm failed: $e');
+        }),
+      );
     } catch (e) {
       debugPrint('[ReferenceBooksCache] Warmup failed: $e');
       if (myGen == _generation) {
@@ -287,7 +290,9 @@ class ReferenceBooksCache {
 
     try {
       final path = await BookDatabaseResolver.buildCategoryPath(
-          repository, book.categoryId);
+        repository,
+        book.categoryId,
+      );
       _categoryPaths[bookId] = path;
       return path;
     } catch (e) {
@@ -320,7 +325,8 @@ class ReferenceBooksCache {
       if (myGen != _generation) return true; // ביטול, לא כשל.
 
       final byId = <int, ({int? parentId, String title})>{
-        for (final c in categories) c.id: (parentId: c.parentId, title: c.title)
+        for (final c in categories)
+          c.id: (parentId: c.parentId, title: c.title),
       };
 
       // Memoization של נתיב לפי categoryId — כל נתיב מחושב פעם אחת.
@@ -363,7 +369,8 @@ class ReferenceBooksCache {
   /// Returns outline entries for a file-system PDF, parsed lazily and cached.
   /// Each entry is (normalizedTitle, originalTitle, pageNumber).
   Future<List<(String, String, int)>> getPdfOutlineEntries(
-      String filePath) async {
+    String filePath,
+  ) async {
     return _pdfOutlineCache.putIfAbsent(filePath, () async {
       if (filePath.isEmpty) return const [];
 
@@ -378,12 +385,14 @@ class ReferenceBooksCache {
         if (persistentEntry != null) {
           try {
             final entries = persistentEntry.decodeEntries();
-            unawaited(_touchPersistentPdfOutline(filePath).catchError((e) {
-              debugPrint(
-                '[ReferenceBooksCache] Failed to touch PDF outline cache '
-                'for $filePath: $e',
-              );
-            }));
+            unawaited(
+              _touchPersistentPdfOutline(filePath).catchError((e) {
+                debugPrint(
+                  '[ReferenceBooksCache] Failed to touch PDF outline cache '
+                  'for $filePath: $e',
+                );
+              }),
+            );
             return entries;
           } catch (e) {
             debugPrint(
@@ -400,16 +409,18 @@ class ReferenceBooksCache {
       if (persistentEntry != null) {
         final matchesCurrentFile =
             persistentEntry.fileSize == metadata.fileSize &&
-                persistentEntry.lastModified == metadata.lastModified;
+            persistentEntry.lastModified == metadata.lastModified;
         if (matchesCurrentFile) {
           try {
             final entries = persistentEntry.decodeEntries();
-            unawaited(_touchPersistentPdfOutline(filePath).catchError((e) {
-              debugPrint(
-                '[ReferenceBooksCache] Failed to touch PDF outline cache '
-                'for $filePath: $e',
-              );
-            }));
+            unawaited(
+              _touchPersistentPdfOutline(filePath).catchError((e) {
+                debugPrint(
+                  '[ReferenceBooksCache] Failed to touch PDF outline cache '
+                  'for $filePath: $e',
+                );
+              }),
+            );
             return entries;
           } catch (e) {
             debugPrint(
@@ -466,8 +477,9 @@ class ReferenceBooksCache {
 
     for (var i = 0; i < paths.length; i += maxConcurrent) {
       if (gen != _generation) return;
-      final end =
-          (i + maxConcurrent < paths.length) ? i + maxConcurrent : paths.length;
+      final end = (i + maxConcurrent < paths.length)
+          ? i + maxConcurrent
+          : paths.length;
       await Future.wait([
         for (var j = i; j < end; j++) getPdfOutlineEntries(paths[j]),
       ]);
@@ -507,7 +519,7 @@ class ReferenceBooksCache {
   /// outline) כדי לבדוק אילו קבצים נטענו.
   @visibleForTesting
   Map<String, Future<List<(String, String, int)>>>
-      get pdfOutlineCacheForTesting => _pdfOutlineCache;
+  get pdfOutlineCacheForTesting => _pdfOutlineCache;
 
   /// Searches books by title and acronym from memory.
   ///
@@ -535,8 +547,9 @@ class ReferenceBooksCache {
         matchRank = 2;
       } else {
         // התאמת ראשי תיבות — המונחים כבר מנורמלים בעת טעינת הקאש.
-        final normalizedAcronyms =
-            AcronymsCache.instance.getAcronymsForBook(book.id);
+        final normalizedAcronyms = AcronymsCache.instance.getAcronymsForBook(
+          book.id,
+        );
         if (normalizedAcronyms != null) {
           for (final a in normalizedAcronyms) {
             if (a == q) {
@@ -639,24 +652,27 @@ class ReferenceBooksCache {
     for (final book in BooksCache.instance.books) {
       final path = _categoryPaths[book.id];
       if (path == null || path.isEmpty) continue;
-      if (_eraFromCategoryPath(path) != era) continue;
+      if (eraFromCategoryPath(path) != era) continue;
 
       final t = _normalizedTitles[book.id] ?? '';
       if (t.isEmpty) continue;
       final titleTokens = t.split(' ').where((w) => w.isNotEmpty);
-      final matches =
-          topicTokens.every((qt) => titleTokens.any((w) => w.startsWith(qt)));
+      final matches = topicTokens.every(
+        (qt) => titleTokens.any((w) => w.startsWith(qt)),
+      );
       if (!matches) continue;
 
-      hits.add(ReferenceBookHit(
-        bookId: book.id,
-        title: book.title,
-        normalizedTitle: t,
-        filePath: book.filePath ?? '',
-        fileType: book.fileType,
-        matchRank: 0,
-        orderIndex: book.orderIndex,
-      ));
+      hits.add(
+        ReferenceBookHit(
+          bookId: book.id,
+          title: book.title,
+          normalizedTitle: t,
+          filePath: book.filePath ?? '',
+          fileType: book.fileType,
+          matchRank: 0,
+          orderIndex: book.orderIndex,
+        ),
+      );
       if (hits.length >= limit) break;
     }
     return hits;
@@ -665,7 +681,7 @@ class ReferenceBooksCache {
   /// מסווג ספר לדור לפי segment בנתיב הקטגוריה. מכסה ראשונים/אחרונים/מחברי
   /// זמננו — אלה היחידים שמופיעים כ-segment בעץ. ספרי-יסוד וקורפוס מקור
   /// (תנ"ך/תלמוד) אינם מתויגים כך ולכן מוחזרים כ-[CommentaryEra.other].
-  static CommentaryEra _eraFromCategoryPath(String path) {
+  static CommentaryEra eraFromCategoryPath(String path) {
     final parts = path.split(', ');
     if (parts.contains('ראשונים')) return CommentaryEra.rishonim;
     if (parts.contains('אחרונים')) return CommentaryEra.acharonim;
@@ -677,7 +693,8 @@ class ReferenceBooksCache {
       normalizeForFindRefMatch(input);
 
   Future<_PdfFileMetadataReadResult> _readPdfFileMetadata(
-      String filePath) async {
+    String filePath,
+  ) async {
     final override = pdfFileMetadataProviderOverride;
     if (override != null) {
       try {
@@ -736,7 +753,8 @@ class ReferenceBooksCache {
   static int _defaultNowMillis() => DateTime.now().millisecondsSinceEpoch;
 
   Future<PdfOutlineCacheEntry?> _loadPersistentPdfOutline(
-      String filePath) async {
+    String filePath,
+  ) async {
     final repository = await _resolvePdfOutlineRepository();
     if (repository == null) return null;
 
@@ -823,7 +841,8 @@ class ReferenceBooksCache {
   }
 
   static Future<List<(String, String, int)>> _parsePdfOutlineEntries(
-      String filePath) async {
+    String filePath,
+  ) async {
     PdfDocument? doc;
     try {
       doc = await PdfDocument.openFile(filePath);
@@ -831,11 +850,13 @@ class ReferenceBooksCache {
       final entries = <(String, String, int)>[];
       _collectOutlineEntries(outline, entries, maxDepth: 2, currentDepth: 0);
       debugPrint(
-          '[ReferenceBooksCache] Parsed ${entries.length} outline entries for $filePath');
+        '[ReferenceBooksCache] Parsed ${entries.length} outline entries for $filePath',
+      );
       return entries;
     } catch (e) {
       debugPrint(
-          '[ReferenceBooksCache] Failed to parse outline for $filePath: $e');
+        '[ReferenceBooksCache] Failed to parse outline for $filePath: $e',
+      );
       return const [];
     } finally {
       // סגירת המסמך משחררת את ה-pdfrx worker. בלי זה הוא נשאר פתוח עד GC
@@ -856,8 +877,12 @@ class ReferenceBooksCache {
       if (page != null && node.title.isNotEmpty) {
         out.add((_normalizeForMatch(node.title), node.title, page));
       }
-      _collectOutlineEntries(node.children, out,
-          maxDepth: maxDepth, currentDepth: currentDepth + 1);
+      _collectOutlineEntries(
+        node.children,
+        out,
+        maxDepth: maxDepth,
+        currentDepth: currentDepth + 1,
+      );
     }
   }
 }
@@ -867,16 +892,16 @@ class _PdfFileMetadataReadResult {
   final bool isMissing;
 
   const _PdfFileMetadataReadResult.available(
-      ({int fileSize, int lastModified}) this.metadata)
-      : isMissing = false;
+    ({int fileSize, int lastModified}) this.metadata,
+  ) : isMissing = false;
 
   const _PdfFileMetadataReadResult.missing()
-      : metadata = null,
-        isMissing = true;
+    : metadata = null,
+      isMissing = true;
 
   const _PdfFileMetadataReadResult.unavailable()
-      : metadata = null,
-        isMissing = false;
+    : metadata = null,
+      isMissing = false;
 }
 
 class ReferenceBookHit {

@@ -4,6 +4,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/services/book_details_service.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
+import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // ביטוי רגולרי להסרת תווים מפרידים (מקפים, קווים תחתונים, רווחים)
@@ -17,19 +18,19 @@ const _sourceMappings = {
   'onyourway': (text: 'ובלכתך בדרך', url: 'https://mobile.tora.ws/'),
   'orayta': (
     text: 'אורייתא',
-    url: 'https://github.com/MosheWagner/Orayta-Books'
+    url: 'https://github.com/MosheWagner/Orayta-Books',
   ),
   'tashma': (text: 'תא שמע', url: 'https://tashma.co.il/'),
   'pninim': (text: 'פנינים', url: 'https://pninim.org/'),
   'wikisource': (text: 'ויקיטקסט', url: 'https://he.wikisource.org/wiki'),
   'wikijewishbooks': (
     text: 'אוצר הספרים היהודי השיתופי',
-    url: 'https://wiki.jewishbooks.org.il/'
+    url: 'https://wiki.jewishbooks.org.il/',
   ),
   'nationallibrary': (text: 'יד הרמב"ם', url: 'https://fjms.genizah.org/'),
   'toratemet': (
     text: 'תורת אמת',
-    url: 'https://www.toratemetfreeware.com/index.html'
+    url: 'https://www.toratemetfreeware.com/index.html',
   ),
   'morebooks': (text: 'ספרים פרטיים או מקורות נוספים', url: ''),
   'unknown': (text: 'מקור לא ידוע', url: ''),
@@ -39,8 +40,10 @@ const _sourceMappings = {
 /// תומך בשמות המקורות כפי שהם מאוחסנים ב-DB (case-insensitive)
 ({String text, String url}) getSourceDisplayInfo(String source) {
   // נרמול המחרוזת: הסרת רווחים, המרה לאותיות קטנות והסרת תווים מפרידים
-  final normalized =
-      source.toLowerCase().replaceAll(_sourceNormalizationRegex, '');
+  final normalized = source.toLowerCase().replaceAll(
+    _sourceNormalizationRegex,
+    '',
+  );
 
   var key = normalized;
 
@@ -63,27 +66,30 @@ const _tashmaUrl = 'https://tashma.co.il/';
 /// בודק האם מקור הספר הוא "תא שמע".
 /// הנרמול המאוחד מזהה גם וריאציות כתיב של שם תיקיית המקור.
 bool isTashmaSource(String? sourceFolder) {
-  final normalized = (sourceFolder ?? '')
-      .toLowerCase()
-      .replaceAll(_sourceNormalizationRegex, '');
+  final normalized = (sourceFolder ?? '').toLowerCase().replaceAll(
+    _sourceNormalizationRegex,
+    '',
+  );
   return normalized.contains('tashma');
 }
 
 /// בודק האם מקור הספר הוא "יד הרמב"ם" של הספרייה הלאומית
 /// (המקור National-LibraryToOtzaria ב-DB). מנורמל כמו [isTashmaSource].
 bool isNationalLibrarySource(String? sourceFolder) {
-  final normalized = (sourceFolder ?? '')
-      .toLowerCase()
-      .replaceAll(_sourceNormalizationRegex, '');
+  final normalized = (sourceFolder ?? '').toLowerCase().replaceAll(
+    _sourceNormalizationRegex,
+    '',
+  );
   return normalized.contains('nationallibrary');
 }
 
 /// בודק האם מקור הספר הוא "אוצר הספרים היהודי השיתופי"
 /// (המקור wikiJewishBooksToOtzaria ב-DB). מנורמל כמו [isTashmaSource].
 bool isWikiJewishBooksSource(String? sourceFolder) {
-  final normalized = (sourceFolder ?? '')
-      .toLowerCase()
-      .replaceAll(_sourceNormalizationRegex, '');
+  final normalized = (sourceFolder ?? '').toLowerCase().replaceAll(
+    _sourceNormalizationRegex,
+    '',
+  );
   return normalized.contains('wikijewishbooks');
 }
 
@@ -160,96 +166,99 @@ Widget _buildBookDetailsContent(
   final sourceInfo = getSourceDisplayInfo(bookSource);
   final isTashma = isTashmaSource(bookSource);
 
-  return SingleChildScrollView(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        DetailsInfoSection(title: 'שם הספר:', value: book.title),
-        if (information.authors.isNotEmpty)
-          DetailsInfoSection(
-            title: 'מחבר:',
-            value: information.authors.join(', '),
-          ),
-        if (information.generation != null)
-          DetailsInfoSection(title: 'דור:', value: information.generation!),
-        if (book.heEra != null && book.heEra!.isNotEmpty)
-          DetailsInfoSection(title: 'תקופה:', value: book.heEra!),
-        if (information.categories != null)
-          DetailsInfoSection(
-            title: 'קטגוריות:',
-            value: information.categories!,
-          ),
-        if (book.compDateStringHe != null && book.compDateStringHe!.isNotEmpty)
-          DetailsInfoSection(
-            title: 'תאריך חיבור:',
-            value: book.compDateStringHe!,
-          ),
-        if (book.compPlaceStringHe != null &&
-            book.compPlaceStringHe!.isNotEmpty)
-          DetailsInfoSection(
-            title: 'מקום חיבור:',
-            value: book.compPlaceStringHe!,
-          ),
-        if (information.publicationDates.isNotEmpty)
-          DetailsInfoSection(
-            title: 'תאריך פרסום:',
-            value: information.publicationDates.join(', '),
-          ),
-        if (information.publicationPlaces.isNotEmpty)
-          DetailsInfoSection(
-            title: 'מקום פרסום:',
-            value: information.publicationPlaces.join(', '),
-          ),
-        if (information.topics.isNotEmpty)
-          DetailsInfoSection(
-            title: 'נושאים:',
-            value: information.topics.join(', '),
-          ),
-        if (information.shortDescription != null)
-          DetailsInfoSection(
-            title: 'תיאור קצר:',
-            value: information.shortDescription!,
-          ),
-        if (information.fullDescription != null)
-          DetailsInfoSection(
-            title: 'תיאור מורחב:',
-            value: information.fullDescription!,
-          ),
-        const Divider(height: 24),
-        const Text(
-          'מקור הספר:',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        if (isTashma)
-          const _TashmaCopyrightNotice()
-        else if (sourceInfo.url.isNotEmpty)
-          InkWell(
-            onTap: () async {
-              final uri = Uri.parse(sourceInfo.url);
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri);
-              }
-            },
-            child: Text(
-              sourceInfo.text,
-              style: TextStyle(
-                fontSize: 14,
-                color: Theme.of(context).colorScheme.primary,
-                decoration: TextDecoration.underline,
-              ),
+  return AppSelectionArea(
+    child: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DetailsInfoSection(title: 'שם הספר:', value: book.title),
+          if (information.authors.isNotEmpty)
+            DetailsInfoSection(
+              title: 'מחבר:',
+              value: information.authors.join(', '),
             ),
-          )
-        else
-          SelectableText(sourceInfo.text, style: const TextStyle(fontSize: 14)),
-        if (bookDetails['נתיב הקובץ'] != BookDetailsService.bookNotFoundText)
-          DetailsInfoSection(
-            title: 'נתיב הקובץ:',
-            value: bookDetails['נתיב הקובץ']!,
-            valueDirection: TextDirection.ltr,
+          if (information.generation != null)
+            DetailsInfoSection(title: 'דור:', value: information.generation!),
+          if (book.heEra != null && book.heEra!.isNotEmpty)
+            DetailsInfoSection(title: 'תקופה:', value: book.heEra!),
+          if (information.categories != null)
+            DetailsInfoSection(
+              title: 'קטגוריות:',
+              value: information.categories!,
+            ),
+          if (book.compDateStringHe != null &&
+              book.compDateStringHe!.isNotEmpty)
+            DetailsInfoSection(
+              title: 'תאריך חיבור:',
+              value: book.compDateStringHe!,
+            ),
+          if (book.compPlaceStringHe != null &&
+              book.compPlaceStringHe!.isNotEmpty)
+            DetailsInfoSection(
+              title: 'מקום חיבור:',
+              value: book.compPlaceStringHe!,
+            ),
+          if (information.publicationDates.isNotEmpty)
+            DetailsInfoSection(
+              title: 'תאריך פרסום:',
+              value: information.publicationDates.join(', '),
+            ),
+          if (information.publicationPlaces.isNotEmpty)
+            DetailsInfoSection(
+              title: 'מקום פרסום:',
+              value: information.publicationPlaces.join(', '),
+            ),
+          if (information.topics.isNotEmpty)
+            DetailsInfoSection(
+              title: 'נושאים:',
+              value: information.topics.join(', '),
+            ),
+          if (information.shortDescription != null)
+            DetailsInfoSection(
+              title: 'תיאור קצר:',
+              value: information.shortDescription!,
+            ),
+          if (information.fullDescription != null)
+            DetailsInfoSection(
+              title: 'תיאור מורחב:',
+              value: information.fullDescription!,
+            ),
+          const Divider(height: 24),
+          const Text(
+            'מקור הספר:',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
-      ],
+          const SizedBox(height: 8),
+          if (isTashma)
+            const _TashmaCopyrightNotice()
+          else if (sourceInfo.url.isNotEmpty)
+            InkWell(
+              onTap: () async {
+                final uri = Uri.parse(sourceInfo.url);
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri);
+                }
+              },
+              child: Text(
+                sourceInfo.text,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Theme.of(context).colorScheme.primary,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            )
+          else
+            Text(sourceInfo.text, style: const TextStyle(fontSize: 14)),
+          if (bookDetails['נתיב הקובץ'] != BookDetailsService.bookNotFoundText)
+            DetailsInfoSection(
+              title: 'נתיב הקובץ:',
+              value: bookDetails['נתיב הקובץ']!,
+              valueDirection: TextDirection.ltr,
+            ),
+        ],
+      ),
     ),
   );
 }
@@ -300,7 +309,8 @@ class _TashmaCopyrightNoticeState extends State<_TashmaCopyrightNotice> {
             recognizer: _recognizer,
           ),
           const TextSpan(
-            text: '. השימוש מותר במסגרת תוכנת אוצריא בלבד. '
+            text:
+                '. השימוש מותר במסגרת תוכנת אוצריא בלבד. '
                 'אין לבצע שימוש אחר ללא אישור.',
           ),
         ],

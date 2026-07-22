@@ -35,8 +35,13 @@ class GematriaResultCard extends StatelessWidget {
 
   void _navigate(BuildContext context) {
     final book = TextBook(title: result.bookTitle);
-    openBook(context, book, result.data.line - 1, result.preview,
-        ignoreHistory: true);
+    openBook(
+      context,
+      book,
+      result.data.line - 1,
+      result.preview,
+      ignoreHistory: true,
+    );
   }
 
   @override
@@ -90,7 +95,7 @@ class GematriaResultCard extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                SelectableText(
+                                Text(
                                   displayPath,
                                   style: TextStyle(
                                     fontSize: AppTokens.fontSM,
@@ -102,7 +107,7 @@ class GematriaResultCard extends StatelessWidget {
                                 ),
                                 if (result.preview.isNotEmpty) ...[
                                   SizedBox(height: isNarrow ? 7 : 9),
-                                  SelectableText.rich(
+                                  Text.rich(
                                     TextSpan(
                                       style: TextStyle(
                                         fontSize: state.fontSize - 1,
@@ -115,8 +120,9 @@ class GematriaResultCard extends StatelessWidget {
                                           TextSpan(
                                             text: '$before ',
                                             style: TextStyle(
-                                              color: cs.onSurface
-                                                  .withValues(alpha: 0.45),
+                                              color: cs.onSurface.withValues(
+                                                alpha: 0.45,
+                                              ),
                                             ),
                                           ),
                                         TextSpan(
@@ -129,8 +135,9 @@ class GematriaResultCard extends StatelessWidget {
                                           TextSpan(
                                             text: ' $after',
                                             style: TextStyle(
-                                              color: cs.onSurface
-                                                  .withValues(alpha: 0.45),
+                                              color: cs.onSurface.withValues(
+                                                alpha: 0.45,
+                                              ),
                                             ),
                                           ),
                                       ],
@@ -151,9 +158,10 @@ class GematriaResultCard extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           SecondaryIconButton(
-                              icon: FluentIcons.copy_24_regular,
-                              tooltip: 'העתק',
-                              onPressed: () => _copy(context)),
+                            icon: FluentIcons.copy_24_regular,
+                            tooltip: 'העתק',
+                            onPressed: () => _copy(context),
+                          ),
                           const SizedBox(width: 4),
                           PrimaryIconButton(
                             onPressed: () => _navigate(context),
