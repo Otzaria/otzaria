@@ -331,7 +331,7 @@ String _tabLabel(SettingsTab tab) {
     case SettingsTab.tools:
       return 'כלים';
     case SettingsTab.shortcuts:
-      return 'קיצורים';
+      return 'קיצורי מקשים';
     case SettingsTab.system:
       return 'מערכת';
     case SettingsTab.about:

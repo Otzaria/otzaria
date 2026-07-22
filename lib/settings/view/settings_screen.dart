@@ -266,7 +266,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
           ),
     ),
     (
-      label: 'קיצורים',
+      label: 'קיצורי מקשים',
       icon: FluentIcons.keyboard_24_regular,
       iconFilled: FluentIcons.keyboard_24_filled,
       pageBuilder: () => const ShortcutsSettingsTab(),

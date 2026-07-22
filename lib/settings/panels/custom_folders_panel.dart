@@ -59,14 +59,16 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
   @override
   void initState() {
     super.initState();
-    DatabaseLibraryProvider.operationQueue.busyCount
-        .addListener(_onQueueBusyChanged);
+    DatabaseLibraryProvider.operationQueue.busyCount.addListener(
+      _onQueueBusyChanged,
+    );
   }
 
   @override
   void dispose() {
-    DatabaseLibraryProvider.operationQueue.busyCount
-        .removeListener(_onQueueBusyChanged);
+    DatabaseLibraryProvider.operationQueue.busyCount.removeListener(
+      _onQueueBusyChanged,
+    );
     super.dispose();
   }
 
@@ -79,8 +81,10 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
     try {
       final dir = Directory(path);
       if (!await dir.exists()) return _FolderContentKind.empty;
-      await for (final entity
-          in dir.list(recursive: true, followLinks: false)) {
+      await for (final entity in dir.list(
+        recursive: true,
+        followLinks: false,
+      )) {
         if (entity is! File) continue;
         final lower = entity.path.toLowerCase();
         if (lower.endsWith('.txt')) {
@@ -131,8 +135,10 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
 
     final zipFiles = dir
         .listSync()
-        .where((entity) =>
-            entity is File && entity.path.toLowerCase().endsWith('.zip'))
+        .where(
+          (entity) =>
+              entity is File && entity.path.toLowerCase().endsWith('.zip'),
+        )
         .cast<File>()
         .toList();
 
@@ -155,8 +161,9 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
     // אין צורך לאפס כאן את הסיווג — ה-listener מאפס את כל הקאש בסיום
     // הסריקה (כולל חילוץ ZIP ששינה את הרכב הקבצים).
 
-    String msg =
-        SettingsMessages.folderAdded(path.split(Platform.pathSeparator).last);
+    String msg = SettingsMessages.folderAdded(
+      path.split(Platform.pathSeparator).last,
+    );
     if (zipExtracted && extractedFileName != null) {
       msg += '\n${SettingsMessages.fileExtracted(extractedFileName)}';
     }
@@ -168,7 +175,8 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
     final confirmed = await showConfirmationDialog(
       context: context,
       title: 'הסרת תיקייה',
-      content: 'האם להסיר את התיקייה "${folder.name}" מהספרייה?\n'
+      content:
+          'האם להסיר את התיקייה "${folder.name}" מהספרייה?\n'
           'הספרים יוסרו מהתוכנה, אך הקבצים המקוריים בדיסק לא יימחקו.',
       isDangerous: false,
     );
@@ -188,7 +196,8 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
       final confirmed = await showConfirmationDialog(
         context: context,
         title: 'שמירת עותק עצמאי בתוכנה',
-        content: 'עותק של תוכן הספרים יישמר בתוך התוכנה, כך שהם יעבדו גם '
+        content:
+            'עותק של תוכן הספרים יישמר בתוך התוכנה, כך שהם יעבדו גם '
             'אם הקבצים המקוריים יוזזו או יימחקו.\n'
             'הקבצים המקוריים יישארו במקומם.\n\n'
             'שים לב: אם תערוך קובץ בעתיד, יהיה עליך ללחוץ "סרוק מחדש" '
@@ -215,7 +224,9 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
 
   /// תפריט אפשרויות לתיקייה — פתיחה במנהל הקבצים, העתקת נתיב והסרה.
   Future<void> _showFolderMenu(
-      BuildContext anchorContext, CustomFolder folder) async {
+    BuildContext anchorContext,
+    CustomFolder folder,
+  ) async {
     const entries = <AppMenuEntry<_FolderMenuAction>>[
       AppMenuEntry(
         value: _FolderMenuAction.openFolder,
@@ -239,8 +250,10 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
       context: context,
       anchorContext: anchorContext,
       itemsBuilder: (m) => entries
-          .map((e) =>
-              buildAppPopupMenuItem<_FolderMenuAction>(context, e, m, null))
+          .map(
+            (e) =>
+                buildAppPopupMenuItem<_FolderMenuAction>(context, e, m, null),
+          )
           .toList(),
     );
 
@@ -299,9 +312,9 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
                       : const Icon(FluentIcons.arrow_clockwise_24_regular),
                   onPressed: isSyncing
                       ? null
-                      : () => context
-                          .read<CustomFoldersBloc>()
-                          .add(const RescanCustomFolders()),
+                      : () => context.read<CustomFoldersBloc>().add(
+                          const RescanCustomFolders(),
+                        ),
                   tooltip: 'סרוק מחדש תיקיות אישיות',
                 ),
               ActionButton.recommended(
@@ -347,14 +360,18 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
   }
 
   Widget _buildFolderItem(
-      CustomFolder folder, bool isSyncing, String? activePath) {
+    CustomFolder folder,
+    bool isSyncing,
+    String? activePath,
+  ) {
     // הספינר על תיקייה בודדת מוצג כשהפעולה נוגעת בה:
     // • כשזו התיקייה הפעילה (הוספה / החלפת מצב) — תמיד, גם אם היא מוגדרת
     //   לקריאה מהקבצים (תיקייה חדשה נוצרת עם addToDatabase=false אך עדיין
     //   נסרקת).
     // • כשהפעולה גלובלית (activePath == null, כגון סריקה מחדש או כתיבה דרך
     //   התור המשותף) — רק על תיקיות שנשמרות כעותק עצמאי, שהן אלו שנכתבות.
-    final showFolderSpinner = isSyncing &&
+    final showFolderSpinner =
+        isSyncing &&
         (activePath == folder.path ||
             (activePath == null && folder.addToDatabase));
     // מתחיל סיווג עצלן של הרכב הקבצים (פעם אחת לכל תיקייה).
@@ -410,8 +427,10 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
                 ),
               Builder(
                 builder: (buttonContext) => IconButton(
-                  icon: const Icon(FluentIcons.more_vertical_24_regular,
-                      size: 18),
+                  icon: const Icon(
+                    FluentIcons.more_vertical_24_regular,
+                    size: 18,
+                  ),
                   onPressed: isSyncing
                       ? null
                       : () => _showFolderMenu(buttonContext, folder),
@@ -567,7 +586,7 @@ class UserContentImportTile extends StatelessWidget {
           title: 'ייבוא דורות וקישורים',
           subtitle:
               'בחר קובצי "דורות.csv", "<שם הספר>.links.csv" או קובצי קישורים '
-              'של אוצריא ("<שם הספר>_links.json") והם ייקלטו לצמיתות. '
+              'של אוצריא ("<שם הספר>_links.json") והם יכנסו לספרייה. '
               'ייבוא חוזר מעדכן ערכים קיימים ומוסיף חדשים.',
           actions: [
             ActionButton.warning(

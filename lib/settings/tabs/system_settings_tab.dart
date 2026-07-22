@@ -108,8 +108,8 @@ class SystemSettingsTab extends StatefulWidget {
     ),
     SettingsSearchEntry(
       id: 'system.reports.email',
-      title: 'כתובת מייל לזיהוי',
-      subtitle: 'מייל לזיהוי בדיווחי טעויות',
+      title: 'כתובת דואר אלקטרוני לזיהוי',
+      subtitle: 'דואר אלקטרוני לזיהוי בדיווחי טעויות',
       tab: SettingsTab.system,
       cardId: 'system.reports',
       keywords: ['מייל', 'דיווח', 'דואר אלקטרוני', 'email'],
@@ -984,7 +984,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       children: [
         SettingsActionTile.text(
           icon: FluentIcons.mail_24_regular,
-          title: 'כתובת מייל לזיהוי',
+          title: 'כתובת דואר אלקטרוני לזיהוי',
           subtitle:
               senderEmail.isEmpty ? 'עדיין לא הוגדרה כתובת זיהוי' : senderEmail,
           subtitleLtr: senderEmail.isNotEmpty,
