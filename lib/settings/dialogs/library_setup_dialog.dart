@@ -53,7 +53,7 @@ Future<bool> showLibrarySetupDialog({
   return result ?? false;
 }
 
-enum _LibraryAction { moveContents, download, chooseFile }
+enum _LibraryAction { moveContents, download, chooseFile, chooseArchive }
 
 const _kSeforimAssetLabel = 'ספריית הספרים (seforim.db)';
 const _kCatalogAssetLabel = 'קטלוג אוצר החכמה';
@@ -66,7 +66,7 @@ const _kLibraryAssets = <({String label, String consequence})>[
   (label: _kCatalogAssetLabel, consequence: 'חיפוש בספריות נוספות לא יפעל.'),
   (
     label: _kLexicalAssetLabel,
-    consequence: 'החיפוש המקורב לא יפעל (ייעשה שימוש בחיפוש רגיל).'
+    consequence: 'החיפוש המקורב לא יפעל (ייעשה שימוש בחיפוש רגיל).',
   ),
   (label: _kTalmudAssetLabel, consequence: 'ספרי התלמוד בבלי לא ייכללו.'),
 ];
@@ -94,14 +94,17 @@ Future<List<String>> _scanFolderAssets(String folder) async {
   ])) {
     found.add(_kCatalogAssetLabel);
   }
-  if (await File(p.join(folder, DatabaseConstants.lexicalDatabaseFileName))
-      .exists()) {
+  if (await File(
+    p.join(folder, DatabaseConstants.lexicalDatabaseFileName),
+  ).exists()) {
     found.add(_kLexicalAssetLabel);
   }
-  if (await File(p.join(folder, DatabaseConstants.talmudBavliArchiveFileName))
-          .exists() ||
-      await Directory(p.join(folder, DatabaseConstants.talmudBavliFolderName))
-          .exists()) {
+  if (await File(
+        p.join(folder, DatabaseConstants.talmudBavliArchiveFileName),
+      ).exists() ||
+      await Directory(
+        p.join(folder, DatabaseConstants.talmudBavliFolderName),
+      ).exists()) {
     found.add(_kTalmudAssetLabel);
   }
   return found;
@@ -132,6 +135,8 @@ class _LibrarySetupDialogContentState
   String? _sourceFolder;
   List<String> _detectedAssets = const [];
 
+  String? _sourceArchive;
+
   /// הנכסים הקיימים כבר בספרייה הנוכחית (רלוונטי בעדכון במקום — הם יישמרו).
   List<String> _systemAssets = const [];
 
@@ -154,20 +159,25 @@ class _LibrarySetupDialogContentState
   void initState() {
     super.initState();
     // ברירת המחדל: העברת תוכן כשיש ספרייה, אחרת הורדה מהאינטרנט.
-    _action =
-        _hasLibrary ? _LibraryAction.moveContents : _LibraryAction.download;
+    _action = _hasLibrary
+        ? _LibraryAction.moveContents
+        : _LibraryAction.download;
     _targetRoot = _hasLibrary
         ? _currentRoot
         : (widget.defaultTargetPath.isEmpty ? null : widget.defaultTargetPath);
     if (_hasLibrary) {
       // best-effort: הנתיב נחוץ רק למחיקת האינדקס הישן ברלוקציה.
-      AppPaths.getIndexPath().then((path) {
-        if (mounted) _oldIndexPath = path;
-      }).catchError((_) {});
+      AppPaths.getIndexPath()
+          .then((path) {
+            if (mounted) _oldIndexPath = path;
+          })
+          .catchError((_) {});
       // סורק אילו נכסים כבר קיימים בספרייה — כדי לא להזהיר על מה שכבר יש.
-      _scanFolderAssets(widget.currentLibraryPath!).then((assets) {
-        if (mounted) setState(() => _systemAssets = assets);
-      }).catchError((_) {});
+      _scanFolderAssets(widget.currentLibraryPath!)
+          .then((assets) {
+            if (mounted) setState(() => _systemAssets = assets);
+          })
+          .catchError((_) {});
     }
   }
 
@@ -196,6 +206,38 @@ class _LibrarySetupDialogContentState
     });
   }
 
+  /// בחירת הקובץ ישירות מספקת נתיב נגיש גם מ-Android Scoped Storage.
+  Future<void> _pickSourceDatabaseFile() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['db'],
+      dialogTitle: 'בחר את קובץ ${DatabaseConstants.databaseFileName}',
+      lockParentWindow: true,
+    );
+    final file = result?.files.singleOrNull;
+    if (file?.path == null || !mounted) return;
+    if (file!.name != DatabaseConstants.databaseFileName) {
+      UiSnack.showError('יש לבחור את ${DatabaseConstants.databaseFileName}');
+      return;
+    }
+    setState(() {
+      _sourceFolder = p.dirname(file.path!);
+      _detectedAssets = [_kSeforimAssetLabel];
+    });
+  }
+
+  Future<void> _pickSourceArchive() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['zip', 'zst'],
+      dialogTitle: 'בחר ארכיון ספרייה (ZIP או ZST)',
+      lockParentWindow: true,
+    );
+    final file = result?.files.singleOrNull;
+    if (file?.path == null || !mounted) return;
+    setState(() => _sourceArchive = file!.path);
+  }
+
   /// נכס יהיה קיים לאחר הייבוא אם זוהה בתיקיית המקור, או שהוא כבר קיים
   /// בספרייה בעדכון במקום (רלוקציה כותבת רק את מה שיובא).
   bool _presentAfterImport(String label) {
@@ -218,6 +260,8 @@ class _LibrarySetupDialogContentState
         if (_sourceFolder == null || _detectedAssets.isEmpty) return false;
         // חובה שקובץ הספרייה יהיה קיים לאחר הייבוא (מהתיקייה או מספרייה קיימת).
         return _presentAfterImport(_kSeforimAssetLabel);
+      case _LibraryAction.chooseArchive:
+        return _sourceArchive != null;
       case null:
         return false;
     }
@@ -229,8 +273,9 @@ class _LibrarySetupDialogContentState
     if (_sourceFolder == null) {
       return 'בחר תיקייה שקיימים בה קובצי הספרייה והמערכת';
     }
-    final missing =
-        _kLibraryAssets.where((a) => !_presentAfterImport(a.label)).toList();
+    final missing = _kLibraryAssets
+        .where((a) => !_presentAfterImport(a.label))
+        .toList();
     if (missing.isEmpty) return 'כל הקבצים זוהו';
     if (missing.any((a) => a.label == _kSeforimAssetLabel)) {
       return 'חסר קובץ הספרייה (seforim.db) — לא ניתן להמשיך בלי הספרייה';
@@ -241,6 +286,10 @@ class _LibrarySetupDialogContentState
     return 'יישארו חסרים: ${missing.map((a) => a.label).join(", ")}';
   }
 
+  String _archiveSubtitle() => _sourceArchive == null
+      ? 'בחר קובץ ZIP או ZST המכיל את seforim.db'
+      : p.basename(_sourceArchive!);
+
   void _confirm() {
     switch (_action) {
       case _LibraryAction.moveContents:
@@ -249,6 +298,8 @@ class _LibrarySetupDialogContentState
         _download();
       case _LibraryAction.chooseFile:
         _import();
+      case _LibraryAction.chooseArchive:
+        _importArchive();
       case null:
         break;
     }
@@ -260,17 +311,22 @@ class _LibrarySetupDialogContentState
     // performLibraryMove יוצר books+index תחת היעד ומטפל בסגירת ה-DB, ברענון
     // ובמחיקת הקבצים הישנים.
     performLibraryMove(
-        context: context, from: widget.currentLibraryPath!, to: root);
+      context: context,
+      from: widget.currentLibraryPath!,
+      to: root,
+    );
   }
 
   void _download() {
     final bloc = context.read<EmptyLibraryBloc>();
     if (_hasLibrary && !_isRelocating) {
-      bloc.add(UpdateLibraryRequested(
-        isDownload: true,
-        targetPath: widget.currentLibraryPath!,
-        existingLibraryPath: widget.currentLibraryPath!,
-      ));
+      bloc.add(
+        UpdateLibraryRequested(
+          isDownload: true,
+          targetPath: widget.currentLibraryPath!,
+          existingLibraryPath: widget.currentLibraryPath!,
+        ),
+      );
     } else {
       final root = _targetRoot;
       if (root == null) return;
@@ -284,16 +340,35 @@ class _LibrarySetupDialogContentState
     if (root == null || source == null) return;
     // גיבוי ה-DB הישן רק בעדכון במקום שמחליף את seforim.db (אחרת המחיקה של
     // הגיבוי בהצלחה הייתה מוחקת DB שלא הוחלף). רלוקציה → מחיקת הישן ב-listener.
-    final backup = (_hasLibrary &&
+    final backup =
+        (_hasLibrary &&
             !_isRelocating &&
             _detectedAssets.contains(_kSeforimAssetLabel))
         ? widget.currentLibraryPath
         : null;
-    context.read<EmptyLibraryBloc>().add(ImportLibraryFolderRequested(
-          sourceFolder: source,
-          targetPath: p.join(root, 'books'),
-          backupExistingPath: backup,
-        ));
+    context.read<EmptyLibraryBloc>().add(
+      ImportLibraryFolderRequested(
+        sourceFolder: source,
+        targetPath: p.join(root, 'books'),
+        backupExistingPath: backup,
+      ),
+    );
+  }
+
+  void _importArchive() {
+    final root = _targetRoot;
+    final archive = _sourceArchive;
+    if (root == null || archive == null) return;
+    final backup = _hasLibrary && !_isRelocating
+        ? widget.currentLibraryPath
+        : null;
+    context.read<EmptyLibraryBloc>().add(
+      ImportLibraryArchiveRequested(
+        archivePath: archive,
+        targetPath: p.join(root, 'books'),
+        backupExistingPath: backup,
+      ),
+    );
   }
 
   /// לאחר רלוקציה מוצלחת: משחרר את חיבורי ה-DB/אינדקס הישנים ומוחק את קבצי
@@ -309,8 +384,10 @@ class _LibrarySetupDialogContentState
     try {
       await TantivyDataProvider.instance.reopenIndex();
     } catch (_) {}
-    final leftover = await deleteMovedEntries(oldBooks,
-        includeOnly: DatabaseConstants.libraryManagedEntryNames());
+    final leftover = await deleteMovedEntries(
+      oldBooks,
+      includeOnly: DatabaseConstants.libraryManagedEntryNames(),
+    );
     var indexDeleteFailed = false;
     if (oldIndex != null &&
         oldIndex.isNotEmpty &&
@@ -339,7 +416,9 @@ class _LibrarySetupDialogContentState
         // יעד שורש חדש (הגדרה או רלוקציה) — האינדקס יושב תחת אותו שורש.
         if ((!_hasLibrary || relocating) && _targetRoot != null) {
           await Settings.setValue<String>(
-              SettingsRepository.keyIndexPath, p.join(_targetRoot!, 'index'));
+            SettingsRepository.keyIndexPath,
+            p.join(_targetRoot!, 'index'),
+          );
         }
         if (relocating) await _deleteOldAfterRelocation();
         if (context.mounted) Navigator.of(context).pop(true);
@@ -377,13 +456,13 @@ class _LibrarySetupDialogContentState
     final message = state is EmptyLibraryDownloading
         ? state.message
         : state is EmptyLibraryExtracting
-            ? state.message
-            : 'מעבד...';
+        ? state.message
+        : 'מעבד...';
     final progress = state is EmptyLibraryDownloading
         ? (state.progress > 0 ? state.progress : null)
         : state is EmptyLibraryExtracting
-            ? state.progress
-            : null;
+        ? state.progress
+        : null;
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -421,6 +500,7 @@ class _LibrarySetupDialogContentState
     final moveSelected = _action == _LibraryAction.moveContents;
     final downloadSelected = _action == _LibraryAction.download;
     final chooseFileSelected = _action == _LibraryAction.chooseFile;
+    final chooseArchiveSelected = _action == _LibraryAction.chooseArchive;
 
     final downloadOption = SettingsActionTile.radioOption(
       title: _hasLibrary ? 'הורדת הספרייה מחדש' : 'הורדת הספרייה',
@@ -438,6 +518,24 @@ class _LibrarySetupDialogContentState
           text: 'בחר תיקייה',
           onPressed: chooseFileSelected ? _pickSourceFolder : null,
           icon: FluentIcons.folder_open_24_regular,
+        ),
+        ActionButton.neutral(
+          text: 'בחר קובץ ספרייה',
+          onPressed: chooseFileSelected ? _pickSourceDatabaseFile : null,
+          icon: FluentIcons.document_24_regular,
+        ),
+      ],
+    );
+    final chooseArchiveOption = SettingsActionTile.radioOption(
+      title: 'בחירת קובץ דחוס',
+      subtitle: _archiveSubtitle(),
+      selected: chooseArchiveSelected,
+      onTap: () => setState(() => _action = _LibraryAction.chooseArchive),
+      actions: [
+        ActionButton.neutral(
+          text: 'בחר קובץ דחוס',
+          onPressed: chooseArchiveSelected ? _pickSourceArchive : null,
+          icon: FluentIcons.archive_24_regular,
         ),
       ],
     );
@@ -466,15 +564,21 @@ class _LibrarySetupDialogContentState
                     title: 'מחיקה וייבוא ספרייה',
                     subtitle:
                         'הספרייה הקיימת תוחלף (עם גיבוי אוטומטי עד להצלחה)',
-                    isExpanded: _replaceExpanded ||
+                    isExpanded:
+                        _replaceExpanded ||
                         downloadSelected ||
-                        chooseFileSelected,
+                        chooseFileSelected ||
+                        chooseArchiveSelected,
                     onTap: () =>
                         setState(() => _replaceExpanded = !_replaceExpanded),
-                    children: [downloadOption, chooseFileOption],
+                    children: [
+                      downloadOption,
+                      chooseFileOption,
+                      chooseArchiveOption,
+                    ],
                   ),
                 ]
-              : [downloadOption, chooseFileOption],
+              : [downloadOption, chooseFileOption, chooseArchiveOption],
         ),
         TargetFolderSection(
           folderName: widget.folderName,

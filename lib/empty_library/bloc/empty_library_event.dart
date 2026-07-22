@@ -35,8 +35,12 @@ class UpdateLibraryRequested extends EmptyLibraryEvent {
   });
 
   @override
-  List<Object?> get props =>
-      [isDownload, sourceFolder, targetPath, existingLibraryPath];
+  List<Object?> get props => [
+    isDownload,
+    sourceFolder,
+    targetPath,
+    existingLibraryPath,
+  ];
 }
 
 /// ייבוא ספרייה מתיקייה שנבחרה: מזהה אוטומטית את נכסי הספרייה שבתוכה (seforim.db,
@@ -58,6 +62,23 @@ class ImportLibraryFolderRequested extends EmptyLibraryEvent {
   List<Object?> get props => [sourceFolder, targetPath, backupExistingPath];
 }
 
+/// ייבוא ספרייה מארכיון ZIP או ZST אל תיקיית היעד. [backupExistingPath]
+/// משמש להחזרת ה-DB הישן אם החילוץ או אימות הארכיון נכשלים.
+class ImportLibraryArchiveRequested extends EmptyLibraryEvent {
+  final String archivePath;
+  final String targetPath;
+  final String? backupExistingPath;
+
+  ImportLibraryArchiveRequested({
+    required this.archivePath,
+    required this.targetPath,
+    this.backupExistingPath,
+  });
+
+  @override
+  List<Object?> get props => [archivePath, targetPath, backupExistingPath];
+}
+
 /// בודק מקום פנוי בהתקנה וקובע אם כפתור ההורדה זמין.
 /// נשלח בעת טעינת המסך.
 class CheckDiskSpaceRequested extends EmptyLibraryEvent {}
@@ -73,7 +94,6 @@ class StorageLocationSelected extends EmptyLibraryEvent {
   @override
   List<Object?> get props => [libraryRoot];
 }
-
 
 /// בחירת קובץ seforim.db ישירות דרך file picker (SAF-aware).
 /// משמש כאשר הגישה לנתיב הפיזי נכשלת ב-Android Scoped Storage.
@@ -98,6 +118,10 @@ class PickDbFileRequested extends EmptyLibraryEvent {
   });
 
   @override
-  List<Object?> get props =>
-      [libraryPath, internalDbPath, externalDbPath, shouldMove];
+  List<Object?> get props => [
+    libraryPath,
+    internalDbPath,
+    externalDbPath,
+    shouldMove,
+  ];
 }

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:archive/archive_io.dart';
 import 'package:bloc/bloc.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:file_picker/file_picker.dart';
@@ -53,6 +54,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     on<PickDirectoryRequested>(_onPickDirectoryRequested);
     on<DownloadLibraryRequested>(_onDownloadLibraryRequested);
     on<ImportLibraryFolderRequested>(_onImportLibraryFolderRequested);
+    on<ImportLibraryArchiveRequested>(_onImportLibraryArchiveRequested);
     on<UpdateLibraryRequested>(_onUpdateLibraryRequested);
     on<PickDbFileRequested>(_onPickDbFileRequested);
     on<CheckDiskSpaceRequested>(_onCheckDiskSpaceRequested);
@@ -144,6 +146,75 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         ),
       );
     }
+  }
+
+  /// מייבא את הספרייה מארכיון ZIP או ZST, ומשחזר את ה-DB הישן אם הפעולה
+  /// אינה מסתיימת בבחירת ספרייה תקינה.
+  Future<void> _onImportLibraryArchiveRequested(
+    ImportLibraryArchiveRequested event,
+    Emitter<EmptyLibraryState> emit,
+  ) async {
+    final backupPath = event.backupExistingPath;
+    String? backupDir;
+    try {
+      if (backupPath != null) {
+        backupDir = await _backupDatabaseFiles(backupPath);
+      }
+      await _importLibraryArchive(event.archivePath, event.targetPath, emit);
+      if (backupDir != null) {
+        if (state is EmptyLibraryDirectorySelected) {
+          await _discardBackupDir(backupDir);
+        } else {
+          await _restoreDatabaseFiles(backupDir, backupPath!);
+        }
+      }
+    } catch (e) {
+      if (backupDir != null) {
+        await _restoreDatabaseFiles(backupDir, backupPath!);
+      }
+      emit(
+        _error(
+          errorMessage: 'שגיאה בייבוא הארכיון: $e',
+          selectedPath: event.archivePath,
+        ),
+      );
+    }
+  }
+
+  Future<void> _importLibraryArchive(
+    String archivePath,
+    String target,
+    Emitter<EmptyLibraryState> emit,
+  ) async {
+    final lowerPath = archivePath.toLowerCase();
+    if (!lowerPath.endsWith('.zip') && !lowerPath.endsWith('.zst')) {
+      throw ArgumentError('יש לבחור קובץ ZIP או ZST');
+    }
+    await Directory(target).create(recursive: true);
+    emit(
+      EmptyLibraryExtracting(
+        selectedPath: archivePath,
+        progress: 0.0,
+        message: 'מחלץ את קובץ הספרייה...',
+      ),
+    );
+    if (lowerPath.endsWith('.zip')) {
+      await extractFileToDisk(archivePath, target);
+    } else {
+      await _extractCompressedDatabase(
+        archivePath,
+        path.join(target, DatabaseConstants.databaseFileName),
+        _extractProgress(emit, archivePath, 'מחלץ את קובץ הספרייה...'),
+      );
+    }
+    emit(
+      EmptyLibraryExtracting(
+        selectedPath: archivePath,
+        progress: 1.0,
+        message: 'הייבוא הושלם',
+      ),
+    );
+    await _checkAndSaveExtractedDatabase(target, emit);
   }
 
   /// ליבת ייבוא התיקייה (זורקת בכשל). לכל נכס — מעדיפים גרסה דחוסה (חילוץ),

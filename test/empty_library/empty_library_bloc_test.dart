@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:http/http.dart' as http;
@@ -1687,6 +1688,100 @@ void main() {
         );
       },
     );
+
+    test('ImportLibraryArchiveRequested מחלץ ZIP ושומר את הספרייה', () async {
+      final archiveDir = await Directory.systemTemp.createTemp(
+        'otzaria-import-archive-src-',
+      );
+      final targetDir = await Directory.systemTemp.createTemp(
+        'otzaria-import-archive-dst-',
+      );
+      addTearDown(() async {
+        for (final dir in [archiveDir, targetDir]) {
+          if (await dir.exists()) await dir.delete(recursive: true);
+        }
+      });
+      final dbBytes = utf8.encode('db-from-archive');
+      final zip = ZipEncoder().encode(
+        Archive()..addFile(
+          ArchiveFile(
+            DatabaseConstants.databaseFileName,
+            dbBytes.length,
+            dbBytes,
+          ),
+        ),
+      );
+      final archivePath = path.join(archiveDir.path, 'library.zip');
+      await File(archivePath).writeAsBytes(zip);
+
+      await Settings.init(cacheProvider: _MemoryCacheProvider());
+      await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
+      final bloc = EmptyLibraryBloc();
+      addTearDown(bloc.close);
+      final selectedFuture = bloc.stream
+          .where((state) => state is EmptyLibraryDirectorySelected)
+          .cast<EmptyLibraryDirectorySelected>()
+          .first;
+
+      bloc.add(
+        ImportLibraryArchiveRequested(
+          archivePath: archivePath,
+          targetPath: targetDir.path,
+        ),
+      );
+
+      await selectedFuture.timeout(const Duration(seconds: 5));
+      expect(
+        await File(
+          path.join(targetDir.path, DatabaseConstants.databaseFileName),
+        ).readAsString(),
+        'db-from-archive',
+      );
+    });
+
+    test('ImportLibraryArchiveRequested מחלץ ZST ושומר את הספרייה', () async {
+      final archiveDir = await Directory.systemTemp.createTemp(
+        'otzaria-import-zst-src-',
+      );
+      final targetDir = await Directory.systemTemp.createTemp(
+        'otzaria-import-zst-dst-',
+      );
+      addTearDown(() async {
+        for (final dir in [archiveDir, targetDir]) {
+          if (await dir.exists()) await dir.delete(recursive: true);
+        }
+      });
+      final archivePath = path.join(archiveDir.path, 'library.zst');
+      await File(archivePath).writeAsString('compressed-db');
+
+      await Settings.init(cacheProvider: _MemoryCacheProvider());
+      await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
+      final bloc = EmptyLibraryBloc(
+        extractCompressedDatabase: (archivePath, outputPath, onProgress) async {
+          await File(outputPath).writeAsString('db-from-zst');
+        },
+      );
+      addTearDown(bloc.close);
+      final selectedFuture = bloc.stream
+          .where((state) => state is EmptyLibraryDirectorySelected)
+          .cast<EmptyLibraryDirectorySelected>()
+          .first;
+
+      bloc.add(
+        ImportLibraryArchiveRequested(
+          archivePath: archivePath,
+          targetPath: targetDir.path,
+        ),
+      );
+
+      await selectedFuture.timeout(const Duration(seconds: 5));
+      expect(
+        await File(
+          path.join(targetDir.path, DatabaseConstants.databaseFileName),
+        ).readAsString(),
+        'db-from-zst',
+      );
+    });
 
     test(
       'StorageLocationSelected שומר את שורש הספרייה ומרענן מצב התחלה',

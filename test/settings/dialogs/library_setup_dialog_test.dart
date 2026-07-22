@@ -4,15 +4,15 @@ import 'package:otzaria/settings/dialogs/library_setup_dialog.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 Widget _host(void Function(BuildContext) onOpen) => MaterialApp(
-      home: Scaffold(
-        body: Builder(
-          builder: (ctx) => TextButton(
-            onPressed: () => onOpen(ctx),
-            child: const Text('פתח'),
-          ),
-        ),
+  home: Scaffold(
+    body: Builder(
+      builder: (ctx) => TextButton(
+        onPressed: () => onOpen(ctx),
+        child: const Text('פתח'),
       ),
-    );
+    ),
+  ),
+);
 
 Future<void> _openSetup(
   WidgetTester tester, {
@@ -20,10 +20,14 @@ Future<void> _openSetup(
 }) async {
   await tester.binding.setSurfaceSize(const Size(1200, 900));
   addTearDown(() => tester.binding.setSurfaceSize(null));
-  await tester.pumpWidget(_host((ctx) => showLibrarySetupDialog(
+  await tester.pumpWidget(
+    _host(
+      (ctx) => showLibrarySetupDialog(
         context: ctx,
         defaultTargetPath: defaultTargetPath,
-      )));
+      ),
+    ),
+  );
   await tester.tap(find.text('פתח'));
   await tester.pumpAndSettle();
 }
@@ -31,11 +35,15 @@ Future<void> _openSetup(
 Future<void> _openUpdate(WidgetTester tester) async {
   await tester.binding.setSurfaceSize(const Size(1200, 900));
   addTearDown(() => tester.binding.setSurfaceSize(null));
-  await tester.pumpWidget(_host((ctx) => showLibrarySetupDialog(
+  await tester.pumpWidget(
+    _host(
+      (ctx) => showLibrarySetupDialog(
         context: ctx,
         defaultTargetPath: '/lib',
         currentLibraryPath: '/lib/books',
-      )));
+      ),
+    ),
+  );
   await tester.tap(find.text('פתח'));
   await tester.pumpAndSettle();
 }
@@ -70,21 +78,24 @@ void main() {
       expect(find.text('העברת תוכן התיקייה'), findsNothing);
     });
 
-    testWidgets('פעולות המקור: הורדה + בחירת תיקייה', (tester) async {
+    testWidgets('פעולות המקור: הורדה, תיקייה וארכיון', (tester) async {
       await _openSetup(tester);
       expect(find.text('הורדת הספרייה'), findsOneWidget);
       expect(find.text('בחירת תיקייה מהמחשב'), findsOneWidget);
+      expect(find.text('בחירת קובץ דחוס'), findsOneWidget);
     });
 
-    testWidgets('מקטע היעד: "תיקיית היעד לספריית אוצריא" עם ברירת מחדל',
-        (tester) async {
+    testWidgets('מקטע היעד: "תיקיית היעד לספריית אוצריא" עם ברירת מחדל', (
+      tester,
+    ) async {
       await _openSetup(tester, defaultTargetPath: '/default/library');
       expect(find.text('תיקיית היעד לספריית אוצריא'), findsOneWidget);
       expect(find.text('מיקום ברירת מחדל'), findsOneWidget);
     });
 
-    testWidgets('לאפשרות יש רדיו ב-leading (בלי אייקון ובלי Checkbox)',
-        (tester) async {
+    testWidgets('לאפשרות יש רדיו ב-leading (בלי אייקון ובלי Checkbox)', (
+      tester,
+    ) async {
       await _openSetup(tester);
       final tile = tester.widget<ListTile>(
         find.ancestor(
@@ -96,8 +107,9 @@ void main() {
       expect(find.byType(Checkbox), findsNothing);
     });
 
-    testWidgets('כפתור "אישור" פעיל בהורדה כשיש יעד ברירת מחדל',
-        (tester) async {
+    testWidgets('כפתור "אישור" פעיל בהורדה כשיש יעד ברירת מחדל', (
+      tester,
+    ) async {
       await _openSetup(tester, defaultTargetPath: '/default/library');
       // הורדה היא ברירת המחדל; היעד מולא מברירת המחדל → אישור פעיל.
       expect(_actionOnPressed(tester, 'אישור'), isNotNull);
@@ -115,8 +127,9 @@ void main() {
       expect(find.text('עדכון ספריית אוצריא'), findsOneWidget);
     });
 
-    testWidgets('העברה גלויה; הורדה/ייבוא מקובצים תחת "מחיקה וייבוא ספרייה"',
-        (tester) async {
+    testWidgets('העברה גלויה; הורדה/ייבוא מקובצים תחת "מחיקה וייבוא ספרייה"', (
+      tester,
+    ) async {
       await _openUpdate(tester);
       expect(find.text('פעולה'), findsOneWidget);
       expect(find.text('העברת תוכן התיקייה'), findsOneWidget);
@@ -124,11 +137,13 @@ void main() {
       // המקטע מקופל כברירת מחדל — אפשרויות ההחלפה מוסתרות.
       expect(find.text('הורדת הספרייה מחדש'), findsNothing);
       expect(find.text('בחירת תיקייה מהמחשב'), findsNothing);
+      expect(find.text('בחירת קובץ דחוס'), findsNothing);
 
       // פריסת המקטע חושפת את אפשרויות ההחלפה.
       await _select(tester, 'מחיקה וייבוא ספרייה');
       expect(find.text('הורדת הספרייה מחדש'), findsOneWidget);
       expect(find.text('בחירת תיקייה מהמחשב'), findsOneWidget);
+      expect(find.text('בחירת קובץ דחוס'), findsOneWidget);
     });
 
     testWidgets('מקטע היעד מוצג בכותרת "מיקום חדש"', (tester) async {
@@ -136,25 +151,28 @@ void main() {
       expect(find.text('מיקום חדש'), findsOneWidget);
     });
 
-    testWidgets('כותרת המשנה של המקטע מציינת שהספרייה הקיימת תוחלף',
-        (tester) async {
+    testWidgets('כותרת המשנה של המקטע מציינת שהספרייה הקיימת תוחלף', (
+      tester,
+    ) async {
       await _openUpdate(tester);
       expect(find.textContaining('הספרייה הקיימת תוחלף'), findsOneWidget);
     });
 
     testWidgets(
-        'אישור מושבת בהעברה ליעד הנוכחי (no-op) ובייבוא ללא תיקיית מקור',
-        (tester) async {
-      await _openUpdate(tester);
-      // ברירת המחדל "העברה" + יעד זהה למיקום הנוכחי → אין מה להעביר, אישור מושבת.
-      expect(_actionOnPressed(tester, 'אישור'), isNull);
+      'אישור מושבת בהעברה ליעד הנוכחי (no-op) ובייבוא ללא תיקיית מקור',
+      (tester) async {
+        await _openUpdate(tester);
+        // ברירת המחדל "העברה" + יעד זהה למיקום הנוכחי → אין מה להעביר, אישור מושבת.
+        expect(_actionOnPressed(tester, 'אישור'), isNull);
 
-      // מעבר ל"בחירת תיקייה" ללא בחירת מקור → אישור מושבת.
-      await _select(tester, 'מחיקה וייבוא ספרייה');
-      await _select(tester, 'בחירת תיקייה מהמחשב');
-      expect(_actionOnPressed(tester, 'אישור'), isNull);
-      // כפתור בחירת המקור מוצג.
-      expect(find.text('בחר תיקייה'), findsOneWidget);
-    });
+        // מעבר ל"בחירת תיקייה" ללא בחירת מקור → אישור מושבת.
+        await _select(tester, 'מחיקה וייבוא ספרייה');
+        await _select(tester, 'בחירת תיקייה מהמחשב');
+        expect(_actionOnPressed(tester, 'אישור'), isNull);
+        // כפתור בחירת המקור מוצג.
+        expect(find.text('בחר תיקייה'), findsOneWidget);
+        expect(find.text('בחר קובץ ספרייה'), findsOneWidget);
+      },
+    );
   });
 }
