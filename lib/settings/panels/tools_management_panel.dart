@@ -711,7 +711,7 @@ class _BuiltInToolRow extends StatelessWidget {
       hoverColor: Colors.transparent,
       leading: meta.imageIcon != null
           ? ImageIcon(AssetImage(meta.imageIcon!), size: 24)
-          : Icon(meta.icon),
+          : RtlIcon(meta.icon!),
       title: Text(meta.label, style: AppTextStyles.settingTitle),
       trailing: _buildTrailing(context),
     );
@@ -1093,7 +1093,7 @@ class _PluginRowState extends State<_PluginRow> {
                 message: 'גרור ושחרר לשינוי סדר',
                 child: Icon(FluentIcons.re_order_dots_vertical_24_regular),
               )
-            : Icon(icon),
+            : RtlIcon(icon),
         title: Text(plugin.name, maxLines: 1, overflow: TextOverflow.ellipsis),
         subtitle: widget.isSelectionMode
             ? _statusBadges(plugin, disabled: !plugin.enabled)
@@ -1406,7 +1406,7 @@ class _SettingsDragFeedback extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
+            RtlIcon(
               fluentIconFromName(plugin.manifest.toolTabIconName) ??
                   FluentIcons.puzzle_piece_24_regular,
             ),

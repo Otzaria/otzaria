@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
@@ -702,7 +703,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
             _ShortcutTile(
               settingKey: 'key-shortcut-toggle-commentators-pane',
               label: 'פתח/סגור חלונית מפרשים',
-              icon: FluentIcons.book_open_24_regular,
+              icon: FluentIcons.panel_right_24_regular,
               allShortcuts: _shortcutsList,
             ),
             _ShortcutTile(
@@ -941,7 +942,7 @@ class _ShortcutTile extends StatelessWidget {
         subtitle: subtitle,
         selected: ShortcutValidator.defaultShortcuts[settingKey] ?? '',
         allShortcuts: allShortcuts,
-        leading: Icon(icon),
+        leading: RtlIcon(icon),
       ),
     );
   }

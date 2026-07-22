@@ -95,17 +95,9 @@ class CalendarSettingsTab extends StatefulWidget {
       ],
     ),
     SettingsSearchEntry(
-      id: 'tools.calendar.reminder_offset',
-      title: 'זמן תזכורת לפני האירוע',
-      subtitle: 'כמה זמן לפני תחילת האירוע תופיע התראה',
-      tab: SettingsTab.tools,
-      cardId: 'tools.calendar',
-      keywords: ['תזכורת', 'זמן', 'התראה'],
-    ),
-    SettingsSearchEntry(
       id: 'tools.calendar.google_calendar',
       title: 'לוח שנה של Google',
-      subtitle: 'סנכרון אירועים עם Google Calendar',
+      subtitle: 'סנכרן אירועים עם Google Calendar',
       tab: SettingsTab.tools,
       cardId: 'tools.calendar',
       keywords: [
@@ -147,22 +139,24 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
               children: [
                 // סוג לוח
                 SettingsActionTile.segmentedTile<CalendarType>(
-                  icon: FluentIcons.calendar_24_regular,
                   title: 'סוג לוח שנה',
                   options: const [
                     SegmentOption(
                       value: CalendarType.hebrew,
                       label: 'עברי',
-                      subtitle: 'יוצג לוח השנה היהודי בלבד',
+                      icon: FluentIcons.calendar_rtl_24_regular,
+                      subtitle: 'יוצג לוח השנה העברי בלבד',
                     ),
                     SegmentOption(
                       value: CalendarType.combined,
                       label: 'משולב',
+                      icon: FluentIcons.calendar_multiple_24_regular,
                       subtitle: 'יוצגו תאריכים מהלוח העברי והלועזי יחד',
                     ),
                     SegmentOption(
                       value: CalendarType.gregorian,
                       label: 'לועזי',
+                      icon: FluentIcons.calendar_ltr_24_regular,
                       subtitle: 'יוצג לוח השנה הלועזי בלבד',
                     ),
                   ],
@@ -261,37 +255,14 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                         .changeCalendarNotificationMode(mode);
                   },
                 ),
-                if (state.notificationMode != CalendarNotificationMode.off) ...[
-                  SettingsActionTile.dropdownTile<int>(
-                    icon: FluentIcons.timer_24_regular,
-                    title: 'מועד ההתראה',
-                    value: state.calendarNotificationTime,
-                    entries: _notificationTimeLabels.entries
-                        .map((e) => AppMenuEntry<int>(
-                              value: e.key,
-                              label: e.value,
-                              subtitle: e.key == 0
-                                  ? 'התראה תישלח בדיוק בזמן האירוע'
-                                  : 'ההתראה תופיע ${e.value} לפני מועד האירוע',
-                            ))
-                        .toList(),
-                    onSelected: (value) {
-                      if (value != null) {
-                        context
-                            .read<CalendarCubit>()
-                            .changeCalendarNotificationTime(value);
-                      }
-                    },
-                  ),
-                ],
 
                 // ── לוח שנה גוגל ──
                 SettingsActionTile.switchTile(
-                  icon: FluentIcons.arrow_sync_24_regular,
+                  icon: FluentIcons.calendar_sync_24_regular,
                   title: 'לוח שנה של Google',
                   subtitle: isOfflineMode
                       ? 'מושבת במצב מנותק'
-                      : 'סנכרון אירועים עם Google Calendar',
+                      : 'סנכרן אירועים עם Google Calendar',
                   value: state.googleCalendarEnabled,
                   enabled: !isOfflineMode,
                   onChanged: (value) {
@@ -460,14 +431,6 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
     );
   }
 }
-
-const Map<int, String> _notificationTimeLabels = {
-  0: 'בזמן האירוע',
-  60: 'שעה',
-  720: '12 שעות',
-  1440: 'יום',
-  2880: 'יומיים',
-};
 
 Future<List<T>?> _showCalendarMultiSelectionDialog<T>({
   required BuildContext context,

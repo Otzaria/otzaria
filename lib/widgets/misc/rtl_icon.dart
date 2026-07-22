@@ -1,13 +1,6 @@
-// lib/widgets/rtl_icon.dart
-//
 // ווידג'ט RtlIcon — אייקון RTL-מודע שמהפך חיצי ניווט אוטומטית.
-//
 // ⚠️ לא ניתן להשתמש ב-const Map<IconData,...> כי IconData לא מימש ==.
 //    מפות הנגד מוגדרות כ-static final.
-//
-// **שימוש:**
-//   RtlIcon(Icons.chevron_left)
-//   RtlIcon(FluentIcons.chevron_right_24_regular)
 
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -56,6 +49,8 @@ class RtlIcon extends StatelessWidget {
     FluentIcons.arrow_left_24_regular: FluentIcons.arrow_right_24_regular,
     FluentIcons.arrow_right_24_filled: FluentIcons.arrow_left_24_filled,
     FluentIcons.arrow_left_24_filled: FluentIcons.arrow_right_24_filled,
+    FluentIcons.calendar_24_regular: FluentIcons.calendar_rtl_24_regular,
+    FluentIcons.calendar_24_filled: FluentIcons.calendar_rtl_24_filled,
     FluentIcons.panel_left_24_regular: FluentIcons.panel_right_24_regular,
     FluentIcons.panel_right_24_regular: FluentIcons.panel_left_24_regular,
     FluentIcons.panel_left_24_filled: FluentIcons.panel_right_24_filled,
@@ -71,24 +66,37 @@ class RtlIcon extends StatelessWidget {
   static final Set<IconData> _flippableIcons = {
     FluentIcons.book_24_regular,
     FluentIcons.book_24_filled,
+    FluentIcons.book_star_24_regular,
     FluentIcons.book_information_24_regular,
     FluentIcons.text_align_distributed_24_regular,
     FluentIcons.list_24_regular,
+    FluentIcons.calendar_week_start_24_regular,
+    FluentIcons.calendar_week_start_24_filled,
+    FluentIcons.calendar_month_24_regular,
+    FluentIcons.calendar_month_24_filled,
   };
 
   @override
   Widget build(BuildContext context) {
     final isRtl = Directionality.of(context) == TextDirection.rtl;
 
-    final baseIcon =
-        Icon(icon, size: size, color: color, semanticLabel: semanticLabel);
+    final baseIcon = Icon(
+      icon,
+      size: size,
+      color: color,
+      semanticLabel: semanticLabel,
+    );
 
     if (!isRtl) return baseIcon;
 
     final mirroredIcon = _materialMirrorMap[icon] ?? _fluentMirrorMap[icon];
     if (mirroredIcon != null) {
-      return Icon(mirroredIcon,
-          size: size, color: color, semanticLabel: semanticLabel);
+      return Icon(
+        mirroredIcon,
+        size: size,
+        color: color,
+        semanticLabel: semanticLabel,
+      );
     }
 
     if (_flippableIcons.contains(icon)) {

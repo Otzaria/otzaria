@@ -8,8 +8,6 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 
 class ExternalCatalogSettingsHelper {
-  static bool _isAutoSyncInProgress = false;
-
   /// מעדכן במקשה אחת אילו מקורות ספרים חיצוניים יוצגו.
   /// [mode] אחד מ: 'none', 'all', 'otzar', 'hebrewbooks'.
   static Future<void> updateExternalSourceMode(
@@ -22,26 +20,25 @@ class ExternalCatalogSettingsHelper {
       settingsBloc.add(const UpdateShowExternalBooks(false));
       settingsBloc.add(const UpdateShowOtzarHachochma(false));
       settingsBloc.add(const UpdateShowHebrewBooks(false));
-      settingsBloc.add(const UpdateAutoSyncCatalogs(false));
       return;
     }
 
-    final wasEnabled = settingsBloc.state.showExternalBooks;
-    if (!await _ensureCatalogDatabaseAvailable(context)) {
+    if (!await ensureCatalogDatabaseAvailable(context)) {
       return;
     }
 
     settingsBloc.add(const UpdateShowExternalBooks(true));
-    settingsBloc
-        .add(UpdateShowOtzarHachochma(mode == 'all' || mode == 'otzar'));
-    settingsBloc
-        .add(UpdateShowHebrewBooks(mode == 'all' || mode == 'hebrewbooks'));
-    if (!wasEnabled) {
-      settingsBloc.add(const UpdateAutoSyncCatalogs(true));
-    }
+    settingsBloc.add(
+      UpdateShowOtzarHachochma(mode == 'all' || mode == 'otzar'),
+    );
+    settingsBloc.add(
+      UpdateShowHebrewBooks(mode == 'all' || mode == 'hebrewbooks'),
+    );
   }
 
-  static Future<bool> _ensureCatalogDatabaseAvailable(
+  /// מוודא שמסד הקטלוגים קיים; אם חסר — מציע להוריד אותו (בכפוף למצב רשת
+  /// ולעדכונים מופעלים). מחזיר `true` אם בסוף קיים קטלוג זמין.
+  static Future<bool> ensureCatalogDatabaseAvailable(
     BuildContext context,
   ) async {
     final repository = ExternalCatalogRepository.instance;
@@ -92,37 +89,6 @@ class ExternalCatalogSettingsHelper {
     } catch (e) {
       UiSnack.showError(SettingsMessages.catalogDbDownloadError(e));
       return false;
-    }
-  }
-
-  static Future<void> maybeAutoSyncCatalogs(
-    SettingsState settingsState, {
-    ExternalCatalogRepository? repository,
-    VoidCallback? invalidateExternalBooksCache,
-  }) async {
-    if (!settingsState.showExternalBooks ||
-        !settingsState.autoSyncCatalogs ||
-        !settingsState.canUseSoftwareAndBookUpdates ||
-        _isAutoSyncInProgress) {
-      return;
-    }
-
-    final catalogsRepository = repository ?? ExternalCatalogRepository.instance;
-    if (!await catalogsRepository.databaseExists()) {
-      return;
-    }
-
-    _isAutoSyncInProgress = true;
-    try {
-      final updated = await catalogsRepository.updateDatabaseIfNeeded();
-      if (updated) {
-        (invalidateExternalBooksCache ??
-            DataRepository.instance.invalidateExternalBooksCache)();
-      }
-    } catch (e) {
-      debugPrint('Auto-sync external catalogs failed: $e');
-    } finally {
-      _isAutoSyncInProgress = false;
     }
   }
 }

@@ -1,32 +1,6 @@
-// lib/widgets/sidebar_nav_item.dart
-//
 // SidebarNavItem — פריט ניווט לסיידבר בסגנון Material 3.
-//
 // מממש את הסגנון המשותף ל-SettingsScreen ו-MoreScreen:
-//  • רקע secondaryContainer כשנבחר (pill עגול)
-//  • אייקון filled כשנבחר, regular כשלא
 //  • תמיכה ב-imageAsset (עבור אייקונים מקובץ)
-//  • hover / pressed states דרך InkWell
-//  • אנימציה חלקה של החלפת אייקון (AnimatedSwitcher)
-//
-// **שימוש:**
-// ```dart
-// SidebarNavItem(
-//   icon: FluentIcons.calendar_24_regular,
-//   iconFilled: FluentIcons.calendar_24_filled,
-//   label: 'לוח שנה',
-//   isSelected: _selectedIndex == 0,
-//   onTap: () => _changeTab(0),
-// )
-//
-// // עם imageAsset:
-// SidebarNavItem(
-//   imageAsset: 'assets/icon/שמור וזכור שחור ריק.png',
-//   label: 'שמור וזכור',
-//   isSelected: _selectedIndex == 1,
-//   onTap: () => _changeTab(1),
-// )
-// ```
 
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_tokens.dart';
@@ -64,16 +38,17 @@ class SidebarNavItem extends StatelessWidget {
     required this.onTap,
     this.verticalPadding = 2,
   }) : assert(
-          icon != null || imageAsset != null,
-          'SidebarNavItem: חייב לספק icon או imageAsset',
-        );
+         icon != null || imageAsset != null,
+         'SidebarNavItem: חייב לספק icon או imageAsset',
+       );
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    final iconColor =
-        isSelected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
+    final iconColor = isSelected
+        ? cs.onSecondaryContainer
+        : cs.onSurfaceVariant;
 
     // ── בניית ווידג'ט האייקון ──────────────────────────────────────────────
     final Widget iconWidget = imageAsset != null
@@ -113,8 +88,9 @@ class SidebarNavItem extends StatelessWidget {
                     duration: const Duration(milliseconds: 200),
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                       color: isSelected
                           ? cs.onSecondaryContainer
                           : cs.onSurfaceVariant,
@@ -159,17 +135,19 @@ class TopNavItem extends StatelessWidget {
     required this.onTap,
     this.width,
   }) : assert(
-          icon != null || imageAsset != null,
-          'TopNavItem: חייב לספק icon או imageAsset',
-        );
+         icon != null || imageAsset != null,
+         'TopNavItem: חייב לספק icon או imageAsset',
+       );
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final iconColor =
-        isSelected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
-    final textColor =
-        isSelected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
+    final iconColor = isSelected
+        ? cs.onSecondaryContainer
+        : cs.onSurfaceVariant;
+    final textColor = isSelected
+        ? cs.onSecondaryContainer
+        : cs.onSurfaceVariant;
     final animatedTextStyle = TextStyle(
       fontSize: 14,
       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -201,7 +179,7 @@ class TopNavItem extends StatelessWidget {
               opacity: animation,
               child: ScaleTransition(scale: animation, child: child),
             ),
-            child: Icon(
+            child: RtlIcon(
               isSelected && iconFilled != null ? iconFilled! : icon!,
               key: ValueKey<bool>(isSelected),
               size: 20,

@@ -37,8 +37,9 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
   void initState() {
     super.initState();
     _loadDictionary();
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _searchFocusNode.requestFocus());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _searchFocusNode.requestFocus(),
+    );
   }
 
   void requestKeyboardFocus() {
@@ -90,12 +91,38 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
     }
 
     setState(() {
-      _filteredResults = _dictionaryData.where((entry) {
-        final searchIn =
-            _isHebrewToAramaic ? entry['hebrew']! : entry['aramaic']!;
-        return searchIn.contains(query);
-      }).toList();
+      _filteredResults =
+          _dictionaryData.where((entry) {
+            final searchIn = _isHebrewToAramaic
+                ? entry['hebrew']!
+                : entry['aramaic']!;
+            return searchIn.contains(query);
+          }).toList()..sort((a, b) {
+            final textA = _isHebrewToAramaic ? a['hebrew']! : a['aramaic']!;
+            final textB = _isHebrewToAramaic ? b['hebrew']! : b['aramaic']!;
+            final rankCompare = _matchRank(
+              textA,
+              query,
+            ).compareTo(_matchRank(textB, query));
+            if (rankCompare != 0) return rankCompare;
+            final posCompare = textA
+                .indexOf(query)
+                .compareTo(textB.indexOf(query));
+            if (posCompare != 0) return posCompare;
+            return textA.length.compareTo(textB.length);
+          });
     });
+  }
+
+  /// דירוג התאמת טקסט לשאילתה: נמוך = דומה יותר.
+  /// מדויק < מתחיל ב- < מילה שלמה < מכיל.
+  int _matchRank(String text, String query) {
+    if (text == query) return 0;
+    if (text.startsWith(query)) return 1;
+    if (RegExp('(^|\\s)${RegExp.escape(query)}(\$|\\s)').hasMatch(text)) {
+      return 2;
+    }
+    return 3;
   }
 
   void _toggleDirection() {
@@ -170,8 +197,9 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
             'עברית',
             style: TextStyle(
               fontSize: AppTokens.fontLG,
-              fontWeight:
-                  _isHebrewToAramaic ? FontWeight.bold : FontWeight.normal,
+              fontWeight: _isHebrewToAramaic
+                  ? FontWeight.bold
+                  : FontWeight.normal,
               color: _isHebrewToAramaic ? cs.primary : cs.onSurface,
             ),
           ),
@@ -194,8 +222,9 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
             'ארמית',
             style: TextStyle(
               fontSize: AppTokens.fontLG,
-              fontWeight:
-                  !_isHebrewToAramaic ? FontWeight.bold : FontWeight.normal,
+              fontWeight: !_isHebrewToAramaic
+                  ? FontWeight.bold
+                  : FontWeight.normal,
               color: !_isHebrewToAramaic ? cs.primary : cs.onSurface,
             ),
           ),

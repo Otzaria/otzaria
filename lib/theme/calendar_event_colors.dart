@@ -42,4 +42,10 @@ class CalendarEventColors {
     if (index == null || index < 0 || index >= palette.length) return null;
     return palette[index].name;
   }
+
+  /// תווית תצוגה כשאין צבע מיוחד (index הוא null או מחוץ לטווח).
+  static const String noColorLabel = 'ללא צבע';
+
+  /// תווית תצוגה לצבע — שם הגוון, או [noColorLabel] עבור null/מחוץ לטווח.
+  static String labelOf(int? index) => nameOf(index) ?? noColorLabel;
 }

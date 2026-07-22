@@ -28,6 +28,8 @@ import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/dialogs/change_location_dialog.dart';
 import 'package:otzaria/settings/tabs/widgets/android_storage_location_card.dart';
+import 'package:otzaria/settings/dialogs/library_setup_dialog.dart';
+import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:path/path.dart' as p;
 
 /// טאב הגדרות ספרייה
@@ -43,6 +45,30 @@ class LibrarySettingsTab extends StatefulWidget {
       tab: SettingsTab.library,
       cardId: 'library.repository',
       keywords: ['נתיב', 'תיקיה', 'מאגר', 'אינדקס', 'חיפוש', 'שורש'],
+    ),
+    SettingsSearchEntry(
+      id: 'library.search.auto_index',
+      title: 'עדכון אינדקס אוטומטי',
+      subtitle: 'אינדקס החיפוש יתעדכן אוטומטית',
+      tab: SettingsTab.library,
+      cardId: 'library.repository',
+      keywords: ['חיפוש', 'אינדקס', 'אוטומטי', 'מופעל', 'לא מופעל'],
+    ),
+    SettingsSearchEntry(
+      id: 'library.search.index_status',
+      title: 'אינדקס חיפוש',
+      subtitle: 'סטטוס ועדכון אינדקס החיפוש',
+      tab: SettingsTab.library,
+      cardId: 'library.repository',
+      keywords: [
+        'חיפוש',
+        'אינדקס',
+        'בנייה',
+        'מעודכן',
+        'לא מעודכן',
+        'איפוס',
+        'עדכן',
+      ],
     ),
     SettingsSearchEntry(
       id: 'library.location.hebrewbooks',
@@ -85,30 +111,6 @@ class LibrarySettingsTab extends StatefulWidget {
         'עץ',
       ],
     ),
-    SettingsSearchEntry(
-      id: 'library.search.auto_index',
-      title: 'עדכון אינדקס אוטומטי',
-      subtitle: 'אינדקס החיפוש יתעדכן אוטומטית',
-      tab: SettingsTab.library,
-      cardId: 'library.search',
-      keywords: ['חיפוש', 'אינדקס', 'אוטומטי', 'מופעל', 'לא מופעל'],
-    ),
-    SettingsSearchEntry(
-      id: 'library.search.index_status',
-      title: 'אינדקס חיפוש',
-      subtitle: 'סטטוס ועדכון אינדקס החיפוש',
-      tab: SettingsTab.library,
-      cardId: 'library.search',
-      keywords: [
-        'חיפוש',
-        'אינדקס',
-        'בנייה',
-        'מעודכן',
-        'לא מעודכן',
-        'איפוס',
-        'עדכן',
-      ],
-    ),
   ];
 
   @override
@@ -116,7 +118,6 @@ class LibrarySettingsTab extends StatefulWidget {
 }
 
 class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
-  static const _libraryFolderName = 'ספריית אוצריא';
   static const _hebrewBooksFolderName = 'ספרי היברובוקס';
 
   bool _isRemovingHebrewPath = false;
@@ -272,16 +273,61 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
       ? p.dirname(libraryPath)
       : libraryPath;
 
-  /// שורת מיקום הספרייה, האינדקס ונתוני המשתמש — מציגה את תיקיית השורש
-  /// המשותפת, בלי אפשרות ניקוי (הספרייה חיונית לפעולה).
+  /// פריטי כרטיס "מאגר הספרים": כשלא זוהתה ספרייה — כפתור "הגדרת ספריה"
+  /// שפותח את הדיאלוג המאוחד; אחרת שורת המיקום עם תפריט "אפשרויות מיקום".
+  List<Widget> _buildRepositoryCardChildren(
+    BuildContext context,
+    bool libraryEmpty,
+  ) {
+    if (libraryEmpty) {
+      return [
+        SettingsActionTile.text(
+          icon: FluentIcons.folder_add_24_regular,
+          title: 'מיקום הספרייה',
+          subtitle: 'לא זוהתה ספרייה — הגדר מיקום, הורד או ייבא ספרייה',
+          actions: [
+            ActionButton.recommended(
+              text: 'הגדרת ספריה',
+              onPressed: () => _openLibraryDialog(''),
+            ),
+          ],
+        ),
+      ];
+    }
+    return [_buildLibraryLocationWidget(context)];
+  }
+
+  /// פותח את דיאלוג הגדרת/עדכון מיקום הספרייה המאוחד. [booksPath] ריק → מצב
+  /// הגדרה ראשונית; אחרת מצב עדכון/מיקום מחדש של ספרייה קיימת.
+  Future<void> _openLibraryDialog(String booksPath) async {
+    if (!await verifySaferModePassword(context)) return;
+    if (!mounted) return;
+    final defaultRoot =
+        (_defaultLibraryPath == null || _defaultLibraryPath!.isEmpty)
+        ? ''
+        : _libraryRootOf(_defaultLibraryPath!);
+    final configured = await showLibrarySetupDialog(
+      context: context,
+      defaultTargetPath: defaultRoot,
+      currentLibraryPath: booksPath.isEmpty ? null : booksPath,
+    );
+    if (configured) await _refreshAfterLibraryChange();
+  }
+
+  Future<void> _refreshAfterLibraryChange() async {
+    if (!mounted) return;
+    await context.read<NavigationBloc>().refreshLibrary();
+    if (!mounted) return;
+    context.read<LibraryBloc>().add(RefreshLibrary());
+    setState(() {});
+  }
+
+  /// שורת מיקום הספרייה והאינדקס — מציגה את תיקיית השורש המשותפת
+  /// (ההורה של books ו-index), בלי אפשרות ניקוי (הספרייה חיונית לפעולה).
   Widget _buildLibraryLocationWidget(BuildContext context) {
     final booksPath =
         Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '';
     final rootPath = booksPath.isEmpty ? '' : _libraryRootOf(booksPath);
-    final defaultRoot =
-        (_defaultLibraryPath == null || _defaultLibraryPath!.isEmpty)
-        ? null
-        : _libraryRootOf(_defaultLibraryPath!);
     final indexPath = _indexPath ?? '';
     final databasesPath = _databasesPath ?? '';
 
@@ -294,26 +340,8 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
         if (!context.mounted) return;
         await _applyLibraryRootChange(root);
       },
-      requestChangeLocation: makeChangeLocationCallback(
-        currentPath: rootPath,
-        folderName: _libraryFolderName,
-        onPathChanged: (root) async {
-          if (!context.mounted) return;
-          await _applyLibraryRootChange(root);
-        },
-        // ה-from של ההעברה הוא תיקיית הספרים בפועל; ה-to הוא השורש שנבחר,
-        // ותחתיו performLibraryMove יוצר books ו-index.
-        onMoveContents: booksPath.isNotEmpty
-            ? (ctx, from, to) =>
-                  performLibraryMove(context: ctx, from: booksPath, to: to)
-            : null,
-        moveContentsWarning:
-            'בזמן העברת הספרייה התוכנה תיסגר ותיטען מחדש, ולא תהיה זמינה עד '
-            'לסיום הפעולה. תחת התיקייה שתבחר ייווצרו "books", "index" '
-            'ו-"databases". רק קבצי הספרייה המזוהים יועברו; קבצים אחרים '
-            'שהוספת לתיקיית הספרייה יישארו במקומם.',
-        defaultPath: defaultRoot,
-      ),
+      requestChangeLocation: (_) => _openLibraryDialog(booksPath),
+      changeLocationLabel: 'מתקדם',
       onOpenFolder: () => _openInFileManager(rootPath),
       onOpenPath: _openInFileManager,
       pathTargets: [
@@ -389,6 +417,11 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
             context.read<LibraryBloc>().add(RefreshLibrary());
           },
           builder: (context, state) {
+            // זיהוי אמיתי של קיום הספרייה (קובץ seforim.db) — לא רק ערך ההגדרה,
+            // כדי שגם הטאב יזהה מצב "אין ספרייה" ויפתח את דיאלוג ההגדרה.
+            final libraryEmpty = context.select<NavigationBloc, bool>(
+              (b) => b.state.isLibraryEmpty,
+            );
             // בניית כפתור בחירת תיקייה רק בדסקטופ והעברה לפאנל
             final hebrewPathWidget = !(Platform.isAndroid || Platform.isIOS)
                 ? _buildHebrewBooksLocationWidget(context)
@@ -405,10 +438,14 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                     if (!(Platform.isAndroid || Platform.isIOS)) ...[
                       SettingsCard(
                         cardId: 'library.repository',
-                        title: 'מאגר הספרים',
+                        title: 'מאגר הספרים וחיפוש',
                         subtitle: 'התיקיה שבה נמצאים תיקיות הספרים והאינדקס',
                         children: [
-                          _buildLibraryLocationWidget(context),
+                          ..._buildRepositoryCardChildren(
+                            context,
+                            libraryEmpty,
+                          ),
+                          ..._buildSearchChildren(context, state, libraryState),
                         ],
                       ),
                       kSettingsCardSpacing,
@@ -440,30 +477,23 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                     // תיקיות מותאמות אישית (רק בדסקטופ)
                     if (!(Platform.isAndroid || Platform.isIOS)) ...[
                       kSettingsCardSpacing,
-                      SettingsCard(
-                        cardId: 'library.custom_folders',
-                        title: 'תיקיות מותאמות אישית',
-                        subtitle:
-                            'לאחר הוספת ספרים חדשים לתיקייה קיימת, יש ללחוץ על סמל הרענון.',
-                        children: [
-                          const CustomFoldersPanel(),
-                          SettingsActionTile.switchTile(
-                            icon: FluentIcons.person_24_regular,
-                            title: 'מיזוג ספרים אישיים לעץ הספרייה',
-                            subtitle: state.mergeUserBooksIntoLibrary
-                                ? 'תת-התיקיות של התיקייה הנבחרת ימוזגו לקטגוריות הראשיות לפי שם'
-                                : 'תיקיות אישיות יוצגו תחת קטגוריית "ספרים אישיים"',
-                            value: state.mergeUserBooksIntoLibrary,
-                            onChanged: (value) {
-                              // ה-RefreshLibrary מופעל ב-listener למעלה,
-                              // אחרי שהערך החדש נשמר ב-`Settings`. אחרת
-                              // הספרייה היתה נבנית עם הערך הישן.
-                              context.read<SettingsBloc>().add(
-                                UpdateMergeUserBooksIntoLibrary(value),
-                              );
-                            },
-                          ),
-                        ],
+                      CustomFoldersPanel(
+                        mergeToggle: SettingsActionTile.switchTile(
+                          icon: FluentIcons.person_24_regular,
+                          title: 'מיזוג ספרים אישיים לעץ הספרייה',
+                          subtitle: state.mergeUserBooksIntoLibrary
+                              ? 'תת-התיקיות של התיקייה הנבחרת ימוזגו לקטגוריות הראשיות לפי שם'
+                              : 'תיקיות אישיות יוצגו תחת קטגוריית "ספרים אישיים"',
+                          value: state.mergeUserBooksIntoLibrary,
+                          onChanged: (value) {
+                            // ה-RefreshLibrary מופעל ב-listener למעלה,
+                            // אחרי שהערך החדש נשמר ב-`Settings`. אחרת
+                            // הספרייה היתה נבנית עם הערך הישן.
+                            context.read<SettingsBloc>().add(
+                              UpdateMergeUserBooksIntoLibrary(value),
+                            );
+                          },
+                        ),
                       ),
                       kSettingsCardSpacing,
                       SettingsCard(
@@ -477,9 +507,20 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                       ),
                     ],
 
-                    // חיפוש ואינדקס
-                    kSettingsCardSpacing,
-                    _buildSearchSection(context, state, libraryState),
+                    // חיפוש ואינדקס — במובייל ככרטיס נפרד, ללא שורת מיקום
+                    // הספרייה (בדסקטופ מוצג בתוך כרטיס מאגר הספרים וחיפוש)
+                    if (Platform.isAndroid || Platform.isIOS) ...[
+                      kSettingsCardSpacing,
+                      SettingsCard(
+                        cardId: 'library.repository',
+                        title: 'חיפוש ואינדקס',
+                        children: _buildSearchChildren(
+                          context,
+                          state,
+                          libraryState,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -490,126 +531,120 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
     );
   }
 
-  Widget _buildSearchSection(
+  List<Widget> _buildSearchChildren(
     BuildContext context,
     SettingsState state,
     LibraryState libraryState,
   ) {
-    return SettingsCard(
-      cardId: 'library.search',
-      title: 'חיפוש ואינדקס',
-      children: [
-        SettingsActionTile.switchTile(
-          icon: FluentIcons.arrow_clockwise_24_regular,
-          title: 'עדכון אינדקס אוטומטי',
-          subtitle: state.autoUpdateIndex
-              ? 'אינדקס החיפוש יתעדכן אוטומטית'
-              : 'אינדקס החיפוש לא יתעדכן אוטומטית',
-          value: state.autoUpdateIndex,
-          onChanged: (value) {
-            context.read<SettingsBloc>().add(UpdateAutoUpdateIndex(value));
-          },
-        ),
-        BlocBuilder<IndexingBloc, IndexingState>(
-          builder: (context, indexingState) {
-            final processed = indexingState.booksProcessed ?? 0;
-            final total = indexingState.totalBooks ?? 0;
-            final isActive = indexingState is IndexingInProgress && total > 0;
-            final isCheckingManualReindex = _requiresManualReindex == null;
-            String subtitleText;
-            final libraryPath = Settings.getValue<String>(
-              SettingsRepository.keyLibraryPath,
-            );
-            final library = libraryState.library;
-            final hasBooks = library?.getAllBooks().isNotEmpty ?? false;
-            if (libraryPath == null || libraryPath.isEmpty) {
-              subtitleText = 'לא קיימת ספרייה לאינדוקס';
-            } else if (!hasBooks) {
-              subtitleText = 'הספרייה ריקה – אין ספרים לאינדוקס';
-            } else if (isCheckingManualReindex) {
-              subtitleText = 'בודק אם נדרש איפוס ואינדוקס מחדש';
-            } else if (_requiresManualReindex == true) {
-              subtitleText = 'נדרש איפוס ואינדוקס מחדש באישור המשתמש';
-            } else if (isActive) {
-              subtitleText = 'התקדמות האינדקס: $processed/$total';
-            } else if (indexingState is IndexingComplete) {
-              subtitleText = 'האינדקס מעודכן';
-            } else {
-              subtitleText = 'האינדקס לא מעודכן';
-            }
-            return SettingsActionTile.text(
-              icon: FluentIcons.table_24_regular,
-              title: 'אינדקס חיפוש',
-              subtitle: subtitleText,
-              actions: [
-                if (isActive)
-                  ActionButton.neutral(
-                    text: 'עצור',
-                    onPressed: () async {
-                      final result = await showWarningDialog(
-                        context: context,
-                        title: 'עצירת עדכון',
-                        content: 'האם לעצור את תהליך עדכון האינדקס?',
-                        confirmText: 'עצור',
-                      );
-                      if (!context.mounted) return;
-                      if (result == true) {
-                        context.read<IndexingBloc>().add(CancelIndexing());
-                      }
-                    },
-                  )
-                else if (isCheckingManualReindex)
-                  const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else if (_requiresManualReindex == true)
-                  ActionButton.recommended(
-                    text: 'אפס ועדכן',
-                    onPressed: () async {
-                      if (library == null) return;
-                      final indexingBloc = context.read<IndexingBloc>();
-                      await _indexingRepository.clearIndex();
-                      if (!mounted) return;
-                      setState(() => _requiresManualReindex = false);
-                      indexingBloc.add(StartIndexing(library));
-                    },
-                  )
-                else if (indexingState is IndexingComplete)
-                  ActionButton.ghost(
-                    text: 'איפוס',
-                    onPressed: () async {
-                      final result = await showWarningDialog(
-                        context: context,
-                        title: 'איפוס אינדקס',
-                        content:
-                            'האם למחוק את אינדקס החיפוש? תצטרך לבנות אותו מחדש כדי להשתמש בחיפוש.',
-                        confirmText: 'אפס',
-                      );
-                      if (!context.mounted) return;
-                      if (result == true) {
-                        context.read<IndexingBloc>().add(ClearIndex());
-                      }
-                    },
-                  )
-                else
-                  ActionButton.recommended(
-                    text: 'עדכן',
-                    onPressed: () {
-                      final library = context.read<LibraryBloc>().state.library;
-                      if (library != null) {
-                        context.read<IndexingBloc>().add(
-                          StartIndexing(library),
-                        );
-                      }
-                    },
-                  ),
-              ],
-            );
-          },
-        ),
-      ],
-    );
+    return [
+      SettingsActionTile.switchTile(
+        icon: FluentIcons.arrow_clockwise_24_regular,
+        title: 'עדכון אינדקס אוטומטי',
+        subtitle: state.autoUpdateIndex
+            ? 'אינדקס החיפוש יתעדכן אוטומטית'
+            : 'אינדקס החיפוש לא יתעדכן אוטומטית',
+        value: state.autoUpdateIndex,
+        onChanged: (value) {
+          context.read<SettingsBloc>().add(UpdateAutoUpdateIndex(value));
+        },
+      ),
+      BlocBuilder<IndexingBloc, IndexingState>(
+        builder: (context, indexingState) {
+          final processed = indexingState.booksProcessed ?? 0;
+          final total = indexingState.totalBooks ?? 0;
+          final isActive = indexingState is IndexingInProgress && total > 0;
+          final isCheckingManualReindex = _requiresManualReindex == null;
+          String subtitleText;
+          final libraryPath = Settings.getValue<String>(
+            SettingsRepository.keyLibraryPath,
+          );
+          final library = libraryState.library;
+          final hasBooks = library?.getAllBooks().isNotEmpty ?? false;
+          if (libraryPath == null || libraryPath.isEmpty) {
+            subtitleText = 'לא קיימת ספרייה לאינדוקס';
+          } else if (!hasBooks) {
+            subtitleText = 'הספרייה ריקה – אין ספרים לאינדוקס';
+          } else if (isCheckingManualReindex) {
+            subtitleText = 'בודק אם נדרש איפוס ואינדוקס מחדש';
+          } else if (_requiresManualReindex == true) {
+            subtitleText = 'נדרש איפוס ואינדוקס מחדש באישור המשתמש';
+          } else if (isActive) {
+            subtitleText = 'התקדמות האינדקס: $processed/$total';
+          } else if (indexingState is IndexingComplete) {
+            subtitleText = 'האינדקס מעודכן';
+          } else {
+            subtitleText = 'האינדקס לא מעודכן';
+          }
+          return SettingsActionTile.text(
+            icon: FluentIcons.table_24_regular,
+            title: 'אינדקס חיפוש',
+            subtitle: subtitleText,
+            actions: [
+              if (isActive)
+                ActionButton.neutral(
+                  text: 'עצור',
+                  onPressed: () async {
+                    final result = await showWarningDialog(
+                      context: context,
+                      title: 'עצירת עדכון',
+                      content: 'האם לעצור את תהליך עדכון האינדקס?',
+                      confirmText: 'עצור',
+                    );
+                    if (!context.mounted) return;
+                    if (result == true) {
+                      context.read<IndexingBloc>().add(CancelIndexing());
+                    }
+                  },
+                )
+              else if (isCheckingManualReindex)
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else if (_requiresManualReindex == true)
+                ActionButton.recommended(
+                  text: 'אפס ועדכן',
+                  onPressed: () async {
+                    if (library == null) return;
+                    final indexingBloc = context.read<IndexingBloc>();
+                    await _indexingRepository.clearIndex();
+                    if (!mounted) return;
+                    setState(() => _requiresManualReindex = false);
+                    indexingBloc.add(StartIndexing(library));
+                  },
+                )
+              else if (indexingState is IndexingComplete)
+                ActionButton.ghost(
+                  text: 'איפוס',
+                  onPressed: () async {
+                    final result = await showWarningDialog(
+                      context: context,
+                      title: 'איפוס אינדקס',
+                      content:
+                          'האם למחוק את אינדקס החיפוש? תצטרך לבנות אותו מחדש כדי להשתמש בחיפוש.',
+                      confirmText: 'אפס',
+                    );
+                    if (!context.mounted) return;
+                    if (result == true) {
+                      context.read<IndexingBloc>().add(ClearIndex());
+                    }
+                  },
+                )
+              else
+                ActionButton.recommended(
+                  text: 'עדכן',
+                  onPressed: () {
+                    final library = context.read<LibraryBloc>().state.library;
+                    if (library != null) {
+                      context.read<IndexingBloc>().add(StartIndexing(library));
+                    }
+                  },
+                ),
+            ],
+          );
+        },
+      ),
+    ];
   }
 }

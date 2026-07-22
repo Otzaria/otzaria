@@ -1710,6 +1710,7 @@ class CalendarCubit extends Cubit<CalendarState> {
     TimeOfDay? eventTime,
     DateTime? endGregorianDate,
     int? colorIndex,
+    int? notificationMinutes,
   }) async {
     final baseJewish = JewishDate.fromDateTime(baseGregorianDate);
     final newEvent = CustomEvent(
@@ -1736,6 +1737,7 @@ class CalendarCubit extends Cubit<CalendarState> {
             )
           : null,
       colorIndex: colorIndex,
+      notificationMinutes: notificationMinutes,
     );
     final updated = List<CustomEvent>.from(state.events)..add(newEvent);
     emit(state.copyWith(events: updated));
@@ -2041,7 +2043,8 @@ class CalendarCubit extends Cubit<CalendarState> {
               title: event.title,
               body: event.description,
               eventDate: eventDateTime,
-              reminderMinutes: state.calendarNotificationTime,
+              reminderMinutes:
+                  event.notificationMinutes ?? state.calendarNotificationTime,
               soundEnabled: state.calendarNotificationSound,
             );
           }
@@ -2077,7 +2080,8 @@ class CalendarCubit extends Cubit<CalendarState> {
             title: event.title,
             body: event.description,
             eventDate: eventDateTime,
-            reminderMinutes: state.calendarNotificationTime,
+            reminderMinutes:
+                event.notificationMinutes ?? state.calendarNotificationTime,
             soundEnabled: state.calendarNotificationSound,
           );
         }
@@ -2173,6 +2177,8 @@ class CustomEvent extends Equatable {
   final DateTime? endGregorianDate;
   // אינדקס לפלטת CalendarEventColors; null = ללא צבע מיוחד
   final int? colorIndex;
+  // דקות לפני האירוע להצגת ההתראה. null = השתמש בהגדרה הגלובלית.
+  final int? notificationMinutes;
 
   bool get recurring => recurrenceType != RecurrenceType.none;
   bool get recurOnHebrew =>
@@ -2194,6 +2200,7 @@ class CustomEvent extends Equatable {
     this.eventTime,
     this.endGregorianDate,
     this.colorIndex,
+    this.notificationMinutes,
   });
 
   // פונקציה שמאפשרת ליצור עותק של אירוע עם שינויים
@@ -2214,6 +2221,7 @@ class CustomEvent extends Equatable {
     ValueGetter<DateTime?>? endGregorianDate,
     // עטוף ב-ValueGetter כדי לאפשר איפוס מפורש ל-null (הסרת צבע)
     ValueGetter<int?>? colorIndex,
+    int? notificationMinutes,
   }) {
     return CustomEvent(
       id: id ?? this.id,
@@ -2232,6 +2240,7 @@ class CustomEvent extends Equatable {
           ? endGregorianDate()
           : this.endGregorianDate,
       colorIndex: colorIndex != null ? colorIndex() : this.colorIndex,
+      notificationMinutes: notificationMinutes ?? this.notificationMinutes,
     );
   }
 
@@ -2254,6 +2263,7 @@ class CustomEvent extends Equatable {
           : null,
       'endGregorianDate': endGregorianDate?.millisecondsSinceEpoch,
       'colorIndex': colorIndex,
+      'notificationMinutes': notificationMinutes,
     };
   }
 
@@ -2305,26 +2315,28 @@ class CustomEvent extends Equatable {
           ? DateTime.fromMillisecondsSinceEpoch(endMillis)
           : null,
       colorIndex: json['colorIndex'] as int?,
+      notificationMinutes: json['notificationMinutes'] as int?,
     );
   }
 
   @override
   List<Object?> get props => [
-    id,
-    title,
-    description,
-    createdAt,
-    baseGregorianDate,
-    baseJewishYear,
-    baseJewishMonth,
-    baseJewishDay,
-    recurrenceType,
-    recurringYears,
-    googleEventId,
-    eventTime,
-    endGregorianDate,
-    colorIndex,
-  ];
+        id,
+        title,
+        description,
+        createdAt,
+        baseGregorianDate,
+        baseJewishYear,
+        baseJewishMonth,
+        baseJewishDay,
+        recurrenceType,
+        recurringYears,
+        googleEventId,
+        eventTime,
+        endGregorianDate,
+        colorIndex,
+        notificationMinutes,
+      ];
 }
 
 bool _isCityInIsrael(String cityName) {

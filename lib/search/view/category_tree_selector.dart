@@ -5,10 +5,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
-import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/search_scope_preferences.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/search/utils/find_match_utils.dart';
+import 'package:otzaria/search/utils/scope_tree.dart';
 import 'package:otzaria/search/utils/search_catalogue_order_helper.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -38,9 +38,8 @@ class _SearchScopeSelectorState extends State<SearchScopeSelector> {
   /// כמות שהם ואינם חלק מלוגיקת "כל הקטגוריות"/בחירה ידנית.
   Set<String> _dimensionFacets = {};
 
-  static Set<String> _categoryPartOf(Set<String> selection) => selection
-      .where((facet) => !FacetHelper.isDimensionFacet(facet))
-      .toSet();
+  static Set<String> _categoryPartOf(Set<String> selection) =>
+      selection.where((facet) => !FacetHelper.isDimensionFacet(facet)).toSet();
 
   static Set<String> _dimensionPartOf(Set<String> selection) =>
       selection.where(FacetHelper.isDimensionFacet).toSet();
@@ -74,8 +73,8 @@ class _SearchScopeSelectorState extends State<SearchScopeSelector> {
     _searchAllCategories = hasExplicitManualSelection
         ? false
         : isExplicitAllSelection
-            ? true
-            : persisted.searchAllCategories;
+        ? true
+        : persisted.searchAllCategories;
     _manualSelectedFacets = hasExplicitManualSelection
         ? explicitCategories
         : persisted.manualFacets;
@@ -124,9 +123,9 @@ class _SearchScopeSelectorState extends State<SearchScopeSelector> {
   }
 
   Set<String> get _selectionState => {
-        ...(_searchAllCategories ? const {'/'} : _manualSelectedFacets),
-        ..._dimensionFacets,
-      };
+    ...(_searchAllCategories ? const {'/'} : _manualSelectedFacets),
+    ..._dimensionFacets,
+  };
 
   void _setSearchAllCategories(bool value) {
     setState(() {
@@ -179,8 +178,8 @@ class _SearchScopeSelectorState extends State<SearchScopeSelector> {
     final helperText = _searchAllCategories
         ? 'מופעל כברירת מחדל. כבה כדי לבחור קטגוריות או ספרים ידנית.'
         : manualCount == 0
-            ? 'אפשר לחפש בעץ ולבחור קטגוריות או ספרים. עד שתיבחר בחירה ידנית, החיפוש יישאר בכל הקטגוריות.'
-            : 'נשמרו $manualCount פריטים לבחירה הידנית הכללית.';
+        ? 'אפשר לחפש בעץ ולבחור קטגוריות או ספרים. עד שתיבחר בחירה ידנית, החיפוש יישאר בכל הקטגוריות.'
+        : 'נשמרו $manualCount פריטים לבחירה הידנית הכללית.';
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -288,10 +287,8 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
   final Map<String, bool> _expansionState = {};
   final TextEditingController _searchController = TextEditingController();
 
-  // מאוחסן בבנייה כדי להיות זמין בפונקציות ה-toggle
-  Library? _library;
-  List<_ScopeNode> _rootNodes = const [];
-  Map<String, _ScopeNode> _nodesByFacet = const {};
+  // נבנה בכל build מה-Library הנוכחי; זמין לפונקציות ה-toggle.
+  ScopeTree? _tree;
 
   /// facets ממדיים (/base, /era/, /author/) שרוכבים על אותה רשימת בחירה —
   /// אינם נתיבי קטגוריה, ולכן לוגיקת העץ מתעלמת מהם, אבל כל שינוי בחירה
@@ -334,37 +331,15 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
   }
 
   void _toggleCategory(Category category, bool select) {
-    if (_library == null) return;
+    if (_tree == null) return;
     _toggleFacet(category.path, select);
   }
 
   // --- לוגיקת תצוגת מצב ---
 
   /// מחזיר true/false/null (tristate) לצ'קבוקס
-  bool? _getCategoryCheckState(Category category) {
-    // "/" נבחר = הכל מסומן
-    if (_isAllSelected) return true;
-
-    // נבחרה ישירות
-    if (_categoryFacets.contains(category.path)) return true;
-
-    // הורה נבחר = מסומן
-    for (final facet in _categoryFacets) {
-      if (facet != '/' && category.path.startsWith('$facet/')) return true;
-    }
-
-    // יש צאצא שנבחר = חלקי
-    if (_hasSelectedDescendant(category)) return null;
-
-    return false;
-  }
-
-  bool _hasSelectedDescendant(Category category) {
-    for (final facet in _categoryFacets) {
-      if (facet.startsWith('${category.path}/')) return true;
-    }
-    return false;
-  }
+  bool? _getCategoryCheckState(Category category) =>
+      _tree?.categoryCheckState(category.path, _categoryFacets) ?? false;
 
   // --- בנייה ---
 
@@ -376,20 +351,25 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
           return const SizedBox.shrink();
         }
 
-        _library = libraryState.library!;
-        _rebuildScopeTree(_library!);
-        final topCategories = _library!.subCategories.toList()
-          ..sort((a, b) => SearchCatalogueOrderHelper.topCategoryOrder(a)
-              .compareTo(SearchCatalogueOrderHelper.topCategoryOrder(b)));
+        final library = libraryState.library!;
+        final tree = ScopeTree.fromLibrary(library);
+        _tree = tree;
+        final topCategories = library.subCategories.toList()
+          ..sort(
+            (a, b) => SearchCatalogueOrderHelper.topCategoryOrder(
+              a,
+            ).compareTo(SearchCatalogueOrderHelper.topCategoryOrder(b)),
+          );
         final searchResults = _hasActiveSearch
-            ? _buildScopeSearchResults(_normalizedSearchQuery)
-            : const <_ScopeSearchResultItem>[];
+            ? tree.search(_normalizedSearchQuery)
+            : const <ScopeSearchResultItem>[];
 
         final treeBody = Container(
           decoration: BoxDecoration(
             border: Border.all(
-              color:
-                  Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.3),
             ),
             borderRadius: AppTokens.borderRadiusAll,
           ),
@@ -458,10 +438,12 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
               constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
               padding: const EdgeInsets.all(6),
               style: IconButton.styleFrom(
-                backgroundColor:
-                    Theme.of(context).colorScheme.secondaryContainer,
-                foregroundColor:
-                    Theme.of(context).colorScheme.onSecondaryContainer,
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.secondaryContainer,
+                foregroundColor: Theme.of(
+                  context,
+                ).colorScheme.onSecondaryContainer,
                 shape: AppTokens.roundedShape,
               ),
             ),
@@ -470,8 +452,8 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
           value: _isAllSelected
               ? true
               : _categoryFacets.isEmpty
-                  ? false
-                  : null,
+              ? false
+              : null,
           tristate: true,
           onChanged: (value) => _toggleAll(value == true),
         ),
@@ -511,7 +493,7 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
 
   Widget _buildSearchResultsView(
     BuildContext context,
-    List<_ScopeSearchResultItem> results,
+    List<ScopeSearchResultItem> results,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
 
@@ -660,308 +642,36 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
     );
   }
 
-  void _selectAllSearchResults(List<_ScopeSearchResultItem> results) {
+  void _selectAllSearchResults(List<ScopeSearchResultItem> results) {
+    final tree = _tree;
+    if (tree == null) return;
     var selection = _categoryFacets;
     for (final result in results) {
-      selection = _selectFacet(result.facet, selection);
+      selection = tree.selectFacet(result.facet, selection);
     }
     _emitSelection(selection);
   }
 
-  void _clearSearchResultsSelection(List<_ScopeSearchResultItem> results) {
+  void _clearSearchResultsSelection(List<ScopeSearchResultItem> results) {
+    final tree = _tree;
+    if (tree == null) return;
     var selection = _categoryFacets;
     for (final result in results) {
-      selection = _deselectFacet(result.facet, selection);
+      selection = tree.deselectFacet(result.facet, selection);
     }
     _emitSelection(selection);
   }
 
-  void _rebuildScopeTree(Library library) {
-    final nodesByFacet = <String, _ScopeNode>{};
-
-    _ScopeNode buildCategoryNode(Category category) {
-      final sortedCategories = category.subCategories.toList()
-        ..sort((a, b) => SearchCatalogueOrderHelper.normalizeOrder(a.order)
-            .compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)));
-      final sortedBooks = category.books.toList()
-        ..sort((a, b) => SearchCatalogueOrderHelper.normalizeOrder(a.order)
-            .compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)));
-
-      final children = <_ScopeNode>[
-        for (final subCategory in sortedCategories)
-          buildCategoryNode(subCategory),
-        for (final book in sortedBooks)
-          _BookScopeNode(
-            book: book,
-            facet: FacetHelper.buildBookFacet(
-              FacetHelper.resolveCategoryPath(book),
-              book,
-            ),
-          ),
-      ];
-
-      final node = _CategoryScopeNode(category: category, children: children);
-      nodesByFacet[node.facet] = node;
-      for (final child in children) {
-        nodesByFacet[child.facet] = child;
-      }
-      return node;
-    }
-
-    _rootNodes = [
-      for (final category in library.subCategories) buildCategoryNode(category)
-    ];
-    _nodesByFacet = nodesByFacet;
-  }
-
-  List<_ScopeSearchResultItem> _buildScopeSearchResults(
-      String normalizedQuery) {
-    if (normalizedQuery.isEmpty) {
-      return const [];
-    }
-
-    final results = <_ScopeSearchResultItem>[];
-
-    void visit(_ScopeNode node) {
-      final normalizedTitle = normalizeFindText(node.title);
-      final normalizedSubtitle = normalizeFindText(node.subtitle);
-      final matches = findNormalizedTextMatches(
-        normalizedQuery: normalizedQuery,
-        normalizedPrimaryText: normalizedTitle,
-        normalizedSecondaryText: normalizedSubtitle,
-      );
-
-      if (matches) {
-        results.add(
-          _ScopeSearchResultItem(
-            facet: node.facet,
-            title: node.title,
-            subtitle: node.subtitle,
-            isBook: node.isBook,
-            score: findNormalizedTextMatchRank(
-              normalizedQuery: normalizedQuery,
-              normalizedPrimaryText: normalizedTitle,
-              normalizedSecondaryText: normalizedSubtitle,
-            ),
-            lengthDelta: findNormalizedTextMatchLengthDelta(
-              normalizedQuery: normalizedQuery,
-              normalizedPrimaryText: normalizedTitle,
-              normalizedSecondaryText: normalizedSubtitle,
-            ),
-          ),
-        );
-      }
-
-      for (final child in node.children) {
-        visit(child);
-      }
-    }
-
-    for (final node in _rootNodes) {
-      visit(node);
-    }
-
-    results.sort((a, b) {
-      final scoreCompare = a.score.compareTo(b.score);
-      if (scoreCompare != 0) {
-        return scoreCompare;
-      }
-
-      final lengthDeltaCompare = a.lengthDelta.compareTo(b.lengthDelta);
-      if (lengthDeltaCompare != 0) {
-        return lengthDeltaCompare;
-      }
-
-      if (a.isBook != b.isBook) {
-        return a.isBook ? 1 : -1;
-      }
-
-      return a.title.compareTo(b.title);
-    });
-
-    return results;
-  }
-
-  bool _isFacetCovered(String facet) {
-    if (_isAllSelected) {
-      return true;
-    }
-
-    if (_categoryFacets.contains(facet)) {
-      return true;
-    }
-
-    for (final selected in _categoryFacets) {
-      if (selected == '/' || selected == facet) {
-        continue;
-      }
-      if (facet.startsWith('$selected/')) {
-        return true;
-      }
-    }
-
-    return false;
-  }
+  bool _isFacetCovered(String facet) =>
+      _tree?.isFacetCovered(facet, _categoryFacets) ?? false;
 
   void _toggleFacet(String facet, bool select) {
+    final tree = _tree;
+    if (tree == null) return;
     final nextSelection = select
-        ? _selectFacet(facet, _categoryFacets)
-        : _deselectFacet(facet, _categoryFacets);
+        ? tree.selectFacet(facet, _categoryFacets)
+        : tree.deselectFacet(facet, _categoryFacets);
     _emitSelection(nextSelection);
-  }
-
-  Set<String> _selectFacet(String facet, Set<String> selection) {
-    selection.remove('/');
-
-    for (final selected in selection.toList()) {
-      if (facet == selected || facet.startsWith('$selected/')) {
-        selection.remove(selected);
-      }
-    }
-
-    for (final selected in selection.toList()) {
-      if (selected.startsWith('$facet/')) {
-        selection.remove(selected);
-      }
-    }
-
-    selection.add(facet);
-    return _consolidateSelection(selection);
-  }
-
-  Set<String> _deselectFacet(String facet, Set<String> selection) {
-    if (selection.remove(facet)) {
-      return _consolidateSelection(selection);
-    }
-
-    final coveringFacet = _findCoveringFacet(facet, selection);
-    if (coveringFacet == null) {
-      return selection;
-    }
-
-    final excludedNode = _nodesByFacet[facet];
-    if (excludedNode == null) {
-      selection.remove(coveringFacet);
-      return _consolidateSelection(selection);
-    }
-
-    if (coveringFacet == '/') {
-      _explodeExcludingNode(excludedNode, selection, _rootNodes, '/');
-      return _consolidateSelection(selection);
-    }
-
-    final coveringNode = _nodesByFacet[coveringFacet];
-    if (coveringNode == null) {
-      selection.remove(coveringFacet);
-      return _consolidateSelection(selection);
-    }
-
-    _explodeExcludingNode(
-      excludedNode,
-      selection,
-      coveringNode.children,
-      coveringFacet,
-    );
-    return _consolidateSelection(selection);
-  }
-
-  String? _findCoveringFacet(String facet, Set<String> selection) {
-    String? bestMatch;
-    for (final selected in selection) {
-      if (selected == '/') {
-        bestMatch = '/';
-        continue;
-      }
-
-      if (facet.startsWith('$selected/')) {
-        if (bestMatch == null || selected.length > bestMatch.length) {
-          bestMatch = selected;
-        }
-      }
-    }
-    return bestMatch;
-  }
-
-  void _explodeExcludingNode(
-    _ScopeNode excludedNode,
-    Set<String> selection,
-    List<_ScopeNode> siblings,
-    String coveringFacet,
-  ) {
-    selection.remove(coveringFacet);
-
-    for (final child in siblings) {
-      if (child.facet == excludedNode.facet) {
-        continue;
-      }
-
-      if (_isAncestorFacet(child.facet, excludedNode.facet)) {
-        _explodeExcludingNode(
-          excludedNode,
-          selection,
-          child.children,
-          child.facet,
-        );
-      } else {
-        selection.add(child.facet);
-      }
-    }
-  }
-
-  bool _isAncestorFacet(String ancestor, String facet) {
-    return facet == ancestor || facet.startsWith('$ancestor/');
-  }
-
-  Set<String> _consolidateSelection(Set<String> selection) {
-    if (selection.contains('/')) {
-      return {'/'};
-    }
-
-    final result = Set<String>.from(selection);
-    final allCovered = _rootNodes.isNotEmpty &&
-        _rootNodes.every((node) => _consolidateNode(node, result));
-
-    if (allCovered) {
-      return {'/'};
-    }
-
-    return result;
-  }
-
-  bool _consolidateNode(_ScopeNode node, Set<String> selection) {
-    if (selection.contains(node.facet)) {
-      return true;
-    }
-
-    for (final selected in selection) {
-      if (selected != '/' && node.facet.startsWith('$selected/')) {
-        return true;
-      }
-    }
-
-    if (node.children.isEmpty) {
-      return false;
-    }
-
-    final allChildrenCovered =
-        node.children.every((child) => _consolidateNode(child, selection));
-    if (!allChildrenCovered) {
-      return false;
-    }
-
-    for (final child in node.children) {
-      selection.remove(child.facet);
-      _removeNodeDescendants(child, selection);
-    }
-    selection.add(node.facet);
-    return true;
-  }
-
-  void _removeNodeDescendants(_ScopeNode node, Set<String> selection) {
-    for (final child in node.children) {
-      selection.remove(child.facet);
-      _removeNodeDescendants(child, selection);
-    }
   }
 
   Widget _buildCategoryNode(
@@ -1005,15 +715,15 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
               InkWell(
                 onTap: hasChildren
                     ? () => setState(() {
-                          _expansionState[category.path] = !isExpanded;
-                        })
+                        _expansionState[category.path] = !isExpanded;
+                      })
                     : null,
                 borderRadius: AppTokens.borderRadiusAll,
                 child: Icon(
                   hasChildren
                       ? (isExpanded
-                          ? FluentIcons.folder_open_24_regular
-                          : FluentIcons.folder_24_regular)
+                            ? FluentIcons.folder_open_24_regular
+                            : FluentIcons.folder_24_regular)
                       : FluentIcons.folder_24_regular,
                   size: 18,
                   color: Theme.of(context).colorScheme.primary,
@@ -1025,15 +735,16 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
                 child: InkWell(
                   onTap: hasChildren
                       ? () => setState(() {
-                            _expansionState[category.path] = !isExpanded;
-                          })
+                          _expansionState[category.path] = !isExpanded;
+                        })
                       : null,
                   child: Text(
                     category.title,
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight:
-                          level == 0 ? FontWeight.w600 : FontWeight.normal,
+                      fontWeight: level == 0
+                          ? FontWeight.w600
+                          : FontWeight.normal,
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
                     maxLines: 1,
@@ -1078,76 +789,14 @@ class _CategoryTreeSelectorState extends State<CategoryTreeSelector> {
     int level,
   ) {
     final sorted = category.subCategories.toList()
-      ..sort((a, b) => SearchCatalogueOrderHelper.normalizeOrder(a.order)
-          .compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)));
+      ..sort(
+        (a, b) => SearchCatalogueOrderHelper.normalizeOrder(
+          a.order,
+        ).compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)),
+      );
 
     return [
       for (final sub in sorted) _buildCategoryNode(context, sub, level),
     ];
   }
-}
-
-abstract class _ScopeNode {
-  final String facet;
-  final String title;
-  final String subtitle;
-  final List<_ScopeNode> children;
-
-  const _ScopeNode({
-    required this.facet,
-    required this.title,
-    required this.subtitle,
-    required this.children,
-  });
-
-  bool get isBook;
-}
-
-class _CategoryScopeNode extends _ScopeNode {
-  _CategoryScopeNode({
-    required Category category,
-    required super.children,
-  }) : super(
-          facet: category.path,
-          title: category.title,
-          subtitle: category.path == '/' ? '' : category.path.substring(1),
-        );
-
-  @override
-  bool get isBook => false;
-}
-
-class _BookScopeNode extends _ScopeNode {
-  _BookScopeNode({required Book book, required super.facet})
-      : super(
-          title: book.title,
-          subtitle: [
-            if ((FacetHelper.resolveCategoryPath(book) ?? '').isNotEmpty)
-              (FacetHelper.resolveCategoryPath(book) ?? '')
-                  .replaceFirst('/', ''),
-            if ((book.author ?? '').trim().isNotEmpty) book.author!.trim(),
-          ].join(' • '),
-          children: const [],
-        );
-
-  @override
-  bool get isBook => true;
-}
-
-class _ScopeSearchResultItem {
-  final String facet;
-  final String title;
-  final String subtitle;
-  final bool isBook;
-  final int score;
-  final int lengthDelta;
-
-  const _ScopeSearchResultItem({
-    required this.facet,
-    required this.title,
-    required this.subtitle,
-    required this.isBook,
-    required this.score,
-    required this.lengthDelta,
-  });
 }

@@ -6,7 +6,9 @@ abstract class SettingsMessages {
       'מעביר את קבצי $folderName\nהפעולה עשויה לקחת מספר דקות';
 
   static String folderMovedSourceNotDeleted(
-          String folderName, String sourcePath) =>
+    String folderName,
+    String sourcePath,
+  ) =>
       '$folderName הועבר בהצלחה, אך לא ניתן למחוק את תיקיית המקור. אנא מחק ידנית: $sourcePath';
 
   static String folderMoved(String folderName) => '$folderName הועבר בהצלחה';

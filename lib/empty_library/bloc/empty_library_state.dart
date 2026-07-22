@@ -101,23 +101,6 @@ class EmptyLibraryDownloading extends EmptyLibraryState {
       ];
 }
 
-class EmptyLibraryAskingDeleteZip extends EmptyLibraryState {
-  final String zipPath;
-  final String extractedPath;
-
-  const EmptyLibraryAskingDeleteZip({
-    required this.zipPath,
-    required this.extractedPath,
-  }) : super(isLoading: true);
-
-  @override
-  List<Object?> get props => [
-        ...super.props,
-        zipPath,
-        extractedPath,
-      ];
-}
-
 /// Android בלבד: שואל את המשתמש אם להעתיק או להעביר את seforim.db
 /// מאחסון חיצוני (לא נגיש ל-sqlite3 native) לאחסון פנימי.
 class EmptyLibraryAskingDbCopy extends EmptyLibraryState {

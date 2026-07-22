@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
-import 'package:otzaria/external_catalog/view/external_catalog_settings_helper.dart';
+import 'package:otzaria/empty_library/empty_library_screen.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
@@ -32,8 +32,6 @@ import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
-import 'package:otzaria/navigation/bloc/navigation_event.dart';
-import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -286,14 +284,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     _topBarTotalHeight = ValueNotifier<double>(0);
     context.read<LibraryBloc>().add(LoadLibrary());
     _syncLibraryPanelController();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      unawaited(
-        ExternalCatalogSettingsHelper.maybeAutoSyncCatalogs(
-          context.read<SettingsBloc>().state,
-        ),
-      );
-    });
   }
 
   @override
@@ -344,7 +334,16 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    return _buildScaffold(context);
+  }
 
+  Future<void> _handleLibraryLoaded() async {
+    await context.read<NavigationBloc>().refreshLibrary();
+    if (!mounted) return;
+    context.read<LibraryBloc>().add(RefreshLibrary());
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     return MultiBlocListener(
       listeners: [
         BlocListener<LibraryBloc, LibraryState>(
@@ -360,13 +359,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               context.read<LibraryBloc>().add(SelectBookForPreview(book));
             }
           },
-        ),
-        BlocListener<SettingsBloc, SettingsState>(
-          listenWhen: (p, c) =>
-              p.showExternalBooks != c.showExternalBooks ||
-              p.autoSyncCatalogs != c.autoSyncCatalogs,
-          listener: (ctx, s) =>
-              unawaited(ExternalCatalogSettingsHelper.maybeAutoSyncCatalogs(s)),
         ),
         BlocListener<SettingsBloc, SettingsState>(
           listenWhen: (p, c) =>
@@ -500,19 +492,21 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     required bool dafYomiInline,
   }) {
     final isCompact = settingsState.compactMenuMode;
-    final previewSelected = _isPreviewPanelVisible(settingsState);
+    final isLibraryEmpty = context.select<NavigationBloc, bool>(
+      (b) => b.state.isLibraryEmpty,
+    );
+    final previewSelected =
+        !isLibraryEmpty && _isPreviewPanelVisible(settingsState);
 
     // ── Trailing items ────────────────────────────────────────────────────
     final trailingItems = <AppTopBarItem>[];
 
-    // LibraryDafYomi: בשורה הראשית כשיש מקום, אחרת בשורה שניה
+    // LibraryDafYomi (תאריך + דף יומי): בשורה הראשית כשיש מקום, אחרת בשורה שניה
     if (dafYomiInline) {
       trailingItems.add(
         AppTopBarItem(
           widget: LibraryDafYomi(
-            compact: isCompact,
-            inlineDate: isCompact, // desktop: date + daf בשורה אחת
-            maxWidth: 240,
+            dafEnabled: !isLibraryEmpty,
             onDafYomiTap: (tractate, daf) =>
                 openDafYomiBook(context, tractate, ' $daf.'),
           ),
@@ -520,33 +514,26 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       );
     }
 
-    // אייקון לוח שנה — בשורה העליונה כשהדף היומי שם, אחרת יורד לשורה השנייה
-    if (dafYomiInline) {
-      trailingItems.add(
-        AppTopBarItem(
-          widget: _buildCalendarButton(context, isCompact: isCompact),
-        ),
-      );
-    }
-
     trailingItems.addAll([
       AppTopBarItem(
         dividerBefore: true,
-        widget: ToolbarActionButton(
+        widget: BarButton.icon(
           compact: isCompact,
           tooltip: previewSelected ? 'הסתר תצוגה מקדימה' : 'הצג תצוגה מקדימה',
           icon: previewSelected
               ? FluentIcons.eye_24_filled
               : FluentIcons.eye_24_regular,
           selected: previewSelected,
-          onPressed: () =>
-              _togglePreviewPanel(context.read<SettingsBloc>().state),
+          // אין ספרייה — אין תצוגה מקדימה, לכן הכפתור מושבת.
+          onPressed: isLibraryEmpty
+              ? null
+              : () => _togglePreviewPanel(context.read<SettingsBloc>().state),
         ),
       ),
       AppTopBarItem(
         widget: ValueListenableBuilder<bool>(
           valueListenable: _settingsPanelOpen,
-          builder: (context, isOpen, _) => ToolbarActionButton(
+          builder: (context, isOpen, _) => BarButton.icon(
             compact: isCompact,
             tooltip: isOpen ? 'סגור הגדרות ספרייה' : 'הגדרות ספרייה',
             icon: isOpen
@@ -564,6 +551,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       context,
       settingsState,
       showDafYomi: !dafYomiInline,
+      isLibraryEmpty: isLibraryEmpty,
     );
 
     return AppTopBar(
@@ -571,50 +559,19 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       scrollDebounceMs: _kScrollDebounceMs,
       secondaryRowVisible: secondaryRow != null ? _secondaryRowVisible : null,
       leadingItems: [
-        AppTopBarItem(widget: _buildNavActions(context, state, settingsState)),
+        AppTopBarItem(
+          widget: _buildNavActions(
+            context,
+            state,
+            settingsState,
+            isLibraryEmpty: isLibraryEmpty,
+          ),
+        ),
       ],
       center: _buildSearchBar(state, isCompact),
       trailingItems: trailingItems,
       secondaryRow: secondaryRow,
     );
-  }
-
-  // ── Calendar button ──────────────────────────────────────────────────────
-
-  Widget _buildCalendarButton(
-    BuildContext context, {
-    required bool isCompact,
-  }) {
-    return ToolbarActionButton(
-      compact: isCompact,
-      tooltip: 'פתח לוח שנה',
-      icon: FluentIcons.calendar_24_regular,
-      onPressed: () {
-        context.read<NavigationBloc>().add(
-          const NavigateToScreen(Screen.more),
-        );
-        // ToolsScreen נבנה lazy ב-PageView, ולכן בלחיצה הראשונה ייתכן ש-
-        // moreScreenKey.currentState עדיין null. ניסיונות חוזרים עם hop קצר
-        // מבטיחים שהלוח ייפתח גם בפעם הראשונה שנכנסים למסך הכלים.
-        _resetCalendarWhenAvailable();
-      },
-    );
-  }
-
-  void _resetCalendarWhenAvailable({int attemptsLeft = 6}) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final toolsState = moreScreenKey.currentState;
-      if (toolsState != null) {
-        toolsState.resetToCalendar();
-        return;
-      }
-      if (attemptsLeft <= 0) return;
-      Future<void>.delayed(const Duration(milliseconds: 50), () {
-        if (!mounted) return;
-        _resetCalendarWhenAvailable(attemptsLeft: attemptsLeft - 1);
-      });
-    });
   }
 
   // ── Secondary row ─────────────────────────────────────────────────────────
@@ -623,9 +580,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     BuildContext context,
     SettingsState settingsState, {
     required bool showDafYomi,
+    required bool isLibraryEmpty,
   }) {
     final cs = Theme.of(context).colorScheme;
-    final isCompact = settingsState.compactMenuMode;
 
     final children = <Widget>[];
 
@@ -633,18 +590,12 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       children.add(
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              LibraryDafYomi(
-                compact: isCompact,
-                inlineDate: false,
-                maxWidth: 320,
-                onDafYomiTap: (tractate, daf) =>
-                    openDafYomiBook(context, tractate, ' $daf.'),
-              ),
-              _buildCalendarButton(context, isCompact: isCompact),
-            ],
+          child: Center(
+            child: LibraryDafYomi(
+              dafEnabled: !isLibraryEmpty,
+              onDafYomiTap: (tractate, daf) =>
+                  openDafYomiBook(context, tractate, ' $daf.'),
+            ),
           ),
         ),
       );
@@ -670,8 +621,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   Widget _buildNavActions(
     BuildContext context,
     LibraryState state,
-    SettingsState settingsState,
-  ) {
+    SettingsState settingsState, {
+    required bool isLibraryEmpty,
+  }) {
     final isCompact = settingsState.compactMenuMode;
     final screenWidth = MediaQuery.of(context).size.width;
 
@@ -690,6 +642,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         state,
         settingsState,
         isCompact,
+        isLibraryEmpty: isLibraryEmpty,
       ),
       alwaysInMenu: const [],
       originalOrder: _buildOriginalOrderActions(
@@ -697,6 +650,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         state,
         settingsState,
         isCompact,
+        isLibraryEmpty: isLibraryEmpty,
       ),
       maxVisibleButtons: maxButtons,
       overflowOnRight: true,
@@ -868,10 +822,19 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           viewMode: settingsState.libraryViewMode,
           paneWidthOverride: _previewPaneWidthOverride,
         );
-        final mainContent = _buildContent(state);
+        // כשאין ספרייה מוגדרת מציגים את מסך ההגדרה בתוך אזור התוכן — הסרגל
+        // העליון נשאר, ורק התוכן מתחלף. מגיב לשינוי isLibraryEmpty (למשל אחרי
+        // הורדה/ייבוא) ומחליף לעץ הספרייה.
+        final isLibraryEmpty = ctx.select<NavigationBloc, bool>(
+          (b) => b.state.isLibraryEmpty,
+        );
+        final mainContent = isLibraryEmpty
+            ? LibrarySetupView(onLibraryLoaded: _handleLibraryLoaded)
+            : _buildContent(state);
 
         return AdaptiveSidePane(
-          isOpen: _isPreviewPanelVisible(settingsState),
+          // אין ספרייה — התצוגה המקדימה סגורה כפויה (אין ספרים להציג).
+          isOpen: !isLibraryEmpty && _isPreviewPanelVisible(settingsState),
           alignment: AlignmentDirectional.centerStart, // שמאל בעברית (RTL)
           mainContent: RepaintBoundary(child: mainContent),
           paneContent: _buildPreviewPane(settingsState),
@@ -953,7 +916,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             _ when isBusy => state.message,
             _ => 'עדכון ספרייה',
           };
-          return ToolbarActionButton(
+          return BarButton.icon(
             compact: compact,
             tooltip: tooltip,
             icon: icon,
@@ -1003,20 +966,25 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     BuildContext context,
     LibraryState state,
     SettingsState settingsState,
-    bool compact,
-  ) {
+    bool compact, {
+    required bool isLibraryEmpty,
+  }) {
     return [
       ActionButtonData.simple(
         compact: compact,
         tooltip: 'חזרה לתיקיה הקודמת',
         icon: FluentIcons.arrow_up_24_regular,
-        onPressed: () => _handleNavigateUp(context, state, settingsState),
+        onPressed: isLibraryEmpty
+            ? null
+            : () => _handleNavigateUp(context, state, settingsState),
       ),
       ActionButtonData.simple(
         compact: compact,
         tooltip: 'חזרה לתיקיה הראשית',
         icon: FluentIcons.home_24_regular,
-        onPressed: () => _handleNavigateHome(context, state, settingsState),
+        onPressed: isLibraryEmpty
+            ? null
+            : () => _handleNavigateHome(context, state, settingsState),
       ),
       if (settingsState.canUseSoftwareAndBookUpdates)
         _buildSyncActionButton(compact: compact),
@@ -1024,7 +992,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         compact: compact,
         tooltip: 'טעינה מחדש',
         icon: FluentIcons.arrow_clockwise_24_regular,
-        onPressed: _refreshWithPersonalFolders,
+        onPressed: isLibraryEmpty ? null : _refreshWithPersonalFolders,
       ),
     ];
   }
@@ -1033,14 +1001,17 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     BuildContext context,
     LibraryState state,
     SettingsState settingsState,
-    bool compact,
-  ) {
+    bool compact, {
+    required bool isLibraryEmpty,
+  }) {
     return [
       ActionButtonData.simple(
         compact: compact,
         tooltip: 'חזרה לתיקיה הקודמת',
         icon: FluentIcons.arrow_up_24_regular,
-        onPressed: () => _handleNavigateUp(context, state, settingsState),
+        onPressed: isLibraryEmpty
+            ? null
+            : () => _handleNavigateUp(context, state, settingsState),
       ),
       if (settingsState.canUseSoftwareAndBookUpdates)
         _buildSyncActionButton(compact: compact),
@@ -1048,13 +1019,15 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         compact: compact,
         tooltip: 'חזרה לתיקיה הראשית',
         icon: FluentIcons.home_24_regular,
-        onPressed: () => _handleNavigateHome(context, state, settingsState),
+        onPressed: isLibraryEmpty
+            ? null
+            : () => _handleNavigateHome(context, state, settingsState),
       ),
       ActionButtonData.simple(
         compact: compact,
         tooltip: 'טעינה מחדש',
         icon: FluentIcons.arrow_clockwise_24_regular,
-        onPressed: _refreshWithPersonalFolders,
+        onPressed: isLibraryEmpty ? null : _refreshWithPersonalFolders,
       ),
     ];
   }

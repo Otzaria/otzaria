@@ -362,15 +362,6 @@ class UpdateOfflineMode extends SettingsEvent {
   List<Object?> get props => [isOfflineMode];
 }
 
-class UpdateAutoSyncCatalogs extends SettingsEvent {
-  final bool autoSyncCatalogs;
-
-  const UpdateAutoSyncCatalogs(this.autoSyncCatalogs);
-
-  @override
-  List<Object?> get props => [autoSyncCatalogs];
-}
-
 class UpdateSoftwareAndBookUpdatesEnabled extends SettingsEvent {
   final bool enabled;
 

@@ -53,7 +53,6 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<UpdatePdfBookViewByDefault>(_onUpdatePdfBookViewByDefault);
     on<UpdateTalmudBavliOpenFormat>(_onUpdateTalmudBavliOpenFormat);
     on<UpdateOfflineMode>(_onUpdateOfflineMode);
-    on<UpdateAutoSyncCatalogs>(_onUpdateAutoSyncCatalogs);
     on<UpdateSoftwareAndBookUpdatesEnabled>(
       _onUpdateSoftwareAndBookUpdatesEnabled,
     );
@@ -125,7 +124,6 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         pdfBookViewByDefault: settings['pdfBookViewByDefault'] ?? false,
         talmudBavliOpenFormat: settings['talmudBavliOpenFormat'] ?? 'text',
         isOfflineMode: settings['isOfflineMode'] ?? false,
-        autoSyncCatalogs: settings['autoSyncCatalogs'] ?? true,
         softwareAndBookUpdatesEnabled:
             settings['softwareAndBookUpdatesEnabled'] ?? true,
         enableHtmlLinks: settings['enableHtmlLinks'] ?? true,
@@ -175,14 +173,6 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     await _repository.updateOfflineMode(event.isOfflineMode);
     emit(state.copyWith(isOfflineMode: event.isOfflineMode));
-  }
-
-  Future<void> _onUpdateAutoSyncCatalogs(
-    UpdateAutoSyncCatalogs event,
-    Emitter<SettingsState> emit,
-  ) async {
-    await _repository.updateAutoSyncCatalogs(event.autoSyncCatalogs);
-    emit(state.copyWith(autoSyncCatalogs: event.autoSyncCatalogs));
   }
 
   Future<void> _onUpdateSoftwareAndBookUpdatesEnabled(

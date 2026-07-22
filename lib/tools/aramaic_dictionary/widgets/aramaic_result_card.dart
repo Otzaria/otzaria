@@ -90,9 +90,10 @@ class AramaicResultCard extends StatelessWidget {
           ),
           const SizedBox(width: AppTokens.spaceXS),
           SecondaryIconButton(
-              icon: FluentIcons.copy_24_regular,
-              tooltip: 'העתק',
-              onPressed: () => _copy(context)),
+            icon: FluentIcons.copy_24_regular,
+            tooltip: 'העתק',
+            onPressed: () => _copy(context),
+          ),
         ],
       ),
     );
@@ -119,7 +120,7 @@ class _DictionaryValue extends StatelessWidget {
       );
     }
 
-    return Text(
+    return SelectableText(
       value,
       style: textStyle,
       textAlign: TextAlign.right,

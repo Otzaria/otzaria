@@ -70,7 +70,6 @@ void main() {
         'pdfBookViewByDefault': false,
         'shortcuts': <String, String>{},
         'isOfflineMode': false,
-        'autoSyncCatalogs': true,
         'softwareAndBookUpdatesEnabled': true,
         'personalNotesCollapsedByDefault': true,
       };
@@ -78,8 +77,9 @@ void main() {
       blocTest<SettingsBloc, SettingsState>(
         'emits updated state when LoadSettings is added',
         build: () {
-          when(mockRepository.loadSettings())
-              .thenAnswer((_) async => mockSettings);
+          when(
+            mockRepository.loadSettings(),
+          ).thenAnswer((_) async => mockSettings);
           when(mockRepository.hasProtectedModePassword()).thenReturn(false);
           return settingsBloc;
         },
@@ -96,7 +96,7 @@ void main() {
             fontFamily: mockSettings['fontFamily'] as String,
             commentatorsFontFamily:
                 mockSettings['commentatorsFontFamily'] as String? ??
-                    'NotoRashiHebrew',
+                'NotoRashiHebrew',
             commentatorsFontSize:
                 mockSettings['commentatorsFontSize'] as double? ?? 22.0,
             lineHeight: mockSettings['lineHeight'] as double? ?? 1.5,
@@ -133,14 +133,12 @@ void main() {
             talmudBavliOpenFormat:
                 mockSettings['talmudBavliOpenFormat'] as String? ?? 'text',
             isOfflineMode: mockSettings['isOfflineMode'] as bool? ?? false,
-            autoSyncCatalogs:
-                mockSettings['autoSyncCatalogs'] as bool? ?? false,
             softwareAndBookUpdatesEnabled:
                 mockSettings['softwareAndBookUpdatesEnabled'] as bool? ?? true,
             enableHtmlLinks: mockSettings['enableHtmlLinks'] as bool? ?? true,
             personalNotesCollapsedByDefault:
                 mockSettings['personalNotesCollapsedByDefault'] as bool? ??
-                    true,
+                true,
             protectedModeEnabled:
                 mockSettings['protectedModeEnabled'] as bool? ?? false,
           ),
@@ -278,8 +276,9 @@ void main() {
           settingsBloc.state.copyWith(defaultContinuousReadingMode: true),
         ],
         verify: (_) {
-          verify(mockRepository.updateDefaultContinuousReadingMode(true))
-              .called(1);
+          verify(
+            mockRepository.updateDefaultContinuousReadingMode(true),
+          ).called(1);
         },
       );
     });
@@ -341,30 +340,13 @@ void main() {
       );
     });
 
-    group('UpdateAutoSyncCatalogs', () {
-      blocTest<SettingsBloc, SettingsState>(
-        'emits updated state when UpdateAutoSyncCatalogs is added',
-        build: () {
-          when(mockRepository.updateAutoSyncCatalogs(true))
-              .thenAnswer((_) async {});
-          return settingsBloc;
-        },
-        act: (bloc) => bloc.add(const UpdateAutoSyncCatalogs(true)),
-        expect: () => [
-          settingsBloc.state.copyWith(autoSyncCatalogs: true),
-        ],
-        verify: (_) {
-          verify(mockRepository.updateAutoSyncCatalogs(true)).called(1);
-        },
-      );
-    });
-
     group('UpdateProtectedModePassword', () {
       blocTest<SettingsBloc, SettingsState>(
         'emits protectedModePasswordSet=true ושומר ב-repository',
         build: () {
-          when(mockRepository.updateProtectedModePassword('1234'))
-              .thenAnswer((_) async {});
+          when(
+            mockRepository.updateProtectedModePassword('1234'),
+          ).thenAnswer((_) async {});
           return settingsBloc;
         },
         act: (bloc) => bloc.add(const UpdateProtectedModePassword('1234')),
@@ -381,8 +363,9 @@ void main() {
       blocTest<SettingsBloc, SettingsState>(
         'כשמצב סייפר כבוי: מוחק את הסיסמה ב-repository ומעדכן protectedModePasswordSet=false',
         build: () {
-          when(mockRepository.clearProtectedModePassword())
-              .thenAnswer((_) async {});
+          when(
+            mockRepository.clearProtectedModePassword(),
+          ).thenAnswer((_) async {});
           return settingsBloc;
         },
         seed: () => SettingsState.initial().copyWith(
@@ -421,8 +404,9 @@ void main() {
       blocTest<SettingsBloc, SettingsState>(
         'emits state עם mergeUserBooksIntoLibrary=true ושומר ב-repository',
         build: () {
-          when(mockRepository.updateMergeUserBooksIntoLibrary(true))
-              .thenAnswer((_) async {});
+          when(
+            mockRepository.updateMergeUserBooksIntoLibrary(true),
+          ).thenAnswer((_) async {});
           return settingsBloc;
         },
         act: (bloc) => bloc.add(const UpdateMergeUserBooksIntoLibrary(true)),
@@ -430,8 +414,9 @@ void main() {
           settingsBloc.state.copyWith(mergeUserBooksIntoLibrary: true),
         ],
         verify: (_) {
-          verify(mockRepository.updateMergeUserBooksIntoLibrary(true))
-              .called(1);
+          verify(
+            mockRepository.updateMergeUserBooksIntoLibrary(true),
+          ).called(1);
         },
       );
 
@@ -444,8 +429,9 @@ void main() {
       blocTest<SettingsBloc, SettingsState>(
         'emits updated state when UpdateSoftwareAndBookUpdatesEnabled is added',
         build: () {
-          when(mockRepository.updateSoftwareAndBookUpdatesEnabled(false))
-              .thenAnswer((_) async {});
+          when(
+            mockRepository.updateSoftwareAndBookUpdatesEnabled(false),
+          ).thenAnswer((_) async {});
           return settingsBloc;
         },
         act: (bloc) =>
@@ -454,8 +440,9 @@ void main() {
           settingsBloc.state.copyWith(softwareAndBookUpdatesEnabled: false),
         ],
         verify: (_) {
-          verify(mockRepository.updateSoftwareAndBookUpdatesEnabled(false))
-              .called(1);
+          verify(
+            mockRepository.updateSoftwareAndBookUpdatesEnabled(false),
+          ).called(1);
         },
       );
     });
@@ -464,9 +451,12 @@ void main() {
       blocTest<SettingsBloc, SettingsState>(
         'persists the new set and emits state with updated hiddenBuiltInToolIds',
         build: () {
-          when(mockRepository.updateHiddenBuiltInToolIds(
-                  const {'builtin.calendar', 'builtin.gematria'}))
-              .thenAnswer((_) async {});
+          when(
+            mockRepository.updateHiddenBuiltInToolIds(const {
+              'builtin.calendar',
+              'builtin.gematria',
+            }),
+          ).thenAnswer((_) async {});
           return settingsBloc;
         },
         act: (bloc) => bloc.add(
@@ -483,17 +473,20 @@ void main() {
           ),
         ],
         verify: (_) {
-          verify(mockRepository.updateHiddenBuiltInToolIds(
-            {'builtin.calendar', 'builtin.gematria'},
-          )).called(1);
+          verify(
+            mockRepository.updateHiddenBuiltInToolIds(
+              {'builtin.calendar', 'builtin.gematria'},
+            ),
+          ).called(1);
         },
       );
 
       blocTest<SettingsBloc, SettingsState>(
         'empty set clears all hidden tools',
         build: () {
-          when(mockRepository.updateHiddenBuiltInToolIds(<String>{}))
-              .thenAnswer((_) async {});
+          when(
+            mockRepository.updateHiddenBuiltInToolIds(<String>{}),
+          ).thenAnswer((_) async {});
           return settingsBloc;
         },
         seed: () => SettingsState.initial().copyWith(
@@ -514,8 +507,11 @@ void main() {
       blocTest<SettingsBloc, SettingsState>(
         'persists the new set and emits state with updated pinned set',
         build: () {
-          when(mockRepository.updateBuiltInToolsPinnedToNavRail(
-              const {'builtin.calendar'})).thenAnswer((_) async {});
+          when(
+            mockRepository.updateBuiltInToolsPinnedToNavRail(const {
+              'builtin.calendar',
+            }),
+          ).thenAnswer((_) async {});
           return settingsBloc;
         },
         act: (bloc) => bloc.add(
@@ -527,9 +523,11 @@ void main() {
           ),
         ],
         verify: (_) {
-          verify(mockRepository.updateBuiltInToolsPinnedToNavRail(
-            {'builtin.calendar'},
-          )).called(1);
+          verify(
+            mockRepository.updateBuiltInToolsPinnedToNavRail(
+              {'builtin.calendar'},
+            ),
+          ).called(1);
         },
       );
     });
@@ -551,31 +549,35 @@ void main() {
         if (await tempDir.exists()) await tempDir.delete(recursive: true);
       });
 
-      test('שינוי ברירת מחדל קריאה רציפה אינו מוחק override של פריסת מפרשים',
-          () async {
-        // הבאג שתוקן: defaultShowSplitView הועבר כ-false קבוע, ולכן
-        // commentatorsBelow=true (override אמיתי) זוהה כמיותר ונמחק.
-        const overrideKey = 'o__1__בראשית';
-        const redundantKey = 'o__2__שמות';
-        await PerBookSettings.saveSettings(
-            overrideKey, {'commentatorsBelow': true});
-        await PerBookSettings.saveSettings(
-            redundantKey, {'continuousReadingMode': true});
+      test(
+        'שינוי ברירת מחדל קריאה רציפה אינו מוחק override של פריסת מפרשים',
+        () async {
+          // הבאג שתוקן: defaultShowSplitView הועבר כ-false קבוע, ולכן
+          // commentatorsBelow=true (override אמיתי) זוהה כמיותר ונמחק.
+          const overrideKey = 'o__1__בראשית';
+          const redundantKey = 'o__2__שמות';
+          await PerBookSettings.saveSettings(overrideKey, {
+            'commentatorsBelow': true,
+          });
+          await PerBookSettings.saveSettings(redundantKey, {
+            'continuousReadingMode': true,
+          });
 
-        settingsBloc.add(const UpdateDefaultContinuousReadingMode(true));
+          settingsBloc.add(const UpdateDefaultContinuousReadingMode(true));
 
-        // הניקוי רץ ללא await; מחיקת הקובץ שהפך מיותר מוכיחה שהוא רץ וסיים.
-        var cleaned = false;
-        for (var i = 0; i < 100 && !cleaned; i++) {
-          await Future<void>.delayed(const Duration(milliseconds: 20));
-          cleaned = await PerBookSettings.loadSettings(redundantKey) == null;
-        }
-        expect(cleaned, isTrue, reason: 'הניקוי לא רץ בזמן סביר');
-        await Future<void>.delayed(const Duration(milliseconds: 50));
+          // הניקוי רץ ללא await; מחיקת הקובץ שהפך מיותר מוכיחה שהוא רץ וסיים.
+          var cleaned = false;
+          for (var i = 0; i < 100 && !cleaned; i++) {
+            await Future<void>.delayed(const Duration(milliseconds: 20));
+            cleaned = await PerBookSettings.loadSettings(redundantKey) == null;
+          }
+          expect(cleaned, isTrue, reason: 'הניקוי לא רץ בזמן סביר');
+          await Future<void>.delayed(const Duration(milliseconds: 50));
 
-        final overrideJson = await PerBookSettings.loadSettings(overrideKey);
-        expect(overrideJson?['commentatorsBelow'], isTrue);
-      });
+          final overrideJson = await PerBookSettings.loadSettings(overrideKey);
+          expect(overrideJson?['commentatorsBelow'], isTrue);
+        },
+      );
     });
   });
 }

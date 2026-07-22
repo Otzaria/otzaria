@@ -540,19 +540,19 @@ class _PreviewToolbar extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          ToolbarActionButton(
+          BarButton.icon(
             compact: compact,
             tooltip: 'הגדל טקסט',
             icon: FluentIcons.zoom_in_24_regular,
             onPressed: onZoomIn,
           ),
-          ToolbarActionButton(
+          BarButton.icon(
             compact: compact,
             tooltip: 'הקטן טקסט',
             icon: FluentIcons.zoom_out_24_regular,
             onPressed: onZoomOut,
           ),
-          ToolbarActionButton(
+          BarButton.icon(
             compact: compact,
             tooltip: 'פתח בעיון (או לחץ פעמיים על הספר)',
             icon: FluentIcons.open_24_regular,

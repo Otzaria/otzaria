@@ -358,7 +358,7 @@ class DesignSettingsTab extends StatelessWidget {
                       },
                     ),
                     SettingsActionTile.switchTile(
-                      icon: FluentIcons.panel_right_24_regular,
+                      rtlIcon: FluentIcons.panel_right_24_regular,
                       title: 'פתיחת פאנל המפרשים בפתיחת ספר',
                       subtitle: state.defaultCommentaryOpen
                           ? 'פאנל המפרשים ייפתח אוטומטית כשיש מפרשים נבחרים '

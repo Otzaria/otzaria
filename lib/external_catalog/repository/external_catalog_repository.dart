@@ -37,8 +37,8 @@ class ExternalCatalogRepository {
     Zstandard? zstandard,
     this.apiTimeout = defaultApiTimeout,
     this.downloadTimeout = defaultDownloadTimeout,
-  })  : _httpClient = httpClient ?? http.Client(),
-        _zstandard = zstandard ?? Zstandard() {
+  }) : _httpClient = httpClient ?? http.Client(),
+       _zstandard = zstandard ?? Zstandard() {
     HttpClientRegistry.register(_httpClient.close);
   }
 
@@ -317,17 +317,20 @@ class ExternalCatalogRepository {
   }
 
   Future<ExternalCatalogReleaseInfo> _fetchLatestReleaseInfo() async {
-    final response = await _httpClient.get(
-      Uri.parse(releaseApiUrl),
-      headers: const {
-        'Accept': 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-      },
-    ).timeout(apiTimeout);
+    final response = await _httpClient
+        .get(
+          Uri.parse(releaseApiUrl),
+          headers: const {
+            'Accept': 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+        )
+        .timeout(apiTimeout);
 
     if (response.statusCode != 200) {
       throw Exception(
-          'שגיאה בקבלת רליס הקטלוגים האחרון: ${response.statusCode}');
+        'שגיאה בקבלת רליס הקטלוגים האחרון: ${response.statusCode}',
+      );
     }
 
     final decoded = jsonDecode(utf8.decode(response.bodyBytes));
@@ -348,8 +351,9 @@ class ExternalCatalogRepository {
   }
 
   Future<Uint8List> _downloadAssetBytes(String downloadUrl) async {
-    final response =
-        await _httpClient.get(Uri.parse(downloadUrl)).timeout(downloadTimeout);
+    final response = await _httpClient
+        .get(Uri.parse(downloadUrl))
+        .timeout(downloadTimeout);
     if (response.statusCode != 200) {
       throw Exception('שגיאה בהורדת DB הקטלוגים: ${response.statusCode}');
     }
@@ -357,11 +361,13 @@ class ExternalCatalogRepository {
   }
 
   Future<String> _downloadTextAsset(String downloadUrl) async {
-    final response =
-        await _httpClient.get(Uri.parse(downloadUrl)).timeout(apiTimeout);
+    final response = await _httpClient
+        .get(Uri.parse(downloadUrl))
+        .timeout(apiTimeout);
     if (response.statusCode != 200) {
       throw Exception(
-          'שגיאה בהורדת קובץ הגרסה של הקטלוגים: ${response.statusCode}');
+        'שגיאה בהורדת קובץ הגרסה של הקטלוגים: ${response.statusCode}',
+      );
     }
     return utf8.decode(response.bodyBytes);
   }

@@ -5,7 +5,7 @@
 // הכללי אינו רלוונטי שם ומוסתר. הלוגיקה:
 //   * TextSettingsTab(hideCommentaryFontSize: true) → הסליידר מוסתר, ה-dropdown
 //     "גופן מפרשים" נשאר.
-//   * ReadingSettingsBody → מזהה אם הטאב הפעיל בצורת הדף ומעביר את הדגל בהתאם.
+//   * ReadingSettingsPanel → מזהה אם הטאב הפעיל בצורת הדף ומעביר את הדגל בהתאם.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -65,22 +65,24 @@ void main() {
       expect(find.text('גופן מפרשים'), findsOneWidget);
     });
 
-    testWidgets('hideCommentaryFontSize=true מסתיר את הסליידר ומשאיר את הגופן',
-        (tester) async {
-      await setWideSurface(tester);
+    testWidgets(
+      'hideCommentaryFontSize=true מסתיר את הסליידר ומשאיר את הגופן',
+      (tester) async {
+        await setWideSurface(tester);
 
-      await tester.pumpWidget(buildTab(hide: true));
-      await tester.pump();
+        await tester.pumpWidget(buildTab(hide: true));
+        await tester.pump();
 
-      expect(find.text('גודל גופן מפרשים'), findsNothing);
-      // ה-dropdown של גופן המפרשים נשאר — מוסתר רק הסליידר.
-      expect(find.text('גופן מפרשים'), findsOneWidget);
-      // גודל גופן הספר אינו מושפע.
-      expect(find.text('גודל גופן הספר'), findsOneWidget);
-    });
+        expect(find.text('גודל גופן מפרשים'), findsNothing);
+        // ה-dropdown של גופן המפרשים נשאר — מוסתר רק הסליידר.
+        expect(find.text('גופן מפרשים'), findsOneWidget);
+        // גודל גופן הספר אינו מושפע.
+        expect(find.text('גודל גופן הספר'), findsOneWidget);
+      },
+    );
   });
 
-  group('ReadingSettingsBody — זיהוי מצב צורת הדף', () {
+  group('ReadingSettingsPanel — זיהוי מצב צורת הדף', () {
     Widget buildBody({required bool pageShape}) {
       final textBloc = _TestTextBookBloc(_loaded(showPageShapeView: pageShape));
       final tab = TextBookTab(
@@ -101,7 +103,7 @@ void main() {
               ),
               BlocProvider<TabsBloc>.value(value: tabsBloc),
             ],
-            child: const ReadingSettingsBody(),
+            child: const ReadingSettingsPanel(),
           ),
         ),
       );
@@ -132,27 +134,27 @@ void main() {
 // ===== Helpers =====
 
 TextBookLoaded _loaded({required bool showPageShapeView}) => TextBookLoaded(
-      book: TextBook(title: 'ספר בדיקה'),
-      showLeftPane: false,
-      content: const ['שורה א', 'שורה ב'],
-      fontSize: 18,
-      showSplitView: true,
-      showPageShapeView: showPageShapeView,
-      activeCommentators: const [],
-      commentatorGroups: const [],
-      availableCommentators: const [],
-      links: const [],
-      visibleLinks: const [],
-      linksByLine: const {},
-      tableOfContents: const [],
-      removeNikud: false,
-      visibleIndices: const [0],
-      selectedIndex: null,
-      pinLeftPane: false,
-      searchText: '',
-      scrollController: ItemScrollController(),
-      positionsListener: ItemPositionsListener.create(),
-    );
+  book: TextBook(title: 'ספר בדיקה'),
+  showLeftPane: false,
+  content: const ['שורה א', 'שורה ב'],
+  fontSize: 18,
+  showSplitView: true,
+  showPageShapeView: showPageShapeView,
+  activeCommentators: const [],
+  commentatorGroups: const [],
+  availableCommentators: const [],
+  links: const [],
+  visibleLinks: const [],
+  linksByLine: const {},
+  tableOfContents: const [],
+  removeNikud: false,
+  visibleIndices: const [0],
+  selectedIndex: null,
+  pinLeftPane: false,
+  searchText: '',
+  scrollController: ItemScrollController(),
+  positionsListener: ItemPositionsListener.create(),
+);
 
 class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
     implements SettingsBloc {

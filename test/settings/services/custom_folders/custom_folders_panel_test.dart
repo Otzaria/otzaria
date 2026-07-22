@@ -48,7 +48,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     // פתיחת ה-ExpandableSection כדי לחשוף את שורות התיקיות.
-    await tester.tap(find.text('הוסף תיקייה לאוצריא'));
+    await tester.tap(find.text('הוסף תיקייה').first);
     await tester.pumpAndSettle();
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
@@ -18,12 +19,11 @@ import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_export_dialog.dart';
 import 'package:otzaria/personal_notes/utils/note_location_ref.dart';
-import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/widgets/lists/navigation_tree_tile.dart';
+import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -35,9 +35,8 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
-import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
-import 'package:otzaria/widgets/layout/app_card.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 
@@ -223,8 +222,10 @@ class _PersonalNotesManagerScreenState
     if (!_contentScrollController.hasClients) return;
     final position = _contentScrollController.position;
     final delta = (position.viewportDimension * 0.85) * (forward ? 1 : -1);
-    final target =
-        (position.pixels + delta).clamp(0.0, position.maxScrollExtent);
+    final target = (position.pixels + delta).clamp(
+      0.0,
+      position.maxScrollExtent,
+    );
     _contentScrollController.animateTo(
       target,
       duration: const Duration(milliseconds: 180),
@@ -293,8 +294,9 @@ class _PersonalNotesManagerScreenState
               });
 
               // If this is a new book (not in _books list), refresh the books list
-              final bookExists =
-                  _books.any((book) => book.bookId == state.bookId);
+              final bookExists = _books.any(
+                (book) => book.bookId == state.bookId,
+              );
               if (!bookExists &&
                   (state.locatedNotes.isNotEmpty ||
                       state.missingNotes.isNotEmpty)) {
@@ -359,8 +361,10 @@ class _PersonalNotesManagerScreenState
                 icon: AnimatedSwitcher(
                   duration: AppTokens.animFast,
                   transitionBuilder: (child, animation) => RotationTransition(
-                    turns:
-                        Tween<double>(begin: 0.5, end: 0.0).animate(animation),
+                    turns: Tween<double>(
+                      begin: 0.5,
+                      end: 0.0,
+                    ).animate(animation),
                     child: FadeTransition(opacity: animation, child: child),
                   ),
                   child: Icon(
@@ -395,7 +399,7 @@ class _PersonalNotesManagerScreenState
           ),
           trailingItems: [
             AppTopBarItem(
-              widget: ToolbarActionButton(
+              widget: BarButton.icon(
                 compact: isCompact,
                 tooltip: _dateRange != null
                     ? 'סינון תאריך פעיל - לחץ לשינוי'
@@ -403,11 +407,12 @@ class _PersonalNotesManagerScreenState
                 icon: _dateRange != null
                     ? FluentIcons.calendar_checkmark_24_filled
                     : FluentIcons.calendar_24_regular,
+                flipInRtl: true,
                 onPressed: _pickDateRange,
               ),
             ),
             AppTopBarItem(
-              widget: ToolbarActionButton(
+              widget: BarButton.icon(
                 compact: isCompact,
                 tooltip: 'רענן',
                 icon: FluentIcons.arrow_clockwise_24_regular,
@@ -415,7 +420,7 @@ class _PersonalNotesManagerScreenState
               ),
             ),
             AppTopBarItem(
-              widget: ToolbarActionButton(
+              widget: BarButton.icon(
                 compact: isCompact,
                 tooltip: 'גיבוי הערות',
                 icon: FluentIcons.arrow_download_24_regular,
@@ -423,7 +428,7 @@ class _PersonalNotesManagerScreenState
               ),
             ),
             AppTopBarItem(
-              widget: ToolbarActionButton(
+              widget: BarButton.icon(
                 compact: isCompact,
                 tooltip: 'ייצוא לטקסט',
                 icon: FluentIcons.document_text_24_regular,
@@ -431,7 +436,7 @@ class _PersonalNotesManagerScreenState
               ),
             ),
             AppTopBarItem(
-              widget: ToolbarActionButton(
+              widget: BarButton.icon(
                 compact: isCompact,
                 tooltip: 'ייבוא הערות',
                 icon: FluentIcons.arrow_upload_24_regular,
@@ -568,8 +573,9 @@ class _PersonalNotesManagerScreenState
             child: const Text('שמור גם וגם'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context)
-                .pop(NotesImportConflictStrategy.overwrite),
+            onPressed: () => Navigator.of(
+              context,
+            ).pop(NotesImportConflictStrategy.overwrite),
             child: const Text('דרוס'),
           ),
         ],
@@ -584,12 +590,14 @@ class _PersonalNotesManagerScreenState
     );
 
     if (!mounted) return;
-    UiSnack.show(NotesMessages.importCompleted(
-      inserted: summary.inserted,
-      updated: summary.updated,
-      skipped: summary.skipped,
-      duplicated: summary.duplicated,
-    ));
+    UiSnack.show(
+      NotesMessages.importCompleted(
+        inserted: summary.inserted,
+        updated: summary.updated,
+        skipped: summary.skipped,
+        duplicated: summary.duplicated,
+      ),
+    );
     _loadBooks();
   }
 
@@ -611,39 +619,115 @@ class _PersonalNotesManagerScreenState
         final rootCategory = libraryState.library!;
         final totalNotesCount =
             _getNotesCountForCategory(rootCategory) + _getMissingNotesCount();
-        final isRootExpanded = _expansionState['/personal_notes_root'] ?? true;
-        final isRootSelected = _selectedFilter == null;
 
-        return ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            Column(
-              children: [
-                // Root "הערות אישיות" folder
-                NavigationTreeTile.category(
-                  title: 'הערות אישיות',
-                  level: 0,
-                  isSelected: isRootSelected,
-                  isExpanded: isRootExpanded,
-                  hasChildren: true,
-                  count: totalNotesCount > 0 ? totalNotesCount : null,
-                  onTap: () => _onFilterChanged(null),
-                  onToggleExpand: () {
-                    setState(() {
-                      _expansionState['/personal_notes_root'] = !isRootExpanded;
-                    });
-                  },
-                ),
-                if (isRootExpanded) ...[
-                  ..._buildCategoryChildren(rootCategory, 0),
-                  _buildMissingNotesTile(),
-                ],
-              ],
-            ),
-          ],
+        // שיטוח לרשימת שורות + ListView.builder (בנייה עצלה) — ספריית ההערות
+        // דינמית ועלולה להיות ארוכה; בנייה מוקדמת של כל העץ הכבידה.
+        final rows = <_NotesNavRow>[_NotesNavRow.root(totalNotesCount)];
+        _flattenNotes(rootCategory, 0, rows);
+        rows.add(_NotesNavRow.missing());
+        // כל הקטגוריות/הספרים הם כרטיס אחד רציף (מעוגל בקצוות, מפריד בין
+        // כל השורות). השורש וה"הערות ללא מיקום" נשארים מחוץ לכרטיס.
+        int? firstGrouped;
+        int? lastGrouped;
+        for (var i = 0; i < rows.length; i++) {
+          final k = rows[i].kind;
+          if (k == _NotesNavRowKind.root || k == _NotesNavRowKind.missing) {
+            continue;
+          }
+          firstGrouped ??= i;
+          lastGrouped = i;
+        }
+        if (firstGrouped != null) {
+          rows[firstGrouped].isGroupStart = true;
+          rows[lastGrouped!].isGroupEnd = true;
+        }
+
+        return ListView.builder(
+          // שוליים אופקיים — הכרטיסים לא נוגעים בקצה, וקו הגלילה ברווח.
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          itemCount: rows.length,
+          itemBuilder: (context, index) => _buildNotesNavRow(rows[index]),
         );
       },
     );
+  }
+
+  void _flattenNotes(Category category, int level, List<_NotesNavRow> rows) {
+    for (final sub in category.subCategories) {
+      final count = _getNotesCountForCategory(sub);
+      if (count <= 0) continue;
+      final childLevel = level + 1;
+      final isExpanded = _expansionState[sub.path] ?? childLevel <= 1;
+      rows.add(_NotesNavRow.category(sub, childLevel, count, isExpanded));
+      if (isExpanded) _flattenNotes(sub, childLevel, rows);
+    }
+
+    // איחוד ספרים כפולים לפי כותרת (טקסט + PDF של אותו ספר).
+    final seenTitles = <String>{};
+    for (final book in category.books) {
+      if (seenTitles.contains(book.title)) continue;
+      final count = _getNotesCountForBook(book.title);
+      if (count <= 0) continue;
+      seenTitles.add(book.title);
+      rows.add(_NotesNavRow.book(book, level + 1, count));
+    }
+  }
+
+  Widget _buildNotesNavRow(_NotesNavRow row) {
+    switch (row.kind) {
+      case _NotesNavRowKind.root:
+        // שורש "הערות אישיות" — תמיד פתוח וללא כפתור חץ (כמו בחיפוש).
+        // שורש — כותרת על רקע החלונית (בלי כרטיס/קופסת-אייקון).
+        return NavTreeHeader(
+          title: 'הערות אישיות',
+          count: row.count > 0 ? row.count : null,
+          isSelected: _selectedFilter == null,
+          // "נקה סינון" לצד השורש כשקיים סינון פעיל (כמו בתוצאות החיפוש).
+          onClearFilter: _selectedFilter != null
+              ? () => _onFilterChanged(null)
+              : null,
+          onTap: () => _onFilterChanged(null),
+        );
+      case _NotesNavRowKind.category:
+        final category = row.category!;
+        final isSelected = _selectedFilter == category.path;
+        final isExpanded = _expansionState[category.path] ?? row.level <= 1;
+        return NavTreeGroupCard(
+          isGroupStart: row.isGroupStart,
+          isGroupEnd: row.isGroupEnd,
+          child: KeyedSubtree(
+            key: ValueKey(category.path),
+            child: NavTreeTile.category(
+              title: category.title,
+              // level-1: תיקיות עליונות מתחילות ב-0 (השורש הוא כותרת).
+              level: row.level - 1,
+              isSelected: isSelected,
+              isExpanded: isExpanded,
+              hasChildren:
+                  category.subCategories.isNotEmpty ||
+                  category.books.isNotEmpty,
+              count: row.count > 0 ? row.count : null,
+              onTap: () => _onFilterChanged(category.path),
+              onToggleExpand: () {
+                setState(() {
+                  _expansionState[category.path] = !isExpanded;
+                });
+              },
+            ),
+          ),
+        );
+      case _NotesNavRowKind.book:
+        return NavTreeGroupCard(
+          isGroupStart: row.isGroupStart,
+          isGroupEnd: row.isGroupEnd,
+          child: KeyedSubtree(
+            key: ObjectKey(row.book),
+            child: _buildBookTile(row.book!, row.count, row.level - 1),
+          ),
+        );
+      case _NotesNavRowKind.missing:
+        return _buildMissingNotesTile();
+    }
   }
 
   int _getMissingNotesCount() {
@@ -698,10 +782,9 @@ class _PersonalNotesManagerScreenState
         ),
         decoration: BoxDecoration(
           color: isSelected
-              ? Theme.of(context)
-                  .colorScheme
-                  .primaryContainer
-                  .withValues(alpha: 0.3)
+              ? Theme.of(
+                  context,
+                ).colorScheme.primaryContainer.withValues(alpha: 0.3)
               : null,
           border: Border(
             bottom: BorderSide(
@@ -742,67 +825,6 @@ class _PersonalNotesManagerScreenState
     );
   }
 
-  Widget _buildCategoryTile(Category category, int count, int level) {
-    if (count == 0) {
-      return const SizedBox.shrink();
-    }
-
-    final isExpanded = _expansionState[category.path] ?? level <= 1;
-    final isSelected = _selectedFilter == category.path;
-    final hasChildren =
-        category.subCategories.isNotEmpty || category.books.isNotEmpty;
-
-    return Column(
-      children: [
-        NavigationTreeTile.category(
-          title: category.title,
-          level: level,
-          isSelected: isSelected,
-          isExpanded: isExpanded,
-          hasChildren: hasChildren,
-          count: count > 0 ? count : null,
-          onTap: () => _onFilterChanged(category.path),
-          onToggleExpand: () {
-            setState(() {
-              _expansionState[category.path] = !isExpanded;
-            });
-          },
-        ),
-        if (isExpanded && category.path != '/__missing__')
-          ..._buildCategoryChildren(category, level),
-      ],
-    );
-  }
-
-  List<Widget> _buildCategoryChildren(Category category, int level) {
-    final List<Widget> children = [];
-
-    for (final subCategory in category.subCategories) {
-      final count = _getNotesCountForCategory(subCategory);
-      if (count > 0) {
-        children.add(_buildCategoryTile(subCategory, count, level + 1));
-      }
-    }
-
-    // Deduplicate books by title - keep only first occurrence
-    // This handles cases where the same book exists in both PDF and text formats
-    final seenTitles = <String>{};
-    for (final book in category.books) {
-      // Skip if we already added a book with this title
-      if (seenTitles.contains(book.title)) {
-        continue;
-      }
-
-      final count = _getNotesCountForBook(book.title);
-      if (count > 0) {
-        children.add(_buildBookTile(book, count, level + 1));
-        seenTitles.add(book.title);
-      }
-    }
-
-    return children;
-  }
-
   Widget _buildBookTile(Book book, int count, int level) {
     if (count == 0) {
       return const SizedBox.shrink();
@@ -810,7 +832,7 @@ class _PersonalNotesManagerScreenState
 
     final isSelected = _selectedFilter == book.title;
 
-    return NavigationTreeTile.book(
+    return NavTreeTile.book(
       title: book.title,
       level: level,
       isSelected: isSelected,
@@ -847,8 +869,9 @@ class _PersonalNotesManagerScreenState
         }
         if (_selectedFilter == '__missing__' || _selectedFilter == null) {
           for (final note in state.missingNotes) {
-            allNotes.add(_NoteWithBook(
-                note: note, bookId: book.bookId, isMissing: true));
+            allNotes.add(
+              _NoteWithBook(note: note, bookId: book.bookId, isMissing: true),
+            );
           }
         }
       }
@@ -908,13 +931,15 @@ class _PersonalNotesManagerScreenState
       }
     } else {
       // Book selected
-      filteredNotes =
-          allNotes.where((n) => n.bookId == _selectedFilter).toList();
+      filteredNotes = allNotes
+          .where((n) => n.bookId == _selectedFilter)
+          .toList();
     }
 
     // Filter missing notes if not showing missing filter
-    final displayNotes =
-        _selectedFilter == '__missing__' ? filteredNotes : filteredNotes;
+    final displayNotes = _selectedFilter == '__missing__'
+        ? filteredNotes
+        : filteredNotes;
 
     // Sort by book and line number
     displayNotes.sort((a, b) {
@@ -937,8 +962,9 @@ class _PersonalNotesManagerScreenState
     for (final note in displayNotes) {
       if (note.bookId != currentBookId) {
         if (currentGroup.isNotEmpty) {
-          groupedNotes
-              .add(_NotesGroup(bookId: currentBookId!, notes: currentGroup));
+          groupedNotes.add(
+            _NotesGroup(bookId: currentBookId!, notes: currentGroup),
+          );
         }
         currentBookId = note.bookId;
         currentGroup = [note];
@@ -947,8 +973,9 @@ class _PersonalNotesManagerScreenState
       }
     }
     if (currentGroup.isNotEmpty) {
-      groupedNotes
-          .add(_NotesGroup(bookId: currentBookId!, notes: currentGroup));
+      groupedNotes.add(
+        _NotesGroup(bookId: currentBookId!, notes: currentGroup),
+      );
     }
 
     return ListView.builder(
@@ -975,9 +1002,9 @@ class _PersonalNotesManagerScreenState
                       child: Text(
                         group.bookId,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                       ),
                     ),
                   ],
@@ -1040,7 +1067,7 @@ class _PersonalNotesManagerScreenState
       ),
       child: Row(
         children: [
-          Icon(
+          RtlIcon(
             FluentIcons.calendar_24_regular,
             size: 18,
             color: cs.onSecondaryContainer,
@@ -1050,9 +1077,9 @@ class _PersonalNotesManagerScreenState
             child: Text(
               'מציג הערות מ-${_formatDate(range.start)} עד ${_formatDate(range.end)}',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: cs.onSecondaryContainer,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: cs.onSecondaryContainer,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           IconButton(
@@ -1097,9 +1124,9 @@ class _PersonalNotesManagerScreenState
                 child: Text(
                   isMissing ? 'הערה ללא מיקום' : note.title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: cs.onSurface,
-                      ),
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1111,8 +1138,8 @@ class _PersonalNotesManagerScreenState
             Text(
               locationRef,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: cs.onSurfaceVariant,
-                  ),
+                color: cs.onSurfaceVariant,
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -1137,9 +1164,9 @@ class _PersonalNotesManagerScreenState
                     allowSelection: false,
                     maxPreviewChars: 280,
                     textStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: cs.onSurfaceVariant,
-                          height: 1.45,
-                        ),
+                      color: cs.onSurfaceVariant,
+                      height: 1.45,
+                    ),
                   ),
                 ),
               ),
@@ -1176,24 +1203,24 @@ class _PersonalNotesManagerScreenState
                 spacing: 6,
                 runSpacing: 6,
                 children: [
-                  ToolbarActionButton(
+                  BarButton.icon(
                     tooltip: 'עריכה',
                     icon: FluentIcons.edit_24_regular,
                     onPressed: () => _editNote(note),
                   ),
                   if (isMissing)
-                    ToolbarActionButton(
+                    BarButton.icon(
                       tooltip: 'מיקום מחדש',
                       icon: FluentIcons.location_24_regular,
                       onPressed: () => _repositionMissing(note),
                     ),
                   if (!isMissing)
-                    ToolbarActionButton(
+                    BarButton.icon(
                       tooltip: 'פתח ספר בשורה',
                       icon: FluentIcons.book_open_24_regular,
                       onPressed: () => _openNoteInBook(note),
                     ),
-                  ToolbarActionButton(
+                  BarButton.icon(
                     tooltip: 'מחיקה',
                     icon: FluentIcons.delete_24_regular,
                     onPressed: () => _deleteNote(note),
@@ -1233,14 +1260,14 @@ class _PersonalNotesManagerScreenState
 
     if (!mounted) return;
     context.read<PersonalNotesBloc>().add(
-          UpdatePersonalNote(
-            bookId: note.bookId,
-            noteId: note.id,
-            content: result.content,
-            contentPlain: result.contentPlain,
-            contentFormat: result.contentFormat,
-          ),
-        );
+      UpdatePersonalNote(
+        bookId: note.bookId,
+        noteId: note.id,
+        content: result.content,
+        contentPlain: result.contentPlain,
+        contentFormat: result.contentFormat,
+      ),
+    );
     UiSnack.show(NotesMessages.noteUpdated);
   }
 
@@ -1256,11 +1283,11 @@ class _PersonalNotesManagerScreenState
     if (shouldDelete == true) {
       if (!mounted) return;
       context.read<PersonalNotesBloc>().add(
-            DeletePersonalNote(
-              bookId: note.bookId,
-              noteId: note.id,
-            ),
-          );
+        DeletePersonalNote(
+          bookId: note.bookId,
+          noteId: note.id,
+        ),
+      );
       UiSnack.show(NotesMessages.noteDeleted);
     }
   }
@@ -1282,12 +1309,12 @@ class _PersonalNotesManagerScreenState
     if (newLine != null) {
       if (!mounted) return;
       context.read<PersonalNotesBloc>().add(
-            RepositionPersonalNote(
-              bookId: note.bookId,
-              noteId: note.id,
-              lineNumber: newLine,
-            ),
-          );
+        RepositionPersonalNote(
+          bookId: note.bookId,
+          noteId: note.id,
+          lineNumber: newLine,
+        ),
+      );
       UiSnack.show(NotesMessages.noteMovedToLine(newLine));
     }
   }
@@ -1305,7 +1332,8 @@ class _PersonalNotesManagerScreenState
       return;
     }
 
-    final book = library.findBookByTitle(note.bookId, TextBook) ??
+    final book =
+        library.findBookByTitle(note.bookId, TextBook) ??
         library.findBookByTitle(note.bookId, null);
     if (book == null) {
       UiSnack.show(NotesMessages.bookNotFound(note.bookId));
@@ -1314,13 +1342,20 @@ class _PersonalNotesManagerScreenState
 
     final lineIndex = (note.lineNumber! - 1).clamp(0, 1 << 30);
     final tabsBloc = context.read<TabsBloc>();
-    final previousSidebarTab =
-        Settings.getValue<int>('key-sidebar-tab-index-combined');
+    final previousSidebarTab = Settings.getValue<int>(
+      'key-sidebar-tab-index-combined',
+    );
     Settings.setValue<int>('key-sidebar-tab-index-combined', 2);
     Settings.setValue<int>('key-sidebar-tab-index-pending', 2);
 
-    openBook(context, book, lineIndex, '',
-        ignoreHistory: true, requiresStableLayout: true);
+    openBook(
+      context,
+      book,
+      lineIndex,
+      '',
+      ignoreHistory: true,
+      requiresStableLayout: true,
+    );
 
     Future.delayed(const Duration(milliseconds: 350), () {
       if (!mounted) return;
@@ -1335,7 +1370,9 @@ class _PersonalNotesManagerScreenState
 
       if (previousSidebarTab != null) {
         Settings.setValue<int>(
-            'key-sidebar-tab-index-combined', previousSidebarTab);
+          'key-sidebar-tab-index-combined',
+          previousSidebarTab,
+        );
       } else {
         Settings.setValue<int>('key-sidebar-tab-index-combined', 0);
       }
@@ -1368,7 +1405,7 @@ class _InfoChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 12, color: foregroundColor),
+            RtlIcon(icon, size: 12, color: foregroundColor),
             const SizedBox(width: 6),
             Flexible(
               child: Text(
@@ -1376,9 +1413,9 @@ class _InfoChip extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: foregroundColor,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  color: foregroundColor,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -1397,6 +1434,55 @@ bool noteWithinDateRange(PersonalNote note, DateTimeRange? range) {
   if (range == null) return true;
   final noteDay = DateUtils.dateOnly(note.updatedAt);
   return !noteDay.isBefore(range.start) && !noteDay.isAfter(range.end);
+}
+
+enum _NotesNavRowKind { root, category, book, missing }
+
+/// שורה משוטחת בעץ ההערות (לבנייה עצלה ב-ListView.builder).
+class _NotesNavRow {
+  final _NotesNavRowKind kind;
+  final Category? category;
+  final Book? book;
+  final int level;
+  final int count;
+  final bool isExpanded;
+  bool isGroupStart = false;
+  bool isGroupEnd = false;
+
+  _NotesNavRow._({
+    required this.kind,
+    this.category,
+    this.book,
+    this.level = 0,
+    this.count = 0,
+    this.isExpanded = false,
+  });
+
+  _NotesNavRow.root(int count)
+    : this._(kind: _NotesNavRowKind.root, count: count);
+
+  _NotesNavRow.missing() : this._(kind: _NotesNavRowKind.missing);
+
+  _NotesNavRow.category(
+    Category category,
+    int level,
+    int count,
+    bool isExpanded,
+  ) : this._(
+        kind: _NotesNavRowKind.category,
+        category: category,
+        level: level,
+        count: count,
+        isExpanded: isExpanded,
+      );
+
+  _NotesNavRow.book(Book book, int level, int count)
+    : this._(
+        kind: _NotesNavRowKind.book,
+        book: book,
+        level: level,
+        count: count,
+      );
 }
 
 class _NoteWithBook {

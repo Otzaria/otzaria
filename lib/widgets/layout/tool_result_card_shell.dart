@@ -25,16 +25,14 @@ class ToolResultCardShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final borderColor = isFocused
-        ? cs.primary.withValues(alpha: 0.75)
-        : cs.outlineVariant.withValues(alpha: 0.22);
-    final borderWidth = isFocused ? 1.5 : 1.0;
 
     return Container(
       margin: margin,
       decoration: BoxDecoration(
         borderRadius: AppTokens.borderRadiusAll,
-        border: Border.all(color: borderColor, width: borderWidth),
+        border: isFocused
+            ? Border.all(color: cs.primary.withValues(alpha: 0.75), width: 1.5)
+            : null,
       ),
       child: Material(
         color: AppSurfaces.card(context),

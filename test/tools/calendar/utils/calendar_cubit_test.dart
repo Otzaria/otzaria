@@ -710,6 +710,19 @@ void main() {
       expect(mapped!.endGregorianDate, DateTime(2026, 3, 27));
     });
   });
+
+  group('CustomEvent notificationMinutes serialization', () {
+    test('round-trips notificationMinutes through toJson/fromJson', () {
+      final event = _buildUserEvent().copyWith(notificationMinutes: 1440);
+      final decoded = CustomEvent.fromJson(jsonDecode(_encodeEvent(event)));
+      expect(decoded.notificationMinutes, 1440);
+    });
+
+    test('legacy JSON without notificationMinutes decodes to null', () {
+      final json = _buildUserEvent().toJson()..remove('notificationMinutes');
+      expect(CustomEvent.fromJson(json).notificationMinutes, isNull);
+    });
+  });
 }
 
 String _encodeEvent(CustomEvent e) => jsonEncode(e.toJson());
