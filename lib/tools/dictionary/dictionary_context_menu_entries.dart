@@ -23,6 +23,7 @@ List<AppContextMenuEntry> buildDictionaryContextMenuEntries({
 
   final entries = <AppContextMenuEntry>[];
   final shouldCheckAcronyms = repository.isLikelyAcronym(trimmed);
+  final shouldCheckLaaz = repository.isLikelyLaazTranslit(trimmed);
 
   if (shouldCheckAcronyms && !repository.areAcronymsLoaded) {
     unawaited(repository.ensureAcronymsLoaded().catchError((_) {}));
@@ -32,7 +33,7 @@ List<AppContextMenuEntry> buildDictionaryContextMenuEntries({
     unawaited(repository.ensureAramaicLoaded().catchError((_) {}));
   }
 
-  if (!repository.areLaazLoaded) {
+  if (shouldCheckLaaz && !repository.areLaazLoaded) {
     unawaited(repository.ensureLaazLoaded().catchError((_) {}));
   }
 
@@ -68,7 +69,7 @@ List<AppContextMenuEntry> buildDictionaryContextMenuEntries({
     }
   }
 
-  if (repository.areLaazLoaded && repository.isLikelyLaazTranslit(trimmed)) {
+  if (shouldCheckLaaz && repository.areLaazLoaded) {
     final laazGroups = repository.findLaazMatchGroups(trimmed);
     if (laazGroups.isNotEmpty) {
       entries.add(

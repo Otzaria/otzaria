@@ -57,16 +57,33 @@ class BookDatabaseResolver {
     return firstSegment == _personalRootTitle;
   }
 
+  /// מאתר ספר לפי מאפייניו במסדי הספרייה.
+  ///
+  /// [officialOnly] מונע fallback ל-`user_books.db`.
   static Future<ResolvedDbBookRecord?> resolveBook({
     required String title,
     int? categoryId,
     String? fileType,
     String? filePath,
     bool preferUserBooks = false,
+    bool officialOnly = false,
   }) async {
-    final candidates = await _loadRepositoryCandidates(
-      preferUserBooks: preferUserBooks,
-    );
+    final List<ResolvedBookRepositoryCandidate> candidates;
+    if (officialOnly) {
+      final repository = await _loadOfficialRepository();
+      candidates = repository == null
+          ? const <ResolvedBookRepositoryCandidate>[]
+          : <ResolvedBookRepositoryCandidate>[
+              ResolvedBookRepositoryCandidate(
+                repository: repository,
+                isUserBooks: false,
+              ),
+            ];
+    } else {
+      candidates = await _loadRepositoryCandidates(
+        preferUserBooks: preferUserBooks,
+      );
+    }
 
     return resolveBookInCandidates(
       title: title,

@@ -423,6 +423,29 @@ void main() {
           reason: 'preferUserBooks=true מחפש קודם ב-user_books');
     });
 
+    test('resolveBook עם officialOnly לא נופל לספר אישי בעל אותה כותרת', () async {
+      final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;
+      final catId = await userBooksRepo.insertCategory(
+        const migration_models.Category(title: 'ספרים אישיים'),
+      );
+      final sourceId = await userBooksRepo.insertSource('Personal::test', -1);
+      await userBooksRepo.insertBook(
+        migration_models.Book(
+          categoryId: catId,
+          sourceId: sourceId,
+          title: 'מילון אישי',
+          fileType: 'txt',
+        ),
+      );
+
+      final resolved = await BookDatabaseResolver.resolveBook(
+        title: 'מילון אישי',
+        officialOnly: true,
+      );
+
+      expect(resolved, isNull);
+    });
+
     test('resolveBookById עם isUserBook=true מחפש רק ב-user_books', () async {
       // ב-seforim וב-user_books נוצרים ספרים נפרדים. ה-AUTOINCREMENT יקצה
       // לכל אחד id משלו — שומרים את שני המזהים כדי לבדוק שכל DB מחזיר את שלו.

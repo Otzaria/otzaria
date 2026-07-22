@@ -80,6 +80,43 @@ void main() {
       expect(entry.english, 'jasmine');
     });
 
+    test('מפרק ערך שבו התעתיק הלטיני מופיע לפני התעתיק העברי', () {
+      final entry = LaazDictionaryEntry.parseLine(
+        '3094 / (שמות טו,כד) / <b>וילנו</b> decompleinst sei / '
+        'דיקומפליינש"ט שי"י / '
+        '<b>התלונן (מלה במלה: קונן על עצמו)</b>',
+      );
+
+      expect(entry, isNotNull);
+      expect(entry!.laazHebrew, 'דיקומפליינש"ט שי"י');
+      expect(entry.laazLatin, 'decompleinst sei');
+      expect(entry.meaning, 'התלונן (מלה במלה: קונן על עצמו)');
+    });
+
+    test('מפרק ערך שבו הפירוש מקדים תעתיק לטיני מודגש', () {
+      final entry = LaazDictionaryEntry.parseLine(
+        '3027 / (בראשית ל,כ) / <b>יזבלני</b> הירבירייריא"ה / '
+        'אירוח, לינה / <b>herberjerie</b> <small></small>',
+      );
+
+      expect(entry, isNotNull);
+      expect(entry!.laazHebrew, 'הירבירייריא"ה');
+      expect(entry.laazLatin, 'herberjerie');
+      expect(entry.meaning, 'אירוח, לינה');
+    });
+
+    test('מפריד פירוש עברי שנדבק לתעתיק הלטיני', () {
+      final entry = LaazDictionaryEntry.parseLine(
+        '776 / (סוכה יז.) / <b>דה"מ וכן חצר</b> קלוישטר"א / '
+        '<b>cloistreחצר סגורה באכסדרה מרובעת</b>',
+      );
+
+      expect(entry, isNotNull);
+      expect(entry!.laazHebrew, 'קלוישטר"א');
+      expect(entry.laazLatin, 'cloistre');
+      expect(entry.meaning, 'חצר סגורה באכסדרה מרובעת');
+    });
+
     test('מפענח &amp; בשדות הערך (קיים בנתוני הספר בפועל)', () {
       final entry = LaazDictionaryEntry.parseLine(
         '1456 / (בבא קמא קיט.) / <b>מוכין</b> גרטויש"א / geatuise / '
@@ -179,6 +216,30 @@ void main() {
       expect(repository.findLaazMatches('שוו"ן').single.laazLatin, 'savon');
       expect(repository.findLaazMatches('שיו"ן').single.laazLatin, 'savon');
       expect(repository.findLaazMatches('שו"ן').single.laazLatin, 'son');
+    });
+
+    test('כינויי הכתיב אינם ממזגים את ראשי התיבות יו"ט עם בו"ט', () async {
+      repository = buildRepository(
+        () async => LaazDictionaryEntry.parseLines(const <String>[
+          '2439 / (נידה נו.) / <b>זבוגי</b> בו"ט / bot / <b>קרפדה</b>',
+        ]),
+      );
+      await repository.ensureLaazLoaded();
+
+      expect(repository.findLaazMatches('בו"ט'), hasLength(1));
+      expect(repository.findLaazMatches('יו"ט'), isEmpty);
+    });
+
+    test('שומר את כינוי הכתיב ריוישטי"ר/רווישט"יר', () async {
+      repository = buildRepository(
+        () async => LaazDictionaryEntry.parseLines(const <String>[
+          '3139 / (שמות כח,מא) / <b>דה"מ ומלאת</b> ריוישטי"ר / '
+              'rewestir / <b>להלביש, להסמיך</b>',
+        ]),
+      );
+      await repository.ensureLaazLoaded();
+
+      expect(repository.findLaazMatches('רווישט"יר'), hasLength(1));
     });
 
     test('ספר חסר ב-DB — טעינה ריקה בלי שגיאות והתאמות ריקות', () async {
@@ -408,6 +469,28 @@ void main() {
       );
 
       expect(entries, isEmpty);
+    });
+
+    testWidgets('מילה רגילה אינה מפעילה טעינת מילון לעזים', (tester) async {
+      var laazLoadCount = 0;
+      repository = DictionaryLookupRepository(
+        loadAcronyms: () async => <String, List<String>>{},
+        loadAramaicEntries: () async => const <AramaicDictionaryEntry>[],
+        loadLaazEntries: () async {
+          laazLoadCount++;
+          return const <LaazDictionaryEntry>[];
+        },
+      );
+      final context = await pumpHost(tester);
+
+      buildDictionaryContextMenuEntries(
+        context: context,
+        selectedText: 'שלום',
+        repository: repository,
+      );
+      await tester.pump();
+
+      expect(laazLoadCount, 0);
     });
   });
 }

@@ -18,6 +18,7 @@ void main() {
           AramaicDictionaryEntry(aramaic: 'בר אבא', hebrew: 'בן היער'),
           AramaicDictionaryEntry(aramaic: 'אבוה', hebrew: 'אביו'),
         ],
+        loadLaazEntries: () async => const <LaazDictionaryEntry>[],
       );
     });
 

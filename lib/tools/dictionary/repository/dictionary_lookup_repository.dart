@@ -72,6 +72,10 @@ class LaazDictionaryEntry {
     dotAll: true,
   );
   static final RegExp _latinLetter = RegExp(r'[a-zA-Z]');
+  static final RegExp _hebrewLetter = RegExp('[א-ת]');
+  static final RegExp _joinedLatinAndHebrew = RegExp(
+    r'^([^א-ת]*[a-zA-Z])([א-ת].*)$',
+  );
 
   /// מפרק את כל שורות הספר לערכי מילון; שורות כותרת ושורות לא-תקינות מדולגות.
   static List<LaazDictionaryEntry> parseLines(List<String> lines) {
@@ -119,13 +123,38 @@ class LaazDictionaryEntry {
     var meaning = '';
 
     if (parts.length >= 5) {
-      laazLatin = _stripTags(parts[3]);
+      final middleField = _stripTags(parts[3]);
       final meaningField = _removeTrailingBlocks(parts.sublist(4).join(' / '));
-      meaning = _matchGroup(_bold, meaningField) ?? _stripTags(meaningField);
+      final trailingField =
+          _matchGroup(_bold, meaningField) ?? _stripTags(meaningField);
+      final headIsLatin =
+          _latinLetter.hasMatch(afterLemma) &&
+          !_hebrewLetter.hasMatch(afterLemma);
+      final middleHasHebrew = _hebrewLetter.hasMatch(middleField);
+      final trailingIsLatin =
+          _latinLetter.hasMatch(trailingField) &&
+          !_hebrewLetter.hasMatch(trailingField);
+
+      if (headIsLatin && middleHasHebrew) {
+        laazHebrew = middleField;
+        laazLatin = afterLemma;
+        meaning = trailingField;
+      } else if (middleHasHebrew &&
+          (trailingField.isEmpty || trailingIsLatin)) {
+        laazLatin = trailingField;
+        meaning = middleField;
+      } else {
+        laazLatin = middleField;
+        meaning = trailingField;
+      }
     } else if (parts.length == 4) {
       final lastField = _removeTrailingBlocks(parts[3]);
       final boldLast = _matchGroup(_bold, lastField) ?? _stripTags(lastField);
-      if (_latinLetter.hasMatch(boldLast)) {
+      final joinedFields = _joinedLatinAndHebrew.firstMatch(boldLast);
+      if (joinedFields != null) {
+        laazLatin = joinedFields.group(1)?.trim() ?? '';
+        meaning = joinedFields.group(2)?.trim() ?? '';
+      } else if (_latinLetter.hasMatch(boldLast)) {
         // וריאנט שבו הלטינית מודגשת בשדה האחרון והפירוש נגרר אחרי התעתיק.
         laazLatin = boldLast;
         final split = _splitTranslitAndMeaning(afterLemma);
@@ -154,7 +183,9 @@ class LaazDictionaryEntry {
   ) {
     final tokens = text.split(RegExp(r'\s+'));
     var translitEnd = 0;
-    while (translitEnd < tokens.length && tokens[translitEnd].contains('"')) {
+    while (translitEnd < tokens.length &&
+        (tokens[translitEnd].contains('"') ||
+            tokens[translitEnd].contains('״'))) {
       translitEnd++;
     }
     if (translitEnd == 0) translitEnd = 1;
@@ -514,7 +545,7 @@ class DictionaryLookupRepository {
 
   /// מחזיר התאמות מדויקות ללעז לפי התעתיק העברי, עמיד לחילופי כתיב בין דפוסים.
   List<LaazDictionaryEntry> findLaazMatches(String raw) {
-    final key = _foldLaazTranslit(_normalizeAramaic(raw));
+    final key = _canonicalizeLaazTranslit(_normalizeAramaic(raw));
     if (key.isEmpty) return const <LaazDictionaryEntry>[];
 
     return _laazByTranslit[key] ?? const <LaazDictionaryEntry>[];
@@ -591,7 +622,9 @@ class DictionaryLookupRepository {
     final byTranslit = <String, List<LaazDictionaryEntry>>{};
 
     for (final entry in laazEntries) {
-      final translit = _foldLaazTranslit(_normalizeAramaic(entry.laazHebrew));
+      final translit = _canonicalizeLaazTranslit(
+        _normalizeAramaic(entry.laazHebrew),
+      );
       if (translit.isNotEmpty) {
         byTranslit
             .putIfAbsent(translit, () => <LaazDictionaryEntry>[])
@@ -671,12 +704,15 @@ class DictionaryLookupRepository {
     return _normalizeCommon(_trimDecorations(raw), keepQuotes: false);
   }
 
-  static final RegExp _consonantBeforeVav = RegExp('[בי](?=ו)');
+  static const Map<String, String> _laazTranslitAliases = <String, String>{
+    'שוון': 'שבון',
+    'שיון': 'שבון',
+    'רווישטיר': 'ריוישטיר',
+  };
 
-  /// מקפל חילופי כתיב בין דפוסים בתעתיקי לעז: העיצור שלפני ו' נכתב ב/ו/י
-  /// (שבו"ן=שוו"ן=שיו"ן). ההחלפה משמרת אורך כדי לא למזג מילים שונות (שו"ן).
-  static String _foldLaazTranslit(String normalized) {
-    return normalized.replaceAll(_consonantBeforeVav, 'ו');
+  /// מאחד רק חילופי כתיב שנמצאו בפועל, בלי למזג ראשי תיבות ומילים אחרות.
+  static String _canonicalizeLaazTranslit(String normalized) {
+    return _laazTranslitAliases[normalized] ?? normalized;
   }
 
   static String _normalizeCommon(String raw, {required bool keepQuotes}) {
