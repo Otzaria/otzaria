@@ -901,6 +901,7 @@ class _SearchDialogState extends State<SearchDialog> {
           Transform.scale(
             scale: 0.75,
             child: Switch(
+              key: const ValueKey('search-all-categories-switch'),
               value: _searchAllCategories,
               onChanged: _setSearchAllCategories,
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,

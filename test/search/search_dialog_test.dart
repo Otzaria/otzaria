@@ -195,9 +195,11 @@ Future<void> main() async {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.byType(Switch), findsOneWidget);
-    await tester.ensureVisible(find.byType(Switch));
-    await tester.tap(find.byType(Switch));
+    final allCategoriesSwitch =
+        find.byKey(const ValueKey('search-all-categories-switch'));
+    expect(allCategoriesSwitch, findsOneWidget);
+    await tester.ensureVisible(allCategoriesSwitch);
+    await tester.tap(allCategoriesSwitch);
     await tester.pumpAndSettle();
 
     void expectCategoryBeside() {
