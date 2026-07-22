@@ -24,6 +24,7 @@ import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
+import 'package:otzaria/search/view/search_scope_menu.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 
 import '../support/search_engine_test_init.dart';
@@ -152,7 +153,7 @@ Future<void> main() async {
     expect(find.text('משה'), findsWidgets);
   });
 
-  testWidgets('פאנל הקטגוריות עקבי ומופיע לצד כל סוגי החיפוש',
+  testWidgets('בורר היקף החיפוש נשאר מוצג בכל סוגי החיפוש',
       (WidgetTester tester) async {
     final historyBloc = MockHistoryBloc();
     final indexingBloc = MockIndexingBloc();
@@ -195,33 +196,14 @@ Future<void> main() async {
     ));
     await tester.pumpAndSettle();
 
-    final allCategoriesSwitch =
-        find.byKey(const ValueKey('search-all-categories-switch'));
-    expect(allCategoriesSwitch, findsOneWidget);
-    await tester.ensureVisible(allCategoriesSwitch);
-    await tester.tap(allCategoriesSwitch);
-    await tester.pumpAndSettle();
-
-    void expectCategoryBeside() {
-      final categoryRect =
-          tester.getRect(find.byKey(const ValueKey('search-category-panel')));
-      final controlsRect =
-          tester.getRect(find.byKey(const ValueKey('search-mode-controls')));
-      expect(
-        categoryRect.right <= controlsRect.left ||
-            controlsRect.right <= categoryRect.left,
-        isTrue,
-      );
-    }
-
-    expectCategoryBeside();
+    expect(find.byType(SearchScopeMenuButton), findsOneWidget);
 
     for (final mode in ['מתקדם', 'מקורב', 'מדויק']) {
       await tester.ensureVisible(find.text(mode).first);
       await tester.tap(find.text(mode).first);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull, reason: 'המעבר אל $mode נכשל');
-      expectCategoryBeside();
+      expect(find.byType(SearchScopeMenuButton), findsOneWidget);
     }
   });
 

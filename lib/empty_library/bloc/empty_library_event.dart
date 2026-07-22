@@ -7,18 +7,77 @@ abstract class EmptyLibraryEvent extends Equatable {
 
 class PickDirectoryRequested extends EmptyLibraryEvent {}
 
-class PickArchiveFileRequested extends EmptyLibraryEvent {
-  /// כשמסופק, מדלגים על FilePicker ומשתמשים בנתיב ישירות.
-  /// משמש לטסטים שלא יכולים לפתוח את ה-FilePicker האמיתי.
-  final String? overrideFilePath;
+class DownloadLibraryRequested extends EmptyLibraryEvent {
+  /// מיקום היעד שאליו תורד הספרייה. null → נתיב ברירת המחדל של האפליקציה.
+  final String? targetPath;
 
-  PickArchiveFileRequested({this.overrideFilePath});
+  DownloadLibraryRequested({this.targetPath});
 
   @override
-  List<Object?> get props => [overrideFilePath];
+  List<Object?> get props => [targetPath];
 }
 
-class DownloadLibraryRequested extends EmptyLibraryEvent {}
+/// עדכון ספרייה קיימת (מההגדרות) עם גיבוי בטוח של ה-DB הישן.
+/// ה-DB הישן ב-[existingLibraryPath] מגובה, ונמחק לצמיתות רק בהצלחה (ומשוחזר
+/// בכישלון). [isDownload] → הורדה מחדש; אחרת [sourceFolder] הוא תיקייה עם
+/// seforim.db.
+class UpdateLibraryRequested extends EmptyLibraryEvent {
+  final bool isDownload;
+  final String? sourceFolder;
+  final String targetPath;
+  final String existingLibraryPath;
+
+  UpdateLibraryRequested({
+    required this.isDownload,
+    this.sourceFolder,
+    required this.targetPath,
+    required this.existingLibraryPath,
+  });
+
+  @override
+  List<Object?> get props => [
+    isDownload,
+    sourceFolder,
+    targetPath,
+    existingLibraryPath,
+  ];
+}
+
+/// ייבוא ספרייה מתיקייה שנבחרה: מזהה אוטומטית את נכסי הספרייה שבתוכה (seforim.db,
+/// קטלוג, מילון, תלמוד בבלי) בגרסה דחוסה או רגילה, ומחלץ/מעתיק כל אחד אל היעד.
+/// [backupExistingPath] — כשמסופק (עדכון במקום), ה-DB הישן בנתיב זה מגובה
+/// ומשוחזר בכישלון.
+class ImportLibraryFolderRequested extends EmptyLibraryEvent {
+  final String sourceFolder;
+  final String targetPath;
+  final String? backupExistingPath;
+
+  ImportLibraryFolderRequested({
+    required this.sourceFolder,
+    required this.targetPath,
+    this.backupExistingPath,
+  });
+
+  @override
+  List<Object?> get props => [sourceFolder, targetPath, backupExistingPath];
+}
+
+/// ייבוא ספרייה מארכיון ZIP או ZST אל תיקיית היעד. [backupExistingPath]
+/// משמש להחזרת ה-DB הישן אם החילוץ או אימות הארכיון נכשלים.
+class ImportLibraryArchiveRequested extends EmptyLibraryEvent {
+  final String archivePath;
+  final String targetPath;
+  final String? backupExistingPath;
+
+  ImportLibraryArchiveRequested({
+    required this.archivePath,
+    required this.targetPath,
+    this.backupExistingPath,
+  });
+
+  @override
+  List<Object?> get props => [archivePath, targetPath, backupExistingPath];
+}
 
 /// בודק מקום פנוי בהתקנה וקובע אם כפתור ההורדה זמין.
 /// נשלח בעת טעינת המסך.
@@ -34,21 +93,6 @@ class StorageLocationSelected extends EmptyLibraryEvent {
 
   @override
   List<Object?> get props => [libraryRoot];
-}
-
-class DeleteZipAnswered extends EmptyLibraryEvent {
-  final bool shouldDelete;
-  final String zipPath;
-  final String extractedPath;
-
-  DeleteZipAnswered({
-    required this.shouldDelete,
-    required this.zipPath,
-    required this.extractedPath,
-  });
-
-  @override
-  List<Object?> get props => [shouldDelete, zipPath, extractedPath];
 }
 
 /// בחירת קובץ seforim.db ישירות דרך file picker (SAF-aware).
@@ -74,6 +118,10 @@ class PickDbFileRequested extends EmptyLibraryEvent {
   });
 
   @override
-  List<Object?> get props =>
-      [libraryPath, internalDbPath, externalDbPath, shouldMove];
+  List<Object?> get props => [
+    libraryPath,
+    internalDbPath,
+    externalDbPath,
+    shouldMove,
+  ];
 }

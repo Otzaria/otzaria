@@ -17,8 +17,7 @@ import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart'
 import 'package:otzaria/tools/calendar/dialogs/calendar_zman_alert_dialog.dart';
 import 'package:otzaria/tools/calendar/dialogs/zmanim_settings_dialog.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
-import 'package:otzaria/widgets/controls/action_buttons.dart';
-import 'package:otzaria/widgets/layout/app_card.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 class CalendarTimeEntry {
@@ -394,7 +393,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                ToolbarActionButton(
+                BarButton.icon(
                   tooltip: 'זמנים נוספים',
                   icon: FluentIcons.list_24_regular,
                   compact: true,
@@ -1022,7 +1021,7 @@ class _AlertControl extends StatelessWidget {
     final minutesBefore = existingAlert?.minutesBefore;
 
     final action = menuEntries.isEmpty
-        ? ToolbarActionButton(
+        ? BarButton.icon(
             tooltip: tooltip,
             icon: iconData,
             onPressed: onPressed,

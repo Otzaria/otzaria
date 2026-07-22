@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/tools/calendar/calendar_screen.dart';
 import 'package:otzaria/tools/calendar/dialogs/calendar_event_dialog.dart';
@@ -6,6 +7,8 @@ import 'package:otzaria/tools/calendar/dialogs/jump_to_date_dialog.dart'
     show JumpToDatePanel;
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_print_helpers.dart';
+import 'package:otzaria/tools/calendar/utils/calendar_cubit.dart';
+import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 void main() {
@@ -15,6 +18,48 @@ void main() {
         resolveCalendarPrintLayout(CalendarView.day),
         CalendarPrintLayout.day,
       );
+    });
+
+    group('parseCalendarDate — לועזי', () {
+      DateTime? parse(String input) => parseCalendarDate(input,
+          currentJewishYear: 5786, currentGregorianYear: 2026);
+
+      test('שנה בת 4 ספרות', () {
+        expect(parse('15/3/2025'), DateTime(2025, 3, 15));
+      });
+      test('שנה בת 2 ספרות → 20xx', () {
+        expect(parse('12/7/26'), DateTime(2026, 7, 12));
+      });
+      test('מפריד רווח / נקודה / מקף', () {
+        expect(parse('12 7'), DateTime(2026, 7, 12));
+        expect(parse('12.7.26'), DateTime(2026, 7, 12));
+        expect(parse('12-7'), DateTime(2026, 7, 12));
+      });
+      test('חודש ללא שנה → שנה נוכחית', () {
+        expect(parse('12/7'), DateTime(2026, 7, 12));
+      });
+      test('שם חודש עם/בלי הקידומת ב', () {
+        expect(parse('12/אוגוסט/26'), DateTime(2026, 8, 12));
+        expect(parse('12 באוגוסט 26'), DateTime(2026, 8, 12));
+      });
+      test('תאריך לא חוקי נדחה', () {
+        expect(parse('31/02/2026'), isNull);
+      });
+    });
+
+    group('parseCalendarDate — עברי', () {
+      test('שנה מקוצרת (2 אותיות) שווה לשנה מלאה', () {
+        final full = parseCalendarDate('טו תמוז תשפו', currentJewishYear: 5786);
+        final short = parseCalendarDate('טו תמוז פו', currentJewishYear: 5786);
+        expect(full, isNotNull);
+        expect(short, equals(full));
+      });
+      test('שנה חסרה → שנה עברית נוכחית', () {
+        final withYear =
+            parseCalendarDate('טו תמוז תשפו', currentJewishYear: 5786);
+        final noYear = parseCalendarDate('טו תמוז', currentJewishYear: 5786);
+        expect(noYear, equals(withYear));
+      });
     });
 
     testWidgets('invalid gregorian date is rejected', (tester) async {
@@ -77,6 +122,7 @@ void main() {
             body: JumpToDatePanel(
               selectedDate: initialDate,
               currentDate: initialDate,
+              showHebrew: false,
               onDateChanged: (d) => changedTo = d,
               onCancel: () {},
               onConfirm: () => confirmed = true,
@@ -108,6 +154,7 @@ void main() {
             body: JumpToDatePanel(
               selectedDate: initialDate,
               currentDate: initialDate,
+              showHebrew: false,
               onDateChanged: (d) => changedTo = d,
               onCancel: () {},
               onConfirm: () => confirmed = true,
@@ -136,6 +183,7 @@ void main() {
             body: JumpToDatePanel(
               selectedDate: initialDate,
               currentDate: initialDate,
+              showHebrew: false,
               onDateChanged: (_) {},
               onCancel: () {},
               onConfirm: () => confirmed = true,
@@ -157,8 +205,76 @@ void main() {
       expect(confirmed, isFalse);
     });
 
+    testWidgets('desktop: הוספת שעה — עורך HH∶MM, הקלדה ו-✕ לניקוי',
+        (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      await tester.binding.setSurfaceSize(const Size(1200, 900));
+      addTearDown(() {
+        tester.view.resetDevicePixelRatio();
+        tester.binding.setSurfaceSize(null);
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => showCalendarEventDialog(
+                  context: context,
+                  state: CalendarState.initial(),
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      // ברירת מחדל: אין שעה → צ'יפ 'הוספת שעה'
+      expect(find.text('הוספת שעה'), findsOneWidget);
+
+      await tester.tap(find.text('הוספת שעה'));
+      await tester.pumpAndSettle();
+
+      // העורך מוצג (מפריד ':') והצ'יפ נעלם
+      expect(find.text('הוספת שעה'), findsNothing);
+      expect(find.text(':'), findsOneWidget);
+
+      // הקלדה מעדכנת את התאים: 09:45. pump בין הקשות כדי שהמעבר האוטומטי
+      // שעה→דקות ייכנס לתוקף (כמו פריים בין הקשות אמיתיות).
+      await tester.tap(find.byKey(const Key('time-hour')));
+      await tester.pumpAndSettle();
+      for (final key in [
+        LogicalKeyboardKey.digit0,
+        LogicalKeyboardKey.digit9,
+        LogicalKeyboardKey.digit4,
+        LogicalKeyboardKey.digit5,
+      ]) {
+        await tester.sendKeyEvent(key);
+        await tester.pump();
+      }
+      await tester.pumpAndSettle();
+      expect(find.text('09'), findsOneWidget);
+      expect(find.text('45'), findsOneWidget);
+
+      // ✕ מנקה חזרה ל'הוספת שעה'
+      await tester.tap(find.byTooltip('כל היום'));
+      await tester.pumpAndSettle();
+      expect(find.text('הוספת שעה'), findsOneWidget);
+    });
+
     testWidgets('recurring event requires a positive number of years',
         (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      await tester.binding.setSurfaceSize(const Size(1200, 900));
+      addTearDown(() {
+        tester.view.resetDevicePixelRatio();
+        tester.binding.setSurfaceSize(null);
+      });
+
       CalendarEventDialogResult? result;
 
       await tester.pumpWidget(
@@ -186,9 +302,11 @@ void main() {
         find.byType(TextField).first,
         'אירוע בדיקה',
       );
-      final recurringSwitch =
-          tester.widget<SwitchListTile>(find.byType(SwitchListTile));
-      recurringSwitch.onChanged!(true);
+      final recurrenceDropdown =
+          tester.widget<AppDropdownField<RecurrenceType>>(
+        find.byType(AppDropdownField<RecurrenceType>),
+      );
+      recurrenceDropdown.onSelected!(RecurrenceType.annualHebrew);
       await tester.pumpAndSettle();
 
       final recurringLimitToggle =
@@ -212,6 +330,13 @@ void main() {
     });
 
     testWidgets('בחירת צבע מוחזרת ב-colorIndex', (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      await tester.binding.setSurfaceSize(const Size(1200, 900));
+      addTearDown(() {
+        tester.view.resetDevicePixelRatio();
+        tester.binding.setSurfaceSize(null);
+      });
+
       CalendarEventDialogResult? result;
 
       await tester.pumpWidget(
@@ -236,6 +361,9 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(TextField).first, 'אירוע צבעוני');
+      // בורר הצבע נפתח בכפתור ייעודי; הגוונים מוצגים ב-popup צמוד לכפתור
+      await tester.tap(find.text('בחר צבע'));
+      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('ירוק'));
       await tester.pumpAndSettle();
 

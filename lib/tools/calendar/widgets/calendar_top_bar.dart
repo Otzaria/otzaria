@@ -24,11 +24,13 @@ import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tools/calendar/utils/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/dialogs/jump_to_date_dialog.dart';
+import 'package:otzaria/tools/calendar/widgets/calendar_date_picker_panel.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_side_panel.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
-import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
@@ -92,6 +94,7 @@ class _CalendarTopBarState extends State<CalendarTopBar>
   late final FocusNode _jumpDateFocusNode;
   late final FocusNode _dialogFocusNode;
   late DateTime _pendingJumpDate;
+  bool _jumpShowHebrew = true;
   final GlobalKey _jumpSearchBarKey = GlobalKey();
   final OverlayPortalController _overlayPortalController =
       OverlayPortalController();
@@ -108,13 +111,10 @@ class _CalendarTopBarState extends State<CalendarTopBar>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // סגירת החיפוש כשהאפליקציה עוברת לרקע או מאבדת פוקוס
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.hidden) {
-      if (widget.isJumpToDateSearchOpen) {
-        widget.onCloseJumpToDateSearch();
-      }
+    // סגירה רק בהעברה אמיתית לרקע (paused). inactive/hidden נשלחים גם כשהחלון
+    // מאבד פוקוס ל-OS — ואז החיפוש צריך להישאר פתוח, כמו כל דיאלוג.
+    if (state == AppLifecycleState.paused && widget.isJumpToDateSearchOpen) {
+      widget.onCloseJumpToDateSearch();
     }
   }
 
@@ -166,7 +166,7 @@ class _CalendarTopBarState extends State<CalendarTopBar>
 
     final sameHebrewMonth =
         startJewish.getJewishMonth() == endJewish.getJewishMonth() &&
-            startJewish.getJewishYear() == endJewish.getJewishYear();
+        startJewish.getJewishYear() == endJewish.getJewishYear();
 
     if (sameHebrewMonth) {
       return '${formatHebrewDay(startJewish.getJewishDayOfMonth())}-${formatHebrewDay(endJewish.getJewishDayOfMonth())} '
@@ -200,13 +200,14 @@ class _CalendarTopBarState extends State<CalendarTopBar>
 
   Widget _buildDateText(BuildContext context) {
     final s = widget.state;
-    final showOhrPrefix = s.calendarView != CalendarView.week &&
+    final showOhrPrefix =
+        s.calendarView != CalendarView.week &&
         shouldShowOhrPrefixForCalendarHeader(state: s);
     final heb = s.calendarView == CalendarView.week
         ? _formatWeekHebrewRange(s)
         : '${showOhrPrefix ? 'אור ל' : ''}${formatHebrewDay(s.selectedJewishDate.getJewishDayOfMonth())} '
-            '${getHebrewMonthNameFor(s.selectedJewishDate)} '
-            '${numberToHebrewWithoutQuotes(s.selectedJewishDate.getJewishYear())}';
+              '${getHebrewMonthNameFor(s.selectedJewishDate)} '
+              '${numberToHebrewWithoutQuotes(s.selectedJewishDate.getJewishYear())}';
     final greg = s.calendarView == CalendarView.week
         ? _formatWeekGregorianRange(s)
         : '${s.selectedGregorianDate.day} ${getGregorianMonthName(s.selectedGregorianDate.month)} ${s.selectedGregorianDate.year}';
@@ -250,8 +251,8 @@ class _CalendarTopBarState extends State<CalendarTopBar>
     final heb = s.calendarView == CalendarView.week
         ? _formatWeekHebrewRange(s)
         : '${formatHebrewDay(s.selectedJewishDate.getJewishDayOfMonth())} '
-            '${getHebrewMonthNameFor(s.selectedJewishDate)} '
-            '${numberToHebrewWithoutQuotes(s.selectedJewishDate.getJewishYear())}';
+              '${getHebrewMonthNameFor(s.selectedJewishDate)} '
+              '${numberToHebrewWithoutQuotes(s.selectedJewishDate.getJewishYear())}';
     final greg = s.calendarView == CalendarView.week
         ? _formatWeekGregorianRange(s)
         : '${s.selectedGregorianDate.day} ${getGregorianMonthName(s.selectedGregorianDate.month)} ${s.selectedGregorianDate.year}';
@@ -260,6 +261,7 @@ class _CalendarTopBarState extends State<CalendarTopBar>
 
   void _prepareJumpDateSearch() {
     _pendingJumpDate = clampJumpToDate(widget.state.selectedGregorianDate);
+    _jumpShowHebrew = calendarDefaultShowHebrew(widget.state.calendarType);
     _jumpDateController.clear();
   }
 
@@ -288,8 +290,9 @@ class _CalendarTopBarState extends State<CalendarTopBar>
 
   void _submitJumpDateSearch() {
     final input = _jumpDateController.text.trim();
-    final result =
-        input.isEmpty ? _pendingJumpDate : widget.parseInputDate(input);
+    final result = input.isEmpty
+        ? _pendingJumpDate
+        : widget.parseInputDate(input);
     if (result == null) {
       UiSnack.showError(ToolsMessages.dateParseFailed);
       _refocusSearchWithSelection();
@@ -366,8 +369,10 @@ class _CalendarTopBarState extends State<CalendarTopBar>
     final screenSize = MediaQuery.sizeOf(context);
     // תיקון narrow screen: הבטח שהגבול העליון של clamp לא יהיה קטן מהתחתון
     final maxAllowedWidth = math.max(1.0, screenSize.width - 32.0);
-    final safeDialogWidth =
-        math.min(anchorSize.width.clamp(320.0, 420.0), maxAllowedWidth);
+    final safeDialogWidth = math.min(
+      anchorSize.width.clamp(320.0, 420.0),
+      maxAllowedWidth,
+    );
     final rawLeft = anchorOffset.dx + anchorSize.width - safeDialogWidth;
     final maxLeft = math.max(16.0, screenSize.width - safeDialogWidth - 16.0);
     final dialogLeft = rawLeft.clamp(16.0, maxLeft);
@@ -417,14 +422,27 @@ class _CalendarTopBarState extends State<CalendarTopBar>
                     children: [
                       Padding(
                         padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          'מעבר לתאריך',
-                          style: Theme.of(context).textTheme.titleMedium,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'מעבר לתאריך',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                            ),
+                            CalendarTypeToggleButton(
+                              showHebrew: _jumpShowHebrew,
+                              onPressed: () => setState(
+                                () => _jumpShowHebrew = !_jumpShowHebrew,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       JumpToDatePanel(
                         selectedDate: _pendingJumpDate,
                         currentDate: widget.state.selectedGregorianDate,
+                        showHebrew: _jumpShowHebrew,
                         onDateChanged: (date) {
                           setState(() {
                             _pendingJumpDate = date;
@@ -454,8 +472,10 @@ class _CalendarTopBarState extends State<CalendarTopBar>
     };
   }
 
-  Widget _buildInlineSearchField(BuildContext context,
-      {required double width}) {
+  Widget _buildInlineSearchField(
+    BuildContext context, {
+    required double width,
+  }) {
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape):
@@ -502,27 +522,28 @@ class _CalendarTopBarState extends State<CalendarTopBar>
 
     final scheme = Theme.of(context).colorScheme;
     final isSyncing = state.googleCalendarSyncInProgress;
-    final hasError = state.googleCalendarSyncError != null &&
+    final hasError =
+        state.googleCalendarSyncError != null &&
         state.googleCalendarSyncError!.isNotEmpty;
 
     final backgroundColor = hasError
         ? scheme.errorContainer.withValues(alpha: 0.75)
         : isSyncing
-            ? scheme.primaryContainer.withValues(alpha: 0.75)
-            : scheme.secondaryContainer.withValues(alpha: 0.55);
+        ? scheme.primaryContainer.withValues(alpha: 0.75)
+        : scheme.secondaryContainer.withValues(alpha: 0.55);
     final foregroundColor = hasError
         ? scheme.onErrorContainer
         : isSyncing
-            ? scheme.onPrimaryContainer
-            : scheme.onSecondaryContainer;
+        ? scheme.onPrimaryContainer
+        : scheme.onSecondaryContainer;
 
     final tooltip = hasError
         ? state.googleCalendarSyncError!
         : isSyncing
-            ? 'סנכרון Google פעיל'
-            : state.googleCalendarConnected
-                ? 'Google Calendar מחובר'
-                : 'Google Calendar מופעל אך לא מחובר';
+        ? 'סנכרון Google פעיל'
+        : state.googleCalendarConnected
+        ? 'Google Calendar מחובר'
+        : 'Google Calendar מופעל אך לא מחובר';
 
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: 4),
@@ -554,8 +575,8 @@ class _CalendarTopBarState extends State<CalendarTopBar>
                   hasError
                       ? FluentIcons.warning_24_regular
                       : state.googleCalendarConnected
-                          ? FluentIcons.arrow_sync_circle_24_filled
-                          : FluentIcons.arrow_sync_24_regular,
+                      ? FluentIcons.arrow_sync_circle_24_filled
+                      : FluentIcons.arrow_sync_24_regular,
                   size: 14,
                   color: foregroundColor,
                 ),
@@ -563,9 +584,9 @@ class _CalendarTopBarState extends State<CalendarTopBar>
               Text(
                 isSyncing ? 'מסנכרן' : (hasError ? 'שגיאת סנכרון' : 'Google'),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: foregroundColor,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  color: foregroundColor,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
           ),
@@ -586,24 +607,25 @@ class _CalendarTopBarState extends State<CalendarTopBar>
           final isCompact = settingsState.compactMenuMode;
 
           // ── כפתורים משותפים ───────────────────────────────────────────────
-          final prevBtn = ToolbarActionButton(
+          final prevBtn = BarButton.icon(
             compact: isCompact,
             tooltip: 'קודם',
             icon: FluentIcons.chevron_left_24_regular,
             onPressed: _withClose(widget.onPreviousPeriod),
           );
-          final nextBtn = ToolbarActionButton(
+          final nextBtn = BarButton.icon(
             compact: isCompact,
             tooltip: 'הבא',
             icon: FluentIcons.chevron_right_24_regular,
             onPressed: _withClose(widget.onNextPeriod),
           );
-          final todayBtn = ActionButton.recommended(
+          final todayBtn = BarButton.text(
             text: 'היום',
+            icon: FluentIcons.calendar_today_24_regular,
             onPressed: _withClose(widget.onJumpToToday),
           );
           // כשהחיפוש פתוח — כפתור ה-jump הופך לכפתור סגירה עם אייקון X
-          final jumpBtn = ToolbarActionButton(
+          final jumpBtn = BarButton.icon(
             compact: isCompact,
             tooltip: widget.isJumpToDateSearchOpen
                 ? 'סגור מעבר לתאריך'
@@ -612,19 +634,18 @@ class _CalendarTopBarState extends State<CalendarTopBar>
                 ? FluentIcons.dismiss_24_regular
                 : FluentIcons.calendar_search_20_regular,
             iconWidget: widget.isJumpToDateSearchOpen
-                ? Icon(FluentIcons.dismiss_24_regular,
-                    size: isCompact ? 16 : 20)
-                : Transform.flip(
-                    flipX: true,
-                    child: Icon(
-                      FluentIcons.calendar_search_20_regular,
-                      size: isCompact ? 16 : 20,
-                    ),
+                ? Icon(
+                    FluentIcons.dismiss_24_regular,
+                    size: isCompact ? 16 : 20,
+                  )
+                : Icon(
+                    FluentIcons.calendar_search_20_regular,
+                    size: isCompact ? 16 : 20,
                   ),
             selected: widget.isJumpToDateSearchOpen,
             onPressed: widget.onToggleJumpToDateSearch,
           );
-          final settingsBtn = ToolbarActionButton(
+          final settingsBtn = BarButton.icon(
             compact: isCompact,
             tooltip: 'הגדרות לוח שנה',
             icon: widget.isSettingsPanelOpen
@@ -633,29 +654,33 @@ class _CalendarTopBarState extends State<CalendarTopBar>
             selected: widget.isSettingsPanelOpen,
             onPressed: _withClose(widget.onToggleSettingsPanel),
           );
-          final eventsBtn = ToolbarActionButton(
+          final eventsBtn = BarButton.icon(
             compact: isCompact,
             tooltip: 'אירועים',
-            icon: widget.isSidePanelVisible &&
+            icon:
+                widget.isSidePanelVisible &&
                     widget.activeSidePanelView == CalendarSidePanelView.events
                 ? FluentIcons.task_list_square_rtl_24_filled
                 : FluentIcons.task_list_square_rtl_24_regular,
-            selected: widget.isSidePanelVisible &&
+            selected:
+                widget.isSidePanelVisible &&
                 widget.activeSidePanelView == CalendarSidePanelView.events,
             onPressed: _withClose(widget.onToggleEventsPanel),
           );
-          final timesBtn = ToolbarActionButton(
+          final timesBtn = BarButton.icon(
             compact: isCompact,
             tooltip: 'זמנים',
-            icon: widget.isSidePanelVisible &&
+            icon:
+                widget.isSidePanelVisible &&
                     widget.activeSidePanelView == CalendarSidePanelView.times
                 ? FluentIcons.clock_24_filled
                 : FluentIcons.clock_24_regular,
-            selected: widget.isSidePanelVisible &&
+            selected:
+                widget.isSidePanelVisible &&
                 widget.activeSidePanelView == CalendarSidePanelView.times,
             onPressed: _withClose(widget.onToggleTimesPanel),
           );
-          final printBtn = ToolbarActionButton(
+          final printBtn = BarButton.icon(
             compact: isCompact,
             tooltip: 'הדפסה',
             icon: FluentIcons.print_24_regular,
@@ -712,15 +737,17 @@ class _CalendarTopBarState extends State<CalendarTopBar>
               final isNarrow = constraints.maxWidth < _kTopBarNarrowBreakpoint;
               final isMedium =
                   constraints.maxWidth >= _kTopBarNarrowBreakpoint &&
-                      constraints.maxWidth < _kTopBarMediumBreakpoint;
+                  constraints.maxWidth < _kTopBarMediumBreakpoint;
 
               // isNarrow ו-isMedium — אותו layout דו-שורתי:
               // שורה 1: viewSwitcher + trailingActions
               // שורה 2: todayBtn | jumpBtn | ← תאריך → (dateNavGroup כולל הכל)
               if (isNarrow || isMedium) {
                 final dateRow = Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 6,
+                  ),
                   child: Center(
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
@@ -792,8 +819,8 @@ class _CalendarTopBarState extends State<CalendarTopBar>
       children: [
         _ViewBtn(
           label: 'שבוע',
-          regularIcon: FluentIcons.calendar_week_numbers_24_regular,
-          filledIcon: FluentIcons.calendar_week_numbers_24_filled,
+          regularIcon: FluentIcons.calendar_week_start_24_regular,
+          filledIcon: FluentIcons.calendar_week_start_24_filled,
           selected: state.calendarView == CalendarView.week,
           onPressed: _withClose(() => widget.onViewChanged(CalendarView.week)),
         ),
@@ -839,8 +866,9 @@ class _ViewBtn extends StatelessWidget {
     final borderColor = selected
         ? cs.outlineVariant.withValues(alpha: 0.38)
         : Colors.transparent;
-    final shadowColor =
-        selected ? cs.shadow.withValues(alpha: 0.08) : Colors.transparent;
+    final shadowColor = selected
+        ? cs.shadow.withValues(alpha: 0.08)
+        : Colors.transparent;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -864,7 +892,7 @@ class _ViewBtn extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
+              RtlIcon(
                 selected ? filledIcon : regularIcon,
                 size: 16,
                 color: fg,

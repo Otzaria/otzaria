@@ -7,7 +7,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/tools/calendar/utils/calendar_cubit.dart';
 
@@ -38,6 +37,21 @@ const List<String> kHebrewDays = [
   'חמישי',
   'שישי',
   'שבת',
+];
+
+const List<String> kGregorianMonths = [
+  'ינואר',
+  'פברואר',
+  'מרץ',
+  'אפריל',
+  'מאי',
+  'יוני',
+  'יולי',
+  'אוגוסט',
+  'ספטמבר',
+  'אוקטובר',
+  'נובמבר',
+  'דצמבר',
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -127,23 +141,7 @@ String getHebrewMonthNameFor(JewishDate jewishDate) {
 }
 
 /// מחזיר שם חודש לועזי
-String getGregorianMonthName(int month) {
-  const months = [
-    'ינואר',
-    'פברואר',
-    'מרץ',
-    'אפריל',
-    'מאי',
-    'יוני',
-    'יולי',
-    'אוגוסט',
-    'ספטמבר',
-    'אוקטובר',
-    'נובמבר',
-    'דצמבר',
-  ];
-  return months[month - 1];
-}
+String getGregorianMonthName(int month) => kGregorianMonths[month - 1];
 
 /// מעצב שנה עברית בפורמט ה׳תשפ״ה
 String formatHebrewYear(int year) {
@@ -229,60 +227,109 @@ String truncateDescription(String description) {
 /// מנסה לפרש תאריך קלט שהמשתמש הקליד בפורמט עברי או לועזי.
 ///
 /// התומך ב:
-/// - `15/3/2025` / `15-3-2025`
-/// - `כ״ה אדר תשפ״ה`
-/// - `כ״ה אדר ב תשפ״ה`
+/// - לועזי: `15/3/2025`, `15 3 25`, `15.3`, `15-אוגוסט-26`, `15 באוגוסט`
+///   (מפריד = כל רצף של רווח / `/` / `.` / `-`; החודש כספרה או כשם, עם/בלי `ב`;
+///    השנה בת 2 או 4 ספרות)
+/// - עברי: `כ״ה אדר תשפ״ה`, `כ״ה אדר ב תשפ״ה`, `טו תמוז פו`
 ///
+/// עוטף את [parseCalendarDate] עם שנת ההווה. [context] נשמר לתאימות API.
 /// מחזיר [DateTime] אם הפירוש הצליח, או `null` אם לא.
 DateTime? parseCalendarInputDate(BuildContext context, String input) {
-  final cleanInput = input.trim();
-  final gregorianPattern = RegExp(r'^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$');
-  final match = gregorianPattern.firstMatch(cleanInput);
-  if (match != null) {
-    try {
-      final day = int.parse(match.group(1)!);
-      final month = int.parse(match.group(2)!);
-      final year = int.parse(match.group(3)!);
-      if (year >= 1900 && year <= 2200) {
-        final parsedDate = DateTime(year, month, day);
-        final isExactGregorianDate = parsedDate.year == year &&
-            parsedDate.month == month &&
-            parsedDate.day == day;
-        if (isExactGregorianDate) {
-          return parsedDate;
-        }
-      }
-    } catch (_) {}
+  return parseCalendarDate(
+    input,
+    currentJewishYear: JewishDate.fromDateTime(DateTime.now()).getJewishYear(),
+  );
+}
+
+/// גרסה נטולת [BuildContext] של [parseCalendarInputDate] — לשימוש בדיאלוגים
+/// שאין להם גישה ל-[CalendarCubit]. [currentJewishYear] משמש להשלמת שנה
+/// עברית חסרה, ו-[currentGregorianYear] להשלמת שנה לועזית חסרה.
+DateTime? parseCalendarDate(
+  String input, {
+  required int currentJewishYear,
+  int? currentGregorianYear,
+}) {
+  final tokens = input
+      .trim()
+      .split(RegExp(r'[\s/.\-]+'))
+      .where((t) => t.isNotEmpty)
+      .toList();
+  if (tokens.length < 2 || tokens.length > 4) return null;
+
+  final gregorian = _tryParseGregorianTokens(
+    tokens,
+    currentGregorianYear ?? DateTime.now().year,
+  );
+  if (gregorian != null) return gregorian;
+
+  return _tryParseHebrewTokens(tokens, currentJewishYear);
+}
+
+/// מפרש חודש לועזי מ-token: ספרה (1-12) או שם חודש (עם/בלי הקידומת `ב`).
+int? _gregorianMonthToInt(String token) {
+  final asNumber = int.tryParse(token);
+  if (asNumber != null) {
+    return (asNumber >= 1 && asNumber <= 12) ? asNumber : null;
   }
+  var name = token;
+  if (name.startsWith('ב') && name.length > 1) name = name.substring(1);
+  final idx = kGregorianMonths.indexOf(name);
+  return idx == -1 ? null : idx + 1;
+}
 
+/// מנרמל שנה בת 2 ספרות ל-4 (26 → 2026).
+int _normalizeGregorianYear(int year) => year < 100 ? 2000 + year : year;
+
+DateTime? _tryParseGregorianTokens(List<String> tokens, int currentYear) {
+  if (tokens.length < 2 || tokens.length > 3) return null;
+  final day = int.tryParse(tokens[0]);
+  if (day == null) return null;
+  final month = _gregorianMonthToInt(tokens[1]);
+  if (month == null) return null;
+
+  int year;
+  if (tokens.length == 3) {
+    final parsed = int.tryParse(tokens[2]);
+    if (parsed == null) return null;
+    year = _normalizeGregorianYear(parsed);
+  } else {
+    year = currentYear;
+  }
+  if (year < 1900 || year > 2200) return null;
+
+  final date = DateTime(year, month, day);
+  final isExact = date.year == year && date.month == month && date.day == day;
+  return isExact ? date : null;
+}
+
+DateTime? _tryParseHebrewTokens(List<String> tokens, int currentJewishYear) {
   try {
-    final parts = cleanInput.split(RegExp(r'\s+'));
-    if (parts.length < 2 || parts.length > 4) return null;
+    if (tokens.length < 2 || tokens.length > 4) return null;
 
-    final day = hebrewNumberToInt(parts[0]);
+    final day = hebrewNumberToInt(tokens[0]);
     String monthName;
     int yearPartIndex;
 
-    if (parts.length >= 3 &&
-        parts[1] == 'אדר' &&
-        (parts[2] == 'א' ||
-            parts[2] == 'א׳' ||
-            parts[2] == 'ב' ||
-            parts[2] == 'ב׳')) {
-      monthName = '${parts[1]} ${parts[2]}';
+    if (tokens.length >= 3 &&
+        tokens[1] == 'אדר' &&
+        (tokens[2] == 'א' ||
+            tokens[2] == 'א׳' ||
+            tokens[2] == 'ב' ||
+            tokens[2] == 'ב׳')) {
+      monthName = '${tokens[1]} ${tokens[2]}';
       yearPartIndex = 3;
     } else {
-      monthName = parts[1];
+      monthName = tokens[1];
       yearPartIndex = 2;
     }
 
     final month = hebrewMonthToInt(monthName);
     final int year;
-    if (parts.length > yearPartIndex) {
-      year = hebrewYearToInt(parts[yearPartIndex]);
+    if (tokens.length > yearPartIndex) {
+      year = hebrewYearToInt(tokens[yearPartIndex],
+          currentJewishYear: currentJewishYear);
     } else {
-      year =
-          context.read<CalendarCubit>().state.currentJewishDate.getJewishYear();
+      year = currentJewishYear;
     }
 
     if (day > 0 && month > 0 && year > 5000) {
@@ -350,8 +397,11 @@ int hebrewMonthToInt(String monthName) {
   throw Exception('Invalid month name: $clean');
 }
 
-/// ממיר שנה עברית (אותיות) לספרה
-int hebrewYearToInt(String hebrewYear) {
+/// ממיר שנה עברית (אותיות) לספרה.
+///
+/// שנה מקוצרת ללא מאות (למשל `פו`) מושלמת למאה של [currentJewishYear]
+/// (פו → תשפ״ו), אחרת נופלת חזרה לאלף החמישי.
+int hebrewYearToInt(String hebrewYear, {int? currentJewishYear}) {
   String clean = hebrewYear
       .replaceAll('"', '')
       .replaceAll("'", '')
@@ -363,6 +413,10 @@ int hebrewYearToInt(String hebrewYear) {
     clean = clean.substring(1);
   }
   final yearFromLetters = hebrewNumberToInt(clean);
-  if (baseYear == 0 && yearFromLetters > 0) baseYear = 5000;
+  if (baseYear == 0 && yearFromLetters > 0) {
+    baseYear = yearFromLetters < 100 && currentJewishYear != null
+        ? (currentJewishYear ~/ 100) * 100
+        : 5000;
+  }
   return baseYear + yearFromLetters;
 }

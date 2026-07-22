@@ -3,7 +3,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
-import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
@@ -19,9 +19,8 @@ import 'package:otzaria/search/view/full_text_settings_widgets.dart';
 import 'package:otzaria/search/view/tantivy_search_results.dart';
 import 'package:otzaria/search/view/full_text_facet_filtering.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
-import 'package:otzaria/widgets/layout/resizable_facet_filtering.dart';
+import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/feedback/indexing_warning.dart';
-import 'package:otzaria/widgets/misc/thin_divider.dart';
 
 class TantivyFullTextSearch extends StatefulWidget {
   final SearchingTab tab;
@@ -51,7 +50,8 @@ bool shouldShowFacetFilterBanner({
   // המונה בכותרת חלונית "תקופה, מחבר וספרי יסוד").
   final normalizedScope = searchScopeFacets.toSet()
     ..removeWhere(
-        (facet) => facet == '/' || FacetHelper.isDimensionFacet(facet));
+      (facet) => facet == '/' || FacetHelper.isDimensionFacet(facet),
+    );
 
   return normalizedScope.isNotEmpty;
 }
@@ -70,6 +70,8 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
   // לפתוח אותו ידנית, וזה לא משפיע על מסכים רחבים שבהם השניים מוצגים זה
   // לצד זה.
   bool _appliedNarrowLeftPaneDefault = false;
+  // רוחב חי של פאנל הסינון בזמן גרירה; נשמר להגדרות ב-onPaneResizeEnd.
+  double? _facetPaneWidthOverride;
 
   void _openEditDialog() {
     showDialog(
@@ -256,17 +258,21 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
       final searchMode = widget.tab.searchBloc.state.configuration.searchMode;
       final normalizedParameters =
           SearchQueryBuilder.normalizeParametersForMode(
-        searchMode,
-        customSpacing: widget.tab.spacingValues,
-        alternativeWords: widget.tab.alternativeWords,
-        searchOptions: widget.tab.effectiveSearchOptions(query: pendingQuery),
+            searchMode,
+            customSpacing: widget.tab.spacingValues,
+            alternativeWords: widget.tab.alternativeWords,
+            searchOptions: widget.tab.effectiveSearchOptions(
+              query: pendingQuery,
+            ),
+          );
+      widget.tab.searchBloc.add(
+        UpdateSearchQuery(
+          pendingQuery,
+          customSpacing: normalizedParameters.customSpacing,
+          alternativeWords: normalizedParameters.alternativeWords,
+          searchOptions: normalizedParameters.searchOptions,
+        ),
       );
-      widget.tab.searchBloc.add(UpdateSearchQuery(
-        pendingQuery,
-        customSpacing: normalizedParameters.customSpacing,
-        alternativeWords: normalizedParameters.alternativeWords,
-        searchOptions: normalizedParameters.searchOptions,
-      ));
     }
   }
 
@@ -371,7 +377,6 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
               _buildIndexingWarning(),
               // השורה התחתונה - מוצגת תמיד!
               _buildBottomRow(state),
-              const ThinDivider(),
               // חיווי סינון קטגוריות
               if (_shouldShowFacetFilterBanner(state))
                 _buildFacetFilterBanner(context, state),
@@ -451,7 +456,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                   AppTopBar(
                     leadingItems: [
                       AppTopBarItem(
-                        widget: ToolbarActionButton(
+                        widget: BarButton.icon(
                           tooltip: 'הצג/הסתר עץ ספרים',
                           icon: FluentIcons.line_horizontal_3_20_regular,
                           compact: context
@@ -486,8 +491,9 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                               const SizedBox(width: 4),
                               Flexible(
                                 child: ScrollConfiguration(
-                                  behavior: ScrollConfiguration.of(context)
-                                      .copyWith(scrollbars: false),
+                                  behavior: ScrollConfiguration.of(
+                                    context,
+                                  ).copyWith(scrollbars: false),
                                   child: SingleChildScrollView(
                                     scrollDirection: Axis.horizontal,
                                     child: SearchTermsDisplay(tab: widget.tab),
@@ -495,7 +501,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              ToolbarActionButton(
+                              BarButton.icon(
                                 tooltip: 'ערוך חיפוש',
                                 icon: FluentIcons.edit_24_regular,
                                 compact: context
@@ -516,9 +522,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                                     : '${state.results.length}/${state.totalResults} תוצאות',
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurface
+                                  color: Theme.of(context).colorScheme.onSurface
                                       .withValues(alpha: 0.7),
                                 ),
                               ),
@@ -534,79 +538,53 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                             ),
                           ],
                   ),
-                  const ThinDivider(),
                   if (_shouldShowFacetFilterBanner(state))
                     _buildFacetFilterBanner(context, state),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(
-                          child: Row(
-                            children: [
-                              // עץ הסינון - עם אפשרות להסתיר/להציג
-                              ValueListenableBuilder(
-                                valueListenable: widget.tab.isLeftPaneOpen,
-                                builder: (context, isOpen, child) {
-                                  return AnimatedContainer(
-                                    duration: const Duration(milliseconds: 300),
-                                    width: isOpen ? null : 0,
-                                    child: isOpen
-                                        ? ResizableFacetFiltering(
-                                            tab: widget.tab)
-                                        : const SizedBox.shrink(),
+                    child: ValueListenableBuilder<bool>(
+                      valueListenable: widget.tab.isLeftPaneOpen,
+                      builder: (context, isOpen, _) {
+                        return BlocBuilder<SettingsBloc, SettingsState>(
+                          buildWhen: (p, c) =>
+                              p.facetFilteringWidth != c.facetFilteringWidth,
+                          builder: (context, settingsState) {
+                            final paneWidth =
+                                (_facetPaneWidthOverride ??
+                                        settingsState.facetFilteringWidth)
+                                    .clamp(220.0, 600.0);
+                            return AdaptiveSidePane(
+                              isOpen: isOpen,
+                              alignment: AlignmentDirectional.centerEnd,
+                              mainContent: _buildResultsContent(
+                                context,
+                                state,
+                                showBlockingLoader,
+                              ),
+                              paneContent: SearchFacetFiltering(
+                                tab: widget.tab,
+                              ),
+                              paneWidth: paneWidth,
+                              minMainContentWidth: 300,
+                              onClose: () =>
+                                  widget.tab.isLeftPaneOpen.value = false,
+                              isResizable: true,
+                              minPaneWidth: 220,
+                              maxPaneWidth: 600,
+                              autoHandleResponsiveVisibility: false,
+                              onPaneWidthChanged: (w) =>
+                                  _facetPaneWidthOverride = w,
+                              onPaneResizeEnd: () {
+                                final w = _facetPaneWidthOverride;
+                                if (w != null) {
+                                  context.read<SettingsBloc>().add(
+                                    UpdateFacetFilteringWidth(w),
                                   );
-                                },
-                              ),
-                              // תוצאות החיפוש
-                              Expanded(
-                                child: Builder(
-                                  builder: (context) {
-                                    if (showBlockingLoader) {
-                                      return const Center(
-                                        child: CircularProgressIndicator(),
-                                      );
-                                    }
-                                    if (state.searchQuery.isEmpty) {
-                                      return _buildInitialSearchState(context);
-                                    }
-                                    if (state.hasNoSelectedFacets) {
-                                      return _buildNoCategoriesSelectedMessage(
-                                          context);
-                                    }
-                                    if (state.results.isEmpty) {
-                                      if (state.errorMessage != null) {
-                                        return Center(
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(8.0),
-                                            child: Text(
-                                              state.errorMessage!,
-                                              style: TextStyle(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .error,
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                      return _buildNoResultsState(context);
-                                    }
-                                    return Container(
-                                      clipBehavior: Clip.hardEdge,
-                                      decoration: const BoxDecoration(),
-                                      child: TantivySearchResults(
-                                        tab: widget.tab,
-                                        onEditSearch: _openEditDialog,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                                }
+                              },
+                            );
+                          },
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -618,6 +596,45 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
     );
   }
 
+  /// תוכן אזור התוצאות (loader / מצב התחלתי / אין קטגוריות / שגיאה / תוצאות).
+  Widget _buildResultsContent(
+    BuildContext context,
+    SearchState state,
+    bool showBlockingLoader,
+  ) {
+    if (showBlockingLoader) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (state.searchQuery.isEmpty) {
+      return _buildInitialSearchState(context);
+    }
+    if (state.hasNoSelectedFacets) {
+      return _buildNoCategoriesSelectedMessage(context);
+    }
+    if (state.results.isEmpty) {
+      if (state.errorMessage != null) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text(
+              state.errorMessage!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        );
+      }
+      return _buildNoResultsState(context);
+    }
+    return Container(
+      clipBehavior: Clip.hardEdge,
+      decoration: const BoxDecoration(),
+      child: TantivySearchResults(
+        tab: widget.tab,
+        onEditSearch: _openEditDialog,
+      ),
+    );
+  }
+
   /// באנר שמראה שהחיפוש הוגבל מראש לקטגוריות מסוימות (scope).
   /// מוצג רק כשהוגדר טווח מראש; כפתור ה-X מסתיר אותו ויזואלית בלבד.
   Widget _buildFacetFilterBanner(BuildContext context, SearchState state) {
@@ -625,13 +642,13 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
     final facetNames = state.searchScopeFacets
         // facets ממדיים (/era/, /author/, /base) אינם קטגוריות — לא
         // נכללים ברשימת "חיפוש בקטגוריות" (כמו בתנאי ההצגה של הבאנר).
-        .where(
-            (facet) => facet != '/' && !FacetHelper.isDimensionFacet(facet))
+        .where((facet) => facet != '/' && !FacetHelper.isDimensionFacet(facet))
         .map((facet) {
-      // facet בפורמט "/תנ"ך" או "/תנ"ך/ראשונים" - ניקח את החלק האחרון
-      final parts = facet.split('/').where((p) => p.isNotEmpty).toList();
-      return parts.isNotEmpty ? parts.last : facet;
-    }).toList();
+          // facet בפורמט "/תנ"ך" או "/תנ"ך/ראשונים" - ניקח את החלק האחרון
+          final parts = facet.split('/').where((p) => p.isNotEmpty).toList();
+          return parts.isNotEmpty ? parts.last : facet;
+        })
+        .toList();
     final tooltipMessage = 'חיפוש בקטגוריות: ${facetNames.join(', ')}';
     const bannerTitle = 'החיפוש הוגבל לקטגוריות מסוימות';
 
@@ -734,10 +751,9 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                     'חיפוש: ',
                     style: TextStyle(
                       fontSize: 14,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.7),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -772,10 +788,9 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                   : '${state.results.length}/${state.totalResults} תוצאות',
               style: TextStyle(
                 fontSize: 13,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.7),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.7),
               ),
             ),
             const SizedBox(width: 4),

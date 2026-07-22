@@ -30,8 +30,10 @@ void main() {
   });
 
   group('NavRailItem — רוחב לפי מצב קומפקטי', () {
-    Future<double> railWidth(WidgetTester tester,
-        {required bool compact}) async {
+    Future<double> railWidth(
+      WidgetTester tester, {
+      required bool compact,
+    }) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Directionality(
@@ -57,6 +59,34 @@ void main() {
       expect(await railWidth(tester, compact: true), NavRailItem.compactWidth);
       expect(NavRailItem.compactWidth, lessThan(NavRailItem.width));
     });
+
+    Future<double> indicatorWidth(
+      WidgetTester tester, {
+      required bool compact,
+    }) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: NavRailItem(
+              icon: FluentIcons.library_24_regular,
+              label: 'ספרייה',
+              isSelected: true,
+              onTap: () {},
+              compact: compact,
+            ),
+          ),
+        ),
+      );
+      final button = tester.widget<IconButton>(find.byType(IconButton));
+      return button.style!.minimumSize!.resolve({})!.width;
+    }
+
+    testWidgets('אינדיקטור הבחירה מצטמצם במצב קומפקטי', (tester) async {
+      final normal = await indicatorWidth(tester, compact: false);
+      final compact = await indicatorWidth(tester, compact: true);
+      expect(compact, lessThan(normal));
+    });
   });
 
   group('NavRailItem imageAsset support', () {
@@ -81,7 +111,8 @@ void main() {
         expect(find.byType(ImageIcon), findsOneWidget);
         expect(
           find.byWidgetPredicate(
-              (w) => w is Icon && w.icon == FluentIcons.wrench_24_regular),
+            (w) => w is Icon && w.icon == FluentIcons.wrench_24_regular,
+          ),
           findsNothing,
           reason:
               'P3 regression: image-based built-in tools must NOT fall back '
@@ -94,16 +125,16 @@ void main() {
       'ImageIcon color reflects selection state (selected vs unselected)',
       (tester) async {
         Widget itemWith(bool selected) => MaterialApp(
-              home: Directionality(
-                textDirection: TextDirection.rtl,
-                child: NavRailItem(
-                  imageAsset: 'assets/icon/שמור וזכור שחור ריק.png',
-                  label: 'שמור וזכור',
-                  isSelected: selected,
-                  onTap: () {},
-                ),
-              ),
-            );
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: NavRailItem(
+              imageAsset: 'assets/icon/שמור וזכור שחור ריק.png',
+              label: 'שמור וזכור',
+              isSelected: selected,
+              onTap: () {},
+            ),
+          ),
+        );
 
         await tester.pumpWidget(itemWith(false));
         final unselected = tester.widget<ImageIcon>(find.byType(ImageIcon));
@@ -115,9 +146,13 @@ void main() {
 
         expect(unselectedColor, isNotNull);
         expect(selectedColor, isNotNull);
-        expect(selectedColor, isNot(equals(unselectedColor)),
-            reason: 'selected and unselected states must use different colors '
-                'so the user sees which item is active');
+        expect(
+          selectedColor,
+          isNot(equals(unselectedColor)),
+          reason:
+              'selected and unselected states must use different colors '
+              'so the user sees which item is active',
+        );
       },
     );
 
@@ -143,7 +178,8 @@ void main() {
         // ה-Icon לא צריך להתרנדר — ImageIcon מחליף אותו לחלוטין
         expect(
           find.byWidgetPredicate(
-              (w) => w is Icon && w.icon == FluentIcons.wrench_24_regular),
+            (w) => w is Icon && w.icon == FluentIcons.wrench_24_regular,
+          ),
           findsNothing,
         );
       },
@@ -159,7 +195,8 @@ void main() {
             onTap: () {},
           ),
           throwsAssertionError,
-          reason: 'a NavRailItem with no visual must fail loudly at '
+          reason:
+              'a NavRailItem with no visual must fail loudly at '
               'construction, not silently render an empty space',
         );
       },
@@ -182,8 +219,11 @@ void main() {
         ),
       );
 
-      expect(find.byType(RtlIcon), findsOneWidget,
-          reason: 'NavRailItem חייב להשתמש ב-RtlIcon ולא ב-Icon ישירות');
+      expect(
+        find.byType(RtlIcon),
+        findsOneWidget,
+        reason: 'NavRailItem חייב להשתמש ב-RtlIcon ולא ב-Icon ישירות',
+      );
     });
 
     testWidgets('arrow_left מוצג כ-arrow_right בהקשר RTL', (tester) async {
@@ -207,12 +247,16 @@ void main() {
           matching: find.byType(Icon),
         ),
       );
-      expect(icon.icon, FluentIcons.arrow_right_24_regular,
-          reason: 'חץ שמאל חייב להפוך לחץ ימין בממשק RTL');
+      expect(
+        icon.icon,
+        FluentIcons.arrow_right_24_regular,
+        reason: 'חץ שמאל חייב להפוך לחץ ימין בממשק RTL',
+      );
     });
 
-    testWidgets('אייקון סימטרי (book) מוצג ללא שינוי כיוון ב-LTR',
-        (tester) async {
+    testWidgets('אייקון סימטרי (book) מוצג ללא שינוי כיוון ב-LTR', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Directionality(
@@ -230,7 +274,9 @@ void main() {
       // RtlIcon לא אמור לעטוף ב-Transform בהקשר LTR
       expect(
         find.descendant(
-            of: find.byType(RtlIcon), matching: find.byType(Transform)),
+          of: find.byType(RtlIcon),
+          matching: find.byType(Transform),
+        ),
         findsNothing,
         reason: 'LTR — RtlIcon לא אמור להפוך אייקון',
       );

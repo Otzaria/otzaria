@@ -24,7 +24,6 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/settings/widgets/settings_card.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/utils/move_directory.dart';
-import 'package:otzaria/widgets/dialogs/reusable_items_dialog.dart';
 import 'package:otzaria/widgets/misc/restart_widget.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
@@ -602,7 +601,10 @@ class _ChangeLocationDialogContentState
   @override
   Widget build(BuildContext context) {
     return AppCustomContentDialog(
-      title: 'שינוי מיקום ${widget.folderName}',
+      title: locationDialogTitle(
+        folderName: widget.folderName,
+        isSetup: widget.currentPath.isEmpty,
+      ),
       onConfirm: _selectedPath != null ? _confirm : null,
       handleEnterKey: _selectedPath != null,
       actions: [
@@ -625,17 +627,19 @@ class _ChangeLocationDialogContentState
                 'בחר אם להעביר את קבצי הספרייה למיקום החדש, או לעדכן את ההגדרה בלבד',
             children: [
               if (widget.canMoveContents)
-                _OptionTile(
-                  icon: FluentIcons.folder_swap_24_regular,
+                SettingsActionTile.radioOption(
                   title: 'העבר תוכן תיקייה',
                   subtitle: 'כל הקבצים יועברו מהמיקום הנוכחי למיקום החדש',
                   selected: _moveContents,
                   onTap: () => setState(() => _moveContents = true),
                 ),
-              _OptionTile(
-                icon: FluentIcons.folder_arrow_right_24_regular,
-                title: 'שנה מיקום בלבד',
-                subtitle: 'ההגדרה תעודכן, הקבצים יישארו במיקומם הנוכחי',
+              SettingsActionTile.radioOption(
+                title: widget.currentPath.isEmpty
+                    ? 'הגדרת מיקום'
+                    : 'שנה מיקום בלבד',
+                subtitle: widget.currentPath.isEmpty
+                    ? 'האפשרות היחידה — ההגדרה תעודכן לנתיב שתבחר'
+                    : 'ההגדרה תעודכן, הקבצים יישארו במיקומם הנוכחי',
                 selected: !_moveContents,
                 onTap: widget.canMoveContents
                     ? () => setState(() => _moveContents = false)
@@ -644,43 +648,16 @@ class _ChangeLocationDialogContentState
             ],
           ),
           if (widget.moveContentsWarning != null && _moveContents)
-            _MoveContentsWarning(text: widget.moveContentsWarning!),
-          SettingsCard(
-            title: 'מיקום חדש',
-            subtitle:
-                'בחר מיקום מותאם אישית, או חזור למיקום ברירת המחדל של האפליקציה',
-            children: [
-              SettingsActionTile.path(
-                icon: FluentIcons.folder_open_24_regular,
-                title: 'בחירת מיקום',
-                path: _selectedPath,
-                placeholder: 'טרם נבחר מיקום',
-                actions: [
-                  ActionButton.recommended(
-                    text: _selectedPath == null ? 'בחר תיקייה' : 'שנה מיקום',
-                    onPressed: _pickFolder,
-                    icon: FluentIcons.folder_open_24_regular,
-                  ),
-                ],
-              ),
-              if (widget.defaultPath != null)
-                SettingsActionTile.path(
-                  icon: FluentIcons.home_24_regular,
-                  title: 'מיקום ברירת מחדל',
-                  path: widget.defaultPath,
-                  placeholder: '',
-                  enabled: !_isAtDefault,
-                  actions: [
-                    ActionButton.neutral(
-                      text: 'השתמש בברירת מחדל',
-                      onPressed: _isAtDefault
-                          ? null
-                          : () => setState(
-                              () => _selectedPath = widget.defaultPath),
-                    ),
-                  ],
-                ),
-            ],
+            MoveContentsWarning(text: widget.moveContentsWarning!),
+          TargetFolderSection(
+            folderName: widget.folderName,
+            isSetup: widget.currentPath.isEmpty,
+            selectedPath: _selectedPath,
+            defaultPath: widget.defaultPath,
+            isAtDefault: _isAtDefault,
+            onPickFolder: _pickFolder,
+            onUseDefault: () =>
+                setState(() => _selectedPath = widget.defaultPath),
           ),
         ],
       ),
@@ -688,10 +665,10 @@ class _ChangeLocationDialogContentState
   }
 }
 
-class _MoveContentsWarning extends StatelessWidget {
+class MoveContentsWarning extends StatelessWidget {
   final String text;
 
-  const _MoveContentsWarning({required this.text});
+  const MoveContentsWarning({super.key, required this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -721,50 +698,70 @@ class _MoveContentsWarning extends StatelessWidget {
   }
 }
 
-class _OptionTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final bool selected;
-  final VoidCallback? onTap;
+/// כותרת דיאלוג מיקום — "הגדרת מיקום X" כשאין מיקום קודם, אחרת "שינוי מיקום X".
+/// משותפת לדיאלוג הרגיל ולדיאלוג הספרייה כדי לשמור נוסח אחיד.
+String locationDialogTitle(
+        {required String folderName, required bool isSetup}) =>
+    isSetup ? 'הגדרת מיקום $folderName' : 'שינוי מיקום $folderName';
 
-  const _OptionTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.selected,
-    this.onTap,
+/// מקטע בחירת תיקיית היעד — משותף לדיאלוג הרגיל ולדיאלוג הספרייה.
+/// [isSetup] קובע את הכותרת: "תיקיית היעד ל..." כשאין מיקום קודם,
+/// אחרת "מיקום חדש". "מיקום ברירת מחדל" מוצג לפני "בחירת מיקום".
+class TargetFolderSection extends StatelessWidget {
+  final String folderName;
+  final bool isSetup;
+  final String? selectedPath;
+  final String? defaultPath;
+  final bool isAtDefault;
+  final VoidCallback onPickFolder;
+  final VoidCallback onUseDefault;
+
+  const TargetFolderSection({
+    super.key,
+    required this.folderName,
+    required this.isSetup,
+    required this.selectedPath,
+    required this.defaultPath,
+    required this.isAtDefault,
+    required this.onPickFolder,
+    required this.onUseDefault,
   });
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return ListTile(
-      onTap: onTap,
-      hoverColor: Colors.transparent,
-      leading: Icon(icon,
-          color: selected ? cs.primary : cs.onSurfaceVariant, size: 24),
-      title: Text(
-        title,
-        style: AppTextStyles.settingTitle.copyWith(
-          color: selected ? cs.primary : cs.onSurface,
-          fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-        ),
-      ),
-      subtitle: Text(
-        subtitle,
-        style:
-            AppTextStyles.settingSubtitle.copyWith(color: cs.onSurfaceVariant),
-      ),
-      trailing: ExcludeFocus(
-        child: IgnorePointer(
-          child: Checkbox(
-            value: selected,
-            onChanged: (_) {},
+    return SettingsCard(
+      title: isSetup ? 'תיקיית היעד ל$folderName' : 'מיקום חדש',
+      subtitle:
+          'בחר מיקום מותאם אישית, או השתמש במיקום ברירת המחדל של האפליקציה',
+      children: [
+        if (defaultPath != null && defaultPath!.isNotEmpty)
+          SettingsActionTile.path(
+            icon: FluentIcons.home_24_regular,
+            title: 'מיקום ברירת מחדל',
+            path: defaultPath,
+            placeholder: '',
+            enabled: !isAtDefault,
+            actions: [
+              ActionButton.neutral(
+                text: 'השתמש בברירת מחדל',
+                onPressed: isAtDefault ? null : onUseDefault,
+              ),
+            ],
           ),
+        SettingsActionTile.path(
+          icon: FluentIcons.folder_open_24_regular,
+          title: 'בחירת מיקום',
+          path: selectedPath,
+          placeholder: 'טרם נבחר מיקום',
+          actions: [
+            ActionButton.recommended(
+              text: selectedPath == null ? 'בחר תיקייה' : 'שנה מיקום',
+              onPressed: onPickFolder,
+              icon: FluentIcons.folder_open_24_regular,
+            ),
+          ],
         ),
-      ),
+      ],
     );
   }
 }

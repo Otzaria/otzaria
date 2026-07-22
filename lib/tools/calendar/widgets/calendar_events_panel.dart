@@ -1,19 +1,18 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/utils/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
-import 'package:otzaria/widgets/controls/action_buttons.dart';
-import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
-import 'package:otzaria/widgets/layout/app_card.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
 /// פאנל האירועים של לוח השנה.
 class CalendarEventsPanel extends StatefulWidget {
   final CalendarState state;
   final void Function({CustomEvent? existingEvent, DateTime? specificDate})
-      onCreateEvent;
+  onCreateEvent;
 
   const CalendarEventsPanel({
     super.key,
@@ -95,17 +94,17 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                 ),
               ),
               const SizedBox(width: 8),
-              ToolbarActionButton(
+              BarButton.icon(
                 tooltip: widget.state.searchInDescriptions
                     ? 'חפש רק בכותרת'
                     : 'חפש גם בתיאור',
                 icon: widget.state.searchInDescriptions
                     ? FluentIcons.document_text_24_regular
                     : FluentIcons.text_t_24_regular,
-                onPressed: () => context
-                    .read<CalendarCubit>()
-                    .toggleSearchInDescriptions(
-                        !widget.state.searchInDescriptions),
+                onPressed: () =>
+                    context.read<CalendarCubit>().toggleSearchInDescriptions(
+                      !widget.state.searchInDescriptions,
+                    ),
               ),
             ],
           ),
@@ -121,7 +120,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                 onPressed: () => widget.onCreateEvent(),
               ),
               if (widget.state.googleCalendarEnabled)
-                ToolbarActionButton(
+                BarButton.icon(
                   tooltip: widget.state.googleCalendarConnected
                       ? 'סנכרן Google'
                       : 'חבר ל-Google',
@@ -176,7 +175,9 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                 final iconOnlyDelete = width < 560;
                 final splitDate = width < 360;
                 final eventColor = CalendarEventColors.colorForIndex(
-                    event.colorIndex, Theme.of(context).brightness);
+                  event.colorIndex,
+                  Theme.of(context).brightness,
+                );
 
                 final deleteAction = _DeleteEventAction(
                   iconOnly: iconOnlyDelete,
@@ -198,7 +199,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                 final actionButtons = Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    ToolbarActionButton(
+                    BarButton.icon(
                       tooltip: 'ערוך אירוע',
                       icon: FluentIcons.edit_24_regular,
                       onPressed: () => widget.onCreateEvent(
@@ -236,9 +237,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                                 event.title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
+                                style: Theme.of(context).textTheme.titleMedium
                                     ?.copyWith(fontWeight: FontWeight.w700),
                               ),
                             ),
@@ -291,10 +290,10 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                           truncateDescription(event.description),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: scheme.onSurfaceVariant,
-                                  ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
                         ),
                       ),
                     ],
@@ -322,8 +321,9 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                             child: _EventMetaChip(
                               icon: FluentIcons.calendar_24_regular,
                               text: splitDate
-                                  ? formatEventDate(event.baseGregorianDate)
-                                      .replaceFirst(' • ', '\n')
+                                  ? formatEventDate(
+                                      event.baseGregorianDate,
+                                    ).replaceFirst(' • ', '\n')
                                   : formatEventDate(event.baseGregorianDate),
                               tooltip: formatEventDate(event.baseGregorianDate),
                               backgroundColor: scheme.primary,
@@ -363,7 +363,7 @@ class _DeleteEventAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (iconOnly) {
-      return ToolbarActionButton(
+      return BarButton.icon(
         tooltip: 'מחק אירוע',
         icon: FluentIcons.delete_24_regular,
         onPressed: onPressed,
@@ -408,7 +408,7 @@ class _EventMetaChip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 12, color: foregroundColor),
+              RtlIcon(icon, size: 12, color: foregroundColor),
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
@@ -416,9 +416,9 @@ class _EventMetaChip extends StatelessWidget {
                   maxLines: maxLines,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: foregroundColor,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    color: foregroundColor,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],

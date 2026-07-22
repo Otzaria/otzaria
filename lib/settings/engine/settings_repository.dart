@@ -50,7 +50,6 @@ class SettingsRepository {
   static const String keyTalmudBavliOpenFormat = 'key-talmud-bavli-open-format';
   static const String keyOfflineMode = 'key-offline-mode';
   static const String keyAutoSync = 'key-auto-sync';
-  static const String keyAutoSyncCatalogs = 'key-auto-sync-catalogs';
   static const String keySoftwareAndBookUpdatesEnabled =
       'key-software-and-book-updates-enabled';
   static const String keyErrorReportSenderEmail =
@@ -135,7 +134,7 @@ class SettingsRepository {
   final SettingsWrapper _settings;
 
   SettingsRepository({SettingsWrapper? settings})
-      : _settings = settings ?? SettingsWrapper();
+    : _settings = settings ?? SettingsWrapper();
 
   Future<Map<String, dynamic>> loadSettings() async {
     // Initialize default settings to disk if needed
@@ -143,14 +142,26 @@ class SettingsRepository {
 
     return {
       'isDarkMode': _settings.getValue<bool>(keyDarkMode, defaultValue: false),
-      'followSystemTheme':
-          _settings.getValue<bool>(keyFollowSystemTheme, defaultValue: false),
-      'seedColor': Color(_settings.getValue<int>(keySwatchColor,
-          defaultValue: AppSeedColors.defaultLight.toARGB32())),
-      'darkSeedColor': Color(_settings.getValue<int>(keyDarkSwatchColor,
-          defaultValue: AppSeedColors.defaultDark.toARGB32())),
-      'textMaxWidth':
-          _settings.getValue<double>(keyTextMaxWidth, defaultValue: -1),
+      'followSystemTheme': _settings.getValue<bool>(
+        keyFollowSystemTheme,
+        defaultValue: false,
+      ),
+      'seedColor': Color(
+        _settings.getValue<int>(
+          keySwatchColor,
+          defaultValue: AppSeedColors.defaultLight.toARGB32(),
+        ),
+      ),
+      'darkSeedColor': Color(
+        _settings.getValue<int>(
+          keyDarkSwatchColor,
+          defaultValue: AppSeedColors.defaultDark.toARGB32(),
+        ),
+      ),
+      'textMaxWidth': _settings.getValue<double>(
+        keyTextMaxWidth,
+        defaultValue: -1,
+      ),
       'fontSize': _settings.getValue<double>(keyFontSize, defaultValue: 25),
       'fontFamily': _settings.getValue<String>(
         keyFontFamily,
@@ -225,12 +236,18 @@ class SettingsRepository {
         keyPinSidebar,
         defaultValue: false,
       ),
-      'sidebarWidth':
-          _settings.getValue<double>(keySidebarWidth, defaultValue: 300),
-      'facetFilteringWidth':
-          _settings.getValue<double>(keyFacetFilteringWidth, defaultValue: 235),
-      'commentaryPaneWidth':
-          _settings.getValue<double>(keyCommentaryPaneWidth, defaultValue: 400),
+      'sidebarWidth': _settings.getValue<double>(
+        keySidebarWidth,
+        defaultValue: 300,
+      ),
+      'facetFilteringWidth': _settings.getValue<double>(
+        keyFacetFilteringWidth,
+        defaultValue: 235,
+      ),
+      'commentaryPaneWidth': _settings.getValue<double>(
+        keyCommentaryPaneWidth,
+        defaultValue: 400,
+      ),
       'calendarType': _settings.getValue<String>(
         keyCalendarType,
         defaultValue: 'combined',
@@ -284,13 +301,6 @@ class SettingsRepository {
         keyOfflineMode,
         defaultValue: false,
       ),
-      'autoSyncCatalogs': _settings.getValue<bool>(
-        keyAutoSyncCatalogs,
-        defaultValue: _settings.getValue<bool>(
-          keyShowExternalBooks,
-          defaultValue: false,
-        ),
-      ),
       'softwareAndBookUpdatesEnabled': _settings.getValue<bool>(
         keySoftwareAndBookUpdatesEnabled,
         defaultValue: true,
@@ -311,14 +321,18 @@ class SettingsRepository {
         keyMergeUserBooksIntoLibrary,
         defaultValue: false,
       ),
-      'hiddenBuiltInToolIds': _parseToolIdSet(_settings.getValue<String>(
-        keyHiddenBuiltInToolIds,
-        defaultValue: '',
-      )),
-      'builtInToolsPinnedToNavRail': _parseToolIdSet(_settings.getValue<String>(
-        keyBuiltInToolsPinnedToNavRail,
-        defaultValue: '',
-      )),
+      'hiddenBuiltInToolIds': _parseToolIdSet(
+        _settings.getValue<String>(
+          keyHiddenBuiltInToolIds,
+          defaultValue: '',
+        ),
+      ),
+      'builtInToolsPinnedToNavRail': _parseToolIdSet(
+        _settings.getValue<String>(
+          keyBuiltInToolsPinnedToNavRail,
+          defaultValue: '',
+        ),
+      ),
 
       // Protected Mode
       'protectedModeEnabled': _settings.getValue<bool>(
@@ -552,10 +566,6 @@ class SettingsRepository {
     await _settings.setValue(keyOfflineMode, value);
   }
 
-  Future<void> updateAutoSyncCatalogs(bool value) async {
-    await _settings.setValue(keyAutoSyncCatalogs, value);
-  }
-
   Future<void> updateSoftwareAndBookUpdatesEnabled(bool value) async {
     await _settings.setValue(keySoftwareAndBookUpdatesEnabled, value);
   }
@@ -578,12 +588,16 @@ class SettingsRepository {
 
   Future<void> updateHiddenBuiltInToolIds(Set<String> value) async {
     await _settings.setValue(
-        keyHiddenBuiltInToolIds, _serializeToolIdSet(value));
+      keyHiddenBuiltInToolIds,
+      _serializeToolIdSet(value),
+    );
   }
 
   Future<void> updateBuiltInToolsPinnedToNavRail(Set<String> value) async {
     await _settings.setValue(
-        keyBuiltInToolsPinnedToNavRail, _serializeToolIdSet(value));
+      keyBuiltInToolsPinnedToNavRail,
+      _serializeToolIdSet(value),
+    );
   }
 
   /// פירוק רשימת מזהי כלים מ-CSV. מתעלם מערכים ריקים ומ-whitespace.
@@ -658,8 +672,10 @@ class SettingsRepository {
   }
 
   String getCalendarZmanAlertsJson() {
-    return _settings.getValue<String>(keyCalendarZmanAlerts,
-        defaultValue: '{}');
+    return _settings.getValue<String>(
+      keyCalendarZmanAlerts,
+      defaultValue: '{}',
+    );
   }
 
   Future<void> updateCalendarZmanAlertsJson(String json) async {
@@ -671,8 +687,10 @@ class SettingsRepository {
   }
 
   String getCalendarEventNotificationIdsJson() {
-    return _settings.getValue<String>(keyCalendarEventNotificationIds,
-        defaultValue: '[]');
+    return _settings.getValue<String>(
+      keyCalendarEventNotificationIds,
+      defaultValue: '[]',
+    );
   }
 
   Future<void> updateCalendarEventNotificationIdsJson(String json) async {
@@ -681,18 +699,24 @@ class SettingsRepository {
 
   // Google Calendar integration
   String getGoogleCalendarCredentialsJson() {
-    return _settings.getValue<String>(keyGoogleCalendarCredentialsJson,
-        defaultValue: '');
+    return _settings.getValue<String>(
+      keyGoogleCalendarCredentialsJson,
+      defaultValue: '',
+    );
   }
 
   String getGoogleCalendarClientId() {
-    return _settings.getValue<String>(keyGoogleCalendarClientId,
-        defaultValue: '');
+    return _settings.getValue<String>(
+      keyGoogleCalendarClientId,
+      defaultValue: '',
+    );
   }
 
   String getGoogleCalendarClientSecret() {
-    return _settings.getValue<String>(keyGoogleCalendarClientSecret,
-        defaultValue: '');
+    return _settings.getValue<String>(
+      keyGoogleCalendarClientSecret,
+      defaultValue: '',
+    );
   }
 
   Future<void> updateGoogleCalendarEnabled(bool value) async {
@@ -729,8 +753,9 @@ class SettingsRepository {
 
   Future<Map<String, String>> getShortcuts() async {
     // Start with the default shortcuts
-    final shortcuts =
-        Map<String, String>.from(ShortcutValidator.defaultShortcuts);
+    final shortcuts = Map<String, String>.from(
+      ShortcutValidator.defaultShortcuts,
+    );
 
     // Load the central 'shortcuts' map which contains overrides
     final savedShortcutsRaw = _settings.getValue<Map<dynamic, dynamic>>(
@@ -751,13 +776,16 @@ class SettingsRepository {
 
     for (final entry in ShortcutValidator.legacyShortcutAliases.entries) {
       final canonicalKey = entry.key;
-      final hasCanonicalOverride = shortcuts[canonicalKey] !=
+      final hasCanonicalOverride =
+          shortcuts[canonicalKey] !=
           ShortcutValidator.defaultShortcuts[canonicalKey];
       if (hasCanonicalOverride) continue;
 
       for (final legacyKey in entry.value) {
-        final legacyValue = _settings.getValue<String?>(legacyKey,
-            defaultValue: savedShortcutsMap[legacyKey] as String?);
+        final legacyValue = _settings.getValue<String?>(
+          legacyKey,
+          defaultValue: savedShortcutsMap[legacyKey] as String?,
+        );
         if (legacyValue != null && legacyValue.isNotEmpty) {
           shortcuts[canonicalKey] = legacyValue;
           break;
@@ -809,8 +837,10 @@ class SettingsRepository {
 
   /// Initialize default settings to disk if this is the first app launch
   Future<void> _initializeDefaultsIfNeeded() async {
-    if (!_settings.getValue<bool>('settings_initialized',
-        defaultValue: false)) {
+    if (!_settings.getValue<bool>(
+      'settings_initialized',
+      defaultValue: false,
+    )) {
       await _writeDefaultsToStorage();
     }
   }
@@ -819,14 +849,20 @@ class SettingsRepository {
   Future<void> _writeDefaultsToStorage() async {
     await _settings.setValue(keyDarkMode, false);
     await _settings.setValue(
-        keySwatchColor, AppSeedColors.defaultLight.toARGB32());
+      keySwatchColor,
+      AppSeedColors.defaultLight.toARGB32(),
+    );
     await _settings.setValue(
-        keyDarkSwatchColor, AppSeedColors.defaultDark.toARGB32());
+      keyDarkSwatchColor,
+      AppSeedColors.defaultDark.toARGB32(),
+    );
     await _settings.setValue(keyTextMaxWidth, -1.0);
     await _settings.setValue(keyFontSize, 25.0);
     await _settings.setValue(keyFontFamily, AppFonts.defaultFont);
     await _settings.setValue(
-        keyCommentatorsFontFamily, AppFonts.defaultCommentatorsFont);
+      keyCommentatorsFontFamily,
+      AppFonts.defaultCommentatorsFont,
+    );
     await _settings.setValue(keyFontBold, false);
     await _settings.setValue(keyCommentatorsFontBold, false);
     await _settings.setValue(keyCommentatorsFontSize, 22.0);

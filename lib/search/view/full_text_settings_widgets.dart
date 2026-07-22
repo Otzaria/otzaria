@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_spinbox/flutter_spinbox.dart';
@@ -242,113 +242,112 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
           return SizedBox(width: 140, child: spinBox);
         }
 
-        return SizedBox(
-          width: 228,
-          child: Row(
-            children: [
-              _ProximityScopeMenu(
-                scope: scope,
-                onSelected: (selected) => context.read<SearchBloc>().add(
-                      widget.triggerSearch
-                          ? UpdateProximityScope(selected)
-                          : UpdateProximityScopeWithoutSearch(selected),
-                    ),
-              ),
-              const SizedBox(width: 4),
-              _WordMatchModeMenu(
-                mode: wordMatchMode,
-                onSelected: (selected) => context.read<SearchBloc>().add(
-                      widget.triggerSearch
-                          ? UpdateWordMatchMode(selected)
-                          : UpdateWordMatchModeWithoutSearch(selected),
-                    ),
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child:
-                    wordMatchMode == WordMatchMode.atLeast ? countBox : spinBox,
-              ),
-            ],
-          ),
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _ScopeAndMatchMenu(
+              scope: scope,
+              mode: wordMatchMode,
+              onSelected: (selectedScope, selectedMode) {
+                final bloc = context.read<SearchBloc>();
+                final config = bloc.state.configuration;
+                if (selectedScope == config.proximityScope &&
+                    selectedMode == config.wordMatchMode) {
+                  return;
+                }
+                // מעדכנים את שני הערכים בשקט ומריצים חיפוש אחד בסוף, כדי
+                // שלא ירוצו שני חיפושים גם כשרק אחד מהם השתנה.
+                bloc.add(UpdateProximityScopeWithoutSearch(selectedScope));
+                bloc.add(UpdateWordMatchModeWithoutSearch(selectedMode));
+                if (widget.triggerSearch) {
+                  bloc.add(UpdateSearchQuery(bloc.state.searchQuery));
+                }
+              },
+            ),
+            const SizedBox(width: 4),
+            SizedBox(
+              width: 150,
+              child: wordMatchMode == WordMatchMode.atLeast ? countBox : spinBox,
+            ),
+          ],
         );
       },
     );
   }
 }
 
-/// תפריט בחירת טווח הקרבה בין מילות החיפוש: מרווח מילים (ברירת המחדל),
-/// באותה פסקה, או תחת אותה כותרת.
-class _ProximityScopeMenu extends StatelessWidget {
-  const _ProximityScopeMenu({
+/// תפריט מרוכז לטווח הקרבה ולמצב התאמת המילים: התפריט הראשי הוא טווח
+/// הקרבה, ותחת כל טווח תת-תפריט לבחירת מצב ההתאמה.
+class _ScopeAndMatchMenu extends StatelessWidget {
+  const _ScopeAndMatchMenu({
     required this.scope,
-    required this.onSelected,
-  });
-
-  final SearchScope scope;
-  final ValueChanged<SearchScope> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDefault = scope == SearchScope.wordDistance;
-    return Tooltip(
-      message: 'טווח הקרבה בין מילות החיפוש: ${scope.label}',
-      child: PopupMenuButton<SearchScope>(
-        initialValue: scope,
-        onSelected: onSelected,
-        icon: Icon(
-          FluentIcons.apps_list_24_regular,
-          color: isDefault ? null : colorScheme.primary,
-        ),
-        itemBuilder: (context) => [
-          for (final option in SearchScope.values)
-            CheckedPopupMenuItem<SearchScope>(
-              value: option,
-              checked: option == scope,
-              child: Tooltip(
-                message: option.tooltip,
-                child: Text(option.label),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// תפריט מצב התאמת המילים: כל המילים (ברירת המחדל), מילה אחת לפחות,
-/// רוב המילים, או לפחות מספר מילים לבחירה.
-class _WordMatchModeMenu extends StatelessWidget {
-  const _WordMatchModeMenu({
     required this.mode,
     required this.onSelected,
   });
 
+  final SearchScope scope;
   final WordMatchMode mode;
-  final ValueChanged<WordMatchMode> onSelected;
+  final void Function(SearchScope scope, WordMatchMode mode) onSelected;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isDefault = mode == WordMatchMode.all;
+    final isDefault =
+        scope == SearchScope.wordDistance && mode == WordMatchMode.all;
+    final current = (scope, mode);
     return Tooltip(
-      message: 'כמה ממילות החיפוש חייבות להופיע: ${mode.label}',
-      child: PopupMenuButton<WordMatchMode>(
-        initialValue: mode,
-        onSelected: onSelected,
-        icon: Icon(
-          FluentIcons.multiselect_rtl_24_regular,
-          color: isDefault ? null : colorScheme.primary,
-        ),
-        itemBuilder: (context) => [
-          for (final option in WordMatchMode.values)
-            CheckedPopupMenuItem<WordMatchMode>(
-              value: option,
-              checked: option == mode,
-              child: Tooltip(
-                message: option.tooltip,
-                child: Text(option.label),
+      message: 'טווח קרבה: ${scope.label} · התאמת מילים: ${mode.label}',
+      child: AppDropdownField<(SearchScope, WordMatchMode)>(
+        value: current,
+        isExpanded: false,
+        menuMinWidth: 230,
+        // הבחירה מטופלת ע"י תת-התפריטים; פריט ראשי אינו מחזיר ערך.
+        onSelected: (_) {},
+        entries: [
+          for (final scopeOption in SearchScope.values)
+            AppMenuEntry(value: (scopeOption, mode), label: scopeOption.label),
+        ],
+        selectedBuilder: (context, value) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              FluentIcons.apps_list_24_regular,
+              size: 20,
+              color: isDefault ? colorScheme.onSurface : colorScheme.primary,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                '${scope.label} · ${mode.label}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
+            ),
+          ],
+        ),
+        menuItemsBuilder: (context, metrics) => [
+          for (final scopeOption in SearchScope.values)
+            buildAppSubmenuPopupMenuItem<(SearchScope, WordMatchMode)>(
+              context: context,
+              metrics: metrics,
+              label: scopeOption.label,
+              menuChildren: [
+                for (final modeOption in WordMatchMode.values)
+                  buildAppPopupMenuItem<(SearchScope, WordMatchMode)>(
+                    context,
+                    AppMenuEntry(
+                      value: (scopeOption, modeOption),
+                      label: modeOption.label,
+                      labelWidget: Tooltip(
+                        message: modeOption.tooltip,
+                        child: Text(modeOption.label),
+                      ),
+                    ),
+                    metrics,
+                    current,
+                  ),
+              ],
+              onSelected: (selected) => onSelected(selected.$1, selected.$2),
             ),
         ],
       ),

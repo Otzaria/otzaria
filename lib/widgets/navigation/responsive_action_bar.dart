@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
 /// מחשב כמה כפתורי פעולה ניתן להציג בסרגל הקריאה לפי רוחב המסך.
@@ -337,7 +337,7 @@ class ActionButtonData {
   factory ActionButtonData.simple({
     required IconData icon,
     required String tooltip,
-    required VoidCallback onPressed,
+    required VoidCallback? onPressed,
     required bool compact,
     bool selected = false,
     Key? key,
@@ -345,7 +345,7 @@ class ActionButtonData {
   }) {
     return ActionButtonData(
       widget: switch (visual) {
-        ActionButtonVisual.toolbar => ToolbarActionButton(
+        ActionButtonVisual.toolbar => BarButton.icon(
             key: key,
             compact: compact,
             tooltip: tooltip,

@@ -33,7 +33,7 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/layout/split_pane_content_inset.dart';
-import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/widgets/navigation/search_pane_base.dart';
@@ -762,7 +762,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     return AppTopBar(
       leadingItems: [
         AppTopBarItem(
-          widget: ToolbarActionButton(
+          widget: BarButton.icon(
             tooltip: 'ניווט',
             icon: FluentIcons.navigation_24_regular,
             compact: isCompact,
@@ -800,7 +800,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
             actions: [
               // ניקוד
               ActionButtonData(
-                widget: ToolbarActionButton(
+                widget: BarButton.icon(
                   tooltip: _removeNikud ? 'הצג ניקוד' : 'הסתר ניקוד',
                   icon: _removeNikud
                       ? FluentIcons.text_font_24_regular
@@ -816,7 +816,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
               ),
               // פיסוק
               ActionButtonData(
-                widget: ToolbarActionButton(
+                widget: BarButton.icon(
                   tooltip: _removePunctuation ? 'הצג פיסוק' : 'הסתר פיסוק',
                   icon: _removePunctuation
                       ? FluentIcons.text_quote_24_regular
@@ -834,7 +834,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
               ),
               // הדפסת המפרשים המוצגים
               ActionButtonData(
-                widget: ToolbarActionButton(
+                widget: BarButton.icon(
                   tooltip: 'הדפסה',
                   icon: FluentIcons.print_24_regular,
                   compact: isCompact,
@@ -848,7 +848,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
               ),
               // חיפוש
               ActionButtonData(
-                widget: ToolbarActionButton(
+                widget: BarButton.icon(
                   tooltip: 'חיפוש',
                   icon: FluentIcons.search_24_regular,
                   compact: isCompact,
@@ -863,7 +863,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                 widget: ValueListenableBuilder<bool>(
                   valueListenable: _allExpandedInChild,
                   builder: (context, allExpanded, _) {
-                    return ToolbarActionButton(
+                    return BarButton.icon(
                       tooltip: allExpanded
                           ? 'כווץ את כל המפרשים'
                           : 'הרחב את כל המפרשים',
@@ -886,7 +886,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
               ),
               // הוסף סימניה
               ActionButtonData(
-                widget: ToolbarActionButton(
+                widget: BarButton.icon(
                   tooltip: 'הוסף סימניה',
                   icon: FluentIcons.bookmark_add_24_regular,
                   compact: isCompact,
@@ -898,7 +898,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
               ),
               // הגדל גופן
               ActionButtonData(
-                widget: ToolbarActionButton(
+                widget: BarButton.icon(
                   tooltip: 'הגדל את גודל הטקסט',
                   icon: FluentIcons.zoom_in_24_regular,
                   compact: isCompact,
@@ -910,7 +910,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
               ),
               // הקטן גופן
               ActionButtonData(
-                widget: ToolbarActionButton(
+                widget: BarButton.icon(
                   tooltip: 'הקטן את גודל הטקסט',
                   icon: FluentIcons.zoom_out_24_regular,
                   compact: isCompact,
@@ -923,7 +923,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
             ],
             alwaysInMenu: [
               ActionButtonData(
-                widget: ToolbarActionButton(
+                widget: BarButton.icon(
                   tooltip: 'סימניות בספר זה',
                   icon: FluentIcons.bookmark_multiple_24_regular,
                   compact: isCompact,

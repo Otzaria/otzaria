@@ -60,7 +60,6 @@ class SettingsState extends Equatable {
   /// האם הוגדרה סיסמה למצב סייפר. נגזר מה-repository בטעינה ומעודכן בעת שמירה,
   /// כדי שה-UI יתרענן ריאקטיבית גם כשהמצב המוגן עצמו לא מופעל.
   final bool protectedModePasswordSet;
-  final bool autoSyncCatalogs;
   final bool compactMenuMode;
 
   /// מיזוג תיקיות מותאמות אישית לתוך עץ הספרייה הראשי לפי שם.
@@ -116,7 +115,6 @@ class SettingsState extends Equatable {
     required this.personalNotesCollapsedByDefault,
     required this.protectedModeEnabled,
     this.protectedModePasswordSet = false,
-    required this.autoSyncCatalogs,
     this.compactMenuMode = false,
     this.mergeUserBooksIntoLibrary = false,
     this.hiddenBuiltInToolIds = const <String>{},
@@ -166,7 +164,6 @@ class SettingsState extends Equatable {
       enableHtmlLinks: true,
       personalNotesCollapsedByDefault: true,
       protectedModeEnabled: false,
-      autoSyncCatalogs: false,
       softwareAndBookUpdatesEnabled: true,
       mergeUserBooksIntoLibrary: false,
     );
@@ -215,7 +212,6 @@ class SettingsState extends Equatable {
     bool? personalNotesCollapsedByDefault,
     bool? protectedModeEnabled,
     bool? protectedModePasswordSet,
-    bool? autoSyncCatalogs,
     bool? compactMenuMode,
     bool? mergeUserBooksIntoLibrary,
     Set<String>? hiddenBuiltInToolIds,
@@ -275,7 +271,6 @@ class SettingsState extends Equatable {
       protectedModeEnabled: protectedModeEnabled ?? this.protectedModeEnabled,
       protectedModePasswordSet:
           protectedModePasswordSet ?? this.protectedModePasswordSet,
-      autoSyncCatalogs: autoSyncCatalogs ?? this.autoSyncCatalogs,
       compactMenuMode: compactMenuMode ?? this.compactMenuMode,
       mergeUserBooksIntoLibrary:
           mergeUserBooksIntoLibrary ?? this.mergeUserBooksIntoLibrary,
@@ -337,7 +332,6 @@ class SettingsState extends Equatable {
     personalNotesCollapsedByDefault,
     protectedModeEnabled,
     protectedModePasswordSet,
-    autoSyncCatalogs,
     compactMenuMode,
     mergeUserBooksIntoLibrary,
     hiddenBuiltInToolIds,

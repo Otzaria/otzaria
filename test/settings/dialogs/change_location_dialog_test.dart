@@ -72,46 +72,39 @@ void main() {
       expect(find.text('שנה מיקום בלבד'), findsOneWidget);
     });
 
-    testWidgets('canMoveContents=false — רק "שנה מיקום בלבד" מוצג',
-        (tester) async {
-      await _openDialog(tester, canMoveContents: false);
+    testWidgets('currentPath ריק — רק "הגדרת מיקום" מוצג', (tester) async {
+      await _openDialog(tester, currentPath: '', canMoveContents: false);
       expect(find.text('העבר תוכן תיקייה'), findsNothing);
-      expect(find.text('שנה מיקום בלבד'), findsOneWidget);
+      expect(find.text('שנה מיקום בלבד'), findsNothing);
+      expect(find.text('הגדרת מיקום'), findsOneWidget);
     });
 
+    // הבחירה נבדקת דרך אזהרת ההעברה (מוצגת רק כש"העבר תוכן" נבחר) — ברדיו
+    // המותאם אין ערך פנימי לבדיקה, לכן בודקים את ההתנהגות הנצפית.
     testWidgets('canMoveContents=true — "העבר תוכן" נבחר כברירת מחדל',
         (tester) async {
-      await _openDialog(tester, canMoveContents: true);
-
-      final checkboxes =
-          tester.widgetList<Checkbox>(find.byType(Checkbox)).toList();
-      expect(checkboxes[0].value, isTrue, reason: '"העבר תוכן" — נבחר');
-      expect(checkboxes[1].value, isFalse,
-          reason: '"שנה מיקום בלבד" — לא נבחר');
+      await _openDialog(tester,
+          canMoveContents: true, moveContentsWarning: 'אזהרת בדיקה');
+      expect(find.text('אזהרת בדיקה'), findsOneWidget);
     });
 
     testWidgets('לחיצה על "שנה מיקום בלבד" מחליפה את הבחירה', (tester) async {
-      await _openDialog(tester, canMoveContents: true);
+      await _openDialog(tester,
+          canMoveContents: true, moveContentsWarning: 'אזהרת בדיקה');
 
       await tester.tap(find.text('שנה מיקום בלבד'));
       await tester.pump();
-
-      final checkboxes =
-          tester.widgetList<Checkbox>(find.byType(Checkbox)).toList();
-      expect(checkboxes[0].value, isFalse, reason: '"העבר תוכן" — בוטל');
-      expect(checkboxes[1].value, isTrue, reason: '"שנה מיקום בלבד" — נבחר');
+      expect(find.text('אזהרת בדיקה'), findsNothing);
     });
 
     testWidgets('לחיצה חזרה על "העבר תוכן" משחזרת בחירה', (tester) async {
-      await _openDialog(tester, canMoveContents: true);
+      await _openDialog(tester,
+          canMoveContents: true, moveContentsWarning: 'אזהרת בדיקה');
       await tester.tap(find.text('שנה מיקום בלבד'));
       await tester.pump();
       await tester.tap(find.text('העבר תוכן תיקייה'));
       await tester.pump();
-
-      final checkboxes =
-          tester.widgetList<Checkbox>(find.byType(Checkbox)).toList();
-      expect(checkboxes[0].value, isTrue);
+      expect(find.text('אזהרת בדיקה'), findsOneWidget);
     });
 
     testWidgets('defaultPath קיים — כרטיס ברירת מחדל מוצג', (tester) async {

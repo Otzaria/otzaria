@@ -158,7 +158,8 @@ class LibraryOverflowTooltipText extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final hasOverflow = constraints.maxWidth.isFinite &&
+        final hasOverflow =
+            constraints.maxWidth.isFinite &&
             constraints.maxWidth > 0 &&
             _textOverflows(
               context: context,
@@ -532,7 +533,8 @@ class _BookGridTextColumn extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final titleOverflow = titleStyle != null &&
+        final titleOverflow =
+            titleStyle != null &&
             constraints.maxWidth.isFinite &&
             constraints.maxWidth > 0 &&
             _textOverflows(
@@ -546,25 +548,26 @@ class _BookGridTextColumn extends StatelessWidget {
 
         final authorMaxLines = titleOverflow ? 1 : 2;
         final hasAuthor = (book.author ?? '').isNotEmpty;
-        final shortDescription =
-            truncateBookCardDescription(book.heShortDesc ?? '');
+        final shortDescription = truncateBookCardDescription(
+          book.heShortDesc ?? '',
+        );
         final hasShortDescription = shortDescription.isNotEmpty;
         final descriptionMaxLines = constraints.maxHeight < 100
             ? 1
             : titleOverflow
-                ? 2
-                : 3;
+            ? 2
+            : 3;
         final hasTopics = showTopics && book.topics.trim().isNotEmpty;
         final topicsMaxLines = !hasTopics
             ? 0
             : constraints.maxHeight < 110
-                ? 1
-                : constraints.maxHeight < 140 ||
-                        hasAuthor ||
-                        titleOverflow ||
-                        hasShortDescription
-                    ? 2
-                    : 3;
+            ? 1
+            : constraints.maxHeight < 140 ||
+                  hasAuthor ||
+                  titleOverflow ||
+                  hasShortDescription
+            ? 2
+            : 3;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -669,8 +672,10 @@ class _BookGridActionColumn extends StatelessWidget {
           future: Future.wait([
             _canDeleteBookFromLibrary(book),
             versionsEligible
-                ? DatabaseLibraryProvider.instance
-                    .hasSelectableBookVersions(book.title, book.categoryId!)
+                ? DatabaseLibraryProvider.instance.hasSelectableBookVersions(
+                    book.title,
+                    book.categoryId!,
+                  )
                 : Future.value(false),
           ]),
           builder: (context, snapshot) {
@@ -753,20 +758,25 @@ class MyGridView extends StatelessWidget {
         final baseRatio = width >= 1400
             ? 2.1
             : width >= 1100
-                ? 1.95
-                : width >= 800
-                    ? 1.8
-                    : 1.65;
-        final textAdjustment =
-            textScale <= 1.0 ? 1.0 : (1.0 / (1.0 + ((textScale - 1.0) * 0.65)));
+            ? 1.95
+            : width >= 800
+            ? 1.8
+            : 1.65;
+        final textAdjustment = textScale <= 1.0
+            ? 1.0
+            : (1.0 / (1.0 + ((textScale - 1.0) * 0.65)));
         final childAspectRatio = (baseRatio * textAdjustment).clamp(1.45, 2.15);
 
         return FocusTraversalGroup(
           policy: ReadingOrderTraversalPolicy(),
           child: Padding(
             // top: 8 או מרווח מתאים; horizontal: 45 או רוחב אף
-            padding:
-                const EdgeInsets.only(top: 8, left: 30, right: 30, bottom: 8),
+            padding: const EdgeInsets.only(
+              top: 8,
+              left: 30,
+              right: 30,
+              bottom: 8,
+            ),
             child: GridView.builder(
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: max(1, min(constraints.maxWidth ~/ 250, 5)),
@@ -801,7 +811,10 @@ Future<bool> _canDeleteBookFromLibrary(Book book) {
 }
 
 Future<void> _showDeleteBookDialog(
-    BuildContext context, Book book, VoidCallback? onBookDeleted) async {
+  BuildContext context,
+  Book book,
+  VoidCallback? onBookDeleted,
+) async {
   final confirmed = await showWarningDialog(
     context: context,
     title: 'למחוק את הספר?',

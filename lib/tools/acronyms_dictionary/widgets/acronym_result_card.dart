@@ -48,7 +48,7 @@ class AcronymResultCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
-            child: Text(
+            child: SelectableText(
               acronym,
               style: TextStyle(
                 fontSize: AppTokens.fontLG,
@@ -71,7 +71,7 @@ class AcronymResultCard extends StatelessWidget {
           ),
           Expanded(
             child: meanings.length == 1
-                ? Text(
+                ? SelectableText(
                     meanings.first,
                     style: TextStyle(
                       fontSize: AppTokens.fontMD,
@@ -83,7 +83,7 @@ class AcronymResultCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     mainAxisSize: MainAxisSize.min,
                     children: meanings.asMap().entries.map((e) {
-                      return Text(
+                      return SelectableText(
                         '${e.key + 1}. ${e.value}',
                         style: TextStyle(
                           fontSize: AppTokens.fontMD,
@@ -97,9 +97,10 @@ class AcronymResultCard extends StatelessWidget {
           ),
           const SizedBox(width: AppTokens.spaceXS),
           SecondaryIconButton(
-              icon: FluentIcons.copy_24_regular,
-              tooltip: 'העתק',
-              onPressed: () => _copy(context)),
+            icon: FluentIcons.copy_24_regular,
+            tooltip: 'העתק',
+            onPressed: () => _copy(context),
+          ),
         ],
       ),
     );

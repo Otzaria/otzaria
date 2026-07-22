@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/tabs/text_settings_tab.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -7,25 +8,14 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 
-/// פאנל הגדרות תצוגת הספרים (לשימוש כ-overlay צף)
-class ReadingSettingsPanel extends StatelessWidget {
-  const ReadingSettingsPanel({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const SingleChildScrollView(
-      child: ReadingSettingsBody(),
-    );
-  }
-}
-
-/// גוף הגדרות תצוגת הספרים, משותף לפאנל הצף ולדיאלוג.
+/// פאנל הגדרות תצוגת הספרים — משמש גם כ-overlay צף וגם כתוכן הדיאלוג
+/// ([showReadingSettingsDialog]). הגלילה מטופלת בתוך [TextSettingsTab].
 ///
 /// מזהה אם הטאב הפעיל מוצג במצב "צורת הדף" — ובמקרה זה מסתיר את סליידר
 /// "גודל גופן מפרשים", שכן בצורת הדף גודל גופן המפרשים נשלט בהגדרה ייעודית
 /// נפרדת (בדיאלוג צורת הדף) ולא בהגדרה הכללית.
-class ReadingSettingsBody extends StatelessWidget {
-  const ReadingSettingsBody({super.key});
+class ReadingSettingsPanel extends StatelessWidget {
+  const ReadingSettingsPanel({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -49,4 +39,35 @@ class ReadingSettingsBody extends StatelessWidget {
       },
     );
   }
+}
+
+/// מציג את [ReadingSettingsPanel] כדיאלוג. ניתן לקרוא מכל מקום (למשל ממסך העיון).
+void showReadingSettingsDialog(BuildContext context) {
+  final dialogContext = navigatorKey.currentContext;
+  if (dialogContext == null) {
+    return;
+  }
+
+  showDialog(
+    context: dialogContext,
+    builder: (context) => AlertDialog(
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+      title: const Text(
+        'הגדרות תצוגת הספרים',
+        style: TextStyle(fontWeight: FontWeight.bold),
+        textAlign: TextAlign.center,
+      ),
+      content: SizedBox(
+        width: 650,
+        height: MediaQuery.of(context).size.height * 0.7,
+        child: const ReadingSettingsPanel(),
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('סגור'),
+        ),
+      ],
+    ),
+  );
 }

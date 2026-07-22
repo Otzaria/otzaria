@@ -3,7 +3,6 @@
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
 // ── ActionButton ──────────────────────────────────────────────────────────────
@@ -336,112 +335,6 @@ class PrimaryIconButton extends StatelessWidget {
           minimumSize: const Size(36, 36),
           padding: EdgeInsets.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-      ),
-    );
-  }
-}
-
-// ── ToolbarActionButton ──────────────────────────────────────────────────────
-/// כפתור סרגל עליון בסגנון M3 והגדרת מראה במצב נבחר.
-
-class ToolbarActionButton extends StatelessWidget {
-  final String tooltip;
-  final IconData icon;
-  final Widget? iconWidget;
-  final VoidCallback onPressed;
-  final bool selected;
-  final String? label;
-  final bool compact;
-  final bool flipInRtl;
-
-  const ToolbarActionButton({
-    super.key,
-    required this.tooltip,
-    required this.icon,
-    this.iconWidget,
-    required this.onPressed,
-    this.selected = false,
-    this.label,
-    this.compact = false,
-    this.flipInRtl = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    final Color bg =
-        selected ? cs.onSurface.withValues(alpha: 0.12) : Colors.transparent;
-    final Color fg = selected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
-
-    const double iconSize = 20;
-    final double fontSize = compact ? 12 : 14;
-    final double minSize = compact ? 36 : 40;
-    final EdgeInsets padding = compact
-        ? const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0)
-        : const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0);
-
-    // IconTheme מאפשר לwidgets מורכבים (RotatedBox, Transform) לרשת את הצבע אוטומטית.
-    final Widget iconEl = iconWidget != null
-        ? IconTheme(
-            data: IconThemeData(color: fg, size: iconSize),
-            child: iconWidget!,
-          )
-        : flipInRtl
-            ? RtlIcon(icon, size: iconSize, color: fg)
-            : Icon(icon, size: iconSize, color: fg);
-
-    Widget button;
-    if (label != null) {
-      button = FilledButton.icon(
-        onPressed: onPressed,
-        style: FilledButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          foregroundColor: fg,
-          padding: padding,
-          shape: const StadiumBorder(),
-          minimumSize: compact ? const Size(0, 36) : const Size(0, 40),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-        icon: iconEl,
-        label: AnimatedDefaultTextStyle(
-          duration: AppTokens.animFast,
-          style: TextStyle(
-              fontSize: fontSize,
-              color: fg,
-              fontWeight: selected ? FontWeight.bold : FontWeight.normal),
-          child: Text(label!),
-        ),
-      );
-    } else {
-      button = IconButton(
-        onPressed: onPressed,
-        icon: iconEl,
-        padding: const EdgeInsets.all(8.0),
-        constraints: BoxConstraints(minWidth: minSize, minHeight: minSize),
-        style: IconButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          foregroundColor: fg,
-          shape: const CircleBorder(),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Tooltip(
-        message: tooltip,
-        child: AnimatedContainer(
-          duration: AppTokens.animFast,
-          curve: Curves.easeInOut,
-          decoration: BoxDecoration(
-            color: bg,
-            shape: label != null ? BoxShape.rectangle : BoxShape.circle,
-            borderRadius: label != null ? BorderRadius.circular(100) : null,
-          ),
-          child: button,
         ),
       ),
     );
