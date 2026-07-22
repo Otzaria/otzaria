@@ -23,6 +23,7 @@ List<AppContextMenuEntry> buildDictionaryContextMenuEntries({
 
   final entries = <AppContextMenuEntry>[];
   final shouldCheckAcronyms = repository.isLikelyAcronym(trimmed);
+  final shouldCheckLaaz = repository.isLikelyLaazTranslit(trimmed);
 
   if (shouldCheckAcronyms && !repository.areAcronymsLoaded) {
     unawaited(repository.ensureAcronymsLoaded().catchError((_) {}));
@@ -30,6 +31,10 @@ List<AppContextMenuEntry> buildDictionaryContextMenuEntries({
 
   if (!repository.areAramaicLoaded) {
     unawaited(repository.ensureAramaicLoaded().catchError((_) {}));
+  }
+
+  if (shouldCheckLaaz && !repository.areLaazLoaded) {
+    unawaited(repository.ensureLaazLoaded().catchError((_) {}));
   }
 
   if (shouldCheckAcronyms && repository.areAcronymsLoaded) {
@@ -64,6 +69,32 @@ List<AppContextMenuEntry> buildDictionaryContextMenuEntries({
     }
   }
 
+  if (shouldCheckLaaz && repository.areLaazLoaded) {
+    final laazGroups = repository.findLaazMatchGroups(trimmed);
+    if (laazGroups.isNotEmpty) {
+      entries.add(
+        AppContextMenuEntry(
+          label: 'לעזי רש"י',
+          icon: FluentIcons.book_letter_24_regular,
+          children: laazGroups
+              .map<AppContextMenuEntry>(
+                (group) => AppContextMenuEntry(
+                  label: _summarizeLaazEntry(group.first),
+                  onTap: () => _showMeaningDialog(
+                    context: context,
+                    title: group.first.laazHebrew.isNotEmpty
+                        ? group.first.laazHebrew
+                        : group.first.lemma,
+                    content: _buildLaazDialogContent(context, group),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+      );
+    }
+  }
+
   return entries;
 }
 
@@ -73,47 +104,48 @@ AppContextMenuEntry _buildAcronymSubmenu(
 ) {
   final items = acronymEntries.length == 1
       ? acronymEntries.single.meanings
-          .map<AppContextMenuEntry>(
-            (meaning) => AppContextMenuEntry(
-              label: _summarizePlainText(meaning),
-              onTap: () => _showMeaningDialog(
-                context: context,
-                title: acronymEntries.single.acronym,
-                content: _buildAcronymDialogContent(meaning),
+            .map<AppContextMenuEntry>(
+              (meaning) => AppContextMenuEntry(
+                label: _summarizePlainText(meaning),
+                onTap: () => _showMeaningDialog(
+                  context: context,
+                  title: acronymEntries.single.acronym,
+                  content: _buildAcronymDialogContent(meaning),
+                ),
               ),
-            ),
-          )
-          .toList()
+            )
+            .toList()
       : acronymEntries
-          .map<AppContextMenuEntry>(
-            (entry) => entry.meanings.length == 1
-                ? AppContextMenuEntry(
-                    label:
-                        '${entry.acronym} - ${_summarizePlainText(entry.meanings.single)}',
-                    onTap: () => _showMeaningDialog(
-                      context: context,
-                      title: entry.acronym,
-                      content:
-                          _buildAcronymDialogContent(entry.meanings.single),
-                    ),
-                  )
-                : AppContextMenuEntry(
-                    label: entry.acronym,
-                    children: entry.meanings
-                        .map<AppContextMenuEntry>(
-                          (meaning) => AppContextMenuEntry(
-                            label: _summarizePlainText(meaning),
-                            onTap: () => _showMeaningDialog(
-                              context: context,
-                              title: entry.acronym,
-                              content: _buildAcronymDialogContent(meaning),
+            .map<AppContextMenuEntry>(
+              (entry) => entry.meanings.length == 1
+                  ? AppContextMenuEntry(
+                      label:
+                          '${entry.acronym} - ${_summarizePlainText(entry.meanings.single)}',
+                      onTap: () => _showMeaningDialog(
+                        context: context,
+                        title: entry.acronym,
+                        content: _buildAcronymDialogContent(
+                          entry.meanings.single,
+                        ),
+                      ),
+                    )
+                  : AppContextMenuEntry(
+                      label: entry.acronym,
+                      children: entry.meanings
+                          .map<AppContextMenuEntry>(
+                            (meaning) => AppContextMenuEntry(
+                              label: _summarizePlainText(meaning),
+                              onTap: () => _showMeaningDialog(
+                                context: context,
+                                title: entry.acronym,
+                                content: _buildAcronymDialogContent(meaning),
+                              ),
                             ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-          )
-          .toList();
+                          )
+                          .toList(),
+                    ),
+            )
+            .toList();
 
   return AppContextMenuEntry(
     label: 'פתיחת ראשי תיבות',
@@ -162,6 +194,83 @@ Widget _buildAcronymDialogContent(String meaning) {
   );
 }
 
+String _summarizeLaazEntry(LaazDictionaryEntry entry) {
+  final title = entry.laazHebrew.isNotEmpty ? entry.laazHebrew : entry.lemma;
+  final description = entry.meaning.isNotEmpty ? entry.meaning : entry.note;
+  if (description == null || description.isEmpty) {
+    return _summarizePlainText(title);
+  }
+  return _summarizePlainText('$title - $description');
+}
+
+Widget _buildLaazDialogContent(
+  BuildContext context,
+  List<LaazDictionaryEntry> group,
+) {
+  final entry = group.first;
+  final lemmas = <String>{for (final e in group) e.lemma}.join(', ');
+  final references = <String>{
+    for (final e in group)
+      if (e.sourceReference.isNotEmpty) e.sourceReference,
+  }.join(', ');
+  final textTheme = Theme.of(context).textTheme;
+  final colorScheme = Theme.of(context).colorScheme;
+  final secondaryStyle = textTheme.bodySmall?.copyWith(
+    color: colorScheme.onSurfaceVariant,
+  );
+
+  return SizedBox(
+    width: 520,
+    child: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$lemmas — ${entry.laazHebrew}',
+            style: textTheme.bodyLarge,
+          ),
+          if (entry.laazLatin.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              entry.laazLatin,
+              textDirection: TextDirection.ltr,
+              style: textTheme.bodyMedium?.copyWith(
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+          if (entry.meaning.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              entry.meaning,
+              style: textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+          if (references.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text('רש"י $references', style: secondaryStyle),
+          ],
+          if (entry.note != null) ...[
+            const SizedBox(height: 8),
+            Text(entry.note!, style: secondaryStyle),
+          ],
+          if (entry.english != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              entry.english!,
+              textDirection: TextDirection.ltr,
+              style: secondaryStyle,
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
+}
+
 Widget _buildAramaicDialogContent(AramaicDictionaryEntry entry) {
   return SizedBox(
     width: 520,
@@ -185,10 +294,10 @@ void _showMeaningDialog({
   required Widget content,
 }) {
   context.read<TourCubit>().recordInteraction(
-        TourInteraction(
-          type: TourInteractionType.dictionaryUsed,
-        ),
-      );
+    TourInteraction(
+      type: TourInteractionType.dictionaryUsed,
+    ),
+  );
   showSingleActionDialog(
     context: context,
     title: title,

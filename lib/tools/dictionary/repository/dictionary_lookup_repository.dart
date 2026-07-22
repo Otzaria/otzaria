@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:otzaria/tools/dictionary/repository/db_dictionary_book_source.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 
 /// מייצג התאמה במילון ראשי התיבות.
@@ -24,6 +25,198 @@ class AramaicDictionaryEntry {
 
   final String aramaic;
   final String hebrew;
+}
+
+/// מייצג ערך במילון לעזי רש"י (ספר "אוצר לעזי רש"י").
+class LaazDictionaryEntry {
+  const LaazDictionaryEntry({
+    required this.entryNumber,
+    required this.sourceReference,
+    required this.lemma,
+    required this.laazHebrew,
+    required this.laazLatin,
+    required this.meaning,
+    this.note,
+    this.english,
+  });
+
+  /// המספר הרץ של הערך בספר.
+  final String entryNumber;
+
+  /// המקור ברש"י (למשל "ברכות ט:" או "בראשית א,ב").
+  final String sourceReference;
+
+  /// מילת הערך מדברי רש"י.
+  final String lemma;
+
+  /// הלעז בתעתיק עברי, כולל גרשיים כפי שמודפס.
+  final String laazHebrew;
+
+  /// הלעז באותיות לטיניות (עשוי להיות ריק).
+  final String laazLatin;
+
+  /// הפירוש העברי (עשוי להיות ריק בערכים חריגים).
+  final String meaning;
+
+  /// הערת העורך, אם קיימת.
+  final String? note;
+
+  /// תרגום אנגלי, אם קיים.
+  final String? english;
+
+  static final RegExp _htmlTag = RegExp(r'<[^>]*>');
+  static final RegExp _bold = RegExp(r'<b>(.*?)</b>', dotAll: true);
+  static final RegExp _small = RegExp(r'<small>(.*?)</small>', dotAll: true);
+  static final RegExp _ltrSpan = RegExp(
+    r'<span[^>]*>(.*?)</span>',
+    dotAll: true,
+  );
+  static final RegExp _latinLetter = RegExp(r'[a-zA-Z]');
+  static final RegExp _hebrewLetter = RegExp('[א-ת]');
+  static final RegExp _joinedLatinAndHebrew = RegExp(
+    r'^([^א-ת]*[a-zA-Z])([א-ת].*)$',
+  );
+
+  /// מפרק את כל שורות הספר לערכי מילון; שורות כותרת ושורות לא-תקינות מדולגות.
+  static List<LaazDictionaryEntry> parseLines(List<String> lines) {
+    return lines
+        .map(parseLine)
+        .whereType<LaazDictionaryEntry>()
+        .toList(growable: false);
+  }
+
+  /// מפרק שורת ערך בודדת; מחזיר null לשורת כותרת או שורה שאינה ערך.
+  static LaazDictionaryEntry? parseLine(String line) {
+    // פענוח ישויות HTML לפני הפירוק, כדי שלא ידלפו לשדות או ישבשו את המפריד.
+    final trimmed = line
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .trim();
+    if (trimmed.isEmpty || trimmed.startsWith('<h')) return null;
+    if (!trimmed.contains(' / ')) return null;
+
+    final parts = trimmed.split(' / ');
+    if (parts.length < 3) return null;
+
+    final entryNumber = _stripTags(parts[0]);
+    var sourceReference = parts[1].trim();
+    if (sourceReference.startsWith('(') && sourceReference.endsWith(')')) {
+      sourceReference = sourceReference
+          .substring(1, sourceReference.length - 1)
+          .trim();
+    }
+
+    final note = _matchGroup(_small, trimmed);
+    final english = _cleanEnglish(_matchGroup(_ltrSpan, trimmed));
+
+    final headField = _removeTrailingBlocks(parts[2]);
+    final lemmaMatch = _bold.firstMatch(headField);
+    if (lemmaMatch == null) return null;
+    final lemma = _stripTags(lemmaMatch.group(1) ?? '');
+    if (lemma.isEmpty) return null;
+    final afterLemma = _stripTags(
+      headField.replaceRange(lemmaMatch.start, lemmaMatch.end, ' '),
+    );
+
+    var laazHebrew = afterLemma;
+    var laazLatin = '';
+    var meaning = '';
+
+    if (parts.length >= 5) {
+      final middleField = _stripTags(parts[3]);
+      final meaningField = _removeTrailingBlocks(parts.sublist(4).join(' / '));
+      final trailingField =
+          _matchGroup(_bold, meaningField) ?? _stripTags(meaningField);
+      final headIsLatin =
+          _latinLetter.hasMatch(afterLemma) &&
+          !_hebrewLetter.hasMatch(afterLemma);
+      final middleHasHebrew = _hebrewLetter.hasMatch(middleField);
+      final trailingIsLatin =
+          _latinLetter.hasMatch(trailingField) &&
+          !_hebrewLetter.hasMatch(trailingField);
+
+      if (headIsLatin && middleHasHebrew) {
+        laazHebrew = middleField;
+        laazLatin = afterLemma;
+        meaning = trailingField;
+      } else if (middleHasHebrew &&
+          (trailingField.isEmpty || trailingIsLatin)) {
+        laazLatin = trailingField;
+        meaning = middleField;
+      } else {
+        laazLatin = middleField;
+        meaning = trailingField;
+      }
+    } else if (parts.length == 4) {
+      final lastField = _removeTrailingBlocks(parts[3]);
+      final boldLast = _matchGroup(_bold, lastField) ?? _stripTags(lastField);
+      final joinedFields = _joinedLatinAndHebrew.firstMatch(boldLast);
+      if (joinedFields != null) {
+        laazLatin = joinedFields.group(1)?.trim() ?? '';
+        meaning = joinedFields.group(2)?.trim() ?? '';
+      } else if (_latinLetter.hasMatch(boldLast)) {
+        // וריאנט שבו הלטינית מודגשת בשדה האחרון והפירוש נגרר אחרי התעתיק.
+        laazLatin = boldLast;
+        final split = _splitTranslitAndMeaning(afterLemma);
+        laazHebrew = split.translit;
+        meaning = split.meaning;
+      } else {
+        meaning = boldLast;
+      }
+    }
+
+    return LaazDictionaryEntry(
+      entryNumber: entryNumber,
+      sourceReference: sourceReference,
+      lemma: lemma,
+      laazHebrew: laazHebrew,
+      laazLatin: laazLatin,
+      meaning: meaning,
+      note: note,
+      english: english,
+    );
+  }
+
+  /// מפריד תעתיק מפירוש נגרר: מילות התעתיק מזוהות לפי גרשיים.
+  static ({String translit, String meaning}) _splitTranslitAndMeaning(
+    String text,
+  ) {
+    final tokens = text.split(RegExp(r'\s+'));
+    var translitEnd = 0;
+    while (translitEnd < tokens.length &&
+        (tokens[translitEnd].contains('"') ||
+            tokens[translitEnd].contains('״'))) {
+      translitEnd++;
+    }
+    if (translitEnd == 0) translitEnd = 1;
+
+    return (
+      translit: tokens.take(translitEnd).join(' '),
+      meaning: tokens.skip(translitEnd).join(' '),
+    );
+  }
+
+  static String _removeTrailingBlocks(String text) {
+    return text.replaceAll(_small, ' ').replaceAll(_ltrSpan, ' ');
+  }
+
+  static String? _matchGroup(RegExp pattern, String text) {
+    final value = _stripTags(pattern.firstMatch(text)?.group(1) ?? '');
+    return value.isEmpty ? null : value;
+  }
+
+  static String? _cleanEnglish(String? raw) {
+    if (raw == null) return null;
+    final cleaned = raw.replaceFirst('✭', '').trim();
+    return cleaned.isEmpty ? null : cleaned;
+  }
+
+  static String _stripTags(String text) {
+    return text
+        .replaceAll(_htmlTag, ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
 }
 
 /// מייצג פירוש בודד לאחר פענוח סימוני העיצוב של המילון.
@@ -75,14 +268,16 @@ class AramaicDictionaryEntryPresentation {
         : raw.substring(expressionMatch.end).trim();
 
     String? expansion;
-    final expansionAtStart =
-        RegExp(r'^\(=\s*([^)]+?)\)\s*').firstMatch(remaining);
+    final expansionAtStart = RegExp(
+      r'^\(=\s*([^)]+?)\)\s*',
+    ).firstMatch(remaining);
     if (expansionAtStart != null) {
       expansion = expansionAtStart.group(1)?.trim();
       remaining = remaining.substring(expansionAtStart.end).trim();
     } else {
-      final inlineExpansion =
-          RegExp(r'\s+\(=\s*([^)]+?)\)\s*').firstMatch(remaining);
+      final inlineExpansion = RegExp(
+        r'\s+\(=\s*([^)]+?)\)\s*',
+      ).firstMatch(remaining);
       if (inlineExpansion != null) {
         expansion = inlineExpansion.group(1)?.trim();
         final before = remaining.substring(0, inlineExpansion.start).trim();
@@ -104,34 +299,48 @@ class DictionaryLookupRepository {
   DictionaryLookupRepository({
     Future<Map<String, List<String>>> Function()? loadAcronyms,
     Future<List<AramaicDictionaryEntry>> Function()? loadAramaicEntries,
-  })  : _loadAcronyms = loadAcronyms ?? _defaultLoadAcronyms,
-        _loadAramaicEntries = loadAramaicEntries ?? _defaultLoadAramaicEntries;
+    Future<List<LaazDictionaryEntry>> Function()? loadLaazEntries,
+  }) : _loadAcronyms = loadAcronyms ?? _defaultLoadAcronyms,
+       _loadAramaicEntries = loadAramaicEntries ?? _defaultLoadAramaicEntries,
+       _loadLaazEntries = loadLaazEntries ?? _defaultLoadLaazEntries;
 
   static final DictionaryLookupRepository instance =
       DictionaryLookupRepository();
 
+  /// כותרת ספר לעזי רש"י ב-DB; הזיהוי תמיד לפי כותרת, לא לפי id.
+  static const String laazBookTitle = 'אוצר לעזי רש"י';
+
   final Future<Map<String, List<String>>> Function() _loadAcronyms;
   final Future<List<AramaicDictionaryEntry>> Function() _loadAramaicEntries;
+  final Future<List<LaazDictionaryEntry>> Function() _loadLaazEntries;
 
   Future<void>? _acronymsLoadFuture;
   Future<void>? _aramaicLoadFuture;
+  Future<void>? _laazLoadFuture;
   bool _areAcronymsLoaded = false;
   bool _areAramaicLoaded = false;
+  bool _areLaazLoaded = false;
 
   Map<String, List<String>> _acronymsByKey = <String, List<String>>{};
   Map<String, String> _originalAcronymByKey = <String, String>{};
   List<AramaicDictionaryEntry> _aramaicEntries = <AramaicDictionaryEntry>[];
   Set<String> _aramaicTerms = <String>{};
+  List<LaazDictionaryEntry> _laazEntries = <LaazDictionaryEntry>[];
+  Map<String, List<LaazDictionaryEntry>> _laazByTranslit =
+      <String, List<LaazDictionaryEntry>>{};
 
-  bool get isLoaded => _areAcronymsLoaded && _areAramaicLoaded;
+  bool get isLoaded =>
+      _areAcronymsLoaded && _areAramaicLoaded && _areLaazLoaded;
   bool get areAcronymsLoaded => _areAcronymsLoaded;
   bool get areAramaicLoaded => _areAramaicLoaded;
+  bool get areLaazLoaded => _areLaazLoaded;
 
-  /// טוען את שני המילונים פעם אחת ומשאיר אותם בזיכרון.
+  /// טוען את כל המילונים פעם אחת ומשאיר אותם בזיכרון.
   Future<void> ensureLoaded() async {
     await Future.wait<void>([
       ensureAcronymsLoaded(),
       ensureAramaicLoaded(),
+      ensureLaazLoaded(),
     ]);
   }
 
@@ -187,11 +396,40 @@ class DictionaryLookupRepository {
     }
   }
 
+  /// טוען את מילון לעזי רש"י בלבד.
+  Future<void> ensureLaazLoaded() async {
+    if (_areLaazLoaded) return;
+
+    final pendingFuture = _laazLoadFuture;
+    if (pendingFuture != null) {
+      await pendingFuture;
+      return;
+    }
+
+    final loadFuture = _loadLaazInternal();
+    _laazLoadFuture = loadFuture;
+
+    try {
+      await loadFuture;
+      _areLaazLoaded = true;
+    } catch (_) {
+      _resetLaazCache();
+      rethrow;
+    } finally {
+      if (identical(_laazLoadFuture, loadFuture)) {
+        _laazLoadFuture = null;
+      }
+    }
+  }
+
   /// מחזיר את כלל רשומות ראשי התיבות.
   Map<String, List<String>> getAllAcronyms() {
-    return Map<String, List<String>>.unmodifiable(_acronymsByKey.map(
-      (key, meanings) => MapEntry(_originalAcronymByKey[key] ?? key, meanings),
-    ));
+    return Map<String, List<String>>.unmodifiable(
+      _acronymsByKey.map(
+        (key, meanings) =>
+            MapEntry(_originalAcronymByKey[key] ?? key, meanings),
+      ),
+    );
   }
 
   /// מחזיר את כל רשומות המילון הארמי-עברי.
@@ -206,6 +444,15 @@ class DictionaryLookupRepository {
         trimmed.contains('״') ||
         trimmed.contains("'") ||
         trimmed.contains('׳');
+  }
+
+  static final RegExp _innerGershayim = RegExp(
+    '[א-ת][֑-ׇ]*["״][א-ת]',
+  );
+
+  /// בודק אם הטקסט נראה כתעתיק לעז: גרשיים בין אותיות בתוך המילה.
+  bool isLikelyLaazTranslit(String raw) {
+    return _innerGershayim.hasMatch(raw.trim());
   }
 
   /// מחזיר את כל הפירושים לראשי תיבות אם קיימים.
@@ -291,6 +538,37 @@ class DictionaryLookupRepository {
     ];
   }
 
+  /// מחזיר את כל רשומות מילון לעזי רש"י.
+  List<LaazDictionaryEntry> getAllLaazEntries() {
+    return List<LaazDictionaryEntry>.unmodifiable(_laazEntries);
+  }
+
+  /// מחזיר התאמות מדויקות ללעז לפי התעתיק העברי, עמיד לחילופי כתיב בין דפוסים.
+  List<LaazDictionaryEntry> findLaazMatches(String raw) {
+    final key = _canonicalizeLaazTranslit(_normalizeAramaic(raw));
+    if (key.isEmpty) return const <LaazDictionaryEntry>[];
+
+    return _laazByTranslit[key] ?? const <LaazDictionaryEntry>[];
+  }
+
+  /// מחזיר את התאמות הלעז מקובצות: ערכים עם אותו תעתיק ואותו פירוש
+  /// (ממקורות רש"י שונים) מאוחדים לקבוצה אחת, לפי סדר ההופעה בספר.
+  List<List<LaazDictionaryEntry>> findLaazMatchGroups(String raw) {
+    final groups = <String, List<LaazDictionaryEntry>>{};
+    for (final entry in findLaazMatches(raw)) {
+      final title = entry.laazHebrew.isNotEmpty
+          ? entry.laazHebrew
+          : entry.lemma;
+      final description = entry.meaning.isNotEmpty
+          ? entry.meaning
+          : (entry.note ?? '');
+      final key =
+          '${_normalizeAramaic(title)}|${_normalizeAramaic(description)}';
+      groups.putIfAbsent(key, () => <LaazDictionaryEntry>[]).add(entry);
+    }
+    return groups.values.toList(growable: false);
+  }
+
   Future<void> _loadAcronymsInternal() async {
     final acronyms = await _loadAcronyms();
 
@@ -339,9 +617,29 @@ class DictionaryLookupRepository {
     _aramaicTerms = Set<String>.unmodifiable(aramaicTerms);
   }
 
+  Future<void> _loadLaazInternal() async {
+    final laazEntries = await _loadLaazEntries();
+    final byTranslit = <String, List<LaazDictionaryEntry>>{};
+
+    for (final entry in laazEntries) {
+      final translit = _canonicalizeLaazTranslit(
+        _normalizeAramaic(entry.laazHebrew),
+      );
+      if (translit.isNotEmpty) {
+        byTranslit
+            .putIfAbsent(translit, () => <LaazDictionaryEntry>[])
+            .add(entry);
+      }
+    }
+
+    _laazEntries = List<LaazDictionaryEntry>.unmodifiable(laazEntries);
+    _laazByTranslit = byTranslit;
+  }
+
   static Future<Map<String, List<String>>> _defaultLoadAcronyms() async {
-    final String jsonString =
-        await rootBundle.loadString('assets/Acronyms.json');
+    final String jsonString = await rootBundle.loadString(
+      'assets/Acronyms.json',
+    );
     final jsonData = await compute(_decodeJsonObject, jsonString);
 
     return jsonData.map((key, value) {
@@ -354,9 +652,10 @@ class DictionaryLookupRepository {
   }
 
   static Future<List<AramaicDictionaryEntry>>
-      _defaultLoadAramaicEntries() async {
-    final String jsonString =
-        await rootBundle.loadString('assets/dictionary.json');
+  _defaultLoadAramaicEntries() async {
+    final String jsonString = await rootBundle.loadString(
+      'assets/dictionary.json',
+    );
     final jsonData = await compute(_decodeJsonObject, jsonString);
     final List<dynamic> entries = jsonData['מילון פשיטא'] ?? <dynamic>[];
 
@@ -378,6 +677,13 @@ class DictionaryLookupRepository {
         .toList();
   }
 
+  static Future<List<LaazDictionaryEntry>> _defaultLoadLaazEntries() async {
+    // קריאת ה-DB נשארת ב-main isolate (FFI); רק הפירוק עובר ל-compute.
+    final lines = await loadDictionaryBookLines(laazBookTitle);
+    if (lines.isEmpty) return const <LaazDictionaryEntry>[];
+    return compute(LaazDictionaryEntry.parseLines, lines);
+  }
+
   static Map<String, dynamic> _decodeJsonObject(String jsonString) {
     return jsonDecode(jsonString) as Map<String, dynamic>;
   }
@@ -396,6 +702,17 @@ class DictionaryLookupRepository {
 
   static String _normalizeAramaic(String raw) {
     return _normalizeCommon(_trimDecorations(raw), keepQuotes: false);
+  }
+
+  static const Map<String, String> _laazTranslitAliases = <String, String>{
+    'שוון': 'שבון',
+    'שיון': 'שבון',
+    'רווישטיר': 'ריוישטיר',
+  };
+
+  /// מאחד רק חילופי כתיב שנמצאו בפועל, בלי למזג ראשי תיבות ומילים אחרות.
+  static String _canonicalizeLaazTranslit(String normalized) {
+    return _laazTranslitAliases[normalized] ?? normalized;
   }
 
   static String _normalizeCommon(String raw, {required bool keepQuotes}) {
@@ -450,5 +767,11 @@ class DictionaryLookupRepository {
     _aramaicEntries = <AramaicDictionaryEntry>[];
     _aramaicTerms = <String>{};
     _areAramaicLoaded = false;
+  }
+
+  void _resetLaazCache() {
+    _laazEntries = <LaazDictionaryEntry>[];
+    _laazByTranslit = <String, List<LaazDictionaryEntry>>{};
+    _areLaazLoaded = false;
   }
 }

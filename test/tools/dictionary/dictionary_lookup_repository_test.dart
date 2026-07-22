@@ -18,6 +18,7 @@ void main() {
           AramaicDictionaryEntry(aramaic: 'בר אבא', hebrew: 'בן היער'),
           AramaicDictionaryEntry(aramaic: 'אבוה', hebrew: 'אביו'),
         ],
+        loadLaazEntries: () async => const <LaazDictionaryEntry>[],
       );
     });
 
@@ -135,6 +136,7 @@ void main() {
             hebrew: '{אַבָּא} אב *** {אֲבָא} רוצה',
           ),
         ],
+        loadLaazEntries: () async => const <LaazDictionaryEntry>[],
       );
     });
 
@@ -198,8 +200,9 @@ void main() {
       expect(entries, hasLength(1));
     });
 
-    testWidgets('מציג חיפוש ארמי גם כשמילון ראשי התיבות לא נטען',
-        (tester) async {
+    testWidgets('מציג חיפוש ארמי גם כשמילון ראשי התיבות לא נטען', (
+      tester,
+    ) async {
       await repository.ensureAramaicLoaded();
       await tester.pumpWidget(
         const MaterialApp(
@@ -227,6 +230,7 @@ void main() {
         loadAramaicEntries: () async => const <AramaicDictionaryEntry>[
           AramaicDictionaryEntry(aramaic: 'אבא', hebrew: 'יער'),
         ],
+        loadLaazEntries: () async => const <LaazDictionaryEntry>[],
       );
       await repository.ensureAcronymsLoaded();
       await tester.pumpWidget(
