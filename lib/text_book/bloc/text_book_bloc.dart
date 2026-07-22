@@ -1593,6 +1593,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           trailingEdge: position.itemTrailingEdge,
         ),
       ),
+      isLineRemnant: isRemnantAbovePositionAnchor,
     );
   }
 
