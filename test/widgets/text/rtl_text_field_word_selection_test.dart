@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
 /// בודק בחירה ברמת מילה (Ctrl/Alt+Shift+חץ) ב-[RtlTextField] בכיווניות RTL:
@@ -17,10 +18,7 @@ void main() {
         home: Scaffold(
           body: Directionality(
             textDirection: TextDirection.rtl,
-            child: RtlTextField(
-              controller: controller,
-              focusNode: focusNode,
-            ),
+            child: RtlTextField(controller: controller, focusNode: focusNode),
           ),
         ),
       ),
@@ -31,10 +29,13 @@ void main() {
   }
 
   Future<void> wordSelect(WidgetTester tester, LogicalKeyboardKey arrow) async {
+    final modifier = usesAltForWordNavigation()
+        ? LogicalKeyboardKey.altLeft
+        : LogicalKeyboardKey.controlLeft;
     await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyDownEvent(modifier);
     await tester.sendKeyEvent(arrow);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyUpEvent(modifier);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
     await tester.pump();
   }
@@ -46,7 +47,7 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('Ctrl+Shift+חץ שמאל בוחר מילה לכיוון הסוף (offset עולה)', (
+  testWidgets('קיצור מילה+Shift+שמאל בוחר לכיוון הסוף (offset עולה)', (
     tester,
   ) async {
     final controller = await pumpField(tester);
@@ -64,7 +65,7 @@ void main() {
     expect(controller.selection.extentOffset, 7);
   });
 
-  testWidgets('Ctrl+Shift+חץ ימין מצמצם מילה לכיוון ההתחלה (offset יורד)', (
+  testWidgets('קיצור מילה+Shift+ימין מצמצם לכיוון ההתחלה (offset יורד)', (
     tester,
   ) async {
     final controller = await pumpField(tester);
@@ -113,13 +114,16 @@ void main() {
   });
 
   Future<void> wordMove(WidgetTester tester, LogicalKeyboardKey arrow) async {
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    final modifier = usesAltForWordNavigation()
+        ? LogicalKeyboardKey.altLeft
+        : LogicalKeyboardKey.controlLeft;
+    await tester.sendKeyDownEvent(modifier);
     await tester.sendKeyEvent(arrow);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyUpEvent(modifier);
     await tester.pump();
   }
 
-  testWidgets('Ctrl+חץ שמאל (בלי Shift) מזיז סמן מילה קדימה (offset עולה)', (
+  testWidgets('קיצור מילה+שמאל מזיז סמן קדימה (offset עולה)', (
     tester,
   ) async {
     final controller = await pumpField(tester);
@@ -136,7 +140,7 @@ void main() {
     expect(controller.selection.extentOffset, 7);
   });
 
-  testWidgets('Ctrl+חץ ימין (בלי Shift) מזיז סמן מילה אחורה (offset יורד)', (
+  testWidgets('קיצור מילה+ימין מזיז סמן אחורה (offset יורד)', (
     tester,
   ) async {
     final controller = await pumpField(tester);
@@ -149,7 +153,7 @@ void main() {
     expect(controller.selection.extentOffset, 4);
   });
 
-  testWidgets('Ctrl+חץ עם בחירה קיימת מכווץ אותה וממשיך מילה', (tester) async {
+  testWidgets('קיצור מילה עם בחירה קיימת מכווץ אותה וממשיך', (tester) async {
     final controller = await pumpField(tester);
     controller.selection = const TextSelection(baseOffset: 0, extentOffset: 3);
     await tester.pump();
@@ -158,7 +162,7 @@ void main() {
     expect(
       controller.selection.isCollapsed,
       isTrue,
-      reason: 'Ctrl+חץ בלי Shift חייב לכווץ את הבחירה, לא להרחיבה',
+      reason: 'קיצור מילה בלי Shift חייב לכווץ את הבחירה, לא להרחיבה',
     );
   });
 

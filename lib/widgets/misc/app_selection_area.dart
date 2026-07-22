@@ -33,9 +33,16 @@ class _AppSelectionAreaState extends State<AppSelectionArea> {
 
   @override
   Widget build(BuildContext context) {
+    final platform = Theme.of(context).platform;
+    final useNativeTouchMenu =
+        platform == TargetPlatform.android || platform == TargetPlatform.iOS;
     return RtlSelectionShortcuts(
       child: SelectionArea(
-        contextMenuBuilder: (context, _) => const SizedBox.shrink(),
+        contextMenuBuilder: useNativeTouchMenu
+            ? (context, state) => AdaptiveTextSelectionToolbar.selectableRegion(
+                selectableRegionState: state,
+              )
+            : (context, _) => const SizedBox.shrink(),
         onSelectionChanged: (selection) {
           trackRtlSelection(selection?.plainText);
           // שינוי בחירה זמני בזמן priming (קיצורי RTL) — לא לעבד.
@@ -43,6 +50,7 @@ class _AppSelectionAreaState extends State<AppSelectionArea> {
           _selectedText = selection?.plainText;
         },
         child: AppContextMenuRegion(
+          openOnLongPress: !useNativeTouchMenu,
           // לחיצה ימנית על הטקסט המסומן לא תשחרר את הבחירה (ברירת המחדל של
           // SelectableRegion ב-Windows); לחיצה מחוץ לבחירה מבטלת כרגיל.
           shouldPreserveSelectionOnSecondaryTap: (globalPosition) {

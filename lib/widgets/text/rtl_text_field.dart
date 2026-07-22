@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 
 /// TextField מותאם אישית עם תמיכה מלאה ב-RTL
 ///
@@ -205,7 +206,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
     if (isRtl) {
       // רמת מילה: Ctrl ב-Windows/Linux, Alt ב-macOS/iOS — תואם למיפוי
       // הפלטפורמה של Flutter (ב-Windows/Linux Alt+חץ שמור לקפיצת שורה).
-      final bool wordByAlt = Platform.isMacOS || Platform.isIOS;
+      final wordByAlt = usesAltForWordNavigation();
       textField = CallbackShortcuts(
         bindings: {
           // חיצים רגילים (ללא Shift)
@@ -327,18 +328,8 @@ class _RtlTextFieldState extends State<RtlTextField> {
 
     if (hasSelection) {
       menuItems.addAll([
-        _buildMenuItem(
-          context,
-          'cut',
-          'גזור',
-          FluentIcons.cut_24_regular,
-        ),
-        _buildMenuItem(
-          context,
-          'copy',
-          'העתק',
-          FluentIcons.copy_24_regular,
-        ),
+        _buildMenuItem(context, 'cut', 'גזור', FluentIcons.cut_24_regular),
+        _buildMenuItem(context, 'copy', 'העתק', FluentIcons.copy_24_regular),
       ]);
     }
 
@@ -371,9 +362,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
       ),
       items: menuItems,
       elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: AppTokens.borderRadiusAll,
-      ),
+      shape: RoundedRectangleBorder(borderRadius: AppTokens.borderRadiusAll),
       color: Theme.of(context).colorScheme.surface,
     ).then((value) async {
       if (value == null) return;

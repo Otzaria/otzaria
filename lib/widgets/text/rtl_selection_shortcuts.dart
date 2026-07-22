@@ -7,6 +7,15 @@ import 'package:flutter/widgets.dart';
 /// (שמירת טקסט/סנכרון/prefetch). מטפלי הבחירה בודקים אותו ויוצאים מוקדם.
 bool rtlSelectionPriming = false;
 
+/// האם ניווט ברמת מילה משתמש ב-Alt בפלטפורמה הנתונה.
+///
+/// macOS ו-iOS משתמשות ב-Alt; שאר הפלטפורמות משתמשות ב-Ctrl.
+bool usesAltForWordNavigation([TargetPlatform? platform]) {
+  final resolvedPlatform = platform ?? defaultTargetPlatform;
+  return resolvedPlatform == TargetPlatform.macOS ||
+      resolvedPlatform == TargetPlatform.iOS;
+}
+
 // --- מעקב כיוון גרירת הבחירה (לזיהוי קצה ה-focus) ---
 // `selectionEndpoints` הציבורי ממיין לפי Y, ולכן בבחירה רב-שורתית אי אפשר
 // לדעת מתוכו מי ה-base ומי ה-extent (כיוון הגרירה). לכן עוקבים אחר היסטוריית
@@ -157,14 +166,15 @@ class RtlSelectionShortcuts extends StatelessWidget {
         ),
       };
 
-  static final Map<ShortcutActivator, Intent> _shortcuts =
-      <ShortcutActivator, Intent>{
-        ..._charShortcuts,
-        ...(defaultTargetPlatform == TargetPlatform.macOS ||
-                defaultTargetPlatform == TargetPlatform.iOS
-            ? _altWordShortcuts
-            : _ctrlWordShortcuts),
-      };
+  static final Map<ShortcutActivator, Intent> _ctrlPlatformShortcuts = {
+    ..._charShortcuts,
+    ..._ctrlWordShortcuts,
+  };
+
+  static final Map<ShortcutActivator, Intent> _altPlatformShortcuts = {
+    ..._charShortcuts,
+    ..._altWordShortcuts,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -175,7 +185,9 @@ class RtlSelectionShortcuts extends StatelessWidget {
       return child;
     }
     return Shortcuts(
-      shortcuts: _shortcuts,
+      shortcuts: usesAltForWordNavigation()
+          ? _altPlatformShortcuts
+          : _ctrlPlatformShortcuts,
       child: Actions(
         actions: <Type, Action<Intent>>{
           _PhysicalExtendSelectionIntent: _PhysicalExtendSelectionAction(),

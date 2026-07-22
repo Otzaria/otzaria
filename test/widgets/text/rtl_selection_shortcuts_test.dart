@@ -241,7 +241,7 @@ void main() {
     expect(outerFired, isTrue, reason: 'יעד LTR אינו אמור לקבל לוגיקת RTL');
   });
 
-  group('Ctrl+חץ בלי Shift — הזזת סמן מילה', () {
+  group('Ctrl/Alt+חץ בלי Shift — הזזת סמן מילה', () {
     Future<TextEditingController> pumpField(
       WidgetTester tester, {
       required String text,
@@ -269,14 +269,17 @@ void main() {
       return controller;
     }
 
-    Future<void> ctrlPress(WidgetTester tester, LogicalKeyboardKey k) async {
-      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    Future<void> wordPress(WidgetTester tester, LogicalKeyboardKey k) async {
+      final modifier = usesAltForWordNavigation()
+          ? LogicalKeyboardKey.altLeft
+          : LogicalKeyboardKey.controlLeft;
+      await tester.sendKeyDownEvent(modifier);
       await tester.sendKeyEvent(k);
-      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyUpEvent(modifier);
       await tester.pumpAndSettle();
     }
 
-    testWidgets('Ctrl+שמאל מזיז את הסמן קדימה (ויזואלית שמאלה) ב-RTL', (
+    testWidgets('קיצור מילה+שמאל מזיז את הסמן קדימה ב-RTL', (
       tester,
     ) async {
       final controller = await pumpField(
@@ -284,16 +287,16 @@ void main() {
         text: 'אבג דהו זחט',
         cursorAt: 0,
       );
-      await ctrlPress(tester, LogicalKeyboardKey.arrowLeft);
+      await wordPress(tester, LogicalKeyboardKey.arrowLeft);
       expect(controller.selection.isCollapsed, isTrue);
       expect(
         controller.selection.baseOffset,
         greaterThan(0),
-        reason: 'Ctrl+שמאל ב-RTL חייב להתקדם במחרוזת, לא להישאר בהתחלה',
+        reason: 'קיצור מילה+שמאל חייב להתקדם במחרוזת, לא להישאר בהתחלה',
       );
     });
 
-    testWidgets('Ctrl+ימין מזיז את הסמן אחורה (ויזואלית ימינה) ב-RTL', (
+    testWidgets('קיצור מילה+ימין מזיז את הסמן אחורה ב-RTL', (
       tester,
     ) async {
       const text = 'אבג דהו זחט';
@@ -302,26 +305,26 @@ void main() {
         text: text,
         cursorAt: text.length,
       );
-      await ctrlPress(tester, LogicalKeyboardKey.arrowRight);
+      await wordPress(tester, LogicalKeyboardKey.arrowRight);
       expect(controller.selection.isCollapsed, isTrue);
       expect(
         controller.selection.baseOffset,
         lessThan(text.length),
-        reason: 'Ctrl+ימין ב-RTL חייב לחזור אחורה במחרוזת, לא להישאר בסוף',
+        reason: 'קיצור מילה+ימין חייב לחזור אחורה במחרוזת, לא להישאר בסוף',
       );
     });
 
-    testWidgets('SelectableRegion: Ctrl+ימין מקצר מילה מה-focus, שומר anchor', (
+    testWidgets('SelectableRegion: קיצור מילה מקצר מה-focus ושומר anchor', (
       tester,
     ) async {
       const text = 'אבג דהו זחט';
       await pumpRegion(tester, text: text, width: 600);
-      await ctrlPress(tester, LogicalKeyboardKey.arrowRight);
+      await wordPress(tester, LogicalKeyboardKey.arrowRight);
       expect(sel, isNotNull);
       expect(
         sel,
         isNot(equals(text)),
-        reason: 'Ctrl+ימין אמור לקצר את הבחירה ברמת מילה',
+        reason: 'קיצור מילה אמור לקצר את הבחירה ברמת מילה',
       );
       expect(
         text.startsWith(sel!),
@@ -329,6 +332,15 @@ void main() {
         reason: 'הקיצור חייב להיות מקצה ה-focus (הסוף), לא מה-anchor',
       );
     });
+  });
+
+  test('בחירת מקש הקיצור למילה תואמת את מוסכמות הפלטפורמה', () {
+    expect(usesAltForWordNavigation(TargetPlatform.macOS), isTrue);
+    expect(usesAltForWordNavigation(TargetPlatform.iOS), isTrue);
+    expect(usesAltForWordNavigation(TargetPlatform.windows), isFalse);
+    expect(usesAltForWordNavigation(TargetPlatform.linux), isFalse);
+    expect(usesAltForWordNavigation(TargetPlatform.android), isFalse);
+    expect(usesAltForWordNavigation(TargetPlatform.fuchsia), isFalse);
   });
 
   group('trackRtlSelection — הסקת כיוון הגרירה', () {

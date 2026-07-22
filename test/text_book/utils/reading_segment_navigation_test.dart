@@ -73,6 +73,17 @@ void main() {
       await scrollFuture;
 
       expect(tester.takeException(), isNull);
+      final position = positionsListener.itemPositions.value.singleWhere(
+        (item) => item.index == 0,
+      );
+      final targetEdge =
+          position.itemLeadingEdge +
+          0.5 * (position.itemTrailingEdge - position.itemLeadingEdge);
+      expect(
+        targetEdge,
+        closeTo(kReadingAnchorAlignment, kAnchorLandingEpsilon),
+        reason: 'היעד בתוך הסגמנט חייב לנחות על קו העוגן',
+      );
     },
   );
 
