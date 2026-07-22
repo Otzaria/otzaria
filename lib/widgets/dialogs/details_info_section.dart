@@ -12,7 +12,7 @@ class DetailsInfoSection extends StatelessWidget {
   /// התווית המודגשת שמופיעה לפני הערך.
   final String title;
 
-  /// הערך המלא שניתן לבחירה ולהעתקה.
+  /// הערך המלא. הבחירה וההעתקה מסופקות ע"י AppSelectionArea שעוטף את הדיאלוג.
   final String value;
 
   /// כיוון הערך, כאשר הוא שונה מכיוון הממשק.
@@ -30,7 +30,7 @@ class DetailsInfoSection extends StatelessWidget {
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
-          SelectableText(
+          Text(
             value,
             style: const TextStyle(fontSize: 14),
             textDirection: valueDirection,

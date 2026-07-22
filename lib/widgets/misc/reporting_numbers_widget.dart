@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/widgets/misc/app_selection_area.dart';
 
 /// Widget that displays reporting numbers with copy functionality
 class ReportingNumbersWidget extends StatelessWidget {
@@ -38,8 +39,8 @@ class ReportingNumbersWidget extends StatelessWidget {
             Text(
               'נתוני הדיווח:',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 12),
 
@@ -106,8 +107,8 @@ class ReportingNumbersWidget extends StatelessWidget {
           Text(
             '$label: $value',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: enabled ? null : Theme.of(context).disabledColor,
-                ),
+              color: enabled ? null : Theme.of(context).disabledColor,
+            ),
           ),
           const SizedBox(width: 6),
           InkWell(
@@ -141,8 +142,8 @@ class ReportingNumbersWidget extends StatelessWidget {
             Text(
               'קו אוצריא:',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                fontWeight: FontWeight.bold,
+              ),
             ),
 
             // 2. Spacer שתופס את כל המקום הפנוי ודוחף את שאר הווידג'טים שמאלה
@@ -155,10 +156,9 @@ class ReportingNumbersWidget extends StatelessWidget {
                 color: Theme.of(context).colorScheme.primaryContainer,
                 borderRadius: AppTokens.borderRadiusAll,
                 border: Border.all(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .primary
-                      .withValues(alpha: 0.3),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.3),
                   width: 1.5,
                 ),
               ),
@@ -168,24 +168,26 @@ class ReportingNumbersWidget extends StatelessWidget {
                       child: Text(
                         _phoneNumber,
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onPrimaryContainer,
-                              decoration: TextDecoration.underline,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onPrimaryContainer,
+                          decoration: TextDecoration.underline,
+                          fontWeight: FontWeight.bold,
+                        ),
                         textDirection: TextDirection.ltr,
                       ),
                     )
-                  : SelectableText(
-                      _phoneNumber,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onPrimaryContainer,
-                            fontWeight: FontWeight.bold,
-                          ),
-                      textDirection: TextDirection.ltr,
+                  : AppSelectionArea(
+                      child: Text(
+                        _phoneNumber,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textDirection: TextDirection.ltr,
+                      ),
                     ),
             ),
             const SizedBox(width: 8),
@@ -216,9 +218,9 @@ class ReportingNumbersWidget extends StatelessWidget {
         Text(
           'לפירוט נוסף, השאר הקלטה ברורה!',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontStyle: FontStyle.italic,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+            fontStyle: FontStyle.italic,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );
