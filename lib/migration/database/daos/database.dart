@@ -35,6 +35,10 @@ class MyDatabase {
   /// האם החיבור נפתח במצב read-only.
   bool get isReadOnly => _readOnly;
 
+  /// נתיב קובץ ה-DB. חיבור sqlite שייך ל-isolate שפתח אותו, ולכן isolate
+  /// שמבצע סריקה כבדה חייב את הנתיב כדי לפתוח חיבור read-only משלו.
+  String get path => _path;
+
   // (no platform initialization required – sqlite3 handles all platforms natively)
 
   // DAOs
