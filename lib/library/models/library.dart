@@ -113,14 +113,15 @@ class Library extends Category {
   /// The [categories] parameter is a list of categories that are contained in
   /// this library.
   Library({required List<Category> categories})
-      : super(
-            title: 'ספריית אוצריא',
-            description: '',
-            shortDescription: '',
-            order: 0,
-            subCategories: categories,
-            books: [],
-            parent: null) {
+    : super(
+        title: 'ספריית אוצריא',
+        description: '',
+        shortDescription: '',
+        order: 0,
+        subCategories: categories,
+        books: [],
+        parent: null,
+      ) {
     parent = this;
   }
 
@@ -158,7 +159,8 @@ class Library extends Category {
         return allBooks.firstWhere((book) => book.title == title);
       }
       return allBooks.firstWhere(
-          (book) => book.title == title && book.runtimeType == type);
+        (book) => book.title == title && book.runtimeType == type,
+      );
     } catch (e) {
       return null;
     }
@@ -173,9 +175,11 @@ class Library extends Category {
     // 1. חיפוש באותה קטגוריה בדיוק:
     if (book.category != null) {
       final companions = book.category!.books
-          .where((b) =>
-              _normalizeTitle(b.title) == normalizedTitle &&
-              b.runtimeType == companionType)
+          .where(
+            (b) =>
+                _normalizeTitle(b.title) == normalizedTitle &&
+                b.runtimeType == companionType,
+          )
           .take(2)
           .toList();
 
@@ -186,17 +190,21 @@ class Library extends Category {
 
     // 2. חיפוש גלובלי (מאפשר התאמה לפי נרמול הכותרת כפי שמקובל):
     final candidates = getAllBooks()
-        .where((b) =>
-            b.runtimeType == companionType &&
-            _normalizeTitle(b.title) == normalizedTitle)
+        .where(
+          (b) =>
+              b.runtimeType == companionType &&
+              _normalizeTitle(b.title) == normalizedTitle,
+        )
         .toList();
 
     // סינון התנגשויות ידועות (ירושלמי <-> בבלי)
     final filtered = candidates.where((candidate) {
-      final bookCat = book.categoryPath ??
+      final bookCat =
+          book.categoryPath ??
           book.heCategories ??
           (book is FileBook ? book.path : '');
-      final candCat = candidate.categoryPath ??
+      final candCat =
+          candidate.categoryPath ??
           candidate.heCategories ??
           (candidate is FileBook ? candidate.path : '');
 
@@ -227,7 +235,8 @@ class Library extends Category {
         return allBooks.firstWhere((book) => book.title == title);
       }
       return allBooks.firstWhere(
-          (book) => book.title == title && book.runtimeType == type);
+        (book) => book.title == title && book.runtimeType == type,
+      );
     } catch (e) {
       // לא נמצא - ממשיכים לחיפוש גמיש
     }
@@ -262,16 +271,18 @@ class Library extends Category {
     return ' $haystack '.contains(' $needle ');
   }
 
-  /// מנרמל כותרת לצורך השוואה
-  String _normalizeTitle(String title) {
-    return title
-        .trim()
-        .replaceAll(RegExp(r'\s+'), ' ') // רווחים מרובים לרווח אחד
-        .replaceAll('"', '')
-        .replaceAll("'", '')
-        .replaceAll('״', '')
-        .replaceAll('׳', '')
-        .replaceAll('<', '')
-        .replaceAll('>', '');
-  }
+  String _normalizeTitle(String title) => normalizeBookTitle(title);
+}
+
+/// מנרמל כותרת ספר להשוואה: רווחים עודפים, גרשיים וסוגריים משולשים.
+String normalizeBookTitle(String title) {
+  return title
+      .trim()
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .replaceAll('"', '')
+      .replaceAll("'", '')
+      .replaceAll('״', '')
+      .replaceAll('׳', '')
+      .replaceAll('<', '')
+      .replaceAll('>', '');
 }

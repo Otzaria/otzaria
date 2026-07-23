@@ -1,14 +1,20 @@
+import 'package:flutter/widgets.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/resolving_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/file/page_converter.dart';
 
@@ -182,4 +188,58 @@ Future<OpenedTab> buildLinkTargetTab(Link link) async {
       requiresStableLayout: true,
     ),
   );
+}
+
+/// כותרות מנורמלות של מהדורות הטקסט הרשמיות של מסכתות הבבלי — הקלט של
+/// [isTalmudBavliPdfLibraryDuplicate]; ספר אישי אינו מייצג את ה-PDF המובנה.
+Set<String> talmudBavliTextTitles(Category library) => {
+  for (final book in library.getAllBooks())
+    if (book is TextBook && !book.isUserBook && isTalmudBavliBook(book))
+      normalizeBookTitle(book.title),
+};
+
+/// האם [book] הוא כפילות-תצוגה בספרייה: PDF נלווה של מסכת בבלי שקיימת לה
+/// מהדורת טקסט ב-[textTitles] — המסכת מוצגת פעם אחת, והפתיחה לפי ההגדרה.
+bool isTalmudBavliPdfLibraryDuplicate(Book book, Set<String> textTitles) =>
+    book is PdfBook &&
+    !book.isUserBook &&
+    book.externalLibraryId == null &&
+    textTitles.contains(normalizeBookTitle(book.title)) &&
+    isTalmudBavliBook(book);
+
+/// פתיחת ספר ממסך הספרייה בהתאם להגדרת פורמט הבבלי: מסכת טקסט נפתחת
+/// במהדורת ה-PDF כשההגדרה היא PDF. מחזיר true אם הפתיחה טופלה כאן.
+Future<bool> openLibraryBookPerTalmudBavliFormat(
+  BuildContext context,
+  Book book,
+  int index,
+) async {
+  if (book is! TextBook) return false;
+  final coordinator = BookOpenCoordinator(
+    tabsBloc: context.read<TabsBloc>(),
+    historyBloc: context.read<HistoryBloc>(),
+    navigationBloc: context.read<NavigationBloc>(),
+  );
+  final target = await resolveTalmudBavliPdfBook(book);
+  if (target == null) return false;
+  if (index <= 0) {
+    // אין מיקום מפורש — פתיחה רגילה של ה-PDF, כולל שחזור מיקום מההיסטוריה.
+    coordinator.openBook(target.pdfBook, 1, '');
+    return true;
+  }
+  coordinator.openTab(
+    buildTalmudBavliResolvingTab(
+      target: target,
+      textIndex: index,
+      buildTextTab: (key) =>
+          coordinator.buildTab(target.textBook, index, '', dedupeKey: key),
+      buildPdfTab: (page, key) => PdfBookTab(
+        book: target.pdfBook,
+        pageNumber: page,
+        dedupeKey: key,
+        requiresStableLayout: true,
+      ),
+    ),
+  );
+  return true;
 }

@@ -81,10 +81,21 @@ class DesignSettingsTab extends StatelessWidget {
     SettingsSearchEntry(
       id: 'design.pdf.talmud_bavli_format',
       title: 'פורמט פתיחת תלמוד בבלי',
-      subtitle: 'פתיחת מסכתות הבבלי בטקסט או ב-PDF (צורת הדף)',
+      subtitle:
+          'פתיחת מסכתות הבבלי בטקסט או ב-PDF, '
+          'מהספרייה ומכל מקום אחר',
       tab: SettingsTab.design,
       cardId: 'design.pdf',
-      keywords: ['תלמוד', 'בבלי', 'גמרא', 'צורת הדף', 'pdf', 'טקסט', 'מסכת'],
+      keywords: [
+        'תלמוד',
+        'בבלי',
+        'גמרא',
+        'צורת הדף',
+        'pdf',
+        'טקסט',
+        'מסכת',
+        'ספרייה',
+      ],
     ),
     SettingsSearchEntry(
       id: 'design.layout.sidebar_mode',
@@ -174,43 +185,44 @@ class DesignSettingsTab extends StatelessWidget {
                       currentValue: state.followSystemTheme
                           ? _ThemeMode.system
                           : state.isDarkMode
-                              ? _ThemeMode.dark
-                              : _ThemeMode.light,
+                          ? _ThemeMode.dark
+                          : _ThemeMode.light,
                       onChanged: (mode) {
                         if (mode == _ThemeMode.system) {
-                          context
-                              .read<SettingsBloc>()
-                              .add(UpdateFollowSystemTheme(true));
+                          context.read<SettingsBloc>().add(
+                            UpdateFollowSystemTheme(true),
+                          );
                         } else {
-                          context
-                              .read<SettingsBloc>()
-                              .add(UpdateFollowSystemTheme(false));
-                          context
-                              .read<SettingsBloc>()
-                              .add(UpdateDarkMode(mode == _ThemeMode.dark));
+                          context.read<SettingsBloc>().add(
+                            UpdateFollowSystemTheme(false),
+                          );
+                          context.read<SettingsBloc>().add(
+                            UpdateDarkMode(mode == _ThemeMode.dark),
+                          );
                         }
                       },
                     ),
                     ColorPickerTile(
                       key: ValueKey(
-                          'color-picker-${Theme.of(context).brightness == Brightness.dark ? 'dark' : 'light'}'),
+                        'color-picker-${Theme.of(context).brightness == Brightness.dark ? 'dark' : 'light'}',
+                      ),
                       currentColor:
                           Theme.of(context).brightness == Brightness.dark
-                              ? state.darkSeedColor
-                              : state.seedColor,
+                          ? state.darkSeedColor
+                          : state.seedColor,
                       defaultColor:
                           Theme.of(context).brightness == Brightness.dark
-                              ? AppSeedColors.defaultDark
-                              : AppSeedColors.defaultLight,
+                          ? AppSeedColors.defaultDark
+                          : AppSeedColors.defaultLight,
                       onChanged: (color) {
                         if (Theme.of(context).brightness == Brightness.dark) {
-                          context
-                              .read<SettingsBloc>()
-                              .add(UpdateDarkSeedColor(color));
+                          context.read<SettingsBloc>().add(
+                            UpdateDarkSeedColor(color),
+                          );
                         } else {
-                          context
-                              .read<SettingsBloc>()
-                              .add(UpdateSeedColor(color));
+                          context.read<SettingsBloc>().add(
+                            UpdateSeedColor(color),
+                          );
                         }
                       },
                     ),
@@ -242,9 +254,9 @@ class DesignSettingsTab extends StatelessWidget {
                         ],
                         currentValue: state.compactMenuMode,
                         onChanged: (value) {
-                          context
-                              .read<SettingsBloc>()
-                              .add(UpdateCompactMenuMode(value));
+                          context.read<SettingsBloc>().add(
+                            UpdateCompactMenuMode(value),
+                          );
                         },
                       ),
                     ],
@@ -261,16 +273,16 @@ class DesignSettingsTab extends StatelessWidget {
                       title: 'תצוגת ספר בPDF',
                       subtitle: state.enablePerBookSettings
                           ? state.pdfBookViewByDefault
-                              ? 'ספרי PDF ייפתחו בתצוגת ספר'
-                              : 'ספרי PDF ייפתחו בתצוגה רגילה'
+                                ? 'ספרי PDF ייפתחו בתצוגת ספר'
+                                : 'ספרי PDF ייפתחו בתצוגה רגילה'
                           : state.pdfBookViewByDefault
-                              ? 'כל ספרי ה-PDF ייפתחו בתצוגת ספר'
-                              : 'כל ספרי ה-PDF ייפתחו בתצוגה רגילה',
+                          ? 'כל ספרי ה-PDF ייפתחו בתצוגת ספר'
+                          : 'כל ספרי ה-PDF ייפתחו בתצוגה רגילה',
                       value: state.pdfBookViewByDefault,
                       onChanged: (value) {
-                        context
-                            .read<SettingsBloc>()
-                            .add(UpdatePdfBookViewByDefault(value));
+                        context.read<SettingsBloc>().add(
+                          UpdatePdfBookViewByDefault(value),
+                        );
                       },
                     ),
                     SettingsActionTile.segmentedTile<String>(
@@ -280,21 +292,24 @@ class DesignSettingsTab extends StatelessWidget {
                         SegmentOption(
                           value: 'text',
                           label: 'טקסט',
-                          subtitle: 'מסכתות הבבלי ייפתחו במהדורת הטקסט '
-                              '(מתוצאות חיפוש, מאיתור מקורות, ומקישורים)',
+                          subtitle:
+                              'מסכתות הבבלי ייפתחו במהדורת הטקסט '
+                              '(מהספרייה, מתוצאות חיפוש, מאיתור מקורות '
+                              'ומקישורים)',
                         ),
                         SegmentOption(
                           value: 'pdf',
                           label: 'PDF',
-                          subtitle: 'מסכתות הבבלי ייפתחו במהדורת ה-PDF '
-                              '(צורת הדף) בדף המתאים',
+                          subtitle:
+                              'מסכתות הבבלי ייפתחו במהדורת ה-PDF '
+                              'בדף המתאים, גם בפתיחה מהספרייה',
                         ),
                       ],
                       currentValue: state.talmudBavliOpenFormat,
                       onChanged: (value) {
-                        context
-                            .read<SettingsBloc>()
-                            .add(UpdateTalmudBavliOpenFormat(value));
+                        context.read<SettingsBloc>().add(
+                          UpdateTalmudBavliOpenFormat(value),
+                        );
                       },
                     ),
                   ],
@@ -330,30 +345,30 @@ class DesignSettingsTab extends StatelessWidget {
                       currentValue: state.pinSidebar
                           ? _SidebarMode.pinned
                           : state.defaultSidebarOpen
-                              ? _SidebarMode.openOnBook
-                              : _SidebarMode.closed,
+                          ? _SidebarMode.openOnBook
+                          : _SidebarMode.closed,
                       onChanged: (mode) {
                         if (mode == _SidebarMode.pinned) {
-                          context
-                              .read<SettingsBloc>()
-                              .add(UpdatePinSidebar(true));
-                          context
-                              .read<SettingsBloc>()
-                              .add(const UpdateDefaultSidebarOpen(true));
+                          context.read<SettingsBloc>().add(
+                            UpdatePinSidebar(true),
+                          );
+                          context.read<SettingsBloc>().add(
+                            const UpdateDefaultSidebarOpen(true),
+                          );
                         } else if (mode == _SidebarMode.openOnBook) {
-                          context
-                              .read<SettingsBloc>()
-                              .add(UpdatePinSidebar(false));
-                          context
-                              .read<SettingsBloc>()
-                              .add(const UpdateDefaultSidebarOpen(true));
+                          context.read<SettingsBloc>().add(
+                            UpdatePinSidebar(false),
+                          );
+                          context.read<SettingsBloc>().add(
+                            const UpdateDefaultSidebarOpen(true),
+                          );
                         } else {
-                          context
-                              .read<SettingsBloc>()
-                              .add(UpdatePinSidebar(false));
-                          context
-                              .read<SettingsBloc>()
-                              .add(const UpdateDefaultSidebarOpen(false));
+                          context.read<SettingsBloc>().add(
+                            UpdatePinSidebar(false),
+                          );
+                          context.read<SettingsBloc>().add(
+                            const UpdateDefaultSidebarOpen(false),
+                          );
                         }
                       },
                     ),
@@ -362,13 +377,13 @@ class DesignSettingsTab extends StatelessWidget {
                       title: 'פתיחת פאנל המפרשים בפתיחת ספר',
                       subtitle: state.defaultCommentaryOpen
                           ? 'פאנל המפרשים ייפתח אוטומטית כשיש מפרשים נבחרים '
-                              '(מפרשים בצד ו-PDF בלבד)'
+                                '(מפרשים בצד ו-PDF בלבד)'
                           : 'פאנל המפרשים לא ייפתח אוטומטית בפתיחת ספר',
                       value: state.defaultCommentaryOpen,
                       onChanged: (value) {
-                        context
-                            .read<SettingsBloc>()
-                            .add(UpdateDefaultCommentaryOpen(value));
+                        context.read<SettingsBloc>().add(
+                          UpdateDefaultCommentaryOpen(value),
+                        );
                       },
                     ),
                     SettingsActionTile.switchTile(
@@ -378,9 +393,9 @@ class DesignSettingsTab extends StatelessWidget {
                           : 'רשימות ההערות יוצגו כשהן פתוחות',
                       value: state.personalNotesCollapsedByDefault,
                       onChanged: (value) {
-                        context
-                            .read<SettingsBloc>()
-                            .add(UpdatePersonalNotesCollapsedByDefault(value));
+                        context.read<SettingsBloc>().add(
+                          UpdatePersonalNotesCollapsedByDefault(value),
+                        );
                       },
                     ),
                     StatefulBuilder(
@@ -396,7 +411,9 @@ class DesignSettingsTab extends StatelessWidget {
                           onChanged: (value) {
                             setState(() {
                               Settings.setValue<bool>(
-                                  'key-splited-view', value);
+                                'key-splited-view',
+                                value,
+                              );
                               final settingsBloc = context.read<SettingsBloc>();
                               PerBookSettings.cleanupRedundantSettings(
                                 defaultFontSize: settingsBloc.state.fontSize,
@@ -406,7 +423,8 @@ class DesignSettingsTab extends StatelessWidget {
                                     settingsBloc.state.defaultRemovePunctuation,
                                 defaultShowSplitView: value,
                                 defaultContinuousReadingMode: settingsBloc
-                                    .state.defaultContinuousReadingMode,
+                                    .state
+                                    .defaultContinuousReadingMode,
                               );
                             });
                           },
