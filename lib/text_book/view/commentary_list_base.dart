@@ -34,6 +34,7 @@ import 'package:otzaria/utils/ui/context_menu_utils.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/feedback/app_future_builder.dart';
+import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:otzaria/services/commentary_service.dart';
@@ -1729,7 +1730,13 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                                       _onListSelectionChanged(
                                         selection?.plainText,
                                       ),
-                                  child: listView,
+                                  child: ScrollablePositionedListScrollbar(
+                                    scrollController: _itemScrollController,
+                                    itemPositionsListener:
+                                        _itemPositionsListener,
+                                    itemCount: groups.length,
+                                    child: listView,
+                                  ),
                                 ),
                               ),
                             );
