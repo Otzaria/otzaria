@@ -61,3 +61,4 @@ https://github.com/YairDaniel11/otzaria-zim-plugin/releases/download/v0.5.0/milo
 https://github.com/YairDaniel11/otzaria-zim-plugin/releases/download/v0.5.0/wikisugya.zim
 https://github.com/YairDaniel11/otzaria-zim-plugin/releases/download/v0.5.0/wikishiva.zim
 https://github.com/YairDaniel11/otzaria-zim-plugin/releases/download/v0.5.0/otzaria-wiki.zim
+https://github.com/YairDaniel11/otzaria-zim-plugin/releases/download/v0.5.0/otzar-hasfarim.zim
