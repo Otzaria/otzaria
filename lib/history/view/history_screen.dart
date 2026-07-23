@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/search/search_query_builder.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/widgets/dialogs/reusable_items_dialog.dart';
@@ -25,6 +26,38 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/widgets/lists/items_list_view.dart';
+
+/// משחזר אפשרויות חיפוש שההיסטוריה שומרת תמיד פר-מילה. אפשרויות אחידות
+/// מוחזרות למצב הגלובלי — אחרת הצ'יפים בדיאלוג העריכה מוצגים כבויים למרות
+/// שהחיפוש עצמו רץ איתן.
+void _restoreSearchOptions({
+  required Map<String, Map<String, bool>>? saved,
+  required Map<String, Map<String, bool>> perWord,
+  required Map<String, bool> global,
+  required ValueNotifier<bool> useGlobal,
+}) {
+  perWord.clear();
+  global.clear();
+  final savedOptions = saved ?? const <String, Map<String, bool>>{};
+  final uniform = SearchQueryBuilder.globalOptionsFromPerWord(savedOptions);
+  if (uniform != null) {
+    global.addAll(uniform);
+    useGlobal.value = true;
+  } else {
+    perWord.addAll(savedOptions);
+    useGlobal.value = false;
+  }
+}
+
+/// חיווי הגדרות החיפוש הכלליות (מ-[Bookmark.searchConfiguration]) לתצוגה
+/// בכותרת המשנה של פריט היסטוריה. null כשאין הגדרות לא-ברירתיות או בפריט ישן.
+String? _searchSettingsLabel(Map<String, dynamic>? config) {
+  if (config == null) return null;
+  final label = formatGeneralSearchSettings(
+    SearchConfiguration.fromMap(config),
+  );
+  return label.isEmpty ? null : label;
+}
 
 class HistoryDialog extends StatelessWidget {
   const HistoryDialog({super.key});
@@ -109,12 +142,14 @@ class _HistoryViewState extends State<HistoryView> {
         return PdfCommentatorsTab(sourceTab: sourceTab);
       }
 
-      final sourceTab = OpenedTab.fromBook(
-        bookmark.book,
-        bookmark.index,
-        commentators: bookmark.commentatorsToShow,
-        openLeftPane: shouldAutoOpenReadingLeftPane(),
-      ) as TextBookTab;
+      final sourceTab =
+          OpenedTab.fromBook(
+                bookmark.book,
+                bookmark.index,
+                commentators: bookmark.commentatorsToShow,
+                openLeftPane: shouldAutoOpenReadingLeftPane(),
+              )
+              as TextBookTab;
       return CommentatorsTab(sourceTab: sourceTab);
     }
 
@@ -134,8 +169,8 @@ class _HistoryViewState extends State<HistoryView> {
     final tab = _buildTabForHistoryItem(bookmark);
 
     context.read<TabsBloc>().add(
-          OpenOrFocusTab(tab, targetTitle: targetTitle),
-        );
+      OpenOrFocusTab(tab, targetTitle: targetTitle),
+    );
     context.read<NavigationBloc>().add(const NavigateToScreen(Screen.reading));
     // Close the dialog if this view is displayed inside one
     if (Navigator.of(context).canPop()) {
@@ -172,16 +207,19 @@ class _HistoryViewState extends State<HistoryView> {
         }
 
         final workspaceNames = _workspaceNames(state.history);
-        final effectiveSelectedWorkspace =
-            _effectiveSelectedWorkspace(workspaceNames);
+        final effectiveSelectedWorkspace = _effectiveSelectedWorkspace(
+          workspaceNames,
+        );
         final runKeys = _getRunKeys(state.history);
 
         return Column(
           children: [
             if (workspaceNames.length > 1)
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8.0,
+                  vertical: 4.0,
+                ),
                 child: Align(
                   alignment: AlignmentDirectional.centerEnd,
                   child: Wrap(
@@ -194,8 +232,9 @@ class _HistoryViewState extends State<HistoryView> {
                           name,
                           style: TextStyle(
                             fontSize: 12,
-                            color:
-                                selected ? cs.onPrimary : cs.onSurfaceVariant,
+                            color: selected
+                                ? cs.onPrimary
+                                : cs.onSurfaceVariant,
                           ),
                         ),
                         selected: selected,
@@ -210,7 +249,9 @@ class _HistoryViewState extends State<HistoryView> {
                         checkmarkColor: cs.onPrimary,
                         side: BorderSide.none,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 0),
+                          horizontal: 6,
+                          vertical: 0,
+                        ),
                       );
                     }).toList(),
                   ),
@@ -223,7 +264,7 @@ class _HistoryViewState extends State<HistoryView> {
                 additionalFilter: effectiveSelectedWorkspace == null
                     ? null
                     : (item) =>
-                        item.workspaceName == effectiveSelectedWorkspace,
+                          item.workspaceName == effectiveSelectedWorkspace,
                 groupKeyBuilder: (item) => runKeys[item] ?? '',
                 groupTitleBuilder: (item) => item.workspaceName as String?,
                 searchKeyBuilder: (item) {
@@ -236,73 +277,100 @@ class _HistoryViewState extends State<HistoryView> {
                   if (item.isSearch) {
                     final tabsBloc = ctx.read<TabsBloc>();
                     final searchMode = item.searchMode ?? SearchMode.advanced;
-                    final scopeFacets = (item.searchScopeFacets != null &&
+                    final scopeFacets =
+                        (item.searchScopeFacets != null &&
                             item.searchScopeFacets!.isNotEmpty)
                         ? List<String>.from(item.searchScopeFacets!)
                         : const ['/'];
+                    // ה-configuration המלא משוחזר מהמפה השמורה; פריטים ישנים
+                    // (ללא מפה) נופלים לשדות הבודדים. ה-facets תמיד מגיעים
+                    // מלוגיקת ה-scope כאן, לא מהמפה.
+                    final savedConfig = item.searchConfiguration;
+                    final baseConfig = savedConfig != null
+                        ? SearchConfiguration.fromMap(savedConfig)
+                        : SearchConfiguration(
+                            searchMode: searchMode,
+                            distance:
+                                item.distance ??
+                                (searchMode == SearchMode.fuzzy ? 2 : 0),
+                            proximityScope:
+                                item.proximityScope ?? SearchScope.wordDistance,
+                          );
                     // ה-configuration מוזרקת בבנייה ולא דרך events אחרי AddTab,
                     // אחרת snapshot השמירה מצלם advanced והמצב אובד בהפעלה הבאה.
                     final searchTab = SearchingTab(
                       'חיפוש',
                       null,
-                      initialConfiguration: SearchConfiguration(
-                        searchMode: searchMode,
-                        distance: searchMode == SearchMode.fuzzy ? 2 : 0,
-                        proximityScope:
-                            item.proximityScope ?? SearchScope.wordDistance,
+                      initialConfiguration: baseConfig.copyWith(
                         currentFacets: scopeFacets,
                         searchScopeFacets: scopeFacets,
                       ),
                     );
 
                     // Restore search query and options
-                    // ההיסטוריה שומרת אפשרויות מורחבות פר-מילה,
-                    // לכן עוברים למצב פר-מילה כדי שהן יוצגו ויפעלו בדיוק כפי שנשמרו
                     searchTab.queryController.text = item.book.title;
                     searchTab.negativeQueryController.text =
                         item.negativeSearchText ?? '';
-                    searchTab.searchOptions.clear();
-                    searchTab.searchOptions.addAll(item.searchOptions ?? {});
-                    searchTab.useGlobalSearchOptions.value = false;
+                    _restoreSearchOptions(
+                      saved: item.searchOptions,
+                      perWord: searchTab.searchOptions,
+                      global: searchTab.globalSearchOptions,
+                      useGlobal: searchTab.useGlobalSearchOptions,
+                    );
                     searchTab.alternativeWords.clear();
-                    searchTab.alternativeWords
-                        .addAll(item.alternativeWords ?? {});
+                    searchTab.alternativeWords.addAll(
+                      item.alternativeWords ?? {},
+                    );
                     searchTab.spacingValues.clear();
                     searchTab.spacingValues.addAll(item.spacingValues ?? {});
-                    searchTab.negativeSearchOptions.clear();
-                    searchTab.negativeSearchOptions
-                        .addAll(item.negativeSearchOptions ?? {});
-                    searchTab.useGlobalNegativeSearchOptions.value = false;
+                    _restoreSearchOptions(
+                      saved: item.negativeSearchOptions,
+                      perWord: searchTab.negativeSearchOptions,
+                      global: searchTab.negativeGlobalSearchOptions,
+                      useGlobal: searchTab.useGlobalNegativeSearchOptions,
+                    );
                     searchTab.negativeAlternativeWords.clear();
-                    searchTab.negativeAlternativeWords
-                        .addAll(item.negativeAlternativeWords ?? {});
+                    searchTab.negativeAlternativeWords.addAll(
+                      item.negativeAlternativeWords ?? {},
+                    );
                     searchTab.negativeSpacingValues.clear();
-                    searchTab.negativeSpacingValues
-                        .addAll(item.negativeSpacingValues ?? {});
+                    searchTab.negativeSpacingValues.addAll(
+                      item.negativeSpacingValues ?? {},
+                    );
                     // פריט שנשמר תחת חוקי-פיצול ישנים של המנוע ימופה
                     // למילים הלא-נכונות — עדיף לנקות מאשר לזלוג.
                     searchTab.dropStalePerWordStateIfNeeded();
 
                     searchTab.updateTitleFromAppliedQuery(
-                        searchTab.queryController.text);
+                      searchTab.queryController.text,
+                    );
                     // AddTab רק אחרי שכל מצב הטאב מולא — saveTabs מצלם אותו כאן
                     tabsBloc.add(AddTab(searchTab));
-                    searchTab.searchBloc.add(UpdateSearchQuery(
-                      searchTab.queryController.text,
-                      negativeQuery: searchTab.negativeQueryController.text,
-                      customSpacing: searchTab.spacingValues,
-                      alternativeWords: searchTab.alternativeWords,
-                      searchOptions: searchTab.searchOptions,
-                      negativeCustomSpacing: searchTab.negativeSpacingValues,
-                      negativeAlternativeWords:
-                          searchTab.negativeAlternativeWords,
-                      negativeSearchOptions: searchTab.negativeSearchOptions,
-                    ));
+                    searchTab.searchBloc.add(
+                      UpdateSearchQuery(
+                        searchTab.queryController.text,
+                        negativeQuery: searchTab.negativeQueryController.text,
+                        customSpacing: searchTab.spacingValues,
+                        alternativeWords: searchTab.alternativeWords,
+                        // האפקטיביות ולא הפר-מיליות: במצב גלובלי משוחזר הן
+                        // מורחבות מהמפה הגלובלית לכל מילה.
+                        searchOptions: searchTab.effectiveSearchOptions(
+                          query: searchTab.queryController.text,
+                        ),
+                        negativeCustomSpacing: searchTab.negativeSpacingValues,
+                        negativeAlternativeWords:
+                            searchTab.negativeAlternativeWords,
+                        negativeSearchOptions: searchTab
+                            .effectiveNegativeSearchOptions(
+                              query: searchTab.negativeQueryController.text,
+                            ),
+                      ),
+                    );
 
                     // Navigate to search screen
-                    ctx
-                        .read<NavigationBloc>()
-                        .add(const NavigateToScreen(Screen.search));
+                    ctx.read<NavigationBloc>().add(
+                      const NavigateToScreen(Screen.search),
+                    );
                     if (Navigator.of(ctx).canPop()) {
                       Navigator.of(ctx).pop();
                     }
@@ -328,15 +396,28 @@ class _HistoryViewState extends State<HistoryView> {
                 clearAllText: 'מחק את כל ההיסטוריה',
                 leadingIconBuilder: (item) =>
                     _getLeadingIcon(item.book, item.isSearch),
+                // פריט חיפוש מציג ככותרת את השאילתה המפורמטת (אפשרויות
+                // ומרווחים); ההגדרות הכלליות והקטגוריות יורדות לכותרת המשנה
+                // כדי שלא ייראו כחלק מהשאילתה. פריט קריאה מציג את שם הספר.
+                titleBuilder: (item) => (item.isSearch as bool)
+                    ? item.ref as String
+                    : item.book.title as String,
                 subtitleBuilder: (item) {
                   if (item.isSearch as bool) {
+                    final segments = <String>[];
+                    final settings = _searchSettingsLabel(
+                      item.searchConfiguration as Map<String, dynamic>?,
+                    );
+                    if (settings != null) segments.add('הגדרות: $settings');
                     final facets = item.searchScopeFacets as List<String>?;
-                    if (facets == null || facets.isEmpty) return null;
-                    final allNames = _facetDisplayNames(facets);
-                    final displayed = allNames.length > 2
-                        ? '${allNames.take(2).join(', ')}...'
-                        : allNames.join(', ');
-                    return 'חיפוש בקטגוריות: $displayed';
+                    if (facets != null && facets.isNotEmpty) {
+                      final allNames = _facetDisplayNames(facets);
+                      final displayed = allNames.length > 2
+                          ? '${allNames.take(2).join(', ')}...'
+                          : allNames.join(', ');
+                      segments.add('בקטגוריות: $displayed');
+                    }
+                    return segments.isEmpty ? null : segments.join('  •  ');
                   }
                   return ItemsListView.locationSubtitle(item);
                 },
@@ -344,7 +425,15 @@ class _HistoryViewState extends State<HistoryView> {
                   if (!(item.isSearch as bool)) return null;
                   final facets = item.searchScopeFacets as List<String>?;
                   if (facets == null || facets.length <= 2) return null;
-                  return 'חיפוש בקטגוריות: ${_facetDisplayNames(facets).join(', ')}';
+                  final segments = <String>[];
+                  final settings = _searchSettingsLabel(
+                    item.searchConfiguration as Map<String, dynamic>?,
+                  );
+                  if (settings != null) segments.add('הגדרות: $settings');
+                  segments.add(
+                    'בקטגוריות: ${_facetDisplayNames(facets).join(', ')}',
+                  );
+                  return segments.join('  •  ');
                 },
               ),
             ),

@@ -194,6 +194,41 @@ Future<void> main() async {
     });
   });
 
+  group('globalOptionsFromPerWord — שחזור אפשרויות אחידות למצב גלובלי', () {
+    test('אפשרויות זהות לכל המילים מוחזרות כמפה גלובלית אחת', () {
+      final global = SearchQueryBuilder.globalOptionsFromPerWord({
+        'תורה_0': {'קידומות דקדוקיות': true, 'סיומות דקדוקיות': false},
+        'ומצוות_1': {'קידומות דקדוקיות': true, 'סיומות דקדוקיות': false},
+      });
+
+      expect(global, {'קידומות דקדוקיות': true, 'סיומות דקדוקיות': false});
+    });
+
+    test('אפשרויות שנבדלות בין מילים נשארות פר-מילה (null)', () {
+      final global = SearchQueryBuilder.globalOptionsFromPerWord({
+        'תורה_0': {'קידומות דקדוקיות': true},
+        'ומצוות_1': {'קידומות דקדוקיות': false},
+      });
+
+      expect(global, isNull);
+    });
+
+    test('מפה ריקה מחזירה null', () {
+      expect(SearchQueryBuilder.globalOptionsFromPerWord(const {}), isNull);
+    });
+
+    test('הופכית ל-expandGlobalOptionsToWords', () {
+      const globalOptions = {'קידומות דקדוקיות': true, 'סיומות': false};
+      final perWord = {
+        'תורה_0': Map<String, bool>.from(globalOptions),
+        'ומצוות_1': Map<String, bool>.from(globalOptions),
+      };
+
+      expect(
+          SearchQueryBuilder.globalOptionsFromPerWord(perWord), globalOptions);
+    });
+  });
+
   group('SearchEngineGateway', () {
     test('search מפנה לפונקציה המתאימה לפי מצב החיפוש', () async {
       final engine = _RecordingSearchEngineOperations();

@@ -7,6 +7,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/history/history_repository.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
@@ -18,6 +19,38 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:pdfrx/pdfrx.dart';
+
+/// חיווי קצר להגדרות החיפוש הכלליות שאינן ברירת מחדל, לתצוגה בפריט
+/// ההיסטוריה (מצב, מרחק, טווח, התאמת מילים, איחוד תוצאות, רגקס). ערכי
+/// ברירת מחדל מושמטים כדי לא להעמיס על חיפושים פשוטים.
+String formatGeneralSearchSettings(SearchConfiguration config) {
+  final parts = <String>[];
+
+  if (config.searchMode != SearchMode.advanced) {
+    parts.add(config.searchMode.shortLabel);
+  }
+  // טווח שאינו "מרווח מילים" מחליף את המרחק; אחרת מציגים מרחק כשהוגדר.
+  if (config.proximityScope != SearchScope.wordDistance) {
+    parts.add(config.proximityScope.label);
+  } else if (config.distance > 0) {
+    parts.add('מרחק ${config.distance}');
+  }
+  if (config.wordMatchMode != WordMatchMode.all) {
+    parts.add(
+      config.wordMatchMode == WordMatchMode.atLeast
+          ? 'לפחות ${config.wordMatchCount} מילים'
+          : config.wordMatchMode.label,
+    );
+  }
+  if (config.resultGrouping != ResultGroupingMode.none) {
+    parts.add(config.resultGrouping.label);
+  }
+  if (config.regexEnabled) {
+    parts.add('ביטוי רגולרי');
+  }
+
+  return parts.join(' · ');
+}
 
 class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   final HistoryRepository _repository;
@@ -67,8 +100,9 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     final updatedHistory = List<Bookmark>.from(state.history);
 
     for (final bookmark in snapshots) {
-      final existingIndex =
-          updatedHistory.indexWhere((b) => b.historyKey == bookmark.historyKey);
+      final existingIndex = updatedHistory.indexWhere(
+        (b) => b.historyKey == bookmark.historyKey,
+      );
       if (existingIndex >= 0) {
         updatedHistory.removeAt(existingIndex);
       }
@@ -100,8 +134,9 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
 
       final formattedQuery = _buildFormattedQuery(searchingTab);
       final scopeFacets = scopeFacetsOverride ?? searchState.searchScopeFacets;
-      final nonRootScopeFacets =
-          scopeFacets.where((facet) => facet != '/').toList();
+      final nonRootScopeFacets = scopeFacets
+          .where((facet) => facet != '/')
+          .toList();
 
       return Bookmark(
         ref: formattedQuery,
@@ -120,11 +155,16 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
         negativeAlternativeWords: searchingTab.negativeAlternativeWords,
         negativeSpacingValues: searchingTab.negativeSpacingValues,
         workspaceName: workspaceName,
-        searchScopeFacets:
-            nonRootScopeFacets.isNotEmpty ? nonRootScopeFacets : null,
+        searchScopeFacets: nonRootScopeFacets.isNotEmpty
+            ? nonRootScopeFacets
+            : null,
         searchMode: searchState.configuration.searchMode,
-        proximityScope: proximityScopeOverride ??
-            searchState.configuration.proximityScope,
+        distance: searchState.configuration.distance,
+        // ה-configuration המלא נשמר כמפה כדי ששחזור יחזיר גם הגדרות שאין
+        // להן שדה ייעודי (מיון, איחוד תוצאות, התאמת מילים, רגקס).
+        searchConfiguration: searchState.configuration.toMap(),
+        proximityScope:
+            proximityScopeOverride ?? searchState.configuration.proximityScope,
       );
     }
 
@@ -132,8 +172,10 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
       final blocState = tab.bloc.state;
       if (blocState is TextBookLoaded && blocState.visibleIndices.isNotEmpty) {
         final index = blocState.visibleIndices.first;
-        String ref =
-            await refFromIndex(index, Future.value(blocState.tableOfContents));
+        String ref = await refFromIndex(
+          index,
+          Future.value(blocState.tableOfContents),
+        );
         // הוספת שם הספר לכותרת
         ref = addBookTitleToRef(ref, blocState.book.title);
         return Bookmark(
@@ -148,8 +190,10 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
       final blocState = tab.bloc.state;
       if (blocState is TextBookLoaded && blocState.visibleIndices.isNotEmpty) {
         final index = blocState.visibleIndices.first;
-        String ref =
-            await refFromIndex(index, Future.value(blocState.tableOfContents));
+        String ref = await refFromIndex(
+          index,
+          Future.value(blocState.tableOfContents),
+        );
         ref = addBookTitleToRef(ref, blocState.book.title);
         return Bookmark(
           ref: 'מפרשים | $ref',
@@ -261,7 +305,8 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
       final wordKey = '${word}_$i';
 
       final wordOptions = effectiveOptions[wordKey];
-      final selectedOptions = wordOptions?.entries
+      final selectedOptions =
+          wordOptions?.entries
               .where((entry) => entry.value)
               .map((entry) => entry.key)
               .toList() ??
@@ -316,7 +361,9 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   }
 
   Future<void> _onCaptureStateForHistory(
-      CaptureStateForHistory event, Emitter<HistoryState> emit) async {
+    CaptureStateForHistory event,
+    Emitter<HistoryState> emit,
+  ) async {
     _debounce?.cancel();
     final bookmark = await _bookmarkFromTab(event.tab);
     if (bookmark != null) {
@@ -331,7 +378,9 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   }
 
   Future<void> _onFlushHistory(
-      FlushHistory event, Emitter<HistoryState> emit) async {
+    FlushHistory event,
+    Emitter<HistoryState> emit,
+  ) async {
     _debounce?.cancel();
     if (_pendingSnapshots.isNotEmpty) {
       final snapshots = _pendingSnapshots.values.toList();
@@ -342,7 +391,9 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   }
 
   Future<void> _onLoadHistory(
-      LoadHistory event, Emitter<HistoryState> emit) async {
+    LoadHistory event,
+    Emitter<HistoryState> emit,
+  ) async {
     try {
       emit(HistoryLoading(state.history));
       final history = await _repository.loadHistory();
@@ -353,12 +404,16 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   }
 
   void _onSetCurrentWorkspaceName(
-      SetCurrentWorkspaceName event, Emitter<HistoryState> emit) {
+    SetCurrentWorkspaceName event,
+    Emitter<HistoryState> emit,
+  ) {
     _currentWorkspaceName = event.workspaceName;
   }
 
   Future<void> _onAddHistory(
-      AddHistory event, Emitter<HistoryState> emit) async {
+    AddHistory event,
+    Emitter<HistoryState> emit,
+  ) async {
     try {
       final bookmark = await _bookmarkFromTab(
         event.tab,
@@ -373,7 +428,9 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   }
 
   Future<void> _onBulkAddHistory(
-      BulkAddHistory event, Emitter<HistoryState> emit) async {
+    BulkAddHistory event,
+    Emitter<HistoryState> emit,
+  ) async {
     if (event.snapshots.isEmpty) return;
     try {
       final updatedHistory = await _updateAndSaveHistory(event.snapshots);
@@ -384,7 +441,9 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   }
 
   Future<void> _onRemoveHistory(
-      RemoveHistory event, Emitter<HistoryState> emit) async {
+    RemoveHistory event,
+    Emitter<HistoryState> emit,
+  ) async {
     try {
       final updatedHistory = List<Bookmark>.from(state.history)
         ..removeAt(event.index);
@@ -396,7 +455,9 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   }
 
   Future<void> _onClearHistory(
-      ClearHistory event, Emitter<HistoryState> emit) async {
+    ClearHistory event,
+    Emitter<HistoryState> emit,
+  ) async {
     try {
       await _repository.clearHistory();
       emit(HistoryLoaded([]));
