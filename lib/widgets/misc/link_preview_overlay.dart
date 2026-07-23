@@ -425,30 +425,36 @@ class _LinkPreviewPanelState extends State<_LinkPreviewPanel> {
         Positioned(
           left: position.dx,
           top: position.dy,
-          child: Opacity(
-            opacity: _visible ? 1 : 0,
-            child: MouseRegion(
-              onEnter: (_) => _cancelHide(),
-              onExit: (_) => _scheduleHide(),
-              // התוכן נטען אסינכרונית (FutureBuilder); כשהוא מגיע החלונית גדלה
-              // אחרי המדידה הראשונית ועלולה לחרוג מהמסך — שינוי גודל מפעיל
-              // מיקום מחדש (בסוף הפריים, כי עדכון overlay אסור בזמן layout).
-              child: NotificationListener<SizeChangedLayoutNotification>(
-                onNotification: (_) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) _reposition();
-                  });
-                  return true;
-                },
-                child: SizeChangedLayoutNotifier(
-                  child: Listener(
-                    onPointerDown: (_) => _pin(),
-                    child: Material(
-                      key: _panelKey,
-                      elevation: 8,
-                      color: colorScheme.surface,
-                      borderRadius: AppTokens.borderRadiusAll,
-                      child: _buildPanelChild(maxWidth),
+          // בזמן המדידה הראשונית (טרם _visible) החלונית יושבת בפינה ב-hit-test
+          // ומכסה את נקודת הריחוף — היה גונב את ה-hover מהעוגן ומזניק לולאת
+          // סגירה-פתיחה (הבהוב). IgnorePointer מוציא אותה מ-hit-test עד שמוצבה.
+          child: IgnorePointer(
+            ignoring: !_visible,
+            child: Opacity(
+              opacity: _visible ? 1 : 0,
+              child: MouseRegion(
+                onEnter: (_) => _cancelHide(),
+                onExit: (_) => _scheduleHide(),
+                // התוכן נטען אסינכרונית (FutureBuilder); כשהוא מגיע החלונית גדלה
+                // אחרי המדידה הראשונית ועלולה לחרוג מהמסך — שינוי גודל מפעיל
+                // מיקום מחדש (בסוף הפריים, כי עדכון overlay אסור בזמן layout).
+                child: NotificationListener<SizeChangedLayoutNotification>(
+                  onNotification: (_) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) _reposition();
+                    });
+                    return true;
+                  },
+                  child: SizeChangedLayoutNotifier(
+                    child: Listener(
+                      onPointerDown: (_) => _pin(),
+                      child: Material(
+                        key: _panelKey,
+                        elevation: 8,
+                        color: colorScheme.surface,
+                        borderRadius: AppTokens.borderRadiusAll,
+                        child: _buildPanelChild(maxWidth),
+                      ),
                     ),
                   ),
                 ),
