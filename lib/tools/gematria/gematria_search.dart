@@ -120,6 +120,21 @@ class GimatriaSearch {
     'ת': 400,
   };
 
+  // RegExp לשימוש חוזר: קומפילציה חד-פעמית במקום פר-שורה בלולאת הסריקה החמה.
+  static final RegExp _headerTagRe = RegExp(r'<h[1-6][^>]*>');
+  static final RegExp _leadingVerseCaptureRe = RegExp(r'^\(([^\)]+)\)');
+  static final RegExp _leadingVersePrefixRe = RegExp(r'^\([^\)]+\)\s*');
+  static final RegExp _curlyBracesRe = RegExp(r'\{[^\}]*\}');
+  static final RegExp _whitespaceRe = RegExp(r'\s+');
+  static final RegExp _htmlTagRe = RegExp(r'<[^>]*>');
+  static final RegExp _namedEntityRe = RegExp(r'&[a-zA-Z]+;');
+  static final RegExp _decimalEntityRe = RegExp(r'&#\d+;');
+  static final RegExp _hexEntityRe = RegExp(r'&#x[0-9a-fA-F]+;');
+  static final RegExp _headingCaptureRe = RegExp(
+    r'<h([1-6])[^>]*>(.*?)</h\1>',
+    dotAll: true,
+  );
+
   static int gimatria(String text, {String method = 'regular'}) {
     Map<String, int> values;
     switch (method) {
@@ -281,25 +296,25 @@ class GimatriaSearch {
           final content = line.content;
 
           // Skip header lines (h1-h6)
-          if (RegExp(r'<h[1-6][^>]*>').hasMatch(content)) {
+          if (_headerTagRe.hasMatch(content)) {
             continue;
           }
 
           // Extract verse number from parentheses at start of line
-          final verseMatch = RegExp(r'^\(([^\)]+)\)').firstMatch(content);
+          final verseMatch = _leadingVerseCaptureRe.firstMatch(content);
           final verseNumber = verseMatch?.group(1) ?? '';
 
           // Remove verse number parentheses from line
-          var cleanLine = content.replaceFirst(RegExp(r'^\([^\)]+\)\s*'), '');
+          var cleanLine = content.replaceFirst(_leadingVersePrefixRe, '');
 
           // Remove curly braces with content
-          cleanLine = cleanLine.replaceAll(RegExp(r'\{[^\}]*\}'), '');
+          cleanLine = cleanLine.replaceAll(_curlyBracesRe, '');
 
           // Clean HTML tags
           final lineWithoutHtml = _cleanHtml(cleanLine);
 
           final words = lineWithoutHtml
-              .split(RegExp(r'\s+'))
+              .split(_whitespaceRe)
               .where((w) => w.trim().isNotEmpty)
               .toList();
           if (words.isEmpty) continue;
@@ -497,25 +512,25 @@ class GimatriaSearch {
           final line = lines[i];
 
           // דילוג על שורות כותרות (h1-h6)
-          if (RegExp(r'<h[1-6][^>]*>').hasMatch(line)) {
+          if (_headerTagRe.hasMatch(line)) {
             continue;
           }
 
           // חילוץ מספר הפסוק מהסוגריים בתחילת השורה
-          final verseMatch = RegExp(r'^\(([^\)]+)\)').firstMatch(line);
+          final verseMatch = _leadingVerseCaptureRe.firstMatch(line);
           final verseNumber = verseMatch?.group(1) ?? '';
 
           // הסרת הסוגריים עם מספר הפסוק מהשורה
-          var cleanLine = line.replaceFirst(RegExp(r'^\([^\)]+\)\s*'), '');
+          var cleanLine = line.replaceFirst(_leadingVersePrefixRe, '');
 
           // הסרת סוגריים מסולסלות עם תוכן
-          cleanLine = cleanLine.replaceAll(RegExp(r'\{[^\}]*\}'), '');
+          cleanLine = cleanLine.replaceAll(_curlyBracesRe, '');
 
           // ניקוי תגיות HTML מהשורה
           final lineWithoutHtml = _cleanHtml(cleanLine);
 
           final words = lineWithoutHtml
-              .split(RegExp(r'\s+'))
+              .split(_whitespaceRe)
               .where((w) => w.trim().isNotEmpty)
               .toList();
           if (words.isEmpty) continue;
@@ -626,7 +641,6 @@ class GimatriaSearch {
   /// מחלץ את הנתיב ההיררכי (כותרות) מהשורות שלפני המיקום הנוכחי
   static String _extractPathFromLines(List<String> lines, int currentIndex) {
     final Map<int, String> lastHeaderByLevel = {};
-    final hTag = RegExp(r'<h([1-6])[^>]*>(.*?)</h\1>', dotAll: true);
 
     // סריקה אחורה מהמיקום הנוכחי
     for (int i = currentIndex; i >= 0; i--) {
@@ -638,7 +652,7 @@ class GimatriaSearch {
       }
 
       final line = lines[i];
-      for (final match in hTag.allMatches(line)) {
+      for (final match in _headingCaptureRe.allMatches(line)) {
         try {
           final level = int.parse(match.group(1)!);
           final text = _cleanHtml(match.group(2)!);
@@ -668,7 +682,7 @@ class GimatriaSearch {
   /// ניקוי תגיות HTML ו-HTML entities
   static String _cleanHtml(String s) {
     // הסרת תגיות HTML
-    var cleaned = s.replaceAll(RegExp(r'<[^>]*>'), '');
+    var cleaned = s.replaceAll(_htmlTagRe, '');
 
     // הסרת HTML entities נפוצות
     cleaned = cleaned.replaceAll('&nbsp;', ' ');
@@ -682,11 +696,11 @@ class GimatriaSearch {
     cleaned = cleaned.replaceAll('&#39;', "'");
 
     // הסרת כל HTML entities שנשארו (פורמט &#xxxx; או &name;)
-    cleaned = cleaned.replaceAll(RegExp(r'&[a-zA-Z]+;'), '');
-    cleaned = cleaned.replaceAll(RegExp(r'&#\d+;'), '');
-    cleaned = cleaned.replaceAll(RegExp(r'&#x[0-9a-fA-F]+;'), '');
+    cleaned = cleaned.replaceAll(_namedEntityRe, '');
+    cleaned = cleaned.replaceAll(_decimalEntityRe, '');
+    cleaned = cleaned.replaceAll(_hexEntityRe, '');
 
     // ניקוי רווחים מיותרים
-    return cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return cleaned.replaceAll(_whitespaceRe, ' ').trim();
   }
 }
