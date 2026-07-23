@@ -18,6 +18,7 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
+import 'package:otzaria/tools/dictionary/widgets/laaz_commentary_subblock.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/models/link_types.dart';
@@ -2539,6 +2540,23 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                       : null,
                 );
 
+                // בטור מפרש רש"י: לעזי רש"י מתחת לשורה (מסתתר לבד אם אין).
+                // בדיקת הכותרת כאן חוסכת בניית תת-הבלוק בכל שורה של טור שאינו רש"י.
+                if (!widget.isMainText &&
+                    widget.bookTitle != null &&
+                    isRashiTitle(widget.bookTitle!)) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      textWidget,
+                      LaazCommentarySubBlock.forLine(
+                        rashiBookTitle: widget.bookTitle!,
+                        rashiLineIndex: primaryLineIndex + 1,
+                        baseFontSize: widget.fontSize,
+                      ),
+                    ],
+                  );
+                }
                 return textWidget;
               },
             ),

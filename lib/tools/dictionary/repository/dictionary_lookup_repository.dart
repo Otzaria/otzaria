@@ -2,6 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:otzaria/data/data_providers/book_database_resolver.dart';
+import 'package:otzaria/models/books.dart';
+import 'package:otzaria/models/link_types.dart';
+import 'package:otzaria/models/links.dart';
 import 'package:otzaria/tools/dictionary/repository/db_dictionary_book_source.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 
@@ -38,7 +42,13 @@ class LaazDictionaryEntry {
     required this.meaning,
     this.note,
     this.english,
+    this.sourceLineIndex = 0,
   });
+
+  /// אינדקס השורה במקור (1-based) בספר לעזי רש"י שממנה נותח הערך.
+  /// חובה לקישור קישורי-הלעז: parseLines מדלגת על כותרות, ולכן מיקום הערך
+  /// ברשימה אינו שווה למספר השורה שאליה מפנה index1 בקישור.
+  final int sourceLineIndex;
 
   /// המספר הרץ של הערך בספר.
   final String entryNumber;
@@ -78,15 +88,22 @@ class LaazDictionaryEntry {
   );
 
   /// מפרק את כל שורות הספר לערכי מילון; שורות כותרת ושורות לא-תקינות מדולגות.
+  /// כל ערך נושא את [sourceLineIndex] (1-based) של שורת המקור שלו — נדרש כדי
+  /// לקשר לפי index1 שבקישורי הספר, שאינו זהה למיקום ברשימה המסוננת.
   static List<LaazDictionaryEntry> parseLines(List<String> lines) {
-    return lines
-        .map(parseLine)
-        .whereType<LaazDictionaryEntry>()
-        .toList(growable: false);
+    final entries = <LaazDictionaryEntry>[];
+    for (var i = 0; i < lines.length; i++) {
+      final entry = parseLine(lines[i], sourceLineIndex: i + 1);
+      if (entry != null) entries.add(entry);
+    }
+    return List<LaazDictionaryEntry>.unmodifiable(entries);
   }
 
   /// מפרק שורת ערך בודדת; מחזיר null לשורת כותרת או שורה שאינה ערך.
-  static LaazDictionaryEntry? parseLine(String line) {
+  static LaazDictionaryEntry? parseLine(
+    String line, {
+    int sourceLineIndex = 0,
+  }) {
     // פענוח ישויות HTML לפני הפירוק, כדי שלא ידלפו לשדות או ישבשו את המפריד.
     final trimmed = line
         .replaceAll('&nbsp;', ' ')
@@ -174,6 +191,7 @@ class LaazDictionaryEntry {
       meaning: meaning,
       note: note,
       english: english,
+      sourceLineIndex: sourceLineIndex,
     );
   }
 
@@ -300,9 +318,11 @@ class DictionaryLookupRepository {
     Future<Map<String, List<String>>> Function()? loadAcronyms,
     Future<List<AramaicDictionaryEntry>> Function()? loadAramaicEntries,
     Future<List<LaazDictionaryEntry>> Function()? loadLaazEntries,
+    Future<List<Link>> Function()? loadLaazLinks,
   }) : _loadAcronyms = loadAcronyms ?? _defaultLoadAcronyms,
        _loadAramaicEntries = loadAramaicEntries ?? _defaultLoadAramaicEntries,
-       _loadLaazEntries = loadLaazEntries ?? _defaultLoadLaazEntries;
+       _loadLaazEntries = loadLaazEntries ?? _defaultLoadLaazEntries,
+       _loadLaazLinks = loadLaazLinks ?? _defaultLoadLaazLinks;
 
   static final DictionaryLookupRepository instance =
       DictionaryLookupRepository();
@@ -313,13 +333,16 @@ class DictionaryLookupRepository {
   final Future<Map<String, List<String>>> Function() _loadAcronyms;
   final Future<List<AramaicDictionaryEntry>> Function() _loadAramaicEntries;
   final Future<List<LaazDictionaryEntry>> Function() _loadLaazEntries;
+  final Future<List<Link>> Function() _loadLaazLinks;
 
   Future<void>? _acronymsLoadFuture;
   Future<void>? _aramaicLoadFuture;
   Future<void>? _laazLoadFuture;
+  Future<void>? _laazLinksLoadFuture;
   bool _areAcronymsLoaded = false;
   bool _areAramaicLoaded = false;
   bool _areLaazLoaded = false;
+  bool _areLaazLinksLoaded = false;
 
   Map<String, List<String>> _acronymsByKey = <String, List<String>>{};
   Map<String, String> _originalAcronymByKey = <String, String>{};
@@ -329,11 +352,16 @@ class DictionaryLookupRepository {
   Map<String, List<LaazDictionaryEntry>> _laazByTranslit =
       <String, List<LaazDictionaryEntry>>{};
 
+  /// כותרת ספר-רש"י -> אינדקס-שורה (1-based) -> ערכי הלעז המקושרים לאותה שורה.
+  Map<String, Map<int, List<LaazDictionaryEntry>>> _laazByRashiLine =
+      <String, Map<int, List<LaazDictionaryEntry>>>{};
+
   bool get isLoaded =>
       _areAcronymsLoaded && _areAramaicLoaded && _areLaazLoaded;
   bool get areAcronymsLoaded => _areAcronymsLoaded;
   bool get areAramaicLoaded => _areAramaicLoaded;
   bool get areLaazLoaded => _areLaazLoaded;
+  bool get areLaazLinksLoaded => _areLaazLinksLoaded;
 
   /// טוען את כל המילונים פעם אחת ומשאיר אותם בזיכרון.
   Future<void> ensureLoaded() async {
@@ -420,6 +448,46 @@ class DictionaryLookupRepository {
         _laazLoadFuture = null;
       }
     }
+  }
+
+  /// טוען את מפת קישורי הלעז (שורת-רש"י -> ערכי לעז) בלבד, פעם אחת.
+  ///
+  /// ספר-הלעז חסר במסד => מפה ריקה, לא חריגה.
+  Future<void> ensureLaazLinksLoaded() async {
+    if (_areLaazLinksLoaded) return;
+
+    final pendingFuture = _laazLinksLoadFuture;
+    if (pendingFuture != null) {
+      await pendingFuture;
+      return;
+    }
+
+    final loadFuture = _loadLaazLinksInternal();
+    _laazLinksLoadFuture = loadFuture;
+
+    try {
+      await loadFuture;
+      _areLaazLinksLoaded = true;
+    } catch (_) {
+      _resetLaazLinksCache();
+      rethrow;
+    } finally {
+      if (identical(_laazLinksLoadFuture, loadFuture)) {
+        _laazLinksLoadFuture = null;
+      }
+    }
+  }
+
+  /// מחזיר את ערכי הלעז המקושרים לשורת רש"י נתונה (O(1)); רשימה ריקה אם אין.
+  ///
+  /// [rashiBookTitle] כותרת ספר-הרש"י (למשל "רש"י על בראשית").
+  /// [rashiLineIndex] אינדקס השורה (1-based) של הדיבור ברש"י.
+  List<LaazDictionaryEntry> laazForRashiLine({
+    required String rashiBookTitle,
+    required int rashiLineIndex,
+  }) {
+    return _laazByRashiLine[rashiBookTitle]?[rashiLineIndex] ??
+        const <LaazDictionaryEntry>[];
   }
 
   /// מחזיר את כלל רשומות ראשי התיבות.
@@ -636,6 +704,33 @@ class DictionaryLookupRepository {
     _laazByTranslit = byTranslit;
   }
 
+  Future<void> _loadLaazLinksInternal() async {
+    // חובה שהערכים ייטענו קודם — המפתוח מסתמך על sourceLineIndex שלהם.
+    await ensureLaazLoaded();
+
+    final entryBySourceLine = <int, LaazDictionaryEntry>{};
+    for (final entry in _laazEntries) {
+      if (entry.sourceLineIndex > 0) {
+        entryBySourceLine[entry.sourceLineIndex] = entry;
+      }
+    }
+
+    final links = await _loadLaazLinks();
+    final byRashiLine = <String, Map<int, List<LaazDictionaryEntry>>>{};
+    for (final link in links) {
+      if (!LinkTypes.isDependentTextLink(link.connectionType)) continue;
+      final entry = entryBySourceLine[link.index1];
+      if (entry == null) continue;
+      final rashiTitle = utils.getTitleFromPath(link.path2);
+      (byRashiLine.putIfAbsent(
+        rashiTitle,
+        () => <int, List<LaazDictionaryEntry>>{},
+      )[link.index2] ??= <LaazDictionaryEntry>[]).add(entry);
+    }
+
+    _laazByRashiLine = byRashiLine;
+  }
+
   static Future<Map<String, List<String>>> _defaultLoadAcronyms() async {
     final String jsonString = await rootBundle.loadString(
       'assets/Acronyms.json',
@@ -682,6 +777,23 @@ class DictionaryLookupRepository {
     final lines = await loadDictionaryBookLines(laazBookTitle);
     if (lines.isEmpty) return const <LaazDictionaryEntry>[];
     return compute(LaazDictionaryEntry.parseLines, lines);
+  }
+
+  /// שולף את הקישורים היוצאים מספר-הלעז דרך אותו נתיב של [TextBook.links].
+  /// ספר-הלעז חסר במסד => רשימה ריקה (התכונה נעדרת בשקט).
+  static Future<List<Link>> _defaultLoadLaazLinks() async {
+    final resolved = await BookDatabaseResolver.resolveBook(
+      title: laazBookTitle,
+      officialOnly: true,
+    );
+    if (resolved == null) return const <Link>[];
+
+    final book = TextBook(
+      title: laazBookTitle,
+      categoryId: resolved.book.categoryId,
+      fileType: resolved.book.fileType ?? 'txt',
+    );
+    return book.links;
   }
 
   static Map<String, dynamic> _decodeJsonObject(String jsonString) {
@@ -773,5 +885,10 @@ class DictionaryLookupRepository {
     _laazEntries = <LaazDictionaryEntry>[];
     _laazByTranslit = <String, List<LaazDictionaryEntry>>{};
     _areLaazLoaded = false;
+  }
+
+  void _resetLaazLinksCache() {
+    _laazByRashiLine = <String, Map<int, List<LaazDictionaryEntry>>>{};
+    _areLaazLinksLoaded = false;
   }
 }
