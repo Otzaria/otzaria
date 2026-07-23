@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -772,6 +773,150 @@ void main() {
       expect(readMarker(), tag);
     });
 
+    test(
+      'הנכס חסר ב-release האחרון → נלקח מה-release הקודם שמכיל אותו',
+      () async {
+        final requested = <Uri>[];
+        final client = MockClient((request) async {
+          requested.add(request.url);
+          // release אחרון בסגנון fordb — בלי נכס תלמוד.
+          if (request.url.path.endsWith('/releases/latest')) {
+            return http.Response(
+              jsonEncode({
+                'tag_name': 'fordb-latest',
+                'assets': [
+                  {
+                    'name': 'fordb_latest.zip',
+                    'browser_download_url': 'https://x/fordb_latest.zip',
+                  },
+                ],
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/releases')) {
+            return http.Response(
+              jsonEncode([
+                {
+                  'tag_name': 'fordb-latest',
+                  'prerelease': false,
+                  'assets': [
+                    {
+                      'name': 'fordb_latest.zip',
+                      'browser_download_url': 'https://x/fordb_latest.zip',
+                    },
+                  ],
+                },
+                {
+                  'tag_name': tag,
+                  'prerelease': false,
+                  'assets': [
+                    {
+                      'name': DatabaseConstants.talmudBavliArchiveFileName,
+                      'browser_download_url': assetUrl,
+                    },
+                  ],
+                },
+              ]),
+              200,
+            );
+          }
+          if (request.url.toString() == assetUrl) {
+            return http.Response.bytes([1, 2, 3], 200);
+          }
+          return http.Response('not found', 404);
+        });
+
+        final extractions = <({String archive, String outputDir})>[];
+        await service(
+          client: client,
+          extractions: extractions,
+        ).verifyAndUpdate();
+
+        expect(extractions, hasLength(1));
+        expect(readMarker(), tag);
+        expect(
+          requested.any((u) => u.path.endsWith('/releases')),
+          isTrue,
+          reason: 'הנכס חסר ב-latest — נדרשת סריקת רשימת ה-releases',
+        );
+      },
+    );
+
+    test('הנכס נמצא רק בעמוד השני של רשימת ה-releases', () async {
+      Map<String, dynamic> fordbRelease(String tagName) => {
+        'tag_name': tagName,
+        'prerelease': false,
+        'assets': [
+          {
+            'name': 'fordb_latest.zip',
+            'browser_download_url': 'https://x/fordb_latest.zip',
+          },
+        ],
+      };
+      final client = MockClient((request) async {
+        if (request.url.path.endsWith('/releases/latest')) {
+          return http.Response(jsonEncode(fordbRelease('fordb-latest')), 200);
+        }
+        if (request.url.path.endsWith('/releases')) {
+          if (request.url.queryParameters['page'] == '1') {
+            return http.Response(
+              jsonEncode([fordbRelease('fordb-1'), fordbRelease('fordb-2')]),
+              200,
+            );
+          }
+          return http.Response(
+            jsonEncode([
+              {
+                'tag_name': tag,
+                'prerelease': false,
+                'assets': [
+                  {
+                    'name': DatabaseConstants.talmudBavliArchiveFileName,
+                    'browser_download_url': assetUrl,
+                  },
+                ],
+              },
+            ]),
+            200,
+          );
+        }
+        return http.Response('not found', 404);
+      });
+
+      final release = await CompanionAssetsService.findLatestTalmudRelease(
+        client,
+      );
+      expect(release.tag, tag);
+      expect(release.assetUrl, assetUrl);
+    });
+
+    test('הנכס לא קיים באף release → TalmudAssetNotFoundException', () async {
+      final client = MockClient((request) async {
+        if (request.url.path.endsWith('/releases/latest')) {
+          return http.Response(
+            jsonEncode({'tag_name': 'fordb-latest', 'assets': []}),
+            200,
+          );
+        }
+        if (request.url.path.endsWith('/releases')) {
+          // עמוד ראשון בלי הנכס, עמוד שני ריק — הסריקה הסתיימה.
+          final body = request.url.queryParameters['page'] == '1'
+              ? [
+                  {'tag_name': 'fordb-1', 'prerelease': false, 'assets': []},
+                ]
+              : <Object>[];
+          return http.Response(jsonEncode(body), 200);
+        }
+        return http.Response('not found', 404);
+      });
+
+      await expectLater(
+        CompanionAssetsService.findLatestTalmudRelease(client),
+        throwsA(isA<TalmudAssetNotFoundException>()),
+      );
+    });
+
     test('כשל ב-API של התלמוד לא עוצר את הקטלוג והמילון', () async {
       final catalog = _FakeCatalogRepository(exists: true);
       final dictionary = _FakeDictionaryDownloader();
@@ -791,6 +936,144 @@ void main() {
       final catalog = _FakeCatalogRepository(exists: true);
       await service(catalog: catalog).verifyAndUpdate(isCancelled: () => true);
       expect(catalog.updateCalled, isFalse);
+    });
+  });
+
+  group('תלמוד בבלי — השוואת digest', () {
+    // תגי otzaria-library מתחלפים כמעט יומית עם אותו קובץ תלמוד — הזיהוי חייב
+    // להשוות תוכן (digest) ולא תג, אחרת כל release גורר הורדת ~440MB מיותרת.
+    final bodyDigest = sha256.convert([1, 2, 3]).toString();
+    const otherDigest =
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+    MockClient digestClient({
+      required String latestDigest,
+      String? installedTagDigest,
+      List<Uri>? requested,
+    }) {
+      return MockClient((request) async {
+        requested?.add(request.url);
+        if (request.url.path.contains('/releases/tags/')) {
+          if (installedTagDigest == null) {
+            return http.Response('not found', 404);
+          }
+          return http.Response(
+            jsonEncode({
+              'tag_name': request.url.pathSegments.last,
+              'assets': [
+                {
+                  'name': DatabaseConstants.talmudBavliArchiveFileName,
+                  'browser_download_url': assetUrl,
+                  'digest': 'sha256:$installedTagDigest',
+                },
+              ],
+            }),
+            200,
+          );
+        }
+        if (request.url.path.contains('releases/latest')) {
+          return http.Response(
+            jsonEncode({
+              'tag_name': tag,
+              'assets': [
+                {
+                  'name': DatabaseConstants.talmudBavliArchiveFileName,
+                  'browser_download_url': assetUrl,
+                  'digest': 'sha256:$latestDigest',
+                  'size': 3,
+                },
+              ],
+            }),
+            200,
+          );
+        }
+        if (request.url.toString() == assetUrl) {
+          return http.Response.bytes([1, 2, 3], 200);
+        }
+        return http.Response('not found', 404);
+      });
+    }
+
+    File talmudTempFile() => File(
+      p.join(
+        Directory.systemTemp.path,
+        'otzaria_${DatabaseConstants.talmudBavliArchiveFileName}',
+      ),
+    );
+
+    test('תג התחלף אך ה-digest זהה → מחתים digest בלי להוריד', () async {
+      createTalmudDir(markerTag: 'v1.0.0');
+      final requested = <Uri>[];
+      final extractions = <({String archive, String outputDir})>[];
+      final changed = await service(
+        client: digestClient(
+          latestDigest: bodyDigest,
+          installedTagDigest: bodyDigest,
+          requested: requested,
+        ),
+        extractions: extractions,
+      ).verifyAndUpdate();
+
+      expect(extractions, isEmpty);
+      expect(requested.map((u) => u.toString()), isNot(contains(assetUrl)));
+      expect(readMarker(), bodyDigest);
+      expect(changed, isFalse, reason: 'החתמת digest בלבד אינה שינוי בספרייה');
+    });
+
+    test('תג התחלף וה-digest שונה → מוריד ומחתים את ה-digest החדש', () async {
+      createTalmudDir(markerTag: 'v1.0.0');
+      cleanupTalmudTemp(talmudTempFile());
+      addTearDown(() => cleanupTalmudTemp(talmudTempFile()));
+      final extractions = <({String archive, String outputDir})>[];
+      await service(
+        client: digestClient(
+          latestDigest: bodyDigest,
+          installedTagDigest: otherDigest,
+        ),
+        extractions: extractions,
+      ).verifyAndUpdate();
+
+      expect(extractions, hasLength(1));
+      expect(readMarker(), bodyDigest);
+    });
+
+    test('סימון digest תואם → לא מוריד ולא פונה ל-API של התג', () async {
+      createTalmudDir(markerTag: bodyDigest);
+      final requested = <Uri>[];
+      final extractions = <({String archive, String outputDir})>[];
+      await service(
+        client: digestClient(latestDigest: bodyDigest, requested: requested),
+        extractions: extractions,
+      ).verifyAndUpdate();
+
+      expect(extractions, isEmpty);
+      expect(
+        requested.where((u) => u.path.contains('/releases/tags/')),
+        isEmpty,
+      );
+      expect(readMarker(), bodyDigest);
+    });
+
+    test('התג המותקן כבר לא קיים ב-GitHub (404) → מוריד', () async {
+      createTalmudDir(markerTag: 'v1.0.0');
+      cleanupTalmudTemp(talmudTempFile());
+      addTearDown(() => cleanupTalmudTemp(talmudTempFile()));
+      final extractions = <({String archive, String outputDir})>[];
+      await service(
+        client: digestClient(latestDigest: bodyDigest),
+        extractions: extractions,
+      ).verifyAndUpdate();
+
+      expect(extractions, hasLength(1));
+      expect(readMarker(), bodyDigest);
+    });
+
+    test('תיקייה קיימת ללא סימון → מחתים digest ולא תג', () async {
+      createTalmudDir();
+      await service(
+        client: digestClient(latestDigest: bodyDigest),
+      ).verifyAndUpdate();
+      expect(readMarker(), bodyDigest);
     });
   });
 

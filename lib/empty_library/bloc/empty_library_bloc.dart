@@ -12,6 +12,7 @@ import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_event.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_state.dart';
 import 'package:otzaria/empty_library/services/android_storage_service.dart';
+import 'package:otzaria/library_update/services/companion_assets_service.dart';
 import 'package:otzaria/search/magic_dictionary_downloader.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/utils/download_eta_estimator.dart';
@@ -933,6 +934,23 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     {
       final latestAsset = await _fetchLatestDatabaseAsset();
 
+      // ה-release האחרון של otzaria-library לא תמיד מכיל את התלמוד (יש בו גם
+      // releases של fordb) — מאתרים דרך ה-API, עם fallback לכתובת ה-latest.
+      TalmudRelease? talmudRelease;
+      var talmudAssetMissing = false;
+      try {
+        talmudRelease = await CompanionAssetsService.findLatestTalmudRelease(
+          _httpClient,
+        );
+      } on TalmudAssetNotFoundException catch (e) {
+        // הנכס אינו קיים באף release — גם כתובת ה-latest לא תכיל אותו; מדלגים,
+        // ובדיקת העדכון תתקין את התלמוד כשיפורסם מחדש.
+        debugPrint('$e');
+        talmudAssetMissing = true;
+      } catch (e) {
+        debugPrint('איתור release של התלמוד נכשל: $e');
+      }
+
       // שלושת הקבצים מורדים יחד ואז מחולצים יחד. פס ההתקדמות בשני השלבים
       // מתייחס לסכום שלושתם; רק כותרת המשנה משתנה לפי הקובץ הנוכחי.
       final assets = <_DownloadAsset>[
@@ -947,12 +965,14 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         ),
         _DownloadAsset(
           url:
+              talmudRelease?.assetUrl ??
               'https://github.com/Otzaria/otzaria-library/releases/latest/download/talmud_bavli_latest.tar.zst',
           tempFileName: 'otzaria_talmud_bavli.tar.zst',
           downloadTitle: 'מוריד את התלמוד הבבלי',
           extractTitle: 'מחלץ את התלמוד הבבלי',
           isTar: true,
-        ),
+          sha256: talmudRelease?.sha256,
+        )..skipped = talmudAssetMissing,
         _DownloadAsset(
           url:
               'https://github.com/Otzaria/otzar-HB_catalog/releases/latest/download/otzar-HB_catalog.db.zst',
@@ -984,6 +1004,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       // פתרון redirect-ים מראש (package:http מאבד את ה-Range בעת redirect) +
       // קריאת גודל כל קובץ דחוס, לחישוב פס התקדמות וזמן משוער מאוחדים.
       for (final asset in assets) {
+        if (asset.skipped) continue;
         try {
           final resolved = await _resolveRedirectWithSize(asset.url);
           asset.resolvedUrl = resolved.url;
@@ -1154,6 +1175,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       url: asset.resolvedUrl!,
       destPath: tempPath,
       expectedSize: asset.compressedSize > 0 ? asset.compressedSize : null,
+      expectedSha256: asset.sha256,
       resumeToken: identity,
       onProgress: (downloaded, _) => emitProgress(downloaded),
     );
@@ -1220,7 +1242,11 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     try {
       if (asset.isTar) {
         await _extractTarArchive(tempPath, outputDir, report);
-        await _writeTalmudVersionMarker(outputDir, asset.releaseTag);
+        // עדיף digest: תגי otzaria-library מתחלפים כמעט יומית גם כשהתוכן זהה.
+        await _writeTalmudVersionMarker(
+          outputDir,
+          asset.sha256 ?? asset.releaseTag,
+        );
       } else if (!asset.isCompressed) {
         // קובץ לא דחוס (lexical.db) — מועתק מ-temp ליעד ללא חילוץ.
         final outputPath = path.join(outputDir, asset.outputFileName!);
@@ -1272,14 +1298,14 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     await _deleteDownloadState(tempPath);
   }
 
-  /// כותב את תג ה-release לתיקיית התלמוד שחולצה. בלי הסימון, בדיקת העדכון
-  /// הבאה מחתימה את התג העדכני גם כשהותקנה גרסה ישנה ממנו — והעדכון ידולג.
+  /// כותב את זיהוי הגרסה (digest או תג) לתיקיית התלמוד שחולצה. בלי הסימון,
+  /// בדיקת העדכון הבאה מחתימה את הזיהוי העדכני גם על התקנה ישנה — והעדכון ידולג.
   /// כשל כתיבה מכשיל את החילוץ בכוונה — הצלחה שקטה בלי סימון מחזירה את הבאג.
   static Future<void> _writeTalmudVersionMarker(
     String outputDir,
-    String? releaseTag,
+    String? versionStamp,
   ) async {
-    if (releaseTag == null) return;
+    if (versionStamp == null) return;
     final talmudDir = path.join(
       outputDir,
       DatabaseConstants.talmudBavliFolderName,
@@ -1288,7 +1314,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     if (!await Directory(talmudDir).exists()) return;
     await File(
       DatabaseConstants.talmudBavliVersionFilePath(talmudDir),
-    ).writeAsString(releaseTag);
+    ).writeAsString(versionStamp);
   }
 
   /// חילוץ `.zst` יחיד (ל-DB) דרך השירות המשותף. עוטף כדי להתאים לחתימת
@@ -1452,6 +1478,7 @@ class _DownloadAsset {
     this.isMainDb = false,
     this.isCompressed = true,
     this.optional = false,
+    this.sha256,
   });
 
   /// כתובת ההורדה (לפני פתרון redirect).
@@ -1481,6 +1508,9 @@ class _DownloadAsset {
 
   /// `true` → best-effort: כשל בהורדה/חילוץ אינו מפיל את כל התהליך.
   final bool optional;
+
+  /// sha256 של הנכס מה-API — לאימות ההורדה ולסימון גרסת התלמוד.
+  final String? sha256;
 
   /// ה-URL הסופי לאחר פתרון redirect (נקבע בזמן ריצה).
   String? resolvedUrl;
