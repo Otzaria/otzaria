@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/models/book_version.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// דיאלוג "גרסאות": רשימת המהדורות (book_version) של ספר מהספרייה הרשמית.
 /// בחירת מהדורה עם טקסט שמור פותחת את הספר בנוסח אותה מהדורה.
@@ -65,7 +67,7 @@ class _BookVersionsDialogState extends State<BookVersionsDialog> {
           return ListView.separated(
             itemCount: versions.length,
             separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, index) => _VersionTile(
+            itemBuilder: (context, index) => BookVersionTile(
               book: widget.book,
               version: versions[index],
               isOnlyVersion: versions.length == 1,
@@ -77,12 +79,27 @@ class _BookVersionsDialogState extends State<BookVersionsDialog> {
   }
 }
 
-class _VersionTile extends StatelessWidget {
+/// פותח קישור מהערות גרסה; קישורים יחסיים (כמו '/adin-even-israel') נפתרים
+/// מול אתר ספריא — מקור המטא-דאטה.
+Future<bool> _openNoteUrl(String url) async {
+  final uri = Uri.parse(url);
+  final resolved = uri.hasScheme
+      ? uri
+      : Uri.parse('https://www.sefaria.org').resolveUri(uri);
+  if (await canLaunchUrl(resolved)) {
+    await launchUrl(resolved);
+  }
+  return true;
+}
+
+/// שורת מהדורה בדיאלוג הגרסאות. ציבורי לצורך בדיקות widget.
+class BookVersionTile extends StatelessWidget {
   final TextBook book;
   final BookVersionInfo version;
   final bool isOnlyVersion;
 
-  const _VersionTile({
+  const BookVersionTile({
+    super.key,
     required this.book,
     required this.version,
     required this.isOnlyVersion,
@@ -100,10 +117,9 @@ class _VersionTile extends StatelessWidget {
       if (isDisplayedText) 'הנוסח המוצג בספרייה',
       if (!version.hasContent && !isOnlyVersion)
         'טקסט הגרסה אינו כלול במאגר הנוכחי',
-      if ((version.heVersionNotes ?? version.versionNotes)?.trim().isNotEmpty ==
-          true)
-        (version.heVersionNotes ?? version.versionNotes)!.trim(),
     ];
+    final notes = (version.heVersionNotes ?? version.versionNotes)?.trim();
+    final hasNotes = notes?.isNotEmpty == true;
 
     // בפריט מנוטרל ListTile צובע את האייקון בצבע ה-disabled של ה-theme.
     return ListTile(
@@ -115,11 +131,25 @@ class _VersionTile extends StatelessWidget {
         color: openable ? theme.colorScheme.primary : null,
       ),
       title: Text(version.displayTitle),
-      subtitle: subtitleParts.isEmpty
+      subtitle: subtitleParts.isEmpty && !hasNotes
           ? null
-          : Text(
-              subtitleParts.join('\n'),
-              style: theme.textTheme.bodySmall,
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (subtitleParts.isNotEmpty)
+                  Text(
+                    subtitleParts.join('\n'),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                // ההערות מגיעות מספריא כ-HTML עם קישורי <a> — רינדור כטקסט
+                // גולמי מציג את התגיות מעורבבות בפסקת RTL.
+                if (hasNotes)
+                  HtmlWidget(
+                    notes!,
+                    textStyle: theme.textTheme.bodySmall,
+                    onTapUrl: _openNoteUrl,
+                  ),
+              ],
             ),
       onTap: openable
           ? () {
