@@ -553,14 +553,13 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
                   ) ??
                   true; // לא הוכרע — סלחני
             },
-            menuBuilder: (menuCtx, tapPosition) =>
+            menuBuilder: (menuCtx, _) =>
                 ContextMenuUtils.buildCommentaryContextMenu(
                   context: menuCtx,
                   link: link,
                   openBookCallback: widget.openBookCallback,
                   fontSize: widget.fontSize,
                   savedSelectedText: _savedSelectedText,
-                  tapPosition: tapPosition,
                   onCopySelected: () => ContextMenuUtils.copyFormattedText(
                     context: menuCtx,
                     savedSelectedText: _savedSelectedText,

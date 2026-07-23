@@ -349,8 +349,6 @@ class DictionaryLookupRepository {
   List<AramaicDictionaryEntry> _aramaicEntries = <AramaicDictionaryEntry>[];
   Set<String> _aramaicTerms = <String>{};
   List<LaazDictionaryEntry> _laazEntries = <LaazDictionaryEntry>[];
-  Map<String, List<LaazDictionaryEntry>> _laazByTranslit =
-      <String, List<LaazDictionaryEntry>>{};
 
   /// כותרת ספר-רש"י -> אינדקס-שורה (1-based) -> ערכי הלעז המקושרים לאותה שורה.
   Map<String, Map<int, List<LaazDictionaryEntry>>> _laazByRashiLine =
@@ -514,15 +512,6 @@ class DictionaryLookupRepository {
         trimmed.contains('׳');
   }
 
-  static final RegExp _innerGershayim = RegExp(
-    '[א-ת][֑-ׇ]*["״][א-ת]',
-  );
-
-  /// בודק אם הטקסט נראה כתעתיק לעז: גרשיים בין אותיות בתוך המילה.
-  bool isLikelyLaazTranslit(String raw) {
-    return _innerGershayim.hasMatch(raw.trim());
-  }
-
   /// מחזיר את כל הפירושים לראשי תיבות אם קיימים.
   AcronymDictionaryEntry? findAcronym(String raw) {
     final normalized = _normalizeAcronym(raw);
@@ -611,32 +600,6 @@ class DictionaryLookupRepository {
     return List<LaazDictionaryEntry>.unmodifiable(_laazEntries);
   }
 
-  /// מחזיר התאמות מדויקות ללעז לפי התעתיק העברי, עמיד לחילופי כתיב בין דפוסים.
-  List<LaazDictionaryEntry> findLaazMatches(String raw) {
-    final key = _canonicalizeLaazTranslit(_normalizeAramaic(raw));
-    if (key.isEmpty) return const <LaazDictionaryEntry>[];
-
-    return _laazByTranslit[key] ?? const <LaazDictionaryEntry>[];
-  }
-
-  /// מחזיר את התאמות הלעז מקובצות: ערכים עם אותו תעתיק ואותו פירוש
-  /// (ממקורות רש"י שונים) מאוחדים לקבוצה אחת, לפי סדר ההופעה בספר.
-  List<List<LaazDictionaryEntry>> findLaazMatchGroups(String raw) {
-    final groups = <String, List<LaazDictionaryEntry>>{};
-    for (final entry in findLaazMatches(raw)) {
-      final title = entry.laazHebrew.isNotEmpty
-          ? entry.laazHebrew
-          : entry.lemma;
-      final description = entry.meaning.isNotEmpty
-          ? entry.meaning
-          : (entry.note ?? '');
-      final key =
-          '${_normalizeAramaic(title)}|${_normalizeAramaic(description)}';
-      groups.putIfAbsent(key, () => <LaazDictionaryEntry>[]).add(entry);
-    }
-    return groups.values.toList(growable: false);
-  }
-
   Future<void> _loadAcronymsInternal() async {
     final acronyms = await _loadAcronyms();
 
@@ -687,21 +650,7 @@ class DictionaryLookupRepository {
 
   Future<void> _loadLaazInternal() async {
     final laazEntries = await _loadLaazEntries();
-    final byTranslit = <String, List<LaazDictionaryEntry>>{};
-
-    for (final entry in laazEntries) {
-      final translit = _canonicalizeLaazTranslit(
-        _normalizeAramaic(entry.laazHebrew),
-      );
-      if (translit.isNotEmpty) {
-        byTranslit
-            .putIfAbsent(translit, () => <LaazDictionaryEntry>[])
-            .add(entry);
-      }
-    }
-
     _laazEntries = List<LaazDictionaryEntry>.unmodifiable(laazEntries);
-    _laazByTranslit = byTranslit;
   }
 
   Future<void> _loadLaazLinksInternal() async {
@@ -816,17 +765,6 @@ class DictionaryLookupRepository {
     return _normalizeCommon(_trimDecorations(raw), keepQuotes: false);
   }
 
-  static const Map<String, String> _laazTranslitAliases = <String, String>{
-    'שוון': 'שבון',
-    'שיון': 'שבון',
-    'רווישטיר': 'ריוישטיר',
-  };
-
-  /// מאחד רק חילופי כתיב שנמצאו בפועל, בלי למזג ראשי תיבות ומילים אחרות.
-  static String _canonicalizeLaazTranslit(String normalized) {
-    return _laazTranslitAliases[normalized] ?? normalized;
-  }
-
   static String _normalizeCommon(String raw, {required bool keepQuotes}) {
     var normalized = utils.removeVolwels(raw).trim();
     normalized = normalized.replaceAll(RegExp(r'\s+'), ' ');
@@ -883,7 +821,6 @@ class DictionaryLookupRepository {
 
   void _resetLaazCache() {
     _laazEntries = <LaazDictionaryEntry>[];
-    _laazByTranslit = <String, List<LaazDictionaryEntry>>{};
     _areLaazLoaded = false;
   }
 
