@@ -214,11 +214,13 @@ class CompanionAssetsService {
             onDownloadProgress?.call((progress * 10000).round(), 10000);
           }
         });
-      } catch (_) {
-        // חילוץ שנכשל על קובץ שלם משאיר temp שיחזיר 416 בניסיון הבא (דילוג על
-        // ההורדה) ולולאה אינסופית — מוחקים כדי לכפות הורדה מחדש.
-        await File(tempPath).delete().catchError((_) => File(tempPath));
-        await _deleteTalmudDownloadState(tempPath);
+      } catch (e) {
+        // ארכיון פגום שנשאר שלם יחזיר 416 (דילוג הורדה) ולולאה — מוחקים; כשל
+        // מערכת-קבצים (קובץ יעד נעול) אינו ארכיון פגום — ה-temp נשמר ל-resume.
+        if (e is! FileSystemException) {
+          await File(tempPath).delete().catchError((_) => File(tempPath));
+          await _deleteTalmudDownloadState(tempPath);
+        }
         rethrow;
       }
       // מחיקת הקובץ הזמני לאחר חילוץ מוצלח.

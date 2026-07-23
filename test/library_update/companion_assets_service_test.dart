@@ -59,6 +59,7 @@ void main() {
     void Function()? invalidate,
     void Function()? invalidateLibrary,
     bool failExtraction = false,
+    Object? extractionError,
   }) {
     return CompanionAssetsService(
       clientFactory: () => client ?? releaseClient(),
@@ -66,6 +67,7 @@ void main() {
       dictionaryFactory: () => dictionary ?? _FakeDictionaryDownloader(),
       extractTarArchive: (archive, outputDir, onProgress) async {
         if (failExtraction) throw Exception('החילוץ נקטע');
+        if (extractionError != null) throw extractionError;
         extractions?.add((archive: archive, outputDir: outputDir));
         onProgress?.call(0.5);
         onProgress?.call(1.0);
@@ -248,6 +250,128 @@ void main() {
           isFalse,
           reason: 'אחרי חילוץ מוצלח הקובץ הזמני נמחק',
         );
+      },
+    );
+
+    test(
+      'FileSystemException בשלב החילוץ משאיר את ה-temp — '
+      'בלי הורדת גוף מלאה חוזרת',
+      () async {
+        final talmudTemp = File(
+          p.join(
+            Directory.systemTemp.path,
+            'otzaria_${DatabaseConstants.talmudBavliArchiveFileName}',
+          ),
+        );
+        cleanupTalmudTemp(talmudTemp);
+        addTearDown(() => cleanupTalmudTemp(talmudTemp));
+
+        final ranges = <String?>[];
+        final client = MockClient((request) async {
+          if (request.url.path.contains('releases/latest')) {
+            return http.Response(
+              jsonEncode({
+                'tag_name': tag,
+                'assets': [
+                  {
+                    'name': DatabaseConstants.talmudBavliArchiveFileName,
+                    'browser_download_url': assetUrl,
+                    'size': 100,
+                    'id': 1,
+                    'updated_at': 't1',
+                  },
+                ],
+              }),
+              200,
+            );
+          }
+          if (request.url.toString() == assetUrl) {
+            ranges.add(request.headers['range']);
+            if (request.headers['range'] != null) {
+              return http.Response(
+                '',
+                416,
+                headers: const {'content-range': 'bytes */100'},
+              );
+            }
+            return http.Response.bytes(
+              List.filled(100, 5),
+              200,
+              headers: const {'etag': '"e1"'},
+            );
+          }
+          return http.Response('not found', 404);
+        });
+
+        // הרצה 1: ההורדה מצליחה אך המחלץ זורק FileSystemException (מדמה קובץ
+        // יעד נעול) — הארכיון הזמני נשמר כדי שההרצה הבאה לא תוריד שוב ~440MB.
+        await service(
+          client: client,
+          extractionError: const FileSystemException('קובץ נעול'),
+        ).verifyAndUpdate();
+        expect(readMarker(), CompanionAssetsService.talmudInstallingMarker);
+        expect(
+          talmudTemp.existsSync(),
+          isTrue,
+          reason: 'כשל נעילה אינו ארכיון פגום — אין למחוק את ההורדה',
+        );
+
+        // הרצה 2: הנעילה שוחררה — החילוץ מצליח מהשריד, בלי הורדת גוף נוספת.
+        final extractions = <({String archive, String outputDir})>[];
+        await service(
+          client: client,
+          extractions: extractions,
+        ).verifyAndUpdate();
+        expect(extractions, hasLength(1));
+        expect(readMarker(), tag);
+        expect(
+          ranges.where((r) => r == null),
+          hasLength(1),
+          reason: 'הגוף המלא הורד פעם אחת בלבד — ההרצה השנייה השתמשה בשריד',
+        );
+        expect(
+          talmudTemp.existsSync(),
+          isFalse,
+          reason: 'אחרי חילוץ מוצלח הקובץ הזמני נמחק',
+        );
+      },
+    );
+
+    test(
+      'קובץ יעד נעול באמת בזמן ניקוי הקבצים הישנים משאיר את ה-temp',
+      skip: Platform.isWindows ? null : 'נעילת קבצים חוסמת מחיקה רק ב-Windows',
+      () async {
+        final talmudTemp = File(
+          p.join(
+            Directory.systemTemp.path,
+            'otzaria_${DatabaseConstants.talmudBavliArchiveFileName}',
+          ),
+        );
+        cleanupTalmudTemp(talmudTemp);
+        addTearDown(() => cleanupTalmudTemp(talmudTemp));
+
+        // handle פתוח על קובץ קיים — deleteSync של ניקוי הישנים ייכשל עליו.
+        createTalmudDir(markerTag: 'v1.0.0');
+        final lock = File(p.join(talmudDir(), 'ברכות.pdf')).openSync();
+        var locked = true;
+        addTearDown(() {
+          if (locked) lock.closeSync();
+        });
+
+        await service().verifyAndUpdate();
+        expect(readMarker(), CompanionAssetsService.talmudInstallingMarker);
+        expect(
+          talmudTemp.existsSync(),
+          isTrue,
+          reason: 'הנעילה נכשלה אחרי ההורדה — הארכיון חייב להישמר ל-resume',
+        );
+
+        lock.closeSync();
+        locked = false;
+        final extractions = <({String archive, String outputDir})>[];
+        await service(extractions: extractions).verifyAndUpdate();
+        expect(extractions, hasLength(1));
+        expect(readMarker(), tag);
       },
     );
 

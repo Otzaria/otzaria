@@ -135,6 +135,20 @@ void main() {
           return http.Response.bytes(downloadedBytes, 200);
         }
 
+        // כמו GitHub: releases/latest/download מפנה לנתיב עם תג ה-release.
+        if (request.url.host == 'github.com' &&
+            request.url.path.contains('/releases/latest/download/') &&
+            request.url.path.endsWith('talmud_bavli_latest.tar.zst')) {
+          return http.Response(
+            '',
+            302,
+            headers: const {
+              'location':
+                  'https://github.com/Otzaria/otzaria-library/releases/download/v5.0.0/talmud_bavli_latest.tar.zst',
+            },
+          );
+        }
+
         if (request.url.host == 'github.com' &&
             request.url.path.endsWith('talmud_bavli_latest.tar.zst')) {
           return http.Response.bytes(talmudBytes, 200);
@@ -193,7 +207,10 @@ void main() {
           expect(archivePath, startsWith(Directory.systemTemp.path));
           expect(path.basename(archivePath), 'otzaria_talmud_bavli.tar.zst');
           expect(await File(archivePath).readAsBytes(), talmudBytes);
-          // לא יוצרים קבצי tar אמיתיים בטסט — מדמים חילוץ
+          // מדמים חילוץ: הארכיון האמיתי יוצר את תיקיית התלמוד ביעד.
+          Directory(
+            path.join(outputDir, DatabaseConstants.talmudBavliFolderName),
+          ).createSync(recursive: true);
         },
       );
       addTearDown(bloc.close);
@@ -232,6 +249,18 @@ void main() {
       expect(
         File(path.join(tempDir.path, 'lexical.db.version')).readAsStringSync(),
         'v0.3.0',
+      );
+      // גם לתלמוד נכתב סימון גרסה מהתג שבשרשרת ה-redirect — בלעדיו החתמה
+      // מאוחרת עלולה לסמן התקנה ישנה כתג העדכני ולדלג על עדכון.
+      expect(
+        File(
+          path.join(
+            tempDir.path,
+            DatabaseConstants.talmudBavliFolderName,
+            DatabaseConstants.talmudBavliVersionFileName,
+          ),
+        ).readAsStringSync(),
+        'v5.0.0',
       );
     });
 

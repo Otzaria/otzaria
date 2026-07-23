@@ -1220,6 +1220,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     try {
       if (asset.isTar) {
         await _extractTarArchive(tempPath, outputDir, report);
+        await _writeTalmudVersionMarker(outputDir, asset.releaseTag);
       } else if (!asset.isCompressed) {
         // קובץ לא דחוס (lexical.db) — מועתק מ-temp ליעד ללא חילוץ.
         final outputPath = path.join(outputDir, asset.outputFileName!);
@@ -1269,6 +1270,25 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     // מחיקת קובץ ה-temp לאחר חילוץ מוצלח.
     await File(tempPath).delete().catchError((_) => File(tempPath));
     await _deleteDownloadState(tempPath);
+  }
+
+  /// כותב את תג ה-release לתיקיית התלמוד שחולצה. בלי הסימון, בדיקת העדכון
+  /// הבאה מחתימה את התג העדכני גם כשהותקנה גרסה ישנה ממנו — והעדכון ידולג.
+  /// כשל כתיבה מכשיל את החילוץ בכוונה — הצלחה שקטה בלי סימון מחזירה את הבאג.
+  static Future<void> _writeTalmudVersionMarker(
+    String outputDir,
+    String? releaseTag,
+  ) async {
+    if (releaseTag == null) return;
+    final talmudDir = path.join(
+      outputDir,
+      DatabaseConstants.talmudBavliFolderName,
+    );
+    // אין ליצור את התיקייה: תיקייה עם סימון בלבד תיראה כהתקנה קיימת ומעודכנת.
+    if (!await Directory(talmudDir).exists()) return;
+    await File(
+      DatabaseConstants.talmudBavliVersionFilePath(talmudDir),
+    ).writeAsString(releaseTag);
   }
 
   /// חילוץ `.zst` יחיד (ל-DB) דרך השירות המשותף. עוטף כדי להתאים לחתימת
