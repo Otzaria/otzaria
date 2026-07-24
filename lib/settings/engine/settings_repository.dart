@@ -32,6 +32,11 @@ class SettingsRepository {
   static const String keyContinuousReadingMode = 'key-continuous-reading-mode';
   static const String keyDefaultSidebarOpen = 'key-default-sidebar-open';
   static const String keyDefaultCommentaryOpen = 'key-default-commentary-open';
+
+  /// CSV של סוגי הקישורים המוצגים בפאנל הקישורים. ריק = הכל מוצג, כדי שסוג
+  /// חדש שיתווסף ל-DB יופיע מאליו ולא ייחשב כמסונן.
+  static const String keySelectedLinkTypes = 'key-selected-link-types';
+
   static const String keyPinSidebar = 'key-pin-sidebar';
   static const String keySidebarWidth = 'key-sidebar-width';
   static const String keyFacetFilteringWidth = 'key-facet-filtering-width';

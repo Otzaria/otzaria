@@ -18,6 +18,7 @@ import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_engine_gateway.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/nikud_display_service.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
@@ -154,6 +155,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<ToggleTzuratHadafView>(_onToggleTzuratHadafView);
     on<TogglePageShapeView>(_onTogglePageShapeView);
     on<UpdateCommentators>(_onUpdateCommentators);
+    on<UpdateLinkTypeFilter>(_onUpdateLinkTypeFilter);
     on<ToggleNikud>(_onToggleNikud);
     on<TogglePunctuation>(_onTogglePunctuation);
     on<ToggleContinuousReadingMode>(_onToggleContinuousReadingMode);
@@ -924,6 +926,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         scrollOffsetController: scrollOffsetController,
         currentTitle: currentTitle,
         visibleLinks: emptyVisibleLinks,
+        selectedLinkTypes: _loadSelectedLinkTypes(),
         selectedTextForNote: state is TextBookLoaded
             ? (state as TextBookLoaded).selectedTextForNote
             : null,
@@ -1178,6 +1181,49 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           ),
         );
       }
+    }
+  }
+
+  void _onUpdateLinkTypeFilter(
+    UpdateLinkTypeFilter event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is! TextBookLoaded) return;
+    final currentState = state as TextBookLoaded;
+    final normalized = event.linkTypes
+        .map(LinkTypes.normalize)
+        .where((e) => e.isNotEmpty)
+        .toSet();
+
+    emit(
+      currentState.copyWith(
+        selectedLinkTypes: normalized,
+        selectedIndex: currentState.selectedIndex,
+      ),
+    );
+    unawaited(_saveSelectedLinkTypes(normalized));
+  }
+
+  /// טוען את סינון סוגי הקישורים מההגדרות. ריק = הכל מוצג.
+  static Set<String> _loadSelectedLinkTypes() {
+    final raw =
+        Settings.getValue<String>(SettingsRepository.keySelectedLinkTypes) ??
+        '';
+    return raw
+        .split(',')
+        .map(LinkTypes.normalize)
+        .where((e) => e.isNotEmpty)
+        .toSet();
+  }
+
+  Future<void> _saveSelectedLinkTypes(Set<String> linkTypes) async {
+    try {
+      await Settings.setValue(
+        SettingsRepository.keySelectedLinkTypes,
+        (linkTypes.toList()..sort()).join(','),
+      );
+    } catch (e) {
+      debugPrint('⚠️ Failed to save selected link types: $e');
     }
   }
 

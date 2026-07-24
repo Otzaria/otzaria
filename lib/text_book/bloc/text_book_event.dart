@@ -133,6 +133,16 @@ class UpdateCommentators extends TextBookEvent {
   List<Object?> get props => [commentators, isUserAction, isRestore];
 }
 
+/// עדכון סוגי הקישורים המוצגים בפאנל הקישורים. קבוצה ריקה = הצג הכל.
+class UpdateLinkTypeFilter extends TextBookEvent {
+  final Set<String> linkTypes;
+
+  const UpdateLinkTypeFilter(this.linkTypes);
+
+  @override
+  List<Object?> get props => [linkTypes];
+}
+
 class ToggleNikud extends TextBookEvent {
   final bool remove;
 

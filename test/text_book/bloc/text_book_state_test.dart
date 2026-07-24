@@ -63,6 +63,19 @@ void main() {
         expect(older, isNot(equals(newer)));
       },
     );
+    test('changes when selected link types change', () {
+      final withFilter = _loadedState(selectedLinkTypes: const {'REFERENCE'});
+      final noFilter = _loadedState();
+
+      expect(withFilter, isNot(equals(noFilter)));
+    });
+
+    test('changes when one link type is swapped for another of same size', () {
+      final quotation = _loadedState(selectedLinkTypes: const {'QUOTATION'});
+      final related = _loadedState(selectedLinkTypes: const {'RELATED'});
+
+      expect(quotation, isNot(equals(related)));
+    });
 
     test('changes when selected indices change', () {
       final single = _loadedState(selectedIndices: const {3});
@@ -92,6 +105,7 @@ TextBookLoaded _loadedState({
   Map<String, String> spacingValues = const {},
   SearchMode searchMode = SearchMode.exact,
   Set<int> selectedIndices = const {},
+  Set<String> selectedLinkTypes = const {},
   String? heCategories,
 }) {
   return TextBookLoaded(
@@ -106,6 +120,7 @@ TextBookLoaded _loadedState({
     availableCommentators: const [],
     links: const [],
     visibleLinks: const [],
+    selectedLinkTypes: selectedLinkTypes,
     linksByLine: const {},
     tableOfContents: const [],
     removeNikud: false,

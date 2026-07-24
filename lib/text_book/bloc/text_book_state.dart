@@ -175,6 +175,10 @@ class TextBookLoaded extends TextBookState {
   final Set<String> rareCommentators;
   final List<Link> links;
   final List<Link> visibleLinks;
+
+  /// סוגי הקישורים שנבחרו להצגה בפאנל הקישורים (ב-UPPERCASE).
+  /// ריק = הכל מוצג. הסינון עצמו נעשה בשכבת ה-UI.
+  final Set<String> selectedLinkTypes;
   final List<TocEntry> tableOfContents;
   final bool removeNikud;
   final bool removePunctuation;
@@ -254,6 +258,7 @@ class TextBookLoaded extends TextBookState {
     this.rareCommentators = const {},
     required this.links,
     this.visibleLinks = const [],
+    this.selectedLinkTypes = const {},
     required this.linksByLine,
     required this.tableOfContents,
     required this.removeNikud,
@@ -357,6 +362,7 @@ class TextBookLoaded extends TextBookState {
     Set<String>? rareCommentators,
     List<Link>? links,
     List<Link>? visibleLinks,
+    Set<String>? selectedLinkTypes,
     Map<int, List<Link>>? linksByLine,
     List<TocEntry>? tableOfContents,
     bool? removeNikud,
@@ -419,6 +425,7 @@ class TextBookLoaded extends TextBookState {
       rareCommentators: rareCommentators ?? this.rareCommentators,
       links: links ?? this.links,
       visibleLinks: visibleLinks ?? this.visibleLinks,
+      selectedLinkTypes: selectedLinkTypes ?? this.selectedLinkTypes,
       linksByLine: linksByLine ?? this.linksByLine,
       tableOfContents: tableOfContents ?? this.tableOfContents,
       removeNikud: removeNikud ?? this.removeNikud,
@@ -522,6 +529,9 @@ class TextBookLoaded extends TextBookState {
     rareCommentators,
     links.length,
     visibleLinks.length,
+    // השוואה לפי תוכן — החלפת סוג אחד באחר שומרת על אותו גודל ותיבלע
+    // בהשוואת ה-state, והסינון לא יתעדכן.
+    selectedLinkTypes,
     tableOfContents.length,
     removeNikud,
     removePunctuation,

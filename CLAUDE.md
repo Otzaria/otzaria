@@ -687,6 +687,7 @@ dart format lib/file.dart    # Format ONLY files you modified
 | Focus restore | `test/focus_restore_test.dart` |
 | Calendar widget | `test/calendar_widget_focus_test.dart` |
 | Models (books, links) | `test/models/books_test.dart`, `…links_test.dart`, `…phone_report_data_test.dart` |
+| Link types (נרמול, סוג קנוני, תוויות) | `test/models/link_types_test.dart` |
 | Utils (page map builder, page converter, TOC parser) | `test/utils/page_map_builder_test.dart`, `…page_converter_test.dart`, `…toc_parser_test.dart` |
 | Utils (link processing) | `test/text_book/utils/link_processing_test.dart` |
 | Hebrew morphology (search) | `test/search/hebrew_morphology_test.dart` |
