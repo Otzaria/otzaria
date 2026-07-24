@@ -26,6 +26,7 @@ class LinkTypes {
   static const String linker = 'LINKER';
   static const String summary = 'SUMMARY';
   static const String sifreiMitzvot = 'SIFREI_MITZVOT';
+  static const String essay = 'ESSAY';
   static const String none = 'NONE';
 
   /// ביאורים תלויי־טקסט, ולכן מוצגים כמפרשים ולא כהפניות.
@@ -138,6 +139,8 @@ class LinkTypes {
     quotationAutoTanakh: quotation,
     relatedPassage: related,
     none: other,
+    // תווית חסרת מידע לקורא, ולכן ממוזג ל'לא מסווג' במקום צ׳יפ נפרד.
+    essay: other,
     // שני הסוגים נקראים 'ביאור' — בלי מיזוג היו נבנים שני צ׳יפים זהים.
     explication: elucidation,
   };

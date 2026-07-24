@@ -94,6 +94,11 @@ void main() {
       expect(LinkTypes.canonicalType(null), 'OTHER');
     });
 
+    test('ESSAY ממוזג ל-OTHER (לא מסווג)', () {
+      expect(LinkTypes.canonicalType('ESSAY'), 'OTHER');
+      expect(LinkTypes.canonicalType('essay'), 'OTHER');
+    });
+
     test('סוגים מובחנים וסוג לא-מוכר נשמרים כמות שהם (מנורמלים)', () {
       for (final type in const [
         'ALLUSION',
