@@ -29,6 +29,7 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
+import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
@@ -93,12 +94,18 @@ List<FlatLibraryRow> buildFlatLibraryRows({
   required Set<String> expandedPaths,
   required int Function(Category) topCategoryOrder,
   required int Function(int) normalizeOrder,
+  Set<String> talmudTextTitles = const {},
 }) {
   final rows = <FlatLibraryRow>[];
 
   void collect(Category current, int level) {
-    final books = current.books.toList()
-      ..sort((a, b) => a.order.compareTo(b.order));
+    final books =
+        current.books
+            .where(
+              (b) => !isTalmudBavliPdfLibraryDuplicate(b, talmudTextTitles),
+            )
+            .toList()
+          ..sort((a, b) => a.order.compareTo(b.order));
     final subs = current.subCategories.where((c) => c.hasBooks).toList();
     if (current is Library) {
       subs.sort((a, b) => topCategoryOrder(a).compareTo(topCategoryOrder(b)));
@@ -1131,7 +1138,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         final settingsState = context.read<SettingsBloc>().state;
         if (settingsState.libraryViewMode == 'grid') {
           if (state.searchResults != null) {
-            final books = state.searchResults!;
+            final books = _visibleBooks(state.searchResults!);
             if (books.isEmpty) {
               final repo = context.read<FocusRepository>();
               return _buildEmptyState(context, state, settingsState, repo);
@@ -1163,12 +1170,13 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           );
         }
         if (state.searchResults != null) {
-          if (state.searchResults!.isEmpty) {
+          final visibleResults = _visibleBooks(state.searchResults!);
+          if (visibleResults.isEmpty) {
             final repo = context.read<FocusRepository>();
             return _buildEmptyState(context, state, settingsState, repo);
           }
           return _buildSearchListView(
-            _filterBooksByTopics(state.searchResults!, state.selectedTopics),
+            _filterBooksByTopics(visibleResults, state.selectedTopics),
             _buildTopicsSelection(context, state),
           );
         }
@@ -1179,7 +1187,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
   List<Widget> _buildCategoryContent(Category category) {
     final List<Widget> items = [];
-    final filteredBooks = category.books.toList();
+    final filteredBooks = _visibleBooks(category.books);
     final filteredSubCategories = category.subCategories
         .where((c) => c.hasBooks)
         .toList();
@@ -1322,6 +1330,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         expandedPaths: _expandedCategories,
         topCategoryOrder: _getTopCategoryOrder,
         normalizeOrder: _normalizeOrder,
+        talmudTextTitles: _talmudTextTitles(),
       );
 
   /// Key יציב לשורה — בלעדיו אנימציית השברון ומצב hover "זולגים" בין
@@ -1411,7 +1420,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
   List<Widget> _buildCategoryTree(Category category, int level) {
     final List<Widget> widgets = [];
-    final filteredBooks = category.books.toList()
+    final filteredBooks = _visibleBooks(category.books)
       ..sort((a, b) => a.order.compareTo(b.order));
     final filteredSubs = category.subCategories
         .where((c) => c.hasBooks)
@@ -1882,12 +1891,42 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
   }
 
-  void _openBookInReader(Book book, int index) =>
-      openBook(context, book, index, '');
+  Set<String>? _talmudTextTitlesCache;
+  Category? _talmudTextTitlesLibrary;
+
+  /// כותרות מהדורות הטקסט של מסכתות הבבלי, ממוטמנות פר-מופע ספרייה.
+  Set<String> _talmudTextTitles() {
+    final library = context.read<LibraryBloc>().state.library;
+    if (library == null) return const {};
+    if (!identical(library, _talmudTextTitlesLibrary)) {
+      _talmudTextTitlesLibrary = library;
+      _talmudTextTitlesCache = talmudBavliTextTitles(library);
+    }
+    return _talmudTextTitlesCache!;
+  }
+
+  /// מסנן מהתצוגה מהדורות PDF כפולות של מסכתות הבבלי — מוצגת רשומה אחת
+  /// למסכת, והפתיחה נקבעת לפי הגדרת פורמט הבבלי.
+  List<Book> _visibleBooks(List<Book> books) {
+    final titles = _talmudTextTitles();
+    return books
+        .where((b) => !isTalmudBavliPdfLibraryDuplicate(b, titles))
+        .toList();
+  }
+
+  Future<void> _openBookInReader(Book book, int index) async {
+    final handled = await openLibraryBookPerTalmudBavliFormat(
+      context,
+      book,
+      index,
+    );
+    if (handled || !mounted) return;
+    openBook(context, book, index, '');
+  }
 
   /// מחזיר את הספר הראשון שיוצג בפועל בקטגוריה, לפי אותו סדר תצוגה כמו _buildCategoryContent
   Book? _getFirstDisplayedBook(Category category) {
-    final books = category.books.toList()
+    final books = _visibleBooks(category.books)
       ..sort((a, b) => a.order.compareTo(b.order));
     if (books.isNotEmpty) return books.first;
 

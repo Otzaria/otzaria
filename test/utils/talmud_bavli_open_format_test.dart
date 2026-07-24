@@ -22,12 +22,14 @@ void main() {
     test('זיהוי לפי categoryPath', () {
       expect(
         isTalmudBavliBook(
-            TextBook(title: 'ברכות', categoryPath: 'תלמוד בבלי/סדר זרעים')),
+          TextBook(title: 'ברכות', categoryPath: 'תלמוד בבלי/סדר זרעים'),
+        ),
         isTrue,
       );
       expect(
         isTalmudBavliBook(
-            TextBook(title: 'ברכות', categoryPath: 'משנה/סדר זרעים')),
+          TextBook(title: 'ברכות', categoryPath: 'משנה/סדר זרעים'),
+        ),
         isFalse,
       );
     });
@@ -42,8 +44,12 @@ void main() {
 
       final otherRoot = _category('הלכה');
       expect(
-        isTalmudBavliBook(TextBook(
-            title: 'ברכות', category: _category('ברכות', parent: otherRoot))),
+        isTalmudBavliBook(
+          TextBook(
+            title: 'ברכות',
+            category: _category('ברכות', parent: otherRoot),
+          ),
+        ),
         isFalse,
       );
     });
@@ -57,18 +63,21 @@ void main() {
       );
       expect(
         isTalmudBavliBook(
-            TextBook(title: 'רש"י', categoryPath: 'תלמוד בבלי/ראשונים')),
+          TextBook(title: 'רש"י', categoryPath: 'תלמוד בבלי/ראשונים'),
+        ),
         isFalse,
       );
     });
 
     test('PDF בקטגוריית השורש תלמוד בבלי (מסכתות סרוקות) — מסכת', () {
       expect(
-        isTalmudBavliBook(PdfBook(
-          title: 'ברכות',
-          path: r'C:\books\תלמוד בבלי\ברכות.pdf',
-          category: _category('תלמוד בבלי'),
-        )),
+        isTalmudBavliBook(
+          PdfBook(
+            title: 'ברכות',
+            path: r'C:\books\תלמוד בבלי\ברכות.pdf',
+            category: _category('תלמוד בבלי'),
+          ),
+        ),
         isTrue,
       );
     });
@@ -76,20 +85,136 @@ void main() {
     test('PDF ללא קטגוריה — זיהוי לפי נתיב הקובץ', () {
       expect(
         isTalmudBavliBook(
-            PdfBook(title: 'ברכות', path: r'C:\books\תלמוד בבלי\ברכות.pdf')),
+          PdfBook(title: 'ברכות', path: r'C:\books\תלמוד בבלי\ברכות.pdf'),
+        ),
         isTrue,
       );
       expect(
         isTalmudBavliBook(
-            PdfBook(title: 'ברכות', path: r'C:\books\הלכה\ברכות.pdf')),
+          PdfBook(title: 'ברכות', path: r'C:\books\הלכה\ברכות.pdf'),
+        ),
         isFalse,
       );
       // קובץ בתת-תיקייה של תלמוד בבלי אינו מסכת.
       expect(
-        isTalmudBavliBook(PdfBook(
-            title: 'רש"י', path: r'C:\books\תלמוד בבלי\מפרשים\רשי.pdf')),
+        isTalmudBavliBook(
+          PdfBook(title: 'רש"י', path: r'C:\books\תלמוד בבלי\מפרשים\רשי.pdf'),
+        ),
         isFalse,
       );
+    });
+  });
+
+  group('isTalmudBavliPdfLibraryDuplicate', () {
+    const textTitles = {'ברכות'};
+
+    test('PDF נלווה של מסכת עם מהדורת טקסט הוא כפילות-תצוגה; טקסט אינו', () {
+      expect(
+        isTalmudBavliPdfLibraryDuplicate(
+          PdfBook(title: 'ברכות', path: r'C:\books\תלמוד בבלי\ברכות.pdf'),
+          textTitles,
+        ),
+        isTrue,
+      );
+      expect(
+        isTalmudBavliPdfLibraryDuplicate(
+          TextBook(title: 'ברכות', categoryPath: 'תלמוד בבלי/סדר זרעים'),
+          textTitles,
+        ),
+        isFalse,
+      );
+    });
+
+    test(
+      'התאמת כותרות מנורמלת — גרשיים ורווחים כפולים לא שוברים את הסינון',
+      () {
+        final bavliRoot = _category('תלמוד בבלי');
+        final seder = _category('סדר זרעים', parent: bavliRoot);
+        seder.books.add(TextBook(title: 'ע״ז', category: seder));
+        final titles = talmudBavliTextTitles(Library(categories: [bavliRoot]));
+
+        expect(
+          isTalmudBavliPdfLibraryDuplicate(
+            PdfBook(title: 'ע"ז', path: r'C:\books\תלמוד בבלי\עז.pdf'),
+            titles,
+          ),
+          isTrue,
+        );
+        expect(
+          isTalmudBavliPdfLibraryDuplicate(
+            PdfBook(
+              title: 'בבא  קמא',
+              path: r'C:\books\תלמוד בבלי\בבא קמא.pdf',
+            ),
+            {normalizeBookTitle('בבא קמא')},
+          ),
+          isTrue,
+        );
+      },
+    );
+
+    test('PDF של מסכת ללא מהדורת טקסט — לא מוסתר (לא נעלם מהספרייה)', () {
+      expect(
+        isTalmudBavliPdfLibraryDuplicate(
+          PdfBook(title: 'שבת', path: r'C:\books\תלמוד בבלי\שבת.pdf'),
+          textTitles,
+        ),
+        isFalse,
+      );
+    });
+
+    test('ספרי משתמש, קטלוג חיצוני ומפרשי PDF — אינם מסוננים', () {
+      expect(
+        isTalmudBavliPdfLibraryDuplicate(
+          PdfBook(
+            title: 'ברכות',
+            path: r'C:\books\תלמוד בבלי\ברכות.pdf',
+            isUserBook: true,
+          ),
+          textTitles,
+        ),
+        isFalse,
+      );
+      expect(
+        isTalmudBavliPdfLibraryDuplicate(
+          PdfBook(
+            title: 'ברכות',
+            path: r'C:\books\תלמוד בבלי\ברכות.pdf',
+            externalLibraryId: 'otzar',
+          ),
+          textTitles,
+        ),
+        isFalse,
+      );
+      expect(
+        isTalmudBavliPdfLibraryDuplicate(
+          PdfBook(title: 'רש"י', path: r'C:\books\תלמוד בבלי\מפרשים\רשי.pdf'),
+          {'רש"י', ...textTitles},
+        ),
+        isFalse,
+      );
+    });
+
+    test('talmudBavliTextTitles אוסף רק מהדורות טקסט רשמיות של מסכתות', () {
+      final bavliRoot = _category('תלמוד בבלי');
+      final seder = _category('סדר זרעים', parent: bavliRoot);
+      seder.books.add(TextBook(title: 'ברכות', category: seder));
+      // טקסט אישי לא מייצג את ה-PDF המובנה — אסור שיגרום להסתרתו.
+      seder.books.add(
+        TextBook(title: 'עירובין', category: seder, isUserBook: true),
+      );
+      bavliRoot.books.add(
+        PdfBook(
+          title: 'שבת',
+          path: r'C:\books\תלמוד בבלי\שבת.pdf',
+          category: bavliRoot,
+        ),
+      );
+      final halacha = _category('הלכה');
+      halacha.books.add(TextBook(title: 'משנה ברורה', category: halacha));
+      final library = Library(categories: [bavliRoot, halacha]);
+
+      expect(talmudBavliTextTitles(library), {'ברכות'});
     });
   });
 
@@ -99,10 +224,12 @@ void main() {
       final seder = _category('סדר זרעים', parent: bavliRoot);
       final otherRoot = _category('הלכה');
       final otherCat = _category('ענייני ברכות', parent: otherRoot);
-      seder.books
-          .add(TextBook(title: 'ברכות', category: seder, categoryId: 10));
-      otherCat.books
-          .add(TextBook(title: 'ברכות', category: otherCat, categoryId: 20));
+      seder.books.add(
+        TextBook(title: 'ברכות', category: seder, categoryId: 10),
+      );
+      otherCat.books.add(
+        TextBook(title: 'ברכות', category: otherCat, categoryId: 20),
+      );
       return Library(categories: [bavliRoot, otherRoot]);
     }
 

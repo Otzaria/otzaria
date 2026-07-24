@@ -17,9 +17,28 @@ import 'package:seforim_library_updater/seforim_library_updater.dart';
 /// מוודא שהקבצים הנלווים לספרייה — התלמוד הבבלי, קטלוג otzar-HB ומילון
 /// החיפוש — קיימים ומעודכנים, כחלק מזרימת עדכון הספרייה.
 ///
+/// פרטי נכס התלמוד ב-release (ראה [CompanionAssetsService.findLatestTalmudRelease]).
+typedef TalmudRelease = ({
+  String tag,
+  String assetUrl,
+  int size,
+  String id,
+  String updatedAt,
+  String? sha256,
+});
+
+/// נזרק כשסריקת ה-releases הושלמה בלי למצוא את נכס התלמוד באף אחד מהם —
+/// להבדיל מכשל רשת/API, שבו ייתכן שהנכס קיים אך לא ניתן היה לאתרו.
+class TalmudAssetNotFoundException implements Exception {
+  @override
+  String toString() =>
+      'לא נמצא ${DatabaseConstants.talmudBavliArchiveFileName} באף release';
+}
+
 /// כל פריט הוא best-effort: כשל (אין רשת, קובץ נעול) נרשם ללוג ולא מפיל את
 /// העדכון. הקטלוג והמילון משתמשים במנגנוני הגרסה הקיימים שלהם; לתלמוד נוסף
-/// כאן סימון גרסה (תג ה-release) בקובץ בתוך התיקייה.
+/// כאן סימון גרסה בקובץ בתוך התיקייה — digest של הנכס (או תג ה-release
+/// כ-fallback כשאין digest).
 class CompanionAssetsService {
   static const String talmudReleaseApi =
       'https://api.github.com/repos/Otzaria/otzaria-library/releases/latest';
@@ -150,19 +169,24 @@ class CompanionAssetsService {
 
     final client = _clientFactory();
     try {
-      final release = await _fetchTalmudRelease(client);
+      final release = await findLatestTalmudRelease(
+        client,
+        apiUrl: _talmudReleaseApiUrl,
+      );
       if (existingDir != null) {
         final marker = File(p.join(existingDir, talmudVersionFileName));
         final installed = marker.existsSync()
             ? marker.readAsStringSync().trim()
             : '';
-        if (installed.isEmpty) {
-          // התקנה קיימת ללא סימון גרסה — מחתימים את התג הנוכחי בלי להוריד
-          // מחדש; עדכונים יזוהו מה-release הבא ואילך.
-          marker.writeAsStringSync(release.tag);
+        if (installed.isNotEmpty &&
+            await _isInstalledUpToDate(client, installed, release)) {
+          // תגי הספרייה מתחלפים כמעט יומית גם כשקובץ התלמוד זהה — מרעננים את
+          // הסימון ל-digest כדי שהבדיקות הבאות ישוו תוכן ולא תג.
+          if (release.sha256 != null && installed != release.sha256) {
+            marker.writeAsStringSync(release.sha256!);
+          }
           return false;
         }
-        if (installed == release.tag) return false;
       }
       if (cancelled()) return false;
 
@@ -214,11 +238,13 @@ class CompanionAssetsService {
             onDownloadProgress?.call((progress * 10000).round(), 10000);
           }
         });
-      } catch (_) {
-        // חילוץ שנכשל על קובץ שלם משאיר temp שיחזיר 416 בניסיון הבא (דילוג על
-        // ההורדה) ולולאה אינסופית — מוחקים כדי לכפות הורדה מחדש.
-        await File(tempPath).delete().catchError((_) => File(tempPath));
-        await _deleteTalmudDownloadState(tempPath);
+      } catch (e) {
+        // ארכיון פגום שנשאר שלם יחזיר 416 (דילוג הורדה) ולולאה — מוחקים; כשל
+        // מערכת-קבצים (קובץ יעד נעול) אינו ארכיון פגום — ה-temp נשמר ל-resume.
+        if (e is! FileSystemException) {
+          await File(tempPath).delete().catchError((_) => File(tempPath));
+          await _deleteTalmudDownloadState(tempPath);
+        }
         rethrow;
       }
       // מחיקת הקובץ הזמני לאחר חילוץ מוצלח.
@@ -226,7 +252,7 @@ class CompanionAssetsService {
       await _deleteTalmudDownloadState(tempPath);
       File(
         p.join(targetDir, talmudVersionFileName),
-      ).writeAsStringSync(release.tag);
+      ).writeAsStringSync(release.sha256 ?? release.tag);
       // קיום תיקיית התלמוד ממוטמן ב-DatabaseLibraryProvider — בלי ניקוי,
       // הריענון שאחרי העדכון לא יגלה את התיקייה החדשה עד הפעלה מחדש.
       _invalidateLibraryCaches();
@@ -236,20 +262,86 @@ class CompanionAssetsService {
     }
   }
 
-  Future<
-    ({
-      String tag,
-      String assetUrl,
-      int size,
-      String id,
-      String updatedAt,
-      String? sha256,
-    })
-  >
-  _fetchTalmudRelease(http.Client client) async {
+  /// האם ההתקנה המסומנת ב-[installed] עדכנית מול [release]: תג או digest
+  /// זהים, או שהתג המותקן ישן אך נכס התלמוד בו זהה בתוכנו ל-release האחרון.
+  Future<bool> _isInstalledUpToDate(
+    http.Client client,
+    String installed,
+    TalmudRelease release,
+  ) async {
+    if (installed == release.tag) return true;
+    final sha = release.sha256;
+    if (sha == null) return false;
+    if (installed == sha) return true;
+    if (installed == talmudInstallingMarker) return false;
+    // תגי הספרייה מתחלפים כמעט יומית עם אותו קובץ תלמוד בדיוק — משווים את
+    // ה-digest של התג המותקן כדי לא להוריד ~440MB על שינוי תג בלבד.
+    try {
+      final json = await _getGithubJson(
+        client,
+        _talmudReleaseApiUrl.replaceFirst(
+          '/releases/latest',
+          '/releases/tags/${Uri.encodeComponent(installed)}',
+        ),
+      );
+      return json is Map<String, dynamic> && _talmudAssetSha256(json) == sha;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// ה-sha256 של נכס התלמוד מתוך JSON של release, או `null` אם אין digest.
+  static String? _talmudAssetSha256(Map<String, dynamic> json) {
+    final assets = (json['assets'] as List?) ?? const [];
+    for (final a in assets) {
+      final asset = a as Map<String, dynamic>;
+      if (asset['name'] == DatabaseConstants.talmudBavliArchiveFileName) {
+        return switch (asset['digest']) {
+          final String digest when digest.startsWith('sha256:') =>
+            digest.substring('sha256:'.length),
+          _ => null,
+        };
+      }
+    }
+    return null;
+  }
+
+  /// ה-release העדכני ביותר שמכיל את נכס התלמוד: קודם `releases/latest`, ואם
+  /// הנכס חסר בו (למשל release של fordb) — נסרקים ה-releases עמוד אחר עמוד.
+  /// זורק [TalmudAssetNotFoundException] כשהסריקה הסתיימה בלי למצוא את הנכס.
+  static Future<TalmudRelease> findLatestTalmudRelease(
+    http.Client client, {
+    String apiUrl = talmudReleaseApi,
+  }) async {
+    final latest = await _getGithubJson(client, apiUrl);
+    if (latest is Map<String, dynamic>) {
+      final release = _talmudReleaseFrom(latest);
+      if (release != null) return release;
+    }
+    // תקרת העמודים שומרת על מגבלת ה-rate של GitHub; 300 releases רצופים בלי
+    // הנכס פירושם שהוא כבר לא מתפרסם.
+    for (var page = 1; page <= 3; page++) {
+      final list = await _getGithubJson(
+        client,
+        apiUrl.replaceFirst(
+          '/releases/latest',
+          '/releases?per_page=100&page=$page',
+        ),
+      );
+      if (list is! List || list.isEmpty) break;
+      for (final r in list) {
+        if (r is! Map<String, dynamic> || r['prerelease'] == true) continue;
+        final release = _talmudReleaseFrom(r);
+        if (release != null) return release;
+      }
+    }
+    throw TalmudAssetNotFoundException();
+  }
+
+  static Future<dynamic> _getGithubJson(http.Client client, String url) async {
     final response = await client
         .get(
-          Uri.parse(_talmudReleaseApiUrl),
+          Uri.parse(url),
           headers: const {
             'Accept': 'application/vnd.github+json',
             'User-Agent': 'otzaria',
@@ -259,11 +351,13 @@ class CompanionAssetsService {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('GitHub API החזיר ${response.statusCode}');
     }
-    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    return jsonDecode(response.body);
+  }
+
+  /// פרטי נכס התלמוד מתוך JSON של release, או `null` כשהתג/הנכס חסרים.
+  static TalmudRelease? _talmudReleaseFrom(Map<String, dynamic> json) {
     final tag = (json['tag_name'] as String?)?.trim();
-    if (tag == null || tag.isEmpty) {
-      throw Exception('release ללא tag_name');
-    }
+    if (tag == null || tag.isEmpty) return null;
     final assets = (json['assets'] as List?) ?? const [];
     for (final a in assets) {
       final asset = a as Map<String, dynamic>;
@@ -274,17 +368,11 @@ class CompanionAssetsService {
           size: (asset['size'] as num?)?.toInt() ?? 0,
           id: asset['id']?.toString() ?? '',
           updatedAt: asset['updated_at']?.toString() ?? '',
-          sha256: switch (asset['digest']) {
-            final String digest when digest.startsWith('sha256:') =>
-              digest.substring('sha256:'.length),
-            _ => null,
-          },
+          sha256: _talmudAssetSha256(json),
         );
       }
     }
-    throw Exception(
-      'לא נמצא ${DatabaseConstants.talmudBavliArchiveFileName} ב-release $tag',
-    );
+    return null;
   }
 
   /// מוריד את [url] דרך מנגנון ה-resume המאומת של חבילת העדכון. [identity]

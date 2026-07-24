@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:http/http.dart' as http;
@@ -106,9 +107,31 @@ void main() {
 
       final downloadedBytes = utf8.encode('compressed-db');
       final talmudBytes = utf8.encode('compressed-talmud');
+      final talmudDigest = sha256.convert(talmudBytes).toString();
       final catalogBytes = utf8.encode('compressed-catalog');
       final lexicalBytes = utf8.encode('lexical-dictionary');
       final client = MockClient((request) async {
+        // ה-API של otzaria-library — איתור release התלמוד (כולל digest).
+        if (request.url.path.contains(
+          '/repos/Otzaria/otzaria-library/releases/latest',
+        )) {
+          return http.Response(
+            jsonEncode({
+              'tag_name': 'v5.0.0',
+              'assets': [
+                {
+                  'name': DatabaseConstants.talmudBavliArchiveFileName,
+                  'browser_download_url':
+                      'https://github.com/Otzaria/otzaria-library/releases/download/v5.0.0/talmud_bavli_latest.tar.zst',
+                  'digest': 'sha256:$talmudDigest',
+                  'size': talmudBytes.length,
+                },
+              ],
+            }),
+            200,
+          );
+        }
+
         if (request.url.path.endsWith('/releases/latest')) {
           return http.Response(
             jsonEncode({
@@ -193,7 +216,10 @@ void main() {
           expect(archivePath, startsWith(Directory.systemTemp.path));
           expect(path.basename(archivePath), 'otzaria_talmud_bavli.tar.zst');
           expect(await File(archivePath).readAsBytes(), talmudBytes);
-          // לא יוצרים קבצי tar אמיתיים בטסט — מדמים חילוץ
+          // מדמים חילוץ: הארכיון האמיתי יוצר את תיקיית התלמוד ביעד.
+          Directory(
+            path.join(outputDir, DatabaseConstants.talmudBavliFolderName),
+          ).createSync(recursive: true);
         },
       );
       addTearDown(bloc.close);
@@ -233,7 +259,114 @@ void main() {
         File(path.join(tempDir.path, 'lexical.db.version')).readAsStringSync(),
         'v0.3.0',
       );
+      // גם לתלמוד נכתב סימון גרסה — digest של הנכס מה-API, כדי שבדיקות עדכון
+      // ישוו תוכן ולא תג (תגי otzaria-library מתחלפים כמעט יומית).
+      expect(
+        File(
+          path.join(
+            tempDir.path,
+            DatabaseConstants.talmudBavliFolderName,
+            DatabaseConstants.talmudBavliVersionFileName,
+          ),
+        ).readAsStringSync(),
+        talmudDigest,
+      );
     });
+
+    test(
+      'נכס התלמוד לא קיים באף release → מדלגים בלי לפנות לכתובת ה-latest',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'otzaria-talmud-missing-',
+        );
+        addTearDown(() async {
+          if (await tempDir.exists()) {
+            await tempDir.delete(recursive: true);
+          }
+        });
+        await Settings.init(cacheProvider: _MemoryCacheProvider());
+        await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
+        await Settings.setValue<String>(
+          SettingsRepository.keyLibraryFolderName,
+          '',
+        );
+
+        final downloadedBytes = utf8.encode('compressed-db');
+        final catalogBytes = utf8.encode('compressed-catalog');
+        final requested = <Uri>[];
+        final client = MockClient((request) async {
+          requested.add(request.url);
+          // otzaria-library: אין נכס תלמוד ב-latest וגם לא ברשימת ה-releases.
+          if (request.url.path.contains(
+            '/repos/Otzaria/otzaria-library/releases/latest',
+          )) {
+            return http.Response(
+              jsonEncode({'tag_name': 'fordb-latest', 'assets': []}),
+              200,
+            );
+          }
+          if (request.url.path.endsWith(
+            '/repos/Otzaria/otzaria-library/releases',
+          )) {
+            return http.Response(jsonEncode([]), 200);
+          }
+          if (request.url.path.endsWith('/releases/latest')) {
+            return http.Response(
+              jsonEncode({
+                'assets': [
+                  {
+                    'name': 'seforim.db.zst',
+                    'browser_download_url':
+                        'https://example.com/releases/seforim.db.zst',
+                  },
+                ],
+              }),
+              200,
+              headers: const {'content-type': 'application/json'},
+            );
+          }
+          if (request.url.toString() ==
+              'https://example.com/releases/seforim.db.zst') {
+            return http.Response.bytes(downloadedBytes, 200);
+          }
+          if (request.url.host == 'github.com' &&
+              request.url.path.endsWith('otzar-HB_catalog.db.zst')) {
+            return http.Response.bytes(catalogBytes, 200);
+          }
+          // המילון (אופציונלי) — 404 מדלג עליו.
+          return http.Response('not found', 404);
+        });
+
+        final bloc = EmptyLibraryBloc(
+          httpClient: client,
+          defaultLibraryPathOverride: tempDir.path,
+          extractCompressedDatabase:
+              (archivePath, outputPath, onProgress) async {
+                await File(
+                  outputPath,
+                ).writeAsBytes(const [1, 2, 3], flush: true);
+              },
+          extractTarArchive: (a, o, p) async =>
+              fail('אסור לחלץ תלמוד כשהנכס לא קיים באף release'),
+        );
+        addTearDown(bloc.close);
+
+        final selected = bloc.stream
+            .where((state) => state is EmptyLibraryDirectorySelected)
+            .cast<EmptyLibraryDirectorySelected>()
+            .first;
+        bloc.add(DownloadLibraryRequested());
+        await selected.timeout(const Duration(seconds: 5));
+
+        expect(
+          requested.where(
+            (u) => u.path.endsWith('talmud_bavli_latest.tar.zst'),
+          ),
+          isEmpty,
+          reason: 'הנכס לא קיים — אין לפנות לכתובת latest/download שתחזיר 404',
+        );
+      },
+    );
 
     test('פס ההתקדמות מאוחד על פני כל הקבצים — רק הכותרת מתחלפת', () async {
       final tempDir = await Directory.systemTemp.createTemp(

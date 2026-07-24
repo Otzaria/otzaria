@@ -36,11 +36,6 @@ class BookOpenCoordinator {
     List<String>? initialCommentators,
     bool navigateToPositionIfReused = false,
   }) {
-    final tabsState = tabsBloc.state;
-    if (tabsState.hasOpenTabs) {
-      historyBloc.add(CaptureStateForHistory(tabsState.currentTab!));
-    }
-
     final tab = buildTab(
       book,
       index,
@@ -52,6 +47,24 @@ class BookOpenCoordinator {
       markText: markText,
       initialCommentators: initialCommentators,
     );
+    openTab(
+      tab,
+      insertAdjacent: insertAdjacent,
+      navigateToPositionIfReused: navigateToPositionIfReused,
+    );
+  }
+
+  /// פותח טאב מוכן עם סמנטיקת [openBook]: לכידת מצב להיסטוריה, פתיחה/מיקוד
+  /// של הטאב וניווט למסך הקריאה — למסלולים שבונים את הטאב בעצמם.
+  void openTab(
+    OpenedTab tab, {
+    bool insertAdjacent = false,
+    bool navigateToPositionIfReused = false,
+  }) {
+    final tabsState = tabsBloc.state;
+    if (tabsState.hasOpenTabs) {
+      historyBloc.add(CaptureStateForHistory(tabsState.currentTab!));
+    }
     tabsBloc.add(
       OpenOrFocusTab(
         tab,
