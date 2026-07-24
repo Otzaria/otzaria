@@ -177,6 +177,70 @@ void main() {
     expect(find.byType(LinkHoverPreviewContent), findsOneWidget);
   });
 
+  testWidgets('מהדורה חלופית אינה מזריקה עוגני-מילה לגוף הטקסט', (
+    tester,
+  ) async {
+    final pointLink = Link(
+      heRef: 'מפרש א, א',
+      index1: 1,
+      path2: 'מפרש א',
+      index2: 1,
+      connectionType: 'commentary',
+      anchorStart: 0,
+      anchorLabel: 'א',
+    );
+    final loadedState = _loadedState().copyWith(
+      book: TextBook(title: 'ספר בדיקה', versionTitle: 'מהדורה חלופית'),
+      links: [pointLink],
+      linksByLine: {
+        1: [pointLink],
+      },
+    );
+    final textBookBloc = _TestTextBookBloc(loadedState);
+    final personalNotesBloc = _TestPersonalNotesBloc(
+      const PersonalNotesState(
+        isLoading: false,
+        bookId: 'ספר בדיקה',
+        locatedNotes: [],
+        missingNotes: [],
+        errorMessage: null,
+        filteredLocatedNotes: [],
+        filteredMissingNotes: [],
+      ),
+    );
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+    await tester.pumpWidget(
+      MultiBlocProvider(
+        providers: [
+          BlocProvider<TextBookBloc>.value(value: textBookBloc),
+          BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
+          BlocProvider<SettingsBloc>.value(value: settingsBloc),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SimpleTextViewer(
+              content: const ['abcdef'],
+              fontSize: 18,
+              openBookCallback: (_) {},
+              isMainText: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final texts = tester.widgetList<SmartTextWidget>(
+      find.byType(SmartTextWidget),
+    );
+    expect(texts, isNotEmpty);
+    expect(
+      texts.every((w) => !w.text.contains('otzaria://anchor')),
+      isTrue,
+    );
+  });
+
   testWidgets('בצורת הדף ריחוף על Linker מסוג start/end מציג פופאפ', (
     tester,
   ) async {
