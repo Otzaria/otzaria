@@ -19,7 +19,6 @@ class FileSyncResult {
   final int addedBooks;
   final int updatedBooks;
   final int addedCategories;
-  final int addedLinks;
   final int skippedFiles;
   final List<String> errors;
   final Duration duration;
@@ -32,7 +31,6 @@ class FileSyncResult {
     this.addedBooks = 0,
     this.updatedBooks = 0,
     this.addedCategories = 0,
-    this.addedLinks = 0,
     this.skippedFiles = 0,
     this.errors = const [],
     this.duration = Duration.zero,
@@ -42,31 +40,29 @@ class FileSyncResult {
   @override
   String toString() {
     return 'FileSyncResult(added: $addedBooks, updated: $updatedBooks, '
-        'categories: $addedCategories, links: $addedLinks, '
+        'categories: $addedCategories, '
         'skipped: $skippedFiles, errors: ${errors.length}, '
         'duration: ${duration.inSeconds}s)';
   }
 }
 
-/// Service for syncing files from אוצריא and links folders to the database.
+/// Service for syncing custom-folder files to user_books.db.
 ///
-/// This service scans for new TXT files in the library path and adds them
-/// to the database automatically. It runs in the background after app startup.
+/// This service scans for new files in the user's custom folders and adds them
+/// to user_books.db automatically. It runs in the background after app startup.
 class FileSyncService {
   static final _log = Logger('FileSyncService');
   static const String _customFolderSourcePrefix = CustomFolderSource.prefix;
   static FileSyncService? _instance;
 
-  /// Repository של `seforim.db` — לתוכן הרשמי (אוצריא, links).
+  /// Repository של `seforim.db` — נפתח read-only, לקריאות dedup בלבד.
   final SeforimRepository _repository;
 
-  /// Repository של `user_books.db` — לתיקיות מותאמות אישית בלבד.
-  /// כש-null, זרימות תיקיות מותאמות אישית משתמשות ב-`_repository` (legacy).
-  final SeforimRepository? _userBooksRepository;
+  /// Repository של `user_books.db` — יעד הכתיבה של התיקיות המותאמות.
+  final SeforimRepository _userBooksRepository;
 
-  /// ה-repository האפקטיבי לזרימת תיקיות מותאמות אישית.
-  SeforimRepository get _customFoldersRepo =>
-      _userBooksRepository ?? _repository;
+  /// ה-repository האפקטיבי לזרימת תיקיות מותאמות אישית (תמיד user_books.db).
+  SeforimRepository get _customFoldersRepo => _userBooksRepository;
 
   bool _isSyncing = false;
 
@@ -77,12 +73,12 @@ class FileSyncService {
 
   /// Get singleton instance.
   ///
-  /// [repository] — `seforim.db` repository (לתוכן רשמי).
-  /// [userBooksRepository] — `user_books.db` repository (לתיקיות מותאמות
-  /// אישית). כש-null, הזרימה הישנה בה הכל ב-`seforim.db` נשמרת.
+  /// [repository] — `seforim.db` repository (read-only, לקריאות dedup).
+  /// [userBooksRepository] — `user_books.db` repository, יעד הכתיבה. חובה:
+  /// זרימות התיקיות המותאמות כותבות אך ורק אליו, לעולם לא ל-seforim.db.
   static Future<FileSyncService?> getInstance(
     SeforimRepository? repository, {
-    SeforimRepository? userBooksRepository,
+    required SeforimRepository userBooksRepository,
   }) async {
     if (repository == null) return null;
     _instance ??= FileSyncService._(repository, userBooksRepository);
@@ -93,7 +89,7 @@ class FileSyncService {
   /// Must NOT be used from the main isolate — use [getInstance] instead.
   factory FileSyncService.createForWorker(
     SeforimRepository repository, {
-    SeforimRepository? userBooksRepository,
+    required SeforimRepository userBooksRepository,
   }) {
     return FileSyncService._(repository, userBooksRepository);
   }
@@ -764,7 +760,6 @@ class FileSyncService {
     int addedBooks = 0;
     int updatedBooks = 0;
     int addedCategories = 0;
-    int addedLinks = 0;
     int skippedFiles = 0;
     final errors = <String>[];
     final updatedBookIds = <int>[];
@@ -898,7 +893,6 @@ class FileSyncService {
       addedBooks: addedBooks,
       updatedBooks: updatedBooks,
       addedCategories: addedCategories,
-      addedLinks: addedLinks,
       skippedFiles: skippedFiles,
       errors: errors,
       duration: stopwatch.elapsed,

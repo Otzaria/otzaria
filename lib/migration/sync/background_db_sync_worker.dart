@@ -71,7 +71,6 @@ FileSyncResult _resultFromMap(Map<String, Object?> resultMap) => FileSyncResult(
   addedBooks: resultMap['addedBooks'] as int,
   updatedBooks: resultMap['updatedBooks'] as int,
   addedCategories: resultMap['addedCategories'] as int,
-  addedLinks: resultMap['addedLinks'] as int,
   skippedFiles: resultMap['skippedFiles'] as int,
   errors: List<String>.from(resultMap['errors'] as List),
   duration: Duration(milliseconds: resultMap['durationMs'] as int),
@@ -206,8 +205,6 @@ Future<void> runDeleteFolderFromDbInIsolate({
   required String userBooksDbPath,
   required String folderPath,
   List<String> otherConfiguredFolderPaths = const [],
-  Future<void> Function()? prepareForWrite,
-  Future<void> Function()? restoreAfterWrite,
 }) {
   return DatabaseLibraryProvider.operationQueue.enqueue(() async {
     await QueryLoader.initialize();
@@ -220,14 +217,9 @@ Future<void> runDeleteFolderFromDbInIsolate({
       'folderPath': folderPath,
       'otherConfiguredFolderPaths': otherConfiguredFolderPaths,
     };
-    // [prepareForWrite]/[restoreAfterWrite] רצים בתוך יחידת התור — ראה ההסבר
-    // ב-[runCustomFoldersDbSyncInIsolate].
-    if (prepareForWrite != null) await prepareForWrite();
-    try {
-      await _runWorkerIsolate(payload, isDelete: true);
-    } finally {
-      if (restoreAfterWrite != null) await restoreAfterWrite();
-    }
+    // המחיקה כותבת אך ורק ל-user_books.db ופותחת את seforim.db read-only,
+    // ולכן אין צורך לסגור את חיבור ה-RO הראשי.
+    await _runWorkerIsolate(payload, isDelete: true);
   });
 }
 
@@ -279,7 +271,6 @@ Future<Map<String, Object?>> _syncWorkerEntryPoint(
       'addedBooks': result.addedBooks,
       'updatedBooks': result.updatedBooks,
       'addedCategories': result.addedCategories,
-      'addedLinks': result.addedLinks,
       'skippedFiles': result.skippedFiles,
       'errors': result.errors,
       'durationMs': result.duration.inMilliseconds,

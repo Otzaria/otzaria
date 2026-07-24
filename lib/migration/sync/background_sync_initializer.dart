@@ -125,14 +125,11 @@ class BackgroundSyncInitializer {
 
       _log.info('Background sync completed: $result');
 
-      if (result.addedBooks > 0 ||
-          result.updatedBooks > 0 ||
-          result.addedLinks > 0) {
+      if (result.addedBooks > 0 || result.updatedBooks > 0) {
         debugPrint(
           '📚 סנכרון קבצים הושלם: '
           '${result.addedBooks} ספרים חדשים, '
-          '${result.updatedBooks} ספרים עודכנו, '
-          '${result.addedLinks} קישורים נוספו',
+          '${result.updatedBooks} ספרים עודכנו',
         );
       }
 

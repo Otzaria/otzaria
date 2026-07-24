@@ -686,12 +686,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
       delaySeconds: 2, // Small delay to let UI settle after library load
       onComplete: (result) {
         if (!mounted) return;
-        if (result.addedBooks > 0 ||
-            result.updatedBooks > 0 ||
-            result.addedLinks > 0) {
+        if (result.addedBooks > 0 || result.updatedBooks > 0) {
           debugPrint(
             '📚 סנכרון קבצים הושלם: ${result.addedBooks} ספרים חדשים, '
-            '${result.updatedBooks} עודכנו, ${result.addedLinks} קישורים',
+            '${result.updatedBooks} עודכנו',
           );
 
           // Refresh the library browser to show new books
