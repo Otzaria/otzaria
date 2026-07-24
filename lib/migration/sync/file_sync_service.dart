@@ -10,7 +10,6 @@ import '../database/repository/seforim_repository.dart';
 import '../../settings/services/custom_folders/custom_folder.dart';
 import '../../settings/engine/settings_repository.dart';
 import '../generator/generator.dart';
-import '../generator/link_processor.dart';
 import '../models/book.dart';
 import '../models/category.dart';
 import '../../utils/file/file_hidden_utils.dart';
@@ -768,13 +767,7 @@ class FileSyncService {
 
   /// Pure sync logic — receives all inputs, touches no Settings.
   /// Suitable for running inside a background worker isolate.
-  /// [syncFolders] — לעבד את התיקיות המותאמות (כתיבה ל-user_books.db).
-  /// [syncLinks] — לעבד את תיקיית ה-`links` (כתיבה ל-seforim.db).
-  ///
-  /// השניים מופרדים כדי שניתן יהיה להריץ את כתיבת הספרים האישיים (שצריכה רק
-  /// *קריאה* מ-seforim.db) בלי לסגור את חיבור ה-RO הראשי, ולסגור אותו רק
-  /// סביב שלב ה-links (שכותב ל-seforim.db). ברירת המחדל — שניהם, לשמירת
-  /// תאימות עם קוראים קיימים.
+  /// [syncFolders] — לעבד את התיקיות המותאמות (כתיבה ל-user_books.db בלבד).
   /// [onlyFolderPath] — כשמסופק, נסרקת רק התיקייה בעלת נתיב זה (למשל אחרי
   /// ייבוא לתיקיית הספרים האישיים). ה-prune של תיקיות שהוסרו עדיין רץ מול
   /// הרשימה המלאה, כך שספרי תיקיות אחרות לא נפגעים.
@@ -784,7 +777,6 @@ class FileSyncService {
     String folderName = '',
     void Function(double progress, String message)? onProgress,
     bool syncFolders = true,
-    bool syncLinks = true,
     String? onlyFolderPath,
   }) async {
     if (_isSyncing) {
@@ -918,27 +910,6 @@ class FileSyncService {
         if (onlyFolderPath == null) {
           await pruneRemovedCustomFoldersFromDatabase(customFolders);
         }
-      }
-
-      final linksPath = path.join(libraryPath, 'links');
-      final linksDir = Directory(linksPath);
-
-      if (syncLinks && await linksDir.exists()) {
-        _log.info('Scanning links folder: $linksPath');
-        _reportProgress(0.6, 'סורק תיקיית קישורים...');
-
-        // Links תמיד שייכים ל-seforim.db — ה-LinkProcessor מקבל את
-        // ה-repository הראשי (לא user_books).
-        final linkProcessor = LinkProcessor(_repository);
-        final linksResult = await linkProcessor.processLinksDirectory(
-          linksPath: linksPath,
-          onProgress: (progress, message) {
-            _reportProgress(0.6 + (progress * 0.3), message);
-          },
-          updateBookHasLinks: true,
-        );
-        addedLinks += linksResult.processedLinks;
-        errors.addAll(linksResult.errors);
       }
 
       _reportProgress(1.0, 'הסנכרון הושלם');

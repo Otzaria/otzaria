@@ -434,9 +434,8 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
         '';
     final userBooksDbPath = await UserBooksDatabaseHolder.resolveDbPath();
 
-    // ה-close/reopen של ה-RO סביב הכתיבה מנוהלים *בתוך*
-    // [runCustomFoldersDbSyncInIsolate] — בתוך יחידת ה-operationQueue — כדי
-    // שה-RO לא ייסגר בזמן ההמתנה בתור.
+    // הסנכרון כותב אך ורק ל-user_books.db ופותח את seforim.db read-only,
+    // ולכן אין צורך לסגור את חיבור ה-RO הראשי.
     return await runCustomFoldersDbSyncInIsolate(
       dbPath: dbPath,
       userBooksDbPath: userBooksDbPath,
@@ -444,8 +443,6 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
       customFolders: folders,
       folderName: folderName,
       onlyFolderPath: onlyFolderPath,
-      prepareForWrite: sqliteProvider.closeForExternalWrite,
-      restoreAfterWrite: sqliteProvider.reopenAfterExternalWrite,
     );
   }
 
