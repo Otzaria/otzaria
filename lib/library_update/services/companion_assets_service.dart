@@ -178,13 +178,8 @@ class CompanionAssetsService {
         final installed = marker.existsSync()
             ? marker.readAsStringSync().trim()
             : '';
-        if (installed.isEmpty) {
-          // התקנה קיימת ללא סימון גרסה — מחתימים את הזיהוי הנוכחי בלי להוריד
-          // מחדש; עדכונים יזוהו מה-release הבא ואילך.
-          marker.writeAsStringSync(release.sha256 ?? release.tag);
-          return false;
-        }
-        if (await _isInstalledUpToDate(client, installed, release)) {
+        if (installed.isNotEmpty &&
+            await _isInstalledUpToDate(client, installed, release)) {
           // תגי הספרייה מתחלפים כמעט יומית גם כשקובץ התלמוד זהה — מרעננים את
           // הסימון ל-digest כדי שהבדיקות הבאות ישוו תוכן ולא תג.
           if (release.sha256 != null && installed != release.sha256) {

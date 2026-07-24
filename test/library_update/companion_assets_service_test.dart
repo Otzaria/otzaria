@@ -150,7 +150,7 @@ void main() {
       expect(progress, contains(5000));
     });
 
-    test('תיקייה קיימת ללא סימון → מחתים את התג בלי להוריד', () async {
+    test('תיקייה קיימת ללא סימון → מוריד ומחתים את התג', () async {
       createTalmudDir();
       final requested = <Uri>[];
       final extractions = <({String archive, String outputDir})>[];
@@ -160,9 +160,9 @@ void main() {
       ).verifyAndUpdate();
 
       expect(readMarker(), tag);
-      expect(extractions, isEmpty);
-      expect(requested.map((u) => u.toString()), isNot(contains(assetUrl)));
-      expect(changed, isFalse, reason: 'החתמה בלבד אינה שינוי בספרייה');
+      expect(extractions, hasLength(1));
+      expect(requested.map((u) => u.toString()), contains(assetUrl));
+      expect(changed, isTrue);
     });
 
     test('סימון תואם לתג → לא מוריד ולא נוגע', () async {
@@ -1068,11 +1068,17 @@ void main() {
       expect(readMarker(), bodyDigest);
     });
 
-    test('תיקייה קיימת ללא סימון → מחתים digest ולא תג', () async {
+    test('תיקייה קיימת ללא סימון → מוריד ומחתים את ה-digest הנוכחי', () async {
       createTalmudDir();
+      cleanupTalmudTemp(talmudTempFile());
+      addTearDown(() => cleanupTalmudTemp(talmudTempFile()));
+      final extractions = <({String archive, String outputDir})>[];
       await service(
         client: digestClient(latestDigest: bodyDigest),
+        extractions: extractions,
       ).verifyAndUpdate();
+
+      expect(extractions, hasLength(1));
       expect(readMarker(), bodyDigest);
     });
   });
