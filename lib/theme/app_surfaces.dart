@@ -92,6 +92,26 @@ class AppSurfaces {
       ? cs.primaryContainer.withValues(alpha: 0.6)
       : cs.surfaceContainerHighest.withValues(alpha: 0.5);
 
+  /// רקע שורת צ׳יפי סינון לפי *סוג* הקישור — הציר הראשי, ולכן הבולט מבין השניים.
+  ///
+  /// שתי שורות הצ׳יפים נגזרות מ-[ColorScheme.surfaceContainerHighest] בלבד ונבדלות
+  /// זו מזו רק בעוצמת השקיפות. תפקיד ניטרלי זה שומר על אותו פער נראות בכל 13 צבעי
+  /// הנושא — כולל ערכת "אפור" שבה תפקידי ה-primary/secondary הופכים לאפור כהה צועק.
+  static Color linkTypeChipsRow(BuildContext context) =>
+      _cs(context).surfaceContainerHighest.withValues(
+        alpha: _cs(context).isDark ? 1.0 : 0.5,
+      );
+
+  /// רקע שורת צ׳יפי סינון לפי *דור* המחבר — הציר המשני, ולכן עדין יותר.
+  ///
+  /// ראה [linkTypeChipsRow] לנימוק בחירת התפקיד. השקיפות במצב כהה גבוהה בהרבה
+  /// מזו שבמצב בהיר משום ש-[panelBackground] הכהה הוא שחור טהור, ושקיפות נמוכה
+  /// מעליו נמחקת לחלוטין.
+  static Color linkEraChipsRow(BuildContext context) =>
+      _cs(context).surfaceContainerHighest.withValues(
+        alpha: _cs(context).isDark ? 0.45 : 0.16,
+      );
+
   /// overlayColor ל-TabBar שמצייר hover מותאם אישית (foregroundPainter)
   /// ולכן רוצה לבטל את ה-hover/focus הגלובלי של [TabBarTheme].
   static final WidgetStateProperty<Color?> tabBarNoOverlay =

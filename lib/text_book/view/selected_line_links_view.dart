@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -145,6 +146,26 @@ List<Link> chipSourceLinks(List<Link> links) => links
     )
     .toList();
 
+@visibleForTesting
+const Key linkTypeChipsRowKey = Key('link_type_chips_row');
+
+@visibleForTesting
+const Key linkEraChipsRowKey = Key('link_era_chips_row');
+
+/// מפתחות הצ׳יפים מפוצלים לשני צירי המיון: `types` (סוג הקישור) ו-`eras`
+/// (דור המחבר). הסדר בתוך כל ציר נשמר כפי שהתקבל.
+@visibleForTesting
+({List<String> types, List<String> eras}) splitChipKeysByAxis(
+  List<String> keys,
+) {
+  final types = <String>[];
+  final eras = <String>[];
+  for (final key in keys) {
+    (LinkTypes.isEraKey(key) ? eras : types).add(key);
+  }
+  return (types: types, eras: eras);
+}
+
 /// הבחירה השמורה החדשה אחרי לחיצה על צ׳יפ. הצ׳יפים מציגים רק את הבחירה
 /// האפקטיבית, ולכן מחילים את הדלתא על הבחירה השמורה המלאה — אחרת כל מפתח
 /// שאינו קיים כרגע היה נמחק.
@@ -289,6 +310,7 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
           selectedTypes: state.selectedLinkTypes,
           availableKeys: chipKeys,
         );
+        final chipAxes = splitChipKeysByAxis(chipKeys);
         String chipLabel(String key) =>
             CommentaryService.chipKeyLabel(key, openBookTitle: openBookTitle);
         return Column(
@@ -345,48 +367,27 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
                 ],
               ),
             ),
-            if (chipKeys.length > 1)
-              FilterChipsSelector<String>(
-                items: chipKeys,
-                selectedItems: effectiveTypes.toList(),
-                wrapAlignment: WrapAlignment.center,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8.0,
-                  vertical: 4.0,
+            if (chipKeys.length > 1) ...[
+              if (chipAxes.types.isNotEmpty)
+                _buildChipRow(
+                  key: linkTypeChipsRowKey,
+                  keys: chipAxes.types,
+                  savedTypes: state.selectedLinkTypes,
+                  effectiveTypes: effectiveTypes,
+                  chipLabel: chipLabel,
+                  background: AppSurfaces.linkTypeChipsRow(context),
                 ),
-                labelBuilder: chipLabel,
-                onSelectionChanged: (selected) =>
-                    context.read<TextBookBloc>().add(
-                      UpdateLinkTypeFilter(
-                        applyChipSelectionDelta(
-                          savedTypes: state.selectedLinkTypes,
-                          effectiveTypes: effectiveTypes,
-                          newSelection: selected.toSet(),
-                        ),
-                      ),
-                    ),
-                chipBuilder: (context, item, isSelected) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 3,
-                      vertical: 2,
-                    ),
-                    child: Chip(
-                      label: Text(chipLabel(item)),
-                      backgroundColor: isSelected
-                          ? Theme.of(context).colorScheme.secondary
-                          : null,
-                      labelStyle: TextStyle(
-                        color: isSelected
-                            ? Theme.of(context).colorScheme.onSecondary
-                            : null,
-                        fontSize: 11,
-                      ),
-                      labelPadding: const EdgeInsets.all(0),
-                    ),
-                  );
-                },
-              ),
+              if (chipAxes.eras.isNotEmpty)
+                _buildChipRow(
+                  key: linkEraChipsRowKey,
+                  keys: chipAxes.eras,
+                  savedTypes: state.selectedLinkTypes,
+                  effectiveTypes: effectiveTypes,
+                  chipLabel: chipLabel,
+                  background: AppSurfaces.linkEraChipsRow(context),
+                ),
+              const SizedBox(height: AppTokens.spaceSM),
+            ],
             // תוכן הקישורים
             Expanded(
               child: _buildLinksList(links, effectiveTypes, openBookTitle),
@@ -394,6 +395,73 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
           ],
         );
       },
+    );
+  }
+
+  /// שורת צ׳יפים של ציר מיון אחד. הדלתא מחושבת מול הבחירה האפקטיבית של
+  /// *השורה בלבד* — אחרת מפתחות הציר השני היו נחשבים כמי שהוסרו ונמחקים.
+  Widget _buildChipRow({
+    required List<String> keys,
+    required Set<String> savedTypes,
+    required Set<String> effectiveTypes,
+    required String Function(String key) chipLabel,
+    required Color background,
+    required Key key,
+  }) {
+    final rowKeys = keys.toSet();
+    final rowSelected = effectiveTypes.intersection(rowKeys);
+    return Padding(
+      key: key,
+      padding: const EdgeInsets.fromLTRB(
+        AppTokens.spaceSM,
+        0,
+        AppTokens.spaceSM,
+        AppTokens.spaceXS,
+      ),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: AppTokens.borderRadiusAll,
+        ),
+        child: FilterChipsSelector<String>(
+          items: keys,
+          selectedItems: rowSelected.toList(),
+          wrapAlignment: WrapAlignment.center,
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppTokens.spaceSM,
+            vertical: AppTokens.spaceXS,
+          ),
+          labelBuilder: chipLabel,
+          onSelectionChanged: (selected) => context.read<TextBookBloc>().add(
+            UpdateLinkTypeFilter(
+              applyChipSelectionDelta(
+                savedTypes: savedTypes,
+                effectiveTypes: rowSelected,
+                newSelection: selected.toSet(),
+              ),
+            ),
+          ),
+          chipBuilder: (context, item, isSelected) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+              child: Chip(
+                label: Text(chipLabel(item)),
+                backgroundColor: isSelected
+                    ? Theme.of(context).colorScheme.secondary
+                    : null,
+                labelStyle: TextStyle(
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.onSecondary
+                      : null,
+                  fontSize: 11,
+                ),
+                labelPadding: const EdgeInsets.all(0),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -455,8 +523,7 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
       return _buildEmptyMessage('לא נמצאו קישורים לקטע הנבחר');
     }
 
-    // קבוצה ריקה = הצג הכל. הבחירה כבר סוננה למפתחות קיימים, ולכן התוצאה
-    // לעולם אינה ריקה. כמה צ׳יפים נבחרים = איחוד, ולכן די בחיתוך אחד.
+    // קבוצה ריקה = הצג הכל. כמה צ׳יפים נבחרים = איחוד, ולכן די בחיתוך אחד.
     final typeFilteredLinks = selectedTypes.isEmpty
         ? links
         : links
@@ -467,6 +534,12 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
                 ).any(selectedTypes.contains),
               )
               .toList();
+
+    // הצ׳יפים נבנים מקישורי כל חלון הקריאה בעוד הרשימה מציגה את הקטע הנראה
+    // בלבד, ולכן צ׳יפ שנבחר עשוי לא להתאים לאף קישור כאן.
+    if (typeFilteredLinks.isEmpty) {
+      return _buildEmptyMessage('לא נמצאו קישורים מהסוגים שנבחרו');
+    }
 
     // יצירת מפתח ייחודי לחיפוש
     final searchKey = buildSelectedLinksSearchKey(
@@ -488,6 +561,9 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
         future: _filteredLinksFuture,
         builder: (context, data) {
           final filteredLinks = data;
+          if (filteredLinks.isEmpty) {
+            return _buildEmptyMessage('לא נמצאו קישורים התואמים לחיפוש');
+          }
 
           return ListView.builder(
             itemCount: filteredLinks.length,

@@ -12,6 +12,9 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/selected_line_links_view.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/app_theme_data.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 void main() {
@@ -477,6 +480,254 @@ void main() {
     });
   });
 
+  group('splitChipKeysByAxis', () {
+    test('מפריד סוגים מדורות ושומר על הסדר בכל ציר', () {
+      final axes = splitChipKeysByAxis(const [
+        'EIN_MISHPAT',
+        'QUOTATION',
+        'ON_BOOK',
+        'ERA:TORAH_SHEBICHTAV',
+        'ERA:RISHONIM',
+      ]);
+
+      expect(axes.types, ['EIN_MISHPAT', 'QUOTATION', 'ON_BOOK']);
+      expect(axes.eras, ['ERA:TORAH_SHEBICHTAV', 'ERA:RISHONIM']);
+    });
+
+    test('ON_BOOK משויך לציר הסוגים', () {
+      expect(splitChipKeysByAxis(const ['ON_BOOK']).types, ['ON_BOOK']);
+      expect(splitChipKeysByAxis(const ['ON_BOOK']).eras, isEmpty);
+    });
+
+    test('רק סוגים / רק דורות / רשימה ריקה', () {
+      expect(splitChipKeysByAxis(const ['QUOTATION']).eras, isEmpty);
+      expect(splitChipKeysByAxis(const ['ERA:RISHONIM']).types, isEmpty);
+      expect(splitChipKeysByAxis(const []).types, isEmpty);
+      expect(splitChipKeysByAxis(const []).eras, isEmpty);
+    });
+  });
+
+  group('שתי שורות צ׳יפים - סוג מול דור', () {
+    setUp(_seedEras);
+    tearDown(CommentaryService.clearEraCache);
+
+    testWidgets('שני הצירים קיימים — שתי שורות, כל מפתח בשורה שלו', (
+      tester,
+    ) async {
+      await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'EIN_MISHPAT'),
+          _link(title: 'אחרונים א', type: 'REFERENCE'),
+        ],
+      );
+
+      expect(_chipRowCount(tester), 2);
+      expect(_rowLabelsAt(tester, 0), ['עין משפט']);
+      expect(_rowLabelsAt(tester, 1), ['אחרונים']);
+    });
+
+    testWidgets('לשתי השורות גוונים שונים', (tester) async {
+      await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'EIN_MISHPAT'),
+          _link(title: 'אחרונים א', type: 'REFERENCE'),
+        ],
+      );
+
+      final colors = _chipRowColors(tester);
+      expect(colors, hasLength(2));
+      expect(colors[0], isNot(colors[1]));
+    });
+
+    // הפער הנתפס בין השורות נמדד ב-test/theme/app_surfaces_chip_rows_test.dart —
+    // השוואת צבע גולמי כאן לא תופסת קריסת ניגודיות אחרי שיטוח מעל הרקע.
+    for (final brightness in Brightness.values) {
+      testWidgets('גווני שתי השורות נבדלים גם ב-${brightness.name}', (
+        tester,
+      ) async {
+        final cs = AppThemeData.createColorScheme(Colors.blue, brightness);
+        late final Color background;
+        late final Color typeRow;
+        late final Color eraRow;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(colorScheme: cs),
+            home: Builder(
+              builder: (context) {
+                background = AppSurfaces.panelBackground(context);
+                typeRow = AppSurfaces.linkTypeChipsRow(context);
+                eraRow = AppSurfaces.linkEraChipsRow(context);
+                return const SizedBox();
+              },
+            ),
+          ),
+        );
+
+        final flatType = Color.alphaBlend(typeRow, background);
+        final flatEra = Color.alphaBlend(eraRow, background);
+        expect(flatType, isNot(flatEra));
+      });
+    }
+
+    testWidgets('לשורות פינות מעוגלות לפי AppTokens', (tester) async {
+      await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'EIN_MISHPAT'),
+          _link(title: 'אחרונים א', type: 'REFERENCE'),
+        ],
+      );
+
+      for (final decoration in _chipRowDecorations(tester)) {
+        expect(decoration.borderRadius, AppTokens.borderRadiusAll);
+      }
+    });
+
+    testWidgets('רק צ׳יפי סוג — שורה אחת בלבד', (tester) async {
+      await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'EIN_MISHPAT'),
+          _link(title: 'ראשונים ב', type: 'QUOTATION'),
+        ],
+      );
+
+      expect(_chipRowCount(tester), 1);
+      expect(_rowLabelsAt(tester, 0), ['עין משפט', 'ציטוט']);
+    });
+
+    testWidgets('רק צ׳יפי דור — שורה אחת בלבד', (tester) async {
+      await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'REFERENCE'),
+          _link(title: 'אחרונים א', type: 'REFERENCE'),
+        ],
+      );
+
+      expect(_chipRowCount(tester), 1);
+      expect(_rowLabelsAt(tester, 0), ['ראשונים', 'אחרונים']);
+    });
+
+    testWidgets('צ׳יפ יחיד — אין שורות כלל', (tester) async {
+      await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'REFERENCE'),
+          _link(title: 'ראשונים ב', type: 'OTHER'),
+        ],
+      );
+
+      expect(_chipRowCount(tester), 0);
+      expect(find.byType(Chip), findsNothing);
+    });
+
+    testWidgets('הסדר בתוך כל שורה נשמר כסדר buildLinkChipKeys', (
+      tester,
+    ) async {
+      final links = [
+        _link(title: 'אחרונים א', type: 'REFERENCE'),
+        _link(title: 'ראשונים ב', type: 'QUOTATION'),
+        _link(title: 'ראשונים א', type: 'EIN_MISHPAT'),
+        _link(title: 'בראשית', type: 'REFERENCE'),
+      ];
+      await _pumpView(tester, links: links);
+
+      final expected = splitChipKeysByAxis(buildLinkChipKeys(links));
+      String label(String key) => CommentaryService.chipKeyLabel(key);
+
+      expect(_rowLabelsAt(tester, 0), expected.types.map(label).toList());
+      expect(_rowLabelsAt(tester, 1), expected.eras.map(label).toList());
+    });
+
+    testWidgets('רגרסיה: לחיצה בשורת הסוגים אינה מוחקת בחירת דור', (
+      tester,
+    ) async {
+      final bloc = await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'EIN_MISHPAT'),
+          _link(title: 'ראשונים ב', type: 'QUOTATION'),
+          _link(title: 'אחרונים א', type: 'REFERENCE'),
+        ],
+        selectedLinkTypes: const {'ERA:ACHARONIM'},
+      );
+
+      await tester.tap(find.widgetWithText(Chip, 'ציטוט'));
+      await tester.pumpAndSettle();
+
+      expect(
+        bloc.receivedEvents.whereType<UpdateLinkTypeFilter>().last.linkTypes,
+        {'ERA:ACHARONIM', 'QUOTATION'},
+      );
+    });
+
+    testWidgets('רגרסיה: לחיצה בשורת הדורות אינה מוחקת בחירת סוג', (
+      tester,
+    ) async {
+      final bloc = await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'EIN_MISHPAT'),
+          _link(title: 'אחרונים א', type: 'REFERENCE'),
+          _link(title: 'ראשונים ב', type: 'REFERENCE'),
+        ],
+        selectedLinkTypes: const {'EIN_MISHPAT'},
+      );
+
+      await tester.tap(find.widgetWithText(Chip, 'אחרונים'));
+      await tester.pumpAndSettle();
+
+      expect(
+        bloc.receivedEvents.whereType<UpdateLinkTypeFilter>().last.linkTypes,
+        {'EIN_MISHPAT', 'ERA:ACHARONIM'},
+      );
+    });
+
+    testWidgets('רגרסיה: הסרת צ׳יפ בשורה אחת אינה נוגעת בשורה השנייה', (
+      tester,
+    ) async {
+      final bloc = await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'EIN_MISHPAT'),
+          _link(title: 'אחרונים א', type: 'REFERENCE'),
+        ],
+        selectedLinkTypes: const {'EIN_MISHPAT', 'ERA:ACHARONIM'},
+      );
+
+      await tester.tap(find.widgetWithText(Chip, 'עין משפט'));
+      await tester.pumpAndSettle();
+
+      expect(
+        bloc.receivedEvents.whereType<UpdateLinkTypeFilter>().last.linkTypes,
+        {'ERA:ACHARONIM'},
+      );
+    });
+
+    testWidgets('פאנל צר — הצ׳יפים נשברים לשורות ואין overflow', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(180, 600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'EIN_MISHPAT'),
+          _link(title: 'ראשונים ב', type: 'MESORAT_HASHAS'),
+          _link(title: 'אחרונים א', type: 'REFERENCE'),
+        ],
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(_chipRowCount(tester), 2);
+    });
+  });
+
   group('CommentaryService.linkChipKey', () {
     setUp(_seedEras);
     tearDown(CommentaryService.clearEraCache);
@@ -938,6 +1189,82 @@ void main() {
       expect(find.text('לא נמצאו קישורים לקטע הנבחר'), findsOneWidget);
     });
 
+    testWidgets('סינון שהותיר את הקטע ריק - הודעת הסינון', (tester) async {
+      // הצ׳יפים נבנים מכל קישורי החלון, ולכן ניתן לבחור צ׳יפ שאין לו קישור
+      // בקטע הנראה.
+      await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'EIN_MISHPAT'),
+          _link(title: 'אחרונים א', type: 'REFERENCE'),
+        ],
+        visibleLinks: [_link(title: 'אחרונים א', type: 'REFERENCE')],
+        selectedLinkTypes: const {'EIN_MISHPAT'},
+      );
+
+      expect(find.text('לא נמצאו קישורים מהסוגים שנבחרו'), findsOneWidget);
+      expect(find.text('לא נמצאו קישורים לקטע הנבחר'), findsNothing);
+      expect(find.text('לא נמצאו קישורים התואמים לחיפוש'), findsNothing);
+    });
+
+    testWidgets('חיפוש ללא תוצאות - הודעת החיפוש', (tester) async {
+      await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'REFERENCE'),
+          _link(title: 'ראשונים ב', type: 'QUOTATION'),
+        ],
+      );
+
+      await tester.enterText(
+        find.byType(TextField),
+        'מחרוזת שאינה קיימת בשום קישור',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('לא נמצאו קישורים התואמים לחיפוש'), findsOneWidget);
+      expect(find.text('לא נמצאו קישורים לקטע הנבחר'), findsNothing);
+      expect(find.text('לא נמצאו קישורים מהסוגים שנבחרו'), findsNothing);
+    });
+
+    testWidgets('חיפוש עם תוצאות - אין הודעת ריק', (tester) async {
+      await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'REFERENCE'),
+          _link(title: 'אחרונים א', type: 'QUOTATION'),
+        ],
+      );
+
+      await tester.enterText(find.byType(TextField), 'ראשונים א');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ExpansionTile), findsOneWidget);
+      expect(find.text('אחרונים א'), findsNothing);
+      expect(find.text('לא נמצאו קישורים התואמים לחיפוש'), findsNothing);
+    });
+
+    testWidgets('ניקוי החיפוש מחזיר את הרשימה במקום ההודעה', (tester) async {
+      await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'REFERENCE'),
+          _link(title: 'ראשונים ב', type: 'QUOTATION'),
+        ],
+      );
+
+      await tester.enterText(find.byType(TextField), 'אין כזה');
+      await tester.pumpAndSettle();
+      expect(find.text('לא נמצאו קישורים התואמים לחיפוש'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), '');
+      await tester.pumpAndSettle();
+
+      expect(find.text('לא נמצאו קישורים התואמים לחיפוש'), findsNothing);
+      expect(find.text('ראשונים א'), findsOneWidget);
+      expect(find.text('ראשונים ב'), findsOneWidget);
+    });
+
     testWidgets('צ׳יפ נבחר שאינו קיים בקטע לצד צ׳יפ שכן קיים - לא מסנן הכל', (
       tester,
     ) async {
@@ -1335,6 +1662,45 @@ void main() {
     });
   });
 }
+
+/// שורות הצ׳יפים לפי סדר התצוגה — סוגים ואז דורות. שורה שאינה מוצגת נשמטת,
+/// ולכן האינדקס מתייחס לשורות הקיימות בפועל.
+final Finder _chipRowFinder = find.byWidgetPredicate(
+  (widget) =>
+      widget.key == linkTypeChipsRowKey || widget.key == linkEraChipsRowKey,
+);
+
+int _chipRowCount(WidgetTester tester) =>
+    tester.widgetList<Padding>(_chipRowFinder).length;
+
+List<BoxDecoration> _chipRowDecorations(WidgetTester tester) => List.generate(
+  _chipRowCount(tester),
+  (index) =>
+      tester
+              .widget<Container>(
+                find
+                    .descendant(
+                      of: _chipRowFinder.at(index),
+                      matching: find.byType(Container),
+                    )
+                    .first,
+              )
+              .decoration!
+          as BoxDecoration,
+);
+
+List<Color?> _chipRowColors(WidgetTester tester) =>
+    _chipRowDecorations(tester).map((decoration) => decoration.color).toList();
+
+List<String> _rowLabelsAt(WidgetTester tester, int rowIndex) => tester
+    .widgetList<Chip>(
+      find.descendant(
+        of: _chipRowFinder.at(rowIndex),
+        matching: find.byType(Chip),
+      ),
+    )
+    .map((chip) => ((chip.label as Text).data)!)
+    .toList();
 
 /// מזין את מטמון הדורות ידנית — בטסטים אין DB, ובלי זה כל הספרים ייפלו
 /// ל-[CommentaryEra.other].
