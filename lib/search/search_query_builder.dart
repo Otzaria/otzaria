@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart' as engine;
 
@@ -102,9 +103,9 @@ class SearchQueryBuilder {
   static String buildWordKey(String word, int index) => '${word}_$index';
 
   static Map<String, bool> disabledWordOptionsTemplate() => {
-        for (final option in availableWordOptionKeys) option: false,
-        for (final option in vocalizedWordOptionKeys) option: false,
-      };
+    for (final option in availableWordOptionKeys) option: false,
+    for (final option in vocalizedWordOptionKeys) option: false,
+  };
 
   /// פיצול שאילתה למילות חיפוש. מאציל למנוע ה-Rust
   /// ([`engine.splitQueryWords`]) שהוא מקור האמת היחיד, כך שהטוקניזציה
@@ -122,9 +123,8 @@ class SearchQueryBuilder {
   /// באותו מיפוי כמו המנוע, כדי שאיתור מילה בטקסט הגולמי לא יזיז
   /// offsets. נורמליזציות משנות-אורך (`''`→`"`) אינן מטופלות כאן —
   /// [queryWordSpans] נופל לגבולות המקטע כולו במקרים אלה.
-  static String foldQuoteForms(String text) => text
-      .replaceAll(RegExp('[״“”]'), '"')
-      .replaceAll(RegExp("[׳‘’]"), "'");
+  static String foldQuoteForms(String text) =>
+      text.replaceAll(RegExp('[״“”]'), '"').replaceAll(RegExp("[׳‘’]"), "'");
 
   /// מיפוי מילות [splitQueryWords] לטווחיהן בטקסט הגולמי, מקטע-רווח
   /// אחרי מקטע-רווח. מקטע שמתפצל לכמה מילות מנוע (`בית-דין`) מקבל
@@ -175,8 +175,14 @@ class SearchQueryBuilder {
             }
           }
         }
-        spans.add(QueryWordSpan(
-            words[i], index, match.start + startRel, match.start + endRel));
+        spans.add(
+          QueryWordSpan(
+            words[i],
+            index,
+            match.start + startRel,
+            match.start + endRel,
+          ),
+        );
         index++;
       }
     }
@@ -242,6 +248,20 @@ class SearchQueryBuilder {
       result[buildWordKey(words[i], i)] = Map<String, bool>.from(globalOptions);
     }
     return result;
+  }
+
+  /// ההופכית של [expandGlobalOptionsToWords]: אפשרויות פר-מילה שכולן זהות
+  /// מקורן במפה גלובלית אחת ומוחזרות אליה. null כשהן נבדלות בין מילים
+  /// (מצב פר-מילה אמיתי) או כשאין אפשרויות כלל.
+  static Map<String, bool>? globalOptionsFromPerWord(
+    Map<String, Map<String, bool>> perWordOptions,
+  ) {
+    if (perWordOptions.isEmpty) return null;
+    final first = perWordOptions.values.first;
+    for (final options in perWordOptions.values.skip(1)) {
+      if (!mapEquals(options, first)) return null;
+    }
+    return Map<String, bool>.from(first);
   }
 
   /// בוחר את מפת אפשרויות החיפוש האפקטיבית לפי המצב.

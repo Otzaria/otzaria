@@ -9,62 +9,69 @@ import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 /// מחזיר צבע רקע עדין לשבתות, מועדים ותעניות
 Color? getDayBackgroundColor(
   BuildContext context,
-  DateTime date,
+  JewishCalendar jc,
   bool isSelected,
   bool isToday,
-  bool inIsrael,
 ) {
   if (isSelected || isToday) return null;
-  final jc = JewishCalendar.fromDateTime(date)..inIsrael = inIsrael;
   if (jc.getDayOfWeek() == 7 ||
       jc.isYomTov() ||
       jc.isTaanis() ||
       jc.isRoshChodesh()) {
-    return Theme.of(context)
-        .colorScheme
-        .secondaryContainer
-        .withValues(alpha: 0.4);
+    return Theme.of(
+      context,
+    ).colorScheme.secondaryContainer.withValues(alpha: 0.4);
   }
   return null;
 }
 
 /// תא יום בלוח השנה
 Widget buildDayCell(
-    BuildContext context,
-    CalendarState state,
-    DateTime gregorianDate,
-    JewishDate jewishDate,
-    bool isFromOtherMonth,
-    VoidCallback onTap,
-    VoidCallback onAdd,
-    {List<String> additionalInfoLines = const []}) {
-  final isSelected = state.selectedJewishDate.getJewishDayOfMonth() ==
+  BuildContext context,
+  CalendarState state,
+  DateTime gregorianDate,
+  JewishDate jewishDate,
+  bool isFromOtherMonth,
+  VoidCallback onTap,
+  VoidCallback onAdd, {
+  List<String> additionalInfoLines = const [],
+}) {
+  final isSelected =
+      state.selectedJewishDate.getJewishDayOfMonth() ==
           jewishDate.getJewishDayOfMonth() &&
       state.selectedJewishDate.getJewishMonth() ==
           jewishDate.getJewishMonth() &&
       state.selectedJewishDate.getJewishYear() == jewishDate.getJewishYear();
 
   final today = state.todayGregorianDate;
-  final isToday = gregorianDate.day == today.day &&
+  final isToday =
+      gregorianDate.day == today.day &&
       gregorianDate.month == today.month &&
       gregorianDate.year == today.year;
 
   final cs = Theme.of(context).colorScheme;
   final baseCellColor = AppSurfaces.card(context);
 
+  // נבנה פעם אחת ומשותף ל-getDayBackgroundColor ול-DayExtras; ריחוף עכבר
+  // (setState של HoverableDayCell) לא בונה אותו מחדש.
+  final jewishCalendar = JewishCalendar.fromDateTime(gregorianDate)
+    ..inIsrael = state.inIsrael;
+
   return HoverableDayCell(
     onAdd: onAdd,
     builder: (isHovered) {
-      final baseBackground = getDayBackgroundColor(
-              context, gregorianDate, isSelected, isToday, state.inIsrael) ??
+      final baseBackground =
+          getDayBackgroundColor(context, jewishCalendar, isSelected, isToday) ??
           (isSelected
               ? cs.primaryContainer
               : isToday
-                  ? cs.primary.withValues(alpha: 0.25)
-                  : baseCellColor);
+              ? cs.primary.withValues(alpha: 0.25)
+              : baseCellColor);
       final tintedBackground = (isHovered || isToday)
           ? Color.alphaBlend(
-              cs.surfaceTint.withValues(alpha: 0.08), baseBackground)
+              cs.surfaceTint.withValues(alpha: 0.08),
+              baseBackground,
+            )
           : baseBackground;
       final elevation = (isHovered || isToday) ? AppTokens.elevation2 : 0.0;
 
@@ -86,8 +93,8 @@ Widget buildDayCell(
                   color: isSelected
                       ? cs.primary
                       : isToday
-                          ? cs.primary
-                          : cs.outlineVariant,
+                      ? cs.primary
+                      : cs.outlineVariant,
                   width: isToday ? 2 : 1,
                 ),
               ),
@@ -97,8 +104,8 @@ Widget buildDayCell(
                   final veryCompactCell = constraints.maxHeight < 64;
                   final primaryFontSize =
                       state.calendarType == CalendarType.combined
-                          ? (compactCell ? 11.0 : 12.0)
-                          : (compactCell ? 12.0 : 14.0);
+                      ? (compactCell ? 11.0 : 12.0)
+                      : (compactCell ? 12.0 : 14.0);
                   final secondaryFontSize = compactCell ? 9.0 : 10.0;
                   final monthLabelFontSize = compactCell ? 7.0 : 8.0;
 
@@ -120,8 +127,9 @@ Widget buildDayCell(
                                 '${gregorianDate.day}',
                                 style: TextStyle(
                                   color: isSelected
-                                      ? cs.onPrimaryContainer
-                                          .withValues(alpha: 0.85)
+                                      ? cs.onPrimaryContainer.withValues(
+                                          alpha: 0.85,
+                                        )
                                       : cs.onSurfaceVariant,
                                   fontSize: secondaryFontSize,
                                 ),
@@ -135,7 +143,8 @@ Widget buildDayCell(
                                           state.calendarType ==
                                               CalendarType.combined)
                                       ? formatHebrewDay(
-                                          jewishDate.getJewishDayOfMonth())
+                                          jewishDate.getJewishDayOfMonth(),
+                                        )
                                       : '${gregorianDate.day}',
                                   style: TextStyle(
                                     color: isSelected
@@ -173,10 +182,11 @@ Widget buildDayCell(
                           child: Align(
                             alignment: Alignment.topCenter,
                             child: DayExtras(
+                              jewishCalendar: jewishCalendar,
                               date: gregorianDate,
-                              inIsrael: state.inIsrael,
-                              maxVisibleItems:
-                                  veryCompactCell ? 0 : (compactCell ? 1 : 2),
+                              maxVisibleItems: veryCompactCell
+                                  ? 0
+                                  : (compactCell ? 1 : 2),
                               compact: compactCell,
                               additionalInfoLines: additionalInfoLines,
                             ),
@@ -197,16 +207,16 @@ Widget buildDayCell(
 
 /// מציג מועדים ואירועים מתחת לתאריך בתא
 class DayExtras extends StatelessWidget {
+  final JewishCalendar jewishCalendar;
   final DateTime date;
-  final bool inIsrael;
   final int maxVisibleItems;
   final bool compact;
   final List<String> additionalInfoLines;
 
   const DayExtras({
     super.key,
+    required this.jewishCalendar,
     required this.date,
-    required this.inIsrael,
     this.maxVisibleItems = 2,
     this.compact = false,
     this.additionalInfoLines = const [],
@@ -221,21 +231,22 @@ class DayExtras extends StatelessWidget {
     final cubit = context.read<CalendarCubit>();
     final events = cubit.eventsForDate(date);
     final List<Widget> lines = [];
-    final jc = JewishCalendar.fromDateTime(date)..inIsrael = inIsrael;
-    final jewishEvents = _calcJewishEvents(jc);
+    final jewishEvents = _calcJewishEvents(jewishCalendar);
     final visibleItems = <Widget>[];
 
     for (final e in jewishEvents.take(maxVisibleItems)) {
-      visibleItems.add(Text(
-        e,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: compact ? 10 : 11,
-          color: Theme.of(context).colorScheme.onSurface,
-          fontWeight: FontWeight.w500,
+      visibleItems.add(
+        Text(
+          e,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: compact ? 10 : 11,
+            color: Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.w500,
+          ),
         ),
-      ));
+      );
     }
 
     final brightness = Theme.of(context).brightness;
@@ -243,34 +254,44 @@ class DayExtras extends StatelessWidget {
     for (final e in events.take(remainingSlots.clamp(0, maxVisibleItems))) {
       final dotColor =
           CalendarEventColors.colorForIndex(e.colorIndex, brightness) ??
-              Theme.of(context).colorScheme.onSurfaceVariant;
-      visibleItems.add(Text.rich(
-        TextSpan(children: [
-          TextSpan(text: '• ', style: TextStyle(color: dotColor)),
-          TextSpan(text: e.title),
-        ]),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: compact ? 9 : 10,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          Theme.of(context).colorScheme.onSurfaceVariant;
+      visibleItems.add(
+        Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: '• ',
+                style: TextStyle(color: dotColor),
+              ),
+              TextSpan(text: e.title),
+            ],
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: compact ? 9 : 10,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
-      ));
+      );
     }
 
     remainingSlots = maxVisibleItems - visibleItems.length;
-    for (final info
-        in additionalInfoLines.take(remainingSlots.clamp(0, maxVisibleItems))) {
-      visibleItems.add(Text(
-        info,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: compact ? 9 : 10,
-          color: Theme.of(context).colorScheme.primary,
-          fontWeight: FontWeight.w600,
+    for (final info in additionalInfoLines.take(
+      remainingSlots.clamp(0, maxVisibleItems),
+    )) {
+      visibleItems.add(
+        Text(
+          info,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: compact ? 9 : 10,
+            color: Theme.of(context).colorScheme.primary,
+            fontWeight: FontWeight.w600,
+          ),
         ),
-      ));
+      );
     }
 
     lines.addAll(visibleItems);
@@ -283,17 +304,21 @@ class DayExtras extends StatelessWidget {
     return '';
   }
 
+  // משותף לכל התאים: formatYomTov/formatParsha מקבלים את היומן כארגומנט
+  // ואינם שומרים מצב. אין לשנות עליו שדות — זה ישפיע על כל הלוח.
+  static final HebrewDateFormatter _hdf = HebrewDateFormatter()
+    ..hebrewFormat = true;
+
   static List<String> _calcJewishEvents(JewishCalendar jc) {
     final List<String> l = [];
-    final hdf = HebrewDateFormatter()..hebrewFormat = true;
 
-    final yomTov = hdf.formatYomTov(jc);
+    final yomTov = _hdf.formatYomTov(jc);
     if (yomTov.isNotEmpty) {
       l.addAll(yomTov.split(',').map((e) => e.trim()));
     }
 
     if (jc.getDayOfWeek() == 7) {
-      final parsha = hdf.formatParsha(jc);
+      final parsha = _hdf.formatParsha(jc);
       if (parsha.isNotEmpty) l.add(parsha);
     }
 
@@ -305,8 +330,9 @@ class DayExtras extends StatelessWidget {
         yomTovIndex == JewishCalendar.CHOL_HAMOED_PESACH) {
       l.removeWhere((e) => e.contains('חול המועד'));
       final dayOfCholHamoed = jc.getJewishDayOfMonth() - 15;
-      final cholHamoedName =
-          yomTovIndex == JewishCalendar.CHOL_HAMOED_PESACH ? 'פסח' : 'סוכות';
+      final cholHamoedName = yomTovIndex == JewishCalendar.CHOL_HAMOED_PESACH
+          ? 'פסח'
+          : 'סוכות';
       l.add('${_numberToHebrewLetter(dayOfCholHamoed)} דחוה"מ $cholHamoedName');
     }
 

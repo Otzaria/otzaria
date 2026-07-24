@@ -236,6 +236,29 @@ void main() {
         expect(provider.isInitialized, isTrue);
       },
     );
+
+    test('fileLimit קוטע את הסריקה, וחיפוש עוקב חוזר מלא', () async {
+      // חמש התאמות ל-gimatria=3 באותה שורה.
+      await insertBookWithLines(
+        repo: seforimRepo,
+        title: 'בראשית',
+        lines: ['אב אב אב אב אב'],
+      );
+
+      Future<List<SearchResult>> search({int? fileLimit}) =>
+          GimatriaSearch.searchInFiles(
+            const <String>[],
+            3,
+            fileLimit: fileLimit ?? 1000,
+            bookTitles: const ['בראשית'],
+          );
+
+      // fileLimit=1 יוצא מהסריקה באמצע הספר ולא בסופו.
+      expect(await search(fileLimit: 1), hasLength(1));
+
+      // ה-isolate נבנה מחדש בכל קריאה; יציאה מוקדמת קודמת לא משפיעה עליו.
+      expect((await search()).length, greaterThan(1));
+    });
   });
 
   group('GimatriaSearch — fallback לקבצים כשאין DB', () {

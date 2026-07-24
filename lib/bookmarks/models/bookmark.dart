@@ -61,9 +61,17 @@ class Bookmark {
   final List<String>? searchScopeFacets;
   final SearchMode? searchMode;
 
+  /// המרווח (slop) בין מילות החיפוש. null בפריטים שנשמרו לפני הוספת השדה.
+  final int? distance;
+
   /// טווח הקרבה בין מילות החיפוש (מרווח מילים / פסקה / כותרת).
   /// null בפריטים שנשמרו לפני הוספת השדה — מתפרש כמרווח מילים.
   final SearchScope? proximityScope;
+
+  /// [SearchConfiguration.toMap] המלא של החיפוש — כולל הגדרות שאין להן שדה
+  /// ייעודי (מיון, איחוד תוצאות, התאמת מילים, רגקס). null בפריטים ישנים,
+  /// ואז השחזור נופל לשדות הבודדים.
+  final Map<String, dynamic>? searchConfiguration;
   final BookmarkTargetKind targetKind;
 
   /// טקסט תיאור שהמשתמש רואה ויכול לערוך. בעת יצירה מאותחל למילים הראשונות
@@ -101,7 +109,9 @@ class Bookmark {
     this.workspaceName,
     this.searchScopeFacets,
     this.searchMode,
+    this.distance,
     this.proximityScope,
+    this.searchConfiguration,
     this.targetKind = BookmarkTargetKind.book,
     this.label,
     this.createdAt,
@@ -129,7 +139,9 @@ class Bookmark {
       workspaceName: workspaceName,
       searchScopeFacets: searchScopeFacets,
       searchMode: searchMode,
+      distance: distance,
       proximityScope: proximityScope,
+      searchConfiguration: searchConfiguration,
       targetKind: targetKind,
       label: clearLabel ? null : (label ?? this.label),
       createdAt: createdAt,
@@ -142,8 +154,9 @@ class Bookmark {
       ref: json['ref'] as String,
       index: json['index'] as int,
       book: Book.fromJson(castMap(json['book'])),
-      commentatorsToShow:
-          (rawCommentators ?? []).map((e) => e.toString()).toList(),
+      commentatorsToShow: (rawCommentators ?? [])
+          .map((e) => e.toString())
+          .toList(),
       isSearch: json['isSearch'] ?? false,
       searchOptions: json['searchOptions'] != null
           ? castMap(json['searchOptions']).map(
@@ -162,8 +175,9 @@ class Bookmark {
             )
           : null,
       spacingValues: json['spacingValues'] != null
-          ? castMap(json['spacingValues'])
-              .map((key, value) => MapEntry(key, value.toString()))
+          ? castMap(
+              json['spacingValues'],
+            ).map((key, value) => MapEntry(key, value.toString()))
           : null,
       negativeSearchText: json['negativeSearchText'] as String?,
       negativeSearchOptions: json['negativeSearchOptions'] != null
@@ -183,8 +197,9 @@ class Bookmark {
             )
           : null,
       negativeSpacingValues: json['negativeSpacingValues'] != null
-          ? castMap(json['negativeSpacingValues'])
-              .map((key, value) => MapEntry(key, value.toString()))
+          ? castMap(
+              json['negativeSpacingValues'],
+            ).map((key, value) => MapEntry(key, value.toString()))
           : null,
       workspaceName: json['workspaceName'] as String?,
       searchScopeFacets: json['searchScopeFacets'] != null
@@ -192,6 +207,10 @@ class Bookmark {
           : null,
       searchMode: json['searchMode'] != null
           ? _trySearchModeFromName(json['searchMode'] as String)
+          : null,
+      distance: json['distance'] as int?,
+      searchConfiguration: json['searchConfiguration'] != null
+          ? castMap(json['searchConfiguration'])
           : null,
       proximityScope: json['proximityScope'] != null
           ? _tryProximityScopeFromName(json['proximityScope'] as String)
@@ -237,17 +256,21 @@ class Bookmark {
       'commentatorsToShow': commentatorsToShow,
       'isSearch': isSearch,
       'searchOptions': searchOptions,
-      'alternativeWords': alternativeWords
-          ?.map((key, value) => MapEntry(key.toString(), value)),
+      'alternativeWords': alternativeWords?.map(
+        (key, value) => MapEntry(key.toString(), value),
+      ),
       'spacingValues': spacingValues,
       'negativeSearchText': negativeSearchText,
       'negativeSearchOptions': negativeSearchOptions,
-      'negativeAlternativeWords': negativeAlternativeWords
-          ?.map((key, value) => MapEntry(key.toString(), value)),
+      'negativeAlternativeWords': negativeAlternativeWords?.map(
+        (key, value) => MapEntry(key.toString(), value),
+      ),
       'negativeSpacingValues': negativeSpacingValues,
       'workspaceName': workspaceName,
       'searchScopeFacets': searchScopeFacets,
       'searchMode': searchMode?.name,
+      'distance': distance,
+      'searchConfiguration': searchConfiguration,
       'proximityScope': proximityScope?.name,
       'targetKind': targetKind.name,
       'label': label,

@@ -410,6 +410,7 @@ class _SnackToastState extends State<_SnackToast>
                             Flexible(
                               child: Text(
                                 widget.message,
+                                textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: c.fg,
                                   fontSize: _ToastTokens.fontMessage,

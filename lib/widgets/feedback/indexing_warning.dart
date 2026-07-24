@@ -67,7 +67,6 @@ class IndexingWarning extends StatelessWidget {
     };
     return Container(
       padding: const EdgeInsets.all(8.0),
-      margin: const EdgeInsets.only(bottom: 8.0),
       decoration: BoxDecoration(
         color: colorScheme.errorContainer,
         borderRadius: AppTokens.borderRadiusAll,
@@ -128,8 +127,9 @@ class IndexingWarningContainer extends StatelessWidget {
             if (mode == null) return const SizedBox.shrink();
             return IndexingWarning(
               mode: mode,
-              onDismiss:
-                  mode == IndexingWarningMode.inProgress ? onDismiss : null,
+              onDismiss: mode == IndexingWarningMode.inProgress
+                  ? onDismiss
+                  : null,
             );
           },
         );

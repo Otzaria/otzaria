@@ -1446,14 +1446,44 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           maxLines: 1,
         )..layout(minWidth: 0, maxWidth: constraints.maxWidth);
 
+        // כשהכותרת בפורמט "שם הספר, מיקום" מציגים אותם כשני חלקים: השם מתקצר
+        // (ellipsis) לפי המקום הפנוי, אך המיקום נשאר גלוי במלואו — נחוץ לחברותא
+        // שבה אין מידע אחר על המיקום.
+        final namePrefix = '${state.book.title}, ';
+        final hasSeparateLocation = displayText.startsWith(namePrefix);
+        final rowAlignment = switch (textAlign) {
+          TextAlign.center => MainAxisAlignment.center,
+          TextAlign.start => MainAxisAlignment.start,
+          _ => MainAxisAlignment.end,
+        };
+
         final titleWidget = AppSelectionArea(
-          child: Text(
-            displayText,
-            style: titleStyle,
-            textAlign: textAlign,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+          child: hasSeparateLocation
+              ? Row(
+                  mainAxisAlignment: rowAlignment,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        namePrefix,
+                        style: titleStyle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      displayText.substring(namePrefix.length),
+                      style: titleStyle,
+                      maxLines: 1,
+                    ),
+                  ],
+                )
+              : Text(
+                  displayText,
+                  style: titleStyle,
+                  textAlign: textAlign,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
         );
 
         // אם יש מחבר, מציגים אותו מתחת לכותרת

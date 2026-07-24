@@ -2059,7 +2059,7 @@ class _CombinedViewState extends State<CombinedView> {
               child: ValueListenableBuilder<String?>(
                 valueListenable: _savedSelectedText,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  padding: const EdgeInsets.symmetric(vertical: 2.0),
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       return BlocBuilder<SettingsBloc, SettingsState>(
