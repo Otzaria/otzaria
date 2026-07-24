@@ -21,7 +21,7 @@ import 'package:sqlite3/sqlite3.dart' show SqliteException, sqlite3;
 /// - Falling back to file system when data is not in database
 class SqliteDataProvider {
   late SeforimRepository _repository;
-  // לא late: withWritableSession/optimizeDatabase עשויים להיקרא לפני initialize.
+  // לא late: ה-getter dbPath עשוי להיקרא לפני initialize.
   String _dbPath = '';
   bool _isInitialized = false;
   Future<void>? _initializationFuture;
@@ -51,18 +51,12 @@ class SqliteDataProvider {
       return;
     }
 
-    // אם יש write-session פעיל, החיבור ה-RO סגור בכוונה. אסור לפתוח אותו
-    // מחדש כאן במקביל לחיבור ה-RW (היה גורם ל"database locked"). ממתינים
-    // לסיום שרשרת הכתיבה *וגם* ל-gate של כתיבה חיצונית — שניהם פותחים מחדש
-    // את ה-RO בעצמם. כך קוראים שמגיעים בחלון הזה (למשל טעינת מפרשים/קישורים
-    // ברקע בעלייה) ממתינים לפתיחה-מחדש ומצליחים, במקום לקבל null ולהציג ריק.
+    // אם יש כתיבה חיצונית פעילה (עדכון ספרייה/סנכרון), החיבור ה-RO סגור
+    // בכוונה. אסור לפתוח אותו מחדש כאן במקביל לחיבור ה-RW (היה גורם
+    // ל"database locked"). ממתינים ל-gate שהכתיבה החיצונית פותחת מחדש בעצמה,
+    // כך שקוראים בחלון הזה (למשל טעינת מפרשים ברקע בעלייה) ממתינים לפתיחה-מחדש
+    // ומצליחים במקום לקבל null ולהציג ריק.
     if (_activeWriteSessions > 0) {
-      try {
-        await _writeChain;
-      } catch (e) {
-        // השגיאה עצמה מטופלת אצל מי שהריץ את הכתיבה; כאן רק ממתינים לסיום.
-        debugPrint('[SqliteDataProvider] write chain ended with error: $e');
-      }
       // ממתינים לפתיחה-מחדש של ה-RO ע"י ה-session — אך בפעימות עם תקרת זמן,
       // לא בהמתנה אינסופית. ההמתנה הישנה (await gate.future ללא תקרה) קפאה
       // לנצח אם reopen התעכב/התפספס (כתיבות חופפות בעלייה, איזולייט שקרס),
@@ -123,8 +117,8 @@ class SqliteDataProvider {
       return;
     }
 
-    // seforim.db נפתח read-only כברירת מחדל. עדכוני ספרייה (sync/generator/
-    // מחיקה) פותחים חיבור כתיב זמני דרך [withWritableSession]. לפני הפתיחה
+    // seforim.db נפתח read-only. עדכון הספרייה מחליף את הקובץ (או מחיל patch)
+    // דרך [closeForExternalWrite]/[reopenAfterExternalWrite]. לפני הפתיחה
     // ה-read-only יש לוודא שהקובץ אינו במצב WAL — אחרת SQLite לא יוכל לפתוח
     // אותו ללא יצירת קובצי -wal/-shm (שדורשים הרשאת כתיבה).
     await _normalizeJournalModeForReadOnly(_dbPath);
@@ -169,10 +163,6 @@ class SqliteDataProvider {
       _isInitialized = false;
     }
   }
-
-  /// שרשרת לסריאליזציה של write-sessions — מבטיחה שלא ירוצו שתי כתיבות
-  /// במקביל על seforim.db.
-  Future<void> _writeChain = Future<void>.value();
 
   /// מספר ה-write-sessions הפעילים. כשהוא > 0 חיבור ה-RO סגור ו-[initialize]
   /// לא יפתח אותו מחדש (כדי לא להתנגש עם חיבור ה-RW). יורד רק לאחר שה-session
@@ -260,80 +250,11 @@ class SqliteDataProvider {
     }
   }
 
-  /// מריץ פעולת כתיבה על seforim.db דרך חיבור כתיב זמני, ואז חוזר ל-read-only.
-  ///
-  /// בזמן רגיל seforim.db פתוח read-only. כדי לעדכן את הספרייה (הוספת/מחיקת
-  /// ספרים, generator) נדרשת כתיבה: המתודה סוגרת את חיבור ה-RO, פותחת חיבור
-  /// RW מלא (כולל WAL ו-DDL), מריצה את [action] עם ה-repository הכתיב, מבצעת
-  /// checkpoint והמרה חזרה ל-DELETE, ואז מאתחלת מחדש את חיבור ה-RO.
-  ///
-  /// קריאות מקבילות מסונכרנות דרך שרשרת פנימית כדי למנוע שתי כתיבות במקביל.
-  Future<T> withWritableSession<T>(
-    Future<T> Function(SeforimRepository repository) action,
-  ) {
-    // מסומן כפעיל באופן סינכרוני כדי שקריאות מקבילות שיגיעו מיד יזהו את
-    // ה-session ולא ינסו לפתוח חיבור RO מתנגש. יורד רק לאחר שה-session
-    // (כולל פתיחת ה-RO מחדש ב-finally) הסתיים.
-    _activeWriteSessions++;
-    final result = _writeChain.then((_) => _runWritableSession(action));
-    // שומר את השרשרת חיה גם בכשל, בלי להדליף שגיאות לקריאה הבאה.
-    _writeChain = result.then((_) {}, onError: (_) {});
-    return result.whenComplete(() {
-      _activeWriteSessions--;
-    });
-  }
-
-  Future<T> _runWritableSession<T>(
-    Future<T> Function(SeforimRepository repository) action,
-  ) async {
-    final dbPath = _dbPath.isNotEmpty
-        ? _dbPath
-        : DatabaseConstants.getDatabasePath();
-
-    // שחרור חיבור ה-RO כדי לפנות את נעילת הקובץ.
-    if (_isInitialized) {
-      _repository.database.close();
-      _isInitialized = false;
-    }
-
-    final writableDb = MyDatabase.withPath(dbPath, readOnly: false);
-    final writableRepo = SeforimRepository(writableDb);
-    try {
-      await writableRepo.ensureInitialized();
-      final result = await action(writableRepo);
-      // checkpoint + המרה ל-DELETE כדי שהפתיחה ה-RO הבאה לא תצטרך -wal/-shm.
-      try {
-        await writableRepo.executeRawQuery('PRAGMA wal_checkpoint(TRUNCATE)');
-      } catch (e) {
-        debugPrint('[SqliteDataProvider] wal_checkpoint failed: $e');
-      }
-      try {
-        await writableRepo.setJournalMode('DELETE');
-      } catch (e) {
-        debugPrint('[SqliteDataProvider] setJournalMode(DELETE) failed: $e');
-      }
-      return result;
-    } finally {
-      writableDb.close();
-      // פתיחה מחדש read-only ישירות דרך _initializeInternal — לא דרך
-      // initialize(), כי זו ממתינה ל-_writeChain שכולל את ה-session הזה
-      // עצמו (deadlock). עוטפים ב-try כדי לא להסוות שגיאה מקורית מה-action.
-      try {
-        await _initializeInternal();
-      } catch (e) {
-        debugPrint(
-          '[SqliteDataProvider] Failed to re-open RO connection after '
-          'write session: $e',
-        );
-      }
-    }
-  }
-
   /// סוגר את חיבור ה-RO לפני שאיזולייט חיצוני (diff-sync / background sync)
   /// פותח את seforim.db לכתיבה, כדי שלא תתפוס נעילת קובץ מתנגשת.
   ///
-  /// מסמן write-session פעיל (כמו [withWritableSession]) כדי ש-[initialize]
-  /// של קוראים מקבילים לא יפתח חיבור RO מתנגש בזמן שהאיזולייט כותב.
+  /// מסמן כתיבה חיצונית פעילה כדי ש-[initialize] של קוראים מקבילים לא יפתח
+  /// חיבור RO מתנגש בזמן שהאיזולייט כותב.
   /// יש לקרוא ל-[reopenAfterExternalWrite] לאחר שהאיזולייט סיים.
   Future<void> closeForExternalWrite() async {
     // נוצר *לפני* הגדלת המונה, כך שקורא מקביל שיראה _activeWriteSessions > 0
@@ -754,22 +675,6 @@ class SqliteDataProvider {
     }
 
     return results;
-  }
-
-  /// Optimizes the database (VACUUM)
-  ///
-  /// VACUUM כותב לקובץ ולכן רץ דרך write-session זמני (החיבור הרגיל פתוח
-  /// read-only).
-  Future<void> optimizeDatabase() async {
-    try {
-      await withWritableSession((repository) async {
-        final db = await repository.database.database;
-        db.execute('VACUUM');
-      });
-    } catch (e) {
-      debugPrint('❌ Error optimizing database: $e');
-      rethrow;
-    }
   }
 
   Future<ResolvedDbBookRecord?> _resolveBookRecord(

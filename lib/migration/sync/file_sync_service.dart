@@ -111,33 +111,6 @@ class FileSyncService {
   /// Get the repository for external access
   SeforimRepository get repository => _repository;
 
-  /// Delete a book from the database by its file path
-  /// This is used when a file is removed from GitHub sync
-  Future<bool> deleteBookByFilePath(String filePath) async {
-    try {
-      // Extract the book title from the file path
-      final title = path.basenameWithoutExtension(filePath);
-      _log.info('Attempting to delete book from DB: $title');
-
-      // Find the book by title
-      final existingBook = await _repository.checkBookExists(title);
-      if (existingBook == null) {
-        _log.info('Book not found in DB, nothing to delete: $title');
-        return false;
-      }
-
-      // Delete the book completely (including lines, TOC, links, etc.)
-      await _repository.deleteBookCompletely(existingBook.id);
-      _log.info(
-        'Successfully deleted book from DB: $title (id: ${existingBook.id})',
-      );
-      return true;
-    } catch (e, stackTrace) {
-      _log.warning('Error deleting book from DB: $filePath', e, stackTrace);
-      return false;
-    }
-  }
-
   /// Recursively delete a category and all its contents from the
   /// custom-folders DB (`user_books.db` or fallback to `_repository`).
   Future<void> _deleteCategoryRecursive(int categoryId) async {
