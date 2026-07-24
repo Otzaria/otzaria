@@ -590,12 +590,14 @@ class _BookGridTextColumn extends StatelessWidget {
             ],
             if (hasShortDescription) ...[
               const SizedBox(height: 4),
-              Text(
-                shortDescription,
-                maxLines: descriptionMaxLines,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.right,
-                style: descriptionStyle,
+              Flexible(
+                child: Text(
+                  shortDescription,
+                  maxLines: descriptionMaxLines,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: descriptionStyle,
+                ),
               ),
             ],
             if (hasTopics) ...[
