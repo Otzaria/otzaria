@@ -553,7 +553,10 @@ class ToolsScreenState extends State<ToolsScreen>
       UiSnack.showError(ToolsMessages.pluginRequiresInternet(plugin.name));
       return;
     }
-    if (!plugin.showInTools) {
+    // תוסף שהוצמד לסרגל הניווט כבר מקבל שם מקום משלו, ולכן גם הוא (כמו
+    // תוסף עם showInTools=false) נפתח כ-transient "מוסתר" ולא כלשונית
+    // רגילה — למניעת הצגה כפולה בכלים.
+    if (!plugin.showInTools || plugin.pinnedToNavRail) {
       setState(() {
         _hiddenNavRailPlugin = plugin;
         _transientPlugin = plugin;
