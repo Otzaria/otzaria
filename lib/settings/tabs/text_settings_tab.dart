@@ -242,7 +242,7 @@ class TextSettingsTab extends StatelessWidget {
       children: [
         // שורה 1: גודל גופן הספר + גופן טקסט
         Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: AdaptiveRow(
             children: [
               _FontSizeSlider(
@@ -275,7 +275,7 @@ class TextSettingsTab extends StatelessWidget {
 
         // שורה 2: גודל גופן מפרשים + גופן מפרשים
         Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: AdaptiveRow(
             children: [
               if (!hideCommentaryFontSize)
@@ -318,7 +318,8 @@ class TextSettingsTab extends StatelessWidget {
           builder: (context, constraints) {
             final isNarrow = constraints.maxWidth < LayoutBreakpoints.compact;
             return Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: isNarrow
                   ? _FontSizeSlider(
                       icon: FluentIcons
