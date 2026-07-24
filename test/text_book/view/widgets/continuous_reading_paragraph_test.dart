@@ -252,7 +252,7 @@ void main() {
       }
     });
 
-    test('עוגן-מילה (a.link-anchor) שומר על צבע הטקסט ובלי קו תחתון', () {
+    test('עוגן-מילה (a.link-anchor) נצבע ב-primary ובלי קו תחתון', () {
       final recognizers = <TapGestureRecognizer>[];
       final spans = buildInlineHtmlSpans(
         'לפני <a class="link-anchor link-anchor-0" '
@@ -267,8 +267,8 @@ void main() {
       );
       final link = _findLinkSpan(spans);
       expect(link, isNotNull);
-      // לא נצבע ב-primary ולא מקבל קו תחתון — צבע הטקסט נשמר.
-      expect(link!.style?.color, const Color(0xFF111111));
+      // צבע primary אך בלי קו תחתון — סמן-נקודה נשאר ללא קו.
+      expect(link!.style?.color, const Color(0xFF6750A4));
       expect(link.style?.decoration, isNot(TextDecoration.underline));
       for (final r in recognizers) {
         r.dispose();

@@ -299,9 +299,9 @@ List<InlineSpan> _nodeToSpans(
     final href = node.attributes['href'];
     if (href != null && href.isNotEmpty) {
       final childStyle = _styleForElement(node, style);
-      // עוגן-מילה לחיץ שומר על מראה הסמן (צבע טקסט יורש, בלי קו תחתון), ובמצב
-      // active מודגש בצבע primary; טווח-ציטוט — קו תחתון בצבע הטקסט (לא
-      // primary); שאר הקישורים — קו תחתון + צבע theme.
+      // עוגן-מילה — צבע ה-primary של הנושא, בלי קו תחתון (בסמן-נקודה) או עם קו
+      // תחתון (בטווח-ציטוט); במצב active מודגש עם רקע; שאר הקישורים — קו תחתון
+      // + צבע theme.
       final effectiveLinkStyle = node.classes.contains('link-anchor')
           ? (node.classes.contains('link-anchor-active')
                 ? childStyle
@@ -313,9 +313,12 @@ List<InlineSpan> _nodeToSpans(
                           childStyle.fontFamily,
                         ),
                       )
-                : childStyle)
+                : childStyle.copyWith(color: linkStyle?.color))
           : node.classes.contains('link-anchor-range')
-          ? childStyle.copyWith(decoration: TextDecoration.underline)
+          ? childStyle.copyWith(
+              decoration: TextDecoration.underline,
+              color: linkStyle?.color,
+            )
           : linkStyle == null
           ? childStyle.copyWith(decoration: TextDecoration.underline)
           : childStyle.merge(linkStyle);
