@@ -98,10 +98,25 @@ String removePunctuation(String text) {
 
     // הסרה לינארית של פיסוק, עם תמיכה בסוגריים מקוננים.
     // בתוך סוגריים שומרים רק . ו- :
+    // תגי HTML (למשל <a href="otzaria://...">) נשארים מחוץ לעיבוד - אחרת
+    // ה-":" וה-"-" בתוך ה-href נמחקים והקישור נשבר.
     final buffer = StringBuffer();
     var parenDepth = 0;
+    var inTag = false;
     for (var i = 0; i < processed.length; i++) {
       final ch = processed[i];
+
+      if (inTag) {
+        buffer.write(ch);
+        if (ch == '>') inTag = false;
+        continue;
+      }
+
+      if (ch == '<') {
+        inTag = true;
+        buffer.write(ch);
+        continue;
+      }
 
       if (ch == '(') {
         parenDepth++;
@@ -146,29 +161,7 @@ String removePunctuation(String text) {
     }
     processed = buffer.toString();
 
-    processed = processed.replaceAllMapped(
-      RegExp(r'["״]'),
-      (match) {
-        final index = match.start;
-        final letter = RegExp(r'[א-תa-zA-Z]');
-        // ראשי תיבות: הגרשיים לפני האות האחרונה, כלומר אות אחת בלבד אחריו
-        // ואז גבול מילה. שתי אותיות אחריו = מירכאות ציטוט (כמו ב"כי יותן).
-        // מנקים ניקוד משני הצדדים כדי שאות מנוקדת (רַשִׁ"י, ב"כִּי) לא תיחשב
-        // בטעות כסימן ניקוד או כאות בודדת.
-        final before = removeVolwels(processed.substring(0, index));
-        final hasBefore =
-            before.isNotEmpty && letter.hasMatch(before[before.length - 1]);
-        final rest = removeVolwels(processed.substring(index + 1));
-        final hasSingleLetterAfter =
-            rest.isNotEmpty &&
-            letter.hasMatch(rest[0]) &&
-            (rest.length == 1 || !letter.hasMatch(rest[1]));
-        if (hasBefore && hasSingleLetterAfter) {
-          return match.group(0)!;
-        }
-        return '';
-      },
-    );
+    processed = _stripQuotesOutsideTags(processed);
 
     processedLines.add(processed);
   }
@@ -220,6 +213,48 @@ String removePunctuation(String text) {
     return result;
   }
   return result.replaceAll('\n', '<br>');
+}
+
+/// רגקס לאיתור תגי HTML (ומכאן טווחים שיש לדלג עליהם בניקוי גרשיים).
+final RegExp _htmlTagSpan = RegExp(r'<[^>]*>');
+
+/// מסיר גרשיים ומירכאות ציטוט (ראו [removePunctuation]) בכל הטקסט *חוץ*
+/// מתוך תגי HTML - כדי לא לפגוע בגרשיים סביב attributes כמו href="...".
+String _stripQuotesOutsideTags(String text) {
+  final buffer = StringBuffer();
+  var lastEnd = 0;
+  for (final match in _htmlTagSpan.allMatches(text)) {
+    buffer.write(_stripAcronymQuotes(text.substring(lastEnd, match.start)));
+    buffer.write(match.group(0));
+    lastEnd = match.end;
+  }
+  buffer.write(_stripAcronymQuotes(text.substring(lastEnd)));
+  return buffer.toString();
+}
+
+/// מסיר גרשיים/מירכאות מקטע טקסט (ללא תגי HTML), פרט לראשי תיבות.
+String _stripAcronymQuotes(String segment) {
+  if (segment.isEmpty) return segment;
+  return segment.replaceAllMapped(RegExp(r'["״]'), (match) {
+    final index = match.start;
+    final letter = RegExp(r'[א-תa-zA-Z]');
+    // ראשי תיבות: הגרשיים לפני האות האחרונה, כלומר אות אחת בלבד אחריו
+    // ואז גבול מילה. שתי אותיות אחריו = מירכאות ציטוט (כמו ב"כי יותן).
+    // מנקים ניקוד משני הצדדים כדי שאות מנוקדת (רַשִׁ"י, ב"כִּי) לא תיחשב
+    // בטעות כסימן ניקוד או כאות בודדת.
+    final before = removeVolwels(segment.substring(0, index));
+    final hasBefore =
+        before.isNotEmpty && letter.hasMatch(before[before.length - 1]);
+    final rest = removeVolwels(segment.substring(index + 1));
+    final hasSingleLetterAfter =
+        rest.isNotEmpty &&
+        letter.hasMatch(rest[0]) &&
+        (rest.length == 1 || !letter.hasMatch(rest[1]));
+    if (hasBefore && hasSingleLetterAfter) {
+      return match.group(0)!;
+    }
+    return '';
+  });
 }
 
 bool isHeadingLine(String line) {
