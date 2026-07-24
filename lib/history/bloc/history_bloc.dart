@@ -52,6 +52,86 @@ String formatGeneralSearchSettings(SearchConfiguration config) {
   return parts.join(' · ');
 }
 
+/// קיצורי אפשרויות המילה הרגילות לכותרת קומפקטית; אפשרויות מתקדמות
+/// (ללא קיצור כאן) מוצגות בשמן המלא.
+const Map<String, String> _wordOptionAbbreviations = {
+  'קידומות': 'ק',
+  'סיומות': 'ס',
+  'קידומות דקדוקיות': 'קד',
+  'סיומות דקדוקיות': 'סד',
+  'כתיב מלא/חסר': 'מח',
+  'חלק ממילה': 'חמ',
+};
+
+const Set<String> _wordSuffixOptions = {'סיומות', 'סיומות דקדוקיות'};
+
+/// מקטע יחיד בכותרת פריט חיפוש: טקסט מבנה השאילתה (מילה/חלופה/מפריד) או
+/// חיווי אפשרות ([isOption]) שה-UI מציג מובחן (גופן קטן, גוון הנושא).
+class SearchTitleSegment {
+  final String text;
+  final bool isOption;
+  const SearchTitleSegment(this.text, {this.isOption = false});
+}
+
+/// בונה את מקטעי כותרת החיפוש מרכיבי השאילתה הגולמיים. חיבור טקסטי
+/// המקטעים מייצר את מחרוזת ה-ref, כך שהתצוגה המפורמטת והשמורה זהות.
+List<SearchTitleSegment> buildSearchTitleSegments({
+  required String query,
+  Map<String, Map<String, bool>> effectiveOptions = const {},
+  Map<int, List<String>> alternativeWords = const {},
+  Map<String, String> spacingValues = const {},
+  String negativeText = '',
+}) {
+  final segments = <SearchTitleSegment>[];
+  final words = SearchQueryBuilder.splitQueryWords(query);
+  for (var i = 0; i < words.length; i++) {
+    final word = words[i];
+    final selected =
+        effectiveOptions['${word}_$i']?.entries
+            .where((entry) => entry.value)
+            .map((entry) => entry.key)
+            .toList() ??
+        const <String>[];
+    final prefixes = selected
+        .where((opt) => !_wordSuffixOptions.contains(opt))
+        .map((opt) => _wordOptionAbbreviations[opt] ?? opt)
+        .toList();
+    final suffixes = selected
+        .where((opt) => _wordSuffixOptions.contains(opt))
+        .map((opt) => _wordOptionAbbreviations[opt] ?? opt)
+        .toList();
+
+    if (prefixes.isNotEmpty) {
+      segments.add(
+        SearchTitleSegment('(${prefixes.join(',')})', isOption: true),
+      );
+    }
+    segments.add(SearchTitleSegment(word));
+    final alternatives = alternativeWords[i] ?? const <String>[];
+    if (alternatives.isNotEmpty) {
+      segments.add(SearchTitleSegment(' או ${alternatives.join(' או ')}'));
+    }
+    if (suffixes.isNotEmpty) {
+      segments.add(
+        SearchTitleSegment('(${suffixes.join(',')})', isOption: true),
+      );
+    }
+    if (i < words.length - 1) {
+      final spacing = spacingValues['$i-${i + 1}'];
+      segments.add(
+        SearchTitleSegment(
+          spacing != null && spacing.isNotEmpty ? ' +$spacing ' : ' + ',
+        ),
+      );
+    }
+  }
+  final negative = negativeText.trim();
+  if (negative.isNotEmpty) {
+    segments.add(SearchTitleSegment(' ללא $negative'));
+  }
+  return segments;
+}
+
 class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   final HistoryRepository _repository;
   String? _currentWorkspaceName;
@@ -278,86 +358,14 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   String _buildFormattedQuery(SearchingTab tab) {
     final text = tab.queryController.text;
     if (text.trim().isEmpty) return '';
-
-    // פיצול דרך המנוע, באותם חוקים שבהם נבנו מפתחות ה-searchOptions.
-    // (הקוד הקודם — split(RegExp(r'\\s+')) — חיפש \s מילולי ולכן מעולם
-    // לא פיצל; תוויות רב-מילים היו שבורות ממילא.)
-    final words = SearchQueryBuilder.splitQueryWords(text);
-    final List<String> parts = [];
-
-    const Map<String, String> optionAbbreviations = {
-      'קידומות': 'ק',
-      'סיומות': 'ס',
-      'קידומות דקדוקיות': 'קד',
-      'סיומות דקדוקיות': 'סד',
-      'כתיב מלא/חסר': 'מח',
-      'חלק ממילה': 'חמ',
-    };
-
-    const Set<String> suffixOptions = {
-      'סיומות',
-      'סיומות דקדוקיות',
-    };
-
-    final effectiveOptions = tab.effectiveSearchOptions(query: text);
-    for (int i = 0; i < words.length; i++) {
-      final word = words[i];
-      final wordKey = '${word}_$i';
-
-      final wordOptions = effectiveOptions[wordKey];
-      final selectedOptions =
-          wordOptions?.entries
-              .where((entry) => entry.value)
-              .map((entry) => entry.key)
-              .toList() ??
-          [];
-
-      final alternativeWords = tab.alternativeWords[i] ?? [];
-
-      final prefixes = selectedOptions
-          .where((opt) => !suffixOptions.contains(opt))
-          .map((opt) => optionAbbreviations[opt] ?? opt)
-          .toList();
-
-      final suffixes = selectedOptions
-          .where((opt) => suffixOptions.contains(opt))
-          .map((opt) => optionAbbreviations[opt] ?? opt)
-          .toList();
-
-      String wordPart = '';
-      if (prefixes.isNotEmpty) {
-        wordPart += '(${prefixes.join(',')})';
-      }
-      wordPart += word;
-
-      if (alternativeWords.isNotEmpty) {
-        wordPart += ' או ${alternativeWords.join(' או ')}';
-      }
-
-      if (suffixes.isNotEmpty) {
-        wordPart += '(${suffixes.join(',')})';
-      }
-
-      parts.add(wordPart);
-    }
-
-    String result = '';
-    for (int i = 0; i < parts.length; i++) {
-      result += parts[i];
-      if (i < parts.length - 1) {
-        final spacingKey = '$i-${i + 1}';
-        final spacingValue = tab.spacingValues[spacingKey];
-        if (spacingValue != null && spacingValue.isNotEmpty) {
-          result += ' +$spacingValue ';
-        } else {
-          result += ' + ';
-        }
-      }
-    }
-
-    final negativeText = tab.negativeQueryController.text.trim();
-    if (negativeText.isEmpty) return result;
-    return '$result ללא $negativeText';
+    final segments = buildSearchTitleSegments(
+      query: text,
+      effectiveOptions: tab.effectiveSearchOptions(query: text),
+      alternativeWords: tab.alternativeWords,
+      spacingValues: tab.spacingValues,
+      negativeText: tab.negativeQueryController.text,
+    );
+    return segments.map((segment) => segment.text).join();
   }
 
   Future<void> _onCaptureStateForHistory(

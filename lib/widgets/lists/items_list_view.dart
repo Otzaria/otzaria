@@ -65,6 +65,10 @@ class ItemsListView extends StatefulWidget {
   /// תן callback כדי לתמוך בפריטים שאינם בנויים סביב `book`.
   final String Function(dynamic item)? titleBuilder;
 
+  /// כשמסופק ומחזיר span שאינו null — הכותרת מרונדרת כ-[Text.rich] לעיצוב
+  /// מובחן של חלקיה; אחרת נופל ל-[titleBuilder].
+  final InlineSpan? Function(dynamic item)? titleSpanBuilder;
+
   /// כשמסופק, הפריטים יקובצו לפי המפתח המוחזר.
   /// מפתח null מטופל כמחרוזת ריקה.
   final String? Function(dynamic item)? groupKeyBuilder;
@@ -100,6 +104,7 @@ class ItemsListView extends StatefulWidget {
     this.groupTitleBuilder,
     this.itemSortComparator,
     this.titleBuilder,
+    this.titleSpanBuilder,
   });
 
   /// כותרת המיקום בתוך הספר — חותך את שם הספר מ-ref.
@@ -226,6 +231,8 @@ class _ItemsListViewState extends State<ItemsListView> {
   }) {
     final subtitle = widget.subtitleBuilder?.call(item);
     final subtitleTooltip = widget.subtitleTooltipBuilder?.call(item);
+    final titleSpan = widget.titleSpanBuilder?.call(item);
+    const titleStyle = TextStyle(fontSize: 16, fontWeight: FontWeight.bold);
 
     Widget content = InkWell(
       onTap: () => widget.onItemTap(context, item, originalIndex),
@@ -243,14 +250,14 @@ class _ItemsListViewState extends State<ItemsListView> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    widget.titleBuilder?.call(item) ??
-                        item.book.title as String,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                  if (titleSpan != null)
+                    Text.rich(titleSpan, style: titleStyle)
+                  else
+                    Text(
+                      widget.titleBuilder?.call(item) ??
+                          item.book.title as String,
+                      style: titleStyle,
                     ),
-                  ),
                   if (subtitle != null)
                     _buildInlineSubtitle(context, subtitle, subtitleTooltip),
                 ],
