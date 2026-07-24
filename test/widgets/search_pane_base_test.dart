@@ -90,4 +90,63 @@ void main() {
         .decoration;
     expect(searchFieldDecoration?.fillColor, isNot(tabHighlightColor));
   });
+
+  testWidgets('כאשר יש errorMessage מוצגת הודעת השגיאה ולא "אין תוצאות"', (
+    tester,
+  ) async {
+    final controller = TextEditingController(text: 'נחל');
+    final focusNode = FocusNode();
+
+    addTearDown(() {
+      controller.dispose();
+      focusNode.dispose();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SearchPaneBase(
+            searchController: controller,
+            focusNode: focusNode,
+            resultsWidget: const SizedBox.shrink(),
+            isNoResults: true,
+            errorMessage: 'שגיאה בחיפוש',
+            resetSearchCallback: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('שגיאה בחיפוש'), findsOneWidget);
+    expect(find.text('אין תוצאות'), findsNothing);
+  });
+
+  testWidgets(
+    'ללא errorMessage ועם isNoResults מוצגת ההודעה הגנרית "אין תוצאות"',
+    (tester) async {
+      final controller = TextEditingController(text: 'נחל');
+      final focusNode = FocusNode();
+
+      addTearDown(() {
+        controller.dispose();
+        focusNode.dispose();
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SearchPaneBase(
+              searchController: controller,
+              focusNode: focusNode,
+              resultsWidget: const SizedBox.shrink(),
+              isNoResults: true,
+              resetSearchCallback: () {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('אין תוצאות'), findsOneWidget);
+    },
+  );
 }

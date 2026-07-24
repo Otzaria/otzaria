@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/settings_exports.dart';
@@ -85,6 +86,9 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   List<TextSearchResult> searchResults = [];
   late ItemScrollController scrollControler;
   bool _isSearching = false;
+
+  /// הודעת שגיאה אחרונה בחיפוש (כשל מנוע/FFI). ראו doc ב-[SearchPaneBase].
+  String? _searchErrorMessage;
   List<String>? _content;
   Future<List<String>>? _contentFuture;
   String? _bookPath;
@@ -323,6 +327,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       setState(() {
         searchResults = [];
         _isSearching = false;
+        _searchErrorMessage = null;
       });
       return;
     }
@@ -333,6 +338,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
     setState(() {
       _isSearching = true;
+      _searchErrorMessage = null;
     });
 
     if (_isSimpleSearch) {
@@ -427,10 +433,12 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     } catch (e) {
       debugPrint('Search error: $e');
       if (mounted && requestId == _activeSearchRequestId) {
+        UiSnack.showError(LibraryMessages.searchError);
         setState(() {
           searchResults = [];
           _isSearching = false;
           _selectedSearchResultIndex = null;
+          _searchErrorMessage = LibraryMessages.searchError;
         });
       }
     }
@@ -889,6 +897,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           searchResults.isEmpty &&
           searchTextController.text.isNotEmpty &&
           !_isSearching,
+      errorMessage: _searchErrorMessage,
       onSearchTextChanged: (value) {
         final activeParameters = _activeSearchParameters;
         context.read<TextBookBloc>().add(
@@ -906,6 +915,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       resetSearchCallback: () {
         setState(() {
           searchResults = [];
+          _searchErrorMessage = null;
           _selectedSearchResultIndex = null;
           _selectedResultLine = null;
           _selectedResultOffset = null;

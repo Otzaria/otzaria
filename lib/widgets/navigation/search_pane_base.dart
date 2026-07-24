@@ -12,6 +12,7 @@ class SearchPaneBase extends StatefulWidget {
     this.resultToolbar,
     required this.resultsWidget,
     required this.isNoResults,
+    this.errorMessage,
     this.onSearchTextChanged,
     required this.resetSearchCallback,
     this.hintText,
@@ -29,6 +30,11 @@ class SearchPaneBase extends StatefulWidget {
   final Widget? resultToolbar;
   final Widget resultsWidget;
   final bool isNoResults;
+
+  /// הודעת שגיאה אחרונה בחיפוש (כשל מנוע/FFI). כשאינה null ו-[isNoResults]
+  /// אמת, מוצגת במקום "אין תוצאות" הגנרי — כדי שתקלה לא תיראה כמו חיפוש
+  /// ריק לגיטימי.
+  final String? errorMessage;
   final ValueChanged<String>? onSearchTextChanged;
   final VoidCallback resetSearchCallback;
   final String? hintText;
@@ -141,10 +147,18 @@ class _SearchPaneBaseState extends State<SearchPaneBase> {
     final resultsArea = NotificationListener<ScrollNotification>(
       onNotification: _onScrollNotification,
       child: widget.isNoResults
-          ? const Center(
-              child: Text(
-                'אין תוצאות',
-              ),
+          ? Center(
+              child: widget.errorMessage != null
+                  ? Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text(
+                        widget.errorMessage!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    )
+                  : const Text('אין תוצאות'),
             )
           : widget.resultsWidget,
     );

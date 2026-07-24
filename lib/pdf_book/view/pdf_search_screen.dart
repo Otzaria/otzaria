@@ -135,6 +135,9 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
 
   bool _isSearching = false;
   List<SearchResult> _searchResults = [];
+
+  /// הודעת שגיאה אחרונה בחיפוש (כשל מנוע/FFI). ראו doc ב-[SearchPaneBase].
+  String? _searchErrorMessage;
   String? _bookPath;
   final Map<int, String> _pageTitles = <int, String>{};
 
@@ -332,6 +335,7 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
         setState(() {
           _searchResults = [];
           _isSearching = false;
+          _searchErrorMessage = null;
         });
       }
       _lastAdvancedHighlightPattern = null;
@@ -363,6 +367,7 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
     if (mounted) {
       setState(() {
         _isSearching = true;
+        _searchErrorMessage = null;
       });
     }
 
@@ -410,6 +415,7 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
       setState(() {
         _searchResults = [];
         _isSearching = false;
+        _searchErrorMessage = PdfMessages.searchError;
       });
       _updateAdvancedHighlight(const []);
       UiSnack.showError(PdfMessages.searchError);
@@ -544,12 +550,14 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
           widget.searchController.text.isNotEmpty &&
           _searchResults.isEmpty &&
           !_isSearching,
+      errorMessage: _searchErrorMessage,
       onSearchTextChanged: (_) => _searchTextUpdated(),
       resetSearchCallback: () {
         _pendingSimpleSearchScrollFor = null;
         _lastAdvancedHighlightPattern = null;
         setState(() {
           _searchResults = [];
+          _searchErrorMessage = null;
           _forceSearchEngine = false;
           _searchOptions = {};
           _alternativeWords = {};
