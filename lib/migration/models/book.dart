@@ -205,36 +205,45 @@ class Book {
       categoryId: json['categoryId'] as int,
       sourceId: json['sourceId'] as int,
       title: json['title'] as String,
-      authors: (json['authors'] as List<dynamic>?)
+      authors:
+          (json['authors'] as List<dynamic>?)
               ?.map((e) => Author.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
-      topics: (json['topics'] as List<dynamic>?)
+      topics:
+          (json['topics'] as List<dynamic>?)
               ?.map((e) => Topic.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
-      pubPlaces: (json['pubPlaces'] as List<dynamic>?)
+      pubPlaces:
+          (json['pubPlaces'] as List<dynamic>?)
               ?.map((e) => PubPlace.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
-      pubDates: (json['pubDates'] as List<dynamic>?)
+      pubDates:
+          (json['pubDates'] as List<dynamic>?)
               ?.map((e) => PubDate.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
       heShortDesc: json['heShortDesc'] as String?,
       heDesc: json['heDesc'] as String?,
       heRef: json['heRef'] as String?,
-      order: (json['orderIndex'] as num?)?.toDouble() ??
+      order:
+          (json['orderIndex'] as num?)?.toDouble() ??
           (json['order'] as num?)?.toDouble() ??
           999.0,
       totalLines: json['totalLines'] as int? ?? 0,
       isBaseBook: safeBoolFromJson(json['isBaseBook'], false),
       hasTargumConnection: safeBoolFromJson(json['hasTargumConnection'], false),
-      hasReferenceConnection:
-          safeBoolFromJson(json['hasReferenceConnection'], false),
+      hasReferenceConnection: safeBoolFromJson(
+        json['hasReferenceConnection'],
+        false,
+      ),
       hasSourceConnection: safeBoolFromJson(json['hasSourceConnection'], false),
-      hasCommentaryConnection:
-          safeBoolFromJson(json['hasCommentaryConnection'], false),
+      hasCommentaryConnection: safeBoolFromJson(
+        json['hasCommentaryConnection'],
+        false,
+      ),
       hasOtherConnection: safeBoolFromJson(json['hasOtherConnection'], false),
       hasAltStructures: safeBoolFromJson(json['hasAltStructures'], false),
       hasTeamim: safeBoolFromJson(json['hasTeamim'], false),

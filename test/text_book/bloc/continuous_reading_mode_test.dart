@@ -56,18 +56,20 @@ void main() {
     final loadedTrue = _loaded(continuous: true, supports: true);
     final loadedFalse = _loaded(continuous: false, supports: true);
 
-    test('ספר לא תומך → false (גם אם preserve+state+globalDefault מבקשים true)',
-        () {
-      expect(
-        TextBookBloc.resolvePreservedContinuousReadingMode(
-          supportsContinuous: false,
-          preserveFlag: true,
-          currentState: loadedTrue,
-          globalDefault: true,
-        ),
-        isFalse,
-      );
-    });
+    test(
+      'ספר לא תומך → false (גם אם preserve+state+globalDefault מבקשים true)',
+      () {
+        expect(
+          TextBookBloc.resolvePreservedContinuousReadingMode(
+            supportsContinuous: false,
+            preserveFlag: true,
+            currentState: loadedTrue,
+            globalDefault: true,
+          ),
+          isFalse,
+        );
+      },
+    );
 
     test('preserveFlag=false → globalDefault (מסלול פתיחת ספר / איפוס)', () {
       // בפתיחת ספר חדש ובאיפוס פר-ספר, הערך נגזר מברירת המחדל הגלובלית.

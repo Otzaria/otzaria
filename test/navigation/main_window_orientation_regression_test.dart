@@ -36,7 +36,9 @@ void main() {
         await tester.pump();
 
         expect(
-            widgetKey.currentState!.controller, isNot(same(initialController)));
+          widgetKey.currentState!.controller,
+          isNot(same(initialController)),
+        );
         expect(find.text('page-2'), findsOneWidget);
         expect(find.text('page-1'), findsNothing);
         expect(find.text('page-3'), findsNothing);

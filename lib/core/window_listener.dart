@@ -194,7 +194,9 @@ class AppWindowListener extends WindowListener {
                 .invokeMethod<bool>('forceTerminate');
           } catch (e, stackTrace) {
             _logForceTerminateFailure(
-                'invokeMethod threw: $e', stackTrace.toString());
+              'invokeMethod threw: $e',
+              stackTrace.toString(),
+            );
             terminateAttempted = null;
           }
           if (terminateAttempted == true) {
@@ -203,7 +205,9 @@ class AppWindowListener extends WindowListener {
             // להשיב true אבל TerminateProcess עצמו נכשל איכשהו (תרחיש
             // תיאורטי). exit(0) כ-last resort.
             _logForceTerminateFailure(
-                'forceTerminate returned true but did not terminate', null);
+              'forceTerminate returned true but did not terminate',
+              null,
+            );
             exit(0);
           }
           if (terminateAttempted == false) {
@@ -221,9 +225,10 @@ class AppWindowListener extends WindowListener {
             // המשמעות: סביבות שבהן Job Object נכשל לא מקבלות את ה-fast
             // exit, אבל גם לא מאבדות שום הגנה שהייתה להן קודם.
             _logForceTerminateFailure(
-                'Job Object not ready in native runner — degraded close, '
-                'WebView2 children may still orphan (pre-fix behavior)',
-                null);
+              'Job Object not ready in native runner — degraded close, '
+              'WebView2 children may still orphan (pre-fix behavior)',
+              null,
+            );
             await Future<void>.delayed(const Duration(milliseconds: 500));
           }
           // Windows path מאז ומעולם — exit(0) במקום windowManager.destroy.

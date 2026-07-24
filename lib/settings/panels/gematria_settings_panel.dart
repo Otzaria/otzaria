@@ -161,7 +161,9 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
               onChanged: (value) {
                 setState(() => filterDuplicates = value);
                 Settings.setValue<bool>(
-                    'key-gematria-filter-duplicates', filterDuplicates);
+                  'key-gematria-filter-duplicates',
+                  filterDuplicates,
+                );
               },
             ),
             SettingsActionTile.switchTile(
@@ -174,14 +176,17 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
               onChanged: (value) {
                 setState(() => wholeVerseOnly = value);
                 Settings.setValue<bool>(
-                    'key-gematria-whole-verse-only', wholeVerseOnly);
+                  'key-gematria-whole-verse-only',
+                  wholeVerseOnly,
+                );
               },
             ),
             SettingsActionTile.switchTile(
               rtlIcon: FluentIcons.book_24_regular,
               title: 'חיפוש בתורה בלבד',
-              subtitle:
-                  torahOnly ? 'חיפוש רק בחמישה חומשי תורה' : 'חיפוש בכל הספרים',
+              subtitle: torahOnly
+                  ? 'חיפוש רק בחמישה חומשי תורה'
+                  : 'חיפוש בכל הספרים',
               value: torahOnly,
               onChanged: (value) {
                 setState(() => torahOnly = value);
@@ -205,11 +210,15 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                   if (useSmallGematria) {
                     useFinalLetters = false;
                     Settings.setValue<bool>(
-                        'key-gematria-use-final-letters', false);
+                      'key-gematria-use-final-letters',
+                      false,
+                    );
                   }
                 });
                 Settings.setValue<bool>(
-                    'key-gematria-use-small', useSmallGematria);
+                  'key-gematria-use-small',
+                  useSmallGematria,
+                );
               },
             ),
             SettingsActionTile.switchTile(
@@ -226,7 +235,9 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                   }
                 });
                 Settings.setValue<bool>(
-                    'key-gematria-use-final-letters', useFinalLetters);
+                  'key-gematria-use-final-letters',
+                  useFinalLetters,
+                );
               },
             ),
             SettingsActionTile.switchTile(
@@ -237,7 +248,9 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
               onChanged: (value) {
                 setState(() => useWithKolel = value);
                 Settings.setValue<bool>(
-                    'key-gematria-use-with-kolel', useWithKolel);
+                  'key-gematria-use-with-kolel',
+                  useWithKolel,
+                );
               },
             ),
           ],

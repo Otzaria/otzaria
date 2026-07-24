@@ -24,7 +24,7 @@ import '../helpers/memory_settings_cache.dart';
 /// בלי לרוץ דרך `_loadBookmarks()` של ה-repository.
 class _StubBookmarkBloc extends Cubit<BookmarkState> implements BookmarkBloc {
   _StubBookmarkBloc(List<Bookmark> bookmarks)
-      : super(BookmarkState(bookmarks: bookmarks));
+    : super(BookmarkState(bookmarks: bookmarks));
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -48,7 +48,7 @@ class _CapturingTabsBloc extends Cubit<TabsState> implements TabsBloc {
 class _StubNavigationBloc extends Cubit<NavigationState>
     implements NavigationBloc {
   _StubNavigationBloc()
-      : super(const NavigationState(currentScreen: Screen.reading));
+    : super(const NavigationState(currentScreen: Screen.reading));
 
   @override
   void add(NavigationEvent event) {}
@@ -92,13 +92,19 @@ Future<OpenOrFocusTab> _tapBookmarkAndCapture(
     of: find.text(bookmark.book.title),
     matching: find.byType(InkWell),
   );
-  expect(itemTap, findsOneWidget,
-      reason: 'מצופה InkWell יחיד שעוטף את כותרת הספר ברשימה');
+  expect(
+    itemTap,
+    findsOneWidget,
+    reason: 'מצופה InkWell יחיד שעוטף את כותרת הספר ברשימה',
+  );
   await tester.tap(itemTap);
   await tester.pump();
 
-  expect(tabsBloc.captured, hasLength(1),
-      reason: 'BookmarkView צריך לשלוח event יחיד ל-TabsBloc בלחיצה');
+  expect(
+    tabsBloc.captured,
+    hasLength(1),
+    reason: 'BookmarkView צריך לשלוח event יחיד ל-TabsBloc בלחיצה',
+  );
   return tabsBloc.captured.single as OpenOrFocusTab;
 }
 
@@ -110,8 +116,9 @@ void main() {
   });
 
   group('BookmarkView — פתיחת Tab לפי targetKind', () {
-    testWidgets('סימניית מפרשים על PdfBook פותחת PdfCommentatorsTab',
-        (tester) async {
+    testWidgets('סימניית מפרשים על PdfBook פותחת PdfCommentatorsTab', (
+      tester,
+    ) async {
       final bookmark = Bookmark(
         ref: 'מסכת ברכות',
         book: PdfBook(title: 'מסכת ברכות', path: '/fake/berachot.pdf'),
@@ -126,12 +133,15 @@ void main() {
       final commentatorsTab = event.tab as PdfCommentatorsTab;
       expect(commentatorsTab.sourceTab.book.title, 'מסכת ברכות');
       expect(commentatorsTab.sourceTab.pageNumber, 7);
-      expect(commentatorsTab.sourceTab.activeCommentators,
-          containsAll(['רש"י', 'תוספות']));
+      expect(
+        commentatorsTab.sourceTab.activeCommentators,
+        containsAll(['רש"י', 'תוספות']),
+      );
     });
 
-    testWidgets('סימניית מפרשים על TextBook פותחת CommentatorsTab',
-        (tester) async {
+    testWidgets('סימניית מפרשים על TextBook פותחת CommentatorsTab', (
+      tester,
+    ) async {
       final bookmark = Bookmark(
         ref: 'בראשית א',
         book: TextBook(title: 'בראשית', filePath: '/fake/בראשית.txt'),
@@ -148,8 +158,9 @@ void main() {
       expect(commentatorsTab.sourceTab.index, 4);
     });
 
-    testWidgets('סימנייה רגילה על PdfBook פותחת PdfBookTab רגיל',
-        (tester) async {
+    testWidgets('סימנייה רגילה על PdfBook פותחת PdfBookTab רגיל', (
+      tester,
+    ) async {
       final bookmark = Bookmark(
         ref: 'מסכת שבת',
         book: PdfBook(title: 'מסכת שבת', path: '/fake/shabbat.pdf'),
@@ -165,8 +176,9 @@ void main() {
       expect(pdfTab.pageNumber, 2);
     });
 
-    testWidgets('סימנייה רגילה על TextBook פותחת TextBookTab רגיל',
-        (tester) async {
+    testWidgets('סימנייה רגילה על TextBook פותחת TextBookTab רגיל', (
+      tester,
+    ) async {
       final bookmark = Bookmark(
         ref: 'דברים ל',
         book: TextBook(title: 'דברים', filePath: '/fake/דברים.txt'),

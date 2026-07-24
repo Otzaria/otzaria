@@ -172,10 +172,12 @@ void main() {
       final source = src('from');
       final dest = src('to');
       await Directory(source).create();
-      await File(p.join(source, DatabaseConstants.databaseFileName))
-          .writeAsString('db');
-      await File(p.join(source, DatabaseConstants.lexicalDatabaseFileName))
-          .writeAsString('lexical');
+      await File(
+        p.join(source, DatabaseConstants.databaseFileName),
+      ).writeAsString('db');
+      await File(
+        p.join(source, DatabaseConstants.lexicalDatabaseFileName),
+      ).writeAsString('lexical');
       await File(p.join(source, 'my_notes.txt')).writeAsString('נשאר');
 
       await moveDirectory(
@@ -189,8 +191,9 @@ void main() {
         isTrue,
       );
       expect(
-        await File(p.join(dest, DatabaseConstants.lexicalDatabaseFileName))
-            .exists(),
+        await File(
+          p.join(dest, DatabaseConstants.lexicalDatabaseFileName),
+        ).exists(),
         isTrue,
       );
       expect(await File(p.join(dest, 'my_notes.txt')).exists(), isFalse);
@@ -201,8 +204,9 @@ void main() {
       final source = src('from');
       final dest = src('to');
       await Directory(source).create();
-      await File(p.join(source, DatabaseConstants.databaseFileName))
-          .writeAsString('db');
+      await File(
+        p.join(source, DatabaseConstants.databaseFileName),
+      ).writeAsString('db');
       for (final archive in [
         DatabaseConstants.databaseArchiveFileName,
         DatabaseConstants.externalCatalogArchiveFileName,
@@ -298,8 +302,10 @@ void main() {
       await File(p.join(source, 'seforim.db')).writeAsString('db');
       await File(p.join(source, 'other.txt')).writeAsString('x');
 
-      final result =
-          await deleteMovedEntries(source, includeOnly: {'seforim.db'});
+      final result = await deleteMovedEntries(
+        source,
+        includeOnly: {'seforim.db'},
+      );
 
       expect(result, isNull);
       expect(await File(p.join(source, 'seforim.db')).exists(), isFalse);

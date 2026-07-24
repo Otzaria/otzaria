@@ -285,8 +285,9 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
   }
 
   void _measureOverlayHeight() {
-    final overlayBox = _searchOptionsOverlayKey.currentContext
-        ?.findRenderObject() as RenderBox?;
+    final overlayBox =
+        _searchOptionsOverlayKey.currentContext?.findRenderObject()
+            as RenderBox?;
     // ייתכן ש-currentContext תקין אך ה-RenderBox עדיין לא עבר layout (למשל
     // אם ה-overlay נסגר/offstage באותו פריים) — אז size אינו מדיד.
     if (overlayBox == null || !overlayBox.hasSize) {
@@ -350,7 +351,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
       wordOptions: widget.tab.searchOptions,
       showAdvancedOnlyOptions:
           widget.tab.searchBloc.state.configuration.searchMode ==
-              SearchMode.advanced,
+          SearchMode.advanced,
       onOptionsChanged: _onSearchOptionsChanged,
       key: ValueKey(
         '${wordInfo['word']}_${wordInfo['index']}',
@@ -396,8 +397,9 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
         context.read<LibraryBloc>().state.library,
       );
       if (parsedCategory.hasCategoryToken && !parsedCategory.categoryFound) {
-        UiSnack.showError(LibraryMessages.categoryOrBookNotFound(
-            parsedCategory.notFoundNames));
+        UiSnack.showError(
+          LibraryMessages.categoryOrBookNotFound(parsedCategory.notFoundNames),
+        );
         return;
       }
       query = parsedCategory.query;
@@ -417,12 +419,15 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
       // המנוע דורש אותם — ואסור למחוק. הבדיקה על מפות המקור, כי האפשרויות
       // האפקטיביות נבנות מהשאילתה אחרי המחיקה.
       final fieldConfig = widget.tab.searchBloc.state.configuration;
-      final vocalizedSearch = fieldConfig.searchMode == SearchMode.advanced &&
+      final vocalizedSearch =
+          fieldConfig.searchMode == SearchMode.advanced &&
           (widget.tab.useGlobalSearchOptions.value
               ? SearchQueryBuilder.globalOptionsRequestVocalized(
-                  widget.tab.globalSearchOptions)
+                  widget.tab.globalSearchOptions,
+                )
               : SearchQueryBuilder.optionsRequestVocalized(
-                  widget.tab.searchOptions));
+                  widget.tab.searchOptions,
+                ));
       if (!vocalizedSearch && utils.hasNikud(query)) {
         query = utils.removeVolwels(query);
       }
@@ -430,47 +435,50 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
       final searchMode = widget.tab.searchBloc.state.configuration.searchMode;
       final normalizedParameters =
           SearchQueryBuilder.normalizeParametersForMode(
-        searchMode,
-        customSpacing: widget.tab.spacingValues,
-        alternativeWords: widget.tab.alternativeWords,
-        searchOptions: widget.tab.effectiveSearchOptions(query: query),
-      );
+            searchMode,
+            customSpacing: widget.tab.spacingValues,
+            alternativeWords: widget.tab.alternativeWords,
+            searchOptions: widget.tab.effectiveSearchOptions(query: query),
+          );
       final normalizedNegativeParameters =
           SearchQueryBuilder.normalizeParametersForMode(
-        searchMode,
-        customSpacing: widget.tab.negativeSpacingValues,
-        alternativeWords: widget.tab.negativeAlternativeWords,
-        searchOptions: widget.tab.effectiveNegativeSearchOptions(
-          query: widget.tab.negativeQueryController.text,
-        ),
-      );
+            searchMode,
+            customSpacing: widget.tab.negativeSpacingValues,
+            alternativeWords: widget.tab.negativeAlternativeWords,
+            searchOptions: widget.tab.effectiveNegativeSearchOptions(
+              query: widget.tab.negativeQueryController.text,
+            ),
+          );
 
       widget.tab.updateTitleFromAppliedQuery(query);
       // תחביר `@קטגוריה`/`@ספר` גובר על scope הקיים של הטאב. מעבירים את
       // ה-scope במפורש להיסטוריה כדי שלא ייאבד עד שה-SearchBloc יעדכן state.
-      context.read<HistoryBloc>().add(AddHistory(
-            widget.tab,
-            scopeFacets:
-                parsedCategory.categoryFound ? parsedCategory.facets : null,
-          ));
+      context.read<HistoryBloc>().add(
+        AddHistory(
+          widget.tab,
+          scopeFacets: parsedCategory.categoryFound
+              ? parsedCategory.facets
+              : null,
+        ),
+      );
       if (parsedCategory.categoryFound) {
-        context
-            .read<SearchBloc>()
-            .add(SetFacetsWithoutSearch(parsedCategory.facets!));
+        context.read<SearchBloc>().add(
+          SetFacetsWithoutSearch(parsedCategory.facets!),
+        );
       }
       context.read<SearchBloc>().add(
-            UpdateSearchQuery(
-              query,
-              negativeQuery: widget.tab.negativeQueryController.text,
-              customSpacing: normalizedParameters.customSpacing,
-              alternativeWords: normalizedParameters.alternativeWords,
-              searchOptions: normalizedParameters.searchOptions,
-              negativeCustomSpacing: normalizedNegativeParameters.customSpacing,
-              negativeAlternativeWords:
-                  normalizedNegativeParameters.alternativeWords,
-              negativeSearchOptions: normalizedNegativeParameters.searchOptions,
-            ),
-          );
+        UpdateSearchQuery(
+          query,
+          negativeQuery: widget.tab.negativeQueryController.text,
+          customSpacing: normalizedParameters.customSpacing,
+          alternativeWords: normalizedParameters.alternativeWords,
+          searchOptions: normalizedParameters.searchOptions,
+          negativeCustomSpacing: normalizedNegativeParameters.customSpacing,
+          negativeAlternativeWords:
+              normalizedNegativeParameters.alternativeWords,
+          negativeSearchOptions: normalizedNegativeParameters.searchOptions,
+        ),
+      );
       widget.tab.isLeftPaneOpen.value = false;
     }
   }
@@ -519,9 +527,9 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
                       if (event is KeyDownEvent) {
                         final isArrowKey =
                             event.logicalKey.keyLabel == 'Arrow Left' ||
-                                event.logicalKey.keyLabel == 'Arrow Right' ||
-                                event.logicalKey.keyLabel == 'Arrow Up' ||
-                                event.logicalKey.keyLabel == 'Arrow Down';
+                            event.logicalKey.keyLabel == 'Arrow Right' ||
+                            event.logicalKey.keyLabel == 'Arrow Up' ||
+                            event.logicalKey.keyLabel == 'Arrow Down';
 
                         if (isArrowKey) {
                           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -558,8 +566,9 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
                           prefixIcon: widget.showInlineSearchButton
                               ? IconButton(
                                   onPressed: _performSearch,
-                                  icon:
-                                      const Icon(FluentIcons.search_24_regular),
+                                  icon: const Icon(
+                                    FluentIcons.search_24_regular,
+                                  ),
                                 )
                               : const Icon(FluentIcons.search_24_regular),
                           suffixIcon: widget.trailingAction != null
@@ -569,34 +578,36 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
                                     widget.trailingAction!,
                                     IconButton(
                                       icon: const Icon(
-                                          FluentIcons.dismiss_24_regular),
+                                        FluentIcons.dismiss_24_regular,
+                                      ),
                                       onPressed: () {
                                         widget.tab.queryController.clear();
                                         widget.tab.searchOptions.clear();
                                         widget.tab.globalSearchOptions.clear();
-                                        context
-                                            .read<SearchBloc>()
-                                            .add(UpdateSearchQuery(''));
-                                        context
-                                            .read<SearchBloc>()
-                                            .add(UpdateFacetCounts({}));
+                                        context.read<SearchBloc>().add(
+                                          UpdateSearchQuery(''),
+                                        );
+                                        context.read<SearchBloc>().add(
+                                          UpdateFacetCounts({}),
+                                        );
                                       },
                                     ),
                                   ],
                                 )
                               : IconButton(
                                   icon: const Icon(
-                                      FluentIcons.dismiss_24_regular),
+                                    FluentIcons.dismiss_24_regular,
+                                  ),
                                   onPressed: () {
                                     widget.tab.queryController.clear();
                                     widget.tab.searchOptions.clear();
                                     widget.tab.globalSearchOptions.clear();
-                                    context
-                                        .read<SearchBloc>()
-                                        .add(UpdateSearchQuery(''));
-                                    context
-                                        .read<SearchBloc>()
-                                        .add(UpdateFacetCounts({}));
+                                    context.read<SearchBloc>().add(
+                                      UpdateSearchQuery(''),
+                                    );
+                                    context.read<SearchBloc>().add(
+                                      UpdateFacetCounts({}),
+                                    );
                                   },
                                 ),
                         ),

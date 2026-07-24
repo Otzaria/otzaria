@@ -1438,8 +1438,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         // line-height מרוסן כדי ששתי השורות ייכנסו בגובה הסרגל הקומפקטי
         // (פונטים עבריים בעלי מטריקות גבוהות גרמו לחריגת RenderFlex).
         final titleStyle = AppTopBar.titleStyle(context).copyWith(height: 1.1);
-        final authorStyle =
-            AppTopBar.subtitleStyle(context).copyWith(height: 1.1);
+        final authorStyle = AppTopBar.subtitleStyle(
+          context,
+        ).copyWith(height: 1.1);
         final textPainter = TextPainter(
           text: TextSpan(text: displayText, style: titleStyle),
           textDirection: Directionality.of(context),
@@ -2082,8 +2083,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   ) {
     final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
     return BarButton.icon(
-      tooltip:
-          state.continuousReadingMode ? 'הצג כשורות בודדות' : 'הצג כטקסט רציף',
+      tooltip: state.continuousReadingMode
+          ? 'הצג כשורות בודדות'
+          : 'הצג כטקסט רציף',
       icon: state.continuousReadingMode
           ? FluentIcons.text_align_justify_24_filled
           : FluentIcons.text_align_justify_24_regular,

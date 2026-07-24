@@ -6,13 +6,13 @@ import 'package:otzaria/settings/dialogs/books_list_dialog.dart';
 
 void main() {
   List<Book> buildBooks(int count) => List.generate(
-        count,
-        (i) => TextBook(
-          title: 'ספר $i',
-          author: 'מחבר $i',
-          categoryPath: 'קטגוריה $i',
-        ),
-      );
+    count,
+    (i) => TextBook(
+      title: 'ספר $i',
+      author: 'מחבר $i',
+      categoryPath: 'קטגוריה $i',
+    ),
+  );
 
   Future<void> openDialog(WidgetTester tester, List<Book> books) async {
     await tester.pumpWidget(
@@ -35,25 +35,27 @@ void main() {
   }
 
   testWidgets(
-      'פס הגלילה וה-ListView חולקים אותו ScrollController (פס גלילה לחיץ)',
-      (tester) async {
-    await openDialog(tester, buildBooks(50));
+    'פס הגלילה וה-ListView חולקים אותו ScrollController (פס גלילה לחיץ)',
+    (tester) async {
+      await openDialog(tester, buildBooks(50));
 
-    final scrollbar = tester.widget<Scrollbar>(find.byType(Scrollbar));
-    final listView = tester.widget<ListView>(find.byType(ListView));
+      final scrollbar = tester.widget<Scrollbar>(find.byType(Scrollbar));
+      final listView = tester.widget<ListView>(find.byType(ListView));
 
-    // שורש התיקון: בלי controller משותף, ה-thumb אינו גריר.
-    expect(scrollbar.controller, isNotNull);
-    expect(listView.controller, isNotNull);
-    expect(scrollbar.controller, same(listView.controller));
-    expect(scrollbar.thumbVisibility, isTrue);
-  });
+      // שורש התיקון: בלי controller משותף, ה-thumb אינו גריר.
+      expect(scrollbar.controller, isNotNull);
+      expect(listView.controller, isNotNull);
+      expect(scrollbar.controller, same(listView.controller));
+      expect(scrollbar.thumbVisibility, isTrue);
+    },
+  );
 
   testWidgets('גלילה דרך ה-controller המשותף מזיזה את הרשימה', (tester) async {
     await openDialog(tester, buildBooks(50));
 
-    final controller =
-        tester.widget<ListView>(find.byType(ListView)).controller!;
+    final controller = tester
+        .widget<ListView>(find.byType(ListView))
+        .controller!;
     expect(controller.offset, 0);
 
     controller.jumpTo(200);

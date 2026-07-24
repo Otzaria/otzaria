@@ -13,15 +13,15 @@ import 'package:otzaria/settings/dialogs/change_location_dialog.dart';
 import 'package:path/path.dart' as p;
 
 Widget _openButton(void Function(BuildContext) onOpen) => MaterialApp(
-      home: Scaffold(
-        body: Builder(
-          builder: (ctx) => TextButton(
-            onPressed: () => onOpen(ctx),
-            child: const Text('פתח'),
-          ),
-        ),
+  home: Scaffold(
+    body: Builder(
+      builder: (ctx) => TextButton(
+        onPressed: () => onOpen(ctx),
+        child: const Text('פתח'),
       ),
-    );
+    ),
+  ),
+);
 
 Future<void> _openDialog(
   WidgetTester tester, {
@@ -34,14 +34,18 @@ Future<void> _openDialog(
   await tester.binding.setSurfaceSize(const Size(1200, 900));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
-  await tester.pumpWidget(_openButton((ctx) => showChangeLocationDialog(
+  await tester.pumpWidget(
+    _openButton(
+      (ctx) => showChangeLocationDialog(
         context: ctx,
         currentPath: currentPath,
         folderName: folderName,
         canMoveContents: canMoveContents,
         defaultPath: defaultPath,
         moveContentsWarning: moveContentsWarning,
-      )));
+      ),
+    ),
+  );
   await tester.tap(find.text('פתח'));
   await tester.pumpAndSettle();
 }
@@ -81,16 +85,23 @@ void main() {
 
     // הבחירה נבדקת דרך אזהרת ההעברה (מוצגת רק כש"העבר תוכן" נבחר) — ברדיו
     // המותאם אין ערך פנימי לבדיקה, לכן בודקים את ההתנהגות הנצפית.
-    testWidgets('canMoveContents=true — "העבר תוכן" נבחר כברירת מחדל',
-        (tester) async {
-      await _openDialog(tester,
-          canMoveContents: true, moveContentsWarning: 'אזהרת בדיקה');
+    testWidgets('canMoveContents=true — "העבר תוכן" נבחר כברירת מחדל', (
+      tester,
+    ) async {
+      await _openDialog(
+        tester,
+        canMoveContents: true,
+        moveContentsWarning: 'אזהרת בדיקה',
+      );
       expect(find.text('אזהרת בדיקה'), findsOneWidget);
     });
 
     testWidgets('לחיצה על "שנה מיקום בלבד" מחליפה את הבחירה', (tester) async {
-      await _openDialog(tester,
-          canMoveContents: true, moveContentsWarning: 'אזהרת בדיקה');
+      await _openDialog(
+        tester,
+        canMoveContents: true,
+        moveContentsWarning: 'אזהרת בדיקה',
+      );
 
       await tester.tap(find.text('שנה מיקום בלבד'));
       await tester.pump();
@@ -98,8 +109,11 @@ void main() {
     });
 
     testWidgets('לחיצה חזרה על "העבר תוכן" משחזרת בחירה', (tester) async {
-      await _openDialog(tester,
-          canMoveContents: true, moveContentsWarning: 'אזהרת בדיקה');
+      await _openDialog(
+        tester,
+        canMoveContents: true,
+        moveContentsWarning: 'אזהרת בדיקה',
+      );
       await tester.tap(find.text('שנה מיקום בלבד'));
       await tester.pump();
       await tester.tap(find.text('העבר תוכן תיקייה'));
@@ -117,8 +131,9 @@ void main() {
       expect(find.text('מיקום ברירת מחדל'), findsNothing);
     });
 
-    testWidgets('כשcurrentPath==defaultPath כפתור "השתמש בברירת מחדל" מושבת',
-        (tester) async {
+    testWidgets('כשcurrentPath==defaultPath כפתור "השתמש בברירת מחדל" מושבת', (
+      tester,
+    ) async {
       const path = '/default/path';
       await _openDialog(tester, currentPath: path, defaultPath: path);
 
@@ -130,10 +145,14 @@ void main() {
       expect((tester.widget(btnFinder) as FilledButton).onPressed, isNull);
     });
 
-    testWidgets('כשcurrentPath!=defaultPath כפתור "השתמש בברירת מחדל" פעיל',
-        (tester) async {
-      await _openDialog(tester,
-          currentPath: '/other/path', defaultPath: '/default/path');
+    testWidgets('כשcurrentPath!=defaultPath כפתור "השתמש בברירת מחדל" פעיל', (
+      tester,
+    ) async {
+      await _openDialog(
+        tester,
+        currentPath: '/other/path',
+        defaultPath: '/default/path',
+      );
 
       final btnFinder = find.ancestor(
         of: find.text('השתמש בברירת מחדל'),
@@ -180,8 +199,9 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('onAfterMove=null → אפשרות "העבר תוכן" לא מוצגת',
-        (tester) async {
+    testWidgets('onAfterMove=null → אפשרות "העבר תוכן" לא מוצגת', (
+      tester,
+    ) async {
       final cb = makeChangeLocationCallback(
         currentPath: '/some/path',
         folderName: 'ספרייה',
@@ -192,20 +212,23 @@ void main() {
       expect(find.text('העבר תוכן תיקייה'), findsNothing);
     });
 
-    testWidgets('currentPath ריק → "העבר תוכן" לא מוצג גם כשonAfterMove מוגדר',
-        (tester) async {
-      final cb = makeChangeLocationCallback(
-        currentPath: '',
-        folderName: 'ספרייה',
-        onPathChanged: (_) async {},
-        onAfterMove: (_) async {},
-      );
-      await openCallback(tester, cb);
-      expect(find.text('העבר תוכן תיקייה'), findsNothing);
-    });
+    testWidgets(
+      'currentPath ריק → "העבר תוכן" לא מוצג גם כשonAfterMove מוגדר',
+      (tester) async {
+        final cb = makeChangeLocationCallback(
+          currentPath: '',
+          folderName: 'ספרייה',
+          onPathChanged: (_) async {},
+          onAfterMove: (_) async {},
+        );
+        await openCallback(tester, cb);
+        expect(find.text('העבר תוכן תיקייה'), findsNothing);
+      },
+    );
 
-    testWidgets('onAfterMove מוגדר + currentPath לא ריק → "העבר תוכן" מוצג',
-        (tester) async {
+    testWidgets('onAfterMove מוגדר + currentPath לא ריק → "העבר תוכן" מוצג', (
+      tester,
+    ) async {
       final cb = makeChangeLocationCallback(
         currentPath: '/some/path',
         folderName: 'ספרייה',
@@ -230,8 +253,9 @@ void main() {
 
   group('remapMovedFileBookPaths', () {
     test('מדלג על PDF רשמי כי seforim.db לא מחזיק עמודות נתיב', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('otzaria-move-official-pdf-');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'otzaria-move-official-pdf-',
+      );
       final from = p.join(tempDir.path, 'old', 'books');
       final to = p.join(tempDir.path, 'new', 'books');
       final oldPath = p.join(from, 'תלמוד בבלי', 'ברכות.pdf');
@@ -259,8 +283,9 @@ void main() {
     });
 
     test('מעדכן נתיב PDF אישי שהועבר יחד עם הספרייה', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('otzaria-move-user-pdf-');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'otzaria-move-user-pdf-',
+      );
       final previousDataRoot = AppPaths.cachedDataRootPath;
       final dataRoot = p.join(tempDir.path, 'data-root');
       final from = p.join(tempDir.path, 'old', 'books');
@@ -353,8 +378,9 @@ void main() {
 
   group('library move rollback helpers', () {
     test('חוסם העברה כשיעד הספרייה כבר קיים', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('otzaria-move-target-');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'otzaria-move-target-',
+      );
       final target = p.join(tempDir.path, 'books');
 
       addTearDown(() async {
@@ -372,8 +398,9 @@ void main() {
     });
 
     test('מנקה staging ויעדים שנוצרו אחרי כשל בהעברה', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('otzaria-move-cleanup-');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'otzaria-move-cleanup-',
+      );
       final stagingRoot = p.join(tempDir.path, '.otzaria_move_test');
       final newLibrary = p.join(tempDir.path, 'books');
       final newIndex = p.join(tempDir.path, 'index');

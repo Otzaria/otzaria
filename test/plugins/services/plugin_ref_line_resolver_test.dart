@@ -58,8 +58,10 @@ void main() {
   });
 
   group('PluginRefLineResolver — שולחן ערוך (סימן:סעיף, כותרת עם פסיק)', () {
-    final shulchanAruch =
-        TextBook(title: 'שולחן ערוך, אורח חיים', categoryId: 2);
+    final shulchanAruch = TextBook(
+      title: 'שולחן ערוך, אורח חיים',
+      categoryId: 2,
+    );
     final entries = <LineRefEntry>[
       (lineIndex: 38, heRef: 'שולחן ערוך, אורח חיים ד, א'),
       (lineIndex: 39, heRef: 'שולחן ערוך, אורח חיים ד, ב'),

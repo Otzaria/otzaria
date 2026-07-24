@@ -8,9 +8,9 @@ class ProgressColumn {
   const ProgressColumn({required this.id, required this.label});
 
   factory ProgressColumn.fromJson(Map<String, dynamic> json) => ProgressColumn(
-        id: json['id'] as String,
-        label: json['label'] as String,
-      );
+    id: json['id'] as String,
+    label: json['label'] as String,
+  );
 
   Map<String, dynamic> toJson() => {'id': id, 'label': label};
 
@@ -54,11 +54,11 @@ class PageProgress {
     bool review2 = false,
     bool review3 = false,
   }) : _done = {
-          if (learn) 'learn': true,
-          if (review1) 'review1': true,
-          if (review2) 'review2': true,
-          if (review3) 'review3': true,
-        };
+         if (learn) 'learn': true,
+         if (review1) 'review1': true,
+         if (review2) 'review2': true,
+         if (review3) 'review3': true,
+       };
 
   PageProgress._fromMap(this._done);
 

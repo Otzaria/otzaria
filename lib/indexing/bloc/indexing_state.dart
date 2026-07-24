@@ -18,8 +18,11 @@ sealed class IndexingState extends Equatable {
 class IndexingInitial extends IndexingState {}
 
 class IndexingInProgress extends IndexingState {
-  const IndexingInProgress(
-      {super.booksProcessed, super.totalBooks, super.isCreatingIndex});
+  const IndexingInProgress({
+    super.booksProcessed,
+    super.totalBooks,
+    super.isCreatingIndex,
+  });
 }
 
 class IndexingComplete extends IndexingState {

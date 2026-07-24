@@ -95,40 +95,62 @@ class BookHasLinksDao {
   }
 
   Future<int> upsertBookHasLinks(
-      int bookId, bool hasSourceLinks, bool hasTargetLinks) async {
+    int bookId,
+    bool hasSourceLinks,
+    bool hasTargetLinks,
+  ) async {
     final db = await database;
-    db.execute(_queries['upsert']!,
-        [bookId, hasSourceLinks ? 1 : 0, hasTargetLinks ? 1 : 0]);
+    db.execute(_queries['upsert']!, [
+      bookId,
+      hasSourceLinks ? 1 : 0,
+      hasTargetLinks ? 1 : 0,
+    ]);
     return db.lastInsertRowId;
   }
 
   Future<int> updateSourceLinks(int bookId, bool hasSourceLinks) async {
     final db = await database;
-    db.execute(
-        _queries['updateSourceLinks']!, [hasSourceLinks ? 1 : 0, bookId]);
+    db.execute(_queries['updateSourceLinks']!, [
+      hasSourceLinks ? 1 : 0,
+      bookId,
+    ]);
     return db.updatedRows;
   }
 
   Future<int> updateTargetLinks(int bookId, bool hasTargetLinks) async {
     final db = await database;
-    db.execute(
-        _queries['updateTargetLinks']!, [hasTargetLinks ? 1 : 0, bookId]);
+    db.execute(_queries['updateTargetLinks']!, [
+      hasTargetLinks ? 1 : 0,
+      bookId,
+    ]);
     return db.updatedRows;
   }
 
   Future<int> updateBothLinkTypes(
-      int bookId, bool hasSourceLinks, bool hasTargetLinks) async {
+    int bookId,
+    bool hasSourceLinks,
+    bool hasTargetLinks,
+  ) async {
     final db = await database;
-    db.execute(_queries['updateBothLinkTypes']!,
-        [hasSourceLinks ? 1 : 0, hasTargetLinks ? 1 : 0, bookId]);
+    db.execute(_queries['updateBothLinkTypes']!, [
+      hasSourceLinks ? 1 : 0,
+      hasTargetLinks ? 1 : 0,
+      bookId,
+    ]);
     return db.updatedRows;
   }
 
   Future<int> insertBookHasLinks(
-      int bookId, bool hasSourceLinks, bool hasTargetLinks) async {
+    int bookId,
+    bool hasSourceLinks,
+    bool hasTargetLinks,
+  ) async {
     final db = await database;
-    db.execute(_queries['insert']!,
-        [bookId, hasSourceLinks ? 1 : 0, hasTargetLinks ? 1 : 0]);
+    db.execute(_queries['insert']!, [
+      bookId,
+      hasSourceLinks ? 1 : 0,
+      hasTargetLinks ? 1 : 0,
+    ]);
     return db.lastInsertRowId;
   }
 

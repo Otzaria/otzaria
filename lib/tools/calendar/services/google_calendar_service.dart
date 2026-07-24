@@ -12,7 +12,7 @@ class GoogleCalendarApiClient {
   final cal.CalendarApi api;
 
   GoogleCalendarApiClient({required this.client})
-      : api = cal.CalendarApi(client);
+    : api = cal.CalendarApi(client);
 
   void close() => client.close();
 }
@@ -40,8 +40,9 @@ class GoogleCalendarService {
   Future<GoogleCalendarApiClient?> getApiClient({
     bool interactive = false,
   }) async {
-    final auth.AuthClient? client =
-        await _getAuthClient(interactive: interactive);
+    final auth.AuthClient? client = await _getAuthClient(
+      interactive: interactive,
+    );
 
     if (client == null) return null;
     return GoogleCalendarApiClient(client: client);
@@ -55,9 +56,11 @@ class GoogleCalendarService {
             'YOUR_CLIENT_ID.apps.googleusercontent.com' ||
         GoogleCalendarCredentials.clientSecret == 'YOUR_CLIENT_SECRET') {
       // Credentials not configured yet
-      throw Exception('Google Calendar OAuth credentials not configured.\n'
-          'Please update clientId and clientSecret in google_calendar_credentials.dart\n'
-          'See GOOGLE_CALENDAR_SETUP.md for instructions.');
+      throw Exception(
+        'Google Calendar OAuth credentials not configured.\n'
+        'Please update clientId and clientSecret in google_calendar_credentials.dart\n'
+        'See GOOGLE_CALENDAR_SETUP.md for instructions.',
+      );
     }
 
     final id = auth_io.ClientId(

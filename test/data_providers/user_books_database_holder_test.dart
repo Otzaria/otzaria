@@ -32,9 +32,11 @@ void main() {
       final first = await UserBooksDatabaseHolder.instance.repository;
       final second = await UserBooksDatabaseHolder.instance.repository;
 
-      expect(identical(first, second), isTrue,
-          reason:
-              'הקריאה השנייה חייבת להחזיר את אותו repository, בלי לאתחל מחדש');
+      expect(
+        identical(first, second),
+        isTrue,
+        reason: 'הקריאה השנייה חייבת להחזיר את אותו repository, בלי לאתחל מחדש',
+      );
     });
 
     test('close() משחרר את ה-state — אתחול עוקב יוצר instance חדש', () async {
@@ -44,22 +46,28 @@ void main() {
 
       final second = await UserBooksDatabaseHolder.instance.repository;
 
-      expect(identical(first, second), isFalse,
-          reason: 'אחרי close, האתחול הבא מייצר repository חדש');
-    });
-
-    test('resolveDbPath מחזיר נתיב legacy קיים תחת data_root/databases',
-        () async {
-      await Directory(path.join(tempDir.path, 'databases'))
-          .create(recursive: true);
-
-      final dbPath = await UserBooksDatabaseHolder.resolveDbPath();
-
       expect(
-        dbPath,
-        path.join(tempDir.path, 'databases', 'user_books.db'),
+        identical(first, second),
+        isFalse,
+        reason: 'אחרי close, האתחול הבא מייצר repository חדש',
       );
     });
+
+    test(
+      'resolveDbPath מחזיר נתיב legacy קיים תחת data_root/databases',
+      () async {
+        await Directory(
+          path.join(tempDir.path, 'databases'),
+        ).create(recursive: true);
+
+        final dbPath = await UserBooksDatabaseHolder.resolveDbPath();
+
+        expect(
+          dbPath,
+          path.join(tempDir.path, 'databases', 'user_books.db'),
+        );
+      },
+    );
 
     test('resolveDbPath ממקם התקנה חדשה ליד תיקיית הספרייה', () async {
       final libraryRoot = await Directory.systemTemp.createTemp(
@@ -84,33 +92,38 @@ void main() {
       );
     });
 
-    test('recovery: כישלון אתחול מאפס את _initFuture כדי לאפשר ניסיון חוזר',
-        () async {
-      // יוצרים _קובץ_ בשם "databases" במקום שאמורה להיות תיקייה — זה גורם
-      // ל-`Directory.create` לזרוק כי הנתיב כבר תפוס. ה-DB לא מצליח להיפתח.
-      final blocker = File(path.join(tempDir.path, 'databases'));
-      await blocker.writeAsString('blocker');
+    test(
+      'recovery: כישלון אתחול מאפס את _initFuture כדי לאפשר ניסיון חוזר',
+      () async {
+        // יוצרים _קובץ_ בשם "databases" במקום שאמורה להיות תיקייה — זה גורם
+        // ל-`Directory.create` לזרוק כי הנתיב כבר תפוס. ה-DB לא מצליח להיפתח.
+        final blocker = File(path.join(tempDir.path, 'databases'));
+        await blocker.writeAsString('blocker');
 
-      Object? firstError;
-      try {
-        await UserBooksDatabaseHolder.instance.repository;
-      } catch (e) {
-        firstError = e;
-      }
-      expect(firstError, isNotNull,
-          reason: 'יצירת התיקייה אמורה להיכשל כי הנתיב הוא קובץ');
+        Object? firstError;
+        try {
+          await UserBooksDatabaseHolder.instance.repository;
+        } catch (e) {
+          firstError = e;
+        }
+        expect(
+          firstError,
+          isNotNull,
+          reason: 'יצירת התיקייה אמורה להיכשל כי הנתיב הוא קובץ',
+        );
 
-      // מסירים את החסימה ויוצרים תיקייה תקינה במקום
-      await blocker.delete();
+        // מסירים את החסימה ויוצרים תיקייה תקינה במקום
+        await blocker.delete();
 
-      // ניסיון חוזר חייב להצליח, כי _initFuture אופס לאחר השגיאה.
-      final repo = await UserBooksDatabaseHolder.instance.repository;
-      expect(repo, isNotNull);
+        // ניסיון חוזר חייב להצליח, כי _initFuture אופס לאחר השגיאה.
+        final repo = await UserBooksDatabaseHolder.instance.repository;
+        expect(repo, isNotNull);
 
-      // וידוא נוסף שה-DB אכן נפתח בקובץ הנכון
-      final dbPath = await UserBooksDatabaseHolder.resolveDbPath();
-      expect(await File(dbPath).exists(), isTrue);
-    });
+        // וידוא נוסף שה-DB אכן נפתח בקובץ הנכון
+        final dbPath = await UserBooksDatabaseHolder.resolveDbPath();
+        expect(await File(dbPath).exists(), isTrue);
+      },
+    );
   });
 }
 

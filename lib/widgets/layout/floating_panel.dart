@@ -100,13 +100,15 @@ class FloatingPanel extends StatelessWidget {
     // M3: panelBackground (כמו settings_screen ו-measurement_converter)
     final panelColor = color ?? AppSurfaces.panelBackground(context);
 
-    final content =
-        padding != null ? Padding(padding: padding!, child: child) : child;
+    final content = padding != null
+        ? Padding(padding: padding!, child: child)
+        : child;
 
     return Material(
       color: panelColor,
       elevation: elevation,
-      shadowColor: shadowColor ??
+      shadowColor:
+          shadowColor ??
           Theme.of(context).colorScheme.shadow.withValues(alpha: 0.10),
       surfaceTintColor: Colors.transparent,
       borderRadius: AppTokens.borderRadiusAll,

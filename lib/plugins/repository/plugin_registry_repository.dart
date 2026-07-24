@@ -7,7 +7,7 @@ class PluginRegistryRepository {
   final PluginSystemDatabase _db;
 
   PluginRegistryRepository({PluginSystemDatabase? database})
-      : _db = database ?? PluginSystemDatabase.instance;
+    : _db = database ?? PluginSystemDatabase.instance;
 
   Future<List<InstalledPlugin>> getAllPlugins() async {
     final plugins = await _db.getAllInstalledPlugins();
@@ -59,7 +59,8 @@ class PluginRegistryRepository {
     final plugin = await getPlugin(pluginId);
     if (plugin != null && plugin.isDevelopment) {
       throw ArgumentError(
-          'Cannot delete a development plugin. Use detachDevelopmentPlugin instead.');
+        'Cannot delete a development plugin. Use detachDevelopmentPlugin instead.',
+      );
     }
     await _db.deletePlugin(pluginId);
   }
@@ -83,7 +84,8 @@ class PluginRegistryRepository {
     final plugin = await getPlugin(pluginId);
     if (plugin != null && !plugin.isDevelopment) {
       throw ArgumentError(
-          'Cannot detach a packaged plugin. Use deletePlugin instead.');
+        'Cannot detach a packaged plugin. Use deletePlugin instead.',
+      );
     }
     await _db.deletePlugin(pluginId);
   }
@@ -93,7 +95,9 @@ class PluginRegistryRepository {
   }
 
   Future<void> updateNavRailPinState(
-      String pluginId, bool pinnedToNavRail) async {
+    String pluginId,
+    bool pinnedToNavRail,
+  ) async {
     await _db.updatePluginNavRailPinState(pluginId, pinnedToNavRail);
   }
 
@@ -113,7 +117,10 @@ class PluginRegistryRepository {
   }
 
   Future<void> setPermission(
-      String pluginId, String permission, bool granted) async {
+    String pluginId,
+    String permission,
+    bool granted,
+  ) async {
     await _db.setPermission(pluginId, permission, granted);
   }
 
@@ -122,12 +129,17 @@ class PluginRegistryRepository {
   }
 
   Future<List<PluginPermissionGrant>> getPluginPermissions(
-      String pluginId) async {
+    String pluginId,
+  ) async {
     return _db.getPluginPermissions(pluginId);
   }
 
   Future<void> setKV(
-      String pluginId, String namespace, String key, String valueJson) async {
+    String pluginId,
+    String namespace,
+    String key,
+    String valueJson,
+  ) async {
     await _db.setPluginKV(pluginId, namespace, key, valueJson);
   }
 
@@ -143,19 +155,36 @@ class PluginRegistryRepository {
     return _db.listPluginKVKeys(pluginId, namespace);
   }
 
-  Future<void> publishRecord(String pluginId, String type, String scope,
-      String recordKey, String payloadJson, String? expiresAt) async {
+  Future<void> publishRecord(
+    String pluginId,
+    String type,
+    String scope,
+    String recordKey,
+    String payloadJson,
+    String? expiresAt,
+  ) async {
     await _db.publishRecord(
-        pluginId, type, scope, recordKey, payloadJson, expiresAt);
+      pluginId,
+      type,
+      scope,
+      recordKey,
+      payloadJson,
+      expiresAt,
+    );
   }
 
   Future<void> unpublishRecord(
-      String pluginId, String type, String scope, String recordKey) async {
+    String pluginId,
+    String type,
+    String scope,
+    String recordKey,
+  ) async {
     await _db.unpublishRecord(pluginId, type, scope, recordKey);
   }
 
   Future<List<PluginPublishedRecord>> getPluginPublishedRecords(
-      String pluginId) async {
+    String pluginId,
+  ) async {
     return _db.getPluginPublishedRecords(pluginId);
   }
 

@@ -17,74 +17,79 @@ void main() {
       await Settings.setValue<String>(SettingsRepository.keyCustomFolders, '');
     });
 
-    test('RescanCustomFolders קורא את רשימת התיקיות העדכנית מההגדרות',
-        () async {
-      final oldFolder = _folder('C:/old-folder');
-      final newFolder = _folder('C:/new-folder');
-      await _saveFolders([oldFolder]);
+    test(
+      'RescanCustomFolders קורא את רשימת התיקיות העדכנית מההגדרות',
+      () async {
+        final oldFolder = _folder('C:/old-folder');
+        final newFolder = _folder('C:/new-folder');
+        await _saveFolders([oldFolder]);
 
-      final syncedFolders = <List<CustomFolder>>[];
-      final recordedEvents = <LibraryEvent>[];
-      final bloc = CustomFoldersBloc(
-        addLibraryEvent: recordedEvents.add,
-        syncFolders: (folders, {String? onlyFolderPath}) async {
-          syncedFolders.add(List<CustomFolder>.from(folders));
-          return const FileSyncResult();
-        },
-      )..add(const LoadCustomFolders());
+        final syncedFolders = <List<CustomFolder>>[];
+        final recordedEvents = <LibraryEvent>[];
+        final bloc = CustomFoldersBloc(
+          addLibraryEvent: recordedEvents.add,
+          syncFolders: (folders, {String? onlyFolderPath}) async {
+            syncedFolders.add(List<CustomFolder>.from(folders));
+            return const FileSyncResult();
+          },
+        )..add(const LoadCustomFolders());
 
-      await bloc.stream.firstWhere((state) => state.folders.isNotEmpty);
+        await bloc.stream.firstWhere((state) => state.folders.isNotEmpty);
 
-      await _saveFolders([newFolder]);
-      bloc.add(const RescanCustomFolders(showNoChangesMessage: false));
+        await _saveFolders([newFolder]);
+        bloc.add(const RescanCustomFolders(showNoChangesMessage: false));
 
-      await bloc.stream.firstWhere(
-        (state) =>
-            !state.isSyncing &&
-            state.folders.length == 1 &&
-            state.folders.single.path == newFolder.path,
-      );
+        await bloc.stream.firstWhere(
+          (state) =>
+              !state.isSyncing &&
+              state.folders.length == 1 &&
+              state.folders.single.path == newFolder.path,
+        );
 
-      expect(syncedFolders, hasLength(1));
-      expect(syncedFolders.single, [newFolder]);
-      expect(bloc.state.folders, [newFolder]);
-      expect(
-        recordedEvents.whereType<RefreshLibrary>(),
-        hasLength(1),
-      );
+        expect(syncedFolders, hasLength(1));
+        expect(syncedFolders.single, [newFolder]);
+        expect(bloc.state.folders, [newFolder]);
+        expect(
+          recordedEvents.whereType<RefreshLibrary>(),
+          hasLength(1),
+        );
 
-      await bloc.close();
-    });
-
-    test('RescanCustomFolders מעביר onlyFolderPath לסנכרון (סריקה ממוקדת)',
-        () async {
-      final folder = _folder('C:/personal-books');
-      await _saveFolders([folder]);
-
-      final scopedPaths = <String?>[];
-      final bloc = CustomFoldersBloc(
-        addLibraryEvent: (_) {},
-        syncFolders: (folders, {String? onlyFolderPath}) async {
-          scopedPaths.add(onlyFolderPath);
-          return const FileSyncResult();
-        },
-      )..add(const LoadCustomFolders());
-
-      await bloc.stream.firstWhere((state) => state.folders.isNotEmpty);
-
-      bloc.add(const RescanCustomFolders(
-        showNoChangesMessage: false,
-        onlyFolderPath: 'C:/personal-books',
-      ));
-      await bloc.stream.firstWhere((state) => !state.isSyncing);
-
-      expect(scopedPaths, ['C:/personal-books']);
-
-      await bloc.close();
-    });
+        await bloc.close();
+      },
+    );
 
     test(
-        'ToggleAddToDatabase מסמן activePath לתיקייה הנטענת בלבד '
+      'RescanCustomFolders מעביר onlyFolderPath לסנכרון (סריקה ממוקדת)',
+      () async {
+        final folder = _folder('C:/personal-books');
+        await _saveFolders([folder]);
+
+        final scopedPaths = <String?>[];
+        final bloc = CustomFoldersBloc(
+          addLibraryEvent: (_) {},
+          syncFolders: (folders, {String? onlyFolderPath}) async {
+            scopedPaths.add(onlyFolderPath);
+            return const FileSyncResult();
+          },
+        )..add(const LoadCustomFolders());
+
+        await bloc.stream.firstWhere((state) => state.folders.isNotEmpty);
+
+        bloc.add(
+          const RescanCustomFolders(
+            showNoChangesMessage: false,
+            onlyFolderPath: 'C:/personal-books',
+          ),
+        );
+        await bloc.stream.firstWhere((state) => !state.isSyncing);
+
+        expect(scopedPaths, ['C:/personal-books']);
+
+        await bloc.close();
+      },
+    );
+
+    test('ToggleAddToDatabase מסמן activePath לתיקייה הנטענת בלבד '
         'ומאפס בסיום', () async {
       final folderA = _folder('C:/folder-a');
       final folderB = _folder('C:/folder-b');

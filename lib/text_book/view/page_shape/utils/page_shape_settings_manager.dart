@@ -67,8 +67,9 @@ class PageShapeSettingsManager {
         .where((c) => c.isNotEmpty)
         .toList();
 
-    final filtered =
-        allCategories.where((c) => !_tooGeneralCategories.contains(c)).toList();
+    final filtered = allCategories
+        .where((c) => !_tooGeneralCategories.contains(c))
+        .toList();
 
     // אם הסינון הסיר הכל, החזר את הקטגוריות המקוריות
     return filtered.isNotEmpty ? filtered : allCategories;
@@ -123,24 +124,33 @@ class PageShapeSettingsManager {
 
   /// הפעלה/כיבוי של הגדרות פר-ספר
   static Future<void> setUseBookSpecificSettings(
-      String bookTitle, bool useBookSettings) async {
+    String bookTitle,
+    bool useBookSettings,
+  ) async {
     await Settings.setValue<bool>(
-        '$_useBookSettingsPrefix$bookTitle', useBookSettings);
+      '$_useBookSettingsPrefix$bookTitle',
+      useBookSettings,
+    );
   }
 
   /// בדיקה אם שולחן העבודה משתמש בהגדרות תצוגה משלו.
   static bool hasWorkspaceSpecificSettings(String? workspaceId) {
     if (workspaceId == null || workspaceId.isEmpty) return false;
     return Settings.getValue<bool>(
-            '$_useWorkspaceSettingsPrefix$workspaceId') ??
+          '$_useWorkspaceSettingsPrefix$workspaceId',
+        ) ??
         false;
   }
 
   /// הפעלה/כיבוי של הגדרות תצוגה פר-שולחן עבודה.
   static Future<void> setUseWorkspaceSpecificSettings(
-      String workspaceId, bool useWorkspaceSettings) async {
+    String workspaceId,
+    bool useWorkspaceSettings,
+  ) async {
     await Settings.setValue<bool>(
-        '$_useWorkspaceSettingsPrefix$workspaceId', useWorkspaceSettings);
+      '$_useWorkspaceSettingsPrefix$workspaceId',
+      useWorkspaceSettings,
+    );
   }
 
   /// תחום התצוגה הפעיל: ספר קודם לשולחן עבודה, ושניהם קודמים לגלובלי.
@@ -161,8 +171,10 @@ class PageShapeSettingsManager {
 
   /// טעינת הגדרות מפרשים - קודם ספר, אחר כך קטגוריה
   /// סדר עדיפות: ספר ספציפי → קטגוריה → null (יטען מ-JSON)
-  static Map<String, String?>? loadConfiguration(String bookTitle,
-      {String? heCategories}) {
+  static Map<String, String?>? loadConfiguration(
+    String bookTitle, {
+    String? heCategories,
+  }) {
     // 1. קודם בודקים אם יש הגדרות לספר הספציפי
     final bookConfig = _loadBookConfiguration(bookTitle);
     if (bookConfig != null) {
@@ -183,8 +195,9 @@ class PageShapeSettingsManager {
 
   /// טעינת הגדרות פר-ספר
   static Map<String, String?>? _loadBookConfiguration(String bookTitle) {
-    final savedConfig =
-        Settings.getValue<String>('$_bookConfigPrefix$bookTitle');
+    final savedConfig = Settings.getValue<String>(
+      '$_bookConfigPrefix$bookTitle',
+    );
     return _parseConfiguration(savedConfig);
   }
 
@@ -196,8 +209,9 @@ class PageShapeSettingsManager {
     // למשל: "ספר מדע" → "משנה תורה" → "הלכה"
     for (int i = categories.length - 1; i >= 0; i--) {
       final category = categories[i];
-      final savedConfig =
-          Settings.getValue<String>('$_categoryConfigPrefix$category');
+      final savedConfig = Settings.getValue<String>(
+        '$_categoryConfigPrefix$category',
+      );
       final config = _parseConfiguration(savedConfig);
       if (config != null) {
         return config;
@@ -209,8 +223,9 @@ class PageShapeSettingsManager {
 
   /// בדיקה אם יש הגדרות לקטגוריה מסוימת
   static bool hasCategorySettings(String category) {
-    final savedConfig =
-        Settings.getValue<String>('$_categoryConfigPrefix$category');
+    final savedConfig = Settings.getValue<String>(
+      '$_categoryConfigPrefix$category',
+    );
     return savedConfig != null && savedConfig.isNotEmpty;
   }
 
@@ -266,21 +281,25 @@ class PageShapeSettingsManager {
         return MapEntry(
           key,
           encodePageShapeCommentatorsSelection(
-            decodePageShapeCommentatorsSelection(value)
-                .map(extractBaseCommentatorName)
-                .whereType<String>(),
+            decodePageShapeCommentatorsSelection(
+              value,
+            ).map(extractBaseCommentatorName).whereType<String>(),
             forceMultipleMode: isPageShapeMultipleCommentatorsMode(value),
           ),
         );
       });
       final configString = _serializeConfiguration(baseConfig);
       await Settings.setValue<String>(
-          '$_categoryConfigPrefix$saveToCategory', configString);
+        '$_categoryConfigPrefix$saveToCategory',
+        configString,
+      );
     } else {
       // שמירה לספר ספציפי - שומרים את השמות המלאים
       final configString = _serializeConfiguration(config);
       await Settings.setValue<String>(
-          '$_bookConfigPrefix$bookTitle', configString);
+        '$_bookConfigPrefix$bookTitle',
+        configString,
+      );
     }
   }
 
@@ -298,15 +317,17 @@ class PageShapeSettingsManager {
   /// טעינת הגדרת הדגשה - קודם פר-ספר, אחר כך פר-שולחן עבודה, ואז גלובלי.
   static bool getHighlightSetting(String bookTitle, {String? workspaceId}) {
     if (hasBookSpecificSettings(bookTitle)) {
-      final bookSetting =
-          Settings.getValue<bool>('$_bookHighlightPrefix$bookTitle');
+      final bookSetting = Settings.getValue<bool>(
+        '$_bookHighlightPrefix$bookTitle',
+      );
       if (bookSetting != null) {
         return bookSetting;
       }
     }
     if (hasWorkspaceSpecificSettings(workspaceId)) {
-      final workspaceSetting =
-          Settings.getValue<bool>('$_workspaceHighlightPrefix$workspaceId');
+      final workspaceSetting = Settings.getValue<bool>(
+        '$_workspaceHighlightPrefix$workspaceId',
+      );
       if (workspaceSetting != null) {
         return workspaceSetting;
       }
@@ -322,7 +343,8 @@ class PageShapeSettingsManager {
     PageShapeDisplaySettingsScope? scope,
     String? workspaceId,
   }) async {
-    final targetScope = scope ??
+    final targetScope =
+        scope ??
         (saveAsGlobal
             ? PageShapeDisplaySettingsScope.global
             : PageShapeDisplaySettingsScope.book);
@@ -330,7 +352,9 @@ class PageShapeSettingsManager {
     switch (targetScope) {
       case PageShapeDisplaySettingsScope.book:
         await Settings.setValue<bool>(
-            '$_bookHighlightPrefix$bookTitle', enabled);
+          '$_bookHighlightPrefix$bookTitle',
+          enabled,
+        );
         await setUseBookSpecificSettings(bookTitle, true);
       case PageShapeDisplaySettingsScope.workspace:
         if (workspaceId == null || workspaceId.isEmpty) {
@@ -338,7 +362,9 @@ class PageShapeSettingsManager {
           return;
         }
         await Settings.setValue<bool>(
-            '$_workspaceHighlightPrefix$workspaceId', enabled);
+          '$_workspaceHighlightPrefix$workspaceId',
+          enabled,
+        );
         await setUseWorkspaceSpecificSettings(workspaceId, true);
       case PageShapeDisplaySettingsScope.global:
         await Settings.setValue<bool>(_globalHighlightKey, enabled);
@@ -348,8 +374,10 @@ class PageShapeSettingsManager {
   // ==================== הגדרות הצגת טורים ====================
 
   /// טעינת הגדרות הצגת טורים - קודם ספר, אחר כך שולחן עבודה, ואז גלובלי.
-  static Map<String, bool> getColumnVisibility(String bookTitle,
-      {String? workspaceId}) {
+  static Map<String, bool> getColumnVisibility(
+    String bookTitle, {
+    String? workspaceId,
+  }) {
     if (hasBookSpecificSettings(bookTitle)) {
       final bookVisibility = _getBookColumnVisibility(bookTitle);
       if (bookVisibility != null) {
@@ -374,19 +402,23 @@ class PageShapeSettingsManager {
           Settings.getValue<bool>('${_globalVisibilityPrefix}bottom') ?? true,
       'bottomRight':
           Settings.getValue<bool>('${_globalVisibilityPrefix}bottomRight') ??
-              true,
+          true,
     };
   }
 
   static Map<String, bool>? _getBookColumnVisibility(String bookTitle) {
-    final left =
-        Settings.getValue<bool>('${_bookVisibilityPrefix}left_$bookTitle');
-    final right =
-        Settings.getValue<bool>('${_bookVisibilityPrefix}right_$bookTitle');
-    final bottom =
-        Settings.getValue<bool>('${_bookVisibilityPrefix}bottom_$bookTitle');
+    final left = Settings.getValue<bool>(
+      '${_bookVisibilityPrefix}left_$bookTitle',
+    );
+    final right = Settings.getValue<bool>(
+      '${_bookVisibilityPrefix}right_$bookTitle',
+    );
+    final bottom = Settings.getValue<bool>(
+      '${_bookVisibilityPrefix}bottom_$bookTitle',
+    );
     final bottomRight = Settings.getValue<bool>(
-        '${_bookVisibilityPrefix}bottomRight_$bookTitle');
+      '${_bookVisibilityPrefix}bottomRight_$bookTitle',
+    );
 
     // אם אף אחד לא הוגדר, החזר null
     if (left == null &&
@@ -406,13 +438,17 @@ class PageShapeSettingsManager {
 
   static Map<String, bool>? _getWorkspaceColumnVisibility(String workspaceId) {
     final left = Settings.getValue<bool>(
-        '${_workspaceVisibilityPrefix}left_$workspaceId');
+      '${_workspaceVisibilityPrefix}left_$workspaceId',
+    );
     final right = Settings.getValue<bool>(
-        '${_workspaceVisibilityPrefix}right_$workspaceId');
+      '${_workspaceVisibilityPrefix}right_$workspaceId',
+    );
     final bottom = Settings.getValue<bool>(
-        '${_workspaceVisibilityPrefix}bottom_$workspaceId');
+      '${_workspaceVisibilityPrefix}bottom_$workspaceId',
+    );
     final bottomRight = Settings.getValue<bool>(
-        '${_workspaceVisibilityPrefix}bottomRight_$workspaceId');
+      '${_workspaceVisibilityPrefix}bottomRight_$workspaceId',
+    );
 
     if (left == null &&
         right == null &&
@@ -437,24 +473,30 @@ class PageShapeSettingsManager {
     PageShapeDisplaySettingsScope? scope,
     String? workspaceId,
   }) async {
-    final targetScope = scope ??
+    final targetScope =
+        scope ??
         (saveAsGlobal
             ? PageShapeDisplaySettingsScope.global
             : PageShapeDisplaySettingsScope.book);
 
     switch (targetScope) {
       case PageShapeDisplaySettingsScope.book:
-        await Settings.setValue<bool>('${_bookVisibilityPrefix}left_$bookTitle',
-            visibility['left'] ?? true);
         await Settings.setValue<bool>(
-            '${_bookVisibilityPrefix}right_$bookTitle',
-            visibility['right'] ?? true);
+          '${_bookVisibilityPrefix}left_$bookTitle',
+          visibility['left'] ?? true,
+        );
         await Settings.setValue<bool>(
-            '${_bookVisibilityPrefix}bottom_$bookTitle',
-            visibility['bottom'] ?? true);
+          '${_bookVisibilityPrefix}right_$bookTitle',
+          visibility['right'] ?? true,
+        );
         await Settings.setValue<bool>(
-            '${_bookVisibilityPrefix}bottomRight_$bookTitle',
-            visibility['bottomRight'] ?? true);
+          '${_bookVisibilityPrefix}bottom_$bookTitle',
+          visibility['bottom'] ?? true,
+        );
+        await Settings.setValue<bool>(
+          '${_bookVisibilityPrefix}bottomRight_$bookTitle',
+          visibility['bottomRight'] ?? true,
+        );
         await setUseBookSpecificSettings(bookTitle, true);
       case PageShapeDisplaySettingsScope.workspace:
         if (workspaceId == null || workspaceId.isEmpty) {
@@ -466,27 +508,39 @@ class PageShapeSettingsManager {
           return;
         }
         await Settings.setValue<bool>(
-            '${_workspaceVisibilityPrefix}left_$workspaceId',
-            visibility['left'] ?? true);
+          '${_workspaceVisibilityPrefix}left_$workspaceId',
+          visibility['left'] ?? true,
+        );
         await Settings.setValue<bool>(
-            '${_workspaceVisibilityPrefix}right_$workspaceId',
-            visibility['right'] ?? true);
+          '${_workspaceVisibilityPrefix}right_$workspaceId',
+          visibility['right'] ?? true,
+        );
         await Settings.setValue<bool>(
-            '${_workspaceVisibilityPrefix}bottom_$workspaceId',
-            visibility['bottom'] ?? true);
+          '${_workspaceVisibilityPrefix}bottom_$workspaceId',
+          visibility['bottom'] ?? true,
+        );
         await Settings.setValue<bool>(
-            '${_workspaceVisibilityPrefix}bottomRight_$workspaceId',
-            visibility['bottomRight'] ?? true);
+          '${_workspaceVisibilityPrefix}bottomRight_$workspaceId',
+          visibility['bottomRight'] ?? true,
+        );
         await setUseWorkspaceSpecificSettings(workspaceId, true);
       case PageShapeDisplaySettingsScope.global:
         await Settings.setValue<bool>(
-            '${_globalVisibilityPrefix}left', visibility['left'] ?? true);
+          '${_globalVisibilityPrefix}left',
+          visibility['left'] ?? true,
+        );
         await Settings.setValue<bool>(
-            '${_globalVisibilityPrefix}right', visibility['right'] ?? true);
+          '${_globalVisibilityPrefix}right',
+          visibility['right'] ?? true,
+        );
         await Settings.setValue<bool>(
-            '${_globalVisibilityPrefix}bottom', visibility['bottom'] ?? true);
-        await Settings.setValue<bool>('${_globalVisibilityPrefix}bottomRight',
-            visibility['bottomRight'] ?? true);
+          '${_globalVisibilityPrefix}bottom',
+          visibility['bottom'] ?? true,
+        );
+        await Settings.setValue<bool>(
+          '${_globalVisibilityPrefix}bottomRight',
+          visibility['bottomRight'] ?? true,
+        );
     }
   }
 
@@ -494,9 +548,13 @@ class PageShapeSettingsManager {
 
   /// שמירת העדפת תצוגה לספר - האם לפתוח בתצוגת צורת הדף
   static Future<void> saveViewModePreference(
-      String bookTitle, bool showPageShapeView) async {
+    String bookTitle,
+    bool showPageShapeView,
+  ) async {
     await Settings.setValue<bool>(
-        '$_bookViewModePrefix$bookTitle', showPageShapeView);
+      '$_bookViewModePrefix$bookTitle',
+      showPageShapeView,
+    );
   }
 
   /// טעינת העדפת תצוגה לספר - מחזיר null אם אין העדפה שמורה
@@ -522,13 +580,21 @@ class PageShapeSettingsManager {
     await setUseBookSpecificSettings(bookTitle, false);
     await Settings.setValue<bool?>('$_bookHighlightPrefix$bookTitle', null);
     await Settings.setValue<bool?>(
-        '${_bookVisibilityPrefix}left_$bookTitle', null);
+      '${_bookVisibilityPrefix}left_$bookTitle',
+      null,
+    );
     await Settings.setValue<bool?>(
-        '${_bookVisibilityPrefix}right_$bookTitle', null);
+      '${_bookVisibilityPrefix}right_$bookTitle',
+      null,
+    );
     await Settings.setValue<bool?>(
-        '${_bookVisibilityPrefix}bottom_$bookTitle', null);
+      '${_bookVisibilityPrefix}bottom_$bookTitle',
+      null,
+    );
     await Settings.setValue<bool?>(
-        '${_bookVisibilityPrefix}bottomRight_$bookTitle', null);
+      '${_bookVisibilityPrefix}bottomRight_$bookTitle',
+      null,
+    );
     await Settings.setValue<bool?>('$_bookViewModePrefix$bookTitle', null);
   }
 
@@ -537,15 +603,25 @@ class PageShapeSettingsManager {
     if (workspaceId == null || workspaceId.isEmpty) return;
     await setUseWorkspaceSpecificSettings(workspaceId, false);
     await Settings.setValue<bool?>(
-        '$_workspaceHighlightPrefix$workspaceId', null);
+      '$_workspaceHighlightPrefix$workspaceId',
+      null,
+    );
     await Settings.setValue<bool?>(
-        '${_workspaceVisibilityPrefix}left_$workspaceId', null);
+      '${_workspaceVisibilityPrefix}left_$workspaceId',
+      null,
+    );
     await Settings.setValue<bool?>(
-        '${_workspaceVisibilityPrefix}right_$workspaceId', null);
+      '${_workspaceVisibilityPrefix}right_$workspaceId',
+      null,
+    );
     await Settings.setValue<bool?>(
-        '${_workspaceVisibilityPrefix}bottom_$workspaceId', null);
+      '${_workspaceVisibilityPrefix}bottom_$workspaceId',
+      null,
+    );
     await Settings.setValue<bool?>(
-        '${_workspaceVisibilityPrefix}bottomRight_$workspaceId', null);
+      '${_workspaceVisibilityPrefix}bottomRight_$workspaceId',
+      null,
+    );
   }
 
   /// איפוס הגדרות קטגוריה

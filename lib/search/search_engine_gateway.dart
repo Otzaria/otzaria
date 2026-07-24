@@ -217,8 +217,10 @@ abstract class SearchEngineOperations {
     );
     final chunks = switch (request.searchMode) {
       SearchMode.exact => searchExactStream(request, chunkSize: chunkSize),
-      SearchMode.advanced =>
-        searchAdvancedStream(request, chunkSize: chunkSize),
+      SearchMode.advanced => searchAdvancedStream(
+        request,
+        chunkSize: chunkSize,
+      ),
       SearchMode.fuzzy => searchFuzzyStream(request, chunkSize: chunkSize),
     };
     await for (final chunk in chunks) {
@@ -249,8 +251,9 @@ class RustSearchEngineOperations implements SearchEngineOperations {
     if (request.searchMode != SearchMode.exact) {
       return null;
     }
-    final hasOptions = request.searchOptions.values
-        .any((options) => options.values.any((enabled) => enabled));
+    final hasOptions = request.searchOptions.values.any(
+      (options) => options.values.any((enabled) => enabled),
+    );
     if (request.distance <= 0 && !hasOptions) {
       return null;
     }
@@ -697,28 +700,30 @@ class RustSearchEngineOperations implements SearchEngineOperations {
         request.searchMode == SearchMode.exact) {
       return;
     }
-    unawaited(text_utils.primeHighlightPattern(
-      searchQuery: request.query,
-      searchOptions: request.searchOptions,
-      alternativeWords: request.alternativeWords,
-      spacingValues: request.customSpacing,
-      searchDistance: request.distance,
-      isFuzzy: request.searchMode == SearchMode.fuzzy,
-      fetch: () => switch (request.searchMode) {
-        SearchMode.advanced => _engine.generateIndexHighlightPattern(
+    unawaited(
+      text_utils.primeHighlightPattern(
+        searchQuery: request.query,
+        searchOptions: request.searchOptions,
+        alternativeWords: request.alternativeWords,
+        spacingValues: request.customSpacing,
+        searchDistance: request.distance,
+        isFuzzy: request.searchMode == SearchMode.fuzzy,
+        fetch: () => switch (request.searchMode) {
+          SearchMode.advanced => _engine.generateIndexHighlightPattern(
             query: request.query,
             distance: request.distance < 0 ? 0 : request.distance,
             customSpacing: request.customSpacing,
             alternativeWords: request.alternativeWords,
             searchOptions: request.searchOptions,
           ),
-        SearchMode.fuzzy => _engine.generateIndexFuzzyHighlightPattern(
+          SearchMode.fuzzy => _engine.generateIndexFuzzyHighlightPattern(
             query: request.query,
             maxDistance: _fuzzyDistance(request.distance),
           ),
-        SearchMode.exact => Future.value(null),
-      },
-    ));
+          SearchMode.exact => Future.value(null),
+        },
+      ),
+    );
   }
 }
 

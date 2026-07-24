@@ -26,8 +26,10 @@ import 'package:otzaria/settings/settings_exports.dart';
 
 /// סוג ההתקנה המוגדר בזמן build (אופציונלי)
 /// להגדרה: --dart-define=INSTALL_KIND=exe/zip
-const _kInstallKind =
-    String.fromEnvironment('INSTALL_KIND', defaultValue: 'auto');
+const _kInstallKind = String.fromEnvironment(
+  'INSTALL_KIND',
+  defaultValue: 'auto',
+);
 
 const _githubOwner = 'Otzaria';
 const _githubRepository = 'otzaria';
@@ -79,7 +81,8 @@ String? pickWindowsAssetUrl(
   for (final asset in assets) {
     final name = (asset['name'] as String).toLowerCase();
     final url = asset['browser_download_url'] as String;
-    final isWindowsAsset = name.contains('win') ||
+    final isWindowsAsset =
+        name.contains('win') ||
         name.contains('windows') ||
         name.endsWith('.exe');
     if (!isWindowsAsset) continue;
@@ -119,7 +122,8 @@ String? pickMacAssetUrl(
   for (final asset in assets) {
     final name = (asset['name'] as String).toLowerCase();
     final url = asset['browser_download_url'] as String;
-    final isMacAsset = name.contains('macos') ||
+    final isMacAsset =
+        name.contains('macos') ||
         name.contains('darwin') ||
         name.contains('mac');
     if (!isMacAsset) continue;
@@ -165,8 +169,11 @@ String _cacheKey(String version, {bool? isDev}) {
 /// מאחסן release ב-cache עבור גרסה נתונה. נקרא מ-`getLatestVersion` כדי
 /// להבטיח ש-`getChangelog`/`getBinaryUrl` מקבלים בדיוק את ה-release שזוהה
 /// כ"החדש ביותר", ולא נבחר מחדש לפי prefix.
-void _cacheRelease(String version, Map<String, dynamic> release,
-    {bool? isDev}) {
+void _cacheRelease(
+  String version,
+  Map<String, dynamic> release, {
+  bool? isDev,
+}) {
   releaseCacheForTesting[_cacheKey(version, isDev: isDev)] = release;
 }
 
@@ -222,9 +229,11 @@ Future<Map<String, dynamic>> _fetchRelease(String version) async {
 
   if (isDev) {
     final data = await http
-        .get(Uri.parse(
-          "https://api.github.com/repos/$_githubOwner/$_githubRepository/releases",
-        ))
+        .get(
+          Uri.parse(
+            "https://api.github.com/repos/$_githubOwner/$_githubRepository/releases",
+          ),
+        )
         .timeout(_kGithubTimeout);
     final releases = jsonDecode(data.body) as List;
     final byPrefix = releases
@@ -234,20 +243,25 @@ Future<Map<String, dynamic>> _fetchRelease(String version) async {
     release = pickLatestDevRelease(pool);
   } else {
     var resp = await http
-        .get(Uri.parse(
-          "https://api.github.com/repos/$_githubOwner/$_githubRepository/releases/tags/$version",
-        ))
+        .get(
+          Uri.parse(
+            "https://api.github.com/repos/$_githubOwner/$_githubRepository/releases/tags/$version",
+          ),
+        )
         .timeout(_kGithubTimeout);
     if (resp.statusCode == 404) {
       resp = await http
-          .get(Uri.parse(
-            "https://api.github.com/repos/$_githubOwner/$_githubRepository/releases/tags/v$version",
-          ))
+          .get(
+            Uri.parse(
+              "https://api.github.com/repos/$_githubOwner/$_githubRepository/releases/tags/v$version",
+            ),
+          )
           .timeout(_kGithubTimeout);
     }
     if (resp.statusCode >= 400) {
       throw Exception(
-          'Release "$version" not found (status ${resp.statusCode})');
+        'Release "$version" not found (status ${resp.statusCode})',
+      );
     }
     release = (jsonDecode(resp.body) as Map).cast<String, dynamic>();
   }
@@ -383,7 +397,8 @@ String changelogBetweenVersionsForUpdateDialog({
     if (match != null) {
       sawVersionHeading = true;
       final headingVersion = _tryParseVersion(match.group(1)!);
-      includeCurrentSection = headingVersion != null &&
+      includeCurrentSection =
+          headingVersion != null &&
           headingVersion > current &&
           headingVersion <= latest;
 
@@ -416,8 +431,7 @@ String changelogBetweenVersionsForUpdateDialog({
 bool updateCheckBlocked({
   required bool isOfflineMode,
   required bool updatesEnabled,
-}) =>
-    isOfflineMode || !updatesEnabled;
+}) => isOfflineMode || !updatesEnabled;
 
 /// האם להריץ בדיקת עדכון מחדש לאחר שינוי הגדרות: רק במעבר מחסימה לזמינות,
 /// וכשאין בדיקה/הורדה/התקנה בעיצומן (upToDate הוא גם המצב שנקבע בעת חסימה).
@@ -426,8 +440,7 @@ bool shouldRecheckAfterUnblock({
   required bool wasBlocked,
   required bool isBlocked,
   required UpdatStatus status,
-}) =>
-    wasBlocked && !isBlocked && status == UpdatStatus.upToDate;
+}) => wasBlocked && !isBlocked && status == UpdatStatus.upToDate;
 
 class MyUpdatWidget extends StatelessWidget {
   const MyUpdatWidget({super.key, required this.child});
@@ -607,7 +620,8 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
     if (updateCheckBlocked(
       isOfflineMode:
           Settings.getValue<bool>(SettingsRepository.keyOfflineMode) ?? false,
-      updatesEnabled: Settings.getValue<bool>(
+      updatesEnabled:
+          Settings.getValue<bool>(
             SettingsRepository.keySoftwareAndBookUpdatesEnabled,
             defaultValue: true,
           ) ??
@@ -664,12 +678,15 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
       debugPrint('[Update] update check failed: $e\n$st');
       // כשל רשת ≠ כשל parsing של תשובת GitHub — הודעת 'רשת' על באג parsing
       // הסתירה את הבעיה האמיתית.
-      final isNetwork = e is SocketException ||
+      final isNetwork =
+          e is SocketException ||
           e is TimeoutException ||
           e is http.ClientException;
-      _showUpdateError(isNetwork
-          ? LibraryMessages.updateCheckNetworkError
-          : LibraryMessages.updateCheckError);
+      _showUpdateError(
+        isNetwork
+            ? LibraryMessages.updateCheckNetworkError
+            : LibraryMessages.updateCheckError,
+      );
     }
   }
 
@@ -680,33 +697,40 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
 
     if (isDevChannel) {
       final devData = await http
-          .get(Uri.parse(
-            "https://api.github.com/repos/$_githubOwner/$_githubRepository/releases",
-          ))
+          .get(
+            Uri.parse(
+              "https://api.github.com/repos/$_githubOwner/$_githubRepository/releases",
+            ),
+          )
           .timeout(_kGithubTimeout);
       final stableData = await http
-          .get(Uri.parse(
-            "https://api.github.com/repos/$_githubOwner/$_githubRepository/releases/latest",
-          ))
+          .get(
+            Uri.parse(
+              "https://api.github.com/repos/$_githubOwner/$_githubRepository/releases/latest",
+            ),
+          )
           .timeout(_kGithubTimeout);
       final releases = jsonDecode(devData.body) as List;
       final preRelease = pickLatestDevRelease(releases);
-      final stableRelease =
-          (jsonDecode(stableData.body) as Map).cast<String, dynamic>();
+      final stableRelease = (jsonDecode(stableData.body) as Map)
+          .cast<String, dynamic>();
       final selectedRelease = pickPreferredReleaseForDevChannel(
         stableRelease: stableRelease,
         devRelease: preRelease,
       );
-      final normalized =
-          _normalizeVersion(selectedRelease["tag_name"] as String);
+      final normalized = _normalizeVersion(
+        selectedRelease["tag_name"] as String,
+      );
       _cacheRelease(normalized, selectedRelease, isDev: true);
       return normalized;
     }
 
     final data = await http
-        .get(Uri.parse(
-          "https://api.github.com/repos/$_githubOwner/$_githubRepository/releases/latest",
-        ))
+        .get(
+          Uri.parse(
+            "https://api.github.com/repos/$_githubOwner/$_githubRepository/releases/latest",
+          ),
+        )
         .timeout(_kGithubTimeout);
     final release = (jsonDecode(data.body) as Map).cast<String, dynamic>();
     final normalized = _normalizeVersion(release["tag_name"] as String);
@@ -814,8 +838,11 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
         'otzaria',
         url.split('.').last,
       ).timeout(_kGithubTimeout);
-      await _downloadRelease(installerFile, url, 'otzaria')
-          .timeout(_kDownloadTimeout);
+      await _downloadRelease(
+        installerFile,
+        url,
+        'otzaria',
+      ).timeout(_kDownloadTimeout);
 
       if (!mounted) return;
       setState(() {

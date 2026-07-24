@@ -49,38 +49,37 @@ class UiSnack {
     Duration? duration,
     IconData? icon,
     bool enableHaptic = true,
-  }) =>
-      _showOverlay(
-        message: message,
-        variant: _SnackVariant.standard,
-        duration: duration ?? const Duration(seconds: 6),
-        icon: icon,
-        enableHaptic: enableHaptic,
-      );
+  }) => _showOverlay(
+    message: message,
+    variant: _SnackVariant.standard,
+    duration: duration ?? const Duration(seconds: 6),
+    icon: icon,
+    enableHaptic: enableHaptic,
+  );
 
   static void showError(String message, {Duration? duration}) => _showOverlay(
-        message: message,
-        variant: _SnackVariant.error,
-        icon: FluentIcons.error_circle_24_regular,
-        duration: duration ?? const Duration(seconds: 3),
-        enableHaptic: true,
-      );
+    message: message,
+    variant: _SnackVariant.error,
+    icon: FluentIcons.error_circle_24_regular,
+    duration: duration ?? const Duration(seconds: 3),
+    enableHaptic: true,
+  );
 
   static void showSuccess(String message, {Duration? duration}) => _showOverlay(
-        message: message,
-        variant: _SnackVariant.standard,
-        icon: FluentIcons.checkmark_circle_24_regular,
-        duration: duration ?? const Duration(seconds: 3),
-        enableHaptic: true,
-      );
+    message: message,
+    variant: _SnackVariant.standard,
+    icon: FluentIcons.checkmark_circle_24_regular,
+    duration: duration ?? const Duration(seconds: 3),
+    enableHaptic: true,
+  );
 
   static void showWarning(String message, {Duration? duration}) => _showOverlay(
-        message: message,
-        variant: _SnackVariant.warning,
-        icon: FluentIcons.warning_24_regular,
-        duration: duration ?? const Duration(seconds: 3),
-        enableHaptic: true,
-      );
+    message: message,
+    variant: _SnackVariant.warning,
+    icon: FluentIcons.warning_24_regular,
+    duration: duration ?? const Duration(seconds: 3),
+    enableHaptic: true,
+  );
 
   static void showWithAction({
     required String message,
@@ -88,42 +87,41 @@ class UiSnack {
     required VoidCallback onAction,
     Duration duration = const Duration(seconds: 5),
     IconData? icon,
-  }) =>
-      _showOverlay(
-        message: message,
-        variant: _SnackVariant.standard,
-        duration: duration,
-        actionLabel: actionLabel,
-        onAction: onAction,
-        icon: icon,
-      );
+  }) => _showOverlay(
+    message: message,
+    variant: _SnackVariant.standard,
+    duration: duration,
+    actionLabel: actionLabel,
+    onAction: onAction,
+    icon: icon,
+  );
 
   static void showQuick(String message) => _showOverlay(
-        message: message,
-        variant: _SnackVariant.standard,
-        duration: const Duration(milliseconds: 800),
-        enableHaptic: false,
-      );
+    message: message,
+    variant: _SnackVariant.standard,
+    duration: const Duration(milliseconds: 800),
+    enableHaptic: false,
+  );
 
   /// בדיקה - חיצים מסתובבים, נשאר עד שמסתירים
   static void showChecking(String message) => _showOverlay(
-        message: message,
-        variant: _SnackVariant.standard,
-        duration: const Duration(days: 365), // לא נסגר אוטומטית
-        icon: FluentIcons.folder_sync_24_regular,
-        enableHaptic: false,
-        showCloseButton: true,
-      );
+    message: message,
+    variant: _SnackVariant.standard,
+    duration: const Duration(days: 365), // לא נסגר אוטומטית
+    icon: FluentIcons.folder_sync_24_regular,
+    enableHaptic: false,
+    showCloseButton: true,
+  );
 
   /// הורדה - אייקון הורדה, נשאר עד שמסתירים
   static void showDownloading(String message) => _showOverlay(
-        message: message,
-        variant: _SnackVariant.standard,
-        duration: const Duration(days: 365), // לא נסגר אוטומטית
-        icon: FluentIcons.arrow_download_24_regular,
-        enableHaptic: false,
-        showCloseButton: true,
-      );
+    message: message,
+    variant: _SnackVariant.standard,
+    duration: const Duration(days: 365), // לא נסגר אוטומטית
+    icon: FluentIcons.arrow_download_24_regular,
+    enableHaptic: false,
+    showCloseButton: true,
+  );
 
   /// הסתרת ההודעה הנוכחית
   static void hide() => _removeCurrentOverlay();
@@ -160,26 +158,30 @@ class UiSnack {
             retry = Overlay.maybeOf(context, rootOverlay: true);
           }
           if (retry == null) return;
-          _insert(retry,
-              message: message,
-              variant: variant,
-              duration: duration,
-              icon: icon,
-              actionLabel: actionLabel,
-              onAction: onAction,
-              enableHaptic: enableHaptic);
+          _insert(
+            retry,
+            message: message,
+            variant: variant,
+            duration: duration,
+            icon: icon,
+            actionLabel: actionLabel,
+            onAction: onAction,
+            enableHaptic: enableHaptic,
+          );
         });
         return;
       }
 
-      _insert(overlay,
-          message: message,
-          variant: variant,
-          duration: duration,
-          icon: icon,
-          actionLabel: actionLabel,
-          onAction: onAction,
-          enableHaptic: enableHaptic);
+      _insert(
+        overlay,
+        message: message,
+        variant: variant,
+        duration: duration,
+        icon: icon,
+        actionLabel: actionLabel,
+        onAction: onAction,
+        enableHaptic: enableHaptic,
+      );
     }
 
     if (WidgetsBinding.instance.schedulerPhase != SchedulerPhase.idle) {
@@ -323,20 +325,20 @@ class _SnackToastState extends State<_SnackToast>
   ({Color bg, Color fg, Color action}) _colors(ColorScheme cs) =>
       switch (widget.variant) {
         _SnackVariant.error => (
-            bg: cs.errorContainer,
-            fg: cs.onErrorContainer,
-            action: cs.error,
-          ),
+          bg: cs.errorContainer,
+          fg: cs.onErrorContainer,
+          action: cs.error,
+        ),
         _SnackVariant.warning => (
-            bg: cs.tertiaryContainer,
-            fg: cs.onSurface, // שחור במצב בהיר, לבן במצב כהה
-            action: cs.tertiary,
-          ),
+          bg: cs.tertiaryContainer,
+          fg: cs.onSurface, // שחור במצב בהיר, לבן במצב כהה
+          action: cs.tertiary,
+        ),
         _SnackVariant.standard => (
-            bg: cs.surfaceContainerHighest,
-            fg: cs.onSurface,
-            action: cs.primary,
-          ),
+          bg: cs.surfaceContainerHighest,
+          fg: cs.onSurface,
+          action: cs.primary,
+        ),
       };
 
   @override
@@ -388,8 +390,9 @@ class _SnackToastState extends State<_SnackToast>
                           //  ללא border — רק צל עדין לעומק
                           boxShadow: [
                             BoxShadow(
-                              color: cs.shadow
-                                  .withValues(alpha: isDark ? 0.35 : 0.12),
+                              color: cs.shadow.withValues(
+                                alpha: isDark ? 0.35 : 0.12,
+                              ),
                               blurRadius: 20,
                               offset: const Offset(0, 8),
                               spreadRadius: -2,
@@ -435,8 +438,9 @@ class _SnackToastState extends State<_SnackToast>
                                   ),
                                   minimumSize: Size.zero,
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: AppTokens.spaceSM,
-                                      vertical: 4),
+                                    horizontal: AppTokens.spaceSM,
+                                    vertical: 4,
+                                  ),
                                   tapTargetSize:
                                       MaterialTapTargetSize.shrinkWrap,
                                 ),
@@ -447,12 +451,17 @@ class _SnackToastState extends State<_SnackToast>
                               const SizedBox(width: AppTokens.spaceSM),
                               IconButton(
                                 onPressed: _close,
-                                icon: Icon(FluentIcons.dismiss_24_regular,
-                                    color: c.fg, size: 18),
+                                icon: Icon(
+                                  FluentIcons.dismiss_24_regular,
+                                  color: c.fg,
+                                  size: 18,
+                                ),
                                 visualDensity: VisualDensity.compact,
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(
-                                    minWidth: 32, minHeight: 32),
+                                  minWidth: 32,
+                                  minHeight: 32,
+                                ),
                               ),
                             ],
                           ],

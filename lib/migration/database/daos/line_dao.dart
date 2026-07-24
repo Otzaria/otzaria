@@ -68,11 +68,17 @@ class LineDao {
   }
 
   Future<List<Line>> selectByBookIdRange(
-      int bookId, int startIndex, int endIndex) async {
+    int bookId,
+    int startIndex,
+    int endIndex,
+  ) async {
     final db = await database;
     return db
-        .select(
-            _queries['selectByBookIdRange']!, [bookId, startIndex, endIndex])
+        .select(_queries['selectByBookIdRange']!, [
+          bookId,
+          startIndex,
+          endIndex,
+        ])
         .toMapList()
         .map((row) => _mapToLine(row))
         .toList();
@@ -80,8 +86,10 @@ class LineDao {
 
   Future<Line?> selectByBookIdAndIndex(int bookId, int lineIndex) async {
     final db = await database;
-    final result = db.select(
-        _queries['selectByBookIdAndIndex']!, [bookId, lineIndex]).toMapList();
+    final result = db.select(_queries['selectByBookIdAndIndex']!, [
+      bookId,
+      lineIndex,
+    ]).toMapList();
     if (result.isEmpty) return null;
     return _mapToLine(result.first);
   }
@@ -105,14 +113,17 @@ class LineDao {
   /// זוגות (lineIndex, heRef) של כל השורות בעלות heRef בספר, בסדר השורות.
   /// מסלול רזה — בלי content — לרזולוציית הפניה לרמת שורה.
   Future<List<({int lineIndex, String heRef})>> selectRefsByBookId(
-      int bookId) async {
+    int bookId,
+  ) async {
     final db = await database;
     return db
         .select(_queries['selectRefsByBookId']!, [bookId])
-        .map((row) => (
-              lineIndex: row['lineIndex'] as int,
-              heRef: row['heRef'] as String,
-            ))
+        .map(
+          (row) => (
+            lineIndex: row['lineIndex'] as int,
+            heRef: row['heRef'] as String,
+          ),
+        )
         .toList();
   }
 

@@ -11,14 +11,18 @@ void main() {
     test('מתיר URL מהרשימה ותתי-נתיביו', () {
       expect(
         matchingNetworkAllowlistPrefix(
-            Uri.parse(
-                'https://github.com/Open-Otzarya-Projects/Otzarya-Unofficial-Books/releases/latest/download/a.zip'),
-            allowlist),
+          Uri.parse(
+            'https://github.com/Open-Otzarya-Projects/Otzarya-Unofficial-Books/releases/latest/download/a.zip',
+          ),
+          allowlist,
+        ),
         isNotNull,
       );
       expect(
         matchingNetworkAllowlistPrefix(
-            Uri.parse('https://nakdan.dicta.org.il/api?text=שלום'), allowlist),
+          Uri.parse('https://nakdan.dicta.org.il/api?text=שלום'),
+          allowlist,
+        ),
         isNotNull,
       );
     });
@@ -26,18 +30,23 @@ void main() {
     test('חוסם נתיב אחר, קידומת חלקית ודומיין אחר', () {
       expect(
         matchingNetworkAllowlistPrefix(
-            Uri.parse('https://github.com/Someone/Other/releases'), allowlist),
+          Uri.parse('https://github.com/Someone/Other/releases'),
+          allowlist,
+        ),
         isNull,
       );
       expect(
         matchingNetworkAllowlistPrefix(
-            Uri.parse('https://nakdan.dicta.org.il/apix'), allowlist),
+          Uri.parse('https://nakdan.dicta.org.il/apix'),
+          allowlist,
+        ),
         isNull,
       );
       expect(
         matchingNetworkAllowlistPrefix(
-            Uri.parse('https://objects.githubusercontent.com/abc/a.zip'),
-            allowlist),
+          Uri.parse('https://objects.githubusercontent.com/abc/a.zip'),
+          allowlist,
+        ),
         isNull,
       );
     });
@@ -46,8 +55,11 @@ void main() {
   group('isUriAllowedForPluginNetwork', () {
     test('מתיר URL של מאגר הספרים המאושר ותתי-נתיביו', () {
       expect(
-        isUriAllowedForPluginNetwork(Uri.parse(
-            'https://github.com/Open-Otzarya-Projects/Otzarya-Unofficial-Books/releases/latest/download/a.zip')),
+        isUriAllowedForPluginNetwork(
+          Uri.parse(
+            'https://github.com/Open-Otzarya-Projects/Otzarya-Unofficial-Books/releases/latest/download/a.zip',
+          ),
+        ),
         isTrue,
       );
     });
@@ -55,12 +67,14 @@ void main() {
     test('חוסם דומייני CDN של גיטהאב כגישה ישירה (אינם ברשימה הגלובלית)', () {
       expect(
         isUriAllowedForPluginNetwork(
-            Uri.parse('https://objects.githubusercontent.com/abc/a.zip')),
+          Uri.parse('https://objects.githubusercontent.com/abc/a.zip'),
+        ),
         isFalse,
       );
       expect(
-        isUriAllowedForPluginNetwork(Uri.parse(
-            'https://release-assets.githubusercontent.com/abc/a.zip')),
+        isUriAllowedForPluginNetwork(
+          Uri.parse('https://release-assets.githubusercontent.com/abc/a.zip'),
+        ),
         isFalse,
       );
     });
@@ -68,7 +82,8 @@ void main() {
     test('חוסם מאגר גיטהאב אחר', () {
       expect(
         isUriAllowedForPluginNetwork(
-            Uri.parse('https://github.com/Someone/Other/releases')),
+          Uri.parse('https://github.com/Someone/Other/releases'),
+        ),
         isFalse,
       );
     });
@@ -79,12 +94,16 @@ void main() {
       const allowlist = ['127.0.0.1', 'localhost'];
       expect(
         matchingLoopbackPrefix(
-            Uri.parse('http://127.0.0.1:11434/api/tags'), allowlist),
+          Uri.parse('http://127.0.0.1:11434/api/tags'),
+          allowlist,
+        ),
         isNotNull,
       );
       expect(
         matchingLoopbackPrefix(
-            Uri.parse('http://localhost:1234/v1/models'), allowlist),
+          Uri.parse('http://localhost:1234/v1/models'),
+          allowlist,
+        ),
         isNotNull,
       );
     });
@@ -93,12 +112,16 @@ void main() {
       const allowlist = ['http://127.0.0.1:11434'];
       expect(
         matchingLoopbackPrefix(
-            Uri.parse('http://127.0.0.1:11434/api/tags'), allowlist),
+          Uri.parse('http://127.0.0.1:11434/api/tags'),
+          allowlist,
+        ),
         isNotNull,
       );
       expect(
         matchingLoopbackPrefix(
-            Uri.parse('http://127.0.0.1:1234/api/tags'), allowlist),
+          Uri.parse('http://127.0.0.1:1234/api/tags'),
+          allowlist,
+        ),
         isNull,
       );
     });
@@ -106,12 +129,15 @@ void main() {
     test('חוסם כשאין הצהרת loopback תואמת, או כשהיעד אינו loopback', () {
       expect(
         matchingLoopbackPrefix(
-            Uri.parse('http://127.0.0.1:11434/api'), const []),
+          Uri.parse('http://127.0.0.1:11434/api'),
+          const [],
+        ),
         isNull,
       );
       expect(
-        matchingLoopbackPrefix(
-            Uri.parse('https://example.com'), const ['127.0.0.1']),
+        matchingLoopbackPrefix(Uri.parse('https://example.com'), const [
+          '127.0.0.1',
+        ]),
         isNull,
       );
     });
@@ -119,17 +145,21 @@ void main() {
 
   group('requiredNetworkPermissionFor', () {
     test('יעד loopback דורש network.localhost', () {
-      expect(requiredNetworkPermissionFor(Uri.parse('http://127.0.0.1:11434')),
-          'network.localhost');
-      expect(requiredNetworkPermissionFor(Uri.parse('http://localhost:1234')),
-          'network.localhost');
+      expect(
+        requiredNetworkPermissionFor(Uri.parse('http://127.0.0.1:11434')),
+        'network.localhost',
+      );
+      expect(
+        requiredNetworkPermissionFor(Uri.parse('http://localhost:1234')),
+        'network.localhost',
+      );
     });
 
     test('יעד אינטרנט דורש network.access', () {
       expect(
-          requiredNetworkPermissionFor(
-              Uri.parse('https://nakdan.dicta.org.il')),
-          'network.access');
+        requiredNetworkPermissionFor(Uri.parse('https://nakdan.dicta.org.il')),
+        'network.access',
+      );
     });
   });
 
@@ -152,9 +182,11 @@ https://a.example.com
 
   group('isGithubReleaseRedirectAllowed', () {
     final githubRelease = Uri.parse(
-        'https://github.com/Open-Otzarya-Projects/Otzarya-Unofficial-Books/releases/latest/download/a.zip');
-    final cdn =
-        Uri.parse('https://release-assets.githubusercontent.com/abc/a.zip');
+      'https://github.com/Open-Otzarya-Projects/Otzarya-Unofficial-Books/releases/latest/download/a.zip',
+    );
+    final cdn = Uri.parse(
+      'https://release-assets.githubusercontent.com/abc/a.zip',
+    );
 
     test('מתיר redirect מ-github.com אל ה-CDN', () {
       expect(isGithubReleaseRedirectAllowed(githubRelease, cdn), isTrue);

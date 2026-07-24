@@ -16,8 +16,12 @@ void main() {
     });
 
     test('UTF-8 עם BOM', () {
-      final bytes =
-          Uint8List.fromList([0xEF, 0xBB, 0xBF, ...utf8.encode('בראשית')]);
+      final bytes = Uint8List.fromList([
+        0xEF,
+        0xBB,
+        0xBF,
+        ...utf8.encode('בראשית'),
+      ]);
       expect(decodeTextBytesSmart(bytes), 'בראשית');
     });
 

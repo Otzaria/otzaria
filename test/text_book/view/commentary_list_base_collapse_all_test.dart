@@ -55,8 +55,9 @@ void main() {
     LibraryProviderManager.instance.resetForTesting();
   });
 
-  testWidgets(
-      'קבוצת מפרש חדשה שנטענת אחרי כיווץ-הכל נשארת מכווצת', (tester) async {
+  testWidgets('קבוצת מפרש חדשה שנטענת אחרי כיווץ-הכל נשארת מכווצת', (
+    tester,
+  ) async {
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 20));
@@ -130,7 +131,9 @@ TextBookLoaded _loadedStateA() {
     availableCommentators: const ['מפרש בדיקה', 'מפרש בדיקה ב'],
     links: [link],
     visibleLinks: const [],
-    linksByLine: {1: [link]},
+    linksByLine: {
+      1: [link],
+    },
     tableOfContents: const [],
     removeNikud: false,
     visibleIndices: const [0],
@@ -166,7 +169,9 @@ TextBookLoaded _loadedStateB() {
     availableCommentators: const ['מפרש בדיקה', 'מפרש בדיקה ב'],
     links: [link],
     visibleLinks: const [],
-    linksByLine: {2: [link]},
+    linksByLine: {
+      2: [link],
+    },
     tableOfContents: const [],
     removeNikud: false,
     visibleIndices: const [1],
@@ -239,8 +244,12 @@ class _FakeLibraryProvider implements LibraryProvider {
   }
 
   @override
-  Future<String?> getBookText(String title, int categoryId, String fileType,
-      {bool preferUserBooks = false}) async {
+  Future<String?> getBookText(
+    String title,
+    int categoryId,
+    String fileType, {
+    bool preferUserBooks = false,
+  }) async {
     return null;
   }
 

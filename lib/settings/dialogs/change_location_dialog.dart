@@ -46,7 +46,7 @@ Future<void> Function(BuildContext) makeChangeLocationCallback({
   required Future<void> Function(String newPath) onPathChanged,
   Future<void> Function(String newPath)? onAfterMove,
   Future<void> Function(BuildContext ctx, String from, String to)?
-      onMoveContents,
+  onMoveContents,
   String? moveContentsWarning,
   String? defaultPath,
 }) {
@@ -82,7 +82,9 @@ Future<void> Function(BuildContext) makeChangeLocationCallback({
       if (deleteWarning != null) {
         UiSnack.showWarning(
           SettingsMessages.folderMovedSourceNotDeleted(
-              folderName, deleteWarning),
+            folderName,
+            deleteWarning,
+          ),
         );
       } else {
         UiSnack.show(SettingsMessages.folderMoved(folderName));
@@ -101,7 +103,8 @@ Future<void> Function(BuildContext) makeChangeLocationCallback({
 /// - [relocated]: ספרי קובץ שרשומתם באינדקס נשמרת לפי נתיב מוחלט (PDF, וספרי
 ///   קובץ ללא id יציב), ולכן רשומתם תישבר בהעברה ויש לנקותה אחרי ההעברה.
 Future<({Set<String> include, List<Book> relocated})> _scanLibraryMove(
-    String from) async {
+  String from,
+) async {
   final include = DatabaseConstants.libraryManagedEntryNames();
   final relocated = <Book>[];
   try {
@@ -163,8 +166,9 @@ Future<({String path, int? fileSize, int? lastModified})> _movedStorage(
   return (
     path: newPath,
     fileSize: exists ? await file.length() : null,
-    lastModified:
-        exists ? (await file.lastModified()).millisecondsSinceEpoch : null,
+    lastModified: exists
+        ? (await file.lastModified()).millisecondsSinceEpoch
+        : null,
   );
 }
 
@@ -172,8 +176,7 @@ Future<({String path, int? fileSize, int? lastModified})> _movedStorage(
 bool shouldCopyIndexDuringLibraryMove({
   required bool indexNeedsMove,
   required bool indexingActive,
-}) =>
-    indexNeedsMove && !indexingActive;
+}) => indexNeedsMove && !indexingActive;
 
 Future<bool> _pathExists(String path) async =>
     await Directory(path).exists() ||
@@ -205,17 +208,27 @@ Future<void> _restoreMoveSettings({
   required String? androidLibraryRoot,
 }) async {
   await Settings.setValue<String?>(
-      SettingsRepository.keyLibraryPath, libraryPath);
+    SettingsRepository.keyLibraryPath,
+    libraryPath,
+  );
   await Settings.setValue<String?>(
-      SettingsRepository.keyLibraryFolderName, libraryFolderName);
+    SettingsRepository.keyLibraryFolderName,
+    libraryFolderName,
+  );
   await Settings.setValue<String?>(
-      SettingsRepository.keyDbEffectivePath, dbEffectivePath);
+    SettingsRepository.keyDbEffectivePath,
+    dbEffectivePath,
+  );
   await Settings.setValue<String?>(SettingsRepository.keyIndexPath, indexPath);
   await Settings.setValue<String?>(
-      SettingsRepository.keyDatabasesPath, databasesPath);
+    SettingsRepository.keyDatabasesPath,
+    databasesPath,
+  );
   if (Platform.isAndroid) {
     await Settings.setValue<String?>(
-        SettingsRepository.keyAndroidLibraryRoot, androidLibraryRoot);
+      SettingsRepository.keyAndroidLibraryRoot,
+      androidLibraryRoot,
+    );
   }
 }
 
@@ -271,16 +284,15 @@ Future<void> cleanupCreatedMoveTargetsForTesting({
   required bool finalLibraryCreated,
   required bool finalIndexCreated,
   required bool finalDatabasesCreated,
-}) =>
-    _cleanupCreatedMoveTargets(
-      stagingRoot: stagingRoot,
-      newLibrary: newLibrary,
-      newIndex: newIndex,
-      newDatabases: newDatabases,
-      finalLibraryCreated: finalLibraryCreated,
-      finalIndexCreated: finalIndexCreated,
-      finalDatabasesCreated: finalDatabasesCreated,
-    );
+}) => _cleanupCreatedMoveTargets(
+  stagingRoot: stagingRoot,
+  newLibrary: newLibrary,
+  newIndex: newIndex,
+  newDatabases: newDatabases,
+  finalLibraryCreated: finalLibraryCreated,
+  finalIndexCreated: finalIndexCreated,
+  finalDatabasesCreated: finalDatabasesCreated,
+);
 
 Future<void> _closeUserDatabasesForMove() async {
   await UserBooksDatabaseHolder.instance.close();
@@ -322,7 +334,8 @@ Future<void> performLibraryMove({
   final newDatabases = p.join(to, p.basename(oldDatabases));
   final indexNeedsMove =
       !p.equals(oldIndex, newIndex) && await Directory(oldIndex).exists();
-  final databasesNeedsMove = !p.equals(oldDatabases, newDatabases) &&
+  final databasesNeedsMove =
+      !p.equals(oldDatabases, newDatabases) &&
       await Directory(oldDatabases).exists();
   final indexingActive = TantivyDataProvider.instance.isIndexing.value;
   final shouldCopyIndex = shouldCopyIndexDuringLibraryMove(
@@ -333,20 +346,26 @@ Future<void> performLibraryMove({
     IndexingRepository(TantivyDataProvider.instance).cancelIndexing();
   }
 
-  final previousLibraryPath =
-      Settings.getValue<String>(SettingsRepository.keyLibraryPath);
-  final previousLibraryFolderName =
-      Settings.getValue<String>(SettingsRepository.keyLibraryFolderName);
-  final previousDbEffectivePath =
-      Settings.getValue<String>(SettingsRepository.keyDbEffectivePath);
-  final previousIndexPath =
-      Settings.getValue<String>(SettingsRepository.keyIndexPath);
-  final previousDatabasesPath =
-      Settings.getValue<String>(SettingsRepository.keyDatabasesPath);
+  final previousLibraryPath = Settings.getValue<String>(
+    SettingsRepository.keyLibraryPath,
+  );
+  final previousLibraryFolderName = Settings.getValue<String>(
+    SettingsRepository.keyLibraryFolderName,
+  );
+  final previousDbEffectivePath = Settings.getValue<String>(
+    SettingsRepository.keyDbEffectivePath,
+  );
+  final previousIndexPath = Settings.getValue<String>(
+    SettingsRepository.keyIndexPath,
+  );
+  final previousDatabasesPath = Settings.getValue<String>(
+    SettingsRepository.keyDatabasesPath,
+  );
   // Android: שורש הספרייה נע ליעד החדש (למשל כרטיס SD) כך שברירת המחדל של
   // הספרייה תישאר עקבית. שאר נתוני האפליקציה נשארים באחסון הפנימי.
-  final previousAndroidLibraryRoot =
-      Settings.getValue<String>(SettingsRepository.keyAndroidLibraryRoot);
+  final previousAndroidLibraryRoot = Settings.getValue<String>(
+    SettingsRepository.keyAndroidLibraryRoot,
+  );
 
   String? stagingRoot;
   var finalLibraryCreated = false;
@@ -397,20 +416,30 @@ Future<void> performLibraryMove({
     await remapMovedFileBookPaths(scan.relocated, from, newLibrary);
     // 3. עדכון הגדרות המיקום בקבצי המשתמש.
     await Settings.setValue<String>(
-        SettingsRepository.keyLibraryPath, newLibrary);
+      SettingsRepository.keyLibraryPath,
+      newLibrary,
+    );
     await Settings.setValue<String>(
-        SettingsRepository.keyLibraryFolderName, '');
+      SettingsRepository.keyLibraryFolderName,
+      '',
+    );
     await Settings.setValue<String>(SettingsRepository.keyDbEffectivePath, '');
     if (indexNeedsMove) {
       // בזמן אינדוקס פעיל לא מעתיקים אינדקס חי; הרענון יפתח/יבנה אינדקס חדש.
       await Settings.setValue<String>(
-          SettingsRepository.keyIndexPath, newIndex);
+        SettingsRepository.keyIndexPath,
+        newIndex,
+      );
     }
     await Settings.setValue<String>(
-        SettingsRepository.keyDatabasesPath, newDatabases);
+      SettingsRepository.keyDatabasesPath,
+      newDatabases,
+    );
     if (Platform.isAndroid) {
       await Settings.setValue<String>(
-          SettingsRepository.keyAndroidLibraryRoot, to);
+        SettingsRepository.keyAndroidLibraryRoot,
+        to,
+      );
     }
     settingsUpdated = true;
     // 4. מיפוי נתיבי הספרים הפתוחים *בזיכרון* (לא רק ב-Hive), אחרת שמירת
@@ -438,8 +467,9 @@ Future<void> performLibraryMove({
     //    הטקסט מ-DB מאונדקסים לפי id ושורדים את ההעברה — אינם נוגעים בזה.
     if (scan.relocated.isNotEmpty) {
       try {
-        await IndexingRepository(TantivyDataProvider.instance)
-            .dropRelocatedFileBookEntries(scan.relocated);
+        await IndexingRepository(
+          TantivyDataProvider.instance,
+        ).dropRelocatedFileBookEntries(scan.relocated);
       } catch (e) {
         debugPrint('[performLibraryMove] index cleanup failed: $e');
       }
@@ -475,7 +505,8 @@ Future<void> performLibraryMove({
   await showSingleActionDialog(
     context: context,
     title: 'הספרייה הועברה',
-    content: 'הספרייה הועברה בהצלחה למיקום החדש. התוכנה תיטען מחדש כעת, '
+    content:
+        'הספרייה הועברה בהצלחה למיקום החדש. התוכנה תיטען מחדש כעת, '
         'והספרים הפתוחים ייטענו מהמיקום החדש.',
     confirmText: 'טען מחדש',
   );
@@ -539,17 +570,16 @@ Future<ChangeLocationResult?> showChangeLocationDialog({
   bool canMoveContents = true,
   String? defaultPath,
   String? moveContentsWarning,
-}) =>
-    showDialog<ChangeLocationResult>(
-      context: context,
-      builder: (_) => _ChangeLocationDialogContent(
-        currentPath: currentPath,
-        folderName: folderName,
-        canMoveContents: canMoveContents,
-        defaultPath: defaultPath,
-        moveContentsWarning: moveContentsWarning,
-      ),
-    );
+}) => showDialog<ChangeLocationResult>(
+  context: context,
+  builder: (_) => _ChangeLocationDialogContent(
+    currentPath: currentPath,
+    folderName: folderName,
+    canMoveContents: canMoveContents,
+    defaultPath: defaultPath,
+    moveContentsWarning: moveContentsWarning,
+  ),
+);
 
 class _ChangeLocationDialogContent extends StatefulWidget {
   final String currentPath;
@@ -688,8 +718,9 @@ class MoveContentsWarning extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: AppTextStyles.settingSubtitle
-                  .copyWith(color: cs.onSecondaryContainer),
+              style: AppTextStyles.settingSubtitle.copyWith(
+                color: cs.onSecondaryContainer,
+              ),
             ),
           ),
         ],
@@ -700,9 +731,10 @@ class MoveContentsWarning extends StatelessWidget {
 
 /// כותרת דיאלוג מיקום — "הגדרת מיקום X" כשאין מיקום קודם, אחרת "שינוי מיקום X".
 /// משותפת לדיאלוג הרגיל ולדיאלוג הספרייה כדי לשמור נוסח אחיד.
-String locationDialogTitle(
-        {required String folderName, required bool isSetup}) =>
-    isSetup ? 'הגדרת מיקום $folderName' : 'שינוי מיקום $folderName';
+String locationDialogTitle({
+  required String folderName,
+  required bool isSetup,
+}) => isSetup ? 'הגדרת מיקום $folderName' : 'שינוי מיקום $folderName';
 
 /// מקטע בחירת תיקיית היעד — משותף לדיאלוג הרגיל ולדיאלוג הספרייה.
 /// [isSetup] קובע את הכותרת: "תיקיית היעד ל..." כשאין מיקום קודם,

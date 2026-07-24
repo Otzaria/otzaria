@@ -40,9 +40,9 @@ class BarButton extends StatelessWidget {
     this.label,
     this.compact = false,
     this.flipInRtl = false,
-  })  : _variant = _Variant.icon,
-        text = '',
-        isLoading = false;
+  }) : _variant = _Variant.icon,
+       text = '',
+       isLoading = false;
 
   const BarButton.text({
     super.key,
@@ -50,19 +50,19 @@ class BarButton extends StatelessWidget {
     this.icon,
     required this.onPressed,
     this.isLoading = false,
-  })  : _variant = _Variant.text,
-        tooltip = '',
-        iconWidget = null,
-        selected = false,
-        label = null,
-        compact = false,
-        flipInRtl = false;
+  }) : _variant = _Variant.text,
+       tooltip = '',
+       iconWidget = null,
+       selected = false,
+       label = null,
+       compact = false,
+       flipInRtl = false;
 
   @override
   Widget build(BuildContext context) => switch (_variant) {
-        _Variant.icon => _buildIcon(context),
-        _Variant.text => _buildText(context),
-      };
+    _Variant.icon => _buildIcon(context),
+    _Variant.text => _buildText(context),
+  };
 
   // ── text ────────────────────────────────────────────────────────────────
 
@@ -71,14 +71,14 @@ class BarButton extends StatelessWidget {
     final cs = theme.colorScheme;
     // מיזוג עם סגנון התמה (ולא החלפתו) — שומר על roundedShape וה-overlay
     // ומחליף רק את צבע הטקסט/אייקון לגוון המושתק של הסרגל.
-    final mergedStyle =
-        (theme.textButtonTheme.style ?? const ButtonStyle()).copyWith(
-      foregroundColor: WidgetStateProperty.resolveWith(
-        (states) => states.contains(WidgetState.disabled)
-            ? theme.disabledColor
-            : cs.onSurfaceVariant,
-      ),
-    );
+    final mergedStyle = (theme.textButtonTheme.style ?? const ButtonStyle())
+        .copyWith(
+          foregroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.disabled)
+                ? theme.disabledColor
+                : cs.onSurfaceVariant,
+          ),
+        );
     return TextButtonTheme(
       data: TextButtonThemeData(style: mergedStyle),
       child: ActionButton.ghost(
@@ -118,8 +118,8 @@ class BarButton extends StatelessWidget {
             child: iconWidget!,
           )
         : flipInRtl
-            ? RtlIcon(icon!, size: iconSize, color: fg)
-            : Icon(icon!, size: iconSize, color: fg);
+        ? RtlIcon(icon!, size: iconSize, color: fg)
+        : Icon(icon!, size: iconSize, color: fg);
 
     Widget button;
     if (label != null) {
@@ -137,9 +137,10 @@ class BarButton extends StatelessWidget {
         label: AnimatedDefaultTextStyle(
           duration: AppTokens.animFast,
           style: TextStyle(
-              fontSize: fontSize,
-              color: fg,
-              fontWeight: selected ? FontWeight.bold : FontWeight.normal),
+            fontSize: fontSize,
+            color: fg,
+            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+          ),
           child: Text(label!),
         ),
       );

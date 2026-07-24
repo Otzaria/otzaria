@@ -55,8 +55,9 @@ class PdfBookTab extends OpenedTab {
 
   /// counter שמתגלגל עם כל בקשה לטוגל חלונית המפרשים (הימנית) מקיצור מקלדת
   /// גלובלי. המאזין הוא [PdfBookScreen] בלבד; כל הגדלה = toggle יחיד.
-  final ValueNotifier<int> toggleCommentatorsPaneNotifier =
-      ValueNotifier<int>(0);
+  final ValueNotifier<int> toggleCommentatorsPaneNotifier = ValueNotifier<int>(
+    0,
+  );
 
   /// PDF headings mapping for commentaries and links
   PdfHeadings? pdfHeadings;
@@ -115,7 +116,8 @@ class PdfBookTab extends OpenedTab {
     this.requiresStableLayout = false,
   }) : super(book.title, isPinned: isPinned, dedupeKey: dedupeKey) {
     debugPrint(
-        '🔧 PdfBookTab created: book=${book.title}, pageNumber=$pageNumber');
+      '🔧 PdfBookTab created: book=${book.title}, pageNumber=$pageNumber',
+    );
     showLeftPane = ValueNotifier<bool>(openLeftPane);
     searchController.text = searchText;
     pinLeftPane.value = Settings.getValue<bool>('key-pin-sidebar') ?? false;

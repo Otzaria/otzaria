@@ -74,8 +74,10 @@ class ShortcutValidator {
       key.substring(_openPluginKeyPrefix.length);
 
   /// List of all shortcut setting keys (סטטיים + מפתחות תוספים רשומים)
-  static List<String> get shortcutKeys =>
-      [..._baseShortcutKeys, ..._pluginShortcutNames.keys];
+  static List<String> get shortcutKeys => [
+    ..._baseShortcutKeys,
+    ..._pluginShortcutNames.keys,
+  ];
 
   static const List<String> _baseShortcutKeys = [
     'key-shortcut-open-library-browser',
@@ -171,8 +173,10 @@ class ShortcutValidator {
   };
 
   /// Shortcut names for display (סטטיים + שמות תוספים רשומים)
-  static Map<String, String> get shortcutNames =>
-      {..._baseShortcutNames, ..._pluginShortcutNames};
+  static Map<String, String> get shortcutNames => {
+    ..._baseShortcutNames,
+    ..._pluginShortcutNames,
+  };
 
   static const Map<String, String> _baseShortcutNames = {
     'key-shortcut-open-library-browser': 'ספרייה',

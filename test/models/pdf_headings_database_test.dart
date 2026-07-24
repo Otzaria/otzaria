@@ -35,9 +35,13 @@ void main() {
     await UserBooksDatabaseHolder.instance.close();
 
     await Settings.setValue<String>(
-        SettingsRepository.keyLibraryPath, libraryPath);
+      SettingsRepository.keyLibraryPath,
+      libraryPath,
+    );
     await Settings.setValue<String>(
-        SettingsRepository.keyLibraryFolderName, '');
+      SettingsRepository.keyLibraryFolderName,
+      '',
+    );
     await Settings.setValue<String>(SettingsRepository.keyDbEffectivePath, '');
 
     final dbPath = path.join(libraryPath, DatabaseConstants.databaseFileName);
@@ -112,32 +116,34 @@ void main() {
       expect(result.getLineNumberForHeading('פרק ב'), 30);
     });
 
-    test('preferUserBooks=true מאתר את הספר ב-user_books.db ולא ב-seforim',
-        () async {
-      // אותו שם ספר בשני ה-DBs עם headings שונים. preferUserBooks=true חייב
-      // לבחור את ה-user_books.
-      await insertBookWithToc(
-        repo: seforimRepo,
-        title: 'משותף',
-        headings: {'מ-seforim': 5},
-      );
+    test(
+      'preferUserBooks=true מאתר את הספר ב-user_books.db ולא ב-seforim',
+      () async {
+        // אותו שם ספר בשני ה-DBs עם headings שונים. preferUserBooks=true חייב
+        // לבחור את ה-user_books.
+        await insertBookWithToc(
+          repo: seforimRepo,
+          title: 'משותף',
+          headings: {'מ-seforim': 5},
+        );
 
-      final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;
-      await insertBookWithToc(
-        repo: userBooksRepo,
-        title: 'משותף',
-        headings: {'מ-user-books': 12},
-      );
+        final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;
+        await insertBookWithToc(
+          repo: userBooksRepo,
+          title: 'משותף',
+          headings: {'מ-user-books': 12},
+        );
 
-      final fromUser = await PdfHeadings.loadFromDatabase(
-        'משותף',
-        preferUserBooks: true,
-      );
-      final fromOfficial = await PdfHeadings.loadFromDatabase('משותף');
+        final fromUser = await PdfHeadings.loadFromDatabase(
+          'משותף',
+          preferUserBooks: true,
+        );
+        final fromOfficial = await PdfHeadings.loadFromDatabase('משותף');
 
-      expect(fromUser?.headingsMap, {'מ-user-books': 12});
-      expect(fromOfficial?.headingsMap, {'מ-seforim': 5});
-    });
+        expect(fromUser?.headingsMap, {'מ-user-books': 12});
+        expect(fromOfficial?.headingsMap, {'מ-seforim': 5});
+      },
+    );
 
     test('מחזיר null כשאין כותרות עם lineIndex', () async {
       // מכניסים ספר עם entry שאין לו lineIndex — ה-buildHeadingsMap מסנן אותם.
@@ -172,11 +178,23 @@ void main() {
     test('שומר את ה-lineIndex המינימלי כשיש כפילויות כותרת', () {
       final entries = <migration_models.TocEntry>[
         const migration_models.TocEntry(
-            bookId: 1, text: 'כפול', level: 1, lineIndex: 20),
+          bookId: 1,
+          text: 'כפול',
+          level: 1,
+          lineIndex: 20,
+        ),
         const migration_models.TocEntry(
-            bookId: 1, text: 'כפול', level: 1, lineIndex: 5),
+          bookId: 1,
+          text: 'כפול',
+          level: 1,
+          lineIndex: 5,
+        ),
         const migration_models.TocEntry(
-            bookId: 1, text: 'יחיד', level: 1, lineIndex: 100),
+          bookId: 1,
+          text: 'יחיד',
+          level: 1,
+          lineIndex: 100,
+        ),
       ];
 
       final map = PdfHeadings.buildHeadingsMapFromTocEntries(entries);
@@ -187,10 +205,18 @@ void main() {
     test('מסנן entries עם טקסט ריק או lineIndex חסר', () {
       final entries = <migration_models.TocEntry>[
         const migration_models.TocEntry(
-            bookId: 1, text: '', level: 1, lineIndex: 0),
+          bookId: 1,
+          text: '',
+          level: 1,
+          lineIndex: 0,
+        ),
         const migration_models.TocEntry(bookId: 1, text: 'בלי שורה', level: 1),
         const migration_models.TocEntry(
-            bookId: 1, text: 'תקין', level: 1, lineIndex: 7),
+          bookId: 1,
+          text: 'תקין',
+          level: 1,
+          lineIndex: 7,
+        ),
       ];
 
       final map = PdfHeadings.buildHeadingsMapFromTocEntries(entries);

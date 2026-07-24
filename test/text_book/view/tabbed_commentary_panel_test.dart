@@ -37,10 +37,12 @@ void main() {
     _RecordingTabsBloc? tabsBloc,
     List<String> activeCommentators = const [],
   }) {
-    final textBookBloc =
-        _TestTextBookBloc(_loadedState(activeCommentators: activeCommentators));
-    final personalNotesBloc =
-        _TestPersonalNotesBloc(const PersonalNotesState.initial());
+    final textBookBloc = _TestTextBookBloc(
+      _loadedState(activeCommentators: activeCommentators),
+    );
+    final personalNotesBloc = _TestPersonalNotesBloc(
+      const PersonalNotesState.initial(),
+    );
     final settingsBloc = _TestSettingsBloc(SettingsState.initial());
 
     return MaterialApp(
@@ -75,17 +77,20 @@ void main() {
     expect(find.text('הערות'), findsOneWidget);
   });
 
-  testWidgets('onTabChanged נקרא עם האינדקס הנכון כשהמשתמש מחליף טאב',
-      (tester) async {
+  testWidgets('onTabChanged נקרא עם האינדקס הנכון כשהמשתמש מחליף טאב', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(800, 600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     var reportedIndex = -1;
 
-    await tester.pumpWidget(buildPanel(
-      initialTabIndex: 0,
-      onTabChanged: (index) => reportedIndex = index,
-    ));
+    await tester.pumpWidget(
+      buildPanel(
+        initialTabIndex: 0,
+        onTabChanged: (index) => reportedIndex = index,
+      ),
+    );
     await tester.pump();
 
     // לחיצה על "קישורים" (טאב 1)
@@ -95,17 +100,20 @@ void main() {
     expect(reportedIndex, 1);
   });
 
-  testWidgets('onTabChanged נקרא עם אינדקס 2 כשלוחצים על הערות',
-      (tester) async {
+  testWidgets('onTabChanged נקרא עם אינדקס 2 כשלוחצים על הערות', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(800, 600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     var reportedIndex = -1;
 
-    await tester.pumpWidget(buildPanel(
-      initialTabIndex: 0,
-      onTabChanged: (index) => reportedIndex = index,
-    ));
+    await tester.pumpWidget(
+      buildPanel(
+        initialTabIndex: 0,
+        onTabChanged: (index) => reportedIndex = index,
+      ),
+    );
     await tester.pump();
 
     await tester.tap(find.text('הערות'));
@@ -121,23 +129,27 @@ void main() {
 
     var reportedIndex = -1;
 
-    await tester.pumpWidget(_TabSwitcherWrapper(
-      initialTabIndex: 0,
-      onTabChanged: (index) => reportedIndex = index,
-    ));
+    await tester.pumpWidget(
+      _TabSwitcherWrapper(
+        initialTabIndex: 0,
+        onTabChanged: (index) => reportedIndex = index,
+      ),
+    );
     await tester.pump();
 
     // מעבר פרוגרמטי לטאב 2 (הערות)
-    final state = tester
-        .state<_TabSwitcherWrapperState>(find.byType(_TabSwitcherWrapper));
+    final state = tester.state<_TabSwitcherWrapperState>(
+      find.byType(_TabSwitcherWrapper),
+    );
     state.switchTo(2);
     await tester.pumpAndSettle();
 
     expect(reportedIndex, 2);
   });
 
-  testWidgets('initialTabIndex זהה לא מאפס טאב שנשתנה ידנית (P1 regression)',
-      (tester) async {
+  testWidgets('initialTabIndex זהה לא מאפס טאב שנשתנה ידנית (P1 regression)', (
+    tester,
+  ) async {
     // תרחיש: פתיחה על מפרשים (0), משתמש עובר לקישורים (1),
     // הורה שולח שוב initialTabIndex: 0 — הטאב צריך להישאר על 1 (בחירת המשתמש)
     await tester.binding.setSurfaceSize(const Size(800, 600));
@@ -145,10 +157,12 @@ void main() {
 
     var reportedIndex = -1;
 
-    await tester.pumpWidget(_TabSwitcherWrapper(
-      initialTabIndex: 0,
-      onTabChanged: (index) => reportedIndex = index,
-    ));
+    await tester.pumpWidget(
+      _TabSwitcherWrapper(
+        initialTabIndex: 0,
+        onTabChanged: (index) => reportedIndex = index,
+      ),
+    );
     await tester.pump();
 
     // משתמש עובר לקישורים
@@ -157,8 +171,9 @@ void main() {
     expect(reportedIndex, 1);
 
     // הורה שולח שוב אותו initialTabIndex: 0 (לא השתנה)
-    final state = tester
-        .state<_TabSwitcherWrapperState>(find.byType(_TabSwitcherWrapper));
+    final state = tester.state<_TabSwitcherWrapperState>(
+      find.byType(_TabSwitcherWrapper),
+    );
     state.switchTo(0); // לא שינוי — אותו ערך
     await tester.pumpAndSettle();
 
@@ -174,19 +189,22 @@ void main() {
     final sourceTab = TextBookTab(
       book: TextBook(title: 'ספר בדיקה'),
       index: 0,
-      blocOverride:
-          _TestTextBookBloc(_loadedState(activeCommentators: const ['רש"י'])),
+      blocOverride: _TestTextBookBloc(
+        _loadedState(activeCommentators: const ['רש"י']),
+      ),
     );
     addTearDown(sourceTab.dispose);
 
     final tabsBloc = _RecordingTabsBloc();
     addTearDown(tabsBloc.close);
 
-    await tester.pumpWidget(buildPanel(
-      tab: sourceTab,
-      tabsBloc: tabsBloc,
-      activeCommentators: const ['רש"י'],
-    ));
+    await tester.pumpWidget(
+      buildPanel(
+        tab: sourceTab,
+        tabsBloc: tabsBloc,
+        activeCommentators: const ['רש"י'],
+      ),
+    );
     await tester.pump();
 
     await tester.tap(find.byTooltip('פתח כרטסיית מפרשים'));
@@ -231,8 +249,9 @@ class _TabSwitcherWrapperState extends State<_TabSwitcherWrapper> {
   @override
   Widget build(BuildContext context) {
     final textBookBloc = _TestTextBookBloc(_loadedState());
-    final personalNotesBloc =
-        _TestPersonalNotesBloc(const PersonalNotesState.initial());
+    final personalNotesBloc = _TestPersonalNotesBloc(
+      const PersonalNotesState.initial(),
+    );
     final settingsBloc = _TestSettingsBloc(SettingsState.initial());
 
     return MaterialApp(
@@ -261,29 +280,28 @@ class _TabSwitcherWrapperState extends State<_TabSwitcherWrapper> {
 
 TextBookLoaded _loadedState({
   List<String> activeCommentators = const [],
-}) =>
-    TextBookLoaded(
-      book: TextBook(title: 'ספר בדיקה'),
-      showLeftPane: false,
-      content: const ['שורה א', 'שורה ב'],
-      fontSize: 18,
-      showSplitView: true,
-      showPageShapeView: false,
-      activeCommentators: activeCommentators,
-      commentatorGroups: const [],
-      availableCommentators: activeCommentators,
-      links: const <Link>[],
-      visibleLinks: const <Link>[],
-      linksByLine: const {},
-      tableOfContents: const [],
-      removeNikud: false,
-      visibleIndices: const [0],
-      selectedIndex: null,
-      pinLeftPane: false,
-      searchText: '',
-      scrollController: ItemScrollController(),
-      positionsListener: ItemPositionsListener.create(),
-    );
+}) => TextBookLoaded(
+  book: TextBook(title: 'ספר בדיקה'),
+  showLeftPane: false,
+  content: const ['שורה א', 'שורה ב'],
+  fontSize: 18,
+  showSplitView: true,
+  showPageShapeView: false,
+  activeCommentators: activeCommentators,
+  commentatorGroups: const [],
+  availableCommentators: activeCommentators,
+  links: const <Link>[],
+  visibleLinks: const <Link>[],
+  linksByLine: const {},
+  tableOfContents: const [],
+  removeNikud: false,
+  visibleIndices: const [0],
+  selectedIndex: null,
+  pinLeftPane: false,
+  searchText: '',
+  scrollController: ItemScrollController(),
+  positionsListener: ItemPositionsListener.create(),
+);
 
 class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {

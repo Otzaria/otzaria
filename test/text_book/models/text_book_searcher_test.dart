@@ -16,7 +16,8 @@ Future<void> performSearch(TextBookSearcher searcher, String query) {
 }
 
 void main() {
-  const bookData = '<h1>ספר בראשית</h1>\n'
+  const bookData =
+      '<h1>ספר בראשית</h1>\n'
       '<h2>פרק א</h2>\n'
       'בראשית ברא אלהים את השמים ואת הארץ\n'
       '<h2>פרק ב</h2>\n'

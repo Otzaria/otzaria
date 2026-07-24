@@ -78,8 +78,9 @@ class TabsState extends Equatable {
       tabs: tabs ?? this.tabs,
       currentTabIndex: currentTabIndex ?? this.currentTabIndex,
       updateCounter: forceUpdate ? updateCounter + 1 : updateCounter,
-      sideBySideMode:
-          clearSideBySide ? null : (sideBySideMode ?? this.sideBySideMode),
+      sideBySideMode: clearSideBySide
+          ? null
+          : (sideBySideMode ?? this.sideBySideMode),
     );
   }
 
@@ -88,6 +89,10 @@ class TabsState extends Equatable {
   bool get isSideBySideMode => sideBySideMode != null;
 
   @override
-  List<Object?> get props =>
-      [tabs, currentTabIndex, updateCounter, sideBySideMode];
+  List<Object?> get props => [
+    tabs,
+    currentTabIndex,
+    updateCounter,
+    sideBySideMode,
+  ];
 }

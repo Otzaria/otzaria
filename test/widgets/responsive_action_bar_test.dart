@@ -5,70 +5,71 @@ import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 
 void main() {
   testWidgets(
-      'כשיש alwaysInMenu לא מציגים את כל הכפתורים אם עדיין צריך overflow',
-      (tester) async {
-    Widget buildAction(IconData icon, String tooltip) {
-      return IconButton(
-        onPressed: () {},
-        icon: Icon(icon),
-        tooltip: tooltip,
-      );
-    }
+    'כשיש alwaysInMenu לא מציגים את כל הכפתורים אם עדיין צריך overflow',
+    (tester) async {
+      Widget buildAction(IconData icon, String tooltip) {
+        return IconButton(
+          onPressed: () {},
+          icon: Icon(icon),
+          tooltip: tooltip,
+        );
+      }
 
-    final actions = [
-      ActionButtonData(
-        widget: buildAction(FluentIcons.book_24_regular, 'ספר'),
-        icon: FluentIcons.book_24_regular,
-        tooltip: 'ספר',
-        onPressed: () {},
-      ),
-      ActionButtonData(
-        widget: buildAction(FluentIcons.search_24_regular, 'חיפוש'),
-        icon: FluentIcons.search_24_regular,
-        tooltip: 'חיפוש',
-        onPressed: () {},
-      ),
-      ActionButtonData(
-        widget: buildAction(FluentIcons.settings_24_regular, 'הגדרות'),
-        icon: FluentIcons.settings_24_regular,
-        tooltip: 'הגדרות',
-        onPressed: () {},
-      ),
-    ];
+      final actions = [
+        ActionButtonData(
+          widget: buildAction(FluentIcons.book_24_regular, 'ספר'),
+          icon: FluentIcons.book_24_regular,
+          tooltip: 'ספר',
+          onPressed: () {},
+        ),
+        ActionButtonData(
+          widget: buildAction(FluentIcons.search_24_regular, 'חיפוש'),
+          icon: FluentIcons.search_24_regular,
+          tooltip: 'חיפוש',
+          onPressed: () {},
+        ),
+        ActionButtonData(
+          widget: buildAction(FluentIcons.settings_24_regular, 'הגדרות'),
+          icon: FluentIcons.settings_24_regular,
+          tooltip: 'הגדרות',
+          onPressed: () {},
+        ),
+      ];
 
-    final alwaysInMenu = [
-      ActionButtonData(
-        widget: buildAction(FluentIcons.more_horizontal_24_regular, 'נוסף'),
-        icon: FluentIcons.more_horizontal_24_regular,
-        tooltip: 'נוסף',
-        onPressed: () {},
-      ),
-    ];
+      final alwaysInMenu = [
+        ActionButtonData(
+          widget: buildAction(FluentIcons.more_horizontal_24_regular, 'נוסף'),
+          icon: FluentIcons.more_horizontal_24_regular,
+          tooltip: 'נוסף',
+          onPressed: () {},
+        ),
+      ];
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Directionality(
-          textDirection: TextDirection.rtl,
-          child: Scaffold(
-            appBar: AppBar(
-              actions: [
-                ResponsiveActionBar(
-                  actions: actions,
-                  alwaysInMenu: alwaysInMenu,
-                  maxVisibleButtons: 2,
-                ),
-              ],
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              appBar: AppBar(
+                actions: [
+                  ResponsiveActionBar(
+                    actions: actions,
+                    alwaysInMenu: alwaysInMenu,
+                    maxVisibleButtons: 2,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    expect(find.byIcon(FluentIcons.more_vertical_24_regular), findsOneWidget);
-    expect(find.byIcon(FluentIcons.book_24_regular), findsOneWidget);
-    expect(find.byIcon(FluentIcons.search_24_regular), findsOneWidget);
-    expect(find.byIcon(FluentIcons.settings_24_regular), findsNothing);
-  });
+      expect(find.byIcon(FluentIcons.more_vertical_24_regular), findsOneWidget);
+      expect(find.byIcon(FluentIcons.book_24_regular), findsOneWidget);
+      expect(find.byIcon(FluentIcons.search_24_regular), findsOneWidget);
+      expect(find.byIcon(FluentIcons.settings_24_regular), findsNothing);
+    },
+  );
 
   group('maxToolbarButtonsForWidth', () {
     test('מסך צר מאוד מחזיר 0 כפתורים (רק overflow)', () {

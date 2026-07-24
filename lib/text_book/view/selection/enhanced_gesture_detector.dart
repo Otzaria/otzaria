@@ -111,7 +111,8 @@ class _EnhancedGestureDetectorState extends State<EnhancedGestureDetector> {
     }
 
     // Ctrl (או Cmd ב-macOS) + לחיצה → הוספת/הסרת קטע מבחירה מרובה.
-    final isCtrlPressed = HardwareKeyboard.instance.isControlPressed ||
+    final isCtrlPressed =
+        HardwareKeyboard.instance.isControlPressed ||
         HardwareKeyboard.instance.isMetaPressed;
 
     if (isCtrlPressed && widget.onCtrlClick != null) {

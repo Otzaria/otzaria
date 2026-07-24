@@ -125,8 +125,11 @@ String formatZmanTime(DateTime dt, tz.Location tzLocation) {
 }
 
 // תומך בעטיפת ה-LTR isolate ובסימן השניות האופציונלי (`.`/`:`).
-final RegExp _clockTimePattern =
-    RegExp('^$_ltrIsolateStart?' r'\d{1,2}:\d{2}[.:]?' '$_ltrIsolateEnd?\$');
+final RegExp _clockTimePattern = RegExp(
+  '^$_ltrIsolateStart?'
+  r'\d{1,2}:\d{2}[.:]?'
+  '$_ltrIsolateEnd?\$',
+);
 
 /// בודק אם מחרוזת זמן היא שעת-שעון (HH:MM) — שעבורה מיון לקסיקוגרפי שקול
 /// למיון כרונולוגי. זמני קידוש לבנה מוצגים כתאריך עברי ("ליל ... HH:MM")
@@ -170,9 +173,14 @@ String? formatKidushLevanaNight(
   final tzLocation = tz.getLocation(tzId);
 
   // הרגע מבוטא בזמן ירושלים סטנדרטי (GMT+2) — ממירים ל-instant ואז לזמן העיר.
-  final rawInstant = DateTime.utc(rawMolad.year, rawMolad.month, rawMolad.day,
-          rawMolad.hour, rawMolad.minute, rawMolad.second)
-      .subtract(const Duration(hours: 2));
+  final rawInstant = DateTime.utc(
+    rawMolad.year,
+    rawMolad.month,
+    rawMolad.day,
+    rawMolad.hour,
+    rawMolad.minute,
+    rawMolad.second,
+  ).subtract(const Duration(hours: 2));
   final localMoment = tz.TZDateTime.from(rawInstant, tzLocation);
 
   // בונים לוח זמנים ליום (האזרחי) שבו הרגע נופל בעיר, לחישוב עלות/צאת/שקיעה.
@@ -211,15 +219,18 @@ String _formatHebrewNightLabel(
 }) {
   final time =
       '$_ltrIsolateStart${moment.hour.toString().padLeft(2, '0')}:${moment.minute.toString().padLeft(2, '0')}${secondsMarker(moment)}$_ltrIsolateEnd';
-  final jewishDate =
-      JewishDate.fromDateTime(DateTime(moment.year, moment.month, moment.day));
+  final jewishDate = JewishDate.fromDateTime(
+    DateTime(moment.year, moment.month, moment.day),
+  );
   if (advanceToNextDay) jewishDate.forward();
   final formatter = HebrewDateFormatter()..hebrewFormat = true;
-  final dayOfMonth =
-      formatter.formatHebrewNumber(jewishDate.getJewishDayOfMonth());
+  final dayOfMonth = formatter.formatHebrewNumber(
+    jewishDate.getJewishDayOfMonth(),
+  );
   final dayOfWeek = jewishDate.getDayOfWeek();
-  final nightName =
-      (dayOfWeek >= 1 && dayOfWeek <= 7) ? _hebrewNightNames[dayOfWeek] : '';
+  final nightName = (dayOfWeek >= 1 && dayOfWeek <= 7)
+      ? _hebrewNightNames[dayOfWeek]
+      : '';
   return '$nightName $dayOfMonth לחודש $time';
 }
 
@@ -252,7 +263,8 @@ DateTime? calculateSolarMidnight(
   final sunriseTomorrow = tomorrowContext?.zmanimCalendar.getSunrise();
   if (sunriseTomorrow == null) return fallback();
 
-  final nightMs = sunriseTomorrow.millisecondsSinceEpoch -
+  final nightMs =
+      sunriseTomorrow.millisecondsSinceEpoch -
       sunsetToday.millisecondsSinceEpoch;
   return DateTime.fromMillisecondsSinceEpoch(
     sunsetToday.millisecondsSinceEpoch + nightMs ~/ 2,
@@ -262,7 +274,9 @@ DateTime? calculateSolarMidnight(
 
 /// זמן הדלקת נרות — מספר הדקות לפני השקיעה משתנה לפי מנהג העיר.
 DateTime? calculateCandleLightingTime(
-    ComplexZmanimCalendar zmanimCalendar, String city) {
+  ComplexZmanimCalendar zmanimCalendar,
+  String city,
+) {
   final sunset = zmanimCalendar.getSunset();
   if (sunset == null) return null;
   final minutesBefore = getCandleLightingMinutes(city);

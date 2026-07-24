@@ -111,8 +111,9 @@ List<String> _facetsForName(String name, Library? library) {
       return 2;
     }
     final searchText = [normalizedTitle, ...acronyms].join(' ');
-    if (nameWords
-        .every((word) => bookSearchWordMatchesFuzzy(word, searchText))) {
+    if (nameWords.every(
+      (word) => bookSearchWordMatchesFuzzy(word, searchText),
+    )) {
       return 3;
     }
     return null;

@@ -9,8 +9,7 @@ void main() {
   });
 
   group('calculateMoladForDate', () {
-    test(
-        'returns null on a regular day (not r"ch, shabbos mevorchim, '
+    test('returns null on a regular day (not r"ch, shabbos mevorchim, '
         'or molad day)', () {
       // 15 Sivan 5785 (Wednesday, 11 June 2025) — middle of the month.
       final date = DateTime(2025, 6, 11);
@@ -29,15 +28,17 @@ void main() {
       expect(info.cityTimezone, 'Asia/Jerusalem');
     });
 
-    test('returns molad info on Rosh Chodesh day 30 (first day of 2-day r"ch)',
-        () {
-      // 30 Cheshvan 5786 = 21 November 2025 (first of 2 r"ch days for Kislev)
-      final date = DateTime(2025, 11, 21);
-      final info = calculateMoladForDate(date, 'ירושלים');
-      expect(info, isNotNull);
-      expect(info!.reason, MoladDisplayReason.roshChodesh);
-      expect(info.jewishMonth, JewishDate.KISLEV);
-    });
+    test(
+      'returns molad info on Rosh Chodesh day 30 (first day of 2-day r"ch)',
+      () {
+        // 30 Cheshvan 5786 = 21 November 2025 (first of 2 r"ch days for Kislev)
+        final date = DateTime(2025, 11, 21);
+        final info = calculateMoladForDate(date, 'ירושלים');
+        expect(info, isNotNull);
+        expect(info!.reason, MoladDisplayReason.roshChodesh);
+        expect(info.jewishMonth, JewishDate.KISLEV);
+      },
+    );
 
     test('returns molad info on Shabbos Mevorchim for next month', () {
       // 25 Tishrei 5786 = Shabbat 18 Oct 2025.
@@ -56,11 +57,13 @@ void main() {
       final info = calculateMoladForDate(date, 'ירושלים')!;
       expect(info.announcementText, isNot(startsWith('מולד ')));
       expect(info.announcementText, isNot(contains('יהיה')));
-      final startsWithDay = info.announcementText.startsWith('יום ') ||
+      final startsWithDay =
+          info.announcementText.startsWith('יום ') ||
           info.announcementText.startsWith('שבת');
       expect(startsWithDay, isTrue);
       expect(info.announcementText, matches(RegExp(r'בשעה \d{1,2} ')));
-      final hasDayPart = info.announcementText.contains('בבוקר') ||
+      final hasDayPart =
+          info.announcementText.contains('בבוקר') ||
           info.announcementText.contains('אחר הצהריים') ||
           info.announcementText.contains('בערב') ||
           info.announcementText.contains('בלילה') ||
@@ -83,24 +86,25 @@ void main() {
   // inside the card.
   // ==========================================================================
   group('moladDay trigger follows the visible molad', () {
-    test(
-        'Jerusalem: card shows on 21 Oct 2025 — the true conjunction day '
+    test('Jerusalem: card shows on 21 Oct 2025 — the true conjunction day '
         '(mean molad in LMT falls on 23 Oct after midnight)', () {
       // The true conjunction is on 21 Oct 2025 ~15:25 IDT. The mean molad in
       // LMT is on 23 Oct 2025 ~00:54. Before the fix, the card would NOT have
       // shown on 21 Oct (since mean molad isn't on that day). After the fix,
       // it must.
       final info = calculateMoladForDate(DateTime(2025, 10, 21), 'ירושלים');
-      expect(info, isNotNull,
-          reason: 'must show on the day of the true conjunction in Jerusalem');
+      expect(
+        info,
+        isNotNull,
+        reason: 'must show on the day of the true conjunction in Jerusalem',
+      );
       expect(info!.reason, MoladDisplayReason.moladDay);
       // And the shown timestamp must indeed be on 21 Oct.
       expect(info.visibleMoladInCity.day, 21);
       expect(info.visibleMoladInCity.month, 10);
     });
 
-    test(
-        'New York: card shows on 21 Oct 2025 — same true conjunction day '
+    test('New York: card shows on 21 Oct 2025 — same true conjunction day '
         'in NY local time (08:25 EDT)', () {
       final info = calculateMoladForDate(DateTime(2025, 10, 21), 'ניו יורק');
       expect(info, isNotNull);
@@ -108,8 +112,7 @@ void main() {
       expect(info.visibleMoladInCity.day, 21);
     });
 
-    test(
-        'Trigger is city-aware: Jerusalem and LA see the molad on '
+    test('Trigger is city-aware: Jerusalem and LA see the molad on '
         'different Gregorian days', () {
       // R"ch Nisan 5786: true conjunction 19 Mar 2026 ~01:23 UTC.
       //   - Jerusalem (UTC+2 standard, before Israel DST switch on 27 Mar):
@@ -120,16 +123,27 @@ void main() {
       //     is moladDay.
       //
       // The asymmetry: 18 Mar is moladDay in LA but null in Jerusalem.
-      final jerusalemOn18 =
-          calculateMoladForDate(DateTime(2026, 3, 18), 'ירושלים');
-      final laOn18 =
-          calculateMoladForDate(DateTime(2026, 3, 18), 'לוס אנג\'לס');
+      final jerusalemOn18 = calculateMoladForDate(
+        DateTime(2026, 3, 18),
+        'ירושלים',
+      );
+      final laOn18 = calculateMoladForDate(
+        DateTime(2026, 3, 18),
+        'לוס אנג\'לס',
+      );
 
-      expect(jerusalemOn18, isNull,
-          reason: '18 Mar in Jerusalem: conjunction in Jerusalem is on '
-              'the 19th — nothing to show on the 18th.');
-      expect(laOn18, isNotNull,
-          reason: '18 Mar in LA: conjunction falls locally on this day');
+      expect(
+        jerusalemOn18,
+        isNull,
+        reason:
+            '18 Mar in Jerusalem: conjunction in Jerusalem is on '
+            'the 19th — nothing to show on the 18th.',
+      );
+      expect(
+        laOn18,
+        isNotNull,
+        reason: '18 Mar in LA: conjunction falls locally on this day',
+      );
       expect(laOn18!.reason, MoladDisplayReason.moladDay);
     });
   });
@@ -308,8 +322,7 @@ void main() {
       expect(info.monthName, contains('אדר'));
     });
 
-    test(
-        'R"ch Adar II in leap year 5784 (11 Mar 2024) — distinct from '
+    test('R"ch Adar II in leap year 5784 (11 Mar 2024) — distinct from '
         'Adar I', () {
       // 1 Adar II 5784 = Monday 11 March 2024.
       final date = DateTime(2024, 3, 11);
@@ -334,9 +347,13 @@ void main() {
       final info = calculateMoladForDate(date, 'ירושלים');
       expect(info, isNotNull);
       expect(info!.reason, MoladDisplayReason.shabbosMevorchim);
-      expect(info.jewishMonth, JewishDate.ADAR_II,
-          reason: 'Shabbos Mevorchim of Adar should point to Adar II '
-              'when next month is Adar II');
+      expect(
+        info.jewishMonth,
+        JewishDate.ADAR_II,
+        reason:
+            'Shabbos Mevorchim of Adar should point to Adar II '
+            'when next month is Adar II',
+      );
     });
   });
 
@@ -354,9 +371,13 @@ void main() {
       expect(info, isNotNull, reason: '$description: must trigger');
       final actual = info!.visibleMoladInCity.toUtc();
       final diffMinutes = actual.difference(expectedUtc).inMinutes.abs();
-      expect(diffMinutes, lessThanOrEqualTo(15),
-          reason: '$description: expected $expectedUtc, got $actual '
-              '(diff ${diffMinutes}m)');
+      expect(
+        diffMinutes,
+        lessThanOrEqualTo(15),
+        reason:
+            '$description: expected $expectedUtc, got $actual '
+            '(diff ${diffMinutes}m)',
+      );
     }
 
     test('R"ch Cheshvan 5786 — USNO 2025-10-21 12:25 UTC', () {

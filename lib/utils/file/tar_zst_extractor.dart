@@ -12,8 +12,11 @@ Future<void> extractTarZstToDir(
 }) async {
   final tarPath = '$archivePath.tar';
   try {
-    await ZstdStreamExtractor.extractToFile(archivePath, tarPath,
-        onProgress: onProgress);
+    await ZstdStreamExtractor.extractToFile(
+      archivePath,
+      tarPath,
+      onProgress: onProgress,
+    );
     await extractFileToDisk(tarPath, outputDir);
   } finally {
     // גם חילוץ zst שנכשל באמצע משאיר tar חלקי — מנקים תמיד.

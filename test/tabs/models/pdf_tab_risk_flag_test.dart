@@ -23,8 +23,8 @@ void main() {
   });
 
   test('דף יומי / מעבר טקסט->PDF מפעילים requiresStableLayout', () {
-    final tab = OpenedTab.fromBook(book, 1, requiresStableLayout: true)
-        as PdfBookTab;
+    final tab =
+        OpenedTab.fromBook(book, 1, requiresStableLayout: true) as PdfBookTab;
     expect(tab.requiresStableLayout, isTrue);
   });
 

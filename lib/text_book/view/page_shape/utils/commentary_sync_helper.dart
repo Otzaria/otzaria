@@ -17,8 +17,8 @@ class CommentarySyncHelper {
 
     // אם השורה הנוכחית היא כותרת, נדלג לשורה הבאה
     int logicalIndex = currentIndex;
-    while (
-        logicalIndex < content.length && isHeaderLine(content[logicalIndex])) {
+    while (logicalIndex < content.length &&
+        isHeaderLine(content[logicalIndex])) {
       logicalIndex++;
     }
 

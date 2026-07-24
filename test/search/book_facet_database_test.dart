@@ -39,11 +39,17 @@ void main() {
       await UserBooksDatabaseHolder.instance.close();
 
       await Settings.setValue<String>(
-          SettingsRepository.keyLibraryPath, libraryPath);
+        SettingsRepository.keyLibraryPath,
+        libraryPath,
+      );
       await Settings.setValue<String>(
-          SettingsRepository.keyLibraryFolderName, '');
+        SettingsRepository.keyLibraryFolderName,
+        '',
+      );
       await Settings.setValue<String>(
-          SettingsRepository.keyDbEffectivePath, '');
+        SettingsRepository.keyDbEffectivePath,
+        '',
+      );
 
       final dbPath = path.join(libraryPath, DatabaseConstants.databaseFileName);
       seforimDb = MyDatabase.withPath(dbPath);
@@ -144,39 +150,43 @@ void main() {
     });
 
     test(
-        'categoryPath של "ספרים אישיים" → preferUserBooks → topics מ-user_books',
-        () async {
-      final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;
-      final personalId = await userBooksRepo.insertCategory(
-        const migration_models.Category(title: 'ספרים אישיים'),
-      );
-      final folderId = await userBooksRepo.insertCategory(
-        migration_models.Category(
-            title: 'עבודה', parentId: personalId, level: 1),
-      );
-      final sourceId = await userBooksRepo.insertSource('Personal::test', -1);
-      await userBooksRepo.insertBook(
-        migration_models.Book(
-          categoryId: folderId,
-          sourceId: sourceId,
+      'categoryPath של "ספרים אישיים" → preferUserBooks → topics מ-user_books',
+      () async {
+        final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;
+        final personalId = await userBooksRepo.insertCategory(
+          const migration_models.Category(title: 'ספרים אישיים'),
+        );
+        final folderId = await userBooksRepo.insertCategory(
+          migration_models.Category(
+            title: 'עבודה',
+            parentId: personalId,
+            level: 1,
+          ),
+        );
+        final sourceId = await userBooksRepo.insertSource('Personal::test', -1);
+        await userBooksRepo.insertBook(
+          migration_models.Book(
+            categoryId: folderId,
+            sourceId: sourceId,
+            title: 'ספר אישי',
+            fileType: 'txt',
+            topics: const [migration_models.Topic(name: 'מנהל')],
+          ),
+        );
+
+        // ⚠️ resolveTopics מקצר אם יש categoryPath — _normalizeCategoryPath
+        // ממיר אותו ל-topics ומחזיר ישירות. כדי שהמסלול ל-DB יקרה לא נשלח
+        // categoryPath, אלא רק נשען על ה-fallback.
+        final topics = await BookFacet.resolveTopics(
           title: 'ספר אישי',
-          fileType: 'txt',
-          topics: const [migration_models.Topic(name: 'מנהל')],
-        ),
-      );
+          initialTopics: '',
+          type: TextBook,
+        );
 
-      // ⚠️ resolveTopics מקצר אם יש categoryPath — _normalizeCategoryPath
-      // ממיר אותו ל-topics ומחזיר ישירות. כדי שהמסלול ל-DB יקרה לא נשלח
-      // categoryPath, אלא רק נשען על ה-fallback.
-      final topics = await BookFacet.resolveTopics(
-        title: 'ספר אישי',
-        initialTopics: '',
-        type: TextBook,
-      );
-
-      // ה-resolver יחפש קודם ב-seforim (לא קיים), ואז ב-user_books וייתפס שם.
-      expect(topics, 'מנהל');
-    });
+        // ה-resolver יחפש קודם ב-seforim (לא קיים), ואז ב-user_books וייתפס שם.
+        expect(topics, 'מנהל');
+      },
+    );
 
     test('ספר שלא קיים בשום DB מחזיר מחרוזת ריקה', () async {
       final topics = await BookFacet.resolveTopics(

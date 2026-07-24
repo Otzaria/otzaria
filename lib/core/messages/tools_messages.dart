@@ -68,6 +68,9 @@ abstract class ToolsMessages {
   static String categoryNotFound(String categoryName) =>
       'לא נמצאה קטגוריה: $categoryName';
   static String tractateNotFound(
-          String tractate, String categoryName, String availableBooks) =>
+    String tractate,
+    String categoryName,
+    String availableBooks,
+  ) =>
       'לא נמצא ספר: $tractate ב$categoryName\nספרים זמינים: $availableBooks...';
 }

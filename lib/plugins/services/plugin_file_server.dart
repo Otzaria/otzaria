@@ -111,8 +111,10 @@ class PluginFileServer {
       // loopback + token אקראי; מתירים גישת fetch מ-origin file:// (Origin: null).
       response.headers.set('Access-Control-Allow-Origin', '*');
       response.headers.set('Access-Control-Allow-Headers', 'Range');
-      response.headers.set('Access-Control-Expose-Headers',
-          'Content-Range, Accept-Ranges, Content-Length');
+      response.headers.set(
+        'Access-Control-Expose-Headers',
+        'Content-Range, Accept-Ranges, Content-Length',
+      );
 
       if (request.method == 'OPTIONS') {
         response.statusCode = HttpStatus.noContent;
@@ -158,8 +160,10 @@ class PluginFileServer {
         return;
       }
       response.statusCode = HttpStatus.partialContent;
-      response.headers
-          .set('Content-Range', 'bytes ${range.start}-${range.end}/$length');
+      response.headers.set(
+        'Content-Range',
+        'bytes ${range.start}-${range.end}/$length',
+      );
       response.headers.contentLength = range.end - range.start + 1;
       if (request.method == 'HEAD') return;
       await response.addStream(file.openRead(range.start, range.end + 1));

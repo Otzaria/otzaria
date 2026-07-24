@@ -4,15 +4,17 @@ import 'package:otzaria/navigation/view/main_window_screen.dart';
 
 void main() {
   group('resolveLibraryPageBuildDecision', () {
-    test('מחזיר placeholder כשמסך הפתיחה אינו ספרייה והדף האמיתי עוד לא נבנה',
-        () {
-      final decision = resolveLibraryPageBuildDecision(
-        hasBuiltRealPage: false,
-        currentScreen: Screen.reading,
-      );
+    test(
+      'מחזיר placeholder כשמסך הפתיחה אינו ספרייה והדף האמיתי עוד לא נבנה',
+      () {
+        final decision = resolveLibraryPageBuildDecision(
+          hasBuiltRealPage: false,
+          currentScreen: Screen.reading,
+        );
 
-      expect(decision, LibraryPageBuildDecision.usePlaceholder);
-    });
+        expect(decision, LibraryPageBuildDecision.usePlaceholder);
+      },
+    );
 
     test('בונה את הדף האמיתי כשנכנסים לראשונה למסך הספרייה', () {
       final decision = resolveLibraryPageBuildDecision(

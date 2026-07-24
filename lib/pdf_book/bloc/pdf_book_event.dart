@@ -258,12 +258,12 @@ class UpdateSearchOptions extends PdfBookEvent {
 
   @override
   List<Object?> get props => [
-        searchOptions,
-        alternativeWords,
-        spacingValues,
-        searchMode,
-        searchDistance,
-      ];
+    searchOptions,
+    alternativeWords,
+    spacingValues,
+    searchMode,
+    searchDistance,
+  ];
 }
 
 /// Update search results

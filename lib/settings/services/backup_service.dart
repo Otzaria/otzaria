@@ -254,7 +254,8 @@ class BackupService {
         });
       } catch (e) {
         _logger.warning(
-            'Skipping notes for book ${bookInfo.bookId} due to error: $e');
+          'Skipping notes for book ${bookInfo.bookId} due to error: $e',
+        );
       }
     }
 
@@ -304,7 +305,9 @@ class BackupService {
   // תוספי פיתוח (`development`) מדולגים, כיון שאינם קיימים במחשב היעד.
   // גיבוי תוסף שנכשל מתבצע דילוג, ומסומן ב-[skippedSections] למניעת שגיאות בשחזור
   static Future<List<Map<String, dynamic>>> _backupPlugins(
-      List<String> skippedSections, BackupStore? store) async {
+    List<String> skippedSections,
+    BackupStore? store,
+  ) async {
     final db = PluginSystemDatabase.instance;
     final plugins = await db.getAllInstalledPlugins();
     final result = <Map<String, dynamic>>[];
@@ -326,7 +329,8 @@ class BackupService {
         });
       } catch (e) {
         _logger.warning(
-            'Skipping plugin ${plugin.pluginId} backup due to error: $e');
+          'Skipping plugin ${plugin.pluginId} backup due to error: $e',
+        );
         if (!skippedSections.contains('plugins')) {
           skippedSections.add('plugins');
         }
@@ -343,7 +347,9 @@ class BackupService {
   /// כשל בקריאת קובץ אינו נבלע אלא מתפשט לקורא — כך גיבוי תוסף נכשל במלואו
   /// ומסומן כחלקי, במקום ליצור גיבוי עם קבצים חסרים בשתיקה.
   static Future<Map<String, String>> _readDirAsRefs(
-      String dirPath, BackupStore? store) async {
+    String dirPath,
+    BackupStore? store,
+  ) async {
     final dir = Directory(dirPath);
     if (!await dir.exists()) return {};
 
@@ -352,8 +358,9 @@ class BackupService {
       if (entity is File) {
         final relativePath = p.relative(entity.path, from: dir.path);
         final bytes = await entity.readAsBytes();
-        map[p.split(relativePath).join('/')] =
-            store != null ? await store.putBytes(bytes) : base64Encode(bytes);
+        map[p.split(relativePath).join('/')] = store != null
+            ? await store.putBytes(bytes)
+            : base64Encode(bytes);
       }
     }
     return map;
@@ -373,7 +380,8 @@ class BackupService {
   static Future<Map<String, dynamic>> _backupShamorZachor() async {
     if (!Hive.isBoxOpen(HiveCache.keyName)) {
       _logger.warning(
-          '_backupShamorZachor: Hive box not open — skipping (partial backup)');
+        '_backupShamorZachor: Hive box not open — skipping (partial backup)',
+      );
       return {};
     }
     final box = Hive.box<dynamic>(HiveCache.keyName);
@@ -417,7 +425,8 @@ class BackupService {
         (backupData['partial_sections'] as List?)?.cast<String>() ?? [];
     if (partialSections.isNotEmpty) {
       _logger.warning(
-          'Restoring a partial backup — sections missing: ${partialSections.join(", ")}');
+        'Restoring a partial backup — sections missing: ${partialSections.join(", ")}',
+      );
     }
 
     final includes = backupData['includes'] as Map<String, dynamic>;
@@ -517,8 +526,9 @@ class BackupService {
     List<Map<String, dynamic>> bookmarksData,
   ) async {
     final repo = BookmarkRepository();
-    final bookmarks =
-        bookmarksData.map((data) => Bookmark.fromJson(data)).toList();
+    final bookmarks = bookmarksData
+        .map((data) => Bookmark.fromJson(data))
+        .toList();
     await repo.saveBookmarks(bookmarks);
   }
 
@@ -548,8 +558,9 @@ class BackupService {
           final notesList = entry['notes'] as List<dynamic>;
           for (final noteData in notesList) {
             try {
-              final note =
-                  _noteFromBackupJson(noteData as Map<String, dynamic>);
+              final note = _noteFromBackupJson(
+                noteData as Map<String, dynamic>,
+              );
               await database.insertNote(note);
             } catch (e) {
               _logger.warning('Failed to restore single note from backup: $e');
@@ -616,8 +627,8 @@ class BackupService {
 
     for (final entry in pluginsData) {
       try {
-        final installation =
-            (entry['installation'] as Map).cast<String, dynamic>();
+        final installation = (entry['installation'] as Map)
+            .cast<String, dynamic>();
         final pluginId = installation['plugin_id'] as String;
 
         final installPath = await AppPaths.getPluginInstallPath(pluginId);
@@ -673,8 +684,9 @@ class BackupService {
     final normalizedRoot = p.normalize(dirPath);
     final resolved = <String, List<int>>{};
     for (final fileEntry in files.entries) {
-      final targetPath =
-          p.normalize(p.joinAll([dirPath, ...fileEntry.key.split('/')]));
+      final targetPath = p.normalize(
+        p.joinAll([dirPath, ...fileEntry.key.split('/')]),
+      );
       if (!p.isWithin(normalizedRoot, targetPath)) {
         throw Exception('נתיב לא בטוח בגיבוי התוסף: ${fileEntry.key}');
       }
@@ -718,8 +730,9 @@ class BackupService {
     Object? currentWorkspace,
   ) async {
     final repo = WorkspaceRepository();
-    final workspaces =
-        workspacesData.map((data) => Workspace.fromJson(data)).toList();
+    final workspaces = workspacesData
+        .map((data) => Workspace.fromJson(data))
+        .toList();
     final currentId = _resolveCurrentWorkspaceId(
       workspaces: workspaces,
       currentWorkspace: currentWorkspace,
@@ -752,7 +765,8 @@ class BackupService {
   ) async {
     if (!Hive.isBoxOpen(HiveCache.keyName)) {
       _logger.warning(
-          '_restoreShamorZachor: Hive box not open — skipping (partial restore)');
+        '_restoreShamorZachor: Hive box not open — skipping (partial restore)',
+      );
       return true;
     }
     final box = Hive.box<dynamic>(HiveCache.keyName);
@@ -796,8 +810,9 @@ class BackupService {
     // Cooldown: if a partial attempt happened recently, don't flood the folder
     final lastPartial = Settings.getValue<String>(_kLastPartialAutoBackupKey);
     if (lastPartial != null) {
-      final minutesSince =
-          now.difference(DateTime.parse(lastPartial)).inMinutes;
+      final minutesSince = now
+          .difference(DateTime.parse(lastPartial))
+          .inMinutes;
       if (minutesSince < _kPartialRetryMinutes) return false;
     }
 
@@ -836,14 +851,19 @@ class BackupService {
 
     if (result.skippedSections.isNotEmpty) {
       _logger.warning(
-          'Auto-backup partial — skipped: ${result.skippedSections.join(", ")} — will retry after ${_kPartialRetryMinutes}min cooldown');
+        'Auto-backup partial — skipped: ${result.skippedSections.join(", ")} — will retry after ${_kPartialRetryMinutes}min cooldown',
+      );
       await Settings.setValue(
-          _kLastPartialAutoBackupKey, DateTime.now().toIso8601String());
+        _kLastPartialAutoBackupKey,
+        DateTime.now().toIso8601String(),
+      );
       return;
     }
 
     await Settings.setValue(
-        'key-last-auto-backup', DateTime.now().toIso8601String());
+      'key-last-auto-backup',
+      DateTime.now().toIso8601String(),
+    );
 
     // תחזוקה אחרי גיבוי מוצלח: רוטציה, מיזוג לארכיון וניקוי blobs יתומים.
     try {
@@ -873,7 +893,9 @@ class BackupService {
       final backups = await getAvailableBackups();
       if (backups.isEmpty) {
         return const BackupStatus(
-            lastBackupDate: null, hasSignificantChanges: false);
+          lastBackupDate: null,
+          hasSignificantChanges: false,
+        );
       }
 
       final latestFile = backups.first as File;
@@ -883,7 +905,9 @@ class BackupService {
       // Don't recommend again within 24 hours of the last backup
       if (DateTime.now().difference(backupDate).inHours < 24) {
         return BackupStatus(
-            lastBackupDate: backupDate, hasSignificantChanges: false);
+          lastBackupDate: backupDate,
+          hasSignificantChanges: false,
+        );
       }
 
       Map<String, dynamic> backupData;
@@ -892,16 +916,22 @@ class BackupService {
         backupData = json.decode(content) as Map<String, dynamic>;
       } catch (_) {
         return BackupStatus(
-            lastBackupDate: backupDate, hasSignificantChanges: false);
+          lastBackupDate: backupDate,
+          hasSignificantChanges: false,
+        );
       }
 
       final hasChanges = await _hasSignificantChanges(backupData, backupDate);
       return BackupStatus(
-          lastBackupDate: backupDate, hasSignificantChanges: hasChanges);
+        lastBackupDate: backupDate,
+        hasSignificantChanges: hasChanges,
+      );
     } catch (e) {
       _logger.warning('Failed to analyze backup status: $e');
       return const BackupStatus(
-          lastBackupDate: null, hasSignificantChanges: false);
+        lastBackupDate: null,
+        hasSignificantChanges: false,
+      );
     }
   }
 
@@ -1063,8 +1093,9 @@ class BackupService {
         try {
           final notes = await database.loadNotes(bookInfo.bookId);
           currentNoteCount += notes.length;
-          editedAfterBackup +=
-              notes.where((n) => n.updatedAt.isAfter(backupDate)).length;
+          editedAfterBackup += notes
+              .where((n) => n.updatedAt.isAfter(backupDate))
+              .length;
         } catch (_) {}
       }
 
@@ -1082,7 +1113,8 @@ class BackupService {
 
   /// Checks if bookmarks or history changed by more than half since backup (used after 1 week).
   static Future<bool> _hasBookmarksHistoryChanges(
-      Map<String, dynamic> backupData) async {
+    Map<String, dynamic> backupData,
+  ) async {
     final backedUpBookmarks = backupData['bookmarks'] as List?;
     if (backedUpBookmarks != null) {
       try {

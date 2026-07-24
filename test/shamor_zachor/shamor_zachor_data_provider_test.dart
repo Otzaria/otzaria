@@ -30,9 +30,13 @@ void main() {
 
     await Settings.init(cacheProvider: MemoryCacheProvider());
     await Settings.setValue<String>(
-        SettingsRepository.keyLibraryPath, tempDir.path);
+      SettingsRepository.keyLibraryPath,
+      tempDir.path,
+    );
     await Settings.setValue<String>(
-        SettingsRepository.keyLibraryFolderName, '');
+      SettingsRepository.keyLibraryFolderName,
+      '',
+    );
     await Settings.setValue<String>(SettingsRepository.keyDbEffectivePath, '');
     await Settings.setValue<String>(
       'sz:tracked_books',
@@ -52,48 +56,49 @@ void main() {
   test('loadAllData hydrates provider state from loader result', () async {
     final provider = ShamorZachorDataProvider(
       sqliteDataProvider: SqliteDataProvider.instance,
-      categoryTreeLoader: ({
-        required String dbPath,
-        required List<int> trackedBookIds,
-      }) async {
-        expect(dbPath, endsWith('seforim.db'));
-        expect(trackedBookIds, [fixtureBookIds['ספר אישי']]);
-        return {
-          'categories': [
-            {
-              'name': 'תנ"ך',
-              'contentType': 'text',
-              'books': {
-                'בראשית': {
+      categoryTreeLoader:
+          ({
+            required String dbPath,
+            required List<int> trackedBookIds,
+          }) async {
+            expect(dbPath, endsWith('seforim.db'));
+            expect(trackedBookIds, [fixtureBookIds['ספר אישי']]);
+            return {
+              'categories': [
+                {
+                  'name': 'תנ"ך',
                   'contentType': 'text',
-                  'id': 10,
-                  'originalPageCount': 3,
-                  'parts': [
-                    {'name': 'ראשי', 'start': 1, 'end': 3}
-                  ],
-                  'sections': [
-                    {
-                      'id': '1000',
-                      'title': 'פרק א',
-                      'level': 1,
-                      'startPage': 0,
-                      'endPage': 2,
-                    }
-                  ],
-                  'categoryPath': 'תנ"ך',
+                  'books': {
+                    'בראשית': {
+                      'contentType': 'text',
+                      'id': 10,
+                      'originalPageCount': 3,
+                      'parts': [
+                        {'name': 'ראשי', 'start': 1, 'end': 3},
+                      ],
+                      'sections': [
+                        {
+                          'id': '1000',
+                          'title': 'פרק א',
+                          'level': 1,
+                          'startPage': 0,
+                          'endPage': 2,
+                        },
+                      ],
+                      'categoryPath': 'תנ"ך',
+                    },
+                  },
+                  'defaultStartPage': 1,
+                  'isCustom': false,
+                  'sourceFile': 'db',
+                  'schemaVersion': 1,
                 },
-              },
-              'defaultStartPage': 1,
-              'isCustom': false,
-              'sourceFile': 'db',
-              'schemaVersion': 1,
-            },
-          ],
-          'relevantBookCount': 2,
-          'allBookCount': 3,
-          'categoryCount': 3,
-        };
-      },
+              ],
+              'relevantBookCount': 2,
+              'allBookCount': 3,
+              'categoryCount': 3,
+            };
+          },
     );
 
     await provider.loadAllData();
@@ -115,46 +120,50 @@ void main() {
     expect(details.sections!.single.title, 'פרק א');
   });
 
-  test('loadAllData falls back to sqlite provider when loader throws',
-      () async {
-    final provider = ShamorZachorDataProvider(
-      sqliteDataProvider: SqliteDataProvider.instance,
-      categoryTreeLoader: ({
-        required String dbPath,
-        required List<int> trackedBookIds,
-      }) async {
-        throw Exception('worker failed');
-      },
-    );
+  test(
+    'loadAllData falls back to sqlite provider when loader throws',
+    () async {
+      final provider = ShamorZachorDataProvider(
+        sqliteDataProvider: SqliteDataProvider.instance,
+        categoryTreeLoader:
+            ({
+              required String dbPath,
+              required List<int> trackedBookIds,
+            }) async {
+              throw Exception('worker failed');
+            },
+      );
 
-    await provider.loadAllData();
+      await provider.loadAllData();
 
-    expect(provider.error, isNull);
-    expect(provider.isLoading, isFalse);
-    expect(provider.hasData, isTrue);
+      expect(provider.error, isNull);
+      expect(provider.isLoading, isFalse);
+      expect(provider.hasData, isTrue);
 
-    final category = provider.getCategory('תנ"ך');
-    expect(category, isNotNull);
+      final category = provider.getCategory('תנ"ך');
+      expect(category, isNotNull);
 
-    final details = provider.getBookDetails('תנ"ך', 'בראשית');
-    expect(details, isNotNull);
-    expect(details!.id, fixtureBookIds['בראשית']);
-    expect(details.categoryPath, 'תנ"ך');
+      final details = provider.getBookDetails('תנ"ך', 'בראשית');
+      expect(details, isNotNull);
+      expect(details!.id, fixtureBookIds['בראשית']);
+      expect(details.categoryPath, 'תנ"ך');
 
-    expect(provider.getBookDetails('תנ"ך', 'ספר אישי'), isNotNull);
-    expect(provider.getBookDetails('תנ"ך', 'לא במעקב'), isNull);
-  });
+      expect(provider.getBookDetails('תנ"ך', 'ספר אישי'), isNotNull);
+      expect(provider.getBookDetails('תנ"ך', 'לא במעקב'), isNull);
+    },
+  );
 
   group('addCustomBooks', () {
     ShamorZachorDataProvider buildProvider() => ShamorZachorDataProvider(
-          sqliteDataProvider: SqliteDataProvider.instance,
-          categoryTreeLoader: ({
+      sqliteDataProvider: SqliteDataProvider.instance,
+      categoryTreeLoader:
+          ({
             required String dbPath,
             required List<int> trackedBookIds,
           }) async {
             throw Exception('force fallback');
           },
-        );
+    );
 
     test('מזהה לפי id מול המסד הרשמי גם כשהשם לא קיים', () async {
       final provider = buildProvider();

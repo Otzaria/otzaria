@@ -17,8 +17,9 @@ void main() {
   late ReferenceBooksCache cache;
 
   setUp(() async {
-    tempDir = await Directory.systemTemp
-        .createTemp('reference-books-cache-persistent-');
+    tempDir = await Directory.systemTemp.createTemp(
+      'reference-books-cache-persistent-',
+    );
     database = MyDatabase.withPath(path.join(tempDir.path, 'test.db'));
     repository = SeforimRepository(database);
     await repository.ensureInitialized();
@@ -49,8 +50,10 @@ void main() {
 
       final decoded = jsonDecode(json);
       expect(decoded, isA<Map>());
-      expect((decoded as Map)['v'],
-          equals(PdfOutlineCacheEntry.currentSchemaVersion));
+      expect(
+        (decoded as Map)['v'],
+        equals(PdfOutlineCacheEntry.currentSchemaVersion),
+      );
       expect(decoded['entries'], isA<List>());
     });
 
@@ -62,17 +65,20 @@ void main() {
 
       final entries = PdfOutlineCacheEntry.decodeOutlineEntries(legacyJson);
 
-      expect(entries, equals(const [
-        ('ברכות', 'ברכות', 1),
-        ('פרק א', 'פרק א', 3),
-      ]));
+      expect(
+        entries,
+        equals(const [
+          ('ברכות', 'ברכות', 1),
+          ('פרק א', 'פרק א', 3),
+        ]),
+      );
     });
 
     test('decode של JSON עם גרסה לא תואמת זורק FormatException', () {
       final futureJson = jsonEncode({
         'v': PdfOutlineCacheEntry.currentSchemaVersion + 1,
         'entries': [
-          {'n': 'ברכות', 'o': 'ברכות', 'p': 1}
+          {'n': 'ברכות', 'o': 'ברכות', 'p': 1},
         ],
       });
 
@@ -82,18 +88,20 @@ void main() {
       );
     });
 
-    test('מעטפה תקפה עם entries לא-רשימה נחשבת corruption וזורקת FormatException',
-        () {
-      final malformedJson = jsonEncode({
-        'v': PdfOutlineCacheEntry.currentSchemaVersion,
-        'entries': 'not-a-list',
-      });
+    test(
+      'מעטפה תקפה עם entries לא-רשימה נחשבת corruption וזורקת FormatException',
+      () {
+        final malformedJson = jsonEncode({
+          'v': PdfOutlineCacheEntry.currentSchemaVersion,
+          'entries': 'not-a-list',
+        });
 
-      expect(
-        () => PdfOutlineCacheEntry.decodeOutlineEntries(malformedJson),
-        throwsA(isA<FormatException>()),
-      );
-    });
+        expect(
+          () => PdfOutlineCacheEntry.decodeOutlineEntries(malformedJson),
+          throwsA(isA<FormatException>()),
+        );
+      },
+    );
 
     test('payload עם top-level שאינו list או object זורק FormatException', () {
       expect(
@@ -111,43 +119,46 @@ void main() {
   });
 
   group('ReferenceBooksCache persistent PDF outline cache', () {
-    test('matching metadata loads outline from SQLite without parsing',
-        () async {
-      const expectedEntries = [
-        ('ברכות', 'ברכות', 1),
-        ('פרק א', 'פרק א', 3),
-      ];
-      await repository.upsertPdfOutlineCacheEntry(
-        PdfOutlineCacheEntry(
-          filePath: '/cached.pdf',
-          fileSize: 10,
-          lastModified: 20,
-          outlineJson:
-              PdfOutlineCacheEntry.encodeOutlineEntries(expectedEntries),
-          createdAt: 1,
-          accessedAt: 2,
-        ),
-      );
-
-      cache.pdfFileMetadataProviderOverride = (_) async => (
+    test(
+      'matching metadata loads outline from SQLite without parsing',
+      () async {
+        const expectedEntries = [
+          ('ברכות', 'ברכות', 1),
+          ('פרק א', 'פרק א', 3),
+        ];
+        await repository.upsertPdfOutlineCacheEntry(
+          PdfOutlineCacheEntry(
+            filePath: '/cached.pdf',
             fileSize: 10,
             lastModified: 20,
-          );
-      var parserCalled = false;
-      cache.pdfOutlineParser = (_) async {
-        parserCalled = true;
-        return const [('חדש', 'חדש', 9)];
-      };
+            outlineJson: PdfOutlineCacheEntry.encodeOutlineEntries(
+              expectedEntries,
+            ),
+            createdAt: 1,
+            accessedAt: 2,
+          ),
+        );
 
-      final result = await cache.getPdfOutlineEntries('/cached.pdf');
-      await Future<void>.delayed(Duration.zero);
+        cache.pdfFileMetadataProviderOverride = (_) async => (
+          fileSize: 10,
+          lastModified: 20,
+        );
+        var parserCalled = false;
+        cache.pdfOutlineParser = (_) async {
+          parserCalled = true;
+          return const [('חדש', 'חדש', 9)];
+        };
 
-      expect(result, equals(expectedEntries));
-      expect(parserCalled, isFalse);
-      final row = await repository.getPdfOutlineCacheEntry('/cached.pdf');
-      expect(row, isNotNull);
-      expect(row!.accessedAt, equals(123456789));
-    });
+        final result = await cache.getPdfOutlineEntries('/cached.pdf');
+        await Future<void>.delayed(Duration.zero);
+
+        expect(result, equals(expectedEntries));
+        expect(parserCalled, isFalse);
+        final row = await repository.getPdfOutlineCacheEntry('/cached.pdf');
+        expect(row, isNotNull);
+        expect(row!.accessedAt, equals(123456789));
+      },
+    );
 
     test('metadata mismatch reparses and updates SQLite cache', () async {
       await repository.upsertPdfOutlineCacheEntry(
@@ -164,9 +175,9 @@ void main() {
       );
 
       cache.pdfFileMetadataProviderOverride = (_) async => (
-            fileSize: 11,
-            lastModified: 21,
-          );
+        fileSize: 11,
+        lastModified: 21,
+      );
       const reparsedEntries = [('חדש', 'חדש', 7)];
       cache.pdfOutlineParser = (_) async => reparsedEntries;
 
@@ -184,9 +195,9 @@ void main() {
 
     test('clear מנקה רק זיכרון — שליפה חוזרת נטענת מה-SQLite', () async {
       cache.pdfFileMetadataProviderOverride = (_) async => (
-            fileSize: 5,
-            lastModified: 6,
-          );
+        fileSize: 5,
+        lastModified: 6,
+      );
       var parserCalls = 0;
       const expectedEntries = [('מסכת', 'מסכת', 4)];
       cache.pdfOutlineParser = (_) async {
@@ -201,9 +212,9 @@ void main() {
       cache.clear();
       cache.pdfOutlineCacheRepositoryOverride = repository;
       cache.pdfFileMetadataProviderOverride = (_) async => (
-            fileSize: 5,
-            lastModified: 6,
-          );
+        fileSize: 5,
+        lastModified: 6,
+      );
       cache.nowProviderOverride = () => 123456789;
       cache.pdfOutlineParser = (_) async {
         parserCalls++;
@@ -213,8 +224,11 @@ void main() {
       final second = await cache.getPdfOutlineEntries('/persisted.pdf');
 
       expect(second, equals(expectedEntries));
-      expect(parserCalls, equals(1),
-          reason: 'השליפה השנייה צריכה להגיע מה-persistent cache');
+      expect(
+        parserCalls,
+        equals(1),
+        reason: 'השליפה השנייה צריכה להגיע מה-persistent cache',
+      );
     });
 
     test('קובץ חסר מחזיר ריק ומוחק cache stale מה-SQLite', () async {
@@ -240,37 +254,43 @@ void main() {
       expect(await repository.getPdfOutlineCacheEntry('/missing.pdf'), isNull);
     });
 
-    test('כשל metadata זמני משתמש ב-persistent cache הקיים ואינו מוחק אותו',
-        () async {
-      const expectedEntries = [('שמור', 'שמור', 8)];
-      await repository.upsertPdfOutlineCacheEntry(
-        PdfOutlineCacheEntry(
-          filePath: '/flaky.pdf',
-          fileSize: 10,
-          lastModified: 20,
-          outlineJson:
-              PdfOutlineCacheEntry.encodeOutlineEntries(expectedEntries),
-          createdAt: 1,
-          accessedAt: 2,
-        ),
-      );
+    test(
+      'כשל metadata זמני משתמש ב-persistent cache הקיים ואינו מוחק אותו',
+      () async {
+        const expectedEntries = [('שמור', 'שמור', 8)];
+        await repository.upsertPdfOutlineCacheEntry(
+          PdfOutlineCacheEntry(
+            filePath: '/flaky.pdf',
+            fileSize: 10,
+            lastModified: 20,
+            outlineJson: PdfOutlineCacheEntry.encodeOutlineEntries(
+              expectedEntries,
+            ),
+            createdAt: 1,
+            accessedAt: 2,
+          ),
+        );
 
-      cache.pdfFileMetadataProviderOverride = (_) async {
-        throw const FileSystemException('temporary I/O failure');
-      };
-      var parserCalled = false;
-      cache.pdfOutlineParser = (_) async {
-        parserCalled = true;
-        return const [('חדש', 'חדש', 9)];
-      };
+        cache.pdfFileMetadataProviderOverride = (_) async {
+          throw const FileSystemException('temporary I/O failure');
+        };
+        var parserCalled = false;
+        cache.pdfOutlineParser = (_) async {
+          parserCalled = true;
+          return const [('חדש', 'חדש', 9)];
+        };
 
-      final result = await cache.getPdfOutlineEntries('/flaky.pdf');
-      await Future<void>.delayed(Duration.zero);
+        final result = await cache.getPdfOutlineEntries('/flaky.pdf');
+        await Future<void>.delayed(Duration.zero);
 
-      expect(result, equals(expectedEntries));
-      expect(parserCalled, isFalse);
-      expect(await repository.getPdfOutlineCacheEntry('/flaky.pdf'), isNotNull);
-    });
+        expect(result, equals(expectedEntries));
+        expect(parserCalled, isFalse);
+        expect(
+          await repository.getPdfOutlineCacheEntry('/flaky.pdf'),
+          isNotNull,
+        );
+      },
+    );
 
     test('pruning לפי TTL מוחק entries ישנים ושומר חדשים', () async {
       final nowMillis = const Duration(days: 200).inMilliseconds;
@@ -307,47 +327,53 @@ void main() {
 
       expect(await repository.getPdfOutlineCacheEntry('/old.pdf'), isNull);
       expect(
-          await repository.getPdfOutlineCacheEntry('/recent.pdf'), isNotNull);
+        await repository.getPdfOutlineCacheEntry('/recent.pdf'),
+        isNotNull,
+      );
     });
 
-    test('רשומה עם schemaVersion לא תואם נמחקת ונבנית מחדש דרך parser',
-        () async {
-      final forwardCompatibleJson = jsonEncode({
-        'v': PdfOutlineCacheEntry.currentSchemaVersion + 1,
-        'entries': [
-          {'n': 'ישן', 'o': 'ישן', 'p': 1}
-        ],
-      });
-      await repository.upsertPdfOutlineCacheEntry(
-        PdfOutlineCacheEntry(
-          filePath: '/incompatible.pdf',
-          fileSize: 10,
-          lastModified: 20,
-          outlineJson: forwardCompatibleJson,
-          createdAt: 1,
-          accessedAt: 2,
-        ),
-      );
-
-      cache.pdfFileMetadataProviderOverride = (_) async => (
+    test(
+      'רשומה עם schemaVersion לא תואם נמחקת ונבנית מחדש דרך parser',
+      () async {
+        final forwardCompatibleJson = jsonEncode({
+          'v': PdfOutlineCacheEntry.currentSchemaVersion + 1,
+          'entries': [
+            {'n': 'ישן', 'o': 'ישן', 'p': 1},
+          ],
+        });
+        await repository.upsertPdfOutlineCacheEntry(
+          PdfOutlineCacheEntry(
+            filePath: '/incompatible.pdf',
             fileSize: 10,
             lastModified: 20,
-          );
-      const reparsedEntries = [('חדש', 'חדש', 7)];
-      var parserCalls = 0;
-      cache.pdfOutlineParser = (_) async {
-        parserCalls++;
-        return reparsedEntries;
-      };
+            outlineJson: forwardCompatibleJson,
+            createdAt: 1,
+            accessedAt: 2,
+          ),
+        );
 
-      final result = await cache.getPdfOutlineEntries('/incompatible.pdf');
+        cache.pdfFileMetadataProviderOverride = (_) async => (
+          fileSize: 10,
+          lastModified: 20,
+        );
+        const reparsedEntries = [('חדש', 'חדש', 7)];
+        var parserCalls = 0;
+        cache.pdfOutlineParser = (_) async {
+          parserCalls++;
+          return reparsedEntries;
+        };
 
-      expect(result, equals(reparsedEntries));
-      expect(parserCalls, equals(1));
-      final row = await repository.getPdfOutlineCacheEntry('/incompatible.pdf');
-      expect(row, isNotNull);
-      expect(row!.decodeEntries(), equals(reparsedEntries));
-    });
+        final result = await cache.getPdfOutlineEntries('/incompatible.pdf');
+
+        expect(result, equals(reparsedEntries));
+        expect(parserCalls, equals(1));
+        final row = await repository.getPdfOutlineCacheEntry(
+          '/incompatible.pdf',
+        );
+        expect(row, isNotNull);
+        expect(row!.decodeEntries(), equals(reparsedEntries));
+      },
+    );
 
     test('pruning לפי known file paths מוחק entries שכבר לא ידועים', () async {
       await repository.upsertPdfOutlineCacheEntry(

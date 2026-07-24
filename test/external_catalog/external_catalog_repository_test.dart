@@ -142,8 +142,7 @@ void main() {
       expect(await repository.getCurrentDatabaseVersion(), 4);
     });
 
-    test(
-        'updateDatabaseIfNeeded מחתים גרסה כשה-DB שהורד חסר אותה, '
+    test('updateDatabaseIfNeeded מחתים גרסה כשה-DB שהורד חסר אותה, '
         'ולא מוריד שוב בקריאה הבאה', () async {
       // רגרסיה: DB שהורד בלי מפתח version ב-db_meta השאיר את הגרסה
       // המקומית null, מה שגרם להורדה מחדש של הקטלוג בכל עליית אפליקציה.
@@ -201,8 +200,7 @@ void main() {
       expect(dbDownloadCount, 1);
     });
 
-    test(
-        'downloadLatestDatabase מחתים גרסה בהורדה ראשונית כשה-DB שהורד '
+    test('downloadLatestDatabase מחתים גרסה בהורדה ראשונית כשה-DB שהורד '
         'חסר אותה', () async {
       // רגרסיה: ההורדה הראשונית (בלי DB מקומי קודם) לא החתימה גרסה, כך
       // ש-DB בלי db_meta.version נשאר עם גרסה null והסנכרון האוטומטי הוריד
@@ -257,70 +255,73 @@ void main() {
       expect(dbDownloadCount, 1);
     });
 
-    test('updateDatabaseIfNeeded זורק שגיאה ידידותית כשה-DB נעול ב-Windows',
-        () async {
-      if (!Platform.isWindows) {
-        return;
-      }
+    test(
+      'updateDatabaseIfNeeded זורק שגיאה ידידותית כשה-DB נעול ב-Windows',
+      () async {
+        if (!Platform.isWindows) {
+          return;
+        }
 
-      await _createCatalogDatabase(
-        repository.databasePath,
-        version: 4,
-      );
+        await _createCatalogDatabase(
+          repository.databasePath,
+          version: 4,
+        );
 
-      final remoteDbPath = path.join(tempDir.path, 'remote_catalog_busy.db');
-      await _createCatalogDatabase(
-        remoteDbPath,
-        version: 5,
-      );
-      final remoteDbBytes = await File(remoteDbPath).readAsBytes();
+        final remoteDbPath = path.join(tempDir.path, 'remote_catalog_busy.db');
+        await _createCatalogDatabase(
+          remoteDbPath,
+          version: 5,
+        );
+        final remoteDbBytes = await File(remoteDbPath).readAsBytes();
 
-      repository = ExternalCatalogRepository(
-        httpClient: MockClient((request) async {
-          final url = request.url.toString();
-          if (url == ExternalCatalogRepository.releaseApiUrl) {
-            return http.Response(
-              jsonEncode({
-                'tag_name': 'db-v5',
-                'assets': [
-                  {
-                    'name': DatabaseConstants.externalCatalogDatabaseFileName,
-                    'browser_download_url':
-                        'https://example.com/catalog_busy.db',
-                  },
-                  {
-                    'name': DatabaseConstants.externalCatalogVersionFileName,
-                    'browser_download_url': 'https://example.com/version.txt',
-                  },
-                ],
-              }),
-              200,
-            );
-          }
-          if (url == 'https://example.com/version.txt') {
-            return http.Response('5\n', 200);
-          }
-          if (url == 'https://example.com/catalog_busy.db') {
-            return http.Response.bytes(remoteDbBytes, 200);
-          }
-          return http.Response('Not found', 404);
-        }),
-      );
+        repository = ExternalCatalogRepository(
+          httpClient: MockClient((request) async {
+            final url = request.url.toString();
+            if (url == ExternalCatalogRepository.releaseApiUrl) {
+              return http.Response(
+                jsonEncode({
+                  'tag_name': 'db-v5',
+                  'assets': [
+                    {
+                      'name': DatabaseConstants.externalCatalogDatabaseFileName,
+                      'browser_download_url':
+                          'https://example.com/catalog_busy.db',
+                    },
+                    {
+                      'name': DatabaseConstants.externalCatalogVersionFileName,
+                      'browser_download_url': 'https://example.com/version.txt',
+                    },
+                  ],
+                }),
+                200,
+              );
+            }
+            if (url == 'https://example.com/version.txt') {
+              return http.Response('5\n', 200);
+            }
+            if (url == 'https://example.com/catalog_busy.db') {
+              return http.Response.bytes(remoteDbBytes, 200);
+            }
+            return http.Response('Not found', 404);
+          }),
+        );
 
-      final lock = File(repository.databasePath).openSync(mode: FileMode.read);
-      addTearDown(() async {
-        await lock.close();
-      });
+        final lock = File(
+          repository.databasePath,
+        ).openSync(mode: FileMode.read);
+        addTearDown(() async {
+          await lock.close();
+        });
 
-      await expectLater(
-        repository.updateDatabaseIfNeeded(),
-        throwsA(isA<ExternalCatalogDatabaseBusyException>()),
-      );
-      expect(await repository.getCurrentDatabaseVersion(), 4);
-    });
+        await expectLater(
+          repository.updateDatabaseIfNeeded(),
+          throwsA(isA<ExternalCatalogDatabaseBusyException>()),
+        );
+        expect(await repository.getCurrentDatabaseVersion(), 4);
+      },
+    );
 
-    test('getOtzarBooks ו-getHebrewBooks מחזירים ספרים מה-DB החיצוני',
-        () async {
+    test('getOtzarBooks ו-getHebrewBooks מחזירים ספרים מה-DB החיצוני', () async {
       final db = sqlite3.open(repository.databasePath);
       db.execute('''
             CREATE TABLE otzar_hahochma (
@@ -357,7 +358,7 @@ void main() {
           'תשס"א',
           'ירושלים',
           'הלכה, מוסר',
-          200
+          200,
         ],
       );
       db.execute(
@@ -370,7 +371,7 @@ void main() {
           'תרצ"ד',
           1934,
           120,
-          '["שו\\"ת","הלכה"]'
+          '["שו\\"ת","הלכה"]',
         ],
       );
       db.close();

@@ -36,8 +36,9 @@ class BackupStore {
     if (await target.exists()) return '$hashPrefix$hex';
 
     await target.parent.create(recursive: true);
-    final tmp =
-        File('${target.path}.${DateTime.now().microsecondsSinceEpoch}.tmp');
+    final tmp = File(
+      '${target.path}.${DateTime.now().microsecondsSinceEpoch}.tmp',
+    );
     await tmp.writeAsBytes(gzip.encode(bytes), flush: true);
     try {
       await tmp.rename(target.path);

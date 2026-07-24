@@ -88,8 +88,9 @@ void main() {
       ]);
 
       final flat = flattenToc([root]);
-      final entry =
-          flat.firstWhere((e) => tocTextMatchesRef(e.text, 'ס"ד ע"ב'));
+      final entry = flat.firstWhere(
+        (e) => tocTextMatchesRef(e.text, 'ס"ד ע"ב'),
+      );
 
       expect(entry.text, 'דף סד:');
       expect(entry.index, 250);
@@ -97,12 +98,14 @@ void main() {
 
     test('ref שלא קיים ב-TOC אינו מתאים → openBookAtRef ייפול לחיפוש', () {
       final root = TocEntry(text: 'יומא', index: 0, level: 0);
-      root.children
-          .add(TocEntry(text: 'דף ב.', index: 0, level: 1, parent: root));
+      root.children.add(
+        TocEntry(text: 'דף ב.', index: 0, level: 1, parent: root),
+      );
 
       final flat = flattenToc([root]);
-      final matches =
-          flat.where((e) => tocTextMatchesRef(e.text, 'צ"ט ע"א')).toList();
+      final matches = flat
+          .where((e) => tocTextMatchesRef(e.text, 'צ"ט ע"א'))
+          .toList();
 
       // אין התאמה → refFound=false → ה-ref נשאר כ-searchText (fallback בלבד)
       expect(matches, isEmpty);

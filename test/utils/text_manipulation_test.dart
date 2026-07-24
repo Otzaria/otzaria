@@ -8,236 +8,253 @@ import '../support/search_engine_test_init.dart';
 Future<void> main() async {
   final engineReady = await tryInitSearchEngine();
 
-  group('highLight', () {
-    test('single word - highlights the word', () {
-      const text = 'כל יום טוב';
-      final result = highLight(text, 'יום');
-      expect(result, contains('<span style="color: red">'));
-      expect(result, contains('יום'));
-    });
+  group(
+    'highLight',
+    () {
+      test('single word - highlights the word', () {
+        const text = 'כל יום טוב';
+        final result = highLight(text, 'יום');
+        expect(result, contains('<span style="color: red">'));
+        expect(result, contains('יום'));
+      });
 
-    test('multi-word query - highlights only the complete sequence', () {
-      // "כל היום" should be highlighted only where both words appear together
-      const text = 'היה זה כל היום טוב';
-      final result = highLight(text, 'כל היום');
-      // המילה "היה" לא אמורה להיות מודגשת
-      expect(result, isNot(contains('<span style="color: red">היה')));
-      // רק מילות החיפוש עצמן אמורות להיות מודגשות
-      expect(
-        result,
-        contains(
-          '<span style="color: red">כל</span> <span style="color: red">היום</span>',
-        ),
-      );
-      // "היה", "זה", "טוב" לא אמורים להיות מודגשים
-      expect(result, isNot(contains('<span style="color: red">טוב')));
-    });
+      test('multi-word query - highlights only the complete sequence', () {
+        // "כל היום" should be highlighted only where both words appear together
+        const text = 'היה זה כל היום טוב';
+        final result = highLight(text, 'כל היום');
+        // המילה "היה" לא אמורה להיות מודגשת
+        expect(result, isNot(contains('<span style="color: red">היה')));
+        // רק מילות החיפוש עצמן אמורות להיות מודגשות
+        expect(
+          result,
+          contains(
+            '<span style="color: red">כל</span> <span style="color: red">היום</span>',
+          ),
+        );
+        // "היה", "זה", "טוב" לא אמורים להיות מודגשים
+        expect(result, isNot(contains('<span style="color: red">טוב')));
+      });
 
-    test('multi-word query - does not highlight lone words from query', () {
-      // אם מחפשים "כל היום", מילה בודדת "כל" לא אמורה להיות מודגשת
-      const text = 'כל הספרים היו שם';
-      final result = highLight(text, 'כל היום');
-      // אין מופע של "כל היום" יחד - לכן לא אמור להיות highlighting כלל
-      expect(result, isNot(contains('<span')));
-    });
+      test('multi-word query - does not highlight lone words from query', () {
+        // אם מחפשים "כל היום", מילה בודדת "כל" לא אמורה להיות מודגשת
+        const text = 'כל הספרים היו שם';
+        final result = highLight(text, 'כל היום');
+        // אין מופע של "כל היום" יחד - לכן לא אמור להיות highlighting כלל
+        expect(result, isNot(contains('<span')));
+      });
 
-    test('single word - does not highlight inside another word by default', () {
-      const text = 'ויאמר משה';
-      final result = highLight(text, 'אמר');
+      test(
+        'single word - does not highlight inside another word by default',
+        () {
+          const text = 'ויאמר משה';
+          final result = highLight(text, 'אמר');
 
-      expect(result, isNot(contains('<span')));
-    });
-
-    test('single word - can highlight inside another word when enabled', () {
-      const text = 'ויאמר משה';
-      final result = highLight(
-        text,
-        'אמר',
-        searchOptions: const {
-          'אמר_0': {'חלק ממילה': true},
+          expect(result, isNot(contains('<span')));
         },
       );
 
-      expect(result, contains('<span style="color: red">אמר</span>'));
-    });
+      test('single word - can highlight inside another word when enabled', () {
+        const text = 'ויאמר משה';
+        final result = highLight(
+          text,
+          'אמר',
+          searchOptions: const {
+            'אמר_0': {'חלק ממילה': true},
+          },
+        );
 
-    test('multi-word query with spacing - highlights spaced phrase', () {
-      const text = 'היה זה כל דבר היום טוב';
-      final result = highLight(
-        text,
-        'כל היום',
-        spacingValues: const {'0-1': '1'},
-      );
+        expect(result, contains('<span style="color: red">אמר</span>'));
+      });
 
-      expect(
-        result,
-        contains(
-          '<span style="color: red">כל</span> דבר <span style="color: red">היום</span>',
-        ),
-      );
-      expect(result, isNot(contains('<span style="color: red">דבר</span>')));
-    });
+      test('multi-word query with spacing - highlights spaced phrase', () {
+        const text = 'היה זה כל דבר היום טוב';
+        final result = highLight(
+          text,
+          'כל היום',
+          spacingValues: const {'0-1': '1'},
+        );
 
-    test('multi-word query with spacing - respects spacing limit', () {
-      const text = 'היה זה כל דבר נוסף היום טוב';
-      final result = highLight(
-        text,
-        'כל היום',
-        spacingValues: const {'0-1': '1'},
-      );
+        expect(
+          result,
+          contains(
+            '<span style="color: red">כל</span> דבר <span style="color: red">היום</span>',
+          ),
+        );
+        expect(result, isNot(contains('<span style="color: red">דבר</span>')));
+      });
 
-      expect(result, isNot(contains('<span')));
-    });
+      test('multi-word query with spacing - respects spacing limit', () {
+        const text = 'היה זה כל דבר נוסף היום טוב';
+        final result = highLight(
+          text,
+          'כל היום',
+          spacingValues: const {'0-1': '1'},
+        );
 
-    test('multi-word query with spacing - ignores punctuation between words',
+        expect(result, isNot(contains('<span')));
+      });
+
+      test(
+        'multi-word query with spacing - ignores punctuation between words',
         () {
-      const text = 'אמר ליה רבי יוחנן: הוא אפילו תינוקות';
-      final result = highLight(
-        text,
-        'אמר רבי יוחנן הוא',
-        spacingValues: const {'0-1': '1'},
+          const text = 'אמר ליה רבי יוחנן: הוא אפילו תינוקות';
+          final result = highLight(
+            text,
+            'אמר רבי יוחנן הוא',
+            spacingValues: const {'0-1': '1'},
+          );
+
+          expect(
+            result,
+            contains(
+              '<span style="color: red">אמר</span> ליה <span style="color: red">רבי</span> <span style="color: red">יוחנן</span>: <span style="color: red">הוא</span>',
+            ),
+          );
+          expect(
+            result,
+            isNot(contains('<span style="color: red">ליה</span>')),
+          );
+        },
       );
 
-      expect(
-        result,
-        contains(
-          '<span style="color: red">אמר</span> ליה <span style="color: red">רבי</span> <span style="color: red">יוחנן</span>: <span style="color: red">הוא</span>',
-        ),
-      );
-      expect(result, isNot(contains('<span style="color: red">ליה</span>')));
-    });
-
-    test(
+      test(
         'multi-word query with one spacing value - applies max spacing to all gaps',
         () {
-      const text = 'אמר רבי שמעון בן לקיש';
-      final result = highLight(
-        text,
-        'אמר שמעון לקיש',
-        spacingValues: const {'0-1': '1'},
+          const text = 'אמר רבי שמעון בן לקיש';
+          final result = highLight(
+            text,
+            'אמר שמעון לקיש',
+            spacingValues: const {'0-1': '1'},
+          );
+
+          expect(
+            result,
+            contains(
+              '<span style="color: red">אמר</span> רבי <span style="color: red">שמעון</span> בן <span style="color: red">לקיש</span>',
+            ),
+          );
+          expect(
+            result,
+            isNot(contains('<span style="color: red">רבי</span>')),
+          );
+          expect(result, isNot(contains('<span style="color: red">בן</span>')));
+        },
       );
 
-      expect(
-        result,
-        contains(
-          '<span style="color: red">אמר</span> רבי <span style="color: red">שמעון</span> בן <span style="color: red">לקיש</span>',
-        ),
-      );
-      expect(result, isNot(contains('<span style="color: red">רבי</span>')));
-      expect(result, isNot(contains('<span style="color: red">בן</span>')));
-    });
+      test('single word with nikud in text - highlights correctly', () {
+        const text = 'הָיָה כָּל הַיּוֹם';
+        final result = highLight(text, 'כל');
+        expect(result, contains('<span style="color: red">'));
+      });
 
-    test('single word with nikud in text - highlights correctly', () {
-      const text = 'הָיָה כָּל הַיּוֹם';
-      final result = highLight(text, 'כל');
-      expect(result, contains('<span style="color: red">'));
-    });
+      test('multi-word with nikud and spacing - highlights both words', () {
+        const text = 'וְעַתָּה יֵרֶא פַּרְעֹה אִישׁ נָבוֹן וְחָכָם';
+        final result = highLight(
+          text,
+          'פרעה נבון',
+          spacingValues: const {'0-1': '1'},
+        );
 
-    test('multi-word with nikud and spacing - highlights both words', () {
-      const text = 'וְעַתָּה יֵרֶא פַּרְעֹה אִישׁ נָבוֹן וְחָכָם';
-      final result = highLight(
-        text,
-        'פרעה נבון',
-        spacingValues: const {'0-1': '1'},
-      );
+        expect(result, contains('<span style="color: red">פַּרְעֹה</span>'));
+        expect(result, contains('<span style="color: red">נָבוֹן</span>'));
+      });
 
-      expect(result, contains('<span style="color: red">פַּרְעֹה</span>'));
-      expect(result, contains('<span style="color: red">נָבוֹן</span>'));
-    });
+      test('multi-word separated by maqaf - highlights all words', () {
+        // מקף (maqaf) בין מילים בטקסט מנוקד אינו ניקוד הצמוד לאות אלא מפריד —
+        // אסור שייבלע לתוך גבול המילה ויפסול את ההדגשה.
+        const text = 'עֵ֣קֶב אֲשֶׁר־שָׁמַ֣ע אַבְרָהָ֖ם בְּקֹלִ֑י';
+        final result = highLight(text, 'עקב אשר שמע אברהם');
 
-    test('multi-word separated by maqaf - highlights all words', () {
-      // מקף (maqaf) בין מילים בטקסט מנוקד אינו ניקוד הצמוד לאות אלא מפריד —
-      // אסור שייבלע לתוך גבול המילה ויפסול את ההדגשה.
-      const text = 'עֵ֣קֶב אֲשֶׁר־שָׁמַ֣ע אַבְרָהָ֖ם בְּקֹלִ֑י';
-      final result = highLight(text, 'עקב אשר שמע אברהם');
+        expect(result, contains('<span style="color: red">אֲשֶׁר</span>'));
+        expect(result, contains('<span style="color: red">שָׁמַ֣ע</span>'));
+        expect(result, contains('<span style="color: red">אַבְרָהָ֖ם</span>'));
+      });
 
-      expect(result, contains('<span style="color: red">אֲשֶׁר</span>'));
-      expect(result, contains('<span style="color: red">שָׁמַ֣ע</span>'));
-      expect(result, contains('<span style="color: red">אַבְרָהָ֖ם</span>'));
-    });
+      test('yellowBackground - הדגשה רציפה אחת כולל הרווחים בין המילים', () {
+        const text = 'אמר רבי יוחנן משום רבי שמעון בן יוחאי';
+        final result = highLight(
+          text,
+          'רבי יוחנן משום',
+          yellowBackground: true,
+        );
 
-    test('yellowBackground - הדגשה רציפה אחת כולל הרווחים בין המילים', () {
-      const text = 'אמר רבי יוחנן משום רבי שמעון בן יוחאי';
-      final result = highLight(
-        text,
-        'רבי יוחנן משום',
-        yellowBackground: true,
-      );
+        expect(
+          result,
+          contains(
+            '<span style="background-color: yellow; color: black">רבי יוחנן משום</span>',
+          ),
+        );
+      });
 
-      expect(
-        result,
-        contains(
-          '<span style="background-color: yellow; color: black">רבי יוחנן משום</span>',
-        ),
-      );
-    });
+      test('yellowBackground - פיסוק בין המילים נכלל בהדגשה הרציפה', () {
+        const text = 'אמר ליה רבי יוחנן: הוא אפילו תינוקות';
+        final result = highLight(
+          text,
+          'רבי יוחנן הוא',
+          yellowBackground: true,
+        );
 
-    test('yellowBackground - פיסוק בין המילים נכלל בהדגשה הרציפה', () {
-      const text = 'אמר ליה רבי יוחנן: הוא אפילו תינוקות';
-      final result = highLight(
-        text,
-        'רבי יוחנן הוא',
-        yellowBackground: true,
-      );
+        expect(
+          result,
+          contains(
+            '<span style="background-color: yellow; color: black">רבי יוחנן: הוא</span>',
+          ),
+        );
+      });
 
-      expect(
-        result,
-        contains(
-          '<span style="background-color: yellow; color: black">רבי יוחנן: הוא</span>',
-        ),
-      );
-    });
+      test('yellowBackground - ציטוט שנקטע באמצע מילה עדיין מודגש', () {
+        // קישור ?m= נבנה מטקסט מסומן, וגרירה יכולה לעצור באמצע מילה.
+        const text = 'אִם כְּמָה שֶׁנָּדַרְתָּ עָשִׂיתָ – יְהֵא נֶדֶר';
+        final result = highLight(
+          text,
+          'שֶׁנָּדַרְתָּ עָשִׂיתָ – יְה',
+          yellowBackground: true,
+        );
 
-    test('yellowBackground - ציטוט שנקטע באמצע מילה עדיין מודגש', () {
-      // קישור ?m= נבנה מטקסט מסומן, וגרירה יכולה לעצור באמצע מילה.
-      const text = 'אִם כְּמָה שֶׁנָּדַרְתָּ עָשִׂיתָ – יְהֵא נֶדֶר';
-      final result = highLight(
-        text,
-        'שֶׁנָּדַרְתָּ עָשִׂיתָ – יְה',
-        yellowBackground: true,
-      );
+        expect(
+          result,
+          contains('<span style="background-color: yellow; color: black">'),
+        );
+        expect(result, contains('שֶׁנָּדַרְתָּ'));
+      });
 
-      expect(
-        result,
-        contains('<span style="background-color: yellow; color: black">'),
-      );
-      expect(result, contains('שֶׁנָּדַרְתָּ'));
-    });
+      test('yellowBackground - תגי HTML בתוך הקטע נשארים מחוץ ל-span', () {
+        const text = 'אמר <b>רבי</b> יוחנן';
+        final result = highLight(
+          text,
+          'אמר רבי יוחנן',
+          yellowBackground: true,
+        );
 
-    test('yellowBackground - תגי HTML בתוך הקטע נשארים מחוץ ל-span', () {
-      const text = 'אמר <b>רבי</b> יוחנן';
-      final result = highLight(
-        text,
-        'אמר רבי יוחנן',
-        yellowBackground: true,
-      );
+        expect(
+          result,
+          equals(
+            '<span style="background-color: yellow; color: black">אמר </span>'
+            '<b><span style="background-color: yellow; color: black">רבי</span></b>'
+            '<span style="background-color: yellow; color: black"> יוחנן</span>',
+          ),
+        );
+      });
 
-      expect(
-        result,
-        equals(
-          '<span style="background-color: yellow; color: black">אמר </span>'
-          '<b><span style="background-color: yellow; color: black">רבי</span></b>'
-          '<span style="background-color: yellow; color: black"> יוחנן</span>',
-        ),
-      );
-    });
-
-    test('multi-word with nikud and searchDistance - highlights both words',
+      test(
+        'multi-word with nikud and searchDistance - highlights both words',
         () {
-      const text = 'וְעַתָּה יֵרֶא פַּרְעֹה אִישׁ נָבוֹן וְחָכָם';
-      final result = highLight(
-        text,
-        'פרעה נבון',
-        searchDistance: 1,
-      );
+          const text = 'וְעַתָּה יֵרֶא פַּרְעֹה אִישׁ נָבוֹן וְחָכָם';
+          final result = highLight(
+            text,
+            'פרעה נבון',
+            searchDistance: 1,
+          );
 
-      expect(result, contains('<span style="color: red">פַּרְעֹה</span>'));
-      expect(result, contains('<span style="color: red">נָבוֹן</span>'));
-    });
-  },
-      skip: engineReady
-          ? false
-          : 'ספריית מנוע החיפוש הנייטיבית לא נמצאה — הריצו cargo build בחבילה');
+          expect(result, contains('<span style="color: red">פַּרְעֹה</span>'));
+          expect(result, contains('<span style="color: red">נָבוֹן</span>'));
+        },
+      );
+    },
+    skip: engineReady
+        ? false
+        : 'ספריית מנוע החיפוש הנייטיבית לא נמצאה — הריצו cargo build בחבילה',
+  );
 
   group('stripHtmlPreservingBreaks', () {
     test('ממיר <br> למעבר שורה במקום לדחוס לרצף', () {
@@ -282,7 +299,9 @@ Future<void> main() async {
     test('מסיר מירכאות ציטוט (שתי אותיות אחרי הגרשיים)', () {
       expect(removePunctuation('ב"כי יותן'), equals('בכי יותן'));
       expect(
-          removePunctuation('הרי הן ב"כי יותן.'), equals('הרי הן בכי יותן.'));
+        removePunctuation('הרי הן ב"כי יותן.'),
+        equals('הרי הן בכי יותן.'),
+      );
     });
 
     test('שומר ראשי תיבות גם כשהאותיות מנוקדות', () {
@@ -365,8 +384,10 @@ Future<void> main() async {
     });
 
     test('אותיות עבריות נשמרות', () {
-      expect(normalizeForFindRefMatch('אבגדהוזחטיכלמנסעפצקרשת'),
-          equals('אבגדהוזחטיכלמנסעפצקרשת'));
+      expect(
+        normalizeForFindRefMatch('אבגדהוזחטיכלמנסעפצקרשת'),
+        equals('אבגדהוזחטיכלמנסעפצקרשת'),
+      );
     });
 
     test('שילוב: ניקוד+גרשיים+טעמים+רווחים', () {
@@ -555,28 +576,30 @@ Future<void> main() async {
       expect(result, contains('ב<span style="color: red">מיעוט</span>'));
     });
 
-    test('תת-מחרוזת אקראית עדיין נדחית — "מיעוט" ב"שמיעוטי" לא מודגש',
-        () async {
-      const query = 'זריזות';
-      await primeHighlightPattern(
-        searchQuery: query,
-        searchOptions: const {},
-        alternativeWords: const {},
-        spacingValues: const {},
-        searchDistance: 0,
-        isFuzzy: false,
-        fetch: () async => const HighlightPattern(
-          combinedPattern: 'מיעוט',
-          wordPatterns: ['מיעוט'],
-          wordBoundaryEligible: [true],
-        ),
-      );
+    test(
+      'תת-מחרוזת אקראית עדיין נדחית — "מיעוט" ב"שמיעוטי" לא מודגש',
+      () async {
+        const query = 'זריזות';
+        await primeHighlightPattern(
+          searchQuery: query,
+          searchOptions: const {},
+          alternativeWords: const {},
+          spacingValues: const {},
+          searchDistance: 0,
+          isFuzzy: false,
+          fetch: () async => const HighlightPattern(
+            combinedPattern: 'מיעוט',
+            wordPatterns: ['מיעוט'],
+            wordBoundaryEligible: [true],
+          ),
+        );
 
-      // התבנית מתאימה את "מיעוט" בתוך "שמיעוטי", אך הגבול בקצה ההתאמה נכשל
-      // (לפניו "ש", אחריו "י") — אין הדגשה.
-      final result = highLight('ראה שמיעוטי כאן', query);
-      expect(result, isNot(contains('<span')));
-    });
+        // התבנית מתאימה את "מיעוט" בתוך "שמיעוטי", אך הגבול בקצה ההתאמה נכשל
+        // (לפניו "ש", אחריו "י") — אין הדגשה.
+        final result = highLight('ראה שמיעוטי כאן', query);
+        expect(result, isNot(contains('<span')));
+      },
+    );
 
     test('הזנת תבנית חדשה מעדכנת את גרסת ההדגשה לרינדור-מחדש', () async {
       final before = highlightPatternRevision.value;
@@ -595,15 +618,17 @@ Future<void> main() async {
 
   group('replaceHolyNames', () {
     test('שם הקודש בתוך פסוק מוחלף', () {
-      expect(replaceHolyNames('ויאמר יהוה אל משה'), equals('ויאמר יקוק אל משה'));
+      expect(
+        replaceHolyNames('ויאמר יהוה אל משה'),
+        equals('ויאמר יקוק אל משה'),
+      );
     });
 
     test('שם הקודש מנוקד מוחלף', () {
       expect(replaceHolyNames('לַֽיהֹוָֽה'), equals('לַֽיקֹוָֽק'));
     });
 
-    test('"ויגביהוהו" אינה מוחלפת — 3 אותיות עבריות רצופות לפני התבנית',
-        () {
+    test('"ויגביהוהו" אינה מוחלפת — 3 אותיות עבריות רצופות לפני התבנית', () {
       // https://otzaria.org/forum/post/6829 - "יהוה" בתוך מילה חילונית
       expect(replaceHolyNames('ויגביהוהו'), equals('ויגביהוהו'));
     });
@@ -613,27 +638,31 @@ Future<void> main() async {
     });
   });
 
-  group('גבולות מילה מול מפרידים עבריים', () {
-    test('סוף-פסוק דבוק אינו נבלע בגבול המילה', () {
-      // ׃ (U+05C3) מפריד מילים כמו במנוע — "ברא" לפני ׃ הוא טוקן שלם
-      // וההדגשה חייבת לעבור את בדיקת הגבול, גם ללא רווח אחרי ה-׃.
-      final result = highLight('בְּרֵאשִׁית ברא\u{05C3}והארץ היתה', 'ברא');
-      expect(result, contains('<span style="color: red">ברא</span>'));
-    });
+  group(
+    'גבולות מילה מול מפרידים עבריים',
+    () {
+      test('סוף-פסוק דבוק אינו נבלע בגבול המילה', () {
+        // ׃ (U+05C3) מפריד מילים כמו במנוע — "ברא" לפני ׃ הוא טוקן שלם
+        // וההדגשה חייבת לעבור את בדיקת הגבול, גם ללא רווח אחרי ה-׃.
+        final result = highLight('בְּרֵאשִׁית ברא\u{05C3}והארץ היתה', 'ברא');
+        expect(result, contains('<span style="color: red">ברא</span>'));
+      });
 
-    test('נו"ן הפוכה אינה נבלעת בגבול המילה', () {
-      final result = highLight('פסוק\u{05C6} אחר', 'פסוק');
-      expect(result, contains('<span style="color: red">פסוק</span>'));
-    });
+      test('נו"ן הפוכה אינה נבלעת בגבול המילה', () {
+        final result = highLight('פסוק\u{05C6} אחר', 'פסוק');
+        expect(result, contains('<span style="color: red">פסוק</span>'));
+      });
 
-    test('ליגטורת יידיש לפני התאמה אינה נחשבת גבול מילה', () {
-      final result = highLight('אב\u{05F0}שלום', 'שלום');
-      expect(result, isNot(contains('<span')));
-    });
+      test('ליגטורת יידיש לפני התאמה אינה נחשבת גבול מילה', () {
+        final result = highLight('אב\u{05F0}שלום', 'שלום');
+        expect(result, isNot(contains('<span')));
+      });
 
-    test('צורת תצוגה עברית לפני התאמה אינה נחשבת גבול מילה', () {
-      final result = highLight('אב\u{FB1D}שלום', 'שלום');
-      expect(result, isNot(contains('<span')));
-    });
-  }, skip: engineReady ? false : searchEngineSkipReason);
+      test('צורת תצוגה עברית לפני התאמה אינה נחשבת גבול מילה', () {
+        final result = highLight('אב\u{FB1D}שלום', 'שלום');
+        expect(result, isNot(contains('<span')));
+      });
+    },
+    skip: engineReady ? false : searchEngineSkipReason,
+  );
 }

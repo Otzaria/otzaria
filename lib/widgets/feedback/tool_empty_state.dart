@@ -44,8 +44,8 @@ class ToolEmptyState extends StatelessWidget {
                 subtitle!,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: cs.onSurfaceVariant.withValues(alpha: 0.7),
-                    ),
+                  color: cs.onSurfaceVariant.withValues(alpha: 0.7),
+                ),
               ),
             ],
           ],

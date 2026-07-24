@@ -30,34 +30,42 @@ void main() {
     if (await tempDir.exists()) await tempDir.delete(recursive: true);
   });
 
-  test('getAllBookTitleToGeneration קורא דורות מ-book_generation (v3)',
-      () async {
+  test('getAllBookTitleToGeneration קורא דורות מ-book_generation (v3)', () async {
     final db = await database.database;
     // book_generation נוצרת כעת ע"י סכמת האפליקציה (MyDatabase) — אין צורך
     // ליצור אותה ידנית.
     db.execute(
-        "INSERT INTO generation (id, name) VALUES (1, 'ראשונים'), (2, 'אחרונים')");
+      "INSERT INTO generation (id, name) VALUES (1, 'ראשונים'), (2, 'אחרונים')",
+    );
 
     final catId = await repository.insertCategory(const Category(title: 'ק'));
     final srcId = await repository.insertSource('s', -1);
-    final id1 = await repository.insertBook(Book(
+    final id1 = await repository.insertBook(
+      Book(
         id: 0,
         categoryId: catId,
         sourceId: srcId,
         title: 'רמב"ם',
-        fileType: 'txt'));
-    final id2 = await repository.insertBook(Book(
+        fileType: 'txt',
+      ),
+    );
+    final id2 = await repository.insertBook(
+      Book(
         id: 0,
         categoryId: catId,
         sourceId: srcId,
         title: 'משנה ברורה',
-        fileType: 'txt'));
+        fileType: 'txt',
+      ),
+    );
     db.execute(
-        'INSERT INTO book_generation (bookId, generationId) VALUES (?, 1)',
-        [id1]);
+      'INSERT INTO book_generation (bookId, generationId) VALUES (?, 1)',
+      [id1],
+    );
     db.execute(
-        'INSERT INTO book_generation (bookId, generationId) VALUES (?, 2)',
-        [id2]);
+      'INSERT INTO book_generation (bookId, generationId) VALUES (?, 2)',
+      [id2],
+    );
 
     final map = await database.authorDao.getAllBookTitleToGeneration();
 

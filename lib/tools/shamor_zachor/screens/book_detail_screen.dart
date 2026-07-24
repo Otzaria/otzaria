@@ -26,7 +26,7 @@ class BookDetailScreen extends StatefulWidget {
   final String bookName;
   final int? bookId; // NEW: Book ID from DB
   final BookDetails?
-      bookDetails; // Optional: if provided, use it instead of fetching
+  bookDetails; // Optional: if provided, use it instead of fetching
   final VoidCallback? onBack;
 
   const BookDetailScreen({
@@ -73,8 +73,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   /// העמודות המוגדרות לספר זה (נטענות מה-Provider, ברירת מחדל אם אין הגדרה)
   List<ProgressColumn> _columnsOf(ShamorZachorProgressProvider pp) =>
       widget.bookId != null
-          ? pp.getColumnsForBook(widget.bookId!)
-          : kDefaultProgressColumns;
+      ? pp.getColumnsForBook(widget.bookId!)
+      : kDefaultProgressColumns;
 
   @override
   void initState() {
@@ -85,10 +85,14 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       if (!mounted) return;
       if (event.type == CompletionEventType.bookCompleted) {
         CompletionAnimationOverlay.show(
-            context, "אשריך! תזכה ללמוד ספרים אחרים ולסיימם!");
+          context,
+          "אשריך! תזכה ללמוד ספרים אחרים ולסיימם!",
+        );
       } else if (event.type == CompletionEventType.reviewCycleCompleted) {
         CompletionAnimationOverlay.show(
-            context, "מזל טוב! הלומד וחוזר כזורע וקוצר!");
+          context,
+          "מזל טוב! הלומד וחוזר כזורע וקוצר!",
+        );
       }
     });
   }
@@ -113,14 +117,17 @@ class _BookDetailScreenState extends State<BookDetailScreen>
 
   // Helper functions to use ID if available, otherwise fall back to category+name
   PageProgress _getProgress(
-      ShamorZachorProgressProvider provider, int absoluteIndex) {
+    ShamorZachorProgressProvider provider,
+    int absoluteIndex,
+  ) {
     if (widget.bookId != null) {
       return provider.getProgressForItemById(widget.bookId!, absoluteIndex);
     }
     // אם אין ID, זה אומר שהספר לא מגיע מה-DB
     // במקרה כזה, נחזיר התקדמות ריקה
     _logger.warning(
-        'bookId is null for book ${widget.bookName}, returning empty progress');
+      'bookId is null for book ${widget.bookName}, returning empty progress',
+    );
     return PageProgress();
   }
 
@@ -133,7 +140,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   ) async {
     // Debug log
     _logger.info(
-        '_updateProgress called: bookId=${widget.bookId}, bookName=${widget.bookName}, absoluteIndex=$absoluteIndex');
+      '_updateProgress called: bookId=${widget.bookId}, bookName=${widget.bookName}, absoluteIndex=$absoluteIndex',
+    );
 
     if (widget.bookId != null) {
       await provider.updateProgressById(
@@ -147,7 +155,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       // אם אין ID, זה אומר שהספר לא מגיע מה-DB
       // במקרה כזה, אנחנו לא יכולים לשמור התקדמות
       _logger.severe(
-          'CRITICAL: bookId is null for book ${widget.bookName}! This should not happen for DB books.');
+        'CRITICAL: bookId is null for book ${widget.bookName}! This should not happen for DB books.',
+      );
       UiSnack.showError(ToolsMessages.progressSaveMissingId);
       return;
     }
@@ -209,7 +218,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             );
           }
 
-          final bookDetails = widget.bookDetails ??
+          final bookDetails =
+              widget.bookDetails ??
               dataProvider.getBookDetails(
                 widget.topLevelCategoryKey,
                 widget.bookName,
@@ -217,7 +227,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
 
           if (bookDetails == null) {
             _logger.warning(
-                'BookDetails not found for ${widget.bookName} in category ${widget.topLevelCategoryKey}');
+              'BookDetails not found for ${widget.bookName} in category ${widget.topLevelCategoryKey}',
+            );
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -262,7 +273,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       );
     }
 
-    final hasNested = bookDetails.sections != null &&
+    final hasNested =
+        bookDetails.sections != null &&
         bookDetails.sections!.isNotEmpty &&
         bookDetails.hasNestedSections;
 
@@ -271,8 +283,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
         : _buildFlatItemsSliver(context, bookDetails, progressProvider);
 
     final theme = Theme.of(context);
-    final completionPct =
-        _calculateCompletionPercentage(bookDetails, progressProvider);
+    final completionPct = _calculateCompletionPercentage(
+      bookDetails,
+      progressProvider,
+    );
 
     return Column(
       children: [
@@ -311,8 +325,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                       CircularProgressIndicator(
                         value: completionPct,
                         strokeWidth: 3,
-                        backgroundColor:
-                            theme.colorScheme.onSurface.withValues(alpha: 0.2),
+                        backgroundColor: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.2,
+                        ),
                         valueColor: AlwaysStoppedAnimation<Color>(
                           theme.colorScheme.primary,
                         ),
@@ -379,7 +394,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     // אם אין bookId, נחזיר כותרת ריקה
     if (widget.bookId == null) {
       _logger.warning(
-          'bookId is null in _buildHeader for book ${widget.bookName}');
+        'bookId is null in _buildHeader for book ${widget.bookName}',
+      );
       return const SizedBox.shrink();
     }
 
@@ -450,7 +466,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                         activeColor: theme.primaryColor,
                       ),
                       _buildColumnHeaderLabel(
-                          progressProvider, col, columns.length),
+                        progressProvider,
+                        col,
+                        columns.length,
+                      ),
                     ],
                   ),
                 );
@@ -482,20 +501,24 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       itemBuilder: (_) => [
         const PopupMenuItem<String>(
           value: 'rename',
-          child: Row(children: [
-            Icon(FluentIcons.rename_24_regular, size: 18),
-            SizedBox(width: 8),
-            Text('שנה שם'),
-          ]),
+          child: Row(
+            children: [
+              Icon(FluentIcons.rename_24_regular, size: 18),
+              SizedBox(width: 8),
+              Text('שנה שם'),
+            ],
+          ),
         ),
         if (columnCount > 1)
           const PopupMenuItem<String>(
             value: 'remove',
-            child: Row(children: [
-              Icon(FluentIcons.delete_24_regular, size: 18),
-              SizedBox(width: 8),
-              Text('הסר עמודה'),
-            ]),
+            child: Row(
+              children: [
+                Icon(FluentIcons.delete_24_regular, size: 18),
+                SizedBox(width: 8),
+                Text('הסר עמודה'),
+              ],
+            ),
           ),
       ],
       child: Row(
@@ -507,15 +530,20 @@ class _BookDetailScreenState extends State<BookDetailScreen>
               fit: BoxFit.scaleDown,
               child: Text(
                 column.label,
-                style:
-                    TextStyle(fontSize: 11, color: theme.colorScheme.onSurface),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: theme.colorScheme.onSurface,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
           ),
           const SizedBox(width: 2),
-          Icon(FluentIcons.chevron_down_24_regular,
-              size: 11, color: theme.colorScheme.onSurfaceVariant),
+          Icon(
+            FluentIcons.chevron_down_24_regular,
+            size: 11,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ],
       ),
     );
@@ -580,7 +608,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
           final absoluteIndex = item.absoluteIndex;
           final partName = item.partName;
 
-          final showHeader = bookDetails.hasMultipleParts == true &&
+          final showHeader =
+              bookDetails.hasMultipleParts == true &&
               (index == 0 || partName != learnableItems[index - 1].partName) &&
               partName != widget.bookName; // מניעת כפילות של שם הספר בכותרת חלק
 
@@ -600,9 +629,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
 
           final rowBackgroundColor =
               index % (bookDetails.isDafType == true ? 4 : 2) <
-                      (bookDetails.isDafType == true ? 2 : 1)
-                  ? Colors.transparent
-                  : theme.colorScheme.primaryContainer.withValues(alpha: 0.15);
+                  (bookDetails.isDafType == true ? 2 : 1)
+              ? Colors.transparent
+              : theme.colorScheme.primaryContainer.withValues(alpha: 0.15);
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -610,8 +639,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
               if (showHeader && partName.isNotEmpty)
                 Container(
                   width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   margin: const EdgeInsets.only(top: 16.0, bottom: 4.0),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.primaryContainer,
@@ -693,13 +724,15 @@ class _BookDetailScreenState extends State<BookDetailScreen>
           if (section.title == widget.bookName && section.children.isNotEmpty) {
             return Column(
               children: section.children
-                  .map((child) => _buildSectionExpansionTile(
-                        context,
-                        child,
-                        0,
-                        bookDetails,
-                        progressProvider,
-                      ))
+                  .map(
+                    (child) => _buildSectionExpansionTile(
+                      context,
+                      child,
+                      0,
+                      bookDetails,
+                      progressProvider,
+                    ),
+                  )
                   .toList(),
             );
           }
@@ -734,8 +767,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
           bookDetails.sectionLeafIndexMap[section.id] ?? const [];
       if (leafIndices.isEmpty) return const SizedBox.shrink();
 
-      final learnable = bookDetails.learnableItems
-          .firstWhere((item) => item.absoluteIndex == leafIndices.first);
+      final learnable = bookDetails.learnableItems.firstWhere(
+        (item) => item.absoluteIndex == leafIndices.first,
+      );
       final pageProgress = _getProgress(
         progressProvider,
         leafIndices.first,
@@ -743,9 +777,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
 
       final rowBackgroundColor =
           learnable.absoluteIndex % (bookDetails.isDafType == true ? 4 : 2) <
-                  (bookDetails.isDafType == true ? 2 : 1)
-              ? Colors.transparent
-              : theme.colorScheme.primaryContainer.withValues(alpha: 0.15);
+              (bookDetails.isDafType == true ? 2 : 1)
+          ? Colors.transparent
+          : theme.colorScheme.primaryContainer.withValues(alpha: 0.15);
 
       // מציגים leaf בפורמט של שורה רגילה (כמו ב-flat), עם RTL
       return Container(
@@ -825,7 +859,11 @@ class _BookDetailScreenState extends State<BookDetailScreen>
         controlAffinity: ListTileControlAffinity.trailing,
         title: Container(
           padding: const EdgeInsets.only(
-              left: _gridHPad, right: _gridHPad, top: 1, bottom: 1),
+            left: _gridHPad,
+            right: _gridHPad,
+            top: 1,
+            bottom: 1,
+          ),
           child: Row(
             children: [
               // קודם כותרת, כמו ב־Header
@@ -833,8 +871,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                 flex: _titleFlex,
                 child: Padding(
                   // הזחה ביחס ל־RTL מהימין פנימה - רק לכותרת!
-                  padding:
-                      EdgeInsetsDirectional.only(start: _levelIndent * level),
+                  padding: EdgeInsetsDirectional.only(
+                    start: _levelIndent * level,
+                  ),
                   child: Text(
                     section.title,
                     style: _headingStyle.copyWith(
@@ -904,13 +943,15 @@ class _BookDetailScreenState extends State<BookDetailScreen>
         ),
         // אין Padding חיצוני; ההזחה מבוקרת רק בכותרת ובעמודת ה־V
         children: section.children
-            .map((child) => _buildSectionExpansionTile(
-                  context,
-                  child,
-                  level + 1,
-                  bookDetails,
-                  progressProvider,
-                ))
+            .map(
+              (child) => _buildSectionExpansionTile(
+                context,
+                child,
+                level + 1,
+                bookDetails,
+                progressProvider,
+              ),
+            )
             .toList(),
       ),
     );

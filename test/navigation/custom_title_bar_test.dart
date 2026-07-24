@@ -36,8 +36,9 @@ void main() {
     await Settings.init(cacheProvider: MemorySettingsCache());
   });
 
-  testWidgets('tooltip של TextBookTab כולל את כותרת המיקום בפועל',
-      (tester) async {
+  testWidgets('tooltip של TextBookTab כולל את כותרת המיקום בפועל', (
+    tester,
+  ) async {
     final tab = _makeTextTab('ספר א', currentTitle: 'פרק א');
     final tabsBloc = _TestTabsBloc(
       TabsState(tabs: [tab], currentTabIndex: 0),
@@ -133,8 +134,9 @@ void main() {
     );
   });
 
-  testWidgets('כרטיסיות מקבלות רוחב קבוע שווה, חסום בתקרה (~140px)',
-      (tester) async {
+  testWidgets('כרטיסיות מקבלות רוחב קבוע שווה, חסום בתקרה (~140px)', (
+    tester,
+  ) async {
     final tab1 = _makeTextTab('ספר קצר');
     final tab2 = _makeTextTab('ספר עם שם ארוך מאוד שנמשך הרחק');
     final tabsBloc = _TestTabsBloc(
@@ -165,23 +167,32 @@ void main() {
     // כל טאב עטוף ב-SizedBox ברוחב המחושב (ילדו ה-Listener של _buildTab); שני
     // הטאבים זהים וחסומים בתקרה (140px) — לא רוחב טבעי לפי אורך הכותרת.
     final widths = tester
-        .widgetList<SizedBox>(find.descendant(
-          of: find.byType(ReorderableListView),
-          matching: find.byType(SizedBox),
-        ))
+        .widgetList<SizedBox>(
+          find.descendant(
+            of: find.byType(ReorderableListView),
+            matching: find.byType(SizedBox),
+          ),
+        )
         .where((b) => b.width != null && b.child is Listener)
         .map((b) => b.width!)
         .toList();
 
     expect(widths.length, 2, reason: 'שני טאבים → שני SizedBox ברוחב קבוע');
-    expect(widths[0], moreOrLessEquals(widths[1], epsilon: 1.0),
-        reason: 'כל הטאבים ברוחב קבוע שווה');
-    expect(widths[0], lessThanOrEqualTo(141.0),
-        reason: 'רוחב הטאב חסום בתקרה (~140px) גם כשיש מקום');
+    expect(
+      widths[0],
+      moreOrLessEquals(widths[1], epsilon: 1.0),
+      reason: 'כל הטאבים ברוחב קבוע שווה',
+    );
+    expect(
+      widths[0],
+      lessThanOrEqualTo(141.0),
+      reason: 'רוחב הטאב חסום בתקרה (~140px) גם כשיש מקום',
+    );
   });
 
-  testWidgets('כותרת ארוכה נחתכת בדהייה (TextOverflow.fade) ללא שלוש נקודות',
-      (tester) async {
+  testWidgets('כותרת ארוכה נחתכת בדהייה (TextOverflow.fade) ללא שלוש נקודות', (
+    tester,
+  ) async {
     const longTitle = 'ספר עם שם ארוך מאוד שנמשך הרחק אל מעבר לרוחב הטאב';
     final tab = _makeTextTab(longTitle);
     final tabsBloc = _TestTabsBloc(
@@ -215,11 +226,16 @@ void main() {
     // בעברית את סוף הכותרת במקום ההתחלה).
     expect(
       find.ancestor(
-          of: find.text(longTitle), matching: find.byType(ShaderMask)),
+        of: find.text(longTitle),
+        matching: find.byType(ShaderMask),
+      ),
       findsOneWidget,
     );
-    expect(find.textContaining('...'), findsNothing,
-        reason: 'אין שלוש נקודות — חיתוך בדהייה כמו כרום');
+    expect(
+      find.textContaining('...'),
+      findsNothing,
+      reason: 'אין שלוש נקודות — חיתוך בדהייה כמו כרום',
+    );
   });
 
   testWidgets('CommentatorsTab לא מפיל את שורת הכותרת', (tester) async {
@@ -315,8 +331,9 @@ void main() {
     expect(find.byIcon(FluentIcons.document_pdf_16_regular), findsNothing);
   });
 
-  testWidgets('CombinedTab מציג את התחלת שני הספרים, כל אחד בחצי',
-      (tester) async {
+  testWidgets('CombinedTab מציג את התחלת שני הספרים, כל אחד בחצי', (
+    tester,
+  ) async {
     final right = _makeTextTab('תרגום אונקלוס על שמות');
     final left = _makeTextTab('רש"י על בראשית פרשת ויחי');
     final tab = CombinedTab(rightTab: right, leftTab: left);
@@ -349,33 +366,41 @@ void main() {
     expect(find.text('רש"י על בראשית פרשת ויחי'), findsOneWidget);
     expect(
       find.ancestor(
-          of: find.text('תרגום אונקלוס על שמות'),
-          matching: find.byType(ShaderMask)),
+        of: find.text('תרגום אונקלוס על שמות'),
+        matching: find.byType(ShaderMask),
+      ),
       findsOneWidget,
     );
     expect(
       find.ancestor(
-          of: find.text('רש"י על בראשית פרשת ויחי'),
-          matching: find.byType(ShaderMask)),
+        of: find.text('רש"י על בראשית פרשת ויחי'),
+        matching: find.byType(ShaderMask),
+      ),
       findsOneWidget,
     );
-    expect(find.textContaining('משולב:'), findsNothing,
-        reason: 'בטאב מוצגים שני החצאים, לא מחרוזת מאוחדת');
+    expect(
+      find.textContaining('משולב:'),
+      findsNothing,
+      reason: 'בטאב מוצגים שני החצאים, לא מחרוזת מאוחדת',
+    );
 
     // פס מפריד (2×14) בין שני החצאים בטאב רחב.
     expect(
-      find.byWidgetPredicate((w) =>
-          w is Container &&
-          w.constraints?.maxWidth == 2 &&
-          w.constraints?.maxHeight == 14),
+      find.byWidgetPredicate(
+        (w) =>
+            w is Container &&
+            w.constraints?.maxWidth == 2 &&
+            w.constraints?.maxHeight == 14,
+      ),
       findsOneWidget,
       reason: 'יש פס מפריד בין שני הספרים בטאב המפוצל',
     );
   });
 
   group('בחירה וגרירת-סידור של טאבים', () {
-    testWidgets('לחיצה על טאב שולחת SetCurrentTab עם האינדקס שלו',
-        (tester) async {
+    testWidgets('לחיצה על טאב שולחת SetCurrentTab עם האינדקס שלו', (
+      tester,
+    ) async {
       final first = _makeTextTab('ספר א');
       final second = _makeTextTab('ספר ב');
       final tabsBloc = _TestTabsBloc(
@@ -409,13 +434,17 @@ void main() {
       await tester.pumpAndSettle();
 
       final selected = tabsBloc.addedEvents.whereType<SetCurrentTab>().toList();
-      expect(selected, isNotEmpty,
-          reason: 'לחיצה על טאב צריכה לשלוח SetCurrentTab');
+      expect(
+        selected,
+        isNotEmpty,
+        reason: 'לחיצה על טאב צריכה לשלוח SetCurrentTab',
+      );
       expect(selected.last.index, 1, reason: 'האינדקס הנבחר הוא של הטאב שנלחץ');
     });
 
-    testWidgets('גרירת טאב בוחרת אותו (כמו כרום) ושולחת MoveTab לסידור מחדש',
-        (tester) async {
+    testWidgets('גרירת טאב בוחרת אותו (כמו כרום) ושולחת MoveTab לסידור מחדש', (
+      tester,
+    ) async {
       final first = _makeTextTab('ספר א');
       final second = _makeTextTab('ספר ב');
       final tabsBloc = _TestTabsBloc(
@@ -463,78 +492,92 @@ void main() {
 
       final moves = tabsBloc.addedEvents.whereType<MoveTab>().toList();
       expect(moves, isNotEmpty, reason: 'reorder צריך לשלוח MoveTab');
-      expect(moves.last.tab, same(second),
-          reason: 'הטאב שמועבר הוא הטאב שנגרר');
+      expect(
+        moves.last.tab,
+        same(second),
+        reason: 'הטאב שמועבר הוא הטאב שנגרר',
+      );
       expect(moves.last.newIndex, 0, reason: 'היעד הוא אינדקס 0');
     });
 
-    testWidgets('בדסקטופ הטאבים עטופים ב-listener מיידי (גרירה מסדרת מיד)',
-        (tester) async {
-      final tab = _makeTextTab('ספר א');
-      final tabsBloc = _TestTabsBloc(
-        TabsState(tabs: [tab], currentTabIndex: 0),
-      );
-      final navigationBloc = _TestNavigationBloc(
-        const NavigationState(currentScreen: Screen.reading),
-      );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    testWidgets(
+      'בדסקטופ הטאבים עטופים ב-listener מיידי (גרירה מסדרת מיד)',
+      (tester) async {
+        final tab = _makeTextTab('ספר א');
+        final tabsBloc = _TestTabsBloc(
+          TabsState(tabs: [tab], currentTabIndex: 0),
+        );
+        final navigationBloc = _TestNavigationBloc(
+          const NavigationState(currentScreen: Screen.reading),
+        );
+        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
 
-      addTearDown(() async {
-        tab.dispose();
-        await tabsBloc.close();
-        await navigationBloc.close();
-        await settingsBloc.close();
-      });
+        addTearDown(() async {
+          tab.dispose();
+          await tabsBloc.close();
+          await navigationBloc.close();
+          await settingsBloc.close();
+        });
 
-      await _setSurfaceSize(tester, const Size(1200, 800));
-      await _pumpTitleBar(
-        tester,
-        tabsBloc: tabsBloc,
-        navigationBloc: navigationBloc,
-        settingsBloc: settingsBloc,
-      );
+        await _setSurfaceSize(tester, const Size(1200, 800));
+        await _pumpTitleBar(
+          tester,
+          tabsBloc: tabsBloc,
+          navigationBloc: navigationBloc,
+          settingsBloc: settingsBloc,
+        );
 
-      // ReorderableDelayedDragStartListener יורש מ-ReorderableDragStartListener,
-      // לכן בודקים את runtimeType בדיוק: בדסקטופ המיידי, ללא ה-Delayed.
-      expect(
-        find.byWidgetPredicate(
-            (w) => w.runtimeType == ReorderableDragStartListener),
-        findsOneWidget,
-      );
-      expect(find.byType(ReorderableDelayedDragStartListener), findsNothing);
-    }, variant: TargetPlatformVariant.desktop());
+        // ReorderableDelayedDragStartListener יורש מ-ReorderableDragStartListener,
+        // לכן בודקים את runtimeType בדיוק: בדסקטופ המיידי, ללא ה-Delayed.
+        expect(
+          find.byWidgetPredicate(
+            (w) => w.runtimeType == ReorderableDragStartListener,
+          ),
+          findsOneWidget,
+        );
+        expect(find.byType(ReorderableDelayedDragStartListener), findsNothing);
+      },
+      variant: TargetPlatformVariant.desktop(),
+    );
 
-    testWidgets('בנייד הטאבים עטופים ב-listener מושהה (long-press)',
-        (tester) async {
-      final tab = _makeTextTab('ספר א');
-      final tabsBloc = _TestTabsBloc(
-        TabsState(tabs: [tab], currentTabIndex: 0),
-      );
-      final navigationBloc = _TestNavigationBloc(
-        const NavigationState(currentScreen: Screen.reading),
-      );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    testWidgets(
+      'בנייד הטאבים עטופים ב-listener מושהה (long-press)',
+      (tester) async {
+        final tab = _makeTextTab('ספר א');
+        final tabsBloc = _TestTabsBloc(
+          TabsState(tabs: [tab], currentTabIndex: 0),
+        );
+        final navigationBloc = _TestNavigationBloc(
+          const NavigationState(currentScreen: Screen.reading),
+        );
+        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
 
-      addTearDown(() async {
-        tab.dispose();
-        await tabsBloc.close();
-        await navigationBloc.close();
-        await settingsBloc.close();
-      });
+        addTearDown(() async {
+          tab.dispose();
+          await tabsBloc.close();
+          await navigationBloc.close();
+          await settingsBloc.close();
+        });
 
-      await _setSurfaceSize(tester, const Size(1200, 800));
-      await _pumpTitleBar(
-        tester,
-        tabsBloc: tabsBloc,
-        navigationBloc: navigationBloc,
-        settingsBloc: settingsBloc,
-      );
+        await _setSurfaceSize(tester, const Size(1200, 800));
+        await _pumpTitleBar(
+          tester,
+          tabsBloc: tabsBloc,
+          navigationBloc: navigationBloc,
+          settingsBloc: settingsBloc,
+        );
 
-      expect(find.byType(ReorderableDelayedDragStartListener), findsOneWidget);
-    }, variant: TargetPlatformVariant.mobile());
+        expect(
+          find.byType(ReorderableDelayedDragStartListener),
+          findsOneWidget,
+        );
+      },
+      variant: TargetPlatformVariant.mobile(),
+    );
 
-    testWidgets('הרבה טאבים מצטמצמים והכפתור X מתחבא בטאב צר, ללא חיצי גלילה',
-        (tester) async {
+    testWidgets('הרבה טאבים מצטמצמים והכפתור X מתחבא בטאב צר, ללא חיצי גלילה', (
+      tester,
+    ) async {
       // ביטול הגלילה: הרבה טאבים מתכווצים, וכשהם צרים מ-80px כפתור ה-X מתחבא
       // (מופיע ב-hover/בנבחר) כדי שהם ימשיכו להצטמצם ויישארו נגישים.
       final tabs = List.generate(10, (i) => _makeTextTab('ספר מספר $i'));
@@ -569,10 +612,12 @@ void main() {
 
       // הטאבים התכווצו אל מתחת ל-80 (אזור הסתרת ה-X) — בלי רצפה ובלי גלילה.
       final widths = tester
-          .widgetList<SizedBox>(find.descendant(
-            of: find.byType(ReorderableListView),
-            matching: find.byType(SizedBox),
-          ))
+          .widgetList<SizedBox>(
+            find.descendant(
+              of: find.byType(ReorderableListView),
+              matching: find.byType(SizedBox),
+            ),
+          )
           .where((b) => b.width != null && b.child is Listener)
           .map((b) => b.width!)
           .toList();
@@ -581,14 +626,20 @@ void main() {
       expect(widths.first, lessThan(80.0));
 
       // בטאבים צרים כפתורי ה-X מתחבאים — פחות כפתורי סגירה ממספר הטאבים.
-      final closeButtons =
-          find.byIcon(FluentIcons.dismiss_24_regular).evaluate().length;
-      expect(closeButtons, lessThan(tabs.length),
-          reason: 'X מתחבא בטאבים צרים שאינם נבחרים/תחת hover');
+      final closeButtons = find
+          .byIcon(FluentIcons.dismiss_24_regular)
+          .evaluate()
+          .length;
+      expect(
+        closeButtons,
+        lessThan(tabs.length),
+        reason: 'X מתחבא בטאבים צרים שאינם נבחרים/תחת hover',
+      );
     });
 
-    testWidgets('בצפיפות הטאב הנבחר שומר רוחב מזערי וכפתור ה-X שלו נשאר',
-        (tester) async {
+    testWidgets('בצפיפות הטאב הנבחר שומר רוחב מזערי וכפתור ה-X שלו נשאר', (
+      tester,
+    ) async {
       // 20 טאבים ברוחב 900 → החלוקה השווה צונחת מתחת לרוחב שמכיל את ה-X. הטאב
       // הנבחר חייב לשמור רוחב מזערי (60px) כך שה-X שלו לא ייעלם, והשאר
       // מתחלקים ביתרה — עדיין ללא חיתוך וללא גלילה.
@@ -618,23 +669,34 @@ void main() {
       await tester.pumpAndSettle();
 
       final widths = tester
-          .widgetList<SizedBox>(find.descendant(
-            of: find.byType(ReorderableListView),
-            matching: find.byType(SizedBox),
-          ))
+          .widgetList<SizedBox>(
+            find.descendant(
+              of: find.byType(ReorderableListView),
+              matching: find.byType(SizedBox),
+            ),
+          )
           .where((b) => b.width != null && b.child is Listener)
           .map((b) => b.width!)
           .toList();
       expect(widths.length, 20);
-      expect(widths.first, moreOrLessEquals(60.0, epsilon: 1.0),
-          reason: 'הטאב הנבחר (אינדקס 0) שומר רוחב מזערי של 60px');
-      expect(widths[1], lessThan(widths.first),
-          reason: 'שאר הטאבים צרים מהנבחר — מתחלקים ביתרה');
+      expect(
+        widths.first,
+        moreOrLessEquals(60.0, epsilon: 1.0),
+        reason: 'הטאב הנבחר (אינדקס 0) שומר רוחב מזערי של 60px',
+      );
+      expect(
+        widths[1],
+        lessThan(widths.first),
+        reason: 'שאר הטאבים צרים מהנבחר — מתחלקים ביתרה',
+      );
 
       final sumWidth = widths.fold<double>(0, (a, b) => a + b);
       final listWidth = tester.getSize(find.byType(ReorderableListView)).width;
-      expect(sumWidth, lessThanOrEqualTo(listWidth + 1.0),
-          reason: 'גם עם הרצפה לנבחר — הכול נכנס ללא חיתוך');
+      expect(
+        sumWidth,
+        lessThanOrEqualTo(listWidth + 1.0),
+        reason: 'גם עם הרצפה לנבחר — הכול נכנס ללא חיתוך',
+      );
 
       // כפתור ה-X קיים בתוך הטאב הנבחר גם בצפיפות הזו.
       final selectedClose = find.descendant(
@@ -644,12 +706,16 @@ void main() {
         ),
         matching: find.byIcon(FluentIcons.dismiss_24_regular),
       );
-      expect(selectedClose, findsOneWidget,
-          reason: 'לטאב הנבחר תמיד יש כפתור סגירה, גם כשהשורה צפופה');
+      expect(
+        selectedClose,
+        findsOneWidget,
+        reason: 'לטאב הנבחר תמיד יש כפתור סגירה, גם כשהשורה צפופה',
+      );
     });
 
-    testWidgets('מספר טאבים גדול — כולם נכנסים ללא חיתוך וללא גלילה',
-        (tester) async {
+    testWidgets('מספר טאבים גדול — כולם נכנסים ללא חיתוך וללא גלילה', (
+      tester,
+    ) async {
       // ללא רצפת רוחב וללא גלילה: סכום רוחבי הטאבים לא חורג מהרוחב הזמין, כך
       // שאף טאב אינו נחתך/בלתי-נגיש (התיקון לרגרסיה של מנגנון הגלילה שהוסר).
       final tabs = List.generate(30, (i) => _makeTextTab('ספר מספר $i'));
@@ -681,24 +747,30 @@ void main() {
       expect(find.byIcon(FluentIcons.chevron_right_24_regular), findsNothing);
 
       final widths = tester
-          .widgetList<SizedBox>(find.descendant(
-            of: find.byType(ReorderableListView),
-            matching: find.byType(SizedBox),
-          ))
+          .widgetList<SizedBox>(
+            find.descendant(
+              of: find.byType(ReorderableListView),
+              matching: find.byType(SizedBox),
+            ),
+          )
           .where((b) => b.width != null && b.child is Listener)
           .map((b) => b.width!)
           .toList();
       expect(widths.length, 30, reason: 'כל 30 הטאבים רונדרו');
       final sumWidth = widths.fold<double>(0, (a, b) => a + b);
       final listWidth = tester.getSize(find.byType(ReorderableListView)).width;
-      expect(sumWidth, lessThanOrEqualTo(listWidth + 1.0),
-          reason: 'סכום רוחבי הטאבים נכנס ברוחב הזמין — אין חיתוך');
+      expect(
+        sumWidth,
+        lessThanOrEqualTo(listWidth + 1.0),
+        reason: 'סכום רוחבי הטאבים נכנס ברוחב הזמין — אין חיתוך',
+      );
     });
   });
 
   group('סגירת טאב בלחיצה על כפתור ה-X', () {
-    testWidgets('לחיצה על ה-X סוגרת מיד — בלי המתנה ל-timeout של לחיצה כפולה',
-        (tester) async {
+    testWidgets('לחיצה על ה-X סוגרת מיד — בלי המתנה ל-timeout של לחיצה כפולה', (
+      tester,
+    ) async {
       // רגרסיה: מזהה הלחיצה הכפולה (maximize על האזור הריק) החזיק את
       // ה-gesture arena על כל השורה, וה-X הגיב רק אחרי ~300ms. המזהה חייב
       // לדחות מצביעים שמעל טאב, כך שה-RemoveTab נשלח מיד בשחרור הלחיצה.
@@ -738,12 +810,16 @@ void main() {
       // pump ללא קידום שעון: אסור שהסגירה תחכה ל-timer של הלחיצה הכפולה.
       await tester.pump();
 
-      expect(tabsBloc.addedEvents.whereType<RemoveTab>(), isNotEmpty,
-          reason: 'ה-X חייב לסגור מיד בשחרור הלחיצה, ללא השהיית arena');
+      expect(
+        tabsBloc.addedEvents.whereType<RemoveTab>(),
+        isNotEmpty,
+        reason: 'ה-X חייב לסגור מיד בשחרור הלחיצה, ללא השהיית arena',
+      );
     });
 
-    testWidgets('לחיצה על ה-X של טאב שאינו הנבחר סוגרת אותו (RemoveTab)',
-        (tester) async {
+    testWidgets('לחיצה על ה-X של טאב שאינו הנבחר סוגרת אותו (RemoveTab)', (
+      tester,
+    ) async {
       // התרחיש שבו הבאג הופיע: לחיצה על ה-X של טאב לא-נבחר בחרה אותו
       // (SetCurrentTab) וה-rebuild תחת ה-GlobalKey הנבחר הרס את ה-IconButton
       // לפני שה-onPressed שלו ירה — כך שהטאב התחלף במקום להיסגר.
@@ -791,9 +867,11 @@ void main() {
       // שה-onPressed שלו יורה — כך הטאב התחלף במקום להיסגר (שורש הבאג).
       final gesture = await tester.startGesture(tester.getCenter(closeButton));
       await tester.pump();
-      expect(tabsBloc.addedEvents.whereType<SetCurrentTab>(), isEmpty,
-          reason:
-              'לחיצה על ה-X לא צריכה לבחור את הטאב (שתהרוס את כפתור הסגירה)');
+      expect(
+        tabsBloc.addedEvents.whereType<SetCurrentTab>(),
+        isEmpty,
+        reason: 'לחיצה על ה-X לא צריכה לבחור את הטאב (שתהרוס את כפתור הסגירה)',
+      );
       await gesture.up();
       await tester.pumpAndSettle();
 
@@ -807,13 +885,17 @@ void main() {
 
       final removed = tabsBloc.addedEvents.whereType<RemoveTab>().toList();
       expect(removed, isNotEmpty, reason: 'כפתור ה-X חייב לסגור את הטאב');
-      expect(removed.last.tab, same(second),
-          reason: 'הטאב שנסגר הוא הטאב שעל ה-X שלו נלחץ');
+      expect(
+        removed.last.tab,
+        same(second),
+        reason: 'הטאב שנסגר הוא הטאב שעל ה-X שלו נלחץ',
+      );
     });
   });
 
-  testWidgets('סגירת טאב כשהעכבר בשורה שומרת על רוחב הטאבים (לא מתרחבים)',
-      (tester) async {
+  testWidgets('סגירת טאב כשהעכבר בשורה שומרת על רוחב הטאבים (לא מתרחבים)', (
+    tester,
+  ) async {
     // 6 טאבים ברוחב צר (מתחת לתקרה) — סגירה רגילה תרחיב את הנותרים. כל עוד
     // העכבר בשורה הרוחב אמור להישאר קפוא כדי שה-X של הטאב הבא יישאר תחת הסמן.
     final tabs = List.generate(6, (i) => _makeTextTab('ספר מספר $i'));
@@ -847,10 +929,12 @@ void main() {
     await tester.pumpAndSettle();
 
     List<double> tabWidths() => tester
-        .widgetList<SizedBox>(find.descendant(
-          of: find.byType(ReorderableListView),
-          matching: find.byType(SizedBox),
-        ))
+        .widgetList<SizedBox>(
+          find.descendant(
+            of: find.byType(ReorderableListView),
+            matching: find.byType(SizedBox),
+          ),
+        )
         .where((b) => b.width != null && b.child is Listener)
         .map((b) => b.width!)
         .toList();
@@ -860,7 +944,8 @@ void main() {
     // מביאים את העכבר אל מרכז השורה (hover) — כך _pointerInsideTabStrip=true.
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await gesture.addPointer(
-        location: tester.getCenter(find.byType(ReorderableListView)));
+      location: tester.getCenter(find.byType(ReorderableListView)),
+    );
     addTearDown(gesture.removePointer);
     await tester.pump();
 
@@ -876,21 +961,28 @@ void main() {
 
     closeTabByTitle('ספר מספר 2');
     await tester.pumpAndSettle();
-    expect(tabWidths().first, moreOrLessEquals(widthBefore, epsilon: 1.0),
-        reason: 'סגירה ראשונה: הרוחב נשאר קפוא');
+    expect(
+      tabWidths().first,
+      moreOrLessEquals(widthBefore, epsilon: 1.0),
+      reason: 'סגירה ראשונה: הרוחב נשאר קפוא',
+    );
 
     // סגירה רצופה שנייה — הרוחב חייב להישאר קפוא על אותו ערך, לא להתרחב מחדש.
     closeTabByTitle('ספר מספר 3');
     await tester.pumpAndSettle();
 
     expect(tabWidths().length, 4, reason: 'שני טאבים נסגרו');
-    expect(tabWidths().first, moreOrLessEquals(widthBefore, epsilon: 1.0),
-        reason: 'בסגירות רצופות הרוחב נשאר קפוא על הערך המקורי ולא מתרחב');
+    expect(
+      tabWidths().first,
+      moreOrLessEquals(widthBefore, epsilon: 1.0),
+      reason: 'בסגירות רצופות הרוחב נשאר קפוא על הערך המקורי ולא מתרחב',
+    );
   });
 
   group('פריסת מסך צר (portrait) — טאבים בשורה תחתונה', () {
-    testWidgets('landscape: הטאבים באותה שורה של כפתורי הפעולה',
-        (tester) async {
+    testWidgets('landscape: הטאבים באותה שורה של כפתורי הפעולה', (
+      tester,
+    ) async {
       final tab = _makeTextTab('ספר א');
       final tabsBloc = _TestTabsBloc(
         TabsState(tabs: [tab], currentTabIndex: 0),
@@ -916,16 +1008,23 @@ void main() {
       );
 
       final tabsBarSize = tester.getSize(find.byType(ReorderableListView));
-      expect(tabsBarSize.height, lessThanOrEqualTo(40),
-          reason: 'במצב רחב הטאבים בתוך שורת הכותרת 40px');
+      expect(
+        tabsBarSize.height,
+        lessThanOrEqualTo(40),
+        reason: 'במצב רחב הטאבים בתוך שורת הכותרת 40px',
+      );
 
       final tabsTop = tester.getTopLeft(find.byType(ReorderableListView)).dy;
-      expect(tabsTop, lessThan(40),
-          reason: 'בלנדסקייפ הטאבים בשורה העליונה (y < 40)');
+      expect(
+        tabsTop,
+        lessThan(40),
+        reason: 'בלנדסקייפ הטאבים בשורה העליונה (y < 40)',
+      );
     });
 
-    testWidgets('portrait: הטאבים בשורה תחתונה מתחת לשורת הכותרת',
-        (tester) async {
+    testWidgets('portrait: הטאבים בשורה תחתונה מתחת לשורת הכותרת', (
+      tester,
+    ) async {
       final tab = _makeTextTab('ספר א');
       final tabsBloc = _TestTabsBloc(
         TabsState(tabs: [tab], currentTabIndex: 0),
@@ -951,9 +1050,12 @@ void main() {
       );
 
       final tabsTop = tester.getTopLeft(find.byType(ReorderableListView)).dy;
-      expect(tabsTop, greaterThanOrEqualTo(40),
-          reason:
-              'ב-portrait הטאבים בשורה תחתונה (y ≥ 40, כי השורה העליונה היא 40)');
+      expect(
+        tabsTop,
+        greaterThanOrEqualTo(40),
+        reason:
+            'ב-portrait הטאבים בשורה תחתונה (y ≥ 40, כי השורה העליונה היא 40)',
+      );
     });
 
     testWidgets('portrait: הטאבים מקבלים רוחב מלא ולא נדחסים', (tester) async {
@@ -983,14 +1085,19 @@ void main() {
         settingsBloc: settingsBloc,
       );
 
-      final tabsBarWidth =
-          tester.getSize(find.byType(ReorderableListView)).width;
-      expect(tabsBarWidth, greaterThan(300),
-          reason: 'בשורה התחתונה הטאבים מקבלים את הרוחב כמעט-מלא');
+      final tabsBarWidth = tester
+          .getSize(find.byType(ReorderableListView))
+          .width;
+      expect(
+        tabsBarWidth,
+        greaterThan(300),
+        reason: 'בשורה התחתונה הטאבים מקבלים את הרוחב כמעט-מלא',
+      );
     });
 
-    testWidgets('portrait בלי טאבים פתוחים: השורה התחתונה לא מופיעה',
-        (tester) async {
+    testWidgets('portrait בלי טאבים פתוחים: השורה התחתונה לא מופיעה', (
+      tester,
+    ) async {
       final tabsBloc = _TestTabsBloc(
         const TabsState(tabs: [], currentTabIndex: 0),
       );
@@ -1039,8 +1146,12 @@ void main() {
           return null;
         },
       );
-      addTearDown(() => tester.binding.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, null));
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
     }
 
     testWidgets('לחיצה כפולה על טאב אינה משנה את גודל החלון', (tester) async {
@@ -1076,12 +1187,16 @@ void main() {
 
       await _doubleTapAt(tester, tester.getCenter(find.text('ספר ב')));
 
-      expect(resizeCalls, isEmpty,
-          reason: 'לחיצה כפולה על טאב לא צריכה לשנות את גודל החלון');
+      expect(
+        resizeCalls,
+        isEmpty,
+        reason: 'לחיצה כפולה על טאב לא צריכה לשנות את גודל החלון',
+      );
     });
 
-    testWidgets('לחיצה כפולה על האזור הריק שבשורת הטאבים עושה maximize',
-        (tester) async {
+    testWidgets('לחיצה כפולה על האזור הריק שבשורת הטאבים עושה maximize', (
+      tester,
+    ) async {
       // טאב יחיד קצר ברוחב גדול → אזור ריק נרחב בשורת הטאבים, שבו ה-DragToMoveArea
       // צריך לפעול כרגיל (maximize/restore).
       final tab = _makeTextTab('ספר א');
@@ -1117,8 +1232,11 @@ void main() {
           : listRect.left + 10;
       await _doubleTapAt(tester, Offset(emptyX, listRect.center.dy));
 
-      expect(resizeCalls, contains('maximize'),
-          reason: 'לחיצה כפולה על אזור ריק צריכה לשנות את גודל החלון');
+      expect(
+        resizeCalls,
+        contains('maximize'),
+        reason: 'לחיצה כפולה על אזור ריק צריכה לשנות את גודל החלון',
+      );
     });
   });
 }

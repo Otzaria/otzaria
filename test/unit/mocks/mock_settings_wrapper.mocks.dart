@@ -34,28 +34,29 @@ class MockSettingsWrapper extends _i1.Mock implements _i2.SettingsWrapper {
     required T? defaultValue,
   }) =>
       (super.noSuchMethod(
-        Invocation.method(
-          #getValue,
-          [key],
-          {#defaultValue: defaultValue},
-        ),
-        returnValue: _i3.dummyValue<T>(
-          this,
-          Invocation.method(
-            #getValue,
-            [key],
-            {#defaultValue: defaultValue},
-          ),
-        ),
-        returnValueForMissingStub: _i3.dummyValue<T>(
-          this,
-          Invocation.method(
-            #getValue,
-            [key],
-            {#defaultValue: defaultValue},
-          ),
-        ),
-      ) as T);
+            Invocation.method(
+              #getValue,
+              [key],
+              {#defaultValue: defaultValue},
+            ),
+            returnValue: _i3.dummyValue<T>(
+              this,
+              Invocation.method(
+                #getValue,
+                [key],
+                {#defaultValue: defaultValue},
+              ),
+            ),
+            returnValueForMissingStub: _i3.dummyValue<T>(
+              this,
+              Invocation.method(
+                #getValue,
+                [key],
+                {#defaultValue: defaultValue},
+              ),
+            ),
+          )
+          as T);
 
   @override
   _i4.Future<void> setValue<T>(
@@ -63,24 +64,27 @@ class MockSettingsWrapper extends _i1.Mock implements _i2.SettingsWrapper {
     T? value,
   ) =>
       (super.noSuchMethod(
-        Invocation.method(
-          #setValue,
-          [
-            key,
-            value,
-          ],
-        ),
-        returnValue: _i4.Future<void>.value(),
-        returnValueForMissingStub: _i4.Future<void>.value(),
-      ) as _i4.Future<void>);
+            Invocation.method(
+              #setValue,
+              [
+                key,
+                value,
+              ],
+            ),
+            returnValue: _i4.Future<void>.value(),
+            returnValueForMissingStub: _i4.Future<void>.value(),
+          )
+          as _i4.Future<void>);
 
   @override
-  _i4.Future<void> remove(String? key) => (super.noSuchMethod(
-        Invocation.method(
-          #remove,
-          [key],
-        ),
-        returnValue: _i4.Future<void>.value(),
-        returnValueForMissingStub: _i4.Future<void>.value(),
-      ) as _i4.Future<void>);
+  _i4.Future<void> remove(String? key) =>
+      (super.noSuchMethod(
+            Invocation.method(
+              #remove,
+              [key],
+            ),
+            returnValue: _i4.Future<void>.value(),
+            returnValueForMissingStub: _i4.Future<void>.value(),
+          )
+          as _i4.Future<void>);
 }

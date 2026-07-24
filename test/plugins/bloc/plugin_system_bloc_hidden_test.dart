@@ -50,9 +50,10 @@ class _FakeRepo implements PluginRegistryRepository {
   Future<void> updateShowInTools(String pluginId, bool showInTools) async {
     showInToolsCalls.add((pluginId: pluginId, showInTools: showInTools));
     plugins = plugins
-        .map((p) => p.pluginId == pluginId
-            ? p.copyWith(showInTools: showInTools)
-            : p)
+        .map(
+          (p) =>
+              p.pluginId == pluginId ? p.copyWith(showInTools: showInTools) : p,
+        )
         .toList();
   }
 
@@ -78,40 +79,46 @@ class _FakeRepo implements PluginRegistryRepository {
 
 void main() {
   group('PluginSystemBloc SetPluginShowInToolsRequested handler', () {
-    test('forwards (pluginId, false) to repository.updateShowInTools', () async {
-      final repo = _FakeRepo([_plugin(id: 'p1'), _plugin(id: 'p2')]);
-      final bloc = PluginSystemBloc(repository: repo);
-      addTearDown(bloc.close);
+    test(
+      'forwards (pluginId, false) to repository.updateShowInTools',
+      () async {
+        final repo = _FakeRepo([_plugin(id: 'p1'), _plugin(id: 'p2')]);
+        final bloc = PluginSystemBloc(repository: repo);
+        addTearDown(bloc.close);
 
-      bloc.add(const SetPluginShowInToolsRequested(
-        pluginId: 'p1',
-        showInTools: false,
-      ));
+        bloc.add(
+          const SetPluginShowInToolsRequested(
+            pluginId: 'p1',
+            showInTools: false,
+          ),
+        );
 
-      await expectLater(bloc.stream, emitsThrough(isA<PluginSystemLoaded>()));
+        await expectLater(bloc.stream, emitsThrough(isA<PluginSystemLoaded>()));
 
-      expect(repo.showInToolsCalls, hasLength(1));
-      expect(repo.showInToolsCalls.single.pluginId, 'p1');
-      expect(repo.showInToolsCalls.single.showInTools, isFalse);
-    });
+        expect(repo.showInToolsCalls, hasLength(1));
+        expect(repo.showInToolsCalls.single.pluginId, 'p1');
+        expect(repo.showInToolsCalls.single.showInTools, isFalse);
+      },
+    );
 
     test('forwards (pluginId, true) — the "show again" direction', () async {
       final repo = _FakeRepo([_plugin(id: 'p1', showInTools: false)]);
       final bloc = PluginSystemBloc(repository: repo);
       addTearDown(bloc.close);
 
-      bloc.add(const SetPluginShowInToolsRequested(
-        pluginId: 'p1',
-        showInTools: true,
-      ));
+      bloc.add(
+        const SetPluginShowInToolsRequested(
+          pluginId: 'p1',
+          showInTools: true,
+        ),
+      );
 
       await expectLater(bloc.stream, emitsThrough(isA<PluginSystemLoaded>()));
 
       expect(repo.showInToolsCalls.single.showInTools, isTrue);
     });
 
-    test(
-        'after the event, the next PluginSystemLoaded reflects showInTools '
+    test('after the event, the next PluginSystemLoaded reflects showInTools '
         'in the pinnedPlugins getter', () async {
       final repo = _FakeRepo([
         _plugin(id: 'visible'),
@@ -120,17 +127,20 @@ void main() {
       final bloc = PluginSystemBloc(repository: repo);
       addTearDown(bloc.close);
 
-      bloc.add(const SetPluginShowInToolsRequested(
-        pluginId: 'will-hide',
-        showInTools: false,
-      ));
+      bloc.add(
+        const SetPluginShowInToolsRequested(
+          pluginId: 'will-hide',
+          showInTools: false,
+        ),
+      );
 
       PluginSystemLoaded? lastLoaded;
       await for (final s in bloc.stream) {
         if (s is PluginSystemLoaded) {
           lastLoaded = s;
-          if (!s.plugins
-              .any((p) => p.pluginId == 'will-hide' && p.showInTools)) {
+          if (!s.plugins.any(
+            (p) => p.pluginId == 'will-hide' && p.showInTools,
+          )) {
             break;
           }
         }
@@ -144,22 +154,32 @@ void main() {
       );
     });
 
-    test('toggling the same plugin twice writes both directions in order',
-        () async {
-      final repo = _FakeRepo([_plugin(id: 'p1')]);
-      final bloc = PluginSystemBloc(repository: repo);
-      addTearDown(bloc.close);
+    test(
+      'toggling the same plugin twice writes both directions in order',
+      () async {
+        final repo = _FakeRepo([_plugin(id: 'p1')]);
+        final bloc = PluginSystemBloc(repository: repo);
+        addTearDown(bloc.close);
 
-      bloc.add(
-          const SetPluginShowInToolsRequested(pluginId: 'p1', showInTools: false));
-      bloc.add(
-          const SetPluginShowInToolsRequested(pluginId: 'p1', showInTools: true));
+        bloc.add(
+          const SetPluginShowInToolsRequested(
+            pluginId: 'p1',
+            showInTools: false,
+          ),
+        );
+        bloc.add(
+          const SetPluginShowInToolsRequested(
+            pluginId: 'p1',
+            showInTools: true,
+          ),
+        );
 
-      await Future.delayed(const Duration(milliseconds: 50));
+        await Future.delayed(const Duration(milliseconds: 50));
 
-      expect(repo.showInToolsCalls.length, 2);
-      expect(repo.showInToolsCalls[0].showInTools, isFalse);
-      expect(repo.showInToolsCalls[1].showInTools, isTrue);
-    });
+        expect(repo.showInToolsCalls.length, 2);
+        expect(repo.showInToolsCalls[0].showInTools, isFalse);
+        expect(repo.showInToolsCalls[1].showInTools, isTrue);
+      },
+    );
   });
 }

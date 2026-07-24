@@ -103,8 +103,9 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
     );
 
     // טעינת קטגוריות זמינות
-    _availableCategories =
-        PageShapeSettingsManager.parseCategories(widget.heCategories);
+    _availableCategories = PageShapeSettingsManager.parseCategories(
+      widget.heCategories,
+    );
 
     // אם אין קטגוריות, נסה לחלץ מהכותרת
     if (_availableCategories.isEmpty && widget.bookTitle.contains(',')) {
@@ -115,15 +116,17 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
     }
 
     // בדיקה מאיפה נטענו הגדרות המפרשים
-    final activeCategory =
-        PageShapeSettingsManager.getActiveCategory(widget.heCategories);
+    final activeCategory = PageShapeSettingsManager.getActiveCategory(
+      widget.heCategories,
+    );
     if (activeCategory != null) {
       _commentatorSaveScope = CommentatorSaveScope.category;
       _selectedCategory = activeCategory;
     } else {
       _commentatorSaveScope = CommentatorSaveScope.book;
-      _selectedCategory =
-          _availableCategories.isNotEmpty ? _availableCategories.first : null;
+      _selectedCategory = _availableCategories.isNotEmpty
+          ? _availableCategories.first
+          : null;
     }
 
     setState(() {
@@ -132,10 +135,12 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
         selection: widget.currentRight,
         availableCommentators: widget.availableCommentators,
       );
-      _rightUsesMultipleSelection =
-          isPageShapeMultipleCommentatorsMode(resolvedRightSelection);
-      _rightSingleCommentator =
-          _rightUsesMultipleSelection ? null : resolvedRightSelection;
+      _rightUsesMultipleSelection = isPageShapeMultipleCommentatorsMode(
+        resolvedRightSelection,
+      );
+      _rightSingleCommentator = _rightUsesMultipleSelection
+          ? null
+          : resolvedRightSelection;
       _rightCommentators = resolvePageShapeSelectedCommentators(
         selection: widget.currentRight,
         availableCommentators: widget.availableCommentators,
@@ -156,14 +161,15 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
       );
       _bottomCommentator = widget.currentBottom;
       _bottomRightCommentator = widget.currentBottomRight;
-      _bottomFontFamily = Settings.getValue<String>('page_shape_bottom_font') ??
+      _bottomFontFamily =
+          Settings.getValue<String>('page_shape_bottom_font') ??
           AppFonts.defaultFont;
       _commentaryFontSize = PageShapeSettingsManager.getCommentaryFontSize();
       _highlightRelatedCommentators =
           PageShapeSettingsManager.getHighlightSetting(
-        widget.bookTitle,
-        workspaceId: widget.currentWorkspaceId,
-      );
+            widget.bookTitle,
+            workspaceId: widget.currentWorkspaceId,
+          );
       _columnVisibility = PageShapeSettingsManager.getColumnVisibility(
         widget.bookTitle,
         workspaceId: widget.currentWorkspaceId,
@@ -207,7 +213,8 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
       );
       // מחיקת הגדרות מפרשים ספציפיות לספר אם יש
       await PageShapeSettingsManager.resetBookCommentatorConfig(
-          widget.bookTitle);
+        widget.bookTitle,
+      );
     } else {
       // שמירה לספר ספציפי
       await PageShapeSettingsManager.saveConfiguration(
@@ -218,7 +225,9 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
 
     // שמירת הגופן של המפרשים התחתונים בלבד (תמיד גלובלי)
     await Settings.setValue<String>(
-        'page_shape_bottom_font', _bottomFontFamily);
+      'page_shape_bottom_font',
+      _bottomFontFamily,
+    );
 
     // שמירת הגדרת הדגשה - גלובלי או פר-ספר לפי הבחירה
     await PageShapeSettingsManager.saveHighlightSetting(
@@ -240,8 +249,11 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
     widget.onSettingsChanged?.call();
   }
 
-  void _onCommentatorChanged(String? value, void Function(String?) setter,
-      {String? visibilityKey}) {
+  void _onCommentatorChanged(
+    String? value,
+    void Function(String?) setter, {
+    String? visibilityKey,
+  }) {
     setState(() {
       setter(value);
       // אם בחרו מפרש והטור מוסתר - הצג אותו אוטומטית
@@ -281,8 +293,9 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
     setState(() {
       _commentaryFontSize = value;
     });
-    PageShapeSettingsManager.saveCommentaryFontSize(value)
-        .then((_) => widget.onSettingsChanged?.call());
+    PageShapeSettingsManager.saveCommentaryFontSize(
+      value,
+    ).then((_) => widget.onSettingsChanged?.call());
   }
 
   void _toggleColumnVisibility(String column, bool visible) {
@@ -293,7 +306,8 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
   }
 
   Future<void> _onDisplayScopeChanged(
-      PageShapeDisplaySettingsScope scope) async {
+    PageShapeDisplaySettingsScope scope,
+  ) async {
     if (scope == _displaySettingsScope) return;
 
     if (scope == PageShapeDisplaySettingsScope.global) {
@@ -328,10 +342,12 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
       widget.currentWorkspaceId,
     );
     // טעינה מחדש של הגדרות התצוגה הגלובליות (לא מפרשים!)
-    final highlight =
-        PageShapeSettingsManager.getHighlightSetting(widget.bookTitle);
-    final visibility =
-        PageShapeSettingsManager.getColumnVisibility(widget.bookTitle);
+    final highlight = PageShapeSettingsManager.getHighlightSetting(
+      widget.bookTitle,
+    );
+    final visibility = PageShapeSettingsManager.getColumnVisibility(
+      widget.bookTitle,
+    );
     if (!mounted) return;
     setState(() {
       _displaySettingsScope = PageShapeDisplaySettingsScope.global;
@@ -403,7 +419,8 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
       context: context,
       title: 'איפוס הגדרות מפרשים',
       content: 'האם לאפס את הגדרות המפרשים לברירות המחדל?',
-      subtitle: 'פעולה זו תמחק את ההגדרות השמורות ותטען את המפרשים '
+      subtitle:
+          'פעולה זו תמחק את ההגדרות השמורות ותטען את המפרשים '
           'המתאימים לפי סוג הספר.',
       confirmText: 'אפס',
     );
@@ -549,16 +566,20 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
                   decoration: InputDecoration(
                     labelText: 'בחר קטגוריה',
                     border: const OutlineInputBorder(),
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     filled: true,
                     fillColor: Theme.of(context).colorScheme.surface,
                   ),
                   items: _availableCategories.map((category) {
                     return DropdownMenuItem<String>(
                       value: category,
-                      child:
-                          Text(category, style: const TextStyle(fontSize: 13)),
+                      child: Text(
+                        category,
+                        style: const TextStyle(fontSize: 13),
+                      ),
                     );
                   }).toList(),
                   onChanged: (value) {
@@ -617,8 +638,10 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
           label: 'מפרש ימני',
           value: _leftCommentator,
           onChanged: (value) => _onCommentatorChanged(
-              value, (v) => _leftCommentator = v,
-              visibilityKey: 'left'),
+            value,
+            (v) => _leftCommentator = v,
+            visibilityKey: 'left',
+          ),
           visibilityKey: 'left',
         ),
         const SizedBox(height: 12),
@@ -640,8 +663,10 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
           label: 'מפרש תחתון',
           value: _bottomCommentator,
           onChanged: (value) => _onCommentatorChanged(
-              value, (v) => _bottomCommentator = v,
-              visibilityKey: 'bottom'),
+            value,
+            (v) => _bottomCommentator = v,
+            visibilityKey: 'bottom',
+          ),
           visibilityKey: 'bottom',
         ),
         const SizedBox(height: 12),
@@ -649,8 +674,10 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
           label: 'מפרש תחתון נוסף',
           value: _bottomRightCommentator,
           onChanged: (value) => _onCommentatorChanged(
-              value, (v) => _bottomRightCommentator = v,
-              visibilityKey: 'bottomRight'),
+            value,
+            (v) => _bottomRightCommentator = v,
+            visibilityKey: 'bottomRight',
+          ),
           visibilityKey: 'bottomRight',
         ),
         const SizedBox(height: 20),
@@ -812,7 +839,8 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
     List<AppMenuEntry<String>> entries,
     List<String> filterLabels,
     List<bool Function(AppMenuEntry<String>)?> filterPredicates,
-  }) _buildCommentatorMenuData({
+  })
+  _buildCommentatorMenuData({
     required bool allowRemaining,
     required bool allowMultiple,
   }) {
@@ -826,25 +854,32 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
 
     final entries = <AppMenuEntry<String>>[];
     if (allowMultiple) {
-      entries.add(const AppMenuEntry(
-        value: pageShapeMultipleCommentatorsModeValue,
-        label: pageShapeMultipleCommentatorsModeLabel,
-      ));
+      entries.add(
+        const AppMenuEntry(
+          value: pageShapeMultipleCommentatorsModeValue,
+          label: pageShapeMultipleCommentatorsModeLabel,
+        ),
+      );
     }
     if (allowRemaining) {
-      entries.add(const AppMenuEntry(
-        value: pageShapeRemainingCommentatorsValue,
-        label: pageShapeRemainingCommentatorsLabel,
-      ));
+      entries.add(
+        const AppMenuEntry(
+          value: pageShapeRemainingCommentatorsValue,
+          label: pageShapeRemainingCommentatorsLabel,
+        ),
+      );
     }
-    entries.add(const AppMenuEntry(
-      value: _noneCommentatorValue,
-      label: 'ללא מפרש',
-    ));
+    entries.add(
+      const AppMenuEntry(
+        value: _noneCommentatorValue,
+        label: 'ללא מפרש',
+      ),
+    );
 
     final eraOf = <String, String>{};
-    final nonEmptyGroups =
-        _groups.where((group) => group.commentators.isNotEmpty).toList();
+    final nonEmptyGroups = _groups
+        .where((group) => group.commentators.isNotEmpty)
+        .toList();
     for (final group in nonEmptyGroups) {
       for (final commentator in group.commentators) {
         eraOf[commentator] = group.title;

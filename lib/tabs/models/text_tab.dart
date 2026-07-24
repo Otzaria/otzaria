@@ -69,8 +69,9 @@ class TextBookTab extends OpenedTab {
 
   /// counter שמתגלגל עם כל בקשה לטוגל חלונית המפרשים מקיצור מקלדת גלובלי.
   /// המאזין הוא [SplitedViewScreen] בלבד; כל הגדלה = toggle יחיד.
-  final ValueNotifier<int> toggleCommentatorsPaneNotifier =
-      ValueNotifier<int>(0);
+  final ValueNotifier<int> toggleCommentatorsPaneNotifier = ValueNotifier<int>(
+    0,
+  );
 
   /// counter שמתגלגל כשיש לפתוח את פאנל ההערות האישיות.
   /// המאזין הוא [SplitedViewScreen] בלבד; כל הגדלה = פתח על טאב הערות.
@@ -118,12 +119,12 @@ class TextBookTab extends OpenedTab {
     @visibleForTesting TextBookBloc? blocOverride,
     // מהדורה חלופית מקבלת כותרת טאב עם שם המהדורה, להבחנה מהנוסח הממוזג.
   }) : super(
-          book.versionTitle == null
-              ? book.title
-              : '${book.title} (${book.versionTitle})',
-          isPinned: isPinned,
-          dedupeKey: dedupeKey,
-        ) {
+         book.versionTitle == null
+             ? book.title
+             : '${book.title} (${book.versionTitle})',
+         isPinned: isPinned,
+         dedupeKey: dedupeKey,
+       ) {
     // קביעת ברירת המחדל של splitedView מההגדרות אם לא סופק
     final bool effectiveSplitedView =
         splitedView ?? (Settings.getValue<bool>('key-splited-view') ?? true);
@@ -138,7 +139,8 @@ class TextBookTab extends OpenedTab {
     // Initialize the bloc with initial state. ב‑production תמיד נבנה bloc חדש;
     // ה‑blocOverride קיים רק לטסטים שצריכים להזריק bloc עם repository מזויף
     // ולהביא אותו ל‑Loaded בלי תשתית קבצים אמיתית.
-    bloc = blocOverride ??
+    bloc =
+        blocOverride ??
         TextBookBloc(
           repository: TextBookRepository(
             fileSystem: FileSystemData.instance,
@@ -161,12 +163,12 @@ class TextBookTab extends OpenedTab {
             permanentHighlightLine: permanentHighlightLine,
             pinpointHighlightIndex:
                 pinpointHighlight != null && pinpointHighlight!.isNotEmpty
-                    ? (pinpointHighlightSectionIndex ?? index)
-                    : null,
+                ? (pinpointHighlightSectionIndex ?? index)
+                : null,
             pinpointHighlightText:
                 pinpointHighlight != null && pinpointHighlight!.isNotEmpty
-                    ? pinpointHighlight
-                    : null,
+                ? pinpointHighlight
+                : null,
           ),
           scrollController: scrollController,
           positionsListener: positionsListener,
@@ -210,7 +212,8 @@ class TextBookTab extends OpenedTab {
     final bool shouldOpenLeftPane = resolveRestoredReadingLeftPaneState(json);
 
     // שחזור מצב התצוגה המפוצלת מה-JSON
-    final bool splitedView = json['splitedView'] ??
+    final bool splitedView =
+        json['splitedView'] ??
         (Settings.getValue<bool>('key-splited-view') ?? true);
 
     final TextBook restoredBook = json['book'] != null
@@ -267,7 +270,7 @@ class TextBookTab extends OpenedTab {
       'showPageShapeView': showPageShapeView,
       'showLeftPane': bloc.state.showLeftPane,
       'isPinned': isPinned,
-      'type': 'TextBookTab'
+      'type': 'TextBookTab',
     };
   }
 }

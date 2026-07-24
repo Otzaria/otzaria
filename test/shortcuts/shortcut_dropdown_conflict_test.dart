@@ -94,14 +94,17 @@ void main() {
   });
 
   group('ShortcutDropDownTile - מניעת שמירת קיצורים כפולים', () {
-    testWidgets('אינו שומר קיצור שכבר שייך להגדרה אחרת (ברירת מחדל)',
-        (tester) async {
+    testWidgets('אינו שומר קיצור שכבר שייך להגדרה אחרת (ברירת מחדל)', (
+      tester,
+    ) async {
       // ברירת מחדל: key-shortcut-open-library-browser משתמש ב-ctrl+l
-      await tester.pumpWidget(_buildTile(
-        bloc: settingsBloc,
-        settingKey: 'key-shortcut-search-current-window',
-        selectedShortcut: 'ctrl+f',
-      ));
+      await tester.pumpWidget(
+        _buildTile(
+          bloc: settingsBloc,
+          settingKey: 'key-shortcut-search-current-window',
+          selectedShortcut: 'ctrl+f',
+        ),
+      );
       await tester.pump();
 
       // מדמים בחירה ישירה של ctrl+l שתפוס על ידי open-library-browser
@@ -116,11 +119,13 @@ void main() {
     });
 
     testWidgets('שומר קיצור שאינו בשימוש על ידי אף הגדרה', (tester) async {
-      await tester.pumpWidget(_buildTile(
-        bloc: settingsBloc,
-        settingKey: 'key-shortcut-search-current-window',
-        selectedShortcut: 'ctrl+f',
-      ));
+      await tester.pumpWidget(
+        _buildTile(
+          bloc: settingsBloc,
+          settingKey: 'key-shortcut-search-current-window',
+          selectedShortcut: 'ctrl+f',
+        ),
+      );
       await tester.pump();
 
       final field = tester.widget<AppDropdownField<String>>(
@@ -129,19 +134,22 @@ void main() {
       field.onSelected?.call(_unusedShortcut1);
       await tester.pump();
 
-      verify(() => settingsBloc.add(any(that: isA<UpdateShortcut>())))
-          .called(1);
+      verify(
+        () => settingsBloc.add(any(that: isA<UpdateShortcut>())),
+      ).called(1);
     });
 
     testWidgets('מאפשר שיתוף קיצור בין הגדרות מקבוצה תואמת', (tester) async {
       // key-shortcut-add-note ו-key-shortcut-calendar-toggle-events תואמות
       // גם כשהקיצור משותף ידנית, אין להציג שגיאת כפילות
-      await tester.pumpWidget(_buildTile(
-        bloc: settingsBloc,
-        settingKey: 'key-shortcut-add-note',
-        selectedShortcut: 'ctrl+n',
-        allShortcuts: const {'ctrl+n': 'Ctrl+N', _unusedShortcut1: 'Ctrl+Y'},
-      ));
+      await tester.pumpWidget(
+        _buildTile(
+          bloc: settingsBloc,
+          settingKey: 'key-shortcut-add-note',
+          selectedShortcut: 'ctrl+n',
+          allShortcuts: const {'ctrl+n': 'Ctrl+N', _unusedShortcut1: 'Ctrl+Y'},
+        ),
+      );
       await tester.pump();
 
       final field = tester.widget<AppDropdownField<String>>(
@@ -150,39 +158,45 @@ void main() {
       field.onSelected?.call('ctrl+n');
       await tester.pump();
 
-      verify(() => settingsBloc.add(any(that: isA<UpdateShortcut>())))
-          .called(1);
+      verify(
+        () => settingsBloc.add(any(that: isA<UpdateShortcut>())),
+      ).called(1);
     });
 
     testWidgets(
-        'אינו שומר קיצור מותאם אישית שנשמר ב-cache ותפוס על ידי הגדרה אחרת',
-        (tester) async {
-      // מגדירים ידנית ב-cache שהגדרה אחרת משתמשת ב-_unusedShortcut2
-      await cache.setString('key-shortcut-close-tab', _unusedShortcut2);
+      'אינו שומר קיצור מותאם אישית שנשמר ב-cache ותפוס על ידי הגדרה אחרת',
+      (tester) async {
+        // מגדירים ידנית ב-cache שהגדרה אחרת משתמשת ב-_unusedShortcut2
+        await cache.setString('key-shortcut-close-tab', _unusedShortcut2);
 
-      await tester.pumpWidget(_buildTile(
-        bloc: settingsBloc,
-        settingKey: 'key-shortcut-open-history',
-        selectedShortcut: 'ctrl+h',
-      ));
-      await tester.pump();
+        await tester.pumpWidget(
+          _buildTile(
+            bloc: settingsBloc,
+            settingKey: 'key-shortcut-open-history',
+            selectedShortcut: 'ctrl+h',
+          ),
+        );
+        await tester.pump();
 
-      final field = tester.widget<AppDropdownField<String>>(
-        find.byType(AppDropdownField<String>),
-      );
-      // מדמים קיצור מותאם אישית שמוחזר מהדיאלוג — אותו ערך שכבר תפוס
-      field.onSelected?.call(_unusedShortcut2);
-      await tester.pump();
+        final field = tester.widget<AppDropdownField<String>>(
+          find.byType(AppDropdownField<String>),
+        );
+        // מדמים קיצור מותאם אישית שמוחזר מהדיאלוג — אותו ערך שכבר תפוס
+        field.onSelected?.call(_unusedShortcut2);
+        await tester.pump();
 
-      verifyNever(() => settingsBloc.add(any(that: isA<UpdateShortcut>())));
-      await _drainUiSnack(tester);
-    });
+        verifyNever(() => settingsBloc.add(any(that: isA<UpdateShortcut>())));
+        await _drainUiSnack(tester);
+      },
+    );
   });
 
   group('ShortcutValidator - זיהוי קיצורים כפולים', () {
     test('checkConflicts מגלה ערכים זהים בין הגדרות שאינן תואמות', () async {
       await cache.setString(
-          'key-shortcut-open-library-browser', _unusedShortcut1);
+        'key-shortcut-open-library-browser',
+        _unusedShortcut1,
+      );
       await cache.setString('key-shortcut-close-tab', _unusedShortcut1);
 
       final conflicts = ShortcutValidator.checkConflicts();
@@ -201,7 +215,9 @@ void main() {
       // add-note ו-calendar-toggle-events מוגדרות כ-compatible
       await cache.setString('key-shortcut-add-note', _unusedShortcut2);
       await cache.setString(
-          'key-shortcut-calendar-toggle-events', _unusedShortcut2);
+        'key-shortcut-calendar-toggle-events',
+        _unusedShortcut2,
+      );
 
       final conflicts = ShortcutValidator.checkConflicts();
 
@@ -285,8 +301,9 @@ void main() {
       expect(find.text('הוסף קיצור'), findsOneWidget);
     });
 
-    testWidgets('מציג את קיצור שחזור הכרטיסייה שנסגרה ברשימת הקיצורים',
-        (tester) async {
+    testWidgets('מציג את קיצור שחזור הכרטיסייה שנסגרה ברשימת הקיצורים', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildTab());
       await tester.pumpAndSettle();
 
@@ -310,8 +327,9 @@ void main() {
       await _drainUiSnack(tester);
     });
 
-    testWidgets('לא סוגר את הדיאלוג כשמנסים לאשר בלי להקליט קיצור',
-        (tester) async {
+    testWidgets('לא סוגר את הדיאלוג כשמנסים לאשר בלי להקליט קיצור', (
+      tester,
+    ) async {
       await openCustomDialog(tester, startRecording: false);
 
       await tester.tap(find.text('אישור'));
@@ -336,8 +354,9 @@ void main() {
       await tester.tap(find.text('אישור'));
       await tester.pumpAndSettle();
 
-      verify(() => settingsBloc.add(any(that: isA<UpdateShortcut>())))
-          .called(1);
+      verify(
+        () => settingsBloc.add(any(that: isA<UpdateShortcut>())),
+      ).called(1);
     });
   });
 }

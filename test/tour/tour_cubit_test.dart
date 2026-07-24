@@ -77,8 +77,9 @@ void main() {
     );
     await Settings.setValue<String>('key-shortcut-open-more', 'alt+m');
 
-    final navigationStep = TourSteps.build(libraryLoaded: true)
-        .firstWhere((step) => step.id == 'navigation');
+    final navigationStep = TourSteps.build(
+      libraryLoaded: true,
+    ).firstWhere((step) => step.id == 'navigation');
 
     expect(navigationStep.body, contains('הגדרות Ctrl+,'));
     expect(navigationStep.body, contains('כלים Alt+M'));
@@ -105,33 +106,37 @@ void main() {
     await cubit.close();
   });
 
-  test('TourCubit שומר skipped_without_library כאשר מדלגים בלי ספרייה',
-      () async {
-    final cubit = TourCubit()..start(libraryLoaded: false);
+  test(
+    'TourCubit שומר skipped_without_library כאשר מדלגים בלי ספרייה',
+    () async {
+      final cubit = TourCubit()..start(libraryLoaded: false);
 
-    await cubit.skip();
+      await cubit.skip();
 
-    expect(cubit.state.isActive, isFalse);
-    expect(
-      Settings.getValue<String>(TourSteps.statusKey),
-      TourSteps.skippedWithoutLibrary,
-    );
-    await cubit.close();
-  });
+      expect(cubit.state.isActive, isFalse);
+      expect(
+        Settings.getValue<String>(TourSteps.statusKey),
+        TourSteps.skippedWithoutLibrary,
+      );
+      await cubit.close();
+    },
+  );
 
-  test('TourCubit שומר completed_without_library כאשר מסיימים בלי ספרייה',
-      () async {
-    final cubit = TourCubit()..start(libraryLoaded: false);
+  test(
+    'TourCubit שומר completed_without_library כאשר מסיימים בלי ספרייה',
+    () async {
+      final cubit = TourCubit()..start(libraryLoaded: false);
 
-    await cubit.complete();
+      await cubit.complete();
 
-    expect(cubit.state.isActive, isFalse);
-    expect(
-      Settings.getValue<String>(TourSteps.statusKey),
-      TourSteps.completedWithoutLibrary,
-    );
-    await cubit.close();
-  });
+      expect(cubit.state.isActive, isFalse);
+      expect(
+        Settings.getValue<String>(TourSteps.statusKey),
+        TourSteps.completedWithoutLibrary,
+      );
+      await cubit.close();
+    },
+  );
 
   test('TourCubit מציג סיור מלא פעם אחת אחרי סיור מקוצר בלי ספרייה', () async {
     await Settings.setValue<String>(
@@ -191,8 +196,9 @@ void main() {
     await cubit.close();
 
     final nextSessionCubit = TourCubit();
-    final startedNextSession =
-        nextSessionCubit.startIfNeeded(libraryLoaded: true);
+    final startedNextSession = nextSessionCubit.startIfNeeded(
+      libraryLoaded: true,
+    );
 
     expect(startedNextSession, isFalse);
     expect(nextSessionCubit.state.isActive, isFalse);
@@ -414,35 +420,37 @@ void main() {
     await cubit.close();
   });
 
-  test('TourCubit חדש טוען resolvedTips מ-Settings ולא מציג שוב טיפ שנסגרה',
-      () async {
-    await Settings.setValue<String>(TourSteps.statusKey, TourSteps.completed);
-    final firstCubit = TourCubit();
-    await firstCubit.recordInteraction(
-      TourInteraction(type: TourInteractionType.textSelected),
-    );
-    await firstCubit.recordInteraction(
-      TourInteraction(type: TourInteractionType.textSelected),
-    );
-    firstCubit.dismissLiveTip();
-    await firstCubit.close();
+  test(
+    'TourCubit חדש טוען resolvedTips מ-Settings ולא מציג שוב טיפ שנסגרה',
+    () async {
+      await Settings.setValue<String>(TourSteps.statusKey, TourSteps.completed);
+      final firstCubit = TourCubit();
+      await firstCubit.recordInteraction(
+        TourInteraction(type: TourInteractionType.textSelected),
+      );
+      await firstCubit.recordInteraction(
+        TourInteraction(type: TourInteractionType.textSelected),
+      );
+      firstCubit.dismissLiveTip();
+      await firstCubit.close();
 
-    final secondCubit = TourCubit();
-    expect(
-      secondCubit.state.resolvedTips,
-      contains(LiveTipId.dictionaryContextMenuHint),
-    );
+      final secondCubit = TourCubit();
+      expect(
+        secondCubit.state.resolvedTips,
+        contains(LiveTipId.dictionaryContextMenuHint),
+      );
 
-    await secondCubit.recordInteraction(
-      TourInteraction(type: TourInteractionType.textSelected),
-    );
-    await secondCubit.recordInteraction(
-      TourInteraction(type: TourInteractionType.textSelected),
-    );
-    expect(secondCubit.state.activeLiveTipId, isNull);
+      await secondCubit.recordInteraction(
+        TourInteraction(type: TourInteractionType.textSelected),
+      );
+      await secondCubit.recordInteraction(
+        TourInteraction(type: TourInteractionType.textSelected),
+      );
+      expect(secondCubit.state.activeLiveTipId, isNull);
 
-    await secondCubit.close();
-  });
+      await secondCubit.close();
+    },
+  );
 
   test('TourCubit מציג טיפ הצג לצד אחרי דילוג חוזר בין שני ספרים', () async {
     await Settings.setValue<String>(TourSteps.statusKey, TourSteps.completed);
@@ -464,27 +472,33 @@ void main() {
     await cubit.close();
   });
 
-  test('טיפ התיקיות המותאמות מופיע אחרי ההפעלה השלישית וכמה דקות שימוש',
-      () async {
-    await Settings.setValue<String>(TourSteps.statusKey, TourSteps.completed);
+  test(
+    'טיפ התיקיות המותאמות מופיע אחרי ההפעלה השלישית וכמה דקות שימוש',
+    () async {
+      await Settings.setValue<String>(TourSteps.statusKey, TourSteps.completed);
 
-    // שתי ההפעלות הראשונות אינן מתזמנות את הטיפ
-    for (var i = 0; i < 2; i++) {
+      // שתי ההפעלות הראשונות אינן מתזמנות את הטיפ
+      for (var i = 0; i < 2; i++) {
+        final cubit = TourCubit(delayedTipSchedules: _fastSchedules);
+        cubit.registerSession();
+        await Future<void>.delayed(const Duration(milliseconds: 40));
+        expect(cubit.state.activeLiveTipId, isNull);
+        await cubit.close();
+      }
+
       final cubit = TourCubit(delayedTipSchedules: _fastSchedules);
       cubit.registerSession();
+      expect(
+        cubit.state.activeLiveTipId,
+        isNull,
+        reason: 'לפני שחלף זמן השימוש',
+      );
+
       await Future<void>.delayed(const Duration(milliseconds: 40));
-      expect(cubit.state.activeLiveTipId, isNull);
+      expect(cubit.state.activeLiveTipId, LiveTipId.customFoldersHint);
       await cubit.close();
-    }
-
-    final cubit = TourCubit(delayedTipSchedules: _fastSchedules);
-    cubit.registerSession();
-    expect(cubit.state.activeLiveTipId, isNull, reason: 'לפני שחלף זמן השימוש');
-
-    await Future<void>.delayed(const Duration(milliseconds: 40));
-    expect(cubit.state.activeLiveTipId, LiveTipId.customFoldersHint);
-    await cubit.close();
-  });
+    },
+  );
 
   test('אם ההפעלה השלישית הייתה קצרה, הטיפ מופיע בהפעלה הרביעית', () async {
     await Settings.setValue<String>(TourSteps.statusKey, TourSteps.completed);
@@ -745,24 +759,26 @@ void main() {
     await cubit.close();
   });
 
-  test('TourCubit אינו מציג טיפ אודות הספר על אותו ספר שנפתח שוב ושוב',
-      () async {
-    await Settings.setValue<String>(TourSteps.statusKey, TourSteps.completed);
-    await Settings.setValue<int>(LiveTipStorage.launchCountKey, 3);
-    final cubit = TourCubit();
+  test(
+    'TourCubit אינו מציג טיפ אודות הספר על אותו ספר שנפתח שוב ושוב',
+    () async {
+      await Settings.setValue<String>(TourSteps.statusKey, TourSteps.completed);
+      await Settings.setValue<int>(LiveTipStorage.launchCountKey, 3);
+      final cubit = TourCubit();
 
-    for (var i = 0; i < 3; i++) {
-      await cubit.recordInteraction(
-        TourInteraction(
-          type: TourInteractionType.openedTextBook,
-          primaryValue: 'בראשית',
-        ),
-      );
-    }
+      for (var i = 0; i < 3; i++) {
+        await cubit.recordInteraction(
+          TourInteraction(
+            type: TourInteractionType.openedTextBook,
+            primaryValue: 'בראשית',
+          ),
+        );
+      }
 
-    expect(cubit.state.activeLiveTipId, isNull);
-    await cubit.close();
-  });
+      expect(cubit.state.activeLiveTipId, isNull);
+      await cubit.close();
+    },
+  );
 
   test('TourCubit פותר את טיפ אודות הספר כאשר נצפה מקור הספר', () async {
     await Settings.setValue<String>(TourSteps.statusKey, TourSteps.completed);
@@ -935,8 +951,9 @@ void main() {
     expect(stack.children.last.key, const ValueKey('current'));
   });
 
-  testWidgets('TourOverlayScreen מודד מחדש יעד שמשתנה אחרי frame',
-      (tester) async {
+  testWidgets('TourOverlayScreen מודד מחדש יעד שמשתנה אחרי frame', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);

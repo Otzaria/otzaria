@@ -57,8 +57,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('שורת התיקייה מציגה כפתור תפריט ולא כפתור מחיקה ישיר',
-      (tester) async {
+  testWidgets('שורת התיקייה מציגה כפתור תפריט ולא כפתור מחיקה ישיר', (
+    tester,
+  ) async {
     final bloc = buildBloc();
     addTearDown(bloc.close);
 
@@ -95,8 +96,12 @@ void main() {
         return null;
       },
     );
-    addTearDown(() => tester.binding.defaultBinaryMessenger
-        .setMockMethodCallHandler(SystemChannels.platform, null));
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
 
     await pumpTile(tester, bloc);
     await openFolderMenu(tester);

@@ -44,17 +44,17 @@ class DatabaseConstants {
   /// כולל קובצי לוואי של SQLite (-wal/-shm) שעשויים להישאר ליד ה-DB.
   /// קבצי ארכיון דחוסים (zst) אינם כאן בכוונה — אינם נצרכים ולא מועברים.
   static Set<String> libraryManagedEntryNames() => {
-        databaseFileName,
-        '$databaseFileName-wal',
-        '$databaseFileName-shm',
-        lexicalDatabaseFileName,
-        externalCatalogDatabaseFileName,
-        '$externalCatalogDatabaseFileName-wal',
-        '$externalCatalogDatabaseFileName-shm',
-        externalCatalogVersionFileName,
-        talmudBavliFolderName,
-        'files_manifest.json',
-      };
+    databaseFileName,
+    '$databaseFileName-wal',
+    '$databaseFileName-shm',
+    lexicalDatabaseFileName,
+    externalCatalogDatabaseFileName,
+    '$externalCatalogDatabaseFileName-wal',
+    '$externalCatalogDatabaseFileName-shm',
+    externalCatalogVersionFileName,
+    talmudBavliFolderName,
+    'files_manifest.json',
+  };
 
   /// Gets the full database path based on the library path setting.
   ///
@@ -72,7 +72,7 @@ class DatabaseConstants {
         Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '.';
     final folderName =
         Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
-            '';
+        '';
     return _buildDbPath(libraryPath, folderName);
   }
 
@@ -85,7 +85,7 @@ class DatabaseConstants {
         Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '.';
     final folderName =
         Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
-            '';
+        '';
     return path.dirname(_buildDbPath(libraryPath, folderName));
   }
 
@@ -110,10 +110,12 @@ class DatabaseConstants {
     String? libraryPath,
     String? folderName,
   ]) {
-    final basePath = libraryPath ??
+    final basePath =
+        libraryPath ??
         Settings.getValue<String>(SettingsRepository.keyLibraryPath) ??
         '.';
-    final folder = folderName ??
+    final folder =
+        folderName ??
         Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
         '';
     final databaseDirectory = path.dirname(_buildDbPath(basePath, folder));
@@ -128,7 +130,8 @@ class DatabaseConstants {
     String? libraryPath,
     String? folderName,
   ]) {
-    final basePath = libraryPath ??
+    final basePath =
+        libraryPath ??
         Settings.getValue<String>(SettingsRepository.keyLibraryPath) ??
         '.';
     final primary = getTalmudBavliDirectoryPath(libraryPath, folderName);
@@ -167,7 +170,8 @@ class DatabaseConstants {
 
     final normalizedFilePath = path.normalize(filePath);
 
-    final candidateDirs = (talmudBavliDirectoryPath != null &&
+    final candidateDirs =
+        (talmudBavliDirectoryPath != null &&
             talmudBavliDirectoryPath.isNotEmpty)
         ? [talmudBavliDirectoryPath]
         : getTalmudBavliDirectoryPaths(libraryPath, folderName);
@@ -186,8 +190,10 @@ class DatabaseConstants {
   /// Gets the database path for a specific file path
   /// If the file is a .db file, returns it directly
   /// If the file is a .zip file, returns the extracted database path
-  static String getDatabasePathForLibrary(String filePath,
-      [String? folderName]) {
+  static String getDatabasePathForLibrary(
+    String filePath, [
+    String? folderName,
+  ]) {
     // If it's a .db file, return it directly
     if (filePath.toLowerCase().endsWith('.db')) {
       return filePath;
@@ -201,7 +207,8 @@ class DatabaseConstants {
     }
 
     // Fallback for directory paths (legacy support)
-    final folder = folderName ??
+    final folder =
+        folderName ??
         Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
         '';
     return _buildDbPath(filePath, folder);

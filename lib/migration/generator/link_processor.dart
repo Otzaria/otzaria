@@ -130,7 +130,8 @@ class LinkProcessor {
 
     if (verboseLogging) {
       _log.fine(
-          'Loaded ${arr.length} line id/index pairs for book $bookId into memory');
+        'Loaded ${arr.length} line id/index pairs for book $bookId into memory',
+      );
     }
   }
 
@@ -184,7 +185,8 @@ class LinkProcessor {
         }
       } else {
         _log.warning(
-            'Unexpected JSON structure in file: ${path.basename(linkFile)}');
+          'Unexpected JSON structure in file: ${path.basename(linkFile)}',
+        );
         return const LinkProcessResult(success: false);
       }
 
@@ -231,39 +233,46 @@ class LinkProcessor {
           final sourceLineArr = _bookLineIndexToId[sourceBookId];
           final targetLineArr = _bookLineIndexToId[targetBookId];
 
-          final sourceLineId = (sourceLineArr != null &&
+          final sourceLineId =
+              (sourceLineArr != null &&
                   sourceLineIndex >= 0 &&
                   sourceLineIndex < sourceLineArr.length)
               ? (sourceLineArr[sourceLineIndex] != 0
-                  ? sourceLineArr[sourceLineIndex]
-                  : null)
+                    ? sourceLineArr[sourceLineIndex]
+                    : null)
               : null;
 
-          final targetLineId = (targetLineArr != null &&
+          final targetLineId =
+              (targetLineArr != null &&
                   targetLineIndex >= 0 &&
                   targetLineIndex < targetLineArr.length)
               ? (targetLineArr[targetLineIndex] != 0
-                  ? targetLineArr[targetLineIndex]
-                  : null)
+                    ? targetLineArr[targetLineIndex]
+                    : null)
               : null;
 
           if (sourceLineId == null || targetLineId == null) {
             if (verboseLogging) {
               _log.fine(
-                  'Line not found - source: $sourceLineIndex, target: $targetLineIndex');
+                'Line not found - source: $sourceLineIndex, target: $targetLineIndex',
+              );
             }
             skipped++;
             continue;
           }
 
-          linksToInsert.add(Link(
-            id: 0,
-            sourceBookId: sourceBookId,
-            targetBookId: targetBookId,
-            sourceLineId: sourceLineId,
-            targetLineId: targetLineId,
-            connectionType: ConnectionType.fromString(linkData.connectionType),
-          ));
+          linksToInsert.add(
+            Link(
+              id: 0,
+              sourceBookId: sourceBookId,
+              targetBookId: targetBookId,
+              sourceLineId: sourceLineId,
+              targetLineId: targetLineId,
+              connectionType: ConnectionType.fromString(
+                linkData.connectionType,
+              ),
+            ),
+          );
 
           final normalizedHeRef = linkData.heRef2.trim();
           if (normalizedHeRef.isNotEmpty) {
@@ -301,8 +310,11 @@ class LinkProcessor {
         success: true,
       );
     } catch (e, stackTrace) {
-      _log.warning('Error processing link file: ${path.basename(linkFile)}', e,
-          stackTrace);
+      _log.warning(
+        'Error processing link file: ${path.basename(linkFile)}',
+        e,
+        stackTrace,
+      );
       return const LinkProcessResult(success: false);
     }
   }
@@ -391,8 +403,10 @@ class LinkProcessor {
           // Update progress
           final progress = totalFiles > 0 ? processedFiles / totalFiles : 0.0;
           final fileName = path.basename(file.path);
-          onProgress?.call(progress,
-              'מעבד קישורים: $fileName ($processedFiles/$totalFiles)');
+          onProgress?.call(
+            progress,
+            'מעבד קישורים: $fileName ($processedFiles/$totalFiles)',
+          );
 
           // Add to deletion list only if successful
           if (result.success && result.processedLinks > 0) {
@@ -423,7 +437,10 @@ class LinkProcessor {
           }
         } catch (e, stackTrace) {
           _log.warning(
-              'Error processing link file: ${file.path}', e, stackTrace);
+            'Error processing link file: ${file.path}',
+            e,
+            stackTrace,
+          );
           errors.add('Error processing ${path.basename(file.path)}: $e');
         }
       }

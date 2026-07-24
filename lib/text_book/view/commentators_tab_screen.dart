@@ -684,112 +684,119 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     super.build(context); // נדרש ע"י AutomaticKeepAliveClientMixin
     return BlocProvider<TextBookBloc>.value(
       value: widget.tab.bloc,
-      child: Builder(builder: (context) {
-        return BlocConsumer<TextBookBloc, TextBookState>(
-          listenWhen: shouldNotifyCommentatorsTabListener,
-          listener: (context, state) {
-            if (state is! TextBookLoaded) return;
-            _resolveInitialChapter(state);
-            final idx = state.selectedIndex;
-            if (idx == null) return;
-            final chapters = _getChapters(state.tableOfContents);
-            final pos = _findPos(chapters, idx);
-            if (pos.chapter != null) {
-              _onChapterSelected(pos.chapter!, chapters);
-            }
-          },
-          buildWhen: (prev, curr) {
-            if (prev is TextBookLoaded && curr is TextBookLoaded) {
-              return prev.fontSize != curr.fontSize ||
-                  prev.tableOfContents != curr.tableOfContents ||
-                  prev.links != curr.links ||
-                  prev.availableCommentators != curr.availableCommentators ||
-                  prev.removeNikud != curr.removeNikud ||
-                  prev.removePunctuation != curr.removePunctuation;
-            }
-            return true;
-          },
-          builder: (context, state) {
-            if (state is! TextBookLoaded) {
-              final isCompact =
-                  context.read<SettingsBloc>().state.compactMenuMode;
-              return Scaffold(
-                body: Column(
-                  children: [
-                    AppTopBar(
-                      leadingItems: [
-                        AppTopBarItem(
-                          widget: BarButton.icon(
-                            tooltip: 'ניווט',
-                            icon: FluentIcons.navigation_24_regular,
-                            compact: isCompact,
-                            onPressed: () {},
+      child: Builder(
+        builder: (context) {
+          return BlocConsumer<TextBookBloc, TextBookState>(
+            listenWhen: shouldNotifyCommentatorsTabListener,
+            listener: (context, state) {
+              if (state is! TextBookLoaded) return;
+              _resolveInitialChapter(state);
+              final idx = state.selectedIndex;
+              if (idx == null) return;
+              final chapters = _getChapters(state.tableOfContents);
+              final pos = _findPos(chapters, idx);
+              if (pos.chapter != null) {
+                _onChapterSelected(pos.chapter!, chapters);
+              }
+            },
+            buildWhen: (prev, curr) {
+              if (prev is TextBookLoaded && curr is TextBookLoaded) {
+                return prev.fontSize != curr.fontSize ||
+                    prev.tableOfContents != curr.tableOfContents ||
+                    prev.links != curr.links ||
+                    prev.availableCommentators != curr.availableCommentators ||
+                    prev.removeNikud != curr.removeNikud ||
+                    prev.removePunctuation != curr.removePunctuation;
+              }
+              return true;
+            },
+            builder: (context, state) {
+              if (state is! TextBookLoaded) {
+                final isCompact = context
+                    .read<SettingsBloc>()
+                    .state
+                    .compactMenuMode;
+                return Scaffold(
+                  body: Column(
+                    children: [
+                      AppTopBar(
+                        leadingItems: [
+                          AppTopBarItem(
+                            widget: BarButton.icon(
+                              tooltip: 'ניווט',
+                              icon: FluentIcons.navigation_24_regular,
+                              compact: isCompact,
+                              onPressed: () {},
+                            ),
+                          ),
+                        ],
+                        center: Text(
+                          'מפרשים על ${widget.tab.sourceTab.book.title}',
+                          style: AppTopBar.titleStyle(context),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const Expanded(
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              final chapters = _getChapters(state.tableOfContents);
+
+              final effectiveIndexes = _effectiveIndexes(
+                chapters,
+                state.content.length,
+              );
+
+              return Focus(
+                autofocus: true,
+                onKeyEvent: _handlePrintShortcut,
+                child: Scaffold(
+                  body: Column(
+                    children: [
+                      _buildAppBar(context, state, chapters),
+                      Expanded(
+                        child: Padding(
+                          padding: SplitPaneContentInset.of(context),
+                          child: Stack(
+                            children: [
+                              AdaptiveSidePane(
+                                isOpen: _navPaneOpen || _pinLeftPane,
+                                onClose: () {
+                                  if (!_pinLeftPane) {
+                                    setState(() => _navPaneOpen = false);
+                                  }
+                                },
+                                alignment: AlignmentDirectional.centerEnd,
+                                paneWidth: 320,
+                                minMainContentWidth: 400,
+                                mainContent: _buildCommentaryMainContent(
+                                  context,
+                                  state,
+                                  effectiveIndexes,
+                                ),
+                                paneContent: _buildNavPanel(
+                                  context,
+                                  state: state,
+                                  chapters: chapters,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                      center: Text(
-                        'מפרשים על ${widget.tab.sourceTab.book.title}',
-                        style: AppTopBar.titleStyle(context),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    const Expanded(
-                        child: Center(child: CircularProgressIndicator())),
-                  ],
+                    ],
+                  ),
                 ),
               );
-            }
-
-            final chapters = _getChapters(state.tableOfContents);
-
-            final effectiveIndexes =
-                _effectiveIndexes(chapters, state.content.length);
-
-            return Focus(
-              autofocus: true,
-              onKeyEvent: _handlePrintShortcut,
-              child: Scaffold(
-                body: Column(
-                  children: [
-                    _buildAppBar(context, state, chapters),
-                    Expanded(
-                      child: Padding(
-                        padding: SplitPaneContentInset.of(context),
-                        child: Stack(
-                          children: [
-                            AdaptiveSidePane(
-                              isOpen: _navPaneOpen || _pinLeftPane,
-                              onClose: () {
-                                if (!_pinLeftPane) {
-                                  setState(() => _navPaneOpen = false);
-                                }
-                              },
-                              alignment: AlignmentDirectional.centerEnd,
-                              paneWidth: 320,
-                              minMainContentWidth: 400,
-                              mainContent: _buildCommentaryMainContent(
-                                context,
-                                state,
-                                effectiveIndexes,
-                              ),
-                              paneContent: _buildNavPanel(
-                                context,
-                                state: state,
-                                chapters: chapters,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      }),
+            },
+          );
+        },
+      ),
     );
   }
 
@@ -1088,8 +1095,9 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
               if (!state.isTanach)
                 ActionButtonData(
                   widget: BarButton.icon(
-                    tooltip:
-                        state.removePunctuation ? 'הצג פיסוק' : 'הסתר פיסוק',
+                    tooltip: state.removePunctuation
+                        ? 'הצג פיסוק'
+                        : 'הסתר פיסוק',
                     icon: state.removePunctuation
                         ? FluentIcons.text_quote_24_regular
                         : FluentIcons.text_clear_formatting_24_regular,

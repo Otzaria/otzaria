@@ -138,11 +138,13 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
         final scopeOverridesDistance =
             state.isAdvancedSearchEnabled && scope != SearchScope.wordDistance;
         // בדיקה אם יש מרווחים מותאמים אישית
-        final hasCustomSpacing = state.isAdvancedSearchEnabled &&
+        final hasCustomSpacing =
+            state.isAdvancedSearchEnabled &&
             widget.tab.spacingValues.isNotEmpty &&
             !scopeOverridesDistance &&
             !modeOverridesDistance;
-        final isEnabled = !hasCustomSpacing &&
+        final isEnabled =
+            !hasCustomSpacing &&
             !scopeOverridesDistance &&
             !modeOverridesDistance;
 
@@ -166,10 +168,10 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
           message: modeOverridesDistance
               ? wordMatchMode.tooltip
               : scopeOverridesDistance
-                  ? scope.tooltip
-                  : isFuzzy
-                      ? 'קובע עד כמה מותר לתוצאה להיות שונה מהמילים שהוקלדו.'
-                      : 'קובע כמה מילים יכולות להופיע בין מילות החיפוש. כאשר מוגדרים מרווחים ידניים בין מילים, השדה הזה מושבת.',
+              ? scope.tooltip
+              : isFuzzy
+              ? 'קובע עד כמה מותר לתוצאה להיות שונה מהמילים שהוקלדו.'
+              : 'קובע כמה מילים יכולות להופיע בין מילות החיפוש. כאשר מוגדרים מרווחים ידניים בין מילים, השדה הזה מושבת.',
           child: Focus(
             focusNode: _focusNode,
             child: SpinBox(
@@ -177,7 +179,8 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
               decoration: InputDecoration(
                 labelText: label,
                 labelStyle: TextStyle(
-                  color: hasCustomSpacing ||
+                  color:
+                      hasCustomSpacing ||
                           scopeOverridesDistance ||
                           modeOverridesDistance
                       ? Theme.of(context).colorScheme.onSurfaceVariant
@@ -196,10 +199,10 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
               value: state.distance.toDouble(),
               onChanged: isEnabled
                   ? (value) => context.read<SearchBloc>().add(
-                        widget.triggerSearch
-                            ? UpdateDistance(value.toInt())
-                            : UpdateDistanceWithoutSearch(value.toInt()),
-                      )
+                      widget.triggerSearch
+                          ? UpdateDistance(value.toInt())
+                          : UpdateDistanceWithoutSearch(value.toInt()),
+                    )
                   : null,
             ),
           ),
@@ -226,12 +229,13 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
               max: 30,
               value: state.wordMatchCount.toDouble(),
               onChanged: (value) => context.read<SearchBloc>().add(
-                    widget.triggerSearch
-                        ? UpdateWordMatchMode(wordMatchMode,
-                            count: value.toInt())
-                        : UpdateWordMatchModeWithoutSearch(wordMatchMode,
-                            count: value.toInt()),
-                  ),
+                widget.triggerSearch
+                    ? UpdateWordMatchMode(wordMatchMode, count: value.toInt())
+                    : UpdateWordMatchModeWithoutSearch(
+                        wordMatchMode,
+                        count: value.toInt(),
+                      ),
+              ),
             ),
           ),
         );
@@ -267,7 +271,9 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
             const SizedBox(width: 4),
             SizedBox(
               width: 150,
-              child: wordMatchMode == WordMatchMode.atLeast ? countBox : spinBox,
+              child: wordMatchMode == WordMatchMode.atLeast
+                  ? countBox
+                  : spinBox,
             ),
           ],
         );
@@ -478,7 +484,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
     const Set<String> suffixOptions = {
       'סיומות',
       'סיומות דקדוקיות',
-      'סיומות ארמיות'
+      'סיומות ארמיות',
     };
 
     for (int i = 0; i < words.length; i++) {
@@ -487,7 +493,8 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
 
       // בדיקה אם יש אפשרויות למילה הזו
       final wordOptions = activeParameters.searchOptions[wordKey];
-      final selectedOptions = wordOptions?.entries
+      final selectedOptions =
+          wordOptions?.entries
               .where((entry) => entry.value)
               .map((entry) => entry.key)
               .toList() ??
@@ -731,8 +738,10 @@ class OrderOfResults extends StatelessWidget {
               context.read<SearchBloc>().add(UpdateSortOrder(value));
             },
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10.0,
+                vertical: 5.0,
+              ),
               decoration: BoxDecoration(
                 border: Border.all(
                   color: Theme.of(context).colorScheme.outline,
@@ -817,8 +826,10 @@ class GroupingOfResults extends StatelessWidget {
               context.read<SearchBloc>().add(UpdateResultGrouping(value));
             },
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10.0,
+                vertical: 5.0,
+              ),
               decoration: BoxDecoration(
                 border: Border.all(
                   color: Theme.of(context).colorScheme.outline,

@@ -39,43 +39,49 @@ void main() {
     });
 
     test(
-        'runAll מבצע retry פעם נוספת אחרי כישלון ולא זורק אם הניסיון השני הצליח',
-        () async {
-      var attempts = 0;
-      Future<void> flakyCallback() async {
-        attempts++;
-        if (attempts == 1) {
-          throw StateError('כישלון בניסיון ראשון');
+      'runAll מבצע retry פעם נוספת אחרי כישלון ולא זורק אם הניסיון השני הצליח',
+      () async {
+        var attempts = 0;
+        Future<void> flakyCallback() async {
+          attempts++;
+          if (attempts == 1) {
+            throw StateError('כישלון בניסיון ראשון');
+          }
         }
-      }
 
-      PreCloseRegistry.register(flakyCallback);
-      try {
-        await PreCloseRegistry.runAll();
-        expect(attempts, 2,
-            reason: 'אמור היה לרוץ פעמיים — ניסיון ראשון נכשל, ושני הצליח');
-      } finally {
-        PreCloseRegistry.unregister(flakyCallback);
-      }
-    });
+        PreCloseRegistry.register(flakyCallback);
+        try {
+          await PreCloseRegistry.runAll();
+          expect(
+            attempts,
+            2,
+            reason: 'אמור היה לרוץ פעמיים — ניסיון ראשון נכשל, ושני הצליח',
+          );
+        } finally {
+          PreCloseRegistry.unregister(flakyCallback);
+        }
+      },
+    );
 
-    test('runAll זורק PreCloseFlushFailure כשcallback נכשל בשני הניסיונות',
-        () async {
-      Future<void> alwaysFails() async {
-        throw StateError('תמיד נכשל');
-      }
+    test(
+      'runAll זורק PreCloseFlushFailure כשcallback נכשל בשני הניסיונות',
+      () async {
+        Future<void> alwaysFails() async {
+          throw StateError('תמיד נכשל');
+        }
 
-      PreCloseRegistry.register(alwaysFails);
-      try {
-        await expectLater(
-          PreCloseRegistry.runAll(),
-          throwsA(isA<PreCloseFlushFailure>()),
-          reason: 'callback שנכשל פעמיים צריך לגרום ל-PreCloseFlushFailure',
-        );
-      } finally {
-        PreCloseRegistry.unregister(alwaysFails);
-      }
-    });
+        PreCloseRegistry.register(alwaysFails);
+        try {
+          await expectLater(
+            PreCloseRegistry.runAll(),
+            throwsA(isA<PreCloseFlushFailure>()),
+            reason: 'callback שנכשל פעמיים צריך לגרום ל-PreCloseFlushFailure',
+          );
+        } finally {
+          PreCloseRegistry.unregister(alwaysFails);
+        }
+      },
+    );
 
     test('runAll ממשיך לקרוא לכל ה-callbacks גם אם אחד מהם נכשל', () async {
       var afterFailureRan = false;
@@ -97,7 +103,8 @@ void main() {
         expect(
           afterFailureRan,
           isTrue,
-          reason: 'callback מאוחר חייב לרוץ גם אם אחד לפניו נכשל — אחרת '
+          reason:
+              'callback מאוחר חייב לרוץ גם אם אחד לפניו נכשל — אחרת '
               'נאבד נתונים של HistoryBloc וכו\' כשטעות אחת בולעת את כל המסלול',
         );
       } finally {
@@ -114,32 +121,40 @@ void main() {
       PreCloseRegistry.unregister(callback);
       await PreCloseRegistry.runAll();
 
-      expect(calls, 0,
-          reason: 'אחרי unregister, ה-callback לא אמור להיקרא ב-runAll');
+      expect(
+        calls,
+        0,
+        reason: 'אחרי unregister, ה-callback לא אמור להיקרא ב-runAll',
+      );
     });
 
     test('runAll על registry ריק לא זורק', () async {
       await expectLater(PreCloseRegistry.runAll(), completes);
     });
 
-    test('runAll מריץ במיוחד פעולה איטית — כדי לוודא שלא מאבדים ניתוב כתיבות',
-        () async {
-      var ran = false;
-      Future<void> slowCallback() async {
-        await Future<void>.delayed(const Duration(milliseconds: 30));
-        ran = true;
-      }
+    test(
+      'runAll מריץ במיוחד פעולה איטית — כדי לוודא שלא מאבדים ניתוב כתיבות',
+      () async {
+        var ran = false;
+        Future<void> slowCallback() async {
+          await Future<void>.delayed(const Duration(milliseconds: 30));
+          ran = true;
+        }
 
-      PreCloseRegistry.register(slowCallback);
-      try {
-        await PreCloseRegistry.runAll();
-        expect(ran, isTrue,
+        PreCloseRegistry.register(slowCallback);
+        try {
+          await PreCloseRegistry.runAll();
+          expect(
+            ran,
+            isTrue,
             reason:
                 'callback איטי חייב להיגמר לפני ש-runAll חוזר — אחרת כתיבות '
-                'עדיין pending כשהתהליך יוצא');
-      } finally {
-        PreCloseRegistry.unregister(slowCallback);
-      }
-    });
+                'עדיין pending כשהתהליך יוצא',
+          );
+        } finally {
+          PreCloseRegistry.unregister(slowCallback);
+        }
+      },
+    );
   });
 }

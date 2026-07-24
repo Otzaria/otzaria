@@ -7,7 +7,9 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 /// הלוגיקה מועתקת מ-page_shape_screen.dart:596-599 — אם משנים אותה שם,
 /// חייבים לעדכן גם כאן (וההפך).
 bool _shouldOpenSidebar(
-    PersonalNotesState previous, PersonalNotesState current) {
+  PersonalNotesState previous,
+  PersonalNotesState current,
+) {
   return previous.isCreatingNewNote != current.isCreatingNewNote ||
       previous.newNoteBookId != current.newNoteBookId ||
       previous.newNoteLineNumber != current.newNoteLineNumber;
@@ -56,8 +58,7 @@ void main() {
       expect(_shouldOpenSidebar(previous, current), isTrue);
     });
 
-    test(
-        'רגרסיה: פותח כשעוברים משורה לשורה באותו ספר '
+    test('רגרסיה: פותח כשעוברים משורה לשורה באותו ספר '
         '(מקש ימני "הוסף הערה" כשיש כבר טיוטה פתוחה)', () {
       // לפני התיקון: ה-listenWhen בדק רק isCreatingNewNote ו-newNoteBookId,
       // אז אם המשתמש כבר היה במצב יצירת הערה (sidebar פתוח לשורה 5)
@@ -84,8 +85,11 @@ void main() {
         newNoteLineNumber: 10,
       );
 
-      expect(_shouldOpenSidebar(previous, current), isTrue,
-          reason: 'שינוי שורה באותו ספר חייב להפעיל את ה-listener');
+      expect(
+        _shouldOpenSidebar(previous, current),
+        isTrue,
+        reason: 'שינוי שורה באותו ספר חייב להפעיל את ה-listener',
+      );
     });
 
     test('לא פותח כששום דבר רלוונטי לא השתנה', () {

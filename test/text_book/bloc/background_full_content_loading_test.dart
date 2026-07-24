@@ -60,10 +60,12 @@ void main() {
       scrollController: ItemScrollController(),
       positionsListener: ItemPositionsListener.create(),
     ),
-    act: (bloc) => bloc.add(const ApplyFullBookContent(
-      bookTitle: 'ספר בדיקה',
-      content: ['שורה מלאה 1', 'שורה מלאה 2', 'שורה מלאה 3'],
-    )),
+    act: (bloc) => bloc.add(
+      const ApplyFullBookContent(
+        bookTitle: 'ספר בדיקה',
+        content: ['שורה מלאה 1', 'שורה מלאה 2', 'שורה מלאה 3'],
+      ),
+    ),
     expect: () => [
       isA<TextBookLoaded>()
           .having((state) => state.content.length, 'content length', 3)
@@ -74,30 +76,32 @@ void main() {
   TextBookLoaded buildLoadedState({
     required List<String> content,
     List<int> visibleIndices = const [0],
-  }) =>
-      TextBookLoaded(
-        book: book,
-        content: content,
-        fontSize: 20,
-        showLeftPane: true,
-        showSplitView: false,
-        activeCommentators: const [],
-        commentatorGroups: const [],
-        availableCommentators: const [],
-        links: const [],
-        linksByLine: const {},
-        tableOfContents: const [],
-        removeNikud: false,
-        visibleIndices: visibleIndices,
-        pinLeftPane: false,
-        searchText: '',
-        scrollController: ItemScrollController(),
-        positionsListener: ItemPositionsListener.create(),
-      );
+  }) => TextBookLoaded(
+    book: book,
+    content: content,
+    fontSize: 20,
+    showLeftPane: true,
+    showSplitView: false,
+    activeCommentators: const [],
+    commentatorGroups: const [],
+    availableCommentators: const [],
+    links: const [],
+    linksByLine: const {},
+    tableOfContents: const [],
+    removeNikud: false,
+    visibleIndices: visibleIndices,
+    pinLeftPane: false,
+    searchText: '',
+    scrollController: ItemScrollController(),
+    positionsListener: ItemPositionsListener.create(),
+  );
 
   group('SetTabVisibility', () {
-    final longContent =
-        List<String>.generate(3000, (i) => 'שורה $i', growable: false);
+    final longContent = List<String>.generate(
+      3000,
+      (i) => 'שורה $i',
+      growable: false,
+    );
 
     // החלת טווח אמיתי מוכיחה שטעינת-טווחים עובדת לספר — תנאי לשחרור תוכן.
     const proveRangeLoading = ApplyBookContentRanges(
@@ -142,12 +146,14 @@ void main() {
         content: List<String>.generate(100, (i) => 'שורה $i'),
       ),
       act: (bloc) {
-        bloc.add(const ApplyBookContentRanges(
-          bookTitle: 'ספר בדיקה',
-          ranges: [
-            (startLine: 0, totalLines: 100, lines: ['שורה 0']),
-          ],
-        ));
+        bloc.add(
+          const ApplyBookContentRanges(
+            bookTitle: 'ספר בדיקה',
+            ranges: [
+              (startLine: 0, totalLines: 100, lines: ['שורה 0']),
+            ],
+          ),
+        );
         bloc.add(const SetTabVisibility(false));
       },
       expect: () => [
@@ -163,12 +169,14 @@ void main() {
       act: (bloc) {
         bloc.add(proveRangeLoading);
         bloc.add(const SetTabVisibility(false));
-        bloc.add(const ApplyBookContentRanges(
-          bookTitle: 'ספר בדיקה',
-          ranges: [
-            (startLine: 0, totalLines: 3000, lines: ['תוכן שחזר']),
-          ],
-        ));
+        bloc.add(
+          const ApplyBookContentRanges(
+            bookTitle: 'ספר בדיקה',
+            ranges: [
+              (startLine: 0, totalLines: 3000, lines: ['תוכן שחזר']),
+            ],
+          ),
+        );
       },
       expect: () => [
         isA<TextBookLoaded>(), // החלת הטווח המוכיח
@@ -186,18 +194,23 @@ void main() {
         bloc.add(proveRangeLoading);
         bloc.add(const SetTabVisibility(false));
         bloc.add(const SetTabVisibility(true));
-        bloc.add(const ApplyBookContentRanges(
-          bookTitle: 'ספר בדיקה',
-          ranges: [
-            (startLine: 0, totalLines: 3000, lines: ['תוכן שחזר']),
-          ],
-        ));
+        bloc.add(
+          const ApplyBookContentRanges(
+            bookTitle: 'ספר בדיקה',
+            ranges: [
+              (startLine: 0, totalLines: 3000, lines: ['תוכן שחזר']),
+            ],
+          ),
+        );
       },
       expect: () => [
         isA<TextBookLoaded>(), // החלת הטווח המוכיח
         isA<TextBookLoaded>().having((s) => s.content[0], 'line 0', ''),
-        isA<TextBookLoaded>()
-            .having((s) => s.content[0], 'line 0', 'תוכן שחזר'),
+        isA<TextBookLoaded>().having(
+          (s) => s.content[0],
+          'line 0',
+          'תוכן שחזר',
+        ),
       ],
     );
   });
@@ -224,13 +237,15 @@ void main() {
       scrollController: ItemScrollController(),
       positionsListener: ItemPositionsListener.create(),
     ),
-    act: (bloc) => bloc.add(const ApplyBookContentRanges(
-      bookTitle: 'ספר בדיקה',
-      ranges: [
-        (startLine: 2, totalLines: 6, lines: ['שורה 2', 'שורה 3']),
-        (startLine: 4, totalLines: 6, lines: ['שורה 4', 'שורה 5']),
-      ],
-    )),
+    act: (bloc) => bloc.add(
+      const ApplyBookContentRanges(
+        bookTitle: 'ספר בדיקה',
+        ranges: [
+          (startLine: 2, totalLines: 6, lines: ['שורה 2', 'שורה 3']),
+          (startLine: 4, totalLines: 6, lines: ['שורה 4', 'שורה 5']),
+        ],
+      ),
+    ),
     expect: () => [
       isA<TextBookLoaded>()
           .having((state) => state.content.length, 'content length', 6)

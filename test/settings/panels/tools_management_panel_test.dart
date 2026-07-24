@@ -23,17 +23,22 @@ class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
   _FakeSettingsBloc({
     Set<String> hidden = const <String>{},
     Set<String> pinnedToNav = const <String>{},
-  }) : super(SettingsState.initial().copyWith(
-          hiddenBuiltInToolIds: hidden,
-          builtInToolsPinnedToNavRail: pinnedToNav,
-        )) {
+  }) : super(
+         SettingsState.initial().copyWith(
+           hiddenBuiltInToolIds: hidden,
+           builtInToolsPinnedToNavRail: pinnedToNav,
+         ),
+       ) {
     on<SettingsEvent>((event, emit) {
       dispatched.add(event);
       if (event is UpdateHiddenBuiltInToolIds) {
         emit(state.copyWith(hiddenBuiltInToolIds: event.hiddenBuiltInToolIds));
       } else if (event is UpdateBuiltInToolsPinnedToNavRail) {
-        emit(state.copyWith(
-            builtInToolsPinnedToNavRail: event.builtInToolsPinnedToNavRail));
+        emit(
+          state.copyWith(
+            builtInToolsPinnedToNavRail: event.builtInToolsPinnedToNavRail,
+          ),
+        );
       }
     });
   }
@@ -46,7 +51,7 @@ class _FakePluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState>
     implements PluginSystemBloc {
   final List<PluginSystemEvent> dispatched = [];
   _FakePluginSystemBloc(List<InstalledPlugin> plugins)
-      : super(PluginSystemLoaded(plugins)) {
+    : super(PluginSystemLoaded(plugins)) {
     on<PluginSystemEvent>((event, emit) {
       dispatched.add(event);
     });
@@ -99,7 +104,10 @@ InstalledPlugin _plugin({
     networkAccessGranted: networkAccessGranted,
     runOnStartupGranted: runOnStartupGranted,
     manifest: _manifest(
-        id: id, permissions: permissions, networkEnabled: networkEnabled),
+      id: id,
+      permissions: permissions,
+      networkEnabled: networkEnabled,
+    ),
     installedAt: DateTime.utc(2026, 1, 1),
     updatedAt: DateTime.utc(2026, 1, 1),
   );
@@ -147,12 +155,12 @@ Future<void> _selectPlugin(WidgetTester tester, String name) async {
 
 /// מאתר לחצן (לפי tooltip) בתוך שורת הכלי שמכילה [label].
 Finder _rowButton(String label, String tooltip) => find.descendant(
-      of: find.ancestor(
-        of: find.text(label),
-        matching: find.byType(ListTile),
-      ),
-      matching: find.byTooltip(tooltip),
-    );
+  of: find.ancestor(
+    of: find.text(label),
+    matching: find.byType(ListTile),
+  ),
+  matching: find.byTooltip(tooltip),
+);
 
 /// מדמה ריחוף עכבר מעל שורת תוסף — כפתורי הטוגל של השורה מוצגים רק בריחוף.
 Future<TestGesture> _hoverRow(WidgetTester tester, String name) async {
@@ -172,10 +180,12 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1000, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: _FakePluginSystemBloc(const []),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: _FakePluginSystemBloc(const []),
+        ),
+      );
       await tester.pumpAndSettle();
 
       // כותרת האזור מופיעה, אבל התוכן סגור.
@@ -194,10 +204,12 @@ void main() {
   testWidgets(
     'plugins card is hidden when no plugins are installed',
     (tester) async {
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: _FakePluginSystemBloc(const []),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: _FakePluginSystemBloc(const []),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('תוספים מותקנים'), findsNothing);
@@ -210,12 +222,14 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1000, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: _FakePluginSystemBloc([
-          _plugin(id: 'p1', name: 'תוסף-A'),
-        ]),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: _FakePluginSystemBloc([
+            _plugin(id: 'p1', name: 'תוסף-A'),
+          ]),
+        ),
+      );
       await tester.pumpAndSettle();
 
       // הכותרת והשורה גלויים מיד — אין קיפול באזור התוספים.
@@ -230,10 +244,12 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1000, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: _FakePluginSystemBloc(const []),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: _FakePluginSystemBloc(const []),
+        ),
+      );
       await tester.pumpAndSettle();
       await _expandBuiltIn(tester);
 
@@ -257,10 +273,12 @@ void main() {
 
       final settingsBloc = _FakeSettingsBloc();
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: settingsBloc,
-        pluginBloc: _FakePluginSystemBloc(const []),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: settingsBloc,
+          pluginBloc: _FakePluginSystemBloc(const []),
+        ),
+      );
       await tester.pumpAndSettle();
       await _expandBuiltIn(tester);
 
@@ -284,10 +302,12 @@ void main() {
 
       final settingsBloc = _FakeSettingsBloc();
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: settingsBloc,
-        pluginBloc: _FakePluginSystemBloc(const []),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: settingsBloc,
+          pluginBloc: _FakePluginSystemBloc(const []),
+        ),
+      );
       await tester.pumpAndSettle();
       await _expandBuiltIn(tester);
 
@@ -298,8 +318,10 @@ void main() {
           .whereType<UpdateBuiltInToolsPinnedToNavRail>()
           .toList();
       expect(updates, hasLength(1));
-      expect(updates.single.builtInToolsPinnedToNavRail,
-          contains('builtin.gematria'));
+      expect(
+        updates.single.builtInToolsPinnedToNavRail,
+        contains('builtin.gematria'),
+      );
     },
   );
 
@@ -314,10 +336,12 @@ void main() {
         hidden: const {'builtin.calendar'},
       );
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: settingsBloc,
-        pluginBloc: _FakePluginSystemBloc(const []),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: settingsBloc,
+          pluginBloc: _FakePluginSystemBloc(const []),
+        ),
+      );
       await tester.pumpAndSettle();
       await _expandBuiltIn(tester);
 
@@ -325,18 +349,22 @@ void main() {
       expect(find.text('לוח שנה'), findsOneWidget);
       // הלחצן בשורת לוח-שנה מציע "הצג בממשק" (ולא "הסתר"), ומודגש ברקע
       // cs.surfaceContainerHighest — ההדגשה שמורה למצב "מושבת" (מוסתר).
-      final hiddenButton = tester.widget<IconButton>(find.ancestor(
-        of: _rowButton('לוח שנה', 'הצג בממשק'),
-        matching: find.byType(IconButton),
-      ));
+      final hiddenButton = tester.widget<IconButton>(
+        find.ancestor(
+          of: _rowButton('לוח שנה', 'הצג בממשק'),
+          matching: find.byType(IconButton),
+        ),
+      );
       expect(hiddenButton.isSelected, isFalse);
       expect(hiddenButton.style?.backgroundColor?.resolve({}), isNotNull);
 
       // כלי אחר שלא הוסתר — הלחצן שלו במצב "מוצג" (isSelected) וללא הדגשה.
-      final visibleButton = tester.widget<IconButton>(find.ancestor(
-        of: _rowButton('גימטריה', 'הסתר מהממשק'),
-        matching: find.byType(IconButton),
-      ));
+      final visibleButton = tester.widget<IconButton>(
+        find.ancestor(
+          of: _rowButton('גימטריה', 'הסתר מהממשק'),
+          matching: find.byType(IconButton),
+        ),
+      );
       expect(visibleButton.isSelected, isTrue);
       expect(visibleButton.style?.backgroundColor?.resolve({}), isNull);
     },
@@ -348,12 +376,14 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1000, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: _FakePluginSystemBloc([
-          _plugin(id: 'p1', name: 'תוסף-A'),
-        ]),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: _FakePluginSystemBloc([
+            _plugin(id: 'p1', name: 'תוסף-A'),
+          ]),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.textContaining('נבחרו'), findsNothing);
@@ -374,19 +404,21 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1200, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: _FakePluginSystemBloc([
-          _plugin(
-            id: 'p1',
-            name: 'תוסף-A',
-            hidden: true,
-            pinnedToNavRail: true,
-            permissions: const ['network.access'],
-            networkAccessGranted: true,
-          ),
-        ]),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: _FakePluginSystemBloc([
+            _plugin(
+              id: 'p1',
+              name: 'תוסף-A',
+              hidden: true,
+              pinnedToNavRail: true,
+              permissions: const ['network.access'],
+              networkAccessGranted: true,
+            ),
+          ]),
+        ),
+      );
       await tester.pumpAndSettle();
 
       // מצב רגיל (לא ריחוף, לא בחירה) — רק התגיות מוצגות, בלי כפתורי טוגל.
@@ -424,21 +456,25 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1200, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: _FakePluginSystemBloc([
-          _plugin(id: 'p1', name: 'תוסף-A', enabled: false),
-        ]),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: _FakePluginSystemBloc([
+            _plugin(id: 'p1', name: 'תוסף-A', enabled: false),
+          ]),
+        ),
+      );
       await tester.pumpAndSettle();
       await _enterSelectionMode(tester);
 
       final badge = find.byTooltip('מושבת');
       expect(badge, findsOneWidget);
-      final container = tester.widget<Container>(find.descendant(
-        of: badge,
-        matching: find.byType(Container),
-      ));
+      final container = tester.widget<Container>(
+        find.descendant(
+          of: badge,
+          matching: find.byType(Container),
+        ),
+      );
       final cs = Theme.of(tester.element(badge)).colorScheme;
       expect((container.decoration as BoxDecoration).color, cs.errorContainer);
     },
@@ -451,27 +487,31 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1200, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: _FakePluginSystemBloc([
-          _plugin(
-            id: 'p1',
-            name: 'תוסף-A',
-            permissions: const ['network.access'],
-            networkAccessGranted: false,
-            networkEnabled: true,
-          ),
-        ]),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: _FakePluginSystemBloc([
+            _plugin(
+              id: 'p1',
+              name: 'תוסף-A',
+              permissions: const ['network.access'],
+              networkAccessGranted: false,
+              networkEnabled: true,
+            ),
+          ]),
+        ),
+      );
       await tester.pumpAndSettle();
       await _enterSelectionMode(tester);
 
       final badge = find.byTooltip('מנותק מהרשת');
       expect(badge, findsOneWidget);
-      final container = tester.widget<Container>(find.descendant(
-        of: badge,
-        matching: find.byType(Container),
-      ));
+      final container = tester.widget<Container>(
+        find.descendant(
+          of: badge,
+          matching: find.byType(Container),
+        ),
+      );
       final cs = Theme.of(tester.element(badge)).colorScheme;
       expect((container.decoration as BoxDecoration).color, cs.errorContainer);
     },
@@ -483,13 +523,15 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1200, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: _FakePluginSystemBloc([
-          _plugin(id: 'p1', name: 'תוסף-A'),
-          _plugin(id: 'p2', name: 'תוסף-B'),
-        ]),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: _FakePluginSystemBloc([
+            _plugin(id: 'p1', name: 'תוסף-A'),
+            _plugin(id: 'p2', name: 'תוסף-B'),
+          ]),
+        ),
+      );
       await tester.pumpAndSettle();
       await _enterSelectionMode(tester);
 
@@ -515,12 +557,14 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1000, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: _FakePluginSystemBloc([
-          _plugin(id: 'p1', name: 'תוסף-A'),
-        ]),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: _FakePluginSystemBloc([
+            _plugin(id: 'p1', name: 'תוסף-A'),
+          ]),
+        ),
+      );
       await tester.pumpAndSettle();
       await _enterSelectionMode(tester);
       await _selectPlugin(tester, 'תוסף-A');
@@ -546,10 +590,12 @@ void main() {
         _plugin(id: 'p1', name: 'תוסף-A'),
       ]);
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: pluginBloc,
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: pluginBloc,
+        ),
+      );
       await tester.pumpAndSettle();
       await _enterSelectionMode(tester);
       await _selectPlugin(tester, 'תוסף-A');
@@ -557,8 +603,9 @@ void main() {
       await tester.tap(find.text('השבת'));
       await tester.pumpAndSettle();
 
-      final disableEvents =
-          pluginBloc.dispatched.whereType<DisablePluginRequested>().toList();
+      final disableEvents = pluginBloc.dispatched
+          .whereType<DisablePluginRequested>()
+          .toList();
       expect(disableEvents, hasLength(1));
       expect(disableEvents.single.pluginId, 'p1');
     },
@@ -574,10 +621,12 @@ void main() {
         _plugin(id: 'p1', name: 'תוסף-A'),
       ]);
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: pluginBloc,
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: pluginBloc,
+        ),
+      );
       await tester.pumpAndSettle();
       await _enterSelectionMode(tester);
       await _selectPlugin(tester, 'תוסף-A');
@@ -601,17 +650,19 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1200, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: _FakePluginSystemBloc([
-          _plugin(
-            id: 'p1',
-            name: 'תוסף-A',
-            enabled: false,
-            permissions: const ['network.access', 'app.run_on_startup'],
-          ),
-        ]),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: _FakePluginSystemBloc([
+            _plugin(
+              id: 'p1',
+              name: 'תוסף-A',
+              enabled: false,
+              permissions: const ['network.access', 'app.run_on_startup'],
+            ),
+          ]),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(_rowButton('תוסף-A', 'הפעל'), findsOneWidget);
@@ -629,17 +680,20 @@ void main() {
       );
       expect(
         find.descendant(
-            of: row,
-            matching: find.byIcon(FluentIcons.puzzle_piece_24_regular)),
+          of: row,
+          matching: find.byIcon(FluentIcons.puzzle_piece_24_regular),
+        ),
         findsOneWidget,
       );
       expect(find.text('v1.0.0'), findsOneWidget);
 
       // כפתור המחיקה אף פעם לא "נבחר" — לכן אף פעם לא מקבל צבע, גם כשהתוסף מושבת.
-      final deleteButton = tester.widget<IconButton>(find.ancestor(
-        of: _rowButton('תוסף-A', 'מחק תוסף'),
-        matching: find.byType(IconButton),
-      ));
+      final deleteButton = tester.widget<IconButton>(
+        find.ancestor(
+          of: _rowButton('תוסף-A', 'מחק תוסף'),
+          matching: find.byType(IconButton),
+        ),
+      );
       expect(deleteButton.style?.backgroundColor?.resolve({}), isNull);
     },
   );
@@ -651,43 +705,49 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1200, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: _FakePluginSystemBloc([
-          _plugin(
-            id: 'p1',
-            name: 'תוסף-A',
-            hidden: true,
-            permissions: const ['network.access', 'app.run_on_startup'],
-            networkAccessGranted: false,
-            runOnStartupGranted: false,
-          ),
-        ]),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: _FakePluginSystemBloc([
+            _plugin(
+              id: 'p1',
+              name: 'תוסף-A',
+              hidden: true,
+              permissions: const ['network.access', 'app.run_on_startup'],
+              networkAccessGranted: false,
+              runOnStartupGranted: false,
+            ),
+          ]),
+        ),
+      );
       await tester.pumpAndSettle();
       final gesture = await _hoverRow(tester, 'תוסף-A');
       addTearDown(() => gesture.removePointer());
 
-      IconButton buttonWithTooltip(String tooltip) =>
-          tester.widget<IconButton>(find.ancestor(
-              of: _rowButton('תוסף-A', tooltip),
-              matching: find.byType(IconButton)));
+      IconButton buttonWithTooltip(String tooltip) => tester.widget<IconButton>(
+        find.ancestor(
+          of: _rowButton('תוסף-A', tooltip),
+          matching: find.byType(IconButton),
+        ),
+      );
 
       // מוסתר, ללא גישה לרשת, וללא טעינה בעלייה — כל שלושת הכפתורים מודגשים.
-      expect(buttonWithTooltip('הצג בממשק').style?.backgroundColor?.resolve({}),
-          isNotNull);
       expect(
-          buttonWithTooltip('אישור גישה לרשת')
-              .style
-              ?.backgroundColor
-              ?.resolve({}),
-          isNotNull);
+        buttonWithTooltip('הצג בממשק').style?.backgroundColor?.resolve({}),
+        isNotNull,
+      );
       expect(
-          buttonWithTooltip('הפעלת טעינה בעלייה')
-              .style
-              ?.backgroundColor
-              ?.resolve({}),
-          isNotNull);
+        buttonWithTooltip(
+          'אישור גישה לרשת',
+        ).style?.backgroundColor?.resolve({}),
+        isNotNull,
+      );
+      expect(
+        buttonWithTooltip(
+          'הפעלת טעינה בעלייה',
+        ).style?.backgroundColor?.resolve({}),
+        isNotNull,
+      );
     },
   );
 
@@ -708,10 +768,12 @@ void main() {
         _plugin(id: 'p2', name: 'תוסף-B'),
       ]);
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: pluginBloc,
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: pluginBloc,
+        ),
+      );
       await tester.pumpAndSettle();
 
       var gesture = await _hoverRow(tester, 'תוסף-B');
@@ -749,10 +811,12 @@ void main() {
         ),
       ]);
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: pluginBloc,
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: pluginBloc,
+        ),
+      );
       await tester.pumpAndSettle();
       final gesture = await _hoverRow(tester, 'תוסף-A');
       addTearDown(() => gesture.removePointer());
@@ -785,10 +849,12 @@ void main() {
         ),
       ]);
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: pluginBloc,
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: pluginBloc,
+        ),
+      );
       await tester.pumpAndSettle();
       await _enterSelectionMode(tester);
       await _selectPlugin(tester, 'תוסף-A');
@@ -821,10 +887,12 @@ void main() {
         ),
       ]);
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: pluginBloc,
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: pluginBloc,
+        ),
+      );
       await tester.pumpAndSettle();
       await _enterSelectionMode(tester);
       await _selectPlugin(tester, 'תוסף-A');
@@ -838,8 +906,11 @@ void main() {
           .where((e) => e.permission == 'network.access')
           .toList();
       expect(events, hasLength(1));
-      expect(events.single.granted, isFalse,
-          reason: 'revoke must send granted:false');
+      expect(
+        events.single.granted,
+        isFalse,
+        reason: 'revoke must send granted:false',
+      );
     },
   );
 
@@ -850,13 +921,18 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1200, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: _FakePluginSystemBloc([
-          _plugin(
-              id: 'p1', name: 'תוסף-A', permissions: const ['network.access']),
-        ]),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: _FakePluginSystemBloc([
+            _plugin(
+              id: 'p1',
+              name: 'תוסף-A',
+              permissions: const ['network.access'],
+            ),
+          ]),
+        ),
+      );
       await tester.pumpAndSettle();
 
       // מצב רגיל: כפתור ⋯ בלבד, בלי אייקוני הפעולה הישירים.
@@ -879,12 +955,14 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1200, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: _FakePluginSystemBloc([
-          _plugin(id: 'p1', name: 'תוסף-A'),
-        ]),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: _FakePluginSystemBloc([
+            _plugin(id: 'p1', name: 'תוסף-A'),
+          ]),
+        ),
+      );
       await tester.pumpAndSettle();
 
       await tester.tapAt(
@@ -904,32 +982,37 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1200, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: _FakePluginSystemBloc([
-          _plugin(
-            id: 'p1',
-            name: 'תוסף-A',
-            hidden: true,
-            pinnedToNavRail: true,
-            permissions: const ['network.access'],
-            networkAccessGranted: true,
-          ),
-        ]),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: _FakePluginSystemBloc([
+            _plugin(
+              id: 'p1',
+              name: 'תוסף-A',
+              hidden: true,
+              pinnedToNavRail: true,
+              permissions: const ['network.access'],
+              networkAccessGranted: true,
+            ),
+          ]),
+        ),
+      );
       await tester.pumpAndSettle();
 
       Finder rowTile() => find.ancestor(
-            of: find.text('תוסף-A'),
-            matching: find.byType(ListTile),
-          );
+        of: find.text('תוסף-A'),
+        matching: find.byType(ListTile),
+      );
 
       final idleHeight = tester.getSize(rowTile()).height;
 
       final gesture = await _hoverRow(tester, 'תוסף-A');
       addTearDown(() => gesture.removePointer());
-      expect(tester.getSize(rowTile()).height, idleHeight,
-          reason: 'hover must not resize the row');
+      expect(
+        tester.getSize(rowTile()).height,
+        idleHeight,
+        reason: 'hover must not resize the row',
+      );
     },
   );
 
@@ -944,10 +1027,12 @@ void main() {
         _plugin(id: 'p2', name: 'תוסף-B'),
       ]);
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: pluginBloc,
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: pluginBloc,
+        ),
+      );
       await tester.pumpAndSettle();
 
       // הגרירה זמינה מכל מקום בכרטיס (לא רק מאייקון ייעודי) — גוררים מהכותרת.
@@ -963,8 +1048,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final events =
-          pluginBloc.dispatched.whereType<ReorderPluginsRequested>().toList();
+      final events = pluginBloc.dispatched
+          .whereType<ReorderPluginsRequested>()
+          .toList();
       expect(events, hasLength(1));
       // p1 (index 0) dragged to p2 (index 1) → p1 inserted after p2
       expect(events.single.orderedPluginIds, orderedEquals(['p2', 'p1']));
@@ -977,16 +1063,20 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1200, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: _FakePluginSystemBloc([
-          _plugin(id: 'p1', name: 'תוסף-A'),
-        ]),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: _FakePluginSystemBloc([
+            _plugin(id: 'p1', name: 'תוסף-A'),
+          ]),
+        ),
+      );
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(FluentIcons.re_order_dots_vertical_24_regular),
-          findsNothing);
+      expect(
+        find.byIcon(FluentIcons.re_order_dots_vertical_24_regular),
+        findsNothing,
+      );
 
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       addTearDown(() => gesture.removePointer());
@@ -994,13 +1084,17 @@ void main() {
       await gesture.moveTo(tester.getCenter(find.text('תוסף-A')));
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(FluentIcons.re_order_dots_vertical_24_regular),
-          findsOneWidget);
+      expect(
+        find.byIcon(FluentIcons.re_order_dots_vertical_24_regular),
+        findsOneWidget,
+      );
 
       await gesture.moveTo(const Offset(0, 0));
       await tester.pumpAndSettle();
-      expect(find.byIcon(FluentIcons.re_order_dots_vertical_24_regular),
-          findsNothing);
+      expect(
+        find.byIcon(FluentIcons.re_order_dots_vertical_24_regular),
+        findsNothing,
+      );
     },
   );
 
@@ -1015,10 +1109,12 @@ void main() {
         _plugin(id: 'p2', name: 'תוסף-B'),
       ]);
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: pluginBloc,
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: pluginBloc,
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.byType(Draggable<String>), findsNWidgets(2));
@@ -1029,8 +1125,10 @@ void main() {
       await gesture.moveTo(tester.getCenter(find.text('תוסף-A')));
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(FluentIcons.re_order_dots_vertical_24_regular),
-          findsOneWidget);
+      expect(
+        find.byIcon(FluentIcons.re_order_dots_vertical_24_regular),
+        findsOneWidget,
+      );
 
       final srcCenter = tester.getCenter(find.text('תוסף-A'));
       final dstCenter = tester.getCenter(find.text('תוסף-B'));
@@ -1041,8 +1139,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final events =
-          pluginBloc.dispatched.whereType<ReorderPluginsRequested>().toList();
+      final events = pluginBloc.dispatched
+          .whereType<ReorderPluginsRequested>()
+          .toList();
       expect(events, hasLength(1));
       expect(events.single.orderedPluginIds, orderedEquals(['p2', 'p1']));
     },
@@ -1054,12 +1153,14 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1200, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: _FakePluginSystemBloc([
-          _plugin(id: 'p1', name: 'תוסף-A'),
-        ]),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: _FakePluginSystemBloc([
+            _plugin(id: 'p1', name: 'תוסף-A'),
+          ]),
+        ),
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('תוסף-A'));
@@ -1076,18 +1177,22 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(1200, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: _FakePluginSystemBloc([
-          _plugin(id: 'p1', name: 'תוסף-A'),
-        ]),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: _FakePluginSystemBloc([
+            _plugin(id: 'p1', name: 'תוסף-A'),
+          ]),
+        ),
+      );
       await tester.pumpAndSettle();
 
-      final tile = tester.widget<ListTile>(find.ancestor(
-        of: find.text('תוסף-A'),
-        matching: find.byType(ListTile),
-      ));
+      final tile = tester.widget<ListTile>(
+        find.ancestor(
+          of: find.text('תוסף-A'),
+          matching: find.byType(ListTile),
+        ),
+      );
       // אין דיכוי ידני של ה-hover — הצבע מגיע מהתמה כברירת מחדל, בדיוק כמו
       // ב-SettingsActionTile.switchTile (ראו onTap שם, שגם הוא מפעיל את ה-hover).
       expect(tile.hoverColor, isNull);
@@ -1110,10 +1215,12 @@ void main() {
         ),
       ]);
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: _FakeSettingsBloc(),
-        pluginBloc: pluginBloc,
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: _FakeSettingsBloc(),
+          pluginBloc: pluginBloc,
+        ),
+      );
       await tester.pumpAndSettle();
       await _enterSelectionMode(tester);
       await _selectPlugin(tester, 'תוסף-A');
@@ -1141,10 +1248,12 @@ void main() {
         pinnedToNav: const {'builtin.calendar'},
       );
 
-      await tester.pumpWidget(_wrap(
-        settingsBloc: settingsBloc,
-        pluginBloc: _FakePluginSystemBloc(const []),
-      ));
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc: settingsBloc,
+          pluginBloc: _FakePluginSystemBloc(const []),
+        ),
+      );
       await tester.pumpAndSettle();
       await _expandBuiltIn(tester);
 
@@ -1160,10 +1269,12 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       Future<double> measureCalendarRowHeight(_FakeSettingsBloc bloc) async {
-        await tester.pumpWidget(_wrap(
-          settingsBloc: bloc,
-          pluginBloc: _FakePluginSystemBloc(const []),
-        ));
+        await tester.pumpWidget(
+          _wrap(
+            settingsBloc: bloc,
+            pluginBloc: _FakePluginSystemBloc(const []),
+          ),
+        );
         await tester.pumpAndSettle();
         await _expandBuiltIn(tester);
         // flash notifier עשוי לפתוח את הסעיף אוטומטית לפני ה-tap ואז ה-tap סוגר אותו
@@ -1171,10 +1282,12 @@ void main() {
           await _expandBuiltIn(tester);
         }
         // גובה שורת לוח-שנה = מרחק בין top של title שלה ל-top של title של הכלי הבא
-        final calendarTop =
-            tester.getTopLeft(find.text(kBuiltInToolsCatalog[0].label)).dy;
-        final nextToolTop =
-            tester.getTopLeft(find.text(kBuiltInToolsCatalog[1].label)).dy;
+        final calendarTop = tester
+            .getTopLeft(find.text(kBuiltInToolsCatalog[0].label))
+            .dy;
+        final nextToolTop = tester
+            .getTopLeft(find.text(kBuiltInToolsCatalog[1].label))
+            .dy;
         return nextToolTop - calendarTop;
       }
 
@@ -1192,12 +1305,21 @@ void main() {
         ),
       );
 
-      expect(hiddenOnly, noBadges,
-          reason: '"מוסתר" badge must not change row height');
-      expect(pinnedOnly, noBadges,
-          reason: '"בסרגל ניווט" badge must not change row height');
-      expect(both, noBadges,
-          reason: 'both badges together must not change row height');
+      expect(
+        hiddenOnly,
+        noBadges,
+        reason: '"מוסתר" badge must not change row height',
+      );
+      expect(
+        pinnedOnly,
+        noBadges,
+        reason: '"בסרגל ניווט" badge must not change row height',
+      );
+      expect(
+        both,
+        noBadges,
+        reason: 'both badges together must not change row height',
+      );
     },
   );
 }

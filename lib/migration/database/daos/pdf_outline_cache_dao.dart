@@ -17,8 +17,9 @@ class PdfOutlineCacheDao {
 
   Future<PdfOutlineCacheEntry?> selectByFilePath(String filePath) async {
     final db = await database;
-    final result =
-        db.select(_queries['selectByFilePath']!, [filePath]).toMapList();
+    final result = db.select(_queries['selectByFilePath']!, [
+      filePath,
+    ]).toMapList();
     if (result.isEmpty) return null;
     return PdfOutlineCacheEntry.fromMap(result.first);
   }

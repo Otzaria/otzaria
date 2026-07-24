@@ -89,8 +89,11 @@ void main() {
       expect(times['sunset'], isNotNull);
       expect(times['seaLevelSunset'], isNotNull);
       // בירושלים (754 מ׳) — השקיעה המתוקנת-גובה מאוחרת מהמישורית.
-      expect(times['seaLevelSunset']!.compareTo(times['sunset']!), lessThan(0),
-          reason: 'שקיעה מישורית צריכה להיות מוקדמת משקיעה מתוקנת-גובה');
+      expect(
+        times['seaLevelSunset']!.compareTo(times['sunset']!),
+        lessThan(0),
+        reason: 'שקיעה מישורית צריכה להיות מוקדמת משקיעה מתוקנת-גובה',
+      );
     });
   });
 
@@ -109,8 +112,11 @@ void main() {
       };
       for (final entry in times.entries) {
         if (hebrewDateKeys.contains(entry.key)) continue;
-        expect(pattern.hasMatch(entry.value), isTrue,
-            reason: 'הזמן ${entry.key} = "${entry.value}" אינו בפורמט HH:MM');
+        expect(
+          pattern.hasMatch(entry.value),
+          isTrue,
+          reason: 'הזמן ${entry.key} = "${entry.value}" אינו בפורמט HH:MM',
+        );
       }
     });
 
@@ -118,19 +124,29 @@ void main() {
       final times = calculateDailyTimes(summerDate, city);
       final shavos72 = times['alos72Shavos']!;
       final zmanis72 = times['alos72Zmanis']!;
-      expect(zmanis72.compareTo(shavos72), lessThan(0),
-          reason: 'בקיץ עלות 72 זמניות מוקדם מ-72 שוות. '
-              'zmanis=$zmanis72 shavos=$shavos72');
+      expect(
+        zmanis72.compareTo(shavos72),
+        lessThan(0),
+        reason:
+            'בקיץ עלות 72 זמניות מוקדם מ-72 שוות. '
+            'zmanis=$zmanis72 shavos=$shavos72',
+      );
     });
 
     test('עלות 90 מוקדם מעלות 72 (בכל השיטות)', () {
       final times = calculateDailyTimes(summerDate, city);
-      expect(times['alos90Shavos']!.compareTo(times['alos72Shavos']!),
-          lessThan(0));
-      expect(times['alos90Zmanis']!.compareTo(times['alos72Zmanis']!),
-          lessThan(0));
-      expect(times['alos90Degrees']!.compareTo(times['alos72Degrees']!),
-          lessThan(0));
+      expect(
+        times['alos90Shavos']!.compareTo(times['alos72Shavos']!),
+        lessThan(0),
+      );
+      expect(
+        times['alos90Zmanis']!.compareTo(times['alos72Zmanis']!),
+        lessThan(0),
+      );
+      expect(
+        times['alos90Degrees']!.compareTo(times['alos72Degrees']!),
+        lessThan(0),
+      );
     });
 
     test('ר"ת מאוחר מהשקיעה', () {
@@ -187,17 +203,25 @@ void main() {
     });
 
     int hourOf(String label) => int.parse(
-        RegExp(r'(\d{2}):\d{2}[.:]?\u2069?$').firstMatch(label)!.group(1)!);
+      RegExp(r'(\d{2}):\d{2}[.:]?\u2069?$').firstMatch(label)!.group(1)!,
+    );
 
     test('השעה מותאמת לאזור הזמן של העיר — לא זהה בין ערים', () {
       // לפני התיקון כל הערים קיבלו את אותה שעה (זמן ירושלים), כי הרגע
       // (מולד+ימים) הוצג בלי המרת timezone.
-      final jerusalem =
-          calculateDailyTimes(summerDate, 'ירושלים')['tchilasKidushLevana3']!;
-      final newYork =
-          calculateDailyTimes(summerDate, 'ניו יורק')['tchilasKidushLevana3']!;
-      expect(jerusalem, isNot(equals(newYork)),
-          reason: 'ירושלים=$jerusalem ניו יורק=$newYork');
+      final jerusalem = calculateDailyTimes(
+        summerDate,
+        'ירושלים',
+      )['tchilasKidushLevana3']!;
+      final newYork = calculateDailyTimes(
+        summerDate,
+        'ניו יורק',
+      )['tchilasKidushLevana3']!;
+      expect(
+        jerusalem,
+        isNot(equals(newYork)),
+        reason: 'ירושלים=$jerusalem ניו יורק=$newYork',
+      );
     });
 
     test('זמן שנופל ביום נדחה לשעת לילה (לא בין 07:00 ל-17:00)', () {
@@ -214,8 +238,11 @@ void main() {
         final value = times[key];
         if (value == null) continue;
         final hour = hourOf(value);
-        expect(hour < 7 || hour >= 17, isTrue,
-            reason: '$key = "$value" — שעת יום, היה צריך להידחות ללילה');
+        expect(
+          hour < 7 || hour >= 17,
+          isTrue,
+          reason: '$key = "$value" — שעת יום, היה צריך להידחות ללילה',
+        );
       }
     });
   });
@@ -296,17 +323,24 @@ void main() {
     test('מחזיר ערך תקין לחצות לילה', () {
       final times = calculateDailyTimes(summerDate, city);
       expect(times['chatzosLayla'], isNotNull);
-      expect(times['chatzosLayla'],
-          matches(RegExp(r'^\u2066?\d{2}:\d{2}[.:]\u2069?$')));
+      expect(
+        times['chatzosLayla'],
+        matches(RegExp(r'^\u2066?\d{2}:\d{2}[.:]\u2069?$')),
+      );
     });
 
     test('חצות לילה סביב חצות (00:00-02:00 בקיץ ירושלים)', () {
       final times = calculateDailyTimes(summerDate, city);
       final hour = int.parse(
-          RegExp(r'(\d{2}):').firstMatch(times['chatzosLayla']!)!.group(1)!);
-      expect(hour, anyOf(equals(0), equals(1)),
-          reason: 'חצות לילה בקיץ בין 00:00 ל-02:00 '
-              '(התקבל: ${times['chatzosLayla']})');
+        RegExp(r'(\d{2}):').firstMatch(times['chatzosLayla']!)!.group(1)!,
+      );
+      expect(
+        hour,
+        anyOf(equals(0), equals(1)),
+        reason:
+            'חצות לילה בקיץ בין 00:00 ל-02:00 '
+            '(התקבל: ${times['chatzosLayla']})',
+      );
     });
   });
 }

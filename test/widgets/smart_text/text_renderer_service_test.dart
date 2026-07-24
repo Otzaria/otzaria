@@ -13,29 +13,33 @@ Future<void> main() async {
     const settings = RenderSettings();
 
     test(
-        'סימון מספרי נפלט כספרות-עיליות ולא כ-sup (מניעת WidgetSpan שמתהפך ב-RTL)',
-        () {
-      const line = 'יתגבר כארי<sup class="footnote-marker">1</sup> לעמוד עד'
-          '<sup class="footnote-marker">2</sup> שיהא';
+      'סימון מספרי נפלט כספרות-עיליות ולא כ-sup (מניעת WidgetSpan שמתהפך ב-RTL)',
+      () {
+        const line =
+            'יתגבר כארי<sup class="footnote-marker">1</sup> לעמוד עד'
+            '<sup class="footnote-marker">2</sup> שיהא';
 
-      final out = TextRendererService.processText(line, settings);
+        final out = TextRendererService.processText(line, settings);
 
-      // אסור שיישאר <sup>: HtmlWidget מממש אותו כ-WidgetSpan, ומנוע Flutter
-      // משבץ placeholders בפסקת RTL בסדר ויזואלי הפוך — המספרים מתחלפים.
-      expect(out, isNot(contains('<sup')));
-      expect(out, contains('¹'));
-      expect(out, contains('²'));
-    });
+        // אסור שיישאר <sup>: HtmlWidget מממש אותו כ-WidgetSpan, ומנוע Flutter
+        // משבץ placeholders בפסקת RTL בסדר ויזואלי הפוך — המספרים מתחלפים.
+        expect(out, isNot(contains('<sup')));
+        expect(out, contains('¹'));
+        expect(out, contains('²'));
+      },
+    );
 
     test('סדר המספרים הלוגי נשמר בפלט', () {
-      const line = 'אחד<sup class="footnote-marker">1</sup> שתיים'
+      const line =
+          'אחד<sup class="footnote-marker">1</sup> שתיים'
           '<sup class="footnote-marker">2</sup> שלוש'
           '<sup class="footnote-marker">3</sup>';
 
       final out = TextRendererService.processText(line, settings);
 
-      final digits =
-          RegExp('[¹²³]').allMatches(out).map((m) => m.group(0)).toList();
+      final digits = RegExp(
+        '[¹²³]',
+      ).allMatches(out).map((m) => m.group(0)).toList();
       expect(digits, ['¹', '²', '³']);
     });
 
@@ -106,24 +110,30 @@ Future<void> main() async {
   group('TextRendererService - מטמון render', () {
     setUp(TextRendererService.clearRenderCacheForTesting);
 
-    test('קריאה חוזרת עם אותו טקסט והגדרות מחזירה את אותו instance מהמטמון',
-        () {
-      const settings = RenderSettings(removeNikud: true);
-      const text = 'בְּרֵאשִׁית בָּרָא אֱלֹהִים';
+    test(
+      'קריאה חוזרת עם אותו טקסט והגדרות מחזירה את אותו instance מהמטמון',
+      () {
+        const settings = RenderSettings(removeNikud: true);
+        const text = 'בְּרֵאשִׁית בָּרָא אֱלֹהִים';
 
-      final first = TextRendererService.processText(text, settings);
-      final second = TextRendererService.processText(text, settings);
+        final first = TextRendererService.processText(text, settings);
+        final second = TextRendererService.processText(text, settings);
 
-      expect(identical(first, second), isTrue);
-    });
+        expect(identical(first, second), isTrue);
+      },
+    );
 
     test('שינוי בשדות עיצוב בלבד (גופן/יישור) לא מפספס את המטמון', () {
       const text = 'בראשית ברא אלהים';
 
       final first = TextRendererService.processText(
-          text, const RenderSettings(fontSize: 18));
+        text,
+        const RenderSettings(fontSize: 18),
+      );
       final second = TextRendererService.processText(
-          text, const RenderSettings(fontSize: 24, justifyText: false));
+        text,
+        const RenderSettings(fontSize: 24, justifyText: false),
+      );
 
       expect(identical(first, second), isTrue);
     });
@@ -131,24 +141,32 @@ Future<void> main() async {
     test('שינוי בהגדרות שמשפיעות על הפלט מחזיר תוצאה שונה', () {
       const text = 'בְּרֵאשִׁית בָּרָא';
 
-      final withNikud =
-          TextRendererService.render(text, const RenderSettings());
+      final withNikud = TextRendererService.render(
+        text,
+        const RenderSettings(),
+      );
       final withoutNikud = TextRendererService.render(
-          text, const RenderSettings(removeNikud: true));
+        text,
+        const RenderSettings(removeNikud: true),
+      );
 
       expect(withNikud, isNot(equals(withoutNikud)));
       expect(withoutNikud, isNot(contains('ְ')));
     });
 
-    test('התוצאה מהמטמון זהה לתוצאת חישוב מלא', () {
-      const settings = RenderSettings(searchText: 'ארץ');
-      const text = 'את השמים ואת הארץ';
+    test(
+      'התוצאה מהמטמון זהה לתוצאת חישוב מלא',
+      () {
+        const settings = RenderSettings(searchText: 'ארץ');
+        const text = 'את השמים ואת הארץ';
 
-      final cached = TextRendererService.render(text, settings);
-      TextRendererService.clearRenderCacheForTesting();
-      final fresh = TextRendererService.render(text, settings);
+        final cached = TextRendererService.render(text, settings);
+        TextRendererService.clearRenderCacheForTesting();
+        final fresh = TextRendererService.render(text, settings);
 
-      expect(cached, equals(fresh));
-    }, skip: engineReady ? false : searchEngineSkipReason);
+        expect(cached, equals(fresh));
+      },
+      skip: engineReady ? false : searchEngineSkipReason,
+    );
   });
 }

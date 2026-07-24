@@ -9,12 +9,12 @@ void main() {
       groups.firstWhere((g) => g.title == title).commentators;
 
   Link commentaryLink(int index1, String title) => Link(
-        heRef: title,
-        index1: index1,
-        path2: title,
-        index2: 1,
-        connectionType: 'COMMENTARY',
-      );
+    heRef: title,
+    index1: index1,
+    path2: title,
+    index2: 1,
+    connectionType: 'COMMENTARY',
+  );
 
   group('computeRareCommentators - הסתרת מפרשים נדירים', () {
     test('ספר גדול: מסתיר מפרשים עם פחות מ-10 קישורים בלבד', () {
@@ -147,8 +147,10 @@ void main() {
         ['חברותא על ברכות', 'הערות על חברותא על ברכות'],
       );
 
-      expect(groupNamed(groups, 'מחברי זמננו'),
-          ['חברותא על ברכות', 'הערות על חברותא על ברכות']);
+      expect(groupNamed(groups, 'מחברי זמננו'), [
+        'חברותא על ברכות',
+        'הערות על חברותא על ברכות',
+      ]);
       expect(groupNamed(groups, 'שאר מפרשים'), isEmpty);
     });
 

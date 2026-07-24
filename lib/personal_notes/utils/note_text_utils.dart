@@ -84,10 +84,9 @@ String extractDisplayTextFromLine(
 
   // Split book title into words for exclusion
   final excludedWords = excludeBookTitle != null
-      ? removeHebrewDiacritics(excludeBookTitle)
-          .split(RegExp(r'\s+'))
-          .map((w) => w.trim().toLowerCase())
-          .toSet()
+      ? removeHebrewDiacritics(
+          excludeBookTitle,
+        ).split(RegExp(r'\s+')).map((w) => w.trim().toLowerCase()).toSet()
       : <String>{};
 
   // Split the line into words by whitespace
@@ -152,8 +151,9 @@ String extractDisplayTextFromLines(
 }
 
 String normalizeWord(String word) {
-  final cleaned =
-      word.characters.where((c) => wordCharPattern.hasMatch(c)).toString();
+  final cleaned = word.characters
+      .where((c) => wordCharPattern.hasMatch(c))
+      .toString();
   final normalized = cleaned.trim();
   if (normalized.isEmpty) {
     return word.trim();

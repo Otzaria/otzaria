@@ -18,12 +18,14 @@ List<AppContextMenuSubAction> buildDirectLinkSubmenuActions({
     selectedText: selectedText,
   );
   return entries
-      .map((e) => AppContextMenuSubAction(
-            label: e.label,
-            icon: FluentIcons.link_24_regular,
-            enabled: e.link != null,
-            onTap: e.link != null ? () => copyLinkToClipboard(e.link!) : null,
-          ))
+      .map(
+        (e) => AppContextMenuSubAction(
+          label: e.label,
+          icon: FluentIcons.link_24_regular,
+          enabled: e.link != null,
+          onTap: e.link != null ? () => copyLinkToClipboard(e.link!) : null,
+        ),
+      )
       .toList();
 }
 
@@ -35,14 +37,16 @@ List<AppContextMenuEntry> buildDirectLinkContextMenuEntries({
   required String? selectedText,
 }) =>
     buildDirectLinkSubmenuActions(
-      bookId: bookId,
-      index: index,
-      selectedText: selectedText,
-    )
-        .map((a) => AppContextMenuEntry(
-              label: a.label,
-              icon: a.icon,
-              enabled: a.enabled,
-              onTap: a.onTap,
-            ))
+          bookId: bookId,
+          index: index,
+          selectedText: selectedText,
+        )
+        .map(
+          (a) => AppContextMenuEntry(
+            label: a.label,
+            icon: a.icon,
+            enabled: a.enabled,
+            onTap: a.onTap,
+          ),
+        )
         .toList();

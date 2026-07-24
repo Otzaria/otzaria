@@ -12,8 +12,8 @@ class RestartWidget extends StatefulWidget {
     FutureOr<void> Function()? afterRestart,
   }) {
     context.findAncestorStateOfType<_RestartWidgetState>()?.restartApp(
-          afterRestart: afterRestart,
-        );
+      afterRestart: afterRestart,
+    );
   }
 
   @override

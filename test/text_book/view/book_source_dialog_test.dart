@@ -20,13 +20,15 @@ void main() {
       expect(info.url, equals('https://tashma.co.il/'));
     });
 
-    test('should resolve the wikiJewishBooksToOtzaria source as stored in DB',
-        () {
-      final info = getSourceDisplayInfo('wikiJewishBooksToOtzaria');
+    test(
+      'should resolve the wikiJewishBooksToOtzaria source as stored in DB',
+      () {
+        final info = getSourceDisplayInfo('wikiJewishBooksToOtzaria');
 
-      expect(info.text, equals('אוצר הספרים היהודי השיתופי'));
-      expect(info.url, equals('https://wiki.jewishbooks.org.il/'));
-    });
+        expect(info.text, equals('אוצר הספרים היהודי השיתופי'));
+        expect(info.url, equals('https://wiki.jewishbooks.org.il/'));
+      },
+    );
   });
 
   group('isTashmaSource', () {
@@ -72,10 +74,12 @@ void main() {
   });
 
   group('isWikiJewishBooksSource', () {
-    test('should detect the wikiJewishBooksToOtzaria source as stored in DB',
-        () {
-      expect(isWikiJewishBooksSource('wikiJewishBooksToOtzaria'), isTrue);
-    });
+    test(
+      'should detect the wikiJewishBooksToOtzaria source as stored in DB',
+      () {
+        expect(isWikiJewishBooksSource('wikiJewishBooksToOtzaria'), isTrue);
+      },
+    );
 
     test('should detect variants with separators and casing', () {
       expect(isWikiJewishBooksSource('wiki jewish books'), isTrue);

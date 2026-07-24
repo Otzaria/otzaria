@@ -78,70 +78,72 @@ void main() {
   }
 
   testWidgets(
-      'בקשת פתיחה דרך openSettingsNotifier פותחת את החלונית עם עדכון חי מחווט',
-      (tester) async {
-    final openSettingsNotifier = ValueNotifier<int>(0);
-    addTearDown(openSettingsNotifier.dispose);
+    'בקשת פתיחה דרך openSettingsNotifier פותחת את החלונית עם עדכון חי מחווט',
+    (tester) async {
+      final openSettingsNotifier = ValueNotifier<int>(0);
+      addTearDown(openSettingsNotifier.dispose);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MultiBlocProvider(
-          providers: [
-            BlocProvider<TextBookBloc>.value(
-              value: _TestTextBookBloc(_loadedState()),
-            ),
-            BlocProvider<PersonalNotesBloc>.value(
-              value: _TestPersonalNotesBloc(
-                const PersonalNotesState(
-                  isLoading: false,
-                  bookId: 'ספר בדיקה',
-                  locatedNotes: [],
-                  missingNotes: [],
-                  errorMessage: null,
-                  filteredLocatedNotes: [],
-                  filteredMissingNotes: [],
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<TextBookBloc>.value(
+                value: _TestTextBookBloc(_loadedState()),
+              ),
+              BlocProvider<PersonalNotesBloc>.value(
+                value: _TestPersonalNotesBloc(
+                  const PersonalNotesState(
+                    isLoading: false,
+                    bookId: 'ספר בדיקה',
+                    locatedNotes: [],
+                    missingNotes: [],
+                    errorMessage: null,
+                    filteredLocatedNotes: [],
+                    filteredMissingNotes: [],
+                  ),
                 ),
               ),
+              BlocProvider<SettingsBloc>.value(
+                value: _TestSettingsBloc(SettingsState.initial()),
+              ),
+            ],
+            child: PageShapeScreen(
+              openBookCallback: (_) {},
+              openSettingsNotifier: openSettingsNotifier,
             ),
-            BlocProvider<SettingsBloc>.value(
-              value: _TestSettingsBloc(SettingsState.initial()),
-            ),
-          ],
-          child: PageShapeScreen(
-            openBookCallback: (_) {},
-            openSettingsNotifier: openSettingsNotifier,
           ),
         ),
-      ),
-    );
+      );
 
-    // המתנה לסיום טעינת התצורה (DefaultCommentators מחזיר ריק ללא DB)
-    await tester.pump();
-    await tester.pump();
+      // המתנה לסיום טעינת התצורה (DefaultCommentators מחזיר ריק ללא DB)
+      await tester.pump();
+      await tester.pump();
 
-    expect(find.byType(PageShapeSettingsPanel), findsNothing);
+      expect(find.byType(PageShapeSettingsPanel), findsNothing);
 
-    // לחיצה על כפתור גלגל השיניים בסרגל העליון מתורגמת להעלאת ה-notifier
-    openSettingsNotifier.value++;
-    await tester.pump();
-    await tester.pump();
+      // לחיצה על כפתור גלגל השיניים בסרגל העליון מתורגמת להעלאת ה-notifier
+      openSettingsNotifier.value++;
+      await tester.pump();
+      await tester.pump();
 
-    expect(find.byType(PageShapeSettingsPanel), findsOneWidget);
+      expect(find.byType(PageShapeSettingsPanel), findsOneWidget);
 
-    // החיווט החי: החלונית חייבת לקבל onSettingsChanged כדי שהמסך יתעדכן
-    // תוך כדי שינוי, ולא רק אחרי סגירתה.
-    final panel = tester.widget<PageShapeSettingsPanel>(
-      find.byType(PageShapeSettingsPanel),
-    );
-    expect(panel.onSettingsChanged, isNotNull);
-    // כפתור האיפוס חייב להיות מחווט כדי שהמסך יטען מחדש את ברירות המחדל.
-    expect(panel.onReset, isNotNull);
-    // כפתור ה-X של המעטפת חייב להיות מחווט לסגירת הפאנל.
-    expect(settingsPane(tester).onClose, isNotNull);
-  });
+      // החיווט החי: החלונית חייבת לקבל onSettingsChanged כדי שהמסך יתעדכן
+      // תוך כדי שינוי, ולא רק אחרי סגירתה.
+      final panel = tester.widget<PageShapeSettingsPanel>(
+        find.byType(PageShapeSettingsPanel),
+      );
+      expect(panel.onSettingsChanged, isNotNull);
+      // כפתור האיפוס חייב להיות מחווט כדי שהמסך יטען מחדש את ברירות המחדל.
+      expect(panel.onReset, isNotNull);
+      // כפתור ה-X של המעטפת חייב להיות מחווט לסגירת הפאנל.
+      expect(settingsPane(tester).onClose, isNotNull);
+    },
+  );
 
-  testWidgets('יריית notifier שנייה סוגרת את חלונית ההגדרות (טוגל)',
-      (tester) async {
+  testWidgets('יריית notifier שנייה סוגרת את חלונית ההגדרות (טוגל)', (
+    tester,
+  ) async {
     final openSettingsNotifier = ValueNotifier<int>(0);
     addTearDown(openSettingsNotifier.dispose);
 

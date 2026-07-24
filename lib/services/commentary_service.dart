@@ -86,10 +86,12 @@ class CommentaryService {
       if (currentTitle == null || currentTitle != title) {
         // ספר חדש - שומר את הקבוצה הקודמת ומתחיל קבוצה חדשה
         if (currentGroup.isNotEmpty) {
-          groups.add(LinkGroup(
-            bookTitle: currentTitle!,
-            links: List.unmodifiable(currentGroup),
-          ));
+          groups.add(
+            LinkGroup(
+              bookTitle: currentTitle!,
+              links: List.unmodifiable(currentGroup),
+            ),
+          );
         }
         currentTitle = title;
         lastPath = link.path2;
@@ -102,10 +104,12 @@ class CommentaryService {
 
     // מוסיף את הקבוצה האחרונה
     if (currentGroup.isNotEmpty) {
-      groups.add(LinkGroup(
-        bookTitle: currentTitle!,
-        links: List.unmodifiable(currentGroup),
-      ));
+      groups.add(
+        LinkGroup(
+          bookTitle: currentTitle!,
+          links: List.unmodifiable(currentGroup),
+        ),
+      );
     }
 
     return groups;
@@ -167,8 +171,10 @@ class CommentaryService {
   ///
   /// [bookTitles] - שמות הספרים לטעינה (כפילויות מסוננות אוטומטית)
   static Future<void> preloadEras(Iterable<String> bookTitles) async {
-    final missing =
-        bookTitles.toSet().where((t) => !_eraCache.containsKey(t)).toList();
+    final missing = bookTitles
+        .toSet()
+        .where((t) => !_eraCache.containsKey(t))
+        .toList();
     if (missing.isEmpty) return;
 
     try {
@@ -204,8 +210,9 @@ class CommentaryService {
     if (groups.isEmpty) return groups;
 
     // שליפת הדור של כל ספר מפרש מה-DB - הרצה במקביל לשיפור ביצועים
-    final eras =
-        await Future.wait(groups.map((group) => getBookEra(group.bookTitle)));
+    final eras = await Future.wait(
+      groups.map((group) => getBookEra(group.bookTitle)),
+    );
     final Map<String, CommentaryEra> eraMap = {
       for (int i = 0; i < groups.length; i++) groups[i].bookTitle: eras[i],
     };
@@ -287,7 +294,8 @@ class CommentaryService {
 
     final sorted = List<Link>.from(links);
     sorted.sort(
-        (a, b) => _compareLinksByEra(a, b, titlesByPath, eraMap, baseByTitle));
+      (a, b) => _compareLinksByEra(a, b, titlesByPath, eraMap, baseByTitle),
+    );
     return sorted;
   }
 

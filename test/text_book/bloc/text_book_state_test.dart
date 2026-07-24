@@ -49,19 +49,20 @@ void main() {
     });
 
     test(
-        'changes when content version changes even if content length stays same',
-        () {
-      final older = _loadedState(
-        content: const ['שורה א'],
-        contentVersion: 1,
-      );
-      final newer = _loadedState(
-        content: const ['שורה ב'],
-        contentVersion: 2,
-      );
+      'changes when content version changes even if content length stays same',
+      () {
+        final older = _loadedState(
+          content: const ['שורה א'],
+          contentVersion: 1,
+        );
+        final newer = _loadedState(
+          content: const ['שורה ב'],
+          contentVersion: 2,
+        );
 
-      expect(older, isNot(equals(newer)));
-    });
+        expect(older, isNot(equals(newer)));
+      },
+    );
 
     test('changes when selected indices change', () {
       final single = _loadedState(selectedIndices: const {3});

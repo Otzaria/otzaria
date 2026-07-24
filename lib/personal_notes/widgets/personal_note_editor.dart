@@ -24,36 +24,72 @@ const _rtlArrowShortcuts = <ShortcutActivator, Intent>{
       ExtendSelectionByCharacterIntent(forward: false, collapseSelection: true),
   SingleActivator(LogicalKeyboardKey.arrowLeft):
       ExtendSelectionByCharacterIntent(forward: true, collapseSelection: true),
-  SingleActivator(LogicalKeyboardKey.arrowRight, shift: true):
-      ExtendSelectionByCharacterIntent(
-          forward: false, collapseSelection: false),
+  SingleActivator(
+    LogicalKeyboardKey.arrowRight,
+    shift: true,
+  ): ExtendSelectionByCharacterIntent(
+    forward: false,
+    collapseSelection: false,
+  ),
   SingleActivator(LogicalKeyboardKey.arrowLeft, shift: true):
       ExtendSelectionByCharacterIntent(forward: true, collapseSelection: false),
-  SingleActivator(LogicalKeyboardKey.arrowRight, control: true):
-      ExtendSelectionToNextWordBoundaryIntent(
-          forward: false, collapseSelection: true),
-  SingleActivator(LogicalKeyboardKey.arrowLeft, control: true):
-      ExtendSelectionToNextWordBoundaryIntent(
-          forward: true, collapseSelection: true),
-  SingleActivator(LogicalKeyboardKey.arrowRight, control: true, shift: true):
-      ExtendSelectionToNextWordBoundaryIntent(
-          forward: false, collapseSelection: false),
-  SingleActivator(LogicalKeyboardKey.arrowLeft, control: true, shift: true):
-      ExtendSelectionToNextWordBoundaryIntent(
-          forward: true, collapseSelection: false),
+  SingleActivator(
+    LogicalKeyboardKey.arrowRight,
+    control: true,
+  ): ExtendSelectionToNextWordBoundaryIntent(
+    forward: false,
+    collapseSelection: true,
+  ),
+  SingleActivator(
+    LogicalKeyboardKey.arrowLeft,
+    control: true,
+  ): ExtendSelectionToNextWordBoundaryIntent(
+    forward: true,
+    collapseSelection: true,
+  ),
+  SingleActivator(
+    LogicalKeyboardKey.arrowRight,
+    control: true,
+    shift: true,
+  ): ExtendSelectionToNextWordBoundaryIntent(
+    forward: false,
+    collapseSelection: false,
+  ),
+  SingleActivator(
+    LogicalKeyboardKey.arrowLeft,
+    control: true,
+    shift: true,
+  ): ExtendSelectionToNextWordBoundaryIntent(
+    forward: true,
+    collapseSelection: false,
+  ),
   // Vertical navigation (routed through Quill's adjacentLineAction)
-  SingleActivator(LogicalKeyboardKey.arrowUp):
-      ExtendSelectionVerticallyToAdjacentLineIntent(
-          forward: false, collapseSelection: true),
-  SingleActivator(LogicalKeyboardKey.arrowDown):
-      ExtendSelectionVerticallyToAdjacentLineIntent(
-          forward: true, collapseSelection: true),
-  SingleActivator(LogicalKeyboardKey.arrowUp, shift: true):
-      ExtendSelectionVerticallyToAdjacentLineIntent(
-          forward: false, collapseSelection: false),
-  SingleActivator(LogicalKeyboardKey.arrowDown, shift: true):
-      ExtendSelectionVerticallyToAdjacentLineIntent(
-          forward: true, collapseSelection: false),
+  SingleActivator(
+    LogicalKeyboardKey.arrowUp,
+  ): ExtendSelectionVerticallyToAdjacentLineIntent(
+    forward: false,
+    collapseSelection: true,
+  ),
+  SingleActivator(
+    LogicalKeyboardKey.arrowDown,
+  ): ExtendSelectionVerticallyToAdjacentLineIntent(
+    forward: true,
+    collapseSelection: true,
+  ),
+  SingleActivator(
+    LogicalKeyboardKey.arrowUp,
+    shift: true,
+  ): ExtendSelectionVerticallyToAdjacentLineIntent(
+    forward: false,
+    collapseSelection: false,
+  ),
+  SingleActivator(
+    LogicalKeyboardKey.arrowDown,
+    shift: true,
+  ): ExtendSelectionVerticallyToAdjacentLineIntent(
+    forward: true,
+    collapseSelection: false,
+  ),
 };
 
 class PersonalNoteEditorResult {
@@ -195,9 +231,9 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final referenceStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
-          fontWeight: FontWeight.w500,
-          color: colorScheme.onSurfaceVariant,
-        );
+      fontWeight: FontWeight.w500,
+      color: colorScheme.onSurfaceVariant,
+    );
     // מגבילים את טקסט ההקשר ל~3 שורות + גלילה פנימית, כדי שטקסט נבחר ארוך
     // לא ידחוף את אזור הכתיבה מטה ומחוץ למסך. הגובה נגזר מסגנון הטקסט בפועל.
     final referenceMaxHeight =
@@ -257,14 +293,15 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
                   gestures: <Type, GestureRecognizerFactory>{
                     VerticalDragGestureRecognizer:
                         GestureRecognizerFactoryWithHandlers<
-                            VerticalDragGestureRecognizer>(
-                      () => VerticalDragGestureRecognizer(
-                        supportedDevices: const <PointerDeviceKind>{
-                          PointerDeviceKind.mouse,
-                        },
-                      ),
-                      (instance) {},
-                    ),
+                          VerticalDragGestureRecognizer
+                        >(
+                          () => VerticalDragGestureRecognizer(
+                            supportedDevices: const <PointerDeviceKind>{
+                              PointerDeviceKind.mouse,
+                            },
+                          ),
+                          (instance) {},
+                        ),
                   },
                   child: CallbackShortcuts(
                     bindings: {
@@ -291,7 +328,8 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
                         autoFocus: widget.autofocus,
                         expands: false,
                         padding: const EdgeInsets.all(12),
-                        placeholder: widget.hintText ??
+                        placeholder:
+                            widget.hintText ??
                             'כתוב כאן... (Ctrl+Enter לשמירה)',
                         customShortcuts: _rtlArrowShortcuts,
                         // Quill מציגה אוטומטית תפריט סלקציה ב-desktop
@@ -396,8 +434,10 @@ class _PersonalNoteToolbar extends StatelessWidget {
   }
 
   void _adjustFontSize(double delta) {
-    final newSize =
-        (_currentFontSize() + delta).clamp(_minFontSize, _maxFontSize);
+    final newSize = (_currentFontSize() + delta).clamp(
+      _minFontSize,
+      _maxFontSize,
+    );
     controller.formatSelection(
       quill.Attribute.fromKeyValue(quill.Attribute.size.key, newSize),
     );

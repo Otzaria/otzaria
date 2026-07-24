@@ -38,8 +38,9 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog>
   void initState() {
     super.initState();
     if (widget.initialShortcut != null) {
-      _displayText =
-          ShortcutHelper.formatShortcutForDisplay(widget.initialShortcut!);
+      _displayText = ShortcutHelper.formatShortcutForDisplay(
+        widget.initialShortcut!,
+      );
     }
     registerDialogFocusRestorer(_focusNode);
   }

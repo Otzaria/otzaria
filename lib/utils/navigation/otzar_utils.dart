@@ -30,7 +30,7 @@ class OtzarUtils {
     'W',
     'X',
     'Y',
-    'Z'
+    'Z',
   ];
 
   static Future<bool> checkBookExistence(int bookId) async {
@@ -124,7 +124,8 @@ class OtzarUtils {
 
           if (cmdResult.exitCode != 0) {
             throw Exception(
-                'otzar.exe exited with non-zero code: ${cmdResult.exitCode}\nError: ${cmdResult.stderr}');
+              'otzar.exe exited with non-zero code: ${cmdResult.exitCode}\nError: ${cmdResult.stderr}',
+            );
           }
         }
       } else {

@@ -21,8 +21,11 @@ class ExternalActivationQueue {
       'createdAt': DateTime.now().toIso8601String(),
     });
 
-    await queueFile.writeAsString('$record\n',
-        mode: FileMode.append, flush: true);
+    await queueFile.writeAsString(
+      '$record\n',
+      mode: FileMode.append,
+      flush: true,
+    );
   }
 
   Future<List<String>> drainUriStrings() async {

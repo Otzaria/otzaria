@@ -29,8 +29,9 @@ class SearchingTab extends OpenedTab {
 
   // האם להשתמש בהגדרות הגלובליות (true) או בהגדרות פר-מילה (false)
   final ValueNotifier<bool> useGlobalSearchOptions = ValueNotifier(true);
-  final ValueNotifier<bool> useGlobalNegativeSearchOptions =
-      ValueNotifier(true);
+  final ValueNotifier<bool> useGlobalNegativeSearchOptions = ValueNotifier(
+    true,
+  );
 
   // מילים חילופיות לכל מילה (אינדקס_מילה -> רשימת מילים חילופיות)
   final Map<int, List<String>> alternativeWords = {};
@@ -104,8 +105,9 @@ class SearchingTab extends OpenedTab {
         (key, value) => MapEntry(key, Map<String, bool>.from(value)),
       ),
     );
-    cloned.negativeGlobalSearchOptions
-        .addAll(other.negativeGlobalSearchOptions);
+    cloned.negativeGlobalSearchOptions.addAll(
+      other.negativeGlobalSearchOptions,
+    );
     cloned.useGlobalSearchOptions.value = other.useGlobalSearchOptions.value;
     cloned.useGlobalNegativeSearchOptions.value =
         other.useGlobalNegativeSearchOptions.value;
@@ -144,9 +146,10 @@ class SearchingTab extends OpenedTab {
       s.trim().replaceAll(RegExp(r'/+'), '/'); // אחידות סלאשים + רווחים
 
   String _optionsHash() {
-    String normMap(Map m) => Map.fromEntries(m.entries.toList()
-          ..sort((a, b) => a.key.toString().compareTo(b.key.toString())))
-        .toString();
+    String normMap(Map m) => Map.fromEntries(
+      m.entries.toList()
+        ..sort((a, b) => a.key.toString().compareTo(b.key.toString())),
+    ).toString();
     return [
       normMap(searchOptions),
       normMap(globalSearchOptions),
@@ -157,12 +160,14 @@ class SearchingTab extends OpenedTab {
       normMap(negativeGlobalSearchOptions),
       useGlobalNegativeSearchOptions.value.toString(),
       normMap(negativeSpacingValues),
-      Map.fromEntries(negativeAlternativeWords.entries.toList()
-            ..sort((a, b) => a.key.compareTo(b.key)))
-          .toString(),
-      Map.fromEntries(alternativeWords.entries.toList()
-            ..sort((a, b) => a.key.compareTo(b.key)))
-          .toString(),
+      Map.fromEntries(
+        negativeAlternativeWords.entries.toList()
+          ..sort((a, b) => a.key.compareTo(b.key)),
+      ).toString(),
+      Map.fromEntries(
+        alternativeWords.entries.toList()
+          ..sort((a, b) => a.key.compareTo(b.key)),
+      ).toString(),
     ].join('|');
   }
 
@@ -277,16 +282,19 @@ class SearchingTab extends OpenedTab {
     debugPrint('🔄 Cache miss for $key, direct count...');
     final sw = Stopwatch()..start();
 
-    final fut = countForFacet(f).then((result) {
-      sw.stop();
-      debugPrint(
-          '⏱️ Direct count for $key took ${sw.elapsedMilliseconds}ms: $result');
-      searchBloc.add(UpdateFacetCounts({f: result}));
-      return result;
-    }).whenComplete(() {
-      // תמיד מנקים, גם בשגיאה
-      _inflight.remove(key);
-    });
+    final fut = countForFacet(f)
+        .then((result) {
+          sw.stop();
+          debugPrint(
+            '⏱️ Direct count for $key took ${sw.elapsedMilliseconds}ms: $result',
+          );
+          searchBloc.add(UpdateFacetCounts({f: result}));
+          return result;
+        })
+        .whenComplete(() {
+          // תמיד מנקים, גם בשגיאה
+          _inflight.remove(key);
+        });
 
     _inflight[key] = fut;
     return fut;
@@ -329,16 +337,20 @@ class SearchingTab extends OpenedTab {
     final rawCurrentFacets = json['currentFacets'];
     final rawScopeFacets = json['searchScopeFacets'];
 
-    final initialDistance =
-        distanceJson is int ? distanceJson : defaultConfig.distance;
-    final initialMode = (searchModeIndex is int &&
+    final initialDistance = distanceJson is int
+        ? distanceJson
+        : defaultConfig.distance;
+    final initialMode =
+        (searchModeIndex is int &&
             searchModeIndex >= 0 &&
             searchModeIndex < SearchMode.values.length)
         ? SearchMode.values[searchModeIndex]
         : defaultConfig.searchMode;
-    final initialNumResults =
-        numResultsJson is int ? numResultsJson : defaultConfig.numResults;
-    final initialSortBy = (sortByIndex is int &&
+    final initialNumResults = numResultsJson is int
+        ? numResultsJson
+        : defaultConfig.numResults;
+    final initialSortBy =
+        (sortByIndex is int &&
             sortByIndex >= 0 &&
             sortByIndex < ResultsOrder.values.length)
         ? ResultsOrder.values[sortByIndex]
@@ -350,7 +362,8 @@ class SearchingTab extends OpenedTab {
         ? rawScopeFacets.map((e) => e.toString()).toList(growable: false)
         : defaultConfig.searchScopeFacets;
     final wordMatchModeIndex = json['wordMatchMode'];
-    final initialWordMatchMode = (wordMatchModeIndex is int &&
+    final initialWordMatchMode =
+        (wordMatchModeIndex is int &&
             wordMatchModeIndex >= 0 &&
             wordMatchModeIndex < WordMatchMode.values.length)
         ? WordMatchMode.values[wordMatchModeIndex]
@@ -358,8 +371,8 @@ class SearchingTab extends OpenedTab {
     final wordMatchCountJson = json['wordMatchCount'];
     final initialWordMatchCount =
         wordMatchCountJson is int && wordMatchCountJson >= 1
-            ? wordMatchCountJson
-            : defaultConfig.wordMatchCount;
+        ? wordMatchCountJson
+        : defaultConfig.wordMatchCount;
 
     final initialConfig = SearchConfiguration(
       distance: initialDistance,
@@ -444,8 +457,9 @@ class SearchingTab extends OpenedTab {
         final key = int.tryParse(entry.key.toString());
         final value = entry.value;
         if (key != null && value is List) {
-          tab.alternativeWords[key] =
-              value.map((e) => e.toString()).toList(growable: true);
+          tab.alternativeWords[key] = value
+              .map((e) => e.toString())
+              .toList(growable: true);
         }
       }
     }
@@ -463,8 +477,9 @@ class SearchingTab extends OpenedTab {
         final key = int.tryParse(entry.key.toString());
         final value = entry.value;
         if (key != null && value is List) {
-          tab.negativeAlternativeWords[key] =
-              value.map((e) => e.toString()).toList(growable: true);
+          tab.negativeAlternativeWords[key] = value
+              .map((e) => e.toString())
+              .toList(growable: true);
         }
       }
     }
@@ -472,8 +487,8 @@ class SearchingTab extends OpenedTab {
     final rawNegativeSpacing = json['negativeSpacingValues'];
     if (rawNegativeSpacing is Map) {
       for (final entry in rawNegativeSpacing.entries) {
-        tab.negativeSpacingValues[entry.key.toString()] =
-            entry.value.toString();
+        tab.negativeSpacingValues[entry.key.toString()] = entry.value
+            .toString();
       }
     }
 

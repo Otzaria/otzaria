@@ -54,7 +54,9 @@ class SettingsSearchRegistry extends ChangeNotifier {
   /// מציין שזה הזמן להבזיק על cardId נתון (מאזינים ב-SettingsAnchor).
   ValueListenable<bool> flashNotifierFor(String cardId) {
     return _flashNotifiers.putIfAbsent(
-        cardId, () => ValueNotifier<bool>(false));
+      cardId,
+      () => ValueNotifier<bool>(false),
+    );
   }
 
   /// בקשת ניווט לתוצאת חיפוש.

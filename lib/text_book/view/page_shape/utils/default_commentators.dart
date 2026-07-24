@@ -17,12 +17,13 @@ class DefaultCommentators {
   ///
   /// ספרים אישיים אינם נכללים ב-seforim.db ולכן מחזירים רשימות ריקות.
   static Future<
-      ({
-        List<({String title, int position})> commentators,
-        List<String> targums
-      })> _fetchDefaults(Book book) async {
-    const empty =
-        (commentators: <({String title, int position})>[], targums: <String>[]);
+    ({List<({String title, int position})> commentators, List<String> targums})
+  >
+  _fetchDefaults(Book book) async {
+    const empty = (
+      commentators: <({String title, int position})>[],
+      targums: <String>[],
+    );
 
     if (book.isUserBook) return empty;
 
@@ -31,7 +32,9 @@ class DefaultCommentators {
 
     final dbBook = book.categoryId != null
         ? await repository.getBookByTitleAndCategory(
-            book.title, book.categoryId!)
+            book.title,
+            book.categoryId!,
+          )
         : await repository.getBookByTitle(book.title);
     if (dbBook == null) return empty;
 
@@ -41,13 +44,16 @@ class DefaultCommentators {
 
     return (
       commentators: commentatorRows
-          .map((row) => (
-                title: row['targetBookTitle'] as String,
-                position: (row['position'] as num).toInt(),
-              ))
+          .map(
+            (row) => (
+              title: row['targetBookTitle'] as String,
+              position: (row['position'] as num).toInt(),
+            ),
+          )
           .toList(),
-      targums:
-          targumRows.map((row) => row['targetBookTitle'] as String).toList(),
+      targums: targumRows
+          .map((row) => row['targetBookTitle'] as String)
+          .toList(),
     );
   }
 
@@ -120,10 +126,12 @@ class DefaultCommentators {
   /// חלונית מוסתרת רק כשיש "חור" מכוון בתוך מיקומי ברירת המחדל של הספר עצמו
   /// (לדוגמה position 0 ואז 2). חלוניות שמעבר למיקום האחרון נשארות ברירת מחדל.
   static Future<
-      ({
-        Map<String, String?> commentators,
-        Map<String, bool> visibility,
-      })> getPageShapeDefaults(
+    ({
+      Map<String, String?> commentators,
+      Map<String, bool> visibility,
+    })
+  >
+  getPageShapeDefaults(
     TextBook book, {
     List<String>? availableCommentators,
   }) async {
@@ -133,7 +141,9 @@ class DefaultCommentators {
 
     if (availableCommentators != null && availableCommentators.isNotEmpty) {
       commentators = _resolveCommentatorNamesFromAvailable(
-          commentators, availableCommentators);
+        commentators,
+        availableCommentators,
+      );
     }
 
     return (commentators: commentators, visibility: defaults.visibility);
@@ -147,14 +157,14 @@ class DefaultCommentators {
   static Map<String, String?> mapToPageShape(
     List<({String title, int position})> commentators,
     List<String> targums,
-  ) =>
-      mapToPageShapeDefaults(commentators, targums).commentators;
+  ) => mapToPageShapeDefaults(commentators, targums).commentators;
 
   @visibleForTesting
   static ({
     Map<String, String?> commentators,
     Map<String, bool> visibility,
-  }) mapToPageShapeDefaults(
+  })
+  mapToPageShapeDefaults(
     List<({String title, int position})> commentators,
     List<String> targums,
   ) {
@@ -187,22 +197,32 @@ class DefaultCommentators {
   }
 
   static Map<String, String?> _resolveCommentatorNamesFromAvailable(
-      Map<String, String?> defaults, List<String> availableCommentators) {
+    Map<String, String?> defaults,
+    List<String> availableCommentators,
+  ) {
     return {
-      'right':
-          _findMatchingCommentator(defaults['right'], availableCommentators),
+      'right': _findMatchingCommentator(
+        defaults['right'],
+        availableCommentators,
+      ),
       'left': _findMatchingCommentator(defaults['left'], availableCommentators),
-      'bottom':
-          _findMatchingCommentator(defaults['bottom'], availableCommentators),
+      'bottom': _findMatchingCommentator(
+        defaults['bottom'],
+        availableCommentators,
+      ),
       'bottomRight': _findMatchingCommentator(
-          defaults['bottomRight'], availableCommentators),
+        defaults['bottomRight'],
+        availableCommentators,
+      ),
     };
   }
 
   /// מחפש מפרש שמתאים לשם הנתון מתוך הזמינים בפועל בספר.
   /// מחזיר את השם המלא אם נמצא, או null אם לא.
   static String? _findMatchingCommentator(
-      String? name, List<String> available) {
+    String? name,
+    List<String> available,
+  ) {
     if (name == null) return null;
 
     // 1. התאמה מדויקת

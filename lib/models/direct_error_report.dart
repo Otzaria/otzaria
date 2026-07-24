@@ -72,21 +72,21 @@ class DirectErrorReport extends Equatable {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'senderEmail': senderEmail,
-        'subject': subject,
-        'bookTitle': bookTitle,
-        'currentRef': currentRef,
-        'lineNumber': lineNumber,
-        'selectedText': selectedText,
-        'errorDetails': errorDetails,
-        'contextText': contextText,
-        'filePath': filePath,
-        'sourceFolder': sourceFolder,
-        'libraryVersion': libraryVersion,
-        'queueType': queueType.name,
-        'createdAt': createdAt.toIso8601String(),
-      };
+    'id': id,
+    'senderEmail': senderEmail,
+    'subject': subject,
+    'bookTitle': bookTitle,
+    'currentRef': currentRef,
+    'lineNumber': lineNumber,
+    'selectedText': selectedText,
+    'errorDetails': errorDetails,
+    'contextText': contextText,
+    'filePath': filePath,
+    'sourceFolder': sourceFolder,
+    'libraryVersion': libraryVersion,
+    'queueType': queueType.name,
+    'createdAt': createdAt.toIso8601String(),
+  };
 
   factory DirectErrorReport.fromJson(Map<String, dynamic> json) {
     return DirectErrorReport(
@@ -115,36 +115,36 @@ class DirectErrorReport extends Equatable {
   }
 
   Map<String, dynamic> toApiPayload() => {
-        'report_id': id,
-        'sender_email': senderEmail,
-        'subject': subject,
-        'book_title': bookTitle,
-        'current_ref': currentRef,
-        'line_number': lineNumber,
-        'selected_text': selectedText,
-        'error_details': errorDetails,
-        'context_text': contextText,
-        'file_path': filePath,
-        'source_folder': sourceFolder,
-        'library_version': libraryVersion,
-        'created_at': createdAt.toIso8601String(),
-      };
+    'report_id': id,
+    'sender_email': senderEmail,
+    'subject': subject,
+    'book_title': bookTitle,
+    'current_ref': currentRef,
+    'line_number': lineNumber,
+    'selected_text': selectedText,
+    'error_details': errorDetails,
+    'context_text': contextText,
+    'file_path': filePath,
+    'source_folder': sourceFolder,
+    'library_version': libraryVersion,
+    'created_at': createdAt.toIso8601String(),
+  };
 
   @override
   List<Object?> get props => [
-        id,
-        senderEmail,
-        subject,
-        bookTitle,
-        currentRef,
-        lineNumber,
-        selectedText,
-        errorDetails,
-        contextText,
-        filePath,
-        sourceFolder,
-        libraryVersion,
-        queueType,
-        createdAt,
-      ];
+    id,
+    senderEmail,
+    subject,
+    bookTitle,
+    currentRef,
+    lineNumber,
+    selectedText,
+    errorDetails,
+    contextText,
+    filePath,
+    sourceFolder,
+    libraryVersion,
+    queueType,
+    createdAt,
+  ];
 }

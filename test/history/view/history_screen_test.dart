@@ -70,16 +70,19 @@ void main() {
       );
     }
 
-    testWidgets('לא מציג צ\'יפים כשכל הפריטים שייכים ל-workspace אחד',
-        (tester) async {
+    testWidgets('לא מציג צ\'יפים כשכל הפריטים שייכים ל-workspace אחד', (
+      tester,
+    ) async {
       await tester.binding.setSurfaceSize(const Size(800, 600));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       await tester.pumpWidget(buildWidget());
-      stateController.add(HistoryLoaded([
-        _bookmark('שבת עד:', workspaceName: 'גמרא'),
-        _bookmark('ברכות ב.', workspaceName: 'גמרא'),
-      ]));
+      stateController.add(
+        HistoryLoaded([
+          _bookmark('שבת עד:', workspaceName: 'גמרא'),
+          _bookmark('ברכות ב.', workspaceName: 'גמרא'),
+        ]),
+      );
       await tester.pump();
 
       expect(find.byType(FilterChip), findsNothing);
@@ -90,10 +93,12 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       await tester.pumpWidget(buildWidget());
-      stateController.add(HistoryLoaded([
-        _bookmark('שבת עד:'),
-        _bookmark('ברכות ב.'),
-      ]));
+      stateController.add(
+        HistoryLoaded([
+          _bookmark('שבת עד:'),
+          _bookmark('ברכות ב.'),
+        ]),
+      );
       await tester.pump();
 
       expect(find.byType(FilterChip), findsNothing);
@@ -104,10 +109,12 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       await tester.pumpWidget(buildWidget());
-      stateController.add(HistoryLoaded([
-        _bookmark('שבת עד:', workspaceName: 'גמרא'),
-        _bookmark('הלכות שבת', workspaceName: 'הלכה'),
-      ]));
+      stateController.add(
+        HistoryLoaded([
+          _bookmark('שבת עד:', workspaceName: 'גמרא'),
+          _bookmark('הלכות שבת', workspaceName: 'הלכה'),
+        ]),
+      );
       await tester.pump();
 
       expect(find.byType(FilterChip), findsNWidgets(2));
@@ -115,17 +122,20 @@ void main() {
       expect(find.widgetWithText(FilterChip, 'הלכה'), findsOneWidget);
     });
 
-    testWidgets('לחיצה על צ\'יפ מסננת את הרשימה לאותו workspace',
-        (tester) async {
+    testWidgets('לחיצה על צ\'יפ מסננת את הרשימה לאותו workspace', (
+      tester,
+    ) async {
       await tester.binding.setSurfaceSize(const Size(800, 600));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       await tester.pumpWidget(buildWidget());
-      stateController.add(HistoryLoaded([
-        _bookmark('שבת עד:', workspaceName: 'גמרא'),
-        _bookmark('ברכות ב.', workspaceName: 'גמרא'),
-        _bookmark('הלכות שבת', workspaceName: 'הלכה'),
-      ]));
+      stateController.add(
+        HistoryLoaded([
+          _bookmark('שבת עד:', workspaceName: 'גמרא'),
+          _bookmark('ברכות ב.', workspaceName: 'גמרא'),
+          _bookmark('הלכות שבת', workspaceName: 'הלכה'),
+        ]),
+      );
       await tester.pump();
 
       await tester.tap(find.widgetWithText(FilterChip, 'גמרא'));
@@ -141,10 +151,12 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       await tester.pumpWidget(buildWidget());
-      stateController.add(HistoryLoaded([
-        _bookmark('שבת עד:', workspaceName: 'גמרא'),
-        _bookmark('הלכות שבת', workspaceName: 'הלכה'),
-      ]));
+      stateController.add(
+        HistoryLoaded([
+          _bookmark('שבת עד:', workspaceName: 'גמרא'),
+          _bookmark('הלכות שבת', workspaceName: 'הלכה'),
+        ]),
+      );
       await tester.pump();
 
       // בחר גמרא
@@ -160,45 +172,52 @@ void main() {
     });
 
     testWidgets(
-        'workspace שנבחר ונמחק מההיסטוריה - הסינון מתבטל אוטומטית (P1 regression)',
-        (tester) async {
-      await tester.binding.setSurfaceSize(const Size(800, 600));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
+      'workspace שנבחר ונמחק מההיסטוריה - הסינון מתבטל אוטומטית (P1 regression)',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(800, 600));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(buildWidget());
-      stateController.add(HistoryLoaded([
-        _bookmark('שבת עד:', workspaceName: 'גמרא'),
-        _bookmark('הלכות שבת', workspaceName: 'הלכה'),
-      ]));
-      await tester.pump();
+        await tester.pumpWidget(buildWidget());
+        stateController.add(
+          HistoryLoaded([
+            _bookmark('שבת עד:', workspaceName: 'גמרא'),
+            _bookmark('הלכות שבת', workspaceName: 'הלכה'),
+          ]),
+        );
+        await tester.pump();
 
-      // בחר workspace 'גמרא'
-      await tester.tap(find.widgetWithText(FilterChip, 'גמרא'));
-      await tester.pump();
-      expect(find.text('שבת עד:'), findsOneWidget);
-      expect(find.text('הלכות שבת'), findsNothing);
+        // בחר workspace 'גמרא'
+        await tester.tap(find.widgetWithText(FilterChip, 'גמרא'));
+        await tester.pump();
+        expect(find.text('שבת עד:'), findsOneWidget);
+        expect(find.text('הלכות שבת'), findsNothing);
 
-      // state חדש - workspace 'גמרא' נעלם
-      stateController.add(HistoryLoaded([
-        _bookmark('הלכות שבת', workspaceName: 'הלכה'),
-      ]));
-      await tester.pump();
+        // state חדש - workspace 'גמרא' נעלם
+        stateController.add(
+          HistoryLoaded([
+            _bookmark('הלכות שבת', workspaceName: 'הלכה'),
+          ]),
+        );
+        await tester.pump();
 
-      // אין צ'יפים (workspace יחיד)
-      expect(find.byType(FilterChip), findsNothing);
-      // הפריט הנותר מוצג - סינון לא תקוע
-      expect(find.text('הלכות שבת'), findsOneWidget);
-    });
+        // אין צ'יפים (workspace יחיד)
+        expect(find.byType(FilterChip), findsNothing);
+        // הפריט הנותר מוצג - סינון לא תקוע
+        expect(find.text('הלכות שבת'), findsOneWidget);
+      },
+    );
 
     testWidgets('חיפוש טקסט מוצא פריטים לפי שם workspace', (tester) async {
       await tester.binding.setSurfaceSize(const Size(800, 600));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       await tester.pumpWidget(buildWidget());
-      stateController.add(HistoryLoaded([
-        _bookmark('שבת עד:', workspaceName: 'גמרא'),
-        _bookmark('הלכות שבת', workspaceName: 'הלכה'),
-      ]));
+      stateController.add(
+        HistoryLoaded([
+          _bookmark('שבת עד:', workspaceName: 'גמרא'),
+          _bookmark('הלכות שבת', workspaceName: 'הלכה'),
+        ]),
+      );
       await tester.pump();
 
       // חפש לפי שם workspace
@@ -214,11 +233,13 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       await tester.pumpWidget(buildWidget());
-      stateController.add(HistoryLoaded([
-        _bookmark('שבת עד:', workspaceName: 'גמרא'),
-        _bookmark('ברכות ב.', workspaceName: 'גמרא'),
-        _bookmark('הלכות שבת', workspaceName: 'הלכה'),
-      ]));
+      stateController.add(
+        HistoryLoaded([
+          _bookmark('שבת עד:', workspaceName: 'גמרא'),
+          _bookmark('ברכות ב.', workspaceName: 'גמרא'),
+          _bookmark('הלכות שבת', workspaceName: 'הלכה'),
+        ]),
+      );
       await tester.pump();
 
       // סנן לגמרא
@@ -264,19 +285,22 @@ void main() {
       );
     }
 
-    testWidgets('הכותרת מציגה את השאילתה וההגדרות יורדות לכותרת המשנה',
-        (tester) async {
+    testWidgets('הכותרת מציגה את השאילתה וההגדרות יורדות לכותרת המשנה', (
+      tester,
+    ) async {
       await tester.binding.setSurfaceSize(const Size(800, 600));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       await tester.pumpWidget(buildWidget());
-      stateController.add(HistoryLoaded([
-        _searchBookmark(
-          'כדאי + הוא + בית',
-          query: 'כדאי הוא בית',
-          configuration: const SearchConfiguration(distance: 5),
-        ),
-      ]));
+      stateController.add(
+        HistoryLoaded([
+          _searchBookmark(
+            'כדאי + הוא + בית',
+            query: 'כדאי הוא בית',
+            configuration: const SearchConfiguration(distance: 5),
+          ),
+        ]),
+      );
       await tester.pump();
 
       // הכותרת — השאילתה המפורמטת (ה-ref), בלי ההגדרות.
@@ -290,13 +314,15 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       await tester.pumpWidget(buildWidget());
-      stateController.add(HistoryLoaded([
-        _searchBookmark(
-          'שבת',
-          query: 'שבת',
-          configuration: const SearchConfiguration(),
-        ),
-      ]));
+      stateController.add(
+        HistoryLoaded([
+          _searchBookmark(
+            'שבת',
+            query: 'שבת',
+            configuration: const SearchConfiguration(),
+          ),
+        ]),
+      );
       await tester.pump();
 
       expect(find.text('שבת'), findsOneWidget);

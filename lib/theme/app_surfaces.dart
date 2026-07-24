@@ -23,7 +23,9 @@ class AppSurfaces {
     return cs.isDark
         ? Colors.black
         : Color.alphaBlend(
-            cs.surfaceContainerHighest.withValues(alpha: 0.475), cs.surface);
+            cs.surfaceContainerHighest.withValues(alpha: 0.475),
+            cs.surface,
+          );
   }
 
   /// נקודת ה-override לרקע מסכי לוח — הכנה לערכות נושא עתידיות.
@@ -82,8 +84,8 @@ class AppSurfaces {
   /// אגודל הסקרולבר המותאם — בולט בזמן גרירה, מעומעם במנוחה.
   static Color scrollbarThumb(ColorScheme cs, {required bool isDragging}) =>
       isDragging
-          ? cs.primary.withValues(alpha: 0.8)
-          : cs.onSurfaceVariant.withValues(alpha: 0.4);
+      ? cs.primary.withValues(alpha: 0.8)
+      : cs.onSurfaceVariant.withValues(alpha: 0.4);
 
   /// רקע מתג קומפקטי בסגנון גלולה (מתגי דיאלוג החיפוש) — מודגש כשדלוק.
   static Color togglePill(ColorScheme cs, {required bool active}) => active

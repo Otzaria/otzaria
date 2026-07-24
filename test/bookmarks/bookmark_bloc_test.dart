@@ -13,7 +13,7 @@ class _FakeBookmarkRepository implements BookmarkRepository {
   int clearCallCount = 0;
 
   _FakeBookmarkRepository({List<Bookmark>? initial})
-      : _bookmarks = initial ?? [];
+    : _bookmarks = initial ?? [];
 
   @override
   Future<List<Bookmark>> loadBookmarks() async => List.from(_bookmarks);
@@ -38,16 +38,19 @@ class _FakeBookmarkRepository implements BookmarkRepository {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 TextBook _book({String title = 'ספר א'}) => TextBook(
-      title: title,
-      filePath: '/fake/$title.txt',
-    );
+  title: title,
+  filePath: '/fake/$title.txt',
+);
 
 Bookmark _bookmark({
   String ref = 'בראשית א',
   String bookTitle = 'ספר א',
   int index = 0,
-}) =>
-    Bookmark(ref: ref, book: _book(title: bookTitle), index: index);
+}) => Bookmark(
+  ref: ref,
+  book: _book(title: bookTitle),
+  index: index,
+);
 
 Future<BookmarkBloc> _makeBloc({List<Bookmark>? initial}) async {
   final repo = _FakeBookmarkRepository(initial: initial);
@@ -95,24 +98,28 @@ void main() {
         expect(bloc.state.bookmarks.first.createdAt, isNotNull);
       });
 
-      test('לא מוסיף סימנייה כפולה (אותו ספר + אותו index) ומחזיר false',
-          () async {
-        final bloc = await _makeBloc(initial: [_bookmark(ref: 'בראשית א')]);
-        final result = bloc.addBookmark(
-          ref: 'בראשית א',
-          book: _book(),
-          index: 0,
-        );
-        expect(result, isFalse);
-        expect(bloc.state.bookmarks.length, 1);
-      });
+      test(
+        'לא מוסיף סימנייה כפולה (אותו ספר + אותו index) ומחזיר false',
+        () async {
+          final bloc = await _makeBloc(initial: [_bookmark(ref: 'בראשית א')]);
+          final result = bloc.addBookmark(
+            ref: 'בראשית א',
+            book: _book(),
+            index: 0,
+          );
+          expect(result, isFalse);
+          expect(bloc.state.bookmarks.length, 1);
+        },
+      );
 
       test('מוסיף מספר סימניות באותו ספר באינדקסים שונים', () async {
         // לשעבר נדחתה סימניה שנייה באותו ref (למשל כשכל סעיף בפרק מקבל את
         // אותו ref) - עכשיו הזיהוי לפי book + index, ולכן מותר.
-        final bloc = await _makeBloc(initial: [
-          _bookmark(ref: 'בראשית א', bookTitle: 'ספר א', index: 0),
-        ]);
+        final bloc = await _makeBloc(
+          initial: [
+            _bookmark(ref: 'בראשית א', bookTitle: 'ספר א', index: 0),
+          ],
+        );
         final result = bloc.addBookmark(
           ref: 'בראשית א',
           book: _book(title: 'ספר א'),
@@ -124,8 +131,9 @@ void main() {
       });
 
       test('מאפשר אותו index בספרים שונים', () async {
-        final bloc =
-            await _makeBloc(initial: [_bookmark(bookTitle: 'ספר א', index: 5)]);
+        final bloc = await _makeBloc(
+          initial: [_bookmark(bookTitle: 'ספר א', index: 5)],
+        );
         final result = bloc.addBookmark(
           ref: 'אחר',
           book: _book(title: 'ספר ב'),
@@ -136,27 +144,32 @@ void main() {
       });
 
       test(
-          'מאפשר אותה כותרת + index אבל נתיבי קובץ שונים (מהדורות שונות של אותו שם)',
-          () async {
-        // P1: לא בטלה למזג דו מהדורות של אותו ספר (נתיבי קובץ שונים) - הזיהות לא
-        // לפי כותרת בלבד אלא לפי filePath/path.
-        final bookA = TextBook(title: 'ספר א', filePath: '/edition-1/א.txt');
-        final bookB = TextBook(title: 'ספר א', filePath: '/edition-2/א.txt');
+        'מאפשר אותה כותרת + index אבל נתיבי קובץ שונים (מהדורות שונות של אותו שם)',
+        () async {
+          // P1: לא בטלה למזג דו מהדורות של אותו ספר (נתיבי קובץ שונים) - הזיהות לא
+          // לפי כותרת בלבד אלא לפי filePath/path.
+          final bookA = TextBook(title: 'ספר א', filePath: '/edition-1/א.txt');
+          final bookB = TextBook(title: 'ספר א', filePath: '/edition-2/א.txt');
 
-        final bloc = BookmarkBloc(_FakeBookmarkRepository(initial: [
-          Bookmark(ref: 'בראשית א', book: bookA, index: 0),
-        ]));
-        await Future<void>.delayed(Duration.zero);
+          final bloc = BookmarkBloc(
+            _FakeBookmarkRepository(
+              initial: [
+                Bookmark(ref: 'בראשית א', book: bookA, index: 0),
+              ],
+            ),
+          );
+          await Future<void>.delayed(Duration.zero);
 
-        final result = bloc.addBookmark(
-          ref: 'בראשית א',
-          book: bookB,
-          index: 0,
-        );
+          final result = bloc.addBookmark(
+            ref: 'בראשית א',
+            book: bookB,
+            index: 0,
+          );
 
-        expect(result, isTrue);
-        expect(bloc.state.bookmarks.length, 2);
-      });
+          expect(result, isTrue);
+          expect(bloc.state.bookmarks.length, 2);
+        },
+      );
 
       test('שומר את הסימנייה ב-repository', () async {
         final repo = _FakeBookmarkRepository();
@@ -177,14 +190,20 @@ void main() {
           index: 0,
           commentatorsToShow: ['רש"י', 'רמב"ן'],
         );
-        expect(
-            bloc.state.bookmarks.first.commentatorsToShow, ['רש"י', 'רמב"ן']);
+        expect(bloc.state.bookmarks.first.commentatorsToShow, [
+          'רש"י',
+          'רמב"ן',
+        ]);
       });
 
       test('מוסיף מספר סימניות שונות', () async {
         final bloc = await _makeBloc();
         bloc.addBookmark(ref: 'בראשית א', book: _book(), index: 0);
-        bloc.addBookmark(ref: 'שמות א', book: _book(title: 'ספר ב'), index: 5);
+        bloc.addBookmark(
+          ref: 'שמות א',
+          book: _book(title: 'ספר ב'),
+          index: 5,
+        );
         expect(bloc.state.bookmarks.length, 2);
       });
 
@@ -199,54 +218,62 @@ void main() {
         expect(bloc.state.bookmarks.first.label, 'בראשית ברא אלהים');
       });
 
-      test('אותו ספר + אותו index אבל targetKind שונה — מותר (לא כפולה)',
-          () async {
-        // סימנייה רגילה וסימנייה של מפרשים על אותו מיקום הן שתי רשומות נפרדות.
-        final bloc = await _makeBloc(initial: [
-          Bookmark(
-            ref: 'בראשית א',
-            book: _book(),
-            index: 0,
-            targetKind: BookmarkTargetKind.book,
-          ),
-        ]);
+      test(
+        'אותו ספר + אותו index אבל targetKind שונה — מותר (לא כפולה)',
+        () async {
+          // סימנייה רגילה וסימנייה של מפרשים על אותו מיקום הן שתי רשומות נפרדות.
+          final bloc = await _makeBloc(
+            initial: [
+              Bookmark(
+                ref: 'בראשית א',
+                book: _book(),
+                index: 0,
+                targetKind: BookmarkTargetKind.book,
+              ),
+            ],
+          );
 
-        final result = bloc.addBookmark(
-          ref: 'מפרשים | בראשית א',
-          book: _book(),
-          index: 0,
-          targetKind: BookmarkTargetKind.commentators,
-        );
-
-        expect(result, isTrue);
-        expect(bloc.state.bookmarks.length, 2);
-        expect(
-          bloc.state.bookmarks.map((b) => b.targetKind).toList(),
-          [BookmarkTargetKind.book, BookmarkTargetKind.commentators],
-        );
-      });
-
-      test('אותו ספר + אותו index + אותו targetKind commentators — נדחה',
-          () async {
-        final bloc = await _makeBloc(initial: [
-          Bookmark(
+          final result = bloc.addBookmark(
             ref: 'מפרשים | בראשית א',
             book: _book(),
             index: 0,
             targetKind: BookmarkTargetKind.commentators,
-          ),
-        ]);
+          );
 
-        final result = bloc.addBookmark(
-          ref: 'מפרשים | בראשית א (נוסח שונה)',
-          book: _book(),
-          index: 0,
-          targetKind: BookmarkTargetKind.commentators,
-        );
+          expect(result, isTrue);
+          expect(bloc.state.bookmarks.length, 2);
+          expect(
+            bloc.state.bookmarks.map((b) => b.targetKind).toList(),
+            [BookmarkTargetKind.book, BookmarkTargetKind.commentators],
+          );
+        },
+      );
 
-        expect(result, isFalse);
-        expect(bloc.state.bookmarks.length, 1);
-      });
+      test(
+        'אותו ספר + אותו index + אותו targetKind commentators — נדחה',
+        () async {
+          final bloc = await _makeBloc(
+            initial: [
+              Bookmark(
+                ref: 'מפרשים | בראשית א',
+                book: _book(),
+                index: 0,
+                targetKind: BookmarkTargetKind.commentators,
+              ),
+            ],
+          );
+
+          final result = bloc.addBookmark(
+            ref: 'מפרשים | בראשית א (נוסח שונה)',
+            book: _book(),
+            index: 0,
+            targetKind: BookmarkTargetKind.commentators,
+          );
+
+          expect(result, isFalse);
+          expect(bloc.state.bookmarks.length, 1);
+        },
+      );
 
       test('שומר targetKind בסימנייה', () async {
         final bloc = await _makeBloc();
@@ -265,18 +292,21 @@ void main() {
 
     group('removeBookmark', () {
       test('מסיר סימנייה לפי אינדקס', () async {
-        final bloc = await _makeBloc(initial: [
-          _bookmark(ref: 'בראשית א'),
-          _bookmark(ref: 'שמות א'),
-        ]);
+        final bloc = await _makeBloc(
+          initial: [
+            _bookmark(ref: 'בראשית א'),
+            _bookmark(ref: 'שמות א'),
+          ],
+        );
         bloc.removeBookmark(0);
         expect(bloc.state.bookmarks.length, 1);
         expect(bloc.state.bookmarks.first.ref, 'שמות א');
       });
 
       test('שומר אחרי הסרה', () async {
-        final repo =
-            _FakeBookmarkRepository(initial: [_bookmark(ref: 'בראשית א')]);
+        final repo = _FakeBookmarkRepository(
+          initial: [_bookmark(ref: 'בראשית א')],
+        );
         final bloc = BookmarkBloc(repo);
         await Future<void>.delayed(Duration.zero);
 
@@ -287,11 +317,13 @@ void main() {
       });
 
       test('מסיר מהסוף ללא השפעה על שאר הסימניות', () async {
-        final bloc = await _makeBloc(initial: [
-          _bookmark(ref: 'א'),
-          _bookmark(ref: 'ב'),
-          _bookmark(ref: 'ג'),
-        ]);
+        final bloc = await _makeBloc(
+          initial: [
+            _bookmark(ref: 'א'),
+            _bookmark(ref: 'ב'),
+            _bookmark(ref: 'ג'),
+          ],
+        );
         bloc.removeBookmark(2);
         expect(bloc.state.bookmarks.map((b) => b.ref).toList(), ['א', 'ב']);
       });
@@ -305,14 +337,16 @@ void main() {
       });
 
       test('label ריק מאפס לברירת המחדל (null)', () async {
-        final bloc = await _makeBloc(initial: [
-          Bookmark(
-            ref: 'בראשית א',
-            book: _book(),
-            index: 0,
-            label: 'תיאור קיים',
-          ),
-        ]);
+        final bloc = await _makeBloc(
+          initial: [
+            Bookmark(
+              ref: 'בראשית א',
+              book: _book(),
+              index: 0,
+              label: 'תיאור קיים',
+            ),
+          ],
+        );
         bloc.updateBookmarkLabel(0, '   ');
         expect(bloc.state.bookmarks.first.label, isNull);
       });
@@ -326,17 +360,20 @@ void main() {
 
     group('clearBookmarks', () {
       test('מנקה את כל הסימניות', () async {
-        final bloc = await _makeBloc(initial: [
-          _bookmark(ref: 'בראשית א'),
-          _bookmark(ref: 'שמות א'),
-        ]);
+        final bloc = await _makeBloc(
+          initial: [
+            _bookmark(ref: 'בראשית א'),
+            _bookmark(ref: 'שמות א'),
+          ],
+        );
         bloc.clearBookmarks();
         expect(bloc.state.bookmarks, isEmpty);
       });
 
       test('קורא ל-clearBookmarks ב-repository', () async {
-        final repo =
-            _FakeBookmarkRepository(initial: [_bookmark(ref: 'בראשית א')]);
+        final repo = _FakeBookmarkRepository(
+          initial: [_bookmark(ref: 'בראשית א')],
+        );
         final bloc = BookmarkBloc(repo);
         await Future<void>.delayed(Duration.zero);
 
@@ -347,39 +384,46 @@ void main() {
     });
 
     group('clearBookmarksForBook', () {
-      test('מוחק רק סימניות של הספר שצויין ומשאיר ספרים אחרים ומחזיר true',
-          () async {
-        final bookA = _book(title: 'ספר א');
-        final bookB = _book(title: 'ספר ב');
-        final bloc = await _makeBloc(initial: [
-          Bookmark(ref: 'א-1', book: bookA, index: 0),
-          Bookmark(ref: 'א-2', book: bookA, index: 10),
-          Bookmark(ref: 'ב-1', book: bookB, index: 5),
-        ]);
+      test(
+        'מוחק רק סימניות של הספר שצויין ומשאיר ספרים אחרים ומחזיר true',
+        () async {
+          final bookA = _book(title: 'ספר א');
+          final bookB = _book(title: 'ספר ב');
+          final bloc = await _makeBloc(
+            initial: [
+              Bookmark(ref: 'א-1', book: bookA, index: 0),
+              Bookmark(ref: 'א-2', book: bookA, index: 10),
+              Bookmark(ref: 'ב-1', book: bookB, index: 5),
+            ],
+          );
 
-        final removed = bloc.clearBookmarksForBook(bookA);
+          final removed = bloc.clearBookmarksForBook(bookA);
 
-        expect(removed, isTrue);
-        expect(bloc.state.bookmarks.length, 1);
-        expect(bloc.state.bookmarks.first.book.title, 'ספר ב');
-      });
+          expect(removed, isTrue);
+          expect(bloc.state.bookmarks.length, 1);
+          expect(bloc.state.bookmarks.first.book.title, 'ספר ב');
+        },
+      );
 
       test(
-          'ללא סימניות תואמות - מחזיר false ולא משנה state ולא קורא ל-repository',
-          () async {
-        final repo = _FakeBookmarkRepository(initial: [
-          _bookmark(bookTitle: 'ספר א'),
-        ]);
-        final bloc = BookmarkBloc(repo);
-        await Future<void>.delayed(Duration.zero);
-        repo.saveCallCount = 0;
+        'ללא סימניות תואמות - מחזיר false ולא משנה state ולא קורא ל-repository',
+        () async {
+          final repo = _FakeBookmarkRepository(
+            initial: [
+              _bookmark(bookTitle: 'ספר א'),
+            ],
+          );
+          final bloc = BookmarkBloc(repo);
+          await Future<void>.delayed(Duration.zero);
+          repo.saveCallCount = 0;
 
-        final removed = bloc.clearBookmarksForBook(_book(title: 'ספר ב'));
+          final removed = bloc.clearBookmarksForBook(_book(title: 'ספר ב'));
 
-        expect(removed, isFalse);
-        expect(bloc.state.bookmarks.length, 1);
-        expect(repo.saveCallCount, 0);
-      });
+          expect(removed, isFalse);
+          expect(bloc.state.bookmarks.length, 1);
+          expect(repo.saveCallCount, 0);
+        },
+      );
     });
 
     group('BookmarkState', () {
@@ -411,8 +455,10 @@ void main() {
 
       expect(bookIdentity(merged), isNot(bookIdentity(edition)));
       expect(bookIdentity(edition), isNot(bookIdentity(otherEdition)));
-      expect(bookIdentity(edition),
-          bookIdentity(merged.copyWith(versionTitle: 'Warsaw 1861')));
+      expect(
+        bookIdentity(edition),
+        bookIdentity(merged.copyWith(versionTitle: 'Warsaw 1861')),
+      );
     });
 
     test('historyKey של מהדורה חלופית נפרד משל הנוסח הממוזג', () {

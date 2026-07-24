@@ -74,8 +74,12 @@ class CategoryDao {
         .toList();
   }
 
-  Future<int> insertCategory(int? parentId, String title, int level,
-      {int orderIndex = 999}) async {
+  Future<int> insertCategory(
+    int? parentId,
+    String title,
+    int level, {
+    int orderIndex = 999,
+  }) async {
     final db = await database;
     db.execute(_queries['insert']!, [parentId, title, level, orderIndex]);
     return db.lastInsertRowId;
@@ -114,7 +118,9 @@ class CategoryDao {
 
   /// Gets a category by its title and parent ID.
   Future<Category?> getCategoryByTitleAndParent(
-      String title, int? parentId) async {
+    String title,
+    int? parentId,
+  ) async {
     final db = await database;
     final result = db.select(
       _queries['selectByTitleAndParent']!,

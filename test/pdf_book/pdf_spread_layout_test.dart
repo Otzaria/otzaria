@@ -71,10 +71,16 @@ void main() {
     test('תמיד מחזיר עמוד יחיד', () {
       for (final page in [1, 2, 3, 4, 5, 50]) {
         final range = pdfSpreadPageRange(page, bookView: false);
-        expect(range.startPage, page,
-            reason: 'startPage should equal page for $page');
-        expect(range.endPageExclusive, page + 1,
-            reason: 'endPageExclusive should be page+1 for $page');
+        expect(
+          range.startPage,
+          page,
+          reason: 'startPage should equal page for $page',
+        );
+        expect(
+          range.endPageExclusive,
+          page + 1,
+          reason: 'endPageExclusive should be page+1 for $page',
+        );
       }
     });
   });
@@ -87,24 +93,35 @@ void main() {
     });
 
     test('עמודים 2 ו-3 הם ספירייד אחד', () {
-      expect(pdfSpreadPageRange(2, bookView: true),
-          (startPage: 2, endPageExclusive: 4));
-      expect(pdfSpreadPageRange(3, bookView: true),
-          (startPage: 2, endPageExclusive: 4));
+      expect(pdfSpreadPageRange(2, bookView: true), (
+        startPage: 2,
+        endPageExclusive: 4,
+      ));
+      expect(pdfSpreadPageRange(3, bookView: true), (
+        startPage: 2,
+        endPageExclusive: 4,
+      ));
     });
 
     test('עמודים 4 ו-5 הם ספירייד אחד', () {
-      expect(pdfSpreadPageRange(4, bookView: true),
-          (startPage: 4, endPageExclusive: 6));
-      expect(pdfSpreadPageRange(5, bookView: true),
-          (startPage: 4, endPageExclusive: 6));
+      expect(pdfSpreadPageRange(4, bookView: true), (
+        startPage: 4,
+        endPageExclusive: 6,
+      ));
+      expect(pdfSpreadPageRange(5, bookView: true), (
+        startPage: 4,
+        endPageExclusive: 6,
+      ));
     });
 
     test('הטווח תמיד מכסה שני עמודים אחרי עמוד 1', () {
       for (final page in [2, 3, 10, 11, 100, 101]) {
         final range = pdfSpreadPageRange(page, bookView: true);
-        expect(range.endPageExclusive - range.startPage, 2,
-            reason: 'spread for page $page should span 2 pages');
+        expect(
+          range.endPageExclusive - range.startPage,
+          2,
+          reason: 'spread for page $page should span 2 pages',
+        );
       }
     });
   });
@@ -114,8 +131,11 @@ void main() {
       // 10 עמודים: 1, 2+3, 4+5, 6+7, 8+9, 10 (לבדו — אין עמוד 11)
       final range = pdfSpreadPageRange(10, bookView: true, totalPages: 10);
       expect(range.startPage, 10);
-      expect(range.endPageExclusive, 11,
-          reason: 'must not extend past totalPages');
+      expect(
+        range.endPageExclusive,
+        11,
+        reason: 'must not extend past totalPages',
+      );
     });
 
     test('עמוד 9 ב-9 עמודים מציג ספירייד מלא 8+9', () {
@@ -204,15 +224,19 @@ void main() {
 
   group('pdfSplitSpreadTitleByKnown', () {
     test('כותרת משולבת מפוצלת לשתי כותרות קיימות', () {
-      final split =
-          pdfSplitSpreadTitleByKnown('פרק א — פרק ב', {'פרק א', 'פרק ב'});
+      final split = pdfSplitSpreadTitleByKnown('פרק א — פרק ב', {
+        'פרק א',
+        'פרק ב',
+      });
       expect(split, (first: 'פרק א', second: 'פרק ב'));
     });
 
     test('round-trip עם pdfCombineSpreadTitles', () {
       final combined = pdfCombineSpreadTitles('ברכות ב.', 'ברכות ב:');
-      final split =
-          pdfSplitSpreadTitleByKnown(combined, {'ברכות ב.', 'ברכות ב:'});
+      final split = pdfSplitSpreadTitleByKnown(combined, {
+        'ברכות ב.',
+        'ברכות ב:',
+      });
       expect(split, (first: 'ברכות ב.', second: 'ברכות ב:'));
     });
 
@@ -226,8 +250,10 @@ void main() {
 
     test('כותרת ראשונה המכילה מקף מתפצלת במקום הנכון', () {
       // "שער — מבוא" היא כותרת קיימת, "פרק א" כותרת קיימת — הספירייד ביניהן.
-      final split = pdfSplitSpreadTitleByKnown(
-          'שער — מבוא — פרק א', {'שער — מבוא', 'פרק א'});
+      final split = pdfSplitSpreadTitleByKnown('שער — מבוא — פרק א', {
+        'שער — מבוא',
+        'פרק א',
+      });
       expect(split, (first: 'שער — מבוא', second: 'פרק א'));
     });
   });

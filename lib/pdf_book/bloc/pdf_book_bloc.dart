@@ -52,11 +52,11 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     required PdfBookInitial initialState,
     Duration? loadTimeout,
     PdfrxInitializer? pdfrxInit,
-  })  : pdfController = tab.pdfViewerController,
-        _autoRetryDelay = loadTimeout ?? const Duration(seconds: 3),
-        _showButtonDelay = loadTimeout ?? const Duration(seconds: 6),
-        _pdfrxInit = pdfrxInit ?? pdfrxFlutterInitialize,
-        super(initialState) {
+  }) : pdfController = tab.pdfViewerController,
+       _autoRetryDelay = loadTimeout ?? const Duration(seconds: 3),
+       _showButtonDelay = loadTimeout ?? const Duration(seconds: 6),
+       _pdfrxInit = pdfrxInit ?? pdfrxFlutterInitialize,
+       super(initialState) {
     // Document events
     on<LoadPdfDocument>(_onLoadPdfDocument);
     on<DocumentReady>(_onDocumentReady);
@@ -124,10 +124,12 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
       if (isClosed) return;
       if (state is PdfBookLoading) {
         _watchdogFiredCount++;
-        add(DocumentLoadFailed(
-          'הטעינה ארכה זמן רב מדי',
-          autoRetry: isAutoRetry,
-        ));
+        add(
+          DocumentLoadFailed(
+            'הטעינה ארכה זמן רב מדי',
+            autoRetry: isAutoRetry,
+          ),
+        );
       }
     });
   }
@@ -153,15 +155,17 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     }
 
     _watchdogFiredCount = 0;
-    emit(PdfBookLoading(
-      book: book,
-      searchText: initial.searchText,
-      searchOptions: initial.searchOptions,
-      alternativeWords: initial.alternativeWords,
-      spacingValues: initial.spacingValues,
-      searchMode: initial.searchMode,
-      layoutMode: initial.layoutMode,
-    ));
+    emit(
+      PdfBookLoading(
+        book: book,
+        searchText: initial.searchText,
+        searchOptions: initial.searchOptions,
+        alternativeWords: initial.alternativeWords,
+        spacingValues: initial.spacingValues,
+        searchMode: initial.searchMode,
+        layoutMode: initial.layoutMode,
+      ),
+    );
 
     // pdfrxFlutterInitialize() spawns a native Dart isolate on first call and
     // can take 10–20 seconds. Don't start the watchdog until it returns so the
@@ -271,11 +275,13 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
       layoutMode = current.layoutMode;
     } else if (current is PdfBookLoaded) {
       // Already loaded, just update
-      emit(current.copyWith(
-        documentRef: event.documentRef,
-        outline: event.outline,
-        totalPages: event.totalPages,
-      ));
+      emit(
+        current.copyWith(
+          documentRef: event.documentRef,
+          outline: event.outline,
+          totalPages: event.totalPages,
+        ),
+      );
       return;
     } else {
       return;
@@ -286,33 +292,37 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
       hasSearchText: searchText.isNotEmpty,
     );
     final pinLeftPane = Settings.getValue<bool>('key-pin-sidebar') ?? false;
-    final sidebarWidth =
-        Settings.getValue<double>('key-sidebar-width', defaultValue: 300)!;
+    final sidebarWidth = Settings.getValue<double>(
+      'key-sidebar-width',
+      defaultValue: 300,
+    )!;
 
-    emit(PdfBookLoaded(
-      book: book,
-      documentRef: event.documentRef,
-      outline: event.outline,
-      currentPageNumber: tab.pageNumber,
-      totalPages: event.totalPages,
-      showLeftPane: showLeftPane,
-      pinLeftPane: pinLeftPane,
-      sidebarWidth: sidebarWidth,
-      leftPaneTabIndex: searchText.isNotEmpty ? 1 : 0,
-      searchText: searchText,
-      searchOptions: searchOptions,
-      alternativeWords: alternativeWords,
-      spacingValues: spacingValues,
-      searchMode: searchMode,
-      searchDistance: searchDistance,
-      layoutMode: layoutMode,
-      // כל פתיחה לעמוד שאינו הראשון (היסטוריה, סימניות, דף יומי,
-      // חיפוש, קישור→PDF) צריכה overlay עד ש-stability tracking
-      // ב-screen מסיים. בפתיחה לעמוד הראשון אין סיכון לקפיצות —
-      // הספינר נסגר מיד.
-      isLoading: tab.requiresStableLayout || tab.pageNumber > 1,
-      loadSucceeded: true,
-    ));
+    emit(
+      PdfBookLoaded(
+        book: book,
+        documentRef: event.documentRef,
+        outline: event.outline,
+        currentPageNumber: tab.pageNumber,
+        totalPages: event.totalPages,
+        showLeftPane: showLeftPane,
+        pinLeftPane: pinLeftPane,
+        sidebarWidth: sidebarWidth,
+        leftPaneTabIndex: searchText.isNotEmpty ? 1 : 0,
+        searchText: searchText,
+        searchOptions: searchOptions,
+        alternativeWords: alternativeWords,
+        spacingValues: spacingValues,
+        searchMode: searchMode,
+        searchDistance: searchDistance,
+        layoutMode: layoutMode,
+        // כל פתיחה לעמוד שאינו הראשון (היסטוריה, סימניות, דף יומי,
+        // חיפוש, קישור→PDF) צריכה overlay עד ש-stability tracking
+        // ב-screen מסיים. בפתיחה לעמוד הראשון אין סיכון לקפיצות —
+        // הספינר נסגר מיד.
+        isLoading: tab.requiresStableLayout || tab.pageNumber > 1,
+        loadSucceeded: true,
+      ),
+    );
 
     // Load per-book settings after document is ready
     add(const LoadPerBookSettings());
@@ -338,16 +348,18 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
       _watchdogFiredCount = 0;
     }
 
-    emit(PdfBookLoading(
-      book: book,
-      searchText: tab.searchText,
-      searchOptions: tab.searchOptions,
-      alternativeWords: tab.alternativeWords,
-      spacingValues: tab.spacingValues,
-      searchMode: tab.searchMode,
-      searchDistance: tab.searchDistance,
-      layoutMode: tab.savedLayoutMode ?? PdfLayoutMode.regularView,
-    ));
+    emit(
+      PdfBookLoading(
+        book: book,
+        searchText: tab.searchText,
+        searchOptions: tab.searchOptions,
+        alternativeWords: tab.alternativeWords,
+        spacingValues: tab.spacingValues,
+        searchMode: tab.searchMode,
+        searchDistance: tab.searchDistance,
+        layoutMode: tab.savedLayoutMode ?? PdfLayoutMode.regularView,
+      ),
+    );
     _startLoadWatchdog();
     _loadHeadingsAndLinks(book);
   }
@@ -368,11 +380,13 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
       return;
     }
 
-    emit(PdfBookError(
-      book: book,
-      message: event.message,
-      autoRetry: event.autoRetry,
-    ));
+    emit(
+      PdfBookError(
+        book: book,
+        message: event.message,
+        autoRetry: event.autoRetry,
+      ),
+    );
   }
 
   void _onLoadHeadingsAndLinks(
@@ -392,10 +406,12 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     tab.pdfHeadings = event.headings;
     if (event.links.isNotEmpty) tab.links = event.links;
 
-    emit(current.copyWith(
-      pdfHeadings: event.headings,
-      links: event.links.isEmpty ? null : event.links,
-    ));
+    emit(
+      current.copyWith(
+        pdfHeadings: event.headings,
+        links: event.links.isEmpty ? null : event.links,
+      ),
+    );
   }
 
   // ============ Navigation Event Handlers ============
@@ -435,11 +451,13 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
       tab.currentTextLineNumber = textLineNumber;
     }
 
-    emit(current.copyWith(
-      currentPageNumber: event.pageNumber,
-      currentTitle: title,
-      currentTextLineNumber: textLineNumber,
-    ));
+    emit(
+      current.copyWith(
+        currentPageNumber: event.pageNumber,
+        currentTitle: title,
+        currentTextLineNumber: textLineNumber,
+      ),
+    );
   }
 
   void _onGoToPage(
@@ -594,17 +612,19 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
       emit(current.copyWith(layoutMode: event.layoutMode));
       add(const SavePerBookSettings());
     } else if (current is PdfBookInitial) {
-      emit(PdfBookInitial(
-        book: current.book,
-        initialPageNumber: current.initialPageNumber,
-        searchText: current.searchText,
-        searchOptions: current.searchOptions,
-        alternativeWords: current.alternativeWords,
-        spacingValues: current.spacingValues,
-        searchMode: current.searchMode,
-        searchDistance: current.searchDistance,
-        layoutMode: event.layoutMode,
-      ));
+      emit(
+        PdfBookInitial(
+          book: current.book,
+          initialPageNumber: current.initialPageNumber,
+          searchText: current.searchText,
+          searchOptions: current.searchOptions,
+          alternativeWords: current.alternativeWords,
+          spacingValues: current.spacingValues,
+          searchMode: current.searchMode,
+          searchDistance: current.searchDistance,
+          layoutMode: event.layoutMode,
+        ),
+      );
     }
   }
 
@@ -692,12 +712,14 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
 
     final newShow = event.show ?? !current.showRightPane;
 
-    emit(current.copyWith(
-      showRightPane: newShow,
-      isRightPaneHovering: newShow ? current.isRightPaneHovering : false,
-      rightPaneInitialTabIndex:
-          event.initialTabIndex ?? current.rightPaneInitialTabIndex,
-    ));
+    emit(
+      current.copyWith(
+        showRightPane: newShow,
+        isRightPaneHovering: newShow ? current.isRightPaneHovering : false,
+        rightPaneInitialTabIndex:
+            event.initialTabIndex ?? current.rightPaneInitialTabIndex,
+      ),
+    );
   }
 
   void _onUpdateRightPaneWidth(
@@ -730,13 +752,15 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     final current = state;
     if (current is! PdfBookLoaded) return;
 
-    emit(current.copyWith(
-      searchOptions: event.searchOptions ?? current.searchOptions,
-      alternativeWords: event.alternativeWords ?? current.alternativeWords,
-      spacingValues: event.spacingValues ?? current.spacingValues,
-      searchMode: event.searchMode ?? current.searchMode,
-      searchDistance: event.searchDistance ?? current.searchDistance,
-    ));
+    emit(
+      current.copyWith(
+        searchOptions: event.searchOptions ?? current.searchOptions,
+        alternativeWords: event.alternativeWords ?? current.alternativeWords,
+        spacingValues: event.spacingValues ?? current.spacingValues,
+        searchMode: event.searchMode ?? current.searchMode,
+        searchDistance: event.searchDistance ?? current.searchDistance,
+      ),
+    );
 
     tab.searchOptions = event.searchOptions ?? current.searchOptions;
     tab.alternativeWords = event.alternativeWords ?? current.alternativeWords;
@@ -756,10 +780,12 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     tab.pdfSearchMatches = event.matches;
     tab.pdfSearchCurrentMatchIndex = event.currentMatchIndex;
 
-    emit(current.copyWith(
-      searchMatches: event.matches,
-      currentSearchMatchIndex: event.currentMatchIndex,
-    ));
+    emit(
+      current.copyWith(
+        searchMatches: event.matches,
+        currentSearchMatchIndex: event.currentMatchIndex,
+      ),
+    );
   }
 
   void _onStartSearch(
@@ -788,11 +814,13 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     tab.pdfSearchMatches = null;
     tab.pdfSearchCurrentMatchIndex = null;
 
-    emit(current.copyWith(
-      searchText: '',
-      clearSearchMatches: true,
-      clearCurrentSearchMatchIndex: true,
-    ));
+    emit(
+      current.copyWith(
+        searchText: '',
+        clearSearchMatches: true,
+        clearCurrentSearchMatchIndex: true,
+      ),
+    );
   }
 
   // ============ Per-Book Settings Event Handlers ============
@@ -807,10 +835,10 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     // בדיקה אם הגדרות פר-ספר מופעלות
     final enablePerBookSettings =
         Settings.getValue<bool>(SettingsRepository.keyEnablePerBookSettings) ??
-            false;
+        false;
     final pdfBookViewByDefault =
         Settings.getValue<bool>(SettingsRepository.keyPdfBookViewByDefault) ??
-            false;
+        false;
 
     double? zoomToApply;
     PdfLayoutMode? layoutModeToApply;
@@ -869,7 +897,8 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
       // Log warning if zoom couldn't be applied
       if (!pdfController.isReady) {
         debugPrint(
-            'Warning: Could not apply saved zoom - controller not ready after $maxAttempts attempts');
+          'Warning: Could not apply saved zoom - controller not ready after $maxAttempts attempts',
+        );
       }
     }
   }
@@ -883,7 +912,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
 
     final enablePerBookSettings =
         Settings.getValue<bool>(SettingsRepository.keyEnablePerBookSettings) ??
-            false;
+        false;
     if (!enablePerBookSettings) return;
 
     if (!pdfController.isReady) return;
@@ -944,10 +973,12 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     final current = state;
 
     if (current is PdfBookLoaded) {
-      emit(current.copyWith(
-        isLoading: event.isLoading,
-        loadSucceeded: event.succeeded,
-      ));
+      emit(
+        current.copyWith(
+          isLoading: event.isLoading,
+          loadSucceeded: event.succeeded,
+        ),
+      );
       return;
     }
 
@@ -959,10 +990,12 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     // יקבל משוב במקום להיתקע.
     if (current is PdfBookLoading && !event.succeeded) {
       _cancelLoadWatchdog();
-      emit(PdfBookError(
-        book: current.book,
-        message: 'נכשלה טעינת ה-PDF',
-      ));
+      emit(
+        PdfBookError(
+          book: current.book,
+          message: 'נכשלה טעינת ה-PDF',
+        ),
+      );
     }
   }
 }

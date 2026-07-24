@@ -2321,22 +2321,22 @@ class CustomEvent extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        title,
-        description,
-        createdAt,
-        baseGregorianDate,
-        baseJewishYear,
-        baseJewishMonth,
-        baseJewishDay,
-        recurrenceType,
-        recurringYears,
-        googleEventId,
-        eventTime,
-        endGregorianDate,
-        colorIndex,
-        notificationMinutes,
-      ];
+    id,
+    title,
+    description,
+    createdAt,
+    baseGregorianDate,
+    baseJewishYear,
+    baseJewishMonth,
+    baseJewishDay,
+    recurrenceType,
+    recurringYears,
+    googleEventId,
+    eventTime,
+    endGregorianDate,
+    colorIndex,
+    notificationMinutes,
+  ];
 }
 
 bool _isCityInIsrael(String cityName) {

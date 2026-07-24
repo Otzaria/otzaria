@@ -54,11 +54,13 @@ List<TocFlatItem> flattenVisibleToc(
     final isExpanded = expanded[entry.index] ?? fallbackExpanded;
     result.add(TocFlatItem(entry, isExpanded));
     if (isExpanded) {
-      result.addAll(flattenVisibleToc(
-        entry.children,
-        expanded,
-        parentIsFirstChild: isFirstChild,
-      ));
+      result.addAll(
+        flattenVisibleToc(
+          entry.children,
+          expanded,
+          parentIsFirstChild: isFirstChild,
+        ),
+      );
     }
   }
   return result;

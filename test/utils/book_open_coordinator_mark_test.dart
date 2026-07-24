@@ -62,10 +62,10 @@ class _FakeNavigationBloc extends NavigationBloc {
   final List<NavigationEvent> capturedEvents = [];
 
   _FakeNavigationBloc()
-      : super(
-          repository: _FakeNavigationRepository(),
-          tabsRepository: _FakeTabsRepository(),
-        );
+    : super(
+        repository: _FakeNavigationRepository(),
+        tabsRepository: _FakeTabsRepository(),
+      );
 
   @override
   void add(NavigationEvent event) {
@@ -81,12 +81,11 @@ BookOpenCoordinator _makeCoordinator({
   required _CapturingTabsBloc tabsBloc,
   _FakeNavigationBloc? navigationBloc,
   HistoryBloc? historyBloc,
-}) =>
-    BookOpenCoordinator(
-      tabsBloc: tabsBloc,
-      historyBloc: historyBloc ?? HistoryBloc(_FakeHistoryRepository()),
-      navigationBloc: navigationBloc ?? _FakeNavigationBloc(),
-    );
+}) => BookOpenCoordinator(
+  tabsBloc: tabsBloc,
+  historyBloc: historyBloc ?? HistoryBloc(_FakeHistoryRepository()),
+  navigationBloc: navigationBloc ?? _FakeNavigationBloc(),
+);
 
 /// יוצר [HistoryBloc] טעון מראש עם רשומות היסטוריה ומחכה לטעינתן.
 Future<HistoryBloc> _makeLoadedHistory(List<Bookmark> items) async {
@@ -171,8 +170,9 @@ void main() {
         'חיפוש רגיל',
       );
 
-      final tab = ((tabsBloc.capturedEvents.first as OpenOrFocusTab).tab
-          as TextBookTab);
+      final tab =
+          ((tabsBloc.capturedEvents.first as OpenOrFocusTab).tab
+              as TextBookTab);
       expect(tab.searchText, 'חיפוש רגיל');
     });
 
@@ -187,8 +187,9 @@ void main() {
         pinpointHighlight: 'pinpointText',
       );
 
-      final tab = ((tabsBloc.capturedEvents.first as OpenOrFocusTab).tab
-          as TextBookTab);
+      final tab =
+          ((tabsBloc.capturedEvents.first as OpenOrFocusTab).tab
+              as TextBookTab);
       expect(tab.pinpointHighlight, 'pinpointText');
     });
   });
@@ -218,8 +219,11 @@ void main() {
       );
 
       final event = tabsBloc.capturedEvents.first as OpenOrFocusTab;
-      expect(event.navigateToPositionIfReused, isTrue,
-          reason: 'deep-link צריך לבקש ניווט לטאב קיים');
+      expect(
+        event.navigateToPositionIfReused,
+        isTrue,
+        reason: 'deep-link צריך לבקש ניווט לטאב קיים',
+      );
     });
 
     // ה-flag עובד גם כש-markText קיים — לא נכשל בגלל הפרה צדדית
@@ -250,16 +254,21 @@ void main() {
         Bookmark(ref: 'ספר PDF עמוד 50', book: book, index: 50),
       ]);
       final tabsBloc = _CapturingTabsBloc();
-      final coordinator =
-          _makeCoordinator(tabsBloc: tabsBloc, historyBloc: history);
+      final coordinator = _makeCoordinator(
+        tabsBloc: tabsBloc,
+        historyBloc: history,
+      );
 
       // index=1 = הדיפולט שהספרייה מעבירה ל-PDF.
       coordinator.openBook(book, 1, '');
 
       final tab = (tabsBloc.capturedEvents.first as OpenOrFocusTab).tab;
       expect(tab, isA<PdfBookTab>());
-      expect((tab as PdfBookTab).pageNumber, 50,
-          reason: 'PDF מהספרייה צריך להיפתח בעמוד שנשמר בהיסטוריה');
+      expect(
+        (tab as PdfBookTab).pageNumber,
+        50,
+        reason: 'PDF מהספרייה צריך להיפתח בעמוד שנשמר בהיסטוריה',
+      );
 
       await history.close();
     });
@@ -270,15 +279,20 @@ void main() {
         Bookmark(ref: 'ספר PDF עמוד 50', book: book, index: 50),
       ]);
       final tabsBloc = _CapturingTabsBloc();
-      final coordinator =
-          _makeCoordinator(tabsBloc: tabsBloc, historyBloc: history);
+      final coordinator = _makeCoordinator(
+        tabsBloc: tabsBloc,
+        historyBloc: history,
+      );
 
       // קישור עומק/חיפוש לעמוד ספציפי — מיקום מפורש שיש לכבד.
       coordinator.openBook(book, 7, '');
 
       final tab = (tabsBloc.capturedEvents.first as OpenOrFocusTab).tab;
-      expect((tab as PdfBookTab).pageNumber, 7,
-          reason: 'עמוד מפורש צריך לגבור על ההיסטוריה');
+      expect(
+        (tab as PdfBookTab).pageNumber,
+        7,
+        reason: 'עמוד מפורש צריך לגבור על ההיסטוריה',
+      );
 
       await history.close();
     });
@@ -304,15 +318,20 @@ void main() {
         Bookmark(ref: 'אותה כותרת עמוד 50', book: bookA, index: 50),
       ]);
       final tabsBloc = _CapturingTabsBloc();
-      final coordinator =
-          _makeCoordinator(tabsBloc: tabsBloc, historyBloc: history);
+      final coordinator = _makeCoordinator(
+        tabsBloc: tabsBloc,
+        historyBloc: history,
+      );
 
       // פתיחת ספר B (index=1, ברירת מחדל) — לא אמור לקבל את עמוד 50 של A.
       coordinator.openBook(bookB, 1, '');
 
       final tab = (tabsBloc.capturedEvents.first as OpenOrFocusTab).tab;
-      expect((tab as PdfBookTab).pageNumber, 1,
-          reason: 'אסור שספר B יקפוץ למיקום שנשמר עבור ספר A בעל אותה כותרת');
+      expect(
+        (tab as PdfBookTab).pageNumber,
+        1,
+        reason: 'אסור שספר B יקפוץ למיקום שנשמר עבור ספר A בעל אותה כותרת',
+      );
 
       await history.close();
     });
@@ -323,14 +342,19 @@ void main() {
         Bookmark(ref: 'ספר טקסט', book: book, index: 30),
       ]);
       final tabsBloc = _CapturingTabsBloc();
-      final coordinator =
-          _makeCoordinator(tabsBloc: tabsBloc, historyBloc: history);
+      final coordinator = _makeCoordinator(
+        tabsBloc: tabsBloc,
+        historyBloc: history,
+      );
 
       coordinator.openBook(book, 0, '');
 
       final tab = (tabsBloc.capturedEvents.first as OpenOrFocusTab).tab;
-      expect((tab as TextBookTab).index, 30,
-          reason: 'התנהגות ספר הטקסט הקיימת לא משתנה');
+      expect(
+        (tab as TextBookTab).index,
+        30,
+        reason: 'התנהגות ספר הטקסט הקיימת לא משתנה',
+      );
 
       await history.close();
     });

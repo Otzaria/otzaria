@@ -86,8 +86,9 @@ void main() {
     });
 
     test('returns false when punctuation setting is unchanged', () {
-      final state =
-          SettingsState.initial().copyWith(defaultRemovePunctuation: true);
+      final state = SettingsState.initial().copyWith(
+        defaultRemovePunctuation: true,
+      );
 
       expect(
         shouldReloadForPunctuationSettingsChange(

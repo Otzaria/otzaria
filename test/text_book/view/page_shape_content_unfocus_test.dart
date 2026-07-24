@@ -47,8 +47,11 @@ void main() {
       await tester.pump();
 
       // שדה החיפוש שומר על הפוקוס.
-      expect(searchNode.hasPrimaryFocus, isTrue,
-          reason: 'unfocus המבוסס hasFocus היה מבריח את הסמן מהשדה');
+      expect(
+        searchNode.hasPrimaryFocus,
+        isTrue,
+        reason: 'unfocus המבוסס hasFocus היה מבריח את הסמן מהשדה',
+      );
     },
   );
 

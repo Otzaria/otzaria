@@ -19,9 +19,9 @@ class _ListRow {
   final bool isLastInGroup;
 
   const _ListRow.header(this.headerTitle)
-      : entry = null,
-        isFirstInGroup = false,
-        isLastInGroup = false;
+    : entry = null,
+      isFirstInGroup = false,
+      isLastInGroup = false;
 
   const _ListRow.item(
     MapEntry<int, dynamic> this.entry, {
@@ -315,16 +315,20 @@ class _ItemsListViewState extends State<ItemsListView> {
     final rows = <_ListRow>[];
     for (final group in groups) {
       if (widget.groupKeyBuilder != null) {
-        rows.add(_ListRow.header(
-          widget.groupTitleBuilder?.call(group.first.value),
-        ));
+        rows.add(
+          _ListRow.header(
+            widget.groupTitleBuilder?.call(group.first.value),
+          ),
+        );
       }
       for (var i = 0; i < group.length; i++) {
-        rows.add(_ListRow.item(
-          group[i],
-          isFirstInGroup: i == 0,
-          isLastInGroup: i == group.length - 1,
-        ));
+        rows.add(
+          _ListRow.item(
+            group[i],
+            isFirstInGroup: i == 0,
+            isLastInGroup: i == group.length - 1,
+          ),
+        );
       }
     }
     return rows;
@@ -449,8 +453,9 @@ class _ItemsListViewState extends State<ItemsListView> {
 
   void _activateFocusedItem(BuildContext context) {
     if (_focusedOriginalIndex == -1) return;
-    final matches =
-        _displayEntries.where((e) => e.key == _focusedOriginalIndex);
+    final matches = _displayEntries.where(
+      (e) => e.key == _focusedOriginalIndex,
+    );
     if (matches.isEmpty) return;
     final entry = matches.first;
     widget.onItemTap(context, entry.value, entry.key);

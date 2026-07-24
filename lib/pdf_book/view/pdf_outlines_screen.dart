@@ -95,7 +95,9 @@ class _OutlineViewState extends State<OutlineView>
   }
 
   void _ensureParentsOpen(
-      List<PdfOutlineNode> nodes, PdfOutlineNode targetNode) {
+    List<PdfOutlineNode> nodes,
+    PdfOutlineNode targetNode,
+  ) {
     final path = _findPath(nodes, targetNode);
     if (path.isEmpty) return;
 
@@ -113,15 +115,21 @@ class _OutlineViewState extends State<OutlineView>
     }
   }
 
-  int _getNodeLevel(List<PdfOutlineNode> nodes, PdfOutlineNode targetNode,
-      [int currentLevel = 0]) {
+  int _getNodeLevel(
+    List<PdfOutlineNode> nodes,
+    PdfOutlineNode targetNode, [
+    int currentLevel = 0,
+  ]) {
     for (final node in nodes) {
       if (node == targetNode) {
         return currentLevel;
       }
 
-      final childLevel =
-          _getNodeLevel(node.children, targetNode, currentLevel + 1);
+      final childLevel = _getNodeLevel(
+        node.children,
+        targetNode,
+        currentLevel + 1,
+      );
       if (childLevel != -1) {
         return childLevel;
       }
@@ -130,7 +138,9 @@ class _OutlineViewState extends State<OutlineView>
   }
 
   List<PdfOutlineNode> _findPath(
-      List<PdfOutlineNode> nodes, PdfOutlineNode targetNode) {
+    List<PdfOutlineNode> nodes,
+    PdfOutlineNode targetNode,
+  ) {
     for (final node in nodes) {
       if (node == targetNode) {
         return [node];
@@ -201,8 +211,10 @@ class _OutlineViewState extends State<OutlineView>
       // --- התחלה: החישוב הנכון והבדוק ---
       // זהו החישוב מההצעה של ה-AI השני, מותאם לקוד שלנו.
 
-      final scrollableBox = _tocScrollController.position.context.storageContext
-          .findRenderObject() as RenderBox;
+      final scrollableBox =
+          _tocScrollController.position.context.storageContext
+                  .findRenderObject()
+              as RenderBox;
 
       // המיקום של הפריט ביחס ל-viewport של הגלילה
       final itemOffset = itemRenderObject
@@ -216,7 +228,8 @@ class _OutlineViewState extends State<OutlineView>
       final itemHeight = itemRenderObject.size.height;
 
       // מיקום היעד המדויק למירוכז
-      final target = _tocScrollController.offset +
+      final target =
+          _tocScrollController.offset +
           itemOffset -
           (viewportHeight / 2) +
           (itemHeight / 2);
@@ -311,8 +324,11 @@ class _OutlineViewState extends State<OutlineView>
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: outline.length,
-        itemBuilder: (context, index) => _buildOutlineItem(outline[index],
-            level: 0, isFirstChild: index == 0),
+        itemBuilder: (context, index) => _buildOutlineItem(
+          outline[index],
+          level: 0,
+          isFirstChild: index == 0,
+        ),
       ),
     );
   }
@@ -330,8 +346,12 @@ class _OutlineViewState extends State<OutlineView>
     getAllNodes(widget.outline, 0);
 
     final filteredNodes = allNodes
-        .where((item) =>
-            pdfOutlineTitleMatchesQuery(item.node.title, searchController.text))
+        .where(
+          (item) => pdfOutlineTitleMatchesQuery(
+            item.node.title,
+            searchController.text,
+          ),
+        )
         .toList();
 
     return SingleChildScrollView(
@@ -341,14 +361,18 @@ class _OutlineViewState extends State<OutlineView>
         physics: const NeverScrollableScrollPhysics(),
         itemCount: filteredNodes.length,
         itemBuilder: (context, index) => _buildOutlineItem(
-            filteredNodes[index].node,
-            level: filteredNodes[index].level),
+          filteredNodes[index].node,
+          level: filteredNodes[index].level,
+        ),
       ),
     );
   }
 
-  Widget _buildOutlineItem(PdfOutlineNode node,
-      {int level = 0, bool isFirstChild = false}) {
+  Widget _buildOutlineItem(
+    PdfOutlineNode node, {
+    int level = 0,
+    bool isFirstChild = false,
+  }) {
     final itemKey = _tocItemKeys.putIfAbsent(node, () => GlobalKey());
     Future<void> navigateToEntry() async {
       setState(() {
@@ -369,7 +393,8 @@ class _OutlineViewState extends State<OutlineView>
       await widget.controller.goToPage(pageNumber: targetPage);
     }
 
-    final bool selected = widget.controller.isReady &&
+    final bool selected =
+        widget.controller.isReady &&
         node.dest?.pageNumber == widget.controller.pageNumber;
 
     if (node.children.isEmpty) {
@@ -385,10 +410,9 @@ class _OutlineViewState extends State<OutlineView>
           ),
           decoration: BoxDecoration(
             color: selected
-                ? Theme.of(context)
-                    .colorScheme
-                    .primaryContainer
-                    .withValues(alpha: 0.3)
+                ? Theme.of(
+                    context,
+                  ).colorScheme.primaryContainer.withValues(alpha: 0.3)
                 : null,
             border: Border(
               bottom: BorderSide(
@@ -439,10 +463,9 @@ class _OutlineViewState extends State<OutlineView>
           Container(
             decoration: BoxDecoration(
               color: selected
-                  ? Theme.of(context)
-                      .colorScheme
-                      .primaryContainer
-                      .withValues(alpha: 0.3)
+                  ? Theme.of(
+                      context,
+                    ).colorScheme.primaryContainer.withValues(alpha: 0.3)
                   : null,
               border: Border(
                 bottom: BorderSide(
@@ -525,10 +548,13 @@ class _OutlineViewState extends State<OutlineView>
             ),
           ),
           if (isExpanded)
-            ...node.children.asMap().entries.map((e) => _buildOutlineItem(
+            ...node.children.asMap().entries.map(
+              (e) => _buildOutlineItem(
                 e.value,
                 level: level + 1,
-                isFirstChild: isFirstChild && e.key == 0)),
+                isFirstChild: isFirstChild && e.key == 0,
+              ),
+            ),
         ],
       );
     }

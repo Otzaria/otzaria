@@ -20,8 +20,9 @@ void main() {
 
       expect(manifest.toolTabIconName, 'calendar_24_filled');
 
-      final toolTab = (manifest.toJson()['contributes']
-          as Map<String, dynamic>)['toolTab'] as Map<String, dynamic>;
+      final toolTab =
+          (manifest.toJson()['contributes'] as Map<String, dynamic>)['toolTab']
+              as Map<String, dynamic>;
       expect(toolTab['iconName'], 'calendar_24_filled');
     });
 
@@ -58,8 +59,9 @@ void main() {
 
       expect(manifest.allowOrderBeforeBuiltIns, isFalse);
 
-      final toolTab = (manifest.toJson()['contributes']
-          as Map<String, dynamic>)['toolTab'] as Map<String, dynamic>;
+      final toolTab =
+          (manifest.toJson()['contributes'] as Map<String, dynamic>)['toolTab']
+              as Map<String, dynamic>;
       expect(toolTab['allowOrderBeforeBuiltIns'], isFalse);
     });
 
@@ -92,8 +94,10 @@ void main() {
 
       expect(manifest.backgroundEntrypoint, 'dist/background.html');
 
-      final background = (manifest.toJson()['contributes']
-          as Map<String, dynamic>)['background'] as Map<String, dynamic>;
+      final background =
+          (manifest.toJson()['contributes']
+                  as Map<String, dynamic>)['background']
+              as Map<String, dynamic>;
       expect(background['entrypoint'], 'dist/background.html');
     });
 
@@ -114,8 +118,9 @@ void main() {
 
       expect(manifest.allowOrderBeforeBuiltIns, isTrue);
 
-      final toolTab = (manifest.toJson()['contributes']
-          as Map<String, dynamic>)['toolTab'] as Map<String, dynamic>;
+      final toolTab =
+          (manifest.toJson()['contributes'] as Map<String, dynamic>)['toolTab']
+              as Map<String, dynamic>;
       expect(toolTab['allowOrderBeforeBuiltIns'], isTrue);
     });
   });

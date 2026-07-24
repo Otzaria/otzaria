@@ -45,8 +45,9 @@ class ExpandableSection extends StatelessWidget {
       title: title,
       subtitle: subtitle,
       actions: trailing != null ? [trailing!] : const [],
-      pinnedTrailing:
-          hasContent ? ExpandingChevron(isExpanded: isExpanded) : null,
+      pinnedTrailing: hasContent
+          ? ExpandingChevron(isExpanded: isExpanded)
+          : null,
       onTap: hasContent ? onTap : null,
     );
 

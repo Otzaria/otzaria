@@ -30,32 +30,35 @@ void main() {
     expect(path, p.join(r'C:\Temp', 'logs', 'errors.txt'));
   });
 
-  test('formatEntry includes version, details and stack trace when provided',
-      () {
-    ErrorLogFile.setAppVersion('1.2.3+45');
+  test(
+    'formatEntry includes version, details and stack trace when provided',
+    () {
+      ErrorLogFile.setAppVersion('1.2.3+45');
 
-    final entry = ErrorLogFile.formatEntry(
-      title: 'FlutterError',
-      error: 'boom',
-      stackTrace: StackTrace.fromString('stack-line'),
-      timestamp: DateTime.utc(2026, 4, 15, 12, 0, 0),
-      details: const {
-        'Context': 'while testing',
-      },
-    );
+      final entry = ErrorLogFile.formatEntry(
+        title: 'FlutterError',
+        error: 'boom',
+        stackTrace: StackTrace.fromString('stack-line'),
+        timestamp: DateTime.utc(2026, 4, 15, 12, 0, 0),
+        details: const {
+          'Context': 'while testing',
+        },
+      );
 
-    expect(entry, contains('2026-04-15T12:00:00.000Z'));
-    expect(entry, contains('Version: 1.2.3+45'));
-    expect(entry, contains('FlutterError'));
-    expect(entry, contains('boom'));
-    expect(entry, contains('Context: while testing'));
-    expect(entry, contains('Stack:'));
-    expect(entry, contains('stack-line'));
-  });
+      expect(entry, contains('2026-04-15T12:00:00.000Z'));
+      expect(entry, contains('Version: 1.2.3+45'));
+      expect(entry, contains('FlutterError'));
+      expect(entry, contains('boom'));
+      expect(entry, contains('Context: while testing'));
+      expect(entry, contains('Stack:'));
+      expect(entry, contains('stack-line'));
+    },
+  );
 
   test('ensureExists creates the log file in the writable fallback path', () {
-    final tempDir =
-        Directory.systemTemp.createTempSync('otzaria_error_log_test_');
+    final tempDir = Directory.systemTemp.createTempSync(
+      'otzaria_error_log_test_',
+    );
 
     try {
       final logPath = ErrorLogFile.resolvePath(

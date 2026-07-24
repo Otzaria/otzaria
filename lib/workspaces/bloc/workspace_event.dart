@@ -59,8 +59,11 @@ class SwitchToWorkspace extends WorkspaceEvent {
   });
 
   @override
-  List<Object?> get props =>
-      [targetWorkspaceId, currentTabsToSave, currentTabIndexToSave];
+  List<Object?> get props => [
+    targetWorkspaceId,
+    currentTabsToSave,
+    currentTabIndexToSave,
+  ];
 }
 
 /// Event to rename a workspace by its ID.
@@ -121,6 +124,10 @@ class MoveTabToWorkspace extends WorkspaceEvent {
   });
 
   @override
-  List<Object?> get props =>
-      [tab, targetWorkspaceId, currentTabs, currentTabIndex];
+  List<Object?> get props => [
+    tab,
+    targetWorkspaceId,
+    currentTabs,
+    currentTabIndex,
+  ];
 }

@@ -86,17 +86,20 @@ Future<void> installLinuxUpdate({
     throw Exception('No supported package manager found');
   }
 
-  final scriptFile =
-      File(p.join(p.dirname(packageFile.path), 'otzaria-update.sh'));
-  await scriptFile.writeAsString(buildLinuxUpdateScript(
-    installCommand: buildLinuxInstallCommand(
-      packageManager: packageManager,
+  final scriptFile = File(
+    p.join(p.dirname(packageFile.path), 'otzaria-update.sh'),
+  );
+  await scriptFile.writeAsString(
+    buildLinuxUpdateScript(
+      installCommand: buildLinuxInstallCommand(
+        packageManager: packageManager,
+        packagePath: packageFile.absolute.path,
+      ),
       packagePath: packageFile.absolute.path,
+      appPid: pid,
+      relaunchExecutable: relaunchApp ? Platform.resolvedExecutable : null,
     ),
-    packagePath: packageFile.absolute.path,
-    appPid: pid,
-    relaunchExecutable: relaunchApp ? Platform.resolvedExecutable : null,
-  ));
+  );
   await Process.run('chmod', ['+x', scriptFile.path]);
 
   // הרצה בטרמינל כדי שהמשתמש יראה את בקשת הסיסמה ואת ההתקדמות.
@@ -108,13 +111,16 @@ Future<void> installLinuxUpdate({
   ];
   for (final terminal in terminals) {
     if (await _commandExists(terminal)) {
-      await Process.start(terminal, ['-e', scriptFile.path],
-          mode: ProcessStartMode.detached);
+      await Process.start(terminal, [
+        '-e',
+        scriptFile.path,
+      ], mode: ProcessStartMode.detached);
       return;
     }
   }
 
   // ללא טרמינל: סוכן ה-polkit הגרפי עדיין יציג את בקשת הסיסמה.
-  await Process.start('bash', [scriptFile.path],
-      mode: ProcessStartMode.detached);
+  await Process.start('bash', [
+    scriptFile.path,
+  ], mode: ProcessStartMode.detached);
 }

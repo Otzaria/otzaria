@@ -46,7 +46,7 @@ List<({String label, String? link})> buildDirectLinkSubmenuEntries({
     (label: 'העתק קישור למקטע זה', link: buildSectionLink(bookId, index)),
     (
       label: 'העתק קישור עם הדגשת המקטע',
-      link: buildSectionMarkLink(bookId, index)
+      link: buildSectionMarkLink(bookId, index),
     ),
   ];
 

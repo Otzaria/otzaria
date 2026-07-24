@@ -34,8 +34,10 @@ Future<List<PrintBlock>> buildCommentaryPrintBlocks(
         text = stripHtmlIfNeeded(await resolve(link)).trim();
       } catch (e) {
         // הקטע יושמט מהפלט המודפס — לוג כדי שהחוסר יהיה ניתן לאבחון
-        debugPrint('[Print] commentary resolve failed for '
-            '"${group.bookTitle}" (${link.path2}): $e');
+        debugPrint(
+          '[Print] commentary resolve failed for '
+          '"${group.bookTitle}" (${link.path2}): $e',
+        );
         continue;
       }
       if (text.isEmpty) continue;
@@ -43,10 +45,12 @@ Future<List<PrintBlock>> buildCommentaryPrintBlocks(
     }
 
     if (groupBlocks.isEmpty) continue;
-    blocks.add(PrintBlock(
-      kind: PrintBlockKind.commentaryGroupTitle,
-      text: group.bookTitle,
-    ));
+    blocks.add(
+      PrintBlock(
+        kind: PrintBlockKind.commentaryGroupTitle,
+        text: group.bookTitle,
+      ),
+    );
     blocks.addAll(groupBlocks);
   }
 

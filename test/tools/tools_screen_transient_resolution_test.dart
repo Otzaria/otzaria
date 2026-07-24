@@ -57,8 +57,9 @@ void main() {
   group('resolveTransientAfterPluginsLoaded', () {
     test('transient ריק נשאר ריק', () {
       expect(
-        resolveTransientAfterPluginsLoaded(null, [_pluginFor(id: 'a')],
-            isOfflineMode: true),
+        resolveTransientAfterPluginsLoaded(null, [
+          _pluginFor(id: 'a'),
+        ], isOfflineMode: true),
         isNull,
       );
     });
@@ -66,70 +67,97 @@ void main() {
     test('מחזיר את הגרסה המעודכנת מהרשימה', () {
       final old = _pluginFor(id: 'a');
       final updated = _pluginFor(id: 'a', pinnedToNavRail: true);
-      final result = resolveTransientAfterPluginsLoaded(old, [updated],
-          isOfflineMode: false);
+      final result = resolveTransientAfterPluginsLoaded(old, [
+        updated,
+      ], isOfflineMode: false);
       expect(identical(result, updated), isTrue);
     });
 
     test('נסגר כשהתוסף הוסר גם מהכלים וגם מסרגל הניווט', () {
       final old = _pluginFor(id: 'a');
-      final updated =
-          _pluginFor(id: 'a', showInTools: false, pinnedToNavRail: false);
+      final updated = _pluginFor(
+        id: 'a',
+        showInTools: false,
+        pinnedToNavRail: false,
+      );
       expect(
-        resolveTransientAfterPluginsLoaded(old, [updated],
-            isOfflineMode: false),
+        resolveTransientAfterPluginsLoaded(old, [
+          updated,
+        ], isOfflineMode: false),
         isNull,
       );
     });
 
     test('רגרסיה: הענקת הרשאת רשת בזמן מצב מנותק סוגרת את התוסף', () {
       final openWithoutGrant = _pluginFor(
-          id: 'a', networkEnabled: true, networkAccessGranted: false);
-      final grantedNow =
-          _pluginFor(id: 'a', networkEnabled: true, networkAccessGranted: true);
+        id: 'a',
+        networkEnabled: true,
+        networkAccessGranted: false,
+      );
+      final grantedNow = _pluginFor(
+        id: 'a',
+        networkEnabled: true,
+        networkAccessGranted: true,
+      );
       expect(
-        resolveTransientAfterPluginsLoaded(openWithoutGrant, [grantedNow],
-            isOfflineMode: true),
+        resolveTransientAfterPluginsLoaded(openWithoutGrant, [
+          grantedNow,
+        ], isOfflineMode: true),
         isNull,
       );
     });
 
     test('במצב מנותק תוסף רשת שהרשאתו כבויה נשאר פתוח', () {
       final plugin = _pluginFor(
-          id: 'a', networkEnabled: true, networkAccessGranted: false);
+        id: 'a',
+        networkEnabled: true,
+        networkAccessGranted: false,
+      );
       expect(
-        resolveTransientAfterPluginsLoaded(plugin, [plugin],
-            isOfflineMode: true),
+        resolveTransientAfterPluginsLoaded(plugin, [
+          plugin,
+        ], isOfflineMode: true),
         same(plugin),
       );
     });
 
     test('במצב מקוון תוסף רשת עם הרשאה נשאר פתוח', () {
-      final plugin =
-          _pluginFor(id: 'a', networkEnabled: true, networkAccessGranted: true);
+      final plugin = _pluginFor(
+        id: 'a',
+        networkEnabled: true,
+        networkAccessGranted: true,
+      );
       expect(
-        resolveTransientAfterPluginsLoaded(plugin, [plugin],
-            isOfflineMode: false),
+        resolveTransientAfterPluginsLoaded(plugin, [
+          plugin,
+        ], isOfflineMode: false),
         same(plugin),
       );
     });
 
-    test('תוסף שאינו ברשימה המעודכנת נשמר כפי שהוא, וגם עליו חל תנאי החסימה',
-        () {
-      final keep = _pluginFor(id: 'a');
-      expect(
-        resolveTransientAfterPluginsLoaded(keep, [_pluginFor(id: 'b')],
-            isOfflineMode: true),
-        same(keep),
-      );
+    test(
+      'תוסף שאינו ברשימה המעודכנת נשמר כפי שהוא, וגם עליו חל תנאי החסימה',
+      () {
+        final keep = _pluginFor(id: 'a');
+        expect(
+          resolveTransientAfterPluginsLoaded(keep, [
+            _pluginFor(id: 'b'),
+          ], isOfflineMode: true),
+          same(keep),
+        );
 
-      final blocked =
-          _pluginFor(id: 'a', networkEnabled: true, networkAccessGranted: true);
-      expect(
-        resolveTransientAfterPluginsLoaded(blocked, [_pluginFor(id: 'b')],
-            isOfflineMode: true),
-        isNull,
-      );
-    });
+        final blocked = _pluginFor(
+          id: 'a',
+          networkEnabled: true,
+          networkAccessGranted: true,
+        );
+        expect(
+          resolveTransientAfterPluginsLoaded(blocked, [
+            _pluginFor(id: 'b'),
+          ], isOfflineMode: true),
+          isNull,
+        );
+      },
+    );
   });
 }

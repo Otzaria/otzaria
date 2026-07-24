@@ -191,7 +191,8 @@ class WordExportService {
 </w:p>''';
     }
 
-    final buffer = StringBuffer()..write('''
+    final buffer = StringBuffer()
+      ..write('''
 <w:p>
   <w:pPr>
     <w:pStyle w:val="$styleId"/>
@@ -296,15 +297,16 @@ class WordExportService {
   }
 
   static String _buildFootnotesXml(List<_WordFootnote> footnotes) {
-    final buffer =
-        StringBuffer('''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    final buffer = StringBuffer(
+      '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:footnote w:id="-1" w:type="separator">
     <w:p><w:r><w:separator/></w:r></w:p>
   </w:footnote>
   <w:footnote w:id="0" w:type="continuationSeparator">
     <w:p><w:r><w:continuationSeparator/></w:r></w:p>
-  </w:footnote>''');
+  </w:footnote>''',
+    );
 
     for (final footnote in footnotes) {
       buffer.write('''
@@ -640,9 +642,9 @@ class _InlineRun {
   const _InlineRun({required this.text, required this.style}) : isBreak = false;
 
   const _InlineRun.lineBreak()
-      : text = '',
-        style = const _RunStyle(),
-        isBreak = true;
+    : text = '',
+      style = const _RunStyle(),
+      isBreak = true;
 }
 
 class _WordFootnote {

@@ -32,8 +32,8 @@ class EditorSettings extends Equatable {
 
   @override
   List<Object?> get props => [
-        previewDebounce,
-        globalDraftsQuotaMB,
-        draftCleanupDays,
-      ];
+    previewDebounce,
+    globalDraftsQuotaMB,
+    draftCleanupDays,
+  ];
 }

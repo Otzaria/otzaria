@@ -6,8 +6,11 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 class ThumbnailsView extends StatefulWidget {
-  const ThumbnailsView(
-      {required this.documentRef, required this.controller, super.key});
+  const ThumbnailsView({
+    required this.documentRef,
+    required this.controller,
+    super.key,
+  });
 
   final PdfDocumentRef? documentRef;
   final PdfViewerController? controller;
@@ -72,7 +75,8 @@ class _ThumbnailsViewState extends State<ThumbnailsView>
 
     const itemExtent = 266.0; // container height + margin
     final viewportHeight = _scrollController.position.viewportDimension;
-    final target = itemExtent * (currentPage - 1) -
+    final target =
+        itemExtent * (currentPage - 1) -
         (viewportHeight / 2) +
         (itemExtent / 2);
     _scrollController.animateTo(
@@ -108,7 +112,8 @@ class _ThumbnailsViewState extends State<ThumbnailsView>
           controller: _scrollController,
           itemCount: document?.pages.length ?? 0,
           itemBuilder: (context, index) {
-            final isSelected = widget.controller != null &&
+            final isSelected =
+                widget.controller != null &&
                 widget.controller!.isReady &&
                 widget.controller!.pageNumber == index + 1;
             return Container(

@@ -43,11 +43,11 @@ class PdfBookInitial extends PdfBookState {
 
   @override
   List<Object?> get props => [
-        book.title,
-        initialPageNumber,
-        searchText,
-        layoutMode,
-      ];
+    book.title,
+    initialPageNumber,
+    searchText,
+    layoutMode,
+  ];
 }
 
 /// Document is loading
@@ -237,8 +237,9 @@ class PdfBookLoaded extends PdfBookState {
       spacingValues: spacingValues ?? this.spacingValues,
       searchMode: searchMode ?? this.searchMode,
       searchDistance: searchDistance ?? this.searchDistance,
-      searchMatches:
-          clearSearchMatches ? null : (searchMatches ?? this.searchMatches),
+      searchMatches: clearSearchMatches
+          ? null
+          : (searchMatches ?? this.searchMatches),
       currentSearchMatchIndex: clearCurrentSearchMatchIndex
           ? null
           : (currentSearchMatchIndex ?? this.currentSearchMatchIndex),
@@ -255,38 +256,40 @@ class PdfBookLoaded extends PdfBookState {
 
   @override
   List<Object?> get props => [
-        book.title,
-        currentPageNumber,
-        currentTitle,
-        zoom,
-        showZoomBar,
-        layoutMode,
-        showLeftPane,
-        pinLeftPane,
-        sidebarWidth,
-        showRightPane,
-        rightPaneWidth,
-        leftPaneTabIndex,
-        rightPaneInitialTabIndex,
-        searchText,
-        searchMode,
-        searchDistance,
-        searchOptions,
-        alternativeWords,
-        spacingValues,
-        searchMatches?.length,
-        currentSearchMatchIndex,
-        currentTextLineNumber,
-        totalPages,
-        isRightPaneHovering,
-        isLoading,
-        loadSucceeded,
-        pdfHeadings,
-        links
-            .map((l) =>
-                '${l.index1}|${l.path2}|${l.index2}|${l.index2End}|${l.connectionType}|${l.heRef}|${l.start}|${l.end}|${l.targetCategoryId}|${l.targetFileType}')
-            .toList(growable: false),
-        outline?.map(_outlineNodeSignature).toList(growable: false),
-        documentRef,
-      ];
+    book.title,
+    currentPageNumber,
+    currentTitle,
+    zoom,
+    showZoomBar,
+    layoutMode,
+    showLeftPane,
+    pinLeftPane,
+    sidebarWidth,
+    showRightPane,
+    rightPaneWidth,
+    leftPaneTabIndex,
+    rightPaneInitialTabIndex,
+    searchText,
+    searchMode,
+    searchDistance,
+    searchOptions,
+    alternativeWords,
+    spacingValues,
+    searchMatches?.length,
+    currentSearchMatchIndex,
+    currentTextLineNumber,
+    totalPages,
+    isRightPaneHovering,
+    isLoading,
+    loadSucceeded,
+    pdfHeadings,
+    links
+        .map(
+          (l) =>
+              '${l.index1}|${l.path2}|${l.index2}|${l.index2End}|${l.connectionType}|${l.heRef}|${l.start}|${l.end}|${l.targetCategoryId}|${l.targetFileType}',
+        )
+        .toList(growable: false),
+    outline?.map(_outlineNodeSignature).toList(growable: false),
+    documentRef,
+  ];
 }

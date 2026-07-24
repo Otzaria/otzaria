@@ -101,18 +101,21 @@ void main() {
   group('BackupMaintenance helpers', () {
     test('parseBackupFileName מזהה timestamp ודגל ידני', () {
       final auto = BackupMaintenance.parseBackupFileName(
-          p.join('x', 'otzaria_backup_2026-07-05T12-30-00.000.json'));
+        p.join('x', 'otzaria_backup_2026-07-05T12-30-00.000.json'),
+      );
       expect(auto, isNotNull);
       expect(auto!.isManual, isFalse);
       expect(auto.timestamp, DateTime(2026, 7, 5, 12, 30));
 
       final manual = BackupMaintenance.parseBackupFileName(
-          p.join('x', 'otzaria_backup_2026-07-05T12-30-00.000_manual.json'));
+        p.join('x', 'otzaria_backup_2026-07-05T12-30-00.000_manual.json'),
+      );
       expect(manual!.isManual, isTrue);
 
       expect(
         BackupMaintenance.parseBackupFileName(
-            p.join('x', BackupMaintenance.archiveFileName)),
+          p.join('x', BackupMaintenance.archiveFileName),
+        ),
         isNull,
       );
       expect(
@@ -121,31 +124,33 @@ void main() {
       );
     });
 
-    test('convertManifestToRefs מחליף base64 בהפניות ומשאיר הפניות קיימות',
-        () async {
-      final content = utf8.encode('קובץ תוסף');
-      final existingRef = await store.putBytes(utf8.encode('כבר במחסן'));
-      final manifest = <String, dynamic>{
-        'version': '1.0',
-        'plugins': [
-          {
-            'files': {
-              'main.js': base64Encode(content),
-              'old.js': existingRef,
+    test(
+      'convertManifestToRefs מחליף base64 בהפניות ומשאיר הפניות קיימות',
+      () async {
+        final content = utf8.encode('קובץ תוסף');
+        final existingRef = await store.putBytes(utf8.encode('כבר במחסן'));
+        final manifest = <String, dynamic>{
+          'version': '1.0',
+          'plugins': [
+            {
+              'files': {
+                'main.js': base64Encode(content),
+                'old.js': existingRef,
+              },
             },
-          },
-        ],
-      };
+          ],
+        };
 
-      await BackupMaintenance.convertManifestToRefs(manifest, store);
+        await BackupMaintenance.convertManifestToRefs(manifest, store);
 
-      expect(manifest['version'], '2.0');
-      final files =
-          ((manifest['plugins'] as List).first as Map)['files'] as Map;
-      final newRef = files['main.js'] as String;
-      expect(BackupStore.isHashRef(newRef), isTrue);
-      expect(await store.getBytes(newRef), content);
-      expect(files['old.js'], existingRef);
-    });
+        expect(manifest['version'], '2.0');
+        final files =
+            ((manifest['plugins'] as List).first as Map)['files'] as Map;
+        final newRef = files['main.js'] as String;
+        expect(BackupStore.isHashRef(newRef), isTrue);
+        expect(await store.getBytes(newRef), content);
+        expect(files['old.js'], existingRef);
+      },
+    );
   });
 }

@@ -60,40 +60,42 @@ void main() {
   });
 
   group('buildSelectedLinksSearchKey', () {
-    test('changes when the links change even if the list length stays the same',
-        () {
-      final firstLinks = [
-        Link(
-          heRef: 'א',
-          index1: 1,
-          path2: '/books/alpha.txt',
-          index2: 1,
-          connectionType: 'reference',
-        ),
-      ];
-      final secondLinks = [
-        Link(
-          heRef: 'ב',
-          index1: 1,
-          path2: '/books/beta.txt',
-          index2: 1,
-          connectionType: 'reference',
-        ),
-      ];
+    test(
+      'changes when the links change even if the list length stays the same',
+      () {
+        final firstLinks = [
+          Link(
+            heRef: 'א',
+            index1: 1,
+            path2: '/books/alpha.txt',
+            index2: 1,
+            connectionType: 'reference',
+          ),
+        ];
+        final secondLinks = [
+          Link(
+            heRef: 'ב',
+            index1: 1,
+            path2: '/books/beta.txt',
+            index2: 1,
+            connectionType: 'reference',
+          ),
+        ];
 
-      final firstKey = buildSelectedLinksSearchKey(
-        searchQuery: 'חיפוש',
-        searchInContent: false,
-        links: firstLinks,
-      );
-      final secondKey = buildSelectedLinksSearchKey(
-        searchQuery: 'חיפוש',
-        searchInContent: false,
-        links: secondLinks,
-      );
+        final firstKey = buildSelectedLinksSearchKey(
+          searchQuery: 'חיפוש',
+          searchInContent: false,
+          links: firstLinks,
+        );
+        final secondKey = buildSelectedLinksSearchKey(
+          searchQuery: 'חיפוש',
+          searchInContent: false,
+          links: secondLinks,
+        );
 
-      expect(firstKey, isNot(secondKey));
-    });
+        expect(firstKey, isNot(secondKey));
+      },
+    );
 
     test('changes for the same target when source line changes', () {
       final firstLinks = [

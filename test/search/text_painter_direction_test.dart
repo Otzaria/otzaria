@@ -90,11 +90,13 @@ Future<void> main() async {
         expect(tester.takeException(), isNull);
       });
 
-      testWidgets('מרנדר ללא חריגה עם טקסט ארוך שעולה על הרוחב',
-          (tester) async {
+      testWidgets('מרנדר ללא חריגה עם טקסט ארוך שעולה על הרוחב', (
+        tester,
+      ) async {
         searchBloc.emitState(
           const SearchState(
-              searchQuery: 'מכשילן לעתיד ומחייבן לדורות ומה שכתב'),
+            searchQuery: 'מכשילן לעתיד ומחייבן לדורות ומה שכתב',
+          ),
         );
 
         await tester.pumpWidget(
@@ -157,8 +159,9 @@ Future<void> main() async {
         await libraryBloc.close();
       });
 
-      testWidgets('tile של קטגוריה מרנדר ללא חריגת TextPainter',
-          (tester) async {
+      testWidgets('tile של קטגוריה מרנדר ללא חריגת TextPainter', (
+        tester,
+      ) async {
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(

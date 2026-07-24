@@ -47,7 +47,7 @@ class _ShortcutDropDownTileState extends State<ShortcutDropDownTile> {
     // Get current value for this setting
     final currentValue =
         ShortcutValidator.getShortcutValue(widget.settingKey) ??
-            widget.selected;
+        widget.selected;
 
     // Get all shortcuts that are in use by OTHER settings
     final usedShortcuts = <String>{};
@@ -169,7 +169,7 @@ class _ShortcutDropDownTileState extends State<ShortcutDropDownTile> {
 
     final currentValue =
         ShortcutValidator.getShortcutValue(widget.settingKey) ??
-            widget.selected;
+        widget.selected;
     final settingsBloc = context.read<SettingsBloc>();
     String? finalValue = newValue;
 
@@ -200,7 +200,8 @@ class _ShortcutDropDownTileState extends State<ShortcutDropDownTile> {
         if (usedValue == finalValue) {
           final conflictingName = ShortcutValidator.shortcutNames[key] ?? key;
           UiSnack.showError(
-              CommonMessages.shortcutAlreadyInUse(conflictingName));
+            CommonMessages.shortcutAlreadyInUse(conflictingName),
+          );
           return;
         }
       }

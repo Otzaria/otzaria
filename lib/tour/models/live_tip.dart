@@ -72,10 +72,10 @@ class TourInteraction extends Equatable {
 
   @override
   List<Object?> get props => [
-        type,
-        timestamp.millisecondsSinceEpoch,
-        primaryValue,
-      ];
+    type,
+    timestamp.millisecondsSinceEpoch,
+    primaryValue,
+  ];
 }
 
 class LiveTipSpec extends Equatable {
@@ -148,14 +148,16 @@ const List<LiveTipSpec> liveTipSpecs = [
     id: LiveTipId.printHint,
     area: TourSpotlightArea.print,
     title: 'הידעת?',
-    description: 'אפשר להדפיס את הפרק הנוכחי ישירות מסרגל הכלים של הספר — כולל '
+    description:
+        'אפשר להדפיס את הפרק הנוכחי ישירות מסרגל הכלים של הספר — כולל '
         'המפרשים המוצגים. לחצו על כפתור ההדפסה ובחרו את הפורמט המתאים.',
   ),
   LiveTipSpec(
     id: LiveTipId.backupHint,
     area: TourSpotlightArea.settings,
     title: 'הידעת?',
-    description: 'אוצריא מגבה אוטומטית את הסימניות, ההיסטוריה וההערות שלך. '
+    description:
+        'אוצריא מגבה אוטומטית את הסימניות, ההיסטוריה וההערות שלך. '
         'בהגדרות ← מערכת אפשר לייצא את הגיבוי לקובץ ולשחזר אותו בכל עת — '
         'גם לאחר התקנה מחדש.',
   ),

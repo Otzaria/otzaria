@@ -42,14 +42,14 @@ class AppDialog extends StatefulWidget {
     this.confirmText = 'אישור',
     this.textDirection,
     this.onConfirm,
-  })  : assert(
-          content != null || customContent != null,
-          'content או customContent חייבים להיות מוגדרים',
-        ),
-        _variant = _DialogVariant.singleAction,
-        cancelText = '',
-        subtitle = null,
-        handleEnterKey = true;
+  }) : assert(
+         content != null || customContent != null,
+         'content או customContent חייבים להיות מוגדרים',
+       ),
+       _variant = _DialogVariant.singleAction,
+       cancelText = '',
+       subtitle = null,
+       handleEnterKey = true;
 
   const AppDialog.twoActions({
     super.key,
@@ -60,9 +60,9 @@ class AppDialog extends StatefulWidget {
     this.confirmText = 'אישור',
     this.textDirection,
     this.handleEnterKey = true,
-  })  : _variant = _DialogVariant.twoActions,
-        subtitle = null,
-        onConfirm = null;
+  }) : _variant = _DialogVariant.twoActions,
+       subtitle = null,
+       onConfirm = null;
 
   const AppDialog.warning({
     super.key,
@@ -73,9 +73,9 @@ class AppDialog extends StatefulWidget {
     this.confirmText = 'המשך',
     this.subtitle,
     this.textDirection,
-  })  : _variant = _DialogVariant.warning,
-        handleEnterKey = true,
-        onConfirm = null;
+  }) : _variant = _DialogVariant.warning,
+       handleEnterKey = true,
+       onConfirm = null;
 
   @override
   State<AppDialog> createState() => _AppDialogState();
@@ -157,41 +157,41 @@ class _AppDialogState extends State<AppDialog> {
   }
 
   List<Widget> _buildActions() => switch (widget._variant) {
-        _DialogVariant.singleAction => [
-            ActionButton.recommended(
-              focusNode: _confirmFocusNode,
-              autofocus: widget.customContent == null,
-              text: widget.confirmText,
-              onPressed: _handleConfirm,
-            ),
-          ],
-        _DialogVariant.twoActions => [
-            ActionButton.neutral(
-              focusNode: _cancelFocusNode,
-              text: widget.cancelText,
-              onPressed: () => Navigator.of(context).pop(false),
-            ),
-            ActionButton.recommended(
-              focusNode: _confirmFocusNode,
-              autofocus: true,
-              text: widget.confirmText,
-              onPressed: () => Navigator.of(context).pop(true),
-            ),
-          ],
-        _DialogVariant.warning => [
-            ActionButton.recommended(
-              focusNode: _cancelFocusNode,
-              autofocus: true,
-              text: widget.cancelText,
-              onPressed: () => Navigator.of(context).pop(false),
-            ),
-            ActionButton.warning(
-              focusNode: _confirmFocusNode,
-              text: widget.confirmText,
-              onPressed: () => Navigator.of(context).pop(true),
-            ),
-          ],
-      };
+    _DialogVariant.singleAction => [
+      ActionButton.recommended(
+        focusNode: _confirmFocusNode,
+        autofocus: widget.customContent == null,
+        text: widget.confirmText,
+        onPressed: _handleConfirm,
+      ),
+    ],
+    _DialogVariant.twoActions => [
+      ActionButton.neutral(
+        focusNode: _cancelFocusNode,
+        text: widget.cancelText,
+        onPressed: () => Navigator.of(context).pop(false),
+      ),
+      ActionButton.recommended(
+        focusNode: _confirmFocusNode,
+        autofocus: true,
+        text: widget.confirmText,
+        onPressed: () => Navigator.of(context).pop(true),
+      ),
+    ],
+    _DialogVariant.warning => [
+      ActionButton.recommended(
+        focusNode: _cancelFocusNode,
+        autofocus: true,
+        text: widget.cancelText,
+        onPressed: () => Navigator.of(context).pop(false),
+      ),
+      ActionButton.warning(
+        focusNode: _confirmFocusNode,
+        text: widget.confirmText,
+        onPressed: () => Navigator.of(context).pop(true),
+      ),
+    ],
+  };
 }
 
 // ── show* functions ───────────────────────────────────────────────────────────
@@ -205,19 +205,18 @@ Future<bool?> showSingleActionDialog({
   TextDirection? textDirection,
   bool barrierDismissible = true,
   bool Function()? onConfirm,
-}) =>
-    showDialog<bool>(
-      context: context,
-      barrierDismissible: barrierDismissible,
-      builder: (_) => AppDialog.singleAction(
-        title: title,
-        content: content,
-        customContent: customContent,
-        confirmText: confirmText,
-        textDirection: textDirection,
-        onConfirm: onConfirm,
-      ),
-    );
+}) => showDialog<bool>(
+  context: context,
+  barrierDismissible: barrierDismissible,
+  builder: (_) => AppDialog.singleAction(
+    title: title,
+    content: content,
+    customContent: customContent,
+    confirmText: confirmText,
+    textDirection: textDirection,
+    onConfirm: onConfirm,
+  ),
+);
 
 Future<bool?> showTwoActionsDialog({
   required BuildContext context,
@@ -229,20 +228,19 @@ Future<bool?> showTwoActionsDialog({
   TextDirection? textDirection,
   bool barrierDismissible = true,
   bool handleEnterKey = true,
-}) =>
-    showDialog<bool>(
-      context: context,
-      barrierDismissible: barrierDismissible,
-      builder: (_) => AppDialog.twoActions(
-        title: title,
-        content: content,
-        customContent: customContent,
-        cancelText: cancelText,
-        confirmText: confirmText,
-        textDirection: textDirection,
-        handleEnterKey: handleEnterKey,
-      ),
-    );
+}) => showDialog<bool>(
+  context: context,
+  barrierDismissible: barrierDismissible,
+  builder: (_) => AppDialog.twoActions(
+    title: title,
+    content: content,
+    customContent: customContent,
+    cancelText: cancelText,
+    confirmText: confirmText,
+    textDirection: textDirection,
+    handleEnterKey: handleEnterKey,
+  ),
+);
 
 Future<bool?> showWarningDialog({
   required BuildContext context,
@@ -253,48 +251,46 @@ Future<bool?> showWarningDialog({
   String confirmText = 'איפוס',
   TextDirection? textDirection,
   bool barrierDismissible = true,
-}) =>
-    showDialog<bool>(
-      context: context,
-      barrierDismissible: barrierDismissible,
-      builder: (_) => AppDialog.warning(
-        title: title,
-        content: content,
-        subtitle: subtitle,
-        cancelText: cancelText,
-        confirmText: confirmText,
-        textDirection: textDirection,
-      ),
-    );
+}) => showDialog<bool>(
+  context: context,
+  barrierDismissible: barrierDismissible,
+  builder: (_) => AppDialog.warning(
+    title: title,
+    content: content,
+    subtitle: subtitle,
+    cancelText: cancelText,
+    confirmText: confirmText,
+    textDirection: textDirection,
+  ),
+);
 
 Future<bool?> showDbCopyRequiredDialog({
   required BuildContext context,
   required String sizeText,
   bool barrierDismissible = false,
-}) =>
-    showTwoActionsDialog(
-      context: context,
-      title: 'נדרשת העתקה של קובץ הספרייה',
-      content: '',
-      barrierDismissible: barrierDismissible,
-      cancelText: 'העתק (שמור מקור)',
-      confirmText: 'העתק + נסה מחק מקור',
-      customContent: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'לא ניתן לגשת ישירות לקובץ seforim.db (גודל: $sizeText) מכיוון שהוא נמצא באחסון חיצוני ב-Android.',
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'לחץ על כפתור למטה, נווט לאותה תיקייה ובחר את הקובץ seforim.db — האפליקציה תעתיק אותו לאחסון הפנימי.',
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            '(אפשרות "נסה מחק מקור" — ניסיון למחוק לאחר העתקה. עשויה שלא להצליח בכל גרסאות Android.)',
-            style: TextStyle(fontSize: 12),
-          ),
-        ],
+}) => showTwoActionsDialog(
+  context: context,
+  title: 'נדרשת העתקה של קובץ הספרייה',
+  content: '',
+  barrierDismissible: barrierDismissible,
+  cancelText: 'העתק (שמור מקור)',
+  confirmText: 'העתק + נסה מחק מקור',
+  customContent: Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'לא ניתן לגשת ישירות לקובץ seforim.db (גודל: $sizeText) מכיוון שהוא נמצא באחסון חיצוני ב-Android.',
       ),
-    );
+      const SizedBox(height: 12),
+      const Text(
+        'לחץ על כפתור למטה, נווט לאותה תיקייה ובחר את הקובץ seforim.db — האפליקציה תעתיק אותו לאחסון הפנימי.',
+      ),
+      const SizedBox(height: 6),
+      const Text(
+        '(אפשרות "נסה מחק מקור" — ניסיון למחוק לאחר העתקה. עשויה שלא להצליח בכל גרסאות Android.)',
+        style: TextStyle(fontSize: 12),
+      ),
+    ],
+  ),
+);

@@ -231,8 +231,9 @@ NoteAnchorRange? locateAnchor({
   final occurrences = _allOccurrences(p.normalized, needle);
   if (occurrences.isEmpty) return null;
 
-  final normalizedHint =
-      hintStart != null ? _rawToNormalizedIndex(p, hintStart) : null;
+  final normalizedHint = hintStart != null
+      ? _rawToNormalizedIndex(p, hintStart)
+      : null;
   final matchStart = _pickBestOccurrence(
     p.normalized,
     occurrences,
@@ -281,8 +282,9 @@ ComputedAnchor? computeAnchorForSelection({
   }
   final matchEnd = matchStart + needle.length;
 
-  final prefixStart =
-      (matchStart - _kContextLength) < 0 ? 0 : matchStart - _kContextLength;
+  final prefixStart = (matchStart - _kContextLength) < 0
+      ? 0
+      : matchStart - _kContextLength;
   final suffixEnd = (matchEnd + _kContextLength) > p.normalized.length
       ? p.normalized.length
       : matchEnd + _kContextLength;
@@ -334,7 +336,13 @@ String wrapHtmlRanges(String text, List<HtmlWrapRange> ranges) {
       buffer.write(text.substring(currentPos, range.start));
     }
     _appendWrapped(
-        buffer, text, range.start, range.end, range.openTag, range.closeTag);
+      buffer,
+      text,
+      range.start,
+      range.end,
+      range.openTag,
+      range.closeTag,
+    );
     currentPos = range.end;
   }
 

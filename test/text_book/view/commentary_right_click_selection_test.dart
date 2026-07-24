@@ -62,107 +62,142 @@ void main() {
   });
 
   testWidgets(
-      'ה-Listener הממקד קיים ומחובר מעל ProgressiveScroll (חוזה מבני לגארד)',
-      (tester) async {
-    await _pump(tester, textBookBloc: textBookBloc, settingsBloc: settingsBloc);
+    'ה-Listener הממקד קיים ומחובר מעל ProgressiveScroll (חוזה מבני לגארד)',
+    (tester) async {
+      await _pump(
+        tester,
+        textBookBloc: textBookBloc,
+        settingsBloc: settingsBloc,
+      );
 
-    // ה-Listener הממקד הוא אב-קדמון של ProgressiveScroll (הוא עוטף את
-    // ה-AppFutureBuilder שמכיל אותו) — לכן find.ancestor ולא find.descendant.
-    final guards = tester
-        .widgetList<Listener>(find.ancestor(
-          of: find.byType(ProgressiveScroll),
-          matching: find.byType(Listener),
-        ))
-        .where((l) =>
-            l.behavior == HitTestBehavior.translucent &&
-            l.onPointerDown != null)
-        .toList();
-    expect(guards, isNotEmpty,
-        reason: 'ה-Listener הממקד חייב להתקיים כדי שהגארד יחול עליו');
+      // ה-Listener הממקד הוא אב-קדמון של ProgressiveScroll (הוא עוטף את
+      // ה-AppFutureBuilder שמכיל אותו) — לכן find.ancestor ולא find.descendant.
+      final guards = tester
+          .widgetList<Listener>(
+            find.ancestor(
+              of: find.byType(ProgressiveScroll),
+              matching: find.byType(Listener),
+            ),
+          )
+          .where(
+            (l) =>
+                l.behavior == HitTestBehavior.translucent &&
+                l.onPointerDown != null,
+          )
+          .toList();
+      expect(
+        guards,
+        isNotEmpty,
+        reason: 'ה-Listener הממקד חייב להתקיים כדי שהגארד יחול עליו',
+      );
 
-    // מריצים את ה-callback האמיתי בלחיצה ימנית. עם התיקון הוא חוזר מוקדם ואינו
-    // ממקד; אם הגארד יוסר, requestFocus ימקד את ProgressiveScroll ו-hasPrimaryFocus
-    // יהפוך true — כך הרגרסיה נתפסת.
-    final focusNode = tester
-        .widget<ProgressiveScroll>(find.byType(ProgressiveScroll))
-        .focusNode!;
-    for (final guard in guards) {
-      guard.onPointerDown!(PointerDownEvent(
-        position: const Offset(100, 100),
-        buttons: kSecondaryButton,
-        kind: PointerDeviceKind.mouse,
-      ));
-    }
-    await tester.pumpAndSettle();
-    expect(focusNode.hasPrimaryFocus, isFalse,
-        reason: 'לחיצה ימנית לא תופסת פוקוס ראשי ב-ProgressiveScroll');
-  });
+      // מריצים את ה-callback האמיתי בלחיצה ימנית. עם התיקון הוא חוזר מוקדם ואינו
+      // ממקד; אם הגארד יוסר, requestFocus ימקד את ProgressiveScroll ו-hasPrimaryFocus
+      // יהפוך true — כך הרגרסיה נתפסת.
+      final focusNode = tester
+          .widget<ProgressiveScroll>(find.byType(ProgressiveScroll))
+          .focusNode!;
+      for (final guard in guards) {
+        guard.onPointerDown!(
+          PointerDownEvent(
+            position: const Offset(100, 100),
+            buttons: kSecondaryButton,
+            kind: PointerDeviceKind.mouse,
+          ),
+        );
+      }
+      await tester.pumpAndSettle();
+      expect(
+        focusNode.hasPrimaryFocus,
+        isFalse,
+        reason: 'לחיצה ימנית לא תופסת פוקוס ראשי ב-ProgressiveScroll',
+      );
+    },
+  );
 
   // בודק את הפרדיקט של קוד הייצור עצמו (לא דמה) בשני הכיוונים: ימני לא ממקד,
   // שאר הכפתורים כן. מימוש שיפסיק למקד בכל לחיצה יפיל את בדיקת השמאלי.
   test('shouldFocusScrollOnPointerDown: ממקד בכל כפתור פרט לימני', () {
-    expect(shouldFocusScrollOnPointerDown(kPrimaryButton), isTrue,
-        reason: 'שמאלי ממקד — אחרת גלילת החיצים נשברת');
-    expect(shouldFocusScrollOnPointerDown(kMiddleMouseButton), isTrue,
-        reason: 'אמצעי ממקד');
-    expect(shouldFocusScrollOnPointerDown(kSecondaryButton), isFalse,
-        reason: 'ימני לא ממקד — אחרת הבחירה נמחקת');
+    expect(
+      shouldFocusScrollOnPointerDown(kPrimaryButton),
+      isTrue,
+      reason: 'שמאלי ממקד — אחרת גלילת החיצים נשברת',
+    );
+    expect(
+      shouldFocusScrollOnPointerDown(kMiddleMouseButton),
+      isTrue,
+      reason: 'אמצעי ממקד',
+    );
+    expect(
+      shouldFocusScrollOnPointerDown(kSecondaryButton),
+      isFalse,
+      reason: 'ימני לא ממקד — אחרת הבחירה נמחקת',
+    );
     // buttons הוא bitmask: לחיצה משולבת שכוללת ימני לא צריכה למקד.
-    expect(shouldFocusScrollOnPointerDown(kPrimaryButton | kSecondaryButton),
-        isFalse,
-        reason: 'שמאלי+ימני יחד כולל ביט ימני — לא ממקד');
+    expect(
+      shouldFocusScrollOnPointerDown(kPrimaryButton | kSecondaryButton),
+      isFalse,
+      reason: 'שמאלי+ימני יחד כולל ביט ימני — לא ממקד',
+    );
   });
 
   group('לכידת טקסט נבחר בתפריט ההקשר', () {
     Link makeLink() => Link(
-          heRef: 'רש"י על בראשית א:א',
-          index1: 1,
-          path2: 'אוצריא/תנך/פירושים/רשי.txt',
-          index2: 1,
-          connectionType: 'commentary',
-        );
+      heRef: 'רש"י על בראשית א:א',
+      index1: 1,
+      path2: 'אוצריא/תנך/פירושים/רשי.txt',
+      index2: 1,
+      connectionType: 'commentary',
+    );
 
     testWidgets(
-        'תפריט שנבנה עם טקסט נבחר: enabled ומעתיק גם אחרי איפוס המקור החי',
-        (tester) async {
-      // ה-listenable שהפאנל האמיתי מעביר ל-menuBuilder.
-      final savedText = ValueNotifier<String?>('קטע מסומן להעתקה');
-      addTearDown(savedText.dispose);
-      String? copiedText;
+      'תפריט שנבנה עם טקסט נבחר: enabled ומעתיק גם אחרי איפוס המקור החי',
+      (tester) async {
+        // ה-listenable שהפאנל האמיתי מעביר ל-menuBuilder.
+        final savedText = ValueNotifier<String?>('קטע מסומן להעתקה');
+        addTearDown(savedText.dispose);
+        String? copiedText;
 
-      late List<AppContextMenuEntry> entries;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (context) {
-              // הלכידה דרך helper הייצור האמיתי: מחיקת ה-snapshot ממנו תגרום
-              // לקריאה חיה (null אחרי האיפוס) ותפיל את הבדיקה.
-              final savedTextAtBuild = captureSelectedTextForMenu(savedText);
-              entries = ContextMenuUtils.buildCommentaryContextMenu(
-                context: context,
-                link: makeLink(),
-                openBookCallback: (_) {},
-                fontSize: 18,
-                savedSelectedText: savedTextAtBuild,
-                onCopySelected: () => copiedText = savedTextAtBuild,
-              );
-              return const SizedBox.shrink();
-            },
+        late List<AppContextMenuEntry> entries;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Builder(
+              builder: (context) {
+                // הלכידה דרך helper הייצור האמיתי: מחיקת ה-snapshot ממנו תגרום
+                // לקריאה חיה (null אחרי האיפוס) ותפיל את הבדיקה.
+                final savedTextAtBuild = captureSelectedTextForMenu(savedText);
+                entries = ContextMenuUtils.buildCommentaryContextMenu(
+                  context: context,
+                  link: makeLink(),
+                  openBookCallback: (_) {},
+                  fontSize: 18,
+                  savedSelectedText: savedTextAtBuild,
+                  onCopySelected: () => copiedText = savedTextAtBuild,
+                );
+                return const SizedBox.shrink();
+              },
+            ),
           ),
-        ),
-      );
+        );
 
-      final copyEntry = entries.firstWhere((e) => e.label == 'העתק');
-      expect(copyEntry.enabled, isTrue,
-          reason: 'בזמן הבנייה יש טקסט נבחר — "העתק" חייב להיות פעיל');
+        final copyEntry = entries.firstWhere((e) => e.label == 'העתק');
+        expect(
+          copyEntry.enabled,
+          isTrue,
+          reason: 'בזמן הבנייה יש טקסט נבחר — "העתק" חייב להיות פעיל',
+        );
 
-      // לחיצה ימנית שחררה את הבחירה: המקור החי מתאפס לפני שנלחץ "העתק".
-      savedText.value = null;
+        // לחיצה ימנית שחררה את הבחירה: המקור החי מתאפס לפני שנלחץ "העתק".
+        savedText.value = null;
 
-      copyEntry.onTap!();
-      expect(copiedText, 'קטע מסומן להעתקה',
-          reason: 'ההעתקה חייבת להשתמש בטקסט שנלכד בבנייה, לא בערך המנוקה');
-    });
+        copyEntry.onTap!();
+        expect(
+          copiedText,
+          'קטע מסומן להעתקה',
+          reason: 'ההעתקה חייבת להשתמש בטקסט שנלכד בבנייה, לא בערך המנוקה',
+        );
+      },
+    );
 
     // בדיקה ישירה של helper הלכידה: לוכד את הערך בזמן הקריאה ואינו רגיש
     // לשינויים מאוחרים של ה-listenable.
@@ -173,12 +208,16 @@ void main() {
       final snapshot = captureSelectedTextForMenu(saved);
       saved.value = null;
 
-      expect(snapshot, 'לפני',
-          reason: 'ה-snapshot חייב להישאר יציב אחרי שהמקור החי השתנה');
+      expect(
+        snapshot,
+        'לפני',
+        reason: 'ה-snapshot חייב להישאר יציב אחרי שהמקור החי השתנה',
+      );
     });
 
-    testWidgets('טקסט נבחר ריק/רווחים בלבד — פריט "העתק" מושבת',
-        (tester) async {
+    testWidgets('טקסט נבחר ריק/רווחים בלבד — פריט "העתק" מושבת', (
+      tester,
+    ) async {
       for (final blank in <String?>[null, '', '   ']) {
         late List<AppContextMenuEntry> entries;
         await tester.pumpWidget(
@@ -200,32 +239,37 @@ void main() {
         );
 
         final copyEntry = entries.firstWhere((e) => e.label == 'העתק');
-        expect(copyEntry.enabled, isFalse,
-            reason: 'טקסט "${blank ?? 'null'}" אינו בחירה תקפה');
+        expect(
+          copyEntry.enabled,
+          isFalse,
+          reason: 'טקסט "${blank ?? 'null'}" אינו בחירה תקפה',
+        );
       }
     });
   });
 
   group('פריט "דווח על טעות בספר"', () {
     Link officialLink() => Link(
-          heRef: 'רש"י על בראשית א:א',
-          index1: 1,
-          path2: 'אוצריא/תנך/פירושים/רשי.txt',
-          index2: 1,
-          connectionType: 'commentary',
-        );
+      heRef: 'רש"י על בראשית א:א',
+      index1: 1,
+      path2: 'אוצריא/תנך/פירושים/רשי.txt',
+      index2: 1,
+      connectionType: 'commentary',
+    );
 
     Link userLink() => Link(
-          heRef: 'הערה אישית',
-          index1: 1,
-          path2: 'ספר אישי.txt',
-          index2: 1,
-          connectionType: 'commentary',
-          targetIsUserBook: true,
-        );
+      heRef: 'הערה אישית',
+      index1: 1,
+      path2: 'ספר אישי.txt',
+      index2: 1,
+      connectionType: 'commentary',
+      targetIsUserBook: true,
+    );
 
     Future<List<AppContextMenuEntry>> pumpMenu(
-        WidgetTester tester, Link link) async {
+      WidgetTester tester,
+      Link link,
+    ) async {
       late List<AppContextMenuEntry> entries;
       await tester.pumpWidget(
         MaterialApp(
@@ -249,27 +293,33 @@ void main() {
 
     testWidgets('מוצג עבור מפרש רשמי', (tester) async {
       final entries = await pumpMenu(tester, officialLink());
-      expect(entries.any((e) => e.label == 'דווח על טעות בספר'), isTrue,
-          reason: 'מפרש רשמי — חייב להיות ניתן לדווח עליו');
+      expect(
+        entries.any((e) => e.label == 'דווח על טעות בספר'),
+        isTrue,
+        reason: 'מפרש רשמי — חייב להיות ניתן לדווח עליו',
+      );
     });
 
     testWidgets('מוסתר עבור ספר משתמש', (tester) async {
       final entries = await pumpMenu(tester, userLink());
-      expect(entries.any((e) => e.label == 'דווח על טעות בספר'), isFalse,
-          reason: 'ספר משתמש — אין למי לדווח, הפריט מוסתר');
+      expect(
+        entries.any((e) => e.label == 'דווח על טעות בספר'),
+        isFalse,
+        reason: 'ספר משתמש — אין למי לדווח, הפריט מוסתר',
+      );
     });
   });
 
   group('commentaryReportArgs — מיפוי מפרש לפרמטרי דיווח', () {
     Link commentaryLink() => Link(
-          heRef: 'רש"י על בראשית א:א',
-          index1: 1,
-          path2: 'אוצריא/תנך/פירושים/רשי.txt',
-          index2: 42,
-          connectionType: 'commentary',
-          targetCategoryId: 7,
-          targetFileType: 'txt',
-        );
+      heRef: 'רש"י על בראשית א:א',
+      index1: 1,
+      path2: 'אוצריא/תנך/פירושים/רשי.txt',
+      index2: 42,
+      connectionType: 'commentary',
+      targetCategoryId: 7,
+      targetFileType: 'txt',
+    );
 
     test('הדיווח מופנה לספר המפרש, לאינדקס ולתוכן שלו', () {
       final args = ContextMenuUtils.commentaryReportArgs(
@@ -278,16 +328,23 @@ void main() {
         savedSelectedText: null,
       );
 
-      expect(args.book.title, 'רשי',
-          reason: 'הספר המדווח הוא המפרש (path2), לא הספר הראשי');
+      expect(
+        args.book.title,
+        'רשי',
+        reason: 'הספר המדווח הוא המפרש (path2), לא הספר הראשי',
+      );
       expect(args.book.categoryId, 7);
       expect(args.book.fileType, 'txt');
       expect(args.book.isUserBook, isFalse);
       expect(args.bookTitle, 'רשי');
-      expect(args.lineIndex, 41,
-          reason: 'index2 הוא 1-based; האינדקס לדיווח הוא index2-1');
-      expect(args.content, const ['<b>תוכן המפרש</b>'],
-          reason: 'reportContent הוא תוכן המפרש הגולמי (שורה בודדת)');
+      expect(
+        args.lineIndex,
+        41,
+        reason: 'index2 הוא 1-based; האינדקס לדיווח הוא index2-1',
+      );
+      expect(args.content, const [
+        '<b>תוכן המפרש</b>',
+      ], reason: 'reportContent הוא תוכן המפרש הגולמי (שורה בודדת)');
     });
 
     test('ללא בחירה — selectedText הוא כל פסקת המפרש (ללא HTML)', () {
@@ -297,8 +354,11 @@ void main() {
         savedSelectedText: '   ',
       );
 
-      expect(args.selectedText, 'תוכן המפרש',
-          reason: 'בחירה ריקה/רווחים — נופלים לכל הפסקה, מנוקה מ-HTML');
+      expect(
+        args.selectedText,
+        'תוכן המפרש',
+        reason: 'בחירה ריקה/רווחים — נופלים לכל הפסקה, מנוקה מ-HTML',
+      );
     });
 
     test('עם בחירה — selectedText הוא הטקסט שסומן', () {
@@ -309,8 +369,9 @@ void main() {
       );
 
       expect(args.selectedText, 'קטע מסומן');
-      expect(args.content, const ['<b>תוכן</b> המפרש'],
-          reason: 'התוכן המדווח נשאר פסקת המפרש המלאה גם כשיש בחירה');
+      expect(args.content, const [
+        '<b>תוכן</b> המפרש',
+      ], reason: 'התוכן המדווח נשאר פסקת המפרש המלאה גם כשיש בחירה');
     });
   });
 }
@@ -441,8 +502,12 @@ class _FakeLibraryProvider implements LibraryProvider {
   }
 
   @override
-  Future<String?> getBookText(String title, int categoryId, String fileType,
-      {bool preferUserBooks = false}) async {
+  Future<String?> getBookText(
+    String title,
+    int categoryId,
+    String fileType, {
+    bool preferUserBooks = false,
+  }) async {
     return null;
   }
 

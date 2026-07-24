@@ -77,13 +77,13 @@ void main() {
         contains(ShortcutValidator.openAdvancedSearchKey),
       );
       expect(
-        ShortcutValidator
-            .defaultShortcuts[ShortcutValidator.openAdvancedSearchKey],
+        ShortcutValidator.defaultShortcuts[ShortcutValidator
+            .openAdvancedSearchKey],
         '',
       );
       expect(
-        ShortcutValidator
-            .shortcutNames[ShortcutValidator.openAdvancedSearchKey],
+        ShortcutValidator.shortcutNames[ShortcutValidator
+            .openAdvancedSearchKey],
         'חיפוש מתקדם',
       );
     });
@@ -109,22 +109,26 @@ void main() {
     });
 
     test(
-        'Ctrl+Shift+C, Ctrl+Shift+L ו-Ctrl+Shift+T אינם מתנגשים עם קיצורים אחרים',
-        () {
-      // עוברים על כל ברירות המחדל ומוודאים שלא יש כפילות עם הקיצורים החדשים
-      const newShortcuts = {'ctrl+shift+l', 'ctrl+shift+c', 'ctrl+shift+t'};
-      final clashes = <String, List<String>>{};
-      for (final entry in ShortcutValidator.defaultShortcuts.entries) {
-        if (newShortcuts.contains(entry.value) &&
-            entry.key != 'key-shortcut-toggle-nav-pane' &&
-            entry.key != 'key-shortcut-toggle-commentators-pane' &&
-            entry.key != 'key-shortcut-restore-closed-tab') {
-          clashes.putIfAbsent(entry.value, () => []).add(entry.key);
+      'Ctrl+Shift+C, Ctrl+Shift+L ו-Ctrl+Shift+T אינם מתנגשים עם קיצורים אחרים',
+      () {
+        // עוברים על כל ברירות המחדל ומוודאים שלא יש כפילות עם הקיצורים החדשים
+        const newShortcuts = {'ctrl+shift+l', 'ctrl+shift+c', 'ctrl+shift+t'};
+        final clashes = <String, List<String>>{};
+        for (final entry in ShortcutValidator.defaultShortcuts.entries) {
+          if (newShortcuts.contains(entry.value) &&
+              entry.key != 'key-shortcut-toggle-nav-pane' &&
+              entry.key != 'key-shortcut-toggle-commentators-pane' &&
+              entry.key != 'key-shortcut-restore-closed-tab') {
+            clashes.putIfAbsent(entry.value, () => []).add(entry.key);
+          }
         }
-      }
-      expect(clashes, isEmpty,
-          reason: 'נמצאו התנגשויות עם הקיצורים החדשים: $clashes');
-    });
+        expect(
+          clashes,
+          isEmpty,
+          reason: 'נמצאו התנגשויות עם הקיצורים החדשים: $clashes',
+        );
+      },
+    );
 
     test('ברירות המחדל אינן מכילות קיצורים כפולים', () {
       final shortcutToKeys = <String, List<String>>{};

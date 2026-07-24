@@ -27,10 +27,16 @@ void main() {
       final other = _category('אחר');
 
       final sourceText = TextBook(title: 'ברכות', category: seder);
-      final sameCategoryPdf =
-          PdfBook(title: 'ברכות', path: r'C:\a\ברכות.pdf', category: seder);
-      final otherCategoryPdf =
-          PdfBook(title: 'ברכות', path: r'C:\b\ברכות.pdf', category: other);
+      final sameCategoryPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\a\ברכות.pdf',
+        category: seder,
+      );
+      final otherCategoryPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\b\ברכות.pdf',
+        category: other,
+      );
       seder.books.addAll([sourceText, sameCategoryPdf]);
       other.books.add(otherCategoryPdf);
 
@@ -47,10 +53,16 @@ void main() {
       final seder = _category('סדר זרעים', parent: bavliRoot);
 
       final sourceText = TextBook(title: 'ברכות', category: seder);
-      final pdfA =
-          PdfBook(title: 'ברכות', path: r'C:\a\ברכות.pdf', category: seder);
-      final pdfB =
-          PdfBook(title: 'ברכות', path: r'C:\b\ברכות.pdf', category: seder);
+      final pdfA = PdfBook(
+        title: 'ברכות',
+        path: r'C:\a\ברכות.pdf',
+        category: seder,
+      );
+      final pdfB = PdfBook(
+        title: 'ברכות',
+        path: r'C:\b\ברכות.pdf',
+        category: seder,
+      );
       seder.books.addAll([sourceText, pdfA, pdfB]);
 
       final library = Library(categories: [bavliRoot]);
@@ -68,15 +80,20 @@ void main() {
       // ולכן ההתאמה עוברת לחיפוש הגלובלי — שם המסנן דוחה את ה-PDF הירושלמי.
       // הירושלמי נרשם ראשון בעץ כדי שהבחירה תסתמך על המסנן ולא על סדר המעבר.
       final sourceText = TextBook(
-          title: 'ברכות',
-          category: bavliSeder,
-          categoryPath: 'תלמוד בבלי, סדר זרעים');
+        title: 'ברכות',
+        category: bavliSeder,
+        categoryPath: 'תלמוד בבלי, סדר זרעים',
+      );
       final bavliPdf = PdfBook(
-          title: 'ברכות', path: r'C:\תלמוד בבלי\ברכות.pdf', category: bavli);
+        title: 'ברכות',
+        path: r'C:\תלמוד בבלי\ברכות.pdf',
+        category: bavli,
+      );
       final yerushalmiPdf = PdfBook(
-          title: 'ברכות',
-          path: r'C:\תלמוד ירושלמי\ברכות.pdf',
-          category: yerushalmiSeder);
+        title: 'ברכות',
+        path: r'C:\תלמוד ירושלמי\ברכות.pdf',
+        category: yerushalmiSeder,
+      );
       bavliSeder.books.add(sourceText);
       bavli.books.add(bavliPdf);
       yerushalmiSeder.books.add(yerushalmiPdf);

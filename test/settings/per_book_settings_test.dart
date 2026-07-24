@@ -13,8 +13,10 @@ import '../helpers/memory_settings_cache.dart';
 void main() {
   group('TextBookPerBookSettings JSON', () {
     test('isTanach שורד round-trip ומושמט כשהוא null', () {
-      final settings =
-          TextBookPerBookSettings(removePunctuation: true, isTanach: true);
+      final settings = TextBookPerBookSettings(
+        removePunctuation: true,
+        isTanach: true,
+      );
       final restored = TextBookPerBookSettings.fromJson(settings.toJson());
       expect(restored.isTanach, isTrue);
       expect(restored.removePunctuation, isTrue);
@@ -172,8 +174,10 @@ void main() {
       final official = TextBook(title: 'ספר', categoryId: 1);
       final user = TextBook(title: 'ספר', categoryId: 1, isUserBook: true);
 
-      expect(PerBookSettings.bookKey(official),
-          isNot(PerBookSettings.bookKey(user)));
+      expect(
+        PerBookSettings.bookKey(official),
+        isNot(PerBookSettings.bookKey(user)),
+      );
     });
 
     test('שני ספרי טקסט באותו שם בקטגוריות שונות נפרדים', () {
@@ -201,7 +205,9 @@ void main() {
     test('אותו ספר מחזיר מפתח יציב', () {
       final book = TextBook(title: 'ספר', categoryId: 1);
       expect(
-          PerBookSettings.bookKey(book), equals(PerBookSettings.bookKey(book)));
+        PerBookSettings.bookKey(book),
+        equals(PerBookSettings.bookKey(book)),
+      );
     });
   });
 
@@ -308,14 +314,13 @@ void main() {
     Future<void> runCleanup({
       bool defaultContinuous = false,
       bool defaultRemovePunctuation = false,
-    }) =>
-        PerBookSettings.cleanupRedundantSettings(
-          defaultFontSize: 16,
-          defaultRemoveNikud: false,
-          defaultRemovePunctuation: defaultRemovePunctuation,
-          defaultShowSplitView: true,
-          defaultContinuousReadingMode: defaultContinuous,
-        );
+    }) => PerBookSettings.cleanupRedundantSettings(
+      defaultFontSize: 16,
+      defaultRemoveNikud: false,
+      defaultRemovePunctuation: defaultRemovePunctuation,
+      defaultShowSplitView: true,
+      defaultContinuousReadingMode: defaultContinuous,
+    );
 
     // מפתחות דמויי-production: bookKey אמיתי → קובץ נשמר בשם hash (SHA-1).
     test('override ששווה לברירת המחדל מוסר גם כשיש שדה פר-ספר אחר', () async {
@@ -340,14 +345,17 @@ void main() {
       await PerBookSettings.saveSettings(key, {'continuousReadingMode': true});
       await runCleanup(defaultContinuous: false);
       expect(
-          (await PerBookSettings.loadSettings(key))?['continuousReadingMode'],
-          isTrue);
+        (await PerBookSettings.loadSettings(key))?['continuousReadingMode'],
+        isTrue,
+      );
     });
 
     test('קובץ שכל שדותיו זהים לברירת המחדל נמחק', () async {
       const key = 'o__3__ויקרא';
-      await PerBookSettings.saveSettings(
-          key, {'continuousReadingMode': true, 'removeNikud': false});
+      await PerBookSettings.saveSettings(key, {
+        'continuousReadingMode': true,
+        'removeNikud': false,
+      });
       await runCleanup(defaultContinuous: true);
       expect(await PerBookSettings.loadSettings(key), isNull);
     });
@@ -356,8 +364,10 @@ void main() {
       const key = 'o__4__במדבר';
       await PerBookSettings.saveSettings(key, {'removePunctuation': true});
       await runCleanup();
-      expect((await PerBookSettings.loadSettings(key))?['removePunctuation'],
-          isTrue);
+      expect(
+        (await PerBookSettings.loadSettings(key))?['removePunctuation'],
+        isTrue,
+      );
     });
 
     test('removePunctuation=false מוסר כשברירת המחדל הגלובלית כבויה', () async {
@@ -367,47 +377,58 @@ void main() {
       expect(await PerBookSettings.loadSettings(key), isNull);
     });
 
-    test('removePunctuation=true בספר רגיל מוסר כשהברירה הגלובלית נדלקת',
-        () async {
-      // ה-override נעשה מיותר — חייב להימחק כדי שהספר יירש שינוי עתידי
-      // של הברירה הגלובלית בחזרה ל-false.
-      const key = 'o__7__במדבר ג';
-      await PerBookSettings.saveSettings(key, {'removePunctuation': true});
-      await runCleanup(defaultRemovePunctuation: true);
-      expect(await PerBookSettings.loadSettings(key), isNull);
-    });
+    test(
+      'removePunctuation=true בספר רגיל מוסר כשהברירה הגלובלית נדלקת',
+      () async {
+        // ה-override נעשה מיותר — חייב להימחק כדי שהספר יירש שינוי עתידי
+        // של הברירה הגלובלית בחזרה ל-false.
+        const key = 'o__7__במדבר ג';
+        await PerBookSettings.saveSettings(key, {'removePunctuation': true});
+        await runCleanup(defaultRemovePunctuation: true);
+        expect(await PerBookSettings.loadSettings(key), isNull);
+      },
+    );
 
-    test('override פיסוק של תנ"ך שורד ברירה גלובלית דלוקה (דגל isTanach)',
-        () async {
-      // בתנ"ך הברירה האפקטיבית תמיד false — override true הוא אמיתי ונשמר.
-      const key = 'o__8__תהלים';
-      await PerBookSettings.saveSettings(
-          key, {'removePunctuation': true, 'isTanach': true});
-      await runCleanup(defaultRemovePunctuation: true);
-      final json = await PerBookSettings.loadSettings(key);
-      expect(json?['removePunctuation'], isTrue);
-      expect(json?['isTanach'], isTrue);
-    });
+    test(
+      'override פיסוק של תנ"ך שורד ברירה גלובלית דלוקה (דגל isTanach)',
+      () async {
+        // בתנ"ך הברירה האפקטיבית תמיד false — override true הוא אמיתי ונשמר.
+        const key = 'o__8__תהלים';
+        await PerBookSettings.saveSettings(key, {
+          'removePunctuation': true,
+          'isTanach': true,
+        });
+        await runCleanup(defaultRemovePunctuation: true);
+        final json = await PerBookSettings.loadSettings(key);
+        expect(json?['removePunctuation'], isTrue);
+        expect(json?['isTanach'], isTrue);
+      },
+    );
 
-    test('בתנ"ך removePunctuation=false מיותר גם כשהברירה הגלובלית דלוקה',
-        () async {
-      const key = 'o__9__משלי';
-      await PerBookSettings.saveSettings(
-          key, {'removePunctuation': false, 'isTanach': true});
-      await runCleanup(defaultRemovePunctuation: true);
-      // שווה לברירה האפקטיבית של תנ"ך (false) — השדה והדגל נמחקים יחד.
-      expect(await PerBookSettings.loadSettings(key), isNull);
-    });
+    test(
+      'בתנ"ך removePunctuation=false מיותר גם כשהברירה הגלובלית דלוקה',
+      () async {
+        const key = 'o__9__משלי';
+        await PerBookSettings.saveSettings(key, {
+          'removePunctuation': false,
+          'isTanach': true,
+        });
+        await runCleanup(defaultRemovePunctuation: true);
+        // שווה לברירה האפקטיבית של תנ"ך (false) — השדה והדגל נמחקים יחד.
+        expect(await PerBookSettings.loadSettings(key), isNull);
+      },
+    );
 
     test('קובץ tombstone שורד את הניקוי', () async {
       const key = 'o__5__דברים';
-      await PerBookSettings.saveSettings(
-          key, {PerBookSettings.resetMarker: true});
+      await PerBookSettings.saveSettings(key, {
+        PerBookSettings.resetMarker: true,
+      });
       await runCleanup(defaultContinuous: true);
       expect(
-          (await PerBookSettings.loadSettings(
-              key))?[PerBookSettings.resetMarker],
-          isTrue);
+        (await PerBookSettings.loadSettings(key))?[PerBookSettings.resetMarker],
+        isTrue,
+      );
     });
 
     test('קובץ legacy (שם לא-hash) אינו נוגע בניקוי', () async {

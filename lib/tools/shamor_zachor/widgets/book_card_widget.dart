@@ -179,11 +179,14 @@ class _BookCardWidgetState extends State<BookCardWidget> {
   Widget build(BuildContext context) {
     if (!_isInitialized) {
       return const Card(
-          child: Center(
-              child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2.0))));
+        child: Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2.0),
+          ),
+        ),
+      );
     }
 
     return FocusableActionDetector(
@@ -218,13 +221,12 @@ class _BookCardWidgetState extends State<BookCardWidget> {
                         children: [
                           Text(
                             widget.bookName,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
+                            style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(
                                   fontWeight: FontWeight.bold,
-                                  color:
-                                      Theme.of(context).colorScheme.onSurface,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
                                 ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -236,23 +238,26 @@ class _BookCardWidgetState extends State<BookCardWidget> {
                             children: [
                               _BookMetaChip(
                                 icon: FluentIcons.folder_24_regular,
-                                text: widget.bookDetails.categoryPath ??
+                                text:
+                                    widget.bookDetails.categoryPath ??
                                     widget.categoryName,
-                                backgroundColor: Theme.of(context)
-                                    .colorScheme
-                                    .secondaryContainer,
-                                foregroundColor: Theme.of(context)
-                                    .colorScheme
-                                    .onSecondaryContainer,
+                                backgroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.secondaryContainer,
+                                foregroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.onSecondaryContainer,
                               ),
                               if (_isCompleted)
                                 _BookMetaChip(
                                   icon: FluentIcons.checkmark_circle_24_regular,
                                   text: 'הושלם',
-                                  backgroundColor:
-                                      Theme.of(context).colorScheme.primary,
-                                  foregroundColor:
-                                      Theme.of(context).colorScheme.onPrimary,
+                                  backgroundColor: Theme.of(
+                                    context,
+                                  ).colorScheme.primary,
+                                  foregroundColor: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimary,
                                 ),
                             ],
                           ),
@@ -356,9 +361,9 @@ class _BookCardWidgetState extends State<BookCardWidget> {
             Text(
               cycleName,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontSize: 8,
-                    color: cs.onSurface,
-                  ),
+                fontSize: 8,
+                color: cs.onSurface,
+              ),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -387,9 +392,9 @@ class _BookCardWidgetState extends State<BookCardWidget> {
           Text(
             cycleName,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 9,
-                ),
+              fontWeight: FontWeight.bold,
+              fontSize: 9,
+            ),
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -407,9 +412,9 @@ class _BookCardWidgetState extends State<BookCardWidget> {
           Text(
             '$progressPercentage% • $completedItems/$totalItems',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontSize: 8,
-                  color: cs.onSurface.withValues(alpha: 0.7),
-                ),
+              fontSize: 8,
+              color: cs.onSurface.withValues(alpha: 0.7),
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -425,50 +430,57 @@ class _BookCardWidgetState extends State<BookCardWidget> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: AppTokens.borderRadiusAll,
-              child: LinearProgressIndicator(
-                minHeight: 8,
-                value: learnProgress.isFinite ? learnProgress : 0.0,
-                backgroundColor: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.08),
+        Row(
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: AppTokens.borderRadiusAll,
+                child: LinearProgressIndicator(
+                  minHeight: 8,
+                  value: learnProgress.isFinite ? learnProgress : 0.0,
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.08),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Text('$progressPercentage%',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(fontWeight: FontWeight.w600)),
-        ]),
+            const SizedBox(width: 12),
+            Text(
+              '$progressPercentage%',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
         const SizedBox(height: 8),
-        Row(children: [
-          Flexible(
-            child: Text('$completedItems מתוך $totalItems',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.7)),
-                overflow: TextOverflow.ellipsis),
-          ),
-          const SizedBox(width: 8),
-          if (learnProgress > 0)
+        Row(
+          children: [
             Flexible(
               child: Text(
-                _getProgressStatusText(),
+                '$completedItems מתוך $totalItems',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.primary,
-                    fontWeight: FontWeight.w500),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-        ]),
+            const SizedBox(width: 8),
+            if (learnProgress > 0)
+              Flexible(
+                child: Text(
+                  _getProgressStatusText(),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+        ),
       ],
     );
   }

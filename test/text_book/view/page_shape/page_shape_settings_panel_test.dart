@@ -56,9 +56,9 @@ void main() {
   // פריט מתוך תפריט החיפוש המוצמד בלבד (Material עם elevation 8), כדי
   // להבחין בינו לבין השדות הסגורים שמציגים את אותה תווית.
   Finder menuItem(String label) => find.descendant(
-        of: find.byWidgetPredicate((w) => w is Material && w.elevation == 8),
-        matching: find.text(label),
-      );
+    of: find.byWidgetPredicate((w) => w is Material && w.elevation == 8),
+    matching: find.text(label),
+  );
 
   testWidgets('תווית הגופן מסייגת שהוא למפרשים התחתונים בלבד', (tester) async {
     await pumpPanel(tester);
@@ -81,15 +81,18 @@ void main() {
     expect(find.text('גלובלי'), findsOneWidget);
   });
 
-  testWidgets('בחירת שולחן עבודה שומרת הגדרות תצוגה ל-workspace',
-      (tester) async {
+  testWidgets('בחירת שולחן עבודה שומרת הגדרות תצוגה ל-workspace', (
+    tester,
+  ) async {
     await pumpPanel(tester, currentWorkspaceId: 'workspace-1');
 
     await tester.tap(find.text('שולחן עבודה זה'));
     await tester.pump();
 
-    final highlightSwitch =
-        find.widgetWithText(SwitchListTile, 'הדגש פרשנים קשורים');
+    final highlightSwitch = find.widgetWithText(
+      SwitchListTile,
+      'הדגש פרשנים קשורים',
+    );
     await tester.ensureVisible(highlightSwitch);
     await tester.pump();
     await tester.tap(highlightSwitch);
@@ -127,8 +130,10 @@ void main() {
     var notified = 0;
     await pumpPanel(tester, onSettingsChanged: () => notified++);
 
-    final addButton =
-        find.widgetWithIcon(IconButton, FluentIcons.add_24_regular);
+    final addButton = find.widgetWithIcon(
+      IconButton,
+      FluentIcons.add_24_regular,
+    );
     await tester.ensureVisible(addButton);
     await tester.pump();
     await tester.tap(addButton);
@@ -146,8 +151,10 @@ void main() {
     var notified = 0;
     await pumpPanel(tester, onSettingsChanged: () => notified++);
 
-    final highlightSwitch =
-        find.widgetWithText(SwitchListTile, 'הדגש פרשנים קשורים');
+    final highlightSwitch = find.widgetWithText(
+      SwitchListTile,
+      'הדגש פרשנים קשורים',
+    );
     await tester.ensureVisible(highlightSwitch);
     await tester.pump();
     await tester.tap(highlightSwitch);
@@ -228,35 +235,37 @@ void main() {
   });
 
   testWidgets(
-      'בחירת "מפרשים מרובים" בשדה השמאלי עוברת למצב מרובה ומציגה את פאנל המידע',
-      (tester) async {
-    await pumpPanel(tester);
-    await tester.pumpAndSettle();
+    'בחירת "מפרשים מרובים" בשדה השמאלי עוברת למצב מרובה ומציגה את פאנל המידע',
+    (tester) async {
+      await pumpPanel(tester);
+      await tester.pumpAndSettle();
 
-    // "מפרש שמאלי" הוא השדה היחיד שמציע את מצב הבחירה המרובה.
-    final leftPaneField = find.descendant(
-      of: find
-          .ancestor(of: find.text('מפרש שמאלי'), matching: find.byType(Row))
-          .first,
-      matching: find.byType(FilledButton),
-    );
-    await tester.ensureVisible(leftPaneField);
-    await tester.pumpAndSettle();
-    await tester.tap(leftPaneField);
-    await tester.pumpAndSettle();
+      // "מפרש שמאלי" הוא השדה היחיד שמציע את מצב הבחירה המרובה.
+      final leftPaneField = find.descendant(
+        of: find
+            .ancestor(of: find.text('מפרש שמאלי'), matching: find.byType(Row))
+            .first,
+        matching: find.byType(FilledButton),
+      );
+      await tester.ensureVisible(leftPaneField);
+      await tester.pumpAndSettle();
+      await tester.tap(leftPaneField);
+      await tester.pumpAndSettle();
 
-    await tester.tap(menuItem('מפרשים מרובים'));
-    await tester.pumpAndSettle();
+      await tester.tap(menuItem('מפרשים מרובים'));
+      await tester.pumpAndSettle();
 
-    // מצב מרובה נכנס לתוקף → _buildRightPaneInfo מוצג.
-    expect(
-      find.text('הבחירה המפורטת נעשית מתוך החלונית עצמה.'),
-      findsOneWidget,
-    );
-  });
+      // מצב מרובה נכנס לתוקף → _buildRightPaneInfo מוצג.
+      expect(
+        find.text('הבחירה המפורטת נעשית מתוך החלונית עצמה.'),
+        findsOneWidget,
+      );
+    },
+  );
 
-  testWidgets('הקלדה בשדה החיפוש מסננת את רשימת המפרשים בתפריט',
-      (tester) async {
+  testWidgets('הקלדה בשדה החיפוש מסננת את רשימת המפרשים בתפריט', (
+    tester,
+  ) async {
     await pumpPanel(
       tester,
       availableCommentators: const [

@@ -101,10 +101,14 @@ void main() {
   test('revokeAllForPlugin מסיר רק את הקבצים של אותו תוסף', () async {
     final fileA = await writeFile('a.txt', 'a');
     final fileB = await writeFile('b.txt', 'b');
-    final regA =
-        await server.register(pluginId: 'pA', canonicalPath: fileA.path);
-    final regB =
-        await server.register(pluginId: 'pB', canonicalPath: fileB.path);
+    final regA = await server.register(
+      pluginId: 'pA',
+      canonicalPath: fileA.path,
+    );
+    final regB = await server.register(
+      pluginId: 'pB',
+      canonicalPath: fileB.path,
+    );
 
     server.revokeAllForPlugin('pA');
 

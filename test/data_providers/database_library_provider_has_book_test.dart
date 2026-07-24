@@ -39,11 +39,17 @@ void main() {
       provider.clearCache();
 
       await Settings.setValue<String>(
-          SettingsRepository.keyLibraryPath, libraryPath);
+        SettingsRepository.keyLibraryPath,
+        libraryPath,
+      );
       await Settings.setValue<String>(
-          SettingsRepository.keyLibraryFolderName, '');
+        SettingsRepository.keyLibraryFolderName,
+        '',
+      );
       await Settings.setValue<String>(
-          SettingsRepository.keyDbEffectivePath, '');
+        SettingsRepository.keyDbEffectivePath,
+        '',
+      );
 
       final dbPath = path.join(libraryPath, DatabaseConstants.databaseFileName);
       seforimDb = MyDatabase.withPath(dbPath);
@@ -64,135 +70,155 @@ void main() {
       }
     });
 
-    test('cache hit ב-_cachedKeys (seforim): מחזיר true בלי לפנות ל-DB',
-        () async {
-      provider.seedCacheForTesting(
-        keys: const [
-          BookCompositeKey(title: 'מטמון רשמי', categoryId: 5, fileType: 'txt'),
-        ],
-      );
-
-      // ל-DB אין את הספר — אם הקוד פונה ל-DB ולא ל-cache, הוא יחזיר false.
-      final exists = await provider.hasBook('מטמון רשמי', 5, 'txt');
-
-      expect(exists, isTrue);
-    });
-
-    test('cache hit ב-_userBooksCachedKeys: מחזיר true גם כש-seforim DB ריק',
-        () async {
-      // טעינת ה-user_books cache דרך populateUserBooksCategoryForTesting.
-      final library = library_models.Library(categories: []);
-      final personalCategory = library_models.Category(
-        title: 'ספרים אישיים',
-        description: '',
-        shortDescription: '',
-        order: 1,
-        subCategories: [],
-        books: [],
-        parent: library,
-      );
-      library.subCategories.add(personalCategory);
-
-      const userCategoryId = 42;
-      provider.populateUserBooksCategoryForTesting(
-        targetCategory: personalCategory,
-        dbCategory: const migration_models.Category(
-          id: userCategoryId,
-          title: 'ספרים אישיים',
-          level: 0,
-        ),
-        booksByCategory: const {
-          userCategoryId: [
-            {
-              'id': 1,
-              'title': 'ספר במטמון user_books',
-              'categoryId': userCategoryId,
-              'orderIndex': 1,
-              'fileType': 'txt',
-            },
+    test(
+      'cache hit ב-_cachedKeys (seforim): מחזיר true בלי לפנות ל-DB',
+      () async {
+        provider.seedCacheForTesting(
+          keys: const [
+            BookCompositeKey(
+              title: 'מטמון רשמי',
+              categoryId: 5,
+              fileType: 'txt',
+            ),
           ],
-        },
-        categoriesByParent: const {},
-        authorsByBookId: const {},
-        metadata: const {},
-      );
+        );
 
-      final exists = await provider.hasBook(
-          'ספר במטמון user_books', userCategoryId, 'txt');
+        // ל-DB אין את הספר — אם הקוד פונה ל-DB ולא ל-cache, הוא יחזיר false.
+        final exists = await provider.hasBook('מטמון רשמי', 5, 'txt');
 
-      expect(exists, isTrue);
-    });
+        expect(exists, isTrue);
+      },
+    );
 
     test(
-        '_isUserBooksCategoryId נכון אבל המפתח לא ב-cache → ניגש ל-user_books.db',
-        () async {
-      // נטען את ה-cache עם רשומה אחת ב-user_books, אבל נשאל על ספר שלא נמצא
-      // במפה של ה-cache — כדי לבחון את הענף שניגש לקובץ ה-DB ישירות.
-      final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;
-      final personalCatId = await userBooksRepo.insertCategory(
-        const migration_models.Category(title: 'ספרים אישיים'),
-      );
-      final folderId = await userBooksRepo.insertCategory(
-        migration_models.Category(
-            title: 'תיקייה אישית', parentId: personalCatId, level: 1),
-      );
-      final sourceId =
-          await userBooksRepo.insertSource('Personal::has-book', -1);
-      await userBooksRepo.insertBook(
-        migration_models.Book(
-          categoryId: folderId,
-          sourceId: sourceId,
-          title: 'נמצא רק ב-DB',
-          fileType: 'txt',
-        ),
-      );
+      'cache hit ב-_userBooksCachedKeys: מחזיר true גם כש-seforim DB ריק',
+      () async {
+        // טעינת ה-user_books cache דרך populateUserBooksCategoryForTesting.
+        final library = library_models.Library(categories: []);
+        final personalCategory = library_models.Category(
+          title: 'ספרים אישיים',
+          description: '',
+          shortDescription: '',
+          order: 1,
+          subCategories: [],
+          books: [],
+          parent: library,
+        );
+        library.subCategories.add(personalCategory);
 
-      // נטען רק את ה-categoryId ל-_userBooksCategoryIds דרך populate —
-      // עם ספר אחר במפתח, כדי שה-_userBooksCachedKeys לא יכיל את 'נמצא רק ב-DB'.
-      final library = library_models.Library(categories: []);
-      final personalCategory = library_models.Category(
-        title: 'ספרים אישיים',
-        description: '',
-        shortDescription: '',
-        order: 1,
-        subCategories: [],
-        books: [],
-        parent: library,
-      );
-      library.subCategories.add(personalCategory);
+        const userCategoryId = 42;
+        provider.populateUserBooksCategoryForTesting(
+          targetCategory: personalCategory,
+          dbCategory: const migration_models.Category(
+            id: userCategoryId,
+            title: 'ספרים אישיים',
+            level: 0,
+          ),
+          booksByCategory: const {
+            userCategoryId: [
+              {
+                'id': 1,
+                'title': 'ספר במטמון user_books',
+                'categoryId': userCategoryId,
+                'orderIndex': 1,
+                'fileType': 'txt',
+              },
+            ],
+          },
+          categoriesByParent: const {},
+          authorsByBookId: const {},
+          metadata: const {},
+        );
 
-      provider.populateUserBooksCategoryForTesting(
-        targetCategory: personalCategory,
-        dbCategory: migration_models.Category(
-          id: folderId,
-          title: 'תיקייה אישית',
-          level: 0,
-        ),
-        // ספר שונה במפה — כדי שה-cache hit לא יקרה
-        booksByCategory: {
-          folderId: const [
-            {
-              'id': 999,
-              'title': 'ספר אחר',
-              'categoryId': 0,
-              'orderIndex': 1,
-              'fileType': 'txt',
-            },
-          ],
-        },
-        categoriesByParent: const {},
-        authorsByBookId: const {},
-        metadata: const {},
-      );
+        final exists = await provider.hasBook(
+          'ספר במטמון user_books',
+          userCategoryId,
+          'txt',
+        );
 
-      // עכשיו ה-categoryId רשום כקטגוריית user_books, אבל ספר 'נמצא רק ב-DB'
-      // אינו ב-_userBooksCachedKeys → הקוד צריך לפנות ישירות ל-DB.
-      final exists = await provider.hasBook('נמצא רק ב-DB', folderId, 'txt');
+        expect(exists, isTrue);
+      },
+    );
 
-      expect(exists, isTrue,
+    test(
+      '_isUserBooksCategoryId נכון אבל המפתח לא ב-cache → ניגש ל-user_books.db',
+      () async {
+        // נטען את ה-cache עם רשומה אחת ב-user_books, אבל נשאל על ספר שלא נמצא
+        // במפה של ה-cache — כדי לבחון את הענף שניגש לקובץ ה-DB ישירות.
+        final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;
+        final personalCatId = await userBooksRepo.insertCategory(
+          const migration_models.Category(title: 'ספרים אישיים'),
+        );
+        final folderId = await userBooksRepo.insertCategory(
+          migration_models.Category(
+            title: 'תיקייה אישית',
+            parentId: personalCatId,
+            level: 1,
+          ),
+        );
+        final sourceId = await userBooksRepo.insertSource(
+          'Personal::has-book',
+          -1,
+        );
+        await userBooksRepo.insertBook(
+          migration_models.Book(
+            categoryId: folderId,
+            sourceId: sourceId,
+            title: 'נמצא רק ב-DB',
+            fileType: 'txt',
+          ),
+        );
+
+        // נטען רק את ה-categoryId ל-_userBooksCategoryIds דרך populate —
+        // עם ספר אחר במפתח, כדי שה-_userBooksCachedKeys לא יכיל את 'נמצא רק ב-DB'.
+        final library = library_models.Library(categories: []);
+        final personalCategory = library_models.Category(
+          title: 'ספרים אישיים',
+          description: '',
+          shortDescription: '',
+          order: 1,
+          subCategories: [],
+          books: [],
+          parent: library,
+        );
+        library.subCategories.add(personalCategory);
+
+        provider.populateUserBooksCategoryForTesting(
+          targetCategory: personalCategory,
+          dbCategory: migration_models.Category(
+            id: folderId,
+            title: 'תיקייה אישית',
+            level: 0,
+          ),
+          // ספר שונה במפה — כדי שה-cache hit לא יקרה
+          booksByCategory: {
+            folderId: const [
+              {
+                'id': 999,
+                'title': 'ספר אחר',
+                'categoryId': 0,
+                'orderIndex': 1,
+                'fileType': 'txt',
+              },
+            ],
+          },
+          categoriesByParent: const {},
+          authorsByBookId: const {},
+          metadata: const {},
+        );
+
+        // עכשיו ה-categoryId רשום כקטגוריית user_books, אבל ספר 'נמצא רק ב-DB'
+        // אינו ב-_userBooksCachedKeys → הקוד צריך לפנות ישירות ל-DB.
+        final exists = await provider.hasBook('נמצא רק ב-DB', folderId, 'txt');
+
+        expect(
+          exists,
+          isTrue,
           reason:
-              'הענף שמחפש ב-UserBooksDatabaseHolder.repository כש-categoryId הוא user_books');
-    });
+              'הענף שמחפש ב-UserBooksDatabaseHolder.repository כש-categoryId הוא user_books',
+        );
+      },
+    );
 
     test('Fallback ל-seforim DB כש-categoryId לא רשום בשום cache', () async {
       // לא טוענים אף cache. הוספת ספר ל-seforim DB עצמו, ועל ידי כך בודקים

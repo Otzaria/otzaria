@@ -140,15 +140,15 @@ class _BookmarkViewState extends State<BookmarkView> {
   }
 
   static String _dateGroupLabel(DateTime? date) => const {
-        '1_today': 'היום',
-        '2_yesterday': 'אתמול',
-        '3_this_week': 'השבוע',
-        '4_last_week': 'שבוע שעבר',
-        '5_this_month': 'החודש',
-        '6_prev_month': 'חודש קודם',
-        '7_this_year': 'השנה',
-        '8_older': 'ישן יותר',
-      }[_dateGroupKey(date)]!;
+    '1_today': 'היום',
+    '2_yesterday': 'אתמול',
+    '3_this_week': 'השבוע',
+    '4_last_week': 'שבוע שעבר',
+    '5_this_month': 'החודש',
+    '6_prev_month': 'חודש קודם',
+    '7_this_year': 'השנה',
+    '8_older': 'ישן יותר',
+  }[_dateGroupKey(date)]!;
 
   /// בונה את ה-Tab המתאים לסימניה. עבור [BookmarkTargetKind.commentators]
   /// יוצרים sourceTab בלתי-תלוי וגורסה אותו ל-PdfCommentatorsTab/CommentatorsTab,
@@ -165,12 +165,14 @@ class _BookmarkViewState extends State<BookmarkView> {
         return PdfCommentatorsTab(sourceTab: sourceTab);
       }
 
-      final sourceTab = OpenedTab.fromBook(
-        bookmark.book,
-        bookmark.index,
-        commentators: bookmark.commentatorsToShow,
-        openLeftPane: openLeftPane,
-      ) as TextBookTab;
+      final sourceTab =
+          OpenedTab.fromBook(
+                bookmark.book,
+                bookmark.index,
+                commentators: bookmark.commentatorsToShow,
+                openLeftPane: openLeftPane,
+              )
+              as TextBookTab;
       return CommentatorsTab(sourceTab: sourceTab);
     }
 
@@ -190,14 +192,14 @@ class _BookmarkViewState extends State<BookmarkView> {
     final tab = _buildTabForBookmark(bookmark);
 
     context.read<TabsBloc>().add(
-          OpenOrFocusTab(
-            tab,
-            targetTitle: targetTitle,
-            // סימניה מצביעה על מיקום ספציפי. אם הספר כבר פתוח בטאב אחר,
-            // נרצה לגלול אותו למיקום של הסימניה ולא רק לתת לו focus.
-            navigateToPositionIfReused: true,
-          ),
-        );
+      OpenOrFocusTab(
+        tab,
+        targetTitle: targetTitle,
+        // סימניה מצביעה על מיקום ספציפי. אם הספר כבר פתוח בטאב אחר,
+        // נרצה לגלול אותו למיקום של הסימניה ולא רק לתת לו focus.
+        navigateToPositionIfReused: true,
+      ),
+    );
     context.read<NavigationBloc>().add(const NavigateToScreen(Screen.reading));
     // Close the dialog if this view is displayed inside one
     if (Navigator.of(context).canPop()) {
@@ -287,8 +289,9 @@ class _BookmarkViewState extends State<BookmarkView> {
               // הודעת ההצלחה תוצג רק אם באמת נמחקה סימניה - בלי זה היה
               // ייתכן שתוצג "סימניות הספר נמחקו" גם כשלא היו לספר סימניות
               // (לחיצת כפתור בעת מצב ריק).
-              final removed =
-                  ctx.read<BookmarkBloc>().clearBookmarksForBook(bookFilter);
+              final removed = ctx.read<BookmarkBloc>().clearBookmarksForBook(
+                bookFilter,
+              );
               if (removed) {
                 UiSnack.show(NotesMessages.bookBookmarksDeleted);
               }
@@ -297,8 +300,9 @@ class _BookmarkViewState extends State<BookmarkView> {
           hintText: 'חפש בסימניות...',
           emptyText: bookFilter == null ? 'אין סימניות' : 'אין סימניות בספר זה',
           notFoundText: 'לא נמצאו תוצאות',
-          clearAllText:
-              bookFilter == null ? 'מחק את כל הסימניות' : 'מחק סימניות הספר',
+          clearAllText: bookFilter == null
+              ? 'מחק את כל הסימניות'
+              : 'מחק סימניות הספר',
           leadingIconBuilder: (item) => item.book is PdfBook
               ? const Icon(FluentIcons.document_pdf_24_regular)
               : null,
@@ -330,7 +334,9 @@ class _BookmarkViewState extends State<BookmarkView> {
         entries: const [
           AppMenuEntry(value: BookmarkSortMode.category, label: 'לפי קטגוריה'),
           AppMenuEntry(
-              value: BookmarkSortMode.dateAdded, label: 'לפי תאריך הוספה'),
+            value: BookmarkSortMode.dateAdded,
+            label: 'לפי תאריך הוספה',
+          ),
         ],
       ),
     );

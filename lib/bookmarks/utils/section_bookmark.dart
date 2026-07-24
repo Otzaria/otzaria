@@ -34,13 +34,13 @@ Future<void> addTextSectionBookmark(
   }
 
   final added = context.read<BookmarkBloc>().addBookmark(
-        ref: ref,
-        book: state.book,
-        index: index,
-        commentatorsToShow: state.activeCommentators,
-        label: label,
-      );
-  UiSnack.showQuick(added
-      ? NotesMessages.bookmarkAdded
-      : NotesMessages.bookmarkAlreadyExists);
+    ref: ref,
+    book: state.book,
+    index: index,
+    commentatorsToShow: state.activeCommentators,
+    label: label,
+  );
+  UiSnack.showQuick(
+    added ? NotesMessages.bookmarkAdded : NotesMessages.bookmarkAlreadyExists,
+  );
 }

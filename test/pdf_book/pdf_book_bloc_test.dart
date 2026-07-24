@@ -46,18 +46,21 @@ PdfBook _book({String path = '/nonexistent/test.pdf'}) =>
     PdfBook(title: 'ספר בדיקה', path: path);
 
 PdfBookTab _tab({String path = '/nonexistent/test.pdf', int page = 1}) =>
-    PdfBookTab(book: _book(path: path), pageNumber: page);
+    PdfBookTab(
+      book: _book(path: path),
+      pageNumber: page,
+    );
 
 PdfBookBloc _makeBloc(PdfBookTab tab, {Duration? loadTimeout}) => PdfBookBloc(
-      tab: tab,
-      initialState: PdfBookInitial(
-        book: tab.book,
-        initialPageNumber: tab.pageNumber,
-      ),
-      loadTimeout: loadTimeout,
-      // בטסטים: מדלגים על אתחול pdfrx (שדורש platform channels)
-      pdfrxInit: () async {},
-    );
+  tab: tab,
+  initialState: PdfBookInitial(
+    book: tab.book,
+    initialPageNumber: tab.pageNumber,
+  ),
+  loadTimeout: loadTimeout,
+  // בטסטים: מדלגים על אתחול pdfrx (שדורש platform channels)
+  pdfrxInit: () async {},
+);
 
 PdfBookLoaded _loaded({
   PdfBook? book,
@@ -74,24 +77,23 @@ PdfBookLoaded _loaded({
   String currentTitle = '',
   List<PdfPageTextRange>? searchMatches,
   int? currentSearchMatchIndex,
-}) =>
-    PdfBookLoaded(
-      book: book ?? _book(),
-      currentPageNumber: currentPageNumber,
-      totalPages: totalPages,
-      showLeftPane: showLeftPane,
-      showRightPane: showRightPane,
-      pinLeftPane: pinLeftPane,
-      isRightPaneHovering: isRightPaneHovering,
-      zoom: zoom,
-      showZoomBar: showZoomBar,
-      layoutMode: layoutMode,
-      searchText: searchText,
-      currentTitle: currentTitle,
-      searchMatches: searchMatches,
-      currentSearchMatchIndex: currentSearchMatchIndex,
-      isLoading: false,
-    );
+}) => PdfBookLoaded(
+  book: book ?? _book(),
+  currentPageNumber: currentPageNumber,
+  totalPages: totalPages,
+  showLeftPane: showLeftPane,
+  showRightPane: showRightPane,
+  pinLeftPane: pinLeftPane,
+  isRightPaneHovering: isRightPaneHovering,
+  zoom: zoom,
+  showZoomBar: showZoomBar,
+  layoutMode: layoutMode,
+  searchText: searchText,
+  currentTitle: currentTitle,
+  searchMatches: searchMatches,
+  currentSearchMatchIndex: currentSearchMatchIndex,
+  isLoading: false,
+);
 
 void main() {
   setUpAll(() async {
@@ -145,8 +147,9 @@ void main() {
     );
 
     test('מתקן נתיב PDF ישן לפי הספרייה הפעילה לפני בדיקת קיום', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('otzaria_pdf_bloc_path');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'otzaria_pdf_bloc_path',
+      );
       final activeLibrary = path.join(tempDir.path, 'new', 'books');
       final stalePath = path.join(
         tempDir.path,
@@ -160,8 +163,9 @@ void main() {
         DatabaseConstants.talmudBavliFolderName,
         'ברכות.pdf',
       );
-      final previousLibraryPath =
-          Settings.getValue<String>(SettingsRepository.keyLibraryPath);
+      final previousLibraryPath = Settings.getValue<String>(
+        SettingsRepository.keyLibraryPath,
+      );
 
       addTearDown(() async {
         await Settings.setValue<String>(
@@ -188,9 +192,11 @@ void main() {
       addTearDown(bloc.close);
 
       bloc.add(const LoadPdfDocument());
-      final loading = await bloc.stream.firstWhere(
-        (state) => state is PdfBookLoading,
-      ) as PdfBookLoading;
+      final loading =
+          await bloc.stream.firstWhere(
+                (state) => state is PdfBookLoading,
+              )
+              as PdfBookLoading;
 
       expect(loading.book.path, activePath);
     });
@@ -251,11 +257,13 @@ void main() {
       'DocumentReady עם outline שומר outline במצב',
       build: () => _makeBloc(_tab()),
       seed: () => PdfBookLoading(book: _book()),
-      act: (b) => b.add(DocumentReady(
-        documentRef: _FakeDocumentRef(),
-        totalPages: 5,
-        outline: const [],
-      )),
+      act: (b) => b.add(
+        DocumentReady(
+          documentRef: _FakeDocumentRef(),
+          totalPages: 5,
+          outline: const [],
+        ),
+      ),
       verify: (b) {
         final s = b.state as PdfBookLoaded;
         expect(s.outline, isNotNull);
@@ -455,8 +463,11 @@ void main() {
       build: () => _makeBloc(_tab()),
       act: (b) => b.add(const SetLayoutMode(PdfLayoutMode.bookView)),
       expect: () => [
-        isA<PdfBookInitial>()
-            .having((s) => s.layoutMode, 'layoutMode', PdfLayoutMode.bookView),
+        isA<PdfBookInitial>().having(
+          (s) => s.layoutMode,
+          'layoutMode',
+          PdfLayoutMode.bookView,
+        ),
       ],
     );
 
@@ -466,8 +477,11 @@ void main() {
       seed: () => _loaded(layoutMode: PdfLayoutMode.regularView),
       act: (b) => b.add(const SetLayoutMode(PdfLayoutMode.bookView)),
       expect: () => [
-        isA<PdfBookLoaded>()
-            .having((s) => s.layoutMode, 'layoutMode', PdfLayoutMode.bookView),
+        isA<PdfBookLoaded>().having(
+          (s) => s.layoutMode,
+          'layoutMode',
+          PdfLayoutMode.bookView,
+        ),
       ],
     );
 
@@ -482,55 +496,59 @@ void main() {
 
   // ──────────────────────────────────────────────────────────────────────────
   group('הגדרות פר-ספר', () {
-    test('LoadPerBookSettings עם savedZoom לא דורס את layoutMode החדש',
-        () async {
-      final previousEnablePerBookSettings = Settings.getValue<bool>(
-        SettingsRepository.keyEnablePerBookSettings,
-      );
-      final previousPdfBookViewByDefault = Settings.getValue<bool>(
-        SettingsRepository.keyPdfBookViewByDefault,
-      );
-      addTearDown(() async {
+    test(
+      'LoadPerBookSettings עם savedZoom לא דורס את layoutMode החדש',
+      () async {
+        final previousEnablePerBookSettings = Settings.getValue<bool>(
+          SettingsRepository.keyEnablePerBookSettings,
+        );
+        final previousPdfBookViewByDefault = Settings.getValue<bool>(
+          SettingsRepository.keyPdfBookViewByDefault,
+        );
+        addTearDown(() async {
+          await Settings.setValue<bool>(
+            SettingsRepository.keyEnablePerBookSettings,
+            previousEnablePerBookSettings ?? false,
+          );
+          await Settings.setValue<bool>(
+            SettingsRepository.keyPdfBookViewByDefault,
+            previousPdfBookViewByDefault ?? false,
+          );
+        });
+
         await Settings.setValue<bool>(
           SettingsRepository.keyEnablePerBookSettings,
-          previousEnablePerBookSettings ?? false,
+          false,
         );
         await Settings.setValue<bool>(
           SettingsRepository.keyPdfBookViewByDefault,
-          previousPdfBookViewByDefault ?? false,
+          true,
         );
-      });
 
-      await Settings.setValue<bool>(
-        SettingsRepository.keyEnablePerBookSettings,
-        false,
-      );
-      await Settings.setValue<bool>(
-        SettingsRepository.keyPdfBookViewByDefault,
-        true,
-      );
+        final tab = _tab();
+        final controller = _ReadyPdfViewerController();
+        tab.pdfViewerController = controller;
+        tab.savedZoom = 2.5;
 
-      final tab = _tab();
-      final controller = _ReadyPdfViewerController();
-      tab.pdfViewerController = controller;
-      tab.savedZoom = 2.5;
+        final bloc = _makeBloc(tab);
+        addTearDown(bloc.close);
 
-      final bloc = _makeBloc(tab);
-      addTearDown(bloc.close);
+        bloc.add(
+          DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 12),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(bloc.state, isA<PdfBookLoaded>());
 
-      bloc.add(DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 12));
-      await Future<void>.delayed(Duration.zero);
-      expect(bloc.state, isA<PdfBookLoaded>());
+        bloc.add(const LoadPerBookSettings());
+        await Future<void>.delayed(const Duration(milliseconds: 20));
 
-      bloc.add(const LoadPerBookSettings());
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-
-      final state = bloc.state as PdfBookLoaded;
-      expect(state.layoutMode, PdfLayoutMode.bookView);
-      expect(state.zoom, 2.5);
-      expect(tab.savedLayoutMode, PdfLayoutMode.bookView);
-      expect(controller.lastZoom, 2.5);
-    });
+        final state = bloc.state as PdfBookLoaded;
+        expect(state.layoutMode, PdfLayoutMode.bookView);
+        expect(state.zoom, 2.5);
+        expect(tab.savedLayoutMode, PdfLayoutMode.bookView);
+        expect(controller.lastZoom, 2.5);
+      },
+    );
   });
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -541,8 +559,11 @@ void main() {
       seed: () => _loaded(showLeftPane: false),
       act: (b) => b.add(const ToggleLeftPane()),
       expect: () => [
-        isA<PdfBookLoaded>()
-            .having((s) => s.showLeftPane, 'showLeftPane', true),
+        isA<PdfBookLoaded>().having(
+          (s) => s.showLeftPane,
+          'showLeftPane',
+          true,
+        ),
       ],
     );
 
@@ -552,8 +573,11 @@ void main() {
       seed: () => _loaded(showLeftPane: true),
       act: (b) => b.add(const ToggleLeftPane()),
       expect: () => [
-        isA<PdfBookLoaded>()
-            .having((s) => s.showLeftPane, 'showLeftPane', false),
+        isA<PdfBookLoaded>().having(
+          (s) => s.showLeftPane,
+          'showLeftPane',
+          false,
+        ),
       ],
     );
 
@@ -563,8 +587,11 @@ void main() {
       seed: () => _loaded(showLeftPane: false),
       act: (b) => b.add(const ToggleLeftPane(true)),
       expect: () => [
-        isA<PdfBookLoaded>()
-            .having((s) => s.showLeftPane, 'showLeftPane', true),
+        isA<PdfBookLoaded>().having(
+          (s) => s.showLeftPane,
+          'showLeftPane',
+          true,
+        ),
       ],
     );
 
@@ -591,8 +618,11 @@ void main() {
       seed: () => _loaded(),
       act: (b) => b.add(const UpdateLeftPaneTab(2)),
       expect: () => [
-        isA<PdfBookLoaded>()
-            .having((s) => s.leftPaneTabIndex, 'leftPaneTabIndex', 2),
+        isA<PdfBookLoaded>().having(
+          (s) => s.leftPaneTabIndex,
+          'leftPaneTabIndex',
+          2,
+        ),
       ],
     );
 
@@ -602,8 +632,11 @@ void main() {
       seed: () => _loaded(),
       act: (b) => b.add(const UpdateSidebarWidth(450.0)),
       expect: () => [
-        isA<PdfBookLoaded>()
-            .having((s) => s.sidebarWidth, 'sidebarWidth', 450.0),
+        isA<PdfBookLoaded>().having(
+          (s) => s.sidebarWidth,
+          'sidebarWidth',
+          450.0,
+        ),
       ],
     );
   });
@@ -616,8 +649,11 @@ void main() {
       seed: () => _loaded(showRightPane: false),
       act: (b) => b.add(const ToggleRightPane()),
       expect: () => [
-        isA<PdfBookLoaded>()
-            .having((s) => s.showRightPane, 'showRightPane', true),
+        isA<PdfBookLoaded>().having(
+          (s) => s.showRightPane,
+          'showRightPane',
+          true,
+        ),
       ],
     );
 
@@ -640,7 +676,10 @@ void main() {
       act: (b) => b.add(const ToggleRightPane(show: true, initialTabIndex: 2)),
       expect: () => [
         isA<PdfBookLoaded>().having(
-            (s) => s.rightPaneInitialTabIndex, 'rightPaneInitialTabIndex', 2),
+          (s) => s.rightPaneInitialTabIndex,
+          'rightPaneInitialTabIndex',
+          2,
+        ),
       ],
     );
 
@@ -650,8 +689,11 @@ void main() {
       seed: () => _loaded(),
       act: (b) => b.add(const UpdateRightPaneWidth(500.0)),
       expect: () => [
-        isA<PdfBookLoaded>()
-            .having((s) => s.rightPaneWidth, 'rightPaneWidth', 500.0),
+        isA<PdfBookLoaded>().having(
+          (s) => s.rightPaneWidth,
+          'rightPaneWidth',
+          500.0,
+        ),
       ],
     );
 
@@ -661,8 +703,11 @@ void main() {
       seed: () => _loaded(isRightPaneHovering: false),
       act: (b) => b.add(const SetRightPaneHovering(true)),
       expect: () => [
-        isA<PdfBookLoaded>()
-            .having((s) => s.isRightPaneHovering, 'hovering', true),
+        isA<PdfBookLoaded>().having(
+          (s) => s.isRightPaneHovering,
+          'hovering',
+          true,
+        ),
       ],
     );
   });
@@ -686,8 +731,11 @@ void main() {
       act: (b) =>
           b.add(const UpdateSearchOptions(searchMode: SearchMode.fuzzy)),
       expect: () => [
-        isA<PdfBookLoaded>()
-            .having((s) => s.searchMode, 'searchMode', SearchMode.fuzzy),
+        isA<PdfBookLoaded>().having(
+          (s) => s.searchMode,
+          'searchMode',
+          SearchMode.fuzzy,
+        ),
       ],
     );
 
@@ -695,15 +743,19 @@ void main() {
       'UpdateSearchOptions עם alternativeWords מעדכן את ה-state',
       build: () => _makeBloc(_tab()),
       seed: () => _loaded(),
-      act: (b) => b.add(const UpdateSearchOptions(alternativeWords: {
-        1: ['תורה', 'Torah']
-      })),
+      act: (b) => b.add(
+        const UpdateSearchOptions(
+          alternativeWords: {
+            1: ['תורה', 'Torah'],
+          },
+        ),
+      ),
       expect: () => [
         isA<PdfBookLoaded>().having(
           (s) => s.alternativeWords,
           'alternativeWords',
           const {
-            1: ['תורה', 'Torah']
+            1: ['תורה', 'Torah'],
           },
         ),
       ],
@@ -715,8 +767,9 @@ void main() {
       seed: () => _loaded(),
       act: (b) => b.add(const UpdateSearchOptions(spacingValues: {'0-1': '2'})),
       expect: () => [
-        isA<PdfBookLoaded>()
-            .having((s) => s.spacingValues, 'spacingValues', {'0-1': '2'}),
+        isA<PdfBookLoaded>().having((s) => s.spacingValues, 'spacingValues', {
+          '0-1': '2',
+        }),
       ],
     );
 
@@ -724,12 +777,16 @@ void main() {
       'UpdateSearchOptions עם searchOptions מעדכן',
       build: () => _makeBloc(_tab()),
       seed: () => _loaded(),
-      act: (b) => b.add(const UpdateSearchOptions(searchOptions: {
-        'תורה_0': {'סיומות': true}
-      })),
+      act: (b) => b.add(
+        const UpdateSearchOptions(
+          searchOptions: {
+            'תורה_0': {'סיומות': true},
+          },
+        ),
+      ),
       expect: () => [
         isA<PdfBookLoaded>().having((s) => s.searchOptions, 'searchOptions', {
-          'תורה_0': {'סיומות': true}
+          'תורה_0': {'סיומות': true},
         }),
       ],
     );
@@ -757,8 +814,11 @@ void main() {
       seed: () => _loaded(searchText: ''),
       act: (b) => b.add(const StartSearch('בראשית')),
       expect: () => [
-        isA<PdfBookLoaded>()
-            .having((s) => s.searchText, 'searchText', 'בראשית'),
+        isA<PdfBookLoaded>().having(
+          (s) => s.searchText,
+          'searchText',
+          'בראשית',
+        ),
       ],
     );
 
@@ -766,9 +826,10 @@ void main() {
       'ClearSearch מנקה טקסט ותוצאות',
       build: () => _makeBloc(_tab()),
       seed: () => _loaded(
-          searchText: 'תורה',
-          searchMatches: const [],
-          currentSearchMatchIndex: 0),
+        searchText: 'תורה',
+        searchMatches: const [],
+        currentSearchMatchIndex: 0,
+      ),
       act: (b) => b.add(const ClearSearch()),
       verify: (b) {
         final s = b.state as PdfBookLoaded;
@@ -823,22 +884,24 @@ void main() {
         final tab = _tab();
         tab.links = [
           Link(
-              heRef: 'א',
-              index1: 10,
-              path2: 'x.txt',
-              index2: 1,
-              connectionType: 'commentary'),
+            heRef: 'א',
+            index1: 10,
+            path2: 'x.txt',
+            index2: 1,
+            connectionType: 'commentary',
+          ),
         ];
         return _makeBloc(tab);
       },
       seed: () => _loaded().copyWith(
         links: [
           Link(
-              heRef: 'א',
-              index1: 10,
-              path2: 'x.txt',
-              index2: 1,
-              connectionType: 'commentary'),
+            heRef: 'א',
+            index1: 10,
+            path2: 'x.txt',
+            index2: 1,
+            connectionType: 'commentary',
+          ),
         ],
       ),
       act: (b) => b.add(const LoadHeadingsAndLinks(links: [])),
@@ -854,23 +917,27 @@ void main() {
       seed: () => _loaded().copyWith(
         links: [
           Link(
-              heRef: 'א',
-              index1: 10,
-              path2: 'x.txt',
-              index2: 1,
-              connectionType: 'commentary'),
+            heRef: 'א',
+            index1: 10,
+            path2: 'x.txt',
+            index2: 1,
+            connectionType: 'commentary',
+          ),
         ],
       ),
-      act: (b) => b.add(LoadHeadingsAndLinks(
-        links: [
-          Link(
+      act: (b) => b.add(
+        LoadHeadingsAndLinks(
+          links: [
+            Link(
               heRef: 'ב',
               index1: 20,
               path2: 'y.txt',
               index2: 2,
-              connectionType: 'commentary'),
-        ],
-      )),
+              connectionType: 'commentary',
+            ),
+          ],
+        ),
+      ),
       expect: () => [
         isA<PdfBookLoaded>().having(
           (s) => s.links.first.index1,

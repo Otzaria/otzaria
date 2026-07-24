@@ -10,11 +10,11 @@ void main() {
       String? capturedText;
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(SystemChannels.platform, (call) async {
-        if (call.method == 'Clipboard.setData') {
-          capturedText = (call.arguments as Map)['text'] as String?;
-        }
-        return null;
-      });
+            if (call.method == 'Clipboard.setData') {
+              capturedText = (call.arguments as Map)['text'] as String?;
+            }
+            return null;
+          });
 
       try {
         await copyLinkToClipboard('otzaria://open/book/123?index=5');
@@ -32,16 +32,19 @@ void main() {
       bool clipboardCalled = false;
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(SystemChannels.platform, (call) async {
-        if (call.method == 'Clipboard.setData') {
-          clipboardCalled = true;
-        }
-        return null;
-      });
+            if (call.method == 'Clipboard.setData') {
+              clipboardCalled = true;
+            }
+            return null;
+          });
 
       try {
         await copyLinkToClipboard('otzaria://open/pdf/42');
-        expect(clipboardCalled, isTrue,
-            reason: 'copyLinkToClipboard חייב להשתמש ב-Clipboard.setData');
+        expect(
+          clipboardCalled,
+          isTrue,
+          reason: 'copyLinkToClipboard חייב להשתמש ב-Clipboard.setData',
+        );
       } finally {
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
             .setMockMethodCallHandler(SystemChannels.platform, null);

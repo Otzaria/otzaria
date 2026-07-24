@@ -70,7 +70,8 @@ class HtmlLinkHandler {
       final tab = TextBookTab(
         book: foundBook,
         index: index - 1, // המרה מ-1-based ל-0-based
-        openLeftPane: (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
+        openLeftPane:
+            (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
             (Settings.getValue<bool>('key-default-sidebar-open') ?? false),
       );
 
@@ -156,7 +157,11 @@ class HtmlLinkHandler {
         }
 
         await _openBookWithHeader(
-            context, bookTitle, headerName, openBookCallback);
+          context,
+          bookTitle,
+          headerName,
+          openBookCallback,
+        );
         return true;
       }
 
@@ -177,7 +182,9 @@ class HtmlLinkHandler {
 
   /// מנווט לכותרת באותו ספר הנוכחי
   static Future<void> _navigateToHeader(
-      BuildContext context, String headerName) async {
+    BuildContext context,
+    String headerName,
+  ) async {
     try {
       // נקבל את הספר הנוכחי מה-BLoC
       final textBookBloc = context.read<TextBookBloc>();
@@ -242,13 +249,15 @@ class HtmlLinkHandler {
 
         if (anyBook != null) {
           throw Exception(
-              'הספר "$bookTitle" נמצא אבל הוא מטיפוס ${anyBook.runtimeType}, לא TextBook');
+            'הספר "$bookTitle" נמצא אבל הוא מטיפוס ${anyBook.runtimeType}, לא TextBook',
+          );
         }
 
         // הצגת רשימת ספרים זמינים למשתמש
         final availableBooks = allBooks.take(10).map((b) => b.title).join(', ');
         throw Exception(
-            'לא נמצא ספר בשם: "$bookTitle".\nספרים זמינים (דוגמאות): $availableBooks');
+          'לא נמצא ספר בשם: "$bookTitle".\nספרים זמינים (דוגמאות): $availableBooks',
+        );
       }
 
       // וידוא שזה TextBook
@@ -267,8 +276,9 @@ class HtmlLinkHandler {
         } else {
           // אם לא נמצאה הכותרת, נציג אזהרה אבל עדיין נפתח את הספר
           if (context.mounted) {
-            UiSnack.show(CommonMessages.headerNotFoundOpeningStart(
-                headerName, bookTitle));
+            UiSnack.show(
+              CommonMessages.headerNotFoundOpeningStart(headerName, bookTitle),
+            );
           }
         }
       }
@@ -277,7 +287,8 @@ class HtmlLinkHandler {
       final tab = TextBookTab(
         book: book,
         index: startIndex,
-        openLeftPane: (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
+        openLeftPane:
+            (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
             (Settings.getValue<bool>('key-default-sidebar-open') ?? false),
       );
 

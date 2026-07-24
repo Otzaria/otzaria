@@ -8,7 +8,7 @@ class PluginDownloadService {
   final http.Client _client;
 
   PluginDownloadService({http.Client? client})
-      : _client = client ?? http.Client() {
+    : _client = client ?? http.Client() {
     HttpClientRegistry.register(_client.close);
   }
 

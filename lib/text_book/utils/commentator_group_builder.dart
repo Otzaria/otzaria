@@ -64,10 +64,9 @@ List<CommentatorGroup> buildCommentatorGroups(
 
   final others = (eras['מפרשים נוספים'] ?? [])
       .toSet()
-      .union(availableCommentators
-          .where((c) => !known.contains(c))
-          .toList()
-          .toSet())
+      .union(
+        availableCommentators.where((c) => !known.contains(c)).toList().toSet(),
+      )
       .toList();
 
   List<String> promote(List<String> commentators) =>
@@ -75,17 +74,25 @@ List<CommentatorGroup> buildCommentatorGroups(
 
   final groups = [
     CommentatorGroup(
-        title: 'תורה שבכתב',
-        commentators: promote(eras['תורה שבכתב'] ?? const [])),
+      title: 'תורה שבכתב',
+      commentators: promote(eras['תורה שבכתב'] ?? const []),
+    ),
     CommentatorGroup(
-        title: 'חז"ל', commentators: promote(eras['חז"ל'] ?? const [])),
+      title: 'חז"ל',
+      commentators: promote(eras['חז"ל'] ?? const []),
+    ),
     CommentatorGroup(
-        title: 'ראשונים', commentators: promote(eras['ראשונים'] ?? const [])),
+      title: 'ראשונים',
+      commentators: promote(eras['ראשונים'] ?? const []),
+    ),
     CommentatorGroup(
-        title: 'אחרונים', commentators: promote(eras['אחרונים'] ?? const [])),
+      title: 'אחרונים',
+      commentators: promote(eras['אחרונים'] ?? const []),
+    ),
     CommentatorGroup(
-        title: 'מחברי זמננו',
-        commentators: promote(eras['מחברי זמננו'] ?? const [])),
+      title: 'מחברי זמננו',
+      commentators: promote(eras['מחברי זמננו'] ?? const []),
+    ),
     CommentatorGroup(title: 'שאר מפרשים', commentators: promote(others)),
   ];
 
@@ -139,8 +146,9 @@ List<String> _promoteBase(List<String> commentators, List<String> base) {
   if (base.isEmpty || commentators.isEmpty) return commentators;
 
   final commentatorsSet = commentators.toSet();
-  final baseInGroup =
-      base.where(commentatorsSet.contains).toList(); // לפי סדר position
+  final baseInGroup = base
+      .where(commentatorsSet.contains)
+      .toList(); // לפי סדר position
   if (baseInGroup.isEmpty) return commentators;
 
   final baseSet = baseInGroup.toSet();

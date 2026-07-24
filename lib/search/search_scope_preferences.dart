@@ -65,11 +65,12 @@ class SearchScopePreferences {
     required bool searchAllCategories,
     required Set<String> manualFacets,
   }) async {
-    final normalized = manualFacets
-        .map(_normalizeFacet)
-        .where((facet) => facet.isNotEmpty && facet != '/')
-        .toList()
-      ..sort();
+    final normalized =
+        manualFacets
+            .map(_normalizeFacet)
+            .where((facet) => facet.isNotEmpty && facet != '/')
+            .toList()
+          ..sort();
 
     final canonicalized = _canonicalize(
       searchAllCategories: searchAllCategories,
@@ -119,11 +120,12 @@ class SearchScopePreferences {
   }
 
   static Future<void> saveDimensionFacets(Set<String> facets) async {
-    final normalized = facets
-        .map((facet) => facet.trim())
-        .where(FacetHelper.isDimensionFacet)
-        .toList()
-      ..sort();
+    final normalized =
+        facets
+            .map((facet) => facet.trim())
+            .where(FacetHelper.isDimensionFacet)
+            .toList()
+          ..sort();
     try {
       await Settings.setValue<String>(
         _dimensionFacetsKey,
@@ -131,7 +133,9 @@ class SearchScopePreferences {
       );
     } catch (e) {
       // Settings לא אותחל (בדיקות ווידג'ט) — ההעדפה פשוט לא תישמר.
-      debugPrint('[SearchScope] settings unavailable, dimensions not saved: $e');
+      debugPrint(
+        '[SearchScope] settings unavailable, dimensions not saved: $e',
+      );
     }
   }
 

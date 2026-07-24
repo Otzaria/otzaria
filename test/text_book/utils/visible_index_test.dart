@@ -94,8 +94,12 @@ void main() {
   group('resolveTopmostSourceLine', () {
     test('מצב רגיל — מחזיר את ה-itemIndex המינימלי (זהה לשורת מקור)', () {
       // segments[i].startLineIndex == i במצב הרגיל.
-      final segments =
-          buildReadingSegments(['א', 'ב', 'ג', 'ד'], continuous: false);
+      final segments = buildReadingSegments([
+        'א',
+        'ב',
+        'ג',
+        'ד',
+      ], continuous: false);
       expect(
         resolveTopmostSourceLine(
           positions: [_pos(2), _pos(3)],

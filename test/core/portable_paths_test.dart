@@ -20,8 +20,9 @@ void main() {
     exeRoot = await Directory.systemTemp.createTemp('otzaria_portable_');
     final exePath = p.join(exeRoot.path, 'otzaria.exe');
     await File(exePath).writeAsString('fake exe');
-    await File(p.join(exeRoot.path, AppPaths.portableMarkerFileName))
-        .writeAsString('');
+    await File(
+      p.join(exeRoot.path, AppPaths.portableMarkerFileName),
+    ).writeAsString('');
 
     AppPaths.debugOverrideResolvedExecutable(exePath);
     dataRoot = await AppPaths.getDataRootPath();
@@ -48,8 +49,9 @@ void main() {
 
   /// כותב את קובץ רשומת השורש כאילו הריצה הקודמת הייתה תחת [oldRoot].
   Future<void> writeRootRecord(String oldRoot) async {
-    await File(p.join(dataRoot, '.otzaria_portable_root'))
-        .writeAsString(oldRoot, flush: true);
+    await File(
+      p.join(dataRoot, '.otzaria_portable_root'),
+    ).writeAsString(oldRoot, flush: true);
   }
 
   String rootRecordContent() =>
@@ -58,7 +60,9 @@ void main() {
   group('PortablePaths.migrateIfMoved', () {
     test('ריצה ראשונה — רק רושם את השורש הנוכחי ולא נוגע בנתונים', () async {
       await Settings.setValue(
-          SettingsRepository.keyLibraryPath, p.join('somewhere', 'books'));
+        SettingsRepository.keyLibraryPath,
+        p.join('somewhere', 'books'),
+      );
 
       await PortablePaths.migrateIfMoved();
 
@@ -87,13 +91,21 @@ void main() {
       await writeRootRecord(oldRoot);
 
       await Settings.setValue(
-          SettingsRepository.keyLibraryPath, p.join(oldRoot, 'books'));
+        SettingsRepository.keyLibraryPath,
+        p.join(oldRoot, 'books'),
+      );
       await Settings.setValue(
-          SettingsRepository.keyIndexPath, p.join(oldRoot, 'index'));
+        SettingsRepository.keyIndexPath,
+        p.join(oldRoot, 'index'),
+      );
       await Settings.setValue(
-          SettingsRepository.keyDatabasesPath, p.join(oldRoot, 'databases'));
+        SettingsRepository.keyDatabasesPath,
+        p.join(oldRoot, 'databases'),
+      );
       await Settings.setValue(
-          SettingsRepository.keyBackupPath, p.join(oldRoot, 'backups'));
+        SettingsRepository.keyBackupPath,
+        p.join(oldRoot, 'backups'),
+      );
       // נתיב שאינו תחת השורש הישן — חייב להישאר כמו שהוא.
       final unrelated = p.join('another', 'drive', 'books');
       await Settings.setValue(SettingsRepository.keyHebrewBooksPath, unrelated);
@@ -184,9 +196,11 @@ void main() {
 
       await PortablePaths.migrateIfMoved();
 
-      final decoded = jsonDecode(
-        Settings.getValue<String>(SettingsRepository.keyCustomFolders)!,
-      ) as List;
+      final decoded =
+          jsonDecode(
+                Settings.getValue<String>(SettingsRepository.keyCustomFolders)!,
+              )
+              as List;
       expect(
         (decoded.first as Map)['path'],
         p.join(dataRoot, 'my_books'),
@@ -217,8 +231,9 @@ void main() {
     test('לא במצב נייד — לא עושה דבר ולא יוצר קובץ רשומה', () async {
       // מסירים את ה-marker ומאפסים את הקאש של הזיהוי.
       final exePath = p.join(exeRoot.path, 'otzaria.exe');
-      await File(p.join(exeRoot.path, AppPaths.portableMarkerFileName))
-          .delete();
+      await File(
+        p.join(exeRoot.path, AppPaths.portableMarkerFileName),
+      ).delete();
       AppPaths.debugOverrideResolvedExecutable(exePath);
       AppPaths.debugOverrideDataRootPath(dataRoot);
 

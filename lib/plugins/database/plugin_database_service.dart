@@ -41,7 +41,7 @@ class PluginDatabaseService {
   static const _resultCacheTtl = Duration(seconds: 5);
 
   PluginDatabaseService({PluginDatabaseRegistry? registry})
-      : _registry = registry ?? PluginDatabaseRegistry.instance;
+    : _registry = registry ?? PluginDatabaseRegistry.instance;
 
   // ----------------------------------------------------------------
   // Public API
@@ -69,12 +69,14 @@ class PluginDatabaseService {
     final source = _resolveSource(sourceId);
     final policy = source.policy;
 
-    final tables = policy.tables.map((tableName) {
-      final cols = (policy.columnsByTable[tableName] ?? <String>{}).toList()
-        ..sort();
-      return {'name': tableName, 'columns': cols};
-    }).toList()
-      ..sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
+    final tables =
+        policy.tables.map((tableName) {
+          final cols = (policy.columnsByTable[tableName] ?? <String>{}).toList()
+            ..sort();
+          return {'name': tableName, 'columns': cols};
+        }).toList()..sort(
+          (a, b) => (a['name'] as String).compareTo(b['name'] as String),
+        );
 
     return {
       'source': {'id': source.sourceId, 'label': source.label},
@@ -88,11 +90,15 @@ class PluginDatabaseService {
 
   /// ביצוע שאילתה דקלרטיבית
   Map<String, dynamic> query(
-      InstalledPlugin plugin, Map<String, dynamic> spec) {
+    InstalledPlugin plugin,
+    Map<String, dynamic> spec,
+  ) {
     final sourceId = spec['sourceId'] as String?;
     if (sourceId == null) {
       throw const PluginDatabaseException(
-          'database.invalid_spec', 'sourceId is required');
+        'database.invalid_spec',
+        'sourceId is required',
+      );
     }
 
     _ensureSourceDeclared(plugin, sourceId);
@@ -104,8 +110,9 @@ class PluginDatabaseService {
 
     // Apply effective limits
     final rawLimit = (spec['limit'] as num?)?.toInt();
-    final effectiveLimit =
-        rawLimit != null ? min(rawLimit, policy.maxLimit) : policy.maxLimit;
+    final effectiveLimit = rawLimit != null
+        ? min(rawLimit, policy.maxLimit)
+        : policy.maxLimit;
     final offset = (spec['offset'] as num?)?.toInt() ?? 0;
 
     // Compile
@@ -125,16 +132,19 @@ class PluginDatabaseService {
     final fetchLimit = effectiveLimit + 1;
     final compiledWithProbe = _compileSpec(spec, fetchLimit, offset);
     final sw = Stopwatch()..start();
-    final resultSet =
-        db.select(compiledWithProbe.sql, compiledWithProbe.params);
+    final resultSet = db.select(
+      compiledWithProbe.sql,
+      compiledWithProbe.params,
+    );
     sw.stop();
 
     // Format
     final rowFormat = spec['rowFormat'] as String? ?? 'array';
     final columns = resultSet.columnNames;
     final hasMore = resultSet.length > effectiveLimit;
-    final rawRows =
-        hasMore ? resultSet.take(effectiveLimit).toList() : resultSet.toList();
+    final rawRows = hasMore
+        ? resultSet.take(effectiveLimit).toList()
+        : resultSet.toList();
 
     final List<dynamic> rows;
     if (rowFormat == 'object') {
@@ -142,8 +152,10 @@ class PluginDatabaseService {
       final seen = <String>{};
       for (final col in columns) {
         if (!seen.add(col)) {
-          throw PluginDatabaseException('database.invalid_spec',
-              'Duplicate column name "$col" in result set — add "as" aliases to disambiguate');
+          throw PluginDatabaseException(
+            'database.invalid_spec',
+            'Duplicate column name "$col" in result set — add "as" aliases to disambiguate',
+          );
         }
       }
       rows = rawRows.map((row) {
@@ -176,7 +188,9 @@ class PluginDatabaseService {
 
   /// ביצוע batch של שאילתות
   List<Map<String, dynamic>> batchQuery(
-      InstalledPlugin plugin, List<Map<String, dynamic>> queries) {
+    InstalledPlugin plugin,
+    List<Map<String, dynamic>> queries,
+  ) {
     if (queries.isEmpty) return [];
 
     for (final querySpec in queries) {
@@ -240,23 +254,31 @@ class PluginDatabaseService {
 
   /// מוודא את spec מול policy ומחזיר alias→table map
   Map<String, String> _validateSpec(
-      Map<String, dynamic> spec, PluginDatabasePolicy policy) {
+    Map<String, dynamic> spec,
+    PluginDatabasePolicy policy,
+  ) {
     final aliasMap = <String, String>{};
 
     // --- from ---
     final from = spec['from'] as Map<String, dynamic>?;
     if (from == null) {
       throw const PluginDatabaseException(
-          'database.invalid_spec', '"from" is required');
+        'database.invalid_spec',
+        '"from" is required',
+      );
     }
     final fromTable = from['table'] as String?;
     if (fromTable == null) {
       throw const PluginDatabaseException(
-          'database.invalid_spec', '"from.table" is required');
+        'database.invalid_spec',
+        '"from.table" is required',
+      );
     }
     if (!policy.isTableAllowed(fromTable)) {
       throw PluginDatabaseException(
-          'database.table_not_allowed', 'Table "$fromTable" is not allowed');
+        'database.table_not_allowed',
+        'Table "$fromTable" is not allowed',
+      );
     }
     final fromAlias = (from['alias'] as String?) ?? fromTable;
     _assertValidIdentifier(fromAlias, 'from.alias');
@@ -265,19 +287,25 @@ class PluginDatabaseService {
     // --- joins (first pass: build alias map) ---
     final joins = (spec['joins'] as List<dynamic>?) ?? [];
     if (joins.length > policy.maxJoins) {
-      throw PluginDatabaseException('database.query_too_large',
-          'Too many joins (max: ${policy.maxJoins})');
+      throw PluginDatabaseException(
+        'database.query_too_large',
+        'Too many joins (max: ${policy.maxJoins})',
+      );
     }
     for (final join in joins) {
       final jm = join as Map<String, dynamic>;
       final joinTable = jm['table'] as String?;
       if (joinTable == null) {
         throw const PluginDatabaseException(
-            'database.invalid_spec', 'Join "table" is required');
+          'database.invalid_spec',
+          'Join "table" is required',
+        );
       }
       if (!policy.isTableAllowed(joinTable)) {
         throw PluginDatabaseException(
-            'database.table_not_allowed', 'Table "$joinTable" is not allowed');
+          'database.table_not_allowed',
+          'Table "$joinTable" is not allowed',
+        );
       }
       final joinAlias = (jm['alias'] as String?) ?? joinTable;
       _assertValidIdentifier(joinAlias, 'join.alias');
@@ -285,8 +313,10 @@ class PluginDatabaseService {
 
       final joinType = (jm['type'] as String? ?? 'inner').toLowerCase();
       if (joinType != 'inner' && joinType != 'left') {
-        throw PluginDatabaseException('database.invalid_spec',
-            'Unsupported join type: "$joinType" (allowed: inner, left)');
+        throw PluginDatabaseException(
+          'database.invalid_spec',
+          'Unsupported join type: "$joinType" (allowed: inner, left)',
+        );
       }
     }
 
@@ -296,8 +326,10 @@ class PluginDatabaseService {
       final onConditions = (jm['on'] as List<dynamic>?) ?? [];
       if (onConditions.isEmpty) {
         final joinTable = jm['table'] as String;
-        throw PluginDatabaseException('database.invalid_spec',
-            'Join on "$joinTable" must have at least one ON condition');
+        throw PluginDatabaseException(
+          'database.invalid_spec',
+          'Join on "$joinTable" must have at least one ON condition',
+        );
       }
       for (final cond in onConditions) {
         final cm = cond as Map<String, dynamic>;
@@ -305,18 +337,24 @@ class PluginDatabaseService {
         final leftRef = cm['left'] as String?;
         final rightRef = cm['right'] as String?;
         if (leftRef == null || rightRef == null) {
-          throw const PluginDatabaseException('database.invalid_spec',
-              'Join ON condition requires "left" and "right"');
+          throw const PluginDatabaseException(
+            'database.invalid_spec',
+            'Join ON condition requires "left" and "right"',
+          );
         }
         if (operator != '=') {
-          throw PluginDatabaseException('database.invalid_spec',
-              'Join operator must be "=" (found: "${operator ?? ""}")');
+          throw PluginDatabaseException(
+            'database.invalid_spec',
+            'Join operator must be "=" (found: "${operator ?? ""}")',
+          );
         }
         final left = _resolveRef(leftRef, aliasMap, policy);
         final right = _resolveRef(rightRef, aliasMap, policy);
         if (!policy.isJoinAllowed(left.$1, left.$2, right.$1, right.$2)) {
-          throw PluginDatabaseException('database.join_not_allowed',
-              'Join "$leftRef = $rightRef" is not allowed by policy');
+          throw PluginDatabaseException(
+            'database.join_not_allowed',
+            'Join "$leftRef = $rightRef" is not allowed by policy',
+          );
         }
       }
     }
@@ -325,18 +363,24 @@ class PluginDatabaseService {
     final select = (spec['select'] as List<dynamic>?) ?? [];
     if (select.isEmpty) {
       throw const PluginDatabaseException(
-          'database.invalid_spec', 'Select list must not be empty');
+        'database.invalid_spec',
+        'Select list must not be empty',
+      );
     }
     if (select.length > policy.maxColumns) {
-      throw PluginDatabaseException('database.query_too_large',
-          'Too many select columns (max: ${policy.maxColumns})');
+      throw PluginDatabaseException(
+        'database.query_too_large',
+        'Too many select columns (max: ${policy.maxColumns})',
+      );
     }
     for (final sel in select) {
       final sm = sel as Map<String, dynamic>;
       final expr = sm['expr'] as String?;
       if (expr == null) {
         throw const PluginDatabaseException(
-            'database.invalid_spec', 'Select "expr" is required');
+          'database.invalid_spec',
+          'Select "expr" is required',
+        );
       }
       _resolveRef(expr, aliasMap, policy);
       final alias = sm['as'] as String?;
@@ -351,8 +395,10 @@ class PluginDatabaseService {
       final sm = sel as Map<String, dynamic>;
       final outputName = (sm['as'] as String?) ?? (sm['expr'] as String);
       if (!outputNames.add(outputName)) {
-        throw PluginDatabaseException('database.invalid_spec',
-            'Duplicate output column name: "$outputName" — use distinct "as" aliases');
+        throw PluginDatabaseException(
+          'database.invalid_spec',
+          'Duplicate output column name: "$outputName" — use distinct "as" aliases',
+        );
       }
     }
 
@@ -369,61 +415,87 @@ class PluginDatabaseService {
       final expr = om['expr'] as String?;
       if (expr == null) {
         throw const PluginDatabaseException(
-            'database.invalid_spec', 'orderBy "expr" is required');
+          'database.invalid_spec',
+          'orderBy "expr" is required',
+        );
       }
       _resolveRef(expr, aliasMap, policy);
       final direction = (om['direction'] as String? ?? 'asc').toLowerCase();
       if (direction != 'asc' && direction != 'desc') {
-        throw PluginDatabaseException('database.invalid_spec',
-            'Invalid ORDER BY direction: "$direction"');
+        throw PluginDatabaseException(
+          'database.invalid_spec',
+          'Invalid ORDER BY direction: "$direction"',
+        );
       }
     }
 
     // --- limit ---
     final limit = (spec['limit'] as num?)?.toInt();
     if (limit != null && limit > policy.maxLimit) {
-      throw PluginDatabaseException('database.query_too_large',
-          'limit $limit exceeds maxLimit ${policy.maxLimit}');
+      throw PluginDatabaseException(
+        'database.query_too_large',
+        'limit $limit exceeds maxLimit ${policy.maxLimit}',
+      );
     }
     if (limit != null && limit < 0) {
       throw const PluginDatabaseException(
-          'database.invalid_spec', 'limit must be non-negative');
+        'database.invalid_spec',
+        'limit must be non-negative',
+      );
     }
     final offset = (spec['offset'] as num?)?.toInt();
     if (offset != null && offset < 0) {
       throw const PluginDatabaseException(
-          'database.invalid_spec', 'offset must be non-negative');
+        'database.invalid_spec',
+        'offset must be non-negative',
+      );
     }
     final rowFormat = spec['rowFormat'] as String?;
     if (rowFormat != null && rowFormat != 'array' && rowFormat != 'object') {
       throw const PluginDatabaseException(
-          'database.invalid_spec', 'rowFormat must be "array" or "object"');
+        'database.invalid_spec',
+        'rowFormat must be "array" or "object"',
+      );
     }
 
     return aliasMap;
   }
 
-  void _validateWhere(Map<String, dynamic> where, Map<String, String> aliasMap,
-      PluginDatabasePolicy policy, int depth) {
+  void _validateWhere(
+    Map<String, dynamic> where,
+    Map<String, String> aliasMap,
+    PluginDatabasePolicy policy,
+    int depth,
+  ) {
     if (depth > 5) {
       throw const PluginDatabaseException(
-          'database.invalid_spec', 'WHERE clause is too deeply nested');
+        'database.invalid_spec',
+        'WHERE clause is too deeply nested',
+      );
     }
     final op = where['op'] as String?;
     if (op == null) {
       throw const PluginDatabaseException(
-          'database.invalid_spec', 'WHERE condition requires "op"');
+        'database.invalid_spec',
+        'WHERE condition requires "op"',
+      );
     }
 
     if (op == 'and' || op == 'or') {
       final conditions = where['conditions'] as List<dynamic>?;
       if (conditions == null || conditions.isEmpty) {
-        throw PluginDatabaseException('database.invalid_spec',
-            'WHERE "$op" requires a non-empty "conditions" list');
+        throw PluginDatabaseException(
+          'database.invalid_spec',
+          'WHERE "$op" requires a non-empty "conditions" list',
+        );
       }
       for (final cond in conditions) {
         _validateWhere(
-            cond as Map<String, dynamic>, aliasMap, policy, depth + 1);
+          cond as Map<String, dynamic>,
+          aliasMap,
+          policy,
+          depth + 1,
+        );
       }
       return;
     }
@@ -432,7 +504,9 @@ class PluginDatabaseService {
     final left = where['left'] as String?;
     if (left == null) {
       throw const PluginDatabaseException(
-          'database.invalid_spec', 'WHERE condition requires "left"');
+        'database.invalid_spec',
+        'WHERE condition requires "left"',
+      );
     }
     _resolveRef(left, aliasMap, policy);
 
@@ -451,20 +525,26 @@ class PluginDatabaseService {
     };
     if (!validOps.contains(op)) {
       throw PluginDatabaseException(
-          'database.invalid_spec', 'Unsupported WHERE operator: "$op"');
+        'database.invalid_spec',
+        'Unsupported WHERE operator: "$op"',
+      );
     }
 
     if (op == 'in') {
       if (where['value'] is! List) {
         throw const PluginDatabaseException(
-            'database.invalid_spec', '"in" operator requires a list value');
+          'database.invalid_spec',
+          '"in" operator requires a list value',
+        );
       }
     }
     if (op == 'between') {
       final v = where['value'];
       if (v is! List || v.length != 2) {
-        throw const PluginDatabaseException('database.invalid_spec',
-            '"between" operator requires a 2-element list value');
+        throw const PluginDatabaseException(
+          'database.invalid_spec',
+          '"between" operator requires a 2-element list value',
+        );
       }
     }
   }
@@ -472,11 +552,16 @@ class PluginDatabaseService {
   /// מפרש ref בפורמט alias.column ומאמת מול policy.
   /// מחזיר (tableName, columnName).
   (String, String) _resolveRef(
-      String ref, Map<String, String> aliasMap, PluginDatabasePolicy policy) {
+    String ref,
+    Map<String, String> aliasMap,
+    PluginDatabasePolicy policy,
+  ) {
     final parts = ref.split('.');
     if (parts.length != 2) {
-      throw PluginDatabaseException('database.invalid_spec',
-          'Column reference must be in "alias.column" format: "$ref"');
+      throw PluginDatabaseException(
+        'database.invalid_spec',
+        'Column reference must be in "alias.column" format: "$ref"',
+      );
     }
     final alias = parts[0];
     final column = parts[1];
@@ -485,8 +570,10 @@ class PluginDatabaseService {
 
     final table = aliasMap[alias] ?? alias;
     if (!policy.isColumnAllowed(table, column)) {
-      throw PluginDatabaseException('database.column_not_allowed',
-          'Column "$ref" ($table.$column) is not allowed');
+      throw PluginDatabaseException(
+        'database.column_not_allowed',
+        'Column "$ref" ($table.$column) is not allowed',
+      );
     }
     return (table, column);
   }
@@ -495,7 +582,9 @@ class PluginDatabaseService {
     final re = RegExp(r'^[a-zA-Z_][a-zA-Z0-9_]*$');
     if (!re.hasMatch(value)) {
       throw PluginDatabaseException(
-          'database.invalid_spec', 'Invalid identifier in $context: "$value"');
+        'database.invalid_spec',
+        'Invalid identifier in $context: "$value"',
+      );
     }
   }
 
@@ -504,18 +593,23 @@ class PluginDatabaseService {
   // ----------------------------------------------------------------
 
   _CompiledQuery _compileSpec(
-      Map<String, dynamic> spec, int effectiveLimit, int offset) {
+    Map<String, dynamic> spec,
+    int effectiveLimit,
+    int offset,
+  ) {
     final params = <Object?>[];
     final sb = StringBuffer();
 
     // SELECT
     final select = (spec['select'] as List<dynamic>?) ?? [];
-    final parts = select.map((s) {
-      final sm = s as Map<String, dynamic>;
-      final expr = sm['expr'] as String;
-      final alias = sm['as'] as String?;
-      return alias != null ? '$expr AS $alias' : expr;
-    }).join(', ');
+    final parts = select
+        .map((s) {
+          final sm = s as Map<String, dynamic>;
+          final expr = sm['expr'] as String;
+          final alias = sm['as'] as String?;
+          return alias != null ? '$expr AS $alias' : expr;
+        })
+        .join(', ');
     sb.write('SELECT $parts');
 
     // FROM
@@ -537,10 +631,12 @@ class PluginDatabaseService {
       if (alias != null && alias != table) sb.write(' $alias');
       final onConds = (jm['on'] as List<dynamic>?) ?? [];
       if (onConds.isNotEmpty) {
-        final onParts = onConds.map((c) {
-          final cm = c as Map<String, dynamic>;
-          return '${cm['left']} = ${cm['right']}';
-        }).join(' AND ');
+        final onParts = onConds
+            .map((c) {
+              final cm = c as Map<String, dynamic>;
+              return '${cm['left']} = ${cm['right']}';
+            })
+            .join(' AND ');
         sb.write(' ON $onParts');
       }
     }
@@ -555,12 +651,14 @@ class PluginDatabaseService {
     // ORDER BY
     final orderBy = (spec['orderBy'] as List<dynamic>?) ?? [];
     if (orderBy.isNotEmpty) {
-      final parts = orderBy.map((o) {
-        final om = o as Map<String, dynamic>;
-        final expr = om['expr'] as String;
-        final dir = (om['direction'] as String? ?? 'asc').toUpperCase();
-        return '$expr $dir';
-      }).join(', ');
+      final parts = orderBy
+          .map((o) {
+            final om = o as Map<String, dynamic>;
+            final expr = om['expr'] as String;
+            final dir = (om['direction'] as String? ?? 'asc').toUpperCase();
+            return '$expr $dir';
+          })
+          .join(', ');
       sb.write('\nORDER BY $parts');
     }
 

@@ -69,7 +69,7 @@ class PreviewRenderer {
     );
   }
 
-// lib/text_book/editing/services/preview_renderer.dart
+  // lib/text_book/editing/services/preview_renderer.dart
 
   /// Gets custom styles for HTML elements
   Map<String, String>? _getCustomStyles(

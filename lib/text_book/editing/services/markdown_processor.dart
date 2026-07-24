@@ -45,8 +45,9 @@ class MarkdownProcessor {
 
       // Clean up cache if too large
       if (_htmlCache.length > _maxCacheSize) {
-        final keysToRemove =
-            _htmlCache.keys.take(_htmlCache.length - _maxCacheSize).toList();
+        final keysToRemove = _htmlCache.keys
+            .take(_htmlCache.length - _maxCacheSize)
+            .toList();
         for (final key in keysToRemove) {
           _htmlCache.remove(key);
         }

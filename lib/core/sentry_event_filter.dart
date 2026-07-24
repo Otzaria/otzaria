@@ -11,8 +11,9 @@ bool shouldReportSentryEvent({
   final exceptions = event.exceptions;
   if (exceptions == null || exceptions.isEmpty) return false;
 
-  final exceptionText =
-      exceptions.map((exception) => exception.value ?? '').join('\n');
+  final exceptionText = exceptions
+      .map((exception) => exception.value ?? '')
+      .join('\n');
   if (_isKnownSentryNoise(exceptionText)) return false;
 
   return !exceptions.every((exception) => exception.mechanism?.handled == true);

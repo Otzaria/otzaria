@@ -202,9 +202,9 @@ void main() {
 
   group('pickWindowsAssetUrl', () {
     Map<String, dynamic> asset(String name) => {
-          'name': name,
-          'browser_download_url': 'https://example.com/$name',
-        };
+      'name': name,
+      'browser_download_url': 'https://example.com/$name',
+    };
 
     // נכסי release מציאותיים, כפי שמועלים ע"י build-and-announce.yml.
     final fullReleaseAssets = [
@@ -256,9 +256,9 @@ void main() {
 
   group('pickMacAssetUrl', () {
     Map<String, dynamic> asset(String name) => {
-          'name': name,
-          'browser_download_url': 'https://example.com/$name',
-        };
+      'name': name,
+      'browser_download_url': 'https://example.com/$name',
+    };
 
     final fullReleaseAssets = [
       asset('otzaria-0.9.94-windows.exe'),

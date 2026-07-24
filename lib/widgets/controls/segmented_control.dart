@@ -24,8 +24,10 @@ class SegmentOption<T> {
     this.icon,
     this.rtlIcon,
     this.subtitle,
-  }) : assert(icon == null || rtlIcon == null,
-            'העבר icon או rtlIcon — לא שניהם יחד');
+  }) : assert(
+         icon == null || rtlIcon == null,
+         'העבר icon או rtlIcon — לא שניהם יחד',
+       );
 }
 
 /// פקד סגמנטד גנרי לשימוש בסרגלי כלים ובהגדרות.
@@ -88,24 +90,24 @@ class AppSegmentedControl<T> extends StatelessWidget {
   }
 
   static ButtonStyle _buttonStyle(ColorScheme cs) => ButtonStyle(
-        foregroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return cs.onSecondaryContainer;
-          }
-          return cs.onSurfaceVariant;
-        }),
-        backgroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return cs.secondaryContainer;
-          }
-          return cs.surface;
-        }),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: AppTokens.borderRadiusAll,
-          ),
-        ),
-      );
+    foregroundColor: WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.selected)) {
+        return cs.onSecondaryContainer;
+      }
+      return cs.onSurfaceVariant;
+    }),
+    backgroundColor: WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.selected)) {
+        return cs.secondaryContainer;
+      }
+      return cs.surface;
+    }),
+    shape: WidgetStatePropertyAll(
+      RoundedRectangleBorder(
+        borderRadius: AppTokens.borderRadiusAll,
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -124,8 +126,9 @@ class AppSegmentedControl<T> extends StatelessWidget {
       style: isFixed
           ? _buttonStyle(cs).copyWith(
               minimumSize: WidgetStateProperty.all(Size(0, height!)),
-              maximumSize:
-                  WidgetStateProperty.all(Size(double.infinity, height!)),
+              maximumSize: WidgetStateProperty.all(
+                Size(double.infinity, height!),
+              ),
             )
           : _buttonStyle(cs).copyWith(
               visualDensity: VisualDensity.compact,

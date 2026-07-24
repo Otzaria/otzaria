@@ -26,10 +26,9 @@ class CommentatorsFilterButton extends StatelessWidget {
         FluentIcons.apps_list_24_regular,
         color: isActive
             ? Theme.of(context).colorScheme.primary
-            : Theme.of(context)
-                .colorScheme
-                .onSurface
-                .withValues(alpha: inactiveAlpha),
+            : Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: inactiveAlpha),
         size: iconSize,
       ),
       tooltip: 'בחירת מפרשים',

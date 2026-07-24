@@ -75,7 +75,9 @@ class LibraryUpdateState extends Equatable {
   /// שינוי המשפיע על ריענון הספרייה. hasUpdate נבדק בנפרד מ-status כי ריצה
   /// שבוטלה יכולה להפוך אותו ל-true בזמן ש-status כבר completed.
   static bool hasRefreshRelevantChange(
-          LibraryUpdateState previous, LibraryUpdateState current) =>
+    LibraryUpdateState previous,
+    LibraryUpdateState current,
+  ) =>
       previous.status != current.status ||
       previous.hasUpdate != current.hasUpdate;
 
@@ -120,16 +122,16 @@ class LibraryUpdateState extends Equatable {
 
   @override
   List<Object?> get props => [
-        status,
-        message,
-        hasUpdate,
-        stepIndex,
-        totalSteps,
-        bytesDownloaded,
-        bytesTotal,
-        applyProgress,
-        plan,
-        changedBookIds,
-        errorMessage,
-      ];
+    status,
+    message,
+    hasUpdate,
+    stepIndex,
+    totalSteps,
+    bytesDownloaded,
+    bytesTotal,
+    applyProgress,
+    plan,
+    changedBookIds,
+    errorMessage,
+  ];
 }

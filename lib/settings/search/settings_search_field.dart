@@ -98,8 +98,10 @@ class _SettingsSearchFieldState extends State<SettingsSearchField> {
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
           focusedBorder: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 4,
+            vertical: 6,
+          ),
           isDense: true,
         ),
         textAlign: TextAlign.right,

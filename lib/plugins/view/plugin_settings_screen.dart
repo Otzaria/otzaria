@@ -16,7 +16,9 @@ import 'package:otzaria/settings/widgets/settings_card.dart';
 ///
 /// מחזירה `true` אם המשתמש אישר ומחיקה הופעלה, `false` אם ביטל.
 Future<bool> showDeletePluginDialog(
-    BuildContext context, InstalledPlugin plugin) async {
+  BuildContext context,
+  InstalledPlugin plugin,
+) async {
   final bloc = context.read<PluginSystemBloc>();
   if (plugin.isDevelopment) {
     bloc.add(DetachDevelopmentPluginRequested(plugin.pluginId));
@@ -92,21 +94,22 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
   Widget build(BuildContext context) {
     // Wrap with BlocBuilder so that we get latest state (e.g. for enabled)
     return BlocBuilder<PluginSystemBloc, PluginSystemState>(
-        builder: (context, state) {
-      InstalledPlugin currentPlugin = widget.plugin;
-      if (state is PluginSystemLoaded) {
-        try {
-          currentPlugin = state.plugins
-              .firstWhere((p) => p.pluginId == widget.plugin.pluginId);
-        } catch (_) {
-          // plugin uninstalled or not found
+      builder: (context, state) {
+        InstalledPlugin currentPlugin = widget.plugin;
+        if (state is PluginSystemLoaded) {
+          try {
+            currentPlugin = state.plugins.firstWhere(
+              (p) => p.pluginId == widget.plugin.pluginId,
+            );
+          } catch (_) {
+            // plugin uninstalled or not found
+          }
         }
-      }
 
-      return AppCustomContentDialog(
-        title: 'ניהול הרשאות: ${currentPlugin.name}',
-        actions: const [],
-        child: Column(
+        return AppCustomContentDialog(
+          title: 'ניהול הרשאות: ${currentPlugin.name}',
+          actions: const [],
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -123,11 +126,11 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
                     final colorScheme = Theme.of(context).colorScheme;
                     final iconData = isSensitive
                         ? (isGranted
-                            ? FluentIcons.warning_24_filled
-                            : FluentIcons.warning_24_regular)
+                              ? FluentIcons.warning_24_filled
+                              : FluentIcons.warning_24_regular)
                         : (isGranted
-                            ? FluentIcons.shield_checkmark_24_regular
-                            : FluentIcons.shield_error_24_regular);
+                              ? FluentIcons.shield_checkmark_24_regular
+                              : FluentIcons.shield_error_24_regular);
                     final iconColor = isSensitive
                         ? colorScheme.tertiary
                         : (isGranted ? colorScheme.primary : colorScheme.error);
@@ -138,13 +141,13 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
                       subtitle: info.description,
                       value: isGranted,
                       onChanged: (val) async {
-                        context
-                            .read<PluginSystemBloc>()
-                            .add(SetPluginPermissionRequested(
-                              pluginId: currentPlugin.pluginId,
-                              permission: p,
-                              granted: val,
-                            ));
+                        context.read<PluginSystemBloc>().add(
+                          SetPluginPermissionRequested(
+                            pluginId: currentPlugin.pluginId,
+                            permission: p,
+                            granted: val,
+                          ),
+                        );
                         setState(() {
                           _permissions[p] = val;
                         });
@@ -155,28 +158,35 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
               ],
               const SizedBox(height: 32),
               if (currentPlugin.isDevelopment) ...[
-                SettingsCard(title: 'פיתוח', children: [
-                  SettingsActionTile.text(
-                    icon: FluentIcons.folder_24_regular,
-                    title: 'נתיב תיקייה',
-                    subtitle:
-                        _formatPathForDisplay(currentPlugin.resolvedRootPath),
-                    subtitleLtr: true,
-                  ),
-                  SettingsActionTile.text(
-                    icon: FluentIcons.arrow_clockwise_24_regular,
-                    title: 'רענן עכשיו',
-                    onTap: () {
-                      context.read<PluginSystemBloc>().add(
+                SettingsCard(
+                  title: 'פיתוח',
+                  children: [
+                    SettingsActionTile.text(
+                      icon: FluentIcons.folder_24_regular,
+                      title: 'נתיב תיקייה',
+                      subtitle: _formatPathForDisplay(
+                        currentPlugin.resolvedRootPath,
+                      ),
+                      subtitleLtr: true,
+                    ),
+                    SettingsActionTile.text(
+                      icon: FluentIcons.arrow_clockwise_24_regular,
+                      title: 'רענן עכשיו',
+                      onTap: () {
+                        context.read<PluginSystemBloc>().add(
                           ReloadDevelopmentPluginRequested(
-                              currentPlugin.pluginId));
-                    },
-                  ),
-                ]),
+                            currentPlugin.pluginId,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ],
             ],
           ),
-      );
-    });
+        );
+      },
+    );
   }
 }

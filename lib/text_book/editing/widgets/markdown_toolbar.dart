@@ -71,24 +71,27 @@ class MarkdownToolbar extends StatelessWidget {
           // Headers
           _ToolbarButton(
             icon: FluentIcons.text_header_1_24_regular,
-            tooltip:
-                hasLinksFile ? 'כותרת 1 - מושבת בספר עם לינקים' : 'כותרת 1',
+            tooltip: hasLinksFile
+                ? 'כותרת 1 - מושבת בספר עם לינקים'
+                : 'כותרת 1',
             onPressed: hasLinksFile ? () {} : onHeader1,
             text: 'H1',
             enabled: !hasLinksFile,
           ),
           _ToolbarButton(
             icon: FluentIcons.text_header_1_24_regular,
-            tooltip:
-                hasLinksFile ? 'כותרת 2 - מושבת בספר עם לינקים' : 'כותרת 2',
+            tooltip: hasLinksFile
+                ? 'כותרת 2 - מושבת בספר עם לינקים'
+                : 'כותרת 2',
             onPressed: hasLinksFile ? () {} : onHeader2,
             text: 'H2',
             enabled: !hasLinksFile,
           ),
           _ToolbarButton(
             icon: FluentIcons.text_header_1_24_regular,
-            tooltip:
-                hasLinksFile ? 'כותרת 3 - מושבת בספר עם לינקים' : 'כותרת 3',
+            tooltip: hasLinksFile
+                ? 'כותרת 3 - מושבת בספר עם לינקים'
+                : 'כותרת 3',
             onPressed: hasLinksFile ? () {} : onHeader3,
             text: 'H3',
             enabled: !hasLinksFile,

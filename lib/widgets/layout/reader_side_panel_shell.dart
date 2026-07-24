@@ -44,8 +44,9 @@ class ReaderSidePanelShell extends StatelessWidget {
       child: FloatingPanel(
         color: color ?? AppSurfaces.solidPanelBackground(context),
         elevation: 8,
-        shadowColor:
-            Theme.of(context).colorScheme.shadow.withValues(alpha: 0.22),
+        shadowColor: Theme.of(
+          context,
+        ).colorScheme.shadow.withValues(alpha: 0.22),
         child: child,
       ),
     );

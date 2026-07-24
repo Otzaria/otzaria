@@ -35,9 +35,9 @@ void main() {
     // מדמה תוכן שדורש גלילה — רק 2 פריטים מתוך 10 גלויים.
     (listener.itemPositions as ValueNotifier<Iterable<ItemPosition>>).value =
         const [
-      ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.5),
-      ItemPosition(index: 1, itemLeadingEdge: 0.5, itemTrailingEdge: 1.0),
-    ];
+          ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.5),
+          ItemPosition(index: 1, itemLeadingEdge: 0.5, itemTrailingEdge: 1.0),
+        ];
     await tester.pump();
 
     expect(tester.getTopLeft(find.byKey(contentKey)).dx, 12.0);
@@ -64,16 +64,15 @@ void main() {
     // כל הפריטים גלויים בתוך המסך — אין מה לגלול, ולכן ה-12px צריכים להיעלם.
     (listener.itemPositions as ValueNotifier<Iterable<ItemPosition>>).value =
         const [
-      ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.4),
-      ItemPosition(index: 1, itemLeadingEdge: 0.4, itemTrailingEdge: 0.8),
-    ];
+          ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.4),
+          ItemPosition(index: 1, itemLeadingEdge: 0.4, itemTrailingEdge: 0.8),
+        ];
     await tester.pump();
 
     expect(tester.getTopLeft(find.byKey(contentKey)).dx, 0.0);
   });
 
-  testWidgets(
-      'הקלקה על תחתית המסילה מגיעה לסוף הספר גם כשמעט פריטים גלויים '
+  testWidgets('הקלקה על תחתית המסילה מגיעה לסוף הספר גם כשמעט פריטים גלויים '
       '(מפרש פתוח מתחת)', (tester) async {
     // רגרסיה: כשמפרש פתוח מתחת ושני סגמנטים גלויים מתוך 100, חישוב היעד
     // מבוסס על thumb-height שמוקצב מינימום 0.05. לפני התיקון, גרירה לתחתית
@@ -97,9 +96,9 @@ void main() {
 
     (listener.itemPositions as ValueNotifier<Iterable<ItemPosition>>).value =
         const [
-      ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.5),
-      ItemPosition(index: 1, itemLeadingEdge: 0.5, itemTrailingEdge: 1.0),
-    ];
+          ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.5),
+          ItemPosition(index: 1, itemLeadingEdge: 0.5, itemTrailingEdge: 1.0),
+        ];
     await tester.pump();
 
     final track = find.byType(GestureDetector);
@@ -120,8 +119,7 @@ void main() {
     expect(controller.jumps.last, inInclusiveRange(97, 99));
   });
 
-  testWidgets(
-      'עדכון maxScrollableIndex אחרי שינוי positions: '
+  testWidgets('עדכון maxScrollableIndex אחרי שינוי positions: '
       'הקלקה שנייה על אותו מיקום מגיעה ליעד מעודכן', (tester) async {
     // רגרסיה לחלק השני של התיקון: כשהמשתמש מתחיל גרירה כשיש 10 פריטים
     // גלויים (maxScrollableIndex=90) וקופץ לאזור עם רק 2 גלויים
@@ -185,8 +183,7 @@ void main() {
     expect(controller.jumps.last, greaterThanOrEqualTo(97));
   });
 
-  testWidgets(
-      'גרירה שמתחילה על המסילה מחוץ לאגודל קופצת ליעד הנלחץ '
+  testWidgets('גרירה שמתחילה על המסילה מחוץ לאגודל קופצת ליעד הנלחץ '
       '(לחיצה שזוהתה כגרירה)', (tester) async {
     // רגרסיה: כל מיקרו-תזוזה הופכת tap ל-drag, ואז onTapDown אינו נקרא.
     // לפני התיקון גרירה כזו רק הזיזה את האגודל ביחס למקומו הנוכחי במקום
@@ -210,9 +207,9 @@ void main() {
     // האגודל קטן ונמצא בראש (פריטים 0-1 גלויים מתוך 100).
     (listener.itemPositions as ValueNotifier<Iterable<ItemPosition>>).value =
         const [
-      ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.5),
-      ItemPosition(index: 1, itemLeadingEdge: 0.5, itemTrailingEdge: 1.0),
-    ];
+          ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.5),
+          ItemPosition(index: 1, itemLeadingEdge: 0.5, itemTrailingEdge: 1.0),
+        ];
     await tester.pump();
 
     final track = find.byType(GestureDetector);
@@ -238,8 +235,9 @@ void main() {
     expect(controller.jumps.first, greaterThan(80));
   });
 
-  testWidgets('לחיצה שמתחילה על האגודל עצמו אינה ממקמת אותו מחדש ומקפיצה',
-      (tester) async {
+  testWidgets('לחיצה שמתחילה על האגודל עצמו אינה ממקמת אותו מחדש ומקפיצה', (
+    tester,
+  ) async {
     // רגרסיה: onTapDown נורה גם כשהמחווה הופכת מיד לגרירת האגודל. אם הוא
     // קופץ ללא תנאי, תפיסת האגודל ממרכזת אותו סביב הסמן ומקפיצה את הרשימה
     // עוד לפני שהגרירה היחסית מתחילה.
@@ -262,9 +260,9 @@ void main() {
     // 2 מתוך 10 גלויים בראש → אגודל גדול (~20%) בראש המסילה.
     (listener.itemPositions as ValueNotifier<Iterable<ItemPosition>>).value =
         const [
-      ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.5),
-      ItemPosition(index: 1, itemLeadingEdge: 0.5, itemTrailingEdge: 1.0),
-    ];
+          ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.5),
+          ItemPosition(index: 1, itemLeadingEdge: 0.5, itemTrailingEdge: 1.0),
+        ];
     await tester.pump();
 
     final track = find.byType(GestureDetector);
@@ -283,126 +281,139 @@ void main() {
     expect(controller.jumps, isEmpty);
   });
 
-  testWidgets('אחרי לחיצה וקפיצה ליעד, האגודל אינו "יורד" כשהפוזיציות מתעדכנות',
-      (tester) async {
-    // רגרסיה: המיפוי הקדים (מיקום→אינדקס) חילק ב-(1-thumbHeight) אך המיפוי
-    // ההפוך (אינדקס→מיקום) לא הכפיל חזרה. לכן אחרי לחיצה שקפצה ליעד,
-    // _updateScrollPosition דרס את מיקום האגודל לערך גבוה יותר, והאגודל
-    // "ירד" ביחס למקום שנלחץ — בעוצמה שגדלה ככל שמתקדמים בספר.
-    final listener = ItemPositionsListener.create();
-    final positions =
-        listener.itemPositions as ValueNotifier<Iterable<ItemPosition>>;
-    final controller = _RecordingItemScrollController();
+  testWidgets(
+    'אחרי לחיצה וקפיצה ליעד, האגודל אינו "יורד" כשהפוזיציות מתעדכנות',
+    (tester) async {
+      // רגרסיה: המיפוי הקדים (מיקום→אינדקס) חילק ב-(1-thumbHeight) אך המיפוי
+      // ההפוך (אינדקס→מיקום) לא הכפיל חזרה. לכן אחרי לחיצה שקפצה ליעד,
+      // _updateScrollPosition דרס את מיקום האגודל לערך גבוה יותר, והאגודל
+      // "ירד" ביחס למקום שנלחץ — בעוצמה שגדלה ככל שמתקדמים בספר.
+      final listener = ItemPositionsListener.create();
+      final positions =
+          listener.itemPositions as ValueNotifier<Iterable<ItemPosition>>;
+      final controller = _RecordingItemScrollController();
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ScrollablePositionedListScrollbar(
-            scrollController: controller,
-            itemPositionsListener: listener,
-            itemCount: 100,
-            child: const SizedBox.expand(),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ScrollablePositionedListScrollbar(
+              scrollController: controller,
+              itemPositionsListener: listener,
+              itemCount: 100,
+              child: const SizedBox.expand(),
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    // מצב התחלתי: ראש הספר (2 מתוך 100 גלויים) → אגודל בראש המסילה.
-    positions.value = const [
-      ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.5),
-      ItemPosition(index: 1, itemLeadingEdge: 0.5, itemTrailingEdge: 1.0),
-    ];
-    await tester.pump();
+      // מצב התחלתי: ראש הספר (2 מתוך 100 גלויים) → אגודל בראש המסילה.
+      positions.value = const [
+        ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.5),
+        ItemPosition(index: 1, itemLeadingEdge: 0.5, itemTrailingEdge: 1.0),
+      ];
+      await tester.pump();
 
-    final track = find.byType(GestureDetector);
-    final trackTopLeft = tester.getTopLeft(track);
-    final trackBottomRight = tester.getBottomRight(track);
-    // לחיצה במרכז המסילה.
-    final tapCenter = Offset(
-      (trackTopLeft.dx + trackBottomRight.dx) / 2,
-      (trackTopLeft.dy + trackBottomRight.dy) / 2,
-    );
+      final track = find.byType(GestureDetector);
+      final trackTopLeft = tester.getTopLeft(track);
+      final trackBottomRight = tester.getBottomRight(track);
+      // לחיצה במרכז המסילה.
+      final tapCenter = Offset(
+        (trackTopLeft.dx + trackBottomRight.dx) / 2,
+        (trackTopLeft.dy + trackBottomRight.dy) / 2,
+      );
 
-    await tester.tapAt(tapCenter);
-    await tester.pump();
+      await tester.tapAt(tapCenter);
+      await tester.pump();
 
-    // מיקום האגודל מיד אחרי הלחיצה (לפני שהפוזיציות מתעדכנות).
-    final thumbTopAfterTap =
-        tester.widget<Positioned>(find.byType(Positioned)).top!;
-    final targetIndex = controller.jumps.last;
+      // מיקום האגודל מיד אחרי הלחיצה (לפני שהפוזיציות מתעדכנות).
+      final thumbTopAfterTap = tester
+          .widget<Positioned>(find.byType(Positioned))
+          .top!;
+      final targetIndex = controller.jumps.last;
 
-    // מדמים שהרשימה אכן קפצה ליעד: היעד נעשה הפריט הראשון הגלוי.
-    positions.value = [
-      ItemPosition(
-          index: targetIndex, itemLeadingEdge: 0, itemTrailingEdge: 0.5),
-      ItemPosition(
-          index: targetIndex + 1, itemLeadingEdge: 0.5, itemTrailingEdge: 1.0),
-    ];
-    await tester.pump();
+      // מדמים שהרשימה אכן קפצה ליעד: היעד נעשה הפריט הראשון הגלוי.
+      positions.value = [
+        ItemPosition(
+          index: targetIndex,
+          itemLeadingEdge: 0,
+          itemTrailingEdge: 0.5,
+        ),
+        ItemPosition(
+          index: targetIndex + 1,
+          itemLeadingEdge: 0.5,
+          itemTrailingEdge: 1.0,
+        ),
+      ];
+      await tester.pump();
 
-    final thumbTopAfterSettle =
-        tester.widget<Positioned>(find.byType(Positioned)).top!;
+      final thumbTopAfterSettle = tester
+          .widget<Positioned>(find.byType(Positioned))
+          .top!;
 
-    // האגודל חייב להישאר במקום שנלחץ — בלי "ירידה".
-    expect(thumbTopAfterSettle, closeTo(thumbTopAfterTap, 2.0));
-  });
+      // האגודל חייב להישאר במקום שנלחץ — בלי "ירידה".
+      expect(thumbTopAfterSettle, closeTo(thumbTopAfterTap, 2.0));
+    },
+  );
 
-  testWidgets('גובה האגודל יציב בין מצבי גלילה עם פריטים חלקיים, והמיקום מחליק',
-      (tester) async {
-    // ספירת פריטים שלמה מתחלפת 4↔5 כשפריט חלקי נכנס/יוצא ומקפיצה את הגובה;
-    // הקצוות הרציפים מייצבים אותו, והמיקום משלב את החלק שנגלל מהפריט העליון.
-    final listener = ItemPositionsListener.create();
-    final positions =
-        listener.itemPositions as ValueNotifier<Iterable<ItemPosition>>;
-    final controller = ItemScrollController();
+  testWidgets(
+    'גובה האגודל יציב בין מצבי גלילה עם פריטים חלקיים, והמיקום מחליק',
+    (tester) async {
+      // ספירת פריטים שלמה מתחלפת 4↔5 כשפריט חלקי נכנס/יוצא ומקפיצה את הגובה;
+      // הקצוות הרציפים מייצבים אותו, והמיקום משלב את החלק שנגלל מהפריט העליון.
+      final listener = ItemPositionsListener.create();
+      final positions =
+          listener.itemPositions as ValueNotifier<Iterable<ItemPosition>>;
+      final controller = ItemScrollController();
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ScrollablePositionedListScrollbar(
-            scrollController: controller,
-            itemPositionsListener: listener,
-            itemCount: 40,
-            child: const SizedBox.expand(),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ScrollablePositionedListScrollbar(
+              scrollController: controller,
+              itemPositionsListener: listener,
+              itemCount: 40,
+              child: const SizedBox.expand(),
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    // מצב A: 4 פריטים בגובה אחיד 0.25 שמרצפים את המסך בדיוק.
-    positions.value = const [
-      ItemPosition(index: 0, itemLeadingEdge: 0.0, itemTrailingEdge: 0.25),
-      ItemPosition(index: 1, itemLeadingEdge: 0.25, itemTrailingEdge: 0.5),
-      ItemPosition(index: 2, itemLeadingEdge: 0.5, itemTrailingEdge: 0.75),
-      ItemPosition(index: 3, itemLeadingEdge: 0.75, itemTrailingEdge: 1.0),
-    ];
-    await tester.pump();
-    final thumbA = tester.widget<Positioned>(find.byType(Positioned));
-    final heightA = thumbA.height!;
-    final topA = thumbA.top!;
+      // מצב A: 4 פריטים בגובה אחיד 0.25 שמרצפים את המסך בדיוק.
+      positions.value = const [
+        ItemPosition(index: 0, itemLeadingEdge: 0.0, itemTrailingEdge: 0.25),
+        ItemPosition(index: 1, itemLeadingEdge: 0.25, itemTrailingEdge: 0.5),
+        ItemPosition(index: 2, itemLeadingEdge: 0.5, itemTrailingEdge: 0.75),
+        ItemPosition(index: 3, itemLeadingEdge: 0.75, itemTrailingEdge: 1.0),
+      ];
+      await tester.pump();
+      final thumbA = tester.widget<Positioned>(find.byType(Positioned));
+      final heightA = thumbA.height!;
+      final topA = thumbA.top!;
 
-    // מצב B: אותם פריטים נגללו ב-0.1 — כעת 5 פריטים חלקיים גלויים. ב-
-    // visibleItems השלם זו קפיצה מ-4 ל-5 (גובה +25%); ברציף הגובה זהה.
-    positions.value = const [
-      ItemPosition(index: 0, itemLeadingEdge: -0.1, itemTrailingEdge: 0.15),
-      ItemPosition(index: 1, itemLeadingEdge: 0.15, itemTrailingEdge: 0.4),
-      ItemPosition(index: 2, itemLeadingEdge: 0.4, itemTrailingEdge: 0.65),
-      ItemPosition(index: 3, itemLeadingEdge: 0.65, itemTrailingEdge: 0.9),
-      ItemPosition(index: 4, itemLeadingEdge: 0.9, itemTrailingEdge: 1.15),
-    ];
-    await tester.pump();
-    final thumbB = tester.widget<Positioned>(find.byType(Positioned));
-    final heightB = thumbB.height!;
-    final topB = thumbB.top!;
+      // מצב B: אותם פריטים נגללו ב-0.1 — כעת 5 פריטים חלקיים גלויים. ב-
+      // visibleItems השלם זו קפיצה מ-4 ל-5 (גובה +25%); ברציף הגובה זהה.
+      positions.value = const [
+        ItemPosition(index: 0, itemLeadingEdge: -0.1, itemTrailingEdge: 0.15),
+        ItemPosition(index: 1, itemLeadingEdge: 0.15, itemTrailingEdge: 0.4),
+        ItemPosition(index: 2, itemLeadingEdge: 0.4, itemTrailingEdge: 0.65),
+        ItemPosition(index: 3, itemLeadingEdge: 0.65, itemTrailingEdge: 0.9),
+        ItemPosition(index: 4, itemLeadingEdge: 0.9, itemTrailingEdge: 1.15),
+      ];
+      await tester.pump();
+      final thumbB = tester.widget<Positioned>(find.byType(Positioned));
+      final heightB = thumbB.height!;
+      final topB = thumbB.top!;
 
-    // גובה יציב: ההפרש זניח (לפני התיקון היה ~25%).
-    expect(heightB, closeTo(heightA, 1.0));
-    // המיקום התקדם מעט כלפי מטה — מחליק, לא נשאר במקום.
-    expect(topB, greaterThan(topA));
-  });
+      // גובה יציב: ההפרש זניח (לפני התיקון היה ~25%).
+      expect(heightB, closeTo(heightA, 1.0));
+      // המיקום התקדם מעט כלפי מטה — מחליק, לא נשאר במקום.
+      expect(topB, greaterThan(topA));
+    },
+  );
 
-  testWidgets('גובה האגודל נשאר יציב כשגוללים לאזור עם סגמנטים בגובה שונה',
-      (tester) async {
+  testWidgets('גובה האגודל נשאר יציב כשגוללים לאזור עם סגמנטים בגובה שונה', (
+    tester,
+  ) async {
     // בקריאה רציפה הסגמנטים בגבהים שונים; ממוצע מקומי מתנודד בין אזורים.
     // הממוצע הגלובלי (על כל מה שנמדד) מחזיק את גובה האגודל יציב.
     final listener = ItemPositionsListener.create();
@@ -433,8 +444,9 @@ void main() {
       ),
     );
     await tester.pump();
-    final heightShort =
-        tester.widget<Positioned>(find.byType(Positioned)).height!;
+    final heightShort = tester
+        .widget<Positioned>(find.byType(Positioned))
+        .height!;
 
     // גלילה לאזור עם סגמנטים ארוכים פי 5 (גובה 0.5). הממוצע המקומי לבדו היה
     // מכווץ את האגודל פי ~5; הגלובלי מחזיק אותו כמעט קבוע.
@@ -443,15 +455,17 @@ void main() {
       ItemPosition(index: 91, itemLeadingEdge: 0.5, itemTrailingEdge: 1.0),
     ];
     await tester.pump();
-    final heightTall =
-        tester.widget<Positioned>(find.byType(Positioned)).height!;
+    final heightTall = tester
+        .widget<Positioned>(find.byType(Positioned))
+        .height!;
 
     // יציב: נשאר בטווח 30% מהגובה המקורי (לפני התיקון היה מתכווץ לחמישית).
     expect(heightTall, closeTo(heightShort, heightShort * 0.3));
   });
 
-  testWidgets('שינוי layout (גובה פריט שנמדד) מאפס את מאגר הגבהים',
-      (tester) async {
+  testWidgets('שינוי layout (גובה פריט שנמדד) מאפס את מאגר הגבהים', (
+    tester,
+  ) async {
     // גובה פריט קבוע תחת גלילה; אם פריט שנמדד חוזר בגובה אחר — ה-layout השתנה
     // (גופן/viewport/מפרשים) והיחסים הישנים אינם תקפים, ולכן המאגר מתאפס.
     final listener = ItemPositionsListener.create();
@@ -490,14 +504,16 @@ void main() {
     ];
     await tester.pump();
 
-    final thumbHeight =
-        tester.widget<Positioned>(find.byType(Positioned)).height!;
+    final thumbHeight = tester
+        .widget<Positioned>(find.byType(Positioned))
+        .height!;
     // אופס: avg=0.5 → 1/(0.5*100)=0.02→clamp 0.05 → 30px. בלי איפוס היה ~52px.
     expect(thumbHeight, closeTo(30.0, 5.0));
   });
 
-  testWidgets('listener ישן לא מעדכן State אחרי החלפת widget ו-dispose',
-      (tester) async {
+  testWidgets('listener ישן לא מעדכן State אחרי החלפת widget ו-dispose', (
+    tester,
+  ) async {
     final firstListener = ItemPositionsListener.create();
     final secondListener = ItemPositionsListener.create();
     final controller = ItemScrollController();
@@ -531,8 +547,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('ריחוף על המסילה מציג תווית יעד ומסתיר אותה ביציאה',
-      (tester) async {
+  testWidgets('ריחוף על המסילה מציג תווית יעד ומסתיר אותה ביציאה', (
+    tester,
+  ) async {
     final listener = ItemPositionsListener.create();
     final controller = ItemScrollController();
     final requestedIndices = <int>[];
@@ -557,9 +574,9 @@ void main() {
     // 2 מתוך 100 גלויים → יש מה לגלול והסרגל מוצג.
     (listener.itemPositions as ValueNotifier<Iterable<ItemPosition>>).value =
         const [
-      ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.02),
-      ItemPosition(index: 1, itemLeadingEdge: 0.02, itemTrailingEdge: 0.04),
-    ];
+          ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.02),
+          ItemPosition(index: 1, itemLeadingEdge: 0.02, itemTrailingEdge: 0.04),
+        ];
     await tester.pump();
 
     // הסרגל בקצה שמאל (LTR בבדיקה) ברוחב 12; מתחילים מחוץ לסרגל ומרחפים
@@ -580,8 +597,9 @@ void main() {
     expect(find.textContaining('יעד'), findsNothing);
   });
 
-  testWidgets('הקלקה בודדת על המסילה אינה משאירה תווית תקועה (מסך מגע)',
-      (tester) async {
+  testWidgets('הקלקה בודדת על המסילה אינה משאירה תווית תקועה (מסך מגע)', (
+    tester,
+  ) async {
     // רגרסיה: במסך מגע אין onExit שיסתיר את התווית. כשהקלקה בודדת הציגה
     // אותה, היא נשארה קפואה על התוכן גם אחרי שהאצבע עזבה.
     final listener = ItemPositionsListener.create();
@@ -603,9 +621,9 @@ void main() {
 
     (listener.itemPositions as ValueNotifier<Iterable<ItemPosition>>).value =
         const [
-      ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.02),
-      ItemPosition(index: 1, itemLeadingEdge: 0.02, itemTrailingEdge: 0.04),
-    ];
+          ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.02),
+          ItemPosition(index: 1, itemLeadingEdge: 0.02, itemTrailingEdge: 0.04),
+        ];
     await tester.pump();
 
     final track = find.byType(GestureDetector);
@@ -619,12 +637,16 @@ void main() {
     await tester.tapAt(tapCenter);
     await tester.pump();
 
-    expect(find.textContaining('יעד'), findsNothing,
-        reason: 'הקלקה בודדת לא אמורה להשאיר תווית תקועה');
+    expect(
+      find.textContaining('יעד'),
+      findsNothing,
+      reason: 'הקלקה בודדת לא אמורה להשאיר תווית תקועה',
+    );
   });
 
-  testWidgets('ביטול גרירה (הרשימה ניצחה ב-arena) מסתיר את תווית היעד',
-      (tester) async {
+  testWidgets('ביטול גרירה (הרשימה ניצחה ב-arena) מסתיר את תווית היעד', (
+    tester,
+  ) async {
     // רגרסיה: בלי onVerticalDragCancel, גרירה שנקטעה השאירה את התווית תקועה
     // בזמן שהתוכן ממשיך לגלול.
     final listener = ItemPositionsListener.create();
@@ -646,9 +668,9 @@ void main() {
 
     (listener.itemPositions as ValueNotifier<Iterable<ItemPosition>>).value =
         const [
-      ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.02),
-      ItemPosition(index: 1, itemLeadingEdge: 0.02, itemTrailingEdge: 0.04),
-    ];
+          ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.02),
+          ItemPosition(index: 1, itemLeadingEdge: 0.02, itemTrailingEdge: 0.04),
+        ];
     await tester.pump();
 
     final track = find.byType(GestureDetector);
@@ -663,13 +685,19 @@ void main() {
     await tester.pump();
     await gesture.moveBy(const Offset(0, 30));
     await tester.pump();
-    expect(find.textContaining('יעד'), findsOneWidget,
-        reason: 'בזמן גרירה התווית מוצגת');
+    expect(
+      find.textContaining('יעד'),
+      findsOneWidget,
+      reason: 'בזמן גרירה התווית מוצגת',
+    );
 
     await gesture.cancel();
     await tester.pump();
-    expect(find.textContaining('יעד'), findsNothing,
-        reason: 'ביטול גרירה חייב להסתיר את התווית');
+    expect(
+      find.textContaining('יעד'),
+      findsNothing,
+      reason: 'ביטול גרירה חייב להסתיר את התווית',
+    );
   });
 
   testWidgets('בלי labelForIndex אין תווית ואין קריסה בריחוף', (tester) async {
@@ -691,9 +719,9 @@ void main() {
 
     (listener.itemPositions as ValueNotifier<Iterable<ItemPosition>>).value =
         const [
-      ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.02),
-      ItemPosition(index: 1, itemLeadingEdge: 0.02, itemTrailingEdge: 0.04),
-    ];
+          ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.02),
+          ItemPosition(index: 1, itemLeadingEdge: 0.02, itemTrailingEdge: 0.04),
+        ];
     await tester.pump();
 
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);

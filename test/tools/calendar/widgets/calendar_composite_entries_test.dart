@@ -13,16 +13,15 @@ ZmanDefinition _def(
   String id, {
   String subtitle = '',
   bool showHebrewDate = false,
-}) =>
-    ZmanDefinition(
-      id: id,
-      title: 'זמן $id',
-      subtitle: subtitle,
-      category: 'בדיקה',
-      explanation: 'הסבר',
-      showHebrewDate: showHebrewDate,
-      compute: _noCompute,
-    );
+}) => ZmanDefinition(
+  id: id,
+  title: 'זמן $id',
+  subtitle: subtitle,
+  category: 'בדיקה',
+  explanation: 'הסבר',
+  showHebrewDate: showHebrewDate,
+  compute: _noCompute,
+);
 
 void main() {
   group('entryFromZmanDefinition — כרטיס בודד', () {
@@ -62,8 +61,11 @@ void main() {
   group('kZmanimRegistry — תקינות הרישום', () {
     test('כל המזהים ייחודיים', () {
       final ids = kZmanimRegistry.map((d) => d.id).toList();
-      expect(ids.toSet(), hasLength(ids.length),
-          reason: 'מזהי ZmanDefinition חייבים להיות ייחודיים');
+      expect(
+        ids.toSet(),
+        hasLength(ids.length),
+        reason: 'מזהי ZmanDefinition חייבים להיות ייחודיים',
+      );
     });
 
     test('ברירת המחדל אינה ריקה וכלולה ברישום', () {
@@ -81,12 +83,18 @@ void main() {
       }
       expect(byPair, isNotEmpty);
       for (final entry in byPair.entries) {
-        expect(entry.value, hasLength(2),
-            reason: 'זיווג ${entry.key} חייב להכיל בדיוק 2 הגדרות');
+        expect(
+          entry.value,
+          hasLength(2),
+          reason: 'זיווג ${entry.key} חייב להכיל בדיוק 2 הגדרות',
+        );
         // שתי ההגדרות בזיווג חולקות כותרת (title) זהה — היא הכותרת
         // המשותפת של הכרטיס המשולב.
-        expect(entry.value[0].title, entry.value[1].title,
-            reason: 'זיווג ${entry.key}: שתי ההגדרות צריכות אותה כותרת');
+        expect(
+          entry.value[0].title,
+          entry.value[1].title,
+          reason: 'זיווג ${entry.key}: שתי ההגדרות צריכות אותה כותרת',
+        );
         for (final def in entry.value) {
           expect(def.pairLabel, isNotEmpty, reason: '${def.id}: חסר pairLabel');
         }
@@ -96,40 +104,45 @@ void main() {
     test('ק"ש ותפילה כוללים זיווג מג"א-גר"א', () {
       ZmanDefinition byId(String id) =>
           kZmanimRegistry.firstWhere((d) => d.id == id);
-      expect(byId('sofZmanShmaMGA90Degrees').pairId,
-          byId('sofZmanShmaGRA').pairId);
+      expect(
+        byId('sofZmanShmaMGA90Degrees').pairId,
+        byId('sofZmanShmaGRA').pairId,
+      );
       expect(byId('sofZmanShmaMGA90Degrees').pairId, isNotNull);
-      expect(byId('sofZmanTfilaMGA90Degrees').pairId,
-          byId('sofZmanTfilaGRA').pairId);
+      expect(
+        byId('sofZmanTfilaMGA90Degrees').pairId,
+        byId('sofZmanTfilaGRA').pairId,
+      );
       expect(byId('sofZmanShmaGRA').pairLabel, 'גר"א');
       expect(byId('sofZmanShmaMGA90Degrees').pairLabel, 'מג"א');
     });
 
     test('ברירות המחדל כוללות את הזמנים העיקריים שהמשתמש ביקש', () {
       expect(
-          kDefaultEnabledZmanim,
-          containsAll([
-            'sunrise',
-            'seaLevelSunrise',
-            'sunset',
-            'seaLevelSunset',
-            'chatzos',
-            'chatzosLayla',
-            'alos72Degrees',
-            'alos90Degrees',
-            'misheyakir10point2',
-            'sofZmanShmaMGA90Degrees',
-            'sofZmanShmaGRA',
-            'sofZmanTfilaMGA90Degrees',
-            'sofZmanTfilaGRA',
-            'minchaGedolaGreater30',
-            'minchaKetanaGRA',
-            'plagGRA',
-            'tzeitTikochinsky',
-            'tzeitItimLeVina',
-            'rt72Shavos',
-            'candleLighting',
-          ]));
+        kDefaultEnabledZmanim,
+        containsAll([
+          'sunrise',
+          'seaLevelSunrise',
+          'sunset',
+          'seaLevelSunset',
+          'chatzos',
+          'chatzosLayla',
+          'alos72Degrees',
+          'alos90Degrees',
+          'misheyakir10point2',
+          'sofZmanShmaMGA90Degrees',
+          'sofZmanShmaGRA',
+          'sofZmanTfilaMGA90Degrees',
+          'sofZmanTfilaGRA',
+          'minchaGedolaGreater30',
+          'minchaKetanaGRA',
+          'plagGRA',
+          'tzeitTikochinsky',
+          'tzeitItimLeVina',
+          'rt72Shavos',
+          'candleLighting',
+        ]),
+      );
     });
 
     test('כל זמני יציאת הצום מופעלים כברירת מחדל; אין "תחילת התענית"', () {
@@ -139,8 +152,11 @@ void main() {
           .toList();
       expect(fastIds, isNot(contains('fastStart')));
       for (final def in kZmanimRegistry.where((d) => d.category == 'תעניות')) {
-        expect(def.defaultEnabled, isTrue,
-            reason: '${def.id}: כל יציאות הצום מופעלות כברירת מחדל');
+        expect(
+          def.defaultEnabled,
+          isTrue,
+          reason: '${def.id}: כל יציאות הצום מופעלות כברירת מחדל',
+        );
       }
     });
 

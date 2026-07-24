@@ -23,10 +23,14 @@ class TextRendererService {
     // כשיש חיפוש, מפתח המטמון נושא את גרסת תבנית ההדגשה — כך שכשתבנית
     // מבוססת-אינדקס חדשה מגיעה (אחרי הרינדור עם ה-fallback), הקריאה הבאה
     // מחשבת מחדש במקום להגיש הדגשה ישנה.
-    final revision =
-        settings.searchText.isEmpty ? 0 : utils.highlightPatternRevision.value;
-    final key =
-        _RenderCacheKey(rawText, _processingOnlySettings(settings), revision);
+    final revision = settings.searchText.isEmpty
+        ? 0
+        : utils.highlightPatternRevision.value;
+    final key = _RenderCacheKey(
+      rawText,
+      _processingOnlySettings(settings),
+      revision,
+    );
     final cached = _renderCache.remove(key);
     if (cached != null) {
       _renderCache[key] = cached;
@@ -37,8 +41,8 @@ class TextRendererService {
 
     _renderCache[key] = result;
     _renderCacheChars += rawText.length + result.length;
-    while (
-        _renderCacheChars > _renderCacheMaxChars && _renderCache.length > 1) {
+    while (_renderCacheChars > _renderCacheMaxChars &&
+        _renderCache.length > 1) {
       final oldestKey = _renderCache.keys.first;
       final oldestValue = _renderCache.remove(oldestKey)!;
       _renderCacheChars -= oldestKey.text.length + oldestValue.length;
@@ -298,7 +302,7 @@ class _RenderCacheKey {
   final int hashCode;
 
   _RenderCacheKey(this.text, this.settings, this.revision)
-      : hashCode = Object.hash(text, settings, revision);
+    : hashCode = Object.hash(text, settings, revision);
 
   @override
   bool operator ==(Object other) =>

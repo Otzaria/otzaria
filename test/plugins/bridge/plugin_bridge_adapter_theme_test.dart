@@ -18,16 +18,22 @@ void main() {
     test('mode נגזר מהפרמטר isDark ולא מהבהירות של ה-scheme', () {
       // התיקון: ה-payload נבנה מ-scheme מפורש כדי לעקוף את Theme.of(context)
       // שמפגר frame אחד. אותו scheme עם isDark שונה => mode שונה.
-      final scheme =
-          AppThemeData.createColorScheme(Colors.blue, Brightness.dark);
+      final scheme = AppThemeData.createColorScheme(
+        Colors.blue,
+        Brightness.dark,
+      );
       expect(buildThemePayloadFromScheme(scheme, isDark: true)['mode'], 'dark');
       expect(
-          buildThemePayloadFromScheme(scheme, isDark: false)['mode'], 'light');
+        buildThemePayloadFromScheme(scheme, isDark: false)['mode'],
+        'light',
+      );
     });
 
     test('הצבעים ב-payload משקפים את ה-scheme שהועבר', () {
-      final scheme =
-          AppThemeData.createColorScheme(Colors.blue, Brightness.dark);
+      final scheme = AppThemeData.createColorScheme(
+        Colors.blue,
+        Brightness.dark,
+      );
       final cs =
           buildThemePayloadFromScheme(scheme, isDark: true)['colorScheme']
               as Map;
@@ -39,13 +45,16 @@ void main() {
   group('AppThemeData.createColorScheme', () {
     test('מכבד את הבהירות המבוקשת', () {
       expect(
-          AppThemeData.createColorScheme(Colors.blue, Brightness.dark)
-              .brightness,
-          Brightness.dark);
+        AppThemeData.createColorScheme(Colors.blue, Brightness.dark).brightness,
+        Brightness.dark,
+      );
       expect(
-          AppThemeData.createColorScheme(Colors.blue, Brightness.light)
-              .brightness,
-          Brightness.light);
+        AppThemeData.createColorScheme(
+          Colors.blue,
+          Brightness.light,
+        ).brightness,
+        Brightness.light,
+      );
     });
   });
 }

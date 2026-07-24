@@ -67,14 +67,14 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<PersonalNotesBloc>().add(
-            LoadPersonalNotes(widget.bookId, categoryId: widget.categoryId),
-          );
+        LoadPersonalNotes(widget.bookId, categoryId: widget.categoryId),
+      );
       _restorePendingNewNoteDraftIfNeeded();
       final visibleLineIndices = widget.visibleLineIndices;
       if (visibleLineIndices != null) {
-        context
-            .read<PersonalNotesBloc>()
-            .add(UpdateVisibleLines(visibleLineIndices));
+        context.read<PersonalNotesBloc>().add(
+          UpdateVisibleLines(visibleLineIndices),
+        );
       }
     });
   }
@@ -86,16 +86,16 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
         oldWidget.categoryId != widget.categoryId) {
       context.read<PersonalNotesBloc>().add(const CancelCreatingPersonalNote());
       context.read<PersonalNotesBloc>().add(
-            LoadPersonalNotes(widget.bookId, categoryId: widget.categoryId),
-          );
+        LoadPersonalNotes(widget.bookId, categoryId: widget.categoryId),
+      );
       _restorePendingNewNoteDraftIfNeeded();
     }
 
     if (!listEquals(oldWidget.visibleLineIndices, widget.visibleLineIndices) &&
         widget.visibleLineIndices != null) {
-      context
-          .read<PersonalNotesBloc>()
-          .add(UpdateVisibleLines(widget.visibleLineIndices!));
+      context.read<PersonalNotesBloc>().add(
+        UpdateVisibleLines(widget.visibleLineIndices!),
+      );
     }
   }
 
@@ -110,7 +110,8 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     }
 
     final currentState = bloc.state;
-    final sameDraftAlreadyLoaded = currentState.isCreatingNewNote &&
+    final sameDraftAlreadyLoaded =
+        currentState.isCreatingNewNote &&
         currentState.newNoteBookId == widget.bookId &&
         currentState.newNoteLineNumber == draft.lineNumber &&
         currentState.newNoteInitialContent == draft.content &&
@@ -145,15 +146,17 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
 
     if (lineNumber == null) return;
 
-    bloc.add(AddPersonalNote(
-      bookId: widget.bookId,
-      lineNumber: lineNumber,
-      content: result.content,
-      contentPlain: result.contentPlain,
-      contentFormat: result.contentFormat,
-      selectedText: selectedText?.trim(),
-      selectionColumn: selectionColumn,
-    ));
+    bloc.add(
+      AddPersonalNote(
+        bookId: widget.bookId,
+        lineNumber: lineNumber,
+        content: result.content,
+        contentPlain: result.contentPlain,
+        contentFormat: result.contentFormat,
+        selectedText: selectedText?.trim(),
+        selectionColumn: selectionColumn,
+      ),
+    );
 
     UiSnack.showSuccess(NotesMessages.noteSaved);
   }
@@ -164,7 +167,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     // בודקים אם TextBookBloc זמין בהקשר הנוכחי
     final hasTextBookBloc =
         context.findAncestorWidgetOfExactType<BlocProvider<TextBookBloc>>() !=
-            null;
+        null;
 
     final child = BlocBuilder<PersonalNotesBloc, PersonalNotesState>(
       buildWhen: (previous, current) {
@@ -173,7 +176,8 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
         // מטיוטה של ספר א' לטיוטה של ספר ב' בלי לעבור דרך
         // CancelCreatingPersonalNote (isCreatingNewNote נשאר true,
         // אבל newNoteBookId משתנה).
-        final wasMyDraft = previous.isCreatingNewNote &&
+        final wasMyDraft =
+            previous.isCreatingNewNote &&
             previous.newNoteBookId == widget.bookId;
         final isMyDraft =
             current.isCreatingNewNote && current.newNoteBookId == widget.bookId;
@@ -210,10 +214,10 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
                       builder: (context, textBookState) {
                         final selectedLineNumber =
                             textBookState is TextBookLoaded
-                                ? (textBookState.selectedIndex != null
-                                    ? textBookState.selectedIndex! + 1
-                                    : null)
-                                : null;
+                            ? (textBookState.selectedIndex != null
+                                  ? textBookState.selectedIndex! + 1
+                                  : null)
+                            : null;
 
                         return _buildContent(
                           context,
@@ -226,16 +230,16 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
                       },
                     )
                   : widget.isPdf && widget.pdfOutline != null
-                      ? ValueListenableBuilder<List<PdfOutlineNode>?>(
-                          valueListenable: widget.pdfOutline!,
-                          builder: (context, outline, _) => _buildContent(
-                            context,
-                            state,
-                            selectedLineNumber: null,
-                            pdfOutline: outline,
-                          ),
-                        )
-                      : _buildContent(context, state, selectedLineNumber: null),
+                  ? ValueListenableBuilder<List<PdfOutlineNode>?>(
+                      valueListenable: widget.pdfOutline!,
+                      builder: (context, outline, _) => _buildContent(
+                        context,
+                        state,
+                        selectedLineNumber: null,
+                        pdfOutline: outline,
+                      ),
+                    )
+                  : _buildContent(context, state, selectedLineNumber: null),
             ),
           ],
         );
@@ -249,9 +253,9 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
           BlocListener<TextBookBloc, TextBookState>(
             listener: (context, state) {
               if (state is TextBookLoaded) {
-                context
-                    .read<PersonalNotesBloc>()
-                    .add(UpdateVisibleLines(state.visibleIndices));
+                context.read<PersonalNotesBloc>().add(
+                  UpdateVisibleLines(state.visibleIndices),
+                );
               }
             },
           ),
@@ -282,8 +286,8 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     return Text(
       ref,
       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
     );
@@ -309,9 +313,11 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
       );
     }
 
-    final defaultExpanded = !(Settings.getValue<bool>(
-            SettingsRepository.keyPersonalNotesCollapsedByDefault) ??
-        true);
+    final defaultExpanded =
+        !(Settings.getValue<bool>(
+              SettingsRepository.keyPersonalNotesCollapsedByDefault,
+            ) ??
+            true);
 
     final items = <Widget>[];
 
@@ -373,11 +379,10 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
             child: Text(
               'הערות חסרות מיקום',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.5),
-                  ),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
             ),
           ),
         );
@@ -396,19 +401,17 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
               ...state.locatedNotes,
               ...state.missingNotes,
             ],
-            backgroundColor: Theme.of(context)
-                .colorScheme
-                .surfaceTint
-                .withValues(alpha: 0.05),
+            backgroundColor: Theme.of(
+              context,
+            ).colorScheme.surfaceTint.withValues(alpha: 0.05),
             subtitle: note.lastKnownLineNumber != null
                 ? Text(
                     'שורה קודמת: ${note.lastKnownLineNumber}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.6),
-                        ),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
                   )
                 : null,
             extraAction: IconButton(
@@ -430,12 +433,12 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     if (items.isEmpty) {
       final message =
           state.showOnlyVisible && state.visibleLineIndices.isNotEmpty
-              ? (widget.isPdf
-                  ? 'אין הערות לעמוד המוצג'
-                  : 'אין הערות לטקסט הנראה במסך')
-              : (state.searchQuery.isNotEmpty
-                  ? 'לא נמצאו הערות התואמות לחיפוש'
-                  : 'אין עדיין הערות על ספר זה');
+          ? (widget.isPdf
+                ? 'אין הערות לעמוד המוצג'
+                : 'אין הערות לטקסט הנראה במסך')
+          : (state.searchQuery.isNotEmpty
+                ? 'לא נמצאו הערות התואמות לחיפוש'
+                : 'אין עדיין הערות על ספר זה');
       items.add(
         Padding(
           padding: const EdgeInsets.all(16.0),
@@ -443,10 +446,9 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
             child: Text(
               message,
               style: TextStyle(
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.6),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.6),
               ),
             ),
           ),
@@ -474,10 +476,9 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
       margin: const EdgeInsets.all(8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .primaryContainer
-            .withValues(alpha: 0.3),
+        color: Theme.of(
+          context,
+        ).colorScheme.primaryContainer.withValues(alpha: 0.3),
         borderRadius: AppTokens.borderRadiusAll,
         border: Border.all(
           color: Theme.of(context).colorScheme.primary,
@@ -550,22 +551,24 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     if (!mounted) return;
     if (result.contentPlain.trim().isEmpty) return;
     context.read<PersonalNotesBloc>().add(
-          UpdatePersonalNote(
-            bookId: widget.bookId,
-            noteId: note.id,
-            content: result.content,
-            contentPlain: result.contentPlain,
-            contentFormat: result.contentFormat,
-          ),
-        );
+      UpdatePersonalNote(
+        bookId: widget.bookId,
+        noteId: note.id,
+        content: result.content,
+        contentPlain: result.contentPlain,
+        contentFormat: result.contentFormat,
+      ),
+    );
   }
 
   Future<void> _handleNoteLinkTap(BuildContext context, String url) async {
     final uri = Uri.tryParse(url);
     if (uri == null) return;
     if (uri.scheme == 'http' || uri.scheme == 'https') {
-      final launched =
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
       if (!launched) UiSnack.showError(NotesMessages.cannotOpenLink(url));
       return;
     }
@@ -618,8 +621,10 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
         return;
       default:
         // קישור עמוק (otzaria://open/... או zayit://) — מנותב למסך הראשי.
-        final handled = await mainWindowScreenKey.currentState
-                ?.handleInternalDeepLink(url) ??
+        final handled =
+            await mainWindowScreenKey.currentState?.handleInternalDeepLink(
+              url,
+            ) ??
             false;
         if (!handled) UiSnack.showError(NotesMessages.unsupportedLink(url));
         return;

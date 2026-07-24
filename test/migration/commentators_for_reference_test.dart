@@ -41,8 +41,8 @@ void main() {
   // ── helpers ──────────────────────────────────────────────────────────────
 
   Future<int> createCategory() => repository.insertCategory(
-        const Category(title: 'קטגוריה', parentId: null, level: 0),
-      );
+    const Category(title: 'קטגוריה', parentId: null, level: 0),
+  );
 
   Future<int> createBook(int categoryId, String title) =>
       repository.insertExternalContentBook(
@@ -57,7 +57,9 @@ void main() {
 
   /// מכניס שורות ומחזיר את ה-id של כל שורה לפי lineIndex (לשימוש ב-link).
   Future<List<int>> insertLinesAndGetIds(
-      int bookId, List<String> contents) async {
+    int bookId,
+    List<String> contents,
+  ) async {
     final ids = <int>[];
     for (int i = 0; i < contents.length; i++) {
       final id = await repository.insertLine(
@@ -74,20 +76,19 @@ void main() {
     required String text,
     required int level,
     int? parentId,
-  }) =>
-      repository.insertTocEntry(
-        TocEntry(
-          id: 0,
-          bookId: bookId,
-          parentId: parentId,
-          text: text,
-          level: level,
-          lineIndex: lineIndex,
-          lineId: null,
-          isLastChild: true,
-          hasChildren: false,
-        ),
-      );
+  }) => repository.insertTocEntry(
+    TocEntry(
+      id: 0,
+      bookId: bookId,
+      parentId: parentId,
+      text: text,
+      level: level,
+      lineIndex: lineIndex,
+      lineId: null,
+      isLastChild: true,
+      hasChildren: false,
+    ),
+  );
 
   Future<void> insertCommentaryLink({
     required int sourceBookId,
@@ -100,8 +101,9 @@ void main() {
     // (lowercase "commentary") בעוד `initializeConnectionTypes` מכניס
     // "COMMENTARY" (uppercase) — שזה מה שהשאילתה מחפשת. אנו מחברים את
     // ה-link ישירות ל-id של סוג הקישור הרצוי.
-    final connectionTypeId =
-        await repository.getOrCreateConnectionType(connectionTypeName);
+    final connectionTypeId = await repository.getOrCreateConnectionType(
+      connectionTypeName,
+    );
     await database.linkDao.insertLink(
       Link(
         id: 0,
@@ -125,20 +127,51 @@ void main() {
   Future<({int bookId, List<int> lineIds})> buildSourceBook() async {
     final catId = await createCategory();
     final bookId = await createBook(catId, 'ברכות');
-    final lineIds = await insertLinesAndGetIds(
-        bookId, ['ד-1', 'ד-2', 'ד-3', 'ד-4', 'ה-1', 'ה-2', 'ה-3', 'ה-4']);
+    final lineIds = await insertLinesAndGetIds(bookId, [
+      'ד-1',
+      'ד-2',
+      'ד-3',
+      'ד-4',
+      'ה-1',
+      'ה-2',
+      'ה-3',
+      'ה-4',
+    ]);
 
-    final dafD =
-        await insertToc(bookId: bookId, lineIndex: 0, text: 'דף ד', level: 2);
+    final dafD = await insertToc(
+      bookId: bookId,
+      lineIndex: 0,
+      text: 'דף ד',
+      level: 2,
+    );
     await insertToc(
-        bookId: bookId, lineIndex: 0, text: 'עמוד א', level: 3, parentId: dafD);
+      bookId: bookId,
+      lineIndex: 0,
+      text: 'עמוד א',
+      level: 3,
+      parentId: dafD,
+    );
     await insertToc(
-        bookId: bookId, lineIndex: 2, text: 'עמוד ב', level: 3, parentId: dafD);
+      bookId: bookId,
+      lineIndex: 2,
+      text: 'עמוד ב',
+      level: 3,
+      parentId: dafD,
+    );
 
-    final dafH =
-        await insertToc(bookId: bookId, lineIndex: 4, text: 'דף ה', level: 2);
+    final dafH = await insertToc(
+      bookId: bookId,
+      lineIndex: 4,
+      text: 'דף ה',
+      level: 2,
+    );
     await insertToc(
-        bookId: bookId, lineIndex: 4, text: 'עמוד א', level: 3, parentId: dafH);
+      bookId: bookId,
+      lineIndex: 4,
+      text: 'עמוד א',
+      level: 3,
+      parentId: dafH,
+    );
 
     await repository.updateTocEntryLineIdsByLineIndex(bookId);
     return (bookId: bookId, lineIds: lineIds);
@@ -148,8 +181,12 @@ void main() {
   Future<({int bookId, List<int> lineIds})> buildRashiBook() async {
     final catId = await createCategory();
     final bookId = await createBook(catId, 'רש"י על ברכות');
-    final lineIds = await insertLinesAndGetIds(
-        bookId, ['רש"י-1', 'רש"י-2', 'רש"י-3', 'רש"י-4']);
+    final lineIds = await insertLinesAndGetIds(bookId, [
+      'רש"י-1',
+      'רש"י-2',
+      'רש"י-3',
+      'רש"י-4',
+    ]);
     return (bookId: bookId, lineIds: lineIds);
   }
 
@@ -157,11 +194,16 @@ void main() {
   /// `updateTocEntryLineIdsByLineIndex` כבר רץ).
   Future<int> tocLineIdByText(int bookId, String text) async {
     final db = await database.database;
-    final rows = db.select('''
+    final rows = db
+        .select(
+          '''
         SELECT t.lineId FROM tocEntry t
         JOIN tocText tt ON t.textId = tt.id
         WHERE t.bookId = ? AND tt.text = ?
-      ''', [bookId, text]).toMapList();
+      ''',
+          [bookId, text],
+        )
+        .toMapList();
     return rows.first['lineId'] as int;
   }
 
@@ -203,8 +245,11 @@ void main() {
         level: 2,
       );
 
-      expect(rows, hasLength(1),
-          reason: 'רש"י אחד עם MIN על פני הטווח של דף ד');
+      expect(
+        rows,
+        hasLength(1),
+        reason: 'רש"י אחד עם MIN על פני הטווח של דף ד',
+      );
       expect(rows.first['targetBookTitle'], 'רש"י על ברכות');
       // MIN(targetLineIndex) מבין שורות 0 ו-1 של רש"י (הקישורים בתוך דף ד) = 0.
       expect(rows.first['targetLineIndex'], 0);
@@ -232,9 +277,11 @@ void main() {
         level: 2,
       );
 
-      expect(rows, hasLength(1),
-          reason:
-              'קישור משורה תחת תת-כותרת חייב להיכלל בטווח של הכותרת הראשית');
+      expect(
+        rows,
+        hasLength(1),
+        reason: 'קישור משורה תחת תת-כותרת חייב להיכלל בטווח של הכותרת הראשית',
+      );
       expect(rows.first['targetLineIndex'], 1);
     });
 
@@ -275,40 +322,51 @@ void main() {
         level: 2,
       );
 
-      expect(rows, isEmpty,
-          reason: 'עין משפט צריך להופיע בפאנל הקישורים, לא ברשימת המפרשים');
+      expect(
+        rows,
+        isEmpty,
+        reason: 'עין משפט צריך להופיע בפאנל הקישורים, לא ברשימת המפרשים',
+      );
     });
 
-    test('ספר עם כותרות פנימיות + sourceLineId=0 → ריק (יש לבחור דף)',
-        () async {
-      final source = await buildSourceBook();
-      final rashi = await buildRashiBook();
-      // יש קישור — אבל תוצאת "ספר ברכות" בלי דף לא אמורה להציג מפרשים.
-      await insertCommentaryLink(
-        sourceBookId: source.bookId,
-        sourceLineId: source.lineIds[0],
-        targetBookId: rashi.bookId,
-        targetLineId: rashi.lineIds[0],
-      );
+    test(
+      'ספר עם כותרות פנימיות + sourceLineId=0 → ריק (יש לבחור דף)',
+      () async {
+        final source = await buildSourceBook();
+        final rashi = await buildRashiBook();
+        // יש קישור — אבל תוצאת "ספר ברכות" בלי דף לא אמורה להציג מפרשים.
+        await insertCommentaryLink(
+          sourceBookId: source.bookId,
+          sourceLineId: source.lineIds[0],
+          targetBookId: rashi.bookId,
+          targetLineId: rashi.lineIds[0],
+        );
 
-      final rows = await repository.getCommentatorsForReference(
-        bookId: source.bookId,
-        bookTitle: 'ברכות',
-        sourceLineId: 0,
-        startLineIndex: 0,
-        level: 1,
-      );
+        final rows = await repository.getCommentatorsForReference(
+          bookId: source.bookId,
+          bookTitle: 'ברכות',
+          sourceLineId: 0,
+          startLineIndex: 0,
+          level: 1,
+        );
 
-      expect(rows, isEmpty,
-          reason: 'ספר ברכות (יש לו דפים פנימיים) — המשתמש חייב לבחור דף');
-    });
+        expect(
+          rows,
+          isEmpty,
+          reason: 'ספר ברכות (יש לו דפים פנימיים) — המשתמש חייב לבחור דף',
+        );
+      },
+    );
 
     test('ספר ללא כותרות פנימיות + sourceLineId=0 → כל מפרשי הספר', () async {
       // ספר מקור קצר ללא TOC פנימי.
       final catId = await createCategory();
       final shortBookId = await createBook(catId, 'מסילת ישרים');
-      final shortLines =
-          await insertLinesAndGetIds(shortBookId, ['פתיחה', 'פרק', 'מסקנה']);
+      final shortLines = await insertLinesAndGetIds(shortBookId, [
+        'פתיחה',
+        'פרק',
+        'מסקנה',
+      ]);
 
       // ספר מפרש.
       final rashi = await buildRashiBook();

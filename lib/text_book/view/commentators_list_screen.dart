@@ -46,10 +46,10 @@ class CommentatorsListViewState extends State<CommentatorsListView> {
     final indexes = state.selectedIndices.isNotEmpty
         ? state.selectedIndices
         : (state.visibleIndices.isNotEmpty
-            ? state.visibleIndices
-            : (state.selectedIndex != null
-                ? [state.selectedIndex!]
-                : const <int>[]));
+              ? state.visibleIndices
+              : (state.selectedIndex != null
+                    ? [state.selectedIndex!]
+                    : const <int>[]));
     return lineRelevantRareCommentators(
       rareCommentators: state.rareCommentators,
       currentIndexes: indexes,

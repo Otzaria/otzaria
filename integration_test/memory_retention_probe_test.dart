@@ -27,8 +27,9 @@ import 'package:path/path.dart' as p;
 import 'package:vm_service/vm_service.dart' as vms;
 import 'package:vm_service/vm_service_io.dart' as vms_io;
 
-final _probeDir =
-    Directory(p.join(Directory.systemTemp.path, 'otzaria_perf_probe'));
+final _probeDir = Directory(
+  p.join(Directory.systemTemp.path, 'otzaria_perf_probe'),
+);
 final _heapFile = File(p.join(_probeDir.path, 'heap.jsonl'));
 
 void main() {
@@ -73,9 +74,10 @@ void main() {
     final firstTab = tabsBloc.state.tabs.whereType<TextBookTab>().firstOrNull;
     if (firstTab != null && firstTab.scrollController.isAttached) {
       firstTab.scrollController.scrollTo(
-          index: 120,
-          duration: const Duration(milliseconds: 800),
-          curve: Curves.easeInOut);
+        index: 120,
+        duration: const Duration(milliseconds: 800),
+        curve: Curves.easeInOut,
+      );
     }
     // המתנה שהחימום ברקע יתקדם ויאכלס את הזיכרון כמו בשימוש אמיתי.
     await _pumpFor(tester, const Duration(seconds: 15));
@@ -207,18 +209,24 @@ class _HeapProbe {
           entry['memError'] = '$e';
         }
         try {
-          final profile =
-              await service.getAllocationProfile(ref.id!, gc: gc ? true : null);
-          final members = [...?profile.members]..sort(
-              (a, b) => (b.bytesCurrent ?? 0).compareTo(a.bytesCurrent ?? 0));
+          final profile = await service.getAllocationProfile(
+            ref.id!,
+            gc: gc ? true : null,
+          );
+          final members = [...?profile.members]
+            ..sort(
+              (a, b) => (b.bytesCurrent ?? 0).compareTo(a.bytesCurrent ?? 0),
+            );
           entry['topClasses'] = members
               .take(25)
               .where((m) => (m.bytesCurrent ?? 0) > 0)
-              .map((m) => {
-                    'class': m.classRef?.name,
-                    'bytesMb': _mb(m.bytesCurrent ?? 0),
-                    'instances': m.instancesCurrent,
-                  })
+              .map(
+                (m) => {
+                  'class': m.classRef?.name,
+                  'bytesMb': _mb(m.bytesCurrent ?? 0),
+                  'instances': m.instancesCurrent,
+                },
+              )
               .toList();
         } catch (e) {
           entry['allocError'] = '$e';
@@ -237,8 +245,11 @@ class _HeapProbe {
   }
 
   void _append(Map<String, Object?> record) {
-    outFile.writeAsStringSync('${jsonEncode(record)}\n',
-        mode: FileMode.append, flush: true);
+    outFile.writeAsStringSync(
+      '${jsonEncode(record)}\n',
+      mode: FileMode.append,
+      flush: true,
+    );
   }
 
   static double _mb(int bytes) => (bytes / (1024 * 1024) * 10).round() / 10;

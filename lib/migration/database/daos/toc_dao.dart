@@ -23,14 +23,17 @@ class TocDao {
     final db = await database;
     final hasLineIndex = db
         .select(
-            "SELECT 1 FROM pragma_table_info('tocEntry') WHERE name = 'lineIndex'")
+          "SELECT 1 FROM pragma_table_info('tocEntry') WHERE name = 'lineIndex'",
+        )
         .isNotEmpty;
     _resolvedQueries = hasLineIndex
         ? _queries
         : {
             for (final e in _queries.entries)
-              e.key: e.value.replaceAll('l.lineIndex, t.lineIndex, t.lineId',
-                  'l.lineIndex, t.lineId'),
+              e.key: e.value.replaceAll(
+                'l.lineIndex, t.lineIndex, t.lineId',
+                'l.lineIndex, t.lineId',
+              ),
           };
     return _resolvedQueries!;
   }

@@ -34,31 +34,35 @@ class BookmarkBloc extends Cubit<BookmarkState> {
     });
   }
 
-  bool addBookmark(
-      {required String ref,
-      required Book book,
-      required int index,
-      List<String>? commentatorsToShow,
-      BookmarkTargetKind targetKind = BookmarkTargetKind.book,
-      String? label}) {
+  bool addBookmark({
+    required String ref,
+    required Book book,
+    required int index,
+    List<String>? commentatorsToShow,
+    BookmarkTargetKind targetKind = BookmarkTargetKind.book,
+    String? label,
+  }) {
     final bookmark = Bookmark(
-        ref: ref,
-        book: book,
-        index: index,
-        commentatorsToShow: commentatorsToShow ?? [],
-        targetKind: targetKind,
-        label: label,
-        createdAt: DateTime.now());
+      ref: ref,
+      book: book,
+      index: index,
+      commentatorsToShow: commentatorsToShow ?? [],
+      targetKind: targetKind,
+      label: label,
+      createdAt: DateTime.now(),
+    );
     // כפילות נמדדת לפי זיהוי הספר + המיקום (index), כדי לאפשר מספר סימניות
     // באותו ספר במיקומים שונים. ref לבדו לא מספיק - ב-PDF כל הסימניות באותו
     // פרק יקבלו ref זהה (כותרת הפרק), וב-TextBook מספר מיקומים באותו סעיף.
     // משתמשים בזהות חזקה לספר (id/path/category) ולא בכותרת בלבד, כדי
     // ששתי מהדורות שונות עם אותה כותרת לא ייחשבו לאותו ספר.
     final newIdentity = bookIdentity(bookmark.book);
-    if (state.bookmarks.any((b) =>
-        b.index == bookmark.index &&
-        bookIdentity(b.book) == newIdentity &&
-        b.targetKind == bookmark.targetKind)) {
+    if (state.bookmarks.any(
+      (b) =>
+          b.index == bookmark.index &&
+          bookIdentity(b.book) == newIdentity &&
+          b.targetKind == bookmark.targetKind,
+    )) {
       return false;
     }
 

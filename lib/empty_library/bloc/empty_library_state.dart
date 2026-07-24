@@ -18,12 +18,12 @@ abstract class EmptyLibraryState extends Equatable {
 
   @override
   List<Object?> get props => [
-        isLoading,
-        selectedPath,
-        errorMessage,
-        zipFiles,
-        downloadDisabledReason,
-      ];
+    isLoading,
+    selectedPath,
+    errorMessage,
+    zipFiles,
+    downloadDisabledReason,
+  ];
 }
 
 class EmptyLibraryInitial extends EmptyLibraryState {
@@ -61,9 +61,9 @@ class EmptyLibraryZipExtracted extends EmptyLibraryState {
 
   @override
   List<Object?> get props => [
-        ...super.props,
-        extractedFileName,
-      ];
+    ...super.props,
+    extractedFileName,
+  ];
 }
 
 class EmptyLibraryExtracting extends EmptyLibraryState {
@@ -78,10 +78,10 @@ class EmptyLibraryExtracting extends EmptyLibraryState {
 
   @override
   List<Object?> get props => [
-        ...super.props,
-        progress,
-        message,
-      ];
+    ...super.props,
+    progress,
+    message,
+  ];
 }
 
 class EmptyLibraryDownloading extends EmptyLibraryState {
@@ -95,10 +95,10 @@ class EmptyLibraryDownloading extends EmptyLibraryState {
 
   @override
   List<Object?> get props => [
-        ...super.props,
-        progress,
-        message,
-      ];
+    ...super.props,
+    progress,
+    message,
+  ];
 }
 
 /// Android בלבד: שואל את המשתמש אם להעתיק או להעביר את seforim.db
@@ -131,11 +131,11 @@ class EmptyLibraryAskingDbCopy extends EmptyLibraryState {
 
   @override
   List<Object?> get props => [
-        externalDbPath,
-        libraryPath,
-        internalDbPath,
-        dbSizeBytes,
-        freeSpaceBytes,
-        errorMessage,
-      ];
+    externalDbPath,
+    libraryPath,
+    internalDbPath,
+    dbSizeBytes,
+    freeSpaceBytes,
+    errorMessage,
+  ];
 }

@@ -5,8 +5,9 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
 void main() {
-  testWidgets('NeutralActionButton מרכז טקסט ומשאיר אייקון בצד במצב center',
-      (tester) async {
+  testWidgets('NeutralActionButton מרכז טקסט ומשאיר אייקון בצד במצב center', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(

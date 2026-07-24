@@ -39,23 +39,31 @@ class PreparedInstall {
   final String? previousVersion;
   final bool? previousAllowOrderBeforeBuiltInsGranted;
 
-  PreparedInstall(this.manifest, this.tempDirPath, this.isOverwrite,
-      {this.previousVersion, this.previousAllowOrderBeforeBuiltInsGranted});
+  PreparedInstall(
+    this.manifest,
+    this.tempDirPath,
+    this.isOverwrite, {
+    this.previousVersion,
+    this.previousAllowOrderBeforeBuiltInsGranted,
+  });
 }
 
 class PluginInstallerService {
   final PluginRegistryRepository _repository;
 
   PluginInstallerService({PluginRegistryRepository? repository})
-      : _repository = repository ?? PluginRegistryRepository();
+    : _repository = repository ?? PluginRegistryRepository();
 
-  Future<PreparedInstall> prepareInstall(String archivePath,
-      {bool forceOverwrite = false}) async {
+  Future<PreparedInstall> prepareInstall(
+    String archivePath, {
+    bool forceOverwrite = false,
+  }) async {
     final tempDir = await Directory.systemTemp.createTemp('otz_plugin_');
     try {
       // 1. Extract zip to temp on a worker isolate to avoid blocking the UI.
       await Isolate.run(
-          () => _extractPluginArchiveSync(archivePath, tempDir.path));
+        () => _extractPluginArchiveSync(archivePath, tempDir.path),
+      );
 
       // 2. Read manifest
       final manifestFile = File(p.join(tempDir.path, 'manifest.json'));
@@ -92,10 +100,14 @@ class PluginInstallerService {
         currentAppVersion: packageInfo.version,
       );
 
-      return PreparedInstall(manifest, tempDir.path, isOverwrite,
-          previousVersion: existingPlugin?.version,
-          previousAllowOrderBeforeBuiltInsGranted:
-              existingPlugin?.allowOrderBeforeBuiltInsGranted);
+      return PreparedInstall(
+        manifest,
+        tempDir.path,
+        isOverwrite,
+        previousVersion: existingPlugin?.version,
+        previousAllowOrderBeforeBuiltInsGranted:
+            existingPlugin?.allowOrderBeforeBuiltInsGranted,
+      );
     } catch (e) {
       if (await tempDir.exists()) {
         await tempDir.delete(recursive: true);
@@ -104,8 +116,11 @@ class PluginInstallerService {
     }
   }
 
-  Future<void> finalizeInstall(String tempDirPath, PluginManifest manifest,
-      {required bool allowOrderBeforeBuiltInsGranted}) async {
+  Future<void> finalizeInstall(
+    String tempDirPath,
+    PluginManifest manifest, {
+    required bool allowOrderBeforeBuiltInsGranted,
+  }) async {
     final tempDir = Directory(tempDirPath);
     try {
       final existingPlugin = await _repository.getPlugin(manifest.id);
@@ -190,8 +205,9 @@ class PluginInstallerService {
   Future<void> _copyDirectory(Directory source, Directory destination) async {
     await for (var entity in source.list(recursive: false)) {
       if (entity is Directory) {
-        var newDirectory =
-            Directory(p.join(destination.path, p.basename(entity.path)));
+        var newDirectory = Directory(
+          p.join(destination.path, p.basename(entity.path)),
+        );
         await newDirectory.create(recursive: true);
         await _copyDirectory(entity.absolute, newDirectory);
       } else if (entity is File) {

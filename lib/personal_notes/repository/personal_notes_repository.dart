@@ -17,9 +17,9 @@ class PersonalNotesRepository {
     FileSystemData? fileSystemData,
     PersonalNotesService? service,
     PersonalNotesDatabase? database,
-  })  : _fileSystem = fileSystemData ?? FileSystemData.instance,
-        _service = service ?? PersonalNotesService(),
-        _database = database ?? PersonalNotesDatabase.instance;
+  }) : _fileSystem = fileSystemData ?? FileSystemData.instance,
+       _service = service ?? PersonalNotesService(),
+       _database = database ?? PersonalNotesDatabase.instance;
 
   Future<List<PersonalNote>> loadNotes(
     String bookId, {

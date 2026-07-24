@@ -33,7 +33,7 @@ const List<String> modernVolumeUnits = [
   'מ"ל',
   'ליטר',
   'מטר מעוקב',
-  'קוב'
+  'קוב',
 ];
 const List<String> modernWeightUnits = ['מ"ג', 'גרם', 'ק"ג', 'טון'];
 const List<String> modernTimeUnits = ['שניות', 'חלקים', 'דקות', 'שעות', 'ימים'];
@@ -42,7 +42,7 @@ const List<String> modernTimeUnits = ['שניות', 'חלקים', 'דקות', '�
 const List<String> basicAncientTimeUnits = [
   'הילוך אמה',
   'הילוך מיל',
-  'הילוך פרסה'
+  'הילוך פרסה',
 ];
 
 // Complex ancient time units (second row) - ordered by size
@@ -51,7 +51,7 @@ const List<String> complexAncientTimeUnits = [
   'הילוך מאה אמה',
   'הילוך שלושה רבעי מיל',
   'הילוך ארבעה מילים',
-  'הילוך עשרה פרסאות'
+  'הילוך עשרה פרסאות',
 ];
 // END OF ADDITIONS
 
@@ -96,7 +96,7 @@ class _MeasurementConverterScreenState
     'זמן': [
       ...basicAncientTimeUnits,
       ...complexAncientTimeUnits,
-      ...modernTimeUnits
+      ...modernTimeUnits,
     ],
   };
 
@@ -133,11 +133,14 @@ class _MeasurementConverterScreenState
 
   void _restoreSelectionsForCurrentCategory() {
     // Restore remembered selections or use defaults
-    _selectedFromUnit = _rememberedFromUnits[_selectedCategory] ??
+    _selectedFromUnit =
+        _rememberedFromUnits[_selectedCategory] ??
         _units[_selectedCategory]!.first;
-    _selectedToUnit = _rememberedToUnits[_selectedCategory] ??
+    _selectedToUnit =
+        _rememberedToUnits[_selectedCategory] ??
         _units[_selectedCategory]!.first;
-    _selectedOpinion = _rememberedOpinions[_selectedCategory] ??
+    _selectedOpinion =
+        _rememberedOpinions[_selectedCategory] ??
         _opinions[_selectedCategory]?.first;
 
     // Validate that remembered selections are still valid for current category
@@ -295,8 +298,15 @@ class _MeasurementConverterScreenState
           final value = modernVolumeFactors[opinion]![normalizedUnit];
           if (value == null) return null;
           // Units in data are cm^3, L. Convert all to cm^3
-          if (['קב', 'עשרון', 'הין', 'סאה', 'איפה', 'לתך', 'כור']
-              .contains(normalizedUnit)) {
+          if ([
+            'קב',
+            'עשרון',
+            'הין',
+            'סאה',
+            'איפה',
+            'לתך',
+            'כור',
+          ].contains(normalizedUnit)) {
             return value * 1000; // L to cm^3
           }
           return value; // Already in cm^3
@@ -392,10 +402,16 @@ class _MeasurementConverterScreenState
     } else if (!fromIsAncient && !toIsAncient) {
       // Case 2: Modern to Modern conversion (doesn't need opinion)
       // Convert directly using base unit factors
-      final factorFrom =
-          _getFactorToBaseUnit(_selectedCategory, _selectedFromUnit!, '');
-      final factorTo =
-          _getFactorToBaseUnit(_selectedCategory, _selectedToUnit!, '');
+      final factorFrom = _getFactorToBaseUnit(
+        _selectedCategory,
+        _selectedFromUnit!,
+        '',
+      );
+      final factorTo = _getFactorToBaseUnit(
+        _selectedCategory,
+        _selectedToUnit!,
+        '',
+      );
 
       if (factorFrom == null || factorTo == null) {
         _resultController.clear();
@@ -413,7 +429,10 @@ class _MeasurementConverterScreenState
 
       // Step 1: Convert input from 'FromUnit' to the base unit (e.g., cm for length)
       final factorFrom = _getFactorToBaseUnit(
-          _selectedCategory, _selectedFromUnit!, _selectedOpinion!);
+        _selectedCategory,
+        _selectedFromUnit!,
+        _selectedOpinion!,
+      );
       if (factorFrom == null) {
         _resultController.clear();
         return;
@@ -422,7 +441,10 @@ class _MeasurementConverterScreenState
 
       // Step 2: Convert the value from the base unit to the 'ToUnit'
       final factorTo = _getFactorToBaseUnit(
-          _selectedCategory, _selectedToUnit!, _selectedOpinion!);
+        _selectedCategory,
+        _selectedToUnit!,
+        _selectedOpinion!,
+      );
       if (factorTo == null) {
         _resultController.clear();
         return;
@@ -479,78 +501,81 @@ class _MeasurementConverterScreenState
                   final fieldFontSize = AppInputTokens.fontSize(isCompact);
 
                   // סטטוס הסרגל: רחב=_sidebarVisible, צר=_narrowShowCategories
-                  final sidebarOpen =
-                      isWideBar ? _sidebarVisible : _narrowShowCategories;
+                  final sidebarOpen = isWideBar
+                      ? _sidebarVisible
+                      : _narrowShowCategories;
 
                   // ── ווידג'ט תוצאה (משותף לשני המצבים) ──────────────────
                   Widget resultSection({required bool inPrimaryRow}) => Row(
-                        mainAxisSize:
-                            inPrimaryRow ? MainAxisSize.min : MainAxisSize.max,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          if (inPrimaryRow)
-                            SizedBox(
-                              height: 24,
-                              child: VerticalDivider(
-                                width: AppTokens.spaceMD * 2,
-                                thickness: 1,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .outline
-                                    .withValues(alpha: 0.3),
-                              ),
+                    mainAxisSize: inPrimaryRow
+                        ? MainAxisSize.min
+                        : MainAxisSize.max,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      if (inPrimaryRow)
+                        SizedBox(
+                          height: 24,
+                          child: VerticalDivider(
+                            width: AppTokens.spaceMD * 2,
+                            thickness: 1,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.outline.withValues(alpha: 0.3),
+                          ),
+                        ),
+                      Text(
+                        'תוצאה',
+                        style: _barLabelStyle(cs, muted: !hasResult),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Container(
+                          height: fieldHeight,
+                          decoration: BoxDecoration(
+                            color: cs.onSurface.withValues(alpha: 0.07),
+                            borderRadius: AppTokens.borderRadiusAll,
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppTokens.spaceSM,
                             ),
-                          Text('תוצאה',
-                              style: _barLabelStyle(cs, muted: !hasResult)),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Container(
-                              height: fieldHeight,
-                              decoration: BoxDecoration(
-                                color: cs.onSurface.withValues(alpha: 0.07),
-                                borderRadius: AppTokens.borderRadiusAll,
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: AppTokens.spaceSM,
-                                ),
-                                child: Align(
-                                  alignment: Alignment.centerRight,
-                                  child: Text(
-                                    hasResult ? _resultController.text : '—',
-                                    textAlign: TextAlign.start,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: fieldFontSize + 2,
-                                      fontWeight: FontWeight.w600,
-                                      color: hasResult
-                                          ? cs.onSurface
-                                          : cs.onSurface
-                                              .withValues(alpha: 0.25),
-                                      height: 1.0,
-                                      leadingDistribution:
-                                          TextLeadingDistribution.even,
-                                    ),
-                                  ),
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                hasResult ? _resultController.text : '—',
+                                textAlign: TextAlign.start,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: fieldFontSize + 2,
+                                  fontWeight: FontWeight.w600,
+                                  color: hasResult
+                                      ? cs.onSurface
+                                      : cs.onSurface.withValues(alpha: 0.25),
+                                  height: 1.0,
+                                  leadingDistribution:
+                                      TextLeadingDistribution.even,
                                 ),
                               ),
                             ),
                           ),
-                          const SizedBox(width: AppTokens.spaceSM),
-                          AnimatedOpacity(
-                            opacity: hasResult ? 1.0 : 0.3,
-                            duration: AppTokens.animFast,
-                            child: IgnorePointer(
-                              ignoring: !hasResult,
-                              child: SecondaryIconButton(
-                                  icon: FluentIcons.copy_24_regular,
-                                  tooltip: 'העתק',
-                                  onPressed: _copyResult),
-                            ),
+                        ),
+                      ),
+                      const SizedBox(width: AppTokens.spaceSM),
+                      AnimatedOpacity(
+                        opacity: hasResult ? 1.0 : 0.3,
+                        duration: AppTokens.animFast,
+                        child: IgnorePointer(
+                          ignoring: !hasResult,
+                          child: SecondaryIconButton(
+                            icon: FluentIcons.copy_24_regular,
+                            tooltip: 'העתק',
+                            onPressed: _copyResult,
                           ),
-                        ],
-                      );
+                        ),
+                      ),
+                    ],
+                  );
 
                   return AppTopBar(
                     leadingItems: [
@@ -560,11 +585,15 @@ class _MeasurementConverterScreenState
                             duration: AppTokens.animFast,
                             transitionBuilder: (child, animation) =>
                                 RotationTransition(
-                              turns: Tween<double>(begin: 0.5, end: 0.0)
-                                  .animate(animation),
-                              child: FadeTransition(
-                                  opacity: animation, child: child),
-                            ),
+                                  turns: Tween<double>(
+                                    begin: 0.5,
+                                    end: 0.0,
+                                  ).animate(animation),
+                                  child: FadeTransition(
+                                    opacity: animation,
+                                    child: child,
+                                  ),
+                                ),
                             child: Icon(
                               sidebarOpen
                                   ? FluentIcons.panel_right_contract_24_regular
@@ -573,8 +602,9 @@ class _MeasurementConverterScreenState
                               size: 24,
                             ),
                           ),
-                          tooltip:
-                              sidebarOpen ? 'הסתר קטגוריות' : 'הצג קטגוריות',
+                          tooltip: sidebarOpen
+                              ? 'הסתר קטגוריות'
+                              : 'הצג קטגוריות',
                           onPressed: () => setState(() {
                             if (isWideBar) {
                               _sidebarVisible = !_sidebarVisible;
@@ -598,36 +628,41 @@ class _MeasurementConverterScreenState
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Text('שיטה',
-                                  style:
-                                      _barLabelStyle(cs, muted: !showOpinion)),
+                              Text(
+                                'שיטה',
+                                style: _barLabelStyle(cs, muted: !showOpinion),
+                              ),
                               const SizedBox(width: 6),
                               SizedBox(
                                 width: 130,
                                 child: AppDropdownField<String>(
                                   enabled: showOpinion,
                                   value: _selectedOpinion,
-                                  decoration: _barFieldDecoration(cs,
-                                      enabled: showOpinion,
-                                      isCompact: isCompact),
+                                  decoration: _barFieldDecoration(
+                                    cs,
+                                    enabled: showOpinion,
+                                    isCompact: isCompact,
+                                  ),
                                   entries: _opinions[_selectedCategory]!
-                                      .map((o) =>
-                                          AppMenuEntry(value: o, label: o))
+                                      .map(
+                                        (o) => AppMenuEntry(value: o, label: o),
+                                      )
                                       .toList(),
                                   onSelected: showOpinion
                                       ? (value) {
                                           setState(() {
                                             _selectedOpinion = value;
                                             if (value != null) {
-                                              _rememberedOpinions[
-                                                  _selectedCategory] = value;
+                                              _rememberedOpinions[_selectedCategory] =
+                                                  value;
                                             }
                                             _convert();
                                           });
                                           WidgetsBinding.instance
-                                              .addPostFrameCallback((_) =>
-                                                  _screenFocusNode
-                                                      .requestFocus());
+                                              .addPostFrameCallback(
+                                                (_) => _screenFocusNode
+                                                    .requestFocus(),
+                                              );
                                         }
                                       : null,
                                 ),
@@ -651,30 +686,34 @@ class _MeasurementConverterScreenState
                                     focusNode: _inputFocusNode,
                                     keyboardType:
                                         const TextInputType.numberWithOptions(
-                                            decimal: true),
+                                          decimal: true,
+                                        ),
                                     inputFormatters: [
                                       FilteringTextInputFormatter.allow(
-                                          RegExp(r'^\d*\.?\d*')),
+                                        RegExp(r'^\d*\.?\d*'),
+                                      ),
                                     ],
                                     onChanged: (value) {
                                       setState(() {});
                                       if (value.isNotEmpty) {
-                                        _rememberedInputValues[
-                                            _selectedCategory] = value;
+                                        _rememberedInputValues[_selectedCategory] =
+                                            value;
                                       } else {
-                                        _rememberedInputValues
-                                            .remove(_selectedCategory);
+                                        _rememberedInputValues.remove(
+                                          _selectedCategory,
+                                        );
                                       }
                                       _convert();
                                     },
                                     onSubmitted: (_) {
                                       WidgetsBinding.instance
                                           .addPostFrameCallback((_) {
-                                        if (mounted &&
-                                            _screenFocusNode.canRequestFocus) {
-                                          _screenFocusNode.requestFocus();
-                                        }
-                                      });
+                                            if (mounted &&
+                                                _screenFocusNode
+                                                    .canRequestFocus) {
+                                              _screenFocusNode.requestFocus();
+                                            }
+                                          });
                                     },
                                     textAlign: TextAlign.right,
                                     style: TextStyle(
@@ -684,39 +723,48 @@ class _MeasurementConverterScreenState
                                       leadingDistribution:
                                           TextLeadingDistribution.even,
                                     ),
-                                    decoration: _barFieldDecoration(cs,
-                                            isCompact: isCompact)
-                                        .copyWith(
-                                      isDense: true,
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                              horizontal: 12),
-                                      suffixIcon: _inputController
-                                              .text.isNotEmpty
-                                          ? IconButton(
-                                              icon: Icon(
-                                                  FluentIcons
-                                                      .dismiss_24_regular,
-                                                  size: 15,
-                                                  color: cs.onSurfaceVariant),
-                                              onPressed: () {
-                                                setState(() {
-                                                  _inputController.clear();
-                                                  _resultController.clear();
-                                                  _rememberedInputValues.remove(
-                                                      _selectedCategory);
-                                                });
-                                                WidgetsBinding.instance
-                                                    .addPostFrameCallback((_) =>
-                                                        _screenFocusNode
-                                                            .requestFocus());
-                                              },
-                                              padding: EdgeInsets.zero,
-                                              visualDensity:
-                                                  VisualDensity.compact,
-                                            )
-                                          : null,
-                                    ),
+                                    decoration:
+                                        _barFieldDecoration(
+                                          cs,
+                                          isCompact: isCompact,
+                                        ).copyWith(
+                                          isDense: true,
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 12,
+                                              ),
+                                          suffixIcon:
+                                              _inputController.text.isNotEmpty
+                                              ? IconButton(
+                                                  icon: Icon(
+                                                    FluentIcons
+                                                        .dismiss_24_regular,
+                                                    size: 15,
+                                                    color: cs.onSurfaceVariant,
+                                                  ),
+                                                  onPressed: () {
+                                                    setState(() {
+                                                      _inputController.clear();
+                                                      _resultController.clear();
+                                                      _rememberedInputValues
+                                                          .remove(
+                                                            _selectedCategory,
+                                                          );
+                                                    });
+                                                    WidgetsBinding.instance
+                                                        .addPostFrameCallback(
+                                                          (
+                                                            _,
+                                                          ) => _screenFocusNode
+                                                              .requestFocus(),
+                                                        );
+                                                  },
+                                                  padding: EdgeInsets.zero,
+                                                  visualDensity:
+                                                      VisualDensity.compact,
+                                                )
+                                              : null,
+                                        ),
                                   ),
                                 ),
                               ),
@@ -733,7 +781,9 @@ class _MeasurementConverterScreenState
                         ? null
                         : Padding(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: AppTokens.spaceMD, vertical: 6),
+                              horizontal: AppTokens.spaceMD,
+                              vertical: 6,
+                            ),
                             child: resultSection(inPrimaryRow: false),
                           ),
                   );
@@ -767,11 +817,14 @@ class _MeasurementConverterScreenState
     return InputDecoration(
       filled: true,
       fillColor: cs.onSurface.withValues(
-          alpha: enabled
-              ? AppInputTokens.unfocusedAlpha
-              : AppInputTokens.disabledAlpha),
+        alpha: enabled
+            ? AppInputTokens.unfocusedAlpha
+            : AppInputTokens.disabledAlpha,
+      ),
       contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppTokens.spaceSM, vertical: 6),
+        horizontal: AppTokens.spaceSM,
+        vertical: 6,
+      ),
       isDense: true,
       border: noBorder,
       enabledBorder: noBorder,
@@ -787,11 +840,10 @@ class _MeasurementConverterScreenState
   }
 
   TextStyle _barLabelStyle(ColorScheme cs, {bool muted = false}) => TextStyle(
-        fontSize: AppTokens.fontSM,
-        fontWeight: FontWeight.w500,
-        color:
-            muted ? cs.onSurface.withValues(alpha: 0.3) : cs.onSurfaceVariant,
-      );
+    fontSize: AppTokens.fontSM,
+    fontWeight: FontWeight.w500,
+    color: muted ? cs.onSurface.withValues(alpha: 0.3) : cs.onSurfaceVariant,
+  );
 
   // ── אייקוני קטגוריה ─────────────────────────────────────────────────────
   IconData _getCategoryIcon(String category) {
@@ -818,7 +870,8 @@ class _MeasurementConverterScreenState
 
   // ── העתקת תוצאה ─────────────────────────────────────────────────────────
   void _copyResult() {
-    final text = '${_inputController.text} $_selectedFromUnit = '
+    final text =
+        '${_inputController.text} $_selectedFromUnit = '
         '${_resultController.text} $_selectedToUnit';
     Clipboard.setData(ClipboardData(text: text));
     UiSnack.show(UiSnack.textCopied);
@@ -933,8 +986,9 @@ class _MeasurementConverterScreenState
           _selectedToUnit = temp;
           _convert();
         });
-        WidgetsBinding.instance
-            .addPostFrameCallback((_) => _screenFocusNode.requestFocus());
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _screenFocusNode.requestFocus(),
+        );
       },
       tooltip: 'החלף יחידות',
     );
@@ -947,8 +1001,9 @@ class _MeasurementConverterScreenState
         setState(() => _selectedFromUnit = val);
         _rememberedFromUnits[_selectedCategory] = val!;
         _convert();
-        WidgetsBinding.instance
-            .addPostFrameCallback((_) => _screenFocusNode.requestFocus());
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _screenFocusNode.requestFocus(),
+        );
       },
     );
 
@@ -960,8 +1015,9 @@ class _MeasurementConverterScreenState
         setState(() => _selectedToUnit = val);
         _rememberedToUnits[_selectedCategory] = val!;
         _convert();
-        WidgetsBinding.instance
-            .addPostFrameCallback((_) => _screenFocusNode.requestFocus());
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _screenFocusNode.requestFocus(),
+        );
       },
     );
 
@@ -976,7 +1032,9 @@ class _MeasurementConverterScreenState
               Expanded(child: fromCard),
               Padding(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: AppTokens.spaceSM, vertical: AppTokens.spaceMD),
+                  horizontal: AppTokens.spaceSM,
+                  vertical: AppTokens.spaceMD,
+                ),
                 child: swapButton,
               ),
               Expanded(child: toCard),
@@ -987,8 +1045,9 @@ class _MeasurementConverterScreenState
             children: [
               fromCard,
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(vertical: AppTokens.spaceSM),
+                padding: const EdgeInsets.symmetric(
+                  vertical: AppTokens.spaceSM,
+                ),
                 child: Center(child: swapButton),
               ),
               toCard,
@@ -1011,8 +1070,9 @@ class _MeasurementConverterScreenState
           _selectedToUnit = temp;
           _convert();
         });
-        WidgetsBinding.instance
-            .addPostFrameCallback((_) => _screenFocusNode.requestFocus());
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _screenFocusNode.requestFocus(),
+        );
       },
       tooltip: 'החלף יחידות',
     );
@@ -1025,8 +1085,9 @@ class _MeasurementConverterScreenState
         setState(() => _selectedFromUnit = val);
         _rememberedFromUnits[_selectedCategory] = val!;
         _convert();
-        WidgetsBinding.instance
-            .addPostFrameCallback((_) => _screenFocusNode.requestFocus());
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _screenFocusNode.requestFocus(),
+        );
       },
     );
 
@@ -1038,8 +1099,9 @@ class _MeasurementConverterScreenState
         setState(() => _selectedToUnit = val);
         _rememberedToUnits[_selectedCategory] = val!;
         _convert();
-        WidgetsBinding.instance
-            .addPostFrameCallback((_) => _screenFocusNode.requestFocus());
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _screenFocusNode.requestFocus(),
+        );
       },
     );
 
@@ -1111,7 +1173,8 @@ class _MeasurementConverterScreenState
                     runSpacing: 4,
                     children: ancientUnits
                         .map(
-                            (u) => _buildChip(u, selectedValue == u, onChanged))
+                          (u) => _buildChip(u, selectedValue == u, onChanged),
+                        )
                         .toList(),
                   ),
                   const SizedBox(height: AppTokens.spaceSM),
@@ -1124,7 +1187,8 @@ class _MeasurementConverterScreenState
                     runSpacing: 4,
                     children: modernUnits
                         .map(
-                            (u) => _buildChip(u, selectedValue == u, onChanged))
+                          (u) => _buildChip(u, selectedValue == u, onChanged),
+                        )
                         .toList(),
                   ),
                 ],
@@ -1138,13 +1202,17 @@ class _MeasurementConverterScreenState
 
   // ── Chip יחידה ──────────────────────────────────────────────────────────────
   Widget _buildChip(
-      String unit, bool isSelected, ValueChanged<String?> onChanged) {
+    String unit,
+    bool isSelected,
+    ValueChanged<String?> onChanged,
+  ) {
     final cs = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: () {
         onChanged(unit);
-        WidgetsBinding.instance
-            .addPostFrameCallback((_) => _screenFocusNode.requestFocus());
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _screenFocusNode.requestFocus(),
+        );
       },
       child: AnimatedContainer(
         duration: AppTokens.animFast,
@@ -1153,8 +1221,9 @@ class _MeasurementConverterScreenState
           color: isSelected ? cs.secondaryContainer : cs.surface,
           borderRadius: AppTokens.borderRadiusAll,
           border: Border.all(
-            color:
-                isSelected ? cs.secondary : cs.outline.withValues(alpha: 0.25),
+            color: isSelected
+                ? cs.secondary
+                : cs.outline.withValues(alpha: 0.25),
             width: isSelected ? 1.5 : 1.0,
           ),
         ),

@@ -41,8 +41,10 @@ class PdfZoomBar extends StatelessWidget {
             TextButton(
               onPressed: onResetZoom,
               style: TextButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 minimumSize: const Size(60, 36),
               ),
               child: const Text(
@@ -92,9 +94,9 @@ class PdfZoomBar extends StatelessWidget {
                 '$zoomPercentage%',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 15,
-                    ),
+                  fontWeight: FontWeight.w500,
+                  fontSize: 15,
+                ),
               ),
             ),
           ],

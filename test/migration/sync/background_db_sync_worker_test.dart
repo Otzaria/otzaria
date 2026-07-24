@@ -99,8 +99,11 @@ void main() {
       expect(books, hasLength(1));
       expect(books.first.title, 'ספר-א');
       // txt + addToDatabase=true → content stored in DB → generator nulls filePath
-      expect(books.first.filePath, isNull,
-          reason: 'addToDatabase=true עבור txt → filePath חייב להיות null');
+      expect(
+        books.first.filePath,
+        isNull,
+        reason: 'addToDatabase=true עבור txt → filePath חייב להיות null',
+      );
     });
 
     test('addToDatabase=false: ספר נשמר כ-file-backed', () async {
@@ -129,19 +132,22 @@ void main() {
         personalCat!.id,
       );
       final books = await userBooksRepository.getBooksByCategory(folderCat!.id);
-      expect(books.first.isFileBacked, isTrue,
-          reason: 'addToDatabase=false → ספר חיצוני');
+      expect(
+        books.first.isFileBacked,
+        isTrue,
+        reason: 'addToDatabase=false → ספר חיצוני',
+      );
     });
 
-    test(
-        'סנכרון תיקייה פעמיים אינו מכפיל ספר '
+    test('סנכרון תיקייה פעמיים אינו מכפיל ספר '
         '(existence check מול user_books, לא seforim)', () async {
       final folderPath = await makeFolder('תיקייה-dup', 'ספר-dup');
       final folders = [
         CustomFolder(
-            path: folderPath,
-            addToDatabase: true,
-            addedAt: DateTime(2026, 1, 1)),
+          path: folderPath,
+          addToDatabase: true,
+          addedAt: DateTime(2026, 1, 1),
+        ),
       ];
 
       await runCustomFoldersDbSyncInIsolate(
@@ -166,8 +172,11 @@ void main() {
         personalCat.id,
       );
       final books = await userBooksRepository.getBooksByCategory(folderCat!.id);
-      expect(books, hasLength(1),
-          reason: 'סנכרון חוזר לא מכפיל — הספר נמצא דרך user_books');
+      expect(
+        books,
+        hasLength(1),
+        reason: 'סנכרון חוזר לא מכפיל — הספר נמצא דרך user_books',
+      );
     });
 
     test('שתי תיקיות באותו worker: שני ספרים נוצרים', () async {
@@ -180,9 +189,15 @@ void main() {
         libraryPath: libPath(),
         customFolders: [
           CustomFolder(
-              path: f1, addToDatabase: false, addedAt: DateTime(2026, 1, 1)),
+            path: f1,
+            addToDatabase: false,
+            addedAt: DateTime(2026, 1, 1),
+          ),
           CustomFolder(
-              path: f2, addToDatabase: false, addedAt: DateTime(2026, 1, 1)),
+            path: f2,
+            addToDatabase: false,
+            addedAt: DateTime(2026, 1, 1),
+          ),
         ],
       );
 
@@ -190,16 +205,21 @@ void main() {
       expect(result.addedBooks, equals(2));
     });
 
-    test(
-        'onlyFolderPath: רק התיקייה הממוקדת נסרקת, וספרי תיקייה אחרת '
+    test('onlyFolderPath: רק התיקייה הממוקדת נסרקת, וספרי תיקייה אחרת '
         'שכבר ב-DB אינם נמחקים', () async {
       final f1 = await makeFolder('ממוקדת-א', 'ספר-א');
       final f2 = await makeFolder('ממוקדת-ב', 'ספר-ב');
       final folders = [
         CustomFolder(
-            path: f1, addToDatabase: false, addedAt: DateTime(2026, 1, 1)),
+          path: f1,
+          addToDatabase: false,
+          addedAt: DateTime(2026, 1, 1),
+        ),
         CustomFolder(
-            path: f2, addToDatabase: false, addedAt: DateTime(2026, 1, 1)),
+          path: f2,
+          addToDatabase: false,
+          addedAt: DateTime(2026, 1, 1),
+        ),
       ];
 
       // סנכרון מלא ראשון — שתי התיקיות נכנסות ל-DB.
@@ -223,8 +243,11 @@ void main() {
       );
 
       expect(scoped.errors, isEmpty);
-      expect(scoped.addedBooks, equals(1),
-          reason: 'רק הספר החדש בתיקייה הממוקדת נוסף');
+      expect(
+        scoped.addedBooks,
+        equals(1),
+        reason: 'רק הספר החדש בתיקייה הממוקדת נוסף',
+      );
 
       // ספרי התיקייה השנייה נשארו ב-DB (לא נמחקו כ"תיקייה שהוסרה").
       final personalCat = (await userBooksRepository.getRootCategories())
@@ -238,14 +261,13 @@ void main() {
       expect(f2Books, hasLength(1), reason: 'ספרי התיקייה השנייה שרדו');
     });
 
-    test(
-        'יש קבצי links: prepareForWrite/restoreAfterWrite נקראים *בתוך* יחידת '
+    test('יש קבצי links: prepareForWrite/restoreAfterWrite נקראים *בתוך* יחידת '
         'התור, סביב הכתיבה (תיקון מסך עיון/תצוגה מקדימה ריקים)', () async {
       final folderPath = await makeFolder('תיקייה-hooks', 'ספר-hooks');
       // קובץ links כלשהו מפעיל את שלב הכתיבה ל-seforim.db (ולכן את ה-hooks).
-      await File(p.join(libPath(), 'links', 'ספר-hooks_links.json'))
-          .create(recursive: true)
-          .then((f) => f.writeAsString('[]', flush: true));
+      await File(
+        p.join(libPath(), 'links', 'ספר-hooks_links.json'),
+      ).create(recursive: true).then((f) => f.writeAsString('[]', flush: true));
       final events = <String>[];
 
       final result = await runCustomFoldersDbSyncInIsolate(
@@ -254,9 +276,10 @@ void main() {
         libraryPath: libPath(),
         customFolders: [
           CustomFolder(
-              path: folderPath,
-              addToDatabase: false,
-              addedAt: DateTime(2026, 1, 1)),
+            path: folderPath,
+            addToDatabase: false,
+            addedAt: DateTime(2026, 1, 1),
+          ),
         ],
         prepareForWrite: () async => events.add('prepare'),
         restoreAfterWrite: () async => events.add('restore'),
@@ -268,8 +291,7 @@ void main() {
       expect(events, equals(['prepare', 'restore']));
     });
 
-    test(
-        'אין קבצי links: שלב הכתיבה ל-seforim.db מדולג וה-hooks לא נקראים '
+    test('אין קבצי links: שלב הכתיבה ל-seforim.db מדולג וה-hooks לא נקראים '
         '(ה-RO לא נסגר בעלייה רגילה)', () async {
       final folderPath = await makeFolder('תיקייה-no-links', 'ספר-no-links');
       final events = <String>[];
@@ -280,44 +302,55 @@ void main() {
         libraryPath: libPath(),
         customFolders: [
           CustomFolder(
-              path: folderPath,
-              addToDatabase: false,
-              addedAt: DateTime(2026, 1, 1)),
+            path: folderPath,
+            addToDatabase: false,
+            addedAt: DateTime(2026, 1, 1),
+          ),
         ],
         prepareForWrite: () async => events.add('prepare'),
         restoreAfterWrite: () async => events.add('restore'),
       );
 
       expect(result.errors, isEmpty);
-      expect(events, isEmpty,
-          reason: 'בלי קבצי links אין כתיבה ל-seforim.db → ה-RO לא נסגר');
+      expect(
+        events,
+        isEmpty,
+        reason: 'בלי קבצי links אין כתיבה ל-seforim.db → ה-RO לא נסגר',
+      );
     });
 
     test(
-        'כשל בשלב הספרים-האישיים אינו סוגר את ה-RO (ה-hooks לא נקראים — אין דליפה)',
-        () async {
-      final events = <String>[];
+      'כשל בשלב הספרים-האישיים אינו סוגר את ה-RO (ה-hooks לא נקראים — אין דליפה)',
+      () async {
+        final events = <String>[];
 
-      // נתיב DB לא תקין מפיל את שלב הספרים-האישיים (פתיחת seforim.db נכשלת).
-      // שלב זה רץ עם seforim.db RO וללא prepare/restore — ולכן כשל בו *לא*
-      // סוגר את ה-RO הראשי: ה-hooks לא נקראים כלל. כך אין דליפת write-session
-      // גם כשהשלב הכבד נכשל.
-      await expectLater(
-        runCustomFoldersDbSyncInIsolate(
-          dbPath: p.join(tempDir.path, 'nonexistent-dir', 'broken.db'),
-          userBooksDbPath:
-              p.join(tempDir.path, 'nonexistent-dir', 'broken_user.db'),
-          libraryPath: libPath(),
-          customFolders: const [],
-          prepareForWrite: () async => events.add('prepare'),
-          restoreAfterWrite: () async => events.add('restore'),
-        ),
-        throwsA(anything),
-      );
+        // נתיב DB לא תקין מפיל את שלב הספרים-האישיים (פתיחת seforim.db נכשלת).
+        // שלב זה רץ עם seforim.db RO וללא prepare/restore — ולכן כשל בו *לא*
+        // סוגר את ה-RO הראשי: ה-hooks לא נקראים כלל. כך אין דליפת write-session
+        // גם כשהשלב הכבד נכשל.
+        await expectLater(
+          runCustomFoldersDbSyncInIsolate(
+            dbPath: p.join(tempDir.path, 'nonexistent-dir', 'broken.db'),
+            userBooksDbPath: p.join(
+              tempDir.path,
+              'nonexistent-dir',
+              'broken_user.db',
+            ),
+            libraryPath: libPath(),
+            customFolders: const [],
+            prepareForWrite: () async => events.add('prepare'),
+            restoreAfterWrite: () async => events.add('restore'),
+          ),
+          throwsA(anything),
+        );
 
-      expect(events, isEmpty,
-          reason: 'שלב הספרים-האישיים לא סוגר RO — הכשל לא מפעיל את ה-hooks');
-    });
+        expect(
+          events,
+          isEmpty,
+          reason: 'שלב הספרים-האישיים לא סוגר RO — הכשל לא מפעיל את ה-hooks',
+        );
+      },
+    );
   });
 
   // ── delete worker ─────────────────────────────────────────────────────────
@@ -331,8 +364,10 @@ void main() {
         Category(title: 'תיקיית-מחיקה', parentId: personalCatId, level: 1),
       );
       // שם ה-source חייב להתאים ל-_buildCustomFolderSourceName('test').
-      final sourceId =
-          await userBooksRepository.insertSource('Personal::test', -1);
+      final sourceId = await userBooksRepository.insertSource(
+        'Personal::test',
+        -1,
+      );
       await userBooksRepository.insertBook(
         Book(
           id: 0, // SQLite מקצה דרך AUTOINCREMENT
@@ -351,10 +386,16 @@ void main() {
         folderPath: 'test',
       );
 
-      expect(await userBooksRepository.getCategory(folderCatId), isNull,
-          reason: 'קטגוריית התיקייה נמחקה');
-      expect(await userBooksRepository.getBooksByCategory(folderCatId), isEmpty,
-          reason: 'ספרי התיקייה נמחקו');
+      expect(
+        await userBooksRepository.getCategory(folderCatId),
+        isNull,
+        reason: 'קטגוריית התיקייה נמחקה',
+      );
+      expect(
+        await userBooksRepository.getBooksByCategory(folderCatId),
+        isEmpty,
+        reason: 'ספרי התיקייה נמחקו',
+      );
     });
 
     test('מנקה קטגוריית-אב ריקה לאחר המחיקה', () async {
@@ -365,8 +406,10 @@ void main() {
         Category(title: 'תיקייה-יחידה', parentId: personalCatId, level: 1),
       );
       // שם ה-source חייב להתאים ל-_buildCustomFolderSourceName('sole').
-      final sourceId =
-          await userBooksRepository.insertSource('Personal::sole', -1);
+      final sourceId = await userBooksRepository.insertSource(
+        'Personal::sole',
+        -1,
+      );
       await userBooksRepository.insertBook(
         Book(
           id: 0, // SQLite מקצה דרך AUTOINCREMENT
@@ -385,12 +428,14 @@ void main() {
         folderPath: 'sole',
       );
 
-      expect(await userBooksRepository.getCategory(personalCatId), isNull,
-          reason: '"ספרים אישיים" ריקה — חייבת להינקות');
+      expect(
+        await userBooksRepository.getCategory(personalCatId),
+        isNull,
+        reason: '"ספרים אישיים" ריקה — חייבת להינקות',
+      );
     });
 
-    test(
-        'מחיקת תיקייה מצליחה גם כש-seforim.db פתוח read-only '
+    test('מחיקת תיקייה מצליחה גם כש-seforim.db פתוח read-only '
         '(חוזה: המחיקה לא כותבת ל-DB הרשמי)', () async {
       // seforim.db read-only: יוצרים סכמה, ממירים ל-DELETE (תנאי לפתיחת RO),
       // וסוגרים. אם המחיקה תנסה לכתוב לשם — החיבור ה-RO יזרוק.
@@ -406,13 +451,16 @@ void main() {
       await roRepo.ensureInitialized();
 
       // ספר אישי לתיקייה 'ro' ב-user_books (כתיב).
-      final personalCatId = await userBooksRepository
-          .insertCategory(const Category(title: 'ספרים אישיים'));
+      final personalCatId = await userBooksRepository.insertCategory(
+        const Category(title: 'ספרים אישיים'),
+      );
       final folderCatId = await userBooksRepository.insertCategory(
         Category(title: 'תיקיית-ro', parentId: personalCatId, level: 1),
       );
-      final sourceId =
-          await userBooksRepository.insertSource('Personal::ro', -1);
+      final sourceId = await userBooksRepository.insertSource(
+        'Personal::ro',
+        -1,
+      );
       await userBooksRepository.insertBook(
         Book(
           id: 0,
@@ -434,8 +482,11 @@ void main() {
         // לא אמור לזרוק — כל הכתיבה ל-user_books בלבד.
         await service.deleteFolderFromDatabase('ro');
 
-        expect(await userBooksRepository.getCategory(folderCatId), isNull,
-            reason: 'ספרי התיקייה נמחקו מ-user_books');
+        expect(
+          await userBooksRepository.getCategory(folderCatId),
+          isNull,
+          reason: 'ספרי התיקייה נמחקו מ-user_books',
+        );
       } finally {
         roDb.close();
       }
@@ -448,8 +499,11 @@ void main() {
     test('busyCount עולה מיד ויורד לאחר סיום', () async {
       final folderPath = await makeFolder('תיקייה-ס', 'ספר-ס');
 
-      expect(DatabaseLibraryProvider.operationQueue.busyCount.value, 0,
-          reason: 'queue פנוי לפני הקריאה');
+      expect(
+        DatabaseLibraryProvider.operationQueue.busyCount.value,
+        0,
+        reason: 'queue פנוי לפני הקריאה',
+      );
 
       final future = runCustomFoldersDbSyncInIsolate(
         dbPath: dbPath,
@@ -457,9 +511,10 @@ void main() {
         libraryPath: libPath(),
         customFolders: [
           CustomFolder(
-              path: folderPath,
-              addToDatabase: false,
-              addedAt: DateTime(2026, 1, 1)),
+            path: folderPath,
+            addToDatabase: false,
+            addedAt: DateTime(2026, 1, 1),
+          ),
         ],
       );
 
@@ -472,8 +527,11 @@ void main() {
 
       await future;
 
-      expect(DatabaseLibraryProvider.operationQueue.busyCount.value, 0,
-          reason: 'busyCount חוזר ל-0 לאחר סיום');
+      expect(
+        DatabaseLibraryProvider.operationQueue.busyCount.value,
+        0,
+        reason: 'busyCount חוזר ל-0 לאחר סיום',
+      );
     });
 
     test('שתי קריאות מקבילות: אין שגיאות DB ושני ספרים נוצרים', () async {
@@ -487,7 +545,10 @@ void main() {
         libraryPath: libPath(),
         customFolders: [
           CustomFolder(
-              path: f1, addToDatabase: false, addedAt: DateTime(2026, 1, 1)),
+            path: f1,
+            addToDatabase: false,
+            addedAt: DateTime(2026, 1, 1),
+          ),
         ],
       );
       final future2 = runCustomFoldersDbSyncInIsolate(
@@ -496,7 +557,10 @@ void main() {
         libraryPath: libPath(),
         customFolders: [
           CustomFolder(
-              path: f2, addToDatabase: false, addedAt: DateTime(2026, 1, 1)),
+            path: f2,
+            addToDatabase: false,
+            addedAt: DateTime(2026, 1, 1),
+          ),
         ],
       );
 

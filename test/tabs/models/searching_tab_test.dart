@@ -14,8 +14,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   group('SearchingTab persistence', () {
-    test(
-        'toJson/fromJson משחזר distance מיד ב-state של ה-Bloc, '
+    test('toJson/fromJson משחזר distance מיד ב-state של ה-Bloc, '
         'בלי תלות בעיבוד events', () {
       final source = SearchingTab(
         'חיפוש: צדיק גאולה תפילה',
@@ -40,8 +39,9 @@ Future<void> main() async {
       final source = SearchingTab(
         'חיפוש',
         'שלום',
-        initialConfiguration:
-            const SearchConfiguration(searchMode: SearchMode.fuzzy),
+        initialConfiguration: const SearchConfiguration(
+          searchMode: SearchMode.fuzzy,
+        ),
       );
       addTearDown(source.dispose);
 
@@ -67,24 +67,28 @@ Future<void> main() async {
       expect(restored.searchOptions['גאולה_1']?['כתיב מלא/חסר'], true);
     });
 
-    test('fromJson מנקה state פר-מילה שנשמר על פיצול-מילים ישן', () {
-      // מפתחות שנבנו כשחוקי הפיצול היו אחרים (רמב"ם כשתי מילים) אינם
-      // תואמים את הפיצול הנוכחי — שחזורם היה מזליג אפשרויות/מרווחים
-      // למילה הלא-נכונה, ולכן הם נזרקים כמקשה אחת.
-      final source = SearchingTab('חיפוש', 'רמב"ם משה');
-      addTearDown(source.dispose);
-      source.searchOptions['רמב_0'] = {'חלק ממילה': true};
-      source.searchOptions['ם_1'] = {'כתיב מלא/חסר': true};
-      source.alternativeWords[2] = ['רבינו'];
-      source.spacingValues['1-2'] = '3';
+    test(
+      'fromJson מנקה state פר-מילה שנשמר על פיצול-מילים ישן',
+      () {
+        // מפתחות שנבנו כשחוקי הפיצול היו אחרים (רמב"ם כשתי מילים) אינם
+        // תואמים את הפיצול הנוכחי — שחזורם היה מזליג אפשרויות/מרווחים
+        // למילה הלא-נכונה, ולכן הם נזרקים כמקשה אחת.
+        final source = SearchingTab('חיפוש', 'רמב"ם משה');
+        addTearDown(source.dispose);
+        source.searchOptions['רמב_0'] = {'חלק ממילה': true};
+        source.searchOptions['ם_1'] = {'כתיב מלא/חסר': true};
+        source.alternativeWords[2] = ['רבינו'];
+        source.spacingValues['1-2'] = '3';
 
-      final restored = SearchingTab.fromJson(source.toJson());
-      addTearDown(restored.dispose);
+        final restored = SearchingTab.fromJson(source.toJson());
+        addTearDown(restored.dispose);
 
-      expect(restored.searchOptions, isEmpty);
-      expect(restored.alternativeWords, isEmpty);
-      expect(restored.spacingValues, isEmpty);
-    }, skip: engineReady ? false : searchEngineSkipReason);
+        expect(restored.searchOptions, isEmpty);
+        expect(restored.alternativeWords, isEmpty);
+        expect(restored.spacingValues, isEmpty);
+      },
+      skip: engineReady ? false : searchEngineSkipReason,
+    );
 
     test('toJson/fromJson משחזר alternativeWords ו-spacingValues', () {
       final source = SearchingTab('חיפוש', 'א ב');
@@ -99,19 +103,21 @@ Future<void> main() async {
       expect(restored.spacingValues['0-1'], '3');
     });
 
-    test('toJson/fromJson משחזר globalSearchOptions ו-useGlobalSearchOptions',
-        () {
-      final source = SearchingTab('חיפוש', 'שלום');
-      addTearDown(source.dispose);
-      source.globalSearchOptions['חלק ממילה'] = true;
-      source.useGlobalSearchOptions.value = false;
+    test(
+      'toJson/fromJson משחזר globalSearchOptions ו-useGlobalSearchOptions',
+      () {
+        final source = SearchingTab('חיפוש', 'שלום');
+        addTearDown(source.dispose);
+        source.globalSearchOptions['חלק ממילה'] = true;
+        source.useGlobalSearchOptions.value = false;
 
-      final restored = SearchingTab.fromJson(source.toJson());
-      addTearDown(restored.dispose);
+        final restored = SearchingTab.fromJson(source.toJson());
+        addTearDown(restored.dispose);
 
-      expect(restored.globalSearchOptions['חלק ממילה'], true);
-      expect(restored.useGlobalSearchOptions.value, false);
-    });
+        expect(restored.globalSearchOptions['חלק ממילה'], true);
+        expect(restored.useGlobalSearchOptions.value, false);
+      },
+    );
 
     test('toJson/fromJson משחזר sortBy ו-facets', () {
       final source = SearchingTab(
@@ -171,27 +177,31 @@ Future<void> main() async {
   group('SearchingTab title updates', () {
     // רגרסיה מפורום 884: כותרת הכרטיסייה לא התעדכנה כששאילתת החיפוש
     // השתנתה, כי דבר לא האזין ל-titleNotifier ולא קרא ל-updateTitleFromAppliedQuery.
-    test('updateTitleFromAppliedQuery מעדכן title ו-titleNotifier לפי השאילתה',
-        () {
-      final tab = SearchingTab('חיפוש', null);
-      addTearDown(tab.dispose);
+    test(
+      'updateTitleFromAppliedQuery מעדכן title ו-titleNotifier לפי השאילתה',
+      () {
+        final tab = SearchingTab('חיפוש', null);
+        addTearDown(tab.dispose);
 
-      tab.updateTitleFromAppliedQuery('צדיק גאולה');
+        tab.updateTitleFromAppliedQuery('צדיק גאולה');
 
-      expect(tab.title, 'חיפוש: צדיק גאולה');
-      expect(tab.titleNotifier.value, 'חיפוש: צדיק גאולה');
-    });
+        expect(tab.title, 'חיפוש: צדיק גאולה');
+        expect(tab.titleNotifier.value, 'חיפוש: צדיק גאולה');
+      },
+    );
 
-    test('updateTitleFromAppliedQuery עם שאילתה ריקה מחזיר לכותרת ברירת המחדל',
-        () {
-      final tab = SearchingTab('חיפוש: ישן', 'ישן');
-      addTearDown(tab.dispose);
+    test(
+      'updateTitleFromAppliedQuery עם שאילתה ריקה מחזיר לכותרת ברירת המחדל',
+      () {
+        final tab = SearchingTab('חיפוש: ישן', 'ישן');
+        addTearDown(tab.dispose);
 
-      tab.updateTitleFromAppliedQuery('   ');
+        tab.updateTitleFromAppliedQuery('   ');
 
-      expect(tab.title, 'חיפוש');
-      expect(tab.titleNotifier.value, 'חיפוש');
-    });
+        expect(tab.title, 'חיפוש');
+        expect(tab.titleNotifier.value, 'חיפוש');
+      },
+    );
 
     test('titleNotifier מאותחל עם הכותרת ההתחלתית של הטאב', () {
       final tab = SearchingTab('חיפוש: התחלתי', 'התחלתי');
@@ -202,8 +212,7 @@ Future<void> main() async {
   });
 
   group('SearchingTab.clone', () {
-    test(
-        'clone מטמיע את כל ה-configuration סינכרונית, '
+    test('clone מטמיע את כל ה-configuration סינכרונית, '
         'בלי תלות בעיבוד events', () {
       final source = SearchingTab(
         'חיפוש',

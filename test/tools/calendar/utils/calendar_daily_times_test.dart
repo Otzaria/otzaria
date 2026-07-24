@@ -64,69 +64,85 @@ void main() {
       mockNotificationService = MockNotificationService();
     });
 
-    test('Daily times are displayed in correct timezone for New York',
-        () async {
-      // Initialize Cubit
-      calendarCubit = CalendarCubit(
-        settingsRepository: mockSettingsRepository,
-        notificationService: mockNotificationService,
-      );
+    test(
+      'Daily times are displayed in correct timezone for New York',
+      () async {
+        // Initialize Cubit
+        calendarCubit = CalendarCubit(
+          settingsRepository: mockSettingsRepository,
+          notificationService: mockNotificationService,
+        );
 
-      await Future.delayed(const Duration(milliseconds: 100));
+        await Future.delayed(const Duration(milliseconds: 100));
 
-      // Change city to New York
-      await calendarCubit.changeCity('ניו יורק');
-      await Future.delayed(const Duration(milliseconds: 100));
+        // Change city to New York
+        await calendarCubit.changeCity('ניו יורק');
+        await Future.delayed(const Duration(milliseconds: 100));
 
-      // Get current state
-      final state = calendarCubit.state;
+        // Get current state
+        final state = calendarCubit.state;
 
-      // Verify that times are present
-      expect(state.dailyTimes, isNotEmpty,
-          reason: 'Daily times should not be empty');
+        // Verify that times are present
+        expect(
+          state.dailyTimes,
+          isNotEmpty,
+          reason: 'Daily times should not be empty',
+        );
 
-      // Check that sunrise time exists and is in reasonable format (HH:MM)
-      final sunrise = state.dailyTimes['sunrise'];
-      expect(sunrise, isNotNull, reason: 'Sunrise time should exist');
-      expect(sunrise, matches(r'^\u2066?\d{2}:\d{2}[.:]\u2069?$'),
-          reason: 'Time should be in HH:MM format');
+        // Check that sunrise time exists and is in reasonable format (HH:MM)
+        final sunrise = state.dailyTimes['sunrise'];
+        expect(sunrise, isNotNull, reason: 'Sunrise time should exist');
+        expect(
+          sunrise,
+          matches(r'^\u2066?\d{2}:\d{2}[.:]\u2069?$'),
+          reason: 'Time should be in HH:MM format',
+        );
 
-      // Debug output (only in tests)
-      // ignore: avoid_print
-      print('New York sunrise: $sunrise');
-      // ignore: avoid_print
-      print('All times: ${state.dailyTimes}');
-    });
+        // Debug output (only in tests)
+        // ignore: avoid_print
+        print('New York sunrise: $sunrise');
+        // ignore: avoid_print
+        print('All times: ${state.dailyTimes}');
+      },
+    );
 
-    test('Daily times are displayed in correct timezone for Jerusalem',
-        () async {
-      // Initialize Cubit with Jerusalem (default)
-      calendarCubit = CalendarCubit(
-        settingsRepository: mockSettingsRepository,
-        notificationService: mockNotificationService,
-      );
+    test(
+      'Daily times are displayed in correct timezone for Jerusalem',
+      () async {
+        // Initialize Cubit with Jerusalem (default)
+        calendarCubit = CalendarCubit(
+          settingsRepository: mockSettingsRepository,
+          notificationService: mockNotificationService,
+        );
 
-      await Future.delayed(const Duration(milliseconds: 100));
+        await Future.delayed(const Duration(milliseconds: 100));
 
-      // Get current state
-      final state = calendarCubit.state;
+        // Get current state
+        final state = calendarCubit.state;
 
-      // Verify that times are present
-      expect(state.dailyTimes, isNotEmpty,
-          reason: 'Daily times should not be empty');
+        // Verify that times are present
+        expect(
+          state.dailyTimes,
+          isNotEmpty,
+          reason: 'Daily times should not be empty',
+        );
 
-      // Check that sunrise time exists
-      final sunrise = state.dailyTimes['sunrise'];
-      expect(sunrise, isNotNull, reason: 'Sunrise time should exist');
-      expect(sunrise, matches(r'^\u2066?\d{2}:\d{2}[.:]\u2069?$'),
-          reason: 'Time should be in HH:MM format');
+        // Check that sunrise time exists
+        final sunrise = state.dailyTimes['sunrise'];
+        expect(sunrise, isNotNull, reason: 'Sunrise time should exist');
+        expect(
+          sunrise,
+          matches(r'^\u2066?\d{2}:\d{2}[.:]\u2069?$'),
+          reason: 'Time should be in HH:MM format',
+        );
 
-      // Debug output (only in tests)
-      // ignore: avoid_print
-      print('Jerusalem sunrise: $sunrise');
-      // ignore: avoid_print
-      print('All times: ${state.dailyTimes}');
-    });
+        // Debug output (only in tests)
+        // ignore: avoid_print
+        print('Jerusalem sunrise: $sunrise');
+        // ignore: avoid_print
+        print('All times: ${state.dailyTimes}');
+      },
+    );
 
     test('Times differ between New York and Jerusalem', () async {
       // Test Jerusalem

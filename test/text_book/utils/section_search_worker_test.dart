@@ -170,8 +170,11 @@ void main() {
       });
       final afterSwap = await harness.waitForMessage(requestId: 2);
       expect(afterSwap['type'], 'result');
-      expect(afterSwap['results'] as List, isEmpty,
-          reason: 'ה-cache הוחלף — אין לחפש עוד בתוכן הישן');
+      expect(
+        afterSwap['results'] as List,
+        isEmpty,
+        reason: 'ה-cache הוחלף — אין לחפש עוד בתוכן הישן',
+      );
 
       // אותו contentId חדש ללא content — מגיע מה-cache החדש.
       harness.deliver({

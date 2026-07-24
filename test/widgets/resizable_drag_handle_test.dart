@@ -38,8 +38,7 @@ Widget _wrap(Widget child, {bool? compactMenuMode}) {
 }
 
 void main() {
-  test('טוקני שטח הלחיצה של ידית הגרירה קטנים מהערכים הישנים שגרמו לחפיפה',
-      () {
+  test('טוקני שטח הלחיצה של ידית הגרירה קטנים מהערכים הישנים שגרמו לחפיפה', () {
     // הערכים הישנים (48/36) יצרו overhang של 24/18 פנימה לתוך הפאנל, שכיסה
     // את פס הגלילה. אם הערכים יגדלו בחזרה, הבאג יחזור.
     expect(AppTokens.dragHandleRegularHitSize, 24);
@@ -49,51 +48,58 @@ void main() {
   });
 
   testWidgets(
-      'handleHitOverhang במצב רגיל שווה למחצית dragHandleRegularHitSize',
-      (tester) async {
-    late double overhang;
-    await tester.pumpWidget(
-      _wrap(
-        Builder(builder: (context) {
-          overhang = handleHitOverhang(context);
-          return const SizedBox();
-        }),
-      ),
-    );
-
-    expect(overhang, AppTokens.dragHandleRegularHitSize / 2);
-  });
-
-  testWidgets(
-      'handleHitOverhang במצב קומפקטי שווה למחצית dragHandleCompactHitSize',
-      (tester) async {
-    late double overhang;
-    await tester.pumpWidget(
-      _wrap(
-        Builder(builder: (context) {
-          overhang = handleHitOverhang(context);
-          return const SizedBox();
-        }),
-        compactMenuMode: true,
-      ),
-    );
-
-    expect(overhang, AppTokens.dragHandleCompactHitSize / 2);
-  });
-
-  testWidgets(
-      'שטח הלחיצה בפועל של ResizableDragHandle תואם לטוקן dragHandleRegularHitSize',
-      (tester) async {
-    await tester.pumpWidget(
-      _wrap(
-        ResizableDragHandle(
-          isVertical: true,
-          onDragDelta: (_) {},
+    'handleHitOverhang במצב רגיל שווה למחצית dragHandleRegularHitSize',
+    (tester) async {
+      late double overhang;
+      await tester.pumpWidget(
+        _wrap(
+          Builder(
+            builder: (context) {
+              overhang = handleHitOverhang(context);
+              return const SizedBox();
+            },
+          ),
         ),
-      ),
-    );
+      );
 
-    final size = tester.getSize(find.byType(ResizableDragHandle));
-    expect(size.width, AppTokens.dragHandleRegularHitSize);
-  });
+      expect(overhang, AppTokens.dragHandleRegularHitSize / 2);
+    },
+  );
+
+  testWidgets(
+    'handleHitOverhang במצב קומפקטי שווה למחצית dragHandleCompactHitSize',
+    (tester) async {
+      late double overhang;
+      await tester.pumpWidget(
+        _wrap(
+          Builder(
+            builder: (context) {
+              overhang = handleHitOverhang(context);
+              return const SizedBox();
+            },
+          ),
+          compactMenuMode: true,
+        ),
+      );
+
+      expect(overhang, AppTokens.dragHandleCompactHitSize / 2);
+    },
+  );
+
+  testWidgets(
+    'שטח הלחיצה בפועל של ResizableDragHandle תואם לטוקן dragHandleRegularHitSize',
+    (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          ResizableDragHandle(
+            isVertical: true,
+            onDragDelta: (_) {},
+          ),
+        ),
+      );
+
+      final size = tester.getSize(find.byType(ResizableDragHandle));
+      expect(size.width, AppTokens.dragHandleRegularHitSize);
+    },
+  );
 }

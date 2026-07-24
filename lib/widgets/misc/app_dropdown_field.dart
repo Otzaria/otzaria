@@ -28,7 +28,8 @@ class AppDropdownField<T> extends StatefulWidget {
   final List<PopupMenuEntry<T>> Function(
     BuildContext context,
     AppMenuMetrics metrics,
-  )? menuItemsBuilder;
+  )?
+  menuItemsBuilder;
 
   const AppDropdownField({
     super.key,
@@ -85,7 +86,8 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
   /// אופציונלית מ-[AppDropdownField.menuMinWidth]) — אותו חישוב שקובע גם
   /// את רוחב התפריט הנפתח (calculateAppMenuPreferredWidth).
   double _preferredMenuWidth(BuildContext context) {
-    final metrics = Theme.of(context).extension<AppMenuMetrics>() ??
+    final metrics =
+        Theme.of(context).extension<AppMenuMetrics>() ??
         AppMenuMetrics.create(compactMenus: false);
     final computed = calculateAppMenuPreferredWidth(metrics, widget.entries);
     return max(computed, widget.menuMinWidth ?? 0.0);
@@ -106,7 +108,8 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
             anchorContext: anchorContext,
             entries: widget.entries,
             initialValue: widget.value,
-            searchHint: widget.decoration?.hintText ??
+            searchHint:
+                widget.decoration?.hintText ??
                 widget.decoration?.labelText ??
                 'חיפוש',
             filterLabels: widget.filterLabels,
@@ -144,13 +147,16 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveEnabled = widget.enabled &&
+    final effectiveEnabled =
+        widget.enabled &&
         widget.onSelected != null &&
         widget.entries.isNotEmpty;
 
     final selectedEntry = _selectedEntry;
-    final customLabelWidget =
-        widget.selectedBuilder?.call(context, widget.value);
+    final customLabelWidget = widget.selectedBuilder?.call(
+      context,
+      widget.value,
+    );
 
     final content = Row(
       mainAxisSize: MainAxisSize.min,
@@ -161,7 +167,8 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
           const SizedBox(width: 8),
         ],
         Flexible(
-          child: customLabelWidget ??
+          child:
+              customLabelWidget ??
               Text(
                 _selectedLabel,
                 maxLines: 1,

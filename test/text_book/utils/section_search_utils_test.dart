@@ -318,9 +318,13 @@ void main() {
       expect(results, isEmpty);
     });
 
-    test('רצפי-ציטוט משורשרים בסימנים (רמב' 'ְ"ם) — טוקן אחד', () async {
+    test('רצפי-ציטוט משורשרים בסימנים (רמב'
+        'ְ"ם) — טוקן אחד', () async {
       final results = await searchInContent(
-        content: ['דף עם רמב' 'ְ"ם בתוכו'],
+        content: [
+          'דף עם רמב'
+              'ְ"ם בתוכו',
+        ],
         query: 'רמב',
         patternSource: literalPatternSource('רמב'),
       );
@@ -411,7 +415,8 @@ void main() {
   });
 
   group('queryMatchesInlineNoteOnly', () {
-    const noteLine = 'שלום עולם '
+    const noteLine =
+        'שלום עולם '
         '<sup class="footnote-marker">1</sup>'
         '<i class="footnote">כאן מופיע דין מיוחד</i>';
 
@@ -471,7 +476,8 @@ void main() {
     });
 
     test('מונח מנוקד מול הערה — מתעלם מניקוד', () {
-      const vocalized = 'פתיחה '
+      const vocalized =
+          'פתיחה '
           '<sup class="footnote-marker">2</sup>'
           '<i class="footnote">אֱלֹהִים חיים</i>';
       expect(

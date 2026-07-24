@@ -9,52 +9,52 @@ enum SearchMode {
 
 extension SearchModePresentation on SearchMode {
   String get shortLabel => switch (this) {
-        SearchMode.advanced => 'מתקדם',
-        SearchMode.exact => 'מדויק',
-        SearchMode.fuzzy => 'מקורב',
-      };
+    SearchMode.advanced => 'מתקדם',
+    SearchMode.exact => 'מדויק',
+    SearchMode.fuzzy => 'מקורב',
+  };
 
   String get tooltip => switch (this) {
-        SearchMode.advanced =>
-          'חיפוש מתקדם מאפשר קידומות, סיומות, מילים חילופיות ומרווחים בין מילים.',
-        SearchMode.exact =>
-          'חיפוש מדויק מחפש את המילים כפי שהוקלדו, בלי התאמות מקורבות.',
-        SearchMode.fuzzy =>
-          'חיפוש מקורב מרשה התאמות דומות ושיבושי כתיב קלים לפי מרחק החיפוש.',
-      };
+    SearchMode.advanced =>
+      'חיפוש מתקדם מאפשר קידומות, סיומות, מילים חילופיות ומרווחים בין מילים.',
+    SearchMode.exact =>
+      'חיפוש מדויק מחפש את המילים כפי שהוקלדו, בלי התאמות מקורבות.',
+    SearchMode.fuzzy =>
+      'חיפוש מקורב מרשה התאמות דומות ושיבושי כתיב קלים לפי מרחק החיפוש.',
+  };
 }
 
 extension SearchScopePresentation on SearchScope {
   String get label => switch (this) {
-        SearchScope.wordDistance => 'מרווח בין מילים',
-        SearchScope.sameParagraph => 'באותה פסקה',
-        SearchScope.sameSection => 'תחת אותה כותרת',
-      };
+    SearchScope.wordDistance => 'מרווח בין מילים',
+    SearchScope.sameParagraph => 'באותה פסקה',
+    SearchScope.sameSection => 'תחת אותה כותרת',
+  };
 
   String get tooltip => switch (this) {
-        SearchScope.wordDistance =>
-          'המילים מופיעות לפי הסדר, עם מגבלת מילים ביניהן.',
-        SearchScope.sameParagraph =>
-          'כל מילות החיפוש נמצאות באותה פסקה, בכל סדר ובכל מרחק.',
-        SearchScope.sameSection =>
-          'כל מילות החיפוש נמצאות תחת אותה כותרת (סעיף/פרק), גם בפסקאות שונות.',
-      };
+    SearchScope.wordDistance =>
+      'המילים מופיעות לפי הסדר, עם מגבלת מילים ביניהן.',
+    SearchScope.sameParagraph =>
+      'כל מילות החיפוש נמצאות באותה פסקה, בכל סדר ובכל מרחק.',
+    SearchScope.sameSection =>
+      'כל מילות החיפוש נמצאות תחת אותה כותרת (סעיף/פרק), גם בפסקאות שונות.',
+  };
 }
 
 extension WordMatchModePresentation on WordMatchMode {
   String get label => switch (this) {
-        WordMatchMode.all => 'כל המילים',
-        WordMatchMode.anyWord => 'מילה אחת לפחות',
-        WordMatchMode.mostWords => 'רוב המילים',
-        WordMatchMode.atLeast => 'לפחות X מילים',
-      };
+    WordMatchMode.all => 'כל המילים',
+    WordMatchMode.anyWord => 'מילה אחת לפחות',
+    WordMatchMode.mostWords => 'רוב המילים',
+    WordMatchMode.atLeast => 'לפחות X מילים',
+  };
 
   String get tooltip => switch (this) {
-        WordMatchMode.all => 'כל מילות החיפוש חייבות להופיע (ברירת המחדל).',
-        WordMatchMode.anyWord => 'די בהופעה של מילה אחת ממילות החיפוש.',
-        WordMatchMode.mostWords => 'רוב מילות החיפוש מופיעות (יותר ממחצית).',
-        WordMatchMode.atLeast => 'לפחות מספר מילים שתבחר מופיעות בתוצאה.',
-      };
+    WordMatchMode.all => 'כל מילות החיפוש חייבות להופיע (ברירת המחדל).',
+    WordMatchMode.anyWord => 'די בהופעה של מילה אחת ממילות החיפוש.',
+    WordMatchMode.mostWords => 'רוב מילות החיפוש מופיעות (יותר ממחצית).',
+    WordMatchMode.atLeast => 'לפחות מספר מילים שתבחר מופיעות בתוצאה.',
+  };
 }
 
 /// מצב איחוד תוצאות (עטיפת אפליקציה ל-[ResultGrouping] של המנוע,
@@ -67,25 +67,25 @@ enum ResultGroupingMode {
 
 extension ResultGroupingModePresentation on ResultGroupingMode {
   String get label => switch (this) {
-        ResultGroupingMode.none => 'ללא איחוד',
-        ResultGroupingMode.sameSection => 'לפי טווח (סעיף)',
-        ResultGroupingMode.identicalText => 'טקסט זהה',
-      };
+    ResultGroupingMode.none => 'ללא איחוד',
+    ResultGroupingMode.sameSection => 'לפי טווח (סעיף)',
+    ResultGroupingMode.identicalText => 'טקסט זהה',
+  };
 
   String get tooltip => switch (this) {
-        ResultGroupingMode.none => 'כל תוצאה מוצגת בנפרד.',
-        ResultGroupingMode.sameSection =>
-          'תוצאות מאותו סעיף (תחת אותה כותרת) מתאחדות לכרטיס אחד עם מונה.',
-        ResultGroupingMode.identicalText =>
-          'קטעים זהים שמופיעים בכמה ספרים מתאחדים לתוצאה אחת.',
-      };
+    ResultGroupingMode.none => 'כל תוצאה מוצגת בנפרד.',
+    ResultGroupingMode.sameSection =>
+      'תוצאות מאותו סעיף (תחת אותה כותרת) מתאחדות לכרטיס אחד עם מונה.',
+    ResultGroupingMode.identicalText =>
+      'קטעים זהים שמופיעים בכמה ספרים מתאחדים לתוצאה אחת.',
+  };
 
   /// ערך המנוע המקביל; null במצב "ללא".
   ResultGrouping? get engineGrouping => switch (this) {
-        ResultGroupingMode.none => null,
-        ResultGroupingMode.sameSection => ResultGrouping.sameSection,
-        ResultGroupingMode.identicalText => ResultGrouping.identicalText,
-      };
+    ResultGroupingMode.none => null,
+    ResultGroupingMode.sameSection => ResultGrouping.sameSection,
+    ResultGroupingMode.identicalText => ResultGrouping.identicalText,
+  };
 }
 
 /// מחלקה שמרכזת את כל הגדרות החיפוש במקום אחד
@@ -217,18 +217,33 @@ class SearchConfiguration {
     return SearchConfiguration(
       distance: map['distance'] ?? 0,
       proximityScope: enumFrom(
-          SearchScope.values, map['proximityScope'], SearchScope.wordDistance),
-      searchMode:
-          enumFrom(SearchMode.values, map['searchMode'], SearchMode.advanced),
-      sortBy:
-          enumFrom(ResultsOrder.values, map['sortBy'], ResultsOrder.catalogue),
+        SearchScope.values,
+        map['proximityScope'],
+        SearchScope.wordDistance,
+      ),
+      searchMode: enumFrom(
+        SearchMode.values,
+        map['searchMode'],
+        SearchMode.advanced,
+      ),
+      sortBy: enumFrom(
+        ResultsOrder.values,
+        map['sortBy'],
+        ResultsOrder.catalogue,
+      ),
       numResults: map['numResults'] ?? 100,
       currentFacets: List<String>.from(map['currentFacets'] ?? ["/"]),
       searchScopeFacets: List<String>.from(map['searchScopeFacets'] ?? ["/"]),
-      resultGrouping: enumFrom(ResultGroupingMode.values, map['resultGrouping'],
-          ResultGroupingMode.none),
+      resultGrouping: enumFrom(
+        ResultGroupingMode.values,
+        map['resultGrouping'],
+        ResultGroupingMode.none,
+      ),
       wordMatchMode: enumFrom(
-          WordMatchMode.values, map['wordMatchMode'], WordMatchMode.all),
+        WordMatchMode.values,
+        map['wordMatchMode'],
+        WordMatchMode.all,
+      ),
       wordMatchCount: switch (map['wordMatchCount']) {
         final int count when count >= 1 => count,
         _ => 2,

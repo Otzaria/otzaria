@@ -12,25 +12,25 @@ enum RetentionProfile {
   keepAll;
 
   static RetentionProfile fromName(String? name) => switch (name) {
-        'economy' => RetentionProfile.economy,
-        'keepAll' => RetentionProfile.keepAll,
-        _ => RetentionProfile.balanced,
-      };
+    'economy' => RetentionProfile.economy,
+    'keepAll' => RetentionProfile.keepAll,
+    _ => RetentionProfile.balanced,
+  };
 
   Duration get dailyWindow => switch (this) {
-        RetentionProfile.economy => const Duration(days: 3),
-        _ => const Duration(days: 7),
-      };
+    RetentionProfile.economy => const Duration(days: 3),
+    _ => const Duration(days: 7),
+  };
 
   Duration get weeklyWindow => switch (this) {
-        RetentionProfile.economy => const Duration(days: 30),
-        _ => const Duration(days: 60),
-      };
+    RetentionProfile.economy => const Duration(days: 30),
+    _ => const Duration(days: 60),
+  };
 
   Duration get monthlyWindow => switch (this) {
-        RetentionProfile.economy => const Duration(days: 90),
-        _ => const Duration(days: 365),
-      };
+    RetentionProfile.economy => const Duration(days: 90),
+    _ => const Duration(days: 365),
+  };
 }
 
 /// תיאור קובץ גיבוי לצורך החלטת רוטציה.
@@ -95,7 +95,7 @@ class BackupRotation {
   static String _weekKey(DateTime t) {
     final daysSinceEpoch =
         DateTime.utc(t.year, t.month, t.day).millisecondsSinceEpoch ~/
-            Duration.millisecondsPerDay;
+        Duration.millisecondsPerDay;
     // 1970-01-01 היה יום חמישי; הסטה של 3 מיישרת את תחילת השבוע ליום שני.
     return ((daysSinceEpoch + 3) ~/ 7).toString();
   }

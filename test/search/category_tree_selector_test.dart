@@ -93,8 +93,9 @@ Future<void> main() async {
       expect(lastSelection, isNull);
     }, skip: !engineReady);
 
-    testWidgets('כיבוי חיפוש בכל הקטגוריות מפיץ scope ידני ריק',
-        (tester) async {
+    testWidgets('כיבוי חיפוש בכל הקטגוריות מפיץ scope ידני ריק', (
+      tester,
+    ) async {
       final emittedSelections = <Set<String>>[];
 
       await tester.pumpWidget(
@@ -122,8 +123,9 @@ Future<void> main() async {
       expect(emittedSelections.last, isEmpty);
     }, skip: !engineReady);
 
-    testWidgets('האתחול לא מפעיל setState בזמן build אצל הווידג׳ט ההורה',
-        (tester) async {
+    testWidgets('האתחול לא מפעיל setState בזמן build אצל הווידג׳ט ההורה', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -142,123 +144,129 @@ Future<void> main() async {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('איפוס בחירה ידנית משאיר את הסוויץ׳ כבוי ושומר מצב ידני ריק',
-        (tester) async {
-      final emittedSelections = <Set<String>>[];
+    testWidgets(
+      'איפוס בחירה ידנית משאיר את הסוויץ׳ כבוי ושומר מצב ידני ריק',
+      (tester) async {
+        final emittedSelections = <Set<String>>[];
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: BlocProvider(
-              create: (_) => LibraryBloc(),
-              child: SearchScopeSelector(
-                selectedFacets: const {'/תנ״ך'},
-                onSelectionChanged: (selection) {
-                  emittedSelections.add(selection);
-                },
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: BlocProvider(
+                create: (_) => LibraryBloc(),
+                child: SearchScopeSelector(
+                  selectedFacets: const {'/תנ״ך'},
+                  onSelectionChanged: (selection) {
+                    emittedSelections.add(selection);
+                  },
+                ),
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      await tester.pumpAndSettle();
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('איפוס בחירה'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('איפוס בחירה'));
+        await tester.pumpAndSettle();
 
-      expect(emittedSelections, isNotEmpty);
-      expect(emittedSelections.last, isEmpty);
+        expect(emittedSelections, isNotEmpty);
+        expect(emittedSelections.last, isEmpty);
 
-      final loaded = SearchScopePreferences.load();
-      expect(loaded.searchAllCategories, isFalse);
-      expect(loaded.manualFacets, isEmpty);
+        final loaded = SearchScopePreferences.load();
+        expect(loaded.searchAllCategories, isFalse);
+        expect(loaded.manualFacets, isEmpty);
 
-      final switchWidget = tester.widget<Switch>(find.byType(Switch));
-      expect(switchWidget.value, isFalse);
-    }, skip: !engineReady);
+        final switchWidget = tester.widget<Switch>(find.byType(Switch));
+        expect(switchWidget.value, isFalse);
+      },
+      skip: !engineReady,
+    );
 
     testWidgets(
-        'ביטול סימון תת-קטגוריה לא בוחר את כל הקטגוריות העליונות האחרות',
-        (tester) async {
-      // רגרסיה: כש"מדרש" מסומן וביטלנו סימון של "הלכה" (תת-קטגוריה שלו),
-      // הקוד הישן היה "מפוצץ" החל מהשורש ומוסיף את כל הקטגוריות העליונות
-      // האחרות (תנ"ך, משנה, בבלי) כאילו "/" הוא ה-facet המכסה - למרות שהוא
-      // לא היה בבחירה כלל. התוצאה הצפויה: רק "מדרש/אגדה" נשארת מסומנת.
+      'ביטול סימון תת-קטגוריה לא בוחר את כל הקטגוריות העליונות האחרות',
+      (tester) async {
+        // רגרסיה: כש"מדרש" מסומן וביטלנו סימון של "הלכה" (תת-קטגוריה שלו),
+        // הקוד הישן היה "מפוצץ" החל מהשורש ומוסיף את כל הקטגוריות העליונות
+        // האחרות (תנ"ך, משנה, בבלי) כאילו "/" הוא ה-facet המכסה - למרות שהוא
+        // לא היה בבחירה כלל. התוצאה הצפויה: רק "מדרש/אגדה" נשארת מסומנת.
 
-      final library = _buildLibraryWithMidrashChildren();
-      final libraryBloc = _MockLibraryBloc();
-      whenListen(
-        libraryBloc,
-        const Stream<LibraryState>.empty(),
-        initialState: LibraryState(
-          library: library,
-          isLoading: false,
-          currentCategory: library,
-        ),
-      );
-      addTearDown(libraryBloc.close);
+        final library = _buildLibraryWithMidrashChildren();
+        final libraryBloc = _MockLibraryBloc();
+        whenListen(
+          libraryBloc,
+          const Stream<LibraryState>.empty(),
+          initialState: LibraryState(
+            library: library,
+            isLoading: false,
+            currentCategory: library,
+          ),
+        );
+        addTearDown(libraryBloc.close);
 
-      var selection = <String>{'/מדרש'};
-      final emittedSelections = <Set<String>>[];
+        var selection = <String>{'/מדרש'};
+        final emittedSelections = <Set<String>>[];
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: BlocProvider<LibraryBloc>.value(
-              value: libraryBloc,
-              child: StatefulBuilder(
-                builder: (context, setState) {
-                  return CategoryTreeSelector(
-                    selectedFacets: selection,
-                    onSelectionChanged: (next) {
-                      setState(() {
-                        selection = next;
-                        emittedSelections.add(next);
-                      });
-                    },
-                  );
-                },
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: BlocProvider<LibraryBloc>.value(
+                value: libraryBloc,
+                child: StatefulBuilder(
+                  builder: (context, setState) {
+                    return CategoryTreeSelector(
+                      selectedFacets: selection,
+                      onSelectionChanged: (next) {
+                        setState(() {
+                          selection = next;
+                          emittedSelections.add(next);
+                        });
+                      },
+                    );
+                  },
+                ),
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      await tester.pumpAndSettle();
+        await tester.pumpAndSettle();
 
-      // הרחבת "מדרש" כדי לחשוף את תת-הקטגוריות
-      await tester.tap(find.text('מדרש'));
-      await tester.pumpAndSettle();
+        // הרחבת "מדרש" כדי לחשוף את תת-הקטגוריות
+        await tester.tap(find.text('מדרש'));
+        await tester.pumpAndSettle();
 
-      expect(find.text('הלכה'), findsOneWidget);
-      expect(find.text('אגדה'), findsOneWidget);
+        expect(find.text('הלכה'), findsOneWidget);
+        expect(find.text('אגדה'), findsOneWidget);
 
-      // לחיצה על ה-Checkbox של "הלכה" (כרגע מסומן ב-cascade מהאב "מדרש")
-      final halachaCheckbox = find.descendant(
-        of: find
-            .ancestor(of: find.text('הלכה'), matching: find.byType(Row))
-            .first,
-        matching: find.byType(Checkbox),
-      );
-      expect(halachaCheckbox, findsOneWidget);
+        // לחיצה על ה-Checkbox של "הלכה" (כרגע מסומן ב-cascade מהאב "מדרש")
+        final halachaCheckbox = find.descendant(
+          of: find
+              .ancestor(of: find.text('הלכה'), matching: find.byType(Row))
+              .first,
+          matching: find.byType(Checkbox),
+        );
+        expect(halachaCheckbox, findsOneWidget);
 
-      await tester.tap(halachaCheckbox);
-      await tester.pumpAndSettle();
+        await tester.tap(halachaCheckbox);
+        await tester.pumpAndSettle();
 
-      expect(emittedSelections, isNotEmpty);
-      final finalSelection = emittedSelections.last;
+        expect(emittedSelections, isNotEmpty);
+        final finalSelection = emittedSelections.last;
 
-      expect(
-        finalSelection,
-        equals({'/מדרש/אגדה'}),
-        reason: 'אחרי ביטול "הלכה", רק "אגדה" צריכה להישאר. הקטגוריות העליונות '
-            'האחרות לא היו מסומנות מלכתחילה ולכן לא היו אמורות לקפוץ לסימון.',
-      );
-      expect(finalSelection.contains('/תנ״ך'), isFalse);
-      expect(finalSelection.contains('/משנה'), isFalse);
-      expect(finalSelection.contains('/תלמוד בבלי'), isFalse);
-    }, skip: !engineReady);
+        expect(
+          finalSelection,
+          equals({'/מדרש/אגדה'}),
+          reason:
+              'אחרי ביטול "הלכה", רק "אגדה" צריכה להישאר. הקטגוריות העליונות '
+              'האחרות לא היו מסומנות מלכתחילה ולכן לא היו אמורות לקפוץ לסימון.',
+        );
+        expect(finalSelection.contains('/תנ״ך'), isFalse);
+        expect(finalSelection.contains('/משנה'), isFalse);
+        expect(finalSelection.contains('/תלמוד בבלי'), isFalse);
+      },
+      skip: !engineReady,
+    );
 
     testWidgets('מצב ידני ריק נשמר גם אחרי rebuild של ההורה', (tester) async {
       await tester.pumpWidget(

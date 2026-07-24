@@ -27,8 +27,10 @@ class PluginWebView2MissingView extends StatelessWidget {
     // קוראים ישירות ל-launchUrl (ללא canLaunchUrl) ובודקים את ערך ההחזרה:
     // canLaunchUrl עלול להחזיר false שקרי כשאין הצהרת <queries> מתאימה.
     try {
-      final launched =
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
       if (!launched) {
         UiSnack.showError(PluginMessages.downloadLinkOpenFailed);
       }

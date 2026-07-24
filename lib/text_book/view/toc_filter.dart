@@ -41,7 +41,8 @@ bool _matchesEntryOrDescendants(
 }) {
   final isBookTitle = _isBookTitle(entry, depth, index, isFirstEntry);
   final entryText = normalizeFindText(entry.text);
-  final selfMatches = !isBookTitle &&
+  final selfMatches =
+      !isBookTitle &&
       findNormalizedTextMatches(
         normalizedQuery: query,
         normalizedPrimaryText: entryText,
@@ -77,7 +78,8 @@ List<TocEntry> _buildFilteredEntries(
     final entry = entries[i];
     final isBookTitle = _isBookTitle(entry, depth, i, isFirstEntry);
     final entryText = normalizeFindText(entry.text);
-    final selfMatches = !isBookTitle &&
+    final selfMatches =
+        !isBookTitle &&
         findNormalizedTextMatches(
           normalizedQuery: query,
           normalizedPrimaryText: entryText,
@@ -128,8 +130,10 @@ List<TocEntry> _sortEntriesByRelevance(
       // length-delta רלוונטי רק לערכים שתאמו בעצמם; ערכי-אב שנכללו בגלל
       // צאצא בלבד (rank 6) חייבים לשמור על סדר הספר ולא להידרג לפי אורך.
       if (rankA < 6) {
-        final lengthCompare =
-            _matchLengthDelta(a, query).compareTo(_matchLengthDelta(b, query));
+        final lengthCompare = _matchLengthDelta(
+          a,
+          query,
+        ).compareTo(_matchLengthDelta(b, query));
         if (lengthCompare != 0) return lengthCompare;
       }
 

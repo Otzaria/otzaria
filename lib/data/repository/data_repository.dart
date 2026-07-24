@@ -86,10 +86,16 @@ class DataRepository {
   ///   - [title]: The title of the book to retrieve
   ///
   /// Returns a [Future] that completes with the book's text content as a [String]
-  Future<String> getBookText(String title,
-      {int? categoryId, String? fileType}) async {
-    return _fileSystemData.getBookText(title,
-        categoryId: categoryId, fileType: fileType);
+  Future<String> getBookText(
+    String title, {
+    int? categoryId,
+    String? fileType,
+  }) async {
+    return _fileSystemData.getBookText(
+      title,
+      categoryId: categoryId,
+      fileType: fileType,
+    );
   }
 
   /// Retrieves the table of contents for a specific book
@@ -99,10 +105,16 @@ class DataRepository {
   ///
   /// Returns a [Future] that completes with a list of [TocEntry] objects
   /// representing the book's table of contents structure
-  Future<List<TocEntry>> getBookToc(String title,
-      {int? categoryId, String? fileType}) async {
-    return _fileSystemData.getBookToc(title,
-        categoryId: categoryId, fileType: fileType);
+  Future<List<TocEntry>> getBookToc(
+    String title, {
+    int? categoryId,
+    String? fileType,
+  }) async {
+    return _fileSystemData.getBookToc(
+      title,
+      categoryId: categoryId,
+      fileType: fileType,
+    );
   }
 
   /// Searches for references by relevance to a given reference string
@@ -321,32 +333,33 @@ List<int> filterBookSearchEntries({
   }).toList();
 
   if (sortByRatio) {
-    final scored = [
-      for (final entry in filtered)
-        _ScoredBookSearchEntry(
-          index: entry.index,
-          // שכבות עדיפות שאינן חופפות (כותרת מדויקת > מכילה > כינוי > fuzzy).
-          // התאמה מדויקת קודמת לדור כדי שספר יסוד נטול-דור ('קידושין') לא ייקבר
-          // מתחת לפירושים מתוארכים. בתוך כל שכבה: דור ואז ratio.
-          tier: entry.normalizedTitle == normalizedQuery
-              ? 3
-              : entry.normalizedTitle.contains(normalizedQuery)
+    final scored =
+        [
+          for (final entry in filtered)
+            _ScoredBookSearchEntry(
+              index: entry.index,
+              // שכבות עדיפות שאינן חופפות (כותרת מדויקת > מכילה > כינוי > fuzzy).
+              // התאמה מדויקת קודמת לדור כדי שספר יסוד נטול-דור ('קידושין') לא ייקבר
+              // מתחת לפירושים מתוארכים. בתוך כל שכבה: דור ואז ratio.
+              tier: entry.normalizedTitle == normalizedQuery
+                  ? 3
+                  : entry.normalizedTitle.contains(normalizedQuery)
                   ? 2
                   : entry.acronyms.any((a) => a.contains(normalizedQuery))
-                      ? 1
-                      : 0,
-          eraOrder: entry.eraOrder,
-          isUserBook: entry.isUserBook,
-          ratio: ratio(normalizedQuery, entry.normalizedTitle),
-        ),
-    ]..sort((a, b) {
-        if (a.tier != b.tier) return b.tier.compareTo(a.tier);
-        if (a.eraOrder != b.eraOrder) return a.eraOrder.compareTo(b.eraOrder);
-        // בתוך אותו דור — ספרים אישיים תמיד אחרונים.
-        if (a.isUserBook != b.isUserBook) return a.isUserBook ? 1 : -1;
-        if (a.ratio != b.ratio) return b.ratio.compareTo(a.ratio);
-        return a.index.compareTo(b.index);
-      });
+                  ? 1
+                  : 0,
+              eraOrder: entry.eraOrder,
+              isUserBook: entry.isUserBook,
+              ratio: ratio(normalizedQuery, entry.normalizedTitle),
+            ),
+        ]..sort((a, b) {
+          if (a.tier != b.tier) return b.tier.compareTo(a.tier);
+          if (a.eraOrder != b.eraOrder) return a.eraOrder.compareTo(b.eraOrder);
+          // בתוך אותו דור — ספרים אישיים תמיד אחרונים.
+          if (a.isUserBook != b.isUserBook) return a.isUserBook ? 1 : -1;
+          if (a.ratio != b.ratio) return b.ratio.compareTo(a.ratio);
+          return a.index.compareTo(b.index);
+        });
 
     return [
       for (final entry in scored) entry.index,
@@ -461,7 +474,8 @@ bool _wordPairMatches(String queryWord, String textWord) {
   if (queryWord.length < 3) return false;
 
   final allowed = _maxAllowedEdits(
-      queryWord.length > textWord.length ? queryWord.length : textWord.length);
+    queryWord.length > textWord.length ? queryWord.length : textWord.length,
+  );
   // שוויון מלא כבר כוסה ע"י contains
   if (allowed == 0) return false;
   // הפרש האורכים הוא חסם תחתון למרחק העריכה

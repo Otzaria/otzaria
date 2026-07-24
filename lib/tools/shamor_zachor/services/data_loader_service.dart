@@ -7,8 +7,9 @@ import '../models/book_model.dart';
 class DataLoaderService {
   Map<String, BookCategory>? _cachedData;
 
-  DataLoaderService(
-      {String? assetsBasePath}); // Constructor preserved for compatibility
+  DataLoaderService({
+    String? assetsBasePath,
+  }); // Constructor preserved for compatibility
 
   /// Clear the cached data
   void clearCache() {

@@ -50,8 +50,10 @@ GenerateResult generateSettingsSearchIndex(Directory packageRoot) {
   final packageName = _readPackageName(packageRoot);
 
   final declarations = <_FoundDecl>[];
-  for (final entity
-      in settingsRoot.listSync(recursive: true, followLinks: false)) {
+  for (final entity in settingsRoot.listSync(
+    recursive: true,
+    followLinks: false,
+  )) {
     if (entity is! File) continue;
     if (!entity.path.endsWith('.dart')) continue;
     if (entity.path.endsWith('.g.dart')) continue;
@@ -84,10 +86,12 @@ GenerateResult generateSettingsSearchIndex(Directory packageRoot) {
     ..writeln('//')
     ..writeln('// אינדקס חיפוש מאוחד של ההגדרות. נוצר אוטומטית מתוך')
     ..writeln(
-        '// הצהרות `static const searchEntries` בקבצים תחת lib/settings/.')
+      '// הצהרות `static const searchEntries` בקבצים תחת lib/settings/.',
+    )
     ..writeln('')
     ..writeln(
-        "import 'package:$packageName/settings/search/settings_search_models.dart';");
+      "import 'package:$packageName/settings/search/settings_search_models.dart';",
+    );
   for (final imp in sortedImports) {
     buffer.writeln("import '$imp';");
   }
@@ -95,7 +99,8 @@ GenerateResult generateSettingsSearchIndex(Directory packageRoot) {
     ..writeln('')
     ..writeln('/// כל פריטי החיפוש שנאספו מהטאבים והפנלים.')
     ..writeln(
-        'const List<SettingsSearchEntry> kGeneratedSettingsSearchEntries = [');
+      'const List<SettingsSearchEntry> kGeneratedSettingsSearchEntries = [',
+    );
   for (final line in spreads) {
     buffer.writeln(line);
   }
@@ -132,8 +137,10 @@ String _readPackageName(Directory packageRoot) {
   if (!pubspec.existsSync()) {
     throw StateError('pubspec.yaml not found at: ${pubspec.path}');
   }
-  final match = RegExp(r'^name:\s*([A-Za-z_][A-Za-z0-9_]*)', multiLine: true)
-      .firstMatch(pubspec.readAsStringSync());
+  final match = RegExp(
+    r'^name:\s*([A-Za-z_][A-Za-z0-9_]*)',
+    multiLine: true,
+  ).firstMatch(pubspec.readAsStringSync());
   if (match == null) {
     throw StateError('Could not parse package name from ${pubspec.path}');
   }
@@ -152,7 +159,10 @@ String _relativeToPackage(File file, Directory packageRoot) {
 }
 
 List<_FoundDecl> _findDeclarations(
-    String content, String relPath, String packageName) {
+  String content,
+  String relPath,
+  String packageName,
+) {
   // הסר מחרוזות והערות לפני סריקה, כדי שאיזון הסוגריים יהיה מהימן
   // ולא יוטעה על-ידי `}` או `{` בתוך מחרוזת/הערה.
   final cleaned = _stripStringsAndComments(content);
@@ -181,14 +191,17 @@ List<_FoundDecl> _findDeclarations(
     final tabValue = tabMatch?.group(1) ?? 'zzz';
 
     final libIndex = relPath.indexOf('lib/');
-    final libRelPath =
-        libIndex >= 0 ? relPath.substring(libIndex + 'lib/'.length) : relPath;
+    final libRelPath = libIndex >= 0
+        ? relPath.substring(libIndex + 'lib/'.length)
+        : relPath;
 
-    results.add(_FoundDecl(
-      className: className,
-      importPath: 'package:$packageName/$libRelPath',
-      tabValue: tabValue,
-    ));
+    results.add(
+      _FoundDecl(
+        className: className,
+        importPath: 'package:$packageName/$libRelPath',
+        tabValue: tabValue,
+      ),
+    );
   }
 
   return results;
@@ -228,7 +241,8 @@ String _stripStringsAndComments(String src) {
     if (c == "'" || c == '"' || (c == 'r' && (c2 == '"' || c2 == "'"))) {
       var idx = (c == 'r') ? i + 1 : i;
       final quote = src[idx];
-      final isTriple = idx + 2 < src.length &&
+      final isTriple =
+          idx + 2 < src.length &&
           src[idx + 1] == quote &&
           src[idx + 2] == quote;
       // העתק את התווים שלפני המרכאות (במקרה raw — 'r')

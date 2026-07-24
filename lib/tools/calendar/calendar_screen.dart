@@ -60,15 +60,17 @@ class CalendarWidgetState extends State<CalendarWidget> {
     super.initState();
     _keyboardFocusNode = FocusNode(skipTraversal: true, canRequestFocus: true);
     _keyboardFocusNode.addListener(_onFocusChange);
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _requestFocusIfNeeded());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _requestFocusIfNeeded(),
+    );
   }
 
   @override
   void didUpdateWidget(CalendarWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _requestFocusIfNeeded());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _requestFocusIfNeeded(),
+    );
   }
 
   void _onFocusChange() {
@@ -134,13 +136,15 @@ class CalendarWidgetState extends State<CalendarWidget> {
         _currentPressedKey = key;
         _keyRepeatTimer?.cancel();
         _keyRepeatTimer = Timer(const Duration(milliseconds: 400), () {
-          _keyRepeatTimer =
-              Timer.periodic(const Duration(milliseconds: 80), (timer) {
+          _keyRepeatTimer = Timer.periodic(const Duration(milliseconds: 80), (
+            timer,
+          ) {
             final pressedKey = _currentPressedKey;
             if (pressedKey != null &&
                 mounted &&
-                HardwareKeyboard.instance.logicalKeysPressed
-                    .contains(pressedKey)) {
+                HardwareKeyboard.instance.logicalKeysPressed.contains(
+                  pressedKey,
+                )) {
               _executeNavigationAction(pressedKey, cubit);
             } else {
               _stopKeyRepeat();
@@ -234,16 +238,18 @@ class CalendarWidgetState extends State<CalendarWidget> {
   void _navigateMonth(BuildContext context, {required bool forward}) {
     final cubit = context.read<CalendarCubit>();
     final newDate = shiftGregorianMonthPreservingDay(
-        cubit.state.selectedGregorianDate,
-        forward: forward);
+      cubit.state.selectedGregorianDate,
+      forward: forward,
+    );
     cubit.jumpToDate(newDate);
   }
 
   void _navigateYear(BuildContext context, {required bool forward}) {
     final cubit = context.read<CalendarCubit>();
     final current = cubit.state.selectedGregorianDate;
-    cubit.jumpToDate(DateTime(
-        current.year + (forward ? 1 : -1), current.month, current.day));
+    cubit.jumpToDate(
+      DateTime(current.year + (forward ? 1 : -1), current.month, current.day),
+    );
   }
 
   void _toggleSidebar(BuildContext context, bool isMobile) {
@@ -430,8 +436,10 @@ class CalendarWidgetState extends State<CalendarWidget> {
                       constraints.maxWidth < LayoutBreakpoints.compact;
                   final hasRoomForSideBySide =
                       constraints.maxWidth >= kSideBySideMinWidth;
-                  _syncSidebarVisibilityForWidth(hasRoomForSideBySide,
-                      isMobile: isMobile);
+                  _syncSidebarVisibilityForWidth(
+                    hasRoomForSideBySide,
+                    isMobile: isMobile,
+                  );
                   return Scaffold(
                     backgroundColor: Colors.transparent,
                     // ── גוף: Topbar + תוכן ──────────────────────────────
@@ -497,8 +505,12 @@ class CalendarWidgetState extends State<CalendarWidget> {
           mainContent: CalendarMainPanel(
             state: state,
             onCreateEvent: ({existingEvent, specificDate}) =>
-                _showCreateEventDialog(context, state,
-                    existingEvent: existingEvent, specificDate: specificDate),
+                _showCreateEventDialog(
+                  context,
+                  state,
+                  existingEvent: existingEvent,
+                  specificDate: specificDate,
+                ),
           ),
           paneContent: _buildSidePanel(context, state),
           paneWidth: _sidePanelWidth,
@@ -566,9 +578,12 @@ class CalendarWidgetState extends State<CalendarWidget> {
               child: CalendarMainPanel(
                 state: state,
                 onCreateEvent: ({existingEvent, specificDate}) =>
-                    _showCreateEventDialog(context, state,
-                        existingEvent: existingEvent,
-                        specificDate: specificDate),
+                    _showCreateEventDialog(
+                      context,
+                      state,
+                      existingEvent: existingEvent,
+                      specificDate: specificDate,
+                    ),
               ),
             ),
             if (_isSidebarVisible) ...[
@@ -580,8 +595,10 @@ class CalendarWidgetState extends State<CalendarWidget> {
               Expanded(
                 flex: 2,
                 child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 8,
+                  ),
                   child: _buildSidePanel(context, state),
                 ),
               ),
@@ -600,9 +617,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
                   children: [
                     Text(
                       'הגדרות',
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineMedium
+                      style: Theme.of(context).textTheme.headlineMedium
                           ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                   ],
@@ -618,8 +633,10 @@ class CalendarWidgetState extends State<CalendarWidget> {
     );
   }
 
-  void _syncSidebarVisibilityForWidth(bool hasRoomForSideBySide,
-      {required bool isMobile}) {
+  void _syncSidebarVisibilityForWidth(
+    bool hasRoomForSideBySide, {
+    required bool isMobile,
+  }) {
     final previousHasRoomForSideBySide = _lastHasRoomForSideBySide;
     _lastHasRoomForSideBySide = hasRoomForSideBySide;
 
@@ -705,8 +722,12 @@ class CalendarWidgetState extends State<CalendarWidget> {
       eventsPanel: CalendarEventsPanel(
         state: state,
         onCreateEvent: ({existingEvent, specificDate}) =>
-            _showCreateEventDialog(context, state,
-                existingEvent: existingEvent, specificDate: specificDate),
+            _showCreateEventDialog(
+              context,
+              state,
+              existingEvent: existingEvent,
+              specificDate: specificDate,
+            ),
       ),
     );
   }
@@ -744,20 +765,22 @@ class CalendarWidgetState extends State<CalendarWidget> {
       final cubit = context.read<CalendarCubit>();
       if (existingEvent != null) {
         final jd = JewishDate.fromDateTime(result.selectedDate);
-        cubit.updateEvent(existingEvent.copyWith(
-          title: result.title,
-          description: result.description,
-          baseGregorianDate: result.selectedDate,
-          baseJewishYear: jd.getJewishYear(),
-          baseJewishMonth: jd.getJewishMonth(),
-          baseJewishDay: jd.getJewishDayOfMonth(),
-          recurrenceType: result.recurrenceType,
-          recurringYears: result.recurringYears,
-          eventTime: result.eventTime,
-          endGregorianDate: () => result.endGregorianDate,
-          colorIndex: () => result.colorIndex,
-          notificationMinutes: result.notificationMinutes,
-        ));
+        cubit.updateEvent(
+          existingEvent.copyWith(
+            title: result.title,
+            description: result.description,
+            baseGregorianDate: result.selectedDate,
+            baseJewishYear: jd.getJewishYear(),
+            baseJewishMonth: jd.getJewishMonth(),
+            baseJewishDay: jd.getJewishDayOfMonth(),
+            recurrenceType: result.recurrenceType,
+            recurringYears: result.recurringYears,
+            eventTime: result.eventTime,
+            endGregorianDate: () => result.endGregorianDate,
+            colorIndex: () => result.colorIndex,
+            notificationMinutes: result.notificationMinutes,
+          ),
+        );
       } else {
         cubit.addEvent(
           title: result.title,

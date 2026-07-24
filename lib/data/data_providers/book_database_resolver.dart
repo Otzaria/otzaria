@@ -123,18 +123,22 @@ class BookDatabaseResolver {
     if (preferUserBooks) {
       final userBooksRepository = await _loadUserBooksRepositoryIfExists();
       if (userBooksRepository != null) {
-        candidates.add(ResolvedBookRepositoryCandidate(
-          repository: userBooksRepository,
-          isUserBooks: true,
-        ));
+        candidates.add(
+          ResolvedBookRepositoryCandidate(
+            repository: userBooksRepository,
+            isUserBooks: true,
+          ),
+        );
       }
     } else {
       final officialRepository = await _loadOfficialRepository();
       if (officialRepository != null) {
-        candidates.add(ResolvedBookRepositoryCandidate(
-          repository: officialRepository,
-          isUserBooks: false,
-        ));
+        candidates.add(
+          ResolvedBookRepositoryCandidate(
+            repository: officialRepository,
+            isUserBooks: false,
+          ),
+        );
       }
     }
 
@@ -153,7 +157,7 @@ class BookDatabaseResolver {
   }
 
   static Future<List<ResolvedBookRepositoryCandidate>>
-      loadRepositoryCandidates({
+  loadRepositoryCandidates({
     bool preferUserBooks = false,
   }) {
     return _loadRepositoryCandidates(preferUserBooks: preferUserBooks);
@@ -182,8 +186,9 @@ class BookDatabaseResolver {
       if (candidate.isUserBooks &&
           normalizedFilePath != null &&
           normalizedFilePath.isNotEmpty) {
-        final bookByPath =
-            await repository.getExternalBookByFilePath(normalizedFilePath);
+        final bookByPath = await repository.getExternalBookByFilePath(
+          normalizedFilePath,
+        );
         if (bookByPath != null) {
           return ResolvedDbBookRecord(
             book: bookByPath,
@@ -197,12 +202,12 @@ class BookDatabaseResolver {
           candidateCategoryId != null &&
           normalizedFileType != null &&
           normalizedFileType.isNotEmpty) {
-        final bookByCompositeKey =
-            await repository.getBookByTitleCategoryAndFileType(
-          title,
-          candidateCategoryId,
-          normalizedFileType,
-        );
+        final bookByCompositeKey = await repository
+            .getBookByTitleCategoryAndFileType(
+              title,
+              candidateCategoryId,
+              normalizedFileType,
+            );
         if (bookByCompositeKey != null) {
           return ResolvedDbBookRecord(
             book: bookByCompositeKey,
@@ -214,7 +219,9 @@ class BookDatabaseResolver {
 
       if (candidateCategoryId != null) {
         final bookByCategory = await repository.getBookByTitleAndCategory(
-            title, candidateCategoryId);
+          title,
+          candidateCategoryId,
+        );
         if (bookByCategory != null) {
           return ResolvedDbBookRecord(
             book: bookByCategory,
@@ -262,7 +269,7 @@ class BookDatabaseResolver {
   }
 
   static Future<List<ResolvedBookRepositoryCandidate>>
-      _loadRepositoryCandidates({
+  _loadRepositoryCandidates({
     required bool preferUserBooks,
   }) async {
     final candidates = <ResolvedBookRepositoryCandidate>[];
@@ -272,31 +279,39 @@ class BookDatabaseResolver {
 
     if (preferUserBooks) {
       if (userBooksRepository != null) {
-        candidates.add(ResolvedBookRepositoryCandidate(
-          repository: userBooksRepository,
-          isUserBooks: true,
-        ));
+        candidates.add(
+          ResolvedBookRepositoryCandidate(
+            repository: userBooksRepository,
+            isUserBooks: true,
+          ),
+        );
       }
       if (officialRepository != null) {
-        candidates.add(ResolvedBookRepositoryCandidate(
-          repository: officialRepository,
-          isUserBooks: false,
-        ));
+        candidates.add(
+          ResolvedBookRepositoryCandidate(
+            repository: officialRepository,
+            isUserBooks: false,
+          ),
+        );
       }
       return candidates;
     }
 
     if (officialRepository != null) {
-      candidates.add(ResolvedBookRepositoryCandidate(
-        repository: officialRepository,
-        isUserBooks: false,
-      ));
+      candidates.add(
+        ResolvedBookRepositoryCandidate(
+          repository: officialRepository,
+          isUserBooks: false,
+        ),
+      );
     }
     if (userBooksRepository != null) {
-      candidates.add(ResolvedBookRepositoryCandidate(
-        repository: userBooksRepository,
-        isUserBooks: true,
-      ));
+      candidates.add(
+        ResolvedBookRepositoryCandidate(
+          repository: userBooksRepository,
+          isUserBooks: true,
+        ),
+      );
     }
     return candidates;
   }

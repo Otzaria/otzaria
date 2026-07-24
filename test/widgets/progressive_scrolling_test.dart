@@ -71,8 +71,11 @@ void main() {
 
     final countAfterRelease = offsetController.offsets.length;
     await tester.pump(const Duration(seconds: 1));
-    expect(offsetController.offsets.length, countAfterRelease,
-        reason: 'אחרי שחרור המקש אסור שתימשך גלילה');
+    expect(
+      offsetController.offsets.length,
+      countAfterRelease,
+      reason: 'אחרי שחרור המקש אסור שתימשך גלילה',
+    );
   });
 
   testWidgets('איבוד פוקוס באמצע לחיצה עוצר את הגלילה', (tester) async {
@@ -89,8 +92,11 @@ void main() {
     final countAfterUnfocus = offsetController.offsets.length;
 
     await tester.pump(const Duration(seconds: 2));
-    expect(offsetController.offsets.length, countAfterUnfocus,
-        reason: 'איבוד פוקוס חייב לעצור את הגלילה גם בלי KeyUp');
+    expect(
+      offsetController.offsets.length,
+      countAfterUnfocus,
+      reason: 'איבוד פוקוס חייב לעצור את הגלילה גם בלי KeyUp',
+    );
 
     // ניקוי מצב המקלדת של סביבת הטסט (ה-widget כבר לא בפוקוס)
     await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);

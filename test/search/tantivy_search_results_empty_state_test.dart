@@ -30,8 +30,9 @@ class RecordingSearchBloc extends SearchBloc {
 }
 
 void main() {
-  testWidgets('מצב אין תוצאות מציג הנחיה מועילה למשתמש',
-      (WidgetTester tester) async {
+  testWidgets('מצב אין תוצאות מציג הנחיה מועילה למשתמש', (
+    WidgetTester tester,
+  ) async {
     final searchBloc = RecordingSearchBloc(
       const SearchState(
         searchQuery: 'בדיקה',
@@ -75,7 +76,8 @@ void main() {
     expect(find.text('אין תוצאות'), findsOneWidget);
     expect(
       find.text(
-          'נסה להרחיב קטגוריות, לשנות מצב חיפוש או לעדכן את מילות החיפוש.'),
+        'נסה להרחיב קטגוריות, לשנות מצב חיפוש או לעדכן את מילות החיפוש.',
+      ),
       findsOneWidget,
     );
   });

@@ -1,7 +1,8 @@
 class PluginManifest {
   /// תבנית של שם אייקון תקין: למשל `'book_24_regular'` או `'calendar_24_filled'`.
-  static final RegExp toolTabIconNamePattern =
-      RegExp(r'^[a-z0-9_]+_24_(regular|filled)$');
+  static final RegExp toolTabIconNamePattern = RegExp(
+    r'^[a-z0-9_]+_24_(regular|filled)$',
+  );
 
   final int schemaVersion;
   final String id;
@@ -91,12 +92,14 @@ class PluginManifest {
       minAppVersion: json['minAppVersion'] as String? ?? '0.0.0',
       maxAppVersion: json['maxAppVersion'] as String?,
       sdkVersion: json['sdkVersion'] as String? ?? '1.x',
-      permissions: (json['permissions'] as List<dynamic>?)
+      permissions:
+          (json['permissions'] as List<dynamic>?)
               ?.map((e) => e as String)
               .toList() ??
           [],
       networkEnabled: network['enabled'] as bool? ?? false,
-      networkAllowlist: (network['allowlist'] as List<dynamic>?)
+      networkAllowlist:
+          (network['allowlist'] as List<dynamic>?)
               ?.map((e) => e as String)
               .toList() ??
           [],
@@ -106,11 +109,13 @@ class PluginManifest {
           toolTab['allowOrderBeforeBuiltIns'] as bool? ?? false,
       defaultPinned: toolTab['defaultPinned'] as bool? ?? true,
       toolTabIconName: toolTab['iconName'] as String?,
-      publishedDataTypes: (contributes['publishedDataTypes'] as List<dynamic>?)
+      publishedDataTypes:
+          (contributes['publishedDataTypes'] as List<dynamic>?)
               ?.map((e) => e as String)
               .toList() ??
           [],
-      databaseSources: (contributes['databaseSources'] as List<dynamic>?)
+      databaseSources:
+          (contributes['databaseSources'] as List<dynamic>?)
               ?.map((e) => Map<String, dynamic>.from(e as Map))
               .toList() ??
           [],
@@ -148,7 +153,7 @@ class PluginManifest {
         'databaseSources': databaseSources,
         if (backgroundEntrypoint != null)
           'background': {'entrypoint': backgroundEntrypoint},
-      }
+      },
     };
   }
 }

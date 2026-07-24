@@ -83,8 +83,9 @@ Future<void> main() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
-  testWidgets('תפריט ההיסטוריה משתמש ברקע של הדיאלוג',
-      (WidgetTester tester) async {
+  testWidgets('תפריט ההיסטוריה משתמש ברקע של הדיאלוג', (
+    WidgetTester tester,
+  ) async {
     final historyBloc = MockHistoryBloc();
     final indexingBloc = MockIndexingBloc();
     final navigationBloc = MockNavigationBloc();
@@ -127,13 +128,15 @@ Future<void> main() async {
 
     await tester.binding.setSurfaceSize(const Size(1400, 900));
 
-    await tester.pumpWidget(_buildDialogHarness(
-      theme: theme,
-      historyBloc: historyBloc,
-      indexingBloc: indexingBloc,
-      navigationBloc: navigationBloc,
-      dialog: const SearchDialog(),
-    ));
+    await tester.pumpWidget(
+      _buildDialogHarness(
+        theme: theme,
+        historyBloc: historyBloc,
+        indexingBloc: indexingBloc,
+        navigationBloc: navigationBloc,
+        dialog: const SearchDialog(),
+      ),
+    );
 
     await tester.pumpAndSettle();
 
@@ -153,8 +156,9 @@ Future<void> main() async {
     expect(find.text('משה'), findsWidgets);
   });
 
-  testWidgets('בורר היקף החיפוש נשאר מוצג בכל סוגי החיפוש',
-      (WidgetTester tester) async {
+  testWidgets('בורר היקף החיפוש נשאר מוצג בכל סוגי החיפוש', (
+    WidgetTester tester,
+  ) async {
     final historyBloc = MockHistoryBloc();
     final indexingBloc = MockIndexingBloc();
     final navigationBloc = MockNavigationBloc();
@@ -187,13 +191,15 @@ Future<void> main() async {
     });
 
     await tester.binding.setSurfaceSize(const Size(1400, 900));
-    await tester.pumpWidget(_buildDialogHarness(
-      theme: theme,
-      historyBloc: historyBloc,
-      indexingBloc: indexingBloc,
-      navigationBloc: navigationBloc,
-      dialog: const SearchDialog(),
-    ));
+    await tester.pumpWidget(
+      _buildDialogHarness(
+        theme: theme,
+        historyBloc: historyBloc,
+        indexingBloc: indexingBloc,
+        navigationBloc: navigationBloc,
+        dialog: const SearchDialog(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byType(SearchScopeMenuButton), findsOneWidget);
@@ -208,72 +214,82 @@ Future<void> main() async {
   });
 
   testWidgets(
-      'פתיחה מחדש בתוך ספר: אפשרות פר-מילה משוחזרת מוצגת מסומנת במצב מתקדם',
-      (WidgetTester tester) async {
-    final historyBloc = MockHistoryBloc();
-    final indexingBloc = MockIndexingBloc();
-    final navigationBloc = MockNavigationBloc();
-    final theme = ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFB85C38)),
-    );
-    // מדמה את ה-tempTab שבונה מסך החיפוש בתוך הספר בפתיחה חוזרת: מפת פר-מילה
-    // עם האפשרות שנבחרה, ו-useGlobalSearchOptions=false (התיקון).
-    final tab = SearchingTab('חיפוש', 'חכמה');
-    tab.searchOptions.addAll({
-      'חכמה_0': {'קידומות דקדוקיות': true},
-    });
-    tab.useGlobalSearchOptions.value = false;
-    tab.searchBloc.add(SetSearchMode(SearchMode.advanced));
+    'פתיחה מחדש בתוך ספר: אפשרות פר-מילה משוחזרת מוצגת מסומנת במצב מתקדם',
+    (WidgetTester tester) async {
+      final historyBloc = MockHistoryBloc();
+      final indexingBloc = MockIndexingBloc();
+      final navigationBloc = MockNavigationBloc();
+      final theme = ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFB85C38)),
+      );
+      // מדמה את ה-tempTab שבונה מסך החיפוש בתוך הספר בפתיחה חוזרת: מפת פר-מילה
+      // עם האפשרות שנבחרה, ו-useGlobalSearchOptions=false (התיקון).
+      final tab = SearchingTab('חיפוש', 'חכמה');
+      tab.searchOptions.addAll({
+        'חכמה_0': {'קידומות דקדוקיות': true},
+      });
+      tab.useGlobalSearchOptions.value = false;
+      tab.searchBloc.add(SetSearchMode(SearchMode.advanced));
 
-    whenListen(
-      historyBloc,
-      const Stream<HistoryState>.empty(),
-      initialState: HistoryLoaded([]),
-    );
-    whenListen(
-      indexingBloc,
-      const Stream<IndexingState>.empty(),
-      initialState: IndexingInitial(),
-    );
-    whenListen(
-      navigationBloc,
-      const Stream<NavigationState>.empty(),
-      initialState: const NavigationState(currentScreen: Screen.search),
-    );
+      whenListen(
+        historyBloc,
+        const Stream<HistoryState>.empty(),
+        initialState: HistoryLoaded([]),
+      );
+      whenListen(
+        indexingBloc,
+        const Stream<IndexingState>.empty(),
+        initialState: IndexingInitial(),
+      );
+      whenListen(
+        navigationBloc,
+        const Stream<NavigationState>.empty(),
+        initialState: const NavigationState(currentScreen: Screen.search),
+      );
 
-    addTearDown(() async {
-      await tester.binding.setSurfaceSize(null);
-      tab.dispose();
-      await historyBloc.close();
-      await indexingBloc.close();
-      await navigationBloc.close();
-    });
+      addTearDown(() async {
+        await tester.binding.setSurfaceSize(null);
+        tab.dispose();
+        await historyBloc.close();
+        await indexingBloc.close();
+        await navigationBloc.close();
+      });
 
-    await tester.binding.setSurfaceSize(const Size(1400, 900));
-    await tester.pumpWidget(_buildDialogHarness(
-      theme: theme,
-      historyBloc: historyBloc,
-      indexingBloc: indexingBloc,
-      navigationBloc: navigationBloc,
-      dialog: SearchDialog(
-        existingTab: tab,
-        bookTitle: 'ספר',
-        returnResultOnSubmit: true,
-      ),
-    ));
-    await tester.pumpAndSettle();
+      await tester.binding.setSurfaceSize(const Size(1400, 900));
+      await tester.pumpWidget(
+        _buildDialogHarness(
+          theme: theme,
+          historyBloc: historyBloc,
+          indexingBloc: indexingBloc,
+          navigationBloc: navigationBloc,
+          dialog: SearchDialog(
+            existingTab: tab,
+            bookTitle: 'ספר',
+            returnResultOnSubmit: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    final chipFinder = find.byWidgetPredicate((widget) =>
-        widget is FilterChip &&
-        (widget.label as Text).data == 'קידומות דקדוקיות');
-    expect(chipFinder, findsOneWidget);
-    expect(tester.widget<FilterChip>(chipFinder).selected, isTrue,
-        reason: 'אפשרות פר-מילה משוחזרת חייבת להופיע מסומנת בפתיחה מחדש');
-  }, skip: !engineReady);
+      final chipFinder = find.byWidgetPredicate(
+        (widget) =>
+            widget is FilterChip &&
+            (widget.label as Text).data == 'קידומות דקדוקיות',
+      );
+      expect(chipFinder, findsOneWidget);
+      expect(
+        tester.widget<FilterChip>(chipFinder).selected,
+        isTrue,
+        reason: 'אפשרות פר-מילה משוחזרת חייבת להופיע מסומנת בפתיחה מחדש',
+      );
+    },
+    skip: !engineReady,
+  );
 
-  testWidgets('onSearch לא מעביר פרמטרים מתקדמים במצב exact',
-      (WidgetTester tester) async {
+  testWidgets('onSearch לא מעביר פרמטרים מתקדמים במצב exact', (
+    WidgetTester tester,
+  ) async {
     final historyBloc = MockHistoryBloc();
     final indexingBloc = MockIndexingBloc();
     final navigationBloc = MockNavigationBloc();
@@ -285,12 +301,12 @@ Future<void> main() async {
     // "קידומות דקדוקיות" נתמכת ברגיל ועוברת; "קידומות" הכללית בלעדית
     // למתקדם ומסוננת.
     tab.searchOptions.addAll({
-      'חכמה_0': {'קידומות דקדוקיות': true, 'קידומות': true}
+      'חכמה_0': {'קידומות דקדוקיות': true, 'קידומות': true},
     });
     // אפשרויות פר-מילה נלקחות בחשבון רק כשמצב האפשרויות אינו גלובלי
     tab.useGlobalSearchOptions.value = false;
     tab.alternativeWords.addAll({
-      0: ['דעת']
+      0: ['דעת'],
     });
     tab.spacingValues.addAll({'0-1': '5'});
     tab.searchBloc.add(SetSearchMode(SearchMode.exact));
@@ -325,28 +341,31 @@ Future<void> main() async {
     });
 
     await tester.binding.setSurfaceSize(const Size(1400, 900));
-    await tester.pumpWidget(_buildDialogHarness(
-      theme: theme,
-      historyBloc: historyBloc,
-      indexingBloc: indexingBloc,
-      navigationBloc: navigationBloc,
-      dialog: SearchDialog(
-        existingTab: tab,
-        onSearch: (
-          query,
-          searchOptions,
-          alternativeWords,
-          spacingValues,
-          searchMode,
-          distance,
-        ) {
-          capturedSearchOptions = searchOptions;
-          capturedAlternativeWords = alternativeWords;
-          capturedSpacingValues = spacingValues;
-          capturedSearchMode = searchMode;
-        },
+    await tester.pumpWidget(
+      _buildDialogHarness(
+        theme: theme,
+        historyBloc: historyBloc,
+        indexingBloc: indexingBloc,
+        navigationBloc: navigationBloc,
+        dialog: SearchDialog(
+          existingTab: tab,
+          onSearch:
+              (
+                query,
+                searchOptions,
+                alternativeWords,
+                spacingValues,
+                searchMode,
+                distance,
+              ) {
+                capturedSearchOptions = searchOptions;
+                capturedAlternativeWords = alternativeWords;
+                capturedSpacingValues = spacingValues;
+                capturedSearchMode = searchMode;
+              },
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.byTooltip('חפש'));
@@ -363,8 +382,9 @@ Future<void> main() async {
     expect(capturedSpacingValues, isEmpty);
   }, skip: !engineReady);
 
-  testWidgets('onSearch לא מעביר פרמטרים מתקדמים במצב fuzzy',
-      (WidgetTester tester) async {
+  testWidgets('onSearch לא מעביר פרמטרים מתקדמים במצב fuzzy', (
+    WidgetTester tester,
+  ) async {
     final historyBloc = MockHistoryBloc();
     final indexingBloc = MockIndexingBloc();
     final navigationBloc = MockNavigationBloc();
@@ -374,10 +394,10 @@ Future<void> main() async {
     );
     final tab = SearchingTab('חיפוש', 'חכמה בינה');
     tab.searchOptions.addAll({
-      'חכמה_0': {'קידומות': true}
+      'חכמה_0': {'קידומות': true},
     });
     tab.alternativeWords.addAll({
-      0: ['דעת']
+      0: ['דעת'],
     });
     tab.spacingValues.addAll({'0-1': '5'});
     tab.searchBloc.add(SetSearchMode(SearchMode.fuzzy));
@@ -412,28 +432,31 @@ Future<void> main() async {
     });
 
     await tester.binding.setSurfaceSize(const Size(1400, 900));
-    await tester.pumpWidget(_buildDialogHarness(
-      theme: theme,
-      historyBloc: historyBloc,
-      indexingBloc: indexingBloc,
-      navigationBloc: navigationBloc,
-      dialog: SearchDialog(
-        existingTab: tab,
-        onSearch: (
-          query,
-          searchOptions,
-          alternativeWords,
-          spacingValues,
-          searchMode,
-          distance,
-        ) {
-          capturedSearchOptions = searchOptions;
-          capturedAlternativeWords = alternativeWords;
-          capturedSpacingValues = spacingValues;
-          capturedSearchMode = searchMode;
-        },
+    await tester.pumpWidget(
+      _buildDialogHarness(
+        theme: theme,
+        historyBloc: historyBloc,
+        indexingBloc: indexingBloc,
+        navigationBloc: navigationBloc,
+        dialog: SearchDialog(
+          existingTab: tab,
+          onSearch:
+              (
+                query,
+                searchOptions,
+                alternativeWords,
+                spacingValues,
+                searchMode,
+                distance,
+              ) {
+                capturedSearchOptions = searchOptions;
+                capturedAlternativeWords = alternativeWords;
+                capturedSpacingValues = spacingValues;
+                capturedSearchMode = searchMode;
+              },
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.byTooltip('חפש'));
@@ -445,8 +468,9 @@ Future<void> main() async {
     expect(capturedSpacingValues, isEmpty);
   }, skip: !engineReady);
 
-  testWidgets('בדיאלוג צר בתוך ספר אין overflow כששדה המרחק מוצג',
-      (WidgetTester tester) async {
+  testWidgets('בדיאלוג צר בתוך ספר אין overflow כששדה המרחק מוצג', (
+    WidgetTester tester,
+  ) async {
     final historyBloc = MockHistoryBloc();
     final indexingBloc = MockIndexingBloc();
     final navigationBloc = MockNavigationBloc();
@@ -482,24 +506,27 @@ Future<void> main() async {
     });
 
     await tester.binding.setSurfaceSize(const Size(520, 740));
-    await tester.pumpWidget(_buildDialogHarness(
-      theme: theme,
-      historyBloc: historyBloc,
-      indexingBloc: indexingBloc,
-      navigationBloc: navigationBloc,
-      dialog: SearchDialog(
-        existingTab: tab,
-        bookTitle: 'ספר',
+    await tester.pumpWidget(
+      _buildDialogHarness(
+        theme: theme,
+        historyBloc: historyBloc,
+        indexingBloc: indexingBloc,
+        navigationBloc: navigationBloc,
+        dialog: SearchDialog(
+          existingTab: tab,
+          bookTitle: 'ספר',
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('מרווח בין מילים'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Enter בשדה מרווח בין מילים לא מפעיל onSearch',
-      (WidgetTester tester) async {
+  testWidgets('Enter בשדה מרווח בין מילים לא מפעיל onSearch', (
+    WidgetTester tester,
+  ) async {
     final historyBloc = MockHistoryBloc();
     final indexingBloc = MockIndexingBloc();
     final navigationBloc = MockNavigationBloc();
@@ -537,26 +564,29 @@ Future<void> main() async {
     });
 
     await tester.binding.setSurfaceSize(const Size(1400, 900));
-    await tester.pumpWidget(_buildDialogHarness(
-      theme: theme,
-      historyBloc: historyBloc,
-      indexingBloc: indexingBloc,
-      navigationBloc: navigationBloc,
-      dialog: SearchDialog(
-        existingTab: tab,
-        bookTitle: 'ספר',
-        onSearch: (
-          query,
-          searchOptions,
-          alternativeWords,
-          spacingValues,
-          searchMode,
-          distance,
-        ) {
-          onSearchCalls++;
-        },
+    await tester.pumpWidget(
+      _buildDialogHarness(
+        theme: theme,
+        historyBloc: historyBloc,
+        indexingBloc: indexingBloc,
+        navigationBloc: navigationBloc,
+        dialog: SearchDialog(
+          existingTab: tab,
+          bookTitle: 'ספר',
+          onSearch:
+              (
+                query,
+                searchOptions,
+                alternativeWords,
+                spacingValues,
+                searchMode,
+                distance,
+              ) {
+                onSearchCalls++;
+              },
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.byType(SpinBox));
@@ -568,8 +598,94 @@ Future<void> main() async {
     expect(find.byType(SearchDialog), findsOneWidget);
   }, skip: !engineReady);
 
-  testWidgets('returnResultOnSubmit מחזיר תוצאת חיפוש אחרי סגירת הדיאלוג',
-      (WidgetTester tester) async {
+  testWidgets(
+    'returnResultOnSubmit מחזיר תוצאת חיפוש אחרי סגירת הדיאלוג',
+    (WidgetTester tester) async {
+      final historyBloc = MockHistoryBloc();
+      final indexingBloc = MockIndexingBloc();
+      final navigationBloc = MockNavigationBloc();
+      final theme = ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFB85C38)),
+      );
+      final tab = SearchingTab('חיפוש', 'חכמה בינה');
+
+      SearchDialogResult? capturedResult;
+
+      whenListen(
+        historyBloc,
+        const Stream<HistoryState>.empty(),
+        initialState: HistoryLoaded([]),
+      );
+      whenListen(
+        indexingBloc,
+        const Stream<IndexingState>.empty(),
+        initialState: IndexingInitial(),
+      );
+      whenListen(
+        navigationBloc,
+        const Stream<NavigationState>.empty(),
+        initialState: const NavigationState(currentScreen: Screen.search),
+      );
+
+      addTearDown(() async {
+        await tester.binding.setSurfaceSize(null);
+        tab.dispose();
+        await historyBloc.close();
+        await indexingBloc.close();
+        await navigationBloc.close();
+      });
+
+      await tester.binding.setSurfaceSize(const Size(1400, 900));
+      await tester.pumpWidget(
+        MultiBlocProvider(
+          providers: [
+            BlocProvider<HistoryBloc>.value(value: historyBloc),
+            BlocProvider<IndexingBloc>.value(value: indexingBloc),
+            BlocProvider<NavigationBloc>.value(value: navigationBloc),
+            BlocProvider<LibraryBloc>.value(value: _stubLibraryBloc()),
+          ],
+          child: MaterialApp(
+            theme: theme,
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => Center(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      capturedResult = await showDialog<SearchDialogResult>(
+                        context: context,
+                        builder: (_) => SearchDialog(
+                          existingTab: tab,
+                          bookTitle: 'ספר',
+                          returnResultOnSubmit: true,
+                        ),
+                      );
+                    },
+                    child: const Text('פתח'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('פתח'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('חפש'));
+      await tester.pumpAndSettle();
+
+      expect(capturedResult, isNotNull);
+      expect(capturedResult!.query, 'חכמה בינה');
+      expect(find.byType(SearchDialog), findsNothing);
+    },
+    skip: !engineReady,
+  );
+
+  testWidgets('דיאלוג החיפוש מציג tooltip למצבי החיפוש והסבר למרחק', (
+    WidgetTester tester,
+  ) async {
     final historyBloc = MockHistoryBloc();
     final indexingBloc = MockIndexingBloc();
     final navigationBloc = MockNavigationBloc();
@@ -577,9 +693,6 @@ Future<void> main() async {
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFB85C38)),
     );
-    final tab = SearchingTab('חיפוש', 'חכמה בינה');
-
-    SearchDialogResult? capturedResult;
 
     whenListen(
       historyBloc,
@@ -599,7 +712,6 @@ Future<void> main() async {
 
     addTearDown(() async {
       await tester.binding.setSurfaceSize(null);
-      tab.dispose();
       await historyBloc.close();
       await indexingBloc.close();
       await navigationBloc.close();
@@ -607,90 +719,14 @@ Future<void> main() async {
 
     await tester.binding.setSurfaceSize(const Size(1400, 900));
     await tester.pumpWidget(
-      MultiBlocProvider(
-        providers: [
-          BlocProvider<HistoryBloc>.value(value: historyBloc),
-          BlocProvider<IndexingBloc>.value(value: indexingBloc),
-          BlocProvider<NavigationBloc>.value(value: navigationBloc),
-          BlocProvider<LibraryBloc>.value(value: _stubLibraryBloc()),
-        ],
-        child: MaterialApp(
-          theme: theme,
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => Center(
-                child: ElevatedButton(
-                  onPressed: () async {
-                    capturedResult = await showDialog<SearchDialogResult>(
-                      context: context,
-                      builder: (_) => SearchDialog(
-                        existingTab: tab,
-                        bookTitle: 'ספר',
-                        returnResultOnSubmit: true,
-                      ),
-                    );
-                  },
-                  child: const Text('פתח'),
-                ),
-              ),
-            ),
-          ),
-        ),
+      _buildDialogHarness(
+        theme: theme,
+        historyBloc: historyBloc,
+        indexingBloc: indexingBloc,
+        navigationBloc: navigationBloc,
+        dialog: const SearchDialog(),
       ),
     );
-
-    await tester.tap(find.text('פתח'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byTooltip('חפש'));
-    await tester.pumpAndSettle();
-
-    expect(capturedResult, isNotNull);
-    expect(capturedResult!.query, 'חכמה בינה');
-    expect(find.byType(SearchDialog), findsNothing);
-  }, skip: !engineReady);
-
-  testWidgets('דיאלוג החיפוש מציג tooltip למצבי החיפוש והסבר למרחק',
-      (WidgetTester tester) async {
-    final historyBloc = MockHistoryBloc();
-    final indexingBloc = MockIndexingBloc();
-    final navigationBloc = MockNavigationBloc();
-    final theme = ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFB85C38)),
-    );
-
-    whenListen(
-      historyBloc,
-      const Stream<HistoryState>.empty(),
-      initialState: HistoryLoaded([]),
-    );
-    whenListen(
-      indexingBloc,
-      const Stream<IndexingState>.empty(),
-      initialState: IndexingInitial(),
-    );
-    whenListen(
-      navigationBloc,
-      const Stream<NavigationState>.empty(),
-      initialState: const NavigationState(currentScreen: Screen.search),
-    );
-
-    addTearDown(() async {
-      await tester.binding.setSurfaceSize(null);
-      await historyBloc.close();
-      await indexingBloc.close();
-      await navigationBloc.close();
-    });
-
-    await tester.binding.setSurfaceSize(const Size(1400, 900));
-    await tester.pumpWidget(_buildDialogHarness(
-      theme: theme,
-      historyBloc: historyBloc,
-      indexingBloc: indexingBloc,
-      navigationBloc: navigationBloc,
-      dialog: const SearchDialog(),
-    ));
     await tester.pumpAndSettle();
 
     expect(find.text('מרווח בין מילים'), findsOneWidget);
@@ -706,8 +742,9 @@ Future<void> main() async {
     );
   });
 
-  testWidgets('סימון אפשרות בחיפוש רגיל נשמר לסשן ומוצג בפתיחה מחדש',
-      (WidgetTester tester) async {
+  testWidgets('סימון אפשרות בחיפוש רגיל נשמר לסשן ומוצג בפתיחה מחדש', (
+    WidgetTester tester,
+  ) async {
     final historyBloc = MockHistoryBloc();
     final indexingBloc = MockIndexingBloc();
     final navigationBloc = MockNavigationBloc();
@@ -741,18 +778,22 @@ Future<void> main() async {
 
     await tester.binding.setSurfaceSize(const Size(1400, 900));
 
-    final typoChipFinder = find.byWidgetPredicate((widget) =>
-        widget is FilterChip && (widget.label as Text).data == 'שגיאות כתיב');
+    final typoChipFinder = find.byWidgetPredicate(
+      (widget) =>
+          widget is FilterChip && (widget.label as Text).data == 'שגיאות כתיב',
+    );
     FilterChip typoChip() => tester.widget<FilterChip>(typoChipFinder);
 
     // דיאלוג ראשון: מצב מדויק (ברירת המחדל), מסמנים "שגיאות כתיב" וסוגרים.
-    await tester.pumpWidget(_buildDialogHarness(
-      theme: theme,
-      historyBloc: historyBloc,
-      indexingBloc: indexingBloc,
-      navigationBloc: navigationBloc,
-      dialog: const SearchDialog(),
-    ));
+    await tester.pumpWidget(
+      _buildDialogHarness(
+        theme: theme,
+        historyBloc: historyBloc,
+        indexingBloc: indexingBloc,
+        navigationBloc: navigationBloc,
+        dialog: const SearchDialog(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(typoChip().selected, isFalse);
@@ -767,25 +808,33 @@ Future<void> main() async {
 
     // הזכירה עצמה: הסשן חייב להכיל את האפשרות שסומנה.
     expect(
-        SearchDefaults.initialExactOptionsForNewSearch()['שגיאות כתיב'], isTrue,
-        reason: 'סגירת הדיאלוג צריכה לזכור את האפשרויות לסשן');
+      SearchDefaults.initialExactOptionsForNewSearch()['שגיאות כתיב'],
+      isTrue,
+      reason: 'סגירת הדיאלוג צריכה לזכור את האפשרויות לסשן',
+    );
 
     // דיאלוג שני: הסימון מהסשן צריך להופיע מסומן.
-    await tester.pumpWidget(_buildDialogHarness(
-      theme: theme,
-      historyBloc: historyBloc,
-      indexingBloc: indexingBloc,
-      navigationBloc: navigationBloc,
-      dialog: const SearchDialog(),
-    ));
+    await tester.pumpWidget(
+      _buildDialogHarness(
+        theme: theme,
+        historyBloc: historyBloc,
+        indexingBloc: indexingBloc,
+        navigationBloc: navigationBloc,
+        dialog: const SearchDialog(),
+      ),
+    );
     await tester.pumpAndSettle();
 
-    expect(typoChip().selected, isTrue,
-        reason: 'אפשרות שסומנה בסשן הנוכחי צריכה להישאר מסומנת בדיאלוג חדש');
+    expect(
+      typoChip().selected,
+      isTrue,
+      reason: 'אפשרות שסומנה בסשן הנוכחי צריכה להישאר מסומנת בדיאלוג חדש',
+    );
   });
 
-  testWidgets('חיפוש רגיל מציג רק קידומות/סיומות דקדוקיות',
-      (WidgetTester tester) async {
+  testWidgets('חיפוש רגיל מציג רק קידומות/סיומות דקדוקיות', (
+    WidgetTester tester,
+  ) async {
     final historyBloc = MockHistoryBloc();
     final indexingBloc = MockIndexingBloc();
     final navigationBloc = MockNavigationBloc();
@@ -818,23 +867,32 @@ Future<void> main() async {
     });
 
     await tester.binding.setSurfaceSize(const Size(1400, 900));
-    await tester.pumpWidget(_buildDialogHarness(
-      theme: theme,
-      historyBloc: historyBloc,
-      indexingBloc: indexingBloc,
-      navigationBloc: navigationBloc,
-      dialog: const SearchDialog(),
-    ));
+    await tester.pumpWidget(
+      _buildDialogHarness(
+        theme: theme,
+        historyBloc: historyBloc,
+        indexingBloc: indexingBloc,
+        navigationBloc: navigationBloc,
+        dialog: const SearchDialog(),
+      ),
+    );
     await tester.pumpAndSettle();
 
-    Finder chip(String label) => find.byWidgetPredicate((widget) =>
-        widget is FilterChip && (widget.label as Text).data == label);
+    Finder chip(String label) => find.byWidgetPredicate(
+      (widget) => widget is FilterChip && (widget.label as Text).data == label,
+    );
 
     expect(chip('קידומות דקדוקיות'), findsOneWidget);
     expect(chip('סיומות דקדוקיות'), findsOneWidget);
-    expect(chip('קידומות'), findsNothing,
-        reason: 'קידומות כלליות בלעדיות למצב המתקדם');
-    expect(chip('סיומות'), findsNothing,
-        reason: 'סיומות כלליות בלעדיות למצב המתקדם');
+    expect(
+      chip('קידומות'),
+      findsNothing,
+      reason: 'קידומות כלליות בלעדיות למצב המתקדם',
+    );
+    expect(
+      chip('סיומות'),
+      findsNothing,
+      reason: 'סיומות כלליות בלעדיות למצב המתקדם',
+    );
   });
 }

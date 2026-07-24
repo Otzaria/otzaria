@@ -40,14 +40,14 @@ class AddPersonalNote extends PersonalNotesEvent {
 
   @override
   List<Object?> get props => [
-        bookId,
-        lineNumber,
-        content,
-        contentPlain,
-        contentFormat,
-        selectedText,
-        selectionColumn,
-      ];
+    bookId,
+    lineNumber,
+    content,
+    contentPlain,
+    contentFormat,
+    selectedText,
+    selectionColumn,
+  ];
 }
 
 class UpdatePersonalNote extends PersonalNotesEvent {
@@ -66,8 +66,13 @@ class UpdatePersonalNote extends PersonalNotesEvent {
   });
 
   @override
-  List<Object?> get props =>
-      [bookId, noteId, content, contentPlain, contentFormat];
+  List<Object?> get props => [
+    bookId,
+    noteId,
+    content,
+    contentPlain,
+    contentFormat,
+  ];
 }
 
 class DeletePersonalNote extends PersonalNotesEvent {
@@ -130,14 +135,14 @@ class StartCreatingPersonalNote extends PersonalNotesEvent {
 
   @override
   List<Object?> get props => [
-        bookId,
-        lineNumber,
-        referenceText,
-        selectedText,
-        selectionColumn,
-        initialContent,
-        initialFormat,
-      ];
+    bookId,
+    lineNumber,
+    referenceText,
+    selectedText,
+    selectionColumn,
+    initialContent,
+    initialFormat,
+  ];
 }
 
 class CancelCreatingPersonalNote extends PersonalNotesEvent {

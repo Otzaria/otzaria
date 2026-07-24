@@ -55,8 +55,9 @@ void main() {
     LibraryProviderManager.instance.resetForTesting();
   });
 
-  testWidgets('בעלות חיצונית בלי בחירה משלנו — ה-SelectionArea לא נבנה מחדש',
-      (tester) async {
+  testWidgets('בעלות חיצונית בלי בחירה משלנו — ה-SelectionArea לא נבנה מחדש', (
+    tester,
+  ) async {
     final controller = SelectionSyncController();
     addTearDown(controller.dispose);
 
@@ -77,43 +78,46 @@ void main() {
   });
 
   testWidgets(
-      'בעלות חיצונית כשיש בחירה משלנו — ה-SelectionArea מתנקה ב-rebuild',
-      (tester) async {
-    final controller = SelectionSyncController();
-    addTearDown(controller.dispose);
+    'בעלות חיצונית כשיש בחירה משלנו — ה-SelectionArea מתנקה ב-rebuild',
+    (tester) async {
+      final controller = SelectionSyncController();
+      addTearDown(controller.dispose);
 
-    await _pump(
-      tester,
-      textBookBloc: textBookBloc,
-      settingsBloc: settingsBloc,
-      controller: controller,
-    );
+      await _pump(
+        tester,
+        textBookBloc: textBookBloc,
+        settingsBloc: settingsBloc,
+        controller: controller,
+      );
 
-    final keyBefore = tester.widget(_selectionAreaFinder()).key;
+      final keyBefore = tester.widget(_selectionAreaFinder()).key;
 
-    // בחירת כל הטקסט במפרשים — הופכת את הפאנל לבעל הבחירה.
-    final region = tester.state<SelectableRegionState>(
-      find.descendant(
-        of: _selectionAreaFinder(),
-        matching: find.byType(SelectableRegion),
-      ),
-    );
-    region.selectAll();
-    await _pumpUntil(tester, () => controller.activeOwner != null);
-    expect(controller.activeOwner, isNotNull);
+      // בחירת כל הטקסט במפרשים — הופכת את הפאנל לבעל הבחירה.
+      final region = tester.state<SelectableRegionState>(
+        find.descendant(
+          of: _selectionAreaFinder(),
+          matching: find.byType(SelectableRegion),
+        ),
+      );
+      region.selectAll();
+      await _pumpUntil(tester, () => controller.activeOwner != null);
+      expect(controller.activeOwner, isNotNull);
 
-    // אזור אחר תופס בעלות — עכשיו כן צריך rebuild כדי לנקות את הבחירה.
-    controller.activate(Object());
-    await tester.pump();
+      // אזור אחר תופס בעלות — עכשיו כן צריך rebuild כדי לנקות את הבחירה.
+      controller.activate(Object());
+      await tester.pump();
 
-    expect(tester.widget(_selectionAreaFinder()).key, isNot(keyBefore));
-  });
+      expect(tester.widget(_selectionAreaFinder()).key, isNot(keyBefore));
+    },
+  );
 }
 
-Finder _selectionAreaFinder() => find.byWidgetPredicate((w) =>
-    w is SelectionArea &&
-    (w.key is ValueKey<String>) &&
-    (w.key as ValueKey<String>).value.startsWith('commentary_list_'));
+Finder _selectionAreaFinder() => find.byWidgetPredicate(
+  (w) =>
+      w is SelectionArea &&
+      (w.key is ValueKey<String>) &&
+      (w.key as ValueKey<String>).value.startsWith('commentary_list_'),
+);
 
 /// שואב פריימים עד שהתנאי מתקיים או שנגמרו הניסיונות. עמיד יותר מ-
 /// `pumpAndSettle` כשתוכן נטען דרך Future (שעלול להיפתר אחרי ש-settle חוזר).
@@ -268,8 +272,12 @@ class _FakeLibraryProvider implements LibraryProvider {
   }
 
   @override
-  Future<String?> getBookText(String title, int categoryId, String fileType,
-      {bool preferUserBooks = false}) async {
+  Future<String?> getBookText(
+    String title,
+    int categoryId,
+    String fileType, {
+    bool preferUserBooks = false,
+  }) async {
     return null;
   }
 

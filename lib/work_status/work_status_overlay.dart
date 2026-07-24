@@ -19,8 +19,9 @@ class WorkStatusOverlay extends StatelessWidget {
         final items = state.orderedItems;
         final colorScheme = Theme.of(context).colorScheme;
         final isWindows = Theme.of(context).platform == TargetPlatform.windows;
-        final alignment =
-            isWindows ? Alignment.bottomLeft : Alignment.bottomRight;
+        final alignment = isWindows
+            ? Alignment.bottomLeft
+            : Alignment.bottomRight;
         final padding = isWindows
             ? const EdgeInsets.only(bottom: 24, left: 16)
             : const EdgeInsets.only(bottom: 24, right: 16);
@@ -110,8 +111,9 @@ class _PrimaryItemRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final progress = item.progress?.clamp(0.0, 1.0).toDouble();
-    final percentLabel =
-        progress == null ? '...' : '${(progress * 100).round()}%';
+    final percentLabel = progress == null
+        ? '...'
+        : '${(progress * 100).round()}%';
 
     return InkWell(
       onTap: item.onTap,
@@ -143,9 +145,9 @@ class _PrimaryItemRow extends StatelessWidget {
                       Text(
                         percentLabel,
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: colorScheme.onSurface,
-                              fontWeight: FontWeight.w700,
-                            ),
+                          color: colorScheme.onSurface,
+                          fontWeight: FontWeight.w700,
+                        ),
                         textDirection: TextDirection.ltr,
                       ),
                     ],
@@ -160,26 +162,26 @@ class _PrimaryItemRow extends StatelessWidget {
                 Text(
                   item.title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: colorScheme.onSurface,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   item.message,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                        height: 1.25,
-                      ),
+                    color: colorScheme.onSurfaceVariant,
+                    height: 1.25,
+                  ),
                 ),
                 if (item.detail != null) ...[
                   const SizedBox(height: 4),
                   Text(
                     item.detail!,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: colorScheme.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ],
@@ -228,8 +230,8 @@ class _SecondaryItemRow extends StatelessWidget {
               child: Text(
                 '${item.title}: ${item.message}',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
+                  color: colorScheme.onSurfaceVariant,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),

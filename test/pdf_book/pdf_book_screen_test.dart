@@ -99,24 +99,25 @@ void main() {
     });
 
     test(
-        'מציגה גם בלי מפרשים נבחרים — בניגוד ל-shouldShowOpenPdfCommentaryPaneEntry',
-        () {
-      // הפריט הזה לא תלוי ב-hasSelectedCommentators, כדי לאפשר בחירה ראשונית
-      // גם כשהבחירה ריקה (תיקון עקביות מול מסך הטקסט).
-      expect(
-        shouldShowOpenPdfCommentaryPaneEntry(
-          hasSelectedCommentators: false,
-          isCommentatorsTabActive: false,
-        ),
-        isFalse,
-      );
-      expect(
-        shouldShowSelectPdfCommentatorsEntry(
-          isCommentatorsTabActive: false,
-        ),
-        isTrue,
-      );
-    });
+      'מציגה גם בלי מפרשים נבחרים — בניגוד ל-shouldShowOpenPdfCommentaryPaneEntry',
+      () {
+        // הפריט הזה לא תלוי ב-hasSelectedCommentators, כדי לאפשר בחירה ראשונית
+        // גם כשהבחירה ריקה (תיקון עקביות מול מסך הטקסט).
+        expect(
+          shouldShowOpenPdfCommentaryPaneEntry(
+            hasSelectedCommentators: false,
+            isCommentatorsTabActive: false,
+          ),
+          isFalse,
+        );
+        expect(
+          shouldShowSelectPdfCommentatorsEntry(
+            isCommentatorsTabActive: false,
+          ),
+          isTrue,
+        );
+      },
+    );
   });
 
   group('shouldShowOpenPdfLinksPaneEntry', () {
@@ -157,14 +158,13 @@ void main() {
       String path2 = 'C:/otzaria/Otzaria/library/ספר היעד.txt',
       int index2 = 1,
       String connectionType = 'link',
-    }) =>
-        Link(
-          heRef: heRef,
-          index1: 1,
-          path2: path2,
-          index2: index2,
-          connectionType: connectionType,
-        );
+    }) => Link(
+      heRef: heRef,
+      index1: 1,
+      path2: path2,
+      index2: index2,
+      connectionType: connectionType,
+    );
 
     test('משתמש ב-childrenBuilder עצל ולא ב-children מיידיים', () {
       // רגרסיה: לפני התיקון התת-תפריט נבנה upfront ועיכב את פתיחת התפריט
@@ -177,12 +177,20 @@ void main() {
         onOpenLink: (_) {},
       );
 
-      expect(entry.childrenBuilder, isNotNull,
-          reason: 'התת-תפריט חייב להיבנות בעצלתיים (childrenBuilder), אחרת '
-              'הזמן של פתיחת התפריט הראשי תלוי בכל הקישורים בעמוד');
-      expect(entry.children, isNull,
-          reason: 'children מיידיים מאלצים בנייה upfront של כל פריטי הקישורים '
-              'כולל ה-FutureBuilders של displayReference');
+      expect(
+        entry.childrenBuilder,
+        isNotNull,
+        reason:
+            'התת-תפריט חייב להיבנות בעצלתיים (childrenBuilder), אחרת '
+            'הזמן של פתיחת התפריט הראשי תלוי בכל הקישורים בעמוד',
+      );
+      expect(
+        entry.children,
+        isNull,
+        reason:
+            'children מיידיים מאלצים בנייה upfront של כל פריטי הקישורים '
+            'כולל ה-FutureBuilders של displayReference',
+      );
     });
 
     test('הפריט "קישורים" מושבת כשאין קישורים רלוונטיים', () {
@@ -209,39 +217,47 @@ void main() {
     });
 
     test(
-        'childrenBuilder מחזיר פריט "פתח חלונית" + divider כש-showOpenLinksPaneEntry=true',
-        () {
-      final entry = buildPdfLinksContextMenuEntry(
-        relevantLinks: [makeLink()],
-        showOpenLinksPaneEntry: true,
-        onOpenLinksPane: () {},
-        onOpenLink: (_) {},
-      );
+      'childrenBuilder מחזיר פריט "פתח חלונית" + divider כש-showOpenLinksPaneEntry=true',
+      () {
+        final entry = buildPdfLinksContextMenuEntry(
+          relevantLinks: [makeLink()],
+          showOpenLinksPaneEntry: true,
+          onOpenLinksPane: () {},
+          onOpenLink: (_) {},
+        );
 
-      final children = entry.childrenBuilder!();
+        final children = entry.childrenBuilder!();
 
-      expect(children, hasLength(3));
-      expect(children[0].label, 'פתח קישורים בחלונית צד');
-      expect(children[1].isDivider, isTrue);
-      expect(children[2].isDivider, isFalse);
-    });
+        expect(children, hasLength(3));
+        expect(children[0].label, 'פתח קישורים בחלונית צד');
+        expect(children[1].isDivider, isTrue);
+        expect(children[2].isDivider, isFalse);
+      },
+    );
 
     test(
-        'childrenBuilder ללא פריט "פתח חלונית" כש-showOpenLinksPaneEntry=false',
-        () {
-      final entry = buildPdfLinksContextMenuEntry(
-        relevantLinks: [makeLink(), makeLink(heRef: 'בראשית א:ב', index2: 2)],
-        showOpenLinksPaneEntry: false,
-        onOpenLinksPane: () {},
-        onOpenLink: (_) {},
-      );
+      'childrenBuilder ללא פריט "פתח חלונית" כש-showOpenLinksPaneEntry=false',
+      () {
+        final entry = buildPdfLinksContextMenuEntry(
+          relevantLinks: [
+            makeLink(),
+            makeLink(heRef: 'בראשית א:ב', index2: 2),
+          ],
+          showOpenLinksPaneEntry: false,
+          onOpenLinksPane: () {},
+          onOpenLink: (_) {},
+        );
 
-      final children = entry.childrenBuilder!();
+        final children = entry.childrenBuilder!();
 
-      expect(children, hasLength(2));
-      expect(children.any((e) => e.label == 'פתח קישורים בחלונית צד'), isFalse);
-      expect(children.every((e) => !e.isDivider), isTrue);
-    });
+        expect(children, hasLength(2));
+        expect(
+          children.any((e) => e.label == 'פתח קישורים בחלונית צד'),
+          isFalse,
+        );
+        expect(children.every((e) => !e.isDivider), isTrue);
+      },
+    );
 
     test('onOpenLinksPane מופעל בלחיצה על פריט "פתח חלונית"', () {
       var paneOpened = 0;
@@ -319,7 +335,9 @@ void main() {
     final groups = [
       const CommentatorGroup(title: 'ראשונים', commentators: ['רש"י', 'רמב"ן']),
       const CommentatorGroup(
-          title: 'אחרונים', commentators: ['מצודת דוד', 'מלבי"ם']),
+        title: 'אחרונים',
+        commentators: ['מצודת דוד', 'מלבי"ם'],
+      ),
       const CommentatorGroup(title: 'שאר מפרשים', commentators: ['מפרש פלוני']),
     ];
 
@@ -336,8 +354,10 @@ void main() {
       expect(labels, contains('הצג את כל ראשונים'));
       expect(labels, contains('הצג את כל אחרונים'));
       // הכותרת מופיעה לפני המפרשים הבודדים של אותה קבוצה
-      expect(labels.indexOf('הצג את כל ראשונים'),
-          lessThan(labels.indexOf('רש"י')));
+      expect(
+        labels.indexOf('הצג את כל ראשונים'),
+        lessThan(labels.indexOf('רש"י')),
+      );
     });
 
     test('פריט הקבוצה מסומן כשכל מפרשי הקבוצה הרלוונטיים פעילים', () {
@@ -349,10 +369,12 @@ void main() {
         onToggleAll: (_) {},
       );
 
-      final rishonim =
-          entries.firstWhere((e) => e.label == 'הצג את כל ראשונים');
-      final acharonim =
-          entries.firstWhere((e) => e.label == 'הצג את כל אחרונים');
+      final rishonim = entries.firstWhere(
+        (e) => e.label == 'הצג את כל ראשונים',
+      );
+      final acharonim = entries.firstWhere(
+        (e) => e.label == 'הצג את כל אחרונים',
+      );
       expect(rishonim.isSelected, isTrue);
       expect(acharonim.isSelected, isFalse);
     });
@@ -401,9 +423,11 @@ void main() {
       expect(labels, contains('מפרש לא ידוע'));
       // אין כותרת "הצג את כל" עבור מפרש שלא קוטלג
       expect(
-          labels.any((l) =>
-              l != null && l.contains('מפרש לא ידוע') && l.startsWith('הצג')),
-          isFalse);
+        labels.any(
+          (l) => l != null && l.contains('מפרש לא ידוע') && l.startsWith('הצג'),
+        ),
+        isFalse,
+      );
     });
 
     test('בלי קבוצות — מציג את המפרשים בלבד ללא כותרות', () {
@@ -418,7 +442,9 @@ void main() {
       final labels = entries.map((e) => e.label).toList();
       expect(labels, ['רש"י', 'רמב"ן']);
       expect(
-          labels.any((l) => l != null && l.startsWith('הצג את כל')), isFalse);
+        labels.any((l) => l != null && l.startsWith('הצג את כל')),
+        isFalse,
+      );
     });
   });
 
@@ -469,12 +495,16 @@ void main() {
       // מיותר שמתנגש בנתיב הטעינה הרגיל.
       expect(
         shouldRecomputeLineRangeOnLayoutModeChange(
-            null, PdfLayoutMode.bookView),
+          null,
+          PdfLayoutMode.bookView,
+        ),
         isFalse,
       );
       expect(
         shouldRecomputeLineRangeOnLayoutModeChange(
-            null, PdfLayoutMode.regularView),
+          null,
+          PdfLayoutMode.regularView,
+        ),
         isFalse,
       );
     });

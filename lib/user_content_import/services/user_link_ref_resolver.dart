@@ -6,12 +6,13 @@ import 'package:otzaria/utils/text/text_manipulation.dart';
 /// פותר כתובת (ref) טקסטואלית — כמו "ב ע\"א" בגמרא או "רטו א" בשו"ע — לאינדקס
 /// שורה (0-based) בספר היעד, כדי שקישור-משתמש יוכל להיפתח במקום הנכון.
 /// מחזיר null אם הספר או הכתובת לא נמצאו.
-typedef UserLinkRefResolver = Future<int?> Function({
-  required String targetTitle,
-  required int? targetCategoryId,
-  required bool targetIsUserBook,
-  required String ref,
-});
+typedef UserLinkRefResolver =
+    Future<int?> Function({
+      required String targetTitle,
+      required int? targetCategoryId,
+      required bool targetIsUserBook,
+      required String ref,
+    });
 
 /// המימוש האמיתי: בוחר את המסד הנכון (רשמי/אישי), מאתר את הספר לפי כותרת
 /// (+קטגוריה אם ידועה), וממיר את ה-ref לשורה דרך התאמת ה-TOC של הספר —
@@ -31,17 +32,22 @@ Future<int?> resolveUserLinkTargetLine({
   final bookId = book?.id;
   if (bookId == null) return null;
 
-  final tokens = normalizeForFindRefMatch(ref)
-      .split(' ')
-      .where((t) => t.isNotEmpty)
-      .toList();
+  final tokens = normalizeForFindRefMatch(
+    ref,
+  ).split(' ').where((t) => t.isNotEmpty).toList();
   if (tokens.isEmpty) return null;
 
-  var matches = await repo.getTocEntriesForReference(bookId, book!.title,
-      queryTokens: tokens);
+  var matches = await repo.getTocEntriesForReference(
+    bookId,
+    book!.title,
+    queryTokens: tokens,
+  );
   if (matches.isEmpty) {
-    matches = await repo.getAltTocEntriesForReference(bookId, book.title,
-        queryTokens: tokens);
+    matches = await repo.getAltTocEntriesForReference(
+      bookId,
+      book.title,
+      queryTokens: tokens,
+    );
   }
   if (matches.isEmpty) return null;
   return matches.first['segment'] as int?;
@@ -49,11 +55,12 @@ Future<int?> resolveUserLinkTargetLine({
 
 /// בודק אם ספר קיים במסד הנכון (אישי/רשמי) — לאימות ספר מקור רשמי בייבוא,
 /// כדי לחסום קישור עם כותרת-מקור שגויה שתיצור קישור מת.
-typedef UserLinkSourceChecker = Future<bool> Function({
-  required String title,
-  required int? categoryId,
-  required bool isUserBook,
-});
+typedef UserLinkSourceChecker =
+    Future<bool> Function({
+      required String title,
+      required int? categoryId,
+      required bool isUserBook,
+    });
 
 /// המימוש האמיתי של [UserLinkSourceChecker].
 Future<bool> userLinkSourceBookExists({
@@ -71,13 +78,14 @@ Future<bool> userLinkSourceBookExists({
 
 /// מאתר ספר לפי כותרת בשני המסדים — לקבצים בפורמט ה-native שאינם מציינים
 /// אישי/רשמי. אישי נבדק ראשון (עקרון preferUserBooks). null אם לא נמצא.
-typedef UserLinkBookLocator
-    = Future<({bool isUserBook, int? categoryId, int totalLines})?> Function(
-        String title);
+typedef UserLinkBookLocator =
+    Future<({bool isUserBook, int? categoryId, int totalLines})?> Function(
+      String title,
+    );
 
 /// המימוש האמיתי של [UserLinkBookLocator].
 Future<({bool isUserBook, int? categoryId, int totalLines})?>
-    locateUserLinkBook(String title) async {
+locateUserLinkBook(String title) async {
   for (final isUserBook in const [true, false]) {
     final repo = await _repositoryFor(isUserBook);
     final book = await repo?.getBookByTitle(title);

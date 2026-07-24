@@ -15,10 +15,16 @@ void main() {
 
     for (final (haser, male) in reciprocalPairs) {
       test('$haser ↔ $male - שני הכיוונים', () {
-        expect(bookSearchWordMatchesFuzzy(haser, 'משנה $male'), isTrue,
-            reason: "'$haser' אמור למצוא '$male'");
-        expect(bookSearchWordMatchesFuzzy(male, 'משנה $haser'), isTrue,
-            reason: "'$male' אמור למצוא '$haser'");
+        expect(
+          bookSearchWordMatchesFuzzy(haser, 'משנה $male'),
+          isTrue,
+          reason: "'$haser' אמור למצוא '$male'",
+        );
+        expect(
+          bookSearchWordMatchesFuzzy(male, 'משנה $haser'),
+          isTrue,
+          reason: "'$male' אמור למצוא '$haser'",
+        );
       });
     }
   });
@@ -73,12 +79,12 @@ void main() {
     ];
 
     List<int> search(String query) => filterBookSearchEntries(
-          entries: entries,
-          queryWords: query.split(' '),
-          topics: const [],
-          sortByRatio: true,
-          normalizedQuery: query,
-        );
+      entries: entries,
+      queryWords: query.split(' '),
+      topics: const [],
+      sortByRatio: true,
+      normalizedQuery: query,
+    );
 
     test('שאילתה שתואמת רק כינוי מוצאת את הספר', () {
       expect(search('מסכת קידושין'), contains(0));
@@ -123,18 +129,20 @@ void main() {
       const byEra = [
         // אחרון עם כותרת קצרה (ratio גבוה) - בכל זאת אמור לרדת מתחת לראשון.
         BookSearchEntry(
-            index: 0,
-            title: 'דיני שכירות',
-            author: '',
-            topics: '',
-            eraOrder: 3),
+          index: 0,
+          title: 'דיני שכירות',
+          author: '',
+          topics: '',
+          eraOrder: 3,
+        ),
         // ראשון עם כותרת ארוכה (ratio נמוך) - אמור לצוף מעל האחרון.
         BookSearchEntry(
-            index: 1,
-            title: 'משנה תורה, הלכות שכירות',
-            author: '',
-            topics: '',
-            eraOrder: 2),
+          index: 1,
+          title: 'משנה תורה, הלכות שכירות',
+          author: '',
+          topics: '',
+          eraOrder: 2,
+        ),
       ];
       final results = filterBookSearchEntries(
         entries: byEra,
@@ -143,8 +151,11 @@ void main() {
         sortByRatio: true,
         normalizedQuery: 'שכירות',
       );
-      expect(results, equals([1, 0]),
-          reason: 'הראשונים (1) קודמים לאחרונים (0) למרות ratio נמוך יותר');
+      expect(
+        results,
+        equals([1, 0]),
+        reason: 'הראשונים (1) קודמים לאחרונים (0) למרות ratio נמוך יותר',
+      );
     });
 
     test('בתוך אותו דור, ספר אישי תמיד אחרון', () {
@@ -152,18 +163,20 @@ void main() {
       // גם כש-ratio שלו גבוה יותר.
       const userVsOfficial = [
         BookSearchEntry(
-            index: 0,
-            title: 'שכירות בית',
-            author: '',
-            topics: '',
-            eraOrder: 5,
-            isUserBook: true),
+          index: 0,
+          title: 'שכירות בית',
+          author: '',
+          topics: '',
+          eraOrder: 5,
+          isUserBook: true,
+        ),
         BookSearchEntry(
-            index: 1,
-            title: 'הלכות שכירות מפורטות',
-            author: '',
-            topics: '',
-            eraOrder: 5),
+          index: 1,
+          title: 'הלכות שכירות מפורטות',
+          author: '',
+          topics: '',
+          eraOrder: 5,
+        ),
       ];
       final results = filterBookSearchEntries(
         entries: userVsOfficial,
@@ -172,8 +185,11 @@ void main() {
         sortByRatio: true,
         normalizedQuery: 'שכירות',
       );
-      expect(results, equals([1, 0]),
-          reason: 'הספר האישי (0) אחרון למרות ratio גבוה יותר');
+      expect(
+        results,
+        equals([1, 0]),
+        reason: 'הספר האישי (0) אחרון למרות ratio גבוה יותר',
+      );
     });
 
     test('התאמה מדויקת לכותרת גוברת על סדר הדורות', () {
@@ -181,13 +197,19 @@ void main() {
       // פירוש מתוארך (ראשונים) שרק מכיל את השאילתה. זה מונע קבירת המסכת.
       const exactVsEra = [
         BookSearchEntry(
-            index: 0,
-            title: 'חידושי הר"ן על קידושין',
-            author: '',
-            topics: '',
-            eraOrder: 2),
+          index: 0,
+          title: 'חידושי הר"ן על קידושין',
+          author: '',
+          topics: '',
+          eraOrder: 2,
+        ),
         BookSearchEntry(
-            index: 1, title: 'קידושין', author: '', topics: '', eraOrder: 5),
+          index: 1,
+          title: 'קידושין',
+          author: '',
+          topics: '',
+          eraOrder: 5,
+        ),
       ];
       final results = filterBookSearchEntries(
         entries: exactVsEra,
@@ -204,18 +226,20 @@ void main() {
       // של ראשון, גם אם הדור מאוחר יותר.
       const mixed = [
         BookSearchEntry(
-            index: 0,
-            title: 'קידושין',
-            author: '',
-            topics: '',
-            acronyms: ['מסכת קידושין'],
-            eraOrder: 2),
+          index: 0,
+          title: 'קידושין',
+          author: '',
+          topics: '',
+          acronyms: ['מסכת קידושין'],
+          eraOrder: 2,
+        ),
         BookSearchEntry(
-            index: 1,
-            title: 'מסכת קידושין מבוארת',
-            author: '',
-            topics: '',
-            eraOrder: 3),
+          index: 1,
+          title: 'מסכת קידושין מבוארת',
+          author: '',
+          topics: '',
+          eraOrder: 3,
+        ),
       ];
       final results = filterBookSearchEntries(
         entries: mixed,
@@ -224,14 +248,21 @@ void main() {
         sortByRatio: true,
         normalizedQuery: 'מסכת קידושין',
       );
-      expect(results.indexOf(1), lessThan(results.indexOf(0)),
-          reason: 'התאמת כותרת (שכבה גבוהה) גוברת על דור מוקדם יותר בכינוי');
+      expect(
+        results.indexOf(1),
+        lessThan(results.indexOf(0)),
+        reason: 'התאמת כותרת (שכבה גבוהה) גוברת על דור מוקדם יותר בכינוי',
+      );
     });
 
     test('כותרת מדויקת מדורגת לפני כותרת ארוכה שמכילה את השאילתה', () {
       const withExactAndLong = [
         BookSearchEntry(
-            index: 0, title: 'ביאור על מסכת סוטה', author: '', topics: ''),
+          index: 0,
+          title: 'ביאור על מסכת סוטה',
+          author: '',
+          topics: '',
+        ),
         BookSearchEntry(index: 1, title: 'מסכת סוטה', author: '', topics: ''),
         BookSearchEntry(index: 2, title: 'סוטה', author: '', topics: ''),
       ];
@@ -242,8 +273,11 @@ void main() {
         sortByRatio: true,
         normalizedQuery: 'סוטה',
       );
-      expect(results.first, 2,
-          reason: "'סוטה' המדויק אמור לצוף מעל כותרות ארוכות שמכילות אותו");
+      expect(
+        results.first,
+        2,
+        reason: "'סוטה' המדויק אמור לצוף מעל כותרות ארוכות שמכילות אותו",
+      );
       expect(results.indexOf(1), lessThan(results.indexOf(0)));
     });
   });
@@ -262,10 +296,16 @@ void main() {
         acronymsForId: acronymsForId,
         eraOrderForId: eraOrderForId,
       );
-      expect(entry.acronyms, isEmpty,
-          reason: 'ספר אישי לא יורש כינוי של ספר רשמי בעל אותו id');
-      expect(entry.eraOrder, 5,
-          reason: 'ספר אישי לא יורש דור מוקדם של ספר רשמי בעל אותו id');
+      expect(
+        entry.acronyms,
+        isEmpty,
+        reason: 'ספר אישי לא יורש כינוי של ספר רשמי בעל אותו id',
+      );
+      expect(
+        entry.eraOrder,
+        5,
+        reason: 'ספר אישי לא יורש דור מוקדם של ספר רשמי בעל אותו id',
+      );
       expect(entry.isUserBook, isTrue);
     });
 

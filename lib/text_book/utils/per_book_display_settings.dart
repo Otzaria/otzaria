@@ -46,8 +46,9 @@ Future<void> savePerBookDisplaySettings(
     }
 
     if (showSplitView != null) {
-      newCommentatorsBelow =
-          (showSplitView == defaultShowSplitView) ? null : !showSplitView;
+      newCommentatorsBelow = (showSplitView == defaultShowSplitView)
+          ? null
+          : !showSplitView;
     }
 
     if (removeNikud != null) {
@@ -61,14 +62,15 @@ Future<void> savePerBookDisplaySettings(
     }
     // דגל התנ"ך נשמר רק כלוויין של override פיסוק — הניקוי התקופתי משתמש בו
     // לחישוב ברירת המחדל האפקטיבית של הספר (בתנ"ך היא תמיד false).
-    final bool? newIsTanach =
-        (newRemovePunctuation != null && state.isTanach) ? true : null;
+    final bool? newIsTanach = (newRemovePunctuation != null && state.isTanach)
+        ? true
+        : null;
 
     if (continuousReadingMode != null) {
       newContinuousReadingMode =
           (continuousReadingMode == defaultContinuousReading)
-              ? null
-              : continuousReadingMode;
+          ? null
+          : continuousReadingMode;
     }
 
     // שדות שנשמרים בנפרד (רוחבי טורים, מפרשים) מועברים הלאה כדי לא להידרס.

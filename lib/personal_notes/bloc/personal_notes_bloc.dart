@@ -9,8 +9,8 @@ import 'package:otzaria/personal_notes/utils/note_collection_utils.dart';
 
 class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
   PersonalNotesBloc({PersonalNotesRepository? repository})
-      : _repository = repository ?? PersonalNotesRepository(),
-        super(const PersonalNotesState.initial()) {
+    : _repository = repository ?? PersonalNotesRepository(),
+      super(const PersonalNotesState.initial()) {
     on<LoadPersonalNotes>(_onLoadNotes);
     on<AddPersonalNote>(_onAddNote);
     on<UpdatePersonalNote>(_onUpdateNote);

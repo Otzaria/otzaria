@@ -25,14 +25,14 @@ class PersonalNoteDraft {
   });
 
   Map<String, dynamic> toJson() => {
-        'content': content,
-        'contentPlain': contentPlain,
-        'contentFormat': contentFormat.name,
-        'updatedAt': updatedAt.toIso8601String(),
-        'lineNumber': lineNumber,
-        'noteId': noteId,
-        'referenceText': referenceText,
-      };
+    'content': content,
+    'contentPlain': contentPlain,
+    'contentFormat': contentFormat.name,
+    'updatedAt': updatedAt.toIso8601String(),
+    'lineNumber': lineNumber,
+    'noteId': noteId,
+    'referenceText': referenceText,
+  };
 
   factory PersonalNoteDraft.fromJson(Map<String, dynamic> json) {
     return PersonalNoteDraft(
@@ -79,8 +79,12 @@ class PersonalNoteDraftService {
     int? lineNumber,
     String? noteId,
   }) async {
-    final key = _key(bookId,
-        categoryId: categoryId, lineNumber: lineNumber, noteId: noteId);
+    final key = _key(
+      bookId,
+      categoryId: categoryId,
+      lineNumber: lineNumber,
+      noteId: noteId,
+    );
     final raw = Settings.getValue<String>(key);
     if (raw == null) return null;
     try {
@@ -98,8 +102,12 @@ class PersonalNoteDraftService {
     String? noteId,
     required PersonalNoteDraft draft,
   }) async {
-    final key = _key(bookId,
-        categoryId: categoryId, lineNumber: lineNumber, noteId: noteId);
+    final key = _key(
+      bookId,
+      categoryId: categoryId,
+      lineNumber: lineNumber,
+      noteId: noteId,
+    );
     final normalizedDraft = PersonalNoteDraft(
       content: draft.content,
       contentPlain: draft.contentPlain,
@@ -118,8 +126,12 @@ class PersonalNoteDraftService {
     int? lineNumber,
     String? noteId,
   }) async {
-    final key = _key(bookId,
-        categoryId: categoryId, lineNumber: lineNumber, noteId: noteId);
+    final key = _key(
+      bookId,
+      categoryId: categoryId,
+      lineNumber: lineNumber,
+      noteId: noteId,
+    );
     await Settings.setValue<String?>(key, null);
   }
 
@@ -130,11 +142,12 @@ class PersonalNoteDraftService {
     final prefix = _bookPrefix(bookId, categoryId: categoryId);
     if (!Hive.isBoxOpen(HiveCache.keyName)) return null;
     final box = Hive.box<dynamic>(HiveCache.keyName);
-    final matchingKeys = box.keys
-        .map((k) => k.toString())
-        .where((key) => key.startsWith(prefix))
-        .toList()
-      ..sort();
+    final matchingKeys =
+        box.keys
+            .map((k) => k.toString())
+            .where((key) => key.startsWith(prefix))
+            .toList()
+          ..sort();
 
     PersonalNoteDraft? latestDraft;
     for (final key in matchingKeys) {

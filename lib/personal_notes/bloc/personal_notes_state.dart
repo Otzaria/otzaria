@@ -59,27 +59,27 @@ class PersonalNotesState extends Equatable {
   });
 
   const PersonalNotesState.initial()
-      : isLoading = false,
-        bookId = null,
-        categoryId = null,
-        locatedNotes = const [],
-        missingNotes = const [],
-        errorMessage = null,
-        filteredLocatedNotes = const [],
-        filteredMissingNotes = const [],
-        searchQuery = '',
-        showOnlyVisible = true,
-        visibleLineIndices = const [],
-        expandRequestLineNumber = null,
-        expandRequestToken = 0,
-        isCreatingNewNote = false,
-        newNoteBookId = null,
-        newNoteLineNumber = null,
-        newNoteReferenceText = null,
-        newNoteSelectedText = null,
-        newNoteSelectionColumn = null,
-        newNoteInitialContent = null,
-        newNoteInitialFormat = null;
+    : isLoading = false,
+      bookId = null,
+      categoryId = null,
+      locatedNotes = const [],
+      missingNotes = const [],
+      errorMessage = null,
+      filteredLocatedNotes = const [],
+      filteredMissingNotes = const [],
+      searchQuery = '',
+      showOnlyVisible = true,
+      visibleLineIndices = const [],
+      expandRequestLineNumber = null,
+      expandRequestToken = 0,
+      isCreatingNewNote = false,
+      newNoteBookId = null,
+      newNoteLineNumber = null,
+      newNoteReferenceText = null,
+      newNoteSelectedText = null,
+      newNoteSelectionColumn = null,
+      newNoteInitialContent = null,
+      newNoteInitialFormat = null;
 
   PersonalNotesState copyWith({
     bool? isLoading,
@@ -125,8 +125,9 @@ class PersonalNotesState extends Equatable {
       isCreatingNewNote: clearNewNoteData
           ? false
           : (isCreatingNewNote ?? this.isCreatingNewNote),
-      newNoteBookId:
-          clearNewNoteData ? null : (newNoteBookId ?? this.newNoteBookId),
+      newNoteBookId: clearNewNoteData
+          ? null
+          : (newNoteBookId ?? this.newNoteBookId),
       newNoteLineNumber: clearNewNoteData
           ? null
           : (newNoteLineNumber ?? this.newNoteLineNumber),
@@ -150,26 +151,26 @@ class PersonalNotesState extends Equatable {
 
   @override
   List<Object?> get props => [
-        isLoading,
-        bookId,
-        categoryId,
-        locatedNotes,
-        missingNotes,
-        errorMessage,
-        filteredLocatedNotes,
-        filteredMissingNotes,
-        searchQuery,
-        showOnlyVisible,
-        visibleLineIndices,
-        expandRequestLineNumber,
-        expandRequestToken,
-        isCreatingNewNote,
-        newNoteBookId,
-        newNoteLineNumber,
-        newNoteReferenceText,
-        newNoteSelectedText,
-        newNoteSelectionColumn,
-        newNoteInitialContent,
-        newNoteInitialFormat,
-      ];
+    isLoading,
+    bookId,
+    categoryId,
+    locatedNotes,
+    missingNotes,
+    errorMessage,
+    filteredLocatedNotes,
+    filteredMissingNotes,
+    searchQuery,
+    showOnlyVisible,
+    visibleLineIndices,
+    expandRequestLineNumber,
+    expandRequestToken,
+    isCreatingNewNote,
+    newNoteBookId,
+    newNoteLineNumber,
+    newNoteReferenceText,
+    newNoteSelectedText,
+    newNoteSelectionColumn,
+    newNoteInitialContent,
+    newNoteInitialFormat,
+  ];
 }

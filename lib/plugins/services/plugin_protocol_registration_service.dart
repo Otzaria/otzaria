@@ -37,18 +37,19 @@ class PluginProtocolRegistrationService {
     final commands = buildWindowsRegistrationCommands(exePath);
 
     for (final arguments in commands) {
-      final result = await Process.run(
-        regExecutable,
-        arguments,
-      ).timeout(
-        _windowsRegistrationTimeout,
-        onTimeout: () => ProcessResult(
-          0,
-          -1,
-          '',
-          'Timed out after ${_windowsRegistrationTimeout.inSeconds} seconds',
-        ),
-      );
+      final result =
+          await Process.run(
+            regExecutable,
+            arguments,
+          ).timeout(
+            _windowsRegistrationTimeout,
+            onTimeout: () => ProcessResult(
+              0,
+              -1,
+              '',
+              'Timed out after ${_windowsRegistrationTimeout.inSeconds} seconds',
+            ),
+          );
       if (result.exitCode != 0) {
         throw Exception(
           'רישום פרוטוקול התוספים נכשל: ${result.stderr}'.trim(),
@@ -63,12 +64,14 @@ class PluginProtocolRegistrationService {
       throw Exception('לא ניתן לאתר את תיקיית הבית לרישום פרוטוקול בלינוקס');
     }
 
-    final applicationsDir =
-        Directory(p.join(home, '.local', 'share', 'applications'));
+    final applicationsDir = Directory(
+      p.join(home, '.local', 'share', 'applications'),
+    );
     await applicationsDir.create(recursive: true);
 
-    final mimePackagesDir =
-        Directory(p.join(home, '.local', 'share', 'mime', 'packages'));
+    final mimePackagesDir = Directory(
+      p.join(home, '.local', 'share', 'mime', 'packages'),
+    );
     await mimePackagesDir.create(recursive: true);
 
     final desktopFile = File(p.join(applicationsDir.path, 'otzaria.desktop'));
@@ -146,14 +149,16 @@ class PluginProtocolRegistrationService {
     String mimeIconName,
     String executable,
   ) async {
-    final sourceIcon = File(p.join(
-      p.dirname(executable),
-      'data',
-      'flutter_assets',
-      'assets',
-      'icon',
-      'otzplugin_file_icon.png',
-    ));
+    final sourceIcon = File(
+      p.join(
+        p.dirname(executable),
+        'data',
+        'flutter_assets',
+        'assets',
+        'icon',
+        'otzplugin_file_icon.png',
+      ),
+    );
     if (!await sourceIcon.exists()) {
       return;
     }

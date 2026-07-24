@@ -21,11 +21,13 @@ void main() {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
-  testWidgets('פותח טאב הערות לפי initialTabIndex ומדווח על שינוי טאבים',
-      (tester) async {
+  testWidgets('פותח טאב הערות לפי initialTabIndex ומדווח על שינוי טאבים', (
+    tester,
+  ) async {
     final textBookBloc = _TestTextBookBloc(_loadedState());
-    final personalNotesBloc =
-        _TestPersonalNotesBloc(const PersonalNotesState.initial());
+    final personalNotesBloc = _TestPersonalNotesBloc(
+      const PersonalNotesState.initial(),
+    );
     var selectedTab = -1;
 
     await tester.pumpWidget(
@@ -65,8 +67,9 @@ void main() {
 
   testWidgets('כפתור הסגירה מזמן את callback הסגירה', (tester) async {
     final textBookBloc = _TestTextBookBloc(_loadedState());
-    final personalNotesBloc =
-        _TestPersonalNotesBloc(const PersonalNotesState.initial());
+    final personalNotesBloc = _TestPersonalNotesBloc(
+      const PersonalNotesState.initial(),
+    );
     var wasClosed = false;
 
     await tester.pumpWidget(

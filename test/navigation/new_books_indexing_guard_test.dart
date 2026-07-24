@@ -52,8 +52,9 @@ class _TestWidget extends StatelessWidget {
       // Guard copied verbatim from main_window_screen.dart after fix.
       listener: (context, state) {
         if (context.read<SettingsBloc>().state.autoUpdateIndex) {
-          capturedEvents
-              .add(IndexSpecificBooks(state.newBooksToIndex!, state.library!));
+          capturedEvents.add(
+            IndexSpecificBooks(state.newBooksToIndex!, state.library!),
+          );
         }
       },
       child: const SizedBox.shrink(),
@@ -121,46 +122,50 @@ void main() {
     }
 
     testWidgets(
-        'regression: לא שולח IndexSpecificBooks כשהאינדוקס האוטומטי כבוי',
-        (tester) async {
-      whenListen(
-        settingsBloc,
-        const Stream<SettingsState>.empty(),
-        initialState: SettingsState.initial().copyWith(autoUpdateIndex: false),
-      );
+      'regression: לא שולח IndexSpecificBooks כשהאינדוקס האוטומטי כבוי',
+      (tester) async {
+        whenListen(
+          settingsBloc,
+          const Stream<SettingsState>.empty(),
+          initialState: SettingsState.initial().copyWith(
+            autoUpdateIndex: false,
+          ),
+        );
 
-      await pumpTestWidget(tester);
+        await pumpTestWidget(tester);
 
-      // Emit a state with new books — this triggered the bug.
-      libraryStateController.add(_stateWithNewBooks());
-      await tester.pump();
+        // Emit a state with new books — this triggered the bug.
+        libraryStateController.add(_stateWithNewBooks());
+        await tester.pump();
 
-      expect(
-        capturedEvents.whereType<IndexSpecificBooks>(),
-        isEmpty,
-        reason: 'IndexSpecificBooks לא אמור לרוץ כשהאינדוקס האוטומטי מכובה',
-      );
-    });
+        expect(
+          capturedEvents.whereType<IndexSpecificBooks>(),
+          isEmpty,
+          reason: 'IndexSpecificBooks לא אמור לרוץ כשהאינדוקס האוטומטי מכובה',
+        );
+      },
+    );
 
     testWidgets(
-        'שולח IndexSpecificBooks כשהאינדוקס האוטומטי דלוק (בדיקת "נכון" לצד "שלילי")',
-        (tester) async {
-      whenListen(
-        settingsBloc,
-        const Stream<SettingsState>.empty(),
-        initialState: SettingsState.initial().copyWith(autoUpdateIndex: true),
-      );
+      'שולח IndexSpecificBooks כשהאינדוקס האוטומטי דלוק (בדיקת "נכון" לצד "שלילי")',
+      (tester) async {
+        whenListen(
+          settingsBloc,
+          const Stream<SettingsState>.empty(),
+          initialState: SettingsState.initial().copyWith(autoUpdateIndex: true),
+        );
 
-      await pumpTestWidget(tester);
+        await pumpTestWidget(tester);
 
-      libraryStateController.add(_stateWithNewBooks());
-      await tester.pump();
+        libraryStateController.add(_stateWithNewBooks());
+        await tester.pump();
 
-      expect(
-        capturedEvents.whereType<IndexSpecificBooks>(),
-        hasLength(1),
-        reason: 'IndexSpecificBooks אמור לרוץ כשהאינדוקס האוטומטי דלוק',
-      );
-    });
+        expect(
+          capturedEvents.whereType<IndexSpecificBooks>(),
+          hasLength(1),
+          reason: 'IndexSpecificBooks אמור לרוץ כשהאינדוקס האוטומטי דלוק',
+        );
+      },
+    );
   });
 }

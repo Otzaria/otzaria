@@ -49,13 +49,15 @@ class PdfHeadings {
     String? bookTitle,
   }) async {
     try {
-      final tocEntries =
-          await resolvedBook.repository.getBookTocs(resolvedBook.book.id);
+      final tocEntries = await resolvedBook.repository.getBookTocs(
+        resolvedBook.book.id,
+      );
       final headingsMap = buildHeadingsMapFromTocEntries(tocEntries);
 
       if (headingsMap.isEmpty) {
         debugPrint(
-            'No PDF headings found in DB for bookId: ${resolvedBook.book.id}');
+          'No PDF headings found in DB for bookId: ${resolvedBook.book.id}',
+        );
         return null;
       }
 
@@ -65,14 +67,16 @@ class PdfHeadings {
       );
     } catch (e) {
       debugPrint(
-          'Error loading headings from DB for bookId ${resolvedBook.book.id}: $e');
+        'Error loading headings from DB for bookId ${resolvedBook.book.id}: $e',
+      );
       return null;
     }
   }
 
   /// בונה מפת headings מתוך רשומות TOC מה-DB.
   static Map<String, int> buildHeadingsMapFromTocEntries(
-      List<migration_models.TocEntry> entries) {
+    List<migration_models.TocEntry> entries,
+  ) {
     final Map<String, int> headingsMap = {};
 
     for (final entry in entries) {

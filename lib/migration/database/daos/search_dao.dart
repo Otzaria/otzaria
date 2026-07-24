@@ -14,8 +14,11 @@ class SearchDao {
 
   Future<sqlite3.Database> get database => _db.database;
 
-  Future<List<SearchResult>> searchAll(String query,
-      {int limit = 20, int offset = 0}) async {
+  Future<List<SearchResult>> searchAll(
+    String query, {
+    int limit = 20,
+    int offset = 0,
+  }) async {
     final db = await database;
     return db
         .select(_queries['searchAll']!, [query, limit, offset])
@@ -24,8 +27,12 @@ class SearchDao {
         .toList();
   }
 
-  Future<List<SearchResult>> searchInBook(String query, int bookId,
-      {int limit = 20, int offset = 0}) async {
+  Future<List<SearchResult>> searchInBook(
+    String query,
+    int bookId, {
+    int limit = 20,
+    int offset = 0,
+  }) async {
     final db = await database;
     return db
         .select(_queries['searchInBook']!, [query, bookId, limit, offset])
@@ -34,8 +41,12 @@ class SearchDao {
         .toList();
   }
 
-  Future<List<SearchResult>> searchByAuthor(String query, String authorName,
-      {int limit = 20, int offset = 0}) async {
+  Future<List<SearchResult>> searchByAuthor(
+    String query,
+    String authorName, {
+    int limit = 20,
+    int offset = 0,
+  }) async {
     final db = await database;
     return db
         .select(_queries['searchByAuthor']!, [query, authorName, limit, offset])
@@ -45,19 +56,29 @@ class SearchDao {
   }
 
   Future<List<SearchResult>> searchWithBookFilter(
-      String query, String bookTitleFilter,
-      {int limit = 20, int offset = 0}) async {
+    String query,
+    String bookTitleFilter, {
+    int limit = 20,
+    int offset = 0,
+  }) async {
     final db = await database;
     return db
-        .select(_queries['searchWithBookFilter']!,
-            [query, bookTitleFilter, limit, offset])
+        .select(_queries['searchWithBookFilter']!, [
+          query,
+          bookTitleFilter,
+          limit,
+          offset,
+        ])
         .toMapList()
         .map((row) => _mapToSearchResult(row))
         .toList();
   }
 
-  Future<List<SearchResult>> searchExactPhrase(String query,
-      {int limit = 20, int offset = 0}) async {
+  Future<List<SearchResult>> searchExactPhrase(
+    String query, {
+    int limit = 20,
+    int offset = 0,
+  }) async {
     final db = await database;
     return db
         .select(_queries['searchExactPhrase']!, [query, limit, offset])
@@ -66,8 +87,11 @@ class SearchDao {
         .toList();
   }
 
-  Future<List<SearchResult>> searchWithOperators(String query,
-      {int limit = 20, int offset = 0}) async {
+  Future<List<SearchResult>> searchWithOperators(
+    String query, {
+    int limit = 20,
+    int offset = 0,
+  }) async {
     final db = await database;
     return db
         .select(_queries['searchWithOperators']!, [query, limit, offset])
@@ -84,8 +108,9 @@ class SearchDao {
 
   Future<int> countSearchResultsInBook(String query, int bookId) async {
     final db = await database;
-    return firstIntValue(db
-            .select(_queries['countSearchResultsInBook']!, [query, bookId])) ??
+    return firstIntValue(
+          db.select(_queries['countSearchResultsInBook']!, [query, bookId]),
+        ) ??
         0;
   }
 

@@ -5,12 +5,12 @@ import 'package:otzaria/user_content_import/services/user_links_loader.dart';
 void main() {
   group('dedupeUserLinks', () {
     Link link(int i1, String p2, int i2, {String type = 'COMMENTARY'}) => Link(
-          heRef: 'ref',
-          index1: i1,
-          path2: p2,
-          index2: i2,
-          connectionType: type,
-        );
+      heRef: 'ref',
+      index1: i1,
+      path2: p2,
+      index2: i2,
+      connectionType: type,
+    );
 
     test('קישור דו-כיווני (forward+inverse זהים) נשמר פעם אחת', () {
       final forward = Link(
@@ -39,14 +39,14 @@ void main() {
 
     test('אותה כותרת אך ספר אישי/רשמי או קטגוריה שונה — לא ממוזגים', () {
       Link toBook(int i1, {required bool isUser, int? categoryId}) => Link(
-            heRef: 'ref',
-            index1: i1,
-            path2: 'משותף',
-            index2: 5,
-            connectionType: 'COMMENTARY',
-            targetIsUserBook: isUser,
-            targetCategoryId: categoryId,
-          );
+        heRef: 'ref',
+        index1: i1,
+        path2: 'משותף',
+        index2: 5,
+        connectionType: 'COMMENTARY',
+        targetIsUserBook: isUser,
+        targetCategoryId: categoryId,
+      );
       final result = dedupeUserLinks([
         toBook(3, isUser: true, categoryId: 7),
         toBook(3, isUser: false, categoryId: 7),

@@ -23,52 +23,54 @@ void main() {
     await tempDir.delete(recursive: true);
   });
 
-  test('loadLatestNewNoteDraft מחזיר את הטיוטה החדשה האחרונה של הספר',
-      () async {
-    final service = PersonalNoteDraftService();
+  test(
+    'loadLatestNewNoteDraft מחזיר את הטיוטה החדשה האחרונה של הספר',
+    () async {
+      final service = PersonalNoteDraftService();
 
-    await service.saveDraft(
-      bookId: 'ספר א',
-      lineNumber: 3,
-      draft: PersonalNoteDraft(
-        content: 'ישן',
-        contentPlain: 'ישן',
-        contentFormat: PersonalNoteContentFormat.plain,
-        updatedAt: DateTime(2026, 1, 1),
+      await service.saveDraft(
+        bookId: 'ספר א',
         lineNumber: 3,
-      ),
-    );
-    await service.saveDraft(
-      bookId: 'ספר א',
-      lineNumber: 7,
-      draft: PersonalNoteDraft(
-        content: 'חדש',
-        contentPlain: 'חדש',
-        contentFormat: PersonalNoteContentFormat.plain,
-        updatedAt: DateTime(2026, 1, 2),
+        draft: PersonalNoteDraft(
+          content: 'ישן',
+          contentPlain: 'ישן',
+          contentFormat: PersonalNoteContentFormat.plain,
+          updatedAt: DateTime(2026, 1, 1),
+          lineNumber: 3,
+        ),
+      );
+      await service.saveDraft(
+        bookId: 'ספר א',
         lineNumber: 7,
-        referenceText: 'כותרת',
-      ),
-    );
-    await service.saveDraft(
-      bookId: 'ספר א',
-      noteId: 'note-1',
-      draft: PersonalNoteDraft(
-        content: 'טיוטת עריכה',
-        contentPlain: 'טיוטת עריכה',
-        contentFormat: PersonalNoteContentFormat.plain,
-        updatedAt: DateTime(2026, 1, 3),
+        draft: PersonalNoteDraft(
+          content: 'חדש',
+          contentPlain: 'חדש',
+          contentFormat: PersonalNoteContentFormat.plain,
+          updatedAt: DateTime(2026, 1, 2),
+          lineNumber: 7,
+          referenceText: 'כותרת',
+        ),
+      );
+      await service.saveDraft(
+        bookId: 'ספר א',
         noteId: 'note-1',
-      ),
-    );
+        draft: PersonalNoteDraft(
+          content: 'טיוטת עריכה',
+          contentPlain: 'טיוטת עריכה',
+          contentFormat: PersonalNoteContentFormat.plain,
+          updatedAt: DateTime(2026, 1, 3),
+          noteId: 'note-1',
+        ),
+      );
 
-    final latest = await service.loadLatestNewNoteDraft(bookId: 'ספר א');
+      final latest = await service.loadLatestNewNoteDraft(bookId: 'ספר א');
 
-    expect(latest, isNotNull);
-    expect(latest!.lineNumber, 7);
-    expect(latest.contentPlain, 'חדש');
-    expect(latest.referenceText, 'כותרת');
-  });
+      expect(latest, isNotNull);
+      expect(latest!.lineNumber, 7);
+      expect(latest.contentPlain, 'חדש');
+      expect(latest.referenceText, 'כותרת');
+    },
+  );
 
   test('אפשר לשמור ולטעון טיוטה של הערה קיימת לפי noteId', () async {
     final service = PersonalNoteDraftService();

@@ -10,8 +10,10 @@ class TourSteps {
   static const String completedWithoutLibrary = 'completed_without_library';
   static const String skippedWithoutLibrary = 'skipped_without_library';
 
-  static List<TourStep> build(
-      {required bool libraryLoaded, bool isRestart = false}) {
+  static List<TourStep> build({
+    required bool libraryLoaded,
+    bool isRestart = false,
+  }) {
     final shortcuts = _ShortcutText();
     final steps = <TourStep>[
       if (isRestart)
@@ -208,13 +210,13 @@ class TourSteps {
 
 class _ShortcutText {
   String get mainNavigation => [
-        'ספרייה ${_read('key-shortcut-open-library-browser', 'ctrl+l')}',
-        'איתור ${_read('key-shortcut-open-find-ref', 'ctrl+o')}',
-        'עיון ${_read('key-shortcut-open-reading-screen', 'ctrl+r')}',
-        'חיפוש ${_read('key-shortcut-open-new-search', 'ctrl+shift+f')}',
-        'כלים ${_read('key-shortcut-open-more', 'ctrl+m')}',
-        'הגדרות ${_read('key-shortcut-open-settings', 'ctrl+comma')}',
-      ].join(' · ');
+    'ספרייה ${_read('key-shortcut-open-library-browser', 'ctrl+l')}',
+    'איתור ${_read('key-shortcut-open-find-ref', 'ctrl+o')}',
+    'עיון ${_read('key-shortcut-open-reading-screen', 'ctrl+r')}',
+    'חיפוש ${_read('key-shortcut-open-new-search', 'ctrl+shift+f')}',
+    'כלים ${_read('key-shortcut-open-more', 'ctrl+m')}',
+    'הגדרות ${_read('key-shortcut-open-settings', 'ctrl+comma')}',
+  ].join(' · ');
 
   String get findRef => _read('key-shortcut-open-find-ref', 'ctrl+o');
   String get reading => _read('key-shortcut-open-reading-screen', 'ctrl+r');

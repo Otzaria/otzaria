@@ -30,13 +30,23 @@ void main() {
 
     test('עץ מקונן רקורסיבי', () {
       final entries = [
-        _e('root', 0, 1, children: [
-          _e('a', 1, 2, children: [
-            _e('a1', 2, 3),
-            _e('a2', 3, 3),
-          ]),
-          _e('b', 4, 2),
-        ]),
+        _e(
+          'root',
+          0,
+          1,
+          children: [
+            _e(
+              'a',
+              1,
+              2,
+              children: [
+                _e('a1', 2, 3),
+                _e('a2', 3, 3),
+              ],
+            ),
+            _e('b', 4, 2),
+          ],
+        ),
       ];
       // 1 + 2 + 2 + 0 = 5? Let me recount: root + a + a1 + a2 + b = 5
       expect(countAllTocEntries(entries), 5);
@@ -66,14 +76,22 @@ void main() {
 
     test('ערך רמה 1 עם ילדים - מורחב כברירת מחדל וילדיו מופיעים', () {
       final entries = [
-        _e('siman 1', 0, 1, children: [
-          _e('seif 1', 1, 2),
-          _e('seif 2', 2, 2),
-        ]),
+        _e(
+          'siman 1',
+          0,
+          1,
+          children: [
+            _e('seif 1', 1, 2),
+            _e('seif 2', 2, 2),
+          ],
+        ),
       ];
       final flat = flattenVisibleToc(entries, const {});
-      expect(flat.map((f) => f.entry.text).toList(),
-          ['siman 1', 'seif 1', 'seif 2']);
+      expect(flat.map((f) => f.entry.text).toList(), [
+        'siman 1',
+        'seif 1',
+        'seif 2',
+      ]);
       // אביה של הרשימה מורחב, ילדיו עלים → לא מורחבים
       expect(flat[0].isExpanded, isTrue);
       expect(flat[1].isExpanded, isFalse);
@@ -83,20 +101,40 @@ void main() {
     test('first-child propagation - שרשרת ילדים ראשונים מורחבת', () {
       // עץ של 3 רמות, רק שרשרת first-child אמורה להופיע
       final entries = [
-        _e('root', 0, 1, children: [
-          _e('a', 1, 2, children: [
-            _e('a1', 2, 3),
-            _e('a2', 3, 3),
-          ]),
-          _e('b', 4, 2, children: [
-            _e('b1', 5, 3),
-          ]),
-        ]),
+        _e(
+          'root',
+          0,
+          1,
+          children: [
+            _e(
+              'a',
+              1,
+              2,
+              children: [
+                _e('a1', 2, 3),
+                _e('a2', 3, 3),
+              ],
+            ),
+            _e(
+              'b',
+              4,
+              2,
+              children: [
+                _e('b1', 5, 3),
+              ],
+            ),
+          ],
+        ),
       ];
       final flat = flattenVisibleToc(entries, const {});
       // root expanded (level 1), a expanded (first-child), b not expanded
-      expect(flat.map((f) => f.entry.text).toList(),
-          ['root', 'a', 'a1', 'a2', 'b']);
+      expect(flat.map((f) => f.entry.text).toList(), [
+        'root',
+        'a',
+        'a1',
+        'a2',
+        'b',
+      ]);
       // b לא מורחב → b1 לא בפלט
       expect(flat.any((f) => f.entry.text == 'b1'), isFalse);
     });
@@ -108,8 +146,12 @@ void main() {
       ];
       final flat = flattenVisibleToc(entries, const {});
       // שני הראשונים ברמה 1 - שניהם מורחבים (level == 1)
-      expect(flat.map((f) => f.entry.text).toList(),
-          ['first', 'first-child', 'second', 'second-child']);
+      expect(flat.map((f) => f.entry.text).toList(), [
+        'first',
+        'first-child',
+        'second',
+        'second-child',
+      ]);
     });
   });
 
@@ -129,12 +171,22 @@ void main() {
       final entries = [
         _e('first', 0, 1, children: [_e('fc', 1, 2)]),
         // second-level שני: ברירת מחדל לא מורחב (לא רמה 1, לא first-child)
-        _e('second', 2, 1, children: [
-          _e('inner-a', 3, 2, children: [
-            _e('deep', 4, 3),
-          ]),
-          _e('inner-b', 5, 2, children: [_e('deep-b', 6, 3)]),
-        ]),
+        _e(
+          'second',
+          2,
+          1,
+          children: [
+            _e(
+              'inner-a',
+              3,
+              2,
+              children: [
+                _e('deep', 4, 3),
+              ],
+            ),
+            _e('inner-b', 5, 2, children: [_e('deep-b', 6, 3)]),
+          ],
+        ),
       ];
       // ברירת מחדל: inner-b לא מורחב כי אינו first-child וגם לא ברמה 1
       // נכפה אותו פתוח דרך expanded
@@ -147,9 +199,14 @@ void main() {
 
     test('isExpanded בפלט משקף את המצב בפועל', () {
       final entries = [
-        _e('root', 0, 1, children: [
-          _e('child', 1, 2, children: [_e('grand', 2, 3)]),
-        ]),
+        _e(
+          'root',
+          0,
+          1,
+          children: [
+            _e('child', 1, 2, children: [_e('grand', 2, 3)]),
+          ],
+        ),
       ];
       // root מורחב כברירת מחדל (level 1), child מורחב כ-first-child
       final flat = flattenVisibleToc(entries, const {});
@@ -163,17 +220,32 @@ void main() {
   group('flattenVisibleToc - שמירת סדר וקפיצות לרמות', () {
     test('הסדר תואם DFS מקדים (כותרת לפני ילדיה)', () {
       final entries = [
-        _e('A', 0, 1, children: [
-          _e('A1', 1, 2),
-          _e('A2', 2, 2),
-        ]),
-        _e('B', 3, 1, children: [
-          _e('B1', 4, 2),
-        ]),
+        _e(
+          'A',
+          0,
+          1,
+          children: [
+            _e('A1', 1, 2),
+            _e('A2', 2, 2),
+          ],
+        ),
+        _e(
+          'B',
+          3,
+          1,
+          children: [
+            _e('B1', 4, 2),
+          ],
+        ),
       ];
       final flat = flattenVisibleToc(entries, const {});
-      expect(
-          flat.map((f) => f.entry.text).toList(), ['A', 'A1', 'A2', 'B', 'B1']);
+      expect(flat.map((f) => f.entry.text).toList(), [
+        'A',
+        'A1',
+        'A2',
+        'B',
+        'B1',
+      ]);
     });
   });
 
@@ -190,27 +262,45 @@ void main() {
   group('flattenVisibleToc - עקביות ויציבות', () {
     test('כל ערך ייחודי - אין כפילויות גם בעץ עמוק', () {
       final entries = [
-        _e('A', 0, 1, children: [
-          _e('A1', 1, 2, children: [
-            _e('A1a', 2, 3),
-            _e('A1b', 3, 3),
-          ]),
-          _e('A2', 4, 2, children: [_e('A2a', 5, 3)]),
-        ]),
+        _e(
+          'A',
+          0,
+          1,
+          children: [
+            _e(
+              'A1',
+              1,
+              2,
+              children: [
+                _e('A1a', 2, 3),
+                _e('A1b', 3, 3),
+              ],
+            ),
+            _e('A2', 4, 2, children: [_e('A2a', 5, 3)]),
+          ],
+        ),
         _e('B', 6, 1, children: [_e('B1', 7, 2)]),
       ];
       final flat = flattenVisibleToc(entries, const {});
       final indices = flat.map((f) => f.entry.index).toList();
-      expect(indices.toSet().length, indices.length,
-          reason: 'כל פריט ברשימה השטוחה חייב להופיע פעם אחת בדיוק');
+      expect(
+        indices.toSet().length,
+        indices.length,
+        reason: 'כל פריט ברשימה השטוחה חייב להופיע פעם אחת בדיוק',
+      );
     });
 
     test('isExpanded=true → הילדים מופיעים מיד אחרי האב ברשימה', () {
       // קונטרקט עבור ScrollablePositionedList: הילדים תמיד צמודים להוריהם.
       final entries = [
-        _e('root', 0, 1, children: [
-          _e('child', 1, 2, children: [_e('grand', 2, 3)]),
-        ]),
+        _e(
+          'root',
+          0,
+          1,
+          children: [
+            _e('child', 1, 2, children: [_e('grand', 2, 3)]),
+          ],
+        ),
       ];
       final flat = flattenVisibleToc(entries, const {});
       // root.expanded → child בא מיד אחריו
@@ -233,29 +323,49 @@ void main() {
 
       // כווץ את a
       final flatACollapsed = flattenVisibleToc(entries, const {0: false});
-      expect(
-          flatACollapsed.map((f) => f.entry.text).toList(), ['a', 'b', 'b1']);
+      expect(flatACollapsed.map((f) => f.entry.text).toList(), [
+        'a',
+        'b',
+        'b1',
+      ]);
 
       // כווץ את שניהם
-      final flatBothCollapsed =
-          flattenVisibleToc(entries, const {0: false, 2: false});
+      final flatBothCollapsed = flattenVisibleToc(entries, const {
+        0: false,
+        2: false,
+      });
       expect(flatBothCollapsed.map((f) => f.entry.text).toList(), ['a', 'b']);
     });
 
     test('כשכל הערכים מורחבים, אורך הפלט שווה ל-countAllTocEntries', () {
       // אינווריאנט: ה"כל מורחב" צריך להיות שווה לסך כל הערכים בעץ.
       final entries = [
-        _e('A', 0, 1, children: [
-          _e('A1', 1, 2, children: [
-            _e('A1a', 2, 3),
-            _e('A1b', 3, 3),
-          ]),
-          _e('A2', 4, 2),
-        ]),
-        _e('B', 5, 1, children: [
-          _e('B1', 6, 2, children: [_e('B1a', 7, 3)]),
-          _e('B2', 8, 2),
-        ]),
+        _e(
+          'A',
+          0,
+          1,
+          children: [
+            _e(
+              'A1',
+              1,
+              2,
+              children: [
+                _e('A1a', 2, 3),
+                _e('A1b', 3, 3),
+              ],
+            ),
+            _e('A2', 4, 2),
+          ],
+        ),
+        _e(
+          'B',
+          5,
+          1,
+          children: [
+            _e('B1', 6, 2, children: [_e('B1a', 7, 3)]),
+            _e('B2', 8, 2),
+          ],
+        ),
       ];
       // נכפה הרחבה על כל ערך
       final allExpanded = <int, bool>{
@@ -268,10 +378,15 @@ void main() {
     test('הסדר תמיד DFS מקדים, ללא תלות במצב expanded', () {
       // הגנה: גם אם מישהו ישנה את אופן הירידה לעומק, הסדר חייב להישמר.
       final entries = [
-        _e('A', 0, 1, children: [
-          _e('A1', 1, 2),
-          _e('A2', 2, 2),
-        ]),
+        _e(
+          'A',
+          0,
+          1,
+          children: [
+            _e('A1', 1, 2),
+            _e('A2', 2, 2),
+          ],
+        ),
         _e('B', 3, 1, children: [_e('B1', 4, 2)]),
       ];
       // מצב 1: A מורחב, B מכווץ
@@ -287,9 +402,15 @@ void main() {
       // מבטיח שאין רגרסיה לרקורסיה לא-זנבית שתשבור על עצים אמיתיים.
       final simanim = List.generate(100, (s) {
         final base = s * 100;
-        return _e('siman$s', base, 1,
-            children:
-                List.generate(99, (i) => _e('seif${s}_$i', base + 1 + i, 2)));
+        return _e(
+          'siman$s',
+          base,
+          1,
+          children: List.generate(
+            99,
+            (i) => _e('seif${s}_$i', base + 1 + i, 2),
+          ),
+        );
       });
       final entries = [_e('book', -1, 0, children: simanim)];
       // -1 ייחודי כדי לא להתנגש עם ילדים שמתחילים מ-0
@@ -328,8 +449,10 @@ void main() {
       // מדמה את המבנה האמיתי של "כף החיים על שו"ע יורה דעה"
       // 134 simanim, כל אחד ~63 se'ifim
       final simanim = List.generate(134, (s) {
-        final seifim =
-            List.generate(63, (sf) => _e('seif $sf', s * 100 + sf, 2));
+        final seifim = List.generate(
+          63,
+          (sf) => _e('seif $sf', s * 100 + sf, 2),
+        );
         return _e('siman $s', s * 100, 1, children: seifim);
       });
       final entries = [_e('book', 0, 1, children: simanim)];

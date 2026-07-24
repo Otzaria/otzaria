@@ -85,62 +85,69 @@ void main() {
   /// Closes the write handle, calls the scan, then re-opens for tearDown.
   Future<List<Map<String, Object?>>> runScan() async {
     db.close();
-    final result =
-        await scanExternalFolderForTest(tmpDir.path, 'testFolder', dbPath);
+    final result = await scanExternalFolderForTest(
+      tmpDir.path,
+      'testFolder',
+      dbPath,
+    );
     db = sqlite3.sqlite3.open(dbPath);
     return result;
   }
 
   // ── tests ────────────────────────────────────────────────────────────────
 
-  test('regression: ספר ללא שינוי לא מוחזר מהסריקה (ללא parse TOC מיותר)',
-      () async {
-    final file = await createTxtFile('unchanged.txt');
-    final stat = await file.stat();
+  test(
+    'regression: ספר ללא שינוי לא מוחזר מהסריקה (ללא parse TOC מיותר)',
+    () async {
+      final file = await createTxtFile('unchanged.txt');
+      final stat = await file.stat();
 
-    _insertBook(
-      db,
-      id: 1,
-      filePath: file.path,
-      fileSize: stat.size,
-      lastModified: stat.modified.millisecondsSinceEpoch,
-    );
+      _insertBook(
+        db,
+        id: 1,
+        filePath: file.path,
+        fileSize: stat.size,
+        lastModified: stat.modified.millisecondsSinceEpoch,
+      );
 
-    final result = await runScan();
+      final result = await runScan();
 
-    expect(
-      result.map((r) => r['path']),
-      isNot(contains(file.path)),
-      reason: 'ספר ללא שינוי לא אמור להופיע בתוצאת הסריקה',
-    );
-  });
+      expect(
+        result.map((r) => r['path']),
+        isNot(contains(file.path)),
+        reason: 'ספר ללא שינוי לא אמור להופיע בתוצאת הסריקה',
+      );
+    },
+  );
 
-  test('ספר עם metadata ששונה מוחזר עם existingBookId (עדכון בלבד, לא הכנסה)',
-      () async {
-    final file = await createTxtFile('changed.txt');
-    final stat = await file.stat();
+  test(
+    'ספר עם metadata ששונה מוחזר עם existingBookId (עדכון בלבד, לא הכנסה)',
+    () async {
+      final file = await createTxtFile('changed.txt');
+      final stat = await file.stat();
 
-    _insertBook(
-      db,
-      id: 42,
-      filePath: file.path,
-      fileSize: stat.size + 99, // stale size
-      lastModified: stat.modified.millisecondsSinceEpoch,
-    );
+      _insertBook(
+        db,
+        id: 42,
+        filePath: file.path,
+        fileSize: stat.size + 99, // stale size
+        lastModified: stat.modified.millisecondsSinceEpoch,
+      );
 
-    final result = await runScan();
+      final result = await runScan();
 
-    final entry = result.firstWhere(
-      (r) => r['path'] == file.path,
-      orElse: () => {},
-    );
-    expect(entry, isNotEmpty, reason: 'ספר עם שינוי חייב להופיע בתוצאה');
-    expect(
-      entry['existingBookId'],
-      equals(42),
-      reason: 'existingBookId אמור להיות מזהה הספר הקיים ב-DB',
-    );
-  });
+      final entry = result.firstWhere(
+        (r) => r['path'] == file.path,
+        orElse: () => {},
+      );
+      expect(entry, isNotEmpty, reason: 'ספר עם שינוי חייב להופיע בתוצאה');
+      expect(
+        entry['existingBookId'],
+        equals(42),
+        reason: 'existingBookId אמור להיות מזהה הספר הקיים ב-DB',
+      );
+    },
+  );
 
   test('ספר חדש (לא נמצא ב-DB) מוחזר עם existingBookId == null', () async {
     await createTxtFile('newbook.txt');
@@ -172,42 +179,48 @@ void main() {
   });
 
   test(
-      'fallback: כשה-DB לא נפתח, כל הקבצים מוחזרים כחדשים (existingBookId == null)',
-      () async {
-    final file = await createTxtFile('any.txt');
-    final stat = await file.stat();
-    // Register the file so it would normally be filtered.
-    _insertBook(
-      db,
-      id: 7,
-      filePath: file.path,
-      fileSize: stat.size,
-      lastModified: stat.modified.millisecondsSinceEpoch,
-    );
+    'fallback: כשה-DB לא נפתח, כל הקבצים מוחזרים כחדשים (existingBookId == null)',
+    () async {
+      final file = await createTxtFile('any.txt');
+      final stat = await file.stat();
+      // Register the file so it would normally be filtered.
+      _insertBook(
+        db,
+        id: 7,
+        filePath: file.path,
+        fileSize: stat.size,
+        lastModified: stat.modified.millisecondsSinceEpoch,
+      );
 
-    // Use a bogus DB path → sqlite3 open will fail → fallback to "new" mode.
-    const badDbPath = '/nonexistent/path/that/cannot/exist.db';
-    db.close();
-    final result =
-        await scanExternalFolderForTest(tmpDir.path, 'testFolder', badDbPath);
-    db = sqlite3.sqlite3.open(dbPath);
+      // Use a bogus DB path → sqlite3 open will fail → fallback to "new" mode.
+      const badDbPath = '/nonexistent/path/that/cannot/exist.db';
+      db.close();
+      final result = await scanExternalFolderForTest(
+        tmpDir.path,
+        'testFolder',
+        badDbPath,
+      );
+      db = sqlite3.sqlite3.open(dbPath);
 
-    // The file should appear because the fallback treats everything as new.
-    final entry = result.firstWhere(
-      (r) => r['path'] == file.path,
-      orElse: () => {},
-    );
-    expect(entry, isNotEmpty,
-        reason: 'fallback: קובץ חייב להופיע כשה-DB לא זמין');
-    expect(
-      entry['existingBookId'],
-      isNull,
-      reason: 'fallback: existingBookId חייב להיות null כי לא נבדק ה-DB',
-    );
-  });
+      // The file should appear because the fallback treats everything as new.
+      final entry = result.firstWhere(
+        (r) => r['path'] == file.path,
+        orElse: () => {},
+      );
+      expect(
+        entry,
+        isNotEmpty,
+        reason: 'fallback: קובץ חייב להופיע כשה-DB לא זמין',
+      );
+      expect(
+        entry['existingBookId'],
+        isNull,
+        reason: 'fallback: existingBookId חייב להיות null כי לא נבדק ה-DB',
+      );
+    },
+  );
 
-  test(
-      'Phase-1 contract: ב-fallback mode existingBookId הוא null גם לקבצים קיימים ב-DB — '
+  test('Phase-1 contract: ב-fallback mode existingBookId הוא null גם לקבצים קיימים ב-DB — '
       'Phase 2 אחראי לבדיקה הסופית לפני insert', () async {
     // This is a structural test: we verify that _DiscoveredBook with
     // existingBookId == null AND a file that already has a DB row will be
@@ -228,8 +241,11 @@ void main() {
 
     const badDbPath = '/nonexistent/path/that/cannot/exist.db';
     db.close();
-    final result =
-        await scanExternalFolderForTest(tmpDir.path, 'testFolder', badDbPath);
+    final result = await scanExternalFolderForTest(
+      tmpDir.path,
+      'testFolder',
+      badDbPath,
+    );
     db = sqlite3.sqlite3.open(dbPath);
 
     // Phase 1 returns it as "new" (existingBookId == null).
@@ -239,9 +255,12 @@ void main() {
       (r) => r['path'] == file.path,
       orElse: () => {},
     );
-    expect(entry['existingBookId'], isNull,
-        reason:
-            'Phase 1 fallback מחזיר null — Phase 2 אחראי לבדיקה הסופית מול repository');
+    expect(
+      entry['existingBookId'],
+      isNull,
+      reason:
+          'Phase 1 fallback מחזיר null — Phase 2 אחראי לבדיקה הסופית מול repository',
+    );
   });
 
   // ── Phase-2 recheck (recheckBeforeInsertForTest) ─────────────────────────
@@ -253,22 +272,30 @@ void main() {
       fakeRepo = _FakeRepository();
     });
 
-    test('ספר קיים ב-DB עם metadata זהה → מחזיר true (דלג על insert)',
-        () async {
-      fakeRepo.books['/books/book.txt'] =
-          _FakeBook(id: 5, fileSize: 100, lastModified: 1000);
+    test(
+      'ספר קיים ב-DB עם metadata זהה → מחזיר true (דלג על insert)',
+      () async {
+        fakeRepo.books['/books/book.txt'] = _FakeBook(
+          id: 5,
+          fileSize: 100,
+          lastModified: 1000,
+        );
 
-      final skip = await DatabaseLibraryProvider.recheckBeforeInsertForTest(
-        repository: fakeRepo,
-        filePath: '/books/book.txt',
-        fileSize: 100,
-        lastModified: 1000,
-      );
+        final skip = await DatabaseLibraryProvider.recheckBeforeInsertForTest(
+          repository: fakeRepo,
+          filePath: '/books/book.txt',
+          fileSize: 100,
+          lastModified: 1000,
+        );
 
-      expect(skip, isTrue, reason: 'ספר קיים ב-DB — לא יש להכניס שוב');
-      expect(fakeRepo.updateCalls, isEmpty,
-          reason: 'metadata זהה — אין צורך בעדכון');
-    });
+        expect(skip, isTrue, reason: 'ספר קיים ב-DB — לא יש להכניס שוב');
+        expect(
+          fakeRepo.updateCalls,
+          isEmpty,
+          reason: 'metadata זהה — אין צורך בעדכון',
+        );
+      },
+    );
 
     test('ספר לא קיים ב-DB → מחזיר false (בצע insert)', () async {
       // fakeRepo is empty — no file registered
@@ -284,25 +311,35 @@ void main() {
     });
 
     test(
-        'ספר קיים ב-DB עם metadata שונה → מחזיר true ומפעיל updateExternalBookMetadata',
-        () async {
-      fakeRepo.books['/books/changed.txt'] =
-          _FakeBook(id: 7, fileSize: 50, lastModified: 111);
+      'ספר קיים ב-DB עם metadata שונה → מחזיר true ומפעיל updateExternalBookMetadata',
+      () async {
+        fakeRepo.books['/books/changed.txt'] = _FakeBook(
+          id: 7,
+          fileSize: 50,
+          lastModified: 111,
+        );
 
-      final skip = await DatabaseLibraryProvider.recheckBeforeInsertForTest(
-        repository: fakeRepo,
-        filePath: '/books/changed.txt',
-        fileSize: 999, // שונה מה-DB
-        lastModified: 222, // שונה מה-DB
-      );
+        final skip = await DatabaseLibraryProvider.recheckBeforeInsertForTest(
+          repository: fakeRepo,
+          filePath: '/books/changed.txt',
+          fileSize: 999, // שונה מה-DB
+          lastModified: 222, // שונה מה-DB
+        );
 
-      expect(skip, isTrue, reason: 'ספר קיים ב-DB — לא יש להכניס שוב');
-      expect(fakeRepo.updateCalls, hasLength(1),
-          reason: 'updateExternalBookMetadata אמור להיקרא פעם אחת');
-      expect(fakeRepo.updateCalls.first, equals('7:999:222'),
+        expect(skip, isTrue, reason: 'ספר קיים ב-DB — לא יש להכניס שוב');
+        expect(
+          fakeRepo.updateCalls,
+          hasLength(1),
+          reason: 'updateExternalBookMetadata אמור להיקרא פעם אחת',
+        );
+        expect(
+          fakeRepo.updateCalls.first,
+          equals('7:999:222'),
           reason:
-              'ה-update אמור להשתמש בערכים החדשים (id=7, size=999, mtime=222)');
-    });
+              'ה-update אמור להשתמש בערכים החדשים (id=7, size=999, mtime=222)',
+        );
+      },
+    );
   });
 
   // ── PersonalBooksOperationQueue ──────────────────────────────────────────
@@ -330,14 +367,20 @@ void main() {
 
       // נותן ל-microtasks לרוץ כך ש-op1 מתחיל
       await Future.microtask(() {});
-      expect(log, equals(['op1_start']),
-          reason: 'op2 לא אמורה להתחיל בעוד op1 עדיין רצה');
+      expect(
+        log,
+        equals(['op1_start']),
+        reason: 'op2 לא אמורה להתחיל בעוד op1 עדיין רצה',
+      );
 
       gate.complete();
       await Future.wait([f1, f2]);
 
-      expect(log, equals(['op1_start', 'op1_end', 'op2_start']),
-          reason: 'op2 התחילה רק אחרי ש-op1 הסתיימה');
+      expect(
+        log,
+        equals(['op1_start', 'op1_end', 'op2_start']),
+        reason: 'op2 התחילה רק אחרי ש-op1 הסתיימה',
+      );
     });
 
     test('11. busyCount עולה בהוספה ויורד עם סיום', () async {
@@ -375,10 +418,16 @@ void main() {
 
       await Future.wait([f1.catchError((_) {}), f2]);
 
-      expect(log, equals(['op1_start', 'op2_start']),
-          reason: 'op2 רצה גם אחרי כישלון של op1');
-      expect(queue.busyCount.value, 0,
-          reason: 'busyCount חוזר ל-0 גם אחרי כישלון');
+      expect(
+        log,
+        equals(['op1_start', 'op2_start']),
+        reason: 'op2 רצה גם אחרי כישלון של op1',
+      );
+      expect(
+        queue.busyCount.value,
+        0,
+        reason: 'busyCount חוזר ל-0 גם אחרי כישלון',
+      );
     });
   });
 }
@@ -389,8 +438,11 @@ class _FakeBook {
   final int id;
   final int fileSize;
   final int lastModified;
-  const _FakeBook(
-      {required this.id, required this.fileSize, required this.lastModified});
+  const _FakeBook({
+    required this.id,
+    required this.fileSize,
+    required this.lastModified,
+  });
 }
 
 /// Minimal duck-typed mock: only the two methods called by _recheckBeforeInsert.
@@ -402,7 +454,10 @@ class _FakeRepository {
       books[path];
 
   Future<void> updateExternalBookMetadata(
-      int id, int fileSize, int lastModified) async {
+    int id,
+    int fileSize,
+    int lastModified,
+  ) async {
     updateCalls.add('$id:$fileSize:$lastModified');
   }
 }

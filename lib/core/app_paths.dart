@@ -112,8 +112,9 @@ class AppPaths {
   /// הכללי (Hive, תוספים, גיבויים) שנשאר תמיד באחסון הפנימי.
   static Future<String?> _androidLibraryRootOverride() async {
     if (!Platform.isAndroid) return null;
-    final override =
-        Settings.getValue<String>(SettingsRepository.keyAndroidLibraryRoot);
+    final override = Settings.getValue<String>(
+      SettingsRepository.keyAndroidLibraryRoot,
+    );
     if (override != null &&
         override.isNotEmpty &&
         await Directory(override).exists()) {
@@ -126,7 +127,9 @@ class AppPaths {
   /// הפנימי כש-[path] ריק/null).
   static Future<void> setAndroidLibraryRoot(String? path) async {
     await Settings.setValue<String>(
-        SettingsRepository.keyAndroidLibraryRoot, path ?? '');
+      SettingsRepository.keyAndroidLibraryRoot,
+      path ?? '',
+    );
   }
 
   /// מזהה אם ההתקנה מערכתית (כמנהל) או התקנת משתמש.
@@ -153,9 +156,10 @@ class AppPaths {
       final exeDirLower = exeDir.toLowerCase();
       final pf = (Platform.environment['ProgramFiles'] ?? r'C:\Program Files')
           .toLowerCase();
-      final pfX86 = (Platform.environment['ProgramFiles(x86)'] ??
-              r'C:\Program Files (x86)')
-          .toLowerCase();
+      final pfX86 =
+          (Platform.environment['ProgramFiles(x86)'] ??
+                  r'C:\Program Files (x86)')
+              .toLowerCase();
       if (exeDirLower.startsWith(pf) || exeDirLower.startsWith(pfX86)) {
         return InstallMode.systemWide;
       }
@@ -173,8 +177,8 @@ class AppPaths {
   /// מצורפת שאינה בתת-תיקיית books) הנתיב עצמו הוא השורש.
   static String libraryRootOf(String libraryPath) =>
       p.basename(libraryPath).toLowerCase() == 'books'
-          ? p.dirname(libraryPath)
-          : libraryPath;
+      ? p.dirname(libraryPath)
+      : libraryPath;
 
   /// מחזיר את נתיב ברירת המחדל של הספרייה.
   ///
@@ -237,7 +241,8 @@ class AppPaths {
     } else if (Platform.isMacOS) {
       candidates.add(
         p.normalize(
-            p.join(exeDir, '..', '..', '..', _bundledLibraryFolderName)),
+          p.join(exeDir, '..', '..', '..', _bundledLibraryFolderName),
+        ),
       );
     }
 
@@ -297,8 +302,9 @@ class AppPaths {
 
   /// Gets the main library path from settings, or gracefully falls back to default paths.
   static Future<String> getLibraryPath() async {
-    final currentPath =
-        Settings.getValue<String>(SettingsRepository.keyLibraryPath);
+    final currentPath = Settings.getValue<String>(
+      SettingsRepository.keyLibraryPath,
+    );
 
     // אם ה-executable הנוכחי שייך ל-FULL bundle, הספרייה המצורפת אמורה
     // לנצח על keyLibraryPath שמור — אבל רק אם השמור לא מייצג בחירה ידנית
@@ -330,7 +336,7 @@ class AppPaths {
       }
       final currentFolderName =
           Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
-              '';
+          '';
       if (currentFolderName.isNotEmpty) {
         await Settings.setValue(SettingsRepository.keyLibraryFolderName, '');
       }
@@ -358,9 +364,10 @@ class AppPaths {
   static Future<bool> _isUserChosenLibraryPath(String libraryPath) async {
     final folderName =
         Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
-            '';
-    final dbDir =
-        folderName.isEmpty ? libraryPath : p.join(libraryPath, folderName);
+        '';
+    final dbDir = folderName.isEmpty
+        ? libraryPath
+        : p.join(libraryPath, folderName);
 
     final db = File(p.join(dbDir, 'seforim.db'));
     if (!await db.exists()) {
@@ -379,8 +386,9 @@ class AppPaths {
   /// On system-wide desktop installs this remains next to the shared library.
   static Future<String> getIndexPath() async {
     // Check if there is a separate index path assigned
-    final savedIndex =
-        Settings.getValue<String>(SettingsRepository.keyIndexPath);
+    final savedIndex = Settings.getValue<String>(
+      SettingsRepository.keyIndexPath,
+    );
     if (savedIndex != null && savedIndex.isNotEmpty) return savedIndex;
 
     return _getDefaultIndexPath();
@@ -391,8 +399,9 @@ class AppPaths {
   /// התקנות קיימות עם `<dataRoot>/databases` ממשיכות להשתמש בו. התקנות
   /// חדשות יוצרות את התיקייה ליד הספרייה, כך שהיא ניידת יחד עם הספרייה.
   static Future<String> getDatabasesPath() async {
-    final saved =
-        Settings.getValue<String>(SettingsRepository.keyDatabasesPath);
+    final saved = Settings.getValue<String>(
+      SettingsRepository.keyDatabasesPath,
+    );
     if (saved != null && saved.isNotEmpty) return saved;
 
     final legacyPath = p.join(await getDataRootPath(), 'databases');

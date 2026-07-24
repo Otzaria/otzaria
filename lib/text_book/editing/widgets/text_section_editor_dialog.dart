@@ -110,8 +110,10 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog>
     registerDialogFocusRestorer(_editorFocusNode);
 
     // Initialize undo stack with initial content
-    _saveToUndoStack(widget.initialContent,
-        TextSelection.collapsed(offset: widget.initialContent.length));
+    _saveToUndoStack(
+      widget.initialContent,
+      TextSelection.collapsed(offset: widget.initialContent.length),
+    );
 
     // Listen to text changes
     _textController.addListener(_onTextChanged);
@@ -213,8 +215,10 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog>
 
     _hasShownNotification = true;
 
-    UiSnack.show(TextBookMessages.localEditsWarning,
-        duration: const Duration(seconds: 4));
+    UiSnack.show(
+      TextBookMessages.localEditsWarning,
+      duration: const Duration(seconds: 4),
+    );
   }
 
   void _save() async {
@@ -225,11 +229,13 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog>
 
     if (!mounted) return;
 
-    context.read<TextBookBloc>().add(SaveEditedSection(
-          index: widget.sectionIndex,
-          sectionId: widget.sectionId,
-          markdown: _textController.text,
-        ));
+    context.read<TextBookBloc>().add(
+      SaveEditedSection(
+        index: widget.sectionIndex,
+        sectionId: widget.sectionId,
+        markdown: _textController.text,
+      ),
+    );
 
     setState(() {
       _hasUnsavedChanges = false;
@@ -390,7 +396,9 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog>
     if (_undoIndex < _undoStack.length - 1) {
       _undoStack.removeRange(_undoIndex + 1, _undoStack.length);
       _undoSelectionStack.removeRange(
-          _undoIndex + 1, _undoSelectionStack.length);
+        _undoIndex + 1,
+        _undoSelectionStack.length,
+      );
     }
 
     _undoStack.add(text);
@@ -497,8 +505,10 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog>
 
       if (tempIndex != -1) {
         foundIndex = tempIndex;
-        searchText =
-            currentText.substring(tempIndex, tempIndex + searchText.length);
+        searchText = currentText.substring(
+          tempIndex,
+          tempIndex + searchText.length,
+        );
       }
     }
 
@@ -507,8 +517,9 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog>
 
       // הערכה של מיקום הגלילה.
       // 1. חשב את מספר השורות עד לתוצאה.
-      final linesUpToFound =
-          '\n'.allMatches(currentText.substring(0, foundIndex)).length;
+      final linesUpToFound = '\n'
+          .allMatches(currentText.substring(0, foundIndex))
+          .length;
 
       // 2. הערך את הגובה הממוצע של שורה (למשל, 20 פיקסלים. אפשר לשפר את זה בעתיד).
       const averageLineHeight = 20.0;
@@ -640,8 +651,9 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog>
                     flex: 1,
                     child: Container(
                       decoration: BoxDecoration(
-                        border:
-                            Border(left: BorderSide(color: theme.dividerColor)),
+                        border: Border(
+                          left: BorderSide(color: theme.dividerColor),
+                        ),
                       ),
                       padding: const EdgeInsets.all(16),
                       child: TextField(
@@ -670,7 +682,8 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog>
                     child: SingleChildScrollView(
                       controller: _previewScrollController,
                       padding: const EdgeInsets.all(
-                          16), // הוספת padding גם כאן ליישור
+                        16,
+                      ), // הוספת padding גם כאן ליישור
                       child: _previewRenderer.renderPreview(
                         markdown: _previewContent,
                         textStyle: TextStyle(

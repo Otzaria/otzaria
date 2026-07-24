@@ -3,12 +3,12 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/commentary_sync_helper.dart';
 
 Link _link({required int index1, required int index2}) => Link(
-      heRef: 'ref',
-      index1: index1,
-      path2: 'commentary.txt',
-      index2: index2,
-      connectionType: 'commentary',
-    );
+  heRef: 'ref',
+  index1: index1,
+  path2: 'commentary.txt',
+  index2: index2,
+  connectionType: 'commentary',
+);
 
 void main() {
   group('getCommentaryTargetIndex', () {

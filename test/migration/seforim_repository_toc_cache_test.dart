@@ -39,8 +39,8 @@ void main() {
   // ── helpers ──────────────────────────────────────────────────────────────
 
   Future<int> createCategory() => repository.insertCategory(
-        const Category(title: 'קטגוריה', parentId: null, level: 0),
-      );
+    const Category(title: 'קטגוריה', parentId: null, level: 0),
+  );
 
   Future<int> createBook(int categoryId, String title) =>
       repository.insertExternalContentBook(
@@ -67,20 +67,19 @@ void main() {
     required String text,
     required int level,
     int? parentId,
-  }) =>
-      repository.insertTocEntry(
-        TocEntry(
-          id: 0,
-          bookId: bookId,
-          parentId: parentId,
-          text: text,
-          level: level,
-          lineIndex: lineIndex,
-          lineId: null,
-          isLastChild: true,
-          hasChildren: false,
-        ),
-      );
+  }) => repository.insertTocEntry(
+    TocEntry(
+      id: 0,
+      bookId: bookId,
+      parentId: parentId,
+      text: text,
+      level: level,
+      lineIndex: lineIndex,
+      lineId: null,
+      isLastChild: true,
+      hasChildren: false,
+    ),
+  );
 
   /// יוצר ספר בסיסי עם שורות + ערכי TOC ומחזיר את bookId.
   /// מבנה TOC לדוגמה:
@@ -93,20 +92,26 @@ void main() {
     final bookId = await createBook(catId, title);
     await insertLines(bookId, ['l0', 'l1', 'l2', 'l3']);
 
-    final pereqA =
-        await insertToc(bookId: bookId, lineIndex: 0, text: 'פרק א', level: 1);
+    final pereqA = await insertToc(
+      bookId: bookId,
+      lineIndex: 0,
+      text: 'פרק א',
+      level: 1,
+    );
     await insertToc(
-        bookId: bookId,
-        lineIndex: 0,
-        text: 'פסוק א',
-        level: 2,
-        parentId: pereqA);
+      bookId: bookId,
+      lineIndex: 0,
+      text: 'פסוק א',
+      level: 2,
+      parentId: pereqA,
+    );
     await insertToc(
-        bookId: bookId,
-        lineIndex: 1,
-        text: 'פסוק ב',
-        level: 2,
-        parentId: pereqA);
+      bookId: bookId,
+      lineIndex: 1,
+      text: 'פסוק ב',
+      level: 2,
+      parentId: pereqA,
+    );
     await insertToc(bookId: bookId, lineIndex: 2, text: 'פרק ב', level: 1);
 
     await repository.updateTocEntryLineIdsByLineIndex(bookId);
@@ -116,32 +121,39 @@ void main() {
   // ── tests ─────────────────────────────────────────────────────────────────
 
   group('SeforimRepository.getTocEntriesForReference', () {
-    test('ללא queryTokens — מחזיר את כל ערכי TOC מסודרים לפי segment',
-        () async {
-      final bookId = await buildSampleBook('בראשית');
+    test(
+      'ללא queryTokens — מחזיר את כל ערכי TOC מסודרים לפי segment',
+      () async {
+        final bookId = await buildSampleBook('בראשית');
 
-      final results =
-          await repository.getTocEntriesForReference(bookId, 'בראשית');
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'בראשית',
+        );
 
-      // 4 ערכים (פרק א, פסוק א, פסוק ב, פרק ב) — level 0 לא מוכנס בכלל.
-      expect(results, hasLength(4));
-      expect(results.map((r) => r['reference']).toList(), [
-        'בראשית פרק א',
-        'בראשית פרק א פסוק א',
-        'בראשית פרק א פסוק ב',
-        'בראשית פרק ב',
-      ]);
+        // 4 ערכים (פרק א, פסוק א, פסוק ב, פרק ב) — level 0 לא מוכנס בכלל.
+        expect(results, hasLength(4));
+        expect(results.map((r) => r['reference']).toList(), [
+          'בראשית פרק א',
+          'בראשית פרק א פסוק א',
+          'בראשית פרק א פסוק ב',
+          'בראשית פרק ב',
+        ]);
 
-      // המיון לפי segment (lineIndex).
-      expect(results.map((r) => r['segment']).toList(), [0, 0, 1, 2]);
-    });
+        // המיון לפי segment (lineIndex).
+        expect(results.map((r) => r['segment']).toList(), [0, 0, 1, 2]);
+      },
+    );
 
     test('queryTokens מסנן ברמת טוקן שלם (לא substring)', () async {
       final bookId = await buildSampleBook('בראשית');
 
       // "א" — טוקן שלם — אמור לתפוס "פרק א" ו"פסוק א" אבל לא "פרק ב".
-      final results = await repository
-          .getTocEntriesForReference(bookId, 'בראשית', queryTokens: ['א']);
+      final results = await repository.getTocEntriesForReference(
+        bookId,
+        'בראשית',
+        queryTokens: ['א'],
+      );
 
       final refs = results.map((r) => r['reference']).toList();
       expect(refs, contains('בראשית פרק א'));
@@ -153,8 +165,11 @@ void main() {
 
       // "א" תואם גם ל-"פרק א" (level 1) וגם ל-"פסוק א" (level 2).
       // הסינון אמור לשמר רק את level 1.
-      final results = await repository
-          .getTocEntriesForReference(bookId, 'בראשית', queryTokens: ['א']);
+      final results = await repository.getTocEntriesForReference(
+        bookId,
+        'בראשית',
+        queryTokens: ['א'],
+      );
 
       expect(results, hasLength(1));
       expect(results.first['level'], equals(1));
@@ -167,8 +182,10 @@ void main() {
       await insertLines(bookId, ['שורה אחת']);
       // לא מוסיפים tocEntry.
 
-      final results =
-          await repository.getTocEntriesForReference(bookId, 'ספר ריק');
+      final results = await repository.getTocEntriesForReference(
+        bookId,
+        'ספר ריק',
+      );
 
       expect(results, isEmpty);
     });
@@ -176,10 +193,15 @@ void main() {
     test('queryTokens ריק שווה ערך ל-null — מחזיר את כל הערכים', () async {
       final bookId = await buildSampleBook('בראשית');
 
-      final withNull =
-          await repository.getTocEntriesForReference(bookId, 'בראשית');
-      final withEmpty = await repository
-          .getTocEntriesForReference(bookId, 'בראשית', queryTokens: const []);
+      final withNull = await repository.getTocEntriesForReference(
+        bookId,
+        'בראשית',
+      );
+      final withEmpty = await repository.getTocEntriesForReference(
+        bookId,
+        'בראשית',
+        queryTokens: const [],
+      );
 
       expect(withEmpty.length, equals(withNull.length));
     });
@@ -195,15 +217,20 @@ void main() {
 
       // קריאה שנייה — עם סינון. אם הקאש הראשון "צרך" את הנתונים, השנייה
       // אמורה עדיין לעבוד.
-      final filtered = await repository
-          .getTocEntriesForReference(bookId, 'בראשית', queryTokens: ['ב']);
+      final filtered = await repository.getTocEntriesForReference(
+        bookId,
+        'בראשית',
+        queryTokens: ['ב'],
+      );
       // "ב" תופס "פרק ב" (level 1) ו"פסוק ב" (level 2) — אבל min-level שומר רק level 1.
       expect(filtered, hasLength(1));
       expect(filtered.first['reference'], equals('בראשית פרק ב'));
 
       // קריאה שלישית — חוזרים לבלי סינון. הקאש לא אמור להיות פגום.
-      final allAgain =
-          await repository.getTocEntriesForReference(bookId, 'בראשית');
+      final allAgain = await repository.getTocEntriesForReference(
+        bookId,
+        'בראשית',
+      );
       expect(allAgain, hasLength(4));
       expect(
         allAgain.map((r) => r['reference']).toList(),
@@ -215,36 +242,46 @@ void main() {
       final bookA = await buildSampleBook('בראשית');
       final bookB = await buildSampleBook('שמות');
 
-      final aResults =
-          await repository.getTocEntriesForReference(bookA, 'בראשית');
-      final bResults =
-          await repository.getTocEntriesForReference(bookB, 'שמות');
+      final aResults = await repository.getTocEntriesForReference(
+        bookA,
+        'בראשית',
+      );
+      final bResults = await repository.getTocEntriesForReference(
+        bookB,
+        'שמות',
+      );
 
       expect(
-          aResults
-              .every((r) => (r['reference'] as String).startsWith('בראשית')),
-          isTrue);
+        aResults.every((r) => (r['reference'] as String).startsWith('בראשית')),
+        isTrue,
+      );
       expect(
-          bResults.every((r) => (r['reference'] as String).startsWith('שמות')),
-          isTrue);
+        bResults.every((r) => (r['reference'] as String).startsWith('שמות')),
+        isTrue,
+      );
     });
 
-    test('הקאש משתמש ב-normalizeForFindRefMatch — סינון "א" לא תופס "יא"',
-        () async {
-      final catId = await createCategory();
-      final bookId = await createBook(catId, 'ירמיהו');
-      await insertLines(bookId, ['l0', 'l1']);
-      await insertToc(bookId: bookId, lineIndex: 0, text: 'פרק יא', level: 1);
-      await insertToc(bookId: bookId, lineIndex: 1, text: 'פרק א', level: 1);
-      await repository.updateTocEntryLineIdsByLineIndex(bookId);
+    test(
+      'הקאש משתמש ב-normalizeForFindRefMatch — סינון "א" לא תופס "יא"',
+      () async {
+        final catId = await createCategory();
+        final bookId = await createBook(catId, 'ירמיהו');
+        await insertLines(bookId, ['l0', 'l1']);
+        await insertToc(bookId: bookId, lineIndex: 0, text: 'פרק יא', level: 1);
+        await insertToc(bookId: bookId, lineIndex: 1, text: 'פרק א', level: 1);
+        await repository.updateTocEntryLineIdsByLineIndex(bookId);
 
-      final results = await repository
-          .getTocEntriesForReference(bookId, 'ירמיהו', queryTokens: ['א']);
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'ירמיהו',
+          queryTokens: ['א'],
+        );
 
-      // צריך לקבל רק את "פרק א", לא את "פרק יא".
-      expect(results, hasLength(1));
-      expect(results.first['reference'], equals('ירמיהו פרק א'));
-    });
+        // צריך לקבל רק את "פרק א", לא את "פרק יא".
+        expect(results, hasLength(1));
+        expect(results.first['reference'], equals('ירמיהו פרק א'));
+      },
+    );
   });
 
   // ── invalidation: מוטציות אחרי קריאה ראשונה ──────────────────────────────
@@ -254,8 +291,10 @@ void main() {
       final bookId = await buildSampleBook('בראשית');
 
       // קריאה ראשונה — מאחסנת snapshot בקאש.
-      final before =
-          await repository.getTocEntriesForReference(bookId, 'בראשית');
+      final before = await repository.getTocEntriesForReference(
+        bookId,
+        'בראשית',
+      );
       expect(before, hasLength(4));
 
       // מוטציה: מוסיפים פרק חדש.
@@ -264,44 +303,64 @@ void main() {
       await repository.updateTocEntryLineIdsByLineIndex(bookId);
 
       // קריאה שנייה — הקאש חייב להיות מבוטל.
-      final after =
-          await repository.getTocEntriesForReference(bookId, 'בראשית');
-      expect(after, hasLength(5),
-          reason: 'הערך החדש חייב להופיע מיד אחרי insertTocEntry');
+      final after = await repository.getTocEntriesForReference(
+        bookId,
+        'בראשית',
+      );
       expect(
-          after.map((r) => r['reference']).toList(), contains('בראשית פרק ג'));
+        after,
+        hasLength(5),
+        reason: 'הערך החדש חייב להופיע מיד אחרי insertTocEntry',
+      );
+      expect(
+        after.map((r) => r['reference']).toList(),
+        contains('בראשית פרק ג'),
+      );
     });
 
-    test('deleteBookTocEntries מבטל את הקאש — תוצאות ריקות אחרי המחיקה',
-        () async {
-      final bookId = await buildSampleBook('בראשית');
+    test(
+      'deleteBookTocEntries מבטל את הקאש — תוצאות ריקות אחרי המחיקה',
+      () async {
+        final bookId = await buildSampleBook('בראשית');
 
-      // קריאה ראשונה — מאחסנת snapshot בקאש.
-      final before =
-          await repository.getTocEntriesForReference(bookId, 'בראשית');
-      expect(before, hasLength(4));
+        // קריאה ראשונה — מאחסנת snapshot בקאש.
+        final before = await repository.getTocEntriesForReference(
+          bookId,
+          'בראשית',
+        );
+        expect(before, hasLength(4));
 
-      // מוטציה: מוחקים את כל TOC של הספר.
-      await repository.deleteBookTocEntries(bookId);
+        // מוטציה: מוחקים את כל TOC של הספר.
+        await repository.deleteBookTocEntries(bookId);
 
-      // קריאה שנייה — אחרי מחיקה, ה-TOC ריק.
-      final after =
-          await repository.getTocEntriesForReference(bookId, 'בראשית');
-      expect(after, isEmpty,
-          reason: 'אחרי delete אין TOC — הרשימה חייבת להיות ריקה');
-    });
+        // קריאה שנייה — אחרי מחיקה, ה-TOC ריק.
+        final after = await repository.getTocEntriesForReference(
+          bookId,
+          'בראשית',
+        );
+        expect(
+          after,
+          isEmpty,
+          reason: 'אחרי delete אין TOC — הרשימה חייבת להיות ריקה',
+        );
+      },
+    );
 
     test('clearBookContent (דרך deleteBookTocEntries) מבטל את הקאש', () async {
       final bookId = await buildSampleBook('בראשית');
 
-      final before =
-          await repository.getTocEntriesForReference(bookId, 'בראשית');
+      final before = await repository.getTocEntriesForReference(
+        bookId,
+        'בראשית',
+      );
       expect(before, hasLength(4));
 
       await repository.clearBookContent(bookId);
 
-      final after =
-          await repository.getTocEntriesForReference(bookId, 'בראשית');
+      final after = await repository.getTocEntriesForReference(
+        bookId,
+        'בראשית',
+      );
       expect(after, isEmpty, reason: 'clearBookContent → TOC ריק, אין ערכים');
     });
 
@@ -310,7 +369,11 @@ void main() {
       final bookId = await createBook(catId, 'ספר');
       await insertLines(bookId, ['l0', 'l1']);
       final tocId = await insertToc(
-          bookId: bookId, lineIndex: 0, text: 'פרק א', level: 1);
+        bookId: bookId,
+        lineIndex: 0,
+        text: 'פרק א',
+        level: 1,
+      );
       await repository.updateTocEntryLineIdsByLineIndex(bookId);
 
       // קריאה ראשונה — segment=0 (מתאים ל-lineIndex=0).
@@ -319,17 +382,24 @@ void main() {
 
       // מוטציה: מעדכנים את ה-lineId של ערך ה-TOC לשורה אחרת (lineIndex=1).
       final db = await database.database;
-      final line1Id = db
-          .select(
-              'SELECT id FROM line WHERE bookId=? AND lineIndex=1', [bookId])
-          .toMapList()
-          .first['id'] as int;
+      final line1Id =
+          db
+                  .select(
+                    'SELECT id FROM line WHERE bookId=? AND lineIndex=1',
+                    [bookId],
+                  )
+                  .toMapList()
+                  .first['id']
+              as int;
       await repository.updateTocEntryLineId(tocId, line1Id);
 
       // קריאה שנייה — segment חייב להתעדכן.
       final after = await repository.getTocEntriesForReference(bookId, 'ספר');
-      expect(after.first['segment'], equals(1),
-          reason: 'segment חייב לשקף את ה-lineId המעודכן');
+      expect(
+        after.first['segment'],
+        equals(1),
+        reason: 'segment חייב לשקף את ה-lineId המעודכן',
+      );
     });
 
     test('updateTocEntryLineIdsByLineIndex מבטל את הקאש של הספר', () async {
@@ -366,8 +436,10 @@ void main() {
 
         // "א ב" → פרק א, פסוק ב
         final results = await repository.getTocEntriesForReference(
-            bookId, 'בראשית',
-            queryTokens: ['א', 'ב']);
+          bookId,
+          'בראשית',
+          queryTokens: ['א', 'ב'],
+        );
 
         expect(results, hasLength(1));
         expect(results.first['reference'], equals('בראשית פרק א פסוק ב'));
@@ -379,8 +451,10 @@ void main() {
 
         // "א א" → פרק א, פסוק א — לא "פרק ב פסוק א" שאינו קיים כאן
         final results = await repository.getTocEntriesForReference(
-            bookId, 'בראשית',
-            queryTokens: ['א', 'א']);
+          bookId,
+          'בראשית',
+          queryTokens: ['א', 'א'],
+        );
 
         expect(results, hasLength(1));
         expect(results.first['reference'], equals('בראשית פרק א פסוק א'));
@@ -391,8 +465,10 @@ void main() {
 
         // "א פסוק" → רמה 1 "פרק א" → ירידה לילדים; "פסוק" מופיע שם
         final results = await repository.getTocEntriesForReference(
-            bookId, 'בראשית',
-            queryTokens: ['א', 'פסוק']);
+          bookId,
+          'בראשית',
+          queryTokens: ['א', 'פסוק'],
+        );
 
         // שני הפסוקים של פרק א ("פסוק א" ו"פסוק ב") תואמים
         expect(results.map((r) => r['level']).toSet(), equals({2}));
@@ -402,8 +478,11 @@ void main() {
       test('טוקן יחיד מחזיר entry ברמה 1 בלבד', () async {
         final bookId = await buildSampleBook('בראשית');
 
-        final results = await repository
-            .getTocEntriesForReference(bookId, 'בראשית', queryTokens: ['א']);
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'בראשית',
+          queryTokens: ['א'],
+        );
 
         expect(results, hasLength(1));
         expect(results.first['level'], equals(1));
@@ -413,8 +492,11 @@ void main() {
       test('טוקן שאינו קיים כלל — מחזיר רשימה ריקה', () async {
         final bookId = await buildSampleBook('בראשית');
 
-        final results = await repository
-            .getTocEntriesForReference(bookId, 'בראשית', queryTokens: ['קלז']);
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'בראשית',
+          queryTokens: ['קלז'],
+        );
 
         expect(results, isEmpty);
       });
@@ -431,41 +513,50 @@ void main() {
 
         // level 1: "סימן יב"
         final simanId = await insertToc(
-            bookId: bookId, lineIndex: 0, text: 'סימן יב', level: 1);
+          bookId: bookId,
+          lineIndex: 0,
+          text: 'סימן יב',
+          level: 1,
+        );
 
         // level 2: "סעיף א" + "סעיף ב" תחת "סימן יב"
         final seifAId = await insertToc(
-            bookId: bookId,
-            lineIndex: 0,
-            text: 'סעיף א',
-            level: 2,
-            parentId: simanId);
+          bookId: bookId,
+          lineIndex: 0,
+          text: 'סעיף א',
+          level: 2,
+          parentId: simanId,
+        );
         await insertToc(
-            bookId: bookId,
-            lineIndex: 2,
-            text: 'סעיף ב',
-            level: 2,
-            parentId: simanId);
+          bookId: bookId,
+          lineIndex: 2,
+          text: 'סעיף ב',
+          level: 2,
+          parentId: simanId,
+        );
 
         // level 3: "סק א" + "סק ב" + "סק ג" תחת "סעיף א"
         await insertToc(
-            bookId: bookId,
-            lineIndex: 0,
-            text: 'סק א',
-            level: 3,
-            parentId: seifAId);
+          bookId: bookId,
+          lineIndex: 0,
+          text: 'סק א',
+          level: 3,
+          parentId: seifAId,
+        );
         await insertToc(
-            bookId: bookId,
-            lineIndex: 1,
-            text: 'סק ב',
-            level: 3,
-            parentId: seifAId);
+          bookId: bookId,
+          lineIndex: 1,
+          text: 'סק ב',
+          level: 3,
+          parentId: seifAId,
+        );
         await insertToc(
-            bookId: bookId,
-            lineIndex: 2,
-            text: 'סק ג',
-            level: 3,
-            parentId: seifAId);
+          bookId: bookId,
+          lineIndex: 2,
+          text: 'סק ג',
+          level: 3,
+          parentId: seifAId,
+        );
 
         await repository.updateTocEntryLineIdsByLineIndex(bookId);
         return bookId;
@@ -474,11 +565,14 @@ void main() {
       test('reference של רמה 3 כולל את כל נתיב האבות', () async {
         final bookId = await buildDeepBook('משנה ברורה');
 
-        final all =
-            await repository.getTocEntriesForReference(bookId, 'משנה ברורה');
+        final all = await repository.getTocEntriesForReference(
+          bookId,
+          'משנה ברורה',
+        );
 
-        final level3Refs =
-            all.where((r) => r['level'] == 3).map((r) => r['reference']);
+        final level3Refs = all
+            .where((r) => r['level'] == 3)
+            .map((r) => r['reference']);
         expect(level3Refs, contains('משנה ברורה סימן יב סעיף א סק ג'));
       });
 
@@ -486,12 +580,16 @@ void main() {
         final bookId = await buildDeepBook('משנה ברורה');
 
         final results = await repository.getTocEntriesForReference(
-            bookId, 'משנה ברורה',
-            queryTokens: ['יב', 'סק', 'ג']);
+          bookId,
+          'משנה ברורה',
+          queryTokens: ['יב', 'סק', 'ג'],
+        );
 
         expect(results, hasLength(1));
-        expect(results.first['reference'],
-            equals('משנה ברורה סימן יב סעיף א סק ג'));
+        expect(
+          results.first['reference'],
+          equals('משנה ברורה סימן יב סעיף א סק ג'),
+        );
         expect(results.first['level'], equals(3));
       });
 
@@ -499,8 +597,10 @@ void main() {
         final bookId = await buildDeepBook('משנה ברורה');
 
         final results = await repository.getTocEntriesForReference(
-            bookId, 'משנה ברורה',
-            queryTokens: ['יב', 'ב']);
+          bookId,
+          'משנה ברורה',
+          queryTokens: ['יב', 'ב'],
+        );
 
         expect(results, hasLength(1));
         expect(results.first['reference'], equals('משנה ברורה סימן יב סעיף ב'));
@@ -527,8 +627,11 @@ void main() {
       test('חיפוש "לט" מוצא "דף לט" ישירות', () async {
         final bookId = await buildTractateBook('שבת');
 
-        final results = await repository
-            .getTocEntriesForReference(bookId, 'שבת', queryTokens: ['לט']);
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'שבת',
+          queryTokens: ['לט'],
+        );
 
         expect(results, hasLength(1));
         expect(results.first['reference'], equals('שבת דף לט'));
@@ -537,11 +640,17 @@ void main() {
       test('חיפוש "טל" (טרנספוזיציה של לט) מוצא "דף לט"', () async {
         final bookId = await buildTractateBook('שבת');
 
-        final results = await repository
-            .getTocEntriesForReference(bookId, 'שבת', queryTokens: ['טל']);
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'שבת',
+          queryTokens: ['טל'],
+        );
 
-        expect(results, hasLength(1),
-            reason: '"טל" הוא טרנספוזיציה של "לט" — חייב למצוא את הדף');
+        expect(
+          results,
+          hasLength(1),
+          reason: '"טל" הוא טרנספוזיציה של "לט" — חייב למצוא את הדף',
+        );
         expect(results.first['reference'], equals('שבת דף לט'));
       });
     });
@@ -551,8 +660,10 @@ void main() {
       final bookB = await buildSampleBook('שמות');
 
       // אחסון בקאש לשני הספרים.
-      final aBefore =
-          await repository.getTocEntriesForReference(bookA, 'בראשית');
+      final aBefore = await repository.getTocEntriesForReference(
+        bookA,
+        'בראשית',
+      );
       final bBefore = await repository.getTocEntriesForReference(bookB, 'שמות');
       expect(aBefore, hasLength(4));
       expect(bBefore, hasLength(4));
@@ -561,15 +672,19 @@ void main() {
       await repository.deleteBookTocEntries(bookA);
 
       // bookA — אחרי delete, TOC ריק (cache invalidated).
-      final aAfter =
-          await repository.getTocEntriesForReference(bookA, 'בראשית');
+      final aAfter = await repository.getTocEntriesForReference(
+        bookA,
+        'בראשית',
+      );
       expect(aAfter, isEmpty);
 
       // bookB — נשאר זהה (לא הושפע).
       final bAfter = await repository.getTocEntriesForReference(bookB, 'שמות');
       expect(bAfter, hasLength(4));
-      expect(bAfter.map((r) => r['reference']).toList(),
-          equals(bBefore.map((r) => r['reference']).toList()));
+      expect(
+        bAfter.map((r) => r['reference']).toList(),
+        equals(bBefore.map((r) => r['reference']).toList()),
+      );
     });
   });
 
@@ -581,26 +696,33 @@ void main() {
       final bookId = await createBook(catId, title);
       await insertLines(bookId, ['l0', 'l1', 'l2', 'l3']);
 
-      final bookNode =
-          await insertToc(bookId: bookId, lineIndex: 0, text: title, level: 1);
+      final bookNode = await insertToc(
+        bookId: bookId,
+        lineIndex: 0,
+        text: title,
+        level: 1,
+      );
       final parsha = await insertToc(
-          bookId: bookId,
-          lineIndex: 0,
-          text: 'פרשת בראשית',
-          level: 2,
-          parentId: bookNode);
+        bookId: bookId,
+        lineIndex: 0,
+        text: 'פרשת בראשית',
+        level: 2,
+        parentId: bookNode,
+      );
       await insertToc(
-          bookId: bookId,
-          lineIndex: 1,
-          text: 'דף לו עמוד א',
-          level: 3,
-          parentId: parsha);
+        bookId: bookId,
+        lineIndex: 1,
+        text: 'דף לו עמוד א',
+        level: 3,
+        parentId: parsha,
+      );
       await insertToc(
-          bookId: bookId,
-          lineIndex: 2,
-          text: 'דף לז עמוד א',
-          level: 3,
-          parentId: parsha);
+        bookId: bookId,
+        lineIndex: 2,
+        text: 'דף לז עמוד א',
+        level: 3,
+        parentId: parsha,
+      );
 
       await repository.updateTocEntryLineIdsByLineIndex(bookId);
       return bookId;
@@ -610,8 +732,10 @@ void main() {
       final bookId = await buildBuriedDafBook('הזוהר המתורגם בראשית');
 
       final results = await repository.getTocEntriesForReference(
-          bookId, 'הזוהר המתורגם בראשית',
-          queryTokens: ['לו']);
+        bookId,
+        'הזוהר המתורגם בראשית',
+        queryTokens: ['לו'],
+      );
 
       // רק "דף לו" — ולא "דף לז" — מאשר שאין הצפה (ההגנה: הטוקן בעלה).
       expect(results, hasLength(1));
@@ -620,15 +744,16 @@ void main() {
       expect(results.first['level'], equals(3));
     });
 
-    test('כש-ההיררכי מצליח ה-fallback לא נכנס — אין הזרקת "דף" מיותרת',
-        () async {
+    test('כש-ההיררכי מצליח ה-fallback לא נכנס — אין הזרקת "דף" מיותרת', () async {
       final bookId = await buildBuriedDafBook('הזוהר המתורגם בראשית');
 
       // "בראשית" תואם היררכית את צומת הספר (L1) → ההיררכי מחזיר אותו וה-fallback
       // נדלג. אסור שיופיעו ערכי ה"דף" העמוקים.
       final results = await repository.getTocEntriesForReference(
-          bookId, 'הזוהר המתורגם בראשית',
-          queryTokens: ['בראשית']);
+        bookId,
+        'הזוהר המתורגם בראשית',
+        queryTokens: ['בראשית'],
+      );
 
       expect(results, hasLength(1));
       expect(results.first['level'], equals(1));
@@ -658,8 +783,11 @@ void main() {
     test('"ב" בודד מחזיר רק את שני צדי דף ב — לא את ע"ב של כל דף', () async {
       final bookId = await buildGemaraBook('כריתות');
 
-      final results = await repository
-          .getTocEntriesForReference(bookId, 'כריתות', queryTokens: ['ב']);
+      final results = await repository.getTocEntriesForReference(
+        bookId,
+        'כריתות',
+        queryTokens: ['ב'],
+      );
 
       final refs = results.map((r) => r['reference']).toSet();
       expect(refs, equals({'כריתות דף ב.', 'כריתות דף ב:'}));
@@ -668,8 +796,11 @@ void main() {
     test('"ב ב" מחזיר רק דף ב ע"ב', () async {
       final bookId = await buildGemaraBook('כריתות');
 
-      final results = await repository
-          .getTocEntriesForReference(bookId, 'כריתות', queryTokens: ['ב', 'ב']);
+      final results = await repository.getTocEntriesForReference(
+        bookId,
+        'כריתות',
+        queryTokens: ['ב', 'ב'],
+      );
 
       expect(results, hasLength(1));
       expect(results.first['reference'], equals('כריתות דף ב:'));
@@ -678,8 +809,11 @@ void main() {
     test('"ב א" מחזיר רק דף ב ע"א', () async {
       final bookId = await buildGemaraBook('כריתות');
 
-      final results = await repository
-          .getTocEntriesForReference(bookId, 'כריתות', queryTokens: ['ב', 'א']);
+      final results = await repository.getTocEntriesForReference(
+        bookId,
+        'כריתות',
+        queryTokens: ['ב', 'א'],
+      );
 
       expect(results, hasLength(1));
       expect(results.first['reference'], equals('כריתות דף ב.'));
@@ -688,33 +822,41 @@ void main() {
     test('אות שאינה עמוד ("ג") ממשיכה להחזיר את שני צדי הדף', () async {
       final bookId = await buildGemaraBook('כריתות');
 
-      final results = await repository
-          .getTocEntriesForReference(bookId, 'כריתות', queryTokens: ['ג']);
+      final results = await repository.getTocEntriesForReference(
+        bookId,
+        'כריתות',
+        queryTokens: ['ג'],
+      );
 
       final refs = results.map((r) => r['reference']).toSet();
       expect(refs, equals({'כריתות דף ג.', 'כריתות דף ג:'}));
     });
 
-    test('פירוש דליל שאין בו דף ב — מחזיר ריק ולא מציף את דפי צד ע"ב',
-        () async {
-      final catId = await createCategory();
-      final bookId = await createBook(catId, 'חידושי אגדות על כריתות');
-      await insertLines(bookId, List.generate(3, (i) => 'l$i'));
-      // פירוש שמתחיל בדף ה' — אין בו דף ב'. כל הדפים בצד ע"ב (":").
-      for (var i = 0; i < 3; i++) {
-        await insertToc(
+    test(
+      'פירוש דליל שאין בו דף ב — מחזיר ריק ולא מציף את דפי צד ע"ב',
+      () async {
+        final catId = await createCategory();
+        final bookId = await createBook(catId, 'חידושי אגדות על כריתות');
+        await insertLines(bookId, List.generate(3, (i) => 'l$i'));
+        // פירוש שמתחיל בדף ה' — אין בו דף ב'. כל הדפים בצד ע"ב (":").
+        for (var i = 0; i < 3; i++) {
+          await insertToc(
             bookId: bookId,
             lineIndex: i,
             text: ['דף ה:', 'דף ו:', 'דף ז:'][i],
-            level: 1);
-      }
-      await repository.updateTocEntryLineIdsByLineIndex(bookId);
+            level: 1,
+          );
+        }
+        await repository.updateTocEntryLineIdsByLineIndex(bookId);
 
-      final results = await repository.getTocEntriesForReference(
-          bookId, 'חידושי אגדות על כריתות',
-          queryTokens: ['ב']);
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'חידושי אגדות על כריתות',
+          queryTokens: ['ב'],
+        );
 
-      expect(results, isEmpty);
-    });
+        expect(results, isEmpty);
+      },
+    );
   });
 }

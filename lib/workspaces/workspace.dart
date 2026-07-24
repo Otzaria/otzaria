@@ -58,7 +58,8 @@ class Workspace extends Equatable {
     return Workspace(
       id: json['id'] as String?,
       name: json['name'] as String,
-      tabs: (json['tabs'] as List?)
+      tabs:
+          (json['tabs'] as List?)
               ?.map((raw) => decodeTab(castMap(raw)))
               .whereType<OpenedTab>()
               .toList() ??

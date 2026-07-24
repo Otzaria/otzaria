@@ -116,21 +116,23 @@ void main() {
 
   group('noteWithinDateRange - סינון לפי טווח תאריכים', () {
     PersonalNote noteUpdatedAt(DateTime updatedAt) => PersonalNote(
-          id: 'n',
-          bookId: 'ספר',
-          lineNumber: 1,
-          lastKnownLineNumber: null,
-          status: PersonalNoteStatus.located,
-          content: 'תוכן',
-          contentPlain: 'תוכן',
-          contentFormat: PersonalNoteContentFormat.plain,
-          createdAt: DateTime(2025, 1, 1),
-          updatedAt: updatedAt,
-        );
+      id: 'n',
+      bookId: 'ספר',
+      lineNumber: 1,
+      lastKnownLineNumber: null,
+      status: PersonalNoteStatus.located,
+      content: 'תוכן',
+      contentPlain: 'תוכן',
+      contentFormat: PersonalNoteContentFormat.plain,
+      createdAt: DateTime(2025, 1, 1),
+      updatedAt: updatedAt,
+    );
 
     test('טווח null כולל כל הערה', () {
-      expect(noteWithinDateRange(noteUpdatedAt(DateTime(2020, 5, 5)), null),
-          isTrue);
+      expect(
+        noteWithinDateRange(noteUpdatedAt(DateTime(2020, 5, 5)), null),
+        isTrue,
+      );
     });
 
     test('הערה בתוך הטווח נכללת', () {
@@ -138,8 +140,10 @@ void main() {
         start: DateTime(2025, 3, 1),
         end: DateTime(2025, 3, 31),
       );
-      expect(noteWithinDateRange(noteUpdatedAt(DateTime(2025, 3, 15)), range),
-          isTrue);
+      expect(
+        noteWithinDateRange(noteUpdatedAt(DateTime(2025, 3, 15)), range),
+        isTrue,
+      );
     });
 
     test('הערה לפני תחילת הטווח לא נכללת', () {
@@ -147,8 +151,10 @@ void main() {
         start: DateTime(2025, 3, 1),
         end: DateTime(2025, 3, 31),
       );
-      expect(noteWithinDateRange(noteUpdatedAt(DateTime(2025, 2, 28)), range),
-          isFalse);
+      expect(
+        noteWithinDateRange(noteUpdatedAt(DateTime(2025, 2, 28)), range),
+        isFalse,
+      );
     });
 
     test('הערה אחרי סוף הטווח לא נכללת', () {
@@ -156,8 +162,10 @@ void main() {
         start: DateTime(2025, 3, 1),
         end: DateTime(2025, 3, 31),
       );
-      expect(noteWithinDateRange(noteUpdatedAt(DateTime(2025, 4, 1)), range),
-          isFalse);
+      expect(
+        noteWithinDateRange(noteUpdatedAt(DateTime(2025, 4, 1)), range),
+        isFalse,
+      );
     });
 
     test('הגבולות נכללים (כולל קצוות), בהתעלם מהשעה', () {
@@ -167,14 +175,17 @@ void main() {
       );
       // קצה תחתון, אפילו עם שעה מאוחרת באותו יום
       expect(
-          noteWithinDateRange(
-              noteUpdatedAt(DateTime(2025, 3, 1, 23, 59)), range),
-          isTrue);
+        noteWithinDateRange(noteUpdatedAt(DateTime(2025, 3, 1, 23, 59)), range),
+        isTrue,
+      );
       // קצה עליון, אפילו עם שעה מאוחרת באותו יום
       expect(
-          noteWithinDateRange(
-              noteUpdatedAt(DateTime(2025, 3, 31, 23, 59)), range),
-          isTrue);
+        noteWithinDateRange(
+          noteUpdatedAt(DateTime(2025, 3, 31, 23, 59)),
+          range,
+        ),
+        isTrue,
+      );
     });
   });
 }

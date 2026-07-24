@@ -61,8 +61,10 @@ void main() {
       ),
     ];
 
-    final text =
-        service.buildPlainTextExport(notes: notes, description: 'כל ההערות');
+    final text = service.buildPlainTextExport(
+      notes: notes,
+      description: 'כל ההערות',
+    );
 
     // כותרת ומטא-דאטה קריאים
     expect(text, contains('הערות אישיות מאוצריא'));

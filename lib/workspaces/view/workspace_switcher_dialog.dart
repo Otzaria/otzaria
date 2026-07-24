@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -99,8 +99,9 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                   return LayoutBuilder(
                     builder: (context, constraints) {
                       // מספר עמודות לפי הרוחב הזמין; במסך צר יורד ל-1-2 עמודות
-                      final crossAxisCount =
-                          (constraints.maxWidth / 200).floor().clamp(1, 3);
+                      final crossAxisCount = (constraints.maxWidth / 200)
+                          .floor()
+                          .clamp(1, 3);
                       return GridView.builder(
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: crossAxisCount,
@@ -119,7 +120,10 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                             final isActive =
                                 state.activeWorkspaceId == workspace.id;
                             return _buildWorkspaceTile(
-                                context, workspace, isActive);
+                              context,
+                              workspace,
+                              isActive,
+                            );
                           }
                         },
                       );
@@ -141,10 +145,16 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
           child: InkWell(
             onTap: () {
               final workspaceBloc = context.read<WorkspaceBloc>();
-              final newWorkspaceName =
-                  _generateUniqueWorkspaceName(workspaceBloc.state.workspaces);
-              workspaceBloc.add(AddWorkspace(
-                  name: newWorkspaceName, tabs: const [], currentTabIndex: 0));
+              final newWorkspaceName = _generateUniqueWorkspaceName(
+                workspaceBloc.state.workspaces,
+              );
+              workspaceBloc.add(
+                AddWorkspace(
+                  name: newWorkspaceName,
+                  tabs: const [],
+                  currentTabIndex: 0,
+                ),
+              );
             },
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -178,7 +188,10 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
   }
 
   Widget _buildWorkspaceTile(
-      BuildContext context, Workspace workspace, bool isActive) {
+    BuildContext context,
+    Workspace workspace,
+    bool isActive,
+  ) {
     return Card(
       child: Stack(
         children: [
@@ -186,17 +199,20 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
             onTap: () {
               // Get current tab data from TabsBloc to save before switching
               final tabsState = context.read<TabsBloc>().state;
-              context.read<WorkspaceBloc>().add(SwitchToWorkspace(
-                    targetWorkspaceId: workspace.id,
-                    currentTabsToSave: tabsState.tabs,
-                    currentTabIndexToSave: tabsState.currentTabIndex,
-                  ));
+              context.read<WorkspaceBloc>().add(
+                SwitchToWorkspace(
+                  targetWorkspaceId: workspace.id,
+                  currentTabsToSave: tabsState.tabs,
+                  currentTabIndexToSave: tabsState.currentTabIndex,
+                ),
+              );
               // כמו בעליית התוכנה: שולחן עם ספרים נפתח בעיון, ריק — בספרייה.
               final hasBooks = isActive
                   ? tabsState.tabs.isNotEmpty
                   : workspace.tabs.isNotEmpty;
               context.read<NavigationBloc>().add(
-                  NavigateToScreen(hasBooks ? Screen.reading : Screen.library));
+                NavigateToScreen(hasBooks ? Screen.reading : Screen.library),
+              );
               Navigator.of(context).pop();
             },
             child: Column(
@@ -207,14 +223,12 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                     width: double.infinity,
                     decoration: BoxDecoration(
                       color: isActive
-                          ? Theme.of(context)
-                              .colorScheme
-                              .primary
-                              .withValues(alpha: 0.5)
-                          : Theme.of(context)
-                              .colorScheme
-                              .primary
-                              .withValues(alpha: 0.1),
+                          ? Theme.of(
+                              context,
+                            ).colorScheme.primary.withValues(alpha: 0.5)
+                          : Theme.of(
+                              context,
+                            ).colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: AppTokens.borderRadiusAll,
                     ),
                     child: _buildWorkspacePreview(workspace),
@@ -223,7 +237,7 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: _WorkspaceNameField(workspace: workspace),
-                )
+                ),
               ],
             ),
           ),
@@ -238,9 +252,9 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                   UiSnack.showError(NotesMessages.cannotDeleteActiveWorkspace);
                   return;
                 }
-                context
-                    .read<WorkspaceBloc>()
-                    .add(RemoveWorkspace(workspace.id));
+                context.read<WorkspaceBloc>().add(
+                  RemoveWorkspace(workspace.id),
+                );
                 UiSnack.show(NotesMessages.workspaceDeleted);
               },
             ),
@@ -299,8 +313,9 @@ class _WorkspaceNameFieldState extends State<_WorkspaceNameField> {
   void _startEditing() {
     final name = widget.workspace.name;
     _controller.text = name;
-    _controller.selection =
-        TextSelection.fromPosition(TextPosition(offset: name.length));
+    _controller.selection = TextSelection.fromPosition(
+      TextPosition(offset: name.length),
+    );
     setState(() => _isEditing = true);
   }
 
@@ -308,11 +323,11 @@ class _WorkspaceNameFieldState extends State<_WorkspaceNameField> {
     final newName = _controller.text.trim();
     if (newName.isNotEmpty && newName != widget.workspace.name) {
       context.read<WorkspaceBloc>().add(
-            RenameWorkspace(
-              workspaceId: widget.workspace.id,
-              newName: newName,
-            ),
-          );
+        RenameWorkspace(
+          workspaceId: widget.workspace.id,
+          newName: newName,
+        ),
+      );
     }
     setState(() => _isEditing = false);
     FocusManager.instance.primaryFocus?.unfocus();

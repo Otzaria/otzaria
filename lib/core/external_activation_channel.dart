@@ -15,7 +15,7 @@ class ExternalActivationChannel {
   bool _isInitialized = false;
 
   ExternalActivationChannel({MethodChannel? channel})
-      : _channel = channel ?? const MethodChannel(channelName);
+    : _channel = channel ?? const MethodChannel(channelName);
 
   Stream<String> get uriStrings => _uriStringsController.stream;
 

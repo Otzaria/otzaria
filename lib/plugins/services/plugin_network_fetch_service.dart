@@ -34,7 +34,7 @@ class PluginNetworkFetchService {
   late final FutureOr<void> Function() _closer = _client.close;
 
   PluginNetworkFetchService({http.Client? client})
-      : _client = client ?? http.Client() {
+    : _client = client ?? http.Client() {
     HttpClientRegistry.register(_closer);
   }
 

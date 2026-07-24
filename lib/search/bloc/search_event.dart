@@ -24,14 +24,16 @@ class UpdateSearchQuery extends SearchEvent {
   final Map<String, String>? negativeCustomSpacing;
   final Map<int, List<String>>? negativeAlternativeWords;
   final Map<String, Map<String, bool>>? negativeSearchOptions;
-  UpdateSearchQuery(this.query,
-      {this.negativeQuery,
-      this.customSpacing,
-      this.alternativeWords,
-      this.searchOptions,
-      this.negativeCustomSpacing,
-      this.negativeAlternativeWords,
-      this.negativeSearchOptions});
+  UpdateSearchQuery(
+    this.query, {
+    this.negativeQuery,
+    this.customSpacing,
+    this.alternativeWords,
+    this.searchOptions,
+    this.negativeCustomSpacing,
+    this.negativeAlternativeWords,
+    this.negativeSearchOptions,
+  });
 }
 
 class UpdateDistance extends SearchEvent {
@@ -101,8 +103,12 @@ class SetFacet extends SearchEvent {
   final Map<String, String>? customSpacing;
   final Map<int, List<String>>? alternativeWords;
   final Map<String, Map<String, bool>>? searchOptions;
-  SetFacet(this.facet,
-      {this.customSpacing, this.alternativeWords, this.searchOptions});
+  SetFacet(
+    this.facet, {
+    this.customSpacing,
+    this.alternativeWords,
+    this.searchOptions,
+  });
 }
 
 /// הגדרת מספר facets בבת אחת ללא הפעלת חיפוש
@@ -157,8 +163,11 @@ class ReplaceFacetCounts extends SearchEvent {
 
   /// חתימת החיפוש שעבורו חושבו הספירות (ראו SearchBloc._facetRecountSignature).
   final String? signature;
-  ReplaceFacetCounts(this.facetCounts,
-      {required this.requestId, this.signature});
+  ReplaceFacetCounts(
+    this.facetCounts, {
+    required this.requestId,
+    this.signature,
+  });
 }
 
 // Event לטעינת תוצאות נוספות
@@ -169,11 +178,12 @@ class LoadMoreResults extends SearchEvent {
   final Map<String, String>? negativeCustomSpacing;
   final Map<int, List<String>>? negativeAlternativeWords;
   final Map<String, Map<String, bool>>? negativeSearchOptions;
-  LoadMoreResults(
-      {this.customSpacing,
-      this.alternativeWords,
-      this.searchOptions,
-      this.negativeCustomSpacing,
-      this.negativeAlternativeWords,
-      this.negativeSearchOptions});
+  LoadMoreResults({
+    this.customSpacing,
+    this.alternativeWords,
+    this.searchOptions,
+    this.negativeCustomSpacing,
+    this.negativeAlternativeWords,
+    this.negativeSearchOptions,
+  });
 }

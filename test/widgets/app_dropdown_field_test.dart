@@ -32,8 +32,9 @@ void main() {
   }
 
   group('AppDropdownField - טריגר אחיד', () {
-    testWidgets('לא משתמש ב-DropdownMenu של Material 3 (enableSearch=false)',
-        (tester) async {
+    testWidgets('לא משתמש ב-DropdownMenu של Material 3 (enableSearch=false)', (
+      tester,
+    ) async {
       await pumpDropdown<String>(
         tester,
         value: 'a',
@@ -46,12 +47,16 @@ void main() {
       );
 
       expect(find.byType(AppDropdownField<String>), findsOneWidget);
-      expect(find.byType(DropdownMenu<String>), findsNothing,
-          reason: 'הטריגר לא צריך להיות DropdownMenu של Material 3');
+      expect(
+        find.byType(DropdownMenu<String>),
+        findsNothing,
+        reason: 'הטריגר לא צריך להיות DropdownMenu של Material 3',
+      );
     });
 
-    testWidgets('לא משתמש ב-DropdownMenu של Material 3 (enableSearch=true)',
-        (tester) async {
+    testWidgets('לא משתמש ב-DropdownMenu של Material 3 (enableSearch=true)', (
+      tester,
+    ) async {
       await pumpDropdown<String>(
         tester,
         value: 'a',
@@ -64,8 +69,11 @@ void main() {
       );
 
       expect(find.byType(AppDropdownField<String>), findsOneWidget);
-      expect(find.byType(DropdownMenu<String>), findsNothing,
-          reason: 'גם עם enableSearch הטריגר לא צריך להיות DropdownMenu');
+      expect(
+        find.byType(DropdownMenu<String>),
+        findsNothing,
+        reason: 'גם עם enableSearch הטריגר לא צריך להיות DropdownMenu',
+      );
     });
   });
 
@@ -153,8 +161,11 @@ void main() {
       await tester.tap(find.byType(AppDropdownField<String>));
       await tester.pumpAndSettle();
 
-      expect(selected, isFalse,
-          reason: 'אין פריטים לבחור, ולכן onSelected לא נקרא');
+      expect(
+        selected,
+        isFalse,
+        reason: 'אין פריטים לבחור, ולכן onSelected לא נקרא',
+      );
     });
 
     testWidgets('onSelected=null משאיר את השדה כמושבת', (tester) async {
@@ -184,16 +195,21 @@ void main() {
       );
 
       final buttonRect = tester.getRect(find.byType(FilledButton));
-      final iconRect =
-          tester.getRect(find.byIcon(FluentIcons.chevron_down_24_regular));
+      final iconRect = tester.getRect(
+        find.byIcon(FluentIcons.chevron_down_24_regular),
+      );
 
       final edgeGap = buttonRect.right - iconRect.right;
-      expect(edgeGap, lessThan(12),
-          reason: 'החץ אמור להיות צמוד לקצה הכפתור, לא לצוף עם רווח גדול');
+      expect(
+        edgeGap,
+        lessThan(12),
+        reason: 'החץ אמור להיות צמוד לקצה הכפתור, לא לצוף עם רווח גדול',
+      );
     });
 
-    testWidgets('הטקסט ממורכז בשטח התוכן של הכפתור, לא צמוד לצד אחד',
-        (tester) async {
+    testWidgets('הטקסט ממורכז בשטח התוכן של הכפתור, לא צמוד לצד אחד', (
+      tester,
+    ) async {
       await pumpDropdown<String>(
         tester,
         value: 'a',
@@ -202,62 +218,71 @@ void main() {
       );
 
       final buttonRect = tester.getRect(find.byType(FilledButton));
-      final iconRect =
-          tester.getRect(find.byIcon(FluentIcons.chevron_down_24_regular));
+      final iconRect = tester.getRect(
+        find.byIcon(FluentIcons.chevron_down_24_regular),
+      );
       final textRect = tester.getRect(find.text('קצר'));
 
       // שטח התוכן הוא בין תחילת הכפתור לתחילת אזור החץ.
       final contentCenter = (buttonRect.left + iconRect.left) / 2;
       final textCenter = (textRect.left + textRect.right) / 2;
 
-      expect((textCenter - contentCenter).abs(), lessThan(6),
-          reason: 'הטקסט אמור להיות ממורכז בשטח התוכן, לא צמוד לקצה אחד');
+      expect(
+        (textCenter - contentCenter).abs(),
+        lessThan(6),
+        reason: 'הטקסט אמור להיות ממורכז בשטח התוכן, לא צמוד לקצה אחד',
+      );
     });
 
     testWidgets(
-        'isExpanded=false: רוחב הכפתור נגזר מהתפריט, לא מהערך הנבחר כרגע',
-        (tester) async {
-      const entries = [
-        AppMenuEntry<String>(value: 's', label: 'קצר'),
-        AppMenuEntry<String>(
-          value: 'l',
-          label: 'זוהי תווית ארוכה משמעותית לבדיקת רוחב',
-        ),
-      ];
+      'isExpanded=false: רוחב הכפתור נגזר מהתפריט, לא מהערך הנבחר כרגע',
+      (tester) async {
+        const entries = [
+          AppMenuEntry<String>(value: 's', label: 'קצר'),
+          AppMenuEntry<String>(
+            value: 'l',
+            label: 'זוהי תווית ארוכה משמעותית לבדיקת רוחב',
+          ),
+        ];
 
-      Future<double> widthFor(String value) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Center(
-                child: SizedBox(
-                  width: 400,
-                  child: AppDropdownField<String>(
-                    value: value,
-                    entries: entries,
-                    onSelected: (_) {},
-                    isExpanded: false,
+        Future<double> widthFor(String value) async {
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: Center(
+                  child: SizedBox(
+                    width: 400,
+                    child: AppDropdownField<String>(
+                      value: value,
+                      entries: entries,
+                      onSelected: (_) {},
+                      isExpanded: false,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
+          );
+          await tester.pumpAndSettle();
+          return tester.getRect(find.byType(FilledButton)).width;
+        }
+
+        final shortSelectedWidth = await widthFor('s');
+        final longSelectedWidth = await widthFor('l');
+
+        expect(
+          shortSelectedWidth,
+          closeTo(longSelectedWidth, 0.5),
+          reason:
+              'הרוחב נגזר מרוחב התפריט (הפריט הארוך ביותר), '
+              'ולא אמור לקפוץ לפי אורך הערך הנבחר כרגע',
         );
-        await tester.pumpAndSettle();
-        return tester.getRect(find.byType(FilledButton)).width;
-      }
+      },
+    );
 
-      final shortSelectedWidth = await widthFor('s');
-      final longSelectedWidth = await widthFor('l');
-
-      expect(shortSelectedWidth, closeTo(longSelectedWidth, 0.5),
-          reason: 'הרוחב נגזר מרוחב התפריט (הפריט הארוך ביותר), '
-              'ולא אמור לקפוץ לפי אורך הערך הנבחר כרגע');
-    });
-
-    testWidgets(
-        'isExpanded=false: הרוחב לא חורג מהמקום שההורה מקצה לכפתור',
-        (tester) async {
+    testWidgets('isExpanded=false: הרוחב לא חורג מהמקום שההורה מקצה לכפתור', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -269,8 +294,7 @@ void main() {
                   entries: const [
                     AppMenuEntry<String>(
                       value: 'l',
-                      label:
-                          'תווית ארוכה מאוד שבוודאי לא נכנסת ל-120 פיקסלים',
+                      label: 'תווית ארוכה מאוד שבוודאי לא נכנסת ל-120 פיקסלים',
                     ),
                   ],
                   onSelected: (_) {},
@@ -284,8 +308,11 @@ void main() {
       await tester.pumpAndSettle();
 
       final buttonRect = tester.getRect(find.byType(FilledButton));
-      expect(buttonRect.width, lessThanOrEqualTo(120.5),
-          reason: 'הכפתור לא אמור להתרחב מעבר למקום שההורה נתן לו');
+      expect(
+        buttonRect.width,
+        lessThanOrEqualTo(120.5),
+        reason: 'הכפתור לא אמור להתרחב מעבר למקום שההורה נתן לו',
+      );
     });
   });
 }

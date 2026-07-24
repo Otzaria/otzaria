@@ -16,15 +16,16 @@ import 'package:otzaria/settings/settings_exports.dart';
 
 class NavigationRepository {
   NavigationRepository({Future<void> Function()? reopenIndex})
-      : _reopenIndex =
-            reopenIndex ?? (() => TantivyDataProvider.instance.reopenIndex());
+    : _reopenIndex =
+          reopenIndex ?? (() => TantivyDataProvider.instance.reopenIndex());
 
   final Future<void> Function() _reopenIndex;
 
   /// בודק אם הספרייה ריקה - כלומר אם קובץ seforim.db לא קיים
   bool checkLibraryIsEmpty() {
-    final libraryPath =
-        Settings.getValue<String>(SettingsRepository.keyLibraryPath);
+    final libraryPath = Settings.getValue<String>(
+      SettingsRepository.keyLibraryPath,
+    );
 
     if (libraryPath == null || libraryPath.isEmpty) {
       return true;
@@ -45,7 +46,7 @@ class NavigationRepository {
     if (Platform.isAndroid && !_isNativeAccessible(databasePath)) {
       final effectivePath =
           Settings.getValue<String>(SettingsRepository.keyDbEffectivePath) ??
-              '';
+          '';
       if (effectivePath.isEmpty) {
         return true;
       }
@@ -64,8 +65,9 @@ class NavigationRepository {
 
   Future<void> refreshLibrary() async {
     // טעינת הספרייה מחדש
-    final libraryPath =
-        Settings.getValue<String>(SettingsRepository.keyLibraryPath);
+    final libraryPath = Settings.getValue<String>(
+      SettingsRepository.keyLibraryPath,
+    );
     if (libraryPath != null) {
       await SqliteDataProvider.instance.dispose();
       LibraryProviderManager.instance.resetRuntimeState();

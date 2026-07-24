@@ -31,15 +31,16 @@ class RecordingSearchBloc extends SearchBloc {
 const _bannerNeedle = 'ייתכן שהתוצאות חלקיות';
 
 SearchResult _result(int i) => SearchResult(
-    id: BigInt.from(i),
-    title: 'ספר $i',
-    reference: 'סימן $i',
-    text: 'טקסט בדיקה $i',
-    segment: BigInt.from(i),
-    isPdf: false,
-    filePath: 'book_$i.txt',
-    mergedCount: 1,
-    merged: const []);
+  id: BigInt.from(i),
+  title: 'ספר $i',
+  reference: 'סימן $i',
+  text: 'טקסט בדיקה $i',
+  segment: BigInt.from(i),
+  isPdf: false,
+  filePath: 'book_$i.txt',
+  mergedCount: 1,
+  merged: const [],
+);
 
 Future<void> _pumpResults(
   WidgetTester tester, {
@@ -88,8 +89,9 @@ Future<void> _pumpResults(
 }
 
 void main() {
-  testWidgets('באנר "תוצאות חלקיות" מוצג כשהחיפוש חרג מתקציב האיסוף',
-      (WidgetTester tester) async {
+  testWidgets('באנר "תוצאות חלקיות" מוצג כשהחיפוש חרג מתקציב האיסוף', (
+    WidgetTester tester,
+  ) async {
     await _pumpResults(tester, truncated: true);
     expect(find.textContaining(_bannerNeedle), findsOneWidget);
   });

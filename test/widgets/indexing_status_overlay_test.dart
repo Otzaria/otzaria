@@ -11,8 +11,9 @@ class MockIndexingBloc extends MockBloc<IndexingEvent, IndexingState>
     implements IndexingBloc {}
 
 void main() {
-  testWidgets('מציג חיווי מיד כשיש יצירת אינדקס בפועל',
-      (WidgetTester tester) async {
+  testWidgets('מציג חיווי מיד כשיש יצירת אינדקס בפועל', (
+    WidgetTester tester,
+  ) async {
     final bloc = MockIndexingBloc();
     const indexingState = IndexingInProgress(
       booksProcessed: 25,
@@ -51,8 +52,9 @@ void main() {
     );
   });
 
-  testWidgets('לא מציג חיווי כשיש רק מעבר על ספרים בלי יצירת אינדקס',
-      (WidgetTester tester) async {
+  testWidgets('לא מציג חיווי כשיש רק מעבר על ספרים בלי יצירת אינדקס', (
+    WidgetTester tester,
+  ) async {
     final bloc = MockIndexingBloc();
     const indexingState = IndexingInProgress(
       booksProcessed: 25,
@@ -105,8 +107,9 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
-  testWidgets('לחיצה על החיווי מפעילה את פעולת הניווט שסופקה',
-      (WidgetTester tester) async {
+  testWidgets('לחיצה על החיווי מפעילה את פעולת הניווט שסופקה', (
+    WidgetTester tester,
+  ) async {
     final bloc = MockIndexingBloc();
     const indexingState = IndexingInProgress(
       booksProcessed: 25,

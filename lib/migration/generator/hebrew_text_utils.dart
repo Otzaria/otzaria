@@ -23,15 +23,16 @@ const Map<String, String> _nikudSigns = {
   "DAGESH": "ּ", // U+05BC
   "QUBUTZ": "ֻ", // U+05BB
   "SHEVA": "ְ", // U+05B0
-  "QAMATZ_QATAN": "ׇ" // U+05C7
+  "QAMATZ_QATAN": "ׇ", // U+05C7
 };
 
 /// Meteg character (silluq) - U+05BD.
 const String _meteg = "ֽ";
 
 /// Regular expression pattern for removing all nikud signs including meteg.
-final RegExp _nikudWithMetegRegex =
-    RegExp('[${_nikudSigns.values.join()}$_meteg]');
+final RegExp _nikudWithMetegRegex = RegExp(
+  '[${_nikudSigns.values.join()}$_meteg]',
+);
 
 /// Regular expression pattern for removing nikud signs only (excluding meteg).
 final RegExp _nikudOnlyRegex = RegExp('[${_nikudSigns.values.join()}]');
@@ -52,7 +53,9 @@ String removeNikud(String? text, {bool includeMeteg = true}) {
   if (text == null || text.isEmpty) return "";
 
   return text.replaceAll(
-      includeMeteg ? _nikudWithMetegRegex : _nikudOnlyRegex, '');
+    includeMeteg ? _nikudWithMetegRegex : _nikudOnlyRegex,
+    '',
+  );
 }
 
 /// Removes biblical cantillation marks (teamim) from Hebrew text.

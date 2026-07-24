@@ -13,25 +13,33 @@ void main() {
     final versions = PluginExtendedValidator.methodMinVersions;
 
     test('לכל method מוכר יש גרסת מינימום במפה', () {
-      final missing = PluginExtendedValidator.knownApiMethods
-          .where((m) => !versions.containsKey(m))
-          .toList()
-        ..sort();
+      final missing =
+          PluginExtendedValidator.knownApiMethods
+              .where((m) => !versions.containsKey(m))
+              .toList()
+            ..sort();
       expect(
         missing,
         isEmpty,
-        reason: 'methods ללא גרסה ב-_methodMinVersion: $missing. הוסף שורה '
+        reason:
+            'methods ללא גרסה ב-_methodMinVersion: $missing. הוסף שורה '
             'במפה ובטבלה שב-API_REFERENCE.md.',
       );
     });
 
     test('כל method במפה הוא method מוכר', () {
-      final unknown = versions.keys
-          .where((m) => !PluginExtendedValidator.knownApiMethods.contains(m))
-          .toList()
-        ..sort();
-      expect(unknown, isEmpty,
-          reason: 'גרסה הוגדרה ל-method שאינו ב-_knownApiMethods: $unknown');
+      final unknown =
+          versions.keys
+              .where(
+                (m) => !PluginExtendedValidator.knownApiMethods.contains(m),
+              )
+              .toList()
+            ..sort();
+      expect(
+        unknown,
+        isEmpty,
+        reason: 'גרסה הוגדרה ל-method שאינו ב-_knownApiMethods: $unknown',
+      );
     });
 
     test('כל גרסה במפה היא SemVer חוקי', () {
@@ -54,12 +62,14 @@ void main() {
         reason: 'לא נמצאה טבלת גרסאות בפורמט "| `x.y` | 0.9.90 |" במסמך.',
       );
 
-      final inMapNotTable = versions.keys
-          .where((m) => !tableVersions.containsKey(m))
-          .toList()
-        ..sort();
-      expect(inMapNotTable, isEmpty,
-          reason: 'methods במפה שחסרים מהטבלה שבמסמך: $inMapNotTable');
+      final inMapNotTable =
+          versions.keys.where((m) => !tableVersions.containsKey(m)).toList()
+            ..sort();
+      expect(
+        inMapNotTable,
+        isEmpty,
+        reason: 'methods במפה שחסרים מהטבלה שבמסמך: $inMapNotTable',
+      );
 
       final mismatched = <String>[];
       tableVersions.forEach((method, tableVer) {
@@ -70,8 +80,11 @@ void main() {
           mismatched.add('$method: מפה=$mapVer טבלה=$tableVer');
         }
       });
-      expect(mismatched, isEmpty,
-          reason: 'אי-התאמה בין המפה לטבלה: $mismatched');
+      expect(
+        mismatched,
+        isEmpty,
+        reason: 'אי-התאמה בין המפה לטבלה: $mismatched',
+      );
     });
   });
 }

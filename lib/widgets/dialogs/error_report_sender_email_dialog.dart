@@ -230,8 +230,9 @@ class _EmailFieldWithAutocompleteState extends State<EmailFieldWithAutocomplete>
     // (רווח, פסיק, וכו'). כך אם הסמן באמצע הדומיין לא נשאיר זנב כפול.
     final afterAt = text.substring(atIdx + 1);
     final delimMatch = RegExp(r'[^A-Za-z0-9.\-_]').firstMatch(afterAt);
-    final endOfDomain =
-        delimMatch == null ? text.length : atIdx + 1 + delimMatch.start;
+    final endOfDomain = delimMatch == null
+        ? text.length
+        : atIdx + 1 + delimMatch.start;
 
     final base = text.substring(0, atIdx + 1);
     final after = text.substring(endOfDomain);
@@ -285,8 +286,9 @@ class _EmailFieldWithAutocompleteState extends State<EmailFieldWithAutocomplete>
                   // onTapDown מופעל לפני שהפוקוס מתחלף — מונע סגירת האוברליי
                   onTapDown: (_) => _applySuggestion(domain),
                   child: Container(
-                    color:
-                        isSelected ? theme.colorScheme.primaryContainer : null,
+                    color: isSelected
+                        ? theme.colorScheme.primaryContainer
+                        : null,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 10,

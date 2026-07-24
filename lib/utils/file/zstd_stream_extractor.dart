@@ -24,7 +24,11 @@ class ZstdStreamExtractor {
       onProgress,
       (port) => Isolate.run(
         () => _decompressWithLib(
-            archivePath, outputPath, _openZstandardLib(), port),
+          archivePath,
+          outputPath,
+          _openZstandardLib(),
+          port,
+        ),
       ),
     );
   }
@@ -67,20 +71,27 @@ class ZstdStreamExtractor {
       return DynamicLibrary.open('zstandard_ios.framework/zstandard_ios');
     }
     throw UnsupportedError(
-        'Platform not supported: ${Platform.operatingSystem}');
+      'Platform not supported: ${Platform.operatingSystem}',
+    );
   }
 
   /// נקודת כניסה לבדיקות בלבד: מריצה את החילוץ סינכרונית עם [lib] מוזרק,
   /// כדי לאמת את לוגיקת ה-FFI גם בלי ה-framework של Flutter (למשל מול
   /// libzstd סטנדרטי במערכת).
   static void decompressSyncForTest(
-          String archivePath, String outputPath, DynamicLibrary lib) =>
-      _decompressWithLib(archivePath, outputPath, lib, null);
+    String archivePath,
+    String outputPath,
+    DynamicLibrary lib,
+  ) => _decompressWithLib(archivePath, outputPath, lib, null);
 
   /// חילוץ ZST streaming דרך ZSTD FFI. בכשל מוחק את קובץ הפלט החלקי, אחרת
   /// קובץ חתוך נשאר ומפיל את פתיחת ה-DB בעלייה הבאה.
-  static void _decompressWithLib(String archivePath, String outputPath,
-      DynamicLibrary dylib, SendPort? progressPort) {
+  static void _decompressWithLib(
+    String archivePath,
+    String outputPath,
+    DynamicLibrary dylib,
+    SendPort? progressPort,
+  ) {
     try {
       _decompressCore(archivePath, outputPath, dylib, progressPort);
     } catch (_) {
@@ -92,8 +103,12 @@ class ZstdStreamExtractor {
     }
   }
 
-  static void _decompressCore(String archivePath, String outputPath,
-      DynamicLibrary dylib, SendPort? progressPort) {
+  static void _decompressCore(
+    String archivePath,
+    String outputPath,
+    DynamicLibrary dylib,
+    SendPort? progressPort,
+  ) {
     final bindings = ZstandardNativeBindings(dylib);
 
     final inBufSize = bindings.ZSTD_DStreamInSize();
@@ -114,10 +129,14 @@ class ZstdStreamExtractor {
       // ברירת המחדל מגבילה את חלון הדחיסה ל-128MB (windowLog=27). seforim.db.zst
       // נדחס עם `--long` ולכן נכשל עם windowTooLarge (קוד 16). 31 = חלון עד 2GB.
       final paramRet = bindings.ZSTD_DCtx_setParameter(
-          dStream, ZSTD_dParameter.ZSTD_d_windowLogMax, 31);
+        dStream,
+        ZSTD_dParameter.ZSTD_d_windowLogMax,
+        31,
+      );
       if (bindings.ZSTD_isError(paramRet) != 0) {
         throw Exception(
-            'ZSTD_DCtx_setParameter(windowLogMax) נכשל: ${zstdError(paramRet)}');
+          'ZSTD_DCtx_setParameter(windowLogMax) נכשל: ${zstdError(paramRet)}',
+        );
       }
 
       final inNative = malloc.allocate<Uint8>(inBufSize);
@@ -149,8 +168,10 @@ class ZstdStreamExtractor {
             totalRead += bytesRead;
 
             if (!headerParsed) {
-              expectedSize =
-                  bindings.ZSTD_getFrameContentSize(inNative.cast(), bytesRead);
+              expectedSize = bindings.ZSTD_getFrameContentSize(
+                inNative.cast(),
+                bytesRead,
+              );
               headerParsed = true;
             }
 
@@ -167,7 +188,8 @@ class ZstdStreamExtractor {
 
               if (bindings.ZSTD_isError(lastRet) != 0) {
                 throw Exception(
-                    'שגיאת ZSTD בחילוץ: ${zstdError(lastRet)} (קוד: $lastRet)');
+                  'שגיאת ZSTD בחילוץ: ${zstdError(lastRet)} (קוד: $lastRet)',
+                );
               }
 
               if (outBuf.ref.pos > 0) {

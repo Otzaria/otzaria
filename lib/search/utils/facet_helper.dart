@@ -87,19 +87,25 @@ class FacetHelper {
   }
 
   /// Increments a facet count in the given map
-  static void incrementFacet(Map<String, int> counts, String facet,
-      [int delta = 1]) {
+  static void incrementFacet(
+    Map<String, int> counts,
+    String facet, [
+    int delta = 1,
+  ]) {
     counts[facet] = (counts[facet] ?? 0) + delta;
   }
 
   /// Increments facet counts for all ancestors in the category path
   static void incrementFacetWithAncestors(
-      Map<String, int> counts, String categoryPath,
-      [int delta = 1]) {
+    Map<String, int> counts,
+    String categoryPath, [
+    int delta = 1,
+  ]) {
     if (categoryPath.isEmpty) return;
 
-    final normalized =
-        categoryPath.startsWith('/') ? categoryPath : '/$categoryPath';
+    final normalized = categoryPath.startsWith('/')
+        ? categoryPath
+        : '/$categoryPath';
 
     incrementFacet(counts, '/', delta);
     final parts = normalized.split('/').where((p) => p.isNotEmpty).toList();

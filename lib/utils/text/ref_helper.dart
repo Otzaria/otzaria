@@ -2,7 +2,9 @@ import 'package:otzaria/models/books.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 Future<String> refFromIndex(
-    int index, Future<List<TocEntry>> tableOfContents) async {
+  int index,
+  Future<List<TocEntry>> tableOfContents,
+) async {
   return refFromTocList(index, await tableOfContents);
 }
 

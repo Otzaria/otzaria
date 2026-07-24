@@ -25,8 +25,11 @@ class _CalendarPrintDialogState extends State<CalendarPrintDialog>
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final (String periodName, String periodNamePlural, int maxCount) =
-        switch (widget.calendarView) {
+    final (
+      String periodName,
+      String periodNamePlural,
+      int maxCount,
+    ) = switch (widget.calendarView) {
       CalendarView.month => ('חודש', 'חודשים', 12),
       CalendarView.week => ('שבוע', 'שבועות', 52),
       CalendarView.day => ('יום', 'ימים', 30),

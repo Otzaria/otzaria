@@ -74,64 +74,67 @@ void main() {
     });
 
     testWidgets(
-        'counter ישן (value>0 בעת init) לא פותח את חלונית הסינון אוטומטית',
-        (tester) async {
-      // אם המשתמש סגר את הפאנל וה-counter נשאר על 3 מהפעולה הקודמת,
-      // יצירה מחודשת של ה-state לא צריכה להציג שוב את הסינון.
-      final notifier = ValueNotifier<int>(3);
-      addTearDown(notifier.dispose);
+      'counter ישן (value>0 בעת init) לא פותח את חלונית הסינון אוטומטית',
+      (tester) async {
+        // אם המשתמש סגר את הפאנל וה-counter נשאר על 3 מהפעולה הקודמת,
+        // יצירה מחודשת של ה-state לא צריכה להציג שוב את הסינון.
+        final notifier = ValueNotifier<int>(3);
+        addTearDown(notifier.dispose);
 
-      await _pump(
-        tester,
-        textBookBloc: textBookBloc,
-        settingsBloc: settingsBloc,
-        openFilterRequest: notifier,
-      );
+        await _pump(
+          tester,
+          textBookBloc: textBookBloc,
+          settingsBloc: settingsBloc,
+          openFilterRequest: notifier,
+        );
 
-      expect(find.text('בחירת מפרשים'), findsNothing);
+        expect(find.text('בחירת מפרשים'), findsNothing);
 
-      // עליה חדשה מעבר ל-baseline פותחת.
-      notifier.value = 4;
-      await tester.pumpAndSettle();
+        // עליה חדשה מעבר ל-baseline פותחת.
+        notifier.value = 4;
+        await tester.pumpAndSettle();
 
-      expect(find.text('בחירת מפרשים'), findsOneWidget);
-    });
+        expect(find.text('בחירת מפרשים'), findsOneWidget);
+      },
+    );
 
     testWidgets(
-        'החלפת notifier מאפסת את ה-baseline — counter ישן לא חוסם בקשות עתידיות',
-        (tester) async {
-      final notifierA = ValueNotifier<int>(9);
-      final notifierB = ValueNotifier<int>(0);
-      addTearDown(notifierA.dispose);
-      addTearDown(notifierB.dispose);
+      'החלפת notifier מאפסת את ה-baseline — counter ישן לא חוסם בקשות עתידיות',
+      (tester) async {
+        final notifierA = ValueNotifier<int>(9);
+        final notifierB = ValueNotifier<int>(0);
+        addTearDown(notifierA.dispose);
+        addTearDown(notifierB.dispose);
 
-      await _pump(
-        tester,
-        textBookBloc: textBookBloc,
-        settingsBloc: settingsBloc,
-        openFilterRequest: notifierA,
-      );
-      expect(find.text('בחירת מפרשים'), findsNothing);
+        await _pump(
+          tester,
+          textBookBloc: textBookBloc,
+          settingsBloc: settingsBloc,
+          openFilterRequest: notifierA,
+        );
+        expect(find.text('בחירת מפרשים'), findsNothing);
 
-      // החלפה ל-notifier חדש שמתחיל מ-0.
-      await _pump(
-        tester,
-        textBookBloc: textBookBloc,
-        settingsBloc: settingsBloc,
-        openFilterRequest: notifierB,
-      );
-      expect(find.text('בחירת מפרשים'), findsNothing);
+        // החלפה ל-notifier חדש שמתחיל מ-0.
+        await _pump(
+          tester,
+          textBookBloc: textBookBloc,
+          settingsBloc: settingsBloc,
+          openFilterRequest: notifierB,
+        );
+        expect(find.text('בחירת מפרשים'), findsNothing);
 
-      // אילו ה-baseline היה נשאר על 9, value=1 ב-B היה מתעלם.
-      // אחרי איפוס baseline, value=1 צריך לפתוח את הסינון.
-      notifierB.value = 1;
-      await tester.pumpAndSettle();
+        // אילו ה-baseline היה נשאר על 9, value=1 ב-B היה מתעלם.
+        // אחרי איפוס baseline, value=1 צריך לפתוח את הסינון.
+        notifierB.value = 1;
+        await tester.pumpAndSettle();
 
-      expect(find.text('בחירת מפרשים'), findsOneWidget);
-    });
+        expect(find.text('בחירת מפרשים'), findsOneWidget);
+      },
+    );
 
-    testWidgets('counter עולה בלי notifier (null) אינו זורק חריגה',
-        (tester) async {
+    testWidgets('counter עולה בלי notifier (null) אינו זורק חריגה', (
+      tester,
+    ) async {
       await _pump(
         tester,
         textBookBloc: textBookBloc,
@@ -149,105 +152,112 @@ void main() {
     // חלונית בחירת המפרשים אוטומטית.
 
     testWidgets(
-        'activeCommentators=[הערות] + onSelectedCommentatorsOverrideChanged: לא נפתח אוטומטית',
-        (tester) async {
-      final notesOnlyBloc = _TestTextBookBloc(
-          _loadedStateWithCommentators([kNotesCommentatorTitle]));
-      addTearDown(() async => notesOnlyBloc.close());
+      'activeCommentators=[הערות] + onSelectedCommentatorsOverrideChanged: לא נפתח אוטומטית',
+      (tester) async {
+        final notesOnlyBloc = _TestTextBookBloc(
+          _loadedStateWithCommentators([kNotesCommentatorTitle]),
+        );
+        addTearDown(() async => notesOnlyBloc.close());
 
-      await _pumpWithOverride(
-        tester,
-        textBookBloc: notesOnlyBloc,
-        settingsBloc: settingsBloc,
-      );
+        await _pumpWithOverride(
+          tester,
+          textBookBloc: notesOnlyBloc,
+          settingsBloc: settingsBloc,
+        );
 
-      // selectedCommentators ריק (הערות מסוננות), אך notesIsActive=true
-      // → אין פתיחה אוטומטית של חלונית הסינון
-      expect(find.text('בחירת מפרשים'), findsNothing);
-    });
-
-    testWidgets(
-        'activeCommentators=[] (ריק לחלוטין) + onSelectedCommentatorsOverrideChanged: נפתח אוטומטית',
-        (tester) async {
-      // ביקורת: כאשר אין גם מפרשים וגם הערות, חלונית הסינון נפתחת.
-      final emptyBloc = _TestTextBookBloc(_loadedStateWithCommentators([]));
-      addTearDown(() async => emptyBloc.close());
-
-      await _pumpWithOverride(
-        tester,
-        textBookBloc: emptyBloc,
-        settingsBloc: settingsBloc,
-      );
-
-      expect(find.text('בחירת מפרשים'), findsOneWidget);
-    });
+        // selectedCommentators ריק (הערות מסוננות), אך notesIsActive=true
+        // → אין פתיחה אוטומטית של חלונית הסינון
+        expect(find.text('בחירת מפרשים'), findsNothing);
+      },
+    );
 
     testWidgets(
-        'activeCommentators=[הערות, מפרש] — selectedCommentators לא ריק, לא נפתח',
-        (tester) async {
-      final mixedBloc = _TestTextBookBloc(
-          _loadedStateWithCommentators([kNotesCommentatorTitle, 'מפרש בדיקה']));
-      addTearDown(() async => mixedBloc.close());
+      'activeCommentators=[] (ריק לחלוטין) + onSelectedCommentatorsOverrideChanged: נפתח אוטומטית',
+      (tester) async {
+        // ביקורת: כאשר אין גם מפרשים וגם הערות, חלונית הסינון נפתחת.
+        final emptyBloc = _TestTextBookBloc(_loadedStateWithCommentators([]));
+        addTearDown(() async => emptyBloc.close());
 
-      await _pumpWithOverride(
-        tester,
-        textBookBloc: mixedBloc,
-        settingsBloc: settingsBloc,
-      );
+        await _pumpWithOverride(
+          tester,
+          textBookBloc: emptyBloc,
+          settingsBloc: settingsBloc,
+        );
 
-      // selectedCommentators=['מפרש בדיקה'] (לא ריק) → אין פתיחה אוטומטית
-      expect(find.text('בחירת מפרשים'), findsNothing);
-    });
+        expect(find.text('בחירת מפרשים'), findsOneWidget);
+      },
+    );
 
     testWidgets(
-        'activeCommentators=[הערות] + onFilterOpenRequested: נקרא פעם אחת בלבד גם תחת rebuilds',
-        (tester) async {
-      // כרטיסיית המפרשים פותחת את הבחירה בלשונית צד נפרדת (onFilterOpenRequested)
-      // שאינה מסתירה את ההערות. לכן גם כש'הערות' פעיל ואין מפרשים נבחרים,
-      // יש להעביר את המשתמש לבחירת מפרשים ולא להשאירו תקוע על "אין הערות".
-      // הקולבק כאן עושה setState (כמו _openCommentatorsSelectionPane שמעדכן
-      // _navPaneOpen), מה שמפעיל rebuild — ה-latch חייב למנוע קריאה חוזרת,
-      // אחרת תיווצר לולאת rebuild + side-effect (pumpAndSettle יזרוק timeout).
-      final notesOnlyBloc = _TestTextBookBloc(
-          _loadedStateWithCommentators([kNotesCommentatorTitle]));
-      addTearDown(() async => notesOnlyBloc.close());
+      'activeCommentators=[הערות, מפרש] — selectedCommentators לא ריק, לא נפתח',
+      (tester) async {
+        final mixedBloc = _TestTextBookBloc(
+          _loadedStateWithCommentators([kNotesCommentatorTitle, 'מפרש בדיקה']),
+        );
+        addTearDown(() async => mixedBloc.close());
 
-      var filterOpenCount = 0;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MultiBlocProvider(
-            providers: [
-              BlocProvider<TextBookBloc>.value(value: notesOnlyBloc),
-              BlocProvider<SettingsBloc>.value(value: settingsBloc),
-            ],
-            child: Scaffold(
-              body: StatefulBuilder(
-                builder: (context, setState) {
-                  return CommentaryListBase(
-                    openBookCallback: (_) {},
-                    fontSize: 18,
-                    showSearch: true,
-                    shrinkWrap: false,
-                    onSelectedCommentatorsOverrideChanged: (_) {},
-                    onFilterOpenRequested: () {
-                      filterOpenCount++;
-                      setState(() {}); // מדמה את ה-setState של ההורה
-                    },
-                  );
-                },
+        await _pumpWithOverride(
+          tester,
+          textBookBloc: mixedBloc,
+          settingsBloc: settingsBloc,
+        );
+
+        // selectedCommentators=['מפרש בדיקה'] (לא ריק) → אין פתיחה אוטומטית
+        expect(find.text('בחירת מפרשים'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'activeCommentators=[הערות] + onFilterOpenRequested: נקרא פעם אחת בלבד גם תחת rebuilds',
+      (tester) async {
+        // כרטיסיית המפרשים פותחת את הבחירה בלשונית צד נפרדת (onFilterOpenRequested)
+        // שאינה מסתירה את ההערות. לכן גם כש'הערות' פעיל ואין מפרשים נבחרים,
+        // יש להעביר את המשתמש לבחירת מפרשים ולא להשאירו תקוע על "אין הערות".
+        // הקולבק כאן עושה setState (כמו _openCommentatorsSelectionPane שמעדכן
+        // _navPaneOpen), מה שמפעיל rebuild — ה-latch חייב למנוע קריאה חוזרת,
+        // אחרת תיווצר לולאת rebuild + side-effect (pumpAndSettle יזרוק timeout).
+        final notesOnlyBloc = _TestTextBookBloc(
+          _loadedStateWithCommentators([kNotesCommentatorTitle]),
+        );
+        addTearDown(() async => notesOnlyBloc.close());
+
+        var filterOpenCount = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MultiBlocProvider(
+              providers: [
+                BlocProvider<TextBookBloc>.value(value: notesOnlyBloc),
+                BlocProvider<SettingsBloc>.value(value: settingsBloc),
+              ],
+              child: Scaffold(
+                body: StatefulBuilder(
+                  builder: (context, setState) {
+                    return CommentaryListBase(
+                      openBookCallback: (_) {},
+                      fontSize: 18,
+                      showSearch: true,
+                      shrinkWrap: false,
+                      onSelectedCommentatorsOverrideChanged: (_) {},
+                      onFilterOpenRequested: () {
+                        filterOpenCount++;
+                        setState(() {}); // מדמה את ה-setState של ההורה
+                      },
+                    );
+                  },
+                ),
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      await tester.pumpAndSettle();
-      // pump-ים נוספים — אילו ה-latch לא היה קיים, כל אחד היה מוסיף קריאה.
-      await tester.pump();
-      await tester.pump();
+        await tester.pumpAndSettle();
+        // pump-ים נוספים — אילו ה-latch לא היה קיים, כל אחד היה מוסיף קריאה.
+        await tester.pump();
+        await tester.pump();
 
-      expect(filterOpenCount, 1);
-    });
+        expect(filterOpenCount, 1);
+      },
+    );
   });
 }
 
@@ -439,8 +449,12 @@ class _FakeLibraryProvider implements LibraryProvider {
   }
 
   @override
-  Future<String?> getBookText(String title, int categoryId, String fileType,
-      {bool preferUserBooks = false}) async {
+  Future<String?> getBookText(
+    String title,
+    int categoryId,
+    String fileType, {
+    bool preferUserBooks = false,
+  }) async {
     return null;
   }
 

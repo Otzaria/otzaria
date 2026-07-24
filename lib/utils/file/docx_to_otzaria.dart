@@ -158,7 +158,7 @@ String _toRoman(int n) {
     'IX',
     'V',
     'IV',
-    'I'
+    'I',
   ];
   final buf = StringBuffer();
   var x = n;
@@ -228,8 +228,10 @@ Map<String, Map<int, _NumLevel>> _extractNumbering(Archive archive) {
       final fmt =
           lvl.getElement('w:numFmt')?.getAttribute('w:val') ?? 'decimal';
       final text = lvl.getElement('w:lvlText')?.getAttribute('w:val') ?? '';
-      final start = int.tryParse(
-              lvl.getElement('w:start')?.getAttribute('w:val') ?? '') ??
+      final start =
+          int.tryParse(
+            lvl.getElement('w:start')?.getAttribute('w:val') ?? '',
+          ) ??
           1;
       levels[ilvl] = _NumLevel(fmt, text, start);
     }
@@ -297,8 +299,9 @@ Map<String, String> _extractImages(Archive archive) {
   rels.forEach((id, target) {
     final mime = _imageMime(target);
     if (mime == null) return; // פורמט לא נתמך
-    final fullPath =
-        target.startsWith('/') ? target.substring(1) : 'word/$target';
+    final fullPath = target.startsWith('/')
+        ? target.substring(1)
+        : 'word/$target';
     final file = mediaByPath[fullPath];
     if (file == null) return; // קובץ חסר
     images[id] = 'data:$mime;base64,${base64Encode(file.content)}';
@@ -387,7 +390,7 @@ String? _drawingHtmlFromRun(xml.XmlElement run, _DocxContext ctx) {
     if (parts.isNotEmpty) {
       final bg = imgUri != null
           ? 'background-image: url($imgUri); background-size: contain; '
-              'background-repeat: no-repeat; background-position: center; '
+                'background-repeat: no-repeat; background-position: center; '
           : '';
       return '<div style="${bg}border: 1px solid #999; '
           'padding: 8px; margin: 4px 0;">${parts.join('<br>')}</div>';
@@ -479,7 +482,8 @@ String? _underlineSpanStyle(xml.XmlElement u) {
   final val = u.getAttribute('w:val') ?? 'single';
   final color = u.getAttribute('w:color');
   final styleCss = _underlineStyleCss(val);
-  final isThick = val.toLowerCase().contains('thick') ||
+  final isThick =
+      val.toLowerCase().contains('thick') ||
       val.toLowerCase().endsWith('heavy');
   final hasColor = color != null && color.toLowerCase() != 'auto';
 
@@ -506,10 +510,7 @@ class _Seg {
   final String text;
   final bool raw;
   const _Seg(this.open, this.close, this.text) : raw = false;
-  const _Seg.raw(this.text)
-      : open = '',
-        close = '',
-        raw = true;
+  const _Seg.raw(this.text) : open = '', close = '', raw = true;
 }
 
 /// ממפה את *שם* סגנון הפסקה לרמת כותרת 1–6, או `null` אם אינו כותרת.
@@ -606,8 +607,10 @@ _Seg? _processRunSeg(xml.XmlElement node) {
   final u = rPr.getElement('w:u');
   if (_isOnOff(u)) {
     final spanStyle = _underlineSpanStyle(u!);
-    wrap(spanStyle == null ? '<u>' : '<span style="$spanStyle">',
-        spanStyle == null ? '</u>' : '</span>');
+    wrap(
+      spanStyle == null ? '<u>' : '<span style="$spanStyle">',
+      spanStyle == null ? '</u>' : '</span>',
+    );
   }
 
   // נטוי — כולל וריאנט complex-script של עברית
@@ -645,8 +648,12 @@ String _renderParagraphInline(xml.XmlElement paragraph, _DocxContext ctx) {
       final id = footnoteRef.getAttribute('w:id');
       if (id != null && ctx.footnotes.containsKey(id)) {
         final n = ctx.footnoteCounter.next();
-        segs.add(_Seg.raw('<sup class="footnote-marker">$n</sup>'
-            '<i class="footnote">${_escapeHtml(ctx.footnotes[id]!)}</i>'));
+        segs.add(
+          _Seg.raw(
+            '<sup class="footnote-marker">$n</sup>'
+            '<i class="footnote">${_escapeHtml(ctx.footnotes[id]!)}</i>',
+          ),
+        );
       }
       continue;
     }
@@ -721,7 +728,7 @@ void _processParagraph(
     final numId = numPr.getElement('w:numId')?.getAttribute('w:val');
     final ilvl =
         int.tryParse(numPr.getElement('w:ilvl')?.getAttribute('w:val') ?? '') ??
-            0;
+        0;
     final label = ctx.listLabel(numId, ilvl);
     final indent = '    ' * ilvl;
     text = '$indent$label $text';

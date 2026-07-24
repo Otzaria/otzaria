@@ -59,56 +59,68 @@ void main() {
   });
 
   testWidgets(
-      'הערות פעיל + מפרשים: רשימת המפרשים מקבלת את רוב הגובה (ללא חלוקת 50/50)',
-      (tester) async {
-    const panelHeight = 600.0;
+    'הערות פעיל + מפרשים: רשימת המפרשים מקבלת את רוב הגובה (ללא חלוקת 50/50)',
+    (tester) async {
+      const panelHeight = 600.0;
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MultiBlocProvider(
-          providers: [
-            BlocProvider<TextBookBloc>.value(value: textBookBloc),
-            BlocProvider<SettingsBloc>.value(value: settingsBloc),
-          ],
-          child: Scaffold(
-            body: Center(
-              child: SizedBox(
-                height: panelHeight,
-                width: 500,
-                child: CommentaryListBase(
-                  openBookCallback: (_) {},
-                  fontSize: 18,
-                  showSearch: true,
-                  shrinkWrap: false,
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<TextBookBloc>.value(value: textBookBloc),
+              BlocProvider<SettingsBloc>.value(value: settingsBloc),
+            ],
+            child: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  height: panelHeight,
+                  width: 500,
+                  child: CommentaryListBase(
+                    openBookCallback: (_) {},
+                    fontSize: 18,
+                    showSearch: true,
+                    shrinkWrap: false,
+                  ),
                 ),
               ),
             ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    // ודא שמצב "הערות" אכן פעיל (גוף ההערה מוצג ב-RichText) — אחרת אין
-    // חלוקת גובה והבדיקה הייתה עוברת באופן ריק.
-    expect(find.textContaining('הערה לבדיקה', findRichText: true), findsWidgets,
-        reason: 'מצב ההערות חייב להיות פעיל כדי לשחזר את הבאג');
+      // ודא שמצב "הערות" אכן פעיל (גוף ההערה מוצג ב-RichText) — אחרת אין
+      // חלוקת גובה והבדיקה הייתה עוברת באופן ריק.
+      expect(
+        find.textContaining('הערה לבדיקה', findRichText: true),
+        findsWidgets,
+        reason: 'מצב ההערות חייב להיות פעיל כדי לשחזר את הבאג',
+      );
 
-    final spl = find.byType(ScrollablePositionedList);
-    expect(spl, findsOneWidget,
-        reason: 'רשימת המפרשים (ScrollablePositionedList) חייבת להופיע');
+      final spl = find.byType(ScrollablePositionedList);
+      expect(
+        spl,
+        findsOneWidget,
+        reason: 'רשימת המפרשים (ScrollablePositionedList) חייבת להופיע',
+      );
 
-    final splHeight = tester.getSize(spl).height;
+      final splHeight = tester.getSize(spl).height;
 
-    // עם הבאג (50/50) הרשימה קיבלה ~45% מהגובה (~270). עם התיקון היא מקבלת
-    // את כל השאר (~80%). סף 60% מפריד בבירור בין השניים.
-    expect(splHeight, greaterThan(panelHeight * 0.6),
-        reason: 'רשימת המפרשים תפסה רק ${splHeight.toStringAsFixed(0)} מתוך '
-            '$panelHeight — סימן שחזרה חלוקת ה-50/50 (חיתוך + חלל ריק)');
-  });
+      // עם הבאג (50/50) הרשימה קיבלה ~45% מהגובה (~270). עם התיקון היא מקבלת
+      // את כל השאר (~80%). סף 60% מפריד בבירור בין השניים.
+      expect(
+        splHeight,
+        greaterThan(panelHeight * 0.6),
+        reason:
+            'רשימת המפרשים תפסה רק ${splHeight.toStringAsFixed(0)} מתוך '
+            '$panelHeight — סימן שחזרה חלוקת ה-50/50 (חיתוך + חלל ריק)',
+      );
+    },
+  );
 
-  testWidgets('תוכן ההערות עטוף ב-SelectionArea (בחירת טקסט אפשרית)',
-      (tester) async {
+  testWidgets('תוכן ההערות עטוף ב-SelectionArea (בחירת טקסט אפשרית)', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: MultiBlocProvider(
@@ -135,10 +147,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final noteText =
-        find.textContaining('הערה לבדיקה', findRichText: true).first;
-    expect(noteText, findsOneWidget,
-        reason: 'גוף ההערה חייב להיות מוצג כדי לבדוק את הבחירה');
+    final noteText = find
+        .textContaining('הערה לבדיקה', findRichText: true)
+        .first;
+    expect(
+      noteText,
+      findsOneWidget,
+      reason: 'גוף ההערה חייב להיות מוצג כדי לבדוק את הבחירה',
+    );
 
     // רגרסיה: ההערות הוחזרו בעבר מחוץ ל-SelectionArea של רשימת המפרשים,
     // ולכן לא ניתן היה לבחור בהן טקסט כלל.
@@ -176,8 +192,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final noteText =
-        find.textContaining('הערה לבדיקה', findRichText: true).first;
+    final noteText = find
+        .textContaining('הערה לבדיקה', findRichText: true)
+        .first;
     final gesture = await tester.startGesture(
       tester.getCenter(noteText),
       buttons: kSecondaryButton,
@@ -186,8 +203,11 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
 
-    expect(find.text('דווח על טעות בספר'), findsOneWidget,
-        reason: 'תפריט ההקשר של ההערות חייב לאפשר דיווח על טעות בספר הראשי');
+    expect(
+      find.text('דווח על טעות בספר'),
+      findsOneWidget,
+      reason: 'תפריט ההקשר של ההערות חייב לאפשר דיווח על טעות בספר הראשי',
+    );
   });
 }
 
@@ -289,8 +309,12 @@ class _FakeLibraryProvider implements LibraryProvider {
   }
 
   @override
-  Future<String?> getBookText(String title, int categoryId, String fileType,
-      {bool preferUserBooks = false}) async {
+  Future<String?> getBookText(
+    String title,
+    int categoryId,
+    String fileType, {
+    bool preferUserBooks = false,
+  }) async {
     return null;
   }
 

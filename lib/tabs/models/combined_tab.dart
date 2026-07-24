@@ -28,9 +28,9 @@ class CombinedTab extends OpenedTab {
     this.splitRatio = 0.5,
     bool isPinned = false,
   }) : super(
-          'משולב: ${rightTab.title} | ${leftTab.title}',
-          isPinned: isPinned,
-        );
+         'משולב: ${rightTab.title} | ${leftTab.title}',
+         isPinned: isPinned,
+       );
 
   /// Updates the title when tabs change
   void updateTitle() {

@@ -63,7 +63,9 @@ void main() {
       expect(loaded, hasLength(1));
       expect(loaded.single, isA<CommentatorsTab>());
       expect(
-          (loaded.single as CommentatorsTab).sourceTab.book.title, 'ספר בדיקה');
+        (loaded.single as CommentatorsTab).sourceTab.book.title,
+        'ספר בדיקה',
+      );
     });
 
     test('PdfCommentatorsTab נשמר ומשוחזר', () async {
@@ -91,38 +93,40 @@ void main() {
       expect(repository.loadCurrentTabIndex(), 0);
     });
 
-    test('CombinedTab עם PdfCommentatorsTab נשמר ומשוחזר (side-by-side)',
-        () async {
-      final pdfSource = PdfBookTab(
-        book: PdfBook(title: 'PDF בדיקה', path: '/tmp/book.pdf'),
-        pageNumber: 2,
-      );
-      final textTab = TextBookTab(
-        book: TextBook(title: 'ספר בדיקה'),
-        index: 1,
-      );
-      addTearDown(pdfSource.dispose);
-      addTearDown(textTab.dispose);
+    test(
+      'CombinedTab עם PdfCommentatorsTab נשמר ומשוחזר (side-by-side)',
+      () async {
+        final pdfSource = PdfBookTab(
+          book: PdfBook(title: 'PDF בדיקה', path: '/tmp/book.pdf'),
+          pageNumber: 2,
+        );
+        final textTab = TextBookTab(
+          book: TextBook(title: 'ספר בדיקה'),
+          index: 1,
+        );
+        addTearDown(pdfSource.dispose);
+        addTearDown(textTab.dispose);
 
-      final combined = CombinedTab(
-        rightTab: PdfCommentatorsTab(sourceTab: pdfSource),
-        leftTab: textTab,
-      );
-      await repository.saveTabs([combined], 0);
+        final combined = CombinedTab(
+          rightTab: PdfCommentatorsTab(sourceTab: pdfSource),
+          leftTab: textTab,
+        );
+        await repository.saveTabs([combined], 0);
 
-      final loaded = repository.loadTabs();
-      addTearDown(() {
-        for (final tab in loaded) {
-          tab.dispose();
-        }
-      });
+        final loaded = repository.loadTabs();
+        addTearDown(() {
+          for (final tab in loaded) {
+            tab.dispose();
+          }
+        });
 
-      expect(loaded, hasLength(1));
-      expect(loaded.single, isA<CombinedTab>());
-      final restored = loaded.single as CombinedTab;
-      expect(restored.rightTab, isA<PdfCommentatorsTab>());
-      expect(restored.leftTab, isA<TextBookTab>());
-    });
+        expect(loaded, hasLength(1));
+        expect(loaded.single, isA<CombinedTab>());
+        final restored = loaded.single as CombinedTab;
+        expect(restored.rightTab, isA<PdfCommentatorsTab>());
+        expect(restored.leftTab, isA<TextBookTab>());
+      },
+    );
 
     test('loadCurrentTabIndex משחזר את האינדקס שנשמר', () async {
       final firstTab = TextBookTab(
@@ -151,63 +155,67 @@ void main() {
       expect(repository.loadCurrentTabIndex(), 3);
     });
 
-    test('טאבים מעורבים (טקסט + מפרשי PDF) — כולם נשמרים והאינדקס נשמר',
-        () async {
-      final textTab = TextBookTab(
-        book: TextBook(title: 'ספר בדיקה'),
-        index: 1,
-      );
-      final pdfSource = PdfBookTab(
-        book: PdfBook(title: 'PDF בדיקה', path: '/tmp/book.pdf'),
-        pageNumber: 2,
-      );
-      addTearDown(textTab.dispose);
-      addTearDown(pdfSource.dispose);
+    test(
+      'טאבים מעורבים (טקסט + מפרשי PDF) — כולם נשמרים והאינדקס נשמר',
+      () async {
+        final textTab = TextBookTab(
+          book: TextBook(title: 'ספר בדיקה'),
+          index: 1,
+        );
+        final pdfSource = PdfBookTab(
+          book: PdfBook(title: 'PDF בדיקה', path: '/tmp/book.pdf'),
+          pageNumber: 2,
+        );
+        addTearDown(textTab.dispose);
+        addTearDown(pdfSource.dispose);
 
-      final pdfCommentatorsTab = PdfCommentatorsTab(sourceTab: pdfSource);
-      await repository.saveTabs([textTab, pdfCommentatorsTab], 1);
+        final pdfCommentatorsTab = PdfCommentatorsTab(sourceTab: pdfSource);
+        await repository.saveTabs([textTab, pdfCommentatorsTab], 1);
 
-      final loaded = repository.loadTabs();
-      addTearDown(() {
-        for (final tab in loaded) {
-          tab.dispose();
-        }
-      });
+        final loaded = repository.loadTabs();
+        addTearDown(() {
+          for (final tab in loaded) {
+            tab.dispose();
+          }
+        });
 
-      expect(loaded, hasLength(2));
-      expect(loaded[0], isA<TextBookTab>());
-      expect(loaded[1], isA<PdfCommentatorsTab>());
-      expect(repository.loadCurrentTabIndex(), 1);
-    });
+        expect(loaded, hasLength(2));
+        expect(loaded[0], isA<TextBookTab>());
+        expect(loaded[1], isA<PdfCommentatorsTab>());
+        expect(repository.loadCurrentTabIndex(), 1);
+      },
+    );
 
-    test('saveCurrentTabIndex מעדכן את האינדקס בלי לדרוס את הטאבים השמורים',
-        () async {
-      final firstTab = TextBookTab(
-        book: TextBook(title: 'ספר בדיקה'),
-        index: 1,
-      );
-      final secondTab = TextBookTab(
-        book: TextBook(title: 'ספר בדיקה 2'),
-        index: 2,
-      );
-      addTearDown(firstTab.dispose);
-      addTearDown(secondTab.dispose);
+    test(
+      'saveCurrentTabIndex מעדכן את האינדקס בלי לדרוס את הטאבים השמורים',
+      () async {
+        final firstTab = TextBookTab(
+          book: TextBook(title: 'ספר בדיקה'),
+          index: 1,
+        );
+        final secondTab = TextBookTab(
+          book: TextBook(title: 'ספר בדיקה 2'),
+          index: 2,
+        );
+        addTearDown(firstTab.dispose);
+        addTearDown(secondTab.dispose);
 
-      await repository.saveTabs([firstTab, secondTab], 0);
-      await repository.saveCurrentTabIndex([firstTab, secondTab], 1);
+        await repository.saveTabs([firstTab, secondTab], 0);
+        await repository.saveCurrentTabIndex([firstTab, secondTab], 1);
 
-      // האינדקס התעדכן...
-      expect(repository.loadCurrentTabIndex(), 1);
+        // האינדקס התעדכן...
+        expect(repository.loadCurrentTabIndex(), 1);
 
-      // ...והטאבים נשארו כפי שהיו (לא קודדו מחדש/נדרסו)
-      final loaded = repository.loadTabs();
-      addTearDown(() {
-        for (final tab in loaded) {
-          tab.dispose();
-        }
-      });
-      expect(loaded, hasLength(2));
-    });
+        // ...והטאבים נשארו כפי שהיו (לא קודדו מחדש/נדרסו)
+        final loaded = repository.loadTabs();
+        addTearDown(() {
+          for (final tab in loaded) {
+            tab.dispose();
+          }
+        });
+        expect(loaded, hasLength(2));
+      },
+    );
 
     test('remapBookPaths ממפה נתיב PDF מתיקייה ישנה לחדשה', () async {
       final oldDir = p.join('/lib', 'old');
@@ -243,7 +251,9 @@ void main() {
       await repository.saveTabs([pdf], 0);
 
       await repository.remapBookPaths(
-          p.join('/lib', 'old'), p.join('/lib', 'new'));
+        p.join('/lib', 'old'),
+        p.join('/lib', 'new'),
+      );
 
       final loaded = repository.loadTabs();
       addTearDown(() {
@@ -251,8 +261,10 @@ void main() {
           tab.dispose();
         }
       });
-      expect((loaded.single as PdfBookTab).book.path,
-          p.join('/other', 'book.pdf'));
+      expect(
+        (loaded.single as PdfBookTab).book.path,
+        p.join('/other', 'book.pdf'),
+      );
     });
 
     test('remapTabsInMemory ממפה נתיב PDF בזיכרון ומחזיר טאב חדש', () {
@@ -291,12 +303,21 @@ void main() {
       addTearDown(textTab.dispose);
 
       final remapped = repository.remapTabsInMemory(
-          [outside, textTab], p.join('/lib', 'old'), p.join('/lib', 'new'));
+        [outside, textTab],
+        p.join('/lib', 'old'),
+        p.join('/lib', 'new'),
+      );
 
-      expect(identical(remapped[0], outside), isTrue,
-          reason: 'נתיב מחוץ לתיקייה — אותו אובייקט');
-      expect(identical(remapped[1], textTab), isTrue,
-          reason: 'טאב טקסט ללא נתיב — אותו אובייקט');
+      expect(
+        identical(remapped[0], outside),
+        isTrue,
+        reason: 'נתיב מחוץ לתיקייה — אותו אובייקט',
+      );
+      expect(
+        identical(remapped[1], textTab),
+        isTrue,
+        reason: 'טאב טקסט ללא נתיב — אותו אובייקט',
+      );
     });
 
     test('saveCurrentTabIndex שומר את האינדקס כשכל הטאבים נשמרים', () async {

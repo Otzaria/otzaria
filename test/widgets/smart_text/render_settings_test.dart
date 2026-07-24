@@ -39,7 +39,9 @@ void main() {
 
       expect(withAlternative, isNot(equals(withoutAlternative)));
       expect(
-          withAlternative.hashCode, isNot(equals(withoutAlternative.hashCode)));
+        withAlternative.hashCode,
+        isNot(equals(withoutAlternative.hashCode)),
+      );
     });
 
     test('changes when font weight changes', () {

@@ -45,10 +45,15 @@ class ProgressService {
 
   /// שומר את הגדרות העמודות המותאמות לכל ספר.
   Future<void> saveColumnsByBookId(
-      Map<int, List<ProgressColumn>> columnsByBookId) async {
+    Map<int, List<ProgressColumn>> columnsByBookId,
+  ) async {
     try {
-      final jsonData = columnsByBookId.map((bookId, columns) =>
-          MapEntry(bookId.toString(), columns.map((c) => c.toJson()).toList()));
+      final jsonData = columnsByBookId.map(
+        (bookId, columns) => MapEntry(
+          bookId.toString(),
+          columns.map((c) => c.toJson()).toList(),
+        ),
+      );
       await Settings.setValue<String>(_bookColumnsKey, json.encode(jsonData));
     } catch (e, stackTrace) {
       throw ShamorZachorError.fromException(
@@ -80,18 +85,21 @@ class ProgressService {
             if (itemProgressValue is Map) {
               try {
                 progressMap[bookId]![itemIndexKey] = PageProgress.fromJson(
-                    Map<String, dynamic>.from(itemProgressValue));
+                  Map<String, dynamic>.from(itemProgressValue),
+                );
               } catch (e) {
                 _logger.warning(
-                    'Invalid progress data for book $bookId/$itemIndexKey: $e');
+                  'Invalid progress data for book $bookId/$itemIndexKey: $e',
+                );
               }
             }
           });
         }
       });
 
-      _logger
-          .fine('Loaded progress data for ${progressMap.length} books by ID');
+      _logger.fine(
+        'Loaded progress data for ${progressMap.length} books by ID',
+      );
       return progressMap;
     } catch (e, stackTrace) {
       if (e is ShamorZachorError) rethrow;
@@ -151,8 +159,9 @@ class ProgressService {
         }
       });
 
-      _logger
-          .fine('Loaded completion dates for ${datesMap.length} books by ID');
+      _logger.fine(
+        'Loaded completion dates for ${datesMap.length} books by ID',
+      );
       return datesMap;
     } catch (e, stackTrace) {
       _logger.severe('Failed to load completion dates by ID: $e');
@@ -184,8 +193,9 @@ class ProgressService {
   /// Save all completion dates by book ID
   Future<void> saveCompletionDatesById(CompletionDatesByIdMap dates) async {
     try {
-      final jsonString =
-          json.encode(dates.map((k, v) => MapEntry(k.toString(), v)));
+      final jsonString = json.encode(
+        dates.map((k, v) => MapEntry(k.toString(), v)),
+      );
       await Settings.setValue<String>(_completionDatesByIdKey, jsonString);
     } catch (e, stackTrace) {
       throw ShamorZachorError.fromException(
@@ -262,7 +272,9 @@ class ProgressService {
   Future<void> _updateLastAccessed() async {
     try {
       await Settings.setValue<String>(
-          _lastAccessedKey, DateTime.now().toIso8601String());
+        _lastAccessedKey,
+        DateTime.now().toIso8601String(),
+      );
     } catch (e) {
       _logger.fine('Failed to update last accessed: $e');
     }
@@ -272,8 +284,9 @@ class ProgressService {
   Future<String> exportProgressData() async {
     try {
       final progressJsonString = Settings.getValue<String>(_progressByIdKey);
-      final completionDatesJsonString =
-          Settings.getValue<String>(_completionDatesByIdKey);
+      final completionDatesJsonString = Settings.getValue<String>(
+        _completionDatesByIdKey,
+      );
       final bookColumnsJsonString = Settings.getValue<String>(_bookColumnsKey);
 
       final Map<String, String?> dataToExport = {
@@ -306,11 +319,17 @@ class ProgressService {
       final String? bookColumnsString = decodedData['book_columns'] as String?;
 
       await Settings.setValue<String>(
-          _progressByIdKey, progressByIdString ?? '{}');
+        _progressByIdKey,
+        progressByIdString ?? '{}',
+      );
       await Settings.setValue<String>(
-          _completionDatesByIdKey, completionDatesByIdString ?? '{}');
+        _completionDatesByIdKey,
+        completionDatesByIdString ?? '{}',
+      );
       await Settings.setValue<String>(
-          _bookColumnsKey, bookColumnsString ?? '{}');
+        _bookColumnsKey,
+        bookColumnsString ?? '{}',
+      );
 
       _logger.info('Successfully imported progress data');
       return true;
@@ -322,7 +341,8 @@ class ProgressService {
         await Settings.setValue<String>(_completionDatesByIdKey, '{}');
       } catch (resetError) {
         _logger.severe(
-            'Failed to reset progress data after import failure: $resetError');
+          'Failed to reset progress data after import failure: $resetError',
+        );
       }
 
       return false;

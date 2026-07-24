@@ -8,11 +8,13 @@ import 'package:path/path.dart' as p;
 void main() {
   group('PluginManifestValidator', () {
     test('accepts current app version with prerelease suffix', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('plugin_validator_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'plugin_validator_',
+      );
       addTearDown(() => tempDir.delete(recursive: true));
-      await File(p.join(tempDir.path, 'index.html'))
-          .writeAsString('<html></html>');
+      await File(
+        p.join(tempDir.path, 'index.html'),
+      ).writeAsString('<html></html>');
 
       final manifest = PluginManifest(
         schemaVersion: 1,
@@ -45,13 +47,16 @@ void main() {
     });
 
     test('accepts a declared background entrypoint that exists', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('plugin_validator_bg_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'plugin_validator_bg_',
+      );
       addTearDown(() => tempDir.delete(recursive: true));
-      await File(p.join(tempDir.path, 'index.html'))
-          .writeAsString('<html></html>');
-      await File(p.join(tempDir.path, 'background.html'))
-          .writeAsString('<html></html>');
+      await File(
+        p.join(tempDir.path, 'index.html'),
+      ).writeAsString('<html></html>');
+      await File(
+        p.join(tempDir.path, 'background.html'),
+      ).writeAsString('<html></html>');
 
       final manifest = PluginManifest(
         schemaVersion: 1,
@@ -85,11 +90,13 @@ void main() {
     });
 
     test('throws when the plugin name exceeds 14 characters', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('plugin_validator_name_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'plugin_validator_name_',
+      );
       addTearDown(() => tempDir.delete(recursive: true));
-      await File(p.join(tempDir.path, 'index.html'))
-          .writeAsString('<html></html>');
+      await File(
+        p.join(tempDir.path, 'index.html'),
+      ).writeAsString('<html></html>');
 
       final manifest = PluginManifest(
         schemaVersion: 1,
@@ -122,11 +129,13 @@ void main() {
     });
 
     test('throws when the short description exceeds 150 characters', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('plugin_validator_desc_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'plugin_validator_desc_',
+      );
       addTearDown(() => tempDir.delete(recursive: true));
-      await File(p.join(tempDir.path, 'index.html'))
-          .writeAsString('<html></html>');
+      await File(
+        p.join(tempDir.path, 'index.html'),
+      ).writeAsString('<html></html>');
 
       final manifest = PluginManifest(
         schemaVersion: 1,
@@ -159,11 +168,13 @@ void main() {
     });
 
     test('throws when toolTab.title differs from name', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('plugin_validator_title_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'plugin_validator_title_',
+      );
       addTearDown(() => tempDir.delete(recursive: true));
-      await File(p.join(tempDir.path, 'index.html'))
-          .writeAsString('<html></html>');
+      await File(
+        p.join(tempDir.path, 'index.html'),
+      ).writeAsString('<html></html>');
 
       final manifest = PluginManifest(
         schemaVersion: 1,
@@ -192,16 +203,19 @@ void main() {
           currentAppVersion: '1.0.0',
         ),
         throwsA(
-            predicate((e) => e.toString().contains('השמות חייבים להיות זהים'))),
+          predicate((e) => e.toString().contains('השמות חייבים להיות זהים')),
+        ),
       );
     });
 
     test('throws when toolTab.title is an explicit empty string', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('plugin_validator_emptytitle_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'plugin_validator_emptytitle_',
+      );
       addTearDown(() => tempDir.delete(recursive: true));
-      await File(p.join(tempDir.path, 'index.html'))
-          .writeAsString('<html></html>');
+      await File(
+        p.join(tempDir.path, 'index.html'),
+      ).writeAsString('<html></html>');
 
       final manifest = PluginManifest(
         schemaVersion: 1,
@@ -230,16 +244,19 @@ void main() {
           currentAppVersion: '1.0.0',
         ),
         throwsA(
-            predicate((e) => e.toString().contains('השמות חייבים להיות זהים'))),
+          predicate((e) => e.toString().contains('השמות חייבים להיות זהים')),
+        ),
       );
     });
 
     test('throws when the declared background entrypoint is missing', () async {
-      final tempDir =
-          await Directory.systemTemp.createTemp('plugin_validator_bg_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'plugin_validator_bg_',
+      );
       addTearDown(() => tempDir.delete(recursive: true));
-      await File(p.join(tempDir.path, 'index.html'))
-          .writeAsString('<html></html>');
+      await File(
+        p.join(tempDir.path, 'index.html'),
+      ).writeAsString('<html></html>');
 
       final manifest = PluginManifest(
         schemaVersion: 1,

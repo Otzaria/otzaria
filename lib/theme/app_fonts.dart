@@ -49,7 +49,8 @@ class AppFonts {
     FontWeight weight = FontWeight.bold,
   ]) {
     if (fontFamily == null) return null;
-    final isVariable = variableWeightFonts.contains(fontFamily) ||
+    final isVariable =
+        variableWeightFonts.contains(fontFamily) ||
         _variableSystemFonts.contains(fontFamily);
     if (!isVariable) return null;
     if (weight.value < FontWeight.w600.value) return null;
@@ -67,22 +68,33 @@ class AppFonts {
   /// הערה: לא כוללת גופני מערכת כלל; בדסקטופ הם נטענים/מסוננים אוטומטית.
   static const List<FontInfo> _bundledFonts = [
     FontInfo(
-        value: 'TaameyDavidCLM', label: 'דוד', category: FontCategory.serif),
+      value: 'TaameyDavidCLM',
+      label: 'דוד',
+      category: FontCategory.serif,
+    ),
     FontInfo(
-        value: 'FrankRuhlCLM',
-        label: 'פרנק-רוהל',
-        category: FontCategory.serif),
+      value: 'FrankRuhlCLM',
+      label: 'פרנק-רוהל',
+      category: FontCategory.serif,
+    ),
     FontInfo(
-        value: 'TaameyAshkenaz',
-        label: 'טעמי אשכנז',
-        category: FontCategory.serif),
+      value: 'TaameyAshkenaz',
+      label: 'טעמי אשכנז',
+      category: FontCategory.serif,
+    ),
     FontInfo(value: 'KeterYG', label: 'כתר', category: FontCategory.serif),
     FontInfo(value: 'Shofar', label: 'שופר', category: FontCategory.sansSerif),
     FontInfo(
-        value: 'NotoSerifHebrew', label: 'נוטו', category: FontCategory.serif),
+      value: 'NotoSerifHebrew',
+      label: 'נוטו',
+      category: FontCategory.serif,
+    ),
     FontInfo(value: 'Tinos', label: 'טינוס', category: FontCategory.serif),
     FontInfo(
-        value: 'NotoRashiHebrew', label: 'רש"י', category: FontCategory.serif),
+      value: 'NotoRashiHebrew',
+      label: 'רש"י',
+      category: FontCategory.serif,
+    ),
     FontInfo(value: 'Rubik', label: 'רוביק', category: FontCategory.sansSerif),
   ];
 
@@ -150,11 +162,13 @@ class AppFonts {
         final bytes = _readFontBytesSync(path);
         if (bytes == null) continue;
         if (_sfntSupportsHebrew(bytes)) {
-          result.add(FontInfo(
-            value: name,
-            label: name,
-            category: _sfntCategory(bytes),
-          ));
+          result.add(
+            FontInfo(
+              value: name,
+              label: name,
+              category: _sfntCategory(bytes),
+            ),
+          );
         }
       }
     } catch (_) {
@@ -187,7 +201,8 @@ class AppFonts {
       for (int i = 0; i < numFonts; i++) {
         final offsetPos = 12 + i * 4;
         if (offsetPos + 4 > data.length) break;
-        final fontOffset = (data[offsetPos] << 24) |
+        final fontOffset =
+            (data[offsetPos] << 24) |
             (data[offsetPos + 1] << 16) |
             (data[offsetPos + 2] << 8) |
             data[offsetPos + 3];
@@ -373,7 +388,8 @@ class AppFonts {
       for (int i = 0; i < numFonts; i++) {
         final offsetPos = 12 + i * 4;
         if (offsetPos + 4 > data.length) break;
-        final fontOffset = (data[offsetPos] << 24) |
+        final fontOffset =
+            (data[offsetPos] << 24) |
             (data[offsetPos + 1] << 16) |
             (data[offsetPos + 2] << 8) |
             data[offsetPos + 3];
@@ -470,9 +486,9 @@ class AppFonts {
   /// מיפוי גופנים לשמות בעברית (לשימוש בהדפסה)
   /// מחושב אוטומטית מ-availableFonts, רק עבור גופנים עם קבצים
   static Map<String, String> get fontLabels => {
-        for (final font in availableFonts)
-          if (fontPaths.containsKey(font.value)) font.value: font.label
-      };
+    for (final font in availableFonts)
+      if (fontPaths.containsKey(font.value)) font.value: font.label,
+  };
 
   /// יצירת רשימת DropdownMenuItem לבחירת גופן
   static List<DropdownMenuItem<String>> buildDropdownItems({
@@ -480,7 +496,8 @@ class AppFonts {
     TextStyle? itemTextStyle,
   }) {
     final fonts = [...availableFonts];
-    final hasSelectedValue = selectedValue == null ||
+    final hasSelectedValue =
+        selectedValue == null ||
         selectedValue.isEmpty ||
         fonts.any((font) => font.value == selectedValue);
 
@@ -558,9 +575,9 @@ class AppFonts {
         if (bytes == null) continue;
         final info = _sfntFaceInfo(bytes);
         if (info == null || !_isBoldSibling(selfInfo, info)) continue;
-        await (FontLoader(fontFamily)
-              ..addFont(Future.value(ByteData.sublistView(bytes))))
-            .load();
+        await (FontLoader(
+          fontFamily,
+        )..addFont(Future.value(ByteData.sublistView(bytes)))).load();
         return;
       }
     } catch (_) {
@@ -603,9 +620,9 @@ class AppFonts {
     int u32(int o) => (o + 4 > data.length)
         ? -1
         : (data[o] << 24) |
-            (data[o + 1] << 16) |
-            (data[o + 2] << 8) |
-            data[o + 3];
+              (data[o + 1] << 16) |
+              (data[o + 2] << 8) |
+              data[o + 3];
     String tag4(int o) => (o + 4 > data.length)
         ? ''
         : String.fromCharCodes(data.sublist(o, o + 4));
@@ -705,8 +722,9 @@ class AppFonts {
 
       final String decoded;
       if (platformId == 1) {
-        decoded =
-            String.fromCharCodes(data.sublist(strOffset, strOffset + length));
+        decoded = String.fromCharCodes(
+          data.sublist(strOffset, strOffset + length),
+        );
       } else {
         // platform 0/3: UTF-16BE.
         final units = <int>[];

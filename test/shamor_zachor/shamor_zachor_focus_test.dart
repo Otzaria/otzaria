@@ -39,8 +39,9 @@ void main() {
       settingsBloc.close();
     });
 
-    testWidgets('keyboard shortcut works again after focus is restored',
-        (tester) async {
+    testWidgets('keyboard shortcut works again after focus is restored', (
+      tester,
+    ) async {
       final focusController = ShamorZachorFocusController();
 
       await tester.pumpWidget(
@@ -111,8 +112,9 @@ void main() {
       expect(find.text('ספר הושלם'), findsOneWidget);
     });
 
-    testWidgets('book card stays stable with long category path',
-        (tester) async {
+    testWidgets('book card stays stable with long category path', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MultiProvider(
           providers: [
@@ -155,8 +157,9 @@ void main() {
       expect(find.text('ספר בדיקה'), findsOneWidget);
     });
 
-    testWidgets('search keeps duplicate book names from different categories',
-        (tester) async {
+    testWidgets('search keeps duplicate book names from different categories', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MultiProvider(
           providers: [
@@ -192,8 +195,9 @@ void main() {
       expect(find.text('קטגוריה ב'), findsWidgets);
     });
 
-    testWidgets('space key is not swallowed while typing in search field',
-        (tester) async {
+    testWidgets('space key is not swallowed while typing in search field', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MultiProvider(
           providers: [
@@ -266,8 +270,9 @@ void main() {
       expect(find.text('ספר פעיל'), findsOneWidget);
     });
 
-    testWidgets('book card recomputes state for a different book widget',
-        (tester) async {
+    testWidgets('book card recomputes state for a different book widget', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MultiProvider(
           providers: [
@@ -483,7 +488,11 @@ class _FakeShamorZachorProgressProvider extends ShamorZachorProgressProvider {
     },
     2: {
       '0': PageProgress(
-          learn: true, review1: true, review2: true, review3: true),
+        learn: true,
+        review1: true,
+        review2: true,
+        review3: true,
+      ),
     },
     3: {
       '0': PageProgress(),

@@ -163,8 +163,9 @@ class _PluginTabPageState extends State<PluginTabPage> {
       resolveReference: (reference) async {
         final results = await findRefRepository.findRefs(reference);
         return results
-            .map((r) =>
-                (title: r.title, index: r.segment.toInt(), isPdf: r.isPdf))
+            .map(
+              (r) => (title: r.title, index: r.segment.toInt(), isPdf: r.isPdf),
+            )
             .toList();
       },
       resolveRefToLine: (book, ref) =>
@@ -179,36 +180,38 @@ class _PluginTabPageState extends State<PluginTabPage> {
         }
         return buildThemePayload(context);
       },
-      showConfirmDialog: ({
-        required String title,
-        required String content,
-      }) async {
-        if (!mounted) return false;
-        return await showTwoActionsDialog(
-              context: context,
-              title: title,
-              content: content,
-              cancelText: 'ביטול',
-              confirmText: 'אישור',
-            ) ==
-            true;
-      },
-      showWarningDialog: ({
-        required String title,
-        required String content,
-        required String subtitle,
-      }) async {
-        if (!mounted) return false;
-        return await showWarningDialog(
-              context: context,
-              title: title,
-              content: content,
-              subtitle: subtitle,
-              cancelText: 'ביטול',
-              confirmText: 'המשך',
-            ) ==
-            true;
-      },
+      showConfirmDialog:
+          ({
+            required String title,
+            required String content,
+          }) async {
+            if (!mounted) return false;
+            return await showTwoActionsDialog(
+                  context: context,
+                  title: title,
+                  content: content,
+                  cancelText: 'ביטול',
+                  confirmText: 'אישור',
+                ) ==
+                true;
+          },
+      showWarningDialog:
+          ({
+            required String title,
+            required String content,
+            required String subtitle,
+          }) async {
+            if (!mounted) return false;
+            return await showWarningDialog(
+                  context: context,
+                  title: title,
+                  content: content,
+                  subtitle: subtitle,
+                  cancelText: 'ביטול',
+                  confirmText: 'המשך',
+                ) ==
+                true;
+          },
       requestPluginInstall: (downloadUrl) {
         _pluginSystemBloc.add(InstallRemotePluginRequested(downloadUrl));
       },
@@ -286,8 +289,9 @@ class _PluginTabPageState extends State<PluginTabPage> {
 
     try {
       await _ensurePackageInfo();
-      final manifestFile =
-          File(p.join(widget.plugin.resolvedRootPath, 'manifest.json'));
+      final manifestFile = File(
+        p.join(widget.plugin.resolvedRootPath, 'manifest.json'),
+      );
       if (!manifestFile.existsSync()) {
         setState(() => _devErrorMessage = 'קובץ manifest.json חסר בתיקייה.');
         return;
@@ -305,8 +309,10 @@ class _PluginTabPageState extends State<PluginTabPage> {
       );
 
       if (manifest.id != widget.plugin.pluginId) {
-        setState(() => _devErrorMessage =
-            'מזהה התוסף (id) השתנה.\nמצופה: ${widget.plugin.pluginId}\nנמצא: ${manifest.id}\nשינוי ID דורש התקנה מחדש.');
+        setState(
+          () => _devErrorMessage =
+              'מזהה התוסף (id) השתנה.\nמצופה: ${widget.plugin.pluginId}\nנמצא: ${manifest.id}\nשינוי ID דורש התקנה מחדש.',
+        );
         return;
       }
 
@@ -316,10 +322,13 @@ class _PluginTabPageState extends State<PluginTabPage> {
         await InAppWebViewController.clearAllCache();
       } catch (_) {}
 
-      localHtmlPath =
-          p.join(widget.plugin.resolvedRootPath, manifest.entrypoint);
+      localHtmlPath = p.join(
+        widget.plugin.resolvedRootPath,
+        manifest.entrypoint,
+      );
       await webViewController?.loadUrl(
-          urlRequest: URLRequest(url: WebUri.uri(Uri.file(localHtmlPath))));
+        urlRequest: URLRequest(url: WebUri.uri(Uri.file(localHtmlPath))),
+      );
     } catch (e) {
       if (mounted) {
         setState(
@@ -344,10 +353,12 @@ class _PluginTabPageState extends State<PluginTabPage> {
     PluginCrashGuard.markLoadSuccessSync(widget.plugin.pluginId);
     _adapter.dispose();
     PluginPageLauncher.instance.markPageClosed(widget.plugin.pluginId);
-    PluginRuntimeDispatcher.instance
-        .unregisterController(widget.plugin.pluginId);
-    PluginRuntimeDispatcher.instance
-        .unregisterReloadCallback(widget.plugin.pluginId);
+    PluginRuntimeDispatcher.instance.unregisterController(
+      widget.plugin.pluginId,
+    );
+    PluginRuntimeDispatcher.instance.unregisterReloadCallback(
+      widget.plugin.pluginId,
+    );
     super.dispose();
   }
 
@@ -436,8 +447,9 @@ class _PluginTabPageState extends State<PluginTabPage> {
     const localhosts = {'localhost', '127.0.0.1', '::1'};
     if (!localhosts.contains(reqHost) || reqHost != devHost) return false;
     if (uri.scheme != devUri.scheme) return false;
-    final devPort =
-        devUri.hasPort ? devUri.port : (devUri.scheme == 'https' ? 443 : 80);
+    final devPort = devUri.hasPort
+        ? devUri.port
+        : (devUri.scheme == 'https' ? 443 : 80);
     final reqPort = uri.hasPort ? uri.port : (uri.scheme == 'https' ? 443 : 80);
     return reqPort == devPort;
   }
@@ -475,8 +487,10 @@ class _PluginTabPageState extends State<PluginTabPage> {
         PluginCrashGuard.markLoadAttemptSync(widget.plugin.pluginId);
         try {
           webViewController = controller;
-          PluginRuntimeDispatcher.instance
-              .registerController(widget.plugin.pluginId, controller);
+          PluginRuntimeDispatcher.instance.registerController(
+            widget.plugin.pluginId,
+            controller,
+          );
           _bridge.register(controller);
           controller.addJavaScriptHandler(
             handlerName: 'otzaria_escape_pressed',
@@ -490,11 +504,13 @@ class _PluginTabPageState extends State<PluginTabPage> {
         } catch (e) {
           // bridge.register נכשל — התהליך חי, לא קריסה native. מנקים גם את
           // ה-registration הלא שלם וגם את ה-canary של ה-crash guard.
-          PluginRuntimeDispatcher.instance
-              .unregisterController(widget.plugin.pluginId);
+          PluginRuntimeDispatcher.instance.unregisterController(
+            widget.plugin.pluginId,
+          );
           unawaited(PluginCrashGuard.markLoadSuccess(widget.plugin.pluginId));
           debugPrint(
-              'Plugin [${widget.plugin.pluginId}] WebView init error: $e');
+            'Plugin [${widget.plugin.pluginId}] WebView init error: $e',
+          );
           if (mounted) setState(() => _hasError = true);
         }
       },
@@ -506,18 +522,21 @@ class _PluginTabPageState extends State<PluginTabPage> {
           if (uri.scheme == 'otzaria') {
             final request = PluginStoreLinkParser.parseUri(uri);
             if (request != null) {
-              _pluginSystemBloc.add(InstallRemotePluginRequested(
-                request.downloadUri.toString(),
-                forceOverwrite: request.forceOverwrite,
-              ));
+              _pluginSystemBloc.add(
+                InstallRemotePluginRequested(
+                  request.downloadUri.toString(),
+                  forceOverwrite: request.forceOverwrite,
+                ),
+              );
             }
             return NavigationActionPolicy.CANCEL;
           }
 
           if (uri.scheme == 'file') {
             final normalizedUri = p.normalize(uri.toFilePath());
-            final normalizedInstall =
-                p.normalize(widget.plugin.resolvedRootPath);
+            final normalizedInstall = p.normalize(
+              widget.plugin.resolvedRootPath,
+            );
             if (p.isWithin(normalizedInstall, normalizedUri) ||
                 normalizedUri == normalizedInstall) {
               return NavigationActionPolicy.ALLOW;
@@ -546,7 +565,8 @@ class _PluginTabPageState extends State<PluginTabPage> {
                 widget.plugin.pluginId,
                 requiredNetworkPermissionFor(uri),
               );
-              final allowed = granted == true &&
+              final allowed =
+                  granted == true &&
                   await PluginNetworkAccessResolver.instance
                       .isUriAllowedForPlugin(uri, widget.plugin.manifest);
               if (allowed) {
@@ -558,7 +578,8 @@ class _PluginTabPageState extends State<PluginTabPage> {
           return NavigationActionPolicy.CANCEL;
         } catch (e) {
           debugPrint(
-              'Plugin [${widget.plugin.pluginId}] URL override error: $e');
+            'Plugin [${widget.plugin.pluginId}] URL override error: $e',
+          );
           return NavigationActionPolicy.CANCEL;
         }
       },
@@ -567,12 +588,15 @@ class _PluginTabPageState extends State<PluginTabPage> {
           final uri = request.url;
           if (uri.scheme == 'file') {
             final normalizedUri = p.normalize(uri.toFilePath());
-            final normalizedInstall =
-                p.normalize(widget.plugin.resolvedRootPath);
+            final normalizedInstall = p.normalize(
+              widget.plugin.resolvedRootPath,
+            );
             if (!p.isWithin(normalizedInstall, normalizedUri) &&
                 normalizedUri != normalizedInstall) {
               return WebResourceResponse(
-                  statusCode: 403, reasonPhrase: 'Forbidden');
+                statusCode: 403,
+                reasonPhrase: 'Forbidden',
+              );
             }
           }
           if ((uri.scheme == 'http' || uri.scheme == 'https') &&
@@ -591,7 +615,8 @@ class _PluginTabPageState extends State<PluginTabPage> {
                 widget.plugin.pluginId,
                 requiredNetworkPermissionFor(uri),
               );
-              final allowed = granted == true &&
+              final allowed =
+                  granted == true &&
                   await PluginNetworkAccessResolver.instance
                       .isUriAllowedForPlugin(uri, widget.plugin.manifest);
               if (allowed) {
@@ -599,14 +624,19 @@ class _PluginTabPageState extends State<PluginTabPage> {
               }
             }
             return WebResourceResponse(
-                statusCode: 403, reasonPhrase: 'Forbidden');
+              statusCode: 403,
+              reasonPhrase: 'Forbidden',
+            );
           }
           return null;
         } catch (e) {
           debugPrint(
-              'Plugin [${widget.plugin.pluginId}] intercept request error: $e');
+            'Plugin [${widget.plugin.pluginId}] intercept request error: $e',
+          );
           return WebResourceResponse(
-              statusCode: 403, reasonPhrase: 'Forbidden');
+            statusCode: 403,
+            reasonPhrase: 'Forbidden',
+          );
         }
       },
       onLoadStop: (controller, url) async {
@@ -624,10 +654,10 @@ class _PluginTabPageState extends State<PluginTabPage> {
           final packageInfo =
               _cachedPackageInfo ?? await PackageInfo.fromPlatform();
           if (!mounted) return;
-          final permissions =
-              await _pluginRegistryRepository.getPluginPermissions(
-            widget.plugin.pluginId,
-          );
+          final permissions = await _pluginRegistryRepository
+              .getPluginPermissions(
+                widget.plugin.pluginId,
+              );
           if (!mounted) return;
           final bootPayload = {
             'plugin': {
@@ -656,7 +686,9 @@ class _PluginTabPageState extends State<PluginTabPage> {
 
           // Real SDK — injected after load, calls _boot() which re-plays queued
           // Otzaria.on() calls and then fires plugin.boot
-          await controller.evaluateJavascript(source: '''
+          await controller.evaluateJavascript(
+            source:
+                '''
 (function () {
   try {
     var __css = $fontFaceJson;
@@ -695,23 +727,30 @@ class _PluginTabPageState extends State<PluginTabPage> {
   };
   window.Otzaria._boot(realSdk, $jsonPayload);
 })();
-''');
+''',
+          );
           // הטעינה הצליחה עד הסוף (גם ה-stub וגם ה-boot payload הוזרקו).
           // מסירים את התוסף מ-quarantine כדי שהפעלה הבאה תאפשר טעינה רגילה.
           unawaited(PluginCrashGuard.markLoadSuccess(widget.plugin.pluginId));
           // אם התוסף נטען בזמן שאינו ה-foreground הפעיל — להשהותו מיד, כדי
           // שלא ירוץ ברקע. ההשהיה כאן (אחרי load) ולא ב-registerController
           // כי pause על WebView שעוד לא נטען עלול לקטוע את הטעינה עצמה.
-          unawaited(PluginRuntimeDispatcher.instance
-              .onForegroundInstanceReady(widget.plugin.pluginId));
+          unawaited(
+            PluginRuntimeDispatcher.instance.onForegroundInstanceReady(
+              widget.plugin.pluginId,
+            ),
+          );
           PluginPageLauncher.instance.markPageReady(widget.plugin.pluginId);
         } catch (e, st) {
           // Boot ב-Dart נכשל — התהליך חי, לא קריסה native. מנקים את ה-canary
           // כדי שלא נחסום בהפעלה הבאה תוסף שפשוט החזיר שגיאת אתחול רגילה.
           unawaited(PluginCrashGuard.markLoadSuccess(widget.plugin.pluginId));
           debugPrint('Plugin [${widget.plugin.pluginId}] boot error: $e\n$st');
-          PluginSystemDatabase.instance
-              .writeLog(widget.plugin.pluginId, 'ERROR', 'Boot failed: $e');
+          PluginSystemDatabase.instance.writeLog(
+            widget.plugin.pluginId,
+            'ERROR',
+            'Boot failed: $e',
+          );
           if (!mounted) return;
           if (widget.plugin.isDevelopment) {
             setState(() => _devErrorMessage = 'שגיאה באתחול התוסף:\n$e');
@@ -736,9 +775,11 @@ class _PluginTabPageState extends State<PluginTabPage> {
             _isDevServerUri(request.url)) {
           unawaited(PluginCrashGuard.markLoadSuccess(widget.plugin.pluginId));
           if (mounted) {
-            setState(() => _devErrorMessage =
-                'שרת הפיתוח אינו זמין בכתובת ${widget.plugin.devRootPath}.\n'
-                    'ודא ששרת הפיתוח רץ (למשל: npm run dev) ולחץ "נסה קריאה מחדש".');
+            setState(
+              () => _devErrorMessage =
+                  'שרת הפיתוח אינו זמין בכתובת ${widget.plugin.devRootPath}.\n'
+                  'ודא ששרת הפיתוח רץ (למשל: npm run dev) ולחץ "נסה קריאה מחדש".',
+            );
           }
         }
       },
@@ -746,14 +787,19 @@ class _PluginTabPageState extends State<PluginTabPage> {
         try {
           if (consoleMessage.messageLevel == ConsoleMessageLevel.ERROR ||
               consoleMessage.messageLevel == ConsoleMessageLevel.WARNING) {
-            PluginSystemDatabase.instance.writeLog(widget.plugin.pluginId,
-                consoleMessage.messageLevel.toString(), consoleMessage.message);
+            PluginSystemDatabase.instance.writeLog(
+              widget.plugin.pluginId,
+              consoleMessage.messageLevel.toString(),
+              consoleMessage.message,
+            );
           }
           debugPrint(
-              'Plugin [${widget.plugin.pluginId}]: ${consoleMessage.message}');
+            'Plugin [${widget.plugin.pluginId}]: ${consoleMessage.message}',
+          );
         } catch (e) {
           debugPrint(
-              'Plugin [${widget.plugin.pluginId}] console log error: $e');
+            'Plugin [${widget.plugin.pluginId}] console log error: $e',
+          );
         }
       },
     );

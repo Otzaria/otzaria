@@ -121,15 +121,17 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
             children: [
               Row(
                 children: [
-                  Icon(FluentIcons.library_24_regular,
-                      color: colorScheme.primary),
+                  Icon(
+                    FluentIcons.library_24_regular,
+                    color: colorScheme.primary,
+                  ),
                   const SizedBox(width: 10),
                   Text(
                     'הוספת ספרים למעקב',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.primary,
-                        ),
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.primary,
+                    ),
                   ),
                 ],
               ),
@@ -137,8 +139,8 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
               Text(
                 'בחר ספרים מעץ הספרייה. הספרים שייבחרו יתווספו לרשימת "בתהליך".',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 16),
               _buildSearchField(),
@@ -199,7 +201,8 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
     return BlocBuilder<LibraryBloc, LibraryState>(
       builder: (context, state) {
         final library = state.library;
-        final hasContent = library != null &&
+        final hasContent =
+            library != null &&
             library.subCategories.any(
               (c) => c.books.isNotEmpty || c.subCategories.isNotEmpty,
             );
@@ -282,8 +285,9 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
                   child: Text(
                     category.title,
                     style: TextStyle(
-                      fontWeight:
-                          level == 0 ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight: level == 0
+                          ? FontWeight.w700
+                          : FontWeight.w500,
                       color: colorScheme.onSurface,
                     ),
                     maxLines: 1,
@@ -296,11 +300,11 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
         ),
         if (isExpanded) ...[
           for (final sub in [
-            ...category.subCategories
+            ...category.subCategories,
           ]..sort((a, b) => a.order.compareTo(b.order)))
             _buildCategoryNode(sub, colorScheme, level + 1),
           for (final book in [
-            ...category.books
+            ...category.books,
           ]..sort((a, b) => a.order.compareTo(b.order)))
             _buildBookTile(book, colorScheme, level + 1),
         ],
@@ -315,11 +319,10 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
     final disabledReason = isSelectable
         ? null
         : book.isUserBook
-            ? 'ספר אישי — לא נתמך במעקב'
-            : (book.externalLibraryId != null &&
-                    book.externalLibraryId!.isNotEmpty)
-                ? 'ספר חיצוני — לא נתמך במעקב'
-                : 'ספר ללא מזהה — לא נתמך במעקב';
+        ? 'ספר אישי — לא נתמך במעקב'
+        : (book.externalLibraryId != null && book.externalLibraryId!.isNotEmpty)
+        ? 'ספר חיצוני — לא נתמך במעקב'
+        : 'ספר ללא מזהה — לא נתמך במעקב';
 
     return Padding(
       padding: EdgeInsets.only(right: level * 16.0),
@@ -353,11 +356,9 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
 
   Widget _buildSearchResults(Library library, ColorScheme colorScheme) {
     final query = _query;
-    final matches = library
-        .getAllBooks()
-        .where((b) => b.title.contains(query))
-        .toList()
-      ..sort((a, b) => a.title.compareTo(b.title));
+    final matches =
+        library.getAllBooks().where((b) => b.title.contains(query)).toList()
+          ..sort((a, b) => a.title.compareTo(b.title));
 
     if (matches.isEmpty) {
       return Center(

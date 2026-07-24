@@ -55,8 +55,9 @@ List<Link> computeVisibleLinks({
   required Set<int> selectedIndices,
   required Map<int, List<Link>> linksByLine,
 }) {
-  final targetIndices =
-      selectedIndices.isNotEmpty ? selectedIndices : visibleIndices;
+  final targetIndices = selectedIndices.isNotEmpty
+      ? selectedIndices
+      : visibleIndices;
 
   final visibleLinks = <Link>[];
 
@@ -86,11 +87,13 @@ List<Link> computeVisibleLinks({
 }
 
 Future<
-    ({
-      List<Link> links,
-      Map<int, List<Link>> linksByLine,
-      List<Link> visibleLinks
-    })> processLinksForState({
+  ({
+    List<Link> links,
+    Map<int, List<Link>> linksByLine,
+    List<Link> visibleLinks,
+  })
+>
+processLinksForState({
   required List<Link> existingLinks,
   required List<Link> incomingLinks,
   required bool replaceExisting,

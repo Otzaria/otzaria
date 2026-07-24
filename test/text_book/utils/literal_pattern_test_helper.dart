@@ -13,7 +13,8 @@ String _c(int code) => String.fromCharCode(code);
 
 // [̀-֑ͯ-ׇֽֿׁׂׅׄ]*
 // מחלקת הסימנים הצמודים ללא כמת (ATTACHED_MARKS_SET במנוע).
-final String _attachedMarksSet = '[${_r(0x0300, 0x036F)}${_r(0x0591, 0x05BD)}'
+final String _attachedMarksSet =
+    '[${_r(0x0300, 0x036F)}${_r(0x0591, 0x05BD)}'
     '${_c(0x05BF)}${_c(0x05C1)}${_c(0x05C2)}${_c(0x05C4)}${_c(0x05C5)}'
     '${_c(0x05C7)}]';
 

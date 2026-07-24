@@ -69,8 +69,12 @@ Future<EnrichedBookData?> _tryLoadFromDatabase(TextBook book) async {
 
 /// משלים מה-DB רק id ומחבר חסרים, מבלי לשנות heCategories (כשהוא כבר קיים).
 Future<EnrichedBookData> _tryGetIdAndAuthorFromDatabase(TextBook book) async {
-  const EnrichedBookData empty =
-      (resolvedId: null, heCategories: null, author: null, heEra: null);
+  const EnrichedBookData empty = (
+    resolvedId: null,
+    heCategories: null,
+    author: null,
+    heEra: null,
+  );
   if (book.id != null && book.author != null) return empty;
   final sqliteProvider = SqliteDataProvider.instance;
   if (!await sqliteProvider.databaseExists() && !book.isUserBook) {
@@ -133,8 +137,9 @@ Future<EnrichedBookData?> _tryLoadFromPath(TextBook book) async {
     final pathParts = bookPath.split(Platform.pathSeparator);
     final otzariaIndex = pathParts.indexOf('אוצריא');
     if (otzariaIndex >= 0 && otzariaIndex < pathParts.length - 2) {
-      heCategories =
-          pathParts.sublist(otzariaIndex + 1, pathParts.length - 1).join(', ');
+      heCategories = pathParts
+          .sublist(otzariaIndex + 1, pathParts.length - 1)
+          .join(', ');
     }
   } else {
     final normalized = bookPath

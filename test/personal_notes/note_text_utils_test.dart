@@ -11,8 +11,10 @@ void main() {
     });
 
     test('מסיר שורה ריקה בסוף התוכן', () {
-      expect(
-          splitBookContentIntoLines('שורה א\nשורה ב\n'), ['שורה א', 'שורה ב']);
+      expect(splitBookContentIntoLines('שורה א\nשורה ב\n'), [
+        'שורה א',
+        'שורה ב',
+      ]);
     });
 
     test('שורות ריקות באמצע נשמרות', () {
@@ -30,8 +32,9 @@ void main() {
     });
 
     test('מסיר תגי HTML לפני חילוץ', () {
-      final words =
-          extractReferenceWordsFromLine('<b>מילה</b> <span>נוספת</span>');
+      final words = extractReferenceWordsFromLine(
+        '<b>מילה</b> <span>נוספת</span>',
+      );
       expect(words, ['מילה', 'נוספת']);
     });
 

@@ -22,17 +22,18 @@ void main() {
               body: StatefulBuilder(
                 builder: (context, setState) =>
                     SettingsActionTile.segmentedTile<String>(
-                  rtlIcon: FluentIcons.panel_left_24_regular,
-                  title: 'הצגת חלונית ניווט בכותרות ופרקים',
-                  subtitle: 'בדיקת יציבות פריסה',
-                  options: const [
-                    SegmentOption(value: 'pinned', label: 'הצמדה'),
-                    SegmentOption(value: 'openOnBook', label: 'בפתיחת ספר'),
-                    SegmentOption(value: 'closed', label: 'סגור תמיד'),
-                  ],
-                  currentValue: currentValue,
-                  onChanged: (value) => setState(() => currentValue = value),
-                ),
+                      rtlIcon: FluentIcons.panel_left_24_regular,
+                      title: 'הצגת חלונית ניווט בכותרות ופרקים',
+                      subtitle: 'בדיקת יציבות פריסה',
+                      options: const [
+                        SegmentOption(value: 'pinned', label: 'הצמדה'),
+                        SegmentOption(value: 'openOnBook', label: 'בפתיחת ספר'),
+                        SegmentOption(value: 'closed', label: 'סגור תמיד'),
+                      ],
+                      currentValue: currentValue,
+                      onChanged: (value) =>
+                          setState(() => currentValue = value),
+                    ),
               ),
             ),
           ),
@@ -63,17 +64,18 @@ void main() {
               body: StatefulBuilder(
                 builder: (context, setState) =>
                     SettingsActionTile.segmentedTile<String>(
-                  rtlIcon: FluentIcons.panel_left_24_regular,
-                  title: 'כותרת',
-                  subtitle: 'תיאור',
-                  options: const [
-                    SegmentOption(value: 'pinned', label: 'הצמדה'),
-                    SegmentOption(value: 'openOnBook', label: 'בפתיחת ספר'),
-                    SegmentOption(value: 'closed', label: 'סגור תמיד'),
-                  ],
-                  currentValue: currentValue,
-                  onChanged: (value) => setState(() => currentValue = value),
-                ),
+                      rtlIcon: FluentIcons.panel_left_24_regular,
+                      title: 'כותרת',
+                      subtitle: 'תיאור',
+                      options: const [
+                        SegmentOption(value: 'pinned', label: 'הצמדה'),
+                        SegmentOption(value: 'openOnBook', label: 'בפתיחת ספר'),
+                        SegmentOption(value: 'closed', label: 'סגור תמיד'),
+                      ],
+                      currentValue: currentValue,
+                      onChanged: (value) =>
+                          setState(() => currentValue = value),
+                    ),
               ),
             ),
           ),
@@ -100,8 +102,9 @@ void main() {
     },
   );
 
-  testWidgets('AppSegmentedControl can hide the selected check icon',
-      (tester) async {
+  testWidgets('AppSegmentedControl can hide the selected check icon', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Directionality(

@@ -52,7 +52,7 @@ class ZmanimSettingsContent extends StatelessWidget {
           // סדר הרישום — שובר-שוויון יציב לזמני תאריך עברי (קידוש לבנה),
           // שמחרוזת התצוגה שלהם אינה ברת-מיון כרונולוגי.
           final registryOrder = {
-            for (final (i, d) in kZmanimRegistry.indexed) d.id: i
+            for (final (i, d) in kZmanimRegistry.indexed) d.id: i,
           };
           // מיון כל קטגוריה לפי זמן היום (זמן חסר — בסוף). זמני תאריך עברי
           // אינם ברי-מיון לקסיקוגרפי ולכן ממוינים לפי סדר הרישום.
@@ -60,8 +60,9 @@ class ZmanimSettingsContent extends StatelessWidget {
             final ta = dailyTimes[a.id] ?? '';
             final tb = dailyTimes[b.id] ?? '';
             if (ta.isEmpty && tb.isEmpty) {
-              return (registryOrder[a.id] ?? 0)
-                  .compareTo(registryOrder[b.id] ?? 0);
+              return (registryOrder[a.id] ?? 0).compareTo(
+                registryOrder[b.id] ?? 0,
+              );
             }
             if (ta.isEmpty) return 1;
             if (tb.isEmpty) return -1;
@@ -69,8 +70,9 @@ class ZmanimSettingsContent extends StatelessWidget {
             final bClock = isClockTime(tb);
             if (aClock && bClock) return ta.compareTo(tb);
             if (aClock != bClock) return aClock ? -1 : 1;
-            return (registryOrder[a.id] ?? 0)
-                .compareTo(registryOrder[b.id] ?? 0);
+            return (registryOrder[a.id] ?? 0).compareTo(
+              registryOrder[b.id] ?? 0,
+            );
           }
 
           return Column(
@@ -89,8 +91,9 @@ class ZmanimSettingsContent extends StatelessWidget {
                     children: [
                       for (final entry in categories.entries) ...[
                         _CategoryHeader(title: entry.key),
-                        for (final (i, def)
-                            in ([...entry.value]..sort(byTime)).indexed)
+                        for (final (i, def) in ([
+                          ...entry.value,
+                        ]..sort(byTime)).indexed)
                           _ZmanTableRow(
                             definition: def,
                             enabled: state.enabledZmanim.contains(def.id),

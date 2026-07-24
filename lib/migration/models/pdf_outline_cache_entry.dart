@@ -82,7 +82,7 @@ class PdfOutlineCacheEntry {
             'n': normalizedTitle,
             'o': originalTitle,
             'p': pageNumber,
-          }
+          },
       ],
     });
   }
@@ -163,11 +163,11 @@ class PdfOutlineCacheEntry {
 
   @override
   int get hashCode => Object.hash(
-        filePath,
-        fileSize,
-        lastModified,
-        outlineJson,
-        createdAt,
-        accessedAt,
-      );
+    filePath,
+    fileSize,
+    lastModified,
+    outlineJson,
+    createdAt,
+    accessedAt,
+  );
 }

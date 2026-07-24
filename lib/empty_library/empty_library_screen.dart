@@ -27,11 +27,13 @@ class _LibrarySetupViewState extends State<LibrarySetupView> {
   void initState() {
     super.initState();
     // best-effort: כשל בזיהוי נתיב ברירת המחדל משאיר יעד ריק והמשתמש בוחר ידנית.
-    AppPaths.getDefaultLibraryPath().then((path) {
-      if (mounted) {
-        setState(() => _defaultTargetPath = AppPaths.libraryRootOf(path));
-      }
-    }).catchError((_) {});
+    AppPaths.getDefaultLibraryPath()
+        .then((path) {
+          if (mounted) {
+            setState(() => _defaultTargetPath = AppPaths.libraryRootOf(path));
+          }
+        })
+        .catchError((_) {});
   }
 
   Future<void> _handleLibraryLoaded() async {

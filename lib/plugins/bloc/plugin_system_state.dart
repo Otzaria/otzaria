@@ -23,9 +23,8 @@ class PluginSystemLoaded extends PluginSystemState {
 
   List<InstalledPlugin> get activePlugins =>
       plugins.where((p) => p.enabled).toList();
-  List<InstalledPlugin> get pinnedPlugins => plugins
-      .where((p) => p.pinned && p.enabled && p.showInTools)
-      .toList();
+  List<InstalledPlugin> get pinnedPlugins =>
+      plugins.where((p) => p.pinned && p.enabled && p.showInTools).toList();
   List<InstalledPlugin> get pluginsPinnedToNavRail =>
       plugins.where((p) => p.pinnedToNavRail && p.enabled).toList();
 }
@@ -77,12 +76,12 @@ class PluginSystemDevInstallRequiresPermissions extends PluginSystemState {
 
   @override
   List<Object?> get props => [
-        manifest,
-        sourcePath,
-        sourceType,
-        previousVersion,
-        previousAllowOrderBeforeBuiltInsGranted,
-      ];
+    manifest,
+    sourcePath,
+    sourceType,
+    previousVersion,
+    previousAllowOrderBeforeBuiltInsGranted,
+  ];
 }
 
 class PluginSystemInstallRequiresPermissions extends PluginSystemState {
@@ -104,9 +103,9 @@ class PluginSystemInstallRequiresPermissions extends PluginSystemState {
 
   @override
   List<Object?> get props => [
-        manifest,
-        tempDirPath,
-        previousVersion,
-        previousAllowOrderBeforeBuiltInsGranted,
-      ];
+    manifest,
+    tempDirPath,
+    previousVersion,
+    previousAllowOrderBeforeBuiltInsGranted,
+  ];
 }

@@ -87,7 +87,9 @@ String pdfCombineSpreadTitles(String first, String second) {
 /// ששני חלקיו מוכרים — כך כותרת ראשונה שמכילה בעצמה מקף ארוך לא מתפצלת במקום
 /// הלא נכון. מחזיר null אם אין פיצול תקף (כותרת עמוד יחיד או לא מוכרת).
 ({String first, String second})? pdfSplitSpreadTitleByKnown(
-    String combined, Set<String> known) {
+  String combined,
+  Set<String> known,
+) {
   var idx = combined.indexOf(kSpreadTitleSeparator);
   while (idx >= 0) {
     final first = combined.substring(0, idx);

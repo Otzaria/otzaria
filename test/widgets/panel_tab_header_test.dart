@@ -50,12 +50,12 @@ class _SidebarTabHeaderHostState extends State<_SidebarTabHeaderHost>
         (
           icon: FluentIcons.link_24_regular,
           iconFilled: FluentIcons.link_24_filled,
-          label: 'קישורים'
+          label: 'קישורים',
         ),
         (
           icon: FluentIcons.note_24_regular,
           iconFilled: FluentIcons.note_24_filled,
-          label: 'הערות'
+          label: 'הערות',
         ),
       ],
       isPinned: widget.isPinned,
@@ -64,8 +64,11 @@ class _SidebarTabHeaderHostState extends State<_SidebarTabHeaderHost>
   }
 }
 
-Widget _wrap(
-    {int initialIndex = 0, bool showPin = false, bool isPinned = false}) {
+Widget _wrap({
+  int initialIndex = 0,
+  bool showPin = false,
+  bool isPinned = false,
+}) {
   return MaterialApp(
     home: Scaffold(
       body: _SidebarTabHeaderHost(
@@ -120,8 +123,9 @@ void main() {
       expect(find.byIcon(FluentIcons.link_24_regular), findsOneWidget);
     });
 
-    testWidgets('initialIndex=1 — הטאב השני מקבל אייקון filled',
-        (tester) async {
+    testWidgets('initialIndex=1 — הטאב השני מקבל אייקון filled', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap(initialIndex: 1));
       await tester.pump();
 

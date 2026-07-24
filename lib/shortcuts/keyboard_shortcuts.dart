@@ -112,18 +112,22 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
 
   /// מטפל באירועי מקלדת ברמה הגלובלית - עובד גם כשיש TextField עם focus
   KeyEventResult _handleKeyEvent(
-      KeyEvent event, Map<String, String> shortcutSettings) {
+    KeyEvent event,
+    Map<String, String> shortcutSettings,
+  ) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
     // מניעת הפעלת קיצורי מקשים של תו בודד (ללא modifiers) בזמן עריכת טקסט
     if (_isEditing()) {
-      final isModifierPressed = HardwareKeyboard.instance.isControlPressed ||
+      final isModifierPressed =
+          HardwareKeyboard.instance.isControlPressed ||
           HardwareKeyboard.instance.isAltPressed ||
           HardwareKeyboard.instance.isMetaPressed;
 
       if (!isModifierPressed) {
         // מתיר רק מקשי F ומקש Escape
-        final isAllowed = event.logicalKey == LogicalKeyboardKey.escape ||
+        final isAllowed =
+            event.logicalKey == LogicalKeyboardKey.escape ||
             (event.logicalKey.keyId >= LogicalKeyboardKey.f1.keyId &&
                 event.logicalKey.keyId <= LogicalKeyboardKey.f12.keyId);
 
@@ -142,23 +146,28 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     final findRefShortcut = shortcutOf('key-shortcut-open-find-ref');
     final closeTabShortcut = shortcutOf('key-shortcut-close-tab');
     final closeAllTabsShortcut = shortcutOf('key-shortcut-close-all-tabs');
-    final restoreClosedTabShortcut =
-        shortcutOf('key-shortcut-restore-closed-tab');
-    final readingScreenShortcut =
-        shortcutOf('key-shortcut-open-reading-screen');
+    final restoreClosedTabShortcut = shortcutOf(
+      'key-shortcut-restore-closed-tab',
+    );
+    final readingScreenShortcut = shortcutOf(
+      'key-shortcut-open-reading-screen',
+    );
     final newSearchShortcut = shortcutOf('key-shortcut-open-new-search');
-    final advancedSearchShortcut =
-        shortcutOf(ShortcutValidator.openAdvancedSearchKey);
+    final advancedSearchShortcut = shortcutOf(
+      ShortcutValidator.openAdvancedSearchKey,
+    );
     final settingsShortcut = shortcutOf('key-shortcut-open-settings');
     final moreShortcut = shortcutOf('key-shortcut-open-more');
     final bookmarksShortcut = shortcutOf('key-shortcut-open-bookmarks');
     final historyShortcut = shortcutOf('key-shortcut-open-history');
     final workspaceShortcut = shortcutOf('key-shortcut-switch-workspace');
     final toggleNavPaneShortcut = shortcutOf('key-shortcut-toggle-nav-pane');
-    final toggleCommentatorsPaneShortcut =
-        shortcutOf('key-shortcut-toggle-commentators-pane');
-    final openCommentatorsTabShortcut =
-        shortcutOf('key-shortcut-open-commentators-tab');
+    final toggleCommentatorsPaneShortcut = shortcutOf(
+      'key-shortcut-toggle-commentators-pane',
+    );
+    final openCommentatorsTabShortcut = shortcutOf(
+      'key-shortcut-open-commentators-tab',
+    );
     final prevSegmentShortcut = shortcutOf('key-shortcut-prev-segment');
     final nextSegmentShortcut = shortcutOf('key-shortcut-next-segment');
     final prevTocShortcut = shortcutOf('key-shortcut-prev-toc');
@@ -179,7 +188,8 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     // Screen.search מציג את אותו עמוד טאבים כמו Screen.reading,
     // ולכן קיצורי טאבים צריכים לפעול בשני המסכים.
     final currentScreen = context.read<NavigationBloc>().state.currentScreen;
-    final isReadingScreen = !hasOpenOverlayRoute &&
+    final isReadingScreen =
+        !hasOpenOverlayRoute &&
         (currentScreen == Screen.reading || currentScreen == Screen.search);
 
     // פתח/סגור חלונית ניווט. אם הטאב הפעיל אינו ספר — מחזירים `ignored`
@@ -262,12 +272,12 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
 
     if (ShortcutHelper.matchesShortcut(event, libraryShortcut)) {
       closeOverlayRoutes();
-      context
-          .read<NavigationBloc>()
-          .add(const NavigateToScreen(Screen.library));
-      context
-          .read<FocusRepository>()
-          .requestLibrarySearchFocus(selectAll: true);
+      context.read<NavigationBloc>().add(
+        const NavigateToScreen(Screen.library),
+      );
+      context.read<FocusRepository>().requestLibrarySearchFocus(
+        selectAll: true,
+      );
       return KeyEventResult.handled;
     }
 
@@ -313,9 +323,9 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     // עיון
     if (ShortcutHelper.matchesShortcut(event, readingScreenShortcut)) {
       closeOverlayRoutes();
-      context
-          .read<NavigationBloc>()
-          .add(const NavigateToScreen(Screen.reading));
+      context.read<NavigationBloc>().add(
+        const NavigateToScreen(Screen.reading),
+      );
       return KeyEventResult.handled;
     }
 
@@ -349,9 +359,9 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     // הגדרות
     if (ShortcutHelper.matchesShortcut(event, settingsShortcut)) {
       closeOverlayRoutes();
-      context
-          .read<NavigationBloc>()
-          .add(const NavigateToScreen(Screen.settings));
+      context.read<NavigationBloc>().add(
+        const NavigateToScreen(Screen.settings),
+      );
       return KeyEventResult.handled;
     }
 
@@ -398,8 +408,9 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
       if (toolShortcut.isNotEmpty &&
           ShortcutHelper.matchesShortcut(event, toolShortcut)) {
         closeOverlayRoutes();
-        mainWindowScreenKey.currentState
-            ?.handleInternalDeepLink('otzaria://open/tool/${entry.value}');
+        mainWindowScreenKey.currentState?.handleInternalDeepLink(
+          'otzaria://open/tool/${entry.value}',
+        );
         return KeyEventResult.handled;
       }
     }
@@ -413,8 +424,9 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
           ShortcutHelper.matchesShortcut(event, pluginShortcut)) {
         final pluginId = ShortcutValidator.pluginIdFromShortcutKey(pluginKey);
         closeOverlayRoutes();
-        mainWindowScreenKey.currentState
-            ?.handleInternalDeepLink('otzaria://open/plugin/$pluginId');
+        mainWindowScreenKey.currentState?.handleInternalDeepLink(
+          'otzaria://open/plugin/$pluginId',
+        );
         return KeyEventResult.handled;
       }
     }

@@ -53,8 +53,9 @@ Future<void> main() async {
   });
 
   group('CommentaryListBase - פוקוס חיפוש', () {
-    testWidgets('שדה החיפוש שומר פוקוס אחרי rebuild שנגרם מהקלדה',
-        (tester) async {
+    testWidgets('שדה החיפוש שומר פוקוס אחרי rebuild שנגרם מהקלדה', (
+      tester,
+    ) async {
       await _pumpWidget(
         tester,
         textBookBloc: textBookBloc,
@@ -76,8 +77,9 @@ Future<void> main() async {
       expect(find.text('מפרש'), findsOneWidget);
     }, skip: !engineReady);
 
-    testWidgets('לחיצה על dismiss סוגרת את שדה החיפוש ומנקה את הטקסט',
-        (tester) async {
+    testWidgets('לחיצה על dismiss סוגרת את שדה החיפוש ומנקה את הטקסט', (
+      tester,
+    ) async {
       await _pumpWidget(
         tester,
         textBookBloc: textBookBloc,

@@ -61,7 +61,8 @@ class PreCloseRegistry {
         } catch (e) {
           lastError = e;
           debugPrint(
-              '⚠️ PreCloseRegistry callback attempt $attempt/2 failed: $e');
+            '⚠️ PreCloseRegistry callback attempt $attempt/2 failed: $e',
+          );
           if (attempt < 2) {
             await Future<void>.delayed(const Duration(milliseconds: 50));
           }

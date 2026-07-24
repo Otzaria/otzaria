@@ -31,28 +31,29 @@ class NotificationService {
 
     final DarwinInitializationSettings initializationSettingsIOS =
         DarwinInitializationSettings(
-      requestSoundPermission: true,
-      requestBadgePermission: true,
-      requestAlertPermission: true,
-    );
+          requestSoundPermission: true,
+          requestBadgePermission: true,
+          requestAlertPermission: true,
+        );
 
     const LinuxInitializationSettings initializationSettingsLinux =
         LinuxInitializationSettings(defaultActionName: 'Open');
 
     const WindowsInitializationSettings initializationSettingsWindows =
         WindowsInitializationSettings(
-      appName: 'אוצריא',
-      appUserModelId: 'com.otzaria.app',
-      guid: 'a8c49f1f-9c5d-4d8e-8b1a-2e3f4a5b6c7d',
-    );
+          appName: 'אוצריא',
+          appUserModelId: 'com.otzaria.app',
+          guid: 'a8c49f1f-9c5d-4d8e-8b1a-2e3f4a5b6c7d',
+        );
 
     final InitializationSettings initializationSettings =
         InitializationSettings(
-            android: initializationSettingsAndroid,
-            iOS: initializationSettingsIOS,
-            macOS: initializationSettingsIOS,
-            linux: initializationSettingsLinux,
-            windows: initializationSettingsWindows);
+          android: initializationSettingsAndroid,
+          iOS: initializationSettingsIOS,
+          macOS: initializationSettingsIOS,
+          linux: initializationSettingsLinux,
+          windows: initializationSettingsWindows,
+        );
 
     await flutterLocalNotificationsPlugin.initialize(
       settings: initializationSettings,
@@ -77,9 +78,10 @@ class NotificationService {
   /// 3. Better error handling for each permission type
   Future<bool> requestPermissions() async {
     if (Platform.isAndroid) {
-      final androidPlugin =
-          flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
+      final androidPlugin = flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
 
       if (androidPlugin != null) {
         try {
@@ -87,16 +89,16 @@ class NotificationService {
           bool exactAlarmGranted = true;
 
           // First, check if we can schedule exact notifications (this checks the permission)
-          final canScheduleExact =
-              await androidPlugin.canScheduleExactNotifications();
+          final canScheduleExact = await androidPlugin
+              .canScheduleExactNotifications();
           if (kDebugMode) {
             debugPrint('Can schedule exact notifications: $canScheduleExact');
           }
 
           // Request notification permission for Android 13+ only if needed
           try {
-            final notificationResult =
-                await androidPlugin.requestNotificationsPermission();
+            final notificationResult = await androidPlugin
+                .requestNotificationsPermission();
             notificationGranted = notificationResult ?? true;
 
             if (kDebugMode) {
@@ -115,8 +117,8 @@ class NotificationService {
           // Request exact alarm permission for Android 12+ only if not already granted
           if (canScheduleExact != true) {
             try {
-              final exactAlarmResult =
-                  await androidPlugin.requestExactAlarmsPermission();
+              final exactAlarmResult = await androidPlugin
+                  .requestExactAlarmsPermission();
               exactAlarmGranted = exactAlarmResult ?? true;
 
               if (kDebugMode) {
@@ -154,7 +156,8 @@ class NotificationService {
       try {
         final iosPlugin = flutterLocalNotificationsPlugin
             .resolvePlatformSpecificImplementation<
-                IOSFlutterLocalNotificationsPlugin>();
+              IOSFlutterLocalNotificationsPlugin
+            >();
 
         if (iosPlugin != null) {
           if (kDebugMode) {
@@ -171,14 +174,16 @@ class NotificationService {
 
           if (kDebugMode) {
             debugPrint(
-                'iOS/macOS notification permissions granted: $_permissionsGranted');
+              'iOS/macOS notification permissions granted: $_permissionsGranted',
+            );
           }
 
           // On macOS, sometimes we need to wait a bit and check again
           if (Platform.isMacOS && !_permissionsGranted) {
             if (kDebugMode) {
               debugPrint(
-                  'macOS permissions denied, waiting and trying again...');
+                'macOS permissions denied, waiting and trying again...',
+              );
             }
 
             await Future.delayed(const Duration(seconds: 1));
@@ -217,15 +222,16 @@ class NotificationService {
   /// Check current permission status without requesting
   Future<bool> checkPermissions() async {
     if (Platform.isAndroid) {
-      final androidPlugin =
-          flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
+      final androidPlugin = flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
 
       if (androidPlugin != null) {
         try {
           // Check if exact alarm permission is granted
-          final exactAlarmGranted =
-              await androidPlugin.canScheduleExactNotifications();
+          final exactAlarmGranted = await androidPlugin
+              .canScheduleExactNotifications();
 
           // For notification permission, we assume it's granted if we can check it
           // (there's no direct way to check notification permission status without requesting)
@@ -234,7 +240,8 @@ class NotificationService {
 
           if (kDebugMode) {
             debugPrint(
-                'Permission check - Can schedule exact: $exactAlarmGranted');
+              'Permission check - Can schedule exact: $exactAlarmGranted',
+            );
             debugPrint('Permissions granted: $_permissionsGranted');
           }
 
@@ -252,7 +259,8 @@ class NotificationService {
       try {
         final iosPlugin = flutterLocalNotificationsPlugin
             .resolvePlatformSpecificImplementation<
-                IOSFlutterLocalNotificationsPlugin>();
+              IOSFlutterLocalNotificationsPlugin
+            >();
 
         if (iosPlugin != null) {
           // On macOS, we can try to get current settings
@@ -267,7 +275,8 @@ class NotificationService {
 
           if (kDebugMode) {
             debugPrint(
-                'iOS/macOS permissions check result: $_permissionsGranted');
+              'iOS/macOS permissions check result: $_permissionsGranted',
+            );
           }
 
           return _permissionsGranted;
@@ -285,7 +294,8 @@ class NotificationService {
   }
 
   void onDidReceiveNotificationResponse(
-      NotificationResponse notificationResponse) async {
+    NotificationResponse notificationResponse,
+  ) async {
     // Handle notification tapped logic here
   }
 
@@ -350,10 +360,11 @@ class NotificationService {
       // Use exact alarm if permission granted, otherwise fall back to inexact
       final canScheduleExact = Platform.isAndroid
           ? await flutterLocalNotificationsPlugin
-                  .resolvePlatformSpecificImplementation<
-                      AndroidFlutterLocalNotificationsPlugin>()
-                  ?.canScheduleExactNotifications() ??
-              false
+                    .resolvePlatformSpecificImplementation<
+                      AndroidFlutterLocalNotificationsPlugin
+                    >()
+                    ?.canScheduleExactNotifications() ??
+                false
           : true;
 
       await flutterLocalNotificationsPlugin.zonedSchedule(
@@ -396,7 +407,8 @@ class NotificationService {
     if (!_isInitialized || !_permissionsGranted) {
       if (kDebugMode) {
         debugPrint(
-            'Cannot send test notification: not initialized or no permissions');
+          'Cannot send test notification: not initialized or no permissions',
+        );
       }
       return;
     }
@@ -453,9 +465,10 @@ class NotificationService {
         debugPrint('Force requesting macOS permissions...');
       }
 
-      final iosPlugin =
-          flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
-              IOSFlutterLocalNotificationsPlugin>();
+      final iosPlugin = flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >();
 
       if (iosPlugin != null) {
         try {

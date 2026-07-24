@@ -29,8 +29,9 @@ List<TocEntry> _buildLargeToc({required int simanim, required int seifim}) {
     final base = s * (seifim + 1);
     final parent = TocEntry(text: 'siman $s', index: base, level: 1);
     for (var i = 0; i < seifim; i++) {
-      parent.children
-          .add(TocEntry(text: 'seif $i', index: base + 1 + i, level: 2));
+      parent.children.add(
+        TocEntry(text: 'seif $i', index: base + 1 + i, level: 2),
+      );
     }
     return parent;
   });
@@ -84,150 +85,176 @@ void main() {
 
   // ── הגנה על ה-buildWhen: שלא יתאפשר rebuild בכל emit ──────────────────
   testWidgets(
-      'buildWhen מסנן emits שלא משנים visibleIndices.first/selectedIndex/TOC',
-      (tester) async {
-    // עץ קטן (מתחת לסף 500) — מסלול רקורסיבי.
-    final toc = [
-      TocEntry(text: 'a', index: 0, level: 1),
-      TocEntry(text: 'b', index: 5, level: 1),
-    ];
+    'buildWhen מסנן emits שלא משנים visibleIndices.first/selectedIndex/TOC',
+    (tester) async {
+      // עץ קטן (מתחת לסף 500) — מסלול רקורסיבי.
+      final toc = [
+        TocEntry(text: 'a', index: 0, level: 1),
+        TocEntry(text: 'b', index: 5, level: 1),
+      ];
 
-    final initialState = _loadedState(
-      toc: toc,
-      visibleIndices: const [0],
-      selectedIndex: null,
-    );
+      final initialState = _loadedState(
+        toc: toc,
+        visibleIndices: const [0],
+        selectedIndex: null,
+      );
 
-    final bloc = _TestTextBookBloc(initialState);
-    addTearDown(bloc.close);
-    final focusNode = FocusNode();
-    addTearDown(focusNode.dispose);
+      final bloc = _TestTextBookBloc(initialState);
+      addTearDown(bloc.close);
+      final focusNode = FocusNode();
+      addTearDown(focusNode.dispose);
 
-    var blocBuilderCount = 0;
-    Widget testHarness = _wrap(
-      BlocBuilder<TextBookBloc, TextBookState>(
-        bloc: bloc,
-        // אנו רק רוצים להפעיל את ה-tree, אבל ה-TocViewer הוא זה שיש לו
-        // את ה-buildWhen האמיתי שאנו בוחנים.
-        builder: (context, state) {
-          return Builder(builder: (innerContext) {
-            // עוטף את ה-TocViewer ב-Builder שסופר rebuilds דרך InheritedWidget
-            // לא רלוונטי — נכליל ספירה דרך paneContent של TocViewer בעקיפין.
-            return TocViewer(
-              scrollController: ItemScrollController(),
-              closeLeftPaneCallback: () {},
-              focusNode: focusNode,
+      var blocBuilderCount = 0;
+      Widget testHarness = _wrap(
+        BlocBuilder<TextBookBloc, TextBookState>(
+          bloc: bloc,
+          // אנו רק רוצים להפעיל את ה-tree, אבל ה-TocViewer הוא זה שיש לו
+          // את ה-buildWhen האמיתי שאנו בוחנים.
+          builder: (context, state) {
+            return Builder(
+              builder: (innerContext) {
+                // עוטף את ה-TocViewer ב-Builder שסופר rebuilds דרך InheritedWidget
+                // לא רלוונטי — נכליל ספירה דרך paneContent של TocViewer בעקיפין.
+                return TocViewer(
+                  scrollController: ItemScrollController(),
+                  closeLeftPaneCallback: () {},
+                  focusNode: focusNode,
+                );
+              },
             );
-          });
-        },
-      ),
-      bloc,
-    );
+          },
+        ),
+        bloc,
+      );
 
-    await tester.pumpWidget(testHarness);
-    await tester.pump();
+      await tester.pumpWidget(testHarness);
+      await tester.pump();
 
-    // סופרים TocEntry שמופיע ב-DOM (וידג'ט אמיתי) - כל ערך מופיע פעם אחת.
-    expect(find.text('a'), findsOneWidget);
-    expect(find.text('b'), findsOneWidget);
+      // סופרים TocEntry שמופיע ב-DOM (וידג'ט אמיתי) - כל ערך מופיע פעם אחת.
+      expect(find.text('a'), findsOneWidget);
+      expect(find.text('b'), findsOneWidget);
 
-    blocBuilderCount = 0;
-    // עוטפים שכבת מנייה: נשתמש ב-runtime-spy לפי textBaseline. במקום זאת,
-    // נשתמש בטכניקת stop-watch: כמות שינויי content (ספירה דרך paneContent).
-    // במקום זה — נסתפק באימות התנהגותי: emit עם שינוי בשדה שאינו תלוי
-    // (לדוגמה fontSize) לא צריך לגרום ל-DOM-thrash.
-    final stateOnlyFontSize = initialState.copyWith(fontSize: 24);
-    bloc.emitState(stateOnlyFontSize);
-    await tester.pump();
+      blocBuilderCount = 0;
+      // עוטפים שכבת מנייה: נשתמש ב-runtime-spy לפי textBaseline. במקום זאת,
+      // נשתמש בטכניקת stop-watch: כמות שינויי content (ספירה דרך paneContent).
+      // במקום זה — נסתפק באימות התנהגותי: emit עם שינוי בשדה שאינו תלוי
+      // (לדוגמה fontSize) לא צריך לגרום ל-DOM-thrash.
+      final stateOnlyFontSize = initialState.copyWith(fontSize: 24);
+      bloc.emitState(stateOnlyFontSize);
+      await tester.pump();
 
-    // הערכים נשארים במקומם וזהים — אין שינוי משמעותי לרשימה.
-    expect(find.text('a'), findsOneWidget);
-    expect(find.text('b'), findsOneWidget);
+      // הערכים נשארים במקומם וזהים — אין שינוי משמעותי לרשימה.
+      expect(find.text('a'), findsOneWidget);
+      expect(find.text('b'), findsOneWidget);
 
-    // emit עם שינוי ב-visibleIndices.first → buildWhen מחזיר true → rebuild.
-    final stateNewVisible = stateOnlyFontSize.copyWith(visibleIndices: [5]);
-    bloc.emitState(stateNewVisible);
-    await tester.pump();
+      // emit עם שינוי ב-visibleIndices.first → buildWhen מחזיר true → rebuild.
+      final stateNewVisible = stateOnlyFontSize.copyWith(visibleIndices: [5]);
+      bloc.emitState(stateNewVisible);
+      await tester.pump();
 
-    // אין שינוי במבנה התצוגה, אבל ה-build רץ. הבדיקה האמיתית כאן:
-    // לא הייתה התרסקות, ו-b הוא ה-active (selected highlight).
-    expect(find.text('a'), findsOneWidget);
-    expect(find.text('b'), findsOneWidget);
-    // השאיפה היא שלא תיווצר רגרסיה לפיה כל emit מבצע rebuild ארוך —
-    // הפעלה זו לא יכולה להיכשל בלי תיקוד שטחי, אבל עומדת כעמוד שמירה.
-    expect(blocBuilderCount, lessThanOrEqualTo(10));
-  });
+      // אין שינוי במבנה התצוגה, אבל ה-build רץ. הבדיקה האמיתית כאן:
+      // לא הייתה התרסקות, ו-b הוא ה-active (selected highlight).
+      expect(find.text('a'), findsOneWidget);
+      expect(find.text('b'), findsOneWidget);
+      // השאיפה היא שלא תיווצר רגרסיה לפיה כל emit מבצע rebuild ארוך —
+      // הפעלה זו לא יכולה להיכשל בלי תיקוד שטחי, אבל עומדת כעמוד שמירה.
+      expect(blocBuilderCount, lessThanOrEqualTo(10));
+    },
+  );
 
   // ── הגנה על מסלול הוירטואליזציה לספרים גדולים ──────────────────────────
-  testWidgets('ספר עם TOC > סף → משתמש במסלול ScrollablePositionedList',
-      (tester) async {
+  testWidgets('ספר עם TOC > סף → משתמש במסלול ScrollablePositionedList', (
+    tester,
+  ) async {
     // 100 simanim × 60 seifim = ~6100 ערכים, הרבה מעל סף 500.
     final largeToc = _buildLargeToc(simanim: 100, seifim: 60);
 
-    final bloc = _TestTextBookBloc(_loadedState(
-      toc: largeToc,
-      visibleIndices: const [0],
-      selectedIndex: null,
-    ));
+    final bloc = _TestTextBookBloc(
+      _loadedState(
+        toc: largeToc,
+        visibleIndices: const [0],
+        selectedIndex: null,
+      ),
+    );
     addTearDown(bloc.close);
     final focusNode = FocusNode();
     addTearDown(focusNode.dispose);
 
-    await tester.pumpWidget(_wrap(
-      TocViewer(
-        scrollController: ItemScrollController(),
-        closeLeftPaneCallback: () {},
-        focusNode: focusNode,
+    await tester.pumpWidget(
+      _wrap(
+        TocViewer(
+          scrollController: ItemScrollController(),
+          closeLeftPaneCallback: () {},
+          focusNode: focusNode,
+        ),
+        bloc,
       ),
-      bloc,
-    ));
+    );
     await tester.pump();
 
     // המסלול הוירטואלי משתמש ב-ScrollablePositionedList במקום SingleChildScrollView.
-    expect(find.byType(ScrollablePositionedList), findsOneWidget,
-        reason: 'ספר גדול חייב להשתמש בוירטואליזציה');
+    expect(
+      find.byType(ScrollablePositionedList),
+      findsOneWidget,
+      reason: 'ספר גדול חייב להשתמש בוירטואליזציה',
+    );
 
     // וגם — לא כל 6000 הערכים מופיעים ב-DOM (וירטואליזציה אמיתית).
     // ScrollablePositionedList בונה רק את אלו שמתאימים לחלון.
-    final allSimanTexts = find.byWidgetPredicate((widget) =>
-        widget is Text && (widget.data?.startsWith('siman') ?? false));
+    final allSimanTexts = find.byWidgetPredicate(
+      (widget) => widget is Text && (widget.data?.startsWith('siman') ?? false),
+    );
     // אסור שיהיו 100 (כל הסימנים) — רק חלק מהם נראים.
-    expect(tester.widgetList(allSimanTexts).length, lessThan(100),
-        reason: 'וירטואליזציה: לא כל הסימנים צריכים להיות ב-DOM');
+    expect(
+      tester.widgetList(allSimanTexts).length,
+      lessThan(100),
+      reason: 'וירטואליזציה: לא כל הסימנים צריכים להיות ב-DOM',
+    );
   });
 
-  testWidgets('ספר עם TOC < סף → משתמש ב-SingleChildScrollView (לא וירטואלי)',
-      (tester) async {
+  testWidgets('ספר עם TOC < סף → משתמש ב-SingleChildScrollView (לא וירטואלי)', (
+    tester,
+  ) async {
     // עץ קטן, 20 ערכים — מתחת לסף.
-    final smallToc =
-        List.generate(20, (i) => TocEntry(text: 'item $i', index: i, level: 1));
+    final smallToc = List.generate(
+      20,
+      (i) => TocEntry(text: 'item $i', index: i, level: 1),
+    );
 
-    final bloc = _TestTextBookBloc(_loadedState(
-      toc: smallToc,
-      visibleIndices: const [0],
-      selectedIndex: null,
-    ));
+    final bloc = _TestTextBookBloc(
+      _loadedState(
+        toc: smallToc,
+        visibleIndices: const [0],
+        selectedIndex: null,
+      ),
+    );
     addTearDown(bloc.close);
     final focusNode = FocusNode();
     addTearDown(focusNode.dispose);
 
-    await tester.pumpWidget(_wrap(
-      TocViewer(
-        scrollController: ItemScrollController(),
-        closeLeftPaneCallback: () {},
-        focusNode: focusNode,
+    await tester.pumpWidget(
+      _wrap(
+        TocViewer(
+          scrollController: ItemScrollController(),
+          closeLeftPaneCallback: () {},
+          focusNode: focusNode,
+        ),
+        bloc,
       ),
-      bloc,
-    ));
+    );
     await tester.pump();
 
     // לא משתמש בוירטואליזציה — מסלול רקורסיבי קיים.
-    expect(find.byType(ScrollablePositionedList), findsNothing,
-        reason: 'ספר קטן לא צריך וירטואליזציה — שומר על מסלול רקורסיבי');
+    expect(
+      find.byType(ScrollablePositionedList),
+      findsNothing,
+      reason: 'ספר קטן לא צריך וירטואליזציה — שומר על מסלול רקורסיבי',
+    );
   });
 
-  testWidgets('שינוי visibleIndices מעדכן את ה-active highlight בלי קריסה',
-      (tester) async {
+  testWidgets('שינוי visibleIndices מעדכן את ה-active highlight בלי קריסה', (
+    tester,
+  ) async {
     // הבדיקה הזו מגנה על: activeIndex מחושב מ-visibleIndices.first
     // ומועבר לבנייה (לפני האופטימיזציה, כל ערך חישב לעצמו O(n)).
     final toc = [
@@ -236,33 +263,39 @@ void main() {
       TocEntry(text: 'third', index: 10, level: 1),
     ];
 
-    final bloc = _TestTextBookBloc(_loadedState(
-      toc: toc,
-      visibleIndices: const [0],
-      selectedIndex: null,
-    ));
+    final bloc = _TestTextBookBloc(
+      _loadedState(
+        toc: toc,
+        visibleIndices: const [0],
+        selectedIndex: null,
+      ),
+    );
     addTearDown(bloc.close);
     final focusNode = FocusNode();
     addTearDown(focusNode.dispose);
 
-    await tester.pumpWidget(_wrap(
-      TocViewer(
-        scrollController: ItemScrollController(),
-        closeLeftPaneCallback: () {},
-        focusNode: focusNode,
+    await tester.pumpWidget(
+      _wrap(
+        TocViewer(
+          scrollController: ItemScrollController(),
+          closeLeftPaneCallback: () {},
+          focusNode: focusNode,
+        ),
+        bloc,
       ),
-      bloc,
-    ));
+    );
     await tester.pump();
 
     // שינוי ה-visibleIndices → activeIndex משתנה ל-second (אינדקס 5).
     bloc.emitState(
-        (bloc.state as TextBookLoaded).copyWith(visibleIndices: [7]));
+      (bloc.state as TextBookLoaded).copyWith(visibleIndices: [7]),
+    );
     await tester.pump();
 
     // שינוי ל-third
     bloc.emitState(
-        (bloc.state as TextBookLoaded).copyWith(visibleIndices: [15]));
+      (bloc.state as TextBookLoaded).copyWith(visibleIndices: [15]),
+    );
     await tester.pump();
 
     // הוידג'ט לא קרס — כל הערכים עדיין נראים.
@@ -271,12 +304,15 @@ void main() {
     expect(find.text('third'), findsOneWidget);
   });
 
-  testWidgets('פתיחת הפאנל (showLeftPane false→true) גוללת למיקום הפעיל',
-      (tester) async {
+  testWidgets('פתיחת הפאנל (showLeftPane false→true) גוללת למיקום הפעיל', (
+    tester,
+  ) async {
     // TOC ארוך שגולש מהמסך, עם פריט פעיל רחוק. כשהפאנל סגור אסור לגלול
     // (גלילה ברוחב 0 הייתה משבשת את ה-guard), וברגע הפתיחה יש לגלול אליו.
-    final toc =
-        List.generate(50, (i) => TocEntry(text: 'פרק $i', index: i, level: 1));
+    final toc = List.generate(
+      50,
+      (i) => TocEntry(text: 'פרק $i', index: i, level: 1),
+    );
 
     final closed = _loadedState(
       toc: toc,
@@ -290,14 +326,16 @@ void main() {
     final focusNode = FocusNode();
     addTearDown(focusNode.dispose);
 
-    await tester.pumpWidget(_wrap(
-      TocViewer(
-        scrollController: ItemScrollController(),
-        closeLeftPaneCallback: () {},
-        focusNode: focusNode,
+    await tester.pumpWidget(
+      _wrap(
+        TocViewer(
+          scrollController: ItemScrollController(),
+          closeLeftPaneCallback: () {},
+          focusNode: focusNode,
+        ),
+        bloc,
       ),
-      bloc,
-    ));
+    );
     await tester.pumpAndSettle();
 
     double tocOffset() => tester
@@ -321,8 +359,9 @@ void main() {
     expect(tocOffset(), greaterThan(0));
   });
 
-  testWidgets('emit חוזר עם אותו state לא קורס ולא משכפל פריטים',
-      (tester) async {
+  testWidgets('emit חוזר עם אותו state לא קורס ולא משכפל פריטים', (
+    tester,
+  ) async {
     // הגנה מפני באג: אם buildWhen מחזיר true בטעות לאותו state, צריך
     // שהבנייה תהיה idempotent — לא יווצרו כפילויות.
     final toc = [
@@ -341,14 +380,16 @@ void main() {
     final focusNode = FocusNode();
     addTearDown(focusNode.dispose);
 
-    await tester.pumpWidget(_wrap(
-      TocViewer(
-        scrollController: ItemScrollController(),
-        closeLeftPaneCallback: () {},
-        focusNode: focusNode,
+    await tester.pumpWidget(
+      _wrap(
+        TocViewer(
+          scrollController: ItemScrollController(),
+          closeLeftPaneCallback: () {},
+          focusNode: focusNode,
+        ),
+        bloc,
       ),
-      bloc,
-    ));
+    );
     await tester.pump();
 
     // 5 emits של אותו state — לא יצירת כפילויות.

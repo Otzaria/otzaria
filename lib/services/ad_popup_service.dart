@@ -16,8 +16,9 @@ class AdPopupService {
     // בדיקה אם המשתמש בחר "תזכיר לי מאוחר יותר"
     final remindLaterTimestamp = Settings.getValue<int>(_keyRemindLater);
     if (remindLaterTimestamp != null) {
-      final remindLaterDate =
-          DateTime.fromMillisecondsSinceEpoch(remindLaterTimestamp);
+      final remindLaterDate = DateTime.fromMillisecondsSinceEpoch(
+        remindLaterTimestamp,
+      );
       final now = DateTime.now();
 
       // אם עדיין לא עבר הזמן - לא להציג
@@ -38,7 +39,9 @@ class AdPopupService {
   static Future<void> setRemindLater({int days = 7}) async {
     final remindDate = DateTime.now().add(Duration(days: days));
     await Settings.setValue<int>(
-        _keyRemindLater, remindDate.millisecondsSinceEpoch);
+      _keyRemindLater,
+      remindDate.millisecondsSinceEpoch,
+    );
   }
 
   /// איפוס ההגדרות (לצורך בדיקה)

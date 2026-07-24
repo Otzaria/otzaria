@@ -62,8 +62,9 @@ void main() {
       expect(tapped, isTrue);
     });
 
-    testWidgets('כש-hasContent=false אין צ\'בֺרן והלחיצה לא קוראת ל-onTap',
-        (tester) async {
+    testWidgets('כש-hasContent=false אין צ\'בֺרן והלחיצה לא קוראת ל-onTap', (
+      tester,
+    ) async {
       var tapped = false;
       await tester.pumpWidget(
         buildHarness(
@@ -81,8 +82,9 @@ void main() {
       expect(tapped, isFalse);
     });
 
-    testWidgets('isExpanded=true מציג את children, isExpanded=false מסתיר',
-        (tester) async {
+    testWidgets('isExpanded=true מציג את children, isExpanded=false מסתיר', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         buildHarness(width: 800, isExpanded: false, onTap: () {}),
       );
@@ -102,17 +104,19 @@ void main() {
     // (trailing מתחת לטקסט) — הצ'בֺרן לא אמור ליפול איתו, ותמיד יישאר
     // לצד הכותרת.
     Widget wideTrailing() => ElevatedButton(
-          onPressed: () {},
-          child: const Text('כפתור פעולה ארוך שתופס הרבה מקום'),
-        );
+      onPressed: () {},
+      child: const Text('כפתור פעולה ארוך שתופס הרבה מקום'),
+    );
 
     testWidgets('מסך רחב: הצ\'בֺרן וה-trailing על אותה שורה', (tester) async {
-      await tester.pumpWidget(buildHarness(
-        width: 800,
-        isExpanded: false,
-        onTap: () {},
-        trailing: wideTrailing(),
-      ));
+      await tester.pumpWidget(
+        buildHarness(
+          width: 800,
+          isExpanded: false,
+          onTap: () {},
+          trailing: wideTrailing(),
+        ),
+      );
       await tester.pump();
 
       // במסך רחב ה-trailing נשאר ב-actions לצד הטקסט (בלי לגלוש) — הצ'בֺרן
@@ -123,22 +127,26 @@ void main() {
       expect(chevronY, lessThanOrEqualTo(buttonRect.bottom));
     });
 
-    testWidgets('מסך צר: ה-trailing נופל מתחת לטקסט אך הצ\'בֺרן לא גולש איתו',
-        (tester) async {
+    testWidgets('מסך צר: ה-trailing נופל מתחת לטקסט אך הצ\'בֺרן לא גולש איתו', (
+      tester,
+    ) async {
       await tester.binding.setSurfaceSize(const Size(400, 800));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      await tester.pumpWidget(buildHarness(
-        width: 300,
-        isExpanded: false,
-        onTap: () {},
-        trailing: wideTrailing(),
-      ));
+      await tester.pumpWidget(
+        buildHarness(
+          width: 300,
+          isExpanded: false,
+          onTap: () {},
+          trailing: wideTrailing(),
+        ),
+      );
       await tester.pump();
 
       // ה-trailing (הכפתור) נופל מתחת ל-subtitle בפריסה הצרה.
-      final subtitleBottom =
-          tester.getBottomLeft(find.text('לחץ להוספת תיקיות אישיות')).dy;
+      final subtitleBottom = tester
+          .getBottomLeft(find.text('לחץ להוספת תיקיות אישיות'))
+          .dy;
       final buttonTop = tester.getTopLeft(find.byType(ElevatedButton)).dy;
       expect(buttonTop, greaterThanOrEqualTo(subtitleBottom));
 

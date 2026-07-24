@@ -23,145 +23,156 @@ import 'package:flutter_test/flutter_test.dart';
 ///   * הרשאות אירוע בפורמט `events.subscribe:event.name`
 void main() {
   group(
-      'API_REFERENCE.md format (consumed by Otzaria_Website pluginValidation.js)',
-      () {
-    late String md;
+    'API_REFERENCE.md format (consumed by Otzaria_Website pluginValidation.js)',
+    () {
+      late String md;
 
-    setUpAll(() {
-      final file = File('docs/plugin-sdk/API_REFERENCE.md');
-      expect(
-        file.existsSync(),
-        isTrue,
-        reason: 'docs/plugin-sdk/API_REFERENCE.md חייב להתקיים — האתר '
-            'מסתמך עליו לוולידציה של כל תוסף. אם הקובץ הועבר/שונה שמו, '
-            'יש לעדכן גם את pluginValidation.js (API_REFERENCE_URL).',
-      );
-      md = file.readAsStringSync();
-    });
-
-    test('יש לפחות 5 הרשאות שניתנות לפענוח (סף הקריסה של ה-website)', () {
-      final permissions = _parsePermissions(md);
-      expect(
-        permissions.length,
-        greaterThanOrEqualTo(5),
-        reason:
-            'pluginValidation.js זורק "Parsed API reference looked malformed" '
-            'כאשר נמצאות פחות מ-5 הרשאות. נמצאו: ${permissions.length}. '
-            'ודאו שהרשאות מצוטטות ב-inline code (backtick) בפורמט snake_case '
-            'מנוקד כמו `library.books.read`.',
-      );
-    });
-
-    test('יש לפחות 10 שיטות API שניתנות לפענוח (סף הקריסה של ה-website)', () {
-      final methods = _parseApiMethods(md);
-      expect(
-        methods.length,
-        greaterThanOrEqualTo(10),
-        reason:
-            'pluginValidation.js זורק "Parsed API reference looked malformed" '
-            'כאשר נמצאות פחות מ-10 שיטות. נמצאו: ${methods.length}. '
-            'ודאו ששיטות מתועדות בכותרת `### `namespace.method`` או '
-            'בדוגמה Otzaria.call(...).',
-      );
-    });
-
-    test('הרשאות יסוד שהאתר מצפה להן מתועדות בפורמט תקין', () {
-      final permissions = _parsePermissions(md);
-      const expectedCore = <String>[
-        'app.info.read',
-        'library.books.read',
-        'library.content.read',
-        'reader.open',
-        'notes.read',
-        'notes.write',
-        'plugin.storage.read',
-        'plugin.storage.write',
-        'ui.feedback',
-      ];
-      final missing =
-          expectedCore.where((p) => !permissions.contains(p)).toList();
-      expect(
-        missing,
-        isEmpty,
-        reason: 'הרשאות יסוד חסרות מהפענוח: $missing. ודאו שכל אחת מהן מופיעה '
-            'לפחות פעם אחת מצוטטת ב-inline code (backtick). למשל: '
-            '"`library.books.read`".',
-      );
-    });
-
-    test('שיטות API מרכזיות מתועדות בכותרת או בדוגמת Otzaria.call', () {
-      final methods = _parseApiMethods(md);
-      const expectedCore = <String>[
-        'app.getInfo',
-        'library.findBooks',
-        'library.getBookContent',
-        'search.fullText',
-        'reader.openBook',
-        'reader.getCurrentRef',
-        'notes.list',
-        'notes.add',
-        'ui.showMessage',
-        'storage.get',
-        'storage.set',
-      ];
-      final missing = expectedCore.where((m) => !methods.contains(m)).toList();
-      expect(
-        missing,
-        isEmpty,
-        reason: 'שיטות API מרכזיות חסרות מהפענוח: $missing. ודאו שכל שיטה '
-            'מופיעה לפחות בכותרת ``### `namespace.method`'
-            '`` או בדוגמת ``Otzaria.call(\'namespace.method\', …)``.',
-      );
-    });
-
-    test('הרשאות events.subscribe נמצאות וכל אחת מהן מייצרת event מקביל', () {
-      final permissions = _parsePermissions(md);
-      final events = _parseEvents(md, permissions);
-      final subscribePerms =
-          permissions.where((p) => p.startsWith('events.subscribe:')).toList();
-
-      expect(
-        subscribePerms,
-        isNotEmpty,
-        reason: 'לא נמצאו הרשאות events.subscribe:* במסמך. הרשאות אלה הן '
-            'מקור חיוני לרשימת האירועים שה-website מאשר.',
-      );
-
-      for (final perm in subscribePerms) {
-        final eventName = perm.substring('events.subscribe:'.length);
+      setUpAll(() {
+        final file = File('docs/plugin-sdk/API_REFERENCE.md');
         expect(
-          events,
-          contains(eventName),
-          reason: 'ההרשאה $perm קיימת אבל ה-event $eventName לא נכלל ברשימת '
-              'האירועים שנפענחה — מצב לא עקבי.',
+          file.existsSync(),
+          isTrue,
+          reason:
+              'docs/plugin-sdk/API_REFERENCE.md חייב להתקיים — האתר '
+              'מסתמך עליו לוולידציה של כל תוסף. אם הקובץ הועבר/שונה שמו, '
+              'יש לעדכן גם את pluginValidation.js (API_REFERENCE_URL).',
         );
-      }
-    });
+        md = file.readAsStringSync();
+      });
 
-    test('אירועי lifecycle plugin.boot / plugin.ready מתועדים במסמך', () {
-      expect(
-        md.contains('plugin.boot'),
-        isTrue,
-        reason: 'plugin.boot חייב להופיע במסמך כדי שייכלל ברשימת האירועים.',
-      );
-      expect(
-        md.contains('plugin.ready'),
-        isTrue,
-        reason: 'plugin.ready חייב להופיע במסמך כדי שייכלל ברשימת האירועים.',
-      );
-    });
+      test('יש לפחות 5 הרשאות שניתנות לפענוח (סף הקריסה של ה-website)', () {
+        final permissions = _parsePermissions(md);
+        expect(
+          permissions.length,
+          greaterThanOrEqualTo(5),
+          reason:
+              'pluginValidation.js זורק "Parsed API reference looked malformed" '
+              'כאשר נמצאות פחות מ-5 הרשאות. נמצאו: ${permissions.length}. '
+              'ודאו שהרשאות מצוטטות ב-inline code (backtick) בפורמט snake_case '
+              'מנוקד כמו `library.books.read`.',
+        );
+      });
 
-    test('כותרות השיטה אינן מקבלות placeholder גנרי namespace.method', () {
-      final methods = _parseApiMethods(md);
-      expect(
-        methods,
-        isNot(contains('namespace.method')),
-        reason: 'pluginValidation.js מסנן placeholder "namespace.method" מתוך '
-            'Otzaria.call, אבל אם הוא הוכנס לכותרת ``### `namespace.method``` '
-            'הוא ייכנס לרשימה והאתר יכריז עליו כשיטה תקפה.',
-      );
-    });
-  });
+      test('יש לפחות 10 שיטות API שניתנות לפענוח (סף הקריסה של ה-website)', () {
+        final methods = _parseApiMethods(md);
+        expect(
+          methods.length,
+          greaterThanOrEqualTo(10),
+          reason:
+              'pluginValidation.js זורק "Parsed API reference looked malformed" '
+              'כאשר נמצאות פחות מ-10 שיטות. נמצאו: ${methods.length}. '
+              'ודאו ששיטות מתועדות בכותרת `### `namespace.method`` או '
+              'בדוגמה Otzaria.call(...).',
+        );
+      });
+
+      test('הרשאות יסוד שהאתר מצפה להן מתועדות בפורמט תקין', () {
+        final permissions = _parsePermissions(md);
+        const expectedCore = <String>[
+          'app.info.read',
+          'library.books.read',
+          'library.content.read',
+          'reader.open',
+          'notes.read',
+          'notes.write',
+          'plugin.storage.read',
+          'plugin.storage.write',
+          'ui.feedback',
+        ];
+        final missing = expectedCore
+            .where((p) => !permissions.contains(p))
+            .toList();
+        expect(
+          missing,
+          isEmpty,
+          reason:
+              'הרשאות יסוד חסרות מהפענוח: $missing. ודאו שכל אחת מהן מופיעה '
+              'לפחות פעם אחת מצוטטת ב-inline code (backtick). למשל: '
+              '"`library.books.read`".',
+        );
+      });
+
+      test('שיטות API מרכזיות מתועדות בכותרת או בדוגמת Otzaria.call', () {
+        final methods = _parseApiMethods(md);
+        const expectedCore = <String>[
+          'app.getInfo',
+          'library.findBooks',
+          'library.getBookContent',
+          'search.fullText',
+          'reader.openBook',
+          'reader.getCurrentRef',
+          'notes.list',
+          'notes.add',
+          'ui.showMessage',
+          'storage.get',
+          'storage.set',
+        ];
+        final missing = expectedCore
+            .where((m) => !methods.contains(m))
+            .toList();
+        expect(
+          missing,
+          isEmpty,
+          reason:
+              'שיטות API מרכזיות חסרות מהפענוח: $missing. ודאו שכל שיטה '
+              'מופיעה לפחות בכותרת ``### `namespace.method`'
+              '`` או בדוגמת ``Otzaria.call(\'namespace.method\', …)``.',
+        );
+      });
+
+      test('הרשאות events.subscribe נמצאות וכל אחת מהן מייצרת event מקביל', () {
+        final permissions = _parsePermissions(md);
+        final events = _parseEvents(md, permissions);
+        final subscribePerms = permissions
+            .where((p) => p.startsWith('events.subscribe:'))
+            .toList();
+
+        expect(
+          subscribePerms,
+          isNotEmpty,
+          reason:
+              'לא נמצאו הרשאות events.subscribe:* במסמך. הרשאות אלה הן '
+              'מקור חיוני לרשימת האירועים שה-website מאשר.',
+        );
+
+        for (final perm in subscribePerms) {
+          final eventName = perm.substring('events.subscribe:'.length);
+          expect(
+            events,
+            contains(eventName),
+            reason:
+                'ההרשאה $perm קיימת אבל ה-event $eventName לא נכלל ברשימת '
+                'האירועים שנפענחה — מצב לא עקבי.',
+          );
+        }
+      });
+
+      test('אירועי lifecycle plugin.boot / plugin.ready מתועדים במסמך', () {
+        expect(
+          md.contains('plugin.boot'),
+          isTrue,
+          reason: 'plugin.boot חייב להופיע במסמך כדי שייכלל ברשימת האירועים.',
+        );
+        expect(
+          md.contains('plugin.ready'),
+          isTrue,
+          reason: 'plugin.ready חייב להופיע במסמך כדי שייכלל ברשימת האירועים.',
+        );
+      });
+
+      test('כותרות השיטה אינן מקבלות placeholder גנרי namespace.method', () {
+        final methods = _parseApiMethods(md);
+        expect(
+          methods,
+          isNot(contains('namespace.method')),
+          reason:
+              'pluginValidation.js מסנן placeholder "namespace.method" מתוך '
+              'Otzaria.call, אבל אם הוא הוכנס לכותרת ``### `namespace.method``` '
+              'הוא ייכנס לרשימה והאתר יכריז עליו כשיטה תקפה.',
+        );
+      });
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------

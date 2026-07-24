@@ -40,48 +40,53 @@ void main() {
     // הבאג שתוקן ב-e3ecf388d: הקוד הקודם כתב ' ,יה' (פסיק לפני האותיות)
     // במקום ' יה,'. התוצאה: הפסיק (ASCII 44) מקדים את כל האותיות העבריות
     // (Unicode 0x05D0+), ולכן פרק טו היה מוצב לפני פרק יד במיון.
-    test('פרק יד/טו/טז/יז ממוינים בסדר מספרי נכון (לא בסדר אלפביתי של ט,י)',
-        () async {
-      final links = [
-        Link(
-          heRef: 'פרק טז, א',
-          index1: 1,
-          path2: 'רשי',
-          index2: 16,
-          connectionType: 'COMMENTARY',
-        ),
-        Link(
-          heRef: 'פרק טו, א',
-          index1: 1,
-          path2: 'רשי',
-          index2: 15,
-          connectionType: 'COMMENTARY',
-        ),
-        Link(
-          heRef: 'פרק יז, א',
-          index1: 1,
-          path2: 'רשי',
-          index2: 17,
-          connectionType: 'COMMENTARY',
-        ),
-        Link(
-          heRef: 'פרק יד, א',
-          index1: 1,
-          path2: 'רשי',
-          index2: 14,
-          connectionType: 'COMMENTARY',
-        ),
-      ];
+    test(
+      'פרק יד/טו/טז/יז ממוינים בסדר מספרי נכון (לא בסדר אלפביתי של ט,י)',
+      () async {
+        final links = [
+          Link(
+            heRef: 'פרק טז, א',
+            index1: 1,
+            path2: 'רשי',
+            index2: 16,
+            connectionType: 'COMMENTARY',
+          ),
+          Link(
+            heRef: 'פרק טו, א',
+            index1: 1,
+            path2: 'רשי',
+            index2: 15,
+            connectionType: 'COMMENTARY',
+          ),
+          Link(
+            heRef: 'פרק יז, א',
+            index1: 1,
+            path2: 'רשי',
+            index2: 17,
+            connectionType: 'COMMENTARY',
+          ),
+          Link(
+            heRef: 'פרק יד, א',
+            index1: 1,
+            path2: 'רשי',
+            index2: 14,
+            connectionType: 'COMMENTARY',
+          ),
+        ];
 
-      final result = await getLinksforIndexs(
-        indexes: const [0],
-        links: links,
-        commentatorsToShow: const ['רשי'],
-      );
+        final result = await getLinksforIndexs(
+          indexes: const [0],
+          links: links,
+          commentatorsToShow: const ['רשי'],
+        );
 
-      expect(result.map((l) => l.index2).toList(), [14, 15, 16, 17],
-          reason: 'הסדר חייב להיות יד(14), טו(15), טז(16), יז(17)');
-    });
+        expect(
+          result.map((l) => l.index2).toList(),
+          [14, 15, 16, 17],
+          reason: 'הסדר חייב להיות יד(14), טו(15), טז(16), יז(17)',
+        );
+      },
+    );
 
     test('טו ממוקם אחרי יד באותה כותרת (תיקון מיוחד לטו)', () async {
       // לפני התיקון: ' טו,' הוחלף ב-' ,יה' (פסיק לפני האותיות), כך ש-טו

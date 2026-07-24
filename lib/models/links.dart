@@ -187,7 +187,8 @@ class Link {
 
   /// מחזירה כתובת תצוגה מלאה של ספר היעד, עם מטמון LRU לפי ספר ואינדקס.
   Future<String> get displayReference {
-    final cacheKey = '${path2}_${index2}_${index2End ?? ''}_'
+    final cacheKey =
+        '${path2}_${index2}_${index2End ?? ''}_'
         '${targetIsUserBook ? 'u' : 'o'}_'
         '${targetCategoryId ?? ''}';
     final cached = _displayReferenceCache.remove(cacheKey);
@@ -267,32 +268,32 @@ class Link {
   /// - 'start': (optional) The start character position of the link.
   /// - 'end': (optional) The end character position of the link.
   Link.fromJson(Map<String, dynamic> json)
-      : heRef = json['heRef_2'].toString(),
-        index1 = int.parse(json['line_index_1'].toString().split('.').first),
-        path2 = json['path_2'].toString(),
-        index2 = int.parse(json['line_index_2'].toString().split('.').first),
-        connectionType = json['Conection Type'].toString().isEmpty
-            ? 'reference'
-            : json['Conection Type'].toString(),
-        targetCategoryId = json['category_id_2'] != null
-            ? int.tryParse(json['category_id_2'].toString())
-            : null,
-        targetFileType = json['file_type_2']?.toString(),
-        targetIsUserBook = false,
-        start = json['start'] != null
-            ? int.tryParse(json['start'].toString())
-            : null,
-        end = json['end'] != null ? int.tryParse(json['end'].toString()) : null,
-        // עוגני-מילה מגיעים רק ממסד הנתונים (link_anchor), לא מקבצי JSON.
-        anchorStart = null,
-        anchorEnd = null,
-        anchorLabel = null,
-        linkedAnchorStart = null,
-        linkedAnchorEnd = null,
-        anchorSpans = const [],
-        // קישורי-טווח מגיעים רק ממסד הנתונים (link_range), לא מקבצי JSON.
-        heRefEnd = null,
-        index2End = null;
+    : heRef = json['heRef_2'].toString(),
+      index1 = int.parse(json['line_index_1'].toString().split('.').first),
+      path2 = json['path_2'].toString(),
+      index2 = int.parse(json['line_index_2'].toString().split('.').first),
+      connectionType = json['Conection Type'].toString().isEmpty
+          ? 'reference'
+          : json['Conection Type'].toString(),
+      targetCategoryId = json['category_id_2'] != null
+          ? int.tryParse(json['category_id_2'].toString())
+          : null,
+      targetFileType = json['file_type_2']?.toString(),
+      targetIsUserBook = false,
+      start = json['start'] != null
+          ? int.tryParse(json['start'].toString())
+          : null,
+      end = json['end'] != null ? int.tryParse(json['end'].toString()) : null,
+      // עוגני-מילה מגיעים רק ממסד הנתונים (link_anchor), לא מקבצי JSON.
+      anchorStart = null,
+      anchorEnd = null,
+      anchorLabel = null,
+      linkedAnchorStart = null,
+      linkedAnchorEnd = null,
+      anchorSpans = const [],
+      // קישורי-טווח מגיעים רק ממסד הנתונים (link_range), לא מקבצי JSON.
+      heRefEnd = null,
+      index2End = null;
 }
 
 /// Retrieves a list of [Link] objects for the given list of [indexes] and the [links] to be processed.
@@ -310,10 +311,11 @@ class Link {
 /// - The title of the second book in the link should be present in the list of commentators to show.
 /// The filtered links are sorted based on the order of the commentators to show.
 /// The sorted list of links is then returned as a [Future] of a list of [Link] objects.
-Future<List<Link>> getLinksforIndexs(
-    {required List<int> indexes,
-    required List<Link> links,
-    required List<String> commentatorsToShow}) async {
+Future<List<Link>> getLinksforIndexs({
+  required List<int> indexes,
+  required List<Link> links,
+  required List<String> commentatorsToShow,
+}) async {
   // אם אין מפרשים להצגה, מחזיר רשימה ריקה מיד
   if (commentatorsToShow.isEmpty) {
     return [];
@@ -360,7 +362,8 @@ Future<List<Link>> getLinksforIndexs(
         .replaceAll(' טו,', ' יה,')
         .replaceAll(' טז,', ' יו,')
         .compareTo(
-            b.heRef.replaceAll(' טו,', ' יה,').replaceAll(' טז,', ' יו,'));
+          b.heRef.replaceAll(' טו,', ' יה,').replaceAll(' טז,', ' יו,'),
+        );
   });
 
   return filteredLinks;

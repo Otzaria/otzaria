@@ -33,14 +33,16 @@ void main(List<String> args) {
     for (final line in samplesFile.readAsLinesSync().skip(1)) {
       final parts = line.split(',');
       if (parts.length < 6) continue;
-      samples.add(_Sample(
-        epochMs: int.parse(parts[0]),
-        pid: int.parse(parts[1]),
-        name: parts[2],
-        cpuTotalS: double.parse(parts[3]),
-        wsMb: double.parse(parts[4]),
-        privMb: double.parse(parts[5]),
-      ));
+      samples.add(
+        _Sample(
+          epochMs: int.parse(parts[0]),
+          pid: int.parse(parts[1]),
+          name: parts[2],
+          cpuTotalS: double.parse(parts[3]),
+          wsMb: double.parse(parts[4]),
+          privMb: double.parse(parts[5]),
+        ),
+      );
     }
   }
 
@@ -94,22 +96,24 @@ void main(List<String> args) {
     };
     report.add(row);
 
-    stdout.writeln([
-      '${phase['name']}'.padRight(26),
-      _r1(durationS).toString().padLeft(6),
-      cpu.avgPct.toString().padLeft(8),
-      cpu.peakPct.toString().padLeft(7),
-      cpu.totalCpuS.toString().padLeft(7),
-      '${phase['rssStartMb']}'.padLeft(9),
-      '${phase['rssEndMb']}'.padLeft(8),
-      '${phase['rssPeakMb']}'.padLeft(8),
-      treePeakWs.toString().padLeft(8),
-      '${frames['count']}'.padLeft(7),
-      '${frames['buildAvgMs']}'.padLeft(7),
-      '${frames['buildP95Ms']}'.padLeft(7),
-      '${frames['rasterP95Ms']}'.padLeft(7),
-      '${frames['jankOver33Ms']}'.padLeft(5),
-    ].join(' '));
+    stdout.writeln(
+      [
+        '${phase['name']}'.padRight(26),
+        _r1(durationS).toString().padLeft(6),
+        cpu.avgPct.toString().padLeft(8),
+        cpu.peakPct.toString().padLeft(7),
+        cpu.totalCpuS.toString().padLeft(7),
+        '${phase['rssStartMb']}'.padLeft(9),
+        '${phase['rssEndMb']}'.padLeft(8),
+        '${phase['rssPeakMb']}'.padLeft(8),
+        treePeakWs.toString().padLeft(8),
+        '${frames['count']}'.padLeft(7),
+        '${frames['buildAvgMs']}'.padLeft(7),
+        '${frames['buildP95Ms']}'.padLeft(7),
+        '${frames['rasterP95Ms']}'.padLeft(7),
+        '${frames['jankOver33Ms']}'.padLeft(5),
+      ].join(' '),
+    );
   }
 
   stdout.writeln('');
@@ -123,23 +127,34 @@ void main(List<String> args) {
 
   stdout.writeln('');
   stdout.writeln('--- שלבים לפי צריכת CPU (שניות ליבה) ---');
-  final byCpu = [...report]..sort((a, b) =>
-      (b['cpuSeconds'] as double).compareTo(a['cpuSeconds'] as double));
+  final byCpu = [...report]
+    ..sort(
+      (a, b) =>
+          (b['cpuSeconds'] as double).compareTo(a['cpuSeconds'] as double),
+    );
   for (final row in byCpu.take(8)) {
-    stdout.writeln('  ${(row['phase'] as String).padRight(26)} '
-        '${row['cpuSeconds']}s (avg ${row['cpuAvgPct']}%)');
+    stdout.writeln(
+      '  ${(row['phase'] as String).padRight(26)} '
+      '${row['cpuSeconds']}s (avg ${row['cpuAvgPct']}%)',
+    );
   }
 
   stdout.writeln('');
   stdout.writeln('--- שלבים לפי גידול RSS (MB) ---');
-  final byRss = [...report]..sort((a, b) =>
-      ((b['rssEndMb'] as num) - (b['rssStartMb'] as num))
-          .compareTo((a['rssEndMb'] as num) - (a['rssStartMb'] as num)));
+  final byRss = [...report]
+    ..sort(
+      (a, b) => ((b['rssEndMb'] as num) - (b['rssStartMb'] as num)).compareTo(
+        (a['rssEndMb'] as num) - (a['rssStartMb'] as num),
+      ),
+    );
   for (final row in byRss.take(8)) {
-    final delta =
-        _r1(((row['rssEndMb'] as num) - (row['rssStartMb'] as num)).toDouble());
-    stdout.writeln('  ${(row['phase'] as String).padRight(26)} '
-        '+$delta MB (peak ${row['rssPeakMb']})');
+    final delta = _r1(
+      ((row['rssEndMb'] as num) - (row['rssStartMb'] as num)).toDouble(),
+    );
+    stdout.writeln(
+      '  ${(row['phase'] as String).padRight(26)} '
+      '+$delta MB (peak ${row['rssPeakMb']})',
+    );
   }
 
   for (final note in notes) {

@@ -80,8 +80,9 @@ void main() {
       expect(find.text('@outlook.com'), findsNothing);
     });
 
-    testWidgets('כשהסיומת כבר מלאה במלואה — לא מציגים אותה כהצעה',
-        (tester) async {
+    testWidgets('כשהסיומת כבר מלאה במלואה — לא מציגים אותה כהצעה', (
+      tester,
+    ) async {
       await pumpField(tester);
 
       await tester.enterText(find.byType(TextField), 'a@gmail.com');
@@ -144,8 +145,9 @@ void main() {
       expect(find.text('@outlook.com'), findsNothing);
     });
 
-    testWidgets('בחירת הצעה כשהסמן באמצע דומיין מחליפה את כל הדומיין',
-        (tester) async {
+    testWidgets('בחירת הצעה כשהסמן באמצע דומיין מחליפה את כל הדומיין', (
+      tester,
+    ) async {
       // רגרסיה: לפני התיקון הטקסט "name@gma|il.com" היה הופך
       // ל-"name@gmail.comil.com" כי ה-after נלקח מהסמן ולא מסוף הדומיין.
       await pumpField(tester);
@@ -163,16 +165,20 @@ void main() {
       await tester.tap(find.text('@gmail.com'));
       await tester.pumpAndSettle();
 
-      expect(controller.text, equals('name@gmail.com'),
-          reason: 'יש להחליף את כל הדומיין, לא לשרשר חלק נוסף');
+      expect(
+        controller.text,
+        equals('name@gmail.com'),
+        reason: 'יש להחליף את כל הדומיין, לא לשרשר חלק נוסף',
+      );
       expect(
         controller.selection.baseOffset,
         equals('name@gmail.com'.length),
       );
     });
 
-    testWidgets('בחירת הצעה שומרת טקסט אחרי הדומיין כשיש מפריד',
-        (tester) async {
+    testWidgets('בחירת הצעה שומרת טקסט אחרי הדומיין כשיש מפריד', (
+      tester,
+    ) async {
       await pumpField(tester);
       final controller = getController(tester);
 
@@ -186,8 +192,11 @@ void main() {
       await tester.tap(find.text('@gmail.com'));
       await tester.pumpAndSettle();
 
-      expect(controller.text, equals('a@gmail.com, b@example.com'),
-          reason: 'מפריד פסיק מסמן את סוף הדומיין הראשון, השני נשאר נגיש');
+      expect(
+        controller.text,
+        equals('a@gmail.com, b@example.com'),
+        reason: 'מפריד פסיק מסמן את סוף הדומיין הראשון, השני נשאר נגיש',
+      );
     });
   });
 
@@ -227,16 +236,20 @@ void main() {
       return result;
     }
 
-    testWidgets('ערך לא תקין משאיר את הדיאלוג פתוח ומציג שגיאה',
-        (tester) async {
+    testWidgets('ערך לא תקין משאיר את הדיאלוג פתוח ומציג שגיאה', (
+      tester,
+    ) async {
       await openDialog(tester, typedValue: 'invalid');
 
       await tester.tap(find.widgetWithText(FilledButton, 'שמור'));
       await tester.pumpAndSettle();
 
       expect(find.text('יש להזין כתובת דוא"ל תקינה.'), findsOneWidget);
-      expect(find.byType(TextField), findsOneWidget,
-          reason: 'הדיאלוג צריך להישאר פתוח כדי שהקלט לא יאבד');
+      expect(
+        find.byType(TextField),
+        findsOneWidget,
+        reason: 'הדיאלוג צריך להישאר פתוח כדי שהקלט לא יאבד',
+      );
     });
 
     testWidgets('תיקון הערך אחרי שגיאה מנקה אותה ומאפשר שמירה', (tester) async {
@@ -252,8 +265,11 @@ void main() {
 
       await tester.tap(find.widgetWithText(FilledButton, 'שמור'));
       await tester.pumpAndSettle();
-      expect(find.byType(TextField), findsNothing,
-          reason: 'ערך תקין סוגר את הדיאלוג');
+      expect(
+        find.byType(TextField),
+        findsNothing,
+        reason: 'ערך תקין סוגר את הדיאלוג',
+      );
     });
   });
 
@@ -262,25 +278,25 @@ void main() {
       // נדמה את הקלסבורד עם טקסט מוכן להדבקה
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
-        SystemChannels.platform,
-        (call) async {
-          if (call.method == 'Clipboard.getData') {
-            return <String, dynamic>{'text': 'pasted@gmail.com'};
-          }
-          if (call.method == 'Clipboard.setData') {
-            return null;
-          }
-          return null;
-        },
-      );
+            SystemChannels.platform,
+            (call) async {
+              if (call.method == 'Clipboard.getData') {
+                return <String, dynamic>{'text': 'pasted@gmail.com'};
+              }
+              if (call.method == 'Clipboard.setData') {
+                return null;
+              }
+              return null;
+            },
+          );
     });
 
     tearDown(() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
-        SystemChannels.platform,
-        null,
-      );
+            SystemChannels.platform,
+            null,
+          );
     });
 
     testWidgets('Ctrl+V מדביק טקסט לתוך השדה', (tester) async {

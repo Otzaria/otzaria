@@ -13,8 +13,9 @@ class SimpleInlineHtml {
 
   static final RegExp _tagRegex = RegExp(r'<[^>]*>');
   static final RegExp _simpleTagRegex = RegExp(r'^<(/?)([a-zA-Z]+)\s*/?>$');
-  static final RegExp _entityRegex =
-      RegExp(r'&[a-zA-Z]{2,10};|&#x?[0-9a-fA-F]{1,6};');
+  static final RegExp _entityRegex = RegExp(
+    r'&[a-zA-Z]{2,10};|&#x?[0-9a-fA-F]{1,6};',
+  );
   static final RegExp _whitespaceRegex = RegExp(r'\s+');
 
   /// מנסה להמיר את [html]. מחזיר null אם נדרש HtmlWidget.
@@ -46,8 +47,9 @@ class SimpleInlineHtml {
       return TextStyle(
         fontWeight: bold > 0 ? FontWeight.bold : null,
         // בולד אמיתי לגופן משתנה — הבסיס יורש דרך Text.rich לספאנים לא-מודגשים.
-        fontVariations:
-            bold > 0 ? AppFonts.boldFontVariations(baseStyle.fontFamily) : null,
+        fontVariations: bold > 0
+            ? AppFonts.boldFontVariations(baseStyle.fontFamily)
+            : null,
         fontStyle: italic > 0 ? FontStyle.italic : null,
         decoration: underline > 0 ? TextDecoration.underline : null,
         fontSize: fontSize,
@@ -58,7 +60,8 @@ class SimpleInlineHtml {
       if (raw.isEmpty) return;
       // HtmlWidget מכווץ רצפי רווחים לרווח יחיד — משמרים התנהגות זהה.
       segments.add(
-          _Segment(raw.replaceAll(_whitespaceRegex, ' '), styleForCurrent()));
+        _Segment(raw.replaceAll(_whitespaceRegex, ' '), styleForCurrent()),
+      );
     }
 
     var index = 0;
@@ -136,8 +139,5 @@ class _Segment {
   final bool isBreak;
 
   _Segment(this.text, this.style) : isBreak = false;
-  _Segment.lineBreak()
-      : text = '\n',
-        style = null,
-        isBreak = true;
+  _Segment.lineBreak() : text = '\n', style = null, isBreak = true;
 }

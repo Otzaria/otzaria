@@ -139,19 +139,21 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                             iconSize: 18,
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(
-                                minWidth: 36, minHeight: 40),
+                              minWidth: 36,
+                              minHeight: 40,
+                            ),
                             tooltip: 'פתח כרטסיית מפרשים',
                             icon: const Icon(FluentIcons.open_24_regular),
                             onPressed: widget.tab == null
                                 ? null
                                 : () => context.read<TabsBloc>().add(
-                                      AddTab(
-                                        CommentatorsTab(
-                                          sourceTab: widget.tab!,
-                                        ),
-                                        insertAdjacent: true,
+                                    AddTab(
+                                      CommentatorsTab(
+                                        sourceTab: widget.tab!,
                                       ),
+                                      insertAdjacent: true,
                                     ),
+                                  ),
                           ),
                         ],
                   tabs: isCompact
@@ -202,20 +204,20 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                         closeFilterNotifier:
                             widget.closeCommentatorsFilterNotifier,
                         onSelectedCommentatorsOverrideChanged: (commentators) {
-                          context
-                              .read<TextBookBloc>()
-                              .add(UpdateCommentators(commentators));
+                          context.read<TextBookBloc>().add(
+                            UpdateCommentators(commentators),
+                          );
                         },
                         onOpenInNewTab: widget.tab == null
                             ? null
                             : () => context.read<TabsBloc>().add(
-                                  AddTab(
-                                    CommentatorsTab(
-                                      sourceTab: widget.tab!,
-                                    ),
-                                    insertAdjacent: true,
+                                AddTab(
+                                  CommentatorsTab(
+                                    sourceTab: widget.tab!,
                                   ),
+                                  insertAdjacent: true,
                                 ),
+                              ),
                       ),
                     )
                   else

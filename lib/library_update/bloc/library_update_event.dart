@@ -41,10 +41,10 @@ class _LibraryUpdateProgressed extends LibraryUpdateEvent {
   const _LibraryUpdateProgressed(this.progress, this.opId);
   @override
   List<Object?> get props => [
-        progress.phase,
-        progress.stepIndex,
-        progress.bytesDownloaded,
-        progress.bytesTotal,
-        opId,
-      ];
+    progress.phase,
+    progress.stepIndex,
+    progress.bytesDownloaded,
+    progress.bytesTotal,
+    opId,
+  ];
 }

@@ -37,8 +37,9 @@ class PerBookSettings {
   ) async {
     final previous = _fileLocks[lockKey] ?? Future.value();
     // התעלמות מכשל קודם רק לצורך המשכיות התור; כל קורא מקבל את שגיאתו דרך await.
-    final current =
-        previous.then<void>((_) {}, onError: (_) {}).then((_) => action());
+    final current = previous
+        .then<void>((_) {}, onError: (_) {})
+        .then((_) => action());
     final gate = current.then((_) {}, onError: (_) {});
     _fileLocks[lockKey] = gate;
     try {
@@ -54,8 +55,7 @@ class PerBookSettings {
   static Future<T> runLockedForKey<T>(
     String key,
     Future<T> Function() action,
-  ) =>
-      runLocked(_hashKey(key), action);
+  ) => runLocked(_hashKey(key), action);
 
   /// תאימות לאחור: קבצים ישנים מופתחו לפי שם הספר בלבד. אם אין קובץ למפתח
   /// החדש אך קיים קובץ-מורשת לפי השם — מעתיקים אותו (copy, לא rename) כדי
@@ -73,8 +73,9 @@ class PerBookSettings {
       final legacyFile = File(legacyPath);
       if (!await legacyFile.exists()) return;
 
-      final normalized =
-          _normalizeAgainstGlobalDefaults(await legacyFile.readAsString());
+      final normalized = _normalizeAgainstGlobalDefaults(
+        await legacyFile.readAsString(),
+      );
       if (normalized == null) {
         await legacyFile.copy(newPath);
       } else if (normalized.isEmpty) {
@@ -150,8 +151,9 @@ class PerBookSettings {
   /// בעלי אותו שם שטרם עברו מיגרציה). אחרת — מחיקה רגילה ונקייה.
   static Future<void> _clearOrTombstone(String key, String legacyName) async {
     final dir = await _getSettingsDirectory();
-    final legacyFile =
-        File('${dir.path}/settings_${_sanitizeBookName(legacyName)}.json');
+    final legacyFile = File(
+      '${dir.path}/settings_${_sanitizeBookName(legacyName)}.json',
+    );
     if (await legacyFile.exists()) {
       await saveSettings(key, const {resetMarker: true});
     } else {
@@ -369,24 +371,21 @@ class TextBookPerBookSettings {
   });
 
   Map<String, dynamic> toJson() => {
-        if (fontSize != null) 'fontSize': fontSize,
-        if (commentatorsBelow != null) 'commentatorsBelow': commentatorsBelow,
-        if (removeNikud != null) 'removeNikud': removeNikud,
-        if (removePunctuation != null) 'removePunctuation': removePunctuation,
-        if (isTanach != null) 'isTanach': isTanach,
-        if (continuousReadingMode != null)
-          'continuousReadingMode': continuousReadingMode,
-        if (activeCommentators != null)
-          'activeCommentators': activeCommentators,
-        if (pageShapeLeftWidth != null)
-          'pageShapeLeftWidth': pageShapeLeftWidth,
-        if (pageShapeRightWidth != null)
-          'pageShapeRightWidth': pageShapeRightWidth,
-        if (pageShapeBottomHeight != null)
-          'pageShapeBottomHeight': pageShapeBottomHeight,
-        if (pageShapeBottomLeftWidth != null)
-          'pageShapeBottomLeftWidth': pageShapeBottomLeftWidth,
-      };
+    if (fontSize != null) 'fontSize': fontSize,
+    if (commentatorsBelow != null) 'commentatorsBelow': commentatorsBelow,
+    if (removeNikud != null) 'removeNikud': removeNikud,
+    if (removePunctuation != null) 'removePunctuation': removePunctuation,
+    if (isTanach != null) 'isTanach': isTanach,
+    if (continuousReadingMode != null)
+      'continuousReadingMode': continuousReadingMode,
+    if (activeCommentators != null) 'activeCommentators': activeCommentators,
+    if (pageShapeLeftWidth != null) 'pageShapeLeftWidth': pageShapeLeftWidth,
+    if (pageShapeRightWidth != null) 'pageShapeRightWidth': pageShapeRightWidth,
+    if (pageShapeBottomHeight != null)
+      'pageShapeBottomHeight': pageShapeBottomHeight,
+    if (pageShapeBottomLeftWidth != null)
+      'pageShapeBottomLeftWidth': pageShapeBottomLeftWidth,
+  };
 
   factory TextBookPerBookSettings.fromJson(Map<String, dynamic> json) {
     return TextBookPerBookSettings(
@@ -396,14 +395,14 @@ class TextBookPerBookSettings {
       removePunctuation: json['removePunctuation'] as bool?,
       isTanach: json['isTanach'] as bool?,
       continuousReadingMode: json['continuousReadingMode'] as bool?,
-      activeCommentators:
-          (json['activeCommentators'] as List<dynamic>?)?.cast<String>(),
+      activeCommentators: (json['activeCommentators'] as List<dynamic>?)
+          ?.cast<String>(),
       pageShapeLeftWidth: (json['pageShapeLeftWidth'] as num?)?.toDouble(),
       pageShapeRightWidth: (json['pageShapeRightWidth'] as num?)?.toDouble(),
-      pageShapeBottomHeight:
-          (json['pageShapeBottomHeight'] as num?)?.toDouble(),
-      pageShapeBottomLeftWidth:
-          (json['pageShapeBottomLeftWidth'] as num?)?.toDouble(),
+      pageShapeBottomHeight: (json['pageShapeBottomHeight'] as num?)
+          ?.toDouble(),
+      pageShapeBottomLeftWidth: (json['pageShapeBottomLeftWidth'] as num?)
+          ?.toDouble(),
     );
   }
 
@@ -447,7 +446,8 @@ class TextBookPerBookSettings {
     Book book,
     FutureOr<TextBookPerBookSettings?> Function(
       TextBookPerBookSettings? existing,
-    ) transform,
+    )
+    transform,
   ) async {
     final key = PerBookSettings.bookKey(book);
     await PerBookSettings.runLockedForKey(key, () async {
@@ -517,17 +517,16 @@ class PdfBookPerBookSettings {
   }
 
   Map<String, dynamic> toJson() => {
-        if (zoom != null) 'zoom': zoom,
-        if (activeCommentators != null)
-          'activeCommentators': activeCommentators,
-        if (layoutMode != null) 'layoutMode': layoutMode!.name,
-      };
+    if (zoom != null) 'zoom': zoom,
+    if (activeCommentators != null) 'activeCommentators': activeCommentators,
+    if (layoutMode != null) 'layoutMode': layoutMode!.name,
+  };
 
   factory PdfBookPerBookSettings.fromJson(Map<String, dynamic> json) {
     return PdfBookPerBookSettings(
       zoom: json['zoom'] as double?,
-      activeCommentators:
-          (json['activeCommentators'] as List<dynamic>?)?.cast<String>(),
+      activeCommentators: (json['activeCommentators'] as List<dynamic>?)
+          ?.cast<String>(),
       layoutMode: json['layoutMode'] != null
           ? PdfLayoutMode.values.firstWhere(
               (e) => e.name == json['layoutMode'],
@@ -546,7 +545,8 @@ class PdfBookPerBookSettings {
       final existingSettings = existingJson == null
           ? null
           : PdfBookPerBookSettings.fromJson(existingJson);
-      final settingsToSave = existingSettings?.copyWith(
+      final settingsToSave =
+          existingSettings?.copyWith(
             zoom: zoom,
             activeCommentators: activeCommentators,
             layoutMode: layoutMode,

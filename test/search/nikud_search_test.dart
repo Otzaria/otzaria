@@ -72,8 +72,9 @@ Future<void> main() async {
       expect(hasNikudInInput, true);
 
       // הסרת ניקוד כברירת מחדל
-      final searchQuery =
-          hasNikudInInput ? removeVolwels(userInput) : userInput;
+      final searchQuery = hasNikudInInput
+          ? removeVolwels(userInput)
+          : userInput;
       expect(searchQuery, 'שלום עולם');
     });
 
@@ -86,19 +87,31 @@ Future<void> main() async {
       expect(hasNikudInInput, false);
 
       // אין צורך להסיר ניקוד
-      final searchQuery =
-          hasNikudInInput ? removeVolwels(userInput) : userInput;
+      final searchQuery = hasNikudInInput
+          ? removeVolwels(userInput)
+          : userInput;
       expect(searchQuery, 'שלום עולם');
     });
 
-    test('sanitizeQuery should remove commas and convert Hebrew quotes', () {
-      expect(SearchQueryBuilder.sanitizeQuery("שלום, עולם'"), "שלום עולם'");
-      expect(SearchQueryBuilder.sanitizeQuery('שלום, עולם׳״'), 'שלום עולם\'"');
-    }, skip: engineReady ? false : searchEngineSkipReason);
+    test(
+      'sanitizeQuery should remove commas and convert Hebrew quotes',
+      () {
+        expect(SearchQueryBuilder.sanitizeQuery("שלום, עולם'"), "שלום עולם'");
+        expect(
+          SearchQueryBuilder.sanitizeQuery('שלום, עולם׳״'),
+          'שלום עולם\'"',
+        );
+      },
+      skip: engineReady ? false : searchEngineSkipReason,
+    );
 
-    test('countMatches should ignore commas and exclamation in query', () {
-      expect(countMatches('שלום עולם שלום', 'שלום,!'), 2);
-    }, skip: engineReady ? false : searchEngineSkipReason);
+    test(
+      'countMatches should ignore commas and exclamation in query',
+      () {
+        expect(countMatches('שלום עולם שלום', 'שלום,!'), 2);
+      },
+      skip: engineReady ? false : searchEngineSkipReason,
+    );
 
     test('Complex nikud patterns', () {
       // דגש חזק

@@ -56,12 +56,12 @@ class EditorState extends Equatable {
 
   @override
   List<Object?> get props => [
-        isOpen,
-        currentIndex,
-        currentSectionId,
-        currentText,
-        hasUnsavedChanges,
-        hasDraft,
-        preventLineBreaks,
-      ];
+    isOpen,
+    currentIndex,
+    currentSectionId,
+    currentText,
+    hasUnsavedChanges,
+    hasDraft,
+    preventLineBreaks,
+  ];
 }

@@ -53,7 +53,8 @@ class KeyboardNavigator extends StatelessWidget {
         }
 
         // Ctrl + Tab / Cmd + Tab (Mac) - טאב הבא
-        final isCtrlOrCmd = HardwareKeyboard.instance.isControlPressed ||
+        final isCtrlOrCmd =
+            HardwareKeyboard.instance.isControlPressed ||
             (Platform.isMacOS && HardwareKeyboard.instance.isMetaPressed);
 
         if (event.logicalKey == LogicalKeyboardKey.tab &&

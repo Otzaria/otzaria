@@ -39,8 +39,10 @@ String stripHtmlIfNeeded(String text) {
 /// כמו [stripHtmlIfNeeded], אך ממיר תגי <br> למעבר שורה אמיתי לפני הסרת התגים,
 /// כדי שטקסט המוצג ב-Text רגיל ישמור על מבנה השורות במקום להידחס לרצף.
 String stripHtmlPreservingBreaks(String text) {
-  final withBreaks =
-      text.replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n');
+  final withBreaks = text.replaceAll(
+    RegExp(r'<br\s*/?>', caseSensitive: false),
+    '\n',
+  );
   return stripHtmlIfNeeded(withBreaks);
 }
 
@@ -60,8 +62,10 @@ String removeVolwels(String s) {
 String removePunctuation(String text) {
   if (text.isEmpty) return text;
 
-  final hadHtmlBreaks =
-      RegExp(r'<br\s*/?>', caseSensitive: false).hasMatch(text);
+  final hadHtmlBreaks = RegExp(
+    r'<br\s*/?>',
+    caseSensitive: false,
+  ).hasMatch(text);
   final normalizedText = text
       .replaceAll(RegExp(r'\r\n?'), '\n')
       .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n');
@@ -87,8 +91,9 @@ String removePunctuation(String text) {
 
     String processed = line;
 
-    final lastAllowedPunctuationMatch =
-        RegExp(r'[.:](\s*)$').firstMatch(processed);
+    final lastAllowedPunctuationMatch = RegExp(
+      r'[.:](\s*)$',
+    ).firstMatch(processed);
     final lastAllowedPunctuationIndex = lastAllowedPunctuationMatch?.start;
 
     // הסרה לינארית של פיסוק, עם תמיכה בסוגריים מקוננים.
@@ -112,7 +117,8 @@ String removePunctuation(String text) {
         continue;
       }
 
-      final isPunctuation = ch == '!' ||
+      final isPunctuation =
+          ch == '!' ||
           ch == ':' ||
           ch == ';' ||
           ch == '.' ||
@@ -153,7 +159,8 @@ String removePunctuation(String text) {
         final hasBefore =
             before.isNotEmpty && letter.hasMatch(before[before.length - 1]);
         final rest = removeVolwels(processed.substring(index + 1));
-        final hasSingleLetterAfter = rest.isNotEmpty &&
+        final hasSingleLetterAfter =
+            rest.isNotEmpty &&
             letter.hasMatch(rest[0]) &&
             (rest.length == 1 || !letter.hasMatch(rest[1]));
         if (hasBefore && hasSingleLetterAfter) {
@@ -172,7 +179,8 @@ String removePunctuation(String text) {
 
   for (int i = 0; i < processedLines.length; i++) {
     final line = processedLines[i];
-    final shouldKeepNewline = originalEndsWithAllowed[i] ||
+    final shouldKeepNewline =
+        originalEndsWithAllowed[i] ||
         isHeadingLine(line) ||
         (i < processedLines.length - 1 && isHeadingLine(processedLines[i + 1]));
 
@@ -217,8 +225,10 @@ String removePunctuation(String text) {
 bool isHeadingLine(String line) {
   final trimmedLine = line.trim();
   if (trimmedLine.isEmpty) return false;
-  return RegExp(r'^<h[1-6][^>]*>.*?</h[1-6]>$', caseSensitive: false)
-          .hasMatch(trimmedLine) ||
+  return RegExp(
+        r'^<h[1-6][^>]*>.*?</h[1-6]>$',
+        caseSensitive: false,
+      ).hasMatch(trimmedLine) ||
       RegExp(r'^#{1,6}\s').hasMatch(trimmedLine);
 }
 
@@ -412,13 +422,15 @@ _CompiledHighlightPattern? _resolveHighlightPattern(
     return _highlightCacheValue;
   }
 
-  final compiled = _compileHighlightPattern(generateHighlightPattern(
-    query: searchQuery,
-    distance: searchDistance < 0 ? 0 : searchDistance,
-    customSpacing: spacingValues,
-    alternativeWords: alternativeWords,
-    searchOptions: searchOptions,
-  ));
+  final compiled = _compileHighlightPattern(
+    generateHighlightPattern(
+      query: searchQuery,
+      distance: searchDistance < 0 ? 0 : searchDistance,
+      customSpacing: spacingValues,
+      alternativeWords: alternativeWords,
+      searchOptions: searchOptions,
+    ),
+  );
 
   _highlightCacheKey = key;
   _highlightCacheValue = compiled;
@@ -514,7 +526,9 @@ List<_HighlightRange>? _collectMatchedSearchWordRanges(
         ((isFirst && !_hasTokenBoundaryBefore(fullText, matchStart)) ||
             (isLast &&
                 !_hasTokenBoundaryAfter(
-                    fullText, matchStart + matchedText.length)))) {
+                  fullText,
+                  matchStart + matchedText.length,
+                )))) {
       return null;
     }
 
@@ -534,7 +548,9 @@ String _highlightContinuousMatch(
 ) {
   final start = ranges.first.start;
   final end = ranges.last.end;
-  final highlighted = matchedText.substring(start, end).splitMapJoin(
+  final highlighted = matchedText
+      .substring(start, end)
+      .splitMapJoin(
         RegExp(r'<[^>]*>'),
         onNonMatch: (text) =>
             text.isEmpty ? text : '<span style="$style">$text</span>',
@@ -674,8 +690,9 @@ String highLight(
     final match = highlightMatch.match;
     final matchedText = match.group(0)!;
     final color = i == currentIndex ? 'blue' : 'red';
-    final backgroundColor =
-        i == currentIndex ? 'background-color: yellow;' : '';
+    final backgroundColor = i == currentIndex
+        ? 'background-color: yellow;'
+        : '';
     final replacement = _highlightMatchedSearchWords(
       matchedText,
       highlightMatch.ranges,
@@ -787,8 +804,11 @@ int countMatches(String text, String searchQuery) {
     false,
   );
   if (compiled == null) return 0;
-  return _findHighlightMatches(text, compiled, compiled.boundaryEligible)
-      .length;
+  return _findHighlightMatches(
+    text,
+    compiled,
+    compiled.boundaryEligible,
+  ).length;
 }
 
 Future<bool> hasTopic(String title, String topic) async {
@@ -833,8 +853,8 @@ Future<void> _loadCsvCache() async {
       final userRepo = UserBooksDatabaseHolder.instance.repositoryIfInitialized;
       if (userRepo != null) {
         try {
-          final userMap =
-              await userRepo.database.authorDao.getAllBookTitleToGeneration();
+          final userMap = await userRepo.database.authorDao
+              .getAllBookTitleToGeneration();
           userMap.forEach((k, v) => map.putIfAbsent(k, () => v));
         } catch (e) {
           debugPrint('⚠️ user_books era cache skipped: $e');
@@ -1031,8 +1051,9 @@ List<String> hebrewTokenAlternatives(String token) {
 /// הרגילה. הבחנה זו מונעת ש-"ב" בודד (מספר דף) ייתפס ע"י סימון צד ע"ב
 /// (הנקודתיים שבנרמול הופכות ל-"ב") של כל דף במסכת.
 DafCitation? parseDafCitation(List<String> tokens) {
-  final loc =
-      tokens.where((t) => t != 'דף' && t != 'עמוד').toList(growable: false);
+  final loc = tokens
+      .where((t) => t != 'דף' && t != 'עמוד')
+      .toList(growable: false);
   if (loc.isEmpty) return null;
 
   // מספר דף: 1–3 אותיות עבריות בלבד (כדי לא לתפוס מילות-הקשר כמו "ראשון").
@@ -1066,8 +1087,8 @@ bool? matchDafCitation(List<String> ownTokens, DafCitation cite) {
   if (cite.amud != null) {
     final entryAmud =
         ownTokens.length >= 3 && (ownTokens[2] == 'א' || ownTokens[2] == 'ב')
-            ? ownTokens[2]
-            : null;
+        ? ownTokens[2]
+        : null;
     if (cite.amud != entryAmud) return false;
   }
   return true;

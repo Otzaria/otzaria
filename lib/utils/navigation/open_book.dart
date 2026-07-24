@@ -6,15 +6,20 @@ import 'package:otzaria/models/books.dart';
 import "package:flutter_bloc/flutter_bloc.dart";
 import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
 
-void openBook(BuildContext context, Book book, int index, String searchQuery,
-    {bool ignoreHistory = false,
-    bool requiresStableLayout = false,
-    String? pinpointHighlight,
-    bool markSection = false,
-    String? markText,
-    bool insertAdjacent = false,
-    bool navigateToPositionIfReused = false,
-    List<String>? initialCommentators}) {
+void openBook(
+  BuildContext context,
+  Book book,
+  int index,
+  String searchQuery, {
+  bool ignoreHistory = false,
+  bool requiresStableLayout = false,
+  String? pinpointHighlight,
+  bool markSection = false,
+  String? markText,
+  bool insertAdjacent = false,
+  bool navigateToPositionIfReused = false,
+  List<String>? initialCommentators,
+}) {
   final coordinator = BookOpenCoordinator(
     tabsBloc: context.read<TabsBloc>(),
     historyBloc: context.read<HistoryBloc>(),

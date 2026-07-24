@@ -63,11 +63,11 @@ void main() {
       String? capturedText;
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(SystemChannels.platform, (call) async {
-        if (call.method == 'Clipboard.setData') {
-          capturedText = (call.arguments as Map)['text'] as String?;
-        }
-        return null;
-      });
+            if (call.method == 'Clipboard.setData') {
+              capturedText = (call.arguments as Map)['text'] as String?;
+            }
+            return null;
+          });
 
       try {
         final entries = buildDirectLinkContextMenuEntries(
@@ -95,11 +95,11 @@ void main() {
       String? capturedText;
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(SystemChannels.platform, (call) async {
-        if (call.method == 'Clipboard.setData') {
-          capturedText = (call.arguments as Map)['text'] as String?;
-        }
-        return null;
-      });
+            if (call.method == 'Clipboard.setData') {
+              capturedText = (call.arguments as Map)['text'] as String?;
+            }
+            return null;
+          });
 
       try {
         final entries = buildDirectLinkContextMenuEntries(

@@ -47,21 +47,27 @@ class _CompletionAnimationState extends State<_CompletionAnimation>
       vsync: this,
     );
 
-    _scaleAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.0, 0.5, curve: Curves.elasticOut),
-    ));
+    _scaleAnimation =
+        Tween<double>(
+          begin: 0.0,
+          end: 1.0,
+        ).animate(
+          CurvedAnimation(
+            parent: _controller,
+            curve: const Interval(0.0, 0.5, curve: Curves.elasticOut),
+          ),
+        );
 
-    _opacityAnimation = Tween<double>(
-      begin: 1.0,
-      end: 0.0,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.7, 1.0, curve: Curves.easeOut),
-    ));
+    _opacityAnimation =
+        Tween<double>(
+          begin: 1.0,
+          end: 0.0,
+        ).animate(
+          CurvedAnimation(
+            parent: _controller,
+            curve: const Interval(0.7, 1.0, curve: Curves.easeOut),
+          ),
+        );
 
     _controller.forward().then((_) => widget.onComplete());
   }
@@ -111,9 +117,7 @@ class _CompletionAnimationState extends State<_CompletionAnimation>
                       Text(
                         widget.message,
                         textAlign: TextAlign.center,
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineSmall
+                        style: Theme.of(context).textTheme.headlineSmall
                             ?.copyWith(
                               color: Theme.of(context).colorScheme.onSurface,
                               fontWeight: FontWeight.bold,

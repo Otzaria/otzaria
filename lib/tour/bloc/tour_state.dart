@@ -27,14 +27,14 @@ class TourState extends Equatable {
   });
 
   const TourState.inactive()
-      : isActive = false,
-        libraryLoaded = true,
-        currentIndex = 0,
-        steps = const [],
-        isAutoPlaying = false,
-        activeLiveTipId = null,
-        shownTips = const <LiveTipId>{},
-        resolvedTips = const <LiveTipId>{};
+    : isActive = false,
+      libraryLoaded = true,
+      currentIndex = 0,
+      steps = const [],
+      isAutoPlaying = false,
+      activeLiveTipId = null,
+      shownTips = const <LiveTipId>{},
+      resolvedTips = const <LiveTipId>{};
 
   TourStep? get currentStep {
     if (!isActive || steps.isEmpty || currentIndex >= steps.length) {
@@ -72,8 +72,9 @@ class TourState extends Equatable {
       currentIndex: currentIndex ?? this.currentIndex,
       steps: steps ?? this.steps,
       isAutoPlaying: isAutoPlaying ?? this.isAutoPlaying,
-      activeLiveTipId:
-          clearLiveTip ? null : (activeLiveTipId ?? this.activeLiveTipId),
+      activeLiveTipId: clearLiveTip
+          ? null
+          : (activeLiveTipId ?? this.activeLiveTipId),
       shownTips: shownTips ?? this.shownTips,
       resolvedTips: resolvedTips ?? this.resolvedTips,
     );
@@ -81,13 +82,13 @@ class TourState extends Equatable {
 
   @override
   List<Object?> get props => [
-        isActive,
-        libraryLoaded,
-        currentIndex,
-        steps,
-        isAutoPlaying,
-        activeLiveTipId,
-        shownTips.map((tip) => tip.name).toList()..sort(),
-        resolvedTips.map((tip) => tip.name).toList()..sort(),
-      ];
+    isActive,
+    libraryLoaded,
+    currentIndex,
+    steps,
+    isAutoPlaying,
+    activeLiveTipId,
+    shownTips.map((tip) => tip.name).toList()..sort(),
+    resolvedTips.map((tip) => tip.name).toList()..sort(),
+  ];
 }

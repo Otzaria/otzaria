@@ -33,8 +33,9 @@ void main() {
     });
 
     // Example 2: מציג את כל הרכיבים הנדרשים
-    testWidgets('מציג לחצן חזור, לחצן בית, הודעת עזר ולחצן פתח חיפוש טקסט',
-        (tester) async {
+    testWidgets('מציג לחצן חזור, לחצן בית, הודעת עזר ולחצן פתח חיפוש טקסט', (
+      tester,
+    ) async {
       await tester.pumpWidget(_buildWidget());
 
       expect(find.text('חזור'), findsOneWidget);
@@ -74,8 +75,9 @@ void main() {
 
       final msgY = tester.getTopLeft(find.text(msg)).dy;
       final backY = tester.getTopLeft(find.text('חזור')).dy;
-      final helpTextY =
-          tester.getTopLeft(find.text('ניתן לחפש גם טקסט ספציפי במאגר')).dy;
+      final helpTextY = tester
+          .getTopLeft(find.text('ניתן לחפש גם טקסט ספציפי במאגר'))
+          .dy;
       final searchBtnY = tester.getTopLeft(find.text('פתח חיפוש טקסט')).dy;
 
       expect(msgY, lessThan(backY));
@@ -89,11 +91,13 @@ void main() {
       expect(find.text('ניתן לנסות לחפש בתיקייה אחרת'), findsNothing);
     });
 
-    testWidgets('מציג רמז "לחפש בתיקייה אחרת" כש-showSearchElsewhereHint=true',
-        (tester) async {
-      await tester.pumpWidget(_buildWidget(showSearchElsewhereHint: true));
-      expect(find.text('ניתן לנסות לחפש בתיקייה אחרת'), findsOneWidget);
-    });
+    testWidgets(
+      'מציג רמז "לחפש בתיקייה אחרת" כש-showSearchElsewhereHint=true',
+      (tester) async {
+        await tester.pumpWidget(_buildWidget(showSearchElsewhereHint: true));
+        expect(find.text('ניתן לנסות לחפש בתיקייה אחרת'), findsOneWidget);
+      },
+    );
 
     // אייקונים
     testWidgets('מציג אייקונים מתאימים', (tester) async {
@@ -109,44 +113,45 @@ void main() {
     // תכונה 1: הצגת פעולות עזר בשני מצבי תצוגה
     // עבור כל הודעת טקסט, ארבעת הרכיבים תמיד מוצגים
     testWidgets(
-        'תכונה 1: ארבעת הרכיבים מוצגים ללא תלות בתוכן ההודעה (100 איטרציות)',
-        (tester) async {
-      final messages = List.generate(
-        100,
-        (i) => switch (i % 5) {
-          0 => 'אין פריטים להצגה בתיקייה זו',
-          1 => 'אין תוצאות עבור "חיפוש $i"',
-          2 => 'הודעה $i ' * (i % 10 + 1), // הודעות באורכים שונים
-          3 => '', // הודעה ריקה
-          _ => 'א' * i, // הודעות ארוכות
-        },
-      );
+      'תכונה 1: ארבעת הרכיבים מוצגים ללא תלות בתוכן ההודעה (100 איטרציות)',
+      (tester) async {
+        final messages = List.generate(
+          100,
+          (i) => switch (i % 5) {
+            0 => 'אין פריטים להצגה בתיקייה זו',
+            1 => 'אין תוצאות עבור "חיפוש $i"',
+            2 => 'הודעה $i ' * (i % 10 + 1), // הודעות באורכים שונים
+            3 => '', // הודעה ריקה
+            _ => 'א' * i, // הודעות ארוכות
+          },
+        );
 
-      for (final msg in messages) {
-        await tester.pumpWidget(_buildWidget(message: msg));
-        await tester.pump();
+        for (final msg in messages) {
+          await tester.pumpWidget(_buildWidget(message: msg));
+          await tester.pump();
 
-        expect(
-          find.text('חזור'),
-          findsOneWidget,
-          reason: 'לחצן חזור חסר עבור הודעה: "$msg"',
-        );
-        expect(
-          find.text('בית'),
-          findsOneWidget,
-          reason: 'לחצן בית חסר עבור הודעה: "$msg"',
-        );
-        expect(
-          find.text('ניתן לחפש גם טקסט ספציפי במאגר'),
-          findsOneWidget,
-          reason: 'הודעת עזר חסרה עבור הודעה: "$msg"',
-        );
-        expect(
-          find.text('פתח חיפוש טקסט'),
-          findsOneWidget,
-          reason: 'לחצן פתח חיפוש טקסט חסר עבור הודעה: "$msg"',
-        );
-      }
-    });
+          expect(
+            find.text('חזור'),
+            findsOneWidget,
+            reason: 'לחצן חזור חסר עבור הודעה: "$msg"',
+          );
+          expect(
+            find.text('בית'),
+            findsOneWidget,
+            reason: 'לחצן בית חסר עבור הודעה: "$msg"',
+          );
+          expect(
+            find.text('ניתן לחפש גם טקסט ספציפי במאגר'),
+            findsOneWidget,
+            reason: 'הודעת עזר חסרה עבור הודעה: "$msg"',
+          );
+          expect(
+            find.text('פתח חיפוש טקסט'),
+            findsOneWidget,
+            reason: 'לחצן פתח חיפוש טקסט חסר עבור הודעה: "$msg"',
+          );
+        }
+      },
+    );
   });
 }

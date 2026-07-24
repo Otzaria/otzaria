@@ -32,8 +32,9 @@ void main() {
     late int bereshitId;
 
     setUp(() async {
-      tempDir =
-          await Directory.systemTemp.createTemp('otzaria-commentators-test-');
+      tempDir = await Directory.systemTemp.createTemp(
+        'otzaria-commentators-test-',
+      );
       seforimDb = MyDatabase.withPath(path.join(tempDir.path, 'seforim.db'));
       seforimRepo = SeforimRepository(seforimDb);
       await seforimRepo.ensureInitialized();
@@ -64,17 +65,24 @@ void main() {
 
       final sourceLineId = await seforimRepo.insertLine(
         migration_models.Line(
-            bookId: bereshitId, lineIndex: 0, content: 'בראשית ברא'),
+          bookId: bereshitId,
+          lineIndex: 0,
+          content: 'בראשית ברא',
+        ),
       );
       final targetLineId = await seforimRepo.insertLine(
         migration_models.Line(
-            bookId: rashiId, lineIndex: 0, content: 'פירוש רש"י'),
+          bookId: rashiId,
+          lineIndex: 0,
+          content: 'פירוש רש"י',
+        ),
       );
 
       // יש לוודא שסוג הקישור 'COMMENTARY' (אותיות גדולות, כפי שנוצר ב-initializeConnectionTypes)
       // קיים ב-cache לפני הכנסת הקישור, כדי שהשאילתה selectCommentatorsByBook תמצאו.
-      final commentaryTypeId =
-          await seforimRepo.getOrCreateConnectionType('COMMENTARY');
+      final commentaryTypeId = await seforimRepo.getOrCreateConnectionType(
+        'COMMENTARY',
+      );
       final db = await seforimDb.database;
       db.execute(
         'INSERT INTO link (sourceBookId, targetBookId, sourceLineId, targetLineId, connectionTypeId) '
@@ -107,8 +115,9 @@ void main() {
           categoryId: 1,
         );
 
-        final commentators =
-            await repository.getAvailableCommentators(userBook);
+        final commentators = await repository.getAvailableCommentators(
+          userBook,
+        );
 
         expect(
           commentators,
@@ -128,8 +137,9 @@ void main() {
           fileType: 'txt',
         );
 
-        final commentators =
-            await repository.getAvailableCommentators(officialBook);
+        final commentators = await repository.getAvailableCommentators(
+          officialBook,
+        );
 
         expect(
           commentators,

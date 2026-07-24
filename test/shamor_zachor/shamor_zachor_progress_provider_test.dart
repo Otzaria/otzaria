@@ -38,16 +38,17 @@ class _FakeProgressService extends ProgressService {
 
   @override
   Future<void> saveColumnsByBookId(
-      Map<int, List<ProgressColumn>> columns) async {
+    Map<int, List<ProgressColumn>> columns,
+  ) async {
     columnsById = columns;
   }
 }
 
 BookDetails _singleItemBook() => BookDetails(
-      id: 42,
-      contentType: 'text',
-      parts: const [BookPart(name: 'ראשי', startPage: 1, endPage: 1)],
-    );
+  id: 42,
+  contentType: 'text',
+  parts: const [BookPart(name: 'ראשי', startPage: 1, endPage: 1)],
+);
 
 void main() {
   group('ShamorZachorProgressProvider', () {
@@ -80,8 +81,10 @@ void main() {
         ShamorZachorProgressProvider(progressService: service);
 
     test('getColumnsForBook returns defaults when none configured', () async {
-      final service =
-          _FakeProgressService(progressById: {}, completionDatesById: {});
+      final service = _FakeProgressService(
+        progressById: {},
+        completionDatesById: {},
+      );
       final provider = buildProvider(service);
       await provider.ensureLoaded();
 
@@ -89,8 +92,10 @@ void main() {
     });
 
     test('addColumn appends a custom column', () async {
-      final service =
-          _FakeProgressService(progressById: {}, completionDatesById: {});
+      final service = _FakeProgressService(
+        progressById: {},
+        completionDatesById: {},
+      );
       final provider = buildProvider(service);
       await provider.ensureLoaded();
 
@@ -103,8 +108,10 @@ void main() {
     });
 
     test('renameColumn updates only the label, keeping the id', () async {
-      final service =
-          _FakeProgressService(progressById: {}, completionDatesById: {});
+      final service = _FakeProgressService(
+        progressById: {},
+        completionDatesById: {},
+      );
       final provider = buildProvider(service);
       await provider.ensureLoaded();
 
@@ -127,8 +134,10 @@ void main() {
 
       await provider.removeColumn(42, 'review1');
 
-      expect(provider.getColumnsForBook(42).any((c) => c.id == 'review1'),
-          isFalse);
+      expect(
+        provider.getColumnsForBook(42).any((c) => c.id == 'review1'),
+        isFalse,
+      );
       expect(provider.getProgressForItemById(42, 0).review1, isFalse);
       expect(provider.getProgressForItemById(42, 0).learn, isTrue);
     });
@@ -173,19 +182,23 @@ void main() {
       expect(provider.isBookCompletedById(42, book), isTrue);
     });
 
-    test('columns are independent - a later column can be marked first',
-        () async {
-      final service =
-          _FakeProgressService(progressById: {}, completionDatesById: {});
-      final provider = buildProvider(service);
-      await provider.ensureLoaded();
-      final book = _singleItemBook();
+    test(
+      'columns are independent - a later column can be marked first',
+      () async {
+        final service = _FakeProgressService(
+          progressById: {},
+          completionDatesById: {},
+        );
+        final provider = buildProvider(service);
+        await provider.ensureLoaded();
+        final book = _singleItemBook();
 
-      // סימון "חזרה 1" ללא "לימוד" - לא אמור להיחסם
-      await provider.updateProgressById(42, 0, 'review1', true, book);
+        // סימון "חזרה 1" ללא "לימוד" - לא אמור להיחסם
+        await provider.updateProgressById(42, 0, 'review1', true, book);
 
-      expect(provider.getProgressForItemById(42, 0).review1, isTrue);
-      expect(provider.getProgressForItemById(42, 0).learn, isFalse);
-    });
+        expect(provider.getProgressForItemById(42, 0).review1, isTrue);
+        expect(provider.getProgressForItemById(42, 0).learn, isFalse);
+      },
+    );
   });
 }

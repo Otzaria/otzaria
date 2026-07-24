@@ -29,11 +29,13 @@ void main() {
     // ignore: sdk_version_since
     final texts = ['kjfkljf', 'dkjdk'];
     fl.WidgetsFlutterBinding.ensureInitialized();
-    final font = Font.ttf(await rootBundle
-        .load('fonts/NotoSerifHebrew-VariableFont_wdth,wght.ttf'));
+    final font = Font.ttf(
+      await rootBundle.load('fonts/NotoSerifHebrew-VariableFont_wdth,wght.ttf'),
+    );
     final data = await Isolate.run(() async {
       final pdf = Document(compress: false, pageMode: PdfPageMode.outlines);
-      pdf.addPage(MultiPage(
+      pdf.addPage(
+        MultiPage(
           theme: ThemeData.withFont(
             base: font,
           ),
@@ -44,34 +46,42 @@ void main() {
           pageFormat: PdfPageFormat.a3,
           header: (Context context) {
             return Container(
-                alignment: Alignment.topCenter,
-                margin: const EdgeInsets.only(top: 1.0 * PdfPageFormat.cm),
-                child: Text('hello',
-                    style: Theme.of(context)
-                        .defaultTextStyle
-                        .copyWith(color: PdfColors.grey)));
+              alignment: Alignment.topCenter,
+              margin: const EdgeInsets.only(top: 1.0 * PdfPageFormat.cm),
+              child: Text(
+                'hello',
+                style: Theme.of(
+                  context,
+                ).defaultTextStyle.copyWith(color: PdfColors.grey),
+              ),
+            );
           },
           footer: (Context context) {
             return Container(
-                alignment: Alignment.bottomCenter,
-                margin: const EdgeInsets.only(top: 1.0 * PdfPageFormat.cm),
-                child: Text(
-                    'עמוד ${context.pageNumber} מתוך ${context.pagesCount} - הודפס מתוכנת אוצריא',
-                    style: Theme.of(context)
-                        .defaultTextStyle
-                        .copyWith(color: PdfColors.grey)));
+              alignment: Alignment.bottomCenter,
+              margin: const EdgeInsets.only(top: 1.0 * PdfPageFormat.cm),
+              child: Text(
+                'עמוד ${context.pageNumber} מתוך ${context.pagesCount} - הודפס מתוכנת אוצריא',
+                style: Theme.of(
+                  context,
+                ).defaultTextStyle.copyWith(color: PdfColors.grey),
+              ),
+            );
           },
           build: (Context context) => texts
               .map(
                 (i) => Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: Paragraph(
-                      text: i.replaceAll('\n', ''),
-                      textAlign: TextAlign.justify,
-                      style: TextStyle(fontSize: 67, font: font)),
+                    text: i.replaceAll('\n', ''),
+                    textAlign: TextAlign.justify,
+                    style: TextStyle(fontSize: 67, font: font),
+                  ),
                 ),
               )
-              .toList()));
+              .toList(),
+        ),
+      );
 
       return await pdf.save();
     });

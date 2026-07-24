@@ -79,8 +79,11 @@ void main() {
       final key = BookCompositeKey.tryParse('בראשית|7|txt');
 
       expect(key, isNotNull);
-      expect(key!.isUserBook, isFalse,
-          reason: 'מחרוזת בלי סיומת = ספר רשמי לתאימות לאחור');
+      expect(
+        key!.isUserBook,
+        isFalse,
+        reason: 'מחרוזת בלי סיומת = ספר רשמי לתאימות לאחור',
+      );
     });
 
     test('סיומת לא מוכרת מתפרשת כ-isUserBook=false', () {
@@ -137,9 +140,12 @@ void main() {
         isUserBook: true,
       );
 
-      expect(official, isNot(equals(userBook)),
-          reason:
-              'אותו title+categoryId+fileType משני DBs חייבים להיות מפתחות שונים');
+      expect(
+        official,
+        isNot(equals(userBook)),
+        reason:
+            'אותו title+categoryId+fileType משני DBs חייבים להיות מפתחות שונים',
+      );
     });
 
     test('שונים כאשר רק categoryId שונה', () {

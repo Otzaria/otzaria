@@ -14,16 +14,20 @@ class _FakeService implements LibraryUpdateService {
   bool applyCalled = false;
   bool fullCalled = false;
 
-  _FakeService(this.plan,
-      {this.throwOnCheck = false, this.throwOnApply = false});
+  _FakeService(
+    this.plan, {
+    this.throwOnCheck = false,
+    this.throwOnApply = false,
+  });
 
   @override
   Future<RecoveryResult> recoverIfNeeded() async =>
       const RecoveryResult(RecoveryAction.none);
 
   @override
-  Future<LibraryUpdatePlan> checkForUpdate(
-      {required bool allowPrerelease}) async {
+  Future<LibraryUpdatePlan> checkForUpdate({
+    required bool allowPrerelease,
+  }) async {
     if (throwOnCheck) throw Exception('check failed');
     return plan;
   }
@@ -61,9 +65,9 @@ class _GatedAtApplyService implements LibraryUpdateService {
       const RecoveryResult(RecoveryAction.none);
 
   @override
-  Future<LibraryUpdatePlan> checkForUpdate(
-          {required bool allowPrerelease}) async =>
-      plan;
+  Future<LibraryUpdatePlan> checkForUpdate({
+    required bool allowPrerelease,
+  }) async => plan;
 
   @override
   Future<Set<int>> applyDeltaPlan(
@@ -71,8 +75,9 @@ class _GatedAtApplyService implements LibraryUpdateService {
     LibraryUpdateProgressCallback? onProgress,
     bool Function()? isCancelled,
   }) async {
-    onProgress
-        ?.call(const LibraryUpdateProgress(phase: LibraryUpdatePhase.applying));
+    onProgress?.call(
+      const LibraryUpdateProgress(phase: LibraryUpdatePhase.applying),
+    );
     await gate
         .future; // מדמה apply ארוך; אחריו ה-DB עודכן — מתעלמים מ-isCancelled
     return const {};
@@ -97,9 +102,9 @@ class _VerifyThenCommitService implements LibraryUpdateService {
       const RecoveryResult(RecoveryAction.none);
 
   @override
-  Future<LibraryUpdatePlan> checkForUpdate(
-          {required bool allowPrerelease}) async =>
-      plan;
+  Future<LibraryUpdatePlan> checkForUpdate({
+    required bool allowPrerelease,
+  }) async => plan;
 
   @override
   Future<Set<int>> applyDeltaPlan(
@@ -107,16 +112,20 @@ class _VerifyThenCommitService implements LibraryUpdateService {
     LibraryUpdateProgressCallback? onProgress,
     bool Function()? isCancelled,
   }) async {
-    onProgress?.call(const LibraryUpdateProgress(
-      phase: LibraryUpdatePhase.applying,
-      stage: 'verifyToHash',
-      applyProgress: 0.5,
-    ));
+    onProgress?.call(
+      const LibraryUpdateProgress(
+        phase: LibraryUpdatePhase.applying,
+        stage: 'verifyToHash',
+        applyProgress: 0.5,
+      ),
+    );
     await Future<void>.delayed(const Duration(milliseconds: 10));
-    onProgress?.call(const LibraryUpdateProgress(
-      phase: LibraryUpdatePhase.applying,
-      stage: 'commit',
-    ));
+    onProgress?.call(
+      const LibraryUpdateProgress(
+        phase: LibraryUpdatePhase.applying,
+        stage: 'commit',
+      ),
+    );
     await Future<void>.delayed(const Duration(milliseconds: 10));
     return const {};
   }
@@ -140,9 +149,9 @@ class _GatedService implements LibraryUpdateService {
       const RecoveryResult(RecoveryAction.none);
 
   @override
-  Future<LibraryUpdatePlan> checkForUpdate(
-          {required bool allowPrerelease}) async =>
-      plan;
+  Future<LibraryUpdatePlan> checkForUpdate({
+    required bool allowPrerelease,
+  }) async => plan;
 
   @override
   Future<Set<int>> applyDeltaPlan(
@@ -233,28 +242,36 @@ LibraryUpdateBloc _bloc(
   bool updatesEnabled = true,
   bool prerelease = false,
   CompanionAssetsService? companionAssets,
-}) =>
-    LibraryUpdateBloc(
-      repository: service,
-      isOfflineMode: () => offline,
-      areUpdatesEnabled: () => updatesEnabled,
-      allowPrerelease: () => prerelease,
-      companionAssets: companionAssets,
-    );
+}) => LibraryUpdateBloc(
+  repository: service,
+  isOfflineMode: () => offline,
+  areUpdatesEnabled: () => updatesEnabled,
+  allowPrerelease: () => prerelease,
+  companionAssets: companionAssets,
+);
 
 void main() {
   final nonePlan = LibraryUpdatePlan.none(localVersion: 3, targetVersion: 3);
   final deltaPlan = LibraryUpdatePlan.delta(
-      localVersion: 1, targetVersion: 3, steps: const []);
+    localVersion: 1,
+    targetVersion: 3,
+    steps: const [],
+  );
   final fullPlan = LibraryUpdatePlan.fullDownload(
     localVersion: 1,
     targetVersion: 3,
     asset: const ReleaseAsset(
-        name: 'seforim.db.zst', downloadUrl: 'https://x', size: 1200000000),
+      name: 'seforim.db.zst',
+      downloadUrl: 'https://x',
+      size: 1200000000,
+    ),
     releaseTag: 'v3',
   );
   final blockedPlan = LibraryUpdatePlan.blocked(
-      localVersion: 1, targetVersion: 3, reason: 'schema לא תואם');
+    localVersion: 1,
+    targetVersion: 3,
+    reason: 'schema לא תואם',
+  );
 
   group('LibraryUpdateBloc', () {
     blocTest<LibraryUpdateBloc, LibraryUpdateState>(
@@ -262,8 +279,11 @@ void main() {
       build: () => _bloc(_FakeService(nonePlan), offline: true),
       act: (b) => b.add(const StartLibraryUpdate()),
       expect: () => [
-        isA<LibraryUpdateState>()
-            .having((s) => s.status, 'status', LibraryUpdateStatus.idle)
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.idle,
+        ),
       ],
     );
 
@@ -272,8 +292,11 @@ void main() {
       build: () => _bloc(_FakeService(nonePlan), updatesEnabled: false),
       act: (b) => b.add(const StartLibraryUpdate()),
       expect: () => [
-        isA<LibraryUpdateState>()
-            .having((s) => s.status, 'status', LibraryUpdateStatus.idle)
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.idle,
+        ),
       ],
     );
 
@@ -282,8 +305,11 @@ void main() {
       build: () => _bloc(_FakeService(nonePlan)),
       act: (b) => b.add(const StartLibraryUpdate()),
       expect: () => [
-        isA<LibraryUpdateState>()
-            .having((s) => s.status, 'status', LibraryUpdateStatus.checking),
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.checking,
+        ),
         isA<LibraryUpdateState>()
             .having((s) => s.status, 'status', LibraryUpdateStatus.completed)
             .having((s) => s.hasUpdate, 'hasUpdate', false),
@@ -296,8 +322,11 @@ void main() {
       act: (b) => b.add(const StartLibraryUpdate()),
       verify: (b) => expect((b.repository as _FakeService).applyCalled, isTrue),
       expect: () => [
-        isA<LibraryUpdateState>()
-            .having((s) => s.status, 'status', LibraryUpdateStatus.checking),
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.checking,
+        ),
         isA<LibraryUpdateState>()
             .having((s) => s.status, 'status', LibraryUpdateStatus.completed)
             .having((s) => s.hasUpdate, 'hasUpdate', true),
@@ -311,11 +340,17 @@ void main() {
       verify: (b) =>
           expect((b.repository as _FakeService).applyCalled, isFalse),
       expect: () => [
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.checking,
+        ),
         isA<LibraryUpdateState>()
-            .having((s) => s.status, 'status', LibraryUpdateStatus.checking),
-        isA<LibraryUpdateState>()
-            .having((s) => s.status, 'status',
-                LibraryUpdateStatus.needsFullConfirmation)
+            .having(
+              (s) => s.status,
+              'status',
+              LibraryUpdateStatus.needsFullConfirmation,
+            )
             .having((s) => s.plan, 'plan', isNotNull),
       ],
     );
@@ -325,10 +360,16 @@ void main() {
       build: () => _bloc(_FakeService(blockedPlan)),
       act: (b) => b.add(const StartLibraryUpdate()),
       expect: () => [
-        isA<LibraryUpdateState>()
-            .having((s) => s.status, 'status', LibraryUpdateStatus.checking),
-        isA<LibraryUpdateState>()
-            .having((s) => s.status, 'status', LibraryUpdateStatus.blocked),
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.checking,
+        ),
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.blocked,
+        ),
       ],
     );
 
@@ -337,10 +378,16 @@ void main() {
       build: () => _bloc(_FakeService(nonePlan, throwOnCheck: true)),
       act: (b) => b.add(const StartLibraryUpdate()),
       expect: () => [
-        isA<LibraryUpdateState>()
-            .having((s) => s.status, 'status', LibraryUpdateStatus.checking),
-        isA<LibraryUpdateState>()
-            .having((s) => s.status, 'status', LibraryUpdateStatus.error),
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.checking,
+        ),
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.error,
+        ),
       ],
     );
 
@@ -349,10 +396,16 @@ void main() {
       build: () => _bloc(_FakeService(deltaPlan, throwOnApply: true)),
       act: (b) => b.add(const StartLibraryUpdate()),
       expect: () => [
-        isA<LibraryUpdateState>()
-            .having((s) => s.status, 'status', LibraryUpdateStatus.checking),
-        isA<LibraryUpdateState>()
-            .having((s) => s.status, 'status', LibraryUpdateStatus.error),
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.checking,
+        ),
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.error,
+        ),
       ],
     );
 
@@ -360,83 +413,112 @@ void main() {
       'ConfirmFullDownload → מבצע הורדה מלאה ומסיים עם hasUpdate',
       build: () => _bloc(_FakeService(fullPlan)),
       seed: () => LibraryUpdateState(
-          status: LibraryUpdateStatus.needsFullConfirmation, plan: fullPlan),
+        status: LibraryUpdateStatus.needsFullConfirmation,
+        plan: fullPlan,
+      ),
       act: (b) => b.add(const ConfirmFullDownload()),
       verify: (b) => expect((b.repository as _FakeService).fullCalled, isTrue),
       expect: () => [
-        isA<LibraryUpdateState>()
-            .having((s) => s.status, 'status', LibraryUpdateStatus.downloading),
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.downloading,
+        ),
         isA<LibraryUpdateState>()
             .having((s) => s.status, 'status', LibraryUpdateStatus.completed)
             .having((s) => s.hasUpdate, 'hasUpdate', true),
       ],
     );
 
-    test('ביטול במהלך עדכון → ריצה ישנה לא פולטת completed (operation token)',
-        () async {
-      final gate = Completer<void>();
-      final bloc = _bloc(_GatedService(deltaPlan, gate));
-      final seen = <LibraryUpdateStatus>[];
-      final sub = bloc.stream.listen((s) => seen.add(s.status));
+    test(
+      'ביטול במהלך עדכון → ריצה ישנה לא פולטת completed (operation token)',
+      () async {
+        final gate = Completer<void>();
+        final bloc = _bloc(_GatedService(deltaPlan, gate));
+        final seen = <LibraryUpdateStatus>[];
+        final sub = bloc.stream.listen((s) => seen.add(s.status));
 
-      bloc.add(const StartLibraryUpdate());
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      // הריצה תקועה ב-applyDeltaPlan (gate). מבטלים ומתחילים מחדש מושגית.
-      bloc.add(const CancelLibraryUpdate());
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(bloc.state.status, LibraryUpdateStatus.idle);
+        bloc.add(const StartLibraryUpdate());
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        // הריצה תקועה ב-applyDeltaPlan (gate). מבטלים ומתחילים מחדש מושגית.
+        bloc.add(const CancelLibraryUpdate());
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(bloc.state.status, LibraryUpdateStatus.idle);
 
-      gate.complete(); // הריצה הישנה ממשיכה — אך opId כבר התיישן
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+        gate.complete(); // הריצה הישנה ממשיכה — אך opId כבר התיישן
+        await Future<void>.delayed(const Duration(milliseconds: 20));
 
-      expect(seen.contains(LibraryUpdateStatus.completed), isFalse,
-          reason: 'ריצה שבוטלה לא אמורה לפלוט completed');
-      expect(bloc.state.status, LibraryUpdateStatus.idle);
-      await sub.cancel();
-      await bloc.close();
-    });
+        expect(
+          seen.contains(LibraryUpdateStatus.completed),
+          isFalse,
+          reason: 'ריצה שבוטלה לא אמורה לפלוט completed',
+        );
+        expect(bloc.state.status, LibraryUpdateStatus.idle);
+        await sub.cancel();
+        await bloc.close();
+      },
+    );
 
-    test('ביטול בשלב applying (דלתא) נחסם — ה-DB עודכן ולכן פולט completed',
-        () async {
-      final gate = Completer<void>();
-      final bloc = _bloc(_GatedAtApplyService(deltaPlan, gate));
-      final seen = <LibraryUpdateStatus>[];
-      final sub = bloc.stream.listen((s) => seen.add(s.status));
+    test(
+      'ביטול בשלב applying (דלתא) נחסם — ה-DB עודכן ולכן פולט completed',
+      () async {
+        final gate = Completer<void>();
+        final bloc = _bloc(_GatedAtApplyService(deltaPlan, gate));
+        final seen = <LibraryUpdateStatus>[];
+        final sub = bloc.stream.listen((s) => seen.add(s.status));
 
-      bloc.add(const StartLibraryUpdate());
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(bloc.state.status, LibraryUpdateStatus.applying);
+        bloc.add(const StartLibraryUpdate());
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(bloc.state.status, LibraryUpdateStatus.applying);
 
-      // ניסיון ביטול אחרי שהחלה ל-DB התחילה — חייב להיחסם.
-      bloc.add(const CancelLibraryUpdate());
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(bloc.state.status, LibraryUpdateStatus.applying,
-          reason: 'ביטול בשלב applying אמור להיחסם');
+        // ניסיון ביטול אחרי שהחלה ל-DB התחילה — חייב להיחסם.
+        bloc.add(const CancelLibraryUpdate());
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(
+          bloc.state.status,
+          LibraryUpdateStatus.applying,
+          reason: 'ביטול בשלב applying אמור להיחסם',
+        );
 
-      gate.complete(); // ה-apply מסתיים, ה-DB עודכן
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+        gate.complete(); // ה-apply מסתיים, ה-DB עודכן
+        await Future<void>.delayed(const Duration(milliseconds: 20));
 
-      expect(bloc.state.status, LibraryUpdateStatus.completed);
-      expect(bloc.state.hasUpdate, isTrue,
-          reason: 'עדכון שהושלם חייב להפעיל ריענון ספרייה/אינדוקס');
-      expect(seen.contains(LibraryUpdateStatus.idle), isFalse,
-          reason: 'ביטול שנחסם לא אמור להחזיר ל-idle');
-      await sub.cancel();
-      await bloc.close();
-    });
+        expect(bloc.state.status, LibraryUpdateStatus.completed);
+        expect(
+          bloc.state.hasUpdate,
+          isTrue,
+          reason: 'עדכון שהושלם חייב להפעיל ריענון ספרייה/אינדוקס',
+        );
+        expect(
+          seen.contains(LibraryUpdateStatus.idle),
+          isFalse,
+          reason: 'ביטול שנחסם לא אמור להחזיר ל-idle',
+        );
+        await sub.cancel();
+        await bloc.close();
+      },
+    );
 
     blocTest<LibraryUpdateBloc, LibraryUpdateState>(
       'הקבצים הנלווים נבדקים אחרי עדכון דלתא, לפני completed',
-      build: () => _bloc(_FakeService(deltaPlan),
-          companionAssets: _FakeCompanionService()),
+      build: () => _bloc(
+        _FakeService(deltaPlan),
+        companionAssets: _FakeCompanionService(),
+      ),
       act: (b) => b.add(const StartLibraryUpdate()),
       verify: (b) =>
           expect((b.companionAssets as _FakeCompanionService).calls, 1),
       expect: () => [
-        isA<LibraryUpdateState>()
-            .having((s) => s.status, 'status', LibraryUpdateStatus.checking),
-        isA<LibraryUpdateState>()
-            .having((s) => s.message, 'message', 'בודק את התלמוד הבבלי'),
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.checking,
+        ),
+        isA<LibraryUpdateState>().having(
+          (s) => s.message,
+          'message',
+          'בודק את התלמוד הבבלי',
+        ),
         isA<LibraryUpdateState>()
             .having((s) => s.status, 'status', LibraryUpdateStatus.completed)
             .having((s) => s.hasUpdate, 'hasUpdate', true),
@@ -445,31 +527,50 @@ void main() {
 
     blocTest<LibraryUpdateBloc, LibraryUpdateState>(
       'הקבצים הנלווים נבדקים גם כשאין עדכון (plan none)',
-      build: () => _bloc(_FakeService(nonePlan),
-          companionAssets: _FakeCompanionService()),
+      build: () => _bloc(
+        _FakeService(nonePlan),
+        companionAssets: _FakeCompanionService(),
+      ),
       act: (b) => b.add(const StartLibraryUpdate()),
       verify: (b) =>
           expect((b.companionAssets as _FakeCompanionService).calls, 1),
       expect: () => [
-        isA<LibraryUpdateState>()
-            .having((s) => s.status, 'status', LibraryUpdateStatus.checking),
-        isA<LibraryUpdateState>()
-            .having((s) => s.message, 'message', 'בודק את התלמוד הבבלי'),
-        isA<LibraryUpdateState>()
-            .having((s) => s.status, 'status', LibraryUpdateStatus.completed),
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.checking,
+        ),
+        isA<LibraryUpdateState>().having(
+          (s) => s.message,
+          'message',
+          'בודק את התלמוד הבבלי',
+        ),
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.completed,
+        ),
       ],
     );
 
     blocTest<LibraryUpdateBloc, LibraryUpdateState>(
       'plan none אך הנלווים עדכנו בפועל → completed עם hasUpdate (ריענון)',
-      build: () => _bloc(_FakeService(nonePlan),
-          companionAssets: _FakeCompanionService(changed: true)),
+      build: () => _bloc(
+        _FakeService(nonePlan),
+        companionAssets: _FakeCompanionService(changed: true),
+      ),
       act: (b) => b.add(const StartLibraryUpdate()),
       expect: () => [
-        isA<LibraryUpdateState>()
-            .having((s) => s.status, 'status', LibraryUpdateStatus.checking),
-        isA<LibraryUpdateState>()
-            .having((s) => s.message, 'message', 'בודק את התלמוד הבבלי'),
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.checking,
+        ),
+        isA<LibraryUpdateState>().having(
+          (s) => s.message,
+          'message',
+          'בודק את התלמוד הבבלי',
+        ),
         isA<LibraryUpdateState>()
             .having((s) => s.status, 'status', LibraryUpdateStatus.completed)
             .having((s) => s.hasUpdate, 'hasUpdate', true),
@@ -477,120 +578,150 @@ void main() {
     );
 
     test(
-        'plan none: ביטול בזמן הנלווים שכבר שינו את הספרייה → completed עם hasUpdate',
-        () async {
-      final gate = Completer<void>();
-      final bloc = _bloc(_FakeService(nonePlan),
-          companionAssets: _GatedCompanionService(gate, changed: true));
+      'plan none: ביטול בזמן הנלווים שכבר שינו את הספרייה → completed עם hasUpdate',
+      () async {
+        final gate = Completer<void>();
+        final bloc = _bloc(
+          _FakeService(nonePlan),
+          companionAssets: _GatedCompanionService(gate, changed: true),
+        );
 
-      bloc.add(const StartLibraryUpdate());
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(bloc.state.message, 'מוריד את התלמוד הבבלי');
-      bloc.add(const CancelLibraryUpdate());
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(bloc.state.message, 'העדכון בוטל');
+        bloc.add(const StartLibraryUpdate());
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(bloc.state.message, 'מוריד את התלמוד הבבלי');
+        bloc.add(const CancelLibraryUpdate());
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(bloc.state.message, 'העדכון בוטל');
 
-      // השירות מחזיר את הדגל המצטבר — תלמוד/קטלוג כבר שונו לפני הביטול.
-      gate.complete();
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+        // השירות מחזיר את הדגל המצטבר — תלמוד/קטלוג כבר שונו לפני הביטול.
+        gate.complete();
+        await Future<void>.delayed(const Duration(milliseconds: 20));
 
-      expect(bloc.state.status, LibraryUpdateStatus.completed);
-      expect(bloc.state.hasUpdate, isTrue,
-          reason: 'הספרייה כבר השתנתה — ביטול לא יכול לאבד את הריענון/אינדוקס');
-      await bloc.close();
-    });
+        expect(bloc.state.status, LibraryUpdateStatus.completed);
+        expect(
+          bloc.state.hasUpdate,
+          isTrue,
+          reason: 'הספרייה כבר השתנתה — ביטול לא יכול לאבד את הריענון/אינדוקס',
+        );
+        await bloc.close();
+      },
+    );
 
     test(
-        'plan none: ביטול והתחלה מיידית של ריצה חדשה → השינוי מהריצה שבוטלה מדווח',
-        () async {
-      final firstGate = Completer<void>();
-      final secondGate = Completer<void>();
-      final bloc = _bloc(_FakeService(nonePlan),
-          companionAssets: _RaceCompanionService(firstGate, secondGate));
+      'plan none: ביטול והתחלה מיידית של ריצה חדשה → השינוי מהריצה שבוטלה מדווח',
+      () async {
+        final firstGate = Completer<void>();
+        final secondGate = Completer<void>();
+        final bloc = _bloc(
+          _FakeService(nonePlan),
+          companionAssets: _RaceCompanionService(firstGate, secondGate),
+        );
 
-      bloc.add(const StartLibraryUpdate());
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(bloc.state.message, 'מוריד את התלמוד הבבלי');
-      bloc.add(const CancelLibraryUpdate());
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(bloc.state.message, 'העדכון בוטל');
+        bloc.add(const StartLibraryUpdate());
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(bloc.state.message, 'מוריד את התלמוד הבבלי');
+        bloc.add(const CancelLibraryUpdate());
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(bloc.state.message, 'העדכון בוטל');
 
-      // המשתמש לוחץ שוב "עדכון" לפני שהריצה הישנה חזרה — הריצה החדשה busy.
-      bloc.add(const StartLibraryUpdate());
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(bloc.state.isBusy, isTrue);
+        // המשתמש לוחץ שוב "עדכון" לפני שהריצה הישנה חזרה — הריצה החדשה busy.
+        bloc.add(const StartLibraryUpdate());
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(bloc.state.isBusy, isTrue);
 
-      // הריצה הישנה חוזרת עם שינוי, אך לא פולטת כי הריצה החדשה busy.
-      firstGate.complete();
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(bloc.state.isBusy, isTrue);
+        // הריצה הישנה חוזרת עם שינוי, אך לא פולטת כי הריצה החדשה busy.
+        firstGate.complete();
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(bloc.state.isBusy, isTrue);
 
-      // הריצה החדשה רואה את הנכס כבר מעודכן — אך חייבת לדווח את השינוי השמור.
-      secondGate.complete();
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(bloc.state.status, LibraryUpdateStatus.completed);
-      expect(bloc.state.hasUpdate, isTrue,
+        // הריצה החדשה רואה את הנכס כבר מעודכן — אך חייבת לדווח את השינוי השמור.
+        secondGate.complete();
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(bloc.state.status, LibraryUpdateStatus.completed);
+        expect(
+          bloc.state.hasUpdate,
+          isTrue,
           reason:
-              'הספרייה השתנתה בריצה שבוטלה — הריענון/אינדוקס לא יכולים ללכת לאיבוד');
-      await bloc.close();
-    });
+              'הספרייה השתנתה בריצה שבוטלה — הריענון/אינדוקס לא יכולים ללכת לאיבוד',
+        );
+        await bloc.close();
+      },
+    );
 
     test(
-        'plan none: ביטול בזמן נלווים שלא שינו דבר → נשאר מבוטל, בלי completed',
-        () async {
-      final gate = Completer<void>();
-      final bloc = _bloc(_FakeService(nonePlan),
-          companionAssets: _GatedCompanionService(gate));
+      'plan none: ביטול בזמן נלווים שלא שינו דבר → נשאר מבוטל, בלי completed',
+      () async {
+        final gate = Completer<void>();
+        final bloc = _bloc(
+          _FakeService(nonePlan),
+          companionAssets: _GatedCompanionService(gate),
+        );
 
-      bloc.add(const StartLibraryUpdate());
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      bloc.add(const CancelLibraryUpdate());
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+        bloc.add(const StartLibraryUpdate());
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        bloc.add(const CancelLibraryUpdate());
+        await Future<void>.delayed(const Duration(milliseconds: 20));
 
-      gate.complete();
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+        gate.complete();
+        await Future<void>.delayed(const Duration(milliseconds: 20));
 
-      expect(bloc.state.status, LibraryUpdateStatus.idle);
-      expect(bloc.state.message, 'העדכון בוטל',
-          reason: 'שום דבר לא השתנה — אין לפלוט completed מריצה שבוטלה');
-      await bloc.close();
-    });
+        expect(bloc.state.status, LibraryUpdateStatus.idle);
+        expect(
+          bloc.state.message,
+          'העדכון בוטל',
+          reason: 'שום דבר לא השתנה — אין לפלוט completed מריצה שבוטלה',
+        );
+        await bloc.close();
+      },
+    );
 
-    test('ביטול בשלב הנלווים אחרי עדכון דלתא → עדיין completed עם hasUpdate',
-        () async {
-      final gate = Completer<void>();
-      final bloc = _bloc(_FakeService(deltaPlan),
-          companionAssets: _GatedCompanionService(gate));
-      final seen = <LibraryUpdateStatus>[];
-      final sub = bloc.stream.listen((s) => seen.add(s.status));
+    test(
+      'ביטול בשלב הנלווים אחרי עדכון דלתא → עדיין completed עם hasUpdate',
+      () async {
+        final gate = Completer<void>();
+        final bloc = _bloc(
+          _FakeService(deltaPlan),
+          companionAssets: _GatedCompanionService(gate),
+        );
+        final seen = <LibraryUpdateStatus>[];
+        final sub = bloc.stream.listen((s) => seen.add(s.status));
 
-      bloc.add(const StartLibraryUpdate());
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      // ה-DB כבר עודכן; הריצה תקועה בהורדת הנלווים והמשתמש מבטל.
-      expect(bloc.state.message, 'מוריד את התלמוד הבבלי');
-      bloc.add(const CancelLibraryUpdate());
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+        bloc.add(const StartLibraryUpdate());
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        // ה-DB כבר עודכן; הריצה תקועה בהורדת הנלווים והמשתמש מבטל.
+        expect(bloc.state.message, 'מוריד את התלמוד הבבלי');
+        bloc.add(const CancelLibraryUpdate());
+        await Future<void>.delayed(const Duration(milliseconds: 20));
 
-      expect(bloc.state.status, LibraryUpdateStatus.completed);
-      expect(bloc.state.hasUpdate, isTrue,
-          reason: 'ה-DB הוחלף — ביטול הנלווים לא יכול לאבד את הריענון/אינדוקס');
-      expect(seen.contains(LibraryUpdateStatus.idle), isFalse);
+        expect(bloc.state.status, LibraryUpdateStatus.completed);
+        expect(
+          bloc.state.hasUpdate,
+          isTrue,
+          reason: 'ה-DB הוחלף — ביטול הנלווים לא יכול לאבד את הריענון/אינדוקס',
+        );
+        expect(seen.contains(LibraryUpdateStatus.idle), isFalse);
 
-      gate.complete(); // הריצה הישנה מסתיימת — לא דורסת את ה-state
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(bloc.state.status, LibraryUpdateStatus.completed);
-      await sub.cancel();
-      await bloc.close();
-    });
+        gate.complete(); // הריצה הישנה מסתיימת — לא דורסת את ה-state
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(bloc.state.status, LibraryUpdateStatus.completed);
+        await sub.cancel();
+        await bloc.close();
+      },
+    );
 
     blocTest<LibraryUpdateBloc, LibraryUpdateState>(
       'כשל בקבצים הנלווים לא מפיל את העדכון — עדיין completed',
-      build: () => _bloc(_FakeService(deltaPlan),
-          companionAssets: _FakeCompanionService(throwOnRun: true)),
+      build: () => _bloc(
+        _FakeService(deltaPlan),
+        companionAssets: _FakeCompanionService(throwOnRun: true),
+      ),
       act: (b) => b.add(const StartLibraryUpdate()),
       expect: () => [
-        isA<LibraryUpdateState>()
-            .having((s) => s.status, 'status', LibraryUpdateStatus.checking),
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.checking,
+        ),
         isA<LibraryUpdateState>()
             .having((s) => s.status, 'status', LibraryUpdateStatus.completed)
             .having((s) => s.hasUpdate, 'hasUpdate', true),
@@ -605,13 +736,18 @@ void main() {
       bloc.add(const StartLibraryUpdate());
       await Future<void>.delayed(const Duration(milliseconds: 60));
 
-      final applying =
-          seen.where((s) => s.status == LibraryUpdateStatus.applying).toList();
+      final applying = seen
+          .where((s) => s.status == LibraryUpdateStatus.applying)
+          .toList();
       expect(applying, hasLength(2));
       expect(applying[0].applyProgress, 0.5);
-      expect(applying[1].applyProgress, isNull,
-          reason: 'commit ללא מדידה חייב לנקות את אחוז האימות הקודם, '
-              'אחרת המד מציג ערך שאריתי');
+      expect(
+        applying[1].applyProgress,
+        isNull,
+        reason:
+            'commit ללא מדידה חייב לנקות את אחוז האימות הקודם, '
+            'אחרת המד מציג ערך שאריתי',
+      );
       await sub.cancel();
       await bloc.close();
     });
@@ -631,7 +767,9 @@ void main() {
       'DeclineFullDownload → ממשיך עם הנוכחי, בלי הורדה',
       build: () => _bloc(_FakeService(fullPlan)),
       seed: () => LibraryUpdateState(
-          status: LibraryUpdateStatus.needsFullConfirmation, plan: fullPlan),
+        status: LibraryUpdateStatus.needsFullConfirmation,
+        plan: fullPlan,
+      ),
       act: (b) => b.add(const DeclineFullDownload()),
       verify: (b) => expect((b.repository as _FakeService).fullCalled, isFalse),
       expect: () => [

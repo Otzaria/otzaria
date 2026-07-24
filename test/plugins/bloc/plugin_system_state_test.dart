@@ -63,41 +63,45 @@ void main() {
     test('includes only enabled plugins with pinnedToNavRail = true', () {
       final state = PluginSystemLoaded([
         _plugin(
-            id: 'enabled-pinned',
-            enabled: true,
-            pinned: false,
-            pinnedToNavRail: true),
+          id: 'enabled-pinned',
+          enabled: true,
+          pinned: false,
+          pinnedToNavRail: true,
+        ),
         _plugin(
-            id: 'disabled-pinned',
-            enabled: false,
-            pinned: false,
-            pinnedToNavRail: true),
+          id: 'disabled-pinned',
+          enabled: false,
+          pinned: false,
+          pinnedToNavRail: true,
+        ),
         _plugin(
-            id: 'enabled-not-pinned',
-            enabled: true,
-            pinned: true,
-            pinnedToNavRail: false),
+          id: 'enabled-not-pinned',
+          enabled: true,
+          pinned: true,
+          pinnedToNavRail: false,
+        ),
       ]);
       final ids = state.pluginsPinnedToNavRail.map((p) => p.pluginId).toList();
       expect(ids, ['enabled-pinned']);
     });
 
-    test(
-        'pluginsPinnedToNavRail and pinnedPlugins are independent: '
+    test('pluginsPinnedToNavRail and pinnedPlugins are independent: '
         'a plugin can appear in one without the other', () {
       final state = PluginSystemLoaded([
         // מוצמד-ללשוניות-בלבד (pinned)
         _plugin(
-            id: 'tabs-only',
-            enabled: true,
-            pinned: true,
-            pinnedToNavRail: false),
+          id: 'tabs-only',
+          enabled: true,
+          pinned: true,
+          pinnedToNavRail: false,
+        ),
         // מוצמד-לסרגל-ניווט-בלבד (pinnedToNavRail)
         _plugin(
-            id: 'rail-only',
-            enabled: true,
-            pinned: false,
-            pinnedToNavRail: true),
+          id: 'rail-only',
+          enabled: true,
+          pinned: false,
+          pinnedToNavRail: true,
+        ),
         // שניהם
         _plugin(id: 'both', enabled: true, pinned: true, pinnedToNavRail: true),
       ]);
@@ -122,33 +126,35 @@ void main() {
     });
 
     test(
-        'showInTools=false excludes plugin from pinnedPlugins but NOT from nav rail',
-        () {
-      final state = PluginSystemLoaded([
-        _plugin(
-          id: 'hidden-from-tools',
-          enabled: true,
-          pinned: true,
-          pinnedToNavRail: true,
-          showInTools: false,
-        ),
-        _plugin(
-          id: 'visible',
-          enabled: true,
-          pinned: true,
-          pinnedToNavRail: true,
-        ),
-      ]);
-      expect(
-        state.pinnedPlugins.map((p) => p.pluginId),
-        equals(['visible']),
-        reason: 'plugin with showInTools=false must not appear as tools-tab tab',
-      );
-      expect(
-        state.pluginsPinnedToNavRail.map((p) => p.pluginId),
-        containsAll(['hidden-from-tools', 'visible']),
-        reason: 'showInTools does not affect the nav rail',
-      );
-    });
+      'showInTools=false excludes plugin from pinnedPlugins but NOT from nav rail',
+      () {
+        final state = PluginSystemLoaded([
+          _plugin(
+            id: 'hidden-from-tools',
+            enabled: true,
+            pinned: true,
+            pinnedToNavRail: true,
+            showInTools: false,
+          ),
+          _plugin(
+            id: 'visible',
+            enabled: true,
+            pinned: true,
+            pinnedToNavRail: true,
+          ),
+        ]);
+        expect(
+          state.pinnedPlugins.map((p) => p.pluginId),
+          equals(['visible']),
+          reason:
+              'plugin with showInTools=false must not appear as tools-tab tab',
+        );
+        expect(
+          state.pluginsPinnedToNavRail.map((p) => p.pluginId),
+          containsAll(['hidden-from-tools', 'visible']),
+          reason: 'showInTools does not affect the nav rail',
+        );
+      },
+    );
   });
 }

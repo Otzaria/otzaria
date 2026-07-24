@@ -39,7 +39,7 @@ bool launchWindowsSilentInstaller({
   final commandLine = _isAdminInstall()
       ? (relaunchApp ? '"$installerPath"' : '"$installerPath" /NOLAUNCH=1')
       : '"$installerPath" '
-          '${perUserSilentInstallerArguments(relaunchApp: relaunchApp)}';
+            '${perUserSilentInstallerArguments(relaunchApp: relaunchApp)}';
   return _createBreakawayProcess(commandLine);
 }
 
@@ -60,8 +60,18 @@ bool _createProcess(String commandLine, int creationFlags) {
   si.ref.cb = sizeOf<STARTUPINFO>();
   final pi = calloc<PROCESS_INFORMATION>();
   try {
-    if (CreateProcess(nullptr, cmdLinePtr, nullptr, nullptr, FALSE,
-            creationFlags, nullptr, nullptr, si, pi) ==
+    if (CreateProcess(
+          nullptr,
+          cmdLinePtr,
+          nullptr,
+          nullptr,
+          FALSE,
+          creationFlags,
+          nullptr,
+          nullptr,
+          si,
+          pi,
+        ) ==
         0) {
       return false;
     }

@@ -39,19 +39,22 @@ class PhoneReportService {
         } else if (response.statusCode >= 400 && response.statusCode < 500) {
           // Client error - don't retry
           return PhoneReportResult.error(
-              _getClientErrorMessage(response.statusCode));
+            _getClientErrorMessage(response.statusCode),
+          );
         } else if (response.statusCode >= 500) {
           // Server error - retry if not last attempt
           if (attempt == _maxRetries) {
             return PhoneReportResult.error(
-                ReportMessages.phoneServerUnavailable);
+              ReportMessages.phoneServerUnavailable,
+            );
           }
           // Continue to next attempt
           await Future.delayed(Duration(seconds: attempt));
           continue;
         } else {
           return PhoneReportResult.error(
-              ReportMessages.phoneUnexpectedStatus(response.statusCode));
+            ReportMessages.phoneUnexpectedStatus(response.statusCode),
+          );
         }
       } on SocketException catch (e) {
         debugPrint('Network error on attempt $attempt: $e');

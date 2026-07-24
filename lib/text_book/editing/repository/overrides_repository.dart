@@ -8,7 +8,11 @@ abstract class OverridesRepository {
 
   /// Writes an override for the specified book and section
   Future<void> writeOverride(
-      String bookId, String sectionId, String markdown, String sourceHash);
+    String bookId,
+    String sectionId,
+    String markdown,
+    String sourceHash,
+  );
 
   /// Reads a draft for the specified book and section
   Future<TextDraft?> readDraft(String bookId, String sectionId);

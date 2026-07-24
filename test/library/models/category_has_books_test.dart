@@ -5,16 +5,15 @@ import 'package:otzaria/models/books.dart';
 Category _category({
   List<Book> books = const [],
   List<Category> subCategories = const [],
-}) =>
-    Category(
-      title: 'קטגוריה',
-      description: '',
-      shortDescription: '',
-      order: 0,
-      subCategories: List.of(subCategories),
-      books: List.of(books),
-      parent: null,
-    );
+}) => Category(
+  title: 'קטגוריה',
+  description: '',
+  shortDescription: '',
+  order: 0,
+  subCategories: List.of(subCategories),
+  books: List.of(books),
+  parent: null,
+);
 
 void main() {
   group('Category.hasBooks', () {

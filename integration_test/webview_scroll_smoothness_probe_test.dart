@@ -139,8 +139,10 @@ void main() {
       // --- מחוות אפיון: כמה נבלע לפי גודל/מהירות המחווה ---
       // לכל מחווה: שולחים, ממתינים להתייצבות, ומודדים כמה הדף זז בפועל.
       Future<double> runGesture(String name, double step, int count) async {
-        final before = (await _evalNum(controller, 'window.scrollY'))
-            .toDouble();
+        final before = (await _evalNum(
+          controller,
+          'window.scrollY',
+        )).toDouble();
         fingerY = 0;
         fakeT += 1000;
         await tester.sendEventToBinding(
@@ -157,13 +159,14 @@ void main() {
         );
         await tester.pump();
         await Future<void>.delayed(const Duration(seconds: 2));
-        final after = (await _evalNum(controller, 'window.scrollY'))
-            .toDouble();
+        final after = (await _evalNum(controller, 'window.scrollY')).toDouble();
         final moved = after - before;
         // ignore: avoid_print
-        print('PROBE gesture $name: finger=${(step * count).toStringAsFixed(0)}px '
-            'page=${moved.toStringAsFixed(1)}px '
-            'lost=${(step * count - moved).toStringAsFixed(1)}px');
+        print(
+          'PROBE gesture $name: finger=${(step * count).toStringAsFixed(0)}px '
+          'page=${moved.toStringAsFixed(1)}px '
+          'lost=${(step * count - moved).toStringAsFixed(1)}px',
+        );
         return moved;
       }
 
@@ -193,8 +196,7 @@ void main() {
       } catch (_) {}
 
       final moving = samples.where((s) => s[1] > 0).toList();
-      expect(moving, isNotEmpty,
-          reason: 'גרירת טאצ\'פד חייבת לגלול את הדף');
+      expect(moving, isNotEmpty, reason: 'גרירת טאצ\'פד חייבת לגלול את הדף');
       final firstMoveT = moving.first[0];
       final dragEnd = releaseT.toDouble();
       final steadyStart = firstMoveT + (dragEnd - firstMoveT) * 0.2;
@@ -208,13 +210,14 @@ void main() {
       }
       final meanStep = steps.reduce((a, b) => a + b) / steps.length;
       final variance =
-          steps.map((s) => (s - meanStep) * (s - meanStep)).reduce(
+          steps
+              .map((s) => (s - meanStep) * (s - meanStep))
+              .reduce(
                 (a, b) => a + b,
               ) /
-              steps.length;
+          steps.length;
       final stdStep = math.sqrt(variance);
-      final stallPct =
-          steps.where((s) => s == 0).length * 100.0 / steps.length;
+      final stallPct = steps.where((s) => s == 0).length * 100.0 / steps.length;
       final latencyMs = firstMoveT - inputStartT.toDouble();
       // מנרמלים את היחס ל-gain: 1.0 = הדף זז בדיוק אצבע × gain.
       final ratio = scrollAfterDrag / (firstFinger * _kTrackpadGain);
@@ -231,25 +234,52 @@ void main() {
       );
 
       // ספי איכות — נכשלים על רגרסיה, לא רק על "זז בכלל".
-      expect(ratio, greaterThan(0.85),
-          reason: 'הדף חייב לעקוב אחרי האצבעות (כפול ה-gain)');
-      expect(ratio, lessThan(1.15),
-          reason: 'הדף לא אמור לגלול מעבר לאצבעות (כפול ה-gain)');
-      expect(stallPct, lessThan(15),
-          reason: 'גלילה מקרטעת — יותר מדי פריימים ללא תזוזה');
-      expect(stdStep / meanStep, lessThan(0.6),
-          reason: 'גלילה קופצנית — פיזור צעדים גדול ביחס לממוצע');
-      expect(latencyMs, lessThan(150),
-          reason: 'השהיה גדולה מדי מתחילת הקלט עד תזוזה');
+      expect(
+        ratio,
+        greaterThan(0.85),
+        reason: 'הדף חייב לעקוב אחרי האצבעות (כפול ה-gain)',
+      );
+      expect(
+        ratio,
+        lessThan(1.15),
+        reason: 'הדף לא אמור לגלול מעבר לאצבעות (כפול ה-gain)',
+      );
+      expect(
+        stallPct,
+        lessThan(15),
+        reason: 'גלילה מקרטעת — יותר מדי פריימים ללא תזוזה',
+      );
+      expect(
+        stdStep / meanStep,
+        lessThan(0.6),
+        reason: 'גלילה קופצנית — פיזור צעדים גדול ביחס לממוצע',
+      );
+      expect(
+        latencyMs,
+        lessThan(150),
+        reason: 'השהיה גדולה מדי מתחילת הקלט עד תזוזה',
+      );
       // אסור אזור מת: גם מחוות קצרות ואיטיות חייבות לגלול את רוב דרכן.
-      expect(movedB, greaterThan(40 * _kTrackpadGain * 0.7),
-          reason: 'מחווה בינונית (40px) חייבת לגלול את רוב הדרך');
-      expect(movedC, greaterThan(30 * _kTrackpadGain * 0.7),
-          reason: 'מחווה איטית (30px) חייבת לגלול את רוב הדרך');
-      expect(movedD, greaterThan(12 * _kTrackpadGain * 0.6),
-          reason: 'מיקרו-מחווה מהירה (12px) חייבת לגלול');
-      expect(movedE, greaterThan(8 * _kTrackpadGain * 0.5),
-          reason: 'מיקרו-מחווה איטית (8px) חייבת לגלול');
+      expect(
+        movedB,
+        greaterThan(40 * _kTrackpadGain * 0.7),
+        reason: 'מחווה בינונית (40px) חייבת לגלול את רוב הדרך',
+      );
+      expect(
+        movedC,
+        greaterThan(30 * _kTrackpadGain * 0.7),
+        reason: 'מחווה איטית (30px) חייבת לגלול את רוב הדרך',
+      );
+      expect(
+        movedD,
+        greaterThan(12 * _kTrackpadGain * 0.6),
+        reason: 'מיקרו-מחווה מהירה (12px) חייבת לגלול',
+      );
+      expect(
+        movedE,
+        greaterThan(8 * _kTrackpadGain * 0.5),
+        reason: 'מיקרו-מחווה איטית (8px) חייבת לגלול',
+      );
     },
     timeout: const Timeout(Duration(minutes: 5)),
   );

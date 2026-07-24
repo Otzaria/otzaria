@@ -63,8 +63,11 @@ void main() {
       await HttpClientRegistry.closeAll();
 
       expect(syncCalled, isTrue);
-      expect(asyncCalled, isTrue,
-          reason: 'closer async חייב להמתין לסיומו לפני closeAll מחזיר');
+      expect(
+        asyncCalled,
+        isTrue,
+        reason: 'closer async חייב להמתין לסיומו לפני closeAll מחזיר',
+      );
     });
 
     test('closeAll על registry ריק חוזר מיד בלי לזרוק', () async {
@@ -86,40 +89,52 @@ void main() {
 
       // closeAll לא אמור לזרוק — אסור שיציאה תיחסם על closer בודד.
       await expectLater(HttpClientRegistry.closeAll(), completes);
-      expect(goodCalled, isTrue,
-          reason:
-              'closer לאחר זורק חייב לרוץ — בידוד שגיאות הוא הליבה של החוזה');
+      expect(
+        goodCalled,
+        isTrue,
+        reason: 'closer לאחר זורק חייב לרוץ — בידוד שגיאות הוא הליבה של החוזה',
+      );
     });
 
-    test('closeAll נחתך ב-timeout כש-closer נתקע, ולא חוסם את היציאה',
-        () async {
-      var hangingStarted = false;
-      var fastCalled = false;
-      final hangingCompleter = Completer<void>();
+    test(
+      'closeAll נחתך ב-timeout כש-closer נתקע, ולא חוסם את היציאה',
+      () async {
+        var hangingStarted = false;
+        var fastCalled = false;
+        final hangingCompleter = Completer<void>();
 
-      HttpClientRegistry.register(() async {
-        hangingStarted = true;
-        // לא נסיים לעולם בלי טריגר חיצוני.
-        await hangingCompleter.future;
-      });
-      HttpClientRegistry.register(() => fastCalled = true);
+        HttpClientRegistry.register(() async {
+          hangingStarted = true;
+          // לא נסיים לעולם בלי טריגר חיצוני.
+          await hangingCompleter.future;
+        });
+        HttpClientRegistry.register(() => fastCalled = true);
 
-      final sw = Stopwatch()..start();
-      try {
-        await HttpClientRegistry.closeAll(
-            timeout: const Duration(milliseconds: 100));
-      } finally {
-        // לפתוח את ה-completer כדי לא להשאיר Future מיותר ל-tearDown.
-        hangingCompleter.complete();
-      }
-      sw.stop();
+        final sw = Stopwatch()..start();
+        try {
+          await HttpClientRegistry.closeAll(
+            timeout: const Duration(milliseconds: 100),
+          );
+        } finally {
+          // לפתוח את ה-completer כדי לא להשאיר Future מיותר ל-tearDown.
+          hangingCompleter.complete();
+        }
+        sw.stop();
 
-      expect(hangingStarted, isTrue);
-      expect(fastCalled, isTrue, reason: 'closer מהיר חייב להספיק לרוץ במקביל');
-      // timeout 100ms + buffer של framework. עיקר הבדיקה: לא 5 שניות.
-      expect(sw.elapsedMilliseconds, lessThan(800),
-          reason: 'אם closer תקוע יחסום את closeAll, פג ה-timeout לא הצליח');
-    });
+        expect(hangingStarted, isTrue);
+        expect(
+          fastCalled,
+          isTrue,
+          reason: 'closer מהיר חייב להספיק לרוץ במקביל',
+        );
+        // timeout 100ms + buffer של framework. עיקר הבדיקה: לא 5 שניות.
+        expect(
+          sw.elapsedMilliseconds,
+          lessThan(800),
+          reason: 'אם closer תקוע יחסום את closeAll, פג ה-timeout לא הצליח',
+        );
+      },
+    );
 
     test('closeAll רץ במקביל — לא סדרתי', () async {
       // אם closers רצים סדרתית, זמן closeAll הוא סכום הזמנים שלהם.
@@ -134,40 +149,51 @@ void main() {
 
       final sw = Stopwatch()..start();
       await HttpClientRegistry.closeAll(
-          timeout: const Duration(milliseconds: 800));
+        timeout: const Duration(milliseconds: 800),
+      );
       sw.stop();
 
       // סדרתי = 240ms+, מקביל = 60ms+. נדרוש <150ms כדי להבטיח מקביל.
-      expect(sw.elapsedMilliseconds, lessThan(150),
-          reason: 'closeAll חייב להריץ closers במקביל — סדרתי יבטל את ההנחה '
-              'שסגירה כוללת תיגמר בתוך budget קצר');
+      expect(
+        sw.elapsedMilliseconds,
+        lessThan(150),
+        reason:
+            'closeAll חייב להריץ closers במקביל — סדרתי יבטל את ההנחה '
+            'שסגירה כוללת תיגמר בתוך budget קצר',
+      );
     });
 
-    test('snapshot של ה-closers בזמן closeAll: register במהלך הריצה לא משנה',
-        () async {
-      var firstCalled = false;
-      var lateRegisteredCalled = false;
+    test(
+      'snapshot של ה-closers בזמן closeAll: register במהלך הריצה לא משנה',
+      () async {
+        var firstCalled = false;
+        var lateRegisteredCalled = false;
 
-      void lateCloser() {
-        lateRegisteredCalled = true;
-      }
+        void lateCloser() {
+          lateRegisteredCalled = true;
+        }
 
-      HttpClientRegistry.register(() async {
-        firstCalled = true;
-        // רישום client חדש באמצע closeAll — סדר אופייני אם BLoC מאתחל
-        // לעצמו לקוח במהלך dispose של BLoC אחר.
-        HttpClientRegistry.register(lateCloser);
-      });
+        HttpClientRegistry.register(() async {
+          firstCalled = true;
+          // רישום client חדש באמצע closeAll — סדר אופייני אם BLoC מאתחל
+          // לעצמו לקוח במהלך dispose של BLoC אחר.
+          HttpClientRegistry.register(lateCloser);
+        });
 
-      await HttpClientRegistry.closeAll();
+        await HttpClientRegistry.closeAll();
 
-      expect(firstCalled, isTrue);
-      expect(lateRegisteredCalled, isFalse,
-          reason: 'closer שנרשם תוך כדי closeAll לא צריך להיקרא ב-iteration '
-              'הנוכחית — אחרת iteration אינסופי אם הוא רושם עוד');
+        expect(firstCalled, isTrue);
+        expect(
+          lateRegisteredCalled,
+          isFalse,
+          reason:
+              'closer שנרשם תוך כדי closeAll לא צריך להיקרא ב-iteration '
+              'הנוכחית — אחרת iteration אינסופי אם הוא רושם עוד',
+        );
 
-      // נקה כדי לא להשפיע על tearDown.
-      HttpClientRegistry.unregister(lateCloser);
-    });
+        // נקה כדי לא להשפיע על tearDown.
+        HttpClientRegistry.unregister(lateCloser);
+      },
+    );
   });
 }

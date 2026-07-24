@@ -199,10 +199,9 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
           Center(
             child: Text(
               widget.title!,
-              style: Theme.of(context)
-                  .textTheme
-                  .headlineMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
           ),
           Align(
@@ -232,10 +231,14 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
   /// ה-padding האנכי נשאר בחוץ; האופקי עובר לתוך ה-ScrollView.
   Widget _buildScrollableContent(BuildContext context) {
     final resolved = widget.contentPadding.resolve(Directionality.of(context));
-    final verticalPadding =
-        EdgeInsets.only(top: resolved.top, bottom: resolved.bottom);
-    final horizontalPadding =
-        EdgeInsets.only(left: resolved.left, right: resolved.right);
+    final verticalPadding = EdgeInsets.only(
+      top: resolved.top,
+      bottom: resolved.bottom,
+    );
+    final horizontalPadding = EdgeInsets.only(
+      left: resolved.left,
+      right: resolved.right,
+    );
 
     // centerEnd = פאנל בשמאל → ידית בקצה ימין, פס גלילה נשאר בשמאל (ללא חפיפה).
     // centerStart = פאנל בימין → ידית בקצה שמאל; פס הגלילה חייב לעבור לימין.
@@ -278,14 +281,18 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
     final overhang = showHandle ? handleHitOverhang(context) : 0.0;
     // בחלון צר מצמצמים את הרוחב כדי להשאיר שוליים משני הצדדים
     const sideMargin = 10.0;
-    final maxPanelWidth =
-        (constraints.maxWidth - sideMargin * 2).clamp(0.0, double.infinity);
-    final effectiveWidth =
-        _currentWidth > maxPanelWidth ? maxPanelWidth : _currentWidth;
+    final maxPanelWidth = (constraints.maxWidth - sideMargin * 2).clamp(
+      0.0,
+      double.infinity,
+    );
+    final effectiveWidth = _currentWidth > maxPanelWidth
+        ? maxPanelWidth
+        : _currentWidth;
     // בחלון צר מ-minWidth הטווח היה מתהפך ו-clamp היה זורק בזמן גרירה
     final dragMaxWidth = widget.maxWidth ?? maxPanelWidth;
-    final effectiveDragMax =
-        dragMaxWidth < widget.minWidth ? widget.minWidth : dragMaxWidth;
+    final effectiveDragMax = dragMaxWidth < widget.minWidth
+        ? widget.minWidth
+        : dragMaxWidth;
 
     return IgnorePointer(
       ignoring: !widget.isOpen,
@@ -327,15 +334,17 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
                     child: SafeArea(
                       child: widget.scrollable
                           ? (_shouldBuildChild
-                              ? _buildScrollableContent(context)
-                              : const SizedBox.shrink())
+                                ? _buildScrollableContent(context)
+                                : const SizedBox.shrink())
                           : Padding(
                               padding: widget.contentPadding,
                               child: _shouldBuildChild
                                   ? (widget.title != null
-                                      ? _buildChildWithTitle(
-                                          context, EdgeInsets.zero)
-                                      : widget.child)
+                                        ? _buildChildWithTitle(
+                                            context,
+                                            EdgeInsets.zero,
+                                          )
+                                        : widget.child)
                                   : const SizedBox.shrink(),
                             ),
                     ),
@@ -357,8 +366,10 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
                 onDragDelta: (delta) {
                   final d = isLeft ? delta : -delta;
                   setState(() {
-                    _currentWidth = (_currentWidth + d)
-                        .clamp(widget.minWidth, effectiveDragMax);
+                    _currentWidth = (_currentWidth + d).clamp(
+                      widget.minWidth,
+                      effectiveDragMax,
+                    );
                   });
                 },
               ),

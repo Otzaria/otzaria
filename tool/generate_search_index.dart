@@ -25,9 +25,11 @@ void main(List<String> args) {
   final result = generateSettingsSearchIndex(Directory.current);
   if (result.changed) {
     stdout.writeln(
-        'Generated ${result.outputPath} with ${result.declarationsCount} declaration(s).');
+      'Generated ${result.outputPath} with ${result.declarationsCount} declaration(s).',
+    );
   } else {
     stdout.writeln(
-        'Index up-to-date: ${result.outputPath} (${result.declarationsCount} declarations).');
+      'Index up-to-date: ${result.outputPath} (${result.declarationsCount} declarations).',
+    );
   }
 }

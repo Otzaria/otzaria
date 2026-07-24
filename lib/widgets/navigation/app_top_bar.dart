@@ -117,7 +117,10 @@ class _AppTopBarState extends State<AppTopBar>
     super.initState();
     final initial = widget.secondaryRowVisible?.value != false ? 1.0 : 0.0;
     _anim = AnimationController(
-        vsync: this, duration: _kAnimDuration, value: initial);
+      vsync: this,
+      duration: _kAnimDuration,
+      value: initial,
+    );
     _progress = CurvedAnimation(parent: _anim, curve: Curves.easeInOut);
     _anim.addListener(_notifyHeight);
     _pendingVisible = widget.secondaryRowVisible?.value ?? true;
@@ -202,7 +205,9 @@ class _AppTopBarState extends State<AppTopBar>
   // ── עזרי בנייה ──────────────────────────────────────────────────────────
 
   List<Widget> _itemsToWidgets(
-      BuildContext context, List<AppTopBarItem> items) {
+    BuildContext context,
+    List<AppTopBarItem> items,
+  ) {
     final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
     final List<Widget> result = [];
     final double buttonSpacing = isCompact ? 4.0 : 8.0;
@@ -294,8 +299,10 @@ class _AppTopBarState extends State<AppTopBar>
                     ? null
                     : Row(
                         mainAxisSize: MainAxisSize.min,
-                        children:
-                            _itemsToWidgets(context, widget.trailingItems),
+                        children: _itemsToWidgets(
+                          context,
+                          widget.trailingItems,
+                        ),
                       ),
               ),
             ),

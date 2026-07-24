@@ -19,8 +19,9 @@ class DocxTextCacheDao {
 
   Future<DocxTextCacheEntry?> selectByFilePath(String filePath) async {
     final db = await database;
-    final result =
-        db.select(_queries['selectByFilePath']!, [filePath]).toMapList();
+    final result = db.select(_queries['selectByFilePath']!, [
+      filePath,
+    ]).toMapList();
     if (result.isEmpty) return null;
     return DocxTextCacheEntry.fromMap(result.first);
   }

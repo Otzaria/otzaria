@@ -28,32 +28,48 @@ void main() {
     if (await tempDir.exists()) await tempDir.delete(recursive: true);
   });
 
-  test('insertLinksBatch שומר לינק TARGUM עם ה-id של TARGUM (לא default)',
-      () async {
-    final db = await database.database;
-    final targumId = db
-        .select("SELECT id FROM connection_type WHERE name = 'TARGUM'")
-        .first['id'] as int;
-    final otherId = db
-        .select("SELECT id FROM connection_type WHERE name = 'OTHER'")
-        .first['id'] as int;
+  test(
+    'insertLinksBatch שומר לינק TARGUM עם ה-id של TARGUM (לא default)',
+    () async {
+      final db = await database.database;
+      final targumId =
+          db
+                  .select(
+                    "SELECT id FROM connection_type WHERE name = 'TARGUM'",
+                  )
+                  .first['id']
+              as int;
+      final otherId =
+          db
+                  .select("SELECT id FROM connection_type WHERE name = 'OTHER'")
+                  .first['id']
+              as int;
 
-    await repository.insertLinksBatch([
-      const Link(
-        sourceBookId: 1,
-        targetBookId: 2,
-        sourceLineId: 10,
-        targetLineId: 20,
-        connectionType: ConnectionType.targum,
-      ),
-    ]);
+      await repository.insertLinksBatch([
+        const Link(
+          sourceBookId: 1,
+          targetBookId: 2,
+          sourceLineId: 10,
+          targetLineId: 20,
+          connectionType: ConnectionType.targum,
+        ),
+      ]);
 
-    final stored = db
-        .select('SELECT connectionTypeId FROM link')
-        .first['connectionTypeId'] as int;
-    expect(stored, targumId,
-        reason: 'הסוג נשמר לפי שם — TARGUM, לא נפילה ל-default');
-    expect(stored, isNot(otherId),
-        reason: 'לפני התיקון הלינק נפל ל-default (הסוג הראשון)');
-  });
+      final stored =
+          db
+                  .select('SELECT connectionTypeId FROM link')
+                  .first['connectionTypeId']
+              as int;
+      expect(
+        stored,
+        targumId,
+        reason: 'הסוג נשמר לפי שם — TARGUM, לא נפילה ל-default',
+      );
+      expect(
+        stored,
+        isNot(otherId),
+        reason: 'לפני התיקון הלינק נפל ל-default (הסוג הראשון)',
+      );
+    },
+  );
 }

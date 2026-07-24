@@ -332,8 +332,9 @@ class ExternalUriRouter {
   }
 
   static ExternalUriAction? _parseOpen(Uri uri) {
-    final segments =
-        uri.pathSegments.where((segment) => segment.isNotEmpty).toList();
+    final segments = uri.pathSegments
+        .where((segment) => segment.isNotEmpty)
+        .toList();
     if (segments.isEmpty) {
       return null;
     }
@@ -442,12 +443,14 @@ class ExternalUriRouter {
       final parsedIndex = indexParam == null || indexParam.isEmpty
           ? null
           : int.tryParse(indexParam);
-      final index =
-          (parsedIndex != null && parsedIndex >= 0) ? parsedIndex : null;
+      final index = (parsedIndex != null && parsedIndex >= 0)
+          ? parsedIndex
+          : null;
 
       final rawQuery = uri.queryParameters['q']?.trim();
-      final rawSearchQuery =
-          (rawQuery == null || rawQuery.isEmpty) ? null : rawQuery;
+      final rawSearchQuery = (rawQuery == null || rawQuery.isEmpty)
+          ? null
+          : rawQuery;
 
       // mark — דגל בוליאני: קיים ב-queryParameters גם ללא ערך (?mark) וגם עם ערך ריק (?mark=)
       final markSection = uri.queryParameters.containsKey('mark');
@@ -459,8 +462,9 @@ class ExternalUriRouter {
       // אכיפת עדיפות m > mark > q: אם יש סימון מקומי (m או mark), q מתעלם
       // לחלוטין כדי שלא תיפתח לשונית חיפוש כללית במקביל. כך הקישור מתנהג
       // כפי שמתואר בתיעוד והקריאה ל-API חד-משמעית.
-      final searchQuery =
-          (markText != null || markSection) ? null : rawSearchQuery;
+      final searchQuery = (markText != null || markSection)
+          ? null
+          : rawSearchQuery;
 
       return OpenBookAction(
         bookId,
@@ -479,8 +483,9 @@ class ExternalUriRouter {
 
       final indexParam = uri.queryParameters['index']?.trim();
       final parsedIndex = int.tryParse(indexParam ?? '');
-      final page =
-          (parsedIndex != null && parsedIndex >= 1) ? parsedIndex : null;
+      final page = (parsedIndex != null && parsedIndex >= 1)
+          ? parsedIndex
+          : null;
 
       return OpenPdfBookAction(bookId, page: page);
     }

@@ -46,7 +46,8 @@ final RegExp _whitespaceRun = RegExp(r'\s+');
 /// מייצרות רווח כפול, והחיפוש הליטרלי לא מוצא שאילתה עם רווח בודד.
 String cleanLineForSearch(String rawLine) => utils
     .removeVolwels(
-        utils.stripHtmlIfNeeded(notes.stripInlineNotesForSearch(rawLine)))
+      utils.stripHtmlIfNeeded(notes.stripInlineNotesForSearch(rawLine)),
+    )
     .replaceAll(_whitespaceRun, ' ')
     .trim();
 
@@ -188,20 +189,22 @@ class _SearchWorkerHost {
     _receivePort!.listen(_handleMessage);
 
     Isolate.spawn<SendPort>(
-      _searchWorkerMain,
-      _receivePort!.sendPort,
-    ).then((isolate) {
-      _isolate = isolate;
-    }).catchError((Object error, StackTrace stackTrace) {
-      _startFuture = null;
-      final startCompleter = _startCompleter;
-      _startCompleter = null;
-      _receivePort?.close();
-      _receivePort = null;
-      if (startCompleter != null && !startCompleter.isCompleted) {
-        startCompleter.completeError(error, stackTrace);
-      }
-    });
+          _searchWorkerMain,
+          _receivePort!.sendPort,
+        )
+        .then((isolate) {
+          _isolate = isolate;
+        })
+        .catchError((Object error, StackTrace stackTrace) {
+          _startFuture = null;
+          final startCompleter = _startCompleter;
+          _startCompleter = null;
+          _receivePort?.close();
+          _receivePort = null;
+          if (startCompleter != null && !startCompleter.isCompleted) {
+            startCompleter.completeError(error, stackTrace);
+          }
+        });
 
     return completer.future;
   }
@@ -332,12 +335,14 @@ class SectionSearchWorkerRuntime {
         try {
           final contentId = request['contentId'] as int?;
           final query = _normalizeQueryWhitespace(request['query'] as String);
-          final pattern =
-              compileLiteralPattern(request['patternSource'] as String);
+          final pattern = compileLiteralPattern(
+            request['patternSource'] as String,
+          );
 
           // ודא שה-cache תואם לתוכן המבוקש; אחרת בנה אותו פעם אחת.
           // בקשה ללא contentId (תאימות לאחור) נחשבת תמיד כתוכן חדש.
-          final bool cacheValid = contentId != null &&
+          final bool cacheValid =
+              contentId != null &&
               contentId == _cachedContentId &&
               _cachedCleanLines != null;
           if (!cacheValid) {
@@ -385,15 +390,17 @@ class SectionSearchWorkerRuntime {
             String? cleanAddress;
             for (int m = 0; m < lineMatches.length; m++) {
               final match = lineMatches[m];
-              cleanAddress ??= utils
-                  .removeVolwels(utils.stripHtmlIfNeeded(address.join(', ')));
+              cleanAddress ??= utils.removeVolwels(
+                utils.stripHtmlIfNeeded(address.join(', ')),
+              );
               results.add({
                 'index': i,
                 'snippet': _snippetAroundMatch(
                   cleanLines[i],
                   match,
-                  lowerBound:
-                      m > 0 ? (lineMatches[m - 1].end + match.start) ~/ 2 : 0,
+                  lowerBound: m > 0
+                      ? (lineMatches[m - 1].end + match.start) ~/ 2
+                      : 0,
                   upperBound: m < lineMatches.length - 1
                       ? (match.end + lineMatches[m + 1].start) ~/ 2
                       : cleanLines[i].length,

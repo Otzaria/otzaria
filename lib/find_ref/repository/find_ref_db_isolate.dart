@@ -361,8 +361,9 @@ void _workerMain(_Bootstrap bootstrap) {
       case 'era':
         final repo = await ensureRepo();
         if (repo == null) return CommentaryEra.other.order;
-        final info = await repo
-            .getBookGenerationInfoByTitle(args['bookTitle'] as String);
+        final info = await repo.getBookGenerationInfoByTitle(
+          args['bookTitle'] as String,
+        );
         if (info == null) return CommentaryEra.other.order;
         final era = CommentaryEra.values.firstWhere(
           (e) => e.hebrewName == info.generationName,

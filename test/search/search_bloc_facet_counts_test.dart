@@ -43,10 +43,16 @@ Future<void> main() async {
       build: SearchBloc.new,
       act: (bloc) => bloc.add(SetSearchMode(SearchMode.fuzzy)),
       expect: () => [
-        isA<SearchState>().having((state) => state.configuration.searchMode,
-            'searchMode', SearchMode.fuzzy),
-        isA<SearchState>().having((state) => state.configuration.searchMode,
-            'searchMode', SearchMode.fuzzy),
+        isA<SearchState>().having(
+          (state) => state.configuration.searchMode,
+          'searchMode',
+          SearchMode.fuzzy,
+        ),
+        isA<SearchState>().having(
+          (state) => state.configuration.searchMode,
+          'searchMode',
+          SearchMode.fuzzy,
+        ),
       ],
     );
 
@@ -127,10 +133,16 @@ Future<void> main() async {
       ),
       act: (bloc) => bloc.add(SetSearchMode(SearchMode.exact)),
       expect: () => [
-        isA<SearchState>().having((state) => state.configuration.searchMode,
-            'searchMode', SearchMode.exact),
-        isA<SearchState>().having((state) => state.configuration.searchMode,
-            'searchMode', SearchMode.exact),
+        isA<SearchState>().having(
+          (state) => state.configuration.searchMode,
+          'searchMode',
+          SearchMode.exact,
+        ),
+        isA<SearchState>().having(
+          (state) => state.configuration.searchMode,
+          'searchMode',
+          SearchMode.exact,
+        ),
       ],
     );
 
@@ -140,8 +152,11 @@ Future<void> main() async {
       act: (bloc) => bloc.add(SetSearchModeWithoutSearch(SearchMode.fuzzy)),
       expect: () => [
         isA<SearchState>()
-            .having((state) => state.configuration.searchMode, 'searchMode',
-                SearchMode.fuzzy)
+            .having(
+              (state) => state.configuration.searchMode,
+              'searchMode',
+              SearchMode.fuzzy,
+            )
             .having((state) => state.configuration.distance, 'distance', 2),
       ],
     );
@@ -151,8 +166,11 @@ Future<void> main() async {
       build: SearchBloc.new,
       act: (bloc) => bloc.add(UpdateDistanceWithoutSearch(4)),
       expect: () => [
-        isA<SearchState>()
-            .having((state) => state.configuration.distance, 'distance', 4),
+        isA<SearchState>().having(
+          (state) => state.configuration.distance,
+          'distance',
+          4,
+        ),
       ],
     );
 
@@ -203,8 +221,11 @@ Future<void> main() async {
         bloc.add(ReplaceFacetCounts({'/ישן': 1}, requestId: 99));
       },
       expect: () => [
-        isA<SearchState>()
-            .having((state) => state.facetCounts['/עדכני'], '/עדכני', 5),
+        isA<SearchState>().having(
+          (state) => state.facetCounts['/עדכני'],
+          '/עדכני',
+          5,
+        ),
         // אין state נוסף — ה-ReplaceFacetCounts הישן לא גרם ל-emit.
       ],
     );
@@ -222,8 +243,11 @@ Future<void> main() async {
             .having((state) => state.facetCounts['/א'], '/א', 1),
         isA<SearchState>()
             .having((state) => state.searchQuery, 'searchQuery', '')
-            .having((state) => state.facetCounts.isEmpty, 'facetCounts empty',
-                true),
+            .having(
+              (state) => state.facetCounts.isEmpty,
+              'facetCounts empty',
+              true,
+            ),
       ],
     );
 
@@ -232,13 +256,16 @@ Future<void> main() async {
       build: SearchBloc.new,
       act: (bloc) => bloc.add(const SetFacetsWithoutSearch(['/תנ"ך'])),
       expect: () => [
-        isA<SearchState>().having(
-            (state) => state.currentFacets, 'currentFacets', [
-          '/תנ"ך'
-        ]).having((state) => state.searchScopeFacets, 'searchScopeFacets', [
-          '/תנ"ך'
-        ]).having((state) => state.hasScopedFacetFilter, 'hasScopedFacetFilter',
-            true),
+        isA<SearchState>()
+            .having((state) => state.currentFacets, 'currentFacets', ['/תנ"ך'])
+            .having((state) => state.searchScopeFacets, 'searchScopeFacets', [
+              '/תנ"ך',
+            ])
+            .having(
+              (state) => state.hasScopedFacetFilter,
+              'hasScopedFacetFilter',
+              true,
+            ),
       ],
     );
 
@@ -250,23 +277,27 @@ Future<void> main() async {
         bloc.add(SetFacet('/תנ"ך/ראשונים'));
       },
       expect: () => [
-        isA<SearchState>().having(
-            (state) => state.currentFacets, 'currentFacets', [
-          '/תנ"ך'
-        ]).having(
-            (state) => state.searchScopeFacets, 'searchScopeFacets', ['/תנ"ך']),
-        isA<SearchState>().having(
-            (state) => state.currentFacets, 'currentFacets', [
-          '/תנ"ך/ראשונים'
-        ]).having(
-            (state) => state.searchScopeFacets, 'searchScopeFacets', ['/תנ"ך']),
+        isA<SearchState>()
+            .having((state) => state.currentFacets, 'currentFacets', ['/תנ"ך'])
+            .having((state) => state.searchScopeFacets, 'searchScopeFacets', [
+              '/תנ"ך',
+            ]),
+        isA<SearchState>()
+            .having((state) => state.currentFacets, 'currentFacets', [
+              '/תנ"ך/ראשונים',
+            ])
+            .having((state) => state.searchScopeFacets, 'searchScopeFacets', [
+              '/תנ"ך',
+            ]),
         isA<SearchState>()
             .having((state) => state.isLoading, 'isLoading', false)
             .having((state) => state.searchQuery, 'searchQuery', '')
             .having((state) => state.currentFacets, 'currentFacets', [
-          '/תנ"ך/ראשונים'
-        ]).having((state) => state.searchScopeFacets, 'searchScopeFacets',
-                ['/תנ"ך']),
+              '/תנ"ך/ראשונים',
+            ])
+            .having((state) => state.searchScopeFacets, 'searchScopeFacets', [
+              '/תנ"ך',
+            ]),
       ],
     );
 
@@ -276,45 +307,58 @@ Future<void> main() async {
       act: (bloc) => bloc.add(const SetFacetsWithoutSearch([])),
       expect: () => [
         isA<SearchState>()
-            .having((state) => state.currentFacets, 'currentFacets', []).having(
-                (state) => state.searchScopeFacets,
-                'searchScopeFacets',
-                []).having((state) => state.hasNoSelectedFacets, 'hasNoSelectedFacets', true),
+            .having((state) => state.currentFacets, 'currentFacets', [])
+            .having((state) => state.searchScopeFacets, 'searchScopeFacets', [])
+            .having(
+              (state) => state.hasNoSelectedFacets,
+              'hasNoSelectedFacets',
+              true,
+            ),
       ],
     );
 
     group('חתימת ספירת facets (דילוג על ספירה חוזרת)', () {
-      test('חתימה זהה לאירועים שקולים ושונה כשמשתנה קלט שמשפיע על הספירה',
-          () async {
-        final bloc = SearchBloc();
-        addTearDown(bloc.close);
+      test(
+        'חתימה זהה לאירועים שקולים ושונה כשמשתנה קלט שמשפיע על הספירה',
+        () async {
+          final bloc = SearchBloc();
+          addTearDown(bloc.close);
 
-        final base = UpdateSearchQuery('שלום', searchOptions: const {
-          'שלום_0': {'קידומות': true},
-        });
-        final sameAsBase = UpdateSearchQuery('שלום', searchOptions: const {
-          'שלום_0': {'קידומות': true},
-        });
+          final base = UpdateSearchQuery(
+            'שלום',
+            searchOptions: const {
+              'שלום_0': {'קידומות': true},
+            },
+          );
+          final sameAsBase = UpdateSearchQuery(
+            'שלום',
+            searchOptions: const {
+              'שלום_0': {'קידומות': true},
+            },
+          );
 
-        expect(
-          bloc.facetRecountSignatureForTesting(base),
-          bloc.facetRecountSignatureForTesting(sameAsBase),
-        );
+          expect(
+            bloc.facetRecountSignatureForTesting(base),
+            bloc.facetRecountSignatureForTesting(sameAsBase),
+          );
 
-        final differentQuery = UpdateSearchQuery('ברכה');
-        final differentOptions =
-            UpdateSearchQuery('שלום', searchOptions: const {
-          'שלום_0': {'סיומות': true},
-        });
-        expect(
-          bloc.facetRecountSignatureForTesting(base),
-          isNot(bloc.facetRecountSignatureForTesting(differentQuery)),
-        );
-        expect(
-          bloc.facetRecountSignatureForTesting(base),
-          isNot(bloc.facetRecountSignatureForTesting(differentOptions)),
-        );
-      });
+          final differentQuery = UpdateSearchQuery('ברכה');
+          final differentOptions = UpdateSearchQuery(
+            'שלום',
+            searchOptions: const {
+              'שלום_0': {'סיומות': true},
+            },
+          );
+          expect(
+            bloc.facetRecountSignatureForTesting(base),
+            isNot(bloc.facetRecountSignatureForTesting(differentQuery)),
+          );
+          expect(
+            bloc.facetRecountSignatureForTesting(base),
+            isNot(bloc.facetRecountSignatureForTesting(differentOptions)),
+          );
+        },
+      );
 
       test('שינוי scope או מצב חיפוש משנה את החתימה', () async {
         final bloc = SearchBloc();
@@ -338,7 +382,8 @@ Future<void> main() async {
         build: SearchBloc.new,
         act: (bloc) async {
           bloc.add(
-              ReplaceFacetCounts({'/א': 1}, requestId: 0, signature: 'sig-a'));
+            ReplaceFacetCounts({'/א': 1}, requestId: 0, signature: 'sig-a'),
+          );
           await Future<void>.delayed(Duration.zero);
           expect(bloc.facetCountsSignatureForTesting, 'sig-a');
           bloc.add(ResetSearch());
@@ -352,7 +397,8 @@ Future<void> main() async {
         'ReplaceFacetCounts עם requestId ישן לא שומר חתימה',
         build: SearchBloc.new,
         act: (bloc) => bloc.add(
-            ReplaceFacetCounts({'/א': 1}, requestId: 99, signature: 'sig-a')),
+          ReplaceFacetCounts({'/א': 1}, requestId: 99, signature: 'sig-a'),
+        ),
         verify: (bloc) {
           expect(bloc.facetCountsSignatureForTesting, isNull);
         },
@@ -380,18 +426,23 @@ Future<void> main() async {
             numResults: 25,
           ),
         ),
-        act: (bloc) => bloc.add(LoadMoreResults(
-          customSpacing: const {'0-1': '3'},
-          alternativeWords: const {
-            0: ['ברכה'],
-          },
-          searchOptions: const {
-            'שלום_0': {'קידומות': true},
-          },
-        )),
+        act: (bloc) => bloc.add(
+          LoadMoreResults(
+            customSpacing: const {'0-1': '3'},
+            alternativeWords: const {
+              0: ['ברכה'],
+            },
+            searchOptions: const {
+              'שלום_0': {'קידומות': true},
+            },
+          ),
+        ),
         expect: () => [
-          isA<SearchState>()
-              .having((state) => state.isLoading, 'isLoading', true),
+          isA<SearchState>().having(
+            (state) => state.isLoading,
+            'isLoading',
+            true,
+          ),
           isA<SearchState>()
               .having((state) => state.isLoading, 'isLoading', false)
               .having((state) => state.results.length, 'results length', 2)
@@ -450,8 +501,11 @@ Future<void> main() async {
       ),
       act: (bloc) => bloc.add(LoadMoreResults()),
       expect: () => [
-        isA<SearchState>()
-            .having((state) => state.isLoading, 'isLoading', true),
+        isA<SearchState>().having(
+          (state) => state.isLoading,
+          'isLoading',
+          true,
+        ),
         isA<SearchState>()
             .having((state) => state.isLoading, 'isLoading', false)
             .having((state) => state.results.length, 'results length', 1),
@@ -462,15 +516,16 @@ Future<void> main() async {
 
 SearchResult _searchResult({required int id, required String text}) {
   return SearchResult(
-      id: BigInt.from(id),
-      title: 'ספר',
-      reference: 'סימן',
-      text: text,
-      segment: BigInt.from(id),
-      isPdf: false,
-      filePath: 'book.txt',
-      mergedCount: 1,
-      merged: const []);
+    id: BigInt.from(id),
+    title: 'ספר',
+    reference: 'סימן',
+    text: text,
+    segment: BigInt.from(id),
+    isPdf: false,
+    filePath: 'book.txt',
+    mergedCount: 1,
+    merged: const [],
+  );
 }
 
 class _FakeSearchRepository extends SearchRepository {

@@ -80,9 +80,11 @@ class PersonalNotesDatabase {
       )
     ''');
     db.execute(
-        'CREATE INDEX IF NOT EXISTS idx_book_id ON $_tableNotes($_columnBookId)');
+      'CREATE INDEX IF NOT EXISTS idx_book_id ON $_tableNotes($_columnBookId)',
+    );
     db.execute(
-        'CREATE INDEX IF NOT EXISTS idx_book_line ON $_tableNotes($_columnBookId, $_columnLineNumber)');
+      'CREATE INDEX IF NOT EXISTS idx_book_line ON $_tableNotes($_columnBookId, $_columnLineNumber)',
+    );
   }
 
   /// מוסיף עמודות עוגן ל-DB קיים (התקנות ישנות) אם הן חסרות.
@@ -103,7 +105,8 @@ class PersonalNotesDatabase {
     for (final entry in anchorColumns.entries) {
       if (!existing.contains(entry.key)) {
         db.execute(
-            'ALTER TABLE $_tableNotes ADD COLUMN ${entry.key} ${entry.value}');
+          'ALTER TABLE $_tableNotes ADD COLUMN ${entry.key} ${entry.value}',
+        );
       }
     }
   }
@@ -258,11 +261,13 @@ class PersonalNotesDatabase {
       lastKnownLineNumber: map[_columnLastKnownLine] as int?,
       status: PersonalNoteStatus.values.byName(map[_columnStatus] as String),
       content: map[_columnContent] as String,
-      contentPlain: map[_columnContentPlain] as String? ??
+      contentPlain:
+          map[_columnContentPlain] as String? ??
           (map[_columnContent] as String),
       contentFormat: PersonalNoteContentFormat.values.byName(
-          map[_columnContentFormat] as String? ??
-              PersonalNoteContentFormat.plain.name),
+        map[_columnContentFormat] as String? ??
+            PersonalNoteContentFormat.plain.name,
+      ),
       createdAt: DateTime.parse(map[_columnCreatedAt] as String),
       updatedAt: DateTime.parse(map[_columnUpdatedAt] as String),
     );

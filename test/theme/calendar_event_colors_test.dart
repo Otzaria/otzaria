@@ -15,7 +15,9 @@ void main() {
     test('אינדקס מחוץ לטווח הפלטה מחזיר null', () {
       expect(
         CalendarEventColors.colorForIndex(
-            CalendarEventColors.count, Brightness.light),
+          CalendarEventColors.count,
+          Brightness.light,
+        ),
         isNull,
       );
     });

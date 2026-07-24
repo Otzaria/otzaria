@@ -10,7 +10,10 @@ PdfBook _book({String path = '/path/to/book.pdf'}) =>
     PdfBook(title: 'ספר בדיקה', path: path);
 
 PdfBookTab _tab({String path = '/path/to/book.pdf', int page = 1}) =>
-    PdfBookTab(book: _book(path: path), pageNumber: page);
+    PdfBookTab(
+      book: _book(path: path),
+      pageNumber: page,
+    );
 
 void main() {
   setUpAll(() async {
@@ -102,7 +105,8 @@ void main() {
       void listener() => calls++;
       tab.toggleCommentatorsPaneNotifier.addListener(listener);
       addTearDown(
-          () => tab.toggleCommentatorsPaneNotifier.removeListener(listener));
+        () => tab.toggleCommentatorsPaneNotifier.removeListener(listener),
+      );
 
       tab.toggleCommentatorsPaneNotifier.value++;
 

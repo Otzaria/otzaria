@@ -39,9 +39,9 @@ class PluginSidePanel extends StatelessWidget {
     );
     if (result != null && result.files.single.path != null) {
       if (context.mounted) {
-        context
-            .read<PluginSystemBloc>()
-            .add(InstallPluginRequested(result.files.single.path!));
+        context.read<PluginSystemBloc>().add(
+          InstallPluginRequested(result.files.single.path!),
+        );
       }
     }
   }
@@ -53,9 +53,9 @@ class PluginSidePanel extends StatelessWidget {
     final rootPath = await FilePicker.getDirectoryPath(lockParentWindow: true);
     if (rootPath != null) {
       if (context.mounted) {
-        context
-            .read<PluginSystemBloc>()
-            .add(LoadDevelopmentPluginRequested(rootPath));
+        context.read<PluginSystemBloc>().add(
+          LoadDevelopmentPluginRequested(rootPath),
+        );
       }
     }
   }
@@ -145,10 +145,12 @@ class PluginSidePanel extends StatelessWidget {
                 );
               }
               if (state is PluginSystemLoaded) {
-                final isOfflineMode = context
-                    .select<SettingsBloc, bool>((b) => b.state.isOfflineMode);
-                final plugins =
-                    state.activePlugins.filterForOfflineMode(isOfflineMode);
+                final isOfflineMode = context.select<SettingsBloc, bool>(
+                  (b) => b.state.isOfflineMode,
+                );
+                final plugins = state.activePlugins.filterForOfflineMode(
+                  isOfflineMode,
+                );
                 if (plugins.isEmpty) {
                   return Center(
                     child: Text(
@@ -168,9 +170,14 @@ class PluginSidePanel extends StatelessWidget {
                       plugin: plugin,
                       onAcceptSource: (sourceId) =>
                           context.read<PluginSystemBloc>().add(
-                                ReorderPluginsRequested(reorderedPluginIds(
-                                    state.plugins, sourceId, plugin.pluginId)),
+                            ReorderPluginsRequested(
+                              reorderedPluginIds(
+                                state.plugins,
+                                sourceId,
+                                plugin.pluginId,
                               ),
+                            ),
+                          ),
                       onPluginSelected: onPluginSelected,
                     );
                   },
@@ -242,8 +249,10 @@ class _PluginListTile extends StatelessWidget {
       leading: Stack(
         clipBehavior: Clip.none,
         children: [
-          Icon(fluentIconFromName(plugin.manifest.toolTabIconName) ??
-              FluentIcons.puzzle_piece_24_regular),
+          Icon(
+            fluentIconFromName(plugin.manifest.toolTabIconName) ??
+                FluentIcons.puzzle_piece_24_regular,
+          ),
           if (plugin.isDevelopment)
             Positioned(
               right: -8,
@@ -251,8 +260,10 @@ class _PluginListTile extends StatelessWidget {
               child: Tooltip(
                 message: 'תוסף פיתוח המוטען מתיקייה מקומית',
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.tertiary,
                     borderRadius: AppTokens.borderRadiusAll,
@@ -314,7 +325,8 @@ class _PluginActionsMenu extends StatelessWidget {
       tooltip: 'פעולות',
       onSelected: (action) => action(),
       itemBuilder: (context) {
-        final metrics = Theme.of(context).extension<AppMenuMetrics>() ??
+        final metrics =
+            Theme.of(context).extension<AppMenuMetrics>() ??
             AppMenuMetrics.create(compactMenus: false);
         return [
           _menuItem(
@@ -439,11 +451,15 @@ class _DragFeedback extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(fluentIconFromName(plugin.manifest.toolTabIconName) ??
-                FluentIcons.puzzle_piece_24_regular),
+            Icon(
+              fluentIconFromName(plugin.manifest.toolTabIconName) ??
+                  FluentIcons.puzzle_piece_24_regular,
+            ),
             const SizedBox(width: 8),
-            Text(plugin.name,
-                style: const TextStyle(fontWeight: FontWeight.w500)),
+            Text(
+              plugin.name,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
           ],
         ),
       ),

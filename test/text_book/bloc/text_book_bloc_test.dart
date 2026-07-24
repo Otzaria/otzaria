@@ -23,8 +23,10 @@ void main() {
 
     test('במפרשים למטה טוען קישורים מיד עבור הטווח הגלוי', () async {
       final repository = _FakeTextBookRepository();
-      final bloc =
-          _createBloc(repository: repository, showPageShapeView: false);
+      final bloc = _createBloc(
+        repository: repository,
+        showPageShapeView: false,
+      );
 
       bloc.add(
         const LoadContent(
@@ -50,8 +52,10 @@ void main() {
 
     test('באתחול מפרשים למטה מבקש חלון קישורים עבור הטווח הנוכחי', () async {
       final repository = _FakeTextBookRepository();
-      final bloc =
-          _createBloc(repository: repository, showPageShapeView: false);
+      final bloc = _createBloc(
+        repository: repository,
+        showPageShapeView: false,
+      );
 
       bloc.add(
         const LoadContent(
@@ -75,31 +79,35 @@ void main() {
       await bloc.close();
     });
 
-    test('במפרשים למטה טעינת הקישורים הראשונית אינה מסננת קישורים רגילים',
-        () async {
-      final repository = _FakeTextBookRepository();
-      final bloc =
-          _createBloc(repository: repository, showPageShapeView: false);
+    test(
+      'במפרשים למטה טעינת הקישורים הראשונית אינה מסננת קישורים רגילים',
+      () async {
+        final repository = _FakeTextBookRepository();
+        final bloc = _createBloc(
+          repository: repository,
+          showPageShapeView: false,
+        );
 
-      bloc.add(
-        const LoadContent(
-          fontSize: 20,
-          showSplitView: false,
-          removeNikud: false,
-          loadCommentators: false,
-        ),
-      );
+        bloc.add(
+          const LoadContent(
+            fontSize: 20,
+            showSplitView: false,
+            removeNikud: false,
+            loadCommentators: false,
+          ),
+        );
 
-      await _waitFor(
-        () => repository.getBookLinksInRangeCalls >= 1,
-        description: 'getBookLinksInRangeCalls >= 1',
-      );
+        await _waitFor(
+          () => repository.getBookLinksInRangeCalls >= 1,
+          description: 'getBookLinksInRangeCalls >= 1',
+        );
 
-      expect(repository.getBookLinksInRangeCalls, 1);
-      expect(repository.lastTargetBookTitles, isEmpty);
+        expect(repository.getBookLinksInRangeCalls, 1);
+        expect(repository.lastTargetBookTitles, isEmpty);
 
-      await bloc.close();
-    });
+        await bloc.close();
+      },
+    );
 
     test('preview נשמר עם padding כדי לשמור אינדקסים אבסולוטיים', () {
       final lines = TextBookBloc.buildPreviewLinesForTesting(
@@ -200,84 +208,93 @@ void main() {
       );
     });
 
-    test('LoadContent משתמש ב-categoryId וב-fileType במסלול quick preview',
-        () async {
-      final repository = _EmptyContentTextBookRepository();
-      final quickPreviewCalls = <({
-        String title,
-        int currentLine,
-        int? categoryId,
-        String? fileType,
-        bool preferUserBooks,
-      })>[];
+    test(
+      'LoadContent משתמש ב-categoryId וב-fileType במסלול quick preview',
+      () async {
+        final repository = _EmptyContentTextBookRepository();
+        final quickPreviewCalls =
+            <
+              ({
+                String title,
+                int currentLine,
+                int? categoryId,
+                String? fileType,
+                bool preferUserBooks,
+              })
+            >[];
 
-      final bloc = _createBloc(
-        repository: repository,
-        showPageShapeView: false,
-        // ספר אישי בשם זהה לספר רשמי: בלי preferUserBooks ה-quick preview
-        // היה מאתר את הספר הרשמי לפי שם בלבד מ-seforim.db.
-        book: TextBook(
-          title: 'ספר כפול',
-          categoryId: 42,
-          fileType: 'txt',
-          isUserBook: true,
-        ),
-        quickPreviewLoader: (
-          String title,
-          int currentLine, {
-          int? categoryId,
-          String? fileType,
-          bool preferUserBooks = false,
-        }) async {
-          quickPreviewCalls.add((
-            title: title,
-            currentLine: currentLine,
-            categoryId: categoryId,
-            fileType: fileType,
-            preferUserBooks: preferUserBooks,
-          ));
+        final bloc = _createBloc(
+          repository: repository,
+          showPageShapeView: false,
+          // ספר אישי בשם זהה לספר רשמי: בלי preferUserBooks ה-quick preview
+          // היה מאתר את הספר הרשמי לפי שם בלבד מ-seforim.db.
+          book: TextBook(
+            title: 'ספר כפול',
+            categoryId: 42,
+            fileType: 'txt',
+            isUserBook: true,
+          ),
+          quickPreviewLoader:
+              (
+                String title,
+                int currentLine, {
+                int? categoryId,
+                String? fileType,
+                bool preferUserBooks = false,
+              }) async {
+                quickPreviewCalls.add((
+                  title: title,
+                  currentLine: currentLine,
+                  categoryId: categoryId,
+                  fileType: fileType,
+                  preferUserBooks: preferUserBooks,
+                ));
 
-          if (categoryId == 42 && fileType == 'txt') {
-            return 'תוכן תצוגה מקדימה נכון';
-          }
+                if (categoryId == 42 && fileType == 'txt') {
+                  return 'תוכן תצוגה מקדימה נכון';
+                }
 
-          return 'תוכן שגוי';
-        },
-      );
+                return 'תוכן שגוי';
+              },
+        );
 
-      bloc.add(
-        const LoadContent(
-          fontSize: 20,
-          showSplitView: false,
-          removeNikud: false,
-          loadCommentators: false,
-        ),
-      );
+        bloc.add(
+          const LoadContent(
+            fontSize: 20,
+            showSplitView: false,
+            removeNikud: false,
+            loadCommentators: false,
+          ),
+        );
 
-      await Future<void>.delayed(const Duration(milliseconds: 80));
+        await Future<void>.delayed(const Duration(milliseconds: 80));
 
-      expect(quickPreviewCalls, hasLength(1));
-      expect(quickPreviewCalls.single.title, 'ספר כפול');
-      expect(quickPreviewCalls.single.currentLine, 10);
-      expect(quickPreviewCalls.single.categoryId, 42);
-      expect(quickPreviewCalls.single.fileType, 'txt');
-      expect(quickPreviewCalls.single.preferUserBooks, isTrue);
+        expect(quickPreviewCalls, hasLength(1));
+        expect(quickPreviewCalls.single.title, 'ספר כפול');
+        expect(quickPreviewCalls.single.currentLine, 10);
+        expect(quickPreviewCalls.single.categoryId, 42);
+        expect(quickPreviewCalls.single.fileType, 'txt');
+        expect(quickPreviewCalls.single.preferUserBooks, isTrue);
 
-      final state = bloc.state;
-      expect(state, isA<TextBookLoaded>());
-      expect(
+        final state = bloc.state;
+        expect(state, isA<TextBookLoaded>());
+        expect(
           (state as TextBookLoaded).content.contains('תוכן תצוגה מקדימה נכון'),
-          isTrue);
+          isTrue,
+        );
 
-      await bloc.close();
-    });
+        await bloc.close();
+      },
+    );
 
     test(
       'בצורת הדף מתעלם מעדכון visibleIndices שגוי לפני יישור הגלילה הראשוני',
       () async {
         final repository = _FakeTextBookRepository();
-        final bloc =
-            _createBloc(repository: repository, showPageShapeView: true);
+        final bloc = _createBloc(
+          repository: repository,
+          showPageShapeView: true,
+        );
 
         bloc.add(
           const LoadContent(
@@ -302,8 +319,11 @@ void main() {
         bloc.add(const UpdateVisibleIndecies([10, 11, 12]));
         await Future<void>.delayed(const Duration(milliseconds: 20));
 
-        expect(
-            (bloc.state as TextBookLoaded).visibleIndices, const [10, 11, 12]);
+        expect((bloc.state as TextBookLoaded).visibleIndices, const [
+          10,
+          11,
+          12,
+        ]);
 
         await bloc.close();
       },
@@ -312,14 +332,14 @@ void main() {
     test(
       'מסווג raw positions שגויים ככאלה שיש להתעלם מהם בזמן היישור הראשוני',
       () {
-        final classification = TextBookBloc
-            .classifyRawPositionsDuringInitialPageShapeVisibleSyncForTesting(
-          awaitingInitialPageShapeVisibleSync: true,
-          showPageShapeView: true,
-          currentVisibleIndices: const [1360],
-          selectedIndex: null,
-          nextVisibleIndices: const [0, 1, 2, 3],
-        );
+        final classification =
+            TextBookBloc.classifyRawPositionsDuringInitialPageShapeVisibleSyncForTesting(
+              awaitingInitialPageShapeVisibleSync: true,
+              showPageShapeView: true,
+              currentVisibleIndices: const [1360],
+              selectedIndex: null,
+              nextVisibleIndices: const [0, 1, 2, 3],
+            );
 
         expect(classification.shouldIgnore, isTrue);
         expect(classification.shouldDispatchImmediately, isFalse);
@@ -329,14 +349,14 @@ void main() {
     test(
       'מסווג raw positions מיושרים ככאלה שיש לשלוח מייד בזמן היישור הראשוני',
       () {
-        final classification = TextBookBloc
-            .classifyRawPositionsDuringInitialPageShapeVisibleSyncForTesting(
-          awaitingInitialPageShapeVisibleSync: true,
-          showPageShapeView: true,
-          currentVisibleIndices: const [1360],
-          selectedIndex: null,
-          nextVisibleIndices: const [1360, 1361, 1362, 1363],
-        );
+        final classification =
+            TextBookBloc.classifyRawPositionsDuringInitialPageShapeVisibleSyncForTesting(
+              awaitingInitialPageShapeVisibleSync: true,
+              showPageShapeView: true,
+              currentVisibleIndices: const [1360],
+              selectedIndex: null,
+              nextVisibleIndices: const [1360, 1361, 1362, 1363],
+            );
 
         expect(classification.shouldIgnore, isFalse);
         expect(classification.shouldDispatchImmediately, isTrue);
@@ -346,14 +366,14 @@ void main() {
     test(
       'מסווג קפיצה אמיתית מתחילת הספר כעדכון גלוי ולא כתקלה ראשונית',
       () {
-        final classification = TextBookBloc
-            .classifyRawPositionsDuringInitialPageShapeVisibleSyncForTesting(
-          awaitingInitialPageShapeVisibleSync: true,
-          showPageShapeView: true,
-          currentVisibleIndices: const [0],
-          selectedIndex: null,
-          nextVisibleIndices: const [84, 85, 86],
-        );
+        final classification =
+            TextBookBloc.classifyRawPositionsDuringInitialPageShapeVisibleSyncForTesting(
+              awaitingInitialPageShapeVisibleSync: true,
+              showPageShapeView: true,
+              currentVisibleIndices: const [0],
+              selectedIndex: null,
+              nextVisibleIndices: const [84, 85, 86],
+            );
 
         expect(classification.shouldIgnore, isFalse);
         expect(classification.shouldDispatchImmediately, isTrue);
@@ -432,10 +452,12 @@ void main() {
           description: 'getBookLinksInRangeCalls >= 1',
         );
 
-        bloc.add(const ApplyMarkHighlight(
-          permanentHighlightLine: 1801,
-          scrollToIndex: 1801,
-        ));
+        bloc.add(
+          const ApplyMarkHighlight(
+            permanentHighlightLine: 1801,
+            scrollToIndex: 1801,
+          ),
+        );
 
         await _waitFor(
           () => repository.getBookLinksInRangeCalls >= 2,
@@ -566,20 +588,24 @@ void main() {
         description: 'initial links load',
       );
 
-      bloc.add(const RefreshLinksForCurrentWindow(
-        reason: 'workspace-1',
-        workspaceId: 'workspace-1',
-      ));
+      bloc.add(
+        const RefreshLinksForCurrentWindow(
+          reason: 'workspace-1',
+          workspaceId: 'workspace-1',
+        ),
+      );
       await _waitFor(
         () => repository.getBookLinksInRangeCalls >= 2,
         description: 'workspace-1 links reload',
       );
       expect(repository.lastTargetBookTitles, ['אבן עזרא על בראשית']);
 
-      bloc.add(const RefreshLinksForCurrentWindow(
-        reason: 'workspace-2',
-        workspaceId: 'workspace-2',
-      ));
+      bloc.add(
+        const RefreshLinksForCurrentWindow(
+          reason: 'workspace-2',
+          workspaceId: 'workspace-2',
+        ),
+      );
       await _waitFor(
         () => repository.getBookLinksInRangeCalls >= 3,
         description: 'workspace-2 links reload',
@@ -704,34 +730,43 @@ void main() {
             loadCommentators: false,
           ),
         );
-        await _waitFor(() => bloc.state is TextBookLoaded,
-            description: 'initial load');
+        await _waitFor(
+          () => bloc.state is TextBookLoaded,
+          description: 'initial load',
+        );
         TextBookLoaded loaded() => bloc.state as TextBookLoaded;
 
         bloc.add(const UpdateSelectedIndex(12));
         await _waitFor(
-            () => bloc.state is TextBookLoaded && loaded().selectedIndex == 12,
-            description: 'select 12');
+          () => bloc.state is TextBookLoaded && loaded().selectedIndex == 12,
+          description: 'select 12',
+        );
         expect(loaded().selectedIndices, {12});
 
         // הוספת קטע שני בלחיצת Ctrl
         bloc.add(const UpdateSelectedIndex(20, additive: true));
-        await _waitFor(() => loaded().selectedIndices.contains(20),
-            description: 'add 20');
+        await _waitFor(
+          () => loaded().selectedIndices.contains(20),
+          description: 'add 20',
+        );
         expect(loaded().selectedIndices, {12, 20});
         expect(loaded().selectedIndex, 20);
 
         // Ctrl על קטע שכבר נבחר → מסיר אותו, העוגן עובר לקטע שנותר
         bloc.add(const UpdateSelectedIndex(20, additive: true));
-        await _waitFor(() => !loaded().selectedIndices.contains(20),
-            description: 'remove 20');
+        await _waitFor(
+          () => !loaded().selectedIndices.contains(20),
+          description: 'remove 20',
+        );
         expect(loaded().selectedIndices, {12});
         expect(loaded().selectedIndex, 12);
 
         // לחיצה רגילה (לא additive) מאפסת לקטע יחיד
         bloc.add(const UpdateSelectedIndex(5));
-        await _waitFor(() => loaded().selectedIndices.contains(5),
-            description: 'reset to 5');
+        await _waitFor(
+          () => loaded().selectedIndices.contains(5),
+          description: 'reset to 5',
+        );
         expect(loaded().selectedIndices, {5});
 
         await bloc.close();
@@ -777,8 +812,10 @@ void main() {
 
     test('ToggleLeftPane לא פולט state חדש אם הערך לא השתנה', () async {
       final repository = _FakeTextBookRepository();
-      final bloc =
-          _createBloc(repository: repository, showPageShapeView: false);
+      final bloc = _createBloc(
+        repository: repository,
+        showPageShapeView: false,
+      );
 
       bloc.add(
         const LoadContent(
@@ -811,16 +848,20 @@ void main() {
       'LoadContent(preserveRemoveNikud:true) שומר ניקוד שהמשתמש שינה ידנית',
       () async {
         final repository = _FakeTextBookRepository();
-        final bloc =
-            _createBloc(repository: repository, showPageShapeView: false);
+        final bloc = _createBloc(
+          repository: repository,
+          showPageShapeView: false,
+        );
 
         // טעינה ראשונית עם removeNikud=false
-        bloc.add(const LoadContent(
-          fontSize: 20,
-          showSplitView: false,
-          removeNikud: false,
-          loadCommentators: false,
-        ));
+        bloc.add(
+          const LoadContent(
+            fontSize: 20,
+            showSplitView: false,
+            removeNikud: false,
+            loadCommentators: false,
+          ),
+        );
         await Future<void>.delayed(const Duration(milliseconds: 50));
         expect((bloc.state as TextBookLoaded).removeNikud, isFalse);
 
@@ -830,14 +871,16 @@ void main() {
         expect((bloc.state as TextBookLoaded).removeNikud, isTrue);
 
         // רענון בגין שינוי גופן בלבד – מצפה שמצב הניקוד יישמר
-        bloc.add(const LoadContent(
-          fontSize: 20,
-          showSplitView: false,
-          removeNikud: false, // ערך Settings: false
-          preserveState: true,
-          preserveRemoveNikud: true, // שמור את מה שהמשתמש בחר
-          loadCommentators: false,
-        ));
+        bloc.add(
+          const LoadContent(
+            fontSize: 20,
+            showSplitView: false,
+            removeNikud: false, // ערך Settings: false
+            preserveState: true,
+            preserveRemoveNikud: true, // שמור את מה שהמשתמש בחר
+            loadCommentators: false,
+          ),
+        );
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
         expect(
@@ -854,16 +897,20 @@ void main() {
       'LoadContent(preserveRemoveNikud:false) מחיל ניקוד חדש מה-Settings',
       () async {
         final repository = _FakeTextBookRepository();
-        final bloc =
-            _createBloc(repository: repository, showPageShapeView: false);
+        final bloc = _createBloc(
+          repository: repository,
+          showPageShapeView: false,
+        );
 
         // טעינה ראשונית עם removeNikud=false
-        bloc.add(const LoadContent(
-          fontSize: 20,
-          showSplitView: false,
-          removeNikud: false,
-          loadCommentators: false,
-        ));
+        bloc.add(
+          const LoadContent(
+            fontSize: 20,
+            showSplitView: false,
+            removeNikud: false,
+            loadCommentators: false,
+          ),
+        );
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
         // המשתמש מפעיל הסרת ניקוד ידנית
@@ -872,14 +919,16 @@ void main() {
         expect((bloc.state as TextBookLoaded).removeNikud, isTrue);
 
         // רענון בגין שינוי הגדרות ניקוד גלובליות – מצפה להחיל ערך חדש
-        bloc.add(const LoadContent(
-          fontSize: 20,
-          showSplitView: false,
-          removeNikud: false, // ערך Settings החדש: false
-          preserveState: true,
-          preserveRemoveNikud: false, // אל תשמר – החל ערך חדש
-          loadCommentators: false,
-        ));
+        bloc.add(
+          const LoadContent(
+            fontSize: 20,
+            showSplitView: false,
+            removeNikud: false, // ערך Settings החדש: false
+            preserveState: true,
+            preserveRemoveNikud: false, // אל תשמר – החל ערך חדש
+            loadCommentators: false,
+          ),
+        );
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
         expect(
@@ -896,15 +945,19 @@ void main() {
       'LoadContent(preserveRemovePunctuation:true) שומר פיסוק שהמשתמש הסתיר',
       () async {
         final repository = _FakeTextBookRepository();
-        final bloc =
-            _createBloc(repository: repository, showPageShapeView: false);
+        final bloc = _createBloc(
+          repository: repository,
+          showPageShapeView: false,
+        );
 
-        bloc.add(const LoadContent(
-          fontSize: 20,
-          showSplitView: false,
-          removeNikud: false,
-          loadCommentators: false,
-        ));
+        bloc.add(
+          const LoadContent(
+            fontSize: 20,
+            showSplitView: false,
+            removeNikud: false,
+            loadCommentators: false,
+          ),
+        );
         await Future<void>.delayed(const Duration(milliseconds: 50));
         expect((bloc.state as TextBookLoaded).removePunctuation, isFalse);
 
@@ -914,15 +967,17 @@ void main() {
         expect((bloc.state as TextBookLoaded).removePunctuation, isTrue);
 
         // רענון בגין שינוי גופן – מצפה שהסתרת הפיסוק תישמר
-        bloc.add(const LoadContent(
-          fontSize: 20,
-          showSplitView: false,
-          removeNikud: false,
-          preserveState: true,
-          preserveRemoveNikud: true,
-          preserveRemovePunctuation: true,
-          loadCommentators: false,
-        ));
+        bloc.add(
+          const LoadContent(
+            fontSize: 20,
+            showSplitView: false,
+            removeNikud: false,
+            preserveState: true,
+            preserveRemoveNikud: true,
+            preserveRemovePunctuation: true,
+            loadCommentators: false,
+          ),
+        );
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
         expect(
@@ -939,15 +994,19 @@ void main() {
       'LoadContent ללא preserveRemovePunctuation מאפס את הסתרת הפיסוק',
       () async {
         final repository = _FakeTextBookRepository();
-        final bloc =
-            _createBloc(repository: repository, showPageShapeView: false);
+        final bloc = _createBloc(
+          repository: repository,
+          showPageShapeView: false,
+        );
 
-        bloc.add(const LoadContent(
-          fontSize: 20,
-          showSplitView: false,
-          removeNikud: false,
-          loadCommentators: false,
-        ));
+        bloc.add(
+          const LoadContent(
+            fontSize: 20,
+            showSplitView: false,
+            removeNikud: false,
+            loadCommentators: false,
+          ),
+        );
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
         bloc.add(const TogglePunctuation(true));
@@ -955,13 +1014,15 @@ void main() {
         expect((bloc.state as TextBookLoaded).removePunctuation, isTrue);
 
         // המסלול של _resetPerBookSettings – בלי הדגל, הפיסוק חוזר לברירת מחדל
-        bloc.add(const LoadContent(
-          fontSize: 20,
-          showSplitView: false,
-          removeNikud: false,
-          preserveState: true,
-          loadCommentators: false,
-        ));
+        bloc.add(
+          const LoadContent(
+            fontSize: 20,
+            showSplitView: false,
+            removeNikud: false,
+            preserveState: true,
+            loadCommentators: false,
+          ),
+        );
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
         expect(
@@ -978,18 +1039,22 @@ void main() {
       'LoadContent(preserveState:true) תמיד שומר pinLeftPane ללא קשר לשינוי הגופן',
       () async {
         final repository = _FakeTextBookRepository();
-        final bloc =
-            _createBloc(repository: repository, showPageShapeView: false);
+        final bloc = _createBloc(
+          repository: repository,
+          showPageShapeView: false,
+        );
 
         // Settings: pin-sidebar = false
         await Settings.setValue<bool>('key-pin-sidebar', false);
 
-        bloc.add(const LoadContent(
-          fontSize: 20,
-          showSplitView: false,
-          removeNikud: false,
-          loadCommentators: false,
-        ));
+        bloc.add(
+          const LoadContent(
+            fontSize: 20,
+            showSplitView: false,
+            removeNikud: false,
+            loadCommentators: false,
+          ),
+        );
         await Future<void>.delayed(const Duration(milliseconds: 50));
         expect((bloc.state as TextBookLoaded).pinLeftPane, isFalse);
 
@@ -999,14 +1064,16 @@ void main() {
         expect((bloc.state as TextBookLoaded).pinLeftPane, isTrue);
 
         // רענון בגין שינוי גופן – מצפה שהנעיצה תישמר
-        bloc.add(const LoadContent(
-          fontSize: 20,
-          showSplitView: false,
-          removeNikud: false,
-          preserveState: true,
-          preserveRemoveNikud: true,
-          loadCommentators: false,
-        ));
+        bloc.add(
+          const LoadContent(
+            fontSize: 20,
+            showSplitView: false,
+            removeNikud: false,
+            preserveState: true,
+            preserveRemoveNikud: true,
+            loadCommentators: false,
+          ),
+        );
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
         expect(
@@ -1023,17 +1090,21 @@ void main() {
       'LoadContent(preserveState:true) שומר pinLeftPane גם ברענון הגדרות ניקוד',
       () async {
         final repository = _FakeTextBookRepository();
-        final bloc =
-            _createBloc(repository: repository, showPageShapeView: false);
+        final bloc = _createBloc(
+          repository: repository,
+          showPageShapeView: false,
+        );
 
         await Settings.setValue<bool>('key-pin-sidebar', false);
 
-        bloc.add(const LoadContent(
-          fontSize: 20,
-          showSplitView: false,
-          removeNikud: false,
-          loadCommentators: false,
-        ));
+        bloc.add(
+          const LoadContent(
+            fontSize: 20,
+            showSplitView: false,
+            removeNikud: false,
+            loadCommentators: false,
+          ),
+        );
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
         bloc.add(const TogglePinLeftPane(true));
@@ -1041,14 +1112,16 @@ void main() {
         expect((bloc.state as TextBookLoaded).pinLeftPane, isTrue);
 
         // רענון בגין שינוי הגדרות ניקוד – מצפה שהנעיצה תישמר גם כן
-        bloc.add(const LoadContent(
-          fontSize: 20,
-          showSplitView: false,
-          removeNikud: false,
-          preserveState: true,
-          preserveRemoveNikud: false,
-          loadCommentators: false,
-        ));
+        bloc.add(
+          const LoadContent(
+            fontSize: 20,
+            showSplitView: false,
+            removeNikud: false,
+            preserveState: true,
+            preserveRemoveNikud: false,
+            loadCommentators: false,
+          ),
+        );
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
         expect(
@@ -1065,15 +1138,16 @@ void main() {
       final bloc = _createBloc(
         repository: repository,
         showPageShapeView: false,
-        quickPreviewLoader: (
-          String title,
-          int currentLine, {
-          int? categoryId,
-          String? fileType,
-          bool preferUserBooks = false,
-        }) async {
-          return 'שורת preview 10\nשורת preview 11';
-        },
+        quickPreviewLoader:
+            (
+              String title,
+              int currentLine, {
+              int? categoryId,
+              String? fileType,
+              bool preferUserBooks = false,
+            }) async {
+              return 'שורת preview 10\nשורת preview 11';
+            },
       );
 
       bloc.add(
@@ -1127,22 +1201,25 @@ void main() {
         final bloc = _createBloc(
           repository: repository,
           showPageShapeView: false,
-          quickPreviewLoader: (
-            String title,
-            int currentLine, {
-            int? categoryId,
-            String? fileType,
-            bool preferUserBooks = false,
-          }) async =>
-              null, // ללא preview – הבלוק נשאר ב-Loading עד getBookContent
+          quickPreviewLoader:
+              (
+                String title,
+                int currentLine, {
+                int? categoryId,
+                String? fileType,
+                bool preferUserBooks = false,
+              }) async =>
+                  null, // ללא preview – הבלוק נשאר ב-Loading עד getBookContent
         );
 
-        bloc.add(const LoadContent(
-          fontSize: 16, // ערך ברירת מחדל "תקוע" של SettingsState.initial()
-          showSplitView: false,
-          removeNikud: false,
-          loadCommentators: false,
-        ));
+        bloc.add(
+          const LoadContent(
+            fontSize: 16, // ערך ברירת מחדל "תקוע" של SettingsState.initial()
+            showSplitView: false,
+            removeNikud: false,
+            loadCommentators: false,
+          ),
+        );
 
         await Future<void>.delayed(const Duration(milliseconds: 30));
         expect(bloc.state, isA<TextBookLoading>());
@@ -1170,88 +1247,112 @@ void main() {
     );
 
     group('הדגשה מ-deep link', () {
-      test('ApplyMarkHighlight מגדיר highlightText ו-permanentHighlightLine',
-          () async {
-        final repository = _FakeTextBookRepository();
-        final bloc =
-            _createBloc(repository: repository, showPageShapeView: false);
+      test(
+        'ApplyMarkHighlight מגדיר highlightText ו-permanentHighlightLine',
+        () async {
+          final repository = _FakeTextBookRepository();
+          final bloc = _createBloc(
+            repository: repository,
+            showPageShapeView: false,
+          );
 
-        bloc.add(const LoadContent(
-          fontSize: 20,
-          showSplitView: false,
-          removeNikud: false,
-          loadCommentators: false,
-        ));
-        await Future<void>.delayed(const Duration(milliseconds: 50));
+          bloc.add(
+            const LoadContent(
+              fontSize: 20,
+              showSplitView: false,
+              removeNikud: false,
+              loadCommentators: false,
+            ),
+          );
+          await Future<void>.delayed(const Duration(milliseconds: 50));
 
-        bloc.add(const UpdateSearchText(
-          'שאלה ישנה',
-          searchOptions: {},
-          alternativeWords: {},
-          spacingValues: {},
-        ));
-        await Future<void>.delayed(const Duration(milliseconds: 30));
+          bloc.add(
+            const UpdateSearchText(
+              'שאלה ישנה',
+              searchOptions: {},
+              alternativeWords: {},
+              spacingValues: {},
+            ),
+          );
+          await Future<void>.delayed(const Duration(milliseconds: 30));
 
-        bloc.add(const ApplyMarkHighlight(
-          highlightText: 'בראשית',
-          scrollToIndex: 7,
-        ));
-        await Future<void>.delayed(const Duration(milliseconds: 30));
+          bloc.add(
+            const ApplyMarkHighlight(
+              highlightText: 'בראשית',
+              scrollToIndex: 7,
+            ),
+          );
+          await Future<void>.delayed(const Duration(milliseconds: 30));
 
-        final state = bloc.state as TextBookLoaded;
-        expect(state.highlightText, 'בראשית');
-        expect(state.searchText, isEmpty);
-        expect(state.searchMode, SearchMode.exact);
+          final state = bloc.state as TextBookLoaded;
+          expect(state.highlightText, 'בראשית');
+          expect(state.searchText, isEmpty);
+          expect(state.searchMode, SearchMode.exact);
 
-        await bloc.close();
-      });
+          await bloc.close();
+        },
+      );
 
-      test('ApplyMarkHighlight עם permanentHighlightLine=null מנקה הדגשה',
-          () async {
-        final repository = _FakeTextBookRepository();
-        final bloc =
-            _createBloc(repository: repository, showPageShapeView: false);
+      test(
+        'ApplyMarkHighlight עם permanentHighlightLine=null מנקה הדגשה',
+        () async {
+          final repository = _FakeTextBookRepository();
+          final bloc = _createBloc(
+            repository: repository,
+            showPageShapeView: false,
+          );
 
-        bloc.add(const LoadContent(
-          fontSize: 20,
-          showSplitView: false,
-          removeNikud: false,
-          loadCommentators: false,
-        ));
-        await Future<void>.delayed(const Duration(milliseconds: 50));
+          bloc.add(
+            const LoadContent(
+              fontSize: 20,
+              showSplitView: false,
+              removeNikud: false,
+              loadCommentators: false,
+            ),
+          );
+          await Future<void>.delayed(const Duration(milliseconds: 50));
 
-        bloc.add(const ApplyMarkHighlight(
-          highlightText: 'תורה',
-          permanentHighlightLine: 3,
-        ));
-        await Future<void>.delayed(const Duration(milliseconds: 30));
+          bloc.add(
+            const ApplyMarkHighlight(
+              highlightText: 'תורה',
+              permanentHighlightLine: 3,
+            ),
+          );
+          await Future<void>.delayed(const Duration(milliseconds: 30));
 
-        bloc.add(const ApplyMarkHighlight());
-        await Future<void>.delayed(const Duration(milliseconds: 30));
+          bloc.add(const ApplyMarkHighlight());
+          await Future<void>.delayed(const Duration(milliseconds: 30));
 
-        final state = bloc.state as TextBookLoaded;
-        expect(state.permanentHighlightLine, isNull);
+          final state = bloc.state as TextBookLoaded;
+          expect(state.permanentHighlightLine, isNull);
 
-        await bloc.close();
-      });
+          await bloc.close();
+        },
+      );
 
       test('ApplyMarkHighlight עם highlightText ריק', () async {
         final repository = _FakeTextBookRepository();
-        final bloc =
-            _createBloc(repository: repository, showPageShapeView: false);
+        final bloc = _createBloc(
+          repository: repository,
+          showPageShapeView: false,
+        );
 
-        bloc.add(const LoadContent(
-          fontSize: 20,
-          showSplitView: false,
-          removeNikud: false,
-          loadCommentators: false,
-        ));
+        bloc.add(
+          const LoadContent(
+            fontSize: 20,
+            showSplitView: false,
+            removeNikud: false,
+            loadCommentators: false,
+          ),
+        );
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
-        bloc.add(const ApplyMarkHighlight(
-          highlightText: '',
-          permanentHighlightLine: 5,
-        ));
+        bloc.add(
+          const ApplyMarkHighlight(
+            highlightText: '',
+            permanentHighlightLine: 5,
+          ),
+        );
         await Future<void>.delayed(const Duration(milliseconds: 30));
 
         final state = bloc.state as TextBookLoaded;
@@ -1296,7 +1397,8 @@ TextBookBloc _createBloc({
     int? categoryId,
     String? fileType,
     bool preferUserBooks,
-  })? quickPreviewLoader,
+  })?
+  quickPreviewLoader,
 }) {
   return TextBookBloc(
     repository: repository,
@@ -1335,8 +1437,10 @@ class _FakeTextBookRepository extends TextBookRepository {
   }) async {
     final contentLines = List.generate(40, (index) => 'line $index');
     final normalizedStart = startLine.clamp(0, contentLines.length - 1);
-    final normalizedEnd =
-        endLine.clamp(normalizedStart, contentLines.length - 1);
+    final normalizedEnd = endLine.clamp(
+      normalizedStart,
+      contentLines.length - 1,
+    );
     return BookContentRange(
       startLine: normalizedStart,
       endLine: normalizedEnd,

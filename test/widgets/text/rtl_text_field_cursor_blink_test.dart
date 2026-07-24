@@ -14,7 +14,8 @@ void main() {
       tester.widget<TextField>(find.byType(TextField)).cursorColor;
 
   Future<(TextEditingController, FocusNode)> pumpFocusedField(
-      WidgetTester tester) async {
+    WidgetTester tester,
+  ) async {
     final controller = TextEditingController(text: 'אבג דהו');
     final focusNode = FocusNode();
     await tester.pumpWidget(
@@ -41,20 +42,30 @@ void main() {
   testWidgets('הסמן מהבהב: גלוי, נסתר אחרי 500ms, וחוזר חלילה', (tester) async {
     await pumpFocusedField(tester);
 
-    expect(currentCursorColor(tester), cursorColor,
-        reason: 'מיד אחרי פעולה הסמן חייב להיות גלוי');
+    expect(
+      currentCursorColor(tester),
+      cursorColor,
+      reason: 'מיד אחרי פעולה הסמן חייב להיות גלוי',
+    );
 
     await tester.pump(const Duration(milliseconds: 500));
-    expect(currentCursorColor(tester), Colors.transparent,
-        reason: 'אחרי חצי-מחזור הסמן נסתר');
+    expect(
+      currentCursorColor(tester),
+      Colors.transparent,
+      reason: 'אחרי חצי-מחזור הסמן נסתר',
+    );
 
     await tester.pump(const Duration(milliseconds: 500));
-    expect(currentCursorColor(tester), cursorColor,
-        reason: 'אחרי מחזור שלם הסמן גלוי שוב');
+    expect(
+      currentCursorColor(tester),
+      cursorColor,
+      reason: 'אחרי מחזור שלם הסמן גלוי שוב',
+    );
   });
 
-  testWidgets('תזוזת סמן בחץ מאפסת את מחזור ההבהוב — הסמן נראה מיידית',
-      (tester) async {
+  testWidgets('תזוזת סמן בחץ מאפסת את מחזור ההבהוב — הסמן נראה מיידית', (
+    tester,
+  ) async {
     await pumpFocusedField(tester);
 
     // מתקדמים לשלב ה"נסתר" של המחזור.
@@ -64,20 +75,27 @@ void main() {
     // חץ ימין ויזואלי (offset יורד 1 → 0) — הסמן חייב להופיע מיידית.
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
     await tester.pump();
-    expect(currentCursorColor(tester), cursorColor,
-        reason: 'תזוזת הסמן חייבת לאפס את ההבהוב למצב גלוי');
+    expect(
+      currentCursorColor(tester),
+      cursorColor,
+      reason: 'תזוזת הסמן חייבת לאפס את ההבהוב למצב גלוי',
+    );
   });
 
-  testWidgets('אחרי 8 שניות של חוסר פעילות ההבהוב נעצר והסמן נעלם',
-      (tester) async {
+  testWidgets('אחרי 8 שניות של חוסר פעילות ההבהוב נעצר והסמן נעלם', (
+    tester,
+  ) async {
     final (controller, _) = await pumpFocusedField(tester);
 
     // חולפים על פני כל תקופת ההבהוב (16 חצאי-מחזור = 8 שניות).
     for (var i = 0; i < 16; i++) {
       await tester.pump(const Duration(milliseconds: 500));
     }
-    expect(currentCursorColor(tester), Colors.transparent,
-        reason: 'בתום תקופת ההבהוב הסמן חייב להיעלם');
+    expect(
+      currentCursorColor(tester),
+      Colors.transparent,
+      reason: 'בתום תקופת ההבהוב הסמן חייב להיעלם',
+    );
 
     // ההבהוב באמת נעצר — גם אחרי חצאי-מחזור נוספים הסמן נשאר נסתר.
     await tester.pump(const Duration(milliseconds: 500));
@@ -88,8 +106,11 @@ void main() {
     // פעולה חדשה מחזירה את הסמן מיידית.
     controller.selection = const TextSelection.collapsed(offset: 2);
     await tester.pump();
-    expect(currentCursorColor(tester), cursorColor,
-        reason: 'פעולה אחרי ההיעלמות חייבת להחזיר את הסמן');
+    expect(
+      currentCursorColor(tester),
+      cursorColor,
+      reason: 'פעולה אחרי ההיעלמות חייבת להחזיר את הסמן',
+    );
   });
 
   testWidgets('הקלדה מאפסת את מחזור ההבהוב', (tester) async {

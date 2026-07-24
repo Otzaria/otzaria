@@ -57,7 +57,8 @@ class DownloadEtaEstimator {
 
     // מרעננים את הערך המוצג רק אחת ל-refreshInterval. סיום ההורדה
     // (Duration.zero) מדווח מיד כדי לא להציג זמן נותר לאחר שהסתיים.
-    final due = _lastReportTime == null ||
+    final due =
+        _lastReportTime == null ||
         now.difference(_lastReportTime!) >= refreshInterval ||
         candidate == Duration.zero;
     if (due) {

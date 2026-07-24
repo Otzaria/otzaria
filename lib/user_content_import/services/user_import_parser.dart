@@ -25,8 +25,12 @@ class UserImportParser {
     final titleCol = header['title'];
     final eraCol = header['era'];
     if (titleCol == null || eraCol == null) {
-      errors.add(const ImportRowError(
-          1, 'כותרת הקובץ חייבת לכלול את העמודות "ספר" ו-"דור"'));
+      errors.add(
+        const ImportRowError(
+          1,
+          'כותרת הקובץ חייבת לכלול את העמודות "ספר" ו-"דור"',
+        ),
+      );
       return ParseResult(rows, errors);
     }
 
@@ -44,12 +48,14 @@ class UserImportParser {
         errors.add(ImportRowError(record.lineNumber, 'דור לא חוקי: "$eraRaw"'));
         continue;
       }
-      rows.add(ParsedBookGeneration(
-        bookTitle: title,
-        eraName: era,
-        author: _nullable(_at(cells, header['author'])),
-        categoryId: _parseIntOrNull(_at(cells, header['categoryId'])),
-      ));
+      rows.add(
+        ParsedBookGeneration(
+          bookTitle: title,
+          eraName: era,
+          author: _nullable(_at(cells, header['author'])),
+          categoryId: _parseIntOrNull(_at(cells, header['categoryId'])),
+        ),
+      );
     }
     return ParseResult(rows, errors);
   }
@@ -77,8 +83,12 @@ class UserImportParser {
     final targetCol = header['targetTitle'];
     final typeCol = header['type'];
     if (sourceCol == null || targetCol == null || typeCol == null) {
-      errors.add(const ImportRowError(
-          1, 'כותרת הקובץ חייבת לכלול את העמודות "מקור", "ספר_יעד" ו-"סוג"'));
+      errors.add(
+        const ImportRowError(
+          1,
+          'כותרת הקובץ חייבת לכלול את העמודות "מקור", "ספר_יעד" ו-"סוג"',
+        ),
+      );
       return ParseResult(rows, errors);
     }
 
@@ -90,8 +100,12 @@ class UserImportParser {
 
       final sourceLine = _parseIntOrNull(sourceRaw);
       if (sourceLine == null || sourceLine < 1) {
-        errors.add(ImportRowError(
-            record.lineNumber, 'מספר שורת מקור לא חוקי: "$sourceRaw"'));
+        errors.add(
+          ImportRowError(
+            record.lineNumber,
+            'מספר שורת מקור לא חוקי: "$sourceRaw"',
+          ),
+        );
         continue;
       }
       if (targetTitle.isEmpty) {
@@ -100,24 +114,33 @@ class UserImportParser {
       }
       final type = _connectionType(_at(cells, typeCol));
       if (type == null) {
-        errors.add(ImportRowError(
-            record.lineNumber, 'סוג קישור לא מוכר: "${_at(cells, typeCol)}"'));
+        errors.add(
+          ImportRowError(
+            record.lineNumber,
+            'סוג קישור לא מוכר: "${_at(cells, typeCol)}"',
+          ),
+        );
         continue;
       }
-      rows.add(ParsedUserLink(
-        sourceBookTitle: _nullable(_at(cells, header['sourceBook'])),
-        sourceIsUserBook:
-            _parseSourceIsUser(_at(cells, header['sourceIsUser'])),
-        sourceCategoryId:
-            _parseIntOrNull(_at(cells, header['sourceCategoryId'])),
-        sourceLineNumber: sourceLine,
-        targetTitle: targetTitle,
-        targetRef: _nullable(_at(cells, header['targetRef'])),
-        connectionType: type,
-        targetIsUserBook: _parseBool(_at(cells, header['targetIsUser'])),
-        targetCategoryId:
-            _parseIntOrNull(_at(cells, header['targetCategoryId'])),
-      ));
+      rows.add(
+        ParsedUserLink(
+          sourceBookTitle: _nullable(_at(cells, header['sourceBook'])),
+          sourceIsUserBook: _parseSourceIsUser(
+            _at(cells, header['sourceIsUser']),
+          ),
+          sourceCategoryId: _parseIntOrNull(
+            _at(cells, header['sourceCategoryId']),
+          ),
+          sourceLineNumber: sourceLine,
+          targetTitle: targetTitle,
+          targetRef: _nullable(_at(cells, header['targetRef'])),
+          connectionType: type,
+          targetIsUserBook: _parseBool(_at(cells, header['targetIsUser'])),
+          targetCategoryId: _parseIntOrNull(
+            _at(cells, header['targetCategoryId']),
+          ),
+        ),
+      );
     }
     return ParseResult(rows, errors);
   }
@@ -138,7 +161,8 @@ class UserImportParser {
     }
     if (decoded is! List) {
       errors.add(
-          const ImportRowError(0, 'הקובץ חייב להיות מערך JSON של קישורים'));
+        const ImportRowError(0, 'הקובץ חייב להיות מערך JSON של קישורים'),
+      );
       return ParseResult(rows, errors);
     }
 
@@ -154,35 +178,44 @@ class UserImportParser {
         errors.add(ImportRowError(n, 'מספר שורת מקור לא חוקי'));
         continue;
       }
-      final targetTitle =
-          _str(_pick(item, const ['ספר_יעד', 'targetTitle', 'target']));
+      final targetTitle = _str(
+        _pick(item, const ['ספר_יעד', 'targetTitle', 'target']),
+      );
       if (targetTitle == null) {
         errors.add(ImportRowError(n, 'חסר שם ספר יעד'));
         continue;
       }
       final type = _connectionType(
-          _pick(item, const ['סוג', 'type', 'connectionType'])?.toString() ??
-              '');
+        _pick(item, const ['סוג', 'type', 'connectionType'])?.toString() ?? '',
+      );
       if (type == null) {
         errors.add(ImportRowError(n, 'סוג קישור לא מוכר'));
         continue;
       }
-      final srcFlag =
-          _pick(item, const ['מקור_אישי', 'sourceIsUserBook', 'sourceIsUser']);
-      rows.add(ParsedUserLink(
-        sourceBookTitle: _str(_pick(item, const ['ספר_מקור', 'sourceBook'])),
-        sourceIsUserBook: srcFlag == null ? true : _toBool(srcFlag),
-        sourceCategoryId:
-            _toInt(_pick(item, const ['קטגוריית_מקור', 'sourceCategoryId'])),
-        sourceLineNumber: sourceLine,
-        targetTitle: targetTitle,
-        targetRef: _str(_pick(item, const ['מיקום_יעד', 'מיקום', 'ref'])),
-        connectionType: type,
-        targetIsUserBook: _toBool(
-            _pick(item, const ['יעד_אישי', 'targetIsUserBook', 'isUserBook'])),
-        targetCategoryId:
-            _toInt(_pick(item, const ['קטגוריית_יעד', 'targetCategoryId'])),
-      ));
+      final srcFlag = _pick(item, const [
+        'מקור_אישי',
+        'sourceIsUserBook',
+        'sourceIsUser',
+      ]);
+      rows.add(
+        ParsedUserLink(
+          sourceBookTitle: _str(_pick(item, const ['ספר_מקור', 'sourceBook'])),
+          sourceIsUserBook: srcFlag == null ? true : _toBool(srcFlag),
+          sourceCategoryId: _toInt(
+            _pick(item, const ['קטגוריית_מקור', 'sourceCategoryId']),
+          ),
+          sourceLineNumber: sourceLine,
+          targetTitle: targetTitle,
+          targetRef: _str(_pick(item, const ['מיקום_יעד', 'מיקום', 'ref'])),
+          connectionType: type,
+          targetIsUserBook: _toBool(
+            _pick(item, const ['יעד_אישי', 'targetIsUserBook', 'isUserBook']),
+          ),
+          targetCategoryId: _toInt(
+            _pick(item, const ['קטגוריית_יעד', 'targetCategoryId']),
+          ),
+        ),
+      );
     }
     return ParseResult(rows, errors);
   }
@@ -202,7 +235,8 @@ class UserImportParser {
     }
     if (decoded is! List) {
       errors.add(
-          const ImportRowError(0, 'הקובץ חייב להיות מערך JSON של קישורים'));
+        const ImportRowError(0, 'הקובץ חייב להיות מערך JSON של קישורים'),
+      );
       return ParseResult(rows, errors);
     }
 
@@ -235,14 +269,16 @@ class UserImportParser {
         errors.add(ImportRowError(n, 'סוג קישור לא מוכר: "$rawType"'));
         continue;
       }
-      rows.add(ParsedNativeLink(
-        sourceLineNumber: sourceLine,
-        // path_2 הוא נתיב — חילוץ כותרת בדיוק כמו בשאר הקוד (Link.path2).
-        targetTitle: getTitleFromPath(targetTitle).trim(),
-        targetLineNumber: targetLine,
-        targetRef: _str(item['heRef_2']),
-        connectionType: type,
-      ));
+      rows.add(
+        ParsedNativeLink(
+          sourceLineNumber: sourceLine,
+          // path_2 הוא נתיב — חילוץ כותרת בדיוק כמו בשאר הקוד (Link.path2).
+          targetTitle: getTitleFromPath(targetTitle).trim(),
+          targetLineNumber: targetLine,
+          targetRef: _str(item['heRef_2']),
+          connectionType: type,
+        ),
+      );
     }
     return ParseResult(rows, errors);
   }

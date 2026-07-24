@@ -45,10 +45,16 @@ void main() {
         slotIndex: 2,
       );
       expect(pages[2], same(library), reason: 'מסך היעד מוצג בעמוד-השכן');
-      expect(pages[0], same(more),
-          reason: 'הכלים זזו למיקום היעד דרך swap — אך נותרו בעץ');
-      expect(pages, contains(more),
-          reason: 'מסך הכלים (keep-alive) לא נדחק → ה-WebView אינו נטען מחדש');
+      expect(
+        pages[0],
+        same(more),
+        reason: 'הכלים זזו למיקום היעד דרך swap — אך נותרו בעץ',
+      );
+      expect(
+        pages,
+        contains(more),
+        reason: 'מסך הכלים (keep-alive) לא נדחק → ה-WebView אינו נטען מחדש',
+      );
       expect(pages, containsAll(canonical));
     });
 
@@ -79,8 +85,11 @@ void main() {
           slotIndex: c[1],
         );
         expect(pages.length, canonical.length);
-        expect(pages.toSet(), canonical.toSet(),
-            reason: 'target=${c[0]} slot=${c[1]} — חייב להיות תמורה ללא אובדן');
+        expect(
+          pages.toSet(),
+          canonical.toSet(),
+          reason: 'target=${c[0]} slot=${c[1]} — חייב להיות תמורה ללא אובדן',
+        );
       }
     });
   });
@@ -101,7 +110,10 @@ void main() {
         ];
         final hk = GlobalKey<_SlideHarnessState>();
         await tester.pumpWidget(
-            MaterialApp(home: _SlideHarness(key: hk, pages: pages)));
+          MaterialApp(
+            home: _SlideHarness(key: hk, pages: pages),
+          ),
+        );
         await tester.pumpAndSettle();
 
         final slide = hk.currentState!.slide(0, 3);
@@ -110,8 +122,11 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(hk.currentState!.currentPageIndex, 3);
-        expect(_initCount, 1,
-            reason: 'עם GlobalKey — המסך עבר reparent ולא נבנה מחדש');
+        expect(
+          _initCount,
+          1,
+          reason: 'עם GlobalKey — המסך עבר reparent ולא נבנה מחדש',
+        );
       },
     );
 
@@ -127,7 +142,10 @@ void main() {
         ];
         final hk = GlobalKey<_SlideHarnessState>();
         await tester.pumpWidget(
-            MaterialApp(home: _SlideHarness(key: hk, pages: pages)));
+          MaterialApp(
+            home: _SlideHarness(key: hk, pages: pages),
+          ),
+        );
         await tester.pumpAndSettle();
 
         final slide = hk.currentState!.slide(0, 3);
@@ -135,9 +153,11 @@ void main() {
         await slide;
         await tester.pumpAndSettle();
 
-        expect(_initCount, greaterThan(1),
-            reason:
-                'בלי GlobalKey — פירוק ובנייה מחדש (זו הרגרסיה ש-key מונע)');
+        expect(
+          _initCount,
+          greaterThan(1),
+          reason: 'בלי GlobalKey — פירוק ובנייה מחדש (זו הרגרסיה ש-key מונע)',
+        );
       },
     );
   });

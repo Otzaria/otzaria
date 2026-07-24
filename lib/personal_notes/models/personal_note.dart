@@ -124,8 +124,9 @@ class PersonalNote extends Equatable {
       id: id,
       bookId: bookId,
       lineNumber: lineNumber ?? this.lineNumber,
-      displayTitle:
-          clearDisplayTitle ? null : (displayTitle ?? this.displayTitle),
+      displayTitle: clearDisplayTitle
+          ? null
+          : (displayTitle ?? this.displayTitle),
       anchorText: clearAnchor ? null : (anchorText ?? this.anchorText),
       anchorPrefix: clearAnchor ? null : (anchorPrefix ?? this.anchorPrefix),
       anchorSuffix: clearAnchor ? null : (anchorSuffix ?? this.anchorSuffix),
@@ -143,21 +144,21 @@ class PersonalNote extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        bookId,
-        lineNumber,
-        displayTitle,
-        anchorText,
-        anchorPrefix,
-        anchorSuffix,
-        anchorStart,
-        anchorEnd,
-        lastKnownLineNumber,
-        status,
-        content,
-        contentPlain,
-        contentFormat,
-        createdAt,
-        updatedAt,
-      ];
+    id,
+    bookId,
+    lineNumber,
+    displayTitle,
+    anchorText,
+    anchorPrefix,
+    anchorSuffix,
+    anchorStart,
+    anchorEnd,
+    lastKnownLineNumber,
+    status,
+    content,
+    contentPlain,
+    contentFormat,
+    createdAt,
+    updatedAt,
+  ];
 }

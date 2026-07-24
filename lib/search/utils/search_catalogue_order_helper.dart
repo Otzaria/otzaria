@@ -105,8 +105,9 @@ class SearchCatalogueOrderHelper {
   }
 
   static int topCategoryOrder(Category cat) {
-    final normalized =
-        cat.title.replaceAll('\u05F4', '"').replaceAll('\u05F3', "'");
+    final normalized = cat.title
+        .replaceAll('\u05F4', '"')
+        .replaceAll('\u05F3', "'");
     final idx = _orderedTopCategories.indexOf(normalized);
     return idx >= 0 ? idx : _orderedTopCategories.length + cat.order;
   }

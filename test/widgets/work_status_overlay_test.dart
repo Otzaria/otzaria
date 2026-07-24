@@ -26,13 +26,15 @@ void main() {
 
     testWidgets('מציג משימה יחידה עם אחוזים', (tester) async {
       final cubit = WorkStatusCubit();
-      cubit.upsert(const WorkStatusItem(
-        id: 'indexing',
-        title: 'אינדוקס ספרים',
-        message: 'התוכנה בתהליך אינדוקס',
-        detail: 'התקדמות: 25/100',
-        progress: 0.25,
-      ));
+      cubit.upsert(
+        const WorkStatusItem(
+          id: 'indexing',
+          title: 'אינדוקס ספרים',
+          message: 'התוכנה בתהליך אינדוקס',
+          detail: 'התקדמות: 25/100',
+          progress: 0.25,
+        ),
+      );
 
       await tester.pumpWidget(_wrap(const WorkStatusOverlay(), cubit));
       await tester.pump();
@@ -47,11 +49,13 @@ void main() {
 
     testWidgets('מציג progress לא-דטרמיניסטי כשאין progress', (tester) async {
       final cubit = WorkStatusCubit();
-      cubit.upsert(const WorkStatusItem(
-        id: 'sync',
-        title: 'סנכרון',
-        message: 'מחלץ',
-      ));
+      cubit.upsert(
+        const WorkStatusItem(
+          id: 'sync',
+          title: 'סנכרון',
+          message: 'מחלץ',
+        ),
+      );
 
       await tester.pumpWidget(_wrap(const WorkStatusOverlay(), cubit));
       await tester.pump();
@@ -63,18 +67,22 @@ void main() {
 
     testWidgets('מציג שתי משימות במקביל', (tester) async {
       final cubit = WorkStatusCubit();
-      cubit.upsert(const WorkStatusItem(
-        id: 'indexing',
-        title: 'אינדוקס ספרים',
-        message: 'בתהליך',
-        progress: 0.3,
-      ));
-      cubit.upsert(const WorkStatusItem(
-        id: 'sync',
-        title: 'סנכרון ספרייה',
-        message: 'מוריד',
-        progress: 0.6,
-      ));
+      cubit.upsert(
+        const WorkStatusItem(
+          id: 'indexing',
+          title: 'אינדוקס ספרים',
+          message: 'בתהליך',
+          progress: 0.3,
+        ),
+      );
+      cubit.upsert(
+        const WorkStatusItem(
+          id: 'sync',
+          title: 'סנכרון ספרייה',
+          message: 'מוריד',
+          progress: 0.6,
+        ),
+      );
 
       await tester.pumpWidget(_wrap(const WorkStatusOverlay(), cubit));
       await tester.pump();
@@ -90,12 +98,14 @@ void main() {
     testWidgets('לחיצה על פריט עם onTap מפעילה את הפעולה', (tester) async {
       final cubit = WorkStatusCubit();
       var tapped = false;
-      cubit.upsert(WorkStatusItem(
-        id: 'indexing',
-        title: 'אינדוקס ספרים',
-        message: 'בתהליך',
-        onTap: () => tapped = true,
-      ));
+      cubit.upsert(
+        WorkStatusItem(
+          id: 'indexing',
+          title: 'אינדוקס ספרים',
+          message: 'בתהליך',
+          onTap: () => tapped = true,
+        ),
+      );
 
       await tester.pumpWidget(_wrap(const WorkStatusOverlay(), cubit));
       await tester.pump();
@@ -109,11 +119,13 @@ void main() {
 
     testWidgets('לחיצה על פריט ללא onTap אינה מנווטת', (tester) async {
       final cubit = WorkStatusCubit();
-      cubit.upsert(const WorkStatusItem(
-        id: 'library_update',
-        title: 'עדכון ספרייה',
-        message: 'מאמת את הספרייה הנוכחית',
-      ));
+      cubit.upsert(
+        const WorkStatusItem(
+          id: 'library_update',
+          title: 'עדכון ספרייה',
+          message: 'מאמת את הספרייה הנוכחית',
+        ),
+      );
 
       await tester.pumpWidget(_wrap(const WorkStatusOverlay(), cubit));
       await tester.pump();
@@ -129,21 +141,26 @@ void main() {
       cubit.close();
     });
 
-    testWidgets('לחיצה על שורה לא-לחיצה אינה מפעילה פעולה של פריט אחר',
-        (tester) async {
+    testWidgets('לחיצה על שורה לא-לחיצה אינה מפעילה פעולה של פריט אחר', (
+      tester,
+    ) async {
       final cubit = WorkStatusCubit();
       var indexingTapped = false;
-      cubit.upsert(WorkStatusItem(
-        id: 'indexing',
-        title: 'אינדוקס ספרים',
-        message: 'בתהליך',
-        onTap: () => indexingTapped = true,
-      ));
-      cubit.upsert(const WorkStatusItem(
-        id: 'library_update',
-        title: 'עדכון ספרייה',
-        message: 'מאמת',
-      ));
+      cubit.upsert(
+        WorkStatusItem(
+          id: 'indexing',
+          title: 'אינדוקס ספרים',
+          message: 'בתהליך',
+          onTap: () => indexingTapped = true,
+        ),
+      );
+      cubit.upsert(
+        const WorkStatusItem(
+          id: 'library_update',
+          title: 'עדכון ספרייה',
+          message: 'מאמת',
+        ),
+      );
 
       await tester.pumpWidget(_wrap(const WorkStatusOverlay(), cubit));
       await tester.pump();
@@ -162,13 +179,15 @@ void main() {
 
     testWidgets('פריט כושל מוצג עם אייקון שגיאה ולא עם ספינר', (tester) async {
       final cubit = WorkStatusCubit();
-      cubit.upsert(const WorkStatusItem(
-        id: 'library_update',
-        title: 'עדכון ספרייה',
-        message: 'שגיאה בהחלת העדכון',
-        detail: 'לחץ לניסיון חוזר',
-        kind: WorkStatusKind.failed,
-      ));
+      cubit.upsert(
+        const WorkStatusItem(
+          id: 'library_update',
+          title: 'עדכון ספרייה',
+          message: 'שגיאה בהחלת העדכון',
+          detail: 'לחץ לניסיון חוזר',
+          kind: WorkStatusKind.failed,
+        ),
+      );
 
       await tester.pumpWidget(_wrap(const WorkStatusOverlay(), cubit));
       await tester.pump();
@@ -183,13 +202,15 @@ void main() {
     testWidgets('לחיצה על פריט כושל מפעילה ניסיון חוזר', (tester) async {
       final cubit = WorkStatusCubit();
       var retried = false;
-      cubit.upsert(WorkStatusItem(
-        id: 'library_update',
-        title: 'עדכון ספרייה',
-        message: 'שגיאה בהחלת העדכון',
-        kind: WorkStatusKind.failed,
-        onTap: () => retried = true,
-      ));
+      cubit.upsert(
+        WorkStatusItem(
+          id: 'library_update',
+          title: 'עדכון ספרייה',
+          message: 'שגיאה בהחלת העדכון',
+          kind: WorkStatusKind.failed,
+          onTap: () => retried = true,
+        ),
+      );
 
       await tester.pumpWidget(_wrap(const WorkStatusOverlay(), cubit));
       await tester.pump();
@@ -203,11 +224,13 @@ void main() {
 
     testWidgets('dismiss מסתיר את הכרטיס מבלי למחוק משימות', (tester) async {
       final cubit = WorkStatusCubit();
-      cubit.upsert(const WorkStatusItem(
-        id: 'sync',
-        title: 'סנכרון',
-        message: 'רץ',
-      ));
+      cubit.upsert(
+        const WorkStatusItem(
+          id: 'sync',
+          title: 'סנכרון',
+          message: 'רץ',
+        ),
+      );
 
       await tester.pumpWidget(_wrap(const WorkStatusOverlay(), cubit));
       await tester.pump();
@@ -245,8 +268,9 @@ void main() {
       cubit.close();
     });
 
-    testWidgets('כשכל המשימות הוסרו ונוספה חדשה, overlay מוצג שוב',
-        (tester) async {
+    testWidgets('כשכל המשימות הוסרו ונוספה חדשה, overlay מוצג שוב', (
+      tester,
+    ) async {
       final cubit = WorkStatusCubit();
       cubit.upsert(const WorkStatusItem(id: 'a', title: 'א', message: 'רץ'));
 

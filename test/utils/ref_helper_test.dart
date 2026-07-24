@@ -58,11 +58,16 @@ void main() {
     test('יורד לעומק בעץ - מוצא ילד עם אינדקס גבוה מההורה', () {
       // הורה ב-0, ילדים ב-1,2,3 — היעד 2 צריך להחזיר את הילד (2), לא ההורה
       final entries = [
-        _entry('parent', 0, 1, children: [
-          _entry('c1', 1, 2),
-          _entry('c2', 2, 2),
-          _entry('c3', 3, 2),
-        ]),
+        _entry(
+          'parent',
+          0,
+          1,
+          children: [
+            _entry('c1', 1, 2),
+            _entry('c2', 2, 2),
+            _entry('c3', 3, 2),
+          ],
+        ),
         _entry('next', 10, 1),
       ];
       expect(closestTocEntryIndex(entries, 2), 2);
@@ -73,27 +78,52 @@ void main() {
       // ההגנה החשובה: כשאב נמצא אחרי היעד, האלגוריתם לא יורד לילדיו
       // כי אינדקסיהם בהכרח גבוהים יותר. זה התנאי `if (entry.index <= target)`.
       final entries = [
-        _entry('p1', 0, 1, children: [
-          _entry('p1c', 1, 2),
-        ]),
-        _entry('p2', 10, 1, children: [
-          _entry('p2c', 11, 2),
-        ]),
+        _entry(
+          'p1',
+          0,
+          1,
+          children: [
+            _entry('p1c', 1, 2),
+          ],
+        ),
+        _entry(
+          'p2',
+          10,
+          1,
+          children: [
+            _entry('p2c', 11, 2),
+          ],
+        ),
       ];
       expect(closestTocEntryIndex(entries, 5), 1);
     });
 
     test('היררכיה עמוקה - בוחר את האינדקס המקסימלי בכל הרמות', () {
       final entries = [
-        _entry('A', 0, 1, children: [
-          _entry('A1', 1, 2, children: [
-            _entry('A1a', 2, 3),
-            _entry('A1b', 3, 3),
-          ]),
-          _entry('A2', 4, 2, children: [
-            _entry('A2a', 5, 3),
-          ]),
-        ]),
+        _entry(
+          'A',
+          0,
+          1,
+          children: [
+            _entry(
+              'A1',
+              1,
+              2,
+              children: [
+                _entry('A1a', 2, 3),
+                _entry('A1b', 3, 3),
+              ],
+            ),
+            _entry(
+              'A2',
+              4,
+              2,
+              children: [
+                _entry('A2a', 5, 3),
+              ],
+            ),
+          ],
+        ),
       ];
       expect(closestTocEntryIndex(entries, 5), 5);
       expect(closestTocEntryIndex(entries, 4), 4);
@@ -144,14 +174,24 @@ void main() {
 
     test('TOC שמתחיל ברמה 2 - לא מדביק את הכותרת הראשונה לכל כתובת', () async {
       final toc = [
-        _entry('הלכות שבועות', 2, 2, children: [
-          _entry('סימן א', 3, 3),
-          _entry('סימן ב', 14, 3),
-        ]),
-        _entry('הלכות צדקה', 183, 2, children: [
-          _entry('סימן א', 184, 3),
-          _entry('סימן יב', 226, 3),
-        ]),
+        _entry(
+          'הלכות שבועות',
+          2,
+          2,
+          children: [
+            _entry('סימן א', 3, 3),
+            _entry('סימן ב', 14, 3),
+          ],
+        ),
+        _entry(
+          'הלכות צדקה',
+          183,
+          2,
+          children: [
+            _entry('סימן א', 184, 3),
+            _entry('סימן יב', 226, 3),
+          ],
+        ),
       ];
 
       // סימן יב תחת הלכות צדקה - לא אמור לכלול "הלכות שבועות"
@@ -162,14 +202,29 @@ void main() {
 
     test('TOC עם רמה 1 תקין - שומר על כל ההיררכיה', () async {
       final toc = [
-        _entry('מחנה אפרים חלק ב', 1216, 1, children: [
-          _entry('הלכות שכירות פועלים', 1218, 2, children: [
-            _entry('סימן א', 1219, 3),
-          ]),
-          _entry('הלכות ערב', 1460, 2, children: [
-            _entry('סימן ב', 1468, 3),
-          ]),
-        ]),
+        _entry(
+          'מחנה אפרים חלק ב',
+          1216,
+          1,
+          children: [
+            _entry(
+              'הלכות שכירות פועלים',
+              1218,
+              2,
+              children: [
+                _entry('סימן א', 1219, 3),
+              ],
+            ),
+            _entry(
+              'הלכות ערב',
+              1460,
+              2,
+              children: [
+                _entry('סימן ב', 1468, 3),
+              ],
+            ),
+          ],
+        ),
       ];
 
       expect(
@@ -180,9 +235,14 @@ void main() {
 
     test('דילוג על רמה (1 ואז 3) - לא משאיר מקטעים ריקים', () async {
       final toc = [
-        _entry('חלק', 0, 1, children: [
-          _entry('סעיף', 5, 3),
-        ]),
+        _entry(
+          'חלק',
+          0,
+          1,
+          children: [
+            _entry('סעיף', 5, 3),
+          ],
+        ),
       ];
 
       expect(await refFromIndex(5, Future.value(toc)), 'חלק, סעיף');
@@ -198,11 +258,21 @@ void main() {
 
     test('refFromTocList (סינכרוני) מחזיר זהה ל-refFromIndex', () async {
       final toc = [
-        _entry('מחנה אפרים חלק ב', 1216, 1, children: [
-          _entry('הלכות ערב', 1460, 2, children: [
-            _entry('סימן ב', 1468, 3),
-          ]),
-        ]),
+        _entry(
+          'מחנה אפרים חלק ב',
+          1216,
+          1,
+          children: [
+            _entry(
+              'הלכות ערב',
+              1460,
+              2,
+              children: [
+                _entry('סימן ב', 1468, 3),
+              ],
+            ),
+          ],
+        ),
       ];
 
       expect(
@@ -246,16 +316,17 @@ void main() {
     });
 
     test(
-        'falls back to the existing link reference when TOC ref is unavailable',
-        () {
-      expect(
-        formatDisplayReference(
-          bookTitle: 'בראשית',
-          fallbackRef: 'פרק א',
-        ),
-        'בראשית, פרק א',
-      );
-    });
+      'falls back to the existing link reference when TOC ref is unavailable',
+      () {
+        expect(
+          formatDisplayReference(
+            bookTitle: 'בראשית',
+            fallbackRef: 'פרק א',
+          ),
+          'בראשית, פרק א',
+        );
+      },
+    );
 
     test('returns only the book title when no reference is available', () {
       expect(
@@ -313,7 +384,9 @@ void main() {
     test('לא מוסיף קידומת כשהכותרת כוללת ספר + פרק עם מילות הספר', () {
       expect(
         addBookTitleToRef(
-            'חברותא - בכורות, פרק ראשון - הלוקח', 'חברותא על בכורות'),
+          'חברותא - בכורות, פרק ראשון - הלוקח',
+          'חברותא על בכורות',
+        ),
         'חברותא - בכורות, פרק ראשון - הלוקח',
       );
     });
@@ -353,7 +426,9 @@ void main() {
     test('מחזיר את שם הספר כשהכותרת מקוצרת ממנו וחולקת מילה מובילה', () {
       expect(
         addBookTitleToRef(
-            'בית מאיר אורח חיים', 'בית מאיר על שולחן ערוך אורח חיים'),
+          'בית מאיר אורח חיים',
+          'בית מאיר על שולחן ערוך אורח חיים',
+        ),
         'בית מאיר על שולחן ערוך אורח חיים',
       );
     });

@@ -24,8 +24,9 @@ class ShamorZachorBootstrapWorker {
 
 Map<String, dynamic> _loadCategoryTreeInWorker(Map<String, dynamic> request) {
   final dbPath = request['dbPath'] as String;
-  final trackedBookIds =
-      (request['trackedBookIds'] as List).cast<int>().toSet();
+  final trackedBookIds = (request['trackedBookIds'] as List)
+      .cast<int>()
+      .toSet();
 
   final db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
   try {
@@ -62,8 +63,9 @@ Map<String, dynamic> _loadCategoryTreeInWorker(Map<String, dynamic> request) {
 
     for (final categories in categoriesByParentId.values) {
       categories.sort((a, b) {
-        final orderCompare =
-            (a['orderIndex'] as int).compareTo(b['orderIndex'] as int);
+        final orderCompare = (a['orderIndex'] as int).compareTo(
+          b['orderIndex'] as int,
+        );
         if (orderCompare != 0) return orderCompare;
         return (a['title'] as String).compareTo(b['title'] as String);
       });
@@ -153,8 +155,9 @@ Map<String, dynamic>? _buildRecursiveCategory({
     'isCustom': false,
     'sourceFile': 'db',
     if (validSubcategories.isNotEmpty) 'subcategories': validSubcategories,
-    'parentCategoryName':
-        currentCat['parentId'] != null ? parentPath.last : null,
+    'parentCategoryName': currentCat['parentId'] != null
+        ? parentPath.last
+        : null,
     'schemaVersion': 1,
   };
 }
@@ -183,7 +186,7 @@ Map<String, dynamic> _convertBookToDetails({
         'name': 'ראשי',
         'start': 1,
         'end': endPage,
-      }
+      },
     ],
     if (sections.isNotEmpty) 'sections': sections,
     'categoryPath': categoryPath.isNotEmpty ? categoryPath.first : '',
@@ -195,7 +198,9 @@ List<Map<String, dynamic>> _loadTocForBook(
   int bookId,
   int totalLines,
 ) {
-  final tocEntries = _selectMaps(db, '''
+  final tocEntries = _selectMaps(
+    db,
+    '''
     SELECT t.*, tt.text, COALESCE(l.lineIndex, t.lineId) as lineIndex
     FROM tocEntry t
     JOIN tocText tt ON t.textId = tt.id
@@ -203,7 +208,9 @@ List<Map<String, dynamic>> _loadTocForBook(
     WHERE t.bookId = ?
     ORDER BY COALESCE(l.lineIndex, t.lineId) ASC,
              CASE WHEN t.id < 0 THEN -t.id ELSE t.id END ASC
-  ''', [bookId]);
+  ''',
+    [bookId],
+  );
 
   if (tocEntries.isEmpty) {
     return const [];
@@ -226,8 +233,10 @@ List<Map<String, dynamic>> _buildSectionsFromToc(
   }
 
   final roots = entries.where((entry) => entry['parentId'] == null).toList()
-    ..sort((a, b) =>
-        (a['lineIndex'] as int? ?? 0).compareTo(b['lineIndex'] as int? ?? 0));
+    ..sort(
+      (a, b) =>
+          (a['lineIndex'] as int? ?? 0).compareTo(b['lineIndex'] as int? ?? 0),
+    );
 
   final result = <Map<String, dynamic>>[];
   for (var i = 0; i < roots.length; i++) {
@@ -237,14 +246,16 @@ List<Map<String, dynamic>> _buildSectionsFromToc(
     final currentLineIndex = current['lineIndex'] as int? ?? 0;
     final currentEnd =
         next != null && (next['lineIndex'] as int? ?? 0) > currentLineIndex
-            ? (next['lineIndex'] as int) - 1
-            : nextStart;
+        ? (next['lineIndex'] as int) - 1
+        : nextStart;
 
-    result.add(_convertToSection(
-      current,
-      childMap,
-      currentEnd > 0 ? currentEnd : totalLines,
-    ));
+    result.add(
+      _convertToSection(
+        current,
+        childMap,
+        currentEnd > 0 ? currentEnd : totalLines,
+      ),
+    );
   }
   return result;
 }
@@ -255,8 +266,10 @@ Map<String, dynamic> _convertToSection(
   int parentEndPage,
 ) {
   final children = [...childMap[entry['id'] as int] ?? const []];
-  children.sort((a, b) =>
-      (a['lineIndex'] as int? ?? 0).compareTo(b['lineIndex'] as int? ?? 0));
+  children.sort(
+    (a, b) =>
+        (a['lineIndex'] as int? ?? 0).compareTo(b['lineIndex'] as int? ?? 0),
+  );
 
   final childSections = <Map<String, dynamic>>[];
   final entryStart = entry['lineIndex'] as int? ?? 0;
@@ -268,8 +281,8 @@ Map<String, dynamic> _convertToSection(
     final currentLineIndex = current['lineIndex'] as int? ?? 0;
     final currentEnd =
         next != null && (next['lineIndex'] as int? ?? 0) > currentLineIndex
-            ? (next['lineIndex'] as int) - 1
-            : nextStart;
+        ? (next['lineIndex'] as int) - 1
+        : nextStart;
 
     childSections.add(_convertToSection(current, childMap, currentEnd));
   }

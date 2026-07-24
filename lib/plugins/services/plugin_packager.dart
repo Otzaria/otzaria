@@ -62,14 +62,16 @@ class PluginPackager {
     final dir = Directory(directoryPath);
     if (!dir.existsSync()) {
       throw PluginPackagerException(
-          'התיקייה לא קיימת: ${p.absolute(directoryPath)}');
+        'התיקייה לא קיימת: ${p.absolute(directoryPath)}',
+      );
     }
 
     final manifestFile = File(p.join(dir.path, 'manifest.json'));
     if (!manifestFile.existsSync()) {
       throw PluginPackagerException(
-          'הקובץ manifest.json לא נמצא בתיקייה ${p.absolute(directoryPath)}. '
-          'תוסף תקין חייב לכלול manifest.json בשורש.');
+        'הקובץ manifest.json לא נמצא בתיקייה ${p.absolute(directoryPath)}. '
+        'תוסף תקין חייב לכלול manifest.json בשורש.',
+      );
     }
 
     final manifestStr = manifestFile.readAsStringSync();
@@ -85,7 +87,8 @@ class PluginPackager {
       manifest = PluginManifest.fromJson(manifestJson);
     } catch (e) {
       throw PluginPackagerException(
-          'נכשלה קריאת manifest.json לתוך מבנה PluginManifest: $e');
+        'נכשלה קריאת manifest.json לתוך מבנה PluginManifest: $e',
+      );
     }
 
     try {
@@ -134,8 +137,10 @@ class PluginPackager {
       p.normalize(p.absolute(p.join(dir.path, manifest.entrypoint))),
       from: dir.path,
     );
-    final blockedDir =
-        p.split(entrypointRelativePath).where(skipDirs.contains).firstOrNull;
+    final blockedDir = p
+        .split(entrypointRelativePath)
+        .where(skipDirs.contains)
+        .firstOrNull;
     if (blockedDir != null) {
       throw PluginPackagerException(
         'קובץ הכניסה "${manifest.entrypoint}" נמצא בתוך תיקייה מוחרגת מאריזה '
@@ -163,8 +168,10 @@ class PluginPackager {
         p.normalize(p.absolute(p.join(dir.path, backgroundEntrypoint))),
         from: dir.path,
       );
-      final blockedBackgroundDir =
-          p.split(backgroundRelativePath).where(skipDirs.contains).firstOrNull;
+      final blockedBackgroundDir = p
+          .split(backgroundRelativePath)
+          .where(skipDirs.contains)
+          .firstOrNull;
       if (blockedBackgroundDir != null) {
         throw PluginPackagerException(
           'קובץ הרקע "$backgroundEntrypoint" נמצא בתוך תיקייה מוחרגת מאריזה '
@@ -180,13 +187,16 @@ class PluginPackager {
       }
     }
 
-    final resolvedOutPath = outputPath ??
+    final resolvedOutPath =
+        outputPath ??
         p.join(dir.parent.path, '${manifest.id}-${manifest.version}.otzplugin');
     final outFile = File(resolvedOutPath);
 
     if (outFile.existsSync() && !force) {
-      throw PluginPackagerException('קובץ הפלט כבר קיים: $resolvedOutPath\n'
-          'יש להשתמש בדגל --force כדי לדרוס אותו.');
+      throw PluginPackagerException(
+        'קובץ הפלט כבר קיים: $resolvedOutPath\n'
+        'יש להשתמש בדגל --force כדי לדרוס אותו.',
+      );
     }
 
     final outParent = Directory(p.dirname(resolvedOutPath));
@@ -211,8 +221,9 @@ class PluginPackager {
       for (final entity in currentDir.listSync(recursive: false)) {
         final base = p.basename(entity.path);
         if (skipDirs.contains(base)) continue;
-        final rel =
-            p.relative(entity.path, from: dir.path).replaceAll('\\', '/');
+        final rel = p
+            .relative(entity.path, from: dir.path)
+            .replaceAll('\\', '/');
         if (entity is Directory) {
           // גזימת תיקייה מוחרגת בשלמותה. מדלגים על הקיצור כשיש כללי `!`,
           // כי ייתכן שקובץ-צאצא צריך להיכלל בכל זאת.

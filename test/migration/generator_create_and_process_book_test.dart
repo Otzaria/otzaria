@@ -212,8 +212,9 @@ void main() {
     );
     expect(book, isNotNull);
     final db = await database.database;
-    final row = db.select(
-      '''
+    final row = db
+        .select(
+          '''
       SELECT parentText.text AS parentText
       FROM tocEntry child
       JOIN tocText childText ON childText.id = child.textId
@@ -221,8 +222,10 @@ void main() {
       LEFT JOIN tocText parentText ON parentText.id = parent.textId
       WHERE child.bookId = ? AND childText.text = ?
       ''',
-      [book!.id, 'ה'],
-    ).toMapList().single;
+          [book!.id, 'ה'],
+        )
+        .toMapList()
+        .single;
 
     expect(
       row['parentText'],
@@ -230,7 +233,6 @@ void main() {
       reason: 'h4 שאחרי h2 חדש חייב להשתייך ל-h2, לא ל-h3 מהענף הקודם',
     );
   });
-
 
   group('detectHeaderLevel', () {
     test('כותרת רגילה מזוהה, כותרת עם סימון ההדרה — לא', () {

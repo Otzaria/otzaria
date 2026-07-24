@@ -42,11 +42,10 @@ class _FakeTabsRepository implements TabsRepository {
 NavigationBloc _makeBloc({
   bool libraryIsEmpty = false,
   bool hasTabs = false,
-}) =>
-    NavigationBloc(
-      repository: _FakeNavigationRepository(libraryIsEmpty: libraryIsEmpty),
-      tabsRepository: _FakeTabsRepository(hasTabs: hasTabs),
-    );
+}) => NavigationBloc(
+  repository: _FakeNavigationRepository(libraryIsEmpty: libraryIsEmpty),
+  tabsRepository: _FakeTabsRepository(hasTabs: hasTabs),
+);
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 

@@ -43,13 +43,15 @@ class _IndexingStatusOverlayState extends State<IndexingStatusOverlay> {
         final hasKnownTotal = total > 0;
         final rawProgress = hasKnownTotal ? processed / total : null;
         final progress = rawProgress?.clamp(0.0, 1.0).toDouble();
-        final percentLabel =
-            progress == null ? '...' : '${(progress * 100).round()}%';
+        final percentLabel = progress == null
+            ? '...'
+            : '${(progress * 100).round()}%';
         final countLabel = hasKnownTotal ? '$processed/$total' : '$processed';
 
         final isWindows = Theme.of(context).platform == TargetPlatform.windows;
-        final alignment =
-            isWindows ? Alignment.bottomLeft : Alignment.bottomRight;
+        final alignment = isWindows
+            ? Alignment.bottomLeft
+            : Alignment.bottomRight;
         final padding = isWindows
             ? const EdgeInsets.only(bottom: 24, left: 16)
             : const EdgeInsets.only(bottom: 24, right: 16);

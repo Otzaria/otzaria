@@ -27,8 +27,9 @@ class _HarnessState extends State<_Harness> {
 
   @override
   Widget build(BuildContext context) {
-    final selColor =
-        Theme.of(context).colorScheme.primary.withValues(alpha: 0.08);
+    final selColor = Theme.of(
+      context,
+    ).colorScheme.primary.withValues(alpha: 0.08);
     return MaterialApp(
       home: Scaffold(
         body: SelectionArea(
@@ -81,21 +82,29 @@ void main() {
   }
 
   testWidgets(
-      'toggling decoration null<->BoxDecoration closes details (regression)',
-      (tester) async {
-    await tester.pumpWidget(const _Harness(stableDecoration: false));
-    await tester.pumpAndSettle();
-    await openThenSelect(tester);
-    expect(payload, findsNothing,
-        reason: 'old behavior: rebuild destroyed the details Element');
-  });
+    'toggling decoration null<->BoxDecoration closes details (regression)',
+    (tester) async {
+      await tester.pumpWidget(const _Harness(stableDecoration: false));
+      await tester.pumpAndSettle();
+      await openThenSelect(tester);
+      expect(
+        payload,
+        findsNothing,
+        reason: 'old behavior: rebuild destroyed the details Element',
+      );
+    },
+  );
 
-  testWidgets('stable decoration keeps details open after selection',
-      (tester) async {
+  testWidgets('stable decoration keeps details open after selection', (
+    tester,
+  ) async {
     await tester.pumpWidget(const _Harness(stableDecoration: true));
     await tester.pumpAndSettle();
     await openThenSelect(tester);
-    expect(payload, findsOneWidget,
-        reason: 'fix: constant tree depth preserves details state');
+    expect(
+      payload,
+      findsOneWidget,
+      reason: 'fix: constant tree depth preserves details state',
+    );
   });
 }

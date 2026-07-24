@@ -134,8 +134,9 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
 
   void _updateInputFocusState() {
     if (widget.inputFocusNotifier == null) return;
-    final hasSpacingFocus =
-        _spacingFocusNodes.values.any((node) => node.hasFocus);
+    final hasSpacingFocus = _spacingFocusNodes.values.any(
+      (node) => node.hasFocus,
+    );
     widget.inputFocusNotifier!.value =
         _alternativeWordFocusNode.hasFocus || hasSpacingFocus;
   }
@@ -175,21 +176,24 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
     if (selStart == selEnd) {
       // סמן נקודתי — המילה הבודדת שהסמן בתוכה
       final span = spans.cast<QueryWordSpan?>().firstWhere(
-          (s) => selStart >= s!.start && selStart <= s.end,
-          orElse: () => null);
+        (s) => selStart >= s!.start && selStart <= s.end,
+        orElse: () => null,
+      );
       selected = span == null ? const [] : [span];
     } else {
       // בחירת טווח — כל מילה שהבחירה חופפת בפועל
-      selected =
-          spans.where((s) => s.end > selStart && s.start < selEnd).toList();
+      selected = spans
+          .where((s) => s.end > selStart && s.start < selEnd)
+          .toList();
     }
 
     final anchor = selected.isNotEmpty ? selected.first : null;
     // השוואה לפי המפתח המלא `word_index` — אינדקס לבדו יחמיץ שינוי טקסט
     // של מילה לא-ראשונה בטווח, וישאיר מפתח ישן לכתיבת האפשרויות.
     final changed = !listEquals(
-        selected.map((s) => '${s.word}_${s.index}').toList(),
-        _selectedSpans.map((s) => '${s.word}_${s.index}').toList());
+      selected.map((s) => '${s.word}_${s.index}').toList(),
+      _selectedSpans.map((s) => '${s.word}_${s.index}').toList(),
+    );
 
     if (changed) {
       setState(() {
@@ -403,8 +407,10 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
                   closeOnActivate: false,
                   onChanged: (checked) {
                     setState(() {
-                      SearchDefaults.saveDefaults(
-                          {...defaults, key: checked ?? false});
+                      SearchDefaults.saveDefaults({
+                        ...defaults,
+                        key: checked ?? false,
+                      });
                       // שינוי ברירת מחדל מוחל מיד גם על הריבוע בחלונית הפתוחה
                       _globalSearchOptions[key] = checked ?? false;
                     });
@@ -514,8 +520,8 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
               !isEnabled
                   ? 'בחר מילה'
                   : _selectedSpans.length > 1
-                      ? '${_selectedSpans.length} מילים נבחרו'
-                      : _currentWord!,
+                  ? '${_selectedSpans.length} מילים נבחרו'
+                  : _currentWord!,
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -561,19 +567,24 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
                     labelText: 'מרווח למילה הבאה',
                     hintText: '0-30',
                     border: const OutlineInputBorder(),
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     suffixIcon: IconButton(
-                      icon:
-                          const Icon(FluentIcons.dismiss_24_regular, size: 20),
+                      icon: const Icon(
+                        FluentIcons.dismiss_24_regular,
+                        size: 20,
+                      ),
                       onPressed: isEnabled && _wordIndex != null
                           ? () {
                               final key = '${_wordIndex!}-${_wordIndex! + 1}';
                               _spacingValues.remove(key);
                               _spacingValuesChanged.value++;
                               _getSpacingController(
-                                      _wordIndex!, _wordIndex! + 1)
-                                  .clear();
+                                _wordIndex!,
+                                _wordIndex! + 1,
+                              ).clear();
                             }
                           : null,
                     ),
@@ -619,8 +630,10 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
                   labelText: 'מילה חילופית',
                   hintText: 'הקלד מילה...',
                   border: const OutlineInputBorder(),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   prefixIcon: IconButton(
                     icon: const Icon(FluentIcons.add_24_regular, size: 20),
                     onPressed: isEnabled ? _addAlternative : null,
@@ -642,7 +655,7 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
         if (_currentAlternatives.isNotEmpty) ...[
           const SizedBox(height: 8),
           _buildAlternativeWordsList(),
-        ]
+        ],
       ],
     );
   }
@@ -753,7 +766,8 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
           isChecked = _globalSearchOptions[option] ?? false;
         } else {
           // מסומן רק אם כל המילים הנבחרות מסומנות — אחרת מצב מעורב מוצג ככבוי
-          isChecked = _selectedSpans.isNotEmpty &&
+          isChecked =
+              _selectedSpans.isNotEmpty &&
               _selectedSpans.every(
                 (s) => _searchOptions['${s.word}_${s.index}']?[option] ?? false,
               );

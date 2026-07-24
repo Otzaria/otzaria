@@ -3,8 +3,11 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/file/page_converter.dart';
 import 'package:pdfrx/pdfrx.dart';
 
-PdfOutlineNode node(String title, int? page,
-    {List<PdfOutlineNode> children = const []}) {
+PdfOutlineNode node(
+  String title,
+  int? page, {
+  List<PdfOutlineNode> children = const [],
+}) {
   return PdfOutlineNode(
     title: title,
     dest: page == null ? null : PdfDest(page, PdfDestCommand.fit, null),
@@ -16,10 +19,14 @@ void main() {
   group('collectPdfAnchors', () {
     test('אוסף עוגנים מעץ מקונן עם נתיב מלא', () {
       final outline = [
-        node('ברכות', 1, children: [
-          node('ב.', 2),
-          node('ג.', 3),
-        ]),
+        node(
+          'ברכות',
+          1,
+          children: [
+            node('ב.', 2),
+            node('ג.', 3),
+          ],
+        ),
       ];
 
       final anchors = collectPdfAnchors(outline);

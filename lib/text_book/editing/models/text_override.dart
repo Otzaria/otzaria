@@ -101,7 +101,8 @@ class TextOverride extends Equatable {
 
   /// Converts the override to file content with frontmatter
   String toFileContent() {
-    final frontmatter = '''---
+    final frontmatter =
+        '''---
 sourceHashOnOpen: "$sourceHashOnOpen"
 appSchemaVersion: "$appSchemaVersion"
 lastModified: "${lastModified.toIso8601String()}"
@@ -133,12 +134,12 @@ lastModified: "${lastModified.toIso8601String()}"
 
   @override
   List<Object?> get props => [
-        bookId,
-        sectionId,
-        markdownContent,
-        lastModified,
-        sourceHashOnOpen,
-        appSchemaVersion,
-        originalContent,
-      ];
+    bookId,
+    sectionId,
+    markdownContent,
+    lastModified,
+    sourceHashOnOpen,
+    appSchemaVersion,
+    originalContent,
+  ];
 }

@@ -122,8 +122,8 @@ class _InputDialogState extends State<InputDialog>
     final foregroundColor = color == null
         ? null
         : (ThemeData.estimateBrightnessForColor(color) == Brightness.dark
-            ? cs.surface
-            : cs.onSurface);
+              ? cs.surface
+              : cs.onSurface);
 
     final showHover = isFocused && !_textFieldFocusNode.hasFocus;
 

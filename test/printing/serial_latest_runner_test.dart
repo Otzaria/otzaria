@@ -135,8 +135,11 @@ void main() {
       expect(await first, 1);
       final secondResult = await second;
 
-      expect(secondTaskRan, isFalse,
-          reason: 'התיישנה בזמן ההמתנה — מדולגת אף שנכנסה תקפה');
+      expect(
+        secondTaskRan,
+        isFalse,
+        reason: 'התיישנה בזמן ההמתנה — מדולגת אף שנכנסה תקפה',
+      );
       // מוחזרת התוצאה התקפה העדכנית ביותר — של המשימה הארוכה שהשלימה לפניה (1),
       // ולא 100 שקדם לה.
       expect(secondResult, 1);
@@ -154,13 +157,15 @@ void main() {
       final futures = <Future<int>>[];
       for (var i = 0; i < 3; i++) {
         final entered = ++generation;
-        futures.add(runner.run(
-          isStale: () => entered != generation,
-          task: () async {
-            ranTasks.add(i);
-            return i;
-          },
-        ));
+        futures.add(
+          runner.run(
+            isStale: () => entered != generation,
+            task: () async {
+              ranTasks.add(i);
+              return i;
+            },
+          ),
+        );
       }
       await Future.wait(futures);
 

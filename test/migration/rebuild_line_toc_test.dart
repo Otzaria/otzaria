@@ -42,8 +42,8 @@ void main() {
   // ── helpers ──────────────────────────────────────────────────────────────
 
   Future<int> createCategory() => repository.insertCategory(
-        const Category(title: 'קטגוריה', parentId: null, level: 0),
-      );
+    const Category(title: 'קטגוריה', parentId: null, level: 0),
+  );
 
   /// יוצר ספר ומחזיר את ה-bookId שלו.
   Future<int> createBook(int categoryId, String title) =>
@@ -68,30 +68,32 @@ void main() {
 
   /// מוסיף tocEntry ומחזיר את ה-id שלו.
   Future<int> insertToc(int bookId, int lineIndex) => repository.insertTocEntry(
-        TocEntry(
-          id: 0,
-          bookId: bookId,
-          parentId: null,
-          text: 'פרק $lineIndex',
-          level: 1,
-          lineIndex: lineIndex,
-          lineId: null,
-          isLastChild: true,
-          hasChildren: false,
-        ),
-      );
+    TocEntry(
+      id: 0,
+      bookId: bookId,
+      parentId: null,
+      text: 'פרק $lineIndex',
+      level: 1,
+      lineIndex: lineIndex,
+      lineId: null,
+      isLastChild: true,
+      hasChildren: false,
+    ),
+  );
 
   /// מחזיר כמה שורות ממופות ב-line_toc לספר נתון.
   Future<List<Map<String, Object?>>> getLineTocRows(int bookId) async {
     final db = await database.database;
-    return db.select(
-      '''SELECT lt.lineId, lt.tocEntryId
+    return db
+        .select(
+          '''SELECT lt.lineId, lt.tocEntryId
          FROM line_toc lt
          JOIN line l ON l.id = lt.lineId
          WHERE l.bookId = ?
          ORDER BY l.lineIndex''',
-      [bookId],
-    ).toMapList();
+          [bookId],
+        )
+        .toMapList();
   }
 
   // ── tests ─────────────────────────────────────────────────────────────────
@@ -131,8 +133,11 @@ void main() {
         .select('SELECT id FROM line WHERE bookId=? AND lineIndex=0', [bookId])
         .toMapList()
         .first['id'];
-    expect(lineIds, isNot(contains(line0Id)),
-        reason: 'שורה לפני heading ראשון לא אמורה להיות ב-line_toc');
+    expect(
+      lineIds,
+      isNot(contains(line0Id)),
+      reason: 'שורה לפני heading ראשון לא אמורה להיות ב-line_toc',
+    );
   });
 
   test('3. שורות מאחרי heading ממופות ל-tocEntry הנכון', () async {
@@ -172,8 +177,12 @@ void main() {
     final bookId = await createBook(catId, 'ספר 5');
 
     // line 0: h1, line 1: תוכן, line 2: h2, line 3: תוכן
-    await insertLines(
-        bookId, ['<h1>פרק א</h1>', 'תוכן א', '<h1>פרק ב</h1>', 'תוכן ב']);
+    await insertLines(bookId, [
+      '<h1>פרק א</h1>',
+      'תוכן א',
+      '<h1>פרק ב</h1>',
+      'תוכן ב',
+    ]);
     final toc1 = await insertToc(bookId, 0);
     final toc2 = await insertToc(bookId, 2);
 
@@ -239,11 +248,13 @@ void main() {
     );
 
     final db = await database.database;
-    final count = db.select(
-      'SELECT COUNT(*) AS count FROM tocEntry WHERE bookId = ?',
-      [bookId],
-    ).toMapList().single['count'];
+    final count = db
+        .select(
+          'SELECT COUNT(*) AS count FROM tocEntry WHERE bookId = ?',
+          [bookId],
+        )
+        .toMapList()
+        .single['count'];
     expect(count, 0);
   });
-
 }

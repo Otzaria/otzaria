@@ -57,8 +57,8 @@ class WorkspaceRepository {
             box.get(_legacyCurrentWorkspaceKey, defaultValue: 0) as int;
         final workspaceAtLegacy =
             (legacyIndex >= 0 && legacyIndex < decoded.length)
-                ? decoded[legacyIndex]
-                : null;
+            ? decoded[legacyIndex]
+            : null;
         currentId = (workspaceAtLegacy ?? workspaces.first).id;
         unawaited(box.put(_currentWorkspaceIdKey, currentId));
       }
@@ -83,7 +83,9 @@ class WorkspaceRepository {
 
   /// Saves workspaces and the active workspace ID.
   Future<void> saveWorkspaces(
-      List<Workspace> workspaces, String? currentWorkspaceId) async {
+    List<Workspace> workspaces,
+    String? currentWorkspaceId,
+  ) async {
     try {
       final box = _getBox();
       await box.put(

@@ -10,11 +10,11 @@ abstract class BaseListRepository<T> {
     required T Function(Map<String, dynamic>) fromJson,
     required Map<String, dynamic> Function(T) toJson,
   }) : _repo = HiveListRepository<T>(
-          boxName: boxName,
-          key: key,
-          fromJson: fromJson,
-          toJson: toJson,
-        );
+         boxName: boxName,
+         key: key,
+         fromJson: fromJson,
+         toJson: toJson,
+       );
 
   Future<List<T>> load() async => _repo.load();
   Future<void> save(List<T> items) async => _repo.save(items);

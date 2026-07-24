@@ -10,12 +10,14 @@ void main() {
       service = DataCollectionService();
     });
 
-    test('should return unknown when library version file is missing',
-        () async {
-      // This test would need proper mocking of file system
-      // For now, we just test the basic structure
-      expect(service, isA<DataCollectionService>());
-    });
+    test(
+      'should return unknown when library version file is missing',
+      () async {
+        // This test would need proper mocking of file system
+        // For now, we just test the basic structure
+        expect(service, isA<DataCollectionService>());
+      },
+    );
 
     test('should calculate current line number correctly', () {
       final positions = [

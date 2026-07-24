@@ -85,8 +85,12 @@ class TabsRepository {
   ) {
     return tabs.map((tab) {
       var changed = false;
-      final remappedJson =
-          _remapNode(tab.toJson(), fromDir, toDir, () => changed = true);
+      final remappedJson = _remapNode(
+        tab.toJson(),
+        fromDir,
+        toDir,
+        () => changed = true,
+      );
       if (!changed) return tab;
       return _tabFromJson(castMap(remappedJson)) ?? tab;
     }).toList();
@@ -167,8 +171,11 @@ class TabsRepository {
     }
   }
 
-  Future<void> saveTabs(List<OpenedTab> tabs, int currentTabIndex,
-      [SideBySideMode? sideBySideMode]) async {
+  Future<void> saveTabs(
+    List<OpenedTab> tabs,
+    int currentTabIndex, [
+    SideBySideMode? sideBySideMode,
+  ]) async {
     final box = Hive.box('tabs');
     final persistedTabs = <OpenedTab>[];
     final persistedIndexByOriginalIndex = <int, int>{};
@@ -206,7 +213,9 @@ class TabsRepository {
   /// להריץ `toJson()` על כל הטאבים בכל מעבר. מבצע רק מיפוי אינדקסים קל
   /// ושומר ערך בודד. הכתיבה ל-Hive אסינכרונית ואינה חוסמת את ה-UI.
   Future<void> saveCurrentTabIndex(
-      List<OpenedTab> tabs, int currentTabIndex) async {
+    List<OpenedTab> tabs,
+    int currentTabIndex,
+  ) async {
     final persistedIndexByOriginalIndex = <int, int>{};
     var persistedCount = 0;
     for (var i = 0; i < tabs.length; i++) {

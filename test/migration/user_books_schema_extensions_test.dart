@@ -40,29 +40,31 @@ void main() {
       expect(tables, contains('user_link'));
     });
 
-    test('user_link מכילה את העמודות הנדרשות לזיהוי מקור+יעד חוצה-DB',
-        () async {
-      final db = await database.database;
-      final cols = db
-          .select('PRAGMA table_info(user_link)')
-          .map((r) => r['name'] as String)
-          .toSet();
-      expect(
-        cols,
-        containsAll([
-          'sourceTitle',
-          'sourceCategoryId',
-          'sourceIsUserBook',
-          'sourceLineIndex',
-          'targetTitle',
-          'targetCategoryId',
-          'targetIsUserBook',
-          'targetRef',
-          'targetLineIndex',
-          'connectionType',
-        ]),
-      );
-    });
+    test(
+      'user_link מכילה את העמודות הנדרשות לזיהוי מקור+יעד חוצה-DB',
+      () async {
+        final db = await database.database;
+        final cols = db
+            .select('PRAGMA table_info(user_link)')
+            .map((r) => r['name'] as String)
+            .toSet();
+        expect(
+          cols,
+          containsAll([
+            'sourceTitle',
+            'sourceCategoryId',
+            'sourceIsUserBook',
+            'sourceLineIndex',
+            'targetTitle',
+            'targetCategoryId',
+            'targetIsUserBook',
+            'targetRef',
+            'targetLineIndex',
+            'connectionType',
+          ]),
+        );
+      },
+    );
 
     test('user_link ישנה (sourceBookId FK) משודרגת לסכמה חוצה-DB', () async {
       final setupDb = sqlite3.sqlite3.open(dbPath);

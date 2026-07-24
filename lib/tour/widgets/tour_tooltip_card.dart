@@ -114,8 +114,8 @@ class TourTooltipCard extends StatelessWidget {
                       text: isRestartEntry
                           ? 'ביטול'
                           : isWelcomeStep
-                              ? 'דלג — אגלה לבד'
-                              : 'דלג על הסיור',
+                          ? 'דלג — אגלה לבד'
+                          : 'דלג על הסיור',
                       onPressed: onSkip,
                     )
                   else
@@ -148,10 +148,10 @@ class TourTooltipCard extends StatelessWidget {
                     text: isLastStep
                         ? 'סגור'
                         : isRestartEntry
-                            ? 'אני מוכן'
-                            : isWelcomeStep
-                                ? 'בוא נתחיל'
-                                : 'הבא',
+                        ? 'אני מוכן'
+                        : isWelcomeStep
+                        ? 'בוא נתחיל'
+                        : 'הבא',
                     onPressed: onNext,
                   ),
                 ],

@@ -9,8 +9,13 @@ class BookSearchResult {
   final String bookName;
   final String topLevelCategoryName;
 
-  const BookSearchResult(this.bookDetails, this.categoryName, this.category,
-      this.bookName, this.topLevelCategoryName);
+  const BookSearchResult(
+    this.bookDetails,
+    this.categoryName,
+    this.category,
+    this.bookName,
+    this.topLevelCategoryName,
+  );
 }
 
 /// Represents a category of books (e.g., Tanach, Shas, etc.)
@@ -46,12 +51,14 @@ class BookCategory {
     // Keep schema version for compatibility checks
     final schemaVersion = JsonUtils.asInt(json['schemaVersion'] ?? 1);
 
-    Map<String, dynamic> rawData =
-        JsonUtils.asMap(json['books'] ?? json['data']);
+    Map<String, dynamic> rawData = JsonUtils.asMap(
+      json['books'] ?? json['data'],
+    );
     Map<String, BookDetails> parsedBooks = {};
 
-    int defaultStartPage =
-        JsonUtils.asString(json['content_type']) == "דף" ? 2 : 1;
+    int defaultStartPage = JsonUtils.asString(json['content_type']) == "דף"
+        ? 2
+        : 1;
 
     rawData.forEach((key, value) {
       if (value is Map<String, dynamic>) {
@@ -66,12 +73,14 @@ class BookCategory {
     List<BookCategory>? subcategories;
     if (json['subcategories'] is List) {
       subcategories = (json['subcategories'] as List)
-          .map((subJson) => BookCategory.fromJson(
-                JsonUtils.asMap(subJson),
-                sourceFile,
-                isCustom: isCustom,
-                parentCategoryName: JsonUtils.asString(json['name']),
-              ))
+          .map(
+            (subJson) => BookCategory.fromJson(
+              JsonUtils.asMap(subJson),
+              sourceFile,
+              isCustom: isCustom,
+              parentCategoryName: JsonUtils.asString(json['name']),
+            ),
+          )
           .toList();
     }
 
@@ -92,7 +101,12 @@ class BookCategory {
   BookSearchResult? findBookRecursive(String bookNameToFind) {
     if (books.containsKey(bookNameToFind)) {
       return BookSearchResult(
-          books[bookNameToFind]!, name, this, bookNameToFind, name);
+        books[bookNameToFind]!,
+        name,
+        this,
+        bookNameToFind,
+        name,
+      );
     }
     if (subcategories != null) {
       for (final subCategory in subcategories!) {
@@ -169,14 +183,14 @@ class BookSection {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'level': level,
-        'startPage': startPage,
-        'endPage': endPage,
-        if (children.isNotEmpty)
-          'children': children.map((child) => child.toJson()).toList(),
-      };
+    'id': id,
+    'title': title,
+    'level': level,
+    'startPage': startPage,
+    'endPage': endPage,
+    if (children.isNotEmpty)
+      'children': children.map((child) => child.toJson()).toList(),
+  };
 }
 
 /// Represents a part of a book (e.g., volume, section)
@@ -206,7 +220,8 @@ class BookPart {
       name: JsonUtils.asString(json['name']),
       startPage: JsonUtils.asInt(json['start']),
       endPage: JsonUtils.asInt(json['end']),
-      excludedPages: (json['exclude'] as List<dynamic>?)
+      excludedPages:
+          (json['exclude'] as List<dynamic>?)
               ?.map((e) => JsonUtils.asInt(e))
               .toList() ??
           [],
@@ -219,15 +234,15 @@ class BookPart {
   }
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'start': startPage,
-        'end': endPage,
-        if (excludedPages.isNotEmpty) 'exclude': excludedPages,
-        if (children.isNotEmpty)
-          'children': children.map((child) => child.toJson()).toList(),
-        if (level != 1) 'level': level,
-        if (sectionId != null) 'sectionId': sectionId,
-      };
+    'name': name,
+    'start': startPage,
+    'end': endPage,
+    if (excludedPages.isNotEmpty) 'exclude': excludedPages,
+    if (children.isNotEmpty)
+      'children': children.map((child) => child.toJson()).toList(),
+    if (level != 1) 'level': level,
+    if (sectionId != null) 'sectionId': sectionId,
+  };
 
   factory BookPart.fromSection(BookSection section) {
     return BookPart(
@@ -282,8 +297,9 @@ class BookDetails {
           .toList();
     } else if (json.containsKey('pages')) {
       pageCount = JsonUtils.asNum(json['pages']);
-      int startPage =
-          JsonUtils.asInt(json['startPage'] ?? (contentType == "דף" ? 2 : 1));
+      int startPage = JsonUtils.asInt(
+        json['startPage'] ?? (contentType == "דף" ? 2 : 1),
+      );
 
       int endPage;
       bool lastPageIsHalf = false;
@@ -297,12 +313,14 @@ class BookDetails {
         endPage = startPage + pageCount.toInt() - 1;
       }
 
-      parts.add(BookPart(
-        name: "ראשי",
-        startPage: startPage,
-        endPage: endPage,
-        hasHalfPageAtEnd: lastPageIsHalf,
-      ));
+      parts.add(
+        BookPart(
+          name: "ראשי",
+          startPage: startPage,
+          endPage: endPage,
+          hasHalfPageAtEnd: lastPageIsHalf,
+        ),
+      );
     }
 
     if (json['sections'] is List) {
@@ -356,25 +374,34 @@ class BookDetails {
         }
 
         if (isDafType) {
-          items.add(LearnableItem(
+          items.add(
+            LearnableItem(
               partName: part.name,
               pageNumber: i,
               amudKey: 'a',
-              absoluteIndex: currentIndex++));
+              absoluteIndex: currentIndex++,
+            ),
+          );
 
           if (!(part.hasHalfPageAtEnd && i == part.endPage)) {
-            items.add(LearnableItem(
+            items.add(
+              LearnableItem(
                 partName: part.name,
                 pageNumber: i,
                 amudKey: 'b',
-                absoluteIndex: currentIndex++));
+                absoluteIndex: currentIndex++,
+              ),
+            );
           }
         } else {
-          items.add(LearnableItem(
+          items.add(
+            LearnableItem(
               partName: part.name,
               pageNumber: i,
               amudKey: 'a',
-              absoluteIndex: currentIndex++));
+              absoluteIndex: currentIndex++,
+            ),
+          );
         }
       }
     }
@@ -397,15 +424,15 @@ class BookDetails {
   }
 
   Map<String, dynamic> toJson() => {
-        'contentType': contentType,
-        'isCustom': isCustom,
-        if (id != null) 'id': id,
-        'parts': parts.map((p) => p.toJson()).toList(),
-        if (originalPageCount != null) 'originalPageCount': originalPageCount,
-        if (sections != null)
-          'sections': sections!.map((section) => section.toJson()).toList(),
-        if (categoryPath != null) 'categoryPath': categoryPath,
-      };
+    'contentType': contentType,
+    'isCustom': isCustom,
+    if (id != null) 'id': id,
+    'parts': parts.map((p) => p.toJson()).toList(),
+    if (originalPageCount != null) 'originalPageCount': originalPageCount,
+    if (sections != null)
+      'sections': sections!.map((section) => section.toJson()).toList(),
+    if (categoryPath != null) 'categoryPath': categoryPath,
+  };
 
   bool get hasNestedSections =>
       sections != null && sections!.any((section) => !section.isLeaf);

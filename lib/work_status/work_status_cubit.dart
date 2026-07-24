@@ -60,18 +60,22 @@ class WorkStatusCubit extends Cubit<WorkStatusState> {
     final isNewItem = !state.items.containsKey(item.id);
     final newItems = Map<String, WorkStatusItem>.from(state.items)
       ..[item.id] = item;
-    emit(state.copyWith(
-      items: newItems,
-      isDismissed: isNewItem ? false : state.isDismissed,
-    ));
+    emit(
+      state.copyWith(
+        items: newItems,
+        isDismissed: isNewItem ? false : state.isDismissed,
+      ),
+    );
   }
 
   void remove(String id) {
     final newItems = Map<String, WorkStatusItem>.from(state.items)..remove(id);
-    emit(state.copyWith(
-      items: newItems,
-      isDismissed: newItems.isEmpty ? false : state.isDismissed,
-    ));
+    emit(
+      state.copyWith(
+        items: newItems,
+        isDismissed: newItems.isEmpty ? false : state.isDismissed,
+      ),
+    );
   }
 
   void dismiss() {

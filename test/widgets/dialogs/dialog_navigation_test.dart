@@ -4,22 +4,25 @@ import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 
 void main() {
   group('ConfirmationDialog Tests', () {
-    testWidgets('ConfirmationDialog shows title and content',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showConfirmationDialog(
-                context: context,
-                title: 'Test Title',
-                content: 'Test Content',
+    testWidgets('ConfirmationDialog shows title and content', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showConfirmationDialog(
+                  context: context,
+                  title: 'Test Title',
+                  content: 'Test Content',
+                ),
+                child: const Text('Show Dialog'),
               ),
-              child: const Text('Show Dialog'),
             ),
           ),
         ),
-      ));
+      );
 
       await tester.tap(find.text('Show Dialog'));
       await tester.pumpAndSettle();
@@ -32,22 +35,25 @@ void main() {
   });
 
   group('InputDialog Tests', () {
-    testWidgets('InputDialog shows title and label',
-        (WidgetTester tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showInputDialog(
-                context: context,
-                title: 'Input Title',
-                labelText: 'Input Label',
+    testWidgets('InputDialog shows title and label', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showInputDialog(
+                  context: context,
+                  title: 'Input Title',
+                  labelText: 'Input Label',
+                ),
+                child: const Text('Show Input'),
               ),
-              child: const Text('Show Input'),
             ),
           ),
         ),
-      ));
+      );
 
       await tester.tap(find.text('Show Input'));
       await tester.pumpAndSettle();

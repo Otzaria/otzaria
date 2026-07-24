@@ -9,9 +9,9 @@ final List<GlobalKey> tourMainNavigationTargetKeys = List<GlobalKey>.generate(
 
 final List<GlobalKey> tourMainNavigationItemTargetKeys =
     List<GlobalKey>.generate(
-  6,
-  (index) => GlobalKey(debugLabel: 'tour_main_navigation_item_$index'),
-);
+      6,
+      (index) => GlobalKey(debugLabel: 'tour_main_navigation_item_$index'),
+    );
 
 final GlobalKey tourReadingScreenTargetKey = GlobalKey(
   debugLabel: 'tour_reading_screen_target',

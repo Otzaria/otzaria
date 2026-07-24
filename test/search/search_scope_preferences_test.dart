@@ -41,18 +41,20 @@ void main() {
       expect(loaded.manualFacets, {'/תנך', '/הלכה/שוע'});
     });
 
-    test('שומר מצב של תחום חיפוש ידני ריק בלי להדליק את כל הקטגוריות',
-        () async {
-      await SearchScopePreferences.save(
-        searchAllCategories: false,
-        manualFacets: const {},
-      );
+    test(
+      'שומר מצב של תחום חיפוש ידני ריק בלי להדליק את כל הקטגוריות',
+      () async {
+        await SearchScopePreferences.save(
+          searchAllCategories: false,
+          manualFacets: const {},
+        );
 
-      final loaded = SearchScopePreferences.load();
+        final loaded = SearchScopePreferences.load();
 
-      expect(loaded.searchAllCategories, isFalse);
-      expect(loaded.manualFacets, isEmpty);
-    });
+        expect(loaded.searchAllCategories, isFalse);
+        expect(loaded.manualFacets, isEmpty);
+      },
+    );
 
     test('טוען מצב persisted של תחום ידני ריק כפי שנשמר', () async {
       await Settings.setValue<bool>('key-search-all-categories-enabled', false);

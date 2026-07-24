@@ -116,15 +116,19 @@ class _SearchPaneBaseState extends State<SearchPaneBase> {
             trailingActions: [
               if (widget.onAdvancedSearch != null)
                 OtzariaSearchAction.settings(
-                    onPressed: widget.onAdvancedSearch!),
+                  onPressed: widget.onAdvancedSearch!,
+                ),
             ],
           ),
           if (!_isCompact &&
               widget.additionalActions != null &&
               widget.additionalActions!.isNotEmpty)
             Padding(
-              padding:
-                  const EdgeInsets.only(right: 8.0, left: 8.0, bottom: 4.0),
+              padding: const EdgeInsets.only(
+                right: 8.0,
+                left: 8.0,
+                bottom: 4.0,
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: widget.additionalActions!,
@@ -145,7 +149,8 @@ class _SearchPaneBaseState extends State<SearchPaneBase> {
           : widget.resultsWidget,
     );
 
-    final shouldShowToolbarRow = widget.resultToolbar != null ||
+    final shouldShowToolbarRow =
+        widget.resultToolbar != null ||
         (!_isCompact && widget.resultCountString != null);
 
     return Column(
@@ -162,8 +167,10 @@ class _SearchPaneBaseState extends State<SearchPaneBase> {
         ),
         if (shouldShowToolbarRow)
           Padding(
-            padding:
-                const EdgeInsets.symmetric(vertical: 4.0, horizontal: 16.0),
+            padding: const EdgeInsets.symmetric(
+              vertical: 4.0,
+              horizontal: 16.0,
+            ),
             child: Row(
               children: [
                 if (!_isCompact && widget.resultCountString != null)

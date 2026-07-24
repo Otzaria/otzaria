@@ -79,14 +79,17 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     }
 
     final opId = ++_operationId;
-    emit(const LibraryUpdateState(
-      status: LibraryUpdateStatus.checking,
-      message: 'בודק עדכוני ספרייה',
-    ));
+    emit(
+      const LibraryUpdateState(
+        status: LibraryUpdateStatus.checking,
+        message: 'בודק עדכוני ספרייה',
+      ),
+    );
 
     try {
-      final plan =
-          await repository.checkForUpdate(allowPrerelease: allowPrerelease());
+      final plan = await repository.checkForUpdate(
+        allowPrerelease: allowPrerelease(),
+      );
       // אם המשתמש ביטל/התחיל ריצה חדשה במהלך הבדיקה — לא להמשיך.
       if (_isStale(opId)) return;
       switch (plan.kind) {
@@ -103,36 +106,44 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
           }
           // תלמוד/קטלוג שהותקנו משנים את תוכן הספרייה — hasUpdate מפעיל
           // ריענון ואינדוקס ב-UI גם כשה-DB עצמו לא עודכן.
-          emit(LibraryUpdateState(
-            status: LibraryUpdateStatus.completed,
-            message: assetsChanged ? 'הספרייה עודכנה' : 'הספרייה מעודכנת',
-            hasUpdate: assetsChanged,
-          ));
+          emit(
+            LibraryUpdateState(
+              status: LibraryUpdateStatus.completed,
+              message: assetsChanged ? 'הספרייה עודכנה' : 'הספרייה מעודכנת',
+              hasUpdate: assetsChanged,
+            ),
+          );
         case LibraryUpdatePlanKind.delta:
           await _runDelta(plan, emit, opId);
         case LibraryUpdatePlanKind.fullDownload:
-          emit(LibraryUpdateState(
-            status: LibraryUpdateStatus.needsFullConfirmation,
-            message:
-                'נדרשת הורדה מלאה (${_formatSize(plan.totalDownloadSize)})',
-            plan: plan,
-          ));
+          emit(
+            LibraryUpdateState(
+              status: LibraryUpdateStatus.needsFullConfirmation,
+              message:
+                  'נדרשת הורדה מלאה (${_formatSize(plan.totalDownloadSize)})',
+              plan: plan,
+            ),
+          );
         case LibraryUpdatePlanKind.blocked:
-          emit(LibraryUpdateState(
-            status: LibraryUpdateStatus.blocked,
-            message: plan.reason ?? 'העדכון חסום',
-            errorMessage: plan.reason,
-          ));
+          emit(
+            LibraryUpdateState(
+              status: LibraryUpdateStatus.blocked,
+              message: plan.reason ?? 'העדכון חסום',
+              errorMessage: plan.reason,
+            ),
+          );
       }
     } catch (e, st) {
       // אם בוטל/הוחלף במהלך הבדיקה — לא לדרוס state של ריצה חדשה בשגיאה.
       if (_isStale(opId)) return;
       _logUpdateError('checkForUpdate', e, st);
-      emit(LibraryUpdateState(
-        status: LibraryUpdateStatus.error,
-        message: 'שגיאה בבדיקת עדכונים',
-        errorMessage: e.toString(),
-      ));
+      emit(
+        LibraryUpdateState(
+          status: LibraryUpdateStatus.error,
+          message: 'שגיאה בבדיקת עדכונים',
+          errorMessage: e.toString(),
+        ),
+      );
     }
   }
 
@@ -167,11 +178,13 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     } catch (e, st) {
       if (_isStale(opId)) return;
       _logUpdateError('applyDeltaPlan', e, st);
-      emit(LibraryUpdateState(
-        status: LibraryUpdateStatus.error,
-        message: 'שגיאה בהחלת העדכון',
-        errorMessage: e.toString(),
-      ));
+      emit(
+        LibraryUpdateState(
+          status: LibraryUpdateStatus.error,
+          message: 'שגיאה בהחלת העדכון',
+          errorMessage: e.toString(),
+        ),
+      );
     }
   }
 
@@ -186,10 +199,12 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
       return;
     }
     final opId = ++_operationId;
-    emit(state.copyWith(
-      status: LibraryUpdateStatus.downloading,
-      message: 'מוריד ספרייה מלאה',
-    ));
+    emit(
+      state.copyWith(
+        status: LibraryUpdateStatus.downloading,
+        message: 'מוריד ספרייה מלאה',
+      ),
+    );
     try {
       await repository.applyFullDownload(
         plan,
@@ -212,11 +227,13 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     } catch (e, st) {
       if (_isStale(opId)) return;
       _logUpdateError('applyFullDownload', e, st);
-      emit(LibraryUpdateState(
-        status: LibraryUpdateStatus.error,
-        message: 'שגיאה בהורדה המלאה',
-        errorMessage: e.toString(),
-      ));
+      emit(
+        LibraryUpdateState(
+          status: LibraryUpdateStatus.error,
+          message: 'שגיאה בהורדה המלאה',
+          errorMessage: e.toString(),
+        ),
+      );
     }
   }
 
@@ -234,19 +251,23 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
         isCancelled: () => _isStale(opId),
         onStatus: (message) {
           if (_isStale(opId)) return;
-          emit(state.copyWith(
-            status: LibraryUpdateStatus.checking,
-            message: message,
-          ));
+          emit(
+            state.copyWith(
+              status: LibraryUpdateStatus.checking,
+              message: message,
+            ),
+          );
         },
         onDownloadProgress: (received, total) {
           if (_isStale(opId)) return;
-          emit(state.copyWith(
-            status: LibraryUpdateStatus.downloading,
-            bytesDownloaded: received,
-            // total לא ידוע ⇒ 0, כדי לא לרשת bytesTotal ישן מהורדת ה-DB.
-            bytesTotal: total ?? 0,
-          ));
+          emit(
+            state.copyWith(
+              status: LibraryUpdateStatus.downloading,
+              bytesDownloaded: received,
+              // total לא ידוע ⇒ 0, כדי לא לרשת bytesTotal ישן מהורדת ה-DB.
+              bytesTotal: total ?? 0,
+            ),
+          );
         },
       );
     } catch (e, st) {
@@ -260,11 +281,13 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     Emitter<LibraryUpdateState> emit,
   ) {
     // המשתמש בחר להישאר עם הגרסה הנוכחית — לא מורידים כלום.
-    emit(const LibraryUpdateState(
-      status: LibraryUpdateStatus.completed,
-      message: 'ממשיך עם הגרסה הנוכחית',
-      hasUpdate: false,
-    ));
+    emit(
+      const LibraryUpdateState(
+        status: LibraryUpdateStatus.completed,
+        message: 'ממשיך עם הגרסה הנוכחית',
+        hasUpdate: false,
+      ),
+    );
   }
 
   void _onCancel(
@@ -321,8 +344,9 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     if (p.phase == LibraryUpdatePhase.done) return;
     final message = switch (p.phase) {
       LibraryUpdatePhase.checking => 'בודק עדכוני ספרייה',
-      LibraryUpdatePhase.downloading => 'מוריד עדכון ספרייה'
-          '${p.totalSteps > 1 ? ' (${p.stepIndex + 1}/${p.totalSteps})' : ''}',
+      LibraryUpdatePhase.downloading =>
+        'מוריד עדכון ספרייה'
+            '${p.totalSteps > 1 ? ' (${p.stepIndex + 1}/${p.totalSteps})' : ''}',
       LibraryUpdatePhase.verifying => 'מאמת קובץ עדכון',
       LibraryUpdatePhase.applying => _applyStageMessage(p.stage),
       LibraryUpdatePhase.refreshing => 'מרענן ספרייה',
@@ -334,29 +358,31 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
       LibraryUpdatePhase.refreshing => LibraryUpdateStatus.refreshing,
       _ => LibraryUpdateStatus.checking,
     };
-    emit(state.copyWith(
-      status: status,
-      message: message,
-      stepIndex: p.stepIndex,
-      totalSteps: p.totalSteps,
-      bytesDownloaded: p.bytesDownloaded,
-      bytesTotal: p.bytesTotal,
-      applyProgress: p.applyProgress,
-    ));
+    emit(
+      state.copyWith(
+        status: status,
+        message: message,
+        stepIndex: p.stepIndex,
+        totalSteps: p.totalSteps,
+        bytesDownloaded: p.bytesDownloaded,
+        bytesTotal: p.bytesTotal,
+        applyProgress: p.applyProgress,
+      ),
+    );
   }
 
   // ממפה את תת-שלבי ה-apply (מ-PatchApplier.onStage) להודעות קריאות למשתמש.
   String _applyStageMessage(String? stage) => switch (stage) {
-        'preflight' => 'בודק תאימות גרסה',
-        'verifyFromHash' => 'מאמת את הספרייה הנוכחית',
-        'attach' => 'מכין את העדכון',
-        'migrations' => 'מעדכן מבנה נתונים',
-        'upserts' => 'מוסיף ומעדכן רשומות',
-        'deletes' => 'מסיר רשומות שהוסרו',
-        'verifyToHash' => 'מאמת את הספרייה המעודכנת',
-        'commit' => 'שומר שינויים',
-        _ => 'מחיל עדכון',
-      };
+    'preflight' => 'בודק תאימות גרסה',
+    'verifyFromHash' => 'מאמת את הספרייה הנוכחית',
+    'attach' => 'מכין את העדכון',
+    'migrations' => 'מעדכן מבנה נתונים',
+    'upserts' => 'מוסיף ומעדכן רשומות',
+    'deletes' => 'מסיר רשומות שהוסרו',
+    'verifyToHash' => 'מאמת את הספרייה המעודכנת',
+    'commit' => 'שומר שינויים',
+    _ => 'מחיל עדכון',
+  };
 
   String _formatSize(int bytes) {
     if (bytes >= 1 << 30) {

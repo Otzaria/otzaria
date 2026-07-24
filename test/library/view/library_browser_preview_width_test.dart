@@ -23,11 +23,12 @@ void main() {
 
       expect(widths.maxPaneWidth, greaterThanOrEqualTo(widths.minPaneWidth));
       expect(
-          widths.paneWidth,
-          inInclusiveRange(
-            widths.minPaneWidth,
-            widths.maxPaneWidth,
-          ));
+        widths.paneWidth,
+        inInclusiveRange(
+          widths.minPaneWidth,
+          widths.maxPaneWidth,
+        ),
+      );
     }
   });
 }

@@ -81,37 +81,43 @@ void main() {
   }
 
   Future<List<SearchResult>> exact(SearchEngine e, String q) => e.searchExact(
-        query: q,
-        facets: const ['/root'],
-        limit: 10,
-        offset: 0,
-        order: ResultsOrder.relevance,
-        matchNikud: false,
-        matchTaamim: false,
-      );
+    query: q,
+    facets: const ['/root'],
+    limit: 10,
+    offset: 0,
+    order: ResultsOrder.relevance,
+    matchNikud: false,
+    matchTaamim: false,
+  );
 
   Future<List<SearchResult>> fuzzy(SearchEngine e, String q) => e.searchFuzzy(
-        query: q,
-        facets: const ['/root'],
-        limit: 10,
-        offset: 0,
-        maxDistance: 2,
-        order: ResultsOrder.relevance,
-        matchNikud: false,
-        matchTaamim: false,
-      );
+    query: q,
+    facets: const ['/root'],
+    limit: 10,
+    offset: 0,
+    maxDistance: 2,
+    order: ResultsOrder.relevance,
+    matchNikud: false,
+    matchTaamim: false,
+  );
 
   testWidgets('מקורב מוצא הטיה דרך המילון; מדויק לא דולף', (tester) async {
     final engine = await buildIndex();
 
     // מדויק: "הלך" אסור שיחזיר את ההטיה "הלכתי".
-    expect(await exact(engine, 'הלך'), isEmpty,
-        reason: 'חיפוש מדויק לא אמור לדלוף להטיות');
+    expect(
+      await exact(engine, 'הלך'),
+      isEmpty,
+      reason: 'חיפוש מדויק לא אמור לדלוף להטיות',
+    );
 
     // מקורב ללא מילון: "הלך"→"הלכתי" הוא 3 עריכות — מעבר ל-maxDistance=2.
     expect(engine.hasMagicDictionary(), isFalse);
-    expect(await fuzzy(engine, 'הלך'), isEmpty,
-        reason: 'מקורב ללא מילון לא מגיע להטיה במרחק 2');
+    expect(
+      await fuzzy(engine, 'הלך'),
+      isEmpty,
+      reason: 'מקורב ללא מילון לא מגיע להטיה במרחק 2',
+    );
 
     // טעינת המילון אל המנוע החי.
     expect(engine.setMagicDictionaryPath(path: buildLexicalDb()), isTrue);
@@ -123,8 +129,9 @@ void main() {
     expect(results.any((r) => r.text.contains('הלכתי')), isTrue);
   });
 
-  testWidgets('setMagicDictionaryPath מחזיר false לקובץ חסר ולא טוען מילון',
-      (tester) async {
+  testWidgets('setMagicDictionaryPath מחזיר false לקובץ חסר ולא טוען מילון', (
+    tester,
+  ) async {
     final engine = await buildIndex();
     final missing = p.join(tmp.path, 'nope.db');
     expect(engine.setMagicDictionaryPath(path: missing), isFalse);

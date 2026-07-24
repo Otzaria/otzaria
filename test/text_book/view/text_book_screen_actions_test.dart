@@ -42,8 +42,9 @@ void main() {
 
   setUp(() async {
     await Settings.init(cacheProvider: _MemoryCacheProvider());
-    DataRepository.instance.library =
-        Future.value(Library(categories: const []));
+    DataRepository.instance.library = Future.value(
+      Library(categories: const []),
+    );
     focusRepository = FocusRepository()..resetForTesting();
     shamorZachorDataProvider = _FakeShamorZachorDataProvider();
     shamorZachorProgressProvider = _FakeShamorZachorProgressProvider();
@@ -60,8 +61,9 @@ void main() {
   });
 
   group('TextBookViewerBloc actions', () {
-    testWidgets('במצב רגיל ה-overflow כולל איפוס, ייצוא והדפסה',
-        (tester) async {
+    testWidgets('במצב רגיל ה-overflow כולל איפוס, ייצוא והדפסה', (
+      tester,
+    ) async {
       final book = TextBook(title: 'ספר בדיקה');
       final bloc = _TestTextBookBloc(_loadedState(book));
       final tab = TextBookTab(
@@ -112,113 +114,117 @@ void main() {
       expect(find.text('אודות הספר'), findsOneWidget);
     });
 
-    testWidgets('תפריט תצוגת המפרשים כולל "פתח כרטיסיית מפרשים"',
-        (tester) async {
-      final book = TextBook(title: 'ספר בדיקה');
-      final bloc = _TestTextBookBloc(_loadedState(book));
-      final tab = TextBookTab(
-        book: book,
-        index: 0,
-        blocOverride: bloc,
-      );
-      final tabsBloc = _TestTabsBloc(
-        TabsState(tabs: [tab], currentTabIndex: 0),
-      );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    testWidgets(
+      'תפריט תצוגת המפרשים כולל "פתח כרטיסיית מפרשים"',
+      (tester) async {
+        final book = TextBook(title: 'ספר בדיקה');
+        final bloc = _TestTextBookBloc(_loadedState(book));
+        final tab = TextBookTab(
+          book: book,
+          index: 0,
+          blocOverride: bloc,
+        );
+        final tabsBloc = _TestTabsBloc(
+          TabsState(tabs: [tab], currentTabIndex: 0),
+        );
+        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
 
-      addTearDown(() async {
-        await tester.pumpWidget(const SizedBox.shrink());
-        await tester.pump();
-        await bloc.close();
-        await tabsBloc.close();
-        await settingsBloc.close();
-        tab.dispose();
-      });
+        addTearDown(() async {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump();
+          await bloc.close();
+          await tabsBloc.close();
+          await settingsBloc.close();
+          tab.dispose();
+        });
 
-      await _setSurfaceSize(tester, const Size(1600, 900));
-      await _pumpTextBookScreen(
-        tester,
-        tab: tab,
-        textBookBloc: bloc,
-        tabsBloc: tabsBloc,
-        settingsBloc: settingsBloc,
-        focusRepository: focusRepository,
-        shamorZachorDataProvider: shamorZachorDataProvider,
-        shamorZachorProgressProvider: shamorZachorProgressProvider,
-        bookmarkBloc: bookmarkBloc,
-        personalNotesBloc: personalNotesBloc,
-        tourCubit: tourCubit,
-        isInCombinedView: false,
-      );
+        await _setSurfaceSize(tester, const Size(1600, 900));
+        await _pumpTextBookScreen(
+          tester,
+          tab: tab,
+          textBookBloc: bloc,
+          tabsBloc: tabsBloc,
+          settingsBloc: settingsBloc,
+          focusRepository: focusRepository,
+          shamorZachorDataProvider: shamorZachorDataProvider,
+          shamorZachorProgressProvider: shamorZachorProgressProvider,
+          bookmarkBloc: bookmarkBloc,
+          personalNotesBloc: personalNotesBloc,
+          tourCubit: tourCubit,
+          isInCombinedView: false,
+        );
 
-      final viewModeButton = find.byTooltip('בחר סוג תצוגת מפרשים');
-      expect(viewModeButton, findsOneWidget);
-      await tester.tap(viewModeButton);
-      await tester.pumpAndSettle();
+        final viewModeButton = find.byTooltip('בחר סוג תצוגת מפרשים');
+        expect(viewModeButton, findsOneWidget);
+        await tester.tap(viewModeButton);
+        await tester.pumpAndSettle();
 
-      // ודא שזה התפריט הנכון (מצבי התצוגה) ושנוסף פריט הפעולה החדש
-      expect(find.text('מפרשים בצד'), findsOneWidget);
-      expect(find.text('צורת הדף'), findsOneWidget);
-      expect(find.text('פתח כרטיסיית מפרשים'), findsOneWidget);
-    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+        // ודא שזה התפריט הנכון (מצבי התצוגה) ושנוסף פריט הפעולה החדש
+        expect(find.text('מפרשים בצד'), findsOneWidget);
+        expect(find.text('צורת הדף'), findsOneWidget);
+        expect(find.text('פתח כרטיסיית מפרשים'), findsOneWidget);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.windows),
+    );
 
     testWidgets(
-        'openNotesTabNotifier פותח פאנל כשסיפליט ויו כבר פעיל והפאנל סגור',
-        (tester) async {
-      // P2 regression: ToggleSplitView(true) is swallowed by the bloc when
-      // showSplitView is already true (Equatable). The fix fires openNotesTabNotifier
-      // directly on the tab so SplitedViewScreen always opens the panel.
-      final book = TextBook(title: 'ספר בדיקה');
-      final bloc = _TestTextBookBloc(
-        _loadedState(book).copyWith(showSplitView: true),
-      );
-      final tab = TextBookTab(
-        book: book,
-        index: 0,
-        blocOverride: bloc,
-      );
-      final tabsBloc = _TestTabsBloc(
-        TabsState(tabs: [tab], currentTabIndex: 0),
-      );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      'openNotesTabNotifier פותח פאנל כשסיפליט ויו כבר פעיל והפאנל סגור',
+      (tester) async {
+        // P2 regression: ToggleSplitView(true) is swallowed by the bloc when
+        // showSplitView is already true (Equatable). The fix fires openNotesTabNotifier
+        // directly on the tab so SplitedViewScreen always opens the panel.
+        final book = TextBook(title: 'ספר בדיקה');
+        final bloc = _TestTextBookBloc(
+          _loadedState(book).copyWith(showSplitView: true),
+        );
+        final tab = TextBookTab(
+          book: book,
+          index: 0,
+          blocOverride: bloc,
+        );
+        final tabsBloc = _TestTabsBloc(
+          TabsState(tabs: [tab], currentTabIndex: 0),
+        );
+        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
 
-      addTearDown(() async {
-        await tester.pumpWidget(const SizedBox.shrink());
+        addTearDown(() async {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump();
+          await bloc.close();
+          await tabsBloc.close();
+          await settingsBloc.close();
+          tab.dispose();
+        });
+
+        await _setSurfaceSize(tester, const Size(1600, 900));
+        await _pumpTextBookScreen(
+          tester,
+          tab: tab,
+          textBookBloc: bloc,
+          tabsBloc: tabsBloc,
+          settingsBloc: settingsBloc,
+          focusRepository: focusRepository,
+          shamorZachorDataProvider: shamorZachorDataProvider,
+          shamorZachorProgressProvider: shamorZachorProgressProvider,
+          bookmarkBloc: bookmarkBloc,
+          personalNotesBloc: personalNotesBloc,
+          tourCubit: tourCubit,
+          isInCombinedView: false,
+        );
+
+        // הפאנל סגור — טאב ההערות לא בעץ (AdaptiveSidePane לא בנה תוכן עדיין)
+        expect(find.text('הערות'), findsNothing);
+
+        // הפעלת הנוטיפייר ישירות (מדמה קריאה ל-_openPersonalNotesForCurrentView
+        // כשסיפליט ויו כבר פעיל — ToggleSplitView(true) היה נבלע על ידי הבלוק)
+        tab.openNotesTabNotifier.value++;
         await tester.pump();
-        await bloc.close();
-        await tabsBloc.close();
-        await settingsBloc.close();
-        tab.dispose();
-      });
+        await tester.pump(const Duration(milliseconds: 50));
 
-      await _setSurfaceSize(tester, const Size(1600, 900));
-      await _pumpTextBookScreen(
-        tester,
-        tab: tab,
-        textBookBloc: bloc,
-        tabsBloc: tabsBloc,
-        settingsBloc: settingsBloc,
-        focusRepository: focusRepository,
-        shamorZachorDataProvider: shamorZachorDataProvider,
-        shamorZachorProgressProvider: shamorZachorProgressProvider,
-        bookmarkBloc: bookmarkBloc,
-        personalNotesBloc: personalNotesBloc,
-        tourCubit: tourCubit,
-        isInCombinedView: false,
-      );
-
-      // הפאנל סגור — טאב ההערות לא בעץ (AdaptiveSidePane לא בנה תוכן עדיין)
-      expect(find.text('הערות'), findsNothing);
-
-      // הפעלת הנוטיפייר ישירות (מדמה קריאה ל-_openPersonalNotesForCurrentView
-      // כשסיפליט ויו כבר פעיל — ToggleSplitView(true) היה נבלע על ידי הבלוק)
-      tab.openNotesTabNotifier.value++;
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
-
-      // הפאנל נפתח — שלוש הכרטיסיות גלויות
-      expect(find.text('הערות'), findsOneWidget);
-    });
+        // הפאנל נפתח — שלוש הכרטיסיות גלויות
+        expect(find.text('הערות'), findsOneWidget);
+      },
+    );
 
     testWidgets('במצב משולב כפתורי הניווט עוברים ל-overflow', (tester) async {
       final book = TextBook(title: 'ספר בדיקה');
@@ -269,8 +275,9 @@ void main() {
       expect(find.text('הדף/פרק הבא'), findsOneWidget);
     });
 
-    testWidgets('במצב רגיל כפתורי הניווט גלויים ישירות במרכז הסרגל',
-        (tester) async {
+    testWidgets('במצב רגיל כפתורי הניווט גלויים ישירות במרכז הסרגל', (
+      tester,
+    ) async {
       final book = TextBook(title: 'ספר בדיקה');
       final bloc = _TestTextBookBloc(_loadedState(book));
       final tab = TextBookTab(
@@ -315,57 +322,64 @@ void main() {
       expect(find.byTooltip('הדף/פרק הבא'), findsOneWidget);
     });
 
-    testWidgets('תצוגה משולבת מכבדת את מצב התצוגה ומאפשרת לשנות אותו',
-        (tester) async {
-      // רגרסיה: בעבר תצוגה משולבת כפתה "מפרשים מתחת" ל-state (ההעדפה אבדה
-      // בפירוק ההצמדה) ונטרלה את תפריט בחירת התצוגה.
-      final book = TextBook(title: 'ספר בדיקה');
-      final bloc = _TestTextBookBloc(_loadedState(book, showSplitView: true));
-      final tab = TextBookTab(
-        book: book,
-        index: 0,
-        blocOverride: bloc,
-      );
-      final tabsBloc = _TestTabsBloc(
-        TabsState(tabs: [tab], currentTabIndex: 0),
-      );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    testWidgets(
+      'תצוגה משולבת מכבדת את מצב התצוגה ומאפשרת לשנות אותו',
+      (tester) async {
+        // רגרסיה: בעבר תצוגה משולבת כפתה "מפרשים מתחת" ל-state (ההעדפה אבדה
+        // בפירוק ההצמדה) ונטרלה את תפריט בחירת התצוגה.
+        final book = TextBook(title: 'ספר בדיקה');
+        final bloc = _TestTextBookBloc(_loadedState(book, showSplitView: true));
+        final tab = TextBookTab(
+          book: book,
+          index: 0,
+          blocOverride: bloc,
+        );
+        final tabsBloc = _TestTabsBloc(
+          TabsState(tabs: [tab], currentTabIndex: 0),
+        );
+        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
 
-      addTearDown(() async {
-        await tester.pumpWidget(const SizedBox.shrink());
-        await tester.pump();
-        await bloc.close();
-        await tabsBloc.close();
-        await settingsBloc.close();
-        tab.dispose();
-      });
+        addTearDown(() async {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump();
+          await bloc.close();
+          await tabsBloc.close();
+          await settingsBloc.close();
+          tab.dispose();
+        });
 
-      await _setSurfaceSize(tester, const Size(1600, 900));
-      await _pumpTextBookScreen(
-        tester,
-        tab: tab,
-        textBookBloc: bloc,
-        tabsBloc: tabsBloc,
-        settingsBloc: settingsBloc,
-        focusRepository: focusRepository,
-        shamorZachorDataProvider: shamorZachorDataProvider,
-        shamorZachorProgressProvider: shamorZachorProgressProvider,
-        bookmarkBloc: bookmarkBloc,
-        personalNotesBloc: personalNotesBloc,
-        tourCubit: tourCubit,
-        isInCombinedView: true,
-      );
+        await _setSurfaceSize(tester, const Size(1600, 900));
+        await _pumpTextBookScreen(
+          tester,
+          tab: tab,
+          textBookBloc: bloc,
+          tabsBloc: tabsBloc,
+          settingsBloc: settingsBloc,
+          focusRepository: focusRepository,
+          shamorZachorDataProvider: shamorZachorDataProvider,
+          shamorZachorProgressProvider: shamorZachorProgressProvider,
+          bookmarkBloc: bookmarkBloc,
+          personalNotesBloc: personalNotesBloc,
+          tourCubit: tourCubit,
+          isInCombinedView: true,
+        );
 
-      final splitedView = tester
-          .widget<SplitedViewScreen>(find.byType(SplitedViewScreen).first);
-      expect(splitedView.showSplitView, isTrue,
-          reason: 'מצב "מפרשים בצד" של הטאב מכובד גם בתצוגה משולבת');
+        final splitedView = tester.widget<SplitedViewScreen>(
+          find.byType(SplitedViewScreen).first,
+        );
+        expect(
+          splitedView.showSplitView,
+          isTrue,
+          reason: 'מצב "מפרשים בצד" של הטאב מכובד גם בתצוגה משולבת',
+        );
 
-      // תפריט בחירת התצוגה פעיל — למשתמש יש שליטה גם בתצוגה משולבת
-      await tester.tap(find.byTooltip('בחר סוג תצוגת מפרשים'));
-      await tester.pumpAndSettle();
-      expect(find.text('מפרשים מתחת'), findsOneWidget);
-    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+        // תפריט בחירת התצוגה פעיל — למשתמש יש שליטה גם בתצוגה משולבת
+        await tester.tap(find.byTooltip('בחר סוג תצוגת מפרשים'));
+        await tester.pumpAndSettle();
+        expect(find.text('מפרשים מתחת'), findsOneWidget);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.windows),
+    );
   });
 
   group('reanchor בפתיחת/סגירת החלונית', () {
@@ -429,8 +443,9 @@ void main() {
       expect(count, greaterThan(0));
     });
 
-    testWidgets('במסך צר (overlay) ה-reanchor מדוכא בפתיחת החלונית',
-        (tester) async {
+    testWidgets('במסך צר (overlay) ה-reanchor מדוכא בפתיחת החלונית', (
+      tester,
+    ) async {
       final count = await pumpAndToggleLeftPane(
         tester,
         size: const Size(820, 900),
@@ -441,73 +456,81 @@ void main() {
 
   group('שמירת פוקוס מקלדת', () {
     testWidgets(
-        'מסך הספר לא חוטף פוקוס משדה קלט בדיאלוג כשה-viewport משתנה (מקלדת וירטואלית)',
-        (tester) async {
-      // רגרסיה: באנדרואיד/מסך מגע, כשספר פתוח בעיון ופותחים את דיאלוג
-      // החיפוש, פתיחת המקלדת משנה את ה-viewport וגורמת rebuild של מסך
-      // הספר שמתחת לדיאלוג. ה-postFrameCallback של המסך היה קורא
-      // requestFocus וחוטף את הפוקוס משדה החיפוש — והמקלדת נסגרה מיד.
-      final book = TextBook(title: 'ספר בדיקה');
-      final bloc = _TestTextBookBloc(_loadedState(book));
-      final tab = TextBookTab(
-        book: book,
-        index: 0,
-        blocOverride: bloc,
-      );
-      final tabsBloc = _TestTabsBloc(
-        TabsState(tabs: [tab], currentTabIndex: 0),
-      );
-      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
-      final dialogFieldFocusNode = FocusNode(debugLabel: 'DialogSearchField');
+      'מסך הספר לא חוטף פוקוס משדה קלט בדיאלוג כשה-viewport משתנה (מקלדת וירטואלית)',
+      (tester) async {
+        // רגרסיה: באנדרואיד/מסך מגע, כשספר פתוח בעיון ופותחים את דיאלוג
+        // החיפוש, פתיחת המקלדת משנה את ה-viewport וגורמת rebuild של מסך
+        // הספר שמתחת לדיאלוג. ה-postFrameCallback של המסך היה קורא
+        // requestFocus וחוטף את הפוקוס משדה החיפוש — והמקלדת נסגרה מיד.
+        final book = TextBook(title: 'ספר בדיקה');
+        final bloc = _TestTextBookBloc(_loadedState(book));
+        final tab = TextBookTab(
+          book: book,
+          index: 0,
+          blocOverride: bloc,
+        );
+        final tabsBloc = _TestTabsBloc(
+          TabsState(tabs: [tab], currentTabIndex: 0),
+        );
+        final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+        final dialogFieldFocusNode = FocusNode(debugLabel: 'DialogSearchField');
 
-      addTearDown(() async {
-        await tester.pumpWidget(const SizedBox.shrink());
+        addTearDown(() async {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump();
+          dialogFieldFocusNode.dispose();
+          await bloc.close();
+          await tabsBloc.close();
+          await settingsBloc.close();
+          tab.dispose();
+        });
+
+        await _setSurfaceSize(tester, const Size(1200, 900));
+        await _pumpTextBookScreen(
+          tester,
+          tab: tab,
+          textBookBloc: bloc,
+          tabsBloc: tabsBloc,
+          settingsBloc: settingsBloc,
+          focusRepository: focusRepository,
+          shamorZachorDataProvider: shamorZachorDataProvider,
+          shamorZachorProgressProvider: shamorZachorProgressProvider,
+          bookmarkBloc: bookmarkBloc,
+          personalNotesBloc: personalNotesBloc,
+          tourCubit: tourCubit,
+          isInCombinedView: false,
+        );
+
+        // פתיחת דיאלוג עם שדה טקסט ממוקד מעל מסך הספר (כמו דיאלוג החיפוש)
+        final screenContext = tester.element(find.byType(TextBookViewerBloc));
+        showDialog<void>(
+          context: screenContext,
+          builder: (_) => Dialog(
+            child: TextField(focusNode: dialogFieldFocusNode, autofocus: true),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          dialogFieldFocusNode.hasFocus,
+          isTrue,
+          reason: 'שדה הדיאלוג אמור לקבל פוקוס בפתיחה',
+        );
+
+        // הקטנת גובה ה-viewport — מדמה פתיחת מקלדת וירטואלית שמכווצת את
+        // המסך וגורמת rebuild של מסך הספר שברקע.
+        tester.view.physicalSize = const Size(1200, 500);
         await tester.pump();
-        dialogFieldFocusNode.dispose();
-        await bloc.close();
-        await tabsBloc.close();
-        await settingsBloc.close();
-        tab.dispose();
-      });
+        await tester.pump(const Duration(milliseconds: 50));
 
-      await _setSurfaceSize(tester, const Size(1200, 900));
-      await _pumpTextBookScreen(
-        tester,
-        tab: tab,
-        textBookBloc: bloc,
-        tabsBloc: tabsBloc,
-        settingsBloc: settingsBloc,
-        focusRepository: focusRepository,
-        shamorZachorDataProvider: shamorZachorDataProvider,
-        shamorZachorProgressProvider: shamorZachorProgressProvider,
-        bookmarkBloc: bookmarkBloc,
-        personalNotesBloc: personalNotesBloc,
-        tourCubit: tourCubit,
-        isInCombinedView: false,
-      );
-
-      // פתיחת דיאלוג עם שדה טקסט ממוקד מעל מסך הספר (כמו דיאלוג החיפוש)
-      final screenContext = tester.element(find.byType(TextBookViewerBloc));
-      showDialog<void>(
-        context: screenContext,
-        builder: (_) => Dialog(
-          child: TextField(focusNode: dialogFieldFocusNode, autofocus: true),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(dialogFieldFocusNode.hasFocus, isTrue,
-          reason: 'שדה הדיאלוג אמור לקבל פוקוס בפתיחה');
-
-      // הקטנת גובה ה-viewport — מדמה פתיחת מקלדת וירטואלית שמכווצת את
-      // המסך וגורמת rebuild של מסך הספר שברקע.
-      tester.view.physicalSize = const Size(1200, 500);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
-
-      expect(dialogFieldFocusNode.hasFocus, isTrue,
-          reason: 'מסך הספר שמתחת לדיאלוג אסור שיחטוף את הפוקוס '
-              'משדה הקלט — חטיפה כזו סוגרת את המקלדת מיד');
-    });
+        expect(
+          dialogFieldFocusNode.hasFocus,
+          isTrue,
+          reason:
+              'מסך הספר שמתחת לדיאלוג אסור שיחטוף את הפוקוס '
+              'משדה הקלט — חטיפה כזו סוגרת את המקלדת מיד',
+        );
+      },
+    );
   });
 }
 

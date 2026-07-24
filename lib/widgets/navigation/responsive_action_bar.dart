@@ -60,9 +60,9 @@ class ResponsiveActionBar extends StatefulWidget {
     this.openOverflowMenu = false,
     this.menuItemKeysByTooltip,
   }) : assert(
-          alwaysInMenu != null || originalOrder != null,
-          'Either alwaysInMenu or originalOrder must be provided',
-        );
+         alwaysInMenu != null || originalOrder != null,
+         'Either alwaysInMenu or originalOrder must be provided',
+       );
 
   @override
   State<ResponsiveActionBar> createState() => _ResponsiveActionBarState();
@@ -134,8 +134,9 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
     // תמיד מוסיפים את הכפתורים שצריכים להיות בתפריט
     final allHiddenActions = [...hiddenActions, ...widget.alwaysInMenu!];
 
-    final visibleWidgets =
-        visibleActions.map((action) => action.widget).toList();
+    final visibleWidgets = visibleActions
+        .map((action) => action.widget)
+        .toList();
     final List<Widget> children = [];
 
     // מסך הספר: תפריט בצד שמאל, כפתורים מימין לשמאל (RTL)
@@ -175,8 +176,9 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
       final numToHide = totalButtons - effectiveMaxVisible;
 
       // ניקח את הכפתורים הפחות חשובים מרשימת העדיפויות
-      final Set<ActionButtonData> actionsToHide =
-          widget.actions.reversed.take(numToHide).toSet();
+      final Set<ActionButtonData> actionsToHide = widget.actions.reversed
+          .take(numToHide)
+          .toSet();
 
       visibleActions = [];
       hiddenActions = [];
@@ -191,8 +193,9 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
       }
     }
 
-    final visibleWidgets =
-        visibleActions.map((action) => action.widget).toList();
+    final visibleWidgets = visibleActions
+        .map((action) => action.widget)
+        .toList();
     final List<Widget> children = [];
 
     final alwaysInMenu = widget.alwaysInMenu ?? const <ActionButtonData>[];
@@ -227,7 +230,8 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
     return Builder(
       key: ValueKey(uniqueKey),
       builder: (context) {
-        final menuMetrics = Theme.of(context).extension<AppMenuMetrics>() ??
+        final menuMetrics =
+            Theme.of(context).extension<AppMenuMetrics>() ??
             AppMenuMetrics.create(compactMenus: false);
         final menuButton = AppPopupMenuButton<ActionButtonData>(
           key: widget.overflowButtonKey,
@@ -244,19 +248,21 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
               if (action.submenuItems != null &&
                   action.submenuItems!.isNotEmpty) {
                 final subEntries = action.submenuItems!
-                    .map((subAction) => buildAppPopupMenuItem<ActionButtonData>(
-                          context,
-                          AppMenuEntry<ActionButtonData>(
-                            value: subAction,
-                            label: subAction.tooltip ?? '',
-                            icon: subAction.icon,
-                            enabled: subAction.onPressed != null,
-                          ),
-                          menuMetrics,
-                          null,
-                          key: widget
-                              .menuItemKeysByTooltip?[subAction.tooltip ?? ''],
-                        ))
+                    .map(
+                      (subAction) => buildAppPopupMenuItem<ActionButtonData>(
+                        context,
+                        AppMenuEntry<ActionButtonData>(
+                          value: subAction,
+                          label: subAction.tooltip ?? '',
+                          icon: subAction.icon,
+                          enabled: subAction.onPressed != null,
+                        ),
+                        menuMetrics,
+                        null,
+                        key: widget
+                            .menuItemKeysByTooltip?[subAction.tooltip ?? ''],
+                      ),
+                    )
                     .toList();
                 return buildAppSubmenuPopupMenuItem<ActionButtonData>(
                   context: context,
@@ -346,19 +352,19 @@ class ActionButtonData {
     return ActionButtonData(
       widget: switch (visual) {
         ActionButtonVisual.toolbar => BarButton.icon(
-            key: key,
-            compact: compact,
-            tooltip: tooltip,
-            icon: icon,
-            selected: selected,
-            onPressed: onPressed,
-          ),
+          key: key,
+          compact: compact,
+          tooltip: tooltip,
+          icon: icon,
+          selected: selected,
+          onPressed: onPressed,
+        ),
         ActionButtonVisual.iconButton => IconButton(
-            key: key,
-            onPressed: onPressed,
-            icon: Icon(icon),
-            tooltip: tooltip,
-          ),
+          key: key,
+          onPressed: onPressed,
+          icon: Icon(icon),
+          tooltip: tooltip,
+        ),
       },
       icon: icon,
       tooltip: tooltip,

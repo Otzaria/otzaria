@@ -40,7 +40,8 @@ class PluginShortcutService {
     final safeLabel = sanitizeFileName(label);
     if (safeLabel.isEmpty) {
       throw Exception(
-          'error.invalid_params: label produces an empty file name');
+        'error.invalid_params: label produces an empty file name',
+      );
     }
 
     final String dir;
@@ -67,7 +68,8 @@ class PluginShortcutService {
       makeExecutable = true;
     } else {
       throw Exception(
-          'error.unsupported: shortcuts are available on desktop only');
+        'error.unsupported: shortcuts are available on desktop only',
+      );
     }
 
     // לא יוצרים את התיקייה — קיצור שמור רק במיקום שכבר קיים אצל המשתמש.
@@ -98,8 +100,10 @@ class PluginShortcutService {
   }) async {
     var candidate = '$baseName$extension';
     var n = 2;
-    while (FileSystemEntity.typeSync(p.join(dirPath, candidate),
-            followLinks: false) !=
+    while (FileSystemEntity.typeSync(
+          p.join(dirPath, candidate),
+          followLinks: false,
+        ) !=
         FileSystemEntityType.notFound) {
       candidate = '$baseName ($n)$extension';
       n++;
@@ -116,7 +120,8 @@ class PluginShortcutService {
   void _rejectStartMenu(ShortcutLocation location) {
     if (location == ShortcutLocation.startMenu) {
       throw Exception(
-          'error.unsupported: startMenu is available on Windows only');
+        'error.unsupported: startMenu is available on Windows only',
+      );
     }
   }
 
@@ -141,8 +146,10 @@ class PluginShortcutService {
         name,
       ]);
       if (result.exitCode != 0) return null;
-      final match = RegExp('$name' r'\s+REG_\w+\s+(.+)')
-          .firstMatch(result.stdout.toString());
+      final match = RegExp(
+        '$name'
+        r'\s+REG_\w+\s+(.+)',
+      ).firstMatch(result.stdout.toString());
       final raw = match?.group(1)?.trim();
       if (raw == null || raw.isEmpty) return null;
       return _expandWindowsEnv(raw);

@@ -109,10 +109,12 @@ void main() {
           seedColor: lightSeed,
           darkSeedColor: darkSeed,
         );
-        await tester.pumpWidget(buildTab(
-          bloc: makeBloc(state),
-          brightness: Brightness.dark,
-        ));
+        await tester.pumpWidget(
+          buildTab(
+            bloc: makeBloc(state),
+            brightness: Brightness.dark,
+          ),
+        );
         await tester.pump();
 
         // המערכת כהה → חייב להציג צבע כהה, לא בהיר
@@ -134,10 +136,12 @@ void main() {
           seedColor: lightSeed,
           darkSeedColor: darkSeed,
         );
-        await tester.pumpWidget(buildTab(
-          bloc: makeBloc(state),
-          brightness: Brightness.light,
-        ));
+        await tester.pumpWidget(
+          buildTab(
+            bloc: makeBloc(state),
+            brightness: Brightness.light,
+          ),
+        );
         await tester.pump();
 
         // המערכת בהירה → חייב להציג צבע בהיר, לא כהה
@@ -161,10 +165,12 @@ void main() {
           darkSeedColor: darkSeed,
         );
         final bloc = makeBloc(state);
-        await tester.pumpWidget(buildTab(
-          bloc: bloc,
-          brightness: Brightness.dark,
-        ));
+        await tester.pumpWidget(
+          buildTab(
+            bloc: bloc,
+            brightness: Brightness.dark,
+          ),
+        );
         await tester.pump();
 
         await tester.tap(find.text('שינוי צבע'));
@@ -173,8 +179,9 @@ void main() {
         await tester.tap(find.byTooltip('אדום'));
         await tester.pump();
 
-        verify(() => bloc.add(const UpdateDarkSeedColor(AppSeedColors.red)))
-            .called(1);
+        verify(
+          () => bloc.add(const UpdateDarkSeedColor(AppSeedColors.red)),
+        ).called(1);
         verifyNever(() => bloc.add(const UpdateSeedColor(AppSeedColors.red)));
       },
     );
@@ -192,10 +199,12 @@ void main() {
           darkSeedColor: darkSeed,
         );
         final bloc = makeBloc(state);
-        await tester.pumpWidget(buildTab(
-          bloc: bloc,
-          brightness: Brightness.light,
-        ));
+        await tester.pumpWidget(
+          buildTab(
+            bloc: bloc,
+            brightness: Brightness.light,
+          ),
+        );
         await tester.pump();
 
         await tester.tap(find.text('שינוי צבע'));
@@ -204,10 +213,12 @@ void main() {
         await tester.tap(find.byTooltip('אדום'));
         await tester.pump();
 
-        verify(() => bloc.add(const UpdateSeedColor(AppSeedColors.red)))
-            .called(1);
+        verify(
+          () => bloc.add(const UpdateSeedColor(AppSeedColors.red)),
+        ).called(1);
         verifyNever(
-            () => bloc.add(const UpdateDarkSeedColor(AppSeedColors.red)));
+          () => bloc.add(const UpdateDarkSeedColor(AppSeedColors.red)),
+        );
       },
     );
   });

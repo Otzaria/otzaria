@@ -35,10 +35,11 @@ class CustomFoldersState extends Equatable {
       activePath: !newSyncing
           ? null
           : (identical(activePath, _sentinel)
-              ? this.activePath
-              : activePath as String?),
-      message:
-          identical(message, _sentinel) ? this.message : message as String?,
+                ? this.activePath
+                : activePath as String?),
+      message: identical(message, _sentinel)
+          ? this.message
+          : message as String?,
       error: identical(error, _sentinel) ? this.error : error as String?,
     );
   }

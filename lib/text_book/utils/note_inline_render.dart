@@ -48,12 +48,14 @@ String buildAnnotatedLineHtml({
     if (start < 0 || end > rawLine.length || start >= end) continue;
     final url =
         'otzaria://inline-link?path=${Uri.encodeComponent(link.path2)}&index=${link.index2}&ref=${Uri.encodeComponent(link.heRef)}';
-    ranges.add(HtmlWrapRange(
-      start: start,
-      end: end,
-      openTag: '<a href="$url" style="text-decoration: underline;">',
-      closeTag: '</a>',
-    ));
+    ranges.add(
+      HtmlWrapRange(
+        start: start,
+        end: end,
+        openTag: '<a href="$url" style="text-decoration: underline;">',
+        closeTag: '</a>',
+      ),
+    );
     linkSpans.add([start, end]);
   }
   linkSpans.sort((a, b) => a[0].compareTo(b[0]));
@@ -66,18 +68,21 @@ String buildAnnotatedLineHtml({
   // קישורים (ברירת המחדל של תגית <a>). currentcolor כן נתמך ומשאיר את
   // צבע הטקסט הרגיל — וכך הערה (קו מקווקו, צבע רגיל) נבדלת מקישור
   // (קו מלא, צבע primary).
-  final openTag = '<a href="otzaria://note?line=$lineIndex0" '
+  final openTag =
+      '<a href="otzaria://note?line=$lineIndex0" '
       'style="text-decoration: underline; text-decoration-style: dotted; '
       'text-decoration-color: $hex; color: currentcolor;">';
 
   void addNoteSpan(int start, int end) {
     for (final gap in _subtractSpans(start, end, linkSpans)) {
-      ranges.add(HtmlWrapRange(
-        start: gap[0],
-        end: gap[1],
-        openTag: openTag,
-        closeTag: '</a>',
-      ));
+      ranges.add(
+        HtmlWrapRange(
+          start: gap[0],
+          end: gap[1],
+          openTag: openTag,
+          closeTag: '</a>',
+        ),
+      );
     }
   }
 

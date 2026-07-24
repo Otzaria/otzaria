@@ -54,7 +54,8 @@ int findNormalizedTextMatchLengthDelta({
   final secondaryLength = normalizedSecondaryText.isEmpty
       ? primaryLength
       : normalizedSecondaryText.length;
-  final bestLength =
-      primaryLength < secondaryLength ? primaryLength : secondaryLength;
+  final bestLength = primaryLength < secondaryLength
+      ? primaryLength
+      : secondaryLength;
   return (bestLength - normalizedQuery.length).abs();
 }

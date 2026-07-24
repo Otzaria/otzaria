@@ -14,8 +14,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('TocDao schema-aware lineIndex', () {
-    test('selectByBookId עובד מול סכמת v3 (tocEntry ללא עמודת lineIndex)',
-        () async {
+    test('selectByBookId עובד מול סכמת v3 (tocEntry ללא עמודת lineIndex)', () async {
       final tempDir = await Directory.systemTemp.createTemp('otzaria_toc_v3');
       final dbPath = path.join(tempDir.path, 'seforim.db');
 
@@ -37,13 +36,17 @@ void main() {
       raw.execute("INSERT INTO tocText (id, text) VALUES (1, 'ברכות')");
       raw.execute("INSERT INTO tocText (id, text) VALUES (2, 'דף ב.')");
       raw.execute(
-          "INSERT INTO line (id, bookId, lineIndex, content) VALUES (100, 103, 0, 'ברכות')");
+        "INSERT INTO line (id, bookId, lineIndex, content) VALUES (100, 103, 0, 'ברכות')",
+      );
       raw.execute(
-          "INSERT INTO line (id, bookId, lineIndex, content) VALUES (101, 103, 1, 'מאימתי')");
+        "INSERT INTO line (id, bookId, lineIndex, content) VALUES (101, 103, 1, 'מאימתי')",
+      );
       raw.execute(
-          'INSERT INTO tocEntry (id, bookId, parentId, textId, level, lineId) VALUES (1557, 103, NULL, 1, 0, 100)');
+        'INSERT INTO tocEntry (id, bookId, parentId, textId, level, lineId) VALUES (1557, 103, NULL, 1, 0, 100)',
+      );
       raw.execute(
-          'INSERT INTO tocEntry (id, bookId, parentId, textId, level, lineId) VALUES (1558, 103, 1557, 2, 1, 101)');
+        'INSERT INTO tocEntry (id, bookId, parentId, textId, level, lineId) VALUES (1558, 103, 1557, 2, 1, 101)',
+      );
       raw.close();
 
       final database = MyDatabase.withPath(dbPath);
@@ -51,10 +54,14 @@ void main() {
         final db = await database.database;
         final hasLineIndex = db
             .select(
-                "SELECT 1 FROM pragma_table_info('tocEntry') WHERE name = 'lineIndex'")
+              "SELECT 1 FROM pragma_table_info('tocEntry') WHERE name = 'lineIndex'",
+            )
             .isNotEmpty;
-        expect(hasLineIndex, isFalse,
-            reason: 'tocEntry של v3 חייב להישאר ללא lineIndex לבדיקת המסלול');
+        expect(
+          hasLineIndex,
+          isFalse,
+          reason: 'tocEntry של v3 חייב להישאר ללא lineIndex לבדיקת המסלול',
+        );
 
         final toc = await database.tocDao.selectByBookId(103);
 
@@ -69,29 +76,37 @@ void main() {
       }
     });
 
-    test('selectByBookId נופל ל-t.lineIndex עבור TOC של PDF (סכמה מלאה)',
-        () async {
-      final tempDir = await Directory.systemTemp.createTemp('otzaria_toc_full');
-      final dbPath = path.join(tempDir.path, 'user_books.db');
+    test(
+      'selectByBookId נופל ל-t.lineIndex עבור TOC של PDF (סכמה מלאה)',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'otzaria_toc_full',
+        );
+        final dbPath = path.join(tempDir.path, 'user_books.db');
 
-      // סכמה מלאה: MyDatabase יוצר tocEntry עם lineIndex. מדמים TOC של PDF —
-      // lineId ללא שורת line תואמת, ו-lineIndex = מספר עמוד.
-      final database = MyDatabase.withPath(dbPath);
-      try {
-        final db = await database.database;
-        db.execute("INSERT INTO tocText (id, text) VALUES (1, 'פרק א')");
-        db.execute(
-            'INSERT INTO tocEntry (id, bookId, parentId, textId, level, lineId, lineIndex) VALUES (1, 7, NULL, 1, 0, NULL, 42)');
+        // סכמה מלאה: MyDatabase יוצר tocEntry עם lineIndex. מדמים TOC של PDF —
+        // lineId ללא שורת line תואמת, ו-lineIndex = מספר עמוד.
+        final database = MyDatabase.withPath(dbPath);
+        try {
+          final db = await database.database;
+          db.execute("INSERT INTO tocText (id, text) VALUES (1, 'פרק א')");
+          db.execute(
+            'INSERT INTO tocEntry (id, bookId, parentId, textId, level, lineId, lineIndex) VALUES (1, 7, NULL, 1, 0, NULL, 42)',
+          );
 
-        final toc = await database.tocDao.selectByBookId(7);
+          final toc = await database.tocDao.selectByBookId(7);
 
-        expect(toc, hasLength(1));
-        expect(toc.first.text, 'פרק א');
-        expect(toc.first.lineIndex, 42); // נפילה ל-t.lineIndex כי אין line תואם
-      } finally {
-        database.close();
-        await tempDir.delete(recursive: true);
-      }
-    });
+          expect(toc, hasLength(1));
+          expect(toc.first.text, 'פרק א');
+          expect(
+            toc.first.lineIndex,
+            42,
+          ); // נפילה ל-t.lineIndex כי אין line תואם
+        } finally {
+          database.close();
+          await tempDir.delete(recursive: true);
+        }
+      },
+    );
   });
 }

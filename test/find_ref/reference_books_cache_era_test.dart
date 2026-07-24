@@ -40,22 +40,22 @@ void main() {
       (
         id: 1,
         normalizedTitle: 'רשי על סנהדרין',
-        categoryPath: 'תלמוד בבלי, ראשונים, רשי, סדר נזיקין'
+        categoryPath: 'תלמוד בבלי, ראשונים, רשי, סדר נזיקין',
       ),
       (
         id: 2,
         normalizedTitle: 'יד רמה על סנהדרין',
-        categoryPath: 'תלמוד בבלי, ראשונים, יד רמה, סדר נזיקין'
+        categoryPath: 'תלמוד בבלי, ראשונים, יד רמה, סדר נזיקין',
       ),
       (
         id: 3,
         normalizedTitle: 'יכין סנהדרין',
-        categoryPath: 'משנה, אחרונים, יכין, סדר נזיקין'
+        categoryPath: 'משנה, אחרונים, יכין, סדר נזיקין',
       ),
       (
         id: 4,
         normalizedTitle: 'סנהדרין',
-        categoryPath: 'תלמוד בבלי, סדר נזיקין'
+        categoryPath: 'תלמוד בבלי, סדר נזיקין',
       ),
     ]);
 
@@ -64,8 +64,11 @@ void main() {
       const ['סנהדרין'],
     );
 
-    expect(hits.map((h) => h.bookId), unorderedEquals([1, 2]),
-        reason: 'רק ספרי ראשונים על סנהדרין; אחרונים וספר-הבסיס מסוננים');
+    expect(
+      hits.map((h) => h.bookId),
+      unorderedEquals([1, 2]),
+      reason: 'רק ספרי ראשונים על סנהדרין; אחרונים וספר-הבסיס מסוננים',
+    );
   });
 
   test('"אחרונים" מחזיר את ספר האחרונים בלבד', () {
@@ -73,12 +76,12 @@ void main() {
       (
         id: 1,
         normalizedTitle: 'רשי על סנהדרין',
-        categoryPath: 'תלמוד בבלי, ראשונים, רשי, סדר נזיקין'
+        categoryPath: 'תלמוד בבלי, ראשונים, רשי, סדר נזיקין',
       ),
       (
         id: 3,
         normalizedTitle: 'יכין סנהדרין',
-        categoryPath: 'משנה, אחרונים, יכין, סדר נזיקין'
+        categoryPath: 'משנה, אחרונים, יכין, סדר נזיקין',
       ),
     ]);
 
@@ -94,7 +97,7 @@ void main() {
       (
         id: 5,
         normalizedTitle: 'רשימות שיעורים על סנהדרין',
-        categoryPath: 'תלמוד בבלי, מחברי זמננו, רשימות שיעורים'
+        categoryPath: 'תלמוד בבלי, מחברי זמננו, רשימות שיעורים',
       ),
     ]);
 
@@ -110,12 +113,12 @@ void main() {
       (
         id: 1,
         normalizedTitle: 'רשי על סנהדרין',
-        categoryPath: 'תלמוד בבלי, ראשונים, רשי, סדר נזיקין'
+        categoryPath: 'תלמוד בבלי, ראשונים, רשי, סדר נזיקין',
       ),
       (
         id: 2,
         normalizedTitle: 'רשי על ברכות',
-        categoryPath: 'תלמוד בבלי, ראשונים, רשי, סדר זרעים'
+        categoryPath: 'תלמוד בבלי, ראשונים, רשי, סדר זרעים',
       ),
     ]);
 
@@ -123,8 +126,9 @@ void main() {
       CommentaryEra.rishonim,
       const ['סנהד'],
     );
-    expect(hits.map((h) => h.bookId), [1],
-        reason: 'תחילית תופסת את סנהדרין אך לא את ברכות');
+    expect(hits.map((h) => h.bookId), [
+      1,
+    ], reason: 'תחילית תופסת את סנהדרין אך לא את ברכות');
   });
 
   test('כל טוקני-הנושא חייבים להופיע בכותרת', () {
@@ -132,12 +136,12 @@ void main() {
       (
         id: 1,
         normalizedTitle: 'חידושי הריטבא על סנהדרין',
-        categoryPath: 'תלמוד בבלי, ראשונים, ריטבא, סדר נזיקין'
+        categoryPath: 'תלמוד בבלי, ראשונים, ריטבא, סדר נזיקין',
       ),
       (
         id: 2,
         normalizedTitle: 'רשי על סנהדרין',
-        categoryPath: 'תלמוד בבלי, ראשונים, רשי, סדר נזיקין'
+        categoryPath: 'תלמוד בבלי, ראשונים, רשי, סדר נזיקין',
       ),
     ]);
 
@@ -145,8 +149,11 @@ void main() {
       CommentaryEra.rishonim,
       const ['חידושי', 'סנהדרין'],
     );
-    expect(hits.map((h) => h.bookId), [1],
-        reason: 'רק כותרת שמכילה גם "חידושי" וגם "סנהדרין"');
+    expect(
+      hits.map((h) => h.bookId),
+      [1],
+      reason: 'רק כותרת שמכילה גם "חידושי" וגם "סנהדרין"',
+    );
   });
 
   test('נתיב ריק / בלי segment דור → לא מוחזר', () {
@@ -155,7 +162,7 @@ void main() {
       (
         id: 2,
         normalizedTitle: 'משנה תורה הלכות סנהדרין',
-        categoryPath: 'הלכה, משנה תורה, ספר שופטים'
+        categoryPath: 'הלכה, משנה תורה, ספר שופטים',
       ),
     ]);
 
@@ -172,7 +179,7 @@ void main() {
         (
           id: i,
           normalizedTitle: 'רשי על סנהדרין $i',
-          categoryPath: 'תלמוד בבלי, ראשונים, רשי, סדר נזיקין'
+          categoryPath: 'תלמוד בבלי, ראשונים, רשי, סדר נזיקין',
         ),
     ]);
 

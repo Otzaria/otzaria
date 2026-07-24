@@ -71,7 +71,10 @@ class ShamorZachorProgressProvider with ChangeNotifier {
 
   /// משנה את שם העמודה (ה-id והמעקב נשמרים)
   Future<void> renameColumn(
-      int bookId, String columnId, String newLabel) async {
+    int bookId,
+    String columnId,
+    String newLabel,
+  ) async {
     final trimmed = newLabel.trim();
     if (trimmed.isEmpty) return;
     final columns = List<ProgressColumn>.from(getColumnsForBook(bookId));
@@ -176,8 +179,9 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       _completionDatesById = await _progressService.loadCompletionDatesById();
       _columnsByBookId = await _progressService.loadColumnsByBookId();
 
-      _logger
-          .info('Successfully loaded progress: ${_progressById.length} books');
+      _logger.info(
+        'Successfully loaded progress: ${_progressById.length} books',
+      );
     } catch (e, stackTrace) {
       if (e is ShamorZachorError) {
         _error = e;
@@ -189,7 +193,10 @@ class ShamorZachorProgressProvider with ChangeNotifier {
         );
       }
       _logger.severe(
-          'Error loading progress: ${_error!.message}', e, stackTrace);
+        'Error loading progress: ${_error!.message}',
+        e,
+        stackTrace,
+      );
     }
 
     _clearSummaryCache();
@@ -281,14 +288,18 @@ class ShamorZachorProgressProvider with ChangeNotifier {
 
     if (isNowComplete && !wasAlreadyCompleted) {
       await _progressService.saveCompletionDateById(
-          bookId, DateTime.now().toIso8601String());
+        bookId,
+        DateTime.now().toIso8601String(),
+      );
       _completionDatesById = await _progressService.loadCompletionDatesById();
       _invalidateSummaryCache(bookId);
 
-      _completionEventController.add(CompletionEvent(
-        CompletionEventType.bookCompleted,
-        bookId: bookId,
-      ));
+      _completionEventController.add(
+        CompletionEvent(
+          CompletionEventType.bookCompleted,
+          bookId: bookId,
+        ),
+      );
     }
 
     // השלמת מחזור (עמודה שלמה) - מספר המחזור הוא מיקום העמודה ברשימה
@@ -297,11 +308,13 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     if (columnIndex != -1 &&
         _isColumnCompleteById(bookId, columnName, bookDetails)) {
       _invalidateSummaryCache(bookId);
-      _completionEventController.add(CompletionEvent(
-        CompletionEventType.reviewCycleCompleted,
-        bookId: bookId,
-        reviewCycleNumber: columnIndex + 1,
-      ));
+      _completionEventController.add(
+        CompletionEvent(
+          CompletionEventType.reviewCycleCompleted,
+          bookId: bookId,
+          reviewCycleNumber: columnIndex + 1,
+        ),
+      );
     }
   }
 
@@ -336,16 +349,21 @@ class ShamorZachorProgressProvider with ChangeNotifier {
 
         if (isNowComplete && !wasAlreadyCompleted) {
           await _progressService.saveCompletionDateById(
-              bookId, DateTime.now().toIso8601String());
-          _completionDatesById =
-              await _progressService.loadCompletionDatesById();
+            bookId,
+            DateTime.now().toIso8601String(),
+          );
+          _completionDatesById = await _progressService
+              .loadCompletionDatesById();
         }
       }
 
       notifyListeners();
     } catch (e, stackTrace) {
       _logger.severe(
-          'Error toggling select all for column by ID', e, stackTrace);
+        'Error toggling select all for column by ID',
+        e,
+        stackTrace,
+      );
       _error = ShamorZachorError.fromException(
         e,
         stackTrace: stackTrace,
@@ -385,9 +403,11 @@ class ShamorZachorProgressProvider with ChangeNotifier {
 
         if (isNowComplete && !wasAlreadyCompleted) {
           await _progressService.saveCompletionDateById(
-              bookId, DateTime.now().toIso8601String());
-          _completionDatesById =
-              await _progressService.loadCompletionDatesById();
+            bookId,
+            DateTime.now().toIso8601String(),
+          );
+          _completionDatesById = await _progressService
+              .loadCompletionDatesById();
         }
       }
 
@@ -425,7 +445,10 @@ class ShamorZachorProgressProvider with ChangeNotifier {
         customMessage: 'Failed to clear book progress by ID',
       );
       _logger.severe(
-          'Error clearing progress by ID: ${_error!.message}', e, stackTrace);
+        'Error clearing progress by ID: ${_error!.message}',
+        e,
+        stackTrace,
+      );
       notifyListeners();
     }
   }
@@ -507,8 +530,10 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     final totalTargetItems = bookDetails.totalLearnableItems;
     if (totalTargetItems == 0 || bookProgress == null) return 0.0;
 
-    final count =
-        ProgressService.getColumnCompletedCount(bookProgress, columnId);
+    final count = ProgressService.getColumnCompletedCount(
+      bookProgress,
+      columnId,
+    );
     return count / totalTargetItems;
   }
 
@@ -615,7 +640,10 @@ class ShamorZachorProgressProvider with ChangeNotifier {
         customMessage: 'Failed to export progress data',
       );
       _logger.severe(
-          'Error exporting progress: ${_error!.message}', e, stackTrace);
+        'Error exporting progress: ${_error!.message}',
+        e,
+        stackTrace,
+      );
       notifyListeners();
       return null;
     }
@@ -636,7 +664,10 @@ class ShamorZachorProgressProvider with ChangeNotifier {
         customMessage: 'Failed to import progress data',
       );
       _logger.severe(
-          'Error importing progress: ${_error!.message}', e, stackTrace);
+        'Error importing progress: ${_error!.message}',
+        e,
+        stackTrace,
+      );
       notifyListeners();
       return false;
     }
@@ -658,7 +689,10 @@ class ShamorZachorProgressProvider with ChangeNotifier {
         customMessage: 'Failed to clear progress data',
       );
       _logger.severe(
-          'Error clearing progress: ${_error!.message}', e, stackTrace);
+        'Error clearing progress: ${_error!.message}',
+        e,
+        stackTrace,
+      );
       notifyListeners();
     }
   }

@@ -5,15 +5,19 @@ void main() {
   final now = DateTime(2026, 7, 5, 12);
 
   BackupEntryInfo entry(DateTime ts, {bool manual = false}) => BackupEntryInfo(
-      path: ts.toIso8601String(), timestamp: ts, isManual: manual);
+    path: ts.toIso8601String(),
+    timestamp: ts,
+    isManual: manual,
+  );
 
   List<String> expiredPaths(
     List<BackupEntryInfo> backups, [
     RetentionProfile profile = RetentionProfile.balanced,
-  ]) =>
-      BackupRotation.selectExpired(backups, profile, now)
-          .map((b) => b.path)
-          .toList();
+  ]) => BackupRotation.selectExpired(
+    backups,
+    profile,
+    now,
+  ).map((b) => b.path).toList();
 
   test('keepAll — שום גיבוי אינו נמחק', () {
     final backups = [
@@ -52,8 +56,10 @@ void main() {
   });
 
   test('גיבוי ידני לעולם אינו פג', () {
-    final manualOld =
-        entry(now.subtract(const Duration(days: 500)), manual: true);
+    final manualOld = entry(
+      now.subtract(const Duration(days: 500)),
+      manual: true,
+    );
     final autoOld = entry(now.subtract(const Duration(days: 500)));
     expect(expiredPaths([manualOld, autoOld]), [autoOld.path]);
   });

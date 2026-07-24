@@ -130,13 +130,18 @@ class CustomFoldersManager {
 
   /// הסרת תיקייה
   static List<CustomFolder> removeFolder(
-      List<CustomFolder> folders, String path) {
+    List<CustomFolder> folders,
+    String path,
+  ) {
     return folders.where((f) => f.path != path).toList();
   }
 
   /// עדכון הגדרת addToDatabase לתיקייה
   static List<CustomFolder> updateFolderDbSetting(
-      List<CustomFolder> folders, String path, bool addToDatabase) {
+    List<CustomFolder> folders,
+    String path,
+    bool addToDatabase,
+  ) {
     return folders.map((f) {
       if (f.path == path) {
         return f.copyWith(addToDatabase: addToDatabase);

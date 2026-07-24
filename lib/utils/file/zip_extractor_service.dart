@@ -13,10 +13,11 @@ class ZipExtractorService {
   /// [onProgress] - callback להתקדמות (0.0 - 1.0)
   /// [onAskDeleteZip] - callback לשאול את המשתמש אם למחוק את ה-ZIP (מחזיר `Future<bool>`)
   static Future<ZipExtractionResult> checkAndExtractZipIfNeeded(
-      String directoryPath,
-      {String? outputDirectoryPath,
-      Function(double progress, String message)? onProgress,
-      Future<bool> Function()? onAskDeleteZip}) async {
+    String directoryPath, {
+    String? outputDirectoryPath,
+    Function(double progress, String message)? onProgress,
+    Future<bool> Function()? onAskDeleteZip,
+  }) async {
     try {
       final directory = Directory(directoryPath);
       if (!directory.existsSync()) {
@@ -205,10 +206,12 @@ class ZipExtractorService {
             processedBytes += chunkWritten;
 
             // עדכון התקדמות
-            final bytesProgress =
-                totalBytes > 0 ? processedBytes / totalBytes : 0.0;
-            final filesProgress =
-                totalFiles > 0 ? extractedFiles / totalFiles : 0.0;
+            final bytesProgress = totalBytes > 0
+                ? processedBytes / totalBytes
+                : 0.0;
+            final filesProgress = totalFiles > 0
+                ? extractedFiles / totalFiles
+                : 0.0;
             final progress =
                 0.25 + (0.65 * ((bytesProgress + filesProgress) / 2));
             final mb = (processedBytes / 1024 / 1024).toStringAsFixed(1);

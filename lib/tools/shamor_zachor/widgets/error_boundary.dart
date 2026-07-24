@@ -27,7 +27,7 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
   static final Logger _logger = Logger('ErrorBoundary');
   static final List<_ErrorBoundaryState> _activeBoundaries = [];
   static void Function(FlutterErrorDetails details)?
-      _previousFlutterErrorHandler;
+  _previousFlutterErrorHandler;
 
   ShamorZachorError? _error;
   bool _hasError = false;
@@ -82,7 +82,8 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
       builder: (context, constraints) {
         return SingleChildScrollView(
           physics: const BouncingScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics()),
+            parent: AlwaysScrollableScrollPhysics(),
+          ),
           child: ConstrainedBox(
             constraints: BoxConstraints(
               minHeight: constraints
@@ -104,8 +105,8 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
                     widget.fallbackMessage ?? error.userFriendlyMessage,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
                   if (error.suggestedAction != null) ...[
                     const SizedBox(height: 8),
@@ -150,10 +151,10 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
                           ),
                           child: SelectableText(
                             'Type: ${error.type}\n\nMessage: ${error.message}\n\nDetails: ${error.details}\n\nStackTrace: ${error.stackTrace ?? 'N/A'}', // הוספנו את ה-StackTrace
-                            style:
-                                Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      fontFamily: 'monospace',
-                                    ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  fontFamily: 'monospace',
+                                ),
                           ),
                         ),
                       ],
@@ -239,8 +240,11 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
       return;
     }
 
-    _logger.severe('Flutter error caught by ErrorBoundary', details.exception,
-        details.stack);
+    _logger.severe(
+      'Flutter error caught by ErrorBoundary',
+      details.exception,
+      details.stack,
+    );
 
     setState(() {
       _hasError = true;

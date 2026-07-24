@@ -26,8 +26,9 @@ class WindowsJumpListService {
     if (listEquals(_lastTitles, titles)) return;
 
     try {
-      final ok =
-          await _channel.invokeMethod<bool>('updateTabs', {'titles': titles});
+      final ok = await _channel.invokeMethod<bool>('updateTabs', {
+        'titles': titles,
+      });
       // מעדכנים את הזיכרון רק בהצלחה — אחרת אותה רשימה תישלח שוב בשינוי הבא
       // במקום להיתקע על מצב שלא נכתב בפועל.
       if (ok == true) {

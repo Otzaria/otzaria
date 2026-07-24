@@ -18,7 +18,7 @@ class PluginDevLoaderService {
   final PluginRegistryRepository _repository;
 
   PluginDevLoaderService({PluginRegistryRepository? repository})
-      : _repository = repository ?? PluginRegistryRepository();
+    : _repository = repository ?? PluginRegistryRepository();
 
   Future<void> _validateDevelopmentManifest(
     PluginManifest manifest,
@@ -52,8 +52,10 @@ class PluginDevLoaderService {
 
   /// [preValidatedManifest] — מניפסט שכבר אומת (למשל, שהוצג בדיאלוג הרשאות).
   /// כשמסופק, אין קריאה חוזרת מהדיסק — מונע התקנת הרשאות שלא הוצגו למשתמש.
-  Future<void> loadDevelopmentPlugin(String directoryPath,
-      {PluginManifest? preValidatedManifest}) async {
+  Future<void> loadDevelopmentPlugin(
+    String directoryPath, {
+    PluginManifest? preValidatedManifest,
+  }) async {
     final dir = Directory(directoryPath);
     if (!dir.existsSync()) {
       throw Exception('תיקיית התוסף לא נמצאה: $directoryPath');
@@ -76,7 +78,8 @@ class PluginDevLoaderService {
     final existingPlugin = await _repository.getPlugin(manifest.id);
     if (existingPlugin != null && !existingPlugin.isDevelopment) {
       throw Exception(
-          'כבר קיים תוסף מותקן (רגיל) עם אותו מזהה. מחק או שנה id.');
+        'כבר קיים תוסף מותקן (רגיל) עם אותו מזהה. מחק או שנה id.',
+      );
     }
 
     // טעינה-מחדש של תוסף פיתוח: שומרים את הסדר הידני.
@@ -97,7 +100,7 @@ class PluginDevLoaderService {
       pinnedToNavRail: existingPlugin?.pinnedToNavRail ?? false,
       allowOrderBeforeBuiltInsGranted:
           existingPlugin?.allowOrderBeforeBuiltInsGranted ??
-              manifest.allowOrderBeforeBuiltIns,
+          manifest.allowOrderBeforeBuiltIns,
       manifest: manifest,
       installedAt: existingPlugin?.installedAt ?? DateTime.now(),
       updatedAt: DateTime.now(),
@@ -126,7 +129,10 @@ class PluginDevLoaderService {
       // הרשאה חדשה: בהתקנה ראשונה מאשרים (ConfirmDevPluginInstall ידרוס אחר כך),
       // בעדכון — שוללים כברירת מחדל עד שהמשתמש יאשר מפורשות.
       await _repository.setPermission(
-          manifest.id, perm, existingPlugin == null);
+        manifest.id,
+        perm,
+        existingPlugin == null,
+      );
     }
   }
 
@@ -140,23 +146,27 @@ class PluginDevLoaderService {
     try {
       final HttpClientRequest request;
       try {
-        request =
-            await client.getUrl(Uri.parse('$normalizedUrl/manifest.json'));
+        request = await client.getUrl(
+          Uri.parse('$normalizedUrl/manifest.json'),
+        );
       } on SocketException {
         throw Exception('לא ניתן להתחבר ל-$normalizedUrl — ודא ששרת הפיתוח רץ');
       }
       final response = await request.close();
       if (response.statusCode != 200) {
         throw Exception(
-            'לא ניתן לטעון manifest.json — קוד שגיאה ${response.statusCode}');
+          'לא ניתן לטעון manifest.json — קוד שגיאה ${response.statusCode}',
+        );
       }
       final manifestStr = await response.transform(const Utf8Decoder()).join();
       // SPA dev servers return index.html as fallback for unknown paths
       if (manifestStr.trimLeft().startsWith('<')) {
-        throw Exception('השרת החזיר HTML במקום manifest.json.\n'
-            'הוסף את manifest.json לתיקיית הנכסים הסטטיים:\n'
-            '• Vite: תיקיית public/\n'
-            '• webpack: תיקיית static/ או CopyWebpackPlugin');
+        throw Exception(
+          'השרת החזיר HTML במקום manifest.json.\n'
+          'הוסף את manifest.json לתיקיית הנכסים הסטטיים:\n'
+          '• Vite: תיקיית public/\n'
+          '• webpack: תיקיית static/ או CopyWebpackPlugin',
+        );
       }
       final manifest = PluginManifest.fromJson(jsonDecode(manifestStr));
       await _validateDevelopmentManifest(
@@ -172,8 +182,10 @@ class PluginDevLoaderService {
 
   /// [preValidatedManifest] — מניפסט שכבר אומת (למשל, שהוצג בדיאלוג הרשאות).
   /// כשמסופק, אין fetch חוזר מהשרת — מונע התקנת הרשאות שלא הוצגו למשתמש.
-  Future<void> loadLocalhostPlugin(String baseUrl,
-      {PluginManifest? preValidatedManifest}) async {
+  Future<void> loadLocalhostPlugin(
+    String baseUrl, {
+    PluginManifest? preValidatedManifest,
+  }) async {
     final normalizedUrl = baseUrl.replaceAll(RegExp(r'/+$'), '');
     final manifest =
         preValidatedManifest ?? await fetchLocalhostManifest(normalizedUrl);
@@ -181,7 +193,8 @@ class PluginDevLoaderService {
     final existingPlugin = await _repository.getPlugin(manifest.id);
     if (existingPlugin != null && !existingPlugin.isDevelopment) {
       throw Exception(
-          'כבר קיים תוסף מותקן (רגיל) עם אותו מזהה. מחק או שנה id.');
+        'כבר קיים תוסף מותקן (רגיל) עם אותו מזהה. מחק או שנה id.',
+      );
     }
 
     final newUserOrder = existingPlugin != null
@@ -200,7 +213,7 @@ class PluginDevLoaderService {
       pinnedToNavRail: existingPlugin?.pinnedToNavRail ?? false,
       allowOrderBeforeBuiltInsGranted:
           existingPlugin?.allowOrderBeforeBuiltInsGranted ??
-              manifest.allowOrderBeforeBuiltIns,
+          manifest.allowOrderBeforeBuiltIns,
       manifest: manifest,
       installedAt: existingPlugin?.installedAt ?? DateTime.now(),
       updatedAt: DateTime.now(),
@@ -227,7 +240,10 @@ class PluginDevLoaderService {
       if (existingGrants.containsKey(perm)) continue;
       // הרשאה חדשה: בהתקנה ראשונה מאשרים, בעדכון — שוללים עד לאישור מפורש.
       await _repository.setPermission(
-          manifest.id, perm, existingPlugin == null);
+        manifest.id,
+        perm,
+        existingPlugin == null,
+      );
     }
   }
 }

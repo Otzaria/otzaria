@@ -65,7 +65,7 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
     final current = _editorController.buildResult();
     final hasChanges =
         current.contentPlain.trim() != _initialResult.contentPlain.trim() &&
-            current.contentPlain.trim().isNotEmpty;
+        current.contentPlain.trim().isNotEmpty;
     if (hasChanges != _hasUnsavedChanges) {
       setState(() {
         _hasUnsavedChanges = hasChanges;
@@ -292,8 +292,9 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
       return FilledButton(
         onPressed: onPressed,
         style: FilledButton.styleFrom(
-          backgroundColor:
-              showHover ? cs.primary.withValues(alpha: 0.9) : cs.primary,
+          backgroundColor: showHover
+              ? cs.primary.withValues(alpha: 0.9)
+              : cs.primary,
           foregroundColor: cs.onPrimary,
         ),
         child: Text(text),

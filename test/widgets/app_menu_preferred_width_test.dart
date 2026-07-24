@@ -46,8 +46,9 @@ void main() {
     expect(width, greaterThan(withoutCheckmarkReservation + metrics.iconSize));
   });
 
-  testWidgets('פריט עם אייקון מוביל דורש רוחב גדול יותר מפריט זהה בלי אייקון',
-      (tester) async {
+  testWidgets('פריט עם אייקון מוביל דורש רוחב גדול יותר מפריט זהה בלי אייקון', (
+    tester,
+  ) async {
     const label = 'תווית זהה';
     final withoutIcon = calculateAppMenuPreferredWidth<int>(
       metrics,

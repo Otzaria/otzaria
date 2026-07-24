@@ -113,14 +113,15 @@ class HebrewUtils {
     final formattedRemainder = remainder == 0
         ? ''
         : formatter
-            .formatHebrewNumber(remainder)
-            .replaceAll('"', '')
-            .replaceAll('״', '')
-            .replaceAll("'", '')
-            .replaceAll('׳', '');
+              .formatHebrewNumber(remainder)
+              .replaceAll('"', '')
+              .replaceAll('״', '')
+              .replaceAll("'", '')
+              .replaceAll('׳', '');
 
-    final remainderWithMarks =
-        formattedRemainder.isEmpty ? '' : _addGershayim(formattedRemainder);
+    final remainderWithMarks = formattedRemainder.isEmpty
+        ? ''
+        : _addGershayim(formattedRemainder);
 
     if (thousands > 0) {
       final thousandsPart = '${intToHebrewWithoutQuotes(thousands)}׳';

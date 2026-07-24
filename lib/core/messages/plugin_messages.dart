@@ -7,8 +7,9 @@ abstract class PluginMessages {
       'להתקנה מחדש השתמש בקישור עם overwrite=true.';
 
   static String newerVersionInstalled(
-          String pluginName, String installedVersion) =>
-      'כבר מותקנת אצלך גרסה חדשה יותר של "$pluginName" ($installedVersion)';
+    String pluginName,
+    String installedVersion,
+  ) => 'כבר מותקנת אצלך גרסה חדשה יותר של "$pluginName" ($installedVersion)';
 
   static String installPluginError(Object error) =>
       'שגיאה בהתקנת התוסף: $error';

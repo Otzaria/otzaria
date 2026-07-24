@@ -50,7 +50,8 @@ class _NotesSearchHeaderState extends State<NotesSearchHeader> {
       builder: (context, state) {
         final totalNotes =
             state.locatedNotes.length + state.missingNotes.length;
-        final visibleNotes = state.filteredLocatedNotes.length +
+        final visibleNotes =
+            state.filteredLocatedNotes.length +
             state.filteredMissingNotes.length;
 
         return Padding(
@@ -65,14 +66,14 @@ class _NotesSearchHeaderState extends State<NotesSearchHeader> {
                       controller: _searchController,
                       hintText: 'חפש בהערות...',
                       onChanged: (value) {
-                        context
-                            .read<PersonalNotesBloc>()
-                            .add(UpdateSearchQuery(value));
+                        context.read<PersonalNotesBloc>().add(
+                          UpdateSearchQuery(value),
+                        );
                       },
                       onClear: () {
-                        context
-                            .read<PersonalNotesBloc>()
-                            .add(const UpdateSearchQuery(''));
+                        context.read<PersonalNotesBloc>().add(
+                          const UpdateSearchQuery(''),
+                        );
                       },
                     ),
                   ),
@@ -81,11 +82,11 @@ class _NotesSearchHeaderState extends State<NotesSearchHeader> {
                     tooltip: 'רענן',
                     onPressed: () {
                       context.read<PersonalNotesBloc>().add(
-                            LoadPersonalNotes(
-                              widget.bookId,
-                              categoryId: state.categoryId,
-                            ),
-                          );
+                        LoadPersonalNotes(
+                          widget.bookId,
+                          categoryId: state.categoryId,
+                        ),
+                      );
                     },
                     icon: const Icon(FluentIcons.arrow_clockwise_24_regular),
                   ),
@@ -97,9 +98,9 @@ class _NotesSearchHeaderState extends State<NotesSearchHeader> {
                   Expanded(
                     child: InkWell(
                       onTap: () {
-                        context
-                            .read<PersonalNotesBloc>()
-                            .add(const ToggleShowOnlyVisible());
+                        context.read<PersonalNotesBloc>().add(
+                          const ToggleShowOnlyVisible(),
+                        );
                       },
                       borderRadius: AppTokens.borderRadiusAll,
                       child: Padding(
@@ -130,11 +131,10 @@ class _NotesSearchHeaderState extends State<NotesSearchHeader> {
                   Text(
                     '$visibleNotes/$totalNotes',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.6),
-                        ),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
                   ),
                 ],
               ),

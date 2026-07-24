@@ -7,33 +7,35 @@ import 'package:otzaria/plugins/services/plugin_packager_cli.dart';
 import 'package:path/path.dart' as p;
 
 Map<String, dynamic> _manifest({String id = 'test.cli.plugin'}) => {
-      'schemaVersion': 1,
-      'id': id,
-      'name': 'CLI Test',
-      'version': '1.0.0',
-      'description': '',
-      'author': '',
-      'homepage': '',
-      'entrypoint': 'index.html',
-      'minAppVersion': '0.0.0',
-      'sdkVersion': '1.x',
-      'permissions': const [],
-      'contributes': {
-        'toolTab': {
-          'title': 'CLI Test',
-          'order': 900,
-          'defaultPinned': true,
-        },
-        'publishedDataTypes': const [],
-      },
-    };
+  'schemaVersion': 1,
+  'id': id,
+  'name': 'CLI Test',
+  'version': '1.0.0',
+  'description': '',
+  'author': '',
+  'homepage': '',
+  'entrypoint': 'index.html',
+  'minAppVersion': '0.0.0',
+  'sdkVersion': '1.x',
+  'permissions': const [],
+  'contributes': {
+    'toolTab': {
+      'title': 'CLI Test',
+      'order': 900,
+      'defaultPinned': true,
+    },
+    'publishedDataTypes': const [],
+  },
+};
 
 String _writePluginDir(Directory parent, {String dirName = 'plugin'}) {
   final dir = Directory(p.join(parent.path, dirName))..createSync();
-  File(p.join(dir.path, 'manifest.json'))
-      .writeAsStringSync(jsonEncode(_manifest()));
-  File(p.join(dir.path, 'index.html'))
-      .writeAsStringSync('<!doctype html><html lang="he" dir="rtl"></html>');
+  File(
+    p.join(dir.path, 'manifest.json'),
+  ).writeAsStringSync(jsonEncode(_manifest()));
+  File(
+    p.join(dir.path, 'index.html'),
+  ).writeAsStringSync('<!doctype html><html lang="he" dir="rtl"></html>');
   return dir.path;
 }
 
@@ -84,8 +86,9 @@ void main() {
       expect(code, PluginPackagerCliExitCode.success);
       expect(errSink.toString(), isEmpty);
       // קובץ פלט נוצר במיקום ברירת המחדל
-      final outFile =
-          File(p.join(tempDir.path, 'test.cli.plugin-1.0.0.otzplugin'));
+      final outFile = File(
+        p.join(tempDir.path, 'test.cli.plugin-1.0.0.otzplugin'),
+      );
       expect(outFile.existsSync(), isTrue);
     });
 
@@ -129,8 +132,9 @@ void main() {
       expect(File(customOut).existsSync(), isTrue);
       // לא נוצר הקובץ בנתיב ברירת המחדל
       expect(
-        File(p.join(tempDir.path, 'test.cli.plugin-1.0.0.otzplugin'))
-            .existsSync(),
+        File(
+          p.join(tempDir.path, 'test.cli.plugin-1.0.0.otzplugin'),
+        ).existsSync(),
         isFalse,
       );
     });
@@ -222,21 +226,23 @@ void main() {
       expect(bytes[1], 0x4B);
     });
 
-    test('without --force, an existing output yields blockingError (1)',
-        () async {
-      final dir = _writePluginDir(tempDir);
-      final customOut = p.join(tempDir.path, 'taken.otzplugin');
-      File(customOut).writeAsStringSync('stale');
+    test(
+      'without --force, an existing output yields blockingError (1)',
+      () async {
+        final dir = _writePluginDir(tempDir);
+        final customOut = p.join(tempDir.path, 'taken.otzplugin');
+        File(customOut).writeAsStringSync('stale');
 
-      final code = await PluginPackagerCli.run(
-        [dir, '--output', customOut],
-        out: outSink,
-        err: errSink,
-      );
+        final code = await PluginPackagerCli.run(
+          [dir, '--output', customOut],
+          out: outSink,
+          err: errSink,
+        );
 
-      expect(code, PluginPackagerCliExitCode.blockingError);
-      expect(errSink.toString(), contains('--force'));
-    });
+        expect(code, PluginPackagerCliExitCode.blockingError);
+        expect(errSink.toString(), contains('--force'));
+      },
+    );
 
     test('non-existent directory yields blockingError (1)', () async {
       final code = await PluginPackagerCli.run(
@@ -261,8 +267,9 @@ void main() {
 
       expect(code, PluginPackagerCliExitCode.success);
       expect(
-        File(p.join(tempDir.path, 'test.cli.plugin-1.0.0.otzplugin'))
-            .existsSync(),
+        File(
+          p.join(tempDir.path, 'test.cli.plugin-1.0.0.otzplugin'),
+        ).existsSync(),
         isTrue,
       );
     });

@@ -26,7 +26,7 @@ class LocalOverridesRepository implements OverridesRepository {
   final Map<String, Completer<void>> _fileLocks = {};
 
   LocalOverridesRepository({EditorSettings? settings})
-      : _settings = settings ?? const EditorSettings() {
+    : _settings = settings ?? const EditorSettings() {
     _basePath = _basePathCompleter.future;
     _initializeBasePath();
   }
@@ -116,7 +116,11 @@ class LocalOverridesRepository implements OverridesRepository {
 
   /// Performs atomic write with retry and recovery
   Future<void> _atomicWriteWithRetry(
-      String filePath, String content, String bookId, String sectionId) async {
+    String filePath,
+    String content,
+    String bookId,
+    String sectionId,
+  ) async {
     const maxRetries = 3;
     const baseDelay = Duration(milliseconds: 100);
 
@@ -132,8 +136,9 @@ class LocalOverridesRepository implements OverridesRepository {
         }
 
         // Exponential backoff
-        final delay =
-            Duration(milliseconds: baseDelay.inMilliseconds * (1 << attempt));
+        final delay = Duration(
+          milliseconds: baseDelay.inMilliseconds * (1 << attempt),
+        );
         await Future.delayed(delay);
       }
     }
@@ -141,14 +146,20 @@ class LocalOverridesRepository implements OverridesRepository {
 
   /// Saves content to recovery directory when normal save fails
   Future<void> _saveToRecovery(
-      String bookId, String sectionId, String content, String error) async {
+    String bookId,
+    String sectionId,
+    String content,
+    String error,
+  ) async {
     try {
       final recoveryDir = await _getRecoveryDir(bookId);
       await Directory(recoveryDir).create(recursive: true);
 
       final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
       final recoveryFile = path.join(
-          recoveryDir, '${_sanitizeSectionId(sectionId)}_$timestamp.md');
+        recoveryDir,
+        '${_sanitizeSectionId(sectionId)}_$timestamp.md',
+      );
 
       final recoveryContent =
           '''<!-- Recovery file created due to save failure -->
@@ -169,7 +180,9 @@ $content''';
     try {
       final bookDir = await _getBookDir(bookId);
       final filePath = path.join(
-          bookDir, '${_sanitizeSectionId(sectionId)}$_overrideExtension');
+        bookDir,
+        '${_sanitizeSectionId(sectionId)}$_overrideExtension',
+      );
 
       if (!_isPathSafe(filePath, await _basePath)) {
         throw ArgumentError('Invalid file path: $filePath');
@@ -192,8 +205,12 @@ $content''';
   }
 
   @override
-  Future<void> writeOverride(String bookId, String sectionId, String markdown,
-      String sourceHash) async {
+  Future<void> writeOverride(
+    String bookId,
+    String sectionId,
+    String markdown,
+    String sourceHash,
+  ) async {
     final filePath = path.join(
       await _getBookDir(bookId),
       '${_sanitizeSectionId(sectionId)}$_overrideExtension',
@@ -213,7 +230,11 @@ $content''';
       );
 
       await _atomicWriteWithRetry(
-          filePath, override.toFileContent(), bookId, sectionId);
+        filePath,
+        override.toFileContent(),
+        bookId,
+        sectionId,
+      );
 
       // Delete corresponding draft after successful save
       await deleteDraft(bookId, sectionId);
@@ -227,7 +248,9 @@ $content''';
     try {
       final draftsDir = await _getDraftsDir(bookId);
       final filePath = path.join(
-          draftsDir, '${_sanitizeSectionId(sectionId)}$_draftExtension');
+        draftsDir,
+        '${_sanitizeSectionId(sectionId)}$_draftExtension',
+      );
 
       if (!_isPathSafe(filePath, await _basePath)) {
         throw ArgumentError('Invalid file path: $filePath');
@@ -254,10 +277,15 @@ $content''';
 
   @override
   Future<void> writeDraft(
-      String bookId, String sectionId, String markdown) async {
+    String bookId,
+    String sectionId,
+    String markdown,
+  ) async {
     final draftsDir = await _getDraftsDir(bookId);
     final filePath = path.join(
-        draftsDir, '${_sanitizeSectionId(sectionId)}$_draftExtension');
+      draftsDir,
+      '${_sanitizeSectionId(sectionId)}$_draftExtension',
+    );
 
     if (!_isPathSafe(filePath, await _basePath)) {
       throw ArgumentError('Invalid file path: $filePath');
@@ -282,7 +310,9 @@ $content''';
     try {
       final draftsDir = await _getDraftsDir(bookId);
       final filePath = path.join(
-          draftsDir, '${_sanitizeSectionId(sectionId)}$_draftExtension');
+        draftsDir,
+        '${_sanitizeSectionId(sectionId)}$_draftExtension',
+      );
 
       if (!_isPathSafe(filePath, await _basePath)) {
         return;
@@ -299,7 +329,9 @@ $content''';
 
   @override
   Future<bool> hasNewerDraftThanOverride(
-      String bookId, String sectionId) async {
+    String bookId,
+    String sectionId,
+  ) async {
     try {
       final draft = await readDraft(bookId, sectionId);
       if (draft == null) return false;
@@ -339,8 +371,10 @@ $content''';
 
       final files = await bookDir
           .list()
-          .where((entity) =>
-              entity is File && entity.path.endsWith(_overrideExtension))
+          .where(
+            (entity) =>
+                entity is File && entity.path.endsWith(_overrideExtension),
+          )
           .cast<File>()
           .toList();
 
@@ -360,8 +394,9 @@ $content''';
 
       final files = await draftsDir
           .list()
-          .where((entity) =>
-              entity is File && entity.path.endsWith(_draftExtension))
+          .where(
+            (entity) => entity is File && entity.path.endsWith(_draftExtension),
+          )
           .cast<File>()
           .toList();
 
@@ -381,8 +416,9 @@ $content''';
 
       if (!await baseDir.exists()) return;
 
-      final cutoffDate =
-          DateTime.now().subtract(Duration(days: _settings.draftCleanupDays));
+      final cutoffDate = DateTime.now().subtract(
+        Duration(days: _settings.draftCleanupDays),
+      );
       double totalSizeMB = 0;
       final List<FileSystemEntity> allDrafts = [];
 
@@ -414,7 +450,8 @@ $content''';
       for (final draft in allDrafts) {
         final file = File(draft.path);
         final stat = await file.stat();
-        final shouldDelete = stat.modified.isBefore(cutoffDate) ||
+        final shouldDelete =
+            stat.modified.isBefore(cutoffDate) ||
             totalSizeMB > _settings.globalDraftsQuotaMB;
 
         if (shouldDelete) {
@@ -467,7 +504,9 @@ $content''';
     try {
       final bookDir = await _getBookDir(bookId);
       final filePath = path.join(
-          bookDir, '${_sanitizeSectionId(sectionId)}$_overrideExtension');
+        bookDir,
+        '${_sanitizeSectionId(sectionId)}$_overrideExtension',
+      );
 
       if (!_isPathSafe(filePath, await _basePath)) {
         return;

@@ -24,7 +24,9 @@ void main() {
 
     test('ערך שהוגדר גובר על ברירת המחדל', () async {
       await Settings.setValue<String>(
-          'key-shortcut-open-library-browser', 'ctrl+shift+x');
+        'key-shortcut-open-library-browser',
+        'ctrl+shift+x',
+      );
       expect(
         ShortcutValidator.getShortcutValue('key-shortcut-open-library-browser'),
         'ctrl+shift+x',
@@ -33,22 +35,30 @@ void main() {
 
     test('נופל למפתח legacy כשהמפתח הנוכחי ריק', () async {
       await Settings.setValue<String>(
-          ShortcutValidator.legacySearchInBookKey, 'ctrl+g');
+        ShortcutValidator.legacySearchInBookKey,
+        'ctrl+g',
+      );
       expect(
         ShortcutValidator.getShortcutValue(
-            ShortcutValidator.currentWindowSearchKey),
+          ShortcutValidator.currentWindowSearchKey,
+        ),
         'ctrl+g',
       );
     });
 
     test('ערך ישיר גובר על מפתח legacy', () async {
       await Settings.setValue<String>(
-          ShortcutValidator.legacySearchInBookKey, 'ctrl+g');
+        ShortcutValidator.legacySearchInBookKey,
+        'ctrl+g',
+      );
       await Settings.setValue<String>(
-          ShortcutValidator.currentWindowSearchKey, 'ctrl+j');
+        ShortcutValidator.currentWindowSearchKey,
+        'ctrl+j',
+      );
       expect(
         ShortcutValidator.getShortcutValue(
-            ShortcutValidator.currentWindowSearchKey),
+          ShortcutValidator.currentWindowSearchKey,
+        ),
         'ctrl+j',
       );
     });
@@ -56,9 +66,10 @@ void main() {
     test('שאילתה לפי המפתח הישן מנורמלת למפתח הנוכחי', () {
       expect(
         ShortcutValidator.getShortcutValue(
-            ShortcutValidator.legacySearchInBookKey),
-        ShortcutValidator
-            .defaultShortcuts[ShortcutValidator.currentWindowSearchKey],
+          ShortcutValidator.legacySearchInBookKey,
+        ),
+        ShortcutValidator.defaultShortcuts[ShortcutValidator
+            .currentWindowSearchKey],
       );
     });
   });
@@ -67,7 +78,8 @@ void main() {
     test('ממפה מפתח legacy למפתח הנוכחי', () {
       expect(
         ShortcutValidator.canonicalSettingKey(
-            ShortcutValidator.legacySearchInBookKey),
+          ShortcutValidator.legacySearchInBookKey,
+        ),
         ShortcutValidator.currentWindowSearchKey,
       );
     });
@@ -82,7 +94,8 @@ void main() {
     test('legacyKeysFor מחזיר את המפתחות הישנים', () {
       expect(
         ShortcutValidator.legacyKeysFor(
-            ShortcutValidator.currentWindowSearchKey),
+          ShortcutValidator.currentWindowSearchKey,
+        ),
         {ShortcutValidator.legacySearchInBookKey},
       );
       expect(ShortcutValidator.legacyKeysFor('key-shortcut-print'), isEmpty);
@@ -116,16 +129,22 @@ void main() {
   group('hasConflict', () {
     test('false כשאין התנגשות', () {
       expect(
-          ShortcutValidator.hasConflict('key-shortcut-add-bookmark'), isFalse);
+        ShortcutValidator.hasConflict('key-shortcut-add-bookmark'),
+        isFalse,
+      );
     });
 
     test('true כששני מפתחות חולקים קיצור', () async {
       await Settings.setValue<String>('key-shortcut-open-history', 'ctrl+b');
 
       expect(
-          ShortcutValidator.hasConflict('key-shortcut-add-bookmark'), isTrue);
+        ShortcutValidator.hasConflict('key-shortcut-add-bookmark'),
+        isTrue,
+      );
       expect(
-          ShortcutValidator.hasConflict('key-shortcut-open-history'), isTrue);
+        ShortcutValidator.hasConflict('key-shortcut-open-history'),
+        isTrue,
+      );
     });
 
     test('false עבור קיצור ריק', () async {
@@ -137,27 +156,33 @@ void main() {
   });
 
   group('openToolShortcutKeys', () {
-    test('כל מפתח רשום ב-shortcutKeys, defaultShortcuts (ריק) ו-shortcutNames',
-        () {
-      for (final key in ShortcutValidator.openToolShortcutKeys.keys) {
-        expect(ShortcutValidator.shortcutKeys, contains(key));
-        expect(ShortcutValidator.defaultShortcuts[key], '');
-        expect(ShortcutValidator.shortcutNames[key], isNotNull);
-      }
-    });
+    test(
+      'כל מפתח רשום ב-shortcutKeys, defaultShortcuts (ריק) ו-shortcutNames',
+      () {
+        for (final key in ShortcutValidator.openToolShortcutKeys.keys) {
+          expect(ShortcutValidator.shortcutKeys, contains(key));
+          expect(ShortcutValidator.defaultShortcuts[key], '');
+          expect(ShortcutValidator.shortcutNames[key], isNotNull);
+        }
+      },
+    );
 
     test('כל מזהה כלי קיים בקטלוג הכלים המובנים', () {
       final catalogIds = kBuiltInToolsCatalog.map((m) => m.toolId).toSet();
       for (final toolId in ShortcutValidator.openToolShortcutKeys.values) {
-        expect(catalogIds, contains(toolId),
-            reason: 'הכלי "$toolId" אינו קיים בקטלוג');
+        expect(
+          catalogIds,
+          contains(toolId),
+          reason: 'הכלי "$toolId" אינו קיים בקטלוג',
+        );
       }
     });
 
     test('ה-deep-link שהקיצור מפעיל מתפענח ל-OpenToolAction של אותו כלי', () {
       for (final toolId in ShortcutValidator.openToolShortcutKeys.values) {
         final action = ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/tool/$toolId'));
+          Uri.parse('otzaria://open/tool/$toolId'),
+        );
         expect(action, isA<OpenToolAction>());
         expect((action as OpenToolAction).toolId, toolId);
       }
@@ -165,14 +190,16 @@ void main() {
   });
 
   group('copyLinkShortcutKeys', () {
-    test('כל מפתח רשום ב-shortcutKeys, defaultShortcuts (ריק) ו-shortcutNames',
-        () {
-      for (final key in ShortcutValidator.copyLinkShortcutKeys) {
-        expect(ShortcutValidator.shortcutKeys, contains(key));
-        expect(ShortcutValidator.defaultShortcuts[key], '');
-        expect(ShortcutValidator.shortcutNames[key], isNotNull);
-      }
-    });
+    test(
+      'כל מפתח רשום ב-shortcutKeys, defaultShortcuts (ריק) ו-shortcutNames',
+      () {
+        for (final key in ShortcutValidator.copyLinkShortcutKeys) {
+          expect(ShortcutValidator.shortcutKeys, contains(key));
+          expect(ShortcutValidator.defaultShortcuts[key], '');
+          expect(ShortcutValidator.shortcutNames[key], isNotNull);
+        }
+      },
+    );
 
     test('ללא ברירת מחדל — getShortcutValue מחזיר ערך ריק כל עוד לא הוגדר', () {
       for (final key in ShortcutValidator.copyLinkShortcutKeys) {
@@ -212,7 +239,8 @@ void main() {
 
     test('ה-deep-link שהקיצור מפעיל מתפענח ל-OpenPluginAction', () {
       final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/plugin/$pluginId'));
+        Uri.parse('otzaria://open/plugin/$pluginId'),
+      );
       expect(action, isA<OpenPluginAction>());
       expect((action as OpenPluginAction).pluginId, pluginId);
     });
@@ -222,7 +250,9 @@ void main() {
     test('מפתח יכול לחלוק עם עצמו', () {
       expect(
         ShortcutValidator.canShareShortcut(
-            'key-shortcut-print', 'key-shortcut-print'),
+          'key-shortcut-print',
+          'key-shortcut-print',
+        ),
         isTrue,
       );
     });

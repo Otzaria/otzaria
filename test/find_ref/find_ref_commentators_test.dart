@@ -27,39 +27,40 @@ DbReferenceResult _ref({
   bool isAltToc = false,
   bool isPdf = false,
   bool isUserBook = false,
-}) =>
-    DbReferenceResult(
-      title: 'בראשית',
-      reference: 'בראשית פרק א',
-      segment: segment,
-      bookId: bookId,
-      sourceLineId: sourceLineId,
-      tocLevel: tocLevel,
-      isAltToc: isAltToc,
-      isPdf: isPdf,
-      isUserBook: isUserBook,
-    );
+}) => DbReferenceResult(
+  title: 'בראשית',
+  reference: 'בראשית פרק א',
+  segment: segment,
+  bookId: bookId,
+  sourceLineId: sourceLineId,
+  tocLevel: tocLevel,
+  isAltToc: isAltToc,
+  isPdf: isPdf,
+  isUserBook: isUserBook,
+);
 
 FindRefRepository _repoWith({
   Future<List<Map<String, dynamic>>> Function(DbReferenceResult)? fetch,
   Future<CommentaryEra> Function(String)? era,
-}) =>
-    FindRefRepository(
-      fetchCommentatorRows: fetch,
-      getBookEra: era,
-    );
+}) => FindRefRepository(
+  fetchCommentatorRows: fetch,
+  getBookEra: era,
+);
 
-List<String> _titles(List<DbCommentatorEntry> entries) =>
-    [for (final e in entries) e.title];
+List<String> _titles(List<DbCommentatorEntry> entries) => [
+  for (final e in entries) e.title,
+];
 
 void main() {
   group('FindRefRepository.getCommentatorsForResult — קוד היצור', () {
     test('PDF — מחזיר רשימה ריקה בלי קריאה ל-loader', () async {
       var calls = 0;
-      final repo = _repoWith(fetch: (ref) async {
-        calls++;
-        return const [];
-      });
+      final repo = _repoWith(
+        fetch: (ref) async {
+          calls++;
+          return const [];
+        },
+      );
 
       final result = await repo.getCommentatorsForResult(
         _ref(isPdf: true, bookId: -1),
@@ -71,10 +72,12 @@ void main() {
 
     test('bookId ≤ 0 — מחזיר רשימה ריקה בלי קריאה ל-loader', () async {
       var calls = 0;
-      final repo = _repoWith(fetch: (ref) async {
-        calls++;
-        return const [];
-      });
+      final repo = _repoWith(
+        fetch: (ref) async {
+          calls++;
+          return const [];
+        },
+      );
 
       final result = await repo.getCommentatorsForResult(_ref(bookId: -1));
 
@@ -84,12 +87,14 @@ void main() {
 
     test('isUserBook — לא קורא ל-loader (namespace collision)', () async {
       var calls = 0;
-      final repo = _repoWith(fetch: (ref) async {
-        calls++;
-        return [
-          {'targetBookTitle': 'מפרש מספר אחר'},
-        ];
-      });
+      final repo = _repoWith(
+        fetch: (ref) async {
+          calls++;
+          return [
+            {'targetBookTitle': 'מפרש מספר אחר'},
+          ];
+        },
+      );
 
       final result = await repo.getCommentatorsForResult(
         _ref(isUserBook: true, bookId: 5, sourceLineId: 42),
@@ -182,41 +187,46 @@ void main() {
       expect(_titles(result), ['אבן עזרא', 'רמב"ן', 'רש"י']);
     });
 
-    test('מסיר כפילויות לפי (targetBookTitle, targetBookId) — שומר על הראשון',
-        () async {
-      // אם אותו (title, bookId) מופיע פעמיים, אנחנו שומרים על ה-row הראשון
-      // (כולל ה-targetLineIndex שלו). שני קישורים שונים לאותו מפרש שונים זה
-      // מזה רק ב-targetLineIndex, אנחנו רוצים את הראשון (המוקדם בקטע).
-      final repo = _repoWith(
-        fetch: (ref) async => [
-          {
-            'targetBookTitle': 'רש"י',
-            'targetBookId': 50,
-            'targetLineIndex': 100,
-          },
-          {
-            'targetBookTitle': 'רש"י',
-            'targetBookId': 50,
-            'targetLineIndex': 999,
-          },
-          {
-            'targetBookTitle': 'אבן עזרא',
-            'targetBookId': 60,
-            'targetLineIndex': 50,
-          },
-        ],
-      );
-
-      final result = await repo.getCommentatorsForResult(_ref(sourceLineId: 1));
-
-      expect(_titles(result), ['אבן עזרא', 'רש"י']);
-      final segmentByTitle = {for (final e in result) e.title: e.targetSegment};
-      expect(segmentByTitle['רש"י'], 100); // ראשון, לא 999
-      expect(segmentByTitle['אבן עזרא'], 50);
-    });
-
     test(
-        'שני מפרשים בעלי אותה כותרת ו-targetBookId שונה — שניהם נשמרים '
+      'מסיר כפילויות לפי (targetBookTitle, targetBookId) — שומר על הראשון',
+      () async {
+        // אם אותו (title, bookId) מופיע פעמיים, אנחנו שומרים על ה-row הראשון
+        // (כולל ה-targetLineIndex שלו). שני קישורים שונים לאותו מפרש שונים זה
+        // מזה רק ב-targetLineIndex, אנחנו רוצים את הראשון (המוקדם בקטע).
+        final repo = _repoWith(
+          fetch: (ref) async => [
+            {
+              'targetBookTitle': 'רש"י',
+              'targetBookId': 50,
+              'targetLineIndex': 100,
+            },
+            {
+              'targetBookTitle': 'רש"י',
+              'targetBookId': 50,
+              'targetLineIndex': 999,
+            },
+            {
+              'targetBookTitle': 'אבן עזרא',
+              'targetBookId': 60,
+              'targetLineIndex': 50,
+            },
+          ],
+        );
+
+        final result = await repo.getCommentatorsForResult(
+          _ref(sourceLineId: 1),
+        );
+
+        expect(_titles(result), ['אבן עזרא', 'רש"י']);
+        final segmentByTitle = {
+          for (final e in result) e.title: e.targetSegment,
+        };
+        expect(segmentByTitle['רש"י'], 100); // ראשון, לא 999
+        expect(segmentByTitle['אבן עזרא'], 50);
+      },
+    );
+
+    test('שני מפרשים בעלי אותה כותרת ו-targetBookId שונה — שניהם נשמרים '
         '(P1 רגרסיה)', () async {
       // המקרה שהדיפף נועד לתקן: book table יכול להכיל שני book records נפרדים
       // עם אותה כותרת (למשל "רש"י" על תורה ועל בבלי). dedupe לפי title בלבד
@@ -238,8 +248,11 @@ void main() {
 
       final result = await repo.getCommentatorsForResult(_ref(sourceLineId: 1));
 
-      expect(result, hasLength(2),
-          reason: 'שני מפרשים בעלי targetBookId שונה לא יכולים להתאחד');
+      expect(
+        result,
+        hasLength(2),
+        reason: 'שני מפרשים בעלי targetBookId שונה לא יכולים להתאחד',
+      );
       final byBookId = {for (final e in result) e.bookId: e};
       expect(byBookId[100], isNotNull);
       expect(byBookId[100]!.targetSegment, 10);
@@ -248,8 +261,7 @@ void main() {
       expect(result.every((e) => e.title == 'רש"י'), isTrue);
     });
 
-    test(
-        'rows ללא targetBookId — נחשבים אותו "ספר" ומתאחדים '
+    test('rows ללא targetBookId — נחשבים אותו "ספר" ומתאחדים '
         '(תאימות לאחור)', () async {
       // אם DB ישן לא מחזיר targetBookId, כל ה-rows באותו title חולקים מפתח
       // dedupe (title, null) — והשני מסונן.
@@ -269,11 +281,12 @@ void main() {
 
     test('targetBookTitle ריק/null — מדלג', () async {
       final repo = _repoWith(
-          fetch: (ref) async => [
-                {'targetBookTitle': null},
-                {'targetBookTitle': ''},
-                {'targetBookTitle': 'רש"י'},
-              ]);
+        fetch: (ref) async => [
+          {'targetBookTitle': null},
+          {'targetBookTitle': ''},
+          {'targetBookTitle': 'רש"י'},
+        ],
+      );
 
       final result = await repo.getCommentatorsForResult(_ref());
 
@@ -282,12 +295,14 @@ void main() {
 
     test('cache — קריאה שנייה לא קוראת ל-loader שוב', () async {
       var calls = 0;
-      final repo = _repoWith(fetch: (ref) async {
-        calls++;
-        return [
-          {'targetBookTitle': 'רש"י'},
-        ];
-      });
+      final repo = _repoWith(
+        fetch: (ref) async {
+          calls++;
+          return [
+            {'targetBookTitle': 'רש"י'},
+          ];
+        },
+      );
 
       final first = await repo.getCommentatorsForResult(_ref());
       final second = await repo.getCommentatorsForResult(_ref());
@@ -318,42 +333,52 @@ void main() {
       expect(calls, 2);
     });
 
-    test('cache — TOC רגיל ו-AltToc על אותה שורה לא מתערבבים (P1 רגרסיה)',
-        () async {
-      // שני refs יכולים לחלוק את אותו (bookId, sourceLineId) — לדוגמה
-      // "בראשית פרק א" (TOC) ו"פרשת בראשית" (AltToc), שתחילתם באותה line.id —
-      // אבל הטווח המחושב להם שונה (boundary מ-TOC vs alt_toc_entry). אם המפתח
-      // לא כולל את isAltToc/level/segment, ה-loader נקרא פעם אחת והרשומה
-      // השנייה תקבל מפרשים שגויים מהקאש של הראשונה.
-      var calls = 0;
-      final repo = _repoWith(fetch: (ref) async {
-        calls++;
-        return [
-          {'targetBookTitle': ref.isAltToc ? 'מפרש-AltToc' : 'מפרש-TOC'},
-        ];
-      });
+    test(
+      'cache — TOC רגיל ו-AltToc על אותה שורה לא מתערבבים (P1 רגרסיה)',
+      () async {
+        // שני refs יכולים לחלוק את אותו (bookId, sourceLineId) — לדוגמה
+        // "בראשית פרק א" (TOC) ו"פרשת בראשית" (AltToc), שתחילתם באותה line.id —
+        // אבל הטווח המחושב להם שונה (boundary מ-TOC vs alt_toc_entry). אם המפתח
+        // לא כולל את isAltToc/level/segment, ה-loader נקרא פעם אחת והרשומה
+        // השנייה תקבל מפרשים שגויים מהקאש של הראשונה.
+        var calls = 0;
+        final repo = _repoWith(
+          fetch: (ref) async {
+            calls++;
+            return [
+              {'targetBookTitle': ref.isAltToc ? 'מפרש-AltToc' : 'מפרש-TOC'},
+            ];
+          },
+        );
 
-      final tocRef = _ref(sourceLineId: 100, tocLevel: 2, isAltToc: false);
-      final altRef = _ref(sourceLineId: 100, tocLevel: 1, isAltToc: true);
+        final tocRef = _ref(sourceLineId: 100, tocLevel: 2, isAltToc: false);
+        final altRef = _ref(sourceLineId: 100, tocLevel: 1, isAltToc: true);
 
-      final tocResult = await repo.getCommentatorsForResult(tocRef);
-      final altResult = await repo.getCommentatorsForResult(altRef);
+        final tocResult = await repo.getCommentatorsForResult(tocRef);
+        final altResult = await repo.getCommentatorsForResult(altRef);
 
-      expect(_titles(tocResult), ['מפרש-TOC']);
-      expect(_titles(altResult), ['מפרש-AltToc']);
-      expect(calls, 2,
-          reason: 'שני refs עם אותו sourceLineId אך isAltToc שונה דורשים '
-              'fetch נפרד — אסור להם לחלוק cache');
-    });
+        expect(_titles(tocResult), ['מפרש-TOC']);
+        expect(_titles(altResult), ['מפרש-AltToc']);
+        expect(
+          calls,
+          2,
+          reason:
+              'שני refs עם אותו sourceLineId אך isAltToc שונה דורשים '
+              'fetch נפרד — אסור להם לחלוק cache',
+        );
+      },
+    );
 
     test('ספרים שונים — לא מערבבים cache', () async {
       var calls = 0;
-      final repo = _repoWith(fetch: (ref) async {
-        calls++;
-        return [
-          {'targetBookTitle': 'מפרש לספר ${ref.bookId}'},
-        ];
-      });
+      final repo = _repoWith(
+        fetch: (ref) async {
+          calls++;
+          return [
+            {'targetBookTitle': 'מפרש לספר ${ref.bookId}'},
+          ];
+        },
+      );
 
       final r1 = await repo.getCommentatorsForResult(_ref(bookId: 10));
       final r2 = await repo.getCommentatorsForResult(_ref(bookId: 20));

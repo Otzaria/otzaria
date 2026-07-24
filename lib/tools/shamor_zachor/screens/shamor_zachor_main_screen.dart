@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
@@ -103,7 +103,8 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
 
   void _navigateToBook(String category, String book, BookDetails details) {
     _logger.info(
-        '_navigateToBook called: category=$category, book=$book, bookId=${details.id}');
+      '_navigateToBook called: category=$category, book=$book, bookId=${details.id}',
+    );
 
     setState(() {
       // עדכון הקטגוריה לקטגוריה האמיתית של הספר
@@ -119,7 +120,10 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
   }
 
   void _onCategorySelected(
-      String name, BookCategory category, String topLevelName) {
+    String name,
+    BookCategory category,
+    String topLevelName,
+  ) {
     setState(() {
       _selectedCategoryName = name;
       _selectedCategoryObject = category;
@@ -186,8 +190,8 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
           title = 'שמור וזכור';
         }
 
-        final ancestorWidget =
-            context.findAncestorWidgetOfExactType<ShamorZachorWidget>();
+        final ancestorWidget = context
+            .findAncestorWidgetOfExactType<ShamorZachorWidget>();
         if (ancestorWidget != null && ancestorWidget.onTitleChanged != null) {
           ancestorWidget.onTitleChanged!(title);
         }
@@ -340,8 +344,10 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
     if (!_contentScrollController.hasClients) return;
     final position = _contentScrollController.position;
     final delta = (position.viewportDimension * 0.85) * (forward ? 1 : -1);
-    final target =
-        (position.pixels + delta).clamp(0.0, position.maxScrollExtent);
+    final target = (position.pixels + delta).clamp(
+      0.0,
+      position.maxScrollExtent,
+    );
     _contentScrollController.animateTo(
       target,
       duration: const Duration(milliseconds: 180),
@@ -350,7 +356,9 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
   }
 
   BookCategory? _findCategoryByName(
-      BookCategory category, String categoryName) {
+    BookCategory category,
+    String categoryName,
+  ) {
     if (category.name == categoryName) {
       return category;
     }
@@ -367,7 +375,8 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
   }
 
   BookCategory? _resolveSelectedCategory(
-      ShamorZachorDataProvider dataProvider) {
+    ShamorZachorDataProvider dataProvider,
+  ) {
     final selectedCategoryName = _selectedCategoryName;
     final selectedTopLevelName = _selectedTopLevelName;
 
@@ -429,8 +438,7 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
         autofocus: true,
         onKeyEvent: _handleWindowKeyEvent,
         child: ErrorBoundary(
-          child:
-              Consumer2<ShamorZachorDataProvider, ShamorZachorProgressProvider>(
+          child: Consumer2<ShamorZachorDataProvider, ShamorZachorProgressProvider>(
             builder: (context, dataProvider, progressProvider, child) {
               if (dataProvider.isLoading || progressProvider.isLoading) {
                 return const Center(child: CircularProgressIndicator());
@@ -439,9 +447,9 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
               if (dataProvider.error != null ||
                   progressProvider.error != null) {
                 return Center(
-                    child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
                       const Text('שגיאה בטעינת הנתונים'),
                       ActionButton.recommended(
                         text: 'נסה שוב',
@@ -456,13 +464,16 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                             await progressProvider.retry();
                           }
                         },
-                      )
-                    ]));
+                      ),
+                    ],
+                  ),
+                );
               }
 
               // Default Selection Logic: 'All Books'
-              BookCategory? currentCategoryObject =
-                  _resolveSelectedCategory(dataProvider);
+              BookCategory? currentCategoryObject = _resolveSelectedCategory(
+                dataProvider,
+              );
               String? currentCategoryName = _selectedCategoryName;
               String? currentTopLevelName = _selectedTopLevelName;
 
@@ -477,15 +488,17 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                 currentCategoryName = 'כל הספרים';
                 currentTopLevelName = 'all_books_virtual';
                 currentCategoryObject = BookCategory(
-                    name: 'כל הספרים',
-                    books: {},
-                    subcategories:
-                        sortedKeys.map((key) => allCategories[key]!).toList(),
-                    isCustom: false,
-                    sourceFile: 'virtual',
-                    schemaVersion: 1,
-                    contentType: 'text',
-                    defaultStartPage: 1);
+                  name: 'כל הספרים',
+                  books: {},
+                  subcategories: sortedKeys
+                      .map((key) => allCategories[key]!)
+                      .toList(),
+                  isCustom: false,
+                  sourceFile: 'virtual',
+                  schemaVersion: 1,
+                  contentType: 'text',
+                  defaultStartPage: 1,
+                );
               }
 
               return NotificationListener<BookNavigationNotification>(
@@ -523,28 +536,28 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                                     duration: AppTokens.animFast,
                                     transitionBuilder: (child, animation) =>
                                         RotationTransition(
-                                      turns: Tween<double>(
-                                        begin: 0.5,
-                                        end: 0.0,
-                                      ).animate(animation),
-                                      child: FadeTransition(
-                                        opacity: animation,
-                                        child: child,
-                                      ),
-                                    ),
+                                          turns: Tween<double>(
+                                            begin: 0.5,
+                                            end: 0.0,
+                                          ).animate(animation),
+                                          child: FadeTransition(
+                                            opacity: animation,
+                                            child: child,
+                                          ),
+                                        ),
                                     child: Icon(
                                       _isSidebarVisible
                                           ? FluentIcons
-                                              .panel_right_contract_24_regular
+                                                .panel_right_contract_24_regular
                                           : FluentIcons.panel_right_24_regular,
                                       key: ValueKey(_isSidebarVisible),
                                       size: 24,
                                     ),
                                   ),
                                   visualDensity: VisualDensity.standard,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSecondaryContainer,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSecondaryContainer,
                                 ),
                               ),
                             ],
@@ -599,24 +612,27 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                                   onCategorySelected: _onCategorySelected,
                                   selectedCategoryName:
                                       currentTopLevelName == 'all_books_virtual'
-                                          ? 'all_books_virtual'
-                                          : _selectedCategoryName,
+                                      ? 'all_books_virtual'
+                                      : _selectedCategoryName,
                                 ),
                                 wrapPaneInFloatingPanel: true,
-                                mainContent: _selectedBookName != null &&
+                                mainContent:
+                                    _selectedBookName != null &&
                                         _selectedBookDetails != null
                                     ? Builder(
                                         builder: (context) {
                                           _logger.info(
-                                              'Creating BookDetailScreen: bookName=$_selectedBookName, bookId=${_selectedBookDetails!.id}');
+                                            'Creating BookDetailScreen: bookName=$_selectedBookName, bookId=${_selectedBookDetails!.id}',
+                                          );
 
                                           return KeyedSubtree(
                                             key: ValueKey(
-                                                'Book_${_selectedCategoryName}_$_selectedBookName'),
+                                              'Book_${_selectedCategoryName}_$_selectedBookName',
+                                            ),
                                             child: BookDetailScreen(
                                               topLevelCategoryKey:
                                                   _selectedTopLevelName ??
-                                                      _selectedCategoryName!,
+                                                  _selectedCategoryName!,
                                               categoryName:
                                                   _selectedCategoryName!,
                                               bookName: _selectedBookName!,
@@ -629,14 +645,14 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                                         },
                                       )
                                     : _searchQuery.length >= 2
-                                        ? _buildSearchResults(dataProvider)
-                                        : CategoryBooksGrid(
-                                            categoryName: currentCategoryName,
-                                            category: currentCategoryObject,
-                                            topLevelName: currentTopLevelName,
-                                            onBookSelected: _navigateToBook,
-                                            selectedFilter: _selectedFilter,
-                                          ),
+                                    ? _buildSearchResults(dataProvider)
+                                    : CategoryBooksGrid(
+                                        categoryName: currentCategoryName,
+                                        category: currentCategoryObject,
+                                        topLevelName: currentTopLevelName,
+                                        onBookSelected: _navigateToBook,
+                                        selectedFilter: _selectedFilter,
+                                      ),
                               ),
                             ),
                           ),

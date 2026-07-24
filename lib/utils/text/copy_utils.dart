@@ -23,7 +23,7 @@ class CopyUtils {
   /// מחיל העדפות העתקה על plain text ועל HTML יחד,
   /// ושומר על עקביות ביניהם גם אם ה-HTML מפוצל ע"י תגיות inline.
   static ({String plainText, String htmlText})
-      applyCopyPreferencesForClipboard({
+  applyCopyPreferencesForClipboard({
     required String plainText,
     required String htmlText,
     required bool replaceHolyNames,
@@ -73,8 +73,10 @@ class CopyUtils {
   }) async {
     try {
       // --- שלב 1: ניסיון קפדני מתוך התוכן ---
-      final fromContent =
-          _extractPathFromContentStrict(bookContent, currentIndex);
+      final fromContent = _extractPathFromContentStrict(
+        bookContent,
+        currentIndex,
+      );
       if (fromContent.isNotEmpty) return fromContent;
 
       // --- שלב 2: נפילה ל-TOC בלבד ---
@@ -223,7 +225,9 @@ class CopyUtils {
   /// הלוגיקה החדשה: סורקים אחורה מהמיקום הנוכחי עד לתחילת הקובץ,
   /// ואוספים את הכותרת האחרונה (הקרובה ביותר) מכל רמה.
   static String _extractPathFromContentStrict(
-      List<String>? content, int currentIndex) {
+    List<String>? content,
+    int currentIndex,
+  ) {
     if (content == null || content.isEmpty) return '';
     if (currentIndex < 0 || currentIndex >= content.length) return '';
 
@@ -277,7 +281,8 @@ class CopyUtils {
     if (kDebugMode) {
       if (result.isNotEmpty) {
         debugPrint(
-            'CopyUtils: Final path from CONTENT (strict, full scan): "$result"');
+          'CopyUtils: Final path from CONTENT (strict, full scan): "$result"',
+        );
       }
     }
     return result;

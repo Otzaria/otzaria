@@ -10,15 +10,19 @@ import 'package:test/test.dart';
 void main() {
   test('כל ליטרל אייקון ב-RtlIcon() רשום ב-rtl_icon.dart', () {
     final registered = _extractRegisteredIcons();
-    expect(registered, isNotEmpty,
-        reason: 'לא נמצאו אייקונים רשומים ב-rtl_icon.dart — בדוק את הנתיב');
+    expect(
+      registered,
+      isNotEmpty,
+      reason: 'לא נמצאו אייקונים רשומים ב-rtl_icon.dart — בדוק את הנתיב',
+    );
 
     final violations = _findViolations(registered);
 
     expect(
       violations,
       isEmpty,
-      reason: 'שימושי RtlIcon עם אייקונים לא רשומים:\n${violations.join('\n')}'
+      reason:
+          'שימושי RtlIcon עם אייקונים לא רשומים:\n${violations.join('\n')}'
           '\n\nאפשרויות:\n'
           '  1. אייקון סימטרי? השתמש ב-Icon(...) רגיל.\n'
           '  2. אייקון כיווני? הוסף אותו ל-rtl_icon.dart ואז השתמש ב-RtlIcon.',
@@ -35,10 +39,9 @@ Set<String> _extractRegisteredIcons() {
   final buildIdx = content.indexOf('@override\n  Widget build');
   final definitions = buildIdx > 0 ? content.substring(0, buildIdx) : content;
 
-  return RegExp(r'((?:FluentIcons|Icons)\.\w+)')
-      .allMatches(definitions)
-      .map((m) => m.group(1)!)
-      .toSet();
+  return RegExp(
+    r'((?:FluentIcons|Icons)\.\w+)',
+  ).allMatches(definitions).map((m) => m.group(1)!).toSet();
 }
 
 /// סורק את כל קבצי lib/ ומחפש ליטרלי אייקון שמועברים ישירות ל-RtlIcon().
@@ -71,8 +74,9 @@ List<String> _findViolations(Set<String> registered) {
           .replaceFirst(RegExp(r'^.*/lib/'), 'lib/');
 
       // הצג גם את השורה עצמה להקשר
-      final lineContent =
-          lineNumber <= lines.length ? lines[lineNumber - 1].trim() : '';
+      final lineContent = lineNumber <= lines.length
+          ? lines[lineNumber - 1].trim()
+          : '';
 
       violations.add(
         '  $relativePath:$lineNumber\n'

@@ -326,8 +326,10 @@ DateTime? _tryParseHebrewTokens(List<String> tokens, int currentJewishYear) {
     final month = hebrewMonthToInt(monthName);
     final int year;
     if (tokens.length > yearPartIndex) {
-      year = hebrewYearToInt(tokens[yearPartIndex],
-          currentJewishYear: currentJewishYear);
+      year = hebrewYearToInt(
+        tokens[yearPartIndex],
+        currentJewishYear: currentJewishYear,
+      );
     } else {
       year = currentJewishYear;
     }

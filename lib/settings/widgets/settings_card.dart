@@ -95,20 +95,20 @@ class SettingsCard extends StatelessWidget {
 // ── Helpers לטיפוגרפיה אחידה ──────────────────────────────────────────────────
 
 Widget _settingTitle(String text) => Text(
-      text,
-      style: AppTextStyles.settingTitle,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-    );
+  text,
+  style: AppTextStyles.settingTitle,
+  maxLines: 1,
+  overflow: TextOverflow.ellipsis,
+);
 
 Widget _settingSubtitle(String text, {Color? color, bool ltr = false}) => Text(
-      text,
-      style: color != null
-          ? AppTextStyles.settingSubtitle.copyWith(color: color)
-          : AppTextStyles.settingSubtitle,
-      textDirection: ltr ? TextDirection.ltr : null,
-      textAlign: ltr ? TextAlign.end : null,
-    );
+  text,
+  style: color != null
+      ? AppTextStyles.settingSubtitle.copyWith(color: color)
+      : AppTextStyles.settingSubtitle,
+  textDirection: ltr ? TextDirection.ltr : null,
+  textAlign: ltr ? TextAlign.end : null,
+);
 
 Widget? _buildSettingIcon(IconData? icon, IconData? rtlIcon, Color? iconColor) {
   if (rtlIcon != null) return RtlIcon(rtlIcon, color: iconColor);
@@ -146,12 +146,16 @@ const _kSegMaxWidth = 400.0;
 
 double _segGroupWidth(List<SegmentOption<dynamic>> options) {
   final hasIcons = options.any((o) => o.icon != null || o.rtlIcon != null);
-  final maxLen =
-      options.map((o) => o.label.length).reduce((a, b) => a > b ? a : b);
-  final btnW = (hasIcons ? _kSegBaseWithIcon : _kSegBaseNoIcon) +
+  final maxLen = options
+      .map((o) => o.label.length)
+      .reduce((a, b) => a > b ? a : b);
+  final btnW =
+      (hasIcons ? _kSegBaseWithIcon : _kSegBaseNoIcon) +
       maxLen * _kSegCharWidth;
-  return (btnW * options.length + _kSegGroupPadding)
-      .clamp(_kSegMinWidth, _kSegMaxWidth);
+  return (btnW * options.length + _kSegGroupPadding).clamp(
+    _kSegMinWidth,
+    _kSegMaxWidth,
+  );
 }
 
 // ── SettingsActionTile ────────────────────────────────────────────────────────
@@ -251,9 +255,11 @@ class SettingsActionTile extends StatelessWidget {
     this.enabled = true,
     this.responsiveActions = true,
     this.leading,
-  })  : _rawTitle = null,
-        assert(icon == null || rtlIcon == null,
-            'העבר icon או rtlIcon — לא שניהם יחד');
+  }) : _rawTitle = null,
+       assert(
+         icon == null || rtlIcon == null,
+         'העבר icon או rtlIcon — לא שניהם יחד',
+       );
 
   SettingsActionTile.text({
     super.key,
@@ -271,13 +277,15 @@ class SettingsActionTile extends StatelessWidget {
     this.enabled = true,
     this.responsiveActions = true,
     this.leading,
-  })  : assert(icon == null || rtlIcon == null,
-            'העבר icon או rtlIcon — לא שניהם יחד'),
-        _rawTitle = title,
-        title = _settingTitle(title),
-        subtitle = subtitle != null
-            ? _settingSubtitle(subtitle, color: subtitleColor, ltr: subtitleLtr)
-            : null;
+  }) : assert(
+         icon == null || rtlIcon == null,
+         'העבר icon או rtlIcon — לא שניהם יחד',
+       ),
+       _rawTitle = title,
+       title = _settingTitle(title),
+       subtitle = subtitle != null
+           ? _settingSubtitle(subtitle, color: subtitleColor, ltr: subtitleLtr)
+           : null;
 
   /// שורת בחירה (radio) — עיגול רדיו כ-leading במקום אייקון, כותרת/תת-כותרת,
   /// וכפתורי פעולה אופציונליים ב-[actions] שגולשים מתחת לטקסט במסך צר.
@@ -289,15 +297,14 @@ class SettingsActionTile extends StatelessWidget {
     required bool selected,
     VoidCallback? onTap,
     List<Widget> actions = const [],
-  }) =>
-      SettingsActionTile.text(
-        key: key,
-        title: title,
-        subtitle: subtitle,
-        leading: _RadioIndicator(selected: selected),
-        actions: actions,
-        onTap: onTap,
-      );
+  }) => SettingsActionTile.text(
+    key: key,
+    title: title,
+    subtitle: subtitle,
+    leading: _RadioIndicator(selected: selected),
+    actions: actions,
+    onTap: onTap,
+  );
 
   /// קונסטרקטור ייעודי לנתיבי קבצים — מאכוף LTR ומוסיף סימני U+200E אחרי מפרידים.
   /// [responsiveActions] מופעל כברירת מחדל כדי שהכפתורים לא ידחסו את הנתיב.
@@ -316,14 +323,16 @@ class SettingsActionTile extends StatelessWidget {
     this.enabled = true,
     this.responsiveActions = true,
     this.leading,
-  })  : assert(icon == null || rtlIcon == null,
-            'העבר icon או rtlIcon — לא שניהם יחד'),
-        _rawTitle = title,
-        title = _settingTitle(title),
-        subtitle = _settingSubtitle(
-          (path != null && path.isNotEmpty) ? _formatPath(path) : placeholder,
-          ltr: path != null && path.isNotEmpty,
-        );
+  }) : assert(
+         icon == null || rtlIcon == null,
+         'העבר icon או rtlIcon — לא שניהם יחד',
+       ),
+       _rawTitle = title,
+       title = _settingTitle(title),
+       subtitle = _settingSubtitle(
+         (path != null && path.isNotEmpty) ? _formatPath(path) : placeholder,
+         ltr: path != null && path.isNotEmpty,
+       );
 
   // ── Static factory methods ─────────────────────────────────────────────────
   // נראים כבנאים ב-call site (SettingsActionTile.switchTile(...)) אך מחזירים
@@ -347,23 +356,22 @@ class SettingsActionTile extends StatelessWidget {
     List<PathTarget>? pathTargets,
     void Function(String path)? onOpenPath,
     String changeLocationLabel = 'שינוי מיקום...',
-  }) =>
-      _PathTile(
-        key: key,
-        icon: icon,
-        title: title,
-        currentPath: currentPath,
-        placeholder: placeholder,
-        onFolderChanged: onFolderChanged,
-        onOpenFolder: onOpenFolder,
-        onClearPath: onClearPath,
-        requestChangeLocation: requestChangeLocation,
-        simpleButtonWhenEmpty: simpleButtonWhenEmpty,
-        clearPathEnabled: clearPathEnabled,
-        pathTargets: pathTargets,
-        onOpenPath: onOpenPath,
-        changeLocationLabel: changeLocationLabel,
-      );
+  }) => _PathTile(
+    key: key,
+    icon: icon,
+    title: title,
+    currentPath: currentPath,
+    placeholder: placeholder,
+    onFolderChanged: onFolderChanged,
+    onOpenFolder: onOpenFolder,
+    onClearPath: onClearPath,
+    requestChangeLocation: requestChangeLocation,
+    simpleButtonWhenEmpty: simpleButtonWhenEmpty,
+    clearPathEnabled: clearPathEnabled,
+    pathTargets: pathTargets,
+    onOpenPath: onOpenPath,
+    changeLocationLabel: changeLocationLabel,
+  );
 
   /// שורת on/off עם [CustomSwitch].
   /// tap על כל השורה, Enter ו-Space מחליפים מצב.
@@ -379,20 +387,19 @@ class SettingsActionTile extends StatelessWidget {
     required bool value,
     ValueChanged<bool>? onChanged,
     bool enabled = true,
-  }) =>
-      _SwitchTile(
-        key: key,
-        icon: icon,
-        rtlIcon: rtlIcon,
-        iconColor: iconColor,
-        title: title,
-        subtitle: subtitle,
-        subtitleLtr: subtitleLtr,
-        subtitleColor: subtitleColor,
-        value: value,
-        onChanged: onChanged,
-        enabled: enabled,
-      );
+  }) => _SwitchTile(
+    key: key,
+    icon: icon,
+    rtlIcon: rtlIcon,
+    iconColor: iconColor,
+    title: title,
+    subtitle: subtitle,
+    subtitleLtr: subtitleLtr,
+    subtitleColor: subtitleColor,
+    value: value,
+    onChanged: onChanged,
+    enabled: enabled,
+  );
 
   /// שורה עם [AppDropdownField].
   /// [subtitle] — כשלא סופק, נלקח אוטומטית מ-[AppMenuEntry.subtitle] של האפשרות הנבחרת.
@@ -406,18 +413,17 @@ class SettingsActionTile extends StatelessWidget {
     required List<AppMenuEntry<T>> entries,
     required ValueChanged<T?> onSelected,
     bool enableSearch = false,
-  }) =>
-      _DropdownTile<T>(
-        key: key,
-        icon: icon,
-        rtlIcon: rtlIcon,
-        title: title,
-        subtitle: subtitle,
-        value: value,
-        entries: entries,
-        onSelected: onSelected,
-        enableSearch: enableSearch,
-      );
+  }) => _DropdownTile<T>(
+    key: key,
+    icon: icon,
+    rtlIcon: rtlIcon,
+    title: title,
+    subtitle: subtitle,
+    value: value,
+    entries: entries,
+    onSelected: onSelected,
+    enableSearch: enableSearch,
+  );
 
   /// שורה עם [AppSegmentedControl].
   /// במסך רחב: מוגבל ל-400px. במסך צר: מתרחב לכל הרוחב.
@@ -433,18 +439,17 @@ class SettingsActionTile extends StatelessWidget {
     required List<SegmentOption<T>> options,
     required T currentValue,
     required ValueChanged<T> onChanged,
-  }) =>
-      _SegmentedTile<T>(
-        key: key,
-        icon: icon,
-        rtlIcon: rtlIcon,
-        iconColor: iconColor,
-        title: title,
-        subtitle: subtitle,
-        options: options,
-        currentValue: currentValue,
-        onChanged: onChanged,
-      );
+  }) => _SegmentedTile<T>(
+    key: key,
+    icon: icon,
+    rtlIcon: rtlIcon,
+    iconColor: iconColor,
+    title: title,
+    subtitle: subtitle,
+    options: options,
+    currentValue: currentValue,
+    onChanged: onChanged,
+  );
 
   // ── Internals ──────────────────────────────────────────────────────────────
 
@@ -472,14 +477,14 @@ class SettingsActionTile extends StatelessWidget {
   }
 
   Widget _buildListTile() => ListTile(
-        focusNode: focusNode,
-        enabled: enabled,
-        onTap: onTap,
-        leading: _buildIcon(),
-        title: title,
-        subtitle: subtitle,
-        trailing: _buildTrailing(),
-      );
+    focusNode: focusNode,
+    enabled: enabled,
+    onTap: onTap,
+    leading: _buildIcon(),
+    title: title,
+    subtitle: subtitle,
+    trailing: _buildTrailing(),
+  );
 
   // בודק עם TextPainter אם הטקסט יגלוש כשה-actions יהיו ב-trailing.
   // אומדן שמרני לרוחב הactions כדי להטות לצד של Column (לא ידחוס את הטקסט).
@@ -489,7 +494,8 @@ class SettingsActionTile extends StatelessWidget {
     const hPadding = 32.0;
     final actionsEst = actions.length * 170.0;
     final pinnedEst = pinnedTrailing != null ? 48.0 : 0.0;
-    final textWidth = containerWidth -
+    final textWidth =
+        containerWidth -
         iconAreaWidth -
         hPadding -
         actionsEst -
@@ -569,8 +575,8 @@ class SettingsActionTile extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) =>
           _wouldTextOverflow(constraints.maxWidth)
-              ? _buildColumnLayout()
-              : _buildListTile(),
+          ? _buildColumnLayout()
+          : _buildListTile(),
     );
   }
 }
@@ -656,8 +662,9 @@ class __SwitchTileState extends State<_SwitchTile> {
         enabled: widget.enabled,
         focusNode: _focusNode,
         responsiveActions: false,
-        onTap:
-            widget.enabled && widget.onChanged != null ? () => _toggle() : null,
+        onTap: widget.enabled && widget.onChanged != null
+            ? () => _toggle()
+            : null,
         actions: [
           ExcludeFocus(
             child: CustomSwitch(
@@ -771,8 +778,9 @@ class __SegmentedTileState<T> extends State<_SegmentedTile<T>> {
   }
 
   void _syncFocusedIndex() {
-    final idx =
-        widget.options.indexWhere((o) => o.value == widget.currentValue);
+    final idx = widget.options.indexWhere(
+      (o) => o.value == widget.currentValue,
+    );
     _focusedIndex = idx < 0 ? 0 : idx;
   }
 
@@ -798,12 +806,12 @@ class __SegmentedTileState<T> extends State<_SegmentedTile<T>> {
 
   /// [widget.subtitle], אם סופק, גובר על תת-הכותרת של האפשרות הנבחרת.
   String? get _resolvedSubtitle => _selectedOptionSubtitle<SegmentOption<T>, T>(
-        explicitSubtitle: widget.subtitle,
-        value: widget.currentValue,
-        options: widget.options,
-        valueOf: (o) => o.value,
-        subtitleOf: (o) => o.subtitle,
-      );
+    explicitSubtitle: widget.subtitle,
+    value: widget.currentValue,
+    options: widget.options,
+    valueOf: (o) => o.value,
+    subtitleOf: (o) => o.subtitle,
+  );
 
   @override
   void dispose() {
@@ -815,12 +823,15 @@ class __SegmentedTileState<T> extends State<_SegmentedTile<T>> {
     if (ev is! KeyDownEvent) return KeyEventResult.ignored;
     if (ev.logicalKey == LogicalKeyboardKey.arrowRight) {
       setState(
-          () => _focusedIndex = (_focusedIndex + 1) % widget.options.length);
+        () => _focusedIndex = (_focusedIndex + 1) % widget.options.length,
+      );
       return KeyEventResult.handled;
     }
     if (ev.logicalKey == LogicalKeyboardKey.arrowLeft) {
-      setState(() => _focusedIndex =
-          (_focusedIndex - 1 + widget.options.length) % widget.options.length);
+      setState(
+        () => _focusedIndex =
+            (_focusedIndex - 1 + widget.options.length) % widget.options.length,
+      );
       return KeyEventResult.handled;
     }
     if (ev.logicalKey == LogicalKeyboardKey.enter ||
@@ -879,8 +890,11 @@ class __SegmentedTileState<T> extends State<_SegmentedTile<T>> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               ListTile(
-                leading: _buildSettingIcon(_leadingIcons.icon,
-                    _leadingIcons.rtlIcon, widget.iconColor),
+                leading: _buildSettingIcon(
+                  _leadingIcons.icon,
+                  _leadingIcons.rtlIcon,
+                  widget.iconColor,
+                ),
                 title: _settingTitle(widget.title),
                 subtitle: _resolvedSubtitle != null
                     ? _settingSubtitle(_resolvedSubtitle!)
@@ -1048,8 +1062,9 @@ class _PathMenuButtonState extends State<_PathMenuButton> {
       context: context,
       anchorContext: anchorContext,
       itemsBuilder: (m) => entries
-          .map((e) =>
-              buildAppPopupMenuItem<_PathMenuAction>(context, e, m, null))
+          .map(
+            (e) => buildAppPopupMenuItem<_PathMenuAction>(context, e, m, null),
+          )
           .toList(),
     );
 

@@ -59,8 +59,9 @@ class ShortcutHelper {
     // מקש Control הפיזי לא נבדק כלל — מאחד את הסמנטיקה ומונע אי-עקביות
     // בקיצור `ctrl+meta+X` (שאם נבדק כפשוטו היה נשבר).
     final requiresCtrl = _treatCtrlAsMeta ? null : hasCtrlToken;
-    final requiresMeta =
-        _treatCtrlAsMeta ? (hasMetaToken || hasCtrlToken) : hasMetaToken;
+    final requiresMeta = _treatCtrlAsMeta
+        ? (hasMetaToken || hasCtrlToken)
+        : hasMetaToken;
 
     // בדיקת modifiers
     final controlPressed =
@@ -92,7 +93,8 @@ class ShortcutHelper {
       final letterOffset = mainKey.codeUnitAt(0) - 97;
       return event.physicalKey ==
           PhysicalKeyboardKey(
-              PhysicalKeyboardKey.keyA.usbHidUsage + letterOffset);
+            PhysicalKeyboardKey.keyA.usbHidUsage + letterOffset,
+          );
     }
 
     // חיפוש ב-KeyMap (ספרות, מקשים מיוחדים, חצים, F-keys וכו׳)

@@ -73,9 +73,10 @@ class PluginCrashGuard {
               }
             } else {
               debugPrint(
-                  'PluginCrashGuard: app version changed ($storedVersion → '
-                  '$_currentAppVersion). Clearing previous quarantine to give '
-                  'plugins another chance.');
+                'PluginCrashGuard: app version changed ($storedVersion → '
+                '$_currentAppVersion). Clearing previous quarantine to give '
+                'plugins another chance.',
+              );
             }
           }
           // אם הקובץ במבנה ישן (List) — מתעלמים, כי אין לנו דרך לדעת אם

@@ -86,63 +86,63 @@ class ZipExtractionProgressDialog {
     try {
       final extractionResult =
           await ZipExtractorService.checkAndExtractZipIfNeeded(
-        path,
-        onProgress: (p, m) {
-          progressNotifier.value = p;
-          messageNotifier.value = m;
-          isExtractingNotifier.value = true;
-        },
-        onAskDeleteZip: () async {
-          // סגירת דיאלוג ההתקדמות
-          if (context.mounted) {
-            Navigator.of(context).pop();
-          }
+            path,
+            onProgress: (p, m) {
+              progressNotifier.value = p;
+              messageNotifier.value = m;
+              isExtractingNotifier.value = true;
+            },
+            onAskDeleteZip: () async {
+              // סגירת דיאלוג ההתקדמות
+              if (context.mounted) {
+                Navigator.of(context).pop();
+              }
 
-          // שאלת המשתמש
-          final shouldDelete = await showDialog<bool>(
-            context: context,
-            builder: (dialogContext) => AlertDialog(
-              title: const Text('מחיקת קובץ דחוס'),
-              content: const Text(
-                'האם למחוק את קובץ ה-ZIP המקורי?\n\n'
-                'הקובץ הדחוס אינו נצרך עבור פעילות התוכנה והוא רק תופס מקום.\n'
-                'מומלץ למחוק אותו.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(false),
-                  child: const Text('השאר את הקובץ'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(true),
-                  child: const Text('מחק את הקובץ'),
-                ),
-              ],
-            ),
-          );
-
-          // פתיחה מחדש של דיאלוג ההתקדמות
-          if (context.mounted) {
-            showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (dialogContext) => AlertDialog(
-                title: const Text('משלים...'),
-                content: const Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('משלים חילוץ...'),
+              // שאלת המשתמש
+              final shouldDelete = await showDialog<bool>(
+                context: context,
+                builder: (dialogContext) => AlertDialog(
+                  title: const Text('מחיקת קובץ דחוס'),
+                  content: const Text(
+                    'האם למחוק את קובץ ה-ZIP המקורי?\n\n'
+                    'הקובץ הדחוס אינו נצרך עבור פעילות התוכנה והוא רק תופס מקום.\n'
+                    'מומלץ למחוק אותו.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(false),
+                      child: const Text('השאר את הקובץ'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
+                      child: const Text('מחק את הקובץ'),
+                    ),
                   ],
                 ),
-              ),
-            );
-          }
+              );
 
-          return shouldDelete ?? false;
-        },
-      );
+              // פתיחה מחדש של דיאלוג ההתקדמות
+              if (context.mounted) {
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (dialogContext) => AlertDialog(
+                    title: const Text('משלים...'),
+                    content: const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('משלים חילוץ...'),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              return shouldDelete ?? false;
+            },
+          );
 
       if (context.mounted) {
         Navigator.of(context).pop();

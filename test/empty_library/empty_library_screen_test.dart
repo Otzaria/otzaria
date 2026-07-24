@@ -8,10 +8,10 @@ void main() {
 
   group('LibrarySetupView', () {
     Widget wrap(Future<void> Function() onLibraryLoaded) => MaterialApp(
-          home: Scaffold(
-            body: LibrarySetupView(onLibraryLoaded: onLibraryLoaded),
-          ),
-        );
+      home: Scaffold(
+        body: LibrarySetupView(onLibraryLoaded: onLibraryLoaded),
+      ),
+    );
 
     testWidgets('מציג את כפתור הגדרת המיקום', (tester) async {
       await tester.binding.setSurfaceSize(const Size(430, 900));

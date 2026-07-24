@@ -37,17 +37,24 @@ void main() {
     // ה-FocusNode הוא private, אבל אפשר לבדוק דרך FocusManager
     // שהפוקוס הוא על משהו בתת-העץ של העורך.
     final primary = FocusManager.instance.primaryFocus;
-    expect(primary, isNotNull,
-        reason: 'אמור להיות פוקוס פעיל אחרי שהעורך נטען');
+    expect(
+      primary,
+      isNotNull,
+      reason: 'אמור להיות פוקוס פעיל אחרי שהעורך נטען',
+    );
     // ה-FocusNode של InlineNoteEditor מוגדר עם debugLabel כדי שנוכל
     // לוודא שזה אכן הוא שתפס את הפוקוס.
-    expect(primary?.debugLabel, equals('InlineNoteEditor'),
-        reason: 'הפוקוס חייב להיות על העורך, לא על widget אחר');
+    expect(
+      primary?.debugLabel,
+      equals('InlineNoteEditor'),
+      reason: 'הפוקוס חייב להיות על העורך, לא על widget אחר',
+    );
     expect(state.mounted, isTrue);
   });
 
-  testWidgets('InlineNoteEditor תופס פוקוס גם בריטריי המאוחר (350ms)',
-      (tester) async {
+  testWidgets('InlineNoteEditor תופס פוקוס גם בריטריי המאוחר (350ms)', (
+    tester,
+  ) async {
     // רגרסיה: ה-post-frame הראשון יורה לפני שהפאנל סיים להיפתח, ולפעמים
     // ה-FocusNode עוד לא נמצא בעץ הפוקוס. הריטריי אחרי 350ms תופס מקרה זה.
     await tester.pumpWidget(

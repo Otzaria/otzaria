@@ -101,12 +101,13 @@ class InstalledPlugin {
     this.sourceType = 'packaged',
     this.devRootPath,
     this.userOrder,
-  }) : allowOrderBeforeBuiltInsGranted = allowOrderBeforeBuiltInsGranted ??
-            manifest.allowOrderBeforeBuiltIns;
+  }) : allowOrderBeforeBuiltInsGranted =
+           allowOrderBeforeBuiltInsGranted ?? manifest.allowOrderBeforeBuiltIns;
 
   factory InstalledPlugin.fromDbMap(Map<String, dynamic> map) {
-    final manifest =
-        PluginManifest.fromJson(jsonDecode(map['manifest_json'] as String));
+    final manifest = PluginManifest.fromJson(
+      jsonDecode(map['manifest_json'] as String),
+    );
     return InstalledPlugin(
       pluginId: map['plugin_id'] as String,
       name: map['name'] as String,
@@ -120,8 +121,8 @@ class InstalledPlugin {
       showInTools: ((map['hidden_from_tools'] as int?) ?? 0) == 0,
       allowOrderBeforeBuiltInsGranted:
           ((map['allow_order_before_built_ins_granted'] as int?) ??
-                  (manifest.allowOrderBeforeBuiltIns ? 1 : 0)) !=
-              0,
+              (manifest.allowOrderBeforeBuiltIns ? 1 : 0)) !=
+          0,
       networkAccessGranted: ((map['network_access_granted'] as int?) ?? 0) != 0,
       runOnStartupGranted: ((map['run_on_startup_granted'] as int?) ?? 0) != 0,
       manifest: manifest,
@@ -145,8 +146,9 @@ class InstalledPlugin {
       'pinned': pinned ? 1 : 0,
       'pinned_to_nav_rail': pinnedToNavRail ? 1 : 0,
       'hidden_from_tools': showInTools ? 0 : 1,
-      'allow_order_before_built_ins_granted':
-          allowOrderBeforeBuiltInsGranted ? 1 : 0,
+      'allow_order_before_built_ins_granted': allowOrderBeforeBuiltInsGranted
+          ? 1
+          : 0,
       'manifest_json': jsonEncode(manifest.toJson()),
       'installed_at': installedAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
@@ -190,7 +192,8 @@ class InstalledPlugin {
       pinned: pinned ?? this.pinned,
       pinnedToNavRail: pinnedToNavRail ?? this.pinnedToNavRail,
       showInTools: showInTools ?? this.showInTools,
-      allowOrderBeforeBuiltInsGranted: allowOrderBeforeBuiltInsGranted ??
+      allowOrderBeforeBuiltInsGranted:
+          allowOrderBeforeBuiltInsGranted ??
           this.allowOrderBeforeBuiltInsGranted,
       networkAccessGranted: networkAccessGranted ?? this.networkAccessGranted,
       runOnStartupGranted: runOnStartupGranted ?? this.runOnStartupGranted,

@@ -26,7 +26,9 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
   }
 
   Future<void> _onSearchRefRequested(
-      SearchRefRequested event, Emitter<FindRefState> emit) async {
+    SearchRefRequested event,
+    Emitter<FindRefState> emit,
+  ) async {
     if (event.refText.length < 2) {
       emit(const FindRefSuccess([]));
       return;
@@ -55,16 +57,21 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
   }
 
   void _onClearSearchRequested(
-      ClearSearchRequested event, Emitter<FindRefState> emit) {
+    ClearSearchRequested event,
+    Emitter<FindRefState> emit,
+  ) {
     emit(FindRefInitial());
   }
 
   void _onOpenBookRequested(
-      OpenBookRequested event, Emitter<FindRefState> emit) {
+    OpenBookRequested event,
+    Emitter<FindRefState> emit,
+  ) {
     final book = event.book;
     final index = event.index;
     emit(
-        FindRefBookOpening(book: book, index: index)); // Emit BookOpening state
+      FindRefBookOpening(book: book, index: index),
+    ); // Emit BookOpening state
   }
 }
 

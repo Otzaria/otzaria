@@ -40,8 +40,9 @@ void main() {
   }
 
   group('AdaptiveRow — בחירת פריסה לפי הרוחב', () {
-    testWidgets('מתחת ל-breakpoint מציג Column ולא Row/Expanded',
-        (tester) async {
+    testWidgets('מתחת ל-breakpoint מציג Column ולא Row/Expanded', (
+      tester,
+    ) async {
       await pumpAtWidth(tester, width: 300, child: buildRow());
 
       expect(find.byType(Column), findsOneWidget);
@@ -50,7 +51,9 @@ void main() {
       expect(find.byType(IntrinsicHeight), findsNothing);
     });
 
-    testWidgets('מעל ל-breakpoint מציג Row עם Expanded לכל ילד', (tester) async {
+    testWidgets('מעל ל-breakpoint מציג Row עם Expanded לכל ילד', (
+      tester,
+    ) async {
       await pumpAtWidth(tester, width: 600, child: buildRow());
 
       expect(find.byType(Row), findsOneWidget);
@@ -59,23 +62,26 @@ void main() {
   });
 
   group('AdaptiveRow — equalHeight', () {
-    testWidgets('equalHeight=false: ללא IntrinsicHeight ובמיושר ה-wide שהוגדר',
-        (tester) async {
-      await pumpAtWidth(
-        tester,
-        width: 600,
-        child: buildRow(wideCrossAxisAlignment: CrossAxisAlignment.center),
-      );
+    testWidgets(
+      'equalHeight=false: ללא IntrinsicHeight ובמיושר ה-wide שהוגדר',
+      (tester) async {
+        await pumpAtWidth(
+          tester,
+          width: 600,
+          child: buildRow(wideCrossAxisAlignment: CrossAxisAlignment.center),
+        );
 
-      expect(find.byType(IntrinsicHeight), findsNothing);
-      final row = tester.widget<Row>(find.byType(Row));
-      expect(row.crossAxisAlignment, CrossAxisAlignment.center);
-    });
+        expect(find.byType(IntrinsicHeight), findsNothing);
+        final row = tester.widget<Row>(find.byType(Row));
+        expect(row.crossAxisAlignment, CrossAxisAlignment.center);
+      },
+    );
 
     // שומר על התיקון: equalHeight חייב לכפות stretch, אחרת IntrinsicHeight
     // עוטף לחינם והכרטיסים לא נמתחים לגובה אחיד.
-    testWidgets('equalHeight=true: עוטף ב-IntrinsicHeight וכופה stretch',
-        (tester) async {
+    testWidgets('equalHeight=true: עוטף ב-IntrinsicHeight וכופה stretch', (
+      tester,
+    ) async {
       await pumpAtWidth(
         tester,
         width: 600,

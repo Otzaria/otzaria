@@ -77,8 +77,9 @@ void main() {
     return closeCount;
   }
 
-  testWidgets('נשאר פתוח כשהאפליקציה מאבדת פוקוס OS (inactive/hidden)',
-      (tester) async {
+  testWidgets('נשאר פתוח כשהאפליקציה מאבדת פוקוס OS (inactive/hidden)', (
+    tester,
+  ) async {
     final closeCount = await pumpAndDispatch(
       tester,
       states: [AppLifecycleState.inactive, AppLifecycleState.hidden],

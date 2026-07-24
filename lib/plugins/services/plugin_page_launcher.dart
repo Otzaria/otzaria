@@ -12,7 +12,7 @@ class PluginPageLauncher {
   void Function(String pluginId)? navigator;
 
   final Map<String, List<({String topic, Map<String, dynamic> payload})>>
-      _pending = {};
+  _pending = {};
   final Set<String> _readyPages = {};
 
   // שרשרת מסירה פר-תוסף: כל אירוע ממתין לקודמו, כך שהסדר נשמר גם כשאירוע
@@ -30,9 +30,10 @@ class PluginPageLauncher {
       if (_readyPages.contains(pluginId)) {
         _enqueueDelivery(pluginId, topic, payload);
       } else {
-        _pending
-            .putIfAbsent(pluginId, () => [])
-            .add((topic: topic, payload: payload));
+        _pending.putIfAbsent(pluginId, () => []).add((
+          topic: topic,
+          payload: payload,
+        ));
       }
     }
     navigator?.call(pluginId);
@@ -61,8 +62,13 @@ class PluginPageLauncher {
     Map<String, dynamic> payload,
   ) {
     final previous = _deliveryChain[pluginId] ?? Future<void>.value();
-    final next = previous.then((_) => PluginRuntimeDispatcher.instance
-        .dispatchEventToPlugin(pluginId, topic, payload));
+    final next = previous.then(
+      (_) => PluginRuntimeDispatcher.instance.dispatchEventToPlugin(
+        pluginId,
+        topic,
+        payload,
+      ),
+    );
     // catchError כדי ששגיאה במסירה אחת לא תחסום את הבאות בשרשרת.
     _deliveryChain[pluginId] = next.catchError((_) {});
   }

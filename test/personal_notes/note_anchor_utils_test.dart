@@ -72,8 +72,10 @@ void main() {
   group('computeAnchorForSelection', () {
     test('מחזיר offset והקשר עבור טקסט שנבחר', () {
       const raw = 'בראשית ברא אלהים את השמים ואת הארץ';
-      final anchor =
-          computeAnchorForSelection(rawLine: raw, selectedText: 'אלהים את');
+      final anchor = computeAnchorForSelection(
+        rawLine: raw,
+        selectedText: 'אלהים את',
+      );
       expect(anchor, isNotNull);
       final sub = raw.substring(anchor!.start, anchor.end);
       expect(normalizeAnchorText(sub), 'אלהים את');
@@ -95,8 +97,10 @@ void main() {
 
     test('ללא רמז נבחר המופע הראשון', () {
       const raw = 'משה משה משה';
-      final anchor =
-          computeAnchorForSelection(rawLine: raw, selectedText: 'משה');
+      final anchor = computeAnchorForSelection(
+        rawLine: raw,
+        selectedText: 'משה',
+      );
       expect(anchor!.start, 0);
     });
   });

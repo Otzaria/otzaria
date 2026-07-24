@@ -96,7 +96,8 @@ class BooksCache {
         ..addAll(localBooksById);
       _isLoaded = true;
       debugPrint(
-          '[BooksCache] Loaded ${_books.length} books into shared cache');
+        '[BooksCache] Loaded ${_books.length} books into shared cache',
+      );
     } catch (e) {
       debugPrint('[BooksCache] Warmup failed: $e');
       // לא מסמנים loaded: כשל זמני (למשל DB locked בעלייה) יאופשר retry

@@ -61,30 +61,33 @@ class _OverlayHarnessState extends State<_OverlayHarness> {
 }
 
 void main() {
-  testWidgets('דוחה את בניית התוכן לפריים הבא כאשר deferChildBuildOnOpen פעיל',
-      (tester) async {
-    final key = GlobalKey<_OverlayHarnessState>();
+  testWidgets(
+    'דוחה את בניית התוכן לפריים הבא כאשר deferChildBuildOnOpen פעיל',
+    (tester) async {
+      final key = GlobalKey<_OverlayHarnessState>();
 
-    await tester.pumpWidget(
-      _OverlayHarness(
-        key: key,
-        deferChildBuildOnOpen: true,
-        preserveChildStateOnClose: false,
-      ),
-    );
+      await tester.pumpWidget(
+        _OverlayHarness(
+          key: key,
+          deferChildBuildOnOpen: true,
+          preserveChildStateOnClose: false,
+        ),
+      );
 
-    key.currentState!.open();
-    await tester.pump();
+      key.currentState!.open();
+      await tester.pump();
 
-    expect(find.text('תוכן הפאנל'), findsNothing);
+      expect(find.text('תוכן הפאנל'), findsNothing);
 
-    await tester.pump();
+      await tester.pump();
 
-    expect(find.text('תוכן הפאנל'), findsOneWidget);
-  });
+      expect(find.text('תוכן הפאנל'), findsOneWidget);
+    },
+  );
 
-  testWidgets('שומר את התוכן אחרי סגירה כאשר preserveChildStateOnClose פעיל',
-      (tester) async {
+  testWidgets('שומר את התוכן אחרי סגירה כאשר preserveChildStateOnClose פעיל', (
+    tester,
+  ) async {
     final key = GlobalKey<_OverlayHarnessState>();
 
     await tester.pumpWidget(
@@ -135,80 +138,101 @@ void main() {
       );
     }
 
-    testWidgets('scrollable=true — ה-Scrollbar וה-ScrollbarTheme קיימים',
-        (tester) async {
+    testWidgets('scrollable=true — ה-Scrollbar וה-ScrollbarTheme קיימים', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildPanel(scrollable: true));
       await tester.pump();
 
-      expect(find.byType(Scrollbar), findsOneWidget,
-          reason:
-              'ContextOverlayPanel עם scrollable=true חייב להכיל Scrollbar');
-      expect(find.byType(ScrollbarTheme), findsOneWidget,
-          reason:
-              'ScrollbarTheme מגדיר crossAxisMargin=2 — זהה ל-adaptive_side_pane');
-    });
-
-    testWidgets(
-        'scrollable=true — SingleChildScrollView עם padding אופקי של 16px בדיוק',
-        (tester) async {
-      await tester.pumpWidget(buildPanel(scrollable: true));
-      await tester.pump();
-
-      final scrollView = tester
-          .widget<SingleChildScrollView>(find.byType(SingleChildScrollView));
       expect(
-        scrollView.padding,
-        equals(const EdgeInsets.symmetric(horizontal: 16)),
+        find.byType(Scrollbar),
+        findsOneWidget,
+        reason: 'ContextOverlayPanel עם scrollable=true חייב להכיל Scrollbar',
+      );
+      expect(
+        find.byType(ScrollbarTheme),
+        findsOneWidget,
         reason:
-            'padding 16px הסטנדרטי בלבד — הScrollbar יושב בתוך ה-16px הקיים',
+            'ScrollbarTheme מגדיר crossAxisMargin=2 — זהה ל-adaptive_side_pane',
       );
     });
 
     testWidgets(
-        'scrollable=true — התוכן מוצב ב-16px מקצה ה-Scrollbar, ללא חפיפה',
-        (tester) async {
-      const childKey = Key('panel-content');
-      await tester.pumpWidget(buildPanel(
-        scrollable: true,
-        child: const SizedBox(key: childKey, height: 10),
-      ));
-      await tester.pump();
+      'scrollable=true — SingleChildScrollView עם padding אופקי של 16px בדיוק',
+      (tester) async {
+        await tester.pumpWidget(buildPanel(scrollable: true));
+        await tester.pump();
 
-      final scrollbarRect = tester.getRect(find.byType(Scrollbar));
-      final contentRect = tester.getRect(find.byKey(childKey));
-
-      expect(
-        contentRect.left - scrollbarRect.left,
-        closeTo(16.0, 0.5),
-        reason:
-            'המרחק מקצה ה-Scrollbar לתוכן הוא 16px — הScrollbar לא חופף לתוכן',
-      );
-    });
+        final scrollView = tester.widget<SingleChildScrollView>(
+          find.byType(SingleChildScrollView),
+        );
+        expect(
+          scrollView.padding,
+          equals(const EdgeInsets.symmetric(horizontal: 16)),
+          reason:
+              'padding 16px הסטנדרטי בלבד — הScrollbar יושב בתוך ה-16px הקיים',
+        );
+      },
+    );
 
     testWidgets(
-        'scrollable=false (ברירת מחדל) — אין Scrollbar ואין SingleChildScrollView',
-        (tester) async {
-      await tester.pumpWidget(buildPanel(scrollable: false));
-      await tester.pump();
+      'scrollable=true — התוכן מוצב ב-16px מקצה ה-Scrollbar, ללא חפיפה',
+      (tester) async {
+        const childKey = Key('panel-content');
+        await tester.pumpWidget(
+          buildPanel(
+            scrollable: true,
+            child: const SizedBox(key: childKey, height: 10),
+          ),
+        );
+        await tester.pump();
 
-      expect(find.byType(Scrollbar), findsNothing);
-      expect(find.byType(SingleChildScrollView), findsNothing);
-    });
+        final scrollbarRect = tester.getRect(find.byType(Scrollbar));
+        final contentRect = tester.getRect(find.byKey(childKey));
 
-    testWidgets('scrollable=true עם title — הכותרת מוצגת מעל התוכן הגלילה',
-        (tester) async {
+        expect(
+          contentRect.left - scrollbarRect.left,
+          closeTo(16.0, 0.5),
+          reason:
+              'המרחק מקצה ה-Scrollbar לתוכן הוא 16px — הScrollbar לא חופף לתוכן',
+        );
+      },
+    );
+
+    testWidgets(
+      'scrollable=false (ברירת מחדל) — אין Scrollbar ואין SingleChildScrollView',
+      (tester) async {
+        await tester.pumpWidget(buildPanel(scrollable: false));
+        await tester.pump();
+
+        expect(find.byType(Scrollbar), findsNothing);
+        expect(find.byType(SingleChildScrollView), findsNothing);
+      },
+    );
+
+    testWidgets('scrollable=true עם title — הכותרת מוצגת מעל התוכן הגלילה', (
+      tester,
+    ) async {
       const childKey = Key('panel-content-titled');
-      await tester.pumpWidget(buildPanel(
-        scrollable: true,
-        title: 'כותרת הפאנל',
-        child: const SizedBox(key: childKey, height: 10),
-      ));
+      await tester.pumpWidget(
+        buildPanel(
+          scrollable: true,
+          title: 'כותרת הפאנל',
+          child: const SizedBox(key: childKey, height: 10),
+        ),
+      );
       await tester.pump();
 
-      expect(find.text('כותרת הפאנל'), findsOneWidget,
-          reason: 'הכותרת חייבת להיות מוצגת');
-      expect(find.byType(Scrollbar), findsOneWidget,
-          reason: 'Scrollbar חייב להיות קיים גם כשיש כותרת');
+      expect(
+        find.text('כותרת הפאנל'),
+        findsOneWidget,
+        reason: 'הכותרת חייבת להיות מוצגת',
+      );
+      expect(
+        find.byType(Scrollbar),
+        findsOneWidget,
+        reason: 'Scrollbar חייב להיות קיים גם כשיש כותרת',
+      );
 
       final titleRect = tester.getRect(find.text('כותרת הפאנל'));
       final contentRect = tester.getRect(find.byKey(childKey));
@@ -244,13 +268,17 @@ void main() {
       );
     }
 
-    testWidgets('פאנל מימין (centerStart) — פס גלילה יחיד בצד ימין, תוכן RTL',
-        (tester) async {
+    testWidgets('פאנל מימין (centerStart) — פס גלילה יחיד בצד ימין, תוכן RTL', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildAligned(AlignmentDirectional.centerStart));
       await tester.pump();
 
-      expect(find.byType(Scrollbar), findsOneWidget,
-          reason: 'פס גלילה יחיד בלבד — האוטומטי מבוטל דרך ScrollConfiguration');
+      expect(
+        find.byType(Scrollbar),
+        findsOneWidget,
+        reason: 'פס גלילה יחיד בלבד — האוטומטי מבוטל דרך ScrollConfiguration',
+      );
 
       final scrollbarContext = tester.element(find.byType(Scrollbar));
       expect(
@@ -259,8 +287,7 @@ void main() {
         reason: 'כיוון ה-Scrollbar מהופך ל-LTR כדי להצמידו לימין, הרחק מהידית',
       );
 
-      final contentContext =
-          tester.element(find.byType(SingleChildScrollView));
+      final contentContext = tester.element(find.byType(SingleChildScrollView));
       expect(
         Directionality.of(contentContext),
         TextDirection.rtl,
@@ -268,8 +295,9 @@ void main() {
       );
     });
 
-    testWidgets('פאנל משמאל (centerEnd) — פס גלילה נשאר בצד שמאל (RTL)',
-        (tester) async {
+    testWidgets('פאנל משמאל (centerEnd) — פס גלילה נשאר בצד שמאל (RTL)', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildAligned(AlignmentDirectional.centerEnd));
       await tester.pump();
 
@@ -285,8 +313,9 @@ void main() {
   });
 
   group('ContextOverlayPanel — כפתור סגירה (X)', () {
-    testWidgets('הכפתור מוצג כשיש title ולחיצה עליו קוראת ל-onClose',
-        (tester) async {
+    testWidgets('הכפתור מוצג כשיש title ולחיצה עליו קוראת ל-onClose', (
+      tester,
+    ) async {
       var closed = false;
       await tester.pumpWidget(
         MaterialApp(
@@ -347,8 +376,9 @@ void main() {
       );
     }
 
-    testWidgets('הרוחב מצומצם לרוחב החלון ונשמרים שוליים משני הצדדים',
-        (tester) async {
+    testWidgets('הרוחב מצומצם לרוחב החלון ונשמרים שוליים משני הצדדים', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildSizedPanel(containerWidth: 300));
       await tester.pumpAndSettle();
 
@@ -361,8 +391,9 @@ void main() {
       expect(containerRect.right - panelRect.right, closeTo(10, 0.5));
     });
 
-    testWidgets('גרירה בחלון צר מ-minWidth לא זורקת (טווח clamp חוקי)',
-        (tester) async {
+    testWidgets('גרירה בחלון צר מ-minWidth לא זורקת (טווח clamp חוקי)', (
+      tester,
+    ) async {
       // רוחב זמין 180 (< minWidth 200) — הטווח היה מתהפך לולא effectiveDragMax
       await tester.pumpWidget(buildSizedPanel(containerWidth: 180));
       await tester.pumpAndSettle();

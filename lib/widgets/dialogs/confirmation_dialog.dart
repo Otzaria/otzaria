@@ -43,15 +43,14 @@ Future<bool?> showConfirmationDialog({
   String confirmText = 'אישור',
   bool isDangerous = false,
   bool barrierDismissible = true,
-}) =>
-    showDialog<bool>(
-      context: context,
-      barrierDismissible: barrierDismissible,
-      builder: (_) => ConfirmationDialog(
-        title: title,
-        content: content,
-        cancelText: cancelText,
-        confirmText: confirmText,
-        isDangerous: isDangerous,
-      ),
-    );
+}) => showDialog<bool>(
+  context: context,
+  barrierDismissible: barrierDismissible,
+  builder: (_) => ConfirmationDialog(
+    title: title,
+    content: content,
+    cancelText: cancelText,
+    confirmText: confirmText,
+    isDangerous: isDangerous,
+  ),
+);

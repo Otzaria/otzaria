@@ -41,8 +41,10 @@ class PrintingAppBar extends StatelessWidget {
 
 /// ריפוד אחיד לשורה בכרטיס — מוגדר בתוך כל שורה (ולא על הכרטיס), כדי שהריחוף
 /// של שורות אינטראקטיביות (מתגים) ימלא את כל רוחב הכרטיס כמו במסך ההגדרות.
-const EdgeInsets kPrintingRowPadding =
-    EdgeInsets.symmetric(horizontal: 16, vertical: 12);
+const EdgeInsets kPrintingRowPadding = EdgeInsets.symmetric(
+  horizontal: 16,
+  vertical: 12,
+);
 
 /// כרטיס הגדרות עם כותרת ואייקון מחוץ לכרטיס (בסגנון [SettingsCard]),
 /// ו-[children] בתוך [AppCard.section] — מפריד אוטומטית בין השורות.

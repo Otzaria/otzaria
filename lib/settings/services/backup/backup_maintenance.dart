@@ -51,8 +51,9 @@ class BackupMaintenance {
   /// מפרק שם קובץ גיבוי ל-timestamp ודגל ידני. מחזיר null אם אינו קובץ גיבוי.
   static BackupEntryInfo? parseBackupFileName(String path) {
     final name = p.basename(path);
-    final match =
-        RegExp(r'^otzaria_backup_(.+?)(_manual)?\.json$').firstMatch(name);
+    final match = RegExp(
+      r'^otzaria_backup_(.+?)(_manual)?\.json$',
+    ).firstMatch(name);
     if (match == null) return null;
     final timestamp = BackupMerge.parseManifestTimestamp(match.group(1));
     if (timestamp == null) return null;
@@ -104,7 +105,8 @@ class BackupMaintenance {
     final backupDir = await AppPaths.getBackupPath();
     final store = BackupStore.forBackupDir(backupDir);
     final profile = RetentionProfile.fromName(
-        Settings.getValue<String>(keyRetentionProfile));
+      Settings.getValue<String>(keyRetentionProfile),
+    );
 
     final backups = await listBackups(backupDir);
     final expired = BackupRotation.selectExpired(
@@ -152,10 +154,13 @@ class BackupMaintenance {
     DateTime archiveTimestamp = DateTime.fromMillisecondsSinceEpoch(0);
     if (await archiveFile.exists()) {
       try {
-        archive = json.decode(await archiveFile.readAsString())
-            as Map<String, dynamic>;
-        archiveTimestamp = BackupMerge.parseManifestTimestamp(
-                archive['timestamp']?.toString()) ??
+        archive =
+            json.decode(await archiveFile.readAsString())
+                as Map<String, dynamic>;
+        archiveTimestamp =
+            BackupMerge.parseManifestTimestamp(
+              archive['timestamp']?.toString(),
+            ) ??
             archiveTimestamp;
       } catch (e) {
         // ארכיון פגום אינו נדרס בשקט: התחזוקה נעצרת והגיבויים נשארים בעינם.
@@ -168,8 +173,9 @@ class BackupMaintenance {
     for (final backup in expiredAscending) {
       Map<String, dynamic> manifest;
       try {
-        manifest = json.decode(await File(backup.path).readAsString())
-            as Map<String, dynamic>;
+        manifest =
+            json.decode(await File(backup.path).readAsString())
+                as Map<String, dynamic>;
       } catch (e) {
         _logger.warning('Skipping unreadable backup ${backup.path}: $e');
         continue;

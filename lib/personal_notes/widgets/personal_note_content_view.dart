@@ -88,8 +88,9 @@ class _PersonalNoteContentViewState extends State<PersonalNoteContentView> {
         ? _truncateDelta(decoded, widget.maxPreviewChars!)
         : decoded;
     // כתובות שהודבקו כטקסט רגיל הופכות לקישורים לחיצים (גם בהערות ישנות).
-    final effectiveDelta =
-        truncated != null ? linkifyDeltaOps(truncated) : null;
+    final effectiveDelta = truncated != null
+        ? linkifyDeltaOps(truncated)
+        : null;
 
     final document = effectiveDelta != null
         ? quill.Document.fromJson(effectiveDelta)
@@ -182,7 +183,9 @@ class _PersonalNoteContentViewState extends State<PersonalNoteContentView> {
   }
 
   Widget _buildLinks(
-      BuildContext context, List<({String label, String url})> links) {
+    BuildContext context,
+    List<({String label, String url})> links,
+  ) {
     return Wrap(
       spacing: 8,
       runSpacing: 8,

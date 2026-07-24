@@ -151,8 +151,9 @@ class _SaferModePasswordDialogState extends State<SaferModePasswordDialog>
           ActionButton.neutral(
             text: 'ביטול',
             focusNode: _cancelFocusNode,
-            onPressed:
-                !_isVerifying ? () => Navigator.of(context).pop(false) : null,
+            onPressed: !_isVerifying
+                ? () => Navigator.of(context).pop(false)
+                : null,
           ),
           ActionButton.recommended(
             text: 'אישור',
@@ -393,8 +394,9 @@ class _SaferModeSetPasswordDialogState extends State<SaferModeSetPasswordDialog>
           ActionButton.neutral(
             text: 'ביטול',
             focusNode: _cancelButtonFocusNode,
-            onPressed:
-                !_isSaving ? () => Navigator.of(context).pop(false) : null,
+            onPressed: !_isSaving
+                ? () => Navigator.of(context).pop(false)
+                : null,
           ),
           ActionButton.recommended(
             text: 'שמור',

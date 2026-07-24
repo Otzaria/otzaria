@@ -22,19 +22,20 @@ class BookInformation {
 
   /// התיאור הקצר, אם קיים.
   String? get shortDescription => _firstAvailable(
-        book.heShortDesc,
-        databaseBook?.heShortDesc,
-      );
+    book.heShortDesc,
+    databaseBook?.heShortDesc,
+  );
 
   /// התיאור המלא, אם קיים.
   String? get fullDescription => _firstAvailable(
-        databaseBook?.heDesc,
-        book.heDesc,
-      );
+    databaseBook?.heDesc,
+    book.heDesc,
+  );
 
   /// שמות המחברים, אם קיימים.
   List<String> get authors {
-    final databaseAuthors = databaseBook?.authors
+    final databaseAuthors =
+        databaseBook?.authors
             .map((author) => author.name.trim())
             .where((name) => name.isNotEmpty)
             .toList() ??
@@ -54,7 +55,8 @@ class BookInformation {
 
   /// מקומות הפרסום, אם קיימים.
   List<String> get publicationPlaces {
-    final places = databaseBook?.pubPlaces
+    final places =
+        databaseBook?.pubPlaces
             .map((place) => place.name.trim())
             .where((name) => name.isNotEmpty)
             .toList() ??
@@ -65,7 +67,8 @@ class BookInformation {
 
   /// תאריכי הפרסום, אם קיימים.
   List<String> get publicationDates {
-    final dates = databaseBook?.pubDates
+    final dates =
+        databaseBook?.pubDates
             .map((date) => date.date.trim())
             .where((date) => date.isNotEmpty)
             .toList() ??
@@ -187,11 +190,13 @@ class BookDetailsService {
   }
 
   Future<String?> _tryGetDbSourceName(
-      ResolvedDbBookRecord? resolvedBook) async {
+    ResolvedDbBookRecord? resolvedBook,
+  ) async {
     if (resolvedBook == null) return null;
     try {
-      final source = await resolvedBook.repository
-          .getSourceById(resolvedBook.book.sourceId);
+      final source = await resolvedBook.repository.getSourceById(
+        resolvedBook.book.sourceId,
+      );
       final sourceName = source?.name.trim();
       if (sourceName == null || sourceName.isEmpty) {
         return null;
@@ -210,9 +215,9 @@ class BookDetailsService {
   ) async {
     if (resolvedBook == null) return null;
     try {
-      return (await resolvedBook.repository
-              .getBookGenerationInfo(resolvedBook.book.id))
-          ?.generationName;
+      return (await resolvedBook.repository.getBookGenerationInfo(
+        resolvedBook.book.id,
+      ))?.generationName;
     } catch (_) {
       return null;
     }
@@ -236,8 +241,9 @@ class BookDetailsService {
     final normalizedRaw = _normalizeSeparators(rawPath);
     if (normalizedRaw != null && normalizedRaw.isNotEmpty) {
       final slash = normalizedRaw.lastIndexOf('/');
-      final candidate =
-          slash >= 0 ? normalizedRaw.substring(slash + 1) : normalizedRaw;
+      final candidate = slash >= 0
+          ? normalizedRaw.substring(slash + 1)
+          : normalizedRaw;
       if (candidate.isNotEmpty) {
         final withExt = _ensureExtension(candidate, fileType);
         return withExt;

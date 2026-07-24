@@ -38,15 +38,17 @@ Future<List<Link>> loadUserLinksForBook({
     final targetLine = r.targetLineIndex;
     // ללא יעד-שורה אין לאן לפתוח (index2==0 נכשל כ-"Invalid link reference").
     if (targetLine == null) continue;
-    result.add(Link(
-      heRef: r.targetRef ?? r.targetTitle,
-      index1: r.sourceLineIndex + 1,
-      path2: r.targetTitle,
-      index2: targetLine + 1,
-      connectionType: r.connectionType,
-      targetCategoryId: r.targetCategoryId,
-      targetIsUserBook: r.targetIsUserBook,
-    ));
+    result.add(
+      Link(
+        heRef: r.targetRef ?? r.targetTitle,
+        index1: r.sourceLineIndex + 1,
+        path2: r.targetTitle,
+        index2: targetLine + 1,
+        connectionType: r.connectionType,
+        targetCategoryId: r.targetCategoryId,
+        targetIsUserBook: r.targetIsUserBook,
+      ),
+    );
   }
 
   // inverse — קישור-משתמש שמצביע אל הספר הנקרא; פתיחתו חוזרת אל ספר המקור
@@ -61,19 +63,21 @@ Future<List<Link>> loadUserLinksForBook({
   for (final r in inverse) {
     final targetLine = r.targetLineIndex;
     if (targetLine == null) continue;
-    result.add(Link(
-      heRef: r.sourceTitle,
-      index1: targetLine + 1,
-      path2: r.sourceTitle,
-      index2: r.sourceLineIndex + 1,
-      // כמו ה-inverse של seforim.db: מפרש שקורא את בסיסו רואה אותו כ'מקור'
-      // וירטואלי בפאנל הקישורים, לא כמפרש.
-      connectionType: LinkTypes.isDependentTextLink(r.connectionType)
-          ? LinkTypes.source
-          : r.connectionType,
-      targetIsUserBook: r.sourceIsUserBook,
-      targetCategoryId: r.sourceCategoryId,
-    ));
+    result.add(
+      Link(
+        heRef: r.sourceTitle,
+        index1: targetLine + 1,
+        path2: r.sourceTitle,
+        index2: r.sourceLineIndex + 1,
+        // כמו ה-inverse של seforim.db: מפרש שקורא את בסיסו רואה אותו כ'מקור'
+        // וירטואלי בפאנל הקישורים, לא כמפרש.
+        connectionType: LinkTypes.isDependentTextLink(r.connectionType)
+            ? LinkTypes.source
+            : r.connectionType,
+        targetIsUserBook: r.sourceIsUserBook,
+        targetCategoryId: r.sourceCategoryId,
+      ),
+    );
   }
 
   return _applyCommentatorFilter(dedupeUserLinks(result), targetBookTitles);
@@ -103,8 +107,12 @@ List<Link> dedupeUserLinks(List<Link> links) {
   final seen = <String>{};
   // המפתח כולל גם דגל-אישי וקטגוריה — שני ספרים שונים יכולים לחלוק כותרת.
   return links
-      .where((l) => seen.add('${l.index1}|${l.path2}|${l.index2}|'
-          '${l.connectionType}|${l.targetIsUserBook}|${l.targetCategoryId}'))
+      .where(
+        (l) => seen.add(
+          '${l.index1}|${l.path2}|${l.index2}|'
+          '${l.connectionType}|${l.targetIsUserBook}|${l.targetCategoryId}',
+        ),
+      )
       .toList();
 }
 

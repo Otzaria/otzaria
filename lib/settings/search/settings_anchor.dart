@@ -42,14 +42,17 @@ class _SettingsAnchorState extends State<SettingsAnchor>
       vsync: this,
       duration: const Duration(milliseconds: 1300),
     );
-    _flashAnimation = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 1),
-      TweenSequenceItem(tween: ConstantTween(1.0), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 4),
-    ]).animate(CurvedAnimation(
-      parent: _flashController,
-      curve: Curves.easeOutQuad,
-    ));
+    _flashAnimation =
+        TweenSequence<double>([
+          TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 1),
+          TweenSequenceItem(tween: ConstantTween(1.0), weight: 2),
+          TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 4),
+        ]).animate(
+          CurvedAnimation(
+            parent: _flashController,
+            curve: Curves.easeOutQuad,
+          ),
+        );
 
     SettingsSearchRegistry.instance
         .flashNotifierFor(widget.cardId)
@@ -82,8 +85,9 @@ class _SettingsAnchorState extends State<SettingsAnchor>
   }
 
   void _onFlashChanged() {
-    final flashing =
-        SettingsSearchRegistry.instance.flashNotifierFor(widget.cardId).value;
+    final flashing = SettingsSearchRegistry.instance
+        .flashNotifierFor(widget.cardId)
+        .value;
     if (flashing) {
       _flashController.forward(from: 0.0);
     }

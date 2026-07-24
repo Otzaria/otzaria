@@ -81,47 +81,51 @@ void main() {
 
       final results = [
         SearchResult(
-            id: BigInt.from(1),
-            title: 'ספר א',
-            reference: 'סימן א',
-            text: 'טקסט בדיקה 0',
-            segment: BigInt.zero,
-            isPdf: false,
-            filePath: 'book_0.txt',
-            mergedCount: 1,
-            merged: const []),
+          id: BigInt.from(1),
+          title: 'ספר א',
+          reference: 'סימן א',
+          text: 'טקסט בדיקה 0',
+          segment: BigInt.zero,
+          isPdf: false,
+          filePath: 'book_0.txt',
+          mergedCount: 1,
+          merged: const [],
+        ),
         SearchResult(
-            id: BigInt.from(2),
-            title: 'ספר ב',
-            reference: 'סימן ב',
-            text: '<font color="red">טקסט</font> עם HTML',
-            segment: BigInt.one,
-            isPdf: false,
-            filePath: 'book_1.txt',
-            mergedCount: 1,
-            merged: const []),
+          id: BigInt.from(2),
+          title: 'ספר ב',
+          reference: 'סימן ב',
+          text: '<font color="red">טקסט</font> עם HTML',
+          segment: BigInt.one,
+          isPdf: false,
+          filePath: 'book_1.txt',
+          mergedCount: 1,
+          merged: const [],
+        ),
         SearchResult(
-            id: BigInt.from(3),
-            title: 'ספר ג',
-            reference: 'סימן ג',
-            text: 'ברוך יהוה',
-            segment: BigInt.two,
-            isPdf: false,
-            filePath: 'book_2.txt',
-            mergedCount: 1,
-            merged: const []),
+          id: BigInt.from(3),
+          title: 'ספר ג',
+          reference: 'סימן ג',
+          text: 'ברוך יהוה',
+          segment: BigInt.two,
+          isPdf: false,
+          filePath: 'book_2.txt',
+          mergedCount: 1,
+          merged: const [],
+        ),
         ...List.generate(
           97,
           (i) => SearchResult(
-              id: BigInt.from(i + 4),
-              title: 'ספר ${i + 3}',
-              reference: 'סימן ${i + 3}',
-              text: 'טקסט בדיקה ${i + 3}',
-              segment: BigInt.from(i + 3),
-              isPdf: false,
-              filePath: 'book_${i + 3}.txt',
-              mergedCount: 1,
-              merged: const []),
+            id: BigInt.from(i + 4),
+            title: 'ספר ${i + 3}',
+            reference: 'סימן ${i + 3}',
+            text: 'טקסט בדיקה ${i + 3}',
+            segment: BigInt.from(i + 3),
+            isPdf: false,
+            filePath: 'book_${i + 3}.txt',
+            mergedCount: 1,
+            merged: const [],
+          ),
         ),
       ];
 
@@ -178,63 +182,75 @@ void main() {
       );
     });
 
-    testWidgets('חיפוש חדש (שינוי קטגוריה) מאפס את הגלילה לראש הרשימה',
-        (tester) async {
+    testWidgets('חיפוש חדש (שינוי קטגוריה) מאפס את הגלילה לראש הרשימה', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildWidget());
       await tester.pump();
 
       await tester.drag(find.byType(ListView), const Offset(0, -2000));
       await tester.pump();
-      final scrolledOffset =
-          tester.widget<ListView>(find.byType(ListView)).controller!.offset;
+      final scrolledOffset = tester
+          .widget<ListView>(find.byType(ListView))
+          .controller!
+          .offset;
       expect(scrolledOffset, greaterThan(0));
 
       // חיפוש חדש: אותה שאילתה אך קטגוריה שונה → גלילה לראש
       searchBloc.emitState(
         searchBloc.state.copyWith(
-          configuration: searchBloc.state.configuration
-              .copyWith(currentFacets: const ['קטגוריה אחרת']),
+          configuration: searchBloc.state.configuration.copyWith(
+            currentFacets: const ['קטגוריה אחרת'],
+          ),
         ),
       );
       await tester.pump(); // listener
       await tester.pump(); // addPostFrameCallback → jumpTo(0)
 
-      final resetOffset =
-          tester.widget<ListView>(find.byType(ListView)).controller!.offset;
+      final resetOffset = tester
+          .widget<ListView>(find.byType(ListView))
+          .controller!
+          .offset;
       expect(resetOffset, 0);
     });
 
-    testWidgets('טעינת המשך (אותה חתימה) שומרת על מיקום הגלילה',
-        (tester) async {
+    testWidgets('טעינת המשך (אותה חתימה) שומרת על מיקום הגלילה', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildWidget());
       await tester.pump();
 
       await tester.drag(find.byType(ListView), const Offset(0, -2000));
       await tester.pump();
-      final scrolledOffset =
-          tester.widget<ListView>(find.byType(ListView)).controller!.offset;
+      final scrolledOffset = tester
+          .widget<ListView>(find.byType(ListView))
+          .controller!
+          .offset;
       expect(scrolledOffset, greaterThan(0));
 
       // טעינת המשך: אותה שאילתה+קטגוריה, תוצאות נוספות נדחפות לסוף
       final moreResults = [
         ...searchBloc.state.results,
         SearchResult(
-            id: BigInt.from(999),
-            title: 'ספר נוסף',
-            reference: 'סימן נוסף',
-            text: 'טקסט נוסף',
-            segment: BigInt.from(999),
-            isPdf: false,
-            filePath: 'book_999.txt',
-            mergedCount: 1,
-            merged: const []),
+          id: BigInt.from(999),
+          title: 'ספר נוסף',
+          reference: 'סימן נוסף',
+          text: 'טקסט נוסף',
+          segment: BigInt.from(999),
+          isPdf: false,
+          filePath: 'book_999.txt',
+          mergedCount: 1,
+          merged: const [],
+        ),
       ];
       searchBloc.emitState(searchBloc.state.copyWith(results: moreResults));
       await tester.pump();
       await tester.pump();
 
-      final keptOffset =
-          tester.widget<ListView>(find.byType(ListView)).controller!.offset;
+      final keptOffset = tester
+          .widget<ListView>(find.byType(ListView))
+          .controller!
+          .offset;
       expect(keptOffset, scrolledOffset);
     });
 
@@ -250,8 +266,9 @@ void main() {
       );
     });
 
-    testWidgets('לחיצה על כפתור העתקה מעתיקה את טקסט התוצאה ללוח',
-        (tester) async {
+    testWidgets('לחיצה על כפתור העתקה מעתיקה את טקסט התוצאה ללוח', (
+      tester,
+    ) async {
       String? copiedText;
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         SystemChannels.platform,
@@ -317,46 +334,54 @@ void main() {
           .single;
 
       expect(
-          _allTextFromInlineSpan(highlightedResultText.text), 'טקסט עם HTML');
+        _allTextFromInlineSpan(highlightedResultText.text),
+        'טקסט עם HTML',
+      );
       expect(
-          _highlightedTextFromInlineSpan(highlightedResultText.text), 'טקסט');
+        _highlightedTextFromInlineSpan(highlightedResultText.text),
+        'טקסט',
+      );
     });
 
-    testWidgets('כאשר replaceHolyNames פעיל, הטקסט המועתק כולל החלפת שמות קודש',
-        (tester) async {
-      final holyNamesSettingsBloc = MockSettingsBloc();
-      addTearDown(holyNamesSettingsBloc.close);
-      whenListen(
-        holyNamesSettingsBloc,
-        const Stream<SettingsState>.empty(),
-        initialState: SettingsState.initial().copyWith(replaceHolyNames: true),
-      );
+    testWidgets(
+      'כאשר replaceHolyNames פעיל, הטקסט המועתק כולל החלפת שמות קודש',
+      (tester) async {
+        final holyNamesSettingsBloc = MockSettingsBloc();
+        addTearDown(holyNamesSettingsBloc.close);
+        whenListen(
+          holyNamesSettingsBloc,
+          const Stream<SettingsState>.empty(),
+          initialState: SettingsState.initial().copyWith(
+            replaceHolyNames: true,
+          ),
+        );
 
-      String? copiedText;
-      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        SystemChannels.platform,
-        (call) async {
-          if (call.method == 'Clipboard.setData') {
-            copiedText = (call.arguments as Map)['text'] as String?;
-          }
-          return null;
-        },
-      );
+        String? copiedText;
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method == 'Clipboard.setData') {
+              copiedText = (call.arguments as Map)['text'] as String?;
+            }
+            return null;
+          },
+        );
 
-      await tester.pumpWidget(
-        buildWidget(overrideSettingsBloc: holyNamesSettingsBloc),
-      );
-      await tester.pump();
+        await tester.pumpWidget(
+          buildWidget(overrideSettingsBloc: holyNamesSettingsBloc),
+        );
+        await tester.pump();
 
-      final copyButtons = find.byWidgetPredicate(
-        (w) => w is Icon && w.icon == FluentIcons.copy_24_regular,
-      );
-      await tester.tap(copyButtons.at(_kHolyNamesIndex));
-      await tester.pump();
+        final copyButtons = find.byWidgetPredicate(
+          (w) => w is Icon && w.icon == FluentIcons.copy_24_regular,
+        );
+        await tester.tap(copyButtons.at(_kHolyNamesIndex));
+        await tester.pump();
 
-      expect(copiedText, isNotNull);
-      expect(copiedText, isNot(contains('יהוה')));
-      expect(copiedText, contains('יקוק'));
-    });
+        expect(copiedText, isNotNull);
+        expect(copiedText, isNot(contains('יהוה')));
+        expect(copiedText, contains('יקוק'));
+      },
+    );
   });
 }

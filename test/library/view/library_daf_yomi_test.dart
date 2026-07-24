@@ -25,8 +25,9 @@ void main() {
       );
     });
 
-    testWidgets('dafEnabled=false — הדף היומי מושבת, התאריך נשאר פעיל',
-        (tester) async {
+    testWidgets('dafEnabled=false — הדף היומי מושבת, התאריך נשאר פעיל', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         wrap(LibraryDafYomi(dafEnabled: false, onDafYomiTap: (_, _) {})),
       );

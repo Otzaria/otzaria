@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
@@ -286,9 +286,9 @@ class TextSettingsTab extends StatelessWidget {
                   min: 10,
                   max: 40,
                   onChanged: (value) {
-                    context
-                        .read<SettingsBloc>()
-                        .add(UpdateCommentatorsFontSize(value));
+                    context.read<SettingsBloc>().add(
+                      UpdateCommentatorsFontSize(value),
+                    );
                   },
                 ),
               _FontDropdown(
@@ -297,16 +297,16 @@ class TextSettingsTab extends StatelessWidget {
                 value: state.commentatorsFontFamily,
                 onChanged: (value) {
                   if (value != null) {
-                    context
-                        .read<SettingsBloc>()
-                        .add(UpdateCommentatorsFontFamily(value));
+                    context.read<SettingsBloc>().add(
+                      UpdateCommentatorsFontFamily(value),
+                    );
                   }
                 },
                 bold: state.commentatorsFontBold,
                 onBoldChanged: (value) {
-                  context
-                      .read<SettingsBloc>()
-                      .add(UpdateCommentatorsFontBold(value));
+                  context.read<SettingsBloc>().add(
+                    UpdateCommentatorsFontBold(value),
+                  );
                 },
               ),
             ],
@@ -318,8 +318,10 @@ class TextSettingsTab extends StatelessWidget {
           builder: (context, constraints) {
             final isNarrow = constraints.maxWidth < LayoutBreakpoints.compact;
             return Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8.0,
+              ),
               child: isNarrow
                   ? _FontSizeSlider(
                       icon: FluentIcons
@@ -330,9 +332,9 @@ class TextSettingsTab extends StatelessWidget {
                       max: 3.0,
                       divisions: 20,
                       onChanged: (value) {
-                        context
-                            .read<SettingsBloc>()
-                            .add(UpdateLineHeight(value));
+                        context.read<SettingsBloc>().add(
+                          UpdateLineHeight(value),
+                        );
                       },
                     )
                   : Row(
@@ -348,9 +350,9 @@ class TextSettingsTab extends StatelessWidget {
                             max: 3.0,
                             divisions: 20,
                             onChanged: (value) {
-                              context
-                                  .read<SettingsBloc>()
-                                  .add(UpdateLineHeight(value));
+                              context.read<SettingsBloc>().add(
+                                UpdateLineHeight(value),
+                              );
                             },
                           ),
                         ),
@@ -375,9 +377,9 @@ class TextSettingsTab extends StatelessWidget {
           ],
           currentValue: state.defaultContinuousReadingMode,
           onChanged: (value) {
-            context
-                .read<SettingsBloc>()
-                .add(UpdateDefaultContinuousReadingMode(value));
+            context.read<SettingsBloc>().add(
+              UpdateDefaultContinuousReadingMode(value),
+            );
           },
         ),
       ],
@@ -423,25 +425,25 @@ class TextSettingsTab extends StatelessWidget {
           onChanged: (value) {
             switch (value) {
               case 'show_always':
-                context
-                    .read<SettingsBloc>()
-                    .add(const UpdateDefaultRemoveNikud(false));
+                context.read<SettingsBloc>().add(
+                  const UpdateDefaultRemoveNikud(false),
+                );
                 break;
               case 'show_tanach_only':
-                context
-                    .read<SettingsBloc>()
-                    .add(const UpdateDefaultRemoveNikud(true));
-                context
-                    .read<SettingsBloc>()
-                    .add(const UpdateRemoveNikudFromTanach(false));
+                context.read<SettingsBloc>().add(
+                  const UpdateDefaultRemoveNikud(true),
+                );
+                context.read<SettingsBloc>().add(
+                  const UpdateRemoveNikudFromTanach(false),
+                );
                 break;
               case 'hide_all':
-                context
-                    .read<SettingsBloc>()
-                    .add(const UpdateDefaultRemoveNikud(true));
-                context
-                    .read<SettingsBloc>()
-                    .add(const UpdateRemoveNikudFromTanach(true));
+                context.read<SettingsBloc>().add(
+                  const UpdateDefaultRemoveNikud(true),
+                );
+                context.read<SettingsBloc>().add(
+                  const UpdateRemoveNikudFromTanach(true),
+                );
                 break;
             }
           },
@@ -454,9 +456,9 @@ class TextSettingsTab extends StatelessWidget {
               : 'סימני הפיסוק יוצגו בכל הספרים',
           value: !state.defaultRemovePunctuation,
           onChanged: (value) {
-            context
-                .read<SettingsBloc>()
-                .add(UpdateDefaultRemovePunctuation(!value));
+            context.read<SettingsBloc>().add(
+              UpdateDefaultRemovePunctuation(!value),
+            );
           },
         ),
         SettingsActionTile.switchTile(
@@ -473,8 +475,9 @@ class TextSettingsTab extends StatelessWidget {
         SettingsActionTile.switchTile(
           icon: FluentIcons.text_more_24_regular,
           title: 'הצגת טעמי המקרא',
-          subtitle:
-              state.showTeamim ? 'המקרא יוצג עם טעמים' : 'המקרא יוצג ללא טעמים',
+          subtitle: state.showTeamim
+              ? 'המקרא יוצג עם טעמים'
+              : 'המקרא יוצג ללא טעמים',
           value: state.showTeamim,
           onChanged: (value) {
             context.read<SettingsBloc>().add(UpdateShowTeamim(value));
@@ -574,9 +577,9 @@ class TextSettingsTab extends StatelessWidget {
               : 'כל הספרים ישתמשו בהגדרות הכלליות',
           value: state.enablePerBookSettings,
           onChanged: (value) {
-            context
-                .read<SettingsBloc>()
-                .add(UpdateEnablePerBookSettings(value));
+            context.read<SettingsBloc>().add(
+              UpdateEnablePerBookSettings(value),
+            );
           },
         ),
         if (state.enablePerBookSettings)
@@ -970,9 +973,9 @@ class _TextWidthSliderState extends State<_TextWidthSlider> {
               // נשמר כרמה שלילית (-level) כדי שהאחוז יחושב מרוחב
               // עמודת הטקסט בפועל, לא מרוחב המסך בזמן השמירה
               final level = value.toInt();
-              context
-                  .read<SettingsBloc>()
-                  .add(UpdateTextMaxWidth(level == 0 ? 0 : -level.toDouble()));
+              context.read<SettingsBloc>().add(
+                UpdateTextMaxWidth(level == 0 ? 0 : -level.toDouble()),
+              );
             },
           ),
         ),

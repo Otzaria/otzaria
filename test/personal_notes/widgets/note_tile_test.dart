@@ -13,8 +13,9 @@ void main() {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
-  testWidgets('NoteTile פותח אוטומטית עריכה כשיש טיוטה להערה קיימת',
-      (tester) async {
+  testWidgets('NoteTile פותח אוטומטית עריכה כשיש טיוטה להערה קיימת', (
+    tester,
+  ) async {
     final draftService = PersonalNoteDraftService();
     await draftService.saveDraft(
       bookId: 'ספר מבחן',
@@ -65,49 +66,59 @@ void main() {
   });
 
   PersonalNote buildNote() => PersonalNote(
-        id: 'note-expand',
-        bookId: 'ספר מבחן',
-        lineNumber: 7,
-        displayTitle: 'שורה 7',
-        lastKnownLineNumber: 7,
-        status: PersonalNoteStatus.located,
-        content: 'תוכן ההערה',
-        contentPlain: 'תוכן ההערה',
-        contentFormat: PersonalNoteContentFormat.plain,
-        createdAt: DateTime(2026, 1, 1),
-        updatedAt: DateTime(2026, 1, 1),
-      );
+    id: 'note-expand',
+    bookId: 'ספר מבחן',
+    lineNumber: 7,
+    displayTitle: 'שורה 7',
+    lastKnownLineNumber: 7,
+    status: PersonalNoteStatus.located,
+    content: 'תוכן ההערה',
+    contentPlain: 'תוכן ההערה',
+    contentFormat: PersonalNoteContentFormat.plain,
+    createdAt: DateTime(2026, 1, 1),
+    updatedAt: DateTime(2026, 1, 1),
+  );
 
   Widget wrap(NoteTile tile) => MaterialApp(home: Scaffold(body: tile));
 
-  testWidgets('NoteTile נשאר סגור כש-defaultExpanded=false ואין expandToken',
-      (tester) async {
-    await tester.pumpWidget(wrap(NoteTile(
-      note: buildNote(),
-      defaultExpanded: false,
-      bookId: 'ספר מבחן',
-      linkableNotes: const [],
-      onSave: (_) {},
-      onDelete: () {},
-      onLinkTap: (_) {},
-    )));
+  testWidgets('NoteTile נשאר סגור כש-defaultExpanded=false ואין expandToken', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrap(
+        NoteTile(
+          note: buildNote(),
+          defaultExpanded: false,
+          bookId: 'ספר מבחן',
+          linkableNotes: const [],
+          onSave: (_) {},
+          onDelete: () {},
+          onLinkTap: (_) {},
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('תוכן ההערה'), findsNothing);
   });
 
-  testWidgets('NoteTile נפתח בכפייה כש-expandToken מוגדר באתחול',
-      (tester) async {
-    await tester.pumpWidget(wrap(NoteTile(
-      note: buildNote(),
-      defaultExpanded: false,
-      expandToken: 1,
-      bookId: 'ספר מבחן',
-      linkableNotes: const [],
-      onSave: (_) {},
-      onDelete: () {},
-      onLinkTap: (_) {},
-    )));
+  testWidgets('NoteTile נפתח בכפייה כש-expandToken מוגדר באתחול', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrap(
+        NoteTile(
+          note: buildNote(),
+          defaultExpanded: false,
+          expandToken: 1,
+          bookId: 'ספר מבחן',
+          linkableNotes: const [],
+          onSave: (_) {},
+          onDelete: () {},
+          onLinkTap: (_) {},
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('תוכן ההערה'), findsOneWidget);
@@ -115,15 +126,15 @@ void main() {
 
   testWidgets('NoteTile נפתח כש-expandToken משתנה לאחר בנייה', (tester) async {
     NoteTile tile(int? token) => NoteTile(
-          note: buildNote(),
-          defaultExpanded: false,
-          expandToken: token,
-          bookId: 'ספר מבחן',
-          linkableNotes: const [],
-          onSave: (_) {},
-          onDelete: () {},
-          onLinkTap: (_) {},
-        );
+      note: buildNote(),
+      defaultExpanded: false,
+      expandToken: token,
+      bookId: 'ספר מבחן',
+      linkableNotes: const [],
+      onSave: (_) {},
+      onDelete: () {},
+      onLinkTap: (_) {},
+    );
 
     await tester.pumpWidget(wrap(tile(null)));
     await tester.pumpAndSettle();

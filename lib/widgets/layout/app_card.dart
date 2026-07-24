@@ -25,9 +25,9 @@ class AppCard extends StatelessWidget {
     this.margin,
     this.padding,
     this.selected = false,
-  })  : child = null,
-        onTap = null,
-        focusNode = null;
+  }) : child = null,
+       onTap = null,
+       focusNode = null;
 
   /// הרווח הקבוע בין שורות במקטע כרטיס.
   static const double sectionSpacing = 1.5;
@@ -46,17 +46,18 @@ class AppCard extends StatelessWidget {
   ///
   /// לשימוש כשתוכן פנימי מורחב צריך להיראות כחלק מהכרטיס.
   static Widget sectionDivider(BuildContext context) => Divider(
-        height: 1,
-        thickness: sectionSpacing,
-        indent: 0,
-        endIndent: 0,
-        color: AppSurfaces.cardRowDivider(context),
-      );
+    height: 1,
+    thickness: sectionSpacing,
+    indent: 0,
+    endIndent: 0,
+    color: AppSurfaces.cardRowDivider(context),
+  );
 
   @override
   Widget build(BuildContext context) {
-    Widget card =
-        children != null ? _buildSection(context) : _buildSingle(context);
+    Widget card = children != null
+        ? _buildSection(context)
+        : _buildSingle(context);
 
     if (margin != null) {
       card = Padding(padding: margin!, child: card);
@@ -131,7 +132,7 @@ class AppCard extends StatelessWidget {
   }
 
   Widget _withSelected(BuildContext context, Widget w) => ColoredBox(
-        color: AppSurfaces.cardSelectionOverlay(context),
-        child: w,
-      );
+    color: AppSurfaces.cardSelectionOverlay(context),
+    child: w,
+  );
 }

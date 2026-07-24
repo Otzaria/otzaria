@@ -70,7 +70,8 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
     final isEnabled = widget.onDragDelta != null;
     final isCompact =
         context.read<SettingsBloc?>()?.state.compactMenuMode ?? false;
-    final effectiveHitSize = widget.hitSize ??
+    final effectiveHitSize =
+        widget.hitSize ??
         (isCompact
             ? AppTokens.dragHandleCompactHitSize
             : AppTokens.dragHandleRegularHitSize);
@@ -82,12 +83,13 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
     final targetBlend = !isEnabled
         ? 0.0
         : _isDragging
-            ? 1.0
-            : _isHovered
-                ? 0.5
-                : 0.0;
+        ? 1.0
+        : _isHovered
+        ? 0.5
+        : 0.0;
 
-    final cursor = widget.cursor ??
+    final cursor =
+        widget.cursor ??
         (widget.isVertical
             ? SystemMouseCursors.resizeColumn
             : SystemMouseCursors.resizeRow);
@@ -107,8 +109,9 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
         onPanUpdate: !isEnabled
             ? null
             : (details) {
-                final delta =
-                    widget.isVertical ? details.delta.dx : details.delta.dy;
+                final delta = widget.isVertical
+                    ? details.delta.dx
+                    : details.delta.dy;
                 widget.onDragDelta?.call(delta);
               },
         onPanEnd: !isEnabled
@@ -129,9 +132,12 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
             final showGrip = widget.showDivider || blend > 0;
             final idleOpacity = lerpDouble(0.35, 1.0, blend) ?? 0.35;
             final lineColor = showGrip
-                ? (Color.lerp(dividerColor.withValues(alpha: idleOpacity),
-                        activeColor, blend) ??
-                    dividerColor)
+                ? (Color.lerp(
+                        dividerColor.withValues(alpha: idleOpacity),
+                        activeColor,
+                        blend,
+                      ) ??
+                      dividerColor)
                 : Colors.transparent;
             final dividerThickness = lerpDouble(1.0, 2.0, blend) ?? 1.0;
 
@@ -142,11 +148,11 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
                 builder: (context, constraints) {
                   final dividerExtent = widget.isVertical
                       ? (constraints.hasBoundedHeight
-                          ? constraints.maxHeight
-                          : gripLength)
+                            ? constraints.maxHeight
+                            : gripLength)
                       : (constraints.hasBoundedWidth
-                          ? constraints.maxWidth
-                          : gripLength);
+                            ? constraints.maxWidth
+                            : gripLength);
 
                   return Stack(
                     alignment: Alignment.center,

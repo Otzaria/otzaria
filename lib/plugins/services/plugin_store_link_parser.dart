@@ -12,7 +12,8 @@ class PluginStoreLinkParser {
         .map((segment) => segment.toLowerCase())
         .toList();
 
-    final isPluginInstall = host == 'plugin' &&
+    final isPluginInstall =
+        host == 'plugin' &&
         pathSegments.length == 1 &&
         pathSegments.first == 'install';
     if (!isPluginInstall) {

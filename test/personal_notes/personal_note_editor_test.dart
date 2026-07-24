@@ -49,8 +49,9 @@ void main() {
     expect(_deltaHasAttribute(controller, quill.Attribute.bold), isFalse);
   });
 
-  testWidgets('כפתור קו חוצה פועל גם כ-toggle ומסיר עיצוב קיים',
-      (tester) async {
+  testWidgets('כפתור קו חוצה פועל גם כ-toggle ומסיר עיצוב קיים', (
+    tester,
+  ) async {
     final controller = buildPersonalNoteEditorController(
       initialContent: 'שלום',
       initialFormat: PersonalNoteContentFormat.plain,
@@ -97,17 +98,18 @@ void main() {
     );
   });
 
-  testWidgets('כפתורי הגדלה/הקטנה משנים את גודל הכתב של הטקסט הנבחר',
-      (tester) async {
+  testWidgets('כפתורי הגדלה/הקטנה משנים את גודל הכתב של הטקסט הנבחר', (
+    tester,
+  ) async {
     final controller = buildPersonalNoteEditorController(
       initialContent: 'שלום',
       initialFormat: PersonalNoteContentFormat.plain,
     );
 
     void selectAll() => controller.quillController.updateSelection(
-          const TextSelection(baseOffset: 0, extentOffset: 4),
-          quill.ChangeSource.local,
-        );
+      const TextSelection(baseOffset: 0, extentOffset: 4),
+      quill.ChangeSource.local,
+    );
 
     selectAll();
 
@@ -143,9 +145,9 @@ void main() {
     );
 
     void selectAll() => controller.quillController.updateSelection(
-          const TextSelection(baseOffset: 0, extentOffset: 4),
-          quill.ChangeSource.local,
-        );
+      const TextSelection(baseOffset: 0, extentOffset: 4),
+      quill.ChangeSource.local,
+    );
 
     selectAll();
 
@@ -203,14 +205,20 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(focusNode.hasFocus, isTrue,
-        reason: 'autofocus אמור היה לתפוס פוקוס בהתחלה');
+    expect(
+      focusNode.hasFocus,
+      isTrue,
+      reason: 'autofocus אמור היה לתפוס פוקוס בהתחלה',
+    );
 
     await tester.tap(find.byIcon(FluentIcons.text_bold_24_regular));
     await tester.pump();
 
-    expect(focusNode.hasFocus, isTrue,
-        reason: 'לחיצה על הטולבר חייבת להשאיר את הפוקוס על העורך');
+    expect(
+      focusNode.hasFocus,
+      isTrue,
+      reason: 'לחיצה על הטולבר חייבת להשאיר את הפוקוס על העורך',
+    );
   });
 
   test('QuillController מוגדר עם enableExternalRichPaste=false', () {
@@ -264,9 +272,11 @@ void main() {
 }
 
 double? _deltaSizeValue(PersonalNoteEditorController controller) {
-  final operations = jsonDecode(
-    jsonEncode(controller.quillController.document.toDelta().toJson()),
-  ) as List<dynamic>;
+  final operations =
+      jsonDecode(
+            jsonEncode(controller.quillController.document.toDelta().toJson()),
+          )
+          as List<dynamic>;
 
   for (final operation in operations) {
     final attributes = (operation as Map<String, dynamic>)['attributes'];
@@ -283,9 +293,11 @@ bool _deltaHasAttribute(
   PersonalNoteEditorController controller,
   quill.Attribute attribute,
 ) {
-  final operations = jsonDecode(
-    jsonEncode(controller.quillController.document.toDelta().toJson()),
-  ) as List<dynamic>;
+  final operations =
+      jsonDecode(
+            jsonEncode(controller.quillController.document.toDelta().toJson()),
+          )
+          as List<dynamic>;
 
   for (final operation in operations) {
     final attributes = (operation as Map<String, dynamic>)['attributes'];

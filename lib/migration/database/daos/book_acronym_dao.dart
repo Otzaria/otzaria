@@ -80,8 +80,10 @@ class BookAcronymDao {
   }
 
   /// Searches for books by acronym term with LIKE pattern
-  Future<List<int>> searchBooksByAcronym(String searchTerm,
-      {int? limit}) async {
+  Future<List<int>> searchBooksByAcronym(
+    String searchTerm, {
+    int? limit,
+  }) async {
     return await getBookIdsByTermLike('%$searchTerm%', limit: limit);
   }
 }

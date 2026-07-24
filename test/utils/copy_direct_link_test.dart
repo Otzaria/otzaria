@@ -23,11 +23,17 @@ void main() {
     test('Property 1: פורמט קישור ספר — 200 ערכים', () {
       for (int bookId = 1; bookId <= 200; bookId++) {
         final link = buildBookLink(bookId);
-        expect(link, equals('otzaria://open/book/$bookId'),
-            reason: 'bookId=$bookId');
+        expect(
+          link,
+          equals('otzaria://open/book/$bookId'),
+          reason: 'bookId=$bookId',
+        );
         expect(link.contains('?'), isFalse, reason: 'bookId=$bookId');
-        expect(link.startsWith('otzaria://open/book/'), isTrue,
-            reason: 'bookId=$bookId');
+        expect(
+          link.startsWith('otzaria://open/book/'),
+          isTrue,
+          reason: 'bookId=$bookId',
+        );
       }
     });
   });
@@ -48,11 +54,17 @@ void main() {
     test('Property: פורמט קישור PDF — 200 ערכים, ללא ?', () {
       for (int bookId = 1; bookId <= 200; bookId++) {
         final link = buildPdfBookLink(bookId);
-        expect(link, equals('otzaria://open/pdf/$bookId'),
-            reason: 'bookId=$bookId');
+        expect(
+          link,
+          equals('otzaria://open/pdf/$bookId'),
+          reason: 'bookId=$bookId',
+        );
         expect(link.contains('?'), isFalse, reason: 'bookId=$bookId');
-        expect(link.startsWith('otzaria://open/pdf/'), isTrue,
-            reason: 'bookId=$bookId');
+        expect(
+          link.startsWith('otzaria://open/pdf/'),
+          isTrue,
+          reason: 'bookId=$bookId',
+        );
       }
     });
   });
@@ -64,7 +76,9 @@ void main() {
 
     test('מחזיר פורמט נכון עבור bookId=42, page=100', () {
       expect(
-          buildPdfPageLink(42, 100), equals('otzaria://open/pdf/42?index=100'));
+        buildPdfPageLink(42, 100),
+        equals('otzaria://open/pdf/42?index=100'),
+      );
     });
 
     test('edge case: page=0 מוחלף ב-1 (PDF הוא 1-based)', () {
@@ -80,8 +94,11 @@ void main() {
       for (int bookId = 1; bookId <= 50; bookId++) {
         for (int page = 1; page <= 100; page += 10) {
           final link = buildPdfPageLink(bookId, page);
-          expect(link, equals('otzaria://open/pdf/$bookId?index=$page'),
-              reason: 'bookId=$bookId, page=$page');
+          expect(
+            link,
+            equals('otzaria://open/pdf/$bookId?index=$page'),
+            reason: 'bookId=$bookId, page=$page',
+          );
         }
       }
     });
@@ -90,8 +107,11 @@ void main() {
       for (int bookId = 1; bookId <= 20; bookId++) {
         for (final badPage in [0, -1, -5, -100, -9999]) {
           final link = buildPdfPageLink(bookId, badPage);
-          expect(link, equals('otzaria://open/pdf/$bookId?index=1'),
-              reason: 'bookId=$bookId, page=$badPage');
+          expect(
+            link,
+            equals('otzaria://open/pdf/$bookId?index=1'),
+            reason: 'bookId=$bookId, page=$badPage',
+          );
         }
       }
     });
@@ -101,8 +121,11 @@ void main() {
         for (int page = -5; page <= 50; page += 5) {
           final link = buildPdfPageLink(bookId, page);
           final expectedPage = page < 1 ? 1 : page;
-          expect(link, equals('otzaria://open/pdf/$bookId?index=$expectedPage'),
-              reason: 'bookId=$bookId, page=$page');
+          expect(
+            link,
+            equals('otzaria://open/pdf/$bookId?index=$expectedPage'),
+            reason: 'bookId=$bookId, page=$page',
+          );
         }
       }
     });
@@ -114,14 +137,18 @@ void main() {
     });
 
     test('מחזיר פורמט נכון עבור bookId=42, index=100', () {
-      expect(buildSectionLink(42, 100),
-          equals('otzaria://open/book/42?index=100'));
+      expect(
+        buildSectionLink(42, 100),
+        equals('otzaria://open/book/42?index=100'),
+      );
     });
 
     test('edge case: index שלילי מוחלף ב-0', () {
       expect(buildSectionLink(1, -1), equals('otzaria://open/book/1?index=0'));
       expect(
-          buildSectionLink(5, -100), equals('otzaria://open/book/5?index=0'));
+        buildSectionLink(5, -100),
+        equals('otzaria://open/book/5?index=0'),
+      );
     });
 
     // Property 2: פורמט קישור מקטע — Validates: Requirements 1.6, 2.6, 3.2, 3.4
@@ -129,8 +156,11 @@ void main() {
       for (int bookId = 1; bookId <= 50; bookId++) {
         for (int index = 0; index <= 100; index += 10) {
           final link = buildSectionLink(bookId, index);
-          expect(link, equals('otzaria://open/book/$bookId?index=$index'),
-              reason: 'bookId=$bookId, index=$index');
+          expect(
+            link,
+            equals('otzaria://open/book/$bookId?index=$index'),
+            reason: 'bookId=$bookId, index=$index',
+          );
         }
       }
     });
@@ -139,8 +169,11 @@ void main() {
       for (int bookId = 1; bookId <= 20; bookId++) {
         for (final negIndex in [-1, -5, -100, -9999]) {
           final link = buildSectionLink(bookId, negIndex);
-          expect(link, equals('otzaria://open/book/$bookId?index=0'),
-              reason: 'bookId=$bookId, index=$negIndex');
+          expect(
+            link,
+            equals('otzaria://open/book/$bookId?index=0'),
+            reason: 'bookId=$bookId, index=$negIndex',
+          );
         }
       }
     });
@@ -151,8 +184,10 @@ void main() {
           final link = buildSectionLink(bookId, index);
           final expectedIndex = index < 0 ? 0 : index;
           expect(
-              link, equals('otzaria://open/book/$bookId?index=$expectedIndex'),
-              reason: 'bookId=$bookId, index=$index');
+            link,
+            equals('otzaria://open/book/$bookId?index=$expectedIndex'),
+            reason: 'bookId=$bookId, index=$index',
+          );
         }
       }
     });
@@ -164,20 +199,27 @@ void main() {
       for (int bookId = 1; bookId <= 100; bookId++) {
         for (int index = 0; index <= 100; index += 10) {
           final link = buildSectionMarkLink(bookId, index);
-          expect(link, equals('otzaria://open/book/$bookId?index=$index&mark'),
-              reason: 'bookId=$bookId, index=$index');
+          expect(
+            link,
+            equals('otzaria://open/book/$bookId?index=$index&mark'),
+            reason: 'bookId=$bookId, index=$index',
+          );
         }
       }
     });
 
     test('edge case: index=0', () {
-      expect(buildSectionMarkLink(1, 0),
-          equals('otzaria://open/book/1?index=0&mark'));
+      expect(
+        buildSectionMarkLink(1, 0),
+        equals('otzaria://open/book/1?index=0&mark'),
+      );
     });
 
     test('edge case: bookId=42, index=100', () {
-      expect(buildSectionMarkLink(42, 100),
-          equals('otzaria://open/book/42?index=100&mark'));
+      expect(
+        buildSectionMarkLink(42, 100),
+        equals('otzaria://open/book/42?index=100&mark'),
+      );
     });
 
     // Property 5: index שלילי ב-buildSectionMarkLink מוחלף ב-0 — Validates: Requirements 4.3 (edge-case)
@@ -185,8 +227,11 @@ void main() {
       for (int bookId = 1; bookId <= 20; bookId++) {
         for (final negIndex in [-1, -5, -100, -9999]) {
           final link = buildSectionMarkLink(bookId, negIndex);
-          expect(link, equals('otzaria://open/book/$bookId?index=0&mark'),
-              reason: 'bookId=$bookId, index=$negIndex');
+          expect(
+            link,
+            equals('otzaria://open/book/$bookId?index=0&mark'),
+            reason: 'bookId=$bookId, index=$negIndex',
+          );
         }
       }
     });
@@ -199,10 +244,16 @@ void main() {
         for (int index = 0; index <= 50; index += 5) {
           final link = buildTextMarkLink(bookId, index, 'בראשית');
           expect(link, isNotNull, reason: 'bookId=$bookId, index=$index');
-          expect(link!, contains('?index=$index&m='),
-              reason: 'bookId=$bookId, index=$index');
-          expect(link, contains('%D7%91'),
-              reason: 'ב מקודד — bookId=$bookId, index=$index');
+          expect(
+            link!,
+            contains('?index=$index&m='),
+            reason: 'bookId=$bookId, index=$index',
+          );
+          expect(
+            link,
+            contains('%D7%91'),
+            reason: 'ב מקודד — bookId=$bookId, index=$index',
+          );
         }
       }
     });
@@ -222,9 +273,12 @@ void main() {
     // Property 4: טקסט ריק מחזיר null — Validates: Requirements 5.5
     test('Property 4: טקסט ריק מחזיר null', () {
       for (final emptyText in ['', ' ', '   ', '\t', '\n', '\r\n']) {
-        expect(buildTextMarkLink(1, 0, emptyText), isNull,
-            reason:
-                'text="${emptyText.replaceAll('\n', '\\n').replaceAll('\t', '\\t')}"');
+        expect(
+          buildTextMarkLink(1, 0, emptyText),
+          isNull,
+          reason:
+              'text="${emptyText.replaceAll('\n', '\\n').replaceAll('\t', '\\t')}"',
+        );
       }
     });
 
@@ -234,8 +288,11 @@ void main() {
         for (final negIndex in [-1, -5, -100]) {
           final link = buildTextMarkLink(bookId, negIndex, 'טקסט');
           expect(link, isNotNull, reason: 'bookId=$bookId, index=$negIndex');
-          expect(link!, contains('?index=0&m='),
-              reason: 'bookId=$bookId, index=$negIndex');
+          expect(
+            link!,
+            contains('?index=0&m='),
+            reason: 'bookId=$bookId, index=$negIndex',
+          );
         }
       }
     });
@@ -290,8 +347,11 @@ void main() {
       );
       for (final entry in entries) {
         if (entry.link != null && entry.link!.contains('?')) {
-          expect(entry.link!, contains('index=$index'),
-              reason: 'label=${entry.label}');
+          expect(
+            entry.link!,
+            contains('index=$index'),
+            reason: 'label=${entry.label}',
+          );
         }
       }
     });

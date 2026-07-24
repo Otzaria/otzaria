@@ -95,14 +95,17 @@ Future<void> installMacUpdate({
   required String appBundlePath,
   required bool relaunchApp,
 }) async {
-  final scriptFile =
-      File(p.join(p.dirname(zipFile.path), 'otzaria-update.command'));
-  await scriptFile.writeAsString(buildMacUpdateScript(
-    zipPath: zipFile.absolute.path,
-    appBundlePath: appBundlePath,
-    appPid: pid,
-    relaunchApp: relaunchApp,
-  ));
+  final scriptFile = File(
+    p.join(p.dirname(zipFile.path), 'otzaria-update.command'),
+  );
+  await scriptFile.writeAsString(
+    buildMacUpdateScript(
+      zipPath: zipFile.absolute.path,
+      appBundlePath: appBundlePath,
+      appPid: pid,
+      relaunchApp: relaunchApp,
+    ),
+  );
   await Process.run('chmod', ['+x', scriptFile.path]);
 
   final result = await Process.run('open', [scriptFile.path]);

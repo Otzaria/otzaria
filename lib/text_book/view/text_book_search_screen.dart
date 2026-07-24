@@ -33,10 +33,10 @@ class _GroupedResultItem {
   final TextSearchResult? result;
   final int? resultListIndex;
   const _GroupedResultItem.header(this.header)
-      : result = null,
-        resultListIndex = null;
+    : result = null,
+      resultListIndex = null;
   const _GroupedResultItem.result(this.result, this.resultListIndex)
-      : header = null;
+    : header = null;
   bool get isHeader => header != null;
 }
 
@@ -56,7 +56,8 @@ class TextBookSearchView extends StatefulWidget {
   final Future<List<TextSearchResult>> Function(
     List<String> content,
     String query,
-  )? simpleSearchRunner;
+  )?
+  simpleSearchRunner;
 
   const TextBookSearchView({
     super.key,
@@ -159,7 +160,8 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
   void _updateForceSearchEngine() {
     final activeParameters = _activeSearchParameters;
-    _forceSearchEngine = _searchMode != SearchMode.exact ||
+    _forceSearchEngine =
+        _searchMode != SearchMode.exact ||
         _searchDistance > 0 ||
         activeParameters.searchOptions.isNotEmpty ||
         activeParameters.alternativeWords.isNotEmpty ||
@@ -178,15 +180,15 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   void _syncBlocSearchTextState() {
     final activeParameters = _activeSearchParameters;
     context.read<TextBookBloc>().add(
-          UpdateSearchText(
-            searchTextController.text,
-            searchOptions: activeParameters.searchOptions,
-            alternativeWords: activeParameters.alternativeWords,
-            spacingValues: activeParameters.customSpacing,
-            searchMode: _searchMode,
-            searchDistance: _searchDistance,
-          ),
-        );
+      UpdateSearchText(
+        searchTextController.text,
+        searchOptions: activeParameters.searchOptions,
+        alternativeWords: activeParameters.alternativeWords,
+        spacingValues: activeParameters.customSpacing,
+        searchMode: _searchMode,
+        searchDistance: _searchDistance,
+      ),
+    );
   }
 
   @override
@@ -212,15 +214,18 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     final queryChanged = widget.initialQuery != oldWidget.initialQuery;
     final needsControllerSync =
         widget.initialQuery != searchTextController.text;
-    final normalizedSearchMode =
-        _normalizedSearchMode(widget.initialSearchMode);
+    final normalizedSearchMode = _normalizedSearchMode(
+      widget.initialSearchMode,
+    );
     final searchConfigurationChanged =
         !_searchOptionsEqual(_searchOptions, widget.initialSearchOptions) ||
-            !_alternativeWordsEqual(
-                _alternativeWords, widget.initialAlternativeWords) ||
-            !mapEquals(_spacingValues, widget.initialSpacingValues) ||
-            _searchMode != normalizedSearchMode ||
-            _searchDistance != widget.initialSearchDistance;
+        !_alternativeWordsEqual(
+          _alternativeWords,
+          widget.initialAlternativeWords,
+        ) ||
+        !mapEquals(_spacingValues, widget.initialSpacingValues) ||
+        _searchMode != normalizedSearchMode ||
+        _searchDistance != widget.initialSearchDistance;
 
     if (queryChanged && needsControllerSync) {
       syncSearchControllerQuery(searchTextController, widget.initialQuery);
@@ -439,9 +444,11 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     if (lastSelectedLine != null) {
       // התאמה מלאה (שורה + היסט הופעה), ואם לא נמצאה — לפי שורה בלבד
       // (השאילתה השתנתה וההיסטים זזו, או תוצאות מנוע ללא היסט).
-      var preservedIdx = results.indexWhere((r) =>
-          r.index == lastSelectedLine &&
-          r.matchOffset == _selectedResultOffset);
+      var preservedIdx = results.indexWhere(
+        (r) =>
+            r.index == lastSelectedLine &&
+            r.matchOffset == _selectedResultOffset,
+      );
       if (preservedIdx == -1) {
         preservedIdx = results.indexWhere((r) => r.index == lastSelectedLine);
       }
@@ -475,10 +482,12 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       searchResults = results;
       _isSearching = false;
       _selectedSearchResultIndex = selectedIndex;
-      _selectedResultLine =
-          selectedIndex != null ? results[selectedIndex].index : null;
-      _selectedResultOffset =
-          selectedIndex != null ? results[selectedIndex].matchOffset : null;
+      _selectedResultLine = selectedIndex != null
+          ? results[selectedIndex].index
+          : null;
+      _selectedResultOffset = selectedIndex != null
+          ? results[selectedIndex].matchOffset
+          : null;
     });
 
     if (scrollIndex != null) {
@@ -596,12 +605,14 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     );
 
     if (closePaneOnAndroid && Platform.isAndroid) {
-      unawaited(closePaneAfterNavigation(
-        navigation: navigation,
-        closePane: () {
-          if (mounted) widget.closeLeftPaneCallback();
-        },
-      ));
+      unawaited(
+        closePaneAfterNavigation(
+          navigation: navigation,
+          closePane: () {
+            if (mounted) widget.closeLeftPaneCallback();
+          },
+        ),
+      );
     } else {
       unawaited(navigation);
     }
@@ -614,8 +625,10 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
     final currentIndex =
         _selectedSearchResultIndex ?? (offset >= 0 ? -1 : searchResults.length);
-    final nextIndex =
-        (currentIndex + offset).clamp(0, searchResults.length - 1);
+    final nextIndex = (currentIndex + offset).clamp(
+      0,
+      searchResults.length - 1,
+    );
     if (nextIndex == currentIndex) {
       return;
     }
@@ -643,7 +656,8 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
   List<TextSearchResult> _convertSearchResults(List<SearchResult> results) {
     final state = context.read<TextBookBloc>().state;
-    final int? contentLength = _content?.length ??
+    final int? contentLength =
+        _content?.length ??
         (state is TextBookLoaded ? state.content.length : null);
     final List<TextSearchResult> converted = [];
     for (final result in results) {
@@ -651,12 +665,14 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         final lineNumber = result.segment.toInt();
         if (lineNumber >= 0 &&
             (contentLength == null || lineNumber < contentLength)) {
-          converted.add(TextSearchResult(
-            index: lineNumber,
-            snippet: result.text,
-            address: result.reference,
-            query: searchTextController.text,
-          ));
+          converted.add(
+            TextSearchResult(
+              index: lineNumber,
+              snippet: result.text,
+              address: result.reference,
+              query: searchTextController.text,
+            ),
+          );
         }
       } catch (e) {
         debugPrint('Error converting result: $e');
@@ -678,9 +694,11 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     // יצירת רשימה מקובצת - כותרת מופיעה רק כשהיא משתנה
     final List<_GroupedResultItem> items = [];
     String? lastAddress;
-    for (var resultListIndex = 0;
-        resultListIndex < searchResults.length;
-        resultListIndex++) {
+    for (
+      var resultListIndex = 0;
+      resultListIndex < searchResults.length;
+      resultListIndex++
+    ) {
       final r = searchResults[resultListIndex];
       if (lastAddress != r.address) {
         items.add(_GroupedResultItem.header(r.address));
@@ -692,195 +710,197 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     return SearchPaneBase(
       searchController: searchTextController,
       focusNode: widget.focusNode,
-      progressWidget:
-          _isSearching ? const LinearProgressIndicator(minHeight: 4) : null,
-      resultToolbar:
-          searchResults.isNotEmpty ? _buildSearchResultNavigationBar() : null,
+      progressWidget: _isSearching
+          ? const LinearProgressIndicator(minHeight: 4)
+          : null,
+      resultToolbar: searchResults.isNotEmpty
+          ? _buildSearchResultNavigationBar()
+          : null,
       resultCountString: searchResults.isNotEmpty
           ? 'נמצאו ${searchResults.length} תוצאות'
           : null,
       // כשתבנית ההדגשה מבוססת-האינדקס מגיעה (אסינכרונית), ה-snippets מחושבים
       // מחדש כדי לכלול את הווריאנטים שה-fallback החמיץ.
       resultsWidget: ListenableBuilder(
-          listenable: utils.highlightPatternRevision,
-          builder: (context, _) => ScrollablePositionedList.builder(
-                itemScrollController: _resultsScrollController,
-                itemPositionsListener: _resultsPositionsListener,
-                padding: const EdgeInsets.all(16),
-                itemCount: items.length,
-                itemBuilder: (context, index) {
-                  final item = items[index];
+        listenable: utils.highlightPatternRevision,
+        builder: (context, _) => ScrollablePositionedList.builder(
+          itemScrollController: _resultsScrollController,
+          itemPositionsListener: _resultsPositionsListener,
+          padding: const EdgeInsets.all(16),
+          itemCount: items.length,
+          itemBuilder: (context, index) {
+            final item = items[index];
 
-                  // אם זו כותרת קבוצה
-                  if (item.isHeader) {
-                    return BlocBuilder<SettingsBloc, SettingsState>(
-                      builder: (context, settingsState) {
-                        String text = item.header!;
-                        if (settingsState.replaceHolyNames) {
-                          text = utils.replaceHolyNames(text);
-                        }
-                        return Padding(
-                          padding: const EdgeInsets.only(
-                            top: 8.0,
-                            bottom: 8.0,
-                            right: 4.0,
-                            left: 4.0,
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                FluentIcons.text_align_right_24_regular,
-                                size: 18,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  text,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    color:
-                                        Theme.of(context).colorScheme.primary,
-                                  ),
-                                  textAlign: TextAlign.right,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    );
+            // אם זו כותרת קבוצה
+            if (item.isHeader) {
+              return BlocBuilder<SettingsBloc, SettingsState>(
+                builder: (context, settingsState) {
+                  String text = item.header!;
+                  if (settingsState.replaceHolyNames) {
+                    text = utils.replaceHolyNames(text);
                   }
+                  return Padding(
+                    padding: const EdgeInsets.only(
+                      top: 8.0,
+                      bottom: 8.0,
+                      right: 4.0,
+                      left: 4.0,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          FluentIcons.text_align_right_24_regular,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            text,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            textAlign: TextAlign.right,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            }
 
-                  // אם זו תוצאה רגילה
-                  final result = item.result!;
-                  final resultListIndex = item.resultListIndex!;
-                  return BlocBuilder<SettingsBloc, SettingsState>(
-                    builder: (context, settingsState) {
-                      String snippet = result.snippet;
-                      if (settingsState.replaceHolyNames) {
-                        snippet = utils.replaceHolyNames(snippet);
-                      }
+            // אם זו תוצאה רגילה
+            final result = item.result!;
+            final resultListIndex = item.resultListIndex!;
+            return BlocBuilder<SettingsBloc, SettingsState>(
+              builder: (context, settingsState) {
+                String snippet = result.snippet;
+                if (settingsState.replaceHolyNames) {
+                  snippet = utils.replaceHolyNames(snippet);
+                }
 
-                      final defaultStyle = TextStyle(
-                        fontSize: 16,
-                        fontFamily: settingsState.fontFamily,
-                        color: Theme.of(context).colorScheme.onSurface,
-                        height: 1.5,
-                      );
-                      final highlightStyle = TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                        color: Theme.of(context).colorScheme.error,
-                      );
+                final defaultStyle = TextStyle(
+                  fontSize: 16,
+                  fontFamily: settingsState.fontFamily,
+                  color: Theme.of(context).colorScheme.onSurface,
+                  height: 1.5,
+                );
+                final highlightStyle = TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: Theme.of(context).colorScheme.error,
+                );
 
-                      // בחיפוש פשוט התוצאה היא טקסט מקומי — חותכים קטע ומדגישים את
-                      // השאילתה הליטרלית. בחיפוש מתקדם/מקורב התוצאה מגיעה מהמנוע עם
-                      // הדגשות מוטמעות ב-HTML.
-                      final List<InlineSpan> highlightedSnippet;
-                      if (_isSimpleSearch) {
-                        final excerpt = SnippetBuilder.buildExcerptText(
-                          fullText: snippet,
-                          query: result.query,
-                          maxChars: _maxResultSnippetChars,
-                        );
-                        highlightedSnippet = SnippetBuilder.highlightLiteral(
-                          plainText: excerpt,
-                          query: result.query,
+                // בחיפוש פשוט התוצאה היא טקסט מקומי — חותכים קטע ומדגישים את
+                // השאילתה הליטרלית. בחיפוש מתקדם/מקורב התוצאה מגיעה מהמנוע עם
+                // הדגשות מוטמעות ב-HTML.
+                final List<InlineSpan> highlightedSnippet;
+                if (_isSimpleSearch) {
+                  final excerpt = SnippetBuilder.buildExcerptText(
+                    fullText: snippet,
+                    query: result.query,
+                    maxChars: _maxResultSnippetChars,
+                  );
+                  highlightedSnippet = SnippetBuilder.highlightLiteral(
+                    plainText: excerpt,
+                    query: result.query,
+                    defaultStyle: defaultStyle,
+                    highlightStyle: highlightStyle,
+                  );
+                } else {
+                  // המנוע מדגיש את הטוקן השלם; מדגישים מחדש בצד האפליקציה את
+                  // החלק המותאם בלבד, בעקביות עם הדגשת פאנל הקריאה. אם לא נמצאה
+                  // התאמה (וריאנט שהתבנית לא מכסה) — נשארים בהדגשת המנוע.
+                  final plain = SnippetBuilder.htmlToPlainText(snippet);
+                  final ranges = utils.computeHighlightRanges(
+                    plain,
+                    result.query,
+                    searchOptions: _searchOptions,
+                    alternativeWords: _alternativeWords,
+                    spacingValues: _spacingValues,
+                    isFuzzy: _searchMode == SearchMode.fuzzy,
+                    searchDistance: _searchDistance,
+                  );
+                  highlightedSnippet = ranges.isEmpty
+                      ? SnippetBuilder.fromHighlightedHtml(
+                          html: snippet,
+                          defaultStyle: defaultStyle,
+                          highlightStyle: highlightStyle,
+                        )
+                      : SnippetBuilder.spansFromRanges(
+                          plainText: plain,
+                          ranges: ranges,
                           defaultStyle: defaultStyle,
                           highlightStyle: highlightStyle,
                         );
-                      } else {
-                        // המנוע מדגיש את הטוקן השלם; מדגישים מחדש בצד האפליקציה את
-                        // החלק המותאם בלבד, בעקביות עם הדגשת פאנל הקריאה. אם לא נמצאה
-                        // התאמה (וריאנט שהתבנית לא מכסה) — נשארים בהדגשת המנוע.
-                        final plain = SnippetBuilder.htmlToPlainText(snippet);
-                        final ranges = utils.computeHighlightRanges(
-                          plain,
-                          result.query,
-                          searchOptions: _searchOptions,
-                          alternativeWords: _alternativeWords,
-                          spacingValues: _spacingValues,
-                          isFuzzy: _searchMode == SearchMode.fuzzy,
-                          searchDistance: _searchDistance,
-                        );
-                        highlightedSnippet = ranges.isEmpty
-                            ? SnippetBuilder.fromHighlightedHtml(
-                                html: snippet,
-                                defaultStyle: defaultStyle,
-                                highlightStyle: highlightStyle,
-                              )
-                            : SnippetBuilder.spansFromRanges(
-                                plainText: plain,
-                                ranges: ranges,
-                                defaultStyle: defaultStyle,
-                                highlightStyle: highlightStyle,
-                              );
-                      }
+                }
 
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(
-                          color: _selectedSearchResultIndex == resultListIndex
-                              ? Theme.of(context).colorScheme.secondaryContainer
-                              : null,
-                          border: Border.all(
-                            color: _selectedSearchResultIndex == resultListIndex
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).colorScheme.outlineVariant,
-                            width: 1,
-                          ),
-                          borderRadius: AppTokens.borderRadiusAll,
-                        ),
-                        child: InkWell(
-                          onTap: () {
-                            _navigateToSearchResult(
-                              resultListIndex,
-                              closePaneOnAndroid: true,
-                            );
-                          },
-                          borderRadius: AppTokens.borderRadiusAll,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            child: RichText(
-                              textAlign: TextAlign.justify,
-                              text: TextSpan(
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontFamily: settingsState.fontFamily,
-                                  color:
-                                      Theme.of(context).colorScheme.onSurface,
-                                  height: 1.5,
-                                ),
-                                children: highlightedSnippet,
-                              ),
-                            ),
-                          ),
-                        ),
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: _selectedSearchResultIndex == resultListIndex
+                        ? Theme.of(context).colorScheme.secondaryContainer
+                        : null,
+                    border: Border.all(
+                      color: _selectedSearchResultIndex == resultListIndex
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.outlineVariant,
+                      width: 1,
+                    ),
+                    borderRadius: AppTokens.borderRadiusAll,
+                  ),
+                  child: InkWell(
+                    onTap: () {
+                      _navigateToSearchResult(
+                        resultListIndex,
+                        closePaneOnAndroid: true,
                       );
                     },
-                  );
-                },
-              )),
-      isNoResults: searchResults.isEmpty &&
+                    borderRadius: AppTokens.borderRadiusAll,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      child: RichText(
+                        textAlign: TextAlign.justify,
+                        text: TextSpan(
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontFamily: settingsState.fontFamily,
+                            color: Theme.of(context).colorScheme.onSurface,
+                            height: 1.5,
+                          ),
+                          children: highlightedSnippet,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ),
+      isNoResults:
+          searchResults.isEmpty &&
           searchTextController.text.isNotEmpty &&
           !_isSearching,
       onSearchTextChanged: (value) {
         final activeParameters = _activeSearchParameters;
         context.read<TextBookBloc>().add(
-              UpdateSearchText(
-                value,
-                searchOptions: activeParameters.searchOptions,
-                alternativeWords: activeParameters.alternativeWords,
-                spacingValues: activeParameters.customSpacing,
-                searchMode: _searchMode,
-                searchDistance: _searchDistance,
-              ),
-            );
+          UpdateSearchText(
+            value,
+            searchOptions: activeParameters.searchOptions,
+            alternativeWords: activeParameters.alternativeWords,
+            spacingValues: activeParameters.customSpacing,
+            searchMode: _searchMode,
+            searchDistance: _searchDistance,
+          ),
+        );
         _searchTextUpdated();
       },
       resetSearchCallback: () {
@@ -897,15 +917,15 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           _searchDistance = 0;
         });
         context.read<TextBookBloc>().add(
-              const UpdateSearchText(
-                '',
-                searchOptions: {},
-                alternativeWords: {},
-                spacingValues: {},
-                searchMode: SearchMode.exact,
-                searchDistance: 0,
-              ),
-            );
+          const UpdateSearchText(
+            '',
+            searchOptions: {},
+            alternativeWords: {},
+            spacingValues: {},
+            searchMode: SearchMode.exact,
+            searchDistance: 0,
+          ),
+        );
       },
       additionalActions: const [],
       hintText: 'חפש כאן...',
@@ -954,25 +974,25 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
         final normalizedParameters =
             SearchQueryBuilder.normalizeParametersForMode(
-          result.searchMode,
-          customSpacing: result.spacingValues,
-          alternativeWords: result.alternativeWords,
-          searchOptions: result.searchOptions,
-        );
+              result.searchMode,
+              customSpacing: result.spacingValues,
+              alternativeWords: result.alternativeWords,
+              searchOptions: result.searchOptions,
+            );
         applyInBookSearchQuery(
           controller: searchTextController,
           query: result.query,
           onQueryChanged: (value) {
             context.read<TextBookBloc>().add(
-                  UpdateSearchText(
-                    value,
-                    searchOptions: normalizedParameters.searchOptions,
-                    alternativeWords: normalizedParameters.alternativeWords,
-                    spacingValues: normalizedParameters.customSpacing,
-                    searchMode: result.searchMode,
-                    searchDistance: result.distance,
-                  ),
-                );
+              UpdateSearchText(
+                value,
+                searchOptions: normalizedParameters.searchOptions,
+                alternativeWords: normalizedParameters.alternativeWords,
+                spacingValues: normalizedParameters.customSpacing,
+                searchMode: result.searchMode,
+                searchDistance: result.distance,
+              ),
+            );
           },
         );
         setState(() {
@@ -991,7 +1011,8 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   Widget _buildSearchResultNavigationBar() {
     final isAtFirstResult =
         (_selectedSearchResultIndex ?? 0) <= 0 || searchResults.isEmpty;
-    final isAtLastResult = searchResults.isEmpty ||
+    final isAtLastResult =
+        searchResults.isEmpty ||
         (_selectedSearchResultIndex ?? 0) >= searchResults.length - 1;
 
     return Padding(
@@ -1043,15 +1064,17 @@ class TextBookSearchViewState extends State<TextBookSearchView>
                 : colorScheme.surfaceContainerHigh,
             borderRadius: AppTokens.borderRadiusAll,
             border: Border.all(
-              color:
-                  isEnabled ? colorScheme.primary : colorScheme.outlineVariant,
+              color: isEnabled
+                  ? colorScheme.primary
+                  : colorScheme.outlineVariant,
             ),
           ),
           child: Icon(
             icon,
             size: 16,
-            color:
-                isEnabled ? colorScheme.primary : colorScheme.onSurfaceVariant,
+            color: isEnabled
+                ? colorScheme.primary
+                : colorScheme.onSurfaceVariant,
           ),
         ),
       ),

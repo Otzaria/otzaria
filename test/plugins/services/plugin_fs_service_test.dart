@@ -60,7 +60,9 @@ void main() {
     test('זורק כשקובץ ה-ZIP אינו קיים', () async {
       await expectLater(
         service.extractZip(
-            p.join(tempDir.path, 'missing.zip'), p.join(tempDir.path, 'out')),
+          p.join(tempDir.path, 'missing.zip'),
+          p.join(tempDir.path, 'out'),
+        ),
         throwsA(isA<Exception>()),
       );
     });
@@ -107,32 +109,37 @@ void main() {
       expect(await safe.exists(), isTrue);
     });
 
-    test('חוסם יצירת תיקיות וכתיבה דרך symlink-תיקייה קיים שמצביע מחוץ ליעד',
-        () async {
-      final destFolder = p.join(tempDir.path, 'out');
-      Directory(destFolder).createSync(recursive: true);
-      final outside = Directory(p.join(tempDir.path, 'outside'))..createSync();
+    test(
+      'חוסם יצירת תיקיות וכתיבה דרך symlink-תיקייה קיים שמצביע מחוץ ליעד',
+      () async {
+        final destFolder = p.join(tempDir.path, 'out');
+        Directory(destFolder).createSync(recursive: true);
+        final outside = Directory(p.join(tempDir.path, 'outside'))
+          ..createSync();
 
-      // יצירת symlink-תיקייה דורשת הרשאות בחלק מהפלטפורמות (Windows ללא
-      // Developer Mode) — אם נכשלה, אין מה לבדוק.
-      try {
-        Link(p.join(destFolder, 'linkdir')).createSync(outside.path);
-      } on FileSystemException {
-        markTestSkipped('יצירת symlink אינה נתמכת בסביבה זו');
-        return;
-      }
+        // יצירת symlink-תיקייה דורשת הרשאות בחלק מהפלטפורמות (Windows ללא
+        // Developer Mode) — אם נכשלה, אין מה לבדוק.
+        try {
+          Link(p.join(destFolder, 'linkdir')).createSync(outside.path);
+        } on FileSystemException {
+          markTestSkipped('יצירת symlink אינה נתמכת בסביבה זו');
+          return;
+        }
 
-      final zipPath = buildZip(p.join(tempDir.path, 'evil.zip'), {
-        'linkdir/sub/evil.txt': 'בריחה דרך symlink',
-      });
+        final zipPath = buildZip(p.join(tempDir.path, 'evil.zip'), {
+          'linkdir/sub/evil.txt': 'בריחה דרך symlink',
+        });
 
-      await service.extractZip(zipPath, destFolder);
+        await service.extractZip(zipPath, destFolder);
 
-      // לא הקובץ ולא תיקיית האב שלו נוצרו מחוץ ליעד.
-      expect(
-          File(p.join(outside.path, 'sub', 'evil.txt')).existsSync(), isFalse);
-      expect(Directory(p.join(outside.path, 'sub')).existsSync(), isFalse);
-    });
+        // לא הקובץ ולא תיקיית האב שלו נוצרו מחוץ ליעד.
+        expect(
+          File(p.join(outside.path, 'sub', 'evil.txt')).existsSync(),
+          isFalse,
+        );
+        expect(Directory(p.join(outside.path, 'sub')).existsSync(), isFalse);
+      },
+    );
   });
 
   group('PluginFsService.deleteFile', () {

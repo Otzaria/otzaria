@@ -56,8 +56,9 @@ class TrackpadAxisLock {
       if (delta.dx == 0 && delta.dy == 0) {
         return event;
       }
-      _lockedAxis =
-          delta.dy.abs() >= delta.dx.abs() ? Axis.vertical : Axis.horizontal;
+      _lockedAxis = delta.dy.abs() >= delta.dx.abs()
+          ? Axis.vertical
+          : Axis.horizontal;
     }
 
     final Offset locked = _lockedAxis == Axis.vertical

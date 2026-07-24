@@ -193,9 +193,9 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                   ],
                   onSelected: (value) {
                     if (value != null) {
-                      context
-                          .read<CalendarCubit>()
-                          .changeCalendarDayTransition(value);
+                      context.read<CalendarCubit>().changeCalendarDayTransition(
+                        value,
+                      );
                     }
                   },
                 ),
@@ -266,9 +266,9 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                   value: state.googleCalendarEnabled,
                   enabled: !isOfflineMode,
                   onChanged: (value) {
-                    context
-                        .read<CalendarCubit>()
-                        .setGoogleCalendarEnabled(value);
+                    context.read<CalendarCubit>().setGoogleCalendarEnabled(
+                      value,
+                    );
                   },
                 ),
 
@@ -288,36 +288,42 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                               isLoading: state.googleCalendarSyncInProgress,
                               onPressed: () async {
                                 final cubit = context.read<CalendarCubit>();
-                                final success =
-                                    await cubit.connectGoogleCalendar();
+                                final success = await cubit
+                                    .connectGoogleCalendar();
                                 if (!context.mounted) return;
                                 if (success) {
-                                  final calendars =
-                                      await cubit.getAvailableCalendars();
+                                  final calendars = await cubit
+                                      .getAvailableCalendars();
                                   if (!context.mounted) return;
                                   final selected =
                                       await _showCalendarMultiSelectionDialog<
-                                          String>(
-                                    context: context,
-                                    title: 'בחר לוחות שנה',
-                                    items: calendars
-                                        .map((cal) =>
-                                            _CalendarMultiSelectionItem<String>(
-                                              label: cal.name,
-                                              value: cal.id,
-                                              subtitle: cal.isPrimary
-                                                  ? 'לוח שנה ראשי'
-                                                  : null,
-                                            ))
-                                        .toList(),
-                                    initialSelectedValues:
-                                        state.googleCalendarSelectedIds,
-                                    searchHint: 'חפש לוח שנה...',
-                                    emptyMessage: 'לא נמצאו לוחות שנה',
-                                  );
+                                        String
+                                      >(
+                                        context: context,
+                                        title: 'בחר לוחות שנה',
+                                        items: calendars
+                                            .map(
+                                              (cal) =>
+                                                  _CalendarMultiSelectionItem<
+                                                    String
+                                                  >(
+                                                    label: cal.name,
+                                                    value: cal.id,
+                                                    subtitle: cal.isPrimary
+                                                        ? 'לוח שנה ראשי'
+                                                        : null,
+                                                  ),
+                                            )
+                                            .toList(),
+                                        initialSelectedValues:
+                                            state.googleCalendarSelectedIds,
+                                        searchHint: 'חפש לוח שנה...',
+                                        emptyMessage: 'לא נמצאו לוחות שנה',
+                                      );
                                   if (selected != null && selected.isNotEmpty) {
                                     cubit.updateGoogleCalendarSelectedIds(
-                                        selected);
+                                      selected,
+                                    );
                                   }
                                 }
                               },
@@ -334,41 +340,48 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                                   icon: FluentIcons.calendar_24_regular,
                                   onPressed: () async {
                                     final cubit = context.read<CalendarCubit>();
-                                    final calendars =
-                                        await cubit.getAvailableCalendars();
+                                    final calendars = await cubit
+                                        .getAvailableCalendars();
                                     if (!context.mounted) return;
                                     if (calendars.isEmpty) {
                                       UiSnack.show(
-                                          SettingsMessages.noCalendarsFound);
+                                        SettingsMessages.noCalendarsFound,
+                                      );
                                       return;
                                     }
                                     final selected =
                                         await _showCalendarMultiSelectionDialog<
-                                            String>(
-                                      context: context,
-                                      title: 'בחר לוחות שנה',
-                                      items: calendars
-                                          .map((cal) =>
-                                              _CalendarMultiSelectionItem<
-                                                  String>(
-                                                label: cal.name,
-                                                value: cal.id,
-                                                subtitle: cal.isPrimary
-                                                    ? 'לוח שנה ראשי'
-                                                    : null,
-                                              ))
-                                          .toList(),
-                                      initialSelectedValues:
-                                          state.googleCalendarSelectedIds,
-                                      searchHint: 'חפש לוח שנה...',
-                                      emptyMessage: 'לא נמצאו לוחות שנה',
-                                    );
+                                          String
+                                        >(
+                                          context: context,
+                                          title: 'בחר לוחות שנה',
+                                          items: calendars
+                                              .map(
+                                                (cal) =>
+                                                    _CalendarMultiSelectionItem<
+                                                      String
+                                                    >(
+                                                      label: cal.name,
+                                                      value: cal.id,
+                                                      subtitle: cal.isPrimary
+                                                          ? 'לוח שנה ראשי'
+                                                          : null,
+                                                    ),
+                                              )
+                                              .toList(),
+                                          initialSelectedValues:
+                                              state.googleCalendarSelectedIds,
+                                          searchHint: 'חפש לוח שנה...',
+                                          emptyMessage: 'לא נמצאו לוחות שנה',
+                                        );
                                     if (selected != null &&
                                         selected.isNotEmpty) {
                                       cubit.updateGoogleCalendarSelectedIds(
-                                          selected);
+                                        selected,
+                                      );
                                       cubit.syncGoogleCalendar(
-                                          interactive: false);
+                                        interactive: false,
+                                      );
                                     }
                                   },
                                 ),
@@ -401,9 +414,9 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                               'סנכרון אחרון: ${state.googleCalendarLastSync}',
                               style: TextStyle(
                                 fontSize: AppTokens.fontSM,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ),
@@ -535,40 +548,39 @@ class _CalendarMultiSelectionDialogState<T>
                       ),
                     )
                   : filteredItems.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'לא נמצאו תוצאות',
-                          ),
-                        )
-                      : ListView.builder(
-                          itemCount: filteredItems.length,
-                          itemBuilder: (context, index) {
-                            final item = filteredItems[index];
-                            final isSelected =
-                                selectedValues.contains(item.value);
+                  ? const Center(
+                      child: Text(
+                        'לא נמצאו תוצאות',
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: filteredItems.length,
+                      itemBuilder: (context, index) {
+                        final item = filteredItems[index];
+                        final isSelected = selectedValues.contains(item.value);
 
-                            return CheckboxListTile(
-                              title: Text(
-                                item.label,
-                              ),
-                              subtitle: item.subtitle != null
-                                  ? Text(
-                                      item.subtitle!,
-                                    )
-                                  : null,
-                              value: isSelected,
-                              onChanged: (value) {
-                                setState(() {
-                                  if (value == true) {
-                                    selectedValues.add(item.value);
-                                  } else {
-                                    selectedValues.remove(item.value);
-                                  }
-                                });
-                              },
-                            );
+                        return CheckboxListTile(
+                          title: Text(
+                            item.label,
+                          ),
+                          subtitle: item.subtitle != null
+                              ? Text(
+                                  item.subtitle!,
+                                )
+                              : null,
+                          value: isSelected,
+                          onChanged: (value) {
+                            setState(() {
+                              if (value == true) {
+                                selectedValues.add(item.value);
+                              } else {
+                                selectedValues.remove(item.value);
+                              }
+                            });
                           },
-                        ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),

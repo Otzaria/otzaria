@@ -4,8 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/widgets/settings_card.dart';
 
 void main() {
-  testWidgets('SwitchSettingsTile toggles when tapping the row',
-      (tester) async {
+  testWidgets('SwitchSettingsTile toggles when tapping the row', (
+    tester,
+  ) async {
     bool currentValue = false;
 
     await tester.pumpWidget(
@@ -32,8 +33,9 @@ void main() {
     expect(currentValue, isTrue);
   });
 
-  testWidgets('SwitchSettingsTile toggles with Space and Enter while focused',
-      (tester) async {
+  testWidgets('SwitchSettingsTile toggles with Space and Enter while focused', (
+    tester,
+  ) async {
     bool currentValue = false;
 
     await tester.pumpWidget(

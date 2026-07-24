@@ -53,50 +53,53 @@ void main() {
 
     test('בוחר "תורה" ולא "תנ"ך"', () {
       expect(
-        PageShapeSettingsManager.getParentCategory('אוצריא, תנ"ך, תורה, בראשית'),
+        PageShapeSettingsManager.getParentCategory(
+          'אוצריא, תנ"ך, תורה, בראשית',
+        ),
         'תורה',
       );
     });
   });
 
   test(
-      'רגרסיה: שמירת מפרש לקטגוריה של ספר אחד לא מדליפה לספר אחר תחת קטגוריית-אב משותפת',
-      () async {
-    // שני ספרי תנ"ך שונים החולקים קטגוריית-אב כללית ("אוצריא, תנ"ך") אך
-    // נמצאים תחת ספר-מסגרת שונה ("תורה" מול "נביאים").
-    const bereshitCategories = 'אוצריא, תנ"ך, תורה, בראשית';
-    const yeshayahuCategories = 'אוצריא, תנ"ך, נביאים, ישעיהו';
+    'רגרסיה: שמירת מפרש לקטגוריה של ספר אחד לא מדליפה לספר אחר תחת קטגוריית-אב משותפת',
+    () async {
+      // שני ספרי תנ"ך שונים החולקים קטגוריית-אב כללית ("אוצריא, תנ"ך") אך
+      // נמצאים תחת ספר-מסגרת שונה ("תורה" מול "נביאים").
+      const bereshitCategories = 'אוצריא, תנ"ך, תורה, בראשית';
+      const yeshayahuCategories = 'אוצריא, תנ"ך, נביאים, ישעיהו';
 
-    // המשתמש שומר בחירת מפרש "לכל הקטגוריה" מתוך ספר בראשית, בלי לבחור
-    // קטגוריה ידנית — הקטגוריה נגזרת אוטומטית מ-getParentCategory, בדיוק
-    // כפי שקורה ב-simple_text_viewer.dart וב-page_shape_screen.dart.
-    final categoryToSave =
-        PageShapeSettingsManager.getActiveCategory(bereshitCategories) ??
-            PageShapeSettingsManager.getParentCategory(bereshitCategories);
+      // המשתמש שומר בחירת מפרש "לכל הקטגוריה" מתוך ספר בראשית, בלי לבחור
+      // קטגוריה ידנית — הקטגוריה נגזרת אוטומטית מ-getParentCategory, בדיוק
+      // כפי שקורה ב-simple_text_viewer.dart וב-page_shape_screen.dart.
+      final categoryToSave =
+          PageShapeSettingsManager.getActiveCategory(bereshitCategories) ??
+          PageShapeSettingsManager.getParentCategory(bereshitCategories);
 
-    await PageShapeSettingsManager.saveConfiguration(
-      'בראשית',
-      const {
-        'left': 'רש"י על בראשית',
-        'right': null,
-        'bottom': null,
-        'bottomRight': null,
-      },
-      saveToCategory: categoryToSave,
-    );
+      await PageShapeSettingsManager.saveConfiguration(
+        'בראשית',
+        const {
+          'left': 'רש"י על בראשית',
+          'right': null,
+          'bottom': null,
+          'bottomRight': null,
+        },
+        saveToCategory: categoryToSave,
+      );
 
-    // ההגדרה שנשמרה חייבת לחול על ספר בראשית עצמו...
-    final bereshitConfig = PageShapeSettingsManager.loadConfiguration(
-      'בראשית',
-      heCategories: bereshitCategories,
-    );
-    expect(bereshitConfig?['left'], 'רש"י');
+      // ההגדרה שנשמרה חייבת לחול על ספר בראשית עצמו...
+      final bereshitConfig = PageShapeSettingsManager.loadConfiguration(
+        'בראשית',
+        heCategories: bereshitCategories,
+      );
+      expect(bereshitConfig?['left'], 'רש"י');
 
-    // ...אך לא לדלוף לישעיהו, שאינו תחת אותה קטגוריית-אב ספציפית ("תורה").
-    final yeshayahuConfig = PageShapeSettingsManager.loadConfiguration(
-      'ישעיהו',
-      heCategories: yeshayahuCategories,
-    );
-    expect(yeshayahuConfig, isNull);
-  });
+      // ...אך לא לדלוף לישעיהו, שאינו תחת אותה קטגוריית-אב ספציפית ("תורה").
+      final yeshayahuConfig = PageShapeSettingsManager.loadConfiguration(
+        'ישעיהו',
+        heCategories: yeshayahuCategories,
+      );
+      expect(yeshayahuConfig, isNull);
+    },
+  );
 }

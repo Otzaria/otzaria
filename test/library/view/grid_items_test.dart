@@ -153,8 +153,9 @@ void main() {
     );
   }
 
-  testWidgets('מציג tooltip כשהכותרת נחתכת עם ellipsis בתוך המילה האחרונה',
-      (tester) async {
+  testWidgets('מציג tooltip כשהכותרת נחתכת עם ellipsis בתוך המילה האחרונה', (
+    tester,
+  ) async {
     final book = PdfBook(
       title: 'ספר עם שם ארוך מאודמאודשנחתךבאמצעהמילה',
       path: r'C:\library\folder\book.pdf',
@@ -170,8 +171,9 @@ void main() {
     expect(tooltip.verticalOffset, 18);
   });
 
-  testWidgets('מציג tooltip כשהנתיב או הנושאים נחתכים גם אם הכותרת קצרה',
-      (tester) async {
+  testWidgets('מציג tooltip כשהנתיב או הנושאים נחתכים גם אם הכותרת קצרה', (
+    tester,
+  ) async {
     const topics = 'נתיב ארוך מאוד מאוד שנחתך בתצוגת הספריה ומחייב tooltip';
     final book = PdfBook(
       title: 'א',
@@ -198,8 +200,9 @@ void main() {
     expect(result, '${List.filled(117, 'א').join()}...');
   });
 
-  testWidgets('מציג תיאור קצר בכרטיס ואת התיאור המורחב בריחוף על כפתור המידע',
-      (tester) async {
+  testWidgets('מציג תיאור קצר בכרטיס ואת התיאור המורחב בריחוף על כפתור המידע', (
+    tester,
+  ) async {
     const shortDescription = 'תיאור קצר שמוצג בכרטיס';
     const fullDescription = 'תיאור ארוך שמוצג בריחוף על כפתור המידע בלבד';
     final book = TextBook(
@@ -243,8 +246,11 @@ void main() {
     // עותק עצמאי (content-in-db) — ניתן למחיקה מהספרייה.
     FileSystemData.instance = _FakeFileSystemData(canDelete: true);
 
-    final book =
-        TextBook(title: 'ספר עצמאי לבדיקה', categoryId: 42, isUserBook: true);
+    final book = TextBook(
+      title: 'ספר עצמאי לבדיקה',
+      categoryId: 42,
+      isUserBook: true,
+    );
 
     await tester.pumpWidget(buildTestWidget(book: book));
     await tester.pumpAndSettle();
@@ -259,8 +265,11 @@ void main() {
     // קריאה מהקבצים (file-backed) — נמחק רק מהדיסק, לא מהספרייה.
     FileSystemData.instance = _FakeFileSystemData(canDelete: false);
 
-    final book =
-        TextBook(title: 'ספר מקובץ לבדיקה', categoryId: 7, isUserBook: true);
+    final book = TextBook(
+      title: 'ספר מקובץ לבדיקה',
+      categoryId: 7,
+      isUserBook: true,
+    );
 
     await tester.pumpWidget(buildTestWidget(book: book));
     await tester.pumpAndSettle();
@@ -271,12 +280,16 @@ void main() {
     );
   });
 
-  testWidgets('מציג את אייקון הקובץ ותפריט האפשרויות בטור אנכי',
-      (tester) async {
+  testWidgets('מציג את אייקון הקובץ ותפריט האפשרויות בטור אנכי', (
+    tester,
+  ) async {
     FileSystemData.instance = _FakeFileSystemData(canDelete: true);
 
-    final book =
-        TextBook(title: 'ספר לבדיקה', categoryId: 11, isUserBook: true);
+    final book = TextBook(
+      title: 'ספר לבדיקה',
+      categoryId: 11,
+      isUserBook: true,
+    );
 
     await tester.pumpWidget(buildTestWidget(book: book));
     await tester.pumpAndSettle();
@@ -292,8 +305,9 @@ void main() {
     expect(menuIconCenter.dy, greaterThan(fileIconCenter.dy));
   });
 
-  testWidgets('קובץ Word (docx) מקבל אייקון ייעודי נבדל מספר טקסט',
-      (tester) async {
+  testWidgets('קובץ Word (docx) מקבל אייקון ייעודי נבדל מספר טקסט', (
+    tester,
+  ) async {
     final book = DocxBook(title: 'מסמך וורד', path: r'C:\library\doc.docx');
 
     await tester.pumpWidget(buildTestWidget(book: book));
@@ -360,8 +374,9 @@ void main() {
       expect(find.text('אודות הקטגוריה'), findsNothing);
     }
 
-    testWidgets('קצר וארוך: מציג קצר בכרטיס וארוך בריחוף ובדיאלוג',
-        (tester) async {
+    testWidgets('קצר וארוך: מציג קצר בכרטיס וארוך בריחוף ובדיאלוג', (
+      tester,
+    ) async {
       final item = category(
         shortDescription: 'תיאור קצר',
         description: 'תיאור מורחב',
@@ -417,8 +432,9 @@ void main() {
       await closeDialog(tester);
     });
 
-    testWidgets('ארוך בלבד: אינו מציג קצר בכרטיס אך מאפשר מידע מלא',
-        (tester) async {
+    testWidgets('ארוך בלבד: אינו מציג קצר בכרטיס אך מאפשר מידע מלא', (
+      tester,
+    ) async {
       final item = category(description: 'תיאור מורחב בלבד');
 
       await tester.pumpWidget(buildCategoryTestWidget(item));

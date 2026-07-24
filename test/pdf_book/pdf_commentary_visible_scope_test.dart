@@ -15,11 +15,13 @@ void main() {
       expect(pdfLinkInVisibleScope(20, 3, 8, const {}), isFalse);
     });
 
-    test('ריבוי-בחירה: שורה לא-רצופה מחוץ לטווח נכללת דרך extraLineIndices',
-        () {
-      expect(pdfLinkInVisibleScope(20, 3, 8, const {20, 25}), isTrue);
-      expect(pdfLinkInVisibleScope(25, 3, 8, const {20, 25}), isTrue);
-    });
+    test(
+      'ריבוי-בחירה: שורה לא-רצופה מחוץ לטווח נכללת דרך extraLineIndices',
+      () {
+        expect(pdfLinkInVisibleScope(20, 3, 8, const {20, 25}), isTrue);
+        expect(pdfLinkInVisibleScope(25, 3, 8, const {20, 25}), isTrue);
+      },
+    );
 
     test('שורה שאינה בטווח ואינה ב-extras לא נכללת', () {
       expect(pdfLinkInVisibleScope(15, 3, 8, const {20, 25}), isFalse);

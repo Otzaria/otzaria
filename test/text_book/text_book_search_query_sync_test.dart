@@ -13,17 +13,19 @@ void main() {
     expect(controller.selection.extentOffset, 3);
   });
 
-  test('syncSearchControllerQuery leaves selection unchanged for same text',
-      () {
-    final controller = TextEditingController(text: 'קיים')
-      ..selection = const TextSelection(baseOffset: 0, extentOffset: 4);
+  test(
+    'syncSearchControllerQuery leaves selection unchanged for same text',
+    () {
+      final controller = TextEditingController(text: 'קיים')
+        ..selection = const TextSelection(baseOffset: 0, extentOffset: 4);
 
-    syncSearchControllerQuery(controller, 'קיים');
+      syncSearchControllerQuery(controller, 'קיים');
 
-    expect(controller.text, 'קיים');
-    expect(controller.selection.baseOffset, 0);
-    expect(controller.selection.extentOffset, 4);
-  });
+      expect(controller.text, 'קיים');
+      expect(controller.selection.baseOffset, 0);
+      expect(controller.selection.extentOffset, 4);
+    },
+  );
 
   test('applyInBookSearchQuery updates controller and notifies state sync', () {
     final controller = TextEditingController();

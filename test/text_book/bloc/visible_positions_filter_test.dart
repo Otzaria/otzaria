@@ -15,8 +15,9 @@ void main() {
         ),
       ];
 
-      final filtered =
-          TextBookBloc.filterBarelyVisiblePositionsForTesting(positions);
+      final filtered = TextBookBloc.filterBarelyVisiblePositionsForTesting(
+        positions,
+      );
 
       expect(filtered.length, 1);
       expect(filtered.first.index, 5);
@@ -44,8 +45,9 @@ void main() {
         ),
       ];
 
-      final filtered =
-          TextBookBloc.filterBarelyVisiblePositionsForTesting(positions);
+      final filtered = TextBookBloc.filterBarelyVisiblePositionsForTesting(
+        positions,
+      );
 
       expect(filtered.map((p) => p.index), [100]);
     });
@@ -66,8 +68,9 @@ void main() {
         ),
       ];
 
-      final filtered =
-          TextBookBloc.filterBarelyVisiblePositionsForTesting(positions);
+      final filtered = TextBookBloc.filterBarelyVisiblePositionsForTesting(
+        positions,
+      );
 
       expect(filtered.length, 2);
       expect(filtered.map((p) => p.index), [10, 11]);
@@ -90,8 +93,9 @@ void main() {
         ),
       ];
 
-      final filtered =
-          TextBookBloc.filterBarelyVisiblePositionsForTesting(positions);
+      final filtered = TextBookBloc.filterBarelyVisiblePositionsForTesting(
+        positions,
+      );
 
       expect(filtered.map((p) => p.index), [51]);
     });
@@ -113,8 +117,9 @@ void main() {
         ),
       ];
 
-      final filtered =
-          TextBookBloc.filterBarelyVisiblePositionsForTesting(positions);
+      final filtered = TextBookBloc.filterBarelyVisiblePositionsForTesting(
+        positions,
+      );
 
       expect(filtered.map((p) => p.index), [50, 51]);
     });
@@ -136,8 +141,9 @@ void main() {
         ),
       ];
 
-      final filtered =
-          TextBookBloc.filterBarelyVisiblePositionsForTesting(positions);
+      final filtered = TextBookBloc.filterBarelyVisiblePositionsForTesting(
+        positions,
+      );
 
       expect(filtered.map((p) => p.index), [51]);
     });
@@ -158,8 +164,9 @@ void main() {
         ),
       ];
 
-      final filtered =
-          TextBookBloc.filterBarelyVisiblePositionsForTesting(positions);
+      final filtered = TextBookBloc.filterBarelyVisiblePositionsForTesting(
+        positions,
+      );
 
       expect(filtered.map((p) => p.index), [100]);
     });
@@ -180,8 +187,9 @@ void main() {
         ),
       ];
 
-      final filtered =
-          TextBookBloc.filterBarelyVisiblePositionsForTesting(positions);
+      final filtered = TextBookBloc.filterBarelyVisiblePositionsForTesting(
+        positions,
+      );
 
       expect(filtered.length, 2);
     });

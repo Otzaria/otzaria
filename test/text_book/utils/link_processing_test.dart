@@ -161,8 +161,10 @@ void main() {
         linksByLine: buildLinksByLineMap(links),
       );
 
-      expect(
-          visible.map((l) => l.path2).toList(), ['דרך/אאא.txt', 'דרך/בבב.txt']);
+      expect(visible.map((l) => l.path2).toList(), [
+        'דרך/אאא.txt',
+        'דרך/בבב.txt',
+      ]);
     });
   });
 

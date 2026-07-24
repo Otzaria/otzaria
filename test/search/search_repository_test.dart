@@ -47,33 +47,35 @@ void main() {
       });
     });
 
-    test('wordMatchMode ו-wordMatchCount מגיעים לבקשה; ברירת מחדל all',
-        () async {
-      final engine = _RecordingSearchEngineOperations();
-      final repository = SearchRepository(engineProvider: () async => engine);
+    test(
+      'wordMatchMode ו-wordMatchCount מגיעים לבקשה; ברירת מחדל all',
+      () async {
+        final engine = _RecordingSearchEngineOperations();
+        final repository = SearchRepository(engineProvider: () async => engine);
 
-      await repository.searchTexts(
-        'שלום עולם',
-        const ['/'],
-        10,
-        searchMode: SearchMode.advanced,
-      );
-      expect(engine.lastRequest!.wordMatchMode, WordMatchMode.all);
-      expect(engine.lastRequest!.wordMatchCount, isNull);
+        await repository.searchTexts(
+          'שלום עולם',
+          const ['/'],
+          10,
+          searchMode: SearchMode.advanced,
+        );
+        expect(engine.lastRequest!.wordMatchMode, WordMatchMode.all);
+        expect(engine.lastRequest!.wordMatchCount, isNull);
 
-      await repository
-          .searchTextsStreamWithCounts(
-            'שלום עולם',
-            const ['/'],
-            10,
-            searchMode: SearchMode.advanced,
-            wordMatchMode: WordMatchMode.atLeast,
-            wordMatchCount: 3,
-          )
-          .toList();
-      expect(engine.lastRequest!.wordMatchMode, WordMatchMode.atLeast);
-      expect(engine.lastRequest!.wordMatchCount, 3);
-    });
+        await repository
+            .searchTextsStreamWithCounts(
+              'שלום עולם',
+              const ['/'],
+              10,
+              searchMode: SearchMode.advanced,
+              wordMatchMode: WordMatchMode.atLeast,
+              wordMatchCount: 3,
+            )
+            .toList();
+        expect(engine.lastRequest!.wordMatchMode, WordMatchMode.atLeast);
+        expect(engine.lastRequest!.wordMatchCount, 3);
+      },
+    );
 
     test('fuzzy=true גובר על searchMode ומנתב לחיפוש מקורב', () async {
       final engine = _RecordingSearchEngineOperations();
@@ -210,9 +212,13 @@ class _RecordingSearchEngineOperations extends SearchEngineOperations {
     SearchEngineRequest request,
   ) async {
     _record(_EngineCall.searchAndCountExact, request);
-    return SearchPageResult(totalCount: 42, truncated: false, results: [
-      _result(id: 4, text: 'page result'),
-    ]);
+    return SearchPageResult(
+      totalCount: 42,
+      truncated: false,
+      results: [
+        _result(id: 4, text: 'page result'),
+      ],
+    );
   }
 
   @override
@@ -342,13 +348,14 @@ class _RecordingSearchEngineOperations extends SearchEngineOperations {
 
 SearchResult _result({required int id, required String text}) {
   return SearchResult(
-      id: BigInt.from(id),
-      title: 'ספר',
-      reference: 'סימן',
-      text: text,
-      segment: BigInt.from(id),
-      isPdf: false,
-      filePath: 'book.txt',
-      mergedCount: 1,
-      merged: const []);
+    id: BigInt.from(id),
+    title: 'ספר',
+    reference: 'סימן',
+    text: text,
+    segment: BigInt.from(id),
+    isPdf: false,
+    filePath: 'book.txt',
+    mergedCount: 1,
+    merged: const [],
+  );
 }

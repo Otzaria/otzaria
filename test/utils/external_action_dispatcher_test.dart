@@ -53,10 +53,10 @@ class _FakeHistoryRepository extends HistoryRepository {
 
 class _FakeNavigationBloc extends NavigationBloc {
   _FakeNavigationBloc()
-      : super(
-          repository: _FakeNavigationRepository(),
-          tabsRepository: _FakeTabsRepository(),
-        );
+    : super(
+        repository: _FakeNavigationRepository(),
+        tabsRepository: _FakeTabsRepository(),
+      );
 
   @override
   void add(NavigationEvent event) {}
@@ -96,14 +96,19 @@ void main() {
       );
 
       final event = tabsBloc.capturedEvents.first as OpenOrFocusTab;
-      expect(event.navigateToPositionIfReused, isFalse,
-          reason: 'URI חשוף לא אמור להזיז טאב פתוח');
+      expect(
+        event.navigateToPositionIfReused,
+        isFalse,
+        reason: 'URI חשוף לא אמור להזיז טאב פתוח',
+      );
     });
 
     test('URI עם ?index= → navigateToPositionIfReused=true', () {
-      final action = ExternalUriRouter.parseUri(
-        Uri.parse('otzaria://open/book/1?index=42'),
-      ) as OpenBookAction;
+      final action =
+          ExternalUriRouter.parseUri(
+                Uri.parse('otzaria://open/book/1?index=42'),
+              )
+              as OpenBookAction;
       final tabsBloc = _CapturingTabsBloc();
 
       dispatchOpenBookAction(
@@ -134,9 +139,11 @@ void main() {
     });
 
     test('URI עם ?m= → navigateToPositionIfReused=true ו-markText מועבר', () {
-      final action = ExternalUriRouter.parseUri(
-        Uri.parse('otzaria://open/book/1?m=%D7%91%D7%99%D7%AA'),
-      ) as OpenBookAction;
+      final action =
+          ExternalUriRouter.parseUri(
+                Uri.parse('otzaria://open/book/1?m=%D7%91%D7%99%D7%AA'),
+              )
+              as OpenBookAction;
       final tabsBloc = _CapturingTabsBloc();
 
       dispatchOpenBookAction(
@@ -150,24 +157,31 @@ void main() {
       expect((event.tab as TextBookTab).highlightText, 'בית');
     });
 
-    test('URI עם ?q= בלבד → navigateToPositionIfReused=false (q אינו מיקום)',
-        () {
-      final action = ExternalUriRouter.parseUri(
-        Uri.parse('otzaria://open/book/1?q=%D7%AA%D7%95%D7%A8%D7%94'),
-      ) as OpenBookAction;
-      final tabsBloc = _CapturingTabsBloc();
+    test(
+      'URI עם ?q= בלבד → navigateToPositionIfReused=false (q אינו מיקום)',
+      () {
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/book/1?q=%D7%AA%D7%95%D7%A8%D7%94'),
+                )
+                as OpenBookAction;
+        final tabsBloc = _CapturingTabsBloc();
 
-      dispatchOpenBookAction(
-        action: action,
-        book: TextBook(title: 'ספר בדיקה'),
-        coordinator: _makeCoordinator(tabsBloc),
-      );
+        dispatchOpenBookAction(
+          action: action,
+          book: TextBook(title: 'ספר בדיקה'),
+          coordinator: _makeCoordinator(tabsBloc),
+        );
 
-      final event = tabsBloc.capturedEvents.first as OpenOrFocusTab;
-      expect(event.navigateToPositionIfReused, isFalse,
-          reason: 'חיפוש (q) אינו מיקום מפורש — אסור להזיז טאב פתוח');
-      expect((event.tab as TextBookTab).searchText, 'תורה');
-    });
+        final event = tabsBloc.capturedEvents.first as OpenOrFocusTab;
+        expect(
+          event.navigateToPositionIfReused,
+          isFalse,
+          reason: 'חיפוש (q) אינו מיקום מפורש — אסור להזיז טאב פתוח',
+        );
+        expect((event.tab as TextBookTab).searchText, 'תורה');
+      },
+    );
   });
 
   group('dispatchOpenPdfBookAction', () {
@@ -184,14 +198,19 @@ void main() {
       );
 
       final event = tabsBloc.capturedEvents.first as OpenOrFocusTab;
-      expect(event.navigateToPositionIfReused, isFalse,
-          reason: 'PDF חשוף לא אמור להזיז טאב פתוח לעמוד 1');
+      expect(
+        event.navigateToPositionIfReused,
+        isFalse,
+        reason: 'PDF חשוף לא אמור להזיז טאב פתוח לעמוד 1',
+      );
     });
 
     test('URI עם ?index= → navigateToPositionIfReused=true', () {
-      final action = ExternalUriRouter.parseUri(
-        Uri.parse('otzaria://open/pdf/1?index=5'),
-      ) as OpenPdfBookAction;
+      final action =
+          ExternalUriRouter.parseUri(
+                Uri.parse('otzaria://open/pdf/1?index=5'),
+              )
+              as OpenPdfBookAction;
       final tabsBloc = _CapturingTabsBloc();
 
       dispatchOpenPdfBookAction(

@@ -66,9 +66,13 @@ void main() {
       expect(BookDatabaseResolver.isLikelyUserBook(), isFalse);
       expect(BookDatabaseResolver.isLikelyUserBook(categoryPath: ''), isFalse);
       expect(
-          BookDatabaseResolver.isLikelyUserBook(categoryPath: '   '), isFalse);
-      expect(BookDatabaseResolver.isLikelyUserBook(categoryPath: '/   /   '),
-          isFalse);
+        BookDatabaseResolver.isLikelyUserBook(categoryPath: '   '),
+        isFalse,
+      );
+      expect(
+        BookDatabaseResolver.isLikelyUserBook(categoryPath: '/   /   '),
+        isFalse,
+      );
     });
 
     test('categoryPath עם backslashes (Windows-style) נתמך', () {
@@ -111,8 +115,10 @@ void main() {
         migration_models.Category(title: 'בראשית', parentId: torahId, level: 2),
       );
 
-      final result =
-          await BookDatabaseResolver.buildCategoryPath(repository, bereshitId);
+      final result = await BookDatabaseResolver.buildCategoryPath(
+        repository,
+        bereshitId,
+      );
 
       expect(result, 'תנ"ך, תורה, בראשית');
     });
@@ -122,15 +128,19 @@ void main() {
         const migration_models.Category(title: 'ספרים אישיים', level: 0),
       );
 
-      final result =
-          await BookDatabaseResolver.buildCategoryPath(repository, id);
+      final result = await BookDatabaseResolver.buildCategoryPath(
+        repository,
+        id,
+      );
 
       expect(result, 'ספרים אישיים');
     });
 
     test('categoryId לא קיים מחזיר מחרוזת ריקה', () async {
-      final result =
-          await BookDatabaseResolver.buildCategoryPath(repository, 999999);
+      final result = await BookDatabaseResolver.buildCategoryPath(
+        repository,
+        999999,
+      );
 
       expect(result, isEmpty);
     });
@@ -144,11 +154,13 @@ void main() {
     late SeforimRepository userBooksRepo;
 
     setUp(() async {
-      tempDir =
-          await Directory.systemTemp.createTemp('otzaria-resolver-candidates-');
+      tempDir = await Directory.systemTemp.createTemp(
+        'otzaria-resolver-candidates-',
+      );
       seforimDb = MyDatabase.withPath(path.join(tempDir.path, 'seforim.db'));
-      userBooksDb =
-          MyDatabase.withPath(path.join(tempDir.path, 'user_books.db'));
+      userBooksDb = MyDatabase.withPath(
+        path.join(tempDir.path, 'user_books.db'),
+      );
       seforimRepo = SeforimRepository(seforimDb);
       userBooksRepo = SeforimRepository(userBooksDb);
       await seforimRepo.ensureInitialized();
@@ -174,8 +186,10 @@ void main() {
       final categoryId = await repo.insertCategory(
         migration_models.Category(title: categoryTitle, level: 0),
       );
-      final sourceId =
-          await repo.insertSource('test-source-$categoryTitle', -1);
+      final sourceId = await repo.insertSource(
+        'test-source-$categoryTitle',
+        -1,
+      );
       await repo.insertBook(
         migration_models.Book(
           categoryId: categoryId,
@@ -228,38 +242,42 @@ void main() {
       expect(result.isUserBooks, isTrue);
     });
 
-    test('מעדיף התאמה מלאה (title+categoryId+fileType) על כותרת בלבד',
-        () async {
-      // יוצרים שני ספרים עם אותה כותרת בקטגוריות שונות + סוגי קבצים שונים,
-      // ובודקים שההתאמה לפי categoryId+fileType מחזירה את הספר הספציפי.
-      await insertBookFor(
+    test(
+      'מעדיף התאמה מלאה (title+categoryId+fileType) על כותרת בלבד',
+      () async {
+        // יוצרים שני ספרים עם אותה כותרת בקטגוריות שונות + סוגי קבצים שונים,
+        // ובודקים שההתאמה לפי categoryId+fileType מחזירה את הספר הספציפי.
+        await insertBookFor(
           repo: seforimRepo,
           title: 'דו-שמי',
           categoryTitle: 'קט-1',
-          fileType: 'txt');
-      final pdfCatId = await insertBookFor(
+          fileType: 'txt',
+        );
+        final pdfCatId = await insertBookFor(
           repo: seforimRepo,
           title: 'דו-שמי',
           categoryTitle: 'קט-2',
-          fileType: 'pdf');
+          fileType: 'pdf',
+        );
 
-      final result = await BookDatabaseResolver.resolveBookInCandidates(
-        title: 'דו-שמי',
-        categoryId: pdfCatId,
-        fileType: 'pdf',
-        candidates: [
-          ResolvedBookRepositoryCandidate(
-            repository: seforimRepo,
-            isUserBooks: false,
-          ),
-        ],
-      );
+        final result = await BookDatabaseResolver.resolveBookInCandidates(
+          title: 'דו-שמי',
+          categoryId: pdfCatId,
+          fileType: 'pdf',
+          candidates: [
+            ResolvedBookRepositoryCandidate(
+              repository: seforimRepo,
+              isUserBooks: false,
+            ),
+          ],
+        );
 
-      expect(result, isNotNull);
-      expect(result!.book.title, 'דו-שמי');
-      expect(result.book.categoryId, pdfCatId);
-      expect(result.book.fileType, 'pdf');
-    });
+        expect(result, isNotNull);
+        expect(result!.book.title, 'דו-שמי');
+        expect(result.book.categoryId, pdfCatId);
+        expect(result.book.fileType, 'pdf');
+      },
+    );
 
     test('מעדיף חיפוש לפי filePath כשהוא קיים', () async {
       final externalPath = path.join(tempDir.path, 'external_book.txt');
@@ -273,10 +291,11 @@ void main() {
       );
       // יוצרים ספר נוסף עם אותה כותרת אבל בלי filePath — לא צריך להיבחר.
       await insertBookFor(
-          repo: seforimRepo,
-          title: 'דרך נתיב',
-          categoryTitle: 'בלי-נתיב',
-          fileType: 'txt');
+        repo: seforimRepo,
+        title: 'דרך נתיב',
+        categoryTitle: 'בלי-נתיב',
+        fileType: 'txt',
+      );
 
       final result = await BookDatabaseResolver.resolveBookInCandidates(
         title: 'דרך נתיב',
@@ -290,8 +309,11 @@ void main() {
       );
 
       expect(result, isNotNull);
-      expect(result!.book.filePath, externalPath,
-          reason: 'התאמה לפי filePath מחזירה את הרשומה עם הנתיב המדויק');
+      expect(
+        result!.book.filePath,
+        externalPath,
+        reason: 'התאמה לפי filePath מחזירה את הרשומה עם הנתיב המדויק',
+      );
     });
 
     test('מחזיר null כשאין התאמה באף candidate', () async {
@@ -322,8 +344,7 @@ void main() {
     });
   });
 
-  group('BookDatabaseResolver — integration (resolveBook / resolveBookById)',
-      () {
+  group('BookDatabaseResolver — integration (resolveBook / resolveBookById)', () {
     late Directory tempDir;
     late String libraryPath;
     late String dataRootPath;
@@ -341,11 +362,17 @@ void main() {
       await UserBooksDatabaseHolder.instance.close();
 
       await Settings.setValue<String>(
-          SettingsRepository.keyLibraryPath, libraryPath);
+        SettingsRepository.keyLibraryPath,
+        libraryPath,
+      );
       await Settings.setValue<String>(
-          SettingsRepository.keyLibraryFolderName, '');
+        SettingsRepository.keyLibraryFolderName,
+        '',
+      );
       await Settings.setValue<String>(
-          SettingsRepository.keyDbEffectivePath, '');
+        SettingsRepository.keyDbEffectivePath,
+        '',
+      );
 
       final dbPath = path.join(libraryPath, DatabaseConstants.databaseFileName);
       seforimDb = MyDatabase.withPath(dbPath);
@@ -367,84 +394,95 @@ void main() {
     });
 
     test(
-        'resolveBook ללא preferUserBooks: מוצא קודם ב-seforim ולא יוצר user_books.db',
-        () async {
-      final catId = await seforimRepo.insertCategory(
-        const migration_models.Category(title: 'תורה'),
-      );
-      final sourceId = await seforimRepo.insertSource('test', -1);
-      await seforimRepo.insertBook(
-        migration_models.Book(
-          categoryId: catId,
-          sourceId: sourceId,
+      'resolveBook ללא preferUserBooks: מוצא קודם ב-seforim ולא יוצר user_books.db',
+      () async {
+        final catId = await seforimRepo.insertCategory(
+          const migration_models.Category(title: 'תורה'),
+        );
+        final sourceId = await seforimRepo.insertSource('test', -1);
+        await seforimRepo.insertBook(
+          migration_models.Book(
+            categoryId: catId,
+            sourceId: sourceId,
+            title: 'בראשית',
+            fileType: 'txt',
+          ),
+        );
+
+        final resolved = await BookDatabaseResolver.resolveBook(
           title: 'בראשית',
-          fileType: 'txt',
-        ),
-      );
+        );
 
-      final resolved = await BookDatabaseResolver.resolveBook(title: 'בראשית');
+        expect(resolved, isNotNull);
+        expect(resolved!.book.title, 'בראשית');
+        expect(resolved.isUserBooks, isFalse);
+        expect(
+          await File(await AppPaths.resolveUserBooksDbPath()).exists(),
+          isFalse,
+          reason:
+              'אין צורך ב-user_books.db כשהספר נמצא ב-seforim ולא ביקשנו אחרת',
+        );
+      },
+    );
 
-      expect(resolved, isNotNull);
-      expect(resolved!.book.title, 'בראשית');
-      expect(resolved.isUserBooks, isFalse);
-      expect(
-        await File(await AppPaths.resolveUserBooksDbPath()).exists(),
-        isFalse,
-        reason:
-            'אין צורך ב-user_books.db כשהספר נמצא ב-seforim ולא ביקשנו אחרת',
-      );
-    });
+    test(
+      'resolveBook עם preferUserBooks=true מאתר ספר ב-user_books.db',
+      () async {
+        // יוצרים user_books.db ומכניסים אליו ספר.
+        final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;
+        final catId = await userBooksRepo.insertCategory(
+          const migration_models.Category(title: 'ספרים אישיים'),
+        );
+        final sourceId = await userBooksRepo.insertSource('Personal::test', -1);
+        await userBooksRepo.insertBook(
+          migration_models.Book(
+            categoryId: catId,
+            sourceId: sourceId,
+            title: 'ספר אישי',
+            fileType: 'txt',
+          ),
+        );
 
-    test('resolveBook עם preferUserBooks=true מאתר ספר ב-user_books.db',
-        () async {
-      // יוצרים user_books.db ומכניסים אליו ספר.
-      final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;
-      final catId = await userBooksRepo.insertCategory(
-        const migration_models.Category(title: 'ספרים אישיים'),
-      );
-      final sourceId = await userBooksRepo.insertSource('Personal::test', -1);
-      await userBooksRepo.insertBook(
-        migration_models.Book(
-          categoryId: catId,
-          sourceId: sourceId,
+        final resolved = await BookDatabaseResolver.resolveBook(
           title: 'ספר אישי',
-          fileType: 'txt',
-        ),
-      );
+          preferUserBooks: true,
+        );
 
-      final resolved = await BookDatabaseResolver.resolveBook(
-        title: 'ספר אישי',
-        preferUserBooks: true,
-      );
+        expect(resolved, isNotNull);
+        expect(resolved!.book.title, 'ספר אישי');
+        expect(
+          resolved.isUserBooks,
+          isTrue,
+          reason: 'preferUserBooks=true מחפש קודם ב-user_books',
+        );
+      },
+    );
 
-      expect(resolved, isNotNull);
-      expect(resolved!.book.title, 'ספר אישי');
-      expect(resolved.isUserBooks, isTrue,
-          reason: 'preferUserBooks=true מחפש קודם ב-user_books');
-    });
+    test(
+      'resolveBook עם officialOnly לא נופל לספר אישי בעל אותה כותרת',
+      () async {
+        final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;
+        final catId = await userBooksRepo.insertCategory(
+          const migration_models.Category(title: 'ספרים אישיים'),
+        );
+        final sourceId = await userBooksRepo.insertSource('Personal::test', -1);
+        await userBooksRepo.insertBook(
+          migration_models.Book(
+            categoryId: catId,
+            sourceId: sourceId,
+            title: 'מילון אישי',
+            fileType: 'txt',
+          ),
+        );
 
-    test('resolveBook עם officialOnly לא נופל לספר אישי בעל אותה כותרת', () async {
-      final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;
-      final catId = await userBooksRepo.insertCategory(
-        const migration_models.Category(title: 'ספרים אישיים'),
-      );
-      final sourceId = await userBooksRepo.insertSource('Personal::test', -1);
-      await userBooksRepo.insertBook(
-        migration_models.Book(
-          categoryId: catId,
-          sourceId: sourceId,
+        final resolved = await BookDatabaseResolver.resolveBook(
           title: 'מילון אישי',
-          fileType: 'txt',
-        ),
-      );
+          officialOnly: true,
+        );
 
-      final resolved = await BookDatabaseResolver.resolveBook(
-        title: 'מילון אישי',
-        officialOnly: true,
-      );
-
-      expect(resolved, isNull);
-    });
+        expect(resolved, isNull);
+      },
+    );
 
     test('resolveBookById עם isUserBook=true מחפש רק ב-user_books', () async {
       // ב-seforim וב-user_books נוצרים ספרים נפרדים. ה-AUTOINCREMENT יקצה
@@ -484,25 +522,33 @@ void main() {
       expect(fromUser!.book.title, 'בעולם האישי');
       expect(fromUser.isUserBooks, isTrue);
 
-      final fromOfficial =
-          await BookDatabaseResolver.resolveBookById(seforimBookId);
+      final fromOfficial = await BookDatabaseResolver.resolveBookById(
+        seforimBookId,
+      );
       expect(fromOfficial, isNotNull);
       expect(fromOfficial!.book.title, 'בעולם הרשמי');
       expect(fromOfficial.isUserBooks, isFalse);
     });
 
-    test('resolveBookById עם isUserBook=true ובלי user_books.db מחזיר null',
-        () async {
-      // לא יצרנו user_books.db; resolveDbPath יחזיר נתיב לקובץ שלא קיים.
-      final dbPath = await AppPaths.resolveUserBooksDbPath();
-      expect(await File(dbPath).exists(), isFalse,
-          reason: 'הטסט מסתמך על כך שאין user_books.db');
+    test(
+      'resolveBookById עם isUserBook=true ובלי user_books.db מחזיר null',
+      () async {
+        // לא יצרנו user_books.db; resolveDbPath יחזיר נתיב לקובץ שלא קיים.
+        final dbPath = await AppPaths.resolveUserBooksDbPath();
+        expect(
+          await File(dbPath).exists(),
+          isFalse,
+          reason: 'הטסט מסתמך על כך שאין user_books.db',
+        );
 
-      final result =
-          await BookDatabaseResolver.resolveBookById(42, isUserBook: true);
+        final result = await BookDatabaseResolver.resolveBookById(
+          42,
+          isUserBook: true,
+        );
 
-      expect(result, isNull);
-    });
+        expect(result, isNull);
+      },
+    );
   });
 }
 

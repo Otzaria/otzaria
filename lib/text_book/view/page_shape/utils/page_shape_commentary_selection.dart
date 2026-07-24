@@ -132,8 +132,10 @@ String? resolvePageShapeCommentatorSelection({
   final resolved = <String>[];
   final seen = <String>{};
   for (final commentator in decodePageShapeCommentatorsSelection(selection)) {
-    final match =
-        findMatchingPageShapeCommentator(commentator, availableCommentators);
+    final match = findMatchingPageShapeCommentator(
+      commentator,
+      availableCommentators,
+    );
     if (match != null && seen.add(match)) {
       resolved.add(match);
     }
@@ -175,9 +177,9 @@ List<String> resolvePageShapeSelectedCommentators({
     );
   }
 
-  return decodePageShapeCommentatorsSelection(normalizedSelection)
-      .where(availableCommentators.contains)
-      .toList();
+  return decodePageShapeCommentatorsSelection(
+    normalizedSelection,
+  ).where(availableCommentators.contains).toList();
 }
 
 String? _resolvePageShapeSingleCommentator({
@@ -307,10 +309,12 @@ List<String> resolveRemainingPageShapeCommentators({
   required List<String> availableCommentators,
   required Iterable<String?> excludedCommentators,
 }) {
-  final explicitlySelectedCommentators =
-      excludedCommentators.whereType<String>().where((commentator) {
-    return !isPageShapeRemainingCommentatorsValue(commentator);
-  }).toSet();
+  final explicitlySelectedCommentators = excludedCommentators
+      .whereType<String>()
+      .where((commentator) {
+        return !isPageShapeRemainingCommentatorsValue(commentator);
+      })
+      .toSet();
 
   return availableCommentators.where((commentator) {
     return !explicitlySelectedCommentators.contains(commentator);

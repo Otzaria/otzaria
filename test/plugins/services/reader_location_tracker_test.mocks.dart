@@ -31,9 +31,9 @@ class _FakeTabsState_0 extends _i1.SmartFake implements _i2.TabsState {
     Object parent,
     Invocation parentInvocation,
   ) : super(
-          parent,
-          parentInvocation,
-        );
+        parent,
+        parentInvocation,
+      );
 }
 
 /// A class which mocks [TabsBloc].
@@ -45,25 +45,31 @@ class MockTabsBloc extends _i1.Mock implements _i3.TabsBloc {
   }
 
   @override
-  bool get isClosed => (super.noSuchMethod(
-        Invocation.getter(#isClosed),
-        returnValue: false,
-      ) as bool);
+  bool get isClosed =>
+      (super.noSuchMethod(
+            Invocation.getter(#isClosed),
+            returnValue: false,
+          )
+          as bool);
 
   @override
-  _i2.TabsState get state => (super.noSuchMethod(
-        Invocation.getter(#state),
-        returnValue: _FakeTabsState_0(
-          this,
-          Invocation.getter(#state),
-        ),
-      ) as _i2.TabsState);
+  _i2.TabsState get state =>
+      (super.noSuchMethod(
+            Invocation.getter(#state),
+            returnValue: _FakeTabsState_0(
+              this,
+              Invocation.getter(#state),
+            ),
+          )
+          as _i2.TabsState);
 
   @override
-  _i4.Stream<_i2.TabsState> get stream => (super.noSuchMethod(
-        Invocation.getter(#stream),
-        returnValue: _i4.Stream<_i2.TabsState>.empty(),
-      ) as _i4.Stream<_i2.TabsState>);
+  _i4.Stream<_i2.TabsState> get stream =>
+      (super.noSuchMethod(
+            Invocation.getter(#stream),
+            returnValue: _i4.Stream<_i2.TabsState>.empty(),
+          )
+          as _i4.Stream<_i2.TabsState>);
 
   @override
   _i4.Future<void> remapBookPathsAwaitable(
@@ -71,57 +77,57 @@ class MockTabsBloc extends _i1.Mock implements _i3.TabsBloc {
     String? to,
   ) =>
       (super.noSuchMethod(
-        Invocation.method(
-          #remapBookPathsAwaitable,
-          [
-            from,
-            to,
-          ],
-        ),
-        returnValue: _i4.Future<void>.value(),
-        returnValueForMissingStub: _i4.Future<void>.value(),
-      ) as _i4.Future<void>);
+            Invocation.method(
+              #remapBookPathsAwaitable,
+              [
+                from,
+                to,
+              ],
+            ),
+            returnValue: _i4.Future<void>.value(),
+            returnValueForMissingStub: _i4.Future<void>.value(),
+          )
+          as _i4.Future<void>);
 
   @override
   void add(_i5.TabsEvent? event) => super.noSuchMethod(
-        Invocation.method(
-          #add,
-          [event],
-        ),
-        returnValueForMissingStub: null,
-      );
+    Invocation.method(
+      #add,
+      [event],
+    ),
+    returnValueForMissingStub: null,
+  );
 
   @override
   void onEvent(_i5.TabsEvent? event) => super.noSuchMethod(
-        Invocation.method(
-          #onEvent,
-          [event],
-        ),
-        returnValueForMissingStub: null,
-      );
+    Invocation.method(
+      #onEvent,
+      [event],
+    ),
+    returnValueForMissingStub: null,
+  );
 
   @override
   void emit(_i2.TabsState? state) => super.noSuchMethod(
-        Invocation.method(
-          #emit,
-          [state],
-        ),
-        returnValueForMissingStub: null,
-      );
+    Invocation.method(
+      #emit,
+      [state],
+    ),
+    returnValueForMissingStub: null,
+  );
 
   @override
   void on<E extends _i5.TabsEvent>(
     _i6.EventHandler<E, _i2.TabsState>? handler, {
     _i6.EventTransformer<E>? transformer,
-  }) =>
-      super.noSuchMethod(
-        Invocation.method(
-          #on,
-          [handler],
-          {#transformer: transformer},
-        ),
-        returnValueForMissingStub: null,
-      );
+  }) => super.noSuchMethod(
+    Invocation.method(
+      #on,
+      [handler],
+      {#transformer: transformer},
+    ),
+    returnValueForMissingStub: null,
+  );
 
   @override
   void onTransition(_i6.Transition<_i5.TabsEvent, _i2.TabsState>? transition) =>
@@ -138,67 +144,66 @@ class MockTabsBloc extends _i1.Mock implements _i3.TabsBloc {
     _i5.TabsEvent? event, [
     Object? error,
     StackTrace? stackTrace,
-  ]) =>
-      super.noSuchMethod(
-        Invocation.method(
-          #onDone,
-          [
-            event,
-            error,
-            stackTrace,
-          ],
-        ),
-        returnValueForMissingStub: null,
-      );
+  ]) => super.noSuchMethod(
+    Invocation.method(
+      #onDone,
+      [
+        event,
+        error,
+        stackTrace,
+      ],
+    ),
+    returnValueForMissingStub: null,
+  );
 
   @override
-  _i4.Future<void> close() => (super.noSuchMethod(
-        Invocation.method(
-          #close,
-          [],
-        ),
-        returnValue: _i4.Future<void>.value(),
-        returnValueForMissingStub: _i4.Future<void>.value(),
-      ) as _i4.Future<void>);
+  _i4.Future<void> close() =>
+      (super.noSuchMethod(
+            Invocation.method(
+              #close,
+              [],
+            ),
+            returnValue: _i4.Future<void>.value(),
+            returnValueForMissingStub: _i4.Future<void>.value(),
+          )
+          as _i4.Future<void>);
 
   @override
   void onChange(_i6.Change<_i2.TabsState>? change) => super.noSuchMethod(
-        Invocation.method(
-          #onChange,
-          [change],
-        ),
-        returnValueForMissingStub: null,
-      );
+    Invocation.method(
+      #onChange,
+      [change],
+    ),
+    returnValueForMissingStub: null,
+  );
 
   @override
   void addError(
     Object? error, [
     StackTrace? stackTrace,
-  ]) =>
-      super.noSuchMethod(
-        Invocation.method(
-          #addError,
-          [
-            error,
-            stackTrace,
-          ],
-        ),
-        returnValueForMissingStub: null,
-      );
+  ]) => super.noSuchMethod(
+    Invocation.method(
+      #addError,
+      [
+        error,
+        stackTrace,
+      ],
+    ),
+    returnValueForMissingStub: null,
+  );
 
   @override
   void onError(
     Object? error,
     StackTrace? stackTrace,
-  ) =>
-      super.noSuchMethod(
-        Invocation.method(
-          #onError,
-          [
-            error,
-            stackTrace,
-          ],
-        ),
-        returnValueForMissingStub: null,
-      );
+  ) => super.noSuchMethod(
+    Invocation.method(
+      #onError,
+      [
+        error,
+        stackTrace,
+      ],
+    ),
+    returnValueForMissingStub: null,
+  );
 }

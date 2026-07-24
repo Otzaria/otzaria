@@ -57,14 +57,14 @@ class AltTocEntry extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        structureId,
-        parentId,
-        textId,
-        level,
-        lineId,
-        isLastChild,
-        hasChildren,
-        text
-      ];
+    id,
+    structureId,
+    parentId,
+    textId,
+    level,
+    lineId,
+    isLastChild,
+    hasChildren,
+    text,
+  ];
 }

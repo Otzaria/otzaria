@@ -11,8 +11,10 @@ void main() {
 
   group('DefaultCommentators.mapToPageShape', () {
     test('תורה: מפרש בימין, תרגום בשמאל', () {
-      final result =
-          DefaultCommentators.mapToPageShape([c('רש"י', 0)], ['תרגום אונקלוס']);
+      final result = DefaultCommentators.mapToPageShape(
+        [c('רש"י', 0)],
+        ['תרגום אונקלוס'],
+      );
 
       expect(result['left'], 'רש"י');
       expect(result['right'], 'תרגום אונקלוס');

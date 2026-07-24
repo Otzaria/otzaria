@@ -27,8 +27,9 @@ Future<void> main() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
-  testWidgets('איפוס initialQuery חיצוני מנקה תוצאות חיפוש קיימות',
-      (tester) async {
+  testWidgets('איפוס initialQuery חיצוני מנקה תוצאות חיפוש קיימות', (
+    tester,
+  ) async {
     final textBookBloc = _TestTextBookBloc(_loadedState());
     final settingsBloc = _TestSettingsBloc(SettingsState.initial());
     final focusNode = FocusNode();
@@ -104,90 +105,98 @@ Future<void> main() async {
   }, skip: !engineReady);
 
   testWidgets(
-      'didUpdateWidget מונע חיפוש כפול בהד הקלדה אך מריץ על שינוי חיצוני',
-      (tester) async {
-    final textBookBloc = _TestTextBookBloc(_loadedState());
-    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
-    final focusNode = FocusNode();
+    'didUpdateWidget מונע חיפוש כפול בהד הקלדה אך מריץ על שינוי חיצוני',
+    (tester) async {
+      final textBookBloc = _TestTextBookBloc(_loadedState());
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final focusNode = FocusNode();
 
-    addTearDown(textBookBloc.close);
-    addTearDown(settingsBloc.close);
-    addTearDown(focusNode.dispose);
-    addTearDown(resetSectionSearchWorkerForTesting);
+      addTearDown(textBookBloc.close);
+      addTearDown(settingsBloc.close);
+      addTearDown(focusNode.dispose);
+      addTearDown(resetSectionSearchWorkerForTesting);
 
-    int runnerCalls = 0;
-    final List<String> queriesSeen = [];
-    Future<List<TextSearchResult>> simpleSearchRunner(
-      List<String> content,
-      String query,
-    ) async {
-      runnerCalls++;
-      queriesSeen.add(query);
-      if (query.isEmpty) return const [];
-      return [
-        TextSearchResult(
-          snippet: 'תוצאה עבור $query',
-          index: 0,
-          query: query,
-          address: 'כתובת-$query',
-        ),
-      ];
-    }
+      int runnerCalls = 0;
+      final List<String> queriesSeen = [];
+      Future<List<TextSearchResult>> simpleSearchRunner(
+        List<String> content,
+        String query,
+      ) async {
+        runnerCalls++;
+        queriesSeen.add(query);
+        if (query.isEmpty) return const [];
+        return [
+          TextSearchResult(
+            snippet: 'תוצאה עבור $query',
+            index: 0,
+            query: query,
+            address: 'כתובת-$query',
+          ),
+        ];
+      }
 
-    String queryProp = '';
-    late StateSetter outerSetState;
+      String queryProp = '';
+      late StateSetter outerSetState;
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MultiBlocProvider(
-          providers: [
-            BlocProvider<TextBookBloc>.value(value: textBookBloc),
-            BlocProvider<SettingsBloc>.value(value: settingsBloc),
-          ],
-          child: StatefulBuilder(
-            builder: (context, setState) {
-              outerSetState = setState;
-              return Scaffold(
-                body: TextBookSearchView(
-                  contentLoader: () async => ['אב אברהם'],
-                  scrollControler: ItemScrollController(),
-                  focusNode: focusNode,
-                  closeLeftPaneCallback: () {},
-                  initialQuery: queryProp,
-                  simpleSearchRunner: simpleSearchRunner,
-                ),
-              );
-            },
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<TextBookBloc>.value(value: textBookBloc),
+              BlocProvider<SettingsBloc>.value(value: settingsBloc),
+            ],
+            child: StatefulBuilder(
+              builder: (context, setState) {
+                outerSetState = setState;
+                return Scaffold(
+                  body: TextBookSearchView(
+                    contentLoader: () async => ['אב אברהם'],
+                    scrollControler: ItemScrollController(),
+                    focusNode: focusNode,
+                    closeLeftPaneCallback: () {},
+                    initialQuery: queryProp,
+                    simpleSearchRunner: simpleSearchRunner,
+                  ),
+                );
+              },
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    await tester.pump();
+      await tester.pump();
 
-    // הקלדה אמיתית → onSearchTextChanged מריץ חיפוש פעם אחת.
-    // ההמתנה ארוכה מ-debounce שדה החיפוש (200ms).
-    await tester.enterText(find.byType(TextField), 'אב');
-    await tester.pump(const Duration(milliseconds: 250));
-    final callsAfterTyping = runnerCalls;
-    expect(callsAfterTyping, greaterThan(0));
+      // הקלדה אמיתית → onSearchTextChanged מריץ חיפוש פעם אחת.
+      // ההמתנה ארוכה מ-debounce שדה החיפוש (200ms).
+      await tester.enterText(find.byType(TextField), 'אב');
+      await tester.pump(const Duration(milliseconds: 250));
+      final callsAfterTyping = runnerCalls;
+      expect(callsAfterTyping, greaterThan(0));
 
-    // ההורה בונה מחדש עם initialQuery == controller.text — הד ה-roundtrip של
-    // ההקלדה דרך ה-bloc. שינוי שכבר משוקף ב-controller אסור שיריץ חיפוש נוסף.
-    outerSetState(() => queryProp = 'אב');
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
-    expect(runnerCalls, callsAfterTyping,
-        reason: 'הד הקלדה (controller מסונכרן) לא אמור להריץ חיפוש כפול');
+      // ההורה בונה מחדש עם initialQuery == controller.text — הד ה-roundtrip של
+      // ההקלדה דרך ה-bloc. שינוי שכבר משוקף ב-controller אסור שיריץ חיפוש נוסף.
+      outerSetState(() => queryProp = 'אב');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(
+        runnerCalls,
+        callsAfterTyping,
+        reason: 'הד הקלדה (controller מסונכרן) לא אמור להריץ חיפוש כפול',
+      );
 
-    // שינוי חיצוני אמיתי: ה-query שונה מתוכן ה-controller → חיפוש כן רץ.
-    outerSetState(() => queryProp = 'אברהם');
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
-    expect(runnerCalls, callsAfterTyping + 1,
-        reason: 'שינוי query חיצוני אמור להריץ חיפוש פעם אחת בלבד');
-    expect(queriesSeen.last, 'אברהם');
-  }, skip: !engineReady);
+      // שינוי חיצוני אמיתי: ה-query שונה מתוכן ה-controller → חיפוש כן רץ.
+      outerSetState(() => queryProp = 'אברהם');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(
+        runnerCalls,
+        callsAfterTyping + 1,
+        reason: 'שינוי query חיצוני אמור להריץ חיפוש פעם אחת בלבד',
+      );
+      expect(queriesSeen.last, 'אברהם');
+    },
+    skip: !engineReady,
+  );
 
   testWidgets('חיפוש ישן לא דורס תוצאות של חיפוש חדש יותר', (tester) async {
     final textBookBloc = _TestTextBookBloc(_loadedState());
@@ -265,8 +274,9 @@ Future<void> main() async {
     required List<int> visibleIndices,
     required List<TextSearchResult> results,
   }) async {
-    final textBookBloc =
-        _TestTextBookBloc(_loadedState(visibleIndices: visibleIndices));
+    final textBookBloc = _TestTextBookBloc(
+      _loadedState(visibleIndices: visibleIndices),
+    );
     final settingsBloc = _TestSettingsBloc(SettingsState.initial());
     final focusNode = FocusNode();
 
@@ -321,10 +331,18 @@ Future<void> main() async {
         visibleIndices: const [1000],
         results: [
           TextSearchResult(
-              snippet: 'מוקדם', index: 0, query: 'x', address: 'א'),
+            snippet: 'מוקדם',
+            index: 0,
+            query: 'x',
+            address: 'א',
+          ),
           TextSearchResult(snippet: 'אמצע', index: 5, query: 'x', address: 'ב'),
           TextSearchResult(
-              snippet: 'מאוחר', index: 10, query: 'x', address: 'ג'),
+            snippet: 'מאוחר',
+            index: 10,
+            query: 'x',
+            address: 'ג',
+          ),
         ],
       );
 
@@ -336,8 +354,11 @@ Future<void> main() async {
           matching: find.byType(InkWell),
         ),
       );
-      expect(nextInkWell.onTap, isNull,
-          reason: 'התוצאה הנבחרת אמורה להיות האחרונה');
+      expect(
+        nextInkWell.onTap,
+        isNull,
+        reason: 'התוצאה הנבחרת אמורה להיות האחרונה',
+      );
 
       final prevInkWell = tester.widget<InkWell>(
         find.descendant(
@@ -345,8 +366,11 @@ Future<void> main() async {
           matching: find.byType(InkWell),
         ),
       );
-      expect(prevInkWell.onTap, isNotNull,
-          reason: 'אמורות להיות לפחות 2 תוצאות לפני הנבחרת');
+      expect(
+        prevInkWell.onTap,
+        isNotNull,
+        reason: 'אמורות להיות לפחות 2 תוצאות לפני הנבחרת',
+      );
     },
     skip: !engineReady,
   );
@@ -372,8 +396,11 @@ Future<void> main() async {
           matching: find.byType(InkWell),
         ),
       );
-      expect(nextInkWell.onTap, isNull,
-          reason: 'התוצאה הנבחרת היא האחרונה (index 10 >= currentLine 6)');
+      expect(
+        nextInkWell.onTap,
+        isNull,
+        reason: 'התוצאה הנבחרת היא האחרונה (index 10 >= currentLine 6)',
+      );
     },
     skip: !engineReady,
   );
@@ -384,8 +411,9 @@ Future<void> main() async {
       // משתמש בוחר תוצאה ב-line=50. לאחר עידכון שאילתה, התוצאות החדשות
       // מכילות תוצאה אחרת ב-line=50. הציפייה: הבחירה תועבר לאינדקס
       // החדש של אותה שורה (לפי זהות), לא תיתקע על האינדקס הסידורי הישן.
-      final textBookBloc =
-          _TestTextBookBloc(_loadedState(visibleIndices: const [0]));
+      final textBookBloc = _TestTextBookBloc(
+        _loadedState(visibleIndices: const [0]),
+      );
       final settingsBloc = _TestSettingsBloc(SettingsState.initial());
       final focusNode = FocusNode();
 
@@ -404,16 +432,28 @@ Future<void> main() async {
             TextSearchResult(snippet: 'a', index: 10, query: 'x', address: 'א'),
             TextSearchResult(snippet: 'b', index: 50, query: 'x', address: 'ב'),
             TextSearchResult(
-                snippet: 'c', index: 100, query: 'x', address: 'ג'),
+              snippet: 'c',
+              index: 100,
+              query: 'x',
+              address: 'ג',
+            ),
           ];
         }
         if (query == 'xy') {
           // 2 תוצאות, line=50 באינדקס 0 — אותה שורה במיקום סידורי אחר.
           return [
             TextSearchResult(
-                snippet: 'b', index: 50, query: 'xy', address: 'ב'),
+              snippet: 'b',
+              index: 50,
+              query: 'xy',
+              address: 'ב',
+            ),
             TextSearchResult(
-                snippet: 'd', index: 200, query: 'xy', address: 'ד'),
+              snippet: 'd',
+              index: 200,
+              query: 'xy',
+              address: 'ד',
+            ),
           ];
         }
         return const [];
@@ -465,8 +505,11 @@ Future<void> main() async {
           matching: find.byType(InkWell),
         ),
       );
-      expect(prevInkWell.onTap, isNull,
-          reason: 'הבחירה אמורה לעבור לאינדקס 0 של תוצאות xy (line=50)');
+      expect(
+        prevInkWell.onTap,
+        isNull,
+        reason: 'הבחירה אמורה לעבור לאינדקס 0 של תוצאות xy (line=50)',
+      );
     },
     skip: !engineReady,
   );
@@ -495,8 +538,11 @@ Future<void> main() async {
       );
 
       // מצב התחלתי: תוצאה מרוחקת לא ברנדור.
-      expect(find.text('קטע_30'), findsNothing,
-          reason: 'תוצאה מרוחקת לא אמורה להיות מורנדרת בתחילה');
+      expect(
+        find.text('קטע_30'),
+        findsNothing,
+        reason: 'תוצאה מרוחקת לא אמורה להיות מורנדרת בתחילה',
+      );
 
       // ניווט קדימה עד שהבחירה מגיעה לתוצאה 30.
       final nextButton = find.byTooltip('התוצאה הבאה');
@@ -509,8 +555,11 @@ Future<void> main() async {
       await tester.pump();
 
       // אחרי הניווט — הרשימה גוללה ותוצאה 30 גלויה.
-      expect(find.text('קטע_30'), findsOneWidget,
-          reason: 'הרשימה צריכה לגלול כדי שהתוצאה הנבחרת תהיה גלויה');
+      expect(
+        find.text('קטע_30'),
+        findsOneWidget,
+        reason: 'הרשימה צריכה לגלול כדי שהתוצאה הנבחרת תהיה גלויה',
+      );
     },
   );
 
@@ -544,11 +593,16 @@ Future<void> main() async {
       tester.takeException();
       await tester.pump();
 
-      expect(find.text('כתובת_0'), findsOneWidget,
-          reason:
-              'הכותרת הראשונה אמורה להישאר גלויה כשכל התוצאות בתוך הוויופורט');
-      expect(tester.getTopLeft(find.text('כתובת_0')), initialTopLeft,
-          reason: 'אסור לגלול את רשימת התוצאות אם היעד כבר גלוי');
+      expect(
+        find.text('כתובת_0'),
+        findsOneWidget,
+        reason: 'הכותרת הראשונה אמורה להישאר גלויה כשכל התוצאות בתוך הוויופורט',
+      );
+      expect(
+        tester.getTopLeft(find.text('כתובת_0')),
+        initialTopLeft,
+        reason: 'אסור לגלול את רשימת התוצאות אם היעד כבר גלוי',
+      );
     },
     skip: !engineReady,
   );
@@ -574,34 +628,38 @@ Future<void> main() async {
           return [
             TextSearchResult(snippet: 'a', index: 10, query: 'x', address: 'א'),
             TextSearchResult(
-                snippet: 'b1',
-                index: 50,
-                query: 'x',
-                address: 'ב',
-                matchOffset: 0),
+              snippet: 'b1',
+              index: 50,
+              query: 'x',
+              address: 'ב',
+              matchOffset: 0,
+            ),
             TextSearchResult(
-                snippet: 'b2',
-                index: 50,
-                query: 'x',
-                address: 'ב',
-                matchOffset: 30),
+              snippet: 'b2',
+              index: 50,
+              query: 'x',
+              address: 'ב',
+              matchOffset: 30,
+            ),
           ];
         }
         if (query == 'xy') {
           // רק שתי ההופעות של שורה 50 — הנבחרת (offset 30) עכשיו אחרונה.
           return [
             TextSearchResult(
-                snippet: 'b1',
-                index: 50,
-                query: 'xy',
-                address: 'ב',
-                matchOffset: 0),
+              snippet: 'b1',
+              index: 50,
+              query: 'xy',
+              address: 'ב',
+              matchOffset: 0,
+            ),
             TextSearchResult(
-                snippet: 'b2',
-                index: 50,
-                query: 'xy',
-                address: 'ב',
-                matchOffset: 30),
+              snippet: 'b2',
+              index: 50,
+              query: 'xy',
+              address: 'ב',
+              matchOffset: 30,
+            ),
           ];
         }
         return const [];
@@ -654,8 +712,11 @@ Future<void> main() async {
           matching: find.byType(InkWell),
         ),
       );
-      expect(nextInkWell.onTap, isNull,
-          reason: 'הבחירה אמורה להישמר על ההופעה עם matchOffset=30');
+      expect(
+        nextInkWell.onTap,
+        isNull,
+        reason: 'הבחירה אמורה להישמר על ההופעה עם matchOffset=30',
+      );
     },
     skip: !engineReady,
   );
@@ -664,8 +725,9 @@ Future<void> main() async {
     'נפילה ל-closestIndex כשהשורה הנבחרת לא קיימת בתוצאות החדשות',
     (tester) async {
       // line=50 נבחר. שאילתה חדשה לא מכילה line=50 — נפילה ל-closestIndex.
-      final textBookBloc =
-          _TestTextBookBloc(_loadedState(visibleIndices: const [1000]));
+      final textBookBloc = _TestTextBookBloc(
+        _loadedState(visibleIndices: const [1000]),
+      );
       final settingsBloc = _TestSettingsBloc(SettingsState.initial());
       final focusNode = FocusNode();
 
@@ -688,9 +750,17 @@ Future<void> main() async {
           // אין line=50. visibleIndices=[1000] → fallback לאחרון.
           return [
             TextSearchResult(
-                snippet: 'p', index: 20, query: 'xy', address: 'א'),
+              snippet: 'p',
+              index: 20,
+              query: 'xy',
+              address: 'א',
+            ),
             TextSearchResult(
-                snippet: 'q', index: 80, query: 'xy', address: 'ב'),
+              snippet: 'q',
+              index: 80,
+              query: 'xy',
+              address: 'ב',
+            ),
           ];
         }
         return const [];
@@ -739,8 +809,11 @@ Future<void> main() async {
           matching: find.byType(InkWell),
         ),
       );
-      expect(nextInkWell.onTap, isNull,
-          reason: 'הבחירה נפלה ל-closestIndex (אחרון) כי line=50 לא קיים');
+      expect(
+        nextInkWell.onTap,
+        isNull,
+        reason: 'הבחירה נפלה ל-closestIndex (אחרון) כי line=50 לא קיים',
+      );
     },
     skip: !engineReady,
   );

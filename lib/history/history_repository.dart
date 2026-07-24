@@ -3,12 +3,12 @@ import 'package:otzaria/data/repository/base_list_repository.dart';
 
 class HistoryRepository extends BaseListRepository<Bookmark> {
   HistoryRepository()
-      : super(
-          boxName: 'history',
-          key: 'history',
-          fromJson: (json) => Bookmark.fromJson(json),
-          toJson: (bookmark) => bookmark.toJson(),
-        );
+    : super(
+        boxName: 'history',
+        key: 'history',
+        fromJson: (json) => Bookmark.fromJson(json),
+        toJson: (bookmark) => bookmark.toJson(),
+      );
 
   Future<List<Bookmark>> loadHistory() async => load();
 

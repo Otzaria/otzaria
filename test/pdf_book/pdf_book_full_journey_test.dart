@@ -45,11 +45,16 @@ class _FakeTabsRepository extends TabsRepository {
   @override
   SideBySideMode? loadSideBySideMode() => null;
   @override
-  Future<void> saveTabs(List<OpenedTab> tabs, int currentTabIndex,
-      [SideBySideMode? sideBySideMode]) async {}
+  Future<void> saveTabs(
+    List<OpenedTab> tabs,
+    int currentTabIndex, [
+    SideBySideMode? sideBySideMode,
+  ]) async {}
   @override
   Future<void> saveCurrentTabIndex(
-      List<OpenedTab> tabs, int currentTabIndex) async {}
+    List<OpenedTab> tabs,
+    int currentTabIndex,
+  ) async {}
 }
 
 // ─── seed helper ─────────────────────────────────────────────────────────────
@@ -63,22 +68,24 @@ extension _Seed<S> on BlocBase<S> {
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-PdfBook _book(
-        {String path = '/nonexistent/ספר_בדיקה.pdf',
-        String title = 'ספר בדיקה'}) =>
-    PdfBook(title: title, path: path);
+PdfBook _book({
+  String path = '/nonexistent/ספר_בדיקה.pdf',
+  String title = 'ספר בדיקה',
+}) => PdfBook(title: title, path: path);
 
-PdfBookTab _tab({String title = 'ספר בדיקה', int page = 1}) =>
-    PdfBookTab(book: _book(title: title), pageNumber: page);
+PdfBookTab _tab({String title = 'ספר בדיקה', int page = 1}) => PdfBookTab(
+  book: _book(title: title),
+  pageNumber: page,
+);
 
 PdfBookBloc _makeBloc(PdfBookTab tab) => PdfBookBloc(
-      tab: tab,
-      initialState: PdfBookInitial(
-        book: tab.book,
-        initialPageNumber: tab.pageNumber,
-      ),
-      pdfrxInit: () async {},
-    );
+  tab: tab,
+  initialState: PdfBookInitial(
+    book: tab.book,
+    initialPageNumber: tab.pageNumber,
+  ),
+  pdfrxInit: () async {},
+);
 
 /// מחכה שה-bloc יגיע למצב מסוים
 Future<S> _waitFor<S extends PdfBookState>(PdfBookBloc bloc) async {
@@ -87,59 +94,65 @@ Future<S> _waitFor<S extends PdfBookState>(PdfBookBloc bloc) async {
 }
 
 /// מדמה DocumentReady (מה-PdfViewer) ומחכה ל-PdfBookLoaded
-Future<PdfBookLoaded> _readyDoc(PdfBookBloc bloc,
-    {int totalPages = 100}) async {
+Future<PdfBookLoaded> _readyDoc(
+  PdfBookBloc bloc, {
+  int totalPages = 100,
+}) async {
   bloc.seed(PdfBookLoading(book: bloc.tab.book));
-  bloc.add(DocumentReady(
-    documentRef: _FakeDocumentRef(),
-    totalPages: totalPages,
-    outline: const [],
-  ));
+  bloc.add(
+    DocumentReady(
+      documentRef: _FakeDocumentRef(),
+      totalPages: totalPages,
+      outline: const [],
+    ),
+  );
   return _waitFor<PdfBookLoaded>(bloc);
 }
 
 // ─── data fixtures ───────────────────────────────────────────────────────────
 
 List<Link> _sampleLinks() => [
-      Link(
-        heRef: 'רש"י על בראשית א:א',
-        index1: 1,
-        path2: '/books/rashi_bereshit.txt',
-        index2: 0,
-        connectionType: 'COMMENTARY',
-      ),
-      Link(
-        heRef: 'רמב"ן על בראשית א:א',
-        index1: 1,
-        path2: '/books/ramban_bereshit.txt',
-        index2: 0,
-        connectionType: 'COMMENTARY',
-      ),
-      Link(
-        heRef: 'תרגום אונקלוס בראשית א:א',
-        index1: 5,
-        path2: '/books/targum_onkelos.txt',
-        index2: 0,
-        connectionType: 'TARGUM',
-      ),
-    ];
+  Link(
+    heRef: 'רש"י על בראשית א:א',
+    index1: 1,
+    path2: '/books/rashi_bereshit.txt',
+    index2: 0,
+    connectionType: 'COMMENTARY',
+  ),
+  Link(
+    heRef: 'רמב"ן על בראשית א:א',
+    index1: 1,
+    path2: '/books/ramban_bereshit.txt',
+    index2: 0,
+    connectionType: 'COMMENTARY',
+  ),
+  Link(
+    heRef: 'תרגום אונקלוס בראשית א:א',
+    index1: 5,
+    path2: '/books/targum_onkelos.txt',
+    index2: 0,
+    connectionType: 'TARGUM',
+  ),
+];
 
 PdfHeadings _sampleHeadings() => PdfHeadings(
-      bookTitle: 'ספר בדיקה',
-      headingsMap: {
-        'פרק א': 1,
-        'פרק ב': 10,
-        'פרק ג': 25,
-        'פרק ד': 40,
-        'פרק ה': 60,
-        'סיום': 99,
-      },
-    );
+  bookTitle: 'ספר בדיקה',
+  headingsMap: {
+    'פרק א': 1,
+    'פרק ב': 10,
+    'פרק ג': 25,
+    'פרק ד': 40,
+    'פרק ה': 60,
+    'סיום': 99,
+  },
+);
 
 List<PdfPageTextRange> _fakeMatches(int count) {
   final fakeText = _FakePdfPageText();
   return List.generate(
-      count, (_) => PdfPageTextRange(pageText: fakeText, start: 0, end: 1));
+    count,
+    (_) => PdfPageTextRange(pageText: fakeText, start: 0, end: 1),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -152,8 +165,7 @@ void main() {
 
   // ══════════════════════════════════════════════════════════════════════════
   group('מסע קריאה שלם', () {
-    test('פתיחת PDF, ניווט, קישורים, חיפוש, זום, תצוגה, הגדרות, סגירה',
-        () async {
+    test('פתיחת PDF, ניווט, קישורים, חיפוש, זום, תצוגה, הגדרות, סגירה', () async {
       final tab = _tab(page: 1);
       final bloc = _makeBloc(tab);
       addTearDown(bloc.close);
@@ -176,10 +188,12 @@ void main() {
       expect(loaded.isLoading, isFalse);
 
       // ── שלב 4: טעינת headings ו-links (מפרשים וקישורים) ──────────────────
-      bloc.add(LoadHeadingsAndLinks(
-        headings: _sampleHeadings(),
-        links: _sampleLinks(),
-      ));
+      bloc.add(
+        LoadHeadingsAndLinks(
+          headings: _sampleHeadings(),
+          links: _sampleLinks(),
+        ),
+      );
       await Future.delayed(Duration.zero);
 
       expect(tab.links, hasLength(3));
@@ -231,27 +245,33 @@ void main() {
       expect((bloc.state as PdfBookLoaded).searchText, 'אלהים');
 
       // 6c: אפשרויות חיפוש מתקדמות
-      bloc.add(const UpdateSearchOptions(
-        searchMode: SearchMode.fuzzy,
-        alternativeWords: {
-          0: ['אלהים', 'השם', 'ה׳']
-        },
-      ));
+      bloc.add(
+        const UpdateSearchOptions(
+          searchMode: SearchMode.fuzzy,
+          alternativeWords: {
+            0: ['אלהים', 'השם', 'ה׳'],
+          },
+        ),
+      );
       await Future.delayed(Duration.zero);
       expect((bloc.state as PdfBookLoaded).searchMode, SearchMode.fuzzy);
       expect(
-          (bloc.state as PdfBookLoaded).alternativeWords[0], contains('השם'));
+        (bloc.state as PdfBookLoaded).alternativeWords[0],
+        contains('השם'),
+      );
 
       // 6d: תוצאות חיפוש
       bloc.add(
-          UpdateSearchResults(matches: _fakeMatches(3), currentMatchIndex: 0));
+        UpdateSearchResults(matches: _fakeMatches(3), currentMatchIndex: 0),
+      );
       await Future.delayed(Duration.zero);
       expect((bloc.state as PdfBookLoaded).searchMatches, hasLength(3));
       expect((bloc.state as PdfBookLoaded).currentSearchMatchIndex, 0);
 
       // 6e: מעבר לתוצאה הבאה
       bloc.add(
-          UpdateSearchResults(matches: _fakeMatches(3), currentMatchIndex: 1));
+        UpdateSearchResults(matches: _fakeMatches(3), currentMatchIndex: 1),
+      );
       await Future.delayed(Duration.zero);
       expect((bloc.state as PdfBookLoaded).currentSearchMatchIndex, 1);
 
@@ -324,7 +344,9 @@ void main() {
       bloc.add(const SetLayoutMode(PdfLayoutMode.regularView));
       await Future.delayed(Duration.zero);
       expect(
-          (bloc.state as PdfBookLoaded).layoutMode, PdfLayoutMode.regularView);
+        (bloc.state as PdfBookLoaded).layoutMode,
+        PdfLayoutMode.regularView,
+      );
 
       // אותו mode → לא מפעיל emit
       final beforeRepeat = bloc.state;
@@ -404,22 +426,26 @@ void main() {
       expect(tab.pdfHeadings, isNull);
     });
 
-    test('LoadHeadingsAndLinks מלאים - headings ו-links נשמרים ב-tab',
-        () async {
-      final tab = _tab();
-      final bloc = _makeBloc(tab);
-      addTearDown(bloc.close);
+    test(
+      'LoadHeadingsAndLinks מלאים - headings ו-links נשמרים ב-tab',
+      () async {
+        final tab = _tab();
+        final bloc = _makeBloc(tab);
+        addTearDown(bloc.close);
 
-      await _readyDoc(bloc, totalPages: 50);
-      bloc.add(LoadHeadingsAndLinks(
-        headings: _sampleHeadings(),
-        links: _sampleLinks(),
-      ));
-      await Future.delayed(Duration.zero);
+        await _readyDoc(bloc, totalPages: 50);
+        bloc.add(
+          LoadHeadingsAndLinks(
+            headings: _sampleHeadings(),
+            links: _sampleLinks(),
+          ),
+        );
+        await Future.delayed(Duration.zero);
 
-      expect(tab.pdfHeadings!.headingsMap, hasLength(6));
-      expect(tab.links, hasLength(3));
-    });
+        expect(tab.pdfHeadings!.headingsMap, hasLength(6));
+        expect(tab.links, hasLength(3));
+      },
+    );
 
     test('ניווט לגבולות - עמוד 1 ועמוד אחרון', () async {
       final tab = _tab();
@@ -456,11 +482,13 @@ void main() {
 
       // מעבירים outline: null כדי שה-bloc לא ינסה לחלץ כותרת מה-outline
       bloc.seed(PdfBookLoading(book: tab.book));
-      bloc.add(DocumentReady(
-        documentRef: _FakeDocumentRef(),
-        totalPages: 50,
-        outline: null,
-      ));
+      bloc.add(
+        DocumentReady(
+          documentRef: _FakeDocumentRef(),
+          totalPages: 50,
+          outline: null,
+        ),
+      );
       await _waitFor<PdfBookLoaded>(bloc);
 
       bloc.add(const UpdatePageNumber(pageNumber: 7));
@@ -490,17 +518,20 @@ void main() {
         final bloc = _makeBloc(tab);
         bloc.seed(PdfBookLoading(book: tab.book));
         bloc.add(
-            DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 50));
+          DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 50),
+        );
         return bloc;
       },
       act: (b) async {
         await Future.delayed(Duration.zero); // DocumentReady
         b.add(const StartSearch('תנ"ך'));
         b.add(const UpdateSearchOptions(searchMode: SearchMode.advanced));
-        b.add(UpdateSearchResults(
-            matches: _fakeMatches(2), currentMatchIndex: 0));
-        b.add(UpdateSearchResults(
-            matches: _fakeMatches(2), currentMatchIndex: 1));
+        b.add(
+          UpdateSearchResults(matches: _fakeMatches(2), currentMatchIndex: 0),
+        );
+        b.add(
+          UpdateSearchResults(matches: _fakeMatches(2), currentMatchIndex: 1),
+        );
         b.add(const ClearSearch());
       },
       verify: (b) {
@@ -518,13 +549,15 @@ void main() {
         final bloc = _makeBloc(tab);
         bloc.seed(PdfBookLoading(book: tab.book));
         bloc.add(
-            DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 50));
+          DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 50),
+        );
         return bloc;
       },
       act: (b) async {
         await Future.delayed(Duration.zero);
         b.add(
-            const UpdateSearchOptions(spacingValues: {'0-1': '3', '1-2': '5'}));
+          const UpdateSearchOptions(spacingValues: {'0-1': '3', '1-2': '5'}),
+        );
       },
       verify: (b) {
         final s = b.state as PdfBookLoaded;
@@ -540,7 +573,8 @@ void main() {
         final bloc = _makeBloc(tab);
         bloc.seed(PdfBookLoading(book: tab.book));
         bloc.add(
-            DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 10));
+          DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 10),
+        );
         return bloc;
       },
       act: (b) async {
@@ -565,8 +599,9 @@ void main() {
       final tab2 = _tab(title: 'ספר שמות');
 
       bloc.add(AddTab(tab1));
-      await bloc.stream
-          .firstWhere((s) => s.tabs.any((t) => t.title == 'ספר בראשית'));
+      await bloc.stream.firstWhere(
+        (s) => s.tabs.any((t) => t.title == 'ספר בראשית'),
+      );
       expect(bloc.state.tabs, hasLength(1));
 
       bloc.add(AddTab(tab2));
@@ -589,31 +624,33 @@ void main() {
       expect(bloc.state.tabs.first.title, 'ספר בראשית');
     });
 
-    test('ניווט קדימה ואחורה NavigateToPreviousTab/NavigateToNextTab',
-        () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
-      addTearDown(bloc.close);
+    test(
+      'ניווט קדימה ואחורה NavigateToPreviousTab/NavigateToNextTab',
+      () async {
+        final bloc = TabsBloc(repository: _FakeTabsRepository());
+        addTearDown(bloc.close);
 
-      bloc.add(AddTab(_tab(title: 'ספר א')));
-      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
-      bloc.add(AddTab(_tab(title: 'ספר ב')));
-      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
-      bloc.add(AddTab(_tab(title: 'ספר ג')));
-      await bloc.stream.firstWhere((s) => s.tabs.length == 3);
-      expect(bloc.state.currentTabIndex, 2);
+        bloc.add(AddTab(_tab(title: 'ספר א')));
+        await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+        bloc.add(AddTab(_tab(title: 'ספר ב')));
+        await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+        bloc.add(AddTab(_tab(title: 'ספר ג')));
+        await bloc.stream.firstWhere((s) => s.tabs.length == 3);
+        expect(bloc.state.currentTabIndex, 2);
 
-      bloc.add(NavigateToPreviousTab());
-      await bloc.stream.firstWhere((s) => s.currentTabIndex == 1);
-      expect(bloc.state.currentTab?.title, 'ספר ב');
+        bloc.add(NavigateToPreviousTab());
+        await bloc.stream.firstWhere((s) => s.currentTabIndex == 1);
+        expect(bloc.state.currentTab?.title, 'ספר ב');
 
-      bloc.add(NavigateToPreviousTab());
-      await bloc.stream.firstWhere((s) => s.currentTabIndex == 0);
-      expect(bloc.state.currentTab?.title, 'ספר א');
+        bloc.add(NavigateToPreviousTab());
+        await bloc.stream.firstWhere((s) => s.currentTabIndex == 0);
+        expect(bloc.state.currentTab?.title, 'ספר א');
 
-      bloc.add(NavigateToNextTab());
-      await bloc.stream.firstWhere((s) => s.currentTabIndex == 1);
-      expect(bloc.state.currentTab?.title, 'ספר ב');
-    });
+        bloc.add(NavigateToNextTab());
+        await bloc.stream.firstWhere((s) => s.currentTabIndex == 1);
+        expect(bloc.state.currentTab?.title, 'ספר ב');
+      },
+    );
 
     test('CloneTab יוצר עותק עצמאי של טאב PDF', () async {
       final bloc = TabsBloc(repository: _FakeTabsRepository());

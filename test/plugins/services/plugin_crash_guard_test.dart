@@ -98,23 +98,31 @@ void main() {
       expect(decoded['blocked'], ['x']);
     });
 
-    test('ignores quarantine from a different app version (auto-recovery)',
-        () async {
-      // simulate a quarantine file written by an older version
-      final file = File(p.join(tempDir.path, 'plugin_crash_guard.json'));
-      await file.writeAsString(jsonEncode({
-        'version': '0.9.91+90910', // older
-        'blocked': ['com.crashed.plugin'],
-      }));
+    test(
+      'ignores quarantine from a different app version (auto-recovery)',
+      () async {
+        // simulate a quarantine file written by an older version
+        final file = File(p.join(tempDir.path, 'plugin_crash_guard.json'));
+        await file.writeAsString(
+          jsonEncode({
+            'version': '0.9.91+90910', // older
+            'blocked': ['com.crashed.plugin'],
+          }),
+        );
 
-      // current app version may be anything (real PackageInfo in tests) — but
-      // as long as it's not '0.9.91+90910', the canary should be ignored.
-      await PluginCrashGuard.ensureInitialized();
-      expect(PluginCrashGuard.isBlocked('com.crashed.plugin'), false,
-          reason: 'plugin quarantined under a previous app version should not '
+        // current app version may be anything (real PackageInfo in tests) — but
+        // as long as it's not '0.9.91+90910', the canary should be ignored.
+        await PluginCrashGuard.ensureInitialized();
+        expect(
+          PluginCrashGuard.isBlocked('com.crashed.plugin'),
+          false,
+          reason:
+              'plugin quarantined under a previous app version should not '
               'block on a newer version — the upgrade might have fixed the '
-              'crash, so we give it another chance automatically');
-    });
+              'crash, so we give it another chance automatically',
+        );
+      },
+    );
 
     test('honors quarantine from the same app version', () async {
       // First write under an app version (simulated via test helper)
@@ -148,8 +156,7 @@ void main() {
       expect(PluginCrashGuard.isBlocked('com.legacy.plugin'), false);
     });
 
-    test(
-        'end-to-end: crash → quarantine on next launch → user retry → '
+    test('end-to-end: crash → quarantine on next launch → user retry → '
         'next crash again', () async {
       // First launch: attempt to load plugin, then "crash" (no success call)
       await PluginCrashGuard.markLoadAttempt('com.crash.plugin');

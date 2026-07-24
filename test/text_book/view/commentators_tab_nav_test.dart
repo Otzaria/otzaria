@@ -179,34 +179,46 @@ void main() {
     ];
 
     test('קטע הבא בתוך אותו פרק', () {
-      expect(computeVerseStep(twoChapters, 0, 0, forward: true),
-          equals(const CommentatorsVerseStep(0, 1)));
+      expect(
+        computeVerseStep(twoChapters, 0, 0, forward: true),
+        equals(const CommentatorsVerseStep(0, 1)),
+      );
     });
 
     test('קטע קודם בתוך אותו פרק', () {
-      expect(computeVerseStep(twoChapters, 0, 2, forward: false),
-          equals(const CommentatorsVerseStep(0, 1)));
+      expect(
+        computeVerseStep(twoChapters, 0, 2, forward: false),
+        equals(const CommentatorsVerseStep(0, 1)),
+      );
     });
 
     test('מהקטע האחרון בפרק — קטע הבא חוצה לפרק הבא (קטע ראשון)', () {
-      expect(computeVerseStep(twoChapters, 0, 2, forward: true),
-          equals(const CommentatorsVerseStep(1, 0)));
+      expect(
+        computeVerseStep(twoChapters, 0, 2, forward: true),
+        equals(const CommentatorsVerseStep(1, 0)),
+      );
     });
 
     test('מהקטע הראשון בפרק — קטע קודם חוצה לפרק הקודם (קטע אחרון)', () {
       // ליבת הבאג: פעם הניווט "נתקע" בתחילת הפרק. כעת חוצה אחורה.
-      expect(computeVerseStep(twoChapters, 1, 0, forward: false),
-          equals(const CommentatorsVerseStep(0, 2)));
+      expect(
+        computeVerseStep(twoChapters, 1, 0, forward: false),
+        equals(const CommentatorsVerseStep(0, 2)),
+      );
     });
 
     test('"כל הפרק" — קטע קודם יורד לקטע האחרון של אותו פרק', () {
-      expect(computeVerseStep(twoChapters, 0, -1, forward: false),
-          equals(const CommentatorsVerseStep(0, 2)));
+      expect(
+        computeVerseStep(twoChapters, 0, -1, forward: false),
+        equals(const CommentatorsVerseStep(0, 2)),
+      );
     });
 
     test('"כל הפרק" — קטע הבא עולה לקטע הראשון של אותו פרק', () {
-      expect(computeVerseStep(twoChapters, 0, -1, forward: true),
-          equals(const CommentatorsVerseStep(0, 0)));
+      expect(
+        computeVerseStep(twoChapters, 0, -1, forward: true),
+        equals(const CommentatorsVerseStep(0, 0)),
+      );
     });
 
     test('קצה הספר — קטע קודם מהקטע הראשון בפרק הראשון מחזיר null', () {
@@ -222,8 +234,10 @@ void main() {
         [0, 1],
         <int>[],
       ];
-      expect(computeVerseStep(withEmpty, 0, 1, forward: true),
-          equals(const CommentatorsVerseStep(1, -1)));
+      expect(
+        computeVerseStep(withEmpty, 0, 1, forward: true),
+        equals(const CommentatorsVerseStep(1, -1)),
+      );
     });
 
     test('חצייה אחורה לפרק שכן ריק מקטעים — מחזיר "כל הפרק"', () {
@@ -231,8 +245,10 @@ void main() {
         <int>[],
         [0, 1],
       ];
-      expect(computeVerseStep(withEmpty, 1, 0, forward: false),
-          equals(const CommentatorsVerseStep(0, -1)));
+      expect(
+        computeVerseStep(withEmpty, 1, 0, forward: false),
+        equals(const CommentatorsVerseStep(0, -1)),
+      );
     });
 
     test('"כל הפרק" בפרק ריק — קטע קודם חוצה אחורה לקטע האחרון של הקודם', () {
@@ -240,8 +256,10 @@ void main() {
         [0, 1],
         <int>[],
       ];
-      expect(computeVerseStep(withEmpty, 1, -1, forward: false),
-          equals(const CommentatorsVerseStep(0, 1)));
+      expect(
+        computeVerseStep(withEmpty, 1, -1, forward: false),
+        equals(const CommentatorsVerseStep(0, 1)),
+      );
     });
 
     test('"כל הפרק" בפרק ריק — קטע הבא חוצה קדימה לקטע הראשון של הבא', () {
@@ -249,8 +267,10 @@ void main() {
         <int>[],
         [0, 1],
       ];
-      expect(computeVerseStep(withEmpty, 0, -1, forward: true),
-          equals(const CommentatorsVerseStep(1, 0)));
+      expect(
+        computeVerseStep(withEmpty, 0, -1, forward: true),
+        equals(const CommentatorsVerseStep(1, 0)),
+      );
     });
 
     test('קצה הספר — "כל הפרק" בפרק יחיד ריק מחזיר null בשני הכיוונים', () {
@@ -279,29 +299,49 @@ void main() {
 
     test('פתיחה בקטע הראשון בפרק 1 — קטע קודם חוצה לפרק 0 ולא נתקע', () {
       final back1 = computeVerseStep(book, 1, 0, forward: false);
-      expect(back1, equals(const CommentatorsVerseStep(0, 2)),
-          reason: 'מהקטע הראשון בפרק 1 יש לחצות לקטע האחרון בפרק 0');
+      expect(
+        back1,
+        equals(const CommentatorsVerseStep(0, 2)),
+        reason: 'מהקטע הראשון בפרק 1 יש לחצות לקטע האחרון בפרק 0',
+      );
 
-      final back2 = computeVerseStep(book, back1!.chapterIndex, back1.verseIdx,
-          forward: false);
+      final back2 = computeVerseStep(
+        book,
+        back1!.chapterIndex,
+        back1.verseIdx,
+        forward: false,
+      );
       expect(back2, equals(const CommentatorsVerseStep(0, 1)));
 
-      final back3 = computeVerseStep(book, back2!.chapterIndex, back2.verseIdx,
-          forward: false);
+      final back3 = computeVerseStep(
+        book,
+        back2!.chapterIndex,
+        back2.verseIdx,
+        forward: false,
+      );
       expect(back3, equals(const CommentatorsVerseStep(0, 0)));
 
       // בקטע הראשון של הפרק הראשון — אין לאן לחזור.
       expect(
-          computeVerseStep(book, back3!.chapterIndex, back3.verseIdx,
-              forward: false),
-          isNull);
+        computeVerseStep(
+          book,
+          back3!.chapterIndex,
+          back3.verseIdx,
+          forward: false,
+        ),
+        isNull,
+      );
     });
 
     test('הלוך-ושוב סימטרי: הבא ואז קודם חוזר לאותו מיקום', () {
       final fwd = computeVerseStep(book, 0, 2, forward: true);
       expect(fwd, equals(const CommentatorsVerseStep(1, 0)));
-      final back = computeVerseStep(book, fwd!.chapterIndex, fwd.verseIdx,
-          forward: false);
+      final back = computeVerseStep(
+        book,
+        fwd!.chapterIndex,
+        fwd.verseIdx,
+        forward: false,
+      );
       expect(back, equals(const CommentatorsVerseStep(0, 2)));
     });
   });
@@ -316,8 +356,10 @@ void main() {
         [0, 1, 2], // שכן בכיוון
         <int>[], // אחרי — לא רלוונטי
       ];
-      expect(computeVerseStep(lazy, 1, 1, forward: true),
-          equals(const CommentatorsVerseStep(2, 0)));
+      expect(
+        computeVerseStep(lazy, 1, 1, forward: true),
+        equals(const CommentatorsVerseStep(2, 0)),
+      );
     });
 
     test('אחורה: רק הפרק הנוכחי והקודם מלאים — חצייה לפרק הקודם', () {
@@ -327,8 +369,10 @@ void main() {
         [0, 1], // נוכחי
         <int>[], // אחרי — לא רלוונטי
       ];
-      expect(computeVerseStep(lazy, 2, 0, forward: false),
-          equals(const CommentatorsVerseStep(1, 2)));
+      expect(
+        computeVerseStep(lazy, 2, 0, forward: false),
+        equals(const CommentatorsVerseStep(1, 2)),
+      );
     });
   });
 

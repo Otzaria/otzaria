@@ -47,27 +47,29 @@ void main() {
   });
 
   group('ReferenceBooksCache — race condition מול clear()', () {
-    test('clear() באמצע warmUp() עוצר את הטעינה — isLoaded נשאר false',
-        () async {
-      final cache = ReferenceBooksCache.instance;
-      expect(cache.isLoaded, isFalse, reason: 'מצב התחלתי');
+    test(
+      'clear() באמצע warmUp() עוצר את הטעינה — isLoaded נשאר false',
+      () async {
+        final cache = ReferenceBooksCache.instance;
+        expect(cache.isLoaded, isFalse, reason: 'מצב התחלתי');
 
-      // warmUp() מתחיל לרוץ. `_loadInternal` רץ סינכרונית עד ה-await הראשון
-      // (BooksCache.warmUp), ואז משעה את עצמו עד שה-microtask ירוץ.
-      final inFlight = cache.warmUp();
+        // warmUp() מתחיל לרוץ. `_loadInternal` רץ סינכרונית עד ה-await הראשון
+        // (BooksCache.warmUp), ואז משעה את עצמו עד שה-microtask ירוץ.
+        final inFlight = cache.warmUp();
 
-      // קוד סינכרוני — רץ לפני שה-microtask של continuation מקבל הזדמנות.
-      cache.clear(); // _generation++
+        // קוד סינכרוני — רץ לפני שה-microtask של continuation מקבל הזדמנות.
+        cache.clear(); // _generation++
 
-      // עכשיו ה-await של _loadInternal ימצא generation מעודכן ויחזיר return.
-      await inFlight;
+        // עכשיו ה-await של _loadInternal ימצא generation מעודכן ויחזיר return.
+        await inFlight;
 
-      expect(
-        cache.isLoaded,
-        isFalse,
-        reason: 'טעינה שנעצרה ע"י clear() אסור שתסמן isLoaded=true',
-      );
-    });
+        expect(
+          cache.isLoaded,
+          isFalse,
+          reason: 'טעינה שנעצרה ע"י clear() אסור שתסמן isLoaded=true',
+        );
+      },
+    );
 
     test('warmUp() חוזר ועובד תקין אחרי race עם clear', () async {
       final cache = ReferenceBooksCache.instance;
@@ -80,8 +82,11 @@ void main() {
 
       // ניסיון שני — בלי הפרעה. אמור להגיע ל-isLoaded=true.
       await cache.warmUp();
-      expect(cache.isLoaded, isTrue,
-          reason: 'אחרי abort, warmUp נוסף חייב להצליח כרגיל');
+      expect(
+        cache.isLoaded,
+        isTrue,
+        reason: 'אחרי abort, warmUp נוסף חייב להצליח כרגיל',
+      );
     });
 
     test('שני clear()-ים רצופים באמצע warmUp עדיין מאפסים', () async {
@@ -108,24 +113,28 @@ void main() {
     });
   });
 
-  group(
-      'ReferenceBooksCache — חוזה: warmUp לא חוזר לפני '
+  group('ReferenceBooksCache — חוזה: warmUp לא חוזר לפני '
       'ש-getCategoryPathForBookSync מוכן', () {
-    test('כשל בבניית categoryPaths → isLoaded נשאר false (אין retry בלע)',
-        () async {
-      // אם prewarm קורס (לדוגמה, lock זמני על ה-DB), הקאש חייב **לא**
-      // להסתמן כ-loaded — אחרת כל ה-session ישאר עם classifier מבוטל
-      // עד restart, כי warmUp הבא ייצא מוקדם על isLoaded.
-      final cache = ReferenceBooksCache.instance;
-      cache.categoriesProviderOverride = () async {
-        throw Exception('DB lock');
-      };
+    test(
+      'כשל בבניית categoryPaths → isLoaded נשאר false (אין retry בלע)',
+      () async {
+        // אם prewarm קורס (לדוגמה, lock זמני על ה-DB), הקאש חייב **לא**
+        // להסתמן כ-loaded — אחרת כל ה-session ישאר עם classifier מבוטל
+        // עד restart, כי warmUp הבא ייצא מוקדם על isLoaded.
+        final cache = ReferenceBooksCache.instance;
+        cache.categoriesProviderOverride = () async {
+          throw Exception('DB lock');
+        };
 
-      await cache.warmUp();
+        await cache.warmUp();
 
-      expect(cache.isLoaded, isFalse,
-          reason: 'כשל בבניית הקאש חייב להישאר בלי לסמן loaded');
-    });
+        expect(
+          cache.isLoaded,
+          isFalse,
+          reason: 'כשל בבניית הקאש חייב להישאר בלי לסמן loaded',
+        );
+      },
+    );
 
     test('כשל ואז הצלחה — warmUp הבא מנסה שוב ומצליח', () async {
       // החוזה: כשל זמני לא הופך לקבוע. שיחה הבאה ל-warmUp מנסה לבנות
@@ -158,8 +167,7 @@ void main() {
       expect(attempt, 2, reason: 'הניסיון השני באמת נקרא — אין caching של כשל');
     });
 
-    test('בלי DB ובלי override — prewarm מסתיים בהצלחה (אין מה לחמם)',
-        () async {
+    test('בלי DB ובלי override — prewarm מסתיים בהצלחה (אין מה לחמם)', () async {
       // טסטים אחרים בריצה ללא SqliteDataProvider מאותחל. במצב הזה אין
       // מה לחמם, אבל אין סיבה לסמן כשל — `isLoaded` חייב להפוך true.
       final cache = ReferenceBooksCache.instance;
@@ -167,8 +175,11 @@ void main() {
 
       await cache.warmUp();
 
-      expect(cache.isLoaded, isTrue,
-          reason: 'no-DB-no-override = הצלחה טריוויאלית, לא כשל');
+      expect(
+        cache.isLoaded,
+        isTrue,
+        reason: 'no-DB-no-override = הצלחה טריוויאלית, לא כשל',
+      );
     });
 
     test('clear() אחרי כשל מאפס את _generation ומאפשר ניסיון נקי', () async {
@@ -188,31 +199,39 @@ void main() {
 
       cache.clear();
       await cache.warmUp();
-      expect(attempt, 2,
-          reason: 'clear() לא הופך כשל לקבוע — warmUp הבא מנסה שוב');
+      expect(
+        attempt,
+        2,
+        reason: 'clear() לא הופך כשל לקבוע — warmUp הבא מנסה שוב',
+      );
     });
 
-    test('סקירת state אחרי warmUp מוצלח: getCategoryPathForBookSync לא ריק',
-        () async {
-      // החוזה החזק: ברגע ש-`warmUp()` חזר עם `isLoaded=true`, פניות
-      // סינכרוניות ל-getCategoryPathForBookSync לפי bookId אמיתי
-      // ב-BooksCache חייבות להחזיר את הנתיב המלא. (בסביבת טסט אין ספרים
-      // ב-BooksCache, ולכן נסתפק בכך שאחרי warmUp הקאש מסומן כ-loaded
-      // ולא נזרקת חריגה בעת גישה ל-API.)
-      final cache = ReferenceBooksCache.instance;
-      cache.categoriesProviderOverride = () async => const <Category>[
-            Category(id: 1, title: 'תנ"ך'),
-            Category(id: 2, parentId: 1, title: 'תורה'),
-          ];
+    test(
+      'סקירת state אחרי warmUp מוצלח: getCategoryPathForBookSync לא ריק',
+      () async {
+        // החוזה החזק: ברגע ש-`warmUp()` חזר עם `isLoaded=true`, פניות
+        // סינכרוניות ל-getCategoryPathForBookSync לפי bookId אמיתי
+        // ב-BooksCache חייבות להחזיר את הנתיב המלא. (בסביבת טסט אין ספרים
+        // ב-BooksCache, ולכן נסתפק בכך שאחרי warmUp הקאש מסומן כ-loaded
+        // ולא נזרקת חריגה בעת גישה ל-API.)
+        final cache = ReferenceBooksCache.instance;
+        cache.categoriesProviderOverride = () async => const <Category>[
+          Category(id: 1, title: 'תנ"ך'),
+          Category(id: 2, parentId: 1, title: 'תורה'),
+        ];
 
-      await cache.warmUp();
+        await cache.warmUp();
 
-      expect(cache.isLoaded, isTrue);
-      // לא נזרקת חריגה — ה-getter מחזיר null כי אין ספרים, וזה תקין.
-      expect(cache.getCategoryPathForBookSync(9999), isNull,
+        expect(cache.isLoaded, isTrue);
+        // לא נזרקת חריגה — ה-getter מחזיר null כי אין ספרים, וזה תקין.
+        expect(
+          cache.getCategoryPathForBookSync(9999),
+          isNull,
           reason:
-              'getter סינכרוני לא קורס אחרי warmUp, מחזיר null למה שלא בקאש');
-    });
+              'getter סינכרוני לא קורס אחרי warmUp, מחזיר null למה שלא בקאש',
+        );
+      },
+    );
   });
 
   group('BooksCache + AcronymsCache — clear() מאפס _generation', () {

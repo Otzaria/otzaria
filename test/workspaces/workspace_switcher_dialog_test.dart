@@ -26,66 +26,79 @@ void main() {
   });
 
   group('שמירת פוקוס מקלדת בשינוי שם שולחן עבודה', () {
-    testWidgets('מצב העריכה שורד rebuild של ה-viewport (פתיחת מקלדת וירטואלית)',
-        (tester) async {
-      // רגרסיה: במצב עריכת שם, פתיחת המקלדת מכווצת את ה-viewport וגורמת
-      // rebuild של הדיאלוג. בעבר מצב העריכה אוחסן במשתני closure בתוך Builder
-      // ולכן התאפס ב-rebuild — שדה הקלט נעלם והמקלדת נסגרה מיד אחרי שנפתחה.
-      final workspace = Workspace(name: 'שולחן א', tabs: const []);
-      final workspaceBloc = _TestWorkspaceBloc(
-        WorkspaceState(
-          workspaces: [workspace],
-          isLoading: false,
-          activeWorkspaceId: workspace.id,
-        ),
-      );
-      final tabsBloc = _TestTabsBloc(TabsState.initial());
-      final navigationBloc = _TestNavigationBloc(
-          const NavigationState(currentScreen: Screen.reading));
-
-      addTearDown(() async {
-        await tester.pumpWidget(const SizedBox.shrink());
-        await tester.pump();
-        await workspaceBloc.close();
-        await tabsBloc.close();
-        await navigationBloc.close();
-      });
-
-      tester.view.physicalSize = const Size(1200, 1600);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
-
-      await tester.pumpWidget(
-        MultiBlocProvider(
-          providers: [
-            BlocProvider<WorkspaceBloc>.value(value: workspaceBloc),
-            BlocProvider<TabsBloc>.value(value: tabsBloc),
-            BlocProvider<NavigationBloc>.value(value: navigationBloc),
-          ],
-          child: const MaterialApp(
-            locale: Locale('he', 'IL'),
-            home: Scaffold(body: WorkspaceSwitcherDialog()),
+    testWidgets(
+      'מצב העריכה שורד rebuild של ה-viewport (פתיחת מקלדת וירטואלית)',
+      (tester) async {
+        // רגרסיה: במצב עריכת שם, פתיחת המקלדת מכווצת את ה-viewport וגורמת
+        // rebuild של הדיאלוג. בעבר מצב העריכה אוחסן במשתני closure בתוך Builder
+        // ולכן התאפס ב-rebuild — שדה הקלט נעלם והמקלדת נסגרה מיד אחרי שנפתחה.
+        final workspace = Workspace(name: 'שולחן א', tabs: const []);
+        final workspaceBloc = _TestWorkspaceBloc(
+          WorkspaceState(
+            workspaces: [workspace],
+            isLoading: false,
+            activeWorkspaceId: workspace.id,
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        final tabsBloc = _TestTabsBloc(TabsState.initial());
+        final navigationBloc = _TestNavigationBloc(
+          const NavigationState(currentScreen: Screen.reading),
+        );
 
-      // כניסה למצב עריכה — לחיצה על עיפרון העריכה.
-      await tester.tap(find.byWidgetPredicate(
-          (w) => w is Icon && w.icon == FluentIcons.edit_24_regular));
-      await tester.pumpAndSettle();
-      expect(find.byType(RtlTextField), findsOneWidget,
-          reason: 'שדה עריכת השם אמור להופיע אחרי לחיצה על עיפרון');
+        addTearDown(() async {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump();
+          await workspaceBloc.close();
+          await tabsBloc.close();
+          await navigationBloc.close();
+        });
 
-      // כיווץ ה-viewport — מדמה פתיחת מקלדת וירטואלית שגורמת rebuild לדיאלוג.
-      tester.view.physicalSize = const Size(1200, 700);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
+        tester.view.physicalSize = const Size(1200, 1600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
 
-      expect(find.byType(RtlTextField), findsOneWidget,
-          reason: 'מצב העריכה אסור שיתאפס ב-rebuild — אחרת שדה הקלט נעלם '
-              'והמקלדת נסגרת מיד');
-    });
+        await tester.pumpWidget(
+          MultiBlocProvider(
+            providers: [
+              BlocProvider<WorkspaceBloc>.value(value: workspaceBloc),
+              BlocProvider<TabsBloc>.value(value: tabsBloc),
+              BlocProvider<NavigationBloc>.value(value: navigationBloc),
+            ],
+            child: const MaterialApp(
+              locale: Locale('he', 'IL'),
+              home: Scaffold(body: WorkspaceSwitcherDialog()),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // כניסה למצב עריכה — לחיצה על עיפרון העריכה.
+        await tester.tap(
+          find.byWidgetPredicate(
+            (w) => w is Icon && w.icon == FluentIcons.edit_24_regular,
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.byType(RtlTextField),
+          findsOneWidget,
+          reason: 'שדה עריכת השם אמור להופיע אחרי לחיצה על עיפרון',
+        );
+
+        // כיווץ ה-viewport — מדמה פתיחת מקלדת וירטואלית שגורמת rebuild לדיאלוג.
+        tester.view.physicalSize = const Size(1200, 700);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+
+        expect(
+          find.byType(RtlTextField),
+          findsOneWidget,
+          reason:
+              'מצב העריכה אסור שיתאפס ב-rebuild — אחרת שדה הקלט נעלם '
+              'והמקלדת נסגרת מיד',
+        );
+      },
+    );
 
     testWidgets('שמירת השם שולחת RenameWorkspace לבלוק', (tester) async {
       final workspace = Workspace(name: 'שולחן א', tabs: const []);
@@ -98,7 +111,8 @@ void main() {
       );
       final tabsBloc = _TestTabsBloc(TabsState.initial());
       final navigationBloc = _TestNavigationBloc(
-          const NavigationState(currentScreen: Screen.reading));
+        const NavigationState(currentScreen: Screen.reading),
+      );
 
       addTearDown(() async {
         await tester.pumpWidget(const SizedBox.shrink());
@@ -127,16 +141,20 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byWidgetPredicate(
-          (w) => w is Icon && w.icon == FluentIcons.edit_24_regular));
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) => w is Icon && w.icon == FluentIcons.edit_24_regular,
+        ),
+      );
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(RtlTextField), 'שם חדש');
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
 
-      final renameEvents =
-          workspaceBloc.addedEvents.whereType<RenameWorkspace>().toList();
+      final renameEvents = workspaceBloc.addedEvents
+          .whereType<RenameWorkspace>()
+          .toList();
       expect(renameEvents, hasLength(1));
       expect(renameEvents.single.workspaceId, workspace.id);
       expect(renameEvents.single.newName, 'שם חדש');

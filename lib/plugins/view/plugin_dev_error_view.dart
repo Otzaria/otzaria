@@ -38,8 +38,8 @@ class PluginDevErrorView extends StatelessWidget {
             Text(
               'שגיאה בטעינת תוסף פיתוח',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
+                color: Theme.of(context).colorScheme.error,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -58,7 +58,8 @@ class PluginDevErrorView extends StatelessWidget {
               child: Text(
                 errorMessage,
                 style: TextStyle(
-                    color: Theme.of(context).colorScheme.onErrorContainer),
+                  color: Theme.of(context).colorScheme.onErrorContainer,
+                ),
                 textDirection: TextDirection.ltr,
               ),
             ),
@@ -69,9 +70,9 @@ class PluginDevErrorView extends StatelessWidget {
                 ActionButton.recommended(
                   text: 'נסה קריאה מחדש',
                   onPressed: () {
-                    context
-                        .read<PluginSystemBloc>()
-                        .add(ReloadDevelopmentPluginRequested(plugin.pluginId));
+                    context.read<PluginSystemBloc>().add(
+                      ReloadDevelopmentPluginRequested(plugin.pluginId),
+                    );
                   },
                 ),
                 const SizedBox(width: 16),
@@ -86,14 +87,14 @@ class PluginDevErrorView extends StatelessWidget {
                       ),
                     );
                     if (result == true && context.mounted) {
-                      context
-                          .read<NavigationBloc>()
-                          .add(const NavigateToScreen(Screen.more));
+                      context.read<NavigationBloc>().add(
+                        const NavigateToScreen(Screen.more),
+                      );
                     }
                   },
                 ),
               ],
-            )
+            ),
           ],
         ),
       ),

@@ -30,9 +30,13 @@ void main() {
     AppPaths.debugOverrideDataRootPath(dataRootPath);
 
     await Settings.setValue<String>(
-        SettingsRepository.keyLibraryPath, libraryPath);
+      SettingsRepository.keyLibraryPath,
+      libraryPath,
+    );
     await Settings.setValue<String>(
-        SettingsRepository.keyLibraryFolderName, '');
+      SettingsRepository.keyLibraryFolderName,
+      '',
+    );
     await Settings.setValue<String>(SettingsRepository.keyDbEffectivePath, '');
 
     // בונים seforim.db עם קטגוריה אחת, ואז **סוגרים** — אסור להשאיר חיבור
@@ -81,8 +85,8 @@ void main() {
     // החיבור נפתח מחדש read-only.
     expect(SqliteDataProvider.instance.isInitialized, isTrue);
 
-    final categories =
-        await SqliteDataProvider.instance.repository!.getRootCategories();
+    final categories = await SqliteDataProvider.instance.repository!
+        .getRootCategories();
     expect(
       categories.where((c) => c.title == 'חדש'),
       isNotEmpty,
@@ -97,60 +101,74 @@ void main() {
     );
   });
 
-  test('initialize() מקבילה ל-write-session אינה קורסת ואינה פותחת חיבור מתנגש',
-      () async {
-    final session = SqliteDataProvider.instance.withWritableSession((rw) async {
-      // משהים כדי שה-initialize המקבילה תתפוס את ה-session כפעיל.
-      await Future<void>.delayed(const Duration(milliseconds: 30));
-      await rw.insertCategory(const migration_models.Category(title: 'במקביל'));
-    });
-
-    // קריאה מקבילה (כמו lazy-init של מסלול קריאה) — צריכה להמתין לסיום
-    // השרשרת ולא לפתוח חיבור RO מתנגש מול ה-RW.
-    await SqliteDataProvider.instance.initialize();
-    await session;
-
-    expect(SqliteDataProvider.instance.isInitialized, isTrue);
-    final categories =
-        await SqliteDataProvider.instance.repository!.getRootCategories();
-    expect(categories.where((c) => c.title == 'במקביל'), isNotEmpty);
-  });
-
   test(
-      'initialize() בזמן כתיבה חיצונית ממתינה לפתיחה-מחדש ולא מחזירה null '
+    'initialize() מקבילה ל-write-session אינה קורסת ואינה פותחת חיבור מתנגש',
+    () async {
+      final session = SqliteDataProvider.instance.withWritableSession((
+        rw,
+      ) async {
+        // משהים כדי שה-initialize המקבילה תתפוס את ה-session כפעיל.
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        await rw.insertCategory(
+          const migration_models.Category(title: 'במקביל'),
+        );
+      });
+
+      // קריאה מקבילה (כמו lazy-init של מסלול קריאה) — צריכה להמתין לסיום
+      // השרשרת ולא לפתוח חיבור RO מתנגש מול ה-RW.
+      await SqliteDataProvider.instance.initialize();
+      await session;
+
+      expect(SqliteDataProvider.instance.isInitialized, isTrue);
+      final categories = await SqliteDataProvider.instance.repository!
+          .getRootCategories();
+      expect(categories.where((c) => c.title == 'במקביל'), isNotEmpty);
+    },
+  );
+
+  test('initialize() בזמן כתיבה חיצונית ממתינה לפתיחה-מחדש ולא מחזירה null '
       '(תיקון ספר/מפרשים ריקים בעלייה)', () async {
     // מדמים את זרימת הסנכרון ברקע: סוגרים את החיבור לכתיבה חיצונית, ובזמן
     // שהוא סגור מפעילים קורא מקביל (כמו טעינת מפרשים ברקע). הקורא חייב
     // להמתין לפתיחה-מחדש ולראות את החיבור פתוח — לא לקבל חיבור סגור.
     await SqliteDataProvider.instance.closeForExternalWrite();
-    expect(SqliteDataProvider.instance.isInitialized, isFalse,
-        reason: 'בזמן כתיבה חיצונית החיבור סגור');
+    expect(
+      SqliteDataProvider.instance.isInitialized,
+      isFalse,
+      reason: 'בזמן כתיבה חיצונית החיבור סגור',
+    );
 
     var readerDone = false;
-    final readerInitialized =
-        SqliteDataProvider.instance.initialize().then((_) => readerDone = true);
+    final readerInitialized = SqliteDataProvider.instance.initialize().then(
+      (_) => readerDone = true,
+    );
 
     // מוודאים שהקורא באמת *נחסם* ולא חזר מוקדם: נותנים ל-event loop להתרוקן,
     // ועדיין ה-future לא הושלם כל עוד הכתיבה החיצונית פעילה. בלי החסימה, רגרסיה
     // של "מחזיר מוקדם וריק" הייתה משלימה כאן והבדיקה הייתה נכשלת.
     await Future<void>.delayed(const Duration(milliseconds: 50));
-    expect(readerDone, isFalse,
-        reason: 'הקורא חייב להמתין לפתיחה-מחדש, לא לחזור מוקדם');
+    expect(
+      readerDone,
+      isFalse,
+      reason: 'הקורא חייב להמתין לפתיחה-מחדש, לא לחזור מוקדם',
+    );
 
     // האיזולייט החיצוני "סיים" — פותחים מחדש.
     await SqliteDataProvider.instance.reopenAfterExternalWrite();
 
     await readerInitialized;
-    expect(SqliteDataProvider.instance.isInitialized, isTrue,
-        reason: 'הקורא המתין לפתיחה-מחדש במקום לקבל null');
+    expect(
+      SqliteDataProvider.instance.isInitialized,
+      isTrue,
+      reason: 'הקורא המתין לפתיחה-מחדש במקום לקבל null',
+    );
 
-    final categories =
-        await SqliteDataProvider.instance.repository!.getRootCategories();
+    final categories = await SqliteDataProvider.instance.repository!
+        .getRootCategories();
     expect(categories.where((c) => c.title == 'שורש'), isNotEmpty);
   });
 
-  test(
-      'כתיבות חיצוניות חופפות — reopen מקונן אינו נכנס ל-deadlock, '
+  test('כתיבות חיצוניות חופפות — reopen מקונן אינו נכנס ל-deadlock, '
       'והקורא נפתח רק אחרי שהאחרון סיים', () async {
     // שני close חיצוניים לפני שום reopen (כמו שני סנכרונים חופפים).
     await SqliteDataProvider.instance.closeForExternalWrite();
@@ -158,29 +176,35 @@ void main() {
     expect(SqliteDataProvider.instance.isInitialized, isFalse);
 
     var readerDone = false;
-    final reader =
-        SqliteDataProvider.instance.initialize().then((_) => readerDone = true);
+    final reader = SqliteDataProvider.instance.initialize().then(
+      (_) => readerDone = true,
+    );
 
     // reopen ראשון מוריד את המונה ל-1 בלבד — אסור שייתקע ואסור שיפתח עדיין.
-    await SqliteDataProvider.instance
-        .reopenAfterExternalWrite()
-        .timeout(const Duration(seconds: 5));
-    expect(SqliteDataProvider.instance.isInitialized, isFalse,
-        reason: 'עוד יש כתיבה חיצונית פעילה — לא פותחים מחדש');
-    expect(readerDone, isFalse,
-        reason: 'הקורא עדיין חסום — רק הכתיבה הראשונה מבין השתיים הסתיימה');
+    await SqliteDataProvider.instance.reopenAfterExternalWrite().timeout(
+      const Duration(seconds: 5),
+    );
+    expect(
+      SqliteDataProvider.instance.isInitialized,
+      isFalse,
+      reason: 'עוד יש כתיבה חיצונית פעילה — לא פותחים מחדש',
+    );
+    expect(
+      readerDone,
+      isFalse,
+      reason: 'הקורא עדיין חסום — רק הכתיבה הראשונה מבין השתיים הסתיימה',
+    );
 
     // reopen שני (האחרון) פותח מחדש ומשחרר את הקורא.
-    await SqliteDataProvider.instance
-        .reopenAfterExternalWrite()
-        .timeout(const Duration(seconds: 5));
+    await SqliteDataProvider.instance.reopenAfterExternalWrite().timeout(
+      const Duration(seconds: 5),
+    );
     await reader.timeout(const Duration(seconds: 5));
 
     expect(SqliteDataProvider.instance.isInitialized, isTrue);
   });
 
-  test(
-      'initialize() לא נתקעת לנצח כש-reopen מתפספס — חוזרת בתקרת הזמן '
+  test('initialize() לא נתקעת לנצח כש-reopen מתפספס — חוזרת בתקרת הזמן '
       '(תיקון מסך עיון/תצוגה מקדימה ריקים שדורשים restart)', () async {
     // מקצרים את תקרת ההמתנה כדי לבדוק את החסימה בלי להמתין ~30ש'.
     SqliteDataProvider.instance.debugSetExternalWriteWait(
@@ -195,47 +219,54 @@ void main() {
 
     // הקורא חייב לחזור בתוך תקרת ההמתנה, לא להיתקע לנצח. בלי התיקון
     // (await gate.future ללא תקרה) ה-timeout כאן היה מתפוצץ.
-    await SqliteDataProvider.instance
-        .initialize()
-        .timeout(const Duration(seconds: 5));
+    await SqliteDataProvider.instance.initialize().timeout(
+      const Duration(seconds: 5),
+    );
 
     // עדיין יש session פעיל (דלף) ולכן ה-RO לא נפתח — אבל האפליקציה
     // רספונסיבית: הקורא חזר (יציג ריק) במקום לקפוא על סקלטון.
-    expect(SqliteDataProvider.instance.isInitialized, isFalse,
-        reason: 'ה-session דלף — RO לא נפתח, אבל הקורא לא נתקע');
+    expect(
+      SqliteDataProvider.instance.isInitialized,
+      isFalse,
+      reason: 'ה-session דלף — RO לא נפתח, אבל הקורא לא נתקע',
+    );
 
     // ניקוי: סוגרים את ה-session הדלוף כדי שלא ידלוף לטסט הבא.
     await SqliteDataProvider.instance.reopenAfterExternalWrite();
   });
 
   test(
-      'initialize() מתאוששת מיד כש-reopen מגיע אחרי השהיה (לא ממתינה פעימה מלאה)',
-      () async {
-    SqliteDataProvider.instance.debugSetExternalWriteWait(
-      pollInterval: const Duration(seconds: 30),
-      maxPolls: 15,
-    );
+    'initialize() מתאוששת מיד כש-reopen מגיע אחרי השהיה (לא ממתינה פעימה מלאה)',
+    () async {
+      SqliteDataProvider.instance.debugSetExternalWriteWait(
+        pollInterval: const Duration(seconds: 30),
+        maxPolls: 15,
+      );
 
-    await SqliteDataProvider.instance.closeForExternalWrite();
+      await SqliteDataProvider.instance.closeForExternalWrite();
 
-    var readerDone = false;
-    final reader =
-        SqliteDataProvider.instance.initialize().then((_) => readerDone = true);
+      var readerDone = false;
+      final reader = SqliteDataProvider.instance.initialize().then(
+        (_) => readerDone = true,
+      );
 
-    // reopen מגיע אחרי השהיה קצרה (כמו סנכרון שנמשך "כמה שניות"). אף שפעימת
-    // ההמתנה היא 30ש', gate.future מסתיים מיד עם reopen והקורא מתעורר — לא
-    // ממתין את הפעימה המלאה.
-    await Future<void>.delayed(const Duration(milliseconds: 50));
-    expect(readerDone, isFalse);
-    await SqliteDataProvider.instance.reopenAfterExternalWrite();
+      // reopen מגיע אחרי השהיה קצרה (כמו סנכרון שנמשך "כמה שניות"). אף שפעימת
+      // ההמתנה היא 30ש', gate.future מסתיים מיד עם reopen והקורא מתעורר — לא
+      // ממתין את הפעימה המלאה.
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(readerDone, isFalse);
+      await SqliteDataProvider.instance.reopenAfterExternalWrite();
 
-    await reader.timeout(const Duration(seconds: 2));
-    expect(SqliteDataProvider.instance.isInitialized, isTrue,
-        reason: 'הקורא התעורר מיד עם reopen, לא חיכה לתום הפעימה');
-  });
+      await reader.timeout(const Duration(seconds: 2));
+      expect(
+        SqliteDataProvider.instance.isInitialized,
+        isTrue,
+        reason: 'הקורא התעורר מיד עם reopen, לא חיכה לתום הפעימה',
+      );
+    },
+  );
 
-  test(
-      'initialize() מתאוששת מיומן rollback חם שנותר מסגירה באמצע עדכון '
+  test('initialize() מתאוששת מיומן rollback חם שנותר מסגירה באמצע עדכון '
       '(תיקון SQLITE_READONLY_ROLLBACK 776)', () async {
     final dbPath = path.join(libraryPath, DatabaseConstants.databaseFileName);
 
@@ -263,20 +294,29 @@ void main() {
     File('$dbPath-shm').existsSync() ? File('$dbPath-shm').deleteSync() : null;
     File(dbPath).writeAsBytesSync(dbBytes);
     File('$dbPath-journal').writeAsBytesSync(journalBytes);
-    expect(File('$dbPath-journal').lengthSync(), greaterThan(0),
-        reason: 'התרחיש דורש יומן חם לא-ריק');
+    expect(
+      File('$dbPath-journal').lengthSync(),
+      greaterThan(0),
+      reason: 'התרחיש דורש יומן חם לא-ריק',
+    );
 
     // ללא נרמול היומן החם, הפתיחה ה-RO הייתה נכשלת ב-776 והאפליקציה לא נפתחת.
     await SqliteDataProvider.instance.initialize();
-    expect(SqliteDataProvider.instance.isInitialized, isTrue,
-        reason: 'היומן החם נורמל ל-DELETE, וה-RO נפתח בהצלחה');
+    expect(
+      SqliteDataProvider.instance.isInitialized,
+      isTrue,
+      reason: 'היומן החם נורמל ל-DELETE, וה-RO נפתח בהצלחה',
+    );
 
     // הטרנזקציה שנקטעה בוטלה (rollback), והקריאה עובדת.
-    final categories =
-        await SqliteDataProvider.instance.repository!.getRootCategories();
+    final categories = await SqliteDataProvider.instance.repository!
+        .getRootCategories();
     expect(categories.where((c) => c.title == 'שורש'), isNotEmpty);
-    expect(categories.where((c) => c.title.startsWith('flood')), isEmpty,
-        reason: 'הטרנזקציה הלא-גמורה לא הוחלה');
+    expect(
+      categories.where((c) => c.title.startsWith('flood')),
+      isEmpty,
+      reason: 'הטרנזקציה הלא-גמורה לא הוחלה',
+    );
   });
 
   test('write-sessions סדרתיים — שתי כתיבות מצטברות', () async {

@@ -31,9 +31,11 @@ void main() {
       final counts = FacetHelper.buildFacetCountsFromResults(
         [
           _FakeSearchResult(
-              IndexingRepository.buildIndexedBookFilePath(genesis)),
+            IndexingRepository.buildIndexedBookFilePath(genesis),
+          ),
           _FakeSearchResult(
-              IndexingRepository.buildIndexedBookFilePath(berachot)),
+            IndexingRepository.buildIndexedBookFilePath(berachot),
+          ),
         ],
         bookByIndexedFilePath,
       );
@@ -62,9 +64,11 @@ void main() {
       final counts = FacetHelper.buildFacetCountsFromResults(
         [
           _FakeSearchResult(
-              IndexingRepository.buildIndexedBookFilePath(firstBook)),
+            IndexingRepository.buildIndexedBookFilePath(firstBook),
+          ),
           _FakeSearchResult(
-              IndexingRepository.buildIndexedBookFilePath(secondBook)),
+            IndexingRepository.buildIndexedBookFilePath(secondBook),
+          ),
         ],
         {
           IndexingRepository.buildIndexedBookFilePath(firstBook): firstBook,

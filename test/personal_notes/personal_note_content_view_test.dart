@@ -43,8 +43,9 @@ void main() {
     expect(find.text('קישור'), findsOneWidget);
   });
 
-  testWidgets('כתובת otzaria:// שהודבקה כטקסט רגיל הופכת לקישור לחיץ',
-      (tester) async {
+  testWidgets('כתובת otzaria:// שהודבקה כטקסט רגיל הופכת לקישור לחיץ', (
+    tester,
+  ) async {
     final note = PersonalNote(
       id: 'pn_1',
       bookId: 'Test',
@@ -82,24 +83,24 @@ void main() {
 
   testWidgets('בונה מחדש את הקישורים כשה-note מתחלף', (tester) async {
     PersonalNote noteWithLink(String label, String url) => PersonalNote(
-          id: 'pn_1',
-          bookId: 'Test',
-          lineNumber: 1,
-          displayTitle: 'כותרת',
-          lastKnownLineNumber: null,
-          status: PersonalNoteStatus.located,
-          content: jsonEncode([
-            {
-              'insert': label,
-              'attributes': {'link': url},
-            },
-            {'insert': '\n'},
-          ]),
-          contentPlain: label,
-          contentFormat: PersonalNoteContentFormat.quillDelta,
-          createdAt: DateTime(2025, 1, 1),
-          updatedAt: DateTime(2025, 1, 2),
-        );
+      id: 'pn_1',
+      bookId: 'Test',
+      lineNumber: 1,
+      displayTitle: 'כותרת',
+      lastKnownLineNumber: null,
+      status: PersonalNoteStatus.located,
+      content: jsonEncode([
+        {
+          'insert': label,
+          'attributes': {'link': url},
+        },
+        {'insert': '\n'},
+      ]),
+      contentPlain: label,
+      contentFormat: PersonalNoteContentFormat.quillDelta,
+      createdAt: DateTime(2025, 1, 1),
+      updatedAt: DateTime(2025, 1, 2),
+    );
 
     late StateSetter setState;
     var note = noteWithLink('קישור ראשון', 'otzaria://book?bookId=A&line=1');
@@ -191,8 +192,9 @@ void main() {
     expect(find.byType(PersonalNoteContentView), findsOneWidget);
   });
 
-  testWidgets('שינוי maxPreviewChars בונה מחדש ומסנן קישורים שמעבר לסף',
-      (tester) async {
+  testWidgets('שינוי maxPreviewChars בונה מחדש ומסנן קישורים שמעבר לסף', (
+    tester,
+  ) async {
     final note = PersonalNote(
       id: 'pn_1',
       bookId: 'Test',
@@ -243,21 +245,22 @@ void main() {
     expect(find.byType(ActionChip), findsOneWidget);
   });
 
-  testWidgets('PersonalNotesListView מציגה את כל ההערות של השורה עם מפריד',
-      (tester) async {
+  testWidgets('PersonalNotesListView מציגה את כל ההערות של השורה עם מפריד', (
+    tester,
+  ) async {
     PersonalNote plainNote(String id, String text) => PersonalNote(
-          id: id,
-          bookId: 'Test',
-          lineNumber: 1,
-          displayTitle: 'כותרת',
-          lastKnownLineNumber: null,
-          status: PersonalNoteStatus.located,
-          content: text,
-          contentPlain: text,
-          contentFormat: PersonalNoteContentFormat.plain,
-          createdAt: DateTime(2025, 1, 1),
-          updatedAt: DateTime(2025, 1, 2),
-        );
+      id: id,
+      bookId: 'Test',
+      lineNumber: 1,
+      displayTitle: 'כותרת',
+      lastKnownLineNumber: null,
+      status: PersonalNoteStatus.located,
+      content: text,
+      contentPlain: text,
+      contentFormat: PersonalNoteContentFormat.plain,
+      createdAt: DateTime(2025, 1, 1),
+      updatedAt: DateTime(2025, 1, 2),
+    );
 
     await tester.pumpWidget(
       MaterialApp(

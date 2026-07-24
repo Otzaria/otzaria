@@ -79,8 +79,10 @@ class _PageNumberDisplayState extends State<PageNumberDisplay> {
                 textAlign: TextAlign.center,
                 style: AppTopBar.titleStyle(context),
                 decoration: InputDecoration(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 0,
+                  ),
                   isDense: true,
                   hintText: '1-$pageCount',
                   border: const OutlineInputBorder(),
@@ -91,27 +93,28 @@ class _PageNumberDisplayState extends State<PageNumberDisplay> {
           : Tooltip(
               message: "הזן מספר דף",
               child: InkWell(
-                  mouseCursor: SystemMouseCursors.click,
-                  child: TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _isEditing = true;
-                        _textController.text = pageNumber.toString();
-                      });
-                      // Ensure the text is selected when editing starts
-                      Future.delayed(const Duration(milliseconds: 50), () {
-                        _focusNode.requestFocus();
-                        _textController.selection = TextSelection(
-                          baseOffset: 0,
-                          extentOffset: _textController.text.length,
-                        );
-                      });
-                    },
-                    child: Text(
-                      '$pageNumber/$pageCount',
-                      style: AppTopBar.titleStyle(context),
-                    ),
-                  )),
+                mouseCursor: SystemMouseCursors.click,
+                child: TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _isEditing = true;
+                      _textController.text = pageNumber.toString();
+                    });
+                    // Ensure the text is selected when editing starts
+                    Future.delayed(const Duration(milliseconds: 50), () {
+                      _focusNode.requestFocus();
+                      _textController.selection = TextSelection(
+                        baseOffset: 0,
+                        extentOffset: _textController.text.length,
+                      );
+                    });
+                  },
+                  child: Text(
+                    '$pageNumber/$pageCount',
+                    style: AppTopBar.titleStyle(context),
+                  ),
+                ),
+              ),
             ),
     );
   }

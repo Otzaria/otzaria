@@ -91,110 +91,116 @@ void main() {
     });
 
     test(
-        'dispatches reader.current_ref_changed with correct payload for text tab',
-        () async {
-      final textTab = TextBookTab(
-        book: TextBook(title: 'בראשית'),
-        index: 42,
-      )..currentTitle.value = 'פרק ג';
+      'dispatches reader.current_ref_changed with correct payload for text tab',
+      () async {
+        final textTab = TextBookTab(
+          book: TextBook(title: 'בראשית'),
+          index: 42,
+        )..currentTitle.value = 'פרק ג';
 
-      final tracker = buildTracker(
-        initialState: TabsState(tabs: [textTab], currentTabIndex: 0),
-      );
-      await settle();
+        final tracker = buildTracker(
+          initialState: TabsState(tabs: [textTab], currentTabIndex: 0),
+        );
+        await settle();
 
-      expect(dispatchedEvents, hasLength(1));
-      expect(dispatchedEvents.single.topic, 'reader.current_ref_changed');
-      expect(dispatchedEvents.single.payload, {
-        'currentBook': 'בראשית',
-        'currentBookId': 'בראשית',
-        'currentIndex': 42,
-        'currentRef': 'פרק ג',
-      });
+        expect(dispatchedEvents, hasLength(1));
+        expect(dispatchedEvents.single.topic, 'reader.current_ref_changed');
+        expect(dispatchedEvents.single.payload, {
+          'currentBook': 'בראשית',
+          'currentBookId': 'בראשית',
+          'currentIndex': 42,
+          'currentRef': 'פרק ג',
+        });
 
-      tracker.dispose();
-    });
+        tracker.dispose();
+      },
+    );
 
     test(
-        'dispatches reader.current_ref_changed with correct payload for pdf tab',
-        () async {
-      final pdfTab = PdfBookTab(
-        book: PdfBook(title: 'מסילת ישרים', path: '/tmp/mesilat.pdf'),
-        pageNumber: 17,
-      )..currentTitle.value = 'פרק ב';
+      'dispatches reader.current_ref_changed with correct payload for pdf tab',
+      () async {
+        final pdfTab = PdfBookTab(
+          book: PdfBook(title: 'מסילת ישרים', path: '/tmp/mesilat.pdf'),
+          pageNumber: 17,
+        )..currentTitle.value = 'פרק ב';
 
-      final tracker = buildTracker(
-        initialState: TabsState(tabs: [pdfTab], currentTabIndex: 0),
-      );
-      await settle();
+        final tracker = buildTracker(
+          initialState: TabsState(tabs: [pdfTab], currentTabIndex: 0),
+        );
+        await settle();
 
-      expect(dispatchedEvents, hasLength(1));
-      expect(dispatchedEvents.single.topic, 'reader.current_ref_changed');
-      expect(dispatchedEvents.single.payload, {
-        'currentBook': 'מסילת ישרים',
-        'currentBookId': 'מסילת ישרים',
-        'currentIndex': 17,
-        'currentRef': 'פרק ב',
-      });
+        expect(dispatchedEvents, hasLength(1));
+        expect(dispatchedEvents.single.topic, 'reader.current_ref_changed');
+        expect(dispatchedEvents.single.payload, {
+          'currentBook': 'מסילת ישרים',
+          'currentBookId': 'מסילת ישרים',
+          'currentIndex': 17,
+          'currentRef': 'פרק ב',
+        });
 
-      tracker.dispose();
-    });
+        tracker.dispose();
+      },
+    );
 
-    test('dedupes identical snapshot when same location is emitted again',
-        () async {
-      final textTab = TextBookTab(
-        book: TextBook(title: 'בראשית'),
-        index: 42,
-      )..currentTitle.value = 'פרק ג';
+    test(
+      'dedupes identical snapshot when same location is emitted again',
+      () async {
+        final textTab = TextBookTab(
+          book: TextBook(title: 'בראשית'),
+          index: 42,
+        )..currentTitle.value = 'פרק ג';
 
-      final tracker = buildTracker(
-        initialState: TabsState(tabs: [textTab], currentTabIndex: 0),
-      );
-      await settle();
+        final tracker = buildTracker(
+          initialState: TabsState(tabs: [textTab], currentTabIndex: 0),
+        );
+        await settle();
 
-      textTab.bloc.emit(
-        TextBookLoaded.initial(
-          book: textTab.book,
-          index: textTab.index,
-          showLeftPane: false,
-          splitView: false,
-        ).copyWith(
-          visibleIndices: [42],
-          currentTitle: 'פרק ג',
-        ),
-      );
-      await settle();
+        textTab.bloc.emit(
+          TextBookLoaded.initial(
+            book: textTab.book,
+            index: textTab.index,
+            showLeftPane: false,
+            splitView: false,
+          ).copyWith(
+            visibleIndices: [42],
+            currentTitle: 'פרק ג',
+          ),
+        );
+        await settle();
 
-      expect(dispatchedEvents, hasLength(1));
-      tracker.dispose();
-    });
+        expect(dispatchedEvents, hasLength(1));
+        tracker.dispose();
+      },
+    );
 
-    test('dispatches again after active tab becomes null and returns',
-        () async {
-      final textTab = TextBookTab(
-        book: TextBook(title: 'בראשית'),
-        index: 42,
-      )..currentTitle.value = 'פרק ג';
+    test(
+      'dispatches again after active tab becomes null and returns',
+      () async {
+        final textTab = TextBookTab(
+          book: TextBook(title: 'בראשית'),
+          index: 42,
+        )..currentTitle.value = 'פרק ג';
 
-      final tracker = buildTracker(
-        initialState: TabsState(tabs: [textTab], currentTabIndex: 0),
-      );
-      await settle();
+        final tracker = buildTracker(
+          initialState: TabsState(tabs: [textTab], currentTabIndex: 0),
+        );
+        await settle();
 
-      setCurrentState(TabsState.initial());
-      tabsStateController.add(TabsState.initial());
-      await settle();
+        setCurrentState(TabsState.initial());
+        tabsStateController.add(TabsState.initial());
+        await settle();
 
-      final reopenedState = TabsState(tabs: [textTab], currentTabIndex: 0);
-      setCurrentState(reopenedState);
-      tabsStateController.add(reopenedState);
-      await settle();
+        final reopenedState = TabsState(tabs: [textTab], currentTabIndex: 0);
+        setCurrentState(reopenedState);
+        tabsStateController.add(reopenedState);
+        await settle();
 
-      expect(dispatchedEvents, hasLength(2));
-      expect(dispatchedEvents.first.payload, dispatchedEvents.last.payload);
+        expect(dispatchedEvents, hasLength(2));
+        expect(dispatchedEvents.first.payload, dispatchedEvents.last.payload);
 
-      tracker.dispose();
-    });
+        tracker.dispose();
+      },
+    );
 
     test('ignores stale async snapshot after rapid tab switch', () async {
       final textTab1 = TextBookTab(
@@ -229,8 +235,10 @@ void main() {
       );
       await settle();
 
-      final switchedState =
-          TabsState(tabs: [textTab1, textTab2], currentTabIndex: 1);
+      final switchedState = TabsState(
+        tabs: [textTab1, textTab2],
+        currentTabIndex: 1,
+      );
       setCurrentState(switchedState);
       tabsStateController.add(switchedState);
       await settle();

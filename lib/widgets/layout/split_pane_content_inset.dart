@@ -13,8 +13,8 @@ class SplitPaneContentInset extends InheritedWidget {
 
   /// השוליים הפעילים, או [EdgeInsets.zero] בתצוגת חלונית יחידה (ללא פיצול).
   static EdgeInsetsGeometry of(BuildContext context) {
-    final inherited =
-        context.dependOnInheritedWidgetOfExactType<SplitPaneContentInset>();
+    final inherited = context
+        .dependOnInheritedWidgetOfExactType<SplitPaneContentInset>();
     return inherited?.contentInset ?? EdgeInsets.zero;
   }
 

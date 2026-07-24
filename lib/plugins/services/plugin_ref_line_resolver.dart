@@ -83,11 +83,9 @@ class PluginRefLineResolver {
     return _filterLocators(_tokenize(trimmed));
   }
 
-  static List<String> _tokenize(String s) =>
-      normalizeForFindRefMatch(_expandDafMarks(s))
-          .split(' ')
-          .where((t) => t.isNotEmpty)
-          .toList();
+  static List<String> _tokenize(String s) => normalizeForFindRefMatch(
+    _expandDafMarks(s),
+  ).split(' ').where((t) => t.isNotEmpty).toList();
 
   /// מרחיב סימון עמוד גמרא ("ב." / "ב:") לטוקן עמוד מפורש — כמו הנרמול
   /// הכללי, אבל גם כשאחרי הסימן בא פסיק ("ברכות ב., א"), תבנית ה-heRef ב-DB

@@ -12,14 +12,14 @@ import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 
 ReferenceBookHit _hit(String filePath) => ReferenceBookHit(
-      bookId: -1,
-      title: filePath,
-      normalizedTitle: filePath,
-      filePath: filePath,
-      fileType: 'pdf',
-      matchRank: 0,
-      orderIndex: 999.0,
-    );
+  bookId: -1,
+  title: filePath,
+  normalizedTitle: filePath,
+  filePath: filePath,
+  fileType: 'pdf',
+  matchRank: 0,
+  orderIndex: 999.0,
+);
 
 (String, ReferenceBookHit) _fakeBook(String path) => (path, _hit(path));
 
@@ -42,12 +42,12 @@ void main() {
     ReferenceBooksCache.instance.pdfOutlineCacheRepositoryOverride = cacheRepo;
     ReferenceBooksCache.instance.pdfFileMetadataProviderOverride =
         (filePath) async {
-      if (filePath.isEmpty) return null;
-      return (
-        fileSize: filePath.length,
-        lastModified: filePath.hashCode,
-      );
-    };
+          if (filePath.isEmpty) return null;
+          return (
+            fileSize: filePath.length,
+            lastModified: filePath.hashCode,
+          );
+        };
     ReferenceBooksCache.instance.nowProviderOverride = null;
   });
 
@@ -88,7 +88,9 @@ void main() {
 
       expect(calls..sort(), equals(paths..sort()));
       expect(
-          cache.pdfOutlineCacheForTesting.keys.toSet(), equals(paths.toSet()));
+        cache.pdfOutlineCacheForTesting.keys.toSet(),
+        equals(paths.toSet()),
+      );
       // הערכים בקאש זמינים — שליפה חוזרת לא מפעילה פרסר נוסף.
       final initialCount = calls.length;
       await cache.getPdfOutlineEntries('/a.pdf');
@@ -97,12 +99,15 @@ void main() {
 
     test('דילוג על קבצים שכבר בקאש — putIfAbsent מונע parse כפול', () async {
       final cache = ReferenceBooksCache.instance;
-      cache.setFsPdfBooksForTesting(
-          [_fakeBook('/cached.pdf'), _fakeBook('/new.pdf')]);
+      cache.setFsPdfBooksForTesting([
+        _fakeBook('/cached.pdf'),
+        _fakeBook('/new.pdf'),
+      ]);
 
       // ערך מוכן מראש ב-cache עבור '/cached.pdf'.
-      cache.pdfOutlineCacheForTesting['/cached.pdf'] =
-          Future.value(const [('x', 'x', 1)]);
+      cache.pdfOutlineCacheForTesting['/cached.pdf'] = Future.value(const [
+        ('x', 'x', 1),
+      ]);
 
       final calls = <String>[];
       cache.pdfOutlineParser = (p) async {
@@ -112,14 +117,18 @@ void main() {
 
       await cache.prewarmAllPdfOutlines();
 
-      expect(calls, equals(['/new.pdf']),
-          reason: 'הפרסר נקרא רק על הקובץ שאינו בקאש');
+      expect(
+        calls,
+        equals(['/new.pdf']),
+        reason: 'הפרסר נקרא רק על הקובץ שאינו בקאש',
+      );
     });
 
     test('מכבד maxConcurrent — לא יותר מ-N פתיחות מקבילות', () async {
       final cache = ReferenceBooksCache.instance;
       cache.setFsPdfBooksForTesting(
-          List.generate(10, (i) => _fakeBook('/p$i.pdf')));
+        List.generate(10, (i) => _fakeBook('/p$i.pdf')),
+      );
 
       var active = 0;
       var maxObserved = 0;
@@ -142,7 +151,8 @@ void main() {
     test('clear() באמצע ה-prewarm עוצר את ה-batches הבאים', () async {
       final cache = ReferenceBooksCache.instance;
       cache.setFsPdfBooksForTesting(
-          List.generate(10, (i) => _fakeBook('/p$i.pdf')));
+        List.generate(10, (i) => _fakeBook('/p$i.pdf')),
+      );
 
       final pending = <Completer<List<(String, String, int)>>>[];
       var callCount = 0;
@@ -178,8 +188,11 @@ void main() {
 
       await prewarm;
 
-      expect(callCount, equals(4),
-          reason: 'אין קריאות נוספות לאחר clear() (batches 3+4+5 נעצרו)');
+      expect(
+        callCount,
+        equals(4),
+        reason: 'אין קריאות נוספות לאחר clear() (batches 3+4+5 נעצרו)',
+      );
     });
 
     test('ערכי filePath ריקים נדלגים — אינם מוסיפים קריאה לפרסר', () async {

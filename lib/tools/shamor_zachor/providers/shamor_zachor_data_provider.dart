@@ -12,10 +12,11 @@ import '../models/book_model.dart';
 import '../models/error_model.dart';
 import '../services/shamor_zachor_bootstrap_worker.dart';
 
-typedef ShamorZachorCategoryTreeLoader = Future<Map<String, dynamic>> Function({
-  required String dbPath,
-  required List<int> trackedBookIds,
-});
+typedef ShamorZachorCategoryTreeLoader =
+    Future<Map<String, dynamic>> Function({
+      required String dbPath,
+      required List<int> trackedBookIds,
+    });
 
 /// Provider for managing book data in Shamor Zachor
 /// This provider is scoped locally within the ShamorZachorWidget
@@ -60,9 +61,9 @@ class ShamorZachorDataProvider with ChangeNotifier {
   ShamorZachorDataProvider({
     SqliteDataProvider? sqliteDataProvider,
     ShamorZachorCategoryTreeLoader? categoryTreeLoader,
-  })  : _sqliteDataProvider = sqliteDataProvider ?? SqliteDataProvider.instance,
-        _categoryTreeLoader =
-            categoryTreeLoader ?? ShamorZachorBootstrapWorker.loadCategoryTree;
+  }) : _sqliteDataProvider = sqliteDataProvider ?? SqliteDataProvider.instance,
+       _categoryTreeLoader =
+           categoryTreeLoader ?? ShamorZachorBootstrapWorker.loadCategoryTree;
 
   /// Ensures data is loaded - call this when the widget is first displayed
   ///
@@ -109,10 +110,11 @@ class ShamorZachorDataProvider with ChangeNotifier {
             .toList();
         _allBookData = _hydrateCategoryTree(categories);
         _logger.info(
-            'Loaded ${_allBookData.length} top-level categories in isolate '
-            '(${workerResult['relevantBookCount']} relevant books, '
-            '${workerResult['allBookCount']} total books, '
-            '${workerResult['categoryCount']} categories).');
+          'Loaded ${_allBookData.length} top-level categories in isolate '
+          '(${workerResult['relevantBookCount']} relevant books, '
+          '${workerResult['allBookCount']} total books, '
+          '${workerResult['categoryCount']} categories).',
+        );
         return;
       } catch (e, stackTrace) {
         _logger.warning(
@@ -131,8 +133,8 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
       // OPTIMIZATION 2: Reuse categories from SqliteDataProvider cache if available
       // This avoids duplicate category queries
-      final allCategories =
-          await repository.database.categoryDao.getAllCategories();
+      final allCategories = await repository.database.categoryDao
+          .getAllCategories();
       final categoryMap = {for (var c in allCategories) c.id: c};
 
       // 3. Build Category Tree Structure
@@ -145,15 +147,19 @@ class ShamorZachorDataProvider with ChangeNotifier {
         booksByCatId[b.categoryId]!.add(b);
       }
 
-      final rootCategories = allCategories
-          .where((c) => c.parentId == null)
-          .toList()
-        ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+      final rootCategories =
+          allCategories.where((c) => c.parentId == null).toList()
+            ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
       for (var rootCat in rootCategories) {
         final builtCat = await _buildRecursiveCategory(
-            rootCat, categoryMap, booksByCatId, repository, null,
-            parentPath: []);
+          rootCat,
+          categoryMap,
+          booksByCatId,
+          repository,
+          null,
+          parentPath: [],
+        );
 
         if (builtCat != null) {
           resultData[builtCat.name] = builtCat;
@@ -162,7 +168,8 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
       _allBookData = resultData;
       _logger.info(
-          'Loaded ${_allBookData.length} top-level categories from DB using shared cache (${relevantBooks.length} books).');
+        'Loaded ${_allBookData.length} top-level categories from DB using shared cache (${relevantBooks.length} books).',
+      );
     } catch (e, stackTrace) {
       _logger.severe('Error loading from DB', e, stackTrace);
       _error = ShamorZachorError.fromException(e, stackTrace: stackTrace);
@@ -188,8 +195,9 @@ class ShamorZachorDataProvider with ChangeNotifier {
       contentType: json['contentType'] as String,
       books: {
         for (final entry in booksJson.entries)
-          entry.key as String:
-              _hydrateBookDetails((entry.value as Map).cast<String, dynamic>()),
+          entry.key as String: _hydrateBookDetails(
+            (entry.value as Map).cast<String, dynamic>(),
+          ),
       },
       defaultStartPage: json['defaultStartPage'] as int? ?? 1,
       isCustom: json['isCustom'] as bool? ?? false,
@@ -212,8 +220,9 @@ class ShamorZachorDataProvider with ChangeNotifier {
       id: json['id'] as int?,
       originalPageCount: json['originalPageCount'] as num?,
       sections: (json['sections'] as List?)
-          ?.map((raw) =>
-              BookSection.fromJson((raw as Map).cast<String, dynamic>()))
+          ?.map(
+            (raw) => BookSection.fromJson((raw as Map).cast<String, dynamic>()),
+          )
           .toList(),
       categoryPath: json['categoryPath'] as String?,
     );
@@ -248,22 +257,30 @@ class ShamorZachorDataProvider with ChangeNotifier {
     for (var dbBook in directBooks) {
       // Convert DB Book to BookDetails with the full category path
       final bookDetails = await _convertDbBookToDetails(
-          dbBook, repository, myContentType, currentPath);
+        dbBook,
+        repository,
+        myContentType,
+        currentPath,
+      );
       validBooks[dbBook.title] = bookDetails;
     }
 
     // 2. Get Subcategories
-    final childCats = allCatsMap.values
-        .where((c) => c.parentId == currentCat.id)
-        .toList()
-      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    final childCats =
+        allCatsMap.values.where((c) => c.parentId == currentCat.id).toList()
+          ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
     final List<BookCategory> validSubCats = [];
 
     for (var child in childCats) {
       final sub = await _buildRecursiveCategory(
-          child, allCatsMap, booksByCatId, repository, myContentType,
-          parentPath: currentPath);
+        child,
+        allCatsMap,
+        booksByCatId,
+        repository,
+        myContentType,
+        parentPath: currentPath,
+      );
       if (sub != null) {
         validSubCats.add(sub);
       }
@@ -291,10 +308,11 @@ class ShamorZachorDataProvider with ChangeNotifier {
   }
 
   Future<BookDetails> _convertDbBookToDetails(
-      db_models.Book dbBook,
-      SeforimRepository repository,
-      String contentType,
-      List<String> categoryPath) async {
+    db_models.Book dbBook,
+    SeforimRepository repository,
+    String contentType,
+    List<String> categoryPath,
+  ) async {
     // Load TOC sections for the book
     final sections = await getTocForBook(dbBook.id);
 
@@ -304,16 +322,19 @@ class ShamorZachorDataProvider with ChangeNotifier {
     // Use actual totalLines, but ensure minimum of 1
     int endPage = dbBook.totalLines > 0 ? dbBook.totalLines : 1;
 
-    parts.add(BookPart(
-      name: "ראשי",
-      startPage: 1,
-      endPage: endPage,
-    ));
+    parts.add(
+      BookPart(
+        name: "ראשי",
+        startPage: 1,
+        endPage: endPage,
+      ),
+    );
 
     // Use the first category in the path as the main category for progress tracking
     // This is the top-level category from the DB (e.g., "תלמוד בבלי", "תנ"ך")
-    final categoryPathString =
-        categoryPath.isNotEmpty ? categoryPath.first : '';
+    final categoryPathString = categoryPath.isNotEmpty
+        ? categoryPath.first
+        : '';
 
     return BookDetails(
       contentType: dbBook.fileType == 'pdf'
@@ -338,8 +359,9 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
     try {
       final repository = _sqliteDataProvider!.repository!;
-      final tocEntries =
-          await repository.database.tocDao.selectByBookId(bookId);
+      final tocEntries = await repository.database.tocDao.selectByBookId(
+        bookId,
+      );
 
       if (tocEntries.isEmpty) {
         _tocCache[bookId] = [];
@@ -361,7 +383,9 @@ class ShamorZachorDataProvider with ChangeNotifier {
   }
 
   List<BookSection> _buildSectionsFromToc(
-      List<db_models.TocEntry> entries, int totalLines) {
+    List<db_models.TocEntry> entries,
+    int totalLines,
+  ) {
     // Map DB entries to BookSection
     // DB entries are flat list. We need to rebuild tree.
     // `TocDao` usually handles relationships.
@@ -389,16 +413,24 @@ class ShamorZachorDataProvider with ChangeNotifier {
       final nextStart = next?.lineIndex ?? totalLines;
       final currentEnd =
           (next != null && (next.lineIndex ?? 0) > (current.lineIndex ?? 0))
-              ? (next.lineIndex! - 1)
-              : nextStart;
-      result.add(_convertToSection(
-          current, childMap, currentEnd > 0 ? currentEnd : totalLines));
+          ? (next.lineIndex! - 1)
+          : nextStart;
+      result.add(
+        _convertToSection(
+          current,
+          childMap,
+          currentEnd > 0 ? currentEnd : totalLines,
+        ),
+      );
     }
     return result;
   }
 
-  BookSection _convertToSection(db_models.TocEntry entry,
-      Map<int, List<db_models.TocEntry>> childMap, int parentEndPage) {
+  BookSection _convertToSection(
+    db_models.TocEntry entry,
+    Map<int, List<db_models.TocEntry>> childMap,
+    int parentEndPage,
+  ) {
     final children = childMap[entry.id] ?? [];
     children.sort((a, b) => (a.lineIndex ?? 0).compareTo(b.lineIndex ?? 0));
 
@@ -412,8 +444,8 @@ class ShamorZachorDataProvider with ChangeNotifier {
       final nextStart = next?.lineIndex ?? parentEndPage;
       final currentEnd =
           (next != null && (next.lineIndex ?? 0) > (current.lineIndex ?? 0))
-              ? (next.lineIndex! - 1)
-              : nextStart;
+          ? (next.lineIndex! - 1)
+          : nextStart;
 
       childSections.add(_convertToSection(current, childMap, currentEnd));
     }
@@ -484,8 +516,11 @@ class ShamorZachorDataProvider with ChangeNotifier {
     // Check subcategories
     if (category.subcategories != null) {
       for (final subCategory in category.subcategories!) {
-        final result =
-            _findBookByIdRecursive(subCategory, bookId, topLevelName);
+        final result = _findBookByIdRecursive(
+          subCategory,
+          bookId,
+          topLevelName,
+        );
         if (result != null) {
           return result;
         }
@@ -508,13 +543,18 @@ class ShamorZachorDataProvider with ChangeNotifier {
     return results;
   }
 
-  void _searchRecursive(BookCategory category, String query,
-      List<BookSearchResult> results, String topName) {
+  void _searchRecursive(
+    BookCategory category,
+    String query,
+    List<BookSearchResult> results,
+    String topName,
+  ) {
     // Direct
     category.books.forEach((name, details) {
       if (name.toLowerCase().contains(query)) {
         results.add(
-            BookSearchResult(details, category.name, category, name, topName));
+          BookSearchResult(details, category.name, category, name, topName),
+        );
       }
     });
     // Sub
@@ -555,13 +595,15 @@ class ShamorZachorDataProvider with ChangeNotifier {
       if (existing == null) {
         _logger.warning("Book '$bookName' not found in database");
         throw Exception(
-            'הספר "$bookName" לא נמצא במסד הנתונים. יש להוסיף אותו תחילה לספרייה.');
+          'הספר "$bookName" לא נמצא במסד הנתונים. יש להוסיף אותו תחילה לספרייה.',
+        );
       }
 
       // 2. Add book ID to tracked books list
       await _addToTrackedBooksList(existing.id);
       _logger.info(
-          "Book '$bookName' (ID: ${existing.id}) added to Shamor Zachor tracking");
+        "Book '$bookName' (ID: ${existing.id}) added to Shamor Zachor tracking",
+      );
 
       // 3. Reload data to show the book in Shamor Zachor
       await loadAllData();
@@ -632,8 +674,10 @@ class ShamorZachorDataProvider with ChangeNotifier {
       return repository.getBook(id);
     }
     if (categoryId != null) {
-      final byCategory =
-          await repository.getBookByTitleAndCategory(title, categoryId);
+      final byCategory = await repository.getBookByTitleAndCategory(
+        title,
+        categoryId,
+      );
       if (byCategory != null) return byCategory;
     }
     return repository.getBookByTitle(title);
@@ -672,21 +716,24 @@ class ShamorZachorDataProvider with ChangeNotifier {
       );
       if (existing == null) {
         _logger.warning(
-            "Book '$bookName'${bookId != null ? ' (ID: $bookId)' : ''} not found in database");
+          "Book '$bookName'${bookId != null ? ' (ID: $bookId)' : ''} not found in database",
+        );
         return;
       }
 
       // Only allow removing books that are not base books
       if (existing.isBaseBook) {
-        _logger
-            .warning("Cannot remove base book '$bookName' from Shamor Zachor");
+        _logger.warning(
+          "Cannot remove base book '$bookName' from Shamor Zachor",
+        );
         throw Exception('לא ניתן להסיר ספר בסיס מ"שמור וזכור"');
       }
 
       // Remove book ID from tracked books list
       await _removeFromTrackedBooksList(existing.id);
       _logger.info(
-          "Book '$bookName' (ID: ${existing.id}) removed from Shamor Zachor tracking");
+        "Book '$bookName' (ID: ${existing.id}) removed from Shamor Zachor tracking",
+      );
 
       // Reload data to remove the book from Shamor Zachor
       await loadAllData();
@@ -712,7 +759,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
             'categoryName': cat.name,
             'bookName': name,
             'bookDetails': details,
-            'topLevelCategoryKey': topLevel
+            'topLevelCategoryKey': topLevel,
           });
         }
       });

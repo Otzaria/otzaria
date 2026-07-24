@@ -63,8 +63,9 @@ void main() {
   Future<TextBookTab> pumpScreen(WidgetTester tester) async {
     final book = TextBook(title: bookTitle);
     final textBookBloc = _TestTextBookBloc(_loadedState(book));
-    final personalNotesBloc =
-        _TestPersonalNotesBloc(const PersonalNotesState.initial());
+    final personalNotesBloc = _TestPersonalNotesBloc(
+      const PersonalNotesState.initial(),
+    );
     final settingsBloc = _TestSettingsBloc(SettingsState.initial());
     final tab = TextBookTab(
       book: book,
@@ -117,8 +118,7 @@ void main() {
     return tab;
   }
 
-  testWidgets(
-      'רגרסיה: יריית ה-notifier פותחת את הסיידבר '
+  testWidgets('רגרסיה: יריית ה-notifier פותחת את הסיידבר '
       '(נכשל אם המאזין לא חובר ב-initState)', (tester) async {
     final tab = await pumpScreen(tester);
 
@@ -131,29 +131,41 @@ void main() {
     await tester.pumpAndSettle();
 
     // היה צריך לפתוח את הסיידבר.
-    expect(find.byType(LinksNotesSidebar), findsOneWidget,
-        reason: 'יריית ה-notifier הייתה צריכה לפתוח את חלונית הצד — '
-            'נכשל אם addListener נמחק מ-PageShapeScreen.initState');
+    expect(
+      find.byType(LinksNotesSidebar),
+      findsOneWidget,
+      reason:
+          'יריית ה-notifier הייתה צריכה לפתוח את חלונית הצד — '
+          'נכשל אם addListener נמחק מ-PageShapeScreen.initState',
+    );
     expect(find.byType(PanelOpenHandle), findsNothing);
   });
 
-  testWidgets('יריית ה-notifier בפעם השנייה סוגרת את הסיידבר שפתחה',
-      (tester) async {
+  testWidgets('יריית ה-notifier בפעם השנייה סוגרת את הסיידבר שפתחה', (
+    tester,
+  ) async {
     final tab = await pumpScreen(tester);
 
     // פתיחה: יריית notifier ראשונה.
     tab.toggleCommentatorsPaneNotifier.value++;
     await tester.pumpAndSettle();
-    expect(find.byType(PanelOpenHandle), findsNothing,
-        reason: 'אחרי פתיחה ידית הפתיחה הצדדית אמורה להיעלם');
+    expect(
+      find.byType(PanelOpenHandle),
+      findsNothing,
+      reason: 'אחרי פתיחה ידית הפתיחה הצדדית אמורה להיעלם',
+    );
 
     // סגירה: יריית notifier שנייה.
     tab.toggleCommentatorsPaneNotifier.value++;
     await tester.pumpAndSettle();
 
-    expect(find.byType(PanelOpenHandle), findsOneWidget,
-        reason: 'יריית ה-notifier על סיידבר פתוח ("קישורים") אמורה לסגור — '
-            'ידית הפתיחה הצדדית חזרה לסימן שהסיידבר סגור');
+    expect(
+      find.byType(PanelOpenHandle),
+      findsOneWidget,
+      reason:
+          'יריית ה-notifier על סיידבר פתוח ("קישורים") אמורה לסגור — '
+          'ידית הפתיחה הצדדית חזרה לסימן שהסיידבר סגור',
+    );
   });
 }
 

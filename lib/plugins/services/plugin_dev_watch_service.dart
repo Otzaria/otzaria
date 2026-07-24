@@ -79,10 +79,12 @@ class PluginDevWatchService {
       _pendingChanges[plugin.pluginId]!.add(changedPath);
 
       _debounceTimers[plugin.pluginId]?.cancel();
-      _debounceTimers[plugin.pluginId] =
-          Timer(const Duration(milliseconds: 300), () {
-        _emitChange(plugin.pluginId, devRootPath);
-      });
+      _debounceTimers[plugin.pluginId] = Timer(
+        const Duration(milliseconds: 300),
+        () {
+          _emitChange(plugin.pluginId, devRootPath);
+        },
+      );
     });
   }
 
@@ -91,7 +93,8 @@ class PluginDevWatchService {
     if (changes.isEmpty) return;
 
     final manifestPath = p.join(devRootPath, 'manifest.json');
-    final manifestChanged = changes.contains(manifestPath) ||
+    final manifestChanged =
+        changes.contains(manifestPath) ||
         changes.any((path) => p.normalize(path) == p.normalize(manifestPath));
 
     final changeEvent = PluginDevFsChange(

@@ -103,38 +103,40 @@ void main() {
     fileSystemProvider.resetForTesting();
   });
 
-  test('resetRuntimeStateForAppRestart מאפס provider state ומעדכן נתיב ספריה',
-      () async {
-    const oldLibraryPath = 'C:/old-library';
+  test(
+    'resetRuntimeStateForAppRestart מאפס provider state ומעדכן נתיב ספריה',
+    () async {
+      const oldLibraryPath = 'C:/old-library';
 
-    await Settings.setValue<String>(
-      SettingsRepository.keyLibraryPath,
-      oldLibraryPath,
-    );
+      await Settings.setValue<String>(
+        SettingsRepository.keyLibraryPath,
+        oldLibraryPath,
+      );
 
-    providerManager.seedMappingsForTesting(
-      mapping: <BookCompositeKey, LibraryProvider>{},
-      providers: <LibraryProvider>[_FakeProvider()],
-    );
+      providerManager.seedMappingsForTesting(
+        mapping: <BookCompositeKey, LibraryProvider>{},
+        providers: <LibraryProvider>[_FakeProvider()],
+      );
 
-    fileSystemProvider.seedKeyToPathForTesting(
-      keyToPath: <String, String>{'ישן|1|txt': 'C:/old/book.txt'},
-      categoryIdToPath: <int, String>{1: 'ישן'},
-      libraryPath: oldLibraryPath,
-    );
-    FileSystemData.instance.libraryPath = oldLibraryPath;
+      fileSystemProvider.seedKeyToPathForTesting(
+        keyToPath: <String, String>{'ישן|1|txt': 'C:/old/book.txt'},
+        categoryIdToPath: <int, String>{1: 'ישן'},
+        libraryPath: oldLibraryPath,
+      );
+      FileSystemData.instance.libraryPath = oldLibraryPath;
 
-    Settings.clearCache();
-    await resetRuntimeStateForAppRestart();
+      Settings.clearCache();
+      await resetRuntimeStateForAppRestart();
 
-    expect(providerManager.isInitialized, isFalse);
-    expect(fileSystemProvider.isInitialized, isFalse);
-    expect(FileSystemData.instance.libraryPath, isNot(oldLibraryPath));
-    expect(
-      FileSystemData.instance.libraryPath,
-      Settings.getValue<String>(SettingsRepository.keyLibraryPath),
-    );
-  });
+      expect(providerManager.isInitialized, isFalse);
+      expect(fileSystemProvider.isInitialized, isFalse);
+      expect(FileSystemData.instance.libraryPath, isNot(oldLibraryPath));
+      expect(
+        FileSystemData.instance.libraryPath,
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+      );
+    },
+  );
 
   test('resetRuntimeStateAfterSettingsReset נשאר alias תקין', () async {
     const oldLibraryPath = 'C:/old-library';

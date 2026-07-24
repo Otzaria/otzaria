@@ -28,36 +28,39 @@ const String _originalUpdatedAt = '2026-01-01T00:00:00.000Z';
 
 void _seed(Database db, String pluginId, {int? userOrder}) {
   db.execute(
-      'INSERT INTO plugin_installation (plugin_id, name, version, install_path, '
-      'entrypoint_path, enabled, pinned, manifest_json, installed_at, '
-      'updated_at, user_order) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [
-        pluginId,
-        'name-$pluginId',
-        '1.0.0',
-        '/x/$pluginId',
-        'index.html',
-        1,
-        1,
-        '{}',
-        _originalUpdatedAt,
-        _originalUpdatedAt,
-        userOrder,
-      ]);
+    'INSERT INTO plugin_installation (plugin_id, name, version, install_path, '
+    'entrypoint_path, enabled, pinned, manifest_json, installed_at, '
+    'updated_at, user_order) '
+    'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [
+      pluginId,
+      'name-$pluginId',
+      '1.0.0',
+      '/x/$pluginId',
+      'index.html',
+      1,
+      1,
+      '{}',
+      _originalUpdatedAt,
+      _originalUpdatedAt,
+      userOrder,
+    ],
+  );
 }
 
 int? _readUserOrder(Database db, String pluginId) {
   final rows = db.select(
-      'SELECT user_order FROM plugin_installation WHERE plugin_id = ?',
-      [pluginId]);
+    'SELECT user_order FROM plugin_installation WHERE plugin_id = ?',
+    [pluginId],
+  );
   return rows.first['user_order'] as int?;
 }
 
 String _readUpdatedAt(Database db, String pluginId) {
   final rows = db.select(
-      'SELECT updated_at FROM plugin_installation WHERE plugin_id = ?',
-      [pluginId]);
+    'SELECT updated_at FROM plugin_installation WHERE plugin_id = ?',
+    [pluginId],
+  );
   return rows.first['updated_at'] as String;
 }
 
@@ -92,28 +95,36 @@ void main() {
       expect(_readUserOrder(db, 'a'), 2);
     });
 
-    test(
-        'does NOT touch updated_at — this is the core fix preventing the '
+    test('does NOT touch updated_at — this is the core fix preventing the '
         'IndexedStack/WebView dispose crash on reorder', () {
       _seed(db, 'a');
       _seed(db, 'b');
 
       PluginSystemDatabase.applyUserOrderUpdates(db, {'a': 0, 'b': 1});
 
-      expect(_readUpdatedAt(db, 'a'), _originalUpdatedAt,
-          reason: 'reorder must NOT bump updated_at — see comments in '
-              'PluginSystemDatabase.updatePluginsUserOrder');
+      expect(
+        _readUpdatedAt(db, 'a'),
+        _originalUpdatedAt,
+        reason:
+            'reorder must NOT bump updated_at — see comments in '
+            'PluginSystemDatabase.updatePluginsUserOrder',
+      );
       expect(_readUpdatedAt(db, 'b'), _originalUpdatedAt);
     });
 
     test('empty ordering is a no-op (does not begin a transaction)', () {
       _seed(db, 'a', userOrder: 5);
 
-      expect(() => PluginSystemDatabase.applyUserOrderUpdates(db, {}),
-          returnsNormally);
+      expect(
+        () => PluginSystemDatabase.applyUserOrderUpdates(db, {}),
+        returnsNormally,
+      );
 
-      expect(_readUserOrder(db, 'a'), 5,
-          reason: 'pre-existing user_order must be untouched');
+      expect(
+        _readUserOrder(db, 'a'),
+        5,
+        reason: 'pre-existing user_order must be untouched',
+      );
     });
 
     test('silently ignores plugin_ids that do not exist in the DB', () {
@@ -121,19 +132,23 @@ void main() {
 
       // ה-UPDATE לא יתפוס שורות — אבל לא אמור לזרוק.
       expect(
-          () => PluginSystemDatabase.applyUserOrderUpdates(
-              db, {'a': 0, 'ghost': 1}),
-          returnsNormally);
+        () => PluginSystemDatabase.applyUserOrderUpdates(db, {
+          'a': 0,
+          'ghost': 1,
+        }),
+        returnsNormally,
+      );
 
       expect(_readUserOrder(db, 'a'), 0);
       // 'ghost' לא קיים, אז אין מה לקרוא.
       final ghost = db.select(
-          'SELECT 1 FROM plugin_installation WHERE plugin_id = ?', ['ghost']);
+        'SELECT 1 FROM plugin_installation WHERE plugin_id = ?',
+        ['ghost'],
+      );
       expect(ghost.isEmpty, isTrue);
     });
 
-    test(
-        'rolls back when a single statement fails — partial writes never '
+    test('rolls back when a single statement fails — partial writes never '
         'leak through', () {
       _seed(db, 'a', userOrder: 100);
       _seed(db, 'b', userOrder: 200);
@@ -151,32 +166,36 @@ void main() {
       ''');
 
       expect(
-          () =>
-              PluginSystemDatabase.applyUserOrderUpdates(db, {'a': 0, 'b': 1}),
-          throwsA(anything));
+        () => PluginSystemDatabase.applyUserOrderUpdates(db, {'a': 0, 'b': 1}),
+        throwsA(anything),
+      );
 
       // ה-rollback צריך להחזיר את 'a' לערך המקורי 100, לא לערך שנכתב באמצע.
-      expect(_readUserOrder(db, 'a'), 100,
-          reason: 'rollback must undo the partial write to a');
+      expect(
+        _readUserOrder(db, 'a'),
+        100,
+        reason: 'rollback must undo the partial write to a',
+      );
       expect(_readUserOrder(db, 'b'), 200);
     });
 
-    test('handles arbitrary integer values (including negatives and large)',
-        () {
-      _seed(db, 'a');
-      _seed(db, 'b');
-
-      PluginSystemDatabase.applyUserOrderUpdates(db, {
-        'a': -1,
-        'b': 2147483647, // INT32 max
-      });
-
-      expect(_readUserOrder(db, 'a'), -1);
-      expect(_readUserOrder(db, 'b'), 2147483647);
-    });
-
     test(
-        'works inside an outer transaction (uses SAVEPOINT, not '
+      'handles arbitrary integer values (including negatives and large)',
+      () {
+        _seed(db, 'a');
+        _seed(db, 'b');
+
+        PluginSystemDatabase.applyUserOrderUpdates(db, {
+          'a': -1,
+          'b': 2147483647, // INT32 max
+        });
+
+        expect(_readUserOrder(db, 'a'), -1);
+        expect(_readUserOrder(db, 'b'), 2147483647);
+      },
+    );
+
+    test('works inside an outer transaction (uses SAVEPOINT, not '
         'BEGIN TRANSACTION) — SQLite does not allow nested BEGIN', () {
       _seed(db, 'a');
       _seed(db, 'b');
@@ -195,8 +214,7 @@ void main() {
       expect(_readUserOrder(db, 'b'), 1);
     });
 
-    test(
-        'rollback inside an outer transaction leaves the outer transaction '
+    test('rollback inside an outer transaction leaves the outer transaction '
         'intact — caller can still commit/rollback its own scope', () {
       _seed(db, 'a', userOrder: 100);
       _seed(db, 'b', userOrder: 200);
@@ -219,9 +237,13 @@ void main() {
       }
       // למרות שה-savepoint התגלגל אחורה, הטרנזקציה החיצונית עדיין פעילה
       // ויכולה לעשות commit. ה-commit הזה צריך להצליח (לא לזרוק).
-      expect(() => db.execute('COMMIT'), returnsNormally,
-          reason: 'outer transaction must still be live after inner SAVEPOINT '
-              'rollback');
+      expect(
+        () => db.execute('COMMIT'),
+        returnsNormally,
+        reason:
+            'outer transaction must still be live after inner SAVEPOINT '
+            'rollback',
+      );
 
       expect(innerFailed, isTrue);
       // a חזר ל-100 כי ה-savepoint התגלגל אחורה.

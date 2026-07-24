@@ -37,12 +37,15 @@ class _FakeImportService extends PersonalBooksImportService {
       copied++;
     }
     return PersonalBooksImportResult(
-        copied: copied, skippedUnsupported: skipped);
+      copied: copied,
+      skippedUnsupported: skipped,
+    );
   }
 
   @override
-  Future<List<File>> listImportedFiles() async =>
-      [for (final name in fileNames) File(p.join(_folderPath, name))];
+  Future<List<File>> listImportedFiles() async => [
+    for (final name in fileNames) File(p.join(_folderPath, name)),
+  ];
 
   @override
   Future<void> deleteImportedFile(String filePath) async {
@@ -136,8 +139,9 @@ void main() {
     expect(find.text('מסילת ישרים'), findsOneWidget);
   });
 
-  testWidgets('ייבוא מעתיק את הקובץ ומפעיל סריקה כשהתיקייה כבר רשומה',
-      (tester) async {
+  testWidgets('ייבוא מעתיק את הקובץ ומפעיל סריקה כשהתיקייה כבר רשומה', (
+    tester,
+  ) async {
     final syncCalls = <List<CustomFolder>>[];
     final bloc = buildBloc(folderRegistered: true, syncCalls: syncCalls);
 
@@ -154,8 +158,9 @@ void main() {
     expect(syncCalls.single.single.path, _FakeImportService._folderPath);
   });
 
-  testWidgets('ייבוא ראשון רושם את התיקייה כתיקייה מותאמת אישית',
-      (tester) async {
+  testWidgets('ייבוא ראשון רושם את התיקייה כתיקייה מותאמת אישית', (
+    tester,
+  ) async {
     final saveCalls = <List<CustomFolder>>[];
     final bloc = buildBloc(
       folderRegistered: false,

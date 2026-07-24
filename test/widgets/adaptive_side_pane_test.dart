@@ -35,8 +35,9 @@ class _CounterPaneState extends State<_CounterPane> {
 }
 
 void main() {
-  testWidgets('AdaptiveSidePane calls onPaneResizeEnd after dragging',
-      (tester) async {
+  testWidgets('AdaptiveSidePane calls onPaneResizeEnd after dragging', (
+    tester,
+  ) async {
     double paneWidth = 300;
     var resizeEnded = false;
 
@@ -84,8 +85,9 @@ void main() {
     expect(paneWidth, isNot(300));
   });
 
-  testWidgets('onLayoutModeChanged מדווח push במסך רחב ו-overlay במסך צר',
-      (tester) async {
+  testWidgets('onLayoutModeChanged מדווח push במסך רחב ו-overlay במסך צר', (
+    tester,
+  ) async {
     // ה-reanchor בטקסט צריך לרוץ רק כשהחלונית דוחקת את התוכן (push). בדיקה
     // שהדיווח מבחין בין רחב (push=true) לצר (overlay=false).
     late StateSetter setRootState;
@@ -133,8 +135,9 @@ void main() {
     expect(reported.last, isFalse);
   });
 
-  testWidgets('AdaptiveSidePane preserves wide pane state across close/open',
-      (tester) async {
+  testWidgets('AdaptiveSidePane preserves wide pane state across close/open', (
+    tester,
+  ) async {
     late StateSetter setRootState;
     var isOpen = true;
 
@@ -189,120 +192,127 @@ void main() {
   });
 
   testWidgets(
-      'AdaptiveSidePane does not build paneContent before first open (wide)',
-      (tester) async {
-    // אופטימיזציית ביצועים: paneContent כבד (TocViewer וכו') לא צריך להיבנות
-    // לפני שהפאנל נפתח לראשונה - מונע frame builds של 12+ שניות בספרים גדולים.
-    late StateSetter setRootState;
-    var isOpen = false;
-    var paneBuildCount = 0;
+    'AdaptiveSidePane does not build paneContent before first open (wide)',
+    (tester) async {
+      // אופטימיזציית ביצועים: paneContent כבד (TocViewer וכו') לא צריך להיבנות
+      // לפני שהפאנל נפתח לראשונה - מונע frame builds של 12+ שניות בספרים גדולים.
+      late StateSetter setRootState;
+      var isOpen = false;
+      var paneBuildCount = 0;
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Directionality(
-          textDirection: TextDirection.rtl,
-          child: StatefulBuilder(
-            builder: (context, setState) {
-              setRootState = setState;
-              return Scaffold(
-                body: SizedBox(
-                  width: 1200,
-                  height: 700,
-                  child: AdaptiveSidePane(
-                    isOpen: isOpen,
-                    alignment: AlignmentDirectional.centerEnd,
-                    paneWidth: 300,
-                    minMainContentWidth: 420,
-                    onClose: () {},
-                    mainContent: const SizedBox.expand(),
-                    paneContent: Builder(builder: (context) {
-                      paneBuildCount++;
-                      return const Text('pane_marker');
-                    }),
-                    autoHandleResponsiveVisibility: false,
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: StatefulBuilder(
+              builder: (context, setState) {
+                setRootState = setState;
+                return Scaffold(
+                  body: SizedBox(
+                    width: 1200,
+                    height: 700,
+                    child: AdaptiveSidePane(
+                      isOpen: isOpen,
+                      alignment: AlignmentDirectional.centerEnd,
+                      paneWidth: 300,
+                      minMainContentWidth: 420,
+                      onClose: () {},
+                      mainContent: const SizedBox.expand(),
+                      paneContent: Builder(
+                        builder: (context) {
+                          paneBuildCount++;
+                          return const Text('pane_marker');
+                        },
+                      ),
+                      autoHandleResponsiveVisibility: false,
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    // לפני פתיחה ראשונה - התוכן לא נבנה כלל
-    expect(paneBuildCount, 0);
-    expect(find.text('pane_marker'), findsNothing);
+      // לפני פתיחה ראשונה - התוכן לא נבנה כלל
+      expect(paneBuildCount, 0);
+      expect(find.text('pane_marker'), findsNothing);
 
-    // פתיחה ראשונה - התוכן נבנה ומופיע
-    setRootState(() {
-      isOpen = true;
-    });
-    await tester.pumpAndSettle();
-    expect(paneBuildCount, greaterThan(0));
-    expect(find.text('pane_marker'), findsOneWidget);
+      // פתיחה ראשונה - התוכן נבנה ומופיע
+      setRootState(() {
+        isOpen = true;
+      });
+      await tester.pumpAndSettle();
+      expect(paneBuildCount, greaterThan(0));
+      expect(find.text('pane_marker'), findsOneWidget);
 
-    // סגירה אחרי פתיחה - התוכן נשאר במגדל (לשמירת state)
-    setRootState(() {
-      isOpen = false;
-    });
-    await tester.pumpAndSettle();
-    expect(find.text('pane_marker'), findsOneWidget);
-  });
+      // סגירה אחרי פתיחה - התוכן נשאר במגדל (לשמירת state)
+      setRootState(() {
+        isOpen = false;
+      });
+      await tester.pumpAndSettle();
+      expect(find.text('pane_marker'), findsOneWidget);
+    },
+  );
 
   testWidgets(
-      'AdaptiveSidePane does not build paneContent before first open (narrow)',
-      (tester) async {
-    late StateSetter setRootState;
-    var isOpen = false;
-    var paneBuildCount = 0;
+    'AdaptiveSidePane does not build paneContent before first open (narrow)',
+    (tester) async {
+      late StateSetter setRootState;
+      var isOpen = false;
+      var paneBuildCount = 0;
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Directionality(
-          textDirection: TextDirection.rtl,
-          child: StatefulBuilder(
-            builder: (context, setState) {
-              setRootState = setState;
-              return Scaffold(
-                body: SizedBox(
-                  width: 500,
-                  height: 700,
-                  child: AdaptiveSidePane(
-                    isOpen: isOpen,
-                    alignment: AlignmentDirectional.centerEnd,
-                    paneWidth: 300,
-                    minMainContentWidth: 420,
-                    onClose: () {},
-                    mainContent: const SizedBox.expand(),
-                    paneContent: Builder(builder: (context) {
-                      paneBuildCount++;
-                      return const Text('pane_marker_narrow');
-                    }),
-                    autoHandleResponsiveVisibility: false,
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: StatefulBuilder(
+              builder: (context, setState) {
+                setRootState = setState;
+                return Scaffold(
+                  body: SizedBox(
+                    width: 500,
+                    height: 700,
+                    child: AdaptiveSidePane(
+                      isOpen: isOpen,
+                      alignment: AlignmentDirectional.centerEnd,
+                      paneWidth: 300,
+                      minMainContentWidth: 420,
+                      onClose: () {},
+                      mainContent: const SizedBox.expand(),
+                      paneContent: Builder(
+                        builder: (context) {
+                          paneBuildCount++;
+                          return const Text('pane_marker_narrow');
+                        },
+                      ),
+                      autoHandleResponsiveVisibility: false,
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    // לפני פתיחה ראשונה - התוכן לא נבנה גם במצב narrow
-    expect(paneBuildCount, 0);
-    expect(find.text('pane_marker_narrow'), findsNothing);
+      // לפני פתיחה ראשונה - התוכן לא נבנה גם במצב narrow
+      expect(paneBuildCount, 0);
+      expect(find.text('pane_marker_narrow'), findsNothing);
 
-    // פתיחה - התוכן נבנה
-    setRootState(() {
-      isOpen = true;
-    });
-    await tester.pumpAndSettle();
-    expect(paneBuildCount, greaterThan(0));
-    expect(find.text('pane_marker_narrow'), findsOneWidget);
-  });
+      // פתיחה - התוכן נבנה
+      setRootState(() {
+        isOpen = true;
+      });
+      await tester.pumpAndSettle();
+      expect(paneBuildCount, greaterThan(0));
+      expect(find.text('pane_marker_narrow'), findsOneWidget);
+    },
+  );
 
-  testWidgets('AdaptiveSidePane places overlay drag handle at pane edge',
-      (tester) async {
+  testWidgets('AdaptiveSidePane places overlay drag handle at pane edge', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Directionality(
@@ -335,8 +345,9 @@ void main() {
   });
 
   // אזורי רגרסיה לאופטימיזציה של commit 4996fff (דחיית בנייה ראשונה של הפאנל)
-  testWidgets('isOpen=true מ-initState בונה את הפאנל מיידית (לא נדחה)',
-      (tester) async {
+  testWidgets('isOpen=true מ-initState בונה את הפאנל מיידית (לא נדחה)', (
+    tester,
+  ) async {
     // השדה _paneEverOpened מאותחל ל-widget.isOpen ב-initState. אם מישהו
     // ימחק את הקו הזה, הפאנל לא ייבנה בפתיחה הראשונה כשהוא נפתח כברירת מחדל.
     var paneBuildCount = 0;
@@ -356,10 +367,12 @@ void main() {
                 minMainContentWidth: 420,
                 onClose: () {},
                 mainContent: const SizedBox.expand(),
-                paneContent: Builder(builder: (context) {
-                  paneBuildCount++;
-                  return const Text('initial_pane');
-                }),
+                paneContent: Builder(
+                  builder: (context) {
+                    paneBuildCount++;
+                    return const Text('initial_pane');
+                  },
+                ),
                 autoHandleResponsiveVisibility: false,
               ),
             ),
@@ -372,8 +385,9 @@ void main() {
     expect(find.text('initial_pane'), findsOneWidget);
   });
 
-  testWidgets('פתיחה→סגירה→פתיחה רב-פעמית שומרת state ולא מאפסת את הפאנל',
-      (tester) async {
+  testWidgets('פתיחה→סגירה→פתיחה רב-פעמית שומרת state ולא מאפסת את הפאנל', (
+    tester,
+  ) async {
     // ממה שזה מגן: לוגיקה של "_paneEverOpened לא מתאפס לעולם". טסט קיים
     // בודק מחזור אחד; כאן מוודאים שגם 3+ מחזורים שומרים את ה-state ולא
     // מאפסים את ה-Counter.
@@ -428,8 +442,9 @@ void main() {
     expect(find.text('count: 3'), findsOneWidget);
   });
 
-  testWidgets('שינוי width לא בונה מחדש את paneContent אחרי שנפתח',
-      (tester) async {
+  testWidgets('שינוי width לא בונה מחדש את paneContent אחרי שנפתח', (
+    tester,
+  ) async {
     // הגנה: paneContent ב-Builder לא צריך להיבנות מחדש כל פעם שה-parent
     // מעדכן את הרוחב. בנייה מחדש = איבוד state בילדים.
     late StateSetter setRootState;
@@ -454,10 +469,12 @@ void main() {
                     minMainContentWidth: 420,
                     onClose: () {},
                     mainContent: const SizedBox.expand(),
-                    paneContent: Builder(builder: (context) {
-                      paneBuildCount++;
-                      return const Text('content');
-                    }),
+                    paneContent: Builder(
+                      builder: (context) {
+                        paneBuildCount++;
+                        return const Text('content');
+                      },
+                    ),
                     autoHandleResponsiveVisibility: false,
                   ),
                 ),
@@ -479,9 +496,12 @@ void main() {
 
     // אסור שהרוחב יגרום לבנייה מחודשת רבה של ה-builder.
     // התרת רמת ביצועים סבירה (לא יותר מ-3 בנייות נוספות לשני שינויים).
-    expect(paneBuildCount - initialBuilds, lessThanOrEqualTo(3),
-        reason:
-            'שינוי רוחב הפאנל לא אמור לבנות מחדש את paneContent — זה מאבד state בילדים');
+    expect(
+      paneBuildCount - initialBuilds,
+      lessThanOrEqualTo(3),
+      reason:
+          'שינוי רוחב הפאנל לא אמור לבנות מחדש את paneContent — זה מאבד state בילדים',
+    );
   });
 
   // ── בדיקות צבע רקע ──────────────────────────────────────────────────────────
@@ -521,53 +541,57 @@ void main() {
   }
 
   testWidgets(
-      'צבע הרקע של החלונית מגיע מ-AdaptiveSidePane ולא מ-paneContent (wide)',
-      (tester) async {
-    // בודק שה-FloatingPanel (שהוא _buildPaneShell במצב wide) מקבל את
-    // AppSurfaces.solidPanelBackground ולא נדרס על ידי תוכן פנימי.
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Directionality(
-          textDirection: TextDirection.rtl,
-          child: Builder(
-            builder: (context) {
-              final expectedColor = AppSurfaces.solidPanelBackground(context);
-              return Scaffold(
-                body: SizedBox(
-                  width: 1200,
-                  height: 700,
-                  child: AdaptiveSidePane(
-                    isOpen: true,
-                    alignment: AlignmentDirectional.centerEnd,
-                    paneWidth: 300,
-                    minMainContentWidth: 420,
-                    onClose: () {},
-                    mainContent: const SizedBox.expand(),
-                    paneContent: Builder(builder: (context) {
-                      // מאמת שהצבע שמגיע ל-FloatingPanel תואם את ברירת המחדל
-                      final panel = context
-                          .findAncestorWidgetOfExactType<FloatingPanel>();
-                      expect(
-                        panel?.color,
-                        expectedColor,
-                        reason:
-                            'FloatingPanel צריך לקבל את AppSurfaces.solidPanelBackground',
-                      );
-                      return const SizedBox.shrink();
-                    }),
-                    autoHandleResponsiveVisibility: false,
+    'צבע הרקע של החלונית מגיע מ-AdaptiveSidePane ולא מ-paneContent (wide)',
+    (tester) async {
+      // בודק שה-FloatingPanel (שהוא _buildPaneShell במצב wide) מקבל את
+      // AppSurfaces.solidPanelBackground ולא נדרס על ידי תוכן פנימי.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Builder(
+              builder: (context) {
+                final expectedColor = AppSurfaces.solidPanelBackground(context);
+                return Scaffold(
+                  body: SizedBox(
+                    width: 1200,
+                    height: 700,
+                    child: AdaptiveSidePane(
+                      isOpen: true,
+                      alignment: AlignmentDirectional.centerEnd,
+                      paneWidth: 300,
+                      minMainContentWidth: 420,
+                      onClose: () {},
+                      mainContent: const SizedBox.expand(),
+                      paneContent: Builder(
+                        builder: (context) {
+                          // מאמת שהצבע שמגיע ל-FloatingPanel תואם את ברירת המחדל
+                          final panel = context
+                              .findAncestorWidgetOfExactType<FloatingPanel>();
+                          expect(
+                            panel?.color,
+                            expectedColor,
+                            reason:
+                                'FloatingPanel צריך לקבל את AppSurfaces.solidPanelBackground',
+                          );
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                      autoHandleResponsiveVisibility: false,
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
-      ),
-    );
-  });
+      );
+    },
+  );
 
-  testWidgets('paneColor מפורש מועבר ל-FloatingPanel במקום ברירת המחדל (wide)',
-      (tester) async {
+  testWidgets('paneColor מפורש מועבר ל-FloatingPanel במקום ברירת המחדל (wide)', (
+    tester,
+  ) async {
     // זהו הדפוס המותר: העברת paneColor ל-AdaptiveSidePane עצמו (כמו library_browser).
     const customColor = Color(0xFFAABBCC);
 
@@ -586,17 +610,19 @@ void main() {
                 minMainContentWidth: 420,
                 onClose: () {},
                 mainContent: const SizedBox.expand(),
-                paneContent: Builder(builder: (context) {
-                  final panel =
-                      context.findAncestorWidgetOfExactType<FloatingPanel>();
-                  expect(
-                    panel?.color,
-                    customColor,
-                    reason:
-                        'paneColor מפורש צריך להגיע ל-FloatingPanel כפי שהוגדר',
-                  );
-                  return const SizedBox.shrink();
-                }),
+                paneContent: Builder(
+                  builder: (context) {
+                    final panel = context
+                        .findAncestorWidgetOfExactType<FloatingPanel>();
+                    expect(
+                      panel?.color,
+                      customColor,
+                      reason:
+                          'paneColor מפורש צריך להגיע ל-FloatingPanel כפי שהוגדר',
+                    );
+                    return const SizedBox.shrink();
+                  },
+                ),
                 paneColor: customColor,
                 autoHandleResponsiveVisibility: false,
               ),
@@ -608,43 +634,55 @@ void main() {
   });
 
   testWidgets(
-      'paneContent עם ColoredBox ישיר מכיל ColoredBox בתוך FloatingPanel (רגרסיה: דריסת צבע)',
-      (tester) async {
-    // בודק את מבנה ה-widget tree: אם paneContent מכיל ColoredBox עם צבע,
-    // הוא יופיע בתוך ה-FloatingPanel ויהיה נצפה ב-tree.
-    // זה מתעד את ה-invariant: paneContent לא אמור להכיל ColoredBox/Material עם color.
-    // אם יום אחד FloatingPanel יכלוא את הצבע — הטסט הזה יצביע על כך.
+    'paneContent עם ColoredBox ישיר מכיל ColoredBox בתוך FloatingPanel (רגרסיה: דריסת צבע)',
+    (tester) async {
+      // בודק את מבנה ה-widget tree: אם paneContent מכיל ColoredBox עם צבע,
+      // הוא יופיע בתוך ה-FloatingPanel ויהיה נצפה ב-tree.
+      // זה מתעד את ה-invariant: paneContent לא אמור להכיל ColoredBox/Material עם color.
+      // אם יום אחד FloatingPanel יכלוא את הצבע — הטסט הזה יצביע על כך.
 
-    await tester.pumpWidget(
-      buildPaneWithColor(paneContentColor: Colors.red),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        buildPaneWithColor(paneContentColor: Colors.red),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.byType(FloatingPanel), findsOneWidget,
+      expect(
+        find.byType(FloatingPanel),
+        findsOneWidget,
         reason:
-            'AdaptiveSidePane חייב לעטוף את paneContent ב-FloatingPanel במצב wide');
+            'AdaptiveSidePane חייב לעטוף את paneContent ב-FloatingPanel במצב wide',
+      );
 
-    // ColoredBox עם Colors.red אמור להיות בתוך ה-FloatingPanel —
-    // זה מוכיח שהוא נמצא ב-tree ולא נחסם. אם הטסט יכשל כאן,
-    // FloatingPanel מנע את הוספת ה-ColoredBox לעץ (שינוי ב-_buildPaneShell).
-    final coloredBoxFinder = find.descendant(
-      of: find.byType(FloatingPanel),
-      matching: find.byType(ColoredBox),
-    );
-    expect(coloredBoxFinder, findsOneWidget,
+      // ColoredBox עם Colors.red אמור להיות בתוך ה-FloatingPanel —
+      // זה מוכיח שהוא נמצא ב-tree ולא נחסם. אם הטסט יכשל כאן,
+      // FloatingPanel מנע את הוספת ה-ColoredBox לעץ (שינוי ב-_buildPaneShell).
+      final coloredBoxFinder = find.descendant(
+        of: find.byType(FloatingPanel),
+        matching: find.byType(ColoredBox),
+      );
+      expect(
+        coloredBoxFinder,
+        findsOneWidget,
         reason:
             'ColoredBox בתוך paneContent צריך להיות נצפה בתוך FloatingPanel — '
-            'הוא דורס את הצבע שהוגדר ב-AdaptiveSidePane');
+            'הוא דורס את הצבע שהוגדר ב-AdaptiveSidePane',
+      );
 
-    // מוודא שהצבע של ה-ColoredBox הפנימי שונה מהצבע שהוגדר ב-FloatingPanel —
-    // זו הוכחה שיש סתירה בין הצבע הפנימי לצבע שמגיע מ-AdaptiveSidePane.
-    final coloredBox = tester.widget<ColoredBox>(coloredBoxFinder);
-    final floatingPanel =
-        tester.widget<FloatingPanel>(find.byType(FloatingPanel));
-    expect(coloredBox.color, isNot(equals(floatingPanel.color)),
-        reason: 'הצבע של ColoredBox הפנימי שונה מצבע FloatingPanel — '
-            'זו ראיה לדריסה ויזואלית אסורה');
-  });
+      // מוודא שהצבע של ה-ColoredBox הפנימי שונה מהצבע שהוגדר ב-FloatingPanel —
+      // זו הוכחה שיש סתירה בין הצבע הפנימי לצבע שמגיע מ-AdaptiveSidePane.
+      final coloredBox = tester.widget<ColoredBox>(coloredBoxFinder);
+      final floatingPanel = tester.widget<FloatingPanel>(
+        find.byType(FloatingPanel),
+      );
+      expect(
+        coloredBox.color,
+        isNot(equals(floatingPanel.color)),
+        reason:
+            'הצבע של ColoredBox הפנימי שונה מצבע FloatingPanel — '
+            'זו ראיה לדריסה ויזואלית אסורה',
+      );
+    },
+  );
 
   // ── מיקום פס הגלילה בקצה החיצוני ─────────────────────────────────────────
   //
@@ -684,8 +722,9 @@ void main() {
     );
   }
 
-  testWidgets('פאנל בצד ימין (centerEnd): פס הגלילה בקצה החיצוני (ימין)',
-      (tester) async {
+  testWidgets('פאנל בצד ימין (centerEnd): פס הגלילה בקצה החיצוני (ימין)', (
+    tester,
+  ) async {
     // הפס נבנה דרך ScrollBehavior שמוסיף Scrollbar רק בדסקטופ — כופים פלטפורמה.
     // try/finally מבטיח איפוס גם אם pumpWidget/pumpAndSettle/expect יזרקו: כך
     // ה-override לא דולף, ולא נוצרת שגיאה משנית שמסתירה את הכשל האמיתי. (אסור
@@ -704,8 +743,9 @@ void main() {
     }
   });
 
-  testWidgets('פאנל בצד שמאל (centerStart): פס הגלילה בקצה החיצוני (שמאל)',
-      (tester) async {
+  testWidgets('פאנל בצד שמאל (centerStart): פס הגלילה בקצה החיצוני (שמאל)', (
+    tester,
+  ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     try {
       await tester.pumpWidget(
@@ -748,8 +788,9 @@ void main() {
     );
   }
 
-  testWidgets('מצב צף: הפאנל מוזז מהדופן ומשאיר שוליים חיצוניים',
-      (tester) async {
+  testWidgets('מצב צף: הפאנל מוזז מהדופן ומשאיר שוליים חיצוניים', (
+    tester,
+  ) async {
     await tester.pumpWidget(buildNarrowPane(containerWidth: 500));
     await tester.pumpAndSettle();
 
@@ -762,8 +803,9 @@ void main() {
     expect(paneRect.width, closeTo(300, 0.5));
   });
 
-  testWidgets('מצב צף: בחלון צר מאוד הרוחב מצומצם ונשמרים שוליים משני הצדדים',
-      (tester) async {
+  testWidgets('מצב צף: בחלון צר מאוד הרוחב מצומצם ונשמרים שוליים משני הצדדים', (
+    tester,
+  ) async {
     await tester.pumpWidget(buildNarrowPane(containerWidth: 250));
     await tester.pumpAndSettle();
 

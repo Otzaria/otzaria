@@ -75,8 +75,10 @@ class _CommentatorsSelectionPanelState
     if (oldWidget.groups != widget.groups ||
         oldWidget.bookTitle != widget.bookTitle ||
         !setEquals(oldWidget.rareCommentators, widget.rareCommentators) ||
-        !setEquals(oldWidget.lineRelevantCommentators,
-            widget.lineRelevantCommentators)) {
+        !setEquals(
+          oldWidget.lineRelevantCommentators,
+          widget.lineRelevantCommentators,
+        )) {
       _update();
     }
   }
@@ -293,25 +295,30 @@ class _CommentatorsSelectionPanelState
       children: [
         FilterChipsSelector<String>(
           items: [
-            if (CommentatorGroup.groupByTitle(widget.groups, 'תורה שבכתב')
-                .commentators
-                .isNotEmpty)
+            if (CommentatorGroup.groupByTitle(
+              widget.groups,
               'תורה שבכתב',
-            if (CommentatorGroup.groupByTitle(widget.groups, 'חז"ל')
-                .commentators
-                .isNotEmpty)
+            ).commentators.isNotEmpty)
+              'תורה שבכתב',
+            if (CommentatorGroup.groupByTitle(
+              widget.groups,
               'חז"ל',
-            if (CommentatorGroup.groupByTitle(widget.groups, 'ראשונים')
-                .commentators
-                .isNotEmpty)
+            ).commentators.isNotEmpty)
+              'חז"ל',
+            if (CommentatorGroup.groupByTitle(
+              widget.groups,
               'ראשונים',
-            if (CommentatorGroup.groupByTitle(widget.groups, 'אחרונים')
-                .commentators
-                .isNotEmpty)
+            ).commentators.isNotEmpty)
+              'ראשונים',
+            if (CommentatorGroup.groupByTitle(
+              widget.groups,
               'אחרונים',
-            if (CommentatorGroup.groupByTitle(widget.groups, 'מחברי זמננו')
-                .commentators
-                .isNotEmpty)
+            ).commentators.isNotEmpty)
+              'אחרונים',
+            if (CommentatorGroup.groupByTitle(
+              widget.groups,
+              'מחברי זמננו',
+            ).commentators.isNotEmpty)
               'מחברי זמננו',
             'על ${widget.bookTitle}',
           ],
@@ -329,8 +336,9 @@ class _CommentatorsSelectionPanelState
               label: Text(
                 item,
               ),
-              backgroundColor:
-                  isSelected ? Theme.of(context).colorScheme.secondary : null,
+              backgroundColor: isSelected
+                  ? Theme.of(context).colorScheme.secondary
+                  : null,
               labelStyle: TextStyle(
                 color: isSelected
                     ? Theme.of(context).colorScheme.onSecondary
@@ -374,9 +382,11 @@ class _CommentatorsSelectionPanelState
                     'הצג את כל המפרשים',
                   ),
                   value: _commentatorsList
-                      .where((e) =>
-                          !e.startsWith('__TITLE_') &&
-                          !e.startsWith('__BUTTON_'))
+                      .where(
+                        (e) =>
+                            !e.startsWith('__TITLE_') &&
+                            !e.startsWith('__BUTTON_'),
+                      )
                       .every(widget.selectedCommentators.contains),
                   onChanged: (checked) => _toggleAllVisible(checked ?? false),
                 ),
@@ -391,8 +401,9 @@ class _CommentatorsSelectionPanelState
                         title: const Text(
                           'הצג את כל התורה שבכתב',
                         ),
-                        value: _torahShebichtav
-                            .every(widget.selectedCommentators.contains),
+                        value: _torahShebichtav.every(
+                          widget.selectedCommentators.contains,
+                        ),
                         onChanged: (checked) =>
                             _toggleGroup(_torahShebichtav, checked ?? false),
                       );
@@ -402,8 +413,9 @@ class _CommentatorsSelectionPanelState
                         title: const Text(
                           'הצג את כל חז"ל',
                         ),
-                        value:
-                            _chazal.every(widget.selectedCommentators.contains),
+                        value: _chazal.every(
+                          widget.selectedCommentators.contains,
+                        ),
                         onChanged: (checked) =>
                             _toggleGroup(_chazal, checked ?? false),
                       );
@@ -413,8 +425,9 @@ class _CommentatorsSelectionPanelState
                         title: const Text(
                           'הצג את כל הראשונים',
                         ),
-                        value: _rishonim
-                            .every(widget.selectedCommentators.contains),
+                        value: _rishonim.every(
+                          widget.selectedCommentators.contains,
+                        ),
                         onChanged: (checked) =>
                             _toggleGroup(_rishonim, checked ?? false),
                       );
@@ -424,8 +437,9 @@ class _CommentatorsSelectionPanelState
                         title: const Text(
                           'הצג את כל האחרונים',
                         ),
-                        value: _acharonim
-                            .every(widget.selectedCommentators.contains),
+                        value: _acharonim.every(
+                          widget.selectedCommentators.contains,
+                        ),
                         onChanged: (checked) =>
                             _toggleGroup(_acharonim, checked ?? false),
                       );
@@ -435,8 +449,9 @@ class _CommentatorsSelectionPanelState
                         title: const Text(
                           'הצג את כל מחברי זמננו',
                         ),
-                        value:
-                            _modern.every(widget.selectedCommentators.contains),
+                        value: _modern.every(
+                          widget.selectedCommentators.contains,
+                        ),
                         onChanged: (checked) =>
                             _toggleGroup(_modern, checked ?? false),
                       );
@@ -446,8 +461,9 @@ class _CommentatorsSelectionPanelState
                         title: const Text(
                           'הצג את כל שאר המפרשים',
                         ),
-                        value: _ungrouped
-                            .every(widget.selectedCommentators.contains),
+                        value: _ungrouped.every(
+                          widget.selectedCommentators.contains,
+                        ),
                         onChanged: (checked) =>
                             _toggleGroup(_ungrouped, checked ?? false),
                       );
@@ -463,17 +479,17 @@ class _CommentatorsSelectionPanelState
                           children: [
                             const Expanded(child: Divider()),
                             Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 8.0),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8.0,
+                              ),
                               child: Text(
                                 _titleTextForToken(item),
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .primary
-                                      .withValues(alpha: 0.8),
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withValues(alpha: 0.8),
                                 ),
                               ),
                             ),

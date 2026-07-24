@@ -43,18 +43,21 @@ class _FakeInstallerService extends PluginInstallerService {
   Future<void> cancelInstall(String tempDirPath) async {}
 
   @override
-  Future<void> finalizeInstall(String tempDirPath, dynamic manifest,
-      {required bool allowOrderBeforeBuiltInsGranted}) async {}
+  Future<void> finalizeInstall(
+    String tempDirPath,
+    dynamic manifest, {
+    required bool allowOrderBeforeBuiltInsGranted,
+  }) async {}
 }
 
 /// מאפשר emit ידני מחוץ לבלוק בטסטים בלבד.
 /// מאחסן את כל האירועים שנשלחים ב-[capturedEvents] לאימות ב-payload tests.
 class _TestableBloc extends PluginSystemBloc {
   _TestableBloc()
-      : super(
-          repository: _FakeRepo(),
-          installerService: _FakeInstallerService(),
-        );
+    : super(
+        repository: _FakeRepo(),
+        installerService: _FakeInstallerService(),
+      );
   void testEmit(PluginSystemState state) => emit(state);
 
   final List<PluginSystemEvent> capturedEvents = [];
@@ -70,27 +73,26 @@ PluginManifest _manifest({
   List<String> permissions = const [],
   String version = '1.0.0',
   bool allowOrderBeforeBuiltIns = false,
-}) =>
-    PluginManifest(
-      schemaVersion: 1,
-      id: 'test.plugin',
-      name: 'תוסף בדיקה',
-      version: version,
-      description: 'תיאור תוסף',
-      author: 'בודק',
-      homepage: 'https://test.com',
-      entrypoint: 'index.html',
-      minAppVersion: '1.0.0',
-      sdkVersion: '1.0.0',
-      permissions: permissions,
-      networkEnabled: false,
-      networkAllowlist: [],
-      toolTabTitle: 'Tab',
-      toolTabOrder: 0,
-      allowOrderBeforeBuiltIns: allowOrderBeforeBuiltIns,
-      defaultPinned: true,
-      publishedDataTypes: [],
-    );
+}) => PluginManifest(
+  schemaVersion: 1,
+  id: 'test.plugin',
+  name: 'תוסף בדיקה',
+  version: version,
+  description: 'תיאור תוסף',
+  author: 'בודק',
+  homepage: 'https://test.com',
+  entrypoint: 'index.html',
+  minAppVersion: '1.0.0',
+  sdkVersion: '1.0.0',
+  permissions: permissions,
+  networkEnabled: false,
+  networkAllowlist: [],
+  toolTabTitle: 'Tab',
+  toolTabOrder: 0,
+  allowOrderBeforeBuiltIns: allowOrderBeforeBuiltIns,
+  defaultPinned: true,
+  publishedDataTypes: [],
+);
 
 /// פותח את PluginInstallScreen כ-Dialog (כמו בקוד האמיתי) ומחזיר את ה-Widget.
 ///
@@ -117,28 +119,30 @@ Future<void> _openDialog(
       navigatorKey: navigatorKey,
       home: BlocProvider<PluginSystemBloc>.value(
         value: bloc,
-        child: Builder(builder: (ctx) {
-          return Scaffold(
-            body: ElevatedButton(
-              onPressed: () => showDialog(
-                context: ctx,
-                barrierDismissible: false,
-                builder: (_) => BlocProvider<PluginSystemBloc>.value(
-                  value: bloc,
-                  child: PluginInstallScreen(
-                    manifest: manifest,
-                    tempDirPath: '/tmp/t',
-                    previousVersion: previousVersion,
-                    previousAllowOrderBeforeBuiltInsGranted:
-                        previousAllowOrderBeforeBuiltInsGranted,
-                    isOfflineMode: isOfflineMode,
+        child: Builder(
+          builder: (ctx) {
+            return Scaffold(
+              body: ElevatedButton(
+                onPressed: () => showDialog(
+                  context: ctx,
+                  barrierDismissible: false,
+                  builder: (_) => BlocProvider<PluginSystemBloc>.value(
+                    value: bloc,
+                    child: PluginInstallScreen(
+                      manifest: manifest,
+                      tempDirPath: '/tmp/t',
+                      previousVersion: previousVersion,
+                      previousAllowOrderBeforeBuiltInsGranted:
+                          previousAllowOrderBeforeBuiltInsGranted,
+                      isOfflineMode: isOfflineMode,
+                    ),
                   ),
                 ),
+                child: const Text('פתח'),
               ),
-              child: const Text('פתח'),
-            ),
-          );
-        }),
+            );
+          },
+        ),
       ),
     ),
   );
@@ -182,8 +186,9 @@ void main() {
 
   // ── הרשאות ──
 
-  testWidgets('ללא הרשאות — מוצגת הודעת "אין הרשאות מיוחדות נדרשות"',
-      (tester) async {
+  testWidgets('ללא הרשאות — מוצגת הודעת "אין הרשאות מיוחדות נדרשות"', (
+    tester,
+  ) async {
     await _openDialog(tester, bloc, _manifest());
 
     expect(find.text('אין הרשאות מיוחדות נדרשות'), findsOneWidget);
@@ -220,51 +225,54 @@ void main() {
   // ── BlocListener פותח Dialog ──
 
   testWidgets(
-      'כש-BlocListener מקבל PluginSystemInstallRequiresPermissions — Dialog נפתח',
-      (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        navigatorKey: navigatorKey,
-        home: BlocProvider<PluginSystemBloc>.value(
-          value: bloc,
-          child: BlocListener<PluginSystemBloc, PluginSystemState>(
-            listenWhen: (_, current) =>
-                current is PluginSystemInstallRequiresPermissions,
-            listener: (context, state) {
-              if (state is PluginSystemInstallRequiresPermissions) {
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (_) => BlocProvider<PluginSystemBloc>.value(
-                    value: context.read<PluginSystemBloc>(),
-                    child: PluginInstallScreen(
-                      manifest: state.manifest,
-                      tempDirPath: state.tempDirPath,
-                      previousAllowOrderBeforeBuiltInsGranted:
-                          state.previousAllowOrderBeforeBuiltInsGranted,
+    'כש-BlocListener מקבל PluginSystemInstallRequiresPermissions — Dialog נפתח',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: navigatorKey,
+          home: BlocProvider<PluginSystemBloc>.value(
+            value: bloc,
+            child: BlocListener<PluginSystemBloc, PluginSystemState>(
+              listenWhen: (_, current) =>
+                  current is PluginSystemInstallRequiresPermissions,
+              listener: (context, state) {
+                if (state is PluginSystemInstallRequiresPermissions) {
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (_) => BlocProvider<PluginSystemBloc>.value(
+                      value: context.read<PluginSystemBloc>(),
+                      child: PluginInstallScreen(
+                        manifest: state.manifest,
+                        tempDirPath: state.tempDirPath,
+                        previousAllowOrderBeforeBuiltInsGranted:
+                            state.previousAllowOrderBeforeBuiltInsGranted,
+                      ),
                     ),
-                  ),
-                );
-              }
-            },
-            child: const Scaffold(body: Text('מסך ראשי')),
+                  );
+                }
+              },
+              child: const Scaffold(body: Text('מסך ראשי')),
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.byType(Dialog), findsNothing);
+      expect(find.byType(Dialog), findsNothing);
 
-    bloc.testEmit(PluginSystemInstallRequiresPermissions(
-      manifest: _manifest(),
-      tempDirPath: '/tmp/dltest',
-    ));
-    await tester.pumpAndSettle();
+      bloc.testEmit(
+        PluginSystemInstallRequiresPermissions(
+          manifest: _manifest(),
+          tempDirPath: '/tmp/dltest',
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.byType(Dialog), findsOneWidget);
-    expect(find.byType(PluginInstallScreen), findsOneWidget);
-  });
+      expect(find.byType(Dialog), findsOneWidget);
+      expect(find.byType(PluginInstallScreen), findsOneWidget);
+    },
+  );
 
   // ── מצב עדכון ──
 
@@ -275,8 +283,9 @@ void main() {
     expect(find.text('התקנת תוסף: תוסף בדיקה'), findsNothing);
   });
 
-  testWidgets('התקנה ראשונה — כותרת הדיאלוג כוללת שם תוסף ו"התקנת"',
-      (tester) async {
+  testWidgets('התקנה ראשונה — כותרת הדיאלוג כוללת שם תוסף ו"התקנת"', (
+    tester,
+  ) async {
     await _openDialog(tester, bloc, _manifest());
 
     expect(find.text('התקנת תוסף: תוסף בדיקה'), findsOneWidget);
@@ -284,8 +293,12 @@ void main() {
   });
 
   testWidgets('עדכון — מוצגת שורת מעבר גרסאות עם חץ', (tester) async {
-    await _openDialog(tester, bloc, _manifest(version: '2.0.0'),
-        previousVersion: '1.0.0');
+    await _openDialog(
+      tester,
+      bloc,
+      _manifest(version: '2.0.0'),
+      previousVersion: '1.0.0',
+    );
 
     expect(find.text('עדכון גרסה 1.0.0  ←  2.0.0'), findsOneWidget);
   });
@@ -314,8 +327,9 @@ void main() {
 
   // ── הרשאת run_on_startup ──
 
-  testWidgets('תוסף שמבקש app.run_on_startup — מוצג באנר בולט עם אזהרה',
-      (tester) async {
+  testWidgets('תוסף שמבקש app.run_on_startup — מוצג באנר בולט עם אזהרה', (
+    tester,
+  ) async {
     await _openDialog(
       tester,
       bloc,
@@ -329,8 +343,9 @@ void main() {
     expect(find.byIcon(FluentIcons.warning_24_filled), findsWidgets);
   });
 
-  testWidgets('תוסף שלא מבקש app.run_on_startup — אין באנר בולט',
-      (tester) async {
+  testWidgets('תוסף שלא מבקש app.run_on_startup — אין באנר בולט', (
+    tester,
+  ) async {
     await _openDialog(
       tester,
       bloc,
@@ -343,8 +358,9 @@ void main() {
     );
   });
 
-  testWidgets('הרשאת app.run_on_startup — Switch מתחיל כבוי ברירת מחדל',
-      (tester) async {
+  testWidgets('הרשאת app.run_on_startup — Switch מתחיל כבוי ברירת מחדל', (
+    tester,
+  ) async {
     await _openDialog(
       tester,
       bloc,
@@ -401,8 +417,9 @@ void main() {
     expect(sw.value, isTrue);
   });
 
-  testWidgets('במצב מנותק — הרשאת גישה לאינטרנט מתחילה כבויה ברירת מחדל',
-      (tester) async {
+  testWidgets('במצב מנותק — הרשאת גישה לאינטרנט מתחילה כבויה ברירת מחדל', (
+    tester,
+  ) async {
     await _openDialog(
       tester,
       bloc,
@@ -422,55 +439,61 @@ void main() {
   });
 
   testWidgets(
-      'במצב מנותק — לחיצה על התקן שולחת ConfirmPluginInstall עם network.access=false',
-      (tester) async {
-    await _openDialog(
-      tester,
-      bloc,
-      _manifest(permissions: [pluginNetworkAccessPermission]),
-      isOfflineMode: true,
-    );
+    'במצב מנותק — לחיצה על התקן שולחת ConfirmPluginInstall עם network.access=false',
+    (tester) async {
+      await _openDialog(
+        tester,
+        bloc,
+        _manifest(permissions: [pluginNetworkAccessPermission]),
+        isOfflineMode: true,
+      );
 
-    await tester.ensureVisible(find.text('התקן'));
-    await tester.tap(find.text('התקן'));
-    await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('התקן'));
+      await tester.tap(find.text('התקן'));
+      await tester.pumpAndSettle();
 
-    final confirmEvents = bloc.capturedEvents.whereType<ConfirmPluginInstall>();
-    expect(confirmEvents, isNotEmpty);
-    expect(
+      final confirmEvents = bloc.capturedEvents
+          .whereType<ConfirmPluginInstall>();
+      expect(confirmEvents, isNotEmpty);
+      expect(
         confirmEvents.first.grantedPermissions[pluginNetworkAccessPermission],
         isFalse,
-        reason: 'network.access חייב להיות false ברירת מחדל בהתקנה במצב מנותק');
-  });
+        reason: 'network.access חייב להיות false ברירת מחדל בהתקנה במצב מנותק',
+      );
+    },
+  );
 
   testWidgets(
-      'תוסף שמבקש להופיע לפני כלים מובנים — מוצג switch ייעודי במסך ההתקנה',
-      (tester) async {
-    await _openDialog(
-      tester,
-      bloc,
-      _manifest(allowOrderBeforeBuiltIns: true),
-    );
+    'תוסף שמבקש להופיע לפני כלים מובנים — מוצג switch ייעודי במסך ההתקנה',
+    (tester) async {
+      await _openDialog(
+        tester,
+        bloc,
+        _manifest(allowOrderBeforeBuiltIns: true),
+      );
 
-    expect(
-      find.text('אפשר לתוסף להופיע לפני הכלים המובנים'),
-      findsOneWidget,
-    );
-  });
+      expect(
+        find.text('אפשר לתוסף להופיע לפני הכלים המובנים'),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets(
-      'תוסף שלא מבקש להופיע לפני כלים מובנים — ה-switch הייעודי לא מוצג',
-      (tester) async {
-    await _openDialog(tester, bloc, _manifest());
+    'תוסף שלא מבקש להופיע לפני כלים מובנים — ה-switch הייעודי לא מוצג',
+    (tester) async {
+      await _openDialog(tester, bloc, _manifest());
 
-    expect(
-      find.text('אפשר לתוסף להופיע לפני הכלים המובנים'),
-      findsNothing,
-    );
-  });
+      expect(
+        find.text('אפשר לתוסף להופיע לפני הכלים המובנים'),
+        findsNothing,
+      );
+    },
+  );
 
-  testWidgets('הקדמה לפני כלים מובנים מתחילה דלוקה כברירת מחדל בהתקנה ראשונה',
-      (tester) async {
+  testWidgets('הקדמה לפני כלים מובנים מתחילה דלוקה כברירת מחדל בהתקנה ראשונה', (
+    tester,
+  ) async {
     await _openDialog(
       tester,
       bloc,
@@ -489,26 +512,27 @@ void main() {
   });
 
   testWidgets(
-      'בעדכון נשמרת הבחירה הקודמת של המשתמש לגבי הקדמת התוסף לפני כלים מובנים',
-      (tester) async {
-    await _openDialog(
-      tester,
-      bloc,
-      _manifest(allowOrderBeforeBuiltIns: true),
-      previousVersion: '1.0.0',
-      previousAllowOrderBeforeBuiltInsGranted: false,
-    );
+    'בעדכון נשמרת הבחירה הקודמת של המשתמש לגבי הקדמת התוסף לפני כלים מובנים',
+    (tester) async {
+      await _openDialog(
+        tester,
+        bloc,
+        _manifest(allowOrderBeforeBuiltIns: true),
+        previousVersion: '1.0.0',
+        previousAllowOrderBeforeBuiltInsGranted: false,
+      );
 
-    final rowFinder = find.ancestor(
-      of: find.text('אפשר לתוסף להופיע לפני הכלים המובנים'),
-      matching: find.byType(ListTile),
-    );
-    expect(rowFinder, findsOneWidget);
-    final sw = tester.widget<CustomSwitch>(
-      find.descendant(of: rowFinder, matching: find.byType(CustomSwitch)),
-    );
-    expect(sw.value, isFalse);
-  });
+      final rowFinder = find.ancestor(
+        of: find.text('אפשר לתוסף להופיע לפני הכלים המובנים'),
+        matching: find.byType(ListTile),
+      );
+      expect(rowFinder, findsOneWidget);
+      final sw = tester.widget<CustomSwitch>(
+        find.descendant(of: rowFinder, matching: find.byType(CustomSwitch)),
+      );
+      expect(sw.value, isFalse);
+    },
+  );
 
   // ── payload של ConfirmPluginInstall ──────────────────────────────────────
   //
@@ -516,122 +540,146 @@ void main() {
   // לא רק שה-UI מציג את מצב ה-Switch הנכון.
 
   testWidgets(
-      'לחיצה על התקן שולחת ConfirmPluginInstall עם app.run_on_startup=false כברירת מחדל',
-      (tester) async {
-    await _openDialog(
-      tester,
-      bloc,
-      _manifest(permissions: [pluginRunOnStartupPermission]),
-      screenHeight: 1400,
-    );
+    'לחיצה על התקן שולחת ConfirmPluginInstall עם app.run_on_startup=false כברירת מחדל',
+    (tester) async {
+      await _openDialog(
+        tester,
+        bloc,
+        _manifest(permissions: [pluginRunOnStartupPermission]),
+        screenHeight: 1400,
+      );
 
-    await tester.ensureVisible(find.text('התקן'));
-    await tester.tap(find.text('התקן'));
-    await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('התקן'));
+      await tester.tap(find.text('התקן'));
+      await tester.pumpAndSettle();
 
-    final confirmEvents = bloc.capturedEvents.whereType<ConfirmPluginInstall>();
-    expect(confirmEvents, isNotEmpty);
-    final permissions = confirmEvents.first.grantedPermissions;
-    expect(permissions[pluginRunOnStartupPermission], isFalse,
-        reason: 'app.run_on_startup חייב להיות false ברירת מחדל');
-  });
-
-  testWidgets(
-      'לחיצה על התקן שולחת ConfirmPluginInstall עם הרשאה רגילה=true כברירת מחדל',
-      (tester) async {
-    await _openDialog(
-      tester,
-      bloc,
-      _manifest(permissions: ['app.info.read']),
-    );
-
-    await tester.ensureVisible(find.text('התקן'));
-    await tester.tap(find.text('התקן'));
-    await tester.pumpAndSettle();
-
-    final confirmEvents = bloc.capturedEvents.whereType<ConfirmPluginInstall>();
-    expect(confirmEvents, isNotEmpty);
-    expect(confirmEvents.first.grantedPermissions['app.info.read'], isTrue,
-        reason: 'הרשאה רגילה חייבת להיות true ברירת מחדל');
-  });
+      final confirmEvents = bloc.capturedEvents
+          .whereType<ConfirmPluginInstall>();
+      expect(confirmEvents, isNotEmpty);
+      final permissions = confirmEvents.first.grantedPermissions;
+      expect(
+        permissions[pluginRunOnStartupPermission],
+        isFalse,
+        reason: 'app.run_on_startup חייב להיות false ברירת מחדל',
+      );
+    },
+  );
 
   testWidgets(
-      'הפעלת Switch של app.run_on_startup ולחיצה על התקן → payload מכיל true',
-      (tester) async {
-    await _openDialog(
-      tester,
-      bloc,
-      _manifest(permissions: [pluginRunOnStartupPermission]),
-      screenHeight: 1400,
-    );
+    'לחיצה על התקן שולחת ConfirmPluginInstall עם הרשאה רגילה=true כברירת מחדל',
+    (tester) async {
+      await _openDialog(
+        tester,
+        bloc,
+        _manifest(permissions: ['app.info.read']),
+      );
 
-    final rowFinder = find.ancestor(
-      of: find.text('טעינה אוטומטית עם עליית האפליקציה'),
-      matching: find.byType(ListTile),
-    );
-    await tester.ensureVisible(rowFinder);
-    await tester.tap(rowFinder);
-    await tester.pump();
+      await tester.ensureVisible(find.text('התקן'));
+      await tester.tap(find.text('התקן'));
+      await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('התקן'));
-    await tester.tap(find.text('התקן'));
-    await tester.pumpAndSettle();
+      final confirmEvents = bloc.capturedEvents
+          .whereType<ConfirmPluginInstall>();
+      expect(confirmEvents, isNotEmpty);
+      expect(
+        confirmEvents.first.grantedPermissions['app.info.read'],
+        isTrue,
+        reason: 'הרשאה רגילה חייבת להיות true ברירת מחדל',
+      );
+    },
+  );
 
-    final confirmEvents = bloc.capturedEvents.whereType<ConfirmPluginInstall>();
-    expect(confirmEvents, isNotEmpty);
-    expect(confirmEvents.first.grantedPermissions[pluginRunOnStartupPermission],
+  testWidgets(
+    'הפעלת Switch של app.run_on_startup ולחיצה על התקן → payload מכיל true',
+    (tester) async {
+      await _openDialog(
+        tester,
+        bloc,
+        _manifest(permissions: [pluginRunOnStartupPermission]),
+        screenHeight: 1400,
+      );
+
+      final rowFinder = find.ancestor(
+        of: find.text('טעינה אוטומטית עם עליית האפליקציה'),
+        matching: find.byType(ListTile),
+      );
+      await tester.ensureVisible(rowFinder);
+      await tester.tap(rowFinder);
+      await tester.pump();
+
+      await tester.ensureVisible(find.text('התקן'));
+      await tester.tap(find.text('התקן'));
+      await tester.pumpAndSettle();
+
+      final confirmEvents = bloc.capturedEvents
+          .whereType<ConfirmPluginInstall>();
+      expect(confirmEvents, isNotEmpty);
+      expect(
+        confirmEvents.first.grantedPermissions[pluginRunOnStartupPermission],
         isTrue,
         reason:
-            'לאחר הפעלת ה-Switch, app.run_on_startup חייב להיות true ב-payload');
-  });
+            'לאחר הפעלת ה-Switch, app.run_on_startup חייב להיות true ב-payload',
+      );
+    },
+  );
 
   testWidgets(
-      'מעורב: app.run_on_startup=false, הרשאה רגילה=true בלחיצה ראשונה על התקן',
-      (tester) async {
-    await _openDialog(
-      tester,
-      bloc,
-      _manifest(permissions: [pluginRunOnStartupPermission, 'app.info.read']),
-      screenHeight: 1400,
-    );
+    'מעורב: app.run_on_startup=false, הרשאה רגילה=true בלחיצה ראשונה על התקן',
+    (tester) async {
+      await _openDialog(
+        tester,
+        bloc,
+        _manifest(permissions: [pluginRunOnStartupPermission, 'app.info.read']),
+        screenHeight: 1400,
+      );
 
-    await tester.ensureVisible(find.text('התקן'));
-    await tester.tap(find.text('התקן'));
-    await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('התקן'));
+      await tester.tap(find.text('התקן'));
+      await tester.pumpAndSettle();
 
-    final confirmEvents = bloc.capturedEvents.whereType<ConfirmPluginInstall>();
-    expect(confirmEvents, isNotEmpty);
-    final perms = confirmEvents.first.grantedPermissions;
-    expect(perms[pluginRunOnStartupPermission], isFalse,
-        reason: 'app.run_on_startup חייב להיות false');
-    expect(perms['app.info.read'], isTrue,
-        reason: 'app.info.read חייב להיות true');
-  });
+      final confirmEvents = bloc.capturedEvents
+          .whereType<ConfirmPluginInstall>();
+      expect(confirmEvents, isNotEmpty);
+      final perms = confirmEvents.first.grantedPermissions;
+      expect(
+        perms[pluginRunOnStartupPermission],
+        isFalse,
+        reason: 'app.run_on_startup חייב להיות false',
+      );
+      expect(
+        perms['app.info.read'],
+        isTrue,
+        reason: 'app.info.read חייב להיות true',
+      );
+    },
+  );
 
   testWidgets(
-      'כיבוי האפשרות להופיע לפני כלים מובנים נשלח ב-ConfirmPluginInstall',
-      (tester) async {
-    await _openDialog(
-      tester,
-      bloc,
-      _manifest(allowOrderBeforeBuiltIns: true),
-      screenHeight: 1400,
-    );
+    'כיבוי האפשרות להופיע לפני כלים מובנים נשלח ב-ConfirmPluginInstall',
+    (tester) async {
+      await _openDialog(
+        tester,
+        bloc,
+        _manifest(allowOrderBeforeBuiltIns: true),
+        screenHeight: 1400,
+      );
 
-    final rowFinder = find.ancestor(
-      of: find.text('אפשר לתוסף להופיע לפני הכלים המובנים'),
-      matching: find.byType(ListTile),
-    );
-    await tester.ensureVisible(rowFinder);
-    await tester.tap(rowFinder);
-    await tester.pump();
+      final rowFinder = find.ancestor(
+        of: find.text('אפשר לתוסף להופיע לפני הכלים המובנים'),
+        matching: find.byType(ListTile),
+      );
+      await tester.ensureVisible(rowFinder);
+      await tester.tap(rowFinder);
+      await tester.pump();
 
-    await tester.ensureVisible(find.text('התקן'));
-    await tester.tap(find.text('התקן'));
-    await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('התקן'));
+      await tester.tap(find.text('התקן'));
+      await tester.pumpAndSettle();
 
-    final confirmEvents = bloc.capturedEvents.whereType<ConfirmPluginInstall>();
-    expect(confirmEvents, isNotEmpty);
-    expect(confirmEvents.first.allowOrderBeforeBuiltInsGranted, isFalse);
-  });
+      final confirmEvents = bloc.capturedEvents
+          .whereType<ConfirmPluginInstall>();
+      expect(confirmEvents, isNotEmpty);
+      expect(confirmEvents.first.allowOrderBeforeBuiltInsGranted, isFalse);
+    },
+  );
 }

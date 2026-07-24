@@ -74,13 +74,15 @@ class MockNotificationService implements NotificationService {
     required int reminderMinutes,
     bool soundEnabled = true,
   }) async {
-    scheduledNotifications.add(ScheduledNotification(
-      id: id,
-      title: title,
-      body: body,
-      eventDate: eventDate,
-      reminderMinutes: reminderMinutes,
-    ));
+    scheduledNotifications.add(
+      ScheduledNotification(
+        id: id,
+        title: title,
+        body: body,
+        eventDate: eventDate,
+        reminderMinutes: reminderMinutes,
+      ),
+    );
   }
 
   @override
@@ -152,18 +154,27 @@ void main() {
 
       // 4. Verify notification is scheduled
       // We expect 46 notifications (today + 45 days ahead)
-      expect(mockNotificationService.scheduledNotifications.isNotEmpty, true,
-          reason: 'Notifications should be scheduled');
+      expect(
+        mockNotificationService.scheduledNotifications.isNotEmpty,
+        true,
+        reason: 'Notifications should be scheduled',
+      );
 
       final notification = mockNotificationService.scheduledNotifications.first;
 
       // 5. Verify the timezone of the scheduled event
-      expect(notification.eventDate, isA<tz.TZDateTime>(),
-          reason: 'Event date should be TZDateTime');
+      expect(
+        notification.eventDate,
+        isA<tz.TZDateTime>(),
+        reason: 'Event date should be TZDateTime',
+      );
 
       final tzDate = notification.eventDate as tz.TZDateTime;
-      expect(tzDate.location.name, 'America/New_York',
-          reason: 'Location should be New York');
+      expect(
+        tzDate.location.name,
+        'America/New_York',
+        reason: 'Location should be New York',
+      );
 
       debugPrint('Scheduled time (New York): $tzDate');
       debugPrint('Location: ${tzDate.location.name}');
@@ -194,8 +205,11 @@ void main() {
       final notification = mockNotificationService.scheduledNotifications.first;
 
       final tzDate = notification.eventDate as tz.TZDateTime;
-      expect(tzDate.location.name, 'Asia/Jerusalem',
-          reason: 'Location should be Jerusalem');
+      expect(
+        tzDate.location.name,
+        'Asia/Jerusalem',
+        reason: 'Location should be Jerusalem',
+      );
 
       debugPrint('Scheduled time (Jerusalem): $tzDate');
       debugPrint('Location: ${tzDate.location.name}');

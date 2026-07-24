@@ -37,8 +37,9 @@ class BookDao {
     final hasFullDescription = db
         .select('PRAGMA table_info(book)')
         .any((column) => column['name'] == 'heDesc');
-    final fullDescriptionColumn =
-        hasFullDescription ? 'heDesc' : 'NULL AS heDesc';
+    final fullDescriptionColumn = hasFullDescription
+        ? 'heDesc'
+        : 'NULL AS heDesc';
 
     if (withFileColumns) {
       return db.select('''
@@ -95,8 +96,9 @@ class BookDao {
     final db = await database;
 
     // Always exclude external catalog books (fileType='link') - they are in a separate DB
-    final books =
-        db.select(_queries['selectAllIgnoreExternalCatalogs']!).toMapList();
+    final books = db
+        .select(_queries['selectAllIgnoreExternalCatalogs']!)
+        .toMapList();
 
     if (books.isEmpty) return [];
 
@@ -204,17 +206,25 @@ class BookDao {
 
   Future<Book?> getBookByTitleAndCategory(String title, int categoryId) async {
     final db = await database;
-    final result = db.select(
-        _queries['selectByTitleAndCategory']!, [title, categoryId]).toMapList();
+    final result = db.select(_queries['selectByTitleAndCategory']!, [
+      title,
+      categoryId,
+    ]).toMapList();
     if (result.isEmpty) return null;
     return Book.fromJson(result.first);
   }
 
   Future<Book?> getBookByTitleCategoryAndFileType(
-      String title, int categoryId, String fileType) async {
+    String title,
+    int categoryId,
+    String fileType,
+  ) async {
     final db = await database;
-    final result = db.select(_queries['selectByTitleCategoryAndFileType']!,
-        [title, categoryId, fileType]).toMapList();
+    final result = db.select(_queries['selectByTitleCategoryAndFileType']!, [
+      title,
+      categoryId,
+      fileType,
+    ]).toMapList();
     if (result.isEmpty) return null;
     return Book.fromJson(result.first);
   }
@@ -222,8 +232,10 @@ class BookDao {
   /// Gets a book by its title and file type.
   Future<Book?> getBookByTitleAndFileType(String title, String fileType) async {
     final db = await database;
-    final result = db.select(
-        _queries['selectByTitleAndFileType']!, [title, fileType]).toMapList();
+    final result = db.select(_queries['selectByTitleAndFileType']!, [
+      title,
+      fileType,
+    ]).toMapList();
     if (result.isEmpty) return null;
     return Book.fromJson(result.first);
   }
@@ -386,10 +398,16 @@ class BookDao {
 
   /// Updates external book metadata (file size and last modified).
   Future<int> updateExternalMetadata(
-      int id, int fileSize, int lastModified) async {
+    int id,
+    int fileSize,
+    int lastModified,
+  ) async {
     final db = await database;
-    db.execute(
-        _queries['updateExternalMetadata']!, [fileSize, lastModified, id]);
+    db.execute(_queries['updateExternalMetadata']!, [
+      fileSize,
+      lastModified,
+      id,
+    ]);
     return db.updatedRows;
   }
 
@@ -416,29 +434,35 @@ class BookDao {
   /// Gets an external book by its file path.
   Future<Book?> getBookByFilePath(String filePath) async {
     final db = await database;
-    final result =
-        db.select(_queries['selectByFilePath']!, [filePath]).toMapList();
+    final result = db.select(_queries['selectByFilePath']!, [
+      filePath,
+    ]).toMapList();
     if (result.isEmpty) return null;
     return Book.fromJson(result.first);
   }
 
   /// Gets an external book by its file path and file type.
   Future<Book?> getBookByFilePathAndType(
-      String filePath, String fileType) async {
+    String filePath,
+    String fileType,
+  ) async {
     final db = await database;
-    final result = db.select(
-        _queries['selectByFilePathAndType']!, [filePath, fileType]).toMapList();
+    final result = db.select(_queries['selectByFilePathAndType']!, [
+      filePath,
+      fileType,
+    ]).toMapList();
     if (result.isEmpty) return null;
     return Book.fromJson(result.first);
   }
 
   Future<int> updateBookConnectionFlags(
-      int id,
-      bool hasTargum,
-      bool hasReference,
-      bool hasSource,
-      bool hasCommentary,
-      bool hasOther) async {
+    int id,
+    bool hasTargum,
+    bool hasReference,
+    bool hasSource,
+    bool hasCommentary,
+    bool hasOther,
+  ) async {
     final db = await database;
     db.execute(_queries['updateConnectionFlags']!, [
       hasTargum ? 1 : 0,
@@ -446,15 +470,17 @@ class BookDao {
       hasSource ? 1 : 0,
       hasCommentary ? 1 : 0,
       hasOther ? 1 : 0,
-      id
+      id,
     ]);
     return db.updatedRows;
   }
 
   Future<int> updateAltStructuresFlag(int id, bool hasAltStructures) async {
     final db = await database;
-    db.execute(
-        _queries['updateAltStructuresFlag']!, [hasAltStructures ? 1 : 0, id]);
+    db.execute(_queries['updateAltStructuresFlag']!, [
+      hasAltStructures ? 1 : 0,
+      id,
+    ]);
     return db.updatedRows;
   }
 
@@ -479,7 +505,8 @@ class BookDao {
   Future<int> countBooksByCategory(int categoryId) async {
     final db = await database;
     return firstIntValue(
-            db.select(_queries['countByCategoryId']!, [categoryId])) ??
+          db.select(_queries['countByCategoryId']!, [categoryId]),
+        ) ??
         0;
   }
 
@@ -497,12 +524,15 @@ class BookDao {
   Future<List<Book>> searchBooks(String query) async {
     final db = await database;
     return db
-        .select('''
+        .select(
+          '''
       SELECT * FROM book
       WHERE (title LIKE ? OR heShortDesc LIKE ?)
         AND COALESCE(fileType, '') NOT IN ('link', 'url')
       ORDER BY orderIndex, title
-    ''', ['%$query%', '%$query%'])
+    ''',
+          ['%$query%', '%$query%'],
+        )
         .toMapList()
         .map((row) => Book.fromJson(row))
         .toList();

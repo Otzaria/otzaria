@@ -77,10 +77,12 @@ class SqliteDataProvider {
           // write-session (close בלי reopen תואם). הקורא לא נתקע (חוזר למטה),
           // אבל קריאות ימשיכו לקבל ריק עד restart. אם השורה הזו מופיעה בלוג —
           // יש לאתר את ה-close שלא קיבל reopen.
-          debugPrint('⚠️ [SqliteDataProvider] initialize() חרג מתקרת ההמתנה '
-              'ל-gate ($_activeWriteSessions write-sessions פעילים, '
-              '_externalWriteGate=${_externalWriteGate == null ? "null" : "ממתין"}). '
-              'חשד לדליפת write-session — קריאות יקבלו ריק עד פתיחה-מחדש.');
+          debugPrint(
+            '⚠️ [SqliteDataProvider] initialize() חרג מתקרת ההמתנה '
+            'ל-gate ($_activeWriteSessions write-sessions פעילים, '
+            '_externalWriteGate=${_externalWriteGate == null ? "null" : "ממתין"}). '
+            'חשד לדליפת write-session — קריאות יקבלו ריק עד פתיחה-מחדש.',
+          );
           break;
         }
         final gate = _externalWriteGate;
@@ -140,8 +142,10 @@ class SqliteDataProvider {
       // checkLibraryIsEmpty() returns true and the user reaches the
       // "select library" screen where the copy-to-internal flow is offered.
       if (Platform.isAndroid && e.resultCode == 14) {
-        debugPrint('[SqliteDataProvider] SQLITE_CANTOPEN on Android — '
-            'clearing keyDbEffectivePath to trigger library-selection flow.');
+        debugPrint(
+          '[SqliteDataProvider] SQLITE_CANTOPEN on Android — '
+          'clearing keyDbEffectivePath to trigger library-selection flow.',
+        );
         await Settings.setValue(SettingsRepository.keyDbEffectivePath, '');
         // Do NOT rethrow: returning without _isInitialized = true causes the
         // app to treat the DB as missing and show the empty-library screen.
@@ -249,8 +253,10 @@ class SqliteDataProvider {
         db.close();
       }
     } catch (e) {
-      debugPrint('[SqliteDataProvider] Could not normalise journal mode '
-          '(directory may be read-only): $e');
+      debugPrint(
+        '[SqliteDataProvider] Could not normalise journal mode '
+        '(directory may be read-only): $e',
+      );
     }
   }
 
@@ -280,8 +286,9 @@ class SqliteDataProvider {
   Future<T> _runWritableSession<T>(
     Future<T> Function(SeforimRepository repository) action,
   ) async {
-    final dbPath =
-        _dbPath.isNotEmpty ? _dbPath : DatabaseConstants.getDatabasePath();
+    final dbPath = _dbPath.isNotEmpty
+        ? _dbPath
+        : DatabaseConstants.getDatabasePath();
 
     // שחרור חיבור ה-RO כדי לפנות את נעילת הקובץ.
     if (_isInitialized) {
@@ -314,8 +321,10 @@ class SqliteDataProvider {
       try {
         await _initializeInternal();
       } catch (e) {
-        debugPrint('[SqliteDataProvider] Failed to re-open RO connection after '
-            'write session: $e');
+        debugPrint(
+          '[SqliteDataProvider] Failed to re-open RO connection after '
+          'write session: $e',
+        );
       }
     }
   }
@@ -360,8 +369,11 @@ class SqliteDataProvider {
   }
 
   /// Checks if a book exists in the database
-  Future<bool> isBookInDatabase(String title,
-      [int? categoryId, String? fileType]) async {
+  Future<bool> isBookInDatabase(
+    String title, [
+    int? categoryId,
+    String? fileType,
+  ]) async {
     if (!_isInitialized) {
       await initialize();
     }
@@ -375,8 +387,10 @@ class SqliteDataProvider {
       );
       return resolvedBook != null;
     } catch (e, st) {
-      debugPrint('[SqliteDataProvider] isBookInDatabase failed for "$title": '
-          '$e\n$st');
+      debugPrint(
+        '[SqliteDataProvider] isBookInDatabase failed for "$title": '
+        '$e\n$st',
+      );
       return false;
     }
   }
@@ -408,18 +422,23 @@ class SqliteDataProvider {
       final startLine = (currentLine - 10).clamp(0, book.totalLines - 1);
       final endLine = (currentLine + 10).clamp(0, book.totalLines - 1);
 
-      final lines =
-          await resolvedBook.repository.getLines(book.id, startLine, endLine);
+      final lines = await resolvedBook.repository.getLines(
+        book.id,
+        startLine,
+        endLine,
+      );
       return migrationLinesToText(lines);
     } catch (e, st) {
-      debugPrint('[SqliteDataProvider] getBookQuickPreview failed for '
-          '"$title": $e\n$st');
+      debugPrint(
+        '[SqliteDataProvider] getBookQuickPreview failed for '
+        '"$title": $e\n$st',
+      );
       return null;
     }
   }
 
   Future<({int startLine, int endLine, int totalLines, String text})?>
-      getBookTextRangeFromDb(
+  getBookTextRangeFromDb(
     String title, {
     required int startLine,
     required int endLine,
@@ -446,8 +465,11 @@ class SqliteDataProvider {
 
       final normalizedStart = startLine.clamp(0, book.totalLines - 1);
       final normalizedEnd = endLine.clamp(normalizedStart, book.totalLines - 1);
-      final lines = await resolvedBook.repository
-          .getLines(book.id, normalizedStart, normalizedEnd);
+      final lines = await resolvedBook.repository.getLines(
+        book.id,
+        normalizedStart,
+        normalizedEnd,
+      );
 
       return (
         startLine: normalizedStart,
@@ -456,15 +478,21 @@ class SqliteDataProvider {
         text: migrationLinesToText(lines),
       );
     } catch (e, st) {
-      debugPrint('[SqliteDataProvider] getBookTextRangeFromDb failed for '
-          '"$title": $e\n$st');
+      debugPrint(
+        '[SqliteDataProvider] getBookTextRangeFromDb failed for '
+        '"$title": $e\n$st',
+      );
       return null;
     }
   }
 
   /// Retrieves the full text content of a book from the database
-  Future<String?> getBookTextFromDb(String title,
-      [int? categoryId, String? fileType, bool preferUserBooks = false]) async {
+  Future<String?> getBookTextFromDb(
+    String title, [
+    int? categoryId,
+    String? fileType,
+    bool preferUserBooks = false,
+  ]) async {
     if (!_isInitialized) {
       await initialize();
     }
@@ -486,8 +514,10 @@ class SqliteDataProvider {
       if (lines.isEmpty) return null;
       return lines.join('\n');
     } catch (e, st) {
-      debugPrint('[SqliteDataProvider] getBookTextFromDb failed for '
-          '"$title": $e\n$st');
+      debugPrint(
+        '[SqliteDataProvider] getBookTextFromDb failed for '
+        '"$title": $e\n$st',
+      );
       return null;
     }
   }
@@ -495,8 +525,12 @@ class SqliteDataProvider {
   /// כמו [getBookTextFromDb], אבל כבייטים גולמיים (UTF-8 כפי שמאוחסן),
   /// מאוחים ב-`\n` — מסלול האינדוקס מעביר אותם למנוע כמות-שהם
   /// (addTextBookBytes) בלי פענוח ל-String וקידוד חוזר על גשר ה-FFI.
-  Future<Uint8List?> getBookTextBytesFromDb(String title,
-      [int? categoryId, String? fileType, bool preferUserBooks = false]) async {
+  Future<Uint8List?> getBookTextBytesFromDb(
+    String title, [
+    int? categoryId,
+    String? fileType,
+    bool preferUserBooks = false,
+  ]) async {
     if (!_isInitialized) {
       await initialize();
     }
@@ -511,20 +545,27 @@ class SqliteDataProvider {
       );
       if (resolvedBook == null) return null;
 
-      final bytes = await resolvedBook.repository
-          .getLineContentBytes(resolvedBook.book.id);
+      final bytes = await resolvedBook.repository.getLineContentBytes(
+        resolvedBook.book.id,
+      );
       if (bytes.isEmpty) return null;
       return bytes;
     } catch (e, st) {
-      debugPrint('[SqliteDataProvider] getBookTextBytesFromDb failed for '
-          '"$title": $e\n$st');
+      debugPrint(
+        '[SqliteDataProvider] getBookTextBytesFromDb failed for '
+        '"$title": $e\n$st',
+      );
       return null;
     }
   }
 
   /// Retrieves the table of contents of a book from the database
-  Future<List<TocEntry>?> getBookTocFromDb(String title,
-      [int? categoryId, String? fileType, bool preferUserBooks = false]) async {
+  Future<List<TocEntry>?> getBookTocFromDb(
+    String title, [
+    int? categoryId,
+    String? fileType,
+    bool preferUserBooks = false,
+  ]) async {
     if (!_isInitialized) {
       await initialize();
     }
@@ -540,8 +581,9 @@ class SqliteDataProvider {
       if (resolvedBook == null) return null;
       final book = resolvedBook.book;
 
-      final migrationTocEntries =
-          await resolvedBook.repository.getBookTocs(book.id);
+      final migrationTocEntries = await resolvedBook.repository.getBookTocs(
+        book.id,
+      );
 
       // Convert migration TOC entries to otzaria TOC entries
       final Map<int, TocEntry> idToEntry = {};
@@ -565,15 +607,20 @@ class SqliteDataProvider {
 
       return rootEntries;
     } catch (e, st) {
-      debugPrint('[SqliteDataProvider] getBookTocFromDb failed for '
-          '"$title": $e\n$st');
+      debugPrint(
+        '[SqliteDataProvider] getBookTocFromDb failed for '
+        '"$title": $e\n$st',
+      );
       return null;
     }
   }
 
   /// Retrieves source name for a book from DB source table.
-  Future<String?> getBookSourceNameFromDb(String title,
-      [int? categoryId, String? fileType]) async {
+  Future<String?> getBookSourceNameFromDb(
+    String title, [
+    int? categoryId,
+    String? fileType,
+  ]) async {
     if (!_isInitialized) {
       await initialize();
     }
@@ -586,12 +633,15 @@ class SqliteDataProvider {
         fileType: fileType,
       );
       if (resolvedBook == null) return null;
-      final source = await resolvedBook.repository
-          .getSourceById(resolvedBook.book.sourceId);
+      final source = await resolvedBook.repository.getSourceById(
+        resolvedBook.book.sourceId,
+      );
       return source?.name;
     } catch (e, st) {
-      debugPrint('[SqliteDataProvider] getBookSourceNameFromDb failed for '
-          '"$title": $e\n$st');
+      debugPrint(
+        '[SqliteDataProvider] getBookSourceNameFromDb failed for '
+        '"$title": $e\n$st',
+      );
       return null;
     }
   }

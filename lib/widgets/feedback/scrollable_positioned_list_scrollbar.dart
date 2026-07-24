@@ -68,8 +68,9 @@ class _ScrollablePositionedListScrollbarState
   @override
   void initState() {
     super.initState();
-    widget.itemPositionsListener.itemPositions
-        .addListener(_updateScrollPosition);
+    widget.itemPositionsListener.itemPositions.addListener(
+      _updateScrollPosition,
+    );
   }
 
   @override
@@ -84,17 +85,20 @@ class _ScrollablePositionedListScrollbarState
       _itemHeightSum = 0.0;
     }
     if (oldWidget.itemPositionsListener != widget.itemPositionsListener) {
-      oldWidget.itemPositionsListener.itemPositions
-          .removeListener(_updateScrollPosition);
-      widget.itemPositionsListener.itemPositions
-          .addListener(_updateScrollPosition);
+      oldWidget.itemPositionsListener.itemPositions.removeListener(
+        _updateScrollPosition,
+      );
+      widget.itemPositionsListener.itemPositions.addListener(
+        _updateScrollPosition,
+      );
     }
   }
 
   @override
   void dispose() {
-    widget.itemPositionsListener.itemPositions
-        .removeListener(_updateScrollPosition);
+    widget.itemPositionsListener.itemPositions.removeListener(
+      _updateScrollPosition,
+    );
     _labelController.dispose();
     super.dispose();
   }
@@ -106,8 +110,8 @@ class _ScrollablePositionedListScrollbarState
   /// (לתוך התוכן); ב-LTR להפך.
   ScrollbarLabelSide get _labelSide =>
       Directionality.of(context) == TextDirection.rtl
-          ? ScrollbarLabelSide.left
-          : ScrollbarLabelSide.right;
+      ? ScrollbarLabelSide.left
+      : ScrollbarLabelSide.right;
 
   /// מציג/מעדכן את תווית היעד עבור [index]. מחשב את הכתובת רק כשהאינדקס
   /// השתנה, ותמיד מעדכן את מיקום העוגן ([globalPosition]) כדי שהתווית תעקוב
@@ -137,8 +141,10 @@ class _ScrollablePositionedListScrollbarState
   int _indexFromTrackDy(double localDy, double trackHeight) {
     if (trackHeight <= 0) return 0;
     final clickPosition = localDy / trackHeight;
-    final thumbPos =
-        (clickPosition - (_thumbHeight / 2)).clamp(0.0, 1.0 - _thumbHeight);
+    final thumbPos = (clickPosition - (_thumbHeight / 2)).clamp(
+      0.0,
+      1.0 - _thumbHeight,
+    );
     return _indexFromThumbPosition(thumbPos);
   }
 
@@ -210,8 +216,9 @@ class _ScrollablePositionedListScrollbarState
         ? _itemHeightSum / _itemHeights.length
         : (visibleItems > 0 ? visibleSpan / visibleItems : 0.0);
     final totalContent = avgItemHeight * widget.itemCount;
-    final newHeight =
-        totalContent > 0 ? (1.0 / totalContent).clamp(0.05, 1.0) : 1.0;
+    final newHeight = totalContent > 0
+        ? (1.0 / totalContent).clamp(0.05, 1.0)
+        : 1.0;
 
     // minIndex לבדו זז בקפיצות של פריט שלם והאגודל "לא מחליק". מוסיפים את
     // החלק של הפריט העליון שכבר נגלל מעבר לקצה (-leadingAtMin חלקי גובהו)
@@ -227,13 +234,16 @@ class _ScrollablePositionedListScrollbarState
     // ב-_indexFromThumbPosition (שמחלק ב-(1 - _thumbHeight)); בלעדיה האגודל
     // "ירד" אחרי קפיצה ליעד, בעוצמה שגדלה ככל שמתקדמים בספר.
     final newPosition =
-        ((continuousIndex / maxScrollableIndex) * (1.0 - newHeight))
-            .clamp(0.0, 1.0 - newHeight);
+        ((continuousIndex / maxScrollableIndex) * (1.0 - newHeight)).clamp(
+          0.0,
+          1.0 - newHeight,
+        );
 
     // כל התוכן נראה אם הפריט הראשון מתחיל בתוך המסך, האחרון מסתיים בתוכו,
     // וכל הפריטים בטווח הזה מיוצגים — במצב כזה אין מה לגלול ואין טעם
     // להציג את הפס.
-    final allVisible = minIndex == 0 &&
+    final allVisible =
+        minIndex == 0 &&
         maxIndex == widget.itemCount - 1 &&
         leadingAtMin >= 0 &&
         trailingAtMax <= 1.0;
@@ -277,12 +287,17 @@ class _ScrollablePositionedListScrollbarState
   /// ומבצע קפיצה של הרשימה ליעד המתאים. משותף ללחיצה (`onTapDown`) ולתחילת
   /// גרירה על המסילה (`onVerticalDragStart`), כדי שלחיצה שזוהתה כגרירה (כל
   /// מיקרו-תזוזה הופכת tap ל-drag) עדיין תקפוץ ליעד ולא רק תזוז מעט.
-  void _jumpToTrackPosition(double localDy, double trackHeight,
-      [Offset? globalPosition]) {
+  void _jumpToTrackPosition(
+    double localDy,
+    double trackHeight, [
+    Offset? globalPosition,
+  ]) {
     if (trackHeight <= 0) return;
     final clickPosition = localDy / trackHeight;
-    final newThumbPos =
-        (clickPosition - (_thumbHeight / 2)).clamp(0.0, 1.0 - _thumbHeight);
+    final newThumbPos = (clickPosition - (_thumbHeight / 2)).clamp(
+      0.0,
+      1.0 - _thumbHeight,
+    );
     setState(() {
       _thumbPosition = newThumbPos;
     });
@@ -294,8 +309,11 @@ class _ScrollablePositionedListScrollbarState
     }
   }
 
-  void _onDragUpdate(double delta, double trackHeight,
-      [Offset? globalPosition]) {
+  void _onDragUpdate(
+    double delta,
+    double trackHeight, [
+    Offset? globalPosition,
+  ]) {
     setState(() {
       _isDragging = true;
       _thumbPosition += delta;
@@ -348,7 +366,9 @@ class _ScrollablePositionedListScrollbarState
                   onHover: _labelEnabled
                       ? (event) {
                           final index = _indexFromTrackDy(
-                              event.localPosition.dy, trackHeight);
+                            event.localPosition.dy,
+                            trackHeight,
+                          );
                           _showLabelForIndex(index, event.position);
                         }
                       : null,
@@ -376,12 +396,18 @@ class _ScrollablePositionedListScrollbarState
                       // יחסית (onVerticalDragUpdate) כמקודם.
                       if (_isOutsideThumb(dy, trackHeight)) {
                         _jumpToTrackPosition(
-                            dy, trackHeight, details.globalPosition);
+                          dy,
+                          trackHeight,
+                          details.globalPosition,
+                        );
                       }
                     },
                     onVerticalDragUpdate: (details) {
-                      _onDragUpdate(details.delta.dy / trackHeight, trackHeight,
-                          details.globalPosition);
+                      _onDragUpdate(
+                        details.delta.dy / trackHeight,
+                        trackHeight,
+                        details.globalPosition,
+                      );
                     },
                     onVerticalDragEnd: (_) => _onDragEnd(),
                     // גרירה שנקטעה (הרשימה ניצחה ב-gesture arena וגללה את
@@ -409,8 +435,10 @@ class _ScrollablePositionedListScrollbarState
                           height: thumbPixelHeight,
                           child: Container(
                             decoration: BoxDecoration(
-                              color: AppSurfaces.scrollbarThumb(colorScheme,
-                                  isDragging: _isDragging),
+                              color: AppSurfaces.scrollbarThumb(
+                                colorScheme,
+                                isDragging: _isDragging,
+                              ),
                               borderRadius: AppTokens.borderRadiusAll,
                             ),
                           ),
@@ -424,8 +452,9 @@ class _ScrollablePositionedListScrollbarState
           ),
         Expanded(
           child: ScrollConfiguration(
-            behavior:
-                ScrollConfiguration.of(context).copyWith(scrollbars: false),
+            behavior: ScrollConfiguration.of(
+              context,
+            ).copyWith(scrollbars: false),
             child: widget.child,
           ),
         ),

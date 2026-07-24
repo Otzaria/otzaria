@@ -37,25 +37,28 @@ void main() {
     );
   }
 
-  testWidgets('DualAdaptiveReaderPane shows both panes side by side when wide',
-      (tester) async {
-    await tester.pumpWidget(
-      buildPane(
-        width: 1400,
-        showLeftPane: true,
-        showRightPane: true,
-        onCloseLeftPane: () {},
-        onCloseRightPane: () {},
-      ),
-    );
+  testWidgets(
+    'DualAdaptiveReaderPane shows both panes side by side when wide',
+    (tester) async {
+      await tester.pumpWidget(
+        buildPane(
+          width: 1400,
+          showLeftPane: true,
+          showRightPane: true,
+          onCloseLeftPane: () {},
+          onCloseRightPane: () {},
+        ),
+      );
 
-    expect(find.text('main'), findsOneWidget);
-    expect(find.text('left pane'), findsOneWidget);
-    expect(find.text('right pane'), findsOneWidget);
-  });
+      expect(find.text('main'), findsOneWidget);
+      expect(find.text('left pane'), findsOneWidget);
+      expect(find.text('right pane'), findsOneWidget);
+    },
+  );
 
-  testWidgets('DualAdaptiveReaderPane closes overlay pane on scrim tap',
-      (tester) async {
+  testWidgets('DualAdaptiveReaderPane closes overlay pane on scrim tap', (
+    tester,
+  ) async {
     var leftPaneOpen = true;
     var closeCalled = false;
 
@@ -89,8 +92,9 @@ void main() {
     expect(find.text('main'), findsOneWidget);
   });
 
-  testWidgets('DualAdaptiveReaderPane animates wide pane out on close',
-      (tester) async {
+  testWidgets('DualAdaptiveReaderPane animates wide pane out on close', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       buildPane(
         width: 1400,

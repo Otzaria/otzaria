@@ -47,13 +47,13 @@ void main() {
     });
 
     Future<void> addPdfNote(int page) => service.addNote(
-          bookId: 'ספר PDF',
-          bookContent: '', // PDF — אין תוכן טקסטואלי
-          lineNumber: page,
-          content: 'הערה לעמוד $page',
-          contentPlain: 'הערה לעמוד $page',
-          contentFormat: PersonalNoteContentFormat.plain,
-        );
+      bookId: 'ספר PDF',
+      bookContent: '', // PDF — אין תוכן טקסטואלי
+      lineNumber: page,
+      content: 'הערה לעמוד $page',
+      contentPlain: 'הערה לעמוד $page',
+      contentFormat: PersonalNoteContentFormat.plain,
+    );
 
     test('שומר את מספר העמוד במקום לכווץ את כל ההערות לעמוד 1', () async {
       await addPdfNote(47);
@@ -67,16 +67,19 @@ void main() {
       await addPdfNote(47);
       await addPdfNote(12);
 
-      final pages =
-          (await db.loadNotes('ספר PDF')).map((n) => n.lineNumber).toSet();
+      final pages = (await db.loadNotes(
+        'ספר PDF',
+      )).map((n) => n.lineNumber).toSet();
       expect(pages, {47, 12});
     });
 
     test('טעינה מחדש לא מסמנת הערות PDF כחסרות', () async {
       await addPdfNote(47);
 
-      final reloaded =
-          await service.loadNotes(bookId: 'ספר PDF', bookContent: '');
+      final reloaded = await service.loadNotes(
+        bookId: 'ספר PDF',
+        bookContent: '',
+      );
       expect(reloaded.single.lineNumber, 47);
       expect(reloaded.single.status, PersonalNoteStatus.located);
     });

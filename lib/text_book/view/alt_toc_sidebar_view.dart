@@ -137,7 +137,8 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
   }
 
   List<({int structureId, AltTocEntry entry})> _getMatchingEntries(
-      String rawQuery) {
+    String rawQuery,
+  ) {
     final normalizedQuery = normalizeFindQuery(rawQuery);
     if (normalizedQuery.isEmpty) return [];
 
@@ -260,7 +261,8 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
     // וחוסמת את הגלילה האמיתית בפתיחה הבאה.
     if (state is TextBookLoaded && !state.showLeftPane) return;
     if (state is TextBookLoaded && !_isLoading) {
-      final index = state.selectedIndex ??
+      final index =
+          state.selectedIndex ??
           (state.visibleIndices.isNotEmpty ? state.visibleIndices.first : null);
       if (index != null) {
         _findAndHighlightEntry(index);
@@ -314,9 +316,10 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         final itemRenderObject = itemContext.findRenderObject();
         if (itemRenderObject is! RenderBox) return;
 
-        final scrollableBox = _sidebarScrollController
-            .position.context.storageContext
-            .findRenderObject() as RenderBox;
+        final scrollableBox =
+            _sidebarScrollController.position.context.storageContext
+                    .findRenderObject()
+                as RenderBox;
 
         final itemOffset = itemRenderObject
             .localToGlobal(Offset.zero, ancestor: scrollableBox)
@@ -324,16 +327,17 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         final viewportHeight = scrollableBox.size.height;
         final itemHeight = itemRenderObject.size.height;
 
-        final target = _sidebarScrollController.offset +
+        final target =
+            _sidebarScrollController.offset +
             itemOffset -
             (viewportHeight / 2) +
             (itemHeight / 2);
 
         _sidebarScrollController.animateTo(
-            target.clamp(
-                0.0, _sidebarScrollController.position.maxScrollExtent),
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut);
+          target.clamp(0.0, _sidebarScrollController.position.maxScrollExtent),
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
 
         _lastScrolledEntryId = entryId;
       } catch (e) {
@@ -384,33 +388,35 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
       );
 
       if (Platform.isAndroid) {
-        unawaited(closePaneAfterNavigation(
-          navigation: navigation,
-          closePane: () {
-            if (mounted) widget.closeLeftPaneCallback();
-          },
-        ));
+        unawaited(
+          closePaneAfterNavigation(
+            navigation: navigation,
+            closePane: () {
+              if (mounted) widget.closeLeftPaneCallback();
+            },
+          ),
+        );
       } else {
         unawaited(navigation);
       }
     } else {
       context.read<TabsBloc>().add(
-            OpenOrFocusTab(
-              TextBookTab(
-                book: TextBook(
-                  title: link.path2,
-                  categoryId: link.targetCategoryId,
-                  fileType: link.targetFileType,
-                  filePath: link.path2,
-                ),
-                index: link.index2,
-              ),
-              insertAdjacent: true,
+        OpenOrFocusTab(
+          TextBookTab(
+            book: TextBook(
+              title: link.path2,
+              categoryId: link.targetCategoryId,
+              fileType: link.targetFileType,
+              filePath: link.path2,
             ),
-          );
-      context
-          .read<NavigationBloc>()
-          .add(const NavigateToScreen(Screen.reading));
+            index: link.index2,
+          ),
+          insertAdjacent: true,
+        ),
+      );
+      context.read<NavigationBloc>().add(
+        const NavigateToScreen(Screen.reading),
+      );
     }
   }
 
@@ -425,8 +431,10 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
   void _handleLeafClick(int structureId, AltTocEntry entry) async {
     try {
       // 1. Try to get links for this entry
-      var links = await DatabaseLibraryProvider.instance
-          .getLinksForAltTocEntry(structureId, entry.id);
+      var links = await DatabaseLibraryProvider.instance.getLinksForAltTocEntry(
+        structureId,
+        entry.id,
+      );
 
       // 2. If no links, but has children, try to get link from first child (recursively)
       if (links.isEmpty) {
@@ -449,7 +457,8 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         _openLink(links.first);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('לא נמצא קישור לכותרת זו')));
+          const SnackBar(content: Text('לא נמצא קישור לכותרת זו')),
+        );
       }
     } catch (e) {
       debugPrint('Error handling leaf click: $e');
@@ -468,8 +477,9 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
       // Navigate to the first root entry
       _handleLeafClick(structure.id, roots.first);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('לא נמצאו כותרות למבנה זה')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('לא נמצאו כותרות למבנה זה')));
     }
   }
 
@@ -561,12 +571,14 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
                     } else {
                       // Debounce to prevent rapid updates during fast scrolling
                       _debounceTimer?.cancel();
-                      _debounceTimer =
-                          Timer(const Duration(milliseconds: 300), () {
-                        if (mounted) {
-                          _findAndHighlightEntry(index);
-                        }
-                      });
+                      _debounceTimer = Timer(
+                        const Duration(milliseconds: 300),
+                        () {
+                          if (mounted) {
+                            _findAndHighlightEntry(index);
+                          }
+                        },
+                      );
                     }
                   },
                   child: NotificationListener<ScrollNotification>(
@@ -613,10 +625,9 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         return Container(
           decoration: BoxDecoration(
             color: isSelected
-                ? Theme.of(context)
-                    .colorScheme
-                    .primaryContainer
-                    .withValues(alpha: 0.3)
+                ? Theme.of(
+                    context,
+                  ).colorScheme.primaryContainer.withValues(alpha: 0.3)
                 : null,
             border: Border(
               bottom: BorderSide(
@@ -645,8 +656,9 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
                       entry.text ?? '',
                       style: TextStyle(
                         fontSize: 14,
-                        fontWeight:
-                            isSelected ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -665,56 +677,81 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
     final isExpanded = _structureExpanded[structure.id] ?? false;
     final roots = _structureRoots[structure.id] ?? [];
 
-    return Column(children: [
-      // Structure Header (Root of this tree)
-      Container(
+    return Column(
+      children: [
+        // Structure Header (Root of this tree)
+        Container(
           decoration: BoxDecoration(
-              border: Border(
-                  bottom: BorderSide(
-                      color: Theme.of(context).dividerColor, width: 0.5))),
-          child: Row(children: [
-            // Navigation Zone (Icon + Title)
-            Expanded(
+            border: Border(
+              bottom: BorderSide(
+                color: Theme.of(context).dividerColor,
+                width: 0.5,
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              // Navigation Zone (Icon + Title)
+              Expanded(
                 child: InkWell(
-                    onTap: () => _handleStructureTap(structure),
-                    child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16.0, vertical: 12.0),
-                        child: Row(children: [
-                          Icon(FluentIcons.book_24_regular,
-                              color: Theme.of(context).colorScheme.primary,
-                              size: 20),
-                          const SizedBox(width: 12),
-                          Expanded(
-                              child: Text(
+                  onTap: () => _handleStructureTap(structure),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0,
+                      vertical: 12.0,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          FluentIcons.book_24_regular,
+                          color: Theme.of(context).colorScheme.primary,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
                             structure.heTitle ??
                                 structure.title ??
                                 structure.key,
                             style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
-                                color: Theme.of(context).colorScheme.primary),
-                          )),
-                        ])))),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
 
-            // Expansion Zone (Arrow)
-            InkWell(
+              // Expansion Zone (Arrow)
+              InkWell(
                 onTap: () => _toggleStructure(structure),
                 child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0, vertical: 12.0),
-                    child: Icon(
-                        isExpanded
-                            ? FluentIcons.chevron_up_24_regular
-                            : FluentIcons.chevron_down_24_regular,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        size: 16))),
-          ])),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 12.0,
+                  ),
+                  child: Icon(
+                    isExpanded
+                        ? FluentIcons.chevron_up_24_regular
+                        : FluentIcons.chevron_down_24_regular,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    size: 16,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
 
-      // Children (The actual TOC)
-      if (isExpanded)
-        ...roots.map((entry) => _buildEntryItem(structure.id, entry))
-    ]);
+        // Children (The actual TOC)
+        if (isExpanded)
+          ...roots.map((entry) => _buildEntryItem(structure.id, entry)),
+      ],
+    );
   }
 
   Widget _buildEntryItem(int structureId, AltTocEntry entry) {
@@ -732,15 +769,18 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
       children: [
         Container(
           decoration: BoxDecoration(
-              color: isSelected
-                  ? Theme.of(context)
-                      .colorScheme
-                      .primaryContainer
-                      .withValues(alpha: 0.3)
-                  : null,
-              border: Border(
-                  bottom: BorderSide(
-                      color: Theme.of(context).dividerColor, width: 0.5))),
+            color: isSelected
+                ? Theme.of(
+                    context,
+                  ).colorScheme.primaryContainer.withValues(alpha: 0.3)
+                : null,
+            border: Border(
+              bottom: BorderSide(
+                color: Theme.of(context).dividerColor,
+                width: 0.5,
+              ),
+            ),
+          ),
           child: Row(
             children: [
               // Content Area (Navigation Only)

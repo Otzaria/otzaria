@@ -88,25 +88,27 @@ void main() {
       book: book,
       content: const ['preview ללא הערות'],
     ),
-    act: (bloc) => bloc.add(const ApplyFullBookContent(
-      bookTitle: 'ספר בדיקה',
-      content: [
-        'שורה רגילה',
-        'שורה<sup class="footnote-marker">א</sup><i class="footnote">תוכן</i>',
-      ],
-    )),
+    act: (bloc) => bloc.add(
+      const ApplyFullBookContent(
+        bookTitle: 'ספר בדיקה',
+        content: [
+          'שורה רגילה',
+          'שורה<sup class="footnote-marker">א</sup><i class="footnote">תוכן</i>',
+        ],
+      ),
+    ),
     expect: () => [
       isA<TextBookLoaded>()
           .having(
-        (state) => state.availableCommentators,
-        'availableCommentators',
-        contains(kNotesCommentatorTitle),
-      )
+            (state) => state.availableCommentators,
+            'availableCommentators',
+            contains(kNotesCommentatorTitle),
+          )
           .having(
-        (state) => state.activeCommentators,
-        'activeCommentators (auto-selected)',
-        const [kNotesCommentatorTitle],
-      ),
+            (state) => state.activeCommentators,
+            'activeCommentators (auto-selected)',
+            const [kNotesCommentatorTitle],
+          ),
     ],
   );
 
@@ -122,27 +124,29 @@ void main() {
         'שורה שלישית',
       ],
     ),
-    act: (bloc) => bloc.add(const ApplyBookContentRange(
-      bookTitle: 'ספר בדיקה',
-      startLine: 100,
-      totalLines: 200,
-      lines: [
-        'שורה רחוקה<sup class="footnote-marker">א</sup>'
-            '<i class="footnote">הערה רחוקה</i>',
-      ],
-    )),
+    act: (bloc) => bloc.add(
+      const ApplyBookContentRange(
+        bookTitle: 'ספר בדיקה',
+        startLine: 100,
+        totalLines: 200,
+        lines: [
+          'שורה רחוקה<sup class="footnote-marker">א</sup>'
+              '<i class="footnote">הערה רחוקה</i>',
+        ],
+      ),
+    ),
     expect: () => [
       isA<TextBookLoaded>()
           .having(
-        (state) => state.availableCommentators,
-        'availableCommentators',
-        contains(kNotesCommentatorTitle),
-      )
+            (state) => state.availableCommentators,
+            'availableCommentators',
+            contains(kNotesCommentatorTitle),
+          )
           .having(
-        (state) => state.activeCommentators,
-        'activeCommentators (auto-selected)',
-        const [kNotesCommentatorTitle],
-      ),
+            (state) => state.activeCommentators,
+            'activeCommentators (auto-selected)',
+            const [kNotesCommentatorTitle],
+          ),
     ],
   );
 
@@ -153,10 +157,12 @@ void main() {
       book: book,
       content: const ['preview'],
     ),
-    act: (bloc) => bloc.add(const ApplyFullBookContent(
-      bookTitle: 'ספר בדיקה',
-      content: ['שורה רגילה ללא הערות', 'גם זו'],
-    )),
+    act: (bloc) => bloc.add(
+      const ApplyFullBookContent(
+        bookTitle: 'ספר בדיקה',
+        content: ['שורה רגילה ללא הערות', 'גם זו'],
+      ),
+    ),
     expect: () => [
       isA<TextBookLoaded>().having(
         (state) => state.availableCommentators,
@@ -175,24 +181,26 @@ void main() {
       availableCommentators: const ['רש"י'],
       activeCommentators: const ['רש"י'],
     ),
-    act: (bloc) => bloc.add(const ApplyFullBookContent(
-      bookTitle: 'ספר בדיקה',
-      content: [
-        'שורה<sup class="footnote-marker">א</sup><i class="footnote">תוכן</i>',
-      ],
-    )),
+    act: (bloc) => bloc.add(
+      const ApplyFullBookContent(
+        bookTitle: 'ספר בדיקה',
+        content: [
+          'שורה<sup class="footnote-marker">א</sup><i class="footnote">תוכן</i>',
+        ],
+      ),
+    ),
     expect: () => [
       isA<TextBookLoaded>()
           .having(
-        (state) => state.availableCommentators,
-        'availableCommentators כולל הערות',
-        containsAll(<String>['רש"י', kNotesCommentatorTitle]),
-      )
+            (state) => state.availableCommentators,
+            'availableCommentators כולל הערות',
+            containsAll(<String>['רש"י', kNotesCommentatorTitle]),
+          )
           .having(
-        (state) => state.activeCommentators,
-        'activeCommentators ללא שינוי',
-        const ['רש"י'],
-      ),
+            (state) => state.activeCommentators,
+            'activeCommentators ללא שינוי',
+            const ['רש"י'],
+          ),
     ],
   );
 
@@ -207,14 +215,16 @@ void main() {
       availableCommentators: const [kNotesCommentatorTitle],
       activeCommentators: const [kNotesCommentatorTitle],
     ),
-    act: (bloc) => bloc.add(const ApplyBookContentRange(
-      bookTitle: 'ספר בדיקה',
-      startLine: 50,
-      totalLines: 100,
-      lines: [
-        'עוד<sup>2</sup><i class="footnote">חדש</i>',
-      ],
-    )),
+    act: (bloc) => bloc.add(
+      const ApplyBookContentRange(
+        bookTitle: 'ספר בדיקה',
+        startLine: 50,
+        totalLines: 100,
+        lines: [
+          'עוד<sup>2</sup><i class="footnote">חדש</i>',
+        ],
+      ),
+    ),
     expect: () => [
       isA<TextBookLoaded>().having(
         (state) => state.availableCommentators
@@ -242,15 +252,17 @@ void main() {
       bloc.add(const UpdateCommentators([]));
       await Future<void>.delayed(Duration.zero);
       // עכשיו תוכן עם הערות נכנס דרך הרחבת טווח
-      bloc.add(const ApplyBookContentRange(
-        bookTitle: 'ספר בדיקה',
-        startLine: 100,
-        totalLines: 200,
-        lines: [
-          'שורה<sup class="footnote-marker">א</sup>'
-              '<i class="footnote">תוכן</i>',
-        ],
-      ));
+      bloc.add(
+        const ApplyBookContentRange(
+          bookTitle: 'ספר בדיקה',
+          startLine: 100,
+          totalLines: 200,
+          lines: [
+            'שורה<sup class="footnote-marker">א</sup>'
+                '<i class="footnote">תוכן</i>',
+          ],
+        ),
+      );
     },
     verify: (bloc) {
       final state = bloc.state as TextBookLoaded;
@@ -278,12 +290,14 @@ void main() {
       // הערה קיימת מ-seed, אבל לא נסרקה אף פעם דרך handler.
       content: const ['<sup>1</sup><i class="footnote">סוד</i>'],
     ),
-    act: (bloc) => bloc.add(const ApplyBookContentRange(
-      bookTitle: 'ספר בדיקה',
-      startLine: 50,
-      totalLines: 100,
-      lines: ['שורה רחוקה ללא הערות'],
-    )),
+    act: (bloc) => bloc.add(
+      const ApplyBookContentRange(
+        bookTitle: 'ספר בדיקה',
+        startLine: 50,
+        totalLines: 100,
+        lines: ['שורה רחוקה ללא הערות'],
+      ),
+    ),
     expect: () => [
       isA<TextBookLoaded>().having(
         (state) => state.availableCommentators,
@@ -303,20 +317,24 @@ void main() {
       content: const ['preview'],
     ),
     act: (bloc) async {
-      bloc.add(const ApplyFullBookContent(
-        bookTitle: 'ספר בדיקה',
-        content: ['שורה א', 'שורה ב', 'שורה ג'],
-      ));
+      bloc.add(
+        const ApplyFullBookContent(
+          bookTitle: 'ספר בדיקה',
+          content: ['שורה א', 'שורה ב', 'שורה ג'],
+        ),
+      );
       await Future<void>.delayed(Duration.zero);
       // הערה מוכנסת בהרחבה — אבל full-scan flag חוסם.
       // (במציאות לא צפויה הרחבה כזו אחרי full content, אבל הטסט מוודא
       // את ההתנהגות של ה-flag.)
-      bloc.add(const ApplyBookContentRange(
-        bookTitle: 'ספר בדיקה',
-        startLine: 10,
-        totalLines: 20,
-        lines: ['חדש<sup>1</sup><i class="footnote">תוכן</i>'],
-      ));
+      bloc.add(
+        const ApplyBookContentRange(
+          bookTitle: 'ספר בדיקה',
+          startLine: 10,
+          totalLines: 20,
+          lines: ['חדש<sup>1</sup><i class="footnote">תוכן</i>'],
+        ),
+      );
     },
     skip: 1, // ApplyFullBookContent emit
     expect: () => [
@@ -337,10 +355,12 @@ void main() {
     act: (bloc) async {
       bloc.add(const UpdateCommentators(['רש"י']));
       await Future<void>.delayed(Duration.zero);
-      bloc.add(const ApplyFullBookContent(
-        bookTitle: 'ספר בדיקה',
-        content: ['שורה רגילה'],
-      ));
+      bloc.add(
+        const ApplyFullBookContent(
+          bookTitle: 'ספר בדיקה',
+          content: ['שורה רגילה'],
+        ),
+      );
     },
     verify: (bloc) {
       expect(bloc.userTouchedCommentatorsForTesting, isTrue);
@@ -356,10 +376,12 @@ void main() {
       // מדליקים את הדגלים בזרימה רגילה
       bloc.add(const UpdateCommentators(['רש"י']));
       await Future<void>.delayed(Duration.zero);
-      bloc.add(const ApplyFullBookContent(
-        bookTitle: 'ספר בדיקה',
-        content: ['שורה רגילה'],
-      ));
+      bloc.add(
+        const ApplyFullBookContent(
+          bookTitle: 'ספר בדיקה',
+          content: ['שורה רגילה'],
+        ),
+      );
       await Future<void>.delayed(Duration.zero);
       // איפוס — זה מה ש-_onLoadContent קורא לו בטעינת ספר חדש
       bloc.resetInlineNotesStateForNewBook();
@@ -377,10 +399,13 @@ void main() {
       build: () => bloc,
       seed: () => _seed(book: book, content: const ['preview']),
       act: (bloc) => bloc.add(
-          const UpdateCommentators(['רש"י', 'תוספות'], isUserAction: false)),
+        const UpdateCommentators(['רש"י', 'תוספות'], isUserAction: false),
+      ),
       verify: (bloc) {
-        expect((bloc.state as TextBookLoaded).activeCommentators,
-            ['רש"י', 'תוספות']);
+        expect((bloc.state as TextBookLoaded).activeCommentators, [
+          'רש"י',
+          'תוספות',
+        ]);
         // בחירה אוטומטית אינה מסמנת שהמשתמש נגע בבחירה.
         expect(bloc.userTouchedCommentatorsForTesting, isFalse);
       },
@@ -394,11 +419,14 @@ void main() {
         content: const ['preview'],
         activeCommentators: const [kNotesCommentatorTitle],
       ),
-      act: (bloc) => bloc
-          .add(const UpdateCommentators(['רש"י', 'רד"ק'], isUserAction: false)),
+      act: (bloc) => bloc.add(
+        const UpdateCommentators(['רש"י', 'רד"ק'], isUserAction: false),
+      ),
       verify: (bloc) {
-        expect((bloc.state as TextBookLoaded).activeCommentators,
-            ['רש"י', 'רד"ק']);
+        expect((bloc.state as TextBookLoaded).activeCommentators, [
+          'רש"י',
+          'רד"ק',
+        ]);
       },
     );
 
@@ -410,8 +438,13 @@ void main() {
         content: const ['preview'],
         activeCommentators: const [kNotesCommentatorTitle],
       ),
-      act: (bloc) => bloc.add(const UpdateCommentators(['רש"י'],
-          isUserAction: false, isRestore: true)),
+      act: (bloc) => bloc.add(
+        const UpdateCommentators(
+          ['רש"י'],
+          isUserAction: false,
+          isRestore: true,
+        ),
+      ),
       verify: (bloc) {
         expect((bloc.state as TextBookLoaded).activeCommentators, ['רש"י']);
       },
@@ -426,7 +459,8 @@ void main() {
         activeCommentators: const [kNotesCommentatorTitle],
       ),
       act: (bloc) => bloc.add(
-          const UpdateCommentators([], isUserAction: false, isRestore: true)),
+        const UpdateCommentators([], isUserAction: false, isRestore: true),
+      ),
       verify: (bloc) {
         expect((bloc.state as TextBookLoaded).activeCommentators, isEmpty);
       },
@@ -439,8 +473,13 @@ void main() {
       act: (bloc) async {
         bloc.add(const UpdateCommentators(['רש"י'])); // בחירת משתמש
         await Future<void>.delayed(Duration.zero);
-        bloc.add(const UpdateCommentators(['רמב"ן'],
-            isUserAction: false, isRestore: true));
+        bloc.add(
+          const UpdateCommentators(
+            ['רמב"ן'],
+            isUserAction: false,
+            isRestore: true,
+          ),
+        );
       },
       verify: (bloc) {
         expect((bloc.state as TextBookLoaded).activeCommentators, ['רש"י']);

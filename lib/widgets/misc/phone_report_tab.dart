@@ -13,8 +13,12 @@ class PhoneReportTab extends StatefulWidget {
   final int? bookId;
   final int lineNumber;
   final void Function(
-          String selectedText, int errorId, String moreInfo, int lineNumber)?
-      onSubmit;
+    String selectedText,
+    int errorId,
+    String moreInfo,
+    int lineNumber,
+  )?
+  onSubmit;
   final VoidCallback? onCancel;
 
   const PhoneReportTab({
@@ -101,17 +105,17 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
             Text(
               'הוראות לדיווח טלפוני:',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                  ),
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               '1. בחר את סוג השגיאה   •  '
               '2. השתמש במספרים המוצגים למטה כשתתקשר',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                  ),
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+              ),
             ),
           ],
         ),
@@ -126,8 +130,8 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
         Text(
           'הטקסט שנבחר:',
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+            fontWeight: FontWeight.bold,
+          ),
         ),
         const SizedBox(height: 8),
         Container(
@@ -163,8 +167,8 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
         Text(
           'בחר סוג שגיאה:',
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+            fontWeight: FontWeight.bold,
+          ),
         ),
         const SizedBox(height: 12),
         Wrap(
@@ -180,8 +184,8 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
                   color: isSelected
                       ? Theme.of(context).colorScheme.onPrimary
                       : isEnabled
-                          ? Theme.of(context).colorScheme.onSurface
-                          : Theme.of(context).disabledColor,
+                      ? Theme.of(context).colorScheme.onSurface
+                      : Theme.of(context).disabledColor,
                 ),
               ),
               selected: isSelected,
@@ -201,8 +205,8 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
                 color: isSelected
                     ? Theme.of(context).colorScheme.primary
                     : isEnabled
-                        ? Theme.of(context).colorScheme.outline
-                        : Theme.of(context).disabledColor,
+                    ? Theme.of(context).colorScheme.outline
+                    : Theme.of(context).disabledColor,
               ),
             );
           }).toList(),
@@ -243,39 +247,45 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
                   child: Text(
                     'אי אפשר להתקדם... עדיין לא מילאתם בטופס...',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onErrorContainer,
-                        ),
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onErrorContainer,
+                    ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            ...errors.take(errors.length - 1).map((error) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '• ',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onErrorContainer,
+            ...errors
+                .take(errors.length - 1)
+                .map(
+                  (error) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '• ',
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onErrorContainer,
+                          ),
                         ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          error,
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onErrorContainer,
-                                  ),
+                        Expanded(
+                          child: Text(
+                            error,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onErrorContainer,
+                                ),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                )),
+                ),
             // השורה האחרונה עם כפתור ביטול בצד שמאל
             if (errors.isNotEmpty)
               Padding(
@@ -293,17 +303,16 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
                       child: Text(
                         errors.last,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onErrorContainer,
-                            ),
+                          color: Theme.of(context).colorScheme.onErrorContainer,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     // כפתור ביטול בצד שמאל של השורה האחרונה
                     Container(
-                      padding:
-                          const EdgeInsets.all(3), // מרווח לבן מסביב הכפתור
+                      padding: const EdgeInsets.all(
+                        3,
+                      ), // מרווח לבן מסביב הכפתור
                       decoration: BoxDecoration(
                         color: Theme.of(context).colorScheme.surface,
                         borderRadius:

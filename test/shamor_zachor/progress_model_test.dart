@@ -78,8 +78,12 @@ void main() {
     });
 
     test('default columns match historical ids', () {
-      expect(kDefaultProgressColumns.map((c) => c.id).toList(),
-          ['learn', 'review1', 'review2', 'review3']);
+      expect(kDefaultProgressColumns.map((c) => c.id).toList(), [
+        'learn',
+        'review1',
+        'review2',
+        'review3',
+      ]);
     });
   });
 }

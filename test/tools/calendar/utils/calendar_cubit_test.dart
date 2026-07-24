@@ -163,26 +163,34 @@ void main() {
   });
 
   group('CalendarCubit Jewish month navigation', () {
-    test('next month handles Adar I -> Adar II and no year rollover to Nissan',
-        () {
-      // Create a JewishDate for a known leap year at Adar I (month 12)
-      final jewish = JewishDate();
-      // 5784 is a leap year in the 19-year cycle
-      jewish.setJewishDate(5784, 12, 15); // Middle of Adar I
+    test(
+      'next month handles Adar I -> Adar II and no year rollover to Nissan',
+      () {
+        // Create a JewishDate for a known leap year at Adar I (month 12)
+        final jewish = JewishDate();
+        // 5784 is a leap year in the 19-year cycle
+        jewish.setJewishDate(5784, 12, 15); // Middle of Adar I
 
-      expect(jewish.isJewishLeapYear(), isTrue);
-      expect(jewish.getJewishMonth(), 12);
+        expect(jewish.isJewishLeapYear(), isTrue);
+        expect(jewish.getJewishMonth(), 12);
 
-      final next = computeNextJewishMonth(jewish);
-      expect(next.getJewishYear(), 5784);
-      expect(next.getJewishMonth(), 13,
-          reason: 'Should move to Adar II same year');
+        final next = computeNextJewishMonth(jewish);
+        expect(next.getJewishYear(), 5784);
+        expect(
+          next.getJewishMonth(),
+          13,
+          reason: 'Should move to Adar II same year',
+        );
 
-      final afterAdarII = computeNextJewishMonth(next);
-      expect(afterAdarII.getJewishYear(), 5784,
-          reason: 'After Adar II go to Nissan in same Jewish year');
-      expect(afterAdarII.getJewishMonth(), 1);
-    });
+        final afterAdarII = computeNextJewishMonth(next);
+        expect(
+          afterAdarII.getJewishYear(),
+          5784,
+          reason: 'After Adar II go to Nissan in same Jewish year',
+        );
+        expect(afterAdarII.getJewishMonth(), 1);
+      },
+    );
 
     test('previous month handles Nissan -> last Adar in same year', () {
       // Nissan of a leap year
@@ -192,10 +200,16 @@ void main() {
       expect(nissan.getJewishMonth(), 1);
 
       final prev = computePreviousJewishMonth(nissan);
-      expect(prev.getJewishYear(), 5784,
-          reason: 'Nissan -> Adar stays in same Jewish year');
-      expect(prev.getJewishMonth(), 13,
-          reason: '5784 is leap; previous month is Adar II');
+      expect(
+        prev.getJewishYear(),
+        5784,
+        reason: 'Nissan -> Adar stays in same Jewish year',
+      );
+      expect(
+        prev.getJewishMonth(),
+        13,
+        reason: '5784 is leap; previous month is Adar II',
+      );
     });
 
     test('previous month handles Adar II -> Adar I within leap year', () {
@@ -227,18 +241,20 @@ void main() {
       expect(afterSunset, DateTime(2026, 4, 21));
     });
 
-    test('sunset uses the selected city date, not the computer timezone date',
-        () {
-      final newYork = tz.getLocation('America/New_York');
+    test(
+      'sunset uses the selected city date, not the computer timezone date',
+      () {
+        final newYork = tz.getLocation('America/New_York');
 
-      final beforeNewYorkSunset = resolveCalendarDayForTransition(
-        now: tz.TZDateTime(newYork, 2026, 4, 20, 18),
-        city: 'ניו יורק',
-        transition: CalendarDayTransition.sunset,
-      );
+        final beforeNewYorkSunset = resolveCalendarDayForTransition(
+          now: tz.TZDateTime(newYork, 2026, 4, 20, 18),
+          city: 'ניו יורק',
+          transition: CalendarDayTransition.sunset,
+        );
 
-      expect(beforeNewYorkSunset, DateTime(2026, 4, 20));
-    });
+        expect(beforeNewYorkSunset, DateTime(2026, 4, 20));
+      },
+    );
 
     test('midnight preserves the civil date until midnight', () {
       final jerusalem = tz.getLocation('Asia/Jerusalem');
@@ -332,78 +348,87 @@ void main() {
     // רגרסיה לבאג שנוצר ב-31af97e60: refreshPluginEvents קרא את state.events
     // לפני ה-await, כך שאם _initializeCalendar הסתיים ו-emit בזמן ה-await,
     // הוא היה דורס את האירועים בחזרה לרשימה ריקה.
-    test('שומר אירועי משתמש מהאחסון כאשר נקרא במקביל ל-_initializeCalendar',
-        () async {
-      final userEvent = _buildUserEvent();
-      final storedJson = '[${_encodeEvent(userEvent)}]';
+    test(
+      'שומר אירועי משתמש מהאחסון כאשר נקרא במקביל ל-_initializeCalendar',
+      () async {
+        final userEvent = _buildUserEvent();
+        final storedJson = '[${_encodeEvent(userEvent)}]';
 
-      // loadSettings עם עיכוב כדי להבטיח שה-_initializeCalendar יסיים ויעשה
-      // emit רק לאחר שה-refreshPluginEvents כבר התחיל ותפס state ראשוני ריק.
-      final settings = _SlowSettingsWithStoredEvents(eventsJson: storedJson);
-      final cubit = CalendarCubit(
-        settingsRepository: settings,
-        notificationService: _FakeNotificationService(),
-      );
+        // loadSettings עם עיכוב כדי להבטיח שה-_initializeCalendar יסיים ויעשה
+        // emit רק לאחר שה-refreshPluginEvents כבר התחיל ותפס state ראשוני ריק.
+        final settings = _SlowSettingsWithStoredEvents(eventsJson: storedJson);
+        final cubit = CalendarCubit(
+          settingsRepository: settings,
+          notificationService: _FakeNotificationService(),
+        );
 
-      // קריאה מיידית — מדמה את הקריאה מ-postFrameCallback לפני שה-init הסתיים.
-      unawaited(cubit.refreshPluginEvents());
+        // קריאה מיידית — מדמה את הקריאה מ-postFrameCallback לפני שה-init הסתיים.
+        unawaited(cubit.refreshPluginEvents());
 
-      // המתן לסיום שניהם.
-      await Future.delayed(const Duration(milliseconds: 200));
+        // המתן לסיום שניהם.
+        await Future.delayed(const Duration(milliseconds: 200));
 
-      expect(
-        cubit.state.events.any((e) => e.id == userEvent.id),
-        isTrue,
-        reason:
-            'אירוע המשתמש חייב להישמר גם כאשר refreshPluginEvents רץ במקביל',
-      );
+        expect(
+          cubit.state.events.any((e) => e.id == userEvent.id),
+          isTrue,
+          reason:
+              'אירוע המשתמש חייב להישמר גם כאשר refreshPluginEvents רץ במקביל',
+        );
 
-      cubit.close();
-    });
+        cubit.close();
+      },
+    );
 
     test(
-        'רק הקריאה האחרונה עושה emit — קריאה ישנה מבוטלת ע"י generation counter',
-        () async {
-      final userEvent = _buildUserEvent();
-      final storedJson = '[${_encodeEvent(userEvent)}]';
+      'רק הקריאה האחרונה עושה emit — קריאה ישנה מבוטלת ע"י generation counter',
+      () async {
+        final userEvent = _buildUserEvent();
+        final storedJson = '[${_encodeEvent(userEvent)}]';
 
-      // קריאה ראשונה: מחזירה pluginA אך מתעכבת — מאפשרת לקריאה השנייה להתחיל ולסיים לפניה.
-      final pluginA = _buildUserEvent(id: 'plugin:event-stale');
-      // קריאה שנייה: מחזירה pluginB מיידית.
-      final pluginB = _buildUserEvent(id: 'plugin:event-fresh');
+        // קריאה ראשונה: מחזירה pluginA אך מתעכבת — מאפשרת לקריאה השנייה להתחיל ולסיים לפניה.
+        final pluginA = _buildUserEvent(id: 'plugin:event-stale');
+        // קריאה שנייה: מחזירה pluginB מיידית.
+        final pluginB = _buildUserEvent(id: 'plugin:event-fresh');
 
-      final adapter = _SequencedPluginAdapter([
-        Future.delayed(const Duration(milliseconds: 80), () => [pluginA]),
-        Future.value([pluginB]),
-      ]);
+        final adapter = _SequencedPluginAdapter([
+          Future.delayed(const Duration(milliseconds: 80), () => [pluginA]),
+          Future.value([pluginB]),
+        ]);
 
-      final settings = _SlowSettingsWithStoredEvents(eventsJson: storedJson);
-      final cubit = CalendarCubit(
-        settingsRepository: settings,
-        notificationService: _FakeNotificationService(),
-        pluginCalendarAdapter: adapter,
-      );
+        final settings = _SlowSettingsWithStoredEvents(eventsJson: storedJson);
+        final cubit = CalendarCubit(
+          settingsRepository: settings,
+          notificationService: _FakeNotificationService(),
+          pluginCalendarAdapter: adapter,
+        );
 
-      // המתן לאתחול מלא.
-      await Future.delayed(const Duration(milliseconds: 200));
+        // המתן לאתחול מלא.
+        await Future.delayed(const Duration(milliseconds: 200));
 
-      // קריאה 1 (ישנה) מתחילה — מקבלת generation=N, ומתעכבת 80ms.
-      // קריאה 2 (חדשה) מתחילה — מכניסה generation=N+1 ומבטלת את הראשונה.
-      unawaited(cubit.refreshPluginEvents());
-      unawaited(cubit.refreshPluginEvents());
+        // קריאה 1 (ישנה) מתחילה — מקבלת generation=N, ומתעכבת 80ms.
+        // קריאה 2 (חדשה) מתחילה — מכניסה generation=N+1 ומבטלת את הראשונה.
+        unawaited(cubit.refreshPluginEvents());
+        unawaited(cubit.refreshPluginEvents());
 
-      await Future.delayed(const Duration(milliseconds: 200));
+        await Future.delayed(const Duration(milliseconds: 200));
 
-      final ids = cubit.state.events.map((e) => e.id).toSet();
-      // התוצאה הישנה (pluginA) לא אמורה להופיע — הגנרציה ביטלה אותה.
-      expect(ids.contains(pluginA.id), isFalse,
-          reason: 'תוצאת הקריאה הישנה לא אמורה להופיע ב-state הסופי');
-      // התוצאה החדשה (pluginB) חייבת להופיע.
-      expect(ids.contains(pluginB.id), isTrue,
-          reason: 'תוצאת הקריאה החדשה חייבת להופיע ב-state הסופי');
+        final ids = cubit.state.events.map((e) => e.id).toSet();
+        // התוצאה הישנה (pluginA) לא אמורה להופיע — הגנרציה ביטלה אותה.
+        expect(
+          ids.contains(pluginA.id),
+          isFalse,
+          reason: 'תוצאת הקריאה הישנה לא אמורה להופיע ב-state הסופי',
+        );
+        // התוצאה החדשה (pluginB) חייבת להופיע.
+        expect(
+          ids.contains(pluginB.id),
+          isTrue,
+          reason: 'תוצאת הקריאה החדשה חייבת להופיע ב-state הסופי',
+        );
 
-      cubit.close();
-    });
+        cubit.close();
+      },
+    );
   });
 
   group('setZmanEnabled — הפעלה/כיבוי זמנים', () {
@@ -444,8 +469,9 @@ void main() {
         endGregorianDate: DateTime(2026, 5, 18),
       );
 
-      final decoded =
-          CustomEvent.fromJson(jsonDecode(jsonEncode(event.toJson())));
+      final decoded = CustomEvent.fromJson(
+        jsonDecode(jsonEncode(event.toJson())),
+      );
       expect(decoded.endGregorianDate, DateTime(2026, 5, 18));
     });
 
@@ -470,8 +496,9 @@ void main() {
   group('CustomEvent JSON — צבע אירוע (colorIndex)', () {
     test('roundtrip שומר colorIndex', () {
       final event = _buildUserEvent().copyWith(colorIndex: () => 3);
-      final decoded =
-          CustomEvent.fromJson(jsonDecode(jsonEncode(event.toJson())));
+      final decoded = CustomEvent.fromJson(
+        jsonDecode(jsonEncode(event.toJson())),
+      );
       expect(decoded.colorIndex, 3);
     });
 
@@ -538,8 +565,10 @@ void main() {
       final saved = (jsonDecode(settings.savedEventsJson) as List)
           .cast<Map<String, dynamic>>();
       final savedEvent = saved.singleWhere((e) => e['title'] == 'טיול');
-      expect(savedEvent['endGregorianDate'],
-          DateTime(2026, 5, 17).millisecondsSinceEpoch);
+      expect(
+        savedEvent['endGregorianDate'],
+        DateTime(2026, 5, 17).millisecondsSinceEpoch,
+      );
       expect(savedEvent['colorIndex'], 2);
 
       await cubit.close();
@@ -672,8 +701,11 @@ void main() {
 
       expect(merged, hasLength(1));
       expect(merged.first.title, 'כותרת מעודכנת');
-      expect(merged.first.colorIndex, 4,
-          reason: 'המיזוג לא מעביר colorIndex מגוגל — הצבע המקומי נשמר');
+      expect(
+        merged.first.colorIndex,
+        4,
+        reason: 'המיזוג לא מעביר colorIndex מגוגל — הצבע המקומי נשמר',
+      );
       expect(merged.first.endGregorianDate, DateTime(2026, 5, 17));
     });
 

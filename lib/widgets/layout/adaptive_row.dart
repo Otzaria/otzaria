@@ -34,10 +34,13 @@ class AdaptiveRow extends StatelessWidget {
         }
         final row = Row(
           // ב-equalHeight חובה stretch כדי שהילדים יימתחו לגובה ש-IntrinsicHeight קבע.
-          crossAxisAlignment:
-              equalHeight ? CrossAxisAlignment.stretch : wideCrossAxisAlignment,
-          children:
-              _withGaps((c) => Expanded(child: c), SizedBox(width: spacing)),
+          crossAxisAlignment: equalHeight
+              ? CrossAxisAlignment.stretch
+              : wideCrossAxisAlignment,
+          children: _withGaps(
+            (c) => Expanded(child: c),
+            SizedBox(width: spacing),
+          ),
         );
         return equalHeight ? IntrinsicHeight(child: row) : row;
       },

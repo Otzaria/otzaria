@@ -40,7 +40,9 @@ class TextBookSearcher {
   }
 
   Future<List<TextSearchResult>> _findAllMatches(
-      String data, String query) async {
+    String data,
+    String query,
+  ) async {
     List<String> sections = data.split('\n');
     List<TextSearchResult> results = [];
     List<String> address = [];
@@ -48,14 +50,19 @@ class TextBookSearcher {
       // get the address from html content
       if (sections[sectionIndex].startsWith('<h')) {
         if (address.isNotEmpty &&
-            address.any((element) =>
-                element.substring(0, 4) ==
-                sections[sectionIndex].substring(0, 4))) {
-          address.removeRange(
-              address.indexWhere((element) =>
+            address.any(
+              (element) =>
                   element.substring(0, 4) ==
-                  sections[sectionIndex].substring(0, 4)),
-              address.length);
+                  sections[sectionIndex].substring(0, 4),
+            )) {
+          address.removeRange(
+            address.indexWhere(
+              (element) =>
+                  element.substring(0, 4) ==
+                  sections[sectionIndex].substring(0, 4),
+            ),
+            address.length,
+          );
         }
         address.add(sections[sectionIndex]);
       }
@@ -66,8 +73,9 @@ class TextBookSearcher {
       if (index >= 0) {
         // if there is a match
         // מסנן את רמה 1 (<h1>) - שם הספר
-        final filteredAddress =
-            address.where((h) => !h.startsWith('<h1')).toList();
+        final filteredAddress = address
+            .where((h) => !h.startsWith('<h1'))
+            .toList();
 
         // Calculate start and end indices with word boundaries
         int start = max(0, index - 40);
@@ -93,12 +101,16 @@ class TextBookSearcher {
           }
         }
 
-        results.add(TextSearchResult(
+        results.add(
+          TextSearchResult(
             snippet: section.substring(start, end),
             index: sectionIndex,
             query: query,
-            address:
-                removeVolwels(stripHtmlIfNeeded(filteredAddress.join(', ')))));
+            address: removeVolwels(
+              stripHtmlIfNeeded(filteredAddress.join(', ')),
+            ),
+          ),
+        );
       }
     }
     return results;

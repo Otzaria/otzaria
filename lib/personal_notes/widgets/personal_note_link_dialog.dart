@@ -84,8 +84,8 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
     if (note == null) return;
     final label = _labelController.text.trim().isEmpty
         ? (note.displayTitle?.trim().isNotEmpty == true
-            ? note.displayTitle!.trim()
-            : 'הערה')
+              ? note.displayTitle!.trim()
+              : 'הערה')
         : _labelController.text.trim();
     final url = 'otzaria://note?id=${note.id}';
     Navigator.of(context).pop(PersonalNoteLinkTarget(label: label, url: url));

@@ -8,7 +8,7 @@ class TextBookViewConfig {
   final Function(OpenedTab) openBookCallback;
   final void Function(int, {String? searchText}) openLeftPaneTab;
   final void Function(String? text, int? lineIndex, int? column)?
-      onSelectedTextChanged;
+  onSelectedTextChanged;
   final TextEditingValue searchTextController;
   final TextBookTab tab;
   final int? initialSidebarTabIndex;

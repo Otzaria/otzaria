@@ -39,12 +39,18 @@ void main() {
       expect(tab, isA<TextBookTab>());
       final textTab = tab as TextBookTab;
 
-      expect(textTab.book.id, 1234,
-          reason: 'id חייב להיות מועבר ל-TextBook העטוף');
-      expect(textTab.book.categoryId, 42,
-          reason:
-              'categoryId דרוש ל-BookCompositeKey ב-LibraryProviderManager. '
-              'בלעדיו getBookContent לא מאתר את הקובץ והגוף יוצא ריק.');
+      expect(
+        textTab.book.id,
+        1234,
+        reason: 'id חייב להיות מועבר ל-TextBook העטוף',
+      );
+      expect(
+        textTab.book.categoryId,
+        42,
+        reason:
+            'categoryId דרוש ל-BookCompositeKey ב-LibraryProviderManager. '
+            'בלעדיו getBookContent לא מאתר את הקובץ והגוף יוצא ריק.',
+      );
       expect(textTab.book.externalLibraryId, 'sefaria:123');
       expect(textTab.book.title, 'בדיקה');
       expect(textTab.book.fileType, 'docx');

@@ -11,27 +11,27 @@ void main() {
   Map<String, dynamic> merge(
     Map<String, dynamic> older,
     Map<String, dynamic> newer,
-  ) =>
-      BackupMerge.merge(
-        older,
-        newer,
-        olderTimestamp: olderTs,
-        newerTimestamp: newerTs,
-        now: now,
-      );
+  ) => BackupMerge.merge(
+    older,
+    newer,
+    olderTimestamp: olderTs,
+    newerTimestamp: newerTs,
+    now: now,
+  );
 
   Map<String, dynamic> bookmark(String ref, {String title = 'ספר'}) => {
-        'ref': ref,
-        'index': 1,
-        'targetKind': 'book',
-        'isSearch': false,
-        'book': {'title': title},
-      };
+    'ref': ref,
+    'index': 1,
+    'targetKind': 'book',
+    'isSearch': false,
+    'book': {'title': title},
+  };
 
   group('parseManifestTimestamp', () {
     test('ממיר פורמט קובץ (מקפים במקום נקודתיים)', () {
-      final parsed =
-          BackupMerge.parseManifestTimestamp('2026-07-05T12-34-56.789');
+      final parsed = BackupMerge.parseManifestTimestamp(
+        '2026-07-05T12-34-56.789',
+      );
       expect(parsed, DateTime(2026, 7, 5, 12, 34, 56, 789));
     });
 
@@ -77,8 +77,9 @@ void main() {
         {'bookmarks': const []},
       );
 
-      final refs =
-          (merged['bookmarks'] as List).map((b) => (b as Map)['ref']).toList();
+      final refs = (merged['bookmarks'] as List)
+          .map((b) => (b as Map)['ref'])
+          .toList();
       expect(refs, ['רגיל']);
     });
   });
@@ -108,14 +109,17 @@ void main() {
   });
 
   group('הערות אישיות', () {
-    Map<String, dynamic> note(String id, String updatedAt,
-            {String content = 'תוכן', String bookId = 'ספר'}) =>
-        {
-          'id': id,
-          'bookId': bookId,
-          'content': content,
-          'updatedAt': updatedAt,
-        };
+    Map<String, dynamic> note(
+      String id,
+      String updatedAt, {
+      String content = 'תוכן',
+      String bookId = 'ספר',
+    }) => {
+      'id': id,
+      'bookId': bookId,
+      'content': content,
+      'updatedAt': updatedAt,
+    };
 
     test('איחוד לפי id — updatedAt המאוחר מנצח גם אם הוא בישן', () {
       final merged = merge(
@@ -158,10 +162,10 @@ void main() {
           'shamorZachor': {
             'sz:progress_by_id': json.encode({
               'ברכות': {
-                '2': {'learn': true, 'review1': true}
+                '2': {'learn': true, 'review1': true},
               },
               'שבת': {
-                '2': {'learn': true}
+                '2': {'learn': true},
               },
             }),
           },
@@ -171,16 +175,18 @@ void main() {
             'sz:progress_by_id': json.encode({
               // review1 בוטל בכוונה — מיזוג פר-דף היה מחזיר אותו
               'ברכות': {
-                '2': {'learn': true}
+                '2': {'learn': true},
               },
             }),
           },
         },
       );
 
-      final progress = json.decode(
-              (merged['shamorZachor'] as Map)['sz:progress_by_id'] as String)
-          as Map<String, dynamic>;
+      final progress =
+          json.decode(
+                (merged['shamorZachor'] as Map)['sz:progress_by_id'] as String,
+              )
+              as Map<String, dynamic>;
       expect(progress.keys, containsAll(['ברכות', 'שבת']));
       expect(progress['ברכות']['2'], {'learn': true});
     });
@@ -188,9 +194,9 @@ void main() {
 
   group('תוספים', () {
     Map<String, dynamic> plugin(String id, String version) => {
-          'installation': {'plugin_id': id, 'version': version},
-          'files': {'main.js': 'sha256:abc'},
-        };
+      'installation': {'plugin_id': id, 'version': version},
+      'files': {'main.js': 'sha256:abc'},
+    };
 
     test('איחוד לפי plugin_id — רשומת החדש מנצחת בשלמותה', () {
       final merged = merge(
@@ -204,8 +210,9 @@ void main() {
 
       final plugins = (merged['plugins'] as List).cast<Map>();
       expect(plugins, hasLength(2));
-      final a = plugins
-          .firstWhere((p) => (p['installation'] as Map)['plugin_id'] == 'a');
+      final a = plugins.firstWhere(
+        (p) => (p['installation'] as Map)['plugin_id'] == 'a',
+      );
       expect((a['installation'] as Map)['version'], '2.0');
     });
   });

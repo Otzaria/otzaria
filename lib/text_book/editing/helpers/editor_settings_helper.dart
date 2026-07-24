@@ -8,13 +8,13 @@ class EditorSettingsHelper {
       previewDebounce: Duration(
         milliseconds:
             Settings.getValue<double>('key-editor-preview-debounce')?.toInt() ??
-                150,
+            150,
       ),
       globalDraftsQuotaMB:
           Settings.getValue<double>('key-editor-drafts-quota')?.toInt() ?? 100,
       draftCleanupDays:
           Settings.getValue<double>('key-editor-draft-cleanup-days')?.toInt() ??
-              30,
+          30,
     );
   }
 }

@@ -54,7 +54,11 @@ class _FakePersonalNotesBloc
 
 PdfBook _book() => PdfBook(title: 'מכות', path: '/books/מכות.pdf');
 
-PdfBookTab _tab({int? currentLine, int? currentLineEnd, List<Link> links = const []}) {
+PdfBookTab _tab({
+  int? currentLine,
+  int? currentLineEnd,
+  List<Link> links = const [],
+}) {
   final tab = PdfBookTab(book: _book(), pageNumber: 1);
   tab.currentTextLineNumber = currentLine;
   tab.currentTextLineNumberEnd = currentLineEnd;

@@ -66,8 +66,8 @@ class FileSystemData {
   Future<Map<String, String>> _getTitleToPath() async {
     await _providerManager.initialize();
     final keyToPath = await _providerManager.fileSystemProvider.keyToPath;
-    final dbKeys =
-        await _providerManager.databaseProvider.getDatabaseOnlyBookTitles();
+    final dbKeys = await _providerManager.databaseProvider
+        .getDatabaseOnlyBookTitles();
     return buildTitleToPathMap(
       fileSystemKeyToPath: keyToPath,
       databaseKeys: dbKeys,
@@ -86,7 +86,7 @@ class FileSystemData {
     required Map<String, String> fileSystemKeyToPath,
     required Iterable<String> databaseKeys,
     required Future<String?> Function(BookCompositeKey key)
-        resolveDatabaseCategoryPath,
+    resolveDatabaseCategoryPath,
   }) async {
     final result = <String, String>{};
 
@@ -138,11 +138,17 @@ class FileSystemData {
   }
 
   /// Checks if a book is stored in the database
-  Future<bool> isBookInDatabase(String title,
-      {int? categoryId, String? fileType}) async {
+  Future<bool> isBookInDatabase(
+    String title, {
+    int? categoryId,
+    String? fileType,
+  }) async {
     if (categoryId != null && fileType != null) {
-      return await _providerManager.databaseProvider
-          .hasBook(title, categoryId, fileType);
+      return await _providerManager.databaseProvider.hasBook(
+        title,
+        categoryId,
+        fileType,
+      );
     }
     return await _providerManager.databaseProvider.hasBookWithTitle(title);
   }
@@ -200,10 +206,16 @@ class FileSystemData {
       _providerManager.databaseProvider;
 
   /// Checks if a book is in the personal folder
-  Future<bool> isPersonalBook(String title,
-      {String? category, String? fileType}) async {
-    return await _providerManager.fileSystemProvider
-        .isPersonalBook(title, category: category, fileType: fileType);
+  Future<bool> isPersonalBook(
+    String title, {
+    String? category,
+    String? fileType,
+  }) async {
+    return await _providerManager.fileSystemProvider.isPersonalBook(
+      title,
+      category: category,
+      fileType: fileType,
+    );
   }
 
   /// Gets the path to the personal books folder
@@ -228,11 +240,12 @@ class FileSystemData {
     // קבלת שם התיקייה מההגדרות
     final folderName =
         Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
-            '';
+        '';
 
     // בדיקה שתיקיית הספרים קיימת
-    final otzariaPath =
-        folderName.isEmpty ? libraryPath : path.join(libraryPath, folderName);
+    final otzariaPath = folderName.isEmpty
+        ? libraryPath
+        : path.join(libraryPath, folderName);
     final otzariaDir = Directory(otzariaPath);
     if (!otzariaDir.existsSync()) {
       debugPrint('Books directory does not exist: $otzariaPath');
@@ -246,7 +259,8 @@ class FileSystemData {
       _providerManager.initialize(),
     ).wait;
     debugPrint(
-        '⏱️ Metadata + providers init: ${DateTime.now().difference(tTotal).inMilliseconds}ms');
+      '⏱️ Metadata + providers init: ${DateTime.now().difference(tTotal).inMilliseconds}ms',
+    );
 
     // Use the unified catalog builder from LibraryProviderManager
     final library = await _providerManager.buildLibraryCatalog(
@@ -254,7 +268,8 @@ class FileSystemData {
       otzariaPath,
     );
     debugPrint(
-        '⏱️ Total getLibrary: ${DateTime.now().difference(tTotal).inMilliseconds}ms');
+      '⏱️ Total getLibrary: ${DateTime.now().difference(tTotal).inMilliseconds}ms',
+    );
     return library;
   }
 
@@ -292,8 +307,9 @@ class FileSystemData {
     if (ids.isEmpty) {
       return const [];
     }
-    final books =
-        await ExternalCatalogRepository.instance.getHebrewBooksByIds(ids);
+    final books = await ExternalCatalogRepository.instance.getHebrewBooksByIds(
+      ids,
+    );
     return mapHebrewBooksToLocal(books, pdfFiles).whereType<PdfBook>().toList();
   }
 
@@ -324,8 +340,9 @@ class FileSystemData {
   /// תיקייה או שאינה קיימת. סורק פעם אחת בלבד כדי להימנע מבדיקת קיום קובץ
   /// נפרדת לכל ספר בקטלוג.
   static Future<Map<String, String>> _scanHebrewBooksPdfFiles() async {
-    final hebrewBooksPath =
-        Settings.getValue<String>(SettingsRepository.keyHebrewBooksPath);
+    final hebrewBooksPath = Settings.getValue<String>(
+      SettingsRepository.keyHebrewBooksPath,
+    );
     if (hebrewBooksPath == null || hebrewBooksPath.isEmpty) {
       return const {};
     }
@@ -359,7 +376,8 @@ class FileSystemData {
       if (id == null) {
         return book;
       }
-      final localPath = pdfFilesByLowerName['hebrewbooks_org_$id.pdf'] ??
+      final localPath =
+          pdfFilesByLowerName['hebrewbooks_org_$id.pdf'] ??
           pdfFilesByLowerName['$id.pdf'];
       if (localPath == null) {
         return book;
@@ -395,8 +413,9 @@ class FileSystemData {
 
       if (await file.exists()) {
         final jsonString = await file.readAsString();
-        final jsonList =
-            await Isolate.run(() async => jsonDecode(jsonString) as List);
+        final jsonList = await Isolate.run(
+          () async => jsonDecode(jsonString) as List,
+        );
         directLinks = jsonList.map((json) => Link.fromJson(json)).toList();
       }
 
@@ -446,8 +465,9 @@ class FileSystemData {
       }
 
       final jsonString = await sourceLinksFile.readAsString();
-      final jsonList =
-          await Isolate.run(() async => jsonDecode(jsonString) as List);
+      final jsonList = await Isolate.run(
+        () async => jsonDecode(jsonString) as List,
+      );
       final sourceLinks = jsonList.map((json) => Link.fromJson(json)).toList();
 
       // Filter links that point to the commentary and create reverse links
@@ -458,15 +478,18 @@ class FileSystemData {
         // Check if this link points to the commentary book
         if (linkTargetTitle == commentaryTitle) {
           // Create a reverse link: from commentary back to source
-          reverseLinks.add(Link(
-            heRef: sourceBookTitle, // Reference to the source book
-            index1: link.index2, // The commentary line that's being referenced
-            path2: sourceBookTitle, // Path to the source book
-            index2: link.index1, // The source book line that references it
-            connectionType: link.connectionType,
-            start: link.start,
-            end: link.end,
-          ));
+          reverseLinks.add(
+            Link(
+              heRef: sourceBookTitle, // Reference to the source book
+              index1:
+                  link.index2, // The commentary line that's being referenced
+              path2: sourceBookTitle, // Path to the source book
+              index2: link.index1, // The source book line that references it
+              connectionType: link.connectionType,
+              start: link.start,
+              end: link.end,
+            ),
+          );
         }
       }
 
@@ -480,8 +503,11 @@ class FileSystemData {
   /// Retrieves the text content of a book.
   ///
   /// Uses LibraryProviderManager to get text from the appropriate provider.
-  Future<String> getBookText(String title,
-      {int? categoryId, String? fileType}) async {
+  Future<String> getBookText(
+    String title, {
+    int? categoryId,
+    String? fileType,
+  }) async {
     final text = await _providerManager.getBookText(
       title,
       categoryId: categoryId,
@@ -493,9 +519,13 @@ class FileSystemData {
 
     // Fallback to direct file system access
     debugPrint(
-        '⚠️ Provider manager failed, falling back to direct file access for "$title"');
-    final path =
-        await _getBookPath(title, categoryId: categoryId, fileType: fileType);
+      '⚠️ Provider manager failed, falling back to direct file access for "$title"',
+    );
+    final path = await _getBookPath(
+      title,
+      categoryId: categoryId,
+      fileType: fileType,
+    );
     if (path.startsWith('error:')) {
       throw Exception('Book not found: $title');
     }
@@ -558,7 +588,8 @@ class FileSystemData {
   ///
   /// This operation is performed in an isolate to prevent blocking the main thread.
   static Future<List<String>> getAllBooksPathsFromDirecctory(
-      String path) async {
+    String path,
+  ) async {
     return Isolate.run(() async {
       List<String> paths = [];
       await for (final file in Directory(path).list(recursive: true)) {
@@ -573,8 +604,11 @@ class FileSystemData {
   /// Retrieves the table of contents for a book.
   ///
   /// Uses LibraryProviderManager to get TOC from the appropriate provider.
-  Future<List<TocEntry>> getBookToc(String title,
-      {int? categoryId, String? fileType}) async {
+  Future<List<TocEntry>> getBookToc(
+    String title, {
+    int? categoryId,
+    String? fileType,
+  }) async {
     final toc = await _providerManager.getBookToc(
       title,
       categoryId: categoryId,
@@ -586,9 +620,11 @@ class FileSystemData {
 
     // Fallback to parsing from text
     debugPrint(
-        '⚠️ Provider manager failed, falling back to text parsing for "$title"');
+      '⚠️ Provider manager failed, falling back to text parsing for "$title"',
+    );
     return _parseToc(
-        getBookText(title, categoryId: categoryId, fileType: fileType));
+      getBookText(title, categoryId: categoryId, fileType: fileType),
+    );
   }
 
   /// Efficiently reads a specific line from a file.
@@ -618,12 +654,13 @@ class FileSystemData {
           .transform(const LineSplitter())
           .take(index)
           .timeout(
-        const Duration(seconds: 5),
-        onTimeout: (sink) {
-          debugPrint('⚠️ Timeout reading file: $path');
-          sink.close();
-        },
-      ).toList();
+            const Duration(seconds: 5),
+            onTimeout: (sink) {
+              debugPrint('⚠️ Timeout reading file: $path');
+              sink.close();
+            },
+          )
+          .toList();
 
       if (lines.isEmpty) {
         debugPrint('⚠️ No lines found in file: $path');
@@ -632,7 +669,8 @@ class FileSystemData {
 
       if (lines.length < index) {
         debugPrint(
-            '⚠️ Line index $index exceeds file length ${lines.length} in: $path');
+          '⚠️ Line index $index exceeds file length ${lines.length} in: $path',
+        );
         return 'שגיאה: אינדקס השורה חורג מגודל הקובץ';
       }
 
@@ -658,13 +696,15 @@ class FileSystemData {
     Map<String, Map<String, dynamic>> metadata = {};
     try {
       File file = File(
-          '${Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '.'}${Platform.pathSeparator}metadata.json');
+        '${Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '.'}${Platform.pathSeparator}metadata.json',
+      );
       metadataString = await file.readAsString();
     } catch (e) {
       return {};
     }
-    final tempMetadata =
-        await Isolate.run(() => jsonDecode(metadataString) as List);
+    final tempMetadata = await Isolate.run(
+      () => jsonDecode(metadataString) as List,
+    );
 
     for (int i = 0; i < tempMetadata.length; i++) {
       final row = tempMetadata[i] as Map<String, dynamic>;
@@ -685,25 +725,28 @@ class FileSystemData {
         'extraTitles': row['extraTitles'] == null
             ? [row['title'].toString()]
             : row['extraTitles'].map<String>((e) => e.toString()).toList()
-                as List<String>,
+                  as List<String>,
         'extraTitlesHe': row['extraTitlesHe'] is List
             ? (row['extraTitlesHe'] as List)
-                .map<String>((e) => e.toString())
-                .toList()
+                  .map<String>((e) => e.toString())
+                  .toList()
             : [],
         'order': row['order'] == null || row['order'] == ''
             ? 999
             : row['order'].runtimeType == double
-                ? row['order'].toInt()
-                : row['order'] as int,
+            ? row['order'].toInt()
+            : row['order'] as int,
       };
     }
     return metadata;
   }
 
   /// Retrieves the file system path for a book with the given title.
-  Future<String> _getBookPath(String title,
-      {int? categoryId, String? fileType}) async {
+  Future<String> _getBookPath(
+    String title, {
+    int? categoryId,
+    String? fileType,
+  }) async {
     await _providerManager.initialize();
     final keyToPath = await _providerManager.fileSystemProvider.keyToPath;
 
@@ -768,16 +811,24 @@ class FileSystemData {
   ///
   /// The check is performed by examining the book path and verifying that it
   /// resides under one of the Tanach directories.
-  Future<bool> isTanachBook(String title,
-      {int? categoryId, String? fileType}) async {
-    final categoryPath =
-        await findBookCategoryPath(title, categoryId: categoryId);
+  Future<bool> isTanachBook(
+    String title, {
+    int? categoryId,
+    String? fileType,
+  }) async {
+    final categoryPath = await findBookCategoryPath(
+      title,
+      categoryId: categoryId,
+    );
     if (categoryPath != null && categoryPath.isNotEmpty) {
       return isTanachPathForTesting(categoryPath);
     }
 
-    final path =
-        await _getBookPath(title, categoryId: categoryId, fileType: fileType);
+    final path = await _getBookPath(
+      title,
+      categoryId: categoryId,
+      fileType: fileType,
+    );
     return isTanachPathForTesting(path);
   }
 
@@ -795,16 +846,24 @@ class FileSystemData {
   /// מצב זה זמין רק לספרי תנ"ך (תורה/נביאים/כתובים) ולמסכתות
   /// תלמוד בבלי/ירושלמי בתוך אחד מהסדרים. מפרשים, אחרונים, ראשונים
   /// ושאר ספרים נלווים אינם נכללים.
-  Future<bool> supportsContinuousReadingMode(String title,
-      {int? categoryId, String? fileType}) async {
-    final categoryPath =
-        await findBookCategoryPath(title, categoryId: categoryId);
+  Future<bool> supportsContinuousReadingMode(
+    String title, {
+    int? categoryId,
+    String? fileType,
+  }) async {
+    final categoryPath = await findBookCategoryPath(
+      title,
+      categoryId: categoryId,
+    );
     if (categoryPath != null && categoryPath.isNotEmpty) {
       return supportsContinuousReadingPathForTesting(categoryPath);
     }
 
-    final path =
-        await _getBookPath(title, categoryId: categoryId, fileType: fileType);
+    final path = await _getBookPath(
+      title,
+      categoryId: categoryId,
+      fileType: fileType,
+    );
     return supportsContinuousReadingPathForTesting(path);
   }
 

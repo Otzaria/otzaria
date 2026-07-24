@@ -309,8 +309,10 @@ void main() {
     });
 
     test('availableFonts מחזיר bundled + cache כשהקאש מאוכלס', () {
-      const systemFont =
-          FontInfo(value: 'MockSystemFont', label: 'MockSystemFont');
+      const systemFont = FontInfo(
+        value: 'MockSystemFont',
+        label: 'MockSystemFont',
+      );
       AppFonts.debugSystemFontsHebrewCache = const [systemFont];
 
       final fonts = AppFonts.availableFonts;
@@ -330,7 +332,8 @@ void main() {
       );
 
       // בדסקטופ - גם גופן הקאש המוזרק. במובייל/web - לא.
-      final isDesktop = !kIsWeb &&
+      final isDesktop =
+          !kIsWeb &&
           (defaultTargetPlatform == TargetPlatform.windows ||
               defaultTargetPlatform == TargetPlatform.macOS ||
               defaultTargetPlatform == TargetPlatform.linux);
@@ -457,16 +460,21 @@ void main() {
       expect(AppFonts.debugIsPlausibleBoldBasename('times', 'timesbd'), isTrue);
       expect(AppFonts.debugIsPlausibleBoldBasename('david', 'davidbd'), isTrue);
       expect(
-          AppFonts.debugIsPlausibleBoldBasename('segoeui', 'segoeuib'), isTrue);
+        AppFonts.debugIsPlausibleBoldBasename('segoeui', 'segoeuib'),
+        isTrue,
+      );
       expect(
-          AppFonts.debugIsPlausibleBoldBasename('David Bold', 'davidbold') ||
-              AppFonts.debugIsPlausibleBoldBasename('david', 'David-Bold'),
-          isTrue);
+        AppFonts.debugIsPlausibleBoldBasename('David Bold', 'davidbold') ||
+            AppFonts.debugIsPlausibleBoldBasename('david', 'David-Bold'),
+        isTrue,
+      );
     });
 
     test('נטוי/משקל אחר/זהה אינם מתאימים', () {
       expect(
-          AppFonts.debugIsPlausibleBoldBasename('arial', 'arialbi'), isFalse);
+        AppFonts.debugIsPlausibleBoldBasename('arial', 'arialbi'),
+        isFalse,
+      );
       expect(AppFonts.debugIsPlausibleBoldBasename('arial', 'ariblk'), isFalse);
       expect(AppFonts.debugIsPlausibleBoldBasename('arial', 'arial'), isFalse);
       expect(AppFonts.debugIsPlausibleBoldBasename('', 'anything'), isFalse);
@@ -475,10 +483,13 @@ void main() {
 
   group('AppFonts.boldFontVariations', () {
     test('גופן משתנה מקבל FontVariation wght לפי המשקל', () {
-      expect(AppFonts.boldFontVariations('Rubik'),
-          const [FontVariation('wght', 700)]);
-      expect(AppFonts.boldFontVariations('NotoRashiHebrew', FontWeight.w800),
-          const [FontVariation('wght', 800)]);
+      expect(AppFonts.boldFontVariations('Rubik'), const [
+        FontVariation('wght', 700),
+      ]);
+      expect(
+        AppFonts.boldFontVariations('NotoRashiHebrew', FontWeight.w800),
+        const [FontVariation('wght', 800)],
+      );
     });
 
     test('גופן לא-משתנה או משקל רגיל מחזיר null', () {

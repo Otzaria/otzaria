@@ -19,89 +19,94 @@ void main() {
   });
 
   group('currentTitle אחרי scroll עם alignment 0.05', () {
-    test('דחיפת positions עם שיירי הסעיף הקודם לא מזיזה את currentTitle אחורה',
-        () async {
-      // הסיטואציה: TOC עם שני סעיפים - "סעיף א" משורה 5 ו"סעיף ב" משורה 10.
-      // המשתמש לחץ "סעיף ב" בניווט → scrollToSourceLine קרא ל-scrollTo(
-      // index: 10, alignment: 0.05).
-      //
-      // ScrollablePositionedList אחרי הגלילה ידווח על שני items:
-      //   * segment 9: itemLeadingEdge=-2, itemTrailingEdge=0.05
-      //     (שיירי "סעיף א" שגלויים ב-5% העליונים של המסך)
-      //   * segment 10: itemLeadingEdge=0.05, itemTrailingEdge=0.95
-      //     ("סעיף ב" - היעד, תופס 90% מהמסך)
-      //
-      // ללא הסינון: refFromIndex(9) = "סעיף א" → currentTitle = "סעיף א".
-      // עם הסינון: position 9 מסונן (visibility ratio 2.4% < 15%),
-      //            visibleIndices = [10], currentTitle = "סעיף ב".
+    test(
+      'דחיפת positions עם שיירי הסעיף הקודם לא מזיזה את currentTitle אחורה',
+      () async {
+        // הסיטואציה: TOC עם שני סעיפים - "סעיף א" משורה 5 ו"סעיף ב" משורה 10.
+        // המשתמש לחץ "סעיף ב" בניווט → scrollToSourceLine קרא ל-scrollTo(
+        // index: 10, alignment: 0.05).
+        //
+        // ScrollablePositionedList אחרי הגלילה ידווח על שני items:
+        //   * segment 9: itemLeadingEdge=-2, itemTrailingEdge=0.05
+        //     (שיירי "סעיף א" שגלויים ב-5% העליונים של המסך)
+        //   * segment 10: itemLeadingEdge=0.05, itemTrailingEdge=0.95
+        //     ("סעיף ב" - היעד, תופס 90% מהמסך)
+        //
+        // ללא הסינון: refFromIndex(9) = "סעיף א" → currentTitle = "סעיף א".
+        // עם הסינון: position 9 מסונן (visibility ratio 2.4% < 15%),
+        //            visibleIndices = [10], currentTitle = "סעיף ב".
 
-      final repository = _TwoSectionRepository();
-      final positionsListener = ItemPositionsListener.create();
-      final bloc = TextBookBloc(
-        repository: repository,
-        initialState: TextBookInitial.named(
-          TextBook(title: 'ספר בדיקה'),
-          10,
-          false,
-          const [],
-          searchMode: SearchMode.exact,
-          showPageShapeView: false,
-        ),
-        scrollController: ItemScrollController(),
-        positionsListener: positionsListener,
-      );
+        final repository = _TwoSectionRepository();
+        final positionsListener = ItemPositionsListener.create();
+        final bloc = TextBookBloc(
+          repository: repository,
+          initialState: TextBookInitial.named(
+            TextBook(title: 'ספר בדיקה'),
+            10,
+            false,
+            const [],
+            searchMode: SearchMode.exact,
+            showPageShapeView: false,
+          ),
+          scrollController: ItemScrollController(),
+          positionsListener: positionsListener,
+        );
 
-      bloc.add(const LoadContent(
-        fontSize: 20,
-        showSplitView: false,
-        removeNikud: false,
-        loadCommentators: false,
-      ));
+        bloc.add(
+          const LoadContent(
+            fontSize: 20,
+            showSplitView: false,
+            removeNikud: false,
+            loadCommentators: false,
+          ),
+        );
 
-      await _waitFor(
-        () {
-          final state = bloc.state;
-          return state is TextBookLoaded && state.currentTitle == 'סעיף ב';
-        },
-        description: 'מצב טעון עם currentTitle="סעיף ב"',
-      );
+        await _waitFor(
+          () {
+            final state = bloc.state;
+            return state is TextBookLoaded && state.currentTitle == 'סעיף ב';
+          },
+          description: 'מצב טעון עם currentTitle="סעיף ב"',
+        );
 
-      final initialState = bloc.state as TextBookLoaded;
-      expect(initialState.visibleIndices, [10]);
-      expect(initialState.currentTitle, 'סעיף ב');
+        final initialState = bloc.state as TextBookLoaded;
+        expect(initialState.visibleIndices, [10]);
+        expect(initialState.currentTitle, 'סעיף ב');
 
-      // מדמה את ScrollablePositionedList אחרי scrollTo(index: 10,
-      // alignment: 0.05). הקסט ל-ValueNotifier הוא הדרך היחידה לדחוף ערך
-      // לפי המבנה של החבילה.
-      (positionsListener.itemPositions as ValueNotifier<Iterable<ItemPosition>>)
-          .value = const [
-        ItemPosition(
-          index: 9,
-          itemLeadingEdge: -2,
-          itemTrailingEdge: 0.05,
-        ),
-        ItemPosition(
-          index: 10,
-          itemLeadingEdge: 0.05,
-          itemTrailingEdge: 0.95,
-        ),
-      ];
+        // מדמה את ScrollablePositionedList אחרי scrollTo(index: 10,
+        // alignment: 0.05). הקסט ל-ValueNotifier הוא הדרך היחידה לדחוף ערך
+        // לפי המבנה של החבילה.
+        (positionsListener.itemPositions
+                as ValueNotifier<Iterable<ItemPosition>>)
+            .value = const [
+          ItemPosition(
+            index: 9,
+            itemLeadingEdge: -2,
+            itemTrailingEdge: 0.05,
+          ),
+          ItemPosition(
+            index: 10,
+            itemLeadingEdge: 0.05,
+            itemTrailingEdge: 0.95,
+          ),
+        ];
 
-      // אם המסנן עובד: אין emit חדש כי visibleIndices נשארות [10].
-      // אם המסנן לא עובד: יתבצע emit עם currentTitle="סעיף א".
-      // ממתינים זמן מספק לכל debounce ו-async refFromIndex להסתיים.
-      await Future<void>.delayed(const Duration(milliseconds: 400));
+        // אם המסנן עובד: אין emit חדש כי visibleIndices נשארות [10].
+        // אם המסנן לא עובד: יתבצע emit עם currentTitle="סעיף א".
+        // ממתינים זמן מספק לכל debounce ו-async refFromIndex להסתיים.
+        await Future<void>.delayed(const Duration(milliseconds: 400));
 
-      final finalState = bloc.state as TextBookLoaded;
-      expect(
-        finalState.currentTitle,
-        'סעיף ב',
-        reason: 'הסעיף הקודם גלוי רק 5% - לא אמור לשנות את זיהוי המיקום',
-      );
-      expect(finalState.visibleIndices.first, 10);
+        final finalState = bloc.state as TextBookLoaded;
+        expect(
+          finalState.currentTitle,
+          'סעיף ב',
+          reason: 'הסעיף הקודם גלוי רק 5% - לא אמור לשנות את זיהוי המיקום',
+        );
+        expect(finalState.visibleIndices.first, 10);
 
-      await bloc.close();
-    });
+        await bloc.close();
+      },
+    );
 
     test('גלילה אמיתית לתוך הסעיף הקודם כן מעדכנת את currentTitle', () async {
       // sanity check: כשהמשתמש באמת גולל אחורה (לא רק 5% עליונים), הזיהוי
@@ -122,12 +127,14 @@ void main() {
         positionsListener: positionsListener,
       );
 
-      bloc.add(const LoadContent(
-        fontSize: 20,
-        showSplitView: false,
-        removeNikud: false,
-        loadCommentators: false,
-      ));
+      bloc.add(
+        const LoadContent(
+          fontSize: 20,
+          showSplitView: false,
+          removeNikud: false,
+          loadCommentators: false,
+        ),
+      );
 
       await _waitFor(
         () {
@@ -179,12 +186,14 @@ void main() {
         scrollController: ItemScrollController(),
         positionsListener: ItemPositionsListener.create(),
       );
-      bloc.add(const LoadContent(
-        fontSize: 20,
-        showSplitView: false,
-        removeNikud: false,
-        loadCommentators: false,
-      ));
+      bloc.add(
+        const LoadContent(
+          fontSize: 20,
+          showSplitView: false,
+          removeNikud: false,
+          loadCommentators: false,
+        ),
+      );
       await _waitFor(
         () => bloc.state is TextBookLoaded,
         description: 'מצב טעון',
@@ -194,9 +203,11 @@ void main() {
 
     // שולח אירוע גלילה אחד וממתין שהשורה העליונה תתעדכן.
     Future<void> scrollTo(TextBookBloc bloc, int first) async {
-      bloc.add(UpdateVisibleIndecies(
-        List.generate(5, (i) => first + i),
-      ));
+      bloc.add(
+        UpdateVisibleIndecies(
+          List.generate(5, (i) => first + i),
+        ),
+      );
       await _waitFor(
         () {
           final s = bloc.state as TextBookLoaded;
@@ -206,47 +217,51 @@ void main() {
       );
     }
 
-    test('גלילה רציפה בצעדים קטנים מעבר ל-3 שורות מהקטע הנבחר מאפסת אותו',
-        () async {
-      final bloc = await loadedBloc();
-      await scrollTo(bloc, 8); // הקטע 10 גלוי
-      bloc.add(const UpdateSelectedIndex(10));
-      await _waitFor(
-        () => (bloc.state as TextBookLoaded).selectedIndex == 10,
-        description: 'selectedIndex == 10',
-      );
+    test(
+      'גלילה רציפה בצעדים קטנים מעבר ל-3 שורות מהקטע הנבחר מאפסת אותו',
+      () async {
+        final bloc = await loadedBloc();
+        await scrollTo(bloc, 8); // הקטע 10 גלוי
+        bloc.add(const UpdateSelectedIndex(10));
+        await _waitFor(
+          () => (bloc.state as TextBookLoaded).selectedIndex == 10,
+          description: 'selectedIndex == 10',
+        );
 
-      // גלילה רציפה: כל אירוע מזיז את השורה העליונה בשורה אחת בלבד.
-      // קודם הבאג נמדד event-to-event, אז delta תמיד 1 והבחירה לא השתחררה.
-      for (final first in [9, 10, 11, 12, 13, 14]) {
-        await scrollTo(bloc, first);
-      }
+        // גלילה רציפה: כל אירוע מזיז את השורה העליונה בשורה אחת בלבד.
+        // קודם הבאג נמדד event-to-event, אז delta תמיד 1 והבחירה לא השתחררה.
+        for (final first in [9, 10, 11, 12, 13, 14]) {
+          await scrollTo(bloc, first);
+        }
 
-      // first=14 → |10-14|=4 > 3, הבחירה משתחררת.
-      expect((bloc.state as TextBookLoaded).selectedIndex, isNull);
-      await bloc.close();
-    });
+        // first=14 → |10-14|=4 > 3, הבחירה משתחררת.
+        expect((bloc.state as TextBookLoaded).selectedIndex, isNull);
+        await bloc.close();
+      },
+    );
 
-    test('גלילה רציפה כלפי מעלה מעבר ל-3 שורות מהקטע הנבחר מאפסת אותו',
-        () async {
-      final bloc = await loadedBloc();
-      await scrollTo(bloc, 10); // הקטע 10 בראש החלון
-      bloc.add(const UpdateSelectedIndex(10));
-      await _waitFor(
-        () => (bloc.state as TextBookLoaded).selectedIndex == 10,
-        description: 'selectedIndex == 10',
-      );
+    test(
+      'גלילה רציפה כלפי מעלה מעבר ל-3 שורות מהקטע הנבחר מאפסת אותו',
+      () async {
+        final bloc = await loadedBloc();
+        await scrollTo(bloc, 10); // הקטע 10 בראש החלון
+        bloc.add(const UpdateSelectedIndex(10));
+        await _waitFor(
+          () => (bloc.state as TextBookLoaded).selectedIndex == 10,
+          description: 'selectedIndex == 10',
+        );
 
-      // גלילה כלפי מעלה: הקטע 10 יוצא מהקצה התחתון. המדידה מול הקצה הקרוב
-      // מבטיחה התנהגות סימטרית — שחרור אחרי 3 שורות, כמו בגלילה כלפי מטה.
-      for (final first in [9, 8, 7, 6, 5, 4, 3, 2]) {
-        await scrollTo(bloc, first);
-      }
+        // גלילה כלפי מעלה: הקטע 10 יוצא מהקצה התחתון. המדידה מול הקצה הקרוב
+        // מבטיחה התנהגות סימטרית — שחרור אחרי 3 שורות, כמו בגלילה כלפי מטה.
+        for (final first in [9, 8, 7, 6, 5, 4, 3, 2]) {
+          await scrollTo(bloc, first);
+        }
 
-      // last=6 → |10-6|=4 > 3, הבחירה משתחררת (ולא מיד עם השורה הראשונה).
-      expect((bloc.state as TextBookLoaded).selectedIndex, isNull);
-      await bloc.close();
-    });
+        // last=6 → |10-6|=4 > 3, הבחירה משתחררת (ולא מיד עם השורה הראשונה).
+        expect((bloc.state as TextBookLoaded).selectedIndex, isNull);
+        await bloc.close();
+      },
+    );
 
     test('גלילה זעירה (עד 3 שורות מהקטע הנבחר) שומרת על הבחירה', () async {
       final bloc = await loadedBloc();
@@ -323,8 +338,7 @@ class _TwoSectionRepository extends TextBookRepository {
     required int startIndex,
     required int endIndex,
     Iterable<String>? targetBookTitles,
-  }) async =>
-      const [];
+  }) async => const [];
 
   @override
   Future<List<String>> getAvailableCommentators(TextBook book) async =>

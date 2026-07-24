@@ -111,17 +111,20 @@ class SiblingCommentariesController {
     CommentaryEra? lastEra;
     for (final link in cached) {
       final era = CommentaryService.getCachedBookEra(
-          utils.getTitleFromPath(link.path2));
+        utils.getTitleFromPath(link.path2),
+      );
       if (lastEra != null && era != lastEra) {
         entries.add(const AppContextMenuEntry.divider());
       }
       lastEra = era;
-      entries.add(buildLinkContextMenuEntry(
-        link: link,
-        removeNikud: removeNikud,
-        removePunctuation: removePunctuation,
-        onTap: () => onNavigate(link),
-      ));
+      entries.add(
+        buildLinkContextMenuEntry(
+          link: link,
+          removeNikud: removeNikud,
+          removePunctuation: removePunctuation,
+          onTap: () => onNavigate(link),
+        ),
+      );
     }
     return entries;
   }

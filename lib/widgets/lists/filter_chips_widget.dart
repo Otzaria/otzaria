@@ -37,7 +37,7 @@ class FilterChipsWidget<T> extends StatefulWidget {
 
   /// Optional custom chip builder for full control over chip appearance
   final Widget Function(BuildContext context, T item, bool isSelected)?
-      chipBuilder;
+  chipBuilder;
 
   /// Alignment of chips in the wrap
   final WrapAlignment wrapAlignment;
@@ -107,8 +107,9 @@ class _FilterChipsWidgetState<T> extends State<FilterChipsWidget<T>> {
             onSelected: (_) => _toggleSelection(item),
             selectedColor: Theme.of(context).colorScheme.secondary,
             labelStyle: TextStyle(
-              color:
-                  isSelected ? Theme.of(context).colorScheme.onSecondary : null,
+              color: isSelected
+                  ? Theme.of(context).colorScheme.onSecondary
+                  : null,
             ),
           );
         }).toList(),
@@ -147,7 +148,7 @@ class FilterChipsSelector<T> extends StatelessWidget {
 
   /// Optional custom chip builder for full control over chip appearance
   final Widget Function(BuildContext context, T item, bool isSelected)?
-      chipBuilder;
+  chipBuilder;
 
   /// Alignment of chips in the wrap
   final WrapAlignment wrapAlignment;
@@ -197,8 +198,9 @@ class FilterChipsSelector<T> extends StatelessWidget {
             onSelected: (_) => _toggleSelection(item),
             selectedColor: Theme.of(context).colorScheme.secondary,
             labelStyle: TextStyle(
-              color:
-                  isSelected ? Theme.of(context).colorScheme.onSecondary : null,
+              color: isSelected
+                  ? Theme.of(context).colorScheme.onSecondary
+                  : null,
             ),
           );
         }).toList(),

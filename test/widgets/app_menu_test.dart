@@ -4,8 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
 void main() {
-  testWidgets('Disabled app menu entries use muted foreground color',
-      (tester) async {
+  testWidgets('Disabled app menu entries use muted foreground color', (
+    tester,
+  ) async {
     final theme = ThemeData(
       colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
     );

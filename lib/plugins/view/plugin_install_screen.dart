@@ -27,7 +27,8 @@ class PluginInstallScreen extends StatefulWidget {
   final void Function(
     Map<String, bool> grantedPermissions,
     bool allowOrderBeforeBuiltInsGranted,
-  )? onConfirm;
+  )?
+  onConfirm;
 
   /// כאשר מסופק, נקרא במקום שליחת CancelPluginInstall לבלוק.
   final VoidCallback? onCancel;
@@ -67,7 +68,7 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
     };
     _allowOrderBeforeBuiltInsGranted =
         widget.previousAllowOrderBeforeBuiltInsGranted ??
-            widget.manifest.allowOrderBeforeBuiltIns;
+        widget.manifest.allowOrderBeforeBuiltIns;
   }
 
   bool _defaultGrantFor(String permission) {
@@ -92,13 +93,13 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
       );
     } else {
       context.read<PluginSystemBloc>().add(
-            ConfirmPluginInstall(
-              widget.tempDirPath,
-              widget.manifest,
-              Map.unmodifiable(_permissionToggles),
-              _allowOrderBeforeBuiltInsGranted,
-            ),
-          );
+        ConfirmPluginInstall(
+          widget.tempDirPath,
+          widget.manifest,
+          Map.unmodifiable(_permissionToggles),
+          _allowOrderBeforeBuiltInsGranted,
+        ),
+      );
     }
     Navigator.of(context).pop();
   }
@@ -107,9 +108,9 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
     if (widget.onCancel != null) {
       widget.onCancel!();
     } else {
-      context
-          .read<PluginSystemBloc>()
-          .add(CancelPluginInstall(widget.tempDirPath));
+      context.read<PluginSystemBloc>().add(
+        CancelPluginInstall(widget.tempDirPath),
+      );
     }
     Navigator.of(context).pop();
   }
@@ -180,7 +181,8 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
                       ? colorScheme.primary
                       : colorScheme.onSurfaceVariant,
                   title: 'אפשר לתוסף להופיע לפני הכלים המובנים',
-                  subtitle: 'אם תכבה את האפשרות, התוסף עדיין יותקן כרגיל, אבל '
+                  subtitle:
+                      'אם תכבה את האפשרות, התוסף עדיין יותקן כרגיל, אבל '
                       'יופיע רק אחרי הכלים המובנים גם אם המניפסט שלו ביקש אחרת.',
                   value: _allowOrderBeforeBuiltInsGranted,
                   onChanged: (value) {
@@ -220,11 +222,11 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
                       permission == pluginRunOnStartupPermission;
                   final iconData = isSensitive
                       ? (isGranted
-                          ? FluentIcons.warning_24_filled
-                          : FluentIcons.warning_24_regular)
+                            ? FluentIcons.warning_24_filled
+                            : FluentIcons.warning_24_regular)
                       : (isGranted
-                          ? FluentIcons.shield_checkmark_24_regular
-                          : FluentIcons.shield_error_24_regular);
+                            ? FluentIcons.shield_checkmark_24_regular
+                            : FluentIcons.shield_error_24_regular);
                   final iconColor = isSensitive
                       ? colorScheme.tertiary
                       : (isGranted ? colorScheme.primary : colorScheme.error);

@@ -21,14 +21,17 @@ void main() {
       final setup = sqlite3.sqlite3.open(dbPath);
       setup.execute('CREATE TABLE book (id INTEGER PRIMARY KEY, title TEXT)');
       setup.execute(
-          'CREATE TABLE generation (id INTEGER PRIMARY KEY, name TEXT)');
+        'CREATE TABLE generation (id INTEGER PRIMARY KEY, name TEXT)',
+      );
       setup.execute(
-          'CREATE TABLE book_generation (bookId INTEGER, generationId INTEGER)');
+        'CREATE TABLE book_generation (bookId INTEGER, generationId INTEGER)',
+      );
       setup.execute("INSERT INTO book (id, title) VALUES (1, 'בראשית')");
       setup.execute("INSERT INTO book (id, title) VALUES (2, 'ספר בלי דור')");
       setup.execute("INSERT INTO generation (id, name) VALUES (2, 'ראשונים')");
       setup.execute(
-          'INSERT INTO book_generation (bookId, generationId) VALUES (1, 2)');
+        'INSERT INTO book_generation (bookId, generationId) VALUES (1, 2)',
+      );
       setup.close();
 
       database = MyDatabase.withPath(dbPath, readOnly: true);

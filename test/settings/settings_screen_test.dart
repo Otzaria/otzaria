@@ -84,8 +84,11 @@ void main() {
 
         // אחרי לחיצה — שדה החיפוש חייב להיות ריק
         final after = tester.widget<SettingsSearchField>(searchFieldFinder);
-        expect(after.controller.text, isEmpty,
-            reason: 'מעבר טאב חייב לאפס את שדה החיפוש');
+        expect(
+          after.controller.text,
+          isEmpty,
+          reason: 'מעבר טאב חייב לאפס את שדה החיפוש',
+        );
       },
     );
 
@@ -111,15 +114,19 @@ void main() {
         );
 
         // הקלדה לשדה החיפוש
-        final searchField = tester
-            .widget<SettingsSearchField>(find.byType(SettingsSearchField));
+        final searchField = tester.widget<SettingsSearchField>(
+          find.byType(SettingsSearchField),
+        );
         searchField.controller.text = 'בדיקה';
         searchField.onChanged('בדיקה');
         await tester.pump();
 
         // הכותרת התחלפה ל"תוצאות חיפוש"
-        expect(find.text('תוצאות חיפוש'), findsOneWidget,
-            reason: 'במצב חיפוש הכותרת אינה שם הלשונית האחרונה');
+        expect(
+          find.text('תוצאות חיפוש'),
+          findsOneWidget,
+          reason: 'במצב חיפוש הכותרת אינה שם הלשונית האחרונה',
+        );
 
         // אף פריט בסרגל הצד אינו מודגש
         expect(
@@ -148,8 +155,9 @@ void main() {
         expect(find.byTooltip('חזור (Esc)'), findsNothing);
 
         // הקלדה → מצב חיפוש
-        final field = tester
-            .widget<SettingsSearchField>(find.byType(SettingsSearchField));
+        final field = tester.widget<SettingsSearchField>(
+          find.byType(SettingsSearchField),
+        );
         field.controller.text = 'בדיקה';
         field.onChanged('בדיקה');
         await tester.pump();
@@ -162,12 +170,16 @@ void main() {
         await tester.tap(find.byTooltip('חזור (Esc)'));
         await tester.pump();
 
-        final after = tester
-            .widget<SettingsSearchField>(find.byType(SettingsSearchField));
+        final after = tester.widget<SettingsSearchField>(
+          find.byType(SettingsSearchField),
+        );
         expect(after.controller.text, isEmpty);
         expect(find.text('תוצאות חיפוש'), findsNothing);
-        expect(find.byTooltip('חזור (Esc)'), findsNothing,
-            reason: 'חזרנו לתפריט הראשי ולכן אין כפתור חזור');
+        expect(
+          find.byTooltip('חזור (Esc)'),
+          findsNothing,
+          reason: 'חזרנו לתפריט הראשי ולכן אין כפתור חזור',
+        );
       },
     );
 
@@ -187,8 +199,9 @@ void main() {
         await tester.pump();
 
         // חיפוש בתוך הטאב
-        final field = tester
-            .widget<SettingsSearchField>(find.byType(SettingsSearchField));
+        final field = tester.widget<SettingsSearchField>(
+          find.byType(SettingsSearchField),
+        );
         field.controller.text = 'בדיקה';
         field.onChanged('בדיקה');
         await tester.pump();
@@ -199,12 +212,16 @@ void main() {
         await tester.pump();
         await tester.pump();
 
-        final after = tester
-            .widget<SettingsSearchField>(find.byType(SettingsSearchField));
+        final after = tester.widget<SettingsSearchField>(
+          find.byType(SettingsSearchField),
+        );
         expect(after.controller.text, isEmpty);
         expect(find.text('תוצאות חיפוש'), findsNothing);
-        expect(find.byTooltip('חזור (Esc)'), findsOneWidget,
-            reason: 'נשארנו בתוך הטאב ולכן כפתור החזור עדיין מוצג');
+        expect(
+          find.byTooltip('חזור (Esc)'),
+          findsOneWidget,
+          reason: 'נשארנו בתוך הטאב ולכן כפתור החזור עדיין מוצג',
+        );
       },
     );
   });

@@ -84,9 +84,11 @@ String _decodeUtf16(
 }) {
   final codeUnits = <int>[];
   for (var i = offset; i + 1 < bytes.length; i += 2) {
-    codeUnits.add(littleEndian
-        ? bytes[i] | (bytes[i + 1] << 8)
-        : (bytes[i] << 8) | bytes[i + 1]);
+    codeUnits.add(
+      littleEndian
+          ? bytes[i] | (bytes[i + 1] << 8)
+          : (bytes[i] << 8) | bytes[i + 1],
+    );
   }
   return String.fromCharCodes(codeUnits);
 }

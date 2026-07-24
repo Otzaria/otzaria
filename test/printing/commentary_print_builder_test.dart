@@ -5,12 +5,12 @@ import 'package:otzaria/printing/print_content_models.dart';
 import 'package:otzaria/services/commentary_service.dart';
 
 Link _link(String path, int index2) => Link(
-      heRef: 'ref',
-      index1: 1,
-      path2: path,
-      index2: index2,
-      connectionType: 'COMMENTARY',
-    );
+  heRef: 'ref',
+  index1: 1,
+  path2: path,
+  index2: index2,
+  connectionType: 'COMMENTARY',
+);
 
 LinkGroup _group(String title, List<Link> links) =>
     LinkGroup(bookTitle: title, links: links);

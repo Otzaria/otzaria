@@ -80,8 +80,10 @@ class BookFacetMetadataCache {
         }
       }
       _isLoaded = true;
-      debugPrint('[BookFacetMetadataCache] Loaded authors for '
-          '${_authorsByBookId.length} books, ${_baseBookIds.length} base books');
+      debugPrint(
+        '[BookFacetMetadataCache] Loaded authors for '
+        '${_authorsByBookId.length} books, ${_baseBookIds.length} base books',
+      );
     } catch (e) {
       debugPrint('[BookFacetMetadataCache] warmup failed: $e');
       _authorsByBookId.clear();
@@ -115,8 +117,9 @@ class BookFacetMetadataCache {
   List<String> extraFacetsForBook(Book book, {required bool isFoundational}) {
     final facets = <String>[];
     final id = book.id;
-    final authors =
-        id == null ? null : _authorsFor(id, isUserBook: book.isUserBook);
+    final authors = id == null
+        ? null
+        : _authorsFor(id, isUserBook: book.isUserBook);
     if (authors != null) {
       for (final author in authors) {
         facets.add('/author/${_sanitizeSegment(author)}');
@@ -126,7 +129,8 @@ class BookFacetMetadataCache {
     if (eraName != null) {
       facets.add('/era/${_sanitizeSegment(eraName)}');
     }
-    final isBase = isFoundational ||
+    final isBase =
+        isFoundational ||
         (id != null &&
             (book.isUserBook
                 ? _baseUserBookIds.contains(id)
@@ -143,8 +147,10 @@ class BookFacetMetadataCache {
   /// שם התקופה לפי דלי [CommentaryEra] של הספר; null לדלי "שאר מפרשים"
   /// (ספר בלי דור ידוע) — עדיף שלא ישא facet מאשר שישא תקופה שגויה.
   static String? _eraNameFor(Book book) {
-    final order =
-        GenerationCache.instance.getOrderForBook(book.id, book.isUserBook);
+    final order = GenerationCache.instance.getOrderForBook(
+      book.id,
+      book.isUserBook,
+    );
     if (order == CommentaryEra.other.order) return null;
     for (final era in CommentaryEra.values) {
       if (era.order == order) return era.hebrewName;

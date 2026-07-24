@@ -177,23 +177,26 @@ void main() {
 
     group('open/tab/<index>', () {
       test('מחזיר SwitchToTabAction עם המיקום שנדרש', () {
-        final action =
-            ExternalUriRouter.parseUri(Uri.parse('otzaria://open/tab/4'));
+        final action = ExternalUriRouter.parseUri(
+          Uri.parse('otzaria://open/tab/4'),
+        );
 
         expect(action, isA<SwitchToTabAction>());
         expect((action as SwitchToTabAction).index, 4);
       });
 
       test('מיקום 0 תקף', () {
-        final action =
-            ExternalUriRouter.parseUri(Uri.parse('otzaria://open/tab/0'));
+        final action = ExternalUriRouter.parseUri(
+          Uri.parse('otzaria://open/tab/0'),
+        );
 
         expect((action as SwitchToTabAction).index, 0);
       });
 
       test('המילה tab אינה רגישה לאותיות גדולות/קטנות', () {
-        final action =
-            ExternalUriRouter.parseUri(Uri.parse('otzaria://open/TAB/2'));
+        final action = ExternalUriRouter.parseUri(
+          Uri.parse('otzaria://open/TAB/2'),
+        );
 
         expect((action as SwitchToTabAction).index, 2);
       });
@@ -229,10 +232,13 @@ void main() {
       });
 
       test('מפענח index ו-q בפתיחת ספר', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse(
-              'otzaria://open/book/1234?index=42&q=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA'),
-        ) as OpenBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse(
+                    'otzaria://open/book/1234?index=42&q=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA',
+                  ),
+                )
+                as OpenBookAction;
 
         expect(action.bookId, 1234);
         expect(action.index, 42);
@@ -242,11 +248,13 @@ void main() {
       });
 
       test('מפענח m= בפתיחת ספר עם index', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse(
-            'otzaria://open/book/1234?index=42&m=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA',
-          ),
-        ) as OpenBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse(
+                    'otzaria://open/book/1234?index=42&m=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA',
+                  ),
+                )
+                as OpenBookAction;
 
         expect(action.bookId, 1234);
         expect(action.index, 42);
@@ -255,19 +263,23 @@ void main() {
       });
 
       test('m= ריק מתעלם', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/book/1234?index=42&m='),
-        ) as OpenBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/book/1234?index=42&m='),
+                )
+                as OpenBookAction;
 
         expect(action.markText, isNull);
       });
 
       test('m גובר על q: q מתעלם כש-m קיים (priority m > q)', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse(
-            'otzaria://open/book/1234?index=42&q=%D7%90%D7%9C%D7%A3&m=%D7%91%D7%99%D7%AA',
-          ),
-        ) as OpenBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse(
+                    'otzaria://open/book/1234?index=42&q=%D7%90%D7%9C%D7%A3&m=%D7%91%D7%99%D7%AA',
+                  ),
+                )
+                as OpenBookAction;
 
         expect(action.markText, 'בית');
         // priority m > mark > q — לא לפתוח חיפוש כללי בנוסף להדגשה המקומית.
@@ -275,21 +287,27 @@ void main() {
       });
 
       test('index שלילי או לא מספרי מתעלם', () {
-        final negative = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/book/1234?index=-3'),
-        ) as OpenBookAction;
-        final nonNumeric = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/book/1234?index=foo'),
-        ) as OpenBookAction;
+        final negative =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/book/1234?index=-3'),
+                )
+                as OpenBookAction;
+        final nonNumeric =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/book/1234?index=foo'),
+                )
+                as OpenBookAction;
 
         expect(negative.index, isNull);
         expect(nonNumeric.index, isNull);
       });
 
       test('q ריק מתעלם', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/book/1234?q='),
-        ) as OpenBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/book/1234?q='),
+                )
+                as OpenBookAction;
 
         expect(action.searchQuery, isNull);
       });
@@ -333,42 +351,52 @@ void main() {
       });
 
       test('מפענח index כעמוד התחלתי (1-based)', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/pdf/1234?index=42'),
-        ) as OpenPdfBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/pdf/1234?index=42'),
+                )
+                as OpenPdfBookAction;
 
         expect(action.bookId, 1234);
         expect(action.page, 42);
       });
 
       test('index=1 נשמר (PDF הוא 1-based)', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/pdf/7?index=1'),
-        ) as OpenPdfBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/pdf/7?index=1'),
+                )
+                as OpenPdfBookAction;
 
         expect(action.page, 1);
       });
 
       test('index=0 מתעלם (לא חוקי ב-PDF)', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/pdf/7?index=0'),
-        ) as OpenPdfBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/pdf/7?index=0'),
+                )
+                as OpenPdfBookAction;
 
         expect(action.page, isNull);
       });
 
       test('index שלילי מתעלם', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/pdf/7?index=-3'),
-        ) as OpenPdfBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/pdf/7?index=-3'),
+                )
+                as OpenPdfBookAction;
 
         expect(action.page, isNull);
       });
 
       test('index לא מספרי מתעלם', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/pdf/7?index=foo'),
-        ) as OpenPdfBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/pdf/7?index=foo'),
+                )
+                as OpenPdfBookAction;
 
         expect(action.page, isNull);
       });
@@ -458,8 +486,9 @@ void main() {
         // query מכיל רווחים — trim מחזיר ריק
         expect(
           (ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/detection?q=%20%20'),
-          ) as RunDetectionAction)
+                    Uri.parse('otzaria://open/detection?q=%20%20'),
+                  )
+                  as RunDetectionAction)
               .query,
           '',
         );
@@ -467,9 +496,11 @@ void main() {
 
       test('q מפוענח נכון מ-URL encoding', () {
         final encoded = Uri.encodeQueryComponent('בראשית פרק א');
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/detection?q=$encoded'),
-        ) as RunDetectionAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/detection?q=$encoded'),
+                )
+                as RunDetectionAction;
 
         expect(action.query, 'בראשית פרק א');
       });
@@ -498,33 +529,41 @@ void main() {
       });
 
       test('mode=fuzzy — מחזיר SearchMode.fuzzy', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/search?q=abc&mode=fuzzy'),
-        ) as RunSearchAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/search?q=abc&mode=fuzzy'),
+                )
+                as RunSearchAction;
 
         expect(action.mode, SearchMode.fuzzy);
       });
 
       test('mode=exact — מחזיר SearchMode.exact', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/search?q=abc&mode=exact'),
-        ) as RunSearchAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/search?q=abc&mode=exact'),
+                )
+                as RunSearchAction;
 
         expect(action.mode, SearchMode.exact);
       });
 
       test('mode=advanced — מחזיר SearchMode.advanced', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/search?q=abc&mode=advanced'),
-        ) as RunSearchAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/search?q=abc&mode=advanced'),
+                )
+                as RunSearchAction;
 
         expect(action.mode, SearchMode.advanced);
       });
 
       test('mode אינו רגיש לאותיות גדולות/קטנות', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/search?q=abc&mode=FUZZY'),
-        ) as RunSearchAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/search?q=abc&mode=FUZZY'),
+                )
+                as RunSearchAction;
 
         expect(action.mode, SearchMode.fuzzy);
       });
@@ -532,15 +571,17 @@ void main() {
       test('mode לא מוכר או ריק — mode=null (ברירת מחדל)', () {
         expect(
           (ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/search?q=abc&mode=bogus'),
-          ) as RunSearchAction)
+                    Uri.parse('otzaria://open/search?q=abc&mode=bogus'),
+                  )
+                  as RunSearchAction)
               .mode,
           isNull,
         );
         expect(
           (ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/search?q=abc&mode='),
-          ) as RunSearchAction)
+                    Uri.parse('otzaria://open/search?q=abc&mode='),
+                  )
+                  as RunSearchAction)
               .mode,
           isNull,
         );
@@ -564,8 +605,9 @@ void main() {
         );
         expect(
           (ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/search?q=%20%20'),
-          ) as OpenScreenAction)
+                    Uri.parse('otzaria://open/search?q=%20%20'),
+                  )
+                  as OpenScreenAction)
               .screen,
           Screen.search,
         );
@@ -574,35 +616,45 @@ void main() {
 
     group('open/book/<id> — mark params', () {
       test('?mark ללא index — markSection=true, index=null', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/book/1?mark'),
-        ) as OpenBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/book/1?mark'),
+                )
+                as OpenBookAction;
 
         expect(action.markSection, isTrue);
         expect(action.index, isNull);
       });
 
       test('?mark= (ערך ריק) — markSection=true', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/book/1?mark='),
-        ) as OpenBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/book/1?mark='),
+                )
+                as OpenBookAction;
 
         expect(action.markSection, isTrue);
       });
 
       test('?index=5&mark — markSection=true, index=5', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/book/1?index=5&mark'),
-        ) as OpenBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/book/1?index=5&mark'),
+                )
+                as OpenBookAction;
 
         expect(action.markSection, isTrue);
         expect(action.index, 5);
       });
 
       test('?mark&q=תורה — mark גובר, q מתעלם (priority mark > q)', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/book/1?mark&q=%D7%AA%D7%95%D7%A8%D7%94'),
-        ) as OpenBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse(
+                    'otzaria://open/book/1?mark&q=%D7%AA%D7%95%D7%A8%D7%94',
+                  ),
+                )
+                as OpenBookAction;
 
         expect(action.markSection, isTrue);
         // priority m > mark > q — q מתעלם כדי שלא תיפתח לשונית חיפוש כללית.
@@ -618,57 +670,69 @@ void main() {
       });
 
       test('?m=בראשית — markText=בראשית', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse(
-            'otzaria://open/book/1?m=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA',
-          ),
-        ) as OpenBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse(
+                    'otzaria://open/book/1?m=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA',
+                  ),
+                )
+                as OpenBookAction;
 
         expect(action.markText, 'בראשית');
       });
 
       test('?m= (ריק) — markText=null', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/book/1?m='),
-        ) as OpenBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/book/1?m='),
+                )
+                as OpenBookAction;
 
         expect(action.markText, isNull);
       });
 
       test('?m=%20%20 (רווחים) — markText=null', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/book/1?m=%20%20'),
-        ) as OpenBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/book/1?m=%20%20'),
+                )
+                as OpenBookAction;
 
         expect(action.markText, isNull);
       });
 
       test('?m=בראשית&q=תורה — m גובר, q מתעלם (priority m > q)', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse(
-            'otzaria://open/book/1?m=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA&q=%D7%AA%D7%95%D7%A8%D7%94',
-          ),
-        ) as OpenBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse(
+                    'otzaria://open/book/1?m=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA&q=%D7%AA%D7%95%D7%A8%D7%94',
+                  ),
+                )
+                as OpenBookAction;
 
         expect(action.markText, 'בראשית');
         expect(action.searchQuery, isNull);
       });
 
       test('?mark=&q=ייעלם — mark עם ערך ריק עדיין גובר על q', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse(
-            'otzaria://open/book/1?mark=&q=%D7%AA%D7%95%D7%A8%D7%94',
-          ),
-        ) as OpenBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse(
+                    'otzaria://open/book/1?mark=&q=%D7%AA%D7%95%D7%A8%D7%94',
+                  ),
+                )
+                as OpenBookAction;
 
         expect(action.markSection, isTrue);
         expect(action.searchQuery, isNull);
       });
 
       test('?q=תורה לבד — q נשמר כשאין mark/m', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/book/1?q=%D7%AA%D7%95%D7%A8%D7%94'),
-        ) as OpenBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/book/1?q=%D7%AA%D7%95%D7%A8%D7%94'),
+                )
+                as OpenBookAction;
 
         expect(action.searchQuery, 'תורה');
         expect(action.markSection, isFalse);
@@ -679,71 +743,94 @@ void main() {
       // ש-otzaria://open/book/<id> "חשוף" לא ידרוס מיקום של טאב פתוח.
       group('hasExplicitPosition', () {
         test('false כש-URI חשוף (ללא index/mark/m/q)', () {
-          final action = ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/book/1'),
-          ) as OpenBookAction;
+          final action =
+              ExternalUriRouter.parseUri(
+                    Uri.parse('otzaria://open/book/1'),
+                  )
+                  as OpenBookAction;
           expect(action.hasExplicitPosition, isFalse);
         });
 
         test('false כש-URI עם q בלבד (q לא מיקום)', () {
-          final action = ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/book/1?q=%D7%AA%D7%95%D7%A8%D7%94'),
-          ) as OpenBookAction;
-          expect(action.hasExplicitPosition, isFalse,
-              reason: 'q הוא חיפוש, לא מיקום');
+          final action =
+              ExternalUriRouter.parseUri(
+                    Uri.parse(
+                      'otzaria://open/book/1?q=%D7%AA%D7%95%D7%A8%D7%94',
+                    ),
+                  )
+                  as OpenBookAction;
+          expect(
+            action.hasExplicitPosition,
+            isFalse,
+            reason: 'q הוא חיפוש, לא מיקום',
+          );
         });
 
         test('true כש-URI עם ?index= מפורש', () {
-          final action = ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/book/1?index=42'),
-          ) as OpenBookAction;
+          final action =
+              ExternalUriRouter.parseUri(
+                    Uri.parse('otzaria://open/book/1?index=42'),
+                  )
+                  as OpenBookAction;
           expect(action.hasExplicitPosition, isTrue);
         });
 
         test('true כש-URI עם ?mark', () {
-          final action = ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/book/1?mark'),
-          ) as OpenBookAction;
+          final action =
+              ExternalUriRouter.parseUri(
+                    Uri.parse('otzaria://open/book/1?mark'),
+                  )
+                  as OpenBookAction;
           expect(action.hasExplicitPosition, isTrue);
         });
 
         test('true כש-URI עם ?m=', () {
-          final action = ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/book/1?m=%D7%91%D7%99%D7%AA'),
-          ) as OpenBookAction;
+          final action =
+              ExternalUriRouter.parseUri(
+                    Uri.parse('otzaria://open/book/1?m=%D7%91%D7%99%D7%AA'),
+                  )
+                  as OpenBookAction;
           expect(action.hasExplicitPosition, isTrue);
         });
 
         test('PDF: false כש-URI חשוף', () {
-          final action = ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/pdf/1'),
-          ) as OpenPdfBookAction;
+          final action =
+              ExternalUriRouter.parseUri(
+                    Uri.parse('otzaria://open/pdf/1'),
+                  )
+                  as OpenPdfBookAction;
           expect(action.hasExplicitPosition, isFalse);
         });
 
         test('PDF: true כש-URI עם ?index= מפורש', () {
-          final action = ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/pdf/1?index=5'),
-          ) as OpenPdfBookAction;
+          final action =
+              ExternalUriRouter.parseUri(
+                    Uri.parse('otzaria://open/pdf/1?index=5'),
+                  )
+                  as OpenPdfBookAction;
           expect(action.hasExplicitPosition, isTrue);
         });
       });
 
       test('?mark&m=בראשית — markSection=true ו-markText=בראשית', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse(
-            'otzaria://open/book/1?mark&m=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA',
-          ),
-        ) as OpenBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse(
+                    'otzaria://open/book/1?mark&m=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA',
+                  ),
+                )
+                as OpenBookAction;
 
         expect(action.markSection, isTrue);
         expect(action.markText, 'בראשית');
       });
 
       test('ללא mark ו-m — ברירת מחדל markSection=false, markText=null', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/book/1?index=3&q=test'),
-        ) as OpenBookAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/book/1?index=3&q=test'),
+                )
+                as OpenBookAction;
 
         expect(action.markSection, isFalse);
         expect(action.markText, isNull);
@@ -754,9 +841,11 @@ void main() {
       //   returns OpenBookAction with markSection=true and index=n
       test('Property 1: mark שומר index', () {
         for (int n = 0; n < 100; n++) {
-          final action = ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/book/1?index=$n&mark'),
-          ) as OpenBookAction;
+          final action =
+              ExternalUriRouter.parseUri(
+                    Uri.parse('otzaria://open/book/1?index=$n&mark'),
+                  )
+                  as OpenBookAction;
 
           expect(action.markSection, isTrue, reason: 'n=$n');
           expect(action.index, n, reason: 'n=$n');
@@ -780,9 +869,11 @@ void main() {
 
         for (final text in testStrings) {
           final encoded = Uri.encodeComponent(text);
-          final action = ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/book/1?m=$encoded'),
-          ) as OpenBookAction;
+          final action =
+              ExternalUriRouter.parseUri(
+                    Uri.parse('otzaria://open/book/1?m=$encoded'),
+                  )
+                  as OpenBookAction;
 
           expect(action.markText, text, reason: 'text=$text');
         }
@@ -804,9 +895,11 @@ void main() {
 
         for (final ws in whitespaceStrings) {
           final encoded = Uri.encodeComponent(ws);
-          final action = ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/book/1?m=$encoded'),
-          ) as OpenBookAction;
+          final action =
+              ExternalUriRouter.parseUri(
+                    Uri.parse('otzaria://open/book/1?m=$encoded'),
+                  )
+                  as OpenBookAction;
 
           expect(action.markText, isNull, reason: 'whitespace=$ws');
         }
@@ -826,13 +919,18 @@ void main() {
 
         for (final q in testQueries) {
           final encoded = Uri.encodeComponent(q);
-          final action = ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/book/1?mark&q=$encoded'),
-          ) as OpenBookAction;
+          final action =
+              ExternalUriRouter.parseUri(
+                    Uri.parse('otzaria://open/book/1?mark&q=$encoded'),
+                  )
+                  as OpenBookAction;
 
           expect(action.markSection, isTrue, reason: 'q=$q');
-          expect(action.searchQuery, isNull,
-              reason: 'q=$q: q חייב להתעלם כש-mark קיים');
+          expect(
+            action.searchQuery,
+            isNull,
+            reason: 'q=$q: q חייב להתעלם כש-mark קיים',
+          );
         }
       });
 
@@ -847,9 +945,11 @@ void main() {
         ];
 
         for (final uriStr in testUris) {
-          final action = ExternalUriRouter.parseUri(
-            Uri.parse(uriStr),
-          ) as OpenBookAction;
+          final action =
+              ExternalUriRouter.parseUri(
+                    Uri.parse(uriStr),
+                  )
+                  as OpenBookAction;
 
           expect(action.markSection, isFalse, reason: 'uri=$uriStr');
           expect(action.markText, isNull, reason: 'uri=$uriStr');
@@ -875,11 +975,13 @@ void main() {
       });
 
       test('מעביר flag overwrite', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse(
-            'otzaria://plugin/install?url=https%3A%2F%2Fexample.com%2Fp.otzplugin&overwrite=true',
-          ),
-        ) as InstallPluginAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse(
+                    'otzaria://plugin/install?url=https%3A%2F%2Fexample.com%2Fp.otzplugin&overwrite=true',
+                  ),
+                )
+                as InstallPluginAction;
 
         expect(action.request.forceOverwrite, isTrue);
       });
@@ -948,8 +1050,9 @@ void main() {
       });
 
       test('דוחה נתיב UNC (מונע דליפת אישורי SMB)', () {
-        final encoded =
-            Uri.encodeQueryComponent(r'\\attacker\share\evil.otzplugin');
+        final encoded = Uri.encodeQueryComponent(
+          r'\\attacker\share\evil.otzplugin',
+        );
         expect(
           ExternalUriRouter.parseUri(
             Uri.parse('otzaria://plugin/install-local?path=$encoded'),
@@ -960,8 +1063,9 @@ void main() {
 
       test('דוחה נתיב התקן (\\\\.\\ ו-\\\\?\\)', () {
         final device = Uri.encodeQueryComponent(r'\\.\C:\evil.otzplugin');
-        final extended =
-            Uri.encodeQueryComponent(r'\\?\C:\Users\x\evil.otzplugin');
+        final extended = Uri.encodeQueryComponent(
+          r'\\?\C:\Users\x\evil.otzplugin',
+        );
         expect(
           ExternalUriRouter.parseUri(
             Uri.parse('otzaria://plugin/install-local?path=$device'),
@@ -977,8 +1081,9 @@ void main() {
       });
 
       test('דוחה נתיב UNC בלוכסנים קדמיים (//host)', () {
-        final encoded =
-            Uri.encodeQueryComponent('//attacker/share/evil.otzplugin');
+        final encoded = Uri.encodeQueryComponent(
+          '//attacker/share/evil.otzplugin',
+        );
         expect(
           ExternalUriRouter.parseUri(
             Uri.parse('otzaria://plugin/install-local?path=$encoded'),
@@ -988,8 +1093,9 @@ void main() {
       });
 
       test('מקבל סיומת .otzplugin ללא תלות באותיות גדולות/קטנות', () {
-        final encoded =
-            Uri.encodeQueryComponent(r'C:\Users\Foo\plugin.OTZPLUGIN');
+        final encoded = Uri.encodeQueryComponent(
+          r'C:\Users\Foo\plugin.OTZPLUGIN',
+        );
         final action = ExternalUriRouter.parseUri(
           Uri.parse('otzaria://plugin/install-local?path=$encoded'),
         );
@@ -998,8 +1104,9 @@ void main() {
 
       test('מקבל נתיב POSIX מוחלט בפלטפורמת POSIX', () {
         ExternalUriRouter.pathContext = p.posix;
-        final encoded =
-            Uri.encodeQueryComponent('/home/user/plugins/my.otzplugin');
+        final encoded = Uri.encodeQueryComponent(
+          '/home/user/plugins/my.otzplugin',
+        );
         final action = ExternalUriRouter.parseUri(
           Uri.parse('otzaria://plugin/install-local?path=$encoded'),
         );
@@ -1008,8 +1115,9 @@ void main() {
 
       test('נתיב Windows נדחה בפלטפורמת POSIX (שם הוא יחסי)', () {
         ExternalUriRouter.pathContext = p.posix;
-        final encoded =
-            Uri.encodeQueryComponent(r'C:\Users\Foo\plugin.otzplugin');
+        final encoded = Uri.encodeQueryComponent(
+          r'C:\Users\Foo\plugin.otzplugin',
+        );
         expect(
           ExternalUriRouter.parseUri(
             Uri.parse('otzaria://plugin/install-local?path=$encoded'),
@@ -1019,8 +1127,9 @@ void main() {
       });
 
       test('נתיב POSIX נדחה ב-Windows (root-relative, לא מוחלט)', () {
-        final encoded =
-            Uri.encodeQueryComponent('/home/user/plugins/my.otzplugin');
+        final encoded = Uri.encodeQueryComponent(
+          '/home/user/plugins/my.otzplugin',
+        );
         expect(
           ExternalUriRouter.parseUri(
             Uri.parse('otzaria://plugin/install-local?path=$encoded'),
@@ -1080,7 +1189,9 @@ void main() {
         );
         expect(action, isA<OpenToolAction>());
         expect(
-            (action as OpenToolAction).toolId, 'builtin.acronyms_dictionary');
+          (action as OpenToolAction).toolId,
+          'builtin.acronyms_dictionary',
+        );
       });
 
       test('aliases אינם רגישים לאותיות גדולות/קטנות', () {
@@ -1137,17 +1248,20 @@ void main() {
       });
 
       test('settings/design', () {
-        final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/settings/design'),
-        ) as OpenSettingsTabAction;
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/settings/design'),
+                )
+                as OpenSettingsTabAction;
         expect(action.tab, SettingsTab.design);
       });
 
       test('settings/text', () {
         expect(
           (ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/settings/text'),
-          ) as OpenSettingsTabAction)
+                    Uri.parse('otzaria://open/settings/text'),
+                  )
+                  as OpenSettingsTabAction)
               .tab,
           SettingsTab.text,
         );
@@ -1156,8 +1270,9 @@ void main() {
       test('settings/library', () {
         expect(
           (ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/settings/library'),
-          ) as OpenSettingsTabAction)
+                    Uri.parse('otzaria://open/settings/library'),
+                  )
+                  as OpenSettingsTabAction)
               .tab,
           SettingsTab.library,
         );
@@ -1166,8 +1281,9 @@ void main() {
       test('settings/tools', () {
         expect(
           (ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/settings/tools'),
-          ) as OpenSettingsTabAction)
+                    Uri.parse('otzaria://open/settings/tools'),
+                  )
+                  as OpenSettingsTabAction)
               .tab,
           SettingsTab.tools,
         );
@@ -1176,8 +1292,9 @@ void main() {
       test('settings/shortcuts', () {
         expect(
           (ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/settings/shortcuts'),
-          ) as OpenSettingsTabAction)
+                    Uri.parse('otzaria://open/settings/shortcuts'),
+                  )
+                  as OpenSettingsTabAction)
               .tab,
           SettingsTab.shortcuts,
         );
@@ -1186,8 +1303,9 @@ void main() {
       test('settings/system', () {
         expect(
           (ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/settings/system'),
-          ) as OpenSettingsTabAction)
+                    Uri.parse('otzaria://open/settings/system'),
+                  )
+                  as OpenSettingsTabAction)
               .tab,
           SettingsTab.system,
         );
@@ -1196,8 +1314,9 @@ void main() {
       test('settings/about', () {
         expect(
           (ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/settings/about'),
-          ) as OpenSettingsTabAction)
+                    Uri.parse('otzaria://open/settings/about'),
+                  )
+                  as OpenSettingsTabAction)
               .tab,
           SettingsTab.about,
         );
@@ -1215,15 +1334,17 @@ void main() {
       test('שמות sub-tab אינם רגישים לאותיות גדולות/קטנות', () {
         expect(
           (ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/SETTINGS/DESIGN'),
-          ) as OpenSettingsTabAction)
+                    Uri.parse('otzaria://open/SETTINGS/DESIGN'),
+                  )
+                  as OpenSettingsTabAction)
               .tab,
           SettingsTab.design,
         );
         expect(
           (ExternalUriRouter.parseUri(
-            Uri.parse('otzaria://open/Settings/About'),
-          ) as OpenSettingsTabAction)
+                    Uri.parse('otzaria://open/Settings/About'),
+                  )
+                  as OpenSettingsTabAction)
               .tab,
           SettingsTab.about,
         );

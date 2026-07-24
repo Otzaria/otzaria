@@ -6,24 +6,24 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/text_book/view/sibling_commentaries_menu.dart';
 
 Link _sourceLink({int index1 = 5}) => Link(
-      heRef: 'ברכות ד ב',
-      index1: index1,
-      path2: 'ברכות',
-      index2: 10,
-      connectionType: LinkTypes.source,
-      targetCategoryId: 3,
-      targetFileType: 'text',
-    );
+  heRef: 'ברכות ד ב',
+  index1: index1,
+  path2: 'ברכות',
+  index2: 10,
+  connectionType: LinkTypes.source,
+  targetCategoryId: 3,
+  targetFileType: 'text',
+);
 
 Link _commentaryLink(String title) => Link(
-      heRef: title,
-      index1: 5,
-      path2: title,
-      index2: 2,
-      connectionType: LinkTypes.commentary,
-      targetCategoryId: 4,
-      targetFileType: 'text',
-    );
+  heRef: title,
+  index1: 5,
+  path2: title,
+  index2: 2,
+  connectionType: LinkTypes.commentary,
+  targetCategoryId: 4,
+  targetFileType: 'text',
+);
 
 void main() {
   group('SiblingCommentariesController', () {
@@ -32,8 +32,10 @@ void main() {
       final linksByLine = {
         5: [_commentaryLink('רש"י'), _sourceLink()],
       };
-      expect(c.sourceLinkForLine(linksByLine, 5)?.connectionType,
-          LinkTypes.source);
+      expect(
+        c.sourceLinkForLine(linksByLine, 5)?.connectionType,
+        LinkTypes.source,
+      );
       expect(c.sourceLinkForLine(linksByLine, 6), isNull);
       c.dispose();
     });
@@ -70,30 +72,34 @@ void main() {
       c.dispose();
     });
 
-    test('childrenBuilder: placeholder בטעינה, ואז המפרשים (בלי טעינה כפולה)',
-        () async {
-      var loadCount = 0;
-      final c = SiblingCommentariesController(loadSiblings: (_) async {
-        loadCount++;
-        return [_commentaryLink('ריטב"א'), _commentaryLink('רא"ש')];
-      });
-      final entry = c.buildEntry(
-        lineIndex: 1,
-        sourceLink: _sourceLink(),
-        onNavigate: (_) {},
-      )!;
+    test(
+      'childrenBuilder: placeholder בטעינה, ואז המפרשים (בלי טעינה כפולה)',
+      () async {
+        var loadCount = 0;
+        final c = SiblingCommentariesController(
+          loadSiblings: (_) async {
+            loadCount++;
+            return [_commentaryLink('ריטב"א'), _commentaryLink('רא"ש')];
+          },
+        );
+        final entry = c.buildEntry(
+          lineIndex: 1,
+          sourceLink: _sourceLink(),
+          onNavigate: (_) {},
+        )!;
 
-      final loading = entry.childrenBuilder!();
-      expect(loading.length, 1);
-      expect(loading.first.enabled, isFalse);
+        final loading = entry.childrenBuilder!();
+        expect(loading.length, 1);
+        expect(loading.first.enabled, isFalse);
 
-      await Future<void>.delayed(const Duration(milliseconds: 10));
+        await Future<void>.delayed(const Duration(milliseconds: 10));
 
-      final loaded = entry.childrenBuilder!();
-      expect(loaded.length, 2);
-      expect(loadCount, 1);
-      c.dispose();
-    });
+        final loaded = entry.childrenBuilder!();
+        expect(loaded.length, 2);
+        expect(loadCount, 1);
+        c.dispose();
+      },
+    );
 
     test('childrenBuilder מציג "אין מפרשים נוספים" כשאין תוצאות', () async {
       final c = SiblingCommentariesController(loadSiblings: (_) async => []);
@@ -136,10 +142,12 @@ void main() {
 
     test('clear מנקה את המטמון וגורם לטעינה מחדש', () async {
       var loadCount = 0;
-      final c = SiblingCommentariesController(loadSiblings: (_) async {
-        loadCount++;
-        return [_commentaryLink('ריטב"א')];
-      });
+      final c = SiblingCommentariesController(
+        loadSiblings: (_) async {
+          loadCount++;
+          return [_commentaryLink('ריטב"א')];
+        },
+      );
       final entry = c.buildEntry(
         lineIndex: 1,
         sourceLink: _sourceLink(),

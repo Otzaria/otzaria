@@ -29,11 +29,13 @@ class ErrorLogFile {
     ErrorLogPlatform? platform,
     String? tempPath,
   }) {
-    return File(resolvePath(
-      environment: environment,
-      platform: platform,
-      tempPath: tempPath,
-    ));
+    return File(
+      resolvePath(
+        environment: environment,
+        platform: platform,
+        tempPath: tempPath,
+      ),
+    );
   }
 
   /// מחזירה את הנתיב המלא לקובץ השגיאות של האפליקציה.
@@ -49,9 +51,10 @@ class ErrorLogFile {
     final currentPlatform = platform ?? _detectPlatform();
     final configuredDataRoot =
         environment == null && platform == null && tempPath == null
-            ? AppPaths.cachedDataRootPath
-            : null;
-    final baseDir = configuredDataRoot ??
+        ? AppPaths.cachedDataRootPath
+        : null;
+    final baseDir =
+        configuredDataRoot ??
         _resolveBaseDirectory(
           environment: env,
           platform: currentPlatform,

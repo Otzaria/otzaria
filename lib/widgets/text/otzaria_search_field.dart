@@ -69,17 +69,19 @@ class OtzariaSearchAction {
 
   /// תוצאה הבאה ↓
   static Widget nextResult({required VoidCallback? onPressed}) => _NavButton(
-      icon: FluentIcons.chevron_down_24_regular, onPressed: onPressed);
+    icon: FluentIcons.chevron_down_24_regular,
+    onPressed: onPressed,
+  );
 
   /// כפתור הגדרות
   static Widget settings({
     required VoidCallback onPressed,
     String tooltip = 'הגדרות חיפוש',
-  }) =>
-      _ActionButton(
-          icon: FluentIcons.settings_24_regular,
-          onPressed: onPressed,
-          tooltip: tooltip);
+  }) => _ActionButton(
+    icon: FluentIcons.settings_24_regular,
+    onPressed: onPressed,
+    tooltip: tooltip,
+  );
 
   /// כפתור עם אייקון מותאם
   static Widget icon({
@@ -87,9 +89,12 @@ class OtzariaSearchAction {
     required VoidCallback onPressed,
     String? tooltip,
     Color? color,
-  }) =>
-      _ActionButton(
-          icon: iconData, onPressed: onPressed, tooltip: tooltip, color: color);
+  }) => _ActionButton(
+    icon: iconData,
+    onPressed: onPressed,
+    tooltip: tooltip,
+    color: color,
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -125,8 +130,12 @@ class _ActionButton extends StatelessWidget {
   final VoidCallback onPressed;
   final String? tooltip;
   final Color? color;
-  const _ActionButton(
-      {required this.icon, required this.onPressed, this.tooltip, this.color});
+  const _ActionButton({
+    required this.icon,
+    required this.onPressed,
+    this.tooltip,
+    this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -318,20 +327,25 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
     }
     if (hasText && widget.onClear != null) {
       final clearSize = isSlim ? 26.0 : 32.0;
-      suffixChildren.add(SizedBox(
-        width: clearSize,
-        height: clearSize,
-        child: IconButton(
-          icon: Icon(FluentIcons.dismiss_24_regular,
-              size: isSlim ? 15 : 18, color: cs.onSurfaceVariant),
-          onPressed: () {
-            widget.controller.clear();
-            widget.onClear!();
-          },
-          padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
+      suffixChildren.add(
+        SizedBox(
+          width: clearSize,
+          height: clearSize,
+          child: IconButton(
+            icon: Icon(
+              FluentIcons.dismiss_24_regular,
+              size: isSlim ? 15 : 18,
+              color: cs.onSurfaceVariant,
+            ),
+            onPressed: () {
+              widget.controller.clear();
+              widget.onClear!();
+            },
+            padding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+          ),
         ),
-      ));
+      );
     }
     final suffixWidget = suffixChildren.isNotEmpty
         ? Row(mainAxisSize: MainAxisSize.min, children: suffixChildren)
@@ -340,10 +354,12 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
     // Prefix icon color
     // slim (בסרגל secondaryContainer) → onSecondaryContainer
     // לא-slim (רקע surface) → primary (M3 standard)
-    final Color focusedIconColor =
-        isSlim ? cs.onSecondaryContainer : cs.primary;
+    final Color focusedIconColor = isSlim
+        ? cs.onSecondaryContainer
+        : cs.primary;
 
-    final prefixIcon = widget.leading ??
+    final prefixIcon =
+        widget.leading ??
         Icon(
           FluentIcons.search_24_regular,
           size: prefixIconSize,
@@ -386,8 +402,10 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
           suffixIcon: suffixWidget,
           suffixIconConstraints: BoxConstraints(
             minWidth: suffixChildren.isNotEmpty
-                ? (suffixChildren.length * (isSlim ? 28.0 : 34.0))
-                    .clamp(isSlim ? 28.0 : 34.0, 180.0)
+                ? (suffixChildren.length * (isSlim ? 28.0 : 34.0)).clamp(
+                    isSlim ? 28.0 : 34.0,
+                    180.0,
+                  )
                 : (isSlim ? 32.0 : 40.0),
             minHeight: effectiveHeight,
           ),

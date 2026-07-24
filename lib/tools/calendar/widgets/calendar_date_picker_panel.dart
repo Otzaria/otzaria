@@ -165,14 +165,16 @@ class _MonthGridScaffold extends StatelessWidget {
                     children: [
                       for (int c = 0; c < 7; c++)
                         Expanded(
-                          child: Builder(builder: (_) {
-                            final index = r * 7 + c;
-                            if (index < leadingBlanks ||
-                                index >= leadingBlanks + daysInMonth) {
-                              return const SizedBox.shrink();
-                            }
-                            return buildCell(index - leadingBlanks + 1);
-                          }),
+                          child: Builder(
+                            builder: (_) {
+                              final index = r * 7 + c;
+                              if (index < leadingBlanks ||
+                                  index >= leadingBlanks + daysInMonth) {
+                                return const SizedBox.shrink();
+                              }
+                              return buildCell(index - leadingBlanks + 1);
+                            },
+                          ),
                         ),
                     ],
                   ),
@@ -224,8 +226,8 @@ class _DateCell extends StatelessWidget {
                 color: isSelected
                     ? cs.onPrimary
                     : enabled
-                        ? cs.onSurface
-                        : Theme.of(context).disabledColor,
+                    ? cs.onSurface
+                    : Theme.of(context).disabledColor,
                 fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
               ),
             ),
@@ -303,7 +305,10 @@ class _HebrewMonthGridState extends State<_HebrewMonthGrid> {
     jd.back(Calendar.MONTH, 1);
     final lastDay = JewishDate()
       ..setJewishDate(
-          jd.getJewishYear(), jd.getJewishMonth(), jd.getDaysInJewishMonth());
+        jd.getJewishYear(),
+        jd.getJewishMonth(),
+        jd.getDaysInJewishMonth(),
+      );
     return !lastDay.getGregorianCalendar().isBefore(widget.firstDate);
   }
 
@@ -328,13 +333,16 @@ class _HebrewMonthGridState extends State<_HebrewMonthGrid> {
             .getGregorianCalendar();
         return _DateCell(
           label: formatHebrewDay(day),
-          isSelected: _year == selectedJd.getJewishYear() &&
+          isSelected:
+              _year == selectedJd.getJewishYear() &&
               _month == selectedJd.getJewishMonth() &&
               day == selectedJd.getJewishDayOfMonth(),
-          isToday: _year == todayJd.getJewishYear() &&
+          isToday:
+              _year == todayJd.getJewishYear() &&
               _month == todayJd.getJewishMonth() &&
               day == todayJd.getJewishDayOfMonth(),
-          enabled: !cellDate.isBefore(widget.firstDate) &&
+          enabled:
+              !cellDate.isBefore(widget.firstDate) &&
               !cellDate.isAfter(widget.lastDate),
           onTap: () => widget.onDateChanged(cellDate),
         );
@@ -420,12 +428,14 @@ class _GregorianMonthGridState extends State<_GregorianMonthGrid> {
         final cellDate = DateTime(_year, _month, day);
         return _DateCell(
           label: '$day',
-          isSelected: _year == selected.year &&
+          isSelected:
+              _year == selected.year &&
               _month == selected.month &&
               day == selected.day,
           isToday:
               _year == today.year && _month == today.month && day == today.day,
-          enabled: !cellDate.isBefore(widget.firstDate) &&
+          enabled:
+              !cellDate.isBefore(widget.firstDate) &&
               !cellDate.isAfter(widget.lastDate),
           onTap: () => widget.onDateChanged(cellDate),
         );

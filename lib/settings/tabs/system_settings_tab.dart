@@ -993,8 +993,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         SettingsActionTile.text(
           icon: FluentIcons.mail_24_regular,
           title: 'כתובת דואר אלקטרוני לזיהוי',
-          subtitle:
-              senderEmail.isEmpty ? 'עדיין לא הוגדרה כתובת זיהוי' : senderEmail,
+          subtitle: senderEmail.isEmpty
+              ? 'עדיין לא הוגדרה כתובת זיהוי'
+              : senderEmail,
           subtitleLtr: senderEmail.isNotEmpty,
           actions: [
             if (senderEmail.isNotEmpty)

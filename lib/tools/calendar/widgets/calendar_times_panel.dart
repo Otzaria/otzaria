@@ -128,7 +128,7 @@ CalendarTimeEntry? _pairedEntry(
 class CalendarTimesPanel extends StatefulWidget {
   final CalendarState state;
   final Future<void> Function(BuildContext context)
-      onOpenCalendarCalculationPage;
+  onOpenCalendarCalculationPage;
 
   const CalendarTimesPanel({
     super.key,
@@ -148,8 +148,9 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
   /// מסונן לזמנים שהמשתמש הפעיל ושרלוונטיים ליום הנבחר.
   List<CalendarTimeEntry> _buildCalendarTimeEntries(CalendarState state) {
     final dailyTimes = state.dailyTimes;
-    final jewishCalendar =
-        JewishCalendar.fromDateTime(state.selectedGregorianDate);
+    final jewishCalendar = JewishCalendar.fromDateTime(
+      state.selectedGregorianDate,
+    );
     jewishCalendar.inIsrael = state.inIsrael;
 
     // אוספים את ההגדרות המופעלות והרלוונטיות, בסדר הרישום.
@@ -250,8 +251,9 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
       final currentWidth = current.isComposite ? 2 : 1;
 
       if (occupiedSlotsInRow == 1 && currentWidth == 2) {
-        final replacementIndex =
-            remaining.indexWhere((entry) => entry.isComposite == false);
+        final replacementIndex = remaining.indexWhere(
+          (entry) => entry.isComposite == false,
+        );
         if (replacementIndex != -1) {
           final replacement = remaining.removeAt(replacementIndex);
           arranged.add(replacement);
@@ -488,11 +490,13 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
         final isSingleColumn = constraints.maxWidth < 290;
         final columnCount = isSingleColumn ? 1 : 2;
         final spacing = 8.0;
-        final arrangedTimesList =
-            _arrangeEntriesForGrid(filteredTimesList, columnCount);
+        final arrangedTimesList = _arrangeEntriesForGrid(
+          filteredTimesList,
+          columnCount,
+        );
         final itemWidth =
             (constraints.maxWidth - (spacing * (columnCount - 1))) /
-                columnCount;
+            columnCount;
 
         return Wrap(
           spacing: spacing,
@@ -531,11 +535,13 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
                       );
                       return;
                     }
-                    _runZmanAlertOp(cubit.setZmanAlertPreference(
-                      timeId: timeId,
-                      displayName: timeName,
-                      minutesBefore: result.minutesBefore,
-                    ));
+                    _runZmanAlertOp(
+                      cubit.setZmanAlertPreference(
+                        timeId: timeId,
+                        displayName: timeName,
+                        minutesBefore: result.minutesBefore,
+                      ),
+                    );
                   },
                 ),
               ),
@@ -562,8 +568,9 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
   }
 
   Widget _buildDafYomiButtons(BuildContext context) {
-    final jewishCalendar =
-        JewishCalendar.fromDateTime(widget.state.selectedGregorianDate);
+    final jewishCalendar = JewishCalendar.fromDateTime(
+      widget.state.selectedGregorianDate,
+    );
     String bavliTractate;
     int bavliDaf;
     try {
@@ -576,9 +583,9 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
     }
     final dafLabel = bavliDaf > 0
         ? HebrewDateFormatter()
-            .formatHebrewNumber(bavliDaf)
-            .replaceAll('״', '')
-            .replaceAll('׳', '')
+              .formatHebrewNumber(bavliDaf)
+              .replaceAll('״', '')
+              .replaceAll('׳', '')
         : '';
 
     return ActionButton.recommended(
@@ -587,10 +594,10 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
       onPressed: bavliTractate == 'לא זמין'
           ? () => UiSnack.showError(ToolsMessages.dafYomiUnavailableForDate)
           : () => openDafYomiBook(
-                context,
-                bavliTractate,
-                _buildDafNavigationTarget(dafLabel),
-              ),
+              context,
+              bavliTractate,
+              _buildDafNavigationTarget(dafLabel),
+            ),
     );
   }
 
@@ -632,11 +639,13 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
           );
           return;
         }
-        _runZmanAlertOp(cubit.setZmanAlertPreference(
-          timeId: 'omerCounting',
-          displayName: 'ספירת העומר',
-          minutesBefore: result.minutesBefore,
-        ));
+        _runZmanAlertOp(
+          cubit.setZmanAlertPreference(
+            timeId: 'omerCounting',
+            displayName: 'ספירת העומר',
+            minutesBefore: result.minutesBefore,
+          ),
+        );
       },
     );
   }
@@ -679,10 +688,12 @@ class _CityDropdown extends StatelessWidget {
 /// במקום לבלוע אותן בשקט. נדרש כי await ישיר גורם לקפיאת UI בזמן
 /// שכלול ההתראות (חישוב זמנים יומי + תזמון notifications מערכת).
 void _runZmanAlertOp(Future<void> future) {
-  unawaited(future.catchError((Object error, StackTrace stackTrace) {
-    debugPrint('ZmanAlert op failed: $error\n$stackTrace');
-    UiSnack.showError(ToolsMessages.zmanAlertUpdateError);
-  }));
+  unawaited(
+    future.catchError((Object error, StackTrace stackTrace) {
+      debugPrint('ZmanAlert op failed: $error\n$stackTrace');
+      UiSnack.showError(ToolsMessages.zmanAlertUpdateError);
+    }),
+  );
 }
 
 String _formatAlertMinutes(int minutes) {
@@ -769,7 +780,8 @@ class _ZmanCard extends StatelessWidget {
     // אפשרות אחת בלבד — ואז גם הצד הקיים (trailing או leading) חייב
     // להשתמש ב-alertOptions[0]. רק כששניהם קיימים leading משתמש ב-[1].
     final hasTrailing = trailingLabel != null && alertOptions.isNotEmpty;
-    final hasLeading = leadingLabel != null &&
+    final hasLeading =
+        leadingLabel != null &&
         (hasTrailing ? alertOptions.length >= 2 : alertOptions.isNotEmpty);
     final leadingIndex = hasTrailing ? 1 : 0;
     return Row(
@@ -797,7 +809,9 @@ class _ZmanCard extends StatelessWidget {
               titleAtStart: false,
               existingAlert: zmanAlerts[alertOptions[leadingIndex].id],
               onPressed: () => _openAlertDialogForOption(
-                  context, alertOptions[leadingIndex]),
+                context,
+                alertOptions[leadingIndex],
+              ),
             ),
           ),
       ],
@@ -808,10 +822,10 @@ class _ZmanCard extends StatelessWidget {
     final base = entry.name.length > 28
         ? 11.0
         : entry.name.length > 20
-            ? 12.0
-            : entry.name.length > 16
-                ? 13.0
-                : 14.0;
+        ? 12.0
+        : entry.name.length > 16
+        ? 13.0
+        : 14.0;
     return base + 1;
   }
 
@@ -850,12 +864,12 @@ class _ZmanCard extends StatelessWidget {
             children: [
               Builder(
                 builder: (context) {
-                  final nameStyle =
-                      Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            fontSize: _titleFontSizeFor(timeData),
-                            color: primaryTextColor,
-                          );
+                  final nameStyle = Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontSize: _titleFontSizeFor(timeData),
+                        color: primaryTextColor,
+                      );
                   // כרטיס בודד עם תת-כותרת: שורת כותרת + שורת פירוט קטנה.
                   final showSubtitle =
                       !timeData.isComposite && timeData.subtitle.isNotEmpty;
@@ -880,11 +894,11 @@ class _ZmanCard extends StatelessWidget {
                           child: Text(
                             timeData.subtitle,
                             textAlign: TextAlign.center,
-                            style:
-                                Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      fontSize: 11,
-                                      color: secondaryTextColor,
-                                    ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  fontSize: 11,
+                                  color: secondaryTextColor,
+                                ),
                           ),
                         ),
                     ],
@@ -934,9 +948,7 @@ class _ZmanCard extends StatelessWidget {
                           : Text(
                               timeData.time,
                               textAlign: TextAlign.center,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
+                              style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
                                     fontWeight: FontWeight.bold,
                                     color: secondaryTextColor,
@@ -950,10 +962,12 @@ class _ZmanCard extends StatelessWidget {
                         existingAlert: existingAlert,
                         tooltip: hasAlert
                             ? _tooltipForAlert(
-                                existingAlert, 'הפעל התראה לזמן זה')
+                                existingAlert,
+                                'הפעל התראה לזמן זה',
+                              )
                             : timeData.alertOptions.isEmpty
-                                ? 'הפעל התראה לזמן זה'
-                                : 'בחר זמן להתראה',
+                            ? 'הפעל התראה לזמן זה'
+                            : 'בחר זמן להתראה',
                         foregroundColor: primaryTextColor,
                         onPressed: onAlertPressed,
                         menuEntries: timeData.alertOptions,
@@ -988,11 +1002,13 @@ class _ZmanCard extends StatelessWidget {
       _runZmanAlertOp(cubit.cancelZmanAlertPreference(timeId: option.id));
       return;
     }
-    _runZmanAlertOp(cubit.setZmanAlertPreference(
-      timeId: option.id,
-      displayName: option.name,
-      minutesBefore: result.minutesBefore,
-    ));
+    _runZmanAlertOp(
+      cubit.setZmanAlertPreference(
+        timeId: option.id,
+        displayName: option.name,
+        minutesBefore: result.minutesBefore,
+      ),
+    );
   }
 }
 
@@ -1016,8 +1032,9 @@ class _AlertControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final iconData =
-        hasAlert ? FluentIcons.alert_24_filled : FluentIcons.alert_24_regular;
+    final iconData = hasAlert
+        ? FluentIcons.alert_24_filled
+        : FluentIcons.alert_24_regular;
     final minutesBefore = existingAlert?.minutesBefore;
 
     final action = menuEntries.isEmpty
@@ -1063,9 +1080,9 @@ class _AlertControl extends StatelessWidget {
           child: Text(
             minutesBefore != null ? _formatAlertMinutes(minutesBefore) : '',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: foregroundColor,
-                  fontSize: 11,
-                ),
+              color: foregroundColor,
+              fontSize: 11,
+            ),
           ),
         ),
         const SizedBox(height: 4),
@@ -1113,7 +1130,8 @@ class _OverflowAwareTooltipText extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final hasOverflow = constraints.maxWidth.isFinite &&
+        final hasOverflow =
+            constraints.maxWidth.isFinite &&
             constraints.maxWidth > 0 &&
             _textOverflows(
               context: context,
@@ -1191,10 +1209,10 @@ class _CompositeLabelValue extends StatelessWidget {
             child: Text(
               title,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: textColor,
-                    fontSize: 11,
-                  ),
+                fontWeight: FontWeight.w600,
+                color: textColor,
+                fontSize: 11,
+              ),
             ),
           ),
         ),
@@ -1205,10 +1223,10 @@ class _CompositeLabelValue extends StatelessWidget {
             child: Text(
               value,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
-                    fontSize: 12,
-                  ),
+                fontWeight: FontWeight.bold,
+                color: textColor,
+                fontSize: 12,
+              ),
             ),
           ),
         ),

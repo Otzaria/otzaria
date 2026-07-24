@@ -130,8 +130,8 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
 
     final matchesInitial =
         normalizedInitialContent == normalizedCurrentContent &&
-            normalizedInitialPlain == normalizedCurrentPlain &&
-            _initialResult.contentFormat == result.contentFormat;
+        normalizedInitialPlain == normalizedCurrentPlain &&
+        _initialResult.contentFormat == result.contentFormat;
 
     if (matchesInitial || normalizedCurrentPlain.isEmpty) {
       await _clearDraft();

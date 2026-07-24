@@ -59,12 +59,12 @@ class PhoneReportData extends Equatable {
 
   /// Convert to JSON for API submission
   Map<String, dynamic> toJson() => {
-        'library_ver': libraryVersion,
-        'book_id': bookId,
-        'line': lineNumber,
-        'error_id': errorId,
-        'more_info': moreInfo,
-      };
+    'library_ver': libraryVersion,
+    'book_id': bookId,
+    'line': lineNumber,
+    'error_id': errorId,
+    'more_info': moreInfo,
+  };
 
   /// Create from JSON (for testing purposes)
   factory PhoneReportData.fromJson(Map<String, dynamic> json) {
@@ -99,13 +99,13 @@ class PhoneReportData extends Equatable {
 
   @override
   List<Object?> get props => [
-        selectedText,
-        errorId,
-        moreInfo,
-        libraryVersion,
-        bookId,
-        lineNumber,
-      ];
+    selectedText,
+    errorId,
+    moreInfo,
+    libraryVersion,
+    bookId,
+    lineNumber,
+  ];
 
   @override
   String toString() {

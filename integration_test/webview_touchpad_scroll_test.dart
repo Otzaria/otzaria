@@ -121,8 +121,10 @@ void main() {
       await Future<void>.delayed(const Duration(seconds: 1));
       final dragDistance = await _scrollY(controller);
       // ignore: avoid_print
-      print('TOUCHPAD-TRACKING: finger=120px page=${dragDistance}px '
-          'ratio=${(dragDistance / 120).toStringAsFixed(2)} (gain=1.5)');
+      print(
+        'TOUCHPAD-TRACKING: finger=120px page=${dragDistance}px '
+        'ratio=${(dragDistance / 120).toStringAsFixed(2)} (gain=1.5)',
+      );
       expect(dragDistance, greaterThan(150));
       expect(dragDistance, lessThan(220));
 
@@ -155,12 +157,15 @@ void main() {
         timeout: const Duration(seconds: 5),
       );
       // ignore: avoid_print
-      print('TOUCHPAD-INERTIA: atRelease=${atRelease}px '
-          'afterGlide=${afterGlide}px');
+      print(
+        'TOUCHPAD-INERTIA: atRelease=${atRelease}px '
+        'afterGlide=${afterGlide}px',
+      );
       expect(
         afterGlide,
         greaterThan(atRelease + 30),
-        reason: 'אחרי הרמת האצבעות במחווה מהירה הדף חייב להמשיך לגלוש '
+        reason:
+            'אחרי הרמת האצבעות במחווה מהירה הדף חייב להמשיך לגלוש '
             '(אינרציה) ולא לעצור במקום',
       );
 

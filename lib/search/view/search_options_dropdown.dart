@@ -46,9 +46,11 @@ class _SearchOptionsDropdownState extends State<SearchOptionsDropdown> {
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      icon: Icon(_isExpanded
-          ? FluentIcons.chevron_up_24_regular
-          : FluentIcons.chevron_down_24_regular),
+      icon: Icon(
+        _isExpanded
+            ? FluentIcons.chevron_up_24_regular
+            : FluentIcons.chevron_down_24_regular,
+      ),
       tooltip: 'אפשרויות חיפוש',
       onPressed: _toggleExpanded,
     );
@@ -88,11 +90,11 @@ class _SearchOptionsRowState extends State<SearchOptionsRow> {
   // האפשרויות הבלעדיות למתקדם מצטרפות רק כשהמצב מתקדם
   // (widget.showAdvancedOnlyOptions).
   List<String> get _availableOptions => [
-        ...SearchQueryBuilder.availableWordOptionKeys,
-        if (widget.showAdvancedOnlyOptions)
-          ...SearchQueryBuilder.advancedOnlyWordOptionKeys,
-        ...SearchQueryBuilder.vocalizedWordOptionKeys,
-      ];
+    ...SearchQueryBuilder.availableWordOptionKeys,
+    if (widget.showAdvancedOnlyOptions)
+      ...SearchQueryBuilder.advancedOnlyWordOptionKeys,
+    ...SearchQueryBuilder.vocalizedWordOptionKeys,
+  ];
 
   Map<String, bool> _getCurrentWordOptions() {
     final currentWord = widget.currentWord;
@@ -222,7 +224,11 @@ class _SearchOptionsRowState extends State<SearchOptionsRow> {
           ),
           child: Padding(
             padding: const EdgeInsets.only(
-                left: 48.0, right: 16.0, top: 8.0, bottom: 8.0),
+              left: 48.0,
+              right: 16.0,
+              top: 8.0,
+              bottom: 8.0,
+            ),
             child: Wrap(
               spacing: 16.0, // רווח אופקי בין אלמנטים
               runSpacing: 8.0, // רווח אנכי בין שורות (זה המפתח!)

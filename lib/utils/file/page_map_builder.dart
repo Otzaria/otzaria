@@ -119,7 +119,9 @@ PageMap buildPageMapFromAnchors(
 
   // Sort by PDF page number so interpolation works correctly.
   final zipped = List.generate(
-      pdfPages.length, (i) => (page: pdfPages[i], idx: textIndices[i]));
+    pdfPages.length,
+    (i) => (page: pdfPages[i], idx: textIndices[i]),
+  );
   zipped.sort((a, b) => a.page.compareTo(b.page));
 
   return PageMap(

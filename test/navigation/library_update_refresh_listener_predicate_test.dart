@@ -17,8 +17,7 @@ void main() {
       expect(_shouldRefresh(previous, current), isTrue);
     });
 
-    test(
-        'רגרסיה: מגיב כש-hasUpdate מתהפך בעוד status נשאר completed '
+    test('רגרסיה: מגיב כש-hasUpdate מתהפך בעוד status נשאר completed '
         '(ריצה שבוטלה פולטת completed אחרי ריצה חדשה)', () {
       const previous = LibraryUpdateState(
         status: LibraryUpdateStatus.completed,
@@ -29,25 +28,30 @@ void main() {
         hasUpdate: true,
       );
 
-      expect(_shouldRefresh(previous, current), isTrue,
-          reason: 'התהפכות hasUpdate ב-completed חייבת להפעיל ריענון');
+      expect(
+        _shouldRefresh(previous, current),
+        isTrue,
+        reason: 'התהפכות hasUpdate ב-completed חייבת להפעיל ריענון',
+      );
     });
 
-    test('לא מגיב כששום דבר רלוונטי לא השתנה (אותו status, אותו hasUpdate)',
-        () {
-      const previous = LibraryUpdateState(
-        status: LibraryUpdateStatus.completed,
-        hasUpdate: true,
-        message: 'הספרייה עודכנה',
-      );
-      // רק message השתנה — לא רלוונטי למאזין הריענון.
-      const current = LibraryUpdateState(
-        status: LibraryUpdateStatus.completed,
-        hasUpdate: true,
-        message: 'הספרייה מעודכנת',
-      );
+    test(
+      'לא מגיב כששום דבר רלוונטי לא השתנה (אותו status, אותו hasUpdate)',
+      () {
+        const previous = LibraryUpdateState(
+          status: LibraryUpdateStatus.completed,
+          hasUpdate: true,
+          message: 'הספרייה עודכנה',
+        );
+        // רק message השתנה — לא רלוונטי למאזין הריענון.
+        const current = LibraryUpdateState(
+          status: LibraryUpdateStatus.completed,
+          hasUpdate: true,
+          message: 'הספרייה מעודכנת',
+        );
 
-      expect(_shouldRefresh(previous, current), isFalse);
-    });
+        expect(_shouldRefresh(previous, current), isFalse);
+      },
+    );
   });
 }

@@ -65,8 +65,11 @@ void main() {
       };
       for (final entry in expected.entries) {
         final block = PrintBlock(kind: entry.key, text: 'x');
-        expect(block.toJson()['kind'], entry.value,
-            reason: 'kind ${entry.key} שגוי');
+        expect(
+          block.toJson()['kind'],
+          entry.value,
+          reason: 'kind ${entry.key} שגוי',
+        );
       }
     });
 

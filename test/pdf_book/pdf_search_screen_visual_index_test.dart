@@ -70,20 +70,21 @@ Future<void> main() async {
     });
 
     test(
-        'באג P1: עמוד נוכחי אחרי כל התוצאות → fallback לעמוד האחרון, לא הראשון',
-        () {
-      // עמודים: 5, 10, 15. currentPage = 100 → אין עמוד >= 100.
-      // fallback צריך להיות העמוד האחרון (15), לא הראשון (5).
-      // מבנה: [hdr5, r, hdr10, r, hdr15, r]. אינדקס hdr15 = 4.
-      expect(
-        PdfBookSearchView.computeTargetVisualIndexForTesting(
-          resultsPageNumbersSorted: const [5, 10, 15],
-          currentPage: 100,
-        ),
-        4,
-        reason: 'fallback אמור להיות העמוד האחרון, לא הראשון',
-      );
-    });
+      'באג P1: עמוד נוכחי אחרי כל התוצאות → fallback לעמוד האחרון, לא הראשון',
+      () {
+        // עמודים: 5, 10, 15. currentPage = 100 → אין עמוד >= 100.
+        // fallback צריך להיות העמוד האחרון (15), לא הראשון (5).
+        // מבנה: [hdr5, r, hdr10, r, hdr15, r]. אינדקס hdr15 = 4.
+        expect(
+          PdfBookSearchView.computeTargetVisualIndexForTesting(
+            resultsPageNumbersSorted: const [5, 10, 15],
+            currentPage: 100,
+          ),
+          4,
+          reason: 'fallback אמור להיות העמוד האחרון, לא הראשון',
+        );
+      },
+    );
 
     test('עמוד אחד עם הרבה תוצאות', () {
       // 5 תוצאות באותו עמוד. currentPage = 7 → אין עמוד >= 7 → fallback ל-5.
@@ -127,23 +128,27 @@ Future<void> main() async {
     });
 
     testWidgets('מדגיש טקסט רגיל בחיפוש PDF פשוט', (tester) async {
-      await tester.pumpWidget(_buildTile(
-        settingsBloc: settingsBloc,
-        text: 'שלום עולם',
-        query: 'שלום',
-        isSimpleSearch: true,
-      ));
+      await tester.pumpWidget(
+        _buildTile(
+          settingsBloc: settingsBloc,
+          text: 'שלום עולם',
+          query: 'שלום',
+          isSimpleSearch: true,
+        ),
+      );
 
       expect(_highlightedText(tester), 'שלום');
     }, skip: !engineReady);
 
     testWidgets('מכבד HTML מודגש מתוצאות מנוע החיפוש', (tester) async {
-      await tester.pumpWidget(_buildTile(
-        settingsBloc: settingsBloc,
-        text: '<font color="red">שלום</font> עולם',
-        query: 'שלום',
-        isSimpleSearch: false,
-      ));
+      await tester.pumpWidget(
+        _buildTile(
+          settingsBloc: settingsBloc,
+          text: '<font color="red">שלום</font> עולם',
+          query: 'שלום',
+          isSimpleSearch: false,
+        ),
+      );
 
       expect(_highlightedText(tester), 'שלום');
     });
@@ -162,15 +167,16 @@ Widget _buildTile({
       child: Scaffold(
         body: SearchResultTile(
           result: SearchResult(
-              id: BigInt.one,
-              title: 'ספר',
-              reference: 'עמוד א',
-              text: text,
-              segment: BigInt.zero,
-              isPdf: true,
-              filePath: 'book.pdf',
-              mergedCount: 1,
-              merged: const []),
+            id: BigInt.one,
+            title: 'ספר',
+            reference: 'עמוד א',
+            text: text,
+            segment: BigInt.zero,
+            isPdf: true,
+            filePath: 'book.pdf',
+            mergedCount: 1,
+            merged: const [],
+          ),
           onTap: () {},
           height: 50,
           query: query,

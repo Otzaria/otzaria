@@ -43,8 +43,9 @@ void main() {
       calendarCubit.close();
     });
 
-    testWidgets('arrow navigation resumes after requesting focus again',
-        (tester) async {
+    testWidgets('arrow navigation resumes after requesting focus again', (
+      tester,
+    ) async {
       final calendarKey = GlobalKey<CalendarWidgetState>();
 
       await tester.pumpWidget(
@@ -124,8 +125,9 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      final shiftedDate = calendarCubit.state.selectedGregorianDate
-          .add(const Duration(days: 5));
+      final shiftedDate = calendarCubit.state.selectedGregorianDate.add(
+        const Duration(days: 5),
+      );
       calendarCubit.jumpToDate(shiftedDate);
       await tester.pumpAndSettle();
 
@@ -198,6 +200,5 @@ class _FakeGoogleCalendarService extends GoogleCalendarService {
   @override
   Future<GoogleCalendarApiClient?> getApiClient({
     bool interactive = false,
-  }) async =>
-      null;
+  }) async => null;
 }

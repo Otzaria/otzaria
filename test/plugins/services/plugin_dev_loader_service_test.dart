@@ -80,14 +80,16 @@ void main() {
       devLoader = PluginDevLoaderService(repository: fakeRepo);
 
       final manifestFile = File(p.join(tempDir.path, 'manifest.json'));
-      manifestFile.writeAsStringSync(jsonEncode({
-        'schemaVersion': 1,
-        'id': 'test.dev.repo.plugin',
-        'version': '1.0.0',
-        'name': 'Real Loader',
-        'entrypoint': 'index.html',
-        'permissions': ['app.info.read'] // valid permission
-      }));
+      manifestFile.writeAsStringSync(
+        jsonEncode({
+          'schemaVersion': 1,
+          'id': 'test.dev.repo.plugin',
+          'version': '1.0.0',
+          'name': 'Real Loader',
+          'entrypoint': 'index.html',
+          'permissions': ['app.info.read'], // valid permission
+        }),
+      );
 
       final entrypointFile = File(p.join(tempDir.path, 'index.html'));
       entrypointFile.createSync();
@@ -99,145 +101,59 @@ void main() {
       }
     });
 
-    test('loadDevelopmentPlugin parses directory and saves via repository',
-        () async {
-      await devLoader.loadDevelopmentPlugin(tempDir.path);
-      expect(fakeRepo.savedPlugin, isNotNull);
-      expect(fakeRepo.savedPlugin!.pluginId, 'test.dev.repo.plugin');
-      expect(fakeRepo.savedPlugin!.name, 'Real Loader');
-      expect(fakeRepo.savedPlugin!.sourceType, 'development');
-      expect(fakeRepo.savedPlugin!.devRootPath, tempDir.path);
-      expect(fakeRepo.savedPlugin!.isDevelopment, isTrue);
-      // Ensure the validator rules were passed seamlessly via the loader
-      expect(
+    test(
+      'loadDevelopmentPlugin parses directory and saves via repository',
+      () async {
+        await devLoader.loadDevelopmentPlugin(tempDir.path);
+        expect(fakeRepo.savedPlugin, isNotNull);
+        expect(fakeRepo.savedPlugin!.pluginId, 'test.dev.repo.plugin');
+        expect(fakeRepo.savedPlugin!.name, 'Real Loader');
+        expect(fakeRepo.savedPlugin!.sourceType, 'development');
+        expect(fakeRepo.savedPlugin!.devRootPath, tempDir.path);
+        expect(fakeRepo.savedPlugin!.isDevelopment, isTrue);
+        // Ensure the validator rules were passed seamlessly via the loader
+        expect(
           fakeRepo.savedPlugin!.manifest.permissions.contains('app.info.read'),
-          isTrue);
-    });
+          isTrue,
+        );
+      },
+    );
 
     test(
-        'loadDevelopmentPlugin loads a plugin whose minAppVersion is newer '
-        'than the installed app — dev plugins bypass version compatibility',
-        () async {
-      final manifestFile = File(p.join(tempDir.path, 'manifest.json'));
-      manifestFile.writeAsStringSync(jsonEncode({
-        'schemaVersion': 1,
-        'id': 'test.future.version.plugin',
-        'version': '1.0.0',
-        'name': 'Future Ver',
-        'entrypoint': 'index.html',
-        'minAppVersion': '99.0.0', // גרסה עתידית גבוהה מהמותקנת (1.0.0)
-        'permissions': ['app.info.read'],
-      }));
+      'loadDevelopmentPlugin loads a plugin whose minAppVersion is newer '
+      'than the installed app — dev plugins bypass version compatibility',
+      () async {
+        final manifestFile = File(p.join(tempDir.path, 'manifest.json'));
+        manifestFile.writeAsStringSync(
+          jsonEncode({
+            'schemaVersion': 1,
+            'id': 'test.future.version.plugin',
+            'version': '1.0.0',
+            'name': 'Future Ver',
+            'entrypoint': 'index.html',
+            'minAppVersion': '99.0.0', // גרסה עתידית גבוהה מהמותקנת (1.0.0)
+            'permissions': ['app.info.read'],
+          }),
+        );
 
-      await devLoader.loadDevelopmentPlugin(tempDir.path);
+        await devLoader.loadDevelopmentPlugin(tempDir.path);
 
-      expect(fakeRepo.savedPlugin, isNotNull);
-      expect(fakeRepo.savedPlugin!.pluginId, 'test.future.version.plugin');
-    });
+        expect(fakeRepo.savedPlugin, isNotNull);
+        expect(fakeRepo.savedPlugin!.pluginId, 'test.future.version.plugin');
+      },
+    );
 
     test('loadDevelopmentPlugin throws exception on invalid schema', () async {
       final manifestFile = File(p.join(tempDir.path, 'manifest.json'));
-      manifestFile.writeAsStringSync(jsonEncode({
-        'schemaVersion': 2, // Invalid
-        'id': 'test.schema.plugin',
-        'version': '1.0.0',
-        'name': 'Bad Schema',
-        'entrypoint': 'index.html',
-      }));
-
-      expect(
-        () => devLoader.loadDevelopmentPlugin(tempDir.path),
-        throwsA(isA<Exception>()
-            .having((e) => e.toString(), 'message', contains('אינה נתמכת'))),
+      manifestFile.writeAsStringSync(
+        jsonEncode({
+          'schemaVersion': 2, // Invalid
+          'id': 'test.schema.plugin',
+          'version': '1.0.0',
+          'name': 'Bad Schema',
+          'entrypoint': 'index.html',
+        }),
       );
-    });
-
-    test('loadDevelopmentPlugin throws exception on missing entrypoint',
-        () async {
-      File(p.join(tempDir.path, 'index.html'))
-          .deleteSync(); // missing entrypoint
-      expect(
-        () => devLoader.loadDevelopmentPlugin(tempDir.path),
-        throwsA(isA<Exception>().having(
-            (e) => e.toString(), 'message', contains('לא נמצא בתיקייה'))),
-      );
-    });
-
-    test('loadDevelopmentPlugin throws exception on duplicate packaged plugin',
-        () async {
-      // Create a mocked packaged plugin with same ID
-      fakeRepo.mockExistingPlugin = InstalledPlugin(
-        pluginId: 'test.dev.repo.plugin',
-        name: 'Existing Pkg',
-        version: '1.0.0',
-        installPath: tempDir.path,
-        entrypointPath: 'dummy.html',
-        enabled: true,
-        pinned: true,
-        manifest: PluginManifest(
-          schemaVersion: 1,
-          id: 'test.dev.repo.plugin',
-          version: '1.0.0',
-          minAppVersion: '1.0.0',
-          name: 'Existing Pkg',
-          entrypoint: 'dummy.html',
-          defaultPinned: true,
-          permissions: [],
-          description: 'test',
-          author: 'tester',
-          homepage: 'https://test.com',
-          sdkVersion: '1.0.0',
-          networkEnabled: false,
-          networkAllowlist: [],
-          toolTabTitle: 'Tab',
-          toolTabOrder: 0,
-          publishedDataTypes: [],
-        ),
-        installedAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        sourceType: 'packaged',
-      );
-
-      expect(
-        () => devLoader.loadDevelopmentPlugin(tempDir.path),
-        throwsA(isA<Exception>().having((e) => e.toString(), 'message',
-            contains('כבר קיים תוסף מותקן (רגיל) עם אותו מזהה.'))),
-      );
-    });
-
-    test('loadDevelopmentPlugin throws exception on invalid permission',
-        () async {
-      final manifestFile = File(p.join(tempDir.path, 'manifest.json'));
-      manifestFile.writeAsStringSync(jsonEncode({
-        'schemaVersion': 1,
-        'id': 'test.schema.plugin',
-        'version': '1.0.0',
-        'name': 'Bad Permission',
-        'entrypoint': 'index.html',
-        'permissions': ['malicious.admin.access']
-      }));
-
-      expect(
-        () => devLoader.loadDevelopmentPlugin(tempDir.path),
-        throwsA(isA<Exception>().having(
-            (e) => e.toString(), 'message', contains('הרשאה לא חוקית'))),
-      );
-    });
-
-    test(
-        'loadDevelopmentPlugin throws exception when iconName has invalid format',
-        () async {
-      final manifestFile = File(p.join(tempDir.path, 'manifest.json'));
-      manifestFile.writeAsStringSync(jsonEncode({
-        'schemaVersion': 1,
-        'id': 'test.icon.invalid.name',
-        'version': '1.0.0',
-        'name': 'Bad Icon Name',
-        'entrypoint': 'index.html',
-        'contributes': {
-          'toolTab': {'title': 'Bad Icon Name', 'iconName': 'not-a-valid-icon'}
-        }
-      }));
 
       expect(
         () => devLoader.loadDevelopmentPlugin(tempDir.path),
@@ -245,25 +161,154 @@ void main() {
           isA<Exception>().having(
             (e) => e.toString(),
             'message',
-            contains('toolTab.iconName חייב להיות שם אייקון FluentUI'),
+            contains('אינה נתמכת'),
           ),
         ),
       );
     });
 
     test(
-        'loadDevelopmentPlugin preserves existing grants and clears removed permissions',
-        () async {
-      // Setup: existing plugin had two permissions – app.info.read (granted), network.request (denied)
-      fakeRepo.mockExistingPlugin = InstalledPlugin(
-        pluginId: 'test.grants.plugin',
-        name: 'Grants Plugin',
-        version: '1.0.0',
-        installPath: tempDir.path,
-        entrypointPath: 'dummy.html',
-        enabled: true,
-        pinned: true,
-        manifest: PluginManifest(
+      'loadDevelopmentPlugin throws exception on missing entrypoint',
+      () async {
+        File(
+          p.join(tempDir.path, 'index.html'),
+        ).deleteSync(); // missing entrypoint
+        expect(
+          () => devLoader.loadDevelopmentPlugin(tempDir.path),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('לא נמצא בתיקייה'),
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'loadDevelopmentPlugin throws exception on duplicate packaged plugin',
+      () async {
+        // Create a mocked packaged plugin with same ID
+        fakeRepo.mockExistingPlugin = InstalledPlugin(
+          pluginId: 'test.dev.repo.plugin',
+          name: 'Existing Pkg',
+          version: '1.0.0',
+          installPath: tempDir.path,
+          entrypointPath: 'dummy.html',
+          enabled: true,
+          pinned: true,
+          manifest: PluginManifest(
+            schemaVersion: 1,
+            id: 'test.dev.repo.plugin',
+            version: '1.0.0',
+            minAppVersion: '1.0.0',
+            name: 'Existing Pkg',
+            entrypoint: 'dummy.html',
+            defaultPinned: true,
+            permissions: [],
+            description: 'test',
+            author: 'tester',
+            homepage: 'https://test.com',
+            sdkVersion: '1.0.0',
+            networkEnabled: false,
+            networkAllowlist: [],
+            toolTabTitle: 'Tab',
+            toolTabOrder: 0,
+            publishedDataTypes: [],
+          ),
+          installedAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+          sourceType: 'packaged',
+        );
+
+        expect(
+          () => devLoader.loadDevelopmentPlugin(tempDir.path),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('כבר קיים תוסף מותקן (רגיל) עם אותו מזהה.'),
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'loadDevelopmentPlugin throws exception on invalid permission',
+      () async {
+        final manifestFile = File(p.join(tempDir.path, 'manifest.json'));
+        manifestFile.writeAsStringSync(
+          jsonEncode({
+            'schemaVersion': 1,
+            'id': 'test.schema.plugin',
+            'version': '1.0.0',
+            'name': 'Bad Permission',
+            'entrypoint': 'index.html',
+            'permissions': ['malicious.admin.access'],
+          }),
+        );
+
+        expect(
+          () => devLoader.loadDevelopmentPlugin(tempDir.path),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('הרשאה לא חוקית'),
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'loadDevelopmentPlugin throws exception when iconName has invalid format',
+      () async {
+        final manifestFile = File(p.join(tempDir.path, 'manifest.json'));
+        manifestFile.writeAsStringSync(
+          jsonEncode({
+            'schemaVersion': 1,
+            'id': 'test.icon.invalid.name',
+            'version': '1.0.0',
+            'name': 'Bad Icon Name',
+            'entrypoint': 'index.html',
+            'contributes': {
+              'toolTab': {
+                'title': 'Bad Icon Name',
+                'iconName': 'not-a-valid-icon',
+              },
+            },
+          }),
+        );
+
+        expect(
+          () => devLoader.loadDevelopmentPlugin(tempDir.path),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('toolTab.iconName חייב להיות שם אייקון FluentUI'),
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'loadDevelopmentPlugin preserves existing grants and clears removed permissions',
+      () async {
+        // Setup: existing plugin had two permissions – app.info.read (granted), network.request (denied)
+        fakeRepo.mockExistingPlugin = InstalledPlugin(
+          pluginId: 'test.grants.plugin',
+          name: 'Grants Plugin',
+          version: '1.0.0',
+          installPath: tempDir.path,
+          entrypointPath: 'dummy.html',
+          enabled: true,
+          pinned: true,
+          manifest: PluginManifest(
             schemaVersion: 1,
             id: 'test.grants.plugin',
             version: '1.0.0',
@@ -280,112 +325,122 @@ void main() {
             networkAllowlist: [],
             toolTabTitle: '',
             toolTabOrder: 1,
-            publishedDataTypes: []),
-        installedAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        sourceType: 'development',
-      );
+            publishedDataTypes: [],
+          ),
+          installedAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+          sourceType: 'development',
+        );
 
-      // getPermission reads from recordedGrants (fixed above).
-      // app.info.read = granted, network.request = denied previously.
-      fakeRepo.recordedGrants = {
-        'app.info.read': true,
-        'network.request': false,
-      };
+        // getPermission reads from recordedGrants (fixed above).
+        // app.info.read = granted, network.request = denied previously.
+        fakeRepo.recordedGrants = {
+          'app.info.read': true,
+          'network.request': false,
+        };
 
-      // New manifest: network.request removed, app.info.read kept.
-      final manifestFile = File(p.join(tempDir.path, 'manifest.json'));
-      manifestFile.writeAsStringSync(jsonEncode({
-        'schemaVersion': 1,
-        'id': 'test.grants.plugin',
-        'version': '1.0.1',
-        'name': 'Grants Update',
-        'entrypoint': 'index.html',
-        'permissions': ['app.info.read']
-      }));
-      File(p.join(tempDir.path, 'index.html')).createSync();
+        // New manifest: network.request removed, app.info.read kept.
+        final manifestFile = File(p.join(tempDir.path, 'manifest.json'));
+        manifestFile.writeAsStringSync(
+          jsonEncode({
+            'schemaVersion': 1,
+            'id': 'test.grants.plugin',
+            'version': '1.0.1',
+            'name': 'Grants Update',
+            'entrypoint': 'index.html',
+            'permissions': ['app.info.read'],
+          }),
+        );
+        File(p.join(tempDir.path, 'index.html')).createSync();
 
-      await devLoader.loadDevelopmentPlugin(tempDir.path);
+        await devLoader.loadDevelopmentPlugin(tempDir.path);
 
-      // ASSERT 1: network.request was removed from new manifest →
-      // setPermission(false) must have been called to explicitly revoke it.
-      expect(
-        fakeRepo.recordedGrants['network.request'],
-        false,
-        reason: 'network.request נמחק מהמניפסט החדש – חייב להתאפס ל-false',
-      );
+        // ASSERT 1: network.request was removed from new manifest →
+        // setPermission(false) must have been called to explicitly revoke it.
+        expect(
+          fakeRepo.recordedGrants['network.request'],
+          false,
+          reason: 'network.request נמחק מהמניפסט החדש – חייב להתאפס ל-false',
+        );
 
-      // ASSERT 2: app.info.read existed in recordedGrants (returned by getPermission) →
-      // service should NOT call setPermission again (it skips permissions already in existingGrants).
-      // Therefore recordedGrants['app.info.read'] stays at its original value (true), not reset.
-      expect(
-        fakeRepo.recordedGrants['app.info.read'],
-        true,
-        reason:
-            'app.info.read כבר היה קיים ב-recordedGrants – לא אמור להיות נכתב מחדש',
-      );
-    });
+        // ASSERT 2: app.info.read existed in recordedGrants (returned by getPermission) →
+        // service should NOT call setPermission again (it skips permissions already in existingGrants).
+        // Therefore recordedGrants['app.info.read'] stays at its original value (true), not reset.
+        expect(
+          fakeRepo.recordedGrants['app.info.read'],
+          true,
+          reason:
+              'app.info.read כבר היה קיים ב-recordedGrants – לא אמור להיות נכתב מחדש',
+        );
+      },
+    );
 
     test(
-        'loadDevelopmentPlugin preserves existingPlugin.userOrder on reload — '
-        'manual ordering must survive dev plugin hot-reloads/manifest edits',
-        () async {
-      fakeRepo.mockExistingPlugin = InstalledPlugin(
-        pluginId: 'test.dev.repo.plugin',
-        name: 'Real Loader',
-        version: '0.9.0',
-        installPath: tempDir.path,
-        entrypointPath: 'index.html',
-        enabled: true,
-        pinned: true,
-        manifest: PluginManifest(
-          schemaVersion: 1,
-          id: 'test.dev.repo.plugin',
-          version: '0.9.0',
-          minAppVersion: '1.0.0',
+      'loadDevelopmentPlugin preserves existingPlugin.userOrder on reload — '
+      'manual ordering must survive dev plugin hot-reloads/manifest edits',
+      () async {
+        fakeRepo.mockExistingPlugin = InstalledPlugin(
+          pluginId: 'test.dev.repo.plugin',
           name: 'Real Loader',
-          entrypoint: 'index.html',
-          defaultPinned: true,
-          permissions: ['app.info.read'],
-          description: '',
-          author: '',
-          homepage: '',
-          sdkVersion: '',
-          networkEnabled: false,
-          networkAllowlist: const [],
-          toolTabTitle: '',
-          toolTabOrder: 900,
-          publishedDataTypes: const [],
-        ),
-        installedAt: DateTime.utc(2024),
-        updatedAt: DateTime.utc(2024),
-        sourceType: 'development',
-        devRootPath: tempDir.path,
-        userOrder: 3,
-      );
+          version: '0.9.0',
+          installPath: tempDir.path,
+          entrypointPath: 'index.html',
+          enabled: true,
+          pinned: true,
+          manifest: PluginManifest(
+            schemaVersion: 1,
+            id: 'test.dev.repo.plugin',
+            version: '0.9.0',
+            minAppVersion: '1.0.0',
+            name: 'Real Loader',
+            entrypoint: 'index.html',
+            defaultPinned: true,
+            permissions: ['app.info.read'],
+            description: '',
+            author: '',
+            homepage: '',
+            sdkVersion: '',
+            networkEnabled: false,
+            networkAllowlist: const [],
+            toolTabTitle: '',
+            toolTabOrder: 900,
+            publishedDataTypes: const [],
+          ),
+          installedAt: DateTime.utc(2024),
+          updatedAt: DateTime.utc(2024),
+          sourceType: 'development',
+          devRootPath: tempDir.path,
+          userOrder: 3,
+        );
 
-      await devLoader.loadDevelopmentPlugin(tempDir.path);
+        await devLoader.loadDevelopmentPlugin(tempDir.path);
 
-      expect(fakeRepo.savedPlugin, isNotNull);
-      expect(fakeRepo.savedPlugin!.userOrder, 3,
+        expect(fakeRepo.savedPlugin, isNotNull);
+        expect(
+          fakeRepo.savedPlugin!.userOrder,
+          3,
           reason:
               'userOrder of the existing dev plugin must be preserved across '
-              'reload — otherwise editing the manifest resets manual ordering.');
-    });
+              'reload — otherwise editing the manifest resets manual ordering.',
+        );
+      },
+    );
 
-    test(
-        'loadDevelopmentPlugin leaves userOrder=null on a first-time load '
+    test('loadDevelopmentPlugin leaves userOrder=null on a first-time load '
         'when no other plugin has a manual order yet', () async {
       // אין mockExistingPlugin ואין סדר ידני שמור — userOrder צריך להישאר null
       await devLoader.loadDevelopmentPlugin(tempDir.path);
 
-      expect(fakeRepo.savedPlugin!.userOrder, isNull,
-          reason: 'first-time dev load with no prior manual order must '
-              'default to manifest order');
+      expect(
+        fakeRepo.savedPlugin!.userOrder,
+        isNull,
+        reason:
+            'first-time dev load with no prior manual order must '
+            'default to manifest order',
+      );
     });
 
-    test(
-        'loadDevelopmentPlugin assigns userOrder=max+1 for a new dev plugin '
+    test('loadDevelopmentPlugin assigns userOrder=max+1 for a new dev plugin '
         'when others were already ordered manually', () async {
       // אין mockExistingPlugin (זה דגם של "first-time load") אבל
       // כן יש סדר ידני קיים, אז התוסף החדש מצטרף לסוף.
@@ -393,9 +448,13 @@ void main() {
 
       await devLoader.loadDevelopmentPlugin(tempDir.path);
 
-      expect(fakeRepo.savedPlugin!.userOrder, 7,
-          reason: 'new dev plugin should be appended after the manual '
-              'block — not inserted before it');
+      expect(
+        fakeRepo.savedPlugin!.userOrder,
+        7,
+        reason:
+            'new dev plugin should be appended after the manual '
+            'block — not inserted before it',
+      );
     });
   });
 }

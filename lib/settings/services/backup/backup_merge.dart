@@ -247,10 +247,12 @@ class BackupMerge {
     required Map<String, dynamic> candidate,
     required Map<String, dynamic> existing,
   }) {
-    final candidateUpdated =
-        DateTime.tryParse(candidate['updatedAt']?.toString() ?? '');
-    final existingUpdated =
-        DateTime.tryParse(existing['updatedAt']?.toString() ?? '');
+    final candidateUpdated = DateTime.tryParse(
+      candidate['updatedAt']?.toString() ?? '',
+    );
+    final existingUpdated = DateTime.tryParse(
+      existing['updatedAt']?.toString() ?? '',
+    );
     if (candidateUpdated == null) return false;
     if (existingUpdated == null) return true;
     return !candidateUpdated.isBefore(existingUpdated);

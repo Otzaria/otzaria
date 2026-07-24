@@ -58,7 +58,8 @@ class PluginPackagerCli {
       } else {
         if (dirPath != null) {
           errSink.writeln(
-              'שגיאה: ניתן לציין נתיב תיקיית תוסף אחד בלבד (קיבלתי "$dirPath" ועוד "$a").');
+            'שגיאה: ניתן לציין נתיב תיקיית תוסף אחד בלבד (קיבלתי "$dirPath" ועוד "$a").',
+          );
           return PluginPackagerCliExitCode.usageError;
         }
         dirPath = a;
@@ -80,7 +81,8 @@ class PluginPackagerCli {
           ? ', ${result.excludedCount} מוחרגים (.otzignore)'
           : '';
       outSink.writeln(
-          '  קבצים: ${result.fileCount}$excludedNote, גודל: ${result.bytes} בייטים');
+        '  קבצים: ${result.fileCount}$excludedNote, גודל: ${result.bytes} בייטים',
+      );
       return PluginPackagerCliExitCode.success;
     } on PluginPackagerException catch (e) {
       errSink.writeln('שגיאה: ${e.message}');
@@ -109,7 +111,9 @@ class PluginPackagerCli {
   }
 
   static void _printValidationReport(
-      PluginValidationReport report, StringSink out) {
+    PluginValidationReport report,
+    StringSink out,
+  ) {
     if (report.hasWarnings) {
       out.writeln('');
       out.writeln('אזהרות (לא חוסמות):');

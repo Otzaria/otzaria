@@ -13,8 +13,10 @@ void main() {
     });
 
     test('תגי b/strong מקבלים משקל bold', () {
-      final span =
-          SimpleInlineHtml.tryParse('<b>דיבור המתחיל</b> ביאור', baseStyle);
+      final span = SimpleInlineHtml.tryParse(
+        '<b>דיבור המתחיל</b> ביאור',
+        baseStyle,
+      );
       expect(span, isNotNull);
       expect(span!.toPlainText(), 'דיבור המתחיל ביאור');
 
@@ -29,8 +31,9 @@ void main() {
       final span = SimpleInlineHtml.tryParse('<b>אב</b> גד', variableBase);
       final children = span!.children!.cast<TextSpan>();
       expect(children.first.style?.fontWeight, FontWeight.bold);
-      expect(children.first.style?.fontVariations,
-          const [FontVariation('wght', 700)]);
+      expect(children.first.style?.fontVariations, const [
+        FontVariation('wght', 700),
+      ]);
       // ספאן לא-מודגש יורש את הבסיס — בלי FontVariation משלו.
       expect(children.last.style?.fontVariations, isNull);
     });
@@ -55,8 +58,10 @@ void main() {
       final bigChild = bigSpan!.children!.first as TextSpan;
       expect(bigChild.style?.fontSize, closeTo(24, 0.01));
 
-      final smallSpan =
-          SimpleInlineHtml.tryParse('<small>(הגהה)</small>', baseStyle);
+      final smallSpan = SimpleInlineHtml.tryParse(
+        '<small>(הגהה)</small>',
+        baseStyle,
+      );
       final smallChild = smallSpan!.children!.first as TextSpan;
       expect(smallChild.style?.fontSize, closeTo(16, 0.01));
     });

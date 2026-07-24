@@ -5,20 +5,22 @@ import 'package:otzaria/widgets/navigation/sidebar_nav_item.dart';
 
 /// descriptor מינימלי לבדיקת המיון בלבד — ה-pageBuilder לעולם לא נקרא כאן.
 BuiltInToolDescriptor _desc(String id, int order) => BuiltInToolDescriptor(
-      toolId: id,
-      label: id,
-      order: order,
-      pageBuilder: () => const SizedBox.shrink(),
-    );
+  toolId: id,
+  label: id,
+  order: order,
+  pageBuilder: () => const SizedBox.shrink(),
+);
 
 /// descriptor שאינו מובנה (מדמה תוסף) לבדיקת קדימות הכלים המובנים.
 /// מתודות ה-build לעולם אינן נקראות במיון, ולכן זורקות.
 class _PluginDesc extends ToolDescriptor {
   final bool allowOrderBeforeBuiltIns;
 
-  const _PluginDesc(String id, int order,
-      {this.allowOrderBeforeBuiltIns = false})
-      : super(toolId: id, label: id, order: order);
+  const _PluginDesc(
+    String id,
+    int order, {
+    this.allowOrderBeforeBuiltIns = false,
+  }) : super(toolId: id, label: id, order: order);
 
   @override
   int get sortGroupPriority => allowOrderBeforeBuiltIns ? 0 : 2;
@@ -28,13 +30,17 @@ class _PluginDesc extends ToolDescriptor {
   @override
   Widget buildPage(BuildContext context) => throw UnimplementedError();
   @override
-  TopNavItem buildTopNavItem(
-          {required bool isSelected, required VoidCallback onTap, Key? key}) =>
-      throw UnimplementedError();
+  TopNavItem buildTopNavItem({
+    required bool isSelected,
+    required VoidCallback onTap,
+    Key? key,
+  }) => throw UnimplementedError();
   @override
-  SidebarNavItem buildSidebarNavItem(
-          {required bool isSelected, required VoidCallback onTap, Key? key}) =>
-      throw UnimplementedError();
+  SidebarNavItem buildSidebarNavItem({
+    required bool isSelected,
+    required VoidCallback onTap,
+    Key? key,
+  }) => throw UnimplementedError();
 }
 
 void main() {
@@ -143,8 +149,11 @@ void main() {
     test('שומר את סדר ה-descriptors גם כשתוסף מופיע לפני built-ins', () {
       final groups = buildMobileToolGroups(
         [
-          const _PluginDesc('plugin.leading', 5,
-              allowOrderBeforeBuiltIns: true),
+          const _PluginDesc(
+            'plugin.leading',
+            5,
+            allowOrderBeforeBuiltIns: true,
+          ),
           _desc('builtin.calendar', 10),
           const _PluginDesc('plugin.regular', 900),
         ],
@@ -153,8 +162,11 @@ void main() {
         ],
       );
 
-      expect(
-          groups.map((g) => g.label).toList(), ['תוספים', 'לוח שנה', 'תוספים']);
+      expect(groups.map((g) => g.label).toList(), [
+        'תוספים',
+        'לוח שנה',
+        'תוספים',
+      ]);
       expect(
         groups.expand((g) => g.tools).map((d) => d.toolId).toList(),
         ['plugin.leading', 'builtin.calendar', 'plugin.regular'],
@@ -174,10 +186,14 @@ void main() {
         ],
       );
 
-      expect(groups.map((g) => g.label).toList(),
-          ['לוח שנה', 'תורה שלמדתי', 'תוספים']);
-      expect(
-          groups.last.tools.map((d) => d.toolId).toList(), ['plugin.regular']);
+      expect(groups.map((g) => g.label).toList(), [
+        'לוח שנה',
+        'תורה שלמדתי',
+        'תוספים',
+      ]);
+      expect(groups.last.tools.map((d) => d.toolId).toList(), [
+        'plugin.regular',
+      ]);
     });
   });
 }

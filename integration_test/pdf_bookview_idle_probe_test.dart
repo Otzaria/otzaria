@@ -26,21 +26,26 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:path/path.dart' as p;
 
-final _outFile = File(p.join(
-    Directory.systemTemp.path, 'otzaria_perf_probe', 'spinner_diag.json'));
+final _outFile = File(
+  p.join(Directory.systemTemp.path, 'otzaria_perf_probe', 'spinner_diag.json'),
+);
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
-  testWidgets('pdf book-view idle spinner diag', timeout: Timeout.none,
-      (tester) async {
+  testWidgets('pdf book-view idle spinner diag', timeout: Timeout.none, (
+    tester,
+  ) async {
     _outFile.parent.createSync(recursive: true);
     if (_outFile.existsSync()) _outFile.deleteSync();
 
     app.main(const <String>[]);
-    await _waitUntil(tester, () => find.byType(App).evaluate().isNotEmpty,
-        timeout: const Duration(minutes: 3));
+    await _waitUntil(
+      tester,
+      () => find.byType(App).evaluate().isNotEmpty,
+      timeout: const Duration(minutes: 3),
+    );
 
     final ctx = tester.element(find.byType(App));
     final tabsBloc = ctx.read<TabsBloc>();
@@ -64,15 +69,21 @@ void main() {
     final regularTab = PdfBookTab(book: pdfBook, pageNumber: 2);
     tabsBloc.add(AddTab(regularTab));
     ctx.read<NavigationBloc>().add(const NavigateToScreen(Screen.reading));
-    await _waitUntil(tester, () => regularTab.pdfViewerController.isReady,
-        timeout: const Duration(seconds: 90));
+    await _waitUntil(
+      tester,
+      () => regularTab.pdfViewerController.isReady,
+      timeout: const Duration(seconds: 90),
+    );
     await _pumpFor(tester, const Duration(seconds: 5));
 
     final tab = PdfBookTab(book: pdfBook, pageNumber: 2)
       ..savedLayoutMode = PdfLayoutMode.bookView;
     tabsBloc.add(AddTab(tab));
-    await _waitUntil(tester, () => tab.pdfViewerController.isReady,
-        timeout: const Duration(seconds: 90));
+    await _waitUntil(
+      tester,
+      () => tab.pdfViewerController.isReady,
+      timeout: const Duration(seconds: 90),
+    );
     // זמן התייצבות ארוך — לוודא שהספינר שנצפה איננו טעינה לגיטימית שטרם תמה.
     await _pumpFor(tester, const Duration(seconds: 25));
 
@@ -103,8 +114,10 @@ void main() {
 }
 
 void _write(Map<String, Object?> data) {
-  _outFile.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(data),
-      flush: true);
+  _outFile.writeAsStringSync(
+    const JsonEncoder.withIndent('  ').convert(data),
+    flush: true,
+  );
 }
 
 Future<void> _pumpFor(WidgetTester tester, Duration duration) async {

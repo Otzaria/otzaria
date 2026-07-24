@@ -28,11 +28,16 @@ class App extends StatelessWidget {
       },
       builder: (context, settingsState) {
         final state = settingsState;
-        final lightColorScheme =
-            AppThemeData.createColorScheme(state.seedColor, Brightness.light);
+        final lightColorScheme = AppThemeData.createColorScheme(
+          state.seedColor,
+          Brightness.light,
+        );
         final darkColorScheme = AppThemeData.createColorScheme(
-            state.darkSeedColor, Brightness.dark);
-        final useVirtualWindowFrame = !kIsWeb &&
+          state.darkSeedColor,
+          Brightness.dark,
+        );
+        final useVirtualWindowFrame =
+            !kIsWeb &&
             (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
         return MaterialApp(
           navigatorKey: navigatorKey,
@@ -46,10 +51,14 @@ class App extends StatelessWidget {
           ],
           locale: const Locale("he", "IL"),
           title: 'אוצריא',
-          theme: AppThemeData.light(lightColorScheme,
-              compactMenuMode: state.compactMenuMode),
-          darkTheme: AppThemeData.dark(darkColorScheme,
-              compactMenuMode: state.compactMenuMode),
+          theme: AppThemeData.light(
+            lightColorScheme,
+            compactMenuMode: state.compactMenuMode,
+          ),
+          darkTheme: AppThemeData.dark(
+            darkColorScheme,
+            compactMenuMode: state.compactMenuMode,
+          ),
           themeMode: state.followSystemTheme
               ? ThemeMode.system
               : (state.isDarkMode ? ThemeMode.dark : ThemeMode.light),
@@ -64,10 +73,12 @@ class App extends StatelessWidget {
               final isDark = Theme.of(context).brightness == Brightness.dark;
               final overlayStyle = SystemUiOverlayStyle(
                 statusBarColor: Colors.transparent,
-                statusBarIconBrightness:
-                    isDark ? Brightness.light : Brightness.dark,
-                statusBarBrightness:
-                    isDark ? Brightness.dark : Brightness.light,
+                statusBarIconBrightness: isDark
+                    ? Brightness.light
+                    : Brightness.dark,
+                statusBarBrightness: isDark
+                    ? Brightness.dark
+                    : Brightness.light,
               );
               content = AnnotatedRegion<SystemUiOverlayStyle>(
                 value: overlayStyle,

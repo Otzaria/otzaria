@@ -8,9 +8,13 @@ Future<void> main() async {
   // את הספרייה הנייטיבית ומדולגים כשאין build זמין.
   final engineReady = await tryInitSearchEngine();
 
-  test('normalizeFindQuery מנרמל ניקוד וגרשיים כמו איתור', () {
-    expect(normalizeFindQuery('שַׁבָּת "דף" ע׳'), 'שבת דף ע');
-  }, skip: engineReady ? false : searchEngineSkipReason);
+  test(
+    'normalizeFindQuery מנרמל ניקוד וגרשיים כמו איתור',
+    () {
+      expect(normalizeFindQuery('שַׁבָּת "דף" ע׳'), 'שבת דף ע');
+    },
+    skip: engineReady ? false : searchEngineSkipReason,
+  );
 
   test('findNormalizedTextMatchRank מעדיף התאמה מדויקת על contains', () {
     const query = 'שבת דף ע';

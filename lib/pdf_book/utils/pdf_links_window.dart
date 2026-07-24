@@ -22,7 +22,8 @@ class PdfLinksWindowPolicy {
   }) {
     final neededStart = rangeStart - slackLines;
     final neededEnd = rangeEnd + slackLines;
-    final covered = loadedStart != null &&
+    final covered =
+        loadedStart != null &&
         loadedEnd != null &&
         (neededStart < 1 ? 1 : neededStart) >= loadedStart &&
         neededEnd <= loadedEnd;

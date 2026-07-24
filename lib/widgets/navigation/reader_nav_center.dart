@@ -43,8 +43,9 @@ class ReaderNavCenter extends StatelessWidget {
     const buttonPadding = 4.0;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final available =
-            constraints.hasBoundedWidth ? constraints.maxWidth : 340.0;
+        final available = constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : 340.0;
 
         // כשהמרחב צר, עוברים ל-compact (36px לכפתור במקום 40px).
         final forceCompact = available < 240 || isCompact;
@@ -56,8 +57,10 @@ class ReaderNavCenter extends StatelessWidget {
         final visibleButtons = showMajor ? 4 : 2;
         final navButtonsWidth = visibleButtons * buttonWidth + 2 * gap;
 
-        final remainingForTitle =
-            (available - navButtonsWidth).clamp(0.0, 340.0);
+        final remainingForTitle = (available - navButtonsWidth).clamp(
+          0.0,
+          340.0,
+        );
         // כשהמרחב קטן מ-minTitleWidth, מאפשרים לכותרת להתכווץ עוד יותר.
         final effectiveMinTitle = remainingForTitle.clamp(0.0, minTitleWidth);
 
@@ -81,7 +84,9 @@ class ReaderNavCenter extends StatelessWidget {
             Flexible(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                    minWidth: effectiveMinTitle, maxWidth: remainingForTitle),
+                  minWidth: effectiveMinTitle,
+                  maxWidth: remainingForTitle,
+                ),
                 child: title,
               ),
             ),

@@ -82,11 +82,20 @@ void main() {
     final hoshen = await altEntry(textId: await tocText('חושן משפט'), level: 0);
     final orach = await altEntry(textId: await tocText('אורח חיים'), level: 0);
     await altEntry(
-        textId: await tocText('הלכות הלואה'), level: 1, parentId: hoshen);
+      textId: await tocText('הלכות הלואה'),
+      level: 1,
+      parentId: hoshen,
+    );
     await altEntry(
-        textId: await tocText('הלכות דיינים'), level: 1, parentId: hoshen);
+      textId: await tocText('הלכות דיינים'),
+      level: 1,
+      parentId: hoshen,
+    );
     await altEntry(
-        textId: await tocText('הלכות ציצית'), level: 1, parentId: orach);
+      textId: await tocText('הלכות ציצית'),
+      level: 1,
+      parentId: orach,
+    );
 
     return bookId;
   }
@@ -101,8 +110,10 @@ void main() {
         queryTokens: const ['הלכות', 'הלואה'],
       );
 
-      expect(results.map((r) => r['reference']),
-          equals(['חושן משפט הלכות הלואה']));
+      expect(
+        results.map((r) => r['reference']),
+        equals(['חושן משפט הלכות הלואה']),
+      );
     });
 
     test('מילה ייחודית של כותרת-המשנה לבדה — "ציצית"', () async {
@@ -114,23 +125,27 @@ void main() {
         queryTokens: const ['ציצית'],
       );
 
-      expect(results.map((r) => r['reference']),
-          equals(['אורח חיים הלכות ציצית']));
-    });
-
-    test('אנטי-הצפה: שם החלק לבדו מחזיר את החלק, לא את כל הכותרות שתחתיו',
-        () async {
-      final bookId = await buildTurWithAltToc();
-
-      final results = await repository.getAltTocEntriesForReference(
-        bookId,
-        'טור',
-        queryTokens: const ['חושן'],
+      expect(
+        results.map((r) => r['reference']),
+        equals(['אורח חיים הלכות ציצית']),
       );
-
-      // רק החלק "חושן משפט" — לא "הלכות הלואה"/"הלכות דיינים" שתחתיו.
-      expect(results.map((r) => r['reference']), equals(['חושן משפט']));
     });
+
+    test(
+      'אנטי-הצפה: שם החלק לבדו מחזיר את החלק, לא את כל הכותרות שתחתיו',
+      () async {
+        final bookId = await buildTurWithAltToc();
+
+        final results = await repository.getAltTocEntriesForReference(
+          bookId,
+          'טור',
+          queryTokens: const ['חושן'],
+        );
+
+        // רק החלק "חושן משפט" — לא "הלכות הלואה"/"הלכות דיינים" שתחתיו.
+        expect(results.map((r) => r['reference']), equals(['חושן משפט']));
+      },
+    );
 
     test('שאילתה רב-מילתית מלאה (חלק + כותרת) — מאותרת', () async {
       final bookId = await buildTurWithAltToc();
@@ -141,8 +156,10 @@ void main() {
         queryTokens: const ['חושן', 'משפט', 'הלכות', 'דיינים'],
       );
 
-      expect(results.map((r) => r['reference']),
-          equals(['חושן משפט הלכות דיינים']));
+      expect(
+        results.map((r) => r['reference']),
+        equals(['חושן משפט הלכות דיינים']),
+      );
     });
 
     test('queryTokens ריק/null מחזיר ריק', () async {
@@ -153,8 +170,11 @@ void main() {
         isEmpty,
       );
       expect(
-        await repository.getAltTocEntriesForReference(bookId, 'טור',
-            queryTokens: const []),
+        await repository.getAltTocEntriesForReference(
+          bookId,
+          'טור',
+          queryTokens: const [],
+        ),
         isEmpty,
       );
     });

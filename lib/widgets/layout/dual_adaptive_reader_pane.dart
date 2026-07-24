@@ -81,15 +81,17 @@ class _DualAdaptiveReaderPaneState extends State<DualAdaptiveReaderPane> {
   }
 
   bool _hasRoomForSideBySide(BoxConstraints constraints) {
-    final requiredWidth = widget.minMainContentWidth +
+    final requiredWidth =
+        widget.minMainContentWidth +
         (widget.showLeftPane ? widget.leftPaneWidth : 0) +
         (widget.showRightPane ? widget.rightPaneWidth : 0);
     return constraints.maxWidth >= requiredWidth;
   }
 
   ResizableDragHandle _buildHandle({required bool isLeft}) {
-    final onChanged =
-        isLeft ? widget.onLeftPaneWidthChanged : widget.onRightPaneWidthChanged;
+    final onChanged = isLeft
+        ? widget.onLeftPaneWidthChanged
+        : widget.onRightPaneWidthChanged;
     return ResizableDragHandle(
       isVertical: true,
       hitSize: _kHandleHitSize,
@@ -112,8 +114,9 @@ class _DualAdaptiveReaderPaneState extends State<DualAdaptiveReaderPane> {
                 widget.onRightPaneWidthChanged!.call(nextWidth.toDouble());
               }
             },
-      onDragEnd:
-          isLeft ? widget.onLeftPaneResizeEnd : widget.onRightPaneResizeEnd,
+      onDragEnd: isLeft
+          ? widget.onLeftPaneResizeEnd
+          : widget.onRightPaneResizeEnd,
     );
   }
 
@@ -193,8 +196,9 @@ class _DualAdaptiveReaderPaneState extends State<DualAdaptiveReaderPane> {
                   alignment: isLeft
                       ? AlignmentDirectional.centerEnd
                       : AlignmentDirectional.centerStart,
-                  child:
-                      isLeft ? widget.leftPaneContent : widget.rightPaneContent,
+                  child: isLeft
+                      ? widget.leftPaneContent
+                      : widget.rightPaneContent,
                 )
               : const SizedBox.shrink(),
         ),
@@ -234,10 +238,9 @@ class _DualAdaptiveReaderPaneState extends State<DualAdaptiveReaderPane> {
                     duration: AppTokens.animPanelOpacity,
                     opacity: showAnyPane ? 1.0 : 0.0,
                     child: ColoredBox(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .scrim
-                          .withValues(alpha: 0.30),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.scrim.withValues(alpha: 0.30),
                     ),
                   ),
                 ),

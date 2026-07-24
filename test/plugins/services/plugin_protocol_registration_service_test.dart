@@ -6,45 +6,46 @@ void main() {
     test('resolveWindowsRegistryExecutable prefers WINDIR', () {
       final executable =
           PluginProtocolRegistrationService.resolveWindowsRegistryExecutable({
-        'WINDIR': r'D:\Windows',
-        'SystemRoot': r'C:\Windows',
-      });
+            'WINDIR': r'D:\Windows',
+            'SystemRoot': r'C:\Windows',
+          });
 
       expect(executable, r'D:\Windows\System32\reg.exe');
     });
 
     test(
-        'buildWindowsRegistrationCommands uses executable for icon and open command',
-        () {
-      final commands =
-          PluginProtocolRegistrationService.buildWindowsRegistrationCommands(
-        r'C:\Program Files\Otzaria\otzaria.exe',
-      );
+      'buildWindowsRegistrationCommands uses executable for icon and open command',
+      () {
+        final commands =
+            PluginProtocolRegistrationService.buildWindowsRegistrationCommands(
+              r'C:\Program Files\Otzaria\otzaria.exe',
+            );
 
-      expect(commands.length, greaterThanOrEqualTo(4));
-      expect(commands[2], [
-        'add',
-        r'HKCU\Software\Classes\otzaria\DefaultIcon',
-        '/ve',
-        '/d',
-        r'C:\Program Files\Otzaria\otzaria.exe',
-        '/f',
-      ]);
-      expect(commands[3], [
-        'add',
-        r'HKCU\Software\Classes\otzaria\shell\open\command',
-        '/ve',
-        '/d',
-        r'"C:\Program Files\Otzaria\otzaria.exe" "%1"',
-        '/f',
-      ]);
-    });
+        expect(commands.length, greaterThanOrEqualTo(4));
+        expect(commands[2], [
+          'add',
+          r'HKCU\Software\Classes\otzaria\DefaultIcon',
+          '/ve',
+          '/d',
+          r'C:\Program Files\Otzaria\otzaria.exe',
+          '/f',
+        ]);
+        expect(commands[3], [
+          'add',
+          r'HKCU\Software\Classes\otzaria\shell\open\command',
+          '/ve',
+          '/d',
+          r'"C:\Program Files\Otzaria\otzaria.exe" "%1"',
+          '/f',
+        ]);
+      },
+    );
 
     test('buildWindowsRegistrationCommands כולל שיוך קובץ .otzplugin', () {
       final commands =
           PluginProtocolRegistrationService.buildWindowsRegistrationCommands(
-        r'C:\Program Files\Otzaria\otzaria.exe',
-      );
+            r'C:\Program Files\Otzaria\otzaria.exe',
+          );
 
       // ProgID open command — `reg add` שפותח את אוצריא כשמשתמש פותח קובץ ‎.otzplugin
       expect(

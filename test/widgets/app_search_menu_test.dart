@@ -64,8 +64,11 @@ void main() {
     await tester.tap(find.text('פתח'));
     await tester.pumpAndSettle();
 
-    expect(find.text('חיפוש פריט'), findsOneWidget,
-        reason: 'hint של שדה החיפוש צריך להופיע');
+    expect(
+      find.text('חיפוש פריט'),
+      findsOneWidget,
+      reason: 'hint של שדה החיפוש צריך להופיע',
+    );
     expect(find.text('אבא'), findsOneWidget);
     expect(find.text('בית'), findsOneWidget);
     expect(selected, isNull, reason: 'לא נבחר עדיין פריט');
@@ -140,8 +143,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(selected, 'b');
-    expect(find.text('אריה'), findsNothing,
-        reason: 'התפריט אמור להיסגר אחרי הבחירה');
+    expect(
+      find.text('אריה'),
+      findsNothing,
+      reason: 'התפריט אמור להיסגר אחרי הבחירה',
+    );
   });
 
   testWidgets('initialValue מסומן כפריט הנבחר', (tester) async {
@@ -187,8 +193,7 @@ void main() {
     expect(selected, isNull);
   });
 
-  testWidgets(
-      'בחירת הפריט הארוך ביותר כ-initialValue לא גורמת לגלישת רינדור '
+  testWidgets('בחירת הפריט הארוך ביותר כ-initialValue לא גורמת לגלישת רינדור '
       '(סימן ה-✓ מוצג בגופן מודגש הרחב יותר מהרגיל)', (tester) async {
     await pumpAnchorWithMenu<int>(
       tester,
@@ -209,10 +214,10 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-      'סימן ה-✓ צמוד לתוכן כשהפריט הנבחר הוא גם הכי ארוך בתפריט '
-      '(רוחב התפריט נגזר ממנו, אז אין רווח גדול משאריות ה-Spacer)',
-      (tester) async {
+  testWidgets('סימן ה-✓ צמוד לתוכן כשהפריט הנבחר הוא גם הכי ארוך בתפריט '
+      '(רוחב התפריט נגזר ממנו, אז אין רווח גדול משאריות ה-Spacer)', (
+    tester,
+  ) async {
     const longestLabel = 'פרק א, סימן ב, פסקה ג - כותרת ארוכה מאוד לבדיקה';
     await pumpAnchorWithMenu<int>(
       tester,
@@ -234,13 +239,16 @@ void main() {
 
     // ב-LTR (ברירת המחדל בטסט) הסימון נמצא מימין לטקסט.
     final gap = checkRect.left - textRect.right;
-    expect(gap, lessThan(10),
-        reason:
-            'כשהתפריט נגזר ברוחבו מהפריט הזה, המרחק לסימן ה-✓ אמור להיות קטן');
+    expect(
+      gap,
+      lessThan(10),
+      reason: 'כשהתפריט נגזר ברוחבו מהפריט הזה, המרחק לסימן ה-✓ אמור להיות קטן',
+    );
   });
 
-  testWidgets('initialFilter פותח את התפריט על הצ\'יפ המבוקש ומסנן לפיו',
-      (tester) async {
+  testWidgets('initialFilter פותח את התפריט על הצ\'יפ המבוקש ומסנן לפיו', (
+    tester,
+  ) async {
     await pumpAnchorWithMenu<String>(
       tester,
       entries: const [
@@ -271,11 +279,12 @@ void main() {
     );
   });
 
-  testWidgets('צ\'יפי סינון ארוכים מהטקסט מרחיבים את רוחב התפריט',
-      (tester) async {
+  testWidgets('צ\'יפי סינון ארוכים מהטקסט מרחיבים את רוחב התפריט', (
+    tester,
+  ) async {
     Rect menuRect() => tester.getRect(
-          find.byWidgetPredicate((w) => w is Material && w.elevation == 8),
-        );
+      find.byWidgetPredicate((w) => w is Material && w.elevation == 8),
+    );
 
     // ללא צ'יפים — הרוחב נגזר מהפריטים הקצרים בלבד.
     await pumpAnchorWithMenu<String>(
@@ -314,12 +323,16 @@ void main() {
     await tester.tap(find.text('פתח'));
     await tester.pumpAndSettle();
 
-    expect(menuRect().width, greaterThan(widthWithoutChips),
-        reason: 'צ\'יפים רחבים מהפריטים אמורים להרחיב את התפריט');
+    expect(
+      menuRect().width,
+      greaterThan(widthWithoutChips),
+      reason: 'צ\'יפים רחבים מהפריטים אמורים להרחיב את התפריט',
+    );
   });
 
-  testWidgets('התפריט מתרחב לרוחב התוכן גם בלי menuMinWidth מפורש',
-      (tester) async {
+  testWidgets('התפריט מתרחב לרוחב התוכן גם בלי menuMinWidth מפורש', (
+    tester,
+  ) async {
     await pumpAnchorWithMenu<int>(
       tester,
       entries: const [
@@ -339,12 +352,16 @@ void main() {
     final menuRect = tester.getRect(
       find.byWidgetPredicate((w) => w is Material && w.elevation == 8),
     );
-    expect(menuRect.width, greaterThan(240),
-        reason: 'תווית ארוכה מהאנקור אמורה להרחיב את התפריט אוטומטית');
+    expect(
+      menuRect.width,
+      greaterThan(240),
+      reason: 'תווית ארוכה מהאנקור אמורה להרחיב את התפריט אוטומטית',
+    );
   });
 
-  testWidgets('כפתור צמוד לקצה שמאל: תפריט רחב מתרחב פנימה ולא בולט מחוץ לחלון',
-      (tester) async {
+  testWidgets('כפתור צמוד לקצה שמאל: תפריט רחב מתרחב פנימה ולא בולט מחוץ לחלון', (
+    tester,
+  ) async {
     // כפתור צר בפינה השמאלית-עליונה; תפריט רחב בהרבה מהכפתור.
     await tester.pumpWidget(
       MaterialApp(
@@ -384,13 +401,22 @@ void main() {
       find.byWidgetPredicate((w) => w is Material && w.elevation == 8),
     );
 
-    expect(menuRect.left, greaterThanOrEqualTo(0.0),
-        reason: 'התפריט לא אמור לחרוג משמאל לקצה החלון');
-    expect(menuRect.right, lessThanOrEqualTo(screenWidth + 0.5),
-        reason: 'התפריט לא אמור לחרוג מימין לקצה החלון');
+    expect(
+      menuRect.left,
+      greaterThanOrEqualTo(0.0),
+      reason: 'התפריט לא אמור לחרוג משמאל לקצה החלון',
+    );
+    expect(
+      menuRect.right,
+      lessThanOrEqualTo(screenWidth + 0.5),
+      reason: 'התפריט לא אמור לחרוג מימין לקצה החלון',
+    );
     // התפריט מתרחב פנימה (ימינה) מהכפתור שבקצה, ולא נצמד לקצה השמאלי.
     final buttonRect = tester.getRect(find.text('פתח'));
-    expect(menuRect.left, lessThanOrEqualTo(buttonRect.left + 1),
-        reason: 'שמאל התפריט מיושר לכפתור (מתרחב ימינה פנימה)');
+    expect(
+      menuRect.left,
+      lessThanOrEqualTo(buttonRect.left + 1),
+      reason: 'שמאל התפריט מיושר לכפתור (מתרחב ימינה פנימה)',
+    );
   });
 }

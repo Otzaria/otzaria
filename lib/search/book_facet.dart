@@ -27,15 +27,16 @@ class BookFacet {
     return _normalizeCategoryPath(topicsPath);
   }
 
-  static String buildFacetPath(
-      {required String title,
-      required String topics,
-      String? externalLibraryId,
-      int? bookId,
-      bool isUserBook = false,
-      String? categoryPath,
-      String? fileType,
-      String? filePath}) {
+  static String buildFacetPath({
+    required String title,
+    required String topics,
+    String? externalLibraryId,
+    int? bookId,
+    bool isUserBook = false,
+    String? categoryPath,
+    String? fileType,
+    String? filePath,
+  }) {
     final categoryFacetPath = resolveFacetCategoryPath(
       categoryPath: categoryPath,
       topics: topics,
@@ -88,14 +89,16 @@ class BookFacet {
       );
       if (book != null && book.topics.isNotEmpty) {
         debugPrint(
-            '📚 BookFacet: Found book in library with topics: ${book.topics}');
+          '📚 BookFacet: Found book in library with topics: ${book.topics}',
+        );
         return book.topics;
       }
 
       final normalizedCategoryTopics = _categoryPathToTopics(categoryPath);
       if (normalizedCategoryTopics.isNotEmpty) {
         debugPrint(
-            '📚 BookFacet: Falling back to normalized category path: $normalizedCategoryTopics');
+          '📚 BookFacet: Falling back to normalized category path: $normalizedCategoryTopics',
+        );
         return normalizedCategoryTopics;
       }
 
@@ -127,7 +130,8 @@ class BookFacet {
           }
 
           debugPrint(
-              '📚 BookFacet: No topics, building category path for categoryId: ${resolvedBook.book.categoryId}');
+            '📚 BookFacet: No topics, building category path for categoryId: ${resolvedBook.book.categoryId}',
+          );
           final builtPath = await _buildCategoryPath(
             resolvedBook.repository,
             resolvedBook.book.categoryId,
@@ -185,10 +189,12 @@ class BookFacet {
       return null;
     }
 
-    final byExternalId = matchWhere((book) =>
-        _normalizeText(book.externalLibraryId) ==
-            _normalizeText(externalLibraryId) &&
-        _normalizeText(externalLibraryId).isNotEmpty);
+    final byExternalId = matchWhere(
+      (book) =>
+          _normalizeText(book.externalLibraryId) ==
+              _normalizeText(externalLibraryId) &&
+          _normalizeText(externalLibraryId).isNotEmpty,
+    );
     if (byExternalId != null) return byExternalId;
 
     final byBookId = matchWhere((book) => bookId != null && book.id == bookId);
@@ -230,7 +236,9 @@ class BookFacet {
   }
 
   static Future<String> _buildCategoryPath(
-      SeforimRepository repository, int categoryId) async {
+    SeforimRepository repository,
+    int categoryId,
+  ) async {
     try {
       final List<String> pathParts = [];
       int? currentId = categoryId;
@@ -269,8 +277,10 @@ class BookFacet {
     if (raw.isEmpty) return '';
 
     final separatorPattern = RegExp(r'\s*(?:/|,)\s*');
-    final parts =
-        raw.split(separatorPattern).where((part) => part.isNotEmpty).toList();
+    final parts = raw
+        .split(separatorPattern)
+        .where((part) => part.isNotEmpty)
+        .toList();
     if (parts.isEmpty) return '';
 
     return '/${parts.join('/')}';

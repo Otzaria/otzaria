@@ -42,8 +42,11 @@ class PinSidebarButton extends StatelessWidget {
   final bool isPinned;
   final VoidCallback? onToggle;
 
-  const PinSidebarButton(
-      {super.key, required this.isPinned, required this.onToggle});
+  const PinSidebarButton({
+    super.key,
+    required this.isPinned,
+    required this.onToggle,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -178,20 +181,28 @@ class _SidebarTabHeaderState extends State<SidebarTabHeader> {
           ),
           if (widget.onTogglePin != null)
             PinSidebarButton(
-                isPinned: widget.isPinned, onToggle: widget.onTogglePin),
+              isPinned: widget.isPinned,
+              onToggle: widget.onTogglePin,
+            ),
         ],
       ),
     );
   }
 
   Tab _tab(
-      ({IconData icon, IconData? iconFilled, String? label}) data, bool sel) {
-    final iconData =
-        (sel && data.iconFilled != null) ? data.iconFilled! : data.icon;
+    ({IconData icon, IconData? iconFilled, String? label}) data,
+    bool sel,
+  ) {
+    final iconData = (sel && data.iconFilled != null)
+        ? data.iconFilled!
+        : data.icon;
     final iconWidget = AnimatedSwitcher(
       duration: AppTokens.animFast,
-      child: Icon(iconData,
-          key: ValueKey<IconData>(iconData), size: AppTokens.panelTabIconSize),
+      child: Icon(
+        iconData,
+        key: ValueKey<IconData>(iconData),
+        size: AppTokens.panelTabIconSize,
+      ),
     );
     final lbl = data.label;
     if (lbl == null) {
@@ -201,11 +212,13 @@ class _SidebarTabHeaderState extends State<SidebarTabHeader> {
       icon: iconWidget,
       iconMargin: AppTokens.panelTabIconMargin,
       height: AppTokens.panelTabHeight,
-      child: Text(lbl,
-          style: const TextStyle(fontSize: AppTokens.panelTabFontSize),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center),
+      child: Text(
+        lbl,
+        style: const TextStyle(fontSize: AppTokens.panelTabFontSize),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+      ),
     );
   }
 }

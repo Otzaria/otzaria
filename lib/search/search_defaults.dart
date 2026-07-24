@@ -82,7 +82,9 @@ class SearchDefaults {
   /// באחסון נפרד לחלוטין מזה של המצב המתקדם.
   static Map<String, bool> loadExactDefaults() {
     return _loadOptions(
-        _exactSettingsKey, SearchQueryBuilder.exactWordOptionKeys);
+      _exactSettingsKey,
+      SearchQueryBuilder.exactWordOptionKeys,
+    );
   }
 
   /// שומר את [options] כברירת המחדל לחיפושים רגילים חדשים.

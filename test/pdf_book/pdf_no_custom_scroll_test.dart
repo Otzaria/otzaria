@@ -70,81 +70,87 @@ void main() {
         expect(
           source.contains(handler),
           isFalse,
-          reason: 'אסור להשתמש ב-$handler ב-PdfBookScreen. '
+          reason:
+              'אסור להשתמש ב-$handler ב-PdfBookScreen. '
               'גלילת טראקפד צריכה להיות מטופלת ע"י pdfrx (handlePointerSignalEvent) '
               'ולא ע"י translate ידני על ה-matrix.',
         );
       }
     });
 
-    test('אין שיטות־עזר של גלילה עצמאית (queue/flush/apply pointer scroll)',
-        () {
-      // השמות האלה נשארו כ"טביעות אצבע" של המימוש הישן שהוסר —
-      // אם מישהו מחזיר אותם, הוא מחזיר גם את הבאג.
-      const forbiddenSymbols = [
-        '_queuePointerScroll',
-        '_flushQueuedPointerScroll',
-        '_applyPointerScrollDelta',
-        '_applyPanZoomScroll',
-        '_pendingPointerScrollDx',
-        '_pendingPointerScrollDy',
-        '_panZoomBaseMatrix',
-        '_pointerScrollFlushDelay',
-        '_maxPointerScrollBurstDelta',
-      ];
-      for (final symbol in forbiddenSymbols) {
-        expect(
-          source.contains(symbol),
-          isFalse,
-          reason: 'הסמל $symbol הוא חלק ממימוש גלילה עצמאית שהוסר בקומיט '
-              '3f6600693335d04d38754abf7ab8cbfb21d1c032. '
-              'אסור להחזיר אותו — אם יש בעיה בגלילה, פתור אותה דרך פרמטרים '
-              'של pdfrx (scrollByMouseWheel וכו\').',
-        );
-      }
-    });
+    test(
+      'אין שיטות־עזר של גלילה עצמאית (queue/flush/apply pointer scroll)',
+      () {
+        // השמות האלה נשארו כ"טביעות אצבע" של המימוש הישן שהוסר —
+        // אם מישהו מחזיר אותם, הוא מחזיר גם את הבאג.
+        const forbiddenSymbols = [
+          '_queuePointerScroll',
+          '_flushQueuedPointerScroll',
+          '_applyPointerScrollDelta',
+          '_applyPanZoomScroll',
+          '_pendingPointerScrollDx',
+          '_pendingPointerScrollDy',
+          '_panZoomBaseMatrix',
+          '_pointerScrollFlushDelay',
+          '_maxPointerScrollBurstDelta',
+        ];
+        for (final symbol in forbiddenSymbols) {
+          expect(
+            source.contains(symbol),
+            isFalse,
+            reason:
+                'הסמל $symbol הוא חלק ממימוש גלילה עצמאית שהוסר בקומיט '
+                '3f6600693335d04d38754abf7ab8cbfb21d1c032. '
+                'אסור להחזיר אותו — אם יש בעיה בגלילה, פתור אותה דרך פרמטרים '
+                'של pdfrx (scrollByMouseWheel וכו\').',
+          );
+        }
+      },
+    );
 
     test(
-        'onPointerSignal רק מאציל ל-handlePointerSignalEvent, ולא מבצע translate ידני',
-        () {
-      // המימוש הלגיטימי היחיד הוא להאציל ל-API של pdfrx
-      // (handlePointerSignalEvent) — לא לחשב delta ולקרוא ל-goTo.
-      expect(
-        source.contains('handlePointerSignalEvent'),
-        isTrue,
-        reason:
-            'onPointerSignal חייב להאציל ל-pdfViewerController.handlePointerSignalEvent — '
-            'זוהי הדרך הנתמכת לטיפול בגלגלת כאשר ה-overlay תופס את האירוע.',
-      );
-
-      // איתור הבלוק של onPointerSignal ובדיקה שאין בו translate/goTo
-      // המבוצעים בתגובה ל-PointerScrollEvent.
-      final blockMatch =
-          RegExp(r'onPointerSignal\s*:\s*\([^)]*\)\s*(?:=>\s*[^,;\n]+|\{)')
-              .firstMatch(source);
-      if (blockMatch != null) {
-        // קח חתיכה רחבה מספיק שתכסה גוף Lambda רגיל.
-        final start = blockMatch.start;
-        final slice = source.substring(
-          start,
-          (start + 600).clamp(0, source.length),
-        );
-
-        // השילובים האלה מעידים על חישוב גלילה ידני מתוך onPointerSignal.
+      'onPointerSignal רק מאציל ל-handlePointerSignalEvent, ולא מבצע translate ידני',
+      () {
+        // המימוש הלגיטימי היחיד הוא להאציל ל-API של pdfrx
+        // (handlePointerSignalEvent) — לא לחשב delta ולקרוא ל-goTo.
         expect(
-          slice.contains('translateByDouble'),
-          isFalse,
+          source.contains('handlePointerSignalEvent'),
+          isTrue,
           reason:
-              'תוך onPointerSignal אסור להפעיל translateByDouble על ה-matrix — '
-              'זה בדיוק המימוש העצמאי שהוסר.',
+              'onPointerSignal חייב להאציל ל-pdfViewerController.handlePointerSignalEvent — '
+              'זוהי הדרך הנתמכת לטיפול בגלגלת כאשר ה-overlay תופס את האירוע.',
         );
-        expect(
-          RegExp(r'pdfViewerController\.goTo\s*\(').hasMatch(slice),
-          isFalse,
-          reason: 'תוך onPointerSignal אסור לקרוא ל-pdfViewerController.goTo — '
-              'יש להעביר את האירוע ל-handlePointerSignalEvent.',
-        );
-      }
-    });
+
+        // איתור הבלוק של onPointerSignal ובדיקה שאין בו translate/goTo
+        // המבוצעים בתגובה ל-PointerScrollEvent.
+        final blockMatch = RegExp(
+          r'onPointerSignal\s*:\s*\([^)]*\)\s*(?:=>\s*[^,;\n]+|\{)',
+        ).firstMatch(source);
+        if (blockMatch != null) {
+          // קח חתיכה רחבה מספיק שתכסה גוף Lambda רגיל.
+          final start = blockMatch.start;
+          final slice = source.substring(
+            start,
+            (start + 600).clamp(0, source.length),
+          );
+
+          // השילובים האלה מעידים על חישוב גלילה ידני מתוך onPointerSignal.
+          expect(
+            slice.contains('translateByDouble'),
+            isFalse,
+            reason:
+                'תוך onPointerSignal אסור להפעיל translateByDouble על ה-matrix — '
+                'זה בדיוק המימוש העצמאי שהוסר.',
+          );
+          expect(
+            RegExp(r'pdfViewerController\.goTo\s*\(').hasMatch(slice),
+            isFalse,
+            reason:
+                'תוך onPointerSignal אסור לקרוא ל-pdfViewerController.goTo — '
+                'יש להעביר את האירוע ל-handlePointerSignalEvent.',
+          );
+        }
+      },
+    );
   });
 }

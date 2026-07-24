@@ -27,7 +27,10 @@ class CommentatorGroup extends Equatable {
 
   /// Helper method to find commentator group by title
   static CommentatorGroup groupByTitle(
-          List<CommentatorGroup> groups, String title) =>
-      groups.firstWhere((g) => g.title == title,
-          orElse: () => const CommentatorGroup(title: '', commentators: []));
+    List<CommentatorGroup> groups,
+    String title,
+  ) => groups.firstWhere(
+    (g) => g.title == title,
+    orElse: () => const CommentatorGroup(title: '', commentators: []),
+  );
 }

@@ -18,15 +18,17 @@ void main() {
     );
   }
 
-  testWidgets('ReaderSidePanelShell wraps content in FloatingPanel',
-      (tester) async {
+  testWidgets('ReaderSidePanelShell wraps content in FloatingPanel', (
+    tester,
+  ) async {
     await tester.pumpWidget(buildShell(AlignmentDirectional.centerStart));
 
     expect(find.byType(FloatingPanel), findsOneWidget);
   });
 
-  testWidgets('ReaderSidePanelShell adds outer margin on right-side panes',
-      (tester) async {
+  testWidgets('ReaderSidePanelShell adds outer margin on right-side panes', (
+    tester,
+  ) async {
     await tester.pumpWidget(buildShell(AlignmentDirectional.centerStart));
 
     final padding = tester.widget<Padding>(
@@ -44,8 +46,9 @@ void main() {
     );
   });
 
-  testWidgets('ReaderSidePanelShell adds outer margin on left-side panes',
-      (tester) async {
+  testWidgets('ReaderSidePanelShell adds outer margin on left-side panes', (
+    tester,
+  ) async {
     await tester.pumpWidget(buildShell(AlignmentDirectional.centerEnd));
 
     final padding = tester.widget<Padding>(

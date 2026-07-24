@@ -95,24 +95,36 @@ void main() {
     expect(controller.jsCalls, hasLength(1));
   });
 
-  test('שני אירועים לפני טעינת הדף — שניהם נמסרים בסדרם גם כשהראשון איטי',
-      () async {
-    controller.firstCallDelay = const Duration(milliseconds: 20);
-    launcher.open(_kPid, topic: 'plugin.page_opened', payload: {'param': 'a'});
-    launcher.open(_kPid,
-        topic: 'reader.context_menu_item_clicked', payload: {'param': 'b'});
-    await pumpMicrotasks();
-    expect(controller.jsCalls, isEmpty);
+  test(
+    'שני אירועים לפני טעינת הדף — שניהם נמסרים בסדרם גם כשהראשון איטי',
+    () async {
+      controller.firstCallDelay = const Duration(milliseconds: 20);
+      launcher.open(
+        _kPid,
+        topic: 'plugin.page_opened',
+        payload: {'param': 'a'},
+      );
+      launcher.open(
+        _kPid,
+        topic: 'reader.context_menu_item_clicked',
+        payload: {'param': 'b'},
+      );
+      await pumpMicrotasks();
+      expect(controller.jsCalls, isEmpty);
 
-    launcher.markPageReady(_kPid);
-    await Future<void>.delayed(const Duration(milliseconds: 60));
+      launcher.markPageReady(_kPid);
+      await Future<void>.delayed(const Duration(milliseconds: 60));
 
-    expect(controller.jsCalls, hasLength(2));
-    expect(controller.jsCalls[0], contains('plugin.page_opened'));
-    expect(controller.jsCalls[0], contains('"param":"a"'));
-    expect(controller.jsCalls[1], contains('reader.context_menu_item_clicked'));
-    expect(controller.jsCalls[1], contains('"param":"b"'));
-  });
+      expect(controller.jsCalls, hasLength(2));
+      expect(controller.jsCalls[0], contains('plugin.page_opened'));
+      expect(controller.jsCalls[0], contains('"param":"a"'));
+      expect(
+        controller.jsCalls[1],
+        contains('reader.context_menu_item_clicked'),
+      );
+      expect(controller.jsCalls[1], contains('"param":"b"'));
+    },
+  );
 
   test('אירוע שמגיע בזמן ריקון הממתינים נמסר אחריהם, לא לפניהם', () async {
     controller.firstCallDelay = const Duration(milliseconds: 20);

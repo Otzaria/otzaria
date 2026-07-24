@@ -35,9 +35,13 @@ void main() {
     await UserBooksDatabaseHolder.instance.close();
 
     await Settings.setValue<String>(
-        SettingsRepository.keyLibraryPath, libraryPath);
+      SettingsRepository.keyLibraryPath,
+      libraryPath,
+    );
     await Settings.setValue<String>(
-        SettingsRepository.keyLibraryFolderName, '');
+      SettingsRepository.keyLibraryFolderName,
+      '',
+    );
     await Settings.setValue<String>(SettingsRepository.keyDbEffectivePath, '');
 
     final dbPath = path.join(libraryPath, DatabaseConstants.databaseFileName);
@@ -94,56 +98,71 @@ void main() {
       expect(location.repository, isNotNull);
     });
 
-    test('עם categoryId — מתעלם מקטגוריית "ספרים אישיים" כשאין categoryPath',
-        () async {
-      // נשתמש בקטגוריה ברירת מחדל (לא ספרים אישיים) → מחפש ב-seforim כברירה.
-      final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;
-      final userCatId =
-          await insertBookFor(repo: userBooksRepo, title: 'ספר משתמש');
+    test(
+      'עם categoryId — מתעלם מקטגוריית "ספרים אישיים" כשאין categoryPath',
+      () async {
+        // נשתמש בקטגוריה ברירת מחדל (לא ספרים אישיים) → מחפש ב-seforim כברירה.
+        final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;
+        final userCatId = await insertBookFor(
+          repo: userBooksRepo,
+          title: 'ספר משתמש',
+        );
 
-      // כשמעבירים את ה-userCatId בלי category.path → אין רמז שזה user_books.
-      // הקוד מנסה seforim קודם (לא נמצא) ואז user_books דרך resolveBook.
-      final location = await BookLocator.locateBook(
-        'ספר משתמש',
-        categoryId: userCatId,
-      );
+        // כשמעבירים את ה-userCatId בלי category.path → אין רמז שזה user_books.
+        // הקוד מנסה seforim קודם (לא נמצא) ואז user_books דרך resolveBook.
+        final location = await BookLocator.locateBook(
+          'ספר משתמש',
+          categoryId: userCatId,
+        );
 
-      expect(location, isNotNull, reason: 'נמצא ב-user_books דרך fallback');
-      expect(location!.book?.title, 'ספר משתמש');
-    });
+        expect(location, isNotNull, reason: 'נמצא ב-user_books דרך fallback');
+        expect(location!.book?.title, 'ספר משתמש');
+      },
+    );
 
-    test('עם category שהיא "ספרים אישיים" → preferUserBooks=true בחיפוש',
-        () async {
-      // מכניסים ספר בשני ה-DBs באותה כותרת — צריך לבחור ב-user_books.
-      final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;
-      final userCatId = await insertBookFor(repo: userBooksRepo, title: 'כפול');
-      await insertBookFor(
-          repo: seforimRepo, title: 'כפול', categoryTitle: 'הלכה');
+    test(
+      'עם category שהיא "ספרים אישיים" → preferUserBooks=true בחיפוש',
+      () async {
+        // מכניסים ספר בשני ה-DBs באותה כותרת — צריך לבחור ב-user_books.
+        final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;
+        final userCatId = await insertBookFor(
+          repo: userBooksRepo,
+          title: 'כפול',
+        );
+        await insertBookFor(
+          repo: seforimRepo,
+          title: 'כפול',
+          categoryTitle: 'הלכה',
+        );
 
-      // קטגוריה עם נתיב המתחיל ב"ספרים אישיים"
-      final library = library_models.Library(categories: []);
-      final personalCategory = library_models.Category(
-        title: 'ספרים אישיים',
-        description: '',
-        shortDescription: '',
-        order: 1,
-        subCategories: [],
-        books: [],
-        parent: library,
-      );
-      library.subCategories.add(personalCategory);
+        // קטגוריה עם נתיב המתחיל ב"ספרים אישיים"
+        final library = library_models.Library(categories: []);
+        final personalCategory = library_models.Category(
+          title: 'ספרים אישיים',
+          description: '',
+          shortDescription: '',
+          order: 1,
+          subCategories: [],
+          books: [],
+          parent: library,
+        );
+        library.subCategories.add(personalCategory);
 
-      final location = await BookLocator.locateBook(
-        'כפול',
-        category: personalCategory,
-        categoryId: userCatId,
-      );
+        final location = await BookLocator.locateBook(
+          'כפול',
+          category: personalCategory,
+          categoryId: userCatId,
+        );
 
-      expect(location, isNotNull);
-      expect(location!.book?.title, 'כפול');
-      expect(location.book?.categoryId, userCatId,
-          reason: 'נבחר הספר מ-user_books לפי הרמז של הקטגוריה');
-    });
+        expect(location, isNotNull);
+        expect(location!.book?.title, 'כפול');
+        expect(
+          location.book?.categoryId,
+          userCatId,
+          reason: 'נבחר הספר מ-user_books לפי הרמז של הקטגוריה',
+        );
+      },
+    );
 
     test('בלי categoryId ובלי category, חיפוש לפי כותרת ב-seforim', () async {
       await insertBookFor(repo: seforimRepo, title: 'רק כותרת');
@@ -180,8 +199,10 @@ void main() {
     test('getBookFromDatabase מחזיר את הרשומה מ-DB', () async {
       final catId = await insertBookFor(repo: seforimRepo, title: 'במדבר');
 
-      final book =
-          await BookLocator.getBookFromDatabase('במדבר', categoryId: catId);
+      final book = await BookLocator.getBookFromDatabase(
+        'במדבר',
+        categoryId: catId,
+      );
 
       expect(book, isNotNull);
       expect(book!.title, 'במדבר');

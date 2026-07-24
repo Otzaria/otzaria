@@ -95,8 +95,11 @@ void main() {
       expect(activeOwnerAtNotification, same(owner));
 
       controller.clear(owner);
-      expect(activeOwnerAtNotification, isNull,
-          reason: 'אחרי clear, ההודעה חייבת לזרום עם activeOwner=null');
+      expect(
+        activeOwnerAtNotification,
+        isNull,
+        reason: 'אחרי clear, ההודעה חייבת לזרום עם activeOwner=null',
+      );
     });
   });
 }

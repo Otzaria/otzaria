@@ -5,13 +5,13 @@ import 'package:otzaria/settings/widgets/settings_card.dart';
 
 // Helper: עטיפת MaterialApp+RTL סטנדרטית לטסטי widgets
 Widget _wrap(Widget child) => MaterialApp(
-      home: Scaffold(
-        body: Directionality(
-          textDirection: TextDirection.rtl,
-          child: child,
-        ),
-      ),
-    );
+  home: Scaffold(
+    body: Directionality(
+      textDirection: TextDirection.rtl,
+      child: child,
+    ),
+  ),
+);
 
 void main() {
   const icon = FluentIcons.folder_24_regular;
@@ -22,16 +22,18 @@ void main() {
     testWidgets(
       'כשהנתיב ריק מוצג כפתור "הגדר מיקום" בלבד',
       (tester) async {
-        await tester.pumpWidget(_wrap(
-          SettingsActionTile.pathTile(
-            icon: icon,
-            title: title,
-            currentPath: '',
-            placeholder: placeholder,
-            onFolderChanged: (_) async {},
-            onOpenFolder: () {},
+        await tester.pumpWidget(
+          _wrap(
+            SettingsActionTile.pathTile(
+              icon: icon,
+              title: title,
+              currentPath: '',
+              placeholder: placeholder,
+              onFolderChanged: (_) async {},
+              onOpenFolder: () {},
+            ),
           ),
-        ));
+        );
         await tester.pumpAndSettle();
 
         expect(find.text('הגדר מיקום'), findsOneWidget);
@@ -42,16 +44,18 @@ void main() {
     testWidgets(
       'לחיצה על "הגדר מיקום" אינה קורסת',
       (tester) async {
-        await tester.pumpWidget(_wrap(
-          SettingsActionTile.pathTile(
-            icon: icon,
-            title: title,
-            currentPath: '',
-            placeholder: placeholder,
-            onFolderChanged: (_) async {},
-            onOpenFolder: () {},
+        await tester.pumpWidget(
+          _wrap(
+            SettingsActionTile.pathTile(
+              icon: icon,
+              title: title,
+              currentPath: '',
+              placeholder: placeholder,
+              onFolderChanged: (_) async {},
+              onOpenFolder: () {},
+            ),
           ),
-        ));
+        );
         await tester.pumpAndSettle();
 
         await tester.tap(find.text('הגדר מיקום'));
@@ -64,16 +68,18 @@ void main() {
     testWidgets(
       'כשיש נתיב מוצג כפתור "אפשרויות מיקום" במקום "הגדר מיקום"',
       (tester) async {
-        await tester.pumpWidget(_wrap(
-          SettingsActionTile.pathTile(
-            icon: icon,
-            title: title,
-            currentPath: '/some/path',
-            placeholder: placeholder,
-            onFolderChanged: (_) async {},
-            onOpenFolder: () {},
+        await tester.pumpWidget(
+          _wrap(
+            SettingsActionTile.pathTile(
+              icon: icon,
+              title: title,
+              currentPath: '/some/path',
+              placeholder: placeholder,
+              onFolderChanged: (_) async {},
+              onOpenFolder: () {},
+            ),
           ),
-        ));
+        );
         await tester.pumpAndSettle();
 
         expect(find.text('אפשרויות מיקום'), findsOneWidget);
@@ -86,17 +92,19 @@ void main() {
     testWidgets(
       'כשהנתיב ריק עדיין מוצג "אפשרויות מיקום" (לא "הגדר מיקום")',
       (tester) async {
-        await tester.pumpWidget(_wrap(
-          SettingsActionTile.pathTile(
-            icon: icon,
-            title: title,
-            currentPath: '',
-            placeholder: placeholder,
-            onFolderChanged: (_) async {},
-            onOpenFolder: () {},
-            simpleButtonWhenEmpty: false,
+        await tester.pumpWidget(
+          _wrap(
+            SettingsActionTile.pathTile(
+              icon: icon,
+              title: title,
+              currentPath: '',
+              placeholder: placeholder,
+              onFolderChanged: (_) async {},
+              onOpenFolder: () {},
+              simpleButtonWhenEmpty: false,
+            ),
           ),
-        ));
+        );
         await tester.pumpAndSettle();
 
         expect(find.text('אפשרויות מיקום'), findsOneWidget);
@@ -110,18 +118,20 @@ void main() {
       'כשclearPathEnabled=false ו-onClearPath מוגדר מוצג placeholder הנתיב',
       (tester) async {
         // בדיקה שה-tile נבנה ללא שגיאות כשclearPathEnabled=false
-        await tester.pumpWidget(_wrap(
-          SettingsActionTile.pathTile(
-            icon: icon,
-            title: title,
-            currentPath: '/default/path',
-            placeholder: placeholder,
-            onFolderChanged: (_) async {},
-            onOpenFolder: () {},
-            onClearPath: () {},
-            clearPathEnabled: false,
+        await tester.pumpWidget(
+          _wrap(
+            SettingsActionTile.pathTile(
+              icon: icon,
+              title: title,
+              currentPath: '/default/path',
+              placeholder: placeholder,
+              onFolderChanged: (_) async {},
+              onOpenFolder: () {},
+              onClearPath: () {},
+              clearPathEnabled: false,
+            ),
           ),
-        ));
+        );
         await tester.pumpAndSettle();
 
         expect(tester.takeException(), isNull);
@@ -132,17 +142,19 @@ void main() {
     testWidgets(
       'כשclearPathEnabled=true ו-onClearPath מוגדר ה-tile נבנה ללא שגיאות',
       (tester) async {
-        await tester.pumpWidget(_wrap(
-          SettingsActionTile.pathTile(
-            icon: icon,
-            title: title,
-            currentPath: '/custom/path',
-            placeholder: placeholder,
-            onFolderChanged: (_) async {},
-            onOpenFolder: () {},
-            onClearPath: () {},
+        await tester.pumpWidget(
+          _wrap(
+            SettingsActionTile.pathTile(
+              icon: icon,
+              title: title,
+              currentPath: '/custom/path',
+              placeholder: placeholder,
+              onFolderChanged: (_) async {},
+              onOpenFolder: () {},
+              onClearPath: () {},
+            ),
           ),
-        ));
+        );
         await tester.pumpAndSettle();
 
         expect(tester.takeException(), isNull);
@@ -156,16 +168,18 @@ void main() {
       'כשיש נתיב מוצג הנתיב בתור subtitle',
       (tester) async {
         const path = '/my/library/path';
-        await tester.pumpWidget(_wrap(
-          SettingsActionTile.pathTile(
-            icon: icon,
-            title: title,
-            currentPath: path,
-            placeholder: placeholder,
-            onFolderChanged: (_) async {},
-            onOpenFolder: () {},
+        await tester.pumpWidget(
+          _wrap(
+            SettingsActionTile.pathTile(
+              icon: icon,
+              title: title,
+              currentPath: path,
+              placeholder: placeholder,
+              onFolderChanged: (_) async {},
+              onOpenFolder: () {},
+            ),
           ),
-        ));
+        );
         await tester.pumpAndSettle();
 
         // הנתיב מוצג בממשק (אחרי עיצוב על-ידי _formatPath)
@@ -176,17 +190,19 @@ void main() {
     testWidgets(
       'כשהנתיב ריק ו-simpleButtonWhenEmpty=false מוצג ה-placeholder',
       (tester) async {
-        await tester.pumpWidget(_wrap(
-          SettingsActionTile.pathTile(
-            icon: icon,
-            title: title,
-            currentPath: '',
-            placeholder: placeholder,
-            onFolderChanged: (_) async {},
-            onOpenFolder: () {},
-            simpleButtonWhenEmpty: false,
+        await tester.pumpWidget(
+          _wrap(
+            SettingsActionTile.pathTile(
+              icon: icon,
+              title: title,
+              currentPath: '',
+              placeholder: placeholder,
+              onFolderChanged: (_) async {},
+              onOpenFolder: () {},
+              simpleButtonWhenEmpty: false,
+            ),
           ),
-        ));
+        );
         await tester.pumpAndSettle();
 
         expect(find.text(placeholder), findsOneWidget);
@@ -202,22 +218,24 @@ void main() {
         addTearDown(() => tester.binding.setSurfaceSize(null));
 
         String? opened;
-        await tester.pumpWidget(_wrap(
-          SettingsActionTile.pathTile(
-            icon: icon,
-            title: title,
-            currentPath: r'C:\root',
-            placeholder: placeholder,
-            onFolderChanged: (_) async {},
-            onOpenFolder: () {},
-            onOpenPath: (path) => opened = path,
-            pathTargets: const [
-              PathTarget(label: 'תיקייה ראשית', path: r'C:\root'),
-              PathTarget(label: 'ספרייה', path: r'C:\root\books'),
-              PathTarget(label: 'אינדקס', path: r'C:\root\index'),
-            ],
+        await tester.pumpWidget(
+          _wrap(
+            SettingsActionTile.pathTile(
+              icon: icon,
+              title: title,
+              currentPath: r'C:\root',
+              placeholder: placeholder,
+              onFolderChanged: (_) async {},
+              onOpenFolder: () {},
+              onOpenPath: (path) => opened = path,
+              pathTargets: const [
+                PathTarget(label: 'תיקייה ראשית', path: r'C:\root'),
+                PathTarget(label: 'ספרייה', path: r'C:\root\books'),
+                PathTarget(label: 'אינדקס', path: r'C:\root\index'),
+              ],
+            ),
           ),
-        ));
+        );
         await tester.pumpAndSettle();
 
         await tester.tap(find.text('אפשרויות מיקום'));
@@ -241,20 +259,22 @@ void main() {
         await tester.binding.setSurfaceSize(const Size(1200, 800));
         addTearDown(() => tester.binding.setSurfaceSize(null));
 
-        await tester.pumpWidget(_wrap(
-          SettingsActionTile.pathTile(
-            icon: icon,
-            title: title,
-            currentPath: r'C:\root',
-            placeholder: placeholder,
-            onFolderChanged: (_) async {},
-            onOpenFolder: () {},
-            pathTargets: const [
-              PathTarget(label: 'תיקייה ראשית', path: r'C:\root'),
-              PathTarget(label: 'ספרייה', path: r'C:\root\books'),
-            ],
+        await tester.pumpWidget(
+          _wrap(
+            SettingsActionTile.pathTile(
+              icon: icon,
+              title: title,
+              currentPath: r'C:\root',
+              placeholder: placeholder,
+              onFolderChanged: (_) async {},
+              onOpenFolder: () {},
+              pathTargets: const [
+                PathTarget(label: 'תיקייה ראשית', path: r'C:\root'),
+                PathTarget(label: 'ספרייה', path: r'C:\root\books'),
+              ],
+            ),
           ),
-        ));
+        );
         await tester.pumpAndSettle();
 
         await tester.tap(find.text('אפשרויות מיקום'));
@@ -278,19 +298,21 @@ void main() {
 
         var called = false;
 
-        await tester.pumpWidget(_wrap(
-          SettingsActionTile.pathTile(
-            icon: icon,
-            title: title,
-            currentPath: '/some/path',
-            placeholder: placeholder,
-            onFolderChanged: (_) async {},
-            onOpenFolder: () {},
-            requestChangeLocation: (ctx) async {
-              called = true;
-            },
+        await tester.pumpWidget(
+          _wrap(
+            SettingsActionTile.pathTile(
+              icon: icon,
+              title: title,
+              currentPath: '/some/path',
+              placeholder: placeholder,
+              onFolderChanged: (_) async {},
+              onOpenFolder: () {},
+              requestChangeLocation: (ctx) async {
+                called = true;
+              },
+            ),
           ),
-        ));
+        );
         await tester.pumpAndSettle();
 
         await tester.tap(find.text('אפשרויות מיקום'));
@@ -312,20 +334,22 @@ void main() {
         final completer = Future<void>.value(); // immediate
         var callCount = 0;
 
-        await tester.pumpWidget(_wrap(
-          SettingsActionTile.pathTile(
-            icon: icon,
-            title: title,
-            currentPath: '/some/path',
-            placeholder: placeholder,
-            onFolderChanged: (_) async {},
-            onOpenFolder: () {},
-            requestChangeLocation: (ctx) async {
-              callCount++;
-              await completer;
-            },
+        await tester.pumpWidget(
+          _wrap(
+            SettingsActionTile.pathTile(
+              icon: icon,
+              title: title,
+              currentPath: '/some/path',
+              placeholder: placeholder,
+              onFolderChanged: (_) async {},
+              onOpenFolder: () {},
+              requestChangeLocation: (ctx) async {
+                callCount++;
+                await completer;
+              },
+            ),
           ),
-        ));
+        );
         await tester.pumpAndSettle();
 
         await tester.tap(find.text('אפשרויות מיקום'));

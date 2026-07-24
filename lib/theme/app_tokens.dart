@@ -10,10 +10,12 @@ class AppTokens {
 
   // ── Border Radius — מקור אמת יחיד: כל הפינות 8 ——————————————
   static const double radius = 8;
-  static const BorderRadius borderRadiusAll =
-      BorderRadius.all(Radius.circular(radius));
-  static const RoundedRectangleBorder roundedShape =
-      RoundedRectangleBorder(borderRadius: borderRadiusAll);
+  static const BorderRadius borderRadiusAll = BorderRadius.all(
+    Radius.circular(radius),
+  );
+  static const RoundedRectangleBorder roundedShape = RoundedRectangleBorder(
+    borderRadius: borderRadiusAll,
+  );
 
   // ── Typography Scale ——————————————————————
   static const double fontSM = 12;

@@ -4,7 +4,8 @@ import 'package:otzaria/user_content_import/services/user_import_parser.dart';
 void main() {
   group('UserImportParser.parseGenerations', () {
     test('מפענח שורות תקינות עם מחבר', () {
-      const csv = 'ספר,דור,מחבר\n'
+      const csv =
+          'ספר,דור,מחבר\n'
           'ביאורי יוסף,מחברי זמננו,יוסף כהן\n'
           'שו"ת הרב פלוני,אחרונים,\n';
       final result = UserImportParser.parseGenerations(csv);
@@ -41,7 +42,8 @@ void main() {
     });
 
     test('סדר עמודות הפוך + שורות הערה/ריקות מדולגות', () {
-      const csv = '# הדורות שלי\n'
+      const csv =
+          '# הדורות שלי\n'
           'דור,ספר\n'
           '\n'
           'ראשונים,רש"י\n';
@@ -54,7 +56,8 @@ void main() {
 
   group('UserImportParser.parseLinks', () {
     test('מפענח קישור עם סוג עברי וממפה ל-connection_type', () {
-      const csv = 'מקור,ספר_יעד,מיקום_יעד,סוג,יעד_אישי\n'
+      const csv =
+          'מקור,ספר_יעד,מיקום_יעד,סוג,יעד_אישי\n'
           '12,ברכות,ב ע"א,פירוש,לא\n'
           '83,קונטרס הזמנים,יב,מקור,כן\n';
       final result = UserImportParser.parseLinks(csv);
@@ -69,7 +72,8 @@ void main() {
     });
 
     test('שדה יעד מצוטט עם פסיק נקרא כשדה אחד', () {
-      const csv = 'מקור,ספר_יעד,מיקום_יעד,סוג\n'
+      const csv =
+          'מקור,ספר_יעד,מיקום_יעד,סוג\n'
           '47,"שולחן ערוך אורח חיים","רטו, א",הפניה\n';
       final result = UserImportParser.parseLinks(csv);
       expect(result.errors, isEmpty);
@@ -85,7 +89,8 @@ void main() {
     });
 
     test('מספר שורה לא חוקי / סוג לא מוכר → שגיאות', () {
-      const csv = 'מקור,ספר_יעד,סוג\n'
+      const csv =
+          'מקור,ספר_יעד,סוג\n'
           'אבג,ברכות,פירוש\n'
           '10,ברכות,משהו\n';
       final result = UserImportParser.parseLinks(csv);
@@ -96,7 +101,8 @@ void main() {
     });
 
     test('עמודת ספר_מקור (קובץ רוחבי) נקלטת', () {
-      const csv = 'ספר_מקור,מקור,ספר_יעד,סוג\n'
+      const csv =
+          'ספר_מקור,מקור,ספר_יעד,סוג\n'
           'ביאורי יוסף,12,ברכות,פירוש\n';
       final result = UserImportParser.parseLinks(csv);
       expect(result.rows.single.sourceBookTitle, 'ביאורי יוסף');
@@ -109,7 +115,8 @@ void main() {
     });
 
     test('מקור_אישי=לא + קטגוריית_מקור → מקור רשמי עם קטגוריה', () {
-      const csv = 'מקור_אישי,קטגוריית_מקור,מקור,ספר_יעד,סוג\n'
+      const csv =
+          'מקור_אישי,קטגוריית_מקור,מקור,ספר_יעד,סוג\n'
           'לא,7,12,ברכות,הפניה\n';
       final result = UserImportParser.parseLinks(csv);
       expect(result.rows.single.sourceIsUserBook, isFalse);
@@ -119,7 +126,8 @@ void main() {
 
   group('UserImportParser.parseNativeLinksJson', () {
     test('מפענח את פורמט ה-native (line_index, path_2, heRef_2)', () {
-      const json = '['
+      const json =
+          '['
           '{"line_index_1": 3, "line_index_2": 5, '
           '"heRef_2": "הכי גרסינן מגילה ב., א", '
           '"path_2": "הכי גרסינן מגילה.txt", "Conection Type": "commentary"},'
@@ -149,14 +157,16 @@ void main() {
     });
 
     test('path_2 עם רכיבי-נתיב → הכותרת היא שם הקובץ בלבד', () {
-      const json = '[{"line_index_1": 1, "line_index_2": 2, '
+      const json =
+          '[{"line_index_1": 1, "line_index_2": 2, '
           '"path_2": "מפרשים/הכי גרסינן מגילה.txt"}]';
       final result = UserImportParser.parseNativeLinksJson(json);
       expect(result.rows.single.targetTitle, 'הכי גרסינן מגילה');
     });
 
     test('line_index חסר/לא חוקי → שגיאה, שורות תקינות נקלטות', () {
-      const json = '['
+      const json =
+          '['
           '{"line_index_1": 0, "line_index_2": 2, "path_2": "ספר"},'
           '{"line_index_1": 1, "path_2": "ספר"},'
           '{"line_index_1": 1, "line_index_2": 2, "path_2": "ספר"}'
@@ -169,7 +179,8 @@ void main() {
 
   group('UserImportParser.parseLinksJson', () {
     test('מפענח מערך JSON עם מפתחות עברית ו-aliases', () {
-      const json = '['
+      const json =
+          '['
           '{"מקור": 12, "ספר_יעד": "ברכות", "מיקום_יעד": 5, "סוג": "פירוש", "יעד_אישי": false},'
           '{"source": 47, "targetTitle": "שולחן ערוך אורח חיים", "ref": "רטו א", "type": "REFERENCE", "isUserBook": true}'
           ']';
@@ -186,7 +197,8 @@ void main() {
     });
 
     test('JSON: מקור_אישי=false נקרא; חסר → ברירת מחדל אישי', () {
-      const json = '['
+      const json =
+          '['
           '{"מקור": 3, "ספר_יעד": "ברכות", "סוג": "הפניה", "מקור_אישי": false},'
           '{"מקור": 5, "ספר_יעד": "ברכות", "סוג": "פירוש"}'
           ']';
@@ -202,7 +214,8 @@ void main() {
     });
 
     test('שורה פגומה מדולגת, תקינות נקלטות', () {
-      const json = '['
+      const json =
+          '['
           '{"מקור": "אבג", "ספר_יעד": "ברכות", "סוג": "פירוש"},'
           '{"מקור": 5, "ספר_יעד": "ברכות", "סוג": "פירוש"}'
           ']';

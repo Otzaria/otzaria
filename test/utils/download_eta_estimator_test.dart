@@ -125,7 +125,8 @@ void main() {
     test('שעות ודקות — ללא שניות', () {
       expect(
         formatRemainingTimeHebrew(
-            const Duration(hours: 1, minutes: 20, seconds: 5)),
+          const Duration(hours: 1, minutes: 20, seconds: 5),
+        ),
         'נותרו כ-שעה ו-20 דקות',
       );
     });

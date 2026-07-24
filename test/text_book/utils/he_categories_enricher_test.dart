@@ -37,11 +37,17 @@ void main() {
       await UserBooksDatabaseHolder.instance.close();
 
       await Settings.setValue<String>(
-          SettingsRepository.keyLibraryPath, libraryPath);
+        SettingsRepository.keyLibraryPath,
+        libraryPath,
+      );
       await Settings.setValue<String>(
-          SettingsRepository.keyLibraryFolderName, '');
+        SettingsRepository.keyLibraryFolderName,
+        '',
+      );
       await Settings.setValue<String>(
-          SettingsRepository.keyDbEffectivePath, '');
+        SettingsRepository.keyDbEffectivePath,
+        '',
+      );
 
       final dbPath = path.join(libraryPath, DatabaseConstants.databaseFileName);
       seforimDb = MyDatabase.withPath(dbPath);
@@ -62,22 +68,23 @@ void main() {
     });
 
     test(
-        'דילוג מוקדם: ספר עם heCategories שכבר אכלוס — לא מחזיר heCategories חדש',
-        () async {
-      final book = TextBook(
-        title: 'ספר',
-        heCategories: 'ערך-קיים',
-        categoryId: 999,
-        fileType: 'txt',
-      );
+      'דילוג מוקדם: ספר עם heCategories שכבר אכלוס — לא מחזיר heCategories חדש',
+      () async {
+        final book = TextBook(
+          title: 'ספר',
+          heCategories: 'ערך-קיים',
+          categoryId: 999,
+          fileType: 'txt',
+        );
 
-      final result = await enrichHeCategories(book);
+        final result = await enrichHeCategories(book);
 
-      // heCategories קיים — לא אמור להיות שינוי
-      expect(result.heCategories, isNull);
-      // ה-book לא נגע (אין מוטציה)
-      expect(book.heCategories, 'ערך-קיים');
-    });
+        // heCategories קיים — לא אמור להיות שינוי
+        expect(result.heCategories, isNull);
+        // ה-book לא נגע (אין מוטציה)
+        expect(book.heCategories, 'ערך-קיים');
+      },
+    );
 
     test('heCategories וגם author חסרים: שניהם מוחזרים מה-DB', () async {
       final rootId = await seforimRepo.insertCategory(
@@ -173,7 +180,10 @@ void main() {
       );
       final folderId = await userBooksRepo.insertCategory(
         migration_models.Category(
-            title: 'תיקיית עבודה', parentId: personalId, level: 1),
+          title: 'תיקיית עבודה',
+          parentId: personalId,
+          level: 1,
+        ),
       );
       final sourceId = await userBooksRepo.insertSource('Personal::test', -1);
       await userBooksRepo.insertBook(
@@ -198,72 +208,85 @@ void main() {
       expect(book.heCategories, isNull);
     });
 
-    test('book.isUserBook=true אבל user_books.db לא קיים: לא קורס, מחזיר ריק',
-        () async {
-      expect(
-        await File(await AppPaths.resolveUserBooksDbPath()).exists(),
-        isFalse,
-      );
+    test(
+      'book.isUserBook=true אבל user_books.db לא קיים: לא קורס, מחזיר ריק',
+      () async {
+        expect(
+          await File(await AppPaths.resolveUserBooksDbPath()).exists(),
+          isFalse,
+        );
 
-      final book = TextBook(
-        title: 'לא קיים',
-        categoryId: 999,
-        fileType: 'txt',
-        isUserBook: true,
-      );
+        final book = TextBook(
+          title: 'לא קיים',
+          categoryId: 999,
+          fileType: 'txt',
+          isUserBook: true,
+        );
 
-      final result = await enrichHeCategories(book);
+        final result = await enrichHeCategories(book);
 
-      expect(result.heCategories, isNull,
-          reason: 'בלי DB ובלי metadata.json — heCategories נשאר null');
-      expect(book.heCategories, isNull);
-    });
+        expect(
+          result.heCategories,
+          isNull,
+          reason: 'בלי DB ובלי metadata.json — heCategories נשאר null',
+        );
+        expect(book.heCategories, isNull);
+      },
+    );
 
-    test('categoryPath עם פסיקים שמתחיל ב-"ספרים אישיים" מנתב ל-user_books',
-        () async {
-      final seforimCat = await seforimRepo.insertCategory(
-        const migration_models.Category(title: 'בעולם הרשמי'),
-      );
-      final seforimSrc = await seforimRepo.insertSource('seforim', -1);
-      await seforimRepo.insertBook(
-        migration_models.Book(
-          categoryId: seforimCat,
-          sourceId: seforimSrc,
+    test(
+      'categoryPath עם פסיקים שמתחיל ב-"ספרים אישיים" מנתב ל-user_books',
+      () async {
+        final seforimCat = await seforimRepo.insertCategory(
+          const migration_models.Category(title: 'בעולם הרשמי'),
+        );
+        final seforimSrc = await seforimRepo.insertSource('seforim', -1);
+        await seforimRepo.insertBook(
+          migration_models.Book(
+            categoryId: seforimCat,
+            sourceId: seforimSrc,
+            title: 'ספר משותף',
+            fileType: 'txt',
+          ),
+        );
+
+        final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;
+        final personalId = await userBooksRepo.insertCategory(
+          const migration_models.Category(title: 'ספרים אישיים'),
+        );
+        final folderId = await userBooksRepo.insertCategory(
+          migration_models.Category(
+            title: 'תיקיית בית',
+            parentId: personalId,
+            level: 1,
+          ),
+        );
+        final userSrc = await userBooksRepo.insertSource('Personal::abc', -1);
+        await userBooksRepo.insertBook(
+          migration_models.Book(
+            categoryId: folderId,
+            sourceId: userSrc,
+            title: 'ספר משותף',
+            fileType: 'txt',
+          ),
+        );
+
+        final book = TextBook(
           title: 'ספר משותף',
           fileType: 'txt',
-        ),
-      );
+          categoryPath: 'ספרים אישיים, תיקיית בית',
+        );
 
-      final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;
-      final personalId = await userBooksRepo.insertCategory(
-        const migration_models.Category(title: 'ספרים אישיים'),
-      );
-      final folderId = await userBooksRepo.insertCategory(
-        migration_models.Category(
-            title: 'תיקיית בית', parentId: personalId, level: 1),
-      );
-      final userSrc = await userBooksRepo.insertSource('Personal::abc', -1);
-      await userBooksRepo.insertBook(
-        migration_models.Book(
-          categoryId: folderId,
-          sourceId: userSrc,
-          title: 'ספר משותף',
-          fileType: 'txt',
-        ),
-      );
+        final result = await enrichHeCategories(book);
 
-      final book = TextBook(
-        title: 'ספר משותף',
-        fileType: 'txt',
-        categoryPath: 'ספרים אישיים, תיקיית בית',
-      );
-
-      final result = await enrichHeCategories(book);
-
-      expect(result.heCategories, 'ספרים אישיים, תיקיית בית',
-          reason: 'categoryPath מסומן כספרים אישיים → preferUserBooks');
-      expect(book.heCategories, isNull);
-    });
+        expect(
+          result.heCategories,
+          'ספרים אישיים, תיקיית בית',
+          reason: 'categoryPath מסומן כספרים אישיים → preferUserBooks',
+        );
+        expect(book.heCategories, isNull);
+      },
+    );
   });
 }
 

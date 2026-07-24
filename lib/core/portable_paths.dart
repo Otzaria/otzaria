@@ -76,8 +76,10 @@ class PortablePaths {
   }
 
   static Future<void> _rewriteAll(String oldRoot, String newRoot) async {
-    debugPrint('PortablePaths: data root moved "$oldRoot" -> "$newRoot", '
-        'rewriting stored paths');
+    debugPrint(
+      'PortablePaths: data root moved "$oldRoot" -> "$newRoot", '
+      'rewriting stored paths',
+    );
 
     for (final key in _pathSettingsKeys) {
       final value = Settings.getValue<String>(key);
@@ -89,8 +91,9 @@ class PortablePaths {
     }
 
     // תיקיות מותאמות אישית נשמרות כ-JSON עם שדות path.
-    final foldersJson =
-        Settings.getValue<String>(SettingsRepository.keyCustomFolders);
+    final foldersJson = Settings.getValue<String>(
+      SettingsRepository.keyCustomFolders,
+    );
     if (foldersJson != null && foldersJson.isNotEmpty) {
       try {
         final result = _rewriteDeep(jsonDecode(foldersJson), oldRoot, newRoot);
@@ -102,7 +105,8 @@ class PortablePaths {
         }
       } catch (e, stackTrace) {
         debugPrint(
-            'PortablePaths: failed rewriting custom folders: $e\n$stackTrace');
+          'PortablePaths: failed rewriting custom folders: $e\n$stackTrace',
+        );
       }
     }
 

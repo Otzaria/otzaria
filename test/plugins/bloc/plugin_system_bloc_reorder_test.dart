@@ -58,8 +58,9 @@ class _FakeRepo implements PluginRegistryRepository {
       reordered.add(p.copyWith(userOrder: i));
     }
     // תוספים שלא ברשימה — נשמרים כמו שהם בסוף.
-    final remaining =
-        plugins.where((p) => !orderedPluginIds.contains(p.pluginId)).toList();
+    final remaining = plugins
+        .where((p) => !orderedPluginIds.contains(p.pluginId))
+        .toList();
     plugins = [...reordered, ...remaining];
   }
 
@@ -67,7 +68,8 @@ class _FakeRepo implements PluginRegistryRepository {
   Future<List<InstalledPlugin>> getAllPlugins() async {
     final sorted = List.of(plugins);
     sorted.sort(
-        (a, b) => a.effectiveToolTabOrder.compareTo(b.effectiveToolTabOrder));
+      (a, b) => a.effectiveToolTabOrder.compareTo(b.effectiveToolTabOrder),
+    );
     return sorted;
   }
 
@@ -113,8 +115,7 @@ void main() {
       expect(repo.reorderCalls.single, ['c', 'a', 'b']);
     });
 
-    test(
-        'after the reorder, PluginSystemLoaded reflects the new order via '
+    test('after the reorder, PluginSystemLoaded reflects the new order via '
         'pinnedPlugins', () async {
       final repo = _FakeRepo([
         _plugin(id: 'a'),
@@ -127,15 +128,18 @@ void main() {
       bloc.add(const ReorderPluginsRequested(['c', 'a', 'b']));
 
       // ממתינים ל-Loaded final.
-      final loaded = await bloc.stream
-          .firstWhere((s) => s is PluginSystemLoaded) as PluginSystemLoaded;
+      final loaded =
+          await bloc.stream.firstWhere((s) => s is PluginSystemLoaded)
+              as PluginSystemLoaded;
 
-      expect(loaded.pinnedPlugins.map((p) => p.pluginId).toList(),
-          ['c', 'a', 'b']);
+      expect(loaded.pinnedPlugins.map((p) => p.pluginId).toList(), [
+        'c',
+        'a',
+        'b',
+      ]);
     });
 
-    test(
-        'an empty ordered list does not crash the bloc and still triggers '
+    test('an empty ordered list does not crash the bloc and still triggers '
         'a load cycle', () async {
       final repo = _FakeRepo([_plugin(id: 'a')]);
       final bloc = PluginSystemBloc(repository: repo);

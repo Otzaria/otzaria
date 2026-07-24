@@ -78,29 +78,50 @@ class UserContentImporter {
       if (_generationFileNames.contains(name)) {
         await _ingestGenerations(file, repo, generationByBook, errors);
       } else if (_folderLinkFileNames.contains(name)) {
-        await _ingestLinks(file, repo, links, errors,
-            bookTitleFromFile: null,
-            resolveRef: resolveRef,
-            sourceExists: sourceExists);
+        await _ingestLinks(
+          file,
+          repo,
+          links,
+          errors,
+          bookTitleFromFile: null,
+          resolveRef: resolveRef,
+          sourceExists: sourceExists,
+        );
       } else if (lower.endsWith('.links.csv')) {
         final bookTitle = name.substring(0, name.length - '.links.csv'.length);
-        await _ingestLinks(file, repo, links, errors,
-            bookTitleFromFile: bookTitle,
-            resolveRef: resolveRef,
-            sourceExists: sourceExists);
+        await _ingestLinks(
+          file,
+          repo,
+          links,
+          errors,
+          bookTitleFromFile: bookTitle,
+          resolveRef: resolveRef,
+          sourceExists: sourceExists,
+        );
       } else if (lower.endsWith('.links.json')) {
         final bookTitle = name.substring(0, name.length - '.links.json'.length);
-        await _ingestLinks(file, repo, links, errors,
-            bookTitleFromFile: bookTitle,
-            resolveRef: resolveRef,
-            sourceExists: sourceExists);
+        await _ingestLinks(
+          file,
+          repo,
+          links,
+          errors,
+          bookTitleFromFile: bookTitle,
+          resolveRef: resolveRef,
+          sourceExists: sourceExists,
+        );
       } else if (lower.endsWith('_links.json')) {
         final baseTitle = name.substring(0, name.length - '_links.json'.length);
-        await _ingestNativeLinks(file, links, errors,
-            baseTitle: baseTitle, locateBook: locateBook);
+        await _ingestNativeLinks(
+          file,
+          links,
+          errors,
+          baseTitle: baseTitle,
+          locateBook: locateBook,
+        );
       } else {
         errors.add(
-            '$name: קובץ לא מזוהה (צפוי "דורות.csv" או "<ספר>.links.csv")');
+          '$name: קובץ לא מזוהה (צפוי "דורות.csv" או "<ספר>.links.csv")',
+        );
       }
     }
 
@@ -140,8 +161,11 @@ class UserContentImporter {
       generationsApplied: generationByBook.length,
       linksApplied: unique.length,
       booksWithLinks: unique.values
-          .map((l) => '${l.sourceIsUserBook}|${l.sourceCategoryId}|'
-              '${l.sourceTitle}')
+          .map(
+            (l) =>
+                '${l.sourceIsUserBook}|${l.sourceCategoryId}|'
+                '${l.sourceTitle}',
+          )
           .toSet()
           .length,
       errors: errors,
@@ -166,8 +190,10 @@ class UserContentImporter {
       errors.add('$fileName ${err.message} (שורה ${err.lineNumber})');
     }
     for (final row in parsed.rows) {
-      final bookId =
-          await repo.bookIdByTitle(row.bookTitle, categoryId: row.categoryId);
+      final bookId = await repo.bookIdByTitle(
+        row.bookTitle,
+        categoryId: row.categoryId,
+      );
       if (bookId == null) {
         errors.add('$fileName: הספר "${row.bookTitle}" לא נמצא בספרייה האישית');
         continue;
@@ -209,21 +235,30 @@ class UserContentImporter {
       // seforim.db דרך [sourceExists] — כדי לחסום כותרת שגויה שתיצור קישור מת.
       final bool found;
       if (row.sourceIsUserBook) {
-        found = await repo.bookIdByTitle(sourceTitle,
-                categoryId: row.sourceCategoryId) !=
+        found =
+            await repo.bookIdByTitle(
+              sourceTitle,
+              categoryId: row.sourceCategoryId,
+            ) !=
             null;
       } else {
         found = await sourceExists(
-            title: sourceTitle,
-            categoryId: row.sourceCategoryId,
-            isUserBook: false);
+          title: sourceTitle,
+          categoryId: row.sourceCategoryId,
+          isUserBook: false,
+        );
       }
       if (!found) {
         errors.add('$fileName: ספר המקור "$sourceTitle" לא נמצא');
         continue;
       }
-      final record =
-          await _resolveRecord(sourceTitle, row, resolveRef, fileName, errors);
+      final record = await _resolveRecord(
+        sourceTitle,
+        row,
+        resolveRef,
+        fileName,
+        errors,
+      );
       if (record != null) out.add(record);
     }
   }
@@ -268,44 +303,51 @@ class UserContentImporter {
         continue;
       }
       if (source.totalLines > 0 && row.sourceLineNumber > source.totalLines) {
-        errors.add('$fileName: שורה ${row.sourceLineNumber} חורגת מגבולות '
-            '"$baseTitle" (${source.totalLines} שורות)');
+        errors.add(
+          '$fileName: שורה ${row.sourceLineNumber} חורגת מגבולות '
+          '"$baseTitle" (${source.totalLines} שורות)',
+        );
         continue;
       }
       if (target.totalLines > 0 && row.targetLineNumber > target.totalLines) {
-        errors.add('$fileName: שורה ${row.targetLineNumber} חורגת מגבולות '
-            '"${row.targetTitle}" (${target.totalLines} שורות)');
+        errors.add(
+          '$fileName: שורה ${row.targetLineNumber} חורגת מגבולות '
+          '"${row.targetTitle}" (${target.totalLines} שורות)',
+        );
         continue;
       }
       // צמד קבצים דו-כיווני של הכלי מייצר גם רשומת מפרש→בסיס; מנרמלים אותה
       // לכיוון הקנוני (בסיס→מפרש) כך שהיא מתלכדת עם הרשומה מהקובץ של הבסיס.
-      final flip = LinkTypes.isDependentTextLink(row.connectionType) &&
+      final flip =
+          LinkTypes.isDependentTextLink(row.connectionType) &&
           source.isUserBook &&
           !target.isUserBook;
-      out.add(flip
-          ? UserLinkRecord(
-              sourceTitle: row.targetTitle,
-              sourceCategoryId: target.categoryId,
-              sourceIsUserBook: target.isUserBook,
-              sourceLineIndex: row.targetLineNumber - 1,
-              targetTitle: baseTitle,
-              targetCategoryId: source.categoryId,
-              targetIsUserBook: source.isUserBook,
-              targetLineIndex: row.sourceLineNumber - 1,
-              connectionType: row.connectionType,
-            )
-          : UserLinkRecord(
-              sourceTitle: baseTitle,
-              sourceCategoryId: source.categoryId,
-              sourceIsUserBook: source.isUserBook,
-              sourceLineIndex: row.sourceLineNumber - 1,
-              targetTitle: row.targetTitle,
-              targetCategoryId: target.categoryId,
-              targetIsUserBook: target.isUserBook,
-              targetRef: row.targetRef,
-              targetLineIndex: row.targetLineNumber - 1,
-              connectionType: row.connectionType,
-            ));
+      out.add(
+        flip
+            ? UserLinkRecord(
+                sourceTitle: row.targetTitle,
+                sourceCategoryId: target.categoryId,
+                sourceIsUserBook: target.isUserBook,
+                sourceLineIndex: row.targetLineNumber - 1,
+                targetTitle: baseTitle,
+                targetCategoryId: source.categoryId,
+                targetIsUserBook: source.isUserBook,
+                targetLineIndex: row.sourceLineNumber - 1,
+                connectionType: row.connectionType,
+              )
+            : UserLinkRecord(
+                sourceTitle: baseTitle,
+                sourceCategoryId: source.categoryId,
+                sourceIsUserBook: source.isUserBook,
+                sourceLineIndex: row.sourceLineNumber - 1,
+                targetTitle: row.targetTitle,
+                targetCategoryId: target.categoryId,
+                targetIsUserBook: target.isUserBook,
+                targetRef: row.targetRef,
+                targetLineIndex: row.targetLineNumber - 1,
+                connectionType: row.connectionType,
+              ),
+      );
     }
   }
 
@@ -340,8 +382,9 @@ class UserContentImporter {
         ref: ref,
       );
       if (resolved == null) {
-        errors
-            .add('$fileName: לא נמצא המיקום "$ref" בספר "${row.targetTitle}"');
+        errors.add(
+          '$fileName: לא נמצא המיקום "$ref" בספר "${row.targetTitle}"',
+        );
         return null;
       }
       targetLineIndex = resolved;

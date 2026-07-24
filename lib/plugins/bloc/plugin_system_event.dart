@@ -40,16 +40,20 @@ class ConfirmPluginInstall extends PluginSystemEvent {
   final Map<String, bool> grantedPermissions;
   final bool allowOrderBeforeBuiltInsGranted;
 
-  const ConfirmPluginInstall(this.tempDirPath, this.manifest,
-      this.grantedPermissions, this.allowOrderBeforeBuiltInsGranted);
+  const ConfirmPluginInstall(
+    this.tempDirPath,
+    this.manifest,
+    this.grantedPermissions,
+    this.allowOrderBeforeBuiltInsGranted,
+  );
 
   @override
   List<Object?> get props => [
-        tempDirPath,
-        manifest,
-        grantedPermissions,
-        allowOrderBeforeBuiltInsGranted,
-      ];
+    tempDirPath,
+    manifest,
+    grantedPermissions,
+    allowOrderBeforeBuiltInsGranted,
+  ];
 }
 
 class CancelPluginInstall extends PluginSystemEvent {
@@ -205,12 +209,12 @@ class ConfirmDevPluginInstall extends PluginSystemEvent {
 
   @override
   List<Object?> get props => [
-        manifest,
-        sourcePath,
-        sourceType,
-        grantedPermissions,
-        allowOrderBeforeBuiltInsGranted,
-      ];
+    manifest,
+    sourcePath,
+    sourceType,
+    grantedPermissions,
+    allowOrderBeforeBuiltInsGranted,
+  ];
 }
 
 class LoadLocalhostPluginRequested extends PluginSystemEvent {

@@ -8,21 +8,27 @@ import 'package:otzaria/utils/file/docx_to_otzaria.dart';
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 // Builds a minimal valid DOCX (ZIP) whose word/document.xml is the given bytes.
-Uint8List _buildDocx(List<int> documentXmlBytes,
-    {List<int>? footnotesXmlBytes}) {
+Uint8List _buildDocx(
+  List<int> documentXmlBytes, {
+  List<int>? footnotesXmlBytes,
+}) {
   final encoder = ZipEncoder();
   final archive = Archive();
-  archive.addFile(ArchiveFile(
-    'word/document.xml',
-    documentXmlBytes.length,
-    documentXmlBytes,
-  ));
+  archive.addFile(
+    ArchiveFile(
+      'word/document.xml',
+      documentXmlBytes.length,
+      documentXmlBytes,
+    ),
+  );
   if (footnotesXmlBytes != null) {
-    archive.addFile(ArchiveFile(
-      'word/footnotes.xml',
-      footnotesXmlBytes.length,
-      footnotesXmlBytes,
-    ));
+    archive.addFile(
+      ArchiveFile(
+        'word/footnotes.xml',
+        footnotesXmlBytes.length,
+        footnotesXmlBytes,
+      ),
+    );
   }
   return Uint8List.fromList(encoder.encode(archive));
 }
@@ -34,7 +40,10 @@ List<int> _utf8Xml(String text) => utf8.encode(text);
 // Hebrew text in Windows-1255 encoding — the exact situation that triggered
 // the original bug with בדיקה.docx.
 List<int> _cp1255Xml(
-    String asciiPrefix, List<int> hebrewCp1255Bytes, String asciiSuffix) {
+  String asciiPrefix,
+  List<int> hebrewCp1255Bytes,
+  String asciiSuffix,
+) {
   return [
     ...utf8.encode(asciiPrefix),
     ...hebrewCp1255Bytes,
@@ -45,7 +54,8 @@ List<int> _cp1255Xml(
 const _xmlNs =
     'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
 
-String _simpleDocXml(String innerText) => '''
+String _simpleDocXml(String innerText) =>
+    '''
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document $_xmlNs>
   <w:body>
@@ -73,22 +83,24 @@ void main() {
       expect(result, contains('בדיקה'));
     });
 
-    test('ממיר DOCX עם עברית Windows-1255 (fallback) ומחזיר טקסט עברי תקין',
-        () {
-      // XML header declares UTF-8 but text bytes are Windows-1255 — the exact
-      // bug seen in the real בדיקה.docx file.
-      final xmlBytes = _cp1255Xml(
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-            '<w:document $_xmlNs><w:body><w:p><w:r><w:t>',
-        _cp1255Bedika,
-        '</w:t></w:r></w:p></w:body></w:document>',
-      );
-      final docx = _buildDocx(xmlBytes);
-      final result = docxToText(docx, 'ספר בדיקה');
+    test(
+      'ממיר DOCX עם עברית Windows-1255 (fallback) ומחזיר טקסט עברי תקין',
+      () {
+        // XML header declares UTF-8 but text bytes are Windows-1255 — the exact
+        // bug seen in the real בדיקה.docx file.
+        final xmlBytes = _cp1255Xml(
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+              '<w:document $_xmlNs><w:body><w:p><w:r><w:t>',
+          _cp1255Bedika,
+          '</w:t></w:r></w:p></w:body></w:document>',
+        );
+        final docx = _buildDocx(xmlBytes);
+        final result = docxToText(docx, 'ספר בדיקה');
 
-      expect(result, contains('<h1>ספר בדיקה</h1>'));
-      expect(result, contains('בדיקה'));
-    });
+        expect(result, contains('<h1>ספר בדיקה</h1>'));
+        expect(result, contains('בדיקה'));
+      },
+    );
 
     test('כותרת הספר מופיעה כ-h1 בתחילת הפלט', () {
       final docx = _buildDocx(_utf8Xml(_simpleDocXml('שלום')));
@@ -98,7 +110,8 @@ void main() {
     });
 
     test('פסקה ריקה לא נוספת לפלט', () {
-      final xml = '''
+      final xml =
+          '''
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document $_xmlNs>
   <w:body>
@@ -118,7 +131,8 @@ void main() {
 
   group('docxToText - עיצוב', () {
     test('מודגש מומר ל-<b>', () {
-      final xml = '''
+      final xml =
+          '''
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document $_xmlNs>
   <w:body>
@@ -135,7 +149,8 @@ void main() {
     });
 
     test('נטוי מומר ל-<i>', () {
-      final xml = '''
+      final xml =
+          '''
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document $_xmlNs>
   <w:body>
@@ -165,7 +180,8 @@ void main() {
         '</w:t></w:r></w:p></w:footnote>'
             '</w:footnotes>',
       );
-      final documentXml = '''
+      final documentXml =
+          '''
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document $_xmlNs>
   <w:body>
@@ -176,15 +192,18 @@ void main() {
   </w:body>
 </w:document>''';
 
-      final docx =
-          _buildDocx(_utf8Xml(documentXml), footnotesXmlBytes: footnotesBytes);
+      final docx = _buildDocx(
+        _utf8Xml(documentXml),
+        footnotesXmlBytes: footnotesBytes,
+      );
       final result = docxToText(docx, 'בדיקה');
 
       expect(result, contains('הערה'));
     });
 
     test('הערת שוליים מופיעה אחרי הפסקה שמכילה אותה', () {
-      final documentXml = '''
+      final documentXml =
+          '''
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document $_xmlNs>
   <w:body>
@@ -197,7 +216,8 @@ void main() {
   </w:body>
 </w:document>''';
 
-      final footnotesXml = '''
+      final footnotesXml =
+          '''
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:footnotes $_xmlNs>
   <w:footnote w:id="1">
@@ -222,7 +242,8 @@ void main() {
   });
 
   group('docxToText - כותרות לפי שם הסגנון', () {
-    String docWithStyle(String styleVal, String text) => '''
+    String docWithStyle(String styleVal, String text) =>
+        '''
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document $_xmlNs>
   <w:body>
@@ -235,31 +256,40 @@ void main() {
 
     test('Heading1 (שם) מומר ל-<h1>', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(docWithStyle('Heading1', 'פרק'))), 'ב');
+        _buildDocx(_utf8Xml(docWithStyle('Heading1', 'פרק'))),
+        'ב',
+      );
       expect(result, contains('<h1>פרק</h1>'));
     });
 
     test('"Heading 3" עם רווח מומר ל-<h3>', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(docWithStyle('Heading 3', 'סעיף'))), 'ב');
+        _buildDocx(_utf8Xml(docWithStyle('Heading 3', 'סעיף'))),
+        'ב',
+      );
       expect(result, contains('<h3>סעיף</h3>'));
     });
 
     test('Title מומר ל-<h1>', () {
-      final result =
-          docxToText(_buildDocx(_utf8Xml(docWithStyle('Title', 'שער'))), 'ב');
+      final result = docxToText(
+        _buildDocx(_utf8Xml(docWithStyle('Title', 'שער'))),
+        'ב',
+      );
       expect(result, contains('<h1>שער</h1>'));
     });
 
     test('סגנון לא-כותרת נשאר פסקה רגילה (בלי <h>)', () {
-      final result =
-          docxToText(_buildDocx(_utf8Xml(docWithStyle('Normal', 'רגיל'))), 'ב');
+      final result = docxToText(
+        _buildDocx(_utf8Xml(docWithStyle('Normal', 'רגיל'))),
+        'ב',
+      );
       expect(result, contains('רגיל'));
       expect(result, isNot(contains('<h2>רגיל')));
     });
 
     test('כותרת מזוהה דרך outlineLvl כשאין שם סגנון תואם', () {
-      final xml = '''
+      final xml =
+          '''
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document $_xmlNs>
   <w:body>
@@ -275,7 +305,8 @@ void main() {
   });
 
   group('docxToText - הדגשה עברית (complex-script)', () {
-    String runWithProps(String props, String text) => '''
+    String runWithProps(String props, String text) =>
+        '''
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document $_xmlNs>
   <w:body>
@@ -285,25 +316,32 @@ void main() {
 
     test('w:bCs בלבד (בלי w:b) מומר ל-<b>', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(runWithProps('<w:bCs/>', 'מודגש'))), 'ב');
+        _buildDocx(_utf8Xml(runWithProps('<w:bCs/>', 'מודגש'))),
+        'ב',
+      );
       expect(result, contains('<b>מודגש</b>'));
     });
 
     test('w:iCs בלבד (בלי w:i) מומר ל-<i>', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(runWithProps('<w:iCs/>', 'נטוי'))), 'ב');
+        _buildDocx(_utf8Xml(runWithProps('<w:iCs/>', 'נטוי'))),
+        'ב',
+      );
       expect(result, contains('<i>נטוי</i>'));
     });
 
     test('w:strike מומר ל-<s>', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(runWithProps('<w:strike/>', 'חוצה'))), 'ב');
+        _buildDocx(_utf8Xml(runWithProps('<w:strike/>', 'חוצה'))),
+        'ב',
+      );
       expect(result, contains('<s>חוצה</s>'));
     });
   });
 
   group('docxToText - ניקוי תגים לא נתמכים', () {
-    String runWithProps(String props, String text) => '''
+    String runWithProps(String props, String text) =>
+        '''
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document $_xmlNs>
   <w:body>
@@ -313,34 +351,39 @@ void main() {
 
     test('צבע שחור (000000) לא נפלט כ-span', () {
       final result = docxToText(
-          _buildDocx(
-              _utf8Xml(runWithProps('<w:color w:val="000000"/>', 'טקסט'))),
-          'ב');
+        _buildDocx(_utf8Xml(runWithProps('<w:color w:val="000000"/>', 'טקסט'))),
+        'ב',
+      );
       expect(result, contains('טקסט'));
       expect(result, isNot(contains('color')));
     });
 
     test('גופן (rFonts) לא נפלט כ-font-family', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(runWithProps(
-              '<w:rFonts w:ascii="David" w:cs="David"/>', 'טקסט'))),
-          'ב');
+        _buildDocx(
+          _utf8Xml(
+            runWithProps('<w:rFonts w:ascii="David" w:cs="David"/>', 'טקסט'),
+          ),
+        ),
+        'ב',
+      );
       expect(result, contains('טקסט'));
       expect(result, isNot(contains('font-family')));
     });
 
     test('צבע אמיתי (לא שחור) כן נשמר', () {
       final result = docxToText(
-          _buildDocx(
-              _utf8Xml(runWithProps('<w:color w:val="FF0000"/>', 'אדום'))),
-          'ב');
+        _buildDocx(_utf8Xml(runWithProps('<w:color w:val="FF0000"/>', 'אדום'))),
+        'ב',
+      );
       expect(result, contains('color:#FF0000'));
     });
   });
 
   group('docxToText - מעברי שורה ורשימות', () {
     test('w:br בתוך פסקה מומר ל-<br>', () {
-      final xml = '''
+      final xml =
+          '''
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document $_xmlNs>
   <w:body>
@@ -352,7 +395,8 @@ void main() {
     });
 
     test('פריט רשימה מקבל קידומת תבליט בלי <ul>', () {
-      final xml = '''
+      final xml =
+          '''
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document $_xmlNs>
   <w:body>
@@ -371,7 +415,8 @@ void main() {
 
   group('docxToText - טבלאות ועמידות', () {
     test('תוכן טבלה אינו זולג ומתערבב עם הזרם הרגיל', () {
-      final xml = '''
+      final xml =
+          '''
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document $_xmlNs>
   <w:body>
@@ -392,8 +437,9 @@ void main() {
       expect(result, contains('תא2'));
       expect(result, contains('פסקת גוף'));
       // כל הטבלה בשורה לוגית אחת (כי שורה = widget בקורא).
-      final tableLine =
-          result.split('\n').firstWhere((l) => l.contains('<table'));
+      final tableLine = result
+          .split('\n')
+          .firstWhere((l) => l.contains('<table'));
       expect(tableLine, contains('</table>'));
     });
 
@@ -413,21 +459,25 @@ void main() {
         '$inner</w:tbl></w:body></w:document>';
 
     test('מיזוג אופקי (gridSpan) → colspan', () {
-      final xml = table('<w:tr>'
-          '${cell("ממוזג", tcPr: "<w:gridSpan w:val=\"2\"/>")}'
-          '</w:tr>');
+      final xml = table(
+        '<w:tr>'
+        '${cell("ממוזג", tcPr: "<w:gridSpan w:val=\"2\"/>")}'
+        '</w:tr>',
+      );
       final result = docxToText(_buildDocx(_utf8Xml(xml)), 'ב');
       expect(result, contains('colspan="2"'));
       expect(result, contains('ממוזג'));
     });
 
     test('מיזוג אנכי (vMerge) → rowspan', () {
-      final xml = table('<w:tr>'
-          '${cell("גובה", tcPr: "<w:vMerge w:val=\"restart\"/>")}'
-          '${cell("ימין1")}</w:tr>'
-          '<w:tr>'
-          '${cell("", tcPr: "<w:vMerge/>")}'
-          '${cell("ימין2")}</w:tr>');
+      final xml = table(
+        '<w:tr>'
+        '${cell("גובה", tcPr: "<w:vMerge w:val=\"restart\"/>")}'
+        '${cell("ימין1")}</w:tr>'
+        '<w:tr>'
+        '${cell("", tcPr: "<w:vMerge/>")}'
+        '${cell("ימין2")}</w:tr>',
+      );
       final result = docxToText(_buildDocx(_utf8Xml(xml)), 'ב');
       expect(result, contains('rowspan="2"'));
       // תא ההמשך אינו נפלט בנפרד (אין td ריק שני)
@@ -435,24 +485,30 @@ void main() {
     });
 
     test('רקע תא (w:shd) → background-color', () {
-      final xml = table('<w:tr>'
-          '${cell("צבעוני", tcPr: "<w:shd w:fill=\"FFFF00\"/>")}'
-          '</w:tr>');
+      final xml = table(
+        '<w:tr>'
+        '${cell("צבעוני", tcPr: "<w:shd w:fill=\"FFFF00\"/>")}'
+        '</w:tr>',
+      );
       final result = docxToText(_buildDocx(_utf8Xml(xml)), 'ב');
       expect(result, contains('background-color: #FFFF00'));
     });
 
     test('שורת כותרת (tblHeader) → <th>', () {
-      final xml = table('<w:tr><w:trPr><w:tblHeader/></w:trPr>'
-          '${cell("כותרת")}</w:tr>');
+      final xml = table(
+        '<w:tr><w:trPr><w:tblHeader/></w:trPr>'
+        '${cell("כותרת")}</w:tr>',
+      );
       final result = docxToText(_buildDocx(_utf8Xml(xml)), 'ב');
       expect(result, contains('<th'));
       expect(result, contains('כותרת'));
     });
 
     test('טבלה RTL (bidiVisual) → dir="rtl"', () {
-      final xml =
-          table('<w:tr>${cell("ימני")}</w:tr>', tblPr: '<w:bidiVisual/>');
+      final xml = table(
+        '<w:tr>${cell("ימני")}</w:tr>',
+        tblPr: '<w:bidiVisual/>',
+      );
       final result = docxToText(_buildDocx(_utf8Xml(xml)), 'ב');
       expect(result, contains('<table dir="rtl"'));
     });
@@ -460,16 +516,19 @@ void main() {
 
   group('docxToText - תמונות מוטמעות (offline)', () {
     // ה-namespaces הדרושים לזיהוי a:blip ו-r:embed.
-    const imgNs = '$_xmlNs '
+    const imgNs =
+        '$_xmlNs '
         'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
         'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
 
     Uint8List buildWithImage(String target, List<int> imageBytes) {
-      final docXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final docXml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $imgNs><w:body><w:p><w:r><w:drawing>'
           '<a:blip r:embed="rId1"/></w:drawing></w:r></w:p></w:body>'
           '</w:document>';
-      final relsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final relsXml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
           '<Relationship Id="rId1" '
           'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" '
@@ -480,11 +539,15 @@ void main() {
       final rels = utf8.encode(relsXml);
       archive.addFile(ArchiveFile('word/document.xml', doc.length, doc));
       archive.addFile(
-          ArchiveFile('word/_rels/document.xml.rels', rels.length, rels));
-      archive.addFile(ArchiveFile(
+        ArchiveFile('word/_rels/document.xml.rels', rels.length, rels),
+      );
+      archive.addFile(
+        ArchiveFile(
           'word/${target.startsWith('/') ? target.substring(1) : target}',
           imageBytes.length,
-          imageBytes));
+          imageBytes,
+        ),
+      );
       return Uint8List.fromList(encoder.encode(archive));
     }
 
@@ -514,9 +577,11 @@ void main() {
     String numberingXml(List<List<String>> levels, {String start = '1'}) {
       final lvls = <String>[];
       for (var i = 0; i < levels.length; i++) {
-        lvls.add('<w:lvl w:ilvl="$i"><w:start w:val="$start"/>'
-            '<w:numFmt w:val="${levels[i][0]}"/>'
-            '<w:lvlText w:val="${levels[i][1]}"/></w:lvl>');
+        lvls.add(
+          '<w:lvl w:ilvl="$i"><w:start w:val="$start"/>'
+          '<w:numFmt w:val="${levels[i][0]}"/>'
+          '<w:lvlText w:val="${levels[i][1]}"/></w:lvl>',
+        );
       }
       return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:numbering $_xmlNs><w:abstractNum w:abstractNumId="0">'
@@ -531,7 +596,8 @@ void main() {
         '<w:r><w:t>$text</w:t></w:r></w:p>';
 
     Uint8List build(String body, String numbering) {
-      final docXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final docXml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $_xmlNs><w:body>$body</w:body></w:document>';
       final encoder = ZipEncoder();
       final archive = Archive();
@@ -544,11 +610,12 @@ void main() {
 
     test('מספור decimal רץ: 1. 2. 3.', () {
       final num = numberingXml([
-        ['decimal', '%1.']
+        ['decimal', '%1.'],
       ]);
       final result = docxToText(
-          build('${item(0, "ראשון")}${item(0, "שני")}${item(0, "שלישי")}', num),
-          'ב');
+        build('${item(0, "ראשון")}${item(0, "שני")}${item(0, "שלישי")}', num),
+        'ב',
+      );
       expect(result, contains('1. ראשון'));
       expect(result, contains('2. שני'));
       expect(result, contains('3. שלישי'));
@@ -561,9 +628,12 @@ void main() {
         ['decimal', '%1.%2.%3.'],
       ]);
       final result = docxToText(
-          build('${item(0, "א")}${item(1, "ב")}${item(2, "ג")}${item(1, "ד")}',
-              num),
-          'ב');
+        build(
+          '${item(0, "א")}${item(1, "ב")}${item(2, "ג")}${item(1, "ד")}',
+          num,
+        ),
+        'ב',
+      );
       expect(result, contains('1. א'));
       expect(result, contains('1.1. ב'));
       expect(result, contains('1.1.1. ג'));
@@ -572,20 +642,24 @@ void main() {
 
     test('אותיות לטיניות (lowerLetter): a. b.', () {
       final num = numberingXml([
-        ['lowerLetter', '%1.']
+        ['lowerLetter', '%1.'],
       ]);
-      final result =
-          docxToText(build('${item(0, "x")}${item(0, "y")}', num), 'ב');
+      final result = docxToText(
+        build('${item(0, "x")}${item(0, "y")}', num),
+        'ב',
+      );
       expect(result, contains('a. x'));
       expect(result, contains('b. y'));
     });
 
     test('אותיות רומיות (upperRoman): I. II. III.', () {
       final num = numberingXml([
-        ['upperRoman', '%1.']
+        ['upperRoman', '%1.'],
       ]);
       final result = docxToText(
-          build('${item(0, "a")}${item(0, "b")}${item(0, "c")}', num), 'ב');
+        build('${item(0, "a")}${item(0, "b")}${item(0, "c")}', num),
+        'ב',
+      );
       expect(result, contains('I. a'));
       expect(result, contains('II. b'));
       expect(result, contains('III. c'));
@@ -593,10 +667,12 @@ void main() {
 
     test('אותיות עבריות (hebrew1): א. ב. ג.', () {
       final num = numberingXml([
-        ['hebrew1', '%1.']
+        ['hebrew1', '%1.'],
       ]);
       final result = docxToText(
-          build('${item(0, "x")}${item(0, "y")}${item(0, "z")}', num), 'ב');
+        build('${item(0, "x")}${item(0, "y")}${item(0, "z")}', num),
+        'ב',
+      );
       expect(result, contains('א. x'));
       expect(result, contains('ב. y'));
       expect(result, contains('ג. z'));
@@ -604,24 +680,27 @@ void main() {
 
     test('רשימה שמתחילה ממספר נתון (start=5): 5. 6.', () {
       final num = numberingXml([
-        ['decimal', '%1.']
+        ['decimal', '%1.'],
       ], start: '5');
-      final result =
-          docxToText(build('${item(0, "x")}${item(0, "y")}', num), 'ב');
+      final result = docxToText(
+        build('${item(0, "x")}${item(0, "y")}', num),
+        'ב',
+      );
       expect(result, contains('5. x'));
       expect(result, contains('6. y'));
     });
 
     test('תבליט (bullet) נשאר •', () {
       final num = numberingXml([
-        ['bullet', '']
+        ['bullet', ''],
       ]);
       final result = docxToText(build(item(0, "פריט"), num), 'ב');
       expect(result, contains('• פריט'));
     });
 
     test('רשימה בלי numbering.xml נופלת לתבליט (לא קורסת)', () {
-      final docXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final docXml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $_xmlNs><w:body>${item(0, "פריט")}</w:body></w:document>';
       final result = docxToText(_buildDocx(_utf8Xml(docXml)), 'ב');
       expect(result, contains('• פריט'));
@@ -630,15 +709,18 @@ void main() {
 
   group('docxToText - escaping של תוכן', () {
     test('שם ספר עם < / & מקבל escape בכותרת (לא שובר HTML)', () {
-      final result =
-          docxToText(_buildDocx(_utf8Xml(_simpleDocXml('תוכן'))), 'א < ב & ג');
+      final result = docxToText(
+        _buildDocx(_utf8Xml(_simpleDocXml('תוכן'))),
+        'א < ב & ג',
+      );
       expect(result, contains('<h1>א &lt; ב &amp; ג</h1>'));
       expect(result, isNot(contains('<h1>א < ב')));
     });
 
     test('תווי < ו-> בתוכן הופכים ל-entity ולא שוברים את ה-HTML', () {
       // ב-Word התו "<" מקודד כ-&lt; ב-XML; innerText מחזיר "<" גולמי.
-      final xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final xml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $_xmlNs><w:body><w:p><w:r><w:t>a &lt; b &gt; c</w:t>'
           '</w:r></w:p></w:body></w:document>';
       final result = docxToText(_buildDocx(_utf8Xml(xml)), 'ב');
@@ -648,7 +730,8 @@ void main() {
     });
 
     test('תו & בתוכן הופך ל-&amp;', () {
-      final xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final xml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $_xmlNs><w:body><w:p><w:r><w:t>ר&apos; &amp; כו&apos;</w:t>'
           '</w:r></w:p></w:body></w:document>';
       final result = docxToText(_buildDocx(_utf8Xml(xml)), 'ב');
@@ -659,7 +742,8 @@ void main() {
   group('docxToText - מיזוג runs מפוצלים', () {
     test('שני runs מודגשים סמוכים ממוזגים ל-<b> אחד', () {
       // Word מפצל "שלום" לשני runs מודגשים — הפלט צריך להיות <b>שלום</b> אחד.
-      final xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final xml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $_xmlNs><w:body><w:p>'
           '<w:r><w:rPr><w:b/></w:rPr><w:t>של</w:t></w:r>'
           '<w:r><w:rPr><w:b/></w:rPr><w:t>ום</w:t></w:r>'
@@ -670,7 +754,8 @@ void main() {
     });
 
     test('runs בעיצוב שונה אינם ממוזגים', () {
-      final xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final xml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $_xmlNs><w:body><w:p>'
           '<w:r><w:rPr><w:b/></w:rPr><w:t>מודגש</w:t></w:r>'
           '<w:r><w:rPr><w:i/></w:rPr><w:t>נטוי</w:t></w:r>'
@@ -682,7 +767,8 @@ void main() {
 
     test('runs סמוכים עם עיצוב זהה (צבע) ממוזגים ל-span אחד', () {
       // מבחן ביצועים: ניפוח HTML מ-runs מפוצלים של Word עם אותו עיצוב.
-      final xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final xml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $_xmlNs><w:body><w:p>'
           '<w:r><w:rPr><w:color w:val="FF0000"/></w:rPr><w:t>אב</w:t></w:r>'
           '<w:r><w:rPr><w:color w:val="FF0000"/></w:rPr><w:t>גד</w:t></w:r>'
@@ -694,9 +780,11 @@ void main() {
     });
 
     test('עטיפה מורכבת זהה (מודגש+צבע+מרקר) ממוזגת פעם אחת', () {
-      final props = '<w:rPr><w:bCs/><w:color w:val="1F3B6D"/>'
+      final props =
+          '<w:rPr><w:bCs/><w:color w:val="1F3B6D"/>'
           '<w:highlight w:val="yellow"/></w:rPr>';
-      final xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final xml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $_xmlNs><w:body><w:p>'
           '<w:r>$props<w:t>חלק </w:t></w:r>'
           '<w:r>$props<w:t>שני </w:t></w:r>'
@@ -718,50 +806,60 @@ void main() {
 
     test('w:b w:val="0" (ביטול ירושה) אינו מודגש', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(runWithProps('<w:b w:val="0"/>', 'רגיל'))), 'ב');
+        _buildDocx(_utf8Xml(runWithProps('<w:b w:val="0"/>', 'רגיל'))),
+        'ב',
+      );
       expect(result, contains('רגיל'));
       expect(result, isNot(contains('<b>')));
     });
 
     test('w:b w:val="false" אינו מודגש', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(runWithProps('<w:b w:val="false"/>', 'רגיל'))),
-          'ב');
+        _buildDocx(_utf8Xml(runWithProps('<w:b w:val="false"/>', 'רגיל'))),
+        'ב',
+      );
       expect(result, isNot(contains('<b>')));
     });
 
     test('w:u w:val="none" (ביטול קו תחתי) אינו עוטף ב-<u>', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(runWithProps('<w:u w:val="none"/>', 'טקסט'))),
-          'ב');
+        _buildDocx(_utf8Xml(runWithProps('<w:u w:val="none"/>', 'טקסט'))),
+        'ב',
+      );
       expect(result, isNot(contains('<u>')));
     });
 
     test('w:u w:val="single" כן עוטף ב-<u>', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(runWithProps('<w:u w:val="single"/>', 'קו'))),
-          'ב');
+        _buildDocx(_utf8Xml(runWithProps('<w:u w:val="single"/>', 'קו'))),
+        'ב',
+      );
       expect(result, contains('<u>קו</u>'));
     });
 
     test('w:vertAlign superscript מומר ל-<sup>', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(
-              runWithProps('<w:vertAlign w:val="superscript"/>', 'מעלית'))),
-          'ב');
+        _buildDocx(
+          _utf8Xml(runWithProps('<w:vertAlign w:val="superscript"/>', 'מעלית')),
+        ),
+        'ב',
+      );
       expect(result, contains('<sup>מעלית</sup>'));
     });
 
     test('w:vertAlign subscript מומר ל-<sub>', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(
-              runWithProps('<w:vertAlign w:val="subscript"/>', 'מורד'))),
-          'ב');
+        _buildDocx(
+          _utf8Xml(runWithProps('<w:vertAlign w:val="subscript"/>', 'מורד')),
+        ),
+        'ב',
+      );
       expect(result, contains('<sub>מורד</sub>'));
     });
 
     test('טקסט מוסתר (w:vanish) אינו מוצג', () {
-      final xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final xml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $_xmlNs><w:body><w:p>'
           '<w:r><w:t>גלוי</w:t></w:r>'
           '<w:r><w:rPr><w:vanish/></w:rPr><w:t>מוסתר</w:t></w:r>'
@@ -780,31 +878,38 @@ void main() {
 
     test('w:highlight=yellow מומר לרקע צבעוני', () {
       final result = docxToText(
-          _buildDocx(
-              _utf8Xml(runWithProps('<w:highlight w:val="yellow"/>', 'מסומן'))),
-          'ב');
+        _buildDocx(
+          _utf8Xml(runWithProps('<w:highlight w:val="yellow"/>', 'מסומן')),
+        ),
+        'ב',
+      );
       expect(result, contains('background-color:yellow'));
       expect(result, contains('מסומן'));
     });
 
     test('w:highlight=darkYellow ממופה ל-HEX (אין שם CSS)', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(
-              runWithProps('<w:highlight w:val="darkYellow"/>', 'כהה'))),
-          'ב');
+        _buildDocx(
+          _utf8Xml(runWithProps('<w:highlight w:val="darkYellow"/>', 'כהה')),
+        ),
+        'ב',
+      );
       expect(result, contains('background-color:#808000'));
     });
 
     test('w:highlight=none אינו יוצר רקע', () {
       final result = docxToText(
-          _buildDocx(
-              _utf8Xml(runWithProps('<w:highlight w:val="none"/>', 'רגיל'))),
-          'ב');
+        _buildDocx(
+          _utf8Xml(runWithProps('<w:highlight w:val="none"/>', 'רגיל')),
+        ),
+        'ב',
+      );
       expect(result, isNot(contains('background-color')));
     });
 
     test('פסקת גוף עם jc=center מתקבלת מיושרת למרכז', () {
-      final xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final xml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $_xmlNs><w:body><w:p>'
           '<w:pPr><w:jc w:val="center"/></w:pPr>'
           '<w:r><w:t>שירת הים</w:t></w:r></w:p></w:body></w:document>';
@@ -815,7 +920,8 @@ void main() {
 
     test('כותרת ממורכזת לא נעטפת ב-div (נשמר זיהוי <h>)', () {
       // כותרת עם jc=center חייבת להישאר <h..> בתחילת השורה כדי ש-TocParser יזהה.
-      final xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final xml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $_xmlNs><w:body><w:p>'
           '<w:pPr><w:pStyle w:val="Heading1"/><w:jc w:val="center"/></w:pPr>'
           '<w:r><w:t>פרק</w:t></w:r></w:p></w:body></w:document>';
@@ -825,7 +931,8 @@ void main() {
     });
 
     test('jc=right מתקבל מיושר לימין', () {
-      final xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final xml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $_xmlNs><w:body><w:p>'
           '<w:pPr><w:jc w:val="right"/></w:pPr>'
           '<w:r><w:t>ימין</w:t></w:r></w:p></w:body></w:document>';
@@ -834,7 +941,8 @@ void main() {
     });
 
     test('jc=left מתקבל מיושר לשמאל', () {
-      final xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final xml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $_xmlNs><w:body><w:p>'
           '<w:pPr><w:jc w:val="left"/></w:pPr>'
           '<w:r><w:t>שמאל</w:t></w:r></w:p></w:body></w:document>';
@@ -851,70 +959,85 @@ void main() {
 
     test('קו תחתי כפול → text-decoration underline double', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(runWithProps('<w:u w:val="double"/>', 'כפול'))),
-          'ב');
+        _buildDocx(_utf8Xml(runWithProps('<w:u w:val="double"/>', 'כפול'))),
+        'ב',
+      );
       expect(result, contains('text-decoration: underline double'));
     });
 
     test('קו תחתי מנוקד (dotted) → dotted', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(runWithProps('<w:u w:val="dotted"/>', 'מנוקד'))),
-          'ב');
+        _buildDocx(_utf8Xml(runWithProps('<w:u w:val="dotted"/>', 'מנוקד'))),
+        'ב',
+      );
       expect(result, contains('underline dotted'));
     });
 
     test('קו תחתי מקווקו (dash) → dashed', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(runWithProps('<w:u w:val="dash"/>', 'מקווקו'))),
-          'ב');
+        _buildDocx(_utf8Xml(runWithProps('<w:u w:val="dash"/>', 'מקווקו'))),
+        'ב',
+      );
       expect(result, contains('underline dashed'));
     });
 
     test('קו תחתי גלי (wave) → wavy', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(runWithProps('<w:u w:val="wave"/>', 'גלי'))),
-          'ב');
+        _buildDocx(_utf8Xml(runWithProps('<w:u w:val="wave"/>', 'גלי'))),
+        'ב',
+      );
       expect(result, contains('underline wavy'));
     });
 
     test('קו תחתי עבה (thick) → thickness', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(runWithProps('<w:u w:val="thick"/>', 'עבה'))),
-          'ב');
+        _buildDocx(_utf8Xml(runWithProps('<w:u w:val="thick"/>', 'עבה'))),
+        'ב',
+      );
       expect(result, contains('text-decoration-thickness'));
     });
 
     test('קו תחתי צבעוני → text-decoration-color', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(runWithProps(
-              '<w:u w:val="single" w:color="FF0000"/>', 'צבעוני'))),
-          'ב');
+        _buildDocx(
+          _utf8Xml(
+            runWithProps('<w:u w:val="single" w:color="FF0000"/>', 'צבעוני'),
+          ),
+        ),
+        'ב',
+      );
       expect(result, contains('text-decoration-color: #FF0000'));
     });
 
     test('קו תחתי single רגיל נשאר <u> (ניתן למיזוג)', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(runWithProps('<w:u w:val="single"/>', 'רגיל'))),
-          'ב');
+        _buildDocx(_utf8Xml(runWithProps('<w:u w:val="single"/>', 'רגיל'))),
+        'ב',
+      );
       expect(result, contains('<u>רגיל</u>'));
     });
 
     test('קו חוצה כפול (dstrike) → line-through double', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(runWithProps('<w:dstrike/>', 'חוצה כפול'))), 'ב');
+        _buildDocx(_utf8Xml(runWithProps('<w:dstrike/>', 'חוצה כפול'))),
+        'ב',
+      );
       expect(result, contains('text-decoration: line-through double'));
     });
 
     test('קו חוצה יחיד (strike) נשאר <s>', () {
       final result = docxToText(
-          _buildDocx(_utf8Xml(runWithProps('<w:strike/>', 'חוצה'))), 'ב');
+        _buildDocx(_utf8Xml(runWithProps('<w:strike/>', 'חוצה'))),
+        'ב',
+      );
       expect(result, contains('<s>חוצה</s>'));
     });
   });
 
   group('docxToText - מבנים מקוננים (sdt וטבלאות מקוננות)', () {
     test('פסקה בתוך w:sdt (בקרת תוכן) אינה נשמטת', () {
-      final xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final xml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $_xmlNs><w:body>'
           '<w:p><w:r><w:t>לפני</w:t></w:r></w:p>'
           '<w:sdt><w:sdtContent>'
@@ -924,13 +1047,17 @@ void main() {
           '</w:body></w:document>';
       final result = docxToText(_buildDocx(_utf8Xml(xml)), 'ב');
       expect(result, contains('לפני'));
-      expect(result, contains('בתוך בקרת תוכן'),
-          reason: 'תוכן עטוף ב-sdt לא נאבד');
+      expect(
+        result,
+        contains('בתוך בקרת תוכן'),
+        reason: 'תוכן עטוף ב-sdt לא נאבד',
+      );
       expect(result, contains('אחרי'));
     });
 
     test('טבלה בתוך w:sdt אינה נשמטת', () {
-      final xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final xml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $_xmlNs><w:body><w:sdt><w:sdtContent>'
           '<w:tbl><w:tr><w:tc><w:p><w:r><w:t>תא-בסדט</w:t></w:r></w:p></w:tc>'
           '</w:tr></w:tbl>'
@@ -941,7 +1068,8 @@ void main() {
     });
 
     test('טבלה מקוננת בתוך תא — תוכנה הפנימי נשמר', () {
-      final xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final xml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $_xmlNs><w:body><w:tbl><w:tr><w:tc>'
           '<w:p><w:r><w:t>חיצוני</w:t></w:r></w:p>'
           '<w:tbl><w:tr><w:tc><w:p><w:r><w:t>פנימי</w:t></w:r></w:p></w:tc>'
@@ -955,7 +1083,8 @@ void main() {
     });
 
     test('שורת טבלה עטופה ב-w:sdt אינה נשמטת', () {
-      final xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final xml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $_xmlNs><w:body><w:tbl>'
           '<w:tr><w:tc><w:p><w:r><w:t>רגילה</w:t></w:r></w:p></w:tc></w:tr>'
           '<w:sdt><w:sdtContent>'
@@ -964,12 +1093,16 @@ void main() {
           '</w:tbl></w:body></w:document>';
       final result = docxToText(_buildDocx(_utf8Xml(xml)), 'ב');
       expect(result, contains('רגילה'));
-      expect(result, contains('בתוך-סדט'),
-          reason: 'שורת טבלה עטופה ב-sdt לא נאבדת');
+      expect(
+        result,
+        contains('בתוך-סדט'),
+        reason: 'שורת טבלה עטופה ב-sdt לא נאבדת',
+      );
     });
 
     test('תא טבלה עטוף ב-w:sdt אינו נשמט', () {
-      final xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final xml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $_xmlNs><w:body><w:tbl><w:tr>'
           '<w:tc><w:p><w:r><w:t>תא-א</w:t></w:r></w:p></w:tc>'
           '<w:sdt><w:sdtContent>'
@@ -985,8 +1118,13 @@ void main() {
   group('docxToText - תגיות אוצריא מילוליות', () {
     test('תגיות אוצריא שהוקלדו כטקסט מופעלות כעיצוב אמיתי', () {
       // ב-XML של המסמך התגית מופיעה כ-entities — כלומר טקסט גלוי במסמך Word.
-      final docx = _buildDocx(_utf8Xml(_simpleDocXml(
-          '&lt;big&gt;&lt;b&gt;יתגבר כארי&lt;/b&gt;&lt;/big&gt; לעמוד בבקר')));
+      final docx = _buildDocx(
+        _utf8Xml(
+          _simpleDocXml(
+            '&lt;big&gt;&lt;b&gt;יתגבר כארי&lt;/b&gt;&lt;/big&gt; לעמוד בבקר',
+          ),
+        ),
+      );
       final result = docxToText(docx, 'ב');
 
       expect(result, contains('<big><b>יתגבר כארי</b></big>'));
@@ -994,8 +1132,9 @@ void main() {
     });
 
     test('תגית כותרת מילולית הופכת לכותרת אמיתית (וזמינה ל-TocParser)', () {
-      final docx =
-          _buildDocx(_utf8Xml(_simpleDocXml('&lt;h4&gt;סעיף א&lt;/h4&gt;')));
+      final docx = _buildDocx(
+        _utf8Xml(_simpleDocXml('&lt;h4&gt;סעיף א&lt;/h4&gt;')),
+      );
       final result = docxToText(docx, 'ב');
 
       expect(result, contains('<h4>סעיף א</h4>'));
@@ -1003,7 +1142,8 @@ void main() {
     });
 
     test('תגית שפוצלה בין כמה runs מזוהה לאחר האיחוד', () {
-      final xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final xml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $_xmlNs><w:body><w:p>'
           '<w:r><w:t xml:space="preserve">&lt;bi</w:t></w:r>'
           '<w:r><w:t xml:space="preserve">g&gt;מילה&lt;/big&gt;</w:t></w:r>'
@@ -1015,7 +1155,8 @@ void main() {
 
     test('סוגריים מחודדים שאינם תגית אוצריא נשארים escaped', () {
       final docx = _buildDocx(
-          _utf8Xml(_simpleDocXml('נוסחה: a&lt;x&gt; וגם &lt;תנאי&gt; וטקסט')));
+        _utf8Xml(_simpleDocXml('נוסחה: a&lt;x&gt; וגם &lt;תנאי&gt; וטקסט')),
+      );
       final result = docxToText(docx, 'ב');
 
       expect(result, contains('a&lt;x&gt;'));
@@ -1025,12 +1166,14 @@ void main() {
   });
 
   group('docxToText - תיבות-טקסט (textbox / shape)', () {
-    const drawNs = '$_xmlNs '
+    const drawNs =
+        '$_xmlNs '
         'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
         'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
 
     test('טקסט בתוך תיבת-טקסט מוצג במסגרת (div) ולא נכפל', () {
-      final xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final xml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $drawNs><w:body><w:p><w:r><w:drawing>'
           '<w:txbxContent>'
           '<w:p><w:r><w:t>טקסט בתוך מסגרת</w:t></w:r></w:p>'
@@ -1043,7 +1186,8 @@ void main() {
     });
 
     test('מסגרת-רקע דקורטיבית (behindDoc) מדולגת — לא בלוק ריק', () {
-      final docXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final docXml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $drawNs '
           'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
           '<w:body>'
@@ -1052,7 +1196,8 @@ void main() {
           '</w:drawing></w:r></w:p>'
           '<w:p><w:r><w:t>כותרת הספר</w:t></w:r></w:p>'
           '</w:body></w:document>';
-      final relsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final relsXml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
           '<Relationship Id="rId1" '
           'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" '
@@ -1064,23 +1209,31 @@ void main() {
       final png = [0x89, 0x50, 0x4E, 0x47];
       archive.addFile(ArchiveFile('word/document.xml', d.length, d));
       archive.addFile(
-          ArchiveFile('word/_rels/document.xml.rels', rels.length, rels));
+        ArchiveFile('word/_rels/document.xml.rels', rels.length, rels),
+      );
       archive.addFile(ArchiveFile('word/media/i.png', png.length, png));
-      final result =
-          docxToText(Uint8List.fromList(encoder.encode(archive)), 'ב');
+      final result = docxToText(
+        Uint8List.fromList(encoder.encode(archive)),
+        'ב',
+      );
       expect(result, contains('כותרת הספר'), reason: 'הטקסט נשמר');
-      expect(result, isNot(contains('<img')),
-          reason: 'מסגרת-הרקע מדולגת — לא מוצגת כבלוק ריק');
+      expect(
+        result,
+        isNot(contains('<img')),
+        reason: 'מסגרת-הרקע מדולגת — לא מוצגת כבלוק ריק',
+      );
     });
 
     test('תיבת-טקסט עם תמונת-רקע → טקסט על background-image', () {
-      final docXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final docXml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $drawNs><w:body><w:p><w:r><w:drawing>'
           '<a:blip r:embed="rId1"/>'
           '<w:txbxContent>'
           '<w:p><w:r><w:t>על התמונה</w:t></w:r></w:p>'
           '</w:txbxContent></w:drawing></w:r></w:p></w:body></w:document>';
-      final relsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final relsXml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
           '<Relationship Id="rId1" '
           'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" '
@@ -1092,24 +1245,32 @@ void main() {
       final png = [0x89, 0x50, 0x4E, 0x47];
       archive.addFile(ArchiveFile('word/document.xml', d.length, d));
       archive.addFile(
-          ArchiveFile('word/_rels/document.xml.rels', rels.length, rels));
+        ArchiveFile('word/_rels/document.xml.rels', rels.length, rels),
+      );
       archive.addFile(ArchiveFile('word/media/i.png', png.length, png));
-      final result =
-          docxToText(Uint8List.fromList(encoder.encode(archive)), 'ב');
+      final result = docxToText(
+        Uint8List.fromList(encoder.encode(archive)),
+        'ב',
+      );
       expect(result, contains('על התמונה'));
-      expect(result, contains('background-image: url(data:image/png;base64,'),
-          reason: 'הטקסט על תמונת-רקע מוטמעת');
+      expect(
+        result,
+        contains('background-image: url(data:image/png;base64,'),
+        reason: 'הטקסט על תמונת-רקע מוטמעת',
+      );
     });
 
     test('תמונה inline בתוך תיבת-טקסט אינה מזוהה כתמונת-רקע', () {
-      final docXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final docXml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $drawNs><w:body><w:p><w:r><w:drawing>'
           '<w:txbxContent>'
           '<w:p><w:r><w:t>לפני תמונה</w:t></w:r>'
           '<w:r><w:drawing><a:blip r:embed="rId1"/></w:drawing></w:r>'
           '</w:p>'
           '</w:txbxContent></w:drawing></w:r></w:p></w:body></w:document>';
-      final relsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final relsXml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
           '<Relationship Id="rId1" '
           'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" '
@@ -1121,24 +1282,35 @@ void main() {
       final png = [0x89, 0x50, 0x4E, 0x47];
       archive.addFile(ArchiveFile('word/document.xml', d.length, d));
       archive.addFile(
-          ArchiveFile('word/_rels/document.xml.rels', rels.length, rels));
+        ArchiveFile('word/_rels/document.xml.rels', rels.length, rels),
+      );
       archive.addFile(ArchiveFile('word/media/i.png', png.length, png));
-      final result =
-          docxToText(Uint8List.fromList(encoder.encode(archive)), 'ב');
+      final result = docxToText(
+        Uint8List.fromList(encoder.encode(archive)),
+        'ב',
+      );
       expect(result, contains('לפני תמונה'));
-      expect(result, contains('<img src="data:image/png;base64,'),
-          reason: 'תמונה בתוך תוכן התיבה נשארת inline');
-      expect(result, isNot(contains('background-image')),
-          reason: 'רק תמונה מחוץ ל-txbxContent משמשת כרקע לתיבה');
+      expect(
+        result,
+        contains('<img src="data:image/png;base64,'),
+        reason: 'תמונה בתוך תוכן התיבה נשארת inline',
+      );
+      expect(
+        result,
+        isNot(contains('background-image')),
+        reason: 'רק תמונה מחוץ ל-txbxContent משמשת כרקע לתיבה',
+      );
     });
 
     test('תיבת-טקסט ריקה עם תמונה → <img> רגיל ולא div ריק', () {
-      final docXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final docXml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<w:document $drawNs><w:body><w:p><w:r><w:drawing>'
           '<a:blip r:embed="rId1"/>'
           '<w:txbxContent><w:p></w:p></w:txbxContent>'
           '</w:drawing></w:r></w:p></w:body></w:document>';
-      final relsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      final relsXml =
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
           '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
           '<Relationship Id="rId1" '
           'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" '
@@ -1150,14 +1322,23 @@ void main() {
       final png = [0x89, 0x50, 0x4E, 0x47];
       archive.addFile(ArchiveFile('word/document.xml', d.length, d));
       archive.addFile(
-          ArchiveFile('word/_rels/document.xml.rels', rels.length, rels));
+        ArchiveFile('word/_rels/document.xml.rels', rels.length, rels),
+      );
       archive.addFile(ArchiveFile('word/media/i.png', png.length, png));
-      final result =
-          docxToText(Uint8List.fromList(encoder.encode(archive)), 'ב');
-      expect(result, contains('<img src="data:image/png;base64,'),
-          reason: 'תיבה ריקה מטקסט → התמונה כ-<img> רגיל');
-      expect(result, isNot(contains('background-image')),
-          reason: 'לא div ריק עם background-image (חסר גובה, לא מציג)');
+      final result = docxToText(
+        Uint8List.fromList(encoder.encode(archive)),
+        'ב',
+      );
+      expect(
+        result,
+        contains('<img src="data:image/png;base64,'),
+        reason: 'תיבה ריקה מטקסט → התמונה כ-<img> רגיל',
+      );
+      expect(
+        result,
+        isNot(contains('background-image')),
+        reason: 'לא div ריק עם background-image (חסר גובה, לא מציג)',
+      );
     });
   });
 }

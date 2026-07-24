@@ -19,7 +19,7 @@ import '../helpers/memory_settings_cache.dart';
 
 class _StubBookmarkBloc extends Cubit<BookmarkState> implements BookmarkBloc {
   _StubBookmarkBloc(List<Bookmark> bookmarks)
-      : super(BookmarkState(bookmarks: bookmarks));
+    : super(BookmarkState(bookmarks: bookmarks));
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -35,7 +35,7 @@ class _StubTabsBloc extends Cubit<TabsState> implements TabsBloc {
 class _StubNavigationBloc extends Cubit<NavigationState>
     implements NavigationBloc {
   _StubNavigationBloc()
-      : super(const NavigationState(currentScreen: Screen.reading));
+    : super(const NavigationState(currentScreen: Screen.reading));
 
   @override
   void add(NavigationEvent event) {}
@@ -92,7 +92,10 @@ void main() {
     final hasSpacingPadding = tester
         .widgetList<Padding>(paddingFinder)
         .any((p) => p.padding == const EdgeInsetsDirectional.only(start: 8));
-    expect(hasSpacingPadding, isTrue,
-        reason: 'כפתור המיון צריך רווח של 8 מצד שדה החיפוש');
+    expect(
+      hasSpacingPadding,
+      isTrue,
+      reason: 'כפתור המיון צריך רווח של 8 מצד שדה החיפוש',
+    );
   });
 }

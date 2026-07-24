@@ -38,8 +38,9 @@ void main() {
   }
 
   group('תפריט הטווח והתאמת המילים המרוכז', () {
-    testWidgets('בחירת "מילה אחת לפחות" מעדכנת את ה-state ומשביתה את המרווח',
-        (tester) async {
+    testWidgets('בחירת "מילה אחת לפחות" מעדכנת את ה-state ומשביתה את המרווח', (
+      tester,
+    ) async {
       final tab = SearchingTab('חיפוש', null);
       final bloc = tab.searchBloc;
       addTearDown(bloc.close);
@@ -63,8 +64,9 @@ void main() {
       expect(find.text(WordMatchMode.anyWord.label), findsOneWidget);
     });
 
-    testWidgets('בחירת "לפחות X מילים" מציגה שדה מספר שמעדכן את ה-state',
-        (tester) async {
+    testWidgets('בחירת "לפחות X מילים" מציגה שדה מספר שמעדכן את ה-state', (
+      tester,
+    ) async {
       final tab = SearchingTab('חיפוש', null);
       final bloc = tab.searchBloc;
       addTearDown(bloc.close);

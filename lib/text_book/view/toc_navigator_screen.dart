@@ -106,10 +106,13 @@ class _TocViewerState extends State<TocViewer>
     // ואז חוסמת את הגלילה האמיתית בפתיחה הבאה.
     if (!state.showLeftPane) return;
 
-    final int? activeIndex = state.selectedIndex ??
+    final int? activeIndex =
+        state.selectedIndex ??
         (state.visibleIndices.isNotEmpty
             ? closestTocEntryIndex(
-                state.tableOfContents, state.visibleIndices.first)
+                state.tableOfContents,
+                state.visibleIndices.first,
+              )
             : null);
 
     if (activeIndex == null || activeIndex == _lastScrolledTocIndex) return;
@@ -118,7 +121,8 @@ class _TocViewerState extends State<TocViewer>
 
     // החלטה בין מסלול וירטואלי לרקורסיבי - חייב להיות זהה ללוגיקה ב-build,
     // אחרת ננסה לגלול בקונטרולר שלא מחובר.
-    final bool useFlat = searchController.text.isEmpty &&
+    final bool useFlat =
+        searchController.text.isEmpty &&
         countAllTocEntries(state.tableOfContents) > _kTocFlattenThreshold;
 
     SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -133,8 +137,9 @@ class _TocViewerState extends State<TocViewer>
           // לפריטים שאינם מורכבים.
           if (!_virtualScrollController.isAttached) return;
           final flat = flattenVisibleToc(state.tableOfContents, _expanded);
-          final flatIndex =
-              flat.indexWhere((item) => item.entry.index == activeIndex);
+          final flatIndex = flat.indexWhere(
+            (item) => item.entry.index == activeIndex,
+          );
           if (flatIndex < 0) return;
 
           final positions = _virtualPositionsListener.itemPositions.value;
@@ -157,10 +162,10 @@ class _TocViewerState extends State<TocViewer>
           final bool below = current != null
               ? current.itemLeadingEdge >= 1
               : (positions.isNotEmpty &&
-                  flatIndex >
-                      positions
-                          .map((p) => p.index)
-                          .reduce((a, b) => a > b ? a : b));
+                    flatIndex >
+                        positions
+                            .map((p) => p.index)
+                            .reduce((a, b) => a > b ? a : b));
           _virtualScrollController.scrollTo(
             index: flatIndex,
             alignment: below ? 0.85 : 0.0,
@@ -179,9 +184,10 @@ class _TocViewerState extends State<TocViewer>
         final itemRenderObject = itemContext.findRenderObject();
         if (itemRenderObject is! RenderBox) return;
 
-        final scrollableBox = _tocScrollController
-            .position.context.storageContext
-            .findRenderObject() as RenderBox;
+        final scrollableBox =
+            _tocScrollController.position.context.storageContext
+                    .findRenderObject()
+                as RenderBox;
 
         final itemOffset = itemRenderObject
             .localToGlobal(Offset.zero, ancestor: scrollableBox)
@@ -201,8 +207,8 @@ class _TocViewerState extends State<TocViewer>
         final double target = itemOffset < 0
             ? _tocScrollController.offset + itemOffset - margin
             : _tocScrollController.offset +
-                (itemBottom - viewportHeight) +
-                margin;
+                  (itemBottom - viewportHeight) +
+                  margin;
 
         _tocScrollController.animateTo(
           target.clamp(
@@ -219,29 +225,36 @@ class _TocViewerState extends State<TocViewer>
   }
 
   Widget _buildFilteredList(
-      List<TocEntry> entries, BuildContext context, int? activeIndex) {
+    List<TocEntry> entries,
+    BuildContext context,
+    int? activeIndex,
+  ) {
     final normalizedQuery = utils.removeVolwels(
-        SearchQueryBuilder.sanitizeQuery(searchController.text).trim());
+      SearchQueryBuilder.sanitizeQuery(searchController.text).trim(),
+    );
     if (normalizedQuery.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    final filteredEntries =
-        filterTocEntriesForSearch(entries, searchController.text);
+    final filteredEntries = filterTocEntriesForSearch(
+      entries,
+      searchController.text,
+    );
 
     return ListView.builder(
-        physics: const NeverScrollableScrollPhysics(),
-        shrinkWrap: true,
-        itemCount: filteredEntries.length,
-        itemBuilder: (context, index) => _buildTocItem(
-              filteredEntries[index],
-              isFirstChild: index == 0,
-              showFullText: true,
-              defaultExpanded: shouldExpandInSearch(
-                _expanded[filteredEntries[index].index],
-              ),
-              activeIndex: activeIndex,
-            ));
+      physics: const NeverScrollableScrollPhysics(),
+      shrinkWrap: true,
+      itemCount: filteredEntries.length,
+      itemBuilder: (context, index) => _buildTocItem(
+        filteredEntries[index],
+        isFirstChild: index == 0,
+        showFullText: true,
+        defaultExpanded: shouldExpandInSearch(
+          _expanded[filteredEntries[index].index],
+        ),
+        activeIndex: activeIndex,
+      ),
+    );
   }
 
   /// בונה שורה יחידה של TOC ללא ילדיו. משמש בשני המסלולים:
@@ -275,12 +288,14 @@ class _TocViewerState extends State<TocViewer>
         curve: Curves.ease,
       );
       if (Platform.isAndroid) {
-        unawaited(closePaneAfterNavigation(
-          navigation: navigation,
-          closePane: () {
-            if (mounted) widget.closeLeftPaneCallback();
-          },
-        ));
+        unawaited(
+          closePaneAfterNavigation(
+            navigation: navigation,
+            closePane: () {
+              if (mounted) widget.closeLeftPaneCallback();
+            },
+          ),
+        );
       } else {
         unawaited(navigation);
       }
@@ -301,10 +316,9 @@ class _TocViewerState extends State<TocViewer>
           ),
           decoration: BoxDecoration(
             color: selected
-                ? Theme.of(context)
-                    .colorScheme
-                    .primaryContainer
-                    .withValues(alpha: 0.3)
+                ? Theme.of(
+                    context,
+                  ).colorScheme.primaryContainer.withValues(alpha: 0.3)
                 : null,
             border: Border(
               bottom: BorderSide(
@@ -343,10 +357,9 @@ class _TocViewerState extends State<TocViewer>
       key: itemKey,
       decoration: BoxDecoration(
         color: selected
-            ? Theme.of(context)
-                .colorScheme
-                .primaryContainer
-                .withValues(alpha: 0.3)
+            ? Theme.of(
+                context,
+              ).colorScheme.primaryContainer.withValues(alpha: 0.3)
             : null,
         border: Border(
           bottom: BorderSide(
@@ -455,11 +468,13 @@ class _TocViewerState extends State<TocViewer>
   // אופטימיזציה: activeIndex מחושב פעם אחת ב-build הראשי ומועבר כפרמטר.
   // לפני האופטימיזציה כל ערך עטף BlocBuilder<TextBookBloc> וקרא בעצמו
   // ל-closestTocEntryIndex (O(n)), מה שיצר O(n²) בספרים עם אלפי ערכי TOC.
-  Widget _buildTocItem(TocEntry entry,
-      {bool showFullText = false,
-      bool isFirstChild = false,
-      bool? defaultExpanded,
-      required int? activeIndex}) {
+  Widget _buildTocItem(
+    TocEntry entry, {
+    bool showFullText = false,
+    bool isFirstChild = false,
+    bool? defaultExpanded,
+    required int? activeIndex,
+  }) {
     if (entry.children.isEmpty) {
       return _buildTocRow(
         entry,
@@ -482,13 +497,15 @@ class _TocViewerState extends State<TocViewer>
           isExpanded: isExpanded,
         ),
         if (isExpanded)
-          ...entry.children.asMap().entries.map((e) => _buildTocItem(
-                e.value,
-                isFirstChild: isFirstChild && e.key == 0,
-                defaultExpanded: defaultExpanded,
-                showFullText: showFullText,
-                activeIndex: activeIndex,
-              )),
+          ...entry.children.asMap().entries.map(
+            (e) => _buildTocItem(
+              e.value,
+              isFirstChild: isFirstChild && e.key == 0,
+              defaultExpanded: defaultExpanded,
+              showFullText: showFullText,
+              activeIndex: activeIndex,
+            ),
+          ),
       ],
     );
   }
@@ -519,113 +536,123 @@ class _TocViewerState extends State<TocViewer>
         }
       },
       child: BlocBuilder<TextBookBloc, TextBookState>(
-          bloc: context.read<TextBookBloc>(),
-          // אופטימיזציה: build רק כש-activeIndex עשוי להשתנות. בלי buildWhen
-          // הבנייה הייתה רצה בכל emit של ה-bloc (גם בגלילה רגילה),
-          // ובספרים עם אלפי ערכי TOC זה יצר frames של 5+ שניות.
-          buildWhen: (previous, current) {
-            if (current is! TextBookLoaded) return true;
-            if (previous is! TextBookLoaded) return true;
-            final prevFirst = previous.visibleIndices.isNotEmpty
-                ? previous.visibleIndices.first
-                : -1;
-            final currFirst = current.visibleIndices.isNotEmpty
-                ? current.visibleIndices.first
-                : -1;
-            return previous.selectedIndex != current.selectedIndex ||
-                prevFirst != currFirst ||
-                !identical(previous.tableOfContents, current.tableOfContents);
-          },
-          builder: (context, state) {
-            if (state is! TextBookLoaded) return const Center();
+        bloc: context.read<TextBookBloc>(),
+        // אופטימיזציה: build רק כש-activeIndex עשוי להשתנות. בלי buildWhen
+        // הבנייה הייתה רצה בכל emit של ה-bloc (גם בגלילה רגילה),
+        // ובספרים עם אלפי ערכי TOC זה יצר frames של 5+ שניות.
+        buildWhen: (previous, current) {
+          if (current is! TextBookLoaded) return true;
+          if (previous is! TextBookLoaded) return true;
+          final prevFirst = previous.visibleIndices.isNotEmpty
+              ? previous.visibleIndices.first
+              : -1;
+          final currFirst = current.visibleIndices.isNotEmpty
+              ? current.visibleIndices.first
+              : -1;
+          return previous.selectedIndex != current.selectedIndex ||
+              prevFirst != currFirst ||
+              !identical(previous.tableOfContents, current.tableOfContents);
+        },
+        builder: (context, state) {
+          if (state is! TextBookLoaded) return const Center();
 
-            // חישוב יחיד של ה"ערך הפעיל" - מועבר כפרמטר ל-_buildTocItem
-            // במקום שכל פריט יחשב בעצמו (שזה מה שיצר את ה-O(n²)).
-            final int? activeIndex = state.selectedIndex ??
-                (state.visibleIndices.isNotEmpty
-                    ? closestTocEntryIndex(
-                        state.tableOfContents, state.visibleIndices.first)
-                    : null);
+          // חישוב יחיד של ה"ערך הפעיל" - מועבר כפרמטר ל-_buildTocItem
+          // במקום שכל פריט יחשב בעצמו (שזה מה שיצר את ה-O(n²)).
+          final int? activeIndex =
+              state.selectedIndex ??
+              (state.visibleIndices.isNotEmpty
+                  ? closestTocEntryIndex(
+                      state.tableOfContents,
+                      state.visibleIndices.first,
+                    )
+                  : null);
 
-            // החלטה בין מסלול רקורסיבי לוירטואלי. וירטואליזציה מופעלת רק
-            // כשיש הרבה ערכי TOC ולא במצב חיפוש (החיפוש כבר מצמצם את התוצאות).
-            final bool useFlat = searchController.text.isEmpty &&
-                countAllTocEntries(state.tableOfContents) >
-                    _kTocFlattenThreshold;
+          // החלטה בין מסלול רקורסיבי לוירטואלי. וירטואליזציה מופעלת רק
+          // כשיש הרבה ערכי TOC ולא במצב חיפוש (החיפוש כבר מצמצם את התוצאות).
+          final bool useFlat =
+              searchController.text.isEmpty &&
+              countAllTocEntries(state.tableOfContents) > _kTocFlattenThreshold;
 
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: RtlTextField(
-                    controller: searchController,
-                    onChanged: (value) => setState(() {}),
-                    // ללא autofocus: הפוקוס מנוהל אך ורק דרך focusNode מהמסך
-                    // האב (_focusActiveTabSearchField), שמכבד את ההגנה מפני
-                    // פוקוס אוטומטי באנדרואיד. autofocus היה עוקף הגנה זו.
-                    focusNode: widget.focusNode,
-                    onSubmitted: (_) {
-                      widget.focusNode.requestFocus();
-                    },
-                    decoration: InputDecoration(
-                      hintText: 'איתור כותרת...',
-                      prefixIcon: const Icon(FluentIcons.search_24_regular),
-                      suffixIcon: searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(FluentIcons.dismiss_24_regular),
-                              onPressed: () {
-                                setState(() {
-                                  searchController.clear();
-                                });
-                              },
-                            )
-                          : null,
-                      isDense: true,
-                      border: OutlineInputBorder(
-                        borderRadius: AppTokens.borderRadiusAll,
-                      ),
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: RtlTextField(
+                  controller: searchController,
+                  onChanged: (value) => setState(() {}),
+                  // ללא autofocus: הפוקוס מנוהל אך ורק דרך focusNode מהמסך
+                  // האב (_focusActiveTabSearchField), שמכבד את ההגנה מפני
+                  // פוקוס אוטומטי באנדרואיד. autofocus היה עוקף הגנה זו.
+                  focusNode: widget.focusNode,
+                  onSubmitted: (_) {
+                    widget.focusNode.requestFocus();
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'איתור כותרת...',
+                    prefixIcon: const Icon(FluentIcons.search_24_regular),
+                    suffixIcon: searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(FluentIcons.dismiss_24_regular),
+                            onPressed: () {
+                              setState(() {
+                                searchController.clear();
+                              });
+                            },
+                          )
+                        : null,
+                    isDense: true,
+                    border: OutlineInputBorder(
+                      borderRadius: AppTokens.borderRadiusAll,
                     ),
                   ),
                 ),
-                Expanded(
-                  child: NotificationListener<ScrollNotification>(
-                    onNotification: (notification) {
-                      if (notification is ScrollStartNotification &&
-                          notification.dragDetails != null) {
-                        setState(() {
-                          _isManuallyScrolling = true;
-                        });
-                      } else if (notification is ScrollEndNotification) {
-                        setState(() {
-                          _isManuallyScrolling = false;
-                        });
-                      }
-                      return false;
-                    },
-                    child: useFlat
-                        ? _buildVirtualizedTocList(
-                            state.tableOfContents, activeIndex)
-                        : SingleChildScrollView(
-                            controller: _tocScrollController,
-                            child: searchController.text.isEmpty
-                                ? ListView.builder(
-                                    shrinkWrap: true,
-                                    physics:
-                                        const NeverScrollableScrollPhysics(),
-                                    itemCount: state.tableOfContents.length,
-                                    itemBuilder: (context, index) =>
-                                        _buildTocItem(
-                                            state.tableOfContents[index],
-                                            isFirstChild: index == 0,
-                                            activeIndex: activeIndex))
-                                : _buildFilteredList(state.tableOfContents,
-                                    context, activeIndex),
-                          ),
-                  ),
+              ),
+              Expanded(
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: (notification) {
+                    if (notification is ScrollStartNotification &&
+                        notification.dragDetails != null) {
+                      setState(() {
+                        _isManuallyScrolling = true;
+                      });
+                    } else if (notification is ScrollEndNotification) {
+                      setState(() {
+                        _isManuallyScrolling = false;
+                      });
+                    }
+                    return false;
+                  },
+                  child: useFlat
+                      ? _buildVirtualizedTocList(
+                          state.tableOfContents,
+                          activeIndex,
+                        )
+                      : SingleChildScrollView(
+                          controller: _tocScrollController,
+                          child: searchController.text.isEmpty
+                              ? ListView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: state.tableOfContents.length,
+                                  itemBuilder: (context, index) =>
+                                      _buildTocItem(
+                                        state.tableOfContents[index],
+                                        isFirstChild: index == 0,
+                                        activeIndex: activeIndex,
+                                      ),
+                                )
+                              : _buildFilteredList(
+                                  state.tableOfContents,
+                                  context,
+                                  activeIndex,
+                                ),
+                        ),
                 ),
-              ],
-            );
-          }),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }

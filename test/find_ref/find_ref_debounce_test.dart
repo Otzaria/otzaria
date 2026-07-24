@@ -125,8 +125,11 @@ void main() {
       // אמורות להירשם תוצאות.
       firstGate.complete();
       await Future.delayed(const Duration(milliseconds: 50));
-      expect(successes, isEmpty,
-          reason: 'תוצאה של fetch מבוטל לא צריכה להיכתב ל-state');
+      expect(
+        successes,
+        isEmpty,
+        reason: 'תוצאה של fetch מבוטל לא צריכה להיכתב ל-state',
+      );
 
       // משחררים את ה-fetch השני — זה כן צריך לדווח.
       secondGate.complete();

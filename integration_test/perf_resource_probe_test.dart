@@ -36,8 +36,9 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:path/path.dart' as p;
 
-final _probeDir =
-    Directory(p.join(Directory.systemTemp.path, 'otzaria_perf_probe'));
+final _probeDir = Directory(
+  p.join(Directory.systemTemp.path, 'otzaria_perf_probe'),
+);
 final _phasesFile = File(p.join(_probeDir.path, 'phases.jsonl'));
 
 void main() {
@@ -125,8 +126,11 @@ void main() {
     await _runPhase(rec, 'open_5_more_text_books', () async {
       for (final book in textBooks.skip(1)) {
         openBook(ctx, book, 5, '', ignoreHistory: true);
-        await _waitForCurrentTextBookLoaded(tester, tabsBloc,
-            timeout: const Duration(seconds: 45));
+        await _waitForCurrentTextBookLoaded(
+          tester,
+          tabsBloc,
+          timeout: const Duration(seconds: 45),
+        );
         await _pumpFor(tester, const Duration(milliseconds: 500));
       }
     });
@@ -214,8 +218,9 @@ void main() {
           if (!tab.pdfViewerController.isReady) break;
           try {
             final total = tab.pdfViewerController.pageCount;
-            await tab.pdfViewerController
-                .goToPage(pageNumber: page.clamp(1, total));
+            await tab.pdfViewerController.goToPage(
+              pageNumber: page.clamp(1, total),
+            );
           } catch (e) {
             rec.note('pdf_goto_error', {'page': page, 'error': '$e'});
             break;
@@ -251,8 +256,9 @@ void main() {
           if (!tab.pdfViewerController.isReady) break;
           try {
             final total = tab.pdfViewerController.pageCount;
-            await tab.pdfViewerController
-                .goToPage(pageNumber: page.clamp(1, total));
+            await tab.pdfViewerController.goToPage(
+              pageNumber: page.clamp(1, total),
+            );
           } catch (e) {
             rec.note('book_view_goto_error', {'page': page, 'error': '$e'});
             break;
@@ -281,8 +287,10 @@ void main() {
             'matrixChanged': before != after,
             'translationDx': delta.x,
             'translationDy': delta.y,
-            'liveSpinners':
-                find.byType(CircularProgressIndicator).evaluate().length,
+            'liveSpinners': find
+                .byType(CircularProgressIndicator)
+                .evaluate()
+                .length,
           });
         }
       });
@@ -300,8 +308,11 @@ void main() {
     final talmudBook = textBooks.where((b) => b.title == 'ברכות').firstOrNull;
     if (talmudBook != null) {
       await _runPhase(rec, 'page_shape_open', () async {
-        final tab =
-            TextBookTab(book: talmudBook, index: 10, showPageShapeView: true);
+        final tab = TextBookTab(
+          book: talmudBook,
+          index: 10,
+          showPageShapeView: true,
+        );
         tabsBloc.add(AddTab(tab));
         await _waitForCurrentTextBookLoaded(tester, tabsBloc);
         await _pumpFor(tester, const Duration(seconds: 10));
@@ -318,8 +329,9 @@ void main() {
       if (tab is TextBookTab) {
         final st = tab.bloc.state;
         if (st is TextBookLoaded) {
-          rec.note('available_commentators',
-              {'count': st.availableCommentators.length});
+          rec.note('available_commentators', {
+            'count': st.availableCommentators.length,
+          });
           tab.bloc.add(UpdateCommentators(List.of(st.availableCommentators)));
         }
       }
@@ -329,8 +341,9 @@ void main() {
     await _runPhase(rec, 'scroll_all_commentators', () async {
       final tab = tabsBloc.state.currentTab;
       if (tab is! TextBookTab || !tab.scrollController.isAttached) {
-        rec.note('scroll_all_commentators_skipped',
-            {'reason': 'scrollController not attached'});
+        rec.note('scroll_all_commentators_skipped', {
+          'reason': 'scrollController not attached',
+        });
         return;
       }
       for (final target in [50, 110, 70]) {
@@ -352,30 +365,36 @@ void main() {
         return;
       }
       final st = tab.bloc.state as TextBookLoaded;
-      final navigator =
-          tester.state<NavigatorState>(find.byType(Navigator).first);
+      final navigator = tester.state<NavigatorState>(
+        find.byType(Navigator).first,
+      );
       final showTeamim = ctx.read<SettingsBloc>().state.showTeamim;
-      unawaited(showDialog<bool>(
-        context: navigator.context,
-        barrierDismissible: false,
-        builder: (_) => PrintingScreen(
-          data: Future.value(st.content.join('\n')),
-          bookId: st.book.title,
-          book: st.book,
-          links: st.links,
-          activeCommentators: st.activeCommentators,
-          startLine: st.visibleIndices.isNotEmpty ? st.visibleIndices.first : 0,
-          removeNikud: st.removeNikud,
-          removeTaamim: !showTeamim,
-          tableOfContents: st.tableOfContents,
+      unawaited(
+        showDialog<bool>(
+          context: navigator.context,
+          barrierDismissible: false,
+          builder: (_) => PrintingScreen(
+            data: Future.value(st.content.join('\n')),
+            bookId: st.book.title,
+            book: st.book,
+            links: st.links,
+            activeCommentators: st.activeCommentators,
+            startLine: st.visibleIndices.isNotEmpty
+                ? st.visibleIndices.first
+                : 0,
+            removeNikud: st.removeNikud,
+            removeTaamim: !showTeamim,
+            tableOfContents: st.tableOfContents,
+          ),
         ),
-      ));
+      );
       await _pumpFor(tester, const Duration(seconds: 20));
     });
 
     await _runPhase(rec, 'print_close_and_cleanup', () async {
-      final navigator =
-          tester.state<NavigatorState>(find.byType(Navigator).first);
+      final navigator = tester.state<NavigatorState>(
+        find.byType(Navigator).first,
+      );
       if (navigator.canPop()) navigator.pop();
       await _pumpFor(tester, const Duration(seconds: 2));
       tabsBloc.add(CloseAllTabs());
@@ -558,12 +577,15 @@ class _PhaseRecorder {
     final rssEnd = ProcessInfo.currentRss;
     if (rssEnd > _rssPeak) _rssPeak = rssEnd;
 
-    final build =
-        _timings.map((t) => t.buildDuration.inMicroseconds / 1000).toList();
-    final raster =
-        _timings.map((t) => t.rasterDuration.inMicroseconds / 1000).toList();
-    final total =
-        _timings.map((t) => t.totalSpan.inMicroseconds / 1000).toList();
+    final build = _timings
+        .map((t) => t.buildDuration.inMicroseconds / 1000)
+        .toList();
+    final raster = _timings
+        .map((t) => t.rasterDuration.inMicroseconds / 1000)
+        .toList();
+    final total = _timings
+        .map((t) => t.totalSpan.inMicroseconds / 1000)
+        .toList();
 
     _append({
       'type': 'phase',
@@ -597,8 +619,11 @@ class _PhaseRecorder {
   }
 
   void _append(Map<String, Object?> record) {
-    outFile.writeAsStringSync('${jsonEncode(record)}\n',
-        mode: FileMode.append, flush: true);
+    outFile.writeAsStringSync(
+      '${jsonEncode(record)}\n',
+      mode: FileMode.append,
+      flush: true,
+    );
   }
 
   static double _mb(int bytes) => (bytes / (1024 * 1024) * 10).round() / 10;

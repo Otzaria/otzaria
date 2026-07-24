@@ -88,30 +88,32 @@ void main() {
       expect(result.first['v'], 'hello');
     });
 
-    test('try/catch סביב WAL - מדמה DB שממשיך לפעול גם ללא הצלחת WAL',
-        () async {
-      // אין דרך קלה לנעול DB בצורה שתגרום ל-PRAGMA WAL להיכשל.
-      // הטסט מוודא שהלוגיקה של try/catch עצמה נכונה:
-      // אם זורקים שגיאה, ממשיכים לפעול.
-      bool pragmaFailed = false;
-      bool dbStillOpen = false;
+    test(
+      'try/catch סביב WAL - מדמה DB שממשיך לפעול גם ללא הצלחת WAL',
+      () async {
+        // אין דרך קלה לנעול DB בצורה שתגרום ל-PRAGMA WAL להיכשל.
+        // הטסט מוודא שהלוגיקה של try/catch עצמה נכונה:
+        // אם זורקים שגיאה, ממשיכים לפעול.
+        bool pragmaFailed = false;
+        bool dbStillOpen = false;
 
-      final conn = sqlite3.sqlite3.open(':memory:');
-      addTearDown(conn.close);
+        final conn = sqlite3.sqlite3.open(':memory:');
+        addTearDown(conn.close);
 
-      try {
-        throw StateError('simulated: database is locked');
-      } catch (_) {
-        pragmaFailed = true;
-      }
+        try {
+          throw StateError('simulated: database is locked');
+        } catch (_) {
+          pragmaFailed = true;
+        }
 
-      // DB אמור עדיין לעבוד
-      conn.execute('SELECT 1');
-      dbStillOpen = true;
+        // DB אמור עדיין לעבוד
+        conn.execute('SELECT 1');
+        dbStillOpen = true;
 
-      expect(pragmaFailed, isTrue);
-      expect(dbStillOpen, isTrue);
-    });
+        expect(pragmaFailed, isTrue);
+        expect(dbStillOpen, isTrue);
+      },
+    );
   });
 
   // ─── close ────────────────────────────────────────────────────────────────

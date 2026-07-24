@@ -15,13 +15,20 @@ class EditorCacheService {
 
   /// Generates cache key from bookId, sectionId, and contentHash
   String _generateCacheKey(
-      String bookId, String sectionId, String contentHash) {
+    String bookId,
+    String sectionId,
+    String contentHash,
+  ) {
     return '${bookId}_${sectionId}_$contentHash';
   }
 
   /// Caches markdown to HTML conversion
   void cacheMarkdownHtml(
-      String bookId, String sectionId, String contentHash, String html) {
+    String bookId,
+    String sectionId,
+    String contentHash,
+    String html,
+  ) {
     final key = _generateCacheKey(bookId, sectionId, contentHash);
 
     // Remove oldest entries if cache is full
@@ -35,7 +42,10 @@ class EditorCacheService {
 
   /// Gets cached HTML for markdown conversion
   String? getCachedMarkdownHtml(
-      String bookId, String sectionId, String contentHash) {
+    String bookId,
+    String sectionId,
+    String contentHash,
+  ) {
     final key = _generateCacheKey(bookId, sectionId, contentHash);
     return _markdownCache[key];
   }

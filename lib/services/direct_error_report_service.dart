@@ -86,21 +86,23 @@ class DirectErrorReportService {
     http.Client? client,
     HiveListRepository<DirectErrorReport>? queueRepository,
     HiveListRepository<DirectErrorReport>? sentRepository,
-  })  : _client = client ?? http.Client(),
-        _queueRepository = queueRepository ??
-            HiveListRepository<DirectErrorReport>(
-              boxName: _queueBoxName,
-              key: _queueKey,
-              fromJson: DirectErrorReport.fromJson,
-              toJson: (report) => report.toJson(),
-            ),
-        _sentRepository = sentRepository ??
-            HiveListRepository<DirectErrorReport>(
-              boxName: _queueBoxName,
-              key: _sentKey,
-              fromJson: DirectErrorReport.fromJson,
-              toJson: (report) => report.toJson(),
-            );
+  }) : _client = client ?? http.Client(),
+       _queueRepository =
+           queueRepository ??
+           HiveListRepository<DirectErrorReport>(
+             boxName: _queueBoxName,
+             key: _queueKey,
+             fromJson: DirectErrorReport.fromJson,
+             toJson: (report) => report.toJson(),
+           ),
+       _sentRepository =
+           sentRepository ??
+           HiveListRepository<DirectErrorReport>(
+             boxName: _queueBoxName,
+             key: _sentKey,
+             fromJson: DirectErrorReport.fromJson,
+             toJson: (report) => report.toJson(),
+           );
 
   /// סוגר את ה-HTTP client הפנימי. ב-Windows admin install הקרנל נתקע
   /// לכמה שניות בעת ניקוי socket handles ביציאה, אז יש לקרוא לפונקציה
@@ -111,10 +113,12 @@ class DirectErrorReportService {
     _client.close();
   }
 
-  String get senderEmail => (Settings.getValue<String>(
-              SettingsRepository.keyErrorReportSenderEmail) ??
-          '')
-      .trim();
+  String get senderEmail =>
+      (Settings.getValue<String>(
+                SettingsRepository.keyErrorReportSenderEmail,
+              ) ??
+              '')
+          .trim();
 
   bool get queueWhenOfflineEnabled =>
       Settings.getValue<bool>(
@@ -305,13 +309,13 @@ class DirectErrorReportService {
 
       final reportsToAttempt = onlyAutomaticRetry
           ? pendingReports
-              .where(
-                (report) =>
-                    report.queueType ==
-                    DirectErrorReportQueueType.automaticRetry,
-              )
-              .take(_maxQueuedFlushPerRun)
-              .toList()
+                .where(
+                  (report) =>
+                      report.queueType ==
+                      DirectErrorReportQueueType.automaticRetry,
+                )
+                .take(_maxQueuedFlushPerRun)
+                .toList()
           : pendingReports.take(_maxQueuedFlushPerRun).toList();
 
       if (reportsToAttempt.isEmpty) {
@@ -446,7 +450,8 @@ class DirectErrorReportService {
     final payloads = reports.map((report) => report.toApiPayload()).toList();
     final payloadJson = jsonEncode(payloads);
     final powerShellBody = _buildWindowsPowerShellBody(payloadJson);
-    final script = '''@echo off
+    final script =
+        '''@echo off
 powershell -NoProfile -ExecutionPolicy Bypass -Command "\$f=[IO.File]::ReadAllText('%~f0',[Text.Encoding]::UTF8); \$m=[char]35+'$_psBodyMarker'; iex \$f.Substring(\$f.IndexOf(\$m)+\$m.Length)"
 exit /b %ERRORLEVEL%
 #$_psBodyMarker
@@ -506,7 +511,8 @@ foreach (\$payload in @(\$payloads)) {
       ..writeln('  local id="\$2"')
       ..writeln('  local code')
       ..writeln(
-          "  code=\$(printf '%s' \"\$body\" | curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json; charset=utf-8' --data-binary @- \"\$endpoint\")")
+        "  code=\$(printf '%s' \"\$body\" | curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json; charset=utf-8' --data-binary @- \"\$endpoint\")",
+      )
       ..writeln('  if [ "\$code" = "200" ]; then')
       ..writeln('    sent=\$((sent + 1))')
       ..writeln('    results="\${results}\\nנשלח: \${id}"')
@@ -531,18 +537,22 @@ foreach (\$payload in @(\$payloads)) {
     buffer
       ..writeln('')
       ..writeln(
-          'summary="נשלחו בהצלחה: \${sent}\\nנכשלו: \${failed}\\n\${results}"')
+        'summary="נשלחו בהצלחה: \${sent}\\nנכשלו: \${failed}\\n\${results}"',
+      )
       ..writeln('tmp="\$(mktemp)"')
       ..writeln("printf '%b\\n' \"\$summary\" > \"\$tmp\"")
       ..writeln('if command -v zenity >/dev/null 2>&1; then')
       ..writeln(
-          "  zenity --text-info --filename=\"\$tmp\" --title='${ReportMessages.offlineScriptWindowTitle}'")
+        "  zenity --text-info --filename=\"\$tmp\" --title='${ReportMessages.offlineScriptWindowTitle}'",
+      )
       ..writeln('elif command -v kdialog >/dev/null 2>&1; then')
       ..writeln(
-          "  kdialog --title '${ReportMessages.offlineScriptWindowTitle}' --textbox \"\$tmp\"")
+        "  kdialog --title '${ReportMessages.offlineScriptWindowTitle}' --textbox \"\$tmp\"",
+      )
       ..writeln('elif command -v osascript >/dev/null 2>&1; then')
       ..writeln(
-          "  osascript -e \"display dialog (do shell script \\\"cat \\\" & quoted form of \\\"\$tmp\\\") buttons {\\\"סגור\\\"} with title \\\"${ReportMessages.offlineScriptWindowTitle}\\\"\" >/dev/null 2>&1")
+        "  osascript -e \"display dialog (do shell script \\\"cat \\\" & quoted form of \\\"\$tmp\\\") buttons {\\\"סגור\\\"} with title \\\"${ReportMessages.offlineScriptWindowTitle}\\\"\" >/dev/null 2>&1",
+      )
       ..writeln('else')
       ..writeln("  cat \"\$tmp\"")
       ..writeln('fi')
@@ -568,7 +578,7 @@ class _SendAttemptResult {
   });
 
   const _SendAttemptResult.success()
-      : this._(isSuccess: true, message: '', failureType: null);
+    : this._(isSuccess: true, message: '', failureType: null);
 
   bool get isPermanentFailure =>
       !isSuccess && failureType == _SendAttemptFailureType.permanent;
