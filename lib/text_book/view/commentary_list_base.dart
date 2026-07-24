@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/lists/filter_chips_widget.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -61,6 +63,36 @@ bool shouldFocusScrollOnPointerDown(int buttons) =>
 /// שהמשתמש בוחר "העתק" — קריאה חיה מהנוטיפייר באותו רגע הייתה מחזירה null.
 String? captureSelectedTextForMenu(ValueListenable<String?> saved) =>
     saved.value;
+
+@visibleForTesting
+const Key commentaryTypeChipsRowKey = Key('commentary_type_chips_row');
+
+/// מפתחות צ׳יפי סוגי המפרשים שקיימים בפועל בקישורי הקטע, בסדר
+/// [LinkTypes.commentaryFilterTypes]. סוג בלי קישורים אינו מקבל צ׳יפ.
+@visibleForTesting
+List<String> buildCommentaryTypeChipKeys(List<Link> links) {
+  final present = <String>{};
+  for (final link in links) {
+    if (LinkTypes.isCommentaryFilterType(link.connectionType)) {
+      present.add(LinkTypes.canonicalType(link.connectionType));
+    }
+  }
+  return LinkTypes.commentaryFilterTypes
+      .where(present.contains)
+      .toList(growable: false);
+}
+
+/// הבחירה האפקטיבית: רק מפתחות שיש להם צ׳יפ בקטע הנוכחי. בחירה שאין לה אף
+/// צ׳יפ קיים נחשבת ריקה = הצג הכל, ולא מסתירה את כל המפרשים.
+@visibleForTesting
+Set<String> effectiveCommentaryTypes({
+  required Set<String> selectedTypes,
+  required List<String> availableKeys,
+}) {
+  if (selectedTypes.isEmpty) return const {};
+  final available = availableKeys.toSet();
+  return selectedTypes.where(available.contains).toSet();
+}
 
 /// מייצג תוצאת חיפוש בודדת עם קטע טקסט וכתובת גלובלית לניווט
 class CommentarySearchSnippet {
@@ -224,6 +256,9 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
   bool _snippetsRebuildScheduled = false;
   // האם להציג את שדה החיפוש (true) או את שורת ארבעת הלחצנים (false)
   bool _showSearchField = false;
+  // סינון לפי סוג מפרש (תרגום/מדרש וכו׳). מצב מקומי ולא מוגדר: הצ׳יפים תלויים
+  // בקטע הנוכחי, ובחירה שנשמרה הייתה מסננת בשקט ספר אחר שנפתח אחריו.
+  Set<String> _selectedCommentaryTypes = const {};
 
   String _getLinkKey(Link link) =>
       '${link.index1}_${link.path2}_${link.index2}';
@@ -268,6 +303,83 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
 
   List<CommentatorGroup> _commentatorGroups(TextBookLoaded state) {
     return widget.commentatorGroupsOverride ?? state.commentatorGroups;
+  }
+
+  /// צ׳יפי הסוגים של הקטע הנוכחי. נבנים מהקישורים אחרי סינון לפי שם המפרש
+  /// בלבד, כדי שלא יוצג צ׳יפ לסוג שכל מפרשיו מוסתרים.
+  List<String> _typeChipKeys(
+    TextBookLoaded state,
+    List<int> currentIndexes,
+    List<String> selectedCommentators,
+  ) {
+    final commentatorsSet = selectedCommentators.toSet();
+    final sectionLinks = <Link>[];
+    for (final idx in currentIndexes) {
+      final lineLinks = state.linksByLine[idx + 1];
+      if (lineLinks == null) continue;
+      sectionLinks.addAll(
+        lineLinks.where(
+          (link) =>
+              commentatorsSet.contains(utils.getTitleFromPath(link.path2)),
+        ),
+      );
+    }
+    return buildCommentaryTypeChipKeys(sectionLinks);
+  }
+
+  /// שורת צ׳יפי סוגי המפרשים. עיצוב זהה לשורת הסוגים בפאנל הקישורים, כדי ששני
+  /// הפאנלים יקראו כאותו ציר סינון.
+  Widget _buildTypeChipsRow(List<String> keys) {
+    final effective = effectiveCommentaryTypes(
+      selectedTypes: _selectedCommentaryTypes,
+      availableKeys: keys,
+    );
+    return Padding(
+      key: commentaryTypeChipsRowKey,
+      padding: const EdgeInsets.fromLTRB(
+        AppTokens.spaceSM,
+        0,
+        AppTokens.spaceSM,
+        AppTokens.spaceXS,
+      ),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: AppSurfaces.linkTypeChipsRow(context),
+          borderRadius: AppTokens.borderRadiusAll,
+        ),
+        child: FilterChipsSelector<String>(
+          items: keys,
+          selectedItems: effective.toList(),
+          wrapAlignment: WrapAlignment.center,
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppTokens.spaceSM,
+            vertical: AppTokens.spaceXS,
+          ),
+          labelBuilder: LinkTypes.hebrewLabel,
+          onSelectionChanged: (selected) =>
+              setState(() => _selectedCommentaryTypes = selected.toSet()),
+          chipBuilder: (context, item, isSelected) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+              child: Chip(
+                label: Text(LinkTypes.hebrewLabel(item)),
+                backgroundColor: isSelected
+                    ? Theme.of(context).colorScheme.secondary
+                    : null,
+                labelStyle: TextStyle(
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.onSecondary
+                      : null,
+                  fontSize: 11,
+                ),
+                labelPadding: const EdgeInsets.all(0),
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
 
   String _bookTitle(TextBookLoaded state) {
@@ -1409,6 +1521,22 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
           }
         }
 
+        final typeChipKeys = _typeChipKeys(
+          state,
+          _currentIndexes(state),
+          selectedCommentators,
+        );
+        final effectiveTypes = effectiveCommentaryTypes(
+          selectedTypes: _selectedCommentaryTypes,
+          availableKeys: typeChipKeys,
+        );
+        // סוג יחיד אינו מסנן כלום, ולכן השורה מוצגת רק משניים ומעלה — אלא אם
+        // הוא הנבחר, שאז בלי השורה המשתמש מסונן בשקט בלי דרך לבטל.
+        final typeChipsRow =
+            typeChipKeys.length > 1 || effectiveTypes.isNotEmpty
+            ? _buildTypeChipsRow(typeChipKeys)
+            : null;
+
         Widget buildList() {
           return Builder(
             builder: (context) {
@@ -1551,6 +1679,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                   indexes: currentIndexes,
                   links: state.links,
                   commentatorsToShow: selectedCommentators,
+                  typesToShow: effectiveTypes,
                 ),
                 builder: (context, thisLinksSnapshot) {
                   if (!thisLinksSnapshot.hasData) {
@@ -1558,8 +1687,24 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                     return _buildSkeletonLoading();
                   }
                   if (thisLinksSnapshot.data!.isEmpty) {
-                    // אם אין מפרשים, פשוט נציג מסך ריק
-                    return const SizedBox.shrink();
+                    // רשימה ריקה כאן נובעת מסינון הסוגים בלבד (יש קישורים
+                    // רלוונטיים), ולכן מסבירים במקום להציג ריק בלי הסבר.
+                    if (effectiveTypes.isEmpty) return const SizedBox.shrink();
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Text(
+                          'לא נמצאו מפרשים מהסוגים שנבחרו',
+                          style: TextStyle(
+                            fontSize: widget.fontSize * 0.7,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    );
                   }
                   final data = thisLinksSnapshot.data!;
 
@@ -1814,6 +1959,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                ?typeChipsRow,
                 Flexible(fit: FlexFit.loose, child: buildList()),
               ],
             );
@@ -1828,6 +1974,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                     ? _buildSearchFieldRow()
                     : _buildButtonsRow(selectedCommentators),
               ),
+              ?typeChipsRow,
               Flexible(
                 fit: FlexFit.loose,
                 child: buildList(),
@@ -1871,6 +2018,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                     ),
                   ),
                 ),
+              ?typeChipsRow,
               // הרשימה
               Flexible(
                 child: buildList(),

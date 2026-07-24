@@ -54,6 +54,23 @@ class LinkTypes {
     return dependentTextTypes.contains(normalize(connectionType));
   }
 
+  /// סוגי המפרשים שמקבלים צ׳יפ סינון בפאנל המפרשים, בסדר התצוגה. הערכים
+  /// קנוניים, ולכן [explication] מיוצג כאן ע"י [elucidation].
+  ///
+  /// [commentary] ו-[superCommentary] מוחרגים בכוונה: הם רוב מוחלט של הקישורים
+  /// (2.2M מול עשרות אלפים), וצ׳יפ שכולל כמעט הכל אינו מסנן כלום.
+  static const List<String> commentaryFilterTypes = [
+    targum,
+    midrash,
+    parshanut,
+    diburHamatchil,
+    elucidation,
+  ];
+
+  /// האם סוג המפרש מקבל צ׳יפ סינון משלו בפאנל המפרשים.
+  static bool isCommentaryFilterType(String? connectionType) =>
+      commentaryFilterTypes.contains(canonicalType(connectionType));
+
   /// ערך חריג שמגיע מבניית קישורי תוכן העניינים החלופי, ואינו חלק מ-[LinkTypes].
   static const String altToc = 'ALT_TOC';
 
@@ -121,6 +138,8 @@ class LinkTypes {
     quotationAutoTanakh: quotation,
     relatedPassage: related,
     none: other,
+    // שני הסוגים נקראים 'ביאור' — בלי מיזוג היו נבנים שני צ׳יפים זהים.
+    explication: elucidation,
   };
 
   /// מנרמל ערך connectionType להשוואה: מקורות שונים מספקים רישיות שונה
