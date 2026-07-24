@@ -12,8 +12,9 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
 import 'package:sqlite3/sqlite3.dart' show SqliteException;
 
-/// בדיקות ל-write-session של [SqliteDataProvider]: seforim.db פתוח read-only,
-/// וכתיבות עוברות דרך [SqliteDataProvider.withWritableSession] שמחזיר ל-RO.
+/// בדיקות ל-gate הכתיבה החיצונית של [SqliteDataProvider]: seforim.db פתוח
+/// read-only, ו-[closeForExternalWrite]/[reopenAfterExternalWrite] סוגרים אותו
+/// סביב עדכון חיצוני (החלפת קובץ / patch) ופותחים מחדש.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -76,55 +77,6 @@ void main() {
       throwsA(isA<SqliteException>()),
     );
   });
-
-  test('withWritableSession כותב, והכתיבה נראית אחרי החזרה ל-RO', () async {
-    await SqliteDataProvider.instance.withWritableSession((rw) async {
-      await rw.insertCategory(const migration_models.Category(title: 'חדש'));
-    });
-
-    // החיבור נפתח מחדש read-only.
-    expect(SqliteDataProvider.instance.isInitialized, isTrue);
-
-    final categories = await SqliteDataProvider.instance.repository!
-        .getRootCategories();
-    expect(
-      categories.where((c) => c.title == 'חדש'),
-      isNotEmpty,
-      reason: 'הקטגוריה שנכתבה ב-write-session נראית בחיבור ה-RO',
-    );
-
-    // וה-RO עדיין חוסם כתיבה ישירה.
-    final db = await SqliteDataProvider.instance.repository!.database.database;
-    expect(
-      () => db.execute("INSERT INTO category (title, level) VALUES ('y', 0)"),
-      throwsA(isA<SqliteException>()),
-    );
-  });
-
-  test(
-    'initialize() מקבילה ל-write-session אינה קורסת ואינה פותחת חיבור מתנגש',
-    () async {
-      final session = SqliteDataProvider.instance.withWritableSession((
-        rw,
-      ) async {
-        // משהים כדי שה-initialize המקבילה תתפוס את ה-session כפעיל.
-        await Future<void>.delayed(const Duration(milliseconds: 30));
-        await rw.insertCategory(
-          const migration_models.Category(title: 'במקביל'),
-        );
-      });
-
-      // קריאה מקבילה (כמו lazy-init של מסלול קריאה) — צריכה להמתין לסיום
-      // השרשרת ולא לפתוח חיבור RO מתנגש מול ה-RW.
-      await SqliteDataProvider.instance.initialize();
-      await session;
-
-      expect(SqliteDataProvider.instance.isInitialized, isTrue);
-      final categories = await SqliteDataProvider.instance.repository!
-          .getRootCategories();
-      expect(categories.where((c) => c.title == 'במקביל'), isNotEmpty);
-    },
-  );
 
   test('initialize() בזמן כתיבה חיצונית ממתינה לפתיחה-מחדש ולא מחזירה null '
       '(תיקון ספר/מפרשים ריקים בעלייה)', () async {
@@ -317,21 +269,6 @@ void main() {
       isEmpty,
       reason: 'הטרנזקציה הלא-גמורה לא הוחלה',
     );
-  });
-
-  test('write-sessions סדרתיים — שתי כתיבות מצטברות', () async {
-    await SqliteDataProvider.instance.withWritableSession((rw) async {
-      await rw.insertCategory(const migration_models.Category(title: 'א'));
-    });
-    await SqliteDataProvider.instance.withWritableSession((rw) async {
-      await rw.insertCategory(const migration_models.Category(title: 'ב'));
-    });
-
-    final titles =
-        (await SqliteDataProvider.instance.repository!.getRootCategories())
-            .map((c) => c.title)
-            .toSet();
-    expect(titles.containsAll({'א', 'ב'}), isTrue);
   });
 }
 

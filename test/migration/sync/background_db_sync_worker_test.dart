@@ -261,96 +261,22 @@ void main() {
       expect(f2Books, hasLength(1), reason: 'ספרי התיקייה השנייה שרדו');
     });
 
-    test('יש קבצי links: prepareForWrite/restoreAfterWrite נקראים *בתוך* יחידת '
-        'התור, סביב הכתיבה (תיקון מסך עיון/תצוגה מקדימה ריקים)', () async {
-      final folderPath = await makeFolder('תיקייה-hooks', 'ספר-hooks');
-      // קובץ links כלשהו מפעיל את שלב הכתיבה ל-seforim.db (ולכן את ה-hooks).
-      await File(
-        p.join(libPath(), 'links', 'ספר-hooks_links.json'),
-      ).create(recursive: true).then((f) => f.writeAsString('[]', flush: true));
-      final events = <String>[];
-
-      final result = await runCustomFoldersDbSyncInIsolate(
-        dbPath: dbPath,
-        userBooksDbPath: userBooksDbPath,
-        libraryPath: libPath(),
-        customFolders: [
-          CustomFolder(
-            path: folderPath,
-            addToDatabase: false,
-            addedAt: DateTime(2026, 1, 1),
+    test('כשל בפתיחת ה-DB זורק ואינו נבלע (נתיב לא תקין)', () async {
+      // נתיב DB לא תקין מפיל את הסנכרון; הכשל חייב להתפשט לקורא.
+      await expectLater(
+        runCustomFoldersDbSyncInIsolate(
+          dbPath: p.join(tempDir.path, 'nonexistent-dir', 'broken.db'),
+          userBooksDbPath: p.join(
+            tempDir.path,
+            'nonexistent-dir',
+            'broken_user.db',
           ),
-        ],
-        prepareForWrite: () async => events.add('prepare'),
-        restoreAfterWrite: () async => events.add('restore'),
-      );
-
-      expect(result.errors, isEmpty);
-      // prepare לפני הכתיבה, restore אחריה (ב-finally) — שניהם רצים, בסדר הזה.
-      // כך ה-RO נסגר רק למשך הכתיבה ותמיד נפתח מחדש (גם בכשל).
-      expect(events, equals(['prepare', 'restore']));
-    });
-
-    test('אין קבצי links: שלב הכתיבה ל-seforim.db מדולג וה-hooks לא נקראים '
-        '(ה-RO לא נסגר בעלייה רגילה)', () async {
-      final folderPath = await makeFolder('תיקייה-no-links', 'ספר-no-links');
-      final events = <String>[];
-
-      final result = await runCustomFoldersDbSyncInIsolate(
-        dbPath: dbPath,
-        userBooksDbPath: userBooksDbPath,
-        libraryPath: libPath(),
-        customFolders: [
-          CustomFolder(
-            path: folderPath,
-            addToDatabase: false,
-            addedAt: DateTime(2026, 1, 1),
-          ),
-        ],
-        prepareForWrite: () async => events.add('prepare'),
-        restoreAfterWrite: () async => events.add('restore'),
-      );
-
-      expect(result.errors, isEmpty);
-      expect(
-        events,
-        isEmpty,
-        reason: 'בלי קבצי links אין כתיבה ל-seforim.db → ה-RO לא נסגר',
+          libraryPath: libPath(),
+          customFolders: const [],
+        ),
+        throwsA(anything),
       );
     });
-
-    test(
-      'כשל בשלב הספרים-האישיים אינו סוגר את ה-RO (ה-hooks לא נקראים — אין דליפה)',
-      () async {
-        final events = <String>[];
-
-        // נתיב DB לא תקין מפיל את שלב הספרים-האישיים (פתיחת seforim.db נכשלת).
-        // שלב זה רץ עם seforim.db RO וללא prepare/restore — ולכן כשל בו *לא*
-        // סוגר את ה-RO הראשי: ה-hooks לא נקראים כלל. כך אין דליפת write-session
-        // גם כשהשלב הכבד נכשל.
-        await expectLater(
-          runCustomFoldersDbSyncInIsolate(
-            dbPath: p.join(tempDir.path, 'nonexistent-dir', 'broken.db'),
-            userBooksDbPath: p.join(
-              tempDir.path,
-              'nonexistent-dir',
-              'broken_user.db',
-            ),
-            libraryPath: libPath(),
-            customFolders: const [],
-            prepareForWrite: () async => events.add('prepare'),
-            restoreAfterWrite: () async => events.add('restore'),
-          ),
-          throwsA(anything),
-        );
-
-        expect(
-          events,
-          isEmpty,
-          reason: 'שלב הספרים-האישיים לא סוגר RO — הכשל לא מפעיל את ה-hooks',
-        );
-      },
-    );
   });
 
   // ── delete worker ─────────────────────────────────────────────────────────

@@ -10,7 +10,6 @@ import '../database/repository/seforim_repository.dart';
 import '../../settings/services/custom_folders/custom_folder.dart';
 import '../../settings/engine/settings_repository.dart';
 import '../generator/generator.dart';
-import '../generator/link_processor.dart';
 import '../models/book.dart';
 import '../models/category.dart';
 import '../../utils/file/file_hidden_utils.dart';
@@ -20,7 +19,6 @@ class FileSyncResult {
   final int addedBooks;
   final int updatedBooks;
   final int addedCategories;
-  final int addedLinks;
   final int skippedFiles;
   final List<String> errors;
   final Duration duration;
@@ -33,7 +31,6 @@ class FileSyncResult {
     this.addedBooks = 0,
     this.updatedBooks = 0,
     this.addedCategories = 0,
-    this.addedLinks = 0,
     this.skippedFiles = 0,
     this.errors = const [],
     this.duration = Duration.zero,
@@ -43,31 +40,29 @@ class FileSyncResult {
   @override
   String toString() {
     return 'FileSyncResult(added: $addedBooks, updated: $updatedBooks, '
-        'categories: $addedCategories, links: $addedLinks, '
+        'categories: $addedCategories, '
         'skipped: $skippedFiles, errors: ${errors.length}, '
         'duration: ${duration.inSeconds}s)';
   }
 }
 
-/// Service for syncing files from אוצריא and links folders to the database.
+/// Service for syncing custom-folder files to user_books.db.
 ///
-/// This service scans for new TXT files in the library path and adds them
-/// to the database automatically. It runs in the background after app startup.
+/// This service scans for new files in the user's custom folders and adds them
+/// to user_books.db automatically. It runs in the background after app startup.
 class FileSyncService {
   static final _log = Logger('FileSyncService');
   static const String _customFolderSourcePrefix = CustomFolderSource.prefix;
   static FileSyncService? _instance;
 
-  /// Repository של `seforim.db` — לתוכן הרשמי (אוצריא, links).
+  /// Repository של `seforim.db` — נפתח read-only, לקריאות dedup בלבד.
   final SeforimRepository _repository;
 
-  /// Repository של `user_books.db` — לתיקיות מותאמות אישית בלבד.
-  /// כש-null, זרימות תיקיות מותאמות אישית משתמשות ב-`_repository` (legacy).
-  final SeforimRepository? _userBooksRepository;
+  /// Repository של `user_books.db` — יעד הכתיבה של התיקיות המותאמות.
+  final SeforimRepository _userBooksRepository;
 
-  /// ה-repository האפקטיבי לזרימת תיקיות מותאמות אישית.
-  SeforimRepository get _customFoldersRepo =>
-      _userBooksRepository ?? _repository;
+  /// ה-repository האפקטיבי לזרימת תיקיות מותאמות אישית (תמיד user_books.db).
+  SeforimRepository get _customFoldersRepo => _userBooksRepository;
 
   bool _isSyncing = false;
 
@@ -78,12 +73,12 @@ class FileSyncService {
 
   /// Get singleton instance.
   ///
-  /// [repository] — `seforim.db` repository (לתוכן רשמי).
-  /// [userBooksRepository] — `user_books.db` repository (לתיקיות מותאמות
-  /// אישית). כש-null, הזרימה הישנה בה הכל ב-`seforim.db` נשמרת.
+  /// [repository] — `seforim.db` repository (read-only, לקריאות dedup).
+  /// [userBooksRepository] — `user_books.db` repository, יעד הכתיבה. חובה:
+  /// זרימות התיקיות המותאמות כותבות אך ורק אליו, לעולם לא ל-seforim.db.
   static Future<FileSyncService?> getInstance(
     SeforimRepository? repository, {
-    SeforimRepository? userBooksRepository,
+    required SeforimRepository userBooksRepository,
   }) async {
     if (repository == null) return null;
     _instance ??= FileSyncService._(repository, userBooksRepository);
@@ -94,7 +89,7 @@ class FileSyncService {
   /// Must NOT be used from the main isolate — use [getInstance] instead.
   factory FileSyncService.createForWorker(
     SeforimRepository repository, {
-    SeforimRepository? userBooksRepository,
+    required SeforimRepository userBooksRepository,
   }) {
     return FileSyncService._(repository, userBooksRepository);
   }
@@ -111,33 +106,6 @@ class FileSyncService {
 
   /// Get the repository for external access
   SeforimRepository get repository => _repository;
-
-  /// Delete a book from the database by its file path
-  /// This is used when a file is removed from GitHub sync
-  Future<bool> deleteBookByFilePath(String filePath) async {
-    try {
-      // Extract the book title from the file path
-      final title = path.basenameWithoutExtension(filePath);
-      _log.info('Attempting to delete book from DB: $title');
-
-      // Find the book by title
-      final existingBook = await _repository.checkBookExists(title);
-      if (existingBook == null) {
-        _log.info('Book not found in DB, nothing to delete: $title');
-        return false;
-      }
-
-      // Delete the book completely (including lines, TOC, links, etc.)
-      await _repository.deleteBookCompletely(existingBook.id);
-      _log.info(
-        'Successfully deleted book from DB: $title (id: ${existingBook.id})',
-      );
-      return true;
-    } catch (e, stackTrace) {
-      _log.warning('Error deleting book from DB: $filePath', e, stackTrace);
-      return false;
-    }
-  }
 
   /// Recursively delete a category and all its contents from the
   /// custom-folders DB (`user_books.db` or fallback to `_repository`).
@@ -768,13 +736,7 @@ class FileSyncService {
 
   /// Pure sync logic — receives all inputs, touches no Settings.
   /// Suitable for running inside a background worker isolate.
-  /// [syncFolders] — לעבד את התיקיות המותאמות (כתיבה ל-user_books.db).
-  /// [syncLinks] — לעבד את תיקיית ה-`links` (כתיבה ל-seforim.db).
-  ///
-  /// השניים מופרדים כדי שניתן יהיה להריץ את כתיבת הספרים האישיים (שצריכה רק
-  /// *קריאה* מ-seforim.db) בלי לסגור את חיבור ה-RO הראשי, ולסגור אותו רק
-  /// סביב שלב ה-links (שכותב ל-seforim.db). ברירת המחדל — שניהם, לשמירת
-  /// תאימות עם קוראים קיימים.
+  /// [syncFolders] — לעבד את התיקיות המותאמות (כתיבה ל-user_books.db בלבד).
   /// [onlyFolderPath] — כשמסופק, נסרקת רק התיקייה בעלת נתיב זה (למשל אחרי
   /// ייבוא לתיקיית הספרים האישיים). ה-prune של תיקיות שהוסרו עדיין רץ מול
   /// הרשימה המלאה, כך שספרי תיקיות אחרות לא נפגעים.
@@ -784,7 +746,6 @@ class FileSyncService {
     String folderName = '',
     void Function(double progress, String message)? onProgress,
     bool syncFolders = true,
-    bool syncLinks = true,
     String? onlyFolderPath,
   }) async {
     if (_isSyncing) {
@@ -799,7 +760,6 @@ class FileSyncService {
     int addedBooks = 0;
     int updatedBooks = 0;
     int addedCategories = 0;
-    int addedLinks = 0;
     int skippedFiles = 0;
     final errors = <String>[];
     final updatedBookIds = <int>[];
@@ -920,27 +880,6 @@ class FileSyncService {
         }
       }
 
-      final linksPath = path.join(libraryPath, 'links');
-      final linksDir = Directory(linksPath);
-
-      if (syncLinks && await linksDir.exists()) {
-        _log.info('Scanning links folder: $linksPath');
-        _reportProgress(0.6, 'סורק תיקיית קישורים...');
-
-        // Links תמיד שייכים ל-seforim.db — ה-LinkProcessor מקבל את
-        // ה-repository הראשי (לא user_books).
-        final linkProcessor = LinkProcessor(_repository);
-        final linksResult = await linkProcessor.processLinksDirectory(
-          linksPath: linksPath,
-          onProgress: (progress, message) {
-            _reportProgress(0.6 + (progress * 0.3), message);
-          },
-          updateBookHasLinks: true,
-        );
-        addedLinks += linksResult.processedLinks;
-        errors.addAll(linksResult.errors);
-      }
-
       _reportProgress(1.0, 'הסנכרון הושלם');
     } catch (e, stackTrace) {
       _log.severe('Error during sync', e, stackTrace);
@@ -954,7 +893,6 @@ class FileSyncService {
       addedBooks: addedBooks,
       updatedBooks: updatedBooks,
       addedCategories: addedCategories,
-      addedLinks: addedLinks,
       skippedFiles: skippedFiles,
       errors: errors,
       duration: stopwatch.elapsed,

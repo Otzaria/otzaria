@@ -1,8 +1,5 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:isolate';
-
-import 'package:path/path.dart' as path;
 
 import '../../data/data_providers/database_library_provider.dart';
 import '../database/daos/database.dart';
@@ -36,15 +33,8 @@ const String _workerHeartbeat = 'otzaria.sync.progress';
 /// forwarded in the payload, avoiding any [rootBundle] access inside the
 /// worker isolate.
 ///
-/// [dbPath] — נתיב `seforim.db` (לתוכן רשמי + links).
-/// [userBooksDbPath] — נתיב `user_books.db` (לתיקיות מותאמות אישית).
-///
-/// [prepareForWrite]/[restoreAfterWrite] — וו אופציונלי שהקורא מזריק כדי לסגור
-/// ולפתוח-מחדש את חיבור הקריאה ל-seforim.db (closeForExternalWrite/reopen).
-/// הם רצים *בתוך* יחידת התור (לא בזמן ההמתנה בתור), צמודים ב-try/finally כך
-/// שה-RO נסגר רק למשך הכתיבה ולא בזמן שפעולת תור אחרת (למשל סריקת ספרים
-/// אישיים) רצה לפנינו. שכבת הנתונים עצמה אינה תלויה ב-SqliteDataProvider —
-/// הקורא (שכבת האפליקציה) מזריק את הלוגיקה.
+/// [dbPath] — נתיב `seforim.db`, נפתח read-only (קריאות dedup בלבד).
+/// [userBooksDbPath] — נתיב `user_books.db` (יעד הכתיבה של התיקיות המותאמות).
 Future<FileSyncResult> runCustomFoldersDbSyncInIsolate({
   required String dbPath,
   required String userBooksDbPath,
@@ -52,101 +42,35 @@ Future<FileSyncResult> runCustomFoldersDbSyncInIsolate({
   required List<CustomFolder> customFolders,
   String folderName = '',
   String? onlyFolderPath,
-  Future<void> Function()? prepareForWrite,
-  Future<void> Function()? restoreAfterWrite,
 }) async {
-  Map<String, Object?> buildPayload({
-    required bool syncFolders,
-    required bool syncLinks,
-  }) => <String, Object?>{
-    'queryCache': QueryLoader.cacheSnapshot,
-    'dbPath': dbPath,
-    'userBooksDbPath': userBooksDbPath,
-    'libraryPath': libraryPath,
-    'folderName': folderName,
-    'customFolders': customFolders.map((f) => f.toJson()).toList(),
-    'syncFolders': syncFolders,
-    'syncLinks': syncLinks,
-    'onlyFolderPath': onlyFolderPath,
-  };
+  Map<String, Object?> buildPayload({required bool syncFolders}) =>
+      <String, Object?>{
+        'queryCache': QueryLoader.cacheSnapshot,
+        'dbPath': dbPath,
+        'userBooksDbPath': userBooksDbPath,
+        'libraryPath': libraryPath,
+        'folderName': folderName,
+        'customFolders': customFolders.map((f) => f.toJson()).toList(),
+        'syncFolders': syncFolders,
+        'onlyFolderPath': onlyFolderPath,
+      };
 
-  // שלב 1 — כתיבת הספרים האישיים ל-user_books.db. seforim.db נפתח RO (רק
-  // קריאות), ולכן *אין* קריאה ל-prepareForWrite/restoreAfterWrite: ה-RO הראשי
-  // נשאר פתוח וקריאות עובדות לכל אורך החלק הכבד הזה.
-  final folders = await DatabaseLibraryProvider.operationQueue.enqueue(
-    () async {
-      await QueryLoader.initialize();
-      final resultMap = await _runWorkerIsolate(
-        buildPayload(syncFolders: true, syncLinks: false),
-        isDelete: false,
-      );
-      return _resultFromMap(resultMap);
-    },
-  );
-
-  // שלב 2 — עיבוד ה-links → seforim.db (RW). רץ *רק* כשיש קבצי links שטרם
-  // עובדו: קבצי links מעובדים פעם אחת ונמחקים (ראה
-  // [LinkProcessor.processLinksDirectory]), ולכן בפתיחה רגילה אין מה לעבד.
-  // דילוג מונע סגירת ה-RO ופתיחת seforim.db RW לחינם — מקור לחסימת פתיחת
-  // ספרים בעלייה ולסגירה תקועה כשסוגרים את התוכנה תוך כדי הסנכרון.
-  // הבדיקה רצה *בתוך* יחידת התור כדי שתהיה סריאלית: אם קריאת סנכרון אחרת
-  // עיבדה ומחקה את ה-links לפנינו, נראה זאת ולא נסגור את ה-RO לחינם.
-  final links = await DatabaseLibraryProvider.operationQueue.enqueue(() async {
-    if (!await _hasPendingLinkFiles(libraryPath)) {
-      return const FileSyncResult();
-    }
-    // *רק כאן* סוגרים את ה-RO הראשי (prepareForWrite) ופותחים מחדש
-    // (restoreAfterWrite), לזמן הקצר של כתיבת ה-links בלבד.
+  // כתיבת הספרים האישיים ל-user_books.db בלבד. seforim.db נפתח read-only
+  // (קריאות dedup בלבד), ולכן החיבור הראשי אינו נסגר.
+  return DatabaseLibraryProvider.operationQueue.enqueue(() async {
     await QueryLoader.initialize();
-    final payload = buildPayload(syncFolders: false, syncLinks: true);
-    if (prepareForWrite != null) await prepareForWrite();
-    try {
-      final resultMap = await _runWorkerIsolate(payload, isDelete: false);
-      return _resultFromMap(resultMap);
-    } finally {
-      if (restoreAfterWrite != null) await restoreAfterWrite();
-    }
+    final resultMap = await _runWorkerIsolate(
+      buildPayload(syncFolders: true),
+      isDelete: false,
+    );
+    return _resultFromMap(resultMap);
   });
-
-  return FileSyncResult(
-    addedBooks: folders.addedBooks + links.addedBooks,
-    updatedBooks: folders.updatedBooks + links.updatedBooks,
-    addedCategories: folders.addedCategories + links.addedCategories,
-    addedLinks: folders.addedLinks + links.addedLinks,
-    skippedFiles: folders.skippedFiles + links.skippedFiles,
-    errors: [...folders.errors, ...links.errors],
-    duration: folders.duration + links.duration,
-    updatedBookIds: [...folders.updatedBookIds, ...links.updatedBookIds],
-  );
-}
-
-/// בודק אם תיקיית ה-`links` תחת [libraryPath] מכילה קובץ links שטרם עובד.
-/// קבצי links מעובדים פעם אחת ונמחקים, והתיקייה נמחקת כשהיא מתרוקנת — כך
-/// שדילוג כאן מונע את שלב הכתיבה היקר (סגירת RO + פתיחת seforim.db RW) כשאין בו צורך.
-Future<bool> _hasPendingLinkFiles(String libraryPath) async {
-  final linksDir = Directory(path.join(libraryPath, 'links'));
-  try {
-    if (!await linksDir.exists()) return false;
-    await for (final entity in linksDir.list()) {
-      if (entity is File &&
-          path.extension(entity.path) == '.json' &&
-          !path.basename(entity.path).endsWith('_headings.json')) {
-        return true;
-      }
-    }
-  } on FileSystemException {
-    // תיקייה לא נגישה (הרשאות/מחיקה תוך כדי) — מדלגים על שלב ה-links; אם
-    // באמת יש links הם ייתפסו בפתיחה הבאה, ואין סיבה להפיל את כל הסנכרון.
-    return false;
-  }
-  return false;
 }
 
 FileSyncResult _resultFromMap(Map<String, Object?> resultMap) => FileSyncResult(
   addedBooks: resultMap['addedBooks'] as int,
   updatedBooks: resultMap['updatedBooks'] as int,
   addedCategories: resultMap['addedCategories'] as int,
-  addedLinks: resultMap['addedLinks'] as int,
   skippedFiles: resultMap['skippedFiles'] as int,
   errors: List<String>.from(resultMap['errors'] as List),
   duration: Duration(milliseconds: resultMap['durationMs'] as int),
@@ -281,8 +205,6 @@ Future<void> runDeleteFolderFromDbInIsolate({
   required String userBooksDbPath,
   required String folderPath,
   List<String> otherConfiguredFolderPaths = const [],
-  Future<void> Function()? prepareForWrite,
-  Future<void> Function()? restoreAfterWrite,
 }) {
   return DatabaseLibraryProvider.operationQueue.enqueue(() async {
     await QueryLoader.initialize();
@@ -295,14 +217,9 @@ Future<void> runDeleteFolderFromDbInIsolate({
       'folderPath': folderPath,
       'otherConfiguredFolderPaths': otherConfiguredFolderPaths,
     };
-    // [prepareForWrite]/[restoreAfterWrite] רצים בתוך יחידת התור — ראה ההסבר
-    // ב-[runCustomFoldersDbSyncInIsolate].
-    if (prepareForWrite != null) await prepareForWrite();
-    try {
-      await _runWorkerIsolate(payload, isDelete: true);
-    } finally {
-      if (restoreAfterWrite != null) await restoreAfterWrite();
-    }
+    // המחיקה כותבת אך ורק ל-user_books.db ופותחת את seforim.db read-only,
+    // ולכן אין צורך לסגור את חיבור ה-RO הראשי.
+    await _runWorkerIsolate(payload, isDelete: true);
   });
 }
 
@@ -321,16 +238,14 @@ Future<Map<String, Object?>> _syncWorkerEntryPoint(
   final libraryPath = payload['libraryPath'] as String;
   final folderName = (payload['folderName'] as String?) ?? '';
   final syncFolders = (payload['syncFolders'] as bool?) ?? true;
-  final syncLinks = (payload['syncLinks'] as bool?) ?? true;
   final onlyFolderPath = payload['onlyFolderPath'] as String?;
   final rawFolders = (payload['customFolders'] as List)
       .cast<Map<String, dynamic>>();
   final customFolders = rawFolders.map(CustomFolder.fromJson).toList();
 
-  // seforim.db נפתח RW *רק* כשמעבדים links (היחיד שכותב לשם). בשלב הספרים
-  // האישיים אנחנו רק קוראים מ-seforim.db (בדיקת dedup), ולכן פותחים אותו RO —
-  // כך החיבור הראשי לא צריך להיסגר והקריאות ממשיכות לעבוד לכל אורך הכתיבה.
-  final database = MyDatabase.withPath(dbPath, readOnly: !syncLinks);
+  // seforim.db נפתח read-only תמיד — הסנכרון כותב אך ורק ל-user_books.db,
+  // ומ-seforim.db רק קורא (בדיקת dedup). אין קוד שכותב ל-DB הרשמי.
+  final database = MyDatabase.withPath(dbPath, readOnly: true);
   final repository = SeforimRepository(database);
   await repository.ensureInitialized();
 
@@ -349,7 +264,6 @@ Future<Map<String, Object?>> _syncWorkerEntryPoint(
       customFolders: customFolders,
       folderName: folderName,
       syncFolders: syncFolders,
-      syncLinks: syncLinks,
       onlyFolderPath: onlyFolderPath,
       onProgress: onProgress == null ? null : (_, _) => onProgress(),
     );
@@ -357,7 +271,6 @@ Future<Map<String, Object?>> _syncWorkerEntryPoint(
       'addedBooks': result.addedBooks,
       'updatedBooks': result.updatedBooks,
       'addedCategories': result.addedCategories,
-      'addedLinks': result.addedLinks,
       'skippedFiles': result.skippedFiles,
       'errors': result.errors,
       'durationMs': result.duration.inMilliseconds,

@@ -35,6 +35,8 @@ void main() {
     database = MyDatabase.withPath(path.join(tempDir.path, 'test.db'));
     repository = SeforimRepository(database);
     await repository.ensureInitialized();
+    // הטסט בודק לוגיקת prune של תיקיות מותאמות בלבד, ולכן אותו DB משמש גם
+    // כ-seforim (dedup) וגם כ-user_books (יעד הכתיבה) — בפרודקשן הם נפרדים.
   });
 
   tearDown(() async {
@@ -70,7 +72,10 @@ void main() {
       ]),
     );
 
-    final service = await FileSyncService.getInstance(repository);
+    final service = await FileSyncService.getInstance(
+      repository,
+      userBooksRepository: repository,
+    );
     final result = await service!.syncFiles();
 
     final personalCategory = (await repository.getRootCategories())
@@ -125,7 +130,10 @@ void main() {
         ]),
       );
 
-      final service = await FileSyncService.getInstance(repository);
+      final service = await FileSyncService.getInstance(
+        repository,
+        userBooksRepository: repository,
+      );
 
       // סריקה ראשונה — שני הספרים נכנסים ל-DB.
       await service!.syncFiles();
@@ -204,7 +212,10 @@ void main() {
         ]),
       );
 
-      final service = await FileSyncService.getInstance(repository);
+      final service = await FileSyncService.getInstance(
+        repository,
+        userBooksRepository: repository,
+      );
       await service!.syncFiles();
 
       final personalCategory = (await repository.getRootCategories())
@@ -266,7 +277,10 @@ void main() {
       CustomFoldersManager.saveFolders(folders),
     );
 
-    final service = await FileSyncService.getInstance(repository);
+    final service = await FileSyncService.getInstance(
+      repository,
+      userBooksRepository: repository,
+    );
     await service!.syncFiles();
 
     // בסריקה הראשונה הרשומה המשותפת שויכה לתיקייה השנייה. לאחר שקובץ beta
@@ -346,7 +360,10 @@ void main() {
       );
       await repository.rebuildCategoryClosure();
 
-      final service = await FileSyncService.getInstance(repository);
+      final service = await FileSyncService.getInstance(
+        repository,
+        userBooksRepository: repository,
+      );
 
       await service!.pruneRemovedCustomFoldersFromDatabase([
         CustomFolder(
@@ -414,7 +431,10 @@ void main() {
       // בדיוק כמו שה-UI עושה: הוסיף תיקייה ואז מיד שלח RefreshLibrary.
       // לפני התיקון, prune היה מוחק את הקטגוריה כי category_closure ריק.
 
-      final service = await FileSyncService.getInstance(repository);
+      final service = await FileSyncService.getInstance(
+        repository,
+        userBooksRepository: repository,
+      );
 
       await service!.refreshSourcesAndPruneRemovedCustomFolders([
         CustomFolder(
@@ -490,7 +510,10 @@ void main() {
       );
       await repository.rebuildCategoryClosure();
 
-      final service = await FileSyncService.getInstance(repository);
+      final service = await FileSyncService.getInstance(
+        repository,
+        userBooksRepository: repository,
+      );
       await service!.syncFiles();
 
       expect(
@@ -554,7 +577,10 @@ void main() {
       );
       await repository.rebuildCategoryClosure();
 
-      final service = await FileSyncService.getInstance(repository);
+      final service = await FileSyncService.getInstance(
+        repository,
+        userBooksRepository: repository,
+      );
       await service!.deleteFolderFromDatabase(parentPath);
 
       expect(
@@ -615,7 +641,10 @@ void main() {
       );
       await repository.rebuildCategoryClosure();
 
-      final service = await FileSyncService.getInstance(repository);
+      final service = await FileSyncService.getInstance(
+        repository,
+        userBooksRepository: repository,
+      );
       await service!.deleteFolderFromDatabase(
         parentPath,
         otherConfiguredFolderPaths: [childPath],
@@ -665,7 +694,10 @@ void main() {
       );
       await repository.rebuildCategoryClosure();
 
-      final service = await FileSyncService.getInstance(repository);
+      final service = await FileSyncService.getInstance(
+        repository,
+        userBooksRepository: repository,
+      );
 
       await service!.pruneRemovedCustomFoldersFromDatabase([
         CustomFolder(
