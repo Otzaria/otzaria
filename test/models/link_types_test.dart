@@ -102,7 +102,7 @@ void main() {
         'LITURGY',
         'LINKER',
         'SUMMARY',
-        'SIFREI_MITSVOT',
+        'SIFREI_MITZVOT',
         'EIN_MISHPAT',
         'MESORAT_HASHAS',
       ]) {
@@ -150,7 +150,7 @@ void main() {
         'LITURGY': 'תפילה',
         'LINKER': 'אוטומטי',
         'SUMMARY': 'סיכום',
-        'SIFREI_MITSVOT': 'ספרי מצוות',
+        'SIFREI_MITZVOT': 'ספרי מצוות',
         'NONE': 'לא מסווג',
       };
       expected.forEach((type, label) {
@@ -210,7 +210,7 @@ void main() {
         'MISHNAH_IN_TALMUD',
         'LAW',
         'ALLUSION',
-        'SIFREI_MITSVOT',
+        'SIFREI_MITZVOT',
         'FOOTNOTES',
         'LITURGY',
         'SUMMARY',

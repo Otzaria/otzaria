@@ -377,7 +377,7 @@ void main() {
           'QUOTATION',
           'MISHNAH_IN_TALMUD',
           'MESORAT_HASHAS',
-          'SIFREI_MITSVOT',
+          'SIFREI_MITZVOT',
           'EIN_MISHPAT',
           'SOURCE',
         ])
@@ -387,7 +387,7 @@ void main() {
       expect(keys, [
         'SOURCE',
         'EIN_MISHPAT',
-        'SIFREI_MITSVOT',
+        'SIFREI_MITZVOT',
         'MESORAT_HASHAS',
         'MISHNAH_IN_TALMUD',
         'QUOTATION',

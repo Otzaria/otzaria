@@ -185,7 +185,7 @@ const List<String> _typeChipOrder = [
   // SOURCE הוא ספר הבסיס שממנו נפתח המפרש — המידע הישיר ביותר לקטע הנלמד.
   LinkTypes.source,
   LinkTypes.einMishpat,
-  LinkTypes.sifreiMitsvot,
+  LinkTypes.sifreiMitzvot,
   LinkTypes.mesoratHashas,
   LinkTypes.mishnahInTalmud,
   LinkTypes.quotation,

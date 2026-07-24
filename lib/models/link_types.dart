@@ -25,7 +25,7 @@ class LinkTypes {
   static const String liturgy = 'LITURGY';
   static const String linker = 'LINKER';
   static const String summary = 'SUMMARY';
-  static const String sifreiMitsvot = 'SIFREI_MITSVOT';
+  static const String sifreiMitzvot = 'SIFREI_MITZVOT';
   static const String none = 'NONE';
 
   /// ביאורים תלויי־טקסט, ולכן מוצגים כמפרשים ולא כהפניות.
@@ -102,7 +102,7 @@ class LinkTypes {
     liturgy: 'תפילה',
     linker: 'אוטומטי',
     summary: 'סיכום',
-    sifreiMitsvot: 'ספרי מצוות',
+    sifreiMitzvot: 'ספרי מצוות',
     none: 'לא מסווג',
   };
 
