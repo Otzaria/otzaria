@@ -72,6 +72,41 @@ void main() {
     expect(find.text('תוכן הערה'), findsOneWidget);
   });
 
+  testWidgets(
+    'בפריים המדידה החלונית מתעלמת מ-pointer ואחרי המיקום מפסיקה',
+    (tester) async {
+      final hostContext = await pumpListHost(tester);
+
+      LinkPreviewOverlay.showContent(
+        hostContext,
+        contentBuilder: (_) => const Text('תוכן הערה'),
+        globalPosition: const Offset(200, 300),
+        hoverMode: true,
+      );
+
+      // פריים ראשון (טרם מיקום): החלונית בפינה, חייבת להתעלם מ-pointer כדי לא
+      // לגנוב hover מהעוגן ולגרום לה להיסגר-ולהיפתח בלולאה (הבהוב).
+      await tester.pump();
+      final ignoreDuringMeasure = tester.widget<IgnorePointer>(
+        find.ancestor(
+          of: find.text('תוכן הערה'),
+          matching: find.byType(IgnorePointer),
+        ),
+      );
+      expect(ignoreDuringMeasure.ignoring, isTrue);
+
+      // אחרי המיקום — שוב מגיבה ל-pointer (לסימון/העתקה בתוך החלונית).
+      await tester.pump();
+      final ignoreAfterPlaced = tester.widget<IgnorePointer>(
+        find.ancestor(
+          of: find.text('תוכן הערה'),
+          matching: find.byType(IgnorePointer),
+        ),
+      );
+      expect(ignoreAfterPlaced.ignoring, isFalse);
+    },
+  );
+
   testWidgets('לחיצה ימנית מחוץ לחלונית מקובעת סוגרת אותה', (tester) async {
     final hostContext = await pumpListHost(tester);
 
