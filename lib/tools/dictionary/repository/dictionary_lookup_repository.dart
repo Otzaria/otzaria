@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
-import 'package:otzaria/models/books.dart';
+import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/tools/dictionary/repository/db_dictionary_book_source.dart';
@@ -728,7 +728,7 @@ class DictionaryLookupRepository {
     return compute(LaazDictionaryEntry.parseLines, lines);
   }
 
-  /// שולף את הקישורים היוצאים מספר-הלעז דרך אותו נתיב של [TextBook.links].
+  /// שולף את הקישורים היוצאים מספר-הלעז מהמסד הרשמי בלבד.
   /// ספר-הלעז חסר במסד => רשימה ריקה (התכונה נעדרת בשקט).
   static Future<List<Link>> _defaultLoadLaazLinks() async {
     final resolved = await BookDatabaseResolver.resolveBook(
@@ -737,12 +737,11 @@ class DictionaryLookupRepository {
     );
     if (resolved == null) return const <Link>[];
 
-    final book = TextBook(
-      title: laazBookTitle,
-      categoryId: resolved.book.categoryId,
-      fileType: resolved.book.fileType ?? 'txt',
+    return DatabaseLibraryProvider.instance.getAllLinksForBook(
+      laazBookTitle,
+      resolved.book.categoryId,
+      resolved.book.fileType ?? 'txt',
     );
-    return book.links;
   }
 
   static Map<String, dynamic> _decodeJsonObject(String jsonString) {
