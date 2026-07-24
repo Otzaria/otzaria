@@ -7,6 +7,7 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
+import 'package:otzaria/tools/dictionary/widgets/laaz_commentary_subblock.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 
@@ -81,12 +82,15 @@ class _PdfCommentaryContentState extends State<PdfCommentaryContent> {
   Widget build(BuildContext context) {
     return GestureDetector(
       onDoubleTap: () {
-        widget.openBookCallback(TextBookTab(
-          book: TextBook(title: utils.getTitleFromPath(widget.link.path2)),
-          index: widget.link.index2 - 1,
-          openLeftPane: (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
-              (Settings.getValue<bool>('key-default-sidebar-open') ?? false),
-        ));
+        widget.openBookCallback(
+          TextBookTab(
+            book: TextBook(title: utils.getTitleFromPath(widget.link.path2)),
+            index: widget.link.index2 - 1,
+            openLeftPane:
+                (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
+                (Settings.getValue<bool>('key-default-sidebar-open') ?? false),
+          ),
+        );
       },
       child: FutureBuilder(
         future: content,
@@ -108,21 +112,27 @@ class _PdfCommentaryContentState extends State<PdfCommentaryContent> {
 
             return BlocBuilder<SettingsBloc, SettingsState>(
               builder: (context, settingsState) {
-                return SmartTextWidget(
-                  text: text,
-                  settings: RenderSettings(
-                    replaceHolyNames: settingsState.replaceHolyNames,
-                    searchText: widget.searchQuery,
-                    currentSearchIndex: widget.currentSearchIndex,
-                    fontSize: settingsState.commentatorsFontSize,
-                    fontFamily: settingsState.commentatorsFontFamily,
-                    fontWeight: settingsState.commentatorsFontBold
-                        ? FontWeight.bold
-                        : null,
-                    lineHeight: settingsState.lineHeight,
-                    removeNikud: widget.removeNikud,
-                    removePunctuation: widget.removePunctuation,
-                  ),
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SmartTextWidget(
+                      text: text,
+                      settings: RenderSettings(
+                        replaceHolyNames: settingsState.replaceHolyNames,
+                        searchText: widget.searchQuery,
+                        currentSearchIndex: widget.currentSearchIndex,
+                        fontSize: settingsState.commentatorsFontSize,
+                        fontFamily: settingsState.commentatorsFontFamily,
+                        fontWeight: settingsState.commentatorsFontBold
+                            ? FontWeight.bold
+                            : null,
+                        lineHeight: settingsState.lineHeight,
+                        removeNikud: widget.removeNikud,
+                        removePunctuation: widget.removePunctuation,
+                      ),
+                    ),
+                    LaazCommentarySubBlock(link: widget.link),
+                  ],
                 );
               },
             );

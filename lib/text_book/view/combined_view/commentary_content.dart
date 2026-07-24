@@ -12,6 +12,7 @@ import 'package:otzaria/widgets/smart_text/smart_text.dart';
 import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_restore.dart';
+import 'package:otzaria/tools/dictionary/widgets/laaz_commentary_subblock.dart';
 
 class CommentaryContent extends StatefulWidget {
   const CommentaryContent({
@@ -83,93 +84,103 @@ class _CommentaryContentState extends State<CommentaryContent> {
   Widget build(BuildContext context) {
     return GestureDetector(
       onDoubleTap: () {
-        widget.openBookCallback(TextBookTab(
-          book: TextBook(
-            title: utils.getTitleFromPath(widget.link.path2),
-            isUserBook: widget.link.targetIsUserBook,
-            categoryId: widget.link.targetCategoryId,
-            fileType: widget.link.targetFileType,
+        widget.openBookCallback(
+          TextBookTab(
+            book: TextBook(
+              title: utils.getTitleFromPath(widget.link.path2),
+              isUserBook: widget.link.targetIsUserBook,
+              categoryId: widget.link.targetCategoryId,
+              fileType: widget.link.targetFileType,
+            ),
+            index: widget.link.index2 - 1,
+            openLeftPane:
+                (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
+                (Settings.getValue<bool>('key-default-sidebar-open') ?? false),
           ),
-          index: widget.link.index2 - 1,
-          openLeftPane: (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
-              (Settings.getValue<bool>('key-default-sidebar-open') ?? false),
-        ));
+        );
       },
       child: AppFutureBuilder<String>(
-          future: content,
-          loadingWidget: _buildSkeletonLoading(context),
-          errorBuilder: (context, error) => Center(
-                child: Text('שגיאה בטעינת הפרשן: $error'),
-              ),
-          builder: (context, data) {
-            return BlocBuilder<SettingsBloc, SettingsState>(
-              builder: (context, settingsState) {
-                // מצב הניקוד/פיסוק של הטאב חל על כל המפרשים כפי שהוא,
-                // ללא רזולוציה פר-ספר-יעד.
-                if (widget.searchQuery.isNotEmpty) {
-                  final searchCount = countCommentarySearchMatches(
-                    content: data,
-                    query: widget.searchQuery,
-                    removePunctuation: widget.removePunctuation,
-                  );
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    widget.onSearchResultsCountChanged?.call(searchCount);
-                    if (widget.onSearchSnippetsChanged != null &&
-                        searchCount > 0) {
-                      widget.onSearchSnippetsChanged!.call([
-                        buildCommentarySearchSnippet(
-                          content: data,
-                          query: widget.searchQuery,
-                          removeNikud: widget.removeNikud,
-                          removePunctuation: widget.removePunctuation,
-                        ),
-                      ]);
-                    }
-                  });
-                }
-
-                final renderSettings = RenderSettings(
-                  removeNikud: widget.removeNikud,
+        future: content,
+        loadingWidget: _buildSkeletonLoading(context),
+        errorBuilder: (context, error) => Center(
+          child: Text('שגיאה בטעינת הפרשן: $error'),
+        ),
+        builder: (context, data) {
+          return BlocBuilder<SettingsBloc, SettingsState>(
+            builder: (context, settingsState) {
+              // מצב הניקוד/פיסוק של הטאב חל על כל המפרשים כפי שהוא,
+              // ללא רזולוציה פר-ספר-יעד.
+              if (widget.searchQuery.isNotEmpty) {
+                final searchCount = countCommentarySearchMatches(
+                  content: data,
+                  query: widget.searchQuery,
                   removePunctuation: widget.removePunctuation,
-                  removeTeamim: !settingsState.showTeamim,
-                  replaceHolyNames: settingsState.replaceHolyNames,
-                  searchText: widget.searchQuery,
-                  currentSearchIndex: widget.currentSearchIndex,
-                  fontSize: widget.fontSize,
-                  fontFamily: settingsState.commentatorsFontFamily,
-                  fontWeight: settingsState.commentatorsFontBold
-                      ? FontWeight.bold
-                      : null,
-                  lineHeight: settingsState.lineHeight,
-                  partialWordHighlight: true,
                 );
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  widget.onSearchResultsCountChanged?.call(searchCount);
+                  if (widget.onSearchSnippetsChanged != null &&
+                      searchCount > 0) {
+                    widget.onSearchSnippetsChanged!.call([
+                      buildCommentarySearchSnippet(
+                        content: data,
+                        query: widget.searchQuery,
+                        removeNikud: widget.removeNikud,
+                        removePunctuation: widget.removePunctuation,
+                      ),
+                    ]);
+                  }
+                });
+              }
 
-                _reportRenderedText(data, renderSettings);
+              final renderSettings = RenderSettings(
+                removeNikud: widget.removeNikud,
+                removePunctuation: widget.removePunctuation,
+                removeTeamim: !settingsState.showTeamim,
+                replaceHolyNames: settingsState.replaceHolyNames,
+                searchText: widget.searchQuery,
+                currentSearchIndex: widget.currentSearchIndex,
+                fontSize: widget.fontSize,
+                fontFamily: settingsState.commentatorsFontFamily,
+                fontWeight: settingsState.commentatorsFontBold
+                    ? FontWeight.bold
+                    : null,
+                lineHeight: settingsState.lineHeight,
+                partialWordHighlight: true,
+              );
 
-                // עוגן בצד המקושר (ציטוט מ-charLevelData): הדגשת הטווח
-                // המצוטט בתוך קטע המפרש, באופסטים של תווים-גלויים.
-                var displayData = data;
-                final linkedStart = widget.link.linkedAnchorStart;
-                final linkedEnd = widget.link.linkedAnchorEnd;
-                if (linkedStart != null &&
-                    linkedEnd != null &&
-                    linkedEnd > linkedStart) {
-                  displayData = wrapVisibleRange(
-                    html: data,
-                    start: linkedStart,
-                    end: linkedEnd,
-                    openTag: '<span class="link-anchor-range">',
-                    closeTag: '</span>',
-                  );
-                }
+              _reportRenderedText(data, renderSettings);
 
-                return SmartTextWidget(
-                  text: displayData,
-                  settings: renderSettings,
+              // עוגן בצד המקושר (ציטוט מ-charLevelData): הדגשת הטווח
+              // המצוטט בתוך קטע המפרש, באופסטים של תווים-גלויים.
+              var displayData = data;
+              final linkedStart = widget.link.linkedAnchorStart;
+              final linkedEnd = widget.link.linkedAnchorEnd;
+              if (linkedStart != null &&
+                  linkedEnd != null &&
+                  linkedEnd > linkedStart) {
+                displayData = wrapVisibleRange(
+                  html: data,
+                  start: linkedStart,
+                  end: linkedEnd,
+                  openTag: '<span class="link-anchor-range">',
+                  closeTag: '</span>',
                 );
-              },
-            );
-          }),
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SmartTextWidget(
+                    text: displayData,
+                    settings: renderSettings,
+                  ),
+                  LaazCommentarySubBlock(link: widget.link),
+                ],
+              );
+            },
+          );
+        },
+      ),
     );
   }
 
@@ -180,7 +191,8 @@ class _CommentaryContentState extends State<CommentaryContent> {
   void _reportRenderedText(String data, RenderSettings settings) {
     if (widget.onRendered == null) return;
     // הטקסט הפשוט אינו תלוי בחיפוש/הדגשה (אלה מוסרים ב-stripHtml).
-    final key = '${settings.removeNikud}|${settings.removePunctuation}|'
+    final key =
+        '${settings.removeNikud}|${settings.removePunctuation}|'
         '${settings.removeTeamim}|${settings.replaceHolyNames}|$data';
     if (key == _lastRenderKey) return;
     _lastRenderKey = key;

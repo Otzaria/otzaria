@@ -674,7 +674,6 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   List<AppContextMenuEntry> _buildCommentaryContextMenuEntries(
     BuildContext menuCtx,
     Link link,
-    Offset tapPosition,
   ) {
     return ContextMenuUtils.buildCommentaryContextMenu(
       context: menuCtx,
@@ -683,7 +682,6 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       fontSize: widget.fontSize,
       savedSelectedText: _savedSelectedText,
       onCopySelected: _copyFormattedText,
-      tapPosition: tapPosition,
     );
   }
 
@@ -1494,12 +1492,8 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
                       ) ??
                       true; // לא הוכרע — סלחני
                 },
-                menuBuilder: (menuCtx, tapPosition) =>
-                    _buildCommentaryContextMenuEntries(
-                      menuCtx,
-                      link,
-                      tapPosition,
-                    ),
+                menuBuilder: (menuCtx, _) =>
+                    _buildCommentaryContextMenuEntries(menuCtx, link),
                 child: GestureDetector(
                   onTap: () {
                     widget.openBookCallback(
@@ -1782,8 +1776,7 @@ class _CollapsibleCommentaryGroup extends StatefulWidget {
   final PdfBookTab tab;
   final double fontSize;
   final Function(OpenedTab) openBookCallback;
-  final List<AppContextMenuEntry> Function(BuildContext, Link, Offset)
-  buildContextMenu;
+  final List<AppContextMenuEntry> Function(BuildContext, Link) buildContextMenu;
   // מחזיר את הטקסט הנבחר הנוכחי (מנוהל ע"י ה-SelectionArea היחיד של הפאנל),
   // לבדיקה אם לחיצה ימנית נופלת על הבחירה ולכן יש לשמרה.
   final String? Function() getSavedSelectedText;
@@ -1920,8 +1913,8 @@ class _CollapsibleCommentaryGroupState
                           ) ??
                           true; // לא הוכרע — סלחני
                     },
-                    menuBuilder: (menuCtx, tapPosition) =>
-                        widget.buildContextMenu(menuCtx, link, tapPosition),
+                    menuBuilder: (menuCtx, _) =>
+                        widget.buildContextMenu(menuCtx, link),
                     child: PdfCommentaryContent(
                       key: ValueKey(
                         '${link.path2}_${link.index1}_${link.index2}_${widget.tab.currentTextLineNumber}',

@@ -12,6 +12,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
+import 'package:otzaria/tools/dictionary/widgets/laaz_commentary_subblock.dart';
 import 'package:otzaria/widgets/feedback/app_future_builder.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
@@ -552,14 +553,13 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
                   ) ??
                   true; // לא הוכרע — סלחני
             },
-            menuBuilder: (menuCtx, tapPosition) =>
+            menuBuilder: (menuCtx, _) =>
                 ContextMenuUtils.buildCommentaryContextMenu(
                   context: menuCtx,
                   link: link,
                   openBookCallback: widget.openBookCallback,
                   fontSize: widget.fontSize,
                   savedSelectedText: _savedSelectedText,
-                  tapPosition: tapPosition,
                   onCopySelected: () => ContextMenuUtils.copyFormattedText(
                     context: menuCtx,
                     savedSelectedText: _savedSelectedText,
@@ -602,14 +602,20 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
         final loaded = blocState is TextBookLoaded ? blocState : null;
         // מעבירים HTML גולמי ל-SmartTextWidget (כמו במפרשים) כדי ש-<br>
         // ומבני HTML אחרים יעובדו; הסרת התגים מראש איבדה את מעברי השורה.
-        return SmartTextWidget(
-          text: content,
-          settings: buildSelectedLinkRenderSettings(
-            settingsState: settingsState,
-            removeNikud: loaded?.removeNikud ?? false,
-            removePunctuation: loaded?.removePunctuation ?? false,
-            searchText: searchText,
-          ),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SmartTextWidget(
+              text: content,
+              settings: buildSelectedLinkRenderSettings(
+                settingsState: settingsState,
+                removeNikud: loaded?.removeNikud ?? false,
+                removePunctuation: loaded?.removePunctuation ?? false,
+                searchText: searchText,
+              ),
+            ),
+            LaazCommentarySubBlock(link: link),
+          ],
         );
       },
     );

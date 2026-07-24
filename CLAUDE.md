@@ -678,7 +678,9 @@ dart format lib/file.dart    # Format ONLY files you modified
 | Plugins | `test/plugins/utils/reader_location_resolver_test.dart`, `…plugin_store_link_parser_test.dart`, `…plugin_bridge_adapter_test.dart` |
 | Shamor Zachor | `test/shamor_zachor/shamor_zachor_test.dart` (+ 4 more in that dir) |
 | Dictionary lookup | `test/tools/dictionary/dictionary_lookup_repository_test.dart` |
-| Laaz Rashi dictionary | `test/tools/dictionary/laaz_dictionary_test.dart` |
+| Laaz Rashi commentary line-lookup | `test/tools/dictionary/laaz_rashi_line_lookup_test.dart` |
+| Laaz Rashi commentary sub-block widget | `test/tools/dictionary/laaz_commentary_subblock_test.dart` |
+| Laaz Rashi commentary wiring (surfaces) | `test/tools/dictionary/laaz_commentary_wiring_test.dart` |
 | Commentary reverse links | `test/commentary_reverse_links_test.dart` |
 | Inline links | `test/inline_links_test.dart` |
 | Dialog navigation | `test/dialog_navigation_test.dart` |
