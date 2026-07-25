@@ -52,11 +52,6 @@ class _ReadingScreenState extends State<ReadingScreen>
   // של הילד עצמו, כך שהזזה שומרת על ה-State.
   PageController? _pageController;
 
-  /// GlobalKey יציב לכל טאב. ה-PageView מזהה ילדים לפי *מיקום*, ולכן גרירת
-  /// טאב הורסת את ה-State של הטאבים שזזו (ב-PDF: סגירת המסמך ופתיחתו מחדש).
-  /// GlobalKey הוא המנגנון היחיד שמעביר State בין מיקומים בעץ.
-  final Map<OpenedTab, GlobalKey> _tabViewKeys = {};
-
   /// סף ההפעלה (בפיקסלים לוגיים) של החלקה אופקית למעבר טאב בדסקטופ.
   static const double _kTabSwipeThreshold = 80.0;
 
@@ -98,24 +93,6 @@ class _ReadingScreenState extends State<ReadingScreen>
 
   void _ensurePageController(int initialIndex) {
     _pageController ??= PageController(initialPage: initialIndex);
-  }
-
-  GlobalKey _viewKeyFor(OpenedTab tab) =>
-      _tabViewKeys.putIfAbsent(tab, () => GlobalKey());
-
-  /// משחרר מפתחות של טאבים שנסגרו — אחרת המפה גדלה לאורך כל הסשן.
-  /// אין להשוות אורכים כקיצור דרך: סגירת טאב ופתיחת אחר באותו פריים
-  /// משאירה אורך זהה עם חברות שונה.
-  void _pruneTabViewKeys(List<OpenedTab> tabs) {
-    final live = Set<OpenedTab>.identity()..addAll(tabs);
-    // מופע טאב שמופיע פעמיים ברשימה ייתן שני ילדים עם אותו GlobalKey —
-    // קריסה עמומה. כל מסלול שמוסיף טאב חייב ליצור מופע חדש (OpenedTab.from).
-    assert(
-      live.length == tabs.length,
-      'אותו מופע OpenedTab מופיע יותר מפעם אחת ב-state.tabs',
-    );
-    if (_tabViewKeys.isEmpty) return;
-    _tabViewKeys.removeWhere((tab, _) => !live.contains(tab));
   }
 
   void _syncPageController() {
@@ -294,7 +271,6 @@ class _ReadingScreenState extends State<ReadingScreen>
           if (state.hasOpenTabs) {
             _ensurePageController(validIndex);
           }
-          _pruneTabViewKeys(state.tabs);
           return Theme(
             data: Theme.of(context).copyWith(
               scaffoldBackgroundColor: readerBg,
@@ -360,11 +336,12 @@ class _ReadingScreenState extends State<ReadingScreen>
                                 : null,
                             children: [
                               for (var i = 0; i < state.tabs.length; i++)
-                                // ה-GlobalKey שומר את ה-State בהעברת כרטיסייה
-                                // (ראו [_tabViewKeys]); TickerMode מכבה אנימציות
-                                // של טאבי רקע שנשארים חיים (keepAlive).
+                                // בלי key על הילד הישיר, גרירת טאב משייכת
+                                // Elementים לפי אינדקס וההזזה הורסת State
+                                // (ב-PDF: סגירת המסמך וטעינה מחדש מהדיסק).
+                                // TickerMode מכבה אנימציות של טאבי רקע.
                                 KeyedSubtree(
-                                  key: _viewKeyFor(state.tabs[i]),
+                                  key: ObjectKey(state.tabs[i]),
                                   child: TickerMode(
                                     enabled: i == validIndex,
                                     child: _buildTabView(

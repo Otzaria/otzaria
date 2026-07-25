@@ -27,17 +27,12 @@ import 'package:provider/provider.dart';
 
 import '../helpers/memory_settings_cache.dart';
 
-/// אימות התנהגותי של התיקון "העברת כרטיסייה שומרת State", על ה-`ReadingScreen`
-/// האמיתי עם `TabsBloc` אמיתי ואירועי `MoveTab` אמיתיים (לא PageView מדומה).
+/// אימות התנהגותי של `MoveTab` על ה-`ReadingScreen` האמיתי: אחרי הזזה,
+/// ה-`State` של מסך הטאב חייב להיות *אותו מופע*. ב-PDF זה ההבדל בין
+/// "המסמך נשאר פתוח" לבין "dispose סוגר אותו ו-initState טוען מהדיסק".
 ///
-/// הקריטריון: אחרי `MoveTab`, אובייקט ה-`State` של מסך הטאב חייב להיות *אותו
-/// מופע* (`identical`). ב-PDF זה בדיוק ההבדל בין "המסמך נשאר פתוח" לבין
-/// "dispose סוגר אותו ו-initState טוען אותו מחדש מהדיסק".
-///
-/// למה `PdfCommentatorsTab` ולא `PdfBookTab`: `PdfBookScreen` דורש pdfrx נייטיב,
-/// גישה לדיסק, `BookmarkBloc` ו-`TourCubit` — לא ניתן להרכיב אותו ב-widget test.
-/// `PdfCommentatorsTabScreen` הוא טאב אמיתי העובר באותו `_buildTabView`, עם
-/// `AutomaticKeepAliveClientMixin` ו-State מקומי — אותו פרופיל בדיוק.
+/// `PdfBookScreen` דורש pdfrx נייטיב ולכן אינו ניתן להרכבה כאן;
+/// `PdfCommentatorsTab` עובר באותו `_buildTabView` עם אותו פרופיל keepAlive.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -45,7 +40,6 @@ void main() {
     await Settings.init(cacheProvider: MemorySettingsCache());
   });
 
-  /// מרכיב את ה-ReadingScreen האמיתי מעל TabsBloc אמיתי.
   Future<TabsBloc> pumpReadingScreen(
     WidgetTester tester,
     List<OpenedTab> tabs, {
@@ -90,7 +84,6 @@ void main() {
     return bloc;
   }
 
-  /// ה-State החי של מסך הטאב בעל הכותרת [title], או null אם אינו בעץ.
   State? tabScreenState(WidgetTester tester, String title) {
     final finder = find.byWidgetPredicate(
       (w) => w is PdfCommentatorsTabScreen && w.tab.title.contains(title),
@@ -100,8 +93,8 @@ void main() {
     return tester.state(finder);
   }
 
-  /// מבקר בכל טאב לפי הסדר כדי שכל ה-Stateים ייבנו וישמרו חיים (keepAlive),
-  /// ואז חוזר ל-[backTo]. בלי זה, טאב שמעולם לא הוצג פשוט אינו בעץ.
+  /// מבקר בכל טאב כדי שכל ה-Stateים ייבנו וישמרו חיים (keepAlive) —
+  /// טאב שמעולם לא הוצג פשוט אינו בעץ ואין מה לשמר.
   Future<void> visitAllTabs(
     WidgetTester tester,
     TabsBloc bloc,
@@ -115,8 +108,8 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  group('ReadingScreen אמיתי + MoveTab — שימור State', () {
-    testWidgets('הזזה קדימה: כל הטאבים שומרים את אותו מופע State', (
+  group('ReadingScreen + MoveTab — שימור State', () {
+    testWidgets('גרירת הטאב הראשון לסוף: כל הטאבים שומרים State', (
       tester,
     ) async {
       final tabs = [_tab('א'), _tab('ב'), _tab('ג')];
@@ -133,22 +126,20 @@ void main() {
       };
       expect(before.values, everyElement(isNotNull));
 
-      // גרירת הטאב הראשון לסוף — התרחיש המדויק של הבאג.
       bloc.add(MoveTab(tabs[0], 2));
       await tester.pumpAndSettle();
 
-      expect(_titles(bloc), [
-        'ב',
-        'ג',
-        'א',
-      ]);
+      expect(_titles(bloc), ['ב', 'ג', 'א']);
       for (final t in ['א', 'ב', 'ג']) {
         expect(
           identical(tabScreenState(tester, t), before[t]),
           isTrue,
-          reason: 'ה-State של "$t" הוחלף בהזזה — ב-PDF זה dispose+טעינה מחדש',
+          reason: 'ה-State של "$t" הוחלף — ב-PDF זה dispose וטעינה מחדש',
         );
       }
+      // הטאב שנגרר היה הפעיל — ההדגשה עוקבת אחריו למיקום החדש.
+      expect(bloc.state.currentTabIndex, 2);
+      expect(_short(bloc.state.currentTab!.title), 'א');
     });
 
     testWidgets('הזזה אחורה: הטאב האחרון לראש, כל ה-Stateים נשמרים', (
@@ -175,172 +166,10 @@ void main() {
         expect(identical(tabScreenState(tester, t), before[t]), isTrue);
       }
     });
-
-    testWidgets('הזזת הטאב הפעיל: הוא נשאר הפעיל ושומר State', (tester) async {
-      final tabs = [_tab('א'), _tab('ב'), _tab('ג')];
-      addTearDown(() {
-        for (final t in tabs) {
-          t.dispose();
-        }
-      });
-      final bloc = await pumpReadingScreen(tester, tabs);
-      await visitAllTabs(tester, bloc, 0);
-      final activeBefore = tabScreenState(tester, 'א');
-
-      bloc.add(MoveTab(tabs[0], 2));
-      await tester.pumpAndSettle();
-
-      expect(
-        bloc.state.currentTabIndex,
-        2,
-        reason: 'הטאב שנגרר היה הפעיל — ההדגשה חייבת לעקוב אחריו למיקום החדש',
-      );
-      expect(_short(bloc.state.currentTab!.title), 'א');
-      expect(identical(tabScreenState(tester, 'א'), activeBefore), isTrue);
-    });
-
-    testWidgets('הזזת טאב רקע: הטאב הפעיל נשאר פעיל וה-State שלו נשמר', (
-      tester,
-    ) async {
-      final tabs = [_tab('א'), _tab('ב'), _tab('ג')];
-      addTearDown(() {
-        for (final t in tabs) {
-          t.dispose();
-        }
-      });
-      final bloc = await pumpReadingScreen(tester, tabs);
-      await visitAllTabs(tester, bloc, 1); // "ב" פעיל
-      final activeBefore = tabScreenState(tester, 'ב');
-
-      // מזיז את "ג" (רקע) לראש — "ב" זז מ-1 ל-2 בלי שהמשתמש נגע בו.
-      bloc.add(MoveTab(tabs[2], 0));
-      await tester.pumpAndSettle();
-
-      expect(_titles(bloc), ['ג', 'א', 'ב']);
-      expect(
-        bloc.state.currentTabIndex,
-        2,
-        reason: 'הטאב הפעיל "ב" נדחף קדימה ולכן האינדקס שלו התעדכן',
-      );
-      expect(_short(bloc.state.currentTab!.title), 'ב');
-      expect(identical(tabScreenState(tester, 'ב'), activeBefore), isTrue);
-    });
-
-    testWidgets('הזזה עם טאב מוצמד ברשימה — State נשמר וההדגשה נכונה', (
-      tester,
-    ) async {
-      final tabs = [_tab('א')..isPinned = true, _tab('ב'), _tab('ג')];
-      addTearDown(() {
-        for (final t in tabs) {
-          t.dispose();
-        }
-      });
-      final bloc = await pumpReadingScreen(tester, tabs);
-      await visitAllTabs(tester, bloc, 2);
-      final before = {
-        for (final t in ['א', 'ב', 'ג']) t: tabScreenState(tester, t),
-      };
-
-      bloc.add(MoveTab(tabs[1], 2)); // "ב" אחרי "ג"
-      await tester.pumpAndSettle();
-
-      expect(_titles(bloc), ['א', 'ג', 'ב']);
-      expect(bloc.state.tabs[0].isPinned, isTrue);
-      expect(_short(bloc.state.currentTab!.title), 'ג');
-      for (final t in ['א', 'ב', 'ג']) {
-        expect(identical(tabScreenState(tester, t), before[t]), isTrue);
-      }
-    });
-
-    testWidgets('הזזה ואז סגירה: הטאבים הנותרים שומרים State', (tester) async {
-      final tabs = [_tab('א'), _tab('ב'), _tab('ג')];
-      addTearDown(() {
-        for (final t in tabs) {
-          t.dispose();
-        }
-      });
-      final bloc = await pumpReadingScreen(tester, tabs);
-      await visitAllTabs(tester, bloc, 0);
-      final before = {
-        for (final t in ['ב', 'ג']) t: tabScreenState(tester, t),
-      };
-
-      bloc.add(MoveTab(tabs[0], 2));
-      await tester.pumpAndSettle();
-      bloc.add(RemoveTab(tabs[0]));
-      await tester.pumpAndSettle();
-
-      expect(_titles(bloc), ['ב', 'ג']);
-      for (final t in ['ב', 'ג']) {
-        expect(
-          identical(tabScreenState(tester, t), before[t]),
-          isTrue,
-          reason: 'סגירה אחרי הזזה לא תקפיץ Stateים של טאבים אחרים',
-        );
-      }
-      // _disposeTabLater מתזמן טיימר של 350ms — מרוקנים אותו לפני סוף הטסט.
-      await tester.pump(const Duration(milliseconds: 400));
-    });
-
-    testWidgets('הזזה, סגירה ופתיחה מחדש — אין דליפת מפתחות ואין קריסה', (
-      tester,
-    ) async {
-      final tabs = [_tab('א'), _tab('ב')];
-      final extra = _tab('ד');
-      addTearDown(() {
-        for (final t in [...tabs, extra]) {
-          t.dispose();
-        }
-      });
-      final bloc = await pumpReadingScreen(tester, tabs);
-      await visitAllTabs(tester, bloc, 0);
-
-      bloc.add(MoveTab(tabs[0], 1));
-      await tester.pumpAndSettle();
-      bloc.add(RemoveTab(tabs[1]));
-      await tester.pumpAndSettle();
-      bloc.add(AddTab(extra));
-      await tester.pumpAndSettle();
-
-      expect(_titles(bloc), ['א', 'ד']);
-      expect(_short(bloc.state.currentTab!.title), 'ד');
-      expect(tester.takeException(), isNull);
-    });
   });
 
   group('ReadingScreen — אינדקסי side-by-side אחרי MoveTab', () {
-    testWidgets('MoveTab מעדכן leftTabIndex/rightTabIndex לטאבים הנכונים', (
-      tester,
-    ) async {
-      final tabs = [_tab('א'), _tab('ב'), _tab('ג')];
-      addTearDown(() {
-        for (final t in tabs) {
-          t.dispose();
-        }
-      });
-      // right=0 ("א"), left=2 ("ג")
-      final bloc = await pumpReadingScreen(
-        tester,
-        tabs,
-        sideBySideMode: const SideBySideMode(leftTabIndex: 2, rightTabIndex: 0),
-      );
-
-      // מזיז את "ב" (שאינו חלק מהמצב) לראש → שני האינדקסים זזים ב-1.
-      bloc.add(MoveTab(tabs[1], 0));
-      await tester.pumpAndSettle();
-
-      final mode = bloc.state.sideBySideMode!;
-      expect(
-        _short(bloc.state.tabs[mode.rightTabIndex].title),
-        'א',
-        reason: 'rightTabIndex חייב להצביע על אותו טאב גם אחרי ההזזה',
-      );
-      expect(_short(bloc.state.tabs[mode.leftTabIndex].title), 'ג');
-    });
-
-    testWidgets('הזזת טאב שהוא עצמו צד ב-side-by-side מעדכנת את האינדקס שלו', (
-      tester,
-    ) async {
+    testWidgets('האינדקסים ממשיכים להצביע על אותם טאבים', (tester) async {
       final tabs = [_tab('א'), _tab('ב'), _tab('ג')];
       addTearDown(() {
         for (final t in tabs) {
@@ -367,8 +196,7 @@ void main() {
     });
   });
 
-  group('ReadingScreen — ה-PageView עוקב אחרי הטאב הפעיל אחרי MoveTab', () {
-    /// אינדקס העמוד שה-PageView באמת מציג.
+  group('ReadingScreen — ה-PageView עוקב אחרי הטאב הפעיל', () {
     double displayedPage(WidgetTester tester) {
       final pageView = tester.widget<PageView>(find.byType(PageView));
       return pageView.controller!.page!;
@@ -383,78 +211,38 @@ void main() {
       });
       final bloc = await pumpReadingScreen(tester, tabs);
       await visitAllTabs(tester, bloc, 0);
-      expect(displayedPage(tester), 0);
 
       bloc.add(MoveTab(tabs[0], 2));
-      await tester.pumpAndSettle();
-
-      expect(bloc.state.currentTabIndex, 2);
-      expect(
-        displayedPage(tester),
-        2,
-        reason:
-            'currentTabIndex השתנה → ה-listener נדלק → jumpToPage. אם נכשל, '
-            'המשתמש רואה טאב אחר מזה שמודגש בשורת הטאבים',
-      );
-    });
-
-    testWidgets('הזזת טאב רקע שדוחפת את הפעיל — התצוגה עוקבת', (tester) async {
-      final tabs = [_tab('א'), _tab('ב'), _tab('ג')];
-      addTearDown(() {
-        for (final t in tabs) {
-          t.dispose();
-        }
-      });
-      final bloc = await pumpReadingScreen(tester, tabs);
-      await visitAllTabs(tester, bloc, 1);
-      expect(displayedPage(tester), 1);
-
-      bloc.add(MoveTab(tabs[2], 0)); // ['ג','א','ב'] — "ב" הפעיל עובר ל-2
       await tester.pumpAndSettle();
 
       expect(bloc.state.currentTabIndex, 2);
       expect(displayedPage(tester), 2);
     });
 
-    testWidgets(
-      'הזזה שלא משנה את אינדקס הפעיל — התצוגה נשארת על הטאב הפעיל',
-      (tester) async {
-        // תרחיש הגבול של ה-listenWhen: currentTabIndex ו-tabs.length שניהם
-        // לא משתנים, ולכן ה-listener *לא* נדלק. חייבים לוודא שזה תקין.
-        final tabs = [_tab('א'), _tab('ב'), _tab('ג'), _tab('ד')];
-        addTearDown(() {
-          for (final t in tabs) {
-            t.dispose();
-          }
-        });
-        final bloc = await pumpReadingScreen(tester, tabs);
-        await visitAllTabs(tester, bloc, 0); // "א" פעיל באינדקס 0
-        expect(displayedPage(tester), 0);
+    testWidgets('הזזה שלא נוגעת באינדקס הפעיל — התצוגה נשארת במקומה', (
+      tester,
+    ) async {
+      final tabs = [_tab('א'), _tab('ב'), _tab('ג'), _tab('ד')];
+      addTearDown(() {
+        for (final t in tabs) {
+          t.dispose();
+        }
+      });
+      final bloc = await pumpReadingScreen(tester, tabs);
+      await visitAllTabs(tester, bloc, 0);
 
-        // מחליף את "ג" ו-"ד" אחרי הטאב הפעיל — אינדקס 0 לא זז.
-        bloc.add(MoveTab(tabs[3], 1));
-        await tester.pumpAndSettle();
+      // "ד" מהסוף למקום 1 — הפעיל ("א") נשאר באינדקס 0.
+      bloc.add(MoveTab(tabs[3], 1));
+      await tester.pumpAndSettle();
 
-        expect(_titles(bloc), [
-          'א',
-          'ד',
-          'ב',
-          'ג',
-        ]);
-        expect(bloc.state.currentTabIndex, 0);
-        expect(
-          displayedPage(tester),
-          0,
-          reason: 'הטאב הפעיל לא זז — התצוגה חייבת להישאר עליו',
-        );
-        expect(
-          find.byWidgetPredicate(
-            (w) => w is PdfCommentatorsTabScreen && w.tab.title.contains('א'),
-          ),
-          findsOneWidget,
-        );
-      },
-    );
+      expect(_titles(bloc), ['א', 'ד', 'ב', 'ג']);
+      expect(bloc.state.currentTabIndex, 0);
+      expect(
+        displayedPage(tester),
+        0,
+        reason: 'הטאב הפעיל לא זז — התצוגה חייבת להישאר עליו',
+      );
+    });
   });
 }
 

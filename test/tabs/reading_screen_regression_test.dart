@@ -526,57 +526,17 @@ void main() {
   });
 
   group('reading_screen — העברת כרטיסייה (גרירה) לא טוענת את הספר מחדש', () {
-    // ה-PageView מזהה ילדים לפי *מיקום*, ולכן ValueKey לבדו לא מספיק:
-    // גרירת טאב הזיזה את כל המיקומים והרסה את ה-State של הטאבים שזזו
-    // (ב-PDF: dispose סוגר את המסמך ו-initState פותח אותו מחדש מהדיסק).
-    // הבדיקה רצה על PageView אמיתי — הבדיקות שלמעלה משתמשות ב-Stack
-    // ולכן לא תופסות את הכשל הזה.
-    Widget buildPageView({
-      required List<String> order,
-      required int current,
-      required PageController controller,
-      required bool withGlobalKeys,
-      required Map<String, GlobalKey> keys,
-    }) {
-      return MaterialApp(
-        home: PageView(
-          controller: controller,
-          physics: const NeverScrollableScrollPhysics(),
-          children: [
-            for (var i = 0; i < order.length; i++)
-              if (withGlobalKeys)
-                KeyedSubtree(
-                  key: keys.putIfAbsent(order[i], () => GlobalKey()),
-                  child: TickerMode(
-                    enabled: i == current,
-                    child: _KeepAliveTab(
-                      label: order[i],
-                      key: ValueKey(order[i]),
-                    ),
-                  ),
-                )
-              else
-                TickerMode(
-                  enabled: i == current,
-                  child: _KeepAliveTab(
-                    label: order[i],
-                    key: ValueKey(order[i]),
-                  ),
-                ),
-          ],
-        ),
-      );
-    }
-
-    /// מזיזה את הטאב הראשון לסוף ומחזירה כמה פעמים כל טאב אותחל *אחרי* ההזזה.
+    // ה-PageView משייך ילדים לפי *מיקום*, ולכן בלי key על הילד הישיר גרירת
+    // טאב הורסת את ה-State של הטאבים שזזו (ב-PDF: dispose סוגר את המסמך
+    // ו-initState פותח אותו מחדש). הבדיקות שלמעלה רצות על Stack ולכן אינן
+    // תופסות את הכשל — כאן PageView אמיתי.
     Future<Map<String, int>> moveFirstTabToEnd(
       WidgetTester tester, {
-      required bool withGlobalKeys,
+      required bool withKeys,
     }) async {
       _InitCounter.reset();
       final controller = PageController();
       addTearDown(controller.dispose);
-      final keys = <String, GlobalKey>{};
       var order = ['A', 'B', 'C'];
       var current = 0;
       late StateSetter setOuter;
@@ -586,21 +546,42 @@ void main() {
           home: StatefulBuilder(
             builder: (context, setState) {
               setOuter = setState;
-              return buildPageView(
-                order: order,
-                current: current,
+              return PageView(
                 controller: controller,
-                withGlobalKeys: withGlobalKeys,
-                keys: keys,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  for (var i = 0; i < order.length; i++)
+                    if (withKeys)
+                      KeyedSubtree(
+                        key: ObjectKey(order[i]),
+                        child: TickerMode(
+                          enabled: i == current,
+                          child: _KeepAliveTab(
+                            key: ValueKey(order[i]),
+                            label: order[i],
+                          ),
+                        ),
+                      )
+                    else
+                      TickerMode(
+                        enabled: i == current,
+                        child: _KeepAliveTab(
+                          key: ValueKey(order[i]),
+                          label: order[i],
+                        ),
+                      ),
+                ],
               );
             },
           ),
         ),
       );
 
-      // מבקר ב-B כדי ששני הטאבים יהיו חיים לפני ההזזה
-      controller.jumpToPage(1);
-      await tester.pumpAndSettle();
+      // ביקור בכל הטאבים כדי שכולם יהיו חיים (keepAlive) לפני ההזזה.
+      for (var i = 0; i < 3; i++) {
+        controller.jumpToPage(i);
+        await tester.pumpAndSettle();
+      }
       controller.jumpToPage(0);
       await tester.pumpAndSettle();
       _InitCounter.reset();
@@ -613,27 +594,26 @@ void main() {
       return Map<String, int>.from(_InitCounter.counts);
     }
 
-    testWidgets('בלי GlobalKey — הטאבים שזזו נטענים מחדש (שחזור הבאג)', (
+    testWidgets('בלי key על הילד הישיר — הטאבים שזזו נבנים מחדש (הבאג)', (
       tester,
     ) async {
-      final counts = await moveFirstTabToEnd(tester, withGlobalKeys: false);
-      // A הוא הטאב שנגרר, B זז איתו — שניהם שילמו טעינה מחדש.
+      final counts = await moveFirstTabToEnd(tester, withKeys: false);
       expect(
-        (counts['A'] ?? 0) + (counts['B'] ?? 0),
+        counts.values.fold<int>(0, (a, b) => a + b),
         greaterThan(0),
-        reason: 'ללא GlobalKey ה-PageView מזהה לפי מיקום ולכן בונה מחדש',
+        reason: 'בלי key ה-PageView משייך לפי מיקום ובונה מחדש',
       );
     });
 
-    testWidgets('עם GlobalKey — אף טאב לא נטען מחדש', (tester) async {
-      final counts = await moveFirstTabToEnd(tester, withGlobalKeys: true);
-      expect(
-        counts['A'] ?? 0,
-        0,
-        reason: 'הטאב שנגרר חייב לשמור את ה-State (ב-PDF: המסמך הפתוח)',
-      );
-      expect(counts['B'] ?? 0, 0, reason: 'טאב שזז בעקבות הגרירה נשמר גם הוא');
-      expect(counts['C'] ?? 0, 0);
+    testWidgets('עם ObjectKey — אף טאב לא נבנה מחדש', (tester) async {
+      final counts = await moveFirstTabToEnd(tester, withKeys: true);
+      for (final t in ['A', 'B', 'C']) {
+        expect(
+          counts[t] ?? 0,
+          0,
+          reason: 'הטאב "$t" איבד State — ב-PDF זו טעינה מחדש מהדיסק',
+        );
+      }
     });
   });
 }
