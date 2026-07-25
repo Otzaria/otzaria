@@ -54,6 +54,52 @@ InstalledPlugin _pluginFor({
 }
 
 void main() {
+  group('shouldHideToolsTabBar', () {
+    test('מוצג במצב רגיל', () {
+      expect(
+        shouldHideToolsTabBar(
+          isImmersive: false,
+          hiddenNavRailPluginId: null,
+          selectedToolId: 'builtin.calendar',
+        ),
+        isFalse,
+      );
+    });
+
+    test('מוסתר במסך מלא', () {
+      expect(
+        shouldHideToolsTabBar(
+          isImmersive: true,
+          hiddenNavRailPluginId: null,
+          selectedToolId: 'builtin.calendar',
+        ),
+        isTrue,
+      );
+    });
+
+    test('מוסתר כשמוצג תוסף שהוצמד לסרגל הניווט', () {
+      expect(
+        shouldHideToolsTabBar(
+          isImmersive: false,
+          hiddenNavRailPluginId: 'a',
+          selectedToolId: 'a',
+        ),
+        isTrue,
+      );
+    });
+
+    test('מוצג כשהתוסף המוצמד פתוח אך נבחר כלי אחר', () {
+      expect(
+        shouldHideToolsTabBar(
+          isImmersive: false,
+          hiddenNavRailPluginId: 'a',
+          selectedToolId: 'builtin.calendar',
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('resolveTransientAfterPluginsLoaded', () {
     test('transient ריק נשאר ריק', () {
       expect(

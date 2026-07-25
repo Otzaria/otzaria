@@ -43,6 +43,7 @@ class PdfBookSearchView extends StatefulWidget {
     this.initialSearchMode = SearchMode.exact,
     this.initialSearchDistance = 0,
     this.onSearchResultNavigated,
+    this.searchRepository = const SearchRepository(),
     super.key,
   });
 
@@ -67,6 +68,9 @@ class PdfBookSearchView extends StatefulWidget {
   final SearchMode initialSearchMode;
   final int initialSearchDistance;
   final VoidCallback? onSearchResultNavigated;
+
+  /// מנוע החיפוש המתקדם. נחלף בבדיקות במימוש שלא נוגע במנוע ה-Rust.
+  final SearchRepository searchRepository;
 
   /// חישוב האינדקס הוויזואלי ב-ScrollablePositionedList של תוצאות החיפוש,
   /// שאליו יש לגלול בהתאם לעמוד הנוכחי בספר.
@@ -126,15 +130,17 @@ class PdfBookSearchView extends StatefulWidget {
   }
 
   @override
-  State<PdfBookSearchView> createState() => _PdfBookSearchViewState();
+  State<PdfBookSearchView> createState() => PdfBookSearchViewState();
 }
 
-class _PdfBookSearchViewState extends State<PdfBookSearchView> {
-  final SearchRepository _searchRepository = SearchRepository();
+class PdfBookSearchViewState extends State<PdfBookSearchView> {
   final ItemScrollController _resultsScrollController = ItemScrollController();
 
   bool _isSearching = false;
   List<SearchResult> _searchResults = [];
+
+  /// הודעת שגיאה אחרונה בחיפוש (כשל מנוע/FFI). ראו doc ב-[SearchPaneBase].
+  String? _searchErrorMessage;
   String? _bookPath;
   final Map<int, String> _pageTitles = <int, String>{};
 
@@ -318,6 +324,50 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
     super.dispose();
   }
 
+  /// מחיל את הפרמטרים שחזרו מדיאלוג החיפוש המתקדם ומריץ חיפוש מחדש.
+  ///
+  /// חוזרים למסלול החיפוש הפשוט כשכל הפרמטרים ריקים והמצב מדויק.
+  void applySearchDialogResult(
+    SearchDialogResult result,
+    PdfBookBloc pdfBookBloc,
+  ) {
+    final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
+      result.searchMode,
+      customSpacing: result.spacingValues,
+      alternativeWords: result.alternativeWords,
+      searchOptions: result.searchOptions,
+    );
+    final queryChanged = widget.searchController.text != result.query;
+
+    setState(() {
+      _searchOptions = normalizedParameters.searchOptions;
+      _alternativeWords = normalizedParameters.alternativeWords;
+      _spacingValues = normalizedParameters.customSpacing;
+      _searchMode = result.searchMode;
+      _searchDistance = result.distance;
+      _forceSearchEngine =
+          _searchMode != SearchMode.exact ||
+          _searchDistance > 0 ||
+          _searchOptions.isNotEmpty ||
+          _alternativeWords.isNotEmpty ||
+          _spacingValues.isNotEmpty;
+    });
+    pdfBookBloc.add(
+      UpdateSearchOptions(
+        searchOptions: normalizedParameters.searchOptions,
+        alternativeWords: normalizedParameters.alternativeWords,
+        spacingValues: normalizedParameters.customSpacing,
+        searchMode: result.searchMode,
+        searchDistance: result.distance,
+      ),
+    );
+
+    syncSearchControllerQuery(widget.searchController, result.query);
+    if (!queryChanged) {
+      _searchTextUpdated();
+    }
+  }
+
   Future<void> _searchTextUpdated() async {
     // כל שינוי בשאילתה/במצב החיפוש מבטל תוצאות אסינכרוניות ישנות. בלי מזהה
     // דור, חיפוש איטי קודם יכול להסתיים אחרי החדש ולדרוס תוצאות והדגשות.
@@ -332,6 +382,7 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
         setState(() {
           _searchResults = [];
           _isSearching = false;
+          _searchErrorMessage = null;
         });
       }
       _lastAdvancedHighlightPattern = null;
@@ -347,6 +398,15 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
       query = utils.removeVolwels(query);
     }
 
+    // איפוס השגיאה לפני פיצול המסלול — במסלול הפשוט התוצאות מגיעות
+    // אסינכרונית, ובלי האיפוס כאן שגיאת מנוע קודמת נשארת מוצגת.
+    if (mounted) {
+      setState(() {
+        _searchErrorMessage = null;
+        if (!_isSimpleSearch) _isSearching = true;
+      });
+    }
+
     if (_isSimpleSearch) {
       _pdfHighlightDebounce?.cancel();
       _pendingSimpleSearchScrollFor = query;
@@ -360,15 +420,9 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
       return;
     }
 
-    if (mounted) {
-      setState(() {
-        _isSearching = true;
-      });
-    }
-
     try {
       final activeParameters = _activeSearchParameters;
-      final rawResults = await _searchRepository.searchTexts(
+      final rawResults = await widget.searchRepository.searchTexts(
         query,
         [_bookPath!],
         1000,
@@ -410,6 +464,7 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
       setState(() {
         _searchResults = [];
         _isSearching = false;
+        _searchErrorMessage = PdfMessages.searchError;
       });
       _updateAdvancedHighlight(const []);
       UiSnack.showError(PdfMessages.searchError);
@@ -544,12 +599,14 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
           widget.searchController.text.isNotEmpty &&
           _searchResults.isEmpty &&
           !_isSearching,
+      errorMessage: _searchErrorMessage,
       onSearchTextChanged: (_) => _searchTextUpdated(),
       resetSearchCallback: () {
         _pendingSimpleSearchScrollFor = null;
         _lastAdvancedHighlightPattern = null;
         setState(() {
           _searchResults = [];
+          _searchErrorMessage = null;
           _forceSearchEngine = false;
           _searchOptions = {};
           _alternativeWords = {};
@@ -606,42 +663,7 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
           return;
         }
 
-        final normalizedParameters =
-            SearchQueryBuilder.normalizeParametersForMode(
-              result.searchMode,
-              customSpacing: result.spacingValues,
-              alternativeWords: result.alternativeWords,
-              searchOptions: result.searchOptions,
-            );
-        final queryChanged = widget.searchController.text != result.query;
-
-        setState(() {
-          _searchOptions = normalizedParameters.searchOptions;
-          _alternativeWords = normalizedParameters.alternativeWords;
-          _spacingValues = normalizedParameters.customSpacing;
-          _searchMode = result.searchMode;
-          _searchDistance = result.distance;
-          _forceSearchEngine =
-              _searchMode != SearchMode.exact ||
-              _searchDistance > 0 ||
-              _searchOptions.isNotEmpty ||
-              _alternativeWords.isNotEmpty ||
-              _spacingValues.isNotEmpty;
-        });
-        pdfBookBloc.add(
-          UpdateSearchOptions(
-            searchOptions: normalizedParameters.searchOptions,
-            alternativeWords: normalizedParameters.alternativeWords,
-            spacingValues: normalizedParameters.customSpacing,
-            searchMode: result.searchMode,
-            searchDistance: result.distance,
-          ),
-        );
-
-        syncSearchControllerQuery(widget.searchController, result.query);
-        if (!queryChanged) {
-          _searchTextUpdated();
-        }
+        applySearchDialogResult(result, pdfBookBloc);
       },
     );
   }

@@ -430,6 +430,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       rawLine,
       lineIndex: lineIndex,
     );
+    // מהדורה חלופית: העוגנים ממופים לנוסח הראשי — במיקומים שגויים כאן.
+    if (state.book.versionTitle != null) return result;
     final anchorLinks = (state.linksByLine[lineIndex + 1] ?? const <Link>[])
         .where((link) => link.anchorStart != null)
         .toList();
@@ -2466,7 +2468,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
 
                 // הזרקת סימוני הערות אישיות inline (רק בטקסט הראשי).
                 final inlineLinks =
-                    widget.isMainText && settingsState.enableHtmlLinks
+                    widget.isMainText &&
+                        settingsState.enableHtmlLinks &&
+                        state.book.versionTitle == null
                     ? (state.linksByLine[primaryLineIndex + 1] ??
                               const <Link>[])
                           .where(
@@ -2712,7 +2716,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     var textWithLinks = widget.isMainText
         ? _injectPreviewMarkers(rawText, lineIndex, state)
         : rawText;
-    final inlineLinks = widget.isMainText && settingsState.enableHtmlLinks
+    final inlineLinks =
+        widget.isMainText &&
+            settingsState.enableHtmlLinks &&
+            state.book.versionTitle == null
         ? (state.linksByLine[lineIndex + 1] ?? const <Link>[])
               .where((link) => link.start != null && link.end != null)
               .toList()

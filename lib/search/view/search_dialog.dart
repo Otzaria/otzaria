@@ -1021,7 +1021,6 @@ class _SearchDialogState extends State<SearchDialog> {
     final searchField = EnhancedSearchField(
       key: enhancedSearchFieldKey,
       widget: _SearchDialogWrapper(tab: _searchTab),
-      showInlineSearchButton: false,
       onSubmit: _performSearch,
       trailingAction: MenuAnchor(
         controller: _historyMenuController,

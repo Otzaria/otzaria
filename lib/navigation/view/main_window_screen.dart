@@ -394,10 +394,14 @@ class MainWindowScreenState extends State<MainWindowScreen>
     }
     // גם rebuild כשמשתנה מספר הפלאגינים הגלויים בכלים (לטובת _isAllToolsHidden)
     final prevVisible = prev is PluginSystemLoaded
-        ? prev.plugins.where((p) => p.enabled && p.showInTools).length
+        ? prev.plugins
+              .where((p) => p.enabled && p.showInTools && !p.pinnedToNavRail)
+              .length
         : -1;
     final currVisible = curr is PluginSystemLoaded
-        ? curr.plugins.where((p) => p.enabled && p.showInTools).length
+        ? curr.plugins
+              .where((p) => p.enabled && p.showInTools && !p.pinnedToNavRail)
+              .length
         : -1;
     return prevVisible != currVisible;
   }
@@ -423,7 +427,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
     );
     if (!allBuiltInsHidden) return false;
     if (pluginState is! PluginSystemLoaded) return true;
-    return pluginState.plugins.where((p) => p.enabled && p.showInTools).isEmpty;
+    return pluginState.plugins
+        .where((p) => p.enabled && p.showInTools && !p.pinnedToNavRail)
+        .isEmpty;
   }
 
   /// אינדקס "הגדרות" בפועל בתוך ה-bar destinations, בהתחשב בהסתרת כלים.

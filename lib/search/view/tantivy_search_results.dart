@@ -417,6 +417,19 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
           ),
         );
       }
+      // חריגה מתקציב ההרחבות במנוע שהצטמצמה לאפס תוצאות: "אין תוצאות" מטעה
+      // כאן, כי החיפוש לא נבדק במלואו.
+      if (state.resultsTruncated) {
+        return _buildInformativeEmptyState(
+          icon: FluentIcons.warning_24_regular,
+          title: 'הגעת למגבלת אפשרויות החיפוש',
+          message:
+              'שילוב הגדרות ההרחבה (קידומות, סיומות, שגיאות כתיב וכד׳) יצר '
+              'יותר מדי אפשרויות עבור המנוע. נסה להוריד חלק מהגדרות החיפוש '
+              'או לצמצם את מילות החיפוש.',
+          showEditButton: true,
+        );
+      }
       return _buildInformativeEmptyState(
         icon: FluentIcons.document_search_24_regular,
         title: 'אין תוצאות',

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -103,6 +104,48 @@ Future<void> main() async {
 
     expect(find.text('כתובת-אב'), findsNothing);
   }, skip: !engineReady);
+
+  testWidgets('כשל טעינת תוכן בחיפוש פשוט מציג שגיאה ולא "אין תוצאות"', (
+    tester,
+  ) async {
+    final textBookBloc = _TestTextBookBloc(_loadedState());
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final focusNode = FocusNode();
+
+    addTearDown(textBookBloc.close);
+    addTearDown(settingsBloc.close);
+    addTearDown(focusNode.dispose);
+    addTearDown(resetSectionSearchWorkerForTesting);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<TextBookBloc>.value(value: textBookBloc),
+            BlocProvider<SettingsBloc>.value(value: settingsBloc),
+          ],
+          child: Scaffold(
+            body: TextBookSearchView(
+              contentLoader: () async => throw Exception('טעינה נכשלה'),
+              scrollControler: ItemScrollController(),
+              focusNode: focusNode,
+              closeLeftPaneCallback: () {},
+              initialQuery: '',
+              simpleSearchRunner: (content, query) async => const [],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), 'אב');
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text(TextBookMessages.searchContentLoadFailed), findsWidgets);
+    expect(find.text('אין תוצאות'), findsNothing);
+  });
 
   testWidgets(
     'didUpdateWidget מונע חיפוש כפול בהד הקלדה אך מריץ על שינוי חיצוני',

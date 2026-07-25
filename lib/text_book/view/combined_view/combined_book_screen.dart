@@ -287,6 +287,8 @@ class _CombinedViewState extends State<CombinedView> {
     int lineIndex0,
     TextBookLoaded state,
   ) {
+    // מהדורה חלופית: העוגנים ממופים לנוסח הראשי — במיקומים שגויים כאן.
+    if (state.book.versionTitle != null) return rawLine;
     // linksByLine ולא state.links: סינון על כל קישורי הספר (עשרות אלפים)
     // פר-שורה פר-build מקרטע את הגלילה.
     final anchorLinks = (state.linksByLine[lineIndex0 + 1] ?? const <Link>[])
@@ -2122,7 +2124,8 @@ class _CombinedViewState extends State<CombinedView> {
 
                           // איסוף קישורי inline (start/end מתייחסים לטקסט המקורי)
                           List<Link> linksForLine = const [];
-                          if (settingsState.enableHtmlLinks) {
+                          if (settingsState.enableHtmlLinks &&
+                              state.book.versionTitle == null) {
                             linksForLine =
                                 (state.linksByLine[primaryLineIndex + 1] ??
                                         const <Link>[])
@@ -2405,7 +2408,8 @@ class _CombinedViewState extends State<CombinedView> {
       lineIndex,
       state,
     );
-    final linksForLine = settingsState.enableHtmlLinks
+    final linksForLine =
+        settingsState.enableHtmlLinks && state.book.versionTitle == null
         ? (state.linksByLine[lineIndex + 1] ?? const <Link>[])
               .where((link) => link.start != null && link.end != null)
               .toList()

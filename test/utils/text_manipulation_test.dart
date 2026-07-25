@@ -316,6 +316,26 @@ Future<void> main() async {
       // השנייה אחרי הגרשיים.
       expect(removePunctuation('ב"כִּי'), equals('בכִּי'));
     });
+
+    test('לא פוגע ב-href של קישור inline מוטמע (linker)', () {
+      // לפני התיקון: ה-":" וה-"-" בתוך otzaria://inline-link וה-"?" נמחקו,
+      // וגרשי ה-href הוסרו - מה שהשאיר קישור <a> שבור ולא-פעיל.
+      const input =
+          'שלום <a href="otzaria://inline-link?path=Tosafot.txt&index=5&'
+          'ref=xyz" style="text-decoration: underline;">תוס\' פ\' כלל גדול</a>'
+          ' עולם.';
+
+      final result = removePunctuation(input);
+
+      expect(
+        result,
+        equals(
+          'שלום <a href="otzaria://inline-link?path=Tosafot.txt&index=5&'
+          'ref=xyz" style="text-decoration: underline;">תוס\' פ\' כלל גדול</a>'
+          ' עולם.',
+        ),
+      );
+    });
   });
 
   group('normalizeForFindRefMatch', () {

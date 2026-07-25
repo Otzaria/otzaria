@@ -198,7 +198,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
     );
   }
 
-  Widget _buildNoResultsState(BuildContext context) {
+  Widget _buildNoResultsState(BuildContext context, {bool truncated = false}) {
     final colorScheme = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
@@ -207,13 +207,15 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              FluentIcons.document_search_24_regular,
+              truncated
+                  ? FluentIcons.warning_24_regular
+                  : FluentIcons.document_search_24_regular,
               size: 56,
               color: colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 16),
             Text(
-              'אין תוצאות',
+              truncated ? 'הגעת למגבלת אפשרויות החיפוש' : 'אין תוצאות',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -222,7 +224,12 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
             ),
             const SizedBox(height: 8),
             Text(
-              'נסה להרחיב קטגוריות, לשנות מצב חיפוש או לעדכן את מילות החיפוש.',
+              truncated
+                  ? 'שילוב הגדרות ההרחבה (קידומות, סיומות, שגיאות כתיב וכד׳) '
+                        'יצר יותר מדי אפשרויות עבור המנוע. נסה להוריד חלק '
+                        'מהגדרות החיפוש או לצמצם את מילות החיפוש.'
+                  : 'נסה להרחיב קטגוריות, לשנות מצב חיפוש או לעדכן את מילות '
+                        'החיפוש.',
               style: TextStyle(
                 fontSize: 14,
                 color: colorScheme.onSurfaceVariant,
@@ -403,7 +410,10 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                                 ),
                               ),
                             )
-                          : _buildNoResultsState(context)
+                          : _buildNoResultsState(
+                              context,
+                              truncated: state.resultsTruncated,
+                            )
                     else
                       Container(
                         clipBehavior: Clip.hardEdge,
@@ -623,7 +633,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
           ),
         );
       }
-      return _buildNoResultsState(context);
+      return _buildNoResultsState(context, truncated: state.resultsTruncated);
     }
     return Container(
       clipBehavior: Clip.hardEdge,

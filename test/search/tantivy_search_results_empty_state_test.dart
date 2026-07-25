@@ -81,4 +81,53 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'חיפוש שנחתך לאפס תוצאות מציג הודעת מגבלת חיפוש ולא "אין תוצאות"',
+    (WidgetTester tester) async {
+      final searchBloc = RecordingSearchBloc(
+        const SearchState(
+          searchQuery: 'בדיקה',
+          totalResults: 0,
+          results: [],
+          resultsTruncated: true,
+        ),
+      );
+      final settingsBloc = MockSettingsBloc();
+      final tab = SearchingTab('חיפוש', 'בדיקה');
+
+      whenListen(
+        settingsBloc,
+        const Stream<SettingsState>.empty(),
+        initialState: SettingsState.initial(),
+      );
+
+      addTearDown(() async {
+        tab.dispose();
+        await searchBloc.close();
+        await settingsBloc.close();
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<SearchBloc>.value(value: searchBloc),
+              BlocProvider<SettingsBloc>.value(value: settingsBloc),
+            ],
+            child: Scaffold(
+              body: SizedBox(
+                height: 500,
+                child: TantivySearchResults(tab: tab),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('הגעת למגבלת אפשרויות החיפוש'), findsOneWidget);
+      expect(find.text('אין תוצאות'), findsNothing);
+    },
+  );
 }

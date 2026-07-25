@@ -23,6 +23,7 @@ import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/utils/pdf_links_window.dart';
 import 'package:otzaria/text_book/text_book_repository.dart';
+import 'package:otzaria/text_book/view/book_source_dialog.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
 import 'package:otzaria/utils/ui/commentary_pane_policy.dart';
 import 'package:otzaria/utils/file/file_book_path_resolver.dart';
@@ -4282,6 +4283,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               }()
             : null,
       ),
+      if (!widget.isInCombinedView)
+        ActionButtonData.simple(
+          icon: FluentIcons.book_information_24_regular,
+          tooltip: 'אודות הספר',
+          onPressed: () => showBookDetailsDialog(context, widget.tab.book),
+          compact: isCompact,
+        ),
       if (widget.isInCombinedView)
         ActionButtonData(
           widget: const SizedBox.shrink(),
@@ -4301,6 +4309,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               icon: FluentIcons.print_24_regular,
               tooltip: 'הדפס',
               onPressed: () => _handlePrintPress(context),
+            ),
+            ActionButtonData(
+              widget: const SizedBox.shrink(),
+              icon: FluentIcons.book_information_24_regular,
+              tooltip: 'אודות הספר',
+              onPressed: () => showBookDetailsDialog(context, widget.tab.book),
             ),
           ],
         ),

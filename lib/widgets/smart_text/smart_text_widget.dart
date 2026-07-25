@@ -201,7 +201,7 @@ class SmartTextWidget extends StatelessWidget {
     final anchorColorCss = toCssHex(
       DefaultTextStyle.of(context).style.color ?? colorScheme.onSurface,
     );
-    final anchorActiveColorCss = toCssHex(colorScheme.primary);
+    final anchorLinkColorCss = toCssHex(colorScheme.primary);
     final anchorActiveBgCss = toCssHex(colorScheme.primaryContainer);
 
     return _withPluginFrames(
@@ -245,8 +245,7 @@ class SmartTextWidget extends StatelessWidget {
           }
           // סמני עוגן-מילה (link_anchor): אות קטנה מורמת (עוגן-נקודה) או קו
           // תחתון על טווח מצוטט (עוגן-טווח), עם וריאנט טיפוגרפי קבוע לכל מפרש
-          // (ראו anchorStyleIndexByCommentator). כ-<a> לחיץ — מנטרלים את עיצוב
-          // הקישור המובנה (צבע/קו) כדי שהמראה יישאר זהה לסמן הלא-לחיץ.
+          // (ראו anchorStyleIndexByCommentator), בצבע ה-primary של הנושא.
           if ((element.localName == 'span' || element.localName == 'a') &&
               element.classes.contains('link-anchor')) {
             final style = <String, String>{
@@ -254,25 +253,23 @@ class SmartTextWidget extends StatelessWidget {
               'position': 'relative',
               'top': '-0.55em',
               'white-space': 'nowrap',
-              'color': anchorColorCss,
+              'color': anchorLinkColorCss,
               'text-decoration': 'none',
               ..._linkAnchorVariantStyle(element),
             };
-            // האות שחלונית התצוגה שלה פתוחה — מודגשת (צבע primary + רקע + מודגש).
+            // האות שחלונית התצוגה שלה פתוחה — מודגשת (רקע + מודגש).
             if (element.classes.contains('link-anchor-active')) {
-              style['color'] = anchorActiveColorCss;
               style['background-color'] = anchorActiveBgCss;
               style['font-weight'] = 'bold';
             }
             return style;
           }
-          // טווח-ציטוט: קו תחתון בצבע הטקסט. כ-<a> לחיץ (ריחוף/ניווט) — מנטרלים
-          // את צבע ה-primary שהקישור המובנה היה מקבל.
+          // טווח-ציטוט: קו תחתון בצבע ה-primary.
           if ((element.localName == 'span' || element.localName == 'a') &&
               element.classes.contains('link-anchor-range')) {
             return <String, String>{
               'text-decoration': 'underline',
-              'color': anchorColorCss,
+              'color': anchorLinkColorCss,
               ..._linkAnchorVariantStyle(element),
             };
           }

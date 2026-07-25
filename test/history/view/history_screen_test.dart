@@ -12,6 +12,8 @@ import 'package:otzaria/history/view/history_screen.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 
+import '../../support/search_engine_test_init.dart';
+
 class MockHistoryBloc extends MockBloc<HistoryEvent, HistoryState>
     implements HistoryBloc {}
 
@@ -38,8 +40,10 @@ Bookmark _bookmark(String ref, {String? workspaceName}) {
   );
 }
 
-void main() {
+Future<void> main() async {
   TestWidgetsFlutterBinding.ensureInitialized();
+  // בניית כותרת עשירה עם אפשרויות מפצלת מילים דרך המנוע; מדולג כשאין build.
+  final engineReady = await tryInitSearchEngine();
 
   group('HistoryView - workspace filter chips', () {
     late MockHistoryBloc historyBloc;
@@ -328,5 +332,45 @@ void main() {
       expect(find.text('שבת'), findsOneWidget);
       expect(find.textContaining('הגדרות:'), findsNothing);
     });
+
+    testWidgets(
+      'אפשרויות מילה מוצגות בכותרת בגופן קטן ובגוון הנושא',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(800, 600));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        await tester.pumpWidget(buildWidget());
+        stateController.add(
+          HistoryLoaded([
+            Bookmark(
+              ref: '(קד)שלום + עולם',
+              book: TextBook(title: 'שלום עולם'),
+              index: 0,
+              isSearch: true,
+              searchOptions: {
+                'שלום_0': {'קידומות דקדוקיות': true},
+              },
+            ),
+          ]),
+        );
+        await tester.pump();
+
+        // הכותרת מרונדרת כטקסט עשיר; הטקסט המלא זהה לשאילתה המפורמטת.
+        final title = tester.widget<Text>(find.text('(קד)שלום + עולם'));
+        expect(title.textSpan, isNotNull);
+
+        // מקטע האפשרות "(קד)" מובחן — גופן קטן יותר, לא מודגש, בצבע הנושא.
+        final optionSpans = <TextSpan>[];
+        title.textSpan!.visitChildren((span) {
+          if (span is TextSpan && span.text == '(קד)') optionSpans.add(span);
+          return true;
+        });
+        expect(optionSpans, hasLength(1));
+        expect(optionSpans.first.style?.fontSize, 13);
+        expect(optionSpans.first.style?.fontWeight, FontWeight.normal);
+        expect(optionSpans.first.style?.color, isNotNull);
+      },
+      skip: !engineReady,
+    );
   });
 }
