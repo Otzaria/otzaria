@@ -86,6 +86,21 @@ InstalledPlugin? resolveTransientAfterPluginsLoaded(
   return updated;
 }
 
+/// האם להסתיר את סרגל הלשוניות העליון של מסך הכלים.
+///
+/// מוסתר במסך מלא, וכן כשמוצג תוסף שהוצמד לסרגל הניווט הראשי — לתוסף כזה
+/// אין לשונית בכלל, ולכן הסרגל רק גוזל מקום.
+@visibleForTesting
+bool shouldHideToolsTabBar({
+  required bool isImmersive,
+  required String? hiddenNavRailPluginId,
+  required String? selectedToolId,
+}) {
+  if (isImmersive) return true;
+  return hiddenNavRailPluginId != null &&
+      hiddenNavRailPluginId == selectedToolId;
+}
+
 /// ממיין רשימת [ToolDescriptor] במיון *יציב*.
 ///
 /// כברירת מחדל, כלים מובנים ([BuiltInToolDescriptor]) מופיעים לפני תוספים
@@ -1054,8 +1069,11 @@ class ToolsScreenState extends State<ToolsScreen>
                 },
                 child: Column(
                   children: [
-                    // במסך מלא (כלים/תוספים) סרגל הלשוניות העליון מוסתר.
-                    if (!isImmersive)
+                    if (!shouldHideToolsTabBar(
+                      isImmersive: isImmersive,
+                      hiddenNavRailPluginId: _hiddenNavRailPlugin?.pluginId,
+                      selectedToolId: _selectedToolId,
+                    ))
                       ColoredBox(
                         color: bgColor,
                         child: Padding(
