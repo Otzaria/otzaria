@@ -107,8 +107,14 @@ class _ReadingScreenState extends State<ReadingScreen>
   /// אין להשוות אורכים כקיצור דרך: סגירת טאב ופתיחת אחר באותו פריים
   /// משאירה אורך זהה עם חברות שונה.
   void _pruneTabViewKeys(List<OpenedTab> tabs) {
-    if (_tabViewKeys.isEmpty) return;
     final live = Set<OpenedTab>.identity()..addAll(tabs);
+    // מופע טאב שמופיע פעמיים ברשימה ייתן שני ילדים עם אותו GlobalKey —
+    // קריסה עמומה. כל מסלול שמוסיף טאב חייב ליצור מופע חדש (OpenedTab.from).
+    assert(
+      live.length == tabs.length,
+      'אותו מופע OpenedTab מופיע יותר מפעם אחת ב-state.tabs',
+    );
+    if (_tabViewKeys.isEmpty) return;
     _tabViewKeys.removeWhere((tab, _) => !live.contains(tab));
   }
 
