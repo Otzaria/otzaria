@@ -409,15 +409,20 @@ void main() {
       await tester.tap(find.widgetWithText(Chip, 'מדרש'));
       await tester.pumpAndSettle();
 
-      // קטע ב׳: קישורי "ספר 1" נותרו לצורך הצ׳יפ, אך הקישור המוצג הוא תרגום
-      // בלבד — הסינון לפי מדרש מרוקן את הרשימה.
+      // המדרש נותר בקישורי החלון (ולכן הצ׳יפ קיים והבחירה בתוקף), אך בקטע
+      // הנוכחי יש תרגום בלבד — הסינון מרוקן את הרשימה.
       final targumOnly = _link(path2: 'ספר 0.txt', type: 'TARGUM');
-      final midrashOther = _link(path2: 'ספר 1.txt', type: 'MIDRASH');
+      final midrashOther = _link(
+        path2: 'ספר 1.txt',
+        type: 'MIDRASH',
+        index1: 2,
+      );
       bloc.emitState(
         _stateForLinks(
-          links: [targumOnly],
+          links: [targumOnly, midrashOther],
           linksByLine: {
-            1: [targumOnly, midrashOther],
+            1: [targumOnly],
+            2: [midrashOther],
           },
           commentators: const ['ספר 0', 'ספר 1'],
         ),
@@ -427,6 +432,95 @@ void main() {
       expect(find.text('לא נמצאו מפרשים מהסוגים שנבחרו'), findsOneWidget);
     });
   });
+
+  group('CommentaryListBase - הצ׳יפים יציבים בדפדוף', () {
+    testWidgets('צ׳יפ נשאר בקטע שאין בו קישור מסוגו', (tester) async {
+      final targum = _link(path2: 'ספר 0.txt', type: 'TARGUM');
+      final midrash = _link(path2: 'ספר 1.txt', type: 'MIDRASH');
+      final bloc = await _pump(
+        tester,
+        _stateForLinks(
+          links: [targum, midrash],
+          linksByLine: {
+            1: [targum, midrash],
+          },
+          commentators: const ['ספר 0', 'ספר 1'],
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(Chip, 'מדרש'), findsOneWidget);
+
+      // מעבר לקטע שיש בו תרגום בלבד — המדרש עדיין בחלון הקריאה.
+      bloc.emitState(_windowState(targum, midrash));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(commentaryTypeChipsRowKey), findsOneWidget);
+      expect(find.widgetWithText(Chip, 'מדרש'), findsOneWidget);
+    });
+
+    testWidgets('הבחירה נשמרת בקטע שאין בו קישור מהסוג הנבחר', (tester) async {
+      final targum = _link(path2: 'ספר 0.txt', type: 'TARGUM');
+      final midrash = _link(path2: 'ספר 1.txt', type: 'MIDRASH');
+      final bloc = await _pump(
+        tester,
+        _stateForLinks(
+          links: [targum, midrash],
+          linksByLine: {
+            1: [targum, midrash],
+          },
+          commentators: const ['ספר 0', 'ספר 1'],
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(Chip, 'מדרש'));
+      await tester.pumpAndSettle();
+      expect(find.text('ספר 0'), findsNothing);
+
+      bloc.emitState(_windowState(targum, midrash));
+      await tester.pumpAndSettle();
+
+      // הסינון נותר פעיל: התרגום אינו מוצג והודעת הריק מסבירה למה.
+      expect(find.text('ספר 0'), findsNothing);
+      expect(find.text('לא נמצאו מפרשים מהסוגים שנבחרו'), findsOneWidget);
+    });
+
+    testWidgets('מפרש שאינו נבחר אינו מקבל צ׳יפ גם מחוץ לקטע', (tester) async {
+      final targum = _link(path2: 'ספר 0.txt', type: 'TARGUM');
+      final midrash = _link(path2: 'ספר 1.txt', type: 'MIDRASH', index1: 2);
+      await _pump(
+        tester,
+        _stateForLinks(
+          links: [targum, midrash],
+          linksByLine: {
+            1: [targum],
+            2: [midrash],
+          },
+          commentators: const ['ספר 0'],
+          availableCommentators: const ['ספר 0', 'ספר 1'],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(Chip, 'מדרש'), findsNothing);
+    });
+  });
+}
+
+/// מצב שבו [inSection] בקטע המוצג ו-[outOfSection] רק בחלון הקריאה (שורה אחרת).
+TextBookLoaded _windowState(Link inSection, Link outOfSection) {
+  final other = _link(
+    path2: outOfSection.path2,
+    type: outOfSection.connectionType,
+    index1: 2,
+  );
+  return _stateForLinks(
+    links: [inSection, other],
+    linksByLine: {
+      1: [inSection],
+      2: [other],
+    },
+    commentators: const ['ספר 0', 'ספר 1'],
+  );
 }
 
 Future<_TestTextBookBloc> _pump(

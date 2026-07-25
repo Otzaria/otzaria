@@ -305,26 +305,22 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     return widget.commentatorGroupsOverride ?? state.commentatorGroups;
   }
 
-  /// צ׳יפי הסוגים של הקטע הנוכחי. נבנים מהקישורים אחרי סינון לפי שם המפרש
-  /// בלבד, כדי שלא יוצג צ׳יפ לסוג שכל מפרשיו מוסתרים.
+  /// צ׳יפי הסוגים, מכל קישורי חלון הקריאה ולא רק מהקטע הנראה — אחרת צ׳יפ
+  /// נעלם וחוזר בדפדוף והבחירה מתאפסת. מסוננים לפי שם המפרש בלבד, כדי שלא
+  /// יוצג צ׳יפ לסוג שכל מפרשיו מוסתרים.
   List<String> _typeChipKeys(
     TextBookLoaded state,
-    List<int> currentIndexes,
     List<String> selectedCommentators,
   ) {
     final commentatorsSet = selectedCommentators.toSet();
-    final sectionLinks = <Link>[];
-    for (final idx in currentIndexes) {
-      final lineLinks = state.linksByLine[idx + 1];
-      if (lineLinks == null) continue;
-      sectionLinks.addAll(
-        lineLinks.where(
-          (link) =>
-              commentatorsSet.contains(utils.getTitleFromPath(link.path2)),
-        ),
-      );
-    }
-    return buildCommentaryTypeChipKeys(sectionLinks);
+    return buildCommentaryTypeChipKeys(
+      state.links
+          .where(
+            (link) =>
+                commentatorsSet.contains(utils.getTitleFromPath(link.path2)),
+          )
+          .toList(growable: false),
+    );
   }
 
   /// שורת צ׳יפי סוגי המפרשים. עיצוב זהה לשורת הסוגים בפאנל הקישורים, כדי ששני
@@ -1521,11 +1517,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
           }
         }
 
-        final typeChipKeys = _typeChipKeys(
-          state,
-          _currentIndexes(state),
-          selectedCommentators,
-        );
+        final typeChipKeys = _typeChipKeys(state, selectedCommentators);
         final effectiveTypes = effectiveCommentaryTypes(
           selectedTypes: _selectedCommentaryTypes,
           availableKeys: typeChipKeys,
