@@ -63,20 +63,17 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: Directionality(
-          textDirection: TextDirection.rtl,
-          child: MultiBlocProvider(
-            providers: [
-              BlocProvider<SettingsBloc>.value(value: _FakeSettingsBloc()),
-              BlocProvider<PersonalNotesBloc>.value(
-                value: _FakePersonalNotesBloc(),
-              ),
-              BlocProvider<TabsBloc>.value(value: bloc),
-              BlocProvider<HistoryBloc>.value(value: _FakeHistoryBloc()),
-              Provider<FocusRepository>.value(value: FocusRepository()),
-            ],
-            child: const ReadingScreen(),
-          ),
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<SettingsBloc>.value(value: _FakeSettingsBloc()),
+            BlocProvider<PersonalNotesBloc>.value(
+              value: _FakePersonalNotesBloc(),
+            ),
+            BlocProvider<TabsBloc>.value(value: bloc),
+            BlocProvider<HistoryBloc>.value(value: _FakeHistoryBloc()),
+            Provider<FocusRepository>.value(value: FocusRepository()),
+          ],
+          child: const ReadingScreen(),
         ),
       ),
     );

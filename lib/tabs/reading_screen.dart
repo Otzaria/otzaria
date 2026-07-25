@@ -336,10 +336,8 @@ class _ReadingScreenState extends State<ReadingScreen>
                                 : null,
                             children: [
                               for (var i = 0; i < state.tabs.length; i++)
-                                // בלי key על הילד הישיר, גרירת טאב משייכת
-                                // Elementים לפי אינדקס וההזזה הורסת State
-                                // (ב-PDF: סגירת המסמך וטעינה מחדש מהדיסק).
-                                // TickerMode מכבה אנימציות של טאבי רקע.
+                                // מפתח על הילד הישיר שומר State כשהטאבים מחליפים מיקום.
+                                // TickerMode מכבה את האנימציות של טאבי רקע.
                                 KeyedSubtree(
                                   key: ObjectKey(state.tabs[i]),
                                   child: TickerMode(
