@@ -524,6 +524,98 @@ void main() {
       },
     );
   });
+
+  group('reading_screen — העברת כרטיסייה (גרירה) לא טוענת את הספר מחדש', () {
+    // ה-PageView משייך ילדים לפי *מיקום*, ולכן בלי key על הילד הישיר גרירת
+    // טאב הורסת את ה-State של הטאבים שזזו (ב-PDF: dispose סוגר את המסמך
+    // ו-initState פותח אותו מחדש). הבדיקות שלמעלה רצות על Stack ולכן אינן
+    // תופסות את הכשל — כאן PageView אמיתי.
+    Future<Map<String, int>> moveFirstTabToEnd(
+      WidgetTester tester, {
+      required bool withKeys,
+    }) async {
+      _InitCounter.reset();
+      final controller = PageController();
+      addTearDown(controller.dispose);
+      var order = ['A', 'B', 'C'];
+      var current = 0;
+      late StateSetter setOuter;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              setOuter = setState;
+              return PageView(
+                controller: controller,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  for (var i = 0; i < order.length; i++)
+                    if (withKeys)
+                      KeyedSubtree(
+                        key: ObjectKey(order[i]),
+                        child: TickerMode(
+                          enabled: i == current,
+                          child: _KeepAliveTab(
+                            key: ValueKey(order[i]),
+                            label: order[i],
+                          ),
+                        ),
+                      )
+                    else
+                      TickerMode(
+                        enabled: i == current,
+                        child: _KeepAliveTab(
+                          key: ValueKey(order[i]),
+                          label: order[i],
+                        ),
+                      ),
+                ],
+              );
+            },
+          ),
+        ),
+      );
+
+      // ביקור בכל הטאבים כדי שכולם יהיו חיים (keepAlive) לפני ההזזה.
+      for (var i = 0; i < 3; i++) {
+        controller.jumpToPage(i);
+        await tester.pumpAndSettle();
+      }
+      controller.jumpToPage(0);
+      await tester.pumpAndSettle();
+      _InitCounter.reset();
+
+      setOuter(() {
+        order = ['B', 'C', 'A'];
+        current = 2;
+      });
+      await tester.pumpAndSettle();
+      return Map<String, int>.from(_InitCounter.counts);
+    }
+
+    testWidgets('בלי key על הילד הישיר — הטאבים שזזו נבנים מחדש (הבאג)', (
+      tester,
+    ) async {
+      final counts = await moveFirstTabToEnd(tester, withKeys: false);
+      expect(
+        counts.values.fold<int>(0, (a, b) => a + b),
+        greaterThan(0),
+        reason: 'בלי key ה-PageView משייך לפי מיקום ובונה מחדש',
+      );
+    });
+
+    testWidgets('עם ObjectKey — אף טאב לא נבנה מחדש', (tester) async {
+      final counts = await moveFirstTabToEnd(tester, withKeys: true);
+      for (final t in ['A', 'B', 'C']) {
+        expect(
+          counts[t] ?? 0,
+          0,
+          reason: 'הטאב "$t" איבד State — ב-PDF זו טעינה מחדש מהדיסק',
+        );
+      }
+    });
+  });
 }
 
 class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
@@ -584,6 +676,36 @@ PdfCommentatorsTab _commentaryTab(String title) {
 }
 
 /// וידג'ט בדיקה שסופר כמה פעמים נקרא ה-initState שלו לכל label.
+/// מדמה טאב אמיתי: `PdfBookScreen` ו-`TextBookScreen` שניהם משתמשים
+/// ב-[AutomaticKeepAliveClientMixin], וזה תנאי לכך שהתיקון ישמור גם על
+/// טאבים שזזו בעקבות הגרירה (ולא רק על הטאב שנגרר).
+class _KeepAliveTab extends StatefulWidget {
+  final String label;
+  const _KeepAliveTab({super.key, required this.label});
+
+  @override
+  State<_KeepAliveTab> createState() => _KeepAliveTabState();
+}
+
+class _KeepAliveTabState extends State<_KeepAliveTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _InitCounter.counts[widget.label] =
+        (_InitCounter.counts[widget.label] ?? 0) + 1;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return Text(widget.label);
+  }
+}
+
 class _InitCounter extends StatefulWidget {
   final String label;
   const _InitCounter({super.key, required this.label});

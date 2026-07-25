@@ -336,14 +336,16 @@ class _ReadingScreenState extends State<ReadingScreen>
                                 : null,
                             children: [
                               for (var i = 0; i < state.tabs.length; i++)
-                                // טאבי רקע נשארים חיים (keepAlive) והאנימציות
-                                // שלהם (ספינרים וכד') ממשיכות לתזמן פריימים
-                                // ברציפות — TickerMode מכבה אותן עד שהטאב מוצג.
-                                TickerMode(
-                                  enabled: i == validIndex,
-                                  child: _buildTabView(
-                                    state.tabs[i],
-                                    enableTourTargets: i == validIndex,
+                                // מפתח על הילד הישיר שומר State כשהטאבים מחליפים מיקום.
+                                // TickerMode מכבה את האנימציות של טאבי רקע.
+                                KeyedSubtree(
+                                  key: ObjectKey(state.tabs[i]),
+                                  child: TickerMode(
+                                    enabled: i == validIndex,
+                                    child: _buildTabView(
+                                      state.tabs[i],
+                                      enableTourTargets: i == validIndex,
+                                    ),
                                   ),
                                 ),
                             ],
