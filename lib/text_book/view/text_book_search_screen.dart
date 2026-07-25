@@ -352,6 +352,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           setState(() {
             searchResults = [];
             _isSearching = false;
+            _searchErrorMessage = TextBookMessages.searchContentLoadFailed;
           });
         }
         return;
