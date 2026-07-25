@@ -21,6 +21,60 @@ String renderSelectionLine({
   return stripped.replaceAll(RegExp(r'\s+'), ' ').trim();
 }
 
+/// חלון השורות שמולן משוחזרת הבחירה: [lines] מרונדרות ורצופות, כשהראשונה
+/// שבהן היא שורת המקור [baseIndex].
+typedef SelectionWindow = ({int baseIndex, List<String> lines});
+
+/// בונה את חלון השחזור: השורות הנראות בתוספת שוליים משני הצדדים. הבחירה
+/// נמשכת גם מעבר למסך (גלילה תוך כדי סימון), ובלי השוליים ההתאמה המדויקת
+/// נכשלת וההעתקה יוצאת שטוחה. כל צד מורחב עד שאורך השורות שנוספו בו מכסה
+/// לבדו את אורך הבחירה, ולכל היותר [maxPadding] שורות.
+SelectionWindow buildSelectionWindow({
+  required List<int> visibleIndices,
+  required int totalLines,
+  required int selectionLength,
+  required String Function(int index) renderLine,
+  int maxPadding = 100,
+}) {
+  if (visibleIndices.isEmpty || totalLines <= 0) {
+    return (baseIndex: 0, lines: const <String>[]);
+  }
+  final first = visibleIndices.first.clamp(0, totalLines - 1);
+  final last = visibleIndices.last.clamp(first, totalLines - 1);
+
+  final leading = <String>[];
+  var budget = selectionLength;
+  for (
+    var i = first - 1;
+    i >= 0 && budget > 0 && leading.length < maxPadding;
+    i--
+  ) {
+    final line = renderLine(i);
+    leading.add(line);
+    budget -= line.length;
+  }
+
+  final lines = leading.reversed.toList();
+  for (var i = first; i <= last; i++) {
+    lines.add(renderLine(i));
+  }
+
+  budget = selectionLength;
+  var trailing = 0;
+  for (
+    var i = last + 1;
+    i < totalLines && budget > 0 && trailing < maxPadding;
+    i++
+  ) {
+    final line = renderLine(i);
+    lines.add(line);
+    budget -= line.length;
+    trailing++;
+  }
+
+  return (baseIndex: first - leading.length, lines: lines);
+}
+
 /// תוצאת שחזור: הטקסט המשוחזר, ואם ההתאמה המדויקת הצליחה — גם מיקומה:
 /// שורת ההתחלה/סיום (אינדקסים ב-visibleLines) ועמודת ההתחלה בשורה הראשונה.
 /// [ambiguous] — נמצאו כמה מופעים תואמים ולא ניתן להכריע ביניהם; במצב זה

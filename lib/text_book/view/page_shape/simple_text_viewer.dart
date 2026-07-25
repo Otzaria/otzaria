@@ -1156,23 +1156,27 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       settingsState: settingsState,
       removeNikud: removeNikud,
     );
-    final renderedLines = sourceIndices
-        .where((index) => index >= 0 && index < widget.content.length)
-        .map(
-          (index) => renderSelectionLine(
-            rawText: widget.content[index],
-            settings: renderSettings,
-          ),
-        )
-        .toList();
-
-    final baseIndex = sourceIndices.isNotEmpty ? sourceIndices.first : 0;
+    final window = buildSelectionWindow(
+      visibleIndices: sourceIndices,
+      totalLines: widget.content.length,
+      selectionLength: persistedText!.length,
+      renderLine: (index) => renderSelectionLine(
+        rawText: widget.content[index],
+        settings: renderSettings,
+      ),
+    );
+    final renderedLines = window.lines;
+    final baseIndex = window.baseIndex;
+    final windowIndices = List<int>.generate(
+      renderedLines.length,
+      (offset) => baseIndex + offset,
+    );
     final previousIndex = sessionSelectionIndex(
       savedSelectedText: _savedSelectedText,
       savedSelectedIndex: _savedSelectedIndex,
     );
     final restored = restoreSelectedTextLineBreaksDetailed(
-      selectedText: persistedText!,
+      selectedText: persistedText,
       visibleLines: renderedLines,
       preferredLine: previousIndex == null ? null : previousIndex - baseIndex,
     );
@@ -1185,7 +1189,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     );
     final pointerLocation = locateSingleLineSelectionAtPointer(
       renderedLines: renderedLines,
-      sourceIndices: sourceIndices,
+      sourceIndices: windowIndices,
       selectedText: restoredText,
       pointerLineIndex: _selectionPointerLineIndex,
       pointerColumn: _selectionPointerColumn,
