@@ -524,6 +524,118 @@ void main() {
       },
     );
   });
+
+  group('reading_screen — העברת כרטיסייה (גרירה) לא טוענת את הספר מחדש', () {
+    // ה-PageView מזהה ילדים לפי *מיקום*, ולכן ValueKey לבדו לא מספיק:
+    // גרירת טאב הזיזה את כל המיקומים והרסה את ה-State של הטאבים שזזו
+    // (ב-PDF: dispose סוגר את המסמך ו-initState פותח אותו מחדש מהדיסק).
+    // הבדיקה רצה על PageView אמיתי — הבדיקות שלמעלה משתמשות ב-Stack
+    // ולכן לא תופסות את הכשל הזה.
+    Widget buildPageView({
+      required List<String> order,
+      required int current,
+      required PageController controller,
+      required bool withGlobalKeys,
+      required Map<String, GlobalKey> keys,
+    }) {
+      return MaterialApp(
+        home: PageView(
+          controller: controller,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            for (var i = 0; i < order.length; i++)
+              if (withGlobalKeys)
+                KeyedSubtree(
+                  key: keys.putIfAbsent(order[i], () => GlobalKey()),
+                  child: TickerMode(
+                    enabled: i == current,
+                    child: _KeepAliveTab(
+                      label: order[i],
+                      key: ValueKey(order[i]),
+                    ),
+                  ),
+                )
+              else
+                TickerMode(
+                  enabled: i == current,
+                  child: _KeepAliveTab(
+                    label: order[i],
+                    key: ValueKey(order[i]),
+                  ),
+                ),
+          ],
+        ),
+      );
+    }
+
+    /// מזיזה את הטאב הראשון לסוף ומחזירה כמה פעמים כל טאב אותחל *אחרי* ההזזה.
+    Future<Map<String, int>> moveFirstTabToEnd(
+      WidgetTester tester, {
+      required bool withGlobalKeys,
+    }) async {
+      _InitCounter.reset();
+      final controller = PageController();
+      addTearDown(controller.dispose);
+      final keys = <String, GlobalKey>{};
+      var order = ['A', 'B', 'C'];
+      var current = 0;
+      late StateSetter setOuter;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              setOuter = setState;
+              return buildPageView(
+                order: order,
+                current: current,
+                controller: controller,
+                withGlobalKeys: withGlobalKeys,
+                keys: keys,
+              );
+            },
+          ),
+        ),
+      );
+
+      // מבקר ב-B כדי ששני הטאבים יהיו חיים לפני ההזזה
+      controller.jumpToPage(1);
+      await tester.pumpAndSettle();
+      controller.jumpToPage(0);
+      await tester.pumpAndSettle();
+      _InitCounter.reset();
+
+      setOuter(() {
+        order = ['B', 'C', 'A'];
+        current = 2;
+      });
+      await tester.pumpAndSettle();
+      return Map<String, int>.from(_InitCounter.counts);
+    }
+
+    testWidgets('בלי GlobalKey — הטאבים שזזו נטענים מחדש (שחזור הבאג)', (
+      tester,
+    ) async {
+      final counts = await moveFirstTabToEnd(tester, withGlobalKeys: false);
+      // A הוא הטאב שנגרר, B זז איתו — שניהם שילמו טעינה מחדש.
+      expect(
+        (counts['A'] ?? 0) + (counts['B'] ?? 0),
+        greaterThan(0),
+        reason: 'ללא GlobalKey ה-PageView מזהה לפי מיקום ולכן בונה מחדש',
+      );
+    });
+
+    testWidgets('עם GlobalKey — אף טאב לא נטען מחדש', (tester) async {
+      final counts = await moveFirstTabToEnd(tester, withGlobalKeys: true);
+      expect(
+        counts['A'] ?? 0,
+        0,
+        reason: 'הטאב שנגרר חייב לשמור את ה-State (ב-PDF: המסמך הפתוח)',
+      );
+      expect(counts['B'] ?? 0, 0, reason: 'טאב שזז בעקבות הגרירה נשמר גם הוא');
+      expect(counts['C'] ?? 0, 0);
+    });
+  });
 }
 
 class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
@@ -584,6 +696,36 @@ PdfCommentatorsTab _commentaryTab(String title) {
 }
 
 /// וידג'ט בדיקה שסופר כמה פעמים נקרא ה-initState שלו לכל label.
+/// מדמה טאב אמיתי: `PdfBookScreen` ו-`TextBookScreen` שניהם משתמשים
+/// ב-[AutomaticKeepAliveClientMixin], וזה תנאי לכך שהתיקון ישמור גם על
+/// טאבים שזזו בעקבות הגרירה (ולא רק על הטאב שנגרר).
+class _KeepAliveTab extends StatefulWidget {
+  final String label;
+  const _KeepAliveTab({super.key, required this.label});
+
+  @override
+  State<_KeepAliveTab> createState() => _KeepAliveTabState();
+}
+
+class _KeepAliveTabState extends State<_KeepAliveTab>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _InitCounter.counts[widget.label] =
+        (_InitCounter.counts[widget.label] ?? 0) + 1;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return Text(widget.label);
+  }
+}
+
 class _InitCounter extends StatefulWidget {
   final String label;
   const _InitCounter({super.key, required this.label});
