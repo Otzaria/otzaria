@@ -50,4 +50,51 @@ void main() {
       }
     });
   });
+
+  group('FullscreenHelper macOS behavior', () {
+    test('ב-macOS מסך מלא לא מסתיר את כרום האפליקציה', () {
+      expect(
+        FullscreenHelper.shouldUseImmersiveLayout(
+          platform: TargetPlatform.macOS,
+          isFullscreen: true,
+          screen: Screen.reading,
+          hasOpenTabs: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('ב-macOS ניווט לספרייה לא יוצא ממסך מלא', () {
+      expect(
+        FullscreenHelper.shouldExitFullscreenOnNavigation(
+          platform: TargetPlatform.macOS,
+          isFullscreen: true,
+          screen: Screen.library,
+          hasOpenTabs: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('בפלטפורמות אחרות מסך מלא אימרסיבי נשאר תלוי-הקשר', () {
+      expect(
+        FullscreenHelper.shouldUseImmersiveLayout(
+          platform: TargetPlatform.windows,
+          isFullscreen: true,
+          screen: Screen.reading,
+          hasOpenTabs: true,
+        ),
+        isTrue,
+      );
+      expect(
+        FullscreenHelper.shouldExitFullscreenOnNavigation(
+          platform: TargetPlatform.windows,
+          isFullscreen: true,
+          screen: Screen.library,
+          hasOpenTabs: true,
+        ),
+        isTrue,
+      );
+    });
+  });
 }

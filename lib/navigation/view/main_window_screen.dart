@@ -1453,12 +1453,14 @@ class MainWindowScreenState extends State<MainWindowScreen>
   ) async {
     if (!mounted || !context.mounted) return;
 
-    // מסך מלא זמין רק בעיון (עם טאב פתוח) או בכלים — יציאה אוטומטית בניווט החוצה.
-    final fullscreenAllowed = FullscreenHelper.isContextAllowed(
-      state.currentScreen,
-      context.read<TabsBloc>().state.hasOpenTabs,
-    );
-    if (!fullscreenAllowed && context.read<SettingsBloc>().state.isFullscreen) {
+    final shouldExitFullscreen =
+        FullscreenHelper.shouldExitFullscreenOnNavigation(
+          platform: defaultTargetPlatform,
+          isFullscreen: context.read<SettingsBloc>().state.isFullscreen,
+          screen: state.currentScreen,
+          hasOpenTabs: context.read<TabsBloc>().state.hasOpenTabs,
+        );
+    if (shouldExitFullscreen) {
       FullscreenHelper.toggleFullscreen(context, false);
     }
 
@@ -2845,14 +2847,14 @@ class MainWindowScreenState extends State<MainWindowScreen>
             final useReaderStyle =
                 state.currentScreen == Screen.search ||
                 (state.currentScreen == Screen.reading && hasOpenTabs);
-            // מצב מסך מלא אימרסיבי: מסתיר את שורת הטאבים וסרגל הניווט ומשאיר
-            // את הספר/הכלי על כל המסך. רק בהקשר שמתיר מסך מלא (עיון/כלים).
-            final isImmersive =
-                context.select((SettingsBloc b) => b.state.isFullscreen) &&
-                FullscreenHelper.isContextAllowed(
-                  state.currentScreen,
-                  hasOpenTabs,
-                );
+            final isImmersive = FullscreenHelper.shouldUseImmersiveLayout(
+              platform: defaultTargetPlatform,
+              isFullscreen: context.select(
+                (SettingsBloc b) => b.state.isFullscreen,
+              ),
+              screen: state.currentScreen,
+              hasOpenTabs: hasOpenTabs,
+            );
             return _EdgeToEdgeShell(
               topColor: useReaderStyle
                   ? AppSurfaces.readerBackground(context)
