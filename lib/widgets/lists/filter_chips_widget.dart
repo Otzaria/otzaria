@@ -95,7 +95,8 @@ class _FilterChipsWidgetState<T> extends State<FilterChipsWidget<T>> {
           final isSelected = _selectedItems.contains(item);
 
           if (widget.chipBuilder != null) {
-            return GestureDetector(
+            return _SelectableChip(
+              isSelected: isSelected,
               onTap: () => _toggleSelection(item),
               child: widget.chipBuilder!(context, item, isSelected),
             );
@@ -184,7 +185,8 @@ class FilterChipsSelector<T> extends StatelessWidget {
           final isSelected = selectedItems.contains(item);
 
           if (chipBuilder != null) {
-            return GestureDetector(
+            return _SelectableChip(
+              isSelected: isSelected,
               onTap: () => _toggleSelection(item),
               child: chipBuilder!(context, item, isSelected),
             );
@@ -204,6 +206,37 @@ class FilterChipsSelector<T> extends StatelessWidget {
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+}
+
+/// עוטף צ׳יפ מותאם (`chipBuilder`) בהתנהגות של צ׳יפ אמיתי: מיקוד מקלדת,
+/// הפעלה ב-Enter/רווח, וחשיפת מצב "נבחר" לקורא מסך.
+class _SelectableChip extends StatelessWidget {
+  const _SelectableChip({
+    required this.isSelected,
+    required this.onTap,
+    required this.child,
+  });
+
+  final bool isSelected;
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    // MergeSemantics מאחד את תווית הצ׳יפ עם דגלי הבחירה לצומת אחד, אחרת קורא
+    // המסך מקריא "נבחר" ואת הטקסט כשני פריטים נפרדים.
+    return MergeSemantics(
+      child: Semantics(
+        button: true,
+        selected: isSelected,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const StadiumBorder(),
+          child: child,
+        ),
       ),
     );
   }

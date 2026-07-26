@@ -1205,6 +1205,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   }
 
   /// טוען את סינון סוגי הקישורים מההגדרות. ריק = הכל מוצג.
+  /// [LinkTypes.onBookKey] מסונן גם בטעינה, כדי לנקות ערך שנשמר בגרסה קודמת.
   static Set<String> _loadSelectedLinkTypes() {
     final raw =
         Settings.getValue<String>(SettingsRepository.keySelectedLinkTypes) ??
@@ -1212,15 +1213,20 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     return raw
         .split(',')
         .map(LinkTypes.normalize)
-        .where((e) => e.isNotEmpty)
+        .where((e) => e.isNotEmpty && e != LinkTypes.onBookKey)
         .toSet();
   }
 
   Future<void> _saveSelectedLinkTypes(Set<String> linkTypes) async {
     try {
+      // ON_BOOK אינו נשמר: תוויתו נגזרת מהספר הפתוח, ובספר אחר הוא היה מסנן
+      // "על <ספר אחר>" בלי שהמשתמש ביקש זאת.
+      final persisted =
+          linkTypes.where((type) => type != LinkTypes.onBookKey).toList()
+            ..sort();
       await Settings.setValue(
         SettingsRepository.keySelectedLinkTypes,
-        (linkTypes.toList()..sort()).join(','),
+        persisted.join(','),
       );
     } catch (e) {
       debugPrint('⚠️ Failed to save selected link types: $e');
