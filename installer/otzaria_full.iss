@@ -61,6 +61,9 @@ SetupLogging=yes
 [InstallDelete]
 ; ניקוי מסד הנתונים הישן של Isar שהוחלף על ידי hive_ce — מחיקה מכוונת בעת שדרוג.
 Type: filesandordirs; Name: "{app}\default.isar";
+; המסמן נכתב רק בהתקנת מנהל (ראה [INI]) והאפליקציה גוזרת ממנו את מיקום
+; ברירת המחדל של הספרייה — מסמן ששרד מעבר להתקנת משתמש מפנה אותה ל-ProgramData.
+Type: files; Name: "{app}\system_install.marker"; Check: (not IsAdminInstallMode) or IsPortableInstall
 ; מחיקת ספריית נתונים ישנה לפני פריסת מסד הנתונים החדש
 Type: filesandordirs; Name: "{code:GetSelectedBooksPath}"
 
@@ -938,14 +941,19 @@ end;
 
 procedure CreateBooksPage;
 var
-  DefaultPath: String;
+  DefaultPath, CustomPath: String;
   DescLabel, PathLabel: TLabel;
 begin
   BooksPage := CreateCustomPage(CompPage.ID,
     'תיקיית הספרים',
     'בחר היכן יישמרו ספרי הספרייה');
 
+  // ספרייה קיימת מנצחת את ברירת המחדל (כמו ב-InitializeSilentDefaults): אחרת
+  // מעבר בין מנהל למשתמש מזיז את מיקום החילוץ בעוד האפליקציה קוראת מהישן.
   DefaultPath := GetDataDir('') + '\books';
+  CustomPath := GetCustomLibraryPath();
+  if IsOtzariaBooksFolder(CustomPath) then
+    DefaultPath := CustomPath;
   SelectedBooksPath := DefaultPath;
 
   DescLabel := TLabel.Create(BooksPage);

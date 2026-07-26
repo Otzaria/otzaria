@@ -664,6 +664,8 @@ dart format lib/file.dart    # Format ONLY files you modified
 |------|-----------|
 | Bookmarks BLoC | `test/bookmarks/bookmark_bloc_test.dart` |
 | Workspaces BLoC | `test/workspaces/bloc/workspace_bloc_test.dart` |
+| Windows installer scripts (`.iss` invariants) | `test/installer/installer_scripts_test.dart` |
+| App paths / install-mode detection | `test/core/app_paths_test.dart` |
 | Library browser | `test/library/view/library_browser_preview_width_test.dart`, `…grid_items_test.dart` |
 | Empty library screen | `test/empty_library/empty_library_screen_test.dart` |
 | PDF isolate / rasterizer | `test/pdf_isolate_test.dart`, `test/printing/pdf_text_rasterizer_test.dart` |
