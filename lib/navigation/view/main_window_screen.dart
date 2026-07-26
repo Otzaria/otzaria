@@ -203,6 +203,19 @@ LibraryPageBuildDecision resolveLibraryPageBuildDecision({
       : LibraryPageBuildDecision.usePlaceholder;
 }
 
+/// האם לבחור תוסף מוצמד-לסרגל *לפני* שליחת הניווט למסך הכלים.
+///
+/// תוסף כזה מסתיר את סרגל הלשוניות, ובחירה נדחית מציגה במהלך אנימציית המעבר
+/// את הכלי הקודם עם הסרגל. בלי תוספים טעונים אין descriptor ויוצג כלי אחר.
+@visibleForTesting
+bool shouldSelectPinnedPluginBeforeNavigation({
+  required bool isPlugin,
+  required bool isToolsScreenBuilt,
+  required bool arePluginsLoaded,
+}) {
+  return isPlugin && isToolsScreenBuilt && arePluginsLoaded;
+}
+
 // Global key for accessing MoreScreen
 final GlobalKey<ToolsScreenState> moreScreenKey = GlobalKey<ToolsScreenState>();
 final GlobalKey<State<LibraryBrowser>> libraryBrowserKey =
@@ -1031,8 +1044,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
         _openToolWhenAvailable(toolId);
         return true;
       case OpenPluginAction(:final pluginId):
+        // בחירת התוסף מנסה לקדום לניווט כדי שתוסף מוצמד לא יבליח עם סרגל
+        // הלשוניות; כשהיא לא אפשרית עדיין, המסלול הנדחה משלים אותה.
+        final openedNow = _tryOpenPluginByIdNow(pluginId);
         context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
-        _openPluginByIdWhenAvailable(pluginId);
+        if (!openedNow) _openPluginByIdWhenAvailable(pluginId);
         return true;
       case SwitchToTabAction(:final index):
         final tabsBloc = context.read<TabsBloc>();
@@ -1221,6 +1237,27 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
   void _openPluginPanelWhenAvailable() {
     _whenToolsScreenAvailable((toolsState) => toolsState.openPluginPanel());
+  }
+
+  /// מנסה לפתוח תוסף מיד, בלי להמתין לפריים. כשמחזיר false הטיפול — כולל כל
+  /// הודעות השגיאה — עובר ל-[_openPluginByIdWhenAvailable] שרץ אחרי הניווט.
+  bool _tryOpenPluginByIdNow(String pluginId) {
+    final toolsState = moreScreenKey.currentState;
+    if (toolsState == null) return false;
+    final blocState = context.read<PluginSystemBloc>().state;
+    if (blocState is! PluginSystemLoaded) return false;
+    final plugin = blocState.plugins.firstWhereOrNull(
+      (p) => p.pluginId == pluginId,
+    );
+    if (plugin == null || !plugin.enabled) return false;
+    // openPluginTransiently מציג שגיאה במקום לפתוח כשהתוסף חסום במצב מנותק;
+    // משאירים גם את המקרה הזה למסלול הנדחה כדי שההודעה תופיע אחרי הניווט.
+    if (context.read<SettingsBloc>().state.isOfflineMode &&
+        plugin.blockedInOfflineMode) {
+      return false;
+    }
+    toolsState.openPluginTransiently(plugin);
+    return true;
   }
 
   /// פותח תוסף לפי מזהה (deep-link `otzaria://open/plugin/<id>`). ממתין הן
@@ -3404,10 +3441,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     await _onNavTap(context, _settingsNavIndex, currentScreen);
   }
 
-  /// פותח פריט מוצמד-לסרגל במסך הכלים. תוסף עובר דרך
-  /// [_openPluginInToolsWhenAvailable] (כדי להתמודד עם transient וטעינה
-  /// אסינכרונית); כלי מובנה עובר דרך `requestOpenTool` שתואם לכל מזהה כלי
-  /// קיים בלשוניות.
+  /// פותח פריט מוצמד-לסרגל במסך הכלים.
   void _openPinnedItemInTools(
     BuildContext context,
     _PinnedToolNavItem item,
@@ -3419,7 +3453,29 @@ class MainWindowScreenState extends State<MainWindowScreen>
         item.plugin?.pluginId != toolsState.hiddenNavRailPluginId) {
       toolsState.clearHiddenNavRailPlugin();
     }
+
+    // תוסף חסום במצב מנותק מקבל הודעת שגיאה במקום פתיחה; משאירים אותו למסלול
+    // הנדחה כדי שההודעה תופיע אחרי הניווט ולא על המסך הקודם.
+    final isBlockedOffline =
+        item.plugin != null &&
+        context.read<SettingsBloc>().state.isOfflineMode &&
+        item.plugin!.blockedInOfflineMode;
+    final canSelectNow =
+        item.plugin != null &&
+        !isBlockedOffline &&
+        shouldSelectPinnedPluginBeforeNavigation(
+          isPlugin: item.isPlugin,
+          isToolsScreenBuilt: toolsState != null,
+          arePluginsLoaded:
+              context.read<PluginSystemBloc>().state is PluginSystemLoaded,
+        );
+    if (canSelectNow) {
+      toolsState!.openPluginTransiently(item.plugin!);
+    }
+
     context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
+
+    if (canSelectNow) return;
     if (item.isPlugin && item.plugin != null) {
       _openPluginInToolsWhenAvailable(item.plugin!);
     } else {
