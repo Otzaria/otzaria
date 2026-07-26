@@ -272,12 +272,27 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
               query: pendingQuery,
             ),
           );
+      final negativeQuery = widget.tab.negativeQueryController.text;
+      final normalizedNegativeParameters =
+          SearchQueryBuilder.normalizeParametersForMode(
+            searchMode,
+            customSpacing: widget.tab.negativeSpacingValues,
+            alternativeWords: widget.tab.negativeAlternativeWords,
+            searchOptions: widget.tab.effectiveNegativeSearchOptions(
+              query: negativeQuery,
+            ),
+          );
       widget.tab.searchBloc.add(
         UpdateSearchQuery(
           pendingQuery,
+          negativeQuery: negativeQuery,
           customSpacing: normalizedParameters.customSpacing,
           alternativeWords: normalizedParameters.alternativeWords,
           searchOptions: normalizedParameters.searchOptions,
+          negativeCustomSpacing: normalizedNegativeParameters.customSpacing,
+          negativeAlternativeWords:
+              normalizedNegativeParameters.alternativeWords,
+          negativeSearchOptions: normalizedNegativeParameters.searchOptions,
         ),
       );
     }

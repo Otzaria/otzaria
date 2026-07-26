@@ -15,6 +15,13 @@ class ClearFilter extends SearchEvent {
   ClearFilter();
 }
 
+/// הרצה מחדש של החיפוש הנוכחי אחרי שינוי הגדרה. שולחים אותו — ולא
+/// [UpdateSearchQuery] חשוף — כדי שהאפשרויות המתקדמות (ובראשן "ניקוד",
+/// שמעבירה לשדה המנוקד) לא יאבדו ויחזירו תוצאות של שאילתה אחרת.
+class RerunSearch extends SearchEvent {
+  const RerunSearch();
+}
+
 class UpdateSearchQuery extends SearchEvent {
   final String query;
   final String? negativeQuery;
