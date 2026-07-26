@@ -67,6 +67,11 @@ void setActiveToolIdSafely(String? id, {bool Function()? isMounted}) {
   }
 }
 
+/// תוסף מוצמד-לסרגל שנלחץ לפני שמסך הכלים נבנה. [ToolsScreenState.initState]
+/// צורך אותו כדי להיפתח ישר עליו — בלי כך הבנייה הראשונה מציגה את הכלי
+/// הראשון עם סרגל הלשוניות, והתוסף מחליף אותו רק כעבור כמה פריימים.
+InstalledPlugin? pendingNavRailPluginToOpen;
+
 /// מחשב את התוסף ה-transient לאחר טעינת רשימת תוספים מעודכנת: מחזיר את
 /// גרסתו העדכנית, או null אם הוסר מהתצוגה או הפך חסום במצב מנותק
 /// (למשל כשהוענקה לו הרשאת רשת בזמן אמת).
@@ -440,6 +445,17 @@ class ToolsScreenState extends State<ToolsScreen>
         .join('::');
   }
 
+  /// הכלי הנבחר הוא תוסף — הפוקוס שייך ל-WebView, שהוא חלון OS נפרד ש-Flutter
+  /// אינו רואה. requestFocus על _contentFocusNode היה חוטף אותו משדה שהמשתמש
+  /// לחץ עליו בעכבר, כי מבחינת Flutter הצומת עדיין אינו ממוקד.
+  bool get _isPluginToolSelected {
+    if (_selectedToolId == null) return false;
+    if (_transientPlugin?.pluginId == _selectedToolId) return true;
+    return _descriptors.any(
+      (d) => d.toolId == _selectedToolId && d is PluginToolDescriptor,
+    );
+  }
+
   void _requestCalendarFocus({
     int remainingAttempts = _calendarFocusRetryCount,
   }) {
@@ -483,6 +499,7 @@ class ToolsScreenState extends State<ToolsScreen>
         if (_selectedToolId == 'builtin.calendar') {
           return _calendarKey.currentState != null;
         }
+        if (_isPluginToolSelected) return false;
         return _contentFocusNode.enclosingScope != null;
       },
     );
@@ -497,7 +514,8 @@ class ToolsScreenState extends State<ToolsScreen>
       // אם ה-requestFocus שאחריו נכשל (למשל בזמן resize ב-Windows).
       if (_selectedToolId == 'builtin.calendar') {
         _requestCalendarFocus();
-      } else if (_contentFocusNode.enclosingScope != null &&
+      } else if (!_isPluginToolSelected &&
+          _contentFocusNode.enclosingScope != null &&
           !_contentFocusNode.hasFocus) {
         _contentFocusNode.requestFocus();
       }
@@ -796,11 +814,25 @@ class ToolsScreenState extends State<ToolsScreen>
     super.didChangeDependencies();
     if (!_didInitFromBloc) {
       _didInitFromBloc = true;
+      // נצרך תמיד, גם כשהתוספים טרם נטענו — אחרת הבקשה נשארת ותיפתח בטעות
+      // בכניסה הבאה לכלים. במקרה כזה המסלול הנדחה של הקורא משלים את הפתיחה.
+      final pending = pendingNavRailPluginToOpen;
+      pendingNavRailPluginToOpen = null;
       final state = context.read<PluginSystemBloc>().state;
       if (state is PluginSystemLoaded) {
         final isOfflineMode = context.read<SettingsBloc>().state.isOfflineMode;
+        // התוסף נכנס כבר לבנייה הראשונה, לפני ה-build — כך שהפריים הראשון של
+        // המסך הוא התוסף עצמו ולא הכלי הראשון עם סרגל הלשוניות.
+        if (pending != null &&
+            !(isOfflineMode && pending.blockedInOfflineMode)) {
+          _hiddenNavRailPlugin = pending;
+          _transientPlugin = pending;
+          _showMobileMenu = false;
+          _setSelectedToolId(pending.pluginId);
+        }
         _applyTabState(
           state.pinnedPlugins.filterForOfflineMode(isOfflineMode),
+          transient: _transientPlugin,
           notify: false,
         );
       }
@@ -1373,9 +1405,7 @@ class ToolsScreenState extends State<ToolsScreen>
         ),
       ],
       child: Theme(
-        data: Theme.of(context).copyWith(
-          scaffoldBackgroundColor: bgColor,
-        ),
+        data: Theme.of(context).copyWith(scaffoldBackgroundColor: bgColor),
         child: LayoutBuilder(
           builder: (context, constraints) {
             final isMobile = constraints.maxWidth < LayoutBreakpoints.compact;

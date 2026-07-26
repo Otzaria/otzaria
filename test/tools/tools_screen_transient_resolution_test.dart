@@ -54,6 +54,21 @@ InstalledPlugin _pluginFor({
 }
 
 void main() {
+  group('pendingNavRailPluginToOpen', () {
+    tearDown(() => pendingNavRailPluginToOpen = null);
+
+    test('ברירת המחדל ריקה — כניסה רגילה לכלים לא פותחת תוסף', () {
+      expect(pendingNavRailPluginToOpen, isNull);
+    });
+
+    test('נשמר עד שמסך הכלים ייבנה ויצרוך אותו', () {
+      final plugin = _pluginFor(id: 'a', pinnedToNavRail: true);
+      pendingNavRailPluginToOpen = plugin;
+      expect(pendingNavRailPluginToOpen, same(plugin));
+    });
+
+  });
+
   group('shouldHideToolsTabBar', () {
     test('מוצג במצב רגיל', () {
       expect(

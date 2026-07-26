@@ -807,8 +807,17 @@ class _PluginTabPageState extends State<PluginTabPage> {
     return webView;
   }
 
+  /// התנאים המוקדמים נפתרו בהצלחה (גלובלי לתהליך) — תוסף שנפתח אחריהם מדלג
+  /// על ה-FutureBuilder ונבנה מיד, בלי פריים ריק שחושף את מסך הכלים מאחוריו.
+  static bool _prereqsResolved = false;
+
   static bool get _needsWebViewPrerequisites {
-    return !kIsWeb && (Platform.isAndroid || Platform.isWindows);
+    if (kIsWeb || _prereqsResolved) return false;
+    // pre-warm ב-main כבר יצר את הסביבה — אין מה לבדוק.
+    if (Platform.isWindows && WebViewEnvironmentHolder.environment != null) {
+      return false;
+    }
+    return Platform.isAndroid || Platform.isWindows;
   }
 
   /// מבצע את בדיקת/אתחול התנאים המוקדמים ל-WebView לפי הפלטפורמה.
@@ -819,6 +828,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
   static Future<_WebViewPrereqStatus> _resolveWebViewPrerequisites() async {
     if (Platform.isAndroid) {
       await InAppWebViewController.setWebContentsDebuggingEnabled(kDebugMode);
+      _prereqsResolved = true;
       return _WebViewPrereqStatus.ready;
     }
     if (Platform.isWindows) {
@@ -827,6 +837,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
       }
       await WebViewEnvironmentHolder.initialize();
     }
+    _prereqsResolved = true;
     return _WebViewPrereqStatus.ready;
   }
 }
