@@ -42,6 +42,9 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   /// מפעילה חיפוש חוזר עם אותה שאילתה ואותן אפשרויות — התוצאה זהה ממילא.
   String? _facetCountsSignature;
 
+  /// מקור הפרמטרים המתקדמים בחיפוש-מחדש פנימי — הם חיים באירוע בלבד.
+  UpdateSearchQuery? _lastUserSearch;
+
   @visibleForTesting
   SearchRepository get repositoryForTesting => _repository;
 
@@ -78,6 +81,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
          ),
        ) {
     on<UpdateSearchQuery>(_onUpdateSearchQuery);
+    on<RerunSearch>((_, _) => _reSearch());
     on<UpdateDistance>(_onUpdateDistance);
     on<UpdateDistanceWithoutSearch>(_onUpdateDistanceWithoutSearch);
     on<UpdateProximityScope>(_onUpdateProximityScope);
@@ -117,6 +121,9 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     final requestId = ++_searchRequestId;
     final query = event.query;
     final negativeQuery = event.negativeQuery ?? state.negativeQuery;
+    // גם חיפוש שנעצר כאן מייצג את כוונת המשתמש העדכנית — שמירתו מונעת
+    // הרצה חוזרת עם אפשרויות של שאילתה קודמת.
+    _lastUserSearch = event.query.isEmpty ? null : event;
     if (event.query.isEmpty) {
       emit(
         state.copyWith(
@@ -327,6 +334,23 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     }
   }
 
+  /// אותו אירוע חייב לשמש גם לחתימת הספירות וגם לשליחה — אחרת החתימות
+  /// לא מתיישבות והמסלול המקומי נפסל תמיד.
+  UpdateSearchQuery _rerunEvent() {
+    final last = _lastUserSearch;
+    return UpdateSearchQuery(
+      state.searchQuery,
+      customSpacing: last?.customSpacing,
+      alternativeWords: last?.alternativeWords,
+      searchOptions: last?.searchOptions,
+      negativeCustomSpacing: last?.negativeCustomSpacing,
+      negativeAlternativeWords: last?.negativeAlternativeWords,
+      negativeSearchOptions: last?.negativeSearchOptions,
+    );
+  }
+
+  void _reSearch() => add(_rerunEvent());
+
   /// צילום סינכרוני של קלטי הספירה מתוך ה-state הנוכחי.
   _FacetRecountInputs _currentFacetRecountInputs() {
     return (
@@ -435,6 +459,8 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       bookByIndexedFilePath,
     );
 
+    // הספירה רצה ברקע (unawaited) ועלולה להסתיים אחרי סגירת טאב החיפוש.
+    if (isClosed) return;
     add(
       ReplaceFacetCounts(
         aggregated,
@@ -505,7 +531,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     if (!_updateDistanceConfiguration(event.distance, emit)) {
       return;
     }
-    add(UpdateSearchQuery(state.searchQuery));
+    _reSearch();
   }
 
   void _onUpdateDistanceWithoutSearch(
@@ -522,7 +548,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     if (!_updateProximityScopeConfiguration(event.scope, emit)) {
       return;
     }
-    add(UpdateSearchQuery(state.searchQuery));
+    _reSearch();
   }
 
   void _onUpdateProximityScopeWithoutSearch(
@@ -552,7 +578,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     if (!_updateWordMatchConfiguration(event.mode, event.count, emit)) {
       return;
     }
-    add(UpdateSearchQuery(state.searchQuery));
+    _reSearch();
   }
 
   void _onUpdateWordMatchModeWithoutSearch(
@@ -606,7 +632,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       ),
     );
     emit(state.copyWith(configuration: newConfig));
-    add(UpdateSearchQuery(state.searchQuery));
+    _reSearch();
   }
 
   void _onSetSearchMode(
@@ -617,7 +643,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       return;
     }
 
-    add(UpdateSearchQuery(state.searchQuery));
+    _reSearch();
   }
 
   void _onSetSearchModeWithoutSearch(
@@ -663,7 +689,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     Emitter<SearchState> emit,
   ) {
     emit(state.copyWith(booksToSearch: event.books));
-    add(UpdateSearchQuery(state.searchQuery));
+    _reSearch();
   }
 
   Future<void> _onAddFacet(
@@ -675,16 +701,17 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       debugPrint('➕ AddFacet: ${event.facet} (before=$newFacets)');
       newFacets.add(event.facet);
       final newConfig = state.configuration.copyWith(currentFacets: newFacets);
+      final searchEvent = _rerunEvent();
       if (await _applyClientSideFacetNarrow(
         newFacets,
         newConfig,
-        UpdateSearchQuery(state.searchQuery),
+        searchEvent,
         emit,
       )) {
         return;
       }
       emit(state.copyWith(configuration: newConfig));
-      add(UpdateSearchQuery(state.searchQuery));
+      add(searchEvent);
     }
   }
 
@@ -697,16 +724,17 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       debugPrint('➖ RemoveFacet: ${event.facet} (before=$newFacets)');
       newFacets.remove(event.facet);
       final newConfig = state.configuration.copyWith(currentFacets: newFacets);
+      final searchEvent = _rerunEvent();
       if (await _applyClientSideFacetNarrow(
         newFacets,
         newConfig,
-        UpdateSearchQuery(state.searchQuery),
+        searchEvent,
         emit,
       )) {
         return;
       }
       emit(state.copyWith(configuration: newConfig));
-      add(UpdateSearchQuery(state.searchQuery));
+      add(searchEvent);
     }
   }
 
@@ -721,11 +749,17 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     final newConfig = state.configuration.copyWith(
       currentFacets: effectiveFacets,
     );
+    // SetFacet נושא רק את הפרמטרים החיוביים; השליליים נשמרים מהחיפוש האחרון
+    // כדי שלחיצה על קטגוריה לא תאבד אותם.
+    final last = _lastUserSearch;
     final searchEvent = UpdateSearchQuery(
       state.searchQuery,
       customSpacing: event.customSpacing,
       alternativeWords: event.alternativeWords,
       searchOptions: event.searchOptions,
+      negativeCustomSpacing: last?.negativeCustomSpacing,
+      negativeAlternativeWords: last?.negativeAlternativeWords,
+      negativeSearchOptions: last?.negativeSearchOptions,
     );
     if (await _applyClientSideFacetNarrow(
       effectiveFacets,
@@ -857,7 +891,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   ) {
     final newConfig = state.configuration.copyWith(sortBy: event.order);
     emit(state.copyWith(configuration: newConfig));
-    add(UpdateSearchQuery(state.searchQuery));
+    _reSearch();
   }
 
   void _onUpdateResultGrouping(
@@ -869,7 +903,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       resultGrouping: event.grouping,
     );
     emit(state.copyWith(configuration: newConfig, totalGroups: null));
-    add(UpdateSearchQuery(state.searchQuery));
+    _reSearch();
   }
 
   void _onUpdateNumResults(
@@ -880,7 +914,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       numResults: event.numResults,
     );
     emit(state.copyWith(configuration: newConfig));
-    add(UpdateSearchQuery(state.searchQuery));
+    _reSearch();
   }
 
   void _onResetSearch(
@@ -888,6 +922,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     Emitter<SearchState> emit,
   ) {
     _facetCountsSignature = null;
+    _lastUserSearch = null;
     emit(const SearchState());
   }
 
@@ -1014,7 +1049,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       regexEnabled: !state.regexEnabled,
     );
     emit(state.copyWith(configuration: newConfig));
-    add(UpdateSearchQuery(state.searchQuery));
+    _reSearch();
   }
 
   void _onToggleCaseSensitive(
@@ -1025,7 +1060,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       caseSensitive: !state.caseSensitive,
     );
     emit(state.copyWith(configuration: newConfig));
-    add(UpdateSearchQuery(state.searchQuery));
+    _reSearch();
   }
 
   void _onToggleMultiline(
@@ -1034,7 +1069,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   ) {
     final newConfig = state.configuration.copyWith(multiline: !state.multiline);
     emit(state.copyWith(configuration: newConfig));
-    add(UpdateSearchQuery(state.searchQuery));
+    _reSearch();
   }
 
   void _onToggleDotAll(
@@ -1043,7 +1078,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   ) {
     final newConfig = state.configuration.copyWith(dotAll: !state.dotAll);
     emit(state.copyWith(configuration: newConfig));
-    add(UpdateSearchQuery(state.searchQuery));
+    _reSearch();
   }
 
   void _onToggleUnicode(
@@ -1052,7 +1087,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   ) {
     final newConfig = state.configuration.copyWith(unicode: !state.unicode);
     emit(state.copyWith(configuration: newConfig));
-    add(UpdateSearchQuery(state.searchQuery));
+    _reSearch();
   }
 
   void _onUpdateFacetCounts(

@@ -264,7 +264,7 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
                 bloc.add(UpdateProximityScopeWithoutSearch(selectedScope));
                 bloc.add(UpdateWordMatchModeWithoutSearch(selectedMode));
                 if (widget.triggerSearch) {
-                  bloc.add(UpdateSearchQuery(bloc.state.searchQuery));
+                  bloc.add(const RerunSearch());
                 }
               },
             ),

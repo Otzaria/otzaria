@@ -154,9 +154,6 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
       searchBloc,
       categories,
       dimensionFacets,
-      customSpacing: normalizedParameters.customSpacing,
-      alternativeWords: normalizedParameters.alternativeWords,
-      searchOptions: normalizedParameters.searchOptions,
     );
   }
 
@@ -166,23 +163,13 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
   void _dispatchCategoriesWithDimensions(
     SearchBloc searchBloc,
     List<String> categories,
-    List<String> dimensionFacets, {
-    Map<String, String>? customSpacing,
-    Map<int, List<String>>? alternativeWords,
-    Map<String, Map<String, bool>>? searchOptions,
-  }) {
+    List<String> dimensionFacets,
+  ) {
     final effectiveCategories = categories.isEmpty ? const ['/'] : categories;
     searchBloc.add(
       SetFacetsWithoutSearch([...effectiveCategories, ...dimensionFacets]),
     );
-    searchBloc.add(
-      UpdateSearchQuery(
-        searchBloc.state.searchQuery,
-        customSpacing: customSpacing,
-        alternativeWords: alternativeWords,
-        searchOptions: searchOptions,
-      ),
-    );
+    searchBloc.add(const RerunSearch());
   }
 
   /// התקופות המוצעות לסינון. 'שאר מפרשים' לעולם לא מוטבעת, ו'תורה שבכתב'
@@ -198,15 +185,6 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
   void _toggleDimension(BuildContext context, String dimFacet) {
     final searchBloc = context.read<SearchBloc>();
     final state = searchBloc.state;
-    final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
-      state.configuration.searchMode,
-      customSpacing: widget.tab.spacingValues,
-      alternativeWords: widget.tab.alternativeWords,
-      searchOptions: widget.tab.effectiveSearchOptions(
-        query: state.searchQuery,
-      ),
-    );
-
     final categories = FacetHelper.categoryFacetsOf(state.currentFacets);
     final dimensions = FacetHelper.dimensionFacetsOf(
       state.currentFacets,
@@ -222,32 +200,17 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
       searchBloc,
       categories,
       dimensions.toList()..sort(),
-      customSpacing: normalizedParameters.customSpacing,
-      alternativeWords: normalizedParameters.alternativeWords,
-      searchOptions: normalizedParameters.searchOptions,
     );
   }
 
   /// מנקה את כל הסינון (קטגוריות + ממדים) — חזרה ל"כל הספרים".
   void _clearAllScope(BuildContext context) {
     final searchBloc = context.read<SearchBloc>();
-    final state = searchBloc.state;
-    final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
-      state.configuration.searchMode,
-      customSpacing: widget.tab.spacingValues,
-      alternativeWords: widget.tab.alternativeWords,
-      searchOptions: widget.tab.effectiveSearchOptions(
-        query: state.searchQuery,
-      ),
-    );
     SearchScopePreferences.saveDimensionFacets(const {});
     _dispatchCategoriesWithDimensions(
       searchBloc,
       const ['/'],
       const [],
-      customSpacing: normalizedParameters.customSpacing,
-      alternativeWords: normalizedParameters.alternativeWords,
-      searchOptions: normalizedParameters.searchOptions,
     );
   }
 
