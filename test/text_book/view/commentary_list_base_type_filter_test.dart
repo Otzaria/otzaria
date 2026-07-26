@@ -1,6 +1,7 @@
 // סינון פאנל המפרשים לפי סוג הקישור (תרגום/מדרש/דיבור המתחיל/פרשנות/ביאור).
 // COMMENTARY ו-SUPER_COMMENTARY אינם מקבלים צ׳יפ בכוונה — הם רוב מוחלט של
 // הקישורים, וצ׳יפ שכולל כמעט הכל אינו מסנן כלום.
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -18,7 +19,10 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
+import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
+import 'package:otzaria/widgets/misc/commentators_filter_button.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 
@@ -230,29 +234,63 @@ void main() {
   });
 
   group('CommentaryListBase - הצגת שורת הצ׳יפים', () {
-    testWidgets('שני סוגים ומעלה - השורה מוצגת עם התוויות הנכונות', (
+    testWidgets('אין צ׳יפי סוג בלשונית המפרשים עצמה', (tester) async {
+      await _pump(tester, _stateWithTypes(const ['TARGUM', 'MIDRASH']));
+
+      expect(find.byKey(commentatorTypeChipsGroupKey), findsNothing);
+      expect(find.widgetWithText(Chip, 'תרגום'), findsNothing);
+    });
+
+    testWidgets('שני סוגים ומעלה - הקבוצה מוצגת עם התוויות הנכונות', (
       tester,
     ) async {
       await _pump(tester, _stateWithTypes(const ['TARGUM', 'MIDRASH']));
+      await _openFilter(tester);
 
-      expect(find.byKey(commentaryTypeChipsRowKey), findsOneWidget);
+      expect(find.byKey(commentatorTypeChipsGroupKey), findsOneWidget);
       expect(find.widgetWithText(Chip, 'תרגום'), findsOneWidget);
       expect(find.widgetWithText(Chip, 'מדרש'), findsOneWidget);
     });
 
-    testWidgets('סוג יחיד - אין שורת צ׳יפים', (tester) async {
-      await _pump(tester, _stateWithTypes(const ['TARGUM']));
+    testWidgets('קבוצת הדורות מימין וקבוצת הסוגים משמאל', (tester) async {
+      await _pump(tester, _stateWithTypes(const ['TARGUM', 'MIDRASH']));
+      await _openFilter(tester);
 
-      expect(find.byKey(commentaryTypeChipsRowKey), findsNothing);
+      final eras = tester.getRect(find.byKey(commentatorEraChipsGroupKey));
+      final types = tester.getRect(find.byKey(commentatorTypeChipsGroupKey));
+      expect(types.right, lessThanOrEqualTo(eras.left));
+      expect(eras.top, types.top);
     });
 
-    testWidgets('רק COMMENTARY - אין שורת צ׳יפים כלל', (tester) async {
+    testWidgets('קו מפריד בין שתי הקבוצות', (tester) async {
+      await _pump(tester, _stateWithTypes(const ['TARGUM', 'MIDRASH']));
+      await _openFilter(tester);
+
+      final divider = tester.getRect(
+        find.byKey(commentatorChipAxesDividerKey),
+      );
+      final eras = tester.getRect(find.byKey(commentatorEraChipsGroupKey));
+      final types = tester.getRect(find.byKey(commentatorTypeChipsGroupKey));
+      expect(divider.left, greaterThanOrEqualTo(types.right));
+      expect(divider.right, lessThanOrEqualTo(eras.left));
+    });
+
+    testWidgets('סוג יחיד - אין קבוצת סוגים', (tester) async {
+      await _pump(tester, _stateWithTypes(const ['TARGUM']));
+      await _openFilter(tester);
+
+      expect(find.byKey(commentatorTypeChipsGroupKey), findsNothing);
+      expect(find.byKey(commentatorEraChipsGroupKey), findsOneWidget);
+    });
+
+    testWidgets('רק COMMENTARY - אין קבוצת סוגים כלל', (tester) async {
       await _pump(
         tester,
         _stateWithTypes(const ['COMMENTARY', 'COMMENTARY']),
       );
+      await _openFilter(tester);
 
-      expect(find.byKey(commentaryTypeChipsRowKey), findsNothing);
+      expect(find.byKey(commentatorTypeChipsGroupKey), findsNothing);
     });
 
     testWidgets('COMMENTARY ו-SUPER_COMMENTARY אינם מקבלים צ׳יפ בתצוגה', (
@@ -267,8 +305,9 @@ void main() {
           'SUPER_COMMENTARY',
         ]),
       );
+      await _openFilter(tester);
 
-      expect(find.byKey(commentaryTypeChipsRowKey), findsOneWidget);
+      expect(find.byKey(commentatorTypeChipsGroupKey), findsOneWidget);
       expect(find.widgetWithText(Chip, 'פירוש'), findsNothing);
       expect(find.widgetWithText(Chip, 'פירוש על פירוש'), findsNothing);
       expect(find.widgetWithText(Chip, 'תרגום'), findsOneWidget);
@@ -282,8 +321,9 @@ void main() {
         activeCommentators: const ['ספר 0'],
       );
       await _pump(tester, state);
+      await _openFilter(tester);
 
-      expect(find.byKey(commentaryTypeChipsRowKey), findsNothing);
+      expect(find.byKey(commentatorTypeChipsGroupKey), findsNothing);
     });
 
     testWidgets('לחיצה על "תרגום" מציגה רק את המפרש מסוג תרגום', (
@@ -300,8 +340,10 @@ void main() {
       expect(find.text('ספר 1'), findsOneWidget);
       expect(find.text('ספר 2'), findsOneWidget);
 
+      await _openFilter(tester);
       await tester.tap(find.widgetWithText(Chip, 'תרגום'));
       await tester.pumpAndSettle();
+      await _closeFilter(tester);
 
       expect(find.text('ספר 0'), findsOneWidget);
       expect(find.text('ספר 1'), findsNothing);
@@ -317,20 +359,24 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await _openFilter(tester);
       await tester.tap(find.widgetWithText(Chip, 'תרגום'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(Chip, 'מדרש'));
       await tester.pumpAndSettle();
+      await _closeFilter(tester);
 
       expect(find.text('ספר 0'), findsOneWidget);
       expect(find.text('ספר 1'), findsOneWidget);
       expect(find.text('ספר 2'), findsNothing);
 
       // ביטול שתי הבחירות — ריק = הצג הכל
+      await _openFilter(tester);
       await tester.tap(find.widgetWithText(Chip, 'תרגום'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(Chip, 'מדרש'));
       await tester.pumpAndSettle();
+      await _closeFilter(tester);
 
       expect(find.text('ספר 2'), findsOneWidget);
     });
@@ -346,6 +392,7 @@ void main() {
           _stateWithTypes(const ['TARGUM', 'MIDRASH']),
         );
         await tester.pumpAndSettle();
+        await _openFilter(tester);
         await tester.tap(find.widgetWithText(Chip, 'תרגום'));
         await tester.pumpAndSettle();
 
@@ -353,8 +400,8 @@ void main() {
         bloc.emitState(_stateWithTypes(const ['TARGUM', 'COMMENTARY']));
         await tester.pumpAndSettle();
 
-        // השורה חייבת להישאר מוצגת, אחרת אין דרך לבטל את הסינון.
-        expect(find.byKey(commentaryTypeChipsRowKey), findsOneWidget);
+        // הצ׳יפ חייב להישאר מוצג, אחרת אין דרך לבטל את הסינון.
+        expect(find.byKey(commentatorTypeChipsGroupKey), findsOneWidget);
         final chip = tester.widget<Chip>(find.widgetWithText(Chip, 'תרגום'));
         expect(
           chip.backgroundColor,
@@ -362,6 +409,7 @@ void main() {
           reason: 'הצ׳יפ הנבחר חייב להיראות מסומן',
         );
         // הסינון אכן פעיל — מפרש ה-COMMENTARY מוסתר.
+        await _closeFilter(tester);
         expect(find.text('ספר 1'), findsNothing);
       },
     );
@@ -374,27 +422,33 @@ void main() {
         _stateWithTypes(const ['TARGUM', 'MIDRASH']),
       );
       await tester.pumpAndSettle();
+      await _openFilter(tester);
       await tester.tap(find.widgetWithText(Chip, 'תרגום'));
       await tester.pumpAndSettle();
 
       bloc.emitState(_stateWithTypes(const ['TARGUM', 'COMMENTARY']));
       await tester.pumpAndSettle();
+      await _closeFilter(tester);
       expect(find.text('ספר 1'), findsNothing);
 
+      await _openFilter(tester);
       await tester.tap(find.widgetWithText(Chip, 'תרגום'));
       await tester.pumpAndSettle();
+      // בלי בחירה וצ׳יפ יחיד — הקבוצה חוזרת להסתתר.
+      expect(find.byKey(commentatorTypeChipsGroupKey), findsNothing);
+      await _closeFilter(tester);
 
       expect(find.text('ספר 0'), findsOneWidget);
       expect(find.text('ספר 1'), findsOneWidget);
-      // בלי בחירה וצ׳יפ יחיד — השורה חוזרת להסתתר.
-      expect(find.byKey(commentaryTypeChipsRowKey), findsNothing);
     });
 
-    testWidgets('אין בחירה וצ׳יפ יחיד - השורה נשארת מוסתרת', (tester) async {
+    testWidgets('אין בחירה וצ׳יפ יחיד - הקבוצה נשארת מוסתרת', (tester) async {
       await _pump(tester, _stateWithTypes(const ['TARGUM', 'COMMENTARY']));
       await tester.pumpAndSettle();
+      await _openFilter(tester);
 
-      expect(find.byKey(commentaryTypeChipsRowKey), findsNothing);
+      expect(find.byKey(commentatorTypeChipsGroupKey), findsNothing);
+      await _closeFilter(tester);
       expect(find.text('ספר 0'), findsOneWidget);
       expect(find.text('ספר 1'), findsOneWidget);
     });
@@ -406,8 +460,10 @@ void main() {
         _stateWithTypes(const ['TARGUM', 'MIDRASH']),
       );
       await tester.pumpAndSettle();
+      await _openFilter(tester);
       await tester.tap(find.widgetWithText(Chip, 'מדרש'));
       await tester.pumpAndSettle();
+      await _closeFilter(tester);
 
       // המדרש נותר בקישורי החלון (ולכן הצ׳יפ קיים והבחירה בתוקף), אך בקטע
       // הנוכחי יש תרגום בלבד — הסינון מרוקן את הרשימה.
@@ -448,13 +504,14 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await _openFilter(tester);
       expect(find.widgetWithText(Chip, 'מדרש'), findsOneWidget);
 
       // מעבר לקטע שיש בו תרגום בלבד — המדרש עדיין בחלון הקריאה.
       bloc.emitState(_windowState(targum, midrash));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(commentaryTypeChipsRowKey), findsOneWidget);
+      expect(find.byKey(commentatorTypeChipsGroupKey), findsOneWidget);
       expect(find.widgetWithText(Chip, 'מדרש'), findsOneWidget);
     });
 
@@ -472,8 +529,10 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await _openFilter(tester);
       await tester.tap(find.widgetWithText(Chip, 'מדרש'));
       await tester.pumpAndSettle();
+      await _closeFilter(tester);
       expect(find.text('ספר 0'), findsNothing);
 
       bloc.emitState(_windowState(targum, midrash));
@@ -500,6 +559,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await _openFilter(tester);
 
       expect(find.widgetWithText(Chip, 'מדרש'), findsNothing);
     });
@@ -539,17 +599,22 @@ Future<_TestTextBookBloc> _pump(
 
   await tester.pumpWidget(
     MaterialApp(
-      home: MultiBlocProvider(
-        providers: [
-          BlocProvider<TextBookBloc>.value(value: bloc),
-          BlocProvider<SettingsBloc>.value(value: settingsBloc),
-        ],
-        child: const Scaffold(
-          body: CommentaryListBase(
-            openBookCallback: _noopOpenBook,
-            fontSize: 18,
-            showSearch: true,
-            shrinkWrap: false,
+      // האפליקציה כולה RTL (locale he_IL); בלי זה בדיקות מיקום נמדדות הפוך.
+      home: Directionality(
+        textDirection: TextDirection.rtl,
+        child: MultiBlocProvider(
+          providers: [
+            BlocProvider<TextBookBloc>.value(value: bloc),
+            BlocProvider<SettingsBloc>.value(value: settingsBloc),
+          ],
+          child: Scaffold(
+            body: CommentaryListBase(
+              openBookCallback: _noopOpenBook,
+              fontSize: 18,
+              showSearch: true,
+              shrinkWrap: false,
+              onSelectedCommentatorsOverrideChanged: (_) {},
+            ),
           ),
         ),
       ),
@@ -562,6 +627,20 @@ Future<_TestTextBookBloc> _pump(
 }
 
 void _noopOpenBook(_) {}
+
+/// צ׳יפי הסוגים חיים בפאנל "בחירת מפרשים", ולכן כל בדיקה שנוגעת בהם פותחת
+/// אותו תחילה.
+Future<void> _openFilter(WidgetTester tester) async {
+  await tester.tap(find.byType(CommentatorsFilterButton));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _closeFilter(WidgetTester tester) async {
+  await tester.tap(
+    find.widgetWithIcon(IconButton, FluentIcons.arrow_left_24_regular),
+  );
+  await tester.pumpAndSettle();
+}
 
 Link _link({required String path2, required String type, int index1 = 1}) =>
     Link(
@@ -608,7 +687,12 @@ TextBookLoaded _stateForLinks({
     fontSize: 18,
     showSplitView: false,
     activeCommentators: commentators,
-    commentatorGroups: const [],
+    commentatorGroups: [
+      CommentatorGroup(
+        title: 'ראשונים',
+        commentators: availableCommentators ?? commentators,
+      ),
+    ],
     availableCommentators: availableCommentators ?? commentators,
     links: links,
     visibleLinks: const [],

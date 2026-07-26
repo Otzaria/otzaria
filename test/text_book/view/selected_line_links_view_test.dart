@@ -12,9 +12,6 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/selected_line_links_view.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
-import 'package:otzaria/theme/app_theme_data.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 void main() {
@@ -511,7 +508,7 @@ void main() {
     setUp(_seedEras);
     tearDown(CommentaryService.clearEraCache);
 
-    testWidgets('שני הצירים קיימים — שתי שורות, כל מפתח בשורה שלו', (
+    testWidgets('שני הצירים קיימים — שתי קבוצות, כל מפתח בקבוצה שלו', (
       tester,
     ) async {
       await _pumpView(
@@ -523,11 +520,13 @@ void main() {
       );
 
       expect(_chipRowCount(tester), 2);
-      expect(_rowLabelsAt(tester, 0), ['עין משפט']);
-      expect(_rowLabelsAt(tester, 1), ['אחרונים']);
+      expect(_rowLabelsAt(tester, 0), ['אחרונים']);
+      expect(_rowLabelsAt(tester, 1), ['עין משפט']);
     });
 
-    testWidgets('לשתי השורות גוונים שונים', (tester) async {
+    testWidgets('שתי הקבוצות באותה שורה — הדורות מימין והסוגים משמאל', (
+      tester,
+    ) async {
       await _pumpView(
         tester,
         links: [
@@ -536,43 +535,13 @@ void main() {
         ],
       );
 
-      final colors = _chipRowColors(tester);
-      expect(colors, hasLength(2));
-      expect(colors[0], isNot(colors[1]));
+      final eras = tester.getRect(find.byKey(linkEraChipsRowKey));
+      final types = tester.getRect(find.byKey(linkTypeChipsRowKey));
+      expect(types.right, lessThanOrEqualTo(eras.left));
+      expect(eras.top, types.top);
     });
 
-    // הפער הנתפס בין השורות נמדד ב-test/theme/app_surfaces_chip_rows_test.dart —
-    // השוואת צבע גולמי כאן לא תופסת קריסת ניגודיות אחרי שיטוח מעל הרקע.
-    for (final brightness in Brightness.values) {
-      testWidgets('גווני שתי השורות נבדלים גם ב-${brightness.name}', (
-        tester,
-      ) async {
-        final cs = AppThemeData.createColorScheme(Colors.blue, brightness);
-        late final Color background;
-        late final Color typeRow;
-        late final Color eraRow;
-
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: ThemeData(colorScheme: cs),
-            home: Builder(
-              builder: (context) {
-                background = AppSurfaces.panelBackground(context);
-                typeRow = AppSurfaces.linkTypeChipsRow(context);
-                eraRow = AppSurfaces.linkEraChipsRow(context);
-                return const SizedBox();
-              },
-            ),
-          ),
-        );
-
-        final flatType = Color.alphaBlend(typeRow, background);
-        final flatEra = Color.alphaBlend(eraRow, background);
-        expect(flatType, isNot(flatEra));
-      });
-    }
-
-    testWidgets('לשורות פינות מעוגלות לפי AppTokens', (tester) async {
+    testWidgets('קו מפריד ניצב בין שתי הקבוצות', (tester) async {
       await _pumpView(
         tester,
         links: [
@@ -581,9 +550,25 @@ void main() {
         ],
       );
 
-      for (final decoration in _chipRowDecorations(tester)) {
-        expect(decoration.borderRadius, AppTokens.borderRadiusAll);
-      }
+      final divider = tester.getRect(find.byKey(chipAxesDividerKey));
+      final eras = tester.getRect(find.byKey(linkEraChipsRowKey));
+      final types = tester.getRect(find.byKey(linkTypeChipsRowKey));
+      expect(divider.left, greaterThanOrEqualTo(types.right));
+      expect(divider.right, lessThanOrEqualTo(eras.left));
+      // חצי-חצי קבוע: לשני הצירים אותו רוחב, ולכן הקו במרכז.
+      expect(eras.width, moreOrLessEquals(types.width, epsilon: 1));
+    });
+
+    testWidgets('ציר יחיד — אין קו מפריד', (tester) async {
+      await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'EIN_MISHPAT'),
+          _link(title: 'ראשונים ב', type: 'QUOTATION'),
+        ],
+      );
+
+      expect(find.byKey(chipAxesDividerKey), findsNothing);
     });
 
     testWidgets('רק צ׳יפי סוג — שורה אחת בלבד', (tester) async {
@@ -639,8 +624,8 @@ void main() {
       final expected = splitChipKeysByAxis(buildLinkChipKeys(links));
       String label(String key) => CommentaryService.chipKeyLabel(key);
 
-      expect(_rowLabelsAt(tester, 0), expected.types.map(label).toList());
-      expect(_rowLabelsAt(tester, 1), expected.eras.map(label).toList());
+      expect(_rowLabelsAt(tester, 0), expected.eras.map(label).toList());
+      expect(_rowLabelsAt(tester, 1), expected.types.map(label).toList());
     });
 
     testWidgets('רגרסיה: לחיצה בשורת הסוגים אינה מוחקת בחירת דור', (
@@ -1663,34 +1648,15 @@ void main() {
   });
 }
 
-/// שורות הצ׳יפים לפי סדר התצוגה — סוגים ואז דורות. שורה שאינה מוצגת נשמטת,
-/// ולכן האינדקס מתייחס לשורות הקיימות בפועל.
+/// קבוצות הצ׳יפים לפי סדר התצוגה — דורות (מימין) ואז סוגים (משמאל). קבוצה
+/// שאינה מוצגת נשמטת, ולכן האינדקס מתייחס לקבוצות הקיימות בפועל.
 final Finder _chipRowFinder = find.byWidgetPredicate(
   (widget) =>
       widget.key == linkTypeChipsRowKey || widget.key == linkEraChipsRowKey,
 );
 
 int _chipRowCount(WidgetTester tester) =>
-    tester.widgetList<Padding>(_chipRowFinder).length;
-
-List<BoxDecoration> _chipRowDecorations(WidgetTester tester) => List.generate(
-  _chipRowCount(tester),
-  (index) =>
-      tester
-              .widget<Container>(
-                find
-                    .descendant(
-                      of: _chipRowFinder.at(index),
-                      matching: find.byType(Container),
-                    )
-                    .first,
-              )
-              .decoration!
-          as BoxDecoration,
-);
-
-List<Color?> _chipRowColors(WidgetTester tester) =>
-    _chipRowDecorations(tester).map((decoration) => decoration.color).toList();
+    tester.widgetList<Widget>(_chipRowFinder).length;
 
 List<String> _rowLabelsAt(WidgetTester tester, int rowIndex) => tester
     .widgetList<Chip>(
@@ -1743,15 +1709,19 @@ Future<_RecordingTextBookBloc> _pumpView(
 
   await tester.pumpWidget(
     MaterialApp(
-      home: Scaffold(
-        body: MultiBlocProvider(
-          providers: [
-            BlocProvider<TextBookBloc>.value(value: bloc),
-            BlocProvider<SettingsBloc>.value(value: settingsBloc),
-          ],
-          child: SelectedLineLinksView(
-            openBookCallback: (_) {},
-            fontSize: 18,
+      // האפליקציה כולה RTL (locale he_IL); בלי זה בדיקות מיקום היו נמדדות הפוך.
+      home: Directionality(
+        textDirection: TextDirection.rtl,
+        child: Scaffold(
+          body: MultiBlocProvider(
+            providers: [
+              BlocProvider<TextBookBloc>.value(value: bloc),
+              BlocProvider<SettingsBloc>.value(value: settingsBloc),
+            ],
+            child: SelectedLineLinksView(
+              openBookCallback: (_) {},
+              fontSize: 18,
+            ),
           ),
         ),
       ),

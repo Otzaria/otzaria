@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_fonts.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
-import 'package:otzaria/widgets/lists/filter_chips_widget.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -63,9 +61,6 @@ bool shouldFocusScrollOnPointerDown(int buttons) =>
 /// שהמשתמש בוחר "העתק" — קריאה חיה מהנוטיפייר באותו רגע הייתה מחזירה null.
 String? captureSelectedTextForMenu(ValueListenable<String?> saved) =>
     saved.value;
-
-@visibleForTesting
-const Key commentaryTypeChipsRowKey = Key('commentary_type_chips_row');
 
 /// מפתחות צ׳יפי סוגי המפרשים שקיימים בפועל בקישורי הקטע, בסדר
 /// [LinkTypes.commentaryFilterTypes]. סוג בלי קישורים אינו מקבל צ׳יפ.
@@ -320,61 +315,6 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                 commentatorsSet.contains(utils.getTitleFromPath(link.path2)),
           )
           .toList(growable: false),
-    );
-  }
-
-  /// שורת צ׳יפי סוגי המפרשים. עיצוב זהה לשורת הסוגים בפאנל הקישורים, כדי ששני
-  /// הפאנלים יקראו כאותו ציר סינון.
-  Widget _buildTypeChipsRow(List<String> keys) {
-    final effective = effectiveCommentaryTypes(
-      selectedTypes: _selectedCommentaryTypes,
-      availableKeys: keys,
-    );
-    return Padding(
-      key: commentaryTypeChipsRowKey,
-      padding: const EdgeInsets.fromLTRB(
-        AppTokens.spaceSM,
-        0,
-        AppTokens.spaceSM,
-        AppTokens.spaceXS,
-      ),
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: AppSurfaces.linkTypeChipsRow(context),
-          borderRadius: AppTokens.borderRadiusAll,
-        ),
-        child: FilterChipsSelector<String>(
-          items: keys,
-          selectedItems: effective.toList(),
-          wrapAlignment: WrapAlignment.center,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppTokens.spaceSM,
-            vertical: AppTokens.spaceXS,
-          ),
-          labelBuilder: LinkTypes.hebrewLabel,
-          onSelectionChanged: (selected) =>
-              setState(() => _selectedCommentaryTypes = selected.toSet()),
-          chipBuilder: (context, item, isSelected) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
-              child: Chip(
-                label: Text(LinkTypes.hebrewLabel(item)),
-                backgroundColor: isSelected
-                    ? Theme.of(context).colorScheme.secondary
-                    : null,
-                labelStyle: TextStyle(
-                  color: isSelected
-                      ? Theme.of(context).colorScheme.onSecondary
-                      : null,
-                  fontSize: 11,
-                ),
-                labelPadding: const EdgeInsets.all(0),
-              ),
-            );
-          },
-        ),
-      ),
     );
   }
 
@@ -1522,12 +1462,12 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
           selectedTypes: _selectedCommentaryTypes,
           availableKeys: typeChipKeys,
         );
-        // סוג יחיד אינו מסנן כלום, ולכן השורה מוצגת רק משניים ומעלה — אלא אם
-        // הוא הנבחר, שאז בלי השורה המשתמש מסונן בשקט בלי דרך לבטל.
-        final typeChipsRow =
+        // סוג יחיד אינו מסנן כלום, ולכן הצ׳יפים מוצגים רק משניים ומעלה — אלא אם
+        // הוא הנבחר, שאז בלעדיהם המשתמש מסונן בשקט בלי דרך לבטל.
+        final visibleTypeChipKeys =
             typeChipKeys.length > 1 || effectiveTypes.isNotEmpty
-            ? _buildTypeChipsRow(typeChipKeys)
-            : null;
+            ? typeChipKeys
+            : const <String>[];
 
         Widget buildList() {
           return Builder(
@@ -1939,6 +1879,11 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                         currentIndexes: _currentIndexes(state),
                         linksByLine: state.linksByLine,
                       ),
+                      typeChipKeys: visibleTypeChipKeys,
+                      selectedTypeChips: effectiveTypes,
+                      typeChipLabelBuilder: LinkTypes.hebrewLabel,
+                      onTypeChipsChanged: (selected) =>
+                          setState(() => _selectedCommentaryTypes = selected),
                     )
                   : CommentatorsListView(
                       onCommentatorSelected: _closeCommentatorsFilter,
@@ -1951,7 +1896,6 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ?typeChipsRow,
                 Flexible(fit: FlexFit.loose, child: buildList()),
               ],
             );
@@ -1966,7 +1910,6 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                     ? _buildSearchFieldRow()
                     : _buildButtonsRow(selectedCommentators),
               ),
-              ?typeChipsRow,
               Flexible(
                 fit: FlexFit.loose,
                 child: buildList(),
@@ -2010,7 +1953,6 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                     ),
                   ),
                 ),
-              ?typeChipsRow,
               // הרשימה
               Flexible(
                 child: buildList(),

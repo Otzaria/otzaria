@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_fonts.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -151,6 +150,9 @@ const Key linkTypeChipsRowKey = Key('link_type_chips_row');
 
 @visibleForTesting
 const Key linkEraChipsRowKey = Key('link_era_chips_row');
+
+@visibleForTesting
+const Key chipAxesDividerKey = Key('chip_axes_divider');
 
 /// מפתחות הצ׳יפים מפוצלים לשני צירי המיון: `types` (סוג הקישור) ו-`eras`
 /// (דור המחבר). הסדר בתוך כל ציר נשמר כפי שהתקבל.
@@ -368,24 +370,52 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
               ),
             ),
             if (chipKeys.length > 1) ...[
-              if (chipAxes.types.isNotEmpty)
-                _buildChipRow(
-                  key: linkTypeChipsRowKey,
-                  keys: chipAxes.types,
-                  savedTypes: state.selectedLinkTypes,
-                  effectiveTypes: effectiveTypes,
-                  chipLabel: chipLabel,
-                  background: AppSurfaces.linkTypeChipsRow(context),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppTokens.spaceSM,
+                  0,
+                  AppTokens.spaceSM,
+                  AppTokens.spaceXS,
                 ),
-              if (chipAxes.eras.isNotEmpty)
-                _buildChipRow(
-                  key: linkEraChipsRowKey,
-                  keys: chipAxes.eras,
-                  savedTypes: state.selectedLinkTypes,
-                  effectiveTypes: effectiveTypes,
-                  chipLabel: chipLabel,
-                  background: AppSurfaces.linkEraChipsRow(context),
+                // IntrinsicHeight נותן לקו המפריד גובה גם כשציר אחד גולש לשתי שורות
+                child: IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Expanded ולא Flexible: חצי-חצי קבוע, כדי שהקו המפריד
+                      // יישאר במרכז ולא ינוע לפי רוחב התוכן של כל ציר.
+                      if (chipAxes.eras.isNotEmpty)
+                        Expanded(
+                          child: _buildChipGroup(
+                            key: linkEraChipsRowKey,
+                            keys: chipAxes.eras,
+                            savedTypes: state.selectedLinkTypes,
+                            effectiveTypes: effectiveTypes,
+                            chipLabel: chipLabel,
+                          ),
+                        ),
+                      if (chipAxes.eras.isNotEmpty && chipAxes.types.isNotEmpty)
+                        const VerticalDivider(
+                          key: chipAxesDividerKey,
+                          width: 1,
+                          thickness: 1,
+                          indent: AppTokens.spaceXS,
+                          endIndent: AppTokens.spaceXS,
+                        ),
+                      if (chipAxes.types.isNotEmpty)
+                        Expanded(
+                          child: _buildChipGroup(
+                            key: linkTypeChipsRowKey,
+                            keys: chipAxes.types,
+                            savedTypes: state.selectedLinkTypes,
+                            effectiveTypes: effectiveTypes,
+                            chipLabel: chipLabel,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
+              ),
               const SizedBox(height: AppTokens.spaceSM),
             ],
             // תוכן הקישורים
@@ -398,69 +428,57 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
     );
   }
 
-  /// שורת צ׳יפים של ציר מיון אחד. הדלתא מחושבת מול הבחירה האפקטיבית של
-  /// *השורה בלבד* — אחרת מפתחות הציר השני היו נחשבים כמי שהוסרו ונמחקים.
-  Widget _buildChipRow({
+  /// קבוצת צ׳יפים של ציר מיון אחד. הדלתא מחושבת מול הבחירה האפקטיבית של
+  /// *הקבוצה בלבד* — אחרת מפתחות הציר השני היו נחשבים כמי שהוסרו ונמחקים.
+  Widget _buildChipGroup({
     required List<String> keys,
     required Set<String> savedTypes,
     required Set<String> effectiveTypes,
     required String Function(String key) chipLabel,
-    required Color background,
     required Key key,
   }) {
     final rowKeys = keys.toSet();
     final rowSelected = effectiveTypes.intersection(rowKeys);
-    return Padding(
+    return KeyedSubtree(
       key: key,
-      padding: const EdgeInsets.fromLTRB(
-        AppTokens.spaceSM,
-        0,
-        AppTokens.spaceSM,
-        AppTokens.spaceXS,
-      ),
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: background,
-          borderRadius: AppTokens.borderRadiusAll,
-        ),
-        child: FilterChipsSelector<String>(
-          items: keys,
-          selectedItems: rowSelected.toList(),
-          wrapAlignment: WrapAlignment.center,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppTokens.spaceSM,
-            vertical: AppTokens.spaceXS,
-          ),
-          labelBuilder: chipLabel,
-          onSelectionChanged: (selected) => context.read<TextBookBloc>().add(
-            UpdateLinkTypeFilter(
-              applyChipSelectionDelta(
-                savedTypes: savedTypes,
-                effectiveTypes: rowSelected,
-                newSelection: selected.toSet(),
-              ),
+      child: FilterChipsSelector<String>(
+        items: keys,
+        selectedItems: rowSelected.toList(),
+        wrapAlignment: WrapAlignment.center,
+        wrapSpacing: AppTokens.spaceXS,
+        runSpacing: AppTokens.spaceXS,
+        padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceXS),
+        labelBuilder: chipLabel,
+        onSelectionChanged: (selected) => context.read<TextBookBloc>().add(
+          UpdateLinkTypeFilter(
+            applyChipSelectionDelta(
+              savedTypes: savedTypes,
+              effectiveTypes: rowSelected,
+              newSelection: selected.toSet(),
             ),
           ),
-          chipBuilder: (context, item, isSelected) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
-              child: Chip(
-                label: Text(chipLabel(item)),
-                backgroundColor: isSelected
-                    ? Theme.of(context).colorScheme.secondary
-                    : null,
-                labelStyle: TextStyle(
-                  color: isSelected
-                      ? Theme.of(context).colorScheme.onSecondary
-                      : null,
-                  fontSize: 11,
-                ),
-                labelPadding: const EdgeInsets.all(0),
-              ),
-            );
-          },
         ),
+        chipBuilder: (context, item, isSelected) {
+          return Chip(
+            label: Text(chipLabel(item)),
+            backgroundColor: isSelected
+                ? Theme.of(context).colorScheme.secondary
+                : null,
+            labelStyle: TextStyle(
+              color: isSelected
+                  ? Theme.of(context).colorScheme.onSecondary
+                  : null,
+              fontSize: 10,
+            ),
+            labelPadding: EdgeInsets.zero,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 6,
+              vertical: 2,
+            ),
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          );
+        },
       ),
     );
   }
