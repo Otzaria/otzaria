@@ -1,63 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/data/cache/acronyms_cache.dart';
-import 'package:otzaria/data/cache/books_cache.dart';
-import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
-/// טסטים למסלול ההתאמה **האמיתי** של "איתור מקורות": [ReferenceBooksCache.search]
-/// (התאמת כותרות + ראשי תיבות מ-`book_acronym`) יחד עם [FindRefRepository.findRefs],
-/// ללא הזרקת `searchReferenceBooks`. הכותרות וראשי-התיבות בטסטים הם נתוני אמת
-/// מ-`seforim.db`, כולל מזהי הספרים.
-typedef _SeedBook = ({int id, String title, List<String> acronyms});
+import 'support/seeded_reference_library.dart';
 
-/// זורע ספרייה קטנה לשלושת המטמונים שמסלול ההתאמה קורא מהם.
-void _seedLibrary(List<_SeedBook> books) {
-  BooksCache.instance.setBooksForTesting([
-    for (var i = 0; i < books.length; i++)
-      BookCacheEntry(
-        id: books[i].id,
-        title: books[i].title,
-        filePath: '',
-        fileType: 'txt',
-        categoryId: 1,
-        orderIndex: i.toDouble(),
-      ),
-  ]);
-  AcronymsCache.instance.setAcronymsForTesting({
-    for (final b in books) b.id: b.acronyms,
-  });
-  ReferenceBooksCache.instance
-    ..setFsPdfBooksForTesting(const [])
-    ..seedForTesting(
-      normalizedTitles: {
-        for (final b in books) b.id: normalizeForFindRefMatch(b.title),
-      },
-      categoryPaths: {for (final b in books) b.id: 'ספרייה'},
-    );
-}
-
-final _repos = <FindRefRepository>[];
-
-FindRefRepository _buildRepo({
-  Map<int, List<Map<String, dynamic>>> tocEntries = const {},
-  List<List<String>?>? tocQueryTokensSeen,
-}) {
-  final repo = FindRefRepository(
-    isReferenceBooksCacheLoaded: () => true,
-    warmUpReferenceBooksCache: () async {},
-    getTocEntriesForReference: (bookId, bookTitle, {queryTokens}) async {
-      tocQueryTokensSeen?.add(queryTokens);
-      return tocEntries[bookId] ?? const <Map<String, dynamic>>[];
-    },
-    getAltTocEntriesForReference: (bookId, bookTitle, {queryTokens}) async =>
-        const <Map<String, dynamic>>[],
-    getAllAltTocFlatEntries: () async => const <Map<String, dynamic>>[],
-    getCategoryPath: (bookId) async => 'ספרייה',
-  );
-  _repos.add(repo);
-  return repo;
-}
+/// התאמת ספר לפי ראשי-תיבות ב"איתור מקורות" — במיוחד שאילתה שהיא *תחילית*
+/// של ראש-תיבות ארוך יותר. רץ על מסלול ההתאמה האמיתי; ראו
+/// [seeded_reference_library.dart].
 
 // --- נתוני אמת מ-seforim.db (ראשי-התיבות בסדר הטעינה: ORDER BY term) ---
 
@@ -115,15 +64,7 @@ const _rashiBereshitRabba = (
 );
 
 void main() {
-  tearDown(() {
-    for (final r in _repos) {
-      r.disposeForTesting();
-    }
-    _repos.clear();
-    BooksCache.instance.clear();
-    AcronymsCache.instance.clear();
-    ReferenceBooksCache.instance.clear();
-  });
+  tearDown(resetSeededLibrary);
 
   group('findRefs — ראש-תיבות שהוא תחילית של ראש-תיבות ארוך יותר', () {
     test('"רמב״ם תפילה" מחזיר גם את הלכות תפילה וברכת כהנים וגם את סדר '
@@ -131,8 +72,8 @@ void main() {
       // הבאג המדווח: ל"משנה תורה, סדר התפילה" יש ראש-תיבות *מדויק* "רמב"ם תפילה"
       // (rank 3), ולכן החיפוש נעצר עליו; "משנה תורה, הלכות תפילה וברכת כהנים"
       // הותאם רק כתחילית של "רמב"ם תפילה וברכת כהנים" (rank 4) ונזרק כליל.
-      _seedLibrary(const [_rambamTefila, _rambamSederTefila]);
-      final results = await _buildRepo().findRefs('רמב״ם תפילה');
+      seedLibrary(const [_rambamTefila, _rambamSederTefila]);
+      final results = await buildFindRefRepo().findRefs('רמב״ם תפילה');
       final titles = results.map((r) => r.title).toList();
 
       expect(titles, contains('משנה תורה, הלכות תפילה וברכת כהנים'));
@@ -140,9 +81,9 @@ void main() {
     });
 
     test('גרשיים יוניקוד (״) וגרשיים ASCII (") מחזירים אותן תוצאות', () async {
-      _seedLibrary(const [_rambamTefila, _rambamSederTefila]);
-      final unicode = await _buildRepo().findRefs('רמב״ם תפילה');
-      final ascii = await _buildRepo().findRefs('רמב"ם תפילה');
+      seedLibrary(const [_rambamTefila, _rambamSederTefila]);
+      final unicode = await buildFindRefRepo().findRefs('רמב״ם תפילה');
+      final ascii = await buildFindRefRepo().findRefs('רמב"ם תפילה');
 
       expect(
         ascii.map((r) => r.reference).toList(),
@@ -154,7 +95,7 @@ void main() {
         'המדויק', () async {
       // ל"על מסכת תענית" יש ראש-תיבות מדויק "חידושי רע"א"; לשאר הספרים יש רק
       // ראשי-תיבות ארוכים יותר שהשאילתה היא תחילית שלהם.
-      _seedLibrary(const [
+      seedLibrary(const [
         (
           id: 2661,
           title: 'חידושי רבי עקיבא איגר על מסכת תענית',
@@ -184,7 +125,7 @@ void main() {
         ),
       ]);
 
-      final titles = (await _buildRepo().findRefs(
+      final titles = (await buildFindRefRepo().findRefs(
         'חידושי רע"א',
       )).map((r) => r.title).toSet();
 
@@ -201,8 +142,8 @@ void main() {
       // וזנבו ("רבה") הוא מילת-כותרת. הקבלה שלו אסור לה לעצור את החיפוש בשלב
       // הזה — "רש"י על בראשית" נמצא רק בשלב של טוקן אחד ("רש"י" + "בראשית"
       // מהכותרת), והיה נעלם.
-      _seedLibrary(const [_rashiBereshit, _rashiBereshitRabba]);
-      final titles = (await _buildRepo().findRefs(
+      seedLibrary(const [_rashiBereshit, _rashiBereshitRabba]);
+      final titles = (await buildFindRefRepo().findRefs(
         'רש"י בראשית',
       )).map((r) => r.title).toList();
 
@@ -217,9 +158,9 @@ void main() {
         // מילה בכותרת "טור" — כלומר ההמשך הוא כותרת פנימית. אם הספר היה מוחזר
         // כתוצאת-ספר, ה-reference הקצר ("טור") היה גם *חוסם* את התוצאה הפנימית
         // ב-_suppressDeeperVariants.
-        _seedLibrary(const [_tur]);
+        seedLibrary(const [_tur]);
         final seen = <List<String>?>[];
-        final results = await _buildRepo(
+        final results = await buildFindRefRepo(
           tocQueryTokensSeen: seen,
           tocEntries: const {
             380: [
@@ -245,9 +186,9 @@ void main() {
     test(
       'שאילתת מילה אחת ("רמב"ם") מחזירה את כל הספרים בלי חיפוש TOC',
       () async {
-        _seedLibrary(const [_rambamTefila, _rambamSederTefila]);
+        seedLibrary(const [_rambamTefila, _rambamSederTefila]);
         final seen = <List<String>?>[];
-        final titles = (await _buildRepo(
+        final titles = (await buildFindRefRepo(
           tocQueryTokensSeen: seen,
         ).findRefs('רמב"ם')).map((r) => r.title).toSet();
 
@@ -260,7 +201,7 @@ void main() {
 
   group('ReferenceBooksCache.search — דירוג התאמת ראשי תיבות', () {
     test('ראש-תיבות מדויק מקבל rank 3', () {
-      _seedLibrary(const [_rambamSederTefila]);
+      seedLibrary(const [_rambamSederTefila]);
       final hit = ReferenceBooksCache.instance.search('רמב"ם תפילה').single;
 
       expect(hit.bookId, 307);
@@ -269,7 +210,7 @@ void main() {
 
     test('תחילית שכל זנבה מילות-כותרת → rank 4 עם '
         'acronymTailIsTitleWords', () async {
-      _seedLibrary(const [_rambamTefila]);
+      seedLibrary(const [_rambamTefila]);
       final hit = ReferenceBooksCache.instance.search('רמב"ם תפילה').single;
 
       expect(hit.matchRank, 4);
@@ -282,7 +223,7 @@ void main() {
 
     test('תחילית שזנבה כותרת פנימית → rank 4 בלי '
         'acronymTailIsTitleWords', () {
-      _seedLibrary(const [_tur]);
+      seedLibrary(const [_tur]);
       final hit = ReferenceBooksCache.instance.search('טור חושן').single;
 
       expect(hit.matchRank, 4);
@@ -291,7 +232,7 @@ void main() {
 
     test('התאמת התחילית נמדדת במילים שלמות — "רמב"ם תפיל" אינו זיהוי '
         'מלא', () {
-      _seedLibrary(const [_rambamTefila, _rambamSederTefila]);
+      seedLibrary(const [_rambamTefila, _rambamSederTefila]);
       final hits = ReferenceBooksCache.instance.search('רמב"ם תפיל');
 
       expect(hits, isNotEmpty);
@@ -305,7 +246,7 @@ void main() {
       // ל"הלכות יסודי התורה" יש גם ראש-תיבות עם ו' החיבור ("ורמב"ם יסודי
       // התורה") שנסרק ראשון ורק *מכיל* את השאילתה, וגם "רמב"ם יסודי התורה"
       // שהוא תחילית אמיתית שלה.
-      _seedLibrary(const [
+      seedLibrary(const [
         (
           id: 296,
           title: 'משנה תורה, הלכות יסודי התורה',

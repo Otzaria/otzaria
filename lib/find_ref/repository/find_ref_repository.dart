@@ -1149,13 +1149,16 @@ class FindRefRepository {
       final titleTokens = _tokenize(hit.normalizedTitle);
       var score = 0;
       for (final qt in significant) {
-        // התאמת טוקן שלם, כולל ה' הידיעה בכותרת ("הרא"ש" מול "ראש") — כמו
-        // ב-[_getRemainingTokens].
-        final inTitle = titleTokens.any(
-          (tt) =>
+        // התאמת טוקן שלם, כולל אות-חיבור בכותרת — אותם כללים כמו
+        // ב-[_getRemainingTokens], אחרת ספר שהותאם דרך ו' החיבור ייחתך ע"י
+        // תקרת חיפושי ה-TOC דווקא כשהוא הספר המכוון.
+        var inTitle = false;
+        for (var ti = 0; ti < titleTokens.length && !inTitle; ti++) {
+          final tt = titleTokens[ti];
+          inTitle =
               tt == qt ||
-              (tt.length >= 3 && tt.startsWith('ה') && tt.substring(1) == qt),
-        );
+              _withoutLeadingConjunction(tt, allowVav: ti > 0) == qt;
+        }
         if (inTitle) score++;
       }
       return score;
@@ -1170,6 +1173,25 @@ class FindRefRepository {
           return c != 0 ? c : a.index.compareTo(b.index);
         });
     return [for (final e in indexed) e.hit];
+  }
+
+  /// מחזיר את [titleToken] בלי אות-חיבור פותחת שהמשתמש עשוי לא להקליד —
+  /// ה' הידיעה ("הטור" → "טור") או ו' החיבור ("וברכת כהנים" → "ברכת") — או
+  /// null אם אין כזו.
+  ///
+  /// הדרישה לאורך >= 3 מותירה שארית באורך >= 2, כדי שטוקן מיקום של אות בודדת
+  /// ("עמוד א") לא ייבלע. [allowVav] כבוי בטוקן הפותח את הכותרת: שם ו' היא
+  /// חלק מהשם ("ויקרא", "וזה לשונו", "וביום השבת") ולא אות חיבור.
+  static String? _withoutLeadingConjunction(
+    String titleToken, {
+    required bool allowVav,
+  }) {
+    if (titleToken.length < 3) return null;
+    final first = titleToken[0];
+    if (first == 'ה' || (allowVav && first == 'ו')) {
+      return titleToken.substring(1);
+    }
+    return null;
   }
 
   List<String> _getRemainingTokens(
@@ -1189,15 +1211,16 @@ class FindRefRepository {
     // (סימן בן 4 אותיות כמו "תרלד") לעולם אינו חלק מה-phrase המוביל הזה.
     final prefixEligible = queryTokens.take(prefixMatchTokensCount).toSet();
 
-    for (final token in titleTokens) {
+    for (var ti = 0; ti < titleTokens.length; ti++) {
+      final token = titleTokens[ti];
       var idx = remaining.indexOf(token);
-      // ה' הידיעה: כותרת "הרא"ש"/"הטור" מול שאילתה "ראש"/"טור" בלי ה'. מסירים
-      // רק כשהשארית באורך >=2, כדי לא לבלוע טוקן מיקום של אות בודדת ("עמוד א").
-      if (idx == -1 && token.length >= 3 && token.startsWith('ה')) {
-        idx = remaining.indexOf(token.substring(1));
+      // אות-חיבור בכותרת שהמשתמש לא הקליד — ראו [_withoutLeadingConjunction].
+      if (idx == -1) {
+        final bare = _withoutLeadingConjunction(token, allowVav: ti > 0);
+        if (bare != null) idx = remaining.indexOf(bare);
       }
       // כתיב מקוצר של שם הספר: "ירמיה" מול "ירמיהו". רצפת 2 תווים —
-      // כמו בחריג ה' הידיעה, אות בודדת נשארת תמיד טוקן מיקום.
+      // כמו בחריג אות-החיבור, אות בודדת נשארת תמיד טוקן מיקום.
       if (idx == -1 && prefixEligible.isNotEmpty) {
         idx = remaining.indexWhere(
           (t) =>
