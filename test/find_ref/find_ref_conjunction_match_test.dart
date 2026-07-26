@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
 
 import 'support/seeded_reference_library.dart';
 
@@ -220,6 +221,103 @@ void main() {
       )).map((r) => r.title).toList();
 
       expect(titles, contains('הקדמת הרמב"ם למשנה'));
+    });
+  });
+
+  group('אות-חיבור בזנב ראש-התיבות', () {
+    // ראשי-התיבות ב-DB נכתבים לעתים בלי אות-החיבור שבכותרת, ולכן הזנב שאחרי
+    // השאילתה לא הותאם לכותרת, ה-hit לא סומן כ"מזהה את הספר במלואו" ונדחה —
+    // בזמן שכל שאר הספרים מאותה משפחה כן הוחזרו.
+    test(
+      '"ברכת אברהם משנה" מחזיר גם את "שופר וסוכה ולולב" (ו\' בזנב)',
+      () async {
+        seedLibrary(const [
+          // ראש-תיבות מדויק לשאילתה — הוא זה שעוצר את החיפוש בשלב הזה.
+          (
+            id: 5147,
+            title: 'ברכת אברהם על משנה תורה, הלכות תפילין ומזוזה וספר תורה',
+            acronyms: ['ברכת אברהם משנה', 'ברכת אברהם משנה תורה'],
+          ),
+          // זנב ("תורה") שמותאם לכותרת ישירות — עבד גם קודם.
+          (
+            id: 5149,
+            title: 'ברכת אברהם על משנה תורה, הלכות תפילה וברכת כהנים',
+            acronyms: [
+              'ברכת אברהם משנה תורה',
+              'ברכת אברהם משנה תורה הלכות תפילה וברכת כהנים',
+            ],
+          ),
+          // זנב שמותאם רק דרך ו' החיבור: "סוכה" מול "וסוכה" בכותרת.
+          (
+            id: 5156,
+            title: 'ברכת אברהם על משנה תורה, הלכות שופר וסוכה ולולב',
+            acronyms: [
+              'ברכת אברהם משנה תורה שופר סוכה ולולב',
+              'ברכת אברהם שופר וסוכה ולולב',
+            ],
+          ),
+        ]);
+
+        final titles = (await buildFindRefRepo().findRefs(
+          'ברכת אברהם משנה',
+        )).map((r) => r.title).toSet();
+
+        expect(
+          titles,
+          containsAll(<String>[
+            'ברכת אברהם על משנה תורה, הלכות תפילין ומזוזה וספר תורה',
+            'ברכת אברהם על משנה תורה, הלכות תפילה וברכת כהנים',
+            'ברכת אברהם על משנה תורה, הלכות שופר וסוכה ולולב',
+          ]),
+        );
+      },
+    );
+
+    test('"ספר מצוות" מחזיר גם את "ספר המצות הקצר" (ה\' בזנב)', () async {
+      seedLibrary(const [
+        // כותרות שמתחילות בשאילתה — הן ה-primary שעוצר את החיפוש.
+        (id: 3889, title: 'ספר מצוות קטן', acronyms: ['סמ"ק']),
+        (id: 3877, title: 'ספר מצוות גדול', acronyms: ['סמ"ג']),
+        // הזנב "קצר" מותאם לכותרת רק דרך ה' הידיעה שב"הקצר".
+        (
+          id: 3885,
+          title: 'ספר המצות הקצר',
+          acronyms: ['ספר המצוות הקצר', 'ספר מצוות קצר'],
+        ),
+      ]);
+
+      final titles = (await buildFindRefRepo().findRefs(
+        'ספר מצוות',
+      )).map((r) => r.title).toSet();
+
+      expect(titles, contains('ספר מצוות קטן'));
+      expect(titles, contains('ספר המצות הקצר'));
+    });
+
+    test('זנב שאינו מילת-כותרת עדיין אינו מזהה את הספר במלואו', () async {
+      // "טור חושן" ⊂ "טור חושן משפט": "משפט" אינה בכותרת "טור" ואינה שארית של
+      // מילת-כותרת, ולכן הסלחנות אינה מרחיבה אותו.
+      seedLibrary(const [
+        (id: 380, title: 'טור', acronyms: ['הטור', 'טור חושן משפט']),
+      ]);
+      final hit = ReferenceBooksCache.instance.search('טור חושן').single;
+
+      expect(hit.matchRank, 4);
+      expect(hit.acronymTailIsTitleWords, isFalse);
+    });
+
+    test('search מסמן acronymTailIsTitleWords כשהזנב מותאם דרך ו\'', () {
+      seedLibrary(const [
+        (
+          id: 5224,
+          title: 'השגות הראב"ד על משנה תורה, הלכות תפילה וברכת כהנים',
+          acronyms: ['ראב"ד', 'ראב"ד על הרמב"ם הלכות ברכת כהנים'],
+        ),
+      ]);
+      final hit = ReferenceBooksCache.instance.search('ראב"ד על הרמב"ם').single;
+
+      expect(hit.matchRank, 4);
+      expect(hit.acronymTailIsTitleWords, isTrue);
     });
   });
 

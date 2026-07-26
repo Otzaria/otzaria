@@ -562,7 +562,7 @@ class ReferenceBooksCache {
               break;
             }
             if (a.startsWith(q)) {
-              titleTokens ??= t.split(' ').toSet();
+              titleTokens ??= titleMatchTokens(t);
               final tailIsTitle = _acronymTailIsTitleWords(a, q, titleTokens);
               // דירוג טוב יותר גובר על קודמיו — אחרת מונח "contains" (5) שנסרק
               // קודם היה מקבע 5 ומונע מהתאמת-התחילית הזו לדרג 4. ובין מונחי
@@ -709,6 +709,10 @@ class ReferenceBooksCache {
   /// כך "רמב"ם תפילה" מזהה במלואו את "משנה תורה, הלכות תפילה וברכת כהנים"
   /// (ההמשך "וברכת כהנים" הוא כותרת), בעוד "טור חושן" אינו מזהה את "טור"
   /// ("משפט" אינה בכותרת — היא כותרת פנימית שצריכה חיפוש TOC).
+  ///
+  /// [titleTokens] חייב לבוא מ-[titleMatchTokens]: ראשי-תיבות ב-DB נכתבים
+  /// לעתים בלי אות-החיבור שבכותרת ("ראב"ד ... ברכת כהנים" מול "וברכת כהנים"),
+  /// והתאמה מדויקת הייתה מחמיצה אותם.
   static bool _acronymTailIsTitleWords(
     String acronym,
     String q,

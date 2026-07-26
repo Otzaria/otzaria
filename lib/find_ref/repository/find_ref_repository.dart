@@ -1157,7 +1157,7 @@ class FindRefRepository {
           final tt = titleTokens[ti];
           inTitle =
               tt == qt ||
-              _withoutLeadingConjunction(tt, allowVav: ti > 0) == qt;
+              titleTokenWithoutConjunction(tt, allowVav: ti > 0) == qt;
         }
         if (inTitle) score++;
       }
@@ -1173,25 +1173,6 @@ class FindRefRepository {
           return c != 0 ? c : a.index.compareTo(b.index);
         });
     return [for (final e in indexed) e.hit];
-  }
-
-  /// מחזיר את [titleToken] בלי אות-חיבור פותחת שהמשתמש עשוי לא להקליד —
-  /// ה' הידיעה ("הטור" → "טור") או ו' החיבור ("וברכת כהנים" → "ברכת") — או
-  /// null אם אין כזו.
-  ///
-  /// הדרישה לאורך >= 3 מותירה שארית באורך >= 2, כדי שטוקן מיקום של אות בודדת
-  /// ("עמוד א") לא ייבלע. [allowVav] כבוי בטוקן הפותח את הכותרת: שם ו' היא
-  /// חלק מהשם ("ויקרא", "וזה לשונו", "וביום השבת") ולא אות חיבור.
-  static String? _withoutLeadingConjunction(
-    String titleToken, {
-    required bool allowVav,
-  }) {
-    if (titleToken.length < 3) return null;
-    final first = titleToken[0];
-    if (first == 'ה' || (allowVav && first == 'ו')) {
-      return titleToken.substring(1);
-    }
-    return null;
   }
 
   List<String> _getRemainingTokens(
@@ -1214,9 +1195,10 @@ class FindRefRepository {
     for (var ti = 0; ti < titleTokens.length; ti++) {
       final token = titleTokens[ti];
       var idx = remaining.indexOf(token);
-      // אות-חיבור בכותרת שהמשתמש לא הקליד — ראו [_withoutLeadingConjunction].
+      // אות-חיבור בכותרת שהמשתמש לא הקליד — ראו
+      // [titleTokenWithoutConjunction].
       if (idx == -1) {
-        final bare = _withoutLeadingConjunction(token, allowVav: ti > 0);
+        final bare = titleTokenWithoutConjunction(token, allowVav: ti > 0);
         if (bare != null) idx = remaining.indexOf(bare);
       }
       // כתיב מקוצר של שם הספר: "ירמיה" מול "ירמיהו". רצפת 2 תווים —

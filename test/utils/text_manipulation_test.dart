@@ -488,6 +488,53 @@ Future<void> main() async {
     });
   });
 
+  group('titleTokenWithoutConjunction', () {
+    test('ה\' הידיעה מוסרת', () {
+      expect(titleTokenWithoutConjunction('הטור', allowVav: false), 'טור');
+      expect(titleTokenWithoutConjunction('הקצר', allowVav: false), 'קצר');
+    });
+
+    test('ו\' החיבור מוסרת רק כש-allowVav דלוק', () {
+      expect(titleTokenWithoutConjunction('וברכת', allowVav: true), 'ברכת');
+      expect(titleTokenWithoutConjunction('וברכת', allowVav: false), isNull);
+    });
+
+    test('טוקן קצר מ-3 תווים אינו מזוהה — שארית של אות אחת עלולה להיות '
+        'טוקן מיקום', () {
+      expect(titleTokenWithoutConjunction('וב', allowVav: true), isNull);
+      expect(titleTokenWithoutConjunction('הא', allowVav: false), isNull);
+    });
+
+    test('אות פותחת אחרת אינה אות חיבור', () {
+      expect(titleTokenWithoutConjunction('משנה', allowVav: true), isNull);
+      expect(titleTokenWithoutConjunction('בראשית', allowVav: true), isNull);
+    });
+  });
+
+  group('titleMatchTokens', () {
+    test('מוסיף את הגרסאות בלי אות-חיבור', () {
+      expect(
+        titleMatchTokens('משנה תורה הלכות תפילה וברכת כהנים'),
+        containsAll(<String>['וברכת', 'ברכת', 'הלכות', 'לכות']),
+      );
+      expect(
+        titleMatchTokens('ספר המצות הקצר'),
+        containsAll(<String>['מצות', 'קצר']),
+      );
+    });
+
+    test('ו\' שפותחת את הכותרת אינה אות חיבור ("ויקרא" נשאר שלם)', () {
+      expect(titleMatchTokens('ויקרא רבה'), equals(<String>{'ויקרא', 'רבה'}));
+    });
+
+    test('ו\' שאינה פותחת כן מזוהה, גם כשהכותרת מתחילה ב-ו\'', () {
+      expect(
+        titleMatchTokens('ויקרא רבה ותוספות'),
+        equals(<String>{'ויקרא', 'רבה', 'ותוספות', 'תוספות'}),
+      );
+    });
+  });
+
   group('tocTextMatchesRef', () {
     test('הפניית תוסף עם גרשיים וע"ב מתאימה לכותרת TOC עם נקודתיים', () {
       expect(tocTextMatchesRef('דף סד:', 'ס"ד ע"ב'), isTrue);
