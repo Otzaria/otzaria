@@ -67,9 +67,8 @@ void setActiveToolIdSafely(String? id, {bool Function()? isMounted}) {
   }
 }
 
-/// תוסף מוצמד-לסרגל שנלחץ לפני שמסך הכלים נבנה. [ToolsScreenState.initState]
-/// צורך אותו כדי להיפתח ישר עליו — בלי כך הבנייה הראשונה מציגה את הכלי
-/// הראשון עם סרגל הלשוניות, והתוסף מחליף אותו רק כעבור כמה פריימים.
+/// תוסף שנלחץ לפני שמסך הכלים נבנה. נצרך ב-`didChangeDependencies` (שם יש
+/// כבר blocs), כדי שהבנייה הראשונה תציג אותו במקום את הכלי הראשון.
 InstalledPlugin? pendingNavRailPluginToOpen;
 
 /// מחשב את התוסף ה-transient לאחר טעינת רשימת תוספים מעודכנת: מחזיר את
@@ -809,27 +808,32 @@ class ToolsScreenState extends State<ToolsScreen>
     );
   }
 
+  /// מחיל בקשת פתיחה שנרשמה לפני שהמסך נבנה, אם יש. נקרא רק כשהתוספים טעונים
+  /// — בלי descriptor לתוסף המסך היה מציג כלי אחר ללא סרגל להיחלץ בו.
+  void _consumePendingNavRailPlugin({required bool isOfflineMode}) {
+    final pending = pendingNavRailPluginToOpen;
+    if (pending == null) return;
+    pendingNavRailPluginToOpen = null;
+    if (isOfflineMode && pending.blockedInOfflineMode) return;
+    // אותו קריטריון כמו ב-openPluginTransiently: רק תוסף בלי לשונית משלו
+    // מסתיר את הסרגל.
+    if (!pending.showInTools || pending.pinnedToNavRail) {
+      _hiddenNavRailPlugin = pending;
+    }
+    _transientPlugin = pending;
+    _showMobileMenu = false;
+    _setSelectedToolId(pending.pluginId);
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_didInitFromBloc) {
       _didInitFromBloc = true;
-      // נצרך תמיד, גם כשהתוספים טרם נטענו — אחרת הבקשה נשארת ותיפתח בטעות
-      // בכניסה הבאה לכלים. במקרה כזה המסלול הנדחה של הקורא משלים את הפתיחה.
-      final pending = pendingNavRailPluginToOpen;
-      pendingNavRailPluginToOpen = null;
       final state = context.read<PluginSystemBloc>().state;
       if (state is PluginSystemLoaded) {
         final isOfflineMode = context.read<SettingsBloc>().state.isOfflineMode;
-        // התוסף נכנס כבר לבנייה הראשונה, לפני ה-build — כך שהפריים הראשון של
-        // המסך הוא התוסף עצמו ולא הכלי הראשון עם סרגל הלשוניות.
-        if (pending != null &&
-            !(isOfflineMode && pending.blockedInOfflineMode)) {
-          _hiddenNavRailPlugin = pending;
-          _transientPlugin = pending;
-          _showMobileMenu = false;
-          _setSelectedToolId(pending.pluginId);
-        }
+        _consumePendingNavRailPlugin(isOfflineMode: isOfflineMode);
         _applyTabState(
           state.pinnedPlugins.filterForOfflineMode(isOfflineMode),
           transient: _transientPlugin,
@@ -1375,6 +1379,8 @@ class ToolsScreenState extends State<ToolsScreen>
                   .read<SettingsBloc>()
                   .state
                   .isOfflineMode;
+              // בקשה שנרשמה לפני שהתוספים נטענו ממתינה עד לרגע הזה.
+              _consumePendingNavRailPlugin(isOfflineMode: isOfflineMode);
               _transientPlugin = resolveTransientAfterPluginsLoaded(
                 _transientPlugin,
                 state.plugins,

@@ -1226,25 +1226,16 @@ class MainWindowScreenState extends State<MainWindowScreen>
     _whenToolsScreenAvailable((toolsState) => toolsState.openPluginPanel());
   }
 
-  /// מנסה לפתוח תוסף מיד, בלי להמתין לפריים. כשמחזיר false הטיפול — כולל כל
-  /// הודעות השגיאה — עובר ל-[_openPluginByIdWhenAvailable] שרץ אחרי הניווט.
+  /// מנסה לפתוח תוסף בלי להמתין לפריים. כשמחזיר false הטיפול — כולל כל הודעות
+  /// השגיאה — עובר ל-[_openPluginByIdWhenAvailable] שרץ אחרי הניווט.
   bool _tryOpenPluginByIdNow(String pluginId) {
-    final toolsState = moreScreenKey.currentState;
-    if (toolsState == null) return false;
     final blocState = context.read<PluginSystemBloc>().state;
     if (blocState is! PluginSystemLoaded) return false;
     final plugin = blocState.plugins.firstWhereOrNull(
       (p) => p.pluginId == pluginId,
     );
     if (plugin == null || !plugin.enabled) return false;
-    // openPluginTransiently מציג שגיאה במקום לפתוח כשהתוסף חסום במצב מנותק;
-    // משאירים גם את המקרה הזה למסלול הנדחה כדי שההודעה תופיע אחרי הניווט.
-    if (context.read<SettingsBloc>().state.isOfflineMode &&
-        plugin.blockedInOfflineMode) {
-      return false;
-    }
-    toolsState.openPluginTransiently(plugin);
-    return true;
+    return _selectPluginBeforeNavigation(plugin);
   }
 
   /// פותח תוסף לפי מזהה (deep-link `otzaria://open/plugin/<id>`). ממתין הן
@@ -3450,31 +3441,38 @@ class MainWindowScreenState extends State<MainWindowScreen>
     // עם סרגל הלשוניות שאמור להיות מוסתר. תוסף חסום במצב מנותק מוחרג: פתיחתו
     // רק מציגה שגיאה, וזו צריכה להופיע אחרי הניווט ולא על המסך הקודם.
     final plugin = item.isPlugin ? item.plugin : null;
-    final canOpenNow =
-        plugin != null &&
-        !(context.read<SettingsBloc>().state.isOfflineMode &&
-            plugin.blockedInOfflineMode);
-
-    if (canOpenNow) {
-      if (toolsState != null) {
-        toolsState.openPluginTransiently(plugin);
-      } else {
-        // המסך נבנה עצלן; הבקשה תיצרך ב-didChangeDependencies שלו כך שהבנייה
-        // הראשונה כבר תציג את התוסף במקום להחליף אליו אחרי כמה פריימים.
-        pendingNavRailPluginToOpen = plugin;
-      }
-    }
+    final openedNow = plugin != null && _selectPluginBeforeNavigation(plugin);
 
     context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
 
-    // גיבוי: תוסף שלא נפתח כאן (חסום/טרם נטען), וכלים מובנים שאין להם מסלול
-    // מוקדם — נפתחים אחרי הניווט, כולל הודעות השגיאה שלהם.
-    if (canOpenNow && toolsState != null) return;
+    if (openedNow) return;
+    // גיבוי: תוסף חסום במצב מנותק, וכלים מובנים שאין להם מסלול מוקדם — נפתחים
+    // אחרי הניווט, כולל הודעות השגיאה שלהם.
     if (item.isPlugin && item.plugin != null) {
       _openPluginInToolsWhenAvailable(item.plugin!);
     } else {
       _openBuiltInToolWhenAvailable(item.toolId);
     }
+  }
+
+  /// בוחר תוסף לפני שליחת הניווט למסך הכלים, ומחזיר האם הצליח.
+  ///
+  /// תוסף חסום במצב מנותק מוחרג: פתיחתו רק מציגה שגיאה, וזו צריכה להופיע אחרי
+  /// הניווט ולא על המסך הקודם.
+  bool _selectPluginBeforeNavigation(InstalledPlugin plugin) {
+    if (context.read<SettingsBloc>().state.isOfflineMode &&
+        plugin.blockedInOfflineMode) {
+      return false;
+    }
+    final toolsState = moreScreenKey.currentState;
+    if (toolsState != null) {
+      toolsState.openPluginTransiently(plugin);
+    } else {
+      // המסך נבנה עצלן; הבקשה תיצרך ב-didChangeDependencies שלו כך שהבנייה
+      // הראשונה כבר תציג את התוסף במקום להחליף אליו אחרי כמה פריימים.
+      pendingNavRailPluginToOpen = plugin;
+    }
+    return true;
   }
 
   void _openBuiltInToolWhenAvailable(String toolId, {int attemptsLeft = 6}) {

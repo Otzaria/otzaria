@@ -66,7 +66,6 @@ void main() {
       pendingNavRailPluginToOpen = plugin;
       expect(pendingNavRailPluginToOpen, same(plugin));
     });
-
   });
 
   group('shouldHideToolsTabBar', () {
