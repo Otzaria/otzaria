@@ -3,6 +3,14 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 
+/// יחסי הגדלים של fwfh ל-`<small>`/`<sup>` ול-`<big>`.
+///
+/// שלושת מסלולי הרינדור — המסלול המהיר כאן, HtmlWidget, והקריאה הרציפה —
+/// חייבים להתלכד עליהם: כל טקסט בסוגריים נעטף ב-`<small>`, ולכן פער ביחס
+/// משנה את גודל הסוגריים לפי המסלול שבו השורה במקרה עברה.
+const double kHtmlSmallerFontScale = 5 / 6;
+const double kHtmlLargerFontScale = 6 / 5;
+
 /// ממיר HTML פשוט (טקסט + תגי עיצוב בסיסיים בלבד) ל-[TextSpan] ישירות,
 /// כדי לעקוף את עלות הפרסור ובניית העץ של HtmlWidget עבור רוב שורות הספרים.
 ///
@@ -42,7 +50,10 @@ class SimpleInlineHtml {
       double? fontSize;
       if (big > 0 || small > 0) {
         final base = baseStyle.fontSize ?? 14.0;
-        fontSize = base * math.pow(1.2, big) * math.pow(0.8, small);
+        fontSize =
+            base *
+            math.pow(kHtmlLargerFontScale, big) *
+            math.pow(kHtmlSmallerFontScale, small);
       }
       return TextStyle(
         fontWeight: bold > 0 ? FontWeight.bold : null,

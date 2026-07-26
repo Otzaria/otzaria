@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/text_book/utils/link_anchor_variants.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/utils/text/html_link_handler.dart';
@@ -257,13 +258,15 @@ class SmartTextWidget extends StatelessWidget {
           if ((element.localName == 'span' || element.localName == 'a') &&
               element.classes.contains('link-anchor')) {
             final style = <String, String>{
-              'font-size': '0.7em',
+              'font-size': '${kLinkAnchorMarkerScale}em',
               'position': 'relative',
               'top': '-0.55em',
               'white-space': 'nowrap',
               'color': anchorLinkColorCss,
               'text-decoration': 'none',
-              ..._linkAnchorVariantStyle(element),
+              ...linkAnchorVariantCss(
+                linkAnchorVariantFromClasses(element.classes),
+              ),
             };
             // האות שחלונית התצוגה שלה פתוחה — מודגשת (רקע + מודגש).
             if (element.classes.contains('link-anchor-active')) {
@@ -405,29 +408,6 @@ class _SmartTextWidgetFactory extends WidgetFactory {
     _previewHrefByRecognizer.clear();
     super.reset(state);
   }
-}
-
-/// הווריאנט הטיפוגרפי של סמן-אות (עוגן-נקודה) לפי המחלקה שהוקצתה למפרש.
-Map<String, String> _linkAnchorVariantStyle(dom.Element element) {
-  if (element.classes.contains('link-anchor-0')) {
-    return const {'font-weight': 'bold'};
-  }
-  if (element.classes.contains('link-anchor-1')) {
-    return const {'font-style': 'italic'};
-  }
-  if (element.classes.contains('link-anchor-2')) {
-    return const {'font-weight': 'bold', 'font-style': 'italic'};
-  }
-  if (element.classes.contains('link-anchor-3')) {
-    return const {'font-family': 'NotoRashiHebrew'};
-  }
-  if (element.classes.contains('link-anchor-4')) {
-    return const {'font-family': 'NotoRashiHebrew', 'font-weight': 'bold'};
-  }
-  if (element.classes.contains('link-anchor-5')) {
-    return const {'text-decoration': 'underline'};
-  }
-  return const {};
 }
 
 /// גרסה פשוטה יותר של SmartTextWidget שמקבלת פרמטרים בודדים

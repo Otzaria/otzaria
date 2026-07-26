@@ -53,9 +53,16 @@ void main() {
       expect(child.style?.fontStyle, FontStyle.italic);
     });
 
-    test('big ו-small משנים גודל גופן יחסית לבסיס', () {
+    // היחסים חייבים להיות אלה של fwfh: שורה נופלת למסלול המהיר או ל-HtmlWidget
+    // לפי ה-markup שבה, וכל טקסט בסוגריים נעטף ב-<small>. יחס שונה היה מציג
+    // סוגריים בגודל אחר בשורות שכנות באותו ספר.
+    test('big ו-small משנים גודל גופן ביחסי fwfh', () {
       final bigSpan = SimpleInlineHtml.tryParse('<big>אב</big>', baseStyle);
       final bigChild = bigSpan!.children!.first as TextSpan;
+      expect(
+        bigChild.style?.fontSize,
+        closeTo(20 * kHtmlLargerFontScale, 0.01),
+      );
       expect(bigChild.style?.fontSize, closeTo(24, 0.01));
 
       final smallSpan = SimpleInlineHtml.tryParse(
@@ -63,7 +70,23 @@ void main() {
         baseStyle,
       );
       final smallChild = smallSpan!.children!.first as TextSpan;
-      expect(smallChild.style?.fontSize, closeTo(16, 0.01));
+      expect(
+        smallChild.style?.fontSize,
+        closeTo(20 * kHtmlSmallerFontScale, 0.01),
+      );
+      expect(smallChild.style?.fontSize, closeTo(16.667, 0.01));
+    });
+
+    test('small מקונן מצטבר כמו ב-fwfh', () {
+      final span = SimpleInlineHtml.tryParse(
+        '<small><small>אב</small></small>',
+        baseStyle,
+      );
+      final child = span!.children!.first as TextSpan;
+      expect(
+        child.style?.fontSize,
+        closeTo(20 * kHtmlSmallerFontScale * kHtmlSmallerFontScale, 0.01),
+      );
     });
 
     test('br הופך לשורה חדשה ובולע רווחים צמודים', () {

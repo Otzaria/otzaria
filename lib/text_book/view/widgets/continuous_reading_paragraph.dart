@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/text_book/utils/link_anchor_variants.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
 import 'package:otzaria/plugins/view/plugin_highlight_frame_overlay.dart';
+import 'package:otzaria/widgets/smart_text/simple_inline_html.dart';
 
 /// תגובה ללחיצה על קישור inline בתוך פסקה של מצב טקסט רציף.
 /// יוחזר `true` אם הטיפול בקישור הסתיים והעיבוד הרגיל (לחיצה על שורה) לא נדרש.
@@ -376,22 +378,41 @@ TextStyle _styleForElement(dom.Element element, TextStyle parentStyle) {
   final localName = element.localName;
 
   if (localName == 'small') {
-    style = style.copyWith(fontSize: (style.fontSize ?? 18) * 0.8);
+    style = style.copyWith(
+      fontSize: (style.fontSize ?? 18) * kHtmlSmallerFontScale,
+    );
   }
   if (localName == 'big') {
-    style = style.copyWith(fontSize: (style.fontSize ?? 18) * 1.2);
+    style = style.copyWith(
+      fontSize: (style.fontSize ?? 18) * kHtmlLargerFontScale,
+    );
   }
   final inlineFontSize = _inlineFontSize(element, style.fontSize ?? 18);
   if (inlineFontSize != null) {
     style = style.copyWith(fontSize: inlineFontSize);
   }
-  if (localName == 'sup' ||
-      element.classes.contains('footnote-marker-number') ||
-      element.classes.contains('book-note-marker') ||
-      element.classes.contains('link-anchor')) {
+  // sup חשוף (למשל מייבוא Word) מוקטן כמו ב-fwfh, בלי נטייה; סמני ההערות
+  // מוקטנים ונוטים לפי ה-CSS שהוגדר להם ב-SmartTextWidget.
+  if (localName == 'sup') {
+    style = style.copyWith(
+      fontSize: (style.fontSize ?? 18) * kHtmlSmallerFontScale,
+    );
+  }
+  if (element.classes.contains('footnote-marker-number') ||
+      element.classes.contains('book-note-marker')) {
     style = style.copyWith(
       fontSize: (style.fontSize ?? 18) * 0.75,
       fontStyle: FontStyle.italic,
+    );
+  }
+  // סמן-אות של מפרש: מוקטן, והטיפוגרפיה נקבעת אך ורק בווריאנט שהוקצה למפרש.
+  // נטייה כפויה כאן הייתה מוחקת את ההבחנה בין המפרשים.
+  if (element.classes.contains('link-anchor')) {
+    style = applyLinkAnchorVariant(
+      linkAnchorVariantFromClasses(element.classes),
+      style.copyWith(
+        fontSize: (style.fontSize ?? 18) * kLinkAnchorMarkerScale,
+      ),
     );
   }
   if (localName == 'i' ||
