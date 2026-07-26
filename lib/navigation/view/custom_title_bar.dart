@@ -36,7 +36,11 @@ import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_event.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
+import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/tools/tools_screen.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/update/my_update_widget.dart';
 
@@ -395,14 +399,33 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
   }
 
   Widget _buildStandardTitle(BuildContext context, NavigationState navState) {
+    if (navState.currentScreen == Screen.more) {
+      return _buildToolsTitle(context);
+    }
     final title = switch (navState.currentScreen) {
       Screen.settings => 'הגדרות',
-      Screen.more => 'כלים',
       Screen.find => 'איתור',
       Screen.search => 'חיפוש',
       _ => 'אוצריא',
     };
     return _buildPanelTitle(context, title);
+  }
+
+  Widget _buildToolsTitle(BuildContext context) {
+    return ValueListenableBuilder<String?>(
+      valueListenable: activeToolIdNotifier,
+      builder: (context, activeToolId, _) {
+        final pluginState = context.watch<PluginSystemBloc>().state;
+        final plugins = pluginState is PluginSystemLoaded
+            ? pluginState.plugins
+            : const <InstalledPlugin>[];
+        final pluginName = resolveToolsTitlePluginName(
+          activeToolId: activeToolId,
+          plugins: plugins,
+        );
+        return _buildPanelTitle(context, pluginName ?? 'כלים');
+      },
+    );
   }
 
   Widget _buildPanelTitle(

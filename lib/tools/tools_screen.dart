@@ -101,6 +101,23 @@ bool shouldHideToolsTabBar({
       hiddenNavRailPluginId == selectedToolId;
 }
 
+/// שם התוסף שיוצג ככותרת מסך הכלים במקום "כלים", או null לכותרת הרגילה.
+///
+/// רק לתוסף שאין לו לשונית בכלים (מוצמד לסרגל הניווט או `showInTools=false`)
+/// — עבורו הכותרת היא הרמז היחיד לזהותו; לתוסף עם לשונית השם מופיע בלשונית.
+String? resolveToolsTitlePluginName({
+  required String? activeToolId,
+  required List<InstalledPlugin> plugins,
+}) {
+  if (activeToolId == null) return null;
+  for (final plugin in plugins) {
+    if (plugin.pluginId != activeToolId) continue;
+    if (plugin.pinnedToNavRail || !plugin.showInTools) return plugin.name;
+    return null;
+  }
+  return null;
+}
+
 /// ממיין רשימת [ToolDescriptor] במיון *יציב*.
 ///
 /// כברירת מחדל, כלים מובנים ([BuiltInToolDescriptor]) מופיעים לפני תוספים
