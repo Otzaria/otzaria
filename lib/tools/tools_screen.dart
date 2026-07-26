@@ -1379,8 +1379,6 @@ class ToolsScreenState extends State<ToolsScreen>
                   .read<SettingsBloc>()
                   .state
                   .isOfflineMode;
-              // בקשה שנרשמה לפני שהתוספים נטענו ממתינה עד לרגע הזה.
-              _consumePendingNavRailPlugin(isOfflineMode: isOfflineMode);
               _transientPlugin = resolveTransientAfterPluginsLoaded(
                 _transientPlugin,
                 state.plugins,
@@ -1400,6 +1398,9 @@ class ToolsScreenState extends State<ToolsScreen>
                   _hiddenNavRailPlugin = updated;
                 }
               }
+              // אחרי בלוק התחזוקה שלמעלה: הוא נועד לתוסף שכבר היה פתוח, ואם
+              // ירוץ על הבקשה שזה עתה הוחלה הוא יבטל אותה.
+              _consumePendingNavRailPlugin(isOfflineMode: isOfflineMode);
               _rebuildTabs(
                 state.pinnedPlugins.filterForOfflineMode(isOfflineMode),
                 transient: _transientPlugin,
