@@ -489,21 +489,36 @@ class FindRefRepository {
 
       // For multi-token phrases:
       //   matchRank=3 (complete acronym) — תמיד מקובל.
-      //   matchRank=4,5 (acronym prefix/contains) — נדחים. הסיבה: "טור חושן"
-      //     הוא prefix של ה-acronym "טור חושן משפט", ולכן יבלע את "חושן" לתוך
-      //     ה-book key ולא ישאיר remainingTokens לחיפוש TOC.
+      //   matchRank=4 (acronym prefix) — נדחה כדי לא לבלוע טוקן-סעיף: "טור חושן"
+      //     הוא prefix של ה-acronym "טור חושן משפט", וכ-book key לא היה משאיר
+      //     remainingTokens לחיפוש TOC. החריג הוא
+      //     [ReferenceBookHit.acronymTailIsTitleWords] — ראו למטה.
+      //   matchRank=5 (acronym contains) — נדחה.
       //   matchRank=0,1,2 — מקובלים אם טוקני ה-phrase מופיעים כסיקוונס רציף
       //     ב-titleTokens (לאו דווקא בתחילת הכותרת). matchRank=2 נחשב
       //     "secondary" — מציפן בנפרד וממשיכים לחפש n קטן יותר; matchRank=0,1
       //     הם "primary" וגורמים ל-break.
       final phraseTokens = queryTokens.take(n).toList();
       final primaryHits = <ReferenceBookHit>[];
+
+      // rank=4 שכל שאר מילות ראש-התיבות שלו הן מילות-כותרת ("רמב"ם תפילה" ⊂
+      // "רמב"ם תפילה וברכת כהנים") — השאילתה מזהה את הספר במלואו, ולכן הוא
+      // מצטרף ל-primary. אבל *רק* כשיש primary אחר: אסור שהצירוף עצמו יגרום
+      // ל-break, שאחרת ספרים שנמצאים ב-n קטן יותר ("רש"י בראשית" → "רש"י על
+      // בראשית") ייעלמו.
+      final joinablePrefixHits = <ReferenceBookHit>[];
+
       for (final hit in hits) {
         if (hit.matchRank == 3) {
           primaryHits.add(hit);
           continue;
         }
-        if (hit.matchRank >= 4) continue; // acronym prefix/contains — נדחים
+        if (hit.matchRank >= 4) {
+          if (hit.matchRank == 4 && hit.acronymTailIsTitleWords) {
+            joinablePrefixHits.add(hit);
+          }
+          continue;
+        }
         // הכותרת המנורמלת כבר מחושבת מראש בתוך הקאש.
         final titleTokens = _tokenize(hit.normalizedTitle);
         if (!_phraseAppearsAsTokens(titleTokens, phraseTokens)) continue;
@@ -516,7 +531,7 @@ class FindRefRepository {
       }
 
       if (primaryHits.isNotEmpty) {
-        bookHits = primaryHits;
+        bookHits = [...primaryHits, ...joinablePrefixHits];
         bookQueryTokenCount = n;
         break;
       }

@@ -538,6 +538,7 @@ class ReferenceBooksCache {
 
       int? matchRank;
       String? matchedTerm;
+      var tailIsTitleWords = false;
 
       if (t == q) {
         matchRank = 0;
@@ -551,6 +552,9 @@ class ReferenceBooksCache {
           book.id,
         );
         if (normalizedAcronyms != null) {
+          // עצל: החישוב רץ על כל ספר בספרייה בכל הקלדה, ורק התאמת-תחילית
+          // צריכה אותו.
+          Set<String>? titleTokens;
           for (final a in normalizedAcronyms) {
             if (a == q) {
               matchRank = 3;
@@ -558,11 +562,22 @@ class ReferenceBooksCache {
               break;
             }
             if (a.startsWith(q)) {
-              matchRank ??= 4;
-              matchedTerm ??= a;
-            } else if (a.contains(q)) {
-              matchRank ??= 5;
-              matchedTerm ??= a;
+              titleTokens ??= t.split(' ').toSet();
+              final tailIsTitle = _acronymTailIsTitleWords(a, q, titleTokens);
+              // דירוג טוב יותר גובר על קודמיו — אחרת מונח "contains" (5) שנסרק
+              // קודם היה מקבע 5 ומונע מהתאמת-התחילית הזו לדרג 4. ובין מונחי
+              // תחילית — עדיף זה שהזנב שלו מילות-כותרת (ראו [ReferenceBookHit
+              // .acronymTailIsTitleWords]).
+              if (matchRank == null ||
+                  matchRank > 4 ||
+                  (tailIsTitle && !tailIsTitleWords)) {
+                matchRank = 4;
+                matchedTerm = a;
+                tailIsTitleWords = tailIsTitle;
+              }
+            } else if (a.contains(q) && matchRank == null) {
+              matchRank = 5;
+              matchedTerm = a;
             }
           }
         }
@@ -579,6 +594,7 @@ class ReferenceBooksCache {
         matchRank: matchRank,
         matchedTerm: matchedTerm,
         orderIndex: book.orderIndex,
+        acronymTailIsTitleWords: tailIsTitleWords,
       );
 
       if (matchRank <= 1) {
@@ -687,6 +703,26 @@ class ReferenceBooksCache {
     if (parts.contains('אחרונים')) return CommentaryEra.acharonim;
     if (parts.contains('מחברי זמננו')) return CommentaryEra.modern;
     return CommentaryEra.other;
+  }
+
+  /// האם [acronym] הוא ראש-התיבות [q] בתוספת מילים שכולן מכותרת הספר.
+  /// כך "רמב"ם תפילה" מזהה במלואו את "משנה תורה, הלכות תפילה וברכת כהנים"
+  /// (ההמשך "וברכת כהנים" הוא כותרת), בעוד "טור חושן" אינו מזהה את "טור"
+  /// ("משפט" אינה בכותרת — היא כותרת פנימית שצריכה חיפוש TOC).
+  static bool _acronymTailIsTitleWords(
+    String acronym,
+    String q,
+    Set<String> titleTokens,
+  ) {
+    final qTokens = q.split(' ');
+    final aTokens = acronym.split(' ');
+    if (aTokens.length <= qTokens.length) return false;
+    // התאמת התחילית חייבת להיות במילים שלמות — "רמבם תפילה" אינו תחילית-טוקנים
+    // של "רמבם תפילות ראש השנה".
+    for (var i = 0; i < qTokens.length; i++) {
+      if (aTokens[i] != qTokens[i]) return false;
+    }
+    return aTokens.skip(qTokens.length).every(titleTokens.contains);
   }
 
   static String _normalizeForMatch(String input) =>
@@ -917,6 +953,12 @@ class ReferenceBookHit {
   final String? matchedTerm;
   final double orderIndex;
 
+  /// עבור [matchRank] == 4 (השאילתה היא תחילית-טוקנים של [matchedTerm]): האם
+  /// שאר מילות ראש-התיבות כולן מילים מכותרת הספר. אם כן — השאילתה מזהה את
+  /// הספר במלואו ("רמב"ם תפילה" ⊂ "רמב"ם תפילה וברכת כהנים"); אם לא — ההמשך
+  /// הוא כותרת פנימית ("טור חושן" ⊂ "טור חושן משפט", ו"משפט" אינה בכותרת "טור").
+  final bool acronymTailIsTitleWords;
+
   const ReferenceBookHit({
     required this.bookId,
     required this.title,
@@ -926,5 +968,6 @@ class ReferenceBookHit {
     required this.matchRank,
     required this.orderIndex,
     this.matchedTerm,
+    this.acronymTailIsTitleWords = false,
   });
 }

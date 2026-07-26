@@ -103,4 +103,19 @@ class AcronymsCache {
     _isLoaded = false;
     _loadingFuture = null;
   }
+
+  /// בדיקות בלבד — מזריק מונחים גולמיים (כמו ב-DB) ומנרמל אותם כמו הטעינה
+  /// האמיתית, כדי לבדוק את מסלול ההתאמה בלי DB.
+  @visibleForTesting
+  void setAcronymsForTesting(Map<int, List<String>> rawTermsByBookId) {
+    _acronymsByBookId.clear();
+    for (final entry in rawTermsByBookId.entries) {
+      final normalized = entry.value
+          .map(normalizeForFindRefMatch)
+          .where((t) => t.isNotEmpty)
+          .toList();
+      if (normalized.isNotEmpty) _acronymsByBookId[entry.key] = normalized;
+    }
+    _isLoaded = true;
+  }
 }
