@@ -46,7 +46,7 @@ bool launchWindowsSilentInstaller({
 /// יוצר תהליך מנותק מה-Job של אוצריא כך שישרוד את סגירתה. אם ה-Job אינו מתיר
 /// breakaway — נסיגה ליצירה רגילה כדי לא להישבר לגמרי.
 bool _createBreakawayProcess(String commandLine) {
-  const base = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP;
+  final base = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP;
   return _createProcess(commandLine, base | CREATE_BREAKAWAY_FROM_JOB) ||
       _createProcess(commandLine, base);
 }
@@ -54,25 +54,28 @@ bool _createBreakawayProcess(String commandLine) {
 /// עוטף CreateProcess עם מאגרים טריים. כל קריאה מקבלת מאגר commandLine משלה
 /// כי CreateProcessW עלול לשנות את תוכנו (ולא לשחזרו אם הקריאה נכשלת),
 /// ולכן אסור לעשות בו שימוש חוזר בין ניסיונות.
-bool _createProcess(String commandLine, int creationFlags) {
-  final cmdLinePtr = commandLine.toNativeUtf16();
+bool _createProcess(
+  String commandLine,
+  PROCESS_CREATION_FLAGS creationFlags,
+) {
+  final cmdLinePtr = commandLine.toPwstr();
   final si = calloc<STARTUPINFO>();
   si.ref.cb = sizeOf<STARTUPINFO>();
   final pi = calloc<PROCESS_INFORMATION>();
   try {
     if (CreateProcess(
-          nullptr,
+          null,
           cmdLinePtr,
-          nullptr,
-          nullptr,
-          FALSE,
+          null,
+          null,
+          false,
           creationFlags,
-          nullptr,
-          nullptr,
+          null,
+          null,
           si,
           pi,
-        ) ==
-        0) {
+        ).value ==
+        false) {
       return false;
     }
     CloseHandle(pi.ref.hProcess);

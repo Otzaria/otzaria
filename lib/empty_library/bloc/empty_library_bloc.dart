@@ -771,14 +771,13 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     Emitter<EmptyLibraryState> emit,
   ) async {
     try {
-      final result = await FilePicker.pickFiles(
-        allowMultiple: false,
+      final pickedFile = await FilePicker.pickFile(
         type: FileType.any,
         dialogTitle: 'בחר את קובץ ${DatabaseConstants.databaseFileName}',
         lockParentWindow: true,
       );
 
-      if (result == null || result.files.isEmpty) {
+      if (pickedFile == null) {
         // המשתמש ביטל — חזרה לדיאלוג ההעתקה
         final internalDbPath = await _getInternalDbPath();
         emit(
@@ -792,8 +791,6 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         );
         return;
       }
-
-      final pickedFile = result.files.first;
 
       // וודא שנבחר הקובץ הנכון — אם לא, חזור לדיאלוג עם הסבר
       if (pickedFile.name != DatabaseConstants.databaseFileName) {

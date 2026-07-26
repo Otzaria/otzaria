@@ -183,8 +183,6 @@ class _PrintingScreenState extends State<PrintingScreen> {
   // הגדרות ניקוד וטעמים - ברירת מחדל לפי תצוגת הספר
   late bool _removeNikud;
   late bool _removeTaamim;
-  static const _defaultWordExtension = 'docx';
-  static const _pdfExtension = 'pdf';
 
   // יעד ההדפסה הנבחר (הדפסה/PDF/Word) — נשמר כעדיפות לפעמים הבאות.
   static const _destinationKey = 'key-print-destination';
@@ -1550,24 +1548,11 @@ class _PrintingScreenState extends State<PrintingScreen> {
     if (!mounted) return;
     try {
       final selectedExtension = selectedFormat.extension;
-      final path = await FilePicker.saveFile(
-        dialogTitle: 'ייצוא קובץ',
-        fileName: '${_sanitizeFileName(widget.bookId)}.$selectedExtension',
-        type: FileType.custom,
-        allowedExtensions: [selectedExtension],
-        lockParentWindow: true,
-      );
-      if (path == null) return;
-
-      final resolvedPath = _normalizeExportPath(
-        path,
-        defaultExtension: selectedExtension,
-      );
-      final file = File(resolvedPath);
-
+      final Uint8List bytes;
+      final String successMessage;
       if (selectedFormat == _ExportFormat.word) {
         final prepared = await _prepareWordDocument();
-        final bytes = WordExportService.createWordDocument(
+        bytes = WordExportService.createWordDocument(
           title: prepared.bookName,
           blocks: prepared.blocks,
           format: format,
@@ -1576,13 +1561,21 @@ class _PrintingScreenState extends State<PrintingScreen> {
           fontFamily: fontName,
           fontSize: fontSize,
         );
-        await file.writeAsBytes(bytes);
-        UiSnack.showSuccess(PdfMessages.wordFileSaved);
-        return;
+        successMessage = PdfMessages.wordFileSaved;
+      } else {
+        bytes = await _createOutputPdf(format);
+        successMessage = PdfMessages.pdfFileSaved;
       }
-
-      await file.writeAsBytes(await _createOutputPdf(format));
-      UiSnack.showSuccess(PdfMessages.pdfFileSaved);
+      final path = await FilePicker.saveFile(
+        dialogTitle: 'ייצוא קובץ',
+        fileName: '${_sanitizeFileName(widget.bookId)}.$selectedExtension',
+        type: FileType.custom,
+        allowedExtensions: [selectedExtension],
+        bytes: bytes,
+        lockParentWindow: true,
+      );
+      if (path == null) return;
+      UiSnack.showSuccess(successMessage);
     } on FileSystemException catch (e) {
       if (_isLockedFileException(e)) {
         UiSnack.showError(PdfMessages.fileLockedByAnotherApp);
@@ -1597,23 +1590,6 @@ class _PrintingScreenState extends State<PrintingScreen> {
   String _sanitizeFileName(String value) {
     final sanitized = value.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();
     return sanitized.isEmpty ? 'output' : sanitized;
-  }
-
-  String _normalizeExportPath(
-    String path, {
-    required String defaultExtension,
-  }) {
-    final extension = _extensionOf(path);
-    if (extension == _defaultWordExtension || extension == _pdfExtension) {
-      return path;
-    }
-    return '$path.$defaultExtension';
-  }
-
-  String _extensionOf(String path) {
-    final parts = path.split('.');
-    if (parts.length < 2) return '';
-    return parts.last.toLowerCase();
   }
 
   bool _isLockedFileException(FileSystemException error) {

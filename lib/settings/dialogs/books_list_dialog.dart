@@ -1,4 +1,5 @@
-import 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -69,21 +70,21 @@ class _BooksListDialogState extends State<_BooksListDialog> {
     final downloadsDirectory = await getDownloadsDirectory();
     if (!mounted) return;
 
+    final csv = _buildCsv(_rows);
+    final bytes = Uint8List.fromList(utf8.encode('\uFEFF$csv'));
     final path = await FilePicker.saveFile(
       dialogTitle: 'בחר מיקום לשמירת רשימת הספרים',
       fileName: 'otzaria_books.csv',
       initialDirectory: downloadsDirectory?.path,
       allowedExtensions: ['csv'],
       type: FileType.custom,
+      bytes: bytes,
       lockParentWindow: true,
     );
     if (path == null || !mounted) return;
 
     setState(() => _isExporting = true);
     try {
-      final csv = _buildCsv(_rows);
-      // BOM כדי שאקסל יזהה UTF-8 כראוי בעברית.
-      await File(path).writeAsString('﻿$csv');
       if (!mounted) return;
       UiSnack.show(SettingsMessages.booksListSaved(_rows.length));
     } catch (e) {

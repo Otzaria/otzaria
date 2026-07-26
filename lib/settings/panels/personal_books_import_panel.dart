@@ -79,7 +79,6 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
     if (override != null) return override();
 
     final result = await FilePicker.pickFiles(
-      allowMultiple: true,
       type: FileType.custom,
       allowedExtensions: const ['txt', 'pdf', 'docx', 'epub'],
       dialogTitle: 'בחר קבצי ספרים לייבוא',

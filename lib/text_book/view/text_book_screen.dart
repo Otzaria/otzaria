@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math';
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:collection/collection.dart' show IterableExtension;
@@ -630,26 +631,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     try {
       final selectedFormat = await _pickTextBookExportFormat();
       if (selectedFormat == null) return;
-
-      final extension = selectedFormat.extension;
-      final path = await FilePicker.saveFile(
-        dialogTitle: 'ייצוא הספר',
-        fileName:
-            '${sanitizeTextBookExportFileName(state.book.title)}.$extension',
-        type: FileType.custom,
-        allowedExtensions: [extension],
-        lockParentWindow: true,
-      );
-      if (path == null) return;
       if (!mounted) return;
 
-      final file = File(
-        normalizeTextBookExportPath(
-          path,
-          defaultExtension: extension,
-        ),
-      );
-
+      final extension = selectedFormat.extension;
       final settingsState = context.read<SettingsBloc>().state;
       final removeTaamim = !settingsState.showTeamim;
       final shouldReplaceHolyNames =
@@ -661,8 +645,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             state.book,
           );
 
+      final Uint8List bytes;
+      final String successMessage;
       if (selectedFormat == _TextBookExportFormat.word) {
-        final bytes = await compute(
+        bytes = await compute(
           _createTextBookWordExport,
           _WordExportRequest(
             title: state.book.title,
@@ -674,22 +660,33 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             fontSize: state.fontSize,
           ),
         );
-        await file.writeAsBytes(bytes);
-        UiSnack.showSuccess(TextBookMessages.wordFileSaved);
-        return;
+        successMessage = TextBookMessages.wordFileSaved;
+      } else {
+        final text = await compute(
+          _createTextBookTextExport,
+          _TextExportRequest(
+            rawContent: fullContent,
+            removeNikud: state.removeNikud,
+            removeTaamim: removeTaamim,
+            shouldReplaceHolyNames: shouldReplaceHolyNames,
+          ),
+        );
+        bytes = Uint8List.fromList(utf8.encode(text));
+        successMessage = TextBookMessages.textFileSaved;
       }
 
-      final text = await compute(
-        _createTextBookTextExport,
-        _TextExportRequest(
-          rawContent: fullContent,
-          removeNikud: state.removeNikud,
-          removeTaamim: removeTaamim,
-          shouldReplaceHolyNames: shouldReplaceHolyNames,
-        ),
+      final path = await FilePicker.saveFile(
+        dialogTitle: 'ייצוא הספר',
+        fileName:
+            '${sanitizeTextBookExportFileName(state.book.title)}.$extension',
+        type: FileType.custom,
+        allowedExtensions: [extension],
+        bytes: bytes,
+        lockParentWindow: true,
       );
-      await file.writeAsString(text);
-      UiSnack.showSuccess(TextBookMessages.textFileSaved);
+      if (path == null) return;
+      if (!mounted) return;
+      UiSnack.showSuccess(successMessage);
     } on FileSystemException catch (e) {
       if (isLockedTextBookExportFileException(e)) {
         UiSnack.showError(TextBookMessages.exportFileLocked);

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -485,21 +487,26 @@ class _PersonalNotesManagerScreenState
     if (!mounted) return;
     if (selection == null || selection.notes.isEmpty) return;
 
+    final bytes = Uint8List.fromList(
+      utf8.encode(
+        jsonEncode(
+          _importExportService.buildExport(
+            notes: selection.notes,
+            description: selection.description,
+          ),
+        ),
+      ),
+    );
     final path = await FilePicker.saveFile(
       dialogTitle: 'בחר מיקום לשמירת קובץ הגיבוי',
       fileName: 'otzaria_notes_backup.json',
       allowedExtensions: ['json'],
       type: FileType.custom,
+      bytes: bytes,
       lockParentWindow: true,
     );
     if (!mounted) return;
     if (path == null) return;
-
-    await _importExportService.exportToFile(
-      path: path,
-      notes: selection.notes,
-      description: selection.description,
-    );
 
     if (!mounted) return;
     UiSnack.show(NotesMessages.backupCompleted);
@@ -519,21 +526,24 @@ class _PersonalNotesManagerScreenState
     if (!mounted) return;
     if (selection == null || selection.notes.isEmpty) return;
 
+    final bytes = Uint8List.fromList(
+      utf8.encode(
+        _importExportService.buildPlainTextExport(
+          notes: selection.notes,
+          description: selection.description,
+        ),
+      ),
+    );
     final path = await FilePicker.saveFile(
       dialogTitle: 'בחר מיקום לשמירת קובץ הטקסט',
       fileName: 'otzaria_notes.txt',
       allowedExtensions: ['txt'],
       type: FileType.custom,
+      bytes: bytes,
       lockParentWindow: true,
     );
     if (!mounted) return;
     if (path == null) return;
-
-    await _importExportService.exportToTextFile(
-      path: path,
-      notes: selection.notes,
-      description: selection.description,
-    );
 
     if (!mounted) return;
     UiSnack.show(NotesMessages.textExportCompleted);

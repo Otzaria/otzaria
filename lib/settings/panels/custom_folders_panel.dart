@@ -538,7 +538,6 @@ class UserContentImportTile extends StatelessWidget {
   Future<void> _import(BuildContext context) async {
     final bloc = context.read<CustomFoldersBloc>();
     final result = await FilePicker.pickFiles(
-      allowMultiple: true,
       type: FileType.custom,
       allowedExtensions: const ['csv', 'json'],
       lockParentWindow: true,

@@ -762,6 +762,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         target == OfflineSendScriptTarget.windows ? 'bat' : 'sh',
       ],
       type: FileType.custom,
+      bytes: Uint8List.fromList(utf8.encode(script.content)),
       lockParentWindow: true,
     );
     if (path == null || !mounted) {
@@ -773,8 +774,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     });
 
     try {
-      await File(path).writeAsString(script.content, encoding: utf8);
-
       // קובץ .sh נשמר ללא הרשאת הרצה; מוסיפים אותה כדי שאפשר יהיה להפעילו ישירות.
       if (target == OfflineSendScriptTarget.unix &&
           (Platform.isLinux || Platform.isMacOS)) {
