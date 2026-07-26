@@ -13,8 +13,7 @@ final RegExp _htmlStripper = RegExp(r'<[^>]*>');
 /// ישות HTML — שמית או מספרית (עשרונית/הקסדצימלית).
 final RegExp _htmlEntity = RegExp(r'&(#x?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);');
 
-/// ישויות רווח מפוענחות לרווח רגיל (ולא ל-NBSP) — כך שטקסט מרונדר לצורך
-/// השוואה מול בחירת המשתמש מכווץ אותן כמו כל רווח אחר.
+/// ישויות רווח מפוענחות לרווח רגיל ולא ל-NBSP, כדי שיכווצו ככל רווח אחר.
 const Map<String, String> _namedEntities = {
   'nbsp': ' ',
   'thinsp': ' ',
@@ -33,8 +32,7 @@ const Map<String, String> _namedEntities = {
   'middot': '·',
 };
 
-/// מפענח ישויות HTML לתווים שהם מייצגים, כפי שמנוע ה-HTML מציג אותן.
-/// ישות שאינה מוכרת נמחקת (התנהגות היסטורית של הסרת ה-markup).
+/// מפענח ישויות HTML כפי שמנוע ה-HTML מציג אותן; ישות לא מוכרת נמחקת.
 String decodeHtmlEntities(String text) {
   if (!text.contains('&')) return text;
   return text.replaceAllMapped(_htmlEntity, (match) {
@@ -67,8 +65,7 @@ final RegExp _holyName = RegExp(
   unicode: true,
 );
 
-/// פענוח הישויות נעשה *אחרי* הסרת התגים, אחרת `&lt;b&gt;` היה הופך ל-`<b>`
-/// ונמחק כתגית — בעוד שבתצוגה הוא טקסט גלוי.
+/// הפענוח אחרי הסרת התגים — אחרת `&lt;b&gt;` היה הופך ל-`<b>` ונמחק כתגית.
 String stripHtmlIfNeeded(String text) {
   return decodeHtmlEntities(text.replaceAll(_htmlStripper, ''));
 }

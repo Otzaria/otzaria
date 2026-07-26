@@ -5,11 +5,15 @@ import 'package:otzaria/text_book/view/selection/selected_text_restore.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 
-/// ערימת בדיקות לשחזור מעברי השורה בהעתקה (issue: "לפעמים מועתק בלי ירידות
-/// שורה"). הבדיקות מדמות את הצינור האמיתי: השורה הגולמית → הטקסט המוצג בפועל
-/// (כללי הרווחים של [SimpleInlineHtml]/HtmlWidget) → הבחירה השטוחה שפלאטר
-/// מחזיר → [restoreSelectedTextLineBreaksDetailed] מול השורות המרונדרות.
-void main() {
+import '../../../support/search_engine_test_init.dart';
+
+/// בדיקות לשחזור מעברי שורה בהעתקה, המדמות את הצינור המלא: שורת מקור →
+/// הטקסט המוצג → הבחירה השטוחה של פלאטר → השחזור מול השורות המרונדרות.
+Future<void> main() async {
+  // הדגשת החיפוש נבנית במנוע ה-Rust, ולכן בדיקות עם searchText דורשות את
+  // הספרייה הנייטיבית — ב-CI היא נבנית רק כשהשינוי נוגע לחיפוש.
+  final engineReady = await tryInitSearchEngine();
+
   group('צינור מלא: תצוגה → בחירה שטוחה → שחזור', () {
     test('שתי שורות רגילות', () {
       expectRestoresBreaks(
@@ -321,26 +325,30 @@ void main() {
         ),
       );
     });
-  });
+  }, skip: engineReady ? false : searchEngineSkipReason);
 
   group('פער בין הגדרות התצוגה להגדרות השחזור', () {
     // התצוגה משתמשת ב-highlightText עם רקע צהוב לשורה המודגשת, בעוד
     // renderSelectionLine נבנה מ-searchText בלבד וללא רקע צהוב.
-    test('התצוגה מדגישה highlightText בעוד השחזור מקבל searchText', () {
-      expectRestoresBreaks(
-        rawLines: const [
-          'ויאמר משה אל אהרן קרב אל המזבח',
-          'ועשה את חטאתך ואת עלתך',
-        ],
-        firstLine: 0,
-        lastLine: 1,
-        settings: const RenderSettings(searchText: 'את'),
-        displaySettings: const RenderSettings(
-          searchText: 'קרב אל המזבח',
-          highlightYellowBackground: true,
-        ),
-      );
-    });
+    test(
+      'התצוגה מדגישה highlightText בעוד השחזור מקבל searchText',
+      () {
+        expectRestoresBreaks(
+          rawLines: const [
+            'ויאמר משה אל אהרן קרב אל המזבח',
+            'ועשה את חטאתך ואת עלתך',
+          ],
+          firstLine: 0,
+          lastLine: 1,
+          settings: const RenderSettings(searchText: 'את'),
+          displaySettings: const RenderSettings(
+            searchText: 'קרב אל המזבח',
+            highlightYellowBackground: true,
+          ),
+        );
+      },
+      skip: engineReady ? false : searchEngineSkipReason,
+    );
 
     test('התצוגה מעצבת סוגריים והשחזור לא', () {
       expectRestoresBreaks(
@@ -508,9 +516,8 @@ void main() {
   });
 }
 
-/// מדמה את הטקסט שהמשתמש רואה בפועל עבור שורת מקור: אותו עיבוד של
-/// [TextRendererService], ואז כללי הרווחים של שכבת התצוגה — כיווץ רצפי רווחים
-/// בכל מקטע טקסט, `<br>` כמעבר שורה שבולע רווחים סביבו, וקיצוץ בקצוות.
+/// הטקסט שהמשתמש רואה בפועל: עיבוד [TextRendererService] + כללי הרווחים של
+/// התצוגה — כיווץ בכל מקטע, `<br>` שבולע רווחים סביבו, וקיצוץ בקצוות.
 String displayedText(String rawLine, RenderSettings settings) {
   final processed = TextRendererService.processText(rawLine, settings);
   final buffer = StringBuffer();
@@ -557,9 +564,8 @@ String _decodeEntities(String text) => text
     .replaceAll('&gt;', '>')
     .replaceAll('&amp;', '&');
 
-/// בונה את הבחירה השטוחה כפי ש-SelectionArea מחזיר (שרשור הטקסט המוצג ללא
-/// מפריד), מריץ את השחזור, ומוודא שהתקבלו מעברי שורה בכל גבול שורה — ושהתווים
-/// עצמם לא השתנו.
+/// בונה את הבחירה השטוחה (שרשור הטקסט המוצג ללא מפריד), מריץ את השחזור,
+/// ומוודא מעבר שורה בכל גבול — ושתווי הבחירה לא השתנו.
 void expectRestoresBreaks({
   required List<String> rawLines,
   required int firstLine,
