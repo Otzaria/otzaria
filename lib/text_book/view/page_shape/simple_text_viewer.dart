@@ -408,6 +408,23 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   Map<String, int> _anchorStyleCache = const {};
   Timer? _previewHoverTimer;
 
+  /// סמן-האות שחלונית התצוגה שלו פתוחה כעת (שורה + אינדקס בשורה) — מודגש בטקסט
+  /// כדי לקשר ויזואלית בין הסמן לחלונית.
+  int? _activeAnchorLine;
+  int? _activeAnchorIndex;
+  bool _disposed = false;
+
+  /// מסמן/מנקה את הסמן הפעיל. נקרא גם מ-onDismissed של החלונית — ולכן חייב
+  /// לשרוד קריאה אחרי dispose (ה-dismiss שב-dispose מפעיל את ה-callback).
+  void _setActiveAnchor(int? line, int? index) {
+    if (_disposed || !mounted) return;
+    if (_activeAnchorLine == line && _activeAnchorIndex == index) return;
+    setState(() {
+      _activeAnchorLine = line;
+      _activeAnchorIndex = index;
+    });
+  }
+
   // תת-התפריט "מפרשים נוספים על הדף" — רק בטקסט הראשי (ספר המפרש הנקרא).
   SiblingCommentariesController? _siblingController;
   final Object _selectionOwner = Object();
@@ -448,6 +465,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       anchorLinks: anchorLinks,
       styleIndexByCommentator: _anchorStyles(state),
       lineIndex: lineIndex,
+      activeIndex: lineIndex == _activeAnchorLine ? _activeAnchorIndex : null,
     );
   }
 
@@ -571,7 +589,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         return;
       }
 
-      final link = _previewLinkFromUrl(url, state);
+      final anchor = _anchorLinkFromUrl(url, state);
+      final link = anchor?.link ?? inlineLinkFromPreviewUrl(url);
       if (link == null) return;
       LinkPreviewOverlay.show(
         context,
@@ -581,7 +600,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         removeNikud: state.removeNikud,
         removePunctuation: state.removePunctuation,
         onOpen: () => _openAnchorTarget(link),
+        onDismissed: anchor == null ? null : () => _setActiveAnchor(null, null),
       );
+      if (anchor != null) _setActiveAnchor(anchor.line, anchor.index);
     });
   }
 
@@ -866,6 +887,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     PluginHighlightRevealService.instance.removeListener(
       _handlePluginHighlightReveal,
     );
+    _disposed = true;
     _previewHoverTimer?.cancel();
     if (widget.isMainText) LinkPreviewOverlay.dismiss();
     widget.selectionSyncController?.removeListener(
@@ -2648,6 +2670,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
             color: colorScheme.primary,
             decoration: TextDecoration.underline,
           ),
+          anchorActiveBackground: colorScheme.primaryContainer,
           onTapUrl: (url) async {
             if (url.startsWith('otzaria://anchor')) {
               return _handlePreviewTap(url);

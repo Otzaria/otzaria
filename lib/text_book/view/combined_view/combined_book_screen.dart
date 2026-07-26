@@ -272,6 +272,22 @@ class _CombinedViewState extends State<CombinedView> {
   /// השהיית ריחוף לפני פתיחת חלונית העוגן (מונעת הבהובים במעבר-סמן חולף).
   Timer? _anchorHoverTimer;
 
+  /// סמן-האות שחלונית התצוגה שלו פתוחה כעת (שורה + אינדקס בשורה) — מודגש בטקסט
+  /// כדי לקשר ויזואלית בין הסמן לחלונית.
+  int? _activeAnchorLine;
+  int? _activeAnchorIndex;
+
+  /// מסמן/מנקה את הסמן הפעיל. נקרא גם מ-onDismissed של החלונית — ולכן חייב
+  /// לשרוד קריאה אחרי dispose (ה-dismiss שב-dispose מפעיל את ה-callback).
+  void _setActiveAnchor(int? line, int? index) {
+    if (_disposed || !mounted) return;
+    if (_activeAnchorLine == line && _activeAnchorIndex == index) return;
+    setState(() {
+      _activeAnchorLine = line;
+      _activeAnchorIndex = index;
+    });
+  }
+
   Map<String, int> _anchorStyles(TextBookLoaded state) {
     if (!identical(_anchorStyleSourceLinks, state.links)) {
       _anchorStyleSourceLinks = state.links;
@@ -301,6 +317,7 @@ class _CombinedViewState extends State<CombinedView> {
       anchorLinks: anchorLinks,
       styleIndexByCommentator: _anchorStyles(state),
       lineIndex: lineIndex0,
+      activeIndex: lineIndex0 == _activeAnchorLine ? _activeAnchorIndex : null,
     );
   }
 
@@ -349,10 +366,12 @@ class _CombinedViewState extends State<CombinedView> {
     return anchor?.link ?? inlineLinkFromPreviewUrl(url);
   }
 
+  /// [activeAnchor] — כשהחלונית נפתחה מסמן-אות, הסמן מודגש כל עוד היא פתוחה.
   void _showLinkPreview(
     Link link,
     Offset globalPosition, {
     required bool hoverMode,
+    ({int line, int index})? activeAnchor,
   }) {
     final state = _textBookBloc.state;
     final loaded = state is TextBookLoaded ? state : null;
@@ -364,7 +383,13 @@ class _CombinedViewState extends State<CombinedView> {
       removeNikud: loaded?.removeNikud,
       removePunctuation: loaded?.removePunctuation,
       onOpen: () => _openAnchorTarget(link),
+      onDismissed: activeAnchor == null
+          ? null
+          : () => _setActiveAnchor(null, null),
     );
+    if (activeAnchor != null) {
+      _setActiveAnchor(activeAnchor.line, activeAnchor.index);
+    }
   }
 
   /// לחיצה על עוגן מנווטת ישירות לספר-היעד, כמו טווחי הציטוט של הלינקר.
@@ -437,9 +462,17 @@ class _CombinedViewState extends State<CombinedView> {
         return;
       }
 
-      final link = _previewLinkFromUrl(url);
+      final anchor = _anchorLinkFromUrl(url);
+      final link = anchor?.link ?? inlineLinkFromPreviewUrl(url);
       if (link == null) return;
-      _showLinkPreview(link, globalPosition, hoverMode: true);
+      _showLinkPreview(
+        link,
+        globalPosition,
+        hoverMode: true,
+        activeAnchor: anchor == null
+            ? null
+            : (line: anchor.line, index: anchor.index),
+      );
     });
   }
 
@@ -2334,6 +2367,9 @@ class _CombinedViewState extends State<CombinedView> {
             color: Theme.of(context).colorScheme.primary,
             decoration: TextDecoration.underline,
           ),
+          anchorActiveBackground: Theme.of(
+            context,
+          ).colorScheme.primaryContainer,
           onTapUrl: (url) async {
             if (url.startsWith('otzaria://anchor')) {
               return _handleAnchorTap(url);

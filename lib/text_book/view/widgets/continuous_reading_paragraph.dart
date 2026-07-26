@@ -43,6 +43,7 @@ List<InlineSpan> buildInlineHtmlSpans(
   ContinuousReadingAnchorHover? onAnchorHover,
   ContinuousReadingAnchorExit? onAnchorExit,
   TextStyle? linkStyle,
+  Color? anchorActiveBackground,
   List<TapGestureRecognizer>? recognizerSink,
 }) {
   final fragment = html_parser.parseFragment(htmlText);
@@ -53,6 +54,7 @@ List<InlineSpan> buildInlineHtmlSpans(
     onAnchorHover: onAnchorHover,
     onAnchorExit: onAnchorExit,
     linkStyle: linkStyle,
+    anchorActiveBackground: anchorActiveBackground,
     recognizerSink: recognizerSink,
   );
 }
@@ -66,6 +68,9 @@ class ContinuousReadingParagraph extends StatefulWidget {
   final ContinuousReadingAnchorHover? onAnchorHover;
   final ContinuousReadingAnchorExit? onAnchorExit;
   final TextStyle? linkStyle;
+
+  /// רקע סמן-האות שחלונית התצוגה שלו פתוחה (בד"כ primaryContainer).
+  final Color? anchorActiveBackground;
   final TextAlign textAlign;
 
   const ContinuousReadingParagraph({
@@ -78,6 +83,7 @@ class ContinuousReadingParagraph extends StatefulWidget {
     this.onAnchorHover,
     this.onAnchorExit,
     this.linkStyle,
+    this.anchorActiveBackground,
     this.textAlign = TextAlign.justify,
   });
 
@@ -179,6 +185,7 @@ class _ContinuousReadingParagraphState
       onAnchorHover: widget.onAnchorHover,
       onAnchorExit: widget.onAnchorExit,
       linkStyle: widget.linkStyle,
+      anchorActiveBackground: widget.anchorActiveBackground,
       recognizerSink: _linkRecognizers,
     );
   }
@@ -255,6 +262,7 @@ List<InlineSpan> _nodesToSpans(
   ContinuousReadingAnchorHover? onAnchorHover,
   ContinuousReadingAnchorExit? onAnchorExit,
   TextStyle? linkStyle,
+  Color? anchorActiveBackground,
   List<TapGestureRecognizer>? recognizerSink,
 }) {
   final spans = <InlineSpan>[];
@@ -267,6 +275,7 @@ List<InlineSpan> _nodesToSpans(
         onAnchorHover: onAnchorHover,
         onAnchorExit: onAnchorExit,
         linkStyle: linkStyle,
+        anchorActiveBackground: anchorActiveBackground,
         recognizerSink: recognizerSink,
       ),
     );
@@ -281,6 +290,7 @@ List<InlineSpan> _nodeToSpans(
   ContinuousReadingAnchorHover? onAnchorHover,
   ContinuousReadingAnchorExit? onAnchorExit,
   TextStyle? linkStyle,
+  Color? anchorActiveBackground,
   List<TapGestureRecognizer>? recognizerSink,
 }) {
   if (node is dom.Text) {
@@ -305,16 +315,17 @@ List<InlineSpan> _nodeToSpans(
       // תחתון (בטווח-ציטוט); במצב active מודגש עם רקע; שאר הקישורים — קו תחתון
       // + צבע theme.
       final effectiveLinkStyle = node.classes.contains('link-anchor')
+          // הווריאנט שב-childStyle נשמר גם ב-active (מיזוג linkStyle היה גורר
+          // קו תחתון של קישור ומוחק את קו-התחתון שהוא סימנו של וריאנט 5).
           ? (node.classes.contains('link-anchor-active')
-                ? childStyle
-                      .merge(linkStyle)
-                      .copyWith(
-                        decoration: TextDecoration.none,
-                        fontWeight: FontWeight.bold,
-                        fontVariations: AppFonts.boldFontVariations(
-                          childStyle.fontFamily,
-                        ),
-                      )
+                ? childStyle.copyWith(
+                    color: linkStyle?.color,
+                    fontWeight: FontWeight.bold,
+                    fontVariations: AppFonts.boldFontVariations(
+                      childStyle.fontFamily,
+                    ),
+                    backgroundColor: anchorActiveBackground,
+                  )
                 : childStyle.copyWith(color: linkStyle?.color))
           : node.classes.contains('numbered-note-marker')
           ? childStyle.copyWith(color: linkStyle?.color)
@@ -333,6 +344,7 @@ List<InlineSpan> _nodeToSpans(
         onAnchorHover: onAnchorHover,
         onAnchorExit: onAnchorExit,
         linkStyle: linkStyle,
+        anchorActiveBackground: anchorActiveBackground,
         recognizerSink: recognizerSink,
       );
       final recognizer = TapGestureRecognizer()
@@ -369,6 +381,7 @@ List<InlineSpan> _nodeToSpans(
     onAnchorHover: onAnchorHover,
     onAnchorExit: onAnchorExit,
     linkStyle: linkStyle,
+    anchorActiveBackground: anchorActiveBackground,
     recognizerSink: recognizerSink,
   );
 }
