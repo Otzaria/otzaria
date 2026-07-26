@@ -188,6 +188,44 @@ void main() {
     expect(find.byType(PluginBackgroundHost), findsOneWidget);
   });
 
+  // ── בידוד פוקוס ────────────────────────────────────────────────────────────
+
+  testWidgets('ה-host עוטף את תוספי הרקע ב-ExcludeFocus', (tester) async {
+    // ה-WebView של flutter_inappwebview_windows עוטף את עצמו ב-Focus עם
+    // autofocus:true. Offstage לבדו אינו מונע פוקוס, ולכן מופע רקע שנטען
+    // כשאין פוקוס באפליקציה היה חוטף אותו לחלון בלתי-נראה — ומאז שהחבילה
+    // מגשרת פוקוס לנייטיב (MoveFocus) ההקלדה בתוסף הגלוי נשברה.
+    bloc.testEmit(const PluginSystemLoaded([]));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BlocProvider<PluginSystemBloc>.value(
+          value: bloc,
+          child: const Scaffold(body: PluginBackgroundHost()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final excludeFocus = tester.widget<ExcludeFocus>(
+      find.descendant(
+        of: find.byType(PluginBackgroundHost),
+        matching: find.byType(ExcludeFocus),
+      ),
+    );
+    expect(excludeFocus.excluding, isTrue);
+
+    // ה-ExcludeFocus חייב לעטוף את ה-Offstage, לא להיעטף בו — אחרת הוא לא
+    // יחול על ה-WebViews שנבנים בתוכו.
+    expect(
+      find.descendant(
+        of: find.byType(ExcludeFocus),
+        matching: find.byType(Offstage),
+      ),
+      findsWidgets,
+    );
+  });
+
   // ── P2: ייחודיות ValueKey ──────────────────────────────────────────────────
 
   group('ValueKey — backgroundKey מזהה שינויים בכל שדות הזהות', () {

@@ -101,6 +101,19 @@ bool shouldHideToolsTabBar({
       hiddenNavRailPluginId == selectedToolId;
 }
 
+/// האם על ה-restorer של מסך הכלים להחזיר פוקוס לצומת התוכן.
+///
+/// [contentHasFocus] כולל צאצאים. כשהפוקוס כבר בתוך הכלי — למשל בשדה קלט
+/// ב-WebView של תוסף — requestFocus היה גוזל אותו לצומת האב, וה-WebView היה
+/// מריץ `document.activeElement.blur()` ומאבד את סמן הכתיבה.
+@visibleForTesting
+bool shouldRestoreToolsContentFocus({
+  required bool contentIsAttached,
+  required bool contentHasFocus,
+}) {
+  return contentIsAttached && !contentHasFocus;
+}
+
 /// שם התוסף שיוצג ככותרת מסך הכלים במקום "כלים", או null לכותרת הרגילה.
 ///
 /// רק לתוסף שאין לו לשונית בכלים (מוצמד לסרגל הניווט או `showInTools=false`)
@@ -458,7 +471,10 @@ class ToolsScreenState extends State<ToolsScreen>
         if (!mounted) return;
         if (_selectedToolId == 'builtin.calendar') {
           _requestCalendarFocus();
-        } else if (_contentFocusNode.enclosingScope != null) {
+        } else if (shouldRestoreToolsContentFocus(
+          contentIsAttached: _contentFocusNode.enclosingScope != null,
+          contentHasFocus: _contentFocusNode.hasFocus,
+        )) {
           _contentFocusNode.requestFocus();
         }
       },
