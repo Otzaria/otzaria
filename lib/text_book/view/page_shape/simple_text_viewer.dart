@@ -71,6 +71,7 @@ import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
     as inline_notes;
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
+import 'package:otzaria/text_book/utils/numbered_note_markers.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
@@ -430,6 +431,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       rawLine,
       lineIndex: lineIndex,
     );
+    // סמני-מספר מודפסים, למשל (9), שההערה שלהם בספר "הערות על…" המקושר כמפרש.
+    if (numberedNoteLinks(
+      state.linksByLine[lineIndex + 1] ?? const <Link>[],
+    ).isNotEmpty) {
+      result = addNumberedNoteMarkerLinks(result, lineIndex: lineIndex);
+    }
     // מהדורה חלופית: העוגנים ממופים לנוסח הראשי — במיקומים שגויים כאן.
     if (state.book.versionTitle != null) return result;
     final anchorLinks = (state.linksByLine[lineIndex + 1] ?? const <Link>[])
@@ -472,6 +479,30 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     widget.openBookCallback(tab);
   }
 
+  /// ריחוף על סמן-מספר: ההתאמה בין הסמן להערה נעשית לפי תוכן ההערה, ולכן היא
+  /// אסינכרונית. אם אין הערה תואמת — לא נפתחת חלונית.
+  void _handleNumberedNoteMarkerHover(String url, Offset globalPosition) {
+    LinkPreviewOverlay.cancelScheduledHide();
+    _previewHoverTimer?.cancel();
+    final line = noteMarkerLineFromUrl(url);
+    final state = context.read<TextBookBloc>().state;
+    if (line == null || state is! TextBookLoaded) return;
+    final links = state.linksByLine[line + 1] ?? const <Link>[];
+    _previewHoverTimer = Timer(const Duration(milliseconds: 280), () async {
+      final link = await numberedNoteLinkFromUrl(url, links);
+      if (!mounted || link == null) return;
+      LinkPreviewOverlay.show(
+        context,
+        link: link,
+        globalPosition: globalPosition,
+        hoverMode: true,
+        removeNikud: state.removeNikud,
+        removePunctuation: state.removePunctuation,
+        onOpen: () => _openAnchorTarget(link),
+      );
+    });
+  }
+
   bool _handlePreviewTap(String url) {
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) return false;
@@ -483,6 +514,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }
 
   void _handlePreviewHover(String url, Offset globalPosition) {
+    if (url.startsWith('otzaria://note-marker')) {
+      _handleNumberedNoteMarkerHover(url, globalPosition);
+      return;
+    }
     if (url.startsWith('otzaria://note') && widget.isPersonalNotesTabActive) {
       return;
     }
@@ -2618,6 +2653,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
               return _handlePreviewTap(url);
             }
             if (url.startsWith('otzaria://book-note')) return true;
+            if (url.startsWith('otzaria://note-marker')) return true;
             if (url.startsWith('otzaria://note')) {
               final line = int.tryParse(
                 Uri.tryParse(url)?.queryParameters['line'] ?? '',

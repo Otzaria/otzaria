@@ -314,6 +314,8 @@ List<InlineSpan> _nodeToSpans(
                         ),
                       )
                 : childStyle.copyWith(color: linkStyle?.color))
+          : node.classes.contains('numbered-note-marker')
+          ? childStyle.copyWith(color: linkStyle?.color)
           : node.classes.contains('link-anchor-range')
           ? childStyle.copyWith(
               decoration: TextDecoration.underline,

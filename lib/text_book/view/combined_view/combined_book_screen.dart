@@ -62,6 +62,7 @@ import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
     as inline_notes;
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
+import 'package:otzaria/text_book/utils/numbered_note_markers.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/text_book/utils/note_inline_render.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
@@ -303,6 +304,20 @@ class _CombinedViewState extends State<CombinedView> {
     );
   }
 
+  /// סמני-מספר מודפסים, למשל (9), בספרים שהערותיהם יושבות בספר "הערות על…"
+  /// המקושר כמפרש. רק עטיפה בעוגן — הטקסט הגלוי לא משתנה.
+  String _injectNumberedNoteMarkers(
+    String rawLine,
+    int lineIndex0,
+    TextBookLoaded state,
+  ) {
+    final links = numberedNoteLinks(
+      state.linksByLine[lineIndex0 + 1] ?? const <Link>[],
+    );
+    if (links.isEmpty) return rawLine;
+    return addNumberedNoteMarkerLinks(rawLine, lineIndex: lineIndex0);
+  }
+
   /// פענוח `otzaria://anchor?ref=<line>_<i>` לקישור-העוגן, יחד עם השורה
   /// והאינדקס (להדגשת הסמן הפעיל).
   ({Link link, int line, int index})? _anchorLinkFromUrl(String url) {
@@ -364,6 +379,10 @@ class _CombinedViewState extends State<CombinedView> {
   /// ריחוף מעל עוגן-מילה — תצוגה מקדימה אחרי השהיה קצרה (מונעת הבהובים
   /// כשהסמן רק חולף). כניסה חוזרת לעוגן מבטלת סגירה מתוזמנת של החלונית.
   void _handleAnchorHover(String url, Offset globalPosition) {
+    if (url.startsWith('otzaria://note-marker')) {
+      _handleNumberedNoteMarkerHover(url, globalPosition);
+      return;
+    }
     if (url.startsWith('otzaria://note') &&
         !shouldShowPersonalNotePreview(
           isPersonalNotesTabActive:
@@ -420,6 +439,22 @@ class _CombinedViewState extends State<CombinedView> {
 
       final link = _previewLinkFromUrl(url);
       if (link == null) return;
+      _showLinkPreview(link, globalPosition, hoverMode: true);
+    });
+  }
+
+  /// ריחוף על סמן-מספר: ההתאמה בין הסמן להערה נעשית לפי תוכן ההערה, ולכן היא
+  /// אסינכרונית. אם אין הערה תואמת — לא נפתחת חלונית.
+  void _handleNumberedNoteMarkerHover(String url, Offset globalPosition) {
+    LinkPreviewOverlay.cancelScheduledHide();
+    _anchorHoverTimer?.cancel();
+    final line = noteMarkerLineFromUrl(url);
+    final state = _textBookBloc.state;
+    if (line == null || state is! TextBookLoaded) return;
+    final links = state.linksByLine[line + 1] ?? const <Link>[];
+    _anchorHoverTimer = Timer(const Duration(milliseconds: 280), () async {
+      final link = await numberedNoteLinkFromUrl(url, links);
+      if (_disposed || !mounted || link == null) return;
       _showLinkPreview(link, globalPosition, hoverMode: true);
     });
   }
@@ -2113,6 +2148,11 @@ class _CombinedViewState extends State<CombinedView> {
                             data,
                             lineIndex: primaryLineIndex,
                           );
+                          data = _injectNumberedNoteMarkers(
+                            data,
+                            primaryLineIndex,
+                            state,
+                          );
 
                           // סמני עוגן-מילה — לפני כל עיבוד שמוסיף תוכן גלוי.
                           data = _injectAnchorMarkersForLine(
@@ -2299,6 +2339,7 @@ class _CombinedViewState extends State<CombinedView> {
               return _handleAnchorTap(url);
             }
             if (url.startsWith('otzaria://book-note')) return true;
+            if (url.startsWith('otzaria://note-marker')) return true;
             if (url.startsWith('otzaria://note')) {
               final line = int.tryParse(
                 Uri.tryParse(url)?.queryParameters['line'] ?? '',
@@ -2402,6 +2443,7 @@ class _CombinedViewState extends State<CombinedView> {
       rawText,
       lineIndex: lineIndex,
     );
+    textWithLinks = _injectNumberedNoteMarkers(textWithLinks, lineIndex, state);
     textWithLinks = _injectAnchorMarkersForLine(
       textWithLinks,
       lineIndex,

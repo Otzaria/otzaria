@@ -243,6 +243,15 @@ class SmartTextWidget extends StatelessWidget {
               'text-decoration': 'none',
             };
           }
+          // סמן-מספר מודפס בגוף הספר, למשל (9): נשאר בגודלו ובמקומו — רק
+          // נצבע בגוון הנושא כדי לרמז שאפשר לרחף עליו.
+          if (element.localName == 'a' &&
+              element.classes.contains('numbered-note-marker')) {
+            return {
+              'color': anchorLinkColorCss,
+              'text-decoration': 'none',
+            };
+          }
           // סמני עוגן-מילה (link_anchor): אות קטנה מורמת (עוגן-נקודה) או קו
           // תחתון על טווח מצוטט (עוגן-טווח), עם וריאנט טיפוגרפי קבוע לכל מפרש
           // (ראו anchorStyleIndexByCommentator), בצבע ה-primary של הנושא.
@@ -283,6 +292,8 @@ class SmartTextWidget extends StatelessWidget {
                   onAnchorTap!(url);
                   return true;
                 }
+                // סמן-מספר של הערה — הפעולה שלו היא ריחוף בלבד.
+                if (url.startsWith('otzaria://note-marker')) return true;
                 // סימון הערה אישית inline — נטפל לפני שאר הקישורים.
                 if (url.startsWith('otzaria://note')) {
                   final lineIndex = int.tryParse(

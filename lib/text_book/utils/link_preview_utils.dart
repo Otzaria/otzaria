@@ -7,6 +7,7 @@ bool isPreviewHoverableUrl(String url) =>
     url.startsWith('otzaria://anchor') ||
     url.startsWith('otzaria://inline-link') ||
     url.startsWith('otzaria://book-note') ||
+    url.startsWith('otzaria://note-marker') ||
     url.startsWith('otzaria://note');
 
 /// בונה קישור לתצוגה מקדימה מכתובת של קישור־טווח (`start/end`).
