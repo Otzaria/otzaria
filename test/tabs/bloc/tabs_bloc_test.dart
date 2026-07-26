@@ -739,6 +739,384 @@ void main() {
     });
   });
 
+  group('TabsBloc remove multiple tabs', () {
+    setUp(() async {
+      await Settings.init(cacheProvider: _MemoryCacheProvider());
+    });
+
+    test('RemoveTabs סוגר קבוצה ומשאיר את הטאב הפעיל ששרד', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final first = _createTextTab('ספר א', categoryId: 1);
+      final second = _createTextTab('ספר ב', categoryId: 2);
+      final third = _createTextTab('ספר ג', categoryId: 3);
+      final fourth = _createTextTab('ספר ד', categoryId: 4);
+
+      bloc.add(AddTab(first));
+      bloc.add(AddTab(second));
+      bloc.add(AddTab(third));
+      bloc.add(AddTab(fourth));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 4);
+
+      bloc.add(const SetCurrentTab(2));
+      await bloc.stream.firstWhere((s) => s.currentTabIndex == 2);
+
+      bloc.add(RemoveTabs([first, fourth]));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      expect(bloc.state.tabs.map((t) => t.title), ['ספר ב', 'ספר ג']);
+      expect(bloc.state.currentTab, same(third));
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('RemoveTabs שכולל את הטאב הפעיל מעביר לטאב הסמוך ששרד', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final first = _createTextTab('ספר א', categoryId: 1);
+      final second = _createTextTab('ספר ב', categoryId: 2);
+      final third = _createTextTab('ספר ג', categoryId: 3);
+
+      bloc.add(AddTab(first));
+      bloc.add(AddTab(second));
+      bloc.add(AddTab(third));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 3);
+
+      bloc.add(const SetCurrentTab(1));
+      await bloc.stream.firstWhere((s) => s.currentTabIndex == 1);
+
+      bloc.add(RemoveTabs([first, second]));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+
+      expect(bloc.state.tabs.single.title, 'ספר ג');
+      expect(bloc.state.currentTabIndex, 0);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('RemoveTabs של כל הטאבים מרוקן את הרשימה בלי לקרוס', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final first = _createTextTab('ספר א', categoryId: 1);
+      final second = _createTextTab('ספר ב', categoryId: 2);
+
+      bloc.add(AddTab(first));
+      bloc.add(AddTab(second));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      bloc.add(RemoveTabs([first, second]));
+      await bloc.stream.firstWhere((s) => s.tabs.isEmpty);
+
+      expect(bloc.state.currentTabIndex, 0);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('RemoveTabs מתעלם מטאבים שכבר אינם ברשימה', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final first = _createTextTab('ספר א', categoryId: 1);
+      final second = _createTextTab('ספר ב', categoryId: 2);
+      final ghost = _createTextTab('רפאים', categoryId: 9);
+
+      bloc.add(AddTab(first));
+      bloc.add(AddTab(second));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      bloc.add(RemoveTabs([second, ghost]));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+
+      expect(bloc.state.tabs.single, same(first));
+      ghost.dispose();
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('RemoveTabs שסוגר צד של side-by-side מבטל את המצב', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final first = _createTextTab('ספר א', categoryId: 1);
+      final second = _createTextTab('ספר ב', categoryId: 2);
+      final third = _createTextTab('ספר ג', categoryId: 3);
+
+      bloc.add(AddTab(first));
+      bloc.add(AddTab(second));
+      bloc.add(AddTab(third));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 3);
+
+      // side-by-side נשמר כאינדקסים ב-state (בנפרד מ-CombinedTab).
+      bloc.emit(
+        bloc.state.copyWith(
+          sideBySideMode: const SideBySideMode(
+            leftTabIndex: 0,
+            rightTabIndex: 1,
+          ),
+        ),
+      );
+
+      bloc.add(RemoveTabs([second, third]));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+
+      expect(bloc.state.sideBySideMode, isNull);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('שחזור אחרי RemoveTabs מחזיר את הטאבים שנסגרו', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final first = _createTextTab('ספר א', categoryId: 1);
+      final second = _createTextTab('ספר ב', categoryId: 2);
+      final third = _createTextTab('ספר ג', categoryId: 3);
+
+      bloc.add(AddTab(first));
+      bloc.add(AddTab(second));
+      bloc.add(AddTab(third));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 3);
+
+      bloc.add(RemoveTabs([first, second]));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+
+      bloc.add(const RestoreLastClosedTab());
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+      bloc.add(const RestoreLastClosedTab());
+      await bloc.stream.firstWhere((s) => s.tabs.length == 3);
+
+      expect(
+        bloc.state.tabs.map((t) => t.title).toList(),
+        ['ספר א', 'ספר ב', 'ספר ג'],
+      );
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+  });
+
+  group('TabsBloc tab selection', () {
+    setUp(() async {
+      await Settings.init(cacheProvider: _MemoryCacheProvider());
+    });
+
+    Future<TabsBloc> createBlocWithTabs(List<TextBookTab> tabs) async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      for (final tab in tabs) {
+        bloc.add(AddTab(tab));
+      }
+      await bloc.stream.firstWhere((s) => s.tabs.length == tabs.length);
+      return bloc;
+    }
+
+    test('ToggleTabSelection ראשון מצרף גם את הכרטיסיה הפעילה', () async {
+      final first = _createTextTab('ספר א', categoryId: 1);
+      final second = _createTextTab('ספר ב', categoryId: 2);
+      final third = _createTextTab('ספר ג', categoryId: 3);
+      final bloc = await createBlocWithTabs([first, second, third]);
+
+      bloc.add(const SetCurrentTab(0));
+      await bloc.stream.firstWhere((s) => s.currentTabIndex == 0);
+
+      bloc.add(ToggleTabSelection(third));
+      await bloc.stream.firstWhere((s) => s.selectedTabs.isNotEmpty);
+
+      expect(bloc.state.selectedTabs, containsAll([first, third]));
+      expect(bloc.state.selectedTabs, hasLength(2));
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('הסרה שמותירה כרטיסיה בודדת מפרקת את הבחירה', () async {
+      final first = _createTextTab('ספר א', categoryId: 1);
+      final second = _createTextTab('ספר ב', categoryId: 2);
+      final bloc = await createBlocWithTabs([first, second]);
+
+      bloc.add(const SetCurrentTab(0));
+      await bloc.stream.firstWhere((s) => s.currentTabIndex == 0);
+
+      bloc.add(ToggleTabSelection(second));
+      await bloc.stream.firstWhere((s) => s.selectedTabs.length == 2);
+
+      bloc.add(ToggleTabSelection(second));
+      await bloc.stream.firstWhere((s) => s.selectedTabs.isEmpty);
+
+      expect(bloc.state.selectedTabs, isEmpty);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('SelectTabRange בוחר טווח מהכרטיסיה הפעילה', () async {
+      final tabs = [
+        _createTextTab('ספר א', categoryId: 1),
+        _createTextTab('ספר ב', categoryId: 2),
+        _createTextTab('ספר ג', categoryId: 3),
+        _createTextTab('ספר ד', categoryId: 4),
+      ];
+      final bloc = await createBlocWithTabs(tabs);
+
+      bloc.add(const SetCurrentTab(1));
+      await bloc.stream.firstWhere((s) => s.currentTabIndex == 1);
+
+      bloc.add(SelectTabRange(tabs[3]));
+      await bloc.stream.firstWhere((s) => s.selectedTabs.isNotEmpty);
+
+      expect(bloc.state.selectedTabs, [tabs[1], tabs[2], tabs[3]]);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('ClearTabSelection מנקה את הבחירה', () async {
+      final first = _createTextTab('ספר א', categoryId: 1);
+      final second = _createTextTab('ספר ב', categoryId: 2);
+      final bloc = await createBlocWithTabs([first, second]);
+
+      bloc.add(const SetCurrentTab(0));
+      await bloc.stream.firstWhere((s) => s.currentTabIndex == 0);
+      bloc.add(ToggleTabSelection(second));
+      await bloc.stream.firstWhere((s) => s.selectedTabs.isNotEmpty);
+
+      bloc.add(const ClearTabSelection());
+      await bloc.stream.firstWhere((s) => s.selectedTabs.isEmpty);
+
+      expect(bloc.state.selectedTabs, isEmpty);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('CloseCurrentTab סוגר את כל הקבוצה כשהפעילה נבחרה', () async {
+      final tabs = [
+        _createTextTab('ספר א', categoryId: 1),
+        _createTextTab('ספר ב', categoryId: 2),
+        _createTextTab('ספר ג', categoryId: 3),
+      ];
+      final bloc = await createBlocWithTabs(tabs);
+
+      bloc.add(const SetCurrentTab(0));
+      await bloc.stream.firstWhere((s) => s.currentTabIndex == 0);
+
+      bloc.add(ToggleTabSelection(tabs[1]));
+      await bloc.stream.firstWhere((s) => s.selectedTabs.length == 2);
+
+      // Ctrl+W: הכרטיסיה הפעילה בבחירה — הקיצור סוגר את כל הקבוצה.
+      bloc.add(const CloseCurrentTab());
+      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+
+      expect(bloc.state.tabs.single.title, 'ספר ג');
+      expect(bloc.state.selectedTabs, isEmpty);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('CloseCurrentTab סוגר רק את הפעילה כשאינה חלק מהבחירה', () async {
+      final tabs = [
+        _createTextTab('ספר א', categoryId: 1),
+        _createTextTab('ספר ב', categoryId: 2),
+        _createTextTab('ספר ג', categoryId: 3),
+      ];
+      final bloc = await createBlocWithTabs(tabs);
+
+      bloc.add(const SetCurrentTab(0));
+      await bloc.stream.firstWhere((s) => s.currentTabIndex == 0);
+      bloc.add(ToggleTabSelection(tabs[1]));
+      await bloc.stream.firstWhere((s) => s.selectedTabs.length == 2);
+
+      // מעבר לכרטיסיה שמחוץ לבחירה — הקיצור סוגר רק אותה.
+      bloc.add(const SetCurrentTab(2));
+      await bloc.stream.firstWhere((s) => s.currentTabIndex == 2);
+
+      bloc.add(const CloseCurrentTab());
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      expect(bloc.state.tabs.map((t) => t.title), ['ספר א', 'ספר ב']);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('RemoveTab שמותיר נבחרת יחידה מפרק את הבחירה כולה', () async {
+      final tabs = [
+        _createTextTab('ספר א', categoryId: 1),
+        _createTextTab('ספר ב', categoryId: 2),
+        _createTextTab('ספר ג', categoryId: 3),
+      ];
+      final bloc = await createBlocWithTabs(tabs);
+
+      bloc.add(const SetCurrentTab(0));
+      await bloc.stream.firstWhere((s) => s.currentTabIndex == 0);
+      bloc.add(ToggleTabSelection(tabs[1]));
+      await bloc.stream.firstWhere((s) => s.selectedTabs.length == 2);
+
+      // "העבר לשולחן עבודה" שולח RemoveTab; הנבחרת שנותרה לבדה אינה קבוצה.
+      bloc.add(RemoveTab(tabs[1]));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      expect(bloc.state.selectedTabs, isEmpty);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('ReplaceTab מנרמל את הבחירה מול הטאב המוחלף', () async {
+      final tabs = [
+        _createTextTab('ספר א', categoryId: 1),
+        _createTextTab('ספר ב', categoryId: 2),
+      ];
+      final bloc = await createBlocWithTabs(tabs);
+
+      bloc.add(const SetCurrentTab(0));
+      await bloc.stream.firstWhere((s) => s.currentTabIndex == 0);
+      bloc.add(ToggleTabSelection(tabs[1]));
+      await bloc.stream.firstWhere((s) => s.selectedTabs.length == 2);
+
+      final replacement = _createTextTab('ספר ב מעודכן', categoryId: 2);
+      bloc.add(ReplaceTab(oldTab: tabs[1], newTab: replacement));
+      await bloc.stream.firstWhere((s) => identical(s.tabs[1], replacement));
+
+      expect(
+        bloc.state.selectedTabs,
+        isEmpty,
+        reason: 'המוחלף יצא מהבחירה והקבוצה שנותרה בת אחת מתפרקת',
+      );
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('EnableSideBySideMode מנרמל בחירה שכללה את הטאבים שאוחדו', () async {
+      final tabs = [
+        _createTextTab('ספר א', categoryId: 1),
+        _createTextTab('ספר ב', categoryId: 2),
+        _createTextTab('ספר ג', categoryId: 3),
+      ];
+      final bloc = await createBlocWithTabs(tabs);
+
+      bloc.add(const SetCurrentTab(0));
+      await bloc.stream.firstWhere((s) => s.currentTabIndex == 0);
+      bloc.add(SelectTabRange(tabs[2]));
+      await bloc.stream.firstWhere((s) => s.selectedTabs.length == 3);
+
+      bloc.add(EnableSideBySideMode(rightTab: tabs[0], leftTab: tabs[1]));
+      await bloc.stream.firstWhere((s) => s.currentTab is CombinedTab);
+
+      expect(
+        bloc.state.selectedTabs,
+        isEmpty,
+        reason: 'שני הטאבים שאוחדו הוחלפו ב-CombinedTab; נותרה אחת — מתפרקת',
+      );
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('RemoveTab מנקה את הכרטיסיה שנסגרה מהבחירה', () async {
+      final tabs = [
+        _createTextTab('ספר א', categoryId: 1),
+        _createTextTab('ספר ב', categoryId: 2),
+        _createTextTab('ספר ג', categoryId: 3),
+      ];
+      final bloc = await createBlocWithTabs(tabs);
+
+      bloc.add(const SetCurrentTab(0));
+      await bloc.stream.firstWhere((s) => s.currentTabIndex == 0);
+      bloc.add(SelectTabRange(tabs[2]));
+      await bloc.stream.firstWhere((s) => s.selectedTabs.length == 3);
+
+      bloc.add(RemoveTab(tabs[1]));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      expect(bloc.state.selectedTabs, [tabs[0], tabs[2]]);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+  });
+
   group('TabsBloc restore closed tab', () {
     setUp(() async {
       await Settings.init(cacheProvider: _MemoryCacheProvider());

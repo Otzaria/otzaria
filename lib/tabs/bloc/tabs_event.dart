@@ -85,6 +85,40 @@ class RemoveTab extends TabsEvent {
   List<Object?> get props => [tab];
 }
 
+/// סגירת קבוצת כרטיסיות בפעולה אחת (בחירה מרובה בשורת הכרטיסיות).
+class RemoveTabs extends TabsEvent {
+  final List<OpenedTab> tabs;
+
+  const RemoveTabs(this.tabs);
+
+  @override
+  List<Object?> get props => [tabs];
+}
+
+/// צירוף/הסרה של כרטיסיה מהבחירה המרובה (Ctrl/Cmd+לחיצה).
+class ToggleTabSelection extends TabsEvent {
+  final OpenedTab tab;
+
+  const ToggleTabSelection(this.tab);
+
+  @override
+  List<Object?> get props => [tab];
+}
+
+/// בחירת טווח מהכרטיסיה הפעילה עד [tab] (Shift+לחיצה).
+class SelectTabRange extends TabsEvent {
+  final OpenedTab tab;
+
+  const SelectTabRange(this.tab);
+
+  @override
+  List<Object?> get props => [tab];
+}
+
+class ClearTabSelection extends TabsEvent {
+  const ClearTabSelection();
+}
+
 class CloseCurrentTab extends TabsEvent {
   const CloseCurrentTab();
 

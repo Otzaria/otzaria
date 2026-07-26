@@ -292,9 +292,12 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
         ShortcutHelper.matchesShortcut(event, closeTabShortcut)) {
       final tabsBloc = context.read<TabsBloc>();
       final historyBloc = context.read<HistoryBloc>();
-      if (tabsBloc.state.tabs.isNotEmpty) {
-        final currentTab = tabsBloc.state.tabs[tabsBloc.state.currentTabIndex];
-        historyBloc.add(AddHistory(currentTab));
+      // הקיצור סוגר את כל הבחירה המרובה כשהכרטיסיה הפעילה חלק ממנה.
+      final closeGroup = tabsBloc.state.currentCloseGroup;
+      if (closeGroup.length > 1) {
+        historyBloc.add(AddHistoryForTabs(closeGroup));
+      } else if (closeGroup.isNotEmpty) {
+        historyBloc.add(AddHistory(closeGroup.first));
       }
       tabsBloc.add(const CloseCurrentTab());
       return KeyEventResult.handled;

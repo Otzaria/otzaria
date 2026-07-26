@@ -48,6 +48,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     on<OpenOrFocusTab>(_onOpenOrFocusTab, transformer: sequential());
     on<ReplaceTab>(_onReplaceTab, transformer: sequential());
     on<RemoveTab>(_onRemoveTab, transformer: sequential());
+    on<RemoveTabs>(_onRemoveTabs, transformer: sequential());
+    on<ToggleTabSelection>(_onToggleTabSelection, transformer: sequential());
+    on<SelectTabRange>(_onSelectTabRange, transformer: sequential());
+    on<ClearTabSelection>(_onClearTabSelection, transformer: sequential());
     on<SetCurrentTab>(_onSetCurrentTab, transformer: sequential());
     on<CloseAllTabs>(_onCloseAllTabs, transformer: sequential());
     on<CloseOtherTabs>(_onCloseOtherTabs, transformer: sequential());
@@ -169,6 +173,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         tabs: event.tabs,
         currentTabIndex: event.currentTabIndex,
         clearSideBySide: true,
+        selectedTabs: const <OpenedTab>[],
       ),
     );
     await _repository.saveTabs(event.tabs, event.currentTabIndex, null);
@@ -282,7 +287,13 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     final newTabs = List<OpenedTab>.from(state.tabs);
     newTabs[index] = event.newTab;
 
-    emit(state.copyWith(tabs: newTabs, forceUpdate: true));
+    emit(
+      state.copyWith(
+        tabs: newTabs,
+        forceUpdate: true,
+        selectedTabs: _normalizedSelection(newTabs),
+      ),
+    );
     await _repository.saveTabs(
       newTabs,
       state.currentTabIndex,
@@ -703,6 +714,13 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     );
   }
 
+  /// מנרמל את הבחירה המרובה מול רשימת טאבים חדשה: כרטיסיות שנסגרו/הוחלפו
+  /// יוצאות, וקבוצה שהצטמקה לאחת מתפרקת.
+  List<OpenedTab> _normalizedSelection(List<OpenedTab> newTabs) {
+    final selected = state.selectedTabs.where(newTabs.contains).toList();
+    return selected.length > 1 ? selected : const <OpenedTab>[];
+  }
+
   Future<void> _onRemoveTab(RemoveTab event, Emitter<TabsState> emit) async {
     final removedTabIndex = state.tabs.indexOf(event.tab);
     if (removedTabIndex == -1) return;
@@ -734,6 +752,8 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       }
     }
 
+    final prunedSelection = _normalizedSelection(newTabs);
+
     // אם אין טאבים נותרים, נשאיר את האינדקס ב-0
     if (newTabs.isEmpty) {
       emit(
@@ -741,6 +761,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
           tabs: newTabs,
           currentTabIndex: 0,
           clearSideBySide: true,
+          selectedTabs: prunedSelection,
         ),
       );
       await _repository.saveTabs(newTabs, 0, null);
@@ -763,10 +784,114 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         currentTabIndex: newIndex,
         sideBySideMode: newSideBySideMode,
         clearSideBySide: newSideBySideMode == null,
+        selectedTabs: prunedSelection,
       ),
     );
     await _repository.saveTabs(newTabs, newIndex, newSideBySideMode);
     _disposeTabLater(event.tab);
+  }
+
+  Future<void> _onRemoveTabs(RemoveTabs event, Emitter<TabsState> emit) async {
+    final toRemove = event.tabs.where(state.tabs.contains).toSet();
+    if (toRemove.isEmpty) return;
+
+    // נזכרים בסדר אינדקס יורד: השחזור הוא LIFO, וכך שחזור סדרתי מחזיר כל
+    // כרטיסיה למקומה המקורי.
+    for (var i = state.tabs.length - 1; i >= 0; i--) {
+      if (toRemove.contains(state.tabs[i])) {
+        _rememberClosedTab(state.tabs[i], i);
+      }
+    }
+
+    final newTabs = state.tabs.where((t) => !toRemove.contains(t)).toList();
+
+    // side-by-side: אם אחד מצדדיו נסגר המצב מבוטל, אחרת האינדקסים מתעדכנים.
+    SideBySideMode? newSideBySideMode = state.sideBySideMode;
+    if (newSideBySideMode != null) {
+      final leftTab = state.tabs[newSideBySideMode.leftTabIndex];
+      final rightTab = state.tabs[newSideBySideMode.rightTabIndex];
+      if (toRemove.contains(leftTab) || toRemove.contains(rightTab)) {
+        newSideBySideMode = null;
+      } else {
+        newSideBySideMode = newSideBySideMode.copyWith(
+          leftTabIndex: newTabs.indexOf(leftTab),
+          rightTabIndex: newTabs.indexOf(rightTab),
+        );
+      }
+    }
+
+    // הטאב הפעיל נשאר אם שרד; אחרת עוברים לטאב שנכנס תחת אותו אינדקס
+    // (כמו בסגירה בודדת), בניכוי הטאבים שנסגרו לפניו.
+    final currentTab = state.currentTab;
+    int newIndex;
+    if (currentTab != null && !toRemove.contains(currentTab)) {
+      newIndex = newTabs.indexOf(currentTab);
+    } else {
+      var removedBefore = 0;
+      for (var i = 0; i < state.currentTabIndex; i++) {
+        if (toRemove.contains(state.tabs[i])) removedBefore++;
+      }
+      newIndex = newTabs.isEmpty
+          ? 0
+          : (state.currentTabIndex - removedBefore).clamp(
+              0,
+              newTabs.length - 1,
+            );
+    }
+
+    emit(
+      state.copyWith(
+        tabs: newTabs,
+        currentTabIndex: newIndex,
+        sideBySideMode: newSideBySideMode,
+        clearSideBySide: newSideBySideMode == null,
+        selectedTabs: _normalizedSelection(newTabs),
+      ),
+    );
+    await _repository.saveTabs(newTabs, newIndex, newSideBySideMode);
+
+    for (final tab in toRemove) {
+      _disposeTabLater(tab);
+    }
+  }
+
+  void _onToggleTabSelection(
+    ToggleTabSelection event,
+    Emitter<TabsState> emit,
+  ) {
+    if (!state.tabs.contains(event.tab)) return;
+    final selected = state.selectedTabs.where(state.tabs.contains).toList();
+    // הכרטיסיה הפעילה היא חלק מהקבוצה: הלחיצה הראשונה מצרפת גם אותה
+    // (כמו בדפדפן).
+    final current = state.currentTab;
+    if (selected.isEmpty && current != null && event.tab != current) {
+      selected.add(current);
+    }
+    if (!selected.remove(event.tab)) selected.add(event.tab);
+    // קבוצה של כרטיסיה אחת חסרת משמעות — הבחירה מתפרקת.
+    emit(
+      state.copyWith(
+        selectedTabs: selected.length > 1 ? selected : const <OpenedTab>[],
+      ),
+    );
+  }
+
+  void _onSelectTabRange(SelectTabRange event, Emitter<TabsState> emit) {
+    final index = state.tabs.indexOf(event.tab);
+    if (index == -1) return;
+    final start = min(state.currentTabIndex, index);
+    final end = max(state.currentTabIndex, index);
+    final selected = state.tabs.sublist(start, end + 1);
+    emit(
+      state.copyWith(
+        selectedTabs: selected.length > 1 ? selected : const <OpenedTab>[],
+      ),
+    );
+  }
+
+  void _onClearTabSelection(ClearTabSelection event, Emitter<TabsState> emit) {
+    if (state.selectedTabs.isEmpty) return;
+    emit(state.copyWith(selectedTabs: const <OpenedTab>[]));
   }
 
   Future<void> _onSetCurrentTab(
@@ -788,7 +913,13 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     if (state.tabs.isEmpty || state.currentTabIndex >= state.tabs.length) {
       return;
     }
-    add(RemoveTab(state.tabs[state.currentTabIndex]));
+    // כשהכרטיסיה הפעילה חלק מבחירה מרובה, הקיצור סוגר את כל הקבוצה.
+    final group = state.currentCloseGroup;
+    if (group.length > 1) {
+      add(RemoveTabs(group));
+    } else {
+      add(RemoveTab(state.tabs[state.currentTabIndex]));
+    }
   }
 
   Future<void> _onRestoreLastClosedTab(
@@ -856,6 +987,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         tabs: pinnedTabs,
         currentTabIndex: newIndex,
         clearSideBySide: true,
+        selectedTabs: const <OpenedTab>[],
       ),
     );
     await _repository.saveTabs(pinnedTabs, newIndex, null);
@@ -887,6 +1019,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         tabs: newTabs,
         currentTabIndex: 0,
         clearSideBySide: true,
+        selectedTabs: const <OpenedTab>[],
       ),
     );
     await _repository.saveTabs(newTabs, 0, null);
@@ -1051,6 +1184,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         currentTabIndex: newCurrentIndex,
         clearSideBySide: true,
         forceUpdate: true,
+        selectedTabs: _normalizedSelection(newTabs),
       ),
     );
     await _repository.saveTabs(newTabs, newCurrentIndex, null);
@@ -1087,6 +1221,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
           currentTabIndex: newCurrentIndex,
           clearSideBySide: true,
           forceUpdate: true,
+          selectedTabs: _normalizedSelection(newTabs),
         ),
       );
       await _repository.saveTabs(newTabs, newCurrentIndex, null);
@@ -1154,6 +1289,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         state.copyWith(
           tabs: newTabs,
           forceUpdate: true,
+          selectedTabs: _normalizedSelection(newTabs),
         ),
       );
       await _repository.saveTabs(newTabs, indexToSave, null);
