@@ -152,7 +152,7 @@ void main() {
       expect(
         result,
         contains(
-          '<a class="link-anchor-range link-anchor-2" '
+          '<a class="link-anchor-range" '
           'href="otzaria://anchor?ref=12_0&range=1">',
         ),
       );
@@ -162,10 +162,7 @@ void main() {
         anchorLinks: [citation],
         styleIndexByCommentator: const {'שמות': 2},
       );
-      expect(
-        passive,
-        contains('<span class="link-anchor-range link-anchor-2">'),
-      );
+      expect(passive, contains('<span class="link-anchor-range">'));
       expect(passive, isNot(contains('href=')));
     });
 
@@ -344,10 +341,49 @@ void main() {
         anchorLinks: [quote],
         styleIndexByCommentator: const {'בראשית': 1},
       );
+      expect(result, 'אב<span class="link-anchor-range">ג ד</span>ה');
+    });
+
+    test('ציטוטי לינקר לספרי יעד שונים מקבלים מחלקה זהה (עיצוב אחיד)', () {
+      Link citation(String target, int start, int end) => Link(
+        heRef: '$target א',
+        index1: 4,
+        path2: target,
+        index2: 1,
+        connectionType: 'linker',
+        anchorStart: start,
+        anchorEnd: end,
+      );
+      final result = injectLinkAnchorMarkers(
+        rawLine: 'אבג דהו זחט',
+        anchorLinks: [citation('שבת', 0, 3), citation('גיטין', 4, 7)],
+        // ווריאנטים שונים במפה — אסור שידלפו לטווחים.
+        styleIndexByCommentator: const {'שבת': 3, 'גיטין': 2},
+        lineIndex: 5,
+      );
       expect(
         result,
-        'אב<span class="link-anchor-range link-anchor-1">ג ד</span>ה',
+        '<a class="link-anchor-range" href="otzaria://anchor?ref=5_0&range=1">'
+        'אבג</a> '
+        '<a class="link-anchor-range" href="otzaria://anchor?ref=5_1&range=1">'
+        'דהו</a> זחט',
       );
+      expect(result, isNot(contains(RegExp(r'link-anchor-\d'))));
+    });
+
+    test('סמן-אות של מפרש כן שומר על הווריאנט הטיפוגרפי', () {
+      final commentary = _anchorLink(
+        heRef: 'משנה ברורה, א, ב',
+        path2: 'משנה ברורה',
+        anchorStart: 2,
+        anchorLabel: 'ב',
+      );
+      final result = injectLinkAnchorMarkers(
+        rawLine: 'אבג',
+        anchorLinks: [commentary],
+        styleIndexByCommentator: const {'משנה ברורה': 4},
+      );
+      expect(result, 'אב<span class="link-anchor link-anchor-4">(ב)</span>ג');
     });
 
     test('עוגן-טווח שחוצה גבול תג נסגר ונפתח מחדש (קינון תקין)', () {
@@ -369,8 +405,8 @@ void main() {
       // ונפתחת מחדש, כך שה-HTML נשאר מקונן כדין.
       expect(
         result,
-        'א<b><span class="link-anchor-range link-anchor-0">ב</span></b>'
-        '<span class="link-anchor-range link-anchor-0">ג</span>ד',
+        'א<b><span class="link-anchor-range">ב</span></b>'
+        '<span class="link-anchor-range">ג</span>ד',
       );
     });
 

@@ -252,9 +252,8 @@ class SmartTextWidget extends StatelessWidget {
               'text-decoration': 'none',
             };
           }
-          // סמני עוגן-מילה (link_anchor): אות קטנה מורמת (עוגן-נקודה) או קו
-          // תחתון על טווח מצוטט (עוגן-טווח), עם וריאנט טיפוגרפי קבוע לכל מפרש
-          // (ראו anchorStyleIndexByCommentator), בצבע ה-primary של הנושא.
+          // סמן-אות של מפרש (עוגן-נקודה): אות קטנה מורמת בצבע ה-primary, עם
+          // וריאנט טיפוגרפי קבוע לכל מפרש (ראו anchorStyleIndexByCommentator).
           if ((element.localName == 'span' || element.localName == 'a') &&
               element.classes.contains('link-anchor')) {
             final style = <String, String>{
@@ -273,13 +272,13 @@ class SmartTextWidget extends StatelessWidget {
             }
             return style;
           }
-          // טווח-ציטוט: קו תחתון בצבע ה-primary.
+          // טווח-ציטוט (לינקר): קו תחתון בצבע ה-primary, בגופן הטקסט הסובב.
+          // בלי וריאנט טיפוגרפי — הוא שייך לסמני-האות של המפרשים בלבד.
           if ((element.localName == 'span' || element.localName == 'a') &&
               element.classes.contains('link-anchor-range')) {
             return <String, String>{
               'text-decoration': 'underline',
               'color': anchorLinkColorCss,
-              ..._linkAnchorVariantStyle(element),
             };
           }
           return null;
@@ -408,7 +407,7 @@ class _SmartTextWidgetFactory extends WidgetFactory {
   }
 }
 
-/// הווריאנט הטיפוגרפי של סמן/טווח עוגן-מילה לפי מחלקת ה-style שהוקצתה למפרש.
+/// הווריאנט הטיפוגרפי של סמן-אות (עוגן-נקודה) לפי המחלקה שהוקצתה למפרש.
 Map<String, String> _linkAnchorVariantStyle(dom.Element element) {
   if (element.classes.contains('link-anchor-0')) {
     return const {'font-weight': 'bold'};
