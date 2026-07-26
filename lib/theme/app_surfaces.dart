@@ -92,6 +92,7 @@ class AppSurfaces {
       ? cs.primaryContainer.withValues(alpha: 0.6)
       : cs.surfaceContainerHighest.withValues(alpha: 0.5);
 
+
   /// overlayColor ל-TabBar שמצייר hover מותאם אישית (foregroundPainter)
   /// ולכן רוצה לבטל את ה-hover/focus הגלובלי של [TabBarTheme].
   static final WidgetStateProperty<Color?> tabBarNoOverlay =

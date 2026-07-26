@@ -311,10 +311,13 @@ class Link {
 /// - The title of the second book in the link should be present in the list of commentators to show.
 /// The filtered links are sorted based on the order of the commentators to show.
 /// The sorted list of links is then returned as a [Future] of a list of [Link] objects.
+/// [typesToShow] — סינון נוסף לפי סוג המפרש (תרגום/מדרש וכו׳). קבוצה ריקה =
+/// הצג את כל הסוגים, כדי שסוג חדש שיתווסף ל-DB יופיע מאליו.
 Future<List<Link>> getLinksforIndexs({
   required List<int> indexes,
   required List<Link> links,
   required List<String> commentatorsToShow,
+  Set<String> typesToShow = const {},
 }) async {
   // אם אין מפרשים להצגה, מחזיר רשימה ריקה מיד
   if (commentatorsToShow.isEmpty) {
@@ -335,6 +338,10 @@ Future<List<Link>> getLinksforIndexs({
     // בדיקות מהירות קודם
     if (!indexSet.contains(link.index1)) return false;
     if (!LinkTypes.isDependentTextLink(link.connectionType)) return false;
+    if (typesToShow.isNotEmpty &&
+        !typesToShow.contains(LinkTypes.canonicalType(link.connectionType))) {
+      return false;
+    }
     if (link.path2.isEmpty || link.index2 <= 0) return false;
 
     // בדיקה איטית יותר בסוף

@@ -7,6 +7,15 @@ import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/widgets/lists/filter_chips_widget.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
+@visibleForTesting
+const Key commentatorEraChipsGroupKey = Key('commentator_era_chips_group');
+
+@visibleForTesting
+const Key commentatorTypeChipsGroupKey = Key('commentator_type_chips_group');
+
+@visibleForTesting
+const Key commentatorChipAxesDividerKey = Key('commentator_chip_axes_divider');
+
 class CommentatorsSelectionPanel extends StatefulWidget {
   final List<CommentatorGroup> groups;
   final List<String> selectedCommentators;
@@ -21,6 +30,17 @@ class CommentatorsSelectionPanel extends StatefulWidget {
   /// מפרשים נדירים שכן יוצגו כי השורה הנוכחית כוללת קישור מהם.
   final Set<String> lineRelevantCommentators;
 
+  /// מפתחות צ׳יפי הסינון לפי *סוג* הקישור, המוצגים משמאל לצ׳יפי הדורות.
+  /// ריק = ציר הסוגים אינו מוצג כלל.
+  final List<String> typeChipKeys;
+
+  final Set<String> selectedTypeChips;
+
+  final ValueChanged<Set<String>>? onTypeChipsChanged;
+
+  /// תווית להצגה עבור מפתח סוג. ברירת המחדל: המפתח עצמו.
+  final String Function(String key)? typeChipLabelBuilder;
+
   const CommentatorsSelectionPanel({
     super.key,
     required this.groups,
@@ -31,6 +51,10 @@ class CommentatorsSelectionPanel extends StatefulWidget {
     this.emptyState,
     this.rareCommentators = const {},
     this.lineRelevantCommentators = const {},
+    this.typeChipKeys = const [],
+    this.selectedTypeChips = const {},
+    this.onTypeChipsChanged,
+    this.typeChipLabelBuilder,
   });
 
   @override
@@ -280,6 +304,134 @@ class _CommentatorsSelectionPanelState
     }
   }
 
+  /// צ׳יפי הדורות ("תורה שבכתב", "ראשונים"...) ו"על <הספר>" — ציר הסינון
+  /// שמימין. מוצג רק דור שיש לו מפרשים בפועל.
+  List<String> _eraChipItems() => [
+    if (CommentatorGroup.groupByTitle(
+      widget.groups,
+      'תורה שבכתב',
+    ).commentators.isNotEmpty)
+      'תורה שבכתב',
+    if (CommentatorGroup.groupByTitle(
+      widget.groups,
+      'חז"ל',
+    ).commentators.isNotEmpty)
+      'חז"ל',
+    if (CommentatorGroup.groupByTitle(
+      widget.groups,
+      'ראשונים',
+    ).commentators.isNotEmpty)
+      'ראשונים',
+    if (CommentatorGroup.groupByTitle(
+      widget.groups,
+      'אחרונים',
+    ).commentators.isNotEmpty)
+      'אחרונים',
+    if (CommentatorGroup.groupByTitle(
+      widget.groups,
+      'מחברי זמננו',
+    ).commentators.isNotEmpty)
+      'מחברי זמננו',
+    'על ${widget.bookTitle}',
+  ];
+
+  /// שורת הצ׳יפים: דורות מימין, סוגי קישור משמאל — שני צירי סינון נפרדים,
+  /// בעיצוב זהה לשורת הצ׳יפים בפאנל הקישורים.
+  Widget _buildChipsRow(BuildContext context) {
+    final types = widget.typeChipKeys;
+    final typeLabel = widget.typeChipLabelBuilder ?? (String key) => key;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppTokens.spaceSM,
+        AppTokens.spaceXS,
+        AppTokens.spaceSM,
+        AppTokens.spaceXS,
+      ),
+      // IntrinsicHeight נותן לקו המפריד גובה גם כשציר אחד גולש לשתי שורות
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Expanded ולא Flexible: חצי-חצי קבוע, כדי שהקו המפריד יישאר
+            // במרכז ולא ינוע לפי רוחב התוכן של כל ציר.
+            Expanded(
+              child: _buildChipGroup(
+                key: commentatorEraChipsGroupKey,
+                items: _eraChipItems(),
+                selected: _selectedTopics,
+                labelBuilder: (item) => item,
+                onSelectionChanged: (list) {
+                  _selectedTopics = list;
+                  _update();
+                },
+              ),
+            ),
+            if (types.isNotEmpty) ...[
+              const VerticalDivider(
+                key: commentatorChipAxesDividerKey,
+                width: 1,
+                thickness: 1,
+                indent: AppTokens.spaceXS,
+                endIndent: AppTokens.spaceXS,
+              ),
+              Expanded(
+                child: _buildChipGroup(
+                  key: commentatorTypeChipsGroupKey,
+                  items: types,
+                  selected: widget.selectedTypeChips.toList(),
+                  labelBuilder: typeLabel,
+                  onSelectionChanged: (list) =>
+                      widget.onTypeChipsChanged?.call(list.toSet()),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChipGroup({
+    required Key key,
+    required List<String> items,
+    required List<String> selected,
+    required String Function(String item) labelBuilder,
+    required ValueChanged<List<String>> onSelectionChanged,
+  }) {
+    return KeyedSubtree(
+      key: key,
+      child: FilterChipsSelector<String>(
+        items: items,
+        selectedItems: selected,
+        labelBuilder: labelBuilder,
+        wrapAlignment: WrapAlignment.center,
+        wrapSpacing: AppTokens.spaceXS,
+        runSpacing: AppTokens.spaceXS,
+        padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceXS),
+        onSelectionChanged: onSelectionChanged,
+        chipBuilder: (context, item, isSelected) => Chip(
+          label: Text(labelBuilder(item)),
+          backgroundColor: isSelected
+              ? Theme.of(context).colorScheme.secondary
+              : null,
+          labelStyle: TextStyle(
+            color: isSelected
+                ? Theme.of(context).colorScheme.onSecondary
+                : null,
+            fontSize: 10,
+          ),
+          labelPadding: EdgeInsets.zero,
+          padding: const EdgeInsets.symmetric(
+            horizontal: 6,
+            vertical: 2,
+          ),
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.groups.every((group) => group.commentators.isEmpty)) {
@@ -293,62 +445,7 @@ class _CommentatorsSelectionPanelState
 
     return Column(
       children: [
-        FilterChipsSelector<String>(
-          items: [
-            if (CommentatorGroup.groupByTitle(
-              widget.groups,
-              'תורה שבכתב',
-            ).commentators.isNotEmpty)
-              'תורה שבכתב',
-            if (CommentatorGroup.groupByTitle(
-              widget.groups,
-              'חז"ל',
-            ).commentators.isNotEmpty)
-              'חז"ל',
-            if (CommentatorGroup.groupByTitle(
-              widget.groups,
-              'ראשונים',
-            ).commentators.isNotEmpty)
-              'ראשונים',
-            if (CommentatorGroup.groupByTitle(
-              widget.groups,
-              'אחרונים',
-            ).commentators.isNotEmpty)
-              'אחרונים',
-            if (CommentatorGroup.groupByTitle(
-              widget.groups,
-              'מחברי זמננו',
-            ).commentators.isNotEmpty)
-              'מחברי זמננו',
-            'על ${widget.bookTitle}',
-          ],
-          selectedItems: _selectedTopics,
-          labelBuilder: (item) => item,
-          wrapAlignment: WrapAlignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-          onSelectionChanged: (list) {
-            _selectedTopics = list;
-            _update();
-          },
-          chipBuilder: (context, item, isSelected) => Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
-            child: Chip(
-              label: Text(
-                item,
-              ),
-              backgroundColor: isSelected
-                  ? Theme.of(context).colorScheme.secondary
-                  : null,
-              labelStyle: TextStyle(
-                color: isSelected
-                    ? Theme.of(context).colorScheme.onSecondary
-                    : null,
-                fontSize: 11,
-              ),
-              labelPadding: const EdgeInsets.all(0),
-            ),
-          ),
-        ),
+        _buildChipsRow(context),
         Expanded(
           child: Column(
             children: [

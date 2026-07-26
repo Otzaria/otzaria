@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -40,6 +41,11 @@ enum CommentaryEra {
   final String hebrewName;
 
   const CommentaryEra(this.order, this.hebrewName);
+
+  /// התווית בפאנל הקישורים, שבו היעדים אינם בהכרח מפרשים (דף גמרא, פסוק,
+  /// סימן בשו"ע) ולכן "שאר מפרשים" שגוי שם.
+  String get linkPanelName =>
+      this == CommentaryEra.other ? 'ספרים נוספים' : hebrewName;
 }
 
 /// שירות מרכזי לטיפול בלוגיקת המפרשים
@@ -56,11 +62,72 @@ class CommentaryService {
   /// מאפשר מיון סינכרוני (כמו בתפריט ההקשר) לאחר שהדורות נטענו פעם אחת
   static final Map<String, CommentaryEra> _eraCache = {};
 
+  static int _eraCacheVersion = 0;
+
+  /// גרסת מטמון הדורות. עולה בכל ניקוי, כדי שצרכנים שמזכירים "כבר טענתי"
+  /// יידעו שעליהם לטעון מחדש.
+  static int get eraCacheVersion => _eraCacheVersion;
+
   /// מנקה את מטמון הדורות
   ///
   /// יש לקרוא בעת רענון/איפוס הספרייה, כדי שסיווגי דורות ישנים לא יישארו
   /// בזיכרון לאחר החלפת נתונים.
-  static void clearEraCache() => _eraCache.clear();
+  static void clearEraCache() {
+    _eraCache.clear();
+    _eraCacheVersion++;
+  }
+
+  /// מזין דורות ישירות למטמון, לטסטים שאין בהם DB.
+  @visibleForTesting
+  static void seedEraCache(Map<String, CommentaryEra> eras) =>
+      _eraCache.addAll(eras);
+
+  /// מפתח צ׳יפ יציב לדור, במרחב מפתחות נפרד מסוגי הקישור.
+  static String eraChipKey(CommentaryEra era) =>
+      '${LinkTypes.eraKeyPrefix}${era.name.toUpperCase()}';
+
+  /// הדור שמאחורי מפתח צ׳יפ, או null אם אין זה מפתח דור מוכר.
+  static CommentaryEra? eraFromChipKey(String key) {
+    if (!LinkTypes.isEraKey(key)) return null;
+    final name = key.substring(LinkTypes.eraKeyPrefix.length);
+    for (final era in CommentaryEra.values) {
+      if (era.name.toUpperCase() == name) return era;
+    }
+    return null;
+  }
+
+  /// מפתח הצ׳יפ של קישור: סוג הקישור הקנוני, או מפתח דור ספר היעד עבור
+  /// סוגים שתווית הסוג שלהם חסרת משמעות ([LinkTypes.eraGroupedTypes]).
+  static String linkChipKey(Link link) {
+    final type = LinkTypes.canonicalType(link.connectionType);
+    if (!LinkTypes.eraGroupedTypes.contains(type)) return type;
+    return eraChipKey(getCachedBookEra(utils.getTitleFromPath(link.path2)));
+  }
+
+  /// כל מפתחות הצ׳יפ שקישור משתייך אליהם: [linkChipKey], ובנוסף
+  /// [LinkTypes.onBookKey] כשספר היעד הוא ספר "על [openBookTitle]".
+  /// קישור יכול להשתייך לכמה צ׳יפים, והסינון ביניהם הוא איחוד.
+  static Set<String> linkChipKeys(Link link, {String? openBookTitle}) {
+    final keys = {linkChipKey(link)};
+    if (isLinkOnBook(link, openBookTitle)) keys.add(LinkTypes.onBookKey);
+    return keys;
+  }
+
+  /// האם ספר היעד של [link] הוא ספר "על [openBookTitle]" (כמו "רש״י על ברכות").
+  /// מחקה את בדיקת הנושא בפאנל המפרשים (`utils.hasTopic`).
+  static bool isLinkOnBook(Link link, String? openBookTitle) {
+    final bookTitle = openBookTitle?.trim() ?? '';
+    if (bookTitle.isEmpty) return false;
+    return utils.getTitleFromPath(link.path2).contains('על $bookTitle');
+  }
+
+  /// התווית של מפתח צ׳יפ — לדורות, לסוגי קישור ולצ׳יפ "על <הספר הפתוח>".
+  static String chipKeyLabel(String key, {String? openBookTitle}) {
+    if (key == LinkTypes.onBookKey) return 'על ${openBookTitle ?? ''}'.trim();
+    final era = eraFromChipKey(key);
+    if (era != null) return era.linkPanelName;
+    return LinkTypes.hebrewLabel(key);
+  }
 
   /// מקבץ רשימת קישורים לקבוצות לפי שם הספר (רק קטעים רצופים)
   ///

@@ -62,6 +62,33 @@ bool shouldFocusScrollOnPointerDown(int buttons) =>
 String? captureSelectedTextForMenu(ValueListenable<String?> saved) =>
     saved.value;
 
+/// מפתחות צ׳יפי סוגי המפרשים שקיימים בפועל בקישורי הקטע, בסדר
+/// [LinkTypes.commentaryFilterTypes]. סוג בלי קישורים אינו מקבל צ׳יפ.
+@visibleForTesting
+List<String> buildCommentaryTypeChipKeys(List<Link> links) {
+  final present = <String>{};
+  for (final link in links) {
+    if (LinkTypes.isCommentaryFilterType(link.connectionType)) {
+      present.add(LinkTypes.canonicalType(link.connectionType));
+    }
+  }
+  return LinkTypes.commentaryFilterTypes
+      .where(present.contains)
+      .toList(growable: false);
+}
+
+/// הבחירה האפקטיבית: רק מפתחות שיש להם צ׳יפ בקטע הנוכחי. בחירה שאין לה אף
+/// צ׳יפ קיים נחשבת ריקה = הצג הכל, ולא מסתירה את כל המפרשים.
+@visibleForTesting
+Set<String> effectiveCommentaryTypes({
+  required Set<String> selectedTypes,
+  required List<String> availableKeys,
+}) {
+  if (selectedTypes.isEmpty) return const {};
+  final available = availableKeys.toSet();
+  return selectedTypes.where(available.contains).toSet();
+}
+
 /// מייצג תוצאת חיפוש בודדת עם קטע טקסט וכתובת גלובלית לניווט
 class CommentarySearchSnippet {
   final String path;
@@ -224,6 +251,9 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
   bool _snippetsRebuildScheduled = false;
   // האם להציג את שדה החיפוש (true) או את שורת ארבעת הלחצנים (false)
   bool _showSearchField = false;
+  // סינון לפי סוג מפרש (תרגום/מדרש וכו׳). מצב מקומי ולא מוגדר: הצ׳יפים תלויים
+  // בקטע הנוכחי, ובחירה שנשמרה הייתה מסננת בשקט ספר אחר שנפתח אחריו.
+  Set<String> _selectedCommentaryTypes = const {};
 
   String _getLinkKey(Link link) =>
       '${link.index1}_${link.path2}_${link.index2}';
@@ -268,6 +298,24 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
 
   List<CommentatorGroup> _commentatorGroups(TextBookLoaded state) {
     return widget.commentatorGroupsOverride ?? state.commentatorGroups;
+  }
+
+  /// צ׳יפי הסוגים, מכל קישורי חלון הקריאה ולא רק מהקטע הנראה — אחרת צ׳יפ
+  /// נעלם וחוזר בדפדוף והבחירה מתאפסת. מסוננים לפי שם המפרש בלבד, כדי שלא
+  /// יוצג צ׳יפ לסוג שכל מפרשיו מוסתרים.
+  List<String> _typeChipKeys(
+    TextBookLoaded state,
+    List<String> selectedCommentators,
+  ) {
+    final commentatorsSet = selectedCommentators.toSet();
+    return buildCommentaryTypeChipKeys(
+      state.links
+          .where(
+            (link) =>
+                commentatorsSet.contains(utils.getTitleFromPath(link.path2)),
+          )
+          .toList(growable: false),
+    );
   }
 
   String _bookTitle(TextBookLoaded state) {
@@ -1409,6 +1457,18 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
           }
         }
 
+        final typeChipKeys = _typeChipKeys(state, selectedCommentators);
+        final effectiveTypes = effectiveCommentaryTypes(
+          selectedTypes: _selectedCommentaryTypes,
+          availableKeys: typeChipKeys,
+        );
+        // סוג יחיד אינו מסנן כלום, ולכן הצ׳יפים מוצגים רק משניים ומעלה — אלא אם
+        // הוא הנבחר, שאז בלעדיהם המשתמש מסונן בשקט בלי דרך לבטל.
+        final visibleTypeChipKeys =
+            typeChipKeys.length > 1 || effectiveTypes.isNotEmpty
+            ? typeChipKeys
+            : const <String>[];
+
         Widget buildList() {
           return Builder(
             builder: (context) {
@@ -1551,6 +1611,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                   indexes: currentIndexes,
                   links: state.links,
                   commentatorsToShow: selectedCommentators,
+                  typesToShow: effectiveTypes,
                 ),
                 builder: (context, thisLinksSnapshot) {
                   if (!thisLinksSnapshot.hasData) {
@@ -1558,8 +1619,24 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                     return _buildSkeletonLoading();
                   }
                   if (thisLinksSnapshot.data!.isEmpty) {
-                    // אם אין מפרשים, פשוט נציג מסך ריק
-                    return const SizedBox.shrink();
+                    // רשימה ריקה כאן נובעת מסינון הסוגים בלבד (יש קישורים
+                    // רלוונטיים), ולכן מסבירים במקום להציג ריק בלי הסבר.
+                    if (effectiveTypes.isEmpty) return const SizedBox.shrink();
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Text(
+                          'לא נמצאו מפרשים מהסוגים שנבחרו',
+                          style: TextStyle(
+                            fontSize: widget.fontSize * 0.7,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    );
                   }
                   final data = thisLinksSnapshot.data!;
 
@@ -1802,6 +1879,11 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                         currentIndexes: _currentIndexes(state),
                         linksByLine: state.linksByLine,
                       ),
+                      typeChipKeys: visibleTypeChipKeys,
+                      selectedTypeChips: effectiveTypes,
+                      typeChipLabelBuilder: LinkTypes.hebrewLabel,
+                      onTypeChipsChanged: (selected) =>
+                          setState(() => _selectedCommentaryTypes = selected),
                     )
                   : CommentatorsListView(
                       onCommentatorSelected: _closeCommentatorsFilter,
