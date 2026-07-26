@@ -8,7 +8,7 @@ import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/utils/file/zstd_stream_extractor.dart';
 import 'package:path/path.dart' as p;
-import 'package:sqlite3/sqlite3.dart' as sqlite3;
+import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:seforim_library_updater/seforim_library_updater.dart';
 
 import '../services/library_runtime_refresh_service.dart';

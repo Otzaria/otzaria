@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
-import 'package:sqlite3/sqlite3.dart' as sqlite3;
+import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 
 import '../../../utils/text/text_manipulation.dart';
 import '../../models/author.dart';

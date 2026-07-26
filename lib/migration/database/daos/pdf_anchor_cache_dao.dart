@@ -1,4 +1,4 @@
-import 'package:sqlite3/sqlite3.dart' as sqlite3;
+import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 
 import '../../models/pdf_anchor_cache_entry.dart';
 import '../sql/query_loader.dart';

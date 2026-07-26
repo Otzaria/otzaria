@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/utils/file/zstd_stream_extractor.dart';
+import 'package:otzaria/utils/file/zstd_stream_extractor_io.dart';
 
 /// מנסה לטעון את libzstd הסטנדרטי מהמערכת (לא ה-framework של Flutter), כדי
 /// לאמת את לוגיקת ה-FFI בבדיקות. מחזיר null אם לא נמצא.
@@ -48,7 +48,7 @@ void main() {
         return;
       }
       final out = '${tmp.path}/extracted.db';
-      ZstdStreamExtractor.decompressSyncForTest(src, out, lib);
+      decompressSyncForTest(src, out, lib);
       final hash = sha256.convert(File(out).readAsBytesSync()).toString();
       expect(hash, expectedSha);
     },
@@ -65,7 +65,7 @@ void main() {
     File(src).writeAsBytesSync([0x28, 0xb5, 0x2f, 0xfd, 0x00, 0x01, 0x02]);
     final out = '${tmp.path}/out.db';
     expect(
-      () => ZstdStreamExtractor.decompressSyncForTest(src, out, lib),
+      () => decompressSyncForTest(src, out, lib),
       throwsA(isA<Exception>()),
     );
     expect(File(out).existsSync(), isFalse); // הפלט החלקי נמחק

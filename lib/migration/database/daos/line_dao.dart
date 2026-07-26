@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:sqlite3/sqlite3.dart' as sqlite3;
+import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import '../../models/line.dart';
 import '../sql/sqlite3_utils.dart';
 import '../sql/query_loader.dart';

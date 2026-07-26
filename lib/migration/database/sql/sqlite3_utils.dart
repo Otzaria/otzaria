@@ -1,4 +1,4 @@
-import 'package:sqlite3/sqlite3.dart';
+import 'package:otzaria/data/sqlite/sqlite3_api.dart';
 
 /// Converts a sqlite3 [ResultSet] to a list of dynamic maps.
 extension ResultSetExt on ResultSet {

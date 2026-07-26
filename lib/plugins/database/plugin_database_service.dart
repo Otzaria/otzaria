@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' show min;
-import 'package:sqlite3/sqlite3.dart' as sqlite3_pkg;
+import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3_pkg;
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'plugin_database_source.dart';
 import 'plugin_database_registry.dart';

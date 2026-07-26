@@ -55,7 +55,6 @@ ios/*
 ios/Runner/*
 !ios/Runner/Info.plist
 .dart_tool
-web/
 .idea/
 
 

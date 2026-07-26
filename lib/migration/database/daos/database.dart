@@ -1,4 +1,4 @@
-import 'package:sqlite3/sqlite3.dart' as sqlite3;
+import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 
 import 'author_dao.dart';
 import 'book_acronym_dao.dart';

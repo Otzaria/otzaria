@@ -14,7 +14,7 @@ import 'package:otzaria/library_update/repository/library_update_repository.dart
 import 'package:otzaria/library_update/services/library_runtime_refresh_service.dart';
 import 'package:seforim_library_updater/seforim_library_updater.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
-import 'package:otzaria/utils/file/zstd_stream_extractor.dart';
+import 'package:otzaria/utils/file/zstd_stream_extractor_io.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
@@ -75,7 +75,7 @@ void main() {
         dataRootProvider: () async => tmp.path,
         nowTimestamp: () => '2026-06-28T00:00:00Z',
         fullDbExtractor: (archivePath, outputPath) async {
-          ZstdStreamExtractor.decompressSyncForTest(
+          decompressSyncForTest(
             archivePath,
             outputPath,
             lib,

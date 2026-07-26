@@ -10,7 +10,8 @@ import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/models/model_adapters.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
-import 'package:sqlite3/sqlite3.dart' show SqliteException, sqlite3;
+import 'package:otzaria/data/sqlite/sqlite3_api.dart'
+    show SqliteException, sqlite3;
 
 /// A data provider that manages SQLite database operations for the library.
 ///

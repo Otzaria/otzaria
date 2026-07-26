@@ -7,7 +7,7 @@ import 'package:otzaria/core/http_client_registry.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:path/path.dart' as path;
-import 'package:sqlite3/sqlite3.dart' as sqlite3;
+import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:zstandard/zstandard.dart';
 
 /// מנהל את מסד הקטלוגים החיצוניים (אוצר החכמה והיברובוקס).

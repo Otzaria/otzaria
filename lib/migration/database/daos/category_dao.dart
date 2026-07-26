@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
-import 'package:sqlite3/sqlite3.dart' as sqlite3;
+import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import '../sql/sqlite3_utils.dart';
 import '../../models/category.dart';
 import '../sql/query_loader.dart';
