@@ -1,8 +1,6 @@
 name: otzaria
 description: "A Jewish books library."
-# The following line prevents the package from being accidentally published to
-# pub.dev using `flutter pub publish`. This is preferred for private packages.
-publish_to: "none" # Remove this line if you wish to publish to pub.dev
+publish_to: "none"
 
 msix_config:
   display_name: "אוצריא"
@@ -25,42 +23,24 @@ msix_config:
     force_update_from_any_version: false
 
 
-# The following defines the version and build number for your application.
-# A version number is three numbers separated by dots, like 1.2.43
-# followed by an optional build number separated by a +.
-# Both the version and the builder number may be overridden in flutter
-# build by specifying --build-name and --build-number, respectively.
-# In Android, build-name is used as versionName while build-number used as versionCode.
-# Read more about Android versioning at https://developer.android.com/studio/publish/versioning
-# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
-# Read more about iOS versioning at
-# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
-# In Windows, build-name is used as the major, minor, and patch parts
-# of the product and file versions while build-number is used as the build suffix.
 version: 0.9.95+90950
 
 environment:
   sdk: ">=3.12.0 <4.0.0"
 
-# Dependencies specify other packages that your package needs in order to work.
-# To automatically upgrade your package dependencies to the latest versions
-# consider running `flutter pub upgrade --major-versions`. Alternatively,
-# dependencies can be manually updated by changing the version numbers below to
-# the latest version available on pub.dev. To see which dependencies have newer
-# versions available, run `flutter pub outdated`.
 dependencies:
-  sentry_flutter: ^9.20.0
+  sentry_flutter: ^9.25.0
   flutter:
     sdk: flutter
   flutter_bloc: ^9.1.1
   bloc: ^9.2.1
   bloc_concurrency: ^0.3.0
-  equatable: ^2.0.8
+  equatable: ^2.1.0
   flutter_localizations:
     sdk: flutter
   flutter_settings_screens: ^0.3.4
   hive_ce: ^2.19.3
-  path_provider: ^2.1.5
+  path_provider: ^2.1.6
   html: ^0.15.6
   pdfrx: ^2.4.7
   url_launcher: ^6.3.2
@@ -76,7 +56,7 @@ dependencies:
   provider: ^6.1.5+1
   multi_split_view: ^3.6.2
   updat: ^1.4.0
-  printing:
+  printing: ^5.15.0
   pdf: ^3.13.0
   kosher_dart: ^2.0.20
   archive: ^4.0.9
@@ -96,17 +76,17 @@ dependencies:
   seforim_library_updater:
     git:
       url: https://github.com/Otzaria/otzaria_library_updater
-  window_manager: ^0.5.1
+  window_manager: ^0.5.2
   flutter_spinbox: ^0.13.1
   toggle_switch: ^2.3.0
   logging: ^1.3.0
-  sqlite3: ^3.3.3
+  sqlite3: ^3.5.0
   super_clipboard: ^0.9.1
   flutter_local_notifications: ^22.2.0
-  timezone: ^0.11.0
+  timezone: ^0.11.1
   flutter_single_instance: ^1.7.0
   xml: ^7.0.1
-  flutter_markdown: ^0.7.7
+  flutter_markdown: ^0.7.7+1
   system_fonts: ^1.0.1
   flutter_quill: ^11.5.1
   flutter_inappwebview:
@@ -115,12 +95,10 @@ dependencies:
       path: flutter_inappwebview
 
 dependency_overrides:
-  #  it forces the version of the intl package to be 0.19.0 across all dependencies, even if some packages specify a different compatible version.
-  matcher: ^0.12.18
+  matcher: ^0.12.20
   analyzer: any
   device_info_plus: ^13.2.0
-  # flutter_inappwebview_windows היא תלות עקיפה שנמשכת מ-pub.dev, וחסר בה
-  # תיקון גלילת הטאצ'פד; מכריחים את גרסת ה-fork כדי שתיכנס לכל הבילדים.
+  # הגרסה שב-pub.dev חסרה את תיקון גלילת הטאצ'פד.
   flutter_inappwebview_windows:
     git:
       url: https://github.com/Otzaria/flutter_inappwebview
@@ -146,7 +124,7 @@ flutter_launcher_icons:
     icon_size: 256 # min:48, max:256, default: 48
 
 dev_dependencies:
-  sentry_dart_plugin: ^3.3.0
+  sentry_dart_plugin: ^3.4.0
   # לטעינת ספריית המנוע הנייטיבית בטסטים (ExternalLibrary).
   flutter_rust_bridge: ^2.12.0
   flutter_test:
@@ -154,40 +132,25 @@ dev_dependencies:
   integration_test:
     sdk: flutter
 
-  # The "flutter_lints" package below contains a set of recommended lints to
-  # encourage good coding practices. The lint set provided by the package is
-  # activated in the `analysis_options.yaml` file located at the root of your
-  # package. See that file for information about deactivating specific lint
-  # rules and activating additional ones.
   flutter_lints: ^6.0.0
-  test: ^1.30.1
-  build_runner: ^2.15.0
+  test: ^1.31.0
+  build_runner: ^2.15.2
   bloc_test: ^10.0.0
-  mockito: ^5.6.4
+  mockito: ^5.7.0
   mocktail: ^1.0.5
   hooks: ^2.0.2
   dart_pre_commit: ^6.1.3
-  msix: ^3.18.00
+  msix: ^3.18.0
   markdown: ^7.3.1
   vm_service: ^15.2.0
 
-# For information on the generic Dart part of this file, see the
-# following page: https://dart.dev/tools/pub/pubspec
-
-# The following section is specific to Flutter packages.
 flutter:
-  # כיבוי Swift Package Manager: התוספים הנייטיביים (search_engine מבוסס Rust/
-  # cargokit, printing וכו') עדיין לא תומכים ב-SPM, ו-cargokit ננטש (archived).
-  # נשארים על CocoaPods עד שיתייצב Dart Native Assets ב-flutter_rust_bridge.
+  # התוספים הנייטיביים (search_engine מבוסס cargokit, printing) לא תומכים ב-SPM.
   config:
     enable-swift-package-manager: false
 
-  # The following line ensures that the Material Icons font is
-  # included with your application, so that you can use the icons in
-  # the material Icons class.
   uses-material-design: true
 
-  # To add assets to your application, add an assets section, like this:
   assets:
     - assets/
     - assets/logos/
@@ -202,17 +165,6 @@ flutter:
     - lib/migration/database/sql/
     - assets/dictionary.json
     - assets/Acronyms.json
-
-  # An image asset can refer to one or more resolution-specific "variants", see
-  # https://flutter.dev/assets-and-images/#resolution-aware
-
-  # For details regarding adding assets from package dependencies, see
-  # https://flutter.dev/assets-and-images/#from-packages
-
-  # To add custom fonts to your application, add a fonts section here,
-  # in this "flutter" section. Each entry in this list should have a
-  # "family" key with the font family name, and a "fonts" key with a
-  # list giving the asset and other descriptors for the font. For
 
   fonts:
     - family: TaameyAshkenaz
@@ -251,10 +203,7 @@ sentry:
   project: flutter
   org: otzariaorg
 
-# Pre-commit hook configuration (https://pub.dev/packages/dart_pre_commit)
-# Runs `dart format` and `dart analyze` automatically on staged files before
-# every commit. To install the hook locally run:
-#     dart run tool/install_git_hooks.dart
+# התקנת ההוק: dart run tool/install_git_hooks.dart
 dart_pre_commit:
   exclude:
     - '^packages/'
@@ -262,13 +211,8 @@ dart_pre_commit:
     - '\.g\.dart$'
     - '\.freezed\.dart$'
     - '\.mocks\.dart$'
-  # format runs always – uses dart default line length
   format: true
-  # analyze runs always – reject on any lint/info level issue
   analyze: true
-  # Disabled: many transitive packages are intentionally pinned and would
-  # block every commit. Run `flutter pub outdated` manually when needed.
+  # כבויים: תלויות רבות מוצמדות בכוונה, וזה היה חוסם כל קומיט.
   outdated: false
-  # Disabled: would block commits unrelated to dependency changes. Run
-  # `flutter pub upgrade` manually when dependency tightening is desired.
   pull-up-dependencies: false
