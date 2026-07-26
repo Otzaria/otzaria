@@ -7,8 +7,48 @@ import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show HighlightPattern, generateHighlightPattern;
 
-/// רגקס להסרת תגי HTML וישויות.
-final RegExp _htmlStripper = RegExp(r'<[^>]*>|&[^;]+;');
+/// רגקס להסרת תגי HTML.
+final RegExp _htmlStripper = RegExp(r'<[^>]*>');
+
+/// ישות HTML — שמית או מספרית (עשרונית/הקסדצימלית).
+final RegExp _htmlEntity = RegExp(r'&(#x?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);');
+
+/// ישויות רווח מפוענחות לרווח רגיל ולא ל-NBSP, כדי שיכווצו ככל רווח אחר.
+const Map<String, String> _namedEntities = {
+  'nbsp': ' ',
+  'thinsp': ' ',
+  'ensp': ' ',
+  'emsp': ' ',
+  'amp': '&',
+  'lt': '<',
+  'gt': '>',
+  'quot': '"',
+  'apos': "'",
+  'hellip': '…',
+  'ndash': '–',
+  'mdash': '—',
+  'laquo': '«',
+  'raquo': '»',
+  'middot': '·',
+};
+
+/// מפענח ישויות HTML כפי שמנוע ה-HTML מציג אותן; ישות לא מוכרת נמחקת.
+String decodeHtmlEntities(String text) {
+  if (!text.contains('&')) return text;
+  return text.replaceAllMapped(_htmlEntity, (match) {
+    final body = match[1]!;
+    if (body.startsWith('#')) {
+      final isHex = body[1] == 'x' || body[1] == 'X';
+      final code = int.tryParse(
+        body.substring(isHex ? 2 : 1),
+        radix: isHex ? 16 : 10,
+      );
+      if (code == null || code < 0x20 || code > 0x10FFFF) return '';
+      return String.fromCharCode(code);
+    }
+    return _namedEntities[body.toLowerCase()] ?? '';
+  });
+}
 
 /// רגקס להסרת ניקוד וטעמים.
 final RegExp _vowelsAndCantillation = RegExp(r'[֑-ׇ]');
@@ -25,15 +65,9 @@ final RegExp _holyName = RegExp(
   unicode: true,
 );
 
+/// הפענוח אחרי הסרת התגים — אחרת `&lt;b&gt;` היה הופך ל-`<b>` ונמחק כתגית.
 String stripHtmlIfNeeded(String text) {
-  // Replace whitespace HTML entities with actual spaces before stripping,
-  // otherwise adjacent words get merged (e.g. "לאמר&nbsp;&nbsp;שירה" → "לאמרשירה")
-  final withSpaces = text
-      .replaceAll('&nbsp;', ' ')
-      .replaceAll('&thinsp;', ' ')
-      .replaceAll('&ensp;', ' ')
-      .replaceAll('&emsp;', ' ');
-  return withSpaces.replaceAll(_htmlStripper, '');
+  return decodeHtmlEntities(text.replaceAll(_htmlStripper, ''));
 }
 
 /// כמו [stripHtmlIfNeeded], אך ממיר תגי <br> למעבר שורה אמיתי לפני הסרת התגים,

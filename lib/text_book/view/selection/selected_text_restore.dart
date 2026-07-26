@@ -1,11 +1,8 @@
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 
-/// מעבד שורת מקור לאותו טקסט פשוט שהמשתמש רואה בפועל במסך.
-///
-/// תצוגת ה-HTML מכווצת רצפי רווחים לרווח אחד ומקצצת רווחים בקצוות,
-/// ולכן יש לכווץ גם כאן — אחרת רווחים כפולים שמותיר `removePunctuation`
-/// (כשהוא מסיר פיסוק שהיה מוקף ברווחים) ימנעו את התאמת הבחירה בשחזור.
+/// מעבד שורת מקור לטקסט הפשוט שהמשתמש רואה במסך. הרווחים מכווצים כמו
+/// בתצוגת ה-HTML, אחרת רווח כפול שמותיר `removePunctuation` יכשיל את ההתאמה.
 String renderSelectionLine({
   required String rawText,
   required RenderSettings settings,
@@ -21,10 +18,59 @@ String renderSelectionLine({
   return stripped.replaceAll(RegExp(r'\s+'), ' ').trim();
 }
 
-/// תוצאת שחזור: הטקסט המשוחזר, ואם ההתאמה המדויקת הצליחה — גם מיקומה:
-/// שורת ההתחלה/סיום (אינדקסים ב-visibleLines) ועמודת ההתחלה בשורה הראשונה.
-/// [ambiguous] — נמצאו כמה מופעים תואמים ולא ניתן להכריע ביניהם; במצב זה
-/// אסור לקוראים לשמר אינדקס ישן או ליפול לאינדקס ברירת מחדל.
+/// שורות רצופות ומרונדרות לשחזור, כשהראשונה היא שורת המקור [baseIndex].
+typedef SelectionWindow = ({int baseIndex, List<String> lines});
+
+/// השורות הנראות + שוליים: הבחירה נמשכת גם מעבר למסך (גלילה תוך כדי סימון),
+/// ובלעדיהם ההתאמה המדויקת נכשלת וההעתקה יוצאת שטוחה.
+SelectionWindow buildSelectionWindow({
+  required List<int> visibleIndices,
+  required int totalLines,
+  required int selectionLength,
+  required String Function(int index) renderLine,
+  int maxPadding = 100,
+}) {
+  if (visibleIndices.isEmpty || totalLines <= 0) {
+    return (baseIndex: 0, lines: const <String>[]);
+  }
+  final first = visibleIndices.first.clamp(0, totalLines - 1);
+  final last = visibleIndices.last.clamp(first, totalLines - 1);
+
+  final leading = <String>[];
+  var budget = selectionLength;
+  for (
+    var i = first - 1;
+    i >= 0 && budget > 0 && leading.length < maxPadding;
+    i--
+  ) {
+    final line = renderLine(i);
+    leading.add(line);
+    budget -= line.length;
+  }
+
+  final lines = leading.reversed.toList();
+  for (var i = first; i <= last; i++) {
+    lines.add(renderLine(i));
+  }
+
+  budget = selectionLength;
+  var trailing = 0;
+  for (
+    var i = last + 1;
+    i < totalLines && budget > 0 && trailing < maxPadding;
+    i++
+  ) {
+    final line = renderLine(i);
+    lines.add(line);
+    budget -= line.length;
+    trailing++;
+  }
+
+  return (baseIndex: first - leading.length, lines: lines);
+}
+
+/// הטקסט המשוחזר, ומיקומו ב-visibleLines כשההתאמה המדויקת הצליחה.
+/// [ambiguous] — כמה מופעים תואמים; אסור אז ליפול לאינדקס ישן או לברירת מחדל.
 typedef RestoredSelection = ({
   String text,
   int? startLine,
@@ -33,9 +79,8 @@ typedef RestoredSelection = ({
   bool ambiguous,
 });
 
-/// מיישב את מיקום הבחירה עבור שכבת התצוגה מתוך תוצאת השחזור:
-/// מיקום ידוע → ממופה יחסית ל-[baseIndex]; התאמה עמומה → הכל null (שימור
-/// אינדקס ישן היה משייך הערה/תפריט/plugin לשורה שגויה); אחרת [fallbackIndex].
+/// מיקום ידוע → יחסית ל-[baseIndex]; עמימות → null (אינדקס ישן היה משייך
+/// הערה/תפריט/plugin לשורה שגויה); אחרת [fallbackIndex].
 ({int? selectedIndex, int? lineStart, int? lineEnd, int? startColumn})
 resolveSelectionLocation({
   required RestoredSelection restored,
@@ -59,19 +104,15 @@ resolveSelectionLocation({
   );
 }
 
-/// האינדקס השמור תקף כרמז (preferredLine) וכ-fallback רק בתוך סשן הבחירה
-/// הנוכחי: כשאין טקסט בחירה שמור, האינדקס שייך לבחירה קודמת שנוקתה ואסור
-/// להסתמך עליו — הוא היה משייך את הבחירה החדשה למופע/שורה של הבחירה הישנה.
+/// האינדקס השמור תקף כרמז ו-fallback רק בסשן הבחירה הנוכחי: בלי טקסט שמור
+/// הוא שייך לבחירה קודמת, ושיוך לפיו היה מפנה לשורה של הבחירה הישנה.
 int? sessionSelectionIndex({
   required String? savedSelectedText,
   required int? savedSelectedIndex,
 }) => savedSelectedText == null ? null : savedSelectedIndex;
 
-/// משחזר מעברי שורה בטקסט שנבחר מ-SelectionArea כאשר Flutter מחזיר טקסט שטוח.
-///
-/// תחילה מנסה התאמה מדויקת (הבחירה כתת-מחרוזת רציפה של השורות המרונדרות);
-/// אם היא נכשלת — עובר לשחזור סלחני שורה-אחר-שורה שמזריק מעברי שורה גם כאשר
-/// שורה בודדת באמצע אינה תואמת (רינדור שונה) או חסרה (נגללה מחוץ לתצוגה).
+/// משחזר מעברי שורה בבחירה השטוחה שפלאטר מחזיר: תחילה התאמה מדויקת, ואם
+/// נכשלה — שחזור סלחני שעומד גם בשורת אמצע שרונדרה שונה או חסרה מהתצוגה.
 String restoreSelectedTextLineBreaks({
   required String selectedText,
   required List<String> visibleLines,
@@ -82,11 +123,9 @@ String restoreSelectedTextLineBreaks({
   ).text;
 }
 
-/// כמו [restoreSelectedTextLineBreaks], ומחזיר גם את מיקום ההתאמה בשורות —
-/// חישוב המיקום חייב להיעשות כאן (בהתעלמות מתווי רווח) כי הטקסט המשוחזר עשוי
-/// להכיל NBSP/רווח-דק שלא קיימים בשורות המרונדרות, ו-indexOf רגיל ייכשל עליו.
-/// [preferredLine] — שורת הבחירה הידועה מהעדכון הקודם; כשיש כמה מופעים
-/// תואמים, מופע שמכיל אותה מוכרע לטובתה במקום להיחשב עמימות.
+/// כמו [restoreSelectedTextLineBreaks] + מיקום ההתאמה — חייב להיחשב כאן, כי
+/// indexOf נשבר על NBSP/רווח-דק שבבחירה ואינם בשורות המרונדרות.
+/// [preferredLine] — השורה מהעדכון הקודם, מכריעה בין כמה מופעים תואמים.
 RestoredSelection restoreSelectedTextLineBreaksDetailed({
   required String selectedText,
   required List<String> visibleLines,
@@ -129,10 +168,8 @@ bool _isWhitespace(int codeUnit) =>
     codeUnit == 0x3000 ||
     codeUnit == 0xFEFF;
 
-/// התאמה מדויקת תוך התעלמות מתווי רווח: בתצוגה מופיעים NBSP/רווח-דק
-/// (מ-&nbsp;/&thinsp;) ו-\n (מ-<br>) שהשורות המרונדרות מכווצות לרווח רגיל,
-/// ולכן ההשוואה נעשית על התווים שאינם רווח בלבד. מחזיר את הבחירה המקורית
-/// כלשונה עם `\n` מוזרק בגבולות השורות + מיקום ההתאמה, או `null` כשאין התאמה.
+/// התאמה מדויקת על התווים שאינם רווח בלבד — בבחירה יש NBSP/רווח-דק ו-\n
+/// (מ-&nbsp;/<br>) שהשורות המרונדרות מכווצות לרווח רגיל.
 RestoredSelection? _restoreExact(
   String selectedText,
   List<String> visibleLines,
@@ -174,9 +211,8 @@ RestoredSelection? _restoreExact(
   }
   final visibleCompact = visibleBuffer.toString();
 
-  // ההשוואה חסרת-הרווחים עלולה להשוות בין מופעים עם פיזור רווחים שונה —
-  // מאמתים שקיום רווח בין תווים סמוכים זהה בבחירה ובתצוגה (גבול שורות הוא
-  // wildcard: שם הבחירה השטוחה חסרת רווח באופן לגיטימי).
+  // מאמת שקיום רווח בין תווים סמוכים זהה בבחירה ובתצוגה, כדי לא לשייך למופע
+  // עם פיזור רווחים אחר. גבול שורות הוא wildcard — שם הבחירה חסרת רווח בדין.
   bool selectedHasGap(int k) =>
       selectedIndexMap[k] > selectedIndexMap[k - 1] + 1;
   bool visibleHasGap(int pos) => columnOfChar[pos] > columnOfChar[pos - 1] + 1;

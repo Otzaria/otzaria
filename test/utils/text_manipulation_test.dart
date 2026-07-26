@@ -256,6 +256,42 @@ Future<void> main() async {
         : 'ספריית מנוע החיפוש הנייטיבית לא נמצאה — הריצו cargo build בחבילה',
   );
 
+  group('stripHtmlIfNeeded', () {
+    test('מפענח ישויות רווח לרווח רגיל ומונע מיזוג מילים', () {
+      expect(
+        stripHtmlIfNeeded('לאמר&nbsp;&nbsp;שירה&thinsp;חדשה'),
+        equals('לאמר  שירה חדשה'),
+      );
+    });
+
+    test('מפענח ישויות תוכן כפי שמנוע ה-HTML מציג אותן', () {
+      expect(
+        stripHtmlIfNeeded('רבי א &amp; רבי ב אמרו &quot;שלום&quot;'),
+        equals('רבי א & רבי ב אמרו "שלום"'),
+      );
+    });
+
+    test('פענוח אחרי הסרת התגים — &lt;b&gt; נשאר טקסט גלוי', () {
+      expect(stripHtmlIfNeeded('<b>מודגש</b> &lt;b&gt;'), equals('מודגש <b>'));
+    });
+
+    test('מפענח ישויות מספריות (עשרוני והקסדצימלי)', () {
+      expect(stripHtmlIfNeeded('דבר&#x27;ו ו&#39;עוד'), equals("דבר'ו ו'עוד"));
+    });
+
+    test('אמפרסנד בודד שאינו ישות אינו בולע את המשך הטקסט', () {
+      // הרגקס הישן (&[^;]+;) מחק את כל הקטע שבין & לנקודה-פסיק הבאה.
+      expect(
+        stripHtmlIfNeeded('רבי א & רבי ב; וכן'),
+        equals('רבי א & רבי ב; וכן'),
+      );
+    });
+
+    test('ישות לא מוכרת נמחקת כמו כל markup', () {
+      expect(stripHtmlIfNeeded('א&zzz;ב'), equals('אב'));
+    });
+  });
+
   group('stripHtmlPreservingBreaks', () {
     test('ממיר <br> למעבר שורה במקום לדחוס לרצף', () {
       expect(

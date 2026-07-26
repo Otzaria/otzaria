@@ -1507,20 +1507,21 @@ class _CombinedViewState extends State<CombinedView> {
     );
   }
 
-  List<String> _buildRenderedVisibleLines(
+  SelectionWindow _buildSelectionWindow(
     TextBookLoaded state,
     SettingsState settingsState,
+    int selectionLength,
   ) {
     final renderSettings = _selectionRenderSettings(state, settingsState);
-    return state.visibleIndices
-        .where((idx) => idx >= 0 && idx < widget.data.length)
-        .map(
-          (idx) => renderSelectionLine(
-            rawText: widget.data[idx],
-            settings: renderSettings,
-          ),
-        )
-        .toList();
+    return buildSelectionWindow(
+      visibleIndices: state.visibleIndices,
+      totalLines: widget.data.length,
+      selectionLength: selectionLength,
+      renderLine: (index) => renderSelectionLine(
+        rawText: widget.data[index],
+        settings: renderSettings,
+      ),
+    );
   }
 
   Widget buildKeyboardListener() {
@@ -1584,21 +1585,19 @@ class _CombinedViewState extends State<CombinedView> {
 
                   if (loadedState != null) {
                     final settingsState = context.read<SettingsBloc>().state;
-                    // מקבל את השורה הראשונה הנראית
-                    final baseIndex = loadedState.visibleIndices.isNotEmpty
-                        ? loadedState.visibleIndices.first
-                        : 0;
-
-                    final visibleLines = _buildRenderedVisibleLines(
+                    final window = _buildSelectionWindow(
                       loadedState,
                       settingsState,
+                      plain!.length,
                     );
+                    final baseIndex = window.baseIndex;
+                    final visibleLines = window.lines;
                     final previousIndex = sessionSelectionIndex(
                       savedSelectedText: _savedSelectedText.value,
                       savedSelectedIndex: _savedSelectedIndex.value,
                     );
                     final restored = restoreSelectedTextLineBreaksDetailed(
-                      selectedText: plain!,
+                      selectedText: plain,
                       visibleLines: visibleLines,
                       preferredLine: previousIndex == null
                           ? null

@@ -185,6 +185,102 @@ void main() {
     });
   });
 
+  group('buildSelectionWindow', () {
+    String lineAt(int index) => 'שורה $index';
+
+    test('מרחיב את החלון לשני הצדדים עד לכיסוי אורך הבחירה', () {
+      final window = buildSelectionWindow(
+        visibleIndices: const [5, 6, 7],
+        totalLines: 20,
+        selectionLength: 20,
+        renderLine: lineAt,
+      );
+
+      // ההרחבה נעצרת ברגע שסך אורך השורות שנוספו בצד עבר את אורך הבחירה.
+      expect(window.baseIndex, 1);
+      expect(window.lines.first, 'שורה 1');
+      expect(window.lines.last, 'שורה 11');
+    });
+
+    test('בחירה קצרה כמעט אינה מרחיבה את החלון', () {
+      final window = buildSelectionWindow(
+        visibleIndices: const [5, 6],
+        totalLines: 20,
+        selectionLength: 3,
+        renderLine: lineAt,
+      );
+
+      expect(window.baseIndex, 4);
+      expect(window.lines.length, 4);
+    });
+
+    test('אינו חורג מגבולות הספר', () {
+      final window = buildSelectionWindow(
+        visibleIndices: const [0, 1],
+        totalLines: 3,
+        selectionLength: 500,
+        renderLine: lineAt,
+      );
+
+      expect(window.baseIndex, 0);
+      expect(window.lines.length, 3);
+    });
+
+    test('מוגבל ב-maxPadding כדי לא לרנדר את כל הספר', () {
+      var rendered = 0;
+      final window = buildSelectionWindow(
+        visibleIndices: const [500],
+        totalLines: 1000,
+        selectionLength: 100000,
+        renderLine: (index) {
+          rendered++;
+          return lineAt(index);
+        },
+        maxPadding: 10,
+      );
+
+      expect(window.baseIndex, 490);
+      expect(window.lines.length, 21);
+      expect(rendered, 21);
+    });
+
+    test('החלון רציף גם כשהאינדקסים הנראים אינם רציפים', () {
+      final window = buildSelectionWindow(
+        visibleIndices: const [4, 8],
+        totalLines: 20,
+        selectionLength: 0,
+        renderLine: lineAt,
+      );
+
+      expect(window.baseIndex, 4);
+      expect(window.lines.length, 5);
+    });
+
+    test('ללא שורות נראות מחזיר חלון ריק', () {
+      final window = buildSelectionWindow(
+        visibleIndices: const [],
+        totalLines: 20,
+        selectionLength: 50,
+        renderLine: lineAt,
+      );
+
+      expect(window.lines, isEmpty);
+      expect(window.baseIndex, 0);
+    });
+
+    test('אינדקס נראה מחוץ לתחום נחתך לגבולות הספר', () {
+      final window = buildSelectionWindow(
+        visibleIndices: const [98, 120],
+        totalLines: 100,
+        selectionLength: 0,
+        renderLine: lineAt,
+      );
+
+      expect(window.baseIndex, 98);
+      expect(window.lines.length, 2);
+    });
+  });
+
   group('resolveSelectionLocation', () {
     test('מיקום ידוע ממופה יחסית ל-baseIndex', () {
       final location = resolveSelectionLocation(
