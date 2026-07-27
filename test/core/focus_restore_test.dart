@@ -339,5 +339,23 @@ void main() {
 
       expect(calls, 0, reason: 'requester של widget שב-dispose לא אמור לרוץ');
     });
+
+    /// רגרסיה: בקשה ממתינה שרדה עזיבת מסך העיון, וירתה כשאזור הקריאה נרשם —
+    /// בזמן שהמשתמש כבר הקליד בשדה של תוסף, שם הפוקוס נחטף.
+    testWidgets('בוטלה בעזיבת מסך העיון — לא חוטפת פוקוס במסך אחר', (
+      tester,
+    ) async {
+      final tab = Object();
+      int calls = 0;
+
+      repo.requestTabContentFocus(tab);
+      repo.cancelPendingTabContentFocus();
+
+      repo.registerTabContentFocusRequester(tab, () => calls++);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+
+      expect(calls, 0, reason: 'בקשה שבוטלה לא אמורה לירות עם רישום מאוחר');
+    });
   });
 }

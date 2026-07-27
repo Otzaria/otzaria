@@ -175,6 +175,13 @@ class FocusRepository {
     if (_pendingTabContentFocus == tabKey) _pendingTabContentFocus = null;
   }
 
+  /// מבטל בקשת מיקוד ממתינה. חובה בעזיבת מסך העיון: בלי זה הבקשה שורדת עד
+  /// שאזור הקריאה נרשם, ואז חוטפת את הפוקוס משדה קלט שהמשתמש כבר מקליד בו
+  /// במסך אחר (בולט בתוסף — ה-WebView הוא חלון OS ש-Flutter אינו רואה).
+  void cancelPendingTabContentFocus() {
+    _pendingTabContentFocus = null;
+  }
+
   /// ממקד את אזור הקריאה של הטאב הפעיל (אם נרשם). מחזיר true אם נמצא ומופעל.
   /// אם התוכן עדיין לא נרשם, הבקשה נזכרת ותבוצע ברגע הרישום.
   bool requestTabContentFocus(Object tabKey) {

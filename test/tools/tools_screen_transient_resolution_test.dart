@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/tools/tools_screen.dart';
@@ -54,6 +55,39 @@ InstalledPlugin _pluginFor({
 }
 
 void main() {
+  group('pendingNavRailPluginToOpen', () {
+    tearDown(() => pendingNavRailPluginToOpen = null);
+
+    test('ברירת המחדל ריקה — כניסה רגילה לכלים לא פותחת תוסף', () {
+      expect(pendingNavRailPluginToOpen, isNull);
+    });
+
+    test('נשמר בניווט אל הכלים — שם היא תיצרך בבנייה', () {
+      pendingNavRailPluginToOpen = _pluginFor(id: 'a', pinnedToNavRail: true);
+      cancelPendingNavRailPluginOnNavigation(Screen.more);
+      expect(pendingNavRailPluginToOpen, isNotNull);
+    });
+
+    test(
+      'רגרסיה: ניווט למסך אחר לפני שהכלים נבנו מבטל את הבקשה',
+      () {
+        // בלי הביטול התוסף הישן היה נפתח בכניסה הבאה לכלים, בניגוד לפעולה
+        // האחרונה של המשתמש.
+        pendingNavRailPluginToOpen = _pluginFor(id: 'a', pinnedToNavRail: true);
+        cancelPendingNavRailPluginOnNavigation(Screen.reading);
+        expect(pendingNavRailPluginToOpen, isNull);
+      },
+    );
+
+    test('כל מסך שאינו כלים מבטל', () {
+      for (final screen in Screen.values.where((s) => s != Screen.more)) {
+        pendingNavRailPluginToOpen = _pluginFor(id: 'a', pinnedToNavRail: true);
+        cancelPendingNavRailPluginOnNavigation(screen);
+        expect(pendingNavRailPluginToOpen, isNull, reason: '$screen');
+      }
+    });
+  });
+
   group('shouldHideToolsTabBar', () {
     test('מוצג במצב רגיל', () {
       expect(

@@ -1031,8 +1031,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
         _openToolWhenAvailable(toolId);
         return true;
       case OpenPluginAction(:final pluginId):
+        // בחירת התוסף מנסה לקדום לניווט כדי שתוסף מוצמד לא יבליח עם סרגל
+        // הלשוניות; כשהיא לא אפשרית עדיין, המסלול הנדחה משלים אותה.
+        final openedNow = _tryOpenPluginByIdNow(pluginId);
         context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
-        _openPluginByIdWhenAvailable(pluginId);
+        if (!openedNow) _openPluginByIdWhenAvailable(pluginId);
         return true;
       case SwitchToTabAction(:final index):
         final tabsBloc = context.read<TabsBloc>();
@@ -1221,6 +1224,18 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
   void _openPluginPanelWhenAvailable() {
     _whenToolsScreenAvailable((toolsState) => toolsState.openPluginPanel());
+  }
+
+  /// מנסה לפתוח תוסף בלי להמתין לפריים. כשמחזיר false הטיפול — כולל כל הודעות
+  /// השגיאה — עובר ל-[_openPluginByIdWhenAvailable] שרץ אחרי הניווט.
+  bool _tryOpenPluginByIdNow(String pluginId) {
+    final blocState = context.read<PluginSystemBloc>().state;
+    if (blocState is! PluginSystemLoaded) return false;
+    final plugin = blocState.plugins.firstWhereOrNull(
+      (p) => p.pluginId == pluginId,
+    );
+    if (plugin == null || !plugin.enabled) return false;
+    return _selectPluginBeforeNavigation(plugin);
   }
 
   /// פותח תוסף לפי מזהה (deep-link `otzaria://open/plugin/<id>`). ממתין הן
@@ -1477,6 +1492,12 @@ class MainWindowScreenState extends State<MainWindowScreen>
       PluginRuntimeDispatcher.instance.setToolsScreenVisible(
         state.currentScreen == Screen.more,
       );
+      // בקשת מיקוד אזור הקריאה שייכת למסך העיון בלבד; בעזיבתו היא מתבטלת כדי
+      // שלא תירה מאוחר יותר, כשהתוכן נרשם, ותחטוף פוקוס משדה במסך הנוכחי.
+      if (state.currentScreen != Screen.reading) {
+        context.read<FocusRepository>().cancelPendingTabContentFocus();
+      }
+      cancelPendingNavRailPluginOnNavigation(state.currentScreen);
       _lastScreen = state.currentScreen;
     }
 
@@ -3404,10 +3425,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     await _onNavTap(context, _settingsNavIndex, currentScreen);
   }
 
-  /// פותח פריט מוצמד-לסרגל במסך הכלים. תוסף עובר דרך
-  /// [_openPluginInToolsWhenAvailable] (כדי להתמודד עם transient וטעינה
-  /// אסינכרונית); כלי מובנה עובר דרך `requestOpenTool` שתואם לכל מזהה כלי
-  /// קיים בלשוניות.
+  /// פותח פריט מוצמד-לסרגל במסך הכלים.
   void _openPinnedItemInTools(
     BuildContext context,
     _PinnedToolNavItem item,
@@ -3419,12 +3437,43 @@ class MainWindowScreenState extends State<MainWindowScreen>
         item.plugin?.pluginId != toolsState.hiddenNavRailPluginId) {
       toolsState.clearHiddenNavRailPlugin();
     }
+
+    // בחירת התוסף חייבת לקדום לניווט, אחרת אנימציית המעבר מציגה את הכלי הקודם
+    // עם סרגל הלשוניות שאמור להיות מוסתר. תוסף חסום במצב מנותק מוחרג: פתיחתו
+    // רק מציגה שגיאה, וזו צריכה להופיע אחרי הניווט ולא על המסך הקודם.
+    final plugin = item.isPlugin ? item.plugin : null;
+    final openedNow = plugin != null && _selectPluginBeforeNavigation(plugin);
+
     context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
+
+    if (openedNow) return;
+    // גיבוי: תוסף חסום במצב מנותק, וכלים מובנים שאין להם מסלול מוקדם — נפתחים
+    // אחרי הניווט, כולל הודעות השגיאה שלהם.
     if (item.isPlugin && item.plugin != null) {
       _openPluginInToolsWhenAvailable(item.plugin!);
     } else {
       _openBuiltInToolWhenAvailable(item.toolId);
     }
+  }
+
+  /// בוחר תוסף לפני שליחת הניווט למסך הכלים, ומחזיר האם הצליח.
+  ///
+  /// תוסף חסום במצב מנותק מוחרג: פתיחתו רק מציגה שגיאה, וזו צריכה להופיע אחרי
+  /// הניווט ולא על המסך הקודם.
+  bool _selectPluginBeforeNavigation(InstalledPlugin plugin) {
+    if (context.read<SettingsBloc>().state.isOfflineMode &&
+        plugin.blockedInOfflineMode) {
+      return false;
+    }
+    final toolsState = moreScreenKey.currentState;
+    if (toolsState != null) {
+      toolsState.openPluginTransiently(plugin);
+    } else {
+      // המסך נבנה עצלן; הבקשה תיצרך ב-didChangeDependencies שלו כך שהבנייה
+      // הראשונה כבר תציג את התוסף במקום להחליף אליו אחרי כמה פריימים.
+      pendingNavRailPluginToOpen = plugin;
+    }
+    return true;
   }
 
   void _openBuiltInToolWhenAvailable(String toolId, {int attemptsLeft = 6}) {

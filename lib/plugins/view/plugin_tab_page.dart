@@ -808,7 +808,14 @@ class _PluginTabPageState extends State<PluginTabPage> {
   }
 
   static bool get _needsWebViewPrerequisites {
-    return !kIsWeb && (Platform.isAndroid || Platform.isWindows);
+    if (kIsWeb) return false;
+    // סביבה קיימת (pre-warm ב-main) הופכת את הבדיקה למיותרת, וה-FutureBuilder
+    // היה עולה פריים ריק שחושף את מסך הכלים מאחורי התוסף. נבדק כאן ולא בדגל
+    // סטטי, כדי ש-restart בתוך התהליך (שמאפס את הסביבה) יאתחל אותה מחדש.
+    if (Platform.isWindows && WebViewEnvironmentHolder.environment != null) {
+      return false;
+    }
+    return Platform.isAndroid || Platform.isWindows;
   }
 
   /// מבצע את בדיקת/אתחול התנאים המוקדמים ל-WebView לפי הפלטפורמה.

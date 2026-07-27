@@ -9,6 +9,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/personal_notes/view/personal_notes_screen.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/built_in_tools_catalog.dart';
@@ -65,6 +66,19 @@ void setActiveToolIdSafely(String? id, {bool Function()? isMounted}) {
   } else {
     activeToolIdNotifier.value = id;
   }
+}
+
+/// תוסף שנלחץ לפני שמסך הכלים נבנה. נצרך ב-`didChangeDependencies` (שם יש
+/// כבר blocs), כדי שהבנייה הראשונה תציג אותו במקום את הכלי הראשון.
+InstalledPlugin? pendingNavRailPluginToOpen;
+
+/// מבטל בקשת פתיחה שטרם נצרכה כשהניווט אינו למסך הכלים.
+///
+/// בלי זה, משתמש שלחץ על תוסף ומיד ניווט למקום אחר היה מוצא אותו נפתח
+/// בכניסה הבאה לכלים, בניגוד לפעולה האחרונה שלו.
+void cancelPendingNavRailPluginOnNavigation(Screen currentScreen) {
+  if (currentScreen == Screen.more) return;
+  pendingNavRailPluginToOpen = null;
 }
 
 /// מחשב את התוסף ה-transient לאחר טעינת רשימת תוספים מעודכנת: מחזיר את
@@ -440,6 +454,17 @@ class ToolsScreenState extends State<ToolsScreen>
         .join('::');
   }
 
+  /// הכלי הנבחר הוא תוסף — הפוקוס שייך ל-WebView, שהוא חלון OS נפרד ש-Flutter
+  /// אינו רואה. requestFocus על _contentFocusNode היה חוטף אותו משדה שהמשתמש
+  /// לחץ עליו בעכבר, כי מבחינת Flutter הצומת עדיין אינו ממוקד.
+  bool get _isPluginToolSelected {
+    if (_selectedToolId == null) return false;
+    if (_transientPlugin?.pluginId == _selectedToolId) return true;
+    return _descriptors.any(
+      (d) => d.toolId == _selectedToolId && d is PluginToolDescriptor,
+    );
+  }
+
   void _requestCalendarFocus({
     int remainingAttempts = _calendarFocusRetryCount,
   }) {
@@ -483,6 +508,7 @@ class ToolsScreenState extends State<ToolsScreen>
         if (_selectedToolId == 'builtin.calendar') {
           return _calendarKey.currentState != null;
         }
+        if (_isPluginToolSelected) return false;
         return _contentFocusNode.enclosingScope != null;
       },
     );
@@ -497,7 +523,8 @@ class ToolsScreenState extends State<ToolsScreen>
       // אם ה-requestFocus שאחריו נכשל (למשל בזמן resize ב-Windows).
       if (_selectedToolId == 'builtin.calendar') {
         _requestCalendarFocus();
-      } else if (_contentFocusNode.enclosingScope != null &&
+      } else if (!_isPluginToolSelected &&
+          _contentFocusNode.enclosingScope != null &&
           !_contentFocusNode.hasFocus) {
         _contentFocusNode.requestFocus();
       }
@@ -791,6 +818,23 @@ class ToolsScreenState extends State<ToolsScreen>
     );
   }
 
+  /// מחיל בקשת פתיחה שנרשמה לפני שהמסך נבנה, אם יש. נקרא רק כשהתוספים טעונים
+  /// — בלי descriptor לתוסף המסך היה מציג כלי אחר ללא סרגל להיחלץ בו.
+  void _consumePendingNavRailPlugin({required bool isOfflineMode}) {
+    final pending = pendingNavRailPluginToOpen;
+    if (pending == null) return;
+    pendingNavRailPluginToOpen = null;
+    if (isOfflineMode && pending.blockedInOfflineMode) return;
+    // אותו קריטריון כמו ב-openPluginTransiently: רק תוסף בלי לשונית משלו
+    // מסתיר את הסרגל.
+    if (!pending.showInTools || pending.pinnedToNavRail) {
+      _hiddenNavRailPlugin = pending;
+    }
+    _transientPlugin = pending;
+    _showMobileMenu = false;
+    _setSelectedToolId(pending.pluginId);
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -799,8 +843,10 @@ class ToolsScreenState extends State<ToolsScreen>
       final state = context.read<PluginSystemBloc>().state;
       if (state is PluginSystemLoaded) {
         final isOfflineMode = context.read<SettingsBloc>().state.isOfflineMode;
+        _consumePendingNavRailPlugin(isOfflineMode: isOfflineMode);
         _applyTabState(
           state.pinnedPlugins.filterForOfflineMode(isOfflineMode),
+          transient: _transientPlugin,
           notify: false,
         );
       }
@@ -1362,6 +1408,9 @@ class ToolsScreenState extends State<ToolsScreen>
                   _hiddenNavRailPlugin = updated;
                 }
               }
+              // אחרי בלוק התחזוקה שלמעלה: הוא נועד לתוסף שכבר היה פתוח, ואם
+              // ירוץ על הבקשה שזה עתה הוחלה הוא יבטל אותה.
+              _consumePendingNavRailPlugin(isOfflineMode: isOfflineMode);
               _rebuildTabs(
                 state.pinnedPlugins.filterForOfflineMode(isOfflineMode),
                 transient: _transientPlugin,
@@ -1373,9 +1422,7 @@ class ToolsScreenState extends State<ToolsScreen>
         ),
       ],
       child: Theme(
-        data: Theme.of(context).copyWith(
-          scaffoldBackgroundColor: bgColor,
-        ),
+        data: Theme.of(context).copyWith(scaffoldBackgroundColor: bgColor),
         child: LayoutBuilder(
           builder: (context, constraints) {
             final isMobile = constraints.maxWidth < LayoutBreakpoints.compact;
