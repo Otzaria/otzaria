@@ -89,6 +89,9 @@ class PreviewRenderer {
       element.localName,
       baseStyle.fontFamily,
     );
+    if (headingWeight != null) {
+      styles['font-weight'] = headingWeight;
+    }
 
     switch (element.localName) {
       case 'code':

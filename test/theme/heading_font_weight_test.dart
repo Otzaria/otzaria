@@ -189,13 +189,20 @@ void main() {
       );
     }
 
-    testWidgets('כותרת בפרנק-רוהל אינה מודגשת — תואם לספר', (tester) async {
-      await tester.pumpWidget(buildPreview('<h1>דף ה.</h1>', 'FrankRuhlCLM'));
-      await tester.pumpAndSettle();
-      expect(
-        _findHeading(tester, 'דף ה.').text.style?.fontWeight,
-        FontWeight.w400,
-      );
+    testWidgets('כל רמות הכותרת בפרנק-רוהל אינן מודגשות — תואם לספר', (
+      tester,
+    ) async {
+      for (final tag in AppFonts.headingTags) {
+        await tester.pumpWidget(
+          buildPreview('<$tag>דף ה.</$tag>', 'FrankRuhlCLM'),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          _findHeading(tester, 'דף ה.').text.style?.fontWeight,
+          FontWeight.w400,
+          reason: tag,
+        );
+      }
     });
 
     testWidgets('כותרת בגופן ללא face נפרד נשארת מודגשת', (tester) async {
