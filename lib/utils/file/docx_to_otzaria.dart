@@ -16,7 +16,9 @@ import 'dart:convert';
 /// v6: תיבות-טקסט (`w:txbxContent`) — טקסט בתוך מסגרת, אולי על תמונת-רקע.
 /// v7: דילוג על מסגרות-רקע דקורטיביות (`behindDoc`) שאינן ניתנות לרינדור.
 /// v8: תמונות inline בתוך תיבת-טקסט אינן מזוהות בטעות כתמונת-רקע של התיבה.
-const int kDocxConverterVersion = 8;
+/// v9: כותרות עם styleId מספרי (Word בעברית / המרה מ-HTML) לפי styles.xml,
+/// ו-`outlineLvl=9` ("Body Text") אינו נחשב עוד לכותרת.
+const int kDocxConverterVersion = 9;
 
 // Windows-1255 Hebrew range: 0xC0–0xD8 and 0xE0–0xFA map to Unicode with offset 1264.
 // 0xE0 (224) + 1264 = 1488 = U+05D0 = א, ... 0xFA (250) + 1264 = 1514 = U+05EA = ת
@@ -73,12 +75,20 @@ class _DocxContext {
   /// `numId` → (`ilvl` → הגדרת הרמה). מקובץ numbering.xml.
   final Map<String, Map<int, _NumLevel>> numbering;
 
+  /// `styleId` → רמת כותרת 1–6, מקובץ styles.xml.
+  final Map<String, int> headingStyles;
+
   final _FootnoteCounter footnoteCounter = _FootnoteCounter();
 
   /// מונים רצים לרשימות: `numId` → (`ilvl` → הערך הנוכחי).
   final Map<String, Map<int, int>> _listCounters = {};
 
-  _DocxContext(this.footnotes, this.images, this.numbering);
+  _DocxContext(
+    this.footnotes,
+    this.images,
+    this.numbering,
+    this.headingStyles,
+  );
 
   /// מחזיר את תווית המספור/תבליט לפריט רשימה (למשל `1.`, `1.1.`, `א.`, `•`).
   /// מקדם את המונה המתאים ומאפס רמות עמוקות יותר (מבנה multilevel תקין).
@@ -246,6 +256,50 @@ Map<String, Map<int, _NumLevel>> _extractNumbering(Archive archive) {
     if (numId != null && aid != null && abstracts.containsKey(aid)) {
       result[numId] = abstracts[aid]!;
     }
+  }
+  return result;
+}
+
+/// בונה מפת `styleId` → רמת כותרת 1–6 מקובץ styles.xml.
+///
+/// Word בעברית (וקבצים שהומרו מ-HTML) שומר styleId מספרי (`"2"`) בעוד שהשם
+/// (`heading 2`) וה-`w:outlineLvl` יושבים רק בהגדרת הסגנון — בלי המפה הזו כל
+/// הכותרות במסמכים כאלה מפוספסות.
+Map<String, int> _extractHeadingStyles(Archive archive) {
+  ArchiveFile? stylesFile;
+  for (final f in archive) {
+    if (f.isFile && f.name == 'word/styles.xml') {
+      stylesFile = f;
+      break;
+    }
+  }
+  if (stylesFile == null) return const {};
+
+  final xml.XmlDocument doc;
+  try {
+    doc = xml.XmlDocument.parse(_decodeXmlBytes(stylesFile.content));
+  } catch (_) {
+    return const {};
+  }
+
+  final result = <String, int>{};
+  for (final style in doc.findAllElements('w:style')) {
+    final type = style.getAttribute('w:type');
+    if (type != null && type != 'paragraph') continue;
+    final id = style.getAttribute('w:styleId');
+    if (id == null) continue;
+
+    final level =
+        _headingLevelFromStyleName(
+          style.getElement('w:name')?.getAttribute('w:val'),
+        ) ??
+        _headingLevelFromOutline(
+          style
+              .getElement('w:pPr')
+              ?.getElement('w:outlineLvl')
+              ?.getAttribute('w:val'),
+        );
+    if (level != null) result[id] = level;
   }
   return result;
 }
@@ -532,6 +586,16 @@ int? _headingLevelFromStyleName(String? styleVal) {
   return null;
 }
 
+/// ממיר `w:outlineLvl` לרמת כותרת 1–6, או `null` אם אינו כותרת.
+///
+/// ב-OOXML הערך 9 פירושו "Body Text" — ביטול *מפורש* של רמת מתאר, ולא כותרת
+/// עמוקה. בלי הבדיקה כל פסקה כזו הייתה הופכת ל-`<h6>` ומזהמת את תוכן העניינים.
+int? _headingLevelFromOutline(String? val) {
+  final o = val != null ? int.tryParse(val) : null;
+  if (o == null || o < 0 || o >= 9) return null;
+  return (o + 1).clamp(1, 6);
+}
+
 /// מעבד run בודד ל-[_Seg] (עטיפה + טקסט), או `null` אם הוא ריק/מוסתר.
 ///
 /// תומך ב-`w:br`/`w:tab` בתוך ה-run, ומזהה הדגשה/נטייה גם בווריאנט
@@ -707,18 +771,18 @@ void _processParagraph(
 
   final pPr = paragraph.getElement('w:pPr');
 
-  // כותרת: קודם לפי שם הסגנון, אחרת גיבוי שפה-אגנוסטי דרך outlineLvl.
+  // כותרת: קודם לפי שם הסגנון, אחרת לפי הגדרת הסגנון ב-styles.xml (styleId
+  // מספרי), ולבסוף גיבוי שפה-אגנוסטי דרך outlineLvl של הפסקה עצמה.
   final styleVal = pPr?.getElement('w:pStyle')?.getAttribute('w:val');
-  var level = _headingLevelFromStyleName(styleVal);
-  if (level == null) {
-    final outline = pPr?.getElement('w:outlineLvl')?.getAttribute('w:val');
-    final o = outline != null ? int.tryParse(outline) : null;
-    if (o != null) level = o + 1;
-  }
+  final level =
+      _headingLevelFromStyleName(styleVal) ??
+      (styleVal != null ? ctx.headingStyles[styleVal] : null) ??
+      _headingLevelFromOutline(
+        pPr?.getElement('w:outlineLvl')?.getAttribute('w:val'),
+      );
 
   if (level != null) {
-    final clamped = level.clamp(1, 6);
-    output.add('<h$clamped>$text</h$clamped>');
+    output.add('<h$level>$text</h$level>');
     return;
   }
 
@@ -933,6 +997,7 @@ String docxToText(Uint8List bytes, String title) {
     _extractFootnotes(archive),
     _extractImages(archive),
     _extractNumbering(archive),
+    _extractHeadingStyles(archive),
   );
   final List<String> list = ['<h1>${_escapeHtml(title)}</h1>'];
 
