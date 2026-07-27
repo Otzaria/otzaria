@@ -62,6 +62,7 @@ import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
     as inline_notes;
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
+import 'package:otzaria/text_book/utils/numbered_note_markers.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/text_book/utils/note_inline_render.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
@@ -271,6 +272,32 @@ class _CombinedViewState extends State<CombinedView> {
   /// השהיית ריחוף לפני פתיחת חלונית העוגן (מונעת הבהובים במעבר-סמן חולף).
   Timer? _anchorHoverTimer;
 
+  /// מזהה הריחוף הממתין. טעינה אסינכרונית שהתחילה בודקת אותו לאחר ה-await —
+  /// ביטול ה-Timer לבדו אינו עוצר טעינה שכבר יצאה לדרך.
+  int _anchorHoverGeneration = 0;
+
+  /// ביטול ריחוף ממתין: גם ה-Timer וגם טעינה אסינכרונית שכבר התחילה.
+  void _cancelPendingAnchorHover() {
+    _anchorHoverTimer?.cancel();
+    _anchorHoverGeneration++;
+  }
+
+  /// סמן-האות שחלונית התצוגה שלו פתוחה כעת (שורה + אינדקס בשורה) — מודגש בטקסט
+  /// כדי לקשר ויזואלית בין הסמן לחלונית.
+  int? _activeAnchorLine;
+  int? _activeAnchorIndex;
+
+  /// מסמן/מנקה את הסמן הפעיל. נקרא גם מ-onDismissed של החלונית — ולכן חייב
+  /// לשרוד קריאה אחרי dispose (ה-dismiss שב-dispose מפעיל את ה-callback).
+  void _setActiveAnchor(int? line, int? index) {
+    if (_disposed || !mounted) return;
+    if (_activeAnchorLine == line && _activeAnchorIndex == index) return;
+    setState(() {
+      _activeAnchorLine = line;
+      _activeAnchorIndex = index;
+    });
+  }
+
   Map<String, int> _anchorStyles(TextBookLoaded state) {
     if (!identical(_anchorStyleSourceLinks, state.links)) {
       _anchorStyleSourceLinks = state.links;
@@ -300,7 +327,22 @@ class _CombinedViewState extends State<CombinedView> {
       anchorLinks: anchorLinks,
       styleIndexByCommentator: _anchorStyles(state),
       lineIndex: lineIndex0,
+      activeIndex: lineIndex0 == _activeAnchorLine ? _activeAnchorIndex : null,
     );
+  }
+
+  /// סמני-מספר מודפסים, למשל (9), בספרים שהערותיהם יושבות בספר "הערות על…"
+  /// המקושר כמפרש. רק עטיפה בעוגן — הטקסט הגלוי לא משתנה.
+  String _injectNumberedNoteMarkers(
+    String rawLine,
+    int lineIndex0,
+    TextBookLoaded state,
+  ) {
+    final links = numberedNoteLinks(
+      state.linksByLine[lineIndex0 + 1] ?? const <Link>[],
+    );
+    if (links.isEmpty) return rawLine;
+    return addNumberedNoteMarkerLinks(rawLine, lineIndex: lineIndex0);
   }
 
   /// פענוח `otzaria://anchor?ref=<line>_<i>` לקישור-העוגן, יחד עם השורה
@@ -334,10 +376,12 @@ class _CombinedViewState extends State<CombinedView> {
     return anchor?.link ?? inlineLinkFromPreviewUrl(url);
   }
 
+  /// [activeAnchor] — כשהחלונית נפתחה מסמן-אות, הסמן מודגש כל עוד היא פתוחה.
   void _showLinkPreview(
     Link link,
     Offset globalPosition, {
     required bool hoverMode,
+    ({int line, int index})? activeAnchor,
   }) {
     final state = _textBookBloc.state;
     final loaded = state is TextBookLoaded ? state : null;
@@ -349,14 +393,20 @@ class _CombinedViewState extends State<CombinedView> {
       removeNikud: loaded?.removeNikud,
       removePunctuation: loaded?.removePunctuation,
       onOpen: () => _openAnchorTarget(link),
+      onDismissed: activeAnchor == null
+          ? null
+          : () => _setActiveAnchor(null, null),
     );
+    if (activeAnchor != null) {
+      _setActiveAnchor(activeAnchor.line, activeAnchor.index);
+    }
   }
 
   /// לחיצה על עוגן מנווטת ישירות לספר-היעד, כמו טווחי הציטוט של הלינקר.
   bool _handleAnchorTap(String url) {
     final anchor = _anchorLinkFromUrl(url);
     if (anchor == null) return false;
-    _anchorHoverTimer?.cancel();
+    _cancelPendingAnchorHover();
     _openAnchorTarget(anchor.link);
     return true;
   }
@@ -364,6 +414,10 @@ class _CombinedViewState extends State<CombinedView> {
   /// ריחוף מעל עוגן-מילה — תצוגה מקדימה אחרי השהיה קצרה (מונעת הבהובים
   /// כשהסמן רק חולף). כניסה חוזרת לעוגן מבטלת סגירה מתוזמנת של החלונית.
   void _handleAnchorHover(String url, Offset globalPosition) {
+    if (url.startsWith('otzaria://note-marker')) {
+      _handleNumberedNoteMarkerHover(url, globalPosition);
+      return;
+    }
     if (url.startsWith('otzaria://note') &&
         !shouldShowPersonalNotePreview(
           isPersonalNotesTabActive:
@@ -372,7 +426,7 @@ class _CombinedViewState extends State<CombinedView> {
       return;
     }
     LinkPreviewOverlay.cancelScheduledHide();
-    _anchorHoverTimer?.cancel();
+    _cancelPendingAnchorHover();
     final previewLink = _previewLinkFromUrl(url);
     if (previewLink != null) prefetchLinkPreview(previewLink);
     _anchorHoverTimer = Timer(const Duration(milliseconds: 280), () {
@@ -418,8 +472,34 @@ class _CombinedViewState extends State<CombinedView> {
         return;
       }
 
-      final link = _previewLinkFromUrl(url);
+      final anchor = _anchorLinkFromUrl(url);
+      final link = anchor?.link ?? inlineLinkFromPreviewUrl(url);
       if (link == null) return;
+      _showLinkPreview(
+        link,
+        globalPosition,
+        hoverMode: true,
+        activeAnchor: anchor == null
+            ? null
+            : (line: anchor.line, index: anchor.index),
+      );
+    });
+  }
+
+  /// ריחוף על סמן-מספר: ההתאמה בין הסמן להערה נעשית לפי תוכן ההערה, ולכן היא
+  /// אסינכרונית. אם אין הערה תואמת — לא נפתחת חלונית.
+  void _handleNumberedNoteMarkerHover(String url, Offset globalPosition) {
+    LinkPreviewOverlay.cancelScheduledHide();
+    _cancelPendingAnchorHover();
+    final line = noteMarkerLineFromUrl(url);
+    final state = _textBookBloc.state;
+    if (line == null || state is! TextBookLoaded) return;
+    final links = state.linksByLine[line + 1] ?? const <Link>[];
+    final generation = _anchorHoverGeneration;
+    _anchorHoverTimer = Timer(const Duration(milliseconds: 280), () async {
+      final link = await numberedNoteLinkFromUrl(url, links);
+      if (_disposed || !mounted || link == null) return;
+      if (generation != _anchorHoverGeneration) return;
       _showLinkPreview(link, globalPosition, hoverMode: true);
     });
   }
@@ -427,7 +507,7 @@ class _CombinedViewState extends State<CombinedView> {
   /// הסמן עזב את העוגן — ביטול הצגה ממתינה וסגירה מתוזמנת של חלונית פתוחה
   /// (מתבטלת אם הסמן נכנס לחלונית עצמה או חוזר לעוגן).
   void _handleAnchorHoverExit(String url) {
-    _anchorHoverTimer?.cancel();
+    _cancelPendingAnchorHover();
     LinkPreviewOverlay.scheduleHide();
   }
 
@@ -644,7 +724,7 @@ class _CombinedViewState extends State<CombinedView> {
       _handlePluginHighlightReveal,
     );
     _disposed = true;
-    _anchorHoverTimer?.cancel();
+    _cancelPendingAnchorHover();
     LinkPreviewOverlay.dismiss();
     _previewScrollController?.dispose();
     widget.tab.positionsListener.itemPositions.removeListener(_onScroll);
@@ -2113,6 +2193,11 @@ class _CombinedViewState extends State<CombinedView> {
                             data,
                             lineIndex: primaryLineIndex,
                           );
+                          data = _injectNumberedNoteMarkers(
+                            data,
+                            primaryLineIndex,
+                            state,
+                          );
 
                           // סמני עוגן-מילה — לפני כל עיבוד שמוסיף תוכן גלוי.
                           data = _injectAnchorMarkersForLine(
@@ -2294,11 +2379,15 @@ class _CombinedViewState extends State<CombinedView> {
             color: Theme.of(context).colorScheme.primary,
             decoration: TextDecoration.underline,
           ),
+          anchorActiveBackground: Theme.of(
+            context,
+          ).colorScheme.primaryContainer,
           onTapUrl: (url) async {
             if (url.startsWith('otzaria://anchor')) {
               return _handleAnchorTap(url);
             }
             if (url.startsWith('otzaria://book-note')) return true;
+            if (url.startsWith('otzaria://note-marker')) return true;
             if (url.startsWith('otzaria://note')) {
               final line = int.tryParse(
                 Uri.tryParse(url)?.queryParameters['line'] ?? '',
@@ -2402,6 +2491,7 @@ class _CombinedViewState extends State<CombinedView> {
       rawText,
       lineIndex: lineIndex,
     );
+    textWithLinks = _injectNumberedNoteMarkers(textWithLinks, lineIndex, state);
     textWithLinks = _injectAnchorMarkersForLine(
       textWithLinks,
       lineIndex,

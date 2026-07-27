@@ -100,6 +100,68 @@ void main() {
     });
   });
 
+  group('resolveToolsTitlePluginName', () {
+    test('אין כלי פעיל — כותרת רגילה', () {
+      expect(
+        resolveToolsTitlePluginName(
+          activeToolId: null,
+          plugins: [_pluginFor(id: 'a', pinnedToNavRail: true)],
+        ),
+        isNull,
+      );
+    });
+
+    test('כלי מובנה — כותרת רגילה', () {
+      expect(
+        resolveToolsTitlePluginName(
+          activeToolId: 'builtin.calendar',
+          plugins: [_pluginFor(id: 'a', pinnedToNavRail: true)],
+        ),
+        isNull,
+      );
+    });
+
+    test('תוסף עם לשונית — כותרת רגילה', () {
+      expect(
+        resolveToolsTitlePluginName(
+          activeToolId: 'a',
+          plugins: [_pluginFor(id: 'a')],
+        ),
+        isNull,
+      );
+    });
+
+    test('תוסף מוצמד לסרגל הניווט — שם התוסף', () {
+      expect(
+        resolveToolsTitlePluginName(
+          activeToolId: 'a',
+          plugins: [_pluginFor(id: 'a', pinnedToNavRail: true)],
+        ),
+        'a',
+      );
+    });
+
+    test('תוסף שאינו מוצג בכלים — שם התוסף', () {
+      expect(
+        resolveToolsTitlePluginName(
+          activeToolId: 'a',
+          plugins: [_pluginFor(id: 'a', showInTools: false)],
+        ),
+        'a',
+      );
+    });
+
+    test('תוסף שאינו ברשימה — כותרת רגילה', () {
+      expect(
+        resolveToolsTitlePluginName(
+          activeToolId: 'a',
+          plugins: [_pluginFor(id: 'b', pinnedToNavRail: true)],
+        ),
+        isNull,
+      );
+    });
+  });
+
   group('resolveTransientAfterPluginsLoaded', () {
     test('transient ריק נשאר ריק', () {
       expect(

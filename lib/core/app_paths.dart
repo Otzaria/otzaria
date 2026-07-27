@@ -145,7 +145,7 @@ class AppPaths {
       }
     }
     if (Platform.isWindows) {
-      final exeDir = p.dirname(Platform.resolvedExecutable);
+      final exeDir = p.dirname(_resolvedExecutable);
       // ה-marker (נכתב ע"י ה-installer בהתקנת מנהל) וה-exe תחת Program Files
       // הם אותות יציבים שאינם משתנים כשהמשתמש מעביר את הספרייה. בכוונה אין
       // כאן fallback לפי נתיב הספרייה — הוא היה גורם לזיהוי להתהפך ל-perUser

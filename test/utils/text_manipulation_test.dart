@@ -374,6 +374,142 @@ Future<void> main() async {
     });
   });
 
+  group('removePunctuation — ישויות HTML', () {
+    // ה-";" של ישות HTML אינו סימן פיסוק אלא חלק מהתחביר. אם הוא נמחק,
+    // הישות נשארת כטקסט גלוי ("&thinsp") במקום להתפענח לרווח.
+
+    test('שורה אמיתית מבראשית: פסק ב-<small> עם &thinsp; משני צדדיו', () {
+      const input =
+          'וַיִּקְרָ֨א אֱלֹהִ֤ים&thinsp;<small>׀</small>&thinsp;לָאוֹר֙ '
+          'י֔וֹם אֶחָֽד׃&nbsp;<span class="mam-spi-pe">{פ}</span>';
+
+      final result = removePunctuation(input);
+
+      expect(result, equals(input));
+      expect(result, isNot(contains('&thinsp<')));
+      expect(result, isNot(contains('&nbsp<')));
+    });
+
+    test('שורה אמיתית מבראשית: פסק ב-<b> עם &thinsp; בודד', () {
+      const input = 'אֶת־כׇּל־עֵ֣שֶׂב&thinsp;<b>׀</b> זֹרֵ֣עַ זֶ֗רַע';
+
+      expect(removePunctuation(input), equals(input));
+    });
+
+    test('הישות שורדת גם אחרי הסרת ניקוד ופענוח HTML (המסלול המלא)', () {
+      const input = 'אֱלֹהִ֤ים&thinsp;<small>׀</small>&thinsp;לָאוֹר֙';
+
+      final rendered = removeVolwels(
+        stripHtmlIfNeeded(removePunctuation(input)),
+      );
+
+      expect(rendered, isNot(contains('thinsp')));
+      expect(rendered, isNot(contains('&')));
+    });
+
+    test('ישות מספרית עשרונית והקסדצימלית נשמרות במלואן', () {
+      expect(removePunctuation('אב&#1470;גד'), equals('אב&#1470;גד'));
+      expect(removePunctuation('אב&#x05C0;גד'), equals('אב&#x05C0;גד'));
+    });
+
+    test('&amp; ושאר ישויות שמיות נשמרות', () {
+      expect(removePunctuation('דוד&amp;יונתן'), equals('דוד&amp;יונתן'));
+      expect(removePunctuation('א&hellip;ב'), equals('א&hellip;ב'));
+      expect(removePunctuation('א&ndash;ב'), equals('א&ndash;ב'));
+    });
+
+    test('ישות באותיות גדולות נשמרת (הרגקס אינו תלוי רישיות)', () {
+      expect(removePunctuation('א&NBSP;ב'), equals('א&NBSP;ב'));
+    });
+
+    test('פיסוק שסמוך לישות עדיין מוסר', () {
+      expect(
+        removePunctuation('שלום&nbsp;עולם, וגם; כאן'),
+        equals('שלום&nbsp;עולם וגם כאן'),
+      );
+    });
+
+    test('שתי ישויות רצופות נשמרות', () {
+      expect(
+        removePunctuation('א&thinsp;&thinsp;ב'),
+        equals('א&thinsp;&thinsp;ב'),
+      );
+    });
+
+    test('"&" בודד שאינו ישות אינו מונע הסרת פיסוק אחריו', () {
+      expect(removePunctuation('א & ב, ג'), equals('א & ב ג'));
+      expect(removePunctuation('א &? ב'), equals('א & ב'));
+    });
+
+    test('ישות בתוך סוגריים נשמרת ולא נבלעת בכלל "בסוגריים שומרים . ו-:"', () {
+      expect(
+        removePunctuation('(ראה&nbsp;שם: כך, וכך)'),
+        equals('(ראה&nbsp;שם: כך וכך)'),
+      );
+    });
+
+    test('ישות ב-attribute של תג נשמרת (התג כולו מדולג)', () {
+      const input = '<a href="x?a=1&amp;b=2">קישור</a>, וכאן';
+
+      expect(
+        removePunctuation(input),
+        equals('<a href="x?a=1&amp;b=2">קישור</a> וכאן'),
+      );
+    });
+
+    test('ישות בסוף שורה אינה נחשבת לפיסוק-סיום מותר', () {
+      // ה-";" של הישות אינו "." או ":" ולכן אינו הופך את השורה למסתיימת
+      // בפיסוק מותר — מעבר השורה נמחק כרגיל.
+      expect(
+        removePunctuation('שורה ראשונה&nbsp;\nשורה שניה'),
+        equals('שורה ראשונה&nbsp; שורה שניה'),
+      );
+    });
+
+    test('ישות שנמצאת בשורה עם <br> נשמרת וה-<br> משוחזר', () {
+      final result = removePunctuation('אחד&thinsp;שתים.<br>שלוש&nbsp;ארבע');
+
+      expect(result, equals('אחד&thinsp;שתים.<br>שלוש&nbsp;ארבע'));
+    });
+  });
+
+  group('removePunctuation — התנהגות בסיסית (רגרסיה)', () {
+    test('מסיר את כל סימני הפיסוק באמצע השורה', () {
+      expect(
+        removePunctuation('א! ב: ג; ד. ה, ו? ז- ח— ט– י'),
+        equals('א ב ג ד ה ו ז ח ט י'),
+      );
+    });
+
+    test('שומר נקודתיים בסוף שורה', () {
+      expect(removePunctuation('סוף הקטע:'), equals('סוף הקטע:'));
+    });
+
+    test('סוף פסוק (׃) אינו סימן פיסוק ואינו מוסר', () {
+      expect(removePunctuation('וַיְהִי כֵן׃'), equals('וַיְהִי כֵן׃'));
+    });
+
+    test('מקף עברי (־) אינו מוסר', () {
+      expect(removePunctuation('כׇּל־הָאָרֶץ'), equals('כׇּל־הָאָרֶץ'));
+    });
+
+    test('מחרוזת ריקה מוחזרת כמו שהיא', () {
+      expect(removePunctuation(''), equals(''));
+    });
+
+    test('שורה בלי פיסוק אינה משתנה', () {
+      expect(removePunctuation('שלום עולם'), equals('שלום עולם'));
+    });
+
+    test('מאחד שורות שאינן מסתיימות בפיסוק מותר', () {
+      expect(removePunctuation('אחד\nשתים'), equals('אחד שתים'));
+    });
+
+    test('שומר מעבר שורה כשהשורה מסתיימת בנקודה', () {
+      expect(removePunctuation('אחד.\nשתים'), equals('אחד.\nשתים'));
+    });
+  });
+
   group('normalizeForFindRefMatch', () {
     test('מחרוזת ריקה מחזירה ריקה', () {
       expect(normalizeForFindRefMatch(''), equals(''));
@@ -485,6 +621,53 @@ Future<void> main() async {
         expect(normalizeForFindRefMatch('רמ"א.'), equals('רמא'));
         expect(normalizeForFindRefMatch('מ"ב.'), equals('מב'));
       });
+    });
+  });
+
+  group('titleTokenWithoutConjunction', () {
+    test('ה\' הידיעה מוסרת', () {
+      expect(titleTokenWithoutConjunction('הטור', allowVav: false), 'טור');
+      expect(titleTokenWithoutConjunction('הקצר', allowVav: false), 'קצר');
+    });
+
+    test('ו\' החיבור מוסרת רק כש-allowVav דלוק', () {
+      expect(titleTokenWithoutConjunction('וברכת', allowVav: true), 'ברכת');
+      expect(titleTokenWithoutConjunction('וברכת', allowVav: false), isNull);
+    });
+
+    test('טוקן קצר מ-3 תווים אינו מזוהה — שארית של אות אחת עלולה להיות '
+        'טוקן מיקום', () {
+      expect(titleTokenWithoutConjunction('וב', allowVav: true), isNull);
+      expect(titleTokenWithoutConjunction('הא', allowVav: false), isNull);
+    });
+
+    test('אות פותחת אחרת אינה אות חיבור', () {
+      expect(titleTokenWithoutConjunction('משנה', allowVav: true), isNull);
+      expect(titleTokenWithoutConjunction('בראשית', allowVav: true), isNull);
+    });
+  });
+
+  group('titleMatchTokens', () {
+    test('מוסיף את הגרסאות בלי אות-חיבור', () {
+      expect(
+        titleMatchTokens('משנה תורה הלכות תפילה וברכת כהנים'),
+        containsAll(<String>['וברכת', 'ברכת', 'הלכות', 'לכות']),
+      );
+      expect(
+        titleMatchTokens('ספר המצות הקצר'),
+        containsAll(<String>['מצות', 'קצר']),
+      );
+    });
+
+    test('ו\' שפותחת את הכותרת אינה אות חיבור ("ויקרא" נשאר שלם)', () {
+      expect(titleMatchTokens('ויקרא רבה'), equals(<String>{'ויקרא', 'רבה'}));
+    });
+
+    test('ו\' שאינה פותחת כן מזוהה, גם כשהכותרת מתחילה ב-ו\'', () {
+      expect(
+        titleMatchTokens('ויקרא רבה ותוספות'),
+        equals(<String>{'ויקרא', 'רבה', 'ותוספות', 'תוספות'}),
+      );
     });
   });
 

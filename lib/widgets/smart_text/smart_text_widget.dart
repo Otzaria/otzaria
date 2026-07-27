@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/text_book/utils/link_anchor_variants.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/utils/text/html_link_handler.dart';
@@ -243,19 +244,29 @@ class SmartTextWidget extends StatelessWidget {
               'text-decoration': 'none',
             };
           }
-          // סמני עוגן-מילה (link_anchor): אות קטנה מורמת (עוגן-נקודה) או קו
-          // תחתון על טווח מצוטט (עוגן-טווח), עם וריאנט טיפוגרפי קבוע לכל מפרש
-          // (ראו anchorStyleIndexByCommentator), בצבע ה-primary של הנושא.
+          // סמן-מספר מודפס בגוף הספר, למשל (9): נשאר בגודלו ובמקומו — רק
+          // נצבע בגוון הנושא כדי לרמז שאפשר לרחף עליו.
+          if (element.localName == 'a' &&
+              element.classes.contains('numbered-note-marker')) {
+            return {
+              'color': anchorLinkColorCss,
+              'text-decoration': 'none',
+            };
+          }
+          // סמן-אות של מפרש (עוגן-נקודה): אות קטנה מורמת בצבע ה-primary, עם
+          // וריאנט טיפוגרפי קבוע לכל מפרש (ראו anchorStyleIndexByCommentator).
           if ((element.localName == 'span' || element.localName == 'a') &&
               element.classes.contains('link-anchor')) {
             final style = <String, String>{
-              'font-size': '0.7em',
+              'font-size': '${kLinkAnchorMarkerScale}em',
               'position': 'relative',
               'top': '-0.55em',
               'white-space': 'nowrap',
               'color': anchorLinkColorCss,
               'text-decoration': 'none',
-              ..._linkAnchorVariantStyle(element),
+              ...linkAnchorVariantCss(
+                linkAnchorVariantFromClasses(element.classes),
+              ),
             };
             // האות שחלונית התצוגה שלה פתוחה — מודגשת (רקע + מודגש).
             if (element.classes.contains('link-anchor-active')) {
@@ -264,13 +275,13 @@ class SmartTextWidget extends StatelessWidget {
             }
             return style;
           }
-          // טווח-ציטוט: קו תחתון בצבע ה-primary.
+          // טווח-ציטוט (לינקר): קו תחתון בצבע ה-primary, בגופן הטקסט הסובב.
+          // בלי וריאנט טיפוגרפי — הוא שייך לסמני-האות של המפרשים בלבד.
           if ((element.localName == 'span' || element.localName == 'a') &&
               element.classes.contains('link-anchor-range')) {
             return <String, String>{
               'text-decoration': 'underline',
               'color': anchorLinkColorCss,
-              ..._linkAnchorVariantStyle(element),
             };
           }
           return null;
@@ -283,6 +294,8 @@ class SmartTextWidget extends StatelessWidget {
                   onAnchorTap!(url);
                   return true;
                 }
+                // סמן-מספר של הערה — הפעולה שלו היא ריחוף בלבד.
+                if (url.startsWith('otzaria://note-marker')) return true;
                 // סימון הערה אישית inline — נטפל לפני שאר הקישורים.
                 if (url.startsWith('otzaria://note')) {
                   final lineIndex = int.tryParse(
@@ -395,29 +408,6 @@ class _SmartTextWidgetFactory extends WidgetFactory {
     _previewHrefByRecognizer.clear();
     super.reset(state);
   }
-}
-
-/// הווריאנט הטיפוגרפי של סמן/טווח עוגן-מילה לפי מחלקת ה-style שהוקצתה למפרש.
-Map<String, String> _linkAnchorVariantStyle(dom.Element element) {
-  if (element.classes.contains('link-anchor-0')) {
-    return const {'font-weight': 'bold'};
-  }
-  if (element.classes.contains('link-anchor-1')) {
-    return const {'font-style': 'italic'};
-  }
-  if (element.classes.contains('link-anchor-2')) {
-    return const {'font-weight': 'bold', 'font-style': 'italic'};
-  }
-  if (element.classes.contains('link-anchor-3')) {
-    return const {'font-family': 'NotoRashiHebrew'};
-  }
-  if (element.classes.contains('link-anchor-4')) {
-    return const {'font-family': 'NotoRashiHebrew', 'font-weight': 'bold'};
-  }
-  if (element.classes.contains('link-anchor-5')) {
-    return const {'text-decoration': 'underline'};
-  }
-  return const {};
 }
 
 /// גרסה פשוטה יותר של SmartTextWidget שמקבלת פרמטרים בודדים

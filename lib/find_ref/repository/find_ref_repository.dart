@@ -489,21 +489,36 @@ class FindRefRepository {
 
       // For multi-token phrases:
       //   matchRank=3 (complete acronym) — תמיד מקובל.
-      //   matchRank=4,5 (acronym prefix/contains) — נדחים. הסיבה: "טור חושן"
-      //     הוא prefix של ה-acronym "טור חושן משפט", ולכן יבלע את "חושן" לתוך
-      //     ה-book key ולא ישאיר remainingTokens לחיפוש TOC.
+      //   matchRank=4 (acronym prefix) — נדחה כדי לא לבלוע טוקן-סעיף: "טור חושן"
+      //     הוא prefix של ה-acronym "טור חושן משפט", וכ-book key לא היה משאיר
+      //     remainingTokens לחיפוש TOC. החריג הוא
+      //     [ReferenceBookHit.acronymTailIsTitleWords] — ראו למטה.
+      //   matchRank=5 (acronym contains) — נדחה.
       //   matchRank=0,1,2 — מקובלים אם טוקני ה-phrase מופיעים כסיקוונס רציף
       //     ב-titleTokens (לאו דווקא בתחילת הכותרת). matchRank=2 נחשב
       //     "secondary" — מציפן בנפרד וממשיכים לחפש n קטן יותר; matchRank=0,1
       //     הם "primary" וגורמים ל-break.
       final phraseTokens = queryTokens.take(n).toList();
       final primaryHits = <ReferenceBookHit>[];
+
+      // rank=4 שכל שאר מילות ראש-התיבות שלו הן מילות-כותרת ("רמב"ם תפילה" ⊂
+      // "רמב"ם תפילה וברכת כהנים") — השאילתה מזהה את הספר במלואו, ולכן הוא
+      // מצטרף ל-primary. אבל *רק* כשיש primary אחר: אסור שהצירוף עצמו יגרום
+      // ל-break, שאחרת ספרים שנמצאים ב-n קטן יותר ("רש"י בראשית" → "רש"י על
+      // בראשית") ייעלמו.
+      final joinablePrefixHits = <ReferenceBookHit>[];
+
       for (final hit in hits) {
         if (hit.matchRank == 3) {
           primaryHits.add(hit);
           continue;
         }
-        if (hit.matchRank >= 4) continue; // acronym prefix/contains — נדחים
+        if (hit.matchRank >= 4) {
+          if (hit.matchRank == 4 && hit.acronymTailIsTitleWords) {
+            joinablePrefixHits.add(hit);
+          }
+          continue;
+        }
         // הכותרת המנורמלת כבר מחושבת מראש בתוך הקאש.
         final titleTokens = _tokenize(hit.normalizedTitle);
         if (!_phraseAppearsAsTokens(titleTokens, phraseTokens)) continue;
@@ -516,7 +531,7 @@ class FindRefRepository {
       }
 
       if (primaryHits.isNotEmpty) {
-        bookHits = primaryHits;
+        bookHits = [...primaryHits, ...joinablePrefixHits];
         bookQueryTokenCount = n;
         break;
       }
@@ -1134,13 +1149,16 @@ class FindRefRepository {
       final titleTokens = _tokenize(hit.normalizedTitle);
       var score = 0;
       for (final qt in significant) {
-        // התאמת טוקן שלם, כולל ה' הידיעה בכותרת ("הרא"ש" מול "ראש") — כמו
-        // ב-[_getRemainingTokens].
-        final inTitle = titleTokens.any(
-          (tt) =>
+        // התאמת טוקן שלם, כולל אות-חיבור בכותרת — אותם כללים כמו
+        // ב-[_getRemainingTokens], אחרת ספר שהותאם דרך ו' החיבור ייחתך ע"י
+        // תקרת חיפושי ה-TOC דווקא כשהוא הספר המכוון.
+        var inTitle = false;
+        for (var ti = 0; ti < titleTokens.length && !inTitle; ti++) {
+          final tt = titleTokens[ti];
+          inTitle =
               tt == qt ||
-              (tt.length >= 3 && tt.startsWith('ה') && tt.substring(1) == qt),
-        );
+              titleTokenWithoutConjunction(tt, allowVav: ti > 0) == qt;
+        }
         if (inTitle) score++;
       }
       return score;
@@ -1174,15 +1192,17 @@ class FindRefRepository {
     // (סימן בן 4 אותיות כמו "תרלד") לעולם אינו חלק מה-phrase המוביל הזה.
     final prefixEligible = queryTokens.take(prefixMatchTokensCount).toSet();
 
-    for (final token in titleTokens) {
+    for (var ti = 0; ti < titleTokens.length; ti++) {
+      final token = titleTokens[ti];
       var idx = remaining.indexOf(token);
-      // ה' הידיעה: כותרת "הרא"ש"/"הטור" מול שאילתה "ראש"/"טור" בלי ה'. מסירים
-      // רק כשהשארית באורך >=2, כדי לא לבלוע טוקן מיקום של אות בודדת ("עמוד א").
-      if (idx == -1 && token.length >= 3 && token.startsWith('ה')) {
-        idx = remaining.indexOf(token.substring(1));
+      // אות-חיבור בכותרת שהמשתמש לא הקליד — ראו
+      // [titleTokenWithoutConjunction].
+      if (idx == -1) {
+        final bare = titleTokenWithoutConjunction(token, allowVav: ti > 0);
+        if (bare != null) idx = remaining.indexOf(bare);
       }
       // כתיב מקוצר של שם הספר: "ירמיה" מול "ירמיהו". רצפת 2 תווים —
-      // כמו בחריג ה' הידיעה, אות בודדת נשארת תמיד טוקן מיקום.
+      // כמו בחריג אות-החיבור, אות בודדת נשארת תמיד טוקן מיקום.
       if (idx == -1 && prefixEligible.isNotEmpty) {
         idx = remaining.indexWhere(
           (t) =>

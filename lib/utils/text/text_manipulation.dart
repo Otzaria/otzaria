@@ -152,6 +152,17 @@ String removePunctuation(String text) {
         continue;
       }
 
+      // ישות HTML עוברת כמכלול - אחרת ה-";" שלה נמחק כפיסוק והישות מוצגת
+      // כטקסט גלוי (למשל "&thinsp" סביב פסק בתנ"ך).
+      if (ch == '&') {
+        final entity = _htmlEntity.matchAsPrefix(processed, i);
+        if (entity != null) {
+          buffer.write(entity.group(0));
+          i = entity.end - 1;
+          continue;
+        }
+      }
+
       if (ch == '(') {
         parenDepth++;
         buffer.write(ch);
@@ -1092,6 +1103,37 @@ String normalizeForFindRefMatch(String input) {
   cleaned = cleaned.replaceAll(RegExp(r'[^a-zA-Z0-9֐-׿\s]'), ' ');
   cleaned = cleaned.toLowerCase();
   return cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
+}
+
+/// מחזיר את [titleToken] בלי אות-חיבור פותחת שהמשתמש עשוי לא להקליד —
+/// ה' הידיעה ("הטור" → "טור") או ו' החיבור ("וברכת" → "ברכת") — או null
+/// אם אין כזו.
+///
+/// הדרישה לאורך >= 3 מותירה שארית באורך >= 2, כדי שטוקן מיקום של אות בודדת
+/// ("עמוד א") לא ייבלע. [allowVav] כבוי בטוקן הפותח את הכותרת: שם ו' היא
+/// חלק מהשם ("ויקרא", "וזה לשונו", "וביום השבת") ולא אות חיבור.
+String? titleTokenWithoutConjunction(
+  String titleToken, {
+  required bool allowVav,
+}) {
+  if (titleToken.length < 3) return null;
+  final first = titleToken[0];
+  if (first == 'ה' || (allowVav && first == 'ו')) {
+    return titleToken.substring(1);
+  }
+  return null;
+}
+
+/// טוקני [normalizedTitle] בתוספת הגרסאות בלי אות-חיבור פותחת — לשאלה "האם
+/// המילה הזו היא מילה מכותרת הספר". ראו [titleTokenWithoutConjunction].
+Set<String> titleMatchTokens(String normalizedTitle) {
+  final tokens = normalizedTitle.split(' ');
+  final result = <String>{...tokens};
+  for (var i = 0; i < tokens.length; i++) {
+    final bare = titleTokenWithoutConjunction(tokens[i], allowVav: i > 0);
+    if (bare != null) result.add(bare);
+  }
+  return result;
 }
 
 /// ציטוט דף מנותח: מספר הדף ועמוד אופציונלי ("א"/"ב").

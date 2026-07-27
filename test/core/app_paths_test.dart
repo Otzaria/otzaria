@@ -791,6 +791,132 @@ void main() {
       },
     );
   });
+
+  group('AppPaths זיהוי מצב התקנה — Windows', () {
+    /// מכין תיקיית EXE זמנית ומכוון אליה את AppPaths.
+    Future<Directory> stageExe({bool systemInstallMarker = false}) async {
+      final exeRoot = await Directory.systemTemp.createTemp('otzaria_exe_');
+      addTearDown(() async {
+        if (await exeRoot.exists()) {
+          await exeRoot.delete(recursive: true);
+        }
+      });
+
+      final exePath = p.join(exeRoot.path, 'otzaria.exe');
+      await File(exePath).writeAsString('fake pe');
+      if (systemInstallMarker) {
+        await File(
+          p.join(exeRoot.path, 'system_install.marker'),
+        ).writeAsString('[Install]\nMode=Admin\n');
+      }
+      AppPaths.debugOverrideResolvedExecutable(exePath);
+      return exeRoot;
+    }
+
+    String programDataBooks() => p.join(
+      Platform.environment['ProgramData'] ?? r'C:\ProgramData',
+      'otzaria',
+      'books',
+    );
+
+    Future<Directory> stageDataRoot() async {
+      final dataRoot = await Directory.systemTemp.createTemp('otzaria_data_');
+      addTearDown(() async {
+        if (await dataRoot.exists()) {
+          await dataRoot.delete(recursive: true);
+        }
+      });
+      AppPaths.debugOverrideDataRootPath(dataRoot.path);
+      return dataRoot;
+    }
+
+    test('system_install.marker ליד ה-EXE מזוהה כהתקנה מערכתית', () async {
+      if (!Platform.isWindows) return;
+      await stageExe(systemInstallMarker: true);
+
+      expect(await AppPaths.detectInstallMode(), InstallMode.systemWide);
+    });
+
+    test('ללא marker ומחוץ ל-Program Files — התקנת משתמש', () async {
+      if (!Platform.isWindows) return;
+      await stageExe();
+
+      expect(await AppPaths.detectInstallMode(), InstallMode.perUser);
+    });
+
+    test('התקנה מערכתית — ברירת המחדל של הספרייה ב-ProgramData', () async {
+      if (!Platform.isWindows) return;
+      await stageDataRoot();
+      await stageExe(systemInstallMarker: true);
+
+      expect(await AppPaths.getDefaultLibraryPath(), programDataBooks());
+    });
+
+    test('התקנת משתמש — ברירת המחדל של הספרייה תחת data root', () async {
+      if (!Platform.isWindows) return;
+      final dataRoot = await stageDataRoot();
+      await stageExe();
+
+      expect(
+        await AppPaths.getDefaultLibraryPath(),
+        p.join(dataRoot.path, 'books'),
+      );
+    });
+
+    test('מחיקת המסמן מחזירה את ברירת המחדל ל-data root', () async {
+      // המתקין מוחק את המסמן במעבר להתקנת משתמש; בלי המחיקה ברירת המחדל
+      // נשארת ב-ProgramData בעוד הספרייה מחולצת ל-AppData.
+      if (!Platform.isWindows) return;
+      final dataRoot = await stageDataRoot();
+      final exeRoot = await stageExe(systemInstallMarker: true);
+
+      expect(await AppPaths.getDefaultLibraryPath(), programDataBooks());
+
+      await File(p.join(exeRoot.path, 'system_install.marker')).delete();
+
+      expect(await AppPaths.detectInstallMode(), InstallMode.perUser);
+      expect(
+        await AppPaths.getDefaultLibraryPath(),
+        p.join(dataRoot.path, 'books'),
+      );
+    });
+
+    test('מצב נייד מנצח את המסמן גם בברירת המחדל של הספרייה', () async {
+      if (!Platform.isWindows) return;
+      final exeRoot = await stageExe(systemInstallMarker: true);
+      await File(
+        p.join(exeRoot.path, AppPaths.portableMarkerFileName),
+      ).writeAsString('');
+      // הכתיבה נעשתה אחרי הכיוונון — מרעננים את זיהוי המצב הנייד.
+      AppPaths.debugOverrideResolvedExecutable(
+        p.join(exeRoot.path, 'otzaria.exe'),
+      );
+      AppPaths.debugOverrideDataRootPath(null);
+
+      expect(await AppPaths.detectInstallMode(), InstallMode.perUser);
+      expect(
+        await AppPaths.getDefaultLibraryPath(),
+        p.join(exeRoot.path, 'otzaria_data', 'books'),
+      );
+    });
+  });
+
+  group('AppPaths.libraryRootOf', () {
+    test('נתיב שמסתיים ב-books מחזיר את תיקיית האב', () {
+      final root = p.join(Directory.systemTemp.path, 'otzaria_root');
+      expect(AppPaths.libraryRootOf(p.join(root, 'books')), root);
+    });
+
+    test('הזיהוי אינו רגיש לאותיות גדולות', () {
+      final root = p.join(Directory.systemTemp.path, 'otzaria_root');
+      expect(AppPaths.libraryRootOf(p.join(root, 'BOOKS')), root);
+    });
+
+    test('נתיב שאינו books מחזיר את עצמו', () {
+      final bundle = p.join(Directory.systemTemp.path, 'bundle', 'אוצריא');
+      expect(AppPaths.libraryRootOf(bundle), bundle);
+    });
+  });
 }
 
 class _MemoryCacheProvider extends CacheProvider {

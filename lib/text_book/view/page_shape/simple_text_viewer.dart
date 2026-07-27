@@ -71,6 +71,7 @@ import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
     as inline_notes;
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
+import 'package:otzaria/text_book/utils/numbered_note_markers.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
@@ -407,6 +408,33 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   Map<String, int> _anchorStyleCache = const {};
   Timer? _previewHoverTimer;
 
+  /// מזהה הריחוף הממתין. טעינה אסינכרונית שהתחילה בודקת אותו לאחר ה-await —
+  /// ביטול ה-Timer לבדו אינו עוצר טעינה שכבר יצאה לדרך.
+  int _previewHoverGeneration = 0;
+
+  /// ביטול ריחוף ממתין: גם ה-Timer וגם טעינה אסינכרונית שכבר התחילה.
+  void _cancelPendingPreview() {
+    _previewHoverTimer?.cancel();
+    _previewHoverGeneration++;
+  }
+
+  /// סמן-האות שחלונית התצוגה שלו פתוחה כעת (שורה + אינדקס בשורה) — מודגש בטקסט
+  /// כדי לקשר ויזואלית בין הסמן לחלונית.
+  int? _activeAnchorLine;
+  int? _activeAnchorIndex;
+  bool _disposed = false;
+
+  /// מסמן/מנקה את הסמן הפעיל. נקרא גם מ-onDismissed של החלונית — ולכן חייב
+  /// לשרוד קריאה אחרי dispose (ה-dismiss שב-dispose מפעיל את ה-callback).
+  void _setActiveAnchor(int? line, int? index) {
+    if (_disposed || !mounted) return;
+    if (_activeAnchorLine == line && _activeAnchorIndex == index) return;
+    setState(() {
+      _activeAnchorLine = line;
+      _activeAnchorIndex = index;
+    });
+  }
+
   // תת-התפריט "מפרשים נוספים על הדף" — רק בטקסט הראשי (ספר המפרש הנקרא).
   SiblingCommentariesController? _siblingController;
   final Object _selectionOwner = Object();
@@ -430,6 +458,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       rawLine,
       lineIndex: lineIndex,
     );
+    // סמני-מספר מודפסים, למשל (9), שההערה שלהם בספר "הערות על…" המקושר כמפרש.
+    if (numberedNoteLinks(
+      state.linksByLine[lineIndex + 1] ?? const <Link>[],
+    ).isNotEmpty) {
+      result = addNumberedNoteMarkerLinks(result, lineIndex: lineIndex);
+    }
     // מהדורה חלופית: העוגנים ממופים לנוסח הראשי — במיקומים שגויים כאן.
     if (state.book.versionTitle != null) return result;
     final anchorLinks = (state.linksByLine[lineIndex + 1] ?? const <Link>[])
@@ -441,6 +475,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       anchorLinks: anchorLinks,
       styleIndexByCommentator: _anchorStyles(state),
       lineIndex: lineIndex,
+      activeIndex: lineIndex == _activeAnchorLine ? _activeAnchorIndex : null,
     );
   }
 
@@ -472,22 +507,52 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     widget.openBookCallback(tab);
   }
 
+  /// ריחוף על סמן-מספר: ההתאמה בין הסמן להערה נעשית לפי תוכן ההערה, ולכן היא
+  /// אסינכרונית. אם אין הערה תואמת — לא נפתחת חלונית.
+  void _handleNumberedNoteMarkerHover(String url, Offset globalPosition) {
+    LinkPreviewOverlay.cancelScheduledHide();
+    _cancelPendingPreview();
+    final line = noteMarkerLineFromUrl(url);
+    final state = context.read<TextBookBloc>().state;
+    if (line == null || state is! TextBookLoaded) return;
+    final links = state.linksByLine[line + 1] ?? const <Link>[];
+    final generation = _previewHoverGeneration;
+    _previewHoverTimer = Timer(const Duration(milliseconds: 280), () async {
+      final link = await numberedNoteLinkFromUrl(url, links);
+      if (!mounted || link == null) return;
+      if (generation != _previewHoverGeneration) return;
+      LinkPreviewOverlay.show(
+        context,
+        link: link,
+        globalPosition: globalPosition,
+        hoverMode: true,
+        removeNikud: state.removeNikud,
+        removePunctuation: state.removePunctuation,
+        onOpen: () => _openAnchorTarget(link),
+      );
+    });
+  }
+
   bool _handlePreviewTap(String url) {
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) return false;
     final anchor = _anchorLinkFromUrl(url, state);
     if (anchor == null) return false;
-    _previewHoverTimer?.cancel();
+    _cancelPendingPreview();
     _openAnchorTarget(anchor.link);
     return true;
   }
 
   void _handlePreviewHover(String url, Offset globalPosition) {
+    if (url.startsWith('otzaria://note-marker')) {
+      _handleNumberedNoteMarkerHover(url, globalPosition);
+      return;
+    }
     if (url.startsWith('otzaria://note') && widget.isPersonalNotesTabActive) {
       return;
     }
     LinkPreviewOverlay.cancelScheduledHide();
-    _previewHoverTimer?.cancel();
+    _cancelPendingPreview();
     final currentState = context.read<TextBookBloc>().state;
     if (currentState is TextBookLoaded) {
       final previewLink = _previewLinkFromUrl(url, currentState);
@@ -536,7 +601,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         return;
       }
 
-      final link = _previewLinkFromUrl(url, state);
+      final anchor = _anchorLinkFromUrl(url, state);
+      final link = anchor?.link ?? inlineLinkFromPreviewUrl(url);
       if (link == null) return;
       LinkPreviewOverlay.show(
         context,
@@ -546,12 +612,14 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         removeNikud: state.removeNikud,
         removePunctuation: state.removePunctuation,
         onOpen: () => _openAnchorTarget(link),
+        onDismissed: anchor == null ? null : () => _setActiveAnchor(null, null),
       );
+      if (anchor != null) _setActiveAnchor(anchor.line, anchor.index);
     });
   }
 
   void _handlePreviewHoverExit(String url) {
-    _previewHoverTimer?.cancel();
+    _cancelPendingPreview();
     LinkPreviewOverlay.scheduleHide();
   }
 
@@ -831,7 +899,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     PluginHighlightRevealService.instance.removeListener(
       _handlePluginHighlightReveal,
     );
-    _previewHoverTimer?.cancel();
+    _disposed = true;
+    _cancelPendingPreview();
     if (widget.isMainText) LinkPreviewOverlay.dismiss();
     widget.selectionSyncController?.removeListener(
       _handleExternalSelectionChange,
@@ -2613,11 +2682,13 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
             color: colorScheme.primary,
             decoration: TextDecoration.underline,
           ),
+          anchorActiveBackground: colorScheme.primaryContainer,
           onTapUrl: (url) async {
             if (url.startsWith('otzaria://anchor')) {
               return _handlePreviewTap(url);
             }
             if (url.startsWith('otzaria://book-note')) return true;
+            if (url.startsWith('otzaria://note-marker')) return true;
             if (url.startsWith('otzaria://note')) {
               final line = int.tryParse(
                 Uri.tryParse(url)?.queryParameters['line'] ?? '',

@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/text_book/utils/link_anchor_variants.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
 import 'package:otzaria/plugins/view/plugin_highlight_frame_overlay.dart';
+import 'package:otzaria/widgets/smart_text/simple_inline_html.dart';
 
 /// תגובה ללחיצה על קישור inline בתוך פסקה של מצב טקסט רציף.
 /// יוחזר `true` אם הטיפול בקישור הסתיים והעיבוד הרגיל (לחיצה על שורה) לא נדרש.
@@ -41,6 +43,7 @@ List<InlineSpan> buildInlineHtmlSpans(
   ContinuousReadingAnchorHover? onAnchorHover,
   ContinuousReadingAnchorExit? onAnchorExit,
   TextStyle? linkStyle,
+  Color? anchorActiveBackground,
   List<TapGestureRecognizer>? recognizerSink,
 }) {
   final fragment = html_parser.parseFragment(htmlText);
@@ -51,6 +54,7 @@ List<InlineSpan> buildInlineHtmlSpans(
     onAnchorHover: onAnchorHover,
     onAnchorExit: onAnchorExit,
     linkStyle: linkStyle,
+    anchorActiveBackground: anchorActiveBackground,
     recognizerSink: recognizerSink,
   );
 }
@@ -64,6 +68,9 @@ class ContinuousReadingParagraph extends StatefulWidget {
   final ContinuousReadingAnchorHover? onAnchorHover;
   final ContinuousReadingAnchorExit? onAnchorExit;
   final TextStyle? linkStyle;
+
+  /// רקע סמן-האות שחלונית התצוגה שלו פתוחה (בד"כ primaryContainer).
+  final Color? anchorActiveBackground;
   final TextAlign textAlign;
 
   const ContinuousReadingParagraph({
@@ -76,6 +83,7 @@ class ContinuousReadingParagraph extends StatefulWidget {
     this.onAnchorHover,
     this.onAnchorExit,
     this.linkStyle,
+    this.anchorActiveBackground,
     this.textAlign = TextAlign.justify,
   });
 
@@ -177,6 +185,7 @@ class _ContinuousReadingParagraphState
       onAnchorHover: widget.onAnchorHover,
       onAnchorExit: widget.onAnchorExit,
       linkStyle: widget.linkStyle,
+      anchorActiveBackground: widget.anchorActiveBackground,
       recognizerSink: _linkRecognizers,
     );
   }
@@ -253,6 +262,7 @@ List<InlineSpan> _nodesToSpans(
   ContinuousReadingAnchorHover? onAnchorHover,
   ContinuousReadingAnchorExit? onAnchorExit,
   TextStyle? linkStyle,
+  Color? anchorActiveBackground,
   List<TapGestureRecognizer>? recognizerSink,
 }) {
   final spans = <InlineSpan>[];
@@ -265,6 +275,7 @@ List<InlineSpan> _nodesToSpans(
         onAnchorHover: onAnchorHover,
         onAnchorExit: onAnchorExit,
         linkStyle: linkStyle,
+        anchorActiveBackground: anchorActiveBackground,
         recognizerSink: recognizerSink,
       ),
     );
@@ -279,6 +290,7 @@ List<InlineSpan> _nodeToSpans(
   ContinuousReadingAnchorHover? onAnchorHover,
   ContinuousReadingAnchorExit? onAnchorExit,
   TextStyle? linkStyle,
+  Color? anchorActiveBackground,
   List<TapGestureRecognizer>? recognizerSink,
 }) {
   if (node is dom.Text) {
@@ -303,17 +315,20 @@ List<InlineSpan> _nodeToSpans(
       // תחתון (בטווח-ציטוט); במצב active מודגש עם רקע; שאר הקישורים — קו תחתון
       // + צבע theme.
       final effectiveLinkStyle = node.classes.contains('link-anchor')
+          // הווריאנט שב-childStyle נשמר גם ב-active (מיזוג linkStyle היה גורר
+          // קו תחתון של קישור ומוחק את קו-התחתון שהוא סימנו של וריאנט 5).
           ? (node.classes.contains('link-anchor-active')
-                ? childStyle
-                      .merge(linkStyle)
-                      .copyWith(
-                        decoration: TextDecoration.none,
-                        fontWeight: FontWeight.bold,
-                        fontVariations: AppFonts.boldFontVariations(
-                          childStyle.fontFamily,
-                        ),
-                      )
+                ? childStyle.copyWith(
+                    color: linkStyle?.color,
+                    fontWeight: FontWeight.bold,
+                    fontVariations: AppFonts.boldFontVariations(
+                      childStyle.fontFamily,
+                    ),
+                    backgroundColor: anchorActiveBackground,
+                  )
                 : childStyle.copyWith(color: linkStyle?.color))
+          : node.classes.contains('numbered-note-marker')
+          ? childStyle.copyWith(color: linkStyle?.color)
           : node.classes.contains('link-anchor-range')
           ? childStyle.copyWith(
               decoration: TextDecoration.underline,
@@ -329,6 +344,7 @@ List<InlineSpan> _nodeToSpans(
         onAnchorHover: onAnchorHover,
         onAnchorExit: onAnchorExit,
         linkStyle: linkStyle,
+        anchorActiveBackground: anchorActiveBackground,
         recognizerSink: recognizerSink,
       );
       final recognizer = TapGestureRecognizer()
@@ -365,6 +381,7 @@ List<InlineSpan> _nodeToSpans(
     onAnchorHover: onAnchorHover,
     onAnchorExit: onAnchorExit,
     linkStyle: linkStyle,
+    anchorActiveBackground: anchorActiveBackground,
     recognizerSink: recognizerSink,
   );
 }
@@ -374,22 +391,41 @@ TextStyle _styleForElement(dom.Element element, TextStyle parentStyle) {
   final localName = element.localName;
 
   if (localName == 'small') {
-    style = style.copyWith(fontSize: (style.fontSize ?? 18) * 0.8);
+    style = style.copyWith(
+      fontSize: (style.fontSize ?? 18) * kHtmlSmallerFontScale,
+    );
   }
   if (localName == 'big') {
-    style = style.copyWith(fontSize: (style.fontSize ?? 18) * 1.2);
+    style = style.copyWith(
+      fontSize: (style.fontSize ?? 18) * kHtmlLargerFontScale,
+    );
   }
   final inlineFontSize = _inlineFontSize(element, style.fontSize ?? 18);
   if (inlineFontSize != null) {
     style = style.copyWith(fontSize: inlineFontSize);
   }
-  if (localName == 'sup' ||
-      element.classes.contains('footnote-marker-number') ||
-      element.classes.contains('book-note-marker') ||
-      element.classes.contains('link-anchor')) {
+  // sup חשוף (למשל מייבוא Word) מוקטן כמו ב-fwfh, בלי נטייה; סמני ההערות
+  // מוקטנים ונוטים לפי ה-CSS שהוגדר להם ב-SmartTextWidget.
+  if (localName == 'sup') {
+    style = style.copyWith(
+      fontSize: (style.fontSize ?? 18) * kHtmlSmallerFontScale,
+    );
+  }
+  if (element.classes.contains('footnote-marker-number') ||
+      element.classes.contains('book-note-marker')) {
     style = style.copyWith(
       fontSize: (style.fontSize ?? 18) * 0.75,
       fontStyle: FontStyle.italic,
+    );
+  }
+  // סמן-אות של מפרש: מוקטן, והטיפוגרפיה נקבעת אך ורק בווריאנט שהוקצה למפרש.
+  // נטייה כפויה כאן הייתה מוחקת את ההבחנה בין המפרשים.
+  if (element.classes.contains('link-anchor')) {
+    style = applyLinkAnchorVariant(
+      linkAnchorVariantFromClasses(element.classes),
+      style.copyWith(
+        fontSize: (style.fontSize ?? 18) * kLinkAnchorMarkerScale,
+      ),
     );
   }
   if (localName == 'i' ||

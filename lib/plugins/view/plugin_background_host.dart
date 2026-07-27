@@ -155,27 +155,31 @@ class _PluginBackgroundHostState extends State<PluginBackgroundHost> {
           _queueBackgroundSync(state.plugins);
         }
       },
-      child: Offstage(
-        offstage: true,
-        child: TickerMode(
-          enabled: false,
-          child: Stack(
-            children: [
-              for (final plugin in _activeBackgroundPlugins.values)
-                SizedBox(
-                  key: ValueKey(
-                    'background_${plugin.pluginId}'
-                    '_${plugin.version}'
-                    '_${plugin.installPath}'
-                    '_${plugin.entrypointPath}'
-                    '_${plugin.backgroundEntrypointPath}'
-                    '_${plugin.devRootPath ?? ""}',
+      child: ExcludeFocus(
+        // ה-WebView של החבילה עוטף את עצמו ב-Focus(autofocus: true). בלי זה,
+        // מופע רקע שנטען כשאין פוקוס באפליקציה חוטף אותו לחלון בלתי-נראה.
+        child: Offstage(
+          offstage: true,
+          child: TickerMode(
+            enabled: false,
+            child: Stack(
+              children: [
+                for (final plugin in _activeBackgroundPlugins.values)
+                  SizedBox(
+                    key: ValueKey(
+                      'background_${plugin.pluginId}'
+                      '_${plugin.version}'
+                      '_${plugin.installPath}'
+                      '_${plugin.entrypointPath}'
+                      '_${plugin.backgroundEntrypointPath}'
+                      '_${plugin.devRootPath ?? ""}',
+                    ),
+                    width: 1,
+                    height: 1,
+                    child: _BackgroundPluginRunner(plugin: plugin),
                   ),
-                  width: 1,
-                  height: 1,
-                  child: _BackgroundPluginRunner(plugin: plugin),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

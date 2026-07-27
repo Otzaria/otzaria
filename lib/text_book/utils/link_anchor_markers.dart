@@ -1,5 +1,6 @@
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/utils/note_anchor_utils.dart';
+import 'package:otzaria/text_book/utils/link_anchor_variants.dart';
 
 /// סמני עוגן-מילה (טבלת link_anchor שבמסד): הזרקת אות סימון קטנה, למשל (א),
 /// בנקודה המדויקת בשורת המקור שבה יושבת הערת המפרש.
@@ -8,9 +9,6 @@ import 'package:otzaria/personal_notes/utils/note_anchor_utils.dart';
 /// entity (`&...;`) נספר כתו אחד — אותה מוסכמה של `line.charCount`. ההזרקה
 /// חייבת לכן להיעשות על שורת המקור *כפי שנשמרה*, לפני כל עיבוד שמוסיף תוכן
 /// גלוי (סימוני הערות אישיות וכד').
-
-/// מספר וריאנטי הטיפוגרפיה של הסמנים (ראו SmartTextWidget.customStylesBuilder).
-const int kLinkAnchorStyleCount = 6;
 
 /// אות הסימון של קישור מעוגן: התווית ששמורה במסד, ואם אין — הרכיב האחרון של
 /// ה-heRef של ההערה (מספר ההערה בגימטריה, כפי שמודפס). מחזיר null כשאין אות
@@ -27,7 +25,8 @@ String? _letterFor(Link link, String? storedLabel) {
   return tail;
 }
 
-/// הקצאת וריאנט טיפוגרפי קבוע לכל מפרש שיש לו עוגני-מילה.
+/// הקצאת וריאנט טיפוגרפי קבוע לכל מפרש שיש לו עוגני-מילה — לסמני-האות
+/// (עוגן-נקודה) בלבד, כדי שאפשר יהיה להבדיל בין מפרשים על אותו דף.
 ///
 /// הווריאנט נגזר מהכותרת עצמה, ולכן אינו משתנה כשטעינת חלון גלילה מוסיפה
 /// מפרשים חדשים לרשימה.
@@ -55,9 +54,9 @@ int _stableStyleIndex(String title) {
 ///
 /// שני סוגי עוגנים (קישור יכול לשאת כמה, דרך anchorSpans):
 ///  - עוגן-נקודה (end == null): סמן אות מורם, למשל (א).
-///  - עוגן-טווח (end != null, ציטוטים מ-charLevelData): עטיפת הטווח דרך
-///    [wrapHtmlRanges] — שסוגר/פותח סביב תגים לא-מאוזנים כדי לשמור קינון
-///    תקין — באותו וריאנט סגנון של המפרש.
+///  - עוגן-טווח (end != null, ציטוטי הלינקר): עטיפת הטווח דרך [wrapHtmlRanges]
+///    — שסוגר/פותח סביב תגים לא-מאוזנים כדי לשמור קינון תקין. הטווח מעוצב
+///    אחיד (קו תחתון בצבע הנושא) ואינו נושא וריאנט טיפוגרפי.
 /// [lineIndex] (0-based) — כשמסופק, הסמנים נפלטים כ-`<a>` עם href
 /// `otzaria://anchor?ref=<line>_<i>` (i = מיקום הקישור ב-[anchorLinks]), כדי
 /// שריחוף/לחיצה יזהו את הקישור; עוגן-טווח מקבל גם `&range=1` — לחיצה עליו
@@ -100,8 +99,7 @@ String injectLinkAnchorMarkers({
             HtmlWrapRange(
               start: rawStart,
               end: rawEnd,
-              openTag:
-                  '<$tag class="link-anchor-range link-anchor-$styleIndex"$href>',
+              openTag: '<$tag class="link-anchor-range"$href>',
               closeTag: '</$tag>',
             ),
           );

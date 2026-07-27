@@ -525,6 +525,22 @@ void main() {
       expect(result.contains('!'), isFalse);
     });
 
+    test('ישות HTML (&thinsp;) שורדת הסרת פיסוק ואינה הופכת לטקסט גלוי', () {
+      // ה-";" של הישות אינו פיסוק אלא תחביר; מחיקתו השאירה "&thinsp" מוצג
+      // ליד כל פסק בתנ"ך.
+      const text = 'אֱלֹהִ֤ים&thinsp;<small>׀</small>&thinsp;לָאוֹר֙';
+
+      final result = applyDisplayTextPreferences(
+        text: text,
+        removeNikud: true,
+        removePunctuation: true,
+        showTeamim: true,
+      );
+
+      expect(result.contains('&thinsp;'), isTrue);
+      expect(result.contains('&thinsp<'), isFalse);
+    });
+
     test('לא משנה טקסט כשכל ההעדפות מאפשרות הצגה מלאה', () {
       const text = 'א$niqqudבג';
       final result = applyDisplayTextPreferences(
