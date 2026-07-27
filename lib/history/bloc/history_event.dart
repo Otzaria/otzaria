@@ -26,6 +26,14 @@ class AddHistory extends HistoryEvent {
   AddHistory(this.tab, {this.scopeFacets, this.proximityScope});
 }
 
+/// הוספת כמה כרטיסיות להיסטוריה בשמירה אחת (סגירה קבוצתית). אירועי
+/// AddHistory נפרדים מעובדים במקביל ועלולים לדרוס זה את שמירתו של זה.
+class AddHistoryForTabs extends HistoryEvent {
+  final List<OpenedTab> tabs;
+
+  AddHistoryForTabs(this.tabs);
+}
+
 class CaptureStateForHistory extends HistoryEvent {
   final OpenedTab tab;
   CaptureStateForHistory(this.tab);

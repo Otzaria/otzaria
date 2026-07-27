@@ -51,11 +51,16 @@ class TabsState extends Equatable {
   final int updateCounter;
   final SideBySideMode? sideBySideMode;
 
+  /// בחירה מרובה לסגירה קבוצתית (Ctrl/Shift+לחיצה בשורת הכרטיסיות).
+  /// מצב זמני — אינו נשמר לדיסק.
+  final List<OpenedTab> selectedTabs;
+
   const TabsState({
     required this.tabs,
     required this.currentTabIndex,
     this.updateCounter = 0,
     this.sideBySideMode,
+    this.selectedTabs = const [],
   });
 
   factory TabsState.initial() {
@@ -73,6 +78,7 @@ class TabsState extends Equatable {
     bool forceUpdate = false,
     SideBySideMode? sideBySideMode,
     bool clearSideBySide = false,
+    List<OpenedTab>? selectedTabs,
   }) {
     return TabsState(
       tabs: tabs ?? this.tabs,
@@ -81,6 +87,7 @@ class TabsState extends Equatable {
       sideBySideMode: clearSideBySide
           ? null
           : (sideBySideMode ?? this.sideBySideMode),
+      selectedTabs: selectedTabs ?? this.selectedTabs,
     );
   }
 
@@ -88,11 +95,23 @@ class TabsState extends Equatable {
   OpenedTab? get currentTab => hasOpenTabs ? tabs[currentTabIndex] : null;
   bool get isSideBySideMode => sideBySideMode != null;
 
+  /// הקבוצה שסגירת הכרטיסיה הנוכחית סוגרת: הבחירה המרובה כשהכרטיסיה
+  /// הפעילה חלק ממנה, אחרת הכרטיסיה הפעילה לבדה.
+  List<OpenedTab> get currentCloseGroup {
+    final current = currentTab;
+    if (current == null) return const [];
+    if (selectedTabs.length > 1 && selectedTabs.contains(current)) {
+      return List<OpenedTab>.from(selectedTabs);
+    }
+    return [current];
+  }
+
   @override
   List<Object?> get props => [
     tabs,
     currentTabIndex,
     updateCounter,
     sideBySideMode,
+    selectedTabs,
   ];
 }

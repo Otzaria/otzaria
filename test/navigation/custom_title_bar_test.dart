@@ -767,6 +767,198 @@ void main() {
     });
   });
 
+  group('בחירה מרובה של כרטיסיות (Ctrl/Shift/Cmd+לחיצה)', () {
+    late TextBookTab first;
+    late TextBookTab second;
+    late TextBookTab third;
+    late _TestTabsBloc tabsBloc;
+    late _TestHistoryBloc historyBloc;
+
+    Future<void> pumpWithTabs(
+      WidgetTester tester, {
+      List<TextBookTab> selected = const [],
+    }) async {
+      first = _makeTextTab('ספר א');
+      second = _makeTextTab('ספר ב');
+      third = _makeTextTab('ספר ג');
+      tabsBloc = _TestTabsBloc(
+        TabsState(
+          tabs: [first, second, third],
+          currentTabIndex: 0,
+          selectedTabs: selected,
+        ),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      historyBloc = _TestHistoryBloc();
+
+      addTearDown(() async {
+        first.dispose();
+        second.dispose();
+        third.dispose();
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+        await historyBloc.close();
+      });
+
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+        historyBloc: historyBloc,
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('Ctrl+לחיצה שולחת ToggleTabSelection ולא מחליפה טאב', (
+      tester,
+    ) async {
+      await pumpWithTabs(tester);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.tap(find.text('ספר ב'), warnIfMissed: false);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+
+      final toggles = tabsBloc.addedEvents
+          .whereType<ToggleTabSelection>()
+          .toList();
+      expect(toggles, hasLength(1));
+      expect(toggles.single.tab, same(second));
+      expect(
+        tabsBloc.addedEvents.whereType<SetCurrentTab>(),
+        isEmpty,
+        reason: 'Ctrl+לחיצה בוחרת לקבוצה ואינה מחליפה את הטאב הפעיל',
+      );
+    });
+
+    testWidgets('Shift+לחיצה שולחת SelectTabRange', (tester) async {
+      await pumpWithTabs(tester);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.tap(find.text('ספר ג'), warnIfMissed: false);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pumpAndSettle();
+
+      final ranges = tabsBloc.addedEvents.whereType<SelectTabRange>().toList();
+      expect(ranges, hasLength(1));
+      expect(ranges.single.tab, same(third));
+      expect(tabsBloc.addedEvents.whereType<SetCurrentTab>(), isEmpty);
+    });
+
+    testWidgets(
+      'במק: Command+לחיצה שולחת ToggleTabSelection',
+      (tester) async {
+        await pumpWithTabs(tester);
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+        await tester.tap(find.text('ספר ב'), warnIfMissed: false);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+        await tester.pumpAndSettle();
+
+        final toggles = tabsBloc.addedEvents
+            .whereType<ToggleTabSelection>()
+            .toList();
+        expect(toggles, hasLength(1));
+        expect(toggles.single.tab, same(second));
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets('לחיצה רגילה מנקה בחירה קיימת ומחליפה טאב', (tester) async {
+      await pumpWithTabs(tester);
+      tabsBloc.emitState(
+        TabsState(
+          tabs: [first, second, third],
+          currentTabIndex: 0,
+          selectedTabs: [first, second],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('ספר ג'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      expect(
+        tabsBloc.addedEvents.whereType<ClearTabSelection>(),
+        hasLength(1),
+      );
+      expect(
+        tabsBloc.addedEvents.whereType<SetCurrentTab>().last.index,
+        2,
+      );
+    });
+
+    testWidgets('לחיצה על ה-X של כרטיסיה נבחרת סוגרת את כל הקבוצה', (
+      tester,
+    ) async {
+      await pumpWithTabs(tester);
+      tabsBloc.emitState(
+        TabsState(
+          tabs: [first, second, third],
+          currentTabIndex: 0,
+          selectedTabs: [first, second],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // סימולציית tap נבלעת ע"י ה-reorder recognizer — קוראים ל-onPressed ישירות.
+      final closeButton = find.descendant(
+        of: find.ancestor(of: find.text('ספר א'), matching: find.byType(Tab)),
+        matching: find.byType(IconButton),
+      );
+      tester.widget<IconButton>(closeButton).onPressed!();
+      await tester.pump();
+
+      final removals = tabsBloc.addedEvents.whereType<RemoveTabs>().toList();
+      expect(removals, hasLength(1));
+      expect(removals.single.tabs, [first, second]);
+      expect(
+        tabsBloc.addedEvents.whereType<RemoveTab>(),
+        isEmpty,
+        reason: 'סגירת חבר בקבוצה סוגרת את כולה, לא כרטיסיה בודדת',
+      );
+      // ההיסטוריה נשלחת באירוע קבוצתי אחד — לא אירועי AddHistory מקביליים.
+      final historyEvents = historyBloc.addedEvents
+          .whereType<AddHistoryForTabs>()
+          .toList();
+      expect(historyEvents, hasLength(1));
+      expect(historyEvents.single.tabs, [first, second]);
+      expect(historyBloc.addedEvents.whereType<AddHistory>(), isEmpty);
+    });
+
+    testWidgets('כרטיסיות נבחרות מסומנות ברקע (painter)', (tester) async {
+      await pumpWithTabs(tester);
+      tabsBloc.emitState(
+        TabsState(
+          tabs: [first, second, third],
+          currentTabIndex: 0,
+          selectedTabs: [second, third],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // הנבחרות (2) + הפעילה (1) מצוירות ברקע טאב; ללא בחירה רק הפעילה.
+      final paintedTabs = tester
+          .widgetList<CustomPaint>(
+            find.descendant(
+              of: find.byType(ReorderableListView),
+              matching: find.byType(CustomPaint),
+            ),
+          )
+          .where(
+            (w) => w.painter.runtimeType.toString() == '_TabBackgroundPainter',
+          )
+          .length;
+      expect(paintedTabs, 3);
+    });
+  });
+
   group('סגירת טאב בלחיצה על כפתור ה-X', () {
     testWidgets('לחיצה על ה-X סוגרת מיד — בלי המתנה ל-timeout של לחיצה כפולה', (
       tester,
@@ -1409,8 +1601,11 @@ class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
 class _TestHistoryBloc extends Cubit<HistoryState> implements HistoryBloc {
   _TestHistoryBloc() : super(HistoryInitial());
 
+  /// מתעד את אירועי ההיסטוריה שנשלחו, לבדיקת סגירה קבוצתית.
+  final List<HistoryEvent> addedEvents = [];
+
   @override
-  void add(HistoryEvent event) {}
+  void add(HistoryEvent event) => addedEvents.add(event);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

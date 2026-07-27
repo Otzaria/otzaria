@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
@@ -143,7 +144,8 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     on<LoadHistory>(_onLoadHistory);
     on<SetCurrentWorkspaceName>(_onSetCurrentWorkspaceName);
     on<AddHistory>(_onAddHistory);
-    on<BulkAddHistory>(_onBulkAddHistory);
+    on<AddHistoryForTabs>(_onAddHistoryForTabs);
+    on<BulkAddHistory>(_onBulkAddHistory, transformer: sequential());
     on<RemoveHistory>(_onRemoveHistory);
     on<ClearHistory>(_onClearHistory);
     on<CaptureStateForHistory>(_onCaptureStateForHistory);
@@ -430,6 +432,23 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
       );
       if (bookmark == null) return;
       add(BulkAddHistory([bookmark]));
+    } catch (e) {
+      emit(HistoryError(state.history, e.toString()));
+    }
+  }
+
+  Future<void> _onAddHistoryForTabs(
+    AddHistoryForTabs event,
+    Emitter<HistoryState> emit,
+  ) async {
+    try {
+      final snapshots = <Bookmark>[];
+      for (final tab in event.tabs) {
+        final bookmark = await _bookmarkFromTab(tab);
+        if (bookmark != null) snapshots.add(bookmark);
+      }
+      if (snapshots.isEmpty) return;
+      add(BulkAddHistory(snapshots));
     } catch (e) {
       emit(HistoryError(state.history, e.toString()));
     }

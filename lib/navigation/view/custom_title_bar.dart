@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -105,6 +106,14 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
   // הרוחבים המחושבים האחרונים לטאב, לשימוש כערך הקפיאה בסגירה.
   _TabWidths? _lastComputedTabWidths;
+
+  /// המקש שמפעיל בחירה מרובה: Ctrl בכל הפלטפורמות, Command במק.
+  bool get _isMultiSelectModifierPressed {
+    final keyboard = HardwareKeyboard.instance;
+    return defaultTargetPlatform == TargetPlatform.macOS
+        ? keyboard.isMetaPressed
+        : keyboard.isControlPressed;
+  }
 
   // רוחב אזור הטאבים שנמדד בפריים הקודם (ע"י LayoutBuilder נפרד). הרשימה
   // נבנית עם הערך הזה ולא תחת ה-LayoutBuilder — אחרת Tooltip/OverlayPortal
@@ -723,6 +732,12 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
   }
 
   void closeTab(OpenedTab tab, BuildContext context) {
+    // סגירת טאב שנכלל בבחירה מרובה סוגרת את כל הקבוצה יחד.
+    final selectedTabs = context.read<TabsBloc>().state.selectedTabs;
+    if (selectedTabs.length > 1 && selectedTabs.contains(tab)) {
+      closeSelectedTabs(context);
+      return;
+    }
     // קופאים את רוחב הטאבים כל עוד העכבר מעל השורה, כדי שכפתור ה-X של הטאב הבא
     // יישאר בדיוק תחת הסמן וסגירות רצופות יפעלו (כמו כרום). נועלים רק בסגירה
     // הראשונה (??=) — אחרת כל סגירה הייתה דורסת בערך הרחב יותר. השחרור ביציאת העכבר.
@@ -731,6 +746,20 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     }
     context.read<HistoryBloc>().add(AddHistory(tab));
     context.read<TabsBloc>().add(RemoveTab(tab));
+  }
+
+  /// סוגר את כל הכרטיסיות שבבחירה המרובה בפעולה אחת.
+  void closeSelectedTabs(BuildContext context) {
+    final tabsBloc = context.read<TabsBloc>();
+    final tabsToClose = List<OpenedTab>.from(tabsBloc.state.selectedTabs);
+    if (tabsToClose.isEmpty) return;
+    if (_pointerInsideTabStrip && _lastComputedTabWidths != null) {
+      _pinnedTabWidths ??= _lastComputedTabWidths;
+    }
+    // אירוע קבוצתי אחד — אירועי AddHistory נפרדים מעובדים במקביל ועלולים
+    // לדרוס זה את זה.
+    context.read<HistoryBloc>().add(AddHistoryForTabs(tabsToClose));
+    tabsBloc.add(RemoveTabs(tabsToClose));
   }
 
   void closeAllTabs(TabsState state, BuildContext context) {
@@ -906,7 +935,11 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                 right: index == 0 ? 0 : outerPad,
               ),
               child: CustomPaint(
-                painter: isSelected
+                // טאב בבחירה מרובה נצבע ב-secondaryContainer כדי לסמן שהוא
+                // חלק מהקבוצה שתיסגר יחד.
+                painter: state.selectedTabs.contains(tab)
+                    ? _TabBackgroundPainter(colorScheme.secondaryContainer)
+                    : isSelected
                     ? _TabBackgroundPainter(
                         AppSurfaces.topBarBackground(context),
                       )
@@ -991,9 +1024,26 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       onPointerDown: (PointerDownEvent event) {
         if (event.buttons == 4) {
           closeTab(tab, context);
-        } else if (event.buttons == 1 &&
-            index != state.currentTabIndex &&
-            !_hitTestCloseButton(context, event.position)) {
+          return;
+        }
+        if (event.buttons != 1 ||
+            _hitTestCloseButton(context, event.position)) {
+          return;
+        }
+        // Ctrl/Cmd/Shift+לחיצה בונים בחירה מרובה לסגירה קבוצתית (כמו בדפדפן)
+        // בלי להחליף את הטאב הפעיל.
+        if (_isMultiSelectModifierPressed) {
+          context.read<TabsBloc>().add(ToggleTabSelection(tab));
+          return;
+        }
+        if (HardwareKeyboard.instance.isShiftPressed) {
+          context.read<TabsBloc>().add(SelectTabRange(tab));
+          return;
+        }
+        if (state.selectedTabs.isNotEmpty) {
+          context.read<TabsBloc>().add(const ClearTabSelection());
+        }
+        if (index != state.currentTabIndex) {
           context.read<TabsBloc>().add(SetCurrentTab(index));
         }
       },
@@ -1088,10 +1138,17 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         label: tab.isPinned ? 'בטל הצמדת כרטיסיה' : 'הצמד כרטיסיה',
         onTap: () => context.read<TabsBloc>().add(TogglePinTab(tab)),
       ),
-      AppContextMenuEntry(
-        label: 'סגור',
-        onTap: () => closeTab(tab, context),
-      ),
+      // על טאב שנכלל בבחירה מרובה "סגור" הופך לסגירת כל הקבוצה (כמו בדפדפן).
+      if (state.selectedTabs.length > 1 && state.selectedTabs.contains(tab))
+        AppContextMenuEntry(
+          label: 'סגור ${state.selectedTabs.length} כרטיסיות',
+          onTap: () => closeSelectedTabs(context),
+        )
+      else
+        AppContextMenuEntry(
+          label: 'סגור',
+          onTap: () => closeTab(tab, context),
+        ),
       AppContextMenuEntry(
         label: 'סגור הכל',
         onTap: () => closeAllTabs(state, context),
