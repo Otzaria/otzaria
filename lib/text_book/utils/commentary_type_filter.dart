@@ -9,6 +9,10 @@ import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 class CommentaryTypeFilter {
   const CommentaryTypeFilter._();
 
+  static final _commentatorsByTypeCache = Expando<Map<String, Set<String>>>(
+    'commentatorsByType',
+  );
+
   /// מפתחות צ׳יפי סוגי המפרשים שקיימים בפועל ב-[links], בסדר
   /// [LinkTypes.commentaryFilterTypes]. סוג בלי קישורים אינו מקבל צ׳יפ.
   static List<String> chipKeys(List<Link> links) {
@@ -43,12 +47,16 @@ class CommentaryTypeFilter {
   /// מיפוי סוג קנוני → שמות המפרשים שיש להם קישור מאותו סוג. משמש לצמצום
   /// רשימת המפרשים בפאנל הבחירה, כדי שצ׳יפ סוג יסנן אותה כמו צ׳יפ דור.
   static Map<String, Set<String>> commentatorsByType(List<Link> links) {
+    final cached = _commentatorsByTypeCache[links];
+    if (cached != null) return cached;
+
     final byType = <String, Set<String>>{};
     for (final link in links) {
       if (!LinkTypes.isCommentaryFilterType(link.connectionType)) continue;
       final type = LinkTypes.canonicalType(link.connectionType);
       (byType[type] ??= <String>{}).add(utils.getTitleFromPath(link.path2));
     }
+    _commentatorsByTypeCache[links] = byType;
     return byType;
   }
 

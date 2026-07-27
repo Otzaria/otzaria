@@ -162,6 +162,15 @@ void main() {
     test('רשימה ריקה מחזירה מפה ריקה', () {
       expect(CommentaryTypeFilter.commentatorsByType(const []), isEmpty);
     });
+
+    test('אותה רשימת קישורים משתמשת במפה מחושבת', () {
+      final links = [_link(path2: 'אונקלוס.txt', type: LinkTypes.targum)];
+
+      final first = CommentaryTypeFilter.commentatorsByType(links);
+      final second = CommentaryTypeFilter.commentatorsByType(links);
+
+      expect(identical(first, second), isTrue);
+    });
   });
 
   group('effectiveTypes — ריק = הצג הכל', () {
