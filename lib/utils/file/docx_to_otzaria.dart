@@ -616,10 +616,11 @@ int? _headingLevelFromStyleName(String? styleVal) {
   return null;
 }
 
-/// האם `w:outlineLvl` קיים עם ערך מספרי — כלומר קביעה *מפורשת* של רמת מתאר
-/// (או ביטולה ע"י 9). ערך פגום נחשב כאילו אינו קיים, כדי לא לחסום את הגיבוי
-/// לפי שם הסגנון.
-bool _hasOutlineValue(String? val) => val != null && int.tryParse(val) != null;
+/// האם `w:outlineLvl` קיים עם ערך חוקי (0–9), כולל 9 שמבטל רמת מתאר.
+bool _hasOutlineValue(String? val) {
+  final level = val != null ? int.tryParse(val) : null;
+  return level != null && level >= 0 && level <= 9;
+}
 
 /// ממיר `w:outlineLvl` לרמת כותרת 1–6, או `null` אם אינו כותרת.
 ///

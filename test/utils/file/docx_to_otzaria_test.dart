@@ -381,6 +381,25 @@ void main() {
       expect(result, contains('<h3>סעיף</h3>'));
       expect(result, isNot(contains('<h1>סעיף')));
     });
+
+    test('outlineLvl מחוץ לטווח על הפסקה אינו חוסם את pStyle', () {
+      final xml =
+          '''
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document $_xmlNs>
+  <w:body>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="Heading1"/>
+        <w:outlineLvl w:val="-1"/>
+      </w:pPr>
+      <w:r><w:t>פרק</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>''';
+      final result = docxToText(_buildDocx(_utf8Xml(xml)), 'ב');
+      expect(result, contains('<h1>פרק</h1>'));
+    });
   });
 
   group('docxToText - כותרות לפי styles.xml (styleId מספרי)', () {
@@ -707,6 +726,23 @@ void main() {
               '<w:style w:type="paragraph" w:styleId="Q">'
               '<w:name w:val="heading 1"/>'
               '<w:pPr><w:outlineLvl w:val="abc"/></w:pPr></w:style>',
+            ),
+          ),
+        ),
+        'ב',
+      );
+      expect(result, contains('<h1>פרק</h1>'));
+    });
+
+    test('outlineLvl מספרי מחוץ לטווח אינו חוסם את שם הסגנון', () {
+      final result = docxToText(
+        _buildDocx(
+          _utf8Xml(docWithStyles([('Q', 'פרק')])),
+          stylesXmlBytes: _utf8Xml(
+            stylesXml(
+              '<w:style w:type="paragraph" w:styleId="Q">'
+              '<w:name w:val="heading 1"/>'
+              '<w:pPr><w:outlineLvl w:val="10"/></w:pPr></w:style>',
             ),
           ),
         ),
