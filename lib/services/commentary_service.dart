@@ -73,6 +73,9 @@ class CommentaryService {
   /// יש לקרוא בעת רענון/איפוס הספרייה, כדי שסיווגי דורות ישנים לא יישארו
   /// בזיכרון לאחר החלפת נתונים.
   static void clearEraCache() {
+    // המטמון כאן נגזר מ-_csvCache שב-text_manipulation; ניקוי שלו בלבד מותיר
+    // את המקור המיושן וממלא את המטמון מחדש מאותם נתונים.
+    utils.clearCommentatorOrderCache();
     _eraCache.clear();
     _eraCacheVersion++;
   }
@@ -202,8 +205,9 @@ class CommentaryService {
   /// [bookTitle] - שם הספר
   ///
   /// מחזיר את הדור המתאים, או [CommentaryEra.other] אם לא נמצא.
-  /// משמש למיון קבוצות מפרשים ([sortGroupsByEra]). למיון קישורים רגילים
-  /// יש להשתמש ב-[preloadEras] + [getCachedBookEra].
+  ///
+  /// שאילתה חיה לספר בודד, ל-fallback של FindRef בלבד. לכל מיון יש להשתמש
+  /// ב-[preloadEras] + [getCachedBookEra] — שאילתה מרוכזת אחת לכל הספרייה.
   static Future<CommentaryEra> getBookEra(String bookTitle) async {
     try {
       final repo = SqliteDataProvider.instance.repository;
@@ -244,17 +248,16 @@ class CommentaryService {
         .toList();
     if (missing.isEmpty) return;
 
-    try {
-      final byEra = await utils.splitByEra(missing);
-      for (final entry in byEra.entries) {
-        final era = _eraFromCategory(entry.key);
-        for (final title in entry.value) {
-          _eraCache[title] = era;
-        }
+    final byEra = await utils.splitByEra(missing);
+    // טבלת הדורות לא נטענה => כל הכותרות יצאו "מפרשים נוספים". שמירתן הייתה
+    // מקבעת את הסיווג השגוי, כי preloadEras מדלגת על כותרת שכבר במטמון.
+    if (!utils.isEraTableLoaded) return;
+
+    for (final entry in byEra.entries) {
+      final era = _eraFromCategory(entry.key);
+      for (final title in entry.value) {
+        _eraCache[title] = era;
       }
-    } catch (_) {
-      // אם הסיווג נכשל (למשל DB לא זמין) - הספרים יישארו ללא דור במטמון
-      // והמיון ייפול חזרה לסדר אלפבתי. אין צורך לקרוס.
     }
   }
 
@@ -274,15 +277,17 @@ class CommentaryService {
   /// מחזיר רשימה ממוינת לפי: תורה שבכתב -> חז"ל -> ראשונים -> אחרונים -> מחברי זמננו -> שאר מפרשים
   /// בתוך כל דור, המיון הוא אלפביתי לפי שם הספר
   static Future<List<LinkGroup>> sortGroupsByEra(List<LinkGroup> groups) async {
-    if (groups.isEmpty) return groups;
+    if (groups.length <= 1) return groups;
 
-    // שליפת הדור של כל ספר מפרש מה-DB - הרצה במקביל לשיפור ביצועים
-    final eras = await Future.wait(
-      groups.map((group) => getBookEra(group.bookTitle)),
-    );
-    final Map<String, CommentaryEra> eraMap = {
-      for (int i = 0; i < groups.length; i++) groups[i].bookTitle: eras[i],
-    };
+    await preloadEras(groups.map((group) => group.bookTitle));
+    return sortGroupsByEraSync(groups);
+  }
+
+  /// ממיין קבוצות מפרשים לפי דורות מתוך המטמון בלבד (סינכרוני)
+  ///
+  /// יש לקרוא ל-[preloadEras] מראש; ספר שאינו במטמון ימוין כ"שאר מפרשים".
+  static List<LinkGroup> sortGroupsByEraSync(List<LinkGroup> groups) {
+    if (groups.length <= 1) return groups;
 
     final present = groups.map((g) => g.bookTitle).toSet();
     final baseByTitle = {
@@ -295,8 +300,8 @@ class CommentaryService {
     sortedGroups.sort((a, b) {
       final anchorA = baseByTitle[a.bookTitle] ?? a.bookTitle;
       final anchorB = baseByTitle[b.bookTitle] ?? b.bookTitle;
-      final eraA = eraMap[anchorA] ?? CommentaryEra.other;
-      final eraB = eraMap[anchorB] ?? CommentaryEra.other;
+      final eraA = getCachedBookEra(anchorA);
+      final eraB = getCachedBookEra(anchorB);
 
       if (eraA.order != eraB.order) {
         return eraA.order.compareTo(eraB.order);
@@ -411,41 +416,6 @@ class CommentaryService {
   static Future<List<LinkGroup>> groupAndSortLinks(List<Link> links) async {
     final groups = await groupConsecutiveLinksAsync(links);
     return sortGroupsByEra(groups);
-  }
-
-  /// מסנן קישורים לפי אינדקסים ומפרשים פעילים
-  ///
-  /// זהו wrapper ל-getLinksforIndexs הקיימת, לשמירת API אחיד
-  static Future<List<Link>> filterLinks({
-    required List<int> indexes,
-    required List<Link> links,
-    required List<String> activeCommentators,
-  }) async {
-    return getLinksforIndexs(
-      indexes: indexes,
-      links: links,
-      commentatorsToShow: activeCommentators,
-    );
-  }
-
-  /// מסנן, מקבץ וממיין קישורים בפעולה אחת
-  ///
-  /// [indexes] - אינדקסים של שורות להצגת מפרשים
-  /// [links] - כל הקישורים
-  /// [activeCommentators] - רשימת המפרשים הפעילים
-  ///
-  /// מחזיר קבוצות ממוינות של קישורים מסוננים
-  static Future<List<LinkGroup>> getGroupedCommentaries({
-    required List<int> indexes,
-    required List<Link> links,
-    required List<String> activeCommentators,
-  }) async {
-    final filteredLinks = await filterLinks(
-      indexes: indexes,
-      links: links,
-      activeCommentators: activeCommentators,
-    );
-    return groupAndSortLinks(filteredLinks);
   }
 
   /// בודק אם יש מפרשים זמינים לאינדקסים מסוימים

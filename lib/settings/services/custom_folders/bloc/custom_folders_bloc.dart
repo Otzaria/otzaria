@@ -16,8 +16,6 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/user_content_import/repository/user_content_repository.dart';
 import 'package:otzaria/user_content_import/services/user_content_importer.dart';
-import 'package:otzaria/utils/text/text_manipulation.dart'
-    show clearCommentatorOrderCache;
 
 part 'custom_folders_event.dart';
 part 'custom_folders_state.dart';
@@ -309,7 +307,6 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
       final r = await importUserFilesSafe(event.paths, userDb);
       if (r.generationsApplied > 0 || r.linksApplied > 0) {
         GenerationCache.instance.clear();
-        clearCommentatorOrderCache();
         CommentaryService.clearEraCache();
         _addLibraryEvent(RefreshLibrary());
       }
@@ -345,7 +342,6 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
           (await UserBooksDatabaseHolder.instance.repository).database;
       await UserContentRepository(userDb).clearAllUserContent();
       GenerationCache.instance.clear();
-      clearCommentatorOrderCache();
       CommentaryService.clearEraCache();
       _addLibraryEvent(RefreshLibrary());
       emit(
