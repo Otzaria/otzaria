@@ -408,6 +408,16 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   Map<String, int> _anchorStyleCache = const {};
   Timer? _previewHoverTimer;
 
+  /// מזהה הריחוף הממתין. טעינה אסינכרונית שהתחילה בודקת אותו לאחר ה-await —
+  /// ביטול ה-Timer לבדו אינו עוצר טעינה שכבר יצאה לדרך.
+  int _previewHoverGeneration = 0;
+
+  /// ביטול ריחוף ממתין: גם ה-Timer וגם טעינה אסינכרונית שכבר התחילה.
+  void _cancelPendingPreview() {
+    _previewHoverTimer?.cancel();
+    _previewHoverGeneration++;
+  }
+
   /// סמן-האות שחלונית התצוגה שלו פתוחה כעת (שורה + אינדקס בשורה) — מודגש בטקסט
   /// כדי לקשר ויזואלית בין הסמן לחלונית.
   int? _activeAnchorLine;
@@ -501,14 +511,16 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   /// אסינכרונית. אם אין הערה תואמת — לא נפתחת חלונית.
   void _handleNumberedNoteMarkerHover(String url, Offset globalPosition) {
     LinkPreviewOverlay.cancelScheduledHide();
-    _previewHoverTimer?.cancel();
+    _cancelPendingPreview();
     final line = noteMarkerLineFromUrl(url);
     final state = context.read<TextBookBloc>().state;
     if (line == null || state is! TextBookLoaded) return;
     final links = state.linksByLine[line + 1] ?? const <Link>[];
+    final generation = _previewHoverGeneration;
     _previewHoverTimer = Timer(const Duration(milliseconds: 280), () async {
       final link = await numberedNoteLinkFromUrl(url, links);
       if (!mounted || link == null) return;
+      if (generation != _previewHoverGeneration) return;
       LinkPreviewOverlay.show(
         context,
         link: link,
@@ -526,7 +538,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     if (state is! TextBookLoaded) return false;
     final anchor = _anchorLinkFromUrl(url, state);
     if (anchor == null) return false;
-    _previewHoverTimer?.cancel();
+    _cancelPendingPreview();
     _openAnchorTarget(anchor.link);
     return true;
   }
@@ -540,7 +552,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       return;
     }
     LinkPreviewOverlay.cancelScheduledHide();
-    _previewHoverTimer?.cancel();
+    _cancelPendingPreview();
     final currentState = context.read<TextBookBloc>().state;
     if (currentState is TextBookLoaded) {
       final previewLink = _previewLinkFromUrl(url, currentState);
@@ -607,7 +619,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }
 
   void _handlePreviewHoverExit(String url) {
-    _previewHoverTimer?.cancel();
+    _cancelPendingPreview();
     LinkPreviewOverlay.scheduleHide();
   }
 
@@ -888,7 +900,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       _handlePluginHighlightReveal,
     );
     _disposed = true;
-    _previewHoverTimer?.cancel();
+    _cancelPendingPreview();
     if (widget.isMainText) LinkPreviewOverlay.dismiss();
     widget.selectionSyncController?.removeListener(
       _handleExternalSelectionChange,

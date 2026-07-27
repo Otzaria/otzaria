@@ -12,6 +12,12 @@ final RegExp _markerRegExp = RegExp(r'\(\d{1,3}\)');
 /// ההערה עצמה נפתחת באותו סמן שמודפס בגוף הספר, למשל "(9) לכאורה יש לעיין...".
 final RegExp _noteOpeningMarkerRegExp = RegExp(r'^\s*\(\s*(\d{1,3})\s*\)');
 
+final RegExp _anchorOpenRegExp = RegExp(
+  r'^<a(?:\s[^>]*[^/>])?>$',
+  caseSensitive: false,
+);
+final RegExp _anchorCloseRegExp = RegExp(r'^</a\s*>$', caseSensitive: false);
+
 /// קישורי ההערות הממוספרות של השורה: מפרשים שכותרתם "הערות...".
 ///
 /// זהו הסינון היחיד שאפשר לעשות באופן סינכרוני בזמן רינדור — התאמת הסמן
@@ -30,6 +36,8 @@ List<Link> numberedNoteLinks(List<Link> linksForLine) => linksForLine
 ///
 /// הסריקה מדלגת על תוכן שבתוך תגי HTML, ומוסיפה תגים בלבד — ולכן אופסטי
 /// התווים-הגלויים של השורה נשמרים, ואפשר להזריק אחר-כך סמני עוגן-מילה.
+/// סמן שכבר נמצא בתוך `<a>` נשאר כמו שהוא — עוגן מקונן הוא HTML לא חוקי
+/// ומפרק את הקישור הקיים.
 String addNumberedNoteMarkerLinks(String html, {required int lineIndex}) {
   if (!html.contains('(')) return html;
 
@@ -37,27 +45,38 @@ String addNumberedNoteMarkerLinks(String html, {required int lineIndex}) {
   var i = 0;
   final len = html.length;
   var wrapped = false;
+  var anchorDepth = 0;
   while (i < len) {
     if (html[i] == '<') {
       final close = html.indexOf('>', i);
       if (close < 0) break;
-      out.write(html.substring(i, close + 1));
+      final tag = html.substring(i, close + 1);
+      if (_anchorOpenRegExp.hasMatch(tag)) {
+        anchorDepth++;
+      } else if (_anchorCloseRegExp.hasMatch(tag) && anchorDepth > 0) {
+        anchorDepth--;
+      }
+      out.write(tag);
       i = close + 1;
       continue;
     }
     final next = html.indexOf('<', i);
     final segmentEnd = next < 0 ? len : next;
     final segment = html.substring(i, segmentEnd);
-    out.write(
-      segment.replaceAllMapped(_markerRegExp, (match) {
-        wrapped = true;
-        final marker = match[0]!;
-        final number = marker.substring(1, marker.length - 1);
-        return '<a class="numbered-note-marker" '
-            'href="otzaria://note-marker?line=$lineIndex&num=$number">'
-            '$marker</a>';
-      }),
-    );
+    if (anchorDepth > 0) {
+      out.write(segment);
+    } else {
+      out.write(
+        segment.replaceAllMapped(_markerRegExp, (match) {
+          wrapped = true;
+          final marker = match[0]!;
+          final number = marker.substring(1, marker.length - 1);
+          return '<a class="numbered-note-marker" '
+              'href="otzaria://note-marker?line=$lineIndex&num=$number">'
+              '$marker</a>';
+        }),
+      );
+    }
     i = segmentEnd;
   }
   if (i < len) out.write(html.substring(i));
@@ -78,17 +97,20 @@ Future<Link?> numberedNoteLinkFromUrl(
   if (number == null || number.isEmpty) return null;
 
   final candidates = numberedNoteLinks(linksForLine);
-  for (final link in candidates) {
-    final String content;
-    try {
-      content = await link.content;
-    } catch (_) {
-      continue;
-    }
+  if (candidates.isEmpty) return null;
+  // טעינה מקבילה — סריקה סדרתית הייתה מצטברת להשהיה של כמה קריאות קובץ.
+  final contents = await Future.wait(
+    candidates.map(
+      (link) => link.content.then<String?>((c) => c, onError: (_) => null),
+    ),
+  );
+  for (var index = 0; index < candidates.length; index++) {
+    final content = contents[index];
+    if (content == null) continue;
     final match = _noteOpeningMarkerRegExp.firstMatch(
       utils.stripHtmlIfNeeded(content),
     );
-    if (match != null && match.group(1) == number) return link;
+    if (match != null && match.group(1) == number) return candidates[index];
   }
   return null;
 }

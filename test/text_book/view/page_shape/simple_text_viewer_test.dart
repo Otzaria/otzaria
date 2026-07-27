@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +7,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/data/data_providers/library_provider.dart';
+import 'package:otzaria/data/data_providers/library_provider_manager.dart';
+import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
@@ -175,6 +180,114 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(LinkHoverPreviewContent), findsOneWidget);
+  });
+
+  group('ריחוף על סמן-מספר', () {
+    tearDown(() {
+      LinkPreviewOverlay.dismiss();
+      LibraryProviderManager.instance.resetForTesting();
+    });
+
+    /// מרימה את התצוגה עם סמן "(9)" בשורה וספר "הערות" מקושר, ומחזירה את
+    /// ה-SmartTextWidget של הטקסט הראשי יחד עם השער שמעכב את טעינת ההערה.
+    Future<({SmartTextWidget text, Completer<void> gate})> pumpMarkerViewer(
+      WidgetTester tester, {
+      required String notesTitle,
+    }) async {
+      final gate = Completer<void>();
+      LibraryProviderManager.instance.seedMappingsForTesting(
+        mapping: const {},
+        providers: [_GatedContentProvider(gate, '(9) ההערה התשיעית')],
+      );
+      final noteLink = Link(
+        heRef: '$notesTitle, א',
+        index1: 1,
+        path2: notesTitle,
+        index2: 1,
+        connectionType: 'commentary',
+      );
+      const line = 'שורה א (9) המשך';
+      final loadedState = _loadedState().copyWith(
+        content: const [line],
+        links: [noteLink],
+        linksByLine: {
+          1: [noteLink],
+        },
+      );
+
+      await tester.pumpWidget(
+        MultiBlocProvider(
+          providers: [
+            BlocProvider<TextBookBloc>.value(
+              value: _TestTextBookBloc(loadedState),
+            ),
+            BlocProvider<PersonalNotesBloc>.value(
+              value: _TestPersonalNotesBloc(
+                const PersonalNotesState(
+                  isLoading: false,
+                  bookId: 'ספר בדיקה',
+                  locatedNotes: [],
+                  missingNotes: [],
+                  errorMessage: null,
+                  filteredLocatedNotes: [],
+                  filteredMissingNotes: [],
+                ),
+              ),
+            ),
+            BlocProvider<SettingsBloc>.value(
+              value: _TestSettingsBloc(SettingsState.initial()),
+            ),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: SimpleTextViewer(
+                content: const [line],
+                fontSize: 18,
+                openBookCallback: (_) {},
+                isMainText: true,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final smartText = tester
+          .widgetList<SmartTextWidget>(find.byType(SmartTextWidget))
+          .firstWhere((widget) => widget.onAnchorHover != null);
+      expect(smartText.text, contains('otzaria://note-marker?line=0&num=9'));
+      return (text: smartText, gate: gate);
+    }
+
+    testWidgets('ריחוף מתמשך מציג את ההערה שמספרה תואם', (tester) async {
+      final harness = await pumpMarkerViewer(tester, notesTitle: 'הערות על א');
+
+      harness.text.onAnchorHover!(
+        'otzaria://note-marker?line=0&num=9',
+        const Offset(100, 100),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      harness.gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LinkHoverPreviewContent), findsOneWidget);
+    });
+
+    testWidgets('יציאת הסמן בזמן טעינת ההערה אינה מציגה חלונית', (
+      tester,
+    ) async {
+      final harness = await pumpMarkerViewer(tester, notesTitle: 'הערות על ב');
+      const url = 'otzaria://note-marker?line=0&num=9';
+
+      harness.text.onAnchorHover!(url, const Offset(100, 100));
+      // ה-Timer פג והטעינה יצאה לדרך — ביטולו לבדו לא יעצור אותה.
+      await tester.pump(const Duration(milliseconds: 300));
+      harness.text.onAnchorHoverExit!(url);
+      harness.gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LinkHoverPreviewContent), findsNothing);
+    });
   });
 
   testWidgets('מהדורה חלופית אינה מזריקה עוגני-מילה לגוף הטקסט', (
@@ -1467,6 +1580,68 @@ Element? _findSelectableRegionElement(WidgetTester tester) {
     }
   }
   return null;
+}
+
+/// ספק שמחזיר תוכן קישור רק לאחר פתיחת השער — כדי לשלוט בזמן שבו טעינת
+/// ההערה מסתיימת ביחס ליציאת הסמן מהעוגן.
+class _GatedContentProvider implements LibraryProvider {
+  _GatedContentProvider(this.gate, this.content);
+
+  final Completer<void> gate;
+  final String content;
+
+  @override
+  Future<String> getLinkContent(Link link) async {
+    await gate.future;
+    return content;
+  }
+
+  @override
+  String get displayName => 'Fake';
+  @override
+  bool get isInitialized => true;
+  @override
+  int get priority => 0;
+  @override
+  String get providerId => 'fake';
+  @override
+  String get sourceIndicator => 'T';
+  @override
+  Future<void> initialize() async {}
+  @override
+  Future<Set<String>> getAvailableBookTitles() async => const {};
+  @override
+  Future<bool> hasBook(String title, int categoryId, String fileType) async =>
+      false;
+  @override
+  Future<String?> getBookText(
+    String title,
+    int categoryId,
+    String fileType, {
+    bool preferUserBooks = false,
+  }) async => null;
+  @override
+  Future<List<TocEntry>?> getBookToc(
+    String title,
+    int categoryId,
+    String fileType, {
+    bool preferUserBooks = false,
+  }) async => const [];
+  @override
+  Future<Library> buildLibraryCatalog(
+    Map<String, Map<String, dynamic>> metadata,
+    String rootPath,
+  ) => throw UnimplementedError();
+  @override
+  Future<List<Link>> getAllLinksForBook(
+    String title,
+    int categoryId,
+    String fileType,
+  ) async => const [];
+  @override
+  Future<Map<String, List<Book>>> loadBooks(
+    Map<String, Map<String, dynamic>> metadata,
+  ) async => const {};
 }
 
 /// repository מדומה שמתעד את הקריאה ל-addNote בלי לגעת במערכת הקבצים.

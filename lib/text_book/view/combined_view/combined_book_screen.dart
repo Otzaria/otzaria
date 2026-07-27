@@ -272,6 +272,16 @@ class _CombinedViewState extends State<CombinedView> {
   /// השהיית ריחוף לפני פתיחת חלונית העוגן (מונעת הבהובים במעבר-סמן חולף).
   Timer? _anchorHoverTimer;
 
+  /// מזהה הריחוף הממתין. טעינה אסינכרונית שהתחילה בודקת אותו לאחר ה-await —
+  /// ביטול ה-Timer לבדו אינו עוצר טעינה שכבר יצאה לדרך.
+  int _anchorHoverGeneration = 0;
+
+  /// ביטול ריחוף ממתין: גם ה-Timer וגם טעינה אסינכרונית שכבר התחילה.
+  void _cancelPendingAnchorHover() {
+    _anchorHoverTimer?.cancel();
+    _anchorHoverGeneration++;
+  }
+
   /// סמן-האות שחלונית התצוגה שלו פתוחה כעת (שורה + אינדקס בשורה) — מודגש בטקסט
   /// כדי לקשר ויזואלית בין הסמן לחלונית.
   int? _activeAnchorLine;
@@ -396,7 +406,7 @@ class _CombinedViewState extends State<CombinedView> {
   bool _handleAnchorTap(String url) {
     final anchor = _anchorLinkFromUrl(url);
     if (anchor == null) return false;
-    _anchorHoverTimer?.cancel();
+    _cancelPendingAnchorHover();
     _openAnchorTarget(anchor.link);
     return true;
   }
@@ -416,7 +426,7 @@ class _CombinedViewState extends State<CombinedView> {
       return;
     }
     LinkPreviewOverlay.cancelScheduledHide();
-    _anchorHoverTimer?.cancel();
+    _cancelPendingAnchorHover();
     final previewLink = _previewLinkFromUrl(url);
     if (previewLink != null) prefetchLinkPreview(previewLink);
     _anchorHoverTimer = Timer(const Duration(milliseconds: 280), () {
@@ -480,14 +490,16 @@ class _CombinedViewState extends State<CombinedView> {
   /// אסינכרונית. אם אין הערה תואמת — לא נפתחת חלונית.
   void _handleNumberedNoteMarkerHover(String url, Offset globalPosition) {
     LinkPreviewOverlay.cancelScheduledHide();
-    _anchorHoverTimer?.cancel();
+    _cancelPendingAnchorHover();
     final line = noteMarkerLineFromUrl(url);
     final state = _textBookBloc.state;
     if (line == null || state is! TextBookLoaded) return;
     final links = state.linksByLine[line + 1] ?? const <Link>[];
+    final generation = _anchorHoverGeneration;
     _anchorHoverTimer = Timer(const Duration(milliseconds: 280), () async {
       final link = await numberedNoteLinkFromUrl(url, links);
       if (_disposed || !mounted || link == null) return;
+      if (generation != _anchorHoverGeneration) return;
       _showLinkPreview(link, globalPosition, hoverMode: true);
     });
   }
@@ -495,7 +507,7 @@ class _CombinedViewState extends State<CombinedView> {
   /// הסמן עזב את העוגן — ביטול הצגה ממתינה וסגירה מתוזמנת של חלונית פתוחה
   /// (מתבטלת אם הסמן נכנס לחלונית עצמה או חוזר לעוגן).
   void _handleAnchorHoverExit(String url) {
-    _anchorHoverTimer?.cancel();
+    _cancelPendingAnchorHover();
     LinkPreviewOverlay.scheduleHide();
   }
 
@@ -712,7 +724,7 @@ class _CombinedViewState extends State<CombinedView> {
       _handlePluginHighlightReveal,
     );
     _disposed = true;
-    _anchorHoverTimer?.cancel();
+    _cancelPendingAnchorHover();
     LinkPreviewOverlay.dismiss();
     _previewScrollController?.dispose();
     widget.tab.positionsListener.itemPositions.removeListener(_onScroll);
