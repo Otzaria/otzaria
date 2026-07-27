@@ -9,6 +9,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/personal_notes/view/personal_notes_screen.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/built_in_tools_catalog.dart';
@@ -70,6 +71,15 @@ void setActiveToolIdSafely(String? id, {bool Function()? isMounted}) {
 /// תוסף שנלחץ לפני שמסך הכלים נבנה. נצרך ב-`didChangeDependencies` (שם יש
 /// כבר blocs), כדי שהבנייה הראשונה תציג אותו במקום את הכלי הראשון.
 InstalledPlugin? pendingNavRailPluginToOpen;
+
+/// מבטל בקשת פתיחה שטרם נצרכה כשהניווט אינו למסך הכלים.
+///
+/// בלי זה, משתמש שלחץ על תוסף ומיד ניווט למקום אחר היה מוצא אותו נפתח
+/// בכניסה הבאה לכלים, בניגוד לפעולה האחרונה שלו.
+void cancelPendingNavRailPluginOnNavigation(Screen currentScreen) {
+  if (currentScreen == Screen.more) return;
+  pendingNavRailPluginToOpen = null;
+}
 
 /// מחשב את התוסף ה-transient לאחר טעינת רשימת תוספים מעודכנת: מחזיר את
 /// גרסתו העדכנית, או null אם הוסר מהתצוגה או הפך חסום במצב מנותק

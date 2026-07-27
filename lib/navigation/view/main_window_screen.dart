@@ -1497,6 +1497,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
       if (state.currentScreen != Screen.reading) {
         context.read<FocusRepository>().cancelPendingTabContentFocus();
       }
+      cancelPendingNavRailPluginOnNavigation(state.currentScreen);
       _lastScreen = state.currentScreen;
     }
 
