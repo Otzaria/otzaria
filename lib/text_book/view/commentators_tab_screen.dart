@@ -1395,6 +1395,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
       ),
       selectedTypeChips: effectiveTypes,
       typeChipLabelBuilder: LinkTypes.hebrewLabel,
+      commentatorsByType: CommentaryTypeFilter.commentatorsByType(state.links),
       onTypeChipsChanged: (types) =>
           setState(() => _typeSelection.value = types),
     );

@@ -4,6 +4,7 @@ import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/utils/commentary_type_filter.dart';
 import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
@@ -46,6 +47,9 @@ class CommentatorsListViewState extends State<CommentatorsListView> {
           typeChipKeys: widget.typeChipKeys,
           selectedTypeChips: widget.selectedTypeChips,
           typeChipLabelBuilder: LinkTypes.hebrewLabel,
+          commentatorsByType: CommentaryTypeFilter.commentatorsByType(
+            state.links,
+          ),
           onTypeChipsChanged: widget.onTypeChipsChanged,
         );
       },

@@ -40,6 +40,18 @@ class CommentaryTypeFilter {
     );
   }
 
+  /// מיפוי סוג קנוני → שמות המפרשים שיש להם קישור מאותו סוג. משמש לצמצום
+  /// רשימת המפרשים בפאנל הבחירה, כדי שצ׳יפ סוג יסנן אותה כמו צ׳יפ דור.
+  static Map<String, Set<String>> commentatorsByType(List<Link> links) {
+    final byType = <String, Set<String>>{};
+    for (final link in links) {
+      if (!LinkTypes.isCommentaryFilterType(link.connectionType)) continue;
+      final type = LinkTypes.canonicalType(link.connectionType);
+      (byType[type] ??= <String>{}).add(utils.getTitleFromPath(link.path2));
+    }
+    return byType;
+  }
+
   /// הבחירה האפקטיבית: רק מפתחות שיש להם צ׳יפ בקטע הנוכחי. בחירה שאין לה אף
   /// צ׳יפ קיים נחשבת ריקה = הצג הכל, ולא מסתירה את כל המפרשים.
   static Set<String> effectiveTypes({
@@ -56,8 +68,7 @@ class CommentaryTypeFilter {
   static List<String> visibleChipKeys({
     required List<String> chipKeys,
     required Set<String> effectiveTypes,
-  }) =>
-      chipKeys.length > 1 || effectiveTypes.isNotEmpty
+  }) => chipKeys.length > 1 || effectiveTypes.isNotEmpty
       ? chipKeys
       : const <String>[];
 }

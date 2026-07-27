@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show setEquals;
+import 'package:flutter/foundation.dart' show mapEquals, setEquals;
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -41,6 +41,10 @@ class CommentatorsSelectionPanel extends StatefulWidget {
   /// תווית להצגה עבור מפתח סוג. ברירת המחדל: המפתח עצמו.
   final String Function(String key)? typeChipLabelBuilder;
 
+  /// שמות המפרשים שיש להם קישור מכל סוג. בחירת צ׳יפ סוג מצמצמת את רשימת
+  /// המפרשים לאלה בלבד, בדיוק כפי שצ׳יפ דור מצמצם אותה. ריק = אין צמצום.
+  final Map<String, Set<String>> commentatorsByType;
+
   const CommentatorsSelectionPanel({
     super.key,
     required this.groups,
@@ -55,6 +59,7 @@ class CommentatorsSelectionPanel extends StatefulWidget {
     this.selectedTypeChips = const {},
     this.onTypeChipsChanged,
     this.typeChipLabelBuilder,
+    this.commentatorsByType = const {},
   });
 
   @override
@@ -102,7 +107,9 @@ class _CommentatorsSelectionPanelState
         !setEquals(
           oldWidget.lineRelevantCommentators,
           widget.lineRelevantCommentators,
-        )) {
+        ) ||
+        !setEquals(oldWidget.selectedTypeChips, widget.selectedTypeChips) ||
+        !mapEquals(oldWidget.commentatorsByType, widget.commentatorsByType)) {
       _update();
     }
   }
@@ -119,9 +126,23 @@ class _CommentatorsSelectionPanelState
     super.dispose();
   }
 
+  /// שמות המפרשים המותרים לפי צ׳יפי הסוג שנבחרו. null = אין סינון סוג.
+  Set<String>? _titlesAllowedByType() {
+    if (widget.selectedTypeChips.isEmpty || widget.commentatorsByType.isEmpty) {
+      return null;
+    }
+    final allowed = <String>{};
+    for (final type in widget.selectedTypeChips) {
+      allowed.addAll(widget.commentatorsByType[type] ?? const {});
+    }
+    return allowed;
+  }
+
   Future<List<String>> _filterGroup(List<String> group) async {
+    final allowedByType = _titlesAllowedByType();
     final filteredByQuery = group
         .where(_isCommentatorVisible)
+        .where((title) => allowedByType?.contains(title) ?? true)
         .where((title) => title.contains(_searchController.text));
 
     if (_selectedTopics.isEmpty) {

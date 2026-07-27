@@ -1891,6 +1891,8 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                       typeChipKeys: visibleTypeChipKeys,
                       selectedTypeChips: effectiveTypes,
                       typeChipLabelBuilder: LinkTypes.hebrewLabel,
+                      commentatorsByType:
+                          CommentaryTypeFilter.commentatorsByType(state.links),
                       onTypeChipsChanged: _setSelectedCommentaryTypes,
                     )
                   : CommentatorsListView(
