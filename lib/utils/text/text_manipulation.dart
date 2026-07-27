@@ -152,6 +152,17 @@ String removePunctuation(String text) {
         continue;
       }
 
+      // ישות HTML עוברת כמכלול - אחרת ה-";" שלה נמחק כפיסוק והישות מוצגת
+      // כטקסט גלוי (למשל "&thinsp" סביב פסק בתנ"ך).
+      if (ch == '&') {
+        final entity = _htmlEntity.matchAsPrefix(processed, i);
+        if (entity != null) {
+          buffer.write(entity.group(0));
+          i = entity.end - 1;
+          continue;
+        }
+      }
+
       if (ch == '(') {
         parenDepth++;
         buffer.write(ch);
