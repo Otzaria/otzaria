@@ -224,6 +224,14 @@ class SmartTextWidget extends StatelessWidget {
           onAnchorHoverExit: onAnchorHoverExit,
         ),
         customStylesBuilder: (dom.Element element) {
+          // fwfh נותן לכל <h1>-<h6> font-weight:bold. במשפחה עם face בולד נפרד
+          // הכותרת נשלפת מקובץ אחר מהגוף — שני ציורי אות באותו מסך. שאר
+          // הגופנים משאירים כותרת מודגשת (אותו ציור אות, מעובה או ציר wght).
+          // 'normal' אינו נתמך ב-fontWeightTryParse של fwfh — רק מספר או 'bold'.
+          if (_headingTags.contains(element.localName) &&
+              AppFonts.hasSeparateBoldFace(settings.fontFamily)) {
+            return const {'font-weight': '400'};
+          }
           if (element.localName == 'span' &&
               element.classes.contains('footnote-marker-number')) {
             return {
@@ -409,6 +417,8 @@ class _SmartTextWidgetFactory extends WidgetFactory {
     super.reset(state);
   }
 }
+
+const _headingTags = {'h1', 'h2', 'h3', 'h4', 'h5', 'h6'};
 
 /// גרסה פשוטה יותר של SmartTextWidget שמקבלת פרמטרים בודדים
 /// במקום RenderSettings - נוחה למקרים פשוטים

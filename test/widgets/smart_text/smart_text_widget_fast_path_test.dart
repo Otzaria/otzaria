@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
+import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 
@@ -123,6 +124,123 @@ Future<void> main() async {
 
       final richText = tester.widget<RichText>(find.byType(RichText));
       expect(richText.textAlign, TextAlign.right);
+    });
+  });
+
+  group('SmartTextWidget — גופן הכותרות', () {
+    // רגרסיה: fwfh נותן ל-<h1>-<h6> font-weight:bold, ואז משפחה עם face בולד
+    // נפרד (פרנק-רוהל) שולפת את הכותרת מקובץ אחר מהגוף — שני גופנים במסך.
+    testWidgets('כותרת נשארת במשקל הגוף ולא עוברת ל-face הבולד', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          const SmartTextWidget(
+            text: '<h2>דף ה.</h2>',
+            settings: RenderSettings(
+              fontSize: 20,
+              fontFamily: 'FrankRuhlCLM',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final heading = tester
+          .widgetList<RichText>(find.byType(RichText))
+          .firstWhere((w) => w.text.toPlainText().contains('דף ה.'));
+      final style = heading.text.style;
+      expect(style?.fontFamily, 'FrankRuhlCLM');
+      expect(style?.fontWeight, FontWeight.w400);
+    });
+
+    // גופן מערכת שנמצא לו קובץ בולד אחי — אותה תקלה כמו פרנק-רוהל.
+    testWidgets('גופן מערכת עם קובץ בולד אחי — הכותרת אינה מודגשת', (
+      tester,
+    ) async {
+      addTearDown(AppFonts.debugResetSystemFontsCache);
+      AppFonts.debugMarkSeparateBoldSystemFont('Some Installed Serif');
+
+      await tester.pumpWidget(
+        _wrap(
+          const SmartTextWidget(
+            text: '<h2>דף ה.</h2>',
+            settings: RenderSettings(
+              fontSize: 20,
+              fontFamily: 'Some Installed Serif',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final heading = tester
+          .widgetList<RichText>(find.byType(RichText))
+          .firstWhere((w) => w.text.toPlainText().contains('דף ה.'));
+      expect(heading.text.style?.fontWeight, FontWeight.w400);
+    });
+
+    // גופן בלי face בולד נפרד — הבולד הוא אותו ציור אות, ולכן נשמר.
+    testWidgets('גופן ללא face בולד נפרד — הכותרת נשארת מודגשת', (
+      tester,
+    ) async {
+      for (final font in const [
+        'TaameyDavidCLM',
+        'KeterYG',
+        'Shofar',
+        'NotoRashiHebrew',
+      ]) {
+        await tester.pumpWidget(
+          _wrap(
+            SmartTextWidget(
+              text: '<h2>דף ה.</h2>',
+              settings: RenderSettings(fontSize: 20, fontFamily: font),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final heading = tester
+            .widgetList<RichText>(find.byType(RichText))
+            .firstWhere((w) => w.text.toPlainText().contains('דף ה.'));
+        expect(
+          heading.text.style?.fontWeight,
+          FontWeight.bold,
+          reason: '$font: הכותרת אמורה להישאר מודגשת',
+        );
+      }
+    });
+
+    testWidgets('<b> עדיין מקבל בולד — התיקון לא מבטל הדגשה אמיתית', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          const SmartTextWidget(
+            text: '<h2>דף <b>ה.</b></h2>',
+            settings: RenderSettings(
+              fontSize: 20,
+              fontFamily: 'FrankRuhlCLM',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final heading = tester
+          .widgetList<RichText>(find.byType(RichText))
+          .firstWhere((w) => w.text.toPlainText().contains('ה.'));
+      var foundBold = false;
+      heading.text.visitChildren((span) {
+        if (span is TextSpan &&
+            span.text != null &&
+            span.text!.contains('ה.') &&
+            span.style?.fontWeight == FontWeight.bold) {
+          foundBold = true;
+        }
+        return true;
+      });
+      expect(foundBold, isTrue);
     });
   });
 }

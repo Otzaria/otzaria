@@ -385,6 +385,33 @@ void main() {
       expect(AppFonts.debugFontIsItalic(b), isFalse);
     });
 
+    // hasSeparateBoldFace מוקשח ברשימה; אם יירשם ב-pubspec קובץ בולד נוסף
+    // למשפחה אחרת, הכותרות שלה יחזרו להישלף מקובץ אחר מהגוף.
+    test('hasSeparateBoldFace תואם למשפחות עם יותר מ-face אחד ב-pubspec', () {
+      final pubspec = File(
+        'pubspec.yaml',
+      ).readAsStringSync().replaceAll('\r\n', '\n');
+      final fontsBlock = pubspec.substring(pubspec.indexOf('\n  fonts:'));
+
+      final multiFace = <String>{};
+      for (final m in RegExp(
+        r'- family: (\S+)\n((?:[ \t]+.*\n)+?)(?=\s*- family:|\s*\n|$)',
+      ).allMatches(fontsBlock)) {
+        final family = m.group(1)!;
+        final assets = RegExp(r'- asset:').allMatches(m.group(2)!).length;
+        if (assets > 1) multiFace.add(family);
+      }
+
+      expect(multiFace, isNotEmpty, reason: 'הפרסור של pubspec נכשל');
+      for (final family in multiFace) {
+        expect(
+          AppFonts.hasSeparateBoldFace(family),
+          isTrue,
+          reason: '$family נרשם עם כמה faces אך אינו ב-hasSeparateBoldFace',
+        );
+      }
+    });
+
     test('Medium ו-Bold חולקים שם משפחה זהה', () {
       expect(
         AppFonts.debugFontFamilyName(_bundledFont('FrankRuehlCLM-Medium.ttf')),

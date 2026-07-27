@@ -57,6 +57,21 @@ class AppFonts {
     return [FontVariation('wght', weight.value.toDouble())];
   }
 
+  /// גופנים מובנים שנרשמו ב-pubspec עם קובץ בולד נפרד. ב-face נפרד ציור האות
+  /// שונה מה-regular, ולכן כותרת מודגשת נראית כגופן אחר מהגוף.
+  static const Set<String> _separateBoldFaceFonts = {'FrankRuhlCLM'};
+
+  /// גופני מערכת שנטען עבורם קובץ בולד אחי ב-[_augmentSystemFontWeights].
+  /// מאוכלס בזמן ריצה — אצל משתמש אחד לגופן יש קובץ בולד מותקן ואצל אחר לא.
+  static final Set<String> _separateBoldSystemFonts = {};
+
+  /// האם הבולד של [fontFamily] מגיע מקובץ נפרד (ולא מעיבוי/ציר של אותו קובץ).
+  /// גופן משתנה מחזיר false — הבולד שלו הוא אותו ציור אות על ציר wght.
+  static bool hasSeparateBoldFace(String? fontFamily) =>
+      fontFamily != null &&
+      (_separateBoldFaceFonts.contains(fontFamily) ||
+          _separateBoldSystemFonts.contains(fontFamily));
+
   static bool get _supportsSystemFonts {
     if (kIsWeb) return false;
     return defaultTargetPlatform == TargetPlatform.windows ||
@@ -578,6 +593,7 @@ class AppFonts {
         await (FontLoader(
           fontFamily,
         )..addFont(Future.value(ByteData.sublistView(bytes)))).load();
+        _separateBoldSystemFonts.add(fontFamily);
         return;
       }
     } catch (_) {
@@ -762,11 +778,18 @@ class AppFonts {
   @visibleForTesting
   static Future<void>? get debugWarmUpFuture => _warmUpFuture;
 
+  /// מדמה גופן מערכת שנטען לו קובץ בולד אחי, בלי תלות בגופנים מותקנים.
+  @visibleForTesting
+  static void debugMarkSeparateBoldSystemFont(String fontFamily) {
+    _separateBoldSystemFonts.add(fontFamily);
+  }
+
   @visibleForTesting
   static void debugResetSystemFontsCache() {
     _systemFontsHebrewCache = null;
     _warmUpFuture = null;
     _variableSystemFonts.clear();
+    _separateBoldSystemFonts.clear();
   }
 
   @visibleForTesting
