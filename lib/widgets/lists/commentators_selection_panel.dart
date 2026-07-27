@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show mapEquals, setEquals;
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -109,9 +109,27 @@ class _CommentatorsSelectionPanelState
           widget.lineRelevantCommentators,
         ) ||
         !setEquals(oldWidget.selectedTypeChips, widget.selectedTypeChips) ||
-        !mapEquals(oldWidget.commentatorsByType, widget.commentatorsByType)) {
+        !_sameCommentatorsByType(
+          oldWidget.commentatorsByType,
+          widget.commentatorsByType,
+        )) {
       _update();
     }
+  }
+
+  /// השוואה עמוקה. `mapEquals` היה משווה את ה-Set-ים בזהות, ומאחר שהמפה
+  /// נבנית מחדש בכל build הוא תמיד החזיר false ו-_update רץ בכל rebuild.
+  bool _sameCommentatorsByType(
+    Map<String, Set<String>> a,
+    Map<String, Set<String>> b,
+  ) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (final entry in a.entries) {
+      final other = b[entry.key];
+      if (other == null || !setEquals(entry.value, other)) return false;
+    }
+    return true;
   }
 
   /// מפרש נדיר מוסתר מהרשימה אלא אם השורה הנוכחית כוללת קישור מהם.

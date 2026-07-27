@@ -232,6 +232,53 @@ void main() {
       );
     });
 
+    testWidgets('מפה שוות-ערך שנבנית מחדש אינה משנה את הרשימה', (tester) async {
+      // הקוראים בונים את commentatorsByType בכל build, ולכן ההשוואה חייבת
+      // להיות עמוקה ולא לפי זהות ה-Set-ים.
+      Map<String, Set<String>> freshMap() => {
+        'TARGUM': {'רש"י'},
+        'MIDRASH': {'קצות החושן'},
+      };
+
+      await pumpWithTypes(
+        tester,
+        selectedTypeChips: const {'TARGUM'},
+        commentatorsByType: freshMap(),
+      );
+      await pumpWithTypes(
+        tester,
+        selectedTypeChips: const {'TARGUM'},
+        commentatorsByType: freshMap(),
+      );
+
+      expect(find.widgetWithText(CheckboxListTile, 'רש"י'), findsOneWidget);
+      expect(find.widgetWithText(CheckboxListTile, 'קצות החושן'), findsNothing);
+    });
+
+    testWidgets('שינוי אמיתי במפה כן מרענן את הרשימה', (tester) async {
+      await pumpWithTypes(
+        tester,
+        selectedTypeChips: const {'TARGUM'},
+        commentatorsByType: const {
+          'TARGUM': {'רש"י'},
+        },
+      );
+      expect(find.widgetWithText(CheckboxListTile, 'קצות החושן'), findsNothing);
+
+      await pumpWithTypes(
+        tester,
+        selectedTypeChips: const {'TARGUM'},
+        commentatorsByType: const {
+          'TARGUM': {'רש"י', 'קצות החושן'},
+        },
+      );
+
+      expect(
+        find.widgetWithText(CheckboxListTile, 'קצות החושן'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('שינוי הבחירה מבחוץ מעדכן את הרשימה מיד', (tester) async {
       await pumpWithTypes(tester, selectedTypeChips: const {});
       expect(

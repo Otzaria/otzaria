@@ -1374,30 +1374,37 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
       links: state.links,
       selectedCommentators: selected,
     );
-    final effectiveTypes = CommentaryTypeFilter.effectiveTypes(
-      selectedTypes: _typeSelection.value,
-      availableKeys: chipKeys,
+    final commentatorsByType = CommentaryTypeFilter.commentatorsByType(
+      state.links,
     );
-    return CommentatorsSelectionPanel(
-      groups: groups,
-      selectedCommentators: selected,
-      bookTitle: state.book.title,
-      rareCommentators: state.rareCommentators,
-      lineRelevantCommentators: lineRelevantRareCommentators(
-        rareCommentators: state.rareCommentators,
-        currentIndexes: indexes,
-        linksByLine: state.linksByLine,
-      ),
-      onSelectionChanged: _updateSelectedCommentators,
-      typeChipKeys: CommentaryTypeFilter.visibleChipKeys(
-        chipKeys: chipKeys,
-        effectiveTypes: effectiveTypes,
-      ),
-      selectedTypeChips: effectiveTypes,
-      typeChipLabelBuilder: LinkTypes.hebrewLabel,
-      commentatorsByType: CommentaryTypeFilter.commentatorsByType(state.links),
-      onTypeChipsChanged: (types) =>
-          setState(() => _typeSelection.value = types),
+    return ValueListenableBuilder<Set<String>>(
+      valueListenable: _typeSelection,
+      builder: (context, selectedTypes, _) {
+        final effectiveTypes = CommentaryTypeFilter.effectiveTypes(
+          selectedTypes: selectedTypes,
+          availableKeys: chipKeys,
+        );
+        return CommentatorsSelectionPanel(
+          groups: groups,
+          selectedCommentators: selected,
+          bookTitle: state.book.title,
+          rareCommentators: state.rareCommentators,
+          lineRelevantCommentators: lineRelevantRareCommentators(
+            rareCommentators: state.rareCommentators,
+            currentIndexes: indexes,
+            linksByLine: state.linksByLine,
+          ),
+          onSelectionChanged: _updateSelectedCommentators,
+          typeChipKeys: CommentaryTypeFilter.visibleChipKeys(
+            chipKeys: chipKeys,
+            effectiveTypes: effectiveTypes,
+          ),
+          selectedTypeChips: effectiveTypes,
+          typeChipLabelBuilder: LinkTypes.hebrewLabel,
+          commentatorsByType: commentatorsByType,
+          onTypeChipsChanged: (types) => _typeSelection.value = types,
+        );
+      },
     );
   }
 
