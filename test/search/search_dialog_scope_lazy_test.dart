@@ -19,6 +19,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
+import 'package:otzaria/search/utils/scope_tree.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/search/view/search_scope_menu.dart';
 
@@ -216,6 +217,48 @@ Future<void> main() async {
       final small = await measureDialogOpen(tester, 200, savedScope: scope);
       final large = await measureDialogOpen(tester, 20000, savedScope: scope);
       expectScanFree(small, large, 'היקף שמור');
+    });
+
+    testWidgets('תווית הצ׳יפ מדויקת גם בבחירה שמורה, בלי לחסום את הפתיחה', (
+      tester,
+    ) async {
+      // הבנייה נדחית לאחר הפריים הראשון: הצ׳יפ עשוי להיות גנרי בפריים
+      // הפתיחה, וחייב להתייצב על התווית הנכונה מיד אחריו.
+      final library = _buildLibrary(200);
+      final libraryBloc = _MockLibraryBloc();
+      whenListen(
+        libraryBloc,
+        const Stream<LibraryState>.empty(),
+        initialState: LibraryState(library: library),
+      );
+      addTearDown(libraryBloc.close);
+
+      final bookFacet = ScopeTree.fromLibrary(
+        library,
+      ).allBookNodes().first.facet;
+
+      await tester.binding.setSurfaceSize(const Size(600, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(useMaterial3: true),
+          home: BlocProvider<LibraryBloc>.value(
+            value: libraryBloc,
+            child: Scaffold(
+              body: SearchScopeMenuButton(
+                selected: {bookFacet},
+                onChanged: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // ספר בודד שאינו ספר יסוד → "כל הספרים", ולא תווית ריקה או קריסה.
+      await tester.pump();
+      expect(find.text('כל הספרים'), findsOneWidget);
+      expect(find.text('ספרי יסוד'), findsNothing);
     });
 
     testWidgets('התפריט והחיפוש בו עובדים על העץ שנבנה בעצלתיים', (

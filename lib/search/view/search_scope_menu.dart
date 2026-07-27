@@ -84,6 +84,14 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
     _loadBaseBookIds();
     _fieldFocus.addListener(_onFocusChanged);
     _searchController.addListener(_onTextChanged);
+
+    // בחירה מצומצמת דורשת את העץ כדי לתייג את הצ׳יפ ("כל הספרים"/"ספרי
+    // יסוד"). בונים אותו רק אחרי הפריים הראשון, כדי שהחלון ייפתח מיד.
+    if (FacetHelper.categoryFacetsOf(widget.selected).any((f) => f != '/')) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _tree != null) setState(() {});
+      });
+    }
   }
 
   @override
