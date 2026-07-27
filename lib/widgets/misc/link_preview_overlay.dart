@@ -10,7 +10,8 @@ import 'package:otzaria/widgets/misc/link_context_menu_entry.dart';
 import 'package:otzaria/widgets/misc/overlay_scroll_anchor.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 
-/// חלונית צפה עם תצוגה מקדימה של מפרש, שנפתחת בריחוף או בלחיצה על עוגן-מילה.
+/// חלונית צפה עם תצוגה מקדימה של מפרש, שנפתחת בריחוף או בלחיצה על עוגן-מילה,
+/// או לצד פריט בתפריט הקשר ([showBesideMenuItem]).
 ///
 /// ממוקמת ליד נקודת הריחוף/הלחיצה, מוגבלת ברוחב ובגובה (4 שורות), נסגרת כשהסמן
 /// עוזב אותה או בהקשה מחוצה לה — ונשארת פתוחה כשהסמן נכנס לתוכה (לסימון
@@ -21,6 +22,7 @@ class LinkPreviewOverlay {
   LinkPreviewOverlay._();
 
   static OverlayEntry? _entry;
+  static Object? _token;
   static VoidCallback? _onDismissed;
   static _LinkPreviewPanelState? _activePanel;
 
@@ -72,94 +74,152 @@ class LinkPreviewOverlay {
     );
   }
 
-  /// מציגה חלונית מקובעת עם תוכן [contentBuilder] במיקום [panelPosition]
-  /// (קואורדינטות ה-overlay השורשי). משמשת לקיבוע תצוגה מקדימה שהגיעה
-  /// מתפריט ההקשר. [scrollAnchor] — עוגן שנלכד בפתיחת התפריט, לתזוזה עם
-  /// הגלילה. נסגרת בהקשה מחוץ לחלונית.
-  static void showPinned(
+  /// מציגה תצוגה מקדימה צמודה לפריט תפריט שמלבנו הגלובלי [itemGlobalRect].
+  ///
+  /// לחיצה בתוך החלונית מקבעת אותה במקום — אותו עץ widgets, בלי בנייה מחדש —
+  /// ומפעילה את [onPinned] (סגירת התפריט שמתחת). כך גרירה לסימון טקסט אינה
+  /// נקטעת. [touchTriggered] — נפתחה בלחיצה ארוכה במגע: מחסום סוגר מאחוריה,
+  /// שגם חוסם את התפריט שמתחת כדי שיישאר פתוח. [scrollAnchor] — עוגן בדף
+  /// שהחלונית המקובעת תזוז איתו בגלילה. מחזירה מזהה חלונית ל[dismiss] ממוקד.
+  static Object? showBesideMenuItem(
     BuildContext context, {
     required WidgetBuilder contentBuilder,
-    required Offset panelPosition,
+    required Rect itemGlobalRect,
+    required double minWidth,
+    bool touchTriggered = false,
     OverlayScrollAnchor? scrollAnchor,
+    VoidCallback? onPinned,
     VoidCallback? onDismissed,
-    Size? panelSize,
   }) {
-    _show(
+    return _show(
       context,
-      // תוכן שהגיע מתפריט ההקשר אינו קצוץ-שורות — מגבילים גובה עם גלילה
-      // פנימית כדי שחלונית ארוכה לא תגלוש מהמסך.
-      contentBuilder: panelSize == null
-          ? (context) => ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.5,
-              ),
-              child: SingleChildScrollView(
-                child: Builder(builder: contentBuilder),
-              ),
-            )
-          : contentBuilder,
-      anchorPosition: panelPosition,
+      contentBuilder: contentBuilder,
+      anchorPosition: itemGlobalRect.topLeft,
+      anchorRect: itemGlobalRect,
+      style: _PanelStyle.besideMenuItem(minWidth: minWidth),
       onDismissed: onDismissed,
-      hoverMode: false,
-      startPinned: true,
-      initialPanelOffset: panelPosition,
-      scrollAnchorOverride: scrollAnchor,
-      fixedPanelSize: panelSize,
+      onPinned: onPinned,
+      hoverMode: !touchTriggered,
+      barrierBlocksBelow: touchTriggered,
+      scrollAnchor: scrollAnchor,
+      scrollOnPinOnly: true,
+      // הנקודה מכוסה בתפריט הפתוח — לכידה כאן הייתה עוגנת בתפריט עצמו.
+      captureScrollAnchor: false,
     );
   }
 
-  static void _show(
+  static Object? _show(
     BuildContext context, {
     required WidgetBuilder contentBuilder,
     required Offset anchorPosition,
+    Rect? anchorRect,
+    _PanelStyle style = const _PanelStyle.floating(),
     VoidCallback? onDismissed,
+    VoidCallback? onPinned,
     bool hoverMode = false,
-    bool startPinned = false,
-    Offset? initialPanelOffset,
-    OverlayScrollAnchor? scrollAnchorOverride,
-    Size? fixedPanelSize,
+    bool barrierBlocksBelow = false,
+    OverlayScrollAnchor? scrollAnchor,
+    bool scrollOnPinOnly = false,
+    bool captureScrollAnchor = true,
   }) {
     final overlay = Overlay.maybeOf(context, rootOverlay: true);
-    if (overlay == null) return;
+    if (overlay == null) return null;
     // חלונית מקובעת נסגרת רק בלחיצה — ריחוף על עוגן אחר לא מחליף אותה.
-    if (hoverMode && (_activePanel?._pinned ?? false)) return;
+    if (hoverMode && (_activePanel?._pinned ?? false)) return null;
     dismiss();
     // לכידת עוגן הגלילה חייבת להקדים את הוספת החלונית ל-overlay, אחרת
-    // ה-hit-test יפגע בחלונית עצמה במקום בשורת הטקסט שמתחתיה. בקיבוע
-    // מתפריט ההקשר אין ללכוד כאן — התפריט עדיין פתוח מעל הנקודה.
-    final scrollAnchor = startPinned
-        ? scrollAnchorOverride
-        : (scrollAnchorOverride ??
-              OverlayScrollAnchor.capture(context, anchorPosition));
+    // ה-hit-test יפגע בחלונית עצמה במקום בשורת הטקסט שמתחתיה.
+    final anchor = captureScrollAnchor
+        ? (scrollAnchor ?? OverlayScrollAnchor.capture(context, anchorPosition))
+        : scrollAnchor;
+    final token = Object();
+    _token = token;
     _onDismissed = onDismissed;
     _entry = OverlayEntry(
       builder: (_) => _LinkPreviewPanel(
         contentBuilder: contentBuilder,
         anchorPosition: anchorPosition,
+        anchorRect: anchorRect,
+        style: style,
         onDismiss: dismiss,
+        onPinned: onPinned,
         hoverMode: hoverMode,
-        startPinned: startPinned,
-        initialPanelOffset: initialPanelOffset,
-        scrollAnchor: scrollAnchor,
-        fixedPanelSize: fixedPanelSize,
+        barrierBlocksBelow: barrierBlocksBelow,
+        scrollAnchor: anchor,
+        scrollOnPinOnly: scrollOnPinOnly,
       ),
     );
     overlay.insert(_entry!);
+    return token;
   }
 
+  /// האם [token] הוא של החלונית המוצגת כרגע. `null` — כל חלונית שתהיה.
+  static bool _isActive(Object? token) =>
+      token == null || identical(_token, token);
+
   /// מתזמנת סגירה קרובה (הסמן עזב את העוגן). כניסת הסמן לחלונית מבטלת אותה.
-  static void scheduleHide() => _activePanel?._scheduleHide();
+  static void scheduleHide([Object? token]) {
+    if (!_isActive(token)) return;
+    _activePanel?._scheduleHide();
+  }
 
   /// מבטלת סגירה מתוזמנת (הסמן חזר לעוגן בזמן שהחלונית פתוחה).
-  static void cancelScheduledHide() => _activePanel?._cancelHide();
+  static void cancelScheduledHide([Object? token]) {
+    if (!_isActive(token)) return;
+    _activePanel?._cancelHide();
+  }
 
-  static void dismiss() {
+  /// סוגרת את החלונית. [token] — סוגר רק אם היא עדיין המוצגת (ולא הוחלפה).
+  static void dismiss({Object? token}) {
+    if (!_isActive(token)) return;
     _entry?.remove();
     _entry = null;
+    _token = null;
     final onDismissed = _onDismissed;
     _onDismissed = null;
     onDismissed?.call();
   }
+}
+
+/// עיצוב ומידות של חלונית התצוגה המקדימה: חלונית צפה ליד מילה, או חלונית
+/// צמודה לפריט בתפריט הקשר — בגוון התפריט ועם מסגרת, כהמשך שלו.
+class _PanelStyle {
+  const _PanelStyle.floating()
+    : maxWidth = 420,
+      maxHeight = null,
+      minWidth = 0,
+      elevation = 8,
+      anchorGap = 10,
+      padding = const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      _inMenu = false;
+
+  const _PanelStyle.besideMenuItem({required this.minWidth})
+    : maxWidth = 380,
+      maxHeight = 360,
+      elevation = 6,
+      anchorGap = 6,
+      padding = const EdgeInsets.all(12),
+      _inMenu = true;
+
+  final double maxWidth;
+
+  /// `null` — גובה חופשי (התוכן עצמו מגביל את עצמו); אחרת גלילה פנימית.
+  final double? maxHeight;
+  final double minWidth;
+  final double elevation;
+  final double anchorGap;
+  final EdgeInsets padding;
+  final bool _inMenu;
+
+  Color color(ColorScheme colorScheme) =>
+      _inMenu ? colorScheme.surfaceContainer : colorScheme.surface;
+
+  ShapeBorder shape(ColorScheme colorScheme) => RoundedRectangleBorder(
+    borderRadius: AppTokens.borderRadiusAll,
+    side: _inMenu
+        ? BorderSide(color: colorScheme.outlineVariant)
+        : BorderSide.none,
+  );
 }
 
 /// תוכן תצוגה מקדימה להערה המוטמעת בגוף הספר.
@@ -205,22 +265,34 @@ class InlineBookNotePreviewContent extends StatelessWidget {
 class _LinkPreviewPanel extends StatefulWidget {
   final WidgetBuilder contentBuilder;
   final Offset anchorPosition;
+
+  /// כשמסופק — החלונית מוצבת לצד המלבן (פריט תפריט) ולא ליד נקודה.
+  final Rect? anchorRect;
+  final _PanelStyle style;
   final VoidCallback onDismiss;
+  final VoidCallback? onPinned;
   final bool hoverMode;
-  final bool startPinned;
-  final Offset? initialPanelOffset;
+
+  /// מחסום הסגירה חוסם גם את מה שמתחתיו (תפריט פתוח), כדי שהקשה מחוץ
+  /// לחלונית תסגור רק אותה.
+  final bool barrierBlocksBelow;
   final OverlayScrollAnchor? scrollAnchor;
-  final Size? fixedPanelSize;
+
+  /// בתצוגה שצמודה לתפריט העוגן נדרש רק לאחר קיבוע: התפריט עצמו קבוע
+  /// במקומו בזמן הריחוף.
+  final bool scrollOnPinOnly;
 
   const _LinkPreviewPanel({
     required this.contentBuilder,
     required this.anchorPosition,
     required this.onDismiss,
+    this.anchorRect,
+    this.style = const _PanelStyle.floating(),
+    this.onPinned,
     this.hoverMode = false,
-    this.startPinned = false,
-    this.initialPanelOffset,
+    this.barrierBlocksBelow = false,
     this.scrollAnchor,
-    this.fixedPanelSize,
+    this.scrollOnPinOnly = false,
   });
 
   @override
@@ -228,28 +300,26 @@ class _LinkPreviewPanel extends StatefulWidget {
 }
 
 class _LinkPreviewPanelState extends State<_LinkPreviewPanel> {
-  static const double _maxWidth = 420;
   static const double _screenPadding = 8;
-  static const double _anchorGap = 10;
   static const Duration _hideDelay = Duration(milliseconds: 250);
 
   final GlobalKey _panelKey = GlobalKey();
   Offset _offset = const Offset(_screenPadding, _screenPadding);
   bool _visible = false;
   Timer? _hideTimer;
-  late bool _pinned = widget.startPinned;
+  bool _pinned = false;
 
   /// מיקום העוגן בזמן הפתיחה — הפרש ממנו בזמן גלילה מזיז את החלונית.
   Offset? _anchorBaseline;
   Offset _scrollDelta = Offset.zero;
   bool _scrollUpdateScheduled = false;
+  bool _tracksScroll = false;
 
   @override
   void initState() {
     super.initState();
     LinkPreviewOverlay._activePanel = this;
-    _anchorBaseline = widget.scrollAnchor?.currentGlobalPosition();
-    widget.scrollAnchor?.addListener(_onScrollChanged);
+    if (!widget.scrollOnPinOnly) _startTrackingScroll();
     // מיקום דו-שלבי: בנייה סמויה למדידת הגודל, ואז הצמדה לנקודת הלחיצה.
     WidgetsBinding.instance.addPostFrameCallback((_) => _reposition());
   }
@@ -259,7 +329,7 @@ class _LinkPreviewPanelState extends State<_LinkPreviewPanel> {
     if (identical(LinkPreviewOverlay._activePanel, this)) {
       LinkPreviewOverlay._activePanel = null;
     }
-    widget.scrollAnchor?.removeListener(_onScrollChanged);
+    if (_tracksScroll) widget.scrollAnchor?.removeListener(_onScrollChanged);
     _hideTimer?.cancel();
     super.dispose();
   }
@@ -298,13 +368,26 @@ class _LinkPreviewPanelState extends State<_LinkPreviewPanel> {
     _hideTimer = Timer(_hideDelay, widget.onDismiss);
   }
 
+  void _startTrackingScroll() {
+    if (_tracksScroll) return;
+    _tracksScroll = true;
+    _anchorBaseline = widget.scrollAnchor?.currentGlobalPosition();
+    widget.scrollAnchor?.addListener(_onScrollChanged);
+  }
+
   /// לחיצה בתוך החלונית מקבעת אותה — נשארת עד הקשה במקום אחר בדף.
   void _pin() {
     _cancelHide();
-    if (!_pinned) {
-      setState(() => _pinned = true);
-    }
+    if (_pinned) return;
+    setState(() => _pinned = true);
+    _startTrackingScroll();
+    widget.onPinned?.call();
   }
+
+  static double _maxOffset(double available, double extent) =>
+      (available - extent - _screenPadding)
+          .clamp(_screenPadding, double.infinity)
+          .toDouble();
 
   void _reposition() {
     final panelBox = _panelKey.currentContext?.findRenderObject();
@@ -320,92 +403,104 @@ class _LinkPreviewPanelState extends State<_LinkPreviewPanel> {
     }
     final panelSize = panelBox.size;
     final overlaySize = overlayBox.size;
-
-    // חלונית מקובעת מתפריט ההקשר נפתחת בדיוק במקום שבו עמדה התצוגה המקדימה.
-    final fixedOffset = widget.initialPanelOffset;
-    if (fixedOffset != null) {
-      setState(() {
-        _offset = Offset(
-          fixedOffset.dx.clamp(
-            _screenPadding,
-            (overlaySize.width - panelSize.width - _screenPadding).clamp(
-              _screenPadding,
-              double.infinity,
-            ),
-          ),
-          fixedOffset.dy.clamp(
-            _screenPadding,
-            (overlaySize.height - panelSize.height - _screenPadding).clamp(
-              _screenPadding,
-              double.infinity,
-            ),
-          ),
-        );
-        _visible = true;
-      });
-      return;
-    }
-
-    final anchor = overlayBox.globalToLocal(widget.anchorPosition);
-
-    // אנכית: מתחת לנקודה, ואם אין מקום — מעליה.
-    double top = anchor.dy + _anchorGap;
-    if (top + panelSize.height > overlaySize.height - _screenPadding) {
-      top = anchor.dy - _anchorGap - panelSize.height;
-    }
-    top = top.clamp(
-      _screenPadding,
-      (overlaySize.height - panelSize.height - _screenPadding).clamp(
-        _screenPadding,
-        double.infinity,
-      ),
-    );
-
-    // אופקית (RTL): הצמדת קצה ימני לנקודה, ואז חיתוך לגבולות המסך.
-    double left = anchor.dx - panelSize.width;
-    left = left.clamp(
-      _screenPadding,
-      (overlaySize.width - panelSize.width - _screenPadding).clamp(
-        _screenPadding,
-        double.infinity,
-      ),
-    );
+    final anchorRect = widget.anchorRect;
 
     setState(() {
-      _offset = Offset(left, top);
+      _offset = anchorRect != null
+          ? _offsetBesideRect(
+              overlayBox.globalToLocal(anchorRect.topLeft) & anchorRect.size,
+              panelSize,
+              overlaySize,
+            )
+          : _offsetNearPoint(
+              overlayBox.globalToLocal(widget.anchorPosition),
+              panelSize,
+              overlaySize,
+            );
       _visible = true;
     });
   }
 
-  Widget _buildPanelChild(double maxWidth) {
-    final fixedSize = widget.fixedPanelSize;
-    if (fixedSize != null) {
-      return SizedBox.fromSize(
-        size: fixedSize,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(12),
-          child: AppSelectionArea(
-            child: Builder(builder: widget.contentBuilder),
-          ),
-        ),
-      );
+  Offset _offsetNearPoint(Offset anchor, Size panelSize, Size overlaySize) {
+    final gap = widget.style.anchorGap;
+    // אנכית: מתחת לנקודה, ואם אין מקום — מעליה.
+    double top = anchor.dy + gap;
+    if (top + panelSize.height > overlaySize.height - _screenPadding) {
+      top = anchor.dy - gap - panelSize.height;
     }
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: maxWidth),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        child: AppSelectionArea(
-          child: Builder(builder: widget.contentBuilder),
-        ),
+    // אופקית (RTL): הצמדת קצה ימני לנקודה, ואז חיתוך לגבולות המסך.
+    final left = anchor.dx - panelSize.width;
+    return Offset(
+      left.clamp(
+        _screenPadding,
+        _maxOffset(overlaySize.width, panelSize.width),
       ),
+      top.clamp(
+        _screenPadding,
+        _maxOffset(overlaySize.height, panelSize.height),
+      ),
+    );
+  }
+
+  Offset _offsetBesideRect(Rect itemRect, Size panelSize, Size overlaySize) {
+    final gap = widget.style.anchorGap;
+    // העדפת צד: שמאלית לפריט (המשך כיוון הפתיחה הטבעי ב-RTL), אחרת ימינה,
+    // ואם אין מקום מלא באף צד — הצמדה לקצה המסך בצד המרווח יותר.
+    final leftCandidate = itemRect.left - gap - panelSize.width;
+    final rightCandidate = itemRect.right + gap;
+    final double dx;
+    if (leftCandidate >= _screenPadding) {
+      dx = leftCandidate;
+    } else if (rightCandidate + panelSize.width <=
+        overlaySize.width - _screenPadding) {
+      dx = rightCandidate;
+    } else {
+      final spaceLeft = itemRect.left;
+      final spaceRight = overlaySize.width - itemRect.right;
+      dx = spaceLeft > spaceRight
+          ? _screenPadding
+          : _maxOffset(overlaySize.width, panelSize.width);
+    }
+    return Offset(
+      dx,
+      itemRect.top.clamp(
+        _screenPadding,
+        _maxOffset(overlaySize.height, panelSize.height),
+      ),
+    );
+  }
+
+  Widget _buildPanelChild(double maxWidth, double maxHeight) {
+    final style = widget.style;
+    final content = Padding(
+      padding: style.padding,
+      child: AppSelectionArea(child: Builder(builder: widget.contentBuilder)),
+    );
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        minWidth: style.minWidth.clamp(0.0, maxWidth),
+        maxWidth: maxWidth,
+        maxHeight: maxHeight,
+      ),
+      child: maxHeight.isFinite
+          ? SingleChildScrollView(child: content)
+          : content,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final maxWidth = (MediaQuery.of(context).size.width - _screenPadding * 2)
-        .clamp(0.0, _maxWidth)
+    final style = widget.style;
+    final screenSize = MediaQuery.of(context).size;
+    final maxWidth = (screenSize.width - _screenPadding * 2)
+        .clamp(0.0, style.maxWidth)
         .toDouble();
+    final styleMaxHeight = style.maxHeight;
+    final maxHeight = styleMaxHeight == null
+        ? double.infinity
+        : (screenSize.height - _screenPadding * 2)
+              .clamp(0.0, styleMaxHeight)
+              .toDouble();
     final colorScheme = Theme.of(context).colorScheme;
     final position = _offset + _scrollDelta;
 
@@ -417,7 +512,9 @@ class _LinkPreviewPanelState extends State<_LinkPreviewPanel> {
         if (!widget.hoverMode || _pinned)
           Positioned.fill(
             child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
+              behavior: widget.barrierBlocksBelow && !_pinned
+                  ? HitTestBehavior.opaque
+                  : HitTestBehavior.translucent,
               onTap: widget.onDismiss,
               onSecondaryTapDown: (_) => widget.onDismiss(),
             ),
@@ -450,10 +547,11 @@ class _LinkPreviewPanelState extends State<_LinkPreviewPanel> {
                       onPointerDown: (_) => _pin(),
                       child: Material(
                         key: _panelKey,
-                        elevation: 8,
-                        color: colorScheme.surface,
-                        borderRadius: AppTokens.borderRadiusAll,
-                        child: _buildPanelChild(maxWidth),
+                        elevation: style.elevation,
+                        color: style.color(colorScheme),
+                        shape: style.shape(colorScheme),
+                        clipBehavior: Clip.antiAlias,
+                        child: _buildPanelChild(maxWidth, maxHeight),
                       ),
                     ),
                   ),

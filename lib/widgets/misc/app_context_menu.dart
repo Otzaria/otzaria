@@ -1126,6 +1126,10 @@ class _PreserveSelectionSecondaryTapRecognizer extends EagerGestureRecognizer {
 // עוטף פריט עלה בתפריט ההקשר. ברפרוף על הפריט נפתחת, לאחר השהיה קצרה,
 // חלונית צפה לצד הפריט עם התוכן שמחזיר previewBuilder. החלונית נעלמת כאשר
 // הסמן עוזב גם את הפריט וגם את החלונית עצמה (מעבר ביניהן אינו סוגר אותה).
+//
+// החלונית עצמה היא LinkPreviewOverlay ולא חלק מעץ התפריט — כך לחיצה בתוכה
+// מקבעת אותה במקום, בלי לבנות אותה מחדש, וגרירה לסימון טקסט אינה נקטעת
+// כשהתפריט נסגר.
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _MenuItemHoverPreview extends StatefulWidget {
@@ -1155,255 +1159,78 @@ class _MenuItemHoverPreview extends StatefulWidget {
 class _MenuItemHoverPreviewState extends State<_MenuItemHoverPreview> {
   // השהיית פתיחה — שרפרוף חולף על פריט לא יציף חלוניות.
   static const Duration _showDelay = Duration(milliseconds: 400);
-  // השהיית סגירה — מספיקה כדי לחצות את הרווח שבין הפריט לחלונית.
-  static const Duration _hideDelay = Duration(milliseconds: 250);
-  static const double _panelMaxWidth = 380;
-  static const double _panelMaxHeight = 360;
-  static const double _screenPadding = 8;
-  static const double _anchorGap = 6;
 
-  OverlayEntry? _previewEntry;
   Timer? _showTimer;
-  Timer? _hideTimer;
-  final GlobalKey _panelKey = GlobalKey();
-  Offset? _panelOffset;
-  Size? _panelSize;
-  bool _panelVisible = false;
-  // נפתח בלחיצה ארוכה (מגע) ולא ברפרוף — נסגר בהקשה מחוץ לחלונית.
-  bool _touchTriggered = false;
+
+  /// מזהה החלונית שפריט זה פתח, כל עוד היא מוצגת.
+  Object? _panelToken;
+
+  /// אחרי קיבוע (לחיצה בתוכה) החלונית עצמאית — סגירת התפריט לא תסגור אותה.
+  bool _pinned = false;
 
   @override
   void dispose() {
     _showTimer?.cancel();
-    _hideTimer?.cancel();
-    _removePreview();
+    if (!_pinned && _panelToken != null) {
+      LinkPreviewOverlay.dismiss(token: _panelToken);
+    }
     super.dispose();
   }
 
-  void _removePreview() {
-    _previewEntry?.remove();
-    _previewEntry = null;
-    _panelOffset = null;
-    _panelSize = null;
-    _panelVisible = false;
-    _touchTriggered = false;
-  }
-
   void _scheduleShow() {
-    _hideTimer?.cancel();
-    _hideTimer = null;
-    if (_previewEntry != null) return;
+    if (_panelToken != null) {
+      LinkPreviewOverlay.cancelScheduledHide(_panelToken);
+      return;
+    }
     _showTimer?.cancel();
     _showTimer = Timer(_showDelay, () {
       if (mounted) _showPreview();
     });
   }
 
-  void _cancelHide() {
-    _hideTimer?.cancel();
-    _hideTimer = null;
-  }
-
   void _scheduleHide() {
     _showTimer?.cancel();
     _showTimer = null;
-    if (_previewEntry == null) return;
-    _hideTimer?.cancel();
-    _hideTimer = Timer(_hideDelay, () {
-      _removePreview();
-    });
+    if (_panelToken != null) LinkPreviewOverlay.scheduleHide(_panelToken);
   }
 
-  Rect? _itemRectInOverlay(RenderBox overlayBox) {
+  /// מלבן הפריט בקואורדינטות גלובליות — לפיו החלונית מוצבת לצדו.
+  Rect? _itemGlobalRect() {
     final itemRenderObject = context.findRenderObject();
     if (itemRenderObject is! RenderBox || !itemRenderObject.hasSize) {
       return null;
     }
     return MatrixUtils.transformRect(
-      itemRenderObject.getTransformTo(overlayBox),
+      itemRenderObject.getTransformTo(null),
       Offset.zero & itemRenderObject.size,
     );
   }
 
-  void _showPreview() {
-    final overlay = Overlay.maybeOf(context, rootOverlay: true);
-    final overlayRenderObject = overlay?.context.findRenderObject();
-    if (overlay == null ||
-        overlayRenderObject is! RenderBox ||
-        !overlayRenderObject.hasSize) {
-      return;
-    }
-
-    final itemRect = _itemRectInOverlay(overlayRenderObject);
+  void _showPreview({bool touchTriggered = false}) {
+    final itemRect = _itemGlobalRect();
     if (itemRect == null) return;
-
-    final overlaySize = overlayRenderObject.size;
-    final maxWidth = (overlaySize.width - _screenPadding * 2)
-        .clamp(0.0, _panelMaxWidth)
-        .toDouble();
-    final maxHeight = (overlaySize.height - _screenPadding * 2)
-        .clamp(0.0, _panelMaxHeight)
-        .toDouble();
-    if (maxWidth <= 0 || maxHeight <= 0) return;
-
-    // מדידה ראשונית בפינת המסך — שם האילוצים מקסימליים, כך שהגודל הטבעי
-    // שנמדד תקף גם במיקום הסופי (שתמיד מותיר לפחות את אותו מרחב).
-    _panelOffset = const Offset(_screenPadding, _screenPadding);
-    _panelVisible = false;
-
-    _previewEntry = OverlayEntry(
-      builder: (overlayContext) {
-        final offset =
-            _panelOffset ?? const Offset(_screenPadding, _screenPadding);
-        final panel = Positioned(
-          left: offset.dx,
-          top: offset.dy,
-          child: Visibility(
-            visible: _panelVisible,
-            maintainSize: false,
-            maintainAnimation: false,
-            maintainState: true,
-            child: MouseRegion(
-              onEnter: (_) => _cancelHide(),
-              onExit: (_) => _scheduleHide(),
-              // התוכן נטען אסינכרונית — כשהוא מגיע, החלונית גדלה אחרי
-              // שכבר מוקמה לפי גודל הטעינה הקטן ועלולה להיחתך בתחתית
-              // המסך. שינוי גודל מפעיל הצמדה מחדש (בסוף הפריים — הנוטיפיקציה
-              // נורית בזמן layout, כשעדכון ה-overlay אסור).
-              child: NotificationListener<SizeChangedLayoutNotification>(
-                onNotification: (_) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (!mounted || _previewEntry == null) return;
-                    _repositionNextToItem(overlayRenderObject, itemRect);
-                  });
-                  return true;
-                },
-                child: SizeChangedLayoutNotifier(
-                  child: _buildPanel(maxWidth, maxHeight),
-                ),
-              ),
-            ),
-          ),
-        );
-        if (!_touchTriggered) return panel;
-        // במגע אין onExit לסגירה — מחסום שקוף מאחורי החלונית סוגר בהקשה בחוץ.
-        return Stack(
-          children: [
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: _removePreview,
-              ),
-            ),
-            panel,
-          ],
-        );
-      },
-    );
-    overlay.insert(_previewEntry!);
-
-    // מיקום דו-שלבי: בנייה סמויה למדידת הגודל בפועל, ואז הצמדה לצד הפריט.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _previewEntry == null) return;
-      _repositionNextToItem(overlayRenderObject, itemRect);
-    });
-  }
-
-  void _repositionNextToItem(RenderBox overlayBox, Rect itemRect) {
-    final panelRenderObject = _panelKey.currentContext?.findRenderObject();
-    if (panelRenderObject is! RenderBox ||
-        !panelRenderObject.hasSize ||
-        _previewEntry == null) {
-      return;
-    }
-
-    final panelSize = panelRenderObject.size;
-    final overlaySize = overlayBox.size;
-
-    // העדפת צד: שמאלית לפריט (המשך כיוון הפתיחה הטבעי ב-RTL), אחרת ימינה,
-    // ואם אין מקום מלא באף צד — הצמדה לקצה המסך בצד המרווח יותר.
-    final leftCandidate = itemRect.left - _anchorGap - panelSize.width;
-    final rightCandidate = itemRect.right + _anchorGap;
-    final double dx;
-    if (leftCandidate >= _screenPadding) {
-      dx = leftCandidate;
-    } else if (rightCandidate + panelSize.width <=
-        overlaySize.width - _screenPadding) {
-      dx = rightCandidate;
-    } else {
-      final spaceLeft = itemRect.left;
-      final spaceRight = overlaySize.width - itemRect.right;
-      dx = spaceLeft > spaceRight
-          ? _screenPadding
-          : (overlaySize.width - panelSize.width - _screenPadding)
-                .clamp(_screenPadding, double.infinity)
-                .toDouble();
-    }
-
-    final maxDy = (overlaySize.height - panelSize.height - _screenPadding)
-        .clamp(_screenPadding, double.infinity)
-        .toDouble();
-    final dy = itemRect.top.clamp(_screenPadding, maxDy).toDouble();
-
-    _panelOffset = Offset(dx, dy);
-    _panelSize = panelSize;
-    _panelVisible = true;
-    _previewEntry?.markNeedsBuild();
-  }
-
-  Widget _buildPanel(double maxWidth, double maxHeight) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Listener(
-      onPointerDown: (_) => _pinPreview(),
-      child: Material(
-        key: _panelKey,
-        color: colorScheme.surfaceContainer,
-        elevation: 6,
-        shape: RoundedRectangleBorder(
-          borderRadius: AppTokens.borderRadiusAll,
-          side: BorderSide(color: colorScheme.outlineVariant),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minWidth: widget.metrics.menuMinWidth,
-            maxWidth: maxWidth,
-            maxHeight: maxHeight,
-          ),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(12),
-            child: Builder(builder: widget.previewBuilder),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// לחיצה בתוך התצוגה המקדימה מקבעת אותה: היא מקודמת לחלונית עצמאית
-  /// (ששורדת את סגירת התפריט, נסגרת בהקשה מחוץ לה וזזה עם הגלילה),
-  /// והתפריט שמתחתיה נסגר.
-  void _pinPreview() {
-    final offset = _panelOffset;
-    if (offset == null || !_panelVisible) return;
-    LinkPreviewOverlay.showPinned(
+    _panelToken = LinkPreviewOverlay.showBesideMenuItem(
       context,
       contentBuilder: widget.previewBuilder,
-      panelPosition: offset,
+      itemGlobalRect: itemRect,
+      minWidth: widget.metrics.menuMinWidth,
+      touchTriggered: touchTriggered,
       scrollAnchor: widget.pinScrollAnchor?.call(),
-      panelSize: _panelSize,
+      onPinned: () {
+        _pinned = true;
+        widget.onPinned?.call();
+      },
+      onDismissed: () => _panelToken = null,
     );
-    _removePreview();
-    widget.onPinned?.call();
   }
 
   // במגע אין רפרוף עכבר (גם במסכי מגע של דסקטופ); לחיצה ארוכה מחליפה אותו
   // כטריגר. בעכבר הריחוף כבר הציג, ולכן הקריאה כאן חוזרת מוקדם.
   void _handleLongPress() {
-    if (_previewEntry != null) return;
+    if (_panelToken != null) return;
     _showTimer?.cancel();
     _showTimer = null;
-    _touchTriggered = true;
-    _showPreview();
+    _showPreview(touchTriggered: true);
   }
 
   @override

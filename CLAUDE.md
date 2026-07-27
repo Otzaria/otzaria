@@ -642,6 +642,8 @@ dart format lib/file.dart    # Format ONLY files you modified
 | App menu | `test/widgets/app_menu_test.dart` |
 | App top bar | `test/widgets/app_top_bar_test.dart` |
 | Context overlay panel | `test/widgets/context_overlay_panel_test.dart` |
+| Context menu (incl. hover preview + pinning) | `test/widgets/app_context_menu_test.dart` |
+| Link preview panel (placement, pin, scroll anchor) | `test/widgets/link_preview_overlay_test.dart` |
 | Dual adaptive reader pane | `test/widgets/dual_adaptive_reader_pane_test.dart` |
 | Nav rail item | `test/widgets/nav_rail_item_test.dart` |
 | Reader side panel shell | `test/widgets/reader_side_panel_shell_test.dart` |

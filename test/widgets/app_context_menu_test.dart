@@ -6,9 +6,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/misc/app_context_menu.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
+import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
+
+import '../support/preview_selection_helpers.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  // חלונית מקובעת שורדת את סגירת התפריט — יש לסגור אותה בין טסטים.
+  tearDown(LinkPreviewOverlay.dismiss);
 
   // ───────────────────────────────────────────────────────────────────────
   // הקבצים הקשורים לבאג: בעת פתיחת תפריט הקשר, הסימון הוויזואלי של
@@ -919,12 +925,13 @@ void main() {
     Future<TestGesture> pumpMenuWithPreviewEntry(
       WidgetTester tester, {
       bool insideSubmenu = false,
+      WidgetBuilder? previewBuilder,
     }) async {
       final key = GlobalKey<AppContextMenuRegionState>();
       final previewEntry = AppContextMenuEntry(
         label: 'קישור א',
         onTap: () {},
-        hoverPreviewBuilder: (_) => const Text(previewText),
+        hoverPreviewBuilder: previewBuilder ?? (_) => const Text(previewText),
       );
 
       await tester.pumpWidget(
@@ -1184,6 +1191,147 @@ void main() {
         findsNothing,
         reason: 'החלונית הצפה מוסרת יחד עם סגירת התפריט',
       );
+    });
+
+    // ─────────────────────────────────────────────────────────────────────
+    // קיבוע התצוגה המקדימה: לחיצה בתוכה הופכת אותה לחלונית עצמאית שנשארת
+    // אחרי סגירת התפריט. חובה שאותו עץ widgets יישמר — בנייה מחדש בקיבוע
+    // מאבדת את גרירת הסימון (המשתמש נדרש לגרור פעמיים) ומהבהבת את החלונית.
+    // ─────────────────────────────────────────────────────────────────────
+    group('קיבוע בלחיצה בתוך החלונית', () {
+      Future<TestGesture> hoverUntilPreview(
+        WidgetTester tester, {
+        WidgetBuilder? previewBuilder,
+        bool insideSubmenu = false,
+      }) async {
+        final gesture = await pumpMenuWithPreviewEntry(
+          tester,
+          previewBuilder: previewBuilder,
+          insideSubmenu: insideSubmenu,
+        );
+        if (insideSubmenu) {
+          await tester.tap(find.text('קישורים'));
+          await tester.pumpAndSettle();
+        }
+        await gesture.moveTo(tester.getCenter(find.text('קישור א')));
+        await tester.pump(const Duration(milliseconds: 450));
+        await tester.pumpAndSettle();
+        return gesture;
+      }
+
+      testWidgets('גרירה לסימון טקסט מסמנת מיד, והחלונית נשארת בלי התפריט', (
+        tester,
+      ) async {
+        const selectableText = 'אבגד הוזח טיכל';
+        await hoverUntilPreview(
+          tester,
+          previewBuilder: (_) => const Text(selectableText),
+        );
+        expect(find.text(selectableText), findsOneWidget);
+
+        await dragAcross(tester, find.text(selectableText));
+
+        expect(
+          find.text('קישור א'),
+          findsNothing,
+          reason: 'הלחיצה בתוך החלונית סוגרת את תפריט ההקשר',
+        );
+        expect(
+          find.text(selectableText),
+          findsOneWidget,
+          reason: 'החלונית מקובעת ושורדת את סגירת התפריט',
+        );
+        expect(
+          await selectionExistsInPanel(tester, find.text(selectableText)),
+          isTrue,
+          reason:
+              'הגרירה הראשונה חייבת לסמן טקסט — בנייה מחדש של החלונית בקיבוע '
+              'הייתה קוטעת אותה ומחייבת גרירה שנייה',
+        );
+      });
+
+      testWidgets('הקיבוע אינו בונה מחדש את החלונית ואינו מזיז אותה', (
+        tester,
+      ) async {
+        CountingPreviewContent.builds = 0;
+        await hoverUntilPreview(
+          tester,
+          previewBuilder: (_) => const CountingPreviewContent(),
+        );
+        expect(CountingPreviewContent.builds, 1);
+        final panel = find
+            .ancestor(
+              of: find.byType(CountingPreviewContent),
+              matching: find.byType(Material),
+            )
+            .first;
+        final rectBefore = tester.getRect(panel);
+
+        await tester.tapAt(
+          tester.getCenter(find.byType(CountingPreviewContent)),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          CountingPreviewContent.builds,
+          1,
+          reason: 'אותו עץ widgets נשמר — בנייה מחדש היא ההבהוב שדווח',
+        );
+        expect(
+          tester.getRect(panel),
+          rectBefore,
+          reason: 'החלונית אינה זזה בקיבוע',
+        );
+      });
+
+      testWidgets('חלונית מקובעת נשארת גם כשהסמן יוצא ממנה', (tester) async {
+        final gesture = await hoverUntilPreview(tester);
+
+        final previewCenter = tester.getCenter(find.text(previewText));
+        await gesture.moveTo(previewCenter);
+        await gesture.down(previewCenter);
+        await gesture.up();
+        await tester.pumpAndSettle();
+
+        await gesture.moveTo(const Offset(10, 590));
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text(previewText),
+          findsOneWidget,
+          reason: 'קיבוע מבטל את הסגירה ביציאת הסמן',
+        );
+      });
+
+      testWidgets('הקשה מחוץ לחלונית המקובעת סוגרת אותה', (tester) async {
+        await hoverUntilPreview(tester);
+
+        await tester.tapAt(tester.getCenter(find.text(previewText)));
+        await tester.pumpAndSettle();
+        expect(find.text(previewText), findsOneWidget);
+
+        await tester.tapAt(const Offset(700, 550));
+        await tester.pumpAndSettle();
+        expect(find.text(previewText), findsNothing);
+      });
+
+      testWidgets('קיבוע פועל גם על תצוגה מקדימה של פריט בתת-תפריט', (
+        tester,
+      ) async {
+        await hoverUntilPreview(tester, insideSubmenu: true);
+        expect(find.text(previewText), findsOneWidget);
+
+        await tester.tapAt(tester.getCenter(find.text(previewText)));
+        await tester.pumpAndSettle();
+
+        expect(find.text('קישור א'), findsNothing);
+        expect(
+          find.text(previewText),
+          findsOneWidget,
+          reason: 'החלונית שורדת גם את סגירת התת-תפריט',
+        );
+      });
     });
 
     group('מגע — לחיצה ארוכה במקום רפרוף', () {
