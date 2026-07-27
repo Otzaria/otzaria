@@ -72,6 +72,20 @@ class AppFonts {
       (_separateBoldFaceFonts.contains(fontFamily) ||
           _separateBoldSystemFonts.contains(fontFamily));
 
+  static const Set<String> headingTags = {'h1', 'h2', 'h3', 'h4', 'h5', 'h6'};
+
+  /// משקל הכותרת ל-`customStylesBuilder` של fwfh, או null כשאין מה לשנות.
+  /// fwfh מדגיש כל `<h1>`-`<h6>` אוטומטית; במשפחה עם face בולד נפרד הכותרת
+  /// נשלפת מקובץ אחר מהגוף — שני ציורי אות באותו מסך.
+  /// '400' ולא 'normal' — fontWeightTryParse של fwfh מזהה רק מספר או 'bold'.
+  static String? headingFontWeightOverride(
+    String? elementTag,
+    String? fontFamily,
+  ) {
+    if (elementTag == null || !headingTags.contains(elementTag)) return null;
+    return hasSeparateBoldFace(fontFamily) ? '400' : null;
+  }
+
   static bool get _supportsSystemFonts {
     if (kIsWeb) return false;
     return defaultTargetPlatform == TargetPlatform.windows ||
