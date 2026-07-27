@@ -147,6 +147,8 @@ abstract class SettingsMessages {
   // ── הגדרות טקסט (text_settings_tab) ────────────────────────────────────
 
   static const String perBookSettingsReset = 'כל ההגדרות המיוחדות אופסו בהצלחה';
+  static const String perBookSettingsResetFailed =
+      'איפוס ההגדרות המיוחדות נכשל';
 
   // ── קטלוג חיצוני (external_catalog_settings_helper) ────────────────────
 

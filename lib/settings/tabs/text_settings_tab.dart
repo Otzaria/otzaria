@@ -609,8 +609,11 @@ class TextSettingsTab extends StatelessWidget {
     );
 
     if (confirm == true && context.mounted) {
-      await PerBookSettings.deleteAllSettings();
-      UiSnack.show(SettingsMessages.perBookSettingsReset);
+      if (await PerBookSettings.deleteAllSettings()) {
+        UiSnack.show(SettingsMessages.perBookSettingsReset);
+      } else {
+        UiSnack.showError(SettingsMessages.perBookSettingsResetFailed);
+      }
     }
   }
 }
