@@ -37,7 +37,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
 
     if (state.showAllEvents) {
       final events = List<CustomEvent>.from(state.events);
-      events.sort((a, b) => a.baseGregorianDate.compareTo(b.baseGregorianDate));
+      events.sort(compareCalendarEventsChronologically);
       return events;
     }
 

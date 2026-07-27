@@ -88,7 +88,7 @@ List<CustomEvent> _eventsForDate(DateTime date, CalendarState state) {
         : start;
     final current = DateTime(gregorianYear, gregorianMonth, gregorianDay);
     return !current.isBefore(start) && !current.isAfter(end);
-  }).toList()..sort((a, b) => a.title.compareTo(b.title));
+  }).toList()..sort(compareCalendarEventsByTime);
 }
 
 /// יוצר PDF של לוח השנה עם האירועים

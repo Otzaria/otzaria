@@ -156,6 +156,7 @@ RtlIcon(FluentIcons.chevron_right_24_regular)     // in _fluentMirrorMap
 - `book_24_regular`, `book_24_filled`
 - `book_information_24_regular`
 - `text_align_distributed_24_regular`
+- `list_24_regular`
 
 **If you need to flip an icon that is NOT yet registered:**
 Add it to the appropriate set/map in `lib/widgets/misc/rtl_icon.dart`, then use `RtlIcon`. Do NOT add manual `Transform.flip`/`Transform.scale` in feature files.
@@ -171,13 +172,18 @@ Add it to the appropriate set/map in `lib/widgets/misc/rtl_icon.dart`, then use 
 
 ### 2. User Messages - ONLY via `UiSnack`
 ```dart
-import 'package:otzaria/core/scaffold_messenger.dart';
+import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/messages/messages_exports.dart';
 
-UiSnack.show('הפעולה בוצעה');              // Success
-UiSnack.showError('שגיאה בביצוע');         // Error
-UiSnack.show(UiSnack.textCopied);          // Pre-defined message
+UiSnack.show(CommonMessages.savedSuccessfully);
+UiSnack.showError(ReportMessages.sendFailed);
+UiSnack.show(UiSnack.textCopied);          // Legacy alias → CommonMessages
 ```
+
+**Message texts are centralized (MANDATORY):** Never pass a hardcoded string literal to `UiSnack`. Every message lives in `lib/core/messages/` — one catalog per domain (`CommonMessages`, `ReportMessages`, `SettingsMessages`, `TextBookMessages`, `ToolsMessages`, `NotesMessages`, `LibraryMessages`, `PluginMessages`, `PdfMessages`). Fixed texts are `static const`; parameterized texts are static functions. Add new messages to the matching catalog (or `CommonMessages` if shared).
+
 **Never use:**
+- Hardcoded message strings at `UiSnack` call sites — add to `lib/core/messages/` instead
 - `ScaffoldMessenger.of(context).showSnackBar()`
 - Custom snackbar widgets
 - Toast packages
@@ -244,33 +250,49 @@ showWarningDialog(
 - Custom dialog widgets without the standard styling
 - Hardcoded colors (Colors.red, Colors.blue, etc.)
 
-### 5. Action Buttons - ONLY from `custom_ui_components`
+### 5. Action Buttons - ONLY `ActionButton` named constructors
 ```dart
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 // Recommended action button (Primary style)
-RecommendedActionButton(
+ActionButton.recommended(
   text: 'שנה מיקום',
   onPressed: () => _changeLocation(),
   isLoading: false,  // optional - shows loading indicator
 );
 
 // Neutral/non-recommended action button (Tonal style)
-NeutralActionButton(
+ActionButton.neutral(
   text: 'איפוס',
   onPressed: () => _resetSettings(),
   isLoading: false,  // optional - shows loading indicator
 );
+
+// Ghost (transparent, neutral)
+ActionButton.ghost(
+  text: 'ביטול',
+  onPressed: () => _cancel(),
+);
+
+// Warning (transparent background, error-color text — for destructive actions)
+ActionButton.warning(
+  text: 'מחק לצמיתות',
+  onPressed: () => _delete(),
+);
 ```
 
 **Button Styling Rules (CRITICAL):**
-- **RecommendedActionButton**: FilledButton (primary background, onPrimary text)
-- **NeutralActionButton**: FilledButton.tonal (surfaceContainerHighest background, onSurface text)
+- **ActionButton.recommended**: FilledButton (primary background, onPrimary text)
+- **ActionButton.neutral**: FilledButton.tonal (surfaceContainerHighest background, onSurface text)
+- **ActionButton.ghost**: TextButton (transparent, neutral color)
+- **ActionButton.warning**: TextButton (transparent, cs.error text — for destructive confirmations)
 - **NEVER use hardcoded colors** - always use `Theme.of(context).colorScheme`
 
 **When to use which button:**
-- `RecommendedActionButton` - recommended actions (change settings, choose location, update, add)
-- `NeutralActionButton` - neutral or dangerous actions (reset, delete, remove, stop)
+- `ActionButton.recommended` - recommended actions (change settings, choose location, update, add)
+- `ActionButton.neutral` - neutral or dangerous actions (reset, delete, remove, stop)
+- `ActionButton.ghost` - secondary inline text actions (cancel, close, skip)
+- `ActionButton.warning` - destructive confirmation (delete, clear, overwrite — matches WarningDialog's confirm button)
 
 **Never use:**
 - `ElevatedButton`, `TextButton`, `OutlinedButton` directly
@@ -534,6 +556,160 @@ dart format lib/file.dart    # Format ONLY files you modified
 | Changed interface/contract | All affected integration tests |
 | Modified core logic | Full test suite |
 
+### Test File Map — Feature → Test File
+
+**Text Book Viewer**
+| Area | Test File |
+|------|-----------|
+| Screen actions (overflow, layout) | `test/text_book/view/text_book_screen_actions_test.dart` |
+| Search controller sync | `test/text_book/text_book_search_query_sync_test.dart` |
+| Search screen | `test/text_book/view/text_book_search_screen_test.dart` |
+| TOC navigator UI | `test/text_book/view/toc_navigator_screen_test.dart` |
+| TOC navigator internals | `test/text_book/view/toc_navigator_internals_test.dart` |
+| Combined view helpers (shouldShow…) | `test/text_book/view/combined_view/combined_book_screen_test.dart` |
+| TabbedCommentaryPanel tab switching / onTabChanged | `test/text_book/view/tabbed_commentary_panel_test.dart` |
+| Page shape commentary selection | `test/text_book/view/page_shape_commentary_selection_test.dart` |
+| LinksNotesSidebar (page shape) | `test/text_book/view/page_shape/links_notes_sidebar_test.dart` |
+| SimpleTextViewer | `test/text_book/view/page_shape/simple_text_viewer_test.dart` |
+| Selected text copy/restore | `test/text_book/view/selection/selected_text_copy_test.dart`, `…selected_text_restore_test.dart` |
+| SelectionSyncController | `test/text_book/view/selection/selection_sync_controller_test.dart` |
+| Commentary open-filter request | `test/text_book/view/commentary_list_base_open_filter_test.dart` |
+| Commentary search focus | `test/text_book/view/commentary_search_focus_test.dart` |
+| Commentary grouping | `test/text_book/commentary_grouping_test.dart` |
+| Book source dialog | `test/text_book/view/book_source_dialog_test.dart` |
+| Error report dialog | `test/text_book/view/error_report_dialog_test.dart` |
+
+**Text Book BLoC**
+| Area | Test File |
+|------|-----------|
+| BLoC state equality | `test/text_book/bloc/text_book_state_test.dart` |
+| Background content loading | `test/text_book/bloc/background_full_content_loading_test.dart` |
+| Continuous reading mode | `test/text_book/bloc/continuous_reading_mode_test.dart` |
+| Selected link types persistence | `test/text_book/bloc/selected_link_types_persistence_test.dart` |
+
+**Data / Database**
+| Area | Test File |
+|------|-----------|
+| DatabaseLibraryProvider (links, alt-toc, isolate regressions) | `test/data_providers/database_library_provider_test.dart` |
+| DatabaseLibraryProvider has-book | `test/data_providers/database_library_provider_has_book_test.dart` |
+| UserBooksDB | `test/data_providers/user_books_database_holder_test.dart` |
+| FileSystemLibraryProvider | `test/data_providers/file_system_library_provider_test.dart` |
+| ExternalCatalogMapper | `test/data_providers/external_catalog_mapper_test.dart` |
+| TantivyDataProvider (search index) | `test/data/data_providers/tantivy_data_provider_test.dart` |
+| External books scanner | `test/data/data_providers/scan_external_books_test.dart` |
+| Library book search (fuzzy + acronyms) | `test/data/repository/book_search_fuzzy_match_test.dart` |
+
+**Search**
+| Area | Test File |
+|------|-----------|
+| Find-match utils | `test/search/find_match_utils_test.dart` |
+| Catalogue order helper | `test/search/search_catalogue_order_helper_test.dart` |
+| Enhanced search field | `test/search/enhanced_search_field_test.dart` |
+| Book facet | `test/search/book_facet_test.dart` |
+| Facet helper | `test/search/facet_helper_test.dart` |
+| Search BLoC facet counts | `test/search/search_bloc_facet_counts_test.dart` |
+| Search scope preferences | `test/search/search_scope_preferences_test.dart` |
+| Gematria search | `test/tools/gematria/gematria_search_test.dart` |
+
+**Personal Notes**
+| Area | Test File |
+|------|-----------|
+| Notes screen | `test/personal_notes/personal_notes_screen_test.dart` |
+| Note tile | `test/personal_notes/widgets/note_tile_test.dart` |
+| Note editor | `test/personal_notes/personal_note_editor_test.dart` |
+| Note draft service | `test/personal_notes/personal_note_draft_service_test.dart` |
+| Note content view | `test/personal_notes/personal_note_content_view_test.dart` |
+| Notes export | `test/personal_notes/personal_notes_export_test.dart` |
+
+**Settings**
+| Area | Test File |
+|------|-----------|
+| Nikud display service | `test/settings/nikud_display_service_test.dart` |
+| Settings repository | `test/settings/settings_repository_test.dart` |
+| Settings screen controller | `test/settings/settings_screen_controller_test.dart` |
+| Bookmark model | `test/settings/history/bookmark_model_test.dart` |
+| Custom folders BLoC | `test/settings/services/custom_folders/custom_folders_bloc_test.dart` |
+| Backup service (roundtrip, plugins, auto-backup) | `test/settings/services/backup_service_test.dart` |
+| Backup store (blobs, dedup, GC) + maintenance helpers | `test/unit/settings/backup/backup_store_test.dart` |
+| Backup rotation (GFS) | `test/unit/settings/backup/backup_rotation_test.dart` |
+| Backup archive merge rules | `test/unit/settings/backup/backup_merge_test.dart` |
+| SegmentedSettingsTile | `test/settings/widgets/segmented_settings_tile_test.dart` |
+| SwitchSettingsTile | `test/settings/widgets/switch_settings_tile_test.dart` |
+
+**Widgets (shared)**
+| Area | Test File |
+|------|-----------|
+| App menu | `test/widgets/app_menu_test.dart` |
+| App top bar | `test/widgets/app_top_bar_test.dart` |
+| Context overlay panel | `test/widgets/context_overlay_panel_test.dart` |
+| Dual adaptive reader pane | `test/widgets/dual_adaptive_reader_pane_test.dart` |
+| Nav rail item | `test/widgets/nav_rail_item_test.dart` |
+| Reader side panel shell | `test/widgets/reader_side_panel_shell_test.dart` |
+| Responsive action bar | `test/widgets/responsive_action_bar_test.dart` |
+| Scrollable list scrollbar | `test/widgets/scrollable_positioned_list_scrollbar_test.dart` |
+| Smart text render settings | `test/widgets/smart_text/render_settings_test.dart` |
+| Work/indexing status overlays | `test/widgets/work_status_overlay_test.dart`, `…indexing_status_overlay_test.dart` |
+| App dropdown/search menu | `test/widgets/app_dropdown_field_test.dart`, `…app_search_menu_test.dart` |
+| Search pane base | `test/widgets/search_pane_base_test.dart` |
+
+**Navigation / Startup**
+| Area | Test File |
+|------|-----------|
+| Navigation BLoC | `test/navigation/navigation_bloc_test.dart` |
+| Startup guard / auto-reindex | `test/navigation/startup_work_gate_test.dart`, `…startup_auto_reindex_test.dart`, `…new_books_indexing_guard_test.dart` |
+
+**Other Features**
+| Area | Test File |
+|------|-----------|
+| Bookmarks BLoC | `test/bookmarks/bookmark_bloc_test.dart` |
+| Workspaces BLoC | `test/workspaces/bloc/workspace_bloc_test.dart` |
+| Windows installer scripts (`.iss` invariants) | `test/installer/installer_scripts_test.dart` |
+| App paths / install-mode detection | `test/core/app_paths_test.dart` |
+| Library browser | `test/library/view/library_browser_preview_width_test.dart`, `…grid_items_test.dart`, `…library_browser_flat_tree_test.dart` |
+| Empty library screen | `test/empty_library/empty_library_screen_test.dart` |
+| PDF isolate / rasterizer | `test/printing/pdf_isolate_test.dart`, `…pdf_text_rasterizer_test.dart` |
+| PDF in-book search highlight pattern | `test/pdf_book/pdf_search_highlight_pattern_test.dart` |
+| Printing models | `test/printing/print_content_models_test.dart` |
+| File sync / background sync | `test/migration/sync/file_sync_service_prune_test.dart`, `…background_db_sync_worker_test.dart`, `…background_sync_initializer_test.dart` |
+| DB migration / generator | `test/migration/generator_create_and_process_book_test.dart`, `test/migration/dao/daos/database_locked_test.dart` |
+| Indexing repository | `test/indexing/repository/indexing_repository_test.dart` |
+| External catalog | `test/external_catalog/external_catalog_repository_test.dart` |
+| Plugins | `test/plugins/utils/reader_location_resolver_test.dart`, `test/plugins/services/plugin_store_link_parser_test.dart`, `test/plugins/bridge/plugin_bridge_adapter_test.dart` |
+| Shamor Zachor | `test/shamor_zachor/shamor_zachor_test.dart` (+ 4 more in that dir) |
+| Dictionary lookup | `test/tools/dictionary/dictionary_lookup_repository_test.dart` |
+| Laaz Rashi commentary line-lookup | `test/tools/dictionary/laaz_rashi_line_lookup_test.dart` |
+| Laaz Rashi commentary sub-block widget | `test/tools/dictionary/laaz_commentary_subblock_test.dart` |
+| Laaz Rashi commentary wiring (surfaces) | `test/tools/dictionary/laaz_commentary_wiring_test.dart` |
+| Commentary reverse links | `test/text_book/commentary_reverse_links_test.dart` |
+| Inline links | `test/models/inline_links_test.dart` |
+| Dialog navigation | `test/widgets/dialogs/dialog_navigation_test.dart` |
+| Focus restore | `test/core/focus_restore_test.dart` |
+| Models (books, links) | `test/models/books_test.dart`, `…links_test.dart`, `…phone_report_data_test.dart` |
+| Link types (נרמול, סוג קנוני, תוויות) | `test/models/link_types_test.dart` |
+| Utils (page map builder, page converter, TOC parser) | `test/utils/page_map_builder_test.dart`, `…page_converter_test.dart`, `…toc_parser_test.dart` |
+| Utils (link processing) | `test/text_book/utils/link_processing_test.dart` |
+| Hebrew text utils (migration) | `test/migration/hebrew_text_utils_test.dart` |
+| Text book searcher (in-book search) | `test/text_book/models/text_book_searcher_test.dart` |
+| Note text utils | `test/personal_notes/note_text_utils_test.dart` |
+| Shortcut validator | `test/shortcuts/shortcut_validator_test.dart` |
+| Core (activation queue/channel, error log) | `test/core/` |
+| Error logging | `test/core/main_error_logging_test.dart`, `test/services/direct_error_report_service_test.dart` |
+
+**Calendar (`lib/tools/calendar/`)**
+| Area | Test File |
+|------|-----------|
+| Cubit (אירועים, פלאגינים, התראות) | `test/tools/calendar/utils/calendar_cubit_test.dart` |
+| סדר אירועים (לפי שעה) — cubit + משווים | `test/tools/calendar/utils/calendar_event_sorting_test.dart` |
+| סדר אירועים בתצוגה (פאנל + תא היום) | `test/tools/calendar/widgets/calendar_events_order_test.dart` |
+| זמני היום / אזורי זמן | `test/tools/calendar/utils/calendar_daily_times_test.dart`, `…calendar_timezone_test.dart` |
+| כרטיסי זמנים (composite) ורישום הזמנים | `test/tools/calendar/widgets/calendar_composite_entries_test.dart` |
+| עזרי זמנים / מולד | `test/tools/calendar/helpers/zmanim_helpers_test.dart`, `…molad_helpers_test.dart` |
+| דיאלוגים | `test/tools/calendar/dialogs/calendar_dialogs_test.dart` |
+| תא היום (JewishCalendar משותף) | `test/tools/calendar/widgets/day_cell_shared_calendar_test.dart` |
+| פוקוס וניווט מקלדת | `test/tools/calendar/widgets/calendar_widget_focus_test.dart`, `…calendar_top_bar_focus_test.dart` |
+| החלקה בין חודשים | `test/tools/calendar/widgets/calendar_main_panel_swipe_test.dart` |
+| פריסה רספונסיבית | `test/tools/calendar/calendar_screen_responsive_test.dart` |
+
 ### Writing Tests
 - **Bloc**: Use `bloc_test` package
 - **Repository**: Mock dependencies with `mockito`
@@ -579,7 +755,7 @@ if (Platform.isAndroid || Platform.isIOS) {
 4. **Icons** - Only `fluentui_system_icons`. Use `RtlIcon` **only** for icons registered in `lib/widgets/misc/rtl_icon.dart` (`_fluentMirrorMap`, `_materialMirrorMap`, `_flippableIcons`). All other icons: plain `Icon(...)`. Never add manual `Transform` on icons — register in `rtl_icon.dart` instead.
 5. **User messages** - Only through `UiSnack`, never direct SnackBar
 6. **Dialogs** - Only through `custom_ui_components` (SingleActionDialog, TwoActionsDialog, WarningDialog)
-7. **Action buttons** - Only `RecommendedActionButton` or `NeutralActionButton` from `custom_ui_components`
+7. **Action buttons** - Only `ActionButton.recommended` / `.neutral` / `.ghost` from `widgets_exports.dart`
 8. **Settings cards** - Only `SettingsCard` from `settings_card.dart`
 9. **Color theming** - NEVER use hardcoded colors (Colors.red, Colors.blue, etc.), ALWAYS use `Theme.of(context).colorScheme`
 10. **Hover effects** - Remove from ListTile rows with buttons (`hoverColor: Colors.transparent`)
@@ -603,10 +779,10 @@ if (Platform.isAndroid || Platform.isIOS) {
 - Forgetting to use `RtlIcon` for icons that **are** registered in `lib/widgets/misc/rtl_icon.dart`
 - Adding `mirrorIcon` parameter to any widget — FORBIDDEN (removed in commit 3b4d357)
 - Manual `Transform.scale(scaleX: -1)` or `Transform.flip` on icons — register the icon in `rtl_icon.dart` instead
-- Adding inline comments that explain why `RtlIcon` or `Icon(...)` was chosen — the decision rule lives in AGENTS.md, not in code
+- Adding inline comments that explain why `RtlIcon` or `Icon(...)` was chosen — the decision rule lives in CLAUDE.md, not in code
 - Showing messages without `UiSnack`
 - Using custom dialogs instead of `custom_ui_components` dialogs
-- Using `ElevatedButton`/`TextButton` instead of `RecommendedActionButton`/`NeutralActionButton`
+- Using `ElevatedButton`/`TextButton` directly instead of `ActionButton.recommended`/`.neutral`/`.ghost`
 - Using hardcoded colors instead of `Theme.of(context).colorScheme`
 - Not removing hover effects from ListTile rows with action buttons
 - Adding `hoverColor`, `splashColor`, `overlayColor`, or `.withValues(alpha:...)` outside `lib/theme/` — these belong only in the theme layer

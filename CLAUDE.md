@@ -562,7 +562,7 @@ dart format lib/file.dart    # Format ONLY files you modified
 | Area | Test File |
 |------|-----------|
 | Screen actions (overflow, layout) | `test/text_book/view/text_book_screen_actions_test.dart` |
-| Search controller sync | `test/text_book_search_query_sync_test.dart` |
+| Search controller sync | `test/text_book/text_book_search_query_sync_test.dart` |
 | Search screen | `test/text_book/view/text_book_search_screen_test.dart` |
 | TOC navigator UI | `test/text_book/view/toc_navigator_screen_test.dart` |
 | TOC navigator internals | `test/text_book/view/toc_navigator_internals_test.dart` |
@@ -571,7 +571,7 @@ dart format lib/file.dart    # Format ONLY files you modified
 | Page shape commentary selection | `test/text_book/view/page_shape_commentary_selection_test.dart` |
 | LinksNotesSidebar (page shape) | `test/text_book/view/page_shape/links_notes_sidebar_test.dart` |
 | SimpleTextViewer | `test/text_book/view/page_shape/simple_text_viewer_test.dart` |
-| Selected text copy/restore | `test/text_book/view/selection/selected_text_copy_test.dart`, `…restore_test.dart` |
+| Selected text copy/restore | `test/text_book/view/selection/selected_text_copy_test.dart`, `…selected_text_restore_test.dart` |
 | SelectionSyncController | `test/text_book/view/selection/selection_sync_controller_test.dart` |
 | Commentary open-filter request | `test/text_book/view/commentary_list_base_open_filter_test.dart` |
 | Commentary search focus | `test/text_book/view/commentary_search_focus_test.dart` |
@@ -584,9 +584,8 @@ dart format lib/file.dart    # Format ONLY files you modified
 |------|-----------|
 | BLoC state equality | `test/text_book/bloc/text_book_state_test.dart` |
 | Background content loading | `test/text_book/bloc/background_full_content_loading_test.dart` |
-| Editor BLoC | `test/text_book/editing/bloc/text_book_bloc_editor_test.dart` |
-| Markdown processor | `test/text_book/editing/services/markdown_processor_test.dart` |
-| Local overrides repository | `test/text_book/editing/repository/local_overrides_repository_test.dart` |
+| Continuous reading mode | `test/text_book/bloc/continuous_reading_mode_test.dart` |
+| Selected link types persistence | `test/text_book/bloc/selected_link_types_persistence_test.dart` |
 
 **Data / Database**
 | Area | Test File |
@@ -610,32 +609,32 @@ dart format lib/file.dart    # Format ONLY files you modified
 | Facet helper | `test/search/facet_helper_test.dart` |
 | Search BLoC facet counts | `test/search/search_bloc_facet_counts_test.dart` |
 | Search scope preferences | `test/search/search_scope_preferences_test.dart` |
-| Gematria search | `test/gematria_search_test.dart` |
+| Gematria search | `test/tools/gematria/gematria_search_test.dart` |
 
 **Personal Notes**
 | Area | Test File |
 |------|-----------|
 | Notes screen | `test/personal_notes/personal_notes_screen_test.dart` |
 | Note tile | `test/personal_notes/widgets/note_tile_test.dart` |
-| Note editor | `test/personal_note_editor_test.dart` |
-| Note draft service | `test/personal_note_draft_service_test.dart` |
-| Note content view | `test/personal_note_content_view_test.dart` |
-| Notes export | `test/personal_notes_export_test.dart` |
+| Note editor | `test/personal_notes/personal_note_editor_test.dart` |
+| Note draft service | `test/personal_notes/personal_note_draft_service_test.dart` |
+| Note content view | `test/personal_notes/personal_note_content_view_test.dart` |
+| Notes export | `test/personal_notes/personal_notes_export_test.dart` |
 
 **Settings**
 | Area | Test File |
 |------|-----------|
-| Nikud display service | `test/unit/settings/nikud_display_service_test.dart` |
-| Settings repository | `test/unit/settings/settings_repository_test.dart` |
-| Settings screen controller | `test/unit/settings/settings_screen_controller_test.dart` |
-| Bookmark model | `test/unit/settings/history/bookmark_model_test.dart` |
+| Nikud display service | `test/settings/nikud_display_service_test.dart` |
+| Settings repository | `test/settings/settings_repository_test.dart` |
+| Settings screen controller | `test/settings/settings_screen_controller_test.dart` |
+| Bookmark model | `test/settings/history/bookmark_model_test.dart` |
 | Custom folders BLoC | `test/settings/services/custom_folders/custom_folders_bloc_test.dart` |
 | Backup service (roundtrip, plugins, auto-backup) | `test/settings/services/backup_service_test.dart` |
 | Backup store (blobs, dedup, GC) + maintenance helpers | `test/unit/settings/backup/backup_store_test.dart` |
 | Backup rotation (GFS) | `test/unit/settings/backup/backup_rotation_test.dart` |
 | Backup archive merge rules | `test/unit/settings/backup/backup_merge_test.dart` |
-| SegmentedSettingsTile | `test/widgets/segmented_settings_tile_test.dart` |
-| SwitchSettingsTile | `test/widgets/switch_settings_tile_test.dart` |
+| SegmentedSettingsTile | `test/settings/widgets/segmented_settings_tile_test.dart` |
+| SwitchSettingsTile | `test/settings/widgets/switch_settings_tile_test.dart` |
 
 **Widgets (shared)**
 | Area | Test File |
@@ -666,39 +665,50 @@ dart format lib/file.dart    # Format ONLY files you modified
 | Workspaces BLoC | `test/workspaces/bloc/workspace_bloc_test.dart` |
 | Windows installer scripts (`.iss` invariants) | `test/installer/installer_scripts_test.dart` |
 | App paths / install-mode detection | `test/core/app_paths_test.dart` |
-| Library browser | `test/library/view/library_browser_preview_width_test.dart`, `…grid_items_test.dart` |
+| Library browser | `test/library/view/library_browser_preview_width_test.dart`, `…grid_items_test.dart`, `…library_browser_flat_tree_test.dart` |
 | Empty library screen | `test/empty_library/empty_library_screen_test.dart` |
-| PDF isolate / rasterizer | `test/pdf_isolate_test.dart`, `test/printing/pdf_text_rasterizer_test.dart` |
+| PDF isolate / rasterizer | `test/printing/pdf_isolate_test.dart`, `…pdf_text_rasterizer_test.dart` |
 | PDF in-book search highlight pattern | `test/pdf_book/pdf_search_highlight_pattern_test.dart` |
 | Printing models | `test/printing/print_content_models_test.dart` |
-| File sync BLoC | `test/file_sync/file_sync_bloc_test.dart`, `…library_diff_sync_worker_test.dart` |
-| File sync asset parsing | `test/file_sync_test.dart` |
-| Background sync initializer | `test/migration/sync/background_sync_initializer_test.dart` |
-| DB migration / generator | `test/migration/generator_create_and_process_book_test.dart`, `…database_locked_test.dart` |
+| File sync / background sync | `test/migration/sync/file_sync_service_prune_test.dart`, `…background_db_sync_worker_test.dart`, `…background_sync_initializer_test.dart` |
+| DB migration / generator | `test/migration/generator_create_and_process_book_test.dart`, `test/migration/dao/daos/database_locked_test.dart` |
 | Indexing repository | `test/indexing/repository/indexing_repository_test.dart` |
-| External catalog | `test/external_catalog/external_catalog_repository_test.dart`, `…settings_helper_test.dart` |
-| Plugins | `test/plugins/utils/reader_location_resolver_test.dart`, `…plugin_store_link_parser_test.dart`, `…plugin_bridge_adapter_test.dart` |
+| External catalog | `test/external_catalog/external_catalog_repository_test.dart` |
+| Plugins | `test/plugins/utils/reader_location_resolver_test.dart`, `test/plugins/services/plugin_store_link_parser_test.dart`, `test/plugins/bridge/plugin_bridge_adapter_test.dart` |
 | Shamor Zachor | `test/shamor_zachor/shamor_zachor_test.dart` (+ 4 more in that dir) |
 | Dictionary lookup | `test/tools/dictionary/dictionary_lookup_repository_test.dart` |
 | Laaz Rashi commentary line-lookup | `test/tools/dictionary/laaz_rashi_line_lookup_test.dart` |
 | Laaz Rashi commentary sub-block widget | `test/tools/dictionary/laaz_commentary_subblock_test.dart` |
 | Laaz Rashi commentary wiring (surfaces) | `test/tools/dictionary/laaz_commentary_wiring_test.dart` |
-| Commentary reverse links | `test/commentary_reverse_links_test.dart` |
-| Inline links | `test/inline_links_test.dart` |
-| Dialog navigation | `test/dialog_navigation_test.dart` |
-| Focus restore | `test/focus_restore_test.dart` |
-| Calendar widget | `test/calendar_widget_focus_test.dart` |
+| Commentary reverse links | `test/text_book/commentary_reverse_links_test.dart` |
+| Inline links | `test/models/inline_links_test.dart` |
+| Dialog navigation | `test/widgets/dialogs/dialog_navigation_test.dart` |
+| Focus restore | `test/core/focus_restore_test.dart` |
 | Models (books, links) | `test/models/books_test.dart`, `…links_test.dart`, `…phone_report_data_test.dart` |
 | Link types (נרמול, סוג קנוני, תוויות) | `test/models/link_types_test.dart` |
 | Utils (page map builder, page converter, TOC parser) | `test/utils/page_map_builder_test.dart`, `…page_converter_test.dart`, `…toc_parser_test.dart` |
 | Utils (link processing) | `test/text_book/utils/link_processing_test.dart` |
-| Hebrew morphology (search) | `test/search/hebrew_morphology_test.dart` |
 | Hebrew text utils (migration) | `test/migration/hebrew_text_utils_test.dart` |
 | Text book searcher (in-book search) | `test/text_book/models/text_book_searcher_test.dart` |
 | Note text utils | `test/personal_notes/note_text_utils_test.dart` |
 | Shortcut validator | `test/shortcuts/shortcut_validator_test.dart` |
 | Core (activation queue/channel, error log) | `test/core/` |
-| Error logging | `test/main_error_logging_test.dart`, `test/services/direct_error_report_service_test.dart` |
+| Error logging | `test/core/main_error_logging_test.dart`, `test/services/direct_error_report_service_test.dart` |
+
+**Calendar (`lib/tools/calendar/`)**
+| Area | Test File |
+|------|-----------|
+| Cubit (אירועים, פלאגינים, התראות) | `test/tools/calendar/utils/calendar_cubit_test.dart` |
+| סדר אירועים (לפי שעה) — cubit + משווים | `test/tools/calendar/utils/calendar_event_sorting_test.dart` |
+| סדר אירועים בתצוגה (פאנל + תא היום) | `test/tools/calendar/widgets/calendar_events_order_test.dart` |
+| זמני היום / אזורי זמן | `test/tools/calendar/utils/calendar_daily_times_test.dart`, `…calendar_timezone_test.dart` |
+| כרטיסי זמנים (composite) ורישום הזמנים | `test/tools/calendar/widgets/calendar_composite_entries_test.dart` |
+| עזרי זמנים / מולד | `test/tools/calendar/helpers/zmanim_helpers_test.dart`, `…molad_helpers_test.dart` |
+| דיאלוגים | `test/tools/calendar/dialogs/calendar_dialogs_test.dart` |
+| תא היום (JewishCalendar משותף) | `test/tools/calendar/widgets/day_cell_shared_calendar_test.dart` |
+| פוקוס וניווט מקלדת | `test/tools/calendar/widgets/calendar_widget_focus_test.dart`, `…calendar_top_bar_focus_test.dart` |
+| החלקה בין חודשים | `test/tools/calendar/widgets/calendar_main_panel_swipe_test.dart` |
+| פריסה רספונסיבית | `test/tools/calendar/calendar_screen_responsive_test.dart` |
 
 ### Writing Tests
 - **Bloc**: Use `bloc_test` package

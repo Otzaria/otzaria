@@ -1846,7 +1846,7 @@ class CalendarCubit extends Cubit<CalendarState> {
         final current = DateTime(gY, gM, gD);
         return !current.isBefore(start) && !current.isAfter(end);
       }
-    }).toList()..sort((a, b) => a.title.compareTo(b.title));
+    }).toList()..sort(compareCalendarEventsByTime);
   }
 
   List<CustomEvent> getFilteredEvents(String query) {
@@ -1860,7 +1860,7 @@ class CalendarCubit extends Cubit<CalendarState> {
               (state.searchInDescriptions && e.description.contains(query)),
         )
         .toList()
-      ..sort((a, b) => a.title.compareTo(b.title));
+      ..sort(compareCalendarEventsChronologically);
   }
 
   // שמירת אירועים לאחסון קבוע
@@ -2158,6 +2158,37 @@ enum RecurrenceType {
   monthlyGregorian,
   annualHebrew,
   annualGregorian,
+}
+
+/// ממיין אירועים בתוך יום אחד: אירועים ללא שעה תחילה, אחריהם לפי שעה עולה,
+/// ולבסוף לפי כותרת כשובר-שוויון.
+int compareCalendarEventsByTime(CustomEvent a, CustomEvent b) {
+  final timeA = a.eventTime;
+  final timeB = b.eventTime;
+  if (timeA == null || timeB == null) {
+    if (timeA == null && timeB == null) return a.title.compareTo(b.title);
+    return timeA == null ? -1 : 1;
+  }
+  final diff =
+      (timeA.hour * 60 + timeA.minute) - (timeB.hour * 60 + timeB.minute);
+  return diff != 0 ? diff : a.title.compareTo(b.title);
+}
+
+/// ממיין אירועים לפי תאריך הבסיס ואז לפי שעה — לרשימות שחורגות מיום בודד.
+int compareCalendarEventsChronologically(CustomEvent a, CustomEvent b) {
+  final dateDiff =
+      DateTime(
+        a.baseGregorianDate.year,
+        a.baseGregorianDate.month,
+        a.baseGregorianDate.day,
+      ).compareTo(
+        DateTime(
+          b.baseGregorianDate.year,
+          b.baseGregorianDate.month,
+          b.baseGregorianDate.day,
+        ),
+      );
+  return dateDiff != 0 ? dateDiff : compareCalendarEventsByTime(a, b);
 }
 
 class CustomEvent extends Equatable {
