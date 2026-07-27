@@ -16,6 +16,9 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentary_panel.dart';
+import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
+import 'package:otzaria/text_book/utils/commentary_type_filter.dart';
+import 'package:otzaria/widgets/commentary/commentary_search_results_list.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -30,6 +33,8 @@ import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/settings/services/nikud_display_service.dart';
+import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/layout/split_pane_content_inset.dart';
@@ -77,6 +82,10 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   final _navSearchController = TextEditingController();
   final _totalResultsNotifier = ValueNotifier<int>(0);
   final _currentIdxNotifier = ValueNotifier<int>(0);
+  final _searchSnippetsNotifier = ValueNotifier<List<CommentarySearchSnippet>>(
+    [],
+  );
+  final _typeSelection = CommentaryTypeSelection();
   final _panelKey = GlobalKey<PdfCommentaryPanelState>();
   final Set<int> _expandedHeadings = {};
 
@@ -101,9 +110,48 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   /// משקף את מצב "הכל מורחב" מתוך PdfCommentaryPanel (לכפתור כיווץ/הרחבה בסרגל).
   final _allExpandedInChild = ValueNotifier<bool>(true);
 
-  /// הסרת ניקוד/פיסוק מהמפרשים (כמו בכרטיסיית הטקסט).
-  bool _removeNikud = false;
-  bool _removePunctuation = false;
+  /// הסרת ניקוד/פיסוק מהמפרשים (כמו בכרטיסיית הטקסט). חייב להיות מאותחל
+  /// מהגדרת התצוגה של המשתמש, אחרת מוצג ניקוד למי שכיבה אותו.
+  late bool _removeNikud;
+  late bool _removePunctuation;
+
+  /// החרגות התנ"ך על הניקוד/פיסוק נפתרות אסינכרונית, ולכן הן מוחלות על הערך
+  /// ההתחלתי ברגע שהסיווג מגיע — כל עוד המשתמש לא שינה אותו בסרגל.
+  bool _displayFlagsTouchedByUser = false;
+
+  void _toggleRemoveNikud() {
+    setState(() {
+      _displayFlagsTouchedByUser = true;
+      _removeNikud = !_removeNikud;
+    });
+  }
+
+  void _toggleRemovePunctuation() {
+    setState(() {
+      _displayFlagsTouchedByUser = true;
+      _removePunctuation = !_removePunctuation;
+    });
+  }
+
+  Future<void> _resolveIsTanachBook(SettingsState settings) async {
+    final isTanach = await FileSystemData.instance.isTanachBook(
+      widget.tab.sourceTab.book.title,
+      categoryId: widget.tab.sourceTab.book.categoryId,
+      fileType: widget.tab.sourceTab.book.fileType,
+    );
+    if (!mounted || !isTanach || _displayFlagsTouchedByUser) return;
+    setState(() {
+      _removeNikud = shouldRemoveNikudForBook(
+        defaultRemoveNikud: settings.defaultRemoveNikud,
+        removeNikudFromTanach: settings.removeNikudFromTanach,
+        isTanach: true,
+      );
+      _removePunctuation = shouldRemovePunctuationForBook(
+        defaultRemovePunctuation: settings.defaultRemovePunctuation,
+        isTanach: true,
+      );
+    });
+  }
 
   bool get _isNavigationReady =>
       _sortedHeadings != null && _sortedHeadings!.isNotEmpty;
@@ -111,6 +159,10 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   @override
   void initState() {
     super.initState();
+    final settings = context.read<SettingsBloc>().state;
+    _removeNikud = settings.defaultRemoveNikud;
+    _removePunctuation = settings.defaultRemovePunctuation;
+    _resolveIsTanachBook(settings);
     _navTabController = TabController(length: 3, vsync: this);
     _navTabController.addListener(_handleTabChanged);
     _initHeadings();
@@ -468,6 +520,8 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     _navSearchController.dispose();
     _totalResultsNotifier.dispose();
     _currentIdxNotifier.dispose();
+    _searchSnippetsNotifier.dispose();
+    _typeSelection.dispose();
     _allExpandedInChild.dispose();
     super.dispose();
   }
@@ -626,10 +680,15 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                           );
                         }
                       },
-                      fontSize: 16.0,
+                      fontSize: context
+                          .watch<SettingsBloc>()
+                          .state
+                          .commentatorsFontSize,
                       externalSearchController: _searchController,
                       externalTotalResultsNotifier: _totalResultsNotifier,
                       externalCurrentIndexNotifier: _currentIdxNotifier,
+                      externalSearchSnippetsNotifier: _searchSnippetsNotifier,
+                      typeSelection: _typeSelection,
                       externalAllExpandedNotifier: _allExpandedInChild,
                     ),
                   ),
@@ -806,13 +865,13 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                       ? FluentIcons.text_font_24_regular
                       : FluentIcons.text_font_info_24_regular,
                   compact: isCompact,
-                  onPressed: () => setState(() => _removeNikud = !_removeNikud),
+                  onPressed: _toggleRemoveNikud,
                 ),
                 icon: _removeNikud
                     ? FluentIcons.text_font_24_regular
                     : FluentIcons.text_font_info_24_regular,
                 tooltip: _removeNikud ? 'הצג ניקוד' : 'הסתר ניקוד',
-                onPressed: () => setState(() => _removeNikud = !_removeNikud),
+                onPressed: _toggleRemoveNikud,
               ),
               // פיסוק
               ActionButtonData(
@@ -822,15 +881,13 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                       ? FluentIcons.text_quote_24_regular
                       : FluentIcons.text_clear_formatting_24_regular,
                   compact: isCompact,
-                  onPressed: () =>
-                      setState(() => _removePunctuation = !_removePunctuation),
+                  onPressed: () => _toggleRemovePunctuation(),
                 ),
                 icon: _removePunctuation
                     ? FluentIcons.text_quote_24_regular
                     : FluentIcons.text_clear_formatting_24_regular,
                 tooltip: _removePunctuation ? 'הצג פיסוק' : 'הסתר פיסוק',
-                onPressed: () =>
-                    setState(() => _removePunctuation = !_removePunctuation),
+                onPressed: () => _toggleRemovePunctuation(),
               ),
               // הדפסת המפרשים המוצגים
               ActionButtonData(
@@ -1060,29 +1117,61 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
         ),
       );
     }
-    return CommentatorsSelectionPanel(
-      groups: _commentatorGroups,
-      selectedCommentators: widget.tab.sourceTab.activeCommentators.toList(),
-      bookTitle: widget.tab.sourceTab.book.title,
-      rareCommentators: _rareCommentators,
-      lineRelevantCommentators: _lineRelevantRareCommentators(),
-      onSelectionChanged: (list) async {
-        setState(() {
-          widget.tab.sourceTab.activeCommentators
-            ..clear()
-            ..addAll(list);
-        });
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) setState(() {});
-        });
-        // שמירה פר-ספר תמיד (לא תלוי ב-enablePerBookSettings) כדי שהבחירה
-        // תיטען בכל פתיחה.
-        final settings = PdfBookPerBookSettings(
-          activeCommentators: List.from(
-            widget.tab.sourceTab.activeCommentators,
-          ),
+    // מכל הקישורים הטעונים ולא מהקטע הנבחר: צ׳יפ שנגזר מהקטע נעלם בניווט
+    // לקטע שאין בו אותו סוג. זהות הרשימה יציבה, ולכן ה-Expando של המימוש פוגע.
+    final allLinks = widget.tab.sourceTab.links;
+    final selected = widget.tab.sourceTab.activeCommentators.isEmpty
+        ? allLinks
+              .map((link) => utils.getTitleFromPath(link.path2))
+              .toList(growable: false)
+        : widget.tab.sourceTab.activeCommentators.toList(growable: false);
+    final chipKeys = CommentaryTypeFilter.chipKeysForCommentators(
+      links: allLinks,
+      selectedCommentators: selected,
+    );
+    return ValueListenableBuilder<Set<String>>(
+      valueListenable: _typeSelection,
+      builder: (context, selectedTypes, _) {
+        final effectiveTypes = CommentaryTypeFilter.effectiveTypes(
+          selectedTypes: selectedTypes,
+          availableKeys: chipKeys,
         );
-        await settings.save(widget.tab.sourceTab.book);
+        return CommentatorsSelectionPanel(
+          groups: _commentatorGroups,
+          selectedCommentators: widget.tab.sourceTab.activeCommentators
+              .toList(),
+          bookTitle: widget.tab.sourceTab.book.title,
+          rareCommentators: _rareCommentators,
+          lineRelevantCommentators: _lineRelevantRareCommentators(),
+          typeChipKeys: CommentaryTypeFilter.visibleChipKeys(
+            chipKeys: chipKeys,
+            effectiveTypes: effectiveTypes,
+          ),
+          selectedTypeChips: effectiveTypes,
+          typeChipLabelBuilder: LinkTypes.hebrewLabel,
+          commentatorsByType: CommentaryTypeFilter.commentatorsByType(
+            allLinks,
+          ),
+          onTypeChipsChanged: (types) => _typeSelection.value = types,
+          onSelectionChanged: (list) async {
+            setState(() {
+              widget.tab.sourceTab.activeCommentators
+                ..clear()
+                ..addAll(list);
+            });
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() {});
+            });
+            // שמירה פר-ספר תמיד (לא תלוי ב-enablePerBookSettings) כדי שהבחירה
+            // תיטען בכל פתיחה.
+            final settings = PdfBookPerBookSettings(
+              activeCommentators: List.from(
+                widget.tab.sourceTab.activeCommentators,
+              ),
+            );
+            await settings.save(widget.tab.sourceTab.book);
+          },
+        );
       },
     );
   }
@@ -1367,7 +1456,18 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                       ],
                     )
                   : null,
-              resultsWidget: const SizedBox.shrink(),
+              resultsWidget:
+                  ValueListenableBuilder<List<CommentarySearchSnippet>>(
+                    valueListenable: _searchSnippetsNotifier,
+                    builder: (context, snippets, _) =>
+                        CommentarySearchResultsList(
+                          query: val.text,
+                          snippets: snippets,
+                          currentIdx: currentIdx,
+                          onSnippetTap: (globalIndex) => _panelKey.currentState
+                              ?.navigateToGlobalIndex(globalIndex),
+                        ),
+                  ),
             ),
           ),
         );

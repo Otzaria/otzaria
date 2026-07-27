@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentary_panel.dart';
+import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
@@ -91,7 +92,7 @@ void main() {
   });
 
   testWidgets(
-    'רשימת המפרשים עטופה ב-Scrollbar (רגרסיה לבאג פורום 736 - אין פס גלילה)',
+    'לרשימת המפרשים יש פס גלילה (רגרסיה לבאג פורום 736 - אין פס גלילה)',
     (tester) async {
       // הפס נבנה דרך ScrollBehavior שמוסיף Scrollbar רק בדסקטופ — כופים פלטפורמה.
       // try/finally מבטיח איפוס גם אם pumpWidget/expect יזרקו (לא addTearDown -
@@ -124,15 +125,16 @@ void main() {
         // ודא שיש תוכן מפרשים בפועל (לא הודעת "לא נמצאו")
         expect(find.textContaining('לא נמצאו מפרשים'), findsNothing);
 
-        // פס הגלילה של Flutter (ScrollBehavior) עוטף כל Scrollable בדסקטופ,
-        // אלא אם כן ScrollConfiguration(scrollbars: false) מכבה אותו במפורש.
+        // הרשימה עטופה ב-ScrollablePositionedListScrollbar — אותו פס שבכרטיסיית
+        // הטקסט, המכבה במכוון את ה-Scrollbar של ScrollBehavior ומרנדר מסלול
+        // משלו עם תווית יעד. אם *שניהם* נעדרים, חזר באג היעדר פס הגלילה.
         expect(
-          find.byType(Scrollbar),
-          findsWidgets,
+          find.byType(ScrollablePositionedListScrollbar),
+          findsOneWidget,
           reason:
-              'רשימת המפרשים חייבת להיות עטופה ב-Scrollbar (ScrollBehavior כברירת מחדל). '
-              'אם נעלם - כנראה חזר ScrollConfiguration(scrollbars: false) סביב '
-              'ה-ScrollablePositionedList, שגורם להיעדר פס גלילה בתצוגת PDF.',
+              'לרשימת המפרשים ב-PDF חייב להיות פס גלילה. אם הפס המשותף הוסר, '
+              'ודא שלא הוחזר ScrollConfiguration(scrollbars: false) בלי תחליף — '
+              'זהו הבאג המקורי (פורום 736).',
         );
       } finally {
         debugDefaultTargetPlatformOverride = null;

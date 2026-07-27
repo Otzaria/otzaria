@@ -42,6 +42,7 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/settings/services/nikud_display_service.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
@@ -521,6 +522,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   @override
   void initState() {
     super.initState();
+    _resolveIsTanachBook();
     _pageTurnController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
@@ -3202,6 +3204,20 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   bool _isJumping = false; // flag לציון שאנחנו בתהליך קפיצה
   bool _linksLoading = true; // true עד שטעינת הקישורים מסתיימת
 
+  /// האם הספר שייך לתנ"ך — קובע את החרגות הניקוד/פיסוק על תוכן המפרשים,
+  /// בדיוק כמו בכרטיסיית הטקסט.
+  bool _isTanachBook = false;
+
+  Future<void> _resolveIsTanachBook() async {
+    final isTanach = await FileSystemData.instance.isTanachBook(
+      widget.tab.book.title,
+      categoryId: widget.tab.book.categoryId,
+      fileType: widget.tab.book.fileType,
+    );
+    if (!mounted || isTanach == _isTanachBook) return;
+    setState(() => _isTanachBook = isTanach);
+  }
+
   // מסלול חלון-הקישורים (ספרי מסד): tab.links מחזיק רק חלון שורות סביב
   // המיקום הנוכחי ומתרענן בדפדוף — ראה PdfLinksWindowPolicy.
   TextBook? _linksTextBook; // לא-null רק כשמסלול החלון פעיל
@@ -3838,11 +3854,33 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   }
 
   Widget _buildRightPaneContent() {
+    // תוכן המפרשים בחלונית מגיע מספר ה-DB המלווה ולכן נושא ניקוד/פיסוק.
+    // ה-BlocBuilder מחיל את הגדרת התצוגה של המשתמש גם על חלונית פתוחה.
+    return BlocBuilder<SettingsBloc, SettingsState>(
+      buildWhen: (prev, curr) =>
+          prev.defaultRemoveNikud != curr.defaultRemoveNikud ||
+          prev.removeNikudFromTanach != curr.removeNikudFromTanach ||
+          prev.defaultRemovePunctuation != curr.defaultRemovePunctuation ||
+          prev.commentatorsFontSize != curr.commentatorsFontSize,
+      builder: (context, settingsState) => _buildCommentaryPanel(settingsState),
+    );
+  }
+
+  Widget _buildCommentaryPanel(SettingsState settingsState) {
     return PdfCommentaryPanel(
       openFilterRequest: _openFilterRequest,
       tab: widget.tab,
       linksCount: widget.tab.links.length,
       linksLoading: _linksLoading,
+      removeNikud: shouldRemoveNikudForBook(
+        defaultRemoveNikud: settingsState.defaultRemoveNikud,
+        removeNikudFromTanach: settingsState.removeNikudFromTanach,
+        isTanach: _isTanachBook,
+      ),
+      removePunctuation: shouldRemovePunctuationForBook(
+        defaultRemovePunctuation: settingsState.defaultRemovePunctuation,
+        isTanach: _isTanachBook,
+      ),
       openBookCallback: (tab) {
         if (tab is TextBookTab) {
           openBook(
@@ -3855,7 +3893,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           );
         }
       },
-      fontSize: 16.0,
+      fontSize: settingsState.commentatorsFontSize,
       onClose: () {
         _bloc.add(const pdf_events.ToggleRightPane(show: false));
       },

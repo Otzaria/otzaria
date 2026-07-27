@@ -34,11 +34,14 @@ String resolveHtmlTextForSelection({
 }
 
 /// מעתיק טקסט נבחר מספר טקסט תוך שמירה על כותרות ועיצוב.
+///
+/// [textBookState] הוא null בהעתקה ממשטח ללא `TextBookBloc` (חלונית ה-PDF);
+/// אז [headerBookOverride] הוא מקור ספר הכותרת היחיד.
 Future<void> copySelectedTextForBook({
   required String plainText,
   required int? selectedIndex,
   required List<String> sourceContent,
-  required TextBookLoaded textBookState,
+  required TextBookLoaded? textBookState,
   required SettingsState settingsState,
   required String fontFamily,
   required double fontSize,
@@ -52,8 +55,8 @@ Future<void> copySelectedTextForBook({
   );
 
   var finalPlainText = plainText;
-  if (settingsState.copyWithHeaders != 'none') {
-    final headerBook = headerBookOverride ?? textBookState.book;
+  final headerBook = headerBookOverride ?? textBookState?.book;
+  if (settingsState.copyWithHeaders != 'none' && headerBook != null) {
     final bookName = CopyUtils.extractBookName(headerBook);
     final currentIndex = selectedIndex ?? 0;
     final currentPath = await CopyUtils.extractCurrentPath(

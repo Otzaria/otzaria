@@ -14,10 +14,13 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
-import 'package:otzaria/text_book/view/combined_view/commentary_content.dart';
+import 'package:otzaria/widgets/commentary/commentary_content.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
+// מיוצא כאן כדי שצרכני כרטיסיית הטקסט יייבאו אותו מנקודה אחת.
+export 'package:otzaria/text_book/utils/commentary_search_utils.dart'
+    show CommentarySearchSnippet;
 import 'package:otzaria/text_book/utils/commentary_type_filter.dart';
 import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
@@ -79,19 +82,6 @@ Set<String> effectiveCommentaryTypes({
   selectedTypes: selectedTypes,
   availableKeys: availableKeys,
 );
-
-/// מייצג תוצאת חיפוש בודדת עם קטע טקסט וכתובת גלובלית לניווט
-class CommentarySearchSnippet {
-  final String path;
-  final String snippet;
-  final int globalIndex;
-
-  const CommentarySearchSnippet({
-    required this.path,
-    required this.snippet,
-    required this.globalIndex,
-  });
-}
 
 class CommentaryListBase extends StatefulWidget {
   final Function(TextBookTab) openBookCallback;
@@ -1256,7 +1246,6 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
   Widget _buildCommentaryGroupTile({
     required CommentaryGroup group,
     required TextBookLoaded state,
-    required String indexesKey,
     required int groupIndex,
   }) {
     final groupKey = group.bookTitle;
@@ -1288,7 +1277,6 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
       highlightQueryListenable: widget.highlightQueryListenable,
       itemKeys: _itemKeys,
       getLinkKey: _getLinkKey,
-      indexesKey: indexesKey,
       savedSelectedTextListenable: _savedSelectedText,
       lastSelectedLinkListenable: _lastSelectedLink,
       onExpansionChanged: (expanded) {
@@ -1708,8 +1696,6 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                     ),
                   );
 
-                  final indexesKey = currentIndexes.join(',');
-
                   return Shortcuts(
                     shortcuts: <ShortcutActivator, Intent>{
                       LogicalKeySet(
@@ -1785,7 +1771,6 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                                 return _buildCommentaryGroupTile(
                                   group: group,
                                   state: state,
-                                  indexesKey: indexesKey,
                                   groupIndex: groupIndex,
                                 );
                               },
@@ -2070,7 +2055,6 @@ class _CollapsibleCommentaryGroup extends StatefulWidget {
   final void Function(Link, List<String>)? updateSearchSnippets;
   final Map<String, GlobalKey> itemKeys;
   final String Function(Link) getLinkKey;
-  final String indexesKey;
   final ValueListenable<String?> savedSelectedTextListenable;
   final ValueListenable<Link?> lastSelectedLinkListenable;
   final void Function(bool) onExpansionChanged;
@@ -2107,7 +2091,6 @@ class _CollapsibleCommentaryGroup extends StatefulWidget {
     this.updateSearchSnippets,
     required this.itemKeys,
     required this.getLinkKey,
-    required this.indexesKey,
     required this.savedSelectedTextListenable,
     required this.lastSelectedLinkListenable,
     required this.onExpansionChanged,
