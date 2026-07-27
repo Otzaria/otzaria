@@ -78,20 +78,31 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
             if (_isBaseBook(node.book)) node,
         ];
 
+  bool _labelTreeBuildScheduled = false;
+
   @override
   void initState() {
     super.initState();
     _loadBaseBookIds();
     _fieldFocus.addListener(_onFocusChanged);
     _searchController.addListener(_onTextChanged);
+  }
 
-    // בחירה מצומצמת דורשת את העץ כדי לתייג את הצ׳יפ ("כל הספרים"/"ספרי
-    // יסוד"). בונים אותו רק אחרי הפריים הראשון, כדי שהחלון ייפתח מיד.
-    if (FacetHelper.categoryFacetsOf(widget.selected).any((f) => f != '/')) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _tree != null) setState(() {});
-      });
+  /// בחירה מצומצמת דורשת את העץ כדי לתייג את הצ׳יפ ("כל הספרים"/"ספרי יסוד").
+  /// נקרא מ-[build], ולכן מכסה גם את המעבר מספרייה ריקה לספרייה שנטענה וגם
+  /// שינוי בחירה; הבנייה עצמה נדחית לאחר הפריים כדי שהחלון ייפתח מיד.
+  void _scheduleLabelTreeBuild() {
+    if (_labelTreeBuildScheduled || _treeCache != null || _library == null) {
+      return;
     }
+    if (!FacetHelper.categoryFacetsOf(widget.selected).any((f) => f != '/')) {
+      return;
+    }
+    _labelTreeBuildScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _labelTreeBuildScheduled = false;
+      if (mounted && _tree != null) setState(() {});
+    });
   }
 
   @override
@@ -202,6 +213,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
           _treeCache = null;
           _baseBookNodesCache = null;
         }
+        _scheduleLabelTreeBuild();
 
         return OverlayPortal(
           controller: _portal,

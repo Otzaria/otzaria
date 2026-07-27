@@ -261,6 +261,73 @@ Future<void> main() async {
       expect(find.text('ספרי יסוד'), findsNothing);
     });
 
+    testWidgets('תווית הצ׳יפ מתקנת את עצמה כשהספרייה נטענת אחרי הבנייה', (
+      tester,
+    ) async {
+      // רגרסיה (P2): הספרייה מתחילה ריקה ומוחלפת בסיום הטעינה. תזמון בניית
+      // העץ ב-initState בלבד החמיץ את המעבר הזה, והצ׳יפ נתקע על "כל הספרים".
+      // '/תנ״ך/תורה' הוא ספר יסוד לפי FoundationalBookClassifier.
+      final baseBook = TextBook(
+        title: 'בראשית',
+        categoryPath: '/תנ״ך/תורה',
+      );
+      final loadedLibrary = Library(
+        categories: [
+          _mkCat(
+            'תנ״ך',
+            children: [
+              _mkCat('תורה', books: [baseBook]),
+            ],
+          ),
+        ],
+      );
+      for (final cat in loadedLibrary.subCategories) {
+        cat.parent = loadedLibrary;
+      }
+      final baseFacet = ScopeTree.fromLibrary(
+        loadedLibrary,
+      ).allBookNodes().single.facet;
+
+      final libraryBloc = _MockLibraryBloc();
+      final controller = StreamController<LibraryState>.broadcast();
+      addTearDown(controller.close);
+      whenListen(
+        libraryBloc,
+        controller.stream,
+        // ספרייה שעדיין נטענת — בדיוק המצב בפתיחה הראשונה של הדיאלוג.
+        initialState: const LibraryState(),
+      );
+      addTearDown(libraryBloc.close);
+
+      await tester.binding.setSurfaceSize(const Size(600, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(useMaterial3: true),
+          home: BlocProvider<LibraryBloc>.value(
+            value: libraryBloc,
+            child: Scaffold(
+              body: SearchScopeMenuButton(
+                selected: {baseFacet},
+                onChanged: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('ספרי יסוד'), findsNothing);
+
+      controller.add(LibraryState(library: loadedLibrary));
+      await tester.idle();
+      await tester.pump(); // הפריים שבו הספרייה נקלטת ובנייה מתוזמנת
+      await tester.pump(); // הפריים שאחרי ה-postFrameCallback
+
+      expect(find.text('ספרי יסוד'), findsOneWidget);
+      expect(find.text('כל הספרים'), findsNothing);
+    });
+
     testWidgets('התפריט והחיפוש בו עובדים על העץ שנבנה בעצלתיים', (
       tester,
     ) async {
