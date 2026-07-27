@@ -36,6 +36,17 @@ class PluginHighlightRegistry extends ChangeNotifier {
   >
   _recordsBySection = {};
   int _idCounter = 0;
+  int _revision = 0;
+
+  /// מונה מוטציות. מאפשר לצרכנים לזהות ב-O(1) שאף highlight לא השתנה,
+  /// במקום להשוות רשומות בכל פריים.
+  int get revision => _revision;
+
+  @override
+  void notifyListeners() {
+    _revision++;
+    super.notifyListeners();
+  }
 
   PluginHighlight setHighlight({
     required String ownerPluginId,

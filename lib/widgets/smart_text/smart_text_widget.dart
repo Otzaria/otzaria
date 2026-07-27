@@ -18,6 +18,7 @@ import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_reveal_service.dart';
 import 'package:otzaria/plugins/services/reader_section_content_tracker.dart';
+import 'package:otzaria/plugins/services/reader_section_sync_gate.dart';
 import 'package:otzaria/plugins/view/plugin_highlight_frame_overlay.dart';
 
 /// ווידג'ט חכם להצגת טקסט עברי
@@ -121,26 +122,37 @@ class SmartTextWidget extends StatelessWidget {
     final bookId = highlightBookId;
     final sectionIndex = highlightSectionIndex;
     if (bookId != null && sectionIndex != null) {
-      final sourceText = TextRendererService.stripHtml(
-        highlightSourceText ?? text,
-      );
-      final renderedText = TextRendererService.stripHtml(processedHtml);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        PluginHighlightRegistry.instance.reanchorSection(
-          bookId: bookId,
-          sectionIndex: sectionIndex,
-          sourceText: sourceText,
-        );
-        unawaited(
-          _recordSectionContentSnapshot(
+      final rawSourceHtml = highlightSourceText ?? text;
+      final renderingSignature = settings.sectionContentRenderingSignature;
+      // ניקוי-HTML וגיבוב הם העלות הכבדה בפריים; מדלגים עליהם כשהקלט זהה
+      // לפריים הקודם, וזה המצב בכמעט כל פריים גלילה.
+      if (ReaderSectionSyncGate.instance.claimSync(
+        bookId: bookId,
+        sectionIndex: sectionIndex,
+        rawSourceHtml: rawSourceHtml,
+        processedHtml: processedHtml,
+        renderingSignature: renderingSignature,
+        highlightsRevision: PluginHighlightRegistry.instance.revision,
+      )) {
+        final sourceText = TextRendererService.stripHtml(rawSourceHtml);
+        final renderedText = TextRendererService.stripHtml(processedHtml);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          PluginHighlightRegistry.instance.reanchorSection(
             bookId: bookId,
             sectionIndex: sectionIndex,
             sourceText: sourceText,
-            renderedText: renderedText,
-            renderingSignature: settings.sectionContentRenderingSignature,
-          ),
-        );
-      });
+          );
+          unawaited(
+            _recordSectionContentSnapshot(
+              bookId: bookId,
+              sectionIndex: sectionIndex,
+              sourceText: sourceText,
+              renderedText: renderedText,
+              renderingSignature: renderingSignature,
+            ),
+          );
+        });
+      }
     }
     var frameRanges = const <PluginHighlightRenderedRange>[];
     if (highlights.isNotEmpty) {
@@ -435,6 +447,11 @@ Future<void> _recordSectionContentSnapshot({
       renderingSignature: renderingSignature,
     );
   } catch (error, stackTrace) {
+    // בלי ביטול הסימון הקטע היה נשאר "מסונכרן" לנצח ולא מנסה שוב.
+    ReaderSectionSyncGate.instance.forget(
+      bookId: bookId,
+      sectionIndex: sectionIndex,
+    );
     debugPrint('Failed to track reader section content: $error');
     debugPrintStack(stackTrace: stackTrace);
   }
