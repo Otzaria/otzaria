@@ -391,6 +391,203 @@ void main() {
     });
   });
 
+  group('KeyboardShortcuts - חיפוש חדש', () {
+    late MockSettingsBloc settingsBlocLocal;
+    late MockIndexingBloc indexingBloc;
+    late MockLibraryBloc libraryBloc;
+    late StreamController<SettingsState> settingsControllerLocal;
+
+    setUpAll(() async {
+      await Settings.init(cacheProvider: MemorySettingsCache());
+    });
+
+    void useShortcut(String shortcut) {
+      whenListen(
+        settingsBlocLocal,
+        settingsControllerLocal.stream,
+        initialState: SettingsState.initial().copyWith(
+          shortcuts: {'key-shortcut-open-new-search': shortcut},
+        ),
+      );
+    }
+
+    setUp(() {
+      FocusRepository().resetForTesting();
+      settingsBlocLocal = MockSettingsBloc();
+      indexingBloc = MockIndexingBloc();
+      libraryBloc = MockLibraryBloc();
+      settingsControllerLocal = StreamController<SettingsState>.broadcast();
+
+      whenListen(
+        indexingBloc,
+        const Stream<IndexingState>.empty(),
+        initialState: IndexingInitial(),
+      );
+      whenListen(
+        libraryBloc,
+        const Stream<LibraryState>.empty(),
+        initialState: const LibraryState(),
+      );
+    });
+
+    tearDown(() async {
+      await settingsControllerLocal.close();
+      await indexingBloc.close();
+      await libraryBloc.close();
+      FocusRepository().resetForTesting();
+    });
+
+    /// מרים את עץ הקיצורים ומחזיר מונה חי של הפעלות "חיפוש חדש".
+    /// `withCallback: false` משאיר את ה-callback null כדי לבדוק את מסלול הדיאלוג.
+    Future<ValueNotifier<int>> pumpShortcuts(
+      WidgetTester tester, {
+      bool withCallback = true,
+    }) async {
+      final tabsBloc = _StubTabsBloc(
+        const TabsState(tabs: [], currentTabIndex: 0),
+      );
+      final historyBloc = _StubHistoryBloc();
+      final navigationBloc = _StubNavigationBloc();
+      final calls = ValueNotifier<int>(0);
+      addTearDown(() async {
+        await tabsBloc.close();
+        await historyBloc.close();
+        await navigationBloc.close();
+        calls.dispose();
+      });
+
+      await tester.pumpWidget(
+        MultiBlocProvider(
+          providers: [
+            BlocProvider<SettingsBloc>.value(value: settingsBlocLocal),
+            BlocProvider<TabsBloc>.value(value: tabsBloc),
+            BlocProvider<HistoryBloc>.value(value: historyBloc),
+            BlocProvider<NavigationBloc>.value(value: navigationBloc),
+            BlocProvider<IndexingBloc>.value(value: indexingBloc),
+            BlocProvider<LibraryBloc>.value(value: libraryBloc),
+            Provider<FocusRepository>.value(value: FocusRepository()),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: KeyboardShortcuts(
+                onFindRefRequested: () {},
+                onNewSearchRequested: withCallback ? () => calls.value++ : null,
+                child: const SizedBox(width: 100, height: 100),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      return calls;
+    }
+
+    Future<void> sendKeys(
+      WidgetTester tester,
+      List<LogicalKeyboardKey> modifiers,
+      LogicalKeyboardKey key,
+    ) async {
+      for (final modifier in modifiers) {
+        await tester.sendKeyDownEvent(modifier);
+      }
+      await tester.sendKeyDownEvent(key);
+      await tester.sendKeyUpEvent(key);
+      for (final modifier in modifiers.reversed) {
+        await tester.sendKeyUpEvent(modifier);
+      }
+      await tester.pump();
+    }
+
+    testWidgets('קיצור ברירת המחדל Ctrl+Shift+F מפעיל את החיפוש החדש', (
+      tester,
+    ) async {
+      useShortcut('ctrl+shift+f');
+      final calls = await pumpShortcuts(tester);
+
+      await sendKeys(
+        tester,
+        [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.shiftLeft],
+        LogicalKeyboardKey.keyF,
+      );
+
+      expect(calls.value, 1);
+    });
+
+    // רגרסיה: קיצור מותאם אישית שהוקלט בפריסה עברית נשמר בעבר עם התו העברי
+    // ולכן לא נתפס. כעת הוא נשמר קנוני, ואותה לחיצה פיזית מפעילה את הפעולה.
+    testWidgets('קיצור מותאם אישית Ctrl+Shift+D מפעיל את החיפוש החדש', (
+      tester,
+    ) async {
+      useShortcut('ctrl+shift+d');
+      final calls = await pumpShortcuts(tester);
+
+      await sendKeys(
+        tester,
+        [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.shiftLeft],
+        LogicalKeyboardKey.keyD,
+      );
+      expect(calls.value, 1);
+
+      // מקש אחר עם אותם modifiers אינו מפעיל את הפעולה
+      await sendKeys(
+        tester,
+        [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.shiftLeft],
+        LogicalKeyboardKey.keyF,
+      );
+      expect(calls.value, 1);
+    });
+
+    testWidgets('קיצור מותאם אישית שאינו אות (F8) מפעיל את החיפוש החדש', (
+      tester,
+    ) async {
+      useShortcut('f8');
+      final calls = await pumpShortcuts(tester);
+
+      await sendKeys(tester, const [], LogicalKeyboardKey.f8);
+      expect(calls.value, 1);
+    });
+
+    testWidgets('קיצור מותאם אישית Alt+חץ למעלה מפעיל את החיפוש החדש', (
+      tester,
+    ) async {
+      useShortcut('alt+arrowup');
+      final calls = await pumpShortcuts(tester);
+
+      await sendKeys(
+        tester,
+        [LogicalKeyboardKey.altLeft],
+        LogicalKeyboardKey.arrowUp,
+      );
+      expect(calls.value, 1);
+    });
+
+    testWidgets('קיצור ריק אינו מפעיל את החיפוש החדש', (tester) async {
+      useShortcut('');
+      final calls = await pumpShortcuts(tester);
+
+      await sendKeys(
+        tester,
+        [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.shiftLeft],
+        LogicalKeyboardKey.keyF,
+      );
+      expect(calls.value, 0);
+    });
+
+    testWidgets('ללא callback הקיצור פותח את דיאלוג החיפוש', (tester) async {
+      useShortcut('ctrl+shift+d');
+      await pumpShortcuts(tester, withCallback: false);
+
+      await sendKeys(
+        tester,
+        [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.shiftLeft],
+        LogicalKeyboardKey.keyD,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SearchDialog), findsOneWidget);
+    });
+  });
+
   group('KeyboardShortcuts - Ctrl+Shift+T', () {
     late MockSettingsBloc settingsBlocLocal;
     late StreamController<SettingsState> settingsControllerLocal;

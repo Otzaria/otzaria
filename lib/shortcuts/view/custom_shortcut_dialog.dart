@@ -92,7 +92,7 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog>
 
         if (event is KeyDownEvent) {
           setState(() {
-            _pressedKeys.add(event.logicalKey);
+            _pressedKeys.add(ShortcutHelper.logicalKeyToStore(event));
           });
           _updateDisplay();
         } else if (event is KeyUpEvent) {

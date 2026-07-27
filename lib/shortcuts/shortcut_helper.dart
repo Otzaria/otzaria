@@ -102,6 +102,41 @@ class ShortcutHelper {
     return expectedKey != null && event.logicalKey == expectedKey;
   }
 
+  /// האם [shortcut] ניתן לזיהוי בפועל — כלומר המקש הראשי שבו מוכר ל-
+  /// [matchesShortcut]. קיצור ריק תקין (פעולה ללא קיצור).
+  ///
+  /// קיצור שהוקלט בפריסה לא-לטינית לפני שההקלטה נורמלה נשמר עם התו המקומי
+  /// (`ctrl+shift+כ`) ולכן לעולם אינו נתפס — כזה מוחזר כאן כלא-מוכר.
+  static bool isRecognized(String shortcut) {
+    if (shortcut.isEmpty) return true;
+
+    final parts = shortcut.toLowerCase().split('+');
+    final mainKey = parts.where((p) => !_modifiers.contains(p)).firstOrNull;
+    if (mainKey == null) return false;
+
+    if (mainKey.length == 1 &&
+        mainKey.codeUnitAt(0) >= 97 &&
+        mainKey.codeUnitAt(0) <= 122) {
+      return true;
+    }
+
+    return KeyMap.keyFor(mainKey) != null;
+  }
+
+  /// מחזיר את המקש הלוגי שיש לשמור עבור [event].
+  ///
+  /// בפריסה לא-לטינית `logicalKey` של מקש אות הוא התו המקומי (למשל `'כ'`),
+  /// שאינו ניתן להשוואה ב-[matchesShortcut] — לכן מקשי אות מתורגמים למקש
+  /// הלטיני לפי מיקומם הפיזי, בסימטריה מלאה לבדיקת ה-physicalKey שם.
+  static LogicalKeyboardKey logicalKeyToStore(KeyEvent event) {
+    final letterOffset =
+        event.physicalKey.usbHidUsage - PhysicalKeyboardKey.keyA.usbHidUsage;
+    if (letterOffset >= 0 && letterOffset <= 25) {
+      return LogicalKeyboardKey(LogicalKeyboardKey.keyA.keyId + letterOffset);
+    }
+    return event.logicalKey;
+  }
+
   /// ממיר קבוצה של [LogicalKeyboardKey] למחרוזת קיצור (כגון `'ctrl+shift+f'`).
   ///
   /// ב-Mac, לחיצה על מקש Command נשמרת כ-`ctrl` בפורמט הקנוני, כך שאותו

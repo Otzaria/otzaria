@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/settings/engine/settings_wrapper.dart';
 import 'package:crypto/crypto.dart';
@@ -144,6 +145,7 @@ class SettingsRepository {
   Future<Map<String, dynamic>> loadSettings() async {
     // Initialize default settings to disk if needed
     await _initializeDefaultsIfNeeded();
+    await removeUnrecognizedShortcuts();
 
     return {
       'isDarkMode': _settings.getValue<bool>(keyDarkMode, defaultValue: false),
@@ -799,6 +801,36 @@ class SettingsRepository {
     }
 
     return Map<String, String>.unmodifiable(shortcuts);
+  }
+
+  /// מוחק קיצורים שמורים שהמקש שלהם אינו מוכר, כך שהפעולה חוזרת לקיצור
+  /// ברירת המחדל שעובד. קיצור שהוקלט בפריסה לא-לטינית לפני שההקלטה נורמלה
+  /// נשמר עם התו המקומי (`ctrl+shift+כ`) ולעולם אינו נתפס.
+  Future<void> removeUnrecognizedShortcuts() async {
+    final storedRaw = _settings.getValue<Map<dynamic, dynamic>>(
+      'shortcuts',
+      defaultValue: <dynamic, dynamic>{},
+    );
+    final stored = Map<String, dynamic>.from(storedRaw).cast<String, String>();
+
+    final keysToCheck = <String>{
+      ...ShortcutValidator.shortcutKeys,
+      ...ShortcutValidator.legacyShortcutAliases.values.expand((keys) => keys),
+      ...stored.keys,
+    };
+
+    for (final key in keysToCheck) {
+      final value = _settings.getValue<String?>(key, defaultValue: null);
+      if (value != null && !ShortcutHelper.isRecognized(value)) {
+        await _settings.remove(key);
+      }
+    }
+
+    final cleaned = Map<String, String>.from(stored)
+      ..removeWhere((_, value) => !ShortcutHelper.isRecognized(value));
+    if (cleaned.length != stored.length) {
+      await _settings.setValue('shortcuts', cleaned);
+    }
   }
 
   Future<void> resetShortcuts() async {
