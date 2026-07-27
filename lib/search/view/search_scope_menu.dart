@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -58,25 +59,81 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   Set<int> _baseBookIds = const {};
   Set<int> _baseUserBookIds = const {};
 
-  // בניית העץ וסיווג ספרי היסוד עוברים על כל ספר בספרייה. הם נדרשים רק
-  // כשהתפריט נפתח, ולכן מחושבים בעצלתיים — הצגת השדה לבדה חייבת להיות זולה.
   Library? _library;
   ScopeTree? _treeCache;
+  Future<ScopeTree>? _treeFuture;
   List<BookScopeNode>? _baseBookNodesCache;
+  Future<void>? _baseBookNodesFuture;
+  int _baseBookGeneration = 0;
 
-  ScopeTree? get _tree {
+  Future<ScopeTree?> _ensureTree() async {
     final library = _library;
     if (library == null) return null;
-    return _treeCache ??= ScopeTree.fromLibrary(library);
+    final cached = _treeCache;
+    if (cached != null) return cached;
+
+    final pending = _treeFuture;
+    if (pending != null) {
+      final tree = await pending;
+      return identical(library, _library) ? tree : null;
+    }
+
+    final future = ScopeTree.fromLibraryAsync(library);
+    _treeFuture = future;
+    try {
+      final tree = await future;
+      if (!mounted || !identical(library, _library)) return null;
+      setState(() => _treeCache = tree);
+      return tree;
+    } finally {
+      if (identical(_treeFuture, future)) _treeFuture = null;
+    }
   }
 
-  List<BookScopeNode> get _baseBookNodes =>
-      _baseBookNodesCache ??= _tree == null
-      ? const <BookScopeNode>[]
-      : [
-          for (final node in _tree!.allBookNodes())
-            if (_isBaseBook(node.book)) node,
-        ];
+  Future<void> _ensureBaseBookNodes() async {
+    if (_baseBookNodesCache != null) return;
+    if (_baseBookNodesFuture != null) return;
+
+    final library = _library;
+    if (library == null) return;
+    final generation = _baseBookGeneration;
+    final future = _classifyBaseBooks(library);
+    _baseBookNodesFuture = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_baseBookNodesFuture, future)) {
+        _baseBookNodesFuture = null;
+      }
+    }
+    if (mounted &&
+        identical(library, _library) &&
+        generation != _baseBookGeneration) {
+      await _ensureBaseBookNodes();
+    }
+  }
+
+  Future<void> _classifyBaseBooks(Library library) async {
+    final generation = _baseBookGeneration;
+    final tree = await _ensureTree();
+    if (tree == null || !identical(library, _library)) return;
+
+    final result = <BookScopeNode>[];
+    final books = tree.allBookNodes();
+    for (var i = 0; i < books.length; i++) {
+      final node = books[i];
+      if (_isBaseBook(node.book)) result.add(node);
+      if ((i + 1) % 200 == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+    if (!mounted ||
+        !identical(library, _library) ||
+        generation != _baseBookGeneration) {
+      return;
+    }
+    setState(() => _baseBookNodesCache = result);
+  }
 
   @override
   void initState() {
@@ -127,6 +184,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
       setState(() {
         _baseBookIds = ids;
         _baseUserBookIds = userIds;
+        _baseBookGeneration++;
         _baseBookNodesCache = null;
       });
     }
@@ -192,7 +250,10 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
         if (!identical(library, _library)) {
           _library = library;
           _treeCache = null;
+          _treeFuture = null;
+          _baseBookGeneration++;
           _baseBookNodesCache = null;
+          _baseBookNodesFuture = null;
         }
 
         return OverlayPortal(
@@ -363,8 +424,6 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   }
 
   Widget _buildOverlay(BuildContext context) {
-    final tree = _tree;
-    if (tree == null) return const SizedBox.shrink();
     final colorScheme = Theme.of(context).colorScheme;
 
     final anchorBox =
@@ -400,8 +459,10 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
           child: ExcludeFocus(
             child: _ScopeMenuPanel(
               key: _panelKey,
-              tree: tree,
-              baseBookNodes: _baseBookNodes,
+              tree: _treeCache,
+              baseBookNodes: _baseBookNodesCache,
+              onRequireTree: () => unawaited(_ensureTree()),
+              onRequireBaseBooks: () => unawaited(_ensureBaseBookNodes()),
               searchController: _searchController,
               selected: widget.selected,
               onChanged: widget.onChanged,
@@ -512,8 +573,10 @@ class _MenuItem {
 }
 
 class _ScopeMenuPanel extends StatefulWidget {
-  final ScopeTree tree;
-  final List<BookScopeNode> baseBookNodes;
+  final ScopeTree? tree;
+  final List<BookScopeNode>? baseBookNodes;
+  final VoidCallback onRequireTree;
+  final VoidCallback onRequireBaseBooks;
   final TextEditingController searchController;
   final Set<String> selected;
   final ValueChanged<Set<String>> onChanged;
@@ -523,6 +586,8 @@ class _ScopeMenuPanel extends StatefulWidget {
     super.key,
     required this.tree,
     required this.baseBookNodes,
+    required this.onRequireTree,
+    required this.onRequireBaseBooks,
     required this.searchController,
     required this.selected,
     required this.onChanged,
@@ -547,26 +612,46 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
 
   List<String> _authorResults = const [];
   int _authorRequestId = 0;
-
-  late final Set<String> _baseFacetSet = {
-    for (final n in widget.baseBookNodes) n.facet,
-  };
+  Set<String> _baseFacetSet = const {};
 
   @override
   void initState() {
     super.initState();
     _selection = Set<String>.from(widget.selected);
+    _syncBaseFacetSet();
     widget.searchController.addListener(_onQueryChanged);
   }
 
   @override
   void didUpdateWidget(covariant _ScopeMenuPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.baseBookNodes, widget.baseBookNodes)) {
+      _syncBaseFacetSet();
+    }
+    if (oldWidget.tree != null && widget.tree == null) {
+      _view = _View.root;
+      _stack.clear();
+      _highlight = 0;
+    }
     final incoming = widget.selected;
     if (incoming.length != _selection.length ||
         !incoming.containsAll(_selection)) {
       _selection = Set<String>.from(incoming);
     }
+    if (_hasActiveSearch) {
+      widget.onRequireTree();
+    } else if (_view == _View.base && widget.baseBookNodes == null) {
+      widget.onRequireBaseBooks();
+    } else if (_view == _View.categories && widget.tree == null) {
+      widget.onRequireTree();
+    }
+  }
+
+  void _syncBaseFacetSet() {
+    _baseFacetSet = {
+      for (final node in widget.baseBookNodes ?? const <BookScopeNode>[])
+        node.facet,
+    };
   }
 
   @override
@@ -587,6 +672,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
 
   void _onQueryChanged() {
     setState(() => _highlight = 0);
+    if (_hasActiveSearch) widget.onRequireTree();
     _fetchAuthors();
   }
 
@@ -622,9 +708,11 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
   }
 
   void _toggleCategoryFacet(String facet, bool select) {
+    final tree = widget.tree;
+    if (tree == null) return;
     final nextCategory = select
-        ? widget.tree.selectFacet(facet, _categoryPart)
-        : widget.tree.deselectFacet(facet, _categoryPart);
+        ? tree.selectFacet(facet, _categoryPart)
+        : tree.deselectFacet(facet, _categoryPart);
     _setCategorySelection(nextCategory);
   }
 
@@ -643,7 +731,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
 
   /// כל ספרי היסוד תחת [folderFacet], בסדר הספרייה.
   List<BookScopeNode> _baseUnder(String folderFacet) => [
-    for (final n in widget.baseBookNodes)
+    for (final n in widget.baseBookNodes ?? const <BookScopeNode>[])
       if (n.facet.startsWith('$folderFacet/')) n,
   ];
 
@@ -657,6 +745,11 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
   }
 
   void _enterView(_View view) {
+    if (view == _View.base) {
+      widget.onRequireBaseBooks();
+    } else if (view == _View.categories) {
+      widget.onRequireTree();
+    }
     setState(() {
       _view = view;
       _stack.clear();
@@ -737,47 +830,58 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
   // ── בניית הפריטים לפי המצב ────────────────────────────────────────────────
 
   List<_MenuItem> _currentItems() {
-    if (_hasActiveSearch) return _searchItems();
+    if (_hasActiveSearch) {
+      return widget.tree == null ? const [] : _searchItems();
+    }
     switch (_view) {
       case _View.root:
         return _rootItems();
       case _View.categories:
-        return _categoryLevelItems();
+        return widget.tree == null ? const [] : _categoryLevelItems();
       case _View.base:
-        return _baseLevelItems();
+        return widget.tree == null || widget.baseBookNodes == null
+            ? const []
+            : _baseLevelItems();
     }
   }
 
-  _MenuItem _bookItem(BookScopeNode node) => _MenuItem(
-    label: node.title,
-    subtitle: node.subtitle,
-    icon: FluentIcons.book_24_regular,
-    useRtlIcon: true,
-    check: widget.tree.isFacetCovered(node.facet, _categoryPart),
-    onToggle: (v) => _toggleCategoryFacet(node.facet, v),
-  );
+  _MenuItem _bookItem(BookScopeNode node) {
+    final tree = widget.tree!;
+    return _MenuItem(
+      label: node.title,
+      subtitle: node.subtitle,
+      icon: FluentIcons.book_24_regular,
+      useRtlIcon: true,
+      check: tree.isFacetCovered(node.facet, _categoryPart),
+      onToggle: (v) => _toggleCategoryFacet(node.facet, v),
+    );
+  }
 
-  _MenuItem _folderItem(ScopeNode node) => _MenuItem(
-    label: node.title,
-    icon: FluentIcons.folder_24_regular,
-    // סימון תיקיה בוחר את התיקיה כולה; לחיצה על השורה נכנסת פנימה (מעבר מסך).
-    check: widget.tree.categoryCheckState(node.facet, _categoryPart),
-    onToggle: (v) => _toggleCategoryFacet(node.facet, v),
-    onDrill: () => _drillInto(node),
-  );
+  _MenuItem _folderItem(ScopeNode node) {
+    final tree = widget.tree!;
+    return _MenuItem(
+      label: node.title,
+      icon: FluentIcons.folder_24_regular,
+      // סימון תיקיה בוחר את התיקיה כולה; לחיצה על השורה נכנסת פנימה (מעבר מסך).
+      check: tree.categoryCheckState(node.facet, _categoryPart),
+      onToggle: (v) => _toggleCategoryFacet(node.facet, v),
+      onDrill: () => _drillInto(node),
+    );
+  }
 
   /// רמת "כל הספרים": ילדי הרמה הנוכחית, עם קיפול שרשרת ילד-יחיד.
   List<_MenuItem> _categoryLevelItems() {
+    final tree = widget.tree!;
     final nodes = _stack.isEmpty
-        ? widget.tree.visibleChildren(null)
-        : widget.tree.expandedChildren(_stack.last);
+        ? tree.visibleChildren(null)
+        : tree.expandedChildren(_stack.last);
     final out = <_MenuItem>[];
     for (final node in nodes) {
       if (node is BookScopeNode) {
         out.add(_bookItem(node));
         continue;
       }
-      final single = widget.tree.singleBookOf(node);
+      final single = tree.singleBookOf(node);
       out.add(single != null ? _bookItem(single) : _folderItem(node));
     }
     return out;
@@ -786,17 +890,18 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
   /// רמת "ספרי יסוד": בשורש — תיקיות ראשיות עם ספרי יסוד; בתוך תיקיה — רשימה
   /// שטוחה של *כל* ספרי היסוד שתחתיה (ללא ירידה לתת-תיקיות).
   List<_MenuItem> _baseLevelItems() {
+    final tree = widget.tree!;
     if (_stack.isNotEmpty) {
       return [
         for (final book in _baseUnder(_stack.last.facet)) _bookItem(book),
       ];
     }
     final out = <_MenuItem>[];
-    for (final top in widget.tree.visibleChildren(
+    for (final top in tree.visibleChildren(
       null,
       onlyBooks: _baseFacetSet,
     )) {
-      final single = widget.tree.singleBookOf(top, onlyBooks: _baseFacetSet);
+      final single = tree.singleBookOf(top, onlyBooks: _baseFacetSet);
       out.add(single != null ? _bookItem(single) : _folderItem(top));
     }
     return out;
@@ -846,9 +951,10 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
   }
 
   List<_MenuItem> _searchItems() {
+    final tree = widget.tree!;
     final query = _normalizedQuery;
     final categoryPart = _categoryPart;
-    final treeResults = widget.tree.search(query);
+    final treeResults = tree.search(query);
     final eraMatches = [
       for (final era in _eraNames)
         if (normalizeFindText(era).contains(query)) era,
@@ -880,7 +986,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
               ? FluentIcons.book_24_regular
               : FluentIcons.folder_24_regular,
           useRtlIcon: item.isBook,
-          check: widget.tree.isFacetCovered(item.facet, categoryPart),
+          check: tree.isFacetCovered(item.facet, categoryPart),
           onToggle: (v) => _toggleCategoryFacet(item.facet, v),
         ),
     ];
@@ -891,6 +997,12 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
   @override
   Widget build(BuildContext context) {
     final items = _currentItems();
+    final waitingForTree =
+        (_hasActiveSearch || _view != _View.root) && widget.tree == null;
+    final waitingForBaseBooks =
+        !_hasActiveSearch &&
+        _view == _View.base &&
+        widget.baseBookNodes == null;
     final selectable = _selectableIndices(items);
     if (selectable.isNotEmpty && !selectable.contains(_highlight)) {
       _highlight = selectable.first;
@@ -903,7 +1015,9 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
       children: [
         if (showBreadcrumb) _buildBreadcrumb(context),
         Flexible(
-          child: items.isEmpty
+          child: waitingForTree || waitingForBaseBooks
+              ? const Center(child: CircularProgressIndicator())
+              : items.isEmpty
               ? _buildEmpty(context)
               : ListView.builder(
                   controller: _scrollController,

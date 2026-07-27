@@ -239,7 +239,7 @@ void main() {
     });
   });
 
-  group('ScopeTree — מטמון לפי זהות הספרייה', () {
+  group('ScopeTree — מטמון חלש לפי זהות הספרייה', () {
     test('קריאה חוזרת על אותה ספרייה מחזירה את אותו מופע', () {
       final library = _buildLibrary();
       final first = ScopeTree.fromLibrary(library);
@@ -262,7 +262,7 @@ void main() {
       );
     });
 
-    test('החלפת ספרייה ובחזרה אליה בונה מחדש תוכן נכון', () {
+    test('החלפת ספרייה ובחזרה אליה משתמשת שוב בעץ הנכון', () {
       final libraryA = _buildLibrary();
       final libraryB = _lib([
         _mkCat('קבלה', books: [TextBook(title: 'ספר הזהר')]),
@@ -272,6 +272,7 @@ void main() {
       ScopeTree.fromLibrary(libraryB);
       final secondA = ScopeTree.fromLibrary(libraryA);
 
+      expect(identical(firstA, secondA), isTrue);
       expect(
         secondA.rootNodes.map((n) => n.title).toList(),
         equals(firstA.rootNodes.map((n) => n.title).toList()),
@@ -280,6 +281,34 @@ void main() {
         secondA.allBookNodes().map((b) => b.facet).toSet(),
         equals(firstA.allBookNodes().map((b) => b.facet).toSet()),
       );
+    });
+
+    test('בנייה אסינכרונית מפנה את לולאת האירועים ושומרת את התוצאה', () async {
+      final library = _lib([
+        _mkCat(
+          'הלכה',
+          books: [
+            TextBook(title: 'א'),
+            TextBook(title: 'ב'),
+            TextBook(title: 'ג'),
+          ],
+        ),
+      ]);
+      var completed = false;
+
+      final future =
+          ScopeTree.fromLibraryAsync(
+            library,
+            batchSize: 1,
+          ).then((tree) {
+            completed = true;
+            return tree;
+          });
+
+      expect(completed, isFalse);
+      final asyncTree = await future;
+      expect(asyncTree.allBookNodes().length, 3);
+      expect(identical(asyncTree, ScopeTree.fromLibrary(library)), isTrue);
     });
   });
 

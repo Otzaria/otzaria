@@ -223,8 +223,7 @@ Future<void> main() async {
     testWidgets('תווית הצ׳יפ מדויקת גם בבחירה שמורה, בלי לחסום את הפתיחה', (
       tester,
     ) async {
-      // הבנייה נדחית לאחר הפריים הראשון: הצ׳יפ עשוי להיות גנרי בפריים
-      // הפתיחה, וחייב להתייצב על התווית הנכונה מיד אחריו.
+      // התווית נגזרת מה-facet עצמו ואינה תלויה בבניית העץ.
       final library = _buildLibrary(200);
       final libraryBloc = _MockLibraryBloc();
       whenListen(
@@ -347,10 +346,56 @@ Future<void> main() async {
       expectScanFree(small, large, 'פתיחה ראשונה, היקף שמור');
     });
 
+    testWidgets('פתיחת תפריט ההיקף אינה בונה או מסווגת את כל הספרייה', (
+      tester,
+    ) async {
+      Future<Duration> measureMenuOpen(int bookCount) async {
+        final libraryBloc = _MockLibraryBloc();
+        whenListen(
+          libraryBloc,
+          const Stream<LibraryState>.empty(),
+          initialState: LibraryState(library: _buildLibrary(bookCount)),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(useMaterial3: true),
+            home: BlocProvider<LibraryBloc>.value(
+              value: libraryBloc,
+              child: Scaffold(
+                body: SearchScopeMenuButton(
+                  selected: const {'/'},
+                  onChanged: (_) {},
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final stopwatch = Stopwatch()..start();
+        await tester.tap(find.byType(TextField));
+        await tester.pump();
+        stopwatch.stop();
+
+        expect(find.text('כל הספרים'), findsOneWidget);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await libraryBloc.close();
+        return stopwatch.elapsed;
+      }
+
+      await tester.binding.setSurfaceSize(const Size(600, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await measureMenuOpen(50);
+      final small = await measureMenuOpen(200);
+      final large = await measureMenuOpen(20000);
+      expectScanFree(small, large, 'פתיחת תפריט ההיקף');
+    });
+
     testWidgets('התפריט והחיפוש בו עובדים על העץ שנבנה בעצלתיים', (
       tester,
     ) async {
-      // העץ נבנה רק בפתיחת התפריט — ולכן חייב להיות זמין שם במלואו.
+      // העץ נבנה רק כשחיפוש או drill באמת דורשים אותו.
       await measureDialogOpen(tester, 200);
       final scopeField = find.descendant(
         of: find.byType(SearchScopeMenuButton),
@@ -374,6 +419,54 @@ Future<void> main() async {
         ),
         findsWidgets,
       );
+    });
+
+    testWidgets('כניסה לספרי יסוד מסווגת בעצלתיים ומציגה את הספרים', (
+      tester,
+    ) async {
+      final torah = _mkCat(
+        'תורה',
+        books: [
+          TextBook(title: 'בראשית', categoryPath: '/תנ״ך/תורה'),
+        ],
+      );
+      final tanach = _mkCat('תנ״ך', children: [torah]);
+      final library = Library(categories: [tanach]);
+      tanach.parent = library;
+
+      final libraryBloc = _MockLibraryBloc();
+      whenListen(
+        libraryBloc,
+        const Stream<LibraryState>.empty(),
+        initialState: LibraryState(library: library),
+      );
+      addTearDown(libraryBloc.close);
+
+      await tester.binding.setSurfaceSize(const Size(600, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(useMaterial3: true),
+          home: BlocProvider<LibraryBloc>.value(
+            value: libraryBloc,
+            child: Scaffold(
+              body: SearchScopeMenuButton(
+                selected: const {'/'},
+                onChanged: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+      await tester.tap(find.text('ספרי יסוד'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(find.text('בראשית'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('rebuild עם ספרייה חדשה אינו בונה את העץ מחדש', (tester) async {
