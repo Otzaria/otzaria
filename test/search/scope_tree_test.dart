@@ -238,4 +238,140 @@ void main() {
       expect(single?.title, equals('ספר א'));
     });
   });
+
+  group('ScopeTree — מטמון חלש לפי זהות הספרייה', () {
+    test('קריאה חוזרת על אותה ספרייה מחזירה את אותו מופע', () {
+      final library = _buildLibrary();
+      final first = ScopeTree.fromLibrary(library);
+      final second = ScopeTree.fromLibrary(library);
+      expect(identical(first, second), isTrue);
+    });
+
+    test('ספרייה אחרת בונה עץ חדש עם התוכן שלה', () {
+      final first = ScopeTree.fromLibrary(_buildLibrary());
+      final other = ScopeTree.fromLibrary(
+        _lib([
+          _mkCat('הלכה', books: [TextBook(title: 'שולחן ערוך')]),
+        ]),
+      );
+      expect(identical(first, other), isFalse);
+      expect(other.rootNodes.map((n) => n.title).toList(), equals(['הלכה']));
+      expect(
+        other.allBookNodes().map((b) => b.title).toList(),
+        equals(['שולחן ערוך']),
+      );
+    });
+
+    test('החלפת ספרייה ובחזרה אליה משתמשת שוב בעץ הנכון', () {
+      final libraryA = _buildLibrary();
+      final libraryB = _lib([
+        _mkCat('קבלה', books: [TextBook(title: 'ספר הזהר')]),
+      ]);
+
+      final firstA = ScopeTree.fromLibrary(libraryA);
+      ScopeTree.fromLibrary(libraryB);
+      final secondA = ScopeTree.fromLibrary(libraryA);
+
+      expect(identical(firstA, secondA), isTrue);
+      expect(
+        secondA.rootNodes.map((n) => n.title).toList(),
+        equals(firstA.rootNodes.map((n) => n.title).toList()),
+      );
+      expect(
+        secondA.allBookNodes().map((b) => b.facet).toSet(),
+        equals(firstA.allBookNodes().map((b) => b.facet).toSet()),
+      );
+    });
+
+    test('בנייה אסינכרונית מפנה את לולאת האירועים ושומרת את התוצאה', () async {
+      final library = _lib([
+        _mkCat(
+          'הלכה',
+          books: [
+            TextBook(title: 'א'),
+            TextBook(title: 'ב'),
+            TextBook(title: 'ג'),
+          ],
+        ),
+      ]);
+      var completed = false;
+
+      final future =
+          ScopeTree.fromLibraryAsync(
+            library,
+            batchSize: 1,
+          ).then((tree) {
+            completed = true;
+            return tree;
+          });
+
+      expect(completed, isFalse);
+      final asyncTree = await future;
+      expect(asyncTree.allBookNodes().length, 3);
+      expect(identical(asyncTree, ScopeTree.fromLibrary(library)), isTrue);
+    });
+  });
+
+  group('BookScopeNode — facet וכתובית מנתיב הקטגוריה', () {
+    /// עוטף ספר בקטגוריה עם הנתיב הנתון, כפי שבונה אותה ספק הספרייה.
+    Library libWithBook(Book book, String categoryTitle) => _lib([
+      _mkCat(categoryTitle, books: [book]),
+    ]);
+
+    test('facet של ספר נבנה תחת נתיב הקטגוריה שלו', () {
+      final node = ScopeTree.fromLibrary(
+        libWithBook(
+          TextBook(title: 'בראשית', id: 7, categoryPath: '/תנ״ך/תורה'),
+          'תורה',
+        ),
+      ).allBookNodes().single;
+      expect(node.facet, equals('/תנ״ך/תורה/id:7'));
+    });
+
+    test('הכתובית מציגה את נתיב הקטגוריה ואת המחבר', () {
+      final node = ScopeTree.fromLibrary(
+        libWithBook(
+          TextBook(
+            title: 'משנה תורה',
+            author: 'הרמב״ם',
+            categoryPath: '/הלכה',
+          ),
+          'הלכה',
+        ),
+      ).allBookNodes().single;
+      expect(node.subtitle, equals('הלכה • הרמב״ם'));
+    });
+
+    test('ספר בלי מחבר מציג את נתיב הקטגוריה בלבד', () {
+      final node = ScopeTree.fromLibrary(
+        libWithBook(
+          TextBook(title: 'ילקוט שמעוני', categoryPath: '/מדרש/אגדה'),
+          'אגדה',
+        ),
+      ).allBookNodes().single;
+      expect(node.subtitle, equals('מדרש/אגדה'));
+    });
+
+    test('ספר בלי נתיב קטגוריה מציג את המחבר בלבד', () {
+      final node = ScopeTree.fromLibrary(
+        libWithBook(TextBook(title: 'ספר יתום', author: 'פלוני'), 'ריק'),
+      ).allBookNodes().single;
+      expect(node.subtitle, equals('פלוני'));
+    });
+
+    test('נתיב הקטגוריה נגזר מ-topics כשאין categoryPath', () {
+      final node = ScopeTree.fromLibrary(
+        libWithBook(
+          TextBook(
+            title: 'ברכות',
+            topics: 'תלמוד בבלי, סדר זרעים',
+            author: 'חז״ל',
+          ),
+          'סדר זרעים',
+        ),
+      ).allBookNodes().single;
+      expect(node.subtitle, equals('תלמוד בבלי/סדר זרעים • חז״ל'));
+      expect(node.facet, startsWith('/תלמוד בבלי/סדר זרעים/'));
+    });
+  });
 }

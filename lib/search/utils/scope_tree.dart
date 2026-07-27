@@ -14,7 +14,44 @@ class ScopeTree {
 
   const ScopeTree._(this.rootNodes, this.nodesByFacet);
 
+  // מפתח חלש מונע מהמטמון להאריך את חיי הספרייה והעץ לאחר רענון.
+  static final Expando<ScopeTree> _cache = Expando<ScopeTree>('scopeTree');
+  static final Expando<Future<ScopeTree>> _pendingBuilds =
+      Expando<Future<ScopeTree>>('pendingScopeTree');
+
   factory ScopeTree.fromLibrary(Library library) {
+    return _cache[library] ??= ScopeTree._build(library);
+  }
+
+  /// בונה את העץ במנות קטנות כדי לא לחסום את לולאת האירועים.
+  static Future<ScopeTree> fromLibraryAsync(
+    Library library, {
+    int batchSize = 200,
+  }) {
+    final cached = _cache[library];
+    if (cached != null) return Future<ScopeTree>.value(cached);
+
+    final pending = _pendingBuilds[library];
+    if (pending != null) return pending;
+
+    final future = _buildAndCacheAsync(library, batchSize);
+    _pendingBuilds[library] = future;
+    return future;
+  }
+
+  static Future<ScopeTree> _buildAndCacheAsync(
+    Library library,
+    int batchSize,
+  ) async {
+    try {
+      final tree = await _buildAsync(library, batchSize);
+      return _cache[library] ??= tree;
+    } finally {
+      _pendingBuilds[library] = null;
+    }
+  }
+
+  static ScopeTree _build(Library library) {
     final nodesByFacet = <String, ScopeNode>{};
 
     ScopeNode buildCategoryNode(Category category) {
@@ -37,10 +74,7 @@ class ScopeTree {
         for (final book in sortedBooks)
           BookScopeNode(
             book: book,
-            facet: FacetHelper.buildBookFacet(
-              FacetHelper.resolveCategoryPath(book),
-              book,
-            ),
+            categoryPath: FacetHelper.resolveCategoryPath(book) ?? '',
           ),
       ];
 
@@ -63,6 +97,67 @@ class ScopeTree {
     final rootNodes = [
       for (final category in sortedTop) buildCategoryNode(category),
     ];
+    return ScopeTree._(rootNodes, nodesByFacet);
+  }
+
+  static Future<ScopeTree> _buildAsync(Library library, int batchSize) async {
+    assert(batchSize > 0);
+    final nodesByFacet = <String, ScopeNode>{};
+    var processedNodes = 0;
+
+    Future<ScopeNode> buildCategoryNode(Category category) async {
+      final sortedCategories = category.subCategories.toList()
+        ..sort(
+          (a, b) => SearchCatalogueOrderHelper.normalizeOrder(
+            a.order,
+          ).compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)),
+        );
+      final sortedBooks = category.books.toList()
+        ..sort(
+          (a, b) => SearchCatalogueOrderHelper.normalizeOrder(
+            a.order,
+          ).compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)),
+        );
+
+      final children = <ScopeNode>[];
+      for (final subCategory in sortedCategories) {
+        children.add(await buildCategoryNode(subCategory));
+      }
+      for (final book in sortedBooks) {
+        children.add(
+          BookScopeNode(
+            book: book,
+            categoryPath: FacetHelper.resolveCategoryPath(book) ?? '',
+          ),
+        );
+        processedNodes++;
+        if (processedNodes % batchSize == 0) {
+          await Future<void>.delayed(Duration.zero);
+        }
+      }
+
+      final node = CategoryScopeNode(category: category, children: children);
+      nodesByFacet[node.facet] = node;
+      for (final child in children) {
+        nodesByFacet[child.facet] = child;
+      }
+      processedNodes++;
+      if (processedNodes % batchSize == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      return node;
+    }
+
+    final sortedTop = library.subCategories.toList()
+      ..sort(
+        (a, b) => SearchCatalogueOrderHelper.topCategoryOrder(
+          a,
+        ).compareTo(SearchCatalogueOrderHelper.topCategoryOrder(b)),
+      );
+    final rootNodes = <ScopeNode>[];
+    for (final category in sortedTop) {
+      rootNodes.add(await buildCategoryNode(category));
+    }
     return ScopeTree._(rootNodes, nodesByFacet);
   }
 
@@ -346,6 +441,9 @@ class ScopeTree {
 
   /// הילדים הגלויים של [parent] (או השורש כש-null) בסדר הספרייה, לאחר סינון
   /// לפי [onlyBooks].
+  ///
+  /// ללא [onlyBooks] מוחזרת רשימת הילדים הפנימית עצמה. העץ ממוטמן ומשותף
+  /// לכל צרכניו, ולכן מיון או שינוי של הרשימה המוחזרת יזהם אותם.
   List<ScopeNode> visibleChildren(ScopeNode? parent, {Set<String>? onlyBooks}) {
     final children = parent == null ? rootNodes : parent.children;
     if (onlyBooks == null) return children;
@@ -413,12 +511,12 @@ class CategoryScopeNode extends ScopeNode {
 class BookScopeNode extends ScopeNode {
   final Book book;
 
-  BookScopeNode({required this.book, required super.facet})
+  BookScopeNode({required this.book, required String categoryPath})
     : super(
+        facet: FacetHelper.buildBookFacet(categoryPath, book),
         title: book.title,
         subtitle: [
-          if ((FacetHelper.resolveCategoryPath(book) ?? '').isNotEmpty)
-            (FacetHelper.resolveCategoryPath(book) ?? '').replaceFirst('/', ''),
+          if (categoryPath.isNotEmpty) categoryPath.replaceFirst('/', ''),
           if ((book.author ?? '').trim().isNotEmpty) book.author!.trim(),
         ].join(' • '),
         children: const [],
