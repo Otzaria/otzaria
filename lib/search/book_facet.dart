@@ -272,13 +272,16 @@ class BookFacet {
     return raw.split('/').where((part) => part.isNotEmpty).join(', ');
   }
 
+  // static: נקרא פעמים רבות פר ספר בבניית עץ ההיקף, ו-RegExp מקומי מקמפל
+  // מחדש בכל קריאה.
+  static final RegExp _pathSeparatorPattern = RegExp(r'\s*(?:/|,)\s*');
+
   static String _normalizeCategoryPath(String? value) {
     final raw = (value ?? '').trim();
     if (raw.isEmpty) return '';
 
-    final separatorPattern = RegExp(r'\s*(?:/|,)\s*');
     final parts = raw
-        .split(separatorPattern)
+        .split(_pathSeparatorPattern)
         .where((part) => part.isNotEmpty)
         .toList();
     if (parts.isEmpty) return '';

@@ -8,6 +8,7 @@ import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
+import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/search/utils/find_match_utils.dart';
@@ -57,9 +58,25 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   Set<int> _baseBookIds = const {};
   Set<int> _baseUserBookIds = const {};
 
-  ScopeTree? _tree;
-  List<BookScopeNode> _baseBookNodes = const [];
-  Set<String> _baseFacetSet = const {};
+  // בניית העץ וסיווג ספרי היסוד עוברים על כל ספר בספרייה. הם נדרשים רק
+  // כשהתפריט נפתח, ולכן מחושבים בעצלתיים — הצגת השדה לבדה חייבת להיות זולה.
+  Library? _library;
+  ScopeTree? _treeCache;
+  List<BookScopeNode>? _baseBookNodesCache;
+
+  ScopeTree? get _tree {
+    final library = _library;
+    if (library == null) return null;
+    return _treeCache ??= ScopeTree.fromLibrary(library);
+  }
+
+  List<BookScopeNode> get _baseBookNodes =>
+      _baseBookNodesCache ??= _tree == null
+      ? const <BookScopeNode>[]
+      : [
+          for (final node in _tree!.allBookNodes())
+            if (_isBaseBook(node.book)) node,
+        ];
 
   @override
   void initState() {
@@ -82,7 +99,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
     // פתיחה בלבד בעת קבלת פוקוס. סגירה אינה תלויה בפוקוס — לחיצה על פריט
     // בתפריט מאבדת את פוקוס השדה (התנהגות EditableText), והסגירה מתבצעת רק
     // בלחיצה מחוץ לתפריט או ב-Escape.
-    if (_fieldFocus.hasFocus && _tree != null && !_portal.isShowing) {
+    if (_fieldFocus.hasFocus && _library != null && !_portal.isShowing) {
       _portal.show();
     }
   }
@@ -110,6 +127,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
       setState(() {
         _baseBookIds = ids;
         _baseUserBookIds = userIds;
+        _baseBookNodesCache = null;
       });
     }
   }
@@ -171,14 +189,11 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
       builder: (context, libraryState) {
         final library = libraryState.library;
         final enabled = library != null;
-        _tree = enabled ? ScopeTree.fromLibrary(library) : null;
-        _baseBookNodes = _tree == null
-            ? const <BookScopeNode>[]
-            : [
-                for (final node in _tree!.allBookNodes())
-                  if (_isBaseBook(node.book)) node,
-              ];
-        _baseFacetSet = {for (final n in _baseBookNodes) n.facet};
+        if (!identical(library, _library)) {
+          _library = library;
+          _treeCache = null;
+          _baseBookNodesCache = null;
+        }
 
         return OverlayPortal(
           controller: _portal,
@@ -316,9 +331,15 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
     final dimensions = FacetHelper.dimensionFacetsOf(widget.selected).toList();
 
     if (categories.isNotEmpty) {
-      // כל הבחירה הספציפית היא ספרי יסוד? אם כן — התווית "ספרי יסוד".
+      // התווית "ספרי יסוד" רק כשכל הבחירה היא ספרי יסוד. נבדק פר-facet נבחר
+      // ורק על עץ שכבר נבנה — כדי לא לסרוק את הספרייה בכל build של השדה.
+      final tree = _treeCache;
       final allBase =
-          _baseFacetSet.isNotEmpty && categories.every(_baseFacetSet.contains);
+          tree != null &&
+          categories.every((facet) {
+            final node = tree.nodesByFacet[facet];
+            return node is BookScopeNode && _isBaseBook(node.book);
+          });
       result.add((
         label: allBase ? 'ספרי יסוד' : 'כל הספרים',
         partial: true,

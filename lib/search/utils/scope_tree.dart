@@ -14,7 +14,23 @@ class ScopeTree {
 
   const ScopeTree._(this.rootNodes, this.nodesByFacet);
 
+  // ממוטמן לפי זהות אובייקט הספרייה, כי הבנייה עוברת על כל ספר בה.
+  // ספרייה שמשונה in-place (ולא מוחלפת באובייקט חדש) תחזיר עץ מיושן.
+  static Library? _cachedLibrary;
+  static ScopeTree? _cachedTree;
+
   factory ScopeTree.fromLibrary(Library library) {
+    final cached = _cachedTree;
+    if (cached != null && identical(_cachedLibrary, library)) {
+      return cached;
+    }
+    final tree = ScopeTree._build(library);
+    _cachedLibrary = library;
+    _cachedTree = tree;
+    return tree;
+  }
+
+  static ScopeTree _build(Library library) {
     final nodesByFacet = <String, ScopeNode>{};
 
     ScopeNode buildCategoryNode(Category category) {
@@ -37,10 +53,7 @@ class ScopeTree {
         for (final book in sortedBooks)
           BookScopeNode(
             book: book,
-            facet: FacetHelper.buildBookFacet(
-              FacetHelper.resolveCategoryPath(book),
-              book,
-            ),
+            categoryPath: FacetHelper.resolveCategoryPath(book) ?? '',
           ),
       ];
 
@@ -346,6 +359,9 @@ class ScopeTree {
 
   /// הילדים הגלויים של [parent] (או השורש כש-null) בסדר הספרייה, לאחר סינון
   /// לפי [onlyBooks].
+  ///
+  /// ללא [onlyBooks] מוחזרת רשימת הילדים הפנימית עצמה. העץ ממוטמן ומשותף
+  /// לכל צרכניו, ולכן מיון או שינוי של הרשימה המוחזרת יזהם אותם.
   List<ScopeNode> visibleChildren(ScopeNode? parent, {Set<String>? onlyBooks}) {
     final children = parent == null ? rootNodes : parent.children;
     if (onlyBooks == null) return children;
@@ -413,12 +429,12 @@ class CategoryScopeNode extends ScopeNode {
 class BookScopeNode extends ScopeNode {
   final Book book;
 
-  BookScopeNode({required this.book, required super.facet})
+  BookScopeNode({required this.book, required String categoryPath})
     : super(
+        facet: FacetHelper.buildBookFacet(categoryPath, book),
         title: book.title,
         subtitle: [
-          if ((FacetHelper.resolveCategoryPath(book) ?? '').isNotEmpty)
-            (FacetHelper.resolveCategoryPath(book) ?? '').replaceFirst('/', ''),
+          if (categoryPath.isNotEmpty) categoryPath.replaceFirst('/', ''),
           if ((book.author ?? '').trim().isNotEmpty) book.author!.trim(),
         ].join(' • '),
         children: const [],
