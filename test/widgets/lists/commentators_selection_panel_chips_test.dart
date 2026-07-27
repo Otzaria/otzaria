@@ -135,6 +135,163 @@ void main() {
     expect(unselected.backgroundColor, isNull);
   });
 
+  group('צ׳יפ סוג מצמצם את רשימת המפרשים, כמו צ׳יפ דור', () {
+    const byType = {
+      'TARGUM': {'רש"י'},
+      'MIDRASH': {'קצות החושן'},
+    };
+
+    Future<void> pumpWithTypes(
+      WidgetTester tester, {
+      required Set<String> selectedTypeChips,
+      Map<String, Set<String>> commentatorsByType = byType,
+    }) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: CommentatorsSelectionPanel(
+                groups: groups,
+                selectedCommentators: const [],
+                onSelectionChanged: (_) {},
+                bookTitle: 'בראשית',
+                typeChipKeys: const ['TARGUM', 'MIDRASH'],
+                selectedTypeChips: selectedTypeChips,
+                typeChipLabelBuilder: (key) =>
+                    key == 'TARGUM' ? 'תרגום' : 'מדרש',
+                commentatorsByType: commentatorsByType,
+                onTypeChipsChanged: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('בלי בחירת סוג — כל המפרשים ברשימה', (tester) async {
+      await pumpWithTypes(tester, selectedTypeChips: const {});
+
+      expect(find.widgetWithText(CheckboxListTile, 'רש"י'), findsOneWidget);
+      expect(
+        find.widgetWithText(CheckboxListTile, 'קצות החושן'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('בחירת "תרגום" משאירה רק את המפרש מאותו סוג', (tester) async {
+      await pumpWithTypes(tester, selectedTypeChips: const {'TARGUM'});
+
+      expect(find.widgetWithText(CheckboxListTile, 'רש"י'), findsOneWidget);
+      expect(find.widgetWithText(CheckboxListTile, 'קצות החושן'), findsNothing);
+    });
+
+    testWidgets('בחירת שני סוגים = איחוד הרשימות', (tester) async {
+      await pumpWithTypes(
+        tester,
+        selectedTypeChips: const {'TARGUM', 'MIDRASH'},
+      );
+
+      expect(find.widgetWithText(CheckboxListTile, 'רש"י'), findsOneWidget);
+      expect(
+        find.widgetWithText(CheckboxListTile, 'קצות החושן'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('כפתור "הצג את כל" של דור שכל מפרשיו סוננו אינו מוצג', (
+      tester,
+    ) async {
+      await pumpWithTypes(tester, selectedTypeChips: const {'TARGUM'});
+
+      // 'רש"י' בראשונים נשאר, ולכן קצות החושן ('אחרונים') נושר עם הכפתור שלו.
+      expect(
+        find.widgetWithText(CheckboxListTile, 'הצג את כל הראשונים'),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(CheckboxListTile, 'הצג את כל האחרונים'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('בלי commentatorsByType אין צמצום (מסלול ה-PDF)', (
+      tester,
+    ) async {
+      await pumpWithTypes(
+        tester,
+        selectedTypeChips: const {'TARGUM'},
+        commentatorsByType: const {},
+      );
+
+      expect(find.widgetWithText(CheckboxListTile, 'רש"י'), findsOneWidget);
+      expect(
+        find.widgetWithText(CheckboxListTile, 'קצות החושן'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('מפה שוות-ערך שנבנית מחדש אינה משנה את הרשימה', (tester) async {
+      // הקוראים בונים את commentatorsByType בכל build, ולכן ההשוואה חייבת
+      // להיות עמוקה ולא לפי זהות ה-Set-ים.
+      Map<String, Set<String>> freshMap() => {
+        'TARGUM': {'רש"י'},
+        'MIDRASH': {'קצות החושן'},
+      };
+
+      await pumpWithTypes(
+        tester,
+        selectedTypeChips: const {'TARGUM'},
+        commentatorsByType: freshMap(),
+      );
+      await pumpWithTypes(
+        tester,
+        selectedTypeChips: const {'TARGUM'},
+        commentatorsByType: freshMap(),
+      );
+
+      expect(find.widgetWithText(CheckboxListTile, 'רש"י'), findsOneWidget);
+      expect(find.widgetWithText(CheckboxListTile, 'קצות החושן'), findsNothing);
+    });
+
+    testWidgets('שינוי אמיתי במפה כן מרענן את הרשימה', (tester) async {
+      await pumpWithTypes(
+        tester,
+        selectedTypeChips: const {'TARGUM'},
+        commentatorsByType: const {
+          'TARGUM': {'רש"י'},
+        },
+      );
+      expect(find.widgetWithText(CheckboxListTile, 'קצות החושן'), findsNothing);
+
+      await pumpWithTypes(
+        tester,
+        selectedTypeChips: const {'TARGUM'},
+        commentatorsByType: const {
+          'TARGUM': {'רש"י', 'קצות החושן'},
+        },
+      );
+
+      expect(
+        find.widgetWithText(CheckboxListTile, 'קצות החושן'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('שינוי הבחירה מבחוץ מעדכן את הרשימה מיד', (tester) async {
+      await pumpWithTypes(tester, selectedTypeChips: const {});
+      expect(
+        find.widgetWithText(CheckboxListTile, 'קצות החושן'),
+        findsOneWidget,
+      );
+
+      await pumpWithTypes(tester, selectedTypeChips: const {'TARGUM'});
+
+      expect(find.widgetWithText(CheckboxListTile, 'קצות החושן'), findsNothing);
+    });
+  });
+
   testWidgets('בחירת דור אינה משפיעה על בחירת הסוגים', (tester) async {
     Set<String>? reportedTypes;
     await tester.pumpWidget(

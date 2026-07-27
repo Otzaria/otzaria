@@ -41,6 +41,10 @@ class CommentatorsSelectionPanel extends StatefulWidget {
   /// תווית להצגה עבור מפתח סוג. ברירת המחדל: המפתח עצמו.
   final String Function(String key)? typeChipLabelBuilder;
 
+  /// שמות המפרשים שיש להם קישור מכל סוג. בחירת צ׳יפ סוג מצמצמת את רשימת
+  /// המפרשים לאלה בלבד, בדיוק כפי שצ׳יפ דור מצמצם אותה. ריק = אין צמצום.
+  final Map<String, Set<String>> commentatorsByType;
+
   const CommentatorsSelectionPanel({
     super.key,
     required this.groups,
@@ -55,6 +59,7 @@ class CommentatorsSelectionPanel extends StatefulWidget {
     this.selectedTypeChips = const {},
     this.onTypeChipsChanged,
     this.typeChipLabelBuilder,
+    this.commentatorsByType = const {},
   });
 
   @override
@@ -102,9 +107,29 @@ class _CommentatorsSelectionPanelState
         !setEquals(
           oldWidget.lineRelevantCommentators,
           widget.lineRelevantCommentators,
+        ) ||
+        !setEquals(oldWidget.selectedTypeChips, widget.selectedTypeChips) ||
+        !_sameCommentatorsByType(
+          oldWidget.commentatorsByType,
+          widget.commentatorsByType,
         )) {
       _update();
     }
+  }
+
+  /// השוואה עמוקה. `mapEquals` היה משווה את ה-Set-ים בזהות, ומאחר שהמפה
+  /// נבנית מחדש בכל build הוא תמיד החזיר false ו-_update רץ בכל rebuild.
+  bool _sameCommentatorsByType(
+    Map<String, Set<String>> a,
+    Map<String, Set<String>> b,
+  ) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (final entry in a.entries) {
+      final other = b[entry.key];
+      if (other == null || !setEquals(entry.value, other)) return false;
+    }
+    return true;
   }
 
   /// מפרש נדיר מוסתר מהרשימה אלא אם השורה הנוכחית כוללת קישור מהם.
@@ -119,9 +144,23 @@ class _CommentatorsSelectionPanelState
     super.dispose();
   }
 
+  /// שמות המפרשים המותרים לפי צ׳יפי הסוג שנבחרו. null = אין סינון סוג.
+  Set<String>? _titlesAllowedByType() {
+    if (widget.selectedTypeChips.isEmpty || widget.commentatorsByType.isEmpty) {
+      return null;
+    }
+    final allowed = <String>{};
+    for (final type in widget.selectedTypeChips) {
+      allowed.addAll(widget.commentatorsByType[type] ?? const {});
+    }
+    return allowed;
+  }
+
   Future<List<String>> _filterGroup(List<String> group) async {
+    final allowedByType = _titlesAllowedByType();
     final filteredByQuery = group
         .where(_isCommentatorVisible)
+        .where((title) => allowedByType?.contains(title) ?? true)
         .where((title) => title.contains(_searchController.text));
 
     if (_selectedTopics.isEmpty) {

@@ -5,6 +5,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/models/link_types.dart';
+import 'package:otzaria/text_book/utils/commentary_type_filter.dart';
 import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
 import 'package:otzaria/text_book/utils/per_book_display_settings.dart';
 import 'package:otzaria/text_book/utils/toc_unit_label.dart';
@@ -388,6 +390,9 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
   final _commentaryKey = GlobalKey<CommentaryListBaseState>();
   // מצב פתיחה/כיווץ של כל המפרשים, מסונכרן עם CommentaryListBase
   final _allExpandedInChild = ValueNotifier<bool>(true);
+  // בחירת סוגי המפרשים. חיה כאן ולא ב-CommentaryListBase, כי הצ׳יפים מוצגים
+  // בלשונית הצדדית שמסך זה בונה בעוד הרשימה מסוננת ברכיב הבן.
+  final _typeSelection = CommentaryTypeSelection();
   bool _navPaneOpen = false;
   bool _pinLeftPane = false;
   // רשימת המפרשים הנבחרים (עצמאית לחלונית זו, מסונכרנת פעם אחת עם מקור הפתיחה)
@@ -458,6 +463,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
   void dispose() {
     FocusRepository().unregisterTabContentFocusRequester(widget.tab);
     _navTabController.dispose();
+    _typeSelection.dispose();
     _commentarySearchController.dispose();
     _searchFocusNode.dispose();
     _tocSearchController.dispose();
@@ -853,6 +859,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
           externalSearchResultsByPathNotifier: _externalSearchResultsByPath,
           externalSearchSnippetsNotifier: _externalSearchSnippets,
           externalAllExpandedNotifier: _allExpandedInChild,
+          typeSelection: _typeSelection,
         ),
       ),
     );
@@ -1363,17 +1370,41 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     final chapters = _getChapters(state.tableOfContents);
     final indexes =
         _effectiveIndexes(chapters, state.content.length) ?? const <int>[];
-    return CommentatorsSelectionPanel(
-      groups: groups,
+    final chipKeys = CommentaryTypeFilter.chipKeysForCommentators(
+      links: state.links,
       selectedCommentators: selected,
-      bookTitle: state.book.title,
-      rareCommentators: state.rareCommentators,
-      lineRelevantCommentators: lineRelevantRareCommentators(
-        rareCommentators: state.rareCommentators,
-        currentIndexes: indexes,
-        linksByLine: state.linksByLine,
-      ),
-      onSelectionChanged: _updateSelectedCommentators,
+    );
+    final commentatorsByType = CommentaryTypeFilter.commentatorsByType(
+      state.links,
+    );
+    return ValueListenableBuilder<Set<String>>(
+      valueListenable: _typeSelection,
+      builder: (context, selectedTypes, _) {
+        final effectiveTypes = CommentaryTypeFilter.effectiveTypes(
+          selectedTypes: selectedTypes,
+          availableKeys: chipKeys,
+        );
+        return CommentatorsSelectionPanel(
+          groups: groups,
+          selectedCommentators: selected,
+          bookTitle: state.book.title,
+          rareCommentators: state.rareCommentators,
+          lineRelevantCommentators: lineRelevantRareCommentators(
+            rareCommentators: state.rareCommentators,
+            currentIndexes: indexes,
+            linksByLine: state.linksByLine,
+          ),
+          onSelectionChanged: _updateSelectedCommentators,
+          typeChipKeys: CommentaryTypeFilter.visibleChipKeys(
+            chipKeys: chipKeys,
+            effectiveTypes: effectiveTypes,
+          ),
+          selectedTypeChips: effectiveTypes,
+          typeChipLabelBuilder: LinkTypes.hebrewLabel,
+          commentatorsByType: commentatorsByType,
+          onTypeChipsChanged: (types) => _typeSelection.value = types,
+        );
+      },
     );
   }
 
