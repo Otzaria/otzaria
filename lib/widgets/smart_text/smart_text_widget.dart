@@ -282,12 +282,12 @@ class SmartTextWidget extends StatelessWidget {
             }
             return style;
           }
-          // טווח-ציטוט (לינקר): קו תחתון בצבע ה-primary, בגופן הטקסט הסובב.
+          // טווח-ציטוט (לינקר): צבע ה-primary בגופן הטקסט הסובב, בלי קו תחתון.
           // בלי וריאנט טיפוגרפי — הוא שייך לסמני-האות של המפרשים בלבד.
           if ((element.localName == 'span' || element.localName == 'a') &&
               element.classes.contains('link-anchor-range')) {
             return <String, String>{
-              'text-decoration': 'underline',
+              'text-decoration': 'none',
               'color': anchorLinkColorCss,
             };
           }
@@ -416,7 +416,6 @@ class _SmartTextWidgetFactory extends WidgetFactory {
     super.reset(state);
   }
 }
-
 
 /// גרסה פשוטה יותר של SmartTextWidget שמקבלת פרמטרים בודדים
 /// במקום RenderSettings - נוחה למקרים פשוטים

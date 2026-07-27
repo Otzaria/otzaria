@@ -357,6 +357,52 @@ void main() {
         'כמלכל, פרק ו, פסוק ג',
       );
     });
+
+    // רגרסיה: ה-TOC של "משנה אבות" נעצר בפרק, וכתובת השורה ("א, ג") היא
+    // היחידה שנושאת את מספר המשנה. הניקוד לבדו העדיף את הכתובת הקצרה.
+    test('מעדיף את כתובת השורה כשהיא עמוקה מכתובת ה-TOC', () {
+      expect(
+        formatDisplayReference(
+          bookTitle: 'משנה אבות',
+          resolvedRef: 'פרק א',
+          fallbackRef: 'משנה אבות א, ג',
+        ),
+        'משנה אבות א, ג',
+      );
+    });
+
+    test('נשאר בכתובת ה-TOC כשהיא עמוקה מכתובת השורה', () {
+      expect(
+        formatDisplayReference(
+          bookTitle: 'ברכות',
+          resolvedRef: 'דף ב, עמוד א',
+          fallbackRef: 'ברכות ב א',
+        ),
+        'ברכות, דף ב, עמוד א',
+      );
+    });
+
+    test('כתובת שורה שהיא רק שם הספר אינה דוחקת את כתובת ה-TOC', () {
+      expect(
+        formatDisplayReference(
+          bookTitle: 'משנה אבות',
+          resolvedRef: 'פרק א',
+          fallbackRef: 'משנה אבות',
+        ),
+        'משנה אבות, פרק א',
+      );
+    });
+
+    test('עומק שווה — הניקוד ממשיך להכריע לטובת כתובת ה-TOC', () {
+      expect(
+        formatDisplayReference(
+          bookTitle: 'בראשית',
+          resolvedRef: 'פרק א',
+          fallbackRef: 'א',
+        ),
+        'בראשית, פרק א',
+      );
+    });
   });
 
   group('addBookTitleToRef', () {

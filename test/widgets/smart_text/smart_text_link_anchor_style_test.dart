@@ -3,8 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 
-// ציטוט הלינקר (link-anchor-range) חייב להיראות כמו הטקסט שסביבו — קו תחתון
-// וצבע הנושא בלבד. וריאנט טיפוגרפי (כתב רש"י/נטוי/מודגש) שייך אך ורק
+// ציטוט הלינקר (link-anchor-range) חייב להיראות כמו הטקסט שסביבו — צבע הנושא
+// בלבד, בלי קו תחתון. וריאנט טיפוגרפי (כתב רש"י/נטוי/מודגש) שייך אך ורק
 // לסמני-האות של המפרשים (link-anchor).
 void main() {
   final theme = ThemeData(
@@ -30,7 +30,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('ציטוט לינקר: אותו גופן כמו הטקסט הסובב, קו תחתון וצבע הנושא', (
+  testWidgets('ציטוט לינקר: אותו גופן כמו הטקסט הסובב, בלי קו תחתון', (
     tester,
   ) async {
     await pumpText(
@@ -46,7 +46,7 @@ void main() {
     expect(citation.fontSize, around.fontSize);
     expect(citation.fontStyle, isNot(FontStyle.italic));
     expect(citation.fontWeight ?? FontWeight.normal, FontWeight.normal);
-    expect(citation.decoration, TextDecoration.underline);
+    expect(citation.decoration ?? TextDecoration.none, TextDecoration.none);
     expect(citation.color, theme.colorScheme.primary);
   });
 

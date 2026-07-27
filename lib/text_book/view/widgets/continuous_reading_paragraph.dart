@@ -311,9 +311,8 @@ List<InlineSpan> _nodeToSpans(
     final href = node.attributes['href'];
     if (href != null && href.isNotEmpty) {
       final childStyle = _styleForElement(node, style);
-      // עוגן-מילה — צבע ה-primary של הנושא, בלי קו תחתון (בסמן-נקודה) או עם קו
-      // תחתון (בטווח-ציטוט); במצב active מודגש עם רקע; שאר הקישורים — קו תחתון
-      // + צבע theme.
+      // עוגן-מילה וטווח-ציטוט — צבע ה-primary של הנושא בלי קו תחתון; במצב
+      // active מודגש עם רקע; שאר הקישורים — קו תחתון + צבע theme.
       final effectiveLinkStyle = node.classes.contains('link-anchor')
           // הווריאנט שב-childStyle נשמר גם ב-active (מיזוג linkStyle היה גורר
           // קו תחתון של קישור ומוחק את קו-התחתון שהוא סימנו של וריאנט 5).
@@ -331,7 +330,7 @@ List<InlineSpan> _nodeToSpans(
           ? childStyle.copyWith(color: linkStyle?.color)
           : node.classes.contains('link-anchor-range')
           ? childStyle.copyWith(
-              decoration: TextDecoration.underline,
+              decoration: TextDecoration.none,
               color: linkStyle?.color,
             )
           : linkStyle == null

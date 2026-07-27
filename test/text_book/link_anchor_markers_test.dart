@@ -326,7 +326,7 @@ void main() {
       expect(result.indexOf('(א)'), lessThan(result.indexOf('(ב)')));
     });
 
-    test('עוגן-טווח (ציטוט) נעטף בקו תחתון בגבולות מדויקים', () {
+    test('עוגן-טווח (ציטוט) נעטף בגבולות מדויקים', () {
       final quote = Link(
         heRef: 'בראשית פרק א פסוק א',
         index1: 4,

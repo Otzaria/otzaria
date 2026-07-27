@@ -82,7 +82,7 @@ void main() {
       expect(style.color, linkStyle.color);
     });
 
-    test('ציטוט לינקר נשאר בגופן הטקסט עם קו תחתון', () {
+    test('ציטוט לינקר נשאר בגופן הטקסט בלי קו תחתון', () {
       final style = continuousStyleOf(
         'לפני <a class="link-anchor-range" '
             'href="otzaria://anchor?ref=3_0&range=1">ציטוט</a> אחרי',
@@ -90,7 +90,7 @@ void main() {
       );
       expect(style.fontFamily, base.fontFamily);
       expect(style.fontStyle, isNot(FontStyle.italic));
-      expect(style.decoration, TextDecoration.underline);
+      expect(style.decoration, TextDecoration.none);
       expect(style.color, linkStyle.color);
     });
 
@@ -106,6 +106,32 @@ void main() {
   });
 
   group('שקילות בין מסלולי הרינדור', () {
+    testWidgets('ציטוט לינקר — בלי קו תחתון בשני המסלולים', (tester) async {
+      const html =
+          'לפני <a class="link-anchor-range" '
+          'href="otzaria://anchor?ref=3_0&range=1">ציטוט</a> אחרי';
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SmartTextWidget(
+              text: html,
+              settings: settings,
+              onAnchorTap: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final htmlStyle = _findWidgetStyle(tester, 'ציטוט')!;
+      final continuousStyle = continuousStyleOf(html, 'ציטוט');
+
+      for (final style in [htmlStyle, continuousStyle]) {
+        expect(style.decoration ?? TextDecoration.none, TextDecoration.none);
+      }
+    });
+
     for (var index = 0; index < kLinkAnchorVariants.length; index++) {
       testWidgets('וריאנט $index — אותו גופן/משקל/נטייה בשני המסלולים', (
         tester,

@@ -68,6 +68,7 @@ String formatDisplayReference({
     return _chooseMoreSpecificReference(
       resolvedDisplay: resolvedDisplay,
       fallbackDisplay: fallbackDisplay,
+      bookTitle: bookTitle,
     );
   }
 
@@ -100,7 +101,18 @@ String _normalizeReferenceForDisplay(String ref) {
 String _chooseMoreSpecificReference({
   required String resolvedDisplay,
   required String fallbackDisplay,
+  required String bookTitle,
 }) {
+  // כתובת השורה (fallback) יורדת לרמה עמוקה מזו של ה-TOC כשה-TOC נעצר בפרק —
+  // "משנה אבות א, ג" מול "משנה אבות, פרק א". הניקוד לבדו העדיף את הקצרה.
+  if (bookTitle.isNotEmpty &&
+      resolvedDisplay.startsWith(bookTitle) &&
+      fallbackDisplay.startsWith(bookTitle) &&
+      _addressDepth(fallbackDisplay, bookTitle) >
+          _addressDepth(resolvedDisplay, bookTitle)) {
+    return fallbackDisplay;
+  }
+
   final resolvedScore = _referenceSpecificityScore(resolvedDisplay);
   final fallbackScore = _referenceSpecificityScore(fallbackDisplay);
 
@@ -115,6 +127,16 @@ String _chooseMoreSpecificReference({
   }
 
   return resolvedDisplay;
+}
+
+/// מספר רמות המיקום שאחרי שם הספר: "משנה אבות א, ג" → 2, "משנה אבות, פרק א" → 1.
+int _addressDepth(String display, String bookTitle) {
+  return display
+      .substring(bookTitle.length)
+      .split(',')
+      .map((segment) => segment.trim())
+      .where((segment) => segment.isNotEmpty)
+      .length;
 }
 
 int _referenceSpecificityScore(String ref) {
