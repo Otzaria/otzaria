@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
@@ -144,7 +145,7 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     on<SetCurrentWorkspaceName>(_onSetCurrentWorkspaceName);
     on<AddHistory>(_onAddHistory);
     on<AddHistoryForTabs>(_onAddHistoryForTabs);
-    on<BulkAddHistory>(_onBulkAddHistory);
+    on<BulkAddHistory>(_onBulkAddHistory, transformer: sequential());
     on<RemoveHistory>(_onRemoveHistory);
     on<ClearHistory>(_onClearHistory);
     on<CaptureStateForHistory>(_onCaptureStateForHistory);
