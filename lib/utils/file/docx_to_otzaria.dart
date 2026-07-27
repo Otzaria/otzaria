@@ -308,10 +308,18 @@ Map<String, int> _extractHeadingStyles(Archive archive) {
     if (!chain.add(id)) return null; // basedOn מעגלי בקובץ פגום
     final def = defs[id];
     if (def == null) return null;
-    var level =
-        _headingLevelFromStyleName(def.name) ??
-        _headingLevelFromOutline(def.outline);
-    if (level == null && def.outline == null && def.basedOn != null) {
+
+    // `outlineLvl` מפורש הוא המידע האמין וגובר על השם: סגנון בשם
+    // "Heading 1 Draft" עם `outlineLvl=9` אינו כותרת. השם הוא פרוקסי בלבד,
+    // ומשמש רק כשאין `outlineLvl` — ואז גם הירושה מ-basedOn נכנסת לתוקף.
+    if (_hasOutlineValue(def.outline)) {
+      final byOutline = _headingLevelFromOutline(def.outline);
+      resolved[id] = byOutline;
+      return byOutline;
+    }
+
+    var level = _headingLevelFromStyleName(def.name);
+    if (level == null && def.basedOn != null) {
       level = levelOf(def.basedOn!, chain);
     }
     resolved[id] = level;
@@ -608,6 +616,11 @@ int? _headingLevelFromStyleName(String? styleVal) {
   return null;
 }
 
+/// האם `w:outlineLvl` קיים עם ערך מספרי — כלומר קביעה *מפורשת* של רמת מתאר
+/// (או ביטולה ע"י 9). ערך פגום נחשב כאילו אינו קיים, כדי לא לחסום את הגיבוי
+/// לפי שם הסגנון.
+bool _hasOutlineValue(String? val) => val != null && int.tryParse(val) != null;
+
 /// ממיר `w:outlineLvl` לרמת כותרת 1–6, או `null` אם אינו כותרת.
 ///
 /// ב-OOXML הערך 9 פירושו "Body Text" — ביטול *מפורש* של רמת מתאר, ולא כותרת
@@ -793,15 +806,15 @@ void _processParagraph(
 
   final pPr = paragraph.getElement('w:pPr');
 
-  // כותרת: קודם לפי שם הסגנון, אחרת לפי הגדרת הסגנון ב-styles.xml (styleId
-  // מספרי), ולבסוף גיבוי שפה-אגנוסטי דרך outlineLvl של הפסקה עצמה.
+  // כותרת: `outlineLvl` על הפסקה עצמה הוא עיצוב ישיר וגובר על הסגנון (כולל
+  // 9 = "Body Text" שמבטל כותרת). בהיעדרו — שם הסגנון, ואז הגדרת הסגנון
+  // ב-styles.xml (styleId מספרי / ירושת basedOn).
   final styleVal = pPr?.getElement('w:pStyle')?.getAttribute('w:val');
-  final level =
-      _headingLevelFromStyleName(styleVal) ??
-      (styleVal != null ? ctx.headingStyles[styleVal] : null) ??
-      _headingLevelFromOutline(
-        pPr?.getElement('w:outlineLvl')?.getAttribute('w:val'),
-      );
+  final outlineVal = pPr?.getElement('w:outlineLvl')?.getAttribute('w:val');
+  final level = _hasOutlineValue(outlineVal)
+      ? _headingLevelFromOutline(outlineVal)
+      : _headingLevelFromStyleName(styleVal) ??
+            (styleVal != null ? ctx.headingStyles[styleVal] : null);
 
   if (level != null) {
     output.add('<h$level>$text</h$level>');

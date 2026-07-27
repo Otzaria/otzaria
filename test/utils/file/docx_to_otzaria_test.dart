@@ -341,6 +341,46 @@ void main() {
       final result = docxToText(_buildDocx(_utf8Xml(xml)), 'ב');
       expect(result, contains('<h6>רמה תשיעית</h6>'));
     });
+
+    test('outlineLvl=9 על הפסקה גובר על pStyle="Heading1"', () {
+      final xml =
+          '''
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document $_xmlNs>
+  <w:body>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="Heading1"/>
+        <w:outlineLvl w:val="9"/>
+      </w:pPr>
+      <w:r><w:t>גוף</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>''';
+      final result = docxToText(_buildDocx(_utf8Xml(xml)), 'ב');
+      expect(result, contains('גוף'));
+      expect(result, isNot(contains('<h1>גוף')));
+    });
+
+    test('outlineLvl על הפסקה גובר על רמת שם הסגנון', () {
+      final xml =
+          '''
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document $_xmlNs>
+  <w:body>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="Heading1"/>
+        <w:outlineLvl w:val="2"/>
+      </w:pPr>
+      <w:r><w:t>סעיף</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>''';
+      final result = docxToText(_buildDocx(_utf8Xml(xml)), 'ב');
+      expect(result, contains('<h3>סעיף</h3>'));
+      expect(result, isNot(contains('<h1>סעיף')));
+    });
   });
 
   group('docxToText - כותרות לפי styles.xml (styleId מספרי)', () {
@@ -627,6 +667,52 @@ void main() {
       );
       expect(result, contains('טקסט'));
       expect(result, isNot(contains('<h1>טקסט')));
+    });
+
+    test('outlineLvl=9 מפורש גובר על שם סגנון דמוי-כותרת', () {
+      final result = docxToText(
+        _buildDocx(
+          _utf8Xml(docWithStyles([('1', 'Body')])),
+          stylesXmlBytes: _utf8Xml(
+            stylesXml(headingStyle('1', 'Heading 1 Draft', 9)),
+          ),
+        ),
+        'ב',
+      );
+      expect(result, contains('Body'));
+      expect(result, isNot(contains('<h1>Body')));
+      expect(result, isNot(contains('<h6>Body')));
+    });
+
+    test('outlineLvl תקף גובר על רמה אחרת שבשם הסגנון', () {
+      final result = docxToText(
+        _buildDocx(
+          _utf8Xml(docWithStyles([('9', 'סימן')])),
+          stylesXmlBytes: _utf8Xml(
+            stylesXml(headingStyle('9', 'heading 1', 1)),
+          ),
+        ),
+        'ב',
+      );
+      expect(result, contains('<h2>סימן</h2>'));
+      expect(result, isNot(contains('<h1>סימן')));
+    });
+
+    test('outlineLvl פגום אינו חוסם את הגיבוי לפי שם הסגנון', () {
+      final result = docxToText(
+        _buildDocx(
+          _utf8Xml(docWithStyles([('Q', 'פרק')])),
+          stylesXmlBytes: _utf8Xml(
+            stylesXml(
+              '<w:style w:type="paragraph" w:styleId="Q">'
+              '<w:name w:val="heading 1"/>'
+              '<w:pPr><w:outlineLvl w:val="abc"/></w:pPr></w:style>',
+            ),
+          ),
+        ),
+        'ב',
+      );
+      expect(result, contains('<h1>פרק</h1>'));
     });
 
     test('styles.xml פגום — ההמרה ממשיכה בלי לקרוס', () {
