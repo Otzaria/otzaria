@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 
 typedef ReaderSectionChangeDispatcher =
@@ -10,8 +11,13 @@ typedef ReaderSectionChangeDispatcher =
     );
 
 class ReaderSectionContentTracker {
-  static final ReaderSectionContentTracker instance =
+  static ReaderSectionContentTracker _instance =
       ReaderSectionContentTracker._();
+
+  static ReaderSectionContentTracker get instance => _instance;
+
+  @visibleForTesting
+  static set instance(ReaderSectionContentTracker value) => _instance = value;
 
   ReaderSectionContentTracker._()
     : _dispatchEvent = _dispatchSectionContentChanged,

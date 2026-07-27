@@ -460,6 +460,79 @@ void main() {
       legacy.version,
     );
   });
+
+  group('revision — מונה המוטציות', () {
+    test('מתחיל באפס ואינו זז בקריאות בלבד', () {
+      expect(registry.revision, 0);
+      registry.getAllHighlights(bookId: 'book', sectionIndex: 1);
+      registry.getHighlights(ownerPluginId: 'plugin.a');
+      expect(registry.revision, 0);
+    });
+
+    test('עולה בכל מוטציה', () {
+      registry.setHighlight(
+        ownerPluginId: 'plugin.a',
+        payload: _payload(id: 'marker-1'),
+      );
+      final afterSet = registry.revision;
+      expect(afterSet, greaterThan(0));
+
+      registry.setLegacyHighlight(
+        ownerPluginId: 'plugin.a',
+        bookId: 'book',
+        sectionIndex: 1,
+      );
+      expect(registry.revision, greaterThan(afterSet));
+      final afterLegacy = registry.revision;
+
+      registry.clearHighlight(
+        ownerPluginId: 'plugin.a',
+        highlightId: 'marker-1',
+      );
+      expect(registry.revision, greaterThan(afterLegacy));
+      final afterClear = registry.revision;
+
+      registry.removePlugin('plugin.a');
+      expect(registry.revision, greaterThan(afterClear));
+    });
+
+    test('עולה כשעיגון מחדש משנה רשומה, ונעצר כשאין שינוי', () {
+      registry.setHighlight(
+        ownerPluginId: 'plugin.a',
+        payload: _reanchorPayload(id: 'marker-1'),
+      );
+      final beforeReanchor = registry.revision;
+
+      registry.reanchorSection(
+        bookId: 'book',
+        sectionIndex: 1,
+        sourceText: 'prefix before target after',
+      );
+      final afterReanchor = registry.revision;
+      expect(afterReanchor, greaterThan(beforeReanchor));
+
+      // עיגון חוזר על אותו טקסט מתכנס: אין שינוי, אין notify, אין revision.
+      registry.reanchorSection(
+        bookId: 'book',
+        sectionIndex: 1,
+        sourceText: 'prefix before target after',
+      );
+      expect(registry.revision, afterReanchor);
+    });
+
+    test('כישלון מחיקה אינו מזיז את המונה', () {
+      expect(
+        registry.clearHighlight(
+          ownerPluginId: 'plugin.a',
+          highlightId: 'missing',
+        ),
+        isFalse,
+      );
+      expect(registry.revision, 0);
+      expect(registry.clearAll(ownerPluginId: 'plugin.a'), 0);
+      expect(registry.revision, 0);
+    });
+  });
 }
 
 Map<String, dynamic> _reanchorPayload({required String id}) => {

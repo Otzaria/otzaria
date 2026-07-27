@@ -648,6 +648,7 @@ dart format lib/file.dart    # Format ONLY files you modified
 | Responsive action bar | `test/widgets/responsive_action_bar_test.dart` |
 | Scrollable list scrollbar | `test/widgets/scrollable_positioned_list_scrollbar_test.dart` |
 | Smart text render settings | `test/widgets/smart_text/render_settings_test.dart` |
+| Smart text ↔ plugin section sync gate | `test/widgets/smart_text/smart_text_section_sync_gate_test.dart` |
 | Work/indexing status overlays | `test/widgets/work_status_overlay_test.dart`, `…indexing_status_overlay_test.dart` |
 | App dropdown/search menu | `test/widgets/app_dropdown_field_test.dart`, `…app_search_menu_test.dart` |
 | Search pane base | `test/widgets/search_pane_base_test.dart` |
@@ -673,8 +674,9 @@ dart format lib/file.dart    # Format ONLY files you modified
 | File sync / background sync | `test/migration/sync/file_sync_service_prune_test.dart`, `…background_db_sync_worker_test.dart`, `…background_sync_initializer_test.dart` |
 | DB migration / generator | `test/migration/generator_create_and_process_book_test.dart`, `test/migration/dao/daos/database_locked_test.dart` |
 | Indexing repository | `test/indexing/repository/indexing_repository_test.dart` |
-| External catalog | `test/external_catalog/external_catalog_repository_test.dart` |
-| Plugins | `test/plugins/utils/reader_location_resolver_test.dart`, `test/plugins/services/plugin_store_link_parser_test.dart`, `test/plugins/bridge/plugin_bridge_adapter_test.dart` |
+| External catalog | `test/external_catalog/external_catalog_repository_test.dart`, `…settings_helper_test.dart` |
+| Plugins | `test/plugins/utils/reader_location_resolver_test.dart`, `…plugin_store_link_parser_test.dart`, `…plugin_bridge_adapter_test.dart` |
+| Plugin highlights / reader section tracking | `test/plugins/services/plugin_highlight_registry_test.dart`, `…reader_section_content_tracker_test.dart`, `…reader_section_sync_gate_test.dart` |
 | Shamor Zachor | `test/shamor_zachor/shamor_zachor_test.dart` (+ 4 more in that dir) |
 | Dictionary lookup | `test/tools/dictionary/dictionary_lookup_repository_test.dart` |
 | Laaz Rashi commentary line-lookup | `test/tools/dictionary/laaz_rashi_line_lookup_test.dart` |
