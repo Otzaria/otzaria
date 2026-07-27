@@ -63,7 +63,7 @@ class AppThemeData {
       fontFamily: 'Roboto',
       colorScheme: cs,
       textTheme: const TextTheme(
-        bodyMedium: TextStyle(fontSize: 18.0, fontFamily: 'candara'),
+        bodyMedium: TextStyle(fontSize: 18.0),
       ),
       cardTheme: const CardThemeData(shape: AppTokens.roundedShape),
       iconButtonTheme: _iconButtonTheme(cs),
@@ -109,10 +109,7 @@ class AppThemeData {
       fontFamily: 'Roboto',
       colorScheme: cs,
       textTheme: const TextTheme(
-        bodyMedium: TextStyle(
-          fontSize: 18.0,
-          fontFamily: 'candara',
-        ),
+        bodyMedium: TextStyle(fontSize: 18.0),
       ),
       cardTheme: const CardThemeData(shape: AppTokens.roundedShape),
       iconButtonTheme: _iconButtonTheme(cs),

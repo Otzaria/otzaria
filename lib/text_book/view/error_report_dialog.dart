@@ -1340,7 +1340,8 @@ class _RegularReportTabState extends State<RegularReportTab> {
                       style: TextStyle(
                         fontSize: widget.fontSize,
                         fontFamily:
-                            Settings.getValue('key-font-family') ?? 'candara',
+                            Settings.getValue('key-font-family') ??
+                            AppFonts.defaultFont,
                       ),
                       textAlign: TextAlign.right,
                     ),

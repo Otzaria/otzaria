@@ -224,6 +224,13 @@ class SmartTextWidget extends StatelessWidget {
           onAnchorHoverExit: onAnchorHoverExit,
         ),
         customStylesBuilder: (dom.Element element) {
+          final headingWeight = AppFonts.headingFontWeightOverride(
+            element.localName,
+            settings.fontFamily,
+          );
+          if (headingWeight != null) {
+            return {'font-weight': headingWeight};
+          }
           if (element.localName == 'span' &&
               element.classes.contains('footnote-marker-number')) {
             return {
@@ -409,6 +416,7 @@ class _SmartTextWidgetFactory extends WidgetFactory {
     super.reset(state);
   }
 }
+
 
 /// גרסה פשוטה יותר של SmartTextWidget שמקבלת פרמטרים בודדים
 /// במקום RenderSettings - נוחה למקרים פשוטים

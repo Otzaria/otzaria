@@ -4,6 +4,7 @@ import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/models/book_version.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
@@ -147,6 +148,13 @@ class BookVersionTile extends StatelessWidget {
                   HtmlWidget(
                     notes!,
                     textStyle: theme.textTheme.bodySmall,
+                    customStylesBuilder: (element) {
+                      final weight = AppFonts.headingFontWeightOverride(
+                        element.localName,
+                        theme.textTheme.bodySmall?.fontFamily,
+                      );
+                      return weight == null ? null : {'font-weight': weight};
+                    },
                     onTapUrl: _openNoteUrl,
                   ),
               ],

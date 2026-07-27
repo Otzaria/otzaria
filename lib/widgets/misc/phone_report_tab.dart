@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -148,7 +149,9 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
               widget.selectedText,
               style: TextStyle(
                 fontSize: widget.fontSize,
-                fontFamily: Settings.getValue('key-font-family') ?? 'candara',
+                fontFamily:
+                    Settings.getValue('key-font-family') ??
+                    AppFonts.defaultFont,
               ),
               textAlign: TextAlign.right,
             ),

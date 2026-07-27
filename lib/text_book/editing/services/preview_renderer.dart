@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:html/dom.dart' as dom;
+import 'package:otzaria/theme/app_fonts.dart';
 
 import '../models/editor_settings.dart';
 import 'markdown_processor.dart';
@@ -82,6 +83,16 @@ class PreviewRenderer {
     styles['direction'] = 'rtl';
     styles['text-align'] = 'justify';
 
+    // הכותרות מקבלות 'bold' למטה; במשפחה עם face בולד נפרד זה שולף אותן
+    // מקובץ אחר מהגוף, ואז התצוגה המקדימה לא תואמת למה שיוצג בספר.
+    final headingWeight = AppFonts.headingFontWeightOverride(
+      element.localName,
+      baseStyle.fontFamily,
+    );
+    if (headingWeight != null) {
+      styles['font-weight'] = headingWeight;
+    }
+
     switch (element.localName) {
       case 'code':
       case 'pre':
@@ -102,21 +113,21 @@ class PreviewRenderer {
 
       case 'h1':
         styles['font-size'] = '${baseStyle.fontSize! * 1.5}px';
-        styles['font-weight'] = 'bold';
+        styles['font-weight'] = headingWeight ?? 'bold';
         styles['margin-top'] = '6px'; // רווח קטן לפני הכותרת
         styles['margin-bottom'] = '3px'; // רווח קטן אחרי הכותרת
         break;
 
       case 'h2':
         styles['font-size'] = '${baseStyle.fontSize! * 1.3}px';
-        styles['font-weight'] = 'bold';
+        styles['font-weight'] = headingWeight ?? 'bold';
         styles['margin-top'] = '4px';
         styles['margin-bottom'] = '2px';
         break;
 
       case 'h3':
         styles['font-size'] = '${baseStyle.fontSize! * 1.1}px';
-        styles['font-weight'] = 'bold';
+        styles['font-weight'] = headingWeight ?? 'bold';
         styles['margin-top'] = '3px';
         styles['margin-bottom'] = '2px';
         break;
