@@ -19,6 +19,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
+import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/search/utils/scope_tree.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/search/view/search_scope_menu.dart';
@@ -261,41 +262,16 @@ Future<void> main() async {
       expect(find.text('ספרי יסוד'), findsNothing);
     });
 
-    testWidgets('תווית הצ׳יפ מתקנת את עצמה כשהספרייה נטענת אחרי הבנייה', (
+    testWidgets('התווית "ספרי יסוד" מגיעה מה-facet הממדי, בלי ספרייה טעונה', (
       tester,
     ) async {
-      // רגרסיה (P2): הספרייה מתחילה ריקה ומוחלפת בסיום הטעינה. תזמון בניית
-      // העץ ב-initState בלבד החמיץ את המעבר הזה, והצ׳יפ נתקע על "כל הספרים".
-      // '/תנ״ך/תורה' הוא ספר יסוד לפי FoundationalBookClassifier.
-      final baseBook = TextBook(
-        title: 'בראשית',
-        categoryPath: '/תנ״ך/תורה',
-      );
-      final loadedLibrary = Library(
-        categories: [
-          _mkCat(
-            'תנ״ך',
-            children: [
-              _mkCat('תורה', books: [baseBook]),
-            ],
-          ),
-        ],
-      );
-      for (final cat in loadedLibrary.subCategories) {
-        cat.parent = loadedLibrary;
-      }
-      final baseFacet = ScopeTree.fromLibrary(
-        loadedLibrary,
-      ).allBookNodes().single.facet;
-
+      // הכוונה "ספרי יסוד" מיוצגת ב-/base, ולכן התיוג שלה אינו תלוי בעץ
+      // ואינו ממתין לטעינת הספרייה. זה מה שמאפשר לוותר על סיווג כל הספרייה.
       final libraryBloc = _MockLibraryBloc();
-      final controller = StreamController<LibraryState>.broadcast();
-      addTearDown(controller.close);
       whenListen(
         libraryBloc,
-        controller.stream,
-        // ספרייה שעדיין נטענת — בדיוק המצב בפתיחה הראשונה של הדיאלוג.
-        initialState: const LibraryState(),
+        const Stream<LibraryState>.empty(),
+        initialState: const LibraryState(), // ספרייה שעדיין נטענת
       );
       addTearDown(libraryBloc.close);
 
@@ -309,7 +285,7 @@ Future<void> main() async {
             value: libraryBloc,
             child: Scaffold(
               body: SearchScopeMenuButton(
-                selected: {baseFacet},
+                selected: {FacetHelper.baseDimensionFacet},
                 onChanged: (_) {},
               ),
             ),
@@ -317,15 +293,58 @@ Future<void> main() async {
         ),
       );
       await tester.pump();
-      expect(find.text('ספרי יסוד'), findsNothing);
-
-      controller.add(LibraryState(library: loadedLibrary));
-      await tester.idle();
-      await tester.pump(); // הפריים שבו הספרייה נקלטת ובנייה מתוזמנת
-      await tester.pump(); // הפריים שאחרי ה-postFrameCallback
 
       expect(find.text('ספרי יסוד'), findsOneWidget);
       expect(find.text('כל הספרים'), findsNothing);
+    });
+
+    testWidgets('הפתיחה הראשונה בסשן זולה גם עם היקף שמור מצומצם', (
+      tester,
+    ) async {
+      // מה שהמתחזק ביקש: מדידה שאינה מסתמכת על מטמון מחומם. כל קריאה מקבלת
+      // אובייקט ספרייה חדש, ונמדדים גם פריים הפתיחה וגם הפריים שאחריו — שם
+      // היה מתבצע ה-postFrameCallback שבנה את העץ המלא.
+      Future<Duration> measureFirstOpen(int bookCount) async {
+        final libraryBloc = _MockLibraryBloc();
+        whenListen(
+          libraryBloc,
+          const Stream<LibraryState>.empty(),
+          initialState: LibraryState(library: _buildLibrary(bookCount)),
+        );
+        addTearDown(libraryBloc.close);
+
+        final stopwatch = Stopwatch()..start();
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(useMaterial3: true),
+            home: BlocProvider<LibraryBloc>.value(
+              value: libraryBloc,
+              child: Scaffold(
+                body: SearchScopeMenuButton(
+                  selected: const {'/ראש 0'},
+                  onChanged: (_) {},
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump(); // תגובתיות ה-UI מיד אחרי שהחלון נצבע
+        stopwatch.stop();
+        return stopwatch.elapsed;
+      }
+
+      await tester.binding.setSurfaceSize(const Size(600, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      // חימום עץ הווידג'טים בספרייה זעירה, כדי לא לחמם את המטמון של הגדולה.
+      await measureFirstOpen(50);
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      final small = await measureFirstOpen(200);
+      await tester.pumpWidget(const SizedBox.shrink());
+      final large = await measureFirstOpen(20000);
+
+      expectScanFree(small, large, 'פתיחה ראשונה, היקף שמור');
     });
 
     testWidgets('התפריט והחיפוש בו עובדים על העץ שנבנה בעצלתיים', (

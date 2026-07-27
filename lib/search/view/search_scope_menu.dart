@@ -78,31 +78,12 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
             if (_isBaseBook(node.book)) node,
         ];
 
-  bool _labelTreeBuildScheduled = false;
-
   @override
   void initState() {
     super.initState();
     _loadBaseBookIds();
     _fieldFocus.addListener(_onFocusChanged);
     _searchController.addListener(_onTextChanged);
-  }
-
-  /// בחירה מצומצמת דורשת את העץ כדי לתייג את הצ׳יפ ("כל הספרים"/"ספרי יסוד").
-  /// נקרא מ-[build], ולכן מכסה גם את המעבר מספרייה ריקה לספרייה שנטענה וגם
-  /// שינוי בחירה; הבנייה עצמה נדחית לאחר הפריים כדי שהחלון ייפתח מיד.
-  void _scheduleLabelTreeBuild() {
-    if (_labelTreeBuildScheduled || _treeCache != null || _library == null) {
-      return;
-    }
-    if (!FacetHelper.categoryFacetsOf(widget.selected).any((f) => f != '/')) {
-      return;
-    }
-    _labelTreeBuildScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _labelTreeBuildScheduled = false;
-      if (mounted && _tree != null) setState(() {});
-    });
   }
 
   @override
@@ -213,7 +194,6 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
           _treeCache = null;
           _baseBookNodesCache = null;
         }
-        _scheduleLabelTreeBuild();
 
         return OverlayPortal(
           controller: _portal,
@@ -342,7 +322,8 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   }
 
   /// הסינונים הפעילים ל-chips / למונה שבשדה. בחירת קטגוריות/ספרים ספציפיים
-  /// מיוצגת בפריט *אחד* ("כל הספרים"/"ספרי יסוד") ולא שם לכל פריט.
+  /// מיוצגת בפריט *אחד* ("כל הספרים") ולא שם לכל פריט. בחירת "ספרי יסוד"
+  /// ככלל אינה מגיעה לכאן — היא facet ממדי (`/base`) ומתויגת בלופ שמתחת.
   List<({String label, bool partial, VoidCallback onRemove})> _activeFilters() {
     final result = <({String label, bool partial, VoidCallback onRemove})>[];
     final categories = FacetHelper.categoryFacetsOf(
@@ -351,17 +332,8 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
     final dimensions = FacetHelper.dimensionFacetsOf(widget.selected).toList();
 
     if (categories.isNotEmpty) {
-      // התווית "ספרי יסוד" רק כשכל הבחירה היא ספרי יסוד. נבדק פר-facet נבחר
-      // ורק על עץ שכבר נבנה — כדי לא לסרוק את הספרייה בכל build של השדה.
-      final tree = _treeCache;
-      final allBase =
-          tree != null &&
-          categories.every((facet) {
-            final node = tree.nodesByFacet[facet];
-            return node is BookScopeNode && _isBaseBook(node.book);
-          });
       result.add((
-        label: allBase ? 'ספרי יסוד' : 'כל הספרים',
+        label: 'כל הספרים',
         partial: true,
         onRemove: () => widget.onChanged(dimensions.toSet()),
       ));
