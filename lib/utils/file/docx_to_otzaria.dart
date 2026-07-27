@@ -16,8 +16,8 @@ import 'dart:convert';
 /// v6: תיבות-טקסט (`w:txbxContent`) — טקסט בתוך מסגרת, אולי על תמונת-רקע.
 /// v7: דילוג על מסגרות-רקע דקורטיביות (`behindDoc`) שאינן ניתנות לרינדור.
 /// v8: תמונות inline בתוך תיבת-טקסט אינן מזוהות בטעות כתמונת-רקע של התיבה.
-/// v9: כותרות עם styleId מספרי (Word בעברית / המרה מ-HTML) לפי styles.xml,
-/// ו-`outlineLvl=9` ("Body Text") אינו נחשב עוד לכותרת.
+/// v9: כותרות עם styleId מספרי (Word בעברית / המרה מ-HTML) לפי styles.xml
+/// כולל ירושת `w:basedOn`, ו-`outlineLvl=9` ("Body Text") אינו נחשב לכותרת.
 const int kDocxConverterVersion = 9;
 
 // Windows-1255 Hebrew range: 0xC0–0xD8 and 0xE0–0xFA map to Unicode with offset 1264.
@@ -265,6 +265,10 @@ Map<String, Map<int, _NumLevel>> _extractNumbering(Archive archive) {
 /// Word בעברית (וקבצים שהומרו מ-HTML) שומר styleId מספרי (`"2"`) בעוד שהשם
 /// (`heading 2`) וה-`w:outlineLvl` יושבים רק בהגדרת הסגנון — בלי המפה הזו כל
 /// הכותרות במסמכים כאלה מפוספסות.
+///
+/// שרשרת `w:basedOn` נפתרת: סגנון מותאם המבוסס על `Heading1` יורש ממנו את
+/// ה-`outlineLvl` ואין לו משלו. `outlineLvl` מפורש *עוצר* את הירושה — גם
+/// הערך 9 ("Body Text"), שהוא ביטול מכוון של רמת האב.
 Map<String, int> _extractHeadingStyles(Archive archive) {
   ArchiveFile? stylesFile;
   for (final f in archive) {
@@ -282,23 +286,41 @@ Map<String, int> _extractHeadingStyles(Archive archive) {
     return const {};
   }
 
-  final result = <String, int>{};
+  final defs = <String, ({String? name, String? outline, String? basedOn})>{};
   for (final style in doc.findAllElements('w:style')) {
     final type = style.getAttribute('w:type');
     if (type != null && type != 'paragraph') continue;
     final id = style.getAttribute('w:styleId');
     if (id == null) continue;
+    defs[id] = (
+      name: style.getElement('w:name')?.getAttribute('w:val'),
+      outline: style
+          .getElement('w:pPr')
+          ?.getElement('w:outlineLvl')
+          ?.getAttribute('w:val'),
+      basedOn: style.getElement('w:basedOn')?.getAttribute('w:val'),
+    );
+  }
 
-    final level =
-        _headingLevelFromStyleName(
-          style.getElement('w:name')?.getAttribute('w:val'),
-        ) ??
-        _headingLevelFromOutline(
-          style
-              .getElement('w:pPr')
-              ?.getElement('w:outlineLvl')
-              ?.getAttribute('w:val'),
-        );
+  final resolved = <String, int?>{};
+  int? levelOf(String id, Set<String> chain) {
+    if (resolved.containsKey(id)) return resolved[id];
+    if (!chain.add(id)) return null; // basedOn מעגלי בקובץ פגום
+    final def = defs[id];
+    if (def == null) return null;
+    var level =
+        _headingLevelFromStyleName(def.name) ??
+        _headingLevelFromOutline(def.outline);
+    if (level == null && def.outline == null && def.basedOn != null) {
+      level = levelOf(def.basedOn!, chain);
+    }
+    resolved[id] = level;
+    return level;
+  }
+
+  final result = <String, int>{};
+  for (final id in defs.keys) {
+    final level = levelOf(id, <String>{});
     if (level != null) result[id] = level;
   }
   return result;
