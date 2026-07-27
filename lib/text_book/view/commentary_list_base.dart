@@ -18,6 +18,7 @@ import 'package:otzaria/text_book/view/combined_view/commentary_content.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
+import 'package:otzaria/text_book/utils/commentary_type_filter.dart';
 import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/view/commentators_list_screen.dart';
@@ -65,17 +66,8 @@ String? captureSelectedTextForMenu(ValueListenable<String?> saved) =>
 /// מפתחות צ׳יפי סוגי המפרשים שקיימים בפועל בקישורי הקטע, בסדר
 /// [LinkTypes.commentaryFilterTypes]. סוג בלי קישורים אינו מקבל צ׳יפ.
 @visibleForTesting
-List<String> buildCommentaryTypeChipKeys(List<Link> links) {
-  final present = <String>{};
-  for (final link in links) {
-    if (LinkTypes.isCommentaryFilterType(link.connectionType)) {
-      present.add(LinkTypes.canonicalType(link.connectionType));
-    }
-  }
-  return LinkTypes.commentaryFilterTypes
-      .where(present.contains)
-      .toList(growable: false);
-}
+List<String> buildCommentaryTypeChipKeys(List<Link> links) =>
+    CommentaryTypeFilter.chipKeys(links);
 
 /// הבחירה האפקטיבית: רק מפתחות שיש להם צ׳יפ בקטע הנוכחי. בחירה שאין לה אף
 /// צ׳יפ קיים נחשבת ריקה = הצג הכל, ולא מסתירה את כל המפרשים.
@@ -83,11 +75,10 @@ List<String> buildCommentaryTypeChipKeys(List<Link> links) {
 Set<String> effectiveCommentaryTypes({
   required Set<String> selectedTypes,
   required List<String> availableKeys,
-}) {
-  if (selectedTypes.isEmpty) return const {};
-  final available = availableKeys.toSet();
-  return selectedTypes.where(available.contains).toSet();
-}
+}) => CommentaryTypeFilter.effectiveTypes(
+  selectedTypes: selectedTypes,
+  availableKeys: availableKeys,
+);
 
 /// מייצג תוצאת חיפוש בודדת עם קטע טקסט וכתובת גלובלית לניווט
 class CommentarySearchSnippet {
@@ -153,6 +144,10 @@ class CommentaryListBase extends StatefulWidget {
   /// מיועד לתצוגה המשולבת, שבה החיפוש מנוהל ע"י ה-BLoC של הטקסט הראשי.
   final ValueListenable<String>? highlightQueryListenable;
 
+  /// בחירת סוגי המפרשים המנוהלת ע"י ההורה. נדרש כשהצ׳יפים מוצגים בפאנל שההורה
+  /// בונה (כרטיסיית המפרשים) — בלעדיו הסינון היה חל רק על הפאנל הפנימי.
+  final CommentaryTypeSelection? typeSelection;
+
   const CommentaryListBase({
     super.key,
     required this.openBookCallback,
@@ -181,6 +176,7 @@ class CommentaryListBase extends StatefulWidget {
     this.onFilterOpenRequested,
     this.autofocus = false,
     this.highlightQueryListenable,
+    this.typeSelection,
   });
 
   @override
@@ -253,7 +249,19 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
   bool _showSearchField = false;
   // סינון לפי סוג מפרש (תרגום/מדרש וכו׳). מצב מקומי ולא מוגדר: הצ׳יפים תלויים
   // בקטע הנוכחי, ובחירה שנשמרה הייתה מסננת בשקט ספר אחר שנפתח אחריו.
-  Set<String> _selectedCommentaryTypes = const {};
+  Set<String> _localCommentaryTypes = const {};
+
+  Set<String> get _selectedCommentaryTypes =>
+      widget.typeSelection?.value ?? _localCommentaryTypes;
+
+  void _setSelectedCommentaryTypes(Set<String> types) {
+    final external = widget.typeSelection;
+    if (external != null) {
+      external.value = types;
+      return;
+    }
+    setState(() => _localCommentaryTypes = types);
+  }
 
   String _getLinkKey(Link link) =>
       '${link.index1}_${link.path2}_${link.index2}';
@@ -306,17 +314,10 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
   List<String> _typeChipKeys(
     TextBookLoaded state,
     List<String> selectedCommentators,
-  ) {
-    final commentatorsSet = selectedCommentators.toSet();
-    return buildCommentaryTypeChipKeys(
-      state.links
-          .where(
-            (link) =>
-                commentatorsSet.contains(utils.getTitleFromPath(link.path2)),
-          )
-          .toList(growable: false),
-    );
-  }
+  ) => CommentaryTypeFilter.chipKeysForCommentators(
+    links: state.links,
+    selectedCommentators: selectedCommentators,
+  );
 
   String _bookTitle(TextBookLoaded state) {
     return widget.bookTitleOverride ?? state.book.title;
@@ -441,6 +442,10 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
       widget.externalSearchSnippetsNotifier?.value = [];
       _scheduleSearchCompute();
     }
+  }
+
+  void _onTypeSelectionChanged() {
+    if (mounted) setState(() {});
   }
 
   void _handleSearchFocusChange() {
@@ -736,6 +741,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     widget.openFilterNotifier?.addListener(_onOpenFilterRequest);
     widget.closeFilterNotifier?.addListener(_onCloseFilterRequest);
     _searchFocusNode.addListener(_handleSearchFocusChange);
+    widget.typeSelection?.addListener(_onTypeSelectionChanged);
     // חיפוש חיצוני
     widget.externalSearchController?.addListener(_onExternalSearchChanged);
     widget.highlightQueryListenable?.addListener(_onHighlightQueryChanged);
@@ -789,6 +795,10 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
         _onHighlightQueryChanged,
       );
       widget.highlightQueryListenable?.addListener(_onHighlightQueryChanged);
+    }
+    if (oldWidget.typeSelection != widget.typeSelection) {
+      oldWidget.typeSelection?.removeListener(_onTypeSelectionChanged);
+      widget.typeSelection?.addListener(_onTypeSelectionChanged);
     }
     // סגירה אוטומטית של מסך הסינון כאשר המפרשים עוברים מריק לא-ריק
     // (קורה כאשר המשתמש בוחר "כל המפרשים" מהתפריט הימני)
@@ -914,6 +924,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     widget.closeFilterNotifier?.removeListener(_onCloseFilterRequest);
     widget.externalSearchController?.removeListener(_onExternalSearchChanged);
     widget.highlightQueryListenable?.removeListener(_onHighlightQueryChanged);
+    widget.typeSelection?.removeListener(_onTypeSelectionChanged);
     _searchFocusNode.removeListener(_handleSearchFocusChange);
     _searchController.dispose();
     _savedSelectedText.dispose();
@@ -1462,12 +1473,10 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
           selectedTypes: _selectedCommentaryTypes,
           availableKeys: typeChipKeys,
         );
-        // סוג יחיד אינו מסנן כלום, ולכן הצ׳יפים מוצגים רק משניים ומעלה — אלא אם
-        // הוא הנבחר, שאז בלעדיהם המשתמש מסונן בשקט בלי דרך לבטל.
-        final visibleTypeChipKeys =
-            typeChipKeys.length > 1 || effectiveTypes.isNotEmpty
-            ? typeChipKeys
-            : const <String>[];
+        final visibleTypeChipKeys = CommentaryTypeFilter.visibleChipKeys(
+          chipKeys: typeChipKeys,
+          effectiveTypes: effectiveTypes,
+        );
 
         Widget buildList() {
           return Builder(
@@ -1882,11 +1891,13 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                       typeChipKeys: visibleTypeChipKeys,
                       selectedTypeChips: effectiveTypes,
                       typeChipLabelBuilder: LinkTypes.hebrewLabel,
-                      onTypeChipsChanged: (selected) =>
-                          setState(() => _selectedCommentaryTypes = selected),
+                      onTypeChipsChanged: _setSelectedCommentaryTypes,
                     )
                   : CommentatorsListView(
                       onCommentatorSelected: _closeCommentatorsFilter,
+                      typeChipKeys: visibleTypeChipKeys,
+                      selectedTypeChips: effectiveTypes,
+                      onTypeChipsChanged: _setSelectedCommentaryTypes,
                     ),
             );
           }

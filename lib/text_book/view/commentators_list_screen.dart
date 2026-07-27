@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -10,9 +11,17 @@ import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 class CommentatorsListView extends StatefulWidget {
   final VoidCallback? onCommentatorSelected;
 
+  /// צ׳יפי הסינון לפי סוג מפרש. ריקים = ציר הסוגים אינו מוצג.
+  final List<String> typeChipKeys;
+  final Set<String> selectedTypeChips;
+  final ValueChanged<Set<String>>? onTypeChipsChanged;
+
   const CommentatorsListView({
     super.key,
     this.onCommentatorSelected,
+    this.typeChipKeys = const [],
+    this.selectedTypeChips = const {},
+    this.onTypeChipsChanged,
   });
 
   @override
@@ -34,6 +43,10 @@ class CommentatorsListViewState extends State<CommentatorsListView> {
           onSelectionChanged: (commentators) {
             context.read<TextBookBloc>().add(UpdateCommentators(commentators));
           },
+          typeChipKeys: widget.typeChipKeys,
+          selectedTypeChips: widget.selectedTypeChips,
+          typeChipLabelBuilder: LinkTypes.hebrewLabel,
+          onTypeChipsChanged: widget.onTypeChipsChanged,
         );
       },
     );
