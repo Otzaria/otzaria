@@ -95,7 +95,10 @@ Library _buildLibrary(int total) {
 }
 
 Future<void> main() async {
-  await tryInitSearchEngine();
+  // פתיחת התפריט מגיעה ל-normalizeFindQuery → sanitizeQuery, שמאציל למנוע
+  // הנייטיבי. בריצות CI שאינן נוגעות בקבצי חיפוש המנוע אינו נבנה, ולכן
+  // הטסטים שפותחים את התפריט מדולגים במקום להיכשל.
+  final engineReady = await tryInitSearchEngine();
 
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
@@ -390,7 +393,7 @@ Future<void> main() async {
       final small = await measureMenuOpen(200);
       final large = await measureMenuOpen(20000);
       expectScanFree(small, large, 'פתיחת תפריט ההיקף');
-    });
+    }, skip: !engineReady);
 
     testWidgets('התפריט והחיפוש בו עובדים על העץ שנבנה בעצלתיים', (
       tester,
@@ -419,7 +422,7 @@ Future<void> main() async {
         ),
         findsWidgets,
       );
-    });
+    }, skip: !engineReady);
 
     testWidgets('כניסה לספרי יסוד מסווגת בעצלתיים ומציגה את הספרים', (
       tester,
@@ -467,7 +470,7 @@ Future<void> main() async {
 
       expect(find.text('בראשית'), findsOneWidget);
       expect(tester.takeException(), isNull);
-    });
+    }, skip: !engineReady);
 
     testWidgets('rebuild עם ספרייה חדשה אינו בונה את העץ מחדש', (tester) async {
       // שני טסטי התזמון שלמעלה עובדים על אותו אובייקט ספרייה, ולכן מטמון
@@ -586,7 +589,7 @@ Future<void> main() async {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
       expect(inMenu('ספרייה חדשה'), findsWidgets);
-    });
+    }, skip: !engineReady);
   });
 }
 
