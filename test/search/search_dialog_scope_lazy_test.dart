@@ -95,11 +95,15 @@ Library _buildLibrary(int total) {
 }
 
 Future<void> main() async {
-  await tryInitSearchEngine();
+  final engineReady = await tryInitSearchEngine();
 
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
+
+  void rustTest(String description, WidgetTesterCallback callback) {
+    testWidgets(description, callback, skip: !engineReady);
+  }
 
   /// מקים את דיאלוג החיפוש מעל ספרייה בגודל [bookCount] ומחזיר את משך
   /// הפריים הראשון — הזמן שהמשתמש ממתין עד שהפופאפ מוצג.
@@ -346,7 +350,7 @@ Future<void> main() async {
       expectScanFree(small, large, 'פתיחה ראשונה, היקף שמור');
     });
 
-    testWidgets('פתיחת תפריט ההיקף אינה בונה או מסווגת את כל הספרייה', (
+    rustTest('פתיחת תפריט ההיקף אינה בונה או מסווגת את כל הספרייה', (
       tester,
     ) async {
       Future<Duration> measureMenuOpen(int bookCount) async {
@@ -392,7 +396,7 @@ Future<void> main() async {
       expectScanFree(small, large, 'פתיחת תפריט ההיקף');
     });
 
-    testWidgets('התפריט והחיפוש בו עובדים על העץ שנבנה בעצלתיים', (
+    rustTest('התפריט והחיפוש בו עובדים על העץ שנבנה בעצלתיים', (
       tester,
     ) async {
       // העץ נבנה רק כשחיפוש או drill באמת דורשים אותו.
@@ -421,7 +425,7 @@ Future<void> main() async {
       );
     });
 
-    testWidgets('כניסה לספרי יסוד מסווגת בעצלתיים ומציגה את הספרים', (
+    rustTest('כניסה לספרי יסוד מסווגת בעצלתיים ומציגה את הספרים', (
       tester,
     ) async {
       final torah = _mkCat(
@@ -519,7 +523,7 @@ Future<void> main() async {
       expectScanFree(small, large, 'ספרייה חדשה בכל rebuild');
     });
 
-    testWidgets('החלפת ספרייה מרעננת את העץ בתפריט הפתוח', (tester) async {
+    rustTest('החלפת ספרייה מרעננת את העץ בתפריט הפתוח', (tester) async {
       // המטמון של ScopeTree ממופתח בזהות אובייקט הספרייה; החלפה חייבת
       // להחליף גם את מה שהתפריט מציג.
       final libraryBloc = _MockLibraryBloc();
