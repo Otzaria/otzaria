@@ -11,6 +11,7 @@ import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/direct_link_menu_entries.dart';
 import 'package:otzaria/widgets/misc/link_context_menu_entry.dart';
+import 'package:otzaria/widgets/misc/smooth_wheel_scroll.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -1860,7 +1861,9 @@ class _CombinedViewState extends State<CombinedView> {
                                               .add(note);
                                         }
                                       }
-                                      return buildOuterList(state, noteMap);
+                                      return SmoothWheelScroll(
+                                        child: buildOuterList(state, noteMap),
+                                      );
                                     },
                                   ),
                             ),
