@@ -1,19 +1,39 @@
 import 'package:otzaria/search/search_query_builder.dart';
-import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 
 /// מנרמל שאילתת איתור כך שתתנהג כמו האיתור הוותיק.
 String normalizeFindQuery(String rawQuery) {
   return normalizeFindText(SearchQueryBuilder.sanitizeQuery(rawQuery));
 }
 
+/// מנרמל טקסט לדירוג כמו שאילתה, ללא קריאת FFI לכל כותרת.
+String normalizeFindRankText(
+  String rawText, {
+  String? normalizedFindText,
+}) {
+  if (!_findRankIgnoredChars.hasMatch(rawText)) {
+    return normalizedFindText ?? normalizeFindText(rawText);
+  }
+  return normalizeFindText(rawText.replaceAll(_findRankIgnoredChars, ''));
+}
+
 /// מנרמל טקסט לחיפוש בסגנון איתור.
 String normalizeFindText(String rawText) {
-  var cleaned = utils.removeVolwels(rawText);
-  cleaned = cleaned.replaceAll('"', '').replaceAll("'", '');
-  cleaned = cleaned.replaceAll('״', '').replaceAll('׳', '');
-  cleaned = cleaned.replaceAll(RegExp(r'[^a-zA-Z0-9\u0590-\u05FF\s/]'), ' ');
-  return cleaned.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+  var cleaned = rawText.replaceAll(_findSeparators, ' ');
+  cleaned = cleaned.replaceAll(_findVowels, '');
+  cleaned = cleaned.replaceAll(_findQuotes, '');
+  cleaned = cleaned.replaceAll(_nonSearchableChars, ' ');
+  return cleaned.toLowerCase().replaceAll(_whitespaceRun, ' ').trim();
 }
+
+// מהודרים פעם אחת: הנרמול רץ על כל ערכי ה-TOC של הספר בכל הקלדה.
+final RegExp _findSeparators = RegExp(r'[־׀|]');
+final RegExp _findVowels = RegExp(r'[֑-ׇ]');
+final RegExp _findQuotes = RegExp(r'''["'״׳]''');
+final RegExp _nonSearchableChars = RegExp(r'[^a-zA-Z0-9\u0590-\u05FF\s/]');
+final RegExp _whitespaceRun = RegExp(r'\s+');
+final RegExp _findRankIgnoredChars = RegExp(
+  r'[*\[\]^$\\+.~`\u200B-\u200F\u2018\u2019\u201C\u201D\u202A-\u202E\u2066-\u2069\uFEFF]',
+);
 
 /// מחזירה האם יש התאמה בין הטקסטים המנורמלים לבין שאילתת האיתור.
 bool findNormalizedTextMatches({

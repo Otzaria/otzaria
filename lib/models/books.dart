@@ -656,7 +656,7 @@ class EpubBook extends FileBook {
 ///represents an entry in table of content , which is a node in a hirarchial tree of topics.
 ///every entry has its 'level' in the tree, and an index of the line in the book that it is refers to
 class TocEntry {
-  String text;
+  final String text;
   final int index;
   final int level;
   final TocEntry? parent;

@@ -1,3 +1,4 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +8,8 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/toc_navigator_screen.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+
+import '../../support/search_engine_test_init.dart';
 
 /// Bloc בדיקה שמאפשר emit ידני של states ל-TocViewer.
 /// מאפשר לאמת ש-buildWhen מסנן emits לא רלוונטיים — ההגנה המרכזית של
@@ -80,7 +83,11 @@ Widget _wrap(Widget child, TextBookBloc bloc) {
   );
 }
 
-void main() {
+Future<void> main() async {
+  // חיפוש הכותרות מנרמל את השאילתה דרך מנוע ה-Rust; הטסט המסומן מדולג
+  // כשאין build נייטיבי זמין.
+  final engineReady = await tryInitSearchEngine();
+
   TestWidgetsFlutterBinding.ensureInitialized();
 
   // ── הגנה על ה-buildWhen: שלא יתאפשר rebuild בכל emit ──────────────────
@@ -251,6 +258,150 @@ void main() {
       reason: 'ספר קטן לא צריך וירטואליזציה — שומר על מסלול רקורסיבי',
     );
   });
+
+  testWidgets('מטמון השיטוח מתעדכן בסגירה ובפתיחה של ענף', (tester) async {
+    final parent = TocEntry(text: 'parent', index: 0, level: 1);
+    parent.children = [
+      TocEntry(text: 'unique-child', index: 1, level: 2, parent: parent),
+    ];
+    final toc = [
+      parent,
+      ...List.generate(
+        500,
+        (i) => TocEntry(text: 'leaf $i', index: i + 2, level: 1),
+      ),
+    ];
+    final bloc = _TestTextBookBloc(
+      _loadedState(toc: toc, visibleIndices: const [0]),
+    );
+    addTearDown(bloc.close);
+    final focusNode = FocusNode();
+    addTearDown(focusNode.dispose);
+
+    await tester.pumpWidget(
+      _wrap(
+        TocViewer(
+          scrollController: ItemScrollController(),
+          closeLeftPaneCallback: () {},
+          focusNode: focusNode,
+        ),
+        bloc,
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('unique-child'), findsOneWidget);
+    await tester.tap(find.byIcon(FluentIcons.chevron_up_24_regular).first);
+    await tester.pump();
+    expect(find.text('unique-child'), findsNothing);
+
+    await tester.tap(find.byIcon(FluentIcons.chevron_down_24_regular).first);
+    await tester.pump();
+    expect(find.text('unique-child'), findsOneWidget);
+  });
+
+  testWidgets(
+    'חיפוש שמחזיר אלפי כותרות עובר למסלול הוירטואלי',
+    (tester) async {
+      // 100 סימנים × 60 סעיפים — כל 'seif' תואם לשאילתה, כך שהסינון לא
+      // מצמצם כמעט כלום. זה המקרה שהקפיא את התוכנה (מיקרופדיה תלמודית).
+      final largeToc = _buildLargeToc(simanim: 100, seifim: 60);
+
+      final bloc = _TestTextBookBloc(
+        _loadedState(
+          toc: largeToc,
+          visibleIndices: const [0],
+          selectedIndex: null,
+        ),
+      );
+      addTearDown(bloc.close);
+      final focusNode = FocusNode();
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        _wrap(
+          TocViewer(
+            scrollController: ItemScrollController(),
+            closeLeftPaneCallback: () {},
+            focusNode: focusNode,
+          ),
+          bloc,
+        ),
+      );
+      await tester.pump();
+
+      await tester.enterText(find.byType(TextField), 'seif');
+      await tester.pump();
+      // הסינון מוחל בהשהיה כדי לא לחסום את ההקלדה.
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(
+        find.byType(ScrollablePositionedList),
+        findsOneWidget,
+        reason: 'תוצאות חיפוש רבות חייבות וירטואליזציה',
+      );
+
+      final seifTexts = find.byWidgetPredicate(
+        (widget) => widget is Text && (widget.data?.contains('seif') ?? false),
+      );
+      expect(
+        tester.widgetList(seifTexts).length,
+        lessThan(100),
+        reason: 'רק הפריטים שבחלון התצוגה נבנים',
+      );
+    },
+    skip: !engineReady,
+  );
+
+  testWidgets(
+    'הקלדה רצופה מסננת פעם אחת בלבד, בסוף',
+    (tester) async {
+      final toc = [
+        TocEntry(text: 'ספר', index: 0, level: 1)
+          ..children.addAll([
+            TocEntry(text: 'alpha', index: 1, level: 2),
+            TocEntry(text: 'alef', index: 2, level: 2),
+            TocEntry(text: 'beta', index: 3, level: 2),
+          ]),
+      ];
+
+      final bloc = _TestTextBookBloc(
+        _loadedState(toc: toc, visibleIndices: const [0]),
+      );
+      addTearDown(bloc.close);
+      final focusNode = FocusNode();
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        _wrap(
+          TocViewer(
+            scrollController: ItemScrollController(),
+            closeLeftPaneCallback: () {},
+            focusNode: focusNode,
+          ),
+          bloc,
+        ),
+      );
+      await tester.pump();
+
+      // הקלדה תו-אחר-תו בקצב מהיר מהשהיית הסינון. השאילתה נשארת קצרה
+      // מהכותרת שהיא תואמת, כך ש-find.text לא יתפוס גם את שדה החיפוש.
+      for (final q in ['a', 'al', 'alp']) {
+        await tester.enterText(find.byType(TextField), q);
+        await tester.pump(const Duration(milliseconds: 40));
+      }
+
+      // עדיין לפני תום ההשהיה — התצוגה לא סוננה.
+      expect(find.text('beta'), findsOneWidget);
+
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('alpha'), findsOneWidget);
+      expect(find.text('beta'), findsNothing);
+      expect(find.text('alef'), findsNothing);
+    },
+    skip: !engineReady,
+  );
 
   testWidgets('שינוי visibleIndices מעדכן את ה-active highlight בלי קריסה', (
     tester,

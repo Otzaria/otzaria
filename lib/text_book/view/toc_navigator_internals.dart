@@ -35,10 +35,13 @@ int countAllTocEntries(List<TocEntry> entries) {
 ///
 /// המפה [expanded] מאפשרת למשתמש לעקוף את ברירת המחדל - הערך בה
 /// קובע הכל אם קיים (true=מורחב, false=מכווץ).
+///
+/// [expandByDefault] פותח הכל כברירת מחדל - כך נראות תוצאות החיפוש.
 List<TocFlatItem> flattenVisibleToc(
   List<TocEntry> entries,
   Map<int, bool> expanded, {
   bool parentIsFirstChild = true,
+  bool expandByDefault = false,
 }) {
   final result = <TocFlatItem>[];
   for (var i = 0; i < entries.length; i++) {
@@ -50,7 +53,8 @@ List<TocFlatItem> flattenVisibleToc(
       continue;
     }
 
-    final fallbackExpanded = entry.level == 1 || isFirstChild;
+    final fallbackExpanded =
+        expandByDefault || entry.level == 1 || isFirstChild;
     final isExpanded = expanded[entry.index] ?? fallbackExpanded;
     result.add(TocFlatItem(entry, isExpanded));
     if (isExpanded) {
@@ -59,6 +63,7 @@ List<TocFlatItem> flattenVisibleToc(
           entry.children,
           expanded,
           parentIsFirstChild: isFirstChild,
+          expandByDefault: expandByDefault,
         ),
       );
     }
