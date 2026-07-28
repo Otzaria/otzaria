@@ -29,12 +29,16 @@ class PerBookSettings {
   /// שגם הניקוי (שמכיר רק את שם הקובץ) וגם השמירות (שמכירות את המפתח) ינעלו
   /// על אותו ערך.
   static final Map<String, Future<void>> _fileLocks = {};
+  static Completer<void>? _resetGate;
 
   /// מריץ [action] בזו-אחר-זו עם שאר הפעולות על אותו [lockKey] (hash הקובץ).
   static Future<T> runLocked<T>(
     String lockKey,
     Future<T> Function() action,
   ) async {
+    while (_resetGate != null) {
+      await _resetGate!.future;
+    }
     final previous = _fileLocks[lockKey] ?? Future.value();
     // התעלמות מכשל קודם רק לצורך המשכיות התור; כל קורא מקבל את שגיאתו דרך await.
     final current = previous
@@ -66,6 +70,13 @@ class PerBookSettings {
   /// [cleanupRedundantSettings] סורק את התיקייה לפני כן, ולכן מגן על עצמו
   /// בבדיקות קיום בתוך הנעילה במקום להסתמך על ה-barrier.
   static Future<void> settle() async {
+    while (_resetGate != null) {
+      await _resetGate!.future;
+    }
+    await _settleFileLocks();
+  }
+
+  static Future<void> _settleFileLocks() async {
     // כל ערך הוא הפעולה האחרונה בתור של קובץ, והתור סדרתי — ההמתנה לו
     // מכסה את כולו. הלולאה קולטת פעולות שנוספו בזמן ההמתנה.
     while (_fileLocks.isNotEmpty) {
@@ -258,8 +269,13 @@ class PerBookSettings {
   /// הקובץ מחדש אחריה. הנתיב נבנה ישירות ולא דרך [_getSettingsDirectory],
   /// שיוצר את התיקייה — אין טעם ליצור תיקייה רק כדי למחוק אותה.
   static Future<bool> deleteAllSettings() async {
-    await settle();
+    while (_resetGate != null) {
+      await _resetGate!.future;
+    }
+    final resetGate = Completer<void>();
+    _resetGate = resetGate;
     try {
+      await _settleFileLocks();
       final dir = Directory(await AppPaths.getPerBookSettingsPath());
       if (await dir.exists()) {
         await dir.delete(recursive: true);
@@ -269,6 +285,9 @@ class PerBookSettings {
     } catch (e) {
       debugPrint('❌ Error deleting all per-book settings: $e');
       return false;
+    } finally {
+      _resetGate = null;
+      resetGate.complete();
     }
   }
 

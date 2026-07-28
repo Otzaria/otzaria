@@ -235,6 +235,29 @@ void main() {
       expect(await settingsDir.exists(), isFalse);
     });
 
+    test('פעולה שמתחילה בזמן איפוס ממתינה לו ונשמרת אחריו', () async {
+      final saveStarted = Completer<void>();
+      final releaseSave = Completer<void>();
+      final existingSave = TextBookPerBookSettings.mutate(bookA, (
+        existing,
+      ) async {
+        saveStarted.complete();
+        await releaseSave.future;
+        return (existing ?? TextBookPerBookSettings()).copyWith(fontSize: 18);
+      });
+      await saveStarted.future;
+
+      final reset = PerBookSettings.deleteAllSettings();
+      final laterSave = saveFontSize(bookB, 29);
+      releaseSave.complete();
+
+      expect(await reset, isTrue);
+      await existingSave;
+      await laterSave;
+      expect(await TextBookPerBookSettings.load(bookA), isNull);
+      expect((await TextBookPerBookSettings.load(bookB))?.fontSize, 29);
+    });
+
     test('על תיקייה שאינה קיימת מחזיר true ואינו יוצר אותה', () async {
       expect(await settingsDir.exists(), isFalse);
 
