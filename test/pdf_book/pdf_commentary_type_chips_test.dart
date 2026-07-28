@@ -9,6 +9,7 @@ import 'package:otzaria/pdf_book/view/pdf_commentary_panel.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
+import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -220,7 +221,8 @@ void main() {
   });
 
   group('PdfCommentaryPanel — הסינון מצמצם את הרשימה בפועל', () {
-    testWidgets('בלי סינון מוצגים מפרשים משני הסוגים', (tester) async {
+    testWidgets('מטמון דורות קר אינו חוסם הצגת כמה מפרשים', (tester) async {
+      CommentaryService.clearEraCache();
       final tab = _tab(
         [
           _link(path2: 'אונקלוס', connectionType: LinkTypes.targum),

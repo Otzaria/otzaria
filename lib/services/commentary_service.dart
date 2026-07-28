@@ -413,9 +413,10 @@ class CommentaryService {
   /// [links] - רשימת הקישורים
   ///
   /// מחזיר קבוצות ממוינות לפי דור
+  /// הדורות חייבים להיטען מראש; מטמון קר נופל למיון אלפביתי כדי לא לחסום UI.
   static Future<List<LinkGroup>> groupAndSortLinks(List<Link> links) async {
     final groups = await groupConsecutiveLinksAsync(links);
-    return sortGroupsByEra(groups);
+    return sortGroupsByEraSync(groups);
   }
 
   /// בודק אם יש מפרשים זמינים לאינדקסים מסוימים
