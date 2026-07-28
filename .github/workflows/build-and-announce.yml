@@ -736,6 +736,22 @@ jobs:
           # Generate settings search index (.g.dart) — gitignored, regenerated per build.
           dart run tool/generate_search_index.dart
 
+      # התוסף קורא ל-webkit_web_view_get_theme_color (קיים רק מ-WebKit 2.50) בלי guard גרסה;
+      # ה-SDK הוא 2.48 — עוטפים ב-WEBKIT_CHECK_VERSION עד שיתוקן בחבילה.
+      - name: Patch inappwebview_linux theme_color for WPE 2.48
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=0
+          while IFS= read -r FILE; do
+            found=1
+            sed -i 's|^  WebKitColor color;$|  WebKitColor color{};|' "$FILE"
+            sed -i 's|^  gboolean hasColor = webkit_web_view_get_theme_color(webview_, \&color);$|#if WEBKIT_CHECK_VERSION(2, 50, 0)\n  gboolean hasColor = webkit_web_view_get_theme_color(webview_, \&color);\n#else\n  gboolean hasColor = FALSE;\n#endif|' "$FILE"
+            grep -q "WEBKIT_CHECK_VERSION(2, 50, 0)" "$FILE" || { echo "::error::theme_color patch did not apply to $FILE"; exit 1; }
+            echo "patched: $FILE"
+          done < <(find "${PUB_CACHE:-$HOME/.pub-cache}/hosted/pub.dev" -path '*/flutter_inappwebview_linux-*/linux/in_app_webview/in_app_webview.cc')
+          [ "$found" = "1" ] || { echo "::error::in_app_webview.cc not found in pub cache"; exit 1; }
+
       - name: Build Flutter Linux app (with retry)
         shell: bash
         env:
