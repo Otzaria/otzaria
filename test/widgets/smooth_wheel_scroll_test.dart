@@ -16,7 +16,10 @@ void main() {
   late ItemPositionsListener positions;
   var itemBuilds = 0;
 
-  Widget buildList({bool smooth = true}) {
+  Widget buildList({
+    bool smooth = true,
+    bool Function(ScrollNotification)? onNotification,
+  }) {
     itemController = ItemScrollController();
     offsetController = ScrollOffsetController();
     positions = ItemPositionsListener.create();
@@ -33,12 +36,20 @@ void main() {
       },
     );
 
+    Widget scrollable = smooth ? SmoothWheelScroll(child: list) : list;
+    if (onNotification != null) {
+      scrollable = NotificationListener<ScrollNotification>(
+        onNotification: onNotification,
+        child: scrollable,
+      );
+    }
+
     return MaterialApp(
       home: Scaffold(
         body: SizedBox(
           height: _viewportHeight,
           width: 400,
-          child: smooth ? SmoothWheelScroll(child: list) : list,
+          child: scrollable,
         ),
       ),
     );
@@ -167,6 +178,33 @@ void main() {
 
       expect(smoothBuilds, lessThanOrEqualTo(jumpBuilds));
     });
+
+    testWidgets('אירועים באותו פריים רק מצטברים ליעד', (tester) async {
+      await tester.pumpWidget(buildList());
+      await tester.pumpAndSettle();
+
+      for (var n = 0; n < 4; n++) {
+        wheel(tester);
+      }
+      final beforeNextFrame = offset();
+      await tester.pumpAndSettle();
+
+      expect(beforeNextFrame, lessThan(_notch * 0.5));
+      expect(offset(), closeTo(_notch * 4, 0.01));
+    });
+
+    testWidgets('היפוך חלקי שומר את המרחק המצטבר נטו', (tester) async {
+      await tester.pumpWidget(buildList());
+      await tester.pumpAndSettle();
+
+      for (var n = 0; n < 4; n++) {
+        wheel(tester);
+      }
+      wheel(tester, dy: -_notch);
+      await tester.pumpAndSettle();
+
+      expect(offset(), closeTo(_notch * 3, 0.01));
+    });
   });
 
   group('קצות הרשימה', () {
@@ -217,6 +255,99 @@ void main() {
 
       expect(offset(), closeTo(_notch, 0.01));
     });
+
+    testWidgets('רשימה מקוננת מקבלת את הגלילה שמתחת לסמן', (tester) async {
+      final outerController = ScrollController();
+      final innerController = ScrollController();
+      const innerKey = ValueKey('inner-list');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SizedBox(
+            height: _viewportHeight,
+            width: 400,
+            child: SmoothWheelScroll(
+              child: ListView(
+                controller: outerController,
+                children: [
+                  SizedBox(
+                    height: 200,
+                    child: ListView.builder(
+                      key: innerKey,
+                      controller: innerController,
+                      itemExtent: _itemHeight,
+                      itemCount: 20,
+                      itemBuilder: (context, index) => Text('פנימי $index'),
+                    ),
+                  ),
+                  const SizedBox(height: 800),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      tester.binding.handlePointerEvent(
+        PointerScrollEvent(
+          position: tester.getCenter(find.byKey(innerKey)),
+          scrollDelta: const Offset(0, _notch),
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(innerController.offset, closeTo(_notch, 0.01));
+      expect(outerController.offset, 0.0);
+    });
+
+    testWidgets('רשימה פנימית אינה מבטלת החלקה בשטח הרשימה החיצונית', (
+      tester,
+    ) async {
+      final outerController = ScrollController();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SizedBox(
+            height: _viewportHeight,
+            width: 400,
+            child: SmoothWheelScroll(
+              child: ListView(
+                controller: outerController,
+                children: [
+                  SizedBox(
+                    height: 200,
+                    child: ListView.builder(
+                      itemExtent: _itemHeight,
+                      itemCount: 20,
+                      itemBuilder: (context, index) => Text('פנימי $index'),
+                    ),
+                  ),
+                  const SizedBox(height: 800, key: ValueKey('outer-area')),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      tester.binding.handlePointerEvent(
+        PointerScrollEvent(
+          position:
+              tester.getTopLeft(find.byKey(const ValueKey('outer-area'))) +
+              const Offset(200, 100),
+          scrollDelta: const Offset(0, _notch),
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      final beforeNextFrame = outerController.offset;
+      await tester.pumpAndSettle();
+
+      expect(beforeNextFrame, lessThan(_notch * 0.5));
+      expect(outerController.offset, closeTo(_notch, 0.01));
+    });
   });
 
   group('שיתוף השליטה', () {
@@ -239,6 +370,51 @@ void main() {
       expect(afterJump, closeTo(300 * _itemHeight, 0.01));
     });
 
+    testWidgets('ביטול אינרציה מפסיק את ההחלקה', (tester) async {
+      await tester.pumpWidget(buildList());
+      await tester.pumpAndSettle();
+
+      wheel(tester);
+      await tester.pump(const Duration(milliseconds: 16));
+      tester.binding.handlePointerEvent(
+        PointerScrollInertiaCancelEvent(
+          position: tester.getCenter(find.byType(ScrollablePositionedList)),
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      final atCancel = offset();
+      await frames(tester, 3);
+
+      expect(offset(), closeTo(atCancel, 0.01));
+    });
+
+    testWidgets('החלקה היא פעילות אחת עם התחלה וסיום יחידים', (tester) async {
+      var starts = 0;
+      var updates = 0;
+      var ends = 0;
+      var directions = 0;
+      await tester.pumpWidget(
+        buildList(
+          onNotification: (notification) {
+            if (notification is ScrollStartNotification) starts++;
+            if (notification is ScrollUpdateNotification) updates++;
+            if (notification is ScrollEndNotification) ends++;
+            if (notification is UserScrollNotification) directions++;
+            return false;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      wheel(tester);
+      await frames(tester, 20);
+
+      expect(starts, 1);
+      expect(updates, greaterThan(1));
+      expect(ends, 1);
+      expect(directions, 2);
+    });
+
     // מלכודת: עטיפה ב-render object מרובה-ילדים (Stack) מייצרת את הרשימה
     // החדשה לפני שחרור הקודמת, ואז ItemScrollController נצמד פעמיים וזורק.
     testWidgets('החלפת key של הרשימה אינה מכשילה את חיבור הבקרים', (
@@ -246,6 +422,7 @@ void main() {
     ) async {
       final sharedItemController = ItemScrollController();
       final sharedOffsetController = ScrollOffsetController();
+      positions = ItemPositionsListener.create();
 
       Widget keyed(String tag) => MaterialApp(
         home: Scaffold(
@@ -269,10 +446,13 @@ void main() {
 
       await tester.pumpWidget(keyed('a'));
       await tester.pumpAndSettle();
+      wheel(tester);
+      await tester.pump(const Duration(milliseconds: 16));
       await tester.pumpWidget(keyed('b'));
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
+      expect(offset(), closeTo(0.0, 0.01));
     });
 
     testWidgets('פירוק הווידג\'ט באמצע החלקה אינו זורק', (tester) async {
