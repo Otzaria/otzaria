@@ -29,6 +29,7 @@ import 'package:otzaria/widgets/misc/commentators_filter_button.dart';
 import 'package:otzaria/widgets/layout/commentators_filter_screen.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
+import 'package:otzaria/widgets/misc/smooth_wheel_scroll.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/ui/context_menu_utils.dart';
@@ -1803,7 +1804,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                                     itemPositionsListener:
                                         _itemPositionsListener,
                                     itemCount: groups.length,
-                                    child: listView,
+                                    child: SmoothWheelScroll(child: listView),
                                   ),
                                 ),
                               ),

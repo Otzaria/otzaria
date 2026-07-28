@@ -50,6 +50,7 @@ import 'package:otzaria/widgets/smart_text/smart_text.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/widgets/misc/direct_link_menu_entries.dart';
 import 'package:otzaria/widgets/misc/link_context_menu_entry.dart';
+import 'package:otzaria/widgets/misc/smooth_wheel_scroll.dart';
 import 'package:otzaria/text_book/view/selection/enhanced_gesture_detector.dart';
 import 'package:otzaria/text_book/view/selection/selection_persistence.dart';
 import 'package:otzaria/text_book/view/selection/selection_hit_test.dart';
@@ -2248,23 +2249,27 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                                     itemPositionsListener: _positionsListener,
                                     itemCount: itemCount,
                                     labelForIndex: widget.labelForIndex,
-                                    child: ScrollablePositionedList.builder(
-                                      itemScrollController: _scrollController,
-                                      itemPositionsListener: _positionsListener,
-                                      scrollOffsetController: widget.isMainText
-                                          ? state.scrollOffsetController
-                                          : null,
-                                      itemCount: itemCount,
-                                      padding: const EdgeInsets.all(4),
-                                      itemBuilder: (context, index) =>
-                                          _buildLineItem(
-                                            context,
-                                            index,
-                                            state,
-                                            noteMap,
-                                            segments,
-                                            continuous,
-                                          ),
+                                    child: SmoothWheelScroll(
+                                      child: ScrollablePositionedList.builder(
+                                        itemScrollController: _scrollController,
+                                        itemPositionsListener:
+                                            _positionsListener,
+                                        scrollOffsetController:
+                                            widget.isMainText
+                                            ? state.scrollOffsetController
+                                            : null,
+                                        itemCount: itemCount,
+                                        padding: const EdgeInsets.all(4),
+                                        itemBuilder: (context, index) =>
+                                            _buildLineItem(
+                                              context,
+                                              index,
+                                              state,
+                                              noteMap,
+                                              segments,
+                                              continuous,
+                                            ),
+                                      ),
                                     ),
                                   )
                                 : ListView.builder(
