@@ -14,6 +14,15 @@ bool shouldRemoveNikudForBook({
   return defaultRemoveNikud && (removeNikudFromTanach || !isTanach);
 }
 
+/// מחזיר האם יש להסיר פיסוק עבור ספר נתון. הסרת פיסוק אינה חלה על תנ"ך
+/// (הכפתור מוסתר שם), ולכן ההחרגה היא חלק מהחוזה ולא מהמסך.
+bool shouldRemovePunctuationForBook({
+  required bool defaultRemovePunctuation,
+  required bool isTanach,
+}) {
+  return defaultRemovePunctuation && !isTanach;
+}
+
 /// מחזיר האם שינוי מצב ההגדרות מחייב טעינה מחדש של ספר פתוח.
 bool shouldReloadForNikudSettingsChange({
   required SettingsState previous,

@@ -4,7 +4,6 @@ import 'package:otzaria/theme/app_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/misc/commentators_filter_button.dart';
 import 'package:otzaria/widgets/layout/commentators_filter_screen.dart';
@@ -16,16 +15,20 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/text_book/view/selection/selection_hit_test.dart';
+import 'package:otzaria/text_book/view/selection/selected_text_restore.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
-import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
-import 'package:otzaria/pdf_book/view/pdf_commentary_content.dart';
+import 'package:otzaria/widgets/commentary/commentary_content.dart';
+import 'package:otzaria/widgets/commentary/links_list_view.dart';
+import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
+import 'package:otzaria/text_book/utils/commentary_type_filter.dart';
 import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
+import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/settings/settings_exports.dart';
@@ -63,10 +66,68 @@ bool pdfLinkInVisibleScope(
   return extraLineIndices?.contains(linkIndex1) ?? false;
 }
 
-/// מקבץ רשימת קישורים לקבוצות לפי שם הספר (רק קטעים רצופים)
-/// משתמש ב-CommentaryService
-List<CommentaryGroup> _groupConsecutiveLinks(List<Link> links) {
-  return CommentaryService.groupConsecutiveLinks(links);
+/// מפרשי הקטע המוצג *לפני* סינון הסוגים — הבסיס גם לרשימה וגם לצ׳יפים.
+/// [showAllWhenEmpty] = בחירה ריקה משמעה "הצג את כל המפרשים הזמינים לקטע".
+///
+/// משותף לחלונית שבתוך הספר ולכרטיסיית המפרשים, כדי ששתיהן יגזרו את אותם
+/// צ׳יפים מאותה קבוצת קישורים.
+List<Link> pdfScopedCommentaryLinks({
+  required Iterable<Link> links,
+  required int startLine,
+  required int endLine,
+  required Set<int>? extraLineIndices,
+  required Set<String> activeCommentators,
+  required bool showAllWhenEmpty,
+}) {
+  final scoped = <Link>[];
+  for (final link in links) {
+    if (!LinkTypes.isDependentTextLink(link.connectionType)) continue;
+    if (!pdfLinkInVisibleScope(
+      link.index1,
+      startLine,
+      endLine,
+      extraLineIndices,
+    )) {
+      continue;
+    }
+    if (showAllWhenEmpty ||
+        activeCommentators.contains(utils.getTitleFromPath(link.path2))) {
+      scoped.add(link);
+    }
+  }
+  return scoped;
+}
+
+/// מפתח הזהות של פריט מפרש. חייב להיות תלוי-קישור בלבד: מפתח שכולל את העמוד
+/// הנוכחי מחריב את ה-State של כל פריט בכל דפדוף וגורם לטעינת התוכן מחדש.
+@visibleForTesting
+String pdfCommentaryItemKey(Link link) =>
+    '${link.index1}_${link.path2}_${link.index2}';
+
+/// מפתח ה-PageStorage של רשימת המפרשים. תלוי בבחירת המפרשים בלבד: הכללת
+/// העמוד או מצב הכיווץ יוצרת רשימה חדשה ומאבדת את מיקום הגלילה.
+@visibleForTesting
+String pdfCommentaryListStorageKey(Iterable<String> activeCommentators) =>
+    'commentary_${(activeCommentators.toList()..sort()).join(',')}';
+
+/// מפתח מטמון התוכן הנראה. [linksIdentity] חייב להיות זהות רשימת הקישורים
+/// ולא אורכה: רענון חלון-קישורים מחליף את הרשימה, ואורך זהה אינו מבדיל.
+@visibleForTesting
+String pdfVisibleContentCacheKey({
+  required int startLine,
+  required int endLine,
+  required Set<int>? extraLineIndices,
+  required Iterable<String> activeCommentators,
+  required int linksIdentity,
+  Set<String> commentaryTypes = const {},
+}) {
+  final extraKey = extraLineIndices == null
+      ? ''
+      : (extraLineIndices.toList()..sort()).join(',');
+  final commentatorsKey = (activeCommentators.toList()..sort()).join('|');
+  final typesKey = (commentaryTypes.toList()..sort()).join('+');
+  return '$startLine:$endLine:$extraKey:$commentatorsKey:$linksIdentity'
+      ':$typesKey';
 }
 
 /// תוצאת סיווג יעדי הקישורים לבניית קבוצות המפרשים: מפרשים (סוגים תלויי-טקסט)
@@ -170,12 +231,24 @@ class PdfCommentaryPanel extends StatefulWidget {
   final ValueNotifier<int>? externalTotalResultsNotifier;
   final ValueNotifier<int>? externalCurrentIndexNotifier;
 
+  /// רשימת קטעי תוצאות החיפוש לתצוגה בפאנל הצד (כמו בכרטיסיית הטקסט).
+  final ValueNotifier<List<CommentarySearchSnippet>>?
+  externalSearchSnippetsNotifier;
+
+  /// בחירת סוגי המפרשים כשההורה מציג את הצ׳יפים בפאנל צד. כשהוא null הבחירה
+  /// מנוהלת מקומית (ה-overlay הפנימי של החלונית).
+  final CommentaryTypeSelection? typeSelection;
+
   /// משקף החוצה את מצב "הכל מורחב" (לכפתור הכיווץ/הרחבה בסרגל הכרטיסייה).
   final ValueNotifier<bool>? externalAllExpandedNotifier;
 
   /// הסרת ניקוד/פיסוק מתוכן המפרשים (כמו בכרטיסיית הטקסט).
   final bool removeNikud;
   final bool removePunctuation;
+
+  @visibleForTesting
+  final Future<List<CommentaryGroup>> Function(List<Link>)?
+  commentaryGroupsLoader;
 
   const PdfCommentaryPanel({
     super.key,
@@ -198,9 +271,12 @@ class PdfCommentaryPanel extends StatefulWidget {
     this.externalSearchController,
     this.externalTotalResultsNotifier,
     this.externalCurrentIndexNotifier,
+    this.externalSearchSnippetsNotifier,
+    this.typeSelection,
     this.externalAllExpandedNotifier,
     this.removeNikud = false,
     this.removePunctuation = false,
+    this.commentaryGroupsLoader,
   });
 
   @override
@@ -238,6 +314,21 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
 
   // Anti-jitter search stats
   final Map<String, int> _searchResultsPerLink = {};
+
+  /// קטע התצוגה של תוצאת החיפוש בכל מפרש (link key → snippet).
+  final Map<String, String> _searchSnippetsPerLink = {};
+
+  /// הטקסט המרונדר של כל מפרש מוצג — לשחזור מעברי שורה בהעתקה רב-שורתית,
+  /// ש-Flutter מחזיר שטוחה.
+  final Map<String, String> _renderedTextByKey = {};
+
+  /// הכותרת המרונדרת של כל מפרש מוצג. הבחירה יכולה לכלול גם כותרות, ולכן הן
+  /// חלק מרצף השורות שממנו משוחזרים מעברי השורה.
+  final Map<String, String> _renderedTitleByKey = {};
+
+  /// המפרש שנלחץ לאחרונה. ל-SelectionArea היחיד אין מידע על המפרש הספציפי,
+  /// והוא נדרש לייחוס כותרת המקור בהעתקה.
+  Link? _lastSelectedLink;
   Timer? _searchUpdateDebounce;
   final Map<String, int> _pendingCounts = {};
   // חישוב ספירות חיפוש ברקע על כל הקישורים — הרשימה וירטואלית ופריטים שלא
@@ -254,36 +345,42 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       ScrollOffsetController();
   final FocusNode _commentaryFocusNode = FocusNode();
   final Map<String, GlobalKey> _itemKeys = {};
-  final Map<String, Future<String>> _linkContentCache = {};
-  final Map<String, bool> _expandedLinkStates = {};
   List<Link> _orderedLinks = [];
   List<CommentaryGroup> _orderedGroups = [];
+
+  /// נשמרות כדי להשאיר את עץ הרשימה חי ומוסתר בזמן טעינת הקטע הבא.
+  List<CommentaryGroup>? _lastResolvedGroups;
   _PdfVisibleContentCache? _visibleContentCache;
   List<CommentatorGroup> _commentatorGroups = [];
 
   /// מפרשים "נדירים" שמוסתרים מלשונית הבחירה (ספרים גדולים בלבד).
   Set<String> _rareCommentators = {};
 
-  String _getLinkKey(Link link) =>
-      '${link.path2}_${link.index1}_${link.index2}';
+  /// סינון לפי סוג מפרש (תרגום/מדרש וכו׳). מצב מקומי ולא מוגדר: הצ׳יפים תלויים
+  /// בקטע הנוכחי, ובחירה שנשמרה הייתה מסננת בשקט ספר אחר שנפתח אחריו.
+  Set<String> _localCommentaryTypes = const {};
 
-  Future<String> _getCachedLinkContent(String keyStr, Link link) {
-    final cachedFuture = _linkContentCache[keyStr];
-    if (cachedFuture != null) {
-      return cachedFuture;
+  /// הבחירה האפקטיבית: חיצונית כשההורה מציג את הצ׳יפים בפאנל צד, אחרת מקומית.
+  Set<String> get _selectedCommentaryTypes =>
+      widget.typeSelection?.value ?? _localCommentaryTypes;
+
+  void _setSelectedCommentaryTypes(Set<String> types) {
+    final external = widget.typeSelection;
+    if (external != null) {
+      external.value = types;
+      return;
     }
-
-    late final Future<String> future;
-    future = link.content.catchError((Object error, StackTrace stackTrace) {
-      if (_linkContentCache[keyStr] == future) {
-        _linkContentCache.remove(keyStr);
-      }
-      Error.throwWithStackTrace(error, stackTrace);
-    });
-
-    _linkContentCache[keyStr] = future;
-    return future;
+    setState(() => _localCommentaryTypes = types);
   }
+
+  void _onTypeSelectionChanged() {
+    if (mounted) setState(() => _visibleContentCache = null);
+  }
+
+  /// סינון צ׳יפי לשונית הקישורים (סוג הקישור / דור המחבר).
+  Set<String> _selectedLinkTypes = const {};
+
+  String _getLinkKey(Link link) => pdfCommentaryItemKey(link);
 
   // Helper to determine relative index for highlighting
   int _getItemSearchIndex(Link link) {
@@ -337,8 +434,10 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       _currentSearchIndex = 0;
       _totalSearchResults = 0;
       _searchResultsPerLink.clear();
+      _searchSnippetsPerLink.clear();
       _showSearchField = false;
     });
+    _publishSearchSnippets();
   }
 
   @override
@@ -362,7 +461,9 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     widget.openFilterNotifier?.addListener(_onOpenFilterRequest);
     widget.externalSearchController?.addListener(_onExternalSearchChanged);
     _searchFocusNode.addListener(_handleSearchFocusChange);
+    widget.typeSelection?.addListener(_onTypeSelectionChanged);
     _loadCommentatorGroups();
+    _scrolledRangeKey = _currentRangeKey();
   }
 
   void _onExternalSearchChanged() {
@@ -373,11 +474,13 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       _currentSearchIndex = 0;
       if (text.isEmpty) {
         _searchResultsPerLink.clear();
+        _searchSnippetsPerLink.clear();
         _totalSearchResults = 0;
       }
     });
     widget.externalTotalResultsNotifier?.value = _totalSearchResults;
     widget.externalCurrentIndexNotifier?.value = _currentSearchIndex;
+    if (text.isEmpty) _publishSearchSnippets();
     _scheduleSearchCompute();
   }
 
@@ -500,11 +603,21 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       oldWidget.openFilterNotifier?.removeListener(_onOpenFilterRequest);
       widget.openFilterNotifier?.addListener(_onOpenFilterRequest);
     }
+    if (oldWidget.typeSelection != widget.typeSelection) {
+      oldWidget.typeSelection?.removeListener(_onTypeSelectionChanged);
+      widget.typeSelection?.addListener(_onTypeSelectionChanged);
+    }
+    _resetScrollIfRangeChanged();
+    // הספירות והקטעים נגזרים מהתוכן אחרי הסרת ניקוד/פיסוק, ולכן שינוי ההגדרה
+    // בזמן חיפוש פעיל מחייב חישוב מחדש.
+    if (oldWidget.removeNikud != widget.removeNikud ||
+        oldWidget.removePunctuation != widget.removePunctuation) {
+      if (_searchQuery.isNotEmpty) _scheduleSearchCompute();
+    }
 
     if (oldWidget.tab != widget.tab) {
       _visibleContentCache = null;
-      _linkContentCache.clear();
-      _expandedLinkStates.clear();
+      _lastResolvedGroups = null;
       _orderedLinks = [];
       _orderedGroups = [];
       _itemKeys.clear();
@@ -530,10 +643,63 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     widget.openFilterNotifier?.removeListener(_onOpenFilterRequest);
     widget.externalSearchController?.removeListener(_onExternalSearchChanged);
     _searchFocusNode.removeListener(_handleSearchFocusChange);
+    widget.typeSelection?.removeListener(_onTypeSelectionChanged);
     _searchFocusNode.dispose();
     _commentaryFocusNode.dispose();
     _tabController.dispose();
     super.dispose();
+  }
+
+  /// טווח השורות שהרשימה גוללה עבורו. מפתחות הרשימה קבועים ולכן ה-State שורד
+  /// דפדוף; בלי איפוס מפורש הדף החדש נפתח על היסט הדף הקודם.
+  String? _scrolledRangeKey;
+
+  /// מזהה הטווח הנוכחי, או null כשאין מיקום. נגזר מאותם override-ים שמזינים
+  /// את הרשימה, כדי שהאיפוס יתרחש בדיוק כשהתוכן מתחלף.
+  String? _currentRangeKey() {
+    final currentLine =
+        widget.lineStartOverride ?? widget.tab.currentTextLineNumber;
+    if (currentLine == null) return null;
+    final range = _getCurrentRange(currentLine);
+    return '${range.startLine}:${range.endLine}';
+  }
+
+  String? _currentLinksScopeKey() {
+    final rangeKey = _currentRangeKey();
+    if (rangeKey == null) return null;
+    final extraLines = widget.extraLineIndices?.toList();
+    extraLines?.sort();
+    return '$rangeKey|${extraLines?.join(',') ?? ''}';
+  }
+
+  void _resetScrollIfRangeChanged() {
+    final rangeKey = _currentRangeKey();
+    if (rangeKey == null || _scrolledRangeKey == rangeKey) return;
+    final isFirstRange = _scrolledRangeKey == null;
+    _scrolledRangeKey = rangeKey;
+    if (isFirstRange) return;
+    _orderedLinks = [];
+    _orderedGroups = [];
+    _totalSearchResults = 0;
+    _currentSearchIndex = 0;
+    _searchResultsPerLink.clear();
+    _searchSnippetsPerLink.clear();
+    _pendingCounts.clear();
+    widget.externalTotalResultsNotifier?.value = 0;
+    widget.externalCurrentIndexNotifier?.value = 0;
+    _publishSearchSnippets();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_itemScrollController.isAttached) return;
+      _itemScrollController.jumpTo(index: 0);
+    });
+  }
+
+  /// ניווט אל היקרות לפי אינדקס גלובלי — נקרא מלחיצה על קטע תוצאה בפאנל הצד.
+  void navigateToGlobalIndex(int index) {
+    if (index < 0 || index >= _totalSearchResults) return;
+    setState(() => _currentSearchIndex = index);
+    widget.externalCurrentIndexNotifier?.value = _currentSearchIndex;
+    _scrollToSearchResult();
   }
 
   /// ניווט לתוצאת חיפוש קודמת (להפעלה מ-PdfCommentatorsTabScreen)
@@ -606,15 +772,52 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       if (!mounted || gen != _searchComputeGen || _searchQuery != query) {
         return;
       }
-      _updateSearchResultsCount(
-        link,
-        countCommentarySearchMatches(
+      final count = countCommentarySearchMatches(
+        content: data,
+        query: query,
+        removePunctuation: widget.removePunctuation,
+      );
+      // גזירה באותו מעבר שכבר טען את התוכן — כך הרשימה שלמה גם לפריטים
+      // שהרשימה הווירטואלית לא בנתה.
+      if (count > 0) {
+        _searchSnippetsPerLink[_getLinkKey(
+          link,
+        )] = buildCommentarySearchSnippet(
           content: data,
           query: query,
+          removeNikud: widget.removeNikud,
           removePunctuation: widget.removePunctuation,
-        ),
-      );
+        );
+      } else {
+        _searchSnippetsPerLink.remove(_getLinkKey(link));
+      }
+      _updateSearchResultsCount(link, count);
     }
+  }
+
+  /// מפרסם את רשימת קטעי החיפוש להורה, בסדר התצוגה ועם ה-globalIndex שממנו
+  /// הניווט 'תוצאה הבאה' יודע לאיזה מפרש לגלול.
+  void _publishSearchSnippets() {
+    final notifier = widget.externalSearchSnippetsNotifier;
+    if (notifier == null || !mounted) return;
+    final result = <CommentarySearchSnippet>[];
+    var globalIndex = 0;
+    for (final link in _orderedLinks) {
+      final key = _getLinkKey(link);
+      final count = _searchResultsPerLink[key] ?? 0;
+      final snippet = _searchSnippetsPerLink[key];
+      if (snippet != null && count > 0) {
+        result.add(
+          CommentarySearchSnippet(
+            path: link.path2,
+            snippet: snippet,
+            globalIndex: globalIndex,
+          ),
+        );
+      }
+      globalIndex += count;
+    }
+    notifier.value = result;
   }
 
   void _updateSearchResultsCount(Link link, int count) {
@@ -639,6 +842,9 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
 
       if (!hasActualChange) {
         _pendingCounts.clear();
+        // ספירות זהות עדיין יכולות לשאת קטעים חדשים (שאילתה אחרת, אותו מספר
+        // התאמות), ולכן הפרסום נדרש גם כאן.
+        _publishSearchSnippets();
         return;
       }
 
@@ -658,15 +864,68 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
         widget.externalTotalResultsNotifier?.value = _totalSearchResults;
         widget.externalCurrentIndexNotifier?.value = _currentSearchIndex;
       });
+      // חובה כאן: הקטעים נגזרים מהספירות, והן נכנסות רק בתוך ה-flush הזה.
+      // פרסום מחוץ לו מייצר רשימה לפי ספירות של השאילתה הקודמת.
+      _publishSearchSnippets();
     });
+  }
+
+  /// משחזר מעברי שורה בבחירה רב-שורתית לפי הטקסט המרונדר של המפרשים המוצגים.
+  String? _restoreLineBreaks(String? flat) {
+    if (flat == null || flat.isEmpty || flat.contains('\n')) return flat;
+    final lines = <String>[];
+    for (final link in _orderedLinks) {
+      final key = _getLinkKey(link);
+      final title = _renderedTitleByKey[key];
+      if (title != null && title.isNotEmpty) lines.add(title);
+      final content = _renderedTextByKey[key];
+      if (content != null && content.isNotEmpty) lines.add(content);
+    }
+    if (lines.isEmpty) return flat;
+    return restoreSelectedTextLineBreaks(
+      selectedText: flat,
+      visibleLines: lines,
+    );
+  }
+
+  /// האם הבחירה חוצה יותר ממפרש אחד, לפי מיקום שני קצותיה. בחירה כזו אינה
+  /// מיוחסת למפרש בודד, אחרת הייתה מקבלת כותרת מקור שגויה.
+  bool _selectionSpansMultipleItems() {
+    SelectableRegionState? sa;
+    for (final k in _itemKeys.values) {
+      sa = k.currentContext?.findAncestorStateOfType<SelectableRegionState>();
+      if (sa != null) break;
+    }
+    final saRender = sa?.context.findRenderObject();
+    if (saRender is! RenderBox) return false;
+    final List<TextSelectionPoint> eps;
+    try {
+      eps = sa!.selectionEndpoints;
+    } catch (_) {
+      return false;
+    }
+    if (eps.length < 2) return false;
+    final p1 = saRender.localToGlobal(eps.first.point);
+    final p2 = saRender.localToGlobal(eps.last.point);
+    String? k1;
+    String? k2;
+    for (final entry in _itemKeys.entries) {
+      final box = entry.value.currentContext?.findRenderObject();
+      if (box is! RenderBox || !box.attached) continue;
+      final rect = box.localToGlobal(Offset.zero) & box.size;
+      if (rect.contains(p1)) k1 = entry.key;
+      if (rect.contains(p2)) k2 = entry.key;
+    }
+    return k1 != null && k2 != null && k1 != k2;
   }
 
   /// העתקת טקסט מעוצב (HTML) ללוח
   Future<void> _copyFormattedText() async {
     await ContextMenuUtils.copyFormattedText(
       context: context,
-      savedSelectedText: _savedSelectedText,
+      savedSelectedText: _restoreLineBreaks(_savedSelectedText),
       fontSize: widget.fontSize,
+      link: _selectionSpansMultipleItems() ? null : _lastSelectedLink,
     );
   }
 
@@ -680,8 +939,17 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       link: link,
       openBookCallback: widget.openBookCallback,
       fontSize: widget.fontSize,
+      removeNikud: widget.removeNikud,
+      removePunctuation: widget.removePunctuation,
       savedSelectedText: _savedSelectedText,
-      onCopySelected: _copyFormattedText,
+      onCopySelected: () => ContextMenuUtils.copyFormattedText(
+        context: menuCtx,
+        savedSelectedText: _restoreLineBreaks(_savedSelectedText),
+        fontSize: widget.fontSize,
+        link: _selectionSpansMultipleItems()
+            ? null
+            : (_lastSelectedLink ?? link),
+      ),
     );
   }
 
@@ -765,22 +1033,20 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
             controller: _tabController,
             physics: const NeverScrollableScrollPhysics(),
             children: [
+              // מפתחות חייבים להישאר קבועים: מפתח תלוי-עמוד הורס את שלושת
+              // התתי-עצים בכל דפדוף ומאפס את מטמוני התוכן שלהם.
               _KeepAliveTab(
-                key: ValueKey(
-                  'commentary_${widget.tab.currentTextLineNumber}_${widget.tab.activeCommentators.hashCode}_$_showFilterTab',
-                ),
+                key: const ValueKey('pdf_panel_commentary'),
                 child: _wrapCommentariesScrollable(_buildCommentariesView()),
               ),
+              // ללא עוטף בחירה: LinksListView מנהל SelectionArea פר-קישור,
+              // וקינון תחת אזור חיצוני שובר את הבחירה והעתקתה.
               _KeepAliveTab(
-                key: ValueKey(
-                  'links_${widget.tab.currentTextLineNumber}',
-                ),
-                child: _wrapWithSelection(_buildLinksView()),
+                key: const ValueKey('pdf_panel_links'),
+                child: _buildLinksView(),
               ),
               _KeepAliveTab(
-                key: ValueKey(
-                  'notes_${widget.tab.currentTextLineNumber}',
-                ),
+                key: const ValueKey('pdf_panel_notes'),
                 child: _wrapWithSelection(_buildNotesView()),
               ),
             ],
@@ -816,6 +1082,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   }
 
   Widget _buildCommentatorsFilter() {
+    final visibleContent = _getVisibleContent();
     return CommentatorsFilterScreen(
       onBack: () {
         setState(() {
@@ -835,6 +1102,11 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
         bookTitle: widget.tab.book.title,
         rareCommentators: _rareCommentators,
         lineRelevantCommentators: _lineRelevantRareCommentators(),
+        typeChipKeys: visibleContent?.typeChipKeys ?? const [],
+        selectedTypeChips: visibleContent?.effectiveTypes ?? const {},
+        typeChipLabelBuilder: LinkTypes.hebrewLabel,
+        commentatorsByType: visibleContent?.commentatorsByType ?? const {},
+        onTypeChipsChanged: _setSelectedCommentaryTypes,
         onSelectionChanged: (list) async {
           setState(() {
             widget.tab.activeCommentators
@@ -1014,6 +1286,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
           _currentSearchIndex = 0;
           if (value.isEmpty) {
             _searchResultsPerLink.clear();
+            _searchSnippetsPerLink.clear();
             _totalSearchResults = 0;
           }
         });
@@ -1048,7 +1321,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
             'טוען מפרשים...',
             style: TextStyle(
               fontSize: widget.fontSize * 0.9,
-              color: Colors.grey,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ),
@@ -1064,7 +1337,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
               'טוען מפרשים...',
               style: TextStyle(
                 fontSize: widget.fontSize * 0.9,
-                color: Colors.grey,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -1099,7 +1372,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
                     : 'לא נמצאו מפרשים לקטע הנבחר',
                 style: TextStyle(
                   fontSize: widget.fontSize * 0.9,
-                  color: Colors.grey,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -1134,22 +1407,29 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     return FutureBuilder<List<CommentaryGroup>>(
       future: visibleContent.sortedGroupsFuture,
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
+        final currentGroups =
+            snapshot.connectionState == ConnectionState.done && snapshot.hasData
+            ? snapshot.data
+            : null;
+        final sortedGroups = currentGroups ?? _lastResolvedGroups;
+        if (sortedGroups == null) {
           return const Center(child: CircularProgressIndicator());
         }
-
-        final sortedGroups = snapshot.data!;
-        _orderedGroups = sortedGroups;
+        if (currentGroups != null) {
+          _lastResolvedGroups = currentGroups;
+          _orderedGroups = currentGroups;
+        }
 
         // Rebuild _orderedLinks based on groups
-        _orderedLinks = [];
-        for (final group in sortedGroups) {
+        final orderedLinks = <Link>[];
+        for (final group in currentGroups ?? const <CommentaryGroup>[]) {
           // We need to verify link order inside group.
           // In _buildCommentariesView, relevantLinks are sorted by title then index.
           // _groupConsecutiveLinks groups them.
           // So the links inside group.links should already be in order.
-          _orderedLinks.addAll(group.links);
+          orderedLinks.addAll(group.links);
         }
+        if (currentGroups != null) _orderedLinks = orderedLinks;
 
         // Initialize keys
         final currentLinkKeys = _orderedLinks
@@ -1169,6 +1449,9 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
             _itemKeys[key] = GlobalKey();
           }
         }
+        _renderedTextByKey.removeWhere(
+          (key, value) => !currentLinkKeys.contains(key),
+        );
 
         // ניקוי ספירות חיפוש מקישורים שאינם בקטע הנוכחי
         final staleSearchKeys = _searchResultsPerLink.keys
@@ -1177,6 +1460,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
         if (staleSearchKeys.isNotEmpty) {
           for (final key in staleSearchKeys) {
             _searchResultsPerLink.remove(key);
+            _searchSnippetsPerLink.remove(key);
           }
           _pendingCounts.removeWhere(
             (key, _) => !currentLinkKeys.contains(key),
@@ -1199,18 +1483,45 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
           });
         }
 
-        return ScrollablePositionedList.builder(
-          key: PageStorageKey(
-            'commentary_${widget.tab.currentTextLineNumber}_${widget.tab.activeCommentators.hashCode}_$_allExpanded',
-          ),
-          itemCount: sortedGroups.length,
-          itemScrollController: _itemScrollController,
-          itemPositionsListener: _itemPositionsListener,
-          scrollOffsetController: _scrollOffsetController,
-          itemBuilder: (context, index) {
-            final group = sortedGroups[index];
-            return _buildCommentaryGroupTile(group);
-          },
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Visibility(
+              visible: currentGroups != null,
+              maintainState: true,
+              maintainAnimation: true,
+              maintainSize: true,
+              child: ScrollablePositionedListScrollbar(
+                scrollController: _itemScrollController,
+                itemPositionsListener: _itemPositionsListener,
+                itemCount: sortedGroups.length,
+                labelForIndex: (index) =>
+                    index >= 0 && index < sortedGroups.length
+                    ? sortedGroups[index].bookTitle
+                    : '',
+                child: ScrollablePositionedList.builder(
+                  key: PageStorageKey(
+                    pdfCommentaryListStorageKey(
+                      widget.tab.activeCommentators,
+                    ),
+                  ),
+                  itemCount: sortedGroups.length,
+                  itemScrollController: _itemScrollController,
+                  itemPositionsListener: _itemPositionsListener,
+                  scrollOffsetController: _scrollOffsetController,
+                  itemBuilder: (context, index) {
+                    final group = sortedGroups[index];
+                    return _buildCommentaryGroupTile(group);
+                  },
+                ),
+              ),
+            ),
+            if (currentGroups == null)
+              ColoredBox(
+                color: Theme.of(context).colorScheme.surface,
+                child: const Center(child: CircularProgressIndicator()),
+              ),
+          ],
         );
       },
     );
@@ -1326,9 +1637,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     return BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, settingsState) {
         return _CollapsibleCommentaryGroup(
-          key: PageStorageKey(
-            '${group.bookTitle}_${widget.tab.currentTextLineNumber}',
-          ),
+          key: PageStorageKey(group.bookTitle),
           group: group,
           settingsState: settingsState,
           tab: widget.tab,
@@ -1348,6 +1657,13 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
           getItemSearchIndex: _getItemSearchIndex, // Pass the function
           removeNikud: widget.removeNikud,
           removePunctuation: widget.removePunctuation,
+          onLinkRendered: (link, text) =>
+              _renderedTextByKey[_getLinkKey(link)] = text,
+          onLinkTitleRendered: (link, title) =>
+              _renderedTitleByKey[_getLinkKey(link)] = title
+                  .replaceAll(RegExp(r'\s+'), ' ')
+                  .trim(),
+          onLinkPointerDown: (link) => _lastSelectedLink = link,
         );
       },
     );
@@ -1368,7 +1684,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
             'טוען קישורים...',
             style: TextStyle(
               fontSize: widget.fontSize * 0.9,
-              color: Colors.grey,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ),
@@ -1377,191 +1693,36 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
 
     final relevantLinks = visibleContent.links;
 
-    if (relevantLinks.isEmpty) {
+    if (relevantLinks.isEmpty && widget.linksLoading) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Text(
-            widget.linksLoading ? 'טוען קישורים...' : 'לא נמצאו קישורים לדף זה',
+            'טוען קישורים...',
             style: TextStyle(
               fontSize: widget.fontSize * 0.9,
-              color: Colors.grey,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ),
       );
     }
 
-    return ListView.builder(
-      itemCount: relevantLinks.length,
-      itemBuilder: (context, index) {
-        final link = relevantLinks[index];
-        return _buildLinkTile(link);
-      },
-    );
-  }
-
-  Widget _buildLinkTile(Link link) {
-    final keyStr = _getLinkKey(link);
-
-    return BlocBuilder<SettingsBloc, SettingsState>(
-      builder: (context, settingsState) {
-        final restoredExpanded =
-            PageStorage.maybeOf(context)?.readState(
-                  context,
-                  identifier: keyStr,
-                )
-                as bool?;
-        final isExpanded =
-            _expandedLinkStates[keyStr] ?? restoredExpanded ?? false;
-
-        return ExpansionTile(
-          key: PageStorageKey(keyStr),
-          initiallyExpanded: isExpanded,
-          maintainState: true,
-          showTrailingIcon: false,
-          leading: AnimatedRotation(
-            turns: isExpanded ? -0.25 : 0,
-            duration: const Duration(milliseconds: 200),
-            child: RtlIcon(
-              FluentIcons.chevron_left_24_regular,
-              size: 20,
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-          ),
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
-          title: Text(
-            utils.getTitleFromPath(link.path2),
-            style: TextStyle(
-              fontSize: settingsState.commentatorsFontSize - 2,
-              fontWeight: FontWeight.bold,
-              fontVariations: AppFonts.boldFontVariations(
-                settingsState.commentatorsFontFamily,
-              ),
-              fontFamily: settingsState.commentatorsFontFamily,
-            ),
-          ),
-          subtitle: FutureBuilder<String>(
-            future: link.displayReference,
-            builder: (context, snapshot) {
-              return Text(
-                snapshot.data ?? link.fallbackDisplayReference,
-                style: TextStyle(
-                  fontSize: settingsState.commentatorsFontSize - 4,
-                  fontWeight: FontWeight.normal,
-                  fontFamily: settingsState.commentatorsFontFamily,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.5),
-                ),
-              );
-            },
-          ),
-          onExpansionChanged: (expanded) {
-            if (expanded && !_linkContentCache.containsKey(keyStr)) {
-              _getCachedLinkContent(keyStr, link);
-            }
-
-            if (_expandedLinkStates[keyStr] != expanded) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) return;
-                setState(() {
-                  _expandedLinkStates[keyStr] = expanded;
-                });
-              });
-            }
-          },
-          children: [
-            if (isExpanded)
-              AppContextMenuRegion(
-                // לחיצה ימנית על הטקסט המסומן בפועל לא תשחרר את הבחירה (התנהגות
-                // ברירת המחדל של SelectableRegion ב-Windows); לחיצה על חלק
-                // לא-מסומן מבטלת כרגיל. הבחירה מנוהלת ע"י SelectionArea יחיד.
-                shouldPreserveSelectionOnSecondaryTap: (globalPosition) {
-                  final selected = _savedSelectedText;
-                  if (selected == null || selected.isEmpty) return false;
-                  final root = context.findRenderObject();
-                  if (root == null) return true; // סלחני
-                  return clickIsOnSelectionWithinArea(
-                        root: root,
-                        globalPosition: globalPosition,
-                        selectedText: selected,
-                      ) ??
-                      true; // לא הוכרע — סלחני
-                },
-                menuBuilder: (menuCtx, _) =>
-                    _buildCommentaryContextMenuEntries(menuCtx, link),
-                child: GestureDetector(
-                  onTap: () {
-                    widget.openBookCallback(
-                      TextBookTab(
-                        book: TextBook(
-                          title: utils.getTitleFromPath(link.path2),
-                        ),
-                        index: link.index2 - 1,
-                        openLeftPane:
-                            (Settings.getValue<bool>('key-pin-sidebar') ??
-                                false) ||
-                            (Settings.getValue<bool>(
-                                  'key-default-sidebar-open',
-                                ) ??
-                                false),
-                      ),
-                    );
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: FutureBuilder<String>(
-                      future: _getCachedLinkContent(keyStr, link),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-                        if (snapshot.hasError) {
-                          debugPrint(
-                            'Error loading link content: ${snapshot.error}',
-                          );
-                          debugPrint('Stack trace: ${snapshot.stackTrace}');
-                          return Text('שגיאה: ${snapshot.error}');
-                        }
-                        return BlocBuilder<SettingsBloc, SettingsState>(
-                          builder: (context, settingsState) {
-                            return Text(
-                              utils.stripHtmlPreservingBreaks(
-                                snapshot.data ?? '',
-                              ),
-                              textAlign: TextAlign.justify,
-                              style: TextStyle(
-                                fontSize: settingsState.commentatorsFontSize,
-                                fontFamily:
-                                    settingsState.commentatorsFontFamily,
-                                fontWeight: settingsState.commentatorsFontBold
-                                    ? FontWeight.bold
-                                    : null,
-                                fontVariations:
-                                    settingsState.commentatorsFontBold
-                                    ? AppFonts.boldFontVariations(
-                                        settingsState.commentatorsFontFamily,
-                                      )
-                                    : null,
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
+    // אותה רשימה בדיוק כמו בכרטיסיית הטקסט: צ׳יפי סוג ודור, חיפוש בכותרת
+    // ובתוכן, ורינדור SmartText.
+    return LinksListView(
+      links: relevantLinks,
+      chipSourceLinks: widget.tab.links,
+      openBookTitle: widget.tab.book.title,
+      selectedLinkTypes: _selectedLinkTypes,
+      onSelectedLinkTypesChanged: (types) =>
+          setState(() => _selectedLinkTypes = types),
+      openBookCallback: widget.openBookCallback,
+      fontSize: widget.fontSize,
+      removeNikud: widget.removeNikud,
+      removePunctuation: widget.removePunctuation,
+      contentScopeKey: _currentLinksScopeKey(),
+      emptyMessage: 'לא נמצאו קישורים לדף זה',
     );
   }
 
@@ -1615,19 +1776,23 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     }
 
     final range = _getCurrentRange(currentLine);
-    final commentatorsKey = (widget.tab.activeCommentators.toList()..sort())
-        .join('|');
-    final extraKey = widget.extraLineIndices == null
-        ? ''
-        : (widget.extraLineIndices!.toList()..sort()).join(',');
-    final cacheKey =
-        '${range.startLine}:${range.endLine}:$extraKey:$commentatorsKey:${widget.tab.links.length}';
+    final cacheKey = pdfVisibleContentCacheKey(
+      startLine: range.startLine,
+      endLine: range.endLine,
+      extraLineIndices: widget.extraLineIndices,
+      activeCommentators: widget.tab.activeCommentators,
+      linksIdentity: identityHashCode(widget.tab.links),
+      commentaryTypes: _selectedCommentaryTypes,
+    );
 
     final existingCache = _visibleContentCache;
     if (existingCache != null && existingCache.cacheKey == cacheKey) {
       return existingCache;
     }
 
+    // כל מפרשי הקטע לפני סינון הסוגים — מהם נבנים הצ׳יפים, כדי שצ׳יפ לא ייעלם
+    // ברגע שנבחר (ואז לא הייתה דרך לבטל את הסינון).
+    final scopedCommentaryLinks = <Link>[];
     final commentaryLinks = <Link>[];
     final nonCommentaryLinks = <Link>[];
     var hasAnyCommentaryLinks = false;
@@ -1649,21 +1814,47 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
         continue;
       }
 
-      final isCommentary = LinkTypes.isDependentTextLink(link.connectionType);
-
-      if (isCommentary) {
+      if (LinkTypes.isDependentTextLink(link.connectionType)) {
         hasAnyCommentaryLinks = true;
-        if (showAllWhenEmpty ||
-            widget.tab.activeCommentators.contains(
-              utils.getTitleFromPath(link.path2),
-            )) {
-          commentaryLinks.add(link);
-        }
         continue;
       }
 
       if (link.start == null && link.end == null) {
         nonCommentaryLinks.add(link);
+      }
+    }
+
+    scopedCommentaryLinks.addAll(
+      pdfScopedCommentaryLinks(
+        links: widget.tab.links,
+        startLine: range.startLine,
+        endLine: range.endLine,
+        extraLineIndices: extraLines,
+        activeCommentators: widget.tab.activeCommentators,
+        showAllWhenEmpty: showAllWhenEmpty,
+      ),
+    );
+
+    // הצ׳יפים נגזרים מכל הקישורים הטעונים ולא מהעמוד הנוכחי: צ׳יפ שנגזר
+    // מהעמוד נעלם בדפדוף לעמוד שאין בו אותו סוג, והסינון נכבה בשקט.
+    final typeChipKeys = CommentaryTypeFilter.chipKeysForCommentators(
+      links: widget.tab.links,
+      selectedCommentators: showAllWhenEmpty
+          ? widget.tab.links
+                .map((link) => utils.getTitleFromPath(link.path2))
+                .toList(growable: false)
+          : widget.tab.activeCommentators.toList(growable: false),
+    );
+    final effectiveTypes = CommentaryTypeFilter.effectiveTypes(
+      selectedTypes: _selectedCommentaryTypes,
+      availableKeys: typeChipKeys,
+    );
+    for (final link in scopedCommentaryLinks) {
+      if (effectiveTypes.isEmpty ||
+          effectiveTypes.contains(
+            LinkTypes.canonicalType(link.connectionType),
+          )) {
+        commentaryLinks.add(link);
       }
     }
 
@@ -1680,13 +1871,25 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       nonCommentaryLinks,
     );
 
-    final groups = _groupConsecutiveLinks(commentaryLinks);
     final cache = _PdfVisibleContentCache(
       cacheKey: cacheKey,
       commentaryLinks: List.unmodifiable(commentaryLinks),
       links: List.unmodifiable(sortedNonCommentaryLinks),
       hasAnyCommentaryLinks: hasAnyCommentaryLinks,
-      sortedGroupsFuture: CommentaryService.sortGroupsByEra(groups),
+      typeChipKeys: CommentaryTypeFilter.visibleChipKeys(
+        chipKeys: typeChipKeys,
+        effectiveTypes: effectiveTypes,
+      ),
+      effectiveTypes: effectiveTypes,
+      // אותה רשימה שממנה נגזרו הצ׳יפים — וגם מאפשר ל-Expando של המימוש
+      // לפגוע, שכן זהות tab.links יציבה לכל חלון קישורים.
+      commentatorsByType: CommentaryTypeFilter.commentatorsByType(
+        widget.tab.links,
+      ),
+      // אסינכרוני: קיבוץ סינכרוני על ה-UI thread קפא בדפי גמרא עם מפרשים רבים.
+      sortedGroupsFuture:
+          (widget.commentaryGroupsLoader ??
+          CommentaryService.groupAndSortLinks)(commentaryLinks),
     );
     _visibleContentCache = cache;
     return cache;
@@ -1733,9 +1936,17 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
 
 class _PdfVisibleContentCache {
   final String cacheKey;
+
+  /// מפרשי הקטע אחרי סינון הסוגים — אלה שמוצגים בפועל.
   final List<Link> commentaryLinks;
   final List<Link> links;
   final bool hasAnyCommentaryLinks;
+
+  /// צ׳יפי סוגי המפרשים להצגה, והבחירה האפקטיבית מתוכם (ריקה = הצג הכל).
+  final List<String> typeChipKeys;
+  final Set<String> effectiveTypes;
+  final Map<String, Set<String>> commentatorsByType;
+
   final Future<List<CommentaryGroup>> sortedGroupsFuture;
 
   const _PdfVisibleContentCache({
@@ -1743,6 +1954,9 @@ class _PdfVisibleContentCache {
     required this.commentaryLinks,
     required this.links,
     required this.hasAnyCommentaryLinks,
+    required this.typeChipKeys,
+    required this.effectiveTypes,
+    required this.commentatorsByType,
     required this.sortedGroupsFuture,
   });
 }
@@ -1789,6 +2003,15 @@ class _CollapsibleCommentaryGroup extends StatefulWidget {
   final bool removeNikud;
   final bool removePunctuation;
 
+  /// מדווח את הטקסט המרונדר של פריט — לשחזור מעברי שורה בהעתקה רב-שורתית.
+  final void Function(Link link, String renderedPlainText)? onLinkRendered;
+
+  /// מדווח את הכותרת המרונדרת של פריט — לאותה מטרה.
+  final void Function(Link link, String renderedTitle)? onLinkTitleRendered;
+
+  /// נקרא בלחיצת עכבר על פריט — לסימון המפרש שאליו תיוחס כותרת ההעתקה.
+  final void Function(Link link)? onLinkPointerDown;
+
   const _CollapsibleCommentaryGroup({
     super.key,
     required this.group,
@@ -1806,6 +2029,9 @@ class _CollapsibleCommentaryGroup extends StatefulWidget {
     this.getItemSearchIndex,
     this.removeNikud = false,
     this.removePunctuation = false,
+    this.onLinkRendered,
+    this.onLinkTitleRendered,
+    this.onLinkPointerDown,
   });
 
   @override
@@ -1840,13 +2066,15 @@ class _CollapsibleCommentaryGroupState
                     size: 20,
                     color: Theme.of(
                       context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.6),
+                    ).colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    widget.group.bookTitle,
+                    widget.settingsState.replaceHolyNames
+                        ? utils.replaceHolyNames(widget.group.bookTitle)
+                        : widget.group.bookTitle,
                     style: TextStyle(
                       fontSize: widget.settingsState.commentatorsFontSize - 2,
                       fontWeight: FontWeight.bold,
@@ -1864,75 +2092,97 @@ class _CollapsibleCommentaryGroupState
         // תוכן המפרשים - מוצג רק כשמורחב
         if (widget.isExpanded)
           ...widget.group.links.map((link) {
-            return Padding(
-              key: widget.getKeyForLink?.call(
-                link,
-              ), // Attach the key here for scrolling
-              padding: const EdgeInsets.only(
-                right: 32.0,
-                left: 16.0,
-                top: 8.0,
-                bottom: 8.0,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  FutureBuilder<String>(
-                    future: link.displayReference,
-                    builder: (context, snapshot) {
-                      return Text(
-                        snapshot.data ?? link.fallbackDisplayReference,
-                        style: TextStyle(
-                          fontSize:
-                              widget.settingsState.commentatorsFontSize - 4,
-                          fontWeight: FontWeight.normal,
-                          fontFamily:
-                              widget.settingsState.commentatorsFontFamily,
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withValues(alpha: 0.5),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 4),
-                  AppContextMenuRegion(
-                    // לחיצה ימנית על הטקסט המסומן בפועל לא תשחרר את הבחירה
-                    // (התנהגות ברירת המחדל של SelectableRegion ב-Windows); לחיצה
-                    // על חלק לא-מסומן מבטלת כרגיל. הבחירה מנוהלת ע"י SelectionArea
-                    // יחיד, לכן מחשבים את קטע הבחירה ישירות מול הפסקה שעליה לחצו.
-                    shouldPreserveSelectionOnSecondaryTap: (globalPosition) {
-                      final selected = widget.getSavedSelectedText();
-                      if (selected == null || selected.isEmpty) return false;
-                      final root = context.findRenderObject();
-                      if (root == null) return true; // סלחני
-                      return clickIsOnSelectionWithinArea(
-                            root: root,
-                            globalPosition: globalPosition,
-                            selectedText: selected,
-                          ) ??
-                          true; // לא הוכרע — סלחני
-                    },
-                    menuBuilder: (menuCtx, _) =>
-                        widget.buildContextMenu(menuCtx, link),
-                    child: PdfCommentaryContent(
-                      key: ValueKey(
-                        '${link.path2}_${link.index1}_${link.index2}_${widget.tab.currentTextLineNumber}',
-                      ),
-                      link: link,
-                      fontSize: widget.fontSize,
-                      openBookCallback: widget.openBookCallback,
-                      searchQuery: widget.searchQuery,
-                      onSearchResultsCountChanged: (count) {
-                        widget.onSearchResultsCountUpdate?.call(link, count);
+            return Listener(
+              // מזהה על איזה מפרש לחץ המשתמש — ל-SelectionArea היחיד אין מידע
+              // כזה, והוא נדרש לייחוס כותרת המקור בהעתקת מקלדת.
+              onPointerDown: (_) => widget.onLinkPointerDown?.call(link),
+              child: Padding(
+                key: widget.getKeyForLink?.call(
+                  link,
+                ), // Attach the key here for scrolling
+                padding: const EdgeInsets.only(
+                  right: 32.0,
+                  left: 16.0,
+                  top: 8.0,
+                  bottom: 8.0,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    FutureBuilder<String>(
+                      future: link.displayReference,
+                      builder: (context, snapshot) {
+                        var displayTitle =
+                            snapshot.data ?? link.fallbackDisplayReference;
+                        // קישור עם עוגן-מילה: אות הסימון שמופיעה בגוף הטקסט
+                        // מוצגת גם לפני כותרת ההערה.
+                        if (link.anchorStart != null) {
+                          final markerLetter = anchorMarkerLetter(link);
+                          if (markerLetter != null) {
+                            displayTitle = '($markerLetter) $displayTitle';
+                          }
+                        }
+                        if (widget.settingsState.replaceHolyNames) {
+                          displayTitle = utils.replaceHolyNames(displayTitle);
+                        }
+                        final reportedTitle = displayTitle;
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          widget.onLinkTitleRendered?.call(link, reportedTitle);
+                        });
+                        return Text(
+                          displayTitle,
+                          style: TextStyle(
+                            fontSize:
+                                widget.settingsState.commentatorsFontSize - 4,
+                            fontWeight: FontWeight.normal,
+                            fontFamily:
+                                widget.settingsState.commentatorsFontFamily,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
+                        );
                       },
-                      currentSearchIndex:
-                          widget.getItemSearchIndex?.call(link) ?? -1,
-                      removeNikud: widget.removeNikud,
-                      removePunctuation: widget.removePunctuation,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    AppContextMenuRegion(
+                      // לחיצה ימנית על הטקסט המסומן בפועל לא תשחרר את הבחירה
+                      // (התנהגות ברירת המחדל של SelectableRegion ב-Windows); לחיצה
+                      // על חלק לא-מסומן מבטלת כרגיל. הבחירה מנוהלת ע"י SelectionArea
+                      // יחיד, לכן מחשבים את קטע הבחירה ישירות מול הפסקה שעליה לחצו.
+                      shouldPreserveSelectionOnSecondaryTap: (globalPosition) {
+                        final selected = widget.getSavedSelectedText();
+                        if (selected == null || selected.isEmpty) return false;
+                        final root = context.findRenderObject();
+                        if (root == null) return true; // סלחני
+                        return clickIsOnSelectionWithinArea(
+                              root: root,
+                              globalPosition: globalPosition,
+                              selectedText: selected,
+                            ) ??
+                            true; // לא הוכרע — סלחני
+                      },
+                      menuBuilder: (menuCtx, _) =>
+                          widget.buildContextMenu(menuCtx, link),
+                      child: CommentaryContent(
+                        key: ValueKey(pdfCommentaryItemKey(link)),
+                        link: link,
+                        fontSize: widget.fontSize,
+                        openBookCallback: widget.openBookCallback,
+                        searchQuery: widget.searchQuery,
+                        onSearchResultsCountChanged: (count) {
+                          widget.onSearchResultsCountUpdate?.call(link, count);
+                        },
+                        currentSearchIndex:
+                            widget.getItemSearchIndex?.call(link) ?? -1,
+                        removeNikud: widget.removeNikud,
+                        removePunctuation: widget.removePunctuation,
+                        onRendered: (text) =>
+                            widget.onLinkRendered?.call(link, text),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           }),

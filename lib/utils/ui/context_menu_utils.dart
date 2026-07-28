@@ -40,6 +40,8 @@ class ContextMenuUtils {
   ///     link: link,
   ///     openBookCallback: ...,
   ///     fontSize: fontSize,
+  ///     removeNikud: removeNikud,
+  ///     removePunctuation: removePunctuation,
   ///     savedSelectedText: _savedText,
   ///     onCopySelected: _copy,
   ///   ),
@@ -51,6 +53,8 @@ class ContextMenuUtils {
     required Link link,
     required Function(TextBookTab) openBookCallback,
     required double fontSize,
+    required bool removeNikud,
+    required bool removePunctuation,
     String? savedSelectedText,
     required VoidCallback onCopySelected,
   }) {
@@ -69,6 +73,8 @@ class ContextMenuUtils {
           context: context,
           link: link,
           fontSize: fontSize,
+          removeNikud: removeNikud,
+          removePunctuation: removePunctuation,
         ),
       ),
       const AppContextMenuEntry.divider(),
@@ -136,6 +142,13 @@ class ContextMenuUtils {
     );
   }
 
+  /// מצב הטקסט, או null בחלונית ה-PDF שאין בה `TextBookBloc`. הטיפוס
+  /// ה-nullable הוא ה-API של provider לתלות אופציונלית — בלעדיו הקריאה זורקת.
+  static TextBookLoaded? _maybeTextBookState(BuildContext context) {
+    final state = context.read<TextBookBloc?>()?.state;
+    return state is TextBookLoaded ? state : null;
+  }
+
   /// פותח את דיאלוג דיווח הטעות עבור מפרש.
   static Future<void> _reportCommentaryError({
     required BuildContext context,
@@ -143,8 +156,6 @@ class ContextMenuUtils {
     required double fontSize,
     String? savedSelectedText,
   }) async {
-    final state = context.read<TextBookBloc>().state;
-    if (state is! TextBookLoaded) return;
     final rawContent = await link.content;
     if (!context.mounted) return;
     final args = commentaryReportArgs(
@@ -155,7 +166,9 @@ class ContextMenuUtils {
     await ErrorReportHelper.showErrorReportDialog(
       context: context,
       selectedText: args.selectedText,
-      state: state,
+      // הדיווח מופנה לספר המפרש עצמו דרך reportBook/reportContent, ולכן אינו
+      // תלוי במצב הטקסט — שאינו קיים בחלונית ה-PDF.
+      state: _maybeTextBookState(context),
       fontSize: fontSize,
       bookTitle: args.bookTitle,
       savedSelectedIndex: args.lineIndex,
@@ -169,10 +182,11 @@ class ContextMenuUtils {
     required BuildContext context,
     required Link link,
     required double fontSize,
+    required bool removeNikud,
+    required bool removePunctuation,
   }) async {
     try {
       final settingsState = context.read<SettingsBloc>().state;
-      final textBookState = context.read<TextBookBloc>().state;
 
       final content = await link.content;
       if (content.trim().isEmpty) {
@@ -180,14 +194,11 @@ class ContextMenuUtils {
         return;
       }
 
-      // ההעתקה משקפת את התצוגה: מצב הניקוד/פיסוק של הטאב חל על כל המפרשים.
-      final loaded = textBookState is TextBookLoaded ? textBookState : null;
-      var processedContent = (loaded?.removeNikud ?? false)
-          ? utils.removeVolwels(content)
-          : content;
-      if (loaded?.removePunctuation ?? false) {
-        processedContent = utils.removePunctuation(processedContent);
-      }
+      final processedContent = applyCommentaryDisplayFilters(
+        content,
+        removeNikud: removeNikud,
+        removePunctuation: removePunctuation,
+      );
       final plainText = utils.stripHtmlIfNeeded(processedContent);
 
       String finalText = plainText;
@@ -244,6 +255,18 @@ class ContextMenuUtils {
     }
   }
 
+  static String applyCommentaryDisplayFilters(
+    String content, {
+    required bool removeNikud,
+    required bool removePunctuation,
+  }) {
+    var processedContent = removeNikud ? utils.removeVolwels(content) : content;
+    if (removePunctuation) {
+      processedContent = utils.removePunctuation(processedContent);
+    }
+    return processedContent;
+  }
+
   /// העתקת טקסט מעוצב (HTML) ללוח
   static Future<void> copyFormattedText({
     required BuildContext context,
@@ -263,14 +286,13 @@ class ContextMenuUtils {
       if (clipboard != null) {
         final settingsState = context.read<SettingsBloc>().state;
         if (link != null && settingsState.copyWithHeaders != 'none') {
-          final textBookState = context.read<TextBookBloc>().state;
-          if (textBookState is! TextBookLoaded) return;
-
+          // ספר הכותרת נגזר מה-link (headerBookOverride), ולכן ההעתקה עם
+          // כותרות עובדת גם בחלונית ה-PDF שאין בה TextBookBloc.
           await copySelectedTextForBook(
             plainText: plainText,
             selectedIndex: link.index2 - 1,
             sourceContent: [plainText],
-            textBookState: textBookState,
+            textBookState: _maybeTextBookState(context),
             settingsState: settingsState,
             fontFamily: settingsState.commentatorsFontFamily,
             fontSize: fontSize,

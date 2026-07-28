@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -26,6 +25,10 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
+import 'package:otzaria/widgets/commentary/commentary_search_results_list.dart';
+// מיוצא כדי שטסטי הכרטיסייה יייבאו אותו מנקודה אחת.
+export 'package:otzaria/widgets/commentary/commentary_search_results_list.dart'
+    show resolveSelectedSnippetGlobalIndex;
 import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -39,7 +42,6 @@ import 'package:otzaria/widgets/navigation/search_pane_base.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
-import 'package:otzaria/search/utils/snippet_builder.dart';
 import 'package:otzaria/widgets/misc/animated_pin_button.dart';
 import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -63,24 +65,6 @@ int chapterEndLineIndex(
     return chapters[ci + 1].index - 1;
   }
   return contentLength - 1;
-}
-
-/// ה-globalIndex של שורת התוצאה שתסומן ברשימת קטעי החיפוש.
-///
-/// כל מפרש תורם שורה אחת אך [currentIdx] מונה היקרויות — לכן השורה הנבחרת
-/// היא האחרונה שה-globalIndex שלה <= currentIdx (ההיקרויות הבאות באותו מפרש
-/// שייכות לשורתו). השוואת שוויון ישירה השאירה את הניווט ללא סימון.
-@visibleForTesting
-int resolveSelectedSnippetGlobalIndex(
-  List<CommentarySearchSnippet> snippets,
-  int currentIdx,
-) {
-  var selected = -1;
-  for (final snippet in snippets) {
-    if (snippet.globalIndex > currentIdx) break;
-    selected = snippet.globalIndex;
-  }
-  return selected;
 }
 
 /// קובע אם ה-listener של מסך המפרשים צריך לפעול עבור מעבר state נתון.
@@ -408,7 +392,6 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     [],
   );
   bool _initialChapterResolved = false;
-  final Map<String, List<InlineSpan>> _snippetSpansCache = {};
 
   late final TabController _navTabController;
 
@@ -518,46 +501,6 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
       }
     }
     return (chapter: bestChapter, verseIdx: bestVerseIdx);
-  }
-
-  List<InlineSpan> _buildSnippetHighlightSpans(
-    BuildContext context,
-    SettingsState settingsState, {
-    required CommentarySearchSnippet snippet,
-    required String query,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final cacheKey =
-        '${settingsState.commentatorsFontFamily}|${colorScheme.onSurface.toARGB32()}|$query|${snippet.globalIndex}|${snippet.snippet}';
-    final cached = _snippetSpansCache[cacheKey];
-    if (cached != null) {
-      return cached;
-    }
-
-    final spans = SnippetBuilder.highlightLiteral(
-      plainText: snippet.snippet,
-      query: query,
-      defaultStyle: TextStyle(
-        fontSize: 14,
-        fontFamily: settingsState.commentatorsFontFamily,
-        color: colorScheme.onSurface,
-        height: 1.5,
-      ),
-      highlightStyle: TextStyle(
-        fontWeight: FontWeight.bold,
-        fontVariations: AppFonts.boldFontVariations(
-          settingsState.commentatorsFontFamily,
-        ),
-        fontSize: 16,
-        color: colorScheme.error,
-      ),
-    );
-
-    if (_snippetSpansCache.length > 500) {
-      _snippetSpansCache.clear();
-    }
-    _snippetSpansCache[cacheKey] = spans;
-    return spans;
   }
 
   List<int>? _computeIndexes(
@@ -1474,114 +1417,12 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     required int total,
     required int currentIdx,
   }) {
-    if (query.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    if (snippets.isEmpty) {
-      // total>0 בלבד מגיע לכאן (אם total==0 מוצג 'אין תוצאות' ע"י SearchPaneBase)
-      return Center(
-        child: Text(
-          'טוען תוצאות...',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      );
-    }
-
-    final selectedGlobalIndex = resolveSelectedSnippetGlobalIndex(
-      snippets,
-      currentIdx,
-    );
-
-    // בניית רשימה מקובצת עם כותרות מפרשים
-    final List<_SearchResultItem> items = [];
-    String? lastPath;
-    for (final snippet in snippets) {
-      if (snippet.path != lastPath) {
-        items.add(
-          _SearchResultItem.header(utils.getTitleFromPath(snippet.path)),
-        );
-        lastPath = snippet.path;
-      }
-      items.add(_SearchResultItem.result(snippet));
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(8),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final item = items[index];
-        if (item.isHeader) {
-          return Padding(
-            padding: const EdgeInsets.only(
-              top: 8,
-              bottom: 4,
-              right: 4,
-              left: 4,
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  FluentIcons.text_align_right_24_regular,
-                  size: 16,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    item.header!,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    textAlign: TextAlign.right,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        final snippet = item.snippet!;
-        final isSelected = snippet.globalIndex == selectedGlobalIndex;
-        return BlocBuilder<SettingsBloc, SettingsState>(
-          builder: (context, settingsState) {
-            final highlightedSpans = _buildSnippetHighlightSpans(
-              context,
-              settingsState,
-              snippet: snippet,
-              query: query,
-            );
-            return Container(
-              margin: const EdgeInsets.only(bottom: 6),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? AppSurfaces.selectedItem(Theme.of(context).colorScheme)
-                    : null,
-                border: Border.all(
-                  color: isSelected
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.outlineVariant,
-                  width: 1,
-                ),
-                borderRadius: AppTokens.borderRadiusAll,
-              ),
-              child: InkWell(
-                onTap: () => _commentaryKey.currentState?.navigateToGlobalIndex(
-                  snippet.globalIndex,
-                ),
-                borderRadius: AppTokens.borderRadiusAll,
-                child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Text.rich(
-                    TextSpan(children: highlightedSpans),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
+    return CommentarySearchResultsList(
+      query: query,
+      snippets: snippets,
+      currentIdx: currentIdx,
+      onSnippetTap: (globalIndex) =>
+          _commentaryKey.currentState?.navigateToGlobalIndex(globalIndex),
     );
   }
 
@@ -2024,17 +1865,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
   }
 }
 
-/// פריט עזר לרשימת תוצאות חיפוש מקובצת (כותרת או תוצאה)
-class _SearchResultItem {
-  final String? header;
-  final CommentarySearchSnippet? snippet;
-
-  const _SearchResultItem.header(this.header) : snippet = null;
-  const _SearchResultItem.result(this.snippet) : header = null;
-
-  bool get isHeader => header != null;
-}
-
+/// שורה ברשימת הניווט: פרק, תת-פריט או כפתור "כל הפרק".
 class _TocListItem {
   final TocEntry? chapter;
   final String? text;

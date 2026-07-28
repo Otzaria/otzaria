@@ -42,6 +42,8 @@ abstract class ReportMessages {
       'הדיווח נשלח בהצלחה לצוות אוצריא. תודה על הדיווח!';
   static const String cannotOpenMailApp = 'לא ניתן לפתוח את תוכנת הדואר';
   static const String cannotOpenEditPage = 'לא ניתן לפתוח את עמוד העריכה.';
+  static const String cannotIdentifyReportedBook =
+      'לא ניתן לזהות את הספר לדיווח.';
   static const String senderEmailSaved =
       'כתובת הזיהוי נשמרה. ניתן לשנות אותה בהגדרות.';
   static const String senderEmailCleared = 'כתובת הזיהוי הוסרה.';

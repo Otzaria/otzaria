@@ -65,7 +65,45 @@ void main() {
         reportBook: TextBook(title: 'מפרש בדיקה'),
       );
 
-      expect(result.title, equals('מפרש בדיקה'));
+      expect(result!.title, equals('מפרש בדיקה'));
+    });
+
+    // חלונית ה-PDF מדווחת בלי TextBookBloc: ה-override הוא מקור האמת היחיד.
+    test('ללא state — התוכן וספר היעד נלקחים מה-override', () {
+      expect(
+        ErrorReportHelper.resolveReportContent(
+          state: null,
+          reportContent: const ['פסקת מפרש'],
+        ),
+        equals(const ['פסקת מפרש']),
+      );
+      expect(
+        ErrorReportHelper.resolveReportBook(
+          state: null,
+          reportBook: TextBook(title: 'רש"י על שבת'),
+        )!.title,
+        equals('רש"י על שבת'),
+      );
+    });
+
+    test('ללא state וללא override — תוכן ריק וספר null, בלי לזרוק', () {
+      expect(
+        ErrorReportHelper.resolveReportContent(state: null),
+        isEmpty,
+      );
+      expect(ErrorReportHelper.resolveReportBook(state: null), isNull);
+    });
+
+    test('עם state וללא override — נלקחים מה-state', () {
+      final state = _loadedState();
+      expect(
+        ErrorReportHelper.resolveReportContent(state: state),
+        equals(state.content),
+      );
+      expect(
+        ErrorReportHelper.resolveReportBook(state: state)!.title,
+        equals(state.book.title),
+      );
     });
 
     test('returns selected text when selection exists', () {
@@ -643,7 +681,6 @@ void main() {
             body: RegularReportTab(
               selectedText: '',
               fontSize: 18,
-              state: _loadedState(),
               directReportTargetLabel: 'אוצריא',
               onActionSelected: (action, data) {
                 submittedAction = action;
@@ -683,7 +720,6 @@ void main() {
             body: RegularReportTab(
               selectedText: '',
               fontSize: 18,
-              state: _loadedState(),
               directReportTargetLabel: 'ספריא',
               onActionSelected: (_, _) {},
               onCancel: () {},
@@ -717,7 +753,6 @@ void main() {
             body: RegularReportTab(
               selectedText: 'טקסט לבדיקה',
               fontSize: 18,
-              state: _loadedState(),
               directReportTargetLabel: 'אוצריא',
               onActionSelected: (_, _) {},
               onCancel: () {},
@@ -747,7 +782,6 @@ void main() {
             body: RegularReportTab(
               selectedText: 'קטע עם טעות',
               fontSize: 18,
-              state: _loadedState(),
               directReportTargetLabel: 'אוצריא',
               bookTitle: 'ספר בדיקה',
               isDictaSource: isDictaSource,
@@ -800,7 +834,6 @@ void main() {
             body: RegularReportTab(
               selectedText: 'קטע עם טעות',
               fontSize: 18,
-              state: _loadedState(),
               directReportTargetLabel: 'אוצריא',
               bookTitle: 'ספר בדיקה',
               isDictaSource: true,
@@ -859,7 +892,6 @@ void main() {
                       fontSize: 18,
                       bookTitle: 'ספר בדיקה',
                       currentLineNumber: 0,
-                      state: _loadedState(),
                       directReportTargetLabel: 'אוצריא',
                     ),
                   );
@@ -907,7 +939,6 @@ void main() {
                       fontSize: 18,
                       bookTitle: 'ספר בדיקה',
                       currentLineNumber: 0,
-                      state: _loadedState(),
                       directReportTargetLabel: 'אוצריא',
                     ),
                   );

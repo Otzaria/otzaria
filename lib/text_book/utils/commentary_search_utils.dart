@@ -37,3 +37,19 @@ String buildCommentarySearchSnippet({
     maxChars: 220,
   );
 }
+
+/// מייצג תוצאת חיפוש בודדת עם קטע טקסט וכתובת גלובלית לניווט.
+///
+/// חי כאן ולא בווידג'ט כדי ששני משטחי המפרשים (טקסט ו-PDF) יוכלו לדווח
+/// ולצרוך את אותו טיפוס בלי לייבא זה את הווידג'ט של זה.
+class CommentarySearchSnippet {
+  final String path;
+  final String snippet;
+  final int globalIndex;
+
+  const CommentarySearchSnippet({
+    required this.path,
+    required this.snippet,
+    required this.globalIndex,
+  });
+}

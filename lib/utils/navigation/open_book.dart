@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/models/books.dart';
 import "package:flutter_bloc/flutter_bloc.dart";
 import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
@@ -38,4 +39,18 @@ void openBook(
     initialCommentators: initialCommentators,
     navigateToPositionIfReused: navigateToPositionIfReused,
   );
+}
+
+/// פותח טאב שכבר נבנה תוך שמירת היסטוריה, מיקוד וניווט למסך הקריאה.
+void openPreparedTab(
+  BuildContext context,
+  OpenedTab tab, {
+  bool insertAdjacent = false,
+}) {
+  final coordinator = BookOpenCoordinator(
+    tabsBloc: context.read<TabsBloc>(),
+    historyBloc: context.read<HistoryBloc>(),
+    navigationBloc: context.read<NavigationBloc>(),
+  );
+  coordinator.openTab(tab, insertAdjacent: insertAdjacent);
 }

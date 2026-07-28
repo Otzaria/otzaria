@@ -178,18 +178,21 @@ class ErrorReportHelper {
     ).replace(queryParameters: params).toString();
   }
 
+  /// [state] הוא null בדיווח ממשטח ללא `TextBookBloc` (חלונית ה-PDF); אז
+  /// [reportContent] חייב להיות מסופק, והוא מקור התוכן היחיד.
   static List<String> resolveReportContent({
-    required TextBookLoaded state,
+    required TextBookLoaded? state,
     List<String>? reportContent,
   }) {
-    return reportContent ?? state.content;
+    return reportContent ?? state?.content ?? const [];
   }
 
-  static TextBook resolveReportBook({
-    required TextBookLoaded state,
+  /// [reportBook] נדרש כשאין [state] — ראה [resolveReportContent].
+  static TextBook? resolveReportBook({
+    required TextBookLoaded? state,
     TextBook? reportBook,
   }) {
-    return reportBook ?? state.book;
+    return reportBook ?? state?.book;
   }
 
   static String resolveReportTargetText({
@@ -810,7 +813,8 @@ $detailsSection
   /// Parameters:
   /// - [context]: BuildContext for showing the dialog
   /// - [selectedText]: The text selected by the user
-  /// - [state]: Current TextBookLoaded state
+  /// - [state]: מצב הטקסט, או null במשטח ללא `TextBookBloc` (חלונית ה-PDF).
+  ///   כשהוא null חובה לספק [reportBook] — הוא מזהה את הספר המדווח.
   /// - [fontSize]: Font size to use in the dialog
   /// - [bookTitle]: Title of the book
   /// - [savedSelectedIndex]: Optional saved selected index (can be int or ValueNotifier of int)
@@ -819,7 +823,7 @@ $detailsSection
   static Future<void> showErrorReportDialog({
     required BuildContext context,
     required String selectedText,
-    required TextBookLoaded state,
+    required TextBookLoaded? state,
     required double fontSize,
     required String bookTitle,
     int? savedSelectedIndex,
@@ -834,6 +838,10 @@ $detailsSection
       state: state,
       reportBook: reportBook,
     );
+    if (effectiveBook == null) {
+      UiSnack.showError(ReportMessages.cannotIdentifyReportedBook);
+      return;
+    }
 
     // קבלת מספר השורה הנוכחי
     int? currentLineNumber;
@@ -843,8 +851,10 @@ $detailsSection
 
     // אם אין savedSelectedIndex, נשתמש ב-state
     currentLineNumber ??=
-        state.selectedIndex ??
-        (state.visibleIndices.isNotEmpty ? state.visibleIndices.first : 0);
+        state?.selectedIndex ??
+        (state != null && state.visibleIndices.isNotEmpty
+            ? state.visibleIndices.first
+            : 0);
 
     final resolvedSelectedText = resolveReportTargetText(
       content: effectiveContent,
@@ -870,7 +880,6 @@ $detailsSection
           fontSize: fontSize,
           bookTitle: bookTitle,
           currentLineNumber: currentLineNumber! + 1, // +1 כי השורות מתחילות מ-1
-          state: state,
           directReportTargetLabel: directReportTargetLabel,
           isDictaSource: isDictaSource,
         );
@@ -967,7 +976,6 @@ class TabbedReportDialog extends StatefulWidget {
   final double fontSize;
   final String bookTitle;
   final int currentLineNumber;
-  final TextBookLoaded state;
   final String directReportTargetLabel;
   final bool isDictaSource;
 
@@ -977,7 +985,6 @@ class TabbedReportDialog extends StatefulWidget {
     required this.fontSize,
     required this.bookTitle,
     required this.currentLineNumber,
-    required this.state,
     required this.directReportTargetLabel,
     this.isDictaSource = false,
   });
@@ -1105,7 +1112,6 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
     return RegularReportTab(
       selectedText: widget.selectedText,
       fontSize: widget.fontSize,
-      state: widget.state,
       directReportTargetLabel: widget.directReportTargetLabel,
       bookTitle: widget.bookTitle,
       isDictaSource: widget.isDictaSource,
@@ -1194,7 +1200,6 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
 class RegularReportTab extends StatefulWidget {
   final String selectedText;
   final double fontSize;
-  final TextBookLoaded state;
   final String directReportTargetLabel;
   final String bookTitle;
   final bool isDictaSource;
@@ -1205,7 +1210,6 @@ class RegularReportTab extends StatefulWidget {
     super.key,
     required this.selectedText,
     required this.fontSize,
-    required this.state,
     required this.directReportTargetLabel,
     this.bookTitle = '',
     this.isDictaSource = false,
