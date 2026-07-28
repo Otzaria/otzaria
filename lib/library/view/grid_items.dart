@@ -291,17 +291,18 @@ class CategoryGridItem extends StatelessWidget {
                     text: category.title,
                     isFolder: true,
                   ),
-                  if (category.shortDescription.isNotEmpty) ...[
-                    const SizedBox(height: 3),
-                    LibraryOverflowTooltipText(
-                      text: category.shortDescription,
-                      maxLines: 2,
-                      textAlign: TextAlign.right,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: cs.onSecondaryContainer,
-                      ),
-                    ),
-                  ],
+                  // זמני: התיאור הקצר הוסר מגוף הכרטיס.
+                  // if (category.shortDescription.isNotEmpty) ...[
+                  //   const SizedBox(height: 3),
+                  //   LibraryOverflowTooltipText(
+                  //     text: category.shortDescription,
+                  //     maxLines: 2,
+                  //     textAlign: TextAlign.right,
+                  //     style: theme.textTheme.bodySmall?.copyWith(
+                  //       color: cs.onSecondaryContainer,
+                  //     ),
+                  //   ),
+                  // ],
                 ],
               ),
             ),

@@ -371,7 +371,7 @@ void main() {
       expect(find.text('אודות הקטגוריה'), findsNothing);
     }
 
-    testWidgets('קצר וארוך: מציג קצר בכרטיס וארוך בריחוף ובדיאלוג', (
+    testWidgets('קצר וארוך: הקצר אינו בכרטיס (זמני), הארוך בריחוף ובדיאלוג', (
       tester,
     ) async {
       final item = category(
@@ -382,7 +382,7 @@ void main() {
       await tester.pumpWidget(buildCategoryTestWidget(item));
       await tester.pumpAndSettle();
 
-      expect(find.text('תיאור קצר'), findsOneWidget);
+      expect(find.text('תיאור קצר'), findsNothing);
       expect(
         tester
             .widgetList<Tooltip>(find.byType(Tooltip))
@@ -398,19 +398,21 @@ void main() {
       expect(find.text('שם הקטגוריה:'), findsOneWidget);
       expect(find.text('קטגוריית בדיקה'), findsNWidgets(2));
       expect(find.text('תיאור קצר:'), findsOneWidget);
-      expect(find.text('תיאור קצר'), findsNWidgets(2));
+      expect(find.text('תיאור קצר'), findsOneWidget);
       expect(find.text('תיאור מורחב:'), findsOneWidget);
       expect(find.text('תיאור מורחב'), findsOneWidget);
       await closeDialog(tester);
     });
 
-    testWidgets('קצר בלבד: משתמש בקצר בכרטיס, בריחוף ובדיאלוג', (tester) async {
+    testWidgets('קצר בלבד: אינו בכרטיס (זמני), משמש בריחוף ובדיאלוג', (
+      tester,
+    ) async {
       final item = category(shortDescription: 'תיאור קצר בלבד');
 
       await tester.pumpWidget(buildCategoryTestWidget(item));
       await tester.pumpAndSettle();
 
-      expect(find.text('תיאור קצר בלבד'), findsOneWidget);
+      expect(find.text('תיאור קצר בלבד'), findsNothing);
       expect(
         tester
             .widgetList<Tooltip>(find.byType(Tooltip))
@@ -424,7 +426,7 @@ void main() {
 
       expect(find.text('אודות הקטגוריה'), findsOneWidget);
       expect(find.text('תיאור קצר:'), findsOneWidget);
-      expect(find.text('תיאור קצר בלבד'), findsNWidgets(2));
+      expect(find.text('תיאור קצר בלבד'), findsOneWidget);
       expect(find.text('תיאור מורחב:'), findsNothing);
       await closeDialog(tester);
     });
