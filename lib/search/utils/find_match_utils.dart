@@ -11,9 +11,13 @@ String normalizeFindText(String rawText) {
   var cleaned = utils.removeVolwels(rawText);
   cleaned = cleaned.replaceAll('"', '').replaceAll("'", '');
   cleaned = cleaned.replaceAll('״', '').replaceAll('׳', '');
-  cleaned = cleaned.replaceAll(RegExp(r'[^a-zA-Z0-9\u0590-\u05FF\s/]'), ' ');
-  return cleaned.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+  cleaned = cleaned.replaceAll(_nonSearchableChars, ' ');
+  return cleaned.toLowerCase().replaceAll(_whitespaceRun, ' ').trim();
 }
+
+// מהודרים פעם אחת: הנרמול רץ על כל ערכי ה-TOC של הספר בכל הקלדה.
+final RegExp _nonSearchableChars = RegExp(r'[^a-zA-Z0-9\u0590-\u05FF\s/]');
+final RegExp _whitespaceRun = RegExp(r'\s+');
 
 /// מחזירה האם יש התאמה בין הטקסטים המנורמלים לבין שאילתת האיתור.
 bool findNormalizedTextMatches({
