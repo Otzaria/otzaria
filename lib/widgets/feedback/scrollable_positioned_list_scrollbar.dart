@@ -52,9 +52,7 @@ class _ScrollablePositionedListScrollbarState
   // להחלקת הקפיצות במיקום
   int _lastFirstIndex = 0;
 
-  // כל jumpTo בונה מחדש את כל החלון הנראה (נמדד: פי 5 ממנו), ולכן קפיצה בכל
-  // תזוזת עכבר חונקת גם את ציור האגודל. הוויסות מגביל את הבנייה ל-~20 בשנייה;
-  // האגודל והתווית ממשיכים לעקוב בכל פריים, והיעד האחרון מבוצע בשחרור.
+  // jumpTo בונה מחדש את החלון הנראה, ולכן קפיצות הגרירה מווסתות.
   static const Duration _dragJumpInterval = Duration(milliseconds: 50);
   final Stopwatch _sinceLastDragJump = Stopwatch();
   int? _pendingDragTarget;
@@ -237,17 +235,7 @@ class _ScrollablePositionedListScrollbarState
         : 0.0;
     final continuousIndex = minIndex + fractionIntoTop;
 
-    // ספירת הגלויים מתנדנדת ב-±1 בכל מעבר פריט (7.5 פריטים במסך = 8 או 9 לפי
-    // היישור). היא המכנה של המיקום, ולכן כל תנודה מזיזה את האגודל בעוצמה
-    // שגדלה עם העומק בספר. אזור-מת של 1 בולע את התנודה ומעביר שינוי אמיתי.
-    // ספירת הגלויים היא מספר שלם שקופץ ב-±1 בכל מעבר פריט (7.5 פריטים במסך =
-    // 8 או 9 לפי היישור), וכמכנה של המיקום כל קפיצה מזיזה את האגודל בעוצמה
-    // שגדלה עם העומק בספר. span/count מבטל את הקוונטיזציה: כשהספירה עולה ב-1
-    // גם המוטב גדל, והמנה נשארת גובה-הפריט המקומי.
-    //
-    // המכנה חייב להישאר אחד לשני הכיוונים — הוא משמש גם את המיפוי ההפוך
-    // ב-_indexFromThumbPosition. מכנה נפרד ל"מיקום חלק" מנתק את האגודל
-    // מהתוכן: השחרור נוחת מתחת למקום שנעזב, והאגודל לא נוגע בתחתית בסוף הספר.
+    // אומדן שברי ויציב שומר על מיפוי זהה בין ציור האגודל לגרירה.
     final fractionalVisible = localItemHeight > 0
         ? 1.0 / localItemHeight
         : visibleItems.toDouble();
@@ -362,6 +350,8 @@ class _ScrollablePositionedListScrollbarState
       } else {
         _pendingDragTarget = targetIndex;
       }
+    } else {
+      _pendingDragTarget = null;
     }
 
     if (globalPosition != null) {

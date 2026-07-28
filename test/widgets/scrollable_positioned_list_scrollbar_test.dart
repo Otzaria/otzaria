@@ -895,6 +895,50 @@ void main() {
 
       expect(controller.jumps.last, closeTo(expected, 2));
     });
+
+    testWidgets('חזרה ליעד שכבר בוצע מבטלת יעד ממתין', (tester) async {
+      final listener = ItemPositionsListener.create();
+      final controller = _RecordingItemScrollController();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ScrollablePositionedListScrollbar(
+              scrollController: controller,
+              itemPositionsListener: listener,
+              itemCount: 1000,
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ),
+      );
+      (listener.itemPositions as ValueNotifier<Iterable<ItemPosition>>).value =
+          const [
+            ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.5),
+            ItemPosition(index: 1, itemLeadingEdge: 0.5, itemTrailingEdge: 1.0),
+          ];
+      await tester.pump();
+
+      final track = find.byType(GestureDetector);
+      final topLeft = tester.getTopLeft(track);
+      final bottomRight = tester.getBottomRight(track);
+      final gesture = await tester.startGesture(
+        Offset((topLeft.dx + bottomRight.dx) / 2, topLeft.dy + 2),
+      );
+      await tester.pump();
+      await gesture.moveBy(const Offset(0, 100));
+      await tester.pump();
+      final firstTarget = controller.jumps.single;
+
+      await gesture.moveBy(const Offset(0, 100));
+      await tester.pump();
+      await gesture.moveBy(const Offset(0, -100));
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+
+      expect(controller.jumps.last, firstTarget);
+    });
   });
 
   testWidgets('בסוף הרשימה האגודל נוגע בתחתית המסילה', (tester) async {
