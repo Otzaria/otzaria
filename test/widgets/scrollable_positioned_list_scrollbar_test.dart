@@ -731,4 +731,312 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('האגודל אינו קופץ למעלה בזמן גלילה למטה', (tester) async {
+    // רגרסיה: ספירת הפריטים הגלויים שלמה ומתנדנדת ב-±1 בכל מעבר פריט
+    // (7.5 פריטים במסך = 8 או 9). כשהיא שימשה כמכנה של מיקום האגודל, כל
+    // תנודה הזיזה אותו למעלה בעוצמה שגדלה עם העומק בספר — 18% מהפריימים.
+    tester.view.physicalSize = const Size(600, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final listener = ItemPositionsListener.create();
+    final controller = ItemScrollController();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ScrollablePositionedListScrollbar(
+            scrollController: controller,
+            itemPositionsListener: listener,
+            itemCount: 60,
+            child: ScrollablePositionedList.builder(
+              itemScrollController: controller,
+              itemPositionsListener: listener,
+              itemCount: 60,
+              // 120px לפריט מול מסך 900px = 7.5 פריטים, כלומר הספירה
+              // מתחלפת בין 8 ל-9 בכל מעבר.
+              itemBuilder: (context, i) =>
+                  SizedBox(height: 120, child: Text('פריט $i')),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final thumb = find.descendant(
+      of: find.byType(ScrollablePositionedListScrollbar),
+      matching: find.byWidgetPredicate(
+        (w) => w is Container && w.decoration is BoxDecoration,
+      ),
+    );
+    expect(thumb, findsOneWidget);
+
+    var previousTop = tester.getRect(thumb).top;
+    var moved = false;
+    // השגיאה גדלה ליניארית עם העומק, ולכן צריך לגלול מספיק עמוק כדי לתפוס
+    // אותה — 60 פריימים בלבד עוברים מעליה.
+    for (var i = 0; i < 250; i++) {
+      await tester.sendEventToBinding(
+        PointerScrollEvent(
+          position: const Offset(300, 450),
+          scrollDelta: const Offset(0, 12),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 16));
+
+      final top = tester.getRect(thumb).top;
+      if (top > previousTop) moved = true;
+      expect(
+        top,
+        greaterThanOrEqualTo(previousTop - 0.01),
+        reason: 'האגודל ירד מ-$previousTop ל-$top בזמן גלילה למטה (פריים $i)',
+      );
+      previousTop = top;
+    }
+    expect(moved, isTrue, reason: 'האגודל כלל לא זז — הטסט אינו בודק כלום');
+  });
+
+  group('ויסות קפיצות בזמן גרירה', () {
+    /// גורר את האגודל מראש המסילה כלפי מטה ב-[steps] שלבים.
+    Future<_RecordingItemScrollController> dragThumb(
+      WidgetTester tester, {
+      required int steps,
+      required double stepDy,
+      bool release = true,
+    }) async {
+      final listener = ItemPositionsListener.create();
+      final controller = _RecordingItemScrollController();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ScrollablePositionedListScrollbar(
+              scrollController: controller,
+              itemPositionsListener: listener,
+              itemCount: 1000,
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ),
+      );
+
+      (listener.itemPositions as ValueNotifier<Iterable<ItemPosition>>).value =
+          const [
+            ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.5),
+            ItemPosition(index: 1, itemLeadingEdge: 0.5, itemTrailingEdge: 1.0),
+          ];
+      await tester.pump();
+
+      final track = find.byType(GestureDetector);
+      final topLeft = tester.getTopLeft(track);
+      final bottomRight = tester.getBottomRight(track);
+      // תופסים את האגודל עצמו — הוא בראש המסילה.
+      final gesture = await tester.startGesture(
+        Offset((topLeft.dx + bottomRight.dx) / 2, topLeft.dy + 2),
+      );
+      await tester.pump();
+      for (var i = 0; i < steps; i++) {
+        await gesture.moveBy(Offset(0, stepDy));
+        await tester.pump();
+      }
+      if (release) {
+        await gesture.up();
+        await tester.pump();
+      }
+      return controller;
+    }
+
+    testWidgets('התזוזה הראשונה קופצת מיד, בלי להמתין לוויסות', (tester) async {
+      final controller = await dragThumb(
+        tester,
+        steps: 1,
+        stepDy: 40,
+        release: false,
+      );
+
+      expect(
+        controller.jumps,
+        isNotEmpty,
+        reason: 'המשוב הראשון בגרירה חייב להיות מיידי',
+      );
+    });
+
+    testWidgets('קפיצות ביניים מווסתות — לא קופצים בכל תזוזה', (tester) async {
+      final controller = await dragThumb(tester, steps: 25, stepDy: 8);
+
+      // בלי ויסות כל אחת מ-25 התזוזות הייתה מייצרת קפיצה.
+      expect(
+        controller.jumps.length,
+        lessThan(25),
+        reason: 'הוויסות לא חסם דבר',
+      );
+    });
+
+    testWidgets('השחרור נוחת בדיוק ביעד האחרון שכוונה אליו הגרירה', (
+      tester,
+    ) async {
+      final controller = await dragThumb(tester, steps: 25, stepDy: 8);
+
+      final track = find.byType(GestureDetector);
+      final trackHeight = tester.getSize(track).height;
+      final thumb = find.descendant(
+        of: find.byType(ScrollablePositionedListScrollbar),
+        matching: find.byWidgetPredicate(
+          (w) => w is Container && w.decoration is BoxDecoration,
+        ),
+      );
+      // היעד הצפוי נגזר ממיקום האגודל בפועל בתום הגרירה.
+      final thumbTop = tester.getRect(thumb).top - tester.getRect(track).top;
+      final thumbHeightFraction = tester.getRect(thumb).height / trackHeight;
+      final ratio = (thumbTop / trackHeight) / (1.0 - thumbHeightFraction);
+      final expected = (ratio * (1000 - 2)).round();
+
+      expect(controller.jumps.last, closeTo(expected, 2));
+    });
+  });
+
+  testWidgets('בסוף הרשימה האגודל נוגע בתחתית המסילה', (tester) async {
+    // רגרסיה: מכנה נפרד למיקום האגודל (ממוצע גלובלי) במקום מכנה אחד לשני
+    // הכיוונים ניתק את האגודל מהתוכן — בסוף הרשימה הוא נעצר כ-4.6% מעל
+    // התחתית. ה-fixture בונה היסטוריה של פריטים כבדים כדי שהממוצע הגלובלי
+    // ייבדל מהמקומי; בלי הבדל כזה השגיאה אינה מתבטאת בכלל.
+    tester.view.physicalSize = const Size(600, 600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final listener = ItemPositionsListener.create();
+    final positions =
+        listener.itemPositions as ValueNotifier<Iterable<ItemPosition>>;
+    final controller = ItemScrollController();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ScrollablePositionedListScrollbar(
+            scrollController: controller,
+            itemPositionsListener: listener,
+            itemCount: 120,
+            child: const SizedBox.expand(),
+          ),
+        ),
+      ),
+    );
+
+    // אזור כבד: 2 פריטים למסך.
+    positions.value = const [
+      ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.5),
+      ItemPosition(index: 1, itemLeadingEdge: 0.5, itemTrailingEdge: 1.0),
+    ];
+    await tester.pump();
+
+    // המסך האחרון של הרשימה: 13 פריטים קלים, האחרון מסתיים בדיוק בתחתית.
+    positions.value = List.generate(
+      13,
+      (i) => ItemPosition(
+        index: 107 + i,
+        itemLeadingEdge: i / 13,
+        itemTrailingEdge: (i + 1) / 13,
+      ),
+    );
+    await tester.pump();
+
+    final track = find.byType(GestureDetector);
+    final thumb = find.descendant(
+      of: find.byType(ScrollablePositionedListScrollbar),
+      matching: find.byWidgetPredicate(
+        (w) => w is Container && w.decoration is BoxDecoration,
+      ),
+    );
+
+    expect(
+      tester.getRect(thumb).bottom,
+      closeTo(tester.getRect(track).bottom, 1.0),
+      reason: 'בסוף הרשימה האגודל חייב להיות צמוד לתחתית המסילה',
+    );
+  });
+
+  testWidgets('האגודל אינו זז אחרי שהתוכן נוחת ביעד הגרירה', (tester) async {
+    // רגרסיה: מיפוי המיקום והמיפוי ההפוך חייבים לחלוק מכנה. כשהופרדו, שחרור
+    // הגרירה נחת עד 4.3% מהמסילה מתחת למקום שהמשתמש עזב — האגודל "ברח"
+    // מהאצבע. ה-fixture מייצר הבדל בין הממוצע הגלובלי למקומי, אחרת שני
+    // המכנים שווים במקרה והשגיאה אינה מתבטאת.
+    tester.view.physicalSize = const Size(600, 600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final listener = ItemPositionsListener.create();
+    final positions =
+        listener.itemPositions as ValueNotifier<Iterable<ItemPosition>>;
+    final controller = _RecordingItemScrollController();
+    const itemCount = 120;
+    const visibleAtTarget = 13;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ScrollablePositionedListScrollbar(
+            scrollController: controller,
+            itemPositionsListener: listener,
+            itemCount: itemCount,
+            child: const SizedBox.expand(),
+          ),
+        ),
+      ),
+    );
+
+    /// פוזיציות של מסך שמתחיל ב-[first] עם [visibleAtTarget] פריטים.
+    List<ItemPosition> screenAt(int first) => List.generate(
+      visibleAtTarget,
+      (i) => ItemPosition(
+        index: first + i,
+        itemLeadingEdge: i / visibleAtTarget,
+        itemTrailingEdge: (i + 1) / visibleAtTarget,
+      ),
+    );
+
+    // היסטוריה כבדה (2 פריטים למסך) כדי שהממוצע הגלובלי ייבדל מהמקומי.
+    positions.value = const [
+      ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.5),
+      ItemPosition(index: 1, itemLeadingEdge: 0.5, itemTrailingEdge: 1.0),
+    ];
+    await tester.pump();
+
+    positions.value = screenAt(20);
+    await tester.pump();
+
+    final thumb = find.descendant(
+      of: find.byType(ScrollablePositionedListScrollbar),
+      matching: find.byWidgetPredicate(
+        (w) => w is Container && w.decoration is BoxDecoration,
+      ),
+    );
+
+    // גרירת האגודל מטה. את המיקום מודדים ברגע השחרור, לפני שהתוכן זז.
+    final gesture = await tester.startGesture(tester.getRect(thumb).center);
+    await tester.pump();
+    await gesture.moveBy(const Offset(0, 80));
+    await tester.pump();
+    final topAtRelease = tester.getRect(thumb).top;
+    await gesture.up();
+    await tester.pump();
+
+    expect(controller.jumps, isNotEmpty);
+    final landedIndex = controller.jumps.last;
+
+    // הרשימה מרנדרת את היעד — בדיוק מה שקורה במסך אחרי jumpTo.
+    positions.value = screenAt(landedIndex);
+    await tester.pump();
+    await tester.pump();
+
+    // שני מקורות סטייה קיימים מלכתחילה: היעד מעוגל לאינדקס שלם (~2.6px כאן),
+    // וגובה האגודל נאמד מחדש כשנמדדים פריטים נוספים (~3px). הרגרסיה שנשמרת
+    // כאן גדולה מהם בסדר גודל — 22-34px.
+    expect(
+      tester.getRect(thumb).top,
+      closeTo(topAtRelease, 8.0),
+      reason: 'האגודל זז אחרי שהתוכן נחת — המיפוי קדימה וההפוך אינם מתאימים',
+    );
+  });
 }
