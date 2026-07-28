@@ -32,9 +32,7 @@ bool _isBookTitle(
       (entry.level <= 1 && index == 0 && isFirstEntry);
 }
 
-/// הנרמול אינו תלוי בשאילתה, ולכן נשמר בין הקלדה להקלדה. בלעדיו כל תו
-/// שהוקלד נרמל מחדש את כל כותרות הספר (עשרות אלפים במיקרופדיה), והנרמול
-/// לדירוג אף קורא ל-sanitizeQuery של מנוע החיפוש (FFI סינכרוני).
+/// הנרמול אינו תלוי בשאילתה, ולכן נשמר בין הקלדה להקלדה.
 final Expando<String> _matchTextCache = Expando<String>();
 final Expando<String> _rankTextCache = Expando<String>();
 final Expando<String> _rankFullTextCache = Expando<String>();
@@ -43,14 +41,17 @@ final Expando<String> _rankFullTextCache = Expando<String>();
 String _matchText(TocEntry entry) =>
     _matchTextCache[entry] ??= normalizeFindText(entry.text);
 
-// הדירוג מנרמל כשאילתה ולא כטקסט - שני הנרמולים נותנים תוצאה שונה על
-// גרשיים טיפוגרפיים ופיסוק (שו”ע → "שוע" מול "שו ע"), ואיחודם משנה סדר.
-String _rankText(TocEntry entry) =>
-    _rankTextCache[entry] ??= normalizeFindQuery(entry.text);
+// נרמול הדירוג שומר על סמנטיקת השאילתה בלי FFI לכל כותרת.
+String _rankText(TocEntry entry) => _rankTextCache[entry] ??=
+    normalizeFindRankText(entry.text, normalizedFindText: _matchText(entry));
 
 /// fullText בונה מחדש את שרשרת ההורים בכל קריאה — ממטמנים כמו את הכותרת.
-String _rankFullText(TocEntry entry) =>
-    _rankFullTextCache[entry] ??= normalizeFindQuery(entry.fullText);
+String _rankFullText(TocEntry entry) {
+  return _rankFullTextCache[entry] ??=
+      entry.parent == null || entry.parent!.level <= 1
+      ? _rankText(entry)
+      : normalizeFindRankText(entry.fullText);
+}
 
 /// מפתחות הדירוג של העותק המסונן. נקבעים בזמן הסינון מתוך הערך המקורי,
 /// ששם המטמונים חיים בין חיפוש לחיפוש (העותקים נוצרים מחדש בכל חיפוש).
@@ -63,10 +64,7 @@ class _RankKeys {
   const _RankKeys(this.rank, this.lengthDelta);
 }
 
-/// מסננת ענף יחיד, ומחזירה עותק מסונן או null אם אין בו התאמה.
-///
-/// הענף נשמר אם הוא עצמו תואם או אם נשמר לפחות צאצא אחד — כך התשובה
-/// "יש צאצא תואם" נגזרת מהסינון עצמו, במעבר יחיד על העץ.
+/// מסננת ענף במעבר יחיד ומחזירה עותק רק אם הוא או צאצא שלו תואמים.
 TocEntry? _filterEntry(
   TocEntry entry,
   String query, {
@@ -141,9 +139,7 @@ List<TocEntry> _buildFilteredEntries(
   return result;
 }
 
-/// ממיינת לפי מפתחות הדירוג שנקבעו ב-[_filterEntry]. חישובם בתוך
-/// ה-comparator הריץ את הנרמול O(n log n) פעמים והקפיא את התוכנה בספרים
-/// עם עשרות אלפי כותרות.
+/// ממיינת לפי מפתחות הדירוג שחושבו פעם אחת ב-[_filterEntry].
 List<TocEntry> _sortEntriesByRelevance(List<TocEntry> entries) {
   const fallback = _RankKeys(6, 0);
   final sorted = List<TocEntry>.from(entries)

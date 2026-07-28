@@ -31,10 +31,16 @@ class TocViewer extends StatefulWidget {
   State<TocViewer> createState() => _TocViewerState();
 }
 
-/// סף שמעליו עוברים לרשימה שטוחה ו-ListView.builder וירטואלי.
-/// מתחת לסף - שומרים על המבנה הרקורסיבי (Column) שמתאים לספרים קטנים
-/// וכן לחיפוש (לא דורש וירטואליזציה).
+/// סף שמעליו עוברים לרשימה וירטואלית שטוחה.
 const int _kTocFlattenThreshold = 500;
+
+class _TocDisplayData {
+  final List<TocEntry> entries;
+  final int totalCount;
+  final bool isSearching;
+
+  const _TocDisplayData(this.entries, this.totalCount, this.isSearching);
+}
 
 class _TocViewerState extends State<TocViewer>
     with AutomaticKeepAliveClientMixin<TocViewer> {
@@ -48,14 +54,18 @@ class _TocViewerState extends State<TocViewer>
   int? _lastScrolledTocIndex;
   final Map<int, bool> _expanded = {};
 
-  // סינון 32 אלף כותרות עולה מאות מ"ש; בלי המטמון הוא היה רץ מחדש בכל
-  // build - גם בגלילה בספר, שמפעילה rebuild דרך visibleIndices.
-  List<TocEntry>? _filterSource;
-  String? _filterQuery;
-  List<TocEntry>? _filterResult;
+  // הסינון והספירה משתנים רק כשהספר או השאילתה משתנים.
+  List<TocEntry>? _displaySource;
+  String? _displayQuery;
+  _TocDisplayData? _displayResult;
 
-  // הסינון רץ על השאילתה שהוחלה, ולא על התו האחרון שהוקלד: בספר גדול הוא
-  // חוסם את ה-UI לעשרות מ"ש, ובהקלדה רצופה כל תו נעצר עד הבא.
+  // השיטוח משתנה רק כשהתצוגה או מצב ההרחבה משתנים.
+  _TocDisplayData? _flatDisplay;
+  List<TocFlatItem>? _flatResult;
+  int _expandedRevision = 0;
+  int _flatExpandedRevision = -1;
+
+  // הסינון רץ על השאילתה שהוחלה, ולא על כל תו בזמן ההקלדה.
   Timer? _searchDebounce;
   String _appliedQuery = '';
 
@@ -106,11 +116,14 @@ class _TocViewerState extends State<TocViewer>
     final path = _findPath(entries, targetIndex);
     if (path.isEmpty) return;
 
+    var changed = false;
     for (final entry in path) {
       if (entry.children.isNotEmpty && _expanded[entry.index] != true) {
         _expanded[entry.index] = true;
+        changed = true;
       }
     }
+    if (changed) _expandedRevision++;
   }
 
   List<TocEntry> _findPath(List<TocEntry> entries, int targetIndex) {
@@ -148,9 +161,8 @@ class _TocViewerState extends State<TocViewer>
 
     // החלטה בין מסלול וירטואלי לרקורסיבי - חייב להיות זהה ללוגיקה ב-build,
     // אחרת ננסה לגלול בקונטרולר שלא מחובר.
-    final bool isSearching = _appliedQuery.isNotEmpty;
-    final entries = _entriesForDisplay(state.tableOfContents);
-    final bool useFlat = countAllTocEntries(entries) > _kTocFlattenThreshold;
+    final display = _displayDataFor(state.tableOfContents);
+    final bool useFlat = display.totalCount > _kTocFlattenThreshold;
 
     SchedulerBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -163,11 +175,7 @@ class _TocViewerState extends State<TocViewer>
           // אינדקס ברשימה השטוחה דרך ItemScrollController, שמטפל בגלילה
           // לפריטים שאינם מורכבים.
           if (!_virtualScrollController.isAttached) return;
-          final flat = flattenVisibleToc(
-            entries,
-            _expanded,
-            expandByDefault: isSearching,
-          );
+          final flat = _flatItemsFor(display);
           final flatIndex = flat.indexWhere(
             (item) => item.entry.index == activeIndex,
           );
@@ -255,17 +263,39 @@ class _TocViewerState extends State<TocViewer>
     });
   }
 
-  /// הערכים המוצגים כרגע: העץ המלא, או תוצאות החיפוש כשיש טקסט בתיבה.
-  List<TocEntry> _entriesForDisplay(List<TocEntry> tableOfContents) {
+  _TocDisplayData _displayDataFor(List<TocEntry> tableOfContents) {
     final query = _appliedQuery;
-    if (query.isEmpty) return tableOfContents;
-
-    if (!identical(_filterSource, tableOfContents) || _filterQuery != query) {
-      _filterSource = tableOfContents;
-      _filterQuery = query;
-      _filterResult = filterTocEntriesForSearch(tableOfContents, query);
+    if (!identical(_displaySource, tableOfContents) || _displayQuery != query) {
+      final isSearching = query.isNotEmpty;
+      final entries = isSearching
+          ? filterTocEntriesForSearch(tableOfContents, query)
+          : tableOfContents;
+      _displaySource = tableOfContents;
+      _displayQuery = query;
+      _displayResult = _TocDisplayData(
+        entries,
+        countAllTocEntries(entries),
+        isSearching,
+      );
+      _flatDisplay = null;
+      _flatResult = null;
+      _flatExpandedRevision = -1;
     }
-    return _filterResult!;
+    return _displayResult!;
+  }
+
+  List<TocFlatItem> _flatItemsFor(_TocDisplayData display) {
+    if (!identical(_flatDisplay, display) ||
+        _flatExpandedRevision != _expandedRevision) {
+      _flatDisplay = display;
+      _flatExpandedRevision = _expandedRevision;
+      _flatResult = flattenVisibleToc(
+        display.entries,
+        _expanded,
+        expandByDefault: display.isSearching,
+      );
+    }
+    return _flatResult!;
   }
 
   /// בונה שורה יחידה של TOC ללא ילדיו. משמש בשני המסלולים:
@@ -431,6 +461,7 @@ class _TocViewerState extends State<TocViewer>
             onTap: () {
               setState(() {
                 _expanded[entry.index] = !isExpanded;
+                _expandedRevision++;
               });
             },
             child: Container(
@@ -454,21 +485,12 @@ class _TocViewerState extends State<TocViewer>
     );
   }
 
-  /// מסלול וירטואלי לספרים עם הרבה ערכי TOC. שיטוח העץ הגלוי לרשימה
-  /// שטוחה והעברתה ל-ScrollablePositionedList - בונה רק את הפריטים הנראים
-  /// על המסך (~30) במקום את כל אלפי הערכים. נבחר ScrollablePositionedList
-  /// (ולא ListView.builder רגיל) כי הוא תומך בגלילה לפי אינדקס פריט גם
-  /// כשהפריט הפעיל עוד לא נבנה בעץ - תנאי הכרחי ל-_scrollToActiveItem.
+  /// בונה רשימה וירטואלית מהעץ השטוח והממוטמן.
   Widget _buildVirtualizedTocList(
-    List<TocEntry> entries,
+    List<TocFlatItem> flat,
     int? activeIndex, {
     required bool isSearching,
   }) {
-    final flat = flattenVisibleToc(
-      entries,
-      _expanded,
-      expandByDefault: isSearching,
-    );
     return ScrollablePositionedList.builder(
       itemScrollController: _virtualScrollController,
       itemPositionsListener: _virtualPositionsListener,
@@ -587,13 +609,9 @@ class _TocViewerState extends State<TocViewer>
                     )
                   : null);
 
-          // החלטה בין מסלול רקורסיבי לוירטואלי - נגזרת מהערכים המוצגים בפועל.
-          // גם חיפוש יכול להחזיר עשרות אלפי ערכים (שאילתה של אות אחת), ובלי
-          // וירטואליזציה כולם נבנים בפריים אחד והתוכנה נתקעת.
-          final bool isSearching = _appliedQuery.isNotEmpty;
-          final entries = _entriesForDisplay(state.tableOfContents);
-          final bool useFlat =
-              countAllTocEntries(entries) > _kTocFlattenThreshold;
+          // גם חיפוש עשוי להציג עשרות אלפי ערכים, ולכן הסף נגזר מהפלט.
+          final display = _displayDataFor(state.tableOfContents);
+          final bool useFlat = display.totalCount > _kTocFlattenThreshold;
 
           return Column(
             children: [
@@ -645,23 +663,23 @@ class _TocViewerState extends State<TocViewer>
                   },
                   child: useFlat
                       ? _buildVirtualizedTocList(
-                          entries,
+                          _flatItemsFor(display),
                           activeIndex,
-                          isSearching: isSearching,
+                          isSearching: display.isSearching,
                         )
                       : SingleChildScrollView(
                           controller: _tocScrollController,
                           child: ListView.builder(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
-                            itemCount: entries.length,
+                            itemCount: display.entries.length,
                             itemBuilder: (context, index) => _buildTocItem(
-                              entries[index],
+                              display.entries[index],
                               isFirstChild: index == 0,
-                              showFullText: isSearching,
-                              defaultExpanded: isSearching
+                              showFullText: display.isSearching,
+                              defaultExpanded: display.isSearching
                                   ? shouldExpandInSearch(
-                                      _expanded[entries[index].index],
+                                      _expanded[display.entries[index].index],
                                     )
                                   : null,
                               activeIndex: activeIndex,

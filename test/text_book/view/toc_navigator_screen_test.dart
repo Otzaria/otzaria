@@ -1,3 +1,4 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -256,6 +257,47 @@ Future<void> main() async {
       findsNothing,
       reason: 'ספר קטן לא צריך וירטואליזציה — שומר על מסלול רקורסיבי',
     );
+  });
+
+  testWidgets('מטמון השיטוח מתעדכן בסגירה ובפתיחה של ענף', (tester) async {
+    final parent = TocEntry(text: 'parent', index: 0, level: 1);
+    parent.children = [
+      TocEntry(text: 'unique-child', index: 1, level: 2, parent: parent),
+    ];
+    final toc = [
+      parent,
+      ...List.generate(
+        500,
+        (i) => TocEntry(text: 'leaf $i', index: i + 2, level: 1),
+      ),
+    ];
+    final bloc = _TestTextBookBloc(
+      _loadedState(toc: toc, visibleIndices: const [0]),
+    );
+    addTearDown(bloc.close);
+    final focusNode = FocusNode();
+    addTearDown(focusNode.dispose);
+
+    await tester.pumpWidget(
+      _wrap(
+        TocViewer(
+          scrollController: ItemScrollController(),
+          closeLeftPaneCallback: () {},
+          focusNode: focusNode,
+        ),
+        bloc,
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('unique-child'), findsOneWidget);
+    await tester.tap(find.byIcon(FluentIcons.chevron_up_24_regular).first);
+    await tester.pump();
+    expect(find.text('unique-child'), findsNothing);
+
+    await tester.tap(find.byIcon(FluentIcons.chevron_down_24_regular).first);
+    await tester.pump();
+    expect(find.text('unique-child'), findsOneWidget);
   });
 
   testWidgets(
