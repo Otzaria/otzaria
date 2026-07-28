@@ -47,7 +47,6 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
-import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
@@ -3881,18 +3880,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         defaultRemovePunctuation: settingsState.defaultRemovePunctuation,
         isTanach: _isTanachBook,
       ),
-      openBookCallback: (tab) {
-        if (tab is TextBookTab) {
-          openBook(
-            context,
-            tab.book,
-            tab.index,
-            '',
-            ignoreHistory: false,
-            insertAdjacent: true,
-          );
-        }
-      },
+      openBookCallback: (tab) =>
+          openPreparedTab(context, tab, insertAdjacent: true),
       fontSize: settingsState.commentatorsFontSize,
       onClose: () {
         _bloc.add(const pdf_events.ToggleRightPane(show: false));

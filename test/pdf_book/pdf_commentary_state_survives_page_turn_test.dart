@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -12,6 +14,7 @@ import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/widgets/commentary/links_list_view.dart';
 
@@ -55,10 +58,13 @@ class _FakePersonalNotesBloc
   dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
 
-Link _link({required int index1}) => Link(
-  heRef: 'רש"י',
+Link _link({
+  required int index1,
+  String path2 = '/books/rashi.txt',
+}) => Link(
+  heRef: path2,
   index1: index1,
-  path2: '/books/rashi.txt',
+  path2: path2,
   index2: 1,
   connectionType: 'COMMENTARY',
 );
@@ -205,5 +211,54 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(tester.state(find.byType(PdfCommentaryPanel)), same(before));
+  });
+
+  testWidgets('מפרשי העמוד הקודם מוסתרים בזמן טעינת העמוד הבא', (
+    tester,
+  ) async {
+    final tab = _tab();
+    tab.links = [_link(index1: 12, path2: '/books/old-commentary.txt')];
+    tab.activeCommentators = {'old-commentary'};
+    addTearDown(tab.dispose);
+    final nextPageGroups = Completer<List<LinkGroup>>();
+
+    Future<List<LinkGroup>> loadGroups(List<Link> links) {
+      final title = links.first.path2.contains('old-')
+          ? 'old-commentary'
+          : 'new-commentary';
+      if (title == 'new-commentary') return nextPageGroups.future;
+      return Future.value([LinkGroup(bookTitle: title, links: links)]);
+    }
+
+    Widget panel() => _wrap(
+      PdfCommentaryPanel(
+        tab: tab,
+        linksCount: tab.links.length,
+        linksLoading: false,
+        openBookCallback: (_) {},
+        fontSize: 16.0,
+        commentaryGroupsLoader: loadGroups,
+      ),
+    );
+
+    await tester.pumpWidget(panel());
+    await tester.pumpAndSettle();
+    expect(find.text('old-commentary'), findsOneWidget);
+
+    tab.currentTextLineNumber = 100;
+    tab.currentTextLineNumberEnd = 130;
+    tab.links = [_link(index1: 110, path2: '/books/new-commentary.txt')];
+    tab.activeCommentators = {'new-commentary'};
+
+    await tester.pumpWidget(panel());
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('old-commentary').hitTestable(), findsNothing);
+
+    nextPageGroups.complete([
+      LinkGroup(bookTitle: 'new-commentary', links: tab.links),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.text('new-commentary'), findsOneWidget);
   });
 }

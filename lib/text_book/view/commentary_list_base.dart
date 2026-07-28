@@ -2296,6 +2296,8 @@ class _CollapsibleCommentaryGroupState
                               link: link,
                               openBookCallback: widget.openBookCallback,
                               fontSize: widget.fontSize,
+                              removeNikud: widget.removeNikud,
+                              removePunctuation: widget.removePunctuation,
                               savedSelectedText: savedTextAtBuild,
                               onCopySelected: () => ContextMenuUtils.copyFormattedText(
                                 context: menuCtx,

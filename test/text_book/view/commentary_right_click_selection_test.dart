@@ -171,6 +171,8 @@ void main() {
                   link: makeLink(),
                   openBookCallback: (_) {},
                   fontSize: 18,
+                  removeNikud: false,
+                  removePunctuation: false,
                   savedSelectedText: savedTextAtBuild,
                   onCopySelected: () => copiedText = savedTextAtBuild,
                 );
@@ -229,6 +231,8 @@ void main() {
                   link: makeLink(),
                   openBookCallback: (_) {},
                   fontSize: 18,
+                  removeNikud: false,
+                  removePunctuation: false,
                   savedSelectedText: blank,
                   onCopySelected: () {},
                 );
@@ -280,6 +284,8 @@ void main() {
                 link: link,
                 openBookCallback: (_) {},
                 fontSize: 18,
+                removeNikud: false,
+                removePunctuation: false,
                 savedSelectedText: null,
                 onCopySelected: () {},
               );

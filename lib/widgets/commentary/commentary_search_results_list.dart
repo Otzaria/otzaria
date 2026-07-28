@@ -9,12 +9,10 @@ import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
-/// ה-globalIndex של שורת התוצאה שתסומן ברשימת קטעי החיפוש.
-///
-/// כל מפרש תורם שורה אחת אך [currentIdx] מונה היקרויות — לכן השורה הנבחרת
-/// היא האחרונה שה-globalIndex שלה <= currentIdx. השוואת שוויון ישירה תשאיר
-/// את הניווט ללא סימון.
+/// מאתר את שורת התוצאה האחרונה שאינה אחרי [currentIdx], שמונה היקרויות
+/// ולא שורות.
 @visibleForTesting
 int resolveSelectedSnippetGlobalIndex(
   List<CommentarySearchSnippet> snippets,
@@ -151,7 +149,7 @@ class _CommentarySearchResultsListState
       padding: const EdgeInsets.only(top: 8, bottom: 4, right: 4, left: 4),
       child: Row(
         children: [
-          Icon(
+          RtlIcon(
             FluentIcons.text_align_right_24_regular,
             size: 16,
             color: Theme.of(context).colorScheme.primary,

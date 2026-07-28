@@ -59,6 +59,8 @@ class _MenuProbe extends StatelessWidget {
           link: link,
           openBookCallback: (_) {},
           fontSize: 16,
+          removeNikud: false,
+          removePunctuation: false,
           savedSelectedText: 'טקסט מסומן',
           onCopySelected: () {},
         ),
@@ -131,6 +133,16 @@ void main() {
         isNot(contains('דווח על טעות בספר')),
       );
     });
+  });
+
+  test('סינון תוכן להעתקה מכבד ניקוד ופיסוק של התצוגה', () {
+    final result = ContextMenuUtils.applyCommentaryDisplayFilters(
+      'שָׁלוֹם, עוֹלָם!',
+      removeNikud: true,
+      removePunctuation: true,
+    );
+
+    expect(result, 'שלום עולם');
   });
 
   group('תפריט הקשר של מפרש — עם TextBookBloc (כרטיסיית טקסט)', () {

@@ -40,6 +40,8 @@ class ContextMenuUtils {
   ///     link: link,
   ///     openBookCallback: ...,
   ///     fontSize: fontSize,
+  ///     removeNikud: removeNikud,
+  ///     removePunctuation: removePunctuation,
   ///     savedSelectedText: _savedText,
   ///     onCopySelected: _copy,
   ///   ),
@@ -51,6 +53,8 @@ class ContextMenuUtils {
     required Link link,
     required Function(TextBookTab) openBookCallback,
     required double fontSize,
+    required bool removeNikud,
+    required bool removePunctuation,
     String? savedSelectedText,
     required VoidCallback onCopySelected,
   }) {
@@ -69,6 +73,8 @@ class ContextMenuUtils {
           context: context,
           link: link,
           fontSize: fontSize,
+          removeNikud: removeNikud,
+          removePunctuation: removePunctuation,
         ),
       ),
       const AppContextMenuEntry.divider(),
@@ -176,10 +182,11 @@ class ContextMenuUtils {
     required BuildContext context,
     required Link link,
     required double fontSize,
+    required bool removeNikud,
+    required bool removePunctuation,
   }) async {
     try {
       final settingsState = context.read<SettingsBloc>().state;
-      final loaded = _maybeTextBookState(context);
 
       final content = await link.content;
       if (content.trim().isEmpty) {
@@ -187,13 +194,11 @@ class ContextMenuUtils {
         return;
       }
 
-      // ההעתקה משקפת את התצוגה: מצב הניקוד/פיסוק של הטאב חל על כל המפרשים.
-      var processedContent = (loaded?.removeNikud ?? false)
-          ? utils.removeVolwels(content)
-          : content;
-      if (loaded?.removePunctuation ?? false) {
-        processedContent = utils.removePunctuation(processedContent);
-      }
+      final processedContent = applyCommentaryDisplayFilters(
+        content,
+        removeNikud: removeNikud,
+        removePunctuation: removePunctuation,
+      );
       final plainText = utils.stripHtmlIfNeeded(processedContent);
 
       String finalText = plainText;
@@ -248,6 +253,18 @@ class ContextMenuUtils {
       debugPrint('Error copying commentary paragraph: $e');
       UiSnack.showError(CommonMessages.paragraphCopyError);
     }
+  }
+
+  static String applyCommentaryDisplayFilters(
+    String content, {
+    required bool removeNikud,
+    required bool removePunctuation,
+  }) {
+    var processedContent = removeNikud ? utils.removeVolwels(content) : content;
+    if (removePunctuation) {
+      processedContent = utils.removePunctuation(processedContent);
+    }
+    return processedContent;
   }
 
   /// העתקת טקסט מעוצב (HTML) ללוח

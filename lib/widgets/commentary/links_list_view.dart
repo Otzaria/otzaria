@@ -227,6 +227,9 @@ class LinksListView extends StatefulWidget {
 
   final SelectionSyncController? selectionSyncController;
 
+  /// מזהה התוכן המוצג; שינויו מאפס גלילה ובחירה אך משמר חיפוש וסינון.
+  final Object? contentScopeKey;
+
   /// ההודעה כשאין קישורים כלל.
   final String emptyMessage;
 
@@ -242,6 +245,7 @@ class LinksListView extends StatefulWidget {
     this.removeNikud = false,
     this.removePunctuation = false,
     this.selectionSyncController,
+    this.contentScopeKey,
     this.emptyMessage = 'לא נמצאו קישורים לקטע הנבחר',
   });
 
@@ -251,6 +255,7 @@ class LinksListView extends StatefulWidget {
 
 class _LinksListViewState extends State<LinksListView> {
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   String _searchQuery = '';
   final Map<String, Future<String>> _contentCache = {};
   final Map<String, bool> _expanded = {};
@@ -281,6 +286,7 @@ class _LinksListViewState extends State<LinksListView> {
       _handleExternalSelectionChange,
     );
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -294,6 +300,21 @@ class _LinksListViewState extends State<LinksListView> {
       widget.selectionSyncController?.addListener(
         _handleExternalSelectionChange,
       );
+    }
+    if (oldWidget.contentScopeKey != widget.contentScopeKey) {
+      widget.selectionSyncController?.clear(_selectionOwner);
+      _savedSelectedText = null;
+      _savedSelectedLink = null;
+      _selectionRevision++;
+      final contentScopeKey = widget.contentScopeKey;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted ||
+            widget.contentScopeKey != contentScopeKey ||
+            !_scrollController.hasClients) {
+          return;
+        }
+        _scrollController.jumpTo(0);
+      });
     }
   }
 
@@ -587,6 +608,7 @@ class _LinksListViewState extends State<LinksListView> {
           }
 
           return ListView.builder(
+            controller: _scrollController,
             itemCount: filteredLinks.length,
             itemBuilder: (context, index) {
               final link = filteredLinks[index];
@@ -689,12 +711,12 @@ class _LinksListViewState extends State<LinksListView> {
       maintainState: true,
       showTrailingIcon: false,
       leading: AnimatedRotation(
-        turns: isExpanded ? -0.25 : 0,
+        turns: isExpanded ? 0 : 0.25,
         duration: const Duration(milliseconds: 200),
         child: Icon(
-          Icons.keyboard_arrow_left,
+          FluentIcons.chevron_down_24_regular,
           size: 20,
-          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -880,6 +902,8 @@ class _LinksListViewState extends State<LinksListView> {
                   link: link,
                   openBookCallback: widget.openBookCallback,
                   fontSize: widget.fontSize,
+                  removeNikud: widget.removeNikud,
+                  removePunctuation: widget.removePunctuation,
                   savedSelectedText: _savedSelectedText,
                   onCopySelected: () => ContextMenuUtils.copyFormattedText(
                     context: menuCtx,

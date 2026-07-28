@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
@@ -10,10 +12,12 @@ import 'package:otzaria/navigation/navigation_repository.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
+import 'package:otzaria/tabs/models/resolving_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
+import 'package:otzaria/utils/navigation/open_book.dart';
 import '../helpers/memory_settings_cache.dart';
 
 // ─── Fakes ───────────────────────────────────────────────────────────────────
@@ -103,6 +107,47 @@ PdfBook _makePdfBook(String title) =>
 void main() {
   setUpAll(() async {
     await Settings.init(cacheProvider: MemorySettingsCache());
+  });
+
+  testWidgets('openPreparedTab פותח ResolvingTab בלי לצמצם ל-TextBookTab', (
+    tester,
+  ) async {
+    final tabsBloc = _CapturingTabsBloc();
+    final historyBloc = HistoryBloc(_FakeHistoryRepository());
+    final navigationBloc = _FakeNavigationBloc();
+    addTearDown(tabsBloc.close);
+    addTearDown(historyBloc.close);
+    addTearDown(navigationBloc.close);
+
+    late BuildContext context;
+    await tester.pumpWidget(
+      MultiBlocProvider(
+        providers: [
+          BlocProvider<TabsBloc>.value(value: tabsBloc),
+          BlocProvider<HistoryBloc>.value(value: historyBloc),
+          BlocProvider<NavigationBloc>.value(value: navigationBloc),
+        ],
+        child: Builder(
+          builder: (buildContext) {
+            context = buildContext;
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    final fallback = TextBookTab(book: _makeBook('ברכות'), index: 0);
+    final resolvingTab = ResolvingTab(
+      fallbackTab: fallback,
+      resolve: () async => fallback,
+    );
+    addTearDown(resolvingTab.dispose);
+
+    openPreparedTab(context, resolvingTab, insertAdjacent: true);
+
+    final event = tabsBloc.capturedEvents.single as OpenOrFocusTab;
+    expect(event.tab, same(resolvingTab));
+    expect(event.insertAdjacent, isTrue);
   });
 
   group('BookOpenCoordinator — mark params', () {

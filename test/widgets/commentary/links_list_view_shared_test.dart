@@ -6,6 +6,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -243,6 +244,58 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.text('לא נמצאו קישורים מהסוגים שנבחרו'), findsOneWidget);
     });
+  });
+
+  testWidgets('שינוי contentScopeKey מאפס גלילה בלי לפרק את ה-State', (
+    tester,
+  ) async {
+    final links = List.generate(
+      30,
+      (index) => _link(
+        path2: 'ספר-$index',
+        connectionType: LinkTypes.mesoratHashas,
+      ),
+    );
+    CommentaryService.seedEraCache({
+      for (var index = 0; index < 30; index++)
+        'ספר-$index': CommentaryEra.other,
+    });
+
+    Widget view(String scopeKey) => MaterialApp(
+      home: BlocProvider<SettingsBloc>.value(
+        value: _FakeSettingsBloc(),
+        child: Scaffold(
+          body: LinksListView(
+            links: links,
+            chipSourceLinks: links,
+            openBookTitle: 'שבת',
+            selectedLinkTypes: const {},
+            onSelectedLinkTypesChanged: (_) {},
+            openBookCallback: (_) {},
+            fontSize: 16,
+            contentScopeKey: scopeKey,
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(view('עמוד-א'));
+    for (var i = 0; i < 20 && find.byType(ListView).evaluate().isEmpty; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(find.byType(ListView), findsOneWidget);
+    final stateBefore = tester.state(find.byType(LinksListView));
+    final listBefore = tester.widget<ListView>(find.byType(ListView));
+    listBefore.controller!.jumpTo(500);
+    await tester.pump();
+    expect(listBefore.controller!.offset, greaterThan(0));
+
+    await tester.pumpWidget(view('עמוד-ב'));
+    await tester.pump();
+
+    final listAfter = tester.widget<ListView>(find.byType(ListView));
+    expect(tester.state(find.byType(LinksListView)), same(stateBefore));
+    expect(listAfter.controller!.offset, 0);
   });
 
   group('מבנה — שני הצדדים צורכים את אותה רשימה', () {

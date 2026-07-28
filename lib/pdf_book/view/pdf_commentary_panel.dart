@@ -246,6 +246,10 @@ class PdfCommentaryPanel extends StatefulWidget {
   final bool removeNikud;
   final bool removePunctuation;
 
+  @visibleForTesting
+  final Future<List<CommentaryGroup>> Function(List<Link>)?
+  commentaryGroupsLoader;
+
   const PdfCommentaryPanel({
     super.key,
     required this.tab,
@@ -272,6 +276,7 @@ class PdfCommentaryPanel extends StatefulWidget {
     this.externalAllExpandedNotifier,
     this.removeNikud = false,
     this.removePunctuation = false,
+    this.commentaryGroupsLoader,
   });
 
   @override
@@ -343,8 +348,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   List<Link> _orderedLinks = [];
   List<CommentaryGroup> _orderedGroups = [];
 
-  /// הקבוצות שהוצגו לאחרונה — מוצגות בזמן שקבוצות הקטע החדש נטענות, כדי
-  /// שהרשימה לא תפורק ותיבנה מחדש בכל דפדוף.
+  /// נשמרות כדי להשאיר את עץ הרשימה חי ומוסתר בזמן טעינת הקטע הבא.
   List<CommentaryGroup>? _lastResolvedGroups;
   _PdfVisibleContentCache? _visibleContentCache;
   List<CommentatorGroup> _commentatorGroups = [];
@@ -660,12 +664,30 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     return '${range.startLine}:${range.endLine}';
   }
 
+  String? _currentLinksScopeKey() {
+    final rangeKey = _currentRangeKey();
+    if (rangeKey == null) return null;
+    final extraLines = widget.extraLineIndices?.toList();
+    extraLines?.sort();
+    return '$rangeKey|${extraLines?.join(',') ?? ''}';
+  }
+
   void _resetScrollIfRangeChanged() {
     final rangeKey = _currentRangeKey();
     if (rangeKey == null || _scrolledRangeKey == rangeKey) return;
     final isFirstRange = _scrolledRangeKey == null;
     _scrolledRangeKey = rangeKey;
     if (isFirstRange) return;
+    _orderedLinks = [];
+    _orderedGroups = [];
+    _totalSearchResults = 0;
+    _currentSearchIndex = 0;
+    _searchResultsPerLink.clear();
+    _searchSnippetsPerLink.clear();
+    _pendingCounts.clear();
+    widget.externalTotalResultsNotifier?.value = 0;
+    widget.externalCurrentIndexNotifier?.value = 0;
+    _publishSearchSnippets();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_itemScrollController.isAttached) return;
       _itemScrollController.jumpTo(index: 0);
@@ -917,6 +939,8 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       link: link,
       openBookCallback: widget.openBookCallback,
       fontSize: widget.fontSize,
+      removeNikud: widget.removeNikud,
+      removePunctuation: widget.removePunctuation,
       savedSelectedText: _savedSelectedText,
       onCopySelected: () => ContextMenuUtils.copyFormattedText(
         context: menuCtx,
@@ -1383,25 +1407,29 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     return FutureBuilder<List<CommentaryGroup>>(
       future: visibleContent.sortedGroupsFuture,
       builder: (context, snapshot) {
-        // כל דפדוף יוצר Future חדש. צניחה לספינר בזמן ההמתנה מפרקת את הרשימה
-        // ואת ה-State של כל פריט — ולכן מציגים את הקבוצות הקודמות עד שהחדשות
-        // מגיעות, וספינר רק בטעינה הראשונה.
-        final sortedGroups = snapshot.data ?? _lastResolvedGroups;
+        final currentGroups =
+            snapshot.connectionState == ConnectionState.done && snapshot.hasData
+            ? snapshot.data
+            : null;
+        final sortedGroups = currentGroups ?? _lastResolvedGroups;
         if (sortedGroups == null) {
           return const Center(child: CircularProgressIndicator());
         }
-        _lastResolvedGroups = sortedGroups;
-        _orderedGroups = sortedGroups;
+        if (currentGroups != null) {
+          _lastResolvedGroups = currentGroups;
+          _orderedGroups = currentGroups;
+        }
 
         // Rebuild _orderedLinks based on groups
-        _orderedLinks = [];
-        for (final group in sortedGroups) {
+        final orderedLinks = <Link>[];
+        for (final group in currentGroups ?? const <CommentaryGroup>[]) {
           // We need to verify link order inside group.
           // In _buildCommentariesView, relevantLinks are sorted by title then index.
           // _groupConsecutiveLinks groups them.
           // So the links inside group.links should already be in order.
-          _orderedLinks.addAll(group.links);
+          orderedLinks.addAll(group.links);
         }
+        if (currentGroups != null) _orderedLinks = orderedLinks;
 
         // Initialize keys
         final currentLinkKeys = _orderedLinks
@@ -1455,26 +1483,45 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
           });
         }
 
-        return ScrollablePositionedListScrollbar(
-          scrollController: _itemScrollController,
-          itemPositionsListener: _itemPositionsListener,
-          itemCount: sortedGroups.length,
-          labelForIndex: (index) => index >= 0 && index < sortedGroups.length
-              ? sortedGroups[index].bookTitle
-              : '',
-          child: ScrollablePositionedList.builder(
-            key: PageStorageKey(
-              pdfCommentaryListStorageKey(widget.tab.activeCommentators),
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Visibility(
+              visible: currentGroups != null,
+              maintainState: true,
+              maintainAnimation: true,
+              maintainSize: true,
+              child: ScrollablePositionedListScrollbar(
+                scrollController: _itemScrollController,
+                itemPositionsListener: _itemPositionsListener,
+                itemCount: sortedGroups.length,
+                labelForIndex: (index) =>
+                    index >= 0 && index < sortedGroups.length
+                    ? sortedGroups[index].bookTitle
+                    : '',
+                child: ScrollablePositionedList.builder(
+                  key: PageStorageKey(
+                    pdfCommentaryListStorageKey(
+                      widget.tab.activeCommentators,
+                    ),
+                  ),
+                  itemCount: sortedGroups.length,
+                  itemScrollController: _itemScrollController,
+                  itemPositionsListener: _itemPositionsListener,
+                  scrollOffsetController: _scrollOffsetController,
+                  itemBuilder: (context, index) {
+                    final group = sortedGroups[index];
+                    return _buildCommentaryGroupTile(group);
+                  },
+                ),
+              ),
             ),
-            itemCount: sortedGroups.length,
-            itemScrollController: _itemScrollController,
-            itemPositionsListener: _itemPositionsListener,
-            scrollOffsetController: _scrollOffsetController,
-            itemBuilder: (context, index) {
-              final group = sortedGroups[index];
-              return _buildCommentaryGroupTile(group);
-            },
-          ),
+            if (currentGroups == null)
+              ColoredBox(
+                color: Theme.of(context).colorScheme.surface,
+                child: const Center(child: CircularProgressIndicator()),
+              ),
+          ],
         );
       },
     );
@@ -1674,6 +1721,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       fontSize: widget.fontSize,
       removeNikud: widget.removeNikud,
       removePunctuation: widget.removePunctuation,
+      contentScopeKey: _currentLinksScopeKey(),
       emptyMessage: 'לא נמצאו קישורים לדף זה',
     );
   }
@@ -1839,7 +1887,9 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
         widget.tab.links,
       ),
       // אסינכרוני: קיבוץ סינכרוני על ה-UI thread קפא בדפי גמרא עם מפרשים רבים.
-      sortedGroupsFuture: CommentaryService.groupAndSortLinks(commentaryLinks),
+      sortedGroupsFuture:
+          (widget.commentaryGroupsLoader ??
+          CommentaryService.groupAndSortLinks)(commentaryLinks),
     );
     _visibleContentCache = cache;
     return cache;
@@ -2016,7 +2066,7 @@ class _CollapsibleCommentaryGroupState
                     size: 20,
                     color: Theme.of(
                       context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.6),
+                    ).colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -2089,7 +2139,7 @@ class _CollapsibleCommentaryGroupState
                                 widget.settingsState.commentatorsFontFamily,
                             color: Theme.of(
                               context,
-                            ).colorScheme.onSurface.withValues(alpha: 0.5),
+                            ).colorScheme.onSurfaceVariant,
                           ),
                         );
                       },

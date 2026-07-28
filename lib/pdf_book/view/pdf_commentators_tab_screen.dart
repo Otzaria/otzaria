@@ -14,7 +14,6 @@ import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
-import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentary_panel.dart';
 import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
 import 'package:otzaria/text_book/utils/commentary_type_filter.dart';
@@ -669,17 +668,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                           : _extraLines,
                       removeNikud: _removeNikud,
                       removePunctuation: _removePunctuation,
-                      openBookCallback: (tab) {
-                        if (tab is TextBookTab) {
-                          openBook(
-                            context,
-                            tab.book,
-                            tab.index,
-                            '',
-                            ignoreHistory: false,
-                          );
-                        }
-                      },
+                      openBookCallback: (tab) => openPreparedTab(context, tab),
                       fontSize: context
                           .watch<SettingsBloc>()
                           .state
