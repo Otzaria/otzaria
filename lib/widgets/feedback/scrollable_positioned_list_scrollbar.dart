@@ -47,10 +47,15 @@ class _ScrollablePositionedListScrollbarState
   // שמיפוי הגרירה לאינדקס יישאר עקבי גם כש-_thumbHeight מקובל למינימום
   // 0.05. בלי זה, כשמפרש פתוח מתחת ומעט סגמנטים גלויים, הגרירה לתחתית לא
   // הגיעה לסוף הספר.
-  int _maxScrollableIndex = 1;
+  double _maxScrollableIndex = 1;
 
   // להחלקת הקפיצות במיקום
   int _lastFirstIndex = 0;
+
+  // jumpTo בונה מחדש את החלון הנראה, ולכן קפיצות הגרירה מווסתות.
+  static const Duration _dragJumpInterval = Duration(milliseconds: 50);
+  final Stopwatch _sinceLastDragJump = Stopwatch();
+  int? _pendingDragTarget;
 
   // גובהי הפריטים שנמדדו (אינדקס → גובה ביחידות מסך). ממוצע גלובלי עליהם נותן
   // אומדן תוכן יציב, במקום ממוצע מקומי מתנודד על הגלויים כרגע.
@@ -212,9 +217,10 @@ class _ScrollablePositionedListScrollbarState
     // גובה האגודל = יחס התוכן הנראה לכלל, לפי ממוצע גלובלי יציב. ה-fallback
     // מגן רק מפני 0/0 במקרה המנוון שאף פריט לא נמדד (כל הגבהים ≤ 0).
     final visibleSpan = trailingAtMax - leadingAtMin;
+    final localItemHeight = visibleItems > 0 ? visibleSpan / visibleItems : 0.0;
     final avgItemHeight = _itemHeights.isNotEmpty
         ? _itemHeightSum / _itemHeights.length
-        : (visibleItems > 0 ? visibleSpan / visibleItems : 0.0);
+        : localItemHeight;
     final totalContent = avgItemHeight * widget.itemCount;
     final newHeight = totalContent > 0
         ? (1.0 / totalContent).clamp(0.05, 1.0)
@@ -229,7 +235,11 @@ class _ScrollablePositionedListScrollbarState
         : 0.0;
     final continuousIndex = minIndex + fractionIntoTop;
 
-    final maxScrollableIndex = max(widget.itemCount - visibleItems, 1);
+    // אומדן שברי ויציב שומר על מיפוי זהה בין ציור האגודל לגרירה.
+    final fractionalVisible = localItemHeight > 0
+        ? 1.0 / localItemHeight
+        : visibleItems.toDouble();
+    final maxScrollableIndex = max(widget.itemCount - fractionalVisible, 1.0);
     // הכפלה ב-(1 - newHeight) שומרת עקביות עם המיפוי ההפוך
     // ב-_indexFromThumbPosition (שמחלק ב-(1 - _thumbHeight)); בלעדיה האגודל
     // "ירד" אחרי קפיצה ליעד, בעוצמה שגדלה ככל שמתקדמים בספר.
@@ -302,11 +312,20 @@ class _ScrollablePositionedListScrollbarState
       _thumbPosition = newThumbPos;
     });
     final int targetIndex = _indexFromThumbPosition(_thumbPosition);
-    _lastFirstIndex = targetIndex;
-    widget.scrollController.jumpTo(index: targetIndex);
+    _jumpDuringDrag(targetIndex);
     if (globalPosition != null) {
       _showLabelForIndex(targetIndex, globalPosition);
     }
+  }
+
+  /// מבצע קפיצה ומאפס את שעון הוויסות.
+  void _jumpDuringDrag(int targetIndex) {
+    _pendingDragTarget = null;
+    _lastFirstIndex = targetIndex;
+    _sinceLastDragJump
+      ..reset()
+      ..start();
+    widget.scrollController.jumpTo(index: targetIndex);
   }
 
   void _onDragUpdate(
@@ -322,10 +341,17 @@ class _ScrollablePositionedListScrollbarState
 
     final int targetIndex = _indexFromThumbPosition(_thumbPosition);
 
-    // אופטימיזציה: לא לקפוץ אם השינוי קטן מדי כדי למנוע ריצוד
-    if ((targetIndex - _lastFirstIndex).abs() > widget.itemCount * 0.001) {
-      widget.scrollController.jumpTo(index: targetIndex);
-      _lastFirstIndex = targetIndex;
+    if (targetIndex != _lastFirstIndex) {
+      // התזוזה הראשונה קופצת מיד; אחריה מוותרים על קפיצות הביניים ושומרים את
+      // היעד האחרון, כדי שהשחרור ינחת בדיוק במקום שאליו כוונה הגרירה.
+      if (!_sinceLastDragJump.isRunning ||
+          _sinceLastDragJump.elapsed >= _dragJumpInterval) {
+        _jumpDuringDrag(targetIndex);
+      } else {
+        _pendingDragTarget = targetIndex;
+      }
+    } else {
+      _pendingDragTarget = null;
     }
 
     if (globalPosition != null) {
@@ -333,7 +359,16 @@ class _ScrollablePositionedListScrollbarState
     }
   }
 
-  void _onDragEnd() {
+  void _onDragEnd({bool canceled = false}) {
+    // גרירה שבוטלה — הרשימה ניצחה ב-arena וגללה בעצמה; קפיצה כאן תדרוס אותה.
+    final pending = _pendingDragTarget;
+    _pendingDragTarget = null;
+    if (!canceled && pending != null) {
+      _jumpDuringDrag(pending);
+    }
+    _sinceLastDragJump
+      ..stop()
+      ..reset();
     setState(() {
       _isDragging = false;
     });
@@ -412,7 +447,7 @@ class _ScrollablePositionedListScrollbarState
                     onVerticalDragEnd: (_) => _onDragEnd(),
                     // גרירה שנקטעה (הרשימה ניצחה ב-gesture arena וגללה את
                     // התוכן) חייבת להסתיר את התווית — אחרת היא נשארת תקועה.
-                    onVerticalDragCancel: _onDragEnd,
+                    onVerticalDragCancel: () => _onDragEnd(canceled: true),
                     // קפיצה רק כשהלחיצה על המסילה. לחיצה על האגודל עצמו נורית גם
                     // כשהמחווה הופכת מיד לגרירה — קפיצה כאן הייתה ממקמת אותו מחדש
                     // סביב הסמן ומקפיצה את הרשימה לפני שהגרירה התחילה.
