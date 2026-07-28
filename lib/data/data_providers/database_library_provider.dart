@@ -480,11 +480,15 @@ String _anchorJoinClause(bool hasLinkAnchor, {required int displayedSide}) {
   return '''LEFT JOIN (
           SELECT linkId, MIN(charStart) AS charStart, charEnd, label,
                  GROUP_CONCAT(charStart || ':' || COALESCE(charEnd, '') || ':' || COALESCE(label, ''), ';') AS spans
-          FROM link_anchor WHERE side = $displayedSide GROUP BY linkId
+          FROM link_anchor
+          WHERE side = $displayedSide AND linkId IN (SELECT linkId FROM anchors)
+          GROUP BY linkId
         ) la ON la.linkId = l.id AND a.anchorLineId = $displayedSideLine
         LEFT JOIN (
           SELECT linkId, MIN(charStart) AS charStart, charEnd
-          FROM link_anchor WHERE side = ${1 - displayedSide} GROUP BY linkId
+          FROM link_anchor
+          WHERE side = ${1 - displayedSide} AND linkId IN (SELECT linkId FROM anchors)
+          GROUP BY linkId
         ) lal ON lal.linkId = l.id''';
 }
 
@@ -1153,7 +1157,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
   String? _bundledTalmudBavliPathCache;
   bool? _bundledTalmudBavliExistsCache;
 
-  /// מפתחות "title categoryId" של ספרים שראוי להציג להם תפריט 'גרסאות'.
+  /// מפתחות "title\u0000categoryId" של ספרים שראוי להציג להם תפריט 'גרסאות'.
   /// ממוזמז — נטען פעם אחת ל-DB; מנוקה ב-[clearCache].
   Future<Set<String>>? _selectableVersionKeysFuture;
 
@@ -3313,7 +3317,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     }
     final keys = await (_selectableVersionKeysFuture ??=
         _loadSelectableVersionKeys());
-    return keys.contains('$title $categoryId');
+    return keys.contains('$title\u0000$categoryId');
   }
 
   Future<Set<String>> _loadSelectableVersionKeys() async {
@@ -3321,7 +3325,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
       final rows = await _runSelectableVersionKeysInIsolate(
         dbPath: _sqliteProvider.dbPath,
       );
-      return rows.map((r) => '${r['title']} ${r['categoryId']}').toSet();
+      return rows.map((r) => '${r['title']}\u0000${r['categoryId']}').toSet();
     } catch (e) {
       debugPrint('⚠️ Error loading selectable version keys: $e');
       _selectableVersionKeysFuture = null; // אפשר ניסיון חוזר בטעינה הבאה

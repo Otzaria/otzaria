@@ -55,6 +55,23 @@ int pdfSpreadStartPage(int pageNumber) {
   return (startPage: startPage, endPageExclusive: endExclusive);
 }
 
+/// ממיר גבולות טווח PDF לטווח שורות; [endPageExclusive] הוא העמוד הראשון
+/// שאחרי הטווח, ולכן בספירייד 200–201 נפתר גם גבול עמוד 202.
+Future<({int start, int? end})?> pdfTextLineRangeForPageRange({
+  required int startPage,
+  required int endPageExclusive,
+  required Future<int?> Function(int pageNumber) resolveTextIndex,
+  bool Function()? isActive,
+}) async {
+  final startIndex = await resolveTextIndex(startPage);
+  if (startIndex == null) return null;
+  if (isActive != null && !isActive()) {
+    return (start: startIndex + 1, end: null);
+  }
+  final endIndex = await resolveTextIndex(endPageExclusive);
+  return (start: startIndex + 1, end: endIndex);
+}
+
 /// עמוד היעד של דפדוף קדימה בתצוגת ספר: העמוד הראשון (הימני) של הזוג הבא.
 /// אחרי הכריכה (עמוד 1) הזוג הבא מתחיל בעמוד 2. מחזיר null כשאין זוג הבא.
 int? pdfNextSpreadFocusPage(int currentPage, int totalPages) {

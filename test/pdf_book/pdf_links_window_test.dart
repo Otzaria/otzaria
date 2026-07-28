@@ -63,5 +63,70 @@ void main() {
       );
       expect(window, isNull);
     });
+
+    test('מצב ספר: החלון החדש מכסה את מלוא טווח השורות של שני העמודים', () {
+      const firstPageStart = 2000;
+      const secondPageEnd = 2290;
+      final window = PdfLinksWindowPolicy.nextWindow(
+        rangeStart: firstPageStart,
+        rangeEnd: secondPageEnd,
+      )!;
+
+      expect(
+        window.startLine,
+        firstPageStart - PdfLinksWindowPolicy.marginLines,
+      );
+      expect(window.endLine, secondPageEnd + PdfLinksWindowPolicy.marginLines);
+      expect(window.startLine, lessThanOrEqualTo(firstPageStart));
+      expect(window.endLine, greaterThanOrEqualTo(secondPageEnd));
+    });
+
+    test('מצב ספר: טווח רחב משולי החלון אינו נחתך', () {
+      final window = PdfLinksWindowPolicy.nextWindow(
+        rangeStart: 1000,
+        rangeEnd: 5000,
+      )!;
+
+      expect(window.startLine, 1000 - PdfLinksWindowPolicy.marginLines);
+      expect(window.endLine, 5000 + PdfLinksWindowPolicy.marginLines);
+    });
+
+    test('חלון שמכסה את העמוד הראשון אך לא את השני מחייב טעינה חדשה', () {
+      final window = PdfLinksWindowPolicy.nextWindow(
+        rangeStart: 2000,
+        rangeEnd: 2290,
+        loadedStart: 1800,
+        loadedEnd: 2150,
+      );
+
+      expect(window, isNotNull);
+      expect(window!.endLine, greaterThan(2290));
+    });
+
+    test('שני עמודים המכוסים עם slack אינם גורמים לטעינה חוזרת', () {
+      final window = PdfLinksWindowPolicy.nextWindow(
+        rangeStart: 2000,
+        rangeEnd: 2290,
+        loadedStart: 1900,
+        loadedEnd: 2390,
+      );
+
+      expect(window, isNull);
+    });
+
+    test('מעבר לספירייד סמוך המכוסה מראש אינו טוען שוב', () {
+      final firstSpread = PdfLinksWindowPolicy.nextWindow(
+        rangeStart: 2000,
+        rangeEnd: 2290,
+      )!;
+      final nextSpread = PdfLinksWindowPolicy.nextWindow(
+        rangeStart: 2291,
+        rangeEnd: 2330,
+        loadedStart: firstSpread.startLine,
+        loadedEnd: firstSpread.endLine,
+      );
+
+      expect(nextSpread, isNull);
+    });
   });
 }

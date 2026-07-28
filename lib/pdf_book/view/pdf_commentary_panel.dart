@@ -10,7 +10,6 @@ import 'package:otzaria/widgets/layout/commentators_filter_screen.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
-import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/link_types.dart';
@@ -194,6 +193,24 @@ LinkTargetsAggregation aggregateLinkTargetsFromSummary(
   );
 }
 
+/// בוחר את מקור רשימת המפרשים: סיכום כלל־ספרי כשהקישורים נטענו בחלון,
+/// או את רשימת הקישורים עצמה כשהיא מלאה/כשאין סיכום זמין.
+@visibleForTesting
+LinkTargetsAggregation aggregateLinkTargetsForCommentatorSelection({
+  required bool linksAreComplete,
+  required Iterable<Link> links,
+  List<LinkTargetSummary>? summaryTargets,
+  int summaryMaxSourceLine = 0,
+}) {
+  if (!linksAreComplete && summaryTargets != null) {
+    return aggregateLinkTargetsFromSummary(
+      summaryTargets,
+      summaryMaxSourceLine,
+    );
+  }
+  return aggregateLinkTargetsFromLinks(links);
+}
+
 /// Widget שמציג מפרשים וקישורים עבור PDF
 class PdfCommentaryPanel extends StatefulWidget {
   final PdfBookTab tab;
@@ -353,9 +370,6 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   _PdfVisibleContentCache? _visibleContentCache;
   List<CommentatorGroup> _commentatorGroups = [];
 
-  /// מפרשים "נדירים" שמוסתרים מלשונית הבחירה (ספרים גדולים בלבד).
-  Set<String> _rareCommentators = {};
-
   /// סינון לפי סוג מפרש (תרגום/מדרש וכו׳). מצב מקומי ולא מוגדר: הצ׳יפים תלויים
   /// בקטע הנוכחי, ובחירה שנשמרה הייתה מסננת בשקט ספר אחר שנפתח אחריו.
   Set<String> _localCommentaryTypes = const {};
@@ -490,30 +504,6 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     }
   }
 
-  /// מספר השורות האמיתי של הספר המלווה (מקור ה-index1 של הקישורים) מה-DB,
-  /// לצורך גזירת המפרשים הנדירים — זהה למקור בכרטיסיית הטקסט. null אם אין
-  /// ספר מלווה ב-DB (אז המתודה הקוראת נופלת לאומדן).
-  Future<int?> _resolveSourceBookTotalLines() async {
-    try {
-      final library = await DataRepository.instance.library;
-      final companion =
-          library.getCompanionBook(widget.tab.book, TextBook) as TextBook?;
-      if (companion == null) return null;
-      final repo = SqliteDataProvider.instance.repository;
-      if (repo == null) return null;
-      final dbBook = companion.categoryId != null
-          ? await repo.getBookByTitleAndCategory(
-              companion.title,
-              companion.categoryId!,
-            )
-          : await repo.getBookByTitle(companion.title);
-      final lines = dbBook?.totalLines ?? 0;
-      return lines > 0 ? lines : null;
-    } catch (_) {
-      return null;
-    }
-  }
-
   /// סיכום קישורי הספר (יעדים + ספירות) מהמסד — תחליף קל לסריקת כל הקישורים
   /// כש-tab.links מחזיק רק חלון סביב המיקום הנוכחי.
   Future<({List<LinkTargetSummary> targets, int maxSourceLine})?>
@@ -539,29 +529,19 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   }
 
   Future<void> _loadCommentatorGroups() async {
-    LinkTargetsAggregation aggregation;
-    if (widget.tab.linksAreComplete) {
-      aggregation = aggregateLinkTargetsFromLinks(widget.tab.links);
-    } else {
-      final summary = await _loadLinkTargetsSummary();
-      aggregation = summary != null
-          ? aggregateLinkTargetsFromSummary(
-              summary.targets,
-              summary.maxSourceLine,
-            )
-          // הסיכום נכשל — נבנה לפחות מחלון הקישורים הטעון (חלקי, עדיף מריק).
-          : aggregateLinkTargetsFromLinks(widget.tab.links);
-    }
-    final linkCountByTitle = aggregation.linkCountByTitle;
+    final summary = widget.tab.linksAreComplete
+        ? null
+        : await _loadLinkTargetsSummary();
+    final aggregation = aggregateLinkTargetsForCommentatorSelection(
+      linksAreComplete: widget.tab.linksAreComplete,
+      links: widget.tab.links,
+      summaryTargets: summary?.targets,
+      summaryMaxSourceLine: summary?.maxSourceLine ?? 0,
+    );
     final nonCommentaryTitles = aggregation.nonCommentaryTitles;
 
     final availableCommentators = aggregation.commentators.toList();
     final eraPreload = CommentaryService.preloadEras(availableCommentators);
-    final rare = computeRareCommentators(
-      bookTotalLines:
-          await _resolveSourceBookTotalLines() ?? aggregation.maxSourceLine,
-      linkCountByCommentator: linkCountByTitle,
-    );
 
     // טעינת דורות הקישורים הרגילים (לא מפרשים) מראש - fire-and-forget כדי לא
     // לחסום את בניית קבוצות המפרשים. כשתסתיים, מאפסים את מטמון התוכן הנראה
@@ -580,7 +560,6 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     if (!mounted) return;
     setState(() {
       _visibleContentCache = null;
-      _rareCommentators = rare;
       _commentatorGroups = groups;
     });
   }
@@ -1059,31 +1038,6 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     );
   }
 
-  /// מפרשים נדירים שכן יוצגו בלשונית הבחירה כי הטווח הנוכחי כולל קישור מהם.
-  Set<String> _lineRelevantRareCommentators() {
-    if (_rareCommentators.isEmpty) return const {};
-    final currentLine =
-        widget.lineStartOverride ?? widget.tab.currentTextLineNumber;
-    if (currentLine == null) return const {};
-    final range = _getCurrentRange(currentLine);
-    final extra = widget.extraLineIndices;
-    final relevant = <String>{};
-    for (final link in widget.tab.links) {
-      if (!LinkTypes.isDependentTextLink(link.connectionType)) continue;
-      if (!pdfLinkInVisibleScope(
-        link.index1,
-        range.startLine,
-        range.endLine,
-        extra,
-      )) {
-        continue;
-      }
-      final title = utils.getTitleFromPath(link.path2);
-      if (_rareCommentators.contains(title)) relevant.add(title);
-    }
-    return relevant;
-  }
-
   Widget _buildCommentatorsFilter() {
     final visibleContent = _getVisibleContent();
     return CommentatorsFilterScreen(
@@ -1103,8 +1057,6 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
         groups: _commentatorGroups,
         selectedCommentators: widget.tab.activeCommentators.toList(),
         bookTitle: widget.tab.book.title,
-        rareCommentators: _rareCommentators,
-        lineRelevantCommentators: _lineRelevantRareCommentators(),
         typeChipKeys: visibleContent?.typeChipKeys ?? const [],
         selectedTypeChips: visibleContent?.effectiveTypes ?? const {},
         typeChipLabelBuilder: LinkTypes.hebrewLabel,

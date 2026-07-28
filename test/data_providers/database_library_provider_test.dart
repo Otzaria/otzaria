@@ -18,6 +18,7 @@ import 'package:otzaria/migration/models/category.dart' as migration_models;
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/pdf_book/utils/pdf_links_window.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:path/path.dart' as path;
@@ -334,7 +335,7 @@ void main() {
       }
     });
 
-    test('loadBookLinksRowsInRangeForTesting מסנן לפי חלון שורות', () async {
+    test('חלון שורות חלקי וסיכום כלל־ספרי נשארים עקביים', () async {
       final tempDir = await Directory.systemTemp.createTemp('otzaria_db_range');
       final dbPath = path.join(tempDir.path, 'db.sqlite');
       final db = sqlite3.sqlite3.open(dbPath);
@@ -352,6 +353,9 @@ void main() {
         db.execute(
           'CREATE TABLE link (id INTEGER PRIMARY KEY, sourceBookId INTEGER, sourceLineId INTEGER, targetLineId INTEGER, targetBookId INTEGER, connectionTypeId INTEGER)',
         );
+        db.execute(
+          'CREATE TABLE link_anchor (linkId INTEGER, side INTEGER, charStart INTEGER, charEnd INTEGER, label TEXT, PRIMARY KEY (linkId, side, charStart))',
+        );
 
         db.execute(
           "INSERT INTO book (id, title, categoryId, fileType, orderIndex) VALUES (1, 'בראשית', 7, 'txt', 1)",
@@ -366,7 +370,7 @@ void main() {
           "INSERT INTO line (id, bookId, lineIndex, heRef) VALUES (10, 1, 4, 'ד')",
         );
         db.execute(
-          "INSERT INTO line (id, bookId, lineIndex, heRef) VALUES (11, 1, 40, 'מ')",
+          "INSERT INTO line (id, bookId, lineIndex, heRef) VALUES (11, 1, 400, 'ת')",
         );
         db.execute(
           "INSERT INTO line (id, bookId, lineIndex, heRef) VALUES (20, 2, 0, 'א')",
@@ -375,13 +379,16 @@ void main() {
           "INSERT INTO line (id, bookId, lineIndex, heRef) VALUES (21, 3, 1, 'ב')",
         );
         db.execute(
-          "INSERT INTO connection_type (id, name) VALUES (5, 'reference')",
+          "INSERT INTO connection_type (id, name) VALUES (5, 'COMMENTARY')",
         );
         db.execute(
-          'INSERT INTO link (sourceBookId, sourceLineId, targetLineId, targetBookId, connectionTypeId) VALUES (1, 10, 20, 2, 5)',
+          'INSERT INTO link (id, sourceBookId, sourceLineId, targetLineId, targetBookId, connectionTypeId) VALUES (100, 1, 10, 20, 2, 5)',
         );
         db.execute(
-          'INSERT INTO link (sourceBookId, sourceLineId, targetLineId, targetBookId, connectionTypeId) VALUES (1, 11, 21, 3, 5)',
+          'INSERT INTO link (id, sourceBookId, sourceLineId, targetLineId, targetBookId, connectionTypeId) VALUES (101, 1, 11, 21, 3, 5)',
+        );
+        db.execute(
+          "INSERT INTO link_anchor (linkId, side, charStart, charEnd, label) VALUES (100, 0, 2, 4, 'א'), (100, 0, 6, 8, 'ב'), (101, 0, 9, 10, 'ג')",
         );
 
         final rows = DatabaseLibraryProvider.loadBookLinksRowsInRangeForTesting(
@@ -396,6 +403,68 @@ void main() {
         expect(rows, hasLength(1));
         expect(rows.first['sourceLineIndex'], 4);
         expect(rows.first['targetBookTitle'], 'מפרש א');
+        expect(rows.first['anchorCharStart'], 2);
+        expect(rows.first['anchorSpans'], '2:4:א;6:8:ב');
+
+        const currentStartLine = 5;
+        const currentEndLine = 5;
+        final narrowWindow = PdfLinksWindowPolicy.nextWindow(
+          rangeStart: currentStartLine,
+          rangeEnd: currentEndLine,
+        )!;
+        final narrowRows =
+            DatabaseLibraryProvider.loadBookLinksRowsInRangeForTesting(
+              dbPath: dbPath,
+              title: 'בראשית',
+              categoryId: 7,
+              fileType: 'txt',
+              startLineIndex: narrowWindow.startLine - 1,
+              endLineIndex: narrowWindow.endLine - 1,
+            );
+        final legacyRows =
+            DatabaseLibraryProvider.loadBookLinksRowsInRangeForTesting(
+              dbPath: dbPath,
+              title: 'בראשית',
+              categoryId: 7,
+              fileType: 'txt',
+              startLineIndex: 0,
+              endLineIndex: currentEndLine + 1500 - 1,
+            );
+        Set<String> currentLinkIdentities(
+          List<Map<String, Object?>> candidateRows,
+        ) => {
+          for (final row in candidateRows)
+            if ((row['sourceLineIndex'] as int) + 1 >= currentStartLine &&
+                (row['sourceLineIndex'] as int) + 1 <= currentEndLine)
+              '${row['sourceLineIndex']}:${row['targetBookTitle']}:'
+                  '${row['connectionTypeName']}',
+        };
+
+        expect(narrowRows, hasLength(1));
+        expect(legacyRows, hasLength(2));
+        expect(
+          currentLinkIdentities(narrowRows),
+          currentLinkIdentities(legacyRows),
+          reason: 'החלון הצר חייב לשמור את כל קישורי הקטע הנוכחי',
+        );
+        expect(currentLinkIdentities(narrowRows), hasLength(1));
+
+        final summary =
+            DatabaseLibraryProvider.loadBookLinkTargetsSummaryRowsForTesting(
+              dbPath: dbPath,
+              title: 'בראשית',
+              categoryId: 7,
+            );
+        expect(
+          summary.rows.map((row) => row['targetBookTitle']).toSet(),
+          {'מפרש א', 'מפרש ב'},
+          reason: 'רשימת הבחירה היא כלל־ספרית גם כשהחלון מכיל רק מפרש א',
+        );
+        expect(
+          summary.rows.map((row) => row['connectionTypeName']).toSet(),
+          {'COMMENTARY'},
+        );
+        expect(summary.maxSourceLineIndex, 400);
       } finally {
         db.close();
         await tempDir.delete(recursive: true);

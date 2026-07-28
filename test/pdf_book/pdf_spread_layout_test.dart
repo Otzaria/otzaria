@@ -162,6 +162,125 @@ void main() {
     });
   });
 
+  group('pdfTextLineRangeForPageRange — טווח הקישורים של הספירייד', () {
+    Future<
+      ({
+        ({int startPage, int endPageExclusive}) range,
+        List<int> calls,
+        ({int start, int? end})? lines,
+      })
+    >
+    resolve({
+      required int page,
+      required bool bookView,
+      int? totalPages,
+      int? Function(int page)? mapper,
+      bool Function()? isActive,
+    }) async {
+      final range = pdfSpreadPageRange(
+        page,
+        bookView: bookView,
+        totalPages: totalPages,
+      );
+      final calls = <int>[];
+      final lines = await pdfTextLineRangeForPageRange(
+        startPage: range.startPage,
+        endPageExclusive: range.endPageExclusive,
+        resolveTextIndex: (pdfPage) async {
+          calls.add(pdfPage);
+          return mapper == null ? pdfPage * 10 : mapper(pdfPage);
+        },
+        isActive: isActive,
+      );
+      return (range: range, calls: calls, lines: lines);
+    }
+
+    test('תצוגה רגילה בעמוד 201 ממפה עמוד אחד בלבד עד גבול 202', () async {
+      final result = await resolve(page: 201, bookView: false);
+
+      expect(result.range, (startPage: 201, endPageExclusive: 202));
+      expect(result.calls, [201, 202]);
+      expect(result.lines, (start: 2011, end: 2020));
+    });
+
+    test('תצוגת ספר בעמוד 201 ממפה את שני העמודים 200–201', () async {
+      final result = await resolve(page: 201, bookView: true);
+
+      expect(result.range, (startPage: 200, endPageExclusive: 202));
+      expect(result.calls, [200, 202]);
+      expect(result.lines, (start: 2001, end: 2020));
+    });
+
+    test('עמוד 200 ועמוד 201 מפיקים בדיוק אותו טווח שורות', () async {
+      final even = await resolve(page: 200, bookView: true);
+      final odd = await resolve(page: 201, bookView: true);
+
+      expect(even.range, odd.range);
+      expect(even.lines, odd.lines);
+      expect(even.calls, [200, 202]);
+      expect(odd.calls, [200, 202]);
+    });
+
+    test('הזוג הראשון 2–3 משתמש בגבול עמוד 4', () async {
+      final result = await resolve(page: 3, bookView: true);
+
+      expect(result.calls, [2, 4]);
+      expect(result.lines, (start: 21, end: 40));
+    });
+
+    test('עמוד הכריכה 1 נשאר טווח של עמוד יחיד', () async {
+      final result = await resolve(page: 1, bookView: true);
+
+      expect(result.calls, [1, 2]);
+      expect(result.lines, (start: 11, end: 20));
+    });
+
+    test('עמוד אחרון זוגי ללא בן זוג נחתך לגבול המסמך', () async {
+      final result = await resolve(
+        page: 202,
+        bookView: true,
+        totalPages: 202,
+      );
+
+      expect(result.range, (startPage: 202, endPageExclusive: 203));
+      expect(result.calls, [202, 203]);
+      expect(result.lines, (start: 2021, end: 2030));
+    });
+
+    test('מיפוי חסר בגבול ההתחלה מחזיר null ולא מבקש את גבול הסיום', () async {
+      final result = await resolve(
+        page: 201,
+        bookView: true,
+        mapper: (page) => page == 200 ? null : page * 10,
+      );
+
+      expect(result.calls, [200]);
+      expect(result.lines, isNull);
+    });
+
+    test('מיפוי חסר בגבול הסיום שומר את ההתחלה עם end=null', () async {
+      final result = await resolve(
+        page: 201,
+        bookView: true,
+        mapper: (page) => page == 202 ? null : page * 10,
+      );
+
+      expect(result.calls, [200, 202]);
+      expect(result.lines, (start: 2001, end: null));
+    });
+
+    test('מסך שנסגר אחרי מיפוי ההתחלה לא מפעיל מיפוי נוסף', () async {
+      final result = await resolve(
+        page: 201,
+        bookView: true,
+        isActive: () => false,
+      );
+
+      expect(result.calls, [200]);
+      expect(result.lines, (start: 2001, end: null));
+    });
+  });
+
   group('pdfTopmostVisiblePage', () {
     // פריסה אנכית: 3 עמודים בגובה 800 עם רווח 4 ביניהם.
     final pageRects = <Rect>[

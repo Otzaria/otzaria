@@ -16,6 +16,8 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' as text_utils;
+import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 import '../helpers/memory_settings_cache.dart';
 
 // ─── fakes ───────────────────────────────────────────────────────────────────
@@ -68,10 +70,13 @@ PdfBookTab _tab({
   return tab;
 }
 
-Link _commentaryLink({required int index1}) => Link(
+Link _commentaryLink({
+  required int index1,
+  String path2 = '/books/rashi.txt',
+}) => Link(
   heRef: 'רש"י',
   index1: index1,
-  path2: '/books/rashi.txt',
+  path2: path2,
   index2: 0,
   connectionType: 'COMMENTARY',
 );
@@ -114,6 +119,7 @@ void main() {
   setUpAll(() async {
     WidgetsFlutterBinding.ensureInitialized();
     await Settings.init(cacheProvider: MemorySettingsCache());
+    await text_utils.splitByEra(const []);
   });
 
   // ── לשונית קישורים ──────────────────────────────────────────────────────
@@ -338,6 +344,49 @@ void main() {
 
       expect(find.text('בחירת מפרשים'), findsOneWidget);
     });
+
+    testWidgets(
+      'בחירת מפרשים מציגה גם מפרש כלל־ספרי שאין לו קישור בטווח הנוכחי',
+      (tester) async {
+        final tab = _tab(
+          currentLine: 10,
+          currentLineEnd: 15,
+          links: [
+            _commentaryLink(index1: 12),
+            _commentaryLink(
+              index1: 1000,
+              path2: '/books/tosafot.txt',
+            ),
+          ],
+        );
+        tab.linksAreComplete = true;
+        tab.activeCommentators.add('rashi');
+        final notifier = ValueNotifier<int>(0);
+        addTearDown(tab.dispose);
+        addTearDown(notifier.dispose);
+
+        await tester.pumpWidget(_wrap(buildPanel(tab, notifier)));
+        await tester.pumpAndSettle();
+
+        notifier.value++;
+        await tester.pumpAndSettle();
+
+        expect(find.text('בחירת מפרשים'), findsOneWidget);
+        final selection = tester.widget<CommentatorsSelectionPanel>(
+          find.byType(CommentatorsSelectionPanel),
+        );
+        expect(
+          selection.groups.expand((group) => group.commentators).toSet(),
+          containsAll({'rashi', 'tosafot'}),
+          reason: 'מפרש מחוץ לטווח 10–15 חייב להישאר זמין לבחירה',
+        );
+        expect(
+          selection.rareCommentators,
+          isEmpty,
+          reason: 'מסך PDF אינו רשאי להסתיר מפרש לפי הקטע הנוכחי',
+        );
+      },
+    );
 
     testWidgets(
       'counter ישן (value>0 בעת init) לא פותח אוטומטית — רק עליה חדשה כן',

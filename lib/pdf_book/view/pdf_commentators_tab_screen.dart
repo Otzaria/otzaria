@@ -103,9 +103,6 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   /// קבוצות המפרשים ללשונית הבחירה (נטענות מתוך links של ה-sourceTab)
   List<CommentatorGroup> _commentatorGroups = [];
 
-  /// מפרשים "נדירים" שמוסתרים מלשונית הבחירה (ספרים גדולים בלבד).
-  Set<String> _rareCommentators = {};
-
   /// משקף את מצב "הכל מורחב" מתוך PdfCommentaryPanel (לכפתור כיווץ/הרחבה בסרגל).
   final _allExpandedInChild = ValueNotifier<bool>(true);
 
@@ -361,8 +358,6 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
       setState(() {
         _textLines = text.split('\n');
       });
-      // כעת יש מספר שורות אמיתי — מרעננים כדי לחשב את המפרשים הנדירים.
-      _loadCommentatorGroups();
     } catch (e) {
       debugPrint('שגיאה בטעינת תוכן טקסט: $e');
     }
@@ -390,8 +385,8 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
       }
     }
 
-    // הכרטיסייה זקוקה לכל קישורי הספר (ניווט חופשי בין כותרות + מפרשים
-    // נדירים), בעוד מסך ה-PDF ממלא את tab.links בחלון סביב המיקום בלבד —
+    // הכרטיסייה זקוקה לכל קישורי הספר (ניווט חופשי + בחירת כלל המפרשים),
+    // בעוד מסך ה-PDF ממלא את tab.links בחלון סביב המיקום בלבד —
     // לכן משדרגים לרשימה המלאה גם כשהחלון כבר מולא.
     if (!tab.linksAreComplete) {
       try {
@@ -462,27 +457,18 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   /// לחישוב שב-[PdfCommentaryPanel], לצורך לשונית "מפרשים".
   Future<void> _loadCommentatorGroups() async {
     final commentatorsSet = <String>{};
-    final linkCountByTitle = <String, int>{};
     for (final link in widget.tab.sourceTab.links) {
       if (LinkTypes.isDependentTextLink(link.connectionType)) {
         final title = utils.getTitleFromPath(link.path2);
         commentatorsSet.add(title);
-        linkCountByTitle[title] = (linkCountByTitle[title] ?? 0) + 1;
       }
     }
     final available = commentatorsSet.toList();
-    // מספר שורות הספר נלקח מהטקסט המלווה שנטען ל-_textLines. כל עוד הוא לא
-    // נטען (0) אין הסתרה, והחישוב יחזור לאחר טעינת הטקסט.
-    final rare = computeRareCommentators(
-      bookTotalLines: _textLines?.length ?? 0,
-      linkCountByCommentator: linkCountByTitle,
-    );
     await _applyDefaultCommentatorsIfNeeded(available);
     final eras = await utils.splitByEra(available);
     final groups = buildCommentatorGroups(eras, available);
     if (!mounted) return;
     setState(() {
-      _rareCommentators = rare;
       _commentatorGroups = groups;
     });
   }
@@ -1067,32 +1053,6 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     );
   }
 
-  /// מפרשים נדירים שכן יוצגו בלשונית הבחירה כי הטווח הנוכחי (הכותרת/הפסקה
-  /// הנבחרת + ריבוי-הבחירה) כולל קישור מהם.
-  Set<String> _lineRelevantRareCommentators() {
-    if (_rareCommentators.isEmpty) return const {};
-    final paragraphs = _getParagraphs(_selectedHeadingIdx);
-    final safeParaIdx = _selectedParagraphIdx == _kAllPara || paragraphs.isEmpty
-        ? _kAllPara
-        : _selectedParagraphIdx.clamp(0, paragraphs.length - 1);
-    final range = _getLineRangeForPara(
-      _selectedHeadingIdx,
-      paragraphs,
-      safeParaIdx,
-    );
-    final relevant = <String>{};
-    for (final link in widget.tab.sourceTab.links) {
-      if (!LinkTypes.isDependentTextLink(link.connectionType)) continue;
-      final inScope =
-          (link.index1 >= range.start && link.index1 <= range.end) ||
-          _extraLines.contains(link.index1);
-      if (!inScope) continue;
-      final title = utils.getTitleFromPath(link.path2);
-      if (_rareCommentators.contains(title)) relevant.add(title);
-    }
-    return relevant;
-  }
-
   /// לשונית "מפרשים" — בחירת המפרשים להצגה (זהה לכרטיסיית הטקסט).
   Widget _buildCommentatorsSelectionTab() {
     if (_commentatorGroups.isEmpty) {
@@ -1130,8 +1090,6 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
           selectedCommentators: widget.tab.sourceTab.activeCommentators
               .toList(),
           bookTitle: widget.tab.sourceTab.book.title,
-          rareCommentators: _rareCommentators,
-          lineRelevantCommentators: _lineRelevantRareCommentators(),
           typeChipKeys: CommentaryTypeFilter.visibleChipKeys(
             chipKeys: chipKeys,
             effectiveTypes: effectiveTypes,

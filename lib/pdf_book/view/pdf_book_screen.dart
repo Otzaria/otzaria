@@ -756,21 +756,19 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final outline = widget.tab.outline.value ?? const <PdfOutlineNode>[];
     final range = _spreadPageRangeFor(pageNumber);
     if (outline.isNotEmpty) {
-      final textIndex = await pdfToTextPage(
-        widget.tab.book,
-        outline,
-        range.startPage,
-        context,
-      );
-      if (textIndex != null) {
-        if (!mounted) return (start: textIndex + 1, end: null);
-        final nextIndex = await pdfToTextPage(
+      final textRange = await pdfTextLineRangeForPageRange(
+        startPage: range.startPage,
+        endPageExclusive: range.endPageExclusive,
+        resolveTextIndex: (pdfPage) => pdfToTextPage(
           widget.tab.book,
           outline,
-          range.endPageExclusive,
+          pdfPage,
           context,
-        );
-        return (start: textIndex + 1, end: nextIndex);
+        ),
+        isActive: () => mounted,
+      );
+      if (textRange != null) {
+        return textRange;
       }
     }
 
