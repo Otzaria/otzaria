@@ -200,32 +200,29 @@ void main() {
     expect(result, '${List.filled(117, 'א').join()}...');
   });
 
-  testWidgets('מציג תיאור קצר בכרטיס ואת התיאור המורחב בריחוף על כפתור המידע', (
-    tester,
-  ) async {
-    const shortDescription = 'תיאור קצר שמוצג בכרטיס';
-    const fullDescription = 'תיאור ארוך שמוצג בריחוף על כפתור המידע בלבד';
-    final book = TextBook(
-      title: 'ספר מידע',
-      heShortDesc: shortDescription,
-      heDesc: fullDescription,
-    );
+  testWidgets(
+    'זמני: אינו מציג תיאור קצר בכרטיס, והתיאור המורחב נשאר בריחוף על כפתור המידע',
+    (tester) async {
+      const shortDescription = 'תיאור קצר שאינו מוצג בכרטיס';
+      const fullDescription = 'תיאור ארוך שמוצג בריחוף על כפתור המידע בלבד';
+      final book = TextBook(
+        title: 'ספר מידע',
+        heShortDesc: shortDescription,
+        heDesc: fullDescription,
+      );
 
-    await tester.pumpWidget(buildTestWidget(book: book));
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(buildTestWidget(book: book));
+      await tester.pumpAndSettle();
 
-    expect(find.text(shortDescription), findsOneWidget);
-    expect(
-      tester.widget<Text>(find.text(shortDescription)).maxLines,
-      3,
-    );
-    expect(
-      tester
-          .widgetList<Tooltip>(find.byType(Tooltip))
-          .map((tooltip) => tooltip.message),
-      contains(fullDescription),
-    );
-  });
+      expect(find.text(shortDescription), findsNothing);
+      expect(
+        tester
+            .widgetList<Tooltip>(find.byType(Tooltip))
+            .map((tooltip) => tooltip.message),
+        contains(fullDescription),
+      );
+    },
+  );
 
   testWidgets('לחיצה על כפתור המידע פותחת את חלון אודות הספר', (tester) async {
     final book = TextBook(
