@@ -11,6 +11,7 @@ import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
 import 'package:otzaria/widgets/commentary/commentary_search_results_list.dart';
 
 import '../../helpers/memory_settings_cache.dart';
+import '../../support/search_engine_test_init.dart';
 
 /// רשימת קטעי תוצאות החיפוש הייתה קיימת בכרטיסיית המפרשים בטקסט בלבד; ב-PDF
 /// הוצג `SizedBox.shrink()`. הטסטים כאן נועלים את הרשימה המשותפת ואת המיפוי
@@ -58,11 +59,17 @@ Future<int?> _pump(
   return tapped;
 }
 
-void main() {
+Future<void> main() async {
+  final engineReady = await tryInitSearchEngine();
+
   setUpAll(() async {
     WidgetsFlutterBinding.ensureInitialized();
     await Settings.init(cacheProvider: MemorySettingsCache());
   });
+
+  void rustTest(String description, WidgetTesterCallback callback) {
+    testWidgets(description, callback, skip: !engineReady);
+  }
 
   group('resolveSelectedSnippetGlobalIndex', () {
     final snippets = [
@@ -104,7 +111,7 @@ void main() {
       expect(find.text('טוען תוצאות...'), findsOneWidget);
     });
 
-    testWidgets('קטע מוצג עם כותרת המפרש', (tester) async {
+    rustTest('קטע מוצג עם כותרת המפרש', (tester) async {
       await _pump(
         tester,
         query: 'שבת',
@@ -113,7 +120,7 @@ void main() {
       expect(find.text('רש"י על שבת'), findsOneWidget);
     });
 
-    testWidgets('קטעים מאותו מפרש מקבלים כותרת אחת', (tester) async {
+    rustTest('קטעים מאותו מפרש מקבלים כותרת אחת', (tester) async {
       await _pump(
         tester,
         query: 'שבת',
@@ -125,7 +132,7 @@ void main() {
       expect(find.text('רש"י'), findsOneWidget);
     });
 
-    testWidgets('שני מפרשים שונים מקבלים שתי כותרות', (tester) async {
+    rustTest('שני מפרשים שונים מקבלים שתי כותרות', (tester) async {
       await _pump(
         tester,
         query: 'שבת',
@@ -138,7 +145,7 @@ void main() {
       expect(find.text('תוספות'), findsOneWidget);
     });
 
-    testWidgets('לחיצה על קטע מדווחת את ה-globalIndex שלו', (tester) async {
+    rustTest('לחיצה על קטע מדווחת את ה-globalIndex שלו', (tester) async {
       int? tapped;
       await tester.pumpWidget(
         MaterialApp(
