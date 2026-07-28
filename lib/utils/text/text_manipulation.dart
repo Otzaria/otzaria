@@ -859,6 +859,13 @@ Map<String, String>? _csvCache;
 // טעינת ה-cache שעדיין מתבצעת — מבטיח שקריאות מקבילות ימתינו לאותה טעינה
 // במקום לראות cache ריק באמצע ה-await ולסווג מפרשים כ"שאר מפרשים".
 Future<void>? _csvCacheLoading;
+bool _csvCacheUnavailable = false;
+
+// אחרי כשל טעינה מנסים שוב רק כשה-DB חזר להיות זמין. בלי התנאי הזה כל קריאה
+// בנתיב תצוגה חם הייתה ממתינה מחדש ל-gate של עדכון ספרייה (עד 30 שניות).
+bool _shouldLoadCsvCache() =>
+    _csvCache == null &&
+    (!_csvCacheUnavailable || SqliteDataProvider.instance.isInitialized);
 
 // Era categories constant - used across multiple functions
 const List<String> _eraCategories = [
@@ -893,7 +900,7 @@ int countMatches(String text, String searchQuery) {
 
 Future<bool> hasTopic(String title, String topic) async {
   // Load CSV data once and cache it (קריאות מקבילות חולקות את אותה טעינה)
-  if (_csvCache == null) {
+  if (_shouldLoadCsvCache()) {
     await (_csvCacheLoading ??= _loadCsvCache());
   }
 
@@ -903,9 +910,9 @@ Future<bool> hasTopic(String title, String topic) async {
     return title.contains(topic);
   }
 
-  // Check if title exists in DB cache
-  if (_csvCache!.containsKey(title)) {
-    final generationRaw = _csvCache![title]!;
+  // הטבלה עשויה להיות null אם הטעינה נכשלה; אז אין סיווג ידוע.
+  final generationRaw = _csvCache?[title];
+  if (generationRaw != null) {
     return generationRaw
         .split(',')
         .any((g) => _mapGenerationToCategory(g.trim()) == topic);
@@ -917,44 +924,54 @@ Future<bool> hasTopic(String title, String topic) async {
 
 /// טוען את ה-cache של תקופות מפרשים מה-DB
 Future<void> _loadCsvCache() async {
-  // לא מגדירים _csvCache={} כאן — אחרת קריאה מקבילה שתבדוק `_csvCache == null`
-  // תראה מפה ריקה באמצע ה-await ותסווג את כל המפרשים כ"שאר מפרשים".
-  // _csvCache מקבל ערך רק בסיום הטעינה (בהצלחה או בכשל).
+  // _csvCache מקבל ערך רק בהצלחה. קריאה מקבילה שתבדוק `_csvCache == null`
+  // באמצע ה-await תמתין לאותה טעינה ולא תראה מפה ריקה.
   try {
     final provider = SqliteDataProvider.instance;
     if (!provider.isInitialized) {
       await provider.initialize();
     }
     final db = provider.repository?.database;
-    if (db != null) {
-      final map = await db.authorDao.getAllBookTitleToGeneration();
-      // מיזוג דורות ספרי-משתמש (אם user_books.db פתוח) — כדי שמפרש-משתמש
-      // ימוין לפי דורו. בהתנגשות כותרת נשמר הערך הרשמי.
-      final userRepo = UserBooksDatabaseHolder.instance.repositoryIfInitialized;
-      if (userRepo != null) {
-        try {
-          final userMap = await userRepo.database.authorDao
-              .getAllBookTitleToGeneration();
-          userMap.forEach((k, v) => map.putIfAbsent(k, () => v));
-        } catch (e) {
-          debugPrint('⚠️ user_books era cache skipped: $e');
-        }
-      }
-      _csvCache = map;
-    } else {
-      _csvCache = {};
+    if (db == null) {
       debugPrint('⚠️ SqliteDataProvider repository is null');
+      _csvCacheUnavailable = true;
+      _csvCacheLoading = null;
+      return;
     }
+    final map = await db.authorDao.getAllBookTitleToGeneration();
+    // מיזוג דורות ספרי-משתמש (אם user_books.db פתוח) — כדי שמפרש-משתמש
+    // ימוין לפי דורו. בהתנגשות כותרת נשמר הערך הרשמי.
+    final userRepo = UserBooksDatabaseHolder.instance.repositoryIfInitialized;
+    if (userRepo != null) {
+      try {
+        final userMap = await userRepo.database.authorDao
+            .getAllBookTitleToGeneration();
+        userMap.forEach((k, v) => map.putIfAbsent(k, () => v));
+      } catch (e) {
+        debugPrint('⚠️ user_books era cache skipped: $e');
+      }
+    }
+    _csvCache = map;
+    _csvCacheUnavailable = false;
   } catch (e) {
     debugPrint('⚠️ Failed to load era cache from DB: $e');
-    _csvCache = {};
+    // כשל זמני (DB נעול, עדכון ספרייה) — משאירים null כדי שניסיון חוזר יתאפשר
+    // כשה-DB יחזור, במקום לקבע את כל הספרייה כ"מפרשים נוספים" עד הפעלה מחדש.
+    _csvCacheUnavailable = true;
+    _csvCacheLoading = null;
   }
 }
+
+/// האם טבלת הדורות נטענה מה-DB.
+///
+/// כשלא — כל סיווג דור יוצא "מפרשים נוספים", ואין לשמור אותו במטמון.
+bool get isEraTableLoaded => _csvCache != null;
 
 /// מנקה את ה-cache של תקופות כדי לאלץ טעינה מחדש
 void clearCommentatorOrderCache() {
   _csvCache = null;
   _csvCacheLoading = null;
+  _csvCacheUnavailable = false;
 }
 
 // ממפה שם תקופה מה-DB לקטגוריה (השמות זהים, רק fallback)
@@ -1551,7 +1568,7 @@ Future<Map<String, List<String>>> splitByEra(
 ) async {
   // טעינת ה-cache פעם אחת בהתחלה (אם עדיין לא נטען).
   // קריאות מקבילות חולקות את אותה טעינה ולא רואות מפה ריקה באמצע.
-  if (_csvCache == null) {
+  if (_shouldLoadCsvCache()) {
     await (_csvCacheLoading ??= _loadCsvCache());
   }
 

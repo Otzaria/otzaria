@@ -556,6 +556,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     final nonCommentaryTitles = aggregation.nonCommentaryTitles;
 
     final availableCommentators = aggregation.commentators.toList();
+    final eraPreload = CommentaryService.preloadEras(availableCommentators);
     final rare = computeRareCommentators(
       bookTotalLines:
           await _resolveSourceBookTotalLines() ?? aggregation.maxSourceLine,
@@ -573,10 +574,12 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       });
     }
 
+    await eraPreload;
     final eras = await utils.splitByEra(availableCommentators);
     final groups = buildCommentatorGroups(eras, availableCommentators);
     if (!mounted) return;
     setState(() {
+      _visibleContentCache = null;
       _rareCommentators = rare;
       _commentatorGroups = groups;
     });
