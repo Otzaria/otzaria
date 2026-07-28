@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/utils/note_anchor_utils.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' show isHeadingLine;
 
 String _colorToHex(Color color) {
   final value = color.toARGB32() & 0xFFFFFF;
@@ -39,9 +40,11 @@ String buildAnnotatedLineHtml({
   final ranges = <HtmlWrapRange>[];
 
   // 1) קישורי inline (אם יש) — נשמרים כפי שהיו ב-addInlineLinksToText.
+  // כותרות משמשות לניווט, לכן קישורי Linker לא מוזרקים לתוכן שלהן.
   // נאסוף גם את טווחיהם כדי שסימוני ההערות לא יבלעו אותם.
   final linkSpans = <List<int>>[];
-  for (final link in inlineLinks) {
+  final linksToRender = isHeadingLine(rawLine) ? const <Link>[] : inlineLinks;
+  for (final link in linksToRender) {
     final start = link.start;
     final end = link.end;
     if (start == null || end == null) continue;
