@@ -291,17 +291,18 @@ class CategoryGridItem extends StatelessWidget {
                     text: category.title,
                     isFolder: true,
                   ),
-                  if (category.shortDescription.isNotEmpty) ...[
-                    const SizedBox(height: 3),
-                    LibraryOverflowTooltipText(
-                      text: category.shortDescription,
-                      maxLines: 2,
-                      textAlign: TextAlign.right,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: cs.onSecondaryContainer,
-                      ),
-                    ),
-                  ],
+                  // זמני: התיאור הקצר הוסר מגוף הכרטיס.
+                  // if (category.shortDescription.isNotEmpty) ...[
+                  //   const SizedBox(height: 3),
+                  //   LibraryOverflowTooltipText(
+                  //     text: category.shortDescription,
+                  //     maxLines: 2,
+                  //     textAlign: TextAlign.right,
+                  //     style: theme.textTheme.bodySmall?.copyWith(
+                  //       color: cs.onSecondaryContainer,
+                  //     ),
+                  //   ),
+                  // ],
                 ],
               ),
             ),
@@ -524,9 +525,10 @@ class _BookGridTextColumn extends StatelessWidget {
     final authorStyle = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSecondaryContainer,
     );
-    final descriptionStyle = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
-    );
+    // זמני: התיאור הקצר הוסר מגוף הכרטיס. להחזרה — בטלו את ההערות כאן ולהלן.
+    // final descriptionStyle = theme.textTheme.bodySmall?.copyWith(
+    //   color: theme.colorScheme.onSurfaceVariant,
+    // );
     final topicsStyle = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.secondary,
     );
@@ -548,15 +550,15 @@ class _BookGridTextColumn extends StatelessWidget {
 
         final authorMaxLines = titleOverflow ? 1 : 2;
         final hasAuthor = (book.author ?? '').isNotEmpty;
-        final shortDescription = truncateBookCardDescription(
-          book.heShortDesc ?? '',
-        );
-        final hasShortDescription = shortDescription.isNotEmpty;
-        final descriptionMaxLines = constraints.maxHeight < 100
-            ? 1
-            : titleOverflow
-            ? 2
-            : 3;
+        // final shortDescription = truncateBookCardDescription(
+        //   book.heShortDesc ?? '',
+        // );
+        // final hasShortDescription = shortDescription.isNotEmpty;
+        // final descriptionMaxLines = constraints.maxHeight < 100
+        //     ? 1
+        //     : titleOverflow
+        //     ? 2
+        //     : 3;
         final hasTopics = showTopics && book.topics.trim().isNotEmpty;
         final topicsMaxLines = !hasTopics
             ? 0
@@ -564,8 +566,7 @@ class _BookGridTextColumn extends StatelessWidget {
             ? 1
             : constraints.maxHeight < 140 ||
                   hasAuthor ||
-                  titleOverflow ||
-                  hasShortDescription
+                  titleOverflow // || hasShortDescription
             ? 2
             : 3;
 
@@ -588,18 +589,18 @@ class _BookGridTextColumn extends StatelessWidget {
                 style: authorStyle,
               ),
             ],
-            if (hasShortDescription) ...[
-              const SizedBox(height: 4),
-              Flexible(
-                child: Text(
-                  shortDescription,
-                  maxLines: descriptionMaxLines,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.right,
-                  style: descriptionStyle,
-                ),
-              ),
-            ],
+            // if (hasShortDescription) ...[
+            //   const SizedBox(height: 4),
+            //   Flexible(
+            //     child: Text(
+            //       shortDescription,
+            //       maxLines: descriptionMaxLines,
+            //       overflow: TextOverflow.ellipsis,
+            //       textAlign: TextAlign.right,
+            //       style: descriptionStyle,
+            //     ),
+            //   ),
+            // ],
             if (hasTopics) ...[
               const Spacer(),
               LibraryOverflowTooltipText(

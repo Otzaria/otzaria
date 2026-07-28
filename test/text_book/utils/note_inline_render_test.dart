@@ -99,6 +99,31 @@ void main() {
     expect(html.contains('otzaria://note?line=0'), isTrue);
   });
 
+  test('קישורי Linker אינם מוזרקים לכותרות בכל הרמות', () {
+    final link = Link(
+      heRef: 'יעד',
+      index1: 1,
+      path2: 'ספר יעד.txt',
+      index2: 3,
+      connectionType: 'linker',
+      start: 4,
+      end: 8,
+    );
+
+    for (var level = 1; level <= 6; level++) {
+      final raw = '<h$level>אבגד הוזח טיכל</h$level>';
+      final html = buildAnnotatedLineHtml(
+        rawLine: raw,
+        notesForLine: const [],
+        lineIndex0: 0,
+        underlineColor: color,
+        inlineLinks: [link],
+      );
+
+      expect(html, raw, reason: 'h$level אינה מקבלת קישור Linker');
+    }
+  });
+
   test('ביטוי שלא נמצא נופל לסימון כל השורה', () {
     const raw = 'אבג דהו זחט';
     final html = buildAnnotatedLineHtml(
