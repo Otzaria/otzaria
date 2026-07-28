@@ -499,6 +499,8 @@ jobs:
       # ה-SDK של WPE נפרס ל-/opt/wpe-sdk; pkg-config וה-loader מוצאים אותו דרך אלה.
       PKG_CONFIG_PATH: /opt/wpe-sdk/lib/pkgconfig
       LD_LIBRARY_PATH: /opt/wpe-sdk/lib
+      # ה-try_compile של התוסף מלנקק בלי -L; בלי זה בדיקת WPEPlatform נכשלת ונופלים ל-FDO
+      LIBRARY_PATH: /opt/wpe-sdk/lib
       # הפלאגין jni דורש כותרות JDK בזמן CMake (ב-runner הרגיל JDK מותקן מראש)
       JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
     steps:
