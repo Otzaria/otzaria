@@ -654,6 +654,10 @@ jobs:
           find /opt/wpe-sdk -type f \( -name 'WPEWebProcess' -o -name 'WPENetworkProcess' -o -name 'WPEGPUProcess' \) \
             -exec cp -v {} "$LIBDIR/" \;
           test -e "$LIBDIR/WPEWebProcess" || { echo "::error::WPEWebProcess not found in SDK"; exit 1; }
+          # ה-injected bundle יושב ב-SDK בתת-תיקייה (wpe-webkit-2.0/injected-bundle/)
+          # ולא מגיע מ-flutter build — בלעדיו ה-WebProcess נכשל בטעינת ה-bundle.
+          find /opt/wpe-sdk -type f -name 'libWPEInjectedBundle.so' -exec cp -v {} "$LIBDIR/" \;
+          test -e "$LIBDIR/libWPEInjectedBundle.so" || { echo "::error::libWPEInjectedBundle.so not found in SDK"; exit 1; }
           # cp על קובץ יעד קיים משמר את הרשאות היעד (0644 מ-install של flutter) —
           # בלי אכיפת +x כאן, g_chmod בזמן ריצה נכשל בחבילה שהותקנה בבעלות root.
           chmod 755 "$LIBDIR"/WPE*Process
