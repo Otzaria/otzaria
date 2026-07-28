@@ -6,6 +6,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -61,6 +62,9 @@ void main() {
   });
 
   tearDownAll(() async {
+    // חייב לקדום להסרת ה-override: שמירה תלויה עדיין מחזיקה את הקובץ פתוח
+    // (המחיקה נכשלת ב-Windows) ותפתור את הנתיב מחדש אל AppData האמיתי.
+    await PerBookSettings.settle();
     AppPaths.debugOverrideDataRootPath(null);
     if (await tempDataRoot.exists()) {
       await tempDataRoot.delete(recursive: true);
