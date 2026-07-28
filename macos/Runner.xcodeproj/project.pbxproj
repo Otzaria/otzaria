@@ -476,9 +476,9 @@
 			baseConfigurationReference = 46E41816851F2CD185804F3C /* Pods-RunnerTests.debug.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				CURRENT_PROJECT_VERSION = 90950;
+				CURRENT_PROJECT_VERSION = 90960;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.9.95;
+				MARKETING_VERSION = 0.9.96;
 				PRODUCT_BUNDLE_IDENTIFIER = org.otzaria.otzaria.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -491,9 +491,9 @@
 			baseConfigurationReference = 483707C3999A110DB81D84C0 /* Pods-RunnerTests.release.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				CURRENT_PROJECT_VERSION = 90950;
+				CURRENT_PROJECT_VERSION = 90960;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.9.95;
+				MARKETING_VERSION = 0.9.96;
 				PRODUCT_BUNDLE_IDENTIFIER = org.otzaria.otzaria.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -506,9 +506,9 @@
 			baseConfigurationReference = BEAAE3A967B4124B87E7E452 /* Pods-RunnerTests.profile.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				CURRENT_PROJECT_VERSION = 90950;
+				CURRENT_PROJECT_VERSION = 90960;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.9.95;
+				MARKETING_VERSION = 0.9.96;
 				PRODUCT_BUNDLE_IDENTIFIER = org.otzaria.otzaria.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;

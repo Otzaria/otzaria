@@ -8,7 +8,7 @@ msix_config:
   publisher_display_name: "אוצריא"
   identity_name: F8854998.otzaria
   description: "ספריית ספרים יהודיים עם אפשרויות חיפוש חכם"
-  msix_version: 0.9.95.0
+  msix_version: 0.9.96.0
   logo_path: assets/icon/iconnew.png
   publisher: CN=B3B520D1-500C-4859-986C-448583CC927B
   capabilities: "internetClient"
@@ -23,7 +23,7 @@ msix_config:
     force_update_from_any_version: false
 
 
-version: 0.9.95+90950
+version: 0.9.96+90960
 
 environment:
   sdk: ">=3.12.0 <4.0.0"

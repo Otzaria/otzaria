@@ -11,7 +11,7 @@
 ; במצב נייד גם כשמותקנת גרסה מודרנית (שאחרת הייתה משודרגת בשקט).
 
 #define MyAppName "אוצריא"
-#define MyAppVersion "0.9.95"
+#define MyAppVersion "0.9.96"
 #define MyAppPublisher "sivan22"
 #define MyAppURL "https://github.com/otzaria/otzaria"
 #define MyAppExeName "otzaria.exe"
