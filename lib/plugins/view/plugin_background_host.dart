@@ -27,6 +27,7 @@ import 'package:otzaria/plugins/services/plugin_network_access_resolver.dart';
 import 'package:otzaria/plugins/services/plugin_ref_line_resolver.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
+import 'package:otzaria/plugins/view/plugin_drop_guard_script.dart';
 import 'package:otzaria/plugins/view/webview_environment_holder.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -541,6 +542,7 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
           source: _sdkStub,
           injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
         ),
+        buildPluginDropGuardScript(),
       ]),
       onWebViewCreated: (controller) {
         try {
