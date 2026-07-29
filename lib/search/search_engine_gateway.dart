@@ -145,6 +145,7 @@ abstract class SearchEngineOperations {
   Future<List<SearchResult>> searchExact(SearchEngineRequest request);
   Future<List<SearchResult>> searchAdvanced(SearchEngineRequest request);
   Future<List<SearchResult>> searchFuzzy(SearchEngineRequest request);
+  Future<List<SearchResult>> searchHybrid(SearchEngineRequest request) async => searchExact(request);
 
   Future<SearchPageResult> searchAndCountExact(SearchEngineRequest request);
   Future<SearchPageResult> searchAndCountAdvanced(SearchEngineRequest request);
