@@ -367,26 +367,24 @@ class _RtlTextFieldState extends State<RtlTextField> {
     ).then((value) async {
       if (value == null) return;
 
-      // שיפור: טיפול במצב שבו הטקסט השתנה בזמן שהתפריט היה פתוח
+      // שימוש ב-selection שנלכדה בפתיחת התפריט: לחיצה ימנית בלי פוקוס
+      // מכווצת אותה אסינכרונית ברקע (secondary tap המובנה של Flutter).
       final currentText = controller.text;
-      final currentSelection = controller.selection;
-
-      // ודא שהבחירה עדיין חוקית
-      if (currentSelection.end > currentText.length) return;
+      if (selection.end > currentText.length) return;
 
       switch (value) {
         case 'cut':
           final selectedText = currentText.substring(
-            currentSelection.start,
-            currentSelection.end,
+            selection.start,
+            selection.end,
           );
           await Clipboard.setData(ClipboardData(text: selectedText));
           final textAfterCut =
-              currentText.substring(0, currentSelection.start) +
-              currentText.substring(currentSelection.end);
+              currentText.substring(0, selection.start) +
+              currentText.substring(selection.end);
           controller.text = textAfterCut;
           controller.selection = TextSelection.collapsed(
-            offset: currentSelection.start,
+            offset: selection.start,
           );
           // עדכון ידני: הקצאה ישירה ל-controller.text לא מפעילה את onChanged
           // של TextField (זה מגיע רק מנתיב הקלט הפנימי של EditableText).
@@ -394,8 +392,8 @@ class _RtlTextFieldState extends State<RtlTextField> {
           break;
         case 'copy':
           final selectedText = currentText.substring(
-            currentSelection.start,
-            currentSelection.end,
+            selection.start,
+            selection.end,
           );
           await Clipboard.setData(ClipboardData(text: selectedText));
           break;
@@ -403,12 +401,12 @@ class _RtlTextFieldState extends State<RtlTextField> {
           final data = await Clipboard.getData('text/plain');
           if (data?.text != null) {
             final newText =
-                currentText.substring(0, currentSelection.start) +
+                currentText.substring(0, selection.start) +
                 data!.text! +
-                currentText.substring(currentSelection.end);
+                currentText.substring(selection.end);
             controller.text = newText;
             controller.selection = TextSelection.collapsed(
-              offset: currentSelection.start + data.text!.length,
+              offset: selection.start + data.text!.length,
             );
             // עדכון ידני: הקצאה ישירה ל-controller.text לא מפעילה את onChanged
             // של TextField (זה מגיע רק מנתיב הקלט הפנימי של EditableText).

@@ -286,4 +286,70 @@ void main() {
       expect(find.text('הדבק'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'לחיצה ימנית ללא פוקוס מכווצת את הבחירה הפנימית של Flutter, '
+    'אך גזירה עדיין פועלת על הבחירה שהייתה כשהתפריט נפתח',
+    (tester) async {
+      String? clipboardText;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            clipboardText = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      final controller = TextEditingController(text: 'אבגדה');
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Directionality(
+              textDirection: TextDirection.rtl,
+              child: RtlTextField(controller: controller),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      // בכוונה בלי פוקוס: מדמה מצב בו כבר קיימת בחירה (למשל מגרירת עכבר
+      // קודמת) אבל הפוקוס עבר משדה זה הלאה לפני הלחיצה הימנית.
+      controller.selection = const TextSelection(
+        baseOffset: 1,
+        extentOffset: 4,
+      );
+      await tester.pump();
+
+      await rightClickAt(tester, tester.getCenter(find.byType(TextField)));
+
+      // מוודא שהתרחיש שגילינו אכן קיים ברמת Flutter: לחיצה ימנית בלי פוקוס
+      // מפעילה גם את הזיהוי המובנה ל-secondary tap, שמכווץ את הבחירה
+      // הקיימת למיקום הלחיצה (ראו onSecondaryTap ב-text_selection.dart).
+      expect(
+        controller.selection.isCollapsed,
+        isTrue,
+        reason: 'מוודא שתנאי המרוץ שגרם לבאג עדיין קיים ברמת Flutter עצמו',
+      );
+
+      await tester.tap(find.text('גזור'));
+      await tester.pumpAndSettle();
+
+      expect(
+        clipboardText,
+        'בגד',
+        reason:
+            'גזירה חייבת לפעול על הבחירה שנלכדה בפתיחת התפריט, לא על מה '
+            'שהתכווץ לאחר מכן על ידי הטיפול הפנימי של Flutter בלחיצה ימנית',
+      );
+      expect(controller.text, 'אה');
+    },
+  );
 }
