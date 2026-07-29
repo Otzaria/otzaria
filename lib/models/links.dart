@@ -364,13 +364,9 @@ Future<List<Link>> getLinksforIndexs({
       return commentatorComparison;
     }
 
-    // אם אותו מפרש, מיון לפי heRef
-    return a.heRef
-        .replaceAll(' טו,', ' יה,')
-        .replaceAll(' טז,', ' יו,')
-        .compareTo(
-          b.heRef.replaceAll(' טו,', ' יה,').replaceAll(' טז,', ' יו,'),
-        );
+    // אם אותו מפרש — לפי סדר השורות בספר המפרש. השוואת מחרוזות על הכתובת
+    // אינה סדר הספר: טו/טז מוקדמים לי', ובמדבר מוקדם לויקרא.
+    return a.index2.compareTo(b.index2);
   });
 
   return filteredLinks;
