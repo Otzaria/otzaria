@@ -333,6 +333,11 @@ class RustSearchEngineOperations implements SearchEngineOperations {
   }
 
   @override
+  Future<List<SearchResult>> searchHybrid(SearchEngineRequest request) {
+    return searchExact(request);
+  }
+
+  @override
   Future<SearchPageResult> searchAndCountExact(SearchEngineRequest request) {
     final gapped = _exactWithParametersAsAdvanced(request);
     if (gapped != null) return searchAndCountAdvanced(gapped);
