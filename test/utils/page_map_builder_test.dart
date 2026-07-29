@@ -28,6 +28,145 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // hebrewNumeralValue – השומר שמונע ממילים להתחזות למספרי דף
+  // ---------------------------------------------------------------------------
+  group('hebrewNumeralValue', () {
+    test('אות בודדת', () {
+      expect(hebrewNumeralValue('א'), 1);
+      expect(hebrewNumeralValue('ב'), 2);
+      expect(hebrewNumeralValue('י'), 10);
+      expect(hebrewNumeralValue('ת'), 400);
+    });
+
+    test('מספרים מורכבים בסדר יורד', () {
+      expect(hebrewNumeralValue('כב'), 22);
+      expect(hebrewNumeralValue('יא'), 11);
+      expect(hebrewNumeralValue('טו'), 15);
+      expect(hebrewNumeralValue('טז'), 16);
+      expect(hebrewNumeralValue('קיז'), 117);
+      expect(hebrewNumeralValue('תתקא'), 901);
+    });
+
+    test('אותיות סופיות מקבלות את אותו ערך', () {
+      expect(hebrewNumeralValue('ך'), 20);
+      expect(hebrewNumeralValue('ם'), 40);
+      expect(hebrewNumeralValue('ן'), 50);
+      expect(hebrewNumeralValue('ף'), 80);
+      expect(hebrewNumeralValue('ץ'), 90);
+    });
+
+    test('ערכים עולים נדחים — אינם כתיב גימטריה', () {
+      expect(hebrewNumeralValue('בכ'), isNull);
+      expect(hebrewNumeralValue('אי'), isNull);
+    });
+
+    test('שמות מסכתות נדחים ואינם מתחזים למספרי דף', () {
+      for (final name in ['שבת', 'נדה', 'סוכה', 'ביצה', 'יומא', 'סוטה']) {
+        expect(hebrewNumeralValue(name), isNull, reason: name);
+      }
+    });
+
+    test('מעל ארבע אותיות נדחה', () {
+      expect(hebrewNumeralValue('הקדמה'), isNull);
+      expect(hebrewNumeralValue('מאימתי'), isNull);
+    });
+
+    test('מחרוזת ריקה ותווים שאינם עבריים נדחים', () {
+      expect(hebrewNumeralValue(''), isNull);
+      expect(hebrewNumeralValue('ab'), isNull);
+      expect(hebrewNumeralValue('כ2'), isNull);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // canonicalDafKey – גישור בין כתיבי דף שונים
+  // ---------------------------------------------------------------------------
+  group('canonicalDafKey', () {
+    test('נקודה = עמוד א, היעדר סימן = עמוד ב (הקולון הוסר בנרמול)', () {
+      expect(canonicalDafKey('דף ב.'), '2a');
+      expect(canonicalDafKey('דף ב'), '2b');
+      expect(canonicalDafKey(normalizeRef('דף ב:')), '2b');
+    });
+
+    test('בלי הקידומת "דף" אין מפתח — כך סימנים ופרקים אינם דפים', () {
+      for (final label in ['כב.', 'א.', 'ב.', 'כב-ב', 'כב', 'ב']) {
+        expect(canonicalDafKey(label), isNull, reason: label);
+      }
+    });
+
+    test('מילים שהגימטריה שלהן תקינה אינן מתחזות לדף', () {
+      // כולן ערכי גימטריה חוקיים: תמיד=454, שם=340, תשא=701, ריטבא=221.
+      for (final label in [
+        'תמיד',
+        'תמיד.',
+        'שם',
+        'שם.',
+        'תשא.',
+        'ריטבא',
+        'פסח',
+        'עמ א',
+      ]) {
+        expect(canonicalDafKey(label), isNull, reason: label);
+      }
+    });
+
+    test('"דף" ו"עמוד" אינם נחשבים מספר הדף', () {
+      expect(canonicalDafKey('עמוד א'), isNull);
+      expect(canonicalDafKey('דף דף א'), isNull);
+      expect(canonicalDafKey('דף'), isNull);
+      expect(canonicalDafKey('דף.'), isNull);
+    });
+
+    test('מקפים שאינם ASCII מתקפלים ואינם נדבקים למספר', () {
+      // בלי קיפול המקף "דף כב־א" היה נקרא "דף כבא" = דף 23.
+      expect(canonicalDafKey(normalizeRef('דף כב־א')), '22a');
+      expect(canonicalDafKey(normalizeRef('דף כב–א')), '22a');
+      expect(canonicalDafKey(normalizeRef('דף כב—ב')), '22b');
+    });
+
+    test('כתיב מקף ("דף כב - א")', () {
+      expect(canonicalDafKey('דף כב - א'), '22a');
+      expect(canonicalDafKey('דף כב - ב'), '22b');
+      expect(canonicalDafKey('דף כב-א'), '22a');
+    });
+
+    test('כתיב ע"א / ע"ב אחרי נרמול', () {
+      expect(canonicalDafKey(normalizeRef('דף כב ע"א')), '22a');
+      expect(canonicalDafKey(normalizeRef('דף כב ע"ב')), '22b');
+    });
+
+    test('כתיב "עמוד א" מלא', () {
+      expect(canonicalDafKey('דף כב עמוד א'), '22a');
+      expect(canonicalDafKey('דף כב עמוד ב'), '22b');
+    });
+
+    test('כל הכתיבים של אותו דף מתלכדים למפתח אחד', () {
+      final keys = [
+        'דף כב.',
+        'דף כב - א',
+        'דף כב ע"א',
+        'דף כב עמוד א',
+      ].map((s) => canonicalDafKey(normalizeRef(s))).toSet();
+      expect(keys, {'22a'});
+    });
+
+    test('כותרות שאינן דף מוחזרות null', () {
+      for (final label in [
+        'הקדמה',
+        'פרק ראשון - מאימתי',
+        'סימן כב',
+        'ברכות',
+        'שבת',
+        'סוכה',
+        'תוכן העניינים',
+        '',
+      ]) {
+        expect(canonicalDafKey(label), isNull, reason: '"$label"');
+      }
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // PageMap interpolation
   // ---------------------------------------------------------------------------
   group('PageMap', () {
@@ -207,6 +346,155 @@ void main() {
       final m = buildPageMapFromAnchors(pdf, text);
       expect(m.pdfPages, [3]);
       expect(m.textIndices, [0]); // exact match wins, not 999
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // buildPageMapFromAnchors – שלב 3: התאמת דף קנונית
+  // כל טסט כאן מגן על אי-רגרסיה: השלב פועל רק כשההתאמה לפי כותרות נכשלה.
+  // ---------------------------------------------------------------------------
+  group('buildPageMapFromAnchors – canonical daf fallback', () {
+    test('מגשר בין מהדורות שכותבות את אותו דף אחרת', () {
+      // PDF: "דף ב." / "דף ב" (קולון הוסר) — טקסט: "דף ב - א" / "דף ב - ב".
+      // אף כותרת אינה זהה, ואף סיומת אינה משותפת → בלי שלב 3 אפס התאמות.
+      final pdf = [
+        (page: 1, ref: 'ברכות/דף ב.'),
+        (page: 2, ref: 'ברכות/דף ב'),
+        (page: 3, ref: 'ברכות/דף ג.'),
+      ];
+      final text = [
+        (index: 2, ref: 'תלמוד בבלי - ברכות/פרק ראשון/דף ב - א'),
+        (index: 13, ref: 'תלמוד בבלי - ברכות/פרק ראשון/דף ב - ב'),
+        (index: 19, ref: 'תלמוד בבלי - ברכות/פרק ראשון/דף ג - א'),
+      ];
+      final m = buildPageMapFromAnchors(pdf, text);
+      expect(m.pdfPages, [1, 2, 3]);
+      expect(m.textIndices, [2, 13, 19]);
+      expect(m.hasReliableAnchors, isTrue);
+    });
+
+    test('גם בתוך שלב 3 התאמת הנתיב גוברת על מפתח הדף', () {
+      // עוגן א מותאם לפי נתיב מלא (→0) ויש לו מתחרה עם אותו מפתח דף (→999);
+      // עוגן ב מותאם רק לפי מפתח דף. שלב 3 רץ כי הנתיב לבדו נתן עוגן אחד.
+      final pdf = [
+        (page: 3, ref: 'ברכות/דף כב.'),
+        (page: 8, ref: 'ברכות/דף כג.'),
+      ];
+      final text = [
+        (index: 0, ref: 'ברכות/דף כב.'),
+        (index: 999, ref: 'שבת/דף כב - א'),
+        (index: 500, ref: 'אחר/דף כג - א'),
+      ];
+      final m = buildPageMapFromAnchors(pdf, text);
+      expect(m.pdfPages, [3, 8]);
+      expect(m.textIndices, [0, 500]);
+    });
+
+    test('גם בתוך שלב 3 התאמת הסיומת גוברת על מפתח הדף', () {
+      final pdf = [
+        (page: 3, ref: 'תלמוד בבלי/ברכות/דף כב.'),
+        (page: 8, ref: 'תלמוד בבלי/ברכות/דף כג.'),
+      ];
+      final text = [
+        (index: 40, ref: 'ברכות/דף כב.'), // סיומת חד-משמעית
+        (index: 999, ref: 'אחר/דף כב - א'), // אותו מפתח דף
+        (index: 500, ref: 'אחר/דף כג - א'),
+      ];
+      final m = buildPageMapFromAnchors(pdf, text);
+      expect(m.pdfPages, [3, 8]);
+      expect(m.textIndices, [40, 500]);
+    });
+
+    test('מפתח דף שאינו חד-משמעי נדחה', () {
+      // אותו דף מופיע בשני מקומות בטקסט → אין ודאות → מדלגים.
+      final pdf = [(page: 3, ref: 'דף כב.')];
+      final text = [
+        (index: 10, ref: 'א/דף כב - א'),
+        (index: 20, ref: 'ב/דף כב - א'),
+      ];
+      final m = buildPageMapFromAnchors(pdf, text);
+      expect(m.pdfPages, isEmpty);
+    });
+
+    test('ספר שאינו גמרא — השלב הוא no-op ואינו ממציא התאמות', () {
+      final pdf = [
+        (page: 2, ref: 'שולחן ערוך/הקדמה'),
+        (page: 9, ref: 'שולחן ערוך/דיני נטילת ידיים'),
+      ];
+      final text = [
+        (index: 5, ref: 'אורח חיים/פתיחה'),
+        (index: 80, ref: 'אורח חיים/סדר היום'),
+      ];
+      final m = buildPageMapFromAnchors(pdf, text);
+      expect(m.pdfPages, isEmpty);
+    });
+
+    test('ספר ממוספר בסימנים מול PDF ממוספר בדפים — אין מיפוי מדומה', () {
+      // "א." בטקסט הוא מספר סימן. ללא דרישת הקידומת "דף" הוא היה נקשר ל"דף א."
+      // ומייצר מפה "אמינה" ושגויה לגמרי, בלי שהמשתמש יקבל הודעה.
+      final pdf = [
+        (page: 5, ref: 'ספר/דף א.'),
+        (page: 9, ref: 'ספר/דף ב.'),
+        (page: 14, ref: 'ספר/דף ג.'),
+      ];
+      final text = [
+        (index: 10, ref: 'אגרא דפרקא/א.'),
+        (index: 90, ref: 'אגרא דפרקא/ב.'),
+        (index: 160, ref: 'אגרא דפרקא/ג.'),
+      ];
+      final m = buildPageMapFromAnchors(pdf, text);
+      expect(m.pdfPages, isEmpty);
+    });
+
+    test('שלב 3 אינו משנה מפה שכבר הותאמה במלואה לפי כותרות', () {
+      // אותו קלט שמותאם 1:1 בשלב 1 — התוצאה חייבת להישאר זהה.
+      final pdf = [
+        (page: 1, ref: 'ברכות/דף ב.'),
+        (page: 2, ref: 'ברכות/דף ב'),
+        (page: 3, ref: 'ברכות/דף ג.'),
+      ];
+      final text = [
+        (index: 1, ref: 'ברכות/דף ב.'),
+        (index: 16, ref: 'ברכות/דף ב'),
+        (index: 36, ref: 'ברכות/דף ג.'),
+      ];
+      final m = buildPageMapFromAnchors(pdf, text);
+      expect(m.pdfPages, [1, 2, 3]);
+      expect(m.textIndices, [1, 16, 36]);
+    });
+
+    test('מיפוי חלקי-אך-שמיש אינו נפתח למפתחות דף — אפס רגרסיה', () {
+      // שני עוגנים הותאמו לפי כותרות. השלישי אינו מותאם לפי נתיב (כתיב שונה)
+      // אך מפתח הדף היה קושר אותו לאינדקס 5 ומעוות מפה שכבר עובדת.
+      final pdf = [
+        (page: 1, ref: 'ספר/פרק א'),
+        (page: 20, ref: 'ספר/פרק ב'),
+        (page: 30, ref: 'ספר/דף פו.'),
+      ];
+      final text = [
+        (index: 0, ref: 'ספר/פרק א'),
+        (index: 400, ref: 'ספר/פרק ב'),
+        (index: 5, ref: 'נספח/דף פו - א'),
+      ];
+      final m = buildPageMapFromAnchors(pdf, text);
+      expect(m.pdfPages, [1, 20]);
+      expect(m.textIndices, [0, 400]);
+    });
+
+    test('כשמפתחות הדף אינם מספיקים חוזרים למפת הכותרות ולא מרעים', () {
+      // עוגן אחד לפי כותרת, ומפתח דף שאינו חד-משמעי → התוצאה נשארת העוגן הבודד.
+      final pdf = [
+        (page: 3, ref: 'ספר/פתיחה'),
+        (page: 8, ref: 'ספר/דף ה.'),
+      ];
+      final text = [
+        (index: 2, ref: 'ספר/פתיחה'),
+        (index: 60, ref: 'א/דף ה.'),
+        (index: 90, ref: 'ב/דף ה.'),
+      ];
+      final m = buildPageMapFromAnchors(pdf, text);
+      expect(m.pdfPages, [3]);
+      expect(m.textIndices, [2]);
     });
   });
 

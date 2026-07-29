@@ -435,7 +435,11 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
       int best = 0;
       while (lo <= hi) {
         final mid = (lo + hi) ~/ 2;
-        final page = await textToPdfPage(textBook, headings[mid].value);
+        final page = await textToPdfPage(
+          textBook,
+          headings[mid].value,
+          pdfBook: widget.tab.sourceTab.book,
+        );
         if (page == null) return; // אין מיפוי אמין — נשארים בברירת המחדל
         if (page <= targetPage) {
           best = mid;
@@ -768,6 +772,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
           final mapped = await textToPdfPage(
             textBook,
             headings[_selectedHeadingIdx].value,
+            pdfBook: sourceTab.book,
           );
           if (mapped != null) page = mapped;
         }

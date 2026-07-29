@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/file/page_converter.dart';
+import 'package:otzaria/utils/file/page_map_builder.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 PdfOutlineNode node(
@@ -92,6 +93,87 @@ void main() {
 
     test('רשימה ריקה מחזירה רשימה ריקה', () {
       expect(collectTextAnchors(const []), isEmpty);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // השרשרת המלאה שהאפליקציה מריצה: outline → TOC → מפת עמודים.
+  // ---------------------------------------------------------------------------
+  group('שרשרת מלאה — מסכת גמרא', () {
+    /// עץ ה-outline של מסכת בבלי: צומת שורש ותחתיו כל הדפים.
+    List<PdfOutlineNode> talmudOutline() => [
+      node(
+        'ברכות',
+        1,
+        children: [
+          node('דף ב.', 1),
+          node('דף ב:', 2),
+          node('דף ג.', 3),
+        ],
+      ),
+    ];
+
+    test('מהדורות תואמות — מפה אמינה מלאה', () {
+      final root = TocEntry(text: 'ברכות', index: 0);
+      root.children = [
+        TocEntry(text: 'דף ב.', index: 1, level: 2, parent: root),
+        TocEntry(text: 'דף ב:', index: 16, level: 2, parent: root),
+        TocEntry(text: 'דף ג.', index: 36, level: 2, parent: root),
+      ];
+
+      final map = buildPageMapFromAnchors(
+        collectPdfAnchors(talmudOutline()),
+        collectTextAnchors([root]),
+      );
+
+      expect(map.hasReliableAnchors, isTrue);
+      expect(map.pdfPages, [1, 2, 3]);
+      expect(map.textIndices, [0, 16, 36]);
+      expect(map.textToPdf(16), 2);
+      expect(map.pdfToText(3), 36);
+    });
+
+    test('מהדורת טקסט בכתיב שונה — נגשרת ואינה נופלת לתחילת הספר', () {
+      // "תלמוד בבלי - ברכות" / "פרק ראשון - מאימתי" / "דף ב - א"
+      final root = TocEntry(text: 'תלמוד בבלי - ברכות', index: 0);
+      final chapter = TocEntry(
+        text: 'פרק ראשון - מאימתי',
+        index: 1,
+        level: 2,
+        parent: root,
+      );
+      chapter.children = [
+        TocEntry(text: 'דף ב - א', index: 2, level: 3, parent: chapter),
+        TocEntry(text: 'דף ב - ב', index: 13, level: 3, parent: chapter),
+        TocEntry(text: 'דף ג - א', index: 19, level: 3, parent: chapter),
+      ];
+      root.children = [chapter];
+
+      final map = buildPageMapFromAnchors(
+        collectPdfAnchors(talmudOutline()),
+        collectTextAnchors([root]),
+      );
+
+      expect(map.hasReliableAnchors, isTrue);
+      expect(map.pdfPages, [1, 2, 3]);
+      expect(map.textIndices, [2, 13, 19]);
+    });
+
+    test('PDF ללא סימניות — מפה לא אמינה, ואינה נשמרת כמצב תקין', () {
+      final root = TocEntry(text: 'ברכות', index: 0);
+      root.children = [
+        TocEntry(text: 'דף ב.', index: 1, level: 2, parent: root),
+      ];
+
+      final map = buildPageMapFromAnchors(
+        collectPdfAnchors(const []),
+        collectTextAnchors([root]),
+      );
+
+      expect(map.pdfPages, isEmpty);
+      expect(map.hasReliableAnchors, isFalse);
+      expect(map.textToPdf(0), isNull);
+      expect(map.pdfToText(1), isNull);
     });
   });
 }
