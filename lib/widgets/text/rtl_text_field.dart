@@ -381,12 +381,16 @@ class _RtlTextFieldState extends State<RtlTextField> {
             currentSelection.end,
           );
           await Clipboard.setData(ClipboardData(text: selectedText));
-          controller.text =
+          final textAfterCut =
               currentText.substring(0, currentSelection.start) +
               currentText.substring(currentSelection.end);
+          controller.text = textAfterCut;
           controller.selection = TextSelection.collapsed(
             offset: currentSelection.start,
           );
+          // עדכון ידני: הקצאה ישירה ל-controller.text לא מפעילה את onChanged
+          // של TextField (זה מגיע רק מנתיב הקלט הפנימי של EditableText).
+          widget.onChanged?.call(textAfterCut);
           break;
         case 'copy':
           final selectedText = currentText.substring(
@@ -406,6 +410,9 @@ class _RtlTextFieldState extends State<RtlTextField> {
             controller.selection = TextSelection.collapsed(
               offset: currentSelection.start + data.text!.length,
             );
+            // עדכון ידני: הקצאה ישירה ל-controller.text לא מפעילה את onChanged
+            // של TextField (זה מגיע רק מנתיב הקלט הפנימי של EditableText).
+            widget.onChanged?.call(newText);
           }
           break;
         case 'selectAll':
