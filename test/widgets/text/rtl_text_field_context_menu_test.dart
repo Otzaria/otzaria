@@ -151,6 +151,31 @@ void main() {
   );
 
   testWidgets(
+    'הדבקה משתמשת בבחירה העדכנית כשה-controller משתנה בזמן שהתפריט פתוח',
+    (tester) async {
+      mockClipboard(tester, initialText: 'X');
+      final controller = await pumpField(tester, text: 'טקסט ישן');
+      controller.selection = const TextSelection(
+        baseOffset: 0,
+        extentOffset: 4,
+      );
+      await tester.pump();
+
+      await rightClickAt(tester, tester.getCenter(find.byType(TextField)));
+      controller.value = const TextEditingValue(
+        text: 'עדכני',
+        selection: TextSelection.collapsed(offset: 2),
+      );
+      await tester.pump();
+      await tester.tap(find.text('הדבק'));
+      await tester.pumpAndSettle();
+
+      expect(controller.text, 'עדXכני');
+      expect(controller.selection.baseOffset, 3);
+    },
+  );
+
+  testWidgets(
     'גזירה מעתיקה ללוח, מסירה את הטקסט הנבחר ומפעילה onChanged',
     (tester) async {
       String? clipboardText;
