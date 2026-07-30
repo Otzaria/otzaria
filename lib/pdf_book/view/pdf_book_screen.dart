@@ -3684,24 +3684,28 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 ),
                 ValueListenableBuilder<List<PdfOutlineNode>?>(
                   valueListenable: widget.tab.outline,
-                  builder: (context, outline, _) => PdfScrollbar(
-                    controller: widget.tab.pdfViewerController,
-                    orientation: ScrollbarOrientation.right,
-                    trackThickness: _verticalScrollbarGutter,
-                    thumbMinSize: 50.0,
-                    scrollBoundsBuilder: _currentVerticalScrollbarBounds,
-                    freezeThumb: _pageTurnTransition != null,
-                    outline: outline,
-                    bookTitle: widget.tab.book.title,
+                  builder: (context, outline, _) => RepaintBoundary(
+                    child: PdfScrollbar(
+                      controller: widget.tab.pdfViewerController,
+                      orientation: ScrollbarOrientation.right,
+                      trackThickness: _verticalScrollbarGutter,
+                      thumbMinSize: 50.0,
+                      scrollBoundsBuilder: _currentVerticalScrollbarBounds,
+                      freezeThumb: _pageTurnTransition != null,
+                      outline: outline,
+                      bookTitle: widget.tab.book.title,
+                    ),
                   ),
                 ),
                 Positioned(
                   left: splitInset.left,
                   right: readerContentPadding.right,
                   bottom: 0,
-                  child: PdfHorizontalScrollbar(
-                    controller: widget.tab.pdfViewerController,
-                    trackThickness: _horizontalScrollbarGutter,
+                  child: RepaintBoundary(
+                    child: PdfHorizontalScrollbar(
+                      controller: widget.tab.pdfViewerController,
+                      trackThickness: _horizontalScrollbarGutter,
+                    ),
                   ),
                 ),
               ],
