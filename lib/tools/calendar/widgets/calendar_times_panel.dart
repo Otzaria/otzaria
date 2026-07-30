@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kosher_dart/kosher_dart.dart';
@@ -397,7 +398,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
               children: [
                 BarButton.icon(
                   tooltip: 'זמנים נוספים',
-                  icon: FluentIcons.list_24_regular,
+                  icon: OtzariaIcons.clock_add_24_regular,
                   compact: true,
                   onPressed: () => showZmanimSettingsDialog(context),
                 ),

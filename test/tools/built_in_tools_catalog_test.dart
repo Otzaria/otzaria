@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/tools/built_in_tools_catalog.dart';
 
 void main() {
@@ -105,6 +106,15 @@ void main() {
             'explicit (NavRailItem prefers imageAsset when both are set, '
             'but having both is confusing)',
       );
+    });
+
+    test('המילון הארמי משתמש באייקון האותיות של Otzaria', () {
+      final dictionary = kBuiltInToolsCatalog.firstWhere(
+        (tool) => tool.toolId == 'builtin.aramaic_dictionary',
+      );
+
+      expect(dictionary.icon, OtzariaIcons.beit_behind_alef_24_regular);
+      expect(dictionary.iconFilled, OtzariaIcons.beit_behind_alef_24_regular);
     });
   });
 }

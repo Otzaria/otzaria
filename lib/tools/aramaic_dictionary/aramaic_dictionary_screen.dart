@@ -1,4 +1,5 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -236,7 +237,7 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
   Widget _buildResultsList() {
     if (_searchController.text.isEmpty) {
       return const ToolEmptyState(
-        icon: FluentIcons.book_24_regular,
+        icon: OtzariaIcons.search_in_the_text_24_regular,
         message: 'הזן מילה לחיפוש במילון',
       );
     }

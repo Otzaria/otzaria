@@ -201,7 +201,7 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
           title: 'שיטת חישוב גימטריה',
           children: [
             SettingsActionTile.switchTile(
-              icon: FluentIcons.number_symbol_24_regular,
+              icon: OtzariaIcons.alef_1_24_regular,
               title: 'גימטריה קטנה',
               subtitle: 'כל אות מחושבת לפי ספרה אחת',
               value: useSmallGematria,
