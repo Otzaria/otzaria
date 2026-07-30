@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -24,6 +25,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
@@ -63,6 +65,29 @@ void main() {
 
       expect(find.text('גודל גופן מפרשים'), findsOneWidget);
       expect(find.text('גופן מפרשים'), findsOneWidget);
+      expect(
+        find.byIcon(OtzariaIcons.alef_near_alef_24_regular),
+        findsNWidgets(2),
+      );
+      expect(
+        find.byIcon(OtzariaIcons.beit_near_alef_24_regular),
+        findsNWidgets(2),
+      );
+      expect(
+        find.byIcon(OtzariaIcons.alef_with_score_24_regular),
+        findsOneWidget,
+      );
+      expect(
+        find.byIcon(OtzariaIcons.alef_with_punctuation_24_regular),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byType(AppDropdownField<String>).first);
+      await tester.pumpAndSettle();
+      expect(
+        find.byIcon(OtzariaIcons.alef_behind_alef_24_regular),
+        findsWidgets,
+      );
     });
 
     testWidgets(

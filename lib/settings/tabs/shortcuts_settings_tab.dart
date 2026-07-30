@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
@@ -591,19 +592,19 @@ class ShortcutsSettingsTab extends StatelessWidget {
             _ShortcutTile(
               settingKey: 'key-shortcut-open-find-ref',
               label: 'איתור',
-              icon: FluentIcons.book_search_24_regular,
+              icon: OtzariaIcons.search_24_regular,
               allShortcuts: _shortcutsList,
             ),
             _ShortcutTile(
               settingKey: 'key-shortcut-open-reading-screen',
               label: 'עיון',
-              icon: FluentIcons.book_open_24_regular,
+              icon: OtzariaIcons.otzaria_icon_2_page_24_regular,
               allShortcuts: _shortcutsList,
             ),
             _ShortcutTile(
               settingKey: 'key-shortcut-open-new-search',
               label: 'חיפוש חדש בכל הספרים',
-              icon: FluentIcons.search_24_regular,
+              icon: OtzariaIcons.search_in_the_library_24_regular,
               allShortcuts: _shortcutsList,
             ),
             _ShortcutTile(
@@ -655,7 +656,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
               settingKey: ShortcutValidator.currentWindowSearchKey,
               label: 'חיפוש בספר הפתוח',
               subtitle: 'משמש לחיפוש מהיר במסכי ספרים פתוחים',
-              icon: FluentIcons.search_24_regular,
+              icon: OtzariaIcons.search_in_the_book_24_regular,
               allShortcuts: _shortcutsList,
             ),
             _ShortcutTile(

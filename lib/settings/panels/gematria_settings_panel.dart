@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart'
     hide SwitchSettingsTile;
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
@@ -222,7 +223,7 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
               },
             ),
             SettingsActionTile.switchTile(
-              icon: FluentIcons.text_font_24_regular,
+              icon: OtzariaIcons.beit_behind_alef_24_regular,
               title: 'אותיות סופיות שונות',
               subtitle: 'מנצפ"ך בערכים שונים',
               value: useFinalLetters,
