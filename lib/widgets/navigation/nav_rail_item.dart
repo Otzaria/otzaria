@@ -22,6 +22,7 @@
 // ```
 
 import 'package:flutter/material.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
@@ -112,11 +113,9 @@ class NavRailItem extends StatelessWidget {
               opacity: animation,
               child: ScaleTransition(scale: animation, child: child),
             ),
-            child: RtlIcon(
+            child: _buildIcon(
               isSelected && iconFilled != null ? iconFilled! : icon!,
-              key: ValueKey<bool>(isSelected),
-              size: 24,
-              color: iconColor,
+              iconColor,
             ),
           );
 
@@ -194,6 +193,23 @@ class NavRailItem extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildIcon(IconData icon, Color color) {
+    if (icon.fontPackage == OtzariaIcons.fontPackage) {
+      return Icon(
+        icon,
+        key: ValueKey<bool>(isSelected),
+        size: 24,
+        color: color,
+      );
+    }
+    return RtlIcon(
+      icon,
+      key: ValueKey<bool>(isSelected),
+      size: 24,
+      color: color,
     );
   }
 }
