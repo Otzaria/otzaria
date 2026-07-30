@@ -531,7 +531,15 @@ class TextBookPerBookSettings {
 /// מצב תצוגת PDF
 enum PdfLayoutMode {
   regularView, // תצוגה רגילה
-  bookView, // תצוגת ספר
+  bookView, // תצוגת ספר — עמוד ראשון בודד (עם "עמוד ריק" לצדו)
+  bookViewNoCover, // תצוגת ספר — זוגות מהעמוד הראשון: (1,2), (3,4)
+}
+
+extension PdfLayoutModeX on PdfLayoutMode {
+  bool get isBookView => this != PdfLayoutMode.regularView;
+
+  /// האם העמוד הראשון עומד לבדו בתצוגת ספר (כמו עמוד שער).
+  bool get hasCoverPage => this == PdfLayoutMode.bookView;
 }
 
 /// הגדרות פר-ספר לספרי PDF
