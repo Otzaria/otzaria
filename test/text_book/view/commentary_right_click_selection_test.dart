@@ -148,6 +148,7 @@ void main() {
       path2: 'אוצריא/תנך/פירושים/רשי.txt',
       index2: 1,
       connectionType: 'commentary',
+      targetCategoryId: 42,
     );
 
     testWidgets(
@@ -249,6 +250,48 @@ void main() {
           reason: 'טקסט "${blank ?? 'null'}" אינו בחירה תקפה',
         );
       }
+    });
+
+    testWidgets('כולל הוספת הערה אישית והעתקת קישור ישיר', (tester) async {
+      late List<AppContextMenuEntry> entries;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) {
+              entries = ContextMenuUtils.buildCommentaryContextMenu(
+                context: context,
+                link: makeLink(),
+                openBookCallback: (_) {},
+                fontSize: 18,
+                removeNikud: false,
+                removePunctuation: false,
+                savedSelectedText: 'קטע מסומן',
+                onCopySelected: () {},
+              );
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+
+      expect(entries.map((entry) => entry.label), contains('הוסף הערה אישית'));
+      final noteIndex = entries.indexWhere(
+        (entry) => entry.label == 'הוסף הערה אישית',
+      );
+      expect(entries[noteIndex + 1].label, 'דווח על טעות בספר');
+      expect(entries[noteIndex + 2].isDivider, isTrue);
+      final directLinkEntry = entries.firstWhere(
+        (entry) => entry.label == 'העתק קישור ישיר',
+      );
+      final children = directLinkEntry.childrenBuilder!();
+      expect(
+        children.map((entry) => entry.label),
+        containsAll(<String>[
+          'העתק קישור למקטע זה',
+          'העתק קישור עם הדגשת המקטע',
+          'העתק קישור עם הדגשת הטקסט',
+        ]),
+      );
     });
   });
 
