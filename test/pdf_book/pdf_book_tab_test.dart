@@ -172,6 +172,13 @@ void main() {
       expect(restored.savedLayoutMode, PdfLayoutMode.bookView);
     });
 
+    test('fromJson roundtrip שומר bookViewNoCover', () {
+      final tab = _tab();
+      tab.savedLayoutMode = PdfLayoutMode.bookViewNoCover;
+      final restored = PdfBookTab.fromJson(tab.toJson());
+      expect(restored.savedLayoutMode, PdfLayoutMode.bookViewNoCover);
+    });
+
     test('fromJson ללא savedLayoutMode → savedLayoutMode=null', () {
       final tab = _tab();
       final restored = PdfBookTab.fromJson(tab.toJson());
