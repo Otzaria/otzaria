@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
@@ -473,7 +474,7 @@ class TextSettingsTab extends StatelessWidget {
           },
         ),
         SettingsActionTile.switchTile(
-          icon: FluentIcons.text_more_24_regular,
+          icon: OtzariaIcons.alef_with_flavors_24_regular,
           title: 'הצגת טעמי המקרא',
           subtitle: state.showTeamim
               ? 'המקרא יוצג עם טעמים'

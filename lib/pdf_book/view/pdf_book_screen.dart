@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
@@ -3475,7 +3476,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                         ? pdfBookNavigationTourTargetKey
                         : null,
                     tooltip: 'חיפוש וניווט',
-                    icon: FluentIcons.navigation_24_regular,
+                    icon: widget.tab.showLeftPane.value
+                        ? OtzariaIcons.text_continuous_24_filled
+                        : OtzariaIcons.text_continuous_24_regular,
                     compact: context.read<SettingsBloc>().state.compactMenuMode,
                     onPressed: () {
                       _setLeftPaneVisibility(!widget.tab.showLeftPane.value);
@@ -3872,8 +3875,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             controller: _leftPaneTabController!,
             tabs: const [
               (
-                icon: FluentIcons.navigation_24_regular,
-                iconFilled: FluentIcons.navigation_24_filled,
+                icon: OtzariaIcons.list_24_regular,
+                iconFilled: OtzariaIcons.list_24_filled,
                 label: 'ניווט',
               ),
               (
@@ -4286,7 +4289,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           widget.tab.book,
           widget.tab.pdfViewerController,
         ),
-        icon: FluentIcons.document_text_24_regular,
+        icon: OtzariaIcons.document_column_24_regular,
         tooltip: 'פתח ספר במהדורת טקסט',
         onPressed: () => _handleTextButtonPress(context),
       ),
@@ -4309,7 +4312,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             return _buildLayoutModeDropdown(context, state);
           },
         ),
-        icon: FluentIcons.book_open_24_regular,
+        icon: OtzariaIcons.book_open_small_24_regular,
         tooltip: 'מצב תצוגה',
         onPressed: null,
       ),
@@ -4765,7 +4768,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       builder: (context, snapshot) => snapshot.hasData
           ? BarButton.icon(
               tooltip: 'פתח ספר במהדורת טקסט',
-              icon: FluentIcons.document_text_24_regular,
+              icon: OtzariaIcons.document_column_24_regular,
               compact: isCompact,
               onPressed: () async {
                 final currentPage = controller.isReady
@@ -4803,16 +4806,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   Widget _buildLayoutModeDropdown(BuildContext context, PdfBookLoaded state) {
     final isBookViewMode = state.layoutMode.isBookView;
     final iconData = isBookViewMode
-        ? FluentIcons.book_open_24_regular
+        ? OtzariaIcons.book_open_small_24_regular
         : FluentIcons.book_24_regular;
 
     return AppPopupMenuButton<PdfLayoutMode>(
       tooltip: 'בחר מצב תצוגה',
       iconData: iconData,
-      icon: Transform.scale(
-        scaleX: isBookViewMode ? 1.0 : -1.0,
-        child: Icon(iconData),
-      ),
+      icon: isBookViewMode
+          ? Icon(iconData)
+          : Transform.scale(scaleX: -1.0, child: Icon(iconData)),
       position: PopupMenuPosition.under,
       onSelected: (selectedMode) {
         // בחירת "תצוגת ספר" כשכבר בתצוגת ספר משמרת את כיוון הזוגות
@@ -4845,10 +4847,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             value: value,
             child: Row(
               children: [
-                Transform.scale(
-                  scaleX: value == PdfLayoutMode.regularView ? -1.0 : 1.0,
-                  child: Icon(icon, color: isSelected ? primaryColor : null),
-                ),
+                value == PdfLayoutMode.bookView
+                    ? Icon(icon, color: isSelected ? primaryColor : null)
+                    : Transform.scale(
+                        scaleX: -1.0,
+                        child: Icon(
+                          icon,
+                          color: isSelected ? primaryColor : null,
+                        ),
+                      ),
                 const SizedBox(width: 12),
                 Text(text, style: style),
                 if (isSelected) ...[
@@ -4874,7 +4881,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           buildItem(
             value: PdfLayoutMode.bookView,
             text: 'תצוגת ספר',
-            icon: FluentIcons.book_open_24_regular,
+            icon: OtzariaIcons.book_open_small_24_regular,
             isSelected: isBookViewMode,
           ),
         ];
