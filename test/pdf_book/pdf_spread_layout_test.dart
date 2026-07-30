@@ -25,6 +25,15 @@ void main() {
       expect(pdfSpreadStartPage(5), 4);
       expect(pdfSpreadStartPage(11), 10);
     });
+
+    test('ללא עמוד שער — הזוגות הם (1,2), (3,4)', () {
+      expect(pdfSpreadStartPage(1, coverPage: false), 1);
+      expect(pdfSpreadStartPage(2, coverPage: false), 1);
+      expect(pdfSpreadStartPage(3, coverPage: false), 3);
+      expect(pdfSpreadStartPage(4, coverPage: false), 3);
+      expect(pdfSpreadStartPage(10, coverPage: false), 9);
+      expect(pdfSpreadStartPage(0, coverPage: false), 1);
+    });
   });
 
   group('pdfNextSpreadFocusPage', () {
@@ -47,6 +56,13 @@ void main() {
     test('זוג אחרון בעל עמוד יחיד עדיין נגיש', () {
       expect(pdfNextSpreadFocusPage(8, 10), 10);
     });
+
+    test('ללא עמוד שער — מהזוג (1,2) לעמוד 3', () {
+      expect(pdfNextSpreadFocusPage(1, 10, coverPage: false), 3);
+      expect(pdfNextSpreadFocusPage(2, 10, coverPage: false), 3);
+      expect(pdfNextSpreadFocusPage(4, 10, coverPage: false), 5);
+      expect(pdfNextSpreadFocusPage(9, 10, coverPage: false), isNull);
+    });
   });
 
   group('pdfPreviousSpreadFocusPage', () {
@@ -64,6 +80,13 @@ void main() {
     test('מהכריכה — null', () {
       expect(pdfPreviousSpreadFocusPage(1), isNull);
       expect(pdfPreviousSpreadFocusPage(0), isNull);
+    });
+
+    test('ללא עמוד שער — מהזוג הראשון null, מזוג פנימי לעמוד השמאלי הקודם', () {
+      expect(pdfPreviousSpreadFocusPage(1, coverPage: false), isNull);
+      expect(pdfPreviousSpreadFocusPage(2, coverPage: false), isNull);
+      expect(pdfPreviousSpreadFocusPage(3, coverPage: false), 2);
+      expect(pdfPreviousSpreadFocusPage(6, coverPage: false), 4);
     });
   });
 
@@ -123,6 +146,29 @@ void main() {
           reason: 'spread for page $page should span 2 pages',
         );
       }
+    });
+
+    test('ללא עמוד שער — עמודים 1 ו-2 הם ספירייד אחד', () {
+      for (final page in [1, 2]) {
+        expect(pdfSpreadPageRange(page, bookView: true, coverPage: false), (
+          startPage: 1,
+          endPageExclusive: 3,
+        ));
+      }
+      expect(pdfSpreadPageRange(4, bookView: true, coverPage: false), (
+        startPage: 3,
+        endPageExclusive: 5,
+      ));
+    });
+
+    test('ללא עמוד שער — עמוד אחרון אי-זוגי נחתך לגבול המסמך', () {
+      final range = pdfSpreadPageRange(
+        9,
+        bookView: true,
+        coverPage: false,
+        totalPages: 9,
+      );
+      expect(range, (startPage: 9, endPageExclusive: 10));
     });
   });
 

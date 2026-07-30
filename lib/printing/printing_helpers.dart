@@ -1,4 +1,5 @@
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/pdf_book/utils/pdf_spread_layout.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -52,16 +53,15 @@ bool hasPdfPageRange({required int startPage, required int? endPage}) {
 /// מחזיר את עמוד-ההתחלה לטווח ההדפסה כברירת מחדל.
 ///
 /// בתצוגה רגילה (או על העמוד הראשון) — מחזיר את העמוד הנוכחי כפי שהוא.
-/// בתצוגת ספר (שני עמודים זה לצד זה), נדרש לסנכרן לתחילת ה-spread:
-/// אם currentPage זוגי — זו התחלת ה-spread, אחרת מקדימים בעמוד אחד.
+/// בתצוגת ספר (שני עמודים זה לצד זה), נדרש לסנכרן לתחילת ה-spread.
 int resolveInitialPdfPrintPage({
   required int currentPage,
   required PdfLayoutMode layoutMode,
 }) {
-  if (layoutMode != PdfLayoutMode.bookView || currentPage <= 1) {
+  if (!layoutMode.isBookView || currentPage <= 1) {
     return currentPage;
   }
-  return currentPage.isEven ? currentPage : currentPage - 1;
+  return pdfSpreadStartPage(currentPage, coverPage: layoutMode.hasCoverPage);
 }
 
 /// מחזיר את האינדקס של הכותרת האחרונה ברשימה ששורת ההתחלה שלה <= [lineIndex].

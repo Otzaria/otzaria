@@ -45,6 +45,23 @@ void main() {
         1,
       );
     });
+
+    test('במצב ספר ללא עמוד שער — מנרמלת לתחילת זוג אי-זוגי', () {
+      expect(
+        resolveInitialPdfPrintPage(
+          currentPage: 4,
+          layoutMode: PdfLayoutMode.bookViewNoCover,
+        ),
+        3,
+      );
+      expect(
+        resolveInitialPdfPrintPage(
+          currentPage: 5,
+          layoutMode: PdfLayoutMode.bookViewNoCover,
+        ),
+        5,
+      );
+    });
   });
 
   group('shouldShowOpenPdfCommentaryPaneEntry', () {
