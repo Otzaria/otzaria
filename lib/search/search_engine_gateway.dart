@@ -140,12 +140,75 @@ class SearchEngineRequest {
   }
 }
 
+/// בקשת חיפוש בציר האחזור הסמנטי.
+///
+/// [lexicalMode] קובע כיצד Tantivy מפרש את השאילתה הלקסיקלית, ואילו
+/// [retrievalMode] קובע אם המועמדים מגיעים מ-Tantivy, מהמודל, או משניהם.
+/// ההפרדה מ-[SearchEngineRequest] מכוונת: לחיפוש המתקדם אין כרגע ייצוג
+/// בחוזה הסמנטי של המנוע.
+class SemanticSearchRequest {
+  final String query;
+  final List<String> facets;
+  final int limit;
+  final int offset;
+  final SemanticLexicalMode lexicalMode;
+  final int fuzzyMaxDistance;
+  final SemanticRetrievalMode retrievalMode;
+  final SemanticGroupingMode? grouping;
+  final bool matchNikud;
+  final bool matchTaamim;
+
+  const SemanticSearchRequest({
+    required this.query,
+    required this.facets,
+    this.limit = 0,
+    this.offset = 0,
+    this.lexicalMode = SemanticLexicalMode.exact,
+    this.fuzzyMaxDistance = 0,
+    this.retrievalMode = SemanticRetrievalMode.hybrid,
+    this.grouping,
+    this.matchNikud = false,
+    this.matchTaamim = false,
+  });
+
+  /// מנוע החיפוש תומך במרחק עריכה 0–2 בלבד.
+  int get effectiveFuzzyMaxDistance => fuzzyMaxDistance.clamp(0, 2);
+}
+
+/// חוזה נפרד לפעולות הסמנטיות שמנועי בדיקה לקסיקליים אינם חייבים לממש.
+abstract interface class SemanticSearchEngineOperations {
+  /// מבצע חיפוש לפי ציר האחזור וציר הפירוש הלקסיקלי שבבקשה.
+  Future<SemanticSearchResponse> searchSemantic(SemanticSearchRequest request);
+
+  /// מגדיר את נתיבי המודל והאינדקס עבור ה-session הסמנטי.
+  Future<SemanticStatus> configureSemantic(SemanticConfigInput config);
+
+  /// סוגר את ה-session הסמנטי הפעיל.
+  Future<void> disableSemantic();
+
+  /// מחזיר תמונת מצב של ה-backend והאינדקס הסמנטיים.
+  Future<SemanticStatus> semanticStatus();
+
+  /// משווה בין ספרי האינדקס הסמנטי לבין manifest המקורות שלו.
+  Future<SemanticIndexDiff> semanticIndexDiff();
+
+  /// מוסיף או מעדכן ספרים באינדקס הסמנטי.
+  Future<SemanticIndexingSummary> semanticIndexBooks(
+    List<SemanticBookInput> books,
+  );
+
+  /// מסיר מהאינדקס הסמנטי את הספרים המזוהים במפתחות המקור.
+  Future<SemanticRemoveResult> removeSemanticBooks(List<String> sourceBookKeys);
+
+  /// מאפס את כל תוכן האינדקס הסמנטי.
+  Future<SemanticResetResult> resetSemanticIndex();
+}
+
 /// ממשק קטן וניתן לבדיקה מעל ה-API של `search_engine`.
 abstract class SearchEngineOperations {
   Future<List<SearchResult>> searchExact(SearchEngineRequest request);
   Future<List<SearchResult>> searchAdvanced(SearchEngineRequest request);
   Future<List<SearchResult>> searchFuzzy(SearchEngineRequest request);
-  Future<List<SearchResult>> searchHybrid(SearchEngineRequest request) async => searchExact(request);
 
   Future<SearchPageResult> searchAndCountExact(SearchEngineRequest request);
   Future<SearchPageResult> searchAndCountAdvanced(SearchEngineRequest request);
@@ -230,7 +293,8 @@ abstract class SearchEngineOperations {
   }
 }
 
-class RustSearchEngineOperations implements SearchEngineOperations {
+class RustSearchEngineOperations
+    implements SearchEngineOperations, SemanticSearchEngineOperations {
   final SearchEngine _engine;
 
   const RustSearchEngineOperations(this._engine);
@@ -333,8 +397,52 @@ class RustSearchEngineOperations implements SearchEngineOperations {
   }
 
   @override
-  Future<List<SearchResult>> searchHybrid(SearchEngineRequest request) {
-    return searchExact(request);
+  Future<SemanticSearchResponse> searchSemantic(SemanticSearchRequest request) {
+    return _engine.searchSemantic(
+      query: request.query,
+      facets: request.facets,
+      limit: request.limit,
+      offset: request.offset,
+      lexicalMode: request.lexicalMode,
+      fuzzyMaxDistance: request.effectiveFuzzyMaxDistance,
+      retrievalMode: request.retrievalMode,
+      grouping: request.grouping,
+      matchNikud: request.matchNikud,
+      matchTaamim: request.matchTaamim,
+    );
+  }
+
+  @override
+  Future<SemanticStatus> configureSemantic(SemanticConfigInput config) {
+    return _engine.configureSemantic(config: config);
+  }
+
+  @override
+  Future<void> disableSemantic() => _engine.disableSemantic();
+
+  @override
+  Future<SemanticStatus> semanticStatus() => _engine.semanticStatus();
+
+  @override
+  Future<SemanticIndexDiff> semanticIndexDiff() => _engine.semanticIndexDiff();
+
+  @override
+  Future<SemanticIndexingSummary> semanticIndexBooks(
+    List<SemanticBookInput> books,
+  ) {
+    return _engine.semanticIndexBooks(books: books);
+  }
+
+  @override
+  Future<SemanticRemoveResult> removeSemanticBooks(
+    List<String> sourceBookKeys,
+  ) {
+    return _engine.removeSemanticBooks(sourceBookKeys: sourceBookKeys);
+  }
+
+  @override
+  Future<SemanticResetResult> resetSemanticIndex() {
+    return _engine.resetSemanticIndex();
   }
 
   @override
@@ -735,6 +843,54 @@ class RustSearchEngineOperations implements SearchEngineOperations {
 
 class SearchEngineGateway {
   const SearchEngineGateway();
+
+  Future<SemanticSearchResponse> searchSemantic(
+    SemanticSearchEngineOperations engine,
+    SemanticSearchRequest request,
+  ) {
+    return engine.searchSemantic(request);
+  }
+
+  Future<SemanticStatus> configureSemantic(
+    SemanticSearchEngineOperations engine,
+    SemanticConfigInput config,
+  ) {
+    return engine.configureSemantic(config);
+  }
+
+  Future<void> disableSemantic(SemanticSearchEngineOperations engine) {
+    return engine.disableSemantic();
+  }
+
+  Future<SemanticStatus> semanticStatus(SemanticSearchEngineOperations engine) {
+    return engine.semanticStatus();
+  }
+
+  Future<SemanticIndexDiff> semanticIndexDiff(
+    SemanticSearchEngineOperations engine,
+  ) {
+    return engine.semanticIndexDiff();
+  }
+
+  Future<SemanticIndexingSummary> semanticIndexBooks(
+    SemanticSearchEngineOperations engine,
+    List<SemanticBookInput> books,
+  ) {
+    return engine.semanticIndexBooks(books);
+  }
+
+  Future<SemanticRemoveResult> removeSemanticBooks(
+    SemanticSearchEngineOperations engine,
+    List<String> sourceBookKeys,
+  ) {
+    return engine.removeSemanticBooks(sourceBookKeys);
+  }
+
+  Future<SemanticResetResult> resetSemanticIndex(
+    SemanticSearchEngineOperations engine,
+  ) {
+    return engine.resetSemanticIndex();
+  }
 
   Future<List<SearchResult>> search(
     SearchEngineOperations engine,

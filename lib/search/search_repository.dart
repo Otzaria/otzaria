@@ -35,6 +35,63 @@ class SearchRepository {
     );
   }
 
+  Future<SemanticSearchEngineOperations> _semanticEngine() async {
+    final engine = await _engine();
+    if (engine case final SemanticSearchEngineOperations semanticEngine) {
+      return semanticEngine;
+    }
+    throw StateError('מנוע החיפוש שסופק אינו תומך בפעולות סמנטיות');
+  }
+
+  /// מבצע חיפוש לקסיקלי, היברידי או סמנטי דרך חוזה המנוע המאוחד.
+  Future<SemanticSearchResponse> searchSemantic(
+    SemanticSearchRequest request,
+  ) async {
+    return _gateway.searchSemantic(await _semanticEngine(), request);
+  }
+
+  /// פותח session סמנטי. המודל נטען עצלנית בתחילת האינדוקס.
+  Future<SemanticStatus> configureSemantic(SemanticConfigInput config) async {
+    return _gateway.configureSemantic(await _semanticEngine(), config);
+  }
+
+  /// סוגר את ה-session הסמנטי ומאפשר להגדיר מודל או שורש אחרים.
+  Future<void> disableSemantic() async {
+    return _gateway.disableSemantic(await _semanticEngine());
+  }
+
+  /// מחזיר את זמינות ה-backend, מצב המודל ונתוני האינדקס הסמנטי.
+  Future<SemanticStatus> semanticStatus() async {
+    return _gateway.semanticStatus(await _semanticEngine());
+  }
+
+  /// מחשב אילו ספרים נוספו, השתנו או הוסרו מאז האינדוקס האחרון.
+  Future<SemanticIndexDiff> semanticIndexDiff() async {
+    return _gateway.semanticIndexDiff(await _semanticEngine());
+  }
+
+  /// מוסיף או מעדכן ספרים באינדקס הסמנטי.
+  Future<SemanticIndexingSummary> semanticIndexBooks(
+    List<SemanticBookInput> books,
+  ) async {
+    return _gateway.semanticIndexBooks(await _semanticEngine(), books);
+  }
+
+  /// מסיר ספרים מהאינדקס הסמנטי לפי מפתחות המקור שלהם.
+  Future<SemanticRemoveResult> removeSemanticBooks(
+    List<String> sourceBookKeys,
+  ) async {
+    return _gateway.removeSemanticBooks(
+      await _semanticEngine(),
+      sourceBookKeys,
+    );
+  }
+
+  /// מוחק את כל הווקטורים וה-manifest של האינדקס הסמנטי.
+  Future<SemanticResetResult> resetSemanticIndex() async {
+    return _gateway.resetSemanticIndex(await _semanticEngine());
+  }
+
   Future<List<SearchResult>> searchTexts(
     String query,
     List<String> facets,
