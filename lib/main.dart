@@ -83,6 +83,7 @@ import 'package:otzaria/plugins/database/plugin_database_bootstrap.dart';
 import 'package:logging/logging.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/widgets/misc/app_cursors.dart';
 import 'package:otzaria/widgets/misc/restart_widget.dart';
 import 'package:otzaria/core/splash_screen.dart';
 import 'package:otzaria/plugins/services/plugin_crash_guard.dart';
@@ -277,6 +278,8 @@ void main(List<String> args) async {
   // מנטרל את ההבהוב המובנה (הפרטי ב-EditableTextState) כדי ש-RtlTextField
   // ינהל אותו בעצמו. ראו "ניהול הבהוב הסמן" ב-rtl_text_field.dart.
   EditableText.debugDeterministicCursor = true;
+
+  unawaited(AppCursors.ensureInitialized());
 
   await _initializeDataRootForEarlyLogging();
   await _initializeLogMetadata();

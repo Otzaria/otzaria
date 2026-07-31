@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/widgets/misc/app_cursors.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -16,7 +17,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 
-class PluginSidePanel extends StatelessWidget {
+class PluginSidePanel extends StatefulWidget {
   final Function(InstalledPlugin)? onPluginSelected;
   final bool showDevTools;
   final VoidCallback? onClose;
@@ -27,6 +28,20 @@ class PluginSidePanel extends StatelessWidget {
     this.showDevTools = kDebugMode,
     this.onClose,
   });
+
+  @override
+  State<PluginSidePanel> createState() => _PluginSidePanelState();
+}
+
+class _PluginSidePanelState extends State<PluginSidePanel> {
+  /// גרירת סידור פעילה — משמש להצגת סמן אחיזה על כל הרשימה לאורך הגרירה.
+  final ValueNotifier<bool> _reorderDragActive = ValueNotifier(false);
+
+  @override
+  void dispose() {
+    _reorderDragActive.dispose();
+    super.dispose();
+  }
 
   Future<void> _installPlugin(BuildContext context) async {
     final verified = await verifySaferModePassword(context);
@@ -87,11 +102,11 @@ class PluginSidePanel extends StatelessWidget {
           padding: const EdgeInsets.all(16.0),
           child: Row(
             children: [
-              if (onClose != null)
+              if (widget.onClose != null)
                 IconButton(
                   icon: Icon(FluentIcons.dismiss_24_regular),
                   tooltip: 'סגור',
-                  onPressed: onClose,
+                  onPressed: widget.onClose,
                   iconSize: 20,
                 ),
               const Expanded(
@@ -105,19 +120,19 @@ class PluginSidePanel extends StatelessWidget {
                 tooltip: 'התקן תוסף חדש',
                 onPressed: () => _installPlugin(context),
               ),
-              if (showDevTools)
+              if (widget.showDevTools)
                 IconButton(
                   icon: Icon(FluentIcons.folder_add_24_regular),
                   tooltip: 'טען תיקיית תוסף',
                   onPressed: () => _loadDevPlugin(context),
                 ),
-              if (showDevTools)
+              if (widget.showDevTools)
                 IconButton(
                   icon: Icon(FluentIcons.globe_add_24_regular),
                   tooltip: 'טען תוסף מ-localhost',
                   onPressed: () => _loadLocalhostPlugin(context),
                 ),
-              if (showDevTools)
+              if (widget.showDevTools)
                 IconButton(
                   icon: Icon(FluentIcons.arrow_sync_24_regular),
                   tooltip: 'רענן תוספים',
@@ -161,26 +176,34 @@ class PluginSidePanel extends StatelessWidget {
                     ),
                   );
                 }
-                return ListView.builder(
-                  itemCount: plugins.length,
-                  itemBuilder: (context, index) {
-                    final plugin = plugins[index];
-                    return _DraggablePluginRow(
-                      key: ValueKey(plugin.pluginId),
-                      plugin: plugin,
-                      onAcceptSource: (sourceId) =>
-                          context.read<PluginSystemBloc>().add(
-                            ReorderPluginsRequested(
-                              reorderedPluginIds(
-                                state.plugins,
-                                sourceId,
-                                plugin.pluginId,
+                return ValueListenableBuilder<bool>(
+                  valueListenable: _reorderDragActive,
+                  builder: (context, dragging, child) => MouseRegion(
+                    cursor: dragging ? AppCursors.grabbing : MouseCursor.defer,
+                    child: child,
+                  ),
+                  child: ListView.builder(
+                    itemCount: plugins.length,
+                    itemBuilder: (context, index) {
+                      final plugin = plugins[index];
+                      return _DraggablePluginRow(
+                        key: ValueKey(plugin.pluginId),
+                        plugin: plugin,
+                        reorderDragActive: _reorderDragActive,
+                        onAcceptSource: (sourceId) =>
+                            context.read<PluginSystemBloc>().add(
+                              ReorderPluginsRequested(
+                                reorderedPluginIds(
+                                  state.plugins,
+                                  sourceId,
+                                  plugin.pluginId,
+                                ),
                               ),
                             ),
-                          ),
-                      onPluginSelected: onPluginSelected,
-                    );
-                  },
+                        onPluginSelected: widget.onPluginSelected,
+                      );
+                    },
+                  ),
                 );
               }
               return const SizedBox.shrink();
@@ -196,12 +219,14 @@ class PluginSidePanel extends StatelessWidget {
 /// של תוסף אחר, וה-handle בצד הוא [Draggable] שמתחיל גרירה.
 class _DraggablePluginRow extends StatelessWidget {
   final InstalledPlugin plugin;
+  final ValueNotifier<bool> reorderDragActive;
   final ValueChanged<String> onAcceptSource;
   final Function(InstalledPlugin)? onPluginSelected;
 
   const _DraggablePluginRow({
     super.key,
     required this.plugin,
+    required this.reorderDragActive,
     required this.onAcceptSource,
     required this.onPluginSelected,
   });
@@ -214,18 +239,36 @@ class _DraggablePluginRow extends StatelessWidget {
       builder: (context, candidateData, rejectedData) {
         final isHovering = candidateData.isNotEmpty;
         final cs = Theme.of(context).colorScheme;
-        return Container(
-          decoration: isHovering
-              ? BoxDecoration(
-                  color: AppSurfaces.dragTargetHighlight(cs),
-                  border: Border(top: BorderSide(color: cs.primary, width: 2)),
-                )
-              : null,
-          child: Material(
-            color: Colors.transparent,
-            child: _PluginListTile(
-              plugin: plugin,
-              onPluginSelected: onPluginSelected,
+        return ValueListenableBuilder<bool>(
+          valueListenable: reorderDragActive,
+          // שכבת סמן מעל השורה בזמן גרירה — ה-InkWell של השורה מנצח כל
+          // MouseRegion אב, ולכן הסמן חייב לשבת מעליו. ה-DragTarget נשאר
+          // אב של השכבה וממשיך לזהות שחרור.
+          builder: (context, dragging, child) => Stack(
+            children: [
+              child!,
+              if (dragging)
+                Positioned.fill(
+                  child: MouseRegion(cursor: AppCursors.grabbing),
+                ),
+            ],
+          ),
+          child: Container(
+            decoration: isHovering
+                ? BoxDecoration(
+                    color: AppSurfaces.dragTargetHighlight(cs),
+                    border: Border(
+                      top: BorderSide(color: cs.primary, width: 2),
+                    ),
+                  )
+                : null,
+            child: Material(
+              color: Colors.transparent,
+              child: _PluginListTile(
+                plugin: plugin,
+                reorderDragActive: reorderDragActive,
+                onPluginSelected: onPluginSelected,
+              ),
             ),
           ),
         );
@@ -236,10 +279,12 @@ class _DraggablePluginRow extends StatelessWidget {
 
 class _PluginListTile extends StatelessWidget {
   final InstalledPlugin plugin;
+  final ValueNotifier<bool> reorderDragActive;
   final Function(InstalledPlugin)? onPluginSelected;
 
   const _PluginListTile({
     required this.plugin,
+    required this.reorderDragActive,
     required this.onPluginSelected,
   });
 
@@ -291,8 +336,10 @@ class _PluginListTile extends StatelessWidget {
             data: plugin.pluginId,
             dragAnchorStrategy: pointerDragAnchorStrategy,
             feedback: _DragFeedback(plugin: plugin),
+            onDragStarted: () => reorderDragActive.value = true,
+            onDragEnd: (_) => reorderDragActive.value = false,
             child: MouseRegion(
-              cursor: SystemMouseCursors.grab,
+              cursor: AppCursors.grab,
               child: Tooltip(
                 message: 'גרור ושחרר לסידור מחדש',
                 child: Padding(

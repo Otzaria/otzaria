@@ -36,6 +36,7 @@ import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart' as pdf_events;
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/pdf_book/utils/pdf_spread_layout.dart';
 import 'package:otzaria/pdf_book/utils/trackpad_axis_lock.dart';
+import 'package:otzaria/widgets/misc/app_cursors.dart';
 import 'package:otzaria/pdf_book/view/page_turn_geometry.dart';
 import 'package:otzaria/pdf_book/view/pdf_page_number_display.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentary_panel.dart';
@@ -1965,27 +1966,21 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           // את סמן הגרירה עד לשחרור.
           if (_isInteractivePageTurn)
             Positioned.fill(
-              child: MouseRegion(cursor: _dragZoneActiveCursor, opaque: false),
+              child: MouseRegion(
+                cursor: AppCursors.grabbing,
+                opaque: false,
+              ),
             ),
         ],
       ),
     );
   }
 
-  // grab/grabbing לא ממומשים במנוע Windows ונופלים בשקט ל-arrow
-  // (flutter#99323) — שם משתמשים ביד ה-native של הפלטפורמה (IDC_HAND).
-  static final MouseCursor _dragZoneCursor = Platform.isWindows
-      ? SystemMouseCursors.click
-      : SystemMouseCursors.grab;
-  static final MouseCursor _dragZoneActiveCursor = Platform.isWindows
-      ? SystemMouseCursors.click
-      : SystemMouseCursors.grabbing;
-
   /// רצועת אחיזה שקופה בקצה החיצוני של עמוד — גרירה אופקית ממנה מדפדפת;
   /// שאר המחוות (בחירת טקסט, פאן, קליק) ממשיכות לעבור אל ה-viewer שמתחת.
   Widget _buildPageTurnDragZone(_BookPageTurnDirection direction) {
     return MouseRegion(
-      cursor: _isInteractivePageTurn ? _dragZoneActiveCursor : _dragZoneCursor,
+      cursor: _isInteractivePageTurn ? AppCursors.grabbing : AppCursors.grab,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onHorizontalDragStart: (_) => _onPageTurnDragStart(direction),
