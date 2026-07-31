@@ -36,6 +36,7 @@ import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart' as pdf_events;
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/pdf_book/utils/pdf_spread_layout.dart';
 import 'package:otzaria/pdf_book/utils/trackpad_axis_lock.dart';
+import 'package:otzaria/pdf_book/view/page_turn_geometry.dart';
 import 'package:otzaria/pdf_book/view/pdf_page_number_display.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentary_panel.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
@@ -1361,7 +1362,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         ),
         _buildBookViewViewportMask(size),
         _buildBookViewStackDecoration(context, size),
-        _buildBookViewTurnButtons(context, size),
       ],
       loadingBannerBuilder: (context, bytesDownloaded, totalBytes) => Center(
         child: CircularProgressIndicator(
@@ -1894,7 +1894,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final horizontalPadding = min(28.0, viewportSize.width * 0.018);
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Positioned.fill(
+    return SizedBox.expand(
       child: Stack(
         children: [
           if (canGoPrevious)
@@ -1995,8 +1995,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                     progress: progress,
                     direction: transition.direction,
                     pageBackColor: colorScheme.surface,
-                    pageHighlightColor: colorScheme.surfaceContainerHighest
-                        .withValues(alpha: 0.94),
                     shadowColor: colorScheme.shadow,
                     edgeColor: colorScheme.outlineVariant,
                   ),
@@ -3715,6 +3713,21 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                   padding: readerContentPadding,
                   child: _buildPageTurnOverlay(context),
                 ),
+                // הלחצנים מעל שכבת האנימציה ומחוץ ל-boundary המצולם — כדי
+                // שיישארו גלויים ולחיצים גם בזמן דפדוף.
+                Padding(
+                  padding: readerContentPadding,
+                  child: ListenableBuilder(
+                    listenable: widget.tab.pdfViewerController,
+                    builder: (context, _) => LayoutBuilder(
+                      builder: (context, constraints) =>
+                          _buildBookViewTurnButtons(
+                            context,
+                            constraints.biggest,
+                          ),
+                    ),
+                  ),
+                ),
                 ValueListenableBuilder<List<PdfOutlineNode>?>(
                   valueListenable: widget.tab.outline,
                   builder: (context, outline, _) => RepaintBoundary(
@@ -5228,151 +5241,49 @@ class _BookPageTurnBackgroundPainter extends CustomPainter {
   /// Returns the portion of the spread rect that the animation has already
   /// swept past (where the new page should be visible).
   Path? _computeRevealedPath() {
-    if (progress <= 0.0 || spreadRect.isEmpty) {
+    final edgeX = _computeRevealedEdgeX();
+    if (edgeX == null) {
       return null;
     }
 
-    final viewportRect = Offset.zero & spreadRect.size;
-    final turnLeftPage = direction == _BookPageTurnDirection.next;
-    final isFrontFace = progress <= 0.5;
-    final pageWidth = viewportRect.width / 2;
-    final angle = progress * pi;
-    final projectedWidth = max(8.0, pageWidth * cos(angle).abs());
-    final pageRect = _turningPageDestinationRect(
-      spineX: viewportRect.center.dx,
-      projectedWidth: projectedWidth,
-      height: viewportRect.height,
-      turnLeftPage: turnLeftPage,
-      isFrontFace: isFrontFace,
-    );
-
-    if (pageRect.width <= 1) {
-      return Path()..addRect(spreadRect);
-    }
-
-    final path = Path();
-    final revealedEdgeX = _computeLocalRevealedEdgeX(pageRect, isFrontFace);
-    if (direction == _BookPageTurnDirection.next) {
-      final revealedWidth = revealedEdgeX.clamp(0.0, viewportRect.width);
-      if (revealedWidth > 0) {
-        path.addRect(
-          Rect.fromLTWH(
+    final revealedRect = direction == _BookPageTurnDirection.next
+        ? Rect.fromLTRB(
             spreadRect.left,
             spreadRect.top,
-            revealedWidth,
-            spreadRect.height,
-          ),
-        );
-      }
-    } else {
-      final revealedLeft = revealedEdgeX.clamp(0.0, viewportRect.width);
-      final revealedWidth = viewportRect.width - revealedLeft;
-      if (revealedWidth > 0) {
-        path.addRect(
-          Rect.fromLTWH(
-            spreadRect.left + revealedLeft,
+            edgeX,
+            spreadRect.bottom,
+          )
+        : Rect.fromLTRB(
+            edgeX,
             spreadRect.top,
-            revealedWidth,
-            spreadRect.height,
-          ),
-        );
-      }
+            spreadRect.right,
+            spreadRect.bottom,
+          );
+
+    if (revealedRect.width <= 0) {
+      return null;
     }
-
-    const stripCount = 36;
-    final spineX = viewportRect.center.dx;
-    final pageToLeft = pageRect.right <= spineX;
-    final sign = pageToLeft ? -1.0 : 1.0;
-    final depthLift = 10.0 * sin(angle).clamp(0.0, 1.0);
-
-    for (var i = 0; i < stripCount; i++) {
-      final u0 = i / stripCount;
-      final u1 = (i + 1) / stripCount;
-      final x0 = spineX + sign * pageRect.width * u0;
-      final x1 = spineX + sign * pageRect.width * u1;
-      final left = min(x0, x1);
-      final width = (x1 - x0).abs() + 0.5;
-      final mid = (u0 + u1) / 2;
-      final topInset = depthLift * mid;
-      final bottomInset = depthLift * (1 - mid) * 0.35;
-      final stripTop = topInset;
-      final stripBottom = viewportRect.height - bottomInset;
-      final stripLeft = spreadRect.left + left;
-      final stripWidth = min(width, spreadRect.right - stripLeft);
-
-      if (stripWidth <= 0) {
-        continue;
-      }
-
-      if (stripTop > 0) {
-        path.addRect(
-          Rect.fromLTWH(
-            stripLeft,
-            spreadRect.top,
-            stripWidth,
-            stripTop,
-          ),
-        );
-      }
-
-      if (stripBottom < viewportRect.height) {
-        path.addRect(
-          Rect.fromLTWH(
-            stripLeft,
-            spreadRect.top + stripBottom,
-            stripWidth,
-            viewportRect.height - stripBottom,
-          ),
-        );
-      }
-    }
-
-    return path;
+    return Path()..addRect(revealedRect);
   }
 
+  /// הקצה האחורי של היריעה המתהפכת — הגבול בין העמוד שנחשף לדף שבאוויר.
   double? _computeRevealedEdgeX() {
     if (progress <= 0.0 || spreadRect.isEmpty) {
       return null;
     }
 
-    final viewportRect = Offset.zero & spreadRect.size;
-    final pageWidth = viewportRect.width / 2;
-    final projectedWidth = max(8.0, pageWidth * cos(progress * pi).abs());
-    final pageRect = _turningPageDestinationRect(
-      spineX: viewportRect.center.dx,
-      projectedWidth: projectedWidth,
-      height: viewportRect.height,
-      turnLeftPage: direction == _BookPageTurnDirection.next,
-      isFrontFace: progress <= 0.5,
+    final turnLeftPage = direction == _BookPageTurnDirection.next;
+    final geometry = PageTurnGeometry.compute(
+      spineX: spreadRect.width / 2,
+      pageWidth: spreadRect.width / 2,
+      height: spreadRect.height,
+      progress: progress,
+      turnLeftPage: turnLeftPage,
     );
 
-    return spreadRect.left +
-        _computeLocalRevealedEdgeX(pageRect, progress <= 0.5);
-  }
-
-  double _computeLocalRevealedEdgeX(Rect pageRect, bool isFrontFace) {
-    if (direction == _BookPageTurnDirection.next) {
-      return isFrontFace ? pageRect.left : pageRect.right;
-    }
-    return isFrontFace ? pageRect.right : pageRect.left;
-  }
-
-  Rect _turningPageDestinationRect({
-    required double spineX,
-    required double projectedWidth,
-    required double height,
-    required bool turnLeftPage,
-    required bool isFrontFace,
-  }) {
-    if (turnLeftPage) {
-      return isFrontFace
-          ? Rect.fromLTWH(spineX - projectedWidth, 0, projectedWidth, height)
-          : Rect.fromLTWH(spineX, 0, projectedWidth, height);
-    }
-
-    return isFrontFace
-        ? Rect.fromLTWH(spineX, 0, projectedWidth, height)
-        : Rect.fromLTWH(spineX - projectedWidth, 0, projectedWidth, height);
+    return (spreadRect.left + geometry.trailingX(turnLeftPage))
+        .clamp(spreadRect.left, spreadRect.right)
+        .toDouble();
   }
 
   @override
@@ -5394,7 +5305,6 @@ class _BookPageTurnPainter extends CustomPainter {
   final double progress;
   final _BookPageTurnDirection direction;
   final Color pageBackColor;
-  final Color pageHighlightColor;
   final Color shadowColor;
   final Color edgeColor;
 
@@ -5406,7 +5316,6 @@ class _BookPageTurnPainter extends CustomPainter {
     required this.progress,
     required this.direction,
     required this.pageBackColor,
-    required this.pageHighlightColor,
     required this.shadowColor,
     required this.edgeColor,
   });
@@ -5422,232 +5331,156 @@ class _BookPageTurnPainter extends CustomPainter {
     }
 
     final viewportRect = Offset.zero & size;
-    final pageWidth = viewportRect.width / 2;
-    final angle = progress * pi;
-    final isFrontFace = progress <= 0.5;
-    final projectedWidth = max(8.0, pageWidth * cos(angle).abs());
-    final spineX = viewportRect.center.dx;
     final turnLeftPage = direction == _BookPageTurnDirection.next;
-    final shadeStrength = sin(angle).clamp(0.0, 1.0);
-
-    final pageRect = _turningPageDestinationRect(
-      spineX: spineX,
-      projectedWidth: projectedWidth,
+    final geometry = PageTurnGeometry.compute(
+      spineX: viewportRect.center.dx,
+      pageWidth: viewportRect.width / 2,
       height: viewportRect.height,
+      progress: progress,
       turnLeftPage: turnLeftPage,
-      isFrontFace: isFrontFace,
     );
+    final shadeStrength = geometry.shadeStrength;
 
-    if (pageRect.width <= 1) {
-      _paintSpineShadow(canvas, viewportRect, shadeStrength);
-      return;
-    }
-
-    _paintUnderPageShadow(
+    _paintSilhouetteShadows(
       canvas: canvas,
       viewportRect: viewportRect,
-      destinationRect: pageRect,
+      geometry: geometry,
       turnLeftPage: turnLeftPage,
-      isFrontFace: isFrontFace,
-      shadeStrength: shadeStrength,
     );
 
-    if (isFrontFace) {
-      _drawPageFace(
-        canvas: canvas,
-        viewportRect: viewportRect,
-        pageRect: pageRect,
-        turnLeftPage: turnLeftPage,
-        isFrontFace: isFrontFace,
-        shadeStrength: shadeStrength,
+    final hasTarget = targetSnapshot != null;
+    final backImage = targetSnapshot ?? snapshot;
+    Rect? backBounds;
+
+    // מהשדרה אל הקצה החופשי — כך הרצועות שכבר התקפלו נצבעות מעל אלה שמתחתן.
+    for (final strip in geometry.strips) {
+      if (strip.width <= 0.01) {
+        continue;
+      }
+      final destinationRect = Rect.fromLTWH(
+        strip.left,
+        strip.top,
+        strip.width + 0.5,
+        strip.height,
       );
-    } else {
-      _drawPageBack(
-        canvas: canvas,
-        sourceImage: targetSnapshot ?? snapshot,
-        useBackTint: targetSnapshot == null,
-        sampleOppositeHalf: targetSnapshot != null,
+      final sourceImage = strip.showsFront ? snapshot : backImage;
+      final sourceRect = _turningPageSourceStripRect(
+        image: sourceImage,
         viewportRect: viewportRect,
-        pageRect: pageRect,
         turnLeftPage: turnLeftPage,
-        shadeStrength: shadeStrength,
+        sampleOppositeHalf: !strip.showsFront && hasTarget,
+        u0: strip.u0,
+        u1: strip.u1,
       );
+
+      final paint = Paint();
+      if (!strip.showsFront) {
+        canvas.drawRect(destinationRect, Paint()..color = pageBackColor);
+        if (!hasTarget) {
+          paint.colorFilter = ColorFilter.mode(
+            pageBackColor.withValues(alpha: 0.30),
+            BlendMode.srcATop,
+          );
+        }
+        backBounds =
+            backBounds?.expandToInclude(destinationRect) ?? destinationRect;
+      }
+      canvas.drawImageRect(sourceImage, sourceRect, destinationRect, paint);
+
+      // הצללה לפי ההטיה: כהה יותר ככל שהרצועה קרובה לקו הקיפול.
+      final shadeAlpha = strip.showsFront
+          ? strip.tilt * (0.08 + 0.30 * strip.distance)
+          : strip.tilt * (0.05 + 0.22 * (1 - strip.distance));
+      if (shadeAlpha > 0.01) {
+        canvas.drawRect(
+          destinationRect,
+          Paint()..color = shadowColor.withValues(alpha: shadeAlpha),
+        );
+      }
     }
 
-    _paintPageFaceShade(
-      canvas: canvas,
-      pageRect: pageRect,
-      turnLeftPage: turnLeftPage,
-      isFrontFace: isFrontFace,
-      shadeStrength: shadeStrength,
-    );
+    if (backBounds != null && backBounds.width > 24) {
+      _paintPaperFibers(canvas, backBounds, shadeStrength);
+    }
 
-    _paintPageEdge(
-      canvas: canvas,
-      destinationRect: pageRect,
-      turnLeftPage: turnLeftPage,
-      isFrontFace: isFrontFace,
-      shadeStrength: shadeStrength,
-    );
-    _paintHingeEdge(
-      canvas: canvas,
-      viewportRect: viewportRect,
-      destinationRect: pageRect,
-      turnLeftPage: turnLeftPage,
-      isFrontFace: isFrontFace,
-      shadeStrength: shadeStrength,
-    );
+    _paintFreeEdge(canvas, geometry, shadeStrength);
     _paintSpineShadow(canvas, viewportRect, shadeStrength);
   }
 
-  Rect _turningPageDestinationRect({
-    required double spineX,
-    required double projectedWidth,
-    required double height,
+  /// צללים רכים שהיריעה המורמת מטילה משני צידיה על העמודים השטוחים.
+  void _paintSilhouetteShadows({
+    required Canvas canvas,
+    required Rect viewportRect,
+    required PageTurnGeometry geometry,
     required bool turnLeftPage,
-    required bool isFrontFace,
   }) {
-    if (turnLeftPage) {
-      return isFrontFace
-          ? Rect.fromLTWH(spineX - projectedWidth, 0, projectedWidth, height)
-          : Rect.fromLTWH(spineX, 0, projectedWidth, height);
+    if (geometry.shadeStrength <= 0.01) return;
+
+    final shadowWidth =
+        viewportRect.width * 0.07 * (0.3 + 0.7 * geometry.shadeStrength);
+
+    void paintEdgeShadow(double edgeX, bool fadeLeft, double baseAlpha) {
+      final shadowRect = fadeLeft
+          ? Rect.fromLTWH(
+              edgeX - shadowWidth,
+              0,
+              shadowWidth,
+              viewportRect.height,
+            )
+          : Rect.fromLTWH(edgeX, 0, shadowWidth, viewportRect.height);
+      if (shadowRect.width <= 0) return;
+      canvas.drawRect(
+        shadowRect,
+        Paint()
+          ..shader = LinearGradient(
+            begin: fadeLeft ? Alignment.centerRight : Alignment.centerLeft,
+            end: fadeLeft ? Alignment.centerLeft : Alignment.centerRight,
+            colors: [
+              shadowColor.withValues(
+                alpha: baseAlpha * geometry.shadeStrength,
+              ),
+              shadowColor.withValues(alpha: 0.0),
+            ],
+          ).createShader(shadowRect),
+      );
     }
 
-    return isFrontFace
-        ? Rect.fromLTWH(spineX, 0, projectedWidth, height)
-        : Rect.fromLTWH(spineX - projectedWidth, 0, projectedWidth, height);
+    final trailing = geometry.trailingX(turnLeftPage);
+    final leading = geometry.leadingX(turnLeftPage);
+    paintEdgeShadow(trailing, turnLeftPage, 0.28);
+    if (geometry.hasBackStrips &&
+        (leading - viewportRect.center.dx).abs() > 2) {
+      paintEdgeShadow(leading, !turnLeftPage, 0.20);
+    }
   }
 
-  void _drawPageFace({
-    required Canvas canvas,
-    required Rect viewportRect,
-    required Rect pageRect,
-    required bool turnLeftPage,
-    required bool isFrontFace,
-    required double shadeStrength,
-  }) {
-    _drawPageStrips(
-      sourceImage: snapshot,
-      sampleOppositeHalf: false,
-      canvas: canvas,
-      viewportRect: viewportRect,
-      pageRect: pageRect,
-      turnLeftPage: turnLeftPage,
-      shadeStrength: shadeStrength,
-      paintBuilder: (_) => Paint(),
-    );
-  }
-
-  void _paintUnderPageShadow({
-    required Canvas canvas,
-    required Rect viewportRect,
-    required Rect destinationRect,
-    required bool turnLeftPage,
-    required bool isFrontFace,
-    required double shadeStrength,
-  }) {
-    if (shadeStrength <= 0.01) return;
-
-    final shadowWidth = min(
-      viewportRect.width * 0.18,
-      max(18.0, destinationRect.width * 1.15),
-    );
-    final shadowStartsAtSpine = !isFrontFace;
-    final shadowRect = turnLeftPage == shadowStartsAtSpine
-        ? Rect.fromLTWH(
-            viewportRect.center.dx,
-            0,
-            shadowWidth,
-            viewportRect.height,
-          )
-        : Rect.fromLTWH(
-            viewportRect.center.dx - shadowWidth,
-            0,
-            shadowWidth,
-            viewportRect.height,
-          );
-
-    canvas.drawRect(
-      shadowRect,
-      Paint()
-        ..shader = LinearGradient(
-          begin: shadowRect.left < viewportRect.center.dx
-              ? Alignment.centerRight
-              : Alignment.centerLeft,
-          end: shadowRect.left < viewportRect.center.dx
-              ? Alignment.centerLeft
-              : Alignment.centerRight,
-          colors: [
-            shadowColor.withValues(alpha: 0.30 * shadeStrength),
-            shadowColor.withValues(alpha: 0.0),
-          ],
-        ).createShader(shadowRect),
-    );
-  }
-
-  void _paintPageEdge({
-    required Canvas canvas,
-    required Rect destinationRect,
-    required bool turnLeftPage,
-    required bool isFrontFace,
-    required double shadeStrength,
-  }) {
-    final edgeOnRight = turnLeftPage == isFrontFace;
-    final edgeX = edgeOnRight ? destinationRect.left : destinationRect.right;
+  /// קו הקצה החופשי של הדף, בגובה המוקרן שלו (כולל הגדלת הפרספקטיבה).
+  void _paintFreeEdge(
+    Canvas canvas,
+    PageTurnGeometry geometry,
+    double shadeStrength,
+  ) {
     canvas.drawLine(
-      Offset(edgeX, destinationRect.top),
-      Offset(edgeX, destinationRect.bottom),
+      Offset(geometry.freeEdgeX, geometry.freeEdgeTop),
+      Offset(geometry.freeEdgeX, geometry.freeEdgeBottom),
       Paint()
         ..color = edgeColor.withValues(alpha: 0.55 + shadeStrength * 0.25)
         ..strokeWidth = 1.4,
     );
   }
 
-  void _paintHingeEdge({
-    required Canvas canvas,
-    required Rect viewportRect,
-    required Rect destinationRect,
-    required bool turnLeftPage,
-    required bool isFrontFace,
-    required double shadeStrength,
-  }) {
-    final hingeOnRight = turnLeftPage == isFrontFace;
-    final hingeX = hingeOnRight ? destinationRect.right : destinationRect.left;
-    final shadowWidth = min(viewportRect.width * 0.025, 22.0);
-    final hingeShadowRect = hingeOnRight
-        ? Rect.fromLTWH(
-            hingeX - shadowWidth,
-            destinationRect.top,
-            shadowWidth,
-            destinationRect.height,
-          )
-        : Rect.fromLTWH(
-            hingeX,
-            destinationRect.top,
-            shadowWidth,
-            destinationRect.height,
-          );
-
-    canvas.drawRect(
-      hingeShadowRect,
-      Paint()
-        ..shader = LinearGradient(
-          begin: hingeOnRight ? Alignment.centerRight : Alignment.centerLeft,
-          end: hingeOnRight ? Alignment.centerLeft : Alignment.centerRight,
-          colors: [
-            shadowColor.withValues(alpha: 0.22 + shadeStrength * 0.20),
-            shadowColor.withValues(alpha: 0.0),
-          ],
-        ).createShader(hingeShadowRect),
-    );
-
-    canvas.drawLine(
-      Offset(hingeX, destinationRect.top),
-      Offset(hingeX, destinationRect.bottom),
-      Paint()
-        ..color = edgeColor.withValues(alpha: 0.65)
-        ..strokeWidth = 1.1,
-    );
+  void _paintPaperFibers(Canvas canvas, Rect bounds, double shadeStrength) {
+    final fiberPaint = Paint()
+      ..color = edgeColor.withValues(alpha: 0.08 + shadeStrength * 0.04)
+      ..strokeWidth = 0.8;
+    final step = max(8.0, bounds.height / 42);
+    for (var y = bounds.top + step; y < bounds.bottom; y += step) {
+      canvas.drawLine(
+        Offset(bounds.left + 4, y),
+        Offset(bounds.right - 4, y),
+        fiberPaint,
+      );
+    }
   }
 
   void _paintSpineShadow(
@@ -5671,131 +5504,6 @@ class _BookPageTurnPainter extends CustomPainter {
             shadowColor.withValues(alpha: 0.0),
           ],
         ).createShader(spineRect),
-    );
-  }
-
-  void _drawPageBack({
-    required ui.Image sourceImage,
-    required bool useBackTint,
-    required bool sampleOppositeHalf,
-    required Canvas canvas,
-    required Rect viewportRect,
-    required Rect pageRect,
-    required bool turnLeftPage,
-    required double shadeStrength,
-  }) {
-    canvas.drawRect(pageRect, Paint()..color = pageBackColor);
-
-    _drawPageStrips(
-      sourceImage: sourceImage,
-      sampleOppositeHalf: sampleOppositeHalf,
-      canvas: canvas,
-      viewportRect: viewportRect,
-      pageRect: pageRect,
-      turnLeftPage: turnLeftPage,
-      shadeStrength: shadeStrength,
-      paintBuilder: (_) {
-        final paint = Paint();
-        if (useBackTint) {
-          paint.colorFilter = ColorFilter.mode(
-            pageBackColor.withValues(alpha: 0.30),
-            BlendMode.srcATop,
-          );
-        }
-        return paint;
-      },
-    );
-
-    final fiberPaint = Paint()
-      ..color = edgeColor.withValues(alpha: 0.08 + shadeStrength * 0.04)
-      ..strokeWidth = 0.8;
-    final step = max(8.0, pageRect.height / 42);
-    for (var y = pageRect.top + step; y < pageRect.bottom; y += step) {
-      canvas.drawLine(
-        Offset(pageRect.left + 4, y),
-        Offset(pageRect.right - 4, y),
-        fiberPaint,
-      );
-    }
-  }
-
-  void _drawPageStrips({
-    required ui.Image sourceImage,
-    required bool sampleOppositeHalf,
-    required Canvas canvas,
-    required Rect viewportRect,
-    required Rect pageRect,
-    required bool turnLeftPage,
-    required double shadeStrength,
-    required Paint Function(int stripIndex) paintBuilder,
-  }) {
-    const stripCount = 36;
-    final spineX = viewportRect.center.dx;
-    final pageToLeft = pageRect.right <= spineX;
-    final sign = pageToLeft ? -1.0 : 1.0;
-    final projectedWidth = pageRect.width;
-    final depthLift = 10.0 * shadeStrength;
-
-    for (var i = 0; i < stripCount; i++) {
-      final u0 = i / stripCount;
-      final u1 = (i + 1) / stripCount;
-      final x0 = spineX + sign * projectedWidth * u0;
-      final x1 = spineX + sign * projectedWidth * u1;
-      final left = min(x0, x1);
-      final width = (x1 - x0).abs() + 0.5;
-      final mid = (u0 + u1) / 2;
-      final topInset = depthLift * mid;
-      final bottomInset = depthLift * (1 - mid) * 0.35;
-
-      final destinationRect = Rect.fromLTWH(
-        left,
-        pageRect.top + topInset,
-        width,
-        pageRect.height - topInset - bottomInset,
-      );
-
-      final sourceRect = _turningPageSourceStripRect(
-        image: sourceImage,
-        viewportRect: viewportRect,
-        turnLeftPage: turnLeftPage,
-        sampleOppositeHalf: sampleOppositeHalf,
-        u0: u0,
-        u1: u1,
-      );
-
-      canvas.drawImageRect(
-        sourceImage,
-        sourceRect,
-        destinationRect,
-        paintBuilder(i),
-      );
-    }
-  }
-
-  void _paintPageFaceShade({
-    required Canvas canvas,
-    required Rect pageRect,
-    required bool turnLeftPage,
-    required bool isFrontFace,
-    required double shadeStrength,
-  }) {
-    canvas.drawRect(
-      pageRect,
-      Paint()
-        ..shader = LinearGradient(
-          begin: _gradientBegin(turnLeftPage, isFrontFace),
-          end: _gradientEnd(turnLeftPage, isFrontFace),
-          colors: [
-            pageHighlightColor.withValues(alpha: 0.08 + shadeStrength * 0.06),
-            pageBackColor.withValues(alpha: isFrontFace ? 0.03 : 0.035),
-            shadowColor.withValues(
-              alpha:
-                  (isFrontFace ? 0.16 : 0.07) +
-                  shadeStrength * (isFrontFace ? 0.32 : 0.11),
-            ),
-          ],
-          stops: const [0.0, 0.58, 1.0],
-        ).createShader(pageRect),
     );
   }
 
@@ -5846,16 +5554,6 @@ class _BookPageTurnPainter extends CustomPainter {
     ).intersect(fullImageRect);
   }
 
-  Alignment _gradientBegin(bool turnLeftPage, bool isFrontFace) {
-    final spineOnRight = turnLeftPage == isFrontFace;
-    return spineOnRight ? Alignment.centerRight : Alignment.centerLeft;
-  }
-
-  Alignment _gradientEnd(bool turnLeftPage, bool isFrontFace) {
-    final spineOnRight = turnLeftPage == isFrontFace;
-    return spineOnRight ? Alignment.centerLeft : Alignment.centerRight;
-  }
-
   @override
   bool shouldRepaint(_BookPageTurnPainter oldDelegate) =>
       oldDelegate.snapshot != snapshot ||
@@ -5865,7 +5563,6 @@ class _BookPageTurnPainter extends CustomPainter {
       oldDelegate.progress != progress ||
       oldDelegate.direction != direction ||
       oldDelegate.pageBackColor != pageBackColor ||
-      oldDelegate.pageHighlightColor != pageHighlightColor ||
       oldDelegate.shadowColor != shadowColor ||
       oldDelegate.edgeColor != edgeColor;
 }
