@@ -18,24 +18,27 @@ int? pdfTopmostVisiblePage(Rect visibleRect, List<Rect> pageRects) {
 }
 
 /// מחזיר את עמוד ההתחלה של הספירייד שמכיל את [pageNumber].
-/// עמוד 1 עומד לבדו (כריכה ימנית בעברית); שאר העמודים מצומדים בזוגות —
-/// (2,3), (4,5), וכן הלאה.
-int pdfSpreadStartPage(int pageNumber) {
+/// עם [coverPage] — עמוד 1 עומד לבדו והזוגות הם (2,3), (4,5);
+/// בלעדיו הזוגות מתחילים מהעמוד הראשון — (1,2), (3,4).
+int pdfSpreadStartPage(int pageNumber, {bool coverPage = true}) {
   if (pageNumber <= 1) return 1;
-  return pageNumber.isEven ? pageNumber : pageNumber - 1;
+  if (coverPage) return pageNumber.isEven ? pageNumber : pageNumber - 1;
+  return pageNumber.isOdd ? pageNumber : pageNumber - 1;
 }
 
 /// מחזיר את טווח עמודי הספירייד עבור עמוד נתון:
 /// [startPage] (כולל) ו-[endPageExclusive] (לא כולל).
 ///
 /// בתצוגה רגילה ([bookView] = false) — תמיד עמוד אחד.
-/// בתצוגת ספר ([bookView] = true) — שני עמודים, למעט עמוד 1 העומד לבדו.
+/// בתצוגת ספר ([bookView] = true) — שני עמודים, למעט עמוד 1 העומד לבדו
+/// כש-[coverPage] פעיל.
 ///
 /// כש-[totalPages] מסופק, [endPageExclusive] מוגבל ל-[totalPages] + 1 —
 /// כך שספירייד אחרון במסמך עם מספר עמודים זוגי לא יפנה לעמוד שאינו קיים.
 ({int startPage, int endPageExclusive}) pdfSpreadPageRange(
   int pageNumber, {
   required bool bookView,
+  bool coverPage = true,
   int? totalPages,
 }) {
   final int startPage;
@@ -44,8 +47,8 @@ int pdfSpreadStartPage(int pageNumber) {
     startPage = pageNumber;
     rawEnd = pageNumber + 1;
   } else {
-    startPage = pdfSpreadStartPage(pageNumber);
-    rawEnd = startPage == 1 ? 2 : startPage + 2;
+    startPage = pdfSpreadStartPage(pageNumber, coverPage: coverPage);
+    rawEnd = coverPage && startPage == 1 ? 2 : startPage + 2;
   }
   if (totalPages == null) {
     return (startPage: startPage, endPageExclusive: rawEnd);
@@ -74,16 +77,20 @@ Future<({int start, int? end})?> pdfTextLineRangeForPageRange({
 
 /// עמוד היעד של דפדוף קדימה בתצוגת ספר: העמוד הראשון (הימני) של הזוג הבא.
 /// אחרי הכריכה (עמוד 1) הזוג הבא מתחיל בעמוד 2. מחזיר null כשאין זוג הבא.
-int? pdfNextSpreadFocusPage(int currentPage, int totalPages) {
-  final spreadStart = pdfSpreadStartPage(currentPage);
-  final next = spreadStart == 1 ? 2 : spreadStart + 2;
+int? pdfNextSpreadFocusPage(
+  int currentPage,
+  int totalPages, {
+  bool coverPage = true,
+}) {
+  final spreadStart = pdfSpreadStartPage(currentPage, coverPage: coverPage);
+  final next = coverPage && spreadStart == 1 ? 2 : spreadStart + 2;
   return next > totalPages ? null : next;
 }
 
 /// עמוד היעד של דפדוף אחורה בתצוגת ספר: העמוד השני (השמאלי) של הזוג הקודם —
 /// העמוד האחרון שנקרא לפני הזוג הנוכחי. מחזיר null כשאין זוג קודם.
-int? pdfPreviousSpreadFocusPage(int currentPage) {
-  final spreadStart = pdfSpreadStartPage(currentPage);
+int? pdfPreviousSpreadFocusPage(int currentPage, {bool coverPage = true}) {
+  final spreadStart = pdfSpreadStartPage(currentPage, coverPage: coverPage);
   return spreadStart <= 1 ? null : spreadStart - 1;
 }
 

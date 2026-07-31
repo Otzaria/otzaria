@@ -539,12 +539,18 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final initialGlobalLayoutMode = settingsBloc.state.pdfBookViewByDefault
         ? PdfLayoutMode.bookView
         : PdfLayoutMode.regularView;
+    final savedMode = widget.tab.savedLayoutMode;
+    // גם ללא הגדרות פר-ספר, מצב שמור בטאב שמסכים עם ברירת המחדל ברמת
+    // ספר/רגיל נשמר — כך כיוון הזוגות שורד שחזור טאבים.
     final initialLayoutMode = settingsBloc.state.enablePerBookSettings
-        ? (widget.tab.savedLayoutMode ?? initialGlobalLayoutMode)
-        : initialGlobalLayoutMode;
+        ? (savedMode ?? initialGlobalLayoutMode)
+        : (savedMode != null &&
+                  savedMode.isBookView == initialGlobalLayoutMode.isBookView
+              ? savedMode
+              : initialGlobalLayoutMode);
 
     if (!settingsBloc.state.enablePerBookSettings) {
-      widget.tab.savedLayoutMode = initialGlobalLayoutMode;
+      widget.tab.savedLayoutMode = initialLayoutMode;
     }
 
     _bloc = PdfBookBloc(
@@ -569,18 +575,24 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       _bloc.add(pdf_events.UpdateRightPaneWidth(state.commentaryPaneWidth));
 
       if (!state.enablePerBookSettings) {
-        final desiredLayoutMode = state.pdfBookViewByDefault
-            ? PdfLayoutMode.bookView
-            : PdfLayoutMode.regularView;
         final currentLayoutMode = switch (_bloc.state) {
           PdfBookInitial initial => initial.layoutMode,
           PdfBookLoaded loaded => loaded.layoutMode,
           _ => null,
         };
 
-        if (currentLayoutMode != desiredLayoutMode) {
+        // ההשוואה ברמת ספר/רגיל בלבד — ברירת המחדל הגלובלית היא בוליאנית,
+        // והשוואה מדויקת הייתה דורסת את כיוון הזוגות (bookViewNoCover) שנבחר.
+        if (currentLayoutMode != null &&
+            currentLayoutMode.isBookView != state.pdfBookViewByDefault) {
           _lockedSpreadStartPage = null;
-          _bloc.add(pdf_events.SetLayoutMode(desiredLayoutMode));
+          _bloc.add(
+            pdf_events.SetLayoutMode(
+              state.pdfBookViewByDefault
+                  ? PdfLayoutMode.bookView
+                  : PdfLayoutMode.regularView,
+            ),
+          );
         }
       }
     });
@@ -709,8 +721,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     PdfLayoutMode layoutMode = pdfBookViewByDefault
         ? PdfLayoutMode.bookView
         : PdfLayoutMode.regularView;
+    final saved = widget.tab.savedLayoutMode;
+    if (saved != null && saved.isBookView == layoutMode.isBookView) {
+      layoutMode = saved;
+    }
 
-    if (enablePerBookSettings && widget.tab.savedLayoutMode == null) {
+    if (enablePerBookSettings && saved == null) {
       final settings = await _loadPerBookSettings();
       if (settings?.layoutMode != null) {
         layoutMode = settings!.layoutMode!;
@@ -745,6 +761,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     return pdfSpreadPageRange(
       pageNumber,
       bookView: _isBookViewModeActive(),
+      coverPage: _hasCoverPage(),
       totalPages: totalPages,
     );
   }
@@ -1158,13 +1175,17 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   }
 
   PdfViewerParams _buildPdfViewerParams(PdfLayoutMode layoutMode) {
-    if (layoutMode == PdfLayoutMode.bookView) {
-      _lockedSpreadStartPage ??= _spreadStartPageFor(widget.tab.pageNumber);
+    if (layoutMode.isBookView) {
+      _lockedSpreadStartPage ??= pdfSpreadStartPage(
+        widget.tab.pageNumber,
+        coverPage: layoutMode.hasCoverPage,
+      );
     }
 
     return PdfViewerParams(
-      layoutPages: layoutMode == PdfLayoutMode.bookView
+      layoutPages: layoutMode.isBookView
           ? (pages, params) {
+              final hasCover = layoutMode.hasCoverPage;
               final pageLayouts = <Rect>[];
               const gap = _bookViewGap;
               const scale = _bookViewScale;
@@ -1180,14 +1201,14 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 final scaledWidth = currentPage.width * scale;
                 final scaledHeight = currentPage.height * scale;
 
-                if (i == 0) {
+                if (hasCover && i == 0) {
                   // עמוד 0 (שער) - לבדו
                   pageLayouts.add(
                     Rect.fromLTWH(0, totalHeight, scaledWidth, scaledHeight),
                   );
                   totalHeight += scaledHeight + params.margin;
                 } else {
-                  final pageIndex = i - 1;
+                  final pageIndex = hasCover ? i - 1 : i;
                   final isRightPage = pageIndex % 2 == 0;
 
                   if (isRightPage) {
@@ -1230,11 +1251,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               );
             }
           : null,
-      calculateCurrentPageNumber: layoutMode == PdfLayoutMode.bookView
+      calculateCurrentPageNumber: layoutMode.isBookView
           ? null
           : (visibleRect, pageRects, controller) =>
                 pdfTopmostVisiblePage(visibleRect, pageRects),
-      normalizeMatrix: layoutMode == PdfLayoutMode.bookView
+      normalizeMatrix: layoutMode.isBookView
           ? (matrix, viewSize, layout, controller) {
               if (_isPageTurnInProgress) {
                 return matrix;
@@ -1284,7 +1305,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       // הרגיל (2 בספר, 1 רגיל).
       verticalCacheExtent: _waitingForStableLayout
           ? 0
-          : (layoutMode == PdfLayoutMode.bookView ? 2 : 1),
+          : (layoutMode.isBookView ? 2 : 1),
       pageAnchor: PdfPageAnchor.top, // עיגון לראש הדף
       onInteractionStart: (_) {
         if (!(widget.tab.pinLeftPane.value ||
@@ -1434,8 +1455,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
         final savedZoom = widget.tab.savedZoom;
         final hasSavedZoom = savedZoom != null && savedZoom != 1.0;
-        bool shouldFitToWidth =
-            layoutMode != PdfLayoutMode.bookView && !hasSavedZoom;
+        bool shouldFitToWidth = !layoutMode.isBookView && !hasSavedZoom;
 
         // בחירת המפרשים נטענת תמיד (לא תלוי ב-enablePerBookSettings); זום ופריסה
         // נשארים כפופים להגדרה.
@@ -1685,10 +1705,19 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   bool _isBookViewModeActive() {
     final state = _bloc.state;
-    return state is PdfBookLoaded && state.layoutMode == PdfLayoutMode.bookView;
+    return state is PdfBookLoaded && state.layoutMode.isBookView;
   }
 
-  int _spreadStartPageFor(int pageNumber) => pdfSpreadStartPage(pageNumber);
+  /// האם העמוד הראשון עומד לבדו בתצוגת הספר הפעילה.
+  bool _hasCoverPage() => switch (_bloc.state) {
+    PdfBookInitial s => s.layoutMode.hasCoverPage,
+    PdfBookLoading s => s.layoutMode.hasCoverPage,
+    PdfBookLoaded s => s.layoutMode.hasCoverPage,
+    _ => true,
+  };
+
+  int _spreadStartPageFor(int pageNumber) =>
+      pdfSpreadStartPage(pageNumber, coverPage: _hasCoverPage());
 
   Rect? _spreadRectForPageLayout(PdfPageLayout layout, int spreadStartPage) {
     final pageLayouts = layout.pageLayouts;
@@ -1697,7 +1726,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     }
     final rightPageRect = pageLayouts[spreadStartPage - 1];
 
-    if (spreadStartPage == 1) {
+    if (_hasCoverPage() && spreadStartPage == 1) {
       return Rect.fromLTWH(
         0,
         rightPageRect.top,
@@ -1783,9 +1812,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final spreadStartPage =
         _lockedSpreadStartPage ?? _spreadStartPageFor(currentPage);
     final totalPages = controller.pageCount;
+    final hasCover = _hasCoverPage();
     final pageNumbers = <int>[
       spreadStartPage,
-      if (spreadStartPage > 1 && spreadStartPage < totalPages)
+      if ((!hasCover || spreadStartPage > 1) && spreadStartPage < totalPages)
         spreadStartPage + 1,
     ];
 
@@ -1800,7 +1830,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       if (!pageRect.overlaps(viewportBounds)) continue;
 
       final isLeftPage =
-          spreadStartPage == 1 || pageNumber == spreadStartPage + 1;
+          (hasCover && spreadStartPage == 1) ||
+          pageNumber == spreadStartPage + 1;
       final outerStackPages = isLeftPage
           ? totalPages - pageNumber
           : pageNumber - 1;
@@ -1853,11 +1884,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     final currentPage = widget.tab.pdfViewerController.pageNumber ?? 1;
     final totalPages = widget.tab.pdfViewerController.pageCount;
-    final canGoPrevious = pdfSpreadStartPage(currentPage) > 1;
+    final canGoPrevious = _spreadStartPageFor(currentPage) > 1;
     final canGoNext =
         pdfSpreadPageRange(
           currentPage,
           bookView: true,
+          coverPage: _hasCoverPage(),
           totalPages: totalPages,
         ).endPageExclusive <=
         totalPages;
@@ -2326,7 +2358,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     if (!controller.isReady) return const [];
     final totalPages = controller.pageCount;
     if (spreadStartPage < 1 || spreadStartPage > totalPages) return const [];
-    if (spreadStartPage == 1) return const [1];
+    if (_hasCoverPage() && spreadStartPage == 1) return const [1];
     return spreadStartPage + 1 <= totalPages
         ? [spreadStartPage, spreadStartPage + 1]
         : [spreadStartPage];
@@ -2933,7 +2965,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         ? (controller.pageNumber ?? widget.tab.pageNumber)
         : widget.tab.pageNumber;
     if (_isBookViewModeActive()) {
-      return pdfSpreadStartPage(page) == pdfSpreadStartPage(viewerPage);
+      return _spreadStartPageFor(page) == _spreadStartPageFor(viewerPage);
     }
     return page == viewerPage;
   }
@@ -2991,9 +3023,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       // ללולאת ייצוב אינסופית. ההשוואה ברמת ה-spread.
       final currentPage = controller.pageNumber ?? target;
       final inBookView = _isBookViewModeActive();
-      final targetKey = inBookView ? pdfSpreadStartPage(target) : target;
+      final targetKey = inBookView ? _spreadStartPageFor(target) : target;
       final currentKey = inBookView
-          ? pdfSpreadStartPage(currentPage)
+          ? _spreadStartPageFor(currentPage)
           : currentPage;
       if (currentKey != targetKey) {
         // הגנה מפני לולאה אינסופית: אם controller.goToPage לא מצליח
@@ -3371,6 +3403,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final previous = _lastObservedLayoutMode;
     _lastObservedLayoutMode = mode;
     if (shouldRecomputeLineRangeOnLayoutModeChange(previous, mode)) {
+      // ההיפוך משנה את הרכב הזוגות — ספריידים שרונדרו מראש כבר לא תקפים.
+      _disposeAllSpreadCache();
       _recomputeTextLineRangeForCurrentPage();
     }
   }
@@ -3684,24 +3718,28 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 ),
                 ValueListenableBuilder<List<PdfOutlineNode>?>(
                   valueListenable: widget.tab.outline,
-                  builder: (context, outline, _) => PdfScrollbar(
-                    controller: widget.tab.pdfViewerController,
-                    orientation: ScrollbarOrientation.right,
-                    trackThickness: _verticalScrollbarGutter,
-                    thumbMinSize: 50.0,
-                    scrollBoundsBuilder: _currentVerticalScrollbarBounds,
-                    freezeThumb: _pageTurnTransition != null,
-                    outline: outline,
-                    bookTitle: widget.tab.book.title,
+                  builder: (context, outline, _) => RepaintBoundary(
+                    child: PdfScrollbar(
+                      controller: widget.tab.pdfViewerController,
+                      orientation: ScrollbarOrientation.right,
+                      trackThickness: _verticalScrollbarGutter,
+                      thumbMinSize: 50.0,
+                      scrollBoundsBuilder: _currentVerticalScrollbarBounds,
+                      freezeThumb: _pageTurnTransition != null,
+                      outline: outline,
+                      bookTitle: widget.tab.book.title,
+                    ),
                   ),
                 ),
                 Positioned(
                   left: splitInset.left,
                   right: readerContentPadding.right,
                   bottom: 0,
-                  child: PdfHorizontalScrollbar(
-                    controller: widget.tab.pdfViewerController,
-                    trackThickness: _horizontalScrollbarGutter,
+                  child: RepaintBoundary(
+                    child: PdfHorizontalScrollbar(
+                      controller: widget.tab.pdfViewerController,
+                      trackThickness: _horizontalScrollbarGutter,
+                    ),
                   ),
                 ),
               ],
@@ -3753,9 +3791,76 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               );
             },
           ),
+          BlocBuilder<PdfBookBloc, PdfBookState>(
+            buildWhen: (prev, curr) {
+              (PdfLayoutMode, bool)? keyOf(PdfBookState s) => switch (s) {
+                PdfBookLoaded v => (v.layoutMode, v.showZoomBar),
+                _ => null,
+              };
+              return keyOf(prev) != keyOf(curr);
+            },
+            builder: (context, state) {
+              // מוסתר בזמן שסרגל הזום מוצג — שניהם ממורכזים מתחת לסרגל העליון.
+              if (state is! PdfBookLoaded ||
+                  !state.layoutMode.isBookView ||
+                  state.showZoomBar) {
+                return const SizedBox.shrink();
+              }
+              return Positioned(
+                top: 4,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: _buildBookViewDirectionToggle(
+                    context,
+                    state.layoutMode,
+                  ),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
+  }
+
+  /// לחצן צף (מתחת לסרגל העליון) להיפוך כיוון הזוגות בתצוגת ספר:
+  /// עמוד ראשון בודד משמאל, או מזווג ומתחיל מימין (ללא עמוד ריק).
+  Widget _buildBookViewDirectionToggle(
+    BuildContext context,
+    PdfLayoutMode layoutMode,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      elevation: 2,
+      borderRadius: AppTokens.borderRadiusAll,
+      color: colorScheme.surface,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: AppTokens.borderRadiusAll,
+          border: Border.all(color: colorScheme.outlineVariant, width: 1),
+        ),
+        child: IconButton(
+          icon: const Icon(FluentIcons.arrow_swap_24_regular, size: 16),
+          tooltip: layoutMode.hasCoverPage
+              ? 'היפוך כיוון: התחלת הספר מימין (ללא עמוד ריק)'
+              : 'היפוך כיוון: התחלת הספר משמאל (עם עמוד ריק)',
+          onPressed: _toggleBookViewDirection,
+          padding: const EdgeInsets.all(4),
+          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+        ),
+      ),
+    );
+  }
+
+  void _toggleBookViewDirection() {
+    final state = _bloc.state;
+    if (state is! PdfBookLoaded || !state.layoutMode.isBookView) return;
+    _lockedSpreadStartPage = null;
+    final target = state.layoutMode == PdfLayoutMode.bookView
+        ? PdfLayoutMode.bookViewNoCover
+        : PdfLayoutMode.bookView;
+    _bloc.add(pdf_events.SetLayoutMode(target));
   }
 
   Widget _buildLeftPaneContent(bool showLeftPane) {
@@ -3927,7 +4032,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final totalPages = widget.tab.pdfViewerController.pageCount;
     final int nextPage;
     if (isBookViewMode) {
-      final focus = pdfNextSpreadFocusPage(basePage, totalPages);
+      final focus = pdfNextSpreadFocusPage(
+        basePage,
+        totalPages,
+        coverPage: _hasCoverPage(),
+      );
       if (focus == null) return;
       nextPage = focus;
     } else {
@@ -3961,7 +4070,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final basePage = _effectiveCurrentPageForNavigation();
     final int prevPage;
     if (isBookViewMode) {
-      final focus = pdfPreviousSpreadFocusPage(basePage);
+      final focus = pdfPreviousSpreadFocusPage(
+        basePage,
+        coverPage: _hasCoverPage(),
+      );
       if (focus == null) return;
       prevPage = focus;
     } else {
@@ -4613,7 +4725,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         bookId: widget.tab.book.title,
         createPdfOverride: (_) => file.readAsBytes(),
         initialPage: initialPrintPage,
-        isBookView: currentLayoutMode == PdfLayoutMode.bookView,
+        isBookView: currentLayoutMode.isBookView,
         pdfOutline: widget.tab.outline.value ?? [],
       ),
     );
@@ -4689,7 +4801,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   }
 
   Widget _buildLayoutModeDropdown(BuildContext context, PdfBookLoaded state) {
-    final isBookViewMode = state.layoutMode == PdfLayoutMode.bookView;
+    final isBookViewMode = state.layoutMode.isBookView;
     final iconData = isBookViewMode
         ? FluentIcons.book_open_24_regular
         : FluentIcons.book_24_regular;
@@ -4702,14 +4814,19 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         child: Icon(iconData),
       ),
       position: PopupMenuPosition.under,
-      onSelected: (layoutMode) {
+      onSelected: (selectedMode) {
+        // בחירת "תצוגת ספר" כשכבר בתצוגת ספר משמרת את כיוון הזוגות
+        // שנבחר בלחצן ההיפוך.
+        final layoutMode =
+            selectedMode == PdfLayoutMode.bookView &&
+                state.layoutMode.isBookView
+            ? state.layoutMode
+            : selectedMode;
         _lockedSpreadStartPage = null;
 
         final settingsBloc = context.read<SettingsBloc>();
         if (!settingsBloc.state.enablePerBookSettings) {
-          settingsBloc.add(
-            UpdatePdfBookViewByDefault(layoutMode == PdfLayoutMode.bookView),
-          );
+          settingsBloc.add(UpdatePdfBookViewByDefault(layoutMode.isBookView));
         }
 
         _bloc.add(pdf_events.SetLayoutMode(layoutMode));

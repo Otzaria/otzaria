@@ -854,7 +854,13 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
       }
     }
 
-    layoutModeToApply ??= pdfBookViewByDefault
+    // ללא הגדרה פר-ספרית, מצב שמור בטאב (שחזור טאבים) גובר על ברירת
+    // המחדל הבוליאנית כשהם מסכימים ברמת ספר/רגיל — משמר את כיוון הזוגות.
+    final saved = tab.savedLayoutMode;
+    layoutModeToApply ??=
+        saved != null && saved.isBookView == pdfBookViewByDefault
+        ? saved
+        : pdfBookViewByDefault
         ? PdfLayoutMode.bookView
         : PdfLayoutMode.regularView;
 

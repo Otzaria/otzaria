@@ -39,6 +39,7 @@ import 'package:otzaria/plugins/services/plugin_store_link_parser.dart';
 import 'package:otzaria/plugins/view/plugin_crashed_view.dart';
 import 'package:otzaria/plugins/view/plugin_webview2_missing_view.dart';
 import 'package:otzaria/plugins/models/plugin_network_allowlist.dart';
+import 'package:otzaria/plugins/view/plugin_drop_guard_script.dart';
 import 'package:otzaria/plugins/services/plugin_network_access_resolver.dart';
 import 'package:otzaria/plugins/services/plugin_file_server.dart';
 import 'package:otzaria/settings/settings_exports.dart';
@@ -476,6 +477,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
           source: _sdkStub,
           injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
         ),
+        buildPluginDropGuardScript(),
       ]),
       onWebViewCreated: (controller) {
         // מסמנים שמתחיל ניסיון טעינה. שימוש בגרסה הסינכרונית מבטיח שהקובץ

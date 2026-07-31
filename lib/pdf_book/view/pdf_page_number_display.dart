@@ -18,12 +18,15 @@ class _PageNumberDisplayState extends State<PageNumberDisplay> {
   late TextEditingController _textController;
   bool _isEditing = false;
   final FocusNode _focusNode = FocusNode();
+  int? _lastPage;
+  int? _lastCount;
 
   @override
   void initState() {
     super.initState();
     _textController = TextEditingController();
     widget.controller.addListener(_handlePageChange);
+    _captureControllerState();
     _focusNode.addListener(() {
       if (!_focusNode.hasFocus && _isEditing) {
         setState(() {
@@ -31,6 +34,15 @@ class _PageNumberDisplayState extends State<PageNumberDisplay> {
         });
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant PageNumberDisplay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) return;
+    oldWidget.controller.removeListener(_handlePageChange);
+    widget.controller.addListener(_handlePageChange);
+    _captureControllerState();
   }
 
   @override
@@ -42,9 +54,20 @@ class _PageNumberDisplayState extends State<PageNumberDisplay> {
   }
 
   void _handlePageChange() {
-    if (mounted) {
-      setState(() {});
-    }
+    if (!mounted) return;
+    final ready = widget.controller.isReady;
+    final page = ready ? widget.controller.pageNumber : null;
+    final count = ready ? widget.controller.pageCount : null;
+    if (page == _lastPage && count == _lastCount) return;
+    _lastPage = page;
+    _lastCount = count;
+    setState(() {});
+  }
+
+  void _captureControllerState() {
+    final ready = widget.controller.isReady;
+    _lastPage = ready ? widget.controller.pageNumber : null;
+    _lastCount = ready ? widget.controller.pageCount : null;
   }
 
   void _handleSubmitted(String value) {

@@ -269,6 +269,11 @@ class BackupService {
       'bookId': note.bookId,
       'lineNumber': note.lineNumber,
       'displayTitle': note.displayTitle,
+      'anchorText': note.anchorText,
+      'anchorPrefix': note.anchorPrefix,
+      'anchorSuffix': note.anchorSuffix,
+      'anchorStart': note.anchorStart,
+      'anchorEnd': note.anchorEnd,
       'lastKnownLineNumber': note.lastKnownLineNumber,
       'status': note.status.name,
       'content': note.content,
@@ -580,6 +585,11 @@ class BackupService {
       bookId: json['bookId'] as String,
       lineNumber: json['lineNumber'] as int?,
       displayTitle: json['displayTitle'] as String?,
+      anchorText: json['anchorText'] as String?,
+      anchorPrefix: json['anchorPrefix'] as String?,
+      anchorSuffix: json['anchorSuffix'] as String?,
+      anchorStart: json['anchorStart'] as int?,
+      anchorEnd: json['anchorEnd'] as int?,
       lastKnownLineNumber: json['lastKnownLineNumber'] as int?,
       status: PersonalNoteStatus.values.byName(json['status'] as String),
       content: json['content'] as String,
@@ -794,9 +804,11 @@ class BackupService {
     final lastBackup = Settings.getValue<String>('key-last-auto-backup');
     final now = DateTime.now();
 
-    // Check normal schedule against the last successful full backup
-    if (lastBackup != null) {
-      final daysSince = now.difference(DateTime.parse(lastBackup)).inDays;
+    // Check normal schedule against the last successful full backup.
+    // מועד לא-פרסבילי נחשב "אין גיבוי" — עדיף לגבות מלהפיל את בדיקת ההמלצה.
+    final lastBackupDate = DateTime.tryParse(lastBackup ?? '');
+    if (lastBackupDate != null) {
+      final daysSince = now.difference(lastBackupDate).inDays;
       final dueAfterDays = switch (frequency) {
         'daily' => 1,
         'weekly' => 7,
@@ -808,11 +820,11 @@ class BackupService {
     }
 
     // Cooldown: if a partial attempt happened recently, don't flood the folder
-    final lastPartial = Settings.getValue<String>(_kLastPartialAutoBackupKey);
+    final lastPartial = DateTime.tryParse(
+      Settings.getValue<String>(_kLastPartialAutoBackupKey) ?? '',
+    );
     if (lastPartial != null) {
-      final minutesSince = now
-          .difference(DateTime.parse(lastPartial))
-          .inMinutes;
+      final minutesSince = now.difference(lastPartial).inMinutes;
       if (minutesSince < _kPartialRetryMinutes) return false;
     }
 

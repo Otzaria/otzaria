@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
@@ -118,6 +118,18 @@ void main() {
   }
 
   if (runReal) {
+    testWidgets(
+      'probe: פתיחת עמוד יעד דרך PdfViewer',
+      (tester) async {
+        await _measureViewerOpen(
+          tester: tester,
+          file: talmudPdf!,
+          targetPage: targetPage,
+        );
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
+
     test(
       'probe: פתיחת PDF מתלמוד בבלי עם outline וקישורי האפליקציה',
       () async {
@@ -183,6 +195,78 @@ void main() {
       timeout: const Timeout(Duration(minutes: 1)),
     );
   }
+}
+
+Future<void> _measureViewerOpen({
+  required WidgetTester tester,
+  required File file,
+  required int targetPage,
+}) async {
+  final controller = PdfViewerController();
+  PdfDocument? document;
+  final watch = Stopwatch()..start();
+  int? viewerReadyMs;
+  int? targetPageLoadedMs;
+
+  await tester.binding.setSurfaceSize(const Size(1200, 900));
+  await tester.pumpWidget(
+    MaterialApp(
+      home: PdfViewer.file(
+        file.path,
+        controller: controller,
+        initialPageNumber: targetPage,
+        params: PdfViewerParams(
+          onViewerReady: (loadedDocument, _) {
+            document = loadedDocument;
+            viewerReadyMs ??= watch.elapsedMilliseconds;
+          },
+        ),
+      ),
+    ),
+  );
+
+  for (var attempt = 0; attempt < 1200; attempt++) {
+    await tester.pump(const Duration(milliseconds: 10));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
+    final currentDocument = document;
+    if (currentDocument != null) {
+      final resolvedTarget = targetPage.clamp(1, currentDocument.pages.length);
+      if (currentDocument.pages[resolvedTarget - 1].isLoaded) {
+        targetPageLoadedMs = watch.elapsedMilliseconds;
+        break;
+      }
+    }
+  }
+
+  final loadedDocument = document;
+  expect(loadedDocument, isNotNull);
+  final resolvedTarget = targetPage.clamp(1, loadedDocument!.pages.length);
+  expect(targetPageLoadedMs, isNotNull);
+  expect(loadedDocument.pages[resolvedTarget - 1].isLoaded, isTrue);
+  expect(controller.pageNumber, resolvedTarget);
+  expect(tester.takeException(), isNull);
+
+  final loadedPages = loadedDocument.pages
+      .where((page) => page.isLoaded)
+      .map((page) => page.pageNumber)
+      .toList();
+  _printMetric('talmud-bavli-viewer-target', {
+    'targetPage': resolvedTarget,
+    'viewerReadyMs': viewerReadyMs ?? -1,
+    'targetPageLoadedMs': targetPageLoadedMs!,
+    'loadedPageCount': loadedPages.length,
+    'targetPreviousLoaded':
+        resolvedTarget > 1 && loadedDocument.pages[resolvedTarget - 2].isLoaded,
+    'targetNextLoaded':
+        resolvedTarget < loadedDocument.pages.length &&
+        loadedDocument.pages[resolvedTarget].isLoaded,
+  });
+
+  await tester.pumpWidget(const SizedBox.shrink());
+  await tester.pump(const Duration(milliseconds: 100));
+  await tester.binding.setSurfaceSize(null);
 }
 
 enum _PdfProbeMode { synthetic, real, issue586, all }

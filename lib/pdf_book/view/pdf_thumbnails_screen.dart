@@ -24,6 +24,7 @@ class _ThumbnailsViewState extends State<ThumbnailsView>
   final ScrollController _scrollController = ScrollController();
   bool _isManuallyScrolling = false;
   int? _lastScrolledPage;
+  int? _lastKnownPage;
 
   @override
   bool get wantKeepAlive => true;
@@ -32,6 +33,7 @@ class _ThumbnailsViewState extends State<ThumbnailsView>
   void initState() {
     super.initState();
     widget.controller?.addListener(_onControllerChanged);
+    _lastKnownPage = _currentPage;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() {});
       _scrollToActiveItem();
@@ -44,6 +46,7 @@ class _ThumbnailsViewState extends State<ThumbnailsView>
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller?.removeListener(_onControllerChanged);
       widget.controller?.addListener(_onControllerChanged);
+      _lastKnownPage = _currentPage;
     }
     if (oldWidget.documentRef != widget.documentRef) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -61,11 +64,17 @@ class _ThumbnailsViewState extends State<ThumbnailsView>
   }
 
   void _onControllerChanged() {
-    if (mounted) {
-      setState(() {});
-      _scrollToActiveItem();
-    }
+    if (!mounted) return;
+    final page = _currentPage;
+    if (page == _lastKnownPage) return;
+    _lastKnownPage = page;
+    setState(() {});
+    _scrollToActiveItem();
   }
+
+  int? get _currentPage => (widget.controller?.isReady ?? false)
+      ? widget.controller!.pageNumber
+      : null;
 
   void _scrollToActiveItem() {
     if (_isManuallyScrolling || !(widget.controller?.isReady ?? false)) return;
