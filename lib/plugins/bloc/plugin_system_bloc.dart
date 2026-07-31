@@ -251,6 +251,13 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     String? archivePath;
     _pendingInstallReport = event.reportContext;
 
+    // אישור קבלה מיידי לאתר החנות — עוד לפני ההורדה ודיאלוג ההרשאות,
+    // כדי שהדף יידע מהר שאוצריא קיבלה את הבקשה (fire-and-forget).
+    final ack = event.reportContext;
+    if (ack != null) {
+      unawaited(PluginInstallReportService.acknowledge(ack));
+    }
+
     try {
       archivePath = await _downloadService.downloadPluginArchive(
         Uri.parse(event.downloadUrl),

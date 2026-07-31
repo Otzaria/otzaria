@@ -49,11 +49,30 @@ class PluginInstallReportService {
     return callback;
   }
 
+  /// אישור קבלה מיידי: נשלח ברגע שבקשת ההתקנה מגיעה לאפליקציה, לפני ההורדה
+  /// ודיאלוג ההרשאות. מאפשר לדף החנות לזהות מהר שאוצריא חיה (להבדיל
+  /// מ"אוצריא לא מותקנת"). הטוקן נשאר ממתין לתוצאה הסופית.
+  static Future<void> acknowledge(PluginInstallReportContext context) {
+    return _post(context, status: 'received');
+  }
+
   /// שולח את תוצאת ההתקנה. [success]=false מלווה ב-[errorMessage] שיוצג
   /// למשתמש בדף החנות.
   static Future<void> report(
     PluginInstallReportContext context, {
     required bool success,
+    String? errorMessage,
+  }) {
+    return _post(
+      context,
+      status: success ? 'success' : 'failure',
+      errorMessage: errorMessage,
+    );
+  }
+
+  static Future<void> _post(
+    PluginInstallReportContext context, {
+    required String status,
     String? errorMessage,
   }) async {
     try {
@@ -68,7 +87,7 @@ class PluginInstallReportService {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
               'token': context.token,
-              'status': success ? 'success' : 'failure',
+              'status': status,
               if (errorMessage != null && errorMessage.isNotEmpty)
                 'error': errorMessage,
               'appVersion': ?appVersion,

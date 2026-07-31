@@ -86,7 +86,9 @@ import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/widgets/misc/restart_widget.dart';
 import 'package:otzaria/core/splash_screen.dart';
 import 'package:otzaria/plugins/services/plugin_crash_guard.dart';
+import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 import 'package:otzaria/plugins/services/plugin_packager_cli.dart';
+import 'package:otzaria/plugins/services/plugin_store_link_parser.dart';
 import 'package:otzaria/plugins/services/plugin_protocol_registration_service.dart';
 import 'package:otzaria/plugins/view/webview_environment_holder.dart';
 import 'package:otzaria/core/sentry_event_filter.dart';
@@ -266,6 +268,12 @@ void main(List<String> args) async {
 
   SentryWidgetsFlutterBinding.ensureInitialized();
 
+  // אישור קבלה מוקדם לאתר החנות עבור קישורי התקנת תוסף שהגיעו כארגומנטים —
+  // נורה כאן, לפני כל אתחול כבד ולפני עליית החלון, כדי שדף החנות יידע תוך
+  // שנייה-שתיים שאוצריא קיבלה את הבקשה (גם בעלייה קרה). במופע משני (כשאוצריא
+  // כבר רצה) ההמתנה לסיום נעשית לפני exit ב-_runAppBootstrap.
+  _sendEarlyInstallAcks(args);
+
   // מנטרל את ההבהוב המובנה (הפרטי ב-EditableTextState) כדי ש-RtlTextField
   // ינהל אותו בעצמו. ראו "ניהול הבהוב הסמן" ב-rtl_text_field.dart.
   EditableText.debugDeterministicCursor = true;
@@ -399,6 +407,14 @@ Future<void> _runAppBootstrap() async {
     FlutterSingleInstance flutterSingleInstance = FlutterSingleInstance();
     bool isFirstInstance = await flutterSingleInstance.isFirstInstance();
     if (!isFirstInstance) {
+      // אם נשלח ack מוקדם לאתר החנות — ממתינים לסיומו לפני היציאה, אחרת
+      // התהליך מת לפני שהבקשה יוצאת (לשירות יש timeout פנימי של 10 שניות).
+      final ackFuture = _earlyInstallAckFuture;
+      if (ackFuture != null) {
+        try {
+          await ackFuture;
+        } catch (_) {}
+      }
       exit(0);
     }
   }
@@ -832,6 +848,30 @@ void scheduleAfterTwoFrames(
       action();
     });
   });
+}
+
+/// ה-ack המוקדם שנשלח מ-[_sendEarlyInstallAcks] — נשמר כדי שמופע משני יוכל
+/// להמתין לסיומו לפני exit(0) (אחרת התהליך מת לפני שהבקשה יוצאת).
+Future<void>? _earlyInstallAckFuture;
+
+/// סורק את ארגומנטי ההפעלה אחר קישורי `otzaria://plugin/install` עם token,
+/// ושולח לכל אחד אישור קבלה (fire-and-forget). האישור נשלח שוב גם מה-bloc
+/// בעת הטיפול בבקשה — השרת אידמפוטנטי לכך.
+void _sendEarlyInstallAcks(List<String> args) {
+  final futures = <Future<void>>[];
+  for (final raw in args) {
+    final arg = raw.trim();
+    if (!arg.toLowerCase().startsWith('otzaria:')) continue;
+    final uri = Uri.tryParse(arg);
+    if (uri == null) continue;
+    final reportContext = PluginStoreLinkParser.parseUri(uri)?.reportContext;
+    if (reportContext != null) {
+      futures.add(PluginInstallReportService.acknowledge(reportContext));
+    }
+  }
+  if (futures.isNotEmpty) {
+    _earlyInstallAckFuture = Future.wait(futures);
+  }
 }
 
 Future<void> _enqueueExternalActivationArgs(List<String> args) async {
