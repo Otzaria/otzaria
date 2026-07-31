@@ -213,8 +213,13 @@ class _PluginTabPageState extends State<PluginTabPage> {
                 ) ==
                 true;
           },
-      requestPluginInstall: (downloadUrl) {
-        _pluginSystemBloc.add(InstallRemotePluginRequested(downloadUrl));
+      requestPluginInstall: (downloadUrl, {reportContext}) {
+        _pluginSystemBloc.add(
+          InstallRemotePluginRequested(
+            downloadUrl,
+            reportContext: reportContext,
+          ),
+        );
       },
       pickFolder: ({String? title}) async {
         if (!mounted) return null;

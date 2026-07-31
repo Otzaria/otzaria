@@ -10,6 +10,7 @@ import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 import 'package:otzaria/plugins/services/plugin_dev_loader_service.dart';
 import 'package:otzaria/plugins/services/plugin_dev_watch_service.dart';
 import 'package:otzaria/plugins/services/plugin_download_service.dart';
+import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
@@ -23,6 +24,11 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
   final PluginDevLoaderService devLoader;
   final PluginDevWatchService devWatchService;
   StreamSubscription<PluginDevFsChange>? _devWatchSub;
+
+  /// הקשר דיווח של התקנת החנות הפעילה (טוקן + callback לאתר). נשמר מרגע
+  /// בקשת ההתקנה המרוחקת ועד אישור/ביטול/כשל, כי הזרימה עוברת דרך דיאלוג
+  /// הרשאות (state נפרד). התקנה חדשה דורסת אותו — יש לכל היותר זרימה אחת.
+  PluginInstallReportContext? _pendingInstallReport;
 
   PluginSystemBloc({
     required this.repository,
@@ -187,10 +193,28 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     }
   }
 
+  /// מדווח את תוצאת ההתקנה לאתר (אם יש הקשר דיווח פעיל) ומנקה אותו.
+  /// fire-and-forget — הדיווח לעולם אינו מעכב או מכשיל את הזרימה.
+  void _reportInstallResult({required bool success, String? errorMessage}) {
+    final report = _pendingInstallReport;
+    if (report == null) return;
+    _pendingInstallReport = null;
+    unawaited(
+      PluginInstallReportService.report(
+        report,
+        success: success,
+        errorMessage: errorMessage,
+      ),
+    );
+  }
+
   Future<void> _onInstallPluginRequested(
     InstallPluginRequested event,
     Emitter<PluginSystemState> emit,
   ) async {
+    // התקנה מקומית פותחת זרימה חדשה — הקשר דיווח של התקנת חנות קודמת
+    // שלא הושלמה אינו רלוונטי יותר.
+    _pendingInstallReport = null;
     try {
       final prepareInfo = await _installerService.prepareInstall(
         event.archivePath,
@@ -225,6 +249,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     Emitter<PluginSystemState> emit,
   ) async {
     String? archivePath;
+    _pendingInstallReport = event.reportContext;
 
     try {
       archivePath = await _downloadService.downloadPluginArchive(
@@ -250,14 +275,26 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       debugPrint(
         'Plugin overwrite required for "${e.pluginName}" version ${e.version}',
       );
+      _reportInstallResult(
+        success: false,
+        errorMessage: 'התוסף כבר מותקן בגרסה זו',
+      );
       add(LoadPlugins());
     } on PluginNewerVersionInstalledException catch (e) {
       UiSnack.show(
         PluginMessages.newerVersionInstalled(e.pluginName, e.installedVersion),
       );
+      _reportInstallResult(
+        success: false,
+        errorMessage: 'מותקנת כבר גרסה חדשה יותר (${e.installedVersion})',
+      );
       add(LoadPlugins());
     } catch (e) {
       UiSnack.showError(PluginMessages.installRemotePluginError(e));
+      _reportInstallResult(
+        success: false,
+        errorMessage: 'שגיאה בהורדה או בפתיחת קובץ התוסף',
+      );
       add(LoadPlugins());
     } finally {
       if (archivePath != null) {
@@ -289,10 +326,15 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       }
 
       UiSnack.showSuccess(PluginMessages.pluginInstalledSuccess);
+      _reportInstallResult(success: true);
       add(LoadPlugins());
     } catch (e) {
       await _installerService.cancelInstall(event.tempDirPath);
       UiSnack.showError(PluginMessages.confirmInstallError(e));
+      _reportInstallResult(
+        success: false,
+        errorMessage: 'שגיאה בהשלמת ההתקנה',
+      );
       add(LoadPlugins());
     }
   }
@@ -302,6 +344,10 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     Emitter<PluginSystemState> emit,
   ) async {
     await _installerService.cancelInstall(event.tempDirPath);
+    _reportInstallResult(
+      success: false,
+      errorMessage: 'ההתקנה בוטלה על ידי המשתמש',
+    );
     add(LoadPlugins());
   }
 

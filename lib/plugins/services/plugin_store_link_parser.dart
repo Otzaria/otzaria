@@ -1,4 +1,5 @@
 import 'package:otzaria/plugins/models/plugin_store_install_request.dart';
+import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 
 class PluginStoreLinkParser {
   static PluginStoreInstallRequest? parseUri(Uri uri) {
@@ -39,9 +40,28 @@ class PluginStoreLinkParser {
       uri.queryParameters['overwrite'],
     );
 
+    // token+callback אופציונליים — דיווח תוצאת ההתקנה חזרה לאתר.
+    // callback לא-תקין (או שאינו באותו origin של כתובת ההורדה) — מתעלמים
+    // משניהם וההתקנה ממשיכה כרגיל, בלי דיווח.
+    PluginInstallReportContext? reportContext;
+    final token = uri.queryParameters['token']?.trim();
+    if (token != null && token.isNotEmpty) {
+      final callbackUrl = PluginInstallReportService.validateCallback(
+        uri.queryParameters['callback'],
+        downloadUri,
+      );
+      if (callbackUrl != null) {
+        reportContext = PluginInstallReportContext(
+          token: token,
+          callbackUrl: callbackUrl,
+        );
+      }
+    }
+
     return PluginStoreInstallRequest(
       downloadUri: downloadUri,
       forceOverwrite: forceOverwrite,
+      reportContext: reportContext,
     );
   }
 

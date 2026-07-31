@@ -48,6 +48,7 @@ import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
 import 'package:otzaria/plugins/models/plugin_network_allowlist.dart';
 import 'package:otzaria/plugins/services/plugin_network_access_resolver.dart';
 import 'package:otzaria/plugins/services/plugin_file_download_service.dart';
+import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 import 'package:otzaria/plugins/services/plugin_fs_service.dart';
 import 'package:otzaria/plugins/services/plugin_file_server.dart';
 import 'package:otzaria/plugins/services/plugin_shortcut_service.dart';
@@ -256,7 +257,11 @@ class PluginBridgeDependencies {
     required String subtitle,
   })
   showWarningDialog;
-  final void Function(String downloadUrl)? requestPluginInstall;
+  final void Function(
+    String downloadUrl, {
+    PluginInstallReportContext? reportContext,
+  })?
+  requestPluginInstall;
 
   /// פותח דיאלוג בחירת תיקייה ומחזיר את הנתיב שנבחר, או `null` אם המשתמש
   /// ביטל. אופציונלי — אם לא סופק, האדפטר משתמש ב-[FilePicker.getDirectoryPath].
@@ -2741,7 +2746,27 @@ class PluginBridgeAdapter {
         if (url == null) throw Exception('error.invalid_params: url required');
         final cb = _dependencies.requestPluginInstall;
         if (cb == null) throw Exception('error.unavailable: install not wired');
-        cb(url);
+
+        // token+callback אופציונליים — מאפשרים לתוסף חנות לעקוב אחרי תוצאת
+        // ההתקנה דרך ה-API של האתר. callback חייב להיות באותו origin של
+        // כתובת ההורדה; אחרת מתעלמים מהדיווח וההתקנה ממשיכה כרגיל.
+        PluginInstallReportContext? reportContext;
+        final token = (args['token'] as String?)?.trim();
+        final downloadUri = Uri.tryParse(url);
+        if (token != null && token.isNotEmpty && downloadUri != null) {
+          final callbackUrl = PluginInstallReportService.validateCallback(
+            args['callback'] as String?,
+            downloadUri,
+          );
+          if (callbackUrl != null) {
+            reportContext = PluginInstallReportContext(
+              token: token,
+              callbackUrl: callbackUrl,
+            );
+          }
+        }
+
+        cb(url, reportContext: reportContext);
         return true;
       case 'listInstalled':
         final installed = await _pluginRepo.getAllPlugins();

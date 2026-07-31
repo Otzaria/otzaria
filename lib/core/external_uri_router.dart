@@ -191,6 +191,8 @@ class OpenDailyPageAction extends ExternalUriAction {
 ///   - `?index=<n>` קפיצה לעמוד התחלתי (n >= 0)
 /// * `otzaria://plugin/install?url=<download>` – התקנת תוסף
 ///   - `&overwrite=true|false` דריסת תוסף קיים
+///   - `&token=<t>&callback=<url>` דיווח תוצאת ההתקנה חזרה לאתר החנות
+///     (ה-callback חייב להיות באותו origin של כתובת ההורדה)
 /// * `otzaria://plugin/install-local?path=<abs-path>` – התקנת תוסף מקובץ מקומי
 ///   (משמש לשיוך קובץ `.otzplugin` במערכת ההפעלה). הנתיב חייב להיות מוחלט,
 ///   להסתיים ב-`.otzplugin`, ואינו נתיב UNC/התקן (ראה `_isSafeLocalPluginPath`).

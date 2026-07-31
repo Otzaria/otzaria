@@ -428,8 +428,13 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
                 ) ==
                 true;
           },
-      requestPluginInstall: (downloadUrl) {
-        _pluginSystemBloc.add(InstallRemotePluginRequested(downloadUrl));
+      requestPluginInstall: (downloadUrl, {reportContext}) {
+        _pluginSystemBloc.add(
+          InstallRemotePluginRequested(
+            downloadUrl,
+            reportContext: reportContext,
+          ),
+        );
       },
       pickFolder: ({String? title}) async {
         final ctx = navigatorKey.currentContext;

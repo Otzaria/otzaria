@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
+import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 
 sealed class PluginSystemEvent extends Equatable {
   const PluginSystemEvent();
@@ -23,13 +24,21 @@ class InstallRemotePluginRequested extends PluginSystemEvent {
   final String downloadUrl;
   final bool forceOverwrite;
 
+  /// הקשר דיווח תוצאה חזרה לאתר החנות (טוקן + callback). null = ללא דיווח.
+  final PluginInstallReportContext? reportContext;
+
   const InstallRemotePluginRequested(
     this.downloadUrl, {
     this.forceOverwrite = false,
+    this.reportContext,
   });
 
   @override
-  List<Object?> get props => [downloadUrl, forceOverwrite];
+  List<Object?> get props => [
+    downloadUrl,
+    forceOverwrite,
+    reportContext?.token,
+  ];
 }
 
 class ConfirmPluginInstall extends PluginSystemEvent {
