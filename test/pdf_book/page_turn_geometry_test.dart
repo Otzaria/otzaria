@@ -80,6 +80,45 @@ void main() {
     });
   });
 
+  group('דפדוף אינטראקטיבי — מיפוי גרירה ל-progress', () {
+    test('גרירה מלאה על פני הכפולה = דפדוף שלם, וההתקדמות ליניארית', () {
+      expect(
+        pageTurnDragProgress(dragDx: 800, directionSign: 1, pageWidth: 400),
+        1.0,
+      );
+      expect(
+        pageTurnDragProgress(dragDx: 400, directionSign: 1, pageWidth: 400),
+        0.5,
+      );
+    });
+
+    test('גרירה נגד כיוון הדפדוף נחסמת באפס ולא בערך שלילי', () {
+      expect(
+        pageTurnDragProgress(dragDx: -200, directionSign: 1, pageWidth: 400),
+        0.0,
+      );
+      expect(
+        pageTurnDragProgress(dragDx: 200, directionSign: -1, pageWidth: 400),
+        0.0,
+      );
+    });
+  });
+
+  group('דפדוף אינטראקטיבי — החלטת שחרור', () {
+    test('זריקה מהירה בכיוון הדפדוף משלימה גם בתחילת הדרך', () {
+      expect(shouldCommitPageTurn(velocity: 900, progress: 0.1), isTrue);
+    });
+
+    test('זריקה מהירה נגד הכיוון מבטלת גם אחרי מחצית הדרך', () {
+      expect(shouldCommitPageTurn(velocity: -900, progress: 0.8), isFalse);
+    });
+
+    test('שחרור איטי מוכרע לפי מעבר מחצית הדרך', () {
+      expect(shouldCommitPageTurn(velocity: 0, progress: 0.51), isTrue);
+      expect(shouldCommitPageTurn(velocity: 0, progress: 0.49), isFalse);
+    });
+  });
+
   group('PageTurnGeometry — חשיפת העמוד החדש', () {
     test('הקצה האחורי מתקדם מונוטונית לכיוון השדרה', () {
       var previous = double.negativeInfinity;

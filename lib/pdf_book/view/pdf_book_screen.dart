@@ -327,6 +327,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   ui.Image? _pageTurnTargetSnapshot;
   _BookPageTurnTransition? _pageTurnTransition;
   bool _isPageTurnInProgress = false;
+
+  // דפדוף אינטראקטיבי בגרירה מקצה הדף. בזמן גרירה ערך ה-controller הוא
+  // ה-progress עצמו (ליניארי, צמוד לאצבע) — בלי עקומת ההאטה של קליק.
+  bool _isInteractivePageTurn = false;
+  int _interactiveTurnToken = 0;
+  double _interactiveDragDx = 0;
+  double _interactivePageWidth = 1;
+  _BookPageTurnDirection? _interactiveDirection;
+  int? _interactiveTargetPage;
   bool _pdfViewerSuspended = false;
   bool _readerFocusAndHideQueued = false;
   bool _bookHasCommentaryLinks = false;
@@ -526,7 +535,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _resolveIsTanachBook();
     _pageTurnController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 450),
     );
     if (widget.tab.pageNumber < 1) {
       widget.tab.pageNumber = 1;
@@ -1893,10 +1902,31 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final buttonSize = min(72.0, max(48.0, viewportSize.shortestSide * 0.10));
     final horizontalPadding = min(28.0, viewportSize.width * 0.018);
     final colorScheme = Theme.of(context).colorScheme;
+    final spreadRect = _currentSpreadViewportRect(
+      widget.tab.pdfViewerController,
+      widget.tab.pdfViewerController.viewSize,
+    );
+    const dragZoneWidth = 48.0;
 
     return SizedBox.expand(
       child: Stack(
         children: [
+          if (spreadRect != null && canGoNext)
+            Positioned(
+              left: spreadRect.left - dragZoneWidth / 2,
+              top: spreadRect.top,
+              width: dragZoneWidth,
+              height: spreadRect.height,
+              child: _buildPageTurnDragZone(_BookPageTurnDirection.next),
+            ),
+          if (spreadRect != null && canGoPrevious)
+            Positioned(
+              left: spreadRect.right - dragZoneWidth / 2,
+              top: spreadRect.top,
+              width: dragZoneWidth,
+              height: spreadRect.height,
+              child: _buildPageTurnDragZone(_BookPageTurnDirection.previous),
+            ),
           if (canGoPrevious)
             Align(
               alignment: Alignment.centerRight,
@@ -1936,6 +1966,30 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     );
   }
 
+  // grab/grabbing לא ממומשים במנוע Windows ונופלים בשקט ל-arrow
+  // (flutter#99323) — שם משתמשים ביד ה-native של הפלטפורמה (IDC_HAND).
+  static final MouseCursor _dragZoneCursor = Platform.isWindows
+      ? SystemMouseCursors.click
+      : SystemMouseCursors.grab;
+  static final MouseCursor _dragZoneActiveCursor = Platform.isWindows
+      ? SystemMouseCursors.click
+      : SystemMouseCursors.grabbing;
+
+  /// רצועת אחיזה שקופה בקצה החיצוני של עמוד — גרירה אופקית ממנה מדפדפת;
+  /// שאר המחוות (בחירת טקסט, פאן, קליק) ממשיכות לעבור אל ה-viewer שמתחת.
+  Widget _buildPageTurnDragZone(_BookPageTurnDirection direction) {
+    return MouseRegion(
+      cursor: _isInteractivePageTurn ? _dragZoneActiveCursor : _dragZoneCursor,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragStart: (_) => _onPageTurnDragStart(direction),
+        onHorizontalDragUpdate: _onPageTurnDragUpdate,
+        onHorizontalDragEnd: _onPageTurnDragEnd,
+        onHorizontalDragCancel: () => _onPageTurnDragEnd(DragEndDetails()),
+      ),
+    );
+  }
+
   Widget _buildPageTurnOverlay(BuildContext context) {
     final snapshot = _pageTurnSnapshot;
     final transition = _pageTurnTransition;
@@ -1957,9 +2011,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             child: AnimatedBuilder(
               animation: _pageTurnController,
               builder: (context, child) {
-                final progress = Curves.easeOutCubic.transform(
-                  _pageTurnController.value,
-                );
+                final progress = _pageTurnPaintProgress;
                 return CustomPaint(
                   painter: _BookPageTurnBackgroundPainter(
                     snapshot: snapshot,
@@ -1981,9 +2033,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             child: AnimatedBuilder(
               animation: _pageTurnController,
               builder: (context, child) {
-                final progress = Curves.easeOutCubic.transform(
-                  _pageTurnController.value,
-                );
+                final progress = _pageTurnPaintProgress;
 
                 return CustomPaint(
                   size: transition.viewportRect.size,
@@ -2342,6 +2392,205 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       targetPage: pending.targetPage,
       direction: pending.direction,
     );
+  }
+
+  // ============================================================
+  // Interactive edge-drag page turn
+  // ============================================================
+
+  double get _pageTurnPaintProgress => _isInteractivePageTurn
+      ? _pageTurnController.value
+      : Curves.easeOutCubic.transform(_pageTurnController.value);
+
+  int? _nextSpreadTargetPage() {
+    final basePage = _effectiveCurrentPageForNavigation();
+    final focus = pdfNextSpreadFocusPage(
+      basePage,
+      widget.tab.pdfViewerController.pageCount,
+      coverPage: _hasCoverPage(),
+    );
+    return focus == basePage ? null : focus;
+  }
+
+  int? _previousSpreadTargetPage() {
+    final basePage = _effectiveCurrentPageForNavigation();
+    final focus = pdfPreviousSpreadFocusPage(
+      basePage,
+      coverPage: _hasCoverPage(),
+    );
+    return focus == basePage ? null : focus;
+  }
+
+  Future<void> _onPageTurnDragStart(_BookPageTurnDirection direction) async {
+    final controller = widget.tab.pdfViewerController;
+    if (!mounted || !controller.isReady || !_isBookViewModeActive()) return;
+    if (_isPageTurnInProgress || _pageTurnController.isAnimating) return;
+
+    final targetPage = direction == _BookPageTurnDirection.next
+        ? _nextSpreadTargetPage()
+        : _previousSpreadTargetPage();
+    if (targetPage == null) return;
+
+    final spreadRect = _currentSpreadViewportRect(
+      controller,
+      controller.viewSize,
+    );
+    if (spreadRect == null) return;
+
+    _isPageTurnInProgress = true;
+    _isInteractivePageTurn = true;
+    final token = ++_interactiveTurnToken;
+    _interactiveDirection = direction;
+    _interactiveTargetPage = targetPage;
+    _interactiveDragDx = 0;
+    _interactivePageWidth = max(1.0, spreadRect.width / 2);
+    _inFlightAnimationTarget = targetPage;
+    _pageTurnController.value = 0;
+
+    // הצילום נלכד תוך כדי שהאצבע כבר זזה; עדכוני הגרירה מצטברים ב-controller
+    // וה-overlay מופיע ישר ב-progress הנכון ברגע שהצילום מוכן.
+    final captureResult = await _capturePdfViewportSnapshot();
+    if (!mounted || token != _interactiveTurnToken) {
+      captureResult?.image.dispose();
+      return;
+    }
+    if (captureResult == null) {
+      _abortInteractivePageTurn();
+      return;
+    }
+
+    setState(() {
+      _disposePageTurnSnapshot();
+      _pageTurnSnapshot = captureResult.image;
+      _pageTurnTransition = _BookPageTurnTransition(
+        direction: direction,
+        viewportRect: spreadRect,
+        viewportLogicalSize: captureResult.viewportLogicalSize,
+      );
+    });
+
+    final targetSpreadStartPage = _spreadStartPageFor(targetPage);
+    if (_spreadCache.containsKey(targetSpreadStartPage)) {
+      final composed = await _composeCachedSpreadSnapshot(
+        targetSpreadStartPage,
+        focusPage: targetPage,
+      );
+      if (!mounted || token != _interactiveTurnToken || composed == null) {
+        composed?.dispose();
+        return;
+      }
+      setState(() {
+        _pageTurnTargetSnapshot?.dispose();
+        _pageTurnTargetSnapshot = composed;
+      });
+    }
+  }
+
+  void _onPageTurnDragUpdate(DragUpdateDetails details) {
+    if (!_isInteractivePageTurn) return;
+    _interactiveDragDx += details.delta.dx;
+    final sign = _interactiveDirection == _BookPageTurnDirection.next
+        ? 1.0
+        : -1.0;
+    _pageTurnController.value = pageTurnDragProgress(
+      dragDx: _interactiveDragDx,
+      directionSign: sign,
+      pageWidth: _interactivePageWidth,
+    );
+  }
+
+  Future<void> _onPageTurnDragEnd(DragEndDetails details) async {
+    if (!_isInteractivePageTurn) return;
+
+    final direction = _interactiveDirection;
+    final targetPage = _interactiveTargetPage;
+    if (direction == null ||
+        targetPage == null ||
+        _pageTurnTransition == null) {
+      // גרירה קצרצרה שהסתיימה לפני שהצילום הוכן — ביטול שקט.
+      _abortInteractivePageTurn();
+      return;
+    }
+
+    final sign = direction == _BookPageTurnDirection.next ? 1.0 : -1.0;
+    final velocity = details.velocity.pixelsPerSecond.dx * sign;
+    final progress = _pageTurnController.value;
+
+    final commit = shouldCommitPageTurn(velocity: velocity, progress: progress);
+
+    try {
+      if (!commit) {
+        final duration = Duration(
+          milliseconds: max(80, (250 * progress).round()),
+        );
+        await _pageTurnController.animateBack(
+          0.0,
+          duration: duration,
+          curve: Curves.easeOutCubic,
+        );
+        return;
+      }
+
+      _lastInitiatedTargetPage = targetPage;
+      final flingBoost = (velocity / 3000).clamp(0.0, 1.0);
+      final duration = Duration(
+        milliseconds: max(
+          100,
+          (420 * (1.0 - progress) * (1.0 - 0.5 * flingBoost)).round(),
+        ),
+      );
+
+      if (_pageTurnTargetSnapshot != null) {
+        final navigationFuture = _goToPageWithSpreadLock(
+          targetPage,
+        ).catchError((Object _) {});
+        await _pageTurnController.animateTo(
+          1.0,
+          duration: duration,
+          curve: Curves.easeOutCubic,
+        );
+        await navigationFuture;
+      } else {
+        await _goToPageWithSpreadLock(targetPage);
+        if (!mounted) return;
+        await Future<void>.delayed(const Duration(milliseconds: 90));
+        if (!mounted) return;
+
+        final targetCaptureResult = await _capturePdfViewportSnapshot();
+        if (mounted && targetCaptureResult != null) {
+          setState(() {
+            _pageTurnTargetSnapshot?.dispose();
+            _pageTurnTargetSnapshot = targetCaptureResult.image;
+          });
+          await WidgetsBinding.instance.endOfFrame;
+        }
+        if (!mounted) return;
+
+        await _pageTurnController.animateTo(
+          1.0,
+          duration: duration,
+          curve: Curves.easeOutCubic,
+        );
+      }
+    } finally {
+      _abortInteractivePageTurn();
+      await _processPendingPageTurnIfNeeded();
+    }
+  }
+
+  /// מנקה את מצב הגרירה האינטראקטיבית ואת ה-overlay, ומבטל המשכים תלויים.
+  void _abortInteractivePageTurn() {
+    _interactiveTurnToken++;
+    _isInteractivePageTurn = false;
+    _interactiveDirection = null;
+    _interactiveTargetPage = null;
+    _isPageTurnInProgress = false;
+    _inFlightAnimationTarget = null;
+    if (mounted) {
+      setState(_clearPageTurnOverlay);
+    } else {
+      _clearPageTurnOverlay();
+    }
   }
 
   // ============================================================
@@ -4044,11 +4293,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final totalPages = widget.tab.pdfViewerController.pageCount;
     final int nextPage;
     if (isBookViewMode) {
-      final focus = pdfNextSpreadFocusPage(
-        basePage,
-        totalPages,
-        coverPage: _hasCoverPage(),
-      );
+      final focus = _nextSpreadTargetPage();
       if (focus == null) return;
       nextPage = focus;
     } else {
@@ -4082,10 +4327,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final basePage = _effectiveCurrentPageForNavigation();
     final int prevPage;
     if (isBookViewMode) {
-      final focus = pdfPreviousSpreadFocusPage(
-        basePage,
-        coverPage: _hasCoverPage(),
-      );
+      final focus = _previousSpreadTargetPage();
       if (focus == null) return;
       prevPage = focus;
     } else {
@@ -5347,6 +5589,9 @@ class _BookPageTurnPainter extends CustomPainter {
       geometry: geometry,
       turnLeftPage: turnLeftPage,
     );
+    // צל השדרה חייב להיצבע לפני הרצועות — באמצע הדפדוף הדף המתעקל חוצה
+    // את השדרה ואמור להסתיר אותו.
+    _paintSpineShadow(canvas, viewportRect, shadeStrength);
 
     final hasTarget = targetSnapshot != null;
     final backImage = targetSnapshot ?? snapshot;
@@ -5404,7 +5649,6 @@ class _BookPageTurnPainter extends CustomPainter {
     }
 
     _paintFreeEdge(canvas, geometry, shadeStrength);
-    _paintSpineShadow(canvas, viewportRect, shadeStrength);
   }
 
   /// צללים רכים שהיריעה המורמת מטילה משני צידיה על העמודים השטוחים.

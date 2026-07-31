@@ -1,5 +1,28 @@
 import 'dart:math';
 
+/// ממפה מרחק גרירה מצטבר ל-progress של דפדוף. הקצה החופשי חוצה את הכפולה
+/// כולה (פעמיים רוחב עמוד) בדפדוף מלא.
+double pageTurnDragProgress({
+  required double dragDx,
+  required double directionSign,
+  required double pageWidth,
+}) {
+  return (directionSign * dragDx / (2 * max(1.0, pageWidth)))
+      .clamp(0.0, 1.0)
+      .toDouble();
+}
+
+/// החלטת שחרור: זריקה מהירה בכיוון הדפדוף משלימה אותו; זריקה נגדית מבטלת;
+/// שחרור איטי מוכרע לפי מעבר מחצית הדרך.
+bool shouldCommitPageTurn({
+  required double velocity,
+  required double progress,
+  double flingVelocity = 600,
+}) {
+  return velocity > flingVelocity ||
+      (velocity > -flingVelocity && progress >= 0.5);
+}
+
 /// רצועה אנכית אחת של הדף המתהפך, אחרי הקרנה למסך.
 class PageTurnStrip {
   final double left;
