@@ -1961,6 +1961,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 ),
               ),
             ),
+          // בזמן גרירה המצביע יוצא מרצועת האחיזה — שכבה על כל השטח שומרת
+          // את סמן הגרירה עד לשחרור.
+          if (_isInteractivePageTurn)
+            Positioned.fill(
+              child: MouseRegion(cursor: _dragZoneActiveCursor, opaque: false),
+            ),
         ],
       ),
     );
