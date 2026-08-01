@@ -22,7 +22,6 @@ import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
-import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
@@ -43,13 +42,7 @@ class _FakeTabsRepository extends TabsRepository {
   @override
   int loadCurrentTabIndex() => 0;
   @override
-  SideBySideMode? loadSideBySideMode() => null;
-  @override
-  Future<void> saveTabs(
-    List<OpenedTab> tabs,
-    int currentTabIndex, [
-    SideBySideMode? sideBySideMode,
-  ]) async {}
+  Future<void> saveTabs(List<OpenedTab> tabs, int currentTabIndex) async {}
   @override
   Future<void> saveCurrentTabIndex(
     List<OpenedTab> tabs,

@@ -429,7 +429,7 @@ class _ReadingScreenState extends State<ReadingScreen>
         // הצד שאליו נגררה הכרטיסייה קובע את סדר החלוניות.
         final incomingFirst = side == PaneDropSide.start;
         context.read<TabsBloc>().add(
-          EnableSideBySideMode(
+          CreateCombinedTab(
             rightTab: incomingFirst ? dragged : tab,
             leftTab: incomingFirst ? tab : dragged,
           ),

@@ -78,7 +78,7 @@ void main() {
                                 final incomingFirst =
                                     side == PaneDropSide.start;
                                 bloc.add(
-                                  EnableSideBySideMode(
+                                  CreateCombinedTab(
                                     rightTab: incomingFirst ? dragged : current,
                                     leftTab: incomingFirst ? current : dragged,
                                   ),
@@ -286,7 +286,7 @@ void main() {
       final area = readingArea(tester);
       await dragTab(tester, 'ב', Offset(area.left + 20, area.center.dy));
 
-      bloc.add(const DisableSideBySideMode(0));
+      bloc.add(const ExpandCombinedTab(0));
       await tester.pumpAndSettle();
 
       expect(bloc.state.tabs, hasLength(2));
@@ -362,14 +362,7 @@ class _FakeTabsRepository extends TabsRepository {
   int loadCurrentTabIndex() => 0;
 
   @override
-  SideBySideMode? loadSideBySideMode() => null;
-
-  @override
-  Future<void> saveTabs(
-    List<OpenedTab> tabs,
-    int currentTabIndex, [
-    SideBySideMode? sideBySideMode,
-  ]) async {}
+  Future<void> saveTabs(List<OpenedTab> tabs, int currentTabIndex) async {}
 
   @override
   Future<void> saveCurrentTabIndex(

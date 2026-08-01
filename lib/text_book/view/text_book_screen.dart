@@ -1141,29 +1141,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             // }
           },
           builder: (context, tabsState) {
-            // סגירת חלונית הצד כשנמצאים במצב side-by-side
-            if (tabsState.isSideBySideMode) {
-              final currentState = context.read<TextBookBloc>().state;
-              if (currentState is TextBookLoaded && currentState.showLeftPane) {
-                // בדיקה אם הטאב הנוכחי הוא אחד מהטאבים המוצגים
-                final currentTabIndex = tabsState.currentTabIndex;
-                final isInSideBySide =
-                    currentTabIndex == tabsState.sideBySideMode!.leftTabIndex ||
-                    currentTabIndex == tabsState.sideBySideMode!.rightTabIndex;
-
-                if (isInSideBySide) {
-                  // סגירה מיידית
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) {
-                      context.read<TextBookBloc>().add(
-                        const ToggleLeftPane(false),
-                      );
-                    }
-                  });
-                }
-              }
-            }
-
             return BlocConsumer<TextBookBloc, TextBookState>(
               bloc: context.read<TextBookBloc>(),
               listener: (context, state) {

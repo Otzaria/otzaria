@@ -5,14 +5,13 @@ import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
-import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/utils/file/hive_utils.dart';
 import 'package:flutter/foundation.dart';
 
 class TabsRepository {
   static const String _tabsBoxKey = 'key-tabs';
   static const String _currentTabKey = 'key-current-tab';
-  static const String _sideBySideModeKey = 'key-side-by-side-mode';
+  static const String _legacySplitModeKey = 'key-side-by-side-mode';
 
   int _resolvePersistedCurrentTabIndex(
     Map<int, int> persistedIndexByOriginalIndex,
@@ -35,30 +34,6 @@ class TabsRepository {
     }
 
     return 0;
-  }
-
-  SideBySideMode? _resolvePersistedSideBySideMode(
-    SideBySideMode? sideBySideMode,
-    Map<int, int> persistedIndexByOriginalIndex,
-  ) {
-    if (sideBySideMode == null) return null;
-
-    final persistedLeft =
-        persistedIndexByOriginalIndex[sideBySideMode.leftTabIndex];
-    final persistedRight =
-        persistedIndexByOriginalIndex[sideBySideMode.rightTabIndex];
-
-    if (persistedLeft == null ||
-        persistedRight == null ||
-        persistedLeft == persistedRight) {
-      return null;
-    }
-
-    return SideBySideMode(
-      leftTabIndex: persistedLeft,
-      rightTabIndex: persistedRight,
-      splitRatio: sideBySideMode.splitRatio,
-    );
   }
 
   /// ממפה נתיבי קבצים שמורים של טאבים מתיקיית הספרייה הישנה [fromDir] לחדשה
@@ -130,6 +105,7 @@ class TabsRepository {
   List<OpenedTab> loadTabs() {
     try {
       final box = Hive.box('tabs');
+      unawaited(box.delete(_legacySplitModeKey));
       final rawTabs = box.get(_tabsBoxKey, defaultValue: []) as List;
       final tabs = <OpenedTab>[];
       for (final e in rawTabs) {
@@ -162,23 +138,7 @@ class TabsRepository {
     return Hive.box('tabs').get(_currentTabKey, defaultValue: 0);
   }
 
-  SideBySideMode? loadSideBySideMode() {
-    try {
-      final box = Hive.box('tabs');
-      final rawMode = box.get(_sideBySideModeKey);
-      if (rawMode == null) return null;
-      return SideBySideMode.fromJson(castMap(rawMode));
-    } catch (e) {
-      debugPrint('Error loading side-by-side mode from disk: $e');
-      return null;
-    }
-  }
-
-  Future<void> saveTabs(
-    List<OpenedTab> tabs,
-    int currentTabIndex, [
-    SideBySideMode? sideBySideMode,
-  ]) async {
+  Future<void> saveTabs(List<OpenedTab> tabs, int currentTabIndex) async {
     final box = Hive.box('tabs');
     final persistedTabs = <OpenedTab>[];
     final persistedIndexByOriginalIndex = <int, int>{};
@@ -193,21 +153,12 @@ class TabsRepository {
       currentTabIndex,
       tabs.length,
     );
-    final persistedSideBySideMode = _resolvePersistedSideBySideMode(
-      sideBySideMode,
-      persistedIndexByOriginalIndex,
-    );
-
     await box.put(
       _tabsBoxKey,
       persistedTabs.map((tab) => tab.toJson()).toList(),
     );
     await box.put(_currentTabKey, persistedCurrentIndex);
-    if (persistedSideBySideMode != null) {
-      await box.put(_sideBySideModeKey, persistedSideBySideMode.toJson());
-    } else {
-      await box.delete(_sideBySideModeKey);
-    }
+    await box.delete(_legacySplitModeKey);
   }
 
   /// שומר רק את אינדקס הטאב הנוכחי, בלי לקודד מחדש את כל הטאבים.

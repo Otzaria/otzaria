@@ -208,23 +208,23 @@ class TogglePinTab extends TabsEvent {
 ///
 /// שניהם יוצאים משורת הכרטיסיות והטאב המפוצל נכנס במקומם, בלי לשכפל אותם —
 /// כך מיקום הקריאה בכל אחד מהם נשמר.
-class EnableSideBySideMode extends TabsEvent {
+class CreateCombinedTab extends TabsEvent {
   /// הטאב שיוצג בחלונית הראשונה (הימנית ב-RTL).
   final OpenedTab rightTab;
 
   /// הטאב שיוצג בחלונית השנייה (השמאלית ב-RTL).
   final OpenedTab leftTab;
 
-  const EnableSideBySideMode({required this.rightTab, required this.leftTab});
+  const CreateCombinedTab({required this.rightTab, required this.leftTab});
 
   @override
   List<Object?> get props => [rightTab, leftTab];
 }
 
 /// פירוק טאב מפוצל לשתי כרטיסיות עצמאיות.
-class DisableSideBySideMode extends TabsEvent {
+class ExpandCombinedTab extends TabsEvent {
   final int tabIndex;
-  const DisableSideBySideMode(this.tabIndex);
+  const ExpandCombinedTab(this.tabIndex);
 
   @override
   List<Object?> get props => [tabIndex];

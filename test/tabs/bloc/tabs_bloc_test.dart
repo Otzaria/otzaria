@@ -6,7 +6,6 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
-import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/resolving_tab.dart';
@@ -38,7 +37,7 @@ void main() {
       bloc.add(AddTab(leftTab));
       await bloc.stream.firstWhere((s) => s.tabs.length == 2);
 
-      bloc.add(EnableSideBySideMode(rightTab: rightTab, leftTab: leftTab));
+      bloc.add(CreateCombinedTab(rightTab: rightTab, leftTab: leftTab));
       await bloc.stream.firstWhere(
         (s) => s.tabs.length == 1 && s.currentTab is CombinedTab,
       );
@@ -70,12 +69,12 @@ void main() {
       bloc.add(AddTab(leftTab));
       await bloc.stream.firstWhere((s) => s.tabs.length == 2);
 
-      bloc.add(EnableSideBySideMode(rightTab: rightTab, leftTab: leftTab));
+      bloc.add(CreateCombinedTab(rightTab: rightTab, leftTab: leftTab));
       await bloc.stream.firstWhere(
         (s) => s.tabs.length == 1 && s.currentTab is CombinedTab,
       );
 
-      bloc.add(const DisableSideBySideMode(0));
+      bloc.add(const ExpandCombinedTab(0));
       await bloc.stream.firstWhere((s) => s.tabs.length == 2);
 
       expect(bloc.state.tabs[0], same(rightTab));
@@ -99,7 +98,7 @@ void main() {
       bloc.add(AddTab(CombinedTab(rightTab: right, leftTab: left)));
       await bloc.stream.firstWhere((s) => s.tabs.length == 2);
 
-      bloc.add(const DisableSideBySideMode(1));
+      bloc.add(const ExpandCombinedTab(1));
       await bloc.stream.firstWhere((s) => s.tabs.length == 3);
 
       expect(bloc.state.tabs, [same(before), same(right), same(left)]);
@@ -837,35 +836,6 @@ void main() {
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
 
-    test('RemoveTabs שסוגר צד של side-by-side מבטל את המצב', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
-      final first = _createTextTab('ספר א', categoryId: 1);
-      final second = _createTextTab('ספר ב', categoryId: 2);
-      final third = _createTextTab('ספר ג', categoryId: 3);
-
-      bloc.add(AddTab(first));
-      bloc.add(AddTab(second));
-      bloc.add(AddTab(third));
-      await bloc.stream.firstWhere((s) => s.tabs.length == 3);
-
-      // side-by-side נשמר כאינדקסים ב-state (בנפרד מ-CombinedTab).
-      bloc.emit(
-        bloc.state.copyWith(
-          sideBySideMode: const SideBySideMode(
-            leftTabIndex: 0,
-            rightTabIndex: 1,
-          ),
-        ),
-      );
-
-      bloc.add(RemoveTabs([second, third]));
-      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
-
-      expect(bloc.state.sideBySideMode, isNull);
-
-      await _closeBlocAndAllowDeferredDispose(bloc);
-    });
-
     test('שחזור אחרי RemoveTabs מחזיר את הטאבים שנסגרו', () async {
       final bloc = TabsBloc(repository: _FakeTabsRepository());
       final first = _createTextTab('ספר א', categoryId: 1);
@@ -1079,7 +1049,7 @@ void main() {
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
 
-    test('EnableSideBySideMode מנרמל בחירה שכללה את הטאבים שאוחדו', () async {
+    test('CreateCombinedTab מנרמל בחירה שכללה את הטאבים שאוחדו', () async {
       final tabs = [
         _createTextTab('ספר א', categoryId: 1),
         _createTextTab('ספר ב', categoryId: 2),
@@ -1092,7 +1062,7 @@ void main() {
       bloc.add(SelectTabRange(tabs[2]));
       await bloc.stream.firstWhere((s) => s.selectedTabs.length == 3);
 
-      bloc.add(EnableSideBySideMode(rightTab: tabs[0], leftTab: tabs[1]));
+      bloc.add(CreateCombinedTab(rightTab: tabs[0], leftTab: tabs[1]));
       await bloc.stream.firstWhere((s) => s.currentTab is CombinedTab);
 
       expect(
@@ -1787,7 +1757,6 @@ Future<void> _closeBlocAndAllowDeferredDispose(TabsBloc bloc) async {
 class _FakeTabsRepository extends TabsRepository {
   List<Map<String, dynamic>> _tabsJson = const [];
   int _currentTabIndex = 0;
-  SideBySideMode? _sideBySideMode;
 
   @override
   List<OpenedTab> loadTabs() =>
@@ -1797,19 +1766,11 @@ class _FakeTabsRepository extends TabsRepository {
   int loadCurrentTabIndex() => _currentTabIndex;
 
   @override
-  SideBySideMode? loadSideBySideMode() => _sideBySideMode;
-
-  @override
-  Future<void> saveTabs(
-    List<OpenedTab> tabs,
-    int currentTabIndex, [
-    SideBySideMode? sideBySideMode,
-  ]) async {
+  Future<void> saveTabs(List<OpenedTab> tabs, int currentTabIndex) async {
     _tabsJson = tabs
         .map<Map<String, dynamic>>((tab) => tab.toJson())
         .toList(growable: false);
     _currentTabIndex = currentTabIndex;
-    _sideBySideMode = sideBySideMode;
   }
 
   @override
@@ -1827,13 +1788,9 @@ class _ThrowingSaveTabsRepository extends _FakeTabsRepository {
   bool armed = false;
 
   @override
-  Future<void> saveTabs(
-    List<OpenedTab> tabs,
-    int currentTabIndex, [
-    SideBySideMode? sideBySideMode,
-  ]) async {
+  Future<void> saveTabs(List<OpenedTab> tabs, int currentTabIndex) async {
     if (armed) throw Exception('save failed');
-    return super.saveTabs(tabs, currentTabIndex, sideBySideMode);
+    return super.saveTabs(tabs, currentTabIndex);
   }
 }
 

@@ -44,7 +44,6 @@ void main() {
     WidgetTester tester,
     List<OpenedTab> tabs, {
     int currentTabIndex = 0,
-    SideBySideMode? sideBySideMode,
   }) async {
     tester.view.physicalSize = const Size(1600, 900);
     tester.view.devicePixelRatio = 1.0;
@@ -57,7 +56,6 @@ void main() {
       TabsState(
         tabs: tabs,
         currentTabIndex: currentTabIndex,
-        sideBySideMode: sideBySideMode,
       ),
     );
 
@@ -162,34 +160,6 @@ void main() {
       for (final t in ['א', 'ב', 'ג']) {
         expect(identical(tabScreenState(tester, t), before[t]), isTrue);
       }
-    });
-  });
-
-  group('ReadingScreen — אינדקסי side-by-side אחרי MoveTab', () {
-    testWidgets('האינדקסים ממשיכים להצביע על אותם טאבים', (tester) async {
-      final tabs = [_tab('א'), _tab('ב'), _tab('ג')];
-      addTearDown(() {
-        for (final t in tabs) {
-          t.dispose();
-        }
-      });
-      final bloc = await pumpReadingScreen(
-        tester,
-        tabs,
-        sideBySideMode: const SideBySideMode(leftTabIndex: 1, rightTabIndex: 0),
-      );
-
-      bloc.add(MoveTab(tabs[0], 2)); // "א" (right) לסוף
-      await tester.pumpAndSettle();
-
-      final mode = bloc.state.sideBySideMode!;
-      expect(_titles(bloc), ['ב', 'ג', 'א']);
-      expect(
-        _short(bloc.state.tabs[mode.rightTabIndex].title),
-        'א',
-        reason: 'הצד הימני חייב להישאר "א" גם אחרי שהוא נגרר',
-      );
-      expect(_short(bloc.state.tabs[mode.leftTabIndex].title), 'ב');
     });
   });
 

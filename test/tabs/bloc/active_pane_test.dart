@@ -258,7 +258,7 @@ void main() {
       final incoming = pdf('חדש');
       final bloc = await blocWith([target, incoming]);
 
-      bloc.add(EnableSideBySideMode(rightTab: incoming, leftTab: target));
+      bloc.add(CreateCombinedTab(rightTab: incoming, leftTab: target));
       await bloc.stream.firstWhere((s) => s.tabs.length == 1);
 
       expect(bloc.state.activePane, same(incoming));
@@ -304,7 +304,7 @@ void main() {
       bloc.add(SetActivePane(second));
       await bloc.stream.first;
 
-      bloc.add(const DisableSideBySideMode(0));
+      bloc.add(const ExpandCombinedTab(0));
       await bloc.stream.firstWhere((s) => s.tabs.length == 2);
 
       expect(bloc.state.activePane, same(bloc.state.currentTab));
@@ -324,14 +324,7 @@ class _FakeTabsRepository extends TabsRepository {
   int loadCurrentTabIndex() => 0;
 
   @override
-  SideBySideMode? loadSideBySideMode() => null;
-
-  @override
-  Future<void> saveTabs(
-    List<OpenedTab> tabs,
-    int currentTabIndex, [
-    SideBySideMode? sideBySideMode,
-  ]) async {
+  Future<void> saveTabs(List<OpenedTab> tabs, int currentTabIndex) async {
     saveCount++;
   }
 

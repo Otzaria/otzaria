@@ -193,7 +193,7 @@ void main() {
     // בונה רק את הכרטיסייה הפעילה, ואין מה לבדוק על השנייה.
     final draggedInSplit = paneStateOf(dragged);
 
-    bloc.add(const DisableSideBySideMode(0));
+    bloc.add(const ExpandCombinedTab(0));
     await tester.pumpAndSettle();
     expect(bloc.state.tabs, hasLength(2));
     expect(

@@ -42,6 +42,18 @@ void main() {
   });
 
   group('TabsRepository', () {
+    test('saveTabs מוחק מצב פיצול ישן', () async {
+      final box = Hive.box<dynamic>('tabs');
+      await box.put('key-side-by-side-mode', {
+        'leftTabIndex': 0,
+        'rightTabIndex': 1,
+      });
+
+      await repository.saveTabs(const [], 0);
+
+      expect(box.containsKey('key-side-by-side-mode'), isFalse);
+    });
+
     test('saveTabs/loadTabs משחזרים CommentatorsTab', () async {
       final sourceTab = TextBookTab(
         book: TextBook(title: 'ספר בדיקה'),

@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
-import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
@@ -41,13 +40,13 @@ void main() {
   List<String> titles(OpenedTab tab) =>
       leafPanes(tab).map((p) => p.title).toList();
 
-  group('EnableSideBySideMode — יצירת הפיצול', () {
+  group('CreateCombinedTab — יצירת הפיצול', () {
     test('שני טאבים מתמזגים לטאב אחד ויוצאים משורת הכרטיסיות', () async {
       final a = leaf('א');
       final b = leaf('ב');
       final bloc = await blocWith([a, b]);
 
-      bloc.add(EnableSideBySideMode(rightTab: a, leftTab: b));
+      bloc.add(CreateCombinedTab(rightTab: a, leftTab: b));
       await bloc.stream.firstWhere((s) => s.tabs.length == 1);
 
       final combined = bloc.state.tabs.single;
@@ -63,7 +62,7 @@ void main() {
       final b = leaf('ב');
       final bloc = await blocWith([a, b]);
 
-      bloc.add(EnableSideBySideMode(rightTab: a, leftTab: b));
+      bloc.add(CreateCombinedTab(rightTab: a, leftTab: b));
       await bloc.stream.firstWhere((s) => s.tabs.length == 1);
 
       final combined = bloc.state.tabs.single as CombinedTab;
@@ -78,7 +77,7 @@ void main() {
       final b = leaf('ב');
       final bloc = await blocWith([a, b]);
 
-      bloc.add(EnableSideBySideMode(rightTab: b, leftTab: a));
+      bloc.add(CreateCombinedTab(rightTab: b, leftTab: a));
       await bloc.stream.firstWhere((s) => s.tabs.length == 1);
 
       expect(titles(bloc.state.tabs.single), ['ב', 'א']);
@@ -93,7 +92,7 @@ void main() {
       final bloc = await blocWith([first, middle, last], current: 2);
 
       // המיזוג בין הראשון לאחרון — התוצאה יושבת במקום הראשון.
-      bloc.add(EnableSideBySideMode(rightTab: last, leftTab: first));
+      bloc.add(CreateCombinedTab(rightTab: last, leftTab: first));
       await bloc.stream.firstWhere((s) => s.tabs.length == 2);
 
       expect(bloc.state.tabs[0], isA<CombinedTab>());
@@ -108,7 +107,7 @@ void main() {
       final plain = leaf('רגיל');
       final bloc = await blocWith([pinned, plain]);
 
-      bloc.add(EnableSideBySideMode(rightTab: pinned, leftTab: plain));
+      bloc.add(CreateCombinedTab(rightTab: pinned, leftTab: plain));
       await bloc.stream.firstWhere((s) => s.tabs.length == 1);
 
       expect(bloc.state.tabs.single.isPinned, isTrue);
@@ -121,7 +120,7 @@ void main() {
       final other = leaf('ג');
       final bloc = await blocWith([combined, other]);
 
-      bloc.add(EnableSideBySideMode(rightTab: combined, leftTab: other));
+      bloc.add(CreateCombinedTab(rightTab: combined, leftTab: other));
       await settle();
 
       expect(bloc.state.tabs, hasLength(2));
@@ -135,7 +134,7 @@ void main() {
       final neighbour = leaf('שכן');
       final bloc = await blocWith([only, neighbour]);
 
-      bloc.add(EnableSideBySideMode(rightTab: only, leftTab: only));
+      bloc.add(CreateCombinedTab(rightTab: only, leftTab: only));
       await settle();
 
       expect(bloc.state.tabs, [same(only), same(neighbour)]);
@@ -148,7 +147,7 @@ void main() {
       final stranger = leaf('זר');
       final bloc = await blocWith([open]);
 
-      bloc.add(EnableSideBySideMode(rightTab: open, leftTab: stranger));
+      bloc.add(CreateCombinedTab(rightTab: open, leftTab: stranger));
       await settle();
 
       expect(bloc.state.tabs, [same(open)]);
@@ -157,7 +156,7 @@ void main() {
     });
   });
 
-  group('DisableSideBySideMode — פירוק הפיצול', () {
+  group('ExpandCombinedTab — פירוק הפיצול', () {
     test('שתי החלוניות חוזרות ככרטיסיות באותו מקום', () async {
       final a = leaf('א');
       final b = leaf('ב');
@@ -167,7 +166,7 @@ void main() {
         CombinedTab(rightTab: a, leftTab: b),
       ]);
 
-      bloc.add(const DisableSideBySideMode(1));
+      bloc.add(const ExpandCombinedTab(1));
       await bloc.stream.firstWhere((s) => s.tabs.length == 3);
 
       expect(bloc.state.tabs, [same(before), same(a), same(b)]);
@@ -183,7 +182,7 @@ void main() {
         CombinedTab(rightTab: a, leftTab: b, isPinned: true),
       ]);
 
-      bloc.add(const DisableSideBySideMode(0));
+      bloc.add(const ExpandCombinedTab(0));
       await bloc.stream.firstWhere((s) => s.tabs.length == 2);
 
       expect(bloc.state.tabs.map((t) => t.isPinned), [isTrue, isTrue]);
@@ -196,7 +195,7 @@ void main() {
         CombinedTab(rightTab: leaf('א'), leftTab: leaf('ב')),
       ]);
 
-      bloc.add(const DisableSideBySideMode(0));
+      bloc.add(const ExpandCombinedTab(0));
       await bloc.stream.firstWhere((s) => s.tabs.length == 2);
 
       expect(bloc.state.tabs.map((t) => t.isPinned), [isFalse, isFalse]);
@@ -208,7 +207,7 @@ void main() {
       final plain = leaf('רגיל');
       final bloc = await blocWith([plain]);
 
-      bloc.add(const DisableSideBySideMode(0));
+      bloc.add(const ExpandCombinedTab(0));
       await settle();
 
       expect(bloc.state.tabs, [same(plain)]);
@@ -220,7 +219,7 @@ void main() {
       final plain = leaf('רגיל');
       final bloc = await blocWith([plain]);
 
-      bloc.add(const DisableSideBySideMode(7));
+      bloc.add(const ExpandCombinedTab(7));
       await settle();
 
       expect(bloc.state.tabs, [same(plain)]);
@@ -476,14 +475,7 @@ class _FakeTabsRepository extends TabsRepository {
   int loadCurrentTabIndex() => 0;
 
   @override
-  SideBySideMode? loadSideBySideMode() => null;
-
-  @override
-  Future<void> saveTabs(
-    List<OpenedTab> tabs,
-    int currentTabIndex, [
-    SideBySideMode? sideBySideMode,
-  ]) async {}
+  Future<void> saveTabs(List<OpenedTab> tabs, int currentTabIndex) async {}
 
   @override
   Future<void> saveCurrentTabIndex(

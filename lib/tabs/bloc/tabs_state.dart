@@ -3,55 +3,10 @@ import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 
-/// מצב הצגת 2 ספרים זה לצד זה
-class SideBySideMode extends Equatable {
-  final int leftTabIndex;
-  final int rightTabIndex;
-  final double splitRatio; // 0.0-1.0, כמה מהמסך תופס הספר הימני
-
-  const SideBySideMode({
-    required this.leftTabIndex,
-    required this.rightTabIndex,
-    this.splitRatio = 0.5,
-  });
-
-  SideBySideMode copyWith({
-    int? leftTabIndex,
-    int? rightTabIndex,
-    double? splitRatio,
-  }) {
-    return SideBySideMode(
-      leftTabIndex: leftTabIndex ?? this.leftTabIndex,
-      rightTabIndex: rightTabIndex ?? this.rightTabIndex,
-      splitRatio: splitRatio ?? this.splitRatio,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'leftTabIndex': leftTabIndex,
-      'rightTabIndex': rightTabIndex,
-      'splitRatio': splitRatio,
-    };
-  }
-
-  factory SideBySideMode.fromJson(Map<String, dynamic> json) {
-    return SideBySideMode(
-      leftTabIndex: json['leftTabIndex'] as int,
-      rightTabIndex: json['rightTabIndex'] as int,
-      splitRatio: (json['splitRatio'] as num?)?.toDouble() ?? 0.5,
-    );
-  }
-
-  @override
-  List<Object?> get props => [leftTabIndex, rightTabIndex, splitRatio];
-}
-
 class TabsState extends Equatable {
   final List<OpenedTab> tabs;
   final int currentTabIndex;
   final int updateCounter;
-  final SideBySideMode? sideBySideMode;
 
   /// בחירה מרובה לסגירה קבוצתית (Ctrl/Shift+לחיצה בשורת הכרטיסיות).
   /// מצב זמני — אינו נשמר לדיסק.
@@ -74,27 +29,19 @@ class TabsState extends Equatable {
     required this.tabs,
     required this.currentTabIndex,
     this.updateCounter = 0,
-    this.sideBySideMode,
     this.selectedTabs = const [],
     this.rawActivePane,
     this.lastReadingPane,
   });
 
   factory TabsState.initial() {
-    return const TabsState(
-      tabs: [],
-      currentTabIndex: 0,
-      updateCounter: 0,
-      sideBySideMode: null,
-    );
+    return const TabsState(tabs: [], currentTabIndex: 0, updateCounter: 0);
   }
 
   TabsState copyWith({
     List<OpenedTab>? tabs,
     int? currentTabIndex,
     bool forceUpdate = false,
-    SideBySideMode? sideBySideMode,
-    bool clearSideBySide = false,
     List<OpenedTab>? selectedTabs,
     OpenedTab? rawActivePane,
   }) {
@@ -105,9 +52,6 @@ class TabsState extends Equatable {
       tabs: nextTabs,
       currentTabIndex: nextIndex,
       updateCounter: forceUpdate ? updateCounter + 1 : updateCounter,
-      sideBySideMode: clearSideBySide
-          ? null
-          : (sideBySideMode ?? this.sideBySideMode),
       selectedTabs: selectedTabs ?? this.selectedTabs,
       rawActivePane: nextRawActivePane,
       lastReadingPane: _resolveLastReadingPane(
@@ -164,7 +108,6 @@ class TabsState extends Equatable {
 
   bool get hasOpenTabs => tabs.isNotEmpty;
   OpenedTab? get currentTab => hasOpenTabs ? tabs[currentTabIndex] : null;
-  bool get isSideBySideMode => sideBySideMode != null;
 
   /// החלונית שהמשתמש עובד בה. בטאב שאינו מפוצל — הטאב עצמו.
   ///
@@ -200,7 +143,6 @@ class TabsState extends Equatable {
     tabs,
     currentTabIndex,
     updateCounter,
-    sideBySideMode,
     selectedTabs,
     rawActivePane,
     lastReadingPane,
