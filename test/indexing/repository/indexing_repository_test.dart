@@ -606,6 +606,26 @@ void main() {
   });
 
   group('IndexingRepository.indexAllBooks', () {
+    test('includePdfBooks=false אינו כותב PDF לאינדקס ההפצה', () async {
+      final engine = _RecordingSearchEngine();
+      final provider = _RecordingTantivyDataProvider(engine);
+      final library = Library(categories: []);
+      library.books.add(
+        PdfBook(title: 'שבת', path: r'C:\release-staging\שבת.pdf', id: 7),
+      );
+      final repository = IndexingRepository(provider);
+
+      final result = await repository.indexAllBooks(
+        library,
+        includePdfBooks: false,
+        onProgress: (_, _) {},
+      );
+
+      expect(result, isTrue);
+      expect(engine.addedDocuments, isEmpty);
+      expect(provider.indexedFilePaths, isEmpty);
+    });
+
     test('fast path מחזיר מוקדם בלי להפעיל isolate ובלי callbacks', () async {
       final library = _buildLibrary(bavliBooks: const [('שבת', 1)]);
       final indexedFilePaths = library

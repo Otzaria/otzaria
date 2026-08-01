@@ -183,6 +183,75 @@ void main() {
     });
   });
 
+  group('מתקין FULL מאונדקס מפוצל', () {
+    test('המבנה המפוצל הוא מצב בנייה נוסף ואינו מחליף את FULL המשובץ', () {
+      final script = _script(_full);
+
+      expect(script, contains('#ifdef IndexedSplitFull'));
+      expect(script, contains('windows-full-indexed'));
+      expect(script, contains('#ifndef IndexedSplitFull'));
+      expect(script, contains(r'Source: "library_db\seforim.db.zst"'));
+    });
+
+    test('מזהה manifest וחלקים תקינים לצד קובץ המתקין', () {
+      final script = _script(_full);
+      final prepare = _routine(
+        script,
+        'function PrepareIndexedLibrary(): Boolean;\nvar',
+      );
+      final localCheck = _routine(
+        script,
+        'function LocalIndexedPartsAreComplete(',
+      );
+
+      expect(prepare, contains(r"ExpandConstant('{srcexe}')"));
+      expect(
+        prepare,
+        contains("ExtractTemporaryFile('{#IndexedEmbeddedManifestName}')"),
+        reason: 'offline צריך לדרוש רק מתקין וחלקים, בלי manifest נפרד',
+      );
+      expect(prepare, contains('LocalIndexedPartsAreComplete(SourceDir)'));
+      expect(localCheck, contains('FileExists(PartPath)'));
+      expect(prepare, contains('AssembleIndexedArchive()'));
+      expect(
+        File('tool/release/assemble_split_asset.ps1').readAsStringSync(),
+        contains(r'$part.sha256'),
+      );
+    });
+
+    test('חלקים חסרים יורדים דרך מסך ההורדה עם hash מה-manifest', () {
+      final script = _script(_full);
+      final download = _routine(script, 'function DownloadIndexedParts()');
+
+      expect(download, contains('IndexedDownloadPage.Add('));
+      expect(download, contains('IndexedPartHashes[I]'));
+      expect(download, contains('IndexedDownloadPage.Download'));
+    });
+
+    test('הארכיון מוכן לפני תחילת ההתקנה והספרייה מוחלפת רק אחרי חילוץ', () {
+      final script = _script(_full);
+      final next = _routine(script, 'function NextButtonClick(');
+      final extract = _routine(
+        script,
+        'procedure ExtractIndexedLibraryArchive();',
+      );
+
+      expect(next, contains('(CurPageID = wpReady)'));
+      expect(next, contains('PrepareIndexedLibrary()'));
+      expect(
+        next.indexOf('PrepareIndexedLibrary()'),
+        lessThan(next.indexOf('if (ModePage <> nil)')),
+        reason: 'גם התקנה שקטה חייבת להכין את החלקים לפני היציאה המוקדמת',
+      );
+      expect(
+        extract,
+        contains(r"SourceIndex + '\.otzaria_prebuilt_index'"),
+      );
+      expect(extract, contains('RenameFile(SelectedBooksPath, BooksBackup)'));
+      expect(extract, contains('RenameFile(SourceBooks, SelectedBooksPath)'));
+    });
+  });
+
   group('מפתח נתיב הספרייה ב-shared_preferences', () {
     for (final name in _scripts) {
       test('$name: הקריאה מ-prefs משתמשת במפתח של האפליקציה', () {
@@ -203,11 +272,33 @@ void main() {
     }
 
     test('$_full: הכתיבה ל-prefs משתמשת באותו מפתח', () {
+      final wrapper = _routine(
+        _script(_full),
+        'procedure WriteLibraryPathToPrefs(',
+      );
+      final writer = _routine(
+        _script(_full),
+        'procedure WriteStringPreferenceToPrefs(',
+      );
+      expect(
+        wrapper,
+        contains("'${SettingsRepository.keyLibraryPath}'"),
+      );
+      expect(
+        writer,
+        contains("SharedPrefsKey := '\"flutter.' + PreferenceKey"),
+      );
+    });
+
+    test('$_full: המתקין המאונדקס שומר גם את נתיב האינדקס הצמוד', () {
       final body = _routine(
         _script(_full),
         'procedure WriteLibraryPathToPrefs(',
       );
-      expect(body, contains('"flutter.${SettingsRepository.keyLibraryPath}":'));
+
+      expect(body, contains('#ifdef IndexedSplitFull'));
+      expect(body, contains("'${SettingsRepository.keyIndexPath}'"));
+      expect(body, contains("ExtractFileDir(LibraryPath) + '\\index'"));
     });
   });
 

@@ -430,6 +430,10 @@ jobs:
             throw "FULL installer build failed"
           }
 
+          New-Item -ItemType Directory -Path indexed-installer-tools -Force | Out-Null
+          Copy-Item installer\zstd.exe indexed-installer-tools\zstd.exe -Force
+          Copy-Item installer\7za.exe indexed-installer-tools\7za.exe -Force
+
           # ניקוי קבצי הספרייה והחולץ לאחר בניית ה-FULL installer
           Write-Host "Cleaning up bundled DB assets to free disk space..."
           if (Test-Path "installer\library_db") {
@@ -475,6 +479,12 @@ jobs:
         with:
           name: otzaria-windows-installer-full
           path: installer/otzaria-*-windows-full.exe
+
+      - name: Upload Windows indexed installer tools
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: otzaria-windows-indexed-installer-tools
+          path: indexed-installer-tools/*
 
       - name: Upload Windows ZIP
         uses: actions/upload-artifact@v4.6.2
@@ -597,7 +607,7 @@ jobs:
             libcurl4-openssl-dev \
             libsecret-1-dev \
             libglib2.0-dev libsoup-3.0-dev libxkbcommon-dev openjdk-17-jdk-headless \
-            libwebkit2gtk-4.1-dev
+            libwebkit2gtk-4.1-dev xvfb xauth
           # bookworm מספקת clang-14 בלבד; יוצרים סימלינק לא-מגורסן ל-toolchain.
           update-alternatives --install /usr/bin/clang clang /usr/bin/clang-14 100
           update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-14 100
@@ -1057,12 +1067,74 @@ jobs:
 
           tar -czf otzaria-linux-full.tar.gz -C full_installer otzaria-linux-full
 
+          # חבילת ספרייה נוספת עם אינדקס טקסט מוכן מאותו מנוע של האפליקציה.
+          # PDF מאונדקס מקומית מפני שמפתח האינדקס שלו הוא נתיב שאינו נייד.
+          INDEX_CLI_DATA="$GITHUB_WORKSPACE/full_installer/index-cli-data"
+          INDEXED_LIBRARY_ROOT="$GITHUB_WORKSPACE/full_installer/otzaria-library-full-indexed"
+          mkdir -p "$INDEX_CLI_DATA" "$INDEXED_LIBRARY_ROOT"
+          cp -al "$GITHUB_WORKSPACE/$BUNDLE_ROOT/אוצריא" "$INDEXED_LIBRARY_ROOT/books"
+          # בחבילה הכללית המשתמש בוחר את books ידנית; marker של bundle צמוד
+          # לאפליקציה היה גורם לנתיב להיחשב לא-ידני בעלייה הבאה.
+          BUNDLED_MARKER="$INDEXED_LIBRARY_ROOT/books/.otzaria_bundled_library"
+          case "$BUNDLED_MARKER" in
+            "$GITHUB_WORKSPACE/full_installer/otzaria-library-full-indexed/books/.otzaria_bundled_library") ;;
+            *) echo "::error::Unexpected bundled marker path: $BUNDLED_MARKER"; exit 1 ;;
+          esac
+          [ ! -L "$BUNDLED_MARKER" ] || { echo "::error::Bundled marker must not be a symlink"; exit 1; }
+          [ ! -e "$BUNDLED_MARKER" ] || rm -f -- "$BUNDLED_MARKER"
+          xvfb-run -a "$BUNDLE_ROOT/app/otzaria" build-release-index \
+            --library "$INDEXED_LIBRARY_ROOT/books" \
+            --index "$INDEXED_LIBRARY_ROOT/index" \
+            --data "$INDEX_CLI_DATA"
+          touch "$INDEXED_LIBRARY_ROOT/index/.otzaria_prebuilt_index"
+
+          cat > "$INDEXED_LIBRARY_ROOT/README.txt" << 'EOF'
+          Otzaria indexed FULL library
+
+          Extract the complete multipart archive and choose its books directory in Otzaria.
+          Keep books and index next to each other; the application resolves this layout automatically.
+          The package includes a prebuilt text-book search index.
+          Bundled PDFs are indexed locally because their index keys contain installation paths.
+          EOF
+
+          VERSION=$(awk '/^version:/ {split($2, v, "+"); print v[1]; exit}' pubspec.yaml)
+          INDEXED_ARCHIVE="otzaria-${VERSION}-library-full-indexed.tar.zst"
+          tar -C full_installer -cf - otzaria-library-full-indexed \
+            | zstd -19 -T0 -o "$INDEXED_ARCHIVE"
+          mkdir -p indexed-release-parts
+          tool/release/split_release_asset.sh \
+            "$INDEXED_ARCHIVE" indexed-release-parts 1992294400
+          cp tool/release/assemble_split_asset.sh indexed-release-parts/
+          cp tool/release/assemble_split_asset.ps1 indexed-release-parts/
+
+          # קובץ-הביניים השלם עלול להיות גדול מ-2 GiB; רק החלקים עולים כ-assets.
+          case "$INDEXED_ARCHIVE" in
+            otzaria-*-library-full-indexed.tar.zst) ;;
+            *) echo "::error::Unexpected indexed archive path: $INDEXED_ARCHIVE"; exit 1 ;;
+          esac
+          [ -f "$INDEXED_ARCHIVE" ] || { echo "::error::Indexed archive is missing"; exit 1; }
+          rm -f -- "$INDEXED_ARCHIVE"
+
       - name: Upload Linux FULL bundle
         if: true
         uses: actions/upload-artifact@v4.6.2
         with:
           name: otzaria-linux-full
           path: otzaria-linux-full.tar.gz
+
+      - name: Upload indexed FULL library parts
+        if: true
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: otzaria-library-full-indexed
+          path: indexed-release-parts/*
+          compression-level: 0
+
+      - name: Upload indexed FULL manifest for installer build
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: otzaria-library-full-indexed-manifest
+          path: indexed-release-parts/*.manifest.json
 
   build_android:
     if: github.event_name != 'release' && github.event_name != 'pull_request'
@@ -1569,9 +1641,89 @@ jobs:
           name: otzaria-macos-full
           path: otzaria-macos-full.zip
 
+  build_windows_indexed_full:
+    if: github.event_name != 'release' && github.event_name != 'pull_request'
+    needs: [build_windows, build_linux]
+    runs-on: windows-latest
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Download Windows app bundle
+        uses: actions/download-artifact@v4.3.0
+        with:
+          name: otzaria-windows-zip
+          path: indexed-inputs/windows
+
+      - name: Download indexed installer tools
+        uses: actions/download-artifact@v4.3.0
+        with:
+          name: otzaria-windows-indexed-installer-tools
+          path: indexed-inputs/tools
+
+      - name: Download indexed library manifest
+        uses: actions/download-artifact@v4.3.0
+        with:
+          name: otzaria-library-full-indexed-manifest
+          path: indexed-inputs/library
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          .\installer\install_inno_setup.ps1
+          $iscc = Get-ChildItem "C:\Program Files*\Inno Setup*\ISCC.exe" -Recurse |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (-not $iscc) { throw 'ISCC.exe not found after installation' }
+          "ISCC=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Prepare indexed FULL bootstrap inputs
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Get-ChildItem indexed-inputs\windows\*.zip | Select-Object -First 1
+          if (-not $zip) { throw 'Windows app bundle is missing' }
+          $releaseDir = 'build\windows\x64\runner\Release'
+          New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
+          Expand-Archive -LiteralPath $zip.FullName -DestinationPath $releaseDir -Force
+          Remove-Item "$releaseDir\portable.marker" -Force -ErrorAction SilentlyContinue
+
+          Copy-Item indexed-inputs\tools\zstd.exe installer\zstd.exe -Force
+          Copy-Item indexed-inputs\tools\7za.exe installer\7za.exe -Force
+          $manifests = @(Get-ChildItem indexed-inputs\library\*library-full-indexed*.manifest.json)
+          if ($manifests.Count -ne 1) {
+            throw "Expected one indexed library manifest, found $($manifests.Count)"
+          }
+          $manifest = $manifests[0]
+          Copy-Item $manifest.FullName installer\indexed_library.manifest.json -Force
+
+          Invoke-WebRequest -Uri 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' `
+            -OutFile installer\MicrosoftEdgeWebview2Setup.exe
+
+      - name: Build indexed FULL bootstrap installer
+        shell: pwsh
+        run: |
+          $version = ((Get-Content pubspec.yaml | Select-String '^version:').Line -split '\s+')[1].Split('+')[0]
+          if ($env:GITHUB_REF -eq 'refs/heads/main') {
+            $releaseTag = $version
+          } else {
+            $releaseTag = "$version+$env:GITHUB_RUN_NUMBER"
+          }
+          $tagDefine = '/DIndexedReleaseTag="' + $releaseTag + '"'
+          & "$env:ISCC" '/DIndexedSplitFull=1' $tagDefine installer\otzaria_full.iss
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Indexed FULL bootstrap installer build failed'
+          }
+
+      - name: Upload Windows indexed FULL bootstrap installer
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: otzaria-windows-installer-full-indexed
+          path: installer/otzaria-*-windows-full-indexed.exe
+
   create_release:
     if: "!cancelled() && github.event_name != 'release' && github.event_name != 'pull_request'"
-    needs: [build_windows, build_linux, build_android, build_macos]
+    needs: [build_windows, build_linux, build_android, build_macos, build_windows_indexed_full]
     runs-on: ubuntu-latest
 
     steps:
@@ -1628,6 +1780,11 @@ jobs:
             cp artifacts/otzaria-windows-installer-full/*.exe release-files/ || true
           fi
 
+          # Windows indexed FULL bootstrap (app only; library parts stay separate)
+          if [ -d "artifacts/otzaria-windows-installer-full-indexed" ]; then
+            cp artifacts/otzaria-windows-installer-full-indexed/*.exe release-files/ || true
+          fi
+
           # Windows ZIP
           if [ -d "artifacts/otzaria-windows-zip" ]; then
             cp artifacts/otzaria-windows-zip/*.zip release-files/ || true
@@ -1653,6 +1810,11 @@ jobs:
           # Linux FULL bundle
           if [ -d "artifacts/otzaria-linux-full" ]; then
             cp artifacts/otzaria-linux-full/*.tar.gz release-files/ || true
+          fi
+
+          # Cross-platform indexed FULL library (multipart; every part is below 2 GiB)
+          if [ -d "artifacts/otzaria-library-full-indexed" ]; then
+            cp artifacts/otzaria-library-full-indexed/* release-files/ || true
           fi
           
           # Android APK
@@ -1697,12 +1859,15 @@ jobs:
 
           windows_installers=()
           windows_full=()
+          windows_indexed_full=()
           android_apk=()
           android_full=()
           linux_deb=()
           linux_rpm=()
           linux_portable=()
           linux_full=()
+          indexed_library_parts=()
+          indexed_library_support=()
           mac_dmg=()
           mac_full=()
 
@@ -1721,6 +1886,18 @@ jobs:
             lower=$(printf '%s' "$file" | tr '[:upper:]' '[:lower:]')
 
             case "$lower" in
+              *windows-full-indexed*.exe)
+                windows_indexed_full+=("$file")
+                ;;
+              *library-full-indexed*.part-*)
+                indexed_library_parts+=("$file")
+                ;;
+              *library-full-indexed*.manifest.json)
+                indexed_library_support+=("$file")
+                ;;
+              assemble_split_asset.sh|assemble_split_asset.ps1)
+                indexed_library_support+=("$file")
+                ;;
               *windows-full*.exe)
                 windows_full+=("$file")
                 ;;
@@ -1787,7 +1964,30 @@ jobs:
 
           EOF
 
-          if [ ${#windows_installers[@]} -gt 0 ] || [ ${#windows_full[@]} -gt 0 ]; then
+          if [ ${#indexed_library_parts[@]} -gt 0 ]; then
+            printf "## ספרייה מלאה עם אינדקס מוכן\n\n" >> release-body.md
+            emit_link_group "מתקין אוטומטי לווינדוס" "${windows_indexed_full[@]}"
+            emit_link_group "חלק מחבילת הספרייה המאונדקסת" "${indexed_library_parts[@]}"
+            emit_link_group "קובץ אימות/סקריפט הרכבה" "${indexed_library_support[@]}"
+            cat >> release-body.md <<'EOF'
+
+          **התקנה מקוונת בווינדוס:** מורידים רק את המתקין האוטומטי; הוא יוריד, יאמת ויתקין את הספרייה והאינדקס.
+
+          **התקנה לא־מקוונת בווינדוס:** מורידים את המתקין ואת כל החלקים לאותה תיקייה ומפעילים את המתקין. הוא מכיל את רשימת הקבצים, יזהה אותם ויבצע את כל העבודה ללא רשת.
+
+          להרכבה ידנית במערכות אחרות מורידים את כל החלקים, את ה־manifest ואת אחד מסקריפטי ההרכבה:
+
+          ```bash
+          bash assemble_split_asset.sh otzaria-*-library-full-indexed.tar.zst.manifest.json
+          tar --zstd -xf otzaria-*-library-full-indexed.tar.zst
+          ```
+
+          לאחר חילוץ ידני בוחרים באוצריא את תיקיית `books`; תיקיית `index` הצמודה מזוהה אוטומטית. ב־PowerShell ניתן להרכיב באמצעות `assemble_split_asset.ps1`. כל חלק קטן מ־2 GiB ומאומת ב־SHA-256.
+
+          EOF
+          fi
+
+          if [ ${#windows_installers[@]} -gt 0 ] || [ ${#windows_full[@]} -gt 0 ] || [ ${#windows_indexed_full[@]} -gt 0 ]; then
             printf "## ווינדוס\n\n" >> release-body.md
 
             if [ ${#windows_installers[@]} -gt 0 ]; then
@@ -1838,6 +2038,7 @@ jobs:
               emit_link_group "חבילה מלאה ללינוקס" "${linux_full[@]}"
               printf "\n" >> release-body.md
             fi
+
           fi
 
           if [ ${#mac_dmg[@]} -gt 0 ] || [ ${#mac_full[@]} -gt 0 ]; then

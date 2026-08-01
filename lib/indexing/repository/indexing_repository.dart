@@ -142,10 +142,13 @@ class IndexingRepository {
     Library library, {
     void Function()? onActualIndexingStarted,
     required void Function(int processed, int total) onProgress,
+    bool includePdfBooks = true,
   }) async {
     if (await _blockIndexingOnTempFallback()) return false;
 
-    final allBooks = orderBooksForIndexing(library.getAllBooks());
+    final allBooks = orderBooksForIndexing(
+      library.getAllBooks(),
+    ).where((book) => includePdfBooks || book is! PdfBook).toList();
     final totalBooks = allBooks.length;
 
     if (await requiresManualReindex(library)) {

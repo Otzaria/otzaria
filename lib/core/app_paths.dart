@@ -23,6 +23,9 @@ class AppPaths {
   static const String _bundledLibraryMarkerFileName =
       '.otzaria_bundled_library';
 
+  /// מסמן אינדקס מוכן שמצורף לחבילת ספרייה מלאה.
+  static const String prebuiltIndexMarkerFileName = '.otzaria_prebuilt_index';
+
   /// שם תיקיית הספרייה בתוך חבילות FULL ל-Linux ו-macOS.
   static const String _bundledLibraryFolderName = 'אוצריא';
 
@@ -37,6 +40,13 @@ class AppPaths {
   static const String _portableDataFolderName = 'otzaria_data';
 
   static bool? _isPortableCache;
+
+  /// קובע את שורש נתוני התהליך לפני אתחול השירותים.
+  ///
+  /// מיועד לפקודות headless שעובדות בסביבת staging מבודדת.
+  static void configureDataRootPathForProcess(String path) {
+    _cachedDataRootPath = path;
+  }
 
   @visibleForTesting
   static void debugOverrideDataRootPath(String? path) {
@@ -287,6 +297,15 @@ class AppPaths {
       return p.join(systemWideRoot, 'index');
     }
 
+    final libraryPath = await getLibraryPath();
+    final adjacentPath = p.join(p.dirname(libraryPath), 'index');
+    final prebuiltMarker = File(
+      p.join(adjacentPath, prebuiltIndexMarkerFileName),
+    );
+    if (await prebuiltMarker.exists()) {
+      return adjacentPath;
+    }
+
     // תאימות אחורה: בעבר האינדקס תמיד נוצר תחת dataRoot (APPDATA וכדומה).
     // אם קיים שם אינדקס – ממשיכים להשתמש בו כדי לא לאבד עבודה.
     final legacyPath = p.join(await getDataRootPath(), 'index');
@@ -296,8 +315,7 @@ class AppPaths {
 
     // ברירת מחדל חדשה: האינדקס יושב ליד תיקיית הספרייה. כך אם המשתמש
     // העביר את הספרייה לכונן אחר (למשל D:), גם האינדקס יישב שם.
-    final libraryPath = await getLibraryPath();
-    return p.join(p.dirname(libraryPath), 'index');
+    return adjacentPath;
   }
 
   /// Gets the main library path from settings, or gracefully falls back to default paths.

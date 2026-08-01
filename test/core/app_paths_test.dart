@@ -48,6 +48,37 @@ void main() {
       expect(await AppPaths.getIndexPath(), legacyIndex.path);
     });
 
+    test('getIndexPath מעדיף אינדקס מוכן הצמוד לספרייה', () async {
+      final dataRoot = await Directory.systemTemp.createTemp('otzaria_data_');
+      final libraryRoot = await Directory.systemTemp.createTemp(
+        'otzaria_library_',
+      );
+      final legacyIndex = Directory(p.join(dataRoot.path, 'index'));
+      final adjacentIndex = Directory(p.join(libraryRoot.path, 'index'));
+      await legacyIndex.create(recursive: true);
+      await adjacentIndex.create(recursive: true);
+      await File(
+        p.join(adjacentIndex.path, AppPaths.prebuiltIndexMarkerFileName),
+      ).writeAsString('');
+
+      addTearDown(() async {
+        if (await dataRoot.exists()) {
+          await dataRoot.delete(recursive: true);
+        }
+        if (await libraryRoot.exists()) {
+          await libraryRoot.delete(recursive: true);
+        }
+      });
+
+      AppPaths.debugOverrideDataRootPath(dataRoot.path);
+      await Settings.setValue(
+        SettingsRepository.keyLibraryPath,
+        p.join(libraryRoot.path, 'books'),
+      );
+
+      expect(await AppPaths.getIndexPath(), adjacentIndex.path);
+    });
+
     test('getDatabasesPath מעדיף נתיב שמור מפורש', () async {
       final dataRoot = await Directory.systemTemp.createTemp('otzaria_data_');
       final databasesRoot = await Directory.systemTemp.createTemp(

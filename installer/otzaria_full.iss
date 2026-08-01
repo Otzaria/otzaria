@@ -16,6 +16,15 @@
 #define MyAppURL "https://github.com/otzaria/otzaria"
 #define MyAppExeName "otzaria.exe"
 
+#ifdef IndexedSplitFull
+  #ifndef IndexedReleaseTag
+    #define IndexedReleaseTag MyAppVersion
+  #endif
+  #define IndexedArchiveName "otzaria-" + MyAppVersion + "-library-full-indexed.tar.zst"
+  #define IndexedEmbeddedManifestName "indexed_library.manifest.json"
+  #define IndexedReleaseBaseUrl "https://github.com/Otzaria/otzaria/releases/download/" + IndexedReleaseTag
+#endif
+
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
@@ -36,7 +45,11 @@ DefaultDirName={code:GetDefaultInstallDir}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=.
+#ifdef IndexedSplitFull
+OutputBaseFilename=otzaria-{#MyAppVersion}-windows-full-indexed
+#else
 OutputBaseFilename=otzaria-{#MyAppVersion}-windows-full
+#endif
 SetupIconFile=white_sketch128x128.ico
 ; תמונת האשף בעמודי "ברוכים הבאים" ו"סיום" (אנכית, 164x314 + רזולוציות @2x/@3x ל-HiDPI)
 WizardImageFile=wizard_large.bmp,wizard_large@2x.bmp,wizard_large@3x.bmp
@@ -64,8 +77,10 @@ Type: filesandordirs; Name: "{app}\default.isar";
 ; המסמן נכתב רק בהתקנת מנהל (ראה [INI]) והאפליקציה גוזרת ממנו את מיקום
 ; ברירת המחדל של הספרייה — מסמן ששרד מעבר להתקנת משתמש מפנה אותה ל-ProgramData.
 Type: files; Name: "{app}\system_install.marker"; Check: (not IsAdminInstallMode) or IsPortableInstall
-; מחיקת ספריית נתונים ישנה לפני פריסת מסד הנתונים החדש
+; במתקין המשובץ מוחקים לפני הפריסה; במתקין המפוצל מחליפים רק אחרי אימות וחילוץ מלא.
+#ifndef IndexedSplitFull
 Type: filesandordirs; Name: "{code:GetSelectedBooksPath}"
+#endif
 
 [Dirs]
 ; במצב נייד הנתונים יושבים ב-otzaria_data ליד ה-EXE — האפליקציה יוצרת אותה בעצמה.
@@ -132,6 +147,17 @@ var
   // קבצי האפליקציה. ברירת המחדל False — נשמר כדי לא לאבד נתונים בעדכון
   // שקט (Inno Setup מריץ את ה-uninstaller הישן עם /SILENT).
   DeleteUserDataOnUninstall: Boolean;
+
+#ifdef IndexedSplitFull
+  IndexedDownloadPage: TDownloadWizardPage;
+  IndexedManifestPath: String;
+  IndexedPartsDir: String;
+  IndexedPreparedArchivePath: String;
+  IndexedArchiveName: String;
+  IndexedArchiveHash: String;
+  IndexedPartNames: TArrayOfString;
+  IndexedPartHashes: TArrayOfString;
+#endif
 
 // משמש גם את Uninstallable/CreateUninstallRegKey וגם רשומות Check.
 function IsPortableInstall(): Boolean;
@@ -479,21 +505,20 @@ begin
   Result := 0;
 end;
 
-// כתיבת נתיב הספרים ל-shared_preferences.json של האפליקציה
-procedure WriteLibraryPathToPrefs(const LibraryPath: String);
+procedure WriteStringPreferenceToPrefs(const PreferenceKey, Value: String);
 var
   PrefsDir, PrefsFile, JsonContent, NewEntry: String;
   SharedPrefsKey, LegacyPrefsKey: String;
   KeyPos, ValueStart, ValueEnd, PairEnd, LastBrace, ExistingLength: Integer;
 begin
-  SharedPrefsKey := '"flutter.key-library-path":';
-  LegacyPrefsKey := '"key-library-path":';
+  SharedPrefsKey := '"flutter.' + PreferenceKey + '":';
+  LegacyPrefsKey := '"' + PreferenceKey + '":';
   PrefsDir := ExpandConstant('{userappdata}\otzaria');
   PrefsFile := PrefsDir + '\shared_preferences.json';
 
   ForceDirectories(PrefsDir);
 
-  NewEntry := SharedPrefsKey + '"' + EscapeJsonString(LibraryPath) + '"';
+  NewEntry := SharedPrefsKey + '"' + EscapeJsonString(Value) + '"';
 
   if FileExists(PrefsFile) then
     JsonContent := Trim(LoadTextFile(PrefsFile))
@@ -561,6 +586,16 @@ begin
   end;
 
   SaveStringToFile(PrefsFile, JsonContent, False);
+end;
+
+// כותב את נתיב הספרייה, ובמתקין המאונדקס גם את האינדקס הצמוד שהותקן איתה.
+procedure WriteLibraryPathToPrefs(const LibraryPath: String);
+begin
+  WriteStringPreferenceToPrefs('key-library-path', LibraryPath);
+#ifdef IndexedSplitFull
+  WriteStringPreferenceToPrefs('key-index-path',
+    ExtractFileDir(LibraryPath) + '\index');
+#endif
 end;
 
 // מחזיר את נתיב תיקיית הספרים שהמשתמש בחר (אם שונה מברירת המחדל),
@@ -1108,6 +1143,12 @@ end;
 
 procedure InitializeWizard;
 begin
+#ifdef IndexedSplitFull
+  IndexedDownloadPage := CreateDownloadPage(
+    'מוריד ספרייה מלאה עם אינדקס מוכן',
+    'הקבצים החסרים יורדו ויאומתו לפני תחילת ההתקנה', nil);
+  IndexedDownloadPage.ShowBaseNameInsteadOfUrl := True;
+#endif
   if WizardSilent then
     // אין דפי אשף בהתקנה שקטה — רק ברירות המחדל (נקבעות גם ב-InitializeSetup).
     InitializeSilentDefaults()
@@ -1161,6 +1202,10 @@ begin
   end;
 end;
 
+#ifdef IndexedSplitFull
+function PrepareIndexedLibrary(): Boolean; forward;
+#endif
+
 // שמירת בחירות בלחיצת "הבא". בעמוד סוג ההתקנה: קיבוע המצב, התאמת ברירת
 // המחדל של תיקיית היעד, ובמעבר בין משתמש-נוכחי לכל-המשתמשים — שיגור-מחדש
 // במצב ההתקנה המתאים (מצב ההתקנה של Inno נקבע בעליית התהליך).
@@ -1173,7 +1218,13 @@ var
 begin
   Result := True;
   if WizardSilent then
+  begin
+#ifdef IndexedSplitFull
+    if CurPageID = wpReady then
+      Result := PrepareIndexedLibrary();
+#endif
     exit;
+  end;
 
   if (ModePage <> nil) and (CurPageID = ModePage.ID) then
   begin
@@ -1239,6 +1290,10 @@ begin
       Result := False;
     end;
   end;
+#ifdef IndexedSplitFull
+  if (CurPageID = wpReady) and Result then
+    Result := PrepareIndexedLibrary();
+#endif
 end;
 
 procedure CancelButtonClick(CurPageID: Integer; var Cancel, Confirm: Boolean);
@@ -1270,6 +1325,198 @@ begin
     if Trim(Output.StdOut[I]) <> '' then
       CapturedOutput := CapturedOutput + Output.StdOut[I] + #13#10;
 end;
+
+#ifdef IndexedSplitFull
+function ParseIndexedManifestLine(const Line, ExpectedKind: String;
+  var FileName, FileHash: String): Boolean;
+var
+  FirstSeparator, SecondSeparator: Integer;
+begin
+  Result := False;
+  FirstSeparator := Pos('|', Line);
+  if FirstSeparator = 0 then
+    exit;
+  SecondSeparator := Pos('|', Copy(Line, FirstSeparator + 1, Length(Line)));
+  if SecondSeparator = 0 then
+    exit;
+  SecondSeparator := SecondSeparator + FirstSeparator;
+
+  if Copy(Line, 1, FirstSeparator - 1) <> ExpectedKind then
+    exit;
+  FileName := Copy(Line, FirstSeparator + 1,
+    SecondSeparator - FirstSeparator - 1);
+  FileHash := Copy(Line, SecondSeparator + 1, Length(Line));
+  Result := (FileName <> '') and (Length(FileHash) = 64);
+end;
+
+function ReadIndexedManifest(const ManifestPath: String): Boolean;
+var
+  PowerShellPath, ParserPath, OutputPath, Params, CapturedOutput: String;
+  Lines: TArrayOfString;
+  ResultCode, I: Integer;
+begin
+  Result := False;
+  ExtractTemporaryFile('read_indexed_library_manifest.ps1');
+  PowerShellPath := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  ParserPath := ExpandConstant('{tmp}\read_indexed_library_manifest.ps1');
+  OutputPath := ExpandConstant('{tmp}\indexed-library-manifest.txt');
+  DeleteFile(OutputPath);
+  Params := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +
+    ParserPath + '" -ManifestPath "' + ManifestPath + '" -OutputPath "' +
+    OutputPath + '"';
+
+  if (not RunAndCaptureErrors(PowerShellPath, Params, ResultCode,
+      CapturedOutput)) or (ResultCode <> 0) then
+  begin
+    Log('Indexed manifest parsing failed: ' + CapturedOutput);
+    exit;
+  end;
+  if (not LoadStringsFromFile(OutputPath, Lines)) or
+    (GetArrayLength(Lines) < 2) then
+  begin
+    Log('Indexed manifest parser returned no parts');
+    exit;
+  end;
+  if not ParseIndexedManifestLine(Lines[0], 'archive', IndexedArchiveName,
+      IndexedArchiveHash) then
+    exit;
+  if CompareText(IndexedArchiveName, '{#IndexedArchiveName}') <> 0 then
+  begin
+    Log('Unexpected indexed archive name: ' + IndexedArchiveName);
+    exit;
+  end;
+
+  SetArrayLength(IndexedPartNames, GetArrayLength(Lines) - 1);
+  SetArrayLength(IndexedPartHashes, GetArrayLength(Lines) - 1);
+  for I := 1 to GetArrayLength(Lines) - 1 do
+    if not ParseIndexedManifestLine(Lines[I], 'part',
+      IndexedPartNames[I - 1], IndexedPartHashes[I - 1]) then
+      exit;
+  Result := True;
+end;
+
+function LocalIndexedPartsAreComplete(const PartsDir: String): Boolean;
+var
+  I: Integer;
+  PartPath: String;
+begin
+  Result := False;
+  for I := 0 to GetArrayLength(IndexedPartNames) - 1 do
+  begin
+    PartPath := AddBackslash(PartsDir) + IndexedPartNames[I];
+    if not FileExists(PartPath) then
+    begin
+      Log('Local indexed part is missing: ' + PartPath);
+      exit;
+    end;
+  end;
+  Result := True;
+end;
+
+function DownloadIndexedParts(): Boolean;
+var
+  I: Integer;
+  ErrorMessage: String;
+begin
+  Result := False;
+  IndexedDownloadPage.Clear;
+  for I := 0 to GetArrayLength(IndexedPartNames) - 1 do
+    IndexedDownloadPage.Add(
+      '{#IndexedReleaseBaseUrl}/' + IndexedPartNames[I],
+      IndexedPartNames[I], IndexedPartHashes[I]);
+
+  IndexedDownloadPage.Show;
+  try
+    try
+      IndexedDownloadPage.Download;
+      IndexedPartsDir := ExpandConstant('{tmp}');
+      Result := True;
+    except
+      if IndexedDownloadPage.AbortedByUser then
+        ErrorMessage := 'ההורדה בוטלה.'
+      else
+        ErrorMessage := GetExceptionMessage;
+      Log('Indexed library download failed: ' + ErrorMessage);
+      SuppressibleMsgBox('הורדת הספרייה המלאה נכשלה.' +
+        #13#10#13#10 + ErrorMessage, mbCriticalError, MB_OK, IDOK);
+    end;
+  finally
+    IndexedDownloadPage.Hide;
+  end;
+end;
+
+function AssembleIndexedArchive(): Boolean;
+var
+  PowerShellPath, AssemblerPath, Params, CapturedOutput: String;
+  ResultCode: Integer;
+begin
+  Result := False;
+  ExtractTemporaryFile('assemble_split_asset.ps1');
+  PowerShellPath := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  AssemblerPath := ExpandConstant('{tmp}\assemble_split_asset.ps1');
+  IndexedPreparedArchivePath := ExpandConstant('{tmp}\') + IndexedArchiveName;
+  DeleteFile(IndexedPreparedArchivePath);
+  Params := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +
+    AssemblerPath + '" "' + IndexedManifestPath + '" "' +
+    IndexedPreparedArchivePath + '" "' + IndexedPartsDir + '"';
+
+  WizardForm.StatusLabel.Caption := 'מרכיב ומאמת את ארכיון הספרייה...';
+  if (not RunAndCaptureErrors(PowerShellPath, Params, ResultCode,
+      CapturedOutput)) or (ResultCode <> 0) then
+  begin
+    Log('Indexed archive assembly failed: ' + CapturedOutput);
+    DeleteFile(IndexedPreparedArchivePath);
+    exit;
+  end;
+  Result := True;
+end;
+
+function PrepareIndexedLibrary(): Boolean;
+var
+  SourceDir: String;
+  UsingLocalParts: Boolean;
+begin
+  Result := False;
+  if (IndexedPreparedArchivePath <> '') and
+    FileExists(IndexedPreparedArchivePath) then
+  begin
+    Result := True;
+    exit;
+  end;
+
+  SourceDir := ExtractFileDir(ExpandConstant('{srcexe}'));
+  ExtractTemporaryFile('{#IndexedEmbeddedManifestName}');
+  IndexedManifestPath := ExpandConstant(
+    '{tmp}\{#IndexedEmbeddedManifestName}');
+
+  if not ReadIndexedManifest(IndexedManifestPath) then
+  begin
+    SuppressibleMsgBox('קובץ רשימת חלקי הספרייה אינו תקין.',
+      mbCriticalError, MB_OK, IDOK);
+    exit;
+  end;
+
+  UsingLocalParts := LocalIndexedPartsAreComplete(SourceDir);
+  if UsingLocalParts then
+  begin
+    IndexedPartsDir := SourceDir;
+    Log('Using verified indexed library parts next to the installer');
+  end
+  else
+  begin
+    if not DownloadIndexedParts() then
+      exit;
+  end;
+
+  if not AssembleIndexedArchive() then
+  begin
+    SuppressibleMsgBox('אימות והרכבת ארכיון הספרייה נכשלו.',
+      mbCriticalError, MB_OK, IDOK);
+    exit;
+  end;
+  Result := True;
+end;
+#endif
 
 // ממפה מחרוזות שגיאה נפוצות מ-zstd/7za (תמיד באנגלית) להסבר קצר בעברית.
 // מחזיר מחרוזת ריקה אם לא זוהה דפוס מוכר - אז מוצג רק הפלט הגולמי.
@@ -1372,6 +1619,107 @@ begin
   DeleteFile(TarPath);
   DeleteFile(ArchivePath);
 end;
+
+#ifdef IndexedSplitFull
+procedure ExtractIndexedLibraryArchive();
+var
+  TarPath, LibraryRoot, StagingRoot, PackageRoot: String;
+  SourceBooks, SourceIndex, TargetIndex, BooksBackup, IndexBackup: String;
+  ZstdPath, SevenZipPath, Params, ErrOutput, Hint: String;
+  ResultCode: Integer;
+  BooksBackedUp, IndexBackedUp, NewBooksMoved: Boolean;
+begin
+  TarPath := ExpandConstant('{tmp}\otzaria-indexed-library.tar');
+  LibraryRoot := ExtractFileDir(SelectedBooksPath);
+  StagingRoot := LibraryRoot + '\.otzaria-indexed-install';
+  PackageRoot := StagingRoot + '\otzaria-library-full-indexed';
+  SourceBooks := PackageRoot + '\books';
+  SourceIndex := PackageRoot + '\index';
+  TargetIndex := LibraryRoot + '\index';
+  BooksBackup := LibraryRoot + '\.otzaria-books-backup';
+  IndexBackup := LibraryRoot + '\.otzaria-index-backup';
+  ZstdPath := ExpandConstant('{tmp}\zstd.exe');
+  SevenZipPath := ExpandConstant('{tmp}\7za.exe');
+
+  ForceDirectories(LibraryRoot);
+  DelTree(StagingRoot, True, True, True);
+  DeleteFile(TarPath);
+  ForceDirectories(StagingRoot);
+
+  Params := '-d -f -T0 "' + IndexedPreparedArchivePath + '" -o "' +
+    TarPath + '"';
+  if (not RunAndCaptureErrors(ZstdPath, Params, ResultCode, ErrOutput)) or
+    (ResultCode <> 0) then
+  begin
+    Hint := FriendlyErrorHint(ErrOutput);
+    if Hint <> '' then Hint := #13#10#13#10 + Hint;
+    MsgBox('פתיחת ארכיון הספרייה נכשלה.' + Hint + #13#10#13#10 +
+      ErrOutput, mbCriticalError, MB_OK);
+    Abort;
+  end;
+
+  Params := 'x -y "' + TarPath + '" "-o' + StagingRoot + '"';
+  if (not RunAndCaptureErrors(SevenZipPath, Params, ResultCode, ErrOutput)) or
+    (ResultCode <> 0) then
+  begin
+    Hint := FriendlyErrorHint(ErrOutput);
+    if Hint <> '' then Hint := #13#10#13#10 + Hint;
+    MsgBox('חילוץ הספרייה והאינדקס נכשל.' + Hint + #13#10#13#10 +
+      ErrOutput, mbCriticalError, MB_OK);
+    Abort;
+  end;
+
+  if (not FileExists(SourceBooks + '\seforim.db')) or
+    (not FileExists(SourceIndex + '\.otzaria_prebuilt_index')) then
+  begin
+    Log('Indexed package is missing its database or index marker');
+    MsgBox('מבנה חבילת הספרייה אינו תקין.', mbCriticalError, MB_OK);
+    Abort;
+  end;
+
+  DelTree(BooksBackup, True, True, True);
+  DelTree(IndexBackup, True, True, True);
+  BooksBackedUp := (not DirExists(SelectedBooksPath)) or
+    RenameFile(SelectedBooksPath, BooksBackup);
+  if not BooksBackedUp then
+  begin
+    MsgBox('לא ניתן להחליף את תיקיית הספרים הקיימת. ודא שאוצריא סגורה.',
+      mbCriticalError, MB_OK);
+    Abort;
+  end;
+  IndexBackedUp := (not DirExists(TargetIndex)) or
+    RenameFile(TargetIndex, IndexBackup);
+  if not IndexBackedUp then
+  begin
+    if DirExists(BooksBackup) then
+      RenameFile(BooksBackup, SelectedBooksPath);
+    MsgBox('לא ניתן להחליף את תיקיית האינדקס הקיימת. ודא שאוצריא סגורה.',
+      mbCriticalError, MB_OK);
+    Abort;
+  end;
+
+  NewBooksMoved := RenameFile(SourceBooks, SelectedBooksPath);
+  if (not NewBooksMoved) or (not RenameFile(SourceIndex, TargetIndex)) then
+  begin
+    if NewBooksMoved then
+      DelTree(SelectedBooksPath, True, True, True);
+    if DirExists(TargetIndex) then
+      DelTree(TargetIndex, True, True, True);
+    if DirExists(BooksBackup) then
+      RenameFile(BooksBackup, SelectedBooksPath);
+    if DirExists(IndexBackup) then
+      RenameFile(IndexBackup, TargetIndex);
+    MsgBox('העברת הספרייה למיקום שנבחר נכשלה.', mbCriticalError, MB_OK);
+    Abort;
+  end;
+
+  DelTree(BooksBackup, True, True, True);
+  DelTree(IndexBackup, True, True, True);
+  DelTree(StagingRoot, True, True, True);
+  DeleteFile(TarPath);
+  DeleteFile(IndexedPreparedArchivePath);
+end;
+#endif
 
 // ─── ניהול PATH ─────────────────────────────────────────────────────────────
 
@@ -1626,6 +1974,11 @@ begin
 
   WizardForm.ProgressGauge.Style := npbstMarquee;
 
+#ifdef IndexedSplitFull
+  WizardForm.StatusLabel.Caption := 'מחלץ ספרייה מלאה ואינדקס מוכן...';
+  WizardForm.StatusLabel.Update;
+  ExtractIndexedLibraryArchive();
+#else
   WizardForm.StatusLabel.Caption := 'מחלץ מסד הנתונים seforim.db...';
   WizardForm.StatusLabel.Update;
   ExtractBundledDatabase('seforim.db.zst', 'seforim.db');
@@ -1641,6 +1994,7 @@ begin
   WizardForm.StatusLabel.Caption := 'מחלץ מילון לחיפוש המקורב...';
   WizardForm.StatusLabel.Update;
   ExtractBundledDatabase('lexical.db.zst', 'lexical.db');
+#endif
 
   WizardForm.ProgressGauge.Style := npbstNormal;
   WizardForm.ProgressGauge.Position := WizardForm.ProgressGauge.Max;
@@ -1701,12 +2055,19 @@ Source: "..\build\windows\x64\runner\Release\*"; \
 ; Compressed library assets + extraction tools staged in the setup temp dir —
 ; {tmp} is always writable by the installer process (unlike {app} under Program Files)
 ; and is auto-deleted when setup exits, even on abort
+#ifndef IndexedSplitFull
 Source: "library_db\seforim.db.zst"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
 Source: "library_db\otzar-HB_catalog.db.zst"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
 Source: "library_db\talmud_bavli_latest.tar.zst"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
 Source: "library_db\lexical.db.zst"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
+#endif
 Source: "zstd.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
 Source: "7za.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
+#ifdef IndexedSplitFull
+Source: "read_indexed_library_manifest.ps1"; Flags: dontcopy
+Source: "..\tool\release\assemble_split_asset.ps1"; Flags: dontcopy
+Source: "indexed_library.manifest.json"; Flags: dontcopy
+#endif
 
 ; MicrosoftEdgeWebview2Setup.exe — bootstrapper קטן (~2MB) שמוריד ומתקין WebView2
 ; נדרש על ידי flutter_inappwebview_windows; ב-Win10/11 עם Edge עדכני — כבר קיים

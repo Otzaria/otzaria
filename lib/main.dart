@@ -25,6 +25,7 @@ import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/history_repository.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
+import 'package:otzaria/indexing/services/release_index_builder_cli.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
@@ -897,6 +898,8 @@ String _buildLocalPluginInstallUri(String filePath) {
 ///       אורז תיקיית תוסף לקובץ `.otzplugin`. אם `path` חסר — נעשה
 ///       שימוש בתיקייה הנוכחית.
 ///   `otzaria.exe pack-plugin --help` / `-h` — הצגת מסך עזרה.
+///   `otzaria build-release-index --library <dir> --index <dir> --data <dir>`
+///       בונה אינדקס חיפוש מבודד עבור חבילת ההפצה המלאה.
 ///
 /// הלוגיקה עצמה ב-[PluginPackagerCli.run] כדי לשתף בדיוק את אותו הקוד
 /// עם `tool/plugins/package_plugin.dart`.
@@ -911,6 +914,13 @@ Future<bool> _maybeRunCliCommand(List<String> args) async {
 
   if (normalized == 'pack-plugin') {
     final exitCode = await PluginPackagerCli.run(args.skip(1).toList());
+    await stdout.flush();
+    await stderr.flush();
+    exit(exitCode);
+  }
+
+  if (normalized == 'build-release-index') {
+    final exitCode = await ReleaseIndexBuilderCli.run(args.skip(1).toList());
     await stdout.flush();
     await stderr.flush();
     exit(exitCode);
