@@ -42,7 +42,9 @@ void main() {
     // רוחב הרצועה. ברירת המחדל צמודה לכרטיסיות, אך במסך אמיתי היא רחבה
     // מהן — ואז מדידה מול גבולותיה במקום מול השורה מטה את מיקום ההכנסה.
     double? stripWidth,
+    List<double>? tabWidths,
   }) {
+    final widths = tabWidths ?? [for (final _ in tabs) tabWidth];
     return MaterialApp(
       home: Directionality(
         textDirection: textDirection,
@@ -52,10 +54,12 @@ void main() {
               SizedBox(
                 key: stripKey,
                 height: 40,
-                width: stripWidth ?? tabWidth * tabs.length,
+                width:
+                    stripWidth ??
+                    widths.fold<double>(0, (sum, width) => sum + width),
                 child: ReadingTabStrip(
                   tabs: tabs,
-                  widths: [for (final _ in tabs) tabWidth],
+                  widths: widths,
                   requireLongPressToDrag: requireLongPress,
                   onReorder: log.reorder,
                   onDragStarted: () => log.dragStarts++,
@@ -88,11 +92,7 @@ void main() {
   }
 
   /// גוררת מכרטיסיה [from] אל [target] ומשחררת.
-  Future<void> dragFrom(
-    WidgetTester tester,
-    String from,
-    Offset target,
-  ) async {
+  Future<void> dragFrom(WidgetTester tester, String from, Offset target) async {
     final gesture = await tester.startGesture(
       tester.getCenter(find.text(from)),
     );
@@ -324,6 +324,40 @@ void main() {
       expect(log.moves, 1);
       expect(log.newIndex, 0);
     });
+
+    testWidgets('רוחבים לא אחידים שומרים על יעד הגרירה ב-RTL', (tester) async {
+      final log = _StripLog();
+      final tabs = [_StubTab('א'), _StubTab('ב'), _StubTab('ג')];
+      await tester.pumpWidget(
+        host(log: log, tabs: tabs, tabWidths: const [60, 140, 80]),
+      );
+
+      await dragFrom(tester, 'א', tester.getCenter(find.text('ג')));
+
+      expect(log.moves, 1);
+      expect(log.movedTab, same(tabs[0]));
+      expect(log.newIndex, 2);
+    });
+
+    testWidgets('רוחבים לא אחידים שומרים על יעד הגרירה ב-LTR', (tester) async {
+      final log = _StripLog();
+      final tabs = [_StubTab('א'), _StubTab('ב'), _StubTab('ג')];
+      await tester.pumpWidget(
+        host(
+          log: log,
+          tabs: tabs,
+          tabWidths: const [60, 140, 80],
+          textDirection: TextDirection.ltr,
+        ),
+      );
+
+      final strip = tester.getRect(find.byKey(stripKey));
+      await dragFrom(tester, 'ג', Offset(strip.left + 4, strip.center.dy));
+
+      expect(log.moves, 1);
+      expect(log.movedTab, same(tabs[2]));
+      expect(log.newIndex, 0);
+    });
   });
 
   group('חיווי מיקום ההכנסה', () {
@@ -397,9 +431,7 @@ void main() {
   group('פלטפורמה', () {
     testWidgets('בדסקטופ הגרירה מיידית', (tester) async {
       final log = _StripLog();
-      await tester.pumpWidget(
-        host(log: log, tabs: [_StubTab('א')]),
-      );
+      await tester.pumpWidget(host(log: log, tabs: [_StubTab('א')]));
 
       expect(
         find.byWidgetPredicate((w) => w.runtimeType == Draggable<OpenedTab>),

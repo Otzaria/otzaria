@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/view/pane_drop_target.dart';
@@ -64,12 +65,28 @@ class ReadingTabStrip extends StatefulWidget {
 }
 
 class _ReadingTabStripState extends State<ReadingTabStrip> {
+  late _TabStripGeometry _geometry;
+
   /// מיקום ההכנסה הנוכחי בטווח `0..tabs.length`, או `null` כשאין גרירה מעל.
   int? _insertIndex;
 
   /// הכרטיסיה שהגרירה משתהה מעליה, והשעון שיפתח אותה.
   OpenedTab? _springTarget;
   Timer? _springTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _geometry = _TabStripGeometry.fromWidths(widget.widths);
+  }
+
+  @override
+  void didUpdateWidget(covariant ReadingTabStrip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!listEquals(_geometry.widths, widget.widths)) {
+      _geometry = _TabStripGeometry.fromWidths(widget.widths);
+    }
+  }
 
   @override
   void dispose() {
@@ -84,54 +101,36 @@ class _ReadingTabStripState extends State<ReadingTabStrip> {
 
   bool get _isRtl => Directionality.of(context) == TextDirection.rtl;
 
-  double get _stripWidth =>
-      widget.widths.fold<double>(0, (sum, width) => sum + width);
-
   /// מיקום ההכנסה שאליו מצביע [localDx].
   ///
   /// ב-RTL הכרטיסיה הראשונה יושבת בימין, ולכן המרחק נמדד מהקצה הימני.
   /// ההשוואה היא לאמצע כל כרטיסיה — כך היעד מתחלף בדיוק כשחוצים אותה,
   /// והרוחבים אינם חייבים להיות אחידים.
   int _insertIndexFor(double localDx) {
-    final total = _stripWidth;
+    final total = _geometry.totalWidth;
     final flowX = _isRtl ? total - localDx : localDx;
-
-    var accumulated = 0.0;
-    for (var i = 0; i < widget.widths.length; i++) {
-      if (flowX < accumulated + widget.widths[i] / 2) return i;
-      accumulated += widget.widths[i];
-    }
-    return widget.widths.length;
+    return _geometry.insertIndexAt(flowX);
   }
 
   /// הקצה השמאלי של קו החיווי בתוך שורת הכרטיסיות, מוגבל לגבולותיה — קו
   /// שחורג מהן מפעיל חיתוך ב-Stack וקוצץ את קצות הכרטיסיה הנבחרת.
   double _insertLineLeft(int index) {
-    var accumulated = 0.0;
-    for (var i = 0; i < index && i < widget.widths.length; i++) {
-      accumulated += widget.widths[i];
-    }
-    final total = _stripWidth;
-    final edge = _isRtl ? total - accumulated : accumulated;
+    final edge = _geometry.edgeAt(index);
+    final total = _geometry.totalWidth;
+    final visualEdge = _isRtl ? total - edge : edge;
     final maxLeft = total - _kInsertLineWidth;
     if (maxLeft <= 0) return 0;
-    return (edge - _kInsertLineWidth / 2).clamp(0.0, maxLeft);
+    return (visualEdge - _kInsertLineWidth / 2).clamp(0.0, maxLeft);
   }
 
   /// הכרטיסיה שמתחת ל-[localDx], או `null` מחוץ לשורה.
   ///
   /// שונה מ-[_insertIndexFor], שמחזיר גבול בין כרטיסיות ולא כרטיסיה.
   OpenedTab? _tabAt(double localDx) {
-    final total = _stripWidth;
+    final total = _geometry.totalWidth;
     final flowX = _isRtl ? total - localDx : localDx;
-    if (flowX < 0 || flowX >= total) return null;
-
-    var accumulated = 0.0;
-    for (var i = 0; i < widget.widths.length; i++) {
-      accumulated += widget.widths[i];
-      if (flowX < accumulated) return widget.tabs[i];
-    }
-    return null;
+    final index = _geometry.tabIndexAt(flowX);
+    return index == null ? null : widget.tabs[index];
   }
 
   /// מזניק את שעון הפתיחה כשהגרירה עברה לכרטיסיה אחרת, ומאפס אותו כשהיא
@@ -258,6 +257,62 @@ class _ReadingTabStripState extends State<ReadingTabStrip> {
         );
       },
     );
+  }
+}
+
+/// גבולות מצטברים של הכרטיסיות: נבנים רק כשמערך הרוחבים מתעדכן, וכל
+/// תזוזת מצביע מחפשת בהם במקום לסרוק את הכרטיסיות שוב.
+class _TabStripGeometry {
+  final List<double> widths;
+  final List<double> _edges;
+  final List<double> _midpoints;
+
+  const _TabStripGeometry._(this.widths, this._edges, this._midpoints);
+
+  factory _TabStripGeometry.fromWidths(List<double> widths) {
+    final edges = <double>[0];
+    final midpoints = <double>[];
+    var total = 0.0;
+    for (final width in widths) {
+      midpoints.add(total + width / 2);
+      total += width;
+      edges.add(total);
+    }
+    return _TabStripGeometry._(List.unmodifiable(widths), edges, midpoints);
+  }
+
+  double get totalWidth => _edges.last;
+
+  double edgeAt(int index) => _edges[index.clamp(0, _edges.length - 1)];
+
+  int insertIndexAt(double flowX) {
+    var lower = 0;
+    var upper = _midpoints.length;
+    while (lower < upper) {
+      final middle = (lower + upper) ~/ 2;
+      if (flowX < _midpoints[middle]) {
+        upper = middle;
+      } else {
+        lower = middle + 1;
+      }
+    }
+    return lower;
+  }
+
+  int? tabIndexAt(double flowX) {
+    if (flowX < 0 || flowX >= totalWidth) return null;
+
+    var lower = 0;
+    var upper = _edges.length - 1;
+    while (lower < upper) {
+      final middle = (lower + upper) ~/ 2;
+      if (flowX < _edges[middle + 1]) {
+        upper = middle;
+      } else {
+        lower = middle + 1;
+      }
+    }
+    return lower;
   }
 }
 
