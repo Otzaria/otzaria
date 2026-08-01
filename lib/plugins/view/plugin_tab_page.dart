@@ -36,6 +36,7 @@ import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
 import 'package:otzaria/plugins/services/plugin_crash_guard.dart';
 import 'package:otzaria/plugins/services/plugin_store_link_parser.dart';
+import 'package:otzaria/plugins/services/plugin_webview_failure_log.dart';
 import 'package:otzaria/plugins/view/plugin_crashed_view.dart';
 import 'package:otzaria/plugins/view/plugin_webview2_missing_view.dart';
 import 'package:otzaria/plugins/models/plugin_network_allowlist.dart';
@@ -125,6 +126,10 @@ class _PluginTabPageState extends State<PluginTabPage> {
   late final PluginSystemBloc _pluginSystemBloc;
   bool _hasError = false;
   String? _devErrorMessage;
+
+  // כשל יצירה native לא מפעיל אף callback ב-Dart — נשאר רק מסך ריק.
+  // השעון נדרך בבניית ה-WebView ומבוטל ב-onWebViewCreated, כדי לרשום ללוג.
+  Timer? _creationWatchdog;
 
   // Cache PackageInfo so the async gap in onLoadStop never crosses a dispose
   static PackageInfo? _cachedPackageInfo;
@@ -357,6 +362,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
     // משתמשים בגרסה sync כדי שהכתיבה תושלם גם אם dispose נקרא בתוך סגירה
     // של האפליקציה שלא יספיק להריץ async writes.
     PluginCrashGuard.markLoadSuccessSync(widget.plugin.pluginId);
+    _creationWatchdog?.cancel();
     _adapter.dispose();
     PluginPageLauncher.instance.markPageClosed(widget.plugin.pluginId);
     PluginRuntimeDispatcher.instance.unregisterController(
@@ -461,6 +467,15 @@ class _PluginTabPageState extends State<PluginTabPage> {
   }
 
   Widget _buildWebView() {
+    if (_creationWatchdog == null && webViewController == null) {
+      _creationWatchdog = Timer(const Duration(seconds: 20), () {
+        logPluginWebViewFailure(
+          'Plugin WebView never created (silent blank)',
+          'onWebViewCreated did not fire within 20s',
+          details: {'Plugin': widget.plugin.pluginId},
+        );
+      });
+    }
     final initialUrl = widget.plugin.isLocalhostDev
         ? WebUri(localHtmlPath)
         : WebUri.uri(Uri.file(localHtmlPath));
@@ -485,6 +500,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
         buildPluginDropGuardScript(),
       ]),
       onWebViewCreated: (controller) {
+        _creationWatchdog?.cancel();
         // מסמנים שמתחיל ניסיון טעינה. שימוש בגרסה הסינכרונית מבטיח שהקובץ
         // מתעדכן מיד (לפני שיש הזדמנות ל-dispose לרוץ ולנקות ריק) — אחרת
         // קיים race שבו סגירה מהירה של הטאב לפני שה-Future של ה-async
@@ -765,6 +781,19 @@ class _PluginTabPageState extends State<PluginTabPage> {
             setState(() => _hasError = true);
           }
         }
+      },
+      onProcessFailed: (controller, detail) {
+        // תהליך WebView2 (renderer/browser/GPU) מת — התוכן נעלם בלי חריגה.
+        logPluginWebViewFailure(
+          'Plugin WebView2 process failed',
+          detail.kind,
+          details: {
+            'Plugin': widget.plugin.pluginId,
+            'Reason': detail.reason?.toString(),
+            'ExitCode': detail.exitCode?.toString(),
+            'Process': detail.processDescription,
+          },
+        );
       },
       onReceivedError: (controller, request, error) {
         // only fail the view for the entrypoint file load itself

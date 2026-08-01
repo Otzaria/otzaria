@@ -4,6 +4,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/plugins/services/plugin_webview_failure_log.dart';
 
 /// מחזיק את ה-WebViewEnvironment הסינגלטוני עם userDataFolder הניתן לכתיבה.
 ///
@@ -84,9 +85,10 @@ class WebViewEnvironmentHolder {
   }
 
   static Future<void> _runInitialize() async {
+    String? webviewDataFolder;
     try {
       final dataRoot = await AppPaths.getDataRootPath();
-      final webviewDataFolder = p.join(dataRoot, 'webview2');
+      webviewDataFolder = p.join(dataRoot, 'webview2');
       await Directory(webviewDataFolder).create(recursive: true);
       // הערה: אין להוסיף כאן --disable-smooth-scrolling או ארגומנטים אחרים
       // שמשנים התנהגות גלילה. גלילת טאצ'פד מוזרקת ב-fork של
@@ -99,6 +101,15 @@ class WebViewEnvironmentHolder {
       _environment = await WebViewEnvironment.create(
         settings: WebViewEnvironmentSettings(userDataFolder: webviewDataFolder),
       );
+    } catch (error, stackTrace) {
+      // כשל כאן = כל התוספים יעלו ריקים; בלי הרישום אין לזה שום עקבות.
+      logPluginWebViewFailure(
+        'WebView2 environment init failed',
+        error,
+        stackTrace: stackTrace,
+        details: {'UserDataFolder': webviewDataFolder},
+      );
+      rethrow;
     } finally {
       // בהצלחה: _environment מוגדר, ה-guard בכניסה ל-initialize יחזיר
       // מיידית. בכישלון: _environment עדיין null וקריאה הבאה לא תיתפס
