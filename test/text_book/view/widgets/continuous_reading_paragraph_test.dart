@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/models/plugin_highlight.dart';
 import 'package:otzaria/plugins/models/plugin_reader_selection.dart';
@@ -13,7 +14,7 @@ import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart
 /// החיפוש מוסיף. שגיאה כאן הופכת תוצאות חיפוש לבלתי-מסומנות במצב רצף.
 void main() {
   group('justify של פסקה רציפה', () {
-    testWidgets('מקטע קצר לא מיושר לשני הצדדים', (tester) async {
+    testWidgets('מקטע קצר נשאר justify — הערך מועבר כמות שהוא', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -36,7 +37,7 @@ void main() {
       );
 
       final richText = tester.widget<RichText>(find.byType(RichText));
-      expect(richText.textAlign, TextAlign.start);
+      expect(richText.textAlign, TextAlign.justify);
     });
 
     testWidgets('מקטע ארוך משאיר justify', (tester) async {
@@ -64,6 +65,187 @@ void main() {
 
       final richText = tester.widget<RichText>(find.byType(RichText));
       expect(richText.textAlign, TextAlign.justify);
+    });
+
+    testWidgets('textAlign מפורש מועבר בלי עקיפה', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 500,
+              child: ContinuousReadingParagraph(
+                lines: [
+                  ContinuousReadingParagraphLine(
+                    lineIndex: 0,
+                    text: 'מקטע קצר',
+                    style: TextStyle(fontSize: 20),
+                  ),
+                ],
+                baseStyle: TextStyle(fontSize: 20),
+                textAlign: TextAlign.center,
+                onLineTap: _noopLineTap,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final richText = tester.widget<RichText>(find.byType(RichText));
+      expect(richText.textAlign, TextAlign.center);
+    });
+
+    // הבדיקה שמצדיקה את הסרת ה-layout המקדים: justify אינו מותח שורה אחרונה,
+    // ולכן פסקה בת שורה חזותית אחת נראית זהה ב-justify וב-start.
+    testWidgets('שורה יחידה ב-RTL: justify ו-start מייצרים אותה פריסה', (
+      tester,
+    ) async {
+      Future<List<TextBox>> boxesFor(TextAlign align) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Scaffold(
+                body: SizedBox(
+                  width: 500,
+                  child: ContinuousReadingParagraph(
+                    lines: const [
+                      ContinuousReadingParagraphLine(
+                        lineIndex: 0,
+                        text: 'בראשית ברא',
+                        style: TextStyle(fontSize: 20),
+                      ),
+                    ],
+                    baseStyle: const TextStyle(fontSize: 20),
+                    textAlign: align,
+                    onLineTap: _noopLineTap,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.byType(RichText),
+        );
+        return paragraph.getBoxesForSelection(
+          const TextSelection(baseOffset: 0, extentOffset: 10),
+        );
+      }
+
+      final justified = await boxesFor(TextAlign.justify);
+      final started = await boxesFor(TextAlign.start);
+
+      expect(justified, isNotEmpty);
+      expect(justified.first.left, started.first.left);
+      expect(justified.last.right, started.last.right);
+    });
+
+    testWidgets('אין LayoutBuilder בפסקה — הפריסה נעשית פעם אחת', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 300,
+              child: ContinuousReadingParagraph(
+                lines: [
+                  ContinuousReadingParagraphLine(
+                    lineIndex: 0,
+                    text: 'שורה ראשונה',
+                    style: TextStyle(fontSize: 20),
+                  ),
+                  ContinuousReadingParagraphLine(
+                    lineIndex: 1,
+                    text: 'שורה שנייה',
+                    style: TextStyle(fontSize: 20),
+                  ),
+                ],
+                baseStyle: TextStyle(fontSize: 20),
+                onLineTap: _noopLineTap,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.descendant(
+          of: find.byType(ContinuousReadingParagraph),
+          matching: find.byType(LayoutBuilder),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('רוחב לא חסום (Row ללא Expanded) לא מפיל את הפסקה', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ContinuousReadingParagraph(
+                lines: [
+                  ContinuousReadingParagraphLine(
+                    lineIndex: 0,
+                    text: 'טקסט ברוחב לא חסום',
+                    style: TextStyle(fontSize: 20),
+                  ),
+                ],
+                baseStyle: TextStyle(fontSize: 20),
+                onLineTap: _noopLineTap,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(RichText), findsOneWidget);
+    });
+
+    testWidgets('בנייה חוזרת של פסקה ארוכה יציבה ולא מדליפה', (tester) async {
+      final tick = ValueNotifier<int>(0);
+      addTearDown(tick.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              child: SingleChildScrollView(
+                child: ValueListenableBuilder<int>(
+                  valueListenable: tick,
+                  builder: (context, _, _) => ContinuousReadingParagraph(
+                    lines: [
+                      for (var i = 0; i < 60; i++)
+                        ContinuousReadingParagraphLine(
+                          lineIndex: i,
+                          text: 'שורה מספר $i עם קצת טקסט להשלמת רוחב',
+                          htmlText:
+                              'שורה מספר $i <b>עם</b> קצת טקסט להשלמת רוחב',
+                          style: const TextStyle(fontSize: 18),
+                        ),
+                    ],
+                    baseStyle: const TextStyle(fontSize: 18),
+                    onLineTap: _noopLineTap,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      for (var i = 0; i < 5; i++) {
+        tick.value = i + 1;
+        await tester.pump();
+      }
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(RichText), findsOneWidget);
     });
 
     testWidgets('טווחי מסגרת מוזזים לפי השורות והרווח המחבר', (tester) async {

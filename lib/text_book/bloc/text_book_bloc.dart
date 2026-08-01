@@ -51,6 +51,13 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   static const Duration _visibleIndicesDebounceDuration = Duration(
     milliseconds: 160,
   );
+
+  /// קצב מרבי לשידור מיידי של visibleIndices בזמן גלילה. במצב קריאה רציף
+  /// השורה הגלויה נגזרת משבר הגלילה בתוך פסקה ממוזגת ולכן משתנה כמעט בכל
+  /// פריים; בלי הגבלה זו כל פריים גורר emit ו-rebuild של הפסקה כולה.
+  static const Duration _visibleIndicesThrottleInterval = Duration(
+    milliseconds: 100,
+  );
   static const String _allTargetBookTitlesSignature =
       '__all_target_book_titles__';
 
@@ -69,6 +76,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
   Timer? _debounceTimer;
   Timer? _highlightTimer;
+  DateTime? _lastVisibleIndicesDispatchAt;
   VoidCallback? _positionListenerCallback;
   int? _loadedLinksStart;
   int? _loadedLinksEnd;
@@ -289,6 +297,19 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       return currentState.continuousReadingMode;
     }
     return globalDefault;
+  }
+
+  /// האם לשדר עכשיו עדכון `visibleIndices`, או לדלג ולהשאיר את השידור
+  /// לטיימר הנגרר. [sinceLastDispatch] הוא `null` כשעוד לא שודר דבר.
+  ///
+  /// דילוג בטוח: הטיימר הנגרר נדרך מחדש בכל אירוע גלילה, ולכן המיקום הסופי
+  /// תמיד משודר אחרי שהגלילה נעצרת.
+  @visibleForTesting
+  static bool shouldDispatchVisibleIndicesNow({
+    required Duration? sinceLastDispatch,
+    Duration throttleInterval = _visibleIndicesThrottleInterval,
+  }) {
+    return sinceLastDispatch == null || sinceLastDispatch >= throttleInterval;
   }
 
   @visibleForTesting
@@ -844,11 +865,18 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         }
         if (initialSyncClassification.shouldDispatchImmediately) {
           _debounceTimer?.cancel();
-          add(UpdateVisibleIndecies(visibleIndicesNow));
+          _dispatchVisibleIndices(visibleIndicesNow);
           return;
         }
 
-        add(UpdateVisibleIndecies(visibleIndicesNow));
+        final lastDispatchAt = _lastVisibleIndicesDispatchAt;
+        if (shouldDispatchVisibleIndicesNow(
+          sinceLastDispatch: lastDispatchAt == null
+              ? null
+              : DateTime.now().difference(lastDispatchAt),
+        )) {
+          _dispatchVisibleIndices(visibleIndicesNow);
+        }
         _debounceTimer?.cancel();
         _debounceTimer = Timer(_visibleIndicesDebounceDuration, () {
           if (isClosed) {
@@ -869,7 +897,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
                   latestState.visibleIndices,
                   visibleIndicesNow,
                 )) {
-              add(UpdateVisibleIndecies(visibleIndicesNow));
+              _dispatchVisibleIndices(visibleIndicesNow);
             }
           }
         });
@@ -1596,6 +1624,13 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       if (list1[i] != list2[i]) return false;
     }
     return true;
+  }
+
+  /// שידור עדכון `visibleIndices` תוך רישום מועד השידור, שעליו נשענת
+  /// הגבלת הקצב ב-[shouldDispatchVisibleIndicesNow].
+  void _dispatchVisibleIndices(List<int> visibleIndices) {
+    _lastVisibleIndicesDispatchAt = DateTime.now();
+    add(UpdateVisibleIndecies(visibleIndices));
   }
 
   bool _hasMeaningfulVisibleIndicesChange(

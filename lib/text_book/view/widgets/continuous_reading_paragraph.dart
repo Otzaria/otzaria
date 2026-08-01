@@ -156,20 +156,11 @@ class _ContinuousReadingParagraphState
     }
 
     final textSpan = TextSpan(style: widget.baseStyle, children: spans);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final text = Text.rich(
-          textSpan,
-          textAlign: _effectiveTextAlign(
-            textSpan: textSpan,
-            constraints: constraints,
-            textScaler: MediaQuery.textScalerOf(context),
-          ),
-        );
-        if (frameRanges.isEmpty) return text;
-        return PluginHighlightFrameOverlay(ranges: frameRanges, child: text);
-      },
-    );
+    // justify אינו מותח שורה אחרונה, ולכן גם לא פסקה בת שורה חזותית אחת.
+    // מדידה מוקדמת של מספר השורות = layout שני על כל הפסקה, ומייקרת גלילה.
+    final text = Text.rich(textSpan, textAlign: widget.textAlign);
+    if (frameRanges.isEmpty) return text;
+    return PluginHighlightFrameOverlay(ranges: frameRanges, child: text);
   }
 
   List<InlineSpan> _buildLineSpans(ContinuousReadingParagraphLine line) {
@@ -188,28 +179,6 @@ class _ContinuousReadingParagraphState
       anchorActiveBackground: widget.anchorActiveBackground,
       recognizerSink: _linkRecognizers,
     );
-  }
-
-  TextAlign _effectiveTextAlign({
-    required InlineSpan textSpan,
-    required BoxConstraints constraints,
-    required TextScaler textScaler,
-  }) {
-    if (widget.textAlign != TextAlign.justify || !constraints.hasBoundedWidth) {
-      return widget.textAlign;
-    }
-
-    final textPainter = TextPainter(
-      text: textSpan,
-      textAlign: TextAlign.start,
-      textDirection: TextDirection.rtl,
-      textScaler: textScaler,
-    )..layout(maxWidth: constraints.maxWidth);
-
-    final visualLineCount = textPainter.computeLineMetrics().length;
-    textPainter.dispose();
-
-    return visualLineCount <= 1 ? TextAlign.start : widget.textAlign;
   }
 
   void _rebuildLineRecognizers() {
