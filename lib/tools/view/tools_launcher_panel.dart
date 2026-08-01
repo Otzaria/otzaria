@@ -18,7 +18,6 @@ import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
-/// כותרות שני מקטעי הרשת.
 const String kBuiltInToolsGroupLabel = 'כלים';
 const String kPluginsGroupLabel = 'תוספים';
 
@@ -51,8 +50,7 @@ List<ToolCatalogEntry> filterToolEntries(
 
 typedef ToolGroup = ({String label, List<ToolCatalogEntry> entries});
 
-/// מקבץ רשומות עוקבות לפי סוגן, בלי לשנות את סדר הקטלוג.
-/// כותרת יכולה להופיע שוב כשנדרש כדי לשמור על תוסף שהוקדם למובנים.
+/// מקבץ רשומות עוקבות לפי סוגן בלי לשנות את סדר הקטלוג.
 @visibleForTesting
 List<ToolGroup> groupToolEntries(List<ToolCatalogEntry> entries) {
   final groups = <ToolGroup>[];
@@ -67,15 +65,13 @@ List<ToolGroup> groupToolEntries(List<ToolCatalogEntry> entries) {
   return groups;
 }
 
-/// סדר הקוביות כפי שהן מוצגות בפועל. ניווט המקלדת ממופה לאינדקס ברשימה הזו,
-/// ולכן היא חייבת להישאר זהה לסדר הרינדור.
+/// סדר הקוביות כפי שהן מוצגות בפועל.
 @visibleForTesting
 List<ToolCatalogEntry> orderedToolEntries(List<ToolCatalogEntry> entries) => [
   for (final group in groupToolEntries(entries)) ...group.entries,
 ];
 
-/// רוחב היעד לקובייה, ממנו נגזר מספר העמודות. הפאנל ניתן לגרירה ולכן החישוב
-/// מבוסס על הרוחב בפועל ולא על breakpoints קבועים.
+/// רוחב היעד לקובייה.
 @visibleForTesting
 const double kToolTileTargetWidth = 104;
 
@@ -84,8 +80,7 @@ const double kToolTileTargetWidth = 104;
 int toolGridColumns(double width) =>
     (width / kToolTileTargetWidth).floor().clamp(2, 5);
 
-/// האינדקס המסומן הבא בניווט מקלדת. נעצר בקצוות ואינו גולש למחזוריות, כדי
-/// שחץ ברצף לא "יקפוץ" מהקובייה האחרונה לראשונה.
+/// האינדקס המסומן הבא בניווט מקלדת.
 @visibleForTesting
 int nextHighlightIndex({
   required int current,
@@ -172,8 +167,6 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     bloc.add(LoadLocalhostPluginRequested(url));
   }
 
-  // ─── ניווט מקלדת ─────────────────────────────────────────────────────────
-
   void _moveHighlight(int delta, int total) {
     if (total == 0) return;
     setState(() {
@@ -222,8 +215,6 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
 
   KeyEventResult _handleSearchFieldKey(FocusNode _, KeyEvent event) =>
       _handleKey(event, _keyboardEntries, _keyboardColumns);
-
-  // ─── Build ───────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -412,10 +403,8 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
   }
 }
 
-/// קובייה בודדת ברשת הכלים — עיצוב כרטיסי הספרייה: אייקון בתוך ריבוע
-/// `secondaryContainer` מעוגל, וכותרת מתחתיו. הקובייה מרובעת (1:1) והתוכן ממורכז.
+/// קובייה בודדת ברשת הכלים.
 class ToolTile extends StatelessWidget {
-  /// ריבוע האייקון והאייקון שבתוכו — זהים לכרטיסי הספרייה.
   static const double iconBoxSize = 32;
   static const double iconSize = 16;
 
@@ -444,8 +433,7 @@ class ToolTile extends StatelessWidget {
         selected: isHighlighted,
         child: Stack(
           children: [
-            // Center + mainAxisSize.min ממרכז את הצמד אייקון+טקסט כגוש אחד,
-            // כך שהמרכוז אינו תלוי במספר שורות הכותרת.
+            // האייקון והכותרת ממורכזים כגוש אחד.
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(AppTokens.spaceXS),

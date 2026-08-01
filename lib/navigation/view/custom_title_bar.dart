@@ -105,9 +105,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
   // הרוחבים המחושבים האחרונים לטאב, לשימוש כערך הקפיאה בסגירה.
   _TabWidths? _lastComputedTabWidths;
 
-  // הכרטיסיה שתיבחר בשחרור הלחיצה. הבחירה אינה ב-onPointerDown בכוונה: גרירה
-  // מתחילה בלחיצה, והבחירה המיידית הייתה מקפיצה את התצוגה לכרטיסיה הנגררת
-  // לפני שהמשתמש בכלל בחר לאן לגרור אותה.
+  // הבחירה נדחית לשחרור כדי שתחילת גרירה לא תחליף את התצוגה.
   OpenedTab? _pendingTabSelection;
 
   /// המקש שמפעיל בחירה מרובה: Ctrl בכל הפלטפורמות, Command במק.
@@ -530,9 +528,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         platform == TargetPlatform.linux ||
         platform == TargetPlatform.macOS;
 
-    // [ReadingTabStrip] ולא ReorderableListView: אותה גרירה משמשת גם לסידור
-    // מחדש וגם להוצאת כרטיסיה אל חלונית קריאה, ו-ReorderableListView בולע את
-    // המחווה בלי דרך לדעת שהמצביע יצא מגבולותיו.
+    // אותה גרירה מסדרת כרטיסיות ומוציאה אותן לחלונית קריאה.
     final tabStrip = ReadingTabStrip(
       tabs: state.tabs,
       widths: [
@@ -790,10 +786,8 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
     Widget buildTabContent() {
       if (tab is CombinedTab) {
-        // תצוגה מפוצלת: כל חלונית מקבלת חלק שווה מרוחב הטאב ומציגה את תחילת
-        // שמה עם דהייה בקצה. הסריקה היא על כל חלוניות העלה ולא על שתי הרמות
-        // העליונות, אחרת בטאב עם ארבע חלוניות היו מוצגות רק שתי כותרות.
-        // הפסים המפרידים מוצגים רק כשיש די רוחב, אחרת עוביים הקבוע גולש.
+        // כל חלונית מפוצלת מציגה את תחילת שמה בחלק שווה מרוחב הטאב.
+        // פסים מפרידים מוצגים רק כשיש להם מקום.
         final paneTitles = leafPanes(tab).map((p) => p.title).toList();
         final showDividers = tabWidth >= 100 * (paneTitles.length - 1);
         return Tooltip(
@@ -1027,8 +1021,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       },
       onPointerCancel: (_) => _pendingTabSelection = null,
       onPointerDown: (PointerDownEvent event) {
-        // מתאפס לפני כל יציאה מוקדמת: ערך שנשאר מלחיצה קודמת היה בוחר בשחרור
-        // כרטיסיה שהמשתמש כלל לא נגע בה.
+        // מונע מבחירה קודמת להשפיע על שחרור הלחיצה הנוכחי.
         _pendingTabSelection = null;
         if (event.buttons == 4) {
           closeTab(tab, context);
@@ -1198,8 +1191,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     }
 
     if (tab is CombinedTab) {
-      // אירועי הטאב מקבלים את אינדקס הטאב שנלחץ: לחיצה ימנית אינה מחליפה
-      // טאב פעיל, ובלי האינדקס הם היו פועלים על הטאב המוצג.
+      // לחיצה ימנית אינה מחליפה טאב פעיל, לכן האירועים מקבלים אינדקס מפורש.
       final tabIndex = state.tabs.indexOf(tab);
       entries.addAll([
         AppContextMenuEntry(
@@ -1209,8 +1201,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
               AppContextMenuEntry(
                 label: pane.title,
                 onTap: () {
-                  // רישום לפני הסגירה, כמו ב-closeTab: אחרי ההסרה החלונית
-                  // אינה בטאב ומיקום הקריאה שלה היה נעלם.
+                  // רושמים היסטוריה לפני שהחלונית מוסרת מהטאב.
                   context.read<HistoryBloc>().add(AddHistory(pane));
                   context.read<TabsBloc>().add(ClosePane(pane));
                 },

@@ -6,10 +6,7 @@ import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/utils/fluent_icon_resolver.dart';
 import 'package:otzaria/tools/built_in_tools_catalog.dart';
 
-/// רשומת תצוגה מאוחדת לכלי מובנה ולתוסף.
-///
-/// מחליפה את `ToolDescriptor` שהיה במסך הכלים: כאן אין `buildPage`, כי העמוד
-/// נבנה על-ידי `ToolTabScreen` בתוך טאב העיון.
+/// רשומת תצוגה מאוחדת לכלי מובנה או לתוסף.
 class ToolCatalogEntry {
   final String toolId;
   final String label;
@@ -61,19 +58,14 @@ class ToolCatalogEntry {
     );
   }
 
-  /// קבוצת המיון: כלים מובנים לפני תוספים, למעט תוסף שהמשתמש אישר לו
-  /// להקדים אותם.
+  /// קבוצת המיון של הכלי.
   int get sortGroupPriority {
     if (plugin == null) return 1;
     return plugin!.allowsOrderBeforeBuiltIns ? 0 : 2;
   }
 }
 
-/// ממיין רשומות במיון *יציב*: כלים מובנים לפני תוספים (למעט תוסף שאושר
-/// להקדים אותם), ובתוך כל קבוצה לפי [ToolCatalogEntry.order] עולה.
-///
-/// `List.sort` הרגיל אינו יציב והיה משבש בין הרצות את הסדר של רשומות
-/// שחולקות אותו `order` — סדר שכבר נקבע דטרמיניסטית ב-repository.
+/// ממיין רשומות לפי קבוצה וסדר תוך שמירת סדרן היחסי של רשומות זהות.
 @visibleForTesting
 void sortToolEntriesStably(List<ToolCatalogEntry> entries) {
   insertionSort(
@@ -86,10 +78,7 @@ void sortToolEntriesStably(List<ToolCatalogEntry> entries) {
   );
 }
 
-/// אייקון קטן לשורת הכרטיסיות. מחזיר `null` כשאין מה להציג.
-///
-/// [pluginState] אופציונלי: בלעדיו תוסף מקבל את אייקון ברירת המחדל במקום את
-/// האייקון שהצהיר עליו במניפסט.
+/// אייקון קטן לשורת הכרטיסיות.
 Widget? buildToolTabLeadingIcon(
   String toolId, {
   required Color color,
@@ -126,8 +115,7 @@ Widget? buildToolTabLeadingIcon(
   );
 }
 
-/// למה כלי אינו זמין לפתיחה. משמש גם להודעת השגיאה בפתיחה וגם למסך
-/// שמוצג בטאב של כלי שנעלם.
+/// סיבת אי-זמינות של כלי לפתיחה.
 enum ToolUnavailableReason {
   /// עדיין לא ידוע — `PluginSystemBloc` טרם סיים לטעון.
   loading,
@@ -156,11 +144,7 @@ class ToolUnavailable extends ToolLookupResult {
   const ToolUnavailable(this.reason, {this.name});
 }
 
-/// הכלים שמוצגים במשגר: כלים מובנים שאינם מוסתרים, ותוספים מופעלים
-/// שאינם מוסתרים מהממשק ואינם חסומים במצב מנותק.
-///
-/// תוסף שהוצמד לסרגל הניווט מופיע כאן גם כן — בשונה מסרגל הלשוניות הישן,
-/// ברשת הזו הופעה כפולה אינה מפריעה והשמטתו רק הייתה מסתירה אותו מהחיפוש.
+/// הכלים הזמינים להצגה במשגר.
 List<ToolCatalogEntry> buildToolCatalog({
   required Set<String> hiddenBuiltInToolIds,
   required bool isOfflineMode,
@@ -185,11 +169,7 @@ List<ToolCatalogEntry> buildToolCatalog({
   return entries;
 }
 
-/// מאתר כלי לפי מזהה ומחזיר את הסיבה המדויקת כשאינו זמין.
-///
-/// אינו מסתמך על [buildToolCatalog] בכוונה: הוא צריך להבחין בין "לא קיים"
-/// ל"קיים אך מוסתר/מושבת/חסום", כדי שפתיחה מקישור עמוק או מקיצור מקלדת
-/// תסביר למשתמש מה קרה במקום לשתוק.
+/// מאתר כלי לפי מזהה ומחזיר סיבה מפורטת אם אינו זמין.
 ToolLookupResult lookupTool(
   String toolId, {
   required Set<String> hiddenBuiltInToolIds,

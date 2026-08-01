@@ -17,10 +17,7 @@ import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
 import 'package:otzaria/widgets/misc/exit_fullscreen_button.dart';
 
 /// האם למקד את צומת התוכן של טאב כלי.
-///
-/// בתוסף לעולם לא: ה-WebView מגשר את פוקוס פלאטר לפוקוס הנייטיבי, וכל
-/// `requestFocus` על צומת אב שלו מריץ `document.activeElement.blur()` ומוחק
-/// את סמן הכתיבה מהשדה שהמשתמש מקליד בו. `contentHasFocus` כולל צאצאים.
+/// WebView של תוסף מאבד את סמן הכתיבה אם צומת האב מקבל פוקוס.
 @visibleForTesting
 bool shouldRequestToolContentFocus({
   required bool isPlugin,
@@ -31,10 +28,7 @@ bool shouldRequestToolContentFocus({
   return contentIsAttached && !contentHasFocus;
 }
 
-/// מסך של כלי מובנה או תוסף, כחלונית בתוך מסך העיון.
-///
-/// מחזיק מפתחות פר-טאב (ולא פר-מסך כמו במסך הכלים הישן), כדי ששני טאבים של
-/// אותו כלי מובנה לא יתנגשו.
+/// מסך של כלי מובנה או תוסף בתוך מסך העיון.
 class ToolTabScreen extends StatefulWidget {
   final ToolTab tab;
 
@@ -54,8 +48,7 @@ class ToolTabScreenState extends State<ToolTabScreen>
       GlobalKey<GematriaSearchScreenState>();
   final FocusNode _contentFocusNode = FocusNode(skipTraversal: true);
 
-  /// התוכן נבנה רק אחרי שהטאב הוצג בפועל. בלי זה, החלקה במובייל על-פני
-  /// כרטיסיות הייתה בונה WebView לכל טאב תוסף בדרך.
+  /// התוכן נבנה רק כשהטאב מוצג, כדי לא ליצור WebView מראש.
   bool _activated = false;
 
   @override
@@ -76,8 +69,6 @@ class ToolTabScreenState extends State<ToolTabScreen>
     _contentFocusNode.dispose();
     super.dispose();
   }
-
-  // ─── Focus ───────────────────────────────────────────────────────────────
 
   void _requestContentFocus() {
     if (!mounted) return;
@@ -114,8 +105,7 @@ class ToolTabScreenState extends State<ToolTabScreen>
     });
   }
 
-  /// מאפס את לוח השנה לתאריך של היום. משמש את "הדף היומי" בספרייה, שממחזר
-  /// טאב לוח-שנה קיים במקום לפתוח חדש.
+  /// מאפס את לוח השנה לתאריך של היום.
   void resetToToday() {
     if (widget.tab.toolId != 'builtin.calendar') return;
     if (mounted) context.read<CalendarCubit>().jumpToToday();
@@ -128,11 +118,9 @@ class ToolTabScreenState extends State<ToolTabScreen>
     }
   }
 
-  // ─── Build ───────────────────────────────────────────────────────────────
-
   void _markActivated() {
     if (_activated) return;
-    // ה-flag נקבע בתוך build; דוחים את ה-setState לפוסט-פריים.
+    // עדכון מצב מתוך build נדחה לסוף הפריים.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _activated) return;
       setState(() => _activated = true);
@@ -140,8 +128,7 @@ class ToolTabScreenState extends State<ToolTabScreen>
     });
   }
 
-  /// האם הטאב מוצג כרגע. `TickerMode` כבר משקף בדיוק את זה עבור טאב העיון
-  /// הפעיל, ולכן אין צורך בערוץ נוסף.
+  /// האם הטאב מוצג כרגע.
   bool get _isVisible => TickerMode.valuesOf(context).enabled;
 
   @override
@@ -179,8 +166,7 @@ class ToolTabScreenState extends State<ToolTabScreen>
             ),
           ),
         ),
-        // במסך מלא אין שורת כותרת ואין סרגל ניווט; בלי הכפתור הזה אין דרך
-        // לצאת מטאב כלי (בתוסף ה-Escape נבלע ב-WebView).
+        // WebView עלול לבלוע Escape במסך מלא.
         if (settingsState.isFullscreen)
           const Positioned(top: 8, right: 8, child: ExitFullscreenButton()),
       ],

@@ -4,12 +4,7 @@ import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/utils/file/hive_utils.dart';
 
-/// טאב המציג שני ספרים זה לצד זה, עם מפריד ניתן לגרירה.
-///
-/// שתי החלוניות הן תמיד עלים — פיצול אינו מקונן, ולכן בטאב יש בדיוק שתי
-/// חלוניות. מצב שנשמר בגרסה שתמכה בקינון מנורמל ב-[flattenRestoredSplits].
-///
-/// סגירת הטאב סוגרת את שתי החלוניות שבו.
+/// טאב המציג בדיוק שתי חלוניות זו לצד זו, עם מפריד ניתן לגרירה.
 class CombinedTab extends OpenedTab {
   /// החלונית הראשונה בסדר התצוגה — הימנית ב-RTL.
   final OpenedTab rightTab;
@@ -18,9 +13,7 @@ class CombinedTab extends OpenedTab {
   final OpenedTab leftTab;
 
   /// חלקה של [rightTab] מהמקום הפנוי (0.0-1.0).
-  ///
-  /// משתנה במקום (mutable) בכוונה: גרירת המפריד לא אמורה ליצור טאב חדש,
-  /// שהיה מחליף את מפתחות החלוניות ומאתחל מחדש את תוכנן.
+  /// משתנה במקום כדי לשמור על מצב החלוניות בזמן גרירת המפריד.
   double splitRatio;
 
   CombinedTab({
@@ -36,13 +29,10 @@ class CombinedTab extends OpenedTab {
     }
   }
 
-  /// מחושבת בכל קריאה: כותרת חלונית משתנה אחרי טעינת הספר, וכותרת שהוקפאה
-  /// בבנייה נשארה מיושנת ב-tooltip וברשימת הקיצורים של Windows.
   @override
   String get title => 'משולב: ${rightTab.title} | ${leftTab.title}';
 
-  /// הכותרת נגזרת מהחלוניות; השדה שבבסיס אינו נקרא, ולכן כתיבה אליו נבלעת
-  /// בשקט. חוסמים אותה במפורש כדי שהמלכוד לא יתגלה רק בזמן ריצה.
+  /// הכותרת נגזרת מהחלוניות ואינה ניתנת לשינוי.
   @override
   set title(String value) =>
       throw UnsupportedError('כותרת טאב מפוצל נגזרת מהחלוניות שבו');
@@ -92,10 +82,7 @@ class CombinedTab extends OpenedTab {
   }
 }
 
-/// מפענחת טאב מפוצל שנשמר.
-///
-/// חלונית שפענוחה נכשל — טיפוס מגרסה חדשה יותר, שדה פגום — מוסרת ואחותה
-/// חוזרת ככרטיסייה רגילה. בלי זה ספר תקין היה נמחק בגלל שכנתו.
+/// מפענחת טאב מפוצל שנשמר, ומשחזרת חלונית תקינה גם אם אחותה נפגמה.
 OpenedTab decodeCombinedTab(Map<String, dynamic> json) {
   OpenedTab? decodePane(dynamic raw) {
     try {
@@ -146,7 +133,6 @@ OpenedTab decodeCombinedTab(Map<String, dynamic> json) {
   );
 }
 
-/// מבנה ביניים פרטי לנתון legacy מקונן, עד לנרמול בזמן השחזור.
 class _RestoredCombinedTab extends OpenedTab {
   final OpenedTab rightTab;
   final OpenedTab leftTab;
@@ -210,14 +196,7 @@ OpenedTab? prunePanes(OpenedTab tab, bool Function(OpenedTab pane) keep) {
   return null;
 }
 
-/// מנרמלת טאבים ששוחזרו מדיסק לפיצול דו-חלוניתי, יחד עם האינדקס הפעיל.
-///
-/// שמירה מגרסה שתמכה בפיצול מקונן יכולה להחזיר טאב עם יותר משתי חלוניות;
-/// שתי הראשונות נשארות מפוצלות והשאר חוזרות ככרטיסיות עצמאיות, כדי שספר
-/// שהיה פתוח לא ייעלם.
-///
-/// [currentIndex] מוחזר מעודכן: הכרטיסיות שנוספו דוחפות קדימה כל מה שאחריהן,
-/// ובלי התיקון האינדקס השמור היה מצביע על ספר אחר.
+/// מנרמלת שחזור לפיצול של שתי חלוניות ומעדכנת את האינדקס הפעיל.
 ({List<OpenedTab> tabs, int currentIndex}) flattenRestoredSplits(
   List<OpenedTab> tabs, {
   int currentIndex = 0,
@@ -244,8 +223,7 @@ OpenedTab? prunePanes(OpenedTab tab, bool Function(OpenedTab pane) keep) {
       ),
     );
     for (final extra in leaves.skip(2)) {
-      // ההצמדה נשמרה על הטאב המפוצל; חלונית שיוצאת ממנו ככרטיסייה עצמאית
-      // יורשת אותה, אחרת "סגור הכל" היה סוגר ספר שהמשתמש נעץ.
+      // חלונית שחוזרת לכרטיסייה עצמאית יורשת את ההצמדה.
       if (tab.isPinned) extra.isPinned = true;
       normalized.add(extra);
     }
@@ -254,7 +232,6 @@ OpenedTab? prunePanes(OpenedTab tab, bool Function(OpenedTab pane) keep) {
   return (tabs: normalized, currentIndex: normalizedIndex);
 }
 
-/// כל חלוניות התוכן שתחת [tab], כולל פיצול מקונן ששוחזר מגרסה קודמת.
 bool _isSplit(OpenedTab tab) =>
     tab is CombinedTab || tab is _RestoredCombinedTab;
 

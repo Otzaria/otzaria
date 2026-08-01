@@ -2,10 +2,7 @@ import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tools/built_in_tools_catalog.dart';
 
-/// טאב של כלי מובנה או של תוסף, המוצג בתוך מסך העיון ככל טאב אחר.
-///
-/// המצב החי (בלוקים, מפתחות, WebView) שייך ל-`State` של המסך ולא למודל —
-/// שלא כמו [TextBookTab] שמחזיק `bloc` משלו. לכן אין כאן `dispose`.
+/// טאב של כלי מובנה או תוסף, המוצג במסך העיון ככל טאב אחר.
 class ToolTab extends OpenedTab {
   /// מזהה הכלי: `builtin.*` לכלי מובנה, או `pluginId` לתוסף.
   final String toolId;
@@ -16,8 +13,7 @@ class ToolTab extends OpenedTab {
     super.isPinned,
   }) : super(title, dedupeKey: dedupeKeyFor(toolId));
 
-  /// רק תוסף מוגבל למופע WebView יחיד; כלים מובנים מתנהגים כמו ספרים וניתנים
-  /// לפתיחה ולשכפול במספר כרטיסיות.
+  /// רק תוסף מוגבל למופע WebView יחיד.
   static String? dedupeKeyFor(String toolId) =>
       isBuiltInToolId(toolId) ? null : 'tool:$toolId';
 
@@ -28,8 +24,7 @@ class ToolTab extends OpenedTab {
 
   bool get isPlugin => !isBuiltIn;
 
-  /// כותרת גיבוי לפתיחה לפי מזהה בלבד (deep link / קיצור מקלדת), לפני
-  /// ש-`PluginSystemBloc` נטען ושם הכלי האמיתי ידוע.
+  /// כותרת גיבוי לפתיחה לפי מזהה לפני טעינת שם התוסף.
   static String fallbackTitleFor(String toolId) {
     for (final meta in kBuiltInToolsCatalog) {
       if (meta.toolId == toolId) return meta.label;
@@ -49,10 +44,7 @@ class ToolTab extends OpenedTab {
     'isPinned': isPinned,
   };
 
-  /// מזהי התוספים שמוצגים בטאב [tab] — כולל חלוניות בתוך טאב מפוצל.
-  ///
-  /// מזין את `PluginRuntimeDispatcher.setVisiblePluginTabs`: תוסף שאינו כאן
-  /// מושהה כדי לא לצרוך CPU/RAM ברקע.
+  /// מזהי התוספים המוצגים בטאב [tab], כולל חלוניות מפוצלות.
   static Set<String> visiblePluginIdsOf(OpenedTab? tab) {
     if (tab == null) return const {};
     return {

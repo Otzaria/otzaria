@@ -4,11 +4,7 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/view/pane_drop_geometry.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
-/// עוטף את אזור הקריאה ומקבל כרטיסייה שנגררת אליו, עם חיווי חי של הצד
-/// שהספר ייכנס אליו.
-///
-/// טאב שכבר מפוצל אינו מקבל הפלות: הפיצול הוא לשתי חלוניות בלבד, וכרטיסייה
-/// שנגררת אליו נשארת במקומה בשורת הכרטיסיות.
+/// אזור קריאה המקבל כרטיסייה נגררת ומציג את צד הפיצול.
 class PaneDropTarget extends StatefulWidget {
   /// הטאב המוצג — היעד שהכרטיסייה הנגררת תפצל.
   final OpenedTab tab;
@@ -33,8 +29,6 @@ class PaneDropTarget extends StatefulWidget {
 class _PaneDropTargetState extends State<PaneDropTarget> {
   PaneDropSide? _side;
 
-  /// גרירה שלא תוכל לפצל אינה מציגה חיווי: טאב שכבר מפוצל, טאב מפוצל
-  /// שנגרר (פיצול אינו מקונן), או הטאב שכבר מוצג כאן.
   bool _accepts(OpenedTab dragged) =>
       widget.tab is! CombinedTab &&
       dragged is! CombinedTab &&
@@ -44,7 +38,7 @@ class _PaneDropTargetState extends State<PaneDropTarget> {
     final box = context.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return;
 
-    // מסך צר מדי לשתי חלוניות קריאות אינו מציע פיצול כלל.
+    // אין מקום לשתי חלוניות קריאות.
     final next = canSplitPane(box.size)
         ? dropSideFor(
             localPosition: box.globalToLocal(globalOffset),
@@ -65,8 +59,7 @@ class _PaneDropTargetState extends State<PaneDropTarget> {
       onWillAcceptWithDetails: (details) {
         if (!_accepts(details.data)) return false;
         _updateSide(details.offset);
-        // אזור צר מכדי לפצל נדחה במפורש: קבלה שאינה מפצלת הייתה בולעת את
-        // השחרור בלי חיווי, והכרטיסייה הייתה חוזרת בלי סיבה נראית.
+        // אין לקבל גרירה בלי יעד פיצול תקין.
         return _side != null;
       },
       onMove: (details) {

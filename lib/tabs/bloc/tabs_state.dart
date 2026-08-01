@@ -8,21 +8,13 @@ class TabsState extends Equatable {
   final int currentTabIndex;
   final int updateCounter;
 
-  /// בחירה מרובה לסגירה קבוצתית (Ctrl/Shift+לחיצה בשורת הכרטיסיות).
-  /// מצב זמני — אינו נשמר לדיסק.
+  /// בחירה מרובה זמנית לסגירה קבוצתית.
   final List<OpenedTab> selectedTabs;
 
-  /// החלונית שהמשתמש עובד בה, כפי שנקבעה בלחיצה אחרונה.
-  ///
-  /// נשמרת כזהות אובייקט ולא כנתיב: נתיב מתיישן בכל שינוי מבנה — סגירת חלונית
-  /// מקוננת מקצרת אותו, החלפת צדדים הופכת את משמעותו, ונתיב מטאב אחר עלול
-  /// להיות "תקין במקרה" ולסמן ספר שהמשתמש לא נגע בו. זהות נוסעת עם החלונית.
-  ///
-  /// נקרא דרך [activePane].
+  /// החלונית הפעילה נשמרת כזהות אובייקט כדי לא להתיישן בשינוי מבנה.
   final OpenedTab? rawActivePane;
 
-  /// החלונית הקוראת האחרונה — ראו [readingPane]. מתוחזק אוטומטית ב-[copyWith]
-  /// ולא על-ידי המטפלים.
+  /// חלונית הקריאה האחרונה, לשמירת הקשר בעת פתיחת כלי.
   final OpenedTab? lastReadingPane;
 
   const TabsState({
@@ -63,8 +55,7 @@ class TabsState extends Equatable {
     );
   }
 
-  /// חלונית קריאה = כל חלונית שאינה טאב כלי. טאב כלי אינו מקום קריאה, ולכן
-  /// אסור שהוא ידרוס את ההקשר שהתוסף שנפתח בא לקרוא.
+  /// טאב כלי אינו מייצג מיקום קריאה.
   static bool _isReadingPane(OpenedTab? pane) =>
       pane != null && pane is! ToolTab;
 
@@ -92,13 +83,13 @@ class TabsState extends Equatable {
   }) {
     final active = _resolveActivePane(tabs, currentTabIndex, rawActivePane);
     if (_isReadingPane(active)) return active;
-    // הטאב הפעיל הוא כלי; מעדיפים חלונית ספר שנמצאת באותו טאב מפוצל.
+    // כלי מפוצל משתמש בהקשר הקריאה של החלונית האחות.
     if (currentTabIndex >= 0 && currentTabIndex < tabs.length) {
       for (final pane in leafPanes(tabs[currentTabIndex])) {
         if (_isReadingPane(pane)) return pane;
       }
     }
-    // נופלים לחלונית הקוראת הקודמת, כל עוד היא עדיין פתוחה.
+    // משתמשים בהקשר הקודם רק אם הוא עדיין פתוח.
     if (previous == null) return null;
     for (final tab in tabs) {
       if (leafPanes(tab).contains(previous)) return previous;
@@ -109,26 +100,19 @@ class TabsState extends Equatable {
   bool get hasOpenTabs => tabs.isNotEmpty;
   OpenedTab? get currentTab => hasOpenTabs ? tabs[currentTabIndex] : null;
 
-  /// החלונית שהמשתמש עובד בה. בטאב שאינו מפוצל — הטאב עצמו.
-  ///
-  /// חלונית ששמורה מטאב אחר, או שנסגרה, אינה נמצאת בעץ הנוכחי ולכן נופלת
-  /// לחלונית הראשונה שלו. כך אין צורך לנרמל את השדה בכל מטפל שמשנה מבנה.
+  /// החלונית הפעילה, או החלונית הראשונה בטאב הנוכחי.
   OpenedTab? get activePane =>
       _resolveActivePane(tabs, currentTabIndex, rawActivePane);
 
-  /// החלונית שממנה נגזר מיקום הקריאה עבור ה-API של התוספים ולהיסטוריה.
-  ///
-  /// זהה ל-[activePane] בכל מקרה, למעט טאב כלי: תוסף שנפתח מתפריט ההקשר של
-  /// ספר חייב להמשיך לקרוא את מיקום הספר וההדגשה שבגללם נפתח, ולכן טאב כלי
-  /// מדלג אל חלונית הספר שבאותו טאב מפוצל, ואם אין — אל הקודמת שנשמרה.
+  /// החלונית שממנה נגזר מיקום הקריאה לתוספים ולהיסטוריה.
+  /// בטאב כלי מוחזר הקשר הקריאה האחרון.
   OpenedTab? get readingPane {
     final pane = activePane;
     if (_isReadingPane(pane)) return pane;
     return lastReadingPane;
   }
 
-  /// הקבוצה שסגירת הכרטיסיה הנוכחית סוגרת: הבחירה המרובה כשהכרטיסיה
-  /// הפעילה חלק ממנה, אחרת הכרטיסיה הפעילה לבדה.
+  /// קבוצת הכרטיסיות שהסגירה הנוכחית חלה עליה.
   List<OpenedTab> get currentCloseGroup {
     final current = currentTab;
     if (current == null) return const [];

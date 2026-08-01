@@ -85,8 +85,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   }
 
   void _onLoadTabs(LoadTabs event, Emitter<TabsState> emit) {
-    // הטאבים והאינדקס מנורמלים יחד: פיצול מקונן מגרסה קודמת מתפרק לכמה
-    // כרטיסיות, ואינדקס שנקרא לבדו היה מצביע על ספר אחר.
+    // הטאבים והאינדקס מנורמלים יחד כדי לשמור על הטאב הפעיל.
     final restored = flattenRestoredSplits(
       _repository.loadTabs(),
       currentIndex: _repository.loadCurrentTabIndex(),
@@ -226,8 +225,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       }
       event.tab.dispose();
       final tabsToSave = state.tabs;
-      // כשההתאמה נמצאה בחלונית בתוך טאב מפוצל, מעבר טאב לבדו אינו מספיק —
-      // הפוקוס היה נשאר על החלונית האחרת ולא על מה שהמשתמש ביקש לפתוח.
+      // התאמה בחלונית מפוצלת דורשת גם עדכון של החלונית הפעילה.
       emit(
         state.copyWith(
           currentTabIndex: matchingIndex,
@@ -327,9 +325,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     if (existingTab is TextBookTab) {
       return existingTab;
     }
-    // בטאב מפוצל צריך להחיל את ה‑pinpoint על החלונית שמתאימה בזהות חזקה
-    // (book id / category id), לא רק כותרת — כדי שלא לעדכן בטעות חלונית עם
-    // ספר שונה ששם הקובץ שלו זהה.
+    // בפיצול מזהים ספר לפי מזהה, כדי לא לעדכן ספר בעל כותרת זהה.
     if (existingTab is CombinedTab) {
       for (final pane in leafPanes(existingTab)) {
         if (pane is TextBookTab && _isSameBook(pane, incomingTab)) {
@@ -866,8 +862,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     if (_recentlyClosedTabs.isEmpty) return;
 
     final closedEntry = _recentlyClosedTabs.removeLast();
-    // כרטיסיה עם dedupeKey (כלי/תוסף) שכבר פתוחה — ממקדים במקום להכפיל:
-    // תוסף מוגבל למופע WebView יחיד.
+    // תוסף פתוח ממוקד במקום ליצור מופע WebView נוסף.
     final existingIndex = _indexOfMatchingDedupeKey(closedEntry.tab);
     if (existingIndex != null) {
       closedEntry.tab.dispose();
@@ -1042,26 +1037,21 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
     // פיצול הוא לשתי חלוניות בלבד: מיזוג טאב שכבר מפוצל היה מקנן אותו.
     if (event.rightTab is CombinedTab || event.leftTab is CombinedTab) return;
-    // אותו טאב בשני הצדדים היה מסיר פעמיים מאותו אינדקס ומוחק כרטיסייה
-    // שכנה, ומציג את אותו ספר בשתי החלוניות עם מפתח כפול.
+    // אותו טאב בשני הצדדים יוצר מפתח חלונית כפול.
     if (identical(event.rightTab, event.leftTab)) return;
 
-    // אותם אובייקטים נכנסים לטאב המשולב, בלי שכפול ובלי שחרור: כך מצב
-    // הקריאה של כל ספר נשמר, ו-GlobalObjectKey מעביר את החלוניות במקום
-    // לבנות אותן מחדש.
+    // שומרים על זהות החלוניות כדי לשמר את מצב הקריאה.
     final combinedTab = CombinedTab(
       rightTab: event.rightTab,
       leftTab: event.leftTab,
       isPinned: event.rightTab.isPinned || event.leftTab.isPinned,
     );
 
-    // הסרת שני הטאבים המקוריים והוספת הטאב המשולב במקומם
     final newTabs = List<OpenedTab>.from(state.tabs);
 
-    // מוצאים את האינדקס הנמוך יותר כדי להכניס שם את הטאב המשולב
     final insertIndex = rightIndex < leftIndex ? rightIndex : leftIndex;
 
-    // מסירים את שני הטאבים (מהגבוה לנמוך כדי לא לשבש אינדקסים)
+    // הסרה מהאינדקס הגבוה שומרת על האינדקס הנמוך.
     if (rightIndex > leftIndex) {
       newTabs.removeAt(rightIndex);
       newTabs.removeAt(leftIndex);
@@ -1070,10 +1060,8 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       newTabs.removeAt(rightIndex);
     }
 
-    // מוסיפים את הטאב המשולב
     newTabs.insert(insertIndex, combinedTab);
 
-    // האינדקס הנוכחי יהיה האינדקס של הטאב המשולב
     final newCurrentIndex = insertIndex;
 
     emit(
@@ -1091,7 +1079,6 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     ExpandCombinedTab event,
     Emitter<TabsState> emit,
   ) async {
-    // פירוק טאב מפוצל לטאבים נפרדים
     if (event.tabIndex >= 0 &&
         event.tabIndex < state.tabs.length &&
         state.tabs[event.tabIndex] is CombinedTab) {
@@ -1099,10 +1086,9 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       final newTabs = List<OpenedTab>.from(state.tabs);
       final combinedIndex = event.tabIndex;
 
-      // שתי החלוניות חוזרות לרשימה כאובייקטים עצמם; שכפולן היה מאבד את
-      // מצב הקריאה שלהן.
+      // החלוניות חוזרות לרשימה בזהותן כדי לשמר את מצב הקריאה.
       final panes = leafPanes(combinedTab);
-      // ההצמדה יורדת לשתיהן, אחרת פירוק היה מבטל בשקט הצמדה שהמשתמש קבע.
+      // ההצמדה עוברת לשתי החלוניות.
       if (combinedTab.isPinned) {
         for (final pane in panes) {
           pane.isPinned = true;
@@ -1122,8 +1108,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         ),
       );
       await _repository.saveTabs(newTabs, newCurrentIndex);
-      // הצמתים העוטפים נזרקים בלי שחרור: שחרורם היה הורג רקורסיבית את
-      // החלוניות שזה עתה עברו לרשימה.
+      // אין לשחרר את העוטף, כי החלוניות ממשיכות להיות מוצגות.
     }
   }
 
@@ -1158,8 +1143,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     final current = state.tabs[tabIndex];
     if (current is! CombinedTab) return;
 
-    // החלפה בזהות ולא בשכפול: עותק היה מאבד את מצב הקריאה של כל חלונית
-    // ומחייב לשחרר את המקוריות בזמן שהן עדיין מוצגות.
+    // החלפה בזהות שומרת על מצב הקריאה של החלוניות.
     final newTabs = List<OpenedTab>.from(state.tabs);
     newTabs[tabIndex] = current.copyWith(
       rightTab: current.leftTab,
@@ -1177,11 +1161,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     await _repository.saveTabs(newTabs, state.currentTabIndex);
   }
 
-  /// מצב זמני בלבד — אינו נשמר לדיסק, כמו הבחירה המרובה.
   void _onSetActivePane(SetActivePane event, Emitter<TabsState> emit) {
     final current = state.currentTab;
     if (current == null) return;
-    // רק חלונית שנמצאת בטאב המוצג: אחרת הסימון היה מצביע אל מחוץ למסך.
+    // החלונית הפעילה חייבת להיות בטאב המוצג.
     if (!leafPanes(current).any((pane) => identical(pane, event.pane))) return;
     if (identical(state.activePane, event.pane)) return;
     emit(state.copyWith(rawActivePane: event.pane));
@@ -1195,8 +1178,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
     final combined = state.tabs[index] as CombinedTab;
     final survivor = combined.sibling(event.pane)!;
-    // האחות יורשת את ההצמדה של הטאב המפוצל, אחרת סגירת חלונית הייתה מבטלת
-    // בשקט הצמדה שהמשתמש קבע.
+    // החלונית השורדת יורשת את ההצמדה.
     if (combined.isPinned) survivor.isPinned = true;
 
     final newTabs = List<OpenedTab>.from(state.tabs);
@@ -1211,8 +1193,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     );
     await _repository.saveTabs(newTabs, state.currentTabIndex);
 
-    // רק החלונית שנסגרה משוחררת. שחרור הטאב המפוצל היה הורג רקורסיבית גם
-    // את האחות, שממשיכה להיות מוצגת.
+    // אין לשחרר את הטאב המפוצל כי האחות ממשיכה להיות מוצגת.
     _disposeTabLater(event.pane);
   }
 }
