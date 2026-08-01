@@ -57,9 +57,12 @@ void main() {
   });
 
   test('כלים שונים נפתחים ככרטיסיות נפרדות', () async {
+    final toolsOpened = bloc.stream.firstWhere(
+      (state) => state.tabs.length == 2 && state.currentTabIndex == 1,
+    );
     bloc.add(OpenOrFocusTab(tool('builtin.calendar')));
     bloc.add(OpenOrFocusTab(tool('builtin.gematria')));
-    await pumpEventQueue();
+    await toolsOpened;
     expect(bloc.state.tabs.length, 2);
   });
 
@@ -68,16 +71,26 @@ void main() {
   test('כלי בתוך טאב מפוצל — ממקד את החלונית עצמה', () async {
     final calendarPane = tool('builtin.calendar');
     final split = CombinedTab(rightTab: book('בראשית'), leftTab: calendarPane);
+    final splitAdded = bloc.stream.firstWhere(
+      (state) => state.tabs.length == 2 && state.currentTabIndex == 1,
+    );
     bloc.add(AddTab(book('שמות')));
     bloc.add(AddTab(split));
-    await pumpEventQueue();
-    expect(bloc.state.currentTabIndex, 1);
+    await splitAdded;
 
+    final firstTabFocused = bloc.stream.firstWhere(
+      (state) => state.currentTabIndex == 0,
+    );
     bloc.add(SetCurrentTab(0));
-    await pumpEventQueue();
+    await firstTabFocused;
 
+    final toolPaneFocused = bloc.stream.firstWhere(
+      (state) =>
+          state.currentTabIndex == 1 &&
+          identical(state.activePane, calendarPane),
+    );
     bloc.add(OpenOrFocusTab(tool('builtin.calendar')));
-    await pumpEventQueue();
+    await toolPaneFocused;
 
     expect(bloc.state.tabs.length, 2);
     expect(bloc.state.currentTabIndex, 1);
