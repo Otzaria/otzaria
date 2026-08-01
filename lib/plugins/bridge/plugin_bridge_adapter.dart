@@ -26,6 +26,7 @@ import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
@@ -986,11 +987,12 @@ class PluginBridgeAdapter {
         final tabsState = _dependencies.tabsBloc.state;
         final tabs = tabsState.tabs;
         final currentTab = tabsState.currentTab;
+        final panes = tabs.map(_paneForPlugins).toList();
         // Use the same resolver as getCurrentRef for consistent currentRef values
-        final snapshots = await Future.wait(tabs.map(resolveReaderLocation));
+        final snapshots = await Future.wait(panes.map(resolveReaderLocation));
         final openTabs = List.generate(tabs.length, (i) {
-          final t = tabs[i];
-          // SearchingTab ו-CombinedTab אינם ספרים — id/type = null
+          final t = panes[i];
+          // טאב שאינו ספר (חיפוש) — id/type = null
           final tabBook = t is TextBookTab
               ? t.book
               : (t is PdfBookTab ? t.book : null);
@@ -1019,32 +1021,33 @@ class PluginBridgeAdapter {
             'openTabs': openTabs,
           };
         }
+        final currentPane = _paneForPlugins(currentTab);
         final currentTabIndex = tabs.indexOf(currentTab);
         final currentSnapshot = currentTabIndex >= 0
             ? snapshots[currentTabIndex]
             : null;
-        final currentTabBook = currentTab is TextBookTab
-            ? currentTab.book
-            : (currentTab is PdfBookTab ? currentTab.book : null);
+        final currentPaneBook = currentPane is TextBookTab
+            ? currentPane.book
+            : (currentPane is PdfBookTab ? currentPane.book : null);
         return {
-          'currentBook': currentTab.title,
-          'currentBookId': currentTab.title,
-          'currentId': currentTabBook?.id,
-          'currentType': currentTabBook != null
-              ? PluginBookIdentity.typeOf(currentTabBook)
+          'currentBook': currentPane.title,
+          'currentBookId': currentPane.title,
+          'currentId': currentPaneBook?.id,
+          'currentType': currentPaneBook != null
+              ? PluginBookIdentity.typeOf(currentPaneBook)
               : null,
-          'currentSource': currentTabBook != null
-              ? PluginBookIdentity.sourceOf(currentTabBook)
+          'currentSource': currentPaneBook != null
+              ? PluginBookIdentity.sourceOf(currentPaneBook)
               : null,
-          'currentIndex': currentTab is TextBookTab
-              ? currentTab.index
-              : (currentTab is PdfBookTab ? currentTab.pageNumber : 0),
+          'currentIndex': currentPane is TextBookTab
+              ? currentPane.index
+              : (currentPane is PdfBookTab ? currentPane.pageNumber : 0),
           'currentRef': currentSnapshot?.currentRef,
           'openTabs': openTabs,
         };
       case 'getCurrentRef':
         final snapshot = await resolveReaderLocation(
-          _dependencies.tabsBloc.state.currentTab,
+          _dependencies.tabsBloc.state.activePane,
         );
         if (snapshot == null) {
           return {
@@ -1059,9 +1062,9 @@ class PluginBridgeAdapter {
         }
         return snapshot.toJson();
       case 'getSelection':
-        final currentTab = _dependencies.tabsBloc.state.currentTab;
-        final snapshot = await resolveReaderLocation(currentTab);
-        return _buildCurrentSelection(currentTab, snapshot?.currentRef);
+        final currentPane = _dependencies.tabsBloc.state.activePane;
+        final snapshot = await resolveReaderLocation(currentPane);
+        return _buildCurrentSelection(currentPane, snapshot?.currentRef);
       case 'findTextOccurrences':
         return _findTextOccurrences(args);
       case 'getSectionTextMap':
@@ -1302,15 +1305,22 @@ class PluginBridgeAdapter {
         'sectionIndex must be non-negative',
       );
     }
-    final tabs = _dependencies.tabsBloc.state.tabs;
-    for (final tab in tabs) {
+    // סריקת חלוניות ולא טאבים: ספר שיושב רק בחלונית של טאב מפוצל לא נמצא,
+    // והקריאה נפלה למסלול ה-DB שמאבד את מצב הניקוד החי. החלונית הפעילה
+    // ראשונה, כי אותו ספר בשתי חלוניות יכול להיות בהגדרות ניקוד שונות.
+    final activePane = _dependencies.tabsBloc.state.activePane;
+    final panes = <OpenedTab>[
+      ?activePane,
+      ..._dependencies.tabsBloc.state.tabs.expand(leafPanes),
+    ];
+    for (final tab in panes) {
       if (tab is! TextBookTab || tab.title != bookId) continue;
       final state = tab.bloc.state;
       if (state is! TextBookLoaded || sectionIndex >= state.content.length) {
         continue;
       }
       final snapshot =
-          tab == _dependencies.tabsBloc.state.currentTab &&
+          identical(tab, _dependencies.tabsBloc.state.activePane) &&
               tab.index == sectionIndex
           ? await resolveReaderLocation(tab)
           : null;
@@ -2622,6 +2632,18 @@ class PluginBridgeAdapter {
     return grantedPermissions;
   }
 
+  /// הספר שמייצג טאב כלפי התוספים.
+  ///
+  /// בטאב מפוצל הכותרת המשולבת אינה ספר, ולכן מדווחת החלונית הפעילה (ובטאב
+  /// שאינו הנוכחי — הראשונה). דיווח כל החלוניות מחייב הרחבת הסכמה של
+  /// `openTabs`, שהיא שינוי API בפני עצמו.
+  OpenedTab _paneForPlugins(OpenedTab tab) {
+    if (tab is! CombinedTab) return tab;
+    final state = _dependencies.tabsBloc.state;
+    if (identical(tab, state.currentTab)) return state.activePane ?? tab;
+    return leafPanes(tab).first;
+  }
+
   Map<String, dynamic>? _buildCurrentSelection(
     OpenedTab? currentTab,
     String? currentRef,
@@ -2687,7 +2709,9 @@ class PluginBridgeAdapter {
   }
 
   String? _currentBookId() {
-    return _dependencies.tabsBloc.state.currentTab?.title;
+    // החלונית הפעילה: הכותרת המשולבת אינה מזהה ספר, ולכן scope של `book:<id>`
+    // לא היה תואם לאף אירוע בטאב מפוצל.
+    return _dependencies.tabsBloc.state.activePane?.title;
   }
 
   String? _currentWorkspaceId() {

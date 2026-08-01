@@ -1,44 +1,72 @@
+import 'package:flutter/foundation.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/utils/file/hive_utils.dart';
 
-/// Represents a combined tab that displays two books side-by-side.
+/// טאב המציג שני ספרים זה לצד זה, עם מפריד ניתן לגרירה.
 ///
-/// This tab wraps two existing tabs (right and left) and displays them
-/// together in a split view. When closed, both underlying tabs are closed.
+/// שתי החלוניות הן תמיד עלים — פיצול אינו מקונן, ולכן בטאב יש בדיוק שתי
+/// חלוניות. מצב שנשמר בגרסה שתמכה בקינון מנורמל ב-[flattenRestoredSplits].
+///
+/// סגירת הטאב סוגרת את שתי החלוניות שבו.
 class CombinedTab extends OpenedTab {
-  /// The tab displayed on the right side
+  /// החלונית הראשונה בסדר התצוגה — הימנית ב-RTL.
   final OpenedTab rightTab;
 
-  /// The tab displayed on the left side
+  /// החלונית השנייה בסדר התצוגה — השמאלית ב-RTL.
   final OpenedTab leftTab;
 
-  /// The split ratio between the two tabs (0.0-1.0)
-  /// Represents how much of the screen the right tab takes
+  /// חלקה של [rightTab] מהמקום הפנוי (0.0-1.0).
+  ///
+  /// משתנה במקום (mutable) בכוונה: גרירת המפריד לא אמורה ליצור טאב חדש,
+  /// שהיה מחליף את מפתחות החלוניות ומאתחל מחדש את תוכנן.
   double splitRatio;
 
-  /// Creates a new instance of [CombinedTab].
-  ///
-  /// The [rightTab] and [leftTab] parameters represent the two tabs
-  /// to be displayed side-by-side.
   CombinedTab({
     required this.rightTab,
     required this.leftTab,
     this.splitRatio = 0.5,
     bool isPinned = false,
-  }) : super(
-         'משולב: ${rightTab.title} | ${leftTab.title}',
-         isPinned: isPinned,
-       );
+  }) : super('', isPinned: isPinned);
 
-  /// Updates the title when tabs change
-  void updateTitle() {
-    title = 'משולב: ${rightTab.title} | ${leftTab.title}';
+  /// מחושבת בכל קריאה: כותרת חלונית משתנה אחרי טעינת הספר, וכותרת שהוקפאה
+  /// בבנייה נשארה מיושנת ב-tooltip וברשימת הקיצורים של Windows.
+  @override
+  String get title => 'משולב: ${rightTab.title} | ${leftTab.title}';
+
+  /// הכותרת נגזרת מהחלוניות; השדה שבבסיס אינו נקרא, ולכן כתיבה אליו נבלעת
+  /// בשקט. חוסמים אותה במפורש כדי שהמלכוד לא יתגלה רק בזמן ריצה.
+  @override
+  set title(String value) =>
+      throw UnsupportedError('כותרת טאב מפוצל נגזרת מהחלוניות שבו');
+
+  /// שתי החלוניות בסדר התצוגה.
+  List<OpenedTab> get panes => [rightTab, leftTab];
+
+  /// האחות של [pane], או `null` אם [pane] אינה אחת משתי החלוניות.
+  OpenedTab? sibling(OpenedTab pane) {
+    if (identical(pane, rightTab)) return leftTab;
+    if (identical(pane, leftTab)) return rightTab;
+    return null;
   }
 
-  /// Cleanup when the tab is disposed
-  /// This will also dispose both underlying tabs
+  /// יוצרת עותק עם חלוניות מוחלפות, תוך שמירת [splitRatio] וההצמדה.
+  CombinedTab copyWith({
+    OpenedTab? rightTab,
+    OpenedTab? leftTab,
+    double? splitRatio,
+    bool? isPinned,
+  }) {
+    return CombinedTab(
+      rightTab: rightTab ?? this.rightTab,
+      leftTab: leftTab ?? this.leftTab,
+      splitRatio: splitRatio ?? this.splitRatio,
+      isPinned: isPinned ?? this.isPinned,
+    );
+  }
+
+  /// משחררת את הטאב ואת שתי החלוניות שבו.
   @override
   void dispose() {
     rightTab.dispose();
@@ -46,27 +74,6 @@ class CombinedTab extends OpenedTab {
     super.dispose();
   }
 
-  /// Creates a new instance of [CombinedTab] from a JSON map.
-  factory CombinedTab.fromJson(Map<String, dynamic> json) {
-    OpenedTab decodeTab(Map<String, dynamic> map) {
-      if (map['type'] == 'PdfCommentatorsTab') {
-        return PdfCommentatorsTab.fromJson(map);
-      }
-      if (map['type'] == 'CommentatorsTab') {
-        return CommentatorsTab.fromJson(map);
-      }
-      return OpenedTab.fromJson(map);
-    }
-
-    return CombinedTab(
-      rightTab: decodeTab(castMap(json['rightTab'])),
-      leftTab: decodeTab(castMap(json['leftTab'])),
-      splitRatio: (json['splitRatio'] as num?)?.toDouble() ?? 0.5,
-      isPinned: json['isPinned'] ?? false,
-    );
-  }
-
-  /// Converts the [CombinedTab] instance into a JSON map.
   @override
   Map<String, dynamic> toJson() {
     return {
@@ -78,3 +85,116 @@ class CombinedTab extends OpenedTab {
     };
   }
 }
+
+/// מפענחת טאב מפוצל שנשמר.
+///
+/// חלונית שפענוחה נכשל — טיפוס מגרסה חדשה יותר, שדה פגום — מוסרת ואחותה
+/// חוזרת ככרטיסייה רגילה. בלי זה ספר תקין היה נמחק בגלל שכנתו.
+OpenedTab decodeCombinedTab(Map<String, dynamic> json) {
+  OpenedTab? decodePane(dynamic raw) {
+    try {
+      final map = castMap(raw);
+      if (map['type'] == 'PdfCommentatorsTab') {
+        return PdfCommentatorsTab.fromJson(map);
+      }
+      if (map['type'] == 'CommentatorsTab') {
+        return CommentatorsTab.fromJson(map);
+      }
+      return OpenedTab.fromJson(map);
+    } catch (e) {
+      debugPrint('⚠️ Skipping split pane that failed to restore: $e');
+      return null;
+    }
+  }
+
+  final right = decodePane(json['rightTab']);
+  final left = decodePane(json['leftTab']);
+  final isPinned = json['isPinned'] == true;
+
+  if (right == null || left == null) {
+    final survivor = right ?? left;
+    if (survivor == null) {
+      throw const FormatException('טאב מפוצל ללא חלונית שניתן לשחזר');
+    }
+    if (isPinned) survivor.isPinned = true;
+    return survivor;
+  }
+
+  return CombinedTab(
+    rightTab: right,
+    leftTab: left,
+    splitRatio: ((json['splitRatio'] as num?)?.toDouble() ?? 0.5).clamp(
+      0.0,
+      1.0,
+    ),
+    isPinned: isPinned,
+  );
+}
+
+/// חלוניות התוכן של טאב: שתיים בטאב מפוצל, אחת בכל שאר הטאבים.
+List<OpenedTab> leafPanes(OpenedTab tab) =>
+    tab is CombinedTab ? [tab.rightTab, tab.leftTab] : [tab];
+
+/// מסירה מטאב מפוצל חלונית ש-[keep] דוחה; האחות תופסת את מקום הטאב.
+///
+/// מחזירה `null` כשלא נותרה אף חלונית, ואת הטאב עצמו כשלא השתנה דבר — כדי
+/// שהחלוניות שנשמרו לא יאבדו את זהותן.
+OpenedTab? prunePanes(OpenedTab tab, bool Function(OpenedTab pane) keep) {
+  if (tab is! CombinedTab) return keep(tab) ? tab : null;
+
+  final keepRight = keep(tab.rightTab);
+  final keepLeft = keep(tab.leftTab);
+  if (keepRight && keepLeft) return tab;
+  if (keepRight) return tab.rightTab;
+  if (keepLeft) return tab.leftTab;
+  return null;
+}
+
+/// מנרמלת טאבים ששוחזרו מדיסק לפיצול דו-חלוניתי, יחד עם האינדקס הפעיל.
+///
+/// שמירה מגרסה שתמכה בפיצול מקונן יכולה להחזיר טאב עם יותר משתי חלוניות;
+/// שתי הראשונות נשארות מפוצלות והשאר חוזרות ככרטיסיות עצמאיות, כדי שספר
+/// שהיה פתוח לא ייעלם.
+///
+/// [currentIndex] מוחזר מעודכן: הכרטיסיות שנוספו דוחפות קדימה כל מה שאחריהן,
+/// ובלי התיקון האינדקס השמור היה מצביע על ספר אחר.
+({List<OpenedTab> tabs, int currentIndex}) flattenRestoredSplits(
+  List<OpenedTab> tabs, {
+  int currentIndex = 0,
+}) {
+  final normalized = <OpenedTab>[];
+  var normalizedIndex = currentIndex;
+  for (var i = 0; i < tabs.length; i++) {
+    final tab = tabs[i];
+    if (tab is! CombinedTab) {
+      normalized.add(tab);
+      continue;
+    }
+    final leaves = _allLeaves(tab);
+    if (leaves.length == 2) {
+      normalized.add(tab);
+      continue;
+    }
+    normalized.add(
+      CombinedTab(
+        rightTab: leaves[0],
+        leftTab: leaves[1],
+        splitRatio: tab.splitRatio,
+        isPinned: tab.isPinned,
+      ),
+    );
+    for (final extra in leaves.skip(2)) {
+      // ההצמדה נשמרה על הטאב המפוצל; חלונית שיוצאת ממנו ככרטיסייה עצמאית
+      // יורשת אותה, אחרת "סגור הכל" היה סוגר ספר שהמשתמש נעץ.
+      if (tab.isPinned) extra.isPinned = true;
+      normalized.add(extra);
+    }
+    if (i < currentIndex) normalizedIndex += leaves.length - 2;
+  }
+  return (tabs: normalized, currentIndex: normalizedIndex);
+}
+
+/// כל חלוניות התוכן שתחת [tab], כולל פיצול מקונן ששוחזר מגרסה קודמת.
+List<OpenedTab> _allLeaves(OpenedTab tab) => tab is CombinedTab
+    ? [..._allLeaves(tab.rightTab), ..._allLeaves(tab.leftTab)]
+    : [tab];

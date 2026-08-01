@@ -1308,6 +1308,16 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                     )) {
                       return;
                     }
+                    // בטאב מפוצל רק החלונית הפעילה תופסת פוקוס: rebuild של
+                    // חלונית אחרת (טעינת טווח תוכן) היה חוטף אותו באמצע גלילה.
+                    final activePane = context
+                        .read<TabsBloc>()
+                        .state
+                        .activePane;
+                    if (activePane != null &&
+                        !identical(activePane, widget.tab)) {
+                      return;
+                    }
 
                     if (!_bookContentFocusNode.hasFocus &&
                         !textSearchFocusNode.hasFocus &&

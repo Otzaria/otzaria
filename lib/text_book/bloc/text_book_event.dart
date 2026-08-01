@@ -314,10 +314,16 @@ class ApplyBookContentRanges extends TextBookEvent {
 class SetTabVisibility extends TextBookEvent {
   final bool visible;
 
-  const SetTabVisibility(this.visible);
+  /// האם מותר לחמם את מטמון התוכן ברקע.
+  ///
+  /// מושבת כשהטאב מפוצל לכמה חלוניות: החימום טוען את הספר כולו, וכמה
+  /// חלוניות שמחממות במקביל מכפילות את צריכת הזיכרון בכל אחת מהן.
+  final bool allowBackgroundWarming;
+
+  const SetTabVisibility(this.visible, {this.allowBackgroundWarming = true});
 
   @override
-  List<Object?> get props => [visible];
+  List<Object?> get props => [visible, allowBackgroundWarming];
 }
 
 class CreateNoteFromToolbar extends TextBookEvent {

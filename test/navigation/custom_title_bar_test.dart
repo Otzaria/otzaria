@@ -22,7 +22,9 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/navigation/view/reading_tab_strip.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -169,7 +171,7 @@ void main() {
     final widths = tester
         .widgetList<SizedBox>(
           find.descendant(
-            of: find.byType(ReorderableListView),
+            of: find.byType(ReadingTabStrip),
             matching: find.byType(SizedBox),
           ),
         )
@@ -428,7 +430,7 @@ void main() {
       );
 
       // הבחירה מתבצעת ב-onPointerDown (Listener פסיבי), כך שקליק רגיל מספיק.
-      // warnIfMissed:false כי ה-drag recognizer של ReorderableListView עשוי
+      // warnIfMissed:false כי ה-drag recognizer של הרצועה עשוי
       // לתפוס את ה-tap; pumpAndSettle מנקה את ה-timer של אנימציית הגרירה.
       await tester.tap(find.text('ספר ב'), warnIfMissed: false);
       await tester.pumpAndSettle();
@@ -481,13 +483,13 @@ void main() {
         reason: 'תחילת גרירה בוחרת את הטאב הנגרר (אינדקס 1)',
       );
 
-      // סימולציית long-press multidrag של ReorderableListView אינה אמינה בבדיקת
-      // widget (recognizers של תפריט ההקשר/הגלילה מתחרים ב-arena). בודקים ישירות
-      // את לוגיקת האפליקציה: onReorderItem ממפה oldIndex→טאב ושולח MoveTab.
-      final list = tester.widget<ReorderableListView>(
-        find.byType(ReorderableListView),
+      // סימולציית multidrag מלאה אינה אמינה בבדיקת widget (recognizers של
+      // תפריט ההקשר/הגלילה מתחרים ב-arena). בודקים ישירות את לוגיקת
+      // האפליקציה: הרצועה ממפה את יעד הגרירה ושולחת MoveTab.
+      final strip = tester.widget<ReadingTabStrip>(
+        find.byType(ReadingTabStrip),
       );
-      list.onReorderItem!(1, 0);
+      strip.onReorder(second, 0);
       await tester.pump();
 
       final moves = tabsBloc.addedEvents.whereType<MoveTab>().toList();
@@ -498,6 +500,174 @@ void main() {
         reason: 'הטאב שמועבר הוא הטאב שנגרר',
       );
       expect(moves.last.newIndex, 0, reason: 'היעד הוא אינדקס 0');
+    });
+
+    testWidgets('גרירת כרטיסיה אינה מעבירה את התצוגה אליה', (tester) async {
+      final first = _makeTextTab('ספר א');
+      final second = _makeTextTab('ספר ב');
+      final tabsBloc = _SelectingTabsBloc(
+        TabsState(tabs: [first, second], currentTabIndex: 0),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+      addTearDown(() async {
+        first.dispose();
+        second.dispose();
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
+
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+      );
+      await tester.pumpAndSettle();
+
+      // לחיצה ממושכת שהופכת לגרירה: הבחירה נשמרת לשחרור, והגרירה מבטלת
+      // אותה — אחרת התצוגה הייתה קופצת לכרטיסיה שרק מתחילים לגרור.
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('ספר ב')),
+      );
+      await tester.pump();
+      tester
+          .widget<ReadingTabStrip>(find.byType(ReadingTabStrip))
+          .onDragStarted!();
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(
+        tabsBloc.addedEvents.whereType<SetCurrentTab>(),
+        isEmpty,
+        reason: 'גרירה אינה בוחרת כרטיסיה',
+      );
+      expect(tabsBloc.state.currentTabIndex, 0);
+    });
+
+    testWidgets('לחיצה בוחרת כרטיסיה בשחרור', (tester) async {
+      final first = _makeTextTab('ספר א');
+      final second = _makeTextTab('ספר ב');
+      final tabsBloc = _SelectingTabsBloc(
+        TabsState(tabs: [first, second], currentTabIndex: 0),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+      addTearDown(() async {
+        first.dispose();
+        second.dispose();
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
+
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+      );
+      await tester.pumpAndSettle();
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('ספר ב')),
+      );
+      await tester.pump();
+      expect(
+        tabsBloc.addedEvents.whereType<SetCurrentTab>(),
+        isEmpty,
+        reason: 'הלחיצה עצמה עדיין לא בוחרת',
+      );
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(tabsBloc.state.currentTabIndex, 1);
+    });
+
+    testWidgets('השהייה מעל כרטיסיה בגרירה פותחת אותה', (tester) async {
+      final first = _makeTextTab('ספר א');
+      final second = _makeTextTab('ספר ב');
+      final tabsBloc = _SelectingTabsBloc(
+        TabsState(tabs: [first, second], currentTabIndex: 0),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+      addTearDown(() async {
+        first.dispose();
+        second.dispose();
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
+
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+      );
+      await tester.pumpAndSettle();
+
+      tester
+          .widget<ReadingTabStrip>(find.byType(ReadingTabStrip))
+          .onSpringOpen!(second);
+      await tester.pumpAndSettle();
+
+      expect(tabsBloc.state.currentTabIndex, 1);
+    });
+
+    testWidgets('סידור מחדש אינו מחליף את הכרטיסיה הפעילה', (tester) async {
+      final first = _makeTextTab('ספר א');
+      final second = _makeTextTab('ספר ב');
+      final tabsBloc = _SelectingTabsBloc(
+        TabsState(tabs: [first, second], currentTabIndex: 0),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+      addTearDown(() async {
+        first.dispose();
+        second.dispose();
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
+
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+      );
+      await tester.pumpAndSettle();
+
+      final strip = tester.widget<ReadingTabStrip>(
+        find.byType(ReadingTabStrip),
+      );
+      strip.onReorder(second, 0);
+      await tester.pump();
+
+      final events = tabsBloc.addedEvents;
+      expect(events.whereType<MoveTab>(), isNotEmpty);
+      // סידור מחדש הוא גרירה, וגרירה אינה מחליפה את הספר שקוראים בו.
+      expect(events.whereType<SetCurrentTab>(), isEmpty);
     });
 
     testWidgets(
@@ -527,15 +697,18 @@ void main() {
           settingsBloc: settingsBloc,
         );
 
-        // ReorderableDelayedDragStartListener יורש מ-ReorderableDragStartListener,
-        // לכן בודקים את runtimeType בדיוק: בדסקטופ המיידי, ללא ה-Delayed.
+        // LongPressDraggable יורש מ-Draggable, לכן בודקים את runtimeType
+        // בדיוק: בדסקטופ הגרירה מיידית, ללא השהיית לחיצה ארוכה.
         expect(
           find.byWidgetPredicate(
-            (w) => w.runtimeType == ReorderableDragStartListener,
+            (w) => w.runtimeType == Draggable<OpenedTab>,
           ),
           findsOneWidget,
         );
-        expect(find.byType(ReorderableDelayedDragStartListener), findsNothing);
+        expect(
+          find.byType(LongPressDraggable<OpenedTab>),
+          findsNothing,
+        );
       },
       variant: TargetPlatformVariant.desktop(),
     );
@@ -568,7 +741,7 @@ void main() {
         );
 
         expect(
-          find.byType(ReorderableDelayedDragStartListener),
+          find.byType(LongPressDraggable<OpenedTab>),
           findsOneWidget,
         );
       },
@@ -614,7 +787,7 @@ void main() {
       final widths = tester
           .widgetList<SizedBox>(
             find.descendant(
-              of: find.byType(ReorderableListView),
+              of: find.byType(ReadingTabStrip),
               matching: find.byType(SizedBox),
             ),
           )
@@ -671,7 +844,7 @@ void main() {
       final widths = tester
           .widgetList<SizedBox>(
             find.descendant(
-              of: find.byType(ReorderableListView),
+              of: find.byType(ReadingTabStrip),
               matching: find.byType(SizedBox),
             ),
           )
@@ -691,7 +864,7 @@ void main() {
       );
 
       final sumWidth = widths.fold<double>(0, (a, b) => a + b);
-      final listWidth = tester.getSize(find.byType(ReorderableListView)).width;
+      final listWidth = tester.getSize(find.byType(ReadingTabStrip)).width;
       expect(
         sumWidth,
         lessThanOrEqualTo(listWidth + 1.0),
@@ -749,7 +922,7 @@ void main() {
       final widths = tester
           .widgetList<SizedBox>(
             find.descendant(
-              of: find.byType(ReorderableListView),
+              of: find.byType(ReadingTabStrip),
               matching: find.byType(SizedBox),
             ),
           )
@@ -758,7 +931,7 @@ void main() {
           .toList();
       expect(widths.length, 30, reason: 'כל 30 הטאבים רונדרו');
       final sumWidth = widths.fold<double>(0, (a, b) => a + b);
-      final listWidth = tester.getSize(find.byType(ReorderableListView)).width;
+      final listWidth = tester.getSize(find.byType(ReadingTabStrip)).width;
       expect(
         sumWidth,
         lessThanOrEqualTo(listWidth + 1.0),
@@ -947,7 +1120,7 @@ void main() {
       final paintedTabs = tester
           .widgetList<CustomPaint>(
             find.descendant(
-              of: find.byType(ReorderableListView),
+              of: find.byType(ReadingTabStrip),
               matching: find.byType(CustomPaint),
             ),
           )
@@ -1068,7 +1241,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // ה-onPressed של ה-X מחובר לסגירה. נקרא ישירות כי ה-drag recognizer של
-      // ReorderableListView בולע כל סימולציית tap ב-arena בסביבת הטסט.
+      // מזהה הגרירה של הרצועה בולע כל סימולציית tap ב-arena בסביבת הטסט.
       final iconButton = tester.widget<IconButton>(
         find.ancestor(of: closeButton, matching: find.byType(IconButton)),
       );
@@ -1123,7 +1296,7 @@ void main() {
     List<double> tabWidths() => tester
         .widgetList<SizedBox>(
           find.descendant(
-            of: find.byType(ReorderableListView),
+            of: find.byType(ReadingTabStrip),
             matching: find.byType(SizedBox),
           ),
         )
@@ -1136,7 +1309,7 @@ void main() {
     // מביאים את העכבר אל מרכז השורה (hover) — כך _pointerInsideTabStrip=true.
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await gesture.addPointer(
-      location: tester.getCenter(find.byType(ReorderableListView)),
+      location: tester.getCenter(find.byType(ReadingTabStrip)),
     );
     addTearDown(gesture.removePointer);
     await tester.pump();
@@ -1199,14 +1372,14 @@ void main() {
         settingsBloc: settingsBloc,
       );
 
-      final tabsBarSize = tester.getSize(find.byType(ReorderableListView));
+      final tabsBarSize = tester.getSize(find.byType(ReadingTabStrip));
       expect(
         tabsBarSize.height,
         lessThanOrEqualTo(40),
         reason: 'במצב רחב הטאבים בתוך שורת הכותרת 40px',
       );
 
-      final tabsTop = tester.getTopLeft(find.byType(ReorderableListView)).dy;
+      final tabsTop = tester.getTopLeft(find.byType(ReadingTabStrip)).dy;
       expect(
         tabsTop,
         lessThan(40),
@@ -1241,7 +1414,7 @@ void main() {
         settingsBloc: settingsBloc,
       );
 
-      final tabsTop = tester.getTopLeft(find.byType(ReorderableListView)).dy;
+      final tabsTop = tester.getTopLeft(find.byType(ReadingTabStrip)).dy;
       expect(
         tabsTop,
         greaterThanOrEqualTo(40),
@@ -1277,9 +1450,7 @@ void main() {
         settingsBloc: settingsBloc,
       );
 
-      final tabsBarWidth = tester
-          .getSize(find.byType(ReorderableListView))
-          .width;
+      final tabsBarWidth = tester.getSize(find.byType(ReadingTabStrip)).width;
       expect(
         tabsBarWidth,
         greaterThan(300),
@@ -1312,7 +1483,7 @@ void main() {
         settingsBloc: settingsBloc,
       );
 
-      expect(find.byType(ReorderableListView), findsNothing);
+      expect(find.byType(ReadingTabStrip), findsNothing);
     });
   });
 
@@ -1417,7 +1588,7 @@ void main() {
       );
 
       // נקודה ריקה: בקצה ה-ListView שרחוק מהטאב (עמיד לכיווניות LTR/RTL).
-      final listRect = tester.getRect(find.byType(ReorderableListView));
+      final listRect = tester.getRect(find.byType(ReadingTabStrip));
       final tabRect = tester.getRect(find.text('ספר א'));
       final emptyX = tabRect.center.dx < listRect.center.dx
           ? listRect.right - 10

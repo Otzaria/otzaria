@@ -580,18 +580,21 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
     _hasScheduledSplashReveal = true;
 
+    // בטאב מפוצל ממתינים לחלונית הפעילה: הצומת העוטף אינו ספר, ובלי זה החלון
+    // נחשף לפני שהספר שבחלונית נטען.
+    final pendingPane = context.read<TabsBloc>().state.activePane;
     final shouldWaitForBook =
         navigationState.currentScreen == Screen.reading &&
-        currentTab is TextBookTab &&
-        currentTab.bloc.state is! TextBookLoaded &&
-        currentTab.bloc.state is! TextBookError;
+        pendingPane is TextBookTab &&
+        pendingPane.bloc.state is! TextBookLoaded &&
+        pendingPane.bloc.state is! TextBookError;
 
     if (!shouldWaitForBook) {
       _revealMainWindowOnce();
       return;
     }
 
-    final bloc = currentTab.bloc;
+    final bloc = pendingPane.bloc;
     late final StreamSubscription<TextBookState> sub;
     var done = false;
     void finish() {
@@ -2548,8 +2551,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
             },
           ),
           BlocListener<TabsBloc, TabsState>(
+            // גם החלפת חלונית פעילה היא החלפת הספר הפתוח מבחינת התוספים.
             listenWhen: (previous, current) =>
-                previous.currentTab != current.currentTab,
+                previous.currentTab != current.currentTab ||
+                previous.activePane != current.activePane,
             listener: (context, state) {
               final currentTab = state.currentTab;
               // הטאב הפעיל אוכלס (אסינכרונית בעלייה) — כעת אפשר לתזמן את חשיפת
@@ -2581,24 +2586,26 @@ class MainWindowScreenState extends State<MainWindowScreen>
                     ),
                   );
                 }
+                // החלונית הפעילה ולא הטאב: הכותרת המשולבת אינה שם ספר, ותוסף
+                // שמקשיב לאירוע הזה היה מקבל מזהה שאינו קיים בספרייה.
+                final pane = state.activePane ?? currentTab;
+                final paneBook = pane is TextBookTab
+                    ? pane.book
+                    : (pane is PdfBookTab ? pane.book : null);
                 PluginRuntimeDispatcher.instance
                     .dispatchEvent('reader.current_book_changed', {
-                    'book': currentTab.title,
-                    'bookId': currentTab.title,
-                    'id': currentTab is TextBookTab
-                        ? currentTab.book.id
-                        : (currentTab is PdfBookTab
-                            ? currentTab.book.id
-                            : null),
-                    'type': currentTab is TextBookTab
-                          ? PluginBookIdentity.typeOf(currentTab.book)
-                        : (currentTab is PdfBookTab ? 'pdf' : null),
-                      'source': currentTab is TextBookTab
-                          ? PluginBookIdentity.sourceOf(currentTab.book)
-                          : (currentTab is PdfBookTab
-                                ? PluginBookIdentity.sourceOf(currentTab.book)
-                                : null),
-                    'index': tabIndex,
+                      'book': pane.title,
+                      'bookId': pane.title,
+                      'id': paneBook?.id,
+                      'type': paneBook != null
+                          ? PluginBookIdentity.typeOf(paneBook)
+                          : null,
+                      'source': paneBook != null
+                          ? PluginBookIdentity.sourceOf(paneBook)
+                          : null,
+                      'index': pane is TextBookTab
+                          ? pane.index
+                          : (pane is PdfBookTab ? pane.pageNumber : tabIndex),
                     });
               }
             },
@@ -2625,15 +2632,15 @@ class MainWindowScreenState extends State<MainWindowScreen>
               if (previous.selectedCity != current.selectedCity) {
                 PluginRuntimeDispatcher.instance
                     .dispatchEvent('settings.changed', {
-                    'key': SettingsRepository.keySelectedCity,
-                    'newValue': current.selectedCity,
+                      'key': SettingsRepository.keySelectedCity,
+                      'newValue': current.selectedCity,
                     });
               }
               if (previous.calendarType != current.calendarType) {
                 PluginRuntimeDispatcher.instance
                     .dispatchEvent('settings.changed', {
-                    'key': SettingsRepository.keyCalendarType,
-                    'newValue': current.calendarType.toString(),
+                      'key': SettingsRepository.keyCalendarType,
+                      'newValue': current.calendarType.toString(),
                     });
               }
             },
@@ -2641,9 +2648,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
           // רענון לוח כשמשתנה הספר הפתוח (book-scope events)
           BlocListener<TabsBloc, TabsState>(
             listenWhen: (previous, current) =>
-                previous.currentTab?.title != current.currentTab?.title,
+                previous.activePane?.title != current.activePane?.title,
             listener: (context, state) {
-              final bookId = state.currentTab?.title;
+              final bookId = state.activePane?.title;
               final workspaceId = context
                   .read<WorkspaceBloc>()
                   .state
@@ -2660,7 +2667,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
                 previous.activeWorkspaceId != current.activeWorkspaceId,
             listener: (context, state) {
               final workspaceId = state.activeWorkspaceId;
-              final bookId = context.read<TabsBloc>().state.currentTab?.title;
+              final bookId = context.read<TabsBloc>().state.activePane?.title;
               _calendarCubit.refreshPluginEvents(
                 currentWorkspaceId: workspaceId,
                 currentBookId: bookId,

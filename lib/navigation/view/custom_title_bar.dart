@@ -12,6 +12,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
+import 'package:otzaria/navigation/view/reading_tab_strip.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -106,6 +107,11 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
   // הרוחבים המחושבים האחרונים לטאב, לשימוש כערך הקפיאה בסגירה.
   _TabWidths? _lastComputedTabWidths;
+
+  // הכרטיסיה שתיבחר בשחרור הלחיצה. הבחירה אינה ב-onPointerDown בכוונה: גרירה
+  // מתחילה בלחיצה, והבחירה המיידית הייתה מקפיצה את התצוגה לכרטיסיה הנגררת
+  // לפני שהמשתמש בכלל בחר לאן לגרור אותה.
+  OpenedTab? _pendingTabSelection;
 
   /// המקש שמפעיל בחירה מרובה: Ctrl בכל הפלטפורמות, Command במק.
   bool get _isMultiSelectModifierPressed {
@@ -550,51 +556,42 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         platform == TargetPlatform.linux ||
         platform == TargetPlatform.macOS;
 
-    // ReorderableListView מטפל בגרירה-לסידור. כל טאב ברוחב קבוע מחושב; אין גלילה
-    // (physics=Never) — גרירה על האזור הריק נופלת לגרירת החלון שב-GestureDetector.
-    final reorderList = ReorderableListView.builder(
-      scrollDirection: Axis.horizontal,
-      physics: const NeverScrollableScrollPhysics(),
-      buildDefaultDragHandles: false,
-      itemCount: state.tabs.length,
-      proxyDecorator: (child, index, animation) => Material(
-        color: Colors.transparent,
-        child: Opacity(opacity: 0.85, child: child),
+    // [ReadingTabStrip] ולא ReorderableListView: אותה גרירה משמשת גם לסידור
+    // מחדש וגם להוצאת כרטיסיה אל חלונית קריאה, ו-ReorderableListView בולע את
+    // המחווה בלי דרך לדעת שהמצביע יצא מגבולותיו.
+    final tabStrip = ReadingTabStrip(
+      tabs: state.tabs,
+      widths: [
+        for (var i = 0; i < state.tabs.length; i++)
+          i == state.currentTabIndex
+              ? tabWidths.selected
+              : tabWidths.unselected,
+      ],
+      requireLongPressToDrag: !isDesktop,
+      onReorder: (tab, newIndex) =>
+          context.read<TabsBloc>().add(MoveTab(tab, newIndex)),
+      // גרירה אינה בוחרת כרטיסיה: התצוגה נשארת על הספר שהמשתמש קורא, ומשתנה
+      // רק אם הוא משתהה מעל כרטיסיה אחרת.
+      onDragStarted: () => _pendingTabSelection = null,
+      onSpringOpen: (tab) {
+        // ה-state שנתפס ב-build עלול להיות מיושן באמצע גרירה, ורק קריאה
+        // ישירה מה-bloc משקפת מה מוצג עכשיו.
+        final bloc = context.read<TabsBloc>();
+        final index = bloc.state.tabs.indexOf(tab);
+        if (index != -1 && index != bloc.state.currentTabIndex) {
+          bloc.add(SetCurrentTab(index));
+        }
+      },
+      // סימון שטח הטאב ל-hit-test, כדי שה-double-tap-to-maximize שבמסגרת
+      // ידלג עליו (ראה _EmptyAreaDoubleTapRecognizer).
+      tabBuilder: (tab, index, tabWidth) => MetaData(
+        metaData: _kTabHitMarker,
+        behavior: HitTestBehavior.opaque,
+        child: SizedBox(
+          width: tabWidth,
+          child: _buildTab(context, tab, state, tabWidth),
+        ),
       ),
-      onReorderItem: (oldIndex, newIndex) {
-        // onReorderItem כבר מתאים את newIndex להסרת הפריט (remove-then-insert),
-        // בדיוק ה-convention ש-_onMoveTab מצפה לו — אין צורך בתיקון ידני.
-        if (oldIndex == newIndex) return;
-        final tab = state.tabs[oldIndex];
-        context.read<TabsBloc>().add(MoveTab(tab, newIndex));
-      },
-      itemBuilder: (context, index) {
-        final tab = state.tabs[index];
-        final tabWidth = index == state.currentTabIndex
-            ? tabWidths.selected
-            : tabWidths.unselected;
-        // סימון שטח הטאב ל-hit-test, כדי שה-double-tap-to-maximize שבמסגרת
-        // ידלג עליו (ראה _EmptyAreaDoubleTapRecognizer).
-        final tabChild = MetaData(
-          metaData: _kTabHitMarker,
-          behavior: HitTestBehavior.opaque,
-          child: SizedBox(
-            width: tabWidth,
-            child: _buildTab(context, tab, state, tabWidth),
-          ),
-        );
-        return isDesktop
-            ? ReorderableDragStartListener(
-                key: ObjectKey(tab),
-                index: index,
-                child: tabChild,
-              )
-            : ReorderableDelayedDragStartListener(
-                key: ObjectKey(tab),
-                index: index,
-                child: tabChild,
-              );
-      },
     );
 
     // מחליף את DragToMoveArea: גרירת חלון (onPanStart) ו-maximize/restore
@@ -634,7 +631,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
           },
           child: KeyedSubtree(
             key: tourReadingTabsTargetKey,
-            child: reorderList,
+            child: tabStrip,
           ),
         ),
       ),
@@ -819,23 +816,26 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
     Widget buildTabContent() {
       if (tab is CombinedTab) {
-        // תצוגה מפוצלת: כל ספר בחצי מרוחב הטאב, מציג את ההתחלה שלו עם דהייה
-        // בקצה. הימני (rightTab) ראשון ב-Row → מימין ב-RTL, כמו בתצוגה עצמה.
-        // פס מפריד דק בין השניים, אך רק כשהטאב רחב מספיק — אחרת רוחבו הקבוע
-        // היה גולש כשהטאב מצטמצם והחצאים מתאפסים.
+        // תצוגה מפוצלת: כל חלונית מקבלת חלק שווה מרוחב הטאב ומציגה את תחילת
+        // שמה עם דהייה בקצה. הסריקה היא על כל חלוניות העלה ולא על שתי הרמות
+        // העליונות, אחרת בטאב עם ארבע חלוניות היו מוצגות רק שתי כותרות.
+        // הפסים המפרידים מוצגים רק כשיש די רוחב, אחרת עוביים הקבוע גולש.
+        final paneTitles = leafPanes(tab).map((p) => p.title).toList();
+        final showDividers = tabWidth >= 100 * (paneTitles.length - 1);
         return Tooltip(
           message: tab.title,
           child: Row(
             children: [
-              Expanded(child: fadedTitle(tab.rightTab.title)),
-              if (tabWidth >= 100)
-                Container(
-                  width: 2,
-                  height: 14,
-                  margin: const EdgeInsets.symmetric(horizontal: 5),
-                  color: Theme.of(context).colorScheme.outline,
-                ),
-              Expanded(child: fadedTitle(tab.leftTab.title)),
+              for (var i = 0; i < paneTitles.length; i++) ...[
+                if (i > 0 && showDividers)
+                  Container(
+                    width: 2,
+                    height: 14,
+                    margin: const EdgeInsets.symmetric(horizontal: 5),
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                Expanded(child: fadedTitle(paneTitles[i])),
+              ],
             ],
           ),
         );
@@ -1026,7 +1026,22 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       // ה-AppContextMenuRegion לפני שתפריט ההקשר נפתח. משתמשים ב-Listener
       // פסיבי כי הגרירה המיידית (ReorderableDragStartListener) זוכה ב-arena
       // וחוסמת onTap.
+      onPointerUp: (_) {
+        final pending = _pendingTabSelection;
+        _pendingTabSelection = null;
+        if (pending == null) return;
+        // ה-state שנתפס ב-build עלול להיות מיושן עד השחרור.
+        final bloc = context.read<TabsBloc>();
+        final target = bloc.state.tabs.indexOf(pending);
+        if (target != -1 && target != bloc.state.currentTabIndex) {
+          bloc.add(SetCurrentTab(target));
+        }
+      },
+      onPointerCancel: (_) => _pendingTabSelection = null,
       onPointerDown: (PointerDownEvent event) {
+        // מתאפס לפני כל יציאה מוקדמת: ערך שנשאר מלחיצה קודמת היה בוחר בשחרור
+        // כרטיסיה שהמשתמש כלל לא נגע בה.
+        _pendingTabSelection = null;
         if (event.buttons == 4) {
           closeTab(tab, context);
           return;
@@ -1049,7 +1064,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
           context.read<TabsBloc>().add(const ClearTabSelection());
         }
         if (index != state.currentTabIndex) {
-          context.read<TabsBloc>().add(SetCurrentTab(index));
+          _pendingTabSelection = tab;
         }
       },
       child: AppContextMenuRegion(
@@ -1169,52 +1184,60 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       const AppContextMenuEntry.divider(),
     ];
 
-    if (tab is! CombinedTab) {
-      if (state.tabs.length > 1) {
-        final otherTabsList = state.tabs
-            .where((t) => t != tab && t is! CombinedTab)
-            .toList();
-        final otherTabs = otherTabsList.asMap().entries.map((mapEntry) {
-          final otherTab = mapEntry.value;
-          return AppContextMenuEntry(
-            label: otherTab.title,
-            onTap: () {
-              context.read<TabsBloc>().add(
-                EnableSideBySideMode(
-                  rightTab: tab,
-                  leftTab: otherTab,
+    // טאב שכבר מפוצל אינו נכנס לפיצול נוסף: הפיצול הוא לשתי חלוניות בלבד.
+    final otherTabs = tab is CombinedTab
+        ? const <OpenedTab>[]
+        : state.tabs.where((t) => t != tab && t is! CombinedTab).toList();
+    if (otherTabs.isEmpty) {
+      entries.add(AppContextMenuEntry(label: 'הצג לצד', enabled: false));
+    } else {
+      entries.add(
+        AppContextMenuEntry(
+          label: 'הצג לצד',
+          children: otherTabs
+              .map(
+                (otherTab) => AppContextMenuEntry(
+                  label: otherTab.title,
+                  onTap: () => context.read<TabsBloc>().add(
+                    EnableSideBySideMode(rightTab: tab, leftTab: otherTab),
+                  ),
                 ),
-              );
-            },
-          );
-        }).toList();
-        entries.add(
-          AppContextMenuEntry(
-            label: 'הצג לצד',
-            children: otherTabs,
-          ),
-        );
-      } else {
-        entries.add(
-          AppContextMenuEntry(
-            label: 'הצג לצד',
-            enabled: false,
-          ),
-        );
-      }
+              )
+              .toList(),
+        ),
+      );
     }
 
     if (tab is CombinedTab) {
+      // אירועי הטאב מקבלים את אינדקס הטאב שנלחץ: לחיצה ימנית אינה מחליפה
+      // טאב פעיל, ובלי האינדקס הם היו פועלים על הטאב המוצג.
+      final tabIndex = state.tabs.indexOf(tab);
       entries.addAll([
         AppContextMenuEntry(
+          label: 'סגור חלונית',
+          children: [
+            for (final pane in leafPanes(tab))
+              AppContextMenuEntry(
+                label: pane.title,
+                onTap: () {
+                  // רישום לפני הסגירה, כמו ב-closeTab: אחרי ההסרה החלונית
+                  // אינה בטאב ומיקום הקריאה שלה היה נעלם.
+                  context.read<HistoryBloc>().add(AddHistory(pane));
+                  context.read<TabsBloc>().add(ClosePane(pane));
+                },
+              ),
+          ],
+        ),
+        AppContextMenuEntry(
           label: 'החלף צדדים',
-          onTap: () => context.read<TabsBloc>().add(const SwapSideBySideTabs()),
+          onTap: () => context.read<TabsBloc>().add(
+            SwapSideBySideTabs(tabIndex: tabIndex),
+          ),
         ),
         AppContextMenuEntry(
           label: 'חזרה לתצוגה רגילה',
-          onTap: () => context.read<TabsBloc>().add(
-            DisableSideBySideMode(state.tabs.indexOf(tab)),
-          ),
+          onTap: () =>
+              context.read<TabsBloc>().add(DisableSideBySideMode(tabIndex)),
         ),
       ]);
     }

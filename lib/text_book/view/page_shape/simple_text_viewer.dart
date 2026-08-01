@@ -29,7 +29,6 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/tabs/models/tab.dart';
-import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
@@ -735,14 +734,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     if (context.read<NavigationBloc>().state.currentScreen != Screen.reading) {
       return false;
     }
-    final current = context.read<TabsBloc>().state.currentTab;
-    if (current == null) return false;
-    if (identical(current, tab)) return true;
-    if (current is CombinedTab) {
-      return identical(current.rightTab, tab) ||
-          identical(current.leftTab, tab);
-    }
-    return false;
+    // רק החלונית הפעילה נחשבת בחזית: כשכל חלוניות הטאב ענו "כן", שתי תצוגות
+    // צורת-דף החזירו זו לזו את הפוקוס בלי סוף.
+    return identical(context.read<TabsBloc>().state.activePane, tab);
   }
 
   void _requestKeyboardFocus(String reason) {

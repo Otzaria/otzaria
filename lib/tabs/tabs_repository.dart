@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:hive_ce/hive.dart';
 import 'package:path/path.dart' as p;
+import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
@@ -124,6 +125,8 @@ class TabsRepository {
     return node;
   }
 
+  /// הטאבים כפי שנשמרו. פיצול מקונן מגרסה קודמת מנורמל אצל הקורא דרך
+  /// [flattenRestoredSplits], יחד עם האינדקס הפעיל — שהנירמול מזיז.
   List<OpenedTab> loadTabs() {
     try {
       final box = Hive.box('tabs');
