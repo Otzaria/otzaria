@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
 
 class WindowPersistence {
@@ -10,6 +12,7 @@ class WindowPersistence {
   static const _kTop = 'window_bounds_top';
   static const _kWidth = 'window_bounds_width';
   static const _kHeight = 'window_bounds_height';
+  static const _kDpr = 'window_bounds_dpr';
   static const _kIsMaximized = 'window_is_maximized';
 
   static const double _minWidth = 420;
@@ -17,17 +20,25 @@ class WindowPersistence {
   static const Size minSize = Size(_minWidth, _minHeight);
   static const Duration _debounceDuration = Duration(milliseconds: 400);
 
+  /// גובה רצועת האחיזה (פס הכותרת המותאם) בפיקסלים לוגיים. בדיקת הנגישות
+  /// דורשת שהרצועה הזו — לא סתם פינת חלון — תהיה על מסך חי, אחרת אין מה לגרור.
+  static const double _grabStripExtent = 32;
+
   static Timer? _debounce;
   static bool _restored = false;
   static bool _isRestoring = false;
   static bool _pendingMaximize = false;
   static bool _pendingFullscreen = false;
 
-  /// גבולות החלון השמורים, נקראים ב-[restoreIfAny] ומוחלים ב-
-  /// [applyRestoredBounds] — מוקדם, בעוד החלון מוסתר וה-splash מוצג (כדי
+  /// גבולות החלון השמורים **בפיקסלים פיזיים**, נקראים ב-[restoreIfAny] ומוחלים
+  /// ב-[applyRestoredBounds] — מוקדם, בעוד החלון מוסתר וה-splash מוצג (כדי
   /// ששינוי ה-DPI אפשרי יתייצב לפני החשיפה). null = אין גבולות שמורים
   /// (הפעלה ראשונה) → יוחל גודל ברירת מחדל.
-  static Rect? _restoredBounds;
+  static Rect? _restoredPhysicalBounds;
+
+  /// ה-devicePixelRatio של רגע השמירה — הגבולות נשמרים לוגיים (כפי ש-getBounds
+  /// מחזיר), וה-DPR הזה מאפשר לשחזר את הפיזי במדויק גם אם ה-DPR הנוכחי שונה.
+  static double? _restoredDpr;
 
   /// בזמן מסך הפתיחה החלון קטן/שקוף; אסור לשמור את גודלו (אחרת ההפעלה הבאה
   /// "תשחזר" חלון זעיר). כשהדגל דלוק, [scheduleSave]/[saveNow] הם no-op.
@@ -53,6 +64,7 @@ class WindowPersistence {
       final top = Settings.getValue<double>(_kTop);
       final width = Settings.getValue<double>(_kWidth);
       final height = Settings.getValue<double>(_kHeight);
+      final savedDpr = Settings.getValue<double>(_kDpr);
 
       _pendingMaximize = isMaximized;
       // מצב מסך מלא משוחזר אף הוא רק אחרי show() (ב-applyPendingFullscreen):
@@ -74,10 +86,18 @@ class WindowPersistence {
       final clampedWidth = width < minSize.width ? minSize.width : width;
       final clampedHeight = height < minSize.height ? minSize.height : height;
 
-      // שומרים את הגבולות; הם מוחלים ב-[applyRestoredBounds] מיד לאחר מכן,
-      // בעוד החלון הראשי מוסתר וה-splash הנייטיב מוצג — מוקדם דיו כדי ששינוי
-      // DPI אפשרי (אם הגבולות על מסך אחר ממסך היצירה) יתייצב לפני החשיפה.
-      _restoredBounds = Rect.fromLTWH(left, top, clampedWidth, clampedHeight);
+      // ממירים לפיזי לפי ה-DPR של רגע השמירה (שמירות ישנות ללא DPR — לפי
+      // הנוכחי). ההשוואה למסכים וההצבה נעשות בפיזי, אחיד לכל המסכים.
+      final dpr = (savedDpr != null && savedDpr > 0)
+          ? savedDpr
+          : _currentDevicePixelRatio();
+      _restoredDpr = dpr;
+      _restoredPhysicalBounds = Rect.fromLTWH(
+        left * dpr,
+        top * dpr,
+        clampedWidth * dpr,
+        clampedHeight * dpr,
+      );
     } catch (_) {
       // window manager may fail on first launch;
       // silently continue with default window dimensions.
@@ -92,15 +112,25 @@ class WindowPersistence {
   static Future<void> applyRestoredBounds() async {
     _isRestoring = true;
     try {
-      final bounds = _restoredBounds;
-      if (bounds != null) {
+      final physicalBounds = _restoredPhysicalBounds;
+      // setBounds מכפיל את הערכים ב-DPR הנוכחי — חלוקה בו נותנת הצבה פיזית
+      // מדויקת גם כשהחלון נשמר על מסך עם קנה מידה שונה מהמסך הראשי.
+      final currentDpr = _currentDevicePixelRatio();
+      if (physicalBounds == null) {
+        // אין גבולות שמורים (הפעלה ראשונה) — גודל ברירת מחדל ממורכז.
+        await windowManager.setSize(const Size(1280, 720));
+        await windowManager.center();
+      } else if (await _isReachableOnConnectedDisplay(physicalBounds)) {
         // הגבולות כבר עברו clamp ל-minSize (420x400) ב-restoreIfAny, וגודל
         // ה-splash לעולם לא נשמר (splashMode) — לכן מכבדים כל גודל חוקי שנשמר,
         // כולל חלונות קטנים שהמשתמש בחר במכוון.
-        await windowManager.setBounds(bounds);
+        await windowManager.setBounds(
+          _scaleRect(physicalBounds, 1 / currentDpr),
+        );
       } else {
-        // אין גבולות שמורים (הפעלה ראשונה) — גודל ברירת מחדל ממורכז.
-        await windowManager.setSize(const Size(1280, 720));
+        // גבולות מחוץ לכל מסך (מסך שנותק, עיוות DPI בין מסכים) — החלון היה
+        // נפתח "בלתי-נראה". משמרים את הגודל וממרכזים על מסך חי.
+        await windowManager.setSize(physicalBounds.size / currentDpr);
         await windowManager.center();
       }
     } catch (_) {
@@ -108,6 +138,73 @@ class WindowPersistence {
     } finally {
       _isRestoring = false;
     }
+  }
+
+  /// ה-DPR שאיתו window_manager ממיר לוגי→פיזי (window.devicePixelRatio);
+  /// שימוש באותו מקור מבטיח שההמרות מתבטלות במדויק.
+  static double _currentDevicePixelRatio() {
+    final dpr = PlatformDispatcher.instance.implicitView?.devicePixelRatio;
+    return (dpr != null && dpr > 0) ? dpr : 1.0;
+  }
+
+  static Rect _scaleRect(Rect rect, double factor) => Rect.fromLTWH(
+    rect.left * factor,
+    rect.top * factor,
+    rect.width * factor,
+    rect.height * factor,
+  );
+
+  /// האם רצועת האחיזה של [physicalBounds] נגישה על מסך מחובר כלשהו. כשל
+  /// בקריאת רשימת המסכים לא חוסם את השחזור — עדיף שחזור רגיל ממירכוז מיותר.
+  static Future<bool> _isReachableOnConnectedDisplay(
+    Rect physicalBounds,
+  ) async {
+    try {
+      final displays = await screenRetriever.getAllDisplays();
+      // screen_retriever מחזיר קואורדינטות לוגיות פר-מסך (מחולקות ב-scale של
+      // אותו מסך) — הכפלה ב-scaleFactor מחזירה אותן לפיזי, מרחב אחיד.
+      final displayRects = [
+        for (final display in displays)
+          if (display.visiblePosition != null && display.visibleSize != null)
+            _scaleRect(
+              display.visiblePosition! & display.visibleSize!,
+              (display.scaleFactor ?? 1).toDouble(),
+            ),
+      ];
+      if (displayRects.isEmpty) return true;
+      return titleStripReachableOnAnyDisplay(
+        physicalBounds,
+        displayRects,
+        _grabStripExtent * (_restoredDpr ?? 1),
+      );
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// האם רצועת האחיזה — [stripExtent] העליונים של [bounds] — מונחת במלואה
+  /// (לגובהה) ולרוחב [stripExtent] לפחות על אחד מ-[displayRects]. גבולות
+  /// שנשמרו בטעות כשהחלון ממוזער (חניה ב--32000, ראה [_saveNow]), מסך שנותק,
+  /// או חלון שרק תחתיתו מציצה למסך — נכשלים כאן.
+  @visibleForTesting
+  static bool titleStripReachableOnAnyDisplay(
+    Rect bounds,
+    List<Rect> displayRects,
+    double stripExtent,
+  ) {
+    final strip = Rect.fromLTWH(
+      bounds.left,
+      bounds.top,
+      bounds.width,
+      stripExtent,
+    );
+    for (final displayRect in displayRects) {
+      final overlap = strip.intersect(displayRect);
+      if (overlap.width >= stripExtent && overlap.height >= stripExtent) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// Applies a maximize that was deferred from `restoreIfAny` until after
@@ -179,6 +276,10 @@ class WindowPersistence {
   }
 
   static Future<void> _saveNow() async {
+    // חלון ממוזער "חונה" ב-(-32000,-32000) ו-isMaximized מחזיר בו false —
+    // שמירה במצב הזה מרעילה גם את הגבולות וגם את דגל המיקסום. לא שומרים.
+    if (await windowManager.isMinimized()) return;
+
     final isFullscreen = await windowManager.isFullScreen();
     final isMaximized = await windowManager.isMaximized();
     await Settings.setValue(_kIsMaximized, isMaximized);
@@ -194,5 +295,8 @@ class WindowPersistence {
     await Settings.setValue(_kTop, bounds.top);
     await Settings.setValue(_kWidth, bounds.width);
     await Settings.setValue(_kHeight, bounds.height);
+    // getBounds מחזיר לוגי (פיזי חלקי ה-DPR הנוכחי); שמירת ה-DPR לצד הערכים
+    // מאפשרת לשחזר את הפיזי במדויק בהפעלה הבאה גם אם ה-DPR ישתנה.
+    await Settings.setValue(_kDpr, _currentDevicePixelRatio());
   }
 }
