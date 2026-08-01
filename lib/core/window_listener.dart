@@ -21,6 +21,15 @@ class AppWindowListener extends WindowListener {
     'otzaria/process_control',
   );
 
+  /// סטטוס קונטיינמנט ה-Job Object מה-runner (Windows בלבד):
+  /// כשההקמה נכשלה [failure] מתאר את השלב שנכשל ואת קוד השגיאה.
+  static Future<({bool ready, String? failure})> jobObjectStatus() async {
+    final raw = await _processControlChannel.invokeMapMethod<String, Object?>(
+      'jobObjectStatus',
+    );
+    return (ready: raw?['ready'] == true, failure: raw?['failure'] as String?);
+  }
+
   FullscreenCallback? onFullscreenChanged;
 
   /// נקרא לאחר אירועי מצב חלון דיסקרטיים שעלולים לגרום לאיבוד פוקוס:

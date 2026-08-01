@@ -8,6 +8,7 @@
 
 #include <atomic>
 #include <memory>
+#include <string>
 
 #include "win32_window.h"
 
@@ -65,6 +66,9 @@ class FlutterWindow : public Win32Window {
   // otherwise the Dart side falls back to the existing graceful close path.
   HANDLE job_handle_ = nullptr;
   std::atomic_bool job_object_ready_ = false;
+  // סיבת כשל הקמת ה-Job Object (ריק בהצלחה) — מדווח ל-Dart דרך
+  // "jobObjectStatus" ונרשם ל-errors.txt לאבחון msedgewebview2 יתומים.
+  std::string job_object_failure_;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

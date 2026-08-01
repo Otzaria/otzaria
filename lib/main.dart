@@ -648,6 +648,7 @@ Future<void> _initializeRestartableRuntime() async {
   // _runDeferredAutoBackup ו-_runDeferredProtocolRegistration למטה.
   unawaited(_runDeferredAutoBackup());
   unawaited(_runDeferredProtocolRegistration());
+  unawaited(_logJobObjectContainmentFailure());
 
   // פרי-וורם של WebView2 environment ברקע. הפעם הראשונה שיוצרים סביבת
   // WebView2 ב-Windows מצמיחה כמה תהליכי-בן של Edge ולוקחת 1-2 שניות
@@ -664,6 +665,26 @@ Future<void> _initializeRestartableRuntime() async {
   // עלות: ~100MB RAM לתהליכי Edge הילדים, מנוקים ע"י ה-Job Object
   // בעת סגירת התהליך — אז לא יוותרו זומבים גם אם המשתמש לעולם לא יפתח תוסף.
   unawaited(_preWarmWebViewEnvironment());
+}
+
+/// כשקונטיינמנט ה-Job Object לא הוקם, תהליכי msedgewebview2.exe שורדים את
+/// סגירת התוכנה ונועלים את פרופיל ה-WebView2 (תוספים ריקים) — נרשם ל-errors.txt.
+Future<void> _logJobObjectContainmentFailure() async {
+  if (kIsWeb || !Platform.isWindows || kDebugMode) return;
+  try {
+    final status = await AppWindowListener.jobObjectStatus();
+    if (status.ready) return;
+    _appendUnhandledErrorToLocalLog(
+      title: 'Job Object containment unavailable',
+      error: status.failure ?? 'unknown failure',
+      details: const {
+        'Phase': 'initialize',
+        'Component': 'Job Object (WebView2 process containment)',
+      },
+    );
+  } catch (error, stackTrace) {
+    _logNonFatalInitializationError('Job Object status', error, stackTrace);
+  }
 }
 
 Future<void> _runDeferredNotificationService() async {

@@ -6,6 +6,7 @@
 #include <chrono>
 #include <limits>
 #include <optional>
+#include <string>
 #include <thread>
 
 #include "flutter/generated_plugin_registrant.h"
@@ -44,6 +45,8 @@ FlutterWindow::FlutterWindow(const flutter::DartProject& project, bool headless)
   // failure).
   job_handle_ = CreateJobObjectW(nullptr, nullptr);
   if (!job_handle_) {
+    job_object_failure_ = "CreateJobObjectW failed (error " +
+                          std::to_string(GetLastError()) + ")";
     OutputDebugStringW(L"Otzaria: CreateJobObjectW failed; Edge child "
                        L"processes will not be contained on fast-exit.\n");
     return;
@@ -57,6 +60,8 @@ FlutterWindow::FlutterWindow(const flutter::DartProject& project, bool headless)
   if (!SetInformationJobObject(job_handle_,
                                JobObjectExtendedLimitInformation, &info,
                                sizeof(info))) {
+    job_object_failure_ = "SetInformationJobObject failed (error " +
+                          std::to_string(GetLastError()) + ")";
     OutputDebugStringW(L"Otzaria: SetInformationJobObject failed; not "
                        L"honouring forceTerminate.\n");
     CloseHandle(job_handle_);
@@ -64,6 +69,9 @@ FlutterWindow::FlutterWindow(const flutter::DartProject& project, bool headless)
     return;
   }
   if (!AssignProcessToJobObject(job_handle_, GetCurrentProcess())) {
+    job_object_failure_ = "AssignProcessToJobObject failed (error " +
+                          std::to_string(GetLastError()) +
+                          "); likely already in a non-nestable job";
     // The most common failure mode: the launching environment (debugger,
     // sandbox, AppContainer, certain enterprise/MDM tooling) has already
     // placed our process in a non-nestable job. We have no way to break
@@ -116,6 +124,17 @@ bool FlutterWindow::OnCreate() {
       [this](const flutter::MethodCall<flutter::EncodableValue>& call,
              std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
                  result) {
+        if (call.method_name() == "jobObjectStatus") {
+          flutter::EncodableMap status;
+          status[flutter::EncodableValue("ready")] =
+              flutter::EncodableValue(job_object_ready_.load());
+          status[flutter::EncodableValue("failure")] =
+              job_object_failure_.empty()
+                  ? flutter::EncodableValue()
+                  : flutter::EncodableValue(job_object_failure_);
+          result->Success(flutter::EncodableValue(status));
+          return;
+        }
         if (call.method_name() == "forceTerminate") {
           // Only honour forceTerminate when the Job Object containment is
           // verifiably in place. Without it, TerminateProcess would still
