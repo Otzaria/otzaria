@@ -20,7 +20,46 @@ void main() {
     pageNumber: 1,
   );
 
+  Map<String, dynamic> splitJson(
+    dynamic right,
+    dynamic left, {
+    double splitRatio = 0.5,
+    bool isPinned = false,
+  }) => {
+    'type': 'CombinedTab',
+    'rightTab': right,
+    'leftTab': left,
+    'splitRatio': splitRatio,
+    'isPinned': isPinned,
+  };
+
+  OpenedTab nestedOf(
+    List<OpenedTab> leaves, {
+    double splitRatio = 0.5,
+    bool isPinned = false,
+  }) {
+    var json = leaves.last.toJson();
+    for (var i = leaves.length - 2; i >= 0; i--) {
+      json = splitJson(
+        leaves[i].toJson(),
+        json,
+        splitRatio: i == 0 ? splitRatio : 0.5,
+        isPinned: i == 0 && isPinned,
+      );
+    }
+    return OpenedTab.fromJson(json);
+  }
+
   group('זוג החלוניות', () {
+    test('הבנאי דוחה פיצול מקונן גם ב-release', () {
+      final split = CombinedTab(rightTab: leaf('א'), leftTab: leaf('ב'));
+
+      expect(
+        () => CombinedTab(rightTab: split, leftTab: leaf('ג')),
+        throwsArgumentError,
+      );
+    });
+
     test('panes מחזיר את שתיהן בסדר התצוגה', () {
       final a = leaf('א');
       final b = leaf('ב');
@@ -74,6 +113,13 @@ void main() {
       expect(copy.leftTab, same(c));
       expect(copy.splitRatio, 0.3);
       expect(copy.isPinned, isTrue);
+    });
+
+    test('copyWith דוחה פיצול מקונן', () {
+      final tab = CombinedTab(rightTab: leaf('א'), leftTab: leaf('ב'));
+      final nested = CombinedTab(rightTab: leaf('ג'), leftTab: leaf('ד'));
+
+      expect(() => tab.copyWith(leftTab: nested), throwsArgumentError);
     });
   });
 
@@ -141,18 +187,12 @@ void main() {
       expect(clone.rightTab, isNot(same(original.rightTab)));
       expect(clone.leftTab, isNot(same(original.leftTab)));
       expect(clone.splitRatio, 0.4);
+      expect(clone.rightTab, isNot(isA<CombinedTab>()));
+      expect(clone.leftTab, isNot(isA<CombinedTab>()));
     });
   });
 
   group('decodeCombinedTab — חלונית שאינה ניתנת לשחזור', () {
-    Map<String, dynamic> splitJson(dynamic right, dynamic left) => {
-      'type': 'CombinedTab',
-      'rightTab': right,
-      'leftTab': left,
-      'splitRatio': 0.5,
-      'isPinned': false,
-    };
-
     test('טיפוס לא מוכר בחלונית אחת אינו גורר את אחותה', () {
       final restored = decodeCombinedTab(
         splitJson(leaf('שורד').toJson(), {'type': 'TabMehadash'}),
@@ -242,11 +282,6 @@ void main() {
   });
 
   group('flattenRestoredSplits', () {
-    CombinedTab nestedOf(List<OpenedTab> leaves) => CombinedTab(
-      rightTab: leaves[0],
-      leftTab: CombinedTab(rightTab: leaves[1], leftTab: leaves[2]),
-    );
-
     test('רשימה בלי פיצול מקונן חוזרת כמות שהיא', () {
       final plain = leaf('רגיל');
       final split = CombinedTab(rightTab: leaf('א'), leftTab: leaf('ב'));
@@ -268,32 +303,33 @@ void main() {
 
       expect(result, hasLength(2));
       final split = result[0] as CombinedTab;
-      expect(split.rightTab, same(a));
-      expect(split.leftTab, same(b));
-      expect(result[1], same(c));
+      expect(split.rightTab.title, a.title);
+      expect(split.leftTab.title, b.title);
+      expect(result[1].title, c.title);
     });
 
     test('החלוניות העודפות אינן נעלמות גם בעומק גדול', () {
       final leaves = [
         for (final t in ['א', 'ב', 'ג', 'ד']) leaf(t),
       ];
-      final nested = CombinedTab(
-        rightTab: CombinedTab(rightTab: leaves[0], leftTab: leaves[1]),
-        leftTab: CombinedTab(rightTab: leaves[2], leftTab: leaves[3]),
+      final nested = OpenedTab.fromJson(
+        splitJson(
+          splitJson(leaves[0].toJson(), leaves[1].toJson()),
+          splitJson(leaves[2].toJson(), leaves[3].toJson()),
+        ),
       );
 
       final result = flattenRestoredSplits([nested]).tabs;
 
       expect(result, hasLength(3));
-      expect(leafPanes(result[0]), [same(leaves[0]), same(leaves[1])]);
-      expect(result[1], same(leaves[2]));
-      expect(result[2], same(leaves[3]));
+      expect(leafPanes(result[0]).map((tab) => tab.title), ['א', 'ב']);
+      expect(result[1].title, 'ג');
+      expect(result[2].title, 'ד');
     });
 
     test('היחס וההצמדה של השורש עוברים לפיצול שנשאר', () {
-      final nested = CombinedTab(
-        rightTab: leaf('א'),
-        leftTab: CombinedTab(rightTab: leaf('ב'), leftTab: leaf('ג')),
+      final nested = nestedOf(
+        [leaf('א'), leaf('ב'), leaf('ג')],
         splitRatio: 0.25,
         isPinned: true,
       );
@@ -305,9 +341,8 @@ void main() {
     });
 
     test('ההצמדה עוברת גם לחלוניות העודפות שיצאו ככרטיסיות', () {
-      final nested = CombinedTab(
-        rightTab: leaf('א'),
-        leftTab: CombinedTab(rightTab: leaf('ב'), leftTab: leaf('ג')),
+      final nested = nestedOf(
+        [leaf('א'), leaf('ב'), leaf('ג')],
         isPinned: true,
       );
 
@@ -345,10 +380,7 @@ void main() {
   });
 
   group('flattenRestoredSplits — האינדקס הפעיל', () {
-    CombinedTab nested3() => CombinedTab(
-      rightTab: leaf('א'),
-      leftTab: CombinedTab(rightTab: leaf('ב'), leftTab: leaf('ג')),
-    );
+    OpenedTab nested3() => nestedOf([leaf('א'), leaf('ב'), leaf('ג')]);
 
     test('כרטיסייה שאחרי פיצול מקונן נדחפת קדימה יחד עם האינדקס', () {
       final after = leaf('אחרי');

@@ -28,7 +28,13 @@ class CombinedTab extends OpenedTab {
     required this.leftTab,
     this.splitRatio = 0.5,
     bool isPinned = false,
-  }) : super('', isPinned: isPinned);
+  }) : super('', isPinned: isPinned) {
+    if (_isSplit(rightTab) || _isSplit(leftTab)) {
+      throw ArgumentError(
+        'חלוניות של CombinedTab חייבות להיות טאבים שאינם מפוצלים',
+      );
+    }
+  }
 
   /// מחושבת בכל קריאה: כותרת חלונית משתנה אחרי טעינת הספר, וכותרת שהוקפאה
   /// בבנייה נשארה מיושנת ב-tooltip וברשימת הקיצורים של Windows.
@@ -120,15 +126,69 @@ OpenedTab decodeCombinedTab(Map<String, dynamic> json) {
     return survivor;
   }
 
+  final splitRatio = ((json['splitRatio'] as num?)?.toDouble() ?? 0.5).clamp(
+    0.0,
+    1.0,
+  );
+  if (_isSplit(right) || _isSplit(left)) {
+    return _RestoredCombinedTab(
+      rightTab: right,
+      leftTab: left,
+      splitRatio: splitRatio,
+      isPinned: isPinned,
+    );
+  }
   return CombinedTab(
     rightTab: right,
     leftTab: left,
-    splitRatio: ((json['splitRatio'] as num?)?.toDouble() ?? 0.5).clamp(
-      0.0,
-      1.0,
-    ),
+    splitRatio: splitRatio,
     isPinned: isPinned,
   );
+}
+
+/// מבנה ביניים פרטי לנתון legacy מקונן, עד לנרמול בזמן השחזור.
+class _RestoredCombinedTab extends OpenedTab {
+  final OpenedTab rightTab;
+  final OpenedTab leftTab;
+  final double splitRatio;
+
+  _RestoredCombinedTab({
+    required this.rightTab,
+    required this.leftTab,
+    required this.splitRatio,
+    required bool isPinned,
+  }) : super('', isPinned: isPinned);
+
+  @override
+  String get title => 'משולב: ${rightTab.title} | ${leftTab.title}';
+
+  @override
+  set title(String value) =>
+      throw UnsupportedError('כותרת טאב מפוצל נגזרת מהחלוניות שבו');
+
+  @override
+  OpenedTab clone() => _RestoredCombinedTab(
+    rightTab: OpenedTab.from(rightTab),
+    leftTab: OpenedTab.from(leftTab),
+    splitRatio: splitRatio,
+    isPinned: isPinned,
+  );
+
+  @override
+  void dispose() {
+    rightTab.dispose();
+    leftTab.dispose();
+    super.dispose();
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'rightTab': rightTab.toJson(),
+    'leftTab': leftTab.toJson(),
+    'splitRatio': splitRatio,
+    'isPinned': isPinned,
+    'type': 'CombinedTab',
+  };
 }
 
 /// חלוניות התוכן של טאב: שתיים בטאב מפוצל, אחת בכל שאר הטאבים.
@@ -166,12 +226,12 @@ OpenedTab? prunePanes(OpenedTab tab, bool Function(OpenedTab pane) keep) {
   var normalizedIndex = currentIndex;
   for (var i = 0; i < tabs.length; i++) {
     final tab = tabs[i];
-    if (tab is! CombinedTab) {
+    if (!_isSplit(tab)) {
       normalized.add(tab);
       continue;
     }
     final leaves = _allLeaves(tab);
-    if (leaves.length == 2) {
+    if (tab is CombinedTab) {
       normalized.add(tab);
       continue;
     }
@@ -179,7 +239,7 @@ OpenedTab? prunePanes(OpenedTab tab, bool Function(OpenedTab pane) keep) {
       CombinedTab(
         rightTab: leaves[0],
         leftTab: leaves[1],
-        splitRatio: tab.splitRatio,
+        splitRatio: _splitRatio(tab),
         isPinned: tab.isPinned,
       ),
     );
@@ -195,6 +255,20 @@ OpenedTab? prunePanes(OpenedTab tab, bool Function(OpenedTab pane) keep) {
 }
 
 /// כל חלוניות התוכן שתחת [tab], כולל פיצול מקונן ששוחזר מגרסה קודמת.
-List<OpenedTab> _allLeaves(OpenedTab tab) => tab is CombinedTab
-    ? [..._allLeaves(tab.rightTab), ..._allLeaves(tab.leftTab)]
-    : [tab];
+bool _isSplit(OpenedTab tab) =>
+    tab is CombinedTab || tab is _RestoredCombinedTab;
+
+double _splitRatio(OpenedTab tab) => switch (tab) {
+  CombinedTab() => tab.splitRatio,
+  _RestoredCombinedTab() => tab.splitRatio,
+  _ => throw ArgumentError.value(tab, 'tab', 'אינו טאב מפוצל'),
+};
+
+List<OpenedTab> _allLeaves(OpenedTab tab) => switch (tab) {
+  CombinedTab() => [..._allLeaves(tab.rightTab), ..._allLeaves(tab.leftTab)],
+  _RestoredCombinedTab() => [
+    ..._allLeaves(tab.rightTab),
+    ..._allLeaves(tab.leftTab),
+  ],
+  _ => [tab],
+};
