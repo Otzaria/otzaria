@@ -51,17 +51,20 @@ List<ToolCatalogEntry> filterToolEntries(
 
 typedef ToolGroup = ({String label, List<ToolCatalogEntry> entries});
 
-/// מפצל את הרשומות לשני מקטעים: כלים מובנים ואז תוספים, בשמירת הסדר בכל
-/// מקטע. מקטע ריק אינו מוחזר.
+/// מקבץ רשומות עוקבות לפי סוגן, בלי לשנות את סדר הקטלוג.
+/// כותרת יכולה להופיע שוב כשנדרש כדי לשמור על תוסף שהוקדם למובנים.
 @visibleForTesting
 List<ToolGroup> groupToolEntries(List<ToolCatalogEntry> entries) {
-  final builtIns = entries.where((entry) => !entry.isPlugin).toList();
-  final plugins = entries.where((entry) => entry.isPlugin).toList();
-  return [
-    if (builtIns.isNotEmpty)
-      (label: kBuiltInToolsGroupLabel, entries: builtIns),
-    if (plugins.isNotEmpty) (label: kPluginsGroupLabel, entries: plugins),
-  ];
+  final groups = <ToolGroup>[];
+  for (final entry in entries) {
+    final label = entry.isPlugin ? kPluginsGroupLabel : kBuiltInToolsGroupLabel;
+    if (groups.isNotEmpty && groups.last.label == label) {
+      groups.last.entries.add(entry);
+    } else {
+      groups.add((label: label, entries: [entry]));
+    }
+  }
+  return groups;
 }
 
 /// סדר הקוביות כפי שהן מוצגות בפועל. ניווט המקלדת ממופה לאינדקס ברשימה הזו,

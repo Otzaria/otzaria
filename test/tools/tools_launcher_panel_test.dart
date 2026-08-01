@@ -48,6 +48,7 @@ ToolCatalogEntry _pluginEntry(
   String label, {
   String? name,
   String sourceType = 'packaged',
+  bool allowOrderBeforeBuiltIns = false,
 }) => ToolCatalogEntry(
   toolId: pluginId,
   label: label,
@@ -63,7 +64,7 @@ ToolCatalogEntry _pluginEntry(
     pinned: false,
     pinnedToNavRail: false,
     showInTools: true,
-    allowOrderBeforeBuiltInsGranted: true,
+    allowOrderBeforeBuiltInsGranted: allowOrderBeforeBuiltIns,
     networkAccessGranted: false,
     sourceType: sourceType,
     devRootPath: sourceType == 'development' ? '/dev/$pluginId' : null,
@@ -83,7 +84,7 @@ ToolCatalogEntry _pluginEntry(
       networkAllowlist: const [],
       toolTabTitle: label,
       toolTabOrder: 900,
-      allowOrderBeforeBuiltIns: false,
+      allowOrderBeforeBuiltIns: allowOrderBeforeBuiltIns,
       defaultPinned: false,
       publishedDataTypes: const [],
     ),
@@ -296,20 +297,27 @@ void main() {
   });
 
   group('groupToolEntries', () {
-    test('שני מקטעים: כלים מובנים ואז תוספים', () {
+    test('שומר את סדר הקטלוג ומחלק רק במעבר בין סוגי רשומות', () {
       final groups = groupToolEntries([
+        _pluginEntry(
+          'com.example.leading',
+          'תוסף מקדים',
+          allowOrderBeforeBuiltIns: true,
+        ),
         _entry('builtin.calendar', 'לוח שנה'),
-        _pluginEntry('com.example.x', 'תוסף'),
         _entry('builtin.gematria', 'גימטריה'),
+        _pluginEntry('com.example.x', 'תוסף'),
       ]);
       expect(groups.map((g) => g.label), [
+        kPluginsGroupLabel,
         kBuiltInToolsGroupLabel,
         kPluginsGroupLabel,
       ]);
-      expect(groups.first.entries.map((e) => e.toolId), [
+      expect(groups[1].entries.map((e) => e.toolId), [
         'builtin.calendar',
         'builtin.gematria',
       ]);
+      expect(groups.first.entries.single.toolId, 'com.example.leading');
       expect(groups.last.entries.single.toolId, 'com.example.x');
     });
 
@@ -328,14 +336,15 @@ void main() {
       final groups = groupToolEntries([
         _pluginEntry('p.b', 'ב'),
         _entry('builtin.z', 'ז'),
-        _pluginEntry('p.a', 'א'),
         _entry('builtin.a', 'א'),
+        _pluginEntry('p.a', 'א'),
       ]);
-      expect(groups.first.entries.map((e) => e.toolId), [
+      expect(groups[1].entries.map((e) => e.toolId), [
         'builtin.z',
         'builtin.a',
       ]);
-      expect(groups.last.entries.map((e) => e.toolId), ['p.b', 'p.a']);
+      expect(groups.first.entries.single.toolId, 'p.b');
+      expect(groups.last.entries.single.toolId, 'p.a');
     });
 
     test('רשימה ריקה — אין קבוצות', () {
@@ -346,17 +355,48 @@ void main() {
   // ניווט המקלדת ממופה לאינדקס ברשימה השטוחה, ולכן היא חייבת להיות בסדר
   // הרינדור — כולל תוסף שהמיון הקדים לכלים המובנים.
   group('orderedToolEntries', () {
-    test('מחזיר את הסדר המוצג: מובנים ואז תוספים', () {
+    test('מחזיר את סדר הרינדור, כולל תוסף שמופיע לפני מובנים', () {
       final ordered = orderedToolEntries([
         _pluginEntry('com.example.first', 'תוסף מקדים'),
         _entry('builtin.calendar', 'לוח שנה'),
         _pluginEntry('com.example.x', 'תוסף'),
       ]);
       expect(ordered.map((e) => e.toolId), [
-        'builtin.calendar',
         'com.example.first',
+        'builtin.calendar',
         'com.example.x',
       ]);
+    });
+
+    test('תוסף מורשה מוצג לפני מובנים וניווט המקלדת שומר את סדר הרינדור', () {
+      final leadingPlugin = _pluginEntry(
+        'com.example.leading',
+        'תוסף מקדים',
+        allowOrderBeforeBuiltIns: true,
+      ).plugin!;
+      final regularPlugin = _pluginEntry(
+        'com.example.regular',
+        'תוסף רגיל',
+      ).plugin!;
+      final catalog = buildToolCatalog(
+        hiddenBuiltInToolIds: const {},
+        isOfflineMode: false,
+        pluginState: PluginSystemLoaded([leadingPlugin, regularPlugin]),
+      );
+      final rendered = [
+        for (final group in groupToolEntries(catalog)) ...group.entries,
+      ];
+
+      expect(catalog.first.toolId, leadingPlugin.pluginId);
+      expect(groupToolEntries(catalog).first.label, kPluginsGroupLabel);
+      expect(
+        rendered.map((entry) => entry.toolId),
+        catalog.map((entry) => entry.toolId),
+      );
+      expect(
+        orderedToolEntries(catalog).map((entry) => entry.toolId),
+        rendered.map((entry) => entry.toolId),
+      );
     });
 
     test('שומר על אורך הרשימה', () {
