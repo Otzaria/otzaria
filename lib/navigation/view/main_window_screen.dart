@@ -40,7 +40,10 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
-import 'package:otzaria/tools/tools_screen.dart';
+import 'package:otzaria/tabs/models/tool_tab.dart';
+import 'package:otzaria/tools/open_tool_tab.dart';
+import 'package:otzaria/tools/tools_launcher_controller.dart';
+import 'package:otzaria/tools/view/tools_launcher_panel.dart';
 import 'package:otzaria/shortcuts/keyboard_shortcuts.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'dart:async';
@@ -207,8 +210,6 @@ LibraryPageBuildDecision resolveLibraryPageBuildDecision({
       : LibraryPageBuildDecision.usePlaceholder;
 }
 
-// Global key for accessing MoreScreen
-final GlobalKey<ToolsScreenState> moreScreenKey = GlobalKey<ToolsScreenState>();
 final GlobalKey<State<LibraryBrowser>> libraryBrowserKey =
     GlobalKey<State<LibraryBrowser>>();
 final GlobalKey<MainWindowScreenState> mainWindowScreenKey =
@@ -254,7 +255,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
   // שמירת הדפים כדי שלא ייבנו מחדש
   Widget? _cachedLibraryPage;
   Widget? _cachedReadingPage;
-  Widget? _cachedMorePage;
   Widget? _cachedSettingsPage;
 
   // GlobalKeys יציבים למסכי עיון והגדרות. במהלך slide חוצה (buildTransitionPages)
@@ -300,6 +300,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
   bool _isSearchOpen = false;
   bool _isFindRefOpen = false;
   bool _isReadingSettingsPanelOpen = false;
+  bool _isToolsLauncherOpen = false;
   bool _openGenesisForTour = false;
   bool _tourStartedAutomaticallyThisLaunch = false;
   OverlayEntry? _tourOverlayEntry;
@@ -317,7 +318,16 @@ class MainWindowScreenState extends State<MainWindowScreen>
   StreamSubscription<String>? _externalActivationChannelSub;
   final WindowsJumpListService _jumpListService = WindowsJumpListService();
 
-  static const _navData = [
+  static const List<
+    ({
+      Screen? screen,
+      IconData icon,
+      IconData iconFilled,
+      String label,
+      String shortcutKey,
+    })
+  >
+  _navData = [
     (
       screen: Screen.library,
       icon: FluentIcons.library_24_regular,
@@ -346,8 +356,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
       label: 'חיפוש',
       shortcutKey: 'key-shortcut-open-new-search',
     ),
+    // screen: null — "כלים" אינו מסך אלא פותח את פאנל המשגר.
     (
-      screen: Screen.more,
+      screen: null,
       icon: FluentIcons.apps_24_regular,
       iconFilled: FluentIcons.apps_24_filled,
       label: 'כלים',
@@ -362,10 +373,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
     ),
   ];
 
-  /// אינדקס "כלים" בתוך `_navData`. שימושי כנקודת הקצה התחתונה של ה-"top items"
-  /// בסרגל/בבר, ולחישוב פריט "Tools selected" כשתוסף-מוצמד-לסרגל אינו פעיל.
+  /// אינדקס "כלים" בתוך `_navData` — הפריט היחיד שאינו מסך. משמש כנקודת הקצה
+  /// התחתונה של ה-"top items" בסרגל/בבר.
   static final int _toolsNavIndex = _navData.indexWhere(
-    (d) => d.screen == Screen.more,
+    (d) => d.screen == null,
   );
 
   /// אינדקס "הגדרות" בתוך `_navData`. תוספים מוצמדים-לסרגל מוזרקים
@@ -436,6 +447,13 @@ class MainWindowScreenState extends State<MainWindowScreen>
         .isEmpty;
   }
 
+  /// מזהה הכלי שהכרטיסיה הפעילה מציגה, או `null` אם אינה כרטיסיית כלי.
+  /// מזין את הדגשת הפריטים המוצמדים בסרגל הניווט.
+  static String? _activeToolIdOf(TabsState state) {
+    final pane = state.activePane;
+    return pane is ToolTab ? pane.toolId : null;
+  }
+
   /// אינדקס "הגדרות" בפועל בתוך ה-bar destinations, בהתחשב בהסתרת כלים.
   static int _effectiveSettingsNavIndex(bool hideTools) =>
       hideTools ? _toolsNavIndex : _settingsNavIndex;
@@ -489,8 +507,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
     PluginPageLauncher.instance.navigator = (pluginId) {
       if (!mounted) return;
-      context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
-      _openPluginByIdWhenAvailable(pluginId);
+      openToolTabById(context, pluginId);
+    };
+    ToolsLauncherController.instance.opener = () {
+      if (!mounted || _isToolsLauncherOpen) return;
+      setState(() => _isToolsLauncherOpen = true);
     };
 
     // הצגת פופאפ פרסומת אחרי 5 שניות
@@ -686,8 +707,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     if (!_hasInitializedPageController) {
       _hasInitializedPageController = true;
       final initialScreen = context.read<NavigationBloc>().state.currentScreen;
-      _currentPageIndex =
-          _pageIndexForScreen(initialScreen) ?? Screen.library.index;
+      _currentPageIndex = _pageIndexForScreen(initialScreen) ?? 0;
       pageController = PageController(initialPage: _currentPageIndex);
     }
   }
@@ -1029,18 +1049,13 @@ class MainWindowScreenState extends State<MainWindowScreen>
         context.read<NavigationBloc>().add(NavigateToScreen(screen));
         return true;
       case OpenToolAction(:final toolId):
-        context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
-        // ToolsScreen נבנה lazy בעת המעבר ל־Screen.more, ולכן ייתכן
-        // ש־moreScreenKey.currentState עדיין null בפריים הראשון. ניסיונות חוזרים
-        // עם hop קצר מבטיחים שהלשונית תיפתח גם בפעם הראשונה שנכנסים אליה.
-        _openToolWhenAvailable(toolId);
+        openToolTabById(context, toolId);
         return true;
       case OpenPluginAction(:final pluginId):
-        // בחירת התוסף מנסה לקדום לניווט כדי שתוסף מוצמד לא יבליח עם סרגל
-        // הלשוניות; כשהיא לא אפשרית עדיין, המסלול הנדחה משלים אותה.
-        final openedNow = _tryOpenPluginByIdNow(pluginId);
-        context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
-        if (!openedNow) _openPluginByIdWhenAvailable(pluginId);
+        openToolTabById(context, pluginId);
+        return true;
+      case OpenToolsLauncherAction():
+        ToolsLauncherController.instance.open();
         return true;
       case SwitchToTabAction(:final index):
         final tabsBloc = context.read<TabsBloc>();
@@ -1089,8 +1104,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
         );
         return true;
       case OpenSdkAction():
-        context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
-        _openPluginPanelWhenAvailable();
+        // ניהול התוספים עבר להגדרות ← כלים; המשגר משמש רק לפתיחה.
+        context.read<NavigationBloc>().add(
+          const NavigateToScreen(Screen.settings),
+        );
+        _settingsScreenController.openTab(SettingsTab.tools);
         return true;
       case OpenDailyPageAction():
         final Daf daf = getDafYomi(DateTime.now());
@@ -1184,90 +1202,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
     return true;
   }
 
-  /// ממתין ל-ToolsScreen (נבנה lazy בעת המעבר ל-Screen.more) ומריץ [onReady]
-  /// ברגע שהוא זמין. [isReady] מאפשר להמתין גם לתנאי נוסף (למשל טעינת מערכת
-  /// התוספים). מנסה שוב כל 50ms עד [attemptsLeft]; כשנגמרו — מריץ [onExhausted].
-  void _whenToolsScreenAvailable(
-    void Function(ToolsScreenState toolsState) onReady, {
-    bool Function(ToolsScreenState toolsState)? isReady,
-    VoidCallback? onExhausted,
-    int attemptsLeft = 6,
-  }) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final toolsState = moreScreenKey.currentState;
-      if (toolsState != null && (isReady == null || isReady(toolsState))) {
-        onReady(toolsState);
-        return;
-      }
-      if (attemptsLeft <= 0) {
-        onExhausted?.call();
-        return;
-      }
-      Future<void>.delayed(const Duration(milliseconds: 50), () {
-        if (!mounted) return;
-        _whenToolsScreenAvailable(
-          onReady,
-          isReady: isReady,
-          onExhausted: onExhausted,
-          attemptsLeft: attemptsLeft - 1,
-        );
-      });
-    });
-  }
-
-  void _openToolWhenAvailable(String toolId) {
-    _whenToolsScreenAvailable(
-      (toolsState) => toolsState.requestOpenTool(toolId),
-    );
-  }
-
-  void _openPluginPanelWhenAvailable() {
-    _whenToolsScreenAvailable((toolsState) => toolsState.openPluginPanel());
-  }
-
-  /// מנסה לפתוח תוסף בלי להמתין לפריים. כשמחזיר false הטיפול — כולל כל הודעות
-  /// השגיאה — עובר ל-[_openPluginByIdWhenAvailable] שרץ אחרי הניווט.
-  bool _tryOpenPluginByIdNow(String pluginId) {
-    final blocState = context.read<PluginSystemBloc>().state;
-    if (blocState is! PluginSystemLoaded) return false;
-    final plugin = blocState.plugins.firstWhereOrNull(
-      (p) => p.pluginId == pluginId,
-    );
-    if (plugin == null || !plugin.enabled) return false;
-    return _selectPluginBeforeNavigation(plugin);
-  }
-
-  /// פותח תוסף לפי מזהה (deep-link `otzaria://open/plugin/<id>`). ממתין הן
-  /// ל-ToolsScreen (נבנה lazy) והן ל-PluginSystemLoaded, ואז פותח דרך
-  /// `openPluginTransiently` שמטפל גם בתוסף מוצמד וגם בלא-מוצמד.
-  void _openPluginByIdWhenAvailable(String pluginId) {
-    _whenToolsScreenAvailable(
-      (toolsState) {
-        final blocState =
-            context.read<PluginSystemBloc>().state as PluginSystemLoaded;
-        final plugin = blocState.plugins.firstWhereOrNull(
-          (p) => p.pluginId == pluginId,
-        );
-        if (plugin == null) {
-          UiSnack.showError(LibraryMessages.pluginNotFound(pluginId));
-        } else if (!plugin.enabled) {
-          UiSnack.showError(LibraryMessages.pluginDisabled(plugin.name));
-        } else {
-          toolsState.openPluginTransiently(plugin);
-        }
-      },
-      isReady: (_) =>
-          context.read<PluginSystemBloc>().state is PluginSystemLoaded,
-      onExhausted: () =>
-          UiSnack.showError(LibraryMessages.pluginNotFound(pluginId)),
-      attemptsLeft: 100,
-    );
-  }
-
   @override
   void dispose() {
     PluginPageLauncher.instance.navigator = null;
+    ToolsLauncherController.instance.opener = null;
     // Clean up fullscreen callback
     appWindowListener?.onFullscreenChanged = null;
     appWindowListener?.onWindowStateChanged = null;
@@ -1325,6 +1263,15 @@ class MainWindowScreenState extends State<MainWindowScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       oldController.dispose();
     });
+  }
+
+  void _toggleToolsLauncher() {
+    setState(() => _isToolsLauncherOpen = !_isToolsLauncherOpen);
+  }
+
+  void _closeToolsLauncher() {
+    if (!_isToolsLauncherOpen) return;
+    setState(() => _isToolsLauncherOpen = false);
   }
 
   void _toggleReadingSettingsPanel() {
@@ -1420,7 +1367,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
     final canonical = <Widget>[
       _cachedLibraryPage!,
       _cachedReadingPage!,
-      _cachedMorePage!,
       _cachedSettingsPage!,
     ];
     return buildTransitionPages(
@@ -1491,19 +1437,18 @@ class MainWindowScreenState extends State<MainWindowScreen>
         if (libraryState != null) {
           (libraryState as dynamic).closeTransientPanels();
         }
-      } else if (_lastScreen == Screen.more) {
-        moreScreenKey.currentState?.closeTransientPanels();
       }
-      // יציאה ממסך הכלים משהה את התוסף הפעיל (חוסך CPU/RAM ברקע); חזרה מחדשת.
-      PluginRuntimeDispatcher.instance.setToolsScreenVisible(
-        state.currentScreen == Screen.more,
+      // יציאה ממסך העיון משהה את התוספים שבטאב הפעיל (חוסך CPU/RAM ברקע);
+      // חזרה מחדשת אותם.
+      PluginRuntimeDispatcher.instance.setReaderScreenVisible(
+        state.currentScreen == Screen.reading ||
+            state.currentScreen == Screen.search,
       );
       // בקשת מיקוד אזור הקריאה שייכת למסך העיון בלבד; בעזיבתו היא מתבטלת כדי
       // שלא תירה מאוחר יותר, כשהתוכן נרשם, ותחטוף פוקוס משדה במסך הנוכחי.
       if (state.currentScreen != Screen.reading) {
         context.read<FocusRepository>().cancelPendingTabContentFocus();
       }
-      cancelPendingNavRailPluginOnNavigation(state.currentScreen);
       _lastScreen = state.currentScreen;
     }
 
@@ -1551,15 +1496,15 @@ class MainWindowScreenState extends State<MainWindowScreen>
       context.read<FocusRepository>().requestLibrarySearchFocus(
         selectAll: true,
       );
-    } else if (state.currentScreen == Screen.more) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          context.read<FocusRepository>().requestMoreScreenFocus();
-        }
-      });
     } else if (state.currentScreen == Screen.reading) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
+        if (!mounted) return;
+        // טאב כלי אינו ספר: requestBookContentFocus היה ממקד את ה-viewer של
+        // ספר אחר, ובתוסף זה מתורגם ל-blur() בתוך ה-WebView.
+        final pane = context.read<TabsBloc>().state.activePane;
+        if (pane is ToolTab) {
+          context.read<FocusRepository>().requestTabContentFocus(pane);
+        } else {
           context.read<FocusRepository>().requestBookContentFocus();
         }
       });
@@ -1589,6 +1534,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
     if (!shouldOpenSearch && _isSearchOpen) {
       Navigator.of(context, rootNavigator: true).maybePop();
     }
+    // פאנל המשגר אינו route ולכן maybePop לא נוגע בו; בלי הסגירה המפורשת הוא
+    // היה נשאר פרוש מעל שאר שלבי הסיור.
+    if (step.action != TourStepAction.openTools) _closeToolsLauncher();
 
     switch (step.action) {
       case TourStepAction.openLibrary:
@@ -1637,7 +1585,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
           });
         }
       case TourStepAction.openTools:
-        context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
+        ToolsLauncherController.instance.open();
       case TourStepAction.openSettings:
         context.read<NavigationBloc>().add(
           const NavigateToScreen(Screen.settings),
@@ -1887,7 +1835,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
       case 'reading_settings':
         return _rectForGlobalKey(tourReadingSettingsButtonTargetKey);
       case 'tools':
-        return _navItemTourRectForScreen(Screen.more);
+        return _navItemTourRect(_toolsNavIndex);
       case 'settings':
         return _navItemTourRectForScreen(Screen.settings);
       case 'appearance':
@@ -2554,7 +2502,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
             // גם החלפת חלונית פעילה היא החלפת הספר הפתוח מבחינת התוספים.
             listenWhen: (previous, current) =>
                 previous.currentTab != current.currentTab ||
-                previous.activePane != current.activePane,
+                previous.readingPane != current.readingPane,
             listener: (context, state) {
               final currentTab = state.currentTab;
               // הטאב הפעיל אוכלס (אסינכרונית בעלייה) — כעת אפשר לתזמן את חשיפת
@@ -2586,14 +2534,15 @@ class MainWindowScreenState extends State<MainWindowScreen>
                     ),
                   );
                 }
-                // החלונית הפעילה ולא הטאב: הכותרת המשולבת אינה שם ספר, ותוסף
-                // שמקשיב לאירוע הזה היה מקבל מזהה שאינו קיים בספרייה.
-                final pane = state.activePane ?? currentTab;
-                final paneBook = pane is TextBookTab
-                    ? pane.book
-                    : (pane is PdfBookTab ? pane.book : null);
-                PluginRuntimeDispatcher.instance
-                    .dispatchEvent('reader.current_book_changed', {
+                // החלונית הקוראת ולא הטאב: טאב כלי אינו ספר כלל.
+                final pane = state.readingPane;
+                if (pane != null) {
+                  final paneBook = pane is TextBookTab
+                      ? pane.book
+                      : (pane is PdfBookTab ? pane.book : null);
+                  PluginRuntimeDispatcher.instance.dispatchEvent(
+                    'reader.current_book_changed',
+                    {
                       'book': pane.title,
                       'bookId': pane.title,
                       'id': paneBook?.id,
@@ -2606,7 +2555,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
                       'index': pane is TextBookTab
                           ? pane.index
                           : (pane is PdfBookTab ? pane.pageNumber : tabIndex),
-                    });
+                    },
+                  );
+                }
               }
             },
           ),
@@ -2630,27 +2581,31 @@ class MainWindowScreenState extends State<MainWindowScreen>
               _prevCalendarState = current;
               if (previous == null) return;
               if (previous.selectedCity != current.selectedCity) {
-                PluginRuntimeDispatcher.instance
-                    .dispatchEvent('settings.changed', {
-                      'key': SettingsRepository.keySelectedCity,
-                      'newValue': current.selectedCity,
-                    });
+                PluginRuntimeDispatcher.instance.dispatchEvent(
+                  'settings.changed',
+                  {
+                    'key': SettingsRepository.keySelectedCity,
+                    'newValue': current.selectedCity,
+                  },
+                );
               }
               if (previous.calendarType != current.calendarType) {
-                PluginRuntimeDispatcher.instance
-                    .dispatchEvent('settings.changed', {
-                      'key': SettingsRepository.keyCalendarType,
-                      'newValue': current.calendarType.toString(),
-                    });
+                PluginRuntimeDispatcher.instance.dispatchEvent(
+                  'settings.changed',
+                  {
+                    'key': SettingsRepository.keyCalendarType,
+                    'newValue': current.calendarType.toString(),
+                  },
+                );
               }
             },
           ),
           // רענון לוח כשמשתנה הספר הפתוח (book-scope events)
           BlocListener<TabsBloc, TabsState>(
             listenWhen: (previous, current) =>
-                previous.activePane?.title != current.activePane?.title,
+                previous.readingPane?.title != current.readingPane?.title,
             listener: (context, state) {
-              final bookId = state.activePane?.title;
+              final bookId = state.readingPane?.title;
               final workspaceId = context
                   .read<WorkspaceBloc>()
                   .state
@@ -2667,7 +2622,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
                 previous.activeWorkspaceId != current.activeWorkspaceId,
             listener: (context, state) {
               final workspaceId = state.activeWorkspaceId;
-              final bookId = context.read<TabsBloc>().state.activePane?.title;
+              final bookId = context.read<TabsBloc>().state.readingPane?.title;
               _calendarCubit.refreshPluginEvents(
                 currentWorkspaceId: workspaceId,
                 currentBookId: bookId,
@@ -2748,36 +2703,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
               }
             },
           ),
-          // מנווט ממסך "כלים" לספרייה אם כל הכלים הוסתרו דרך תצורת תוספים
-          BlocListener<PluginSystemBloc, PluginSystemState>(
-            listenWhen: (prev, curr) =>
-                prev is PluginSystemLoaded && curr is PluginSystemLoaded,
-            listener: (context, pluginState) {
-              final navState = context.read<NavigationBloc>().state;
-              if (navState.currentScreen != Screen.more) return;
-              final settingsState = context.read<SettingsBloc>().state;
-              if (_isAllToolsHidden(settingsState, pluginState)) {
-                context.read<NavigationBloc>().add(
-                  const NavigateToScreen(Screen.library),
-                );
-              }
-            },
-          ),
-          // מנווט ממסך "כלים" לספרייה אם כל הכלים המובנים הוסתרו דרך הגדרות
-          BlocListener<SettingsBloc, SettingsState>(
-            listenWhen: (prev, curr) =>
-                prev.hiddenBuiltInToolIds != curr.hiddenBuiltInToolIds,
-            listener: (context, settingsState) {
-              final navState = context.read<NavigationBloc>().state;
-              if (navState.currentScreen != Screen.more) return;
-              final pluginState = context.read<PluginSystemBloc>().state;
-              if (_isAllToolsHidden(settingsState, pluginState)) {
-                context.read<NavigationBloc>().add(
-                  const NavigateToScreen(Screen.library),
-                );
-              }
-            },
-          ),
         ],
         child: BlocBuilder<NavigationBloc, NavigationState>(
           builder: (context, state) {
@@ -2807,7 +2732,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
             }
 
             _cachedReadingPage ??= ReadingScreen(key: _readingScreenKey);
-            _cachedMorePage ??= ToolsScreen(key: moreScreenKey);
             _cachedSettingsPage ??= MySettingsScreen(
               key: _settingsScreenKey,
               controller: _settingsScreenController,
@@ -2871,15 +2795,40 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                     orientation,
                                   );
 
-                                  final pageView = PageView(
-                                    controller: pageController,
-                                    scrollDirection:
-                                        orientation == Orientation.landscape
-                                        ? Axis.vertical
-                                        : Axis.horizontal,
-                                    physics:
-                                        const NeverScrollableScrollPhysics(),
-                                    children: _pages,
+                                  final pageView = Stack(
+                                    children: [
+                                      PageView(
+                                        controller: pageController,
+                                        scrollDirection:
+                                            orientation == Orientation.landscape
+                                            ? Axis.vertical
+                                            : Axis.horizontal,
+                                        physics:
+                                            const NeverScrollableScrollPhysics(),
+                                        children: _pages,
+                                      ),
+                                      // צמוד לסרגל הניווט (ימין ב-RTL) ובתוך
+                                      // אזור התוכן בלבד — כך ה-scrim אינו בולע
+                                      // לחיצות בסרגל וכפתור "כלים" נשאר לחיץ
+                                      // לסגירה.
+                                      ContextOverlayPanel(
+                                        isOpen: _isToolsLauncherOpen,
+                                        onClose: _closeToolsLauncher,
+                                        alignment:
+                                            AlignmentDirectional.centerStart,
+                                        width: 400,
+                                        deferChildBuildOnOpen: true,
+                                        child: Expanded(
+                                          child: ToolsLauncherPanel(
+                                            onClose: _closeToolsLauncher,
+                                            onToolSelected: (entry) {
+                                              _closeToolsLauncher();
+                                              openToolTab(context, entry);
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   );
 
                                   if (orientation == Orientation.landscape) {
@@ -2942,24 +2891,36 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                                                         settingsState
                                                                             .isOfflineMode,
                                                                   );
-                                                                  return ValueListenableBuilder<
-                                                                    String?
+                                                                  return BlocBuilder<
+                                                                    TabsBloc,
+                                                                    TabsState
                                                                   >(
-                                                                    valueListenable:
-                                                                        activeToolIdNotifier,
+                                                                    buildWhen: (p, c) =>
+                                                                        _activeToolIdOf(
+                                                                          p,
+                                                                        ) !=
+                                                                        _activeToolIdOf(
+                                                                          c,
+                                                                        ),
                                                                     builder:
                                                                         (
                                                                           context,
-                                                                          activeToolId,
-                                                                          _,
+                                                                          tabsState,
                                                                         ) {
+                                                                          final activeToolId = _activeToolIdOf(
+                                                                            tabsState,
+                                                                          );
                                                                           final hideTools = _isAllToolsHidden(
                                                                             settingsState,
                                                                             pluginState,
                                                                           );
-                                                                          final activePinnedIndex =
+                                                                          final isReaderScreen =
                                                                               state.currentScreen ==
-                                                                                      Screen.more &&
+                                                                                  Screen.reading ||
+                                                                              state.currentScreen ==
+                                                                                  Screen.search;
+                                                                          final activePinnedIndex =
+                                                                              isReaderScreen &&
                                                                                   activeToolId !=
                                                                                       null
                                                                               ? pinnedItems.indexWhere(
@@ -2970,13 +2931,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                                                                       activeToolId,
                                                                                 )
                                                                               : -1;
-                                                                          // "כלים" מודגש רק כשאין פריט-מוצמד-לסרגל פעיל
+                                                                          // "כלים" מודגש כל עוד פאנל המשגר פתוח
                                                                           final isToolsSelected =
                                                                               !hideTools &&
-                                                                              state.currentScreen ==
-                                                                                  Screen.more &&
-                                                                              activePinnedIndex ==
-                                                                                  -1;
+                                                                              _isToolsLauncherOpen;
                                                                           return LayoutBuilder(
                                                                             builder:
                                                                                 (
@@ -3111,12 +3069,18 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                                     settingsState,
                                                     pluginState,
                                                   );
-                                              return ValueListenableBuilder<
-                                                String?
+                                              return BlocBuilder<
+                                                TabsBloc,
+                                                TabsState
                                               >(
-                                                valueListenable:
-                                                    activeToolIdNotifier,
-                                                builder: (context, activeToolId, _) {
+                                                buildWhen: (p, c) =>
+                                                    _activeToolIdOf(p) !=
+                                                    _activeToolIdOf(c),
+                                                builder: (context, tabsState) {
+                                                  final activeToolId =
+                                                      _activeToolIdOf(
+                                                        tabsState,
+                                                      );
                                                   return NavigationBar(
                                                     backgroundColor:
                                                         AppSurfaces.panelBackground(
@@ -3215,10 +3179,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
       case Screen.reading:
       case Screen.search:
         return 1;
-      case Screen.more:
-        return 2;
       case Screen.settings:
-        return 3;
+        return 2;
       case Screen.find:
         return null;
     }
@@ -3301,8 +3263,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
         return 2;
       case Screen.search:
         return 3;
-      case Screen.more:
-        return 4;
       case Screen.settings:
         return 5;
     }
@@ -3314,6 +3274,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
     }
     if (_isSearchOpen) {
       return 3;
+    }
+    // "כלים" אינו מסך; הוא מודגש כל עוד פאנל המשגר פתוח.
+    if (_isToolsLauncherOpen) {
+      return _toolsNavIndex;
     }
     return _getSelectedIndex(currentScreen);
   }
@@ -3331,25 +3295,23 @@ class MainWindowScreenState extends State<MainWindowScreen>
     final effectiveSettingsIdx = _effectiveSettingsNavIndex(hideTools);
     if (_isFindRefOpen) return 1;
     if (_isSearchOpen) return 3;
+    if (_isToolsLauncherOpen && !hideTools) return _toolsNavIndex;
     switch (currentScreen) {
       case Screen.library:
         return 0;
       case Screen.find:
         return -1;
       case Screen.reading:
-        return 2;
       case Screen.search:
-        return 3;
-      case Screen.more:
-        if (hideTools) return -1;
+        // כלי פעיל בעיון מדגיש את הפריט המוצמד שלו, אם הוצמד לסרגל.
         if (activeToolId != null) {
           final idx = pinnedItems.indexWhere(
             (item) => item.toolId == activeToolId,
           );
           // הפריטים יושבים ישירות אחרי "כלים", ולכן position = settingsIndex + idx
-          if (idx >= 0) return _settingsNavIndex + idx;
+          if (idx >= 0) return _effectiveSettingsNavIndex(hideTools) + idx;
         }
-        return _toolsNavIndex;
+        return currentScreen == Screen.search ? 3 : 2;
       case Screen.settings:
         return effectiveSettingsIdx + pinnedItems.length;
     }
@@ -3364,81 +3326,19 @@ class MainWindowScreenState extends State<MainWindowScreen>
   }) async {
     final effectiveSettingsIdx = _effectiveSettingsNavIndex(hideTools);
     if (index < effectiveSettingsIdx) {
-      // לחיצה על כלי/מסך רגיל — נקה תוסף מוסתר פעיל אם יש
-      moreScreenKey.currentState?.clearHiddenNavRailPlugin();
       await _onNavTap(context, index, currentScreen);
       return;
     }
     final pinnedEnd = effectiveSettingsIdx + pinnedItems.length;
     if (index < pinnedEnd) {
-      final item = pinnedItems[index - effectiveSettingsIdx];
-      _openPinnedItemInTools(context, item);
+      openToolTabById(
+        context,
+        pinnedItems[index - effectiveSettingsIdx].toolId,
+      );
       return;
     }
     // האחרון — "הגדרות" שמופה ל-_navData[_settingsNavIndex]
-    moreScreenKey.currentState?.clearHiddenNavRailPlugin();
     await _onNavTap(context, _settingsNavIndex, currentScreen);
-  }
-
-  /// פותח פריט מוצמד-לסרגל במסך הכלים.
-  void _openPinnedItemInTools(BuildContext context, _PinnedToolNavItem item) {
-    // נקה hidden plugin פעיל לפני פתיחת פריט אחר (אלא אם זה אותו תוסף)
-    final toolsState = moreScreenKey.currentState;
-    if (toolsState != null &&
-        toolsState.hasHiddenNavRailPlugin &&
-        item.plugin?.pluginId != toolsState.hiddenNavRailPluginId) {
-      toolsState.clearHiddenNavRailPlugin();
-    }
-
-    // בחירת התוסף חייבת לקדום לניווט, אחרת אנימציית המעבר מציגה את הכלי הקודם
-    // עם סרגל הלשוניות שאמור להיות מוסתר. תוסף חסום במצב מנותק מוחרג: פתיחתו
-    // רק מציגה שגיאה, וזו צריכה להופיע אחרי הניווט ולא על המסך הקודם.
-    final plugin = item.isPlugin ? item.plugin : null;
-    final openedNow = plugin != null && _selectPluginBeforeNavigation(plugin);
-
-    context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
-
-    if (openedNow) return;
-    // גיבוי: תוסף חסום במצב מנותק, וכלים מובנים שאין להם מסלול מוקדם — נפתחים
-    // אחרי הניווט, כולל הודעות השגיאה שלהם.
-    if (item.isPlugin && item.plugin != null) {
-      _openPluginInToolsWhenAvailable(item.plugin!);
-    } else {
-      _openBuiltInToolWhenAvailable(item.toolId);
-    }
-  }
-
-  /// בוחר תוסף לפני שליחת הניווט למסך הכלים, ומחזיר האם הצליח.
-  ///
-  /// תוסף חסום במצב מנותק מוחרג: פתיחתו רק מציגה שגיאה, וזו צריכה להופיע אחרי
-  /// הניווט ולא על המסך הקודם.
-  bool _selectPluginBeforeNavigation(InstalledPlugin plugin) {
-    if (context.read<SettingsBloc>().state.isOfflineMode &&
-        plugin.blockedInOfflineMode) {
-      return false;
-    }
-    final toolsState = moreScreenKey.currentState;
-    if (toolsState != null) {
-      toolsState.openPluginTransiently(plugin);
-    } else {
-      // המסך נבנה עצלן; הבקשה תיצרך ב-didChangeDependencies שלו כך שהבנייה
-      // הראשונה כבר תציג את התוסף במקום להחליף אליו אחרי כמה פריימים.
-      pendingNavRailPluginToOpen = plugin;
-    }
-    return true;
-  }
-
-  void _openBuiltInToolWhenAvailable(String toolId, {int attemptsLeft = 6}) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final toolsState = moreScreenKey.currentState;
-      if (toolsState != null) {
-        toolsState.requestOpenTool(toolId);
-        return;
-      }
-      if (attemptsLeft <= 0) return;
-      _openBuiltInToolWhenAvailable(toolId, attemptsLeft: attemptsLeft - 1);
-    });
   }
 
   Future<void> _onNavTap(
@@ -3446,28 +3346,34 @@ class MainWindowScreenState extends State<MainWindowScreen>
     int index,
     Screen currentScreen,
   ) async {
-    final currentIndex = _getSelectedIndex(currentScreen);
     final item = _navData[index];
+    // "כלים" אינו מסך אלא טוגל של פאנל; הבדיקה קודמת ל-currentIndex, שלעולם
+    // אינו שווה לאינדקס שלו.
+    final screen = item.screen;
+    if (screen == null) {
+      _toggleToolsLauncher();
+      return;
+    }
+
+    final currentIndex = _getSelectedIndex(currentScreen);
     if (index == currentIndex &&
-        item.screen != Screen.search &&
-        item.screen != Screen.find) {
-      // אם hidden plugin פעיל ולוחצים "כלים" — הצג כלים רגיל
-      if (moreScreenKey.currentState?.clearHiddenNavRailPlugin() ?? false) {
-        return;
-      }
+        screen != Screen.search &&
+        screen != Screen.find) {
       await _syncPageWithState();
       return;
     }
 
-    if (item.screen == Screen.search) {
+    if (screen == Screen.search) {
       _handleSearchTabOpen(context);
-    } else if (item.screen == Screen.find) {
+    } else if (screen == Screen.find) {
       _handleFindRefOpen(context);
     } else {
-      context.read<NavigationBloc>().add(NavigateToScreen(item.screen));
+      context.read<NavigationBloc>().add(
+        NavigateToScreen(screen),
+      );
     }
 
-    if (item.screen == Screen.library) {
+    if (screen == Screen.library) {
       context.read<FocusRepository>().requestLibrarySearchFocus(
         selectAll: true,
       );
@@ -3519,28 +3425,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
       imageAsset: item.imageAsset,
       label: item.label,
       isSelected: isSelected,
-      onTap: () => _openPinnedItemInTools(context, item),
+      onTap: () => openToolTabById(context, item.toolId),
       compact: compact,
     );
-  }
-
-  void _openPluginInToolsWhenAvailable(
-    InstalledPlugin plugin, {
-    int attemptsLeft = 6,
-  }) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final toolsState = moreScreenKey.currentState;
-      if (toolsState != null) {
-        toolsState.openPluginTransiently(plugin);
-        return;
-      }
-      if (attemptsLeft <= 0) return;
-      Future<void>.delayed(const Duration(milliseconds: 50), () {
-        if (!mounted) return;
-        _openPluginInToolsWhenAvailable(plugin, attemptsLeft: attemptsLeft - 1);
-      });
-    });
   }
 
   bool _isTourNavigationItemHighlighted(
@@ -3556,6 +3443,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
       return true;
     }
 
+    if (step.id == 'tools') return index == _toolsNavIndex;
     final targetScreen = _tourNavigationScreenForStep(step);
     return targetScreen != null && _navData[index].screen == targetScreen;
   }
@@ -3563,7 +3451,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
   Screen? _tourNavigationScreenForStep(TourStep step) {
     return switch (step.id) {
       'find_ref' => Screen.find,
-      'tools' => Screen.more,
       'advanced_search' => Screen.search,
       'settings' => Screen.settings,
       'library' => Screen.library,

@@ -497,6 +497,8 @@ void main() {
     const pidA = 'plugin.a';
     const pidB = 'plugin.b';
 
+    setUp(_d.resetVisibilityForTesting);
+
     tearDown(() {
       _d.unregisterController(pidA);
       _d.unregisterController(pidA, instanceId: 'background');
@@ -511,31 +513,31 @@ void main() {
       _d.registerController(pidA, a);
       _d.registerController(pidB, b);
 
-      _d.setSelectedToolPlugin(pidA);
+      _d.setVisiblePluginTabs({pidA});
       await pumpEventQueue();
       expect(a.resumeCalls, 1);
       expect(a.jsEvents.last, contains('plugin.resumed'));
 
-      _d.setSelectedToolPlugin(pidB);
+      _d.setVisiblePluginTabs({pidB});
       await pumpEventQueue();
       expect(a.pauseCalls, 1);
       expect(a.jsEvents, contains(contains('plugin.suspended')));
       expect(b.resumeCalls, 1);
     });
 
-    test('יציאה ממסך הכלים משהה, וחזרה מחדשת', () async {
+    test('יציאה ממסך העיון משהה, וחזרה מחדשת', () async {
       final a = _LifecycleFakeController();
       _d.registerController(pidA, a);
 
-      _d.setSelectedToolPlugin(pidA);
+      _d.setVisiblePluginTabs({pidA});
       await pumpEventQueue();
       expect(a.resumeCalls, 1);
 
-      _d.setToolsScreenVisible(false);
+      _d.setReaderScreenVisible(false);
       await pumpEventQueue();
       expect(a.pauseCalls, 1);
 
-      _d.setToolsScreenVisible(true);
+      _d.setReaderScreenVisible(true);
       await pumpEventQueue();
       expect(a.resumeCalls, 2);
     });
@@ -544,8 +546,8 @@ void main() {
       final bg = _LifecycleFakeController();
       _d.registerController(pidA, bg, instanceId: 'background');
 
-      _d.setSelectedToolPlugin(pidA);
-      _d.setToolsScreenVisible(false);
+      _d.setVisiblePluginTabs({pidA});
+      _d.setReaderScreenVisible(false);
       await pumpEventQueue();
 
       expect(bg.pauseCalls, 0);
@@ -558,22 +560,22 @@ void main() {
       _d.registerController(pidA, fg, instanceId: 'default');
       _d.registerController(pidA, bg, instanceId: 'background');
 
-      _d.setSelectedToolPlugin(pidA);
+      _d.setVisiblePluginTabs({pidA});
       await pumpEventQueue();
-      _d.setToolsScreenVisible(false);
+      _d.setReaderScreenVisible(false);
       await pumpEventQueue();
 
       expect(fg.pauseCalls, 1);
       expect(bg.pauseCalls, 0);
     });
 
-    test('מעבר לכלי מובנה (null) משהה את התוסף ולא מנסה לחדש', () async {
+    test('מעבר לכרטיסיה שאינה תוסף משהה אותו ולא מנסה לחדש', () async {
       final a = _LifecycleFakeController();
       _d.registerController(pidA, a);
 
-      _d.setSelectedToolPlugin(pidA);
+      _d.setVisiblePluginTabs({pidA});
       await pumpEventQueue();
-      _d.setSelectedToolPlugin(null);
+      _d.setVisiblePluginTabs(const {});
       await pumpEventQueue();
 
       expect(a.pauseCalls, 1);
@@ -593,7 +595,7 @@ void main() {
         final a = _LifecycleFakeController();
         _d.registerController(pidA, a);
 
-        _d.setSelectedToolPlugin(pidA);
+        _d.setVisiblePluginTabs({pidA});
         await pumpEventQueue();
 
         expect(a.resumeCalls, 1);
@@ -614,7 +616,7 @@ void main() {
       final a = _LifecycleFakeController();
       _d.registerController(pidA, a);
 
-      _d.setSelectedToolPlugin(pidA);
+      _d.setVisiblePluginTabs({pidA});
       await pumpEventQueue();
 
       expect(a.resumeCalls, 1);
@@ -628,7 +630,7 @@ void main() {
       final a = _LifecycleFakeController();
       _d.registerController(pidA, a);
 
-      _d.setSelectedToolPlugin(pidA);
+      _d.setVisiblePluginTabs({pidA});
       await pumpEventQueue();
 
       expect(a.jsEvents.any((e) => e.contains('theme.changed')), isFalse);
@@ -638,7 +640,7 @@ void main() {
       final a = _LifecycleFakeController();
       _d.registerController(pidA, a);
 
-      _d.setSelectedToolPlugin(pidA);
+      _d.setVisiblePluginTabs({pidA});
       await pumpEventQueue();
 
       expect(a.jsEvents.any((e) => e.contains('theme.changed')), isFalse);
@@ -650,6 +652,8 @@ void main() {
   group('lifecycle serialization', () {
     const pidA = 'plugin.a';
     const pidB = 'plugin.b';
+
+    setUp(_d.resetVisibilityForTesting);
 
     tearDown(() {
       _d.unregisterController(pidA);
@@ -668,10 +672,10 @@ void main() {
         // חוסמים את resume של A כדי לדמות reconcile איטי שעדיין רץ.
         a.resumeGate = Completer<void>();
 
-        _d.setSelectedToolPlugin(pidA); // reconcile #1: resume A (נחסם)
+        _d.setVisiblePluginTabs({pidA}); // reconcile #1: resume A (נחסם)
         await pumpEventQueue();
         // המעבר ל-B נכנס לתור — אסור שיתחיל כל עוד #1 חסום.
-        _d.setSelectedToolPlugin(pidB);
+        _d.setVisiblePluginTabs({pidB});
         await pumpEventQueue();
         expect(
           log,
@@ -707,6 +711,8 @@ void main() {
     const pidA = 'plugin.a';
     const pidB = 'plugin.b';
 
+    setUp(_d.resetVisibilityForTesting);
+
     tearDown(() {
       _d.unregisterController(pidA);
       _d.unregisterController(pidB);
@@ -714,7 +720,7 @@ void main() {
 
     test('תוסף שנטען כשהוא ה-foreground הנבחר — אינו מושהה', () async {
       // הבחירה מגיעה לפני שה-controller קיים (טעינה ראשונה).
-      _d.setSelectedToolPlugin(pidA);
+      _d.setVisiblePluginTabs({pidA});
       await pumpEventQueue();
 
       final a = _LifecycleFakeController();
@@ -725,9 +731,9 @@ void main() {
     });
 
     test('תוסף שנטען כשכבר עברו ממנו — מושהה מיד', () async {
-      // בוחרים A ואז B עוד לפני ש-A נטען; A נבנה "לרקע" ב-IndexedStack.
-      _d.setSelectedToolPlugin(pidA);
-      _d.setSelectedToolPlugin(pidB);
+      // בוחרים A ואז B עוד לפני ש-A נטען; A נבנה בכרטיסיה שאינה מוצגת.
+      _d.setVisiblePluginTabs({pidA});
+      _d.setVisiblePluginTabs({pidB});
       await pumpEventQueue();
 
       final a = _LifecycleFakeController();

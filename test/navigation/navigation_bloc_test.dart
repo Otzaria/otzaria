@@ -94,9 +94,9 @@ void main() {
         final bloc = _makeBloc();
         bloc.add(const NavigateToScreen(Screen.search));
         bloc.add(const NavigateToScreen(Screen.find));
-        bloc.add(const NavigateToScreen(Screen.more));
+        bloc.add(const NavigateToScreen(Screen.settings));
         await Future<void>.delayed(Duration.zero);
-        expect(bloc.state.currentScreen, Screen.more);
+        expect(bloc.state.currentScreen, Screen.settings);
         await bloc.close();
       });
 

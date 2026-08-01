@@ -591,6 +591,11 @@ export interface OtzariaEventMap {
   /** Theme / dark-mode changed. */
   'theme.changed': ThemePayload;
   /** Top-level screen navigation changed. */
+  /**
+   * שים לב: 'more' אינו משודר יותר — כלים ותוספים חיים ככרטיסיות בתוך
+   * 'reading'. כדי לדעת אם התוסף מוצג כעת השתמש ב-plugin.suspended /
+   * plugin.resumed. הערך נשמר בטיפוס לתאימות אחורה.
+   */
   'navigation.changed': { screen: 'library' | 'reading' | 'more' | 'settings' };
   /** Active book in the reader changed. */
   'reader.current_book_changed': { book: string; index: number };
@@ -637,6 +642,7 @@ export interface OtzariaEventMap {
   'reader.sectionContentChanged': ReaderSectionContentChangedEvent;
 }
 
+/** 'more' נשמר לתאימות אחורה — פותח את פאנל הכלים. */
 export type NavigationTarget = 'library' | 'reading' | 'more' | 'settings';
 
 // ---------------------------------------------------------------------------

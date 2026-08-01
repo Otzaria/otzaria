@@ -44,16 +44,16 @@
 | `otzaria://open/settings/shortcuts` | פותח הגדרות › קיצורים |
 | `otzaria://open/settings/system` | פותח הגדרות › מערכת |
 | `otzaria://open/settings/about` | פותח הגדרות › אודות |
-| `otzaria://open/tools` | פותח את מסך הכלים (בלשונית האחרונה שהיתה פעילה) |
+| `otzaria://open/tools` | פותח את פאנל הכלים (רשת הקוביות עם חיפוש) |
 | `otzaria://open/history` | פותח את דיאלוג ההיסטוריה |
 | `otzaria://open/bookmarks` | פותח את דיאלוג הסימניות |
 | `otzaria://open/detection?q=<text>` | פותח את דיאלוג איתור מקורות עם טקסט מילוי-מראש ומפעיל חיפוש מיידית |
 | `otzaria://open/detection` | פותח את דיאלוג איתור מקורות ריק |
 | `otzaria://open/inspection` | פותח את מסך העיון (הספר האחרון שנפתח) |
-| `otzaria://open/sdk` | פותח את דיאלוג ניהול התוספים |
+| `otzaria://open/sdk` | פותח את הגדרות › כלים (ניהול תוספים) |
 | `otzaria://open/daily_page` | פותח את הדף היומי (PDF תלמוד בבלי בדף הנכון ליום) |
-| `otzaria://open/tool/<tool-id>` | פותח לשונית כלי לפי מזהה מלא — תומך גם בתוספים מוצמדים |
-| `otzaria://open/plugin/<plugin-id>` | פותח תוסף ישירות לפי מזהה התוסף — גם תוסף שאינו מוצמד ללשוניות (נפתח במצב transient) |
+| `otzaria://open/tool/<tool-id>` | פותח כרטיסיית כלי בעיון לפי מזהה מלא — תומך גם בתוספים |
+| `otzaria://open/plugin/<plugin-id>` | פותח כרטיסיית תוסף בעיון לפי מזהה התוסף |
 | `otzaria://open/tab/<index>` | מעבר לטאב פתוח לפי מיקומו (0-based). אינו פותח טאב חדש; אם המיקום לא קיים — מתעלם. נבנה אוטומטית ב-Jump List של שורת המשימות (Windows) |
 | `otzaria://open/book/<id>` | פותח ספר בעיון לפי מזהה מסד הנתונים |
 | `otzaria://open/book/<id>?index=<n>` | פותח את הספר בסעיף `n` (אינדקס לא שלילי). |
@@ -112,7 +112,7 @@ otzaria://open/detection?q=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA
 - ניתן לשלב `mark` עם `q=` (חיפוש פעיל + הדגשת שורה).
 - ניתן לשלב `m=` עם `q=` (חיפוש פעיל + הדגשת טקסט ספציפי).
 
-**`tool/<id>` מול `plugin/<id>`:** שניהם פותחים לשונית, אך `tool/<id>` מטפל בכלים מובנים ובתוספים **מוצמדים** בלבד (מנותב ל-`requestOpenTool`), בעוד `plugin/<plugin-id>` פותח **כל** תוסף מותקן ומופעל — גם כזה שאינו מוצמד ללשוניות — במצב transient. לפתיחת תוסף מומלץ להשתמש ב-`plugin/<plugin-id>`. תוסף שאינו קיים מציג `UiSnack.showError`, ותוסף מושבת מציג הודעה מתאימה.
+**`tool/<id>` מול `plugin/<id>`:** שניהם מנותבים כיום לאותה פונקציה — `openToolTabById` — ופותחים כרטיסיית כלי במסך העיון. ההבחנה נשמרה לתאימות אחורה בלבד. כלי שכבר פתוח מקבל מיקוד במקום כרטיסיה נוספת. כלי מוסתר, תוסף מושבת או תוסף שדורש רשת במצב מנותק — מציגים `UiSnack.showError` עם הסיבה. כשמערכת התוספים עדיין נטענת הכרטיסיה נפתחת מיד ומציגה מחוון טעינה עד שהמצב ידוע.
 
 **רגישות לאותיות גדולות/קטנות:** הסכמה, ה‑host, ושמות הפעולה (`calendar`, `library`, `book`, `tool`, `plugin`, וכד') כולם case‑insensitive — `OTZARIA://OPEN/CALENDAR` ו‑`otzaria://Open/Book/1234` תקפים בדיוק כמו הצורה הקטנה. הערכים (tool id, plugin id, מזהי ספרים, כתובות `url=`) נשמרים כפי שהם.
 
@@ -295,14 +295,15 @@ _externalActivationWatchSub = queueFile.parent.watch().listen((event) {
 2. מציפה את החלון לפני־כל (`_bringWindowToFront`) ב‑Windows/Linux/macOS.
 3. `_dispatchExternalUriAction` עם `switch` יחיד על ה‑sealed class:
    - **`OpenScreenAction`** — שולח `NavigateToScreen` ל‑NavigationBloc.
-   - **`OpenToolAction`** — שולח `NavigateToScreen(Screen.more)` ואז `moreScreenKey.currentState?.requestOpenTool(toolId)` עם retry מדורג ב‑`_openToolWhenAvailable` עד שה‑state מוכן. ב‑[`ToolsScreen.requestOpenTool`](../lib/tools/tools_screen.dart) יש תור pending — אם ה‑descriptor של הכלי עוד לא נטען (תוסף שעוד לא הגיע מ‑PluginSystemBloc), הבקשה מחכה לרענון הבא של descriptors. אחרי 5 שניות בלי הצלחה — `UiSnack.showError`.
-   - **`OpenPluginAction`** — שולח `NavigateToScreen(Screen.more)` ואז `_openPluginByIdWhenAvailable(pluginId)`. ה‑helper ממתין (retry מדורג של עד 5 שניות) הן ל‑`moreScreenKey.currentState` והן ל‑`PluginSystemLoaded`, מאתר את ה‑`InstalledPlugin` לפי `pluginId`, וקורא ל‑[`ToolsScreen.openPluginTransiently`](../lib/tools/tools_screen.dart) — שמטפל גם בתוסף מוצמד (מנתב ל‑`requestOpenTool`) וגם בלא‑מוצמד (לשונית transient). תוסף שלא נמצא או מושבת מציג `UiSnack.showError`; תוסף שדורש רשת במצב מנותק נחסם בתוך `openPluginTransiently`.
+   - **`OpenToolAction`** — קורא ל‑[`openToolTabById`](../lib/tools/open_tool_tab.dart), שפותח `ToolTab` דרך `OpenOrFocusTab` ומנווט ל‑`Screen.reading`. ה‑`dedupeKey` (`tool:<id>`) ממקד כרטיסיה קיימת במקום להכפיל. אין תור pending ואין retry — כשמערכת התוספים עדיין נטענת הכרטיסיה נפתחת אופטימיסטית ו‑`ToolTabScreen` מציג טעינה.
+   - **`OpenPluginAction`** — זהה ל‑`OpenToolAction`: `openToolTabById(pluginId)`. תוסף שלא נמצא, מושבת, מוסתר מהממשק או חסום במצב מנותק — מציג `UiSnack.showError` עם הסיבה המדויקת ([`lookupTool`](../lib/tools/tool_catalog_entry.dart)).
+   - **`OpenToolsLauncherAction`** — פותח את פאנל הכלים דרך `ToolsLauncherController.instance.open()`, בלי לנווט.
    - **`OpenSettingsTabAction`** — שולח `NavigateToScreen(Screen.settings)`. אם `tab != null` — קורא ל‑`_settingsScreenController.openTab(tab)` לניווט לטאב הרצוי.
    - **`OpenHistoryAction`** — פותח `HistoryDialog` דרך `showDialog`.
    - **`OpenBookmarksAction`** — פותח `BookmarksDialog` דרך `showDialog`.
    - **`OpenBookAction`** — `await DataRepository.instance.library`, מחפש לפי `b.id`. אם נמצא — `openBook(context, book, index ?? 0, searchQuery ?? '', markSection: markSection, markText: markText)`. אם לא — `UiSnack.showError`.
    - **`RunSearchAction`** — יוצר `SearchingTab` חדש עם הקוורי, מוסיף ל‑`HistoryBloc` ול‑`TabsBloc`, ומנווט ל‑`Screen.search`. ה‑`UpdateSearchQuery` מופעל אוטומטית מ‑`TantivyFullTextSearch.initState` ברגע שהלשונית מוצגת.
-   - **`InstallPluginAction`** — `NavigateToScreen(Screen.more)` + `InstallRemotePluginRequested` ל‑PluginSystemBloc.
+   - **`InstallPluginAction`** — `InstallRemotePluginRequested` ל‑PluginSystemBloc (ללא ניווט).
    - **`InstallLocalPluginAction`** — `InstallPluginRequested(archivePath)` ל‑PluginSystemBloc. הדיאלוג נפתח אוטומטית דרך `BlocListener` כשמתקבל `PluginSystemInstallRequiresPermissions`.
 
 ## הוספת יעד חדש
@@ -374,7 +375,8 @@ case OpenMyFeatureAction():
 | [`lib/settings/view/settings_screen.dart`](../lib/settings/view/settings_screen.dart) | מגדיר `SettingsTab` enum ו‑`SettingsScreenController` לניווט לטאב |
 | [`lib/history/view/history_screen.dart`](../lib/history/view/history_screen.dart) | `HistoryDialog` — נפתח דרך `showDialog` |
 | [`lib/bookmarks/view/bookmark_screen.dart`](../lib/bookmarks/view/bookmark_screen.dart) | `BookmarksDialog` — נפתח דרך `showDialog` |
-| [`lib/tools/tools_screen.dart`](../lib/tools/tools_screen.dart) | `requestOpenTool` עם תור pending לתוספים שטרם נטענו |
+| [`lib/tools/open_tool_tab.dart`](../lib/tools/open_tool_tab.dart) | `openToolTab` / `openToolTabById` — פתיחת כרטיסיית כלי בעיון |
+| [`lib/tools/tool_catalog_entry.dart`](../lib/tools/tool_catalog_entry.dart) | `buildToolCatalog` / `lookupTool` — קטלוג הכלים וסיבות אי-זמינות |
 | [`windows/runner/main.cpp`](../windows/runner/main.cpp) | זיהוי single‑instance + העברת ארגומנטים לתור (לא רישום) |
 | [`test/core/external_uri_router_test.dart`](../test/core/external_uri_router_test.dart) | בדיקות הראוטר האחיד |
 | [`test/plugins/services/plugin_store_link_parser_test.dart`](../test/plugins/services/plugin_store_link_parser_test.dart) | בדיקות פרסר התקנת תוסף |

@@ -260,7 +260,14 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       event.tab.dispose();
       final tabsToSave = state.tabs;
       final modeToSave = state.sideBySideMode;
-      emit(state.copyWith(currentTabIndex: matchingIndex));
+      // כשההתאמה נמצאה בחלונית בתוך טאב מפוצל, מעבר טאב לבדו אינו מספיק —
+      // הפוקוס היה נשאר על החלונית האחרת ולא על מה שהמשתמש ביקש לפתוח.
+      emit(
+        state.copyWith(
+          currentTabIndex: matchingIndex,
+          rawActivePane: _matchingPaneIn(state.tabs[matchingIndex], event.tab),
+        ),
+      );
       await _repository.saveTabs(tabsToSave, matchingIndex, modeToSave);
       return;
     }
@@ -528,6 +535,31 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       openTab: openTab,
       targetTab: targetTab,
     );
+  }
+
+  /// החלונית בתוך [openTab] שחולקת `dedupeKey` עם [targetTab], או `null`
+  /// כשהטאב עצמו הוא ההתאמה (ואז אין צורך לשנות חלונית פעילה).
+  OpenedTab? _matchingPaneIn(OpenedTab openTab, OpenedTab targetTab) {
+    if (openTab is! CombinedTab) return null;
+    for (final pane in leafPanes(openTab)) {
+      if (_hasMatchingDedupeKey(pane, targetTab)) return pane;
+    }
+    return null;
+  }
+
+  /// אינדקס הכרטיסיה העליונה שחולקת `dedupeKey` עם [tab], או `null`.
+  int? _indexOfMatchingDedupeKey(OpenedTab tab) {
+    if (tab.dedupeKey == null) return null;
+    for (var i = 0; i < state.tabs.length; i++) {
+      if (_hasMatchingDedupeKey(state.tabs[i], tab)) return i;
+      final openTab = state.tabs[i];
+      if (openTab is CombinedTab) {
+        for (final pane in leafPanes(openTab)) {
+          if (_hasMatchingDedupeKey(pane, tab)) return i;
+        }
+      }
+    }
+    return null;
   }
 
   bool _hasMatchingDedupeKey(OpenedTab openTab, OpenedTab targetTab) {
@@ -917,6 +949,16 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     if (_recentlyClosedTabs.isEmpty) return;
 
     final closedEntry = _recentlyClosedTabs.removeLast();
+    // כרטיסיה עם dedupeKey (כלי/תוסף) שכבר פתוחה — ממקדים במקום להכפיל:
+    // תוסף מוגבל למופע WebView יחיד.
+    final existingIndex = _indexOfMatchingDedupeKey(closedEntry.tab);
+    if (existingIndex != null) {
+      closedEntry.tab.dispose();
+      final tabsToSave = state.tabs;
+      emit(state.copyWith(currentTabIndex: existingIndex));
+      await _repository.saveCurrentTabIndex(tabsToSave, existingIndex);
+      return;
+    }
     final restoredTabs = List<OpenedTab>.from(state.tabs);
     final restoreIndex = closedEntry.originalIndex.clamp(
       0,

@@ -2,10 +2,8 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kosher_dart/kosher_dart.dart';
-import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
-import 'package:otzaria/navigation/bloc/navigation_event.dart';
-import 'package:otzaria/navigation/bloc/navigation_state.dart';
-import 'package:otzaria/navigation/view/main_window_screen.dart';
+import 'package:otzaria/tools/calendar/utils/calendar_cubit.dart';
+import 'package:otzaria/tools/open_tool_tab.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
@@ -34,26 +32,11 @@ class LibraryDafYomi extends StatefulWidget {
 
 class _LibraryDafYomiState extends State<LibraryDafYomi> {
   void _openCalendar() {
-    context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
-    // ToolsScreen נבנה lazy ב-PageView, ולכן בלחיצה הראשונה ייתכן ש-
-    // moreScreenKey.currentState עדיין null. ניסיונות חוזרים עם hop קצר
-    // מבטיחים שהלוח ייפתח גם בפעם הראשונה שנכנסים למסך הכלים.
-    _resetCalendarWhenAvailable();
-  }
-
-  void _resetCalendarWhenAvailable({int attemptsLeft = 6}) {
+    openToolTabById(context, 'builtin.calendar');
+    // הכרטיסיה עשויה להיות פתוחה כבר על תאריך אחר; "הדף היומי" תמיד מתכוון
+    // להיום, ולכן מאפסים אותה אחרי שהיא מוצגת.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final toolsState = moreScreenKey.currentState;
-      if (toolsState != null) {
-        toolsState.resetToCalendar();
-        return;
-      }
-      if (attemptsLeft <= 0) return;
-      Future<void>.delayed(const Duration(milliseconds: 50), () {
-        if (!mounted) return;
-        _resetCalendarWhenAvailable(attemptsLeft: attemptsLeft - 1);
-      });
+      if (mounted) context.read<CalendarCubit>().jumpToToday();
     });
   }
 

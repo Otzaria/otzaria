@@ -8,6 +8,7 @@ import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
+import 'package:otzaria/tools/tools_launcher_controller.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -371,7 +372,7 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     // כלים
     if (ShortcutHelper.matchesShortcut(event, moreShortcut)) {
       closeOverlayRoutes();
-      context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
+      ToolsLauncherController.instance.open();
       return KeyEventResult.handled;
     }
 

@@ -11,6 +11,7 @@ import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart' show Screen;
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
+import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -22,7 +23,9 @@ import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/resolving_tab.dart';
+import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/tabs/resolving_tab_screen.dart';
+import 'package:otzaria/tools/view/tool_tab_screen.dart';
 import 'package:otzaria/tabs/utils/tab_swipe_direction.dart';
 import 'package:otzaria/tabs/view/active_pane_marker.dart';
 import 'package:otzaria/tabs/view/pane_drop_geometry.dart';
@@ -72,6 +75,15 @@ class _ReadingScreenState extends State<ReadingScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // זריעה מיידית ולא רק מה-listener: בעלייה עם טאב תוסף משוחזר, קבוצה ריקה
+    // הייתה גורמת ל-onForegroundInstanceReady להשהות מיד את התוסף שעל המסך.
+    _syncVisiblePluginTabs(context.read<TabsBloc>().state);
+  }
+
+  void _syncVisiblePluginTabs(TabsState state) {
+    PluginRuntimeDispatcher.instance.setVisiblePluginTabs(
+      ToolTab.visiblePluginIdsOf(state.currentTab),
+    );
   }
 
   @override
@@ -219,6 +231,14 @@ class _ReadingScreenState extends State<ReadingScreen>
   Widget build(BuildContext context) {
     return MultiBlocListener(
       listeners: [
+        // תוספים שמוצגים בטאב הפעיל ממשיכים לרוץ; השאר מושהים. כולל טאב
+        // מפוצל, שבו יכולים להיות כמה תוספים בו-זמנית.
+        BlocListener<TabsBloc, TabsState>(
+          listenWhen: (previous, current) =>
+              !identical(previous.currentTab, current.currentTab) ||
+              previous.updateCounter != current.updateCounter,
+          listener: (context, state) => _syncVisiblePluginTabs(state),
+        ),
         BlocListener<TabsBloc, TabsState>(
           listener: (context, state) {
             if (state.hasOpenTabs) {
@@ -504,6 +524,8 @@ class _ReadingScreenState extends State<ReadingScreen>
       );
     } else if (tab is ResolvingTab) {
       return ResolvingTabScreen(key: ValueKey(tab), tab: tab);
+    } else if (tab is ToolTab) {
+      return ToolTabScreen(key: ValueKey(tab), tab: tab);
     }
     return const SizedBox.shrink();
   }

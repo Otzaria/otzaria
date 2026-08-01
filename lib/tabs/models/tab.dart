@@ -5,6 +5,7 @@ import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
+import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 
@@ -156,6 +157,8 @@ abstract class OpenedTab {
       return PdfBookTab.fromJson(json);
     } else if (type == 'CombinedTab') {
       return decodeCombinedTab(json);
+    } else if (type == 'ToolTab') {
+      return ToolTab.fromJson(json);
     } else if (type == 'SearchingTabWindow' || type == 'SearchingTab') {
       return SearchingTab.fromJson(json);
     }

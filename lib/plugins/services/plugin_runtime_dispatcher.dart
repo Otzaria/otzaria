@@ -49,9 +49,17 @@ class PluginRuntimeDispatcher {
   // משהים את ה-WebView של תוסף שעזבו כדי לא לצרוך CPU/RAM ברקע. pause נייטיב =
   // TrySuspend ב-WebView2 (Windows) / onPause (Android) — מקפיא בלי reload.
   // לא נוגעים ב-instance הרקע ('background') — תוספי run_on_startup אמורים לרוץ.
-  String? _selectedToolPluginId;
-  bool _toolsScreenVisible = true;
-  String? _runningForegroundPluginId;
+  //
+  // קבוצה ולא מזהה יחיד: טאב מפוצל בעיון יכול להציג שני תוספים בו-זמנית,
+  // ועם מזהה יחיד אחד מהם היה נשאר מוקפא על המסך.
+  Set<String> _visiblePluginIds = const {};
+  bool _readerScreenVisible = true;
+  Set<String> _runningForegroundPluginIds = const {};
+
+  /// תוספים שה-instance ה-foreground שלהם מושהה כרגע. אירוע שנשלח ל-WebView
+  /// מוקפא נבלע בשקט, ולכן [_selectEventControllers] מדלג עליהם ונופל
+  /// ל-instance הרקע.
+  final Set<String> _suspendedForegroundIds = {};
 
   // מסדר את כל פעולות מחזור-החיים בשרשרת אחת. בלי זה, שני reconciles
   // חופפים (מעבר מהיר בין תוספים/מסכים) מ-await בו-זמנית את pause/resume,
@@ -92,35 +100,55 @@ class PluginRuntimeDispatcher {
       _permissionCache.remove(pluginId);
     }
     // ה-controller ה-foreground נסגר (טאב נסגר) — לא נחזיק מצביע מת.
-    if (instanceId == 'default' && _runningForegroundPluginId == pluginId) {
-      _runningForegroundPluginId = null;
+    if (instanceId == 'default') {
+      _runningForegroundPluginIds = {..._runningForegroundPluginIds}
+        ..remove(pluginId);
+      _suspendedForegroundIds.remove(pluginId);
     }
   }
 
-  /// מעדכן איזה תוסף foreground נבחר כעת במסך הכלים
-  /// (null = אין תוסף foreground פעיל, למשל כלי מובנה).
-  void setSelectedToolPlugin(String? pluginId) {
-    if (_selectedToolPluginId == pluginId) return;
-    _selectedToolPluginId = pluginId;
+  /// מעדכן אילו תוספים מוצגים כעת בטאב העיון הפעיל (קבוצה ריקה = אף אחד).
+  void setVisiblePluginTabs(Set<String> pluginIds) {
+    if (setEquals(_visiblePluginIds, pluginIds)) return;
+    _visiblePluginIds = Set.unmodifiable(pluginIds);
     unawaited(_serializeLifecycle(_reconcileForeground));
   }
 
-  /// מעדכן אם מסך הכלים גלוי. ביציאה משהים את התוסף הפעיל, בחזרה מחדשים.
-  void setToolsScreenVisible(bool visible) {
-    if (_toolsScreenVisible == visible) return;
-    _toolsScreenVisible = visible;
+  /// מעדכן אם מסך העיון גלוי. ביציאה משהים את התוספים המוצגים, בחזרה מחדשים.
+  void setReaderScreenVisible(bool visible) {
+    if (_readerScreenVisible == visible) return;
+    _readerScreenVisible = visible;
     unawaited(_serializeLifecycle(_reconcileForeground));
+  }
+
+  Set<String> get _desiredForegroundIds =>
+      _readerScreenVisible ? _visiblePluginIds : const {};
+
+  /// מאפס את מצב הנראות בלבד (בלי לגעת ב-controllers). הדיספצ'ר הוא singleton,
+  /// ובלי איפוס מפורש מצב מטסט אחד דולף לבא אחריו.
+  @visibleForTesting
+  void resetVisibilityForTesting() {
+    _visiblePluginIds = const {};
+    _runningForegroundPluginIds = const {};
+    _suspendedForegroundIds.clear();
+    _readerScreenVisible = true;
+    _lifecycleLock = Future.value();
   }
 
   /// נקרא ע"י [PluginTabPage] כשה-WebView שלו סיים להיטען (אחרי boot).
-  /// אם התוסף נטען בזמן שאינו ה-foreground הפעיל (נבנה "לרקע" בתוך
-  /// IndexedStack, למשל המשתמש עבר לתוסף אחר לפני שזה נטען) — משהים אותו
-  /// מיד; אחרת ה-boot מתחיל את עבודתו כרגיל ואין צורך לגעת בו.
+  /// אם התוסף נטען בזמן שאינו מוצג (למשל המשתמש עבר לטאב אחר לפני שהטעינה
+  /// הסתיימה) — משהים אותו מיד; אחרת ה-boot ממשיך כרגיל.
   Future<void> onForegroundInstanceReady(String pluginId) {
     return _serializeLifecycle(() async {
-      final desired = _toolsScreenVisible ? _selectedToolPluginId : null;
-      if (desired != pluginId) {
+      if (!_desiredForegroundIds.contains(pluginId)) {
         await _suspendForeground(pluginId);
+      } else {
+        // התוסף נטען כשהוא כבר מוצג — מסירים סימון השהיה שנשאר ממופע קודם.
+        _runningForegroundPluginIds = {
+          ..._runningForegroundPluginIds,
+          pluginId,
+        };
+        _suspendedForegroundIds.remove(pluginId);
       }
     });
   }
@@ -132,21 +160,27 @@ class PluginRuntimeDispatcher {
     return next;
   }
 
-  /// משווה בין התוסף הרצוי-להרצה לרץ-בפועל ומשהה/מחדש בהתאם.
-  /// הרצוי = התוסף הנבחר כשמסך הכלים גלוי, אחרת אף אחד.
+  /// משווה בין התוספים הרצויים-להרצה לרצים-בפועל ומשהה/מחדש בהתאם.
+  /// הרצויים = התוספים המוצגים בטאב הפעיל כשמסך העיון גלוי, אחרת אף אחד.
   Future<void> _reconcileForeground() async {
     if (_shutdownMode != _PluginRuntimeShutdownMode.idle) return;
-    final desired = _toolsScreenVisible ? _selectedToolPluginId : null;
-    if (desired == _runningForegroundPluginId) return;
-    final previous = _runningForegroundPluginId;
-    _runningForegroundPluginId = desired;
-    if (previous != null) await _suspendForeground(previous);
-    if (desired != null) await _resumeForeground(desired);
+    final desired = _desiredForegroundIds;
+    if (setEquals(desired, _runningForegroundPluginIds)) return;
+    final previous = _runningForegroundPluginIds;
+    _runningForegroundPluginIds = Set.unmodifiable(desired);
+    for (final pluginId in previous) {
+      if (!desired.contains(pluginId)) await _suspendForeground(pluginId);
+    }
+    for (final pluginId in desired) {
+      if (!previous.contains(pluginId)) await _resumeForeground(pluginId);
+    }
   }
 
   Future<void> _suspendForeground(String pluginId) async {
     final controller = _controllersByPlugin[pluginId]?['default'];
     if (controller == null) return;
+    // הסימון לפני ההשהיה: מרגע זה כל אירוע חייב ללכת ל-instance הרקע.
+    _suspendedForegroundIds.add(pluginId);
     // מודיעים ל-JS לפני ההקפאה כדי שיעצור timers בעצמו — זו ההגנה היחידה
     // בפלטפורמות שבהן pause נייטיב אינו נתמך (macOS/iOS/Linux).
     await _dispatchLifecycleEvent(controller, pluginId, 'plugin.suspended');
@@ -165,6 +199,7 @@ class PluginRuntimeDispatcher {
     } catch (e) {
       debugPrint('PluginRuntimeDispatcher: resume failed for $pluginId: $e');
     }
+    _suspendedForegroundIds.remove(pluginId);
     await _dispatchLifecycleEvent(controller, pluginId, 'plugin.resumed');
     await _resyncThemeOnResume(controller, pluginId);
   }
@@ -232,9 +267,11 @@ class PluginRuntimeDispatcher {
     _enabledCache.clear();
     _permissionCache.clear();
     _reloadCallbacks.clear();
-    _selectedToolPluginId = null;
-    _runningForegroundPluginId = null;
-    _toolsScreenVisible = true;
+    _reloadCallbackTokens.clear();
+    _visiblePluginIds = const {};
+    _runningForegroundPluginIds = const {};
+    _suspendedForegroundIds.clear();
+    _readerScreenVisible = true;
     _lastThemePayload = null;
     _lifecycleLock = Future.value();
 
@@ -254,25 +291,53 @@ class PluginRuntimeDispatcher {
     }
   }
 
+  /// האם ה-controller ה-foreground הרשום לתוסף הוא [controller].
+  ///
+  /// דף שמוחלף (עדכון תוסף משנה את ה-key) חייב לבדוק זאת לפני שהוא מבטל
+  /// רישום: ה-`initState` של הדף החדש רץ לפני ה-`dispose` של הישן.
+  bool ownsForegroundController(
+    String pluginId,
+    InAppWebViewController? controller,
+  ) {
+    if (controller == null) return false;
+    return identical(_controllersByPlugin[pluginId]?['default'], controller);
+  }
+
+  /// [token] מזהה את בעל ה-callback (בדרך כלל ה-`State` שרשם אותו), כדי
+  /// שדף שהוחלף לא יבטל את הרישום של מחליפו.
+  final Map<String, Map<PluginInstanceId, Object?>> _reloadCallbackTokens = {};
+
   void registerReloadCallback(
     String pluginId,
     Future<void> Function() callback, {
     PluginInstanceId instanceId = 'default',
+    Object? token,
   }) {
     final instances = _reloadCallbacks.putIfAbsent(pluginId, () => {});
     instances[instanceId] = callback;
+    _reloadCallbackTokens.putIfAbsent(pluginId, () => {})[instanceId] = token;
   }
 
   void unregisterReloadCallback(
     String pluginId, {
     PluginInstanceId instanceId = 'default',
+    Object? token,
   }) {
+    final registeredToken = _reloadCallbackTokens[pluginId]?[instanceId];
+    if (token != null && registeredToken != null && registeredToken != token) {
+      return;
+    }
     final instances = _reloadCallbacks[pluginId];
     if (instances != null) {
       instances.remove(instanceId);
       if (instances.isEmpty) {
         _reloadCallbacks.remove(pluginId);
       }
+    }
+    final tokens = _reloadCallbackTokens[pluginId];
+    if (tokens != null) {
+      tokens.remove(instanceId);
+      if (tokens.isEmpty) _reloadCallbackTokens.remove(pluginId);
     }
   }
 
@@ -323,8 +388,9 @@ class PluginRuntimeDispatcher {
         if (!await _canReceiveEvent(pluginId, topic)) continue;
 
         // אירועי עבודה שייכים ל-instance הרקע, שאינו מושהה ביציאה ממסך
-        // הכלים. theme הוא אירוע UI ולכן מעדיפים עבורו את ה-foreground.
+        // העיון. theme הוא אירוע UI ולכן מעדיפים עבורו את ה-foreground.
         final targetControllers = _selectEventControllers(
+          pluginId,
           instances,
           preferBackground: _backgroundEventTopics.contains(topic),
         );
@@ -361,11 +427,10 @@ class PluginRuntimeDispatcher {
       _enabledCache[pluginId] = isEnabled;
       if (!isEnabled) return;
       final jsonPayload = jsonEncode(payload);
-      // אירועים ממוקדים (למשל לחיצה בתפריט הקשר) חייבים להגיע למנוע הרקע
-      // הפעיל. foreground עשוי להישאר רשום אך להיות מושהה אחרי היציאה מכלים.
-      // Targeted callers opt in only when their handler belongs to the
-      // non-suspended background host (for example, context-menu actions).
+      // אירועים ממוקדים (למשל לחיצה בתפריט הקשר) חייבים להגיע למנוע הפעיל.
+      // ה-foreground עשוי להישאר רשום אך מושהה, ולכן הבחירה מתחשבת בכך.
       final targetControllers = _selectEventControllers(
+        pluginId,
         instances,
         preferBackground: preferBackground,
       );
@@ -384,11 +449,18 @@ class PluginRuntimeDispatcher {
     }
   }
 
+  /// [pluginId] נדרש כדי לדעת אם ה-instance ה-foreground מושהה: `evaluateJavascript`
+  /// על WebView מוקפא נבלע בשקט, ולכן אירוע כזה חייב ללכת ל-instance הרקע.
+  /// טאבי כלים נשארים רשומים כל עוד הטאב פתוח, ולכן "רשום אך מושהה" הוא מצב
+  /// שכיח ולא חריג.
   List<InAppWebViewController> _selectEventControllers(
+    String pluginId,
     Map<PluginInstanceId, InAppWebViewController> instances, {
     bool preferBackground = false,
   }) {
-    if (preferBackground && instances.containsKey('background')) {
+    final foregroundSuspended = _suspendedForegroundIds.contains(pluginId);
+    if ((preferBackground || foregroundSuspended) &&
+        instances.containsKey('background')) {
       return [instances['background']!];
     }
     if (instances.containsKey('default')) {

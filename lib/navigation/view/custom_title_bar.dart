@@ -17,14 +17,14 @@ import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
-import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
-import 'package:otzaria/tabs/models/resolving_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/tabs/models/tool_tab.dart';
+import 'package:otzaria/tools/tool_catalog_entry.dart';
 import 'package:otzaria/history/view/history_screen.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/bookmarks/view/bookmark_screen.dart';
@@ -39,10 +39,7 @@ import 'package:otzaria/workspaces/bloc/workspace_event.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
-import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
-import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/settings/settings_exports.dart';
-import 'package:otzaria/tools/tools_screen.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/update/my_update_widget.dart';
 
@@ -416,9 +413,6 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
   }
 
   Widget _buildStandardTitle(BuildContext context, NavigationState navState) {
-    if (navState.currentScreen == Screen.more) {
-      return _buildToolsTitle(context);
-    }
     final title = switch (navState.currentScreen) {
       Screen.settings => 'הגדרות',
       Screen.find => 'איתור',
@@ -426,26 +420,6 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       _ => 'אוצריא',
     };
     return _buildPanelTitle(context, context.settingsText(title));
-  }
-
-  Widget _buildToolsTitle(BuildContext context) {
-    return ValueListenableBuilder<String?>(
-      valueListenable: activeToolIdNotifier,
-      builder: (context, activeToolId, _) {
-        final pluginState = context.watch<PluginSystemBloc>().state;
-        final plugins = pluginState is PluginSystemLoaded
-            ? pluginState.plugins
-            : const <InstalledPlugin>[];
-        final pluginName = resolveToolsTitlePluginName(
-          activeToolId: activeToolId,
-          plugins: plugins,
-        );
-        return _buildPanelTitle(
-          context,
-          pluginName ?? context.settingsText('כלים'),
-        );
-      },
-    );
   }
 
   Widget _buildPanelTitle(
@@ -879,11 +853,13 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         );
       }
 
-      if (tab is CommentatorsTab || tab is ResolvingTab) {
+      // כל טיפוס שאין לו כותרת חיה (כולל ToolTab) — כותרת סטטית. ברירת
+      // המחדל שאחריה היא cast ל-TextBookTab, ולכן היא חייבת להיות אחרונה.
+      if (tab is! TextBookTab) {
         return Tooltip(message: tab.title, child: fadedTitle(tab.title));
       }
 
-      final textTab = tab as TextBookTab;
+      final textTab = tab;
       return ValueListenableBuilder<String>(
         valueListenable: textTab.currentTitle,
         builder: (context, currentTitleValue, child) {
@@ -918,8 +894,15 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
           (tabWidth >= _kTabCloseHideBelowWidth || isSelected || isTabHovered);
       final showPin =
           tab.isPinned && (extrasBudget - (showClose ? 25 : 0)) >= 20;
-      // אייקון PDF ליד שם הספר — רק כשהטאב רחב (אותו סף כמו מפריד ה-CombinedTab).
+      // אייקון ליד שם הטאב — רק כשהטאב רחב (אותו סף כמו מפריד ה-CombinedTab).
       final showPdfIcon = tab is PdfBookTab && tabWidth >= 100;
+      final toolIcon = tab is ToolTab && tabWidth >= 100
+          ? buildToolTabLeadingIcon(
+              tab.toolId,
+              color: colorScheme.onSurface,
+              pluginState: context.read<PluginSystemBloc>().state,
+            )
+          : null;
 
       return Row(
         children: [
@@ -978,6 +961,11 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                                 size: 14,
                                 color: colorScheme.onSurface,
                               ),
+                            ),
+                          if (toolIcon != null)
+                            Padding(
+                              padding: const EdgeInsetsDirectional.only(end: 4),
+                              child: toolIcon,
                             ),
                           Expanded(child: buildTabContent()),
                           if (showClose)
@@ -1177,10 +1165,13 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         label: 'סגור את האחרים',
         onTap: () => closeAllTabsButCurrent(state, context),
       ),
-      AppContextMenuEntry(
-        label: 'שיכפול',
-        onTap: () => context.read<TabsBloc>().add(CloneTab(tab)),
-      ),
+      // שכפול טאב כלי אסור: תוסף מוגבל למופע WebView יחיד, ושני מופעים
+      // דורסים זה את רישום זה ב-PluginRuntimeDispatcher.
+      if (tab is! ToolTab)
+        AppContextMenuEntry(
+          label: 'שיכפול',
+          onTap: () => context.read<TabsBloc>().add(CloneTab(tab)),
+        ),
       const AppContextMenuEntry.divider(),
     ];
 

@@ -15,12 +15,9 @@ import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/services/target_line_links_service.dart';
-import 'package:otzaria/tools/tools_screen.dart';
 
 /// מאפס מצב runtime מקומי כדי שהאפליקציה תוכל להיבנות מחדש בלי סגירת תהליך.
 Future<void> resetRuntimeStateForAppRestart() async {
-  // בקשת פתיחת תוסף שנרשמה ולא נצרכה תפתח תוסף שהמשתמש לא ביקש בעץ החדש.
-  pendingNavRailPluginToOpen = null;
   await PluginRuntimeDispatcher.instance.prepareForAppRestart();
   await SqliteDataProvider.instance.dispose();
   await UserBooksDatabaseHolder.instance.close();

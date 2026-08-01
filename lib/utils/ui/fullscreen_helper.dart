@@ -10,10 +10,9 @@ import 'package:otzaria/settings/settings_exports.dart';
 
 /// Helper functions for fullscreen mode management
 class FullscreenHelper {
-  /// מסך מלא זמין רק בעת קריאת ספר (טאב פתוח בעיון) או בכלים/תוספים.
+  /// מסך מלא זמין רק בעיון עם טאב פתוח — כולל טאבי כלים ותוספים.
   static bool isContextAllowed(Screen screen, bool hasOpenTabs) {
     if (screen == Screen.reading) return hasOpenTabs;
-    if (screen == Screen.more) return true;
     return false;
   }
 

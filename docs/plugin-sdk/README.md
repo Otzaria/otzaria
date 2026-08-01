@@ -313,6 +313,8 @@ Otzaria.on('plugin.suspended', stop);   // עצירת timers / polling / WebSock
 |--------|-------|----------|-------|
 | `navigation.goTo` | `navigation.write` | `{ target: 'library'\|'reading'\|'more'\|'settings' }` | `boolean` |
 
+> `'more'` נשמר לתאימות אחורה ופותח את פאנל הכלים. כלים ותוספים נפתחים ככרטיסיות בתוך `'reading'`, ולכן `navigation.changed` לא ישדר `'more'` יותר. כדי לדעת אם התוסף מוצג כעת השתמשו באירועי `plugin.suspended` / `plugin.resumed`.
+
 ### notes.*
 
 | Method | הרשאה | פרמטרים | החזרה |

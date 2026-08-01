@@ -730,6 +730,8 @@ const { data } = await Otzaria.call('reader.getSectionTextMap', {
 ```javascript
 const { data } = await Otzaria.call('navigation.goTo', {
   target: 'library'  // 'library' | 'reading' | 'more' | 'settings'
+  // 'more' נשמר לתאימות אחורה — פותח כיום את פאנל הכלים.
+  // הכלים והתוספים עצמם חיים ככרטיסיות בתוך 'reading'.
 });
 // true
 ```

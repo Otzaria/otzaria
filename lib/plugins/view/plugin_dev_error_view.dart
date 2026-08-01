@@ -4,11 +4,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
-import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
-import 'package:otzaria/navigation/bloc/navigation_event.dart';
-import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/view/plugin_settings_screen.dart';
+import 'package:otzaria/tools/tools_launcher_controller.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 
 class PluginDevErrorView extends StatelessWidget {
@@ -87,9 +85,7 @@ class PluginDevErrorView extends StatelessWidget {
                       ),
                     );
                     if (result == true && context.mounted) {
-                      context.read<NavigationBloc>().add(
-                        const NavigateToScreen(Screen.more),
-                      );
+                      ToolsLauncherController.instance.open();
                     }
                   },
                 ),
