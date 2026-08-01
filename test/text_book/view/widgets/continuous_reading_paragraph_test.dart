@@ -528,6 +528,115 @@ void main() {
     final colored = _findColoredSpan(spans);
     expect(colored?.style?.backgroundColor, const Color(0x80FF0000));
   });
+
+  // פירוק ה-HTML הוא עיקר עלות ה-rebuild בגלילה, והקלט זהה בין פריימים.
+  // המלכוד: הסגנון מוחל *אחרי* הפירוק ולכן אסור לו להיתפס במטמון.
+  group('מטמון פירוק ה-HTML', () {
+    setUp(resetInlineHtmlCacheForTesting);
+    tearDown(resetInlineHtmlCacheForTesting);
+
+    const style = TextStyle(fontSize: 20);
+    const html = 'שורה <b>מודגשת</b> עם <small>הערה</small>';
+
+    test('אותו HTML מפורק פעם אחת בלבד', () {
+      buildInlineHtmlSpans(html, style);
+      expect(inlineHtmlParseCount, 1);
+
+      for (var i = 0; i < 10; i++) {
+        buildInlineHtmlSpans(html, style);
+      }
+      expect(inlineHtmlParseCount, 1, reason: 'הפירוק החוזר אמור לבוא מהמטמון');
+    });
+
+    test('HTML שונה מפורק מחדש', () {
+      buildInlineHtmlSpans(html, style);
+      buildInlineHtmlSpans('$html נוסף', style);
+      expect(inlineHtmlParseCount, 2);
+    });
+
+    test('התוצאה מהמטמון זהה לפירוק טרי', () {
+      final fresh = buildInlineHtmlSpans(html, style);
+      final cached = buildInlineHtmlSpans(html, style);
+      expect(_flattenText(cached), _flattenText(fresh));
+      expect(_flattenStyles(cached), _flattenStyles(fresh));
+    });
+
+    test('סגנון חדש על HTML מהמטמון מוחל במלואו', () {
+      buildInlineHtmlSpans(html, style);
+      final recolored = buildInlineHtmlSpans(
+        html,
+        const TextStyle(fontSize: 40, color: Color(0xFF00FF00)),
+      );
+
+      expect(inlineHtmlParseCount, 1, reason: 'אותו HTML — פירוק אחד');
+      final sizes = _flattenStyles(
+        recolored,
+      ).map((s) => s.fontSize).whereType<double>();
+      expect(sizes, isNotEmpty);
+      // <small> מקטין ביחס לבסיס החדש — הגודל הישן אסור שיישאר.
+      expect(sizes.reduce((a, b) => a > b ? a : b), 40);
+      expect(
+        _flattenStyles(
+          recolored,
+        ).every((s) => s.color == const Color(0xFF00FF00)),
+        isTrue,
+      );
+    });
+
+    test('קישורים מקבלים recognizer טרי בכל בנייה גם מהמטמון', () {
+      const linkHtml = '<a href="otzaria://note?line=1">הערה</a>';
+      final firstSink = <TapGestureRecognizer>[];
+      final secondSink = <TapGestureRecognizer>[];
+
+      buildInlineHtmlSpans(
+        linkHtml,
+        style,
+        onTapUrl: (_) async => true,
+        recognizerSink: firstSink,
+      );
+      buildInlineHtmlSpans(
+        linkHtml,
+        style,
+        onTapUrl: (_) async => true,
+        recognizerSink: secondSink,
+      );
+
+      expect(inlineHtmlParseCount, 1);
+      expect(firstSink, hasLength(1));
+      expect(secondSink, hasLength(1));
+      expect(
+        identical(firstSink.first, secondSink.first),
+        isFalse,
+        reason: 'recognizer משותף היה נזרק (dispose) פעמיים',
+      );
+    });
+
+    test('המטמון חסום בגודלו ולא צובר ספר שלם', () {
+      for (var i = 0; i < 1300; i++) {
+        buildInlineHtmlSpans('שורה מספר $i', style);
+      }
+      expect(inlineHtmlParseCount, 1300);
+
+      // הערך האחרון עדיין במטמון; הראשון נדחק החוצה ויפורק שוב.
+      buildInlineHtmlSpans('שורה מספר 1299', style);
+      expect(inlineHtmlParseCount, 1300);
+
+      buildInlineHtmlSpans('שורה מספר 0', style);
+      expect(inlineHtmlParseCount, 1301);
+    });
+  });
+}
+
+List<TextStyle> _flattenStyles(List<InlineSpan> spans) {
+  final result = <TextStyle>[];
+  void visit(InlineSpan span) {
+    if (span is! TextSpan) return;
+    if (span.text != null && span.style != null) result.add(span.style!);
+    span.children?.forEach(visit);
+  }
+
+  spans.forEach(visit);
+  return result;
 }
 
 void _noopLineTap(int lineIndex) {}

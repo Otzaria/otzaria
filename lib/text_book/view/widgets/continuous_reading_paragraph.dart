@@ -36,6 +36,44 @@ class ContinuousReadingParagraphLine {
   });
 }
 
+/// תקרת המטמון — גדולה מפסקה ממוזגת טיפוסית, וחסומה כדי שספר שלם לא ייצבר.
+const int _maxCachedFragments = 1024;
+
+/// מטמון DOM מפורק לפי מחרוזת ה-HTML. הפירוק תלוי אך ורק במחרוזת, והמעבר
+/// ב-[_nodesToSpans] הוא קריאה בלבד — ולכן בטוח לחלוק את אותו DOM בין builds.
+final Map<String, dom.DocumentFragment> _fragmentCache =
+    <String, dom.DocumentFragment>{};
+
+int _fragmentParseCount = 0;
+
+/// מספר הפירוקים שבוצעו בפועל — לאימות שהמטמון פוגע.
+@visibleForTesting
+int get inlineHtmlParseCount => _fragmentParseCount;
+
+@visibleForTesting
+void resetInlineHtmlCacheForTesting() {
+  _fragmentCache.clear();
+  _fragmentParseCount = 0;
+}
+
+/// פירוק HTML עם מטמון LRU. `Map` ב-Dart שומר סדר הכנסה, ולכן הסרה+הכנסה
+/// מחדש מקדמת ערך לסוף, ו-`keys.first` הוא הישן ביותר.
+dom.DocumentFragment _parseFragmentCached(String htmlText) {
+  final cached = _fragmentCache.remove(htmlText);
+  if (cached != null) {
+    _fragmentCache[htmlText] = cached;
+    return cached;
+  }
+
+  final fragment = html_parser.parseFragment(htmlText);
+  _fragmentParseCount++;
+  if (_fragmentCache.length >= _maxCachedFragments) {
+    _fragmentCache.remove(_fragmentCache.keys.first);
+  }
+  _fragmentCache[htmlText] = fragment;
+  return fragment;
+}
+
 List<InlineSpan> buildInlineHtmlSpans(
   String htmlText,
   TextStyle baseStyle, {
@@ -46,7 +84,7 @@ List<InlineSpan> buildInlineHtmlSpans(
   Color? anchorActiveBackground,
   List<TapGestureRecognizer>? recognizerSink,
 }) {
-  final fragment = html_parser.parseFragment(htmlText);
+  final fragment = _parseFragmentCached(htmlText);
   return _nodesToSpans(
     fragment.nodes,
     baseStyle,
