@@ -260,6 +260,12 @@ bool _isIgnorableHardwareKeyboardAssertion(String errorString) {
 /// 4. Calls [initialize] to set up required services and configurations
 /// 5. Launches the main application widget
 void main(List<String> args) async {
+  // debugPrint פזור במאות נקודות קריאה בלי עטיפת kDebugMode; ב-release הפלט
+  // עדיין מפורמט ונשלח ל-stdout שאיש לא רואה — מנוטרל כאן במרוכז לכל התוכנה.
+  if (kReleaseMode) {
+    debugPrint = (String? message, {int? wrapWidth}) {};
+  }
+
   // טיפול בפקודות CLI שאינן דורשות אתחול GUI (כגון אריזת תוסף).
   // חייב לרוץ לפני SentryWidgetsFlutterBinding.ensureInitialized() כדי שלא
   // ייפתח חלון Flutter ולא יתבצע אתחול מסד נתונים מיותר.
