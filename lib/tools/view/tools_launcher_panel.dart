@@ -112,11 +112,15 @@ class ToolsLauncherPanel extends StatefulWidget {
 
 class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
   final TextEditingController _searchController = TextEditingController();
-  final FocusNode _searchFocusNode = FocusNode();
+  late final FocusNode _searchFocusNode = FocusNode(
+    onKeyEvent: _handleSearchFieldKey,
+  );
   String _query = '';
 
   /// הקובייה המסומנת בניווט מקלדת, כאינדקס ברשימה המסוננת השטוחה.
   int _highlightedIndex = 0;
+  List<ToolCatalogEntry> _keyboardEntries = const [];
+  int _keyboardColumns = 2;
 
   @override
   void dispose() {
@@ -213,6 +217,9 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     return KeyEventResult.ignored;
   }
 
+  KeyEventResult _handleSearchFieldKey(FocusNode _, KeyEvent event) =>
+      _handleKey(event, _keyboardEntries, _keyboardColumns);
+
   // ─── Build ───────────────────────────────────────────────────────────────
 
   @override
@@ -226,6 +233,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     );
     final entries = orderedToolEntries(filterToolEntries(allEntries, _query));
     final openToolIds = _openToolIds(context.watch<TabsBloc>().state);
+    _keyboardEntries = entries;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -316,10 +324,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
       onSubmitted: (_) {
         if (entries.isNotEmpty) {
           widget.onToolSelected(
-            entries[_highlightedIndex.clamp(
-              0,
-              entries.length - 1,
-            )],
+            entries[_highlightedIndex.clamp(0, entries.length - 1)],
           );
         }
       },
@@ -344,6 +349,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final columns = toolGridColumns(constraints.maxWidth);
+        _keyboardColumns = columns;
         final groups = groupToolEntries(entries);
         var runningIndex = 0;
 

@@ -1,6 +1,8 @@
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
@@ -17,6 +19,16 @@ import 'package:otzaria/tools/tool_catalog_entry.dart';
 import 'package:otzaria/tools/view/tools_launcher_panel.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
+
+class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
+    implements SettingsBloc {}
+
+class _MockPluginSystemBloc
+    extends MockBloc<PluginSystemEvent, PluginSystemState>
+    implements PluginSystemBloc {}
+
+class _MockTabsBloc extends MockBloc<TabsEvent, TabsState>
+    implements TabsBloc {}
 
 ToolCatalogEntry _entry(
   String toolId,
@@ -94,6 +106,36 @@ Widget _tileHost(ToolTile tile, {double size = 100}) => MaterialApp(
   ),
 );
 
+Widget _launcherHost({
+  required SettingsBloc settingsBloc,
+  required PluginSystemBloc pluginSystemBloc,
+  required TabsBloc tabsBloc,
+  required ValueChanged<ToolCatalogEntry> onToolSelected,
+}) => MaterialApp(
+  theme: ThemeData(colorSchemeSeed: Colors.blue),
+  home: Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      body: SizedBox(
+        width: 520,
+        height: 600,
+        child: MultiBlocProvider(
+          providers: [
+            BlocProvider<SettingsBloc>.value(value: settingsBloc),
+            BlocProvider<PluginSystemBloc>.value(value: pluginSystemBloc),
+            BlocProvider<TabsBloc>.value(value: tabsBloc),
+          ],
+          child: ToolsLauncherPanel(
+            onToolSelected: onToolSelected,
+            onClose: () {},
+            showDevTools: false,
+          ),
+        ),
+      ),
+    ),
+  ),
+);
+
 void main() {
   testWidgets('פתיחת משגר הכלים בתוך overlay אינה זורקת ParentDataWidget', (
     tester,
@@ -127,6 +169,53 @@ void main() {
 
     expect(find.text('כלים ותוספים'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('חצים ו-Enter פותחים את הקובייה המסומנת משדה החיפוש', (
+    tester,
+  ) async {
+    final settingsBloc = _MockSettingsBloc();
+    final pluginSystemBloc = _MockPluginSystemBloc();
+    final tabsBloc = _MockTabsBloc();
+    ToolCatalogEntry? selected;
+
+    whenListen(
+      settingsBloc,
+      const Stream<SettingsState>.empty(),
+      initialState: SettingsState.initial(),
+    );
+    whenListen(
+      pluginSystemBloc,
+      const Stream<PluginSystemState>.empty(),
+      initialState: PluginSystemInitial(),
+    );
+    whenListen(
+      tabsBloc,
+      const Stream<TabsState>.empty(),
+      initialState: TabsState.initial(),
+    );
+
+    await tester.pumpWidget(
+      _launcherHost(
+        settingsBloc: settingsBloc,
+        pluginSystemBloc: pluginSystemBloc,
+        tabsBloc: tabsBloc,
+        onToolSelected: (entry) => selected = entry,
+      ),
+    );
+    await tester.pump();
+
+    final searchField = tester.widget<TextField>(find.byType(TextField));
+    expect(searchField.focusNode!.hasFocus, isTrue);
+
+    await tester.enterText(find.byType(TextField), 'ה');
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+
+    expect(selected?.toolId, 'builtin.notes');
   });
 
   group('normalizeToolSearchText', () {
@@ -165,17 +254,15 @@ void main() {
     });
 
     test('התאמת תת-מחרוזת בתווית', () {
-      expect(
-        filterToolEntries(entries, 'גימ').map((e) => e.toolId),
-        ['builtin.gematria'],
-      );
+      expect(filterToolEntries(entries, 'גימ').map((e) => e.toolId), [
+        'builtin.gematria',
+      ]);
     });
 
     test('חיפוש עם ניקוד/מקף עדיין מתאים', () {
-      expect(
-        filterToolEntries(entries, 'לוּחַ').map((e) => e.toolId),
-        ['builtin.calendar'],
-      );
+      expect(filterToolEntries(entries, 'לוּחַ').map((e) => e.toolId), [
+        'builtin.calendar',
+      ]);
     });
 
     test('ללא התאמה — רשימה ריקה', () {
@@ -512,9 +599,7 @@ void main() {
     testWidgets('Tooltip מציג את שם התוסף כשהוא שונה מהתווית', (tester) async {
       await tester.pumpWidget(
         _tileHost(
-          buildTile(
-            entry: _pluginEntry('com.example.x', 'מפה', name: 'Atlas'),
-          ),
+          buildTile(entry: _pluginEntry('com.example.x', 'מפה', name: 'Atlas')),
         ),
       );
       expect(tester.widget<Tooltip>(find.byType(Tooltip)).message, 'Atlas');
