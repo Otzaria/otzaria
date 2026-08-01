@@ -1165,9 +1165,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         label: 'סגור את האחרים',
         onTap: () => closeAllTabsButCurrent(state, context),
       ),
-      // שכפול טאב כלי אסור: תוסף מוגבל למופע WebView יחיד, ושני מופעים
-      // דורסים זה את רישום זה ב-PluginRuntimeDispatcher.
-      if (tab is! ToolTab)
+      if (tab is! ToolTab || tab.isBuiltIn)
         AppContextMenuEntry(
           label: 'שיכפול',
           onTap: () => context.read<TabsBloc>().add(CloneTab(tab)),

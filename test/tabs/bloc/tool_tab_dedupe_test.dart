@@ -13,8 +13,6 @@ import 'package:otzaria/tabs/tabs_repository.dart';
 
 import '../../helpers/memory_settings_cache.dart';
 
-/// כרטיסיית כלי חייבת להיות יחידה: `PluginRuntimeDispatcher` ממפתח controller
-/// לפי מזהה תוסף, ושני מופעי WebView לאותו תוסף דורסים זה את רישום זה.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -39,38 +37,39 @@ void main() {
   TextBookTab book(String title) =>
       TextBookTab(book: TextBook(title: title), index: 0);
 
-  test('OpenOrFocusTab על כלי פתוח ממקד ואינו מוסיף כרטיסיה', () async {
+  test('OpenOrFocusTab על תוסף פתוח ממקד ואינו מוסיף כרטיסיה', () async {
     // כל אירוע נצרך בנפרד: OpenOrFocusTab ו-AddTab רשומים בטרנספורמרים
     // נפרדים ולכן אינם מובטחים לרוץ בסדר ההוספה.
-    bloc.add(OpenOrFocusTab(tool('builtin.calendar')));
+    bloc.add(OpenOrFocusTab(tool('com.example.plugin')));
     await pumpEventQueue();
     bloc.add(AddTab(book('בראשית')));
     await pumpEventQueue();
     expect(bloc.state.tabs.length, 2);
     expect(bloc.state.currentTabIndex, 1);
 
-    bloc.add(OpenOrFocusTab(tool('builtin.calendar')));
+    bloc.add(OpenOrFocusTab(tool('com.example.plugin')));
     await pumpEventQueue();
 
     expect(bloc.state.tabs.length, 2, reason: 'לא נפתחה כרטיסיה נוספת');
-    expect(bloc.state.currentTabIndex, 0, reason: 'המיקוד עבר לכלי הקיים');
+    expect(bloc.state.currentTabIndex, 0, reason: 'המיקוד עבר לתוסף הקיים');
   });
 
-  test('כלים שונים נפתחים ככרטיסיות נפרדות', () async {
-    final toolsOpened = bloc.stream.firstWhere(
-      (state) => state.tabs.length == 2 && state.currentTabIndex == 1,
-    );
+  test('כלי מובנה פתוח נפתח שוב ככרטיסיה נפרדת', () async {
     bloc.add(OpenOrFocusTab(tool('builtin.calendar')));
-    bloc.add(OpenOrFocusTab(tool('builtin.gematria')));
-    await toolsOpened;
+    await pumpEventQueue();
+    bloc.add(OpenOrFocusTab(tool('builtin.calendar')));
+    await pumpEventQueue();
+
     expect(bloc.state.tabs.length, 2);
+    expect(bloc.state.tabs.whereType<ToolTab>(), everyElement(isA<ToolTab>()));
+    expect(bloc.state.tabs.every((tab) => tab.dedupeKey == null), isTrue);
   });
 
   // כלי שנמצא כחלונית בטאב מפוצל: מעבר טאב לבדו היה משאיר את הפוקוס על
   // החלונית האחרת.
-  test('כלי בתוך טאב מפוצל — ממקד את החלונית עצמה', () async {
-    final calendarPane = tool('builtin.calendar');
-    final split = CombinedTab(rightTab: book('בראשית'), leftTab: calendarPane);
+  test('תוסף בתוך טאב מפוצל — ממקד את החלונית עצמה', () async {
+    final pluginPane = tool('com.example.plugin');
+    final split = CombinedTab(rightTab: book('בראשית'), leftTab: pluginPane);
     final splitAdded = bloc.stream.firstWhere(
       (state) => state.tabs.length == 2 && state.currentTabIndex == 1,
     );
@@ -86,19 +85,18 @@ void main() {
 
     final toolPaneFocused = bloc.stream.firstWhere(
       (state) =>
-          state.currentTabIndex == 1 &&
-          identical(state.activePane, calendarPane),
+          state.currentTabIndex == 1 && identical(state.activePane, pluginPane),
     );
-    bloc.add(OpenOrFocusTab(tool('builtin.calendar')));
+    bloc.add(OpenOrFocusTab(tool('com.example.plugin')));
     await toolPaneFocused;
 
     expect(bloc.state.tabs.length, 2);
     expect(bloc.state.currentTabIndex, 1);
-    expect(bloc.state.activePane, same(calendarPane));
+    expect(bloc.state.activePane, same(pluginPane));
   });
 
-  test('שחזור כרטיסיה סגורה אינו מכפיל כלי שנפתח מחדש בינתיים', () async {
-    final first = tool('builtin.notes');
+  test('שחזור כרטיסיה סגורה אינו מכפיל תוסף שנפתח מחדש בינתיים', () async {
+    final first = tool('com.example.plugin');
     bloc.add(AddTab(first));
     await pumpEventQueue();
 
@@ -107,7 +105,7 @@ void main() {
     expect(bloc.state.tabs, isEmpty);
 
     // המשתמש פתח אותו שוב מהמשגר, ורק אז לחץ Ctrl+Shift+T.
-    bloc.add(OpenOrFocusTab(tool('builtin.notes')));
+    bloc.add(OpenOrFocusTab(tool('com.example.plugin')));
     await pumpEventQueue();
     expect(bloc.state.tabs.length, 1);
 
@@ -115,16 +113,19 @@ void main() {
     await pumpEventQueue();
 
     expect(bloc.state.tabs.length, 1, reason: 'ממקד את הקיים במקום להכפיל');
-    expect((bloc.state.tabs.single as ToolTab).toolId, 'builtin.notes');
+    expect((bloc.state.tabs.single as ToolTab).toolId, 'com.example.plugin');
   });
 
-  test('שחזור כרטיסיית כלי כשאינה פתוחה — מוסיף אותה כרגיל', () async {
+  test('שחזור כלי מובנה מוסיף עותק כשהוא כבר פתוח', () async {
     final t = tool('builtin.gematria');
     bloc.add(AddTab(t));
-    bloc.add(AddTab(book('בראשית')));
     await pumpEventQueue();
 
     bloc.add(RemoveTab(t));
+    await pumpEventQueue();
+    expect(bloc.state.tabs, isEmpty);
+
+    bloc.add(OpenOrFocusTab(tool('builtin.gematria')));
     await pumpEventQueue();
     expect(bloc.state.tabs.length, 1);
 
@@ -132,6 +133,30 @@ void main() {
     await pumpEventQueue();
 
     expect(bloc.state.tabs.length, 2);
-    expect(bloc.state.tabs.whereType<ToolTab>().length, 1);
+    expect(bloc.state.tabs.whereType<ToolTab>().length, 2);
+  });
+
+  test('CloneTab משכפל כלי מובנה', () async {
+    final calendar = tool('builtin.calendar');
+    bloc.add(AddTab(calendar));
+    await pumpEventQueue();
+
+    bloc.add(CloneTab(calendar));
+    await pumpEventQueue();
+
+    expect(bloc.state.tabs.whereType<ToolTab>().length, 2);
+    expect(bloc.state.tabs[0], same(calendar));
+    expect(bloc.state.tabs[1], isNot(same(calendar)));
+  });
+
+  test('CloneTab אינו משכפל תוסף', () async {
+    final plugin = tool('com.example.plugin');
+    bloc.add(AddTab(plugin));
+    await pumpEventQueue();
+
+    bloc.add(CloneTab(plugin));
+    await pumpEventQueue();
+
+    expect(bloc.state.tabs, [same(plugin)]);
   });
 }

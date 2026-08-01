@@ -13,11 +13,10 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/tools/tool_catalog_entry.dart';
 
-/// פותח כלי ככרטיסיה במסך העיון, או ממקד את הכרטיסיה הקיימת שלו.
+/// פותח כלי ככרטיסיה במסך העיון.
 ///
-/// המיקוד-לקיים מתקבל דרך `dedupeKey` של [ToolTab] ב-`OpenOrFocusTab`, והוא
-/// חובה ולא נוחות: `PluginRuntimeDispatcher` ממפתח controller לפי מזהה תוסף,
-/// ושני מופעי WebView לאותו תוסף דורסים זה את רישום זה.
+/// תוסף קיים ממוקד, כי הוא מוגבל למופע WebView יחיד; כלים מובנים יכולים
+/// להיפתח במספר כרטיסיות.
 void openToolTab(BuildContext context, ToolCatalogEntry entry) {
   context.read<TabsBloc>().add(
     OpenOrFocusTab(ToolTab(toolId: entry.toolId, title: entry.label)),

@@ -12,6 +12,7 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
@@ -1060,6 +1061,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   }
 
   void _onCloneTab(CloneTab event, Emitter<TabsState> emit) {
+    if (event.tab is ToolTab && (event.tab as ToolTab).isPlugin) return;
     add(AddTab(OpenedTab.from(event.tab), insertAdjacent: true));
   }
 

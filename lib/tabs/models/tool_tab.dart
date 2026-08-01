@@ -16,12 +16,15 @@ class ToolTab extends OpenedTab {
     super.isPinned,
   }) : super(title, dedupeKey: dedupeKeyFor(toolId));
 
-  /// מפתח הייחוד שמונע פתיחת אותו כלי פעמיים. תוסף מוגבל למופע WebView יחיד
-  /// (`PluginRuntimeDispatcher` ממפתח לפי `pluginId`), ולכן זו אינה רק נוחות.
-  static String dedupeKeyFor(String toolId) => 'tool:$toolId';
+  /// רק תוסף מוגבל למופע WebView יחיד; כלים מובנים מתנהגים כמו ספרים וניתנים
+  /// לפתיחה ולשכפול במספר כרטיסיות.
+  static String? dedupeKeyFor(String toolId) =>
+      isBuiltInToolId(toolId) ? null : 'tool:$toolId';
 
-  bool get isBuiltIn =>
+  static bool isBuiltInToolId(String toolId) =>
       kBuiltInToolsCatalog.any((meta) => meta.toolId == toolId);
+
+  bool get isBuiltIn => isBuiltInToolId(toolId);
 
   bool get isPlugin => !isBuiltIn;
 

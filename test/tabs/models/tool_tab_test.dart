@@ -19,24 +19,32 @@ void main() {
       );
     });
 
-    test('dedupeKey ייחודי לכל כלי', () {
+    test('dedupeKey שייך רק לתוסף', () {
       final calendar = ToolTab(toolId: 'builtin.calendar', title: 'לוח שנה');
-      final gematria = ToolTab(toolId: 'builtin.gematria', title: 'גימטריה');
-      expect(calendar.dedupeKey, 'tool:builtin.calendar');
-      expect(calendar.dedupeKey, isNot(gematria.dedupeKey));
+      final plugin = ToolTab(toolId: 'com.example.plugin', title: 'תוסף');
+      expect(calendar.dedupeKey, isNull);
+      expect(plugin.dedupeKey, 'tool:com.example.plugin');
     });
 
     test('toJson/fromJson roundtrip', () {
-      final tab = ToolTab(
+      final builtIn = ToolTab(
         toolId: 'builtin.notes',
         title: 'הערות אישיות',
         isPinned: true,
       );
-      final restored = ToolTab.fromJson(tab.toJson());
-      expect(restored.toolId, tab.toolId);
-      expect(restored.title, tab.title);
-      expect(restored.isPinned, isTrue);
-      expect(restored.dedupeKey, tab.dedupeKey);
+      final plugin = ToolTab(
+        toolId: 'com.example.plugin',
+        title: 'תוסף',
+        isPinned: true,
+      );
+
+      final restoredBuiltIn = ToolTab.fromJson(builtIn.toJson());
+      final restoredPlugin = ToolTab.fromJson(plugin.toJson());
+
+      expect(restoredBuiltIn.dedupeKey, isNull);
+      expect(restoredPlugin.dedupeKey, 'tool:com.example.plugin');
+      expect(restoredBuiltIn.isPinned, isTrue);
+      expect(restoredPlugin.isPinned, isTrue);
     });
 
     test('OpenedTab.fromJson מפענח ToolTab', () {
