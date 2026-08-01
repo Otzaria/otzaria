@@ -1,11 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
+import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/settings/engine/settings_event.dart';
+import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/bloc/tabs_event.dart';
+import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tools/tool_catalog_entry.dart';
 import 'package:otzaria/tools/view/tools_launcher_panel.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
+import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 
 ToolCatalogEntry _entry(
   String toolId,
@@ -84,6 +95,40 @@ Widget _tileHost(ToolTile tile, {double size = 100}) => MaterialApp(
 );
 
 void main() {
+  testWidgets('פתיחת משגר הכלים בתוך overlay אינה זורקת ParentDataWidget', (
+    tester,
+  ) async {
+    final key = GlobalKey<_ToolsLauncherOverlayHarnessState>();
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final pluginSystemBloc = _TestPluginSystemBloc(PluginSystemInitial());
+    final tabsBloc = _TestTabsBloc(TabsState.initial());
+    addTearDown(() async {
+      await settingsBloc.close();
+      await pluginSystemBloc.close();
+      await tabsBloc.close();
+    });
+
+    await tester.pumpWidget(
+      MultiBlocProvider(
+        providers: [
+          BlocProvider<SettingsBloc>.value(value: settingsBloc),
+          BlocProvider<PluginSystemBloc>.value(value: pluginSystemBloc),
+          BlocProvider<TabsBloc>.value(value: tabsBloc),
+        ],
+        child: MaterialApp(
+          home: Scaffold(body: _ToolsLauncherOverlayHarness(key: key)),
+        ),
+      ),
+    );
+
+    key.currentState!.open();
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('כלים ותוספים'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   group('normalizeToolSearchText', () {
     test('מסיר ניקוד, גרשיים ומקפים', () {
       expect(normalizeToolSearchText('רָאשֵׁי תֵּיבוֹת'), 'ראשי תיבות');
@@ -488,4 +533,69 @@ void main() {
       expect(tester.widget<AppCard>(find.byType(AppCard)).selected, isTrue);
     });
   });
+}
+
+class _ToolsLauncherOverlayHarness extends StatefulWidget {
+  const _ToolsLauncherOverlayHarness({super.key});
+
+  @override
+  State<_ToolsLauncherOverlayHarness> createState() =>
+      _ToolsLauncherOverlayHarnessState();
+}
+
+class _ToolsLauncherOverlayHarnessState
+    extends State<_ToolsLauncherOverlayHarness> {
+  bool _isOpen = false;
+
+  void open() => setState(() => _isOpen = true);
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        const SizedBox.expand(),
+        ContextOverlayPanel(
+          isOpen: _isOpen,
+          onClose: () => setState(() => _isOpen = false),
+          alignment: AlignmentDirectional.centerStart,
+          deferChildBuildOnOpen: true,
+          child: ToolsLauncherPanel(
+            showDevTools: false,
+            onClose: () => setState(() => _isOpen = false),
+            onToolSelected: (_) {},
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
+    implements SettingsBloc {
+  _TestSettingsBloc(super.initialState) {
+    on<SettingsEvent>((event, emit) {});
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _TestPluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState>
+    implements PluginSystemBloc {
+  _TestPluginSystemBloc(super.initialState) {
+    on<PluginSystemEvent>((event, emit) {});
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _TestTabsBloc extends Cubit<TabsState> implements TabsBloc {
+  _TestTabsBloc(super.initialState);
+
+  @override
+  void add(TabsEvent event) {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
