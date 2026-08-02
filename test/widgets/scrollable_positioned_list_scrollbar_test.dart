@@ -1119,6 +1119,90 @@ void main() {
     });
   });
 
+  group('פריט גבוה מהמסך (חלונית המפרשים)', () {
+    /// רשימה של [itemCount] פריטים בגובה 4000px בתוך מסך 600px, עם סרגל
+    /// שמקבל offsetController — בדיוק צורת חלונית המפרשים (פריט = מפרש שלם).
+    Future<ItemPositionsListener> dragThumbToBottom(
+      WidgetTester tester, {
+      required int itemCount,
+    }) async {
+      tester.view.physicalSize = const Size(400, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final listener = ItemPositionsListener.create();
+      final controller = ItemScrollController();
+      final offsetController = ScrollOffsetController();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ScrollablePositionedListScrollbar(
+              scrollController: controller,
+              offsetController: offsetController,
+              itemPositionsListener: listener,
+              itemCount: itemCount,
+              child: ScrollablePositionedList.builder(
+                itemScrollController: controller,
+                itemPositionsListener: listener,
+                scrollOffsetController: offsetController,
+                itemCount: itemCount,
+                itemBuilder: (context, i) =>
+                    SizedBox(height: 4000, child: Text('פריט $i')),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final thumb = find.descendant(
+        of: find.byType(ScrollablePositionedListScrollbar),
+        matching: find.byWidgetPredicate(
+          (w) => w is Container && w.decoration is BoxDecoration,
+        ),
+      );
+      final gesture = await tester.startGesture(tester.getRect(thumb).center);
+      await tester.pump();
+      for (var i = 0; i < 20; i++) {
+        await gesture.moveBy(const Offset(0, 30));
+        await tester.pump(const Duration(milliseconds: 60));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+      return listener;
+    }
+
+    /// הקצה העליון של הפריט הראשון הגלוי, ביחידות viewport.
+    ItemPosition firstVisible(ItemPositionsListener listener) =>
+        listener.itemPositions.value.reduce(
+          (a, b) => a.index <= b.index ? a : b,
+        );
+
+    testWidgets('מפרש בודד ארוך — גרירת האגודל גוללת עד סוף התוכן', (
+      tester,
+    ) async {
+      // רגרסיה: הסרגל קפץ לאינדקס פריט שלם בלבד. עם מפרש אחד היעד היחיד היה
+      // 0, ולכן גרירת האגודל לא הזיזה כלום והוא חזר לראש המסילה.
+      final listener = await dragThumbToBottom(tester, itemCount: 1);
+
+      // 4000px תוכן במסך 600px → גלילה מרבית 3400px = 5.667 viewports.
+      expect(firstVisible(listener).index, 0);
+      expect(firstVisible(listener).itemLeadingEdge, closeTo(-5.667, 0.1));
+    });
+
+    testWidgets('כמה מפרשים ארוכים — הגרירה מגיעה לסוף האחרון, לא לתחילתו', (
+      tester,
+    ) async {
+      // רגרסיה: קפיצה לאינדקס נחתה בתחילת הפריט האחרון, ו-3400px האחרונים
+      // (28% מהתוכן) היו בלתי-נגישים דרך הסרגל.
+      final listener = await dragThumbToBottom(tester, itemCount: 3);
+
+      expect(firstVisible(listener).index, 2);
+      expect(firstVisible(listener).itemLeadingEdge, closeTo(-5.667, 0.1));
+    });
+  });
+
   testWidgets('האגודל אינו זז אחרי שהתוכן נוחת ביעד הגרירה', (tester) async {
     // רגרסיה: מיפוי המיקום והמיפוי ההפוך חייבים לחלוק מכנה. כשהופרדו, שחרור
     // הגרירה נחת עד 4.3% מהמסילה מתחת למקום שהמשתמש עזב — האגודל "ברח"
