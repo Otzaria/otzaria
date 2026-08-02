@@ -66,6 +66,7 @@ import 'package:otzaria/history/view/history_screen.dart';
 import 'package:otzaria/bookmarks/view/bookmark_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
+import 'package:otzaria/library_update/library_update_work_status.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
@@ -2389,44 +2390,16 @@ class MainWindowScreenState extends State<MainWindowScreen>
                 previous.applyProgress != current.applyProgress,
             listener: (context, state) {
               final cubit = context.read<WorkStatusCubit>();
-              if (state.isBusy) {
-                // מד הבתים תקף רק בזמן ההורדה — בשלבים הבאים הוא שארית דבוקה
-                // על 100%. ב-apply המדד הוא applyProgress (null = אין מדידה).
-                final double? progress;
-                switch (state.status) {
-                  case LibraryUpdateStatus.downloading:
-                    final total = state.bytesTotal ?? 0;
-                    progress = total > 0
-                        ? ((state.bytesDownloaded ?? 0) / total).clamp(0.0, 1.0)
-                        : null;
-                  case LibraryUpdateStatus.applying:
-                    progress = state.applyProgress;
-                  default:
-                    progress = null;
-                }
-                cubit.upsert(
-                  WorkStatusItem(
-                    id: 'library_update',
-                    title: 'עדכון ספרייה',
-                    message: state.message,
-                    progress: progress,
-                  ),
-                );
-              } else if (state.status == LibraryUpdateStatus.error) {
-                cubit.upsert(
-                  WorkStatusItem(
-                    id: 'library_update',
-                    title: 'עדכון ספרייה',
-                    message: state.message,
-                    detail: 'לחץ לניסיון חוזר',
-                    kind: WorkStatusKind.failed,
-                    onTap: () => context.read<LibraryUpdateBloc>().add(
-                      const StartLibraryUpdate(),
-                    ),
-                  ),
-                );
+              final item = libraryUpdateWorkStatusItem(
+                state,
+                onRetry: () => context.read<LibraryUpdateBloc>().add(
+                  const StartLibraryUpdate(),
+                ),
+              );
+              if (item == null) {
+                cubit.remove(kLibraryUpdateWorkStatusId);
               } else {
-                cubit.remove('library_update');
+                cubit.upsert(item);
               }
             },
           ),

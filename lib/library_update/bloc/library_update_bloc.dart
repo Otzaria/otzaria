@@ -1,7 +1,8 @@
-import 'package:bloc/bloc.dart';
+﻿import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/error_log_file.dart';
+import 'package:otzaria/core/internet_connectivity.dart';
 import 'package:otzaria/library_update/services/companion_assets_service.dart';
 import 'package:seforim_library_updater/seforim_library_updater.dart';
 
@@ -27,6 +28,9 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
   final bool Function() areUpdatesEnabled;
   final bool Function() allowPrerelease;
 
+  /// בדיקת חיבור אמיתי לאינטרנט — ניתנת להזרקה לבדיקות.
+  final Future<bool> Function() hasInternet;
+
   // מזהה הריצה הפעילה. כל התחלה/ביטול/איפוס מגדילים אותו, כך שריצה ישנה
   // (Future שעדיין לא הסתיים) מזוהה כמבוטלת ולא פולטת state או מחליפה DB.
   int _operationId = 0;
@@ -47,6 +51,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     required this.areUpdatesEnabled,
     required this.allowPrerelease,
     this.companionAssets,
+    this.hasInternet = hasInternetConnection,
   }) : super(const LibraryUpdateState()) {
     on<StartLibraryUpdate>(_onStart);
     on<ConfirmFullDownload>(_onConfirmFull);
@@ -137,14 +142,26 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
       // אם בוטל/הוחלף במהלך הבדיקה — לא לדרוס state של ריצה חדשה בשגיאה.
       if (_isStale(opId)) return;
       _logUpdateError('checkForUpdate', e, st);
-      emit(
-        LibraryUpdateState(
-          status: LibraryUpdateStatus.error,
-          message: 'שגיאה בבדיקת עדכונים',
-          errorMessage: e.toString(),
-        ),
+      final failure = await _failureState('שגיאה בבדיקת עדכונים', e);
+      if (isClosed || _isStale(opId)) return;
+      emit(failure);
+    }
+  }
+
+  /// המצב שיש לפלוט אחרי כשל: בלי אינטרנט זו אינה תקלה אלא מצב מנותק — סימון
+  /// שקט בכפתור העדכון במקום כשל שקופץ למשתמש שאין לו מה לתקן.
+  Future<LibraryUpdateState> _failureState(String message, Object error) async {
+    if (await hasInternet()) {
+      return LibraryUpdateState(
+        status: LibraryUpdateStatus.error,
+        message: message,
+        errorMessage: error.toString(),
       );
     }
+    return const LibraryUpdateState(
+      status: LibraryUpdateStatus.disconnected,
+      message: 'אין חיבור לאינטרנט',
+    );
   }
 
   Future<void> _runDelta(
@@ -178,13 +195,9 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     } catch (e, st) {
       if (_isStale(opId)) return;
       _logUpdateError('applyDeltaPlan', e, st);
-      emit(
-        LibraryUpdateState(
-          status: LibraryUpdateStatus.error,
-          message: 'שגיאה בהחלת העדכון',
-          errorMessage: e.toString(),
-        ),
-      );
+      final failure = await _failureState('שגיאה בהחלת העדכון', e);
+      if (isClosed || _isStale(opId)) return;
+      emit(failure);
     }
   }
 
@@ -227,13 +240,9 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     } catch (e, st) {
       if (_isStale(opId)) return;
       _logUpdateError('applyFullDownload', e, st);
-      emit(
-        LibraryUpdateState(
-          status: LibraryUpdateStatus.error,
-          message: 'שגיאה בהורדה המלאה',
-          errorMessage: e.toString(),
-        ),
-      );
+      final failure = await _failureState('שגיאה בהורדה המלאה', e);
+      if (isClosed || _isStale(opId)) return;
+      emit(failure);
     }
   }
 

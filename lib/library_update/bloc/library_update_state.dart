@@ -1,4 +1,4 @@
-part of 'library_update_bloc.dart';
+﻿part of 'library_update_bloc.dart';
 
 enum LibraryUpdateStatus {
   /// מצב מנוחה — אין פעולה פעילה.
@@ -24,6 +24,10 @@ enum LibraryUpdateStatus {
 
   /// מצב חסום שדורש פעולה ידנית.
   blocked,
+
+  /// הכשל נבע מהיעדר חיבור לאינטרנט — סימון שקט בכפתור העדכון ולא כשל: אין
+  /// למשתמש מה לתקן. שונה מ-`isOfflineMode` שהוא הגדרת "מצב לא מקוון" יזומה.
+  disconnected,
 
   /// שגיאה.
   error,
