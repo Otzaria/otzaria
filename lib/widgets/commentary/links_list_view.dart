@@ -7,6 +7,7 @@ import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/services/commentary_service.dart';
+import 'package:otzaria/services/target_line_links_service.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
@@ -576,6 +577,13 @@ class _LinksListViewState extends State<LinksListView> {
     });
   }
 
+  /// פותח את יעד הקישור בכרטיסייה חדשה (טקסט או PDF, לפי תבנית הפתיחה).
+  Future<void> _navigateToLink(Link link) async {
+    final tab = await buildLinkTargetTab(link);
+    if (!mounted) return;
+    widget.openBookCallback(tab);
+  }
+
   Widget _buildLinksList(
     List<Link> links,
     Set<String> selectedTypes,
@@ -895,6 +903,12 @@ class _LinksListViewState extends State<LinksListView> {
             }
           },
           child: AppContextMenuRegion(
+            // ריחוף מקדים את טעינת קישורי קטע היעד, כדי שהתפריט ייבנה עם
+            // נתונים מוכנים. הלחיצה הימנית מכסה מגע/עט, שאין בהם ריחוף.
+            onHoverEnter: () =>
+                TargetLineLinksService.instance.prefetchOnHover(link),
+            onSecondaryTapDown: (_) =>
+                TargetLineLinksService.instance.prefetch(link),
             // לחיצה ימנית על הטקסט המסומן בפועל לא תשחרר את הבחירה (התנהגות ברירת
             // המחדל של SelectableRegion ב-Windows); לחיצה על חלק לא-מסומן מבטלת
             // כרגיל. הבחירה מנוהלת ע"י SelectionArea פר-קישור, לכן מחשבים את קטע
@@ -920,6 +934,7 @@ class _LinksListViewState extends State<LinksListView> {
                   removeNikud: widget.removeNikud,
                   removePunctuation: widget.removePunctuation,
                   savedSelectedText: _savedSelectedText,
+                  onNavigateToLink: _navigateToLink,
                   onCopySelected: () => ContextMenuUtils.copyFormattedText(
                     context: menuCtx,
                     savedSelectedText: _savedSelectedText,
@@ -928,11 +943,7 @@ class _LinksListViewState extends State<LinksListView> {
                   ),
                 ),
             child: GestureDetector(
-              onTap: () async {
-                final tab = await buildLinkTargetTab(link);
-                if (!mounted) return;
-                widget.openBookCallback(tab);
-              },
+              onTap: () => _navigateToLink(link),
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12.0),

@@ -37,6 +37,10 @@ class AppContextMenuRegion extends StatefulWidget {
   /// משמש לשמירת ההקשר (למשל אינדקס השורה) עבור פעולות התפריט.
   final GestureTapDownCallback? onSecondaryTapDown;
 
+  /// נקרא כשהסמן נכנס לאזור. משמש לטעינה מקדימה של תוכן שהתפריט יצטרך —
+  /// כך הוא נבנה עם נתונים מוכנים במקום להציג "טוען…".
+  final VoidCallback? onHoverEnter;
+
   /// האם לחיצה ארוכה במגע או בעט פותחת את תפריט ההקשר.
   final bool openOnLongPress;
 
@@ -54,6 +58,7 @@ class AppContextMenuRegion extends StatefulWidget {
     required this.menuBuilder,
     this.menuItemKeysByLabel,
     this.onSecondaryTapDown,
+    this.onHoverEnter,
     this.shouldPreserveSelectionOnSecondaryTap,
     this.openOnLongPress = true,
   });
@@ -408,9 +413,19 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
               _openContextMenu(event.position);
             }
           },
-          child: widget.child,
+          child: _wrapWithHoverEnter(widget.child),
         ),
       ),
+    );
+  }
+
+  Widget _wrapWithHoverEnter(Widget child) {
+    final onHoverEnter = widget.onHoverEnter;
+    if (onHoverEnter == null) return child;
+    return MouseRegion(
+      opaque: false,
+      onEnter: (_) => onHoverEnter(),
+      child: child,
     );
   }
 

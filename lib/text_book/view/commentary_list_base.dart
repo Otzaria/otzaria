@@ -10,7 +10,10 @@ import 'package:otzaria/text_book/view/selection/selected_text_restore.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/link_types.dart';
+import 'package:otzaria/services/target_line_links_service.dart';
+import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
@@ -85,7 +88,7 @@ Set<String> effectiveCommentaryTypes({
 );
 
 class CommentaryListBase extends StatefulWidget {
-  final Function(TextBookTab) openBookCallback;
+  final Function(OpenedTab) openBookCallback;
   final double fontSize;
   final List<int>? indexes;
   final bool showSearch;
@@ -2045,7 +2048,7 @@ class _CollapsibleCommentaryGroup extends StatefulWidget {
   final CommentaryGroup group;
   final bool isExpanded;
   final double fontSize;
-  final Function(TextBookTab) openBookCallback;
+  final Function(OpenedTab) openBookCallback;
   final bool removeNikud;
   final bool removePunctuation;
   final bool showSearch;
@@ -2116,6 +2119,13 @@ class _CollapsibleCommentaryGroupState
   void initState() {
     super.initState();
     _isExpanded = widget.isExpanded;
+  }
+
+  /// פותח את יעד הקישור בכרטיסייה חדשה (טקסט או PDF, לפי תבנית הפתיחה).
+  Future<void> _navigateToLink(Link link) async {
+    final tab = await buildLinkTargetTab(link);
+    if (!mounted) return;
+    widget.openBookCallback(tab);
   }
 
   @override
@@ -2268,6 +2278,12 @@ class _CollapsibleCommentaryGroupState
                             ? widget.getItemSearchIndex(link)
                             : 0;
                         return AppContextMenuRegion(
+                          // ריחוף מקדים את טעינת קישורי קטע היעד, כדי שהתפריט
+                          // ייבנה מוכן. הלחיצה מכסה מגע/עט, שאין בהם ריחוף.
+                          onHoverEnter: () => TargetLineLinksService.instance
+                              .prefetchOnHover(link),
+                          onSecondaryTapDown: (_) =>
+                              TargetLineLinksService.instance.prefetch(link),
                           // לחיצה ימנית על הטקסט המסומן בפועל לא תשחרר את הבחירה
                           // (התנהגות ברירת המחדל של SelectableRegion ב-Windows);
                           // לחיצה על חלק לא-מסומן מבטלת כרגיל. אין כאן מעקב
@@ -2301,6 +2317,7 @@ class _CollapsibleCommentaryGroupState
                               removeNikud: widget.removeNikud,
                               removePunctuation: widget.removePunctuation,
                               savedSelectedText: savedTextAtBuild,
+                              onNavigateToLink: _navigateToLink,
                               onCopySelected: () => ContextMenuUtils.copyFormattedText(
                                 context: menuCtx,
                                 savedSelectedText:
@@ -2382,7 +2399,7 @@ class _NotesCommentaryWidget extends StatefulWidget {
   final List<String> notes;
   final double fontSize;
   final bool removeNikud;
-  final Function(TextBookTab) openBookCallback;
+  final Function(OpenedTab) openBookCallback;
 
   /// מצב הספר הראשי — דרוש לדיווח על טעות (ההערות inline בתוכו).
   final TextBookLoaded state;
