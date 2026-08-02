@@ -304,12 +304,17 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   ///
   /// דילוג בטוח: הטיימר הנגרר נדרך מחדש בכל אירוע גלילה, ולכן המיקום הסופי
   /// תמיד משודר אחרי שהגלילה נעצרת.
+  ///
+  /// משך שלילי נוצר כששעון המערכת הוזז אחורה; בלי המקרה הזה החסימה הייתה
+  /// נמשכת עד שהשעון משלים את הפער.
   @visibleForTesting
   static bool shouldDispatchVisibleIndicesNow({
     required Duration? sinceLastDispatch,
     Duration throttleInterval = _visibleIndicesThrottleInterval,
   }) {
-    return sinceLastDispatch == null || sinceLastDispatch >= throttleInterval;
+    return sinceLastDispatch == null ||
+        sinceLastDispatch.isNegative ||
+        sinceLastDispatch >= throttleInterval;
   }
 
   @visibleForTesting

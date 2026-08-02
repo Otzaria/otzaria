@@ -140,6 +140,170 @@ void main() {
       expect(justified.last.right, started.last.right);
     });
 
+    // התאום של הבדיקה הקודמת: בפסקה שנשברת לכמה שורות justify כן משנה את
+    // הפריסה. בלי זה, הסרת הבדיקה המקדימה הייתה יכולה לבטל יישור בשקט.
+    // הרוחב חייב להכיל כמה מילים בשורה — לשורה בת מילה אחת אין רווח למתוח.
+    testWidgets('פסקה רב-שורתית ב-RTL: justify מותח שורות ביחס ל-start', (
+      tester,
+    ) async {
+      const text =
+          'זהו מקטע ארוך מספיק כדי להישבר לכמה שורות בתצוגה צרה '
+          'ולכן היישור לשני הצדדים אמור למתוח את הרווחים שבתוכו';
+
+      Future<List<TextBox>> boxesFor(TextAlign align) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Scaffold(
+                body: SizedBox(
+                  width: 300,
+                  child: ContinuousReadingParagraph(
+                    lines: const [
+                      ContinuousReadingParagraphLine(
+                        lineIndex: 0,
+                        text: text,
+                        style: TextStyle(fontSize: 20),
+                      ),
+                    ],
+                    baseStyle: const TextStyle(fontSize: 20),
+                    textAlign: align,
+                    onLineTap: _noopLineTap,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.byType(RichText),
+        );
+        return paragraph.getBoxesForSelection(
+          TextSelection(baseOffset: 0, extentOffset: text.length),
+        );
+      }
+
+      final justified = await boxesFor(TextAlign.justify);
+      final started = await boxesFor(TextAlign.start);
+
+      expect(justified.length, greaterThan(2), reason: 'חייב להישבר לשורות');
+      // השורה האחרונה אינה נמתחת בשני המצבים — ההשוואה היא על כל השאר.
+      expect(
+        justified.take(justified.length - 1).map((b) => b.left).toList(),
+        isNot(started.take(started.length - 1).map((b) => b.left).toList()),
+        reason: 'justify אמור למתוח את השורות שאינן אחרונות',
+      );
+    });
+
+    testWidgets('ברירת המחדל של textAlign היא justify', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 300,
+              child: ContinuousReadingParagraph(
+                lines: [
+                  ContinuousReadingParagraphLine(
+                    lineIndex: 0,
+                    text: 'טקסט',
+                    style: TextStyle(fontSize: 20),
+                  ),
+                ],
+                baseStyle: TextStyle(fontSize: 20),
+                onLineTap: _noopLineTap,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        tester.widget<RichText>(find.byType(RichText)).textAlign,
+        TextAlign.justify,
+      );
+    });
+
+    testWidgets('רשימת שורות ריקה לא קורסת', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 300,
+              child: ContinuousReadingParagraph(
+                lines: [],
+                baseStyle: TextStyle(fontSize: 20),
+                onLineTap: _noopLineTap,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(RichText), findsOneWidget);
+    });
+
+    testWidgets('שורה בלי htmlText נופלת לטקסט הגולמי', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 300,
+              child: ContinuousReadingParagraph(
+                lines: [
+                  ContinuousReadingParagraphLine(
+                    lineIndex: 0,
+                    text: 'טקסט <b>גולמי</b> בלי פירוק',
+                    style: TextStyle(fontSize: 20),
+                  ),
+                ],
+                baseStyle: TextStyle(fontSize: 20),
+                onLineTap: _noopLineTap,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final richText = tester.widget<RichText>(find.byType(RichText));
+      expect(
+        _flattenText([richText.text]),
+        contains('<b>'),
+        reason: 'בלי htmlText התגיות אינן מפורקות ונשארות כטקסט',
+      );
+    });
+
+    testWidgets('שורות מרובות מופרדות ברווח אחד', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              child: ContinuousReadingParagraph(
+                lines: [
+                  ContinuousReadingParagraphLine(
+                    lineIndex: 0,
+                    text: 'ראשונה',
+                    style: TextStyle(fontSize: 20),
+                  ),
+                  ContinuousReadingParagraphLine(
+                    lineIndex: 1,
+                    text: 'שנייה',
+                    style: TextStyle(fontSize: 20),
+                  ),
+                ],
+                baseStyle: TextStyle(fontSize: 20),
+                onLineTap: _noopLineTap,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final richText = tester.widget<RichText>(find.byType(RichText));
+      expect(_flattenText([richText.text]), 'ראשונה שנייה');
+    });
+
     testWidgets('אין LayoutBuilder בפסקה — הפריסה נעשית פעם אחת', (
       tester,
     ) async {
@@ -609,6 +773,163 @@ void main() {
         isFalse,
         reason: 'recognizer משותף היה נזרק (dispose) פעמיים',
       );
+    });
+
+    // המלכוד המרכזי בשיתוף DOM: אם בניית הספאנים הייתה משנה את ה-DOM,
+    // הבנייה השלישית הייתה מחזירה את הסגנון של השנייה.
+    test('בנייה חוזרת אחרי סגנון אחר מחזירה בדיוק את התוצאה הראשונה', () {
+      const other = TextStyle(fontSize: 40, color: Color(0xFF00FF00));
+
+      final first = _flattenStyles(buildInlineHtmlSpans(html, style));
+      buildInlineHtmlSpans(html, other);
+      final third = _flattenStyles(buildInlineHtmlSpans(html, style));
+
+      expect(inlineHtmlParseCount, 1);
+      expect(third, first);
+    });
+
+    test('מבנה התגיות המקונן נשמר בבנייה מהמטמון', () {
+      const nested = '<b>מודגש <i>ונטוי</i></b> רגיל';
+      final fresh = buildInlineHtmlSpans(nested, style);
+      final cached = buildInlineHtmlSpans(nested, style);
+
+      TextStyle? italicOf(List<InlineSpan> spans) => _flattenStyles(
+        spans,
+      ).where((s) => s.fontStyle == FontStyle.italic).firstOrNull;
+
+      expect(italicOf(fresh)?.fontWeight, FontWeight.bold);
+      expect(italicOf(cached)?.fontWeight, FontWeight.bold);
+      expect(_flattenText(cached), _flattenText(fresh));
+    });
+
+    test('הדגשת חיפוש היא ערך מטמון נפרד, ושתי הגרסאות נכונות', () {
+      const plain = 'ויאמר משה';
+      const highlighted = 'ויאמר <span style="color: red">משה</span>';
+
+      final plainSpans = buildInlineHtmlSpans(plain, style);
+      final markedSpans = buildInlineHtmlSpans(highlighted, style);
+
+      expect(inlineHtmlParseCount, 2, reason: 'מחרוזות שונות — מפתחות שונים');
+      expect(_findColoredSpan(plainSpans), isNull);
+      expect(
+        _findColoredSpan(markedSpans)?.style?.color,
+        const Color(0xFFFF0000),
+      );
+      expect(_flattenText(plainSpans), _flattenText(markedSpans));
+    });
+
+    test('מחלקות עוגן שורדות את המטמון', () {
+      const anchorHtml =
+          'לפני <a class="link-anchor link-anchor-0" '
+          'href="otzaria://anchor?ref=3_0">(א)</a> אחרי';
+      const linkStyle = TextStyle(
+        color: Color(0xFF6750A4),
+        decoration: TextDecoration.underline,
+      );
+
+      final sinks = [<TapGestureRecognizer>[], <TapGestureRecognizer>[]];
+      final results = [
+        for (final sink in sinks)
+          buildInlineHtmlSpans(
+            anchorHtml,
+            style,
+            onTapUrl: (_) async => true,
+            linkStyle: linkStyle,
+            recognizerSink: sink,
+          ),
+      ];
+
+      expect(inlineHtmlParseCount, 1);
+      for (final spans in results) {
+        final anchor = _findLinkSpan(spans);
+        expect(anchor?.style?.color, const Color(0xFF6750A4));
+        expect(anchor?.style?.decoration, isNot(TextDecoration.underline));
+      }
+      for (final sink in sinks) {
+        for (final r in sink) {
+          r.dispose();
+        }
+      }
+    });
+
+    test('onTapUrl נורה גם כשה-DOM הגיע מהמטמון', () async {
+      const linkHtml = '<a href="otzaria://note?line=7">הערה</a>';
+      final tapped = <String>[];
+      final sink = <TapGestureRecognizer>[];
+
+      buildInlineHtmlSpans(linkHtml, style, onTapUrl: (_) async => true);
+      final spans = buildInlineHtmlSpans(
+        linkHtml,
+        style,
+        onTapUrl: (url) async {
+          tapped.add(url);
+          return true;
+        },
+        recognizerSink: sink,
+      );
+
+      expect(inlineHtmlParseCount, 1);
+      (_findLinkSpan(spans)!.recognizer! as TapGestureRecognizer).onTap!();
+      expect(tapped, ['otzaria://note?line=7']);
+      for (final r in sink) {
+        r.dispose();
+      }
+    });
+
+    test('onEnter/onExit מחוברים מחדש גם מ-DOM שמור', () {
+      const anchorHtml =
+          '<a class="link-anchor link-anchor-0" '
+          'href="otzaria://anchor?ref=3_0">(א)</a>';
+      final hovered = <String>[];
+      final sink = <TapGestureRecognizer>[];
+
+      buildInlineHtmlSpans(anchorHtml, style, onTapUrl: (_) async => true);
+      final spans = buildInlineHtmlSpans(
+        anchorHtml,
+        style,
+        onTapUrl: (_) async => true,
+        onAnchorHover: (url, _) => hovered.add(url),
+        recognizerSink: sink,
+      );
+
+      expect(inlineHtmlParseCount, 1);
+      _findSpanContaining(spans, '(א)')!.onEnter!(const PointerEnterEvent());
+      expect(hovered, ['otzaria://anchor?ref=3_0']);
+      for (final r in sink) {
+        r.dispose();
+      }
+    });
+
+    test('HTML ריק או פגום נשמר במטמון ולא קורס', () {
+      for (final broken in ['', '<b>לא נסגר', '<<>>', '&nbsp;&#1500;']) {
+        expect(() => buildInlineHtmlSpans(broken, style), returnsNormally);
+      }
+      final countAfterFirstPass = inlineHtmlParseCount;
+      for (final broken in ['', '<b>לא נסגר', '<<>>', '&nbsp;&#1500;']) {
+        buildInlineHtmlSpans(broken, style);
+      }
+      expect(inlineHtmlParseCount, countAfterFirstPass);
+    });
+
+    test('ערך שנעשה בו שימוש חוזר שורד פינוי LRU', () {
+      for (var i = 0; i < 1024; i++) {
+        buildInlineHtmlSpans('שורה $i', style);
+      }
+      expect(inlineHtmlParseCount, 1024);
+
+      // שימוש חוזר מקדם את הוותיק ביותר לסוף התור.
+      buildInlineHtmlSpans('שורה 0', style);
+      expect(inlineHtmlParseCount, 1024);
+
+      // הכנסה חדשה מפנה עכשיו את "שורה 1", לא את "שורה 0".
+      buildInlineHtmlSpans('שורה חדשה', style);
+      expect(inlineHtmlParseCount, 1025);
+
+      buildInlineHtmlSpans('שורה 0', style);
+      expect(inlineHtmlParseCount, 1025, reason: 'הוקדם ולכן עדיין במטמון');
+
+      buildInlineHtmlSpans('שורה 1', style);
+      expect(inlineHtmlParseCount, 1026, reason: 'זה הערך שפונה');
     });
 
     test('המטמון חסום בגודלו ולא צובר ספר שלם', () {

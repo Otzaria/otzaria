@@ -103,6 +103,23 @@ void main() {
       );
     });
 
+    test('משך שלילי (שעון שהוזז אחורה) — עובר ולא נתקע', () {
+      expect(
+        TextBookBloc.shouldDispatchVisibleIndicesNow(
+          sinceLastDispatch: const Duration(milliseconds: -1),
+          throttleInterval: interval,
+        ),
+        isTrue,
+      );
+      expect(
+        TextBookBloc.shouldDispatchVisibleIndicesNow(
+          sinceLastDispatch: const Duration(hours: -1),
+          throttleInterval: interval,
+        ),
+        isTrue,
+      );
+    });
+
     test('ברירת המחדל של החלון פעילה גם בלי פרמטר מפורש', () {
       expect(
         TextBookBloc.shouldDispatchVisibleIndicesNow(
@@ -242,6 +259,120 @@ void main() {
               state.visibleIndices.first == 6;
         },
         description: 'currentTitle="סעיף א" ו-visibleIndices=[6] אחרי גלילה',
+      );
+
+      await bloc.close();
+    });
+
+    // ההבטחה אינה "האירוע הראשון בכל פרץ" — אחרי הפוגה הטיימר הנגרר כבר
+    // שידר, ולכן האירוע הבא עשוי ליפול בתוך חלון החסימה. ההבטחה היא שכל
+    // פרץ מסתיים במיקום הנכון, ושמספר השידורים קטן ממספר האירועים.
+    test('כל פרץ גלילה מסתיים במיקום הנכון, בפחות שידורים מאירועים', () async {
+      final positionsListener = ItemPositionsListener.create();
+      final bloc = await _loadedBloc(positionsListener);
+
+      final seen = <int>[];
+      final subscription = bloc.stream.listen((state) {
+        if (state is TextBookLoaded && state.visibleIndices.isNotEmpty) {
+          seen.add(state.visibleIndices.first);
+        }
+      });
+
+      const bursts = [
+        [5, 6, 7],
+        [15, 16, 17],
+        [25, 26, 27],
+      ];
+      for (final burst in bursts) {
+        for (final index in burst) {
+          _pushSingleVisibleSegment(positionsListener, index: index);
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+      }
+
+      await subscription.cancel();
+
+      for (final burst in bursts) {
+        expect(
+          seen,
+          contains(burst.last),
+          reason: 'סוף הפרץ ${burst.first}..${burst.last} חייב להישדר',
+        );
+      }
+      expect(seen.last, 27, reason: 'המיקום הסופי חייב להגיע');
+      expect(
+        seen.length,
+        lessThan(bursts.expand((b) => b).length),
+        reason: 'ההגבלה אמורה לחסוך שידורים',
+      );
+
+      await bloc.close();
+    });
+
+    test('אירוע בודד משודר ולא נבלע בחסימה', () async {
+      final positionsListener = ItemPositionsListener.create();
+      final bloc = await _loadedBloc(positionsListener);
+
+      _pushSingleVisibleSegment(positionsListener, index: 8);
+      await _waitFor(
+        () {
+          final state = bloc.state;
+          return state is TextBookLoaded &&
+              state.visibleIndices.isNotEmpty &&
+              state.visibleIndices.first == 8;
+        },
+        description: 'אירוע בודד משודר',
+      );
+
+      await bloc.close();
+    });
+
+    test('חזרה למיקום המקורי בתוך פרץ לא משאירה state שגוי', () async {
+      final positionsListener = ItemPositionsListener.create();
+      final bloc = await _loadedBloc(positionsListener);
+
+      _pushSingleVisibleSegment(positionsListener, index: 10);
+      await _waitFor(
+        () {
+          final state = bloc.state;
+          return state is TextBookLoaded &&
+              state.visibleIndices.isNotEmpty &&
+              state.visibleIndices.first == 10;
+        },
+        description: 'מיקום התחלתי',
+      );
+
+      // הלוך ושוב מהיר שמסתיים בדיוק בנקודת המוצא.
+      for (final index in [11, 12, 13, 12, 11, 10]) {
+        _pushSingleVisibleSegment(positionsListener, index: index);
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+
+      final state = bloc.state as TextBookLoaded;
+      expect(state.visibleIndices.first, 10);
+
+      await bloc.close();
+    });
+
+    test('גלילה ארוכה מסתיימת במיקום הנכון', () async {
+      final positionsListener = ItemPositionsListener.create();
+      final bloc = await _loadedBloc(positionsListener);
+
+      for (var index = 2; index <= 30; index++) {
+        _pushSingleVisibleSegment(positionsListener, index: index);
+        await Future<void>.delayed(const Duration(milliseconds: 6));
+      }
+
+      await _waitFor(
+        () {
+          final state = bloc.state;
+          return state is TextBookLoaded &&
+              state.visibleIndices.isNotEmpty &&
+              state.visibleIndices.first == 30;
+        },
+        description: 'המיקום האחרון (30) הוא זה שנשאר ב-state',
       );
 
       await bloc.close();
