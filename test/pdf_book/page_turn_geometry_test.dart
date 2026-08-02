@@ -138,4 +138,34 @@ void main() {
       }
     });
   });
+
+  group('pageTurnDecorationFade — קישוט זמני בלבד', () {
+    test('מתאפס בשני קצות האנימציה', () {
+      // קישוט ששורד את הפריים האחרון "נופל" במעבר לתצוגה החיה.
+      expect(pageTurnDecorationFade(0.0), 0.0);
+      expect(pageTurnDecorationFade(1.0), closeTo(0.0, 1e-9));
+    });
+
+    test('מגיע לשיא באמצע הדפדוף', () {
+      expect(pageTurnDecorationFade(0.5), closeTo(1.0, 1e-9));
+    });
+
+    test('חסום לטווח [0,1] גם עבור progress חורג', () {
+      expect(pageTurnDecorationFade(-0.5), 0.0);
+      expect(pageTurnDecorationFade(1.5), closeTo(0.0, 1e-9));
+    });
+
+    test('עוצמת ההצללה של הגאומטריה נגזרת מאותה דעיכה', () {
+      for (final p in [0.0, 0.25, 0.5, 0.75, 1.0]) {
+        final geometry = PageTurnGeometry.compute(
+          spineX: 400,
+          pageWidth: 400,
+          height: 600,
+          progress: p,
+          turnLeftPage: true,
+        );
+        expect(geometry.shadeStrength, closeTo(pageTurnDecorationFade(p), 1e-9));
+      }
+    });
+  });
 }

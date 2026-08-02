@@ -23,6 +23,13 @@ bool shouldCommitPageTurn({
       (velocity > -flingVelocity && progress >= 0.5);
 }
 
+/// עוצמת הקישוט הזמני של הדפדוף (צללים, קו קצה, סיבי נייר).
+///
+/// חייבת להתאפס בשני הקצוות: קישוט שנשאר בעוצמה מלאה בפריים האחרון "נופל"
+/// בבת אחת כשהתצוגה החיה מחליפה את האנימציה, וזה נראה כקפיצה.
+double pageTurnDecorationFade(double progress) =>
+    sin(progress.clamp(0.0, 1.0) * pi).clamp(0.0, 1.0).toDouble();
+
 /// רצועה אנכית אחת של הדף המתהפך, אחרי הקרנה למסך.
 class PageTurnStrip {
   final double left;
@@ -155,7 +162,7 @@ class PageTurnGeometry {
       freeEdgeX: screenX(1, edgeK),
       freeEdgeTop: centerY - edgeHalfHeight,
       freeEdgeBottom: centerY + edgeHalfHeight,
-      shadeStrength: sin(theta).clamp(0.0, 1.0),
+      shadeStrength: pageTurnDecorationFade(progress),
       hasBackStrips: hasBackStrips,
     );
   }

@@ -1,6 +1,7 @@
 /// עוזרים טהורים לחישוב טווח עמודי ספירייד בתצוגת PDF.
 library;
 
+import 'dart:math';
 import 'dart:ui';
 
 /// מחזיר את מספר העמוד (1-מבוסס) שנמצא בראש חלון התצוגה.
@@ -124,4 +125,35 @@ String pdfCombineSpreadTitles(String first, String second) {
     idx = combined.indexOf(kSpreadTitleSeparator, idx + 1);
   }
   return null;
+}
+
+/// מרכז-Y של יעד הניווט בתצוגת ספר: משמר את מיקום הגלילה היחסי בתוך הזוג
+/// (0 = ראש, 1 = תחתית) במעבר בין זוגות.
+///
+/// מקור יחיד — הן הניווט בפועל והן הצילום המורכב מראש חייבים אותו ערך, אחרת
+/// מוצג הבדל בין האנימציה לתצוגה החיה בסיומה.
+double spreadTargetCenterY({
+  required Rect currentSpreadRect,
+  required Rect newSpreadRect,
+  required Rect visibleRect,
+}) {
+  final visibleHeight = min(visibleRect.height, currentSpreadRect.height);
+  final currentScrollableExtent = max(
+    currentSpreadRect.height - visibleHeight,
+    0.0,
+  );
+
+  var relativeScroll = 0.0;
+  if (currentScrollableExtent > 0) {
+    final currentScrollTop = (visibleRect.top - currentSpreadRect.top).clamp(
+      0.0,
+      currentScrollableExtent,
+    );
+    relativeScroll = currentScrollTop / currentScrollableExtent;
+  }
+
+  final newScrollableExtent = max(newSpreadRect.height - visibleHeight, 0.0);
+  return newSpreadRect.top +
+      relativeScroll * newScrollableExtent +
+      visibleHeight / 2;
 }

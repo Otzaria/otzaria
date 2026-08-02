@@ -288,6 +288,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   static const int _defaultPdfLineRange = 50;
   static const double _bookViewGap = 3.0;
   static const double _bookViewScale = 0.5;
+
+  /// צל העמוד — מוגדר במפורש (ולא נשען על ברירת המחדל של pdfrx) כי הצילום
+  /// המורכב מראש חייב לצייר בדיוק את אותו צל, אחרת הוא צץ בסיום האנימציה.
+  static const BoxShadow _pageDropShadow = BoxShadow(
+    color: Colors.black54,
+    blurRadius: 4,
+    spreadRadius: 2,
+    offset: Offset(2, 2),
+  );
   static const double _verticalScrollbarGutter = 16.0;
   static const double _horizontalScrollbarGutter = 10.0;
   static const double _scrollbarGutterGap = 4.0;
@@ -332,6 +341,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   // דפדוף אינטראקטיבי בגרירה מקצה הדף. בזמן גרירה ערך ה-controller הוא
   // ה-progress עצמו (ליניארי, צמוד לאצבע) — בלי עקומת ההאטה של קליק.
   bool _isInteractivePageTurn = false;
+
+  /// עדכון כותרת/מטא-דאטה שנדחה כי הגיע בזמן אנימציית דפדוף.
+  bool _pageTurnDeferredMetadataUpdate = false;
   int _interactiveTurnToken = 0;
   double _interactiveDragDx = 0;
   double _interactivePageWidth = 1;
@@ -536,7 +548,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _resolveIsTanachBook();
     _pageTurnController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 450),
+      duration: const Duration(milliseconds: 500),
     );
     if (widget.tab.pageNumber < 1) {
       widget.tab.pageNumber = 1;
@@ -1302,6 +1314,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         }
       },
       backgroundColor: _pdfViewerBgColor(),
+      pageDropShadow: _pageDropShadow,
       sizeDelegateProvider: PdfViewerSizeDelegateProviderLegacy(maxScale: 20),
       // חסימת הזיכרון של ה-renderer: ברירת המחדל של pdfrx 2.4.3 היא
       // 100MB; מהודק ל-48MB כדי לצמצם לחץ זיכרון במחשבים עם 8GB RAM
@@ -1809,15 +1822,22 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     );
   }
 
+  /// [matrix] ו-[spreadStartPageOverride] מאפשרים לחשב עבור מצב עתידי (הצילום
+  /// המורכב מראש), ולא רק עבור המצב החי.
   List<_VisibleBookPage> _currentSpreadPages(
     PdfViewerController controller,
-    Size viewportSize,
-  ) {
+    Size viewportSize, {
+    Matrix4? matrix,
+    int? spreadStartPageOverride,
+  }) {
     if (!controller.isReady || !_isBookViewModeActive()) return const [];
 
     final currentPage = controller.pageNumber ?? widget.tab.pageNumber;
     final spreadStartPage =
-        _lockedSpreadStartPage ?? _spreadStartPageFor(currentPage);
+        spreadStartPageOverride ??
+        _lockedSpreadStartPage ??
+        _spreadStartPageFor(currentPage);
+    final effectiveMatrix = matrix ?? controller.value;
     final totalPages = controller.pageCount;
     final hasCover = _hasCoverPage();
     final pageNumbers = <int>[
@@ -1831,7 +1851,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     for (final pageNumber in pageNumbers) {
       final pageRect = MatrixUtils.transformRect(
-        controller.value,
+        effectiveMatrix,
         controller.layout.pageLayouts[pageNumber - 1],
       );
       if (!pageRect.overlaps(viewportBounds)) continue;
@@ -2235,41 +2255,31 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           newSpreadRect != null &&
           currentSpreadRect.height > 0 &&
           newSpreadRect.height > 0) {
-        final visibleRect = controller.visibleRect;
-        final visibleHeight = min(visibleRect.height, currentSpreadRect.height);
-        final currentScrollableExtent = max(
-          currentSpreadRect.height - visibleHeight,
-          0.0,
+        final targetCenterY = spreadTargetCenterY(
+          currentSpreadRect: currentSpreadRect,
+          newSpreadRect: newSpreadRect,
+          visibleRect: controller.visibleRect,
         );
-
-        // Relative scroll: 0.0 = top of spread, 1.0 = bottom.
-        // Uses scroll offset (not center) to avoid placing center outside spread.
-        double relativeScroll = 0.0;
-        if (currentScrollableExtent > 0) {
-          final currentScrollTop = (visibleRect.top - currentSpreadRect.top)
-              .clamp(0.0, currentScrollableExtent);
-          relativeScroll = currentScrollTop / currentScrollableExtent;
-        }
-
-        final newScrollableExtent = max(
-          newSpreadRect.height - visibleHeight,
-          0.0,
-        );
-        final newScrollTop = relativeScroll * newScrollableExtent;
-        final targetCenterY =
-            newSpreadRect.top + newScrollTop + visibleHeight / 2;
 
         final targetCenterX = _spreadTargetCenterX(
           controller,
           newSpreadRect,
           safePage,
         );
+        // דרך אותו clamp שהנרמול יחיל ברגע שהאנימציה משתחררת — אחרת גובה
+        // זוג שונה מקודמו מקבל תיקון מיד בסיום, וזה נראה כקפיצה.
         await controller
             .goTo(
-              controller.calcMatrixFor(
-                Offset(targetCenterX, targetCenterY),
-                zoom: controller.value.zoom,
+              _clampMatrixToSpread(
+                matrix: controller.calcMatrixFor(
+                  Offset(targetCenterX, targetCenterY),
+                  zoom: controller.value.zoom,
+                  viewSize: controller.viewSize,
+                ),
                 viewSize: controller.viewSize,
+                layout: controller.layout,
+                controller: controller,
+                spreadStartPage: _lockedSpreadStartPage!,
               ),
             )
             .timeout(const Duration(seconds: 3), onTimeout: () {});
@@ -2381,6 +2391,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   void _clearPageTurnOverlay() {
     _disposePageTurnSnapshot();
     _pageTurnTransition = null;
+    if (_pageTurnDeferredMetadataUpdate) {
+      _pageTurnDeferredMetadataUpdate = false;
+      // במיקרוטסק — נקרא מתוך setState, וסנכרוני היה מקנן setState בתוך setState.
+      scheduleMicrotask(() {
+        if (mounted) _onPdfViewerControllerUpdate();
+      });
+    }
   }
 
   Future<void> _processPendingPageTurnIfNeeded() async {
@@ -2718,49 +2735,40 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final newSpreadRect = _spreadRectForPageLayout(layout, spreadStartPage);
     if (newSpreadRect == null) return null;
 
-    // Predict the post-navigation viewer matrix using the same arithmetic as
-    // `_goToPageWithSpreadLock`, so the composed snapshot lands on the same
-    // pixels the live viewer will show after `goTo`. Otherwise zoomed-in
-    // reading (where relative scroll != 0.5) would produce a "snap" at the
-    // end of the curl as the snapshot is replaced by the actual viewer.
+    // Predict the post-navigation viewer matrix exactly as
+    // `_goToPageWithSpreadLock` computes it, so the composed snapshot lands on
+    // the same pixels the live viewer will show after `goTo`.
     final currentSpreadRect = _currentSpreadRect(controller);
-    final visibleRect = controller.visibleRect;
     final zoom = controller.value.zoom;
 
-    var targetCenterY = newSpreadRect.center.dy;
-    if (currentSpreadRect != null &&
-        currentSpreadRect.height > 0 &&
-        newSpreadRect.height > 0) {
-      final visibleHeight = min(visibleRect.height, currentSpreadRect.height);
-      final currentScrollableExtent = max(
-        currentSpreadRect.height - visibleHeight,
-        0.0,
-      );
-      var relativeScroll = 0.0;
-      if (currentScrollableExtent > 0) {
-        final currentScrollTop = (visibleRect.top - currentSpreadRect.top)
-            .clamp(0.0, currentScrollableExtent);
-        relativeScroll = currentScrollTop / currentScrollableExtent;
-      }
-      final newScrollableExtent = max(
-        newSpreadRect.height - visibleHeight,
-        0.0,
-      );
-      final newScrollTop = relativeScroll * newScrollableExtent;
-      targetCenterY = newSpreadRect.top + newScrollTop + visibleHeight / 2;
-    }
+    final targetCenterY =
+        currentSpreadRect != null &&
+            currentSpreadRect.height > 0 &&
+            newSpreadRect.height > 0
+        ? spreadTargetCenterY(
+            currentSpreadRect: currentSpreadRect,
+            newSpreadRect: newSpreadRect,
+            visibleRect: controller.visibleRect,
+          )
+        : newSpreadRect.center.dy;
 
-    final targetMatrix = controller.calcMatrixFor(
-      Offset(
-        _spreadTargetCenterX(
-          controller,
-          newSpreadRect,
-          focusPage ?? spreadStartPage,
+    final targetMatrix = _clampMatrixToSpread(
+      matrix: controller.calcMatrixFor(
+        Offset(
+          _spreadTargetCenterX(
+            controller,
+            newSpreadRect,
+            focusPage ?? spreadStartPage,
+          ),
+          targetCenterY,
         ),
-        targetCenterY,
+        zoom: zoom,
+        viewSize: viewSize,
       ),
-      zoom: zoom,
       viewSize: viewSize,
+      layout: layout,
+      controller: controller,
+      spreadStartPage: spreadStartPage,
     );
 
     final viewportPixels = viewSize.width * viewSize.height;
@@ -2778,25 +2786,42 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final canvas = Canvas(recorder);
     canvas.scale(pixelRatio);
 
-    // Background — match the reader surface so the area outside the spread
-    // doesn't show as a stark transparent strip during the curl.
-    // This snapshot is captured after the ColorFilter, so we use the
-    // post-filter color (readerBackground) directly.
-    final bgColor = AppSurfaces.readerBackground(context);
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, viewSize.width, viewSize.height),
-      Paint()..color = bgColor,
-    );
+    // מראה של עץ הווידג'טים החי: תוכן לפני-סינון בתוך שכבה עם אותו
+    // ColorFilter של מצב כהה — אחרת הצילום היה נבדל מהתצוגה בסיום האנימציה.
+    final canvasRect = Rect.fromLTWH(0, 0, viewSize.width, viewSize.height);
+    final isDarkMode = Provider.of<SettingsBloc>(
+      context,
+      listen: false,
+    ).state.isDarkMode;
+    if (isDarkMode) {
+      canvas.saveLayer(
+        canvasRect,
+        Paint()
+          ..colorFilter = const ColorFilter.mode(
+            Colors.white,
+            BlendMode.difference,
+          ),
+      );
+    }
 
+    canvas.drawRect(canvasRect, Paint()..color = _pdfViewerBgColor());
+
+    // צל העמוד וציור העמודים במרחב המסמך — בדיוק כפי ש-pdfrx עושה, כך
+    // שהטשטוש וההיסט מתקנים את עצמם לפי הזום.
     final paint = Paint()..filterQuality = FilterQuality.medium;
+    final shadowPaint = _pageDropShadow.toPaint()..style = PaintingStyle.fill;
+    canvas.save();
+    canvas.transform(targetMatrix.storage);
     for (final pageNum in entry.pageImages.keys) {
       final pageIdx = pageNum - 1;
       if (pageIdx < 0 || pageIdx >= pageLayouts.length) continue;
 
       final pageDocRect = pageLayouts[pageIdx];
-      final pageViewportRect = MatrixUtils.transformRect(
-        targetMatrix,
-        pageDocRect,
+      canvas.drawRect(
+        pageDocRect
+            .translate(_pageDropShadow.offset.dx, _pageDropShadow.offset.dy)
+            .inflate(_pageDropShadow.spreadRadius),
+        shadowPaint,
       );
 
       final pageImage = entry.pageImages[pageNum]!;
@@ -2808,9 +2833,41 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           pageImage.width.toDouble(),
           pageImage.height.toDouble(),
         ),
-        pageViewportRect,
+        pageDocRect,
         paint,
       );
+    }
+    canvas.restore();
+
+    final spreadViewportRect = MatrixUtils.transformRect(
+      targetMatrix,
+      newSpreadRect,
+    ).intersect(canvasRect);
+    if (spreadViewportRect.width > 0 && spreadViewportRect.height > 0) {
+      _BookViewViewportMaskPainter(spreadViewportRect).paint(canvas, viewSize);
+    }
+
+    // קישוט עובי הספר — בלעדיו הוא "צץ" רק בסיום האנימציה, ועובי הערימות
+    // המשתנה בין הזוגות נקרא כקפיצה של עומק.
+    final decorationPages = _currentSpreadPages(
+      controller,
+      viewSize,
+      matrix: targetMatrix,
+      spreadStartPageOverride: spreadStartPage,
+    );
+    if (decorationPages.isNotEmpty) {
+      final colorScheme = Theme.of(context).colorScheme;
+      _BookSpreadPainter(
+        pages: decorationPages,
+        pageEdgeColor: colorScheme.outlineVariant,
+        stackColor: colorScheme.surfaceContainerHighest,
+        stackShadowColor: colorScheme.shadow.withValues(alpha: 0.18),
+        spineColor: colorScheme.outline.withValues(alpha: 0.28),
+      ).paint(canvas, viewSize);
+    }
+
+    if (isDarkMode) {
+      canvas.restore();
     }
 
     final picture = recorder.endRecording();
@@ -3586,6 +3643,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     // (כי אנחנו עדיין ממתינים לקפיצה לעמוד הנכון)
     if (_initialPageNumber != null && _initialPageNumber! > 1 && newPage == 1) {
       return; // לא נאפס כדי להמשיך לחסום
+    }
+
+    // בדפדוף עם צילום מוכן הניווט רץ במקביל לאנימציה, ולכן הכותרת הייתה
+    // מתחלפת לפני שהדפים מתחלפים על המסך. נדחה לסיום האנימציה.
+    if (_pageTurnTransition != null) {
+      _pageTurnDeferredMetadataUpdate = true;
+      return;
     }
 
     if (newPage == widget.tab.pageNumber) return;
@@ -5448,6 +5512,9 @@ class _BookPageTurnBackgroundPainter extends CustomPainter {
   }
 
   void _paintRevealedPageEdge(Canvas canvas, double edgeX) {
+    final fade = pageTurnDecorationFade(progress);
+    if (fade <= 0.01) return;
+
     final isNext = direction == _BookPageTurnDirection.next;
     final shadowWidth = min(spreadRect.width * 0.045, 34.0);
     final shadowRect = isNext
@@ -5466,7 +5533,7 @@ class _BookPageTurnBackgroundPainter extends CustomPainter {
           begin: isNext ? Alignment.centerRight : Alignment.centerLeft,
           end: isNext ? Alignment.centerLeft : Alignment.centerRight,
           colors: [
-            shadowColor.withValues(alpha: 0.16),
+            shadowColor.withValues(alpha: 0.16 * fade),
             shadowColor.withValues(alpha: 0.0),
           ],
         ).createShader(shadowRect),
@@ -5476,7 +5543,7 @@ class _BookPageTurnBackgroundPainter extends CustomPainter {
       Offset(edgeX, spreadRect.top),
       Offset(edgeX, spreadRect.bottom),
       Paint()
-        ..color = edgeColor.withValues(alpha: 0.52)
+        ..color = edgeColor.withValues(alpha: 0.52 * fade)
         ..strokeWidth = 1,
     );
   }
@@ -5709,14 +5776,14 @@ class _BookPageTurnPainter extends CustomPainter {
       Offset(geometry.freeEdgeX, geometry.freeEdgeTop),
       Offset(geometry.freeEdgeX, geometry.freeEdgeBottom),
       Paint()
-        ..color = edgeColor.withValues(alpha: 0.55 + shadeStrength * 0.25)
+        ..color = edgeColor.withValues(alpha: shadeStrength * 0.80)
         ..strokeWidth = 1.4,
     );
   }
 
   void _paintPaperFibers(Canvas canvas, Rect bounds, double shadeStrength) {
     final fiberPaint = Paint()
-      ..color = edgeColor.withValues(alpha: 0.08 + shadeStrength * 0.04)
+      ..color = edgeColor.withValues(alpha: shadeStrength * 0.12)
       ..strokeWidth = 0.8;
     final step = max(8.0, bounds.height / 42);
     for (var y = bounds.top + step; y < bounds.bottom; y += step) {
@@ -5745,7 +5812,7 @@ class _BookPageTurnPainter extends CustomPainter {
         ..shader = LinearGradient(
           colors: [
             shadowColor.withValues(alpha: 0.0),
-            shadowColor.withValues(alpha: 0.14 + shadeStrength * 0.12),
+            shadowColor.withValues(alpha: shadeStrength * 0.26),
             shadowColor.withValues(alpha: 0.0),
           ],
         ).createShader(spineRect),
