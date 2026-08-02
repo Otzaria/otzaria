@@ -75,6 +75,42 @@ void main() {
     expect(tester.getTopLeft(find.byKey(contentKey)).dx, 0.0);
   });
 
+  testWidgets('תוכן נמוך מהמסילה נשאר בראש ולא מתמרכז לגובה', (tester) async {
+    final listener = ItemPositionsListener.create();
+    final controller = ItemScrollController();
+    const contentKey = Key('scroll-content');
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              height: 600,
+              width: 400,
+              child: ScrollablePositionedListScrollbar(
+                scrollController: controller,
+                itemPositionsListener: listener,
+                itemCount: 10,
+                child: const SizedBox(key: contentKey, height: 100),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // המסילה מוצגת (יש מה לגלול) אך התוכן נמוך ממנה — מפרשים מכווצים.
+    (listener.itemPositions as ValueNotifier<Iterable<ItemPosition>>).value =
+        const [
+          ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.5),
+          ItemPosition(index: 1, itemLeadingEdge: 0.5, itemTrailingEdge: 1.0),
+        ];
+    await tester.pump();
+
+    expect(tester.getTopLeft(find.byKey(contentKey)).dy, 0.0);
+  });
+
   testWidgets('הקלקה על תחתית המסילה מגיעה לסוף הספר גם כשמעט פריטים גלויים '
       '(מפרש פתוח מתחת)', (tester) async {
     // רגרסיה: כשמפרש פתוח מתחת ושני סגמנטים גלויים מתוך 100, חישוב היעד
