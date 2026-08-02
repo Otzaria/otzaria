@@ -1,7 +1,10 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
+import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
+import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 class _RecordingItemScrollController extends ItemScrollController {
@@ -999,6 +1002,121 @@ void main() {
       closeTo(tester.getRect(track).bottom, 1.0),
       reason: 'בסוף הרשימה האגודל חייב להיות צמוד לתחתית המסילה',
     );
+  });
+
+  group('בתוך פאנל צד — המסילה לא מתחת לידית שינוי הגודל', () {
+    /// פאנל צד פתוח וניתן לשינוי גודל (כמו חלונית המפרשים), עם רשימה גלילה
+    /// שיש לה [ScrollablePositionedListScrollbar].
+    Future<void> pumpPane(
+      WidgetTester tester, {
+      required AlignmentDirectional alignment,
+    }) async {
+      tester.view.physicalSize = const Size(500, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final listener = ItemPositionsListener.create();
+      final controller = ItemScrollController();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('he', 'IL'),
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          supportedLocales: const [Locale('he', 'IL')],
+          home: Scaffold(
+            body: AdaptiveSidePane(
+              isOpen: true,
+              alignment: alignment,
+              isResizable: true,
+              onPaneWidthChanged: (_) {},
+              onClose: () {},
+              mainContent: const SizedBox.expand(),
+              paneContent: ScrollablePositionedListScrollbar(
+                scrollController: controller,
+                itemPositionsListener: listener,
+                itemCount: 100,
+                child: ScrollablePositionedList.builder(
+                  itemScrollController: controller,
+                  itemPositionsListener: listener,
+                  itemCount: 100,
+                  itemBuilder: (context, i) =>
+                      SizedBox(height: 80, child: Text('שורה $i')),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    void expectThumbGrabbable(WidgetTester tester) {
+      final scrollbar = find.byType(ScrollablePositionedListScrollbar);
+      final thumb = find.descendant(
+        of: scrollbar,
+        matching: find.byWidgetPredicate(
+          (w) => w is Container && w.decoration is BoxDecoration,
+        ),
+      );
+      expect(thumb, findsOneWidget, reason: 'האגודל חייב להיות מוצג');
+      final handle = find.byType(ResizableDragHandle);
+      expect(handle, findsOneWidget, reason: 'ידית שינוי הגודל חייבת להיות שם');
+
+      final thumbRect = tester.getRect(thumb);
+      final handleRect = tester.getRect(handle);
+      // המשתמש מכוון למרכז האגודל; אם גם הוא בשטח המגע של הידית, הסמן הופך
+      // לחץ שינוי גודל והגרירה משנה את רוחב החלונית במקום לגלול.
+      expect(
+        handleRect.contains(thumbRect.center),
+        isFalse,
+        reason:
+            'שטח המגע של הידית ($handleRect) בולע את מרכז האגודל ($thumbRect)',
+      );
+
+      // המסילה נשארת בכיוון הקריאה, כמו כל שאר מחווני הגלילה בעברית.
+      expect(
+        thumbRect.center.dx,
+        greaterThan(tester.getRect(scrollbar).center.dx),
+        reason: 'המסילה עברה לשמאל — כיוון הפוך לשאר המחוונים באפליקציה',
+      );
+    }
+
+    /// הקו הנראה של הידית חייב לשבת על דופן הפאנל. שטח המגע גולש החוצה ואינו
+    /// ממורכז עליה, ולכן בלי הזזה מפורשת הקו מרחף לידה ונראה מנותק.
+    void expectGripOnPaneEdge(
+      WidgetTester tester, {
+      required bool paneOnRight,
+    }) {
+      final paneRect = tester.getRect(
+        find.byType(ScrollablePositionedListScrollbar),
+      );
+      final paneEdge = paneOnRight ? paneRect.left : paneRect.right;
+      final grip = tester.getRect(
+        find.descendant(
+          of: find.byType(ResizableDragHandle),
+          matching: find.byType(AnimatedContainer),
+        ),
+      );
+      expect(
+        grip.center.dx,
+        closeTo(paneEdge, 0.5),
+        reason: 'הקו הנראה של הידית מרחף במרחק מדופן הפאנל ($paneEdge)',
+      );
+    }
+
+    testWidgets('פאנל בצד שמאל (חלונית המפרשים)', (tester) async {
+      // רגרסיה: הגדלת שטח המגע של הידית (8px→24px, cc5ee27ae) הכפילה את
+      // כניסתה לתוך הפאנל מ-4px ל-12px — בדיוק רוחב מסילת הגלילה שיושבת שם.
+      await pumpPane(tester, alignment: AlignmentDirectional.centerStart);
+      expectThumbGrabbable(tester);
+      expectGripOnPaneEdge(tester, paneOnRight: false);
+    });
+
+    testWidgets('פאנל בצד ימין', (tester) async {
+      await pumpPane(tester, alignment: AlignmentDirectional.centerEnd);
+      expectThumbGrabbable(tester);
+      expectGripOnPaneEdge(tester, paneOnRight: true);
+    });
   });
 
   testWidgets('האגודל אינו זז אחרי שהתוכן נוחת ביעד הגרירה', (tester) async {

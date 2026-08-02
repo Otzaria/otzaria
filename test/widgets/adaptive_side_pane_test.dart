@@ -339,9 +339,10 @@ void main() {
       ),
     );
 
-    // handle ממוקם בקצה הפנימי של הפאנל, שמוזז _kNarrowSideGap (10) מהדופן
-    // → right = 10 + 300 - 12 = 298 → dx = 500 - 298 = 202
-    expect(tester.getTopRight(find.byType(ResizableDragHandle)).dx, 202.0);
+    // handle ממוקם בקצה הפנימי של הפאנל, שמוזז _kNarrowSideGap (10) מהדופן,
+    // וחודר פנימה רק kPaneHandleInnerReach (4) כדי לא לכסות את פס הגלילה
+    // → right = 10 + 300 - 4 = 306 → dx = 500 - 306 = 194
+    expect(tester.getTopRight(find.byType(ResizableDragHandle)).dx, 194.0);
   });
 
   // אזורי רגרסיה לאופטימיזציה של commit 4996fff (דחיית בנייה ראשונה של הפאנל)
