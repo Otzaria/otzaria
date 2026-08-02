@@ -8,6 +8,7 @@ import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
 import 'package:otzaria/indexing/utils/book_facet_metadata_cache.dart';
+import 'package:otzaria/indexing/utils/pdf_extraction_prefetcher.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
@@ -20,15 +21,8 @@ import 'package:path/path.dart' as p;
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
-/// תוצאת חילוץ עמודי PDF: העמודים, ה-outline, שגיאת פתיחה (אם הייתה,
-/// שמורה בתוצאה כדי שה-prefetch לעולם לא ייכשל ללא-מטפל) ומשך החילוץ.
-typedef PdfExtraction = ({
-  List<({String reference, String text, int pageIndex})> pages,
-  List<PdfOutlineNode> outline,
-  Object? error,
-  StackTrace? stackTrace,
-  int extractMs,
-});
+export 'package:otzaria/indexing/utils/pdf_extraction_prefetcher.dart'
+    show PdfExtraction;
 
 class IndexingRepository {
   final TantivyDataProvider _tantivyDataProvider;
@@ -172,6 +166,10 @@ class IndexingRepository {
     bool cancelled = false;
     var didStartActualIndexing = false;
 
+    // חילוץ ה-PDF איטי בסדר גודל מאינדוקס ספר טקסט, ולכן חילוצי ה-PDF הבאים
+    // רצים מראש ברקע בזמן שהמנוע מאנדקס את הספרים שלפניהם.
+    final prefetcher = PdfExtractionPrefetcher(extract: extractPdfPagesGuarded);
+
     try {
       await _setDbReadBoost(true);
       // מצב bulk: בלי מיזוגי-רקע של סגמנטים בזמן הבנייה — ה-optimize בסוף
@@ -204,34 +202,12 @@ class IndexingRepository {
         '📊 ספרים שכבר מאונדקסים: ${_tantivyDataProvider.indexedFilePaths.length}',
       );
 
-      // ‏prefetch של PDF אחד קדימה: חילוץ ה-PDF (pdfrx) היה 41% מזמן
-      // האינדוקס ורץ סדרתית בין ספרי הטקסט; כאן חילוץ ה-PDF הבא שטרם
-      // אונדקס רץ ברקע בזמן שהמנוע מאנדקס את הספרים שלפניו. סלוט יחיד —
-      // לכל היותר תוכן ספר אחד ממתין בזיכרון; חילוץ שהסתיים באמצע שלב
-      // הטקסטים מאונדקס מיד (ראה הניקוז בלולאה) כדי שהצינור ימשיך לרוץ.
-      PdfBook? prefetchedBook;
-      Future<PdfExtraction>? prefetchedExtraction;
-      var prefetchReady = false;
-      var pdfScanIndex = 0;
       // ספרי PDF שטופלו בניקוז המוקדם (הצלחה או כשל) — הלולאה לא מנסה
       // אותם שוב ולא סופרת אותם כמדולגים (כבר נספרו כאינדוקס/שגיאה).
       final earlyHandledBooks = <Book>{};
-      void ensurePdfPrefetch(int fromIndex) {
-        if (prefetchedExtraction != null) return;
-        if (pdfScanIndex < fromIndex) pdfScanIndex = fromIndex;
-        while (pdfScanIndex < allBooks.length) {
-          final candidate = allBooks[pdfScanIndex];
-          pdfScanIndex++;
-          if (candidate is PdfBook && !isBookIndexed(candidate)) {
-            prefetchedBook = candidate;
-            prefetchReady = false;
-            prefetchedExtraction = extractPdfPagesGuarded(candidate)
-              ..whenComplete(() => prefetchReady = true);
-            return;
-          }
-        }
-      }
+      bool shouldPrefetch(PdfBook candidate) => !isBookIndexed(candidate);
 
+      bookLoop:
       for (var bookIndex = 0; bookIndex < allBooks.length; bookIndex++) {
         final book = allBooks[bookIndex];
         if (!_tantivyDataProvider.isIndexing.value) {
@@ -239,28 +215,28 @@ class IndexingRepository {
           cancelled = true;
           break;
         }
-        ensurePdfPrefetch(bookIndex);
+        prefetcher.fill(allBooks, bookIndex, shouldPrefetch: shouldPrefetch);
 
-        // ניקוז: חילוץ PDF שהסתיים בזמן עיבוד הספרים שלפניו מאונדקס מיד,
-        // וחילוץ ה-PDF הבא מוזנק — כך החילוץ רץ ברציפות לאורך כל שלב
-        // הטקסטים במקום להיעצר אחרי ספר אחד. כשהספר הנוכחי הוא עצמו
-        // ה-prefetch, מסלול הצריכה הרגיל מטפל בו (כולל דיווח התקדמות).
-        if (prefetchReady && !identical(prefetchedBook, book)) {
-          final readyBook = prefetchedBook!;
-          final readyExtraction = prefetchedExtraction!;
-          prefetchedBook = null;
-          prefetchedExtraction = null;
-          prefetchReady = false;
-          ensurePdfPrefetch(bookIndex);
+        // ניקוז: חילוץ שהסתיים מאונדקס מיד וסלוטו מתמלא, כך שהצינור אינו
+        // נעצר. הספר הנוכחי מוחרג — מסלול הצריכה הרגיל מטפל בו.
+        var reportedForDrain = false;
+        while (true) {
+          final ready = prefetcher.takeReady(exclude: book);
+          if (ready == null) break;
+          final readyBook = ready.book;
+          prefetcher.fill(allBooks, bookIndex, shouldPrefetch: shouldPrefetch);
           earlyHandledBooks.add(readyBook);
-          // דיווח לפני הכתיבה — כמו במסלול הרגיל — אחרת המונה נראה תקוע
-          // לאורך אינדוקס PDF גדול שרץ כאן לפני הספר הנוכחי.
-          onProgress(bookIndex + 1, totalBooks);
+          // דיווח לפני הכתיבה, אחרת המונה נראה תקוע לאורך אינדוקס PDF גדול.
+          // פעם אחת לסבב — המיקום המדווח הוא של הלולאה ואינו זז בין הניקוזים.
+          if (!reportedForDrain) {
+            reportedForDrain = true;
+            onProgress(bookIndex + 1, totalBooks);
+          }
           try {
             await _indexPdfBook(
               readyBook,
               catalogueOrderByBookKey: catalogueOrderByBookKey,
-              preExtracted: readyExtraction,
+              preExtracted: ready.extraction,
               onActualIndexingStarted: () {
                 if (didStartActualIndexing) return;
                 didStartActualIndexing = true;
@@ -269,7 +245,7 @@ class IndexingRepository {
             );
             if (!_tantivyDataProvider.isIndexing.value) {
               cancelled = true;
-              break;
+              break bookLoop;
             }
             _tantivyDataProvider.indexedFilePaths.add(
               buildIndexedBookFilePath(readyBook),
@@ -283,7 +259,7 @@ class IndexingRepository {
                 !await _discardPartialBookWrites(readyBook)) {
               await _recoverEngineAfterWriteFailure();
               cancelled = true;
-              break;
+              break bookLoop;
             }
           }
         }
@@ -332,15 +308,14 @@ class IndexingRepository {
               // טופל בניקוז המוקדם — כבר נספר שם (אינדוקס או שגיאה).
             } else if (!isBookIndexed(book)) {
               onProgress(bookIndex + 1, totalBooks);
-              // צריכת ה-prefetch אם הוא של הספר הנוכחי; מיד אחריה מוזנק
-              // חילוץ ה-PDF הבא, שירוץ במקביל לאינדוקס של הספר הזה.
-              Future<PdfExtraction>? preExtracted;
-              if (identical(prefetchedBook, book)) {
-                preExtracted = prefetchedExtraction;
-                prefetchedBook = null;
-                prefetchedExtraction = null;
-                ensurePdfPrefetch(bookIndex + 1);
-              }
+              // מיד אחרי הצריכה מוזנק חילוץ לסלוט שהתפנה, שירוץ במקביל
+              // לאינדוקס של הספר הזה.
+              final preExtracted = prefetcher.take(book);
+              prefetcher.fill(
+                allBooks,
+                bookIndex + 1,
+                shouldPrefetch: shouldPrefetch,
+              );
               await _indexPdfBook(
                 book,
                 catalogueOrderByBookKey: catalogueOrderByBookKey,
@@ -436,6 +411,7 @@ class IndexingRepository {
         debugPrint('⏱️ סה"כ אינדוקס: ${totalStopwatch.elapsed}');
       }
     } finally {
+      prefetcher.dispose();
       await _setDbReadBoost(false);
       // החזרת מדיניות המיזוג הרגילה — גם בביטול/שגיאה, כדי שאינדוקס
       // אינקרמנטלי עתידי ימשיך למזג כרגיל. best-effort: כשל כאן לא
@@ -763,48 +739,51 @@ class IndexingRepository {
     final document = await PdfDocument.openFile(
       book.path,
     ).timeout(const Duration(seconds: 60));
-    final outline = await document.loadOutline().timeout(
-      const Duration(seconds: 15),
-      onTimeout: () => <PdfOutlineNode>[],
-    );
+    try {
+      final outline = await document.loadOutline().timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => <PdfOutlineNode>[],
+      );
 
-    final pages = <({String reference, String text, int pageIndex})>[];
+      final pages = <({String reference, String text, int pageIndex})>[];
+      var droppedPages = 0;
 
-    // טעינת טקסט העמודים במקבצים: loadText עמוד-אחר-עמוד השאיר את רוב
-    // זמן החילוץ בהמתנה סדרתית ל-pdfrx (נמדד ~20-30ms לעמוד); מקבץ של
-    // עמודים במקביל מנצל את ה-worker הנייטיבי בלי לשנות את סדר התוצאה.
-    const pageWindow = 8;
-    final pageCount = document.pages.length;
-    for (int start = 0; start < pageCount; start += pageWindow) {
-      if (!_tantivyDataProvider.isIndexing.value) return empty;
+      // סדרתי בכוונה: כל קריאות pdfium מסורלות דרך worker isolate יחיד, כך
+      // שטעינת מקבץ לא מאיצה — אבל מפעילה את כל טיימרי ה-timeout יחד ומפילה
+      // עמודים תקינים שרק ממתינים בתור.
+      final pageCount = document.pages.length;
+      for (int i = 0; i < pageCount; i++) {
+        if (!_tantivyDataProvider.isIndexing.value) return empty;
 
-      final end = (start + pageWindow).clamp(0, pageCount);
-      final texts = await Future.wait([
-        for (int i = start; i < end; i++)
-          document.pages[i].loadText().timeout(
-            const Duration(seconds: 5),
-            onTimeout: () => null,
-          ),
-      ]);
+        final pageText = await document.pages[i].loadText().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => null,
+        );
+        if (pageText == null) {
+          droppedPages++;
+          continue;
+        }
 
-      for (int i = start; i < end; i++) {
-        final pageText = texts[i - start];
-        if (pageText == null) continue;
-
-        final bookmark = await refFromPageNumber(i + 1, outline, book.title);
+        final bookmark = referenceFromPageNumber(i + 1, outline, book.title);
         final ref = bookmark.isNotEmpty
             ? '${book.title}, $bookmark, עמוד ${i + 1}'
             : '${book.title}, עמוד ${i + 1}';
 
         pages.add((reference: ref, text: pageText.fullText, pageIndex: i));
       }
+
+      if (droppedPages > 0) {
+        debugPrint(
+          '⚠️ "${book.title}": $droppedPages עמודים נשמטו מהחילוץ (timeout)',
+        );
+      }
+
+      return (pages: pages, outline: outline);
+    } finally {
+      // בלי סגירה מפורשת המסמך נשאר פתוח ב-pdfium עד סוף התהליך: אין
+      // Finalizer על העטיפה, ו-FPDF_CloseDocument נקרא רק מ-dispose.
+      await document.dispose();
     }
-
-    // Don't call document.dispose() explicitly - pdfrx's background page
-    // preloader may still be executing FFI callbacks at this point.
-    // Let the GC collect the document instead.
-
-    return (pages: pages, outline: outline);
   }
 
   Future<List<({String reference, String text, int pageIndex})>>
