@@ -48,10 +48,6 @@ abstract class TextBookMessages {
   static const String pdfLocationNotFoundOpeningAtStart =
       'לא נמצא מיקום תואם ב-PDF — הספר נפתח מתחילתו';
 
-  static String pdfDuplicateEditionsOpeningAtStart(String bookTitle) =>
-      'קיימת יותר ממהדורת PDF אחת בשם "$bookTitle" — הספר נפתח מתחילתו. '
-      'הסרת המהדורה הכפולה תחזיר את המיקום המדויק';
-
   // ── תצוגה, העתקה והערות ─────────────────────────────────────────────────
 
   static const String perBookSettingsReset = 'ההגדרות הפר-ספריות אופסו בהצלחה';
