@@ -7,6 +7,8 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart'
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/dialogs/settings_dialogs_exports.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
@@ -25,6 +27,14 @@ class DesignSettingsTab extends StatelessWidget {
   /// פריטים בעלי הגדרות לחיפוש בהגדרות. נסרק על-ידי
   /// tool/generate_search_index.dart בעת בנייה ומשולב באינדקס המאוחד.
   static const List<SettingsSearchEntry> searchEntries = [
+    SettingsSearchEntry(
+      id: 'design.language.settings_language',
+      title: 'שפת ההגדרות',
+      subtitle: 'שפת התצוגה של מסך ההגדרות בלבד',
+      tab: SettingsTab.design,
+      cardId: 'design.language',
+      keywords: ['שפה', 'אנגלית', 'עברית', 'language', 'english', 'hebrew'],
+    ),
     SettingsSearchEntry(
       id: 'design.theme.follow_system',
       title: 'מעקב אחר צבע המערכת',
@@ -157,30 +167,74 @@ class DesignSettingsTab extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                SettingsCard(
+                  cardId: 'design.language',
+                  title: context.settingsText('שפת ההגדרות'),
+                  children: [
+                    SettingsActionTile.dropdownTile<String>(
+                      icon: FluentIcons.local_language_24_regular,
+                      title: context.settingsText('שפת ההגדרות'),
+                      subtitle: context.settingsText(
+                        'שפת התצוגה של מסך ההגדרות בלבד; '
+                        'שאר התוכנה נשארת בעברית',
+                      ),
+                      value: state.settingsLanguageCode,
+                      entries: [
+                        AppMenuEntry(
+                          value: kSettingsLanguageSystemCode,
+                          label: context.settingsText('אוטומטי'),
+                          subtitle: context.settingsText(
+                            'לפי שפת מערכת ההפעלה',
+                          ),
+                        ),
+                        // נבנה מהרשימה עצמה, כך ששפה חדשה מופיעה מאליה.
+                        for (final language in SettingsLanguage.values)
+                          AppMenuEntry(
+                            value: language.code,
+                            label: language.label,
+                          ),
+                      ],
+                      onSelected: (code) {
+                        if (code == null) return;
+                        context.read<SettingsBloc>().add(
+                          UpdateSettingsLanguageCode(code),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+
+                kSettingsCardSpacing,
+
                 // מצב כהה וצבע בסיס
                 SettingsCard(
                   cardId: 'design.theme',
-                  title: 'ערכת נושא',
+                  title: context.settingsText('ערכת נושא'),
                   children: [
                     SettingsActionTile.segmentedTile<_ThemeMode>(
                       icon: FluentIcons.weather_sunny_24_regular,
-                      title: 'מצב ערכת נושא',
-                      options: const [
+                      title: context.settingsText('מצב ערכת נושא'),
+                      options: [
                         SegmentOption(
                           value: _ThemeMode.light,
-                          label: 'בהיר',
-                          subtitle: 'התוכנה תשתמש בצבעים בהירים',
+                          label: context.settingsText('בהיר'),
+                          subtitle: context.settingsText(
+                            'התוכנה תשתמש בצבעים בהירים',
+                          ),
                         ),
                         SegmentOption(
                           value: _ThemeMode.system,
-                          label: 'מערכת',
-                          subtitle:
-                              'התוכנה תתאים את המראה באופן אוטומטי להגדרות מערכת ההפעלה',
+                          label: context.settingsText('מערכת'),
+                          subtitle: context.settingsText(
+                            'התוכנה תתאים את המראה באופן אוטומטי להגדרות מערכת ההפעלה',
+                          ),
                         ),
                         SegmentOption(
                           value: _ThemeMode.dark,
-                          label: 'כהה',
-                          subtitle: 'התוכנה תשתמש בצבעים כהים',
+                          label: context.settingsText('כהה'),
+                          subtitle: context.settingsText(
+                            'התוכנה תשתמש בצבעים כהים',
+                          ),
                         ),
                       ],
                       currentValue: state.followSystemTheme
@@ -236,21 +290,25 @@ class DesignSettingsTab extends StatelessWidget {
                 if (!Platform.isAndroid && !Platform.isIOS) ...[
                   SettingsCard(
                     cardId: 'design.display',
-                    title: 'תצוגה',
+                    title: context.settingsText('תצוגה'),
                     children: [
                       SettingsActionTile.segmentedTile<bool>(
                         icon: FluentIcons.column_triple_24_regular,
-                        title: 'צפיפות ממשק',
-                        options: const [
+                        title: context.settingsText('צפיפות ממשק'),
+                        options: [
                           SegmentOption(
                             value: false,
-                            label: 'רגיל',
-                            subtitle: 'הצג פריטים במרווחים נוחים ללחיצה',
+                            label: context.settingsText('רגיל'),
+                            subtitle: context.settingsText(
+                              'הצג פריטים במרווחים נוחים ללחיצה',
+                            ),
                           ),
                           SegmentOption(
                             value: true,
-                            label: 'מצומצם',
-                            subtitle: 'הצג יותר תוכן על ידי הקטנת המרווחים',
+                            label: context.settingsText('מצומצם'),
+                            subtitle: context.settingsText(
+                              'הצג יותר תוכן על ידי הקטנת המרווחים',
+                            ),
                           ),
                         ],
                         currentValue: state.compactMenuMode,
@@ -267,18 +325,20 @@ class DesignSettingsTab extends StatelessWidget {
 
                 SettingsCard(
                   cardId: 'design.pdf',
-                  title: 'תצוגת PDF',
+                  title: context.settingsText('תצוגת PDF'),
                   children: [
                     SettingsActionTile.switchTile(
                       icon: FluentIcons.book_open_24_regular,
-                      title: 'תצוגת ספר בPDF',
-                      subtitle: state.enablePerBookSettings
-                          ? state.pdfBookViewByDefault
-                                ? 'ספרי PDF ייפתחו בתצוגת ספר'
-                                : 'ספרי PDF ייפתחו בתצוגה רגילה'
-                          : state.pdfBookViewByDefault
-                          ? 'כל ספרי ה-PDF ייפתחו בתצוגת ספר'
-                          : 'כל ספרי ה-PDF ייפתחו בתצוגה רגילה',
+                      title: context.settingsText('תצוגת ספר בPDF'),
+                      subtitle: context.settingsText(
+                        state.enablePerBookSettings
+                            ? state.pdfBookViewByDefault
+                                  ? 'ספרי PDF ייפתחו בתצוגת ספר'
+                                  : 'ספרי PDF ייפתחו בתצוגה רגילה'
+                            : state.pdfBookViewByDefault
+                            ? 'כל ספרי ה-PDF ייפתחו בתצוגת ספר'
+                            : 'כל ספרי ה-PDF ייפתחו בתצוגה רגילה',
+                      ),
                       value: state.pdfBookViewByDefault,
                       onChanged: (value) {
                         context.read<SettingsBloc>().add(
@@ -288,24 +348,26 @@ class DesignSettingsTab extends StatelessWidget {
                     ),
                     SettingsActionTile.segmentedTile<String>(
                       icon: FluentIcons.book_number_24_regular,
-                      title: 'פורמט פתיחת תלמוד בבלי',
-                      options: const [
+                      title: context.settingsText('פורמט פתיחת תלמוד בבלי'),
+                      options: [
                         SegmentOption(
                           value: 'text',
-                          label: 'טקסט',
+                          label: context.settingsText('טקסט'),
                           icon: OtzariaIcons.book_alef_24_regular,
-                          subtitle:
-                              'מסכתות הבבלי ייפתחו במהדורת הטקסט '
-                              '(מהספרייה, מתוצאות חיפוש, מאיתור מקורות '
-                              'ומקישורים)',
+                          subtitle: context.settingsText(
+                            'מסכתות הבבלי ייפתחו במהדורת הטקסט '
+                            '(מהספרייה, מתוצאות חיפוש, מאיתור מקורות '
+                            'ומקישורים)',
+                          ),
                         ),
                         SegmentOption(
                           value: 'pdf',
                           label: 'PDF',
                           icon: OtzariaIcons.book_pdf_24_regular,
-                          subtitle:
-                              'מסכתות הבבלי ייפתחו במהדורת ה-PDF '
-                              'בדף המתאים, גם בפתיחה מהספרייה',
+                          subtitle: context.settingsText(
+                            'מסכתות הבבלי ייפתחו במהדורת ה-PDF '
+                            'בדף המתאים, גם בפתיחה מהספרייה',
+                          ),
                         ),
                       ],
                       currentValue: state.talmudBavliOpenFormat,
@@ -323,26 +385,32 @@ class DesignSettingsTab extends StatelessWidget {
                 // התנהגות סרגל צד
                 SettingsCard(
                   cardId: 'design.layout',
-                  title: 'חלוניות עזר',
+                  title: context.settingsText('חלוניות עזר'),
                   children: [
                     SettingsActionTile.segmentedTile<_SidebarMode>(
-                      title: 'חלונית ניווט בין כותרות',
+                      title: context.settingsText('חלונית ניווט בין כותרות'),
                       rtlIcon: FluentIcons.panel_left_24_regular,
-                      options: const [
+                      options: [
                         SegmentOption(
                           value: _SidebarMode.pinned,
-                          label: 'הצגה',
-                          subtitle: 'החלונית תוצג באופן קבוע',
+                          label: context.settingsText('הצגה'),
+                          subtitle: context.settingsText(
+                            'החלונית תוצג באופן קבוע',
+                          ),
                         ),
                         SegmentOption(
                           value: _SidebarMode.openOnBook,
-                          label: 'אוטומטי',
-                          subtitle: 'החלונית תוצג בפתיחת ספר ותיסגר בעת גלילה',
+                          label: context.settingsText('אוטומטי'),
+                          subtitle: context.settingsText(
+                            'החלונית תוצג בפתיחת ספר ותיסגר בעת גלילה',
+                          ),
                         ),
                         SegmentOption(
                           value: _SidebarMode.closed,
-                          label: 'הסתרה',
-                          subtitle: 'החלונית לא תוצג אוטומטית עם פתיחת הספר',
+                          label: context.settingsText('הסתרה'),
+                          subtitle: context.settingsText(
+                            'החלונית לא תוצג אוטומטית עם פתיחת הספר',
+                          ),
                         ),
                       ],
                       currentValue: state.pinSidebar
@@ -377,11 +445,15 @@ class DesignSettingsTab extends StatelessWidget {
                     ),
                     SettingsActionTile.switchTile(
                       rtlIcon: FluentIcons.panel_right_24_regular,
-                      title: 'פתיחת פאנל המפרשים בפתיחת ספר',
-                      subtitle: state.defaultCommentaryOpen
-                          ? 'פאנל המפרשים ייפתח אוטומטית כשיש מפרשים נבחרים '
-                                '(מפרשים בצד ו-PDF בלבד)'
-                          : 'פאנל המפרשים לא ייפתח אוטומטית בפתיחת ספר',
+                      title: context.settingsText(
+                        'פתיחת פאנל המפרשים בפתיחת ספר',
+                      ),
+                      subtitle: context.settingsText(
+                        state.defaultCommentaryOpen
+                            ? 'פאנל המפרשים ייפתח אוטומטית כשיש מפרשים נבחרים '
+                                  '(מפרשים בצד ו-PDF בלבד)'
+                            : 'פאנל המפרשים לא ייפתח אוטומטית בפתיחת ספר',
+                      ),
                       value: state.defaultCommentaryOpen,
                       onChanged: (value) {
                         context.read<SettingsBloc>().add(
@@ -390,10 +462,14 @@ class DesignSettingsTab extends StatelessWidget {
                       },
                     ),
                     SettingsActionTile.switchTile(
-                      title: 'פתיחת הערות אישיות במצב סגור',
-                      subtitle: state.personalNotesCollapsedByDefault
-                          ? 'רשימות ההערות יוצגו כשהן סגורות'
-                          : 'רשימות ההערות יוצגו כשהן פתוחות',
+                      title: context.settingsText(
+                        'פתיחת הערות אישיות במצב סגור',
+                      ),
+                      subtitle: context.settingsText(
+                        state.personalNotesCollapsedByDefault
+                            ? 'רשימות ההערות יוצגו כשהן סגורות'
+                            : 'רשימות ההערות יוצגו כשהן פתוחות',
+                      ),
                       value: state.personalNotesCollapsedByDefault,
                       onChanged: (value) {
                         context.read<SettingsBloc>().add(
@@ -406,10 +482,14 @@ class DesignSettingsTab extends StatelessWidget {
                         final splitedView =
                             Settings.getValue<bool>('key-splited-view') ?? true;
                         return SettingsActionTile.switchTile(
-                          title: 'הצגת המפרשים בחלונית בצד',
-                          subtitle: splitedView
-                              ? 'המפרשים יוצגו בחלונית מפוצלת'
-                              : 'המפרשים יוצגו בתוך הטקסט',
+                          title: context.settingsText(
+                            'הצגת המפרשים בחלונית בצד',
+                          ),
+                          subtitle: context.settingsText(
+                            splitedView
+                                ? 'המפרשים יוצגו בחלונית מפוצלת'
+                                : 'המפרשים יוצגו בתוך הטקסט',
+                          ),
                           value: splitedView,
                           onChanged: (value) {
                             setState(() {

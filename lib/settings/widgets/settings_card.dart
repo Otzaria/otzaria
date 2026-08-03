@@ -3,6 +3,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
+import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/search/settings_anchor.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -488,7 +489,7 @@ class SettingsActionTile extends StatelessWidget {
 
   // בודק עם TextPainter אם הטקסט יגלוש כשה-actions יהיו ב-trailing.
   // אומדן שמרני לרוחב הactions כדי להטות לצד של Column (לא ידחוס את הטקסט).
-  bool _wouldTextOverflow(double containerWidth) {
+  bool _wouldTextOverflow(double containerWidth, TextDirection textDirection) {
     if (_rawTitle == null) return false;
     const iconAreaWidth = 56.0;
     const hPadding = 32.0;
@@ -505,7 +506,7 @@ class SettingsActionTile extends StatelessWidget {
 
     final titlePainter = TextPainter(
       text: TextSpan(text: _rawTitle, style: AppTextStyles.settingTitle),
-      textDirection: TextDirection.rtl,
+      textDirection: textDirection,
       maxLines: 1,
     )..layout(maxWidth: textWidth);
     if (titlePainter.didExceedMaxLines) return true;
@@ -574,7 +575,7 @@ class SettingsActionTile extends StatelessWidget {
     if (!responsiveActions) return _buildListTile();
     return LayoutBuilder(
       builder: (context, constraints) =>
-          _wouldTextOverflow(constraints.maxWidth)
+          _wouldTextOverflow(constraints.maxWidth, Directionality.of(context))
           ? _buildColumnLayout()
           : _buildListTile(),
     );
@@ -1033,18 +1034,22 @@ class _PathMenuButtonState extends State<_PathMenuButton> {
     final entries = <AppMenuEntry<_PathMenuAction>>[
       AppMenuEntry(
         value: _PathMenuAction.openFolder,
-        label: hasTargets ? 'פתח תיקייה...' : 'פתח תיקייה',
+        label: context.settingsText(
+          hasTargets ? 'פתח תיקייה...' : 'פתח תיקייה',
+        ),
         icon: FluentIcons.folder_open_24_regular,
         enabled: hasPath || hasTargets,
       ),
       AppMenuEntry(
         value: _PathMenuAction.changeLocation,
-        label: widget.changeLocationLabel,
+        label: context.settingsText(widget.changeLocationLabel),
         icon: FluentIcons.folder_arrow_right_24_regular,
       ),
       AppMenuEntry(
         value: _PathMenuAction.copyPath,
-        label: hasTargets ? 'העתק נתיב...' : 'העתק נתיב',
+        label: context.settingsText(
+          hasTargets ? 'העתק נתיב...' : 'העתק נתיב',
+        ),
         icon: FluentIcons.copy_24_regular,
         enabled: hasPath || hasTargets,
       ),
@@ -1052,7 +1057,7 @@ class _PathMenuButtonState extends State<_PathMenuButton> {
       if (widget.onClearPath != null)
         AppMenuEntry(
           value: _PathMenuAction.clearPath,
-          label: 'הסרת מיקום שמור',
+          label: context.settingsText('הסרת מיקום שמור'),
           icon: FluentIcons.dismiss_24_regular,
           enabled: widget.clearPathEnabled,
         ),
@@ -1141,7 +1146,7 @@ class _PathMenuButtonState extends State<_PathMenuButton> {
   Widget build(BuildContext context) {
     if (widget.currentPath.isEmpty && widget.simpleButtonWhenEmpty) {
       return ActionButton.recommended(
-        text: 'הגדר מיקום',
+        text: context.settingsText('הגדר מיקום'),
         isLoading: _isLoading,
         // דיאלוג שינוי המיקום ברור יותר מבורר תיקייה ישיר; כשאין
         // requestChangeLocation נופלים לבורר. בלי מיקום נוכחי הדיאלוג
@@ -1152,7 +1157,7 @@ class _PathMenuButtonState extends State<_PathMenuButton> {
     }
     return Builder(
       builder: (buttonContext) => ActionButton.neutral(
-        text: 'אפשרויות מיקום',
+        text: context.settingsText('אפשרויות מיקום'),
         icon: FluentIcons.folder_arrow_right_24_regular,
         isLoading: _isLoading,
         onPressed: _isLoading ? null : () => _showMenu(buttonContext),

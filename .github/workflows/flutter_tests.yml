@@ -77,6 +77,9 @@ jobs:
       - name: Generate settings search index
         run: dart run tool/generate_search_index.dart
 
+      - name: Generate settings translation catalog
+        run: dart run tool/generate_settings_l10n.dart
+
       # ה-trinity של CLAUDE.md: analyze + test (פורמט נבדק locally בlint).
       - name: Analyze
         run: flutter analyze

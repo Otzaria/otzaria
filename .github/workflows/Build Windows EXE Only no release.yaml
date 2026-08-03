@@ -81,8 +81,9 @@ jobs:
         shell: pwsh
         run: |
           flutter pub get
-          # Generate settings search index (.g.dart) — gitignored, regenerated per build.
+          # Generate the settings .g.dart files: search index + translation catalog.
           dart run tool/generate_search_index.dart
+          dart run tool/generate_settings_l10n.dart
 
       - name: Bundle latest VC++ Redistributable runtime DLLs (app-local)
         shell: pwsh

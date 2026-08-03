@@ -1,3 +1,4 @@
+import 'package:otzaria/settings/l10n/settings_language.dart';
 import 'package:otzaria/settings/search/settings_search_index.g.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
 
@@ -24,13 +25,19 @@ class SettingsSearchIndex {
       kGeneratedSettingsSearchEntries;
 
   /// מחפש לפי שאילתה ומחזיר תוצאות מסודרות לפי ציון התאמה.
-  static List<SettingsSearchEntry> search(String query) {
+  ///
+  /// [language] היא שפת התצוגה של ההגדרות; בשפה שאינה עברית מחפשים גם
+  /// בטקסטים המתורגמים, והמקור העברי נשאר בר-חיפוש.
+  static List<SettingsSearchEntry> search(
+    String query, {
+    SettingsLanguage language = SettingsLanguage.source,
+  }) {
     final normalized = SettingsSearchEntry.normalize(query);
     if (normalized.isEmpty) return const [];
 
     final scored = <(int, SettingsSearchEntry)>[];
     for (final entry in kGeneratedSettingsSearchEntries) {
-      final score = entry.matchScore(normalized);
+      final score = entry.matchScoreIn(normalized, language);
       if (score > 0) {
         scored.add((score, entry));
       }

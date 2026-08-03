@@ -11,6 +11,7 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/settings/l10n/settings_language.dart';
 import 'package:otzaria/settings/search/settings_search_field.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/widgets/navigation/sidebar_nav_item.dart';
@@ -42,7 +43,11 @@ void main() {
       whenListen(
         settingsBloc,
         const Stream<SettingsState>.empty(),
-        initialState: SettingsState.initial(),
+        // שפה מקובעת: ברירת המחדל נגזרת משפת המערכת, והבדיקות כאן בוחנות
+        // התנהגות ולא תרגום.
+        initialState: SettingsState.initial().copyWith(
+          settingsLanguageCode: SettingsLanguage.hebrew.code,
+        ),
       );
     });
 

@@ -449,3 +449,12 @@ class UpdateBuiltInToolsPinnedToNavRail extends SettingsEvent {
   @override
   List<Object?> get props => [builtInToolsPinnedToNavRail];
 }
+
+class UpdateSettingsLanguageCode extends SettingsEvent {
+  final String settingsLanguageCode;
+
+  const UpdateSettingsLanguageCode(this.settingsLanguageCode);
+
+  @override
+  List<Object?> get props => [settingsLanguageCode];
+}

@@ -4,6 +4,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart'
     hide SwitchSettingsTile;
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
+import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
@@ -135,12 +136,12 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
       children: [
         SettingsCard(
           cardId: 'tools.gematria',
-          title: 'חיפוש גימטריה',
+          title: context.settingsText('חיפוש גימטריה'),
           children: [
             SettingsActionTile.dropdownTile<int>(
               icon: FluentIcons.number_row_24_regular,
-              title: 'מספר תוצאות',
-              subtitle: 'כמות התוצאות המקסימלית להצגה',
+              title: context.settingsText('מספר תוצאות'),
+              subtitle: context.settingsText('כמות התוצאות המקסימלית להצגה'),
               value: maxResults,
               entries: [50, 100, 200, 500, 1000]
                   .map((value) => AppMenuEntry(value: value, label: '$value'))
@@ -154,10 +155,10 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
             ),
             SettingsActionTile.switchTile(
               icon: FluentIcons.filter_24_regular,
-              title: 'סינון תוצאות כפולות',
+              title: context.settingsText('סינון תוצאות כפולות'),
               subtitle: filterDuplicates
-                  ? 'תוצאות זהות יוצגו פעם אחת בלבד'
-                  : 'כל התוצאות יוצגו',
+                  ? context.settingsText('תוצאות זהות יוצגו פעם אחת בלבד')
+                  : context.settingsText('כל התוצאות יוצגו'),
               value: filterDuplicates,
               onChanged: (value) {
                 setState(() => filterDuplicates = value);
@@ -169,10 +170,10 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
             ),
             SettingsActionTile.switchTile(
               icon: FluentIcons.text_word_count_24_regular,
-              title: 'חיפוש פסוק שלם בלבד',
+              title: context.settingsText('חיפוש פסוק שלם בלבד'),
               subtitle: wholeVerseOnly
-                  ? 'חיפוש רק בפסוקים שלמים'
-                  : 'חיפוש גם בחלקי פסוקים',
+                  ? context.settingsText('חיפוש רק בפסוקים שלמים')
+                  : context.settingsText('חיפוש גם בחלקי פסוקים'),
               value: wholeVerseOnly,
               onChanged: (value) {
                 setState(() => wholeVerseOnly = value);
@@ -184,10 +185,10 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
             ),
             SettingsActionTile.switchTile(
               rtlIcon: FluentIcons.book_24_regular,
-              title: 'חיפוש בתורה בלבד',
+              title: context.settingsText('חיפוש בתורה בלבד'),
               subtitle: torahOnly
-                  ? 'חיפוש רק בחמישה חומשי תורה'
-                  : 'חיפוש בכל הספרים',
+                  ? context.settingsText('חיפוש רק בחמישה חומשי תורה')
+                  : context.settingsText('חיפוש בכל הספרים'),
               value: torahOnly,
               onChanged: (value) {
                 setState(() => torahOnly = value);
@@ -198,12 +199,12 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
         ),
         kSettingsCardSpacing,
         SettingsCard(
-          title: 'שיטת חישוב גימטריה',
+          title: context.settingsText('שיטת חישוב גימטריה'),
           children: [
             SettingsActionTile.switchTile(
               icon: OtzariaIcons.alef_1_24_regular,
-              title: 'גימטריה קטנה',
-              subtitle: 'כל אות מחושבת לפי ספרה אחת',
+              title: context.settingsText('גימטריה קטנה'),
+              subtitle: context.settingsText('כל אות מחושבת לפי ספרה אחת'),
               value: useSmallGematria,
               onChanged: (value) {
                 setState(() {
@@ -224,8 +225,8 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
             ),
             SettingsActionTile.switchTile(
               icon: OtzariaIcons.beit_behind_alef_24_regular,
-              title: 'אותיות סופיות שונות',
-              subtitle: 'מנצפ"ך בערכים שונים',
+              title: context.settingsText('אותיות סופיות שונות'),
+              subtitle: context.settingsText('מנצפ"ך בערכים שונים'),
               value: useFinalLetters,
               onChanged: (value) {
                 setState(() {
@@ -243,8 +244,8 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
             ),
             SettingsActionTile.switchTile(
               icon: FluentIcons.add_circle_24_regular,
-              title: 'עם הכולל',
-              subtitle: 'הוספת מספר האותיות לסכום',
+              title: context.settingsText('עם הכולל'),
+              subtitle: context.settingsText('הוספת מספר האותיות לסכום'),
               value: useWithKolel,
               onChanged: (value) {
                 setState(() => useWithKolel = value);

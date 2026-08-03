@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:otzaria/core/messages/settings_messages.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -19,7 +20,10 @@ Future<void> showBooksListDialog({
 }) {
   return showDialog<void>(
     context: context,
-    builder: (_) => _BooksListDialog(books: books),
+    builder: settingsDialogBuilder(
+      context,
+      (_) => _BooksListDialog(books: books),
+    ),
   );
 }
 
@@ -73,7 +77,7 @@ class _BooksListDialogState extends State<_BooksListDialog> {
     final csv = _buildCsv(_rows);
     final bytes = Uint8List.fromList(utf8.encode('\uFEFF$csv'));
     final path = await FilePicker.saveFile(
-      dialogTitle: 'בחר מיקום לשמירת רשימת הספרים',
+      dialogTitle: context.settingsText('בחר מיקום לשמירת רשימת הספרים'),
       fileName: 'otzaria_books.csv',
       initialDirectory: downloadsDirectory?.path,
       allowedExtensions: ['csv'],
@@ -120,7 +124,7 @@ class _BooksListDialogState extends State<_BooksListDialog> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'רשימת הספרים',
+                      context.settingsText('רשימת הספרים'),
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                   ),
@@ -136,10 +140,12 @@ class _BooksListDialogState extends State<_BooksListDialog> {
               RtlTextField(
                 controller: _searchController,
                 autofocus: true,
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(FluentIcons.search_24_regular),
-                  hintText: 'חיפוש לפי שם, מחבר או קטגוריה',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(FluentIcons.search_24_regular),
+                  hintText: context.settingsText(
+                    'חיפוש לפי שם, מחבר או קטגוריה',
+                  ),
+                  border: const OutlineInputBorder(),
                   isDense: true,
                 ),
               ),
@@ -148,7 +154,7 @@ class _BooksListDialogState extends State<_BooksListDialog> {
                 child: _visibleRows.isEmpty
                     ? Center(
                         child: Text(
-                          'לא נמצאו ספרים',
+                          context.settingsText('לא נמצאו ספרים'),
                           style: TextStyle(color: cs.onSurfaceVariant),
                         ),
                       )
@@ -172,14 +178,14 @@ class _BooksListDialogState extends State<_BooksListDialog> {
               Row(
                 children: [
                   ActionButton.recommended(
-                    text: 'ייצוא ל-CSV',
+                    text: context.settingsText('ייצוא ל-CSV'),
                     icon: FluentIcons.arrow_download_24_regular,
                     isLoading: _isExporting,
                     onPressed: _exportToCsv,
                   ),
                   const Spacer(),
                   ActionButton.neutral(
-                    text: 'סגור',
+                    text: context.settingsText('סגור'),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],

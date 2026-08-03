@@ -8,6 +8,7 @@ import 'dart:io';
 
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
+import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
@@ -179,10 +180,12 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
     final bloc = context.read<CustomFoldersBloc>();
     final confirmed = await showConfirmationDialog(
       context: context,
-      title: 'הסרת תיקייה',
-      content:
-          'האם להסיר את התיקייה "${folder.name}" מהספרייה?\n'
-          'הספרים יוסרו מהתוכנה, אך הקבצים המקוריים בדיסק לא יימחקו.',
+      title: context.settingsText('הסרת תיקייה'),
+      content: context.settingsText(
+        'האם להסיר את התיקייה "{name}" מהספרייה?\n'
+        'הספרים יוסרו מהתוכנה, אך הקבצים המקוריים בדיסק לא יימחקו.',
+        args: {'name': folder.name},
+      ),
       isDangerous: false,
     );
     if (confirmed != true || !mounted) return;
@@ -200,14 +203,15 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
     if (toDatabase) {
       final confirmed = await showConfirmationDialog(
         context: context,
-        title: 'שמירת עותק עצמאי בתוכנה',
-        content:
-            'עותק של תוכן הספרים יישמר בתוך התוכנה, כך שהם יעבדו גם '
-            'אם הקבצים המקוריים יוזזו או יימחקו.\n'
-            'הקבצים המקוריים יישארו במקומם.\n\n'
-            'שים לב: אם תערוך קובץ בעתיד, יהיה עליך ללחוץ "סרוק מחדש" '
-            'כדי שהשינוי יתעדכן.\n\n'
-            'האם להמשיך?',
+        title: context.settingsText('שמירת עותק עצמאי בתוכנה'),
+        content: context.settingsText(
+          'עותק של תוכן הספרים יישמר בתוך התוכנה, כך שהם יעבדו גם '
+          'אם הקבצים המקוריים יוזזו או יימחקו.\n'
+          'הקבצים המקוריים יישארו במקומם.\n\n'
+          'שים לב: אם תערוך קובץ בעתיד, יהיה עליך ללחוץ "סרוק מחדש" '
+          'כדי שהשינוי יתעדכן.\n\n'
+          'האם להמשיך?',
+        ),
         isDangerous: false,
       );
       if (confirmed != true || !mounted) return;
@@ -232,20 +236,20 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
     BuildContext anchorContext,
     CustomFolder folder,
   ) async {
-    const entries = <AppMenuEntry<_FolderMenuAction>>[
+    final entries = <AppMenuEntry<_FolderMenuAction>>[
       AppMenuEntry(
         value: _FolderMenuAction.openFolder,
-        label: 'פתח תיקייה',
+        label: context.settingsText('פתח תיקייה'),
         icon: FluentIcons.folder_open_24_regular,
       ),
       AppMenuEntry(
         value: _FolderMenuAction.copyPath,
-        label: 'העתק נתיב',
+        label: context.settingsText('העתק נתיב'),
         icon: FluentIcons.copy_24_regular,
       ),
       AppMenuEntry(
         value: _FolderMenuAction.remove,
-        label: 'הסר תיקייה',
+        label: context.settingsText('הסר תיקייה'),
         icon: FluentIcons.delete_24_regular,
         isDestructive: true,
       ),
@@ -299,18 +303,22 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
             state.isSyncing || DatabaseLibraryProvider.operationQueue.isBusy;
         return SettingsCard(
           cardId: 'library.custom_folders',
-          title: 'ספרים אישיים',
-          subtitle:
-              'הוסף תיקיות עם ספרים או קבצים, בהוספת/הסרת קבצים יש לסרוק את התיקיה מחדש.',
+          title: context.settingsText('ספרים אישיים'),
+          subtitle: context.settingsText(
+            'הוסף תיקיות עם ספרים או קבצים, בהוספת/הסרת קבצים יש לסרוק את התיקיה מחדש.',
+          ),
           children: [
             ExpandableSection(
               icon: FluentIcons.folder_add_24_regular,
-              title: 'הוסף תיקייה',
+              title: context.settingsText('הוסף תיקייה'),
               subtitle: folders.isEmpty
-                  ? 'לחץ להוספת תיקיות אישיות'
-                  : '${folders.length} תיקיות',
+                  ? context.settingsText('לחץ להוספת תיקיות אישיות')
+                  : context.settingsText(
+                      '{count} תיקיות',
+                      args: {'count': folders.length},
+                    ),
               trailing: ActionButton.recommended(
-                text: 'הוסף תיקייה',
+                text: context.settingsText('הוסף תיקייה'),
                 icon: FluentIcons.folder_add_24_regular,
                 onPressed: _addFolder,
                 isLoading: isSyncing,
@@ -319,7 +327,7 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
               onTap: () => setState(() => _isExpanded = !_isExpanded),
               hasContent: folders.isNotEmpty,
               children: [
-                ..._buildStorageLegendTiles(isSyncing),
+                ..._buildStorageLegendTiles(context, isSyncing),
                 ...folders.map(
                   (folder) => _buildFolderItem(
                     folder,
@@ -372,7 +380,7 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
           onPressed: isSyncing
               ? null
               : () => _showFolderMenu(buttonContext, folder),
-          tooltip: 'אפשרויות',
+          tooltip: context.settingsText('אפשרויות'),
         ),
       ),
       actions: [
@@ -392,15 +400,15 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
               child: AppSegmentedControl<bool>(
                 currentValue: folder.addToDatabase,
                 onChanged: (value) => _setStorageMode(folder, value),
-                options: const [
+                options: [
                   SegmentOption(
                     value: false,
-                    label: 'הצגה',
+                    label: context.settingsText('הצגה', context: 'storage'),
                     icon: FluentIcons.document_24_regular,
                   ),
                   SegmentOption(
                     value: true,
-                    label: 'הוספה',
+                    label: context.settingsText('הוספה'),
                     icon: FluentIcons.database_24_regular,
                   ),
                 ],
@@ -409,7 +417,7 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
           )
         else
           Text(
-            'קבצי PDF/Word — נקראים ישירות מהקבצים',
+            context.settingsText('קבצי PDF/Word — נקראים ישירות מהקבצים'),
             style: AppTextStyles.settingSubtitle.copyWith(
               color: cs.onSurfaceVariant,
             ),
@@ -420,19 +428,20 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
 
   /// מסביר בקצרה את ההבדל בין "הצגה" ל"הוספה", עם כפתור מידע נוסף
   /// וכפתור סריקה מחדש בסוף הכרטיס.
-  List<Widget> _buildStorageLegendTiles(bool isSyncing) {
+  List<Widget> _buildStorageLegendTiles(BuildContext context, bool isSyncing) {
     return [
       SettingsActionTile.text(
         icon: FluentIcons.info_24_regular,
-        title: 'הצגה או הוספה של הקבצים למערכת',
-        subtitle:
-            'הצגה: בודק את הקבצים בכל פתיחה של התוכנה ובכל פתיחת ספר, שינוי הספר מוצג מיידית בתוכנה.\n'
-            'הוספה: מוסיף את התוכן הקיים לתוכנה, תוכן הקבצים ישתנה רק בסריקה מחדש, (קבצי PDF/Word רק יוצגו בתוכנה)',
+        title: context.settingsText('הצגה או הוספה של הקבצים למערכת'),
+        subtitle: context.settingsText(
+          'הצגה: בודק את הקבצים בכל פתיחה של התוכנה ובכל פתיחת ספר, שינוי הספר מוצג מיידית בתוכנה.\n'
+          'הוספה: מוסיף את התוכן הקיים לתוכנה, תוכן הקבצים ישתנה רק בסריקה מחדש, (קבצי PDF/Word רק יוצגו בתוכנה)',
+        ),
         actions: [
           IconButton(
             icon: const Icon(FluentIcons.info_24_regular),
             onPressed: _showStorageInfoDialog,
-            tooltip: 'מידע נוסף',
+            tooltip: context.settingsText('מידע נוסף'),
           ),
           IconButton(
             icon: isSyncing
@@ -447,7 +456,7 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
                 : () => context.read<CustomFoldersBloc>().add(
                     const RescanCustomFolders(),
                   ),
-            tooltip: 'סרוק מחדש תיקיות אישיות',
+            tooltip: context.settingsText('סרוק מחדש תיקיות אישיות'),
           ),
         ],
       ),
@@ -490,8 +499,8 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
 
     await showSingleActionDialog(
       context: context,
-      title: 'הצגה או הוספה של הקבצים',
-      confirmText: 'סגור',
+      title: context.settingsText('הצגה או הוספה של הקבצים'),
+      confirmText: context.settingsText('סגור'),
       customContent: SizedBox(
         width: 420,
         child: Column(
@@ -500,26 +509,34 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
           children: [
             item(
               FluentIcons.document_24_regular,
-              'הצגה',
-              'הספרים נקראים ישירות מהקבצים שבדיסק. אל תזיז אותם — אחרת '
-                  'הם לא ייפתחו. למחיקה: מחק את הקובץ מהדיסק וסרוק מחדש.',
+              context.settingsText('הצגה', context: 'storage'),
+              context.settingsText(
+                'הספרים נקראים ישירות מהקבצים שבדיסק. אל תזיז אותם — אחרת '
+                'הם לא ייפתחו. למחיקה: מחק את הקובץ מהדיסק וסרוק מחדש.',
+              ),
             ),
             item(
               FluentIcons.database_24_regular,
-              'הוספה',
-              'התוכן נשמר בתוך התוכנה ועובד גם אם הקבצים יוסרו. אחרי '
-                  'עריכת קובץ לחץ "סרוק מחדש" לעדכון; מחיקה רק דרך הספרייה.',
+              context.settingsText('הוספה'),
+              context.settingsText(
+                'התוכן נשמר בתוך התוכנה ועובד גם אם הקבצים יוסרו. אחרי '
+                'עריכת קובץ לחץ "סרוק מחדש" לעדכון; מחיקה רק דרך הספרייה.',
+              ),
             ),
             item(
               FluentIcons.info_24_regular,
-              'קבצי PDF ו-Word',
-              'אין אפשרות להוספה, והם רק מוצגים ונקראים ישירות מהקבצים שבדיסק.',
+              context.settingsText('קבצי PDF ו-Word'),
+              context.settingsText(
+                'אין אפשרות להוספה, והם רק מוצגים ונקראים ישירות מהקבצים שבדיסק.',
+              ),
             ),
             item(
               FluentIcons.link_24_regular,
-              'דורות וקישורים',
-              'לייבוא סדר דורות וקישורים לספרים האישיים השתמש בכפתור '
-                  '"ייבוא דורות וקישורים" שבהמשך.',
+              context.settingsText('דורות וקישורים'),
+              context.settingsText(
+                'לייבוא סדר דורות וקישורים לספרים האישיים השתמש בכפתור '
+                '"ייבוא דורות וקישורים" שבהמשך.',
+              ),
             ),
           ],
         ),
@@ -552,10 +569,14 @@ class UserContentImportTile extends StatelessWidget {
     final bloc = context.read<CustomFoldersBloc>();
     final confirmed = await showWarningDialog(
       context: context,
-      title: 'מחיקת דורות וקישורים',
-      content: 'פעולה זו תמחק את כל הדורות והקישורים שיובאו לתוכנה.',
-      subtitle: 'הספרים עצמם לא יימחקו — רק הדורות והקישורים המיובאים.',
-      confirmText: 'מחק הכל',
+      title: context.settingsText('מחיקת דורות וקישורים'),
+      content: context.settingsText(
+        'פעולה זו תמחק את כל הדורות והקישורים שיובאו לתוכנה.',
+      ),
+      subtitle: context.settingsText(
+        'הספרים עצמם לא יימחקו — רק הדורות והקישורים המיובאים.',
+      ),
+      confirmText: context.settingsText('מחק הכל'),
     );
     if (confirmed == true) bloc.add(const ClearUserContent());
   }
@@ -569,18 +590,19 @@ class UserContentImportTile extends StatelessWidget {
             state.isSyncing || DatabaseLibraryProvider.operationQueue.isBusy;
         return SettingsActionTile.text(
           icon: FluentIcons.arrow_import_24_regular,
-          title: 'ייבוא דורות וקישורים',
-          subtitle:
-              'בחר קובצי "דורות.csv", "<שם הספר>.links.csv" או קובצי קישורים '
-              'של אוצריא ("<שם הספר>_links.json") והם יכנסו לספרייה. '
-              'ייבוא חוזר מעדכן ערכים קיימים ומוסיף חדשים.',
+          title: context.settingsText('ייבוא דורות וקישורים'),
+          subtitle: context.settingsText(
+            'בחר קובצי "דורות.csv", "<שם הספר>.links.csv" או קובצי קישורים '
+            'של אוצריא ("<שם הספר>_links.json") והם יכנסו לספרייה. '
+            'ייבוא חוזר מעדכן ערכים קיימים ומוסיף חדשים.',
+          ),
           actions: [
             ActionButton.warning(
-              text: 'נקה הכל',
+              text: context.settingsText('נקה הכל'),
               onPressed: isSyncing ? null : () => _clear(context),
             ),
             ActionButton.recommended(
-              text: 'ייבוא דורות וקישורים',
+              text: context.settingsText('ייבוא דורות וקישורים'),
               icon: FluentIcons.arrow_import_24_regular,
               onPressed: isSyncing ? null : () => _import(context),
               isLoading: isSyncing,

@@ -1,3 +1,5 @@
+import 'package:otzaria/settings/l10n/settings_language.dart';
+import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 
 /// פריט בודד באינדקס החיפוש של ההגדרות.
@@ -41,7 +43,34 @@ class SettingsSearchEntry {
 
   /// מחשב ציון התאמה (גבוה יותר = רלוונטי יותר) לשאילתת חיפוש מנורמלת.
   /// 0 = לא מתאים. שאילתה ריקה תחזיר 0.
-  int matchScore(String normalizedQuery) {
+  int matchScore(String normalizedQuery) =>
+      _scoreFor(normalizedQuery, title, subtitle, keywords);
+
+  /// ציון התאמה בשפת התצוגה [language].
+  ///
+  /// המקור העברי נשאר בר-חיפוש תמיד, ולכן משתמש דו-לשוני — וגם מתחזק —
+  /// יכולים להקליד בכל אחת מהשפות. טקסט שאין לו תרגום נופל לעברית ממילא.
+  int matchScoreIn(String normalizedQuery, SettingsLanguage language) {
+    final hebrewScore = matchScore(normalizedQuery);
+    if (language == SettingsLanguage.source) return hebrewScore;
+
+    String translate(String text) =>
+        resolveSettingsText(text, language: language);
+    final translatedScore = _scoreFor(
+      normalizedQuery,
+      translate(title),
+      translate(subtitle),
+      keywords.map(translate).toList(),
+    );
+    return hebrewScore > translatedScore ? hebrewScore : translatedScore;
+  }
+
+  static int _scoreFor(
+    String normalizedQuery,
+    String title,
+    String subtitle,
+    List<String> keywords,
+  ) {
     if (normalizedQuery.isEmpty) return 0;
     final normalizedTitle = normalize(title);
     final normalizedSubtitle = normalize(subtitle);

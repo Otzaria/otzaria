@@ -196,6 +196,14 @@ class _AppDialogState extends State<AppDialog> {
 
 // ── show* functions ───────────────────────────────────────────────────────────
 
+/// דיאלוג נבנה ב-Overlay של ה-Navigator ולכן אינו יורש את ה-Directionality
+/// של המסך שפתח אותו. בלי זה, דיאלוג שנפתח ממסך ההגדרות באנגלית היה מוצג RTL.
+Widget _withOpenerDirection(BuildContext context, Widget child) =>
+    Directionality(
+      textDirection: Directionality.of(context),
+      child: child,
+    );
+
 Future<bool?> showSingleActionDialog({
   required BuildContext context,
   required String title,
@@ -208,13 +216,16 @@ Future<bool?> showSingleActionDialog({
 }) => showDialog<bool>(
   context: context,
   barrierDismissible: barrierDismissible,
-  builder: (_) => AppDialog.singleAction(
-    title: title,
-    content: content,
-    customContent: customContent,
-    confirmText: confirmText,
-    textDirection: textDirection,
-    onConfirm: onConfirm,
+  builder: (_) => _withOpenerDirection(
+    context,
+    AppDialog.singleAction(
+      title: title,
+      content: content,
+      customContent: customContent,
+      confirmText: confirmText,
+      textDirection: textDirection,
+      onConfirm: onConfirm,
+    ),
   ),
 );
 
@@ -231,14 +242,17 @@ Future<bool?> showTwoActionsDialog({
 }) => showDialog<bool>(
   context: context,
   barrierDismissible: barrierDismissible,
-  builder: (_) => AppDialog.twoActions(
-    title: title,
-    content: content,
-    customContent: customContent,
-    cancelText: cancelText,
-    confirmText: confirmText,
-    textDirection: textDirection,
-    handleEnterKey: handleEnterKey,
+  builder: (_) => _withOpenerDirection(
+    context,
+    AppDialog.twoActions(
+      title: title,
+      content: content,
+      customContent: customContent,
+      cancelText: cancelText,
+      confirmText: confirmText,
+      textDirection: textDirection,
+      handleEnterKey: handleEnterKey,
+    ),
   ),
 );
 
@@ -254,13 +268,16 @@ Future<bool?> showWarningDialog({
 }) => showDialog<bool>(
   context: context,
   barrierDismissible: barrierDismissible,
-  builder: (_) => AppDialog.warning(
-    title: title,
-    content: content,
-    subtitle: subtitle,
-    cancelText: cancelText,
-    confirmText: confirmText,
-    textDirection: textDirection,
+  builder: (_) => _withOpenerDirection(
+    context,
+    AppDialog.warning(
+      title: title,
+      content: content,
+      subtitle: subtitle,
+      cancelText: cancelText,
+      confirmText: confirmText,
+      textDirection: textDirection,
+    ),
   ),
 );
 

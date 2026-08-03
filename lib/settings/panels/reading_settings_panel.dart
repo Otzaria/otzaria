@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/tabs/text_settings_tab.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -50,24 +51,27 @@ void showReadingSettingsDialog(BuildContext context) {
 
   showDialog(
     context: dialogContext,
-    builder: (context) => AlertDialog(
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-      title: const Text(
-        'הגדרות תצוגת הספרים',
-        style: TextStyle(fontWeight: FontWeight.bold),
-        textAlign: TextAlign.center,
-      ),
-      content: SizedBox(
-        width: 650,
-        height: MediaQuery.of(context).size.height * 0.7,
-        child: const ReadingSettingsPanel(),
-      ),
-      actions: [
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('סגור'),
+    builder: settingsDialogBuilder(
+      dialogContext,
+      (context) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+        title: Text(
+          context.settingsText('הגדרות תצוגת הספרים'),
+          style: const TextStyle(fontWeight: FontWeight.bold),
+          textAlign: TextAlign.center,
         ),
-      ],
+        content: SizedBox(
+          width: 650,
+          height: MediaQuery.of(context).size.height * 0.7,
+          child: const ReadingSettingsPanel(),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(context.settingsText('סגור')),
+          ),
+        ],
+      ),
     ),
   );
 }
