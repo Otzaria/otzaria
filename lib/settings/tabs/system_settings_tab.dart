@@ -19,7 +19,7 @@ import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/app_runtime_reset.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
-import 'package:otzaria/settings/l10n/settings_text.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/settings/dialogs/settings_dialogs_exports.dart';
@@ -1629,13 +1629,16 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   ) async {
     final verified = await showDialog<bool>(
       context: context,
-      builder: (context) => SaferModePasswordDialog(
-        title: context.settingsText('אמת סיסמה'),
-        hint: newValue
-            ? context.settingsText('הזן את הסיסמה כדי להפעיל את המצב המוגן')
-            : context.settingsText('הזן את הסיסמה כדי להשבית את המצב המוגן'),
-        onVerify: (password) async =>
-            repository.verifyProtectedModePassword(password),
+      builder: settingsDialogBuilder(
+        context,
+        (ctx) => SaferModePasswordDialog(
+          title: ctx.settingsText('אמת סיסמה'),
+          hint: newValue
+              ? ctx.settingsText('הזן את הסיסמה כדי להפעיל את המצב המוגן')
+              : ctx.settingsText('הזן את הסיסמה כדי להשבית את המצב המוגן'),
+          onVerify: (password) async =>
+              repository.verifyProtectedModePassword(password),
+        ),
       ),
     );
     if (verified != true) return;
@@ -1658,11 +1661,14 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     if (hasExistingPassword) {
       final verified = await showDialog<bool>(
         context: context,
-        builder: (context) => SaferModePasswordDialog(
-          title: context.settingsText('אמת סיסמה נוכחית'),
-          hint: context.settingsText('הזן את הסיסמה הנוכחית כדי לשנות אותה'),
-          onVerify: (password) async =>
-              repository.verifyProtectedModePassword(password),
+        builder: settingsDialogBuilder(
+          context,
+          (ctx) => SaferModePasswordDialog(
+            title: ctx.settingsText('אמת סיסמה נוכחית'),
+            hint: ctx.settingsText('הזן את הסיסמה הנוכחית כדי לשנות אותה'),
+            onVerify: (password) async =>
+                repository.verifyProtectedModePassword(password),
+          ),
         ),
       );
       if (verified != true) return;
@@ -1671,16 +1677,19 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     final settingsBloc = context.read<SettingsBloc>();
     final result = await showDialog<bool>(
       context: context,
-      builder: (context) => SaferModeSetPasswordDialog(
-        onSetPassword: (password) async {
-          settingsBloc.add(UpdateProtectedModePassword(password));
-        },
-        onClearPassword: hasExistingPassword
-            ? () async {
-                settingsBloc.add(const ClearProtectedModePassword());
-              }
-            : null,
-        isSaferModeEnabled: isSaferModeEnabled,
+      builder: settingsDialogBuilder(
+        context,
+        (_) => SaferModeSetPasswordDialog(
+          onSetPassword: (password) async {
+            settingsBloc.add(UpdateProtectedModePassword(password));
+          },
+          onClearPassword: hasExistingPassword
+              ? () async {
+                  settingsBloc.add(const ClearProtectedModePassword());
+                }
+              : null,
+          isSaferModeEnabled: isSaferModeEnabled,
+        ),
       ),
     );
     if (result == true && context.mounted && !hasExistingPassword) {
@@ -2108,24 +2117,27 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     if (!context.mounted) return;
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(context.settingsText('יומן שינויים בתוכנה')),
-        content: SizedBox(
-          width: 600,
-          height: 400,
-          child: Markdown(
-            data: changelog,
-            onTapLink: (text, href, title) {
-              if (href != null) launchUrl(Uri.parse(href));
-            },
+      builder: settingsDialogBuilder(
+        context,
+        (ctx) => AlertDialog(
+          title: Text(ctx.settingsText('יומן שינויים בתוכנה')),
+          content: SizedBox(
+            width: 600,
+            height: 400,
+            child: Markdown(
+              data: changelog,
+              onTapLink: (text, href, title) {
+                if (href != null) launchUrl(Uri.parse(href));
+              },
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(ctx.settingsText('סגור')),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(context.settingsText('סגור')),
-          ),
-        ],
       ),
     );
   }

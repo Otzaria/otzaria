@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/l10n/settings_text.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
@@ -509,12 +509,15 @@ Future<List<T>?> _showCalendarMultiSelectionDialog<T>({
   return showDialog<List<T>>(
     context: context,
     barrierDismissible: barrierDismissible,
-    builder: (context) => _CalendarMultiSelectionDialog<T>(
-      title: title,
-      items: items,
-      initialSelectedValues: initialSelectedValues,
-      searchHint: searchHint,
-      emptyMessage: emptyMessage,
+    builder: settingsDialogBuilder(
+      context,
+      (_) => _CalendarMultiSelectionDialog<T>(
+        title: title,
+        items: items,
+        initialSelectedValues: initialSelectedValues,
+        searchHint: searchHint,
+        emptyMessage: emptyMessage,
+      ),
     ),
   );
 }

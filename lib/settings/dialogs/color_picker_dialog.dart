@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/settings/l10n/settings_text.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 
 /// שורת הגדרה לבחירת צבע בסיס.
 ///
@@ -25,10 +25,13 @@ class ColorPickerTile extends StatelessWidget {
   void _showPicker(BuildContext context) {
     showDialog<void>(
       context: context,
-      builder: (_) => _ColorPickerDialog(
-        currentColor: currentColor,
-        defaultColor: defaultColor,
-        onChanged: onChanged,
+      builder: settingsDialogBuilder(
+        context,
+        (_) => _ColorPickerDialog(
+          currentColor: currentColor,
+          defaultColor: defaultColor,
+          onChanged: onChanged,
+        ),
       ),
     );
   }
@@ -148,7 +151,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
             children: AppSeedColors.options.map((entry) {
               final isSelected = _selected.toARGB32() == entry.color.toARGB32();
               return Tooltip(
-                message: entry.name,
+                message: context.settingsText(entry.name),
                 child: GestureDetector(
                   onTap: () => _select(entry.color),
                   child: Container(

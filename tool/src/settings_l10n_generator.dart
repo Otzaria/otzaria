@@ -293,12 +293,13 @@ List<SettingsTextUsage> scanSettingsTextUsages(Directory packageRoot) {
   return usages;
 }
 
-/// מחלץ את כל המחרוזות הקבועות תחת `lib/settings/`, עם חיבור מחרוזות סמוכות.
-/// משמש לזיהוי תרגום שאינו בשימוש, כולל טקסט שנמסר ל-`settingsText` בעקיפין.
+/// מחלץ את כל המחרוזות הקבועות תחת `lib/`, עם חיבור מחרוזות סמוכות.
+///
+/// משמש לזיהוי תרגום שאינו בשימוש. הסריקה רחבה מ-`lib/settings/` בכוונה:
+/// מסך ההגדרות מציג גם טקסט שמוצהר במקום אחר — למשל שמות צבעי הבסיס
+/// ב-`lib/theme/` — ומעביר אותו ל-`settingsText` דרך משתנה.
 Set<String> scanAllStringLiterals(Directory packageRoot) {
-  final root = Directory.fromUri(
-    packageRoot.uri.resolve('$l10nScanRootRelativePath/'),
-  );
+  final root = Directory.fromUri(packageRoot.uri.resolve('lib/'));
   final literals = <String>{};
   for (final entity in root.listSync(recursive: true)) {
     if (entity is! File || !entity.path.endsWith('.dart')) continue;

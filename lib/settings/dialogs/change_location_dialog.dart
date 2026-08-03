@@ -6,7 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/core/app_paths.dart';
-import 'package:otzaria/settings/l10n/settings_text.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/core/app_runtime_reset.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -551,16 +551,19 @@ void _showBlockingProgress(BuildContext context, String message) {
   showDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (_) => PopScope(
-      canPop: false,
-      child: AlertDialog(
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 16),
-            Text(message, textAlign: TextAlign.center),
-          ],
+    builder: settingsDialogBuilder(
+      context,
+      (_) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(message, textAlign: TextAlign.center),
+            ],
+          ),
         ),
       ),
     ),
@@ -576,12 +579,15 @@ Future<ChangeLocationResult?> showChangeLocationDialog({
   String? moveContentsWarning,
 }) => showDialog<ChangeLocationResult>(
   context: context,
-  builder: (_) => _ChangeLocationDialogContent(
-    currentPath: currentPath,
-    folderName: folderName,
-    canMoveContents: canMoveContents,
-    defaultPath: defaultPath,
-    moveContentsWarning: moveContentsWarning,
+  builder: settingsDialogBuilder(
+    context,
+    (_) => _ChangeLocationDialogContent(
+      currentPath: currentPath,
+      folderName: folderName,
+      canMoveContents: canMoveContents,
+      defaultPath: defaultPath,
+      moveContentsWarning: moveContentsWarning,
+    ),
   ),
 );
 

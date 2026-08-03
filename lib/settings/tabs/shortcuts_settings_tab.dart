@@ -9,7 +9,7 @@ import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/utils/fluent_icon_resolver.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
-import 'package:otzaria/settings/l10n/settings_text.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
@@ -887,14 +887,20 @@ class ShortcutsSettingsTab extends StatelessWidget {
 
     final selectedKey = await showDialog<String>(
       context: context,
-      builder: (_) => _PickActionDialog(actionKeys: unconfiguredKeys),
+      builder: settingsDialogBuilder(
+        context,
+        (_) => _PickActionDialog(actionKeys: unconfiguredKeys),
+      ),
     );
     if (selectedKey == null || !context.mounted) return;
 
     final shortcut = await showDialog<String>(
       context: context,
-      builder: (_) => CustomShortcutDialog(
-        actionName: ShortcutValidator.shortcutNames[selectedKey],
+      builder: settingsDialogBuilder(
+        context,
+        (_) => CustomShortcutDialog(
+          actionName: ShortcutValidator.shortcutNames[selectedKey],
+        ),
       ),
     );
     if (shortcut == null || shortcut.isEmpty) return;

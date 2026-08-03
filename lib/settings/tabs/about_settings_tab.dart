@@ -8,7 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/widgets/layout/adaptive_row.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
-import 'package:otzaria/settings/l10n/settings_text.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/tabs/about_settings_data.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
@@ -374,8 +374,11 @@ class AboutSettingsTab extends StatelessWidget {
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (context) => AdPopupDialog(
-        title: context.settingsText('אוצריא מתגייסת לעזרת לומדי התורה'),
+      builder: settingsDialogBuilder(
+        context,
+        (ctx) => AdPopupDialog(
+          title: ctx.settingsText('אוצריא מתגייסת לעזרת לומדי התורה'),
+        ),
       ),
     );
   }

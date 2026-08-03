@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
@@ -78,6 +80,37 @@ void main() {
       SettingsLanguage.english,
     );
     expect(Directionality.of(dialogContext), TextDirection.ltr);
+  });
+
+  test('כל showDialog תחת lib/settings עטוף ב-settingsDialogBuilder', () {
+    // דיאלוג נבנה ב-Overlay ולכן לא יורש את השפה; בלי העטיפה הוא מוצג
+    // עברית גם כשההגדרות באנגלית — כך קרה בדיאלוג בחירת הצבע.
+    final offenders = <String>[];
+    final dir = Directory('lib/settings');
+    for (final entity in dir.listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      if (entity.path.endsWith('.g.dart')) continue;
+      if (entity.path.endsWith('settings_dialog_scope.dart')) continue;
+
+      final lines = entity.readAsLinesSync();
+      for (var i = 0; i < lines.length; i++) {
+        if (!lines[i].contains('showDialog')) continue;
+        // ה-builder מופיע בתוך קריאת showDialog, בשורות הסמוכות.
+        final window = lines
+            .sublist(i, (i + 8).clamp(0, lines.length))
+            .join('\n');
+        if (!window.contains('builder:')) continue;
+        if (window.contains('settingsDialogBuilder')) continue;
+        offenders.add('${entity.path}:${i + 1}');
+      }
+    }
+    expect(
+      offenders,
+      isEmpty,
+      reason:
+          'showDialog ללא settingsDialogBuilder — הדיאלוג לא יקבל את שפת '
+          'ההגדרות:\n${offenders.join('\n')}',
+    );
   });
 
   testWidgets('מחוץ להגדרות העטיפה משאירה עברית ו-RTL', (tester) async {

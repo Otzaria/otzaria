@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:otzaria/core/messages/settings_messages.dart';
-import 'package:otzaria/settings/l10n/settings_text.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -20,7 +20,10 @@ Future<void> showBooksListDialog({
 }) {
   return showDialog<void>(
     context: context,
-    builder: (_) => _BooksListDialog(books: books),
+    builder: settingsDialogBuilder(
+      context,
+      (_) => _BooksListDialog(books: books),
+    ),
   );
 }
 

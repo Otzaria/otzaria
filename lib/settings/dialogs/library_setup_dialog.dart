@@ -6,7 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/core/app_paths.dart';
-import 'package:otzaria/settings/l10n/settings_text.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -42,12 +42,15 @@ Future<bool> showLibrarySetupDialog({
   final result = await showDialog<bool>(
     context: context,
     barrierDismissible: false,
-    builder: (_) => BlocProvider<EmptyLibraryBloc>(
-      create: (_) => EmptyLibraryBloc(),
-      child: _LibrarySetupDialogContent(
-        defaultTargetPath: defaultTargetPath,
-        currentLibraryPath: currentLibraryPath,
-        folderName: folderName,
+    builder: settingsDialogBuilder(
+      context,
+      (_) => BlocProvider<EmptyLibraryBloc>(
+        create: (_) => EmptyLibraryBloc(),
+        child: _LibrarySetupDialogContent(
+          defaultTargetPath: defaultTargetPath,
+          currentLibraryPath: currentLibraryPath,
+          folderName: folderName,
+        ),
       ),
     ),
   );
