@@ -6,9 +6,11 @@
 /// תרגומי מסך ההגדרות לפי קוד שפה, ממופים מהמקור העברי.
 const Map<String, Map<String, String>> kSettingsCatalogs = {
   'en': {
+    '{count} ספרים מיובאים': '{count} seforim imported',
     '{font} (לא זמין במחשב זה)': '{font} (not available on this computer)',
     'אודות': 'About',
     'אוטומטי': 'Automatic',
+    'אוצר החכמה בלבד': 'Otzar HaChochma only',
     'אותה שורה אחרי (בלי סוגריים)': 'Same line, after, no parentheses',
     'אותה שורה אחרי (עם סוגריים)': 'Same line, after, in parentheses',
     'אותה שורה לפני (בלי סוגריים)': 'Same line, before, no parentheses',
@@ -29,6 +31,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'בודק אם נדרש איפוס ואינדוקס מחדש':
         'Checking whether a reset and re-index is needed',
     'בחר מיקום עבור מאגר הספרים': 'Choose where the seforim are kept',
+    'בחר קבצי ספרים לייבוא': 'Choose sefer files to import',
     'ביטול': 'Cancel',
     'במידה וקיימים ברשותך ספרים ממאגר זה':
         'If you have seforim from that collection',
@@ -41,6 +44,8 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'האינדקס מעודכן': 'The index is up to date',
     'האם אתה בטוח שברצונך לאפס ולמחוק את כל ההגדרות לפי ספר?':
         'Are you sure you want to delete all the per-sefer settings?',
+    'האם למחוק את "{title}" מהספרים האישיים?':
+        'Delete "{title}" from your own seforim?',
     'האם למחוק את אינדקס החיפוש? תצטרך לבנות אותו מחדש כדי להשתמש בחיפוש.':
         'Delete the search index? You will have to rebuild it before you can search.',
     'האם לעצור את תהליך עדכון האינדקס?': 'Stop indexing now?',
@@ -49,6 +54,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הגדרות לפי ספר': 'Per-sefer settings',
     'הגדרת ספריה': 'Set up library',
     'הדגשת הגופן (בולד)': 'Bold the font',
+    'הורד קטלוג': 'Download catalog',
     'החלונית לא תוצג אוטומטית עם פתיחת הספר':
         'The panel will not open on its own with a sefer',
     'החלונית תוצג באופן קבוע': 'The panel stays open',
@@ -61,6 +67,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הטקסט יועתק עם שם הספר ונתיב הטקסט':
         'The text is copied with the sefer name and the full mareh makom',
     'הטקסט ימלא את כל הרוחב הזמין': 'The text fills the full width',
+    'היברובוקס בלבד': 'HebrewBooks only',
     'הכותרת תופיע באותה שורה אחרי הטקסט (בלי סוגריים)':
         'The mareh makom comes after the text on the same line, without parentheses',
     'הכותרת תופיע באותה שורה אחרי הטקסט (עם סוגריים)':
@@ -83,15 +90,18 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הניקוד לא יוצג בכלל': 'Nekudos do not show at all',
     'הספרייה ריקה – אין ספרים לאינדוקס':
         'The library is empty — no seforim to index',
+    'הספרים שלי': 'My seforim',
     'הסתרה': 'Hide',
     'העתקת הכותרת': 'What to copy',
     'העתקת כותרות ופרקים': 'Copying with mareh mekomos',
     'הצג בתנ"ך': 'Only in Tanach',
+    'הצג הכל': 'Show all',
     'הצג יותר תוכן על ידי הקטנת המרווחים':
         'Show more content by reducing spacing',
     'הצג פריטים במרווחים נוחים ללחיצה':
         'Show items with comfortable tap spacing',
     'הצג תמיד': 'Always show',
+    'הצג תצוגה מקדימה': 'Show preview',
     'הצגה': 'Show',
     'הצגה / אוטומטי / הסתרה של חלונית הניווט':
         'Show / automatic / hide for the navigation panel',
@@ -102,6 +112,8 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הצגת סימני פיסוק': 'Show punctuation',
     'הצגת פריטים קומפקטית או מרווחת': 'Show items compactly or spaciously',
     'הצגת שם הקודש': 'Show Shem Hashem',
+    'הקטלוג של אוצר החכמה והיברובוקס חסר במערכת. יש להוריד אותו כדי להציג ולחפש ספרים ממקורות אלו.':
+        'The Otzar HaChochma and HebrewBooks catalog is missing. Download it to show and search seforim from those sources.',
     'השורות יוצגו ברצף עד הכותרת הבאה':
         'The lines run together until the next kotzer',
     'השם הקדוש יוצג': 'Shem Hashem is shown',
@@ -114,6 +126,10 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
         'The app will match your operating system\'s appearance automatically',
     'התיקיה שבה נמצאים תיקיות הספרים והאינדקס':
         'The folder holding the seforim and the search index',
+    'התיקיות והספרים יוצגו ברשימה נפתחת (עץ מתרחב)':
+        'Folders and seforim show as an expanding tree',
+    'התיקיות והספרים יוצגו בתוך כרטיסים ברשת':
+        'Folders and seforim show as cards in a grid',
     'התקדמות האינדקס: {processed}/{total}': 'Indexing: {processed}/{total}',
     'חזור (Esc)': 'Back (Esc)',
     'חיפוש בהגדרות': 'Search settings',
@@ -121,8 +137,17 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'חלוניות עזר': 'Side panels',
     'חלונית ניווט בין כותרות': 'Heading navigation panel',
     'טקסט': 'Text',
+    'יוצגו ספרים מאוצר החכמה בתוצאות החיפוש במסך הספרייה':
+        'Seforim from Otzar HaChochma will show in the library search results',
+    'יוצגו ספרים מאוצר החכמה ומהיברובוקס בתוצאות החיפוש במסך הספרייה':
+        'Seforim from Otzar HaChochma and HebrewBooks will show in the library search results',
+    'יוצגו ספרים מהיברובוקס בתוצאות החיפוש במסך הספרייה':
+        'Seforim from HebrewBooks will show in the library search results',
+    'ייבוא ספרים': 'Import seforim',
     'ייבוא ספרים משלך אל תוך הספרייה':
         'Bring your own seforim into the library',
+    'ייבוא קבצי TXT, PDF, Word ו-EPUB לספרייה':
+        'Import TXT, PDF, Word and EPUB files into the library',
     'ייבוא קובצי CSV/JSON של סדר דורות וקישורים לספרים האישיים.':
         'Import CSV/JSON files with seder hadoros and links for your own seforim.',
     'כהה': 'Dark',
@@ -144,6 +169,9 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'מאגר הספרים וחיפוש': 'Seforim and search',
     'מחיקת כל ההתאמות שנשמרו לכל ספר בנפרד':
         'Delete everything saved for individual seforim',
+    'מחיקת ספר': 'Delete sefer',
+    'מחק': 'Delete',
+    'מחק ספר': 'Delete sefer',
     'מיזוג ספרים אישיים לעץ הספרייה': 'Merge my seforim into the library tree',
     'מיקום הספרייה': 'Library location',
     'מיקום הספרייה והאינדקס': 'Library and index location',
@@ -162,22 +190,29 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'מצב ערכת נושא': 'Theme mode',
     'מצב קריאה בתנ"ך ובתלמוד': 'Learning mode for Tanach and Gemara',
     'מצומצם': 'Compact',
+    'מקורות אחרים לספרים': 'Other sources for seforim',
     'מראה': 'Appearance',
     'מרווח בין שורות': 'Line spacing',
     'מתקדם': 'Advanced',
     'נדרש איפוס ואינדוקס מחדש באישור המשתמש':
         'A reset and re-index is needed — waiting for you to approve',
+    'ניתן לחפש ספר במסך ספריה או להציג ספרים מתיקיית ספרים של אוצר החכמה והיברובוקס\nהחיפוש בספריה מתבצע מתוך קטלוג, הגדרות מיקום והעדכונים לקטלוג מוגדרים דרך ספריית אוצריא':
+        'You can search for a sefer in the library screen, or show seforim from an Otzar HaChochma or HebrewBooks folder.\nThe library search runs off a catalog; its location and updates are set through the Otzaria library.',
     'נסה לחפש מילים אחרות': 'Try searching for different words',
     'נקה חיפוש': 'Clear search',
     'נתוני משתמש': 'User data',
+    'סוג תצוגה': 'View style',
     'סימני הפיסוק יוצגו בכל הספרים': 'Punctuation shows in every sefer',
     'סימני הפיסוק לא יוצגו (למעט בתנ"ך)':
         'Punctuation is hidden (except in Tanach)',
     'ספרי PDF ייפתחו בתצוגה רגילה': 'PDF seforim will open in the regular view',
     'ספרי PDF ייפתחו בתצוגת ספר': 'PDF seforim will open in sefer view',
     'ספריה': 'Seforim Library',
+    'ספריות חיצוניות': 'Outside collections',
     'ספרייה': 'Library',
     'ספרים אישיים': 'My own seforim',
+    'ספרים חיצוניים לא יוצגו בתוצאות החיפוש במסך הספרייה':
+        'Outside seforim will not show in the library search results',
     'עדכון אינדקס אוטומטי': 'Update the index automatically',
     'עדכן': 'Update',
     'עיצוב כותרות': 'Mareh makom format',
@@ -205,8 +240,10 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'רגיל': 'Normal',
     'רוחב הטקסט': 'Text width',
     'רצף': 'Running text',
+    'רשימה': 'List',
     'רשימות ההערות יוצגו כשהן סגורות': 'Note lists will appear collapsed',
     'רשימות ההערות יוצגו כשהן פתוחות': 'Note lists will appear expanded',
+    'רשת': 'Grid',
     'שורות בודדות': 'Separate lines',
     'שינויים בסרגל הלחצנים יישמרו לכל ספר בנפרד':
         'Changes in the toolbar are saved for each sefer on its own',
@@ -224,8 +261,11 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'תיקייה ראשית': 'Main folder',
     'תצוגה': 'Display',
     'תצוגה ותוכן': 'Display and content',
+    'תצוגה מקדימה מוסתרת': 'The preview is hidden',
+    'תצוגה מקדימה מוצגת': 'The preview is showing',
     'תצוגת PDF': 'PDF view',
     'תצוגת ספר בPDF': 'Sefer view for PDFs',
+    'תצוגת ספרייה': 'Library view',
     'תצוגת רשימות הערות בפתיחה': 'How note lists appear when opened',
     'תת-התיקיות של התיקייה הנבחרת ימוזגו לקטגוריות הראשיות לפי שם':
         'Subfolders of the chosen folder merge into the main categories by name',

@@ -265,7 +265,7 @@ List<SettingsTextUsage> scanSettingsTextUsages(Directory packageRoot) {
     if (entity is! File || !entity.path.endsWith('.dart')) continue;
     if (entity.path.endsWith('.g.dart')) continue;
 
-    final source = entity.readAsStringSync();
+    final source = _stripComments(entity.readAsStringSync());
     final relativePath = entity.path
         .replaceFirst(packageRoot.path, '')
         .replaceFirst(RegExp(r'^[/\\]'), '');
@@ -303,9 +303,58 @@ Set<String> scanAllStringLiterals(Directory packageRoot) {
   for (final entity in root.listSync(recursive: true)) {
     if (entity is! File || !entity.path.endsWith('.dart')) continue;
     if (entity.path.endsWith('.g.dart')) continue;
-    literals.addAll(_stringLiterals(entity.readAsStringSync()));
+    literals.addAll(_stringLiterals(_stripComments(entity.readAsStringSync())));
   }
   return literals;
+}
+
+/// מסיר הערות מקוד Dart. בלי זה, אפוסטרוף בתוך הערה עברית (למשל "ווידג'ט")
+/// נקרא כתחילת מחרוזת ובולע את הקוד שאחריו.
+String _stripComments(String src) {
+  final out = StringBuffer();
+  var i = 0;
+  var inString = false;
+  String? quote;
+  var escaped = false;
+
+  while (i < src.length) {
+    final ch = src[i];
+    if (inString) {
+      out.write(ch);
+      if (escaped) {
+        escaped = false;
+      } else if (ch == r'\') {
+        escaped = true;
+      } else if (ch == quote || ch == '\n') {
+        inString = false;
+      }
+      i++;
+      continue;
+    }
+    if (ch == "'" || ch == '"') {
+      inString = true;
+      quote = ch;
+      out.write(ch);
+      i++;
+      continue;
+    }
+    if (ch == '/' && i + 1 < src.length) {
+      if (src[i + 1] == '/') {
+        while (i < src.length && src[i] != '\n') {
+          i++;
+        }
+        continue;
+      }
+      if (src[i + 1] == '*') {
+        final end = src.indexOf('*/', i + 2);
+        i = end < 0 ? src.length : end + 2;
+        continue;
+      }
+    }
+    out.write(ch);
+    i++;
+  }
+  return out.toString();
 }
 
 /// מחזיר את תוכן הסוגריים שנפתחות ב-[openIdx], ללא הסוגריים עצמן.

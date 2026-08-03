@@ -439,6 +439,23 @@ void main() {
       expect(usages.map((u) => u.key), ['כן', 'לא']);
     });
 
+    test('אפוסטרוף בהערה עברית אינו בולע את הקוד שאחריה', () {
+      final dir = Directory.systemTemp.createTempSync('l10n_scan');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      Directory.fromUri(
+        dir.uri.resolve('$l10nScanRootRelativePath/'),
+      ).createSync(recursive: true);
+      File.fromUri(
+        dir.uri.resolve('$l10nScanRootRelativePath/a.dart'),
+      ).writeAsStringSync('''
+        // ווידג'ט שמוצג בדסקטופ בלבד
+        x(context.settingsText('אחרי ההערה'));
+      ''');
+
+      expect(scanSettingsTextUsages(dir).map((u) => u.key), ['אחרי ההערה']);
+      expect(scanAllStringLiterals(dir), contains('אחרי ההערה'));
+    });
+
     test('הקשר נצמד למפתח ואינו נספר כמפתח בפני עצמו', () {
       final dir = Directory.systemTemp.createTempSync('l10n_scan');
       addTearDown(() => dir.deleteSync(recursive: true));
