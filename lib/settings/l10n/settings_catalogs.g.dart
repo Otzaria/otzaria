@@ -9,6 +9,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     '12 בלילה': 'Midnight',
     '{count} נבחרו': '{count} selected',
     '{count} ספרים מיובאים': '{count} seforim imported',
+    '{count} פעולות זמינות': '{count} actions available',
     '{count} תיקיות': '{count} folders',
     '{font} (לא זמין במחשב זה)': '{font} (not available on this computer)',
     'אודות': 'About',
@@ -33,10 +34,13 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'איפוס': 'Reset',
     'איפוס אינדקס': 'Reset the index?',
     'איפוס הגדרות לפי ספר': 'Reset per-sefer settings',
+    'איפוס קיצורי מקשים': 'Reset keyboard shortcuts',
+    'איפוס קיצורי מקשים?': 'Reset keyboard shortcuts?',
     'אירועים ותזכורות': 'Events and reminders',
     'אישור': 'OK',
     'אישור איפוס הגדרות לפי ספר': 'Reset per-sefer settings?',
     'אישור גישה לרשת': 'Allow network access',
+    'איתור': 'Find',
     'אל תציג': 'Never show',
     'אל תציג התראות עבור אירועים בלוח השנה':
         'Do not show alerts for luach events',
@@ -54,9 +58,11 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'בחר הכל': 'Select all',
     'בחר לוחות שנה': 'Choose calendars',
     'בחר מיקום עבור מאגר הספרים': 'Choose where the seforim are kept',
+    'בחר פעולה להוספת קיצור': 'Choose an action to shortcut',
     'בחר קבצי ספרים לייבוא': 'Choose sefer files to import',
     'בחר קובצי "דורות.csv", "<שם הספר>.links.csv" או קובצי קישורים של אוצריא ("<שם הספר>_links.json") והם יכנסו לספרייה. ייבוא חוזר מעדכן ערכים קיימים ומוסיף חדשים.':
         'Choose "דורות.csv" files, "<sefer name>.links.csv", or Otzaria link files ("<sefer name>_links.json") and they go into the library. Importing again updates what is there and adds what is new.',
+    'בטקסט — מקטע; ב-PDF — עמוד': 'In text — a section; in PDF — a page',
     'ביטול': 'Cancel',
     'ביטול טעינה בעלייה': 'Do not load at startup',
     'במידה וקיימים ברשותך ספרים ממאגר זה':
@@ -90,19 +96,30 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הגדרות לפי ספר': 'Per-sefer settings',
     'הגדרת ספריה': 'Set up library',
     'הדגשת הגופן (בולד)': 'Bold the font',
+    'הדף/פרק הבא': 'Next daf/perek',
+    'הדף/פרק הקודם': 'Previous daf/perek',
+    'הדפסה': 'Print',
+    'הוסף סימניה': 'Add bookmark',
+    'הוסף קיצור': 'Add shortcut',
+    'הוסף קיצור לפעולה זמינה': 'Add a shortcut for an action',
     'הוסף תיקיות עם ספרים או קבצים, בהוספת/הסרת קבצים יש לסרוק את התיקיה מחדש.':
         'Add folders with seforim or files. After adding or removing files, rescan the folder.',
     'הוסף תיקייה': 'Add folder',
     'הוספה': 'Copy into app',
+    'הוספת הערה': 'Add a note',
     'הוספת מספר האותיות לסכום': 'Add the letter count to the total',
     'הורד קטלוג': 'Download catalog',
     'הזז למטה': 'Move down',
     'הזז למעלה': 'Move up',
+    'החזר את כל קיצורי המקשים לברירת המחדל':
+        'Put every shortcut back to its default',
     'החלונית לא תוצג אוטומטית עם פתיחת הספר':
         'The panel will not open on its own with a sefer',
     'החלונית תוצג באופן קבוע': 'The panel stays open',
     'החלונית תוצג בפתיחת ספר ותיסגר בעת גלילה':
         'The panel opens with a sefer and closes while scrolling',
+    'החלף מצב תצוגה (PDF/טקסט)': 'Switch view (PDF/text)',
+    'החלף שולחן עבודה': 'Switch workspace',
     'הטקסט יהיה צר יותר ומרוכז במסך': 'The text is narrower and centered',
     'הטקסט יועתק ללא כותרות': 'The text is copied with no mareh makom',
     'הטקסט יועתק עם שם הספר בלבד':
@@ -118,6 +135,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'היום בלוח יתחלף בצאת הכוכבים של העיר הנבחרת':
         'The day changes at tzeis hakochavim in the chosen city',
     'היום בלוח יתחלף בשעה 12 בלילה': 'The day changes at midnight',
+    'היסטוריה': 'History',
     'הכותרת תופיע באותה שורה אחרי הטקסט (בלי סוגריים)':
         'The mareh makom comes after the text on the same line, without parentheses',
     'הכותרת תופיע באותה שורה אחרי הטקסט (עם סוגריים)':
@@ -157,8 +175,13 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הסתר מהממשק': 'Hide from interface',
     'הסתרה': 'Hide',
     'העתק נתיב': 'Copy path',
+    'העתק קישור ישיר לספר': 'Copy a direct link to the sefer',
+    'העתק קישור למקטע / לעמוד': 'Copy a link to the section / page',
+    'העתק קישור עם הדגשת הטקסט': 'Copy a link with the text highlighted',
+    'העתק קישור עם הדגשת המקטע': 'Copy a link with the section highlighted',
     'העתקת הכותרת': 'What to copy',
     'העתקת כותרות ופרקים': 'Copying with mareh mekomos',
+    'העתקת קישורים': 'Copying links',
     'הפעל': 'Enable',
     'הפעלת טעינה בעלייה': 'Load at startup',
     'הצג': 'Show',
@@ -196,6 +219,8 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הצמד לסרגל הניווט': 'Pin to the navigation bar',
     'הקטלוג של אוצר החכמה והיברובוקס חסר במערכת. יש להוריד אותו כדי להציג ולחפש ספרים ממקורות אלו.':
         'The Otzar HaChochma and HebrewBooks catalog is missing. Download it to show and search seforim from those sources.',
+    'הקטע הבא': 'Next section',
+    'הקטע הקודם': 'Previous section',
     'השבת': 'Disable',
     'השורות יוצגו ברצף עד הכותרת הבאה':
         'The lines run together until the next kotzer',
@@ -222,10 +247,13 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'חזור (Esc)': 'Back (Esc)',
     'חיפוש בהגדרות': 'Search settings',
     'חיפוש בכל הספרים': 'Search every sefer',
+    'חיפוש בספר הפתוח': 'Search the open sefer',
     'חיפוש בתורה בלבד': 'Search Chumash only',
     'חיפוש גימטריה': 'Gematria search',
     'חיפוש גם בחלקי פסוקים': 'Search parts of pesukim too',
     'חיפוש ואינדקס': 'Search and index',
+    'חיפוש חדש בכל הספרים': 'New search across all seforim',
+    'חיפוש מתקדם': 'Advanced search',
     'חיפוש פסוק שלם בלבד': 'Search whole pesukim only',
     'חיפוש רק בחמישה חומשי תורה': 'Search only the Chamisha Chumshei Torah',
     'חיפוש רק בפסוקים שלמים': 'Search only whole pesukim',
@@ -263,9 +291,12 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
         'All PDF seforim will open in the regular view',
     'כל ספרי ה-PDF ייפתחו בתצוגת ספר':
         'All PDF seforim will open in sefer view',
+    'כל קיצורי המקשים המותאמים אישית יאופסו לברירת המחדל.':
+        'Every shortcut you customized goes back to its default.',
     'כל שורה תוצג בנפרד': 'Each posuk or line shows on its own',
     'כלים': 'Tools',
     'כלים מובנים': 'Built-in tools',
+    'כללי': 'General',
     'כמות התוצאות המקסימלית להצגה': 'The most results to show',
     'כניסה לפורום': 'Go to the forum',
     'כתב': 'Text',
@@ -278,8 +309,14 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'לא נמצאו תוצאות': 'No results',
     'לא קיימת ספרייה לאינדוקס': 'There is no library to index',
     'לוח שנה': 'Luach',
+    'לוח שנה ושמור וזכור': 'Luach and Shamor VeZachor',
     'לוח שנה ראשי': 'Main calendar',
     'לוח שנה של Google': 'Google Calendar',
+    'לוח שנה: יצירת אירוע': 'Luach: create an event',
+    'לוח שנה: מעבר בין תצוגות': 'Luach: switch views',
+    'לוח שנה: מעבר להיום': 'Luach: jump to today',
+    'לוח שנה: פתיחה/סגירה אירועים': 'Luach: toggle events',
+    'לוח שנה: פתיחה/סגירה זמני היום': 'Luach: toggle zmanim',
     'לוחות שנה ({count})': 'Calendars ({count})',
     'לועזי': 'Secular',
     'לחץ להוספת תיקיות אישיות': 'Tap to add your own folders',
@@ -339,6 +376,8 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'מרכז המידע על ארגוני סיוע ללומדי התורה':
         'Information hub for organizations that help lomdei Torah',
     'משולב': 'Both',
+    'משמש לחיפוש מהיר במסכי ספרים פתוחים':
+        'For a quick search inside open seforim',
     'משתמש ברשת': 'Uses the network',
     'מתקדם': 'Advanced',
     'נדרש איפוס ואינדוקס מחדש באישור המשתמש':
@@ -346,6 +385,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'נהל את התוספים שלך: השבתה, הסתרה, הצמדה, הרשאות ומחיקה. גרור לשינוי סדר.':
         'Manage your plugins: disable, hide, pin, permissions and delete. Drag to reorder.',
     'ניהול הרשאות': 'Manage permissions',
+    'ניווט כללי': 'General navigation',
     'ניתן לחפש ספר במסך ספריה או להציג ספרים מתיקיית ספרים של אוצר החכמה והיברובוקס\nהחיפוש בספריה מתבצע מתוך קטלוג, הגדרות מיקום והעדכונים לקטלוג מוגדרים דרך ספריית אוצריא':
         'You can search for a sefer in the library screen, or show seforim from an Otzar HaChochma or HebrewBooks folder.\nThe library search runs off a catalog; its location and updates are set through the Otzaria library.',
     'נסה לחפש מילים אחרות': 'Try searching for different words',
@@ -355,12 +395,15 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'נתקלת בבאג? יש לך שאלה או משוב?':
         'Hit a bug? Have a question or feedback?',
     'סגור': 'Close',
+    'סגור כל הספרים': 'Close all seforim',
+    'סגור ספר נוכחי': 'Close the current sefer',
     'סוג לוח שנה': 'Luach type',
     'סוג תצוגה': 'View style',
     'סיוע ללומדי תורה': 'Helping those who learn Torah',
     'סימני הפיסוק יוצגו בכל הספרים': 'Punctuation shows in every sefer',
     'סימני הפיסוק לא יוצגו (למעט בתנ"ך)':
         'Punctuation is hidden (except in Tanach)',
+    'סימניות': 'Bookmarks',
     'סינון תוצאות כפולות': 'Filter duplicate results',
     'סכום משמעותי לפיתוח התוכנה':
         'A significant contribution to the development',
@@ -384,6 +427,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
         'A copy of the seforim is kept inside the app, so they keep working even if the original files are moved or deleted.\nThe original files stay where they are.\n\nNote: if you edit a file later, you will have to press "Rescan" for the change to show up.\n\nGo ahead?',
     'עזור לנו להוסיף ספרים חדשים לספריית אוצריא':
         'Help us add new seforim to the Otzaria library',
+    'עיון': 'Browse',
     'עיצוב כותרות': 'Mareh makom format',
     'עיר נבחרת': 'City',
     'עם הכולל': 'Im hakollel',
@@ -397,18 +441,36 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'פורמט פתיחת תלמוד בבלי': 'How Gemara opens',
     'פסקה נפרדת אחרי': 'Separate paragraph, after',
     'פסקה נפרדת לפני': 'Separate paragraph, before',
+    'פעולה זו אינה הפיכה!': 'This cannot be undone!',
     'פעולה זו אינה הפיכה! נתוני התוסף יימחקו.':
         'This cannot be undone — the plugin\'s data will be deleted.',
     'פעולה זו אינה ניתנת לביטול!': 'This cannot be undone!',
     'פעולה זו תמחק את כל הדורות והקישורים שיובאו לתוכנה.':
         'This deletes every doros entry and link that was imported into the app.',
+    'פעולות הקיימות באפליקציה ועדיין לא הוגדר להן קיצור מקלדת':
+        'Actions the app has that do not have a keyboard shortcut yet',
+    'פעולות זמינות לקיצור': 'Actions you can shortcut',
+    'פתח כרטיסייה אחרונה שנסגרה': 'Reopen the last closed tab',
+    'פתח כרטיסיית מפרשים': 'Open the meforshim tab',
     'פתח תיקייה': 'Open folder',
+    'פתח/סגור חלונית מפרשים': 'Toggle the meforshim panel',
+    'פתח/סגור חלונית ניווט': 'Toggle the navigation panel',
+    'פתיחת {plugin}': 'Open {plugin}',
+    'פתיחת גימטריה': 'Open gematria',
+    'פתיחת הערות אישיות': 'Open personal notes',
     'פתיחת הערות אישיות במצב סגור': 'Open personal notes collapsed',
+    'פתיחת כלים': 'Opening tools',
+    'פתיחת לוח שנה': 'Open the luach',
+    'פתיחת מדות ושיעורים': 'Open Midos U\'Shiurim',
+    'פתיחת מילון ארמי-עברי': 'Open the Aramaic-Hebrew dictionary',
     'פתיחת מסכתות הבבלי בטקסט או ב-PDF, מהספרייה ומכל מקום אחר':
         'Open masechtos as text or PDF, from the library and everywhere else',
     'פתיחת ספרי PDF בתצוגת ספר או רגילה':
         'Open PDF seforim in sefer view or the regular view',
     'פתיחת פאנל המפרשים בפתיחת ספר': 'Open the meforshim panel with a sefer',
+    'פתיחת ראשי תיבות': 'Open roshei teivos',
+    'פתיחת שמור וזכור': 'Open Shamor VeZachor',
+    'פתיחת תוספים': 'Opening plugins',
     'צאה"כ': 'Tzeis',
     'צבע בסיס': 'Base color',
     'צבע ראשי של ערכת הנושא': 'Primary color of the theme',
@@ -418,6 +480,11 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'קבצי PDF/Word — נקראים ישירות מהקבצים':
         'PDF/Word files — always read straight from disk',
     'קיצורי מקשים': 'Keyboard shortcuts',
+    'קיצורי מקשים זמינים רק בדסקטופ': 'Keyboard shortcuts are desktop only',
+    'קיצורים להעתקת קישור ישיר לספר, למקטע/לעמוד ולהדגשות':
+        'Shortcuts for copying a direct link to a sefer, to a section or page, and to highlights',
+    'קיצורים לפתיחה מהירה של תוסף מותקן':
+        'Shortcuts to quickly open an installed plugin',
     'רבינו תם': 'Rabbeinu Tam',
     'רגיל': 'Normal',
     'רוחב הטקסט': 'Text width',
@@ -434,6 +501,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
         'Changes in the toolbar are saved for each sefer on its own',
     'שם הספר': 'Sefer name',
     'שם וכותרת': 'Sefer name and place',
+    'שמור וזכור: מעבר בין הסינונים': 'Shamor VeZachor: switch filters',
     'שמירת התאמות לכל ספר בנפרד': 'Remember settings for each sefer',
     'שמירת עותק עצמאי בתוכנה': 'Keep a copy inside the app',
     'שפת ההגדרות': 'Settings language',
@@ -455,6 +523,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'תצוגה מקדימה מוסתרת': 'The preview is hidden',
     'תצוגה מקדימה מוצגת': 'The preview is showing',
     'תצוגת PDF': 'PDF view',
+    'תצוגת ספר': 'Sefer view',
     'תצוגת ספר בPDF': 'Sefer view for PDFs',
     'תצוגת ספרייה': 'Library view',
     'תצוגת רשימות הערות בפתיחה': 'How note lists appear when opened',
