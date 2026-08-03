@@ -483,6 +483,8 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'כלים': 'Tools',
     'כלים מובנים': 'Built-in tools',
     'כללי': 'General',
+    'כמו כן נוספו ספרים חשובים רבים מהפרויקטים הבאים:':
+        'Many important seforim were also added from these projects:',
     'כמות התוצאות המקסימלית להצגה': 'The most results to show',
     'כניסה לפורום': 'Go to the forum',
     'כעת: {parts}': 'Now: {parts}',
@@ -598,6 +600,8 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'מקום זה יכול להיות מונצח לע"נ יקירך':
         'This spot can be dedicated l\'ilui nishmas your loved one',
     'מקור הספרים': 'Where the seforim come from',
+    'מקור חלק גדול מהספרים בספריית אוצריא נלקח מהפרויקט המדהים של ספריא ושל עמותת דיקטה, שבאמצעותו נוספו חלק ניכר מהספרים.':
+        'A large part of the seforim in the Otzaria library comes from the remarkable Sefaria project and from the Dicta organization, which is how many of the seforim got here.',
     'מקורות אחרים לספרים': 'Other sources for seforim',
     'מראה': 'Appearance',
     'מרווח בין שורות': 'Line spacing',

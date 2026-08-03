@@ -445,7 +445,7 @@ class _InfoChipSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (label != null) ...[
-          _SubtitleText(label!),
+          _SubtitleText(context.settingsText(label!)),
           const SizedBox(height: 10),
         ],
         _InfoChipWrap(items: items, icon: icon),

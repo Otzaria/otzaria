@@ -168,14 +168,14 @@ void main() {
     });
 
     test('מפתח חסר נופל למקור העברי במקום להיעלם', () {
-      expect(
-        resolveSettingsText(
-          'טקסט שאין לו תרגום',
-          language: SettingsLanguage.english,
-          catalog: catalog,
-        ),
+      final result = resolveSettingsText(
         'טקסט שאין לו תרגום',
+        language: SettingsLanguage.english,
+        catalog: catalog,
       );
+
+      // ה-fallback מוקף בבידוד כיווניות; ראה settings_text_bidi_test.
+      expect(result, contains('טקסט שאין לו תרגום'));
     });
 
     test('הקשר שאינו בקטלוג נופל למפתח ללא ההקשר', () {
