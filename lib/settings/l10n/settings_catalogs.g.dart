@@ -6,6 +6,7 @@
 /// תרגומי מסך ההגדרות לפי קוד שפה, ממופים מהמקור העברי.
 const Map<String, Map<String, String>> kSettingsCatalogs = {
   'en': {
+    '{count} נבחרו': '{count} selected',
     '{count} ספרים מיובאים': '{count} seforim imported',
     '{count} תיקיות': '{count} folders',
     '{font} (לא זמין במחשב זה)': '{font} (not available on this computer)',
@@ -27,6 +28,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'איפוס אינדקס': 'Reset the index?',
     'איפוס הגדרות לפי ספר': 'Reset per-sefer settings',
     'אישור איפוס הגדרות לפי ספר': 'Reset per-sefer settings?',
+    'אישור גישה לרשת': 'Allow network access',
     'אל תציג': 'Never show',
     'אפס': 'Reset',
     'אפס ועדכן': 'Reset and rebuild',
@@ -34,25 +36,34 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'בהיר': 'Light',
     'בודק אם נדרש איפוס ואינדוקס מחדש':
         'Checking whether a reset and re-index is needed',
+    'בחירה': 'Select',
+    'בחר הכל': 'Select all',
     'בחר מיקום עבור מאגר הספרים': 'Choose where the seforim are kept',
     'בחר קבצי ספרים לייבוא': 'Choose sefer files to import',
     'בחר קובצי "דורות.csv", "<שם הספר>.links.csv" או קובצי קישורים של אוצריא ("<שם הספר>_links.json") והם יכנסו לספרייה. ייבוא חוזר מעדכן ערכים קיימים ומוסיף חדשים.':
         'Choose "דורות.csv" files, "<sefer name>.links.csv", or Otzaria link files ("<sefer name>_links.json") and they go into the library. Importing again updates what is there and adds what is new.',
     'ביטול': 'Cancel',
+    'ביטול טעינה בעלייה': 'Do not load at startup',
     'במידה וקיימים ברשותך ספרים ממאגר זה':
         'If you have seforim from that collection',
+    'בסרגל ניווט': 'On the nav bar',
     'גודל גופן הספר': 'Sefer font size',
     'גודל גופן מפרשים': 'Meforshim font size',
     'גופן טקסט': 'Text font',
     'גופן מפרשים': 'Meforshim font',
+    'גישה לרשת': 'Allow network',
+    'גרור ושחרר לשינוי סדר': 'Drag and drop to reorder',
     'דורות וקישורים': 'Doros and links',
     'דורות וקישורים לספרים אישיים': 'Doros and links for my seforim',
+    'דחיה מהרשת': 'Block network',
     'האינדקס לא מעודכן': 'The index is not up to date',
     'האינדקס מעודכן': 'The index is up to date',
     'האם אתה בטוח שברצונך לאפס ולמחוק את כל ההגדרות לפי ספר?':
         'Are you sure you want to delete all the per-sefer settings?',
     'האם להסיר את התיקייה "{name}" מהספרייה?\nהספרים יוסרו מהתוכנה, אך הקבצים המקוריים בדיסק לא יימחקו.':
         'Remove the folder "{name}" from the library?\nThe seforim come out of the app, but the original files on disk stay put.',
+    'האם למחוק {count} תוסף(ים)?\n\n• {names}':
+        'Delete {count} plugin(s)?\n\n• {names}',
     'האם למחוק את "{title}" מהספרים האישיים?':
         'Delete "{title}" from your own seforim?',
     'האם למחוק את אינדקס החיפוש? תצטרך לבנות אותו מחדש כדי להשתמש בחיפוש.':
@@ -68,6 +79,8 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הוסף תיקייה': 'Add folder',
     'הוספה': 'Copy into app',
     'הורד קטלוג': 'Download catalog',
+    'הזז למטה': 'Move down',
+    'הזז למעלה': 'Move up',
     'החלונית לא תוצג אוטומטית עם פתיחת הספר':
         'The panel will not open on its own with a sefer',
     'החלונית תוצג באופן קבוע': 'The panel stays open',
@@ -108,12 +121,22 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הספרים עצמם לא יימחקו — רק הדורות והקישורים המיובאים.':
         'The seforim themselves are not deleted — only the imported doros and links.',
     'הספרים שלי': 'My seforim',
+    'הסר מניווט': 'Unpin from nav',
+    'הסר מסרגל הניווט': 'Unpin from the navigation bar',
     'הסר תיקייה': 'Remove folder',
     'הסרת תיקייה': 'Remove folder',
+    'הסתר': 'Hide',
+    'הסתר כלים מהממשק או הצמד אותם לסרגל הניווט הראשי.':
+        'Hide tools from the interface, or pin them to the main navigation bar.',
+    'הסתר מהממשק': 'Hide from interface',
     'הסתרה': 'Hide',
     'העתק נתיב': 'Copy path',
     'העתקת הכותרת': 'What to copy',
     'העתקת כותרות ופרקים': 'Copying with mareh mekomos',
+    'הפעל': 'Enable',
+    'הפעלת טעינה בעלייה': 'Load at startup',
+    'הצג': 'Show',
+    'הצג בממשק': 'Show in interface',
     'הצג בתנ"ך': 'Only in Tanach',
     'הצג הכל': 'Show all',
     'הצג יותר תוכן על ידי הקטנת המרווחים':
@@ -137,8 +160,11 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הצגת סימני פיסוק': 'Show punctuation',
     'הצגת פריטים קומפקטית או מרווחת': 'Show items compactly or spaciously',
     'הצגת שם הקודש': 'Show Shem Hashem',
+    'הצמד לניווט': 'Pin to nav',
+    'הצמד לסרגל הניווט': 'Pin to the navigation bar',
     'הקטלוג של אוצר החכמה והיברובוקס חסר במערכת. יש להוריד אותו כדי להציג ולחפש ספרים ממקורות אלו.':
         'The Otzar HaChochma and HebrewBooks catalog is missing. Download it to show and search seforim from those sources.',
+    'השבת': 'Disable',
     'השורות יוצגו ברצף עד הכותרת הבאה':
         'The lines run together until the next kotzer',
     'השם הקדוש יוצג': 'Shem Hashem is shown',
@@ -163,6 +189,9 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'חיפוש ואינדקס': 'Search and index',
     'חלוניות עזר': 'Side panels',
     'חלונית ניווט בין כותרות': 'Heading navigation panel',
+    'חסימת גישה לרשת': 'Block network access',
+    'טעינה בעליה': 'Load at startup',
+    'טעינה רגילה': 'Load normally',
     'טקסט': 'Text',
     'יוצגו ספרים מאוצר החכמה בתוצאות החיפוש במסך הספרייה':
         'Seforim from Otzar HaChochma will show in the library search results',
@@ -186,6 +215,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
         'All PDF seforim will open in sefer view',
     'כל שורה תוצג בנפרד': 'Each posuk or line shows on its own',
     'כלים': 'Tools',
+    'כלים מובנים': 'Built-in tools',
     'כתב': 'Text',
     'כתרי אותיות': 'Nekudos and taamim',
     'לא זוהתה ספרייה — הגדר מיקום, הורד או ייבא ספרייה':
@@ -198,19 +228,24 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'ללא': 'Nothing',
     'לפי שפת מערכת ההפעלה': 'Follow the operating system language',
     'מאגר הספרים וחיפוש': 'Seforim and search',
+    'מוסתר': 'Hidden',
+    'מושבת': 'Disabled',
     'מחיקת דורות וקישורים': 'Delete doros and links',
     'מחיקת כל ההתאמות שנשמרו לכל ספר בנפרד':
         'Delete everything saved for individual seforim',
     'מחיקת ספר': 'Delete sefer',
+    'מחיקת תוספים': 'Delete plugins',
     'מחק': 'Delete',
     'מחק הכל': 'Delete all',
     'מחק ספר': 'Delete sefer',
+    'מחק תוסף': 'Delete plugin',
     'מידע נוסף': 'More info',
     'מיזוג ספרים אישיים לעץ הספרייה': 'Merge my seforim into the library tree',
     'מיקום הספרייה': 'Library location',
     'מיקום הספרייה והאינדקס': 'Library and index location',
     'מיקום ספרי היברובוקס': 'HebrewBooks seforim location',
     'מלא': 'Full',
+    'מנותק מהרשת': 'No network',
     'מסכתות הבבלי ייפתחו במהדורת ה-PDF בדף המתאים, גם בפתיחה מהספרייה':
         'Masechtos will open in the PDF edition at the right daf, including from the library',
     'מסכתות הבבלי ייפתחו במהדורת הטקסט (מהספרייה, מתוצאות חיפוש, מאיתור מקורות ומקישורים)':
@@ -227,9 +262,13 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'מקורות אחרים לספרים': 'Other sources for seforim',
     'מראה': 'Appearance',
     'מרווח בין שורות': 'Line spacing',
+    'משתמש ברשת': 'Uses the network',
     'מתקדם': 'Advanced',
     'נדרש איפוס ואינדוקס מחדש באישור המשתמש':
         'A reset and re-index is needed — waiting for you to approve',
+    'נהל את התוספים שלך: השבתה, הסתרה, הצמדה, הרשאות ומחיקה. גרור לשינוי סדר.':
+        'Manage your plugins: disable, hide, pin, permissions and delete. Drag to reorder.',
+    'ניהול הרשאות': 'Manage permissions',
     'ניתן לחפש ספר במסך ספריה או להציג ספרים מתיקיית ספרים של אוצר החכמה והיברובוקס\nהחיפוש בספריה מתבצע מתוך קטלוג, הגדרות מיקום והעדכונים לקטלוג מוגדרים דרך ספריית אוצריא':
         'You can search for a sefer in the library screen, or show seforim from an Otzar HaChochma or HebrewBooks folder.\nThe library search runs off a catalog; its location and updates are set through the Otzaria library.',
     'נסה לחפש מילים אחרות': 'Try searching for different words',
@@ -252,6 +291,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'סרוק מחדש תיקיות אישיות': 'Rescan my folders',
     'עדכון אינדקס אוטומטי': 'Update the index automatically',
     'עדכן': 'Update',
+    'עוד פעולות': 'More actions',
     'עותק של תוכן הספרים יישמר בתוך התוכנה, כך שהם יעבדו גם אם הקבצים המקוריים יוזזו או יימחקו.\nהקבצים המקוריים יישארו במקומם.\n\nשים לב: אם תערוך קובץ בעתיד, יהיה עליך ללחוץ "סרוק מחדש" כדי שהשינוי יתעדכן.\n\nהאם להמשיך?':
         'A copy of the seforim is kept inside the app, so they keep working even if the original files are moved or deleted.\nThe original files stay where they are.\n\nNote: if you edit a file later, you will have to press "Rescan" for the change to show up.\n\nGo ahead?',
     'עיצוב כותרות': 'Mareh makom format',
@@ -265,6 +305,8 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'פורמט פתיחת תלמוד בבלי': 'How Gemara opens',
     'פסקה נפרדת אחרי': 'Separate paragraph, after',
     'פסקה נפרדת לפני': 'Separate paragraph, before',
+    'פעולה זו אינה הפיכה! נתוני התוסף יימחקו.':
+        'This cannot be undone — the plugin\'s data will be deleted.',
     'פעולה זו אינה ניתנת לביטול!': 'This cannot be undone!',
     'פעולה זו תמחק את כל הדורות והקישורים שיובאו לתוכנה.':
         'This deletes every doros entry and link that was imported into the app.',
@@ -288,6 +330,8 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'רשימה': 'List',
     'רשימות ההערות יוצגו כשהן סגורות': 'Note lists will appear collapsed',
     'רשימות ההערות יוצגו כשהן פתוחות': 'Note lists will appear expanded',
+    'רשימת הכלים': 'Tool list',
+    'רשימת התוספים': 'Plugin list',
     'רשת': 'Grid',
     'שורות בודדות': 'Separate lines',
     'שינויים בסרגל הלחצנים יישמרו לכל ספר בנפרד':
@@ -301,6 +345,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
         'Display language for the settings screen only',
     'שפת התצוגה של מסך ההגדרות בלבד; שאר התוכנה נשארת בעברית':
         'Display language for the settings screen only; the rest of the app stays in Hebrew',
+    'תוספים מותקנים': 'Installed plugins',
     'תוצאות חיפוש': 'Search results',
     'תיקיות אישיות יוצגו תחת קטגוריית "ספרים אישיים"':
         'Your folders show under the "My own seforim" category',

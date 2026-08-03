@@ -15,6 +15,7 @@ import 'package:otzaria/plugins/utils/fluent_icon_resolver.dart';
 import 'package:otzaria/plugins/view/plugin_actions.dart';
 import 'package:otzaria/plugins/view/plugin_settings_screen.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
@@ -190,13 +191,14 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
                   children: [
                     SettingsCard(
                       cardId: _builtInCardId,
-                      title: 'כלים מובנים',
+                      title: context.settingsText('כלים מובנים'),
                       children: [
                         ExpandableSection(
                           icon: FluentIcons.apps_24_regular,
-                          title: 'רשימת הכלים',
-                          subtitle:
-                              'הסתר כלים מהממשק או הצמד אותם לסרגל הניווט הראשי.',
+                          title: context.settingsText('רשימת הכלים'),
+                          subtitle: context.settingsText(
+                            'הסתר כלים מהממשק או הצמד אותם לסרגל הניווט הראשי.',
+                          ),
                           isExpanded: _builtInExpanded,
                           onTap: () => setState(
                             () => _builtInExpanded = !_builtInExpanded,
@@ -209,7 +211,7 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
                       kSettingsCardSpacing,
                       SettingsCard(
                         cardId: _pluginsCardId,
-                        title: 'תוספים מותקנים',
+                        title: context.settingsText('תוספים מותקנים'),
                         children: [
                           // כותרת + סרגל פעולות כילד אחד כדי ש-divider יופיע רק בין הכותרת לשורות.
                           Column(
@@ -217,10 +219,15 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
                             children: [
                               SettingsActionTile.text(
                                 icon: FluentIcons.puzzle_piece_24_regular,
-                                title: 'רשימת התוספים',
+                                title: context.settingsText('רשימת התוספים'),
                                 subtitle: _isSelectionMode
-                                    ? '${_selectedIds.length} נבחרו'
-                                    : 'נהל את התוספים שלך: השבתה, הסתרה, הצמדה, הרשאות ומחיקה. גרור לשינוי סדר.',
+                                    ? context.settingsText(
+                                        '{count} נבחרו',
+                                        args: {'count': _selectedIds.length},
+                                      )
+                                    : context.settingsText(
+                                        'נהל את התוספים שלך: השבתה, הסתרה, הצמדה, הרשאות ומחיקה. גרור לשינוי סדר.',
+                                      ),
                                 // LayoutBuilder + Tooltip(OverlayPortal) reactivation
                                 // during drag reorder crashes here.
                                 responsiveActions: false,
@@ -229,7 +236,7 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
                                         ActionButton.ghost(
                                           icon: FluentIcons
                                               .checkbox_checked_24_regular,
-                                          text: 'בחר הכל',
+                                          text: context.settingsText('בחר הכל'),
                                           onPressed:
                                               _selectedIds.length ==
                                                   plugins.length
@@ -240,7 +247,7 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
                                         ActionButton.neutral(
                                           icon: FluentIcons
                                               .dismiss_circle_24_regular,
-                                          text: 'ביטול',
+                                          text: context.settingsText('ביטול'),
                                           onPressed: _exitSelectionMode,
                                         ),
                                       ]
@@ -248,7 +255,7 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
                                         ActionButton.neutral(
                                           icon: FluentIcons
                                               .multiselect_rtl_24_regular,
-                                          text: 'בחירה',
+                                          text: context.settingsText('בחירה'),
                                           onPressed: _enterSelectionMode,
                                         ),
                                       ],
@@ -470,7 +477,9 @@ class _ActionBar extends StatelessWidget {
               icon: _allSelectedHiddenFromTools
                   ? FluentIcons.eye_24_regular
                   : FluentIcons.eye_off_24_regular,
-              text: _allSelectedHiddenFromTools ? 'הצג' : 'הסתר',
+              text: context.settingsText(
+                _allSelectedHiddenFromTools ? 'הצג' : 'הסתר',
+              ),
               onPressed: hasSelection
                   ? () => _onToggleShowInTools(context)
                   : null,
@@ -479,7 +488,9 @@ class _ActionBar extends StatelessWidget {
               icon: _allSelectedArePinnedToNav
                   ? FluentIcons.pin_24_filled
                   : FluentIcons.pin_24_regular,
-              text: _allSelectedArePinnedToNav ? 'הסר מניווט' : 'הצמד לניווט',
+              text: context.settingsText(
+                _allSelectedArePinnedToNav ? 'הסר מניווט' : 'הצמד לניווט',
+              ),
               onPressed: hasSelection
                   ? () => _onTogglePinNavRail(context)
                   : null,
@@ -488,14 +499,18 @@ class _ActionBar extends StatelessWidget {
               icon: _allSelectedPluginsEnabled
                   ? FluentIcons.pause_circle_24_regular
                   : FluentIcons.play_circle_24_regular,
-              text: _allSelectedPluginsEnabled ? 'השבת' : 'הפעל',
+              text: context.settingsText(
+                _allSelectedPluginsEnabled ? 'השבת' : 'הפעל',
+              ),
               onPressed: hasSelection ? () => _onToggleEnabled(context) : null,
             ),
             ActionButton.neutral(
               icon: _allSelectedHaveNetworkAccess
                   ? FluentIcons.globe_prohibited_24_regular
                   : FluentIcons.globe_24_regular,
-              text: _allSelectedHaveNetworkAccess ? 'דחיה מהרשת' : 'גישה לרשת',
+              text: context.settingsText(
+                _allSelectedHaveNetworkAccess ? 'דחיה מהרשת' : 'גישה לרשת',
+              ),
               onPressed: hasSelection && _anySelectedHasNetworkPermission
                   ? () => _setNetworkAccess(
                       context,
@@ -507,9 +522,9 @@ class _ActionBar extends StatelessWidget {
               icon: _allSelectedHaveStartupEnabled
                   ? FluentIcons.power_24_filled
                   : FluentIcons.power_24_regular,
-              text: _allSelectedHaveStartupEnabled
-                  ? 'טעינה רגילה'
-                  : 'טעינה בעליה',
+              text: context.settingsText(
+                _allSelectedHaveStartupEnabled ? 'טעינה רגילה' : 'טעינה בעליה',
+              ),
               onPressed: hasSelection && _anySelectedHasStartupPermission
                   ? () => _setRunOnStartup(
                       context,
@@ -519,7 +534,7 @@ class _ActionBar extends StatelessWidget {
             ),
             ActionButton.ghost(
               icon: FluentIcons.delete_24_regular,
-              text: 'מחק',
+              text: context.settingsText('מחק'),
               onPressed: hasSelection ? () => _onDelete(context) : null,
             ),
           ],
@@ -634,10 +649,15 @@ class _ActionBar extends StatelessWidget {
     final bloc = context.read<PluginSystemBloc>();
     final confirmed = await showWarningDialog(
       context: context,
-      title: 'מחיקת תוספים',
-      content: 'האם למחוק ${plugins.length} תוסף(ים)?\n\n• $names',
-      subtitle: 'פעולה זו אינה הפיכה! נתוני התוסף יימחקו.',
-      confirmText: 'מחק',
+      title: context.settingsText('מחיקת תוספים'),
+      content: context.settingsText(
+        'האם למחוק {count} תוסף(ים)?\n\n• {names}',
+        args: {'count': plugins.length, 'names': names},
+      ),
+      subtitle: context.settingsText(
+        'פעולה זו אינה הפיכה! נתוני התוסף יימחקו.',
+      ),
+      confirmText: context.settingsText('מחק'),
     );
     if (confirmed != true) return;
     for (final p in plugins) {
@@ -722,14 +742,18 @@ class _BuiltInToolRow extends StatelessWidget {
     children: [
       _toggleIconButton(
         context,
-        tooltip: hidden ? 'הצג בממשק' : 'הסתר מהממשק',
+        tooltip: context.settingsText(
+          hidden ? 'הצג בממשק' : 'הסתר מהממשק',
+        ),
         isSelected: !hidden,
         icon: FluentIcons.eye_off_24_regular,
         selectedIcon: FluentIcons.eye_24_regular,
         onPressed: onToggleHide,
       ),
       AnimatedPinButton(
-        tooltip: pinnedToNavRail ? 'הסר מסרגל הניווט' : 'הצמד לסרגל הניווט',
+        tooltip: context.settingsText(
+          pinnedToNavRail ? 'הסר מסרגל הניווט' : 'הצמד לסרגל הניווט',
+        ),
         isPinned: pinnedToNavRail,
         onPressed: onTogglePin,
       ),
@@ -904,14 +928,14 @@ class _PluginRowState extends State<_PluginRow> {
       return [
         _RowAction(
           icon: FluentIcons.play_circle_24_regular,
-          label: 'הפעל',
+          label: context.settingsText('הפעל'),
           fixedBg: cs.errorContainer,
           fixedFg: cs.onErrorContainer,
           onTap: widget.onToggleEnabled,
         ),
         _RowAction(
           icon: FluentIcons.delete_24_regular,
-          label: 'מחק תוסף',
+          label: context.settingsText('מחק תוסף'),
           isDestructive: true,
           onTap: widget.onDelete,
         ),
@@ -924,8 +948,8 @@ class _PluginRowState extends State<_PluginRow> {
           selectedIcon: FluentIcons.globe_24_regular,
           selected: plugin.networkAccessGranted,
           label: plugin.networkAccessGranted
-              ? 'חסימת גישה לרשת'
-              : 'אישור גישה לרשת',
+              ? context.settingsText('חסימת גישה לרשת')
+              : context.settingsText('אישור גישה לרשת'),
           onTap: widget.onToggleNetworkAccess,
         ),
       if (plugin.manifest.permissions.contains(pluginRunOnStartupPermission))
@@ -936,13 +960,13 @@ class _PluginRowState extends State<_PluginRow> {
           offBg: cs.errorContainer,
           offFg: cs.onErrorContainer,
           label: plugin.runOnStartupGranted
-              ? 'ביטול טעינה בעלייה'
-              : 'הפעלת טעינה בעלייה',
+              ? context.settingsText('ביטול טעינה בעלייה')
+              : context.settingsText('הפעלת טעינה בעלייה'),
           onTap: widget.onToggleRunOnStartup,
         ),
       _RowAction(
         icon: FluentIcons.shield_24_regular,
-        label: 'ניהול הרשאות',
+        label: context.settingsText('ניהול הרשאות'),
         onTap: () => showPluginSettingsDialog(context, plugin),
       ),
       _RowAction(
@@ -952,25 +976,27 @@ class _PluginRowState extends State<_PluginRow> {
         isPin: true,
         selected: plugin.pinnedToNavRail,
         label: plugin.pinnedToNavRail
-            ? 'הסר מסרגל הניווט'
-            : 'הצמד לסרגל הניווט',
+            ? context.settingsText('הסר מסרגל הניווט')
+            : context.settingsText('הצמד לסרגל הניווט'),
         onTap: widget.onTogglePinNavRail,
       ),
       _RowAction(
         icon: FluentIcons.eye_off_24_regular,
         selectedIcon: FluentIcons.eye_24_regular,
         selected: plugin.showInTools,
-        label: plugin.showInTools ? 'הסתר מהממשק' : 'הצג בממשק',
+        label: context.settingsText(
+          plugin.showInTools ? 'הסתר מהממשק' : 'הצג בממשק',
+        ),
         onTap: widget.onToggleHide,
       ),
       _RowAction(
         icon: FluentIcons.pause_circle_24_regular,
-        label: 'השבת',
+        label: context.settingsText('השבת'),
         onTap: widget.onToggleEnabled,
       ),
       _RowAction(
         icon: FluentIcons.delete_24_regular,
-        label: 'מחק תוסף',
+        label: context.settingsText('מחק תוסף'),
         isDestructive: true,
         onTap: widget.onDelete,
       ),
@@ -1027,7 +1053,7 @@ class _PluginRowState extends State<_PluginRow> {
   }
 
   Widget _moreButton() => IconButton(
-    tooltip: 'עוד פעולות',
+    tooltip: context.settingsText('עוד פעולות'),
     icon: const Icon(FluentIcons.more_horizontal_24_regular),
     onPressed: _openMenu,
   );
@@ -1089,8 +1115,8 @@ class _PluginRowState extends State<_PluginRow> {
                 ),
               )
             : showDragHint
-            ? const Tooltip(
-                message: 'גרור ושחרר לשינוי סדר',
+            ? Tooltip(
+                message: context.settingsText('גרור ושחרר לשינוי סדר'),
                 child: Icon(FluentIcons.re_order_dots_vertical_24_regular),
               )
             : RtlIcon(icon),
@@ -1106,13 +1132,13 @@ class _PluginRowState extends State<_PluginRow> {
                 children: [
                   ActionButton.ghost(
                     icon: FluentIcons.arrow_up_24_regular,
-                    text: 'הזז למעלה',
+                    text: context.settingsText('הזז למעלה'),
                     onPressed: widget.isFirst ? null : widget.onMoveUp,
                   ),
                   const SizedBox(width: 8),
                   ActionButton.ghost(
                     icon: FluentIcons.arrow_down_24_regular,
-                    text: 'הזז למטה',
+                    text: context.settingsText('הזז למטה'),
                     onPressed: widget.isLast ? null : widget.onMoveDown,
                   ),
                 ],
@@ -1222,7 +1248,7 @@ class _StatusBadges extends StatelessWidget {
       chips.add(
         _badge(
           context,
-          'מושבת',
+          context.settingsText('מושבת'),
           cs.errorContainer,
           cs.onErrorContainer,
           FluentIcons.pause_circle_24_regular,
@@ -1233,7 +1259,7 @@ class _StatusBadges extends StatelessWidget {
       chips.add(
         _badge(
           context,
-          'מוסתר',
+          context.settingsText('מוסתר'),
           cs.surfaceContainerHighest,
           cs.onSurfaceVariant,
           FluentIcons.eye_off_24_regular,
@@ -1244,7 +1270,7 @@ class _StatusBadges extends StatelessWidget {
       chips.add(
         _badge(
           context,
-          'בסרגל ניווט',
+          context.settingsText('בסרגל ניווט'),
           cs.surfaceContainerHighest,
           cs.onSurfaceVariant,
           FluentIcons.pin_24_regular,
@@ -1255,7 +1281,7 @@ class _StatusBadges extends StatelessWidget {
       chips.add(
         _badge(
           context,
-          'משתמש ברשת',
+          context.settingsText('משתמש ברשת'),
           cs.surfaceContainerHighest,
           cs.onSurfaceVariant,
           FluentIcons.globe_24_regular,
@@ -1266,7 +1292,7 @@ class _StatusBadges extends StatelessWidget {
       chips.add(
         _badge(
           context,
-          'מנותק מהרשת',
+          context.settingsText('מנותק מהרשת'),
           cs.errorContainer,
           cs.onErrorContainer,
           FluentIcons.globe_prohibited_24_regular,
