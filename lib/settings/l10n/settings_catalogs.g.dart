@@ -17,6 +17,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'אותה שורה אחרי (עם סוגריים)': 'Same line, after, in parentheses',
     'אותה שורה לפני (בלי סוגריים)': 'Same line, before, no parentheses',
     'אותה שורה לפני (עם סוגריים)': 'Same line, before, in parentheses',
+    'אותיות סופיות שונות': 'Sofios count separately',
     'אין אפשרות להוספה, והם רק מוצגים ונקראים ישירות מהקבצים שבדיסק.':
         'These cannot be copied in — they are only shown, and read straight from the files on disk.',
     'אינדקס': 'Index',
@@ -51,6 +52,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'גודל גופן מפרשים': 'Meforshim font size',
     'גופן טקסט': 'Text font',
     'גופן מפרשים': 'Meforshim font',
+    'גימטריה קטנה': 'Mispar katan',
     'גישה לרשת': 'Allow network',
     'גרור ושחרר לשינוי סדר': 'Drag and drop to reorder',
     'דורות וקישורים': 'Doros and links',
@@ -78,6 +80,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
         'Add folders with seforim or files. After adding or removing files, rescan the folder.',
     'הוסף תיקייה': 'Add folder',
     'הוספה': 'Copy into app',
+    'הוספת מספר האותיות לסכום': 'Add the letter count to the total',
     'הורד קטלוג': 'Download catalog',
     'הזז למטה': 'Move down',
     'הזז למעלה': 'Move up',
@@ -186,7 +189,14 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'התקדמות האינדקס: {processed}/{total}': 'Indexing: {processed}/{total}',
     'חזור (Esc)': 'Back (Esc)',
     'חיפוש בהגדרות': 'Search settings',
+    'חיפוש בכל הספרים': 'Search every sefer',
+    'חיפוש בתורה בלבד': 'Search Chumash only',
+    'חיפוש גימטריה': 'Gematria search',
+    'חיפוש גם בחלקי פסוקים': 'Search parts of pesukim too',
     'חיפוש ואינדקס': 'Search and index',
+    'חיפוש פסוק שלם בלבד': 'Search whole pesukim only',
+    'חיפוש רק בחמישה חומשי תורה': 'Search only the Chamisha Chumshei Torah',
+    'חיפוש רק בפסוקים שלמים': 'Search only whole pesukim',
     'חלוניות עזר': 'Side panels',
     'חלונית ניווט בין כותרות': 'Heading navigation panel',
     'חסימת גישה לרשת': 'Block network access',
@@ -208,7 +218,9 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'ייבוא קובצי CSV/JSON של סדר דורות וקישורים לספרים האישיים.':
         'Import CSV/JSON files with seder hadoros and links for your own seforim.',
     'כהה': 'Dark',
+    'כל אות מחושבת לפי ספרה אחת': 'Each letter counts as a single digit',
     'כל הספרים ישתמשו בהגדרות הכלליות': 'Every sefer uses the general settings',
+    'כל התוצאות יוצגו': 'Every result shows',
     'כל ספרי ה-PDF ייפתחו בתצוגה רגילה':
         'All PDF seforim will open in the regular view',
     'כל ספרי ה-PDF ייפתחו בתצוגת ספר':
@@ -216,6 +228,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'כל שורה תוצג בנפרד': 'Each posuk or line shows on its own',
     'כלים': 'Tools',
     'כלים מובנים': 'Built-in tools',
+    'כמות התוצאות המקסימלית להצגה': 'The most results to show',
     'כתב': 'Text',
     'כתרי אותיות': 'Nekudos and taamim',
     'לא זוהתה ספרייה — הגדר מיקום, הורד או ייבא ספרייה':
@@ -246,10 +259,12 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'מיקום ספרי היברובוקס': 'HebrewBooks seforim location',
     'מלא': 'Full',
     'מנותק מהרשת': 'No network',
+    'מנצפ"ך בערכים שונים': 'Mem-nun-tzadi-pei-chof sofis get their own values',
     'מסכתות הבבלי ייפתחו במהדורת ה-PDF בדף המתאים, גם בפתיחה מהספרייה':
         'Masechtos will open in the PDF edition at the right daf, including from the library',
     'מסכתות הבבלי ייפתחו במהדורת הטקסט (מהספרייה, מתוצאות חיפוש, מאיתור מקורות ומקישורים)':
         'Masechtos will open in the text edition (from the library, search results, mareh mekomos and links)',
+    'מספר תוצאות': 'Number of results',
     'מעבר בין מצב בהיר למצב כהה': 'Switch between light and dark mode',
     'מעקב אחר צבע המערכת': 'Follow system color',
     'מערכת': 'System',
@@ -280,6 +295,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'סימני הפיסוק יוצגו בכל הספרים': 'Punctuation shows in every sefer',
     'סימני הפיסוק לא יוצגו (למעט בתנ"ך)':
         'Punctuation is hidden (except in Tanach)',
+    'סינון תוצאות כפולות': 'Filter duplicate results',
     'ספרי PDF ייפתחו בתצוגה רגילה': 'PDF seforim will open in the regular view',
     'ספרי PDF ייפתחו בתצוגת ספר': 'PDF seforim will open in sefer view',
     'ספריה': 'Seforim Library',
@@ -295,6 +311,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'עותק של תוכן הספרים יישמר בתוך התוכנה, כך שהם יעבדו גם אם הקבצים המקוריים יוזזו או יימחקו.\nהקבצים המקוריים יישארו במקומם.\n\nשים לב: אם תערוך קובץ בעתיד, יהיה עליך ללחוץ "סרוק מחדש" כדי שהשינוי יתעדכן.\n\nהאם להמשיך?':
         'A copy of the seforim is kept inside the app, so they keep working even if the original files are moved or deleted.\nThe original files stay where they are.\n\nNote: if you edit a file later, you will have to press "Rescan" for the change to show up.\n\nGo ahead?',
     'עיצוב כותרות': 'Mareh makom format',
+    'עם הכולל': 'Im hakollel',
     'עצור': 'Stop',
     'עצירת עדכון': 'Stop the update?',
     'ערכת נושא': 'Theme',
@@ -334,6 +351,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'רשימת התוספים': 'Plugin list',
     'רשת': 'Grid',
     'שורות בודדות': 'Separate lines',
+    'שיטת חישוב גימטריה': 'Gematria method',
     'שינויים בסרגל הלחצנים יישמרו לכל ספר בנפרד':
         'Changes in the toolbar are saved for each sefer on its own',
     'שם הספר': 'Sefer name',
@@ -346,6 +364,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'שפת התצוגה של מסך ההגדרות בלבד; שאר התוכנה נשארת בעברית':
         'Display language for the settings screen only; the rest of the app stays in Hebrew',
     'תוספים מותקנים': 'Installed plugins',
+    'תוצאות זהות יוצגו פעם אחת בלבד': 'Identical results show only once',
     'תוצאות חיפוש': 'Search results',
     'תיקיות אישיות יוצגו תחת קטגוריית "ספרים אישיים"':
         'Your folders show under the "My own seforim" category',
