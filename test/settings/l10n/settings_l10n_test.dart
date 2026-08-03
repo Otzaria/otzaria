@@ -314,6 +314,19 @@ void main() {
       );
     });
 
+    test('הקובץ המחולל פטור מ-dart format', () {
+      final generated = File.fromUri(
+        packageRoot.uri.resolve(l10nOutputRelativePath),
+      ).readAsStringSync();
+      expect(
+        generated,
+        contains('// dart format off'),
+        reason:
+            'בלי הסימון dart format מגלל את השורות הארוכות, והקובץ מופיע '
+            'כשונה מהגיט אחרי כל בנייה',
+      );
+    });
+
     test('שפת המקור אינה מקבלת קובץ ARB', () {
       expect(
         findCatalogFiles(packageRoot).containsKey(sourceLanguageCode),

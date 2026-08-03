@@ -194,8 +194,11 @@ Map<String, Map<String, String>> loadAllCatalogs(Directory packageRoot) {
 GenerateL10nResult generateSettingsL10n(Directory packageRoot) {
   final catalogs = loadAllCatalogs(packageRoot);
 
+  // `dart format off` — בלעדיו ה-pre-commit היה מגלל את השורות הארוכות,
+  // והקובץ היה מופיע כשונה מהגיט אחרי כל בנייה.
   final buffer = StringBuffer()
     ..writeln('// GENERATED CODE — DO NOT MODIFY BY HAND.')
+    ..writeln('// dart format off')
     ..writeln('//')
     ..writeln('// קטלוגי התרגום של מסך ההגדרות. נוצרים אוטומטית מקובצי')
     ..writeln('// $l10nDirRelativePath/settings_<code>.arb — ערוך שם, לא כאן.')
