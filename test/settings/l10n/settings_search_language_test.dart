@@ -61,19 +61,20 @@ void main() {
       expect(SettingsSearchIndex.search('מצב כהה'), isNotEmpty);
     });
 
-    // "Interface density" הוא תרגום בלבד — אין לו מילת מפתח אנגלית בהצהרה,
-    // בשונה מ-'dark mode' שכבר קיים כ-keyword בקוד המקורי.
+    // תרגום של 'צפיפות ממשק' — קיים רק בקטלוג, ואינו מילת מפתח בהצהרת
+    // הפריט. השאילתה נגזרת מהקטלוג כדי שניסוח אחר לא ישבור את הבדיקה.
     test('שאילתה שקיימת רק בתרגום מוצאת רק כשהשפה אנגלית', () {
+      final query = resolveSettingsText(
+        'צפיפות ממשק',
+        language: SettingsLanguage.english,
+      );
       expect(
-        SettingsSearchIndex.search('Interface density'),
+        SettingsSearchIndex.search(query),
         isEmpty,
         reason: 'במצב עברי אין חיפוש בתרגום',
       );
       expect(
-        SettingsSearchIndex.search(
-          'Interface density',
-          language: SettingsLanguage.english,
-        ),
+        SettingsSearchIndex.search(query, language: SettingsLanguage.english),
         isNotEmpty,
       );
     });

@@ -44,7 +44,10 @@ void main() {
       // פעמיים: בשורת ההגדרה שמאחורי הדיאלוג, ובכותרת הדיאלוג
       expect(find.text('Golden brown'), findsNWidgets(2));
       expect(find.text('חום זהבהב'), findsNothing);
-      expect(find.text('Choose a base color'), findsOneWidget);
+      expect(
+        find.text(label('בחר צבע בסיס', SettingsLanguage.english)),
+        findsOneWidget,
+      );
     });
 
     testWidgets('בעברית מוצג המקור', (tester) async {
