@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/core/app_runtime_reset.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -323,7 +324,9 @@ Future<void> performLibraryMove({
   final navigator = Navigator.of(context, rootNavigator: true);
   _showBlockingProgress(
     context,
-    'מעביר את הספרייה למיקום החדש…\nהתוכנה לא תהיה פעילה עד לסיום הפעולה.',
+    context.settingsText(
+      'מעביר את הספרייה למיקום החדש…\nהתוכנה לא תהיה פעילה עד לסיום הפעולה.',
+    ),
   );
 
   final scan = await _scanLibraryMove(from);
@@ -504,11 +507,12 @@ Future<void> performLibraryMove({
 
   await showSingleActionDialog(
     context: context,
-    title: 'הספרייה הועברה',
-    content:
-        'הספרייה הועברה בהצלחה למיקום החדש. התוכנה תיטען מחדש כעת, '
-        'והספרים הפתוחים ייטענו מהמיקום החדש.',
-    confirmText: 'טען מחדש',
+    title: context.settingsText('הספרייה הועברה'),
+    content: context.settingsText(
+      'הספרייה הועברה בהצלחה למיקום החדש. התוכנה תיטען מחדש כעת, '
+      'והספרים הפתוחים ייטענו מהמיקום החדש.',
+    ),
+    confirmText: context.settingsText('טען מחדש'),
   );
   if (!context.mounted) return;
   // רענון מלא: בונה מחדש את עץ הווידג'טים, טוען את הספרייה והטאבים מהמיקום
@@ -639,11 +643,11 @@ class _ChangeLocationDialogContentState
       handleEnterKey: _selectedPath != null,
       actions: [
         ActionButton.ghost(
-          text: 'ביטול',
+          text: context.settingsText('ביטול'),
           onPressed: () => Navigator.of(context).pop(null),
         ),
         ActionButton.recommended(
-          text: 'אישור',
+          text: context.settingsText('אישור'),
           onPressed: _selectedPath != null ? _confirm : null,
         ),
       ],
@@ -652,24 +656,31 @@ class _ChangeLocationDialogContentState
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SettingsCard(
-            title: 'פעולה',
-            subtitle:
-                'בחר אם להעביר את קבצי הספרייה למיקום החדש, או לעדכן את ההגדרה בלבד',
+            title: context.settingsText('פעולה'),
+            subtitle: context.settingsText(
+              'בחר אם להעביר את קבצי הספרייה למיקום החדש, או לעדכן את ההגדרה בלבד',
+            ),
             children: [
               if (widget.canMoveContents)
                 SettingsActionTile.radioOption(
-                  title: 'העבר תוכן תיקייה',
-                  subtitle: 'כל הקבצים יועברו מהמיקום הנוכחי למיקום החדש',
+                  title: context.settingsText('העבר תוכן תיקייה'),
+                  subtitle: context.settingsText(
+                    'כל הקבצים יועברו מהמיקום הנוכחי למיקום החדש',
+                  ),
                   selected: _moveContents,
                   onTap: () => setState(() => _moveContents = true),
                 ),
               SettingsActionTile.radioOption(
                 title: widget.currentPath.isEmpty
-                    ? 'הגדרת מיקום'
-                    : 'שנה מיקום בלבד',
+                    ? context.settingsText('הגדרת מיקום')
+                    : context.settingsText('שנה מיקום בלבד'),
                 subtitle: widget.currentPath.isEmpty
-                    ? 'האפשרות היחידה — ההגדרה תעודכן לנתיב שתבחר'
-                    : 'ההגדרה תעודכן, הקבצים יישארו במיקומם הנוכחי',
+                    ? context.settingsText(
+                        'האפשרות היחידה — ההגדרה תעודכן לנתיב שתבחר',
+                      )
+                    : context.settingsText(
+                        'ההגדרה תעודכן, הקבצים יישארו במיקומם הנוכחי',
+                      ),
                 selected: !_moveContents,
                 onTap: widget.canMoveContents
                     ? () => setState(() => _moveContents = false)
@@ -762,32 +773,40 @@ class TargetFolderSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SettingsCard(
-      title: isSetup ? 'תיקיית היעד ל$folderName' : 'מיקום חדש',
-      subtitle:
-          'בחר מיקום מותאם אישית, או השתמש במיקום ברירת המחדל של האפליקציה',
+      title: isSetup
+          ? context.settingsText(
+              'תיקיית היעד ל{folder}',
+              args: {'folder': folderName},
+            )
+          : context.settingsText('מיקום חדש'),
+      subtitle: context.settingsText(
+        'בחר מיקום מותאם אישית, או השתמש במיקום ברירת המחדל של האפליקציה',
+      ),
       children: [
         if (defaultPath != null && defaultPath!.isNotEmpty)
           SettingsActionTile.path(
             icon: FluentIcons.home_24_regular,
-            title: 'מיקום ברירת מחדל',
+            title: context.settingsText('מיקום ברירת מחדל'),
             path: defaultPath,
             placeholder: '',
             enabled: !isAtDefault,
             actions: [
               ActionButton.neutral(
-                text: 'השתמש בברירת מחדל',
+                text: context.settingsText('השתמש בברירת מחדל'),
                 onPressed: isAtDefault ? null : onUseDefault,
               ),
             ],
           ),
         SettingsActionTile.path(
           icon: FluentIcons.folder_open_24_regular,
-          title: 'בחירת מיקום',
+          title: context.settingsText('בחירת מיקום'),
           path: selectedPath,
-          placeholder: 'טרם נבחר מיקום',
+          placeholder: context.settingsText('טרם נבחר מיקום'),
           actions: [
             ActionButton.recommended(
-              text: selectedPath == null ? 'בחר תיקייה' : 'שנה מיקום',
+              text: context.settingsText(
+                selectedPath == null ? 'בחר תיקייה' : 'שנה מיקום',
+              ),
               onPressed: onPickFolder,
               icon: FluentIcons.folder_open_24_regular,
             ),

@@ -6,6 +6,8 @@
 /// תרגומי מסך ההגדרות לפי קוד שפה, ממופים מהמקור העברי.
 const Map<String, Map<String, String>> kSettingsCatalogs = {
   'en': {
+    ' אם הכרטיס יוסר, האפליקציה לא תוכל לגשת לספרים עד שיוחזר.':
+        ' If the card is removed, the app will not reach the seforim until it is back.',
     '12 בלילה': 'Midnight',
     '{count} גיבויים': '{count} backups',
     '{count} נבחרו': '{count} selected',
@@ -14,6 +16,8 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     '{count} פעולות זמינות': '{count} actions available',
     '{count} תיקיות': '{count} folders',
     '{font} (לא זמין במחשב זה)': '{font} (not available on this computer)',
+    '{label} חסר — {consequence}': '{label} is missing — {consequence}',
+    '{size} GB פנוי': '{size} GB free',
     'אודות': 'About',
     'אודות ספריית אוצריא': 'About the Otzaria library',
     'אודות פיתוח התוכנה': 'About the development',
@@ -26,6 +30,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'אותה שורה לפני (בלי סוגריים)': 'Same line, before, no parentheses',
     'אותה שורה לפני (עם סוגריים)': 'Same line, before, in parentheses',
     'אותיות סופיות שונות': 'Sofios count separately',
+    'אימות סיסמה': 'Confirm the password',
     'אין אפשרות להוספה, והם רק מוצגים ונקראים ישירות מהקבצים שבדיסק.':
         'These cannot be copied in — they are only shown, and read straight from the files on disk.',
     'אין כרגע דיווחים שמורים בתור': 'Nothing is waiting in the queue',
@@ -66,19 +71,47 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'בודק אם נדרש איפוס ואינדוקס מחדש':
         'Checking whether a reset and re-index is needed',
     'בחירה': 'Select',
+    'בחירת מיקום': 'Choose a location',
     'בחירת עיר לחישובי זמני היום והלוח':
         'Choose a city for the zmanim and the luach',
+    'בחירת קובץ דחוס': 'Choose a compressed file',
+    'בחירת תיקייה מהמחשב': 'Choose a folder from this computer',
+    'בחר אם להעביר את קבצי הספרייה למיקום החדש, או לעדכן את ההגדרה בלבד':
+        'Choose whether to move the library files to the new location, or only update the setting',
+    'בחר אם לשמור את הספרייה באחסון הפנימי או על כרטיס SD':
+        'Choose whether to keep the library in internal storage or on an SD card',
+    'בחר ארכיון ספרייה (ZIP או ZST)': 'Choose a library archive (ZIP or ZST)',
+    'בחר את קובץ {file}': 'Choose the {file} file',
+    'בחר את תיקיית היעד לספרייה': 'Choose the target folder for the library',
+    'בחר בצבע ברירת מחדל': 'Use the default color',
     'בחר האם לגבות את כל הנתונים או רק חלק מהם':
         'Choose whether to back up everything or only part of it',
     'בחר הכל': 'Select all',
+    'בחר כיצד לעדכן או להעביר את הספרייה, ולאחר מכן אשר':
+        'Choose how to update or move the library, then confirm',
+    'בחר להוריד את הספרייה מהאינטרנט, או לייבא ספרייה קיימת':
+        'Choose to download the library, or to import one you already have',
     'בחר לוחות שנה': 'Choose calendars',
     'בחר מיקום לשמירת סקריפט השליחה': 'Choose where to save the send script',
+    'בחר מיקום לשמירת רשימת הספרים': 'Choose where to save the seforim list',
+    'בחר מיקום מותאם אישית, או השתמש במיקום ברירת המחדל של האפליקציה':
+        'Pick your own location, or use the app\'s default',
     'בחר מיקום עבור מאגר הספרים': 'Choose where the seforim are kept',
     'בחר סיסמה': 'Choose a password',
     'בחר פעולה להוספת קיצור': 'Choose an action to shortcut',
+    'בחר צבע בסיס': 'Choose a base color',
     'בחר קבצי ספרים לייבוא': 'Choose sefer files to import',
+    'בחר קובץ ZIP או ZST המכיל את seforim.db':
+        'Choose a ZIP or ZST file that holds seforim.db',
+    'בחר קובץ דחוס': 'Choose compressed file',
+    'בחר קובץ ספרייה': 'Choose a library file',
     'בחר קובצי "דורות.csv", "<שם הספר>.links.csv" או קובצי קישורים של אוצריא ("<שם הספר>_links.json") והם יכנסו לספרייה. ייבוא חוזר מעדכן ערכים קיימים ומוסיף חדשים.':
         'Choose "דורות.csv" files, "<sefer name>.links.csv", or Otzaria link files ("<sefer name>_links.json") and they go into the library. Importing again updates what is there and adds what is new.',
+    'בחר תיקייה': 'Choose folder',
+    'בחר תיקייה המכילה את קבצי הספרייה':
+        'Choose a folder that holds the library files',
+    'בחר תיקייה שקיימים בה קובצי הספרייה והמערכת':
+        'Choose a folder that has the library and system files in it',
     'בטקסט — מקטע; ב-PDF — עמוד': 'In text — a section; in PDF — a page',
     'ביטול': 'Cancel',
     'ביטול טעינה בעלייה': 'Do not load at startup',
@@ -91,6 +124,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'במצב מנותק אי אפשר לשלוח כעת, אך ניתן להוריד סקריפט לשליחה ממחשב מחובר.':
         'You cannot send while offline, but you can download a script and send from a computer that is online.',
     'בסרגל ניווט': 'On the nav bar',
+    'בשימוש': 'In use',
     'גבה הכל': 'Everything',
     'גודל גופן הספר': 'Sefer font size',
     'גודל גופן מפרשים': 'Meforshim font size',
@@ -128,12 +162,19 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'האם למחוק את אינדקס החיפוש? תצטרך לבנות אותו מחדש כדי להשתמש בחיפוש.':
         'Delete the search index? You will have to rebuild it before you can search.',
     'האם לעצור את תהליך עדכון האינדקס?': 'Stop indexing now?',
+    'האפשרות היחידה — ההגדרה תעודכן לנתיב שתבחר':
+        'The only option — the setting updates to the path you choose',
     'הארכיון מאחד את כל הגיבויים הישנים, ולכן הוא כולל גם פריטים (סימניות, הערות, תוספים ועוד) שנמחקו מאז בכוונה — הם ישוחזרו גם הם.':
         'The archive merges every old backup, so it also holds items (bookmarks, notes, plugins and more) you deleted on purpose since — those come back too.',
     'הגדר': 'Set',
+    'הגדר סיסמה להגנה על ההגדרות': 'Set a password to protect the settings',
     'הגדרות': 'Settings',
     'הגדרות גופן ועיצוב': 'Font and layout',
     'הגדרות לפי ספר': 'Per-sefer settings',
+    'הגדרות תצוגת הספרים': 'Sefer display settings',
+    'הגדרת {folder}': 'Set up {folder}',
+    'הגדרת מיקום': 'Set the location',
+    'הגדרת סיסמה': 'Set a password',
     'הגדרת ספריה': 'Set up library',
     'הגיבוי מתבצע כל {unit}, ומעודכן לשינויים האחרונים.':
         'A backup runs every {unit}, and it is up to date.',
@@ -144,6 +185,8 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הדף/פרק הבא': 'Next daf/perek',
     'הדף/פרק הקודם': 'Previous daf/perek',
     'הדפסה': 'Print',
+    'ההגדרה תעודכן, הקבצים יישארו במיקומם הנוכחי':
+        'The setting updates; the files stay where they are',
     'הוסף סימניה': 'Add bookmark',
     'הוסף קיצור': 'Add shortcut',
     'הוסף קיצור לפעולה זמינה': 'Add a shortcut for an action',
@@ -155,14 +198,18 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הוספת מספר האותיות לסכום': 'Add the letter count to the total',
     'הורד לשליחה במחשב מחובר': 'Download to send from an online computer',
     'הורד קטלוג': 'Download catalog',
+    'הורדת הספרייה': 'Download the library',
+    'הורדת הספרייה מחדש': 'Download the library again',
     'הזז למטה': 'Move down',
     'הזז למעלה': 'Move up',
+    'הזן את הסיסמה': 'Enter the password',
     'הזן את הסיסמה הנוכחית כדי לשנות אותה':
         'Enter the current password in order to change it',
     'הזן את הסיסמה כדי להפעיל את המצב המוגן':
         'Enter the password to turn safer mode on',
     'הזן את הסיסמה כדי להשבית את המצב המוגן':
         'Enter the password to turn safer mode off',
+    'הזן שוב את הסיסמה': 'Enter the password again',
     'החזר את כל קיצורי המקשים לברירת המחדל':
         'Put every shortcut back to its default',
     'החלונית לא תוצג אוטומטית עם פתיחת הספר':
@@ -213,8 +260,17 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הניקוד לא יוצג בכלל': 'Nekudos do not show at all',
     'הנתונים שוחזרו בהצלחה. האפליקציה תיטען מחדש כעת.':
         'The data was restored. The app will reload now.',
+    'הספרייה הועברה': 'The library was moved',
+    'הספרייה הועברה בהצלחה למיקום החדש. התוכנה תיטען מחדש כעת, והספרים הפתוחים ייטענו מהמיקום החדש.':
+        'The library moved to its new location. The app will reload now, and open seforim will load from there.',
+    'הספרייה עודכנה במיקום החדש, אך חלק מהקבצים הישנים לא נמחקו. ניתן למחוק אותם ידנית מהמיקום הישן.':
+        'The library was updated at the new location, but some old files were not deleted. You can remove them by hand from the old location.',
     'הספרייה ריקה – אין ספרים לאינדוקס':
         'The library is empty — no seforim to index',
+    'הספרייה תורד ותחולץ אל תיקיית היעד':
+        'The library downloads and unpacks into the target folder',
+    'הספרייה, האינדקס ומסדי הנתונים יועברו אל {target}. בזמן ההעברה התוכנה תיטען מחדש ולא תהיה זמינה עד לסיום הפעולה.{warning}':
+        'The library, the index and the databases will move to {target}. During the move the app reloads and stays unavailable until it finishes.{warning}',
     'הספרים הותאמו במיוחד עבור אוצריא, וכן נוספו ספרים רבים נוספים בזכות עבודתם המסורה של מהדירי הספרים.':
         'The seforim were prepared specially for Otzaria, and many more were added through the devoted work of the mahadirim.',
     'הספרים נקראים ישירות מהקבצים שבדיסק. אל תזיז אותם — אחרת הם לא ייפתחו. למחיקה: מחק את הקובץ מהדיסק וסרוק מחדש.':
@@ -224,13 +280,22 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הספרים שלי': 'My seforim',
     'הסר מניווט': 'Unpin from nav',
     'הסר מסרגל הניווט': 'Unpin from the navigation bar',
+    'הסר סיסמה': 'Remove password',
     'הסר תיקייה': 'Remove folder',
+    'הסרת סיסמה': 'Remove the password',
     'הסרת תיקייה': 'Remove folder',
     'הסתר': 'Hide',
     'הסתר כלים מהממשק או הצמד אותם לסרגל הניווט הראשי.':
         'Hide tools from the interface, or pin them to the main navigation bar.',
     'הסתר מהממשק': 'Hide from interface',
     'הסתרה': 'Hide',
+    'העבר': 'Move',
+    'העבר לכאן': 'Move here',
+    'העבר תוכן תיקייה': 'Move the folder\'s contents',
+    'העברה של ספרייה גדולה עשויה לקחת מספר דקות.':
+        'Moving a large library can take a few minutes.',
+    'העברת הספרייה אל {target}': 'Move the library to {target}',
+    'העברת תוכן התיקייה': 'Move the folder\'s contents',
     'העדכון מתבצע כל {unit} ואינו מעודכן, מומלץ להגדיר גיבוי {recommended}.':
         'It runs every {unit} and is out of date; a {recommended} backup is recommended.',
     'העדכון מתבצע כל {unit}, ואינו מעודכן לשינויים האחרונים - לא קרו הרבה שינויים.':
@@ -297,6 +362,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'השחזור הושלם': 'Restore complete',
     'השם הקדוש יוצג': 'Shem Hashem is shown',
     'השם הקדוש לא יוצג מפני קדושתו': 'Shem Hashem is hidden mipnei kedushaso',
+    'השתמש בברירת מחדל': 'Use the default',
     'התאמת ערכת הנושא לצבע מערכת ההפעלה':
         'Match the theme to your operating system\'s color',
     'התוכן נשמר בתוך התוכנה ועובד גם אם הקבצים יוסרו. אחרי עריכת קובץ לחץ "סרוק מחדש" לעדכון; מחיקה רק דרך הספרייה.':
@@ -330,6 +396,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'חיפוש גם בחלקי פסוקים': 'Search parts of pesukim too',
     'חיפוש ואינדקס': 'Search and index',
     'חיפוש חדש בכל הספרים': 'New search across all seforim',
+    'חיפוש לפי שם, מחבר או קטגוריה': 'Search by name, author or category',
     'חיפוש מערכת הפעלה...': 'Search operating systems...',
     'חיפוש מתקדם': 'Advanced search',
     'חיפוש פסוק שלם בלבד': 'Search whole pesukim only',
@@ -339,12 +406,15 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'חלונית ניווט בין כותרות': 'Heading navigation panel',
     'חסימת גישה לרשת': 'Block network access',
     'חסכוני': 'Lean',
+    'חסר קובץ הספרייה (seforim.db) — לא ניתן להמשיך בלי הספרייה':
+        'The library file (seforim.db) is missing — you cannot continue without it',
     'חפש לוח שנה...': 'Search calendars...',
     'טוען...': 'Loading...',
     'טעינה בעליה': 'Load at startup',
     'טעינה רגילה': 'Load normally',
     'טען מחדש': 'Reload',
     'טקסט': 'Text',
+    'טרם נבחר מיקום': 'No location chosen yet',
     'יומי': 'Daily',
     'יומן שינויים': 'Changelog',
     'יומן שינויים בתוכנה': 'App changelog',
@@ -366,8 +436,11 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
         'Import TXT, PDF, Word and EPUB files into the library',
     'ייבוא קובצי CSV/JSON של סדר דורות וקישורים לספרים האישיים.':
         'Import CSV/JSON files with seder hadoros and links for your own seforim.',
+    'ייצוא ל-CSV': 'Export to CSV',
+    'יישארו חסרים: {items}': 'Still missing: {items}',
     'יש כרגע {count} דיווחים שמורים בתור':
         '{count} reports are waiting in the queue',
+    'יש לבחור את {file}': 'You need to choose {file}',
     'יש להזין כתובת דוא"ל תקינה.': 'Please enter a valid email address.',
     'יתבצע גיבוי בכל יום': 'A backup runs every day',
     'יתבצע גיבוי כל חודש': 'A backup runs every month',
@@ -385,6 +458,9 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'כל ההערות האישיות שלך': 'All of your personal notes',
     'כל הסימניות שנשמרו': 'Every saved bookmark',
     'כל הספרים ישתמשו בהגדרות הכלליות': 'Every sefer uses the general settings',
+    'כל הקבצים זוהו': 'All files found',
+    'כל הקבצים יועברו מהמיקום הנוכחי למיקום החדש':
+        'Every file moves from the current location to the new one',
     'כל התוצאות יוצגו': 'Every result shows',
     'כל ספרי ה-PDF ייפתחו בתצוגה רגילה':
         'All PDF seforim will open in the regular view',
@@ -406,16 +482,23 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'לא זוהתה ספרייה — הגדר מיקום, הורד או ייבא ספרייה':
         'No library found — set a location, download one, or import one',
     'לא ידוע': 'Unknown',
+    'לא ניתן למחוק את הסיסמה כשמצב סייפר פעיל':
+        'The password cannot be removed while safer mode is on',
     'לא ניתן לשחזר דיווחים שנמחקו.': 'Deleted reports cannot be brought back.',
     'לא נמצא קובץ גיבוי במערכת. מומלץ ליצור גיבוי כדי לשמור על הנתונים שלך.':
         'No backup file found. Making one is recommended, to keep your data safe.',
     'לא נמצא קובץ יומן שינויים.': 'No changelog file found.',
     'לא נמצאו הגדרות תואמות': 'No matching settings found',
     'לא נמצאו לוחות שנה': 'No calendars found',
+    'לא נמצאו ספרים': 'No seforim found',
     'לא נמצאו פריטים': 'Nothing found',
     'לא נמצאו תוצאות': 'No results',
+    'לא נתמך — הכרטיס מפורמט ב-FAT32 (מגבלת 4GB לקובץ)':
+        'Not supported — the card is formatted FAT32 (4GB per file limit)',
     'לא עכשיו': 'Not now',
     'לא קיימת ספרייה לאינדוקס': 'There is no library to index',
+    'לא תידרש עוד סיסמה לגישה להגדרות.':
+        'A password will no longer be needed to reach the settings.',
     'לוח שנה': 'Luach',
     'לוח שנה ושמור וזכור': 'Luach and Shamor VeZachor',
     'לוח שנה ראשי': 'Main calendar',
@@ -436,6 +519,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'למידע נוסף': 'More info',
     'לנקות את היסטוריית הדיווחים?': 'Clear the report history?',
     'לסמן כנשלח?': 'Mark as sent?',
+    'לפחות 4 תווים': 'At least 4 characters',
     'לפי שפת מערכת ההפעלה': 'Follow the operating system language',
     'מאגר הספרים וחיפוש': 'Seforim and search',
     'מאגר תורני חינמי, רחב ומהיר לשימוש בכל מקום.':
@@ -455,6 +539,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
         'Delete every setting and start fresh',
     'מחיקת כל ההתאמות שנשמרו לכל ספר בנפרד':
         'Delete everything saved for individual seforim',
+    'מחיקת סיסמה': 'Delete the password',
     'מחיקת ספר': 'Delete sefer',
     'מחיקת תוספים': 'Delete plugins',
     'מחק': 'Delete',
@@ -463,8 +548,11 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'מחק תוסף': 'Delete plugin',
     'מידע נוסף': 'More info',
     'מיזוג ספרים אישיים לעץ הספרייה': 'Merge my seforim into the library tree',
+    'מיקום אחסון הספרייה': 'Where the library is stored',
+    'מיקום ברירת מחדל': 'Default location',
     'מיקום הספרייה': 'Library location',
     'מיקום הספרייה והאינדקס': 'Library and index location',
+    'מיקום חדש': 'New location',
     'מיקום ספרי היברובוקס': 'HebrewBooks seforim location',
     'מלא': 'Full',
     'מנותק': 'Offline',
@@ -477,6 +565,9 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'מסכתות הבבלי ייפתחו במהדורת הטקסט (מהספרייה, מתוצאות חיפוש, מאיתור מקורות ומקישורים)':
         'Masechtos will open in the text edition (from the library, search results, mareh mekomos and links)',
     'מספר תוצאות': 'Number of results',
+    'מעבד...': 'Working...',
+    'מעביר את הספרייה למיקום החדש…\nהתוכנה לא תהיה פעילה עד לסיום הפעולה.':
+        'Moving the library to its new location…\nThe app stays inactive until this finishes.',
     'מעבר בין מצב בהיר למצב כהה': 'Switch between light and dark mode',
     'מעבר יום': 'When the day changes',
     'מעקב אחר צבע המערכת': 'Follow system color',
@@ -552,6 +643,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'סיסמה': 'Password',
     'סיסמה הוגדרה, ניתן לשנות או למחוק את הסיסמה':
         'A password is set; you can change or remove it',
+    'סיסמה חדשה': 'New password',
     'סכום משמעותי לפיתוח התוכנה':
         'A significant contribution to the development',
     'סמן כנשלח': 'Mark as sent',
@@ -572,6 +664,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'עדיין אין דיווחים שנשלחו דרך המערכת':
         'Nothing has been sent through the system yet',
     'עדיין לא הוגדרה כתובת זיהוי': 'No identifying address set yet',
+    'עדכון {folder}': 'Update {folder}',
     'עדכון אינדקס אוטומטי': 'Update the index automatically',
     'עדכון לגרסאות מפתחים': 'Update to developer builds',
     'עדכוני מערכת': 'System updates',
@@ -601,6 +694,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'פירוט הטעות': 'What is wrong',
     'פסקה נפרדת אחרי': 'Separate paragraph, after',
     'פסקה נפרדת לפני': 'Separate paragraph, before',
+    'פעולה': 'What to do',
     'פעולה זו אינה הפיכה!': 'This cannot be undone!',
     'פעולה זו אינה הפיכה! נתוני התוסף יימחקו.':
         'This cannot be undone — the plugin\'s data will be deleted.',
@@ -638,6 +732,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'פתיחת תוספים': 'Opening plugins',
     'צאה"כ': 'Tzeis',
     'צבע בסיס': 'Base color',
+    'צבע מותאם אישית': 'Custom color',
     'צבע ראשי של ערכת הנושא': 'Primary color of the theme',
     'צור גיבוי, או שחזר מהגיבוי האחרון או מהארכיון המלא':
         'Make a backup, or restore from the last backup or the full archive',
@@ -662,6 +757,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'רשימות ההערות יוצגו כשהן סגורות': 'Note lists will appear collapsed',
     'רשימות ההערות יוצגו כשהן פתוחות': 'Note lists will appear expanded',
     'רשימת הכלים': 'Tool list',
+    'רשימת הספרים': 'Seforim list',
     'רשימת התוספים': 'Plugin list',
     'רשת': 'Grid',
     'שבוע': 'week',
@@ -681,6 +777,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'שחזר הכל': 'Restore everything',
     'שיטת חישוב גימטריה': 'Gematria method',
     'שימוש בתיקיית ברירת המחדל': 'Using the default folder',
+    'שינוי צבע': 'Change color',
     'שינויים בסרגל הלחצנים יישמרו לכל ספר בנפרד':
         'Changes in the toolbar are saved for each sefer on its own',
     'שלח': 'Send',
@@ -699,6 +796,8 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
         'Save reports automatically when offline',
     'שמירת התאמות לכל ספר בנפרד': 'Remember settings for each sefer',
     'שמירת עותק עצמאי בתוכנה': 'Keep a copy inside the app',
+    'שנה מיקום': 'Change location',
+    'שנה מיקום בלבד': 'Only change the setting',
     'שפת ההגדרות': 'Settings language',
     'שפת התצוגה של מסך ההגדרות בלבד':
         'Display language for the settings screen only',
@@ -715,6 +814,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
         'Your folders show under the "My own seforim" category',
     'תיקייה ראשית': 'Main folder',
     'תיקיית גיבוי': 'Backup folder',
+    'תיקיית היעד ל{folder}': 'Target folder for {folder}',
     'תצוגה': 'Display',
     'תצוגה ותוכן': 'Display and content',
     'תצוגה מקדימה מוסתרת': 'The preview is hidden',

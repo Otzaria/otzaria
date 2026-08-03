@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -125,8 +126,8 @@ class _SaferModePasswordDialogState extends State<SaferModePasswordDialog>
                 enabled: !_isVerifying,
                 autofocus: true,
                 decoration: InputDecoration(
-                  labelText: 'סיסמה',
-                  hintText: 'הזן את הסיסמה',
+                  labelText: context.settingsText('סיסמה'),
+                  hintText: context.settingsText('הזן את הסיסמה'),
                   border: const OutlineInputBorder(),
                   prefixIcon: const Icon(FluentIcons.key_24_regular),
                   suffixIcon: IconButton(
@@ -149,14 +150,14 @@ class _SaferModePasswordDialogState extends State<SaferModePasswordDialog>
         ),
         actions: [
           ActionButton.neutral(
-            text: 'ביטול',
+            text: context.settingsText('ביטול'),
             focusNode: _cancelFocusNode,
             onPressed: !_isVerifying
                 ? () => Navigator.of(context).pop(false)
                 : null,
           ),
           ActionButton.recommended(
-            text: 'אישור',
+            text: context.settingsText('אישור'),
             focusNode: _confirmFocusNode,
             onPressed: !_isVerifying ? _handleVerify : null,
             isLoading: _isVerifying,
@@ -264,9 +265,9 @@ class _SaferModeSetPasswordDialogState extends State<SaferModeSetPasswordDialog>
   Future<void> _handleClear() async {
     final confirmed = await showWarningDialog(
       context: context,
-      title: 'הסרת סיסמה',
-      content: 'לא תידרש עוד סיסמה לגישה להגדרות.',
-      confirmText: 'הסר סיסמה',
+      title: context.settingsText('הסרת סיסמה'),
+      content: context.settingsText('לא תידרש עוד סיסמה לגישה להגדרות.'),
+      confirmText: context.settingsText('הסר סיסמה'),
     );
     if (confirmed != true || !mounted) return;
 
@@ -298,15 +299,15 @@ class _SaferModeSetPasswordDialogState extends State<SaferModeSetPasswordDialog>
       onCancel: () => Navigator.of(context).pop(false),
       textFieldFocusNode: _passwordFocusNode,
       child: AlertDialog(
-        title: const Row(
+        title: Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             Text(
-              'הגדרת סיסמה',
-              style: TextStyle(fontSize: 20),
+              context.settingsText('הגדרת סיסמה'),
+              style: const TextStyle(fontSize: 20),
             ),
-            SizedBox(width: 8),
-            Icon(FluentIcons.lock_closed_24_regular),
+            const SizedBox(width: 8),
+            const Icon(FluentIcons.lock_closed_24_regular),
           ],
         ),
         content: SizedBox(
@@ -316,7 +317,7 @@ class _SaferModeSetPasswordDialogState extends State<SaferModeSetPasswordDialog>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'הגדר סיסמה להגנה על ההגדרות',
+                context.settingsText('הגדר סיסמה להגנה על ההגדרות'),
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
@@ -328,8 +329,8 @@ class _SaferModeSetPasswordDialogState extends State<SaferModeSetPasswordDialog>
                 obscureText: _isObscured1,
                 enabled: !_isSaving,
                 decoration: InputDecoration(
-                  labelText: 'סיסמה חדשה',
-                  hintText: 'לפחות 4 תווים',
+                  labelText: context.settingsText('סיסמה חדשה'),
+                  hintText: context.settingsText('לפחות 4 תווים'),
                   border: const OutlineInputBorder(),
                   prefixIcon: const Icon(FluentIcons.key_24_regular),
                   suffixIcon: IconButton(
@@ -354,8 +355,8 @@ class _SaferModeSetPasswordDialogState extends State<SaferModeSetPasswordDialog>
                 obscureText: _isObscured2,
                 enabled: !_isSaving,
                 decoration: InputDecoration(
-                  labelText: 'אימות סיסמה',
-                  hintText: 'הזן שוב את הסיסמה',
+                  labelText: context.settingsText('אימות סיסמה'),
+                  hintText: context.settingsText('הזן שוב את הסיסמה'),
                   border: const OutlineInputBorder(),
                   prefixIcon: const Icon(FluentIcons.checkmark_lock_24_regular),
                   suffixIcon: IconButton(
@@ -379,8 +380,10 @@ class _SaferModeSetPasswordDialogState extends State<SaferModeSetPasswordDialog>
                   alignment: AlignmentDirectional.centerStart,
                   child: ActionButton.ghost(
                     text: widget.isSaferModeEnabled
-                        ? 'לא ניתן למחוק את הסיסמה כשמצב סייפר פעיל'
-                        : 'מחיקת סיסמה',
+                        ? context.settingsText(
+                            'לא ניתן למחוק את הסיסמה כשמצב סייפר פעיל',
+                          )
+                        : context.settingsText('מחיקת סיסמה'),
                     onPressed: (!_isSaving && !widget.isSaferModeEnabled)
                         ? _handleClear
                         : null,
@@ -399,7 +402,7 @@ class _SaferModeSetPasswordDialogState extends State<SaferModeSetPasswordDialog>
                 : null,
           ),
           ActionButton.recommended(
-            text: 'שמור',
+            text: context.settingsText('שמור'),
             focusNode: _saveButtonFocusNode,
             onPressed: !_isSaving ? _handleSave : null,
             isLoading: _isSaving,
