@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 
 void main() {
@@ -82,6 +83,73 @@ void main() {
     expect(divider.right, lessThanOrEqualTo(eras.left));
     // חצי-חצי קבוע: לשני הצירים אותו רוחב, ולכן הקו במרכז.
     expect(eras.width, moreOrLessEquals(types.width, epsilon: 1));
+  });
+
+  testWidgets('לקו יש ריווח משני צדיו — אותו ערך כמו בפאנל הקישורים', (
+    tester,
+  ) async {
+    await pump(tester, typeChipKeys: const ['TARGUM', 'MIDRASH']);
+
+    final divider = tester.widget<VerticalDivider>(
+      find.byKey(commentatorChipAxesDividerKey),
+    );
+    expect(divider.thickness, 1);
+    expect(divider.width, AppTokens.spaceSM * 2 + 1);
+  });
+
+  testWidgets('מרכז הקו מרוחק מכל אחד משני הצירים', (tester) async {
+    await pump(tester, typeChipKeys: const ['TARGUM', 'MIDRASH']);
+
+    // הקו מצויר במרכז ה-VerticalDivider, ולכן המרווח לכל ציר הוא חצי מרוחבו.
+    final divider = tester.getRect(find.byKey(commentatorChipAxesDividerKey));
+    final eras = tester.getRect(find.byKey(commentatorEraChipsGroupKey));
+    final types = tester.getRect(find.byKey(commentatorTypeChipsGroupKey));
+
+    expect(
+      divider.center.dx - types.right,
+      greaterThanOrEqualTo(AppTokens.spaceSM - 0.5),
+    );
+    expect(
+      eras.left - divider.center.dx,
+      greaterThanOrEqualTo(AppTokens.spaceSM - 0.5),
+    );
+  });
+
+  testWidgets('רגרסיה: צ׳יפ בקצה הציר אינו נוגע בקו', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(300, 600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await pump(tester, typeChipKeys: const ['TARGUM', 'MIDRASH']);
+
+    final divider = tester.getRect(find.byKey(commentatorChipAxesDividerKey));
+    final typeChips = tester
+        .widgetList<Chip>(
+          find.descendant(
+            of: find.byKey(commentatorTypeChipsGroupKey),
+            matching: find.byType(Chip),
+          ),
+        )
+        .toList();
+    expect(typeChips, isNotEmpty);
+
+    for (final chip in typeChips) {
+      final rect = tester.getRect(find.byWidget(chip));
+      expect(
+        divider.center.dx - rect.right,
+        greaterThanOrEqualTo(AppTokens.spaceSM - 0.5),
+        reason: 'הצ׳יפ "${(chip.label as Text).data}" נצמד לקו',
+      );
+    }
+  });
+
+  testWidgets('פאנל צר — הריווח אינו מייצר overflow', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(180, 600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await pump(tester, typeChipKeys: const ['TARGUM', 'MIDRASH']);
+
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(commentatorChipAxesDividerKey), findsOneWidget);
   });
 
   testWidgets('התוויות נבנות מ-typeChipLabelBuilder', (tester) async {

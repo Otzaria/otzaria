@@ -12,6 +12,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/selected_line_links_view.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 void main() {
@@ -627,6 +628,131 @@ void main() {
       expect(eras.width, moreOrLessEquals(types.width, epsilon: 1));
     });
 
+    testWidgets('לקו יש ריווח משני צדיו ולא רק עובי הקו', (tester) async {
+      await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'EIN_MISHPAT'),
+          _link(title: 'אחרונים א', type: 'REFERENCE'),
+        ],
+      );
+
+      final divider = tester.widget<VerticalDivider>(
+        find.byKey(chipAxesDividerKey),
+      );
+      expect(divider.thickness, 1);
+      expect(divider.width, AppTokens.spaceSM * 2 + 1);
+    });
+
+    testWidgets('מרכז הקו מרוחק מכל אחד משני הצירים', (tester) async {
+      await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'EIN_MISHPAT'),
+          _link(title: 'אחרונים א', type: 'REFERENCE'),
+        ],
+      );
+
+      // הקו מצויר במרכז ה-VerticalDivider, ולכן המרווח לכל ציר הוא חצי מרוחבו.
+      final divider = tester.getRect(find.byKey(chipAxesDividerKey));
+      final eras = tester.getRect(find.byKey(linkEraChipsRowKey));
+      final types = tester.getRect(find.byKey(linkTypeChipsRowKey));
+
+      expect(
+        divider.center.dx - types.right,
+        greaterThanOrEqualTo(AppTokens.spaceSM - 0.5),
+      );
+      expect(
+        eras.left - divider.center.dx,
+        greaterThanOrEqualTo(AppTokens.spaceSM - 0.5),
+      );
+    });
+
+    testWidgets('רגרסיה: צ׳יפ שממלא את הציר אינו נוגע בקו', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(300, 600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'SIFREI_MITZVOT'),
+          _link(title: 'ראשונים ב', type: 'QUOTATION'),
+          _link(title: 'ראשונים ג', type: 'ALLUSION'),
+          _link(title: 'אחרונים א', type: 'REFERENCE'),
+        ],
+      );
+
+      final divider = tester.getRect(find.byKey(chipAxesDividerKey));
+      final typeChips = tester
+          .widgetList<Chip>(
+            find.descendant(
+              of: find.byKey(linkTypeChipsRowKey),
+              matching: find.byType(Chip),
+            ),
+          )
+          .toList();
+      expect(typeChips, isNotEmpty);
+
+      for (final chip in typeChips) {
+        final rect = tester.getRect(find.byWidget(chip));
+        expect(
+          divider.center.dx - rect.right,
+          greaterThanOrEqualTo(AppTokens.spaceSM - 0.5),
+          reason: 'הצ׳יפ "${(chip.label as Text).data}" נצמד לקו',
+        );
+      }
+    });
+
+    testWidgets('הריווח נגזל מהקו ולא מציר אחד — החלוקה נשארת חצי-חצי', (
+      tester,
+    ) async {
+      await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'SIFREI_MITZVOT'),
+          _link(title: 'ראשונים ב', type: 'QUOTATION'),
+          _link(title: 'ראשונים ג', type: 'ALLUSION'),
+          _link(title: 'אחרונים א', type: 'REFERENCE'),
+        ],
+      );
+
+      final eras = tester.getRect(find.byKey(linkEraChipsRowKey));
+      final types = tester.getRect(find.byKey(linkTypeChipsRowKey));
+      expect(eras.width, moreOrLessEquals(types.width, epsilon: 1));
+    });
+
+    testWidgets('ציר יחיד — אין קו ולכן אין ריווח מבוזבז', (tester) async {
+      await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'EIN_MISHPAT'),
+          _link(title: 'ראשונים ב', type: 'QUOTATION'),
+        ],
+      );
+
+      expect(find.byKey(chipAxesDividerKey), findsNothing);
+      final types = tester.getRect(find.byKey(linkTypeChipsRowKey));
+      final row = tester.getRect(find.byType(IntrinsicHeight));
+      expect(types.width, moreOrLessEquals(row.width, epsilon: 1));
+    });
+
+    testWidgets('פאנל צר עם ריווח הקו — אין overflow', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(160, 600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'SIFREI_MITZVOT'),
+          _link(title: 'ראשונים ב', type: 'MESORAT_HASHAS'),
+          _link(title: 'אחרונים א', type: 'REFERENCE'),
+        ],
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(chipAxesDividerKey), findsOneWidget);
+    });
+
     testWidgets('ציר יחיד — אין קו מפריד', (tester) async {
       await _pumpView(
         tester,
@@ -778,6 +904,145 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(_chipRowCount(tester), 2);
+    });
+  });
+
+  // עובי המפריד בין פריטי הרשימה — כעובי ה-Divider בפאנל המפרשים
+  // (`Divider(height: 1)`, שברירת המחדל שלו thickness 0 = hairline).
+  group('מפריד בין פריטי הרשימה', () {
+    setUp(_seedEras);
+    tearDown(CommentaryService.clearEraCache);
+
+    Future<void> pumpTwo(WidgetTester tester) => _pumpView(
+      tester,
+      links: [
+        _link(title: 'ראשונים א', type: 'REFERENCE'),
+        _link(title: 'אחרונים א', type: 'QUOTATION'),
+      ],
+    ).then((_) {});
+
+    Border shapeOf(WidgetTester tester, int index) =>
+        tester
+                .widgetList<ExpansionTile>(find.byType(ExpansionTile))
+                .elementAt(
+                  index,
+                )
+                .shape!
+            as Border;
+
+    testWidgets('גבול תחתון בלבד — אין קו כפול בין שני פריטים פתוחים', (
+      tester,
+    ) async {
+      await pumpTwo(tester);
+
+      for (var index = 0; index < 2; index++) {
+        final border = shapeOf(tester, index);
+        expect(border.top.style, BorderStyle.none, reason: 'פריט $index');
+        expect(border.bottom.style, BorderStyle.solid, reason: 'פריט $index');
+      }
+    });
+
+    testWidgets('עובי המפריד הוא hairline, כמו Divider במפרשים', (
+      tester,
+    ) async {
+      await pumpTwo(tester);
+
+      // Divider(height: 1) חסר thickness => DividerTheme.thickness ?? 0.0.
+      final dividerThickness =
+          DividerTheme.of(
+            tester.element(find.byType(ListView)),
+          ).thickness ??
+          0.0;
+      expect(shapeOf(tester, 0).bottom.width, dividerThickness);
+    });
+
+    testWidgets('המפריד בצבע המפריד של הנושא ולא בצבע מקודד', (tester) async {
+      await pumpTwo(tester);
+
+      final dividerColor = Theme.of(
+        tester.element(find.byType(ListView)),
+      ).dividerColor;
+      expect(shapeOf(tester, 0).bottom.color, dividerColor);
+    });
+
+    testWidgets('העובי אינו 1.0 הלוגי של ברירת המחדל של ExpansionTile', (
+      tester,
+    ) async {
+      await pumpTwo(tester);
+
+      expect(shapeOf(tester, 0).bottom.width, lessThan(1.0));
+    });
+
+    testWidgets('הרחבת פריט אינה מוסיפה גבול עליון', (tester) async {
+      await pumpTwo(tester);
+
+      await tester.tap(find.text('ראשונים א'));
+      await tester.pumpAndSettle();
+
+      expect(shapeOf(tester, 0).top.style, BorderStyle.none);
+    });
+  });
+
+  // הפאנל יורש את רקע המסך, בדיוק כמו פאנל בחירת המפרשים. צביעת surface
+  // מקומית יצרה שני גוונים בתוך אותו פאנל (ובמצב כהה — פער גדול מכך).
+  group('רקע הרשימה', () {
+    setUp(_seedEras);
+    tearDown(CommentaryService.clearEraCache);
+
+    testWidgets('פריטי הרשימה אינם צובעים רקע משלהם', (tester) async {
+      await _pumpView(
+        tester,
+        links: [
+          _link(title: 'ראשונים א', type: 'REFERENCE'),
+          _link(title: 'אחרונים א', type: 'QUOTATION'),
+        ],
+      );
+
+      final tiles = tester.widgetList<ExpansionTile>(
+        find.byType(ExpansionTile),
+      );
+      expect(tiles, hasLength(2));
+      for (final tile in tiles) {
+        expect(tile.backgroundColor, isNull);
+        expect(tile.collapsedBackgroundColor, isNull);
+      }
+    });
+
+    testWidgets('הרשימה אינה עטופה ב-Container צבוע', (tester) async {
+      await _pumpView(
+        tester,
+        links: [_link(title: 'ראשונים א', type: 'REFERENCE')],
+      );
+
+      final colored = tester
+          .widgetList<Container>(find.byType(Container))
+          .where((container) => container.color != null);
+      expect(colored, isEmpty);
+    });
+
+    testWidgets('הרקע אינו מקודד ל-surface בשום מקום ברשימה', (tester) async {
+      await _pumpView(
+        tester,
+        links: [_link(title: 'ראשונים א', type: 'REFERENCE')],
+      );
+
+      final surface = Theme.of(
+        tester.element(find.byType(ListView)),
+      ).colorScheme.surface;
+      final painted = tester
+          .widgetList<Container>(find.byType(Container))
+          .where((container) => container.color == surface);
+      expect(painted, isEmpty);
+    });
+
+    testWidgets('גם מסך "אין קישורים" בלי רקע צבוע', (tester) async {
+      await _pumpView(tester, links: const []);
+
+      expect(find.text('לא נמצאו קישורים לקטע הנבחר'), findsOneWidget);
+      final colored = tester
+          .widgetList<Container>(find.byType(Container))
+          .where((container) => container.color != null);
+      expect(colored, isEmpty);
     });
   });
 
