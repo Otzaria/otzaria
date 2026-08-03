@@ -481,6 +481,28 @@ void main() {
       );
     });
 
+    test('טעינות תלויות אינן חורגות מתקרת המטמון', () async {
+      final gate = Completer<void>();
+      var loads = 0;
+      final service = TargetLineLinksService(
+        loader: (_, _, _) async {
+          loads++;
+          await gate.future;
+          return const [];
+        },
+      );
+
+      for (var i = 1; i <= 300; i++) {
+        service.prefetch(_link(path2: 'ספר', index2: i));
+      }
+
+      expect(service.cacheSize, 256);
+      expect(loads, 256);
+
+      gate.complete();
+      await pumpEventQueue();
+    });
+
     test('המטמון מפנה לפי שימוש אחרון ולא לפי סדר הכנסה', () async {
       final service = TargetLineLinksService(loader: (_, _, _) async => []);
 
@@ -532,17 +554,24 @@ void main() {
       expect(service.cacheSize, 0);
     });
 
-    test('המטמון חסום ומפנה את הוותיק ביותר', () async {
-      final service = TargetLineLinksService(loader: (_, _, _) async => []);
+    test('המטמון חסום כשכל הערכים מתחילים להיטען יחד', () async {
+      var loads = 0;
+      final service = TargetLineLinksService(
+        loader: (_, _, _) async {
+          loads++;
+          return [];
+        },
+      );
 
       for (var i = 1; i <= 300; i++) {
         service.prefetch(_link(path2: 'ספר', index2: i));
       }
       await pumpEventQueue();
 
-      expect(service.cacheSize, lessThanOrEqualTo(256));
-      expect(service.cached(_link(path2: 'ספר', index2: 1)), isNull);
-      expect(service.cached(_link(path2: 'ספר', index2: 300)), isNotNull);
+      expect(service.cacheSize, 256);
+      expect(loads, 256);
+      expect(service.cached(_link(path2: 'ספר', index2: 1)), isNotNull);
+      expect(service.cached(_link(path2: 'ספר', index2: 300)), isNull);
     });
   });
 

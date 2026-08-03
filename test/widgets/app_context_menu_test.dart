@@ -924,6 +924,48 @@ void main() {
     },
   );
 
+  testWidgets(
+    'childrenRefreshStream: תת-תפריט עם ילדים מושבתים משבית את פריט האב',
+    (tester) async {
+      final controller = StreamController<Object?>.broadcast();
+      addTearDown(controller.close);
+      var loaded = false;
+      final key = GlobalKey<AppContextMenuRegionState>();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AppContextMenuRegion(
+              key: key,
+              menuBuilder: (_, _) => [
+                AppContextMenuEntry(
+                  label: 'מפרשים',
+                  childrenRefreshStream: controller.stream,
+                  childrenBuilder: () => [
+                    AppContextMenuEntry(
+                      label: loaded ? 'אין מפרשים' : 'טוען…',
+                      enabled: false,
+                    ),
+                  ],
+                ),
+              ],
+              child: const SizedBox(width: 200, height: 200),
+            ),
+          ),
+        ),
+      );
+
+      await key.currentState!.openMenuAt(const Offset(100, 100));
+      await tester.pumpAndSettle();
+      loaded = true;
+      controller.add(null);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SubmenuButton), findsNothing);
+      expect(find.text('מפרשים'), findsOneWidget);
+    },
+  );
+
   testWidgets('openMenuAt: קריאה כפולה אינה פותחת שני תפריטים', (tester) async {
     final key = GlobalKey<AppContextMenuRegionState>();
 

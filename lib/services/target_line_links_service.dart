@@ -151,10 +151,10 @@ class TargetLineLinksService {
     if (!_hasLoadableTarget(link)) return;
     final key = _cacheKey(link);
     if (_cache.containsKey(key)) return;
+    if (!_makeRoomForNewEntry()) return;
     // ריחוף או לחיצה ימנית חדשים = ניסיון חוזר מפורש אחרי כשל.
     _failed.remove(key);
     _cache[key] = null;
-    _evictIfNeeded();
     unawaited(_load(key, link));
   }
 
@@ -168,7 +168,18 @@ class TargetLineLinksService {
 
   /// מפנה את הוותיק ביותר, ולעולם לא קטע שנמצא כרגע בטעינה — פינוי כזה היה
   /// מבטל את אירוע הרענון שלו ומשאיר תת-תפריט פתוח תקוע ב"טוען…".
-  void _evictIfNeeded() {
+  bool _makeRoomForNewEntry() {
+    if (_cache.length < _maxCacheEntries) return true;
+    for (final key in _cache.keys.toList()) {
+      if (_cache[key] != null) {
+        _cache.remove(key);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _evictOverflow() {
     if (_cache.length <= _maxCacheEntries) return;
     for (final key in _cache.keys.toList()) {
       if (_cache.length <= _maxCacheEntries) return;
@@ -214,7 +225,7 @@ class TargetLineLinksService {
     // נטען היה נחשב הוותיק ביותר ומפונה מיד בגל טעינות מקבילות.
     _cache.remove(key);
     _cache[key] = result;
-    _evictIfNeeded();
+    _evictOverflow();
     if (!_refresh.isClosed) _refresh.add(null);
   }
 
