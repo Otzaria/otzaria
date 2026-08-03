@@ -95,7 +95,13 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
   void _onSearchChanged(String query) {
     setState(() {
       _searchQuery = query;
-      _searchResults = SettingsSearchIndex.search(query);
+      // ה-State יושב מעל ה-SettingsTextScope, ולכן השפה נלקחת מה-bloc.
+      _searchResults = SettingsSearchIndex.search(
+        query,
+        language: resolveSettingsLanguage(
+          context.read<SettingsBloc>().state.settingsLanguageCode,
+        ),
+      );
     });
   }
 
