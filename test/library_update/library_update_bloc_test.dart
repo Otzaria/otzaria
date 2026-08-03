@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -242,12 +242,15 @@ LibraryUpdateBloc _bloc(
   bool updatesEnabled = true,
   bool prerelease = false,
   CompanionAssetsService? companionAssets,
+  // ברירת המחדל "מחובר" מונעת גישת רשת אמיתית בבדיקות מסלולי הכשל.
+  bool hasInternet = true,
 }) => LibraryUpdateBloc(
   repository: service,
   isOfflineMode: () => offline,
   areUpdatesEnabled: () => updatesEnabled,
   allowPrerelease: () => prerelease,
   companionAssets: companionAssets,
+  hasInternet: () async => hasInternet,
 );
 
 void main() {
@@ -408,6 +411,147 @@ void main() {
         ),
       ],
     );
+
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      'כשל בבדיקה בלי אינטרנט → מנותק ולא שגיאה',
+      build: () =>
+          _bloc(_FakeService(nonePlan, throwOnCheck: true), hasInternet: false),
+      act: (b) => b.add(const StartLibraryUpdate()),
+      expect: () => [
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.checking,
+        ),
+        isA<LibraryUpdateState>()
+            .having((s) => s.status, 'status', LibraryUpdateStatus.disconnected)
+            .having((s) => s.message, 'message', 'אין חיבור לאינטרנט')
+            .having((s) => s.errorMessage, 'errorMessage', isNull),
+      ],
+    );
+
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      'כשל ב-apply בלי אינטרנט נשאר שגיאה מקומית',
+      build: () => _bloc(
+        _FakeService(deltaPlan, throwOnApply: true),
+        hasInternet: false,
+      ),
+      act: (b) => b.add(const StartLibraryUpdate()),
+      expect: () => [
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.checking,
+        ),
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.error,
+        ),
+      ],
+    );
+
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      'כשל בהורדה מלאה בלי אינטרנט נשאר שגיאה מקומית',
+      build: () =>
+          _bloc(_FakeService(fullPlan, throwOnApply: true), hasInternet: false),
+      seed: () => LibraryUpdateState(
+        status: LibraryUpdateStatus.needsFullConfirmation,
+        plan: fullPlan,
+      ),
+      act: (b) => b.add(const ConfirmFullDownload()),
+      expect: () => [
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.downloading,
+        ),
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.error,
+        ),
+      ],
+    );
+
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      'מצב מנותק אינו חוסם ניסיון חוזר — לחיצה מתחילה בדיקה חדשה',
+      build: () => _bloc(_FakeService(nonePlan)),
+      seed: () =>
+          const LibraryUpdateState(status: LibraryUpdateStatus.disconnected),
+      act: (b) => b.add(const StartLibraryUpdate()),
+      expect: () => [
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.checking,
+        ),
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.completed,
+        ),
+      ],
+    );
+
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      'חזרת החיבור אחרי ניתוק → העדכון מתבצע ומצב המנותק נעלם',
+      build: () => _bloc(_FakeService(deltaPlan)),
+      seed: () =>
+          const LibraryUpdateState(status: LibraryUpdateStatus.disconnected),
+      act: (b) => b.add(const StartLibraryUpdate()),
+      verify: (b) {
+        expect((b.repository as _FakeService).applyCalled, isTrue);
+        expect(b.state.status, LibraryUpdateStatus.completed);
+        expect(b.state.hasUpdate, isTrue);
+      },
+    );
+
+    test('מצב מנותק אינו busy — לא מוצג כעבודה פעילה', () {
+      const state = LibraryUpdateState(
+        status: LibraryUpdateStatus.disconnected,
+      );
+      expect(state.isBusy, isFalse);
+    });
+
+    test('בדיקת החיבור נקראת רק אחרי כשל, לא במסלול התקין', () async {
+      var probes = 0;
+      final bloc = LibraryUpdateBloc(
+        repository: _FakeService(nonePlan),
+        isOfflineMode: () => false,
+        areUpdatesEnabled: () => true,
+        allowPrerelease: () => false,
+        hasInternet: () async {
+          probes++;
+          return true;
+        },
+      );
+      bloc.add(const StartLibraryUpdate());
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+
+      expect(bloc.state.status, LibraryUpdateStatus.completed);
+      expect(probes, 0, reason: 'בדיקת רשת עולה זמן — אסור במסלול המוצלח');
+      await bloc.close();
+    });
+
+    test('כשל אחרי סגירת ה-bloc אינו פולט state', () async {
+      final probeGate = Completer<bool>();
+      final bloc = LibraryUpdateBloc(
+        repository: _FakeService(nonePlan, throwOnCheck: true),
+        isOfflineMode: () => false,
+        areUpdatesEnabled: () => true,
+        allowPrerelease: () => false,
+        hasInternet: () => probeGate.future,
+      );
+      bloc.add(const StartLibraryUpdate());
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      await bloc.close();
+      probeGate.complete(false); // הבדיקה חוזרת אחרי הסגירה
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(bloc.state.status, LibraryUpdateStatus.checking);
+    });
 
     blocTest<LibraryUpdateBloc, LibraryUpdateState>(
       'ConfirmFullDownload → מבצע הורדה מלאה ומסיים עם hasUpdate',

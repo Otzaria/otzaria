@@ -1,7 +1,8 @@
-import 'package:bloc/bloc.dart';
+﻿import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/error_log_file.dart';
+import 'package:otzaria/core/internet_connectivity.dart';
 import 'package:otzaria/library_update/services/companion_assets_service.dart';
 import 'package:seforim_library_updater/seforim_library_updater.dart';
 
@@ -27,6 +28,9 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
   final bool Function() areUpdatesEnabled;
   final bool Function() allowPrerelease;
 
+  /// בדיקת חיבור אמיתי לאינטרנט — ניתנת להזרקה לבדיקות.
+  final Future<bool> Function() hasInternet;
+
   // מזהה הריצה הפעילה. כל התחלה/ביטול/איפוס מגדילים אותו, כך שריצה ישנה
   // (Future שעדיין לא הסתיים) מזוהה כמבוטלת ולא פולטת state או מחליפה DB.
   int _operationId = 0;
@@ -47,6 +51,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     required this.areUpdatesEnabled,
     required this.allowPrerelease,
     this.companionAssets,
+    this.hasInternet = hasInternetConnection,
   }) : super(const LibraryUpdateState()) {
     on<StartLibraryUpdate>(_onStart);
     on<ConfirmFullDownload>(_onConfirmFull);
@@ -137,14 +142,28 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
       // אם בוטל/הוחלף במהלך הבדיקה — לא לדרוס state של ריצה חדשה בשגיאה.
       if (_isStale(opId)) return;
       _logUpdateError('checkForUpdate', e, st);
-      emit(
-        LibraryUpdateState(
-          status: LibraryUpdateStatus.error,
-          message: 'שגיאה בבדיקת עדכונים',
-          errorMessage: e.toString(),
-        ),
+      final failure = await _checkFailureState('שגיאה בבדיקת עדכונים', e);
+      if (isClosed || _isStale(opId)) return;
+      emit(failure);
+    }
+  }
+
+  /// בכשל בבדיקת הזמינות בלבד, היעדר רשת אינו שגיאה למשתמש.
+  Future<LibraryUpdateState> _checkFailureState(
+    String message,
+    Object error,
+  ) async {
+    if (await hasInternet()) {
+      return LibraryUpdateState(
+        status: LibraryUpdateStatus.error,
+        message: message,
+        errorMessage: error.toString(),
       );
     }
+    return const LibraryUpdateState(
+      status: LibraryUpdateStatus.disconnected,
+      message: 'אין חיבור לאינטרנט',
+    );
   }
 
   Future<void> _runDelta(

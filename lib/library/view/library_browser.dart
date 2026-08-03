@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -57,6 +57,38 @@ const int _kLibraryTreeFlattenThreshold = 500;
 
 /// מכסת הספרים המוצגים לקטגוריה; מעבר לה מופיעה שורת "הצג עוד".
 const int _kCategoryBooksCap = 500;
+
+/// הסמל בכפתור עדכון הספרייה. מצב מנותק מקבל סמל משלו — כך המשתמש יודע
+/// שהעדכון לא רץ, בלי הודעת שגיאה קופצת שאין לו מה לעשות איתה.
+@visibleForTesting
+IconData libraryUpdateButtonIcon(LibraryUpdateStatus status) =>
+    switch (status) {
+      LibraryUpdateStatus.completed => FluentIcons.checkmark_circle_24_regular,
+      LibraryUpdateStatus.disconnected => FluentIcons.cloud_off_24_regular,
+      _ => FluentIcons.arrow_sync_24_regular,
+    };
+
+/// התיאור (tooltip) של כפתור עדכון הספרייה.
+@visibleForTesting
+String libraryUpdateButtonTooltip(LibraryUpdateState state) =>
+    switch (state.status) {
+      LibraryUpdateStatus.completed =>
+        state.hasUpdate ? 'העדכון הושלם' : 'הספרייה מעודכנת',
+      LibraryUpdateStatus.error => 'שגיאה בעדכון - לחץ לנסות שוב',
+      LibraryUpdateStatus.disconnected => 'אין חיבור לאינטרנט - לחץ לנסות שוב',
+      LibraryUpdateStatus.needsFullConfirmation => state.message,
+      LibraryUpdateStatus.blocked => state.message,
+      _ when state.isBusy => state.message,
+      _ => 'עדכון ספרייה',
+    };
+
+/// האם לחיצה על הכפתור מנקה את המצב הקודם במקום להתחיל עדכון. מצב מנותק
+/// מתחיל ניסיון חדש מיד — אין הודעה שצריך לנקות, ורק הרשת הייתה חסרה.
+@visibleForTesting
+bool libraryUpdateButtonResets(LibraryUpdateStatus status) =>
+    status == LibraryUpdateStatus.completed ||
+    status == LibraryUpdateStatus.error ||
+    status == LibraryUpdateStatus.blocked;
 
 enum FlatLibraryRowKind { categoryHeader, book, rootBook, showMore }
 
@@ -911,22 +943,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       widget: BlocBuilder<LibraryUpdateBloc, LibraryUpdateState>(
         builder: (ctx, state) {
           final isBusy = state.isBusy;
-          final icon = state.status == LibraryUpdateStatus.completed
-              ? FluentIcons.checkmark_circle_24_regular
-              : FluentIcons.arrow_sync_24_regular;
-          final tooltip = switch (state.status) {
-            LibraryUpdateStatus.completed =>
-              state.hasUpdate ? 'העדכון הושלם' : 'הספרייה מעודכנת',
-            LibraryUpdateStatus.error => 'שגיאה בעדכון - לחץ לנסות שוב',
-            LibraryUpdateStatus.needsFullConfirmation => state.message,
-            LibraryUpdateStatus.blocked => state.message,
-            _ when isBusy => state.message,
-            _ => 'עדכון ספרייה',
-          };
           return BarButton.icon(
             compact: compact,
-            tooltip: tooltip,
-            icon: icon,
+            tooltip: libraryUpdateButtonTooltip(state),
+            icon: libraryUpdateButtonIcon(state.status),
             // ספינר מסתובב בזמן עדכון — אינדיקציית פעילות רציפה (ticker עצמאי),
             // כי בשלב ה-apply הארוך אין שינויי state שיבנו מחדש את הכפתור.
             iconWidget: isBusy
@@ -941,9 +961,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               final b = ctx.read<LibraryUpdateBloc>();
               if (isBusy) {
                 b.add(const CancelLibraryUpdate());
-              } else if (state.status == LibraryUpdateStatus.completed ||
-                  state.status == LibraryUpdateStatus.error ||
-                  state.status == LibraryUpdateStatus.blocked) {
+              } else if (libraryUpdateButtonResets(state.status)) {
                 b.add(const ResetLibraryUpdate());
               } else {
                 b.add(const StartLibraryUpdate());
