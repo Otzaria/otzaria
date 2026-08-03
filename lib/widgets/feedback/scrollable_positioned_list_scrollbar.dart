@@ -425,6 +425,9 @@ class _ScrollablePositionedListScrollbarState
   @override
   Widget build(BuildContext context) {
     return Row(
+      // המסילה תופסת את מלוא הגובה; תוכן נמוך ממנה (מפרשים מכווצים) היה
+      // מתמרכז אנכית תחת ברירת המחדל center.
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (widget.itemCount > 0 && _canScroll)
           SizedBox(
