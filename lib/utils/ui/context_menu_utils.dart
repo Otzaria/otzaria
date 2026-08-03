@@ -8,6 +8,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
+import 'package:otzaria/services/target_line_links_service.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -35,6 +36,10 @@ class ContextMenuUtils {
   ///
   /// מחזיר [List<AppContextMenuEntry>] לשימוש עם [AppContextMenuRegion].
   ///
+  /// [onNavigateToLink] — ניווט אל יעד קישור. כשהוא מסופק נוספים תתי-התפריטים
+  /// "מפרשים" ו"קישורים" של קטע היעד ([TargetLineLinksService]); בלעדיו התפריט
+  /// מכיל רק את פעולות ההעתקה, הפתיחה והדיווח.
+  ///
   /// דוגמה:
   /// ```dart
   /// AppContextMenuRegion(
@@ -47,6 +52,7 @@ class ContextMenuUtils {
   ///     removePunctuation: removePunctuation,
   ///     savedSelectedText: _savedText,
   ///     onCopySelected: _copy,
+  ///     onNavigateToLink: _navigateToLink,
   ///   ),
   ///   child: myCommentaryWidget,
   /// )
@@ -60,7 +66,9 @@ class ContextMenuUtils {
     required bool removePunctuation,
     String? savedSelectedText,
     required VoidCallback onCopySelected,
+    void Function(Link link)? onNavigateToLink,
   }) {
+    final linksService = TargetLineLinksService.instance;
     final entries = <AppContextMenuEntry>[
       AppContextMenuEntry(
         label: 'הוסף הערה אישית',
@@ -101,6 +109,21 @@ class ContextMenuUtils {
           removePunctuation: removePunctuation,
         ),
       ),
+      if (onNavigateToLink != null) ...[
+        const AppContextMenuEntry.divider(),
+        linksService.buildCommentariesEntry(
+          link: link,
+          onNavigate: onNavigateToLink,
+          removeNikud: removeNikud,
+          removePunctuation: removePunctuation,
+        ),
+        linksService.buildLinksEntry(
+          link: link,
+          onNavigate: onNavigateToLink,
+          removeNikud: removeNikud,
+          removePunctuation: removePunctuation,
+        ),
+      ],
       const AppContextMenuEntry.divider(),
       AppContextMenuEntry(
         label: 'פתח ספר זה בחלון נפרד',

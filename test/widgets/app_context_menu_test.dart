@@ -667,6 +667,97 @@ void main() {
     );
   });
 
+  group('onHoverEnter — טעינה מקדימה של תוכן התפריט', () {
+    Future<int> hoverEnterCount(
+      WidgetTester tester, {
+      required bool withCallback,
+      bool moveAwayAndBack = false,
+    }) async {
+      var calls = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: AppContextMenuRegion(
+                onHoverEnter: withCallback ? () => calls++ : null,
+                menuBuilder: (_, _) => [
+                  AppContextMenuEntry(label: 'העתק', onTap: () {}),
+                ],
+                child: const SizedBox(
+                  width: 100,
+                  height: 100,
+                  child: ColoredBox(color: Colors.amber),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+
+      final center = tester.getCenter(find.byType(AppContextMenuRegion));
+      await gesture.moveTo(center);
+      await tester.pumpAndSettle();
+      if (moveAwayAndBack) {
+        await gesture.moveTo(Offset.zero);
+        await tester.pumpAndSettle();
+        await gesture.moveTo(center);
+        await tester.pumpAndSettle();
+      }
+      return calls;
+    }
+
+    testWidgets('ריחוף על האזור מפעיל את ה-callback', (tester) async {
+      expect(await hoverEnterCount(tester, withCallback: true), 1);
+    });
+
+    testWidgets('יציאה וחזרה מפעילות שוב (ה-prefetch עצמו אידמפוטנטי)', (
+      tester,
+    ) async {
+      expect(
+        await hoverEnterCount(
+          tester,
+          withCallback: true,
+          moveAwayAndBack: true,
+        ),
+        2,
+      );
+    });
+
+    testWidgets('בלי onHoverEnter לא נוסף MouseRegion עוטף', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: AppContextMenuRegion(
+                menuBuilder: (_, _) => [
+                  AppContextMenuEntry(label: 'העתק', onTap: () {}),
+                ],
+                child: const SizedBox(width: 100, height: 100),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.descendant(
+          of: find.byType(AppContextMenuRegion),
+          matching: find.byType(MouseRegion),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('הריחוף אינו פותח את התפריט מעצמו', (tester) async {
+      await hoverEnterCount(tester, withCallback: true);
+      expect(find.text('העתק'), findsNothing);
+    });
+  });
+
   // ───────────────────────────────────────────────────────────────────────
   // openMenuAt — פתיחה פרוגרמטית (משמש ל-long press ב-PDF)
   // ───────────────────────────────────────────────────────────────────────
@@ -830,6 +921,48 @@ void main() {
         findsOneWidget,
         reason: 'התפריט נשאר פתוח — רק השורה הוסרה',
       );
+    },
+  );
+
+  testWidgets(
+    'childrenRefreshStream: תת-תפריט עם ילדים מושבתים משבית את פריט האב',
+    (tester) async {
+      final controller = StreamController<Object?>.broadcast();
+      addTearDown(controller.close);
+      var loaded = false;
+      final key = GlobalKey<AppContextMenuRegionState>();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AppContextMenuRegion(
+              key: key,
+              menuBuilder: (_, _) => [
+                AppContextMenuEntry(
+                  label: 'מפרשים',
+                  childrenRefreshStream: controller.stream,
+                  childrenBuilder: () => [
+                    AppContextMenuEntry(
+                      label: loaded ? 'אין מפרשים' : 'טוען…',
+                      enabled: false,
+                    ),
+                  ],
+                ),
+              ],
+              child: const SizedBox(width: 200, height: 200),
+            ),
+          ),
+        ),
+      );
+
+      await key.currentState!.openMenuAt(const Offset(100, 100));
+      await tester.pumpAndSettle();
+      loaded = true;
+      controller.add(null);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SubmenuButton), findsNothing);
+      expect(find.text('מפרשים'), findsOneWidget);
     },
   );
 

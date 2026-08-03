@@ -12,6 +12,7 @@ import 'package:otzaria/migration/sync/background_sync_initializer.dart';
 import 'package:otzaria/migration/sync/file_sync_service.dart'
     show FileSyncResult;
 import 'package:otzaria/services/commentary_service.dart';
+import 'package:otzaria/services/target_line_links_service.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/user_content_import/repository/user_content_repository.dart';
@@ -308,6 +309,7 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
       if (r.generationsApplied > 0 || r.linksApplied > 0) {
         GenerationCache.instance.clear();
         CommentaryService.clearEraCache();
+        TargetLineLinksService.instance.clearCache();
         _addLibraryEvent(RefreshLibrary());
       }
       final imp = (

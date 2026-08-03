@@ -326,6 +326,19 @@ class CommentaryService {
     return (base != null && present.contains(base)) ? base : null;
   }
 
+  /// הדור שלפיו [sortLinksByEraSync] מציב את [link] בתוך [presentTitles].
+  ///
+  /// ספר "הערות על XX" מעוגן לדור של XX, ולכן מי שמקבץ את הרשימה הממוינת
+  /// (למשל פס מבדיל בין דורות) חייב את אותה נוסחה — [getCachedBookEra] על
+  /// כותרת הפריט עצמו היה מחזיר "שאר מפרשים" ושובר את הקיבוץ.
+  static CommentaryEra sortingEraForLink(
+    Link link,
+    Set<String> presentTitles,
+  ) {
+    final title = utils.getTitleFromPath(link.path2);
+    return getCachedBookEra(_notesBaseInSet(title, presentTitles) ?? title);
+  }
+
   /// ממיין רשימת קישורים שטוחה לפי סדר הדורות
   ///
   /// [links] - רשימת הקישורים למיון

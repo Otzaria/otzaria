@@ -32,6 +32,8 @@ import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
+import 'package:otzaria/services/target_line_links_service.dart';
+import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/ui/context_menu_utils.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -911,6 +913,13 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     );
   }
 
+  /// פותח את יעד הקישור בכרטיסייה חדשה (טקסט או PDF, לפי תבנית הפתיחה).
+  Future<void> _navigateToLink(Link link) async {
+    final tab = await buildLinkTargetTab(link);
+    if (!mounted) return;
+    widget.openBookCallback(tab);
+  }
+
   /// בניית תפריט הקשר למפרש ספציפי
   List<AppContextMenuEntry> _buildCommentaryContextMenuEntries(
     BuildContext menuCtx,
@@ -924,6 +933,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       removeNikud: widget.removeNikud,
       removePunctuation: widget.removePunctuation,
       savedSelectedText: _savedSelectedText,
+      onNavigateToLink: _navigateToLink,
       onCopySelected: () => ContextMenuUtils.copyFormattedText(
         context: menuCtx,
         savedSelectedText: _restoreLineBreaks(_savedSelectedText),
@@ -2102,6 +2112,12 @@ class _CollapsibleCommentaryGroupState
                     ),
                     const SizedBox(height: 4),
                     AppContextMenuRegion(
+                      // ריחוף מקדים את טעינת קישורי קטע היעד, כדי שהתפריט
+                      // ייבנה עם נתונים מוכנים. הלחיצה מכסה מגע/עט (אין ריחוף).
+                      onHoverEnter: () =>
+                          TargetLineLinksService.instance.prefetchOnHover(link),
+                      onSecondaryTapDown: (_) =>
+                          TargetLineLinksService.instance.prefetch(link),
                       // לחיצה ימנית על הטקסט המסומן בפועל לא תשחרר את הבחירה
                       // (התנהגות ברירת המחדל של SelectableRegion ב-Windows); לחיצה
                       // על חלק לא-מסומן מבטלת כרגיל. הבחירה מנוהלת ע"י SelectionArea
