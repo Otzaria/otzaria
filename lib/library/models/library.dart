@@ -180,10 +180,14 @@ class Library extends Category {
                 _normalizeTitle(b.title) == normalizedTitle &&
                 b.runtimeType == companionType,
           )
-          .take(2)
           .toList();
 
-      // שני מועמדים באותה קטגוריה = זהות לא ודאית; מוותרים במקום לנחש.
+      // מועמד יחיד מאותו מקור מכריע; אחרת שני מועמדים = זהות לא ודאית
+      // ומוותרים במקום לנחש.
+      final sameSource = companions
+          .where((c) => _isSameBookSource(book, c))
+          .toList();
+      if (sameSource.length == 1) return sameSource.first;
       if (companions.length > 1) return null;
       if (companions.isNotEmpty) return companions.first;
     }
@@ -213,8 +217,17 @@ class Library extends Category {
       return true;
     }).toList();
 
-    return filtered.firstOrNull;
+    // מהדורה ממקור אחר משמשת רק כשאין אחת מאותו מקור — אחרת מהדורה אישית
+    // שנוספה בשם זהה גונבת את הבחירה, ומיפוי העמודים שלה נכשל ופותח בעמוד 1.
+    return filtered.where((c) => _isSameBookSource(book, c)).firstOrNull ??
+        filtered.firstOrNull;
   }
+
+  /// האם [candidate] בא מאותו מקור ספרים כמו [book] — ספריית אוצריא, הספרים
+  /// האישיים, או אותו קטלוג חיצוני. שם זהה ממקור אחר אינו אותו ספר.
+  bool _isSameBookSource(Book book, Book candidate) =>
+      candidate.isUserBook == book.isUserBook &&
+      candidate.externalLibraryId == book.externalLibraryId;
 
   /// מחפש ספר לפי כותרת עם חיפוש גמיש יותר.
   ///
