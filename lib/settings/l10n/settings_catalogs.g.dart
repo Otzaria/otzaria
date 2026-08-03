@@ -12,8 +12,12 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     '{count} תיקיות': '{count} folders',
     '{font} (לא זמין במחשב זה)': '{font} (not available on this computer)',
     'אודות': 'About',
+    'אודות ספריית אוצריא': 'About the Otzaria library',
+    'אודות פיתוח התוכנה': 'About the development',
     'אוטומטי': 'Automatic',
     'אוצר החכמה בלבד': 'Otzar HaChochma only',
+    'אוצריא מתגייסת לעזרת לומדי התורה':
+        'Otzaria is joining the effort to help lomdei Torah',
     'אותה שורה אחרי (בלי סוגריים)': 'Same line, after, no parentheses',
     'אותה שורה אחרי (עם סוגריים)': 'Same line, after, in parentheses',
     'אותה שורה לפני (בלי סוגריים)': 'Same line, before, no parentheses',
@@ -39,6 +43,8 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'אפס': 'Reset',
     'אפס ועדכן': 'Reset and rebuild',
     'אפשרויות': 'Options',
+    'באם שמכם אינו מופיע ברשימה או שאתם מעוניינים בשינוי, אנא פנו למייל המערכת.':
+        'If your name is missing from the list, or you would like it changed, please email us.',
     'בהיר': 'Light',
     'בודק אם נדרש איפוס ואינדוקס מחדש':
         'Checking whether a reset and re-index is needed',
@@ -134,6 +140,8 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הניקוד לא יוצג בכלל': 'Nekudos do not show at all',
     'הספרייה ריקה – אין ספרים לאינדוקס':
         'The library is empty — no seforim to index',
+    'הספרים הותאמו במיוחד עבור אוצריא, וכן נוספו ספרים רבים נוספים בזכות עבודתם המסורה של מהדירי הספרים.':
+        'The seforim were prepared specially for Otzaria, and many more were added through the devoted work of the mahadirim.',
     'הספרים נקראים ישירות מהקבצים שבדיסק. אל תזיז אותם — אחרת הם לא ייפתחו. למחיקה: מחק את הקובץ מהדיסק וסרוק מחדש.':
         'The seforim are read straight from the files on disk. Do not move them, or they will not open. To delete: delete the file from disk and rescan.',
     'הספרים עצמם לא יימחקו — רק הדורות והקישורים המיובאים.':
@@ -182,6 +190,8 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הצגת סימני פיסוק': 'Show punctuation',
     'הצגת פריטים קומפקטית או מרווחת': 'Show items compactly or spaciously',
     'הצגת שם הקודש': 'Show Shem Hashem',
+    'הצטרף לעריכה': 'Join the editing',
+    'הצטרף לצוות העריכה ומהדירי הספרים': 'Join the editing and mahadirim team',
     'הצמד לניווט': 'Pin to nav',
     'הצמד לסרגל הניווט': 'Pin to the navigation bar',
     'הקטלוג של אוצר החכמה והיברובוקס חסר במערכת. יש להוריד אותו כדי להציג ולחפש ספרים ממקורות אלו.':
@@ -257,6 +267,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'כלים': 'Tools',
     'כלים מובנים': 'Built-in tools',
     'כמות התוצאות המקסימלית להצגה': 'The most results to show',
+    'כניסה לפורום': 'Go to the forum',
     'כתב': 'Text',
     'כתרי אותיות': 'Nekudos and taamim',
     'לא זוהתה ספרייה — הגדר מיקום, הורד או ייבא ספרייה':
@@ -275,8 +286,14 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'לייבוא סדר דורות וקישורים לספרים האישיים השתמש בכפתור "ייבוא דורות וקישורים" שבהמשך.':
         'To import seder hadoros and links for your own seforim, use the "Import doros and links" button below.',
     'ללא': 'Nothing',
+    'למידע נוסף': 'More info',
     'לפי שפת מערכת ההפעלה': 'Follow the operating system language',
     'מאגר הספרים וחיפוש': 'Seforim and search',
+    'מאגר תורני חינמי, רחב ומהיר לשימוש בכל מקום.':
+        'A free Torah library — broad, fast, and usable anywhere.',
+    'מהדירי ספרים': 'Mahadirei seforim',
+    'מוזמנים לבקר בפורום התמיכה והמשוב של אוצריא':
+        'You are welcome at the Otzaria support and feedback forum',
     'מוסתר': 'Hidden',
     'מושבת': 'Disabled',
     'מושבת במצב מנותק': 'Off in offline mode',
@@ -308,13 +325,19 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'מערכת': 'System',
     'מפרשים בחלונית מפוצלת או בתוך הטקסט':
         'Meforshim in a split panel or inside the text',
+    'מפתחים': 'Developers',
     'מצב כהה': 'Dark mode',
     'מצב ערכת נושא': 'Theme mode',
     'מצב קריאה בתנ"ך ובתלמוד': 'Learning mode for Tanach and Gemara',
     'מצומצם': 'Compact',
+    'מקום זה יכול להיות מונצח לע"נ יקירך':
+        'This spot can be dedicated l\'ilui nishmas your loved one',
+    'מקור הספרים': 'Where the seforim come from',
     'מקורות אחרים לספרים': 'Other sources for seforim',
     'מראה': 'Appearance',
     'מרווח בין שורות': 'Line spacing',
+    'מרכז המידע על ארגוני סיוע ללומדי התורה':
+        'Information hub for organizations that help lomdei Torah',
     'משולב': 'Both',
     'משתמש ברשת': 'Uses the network',
     'מתקדם': 'Advanced',
@@ -329,13 +352,18 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'נקה הכל': 'Clear all',
     'נקה חיפוש': 'Clear search',
     'נתוני משתמש': 'User data',
+    'נתקלת בבאג? יש לך שאלה או משוב?':
+        'Hit a bug? Have a question or feedback?',
     'סגור': 'Close',
     'סוג לוח שנה': 'Luach type',
     'סוג תצוגה': 'View style',
+    'סיוע ללומדי תורה': 'Helping those who learn Torah',
     'סימני הפיסוק יוצגו בכל הספרים': 'Punctuation shows in every sefer',
     'סימני הפיסוק לא יוצגו (למעט בתנ"ך)':
         'Punctuation is hidden (except in Tanach)',
     'סינון תוצאות כפולות': 'Filter duplicate results',
+    'סכום משמעותי לפיתוח התוכנה':
+        'A significant contribution to the development',
     'סנכרון אחרון: {time}': 'Last sync: {time}',
     'סנכרן': 'Sync',
     'סנכרן אירועים עם Google Calendar': 'Sync events with Google Calendar',
@@ -354,6 +382,8 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'עוד פעולות': 'More actions',
     'עותק של תוכן הספרים יישמר בתוך התוכנה, כך שהם יעבדו גם אם הקבצים המקוריים יוזזו או יימחקו.\nהקבצים המקוריים יישארו במקומם.\n\nשים לב: אם תערוך קובץ בעתיד, יהיה עליך ללחוץ "סרוק מחדש" כדי שהשינוי יתעדכן.\n\nהאם להמשיך?':
         'A copy of the seforim is kept inside the app, so they keep working even if the original files are moved or deleted.\nThe original files stay where they are.\n\nNote: if you edit a file later, you will have to press "Rescan" for the change to show up.\n\nGo ahead?',
+    'עזור לנו להוסיף ספרים חדשים לספריית אוצריא':
+        'Help us add new seforim to the Otzaria library',
     'עיצוב כותרות': 'Mareh makom format',
     'עיר נבחרת': 'City',
     'עם הכולל': 'Im hakollel',
@@ -416,6 +446,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'תוספים מותקנים': 'Installed plugins',
     'תוצאות זהות יוצגו פעם אחת בלבד': 'Identical results show only once',
     'תוצאות חיפוש': 'Search results',
+    'תורמים': 'Contributors',
     'תיקיות אישיות יוצגו תחת קטגוריית "ספרים אישיים"':
         'Your folders show under the "My own seforim" category',
     'תיקייה ראשית': 'Main folder',
@@ -427,6 +458,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'תצוגת ספר בPDF': 'Sefer view for PDFs',
     'תצוגת ספרייה': 'Library view',
     'תצוגת רשימות הערות בפתיחה': 'How note lists appear when opened',
+    'תרמו מהונם ומזמנם': 'Gave of their money and their time',
     'תת-התיקיות של התיקייה הנבחרת ימוזגו לקטגוריות הראשיות לפי שם':
         'Subfolders of the chosen folder merge into the main categories by name',
   },
