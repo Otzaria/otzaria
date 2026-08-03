@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:equatable/equatable.dart';
+import 'package:otzaria/settings/l10n/settings_language.dart';
 import 'package:otzaria/theme/app_seed_colors.dart';
 
 class SettingsState extends Equatable {
@@ -70,6 +71,10 @@ class SettingsState extends Equatable {
 
   /// מזהי כלים מובנים שהמשתמש הצמיד לסרגל הניווט הראשי.
   final Set<String> builtInToolsPinnedToNavRail;
+
+  /// בחירת שפת מסך ההגדרות בלבד: קוד שפה, או `system` להתאמה אוטומטית.
+  /// אינה משפיעה על שאר האפליקציה. ראה [resolveSettingsLanguage].
+  final String settingsLanguageCode;
   final bool? _softwareAndBookUpdatesEnabled;
 
   const SettingsState({
@@ -119,6 +124,7 @@ class SettingsState extends Equatable {
     this.mergeUserBooksIntoLibrary = false,
     this.hiddenBuiltInToolIds = const <String>{},
     this.builtInToolsPinnedToNavRail = const <String>{},
+    this.settingsLanguageCode = kDefaultSettingsLanguageCode,
     this._softwareAndBookUpdatesEnabled,
   });
 
@@ -216,6 +222,7 @@ class SettingsState extends Equatable {
     bool? mergeUserBooksIntoLibrary,
     Set<String>? hiddenBuiltInToolIds,
     Set<String>? builtInToolsPinnedToNavRail,
+    String? settingsLanguageCode,
     bool? softwareAndBookUpdatesEnabled,
   }) {
     return SettingsState(
@@ -277,6 +284,7 @@ class SettingsState extends Equatable {
       hiddenBuiltInToolIds: hiddenBuiltInToolIds ?? this.hiddenBuiltInToolIds,
       builtInToolsPinnedToNavRail:
           builtInToolsPinnedToNavRail ?? this.builtInToolsPinnedToNavRail,
+      settingsLanguageCode: settingsLanguageCode ?? this.settingsLanguageCode,
       softwareAndBookUpdatesEnabled:
           softwareAndBookUpdatesEnabled ?? this.softwareAndBookUpdatesEnabled,
     );
@@ -336,6 +344,7 @@ class SettingsState extends Equatable {
     mergeUserBooksIntoLibrary,
     hiddenBuiltInToolIds,
     builtInToolsPinnedToNavRail,
+    settingsLanguageCode,
     softwareAndBookUpdatesEnabled,
   ];
 }

@@ -4,6 +4,7 @@ import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/settings/l10n/settings_language.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 
 class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
@@ -67,6 +68,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<ClearProtectedModePassword>(_onClearProtectedModePassword);
     on<UpdateHiddenBuiltInToolIds>(_onUpdateHiddenBuiltInToolIds);
     on<UpdateBuiltInToolsPinnedToNavRail>(_onUpdateBuiltInToolsPinnedToNavRail);
+    on<UpdateSettingsLanguageCode>(_onUpdateSettingsLanguageCode);
   }
 
   Future<void> _onLoadSettings(
@@ -139,8 +141,19 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         builtInToolsPinnedToNavRail:
             (settings['builtInToolsPinnedToNavRail'] as Set<String>?) ??
             <String>{},
+        settingsLanguageCode:
+            (settings['settingsLanguageCode'] as String?) ??
+            kDefaultSettingsLanguageCode,
       ),
     );
+  }
+
+  Future<void> _onUpdateSettingsLanguageCode(
+    UpdateSettingsLanguageCode event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateSettingsLanguageCode(event.settingsLanguageCode);
+    emit(state.copyWith(settingsLanguageCode: event.settingsLanguageCode));
   }
 
   Future<void> _onUpdateEnablePerBookSettings(

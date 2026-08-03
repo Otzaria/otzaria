@@ -9,6 +9,8 @@ import 'package:otzaria/settings/search/settings_search_index.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/search/settings_search_registry.dart';
 import 'package:otzaria/settings/search/settings_search_results_view.dart';
+import 'package:otzaria/settings/engine/settings_engine_exports.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/tabs/settings_tabs_exports.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/widgets/navigation/keyboard_navigator.dart';
@@ -297,6 +299,24 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // הכיווניות והשפה חלות על תת-העץ של ההגדרות בלבד; שאר האפליקציה
+    // נשארת RTL כי ה-locale הגלובלי אינו משתנה.
+    return BlocSelector<SettingsBloc, SettingsState, String>(
+      selector: (state) => state.settingsLanguageCode,
+      builder: (context, languageCode) {
+        final language = resolveSettingsLanguage(languageCode);
+        return Directionality(
+          textDirection: language.textDirection,
+          child: SettingsTextScope(
+            language: language,
+            child: Builder(builder: _buildContent),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     // panelBackground מוגדר ב-AppSurfaces ומשמש גם ספריה, כלים, והגדרות
     final bgColor = AppSurfaces.panelBackground(context);
@@ -323,10 +343,14 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                   appBar: AppBar(
                     backgroundColor: bgColor,
                     elevation: 0,
-                    title: Text(showResults ? 'תוצאות חיפוש' : 'הגדרות'),
+                    title: Text(
+                      context.settingsText(
+                        showResults ? 'תוצאות חיפוש' : 'הגדרות',
+                      ),
+                    ),
                     leading: showResults
                         ? Tooltip(
-                            message: 'חזור (Esc)',
+                            message: context.settingsText('חזור (Esc)'),
                             child: IconButton(
                               icon: const RtlIcon(
                                 FluentIcons.arrow_right_24_regular,
@@ -358,7 +382,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                                 children: [
                                   for (final group in _mobileGroups) ...[
                                     SettingsCard(
-                                      title: group.label,
+                                      title: context.settingsText(group.label),
                                       children: [
                                         for (final idx in group.indices)
                                           ListTile(
@@ -368,7 +392,9 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                                               color: colorScheme.primary,
                                             ),
                                             title: Text(
-                                              _tabsData[idx].label,
+                                              context.settingsText(
+                                                _tabsData[idx].label,
+                                              ),
                                             ),
                                             trailing: const RtlIcon(
                                               FluentIcons
@@ -406,12 +432,14 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                     backgroundColor: bgColor,
                     elevation: 0,
                     title: Text(
-                      isSearching
-                          ? 'תוצאות חיפוש'
-                          : _tabsData[_selectedIndex].label,
+                      context.settingsText(
+                        isSearching
+                            ? 'תוצאות חיפוש'
+                            : _tabsData[_selectedIndex].label,
+                      ),
                     ),
                     leading: Tooltip(
-                      message: 'חזור (Esc)',
+                      message: context.settingsText('חזור (Esc)'),
                       child: IconButton(
                         icon: const RtlIcon(FluentIcons.arrow_right_24_regular),
                         onPressed: _handleMobileBack,
@@ -488,7 +516,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                                 bottom: 20,
                               ),
                               child: Text(
-                                'הגדרות',
+                                context.settingsText('הגדרות'),
                                 style: Theme.of(context).textTheme.headlineSmall
                                     ?.copyWith(fontWeight: FontWeight.bold),
                               ),
@@ -500,7 +528,9 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                                   key: tourSettingsTabTargetKeys[index],
                                   icon: _tabsData[index].icon,
                                   iconFilled: _tabsData[index].iconFilled,
-                                  label: _tabsData[index].label,
+                                  label: context.settingsText(
+                                    _tabsData[index].label,
+                                  ),
                                   isSelected:
                                       !isSearching && _selectedIndex == index,
                                   onTap: () => _changeTab(index),
@@ -516,9 +546,11 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                     Expanded(
                       child: _SettingsContentPane(
                         key: ValueKey(_selectedIndex),
-                        label: isSearching
-                            ? 'תוצאות חיפוש'
-                            : _tabsData[_selectedIndex].label,
+                        label: context.settingsText(
+                          isSearching
+                              ? 'תוצאות חיפוש'
+                              : _tabsData[_selectedIndex].label,
+                        ),
                         bgColor: bgColor,
                         focusNode: _contentFocusNode,
                         scrollController: _contentScrollController,

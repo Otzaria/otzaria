@@ -488,7 +488,7 @@ class SettingsActionTile extends StatelessWidget {
 
   // בודק עם TextPainter אם הטקסט יגלוש כשה-actions יהיו ב-trailing.
   // אומדן שמרני לרוחב הactions כדי להטות לצד של Column (לא ידחוס את הטקסט).
-  bool _wouldTextOverflow(double containerWidth) {
+  bool _wouldTextOverflow(double containerWidth, TextDirection textDirection) {
     if (_rawTitle == null) return false;
     const iconAreaWidth = 56.0;
     const hPadding = 32.0;
@@ -505,7 +505,7 @@ class SettingsActionTile extends StatelessWidget {
 
     final titlePainter = TextPainter(
       text: TextSpan(text: _rawTitle, style: AppTextStyles.settingTitle),
-      textDirection: TextDirection.rtl,
+      textDirection: textDirection,
       maxLines: 1,
     )..layout(maxWidth: textWidth);
     if (titlePainter.didExceedMaxLines) return true;
@@ -574,7 +574,7 @@ class SettingsActionTile extends StatelessWidget {
     if (!responsiveActions) return _buildListTile();
     return LayoutBuilder(
       builder: (context, constraints) =>
-          _wouldTextOverflow(constraints.maxWidth)
+          _wouldTextOverflow(constraints.maxWidth, Directionality.of(context))
           ? _buildColumnLayout()
           : _buildListTile(),
     );
