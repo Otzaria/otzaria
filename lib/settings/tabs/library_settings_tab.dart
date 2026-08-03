@@ -344,7 +344,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
         await _applyLibraryRootChange(root);
       },
       requestChangeLocation: (_) => _openLibraryDialog(booksPath),
-      changeLocationLabel: context.settingsText('מתקדם'),
+      changeLocationLabel: 'מתקדם',
       onOpenFolder: () => _openInFileManager(rootPath),
       onOpenPath: _openInFileManager,
       pathTargets: [

@@ -1034,18 +1034,22 @@ class _PathMenuButtonState extends State<_PathMenuButton> {
     final entries = <AppMenuEntry<_PathMenuAction>>[
       AppMenuEntry(
         value: _PathMenuAction.openFolder,
-        label: hasTargets ? 'פתח תיקייה...' : 'פתח תיקייה',
+        label: context.settingsText(
+          hasTargets ? 'פתח תיקייה...' : 'פתח תיקייה',
+        ),
         icon: FluentIcons.folder_open_24_regular,
         enabled: hasPath || hasTargets,
       ),
       AppMenuEntry(
         value: _PathMenuAction.changeLocation,
-        label: widget.changeLocationLabel,
+        label: context.settingsText(widget.changeLocationLabel),
         icon: FluentIcons.folder_arrow_right_24_regular,
       ),
       AppMenuEntry(
         value: _PathMenuAction.copyPath,
-        label: hasTargets ? 'העתק נתיב...' : 'העתק נתיב',
+        label: context.settingsText(
+          hasTargets ? 'העתק נתיב...' : 'העתק נתיב',
+        ),
         icon: FluentIcons.copy_24_regular,
         enabled: hasPath || hasTargets,
       ),

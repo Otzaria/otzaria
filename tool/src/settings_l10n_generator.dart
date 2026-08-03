@@ -243,6 +243,7 @@ class SettingsTextUsage {
     required this.key,
     required this.hebrew,
     required this.file,
+    this.context,
   });
 
   /// המפתח המלא בקטלוג, כולל סיומת הקשר אם יש.
@@ -252,6 +253,9 @@ class SettingsTextUsage {
   final String hebrew;
 
   final String file;
+
+  /// ההקשר שנמסר ל-`settingsText`, אם נמסר.
+  final String? context;
 }
 
 /// סורק את `lib/settings/` ומחזיר את כל המפתחות שנמסרו ל-`settingsText`.
@@ -268,29 +272,70 @@ List<SettingsTextUsage> scanSettingsTextUsages(Directory packageRoot) {
     if (entity is! File || !entity.path.endsWith('.dart')) continue;
     if (entity.path.endsWith('.g.dart')) continue;
 
+    usages.addAll(
+      _usagesIn(
+        _stripComments(entity.readAsStringSync()),
+        entity.path
+            .replaceFirst(packageRoot.path, '')
+            .replaceFirst(RegExp(r'^[/\\]'), ''),
+      ),
+    );
+  }
+  return usages;
+}
+
+/// סורק את `lib/settings/` ומחזיר את מפתחות התוויות של [SegmentOption].
+///
+/// תווית סגמנט מוצגת ב-`FittedBox`, ולכן תרגום ארוך מוקטן ונראה שונה משכניו.
+List<SettingsTextUsage> scanSegmentOptionKeys(Directory packageRoot) {
+  final root = Directory.fromUri(
+    packageRoot.uri.resolve('$l10nScanRootRelativePath/'),
+  );
+  final usages = <SettingsTextUsage>[];
+
+  for (final entity in root.listSync(recursive: true)) {
+    if (entity is! File || !entity.path.endsWith('.dart')) continue;
+    if (entity.path.endsWith('.g.dart')) continue;
+
     final source = _stripComments(entity.readAsStringSync());
     final relativePath = entity.path
         .replaceFirst(packageRoot.path, '')
         .replaceFirst(RegExp(r'^[/\\]'), '');
 
-    for (final match in RegExp(r'settingsText\s*\(').allMatches(source)) {
-      final argsStart = match.end - 1;
-      final argsText = _extractBalancedParens(source, argsStart);
+    for (final match in RegExp(
+      r'SegmentOption(?:<[^>]*>)?\s*\(',
+    ).allMatches(source)) {
+      final argsText = _extractBalancedParens(source, match.end - 1);
       if (argsText == null) continue;
-
-      final parts = _splitTopLevelArgs(argsText);
-      if (parts.isEmpty) continue;
-
-      final contextValue = _namedArgLiteral(parts, 'context');
-      for (final hebrew in _stringLiterals(parts.first)) {
-        usages.add(
-          SettingsTextUsage(
-            key: contextValue == null ? hebrew : '$hebrew|$contextValue',
-            hebrew: hebrew,
-            file: relativePath,
-          ),
-        );
+      for (final part in _splitTopLevelArgs(argsText)) {
+        if (!part.trimLeft().startsWith('label:')) continue;
+        usages.addAll(_usagesIn(part, relativePath));
       }
+    }
+  }
+  return usages;
+}
+
+/// מחלץ את כל הקריאות ל-`settingsText` מתוך [source] שכבר נוקה מהערות.
+List<SettingsTextUsage> _usagesIn(String source, String file) {
+  final usages = <SettingsTextUsage>[];
+  for (final match in RegExp(r'settingsText\s*\(').allMatches(source)) {
+    final argsText = _extractBalancedParens(source, match.end - 1);
+    if (argsText == null) continue;
+
+    final parts = _splitTopLevelArgs(argsText);
+    if (parts.isEmpty) continue;
+
+    final contextValue = _namedArgLiteral(parts, 'context');
+    for (final hebrew in _stringLiterals(parts.first)) {
+      usages.add(
+        SettingsTextUsage(
+          key: contextValue == null ? hebrew : '$hebrew|$contextValue',
+          hebrew: hebrew,
+          file: file,
+          context: contextValue,
+        ),
+      );
     }
   }
   return usages;

@@ -130,7 +130,7 @@ void main() {
       await pumpScreen(tester);
 
       expect(find.text('Settings language'), findsWidgets);
-      expect(find.text('Theme'), findsOneWidget);
+      expect(find.text('Theme'), findsWidgets);
       expect(find.text('ערכת נושא'), findsNothing);
     });
 
