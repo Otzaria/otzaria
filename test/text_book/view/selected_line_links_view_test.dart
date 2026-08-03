@@ -262,6 +262,74 @@ void main() {
     });
   });
 
+  group('dedupeLinksByTarget', () {
+    Link linkTo({
+      required String title,
+      int index1 = 1,
+      int index2 = 372,
+      String type = 'reference',
+      int? index2End,
+    }) => Link(
+      heRef: 'הפניה',
+      index1: index1,
+      path2: '/books/$title.txt',
+      index2: index2,
+      index2End: index2End,
+      connectionType: type,
+    );
+
+    test('אותו קטע-יעד מכמה שורות מקור ממוזג לפריט אחד', () {
+      final deduped = dedupeLinksByTarget([
+        linkTo(title: 'אוצר מדרשים', index1: 91),
+        linkTo(title: 'אוצר מדרשים', index1: 94),
+        linkTo(title: 'אוצר מדרשים', index1: 98),
+      ]);
+
+      expect(deduped, hasLength(1));
+      expect(deduped.single.index1, 91);
+    });
+
+    test('קטעי יעד שונים באותו ספר נשארים בנפרד', () {
+      final deduped = dedupeLinksByTarget([
+        linkTo(title: 'אוצר מדרשים', index2: 372),
+        linkTo(title: 'אוצר מדרשים', index2: 5473),
+      ]);
+
+      expect(deduped, hasLength(2));
+    });
+
+    test('אותו קטע-יעד בסוגי חיבור שונים אינו ממוזג', () {
+      final deduped = dedupeLinksByTarget([
+        linkTo(title: 'ראשונים א', type: 'QUOTATION'),
+        linkTo(title: 'ראשונים א', type: 'EIN_MISHPAT'),
+      ]);
+
+      expect(deduped, hasLength(2));
+    });
+
+    test('קישור-טווח נפרד מקישור לשורה בודדת באותו קטע', () {
+      final deduped = dedupeLinksByTarget([
+        linkTo(title: 'ראשונים א'),
+        linkTo(title: 'ראשונים א', index2End: 375),
+      ]);
+
+      expect(deduped, hasLength(2));
+    });
+
+    test('הסדר הנתון נשמר', () {
+      final deduped = dedupeLinksByTarget([
+        linkTo(title: 'ב'),
+        linkTo(title: 'א'),
+        linkTo(title: 'ב', index1: 2),
+      ]);
+
+      expect(
+        deduped.map((link) => link.path2),
+        ['/books/ב.txt', '/books/א.txt'],
+      );
+    });
+  });
+
   group('buildLinkChipKeys', () {
     setUp(_seedEras);
     tearDown(CommentaryService.clearEraCache);
@@ -1016,6 +1084,24 @@ void main() {
 
       expect(find.text('ראשונים א'), findsOneWidget);
       expect(find.text('ראשונים ב'), findsOneWidget);
+    });
+
+    testWidgets('אותו קטע-יעד המקושר מכמה שורות מוצג פריט אחד', (tester) async {
+      Link fromLine(int index1) => Link(
+        heRef: 'הפניה ראשונים א',
+        index1: index1,
+        path2: '/books/ראשונים א.txt',
+        index2: 372,
+        connectionType: 'REFERENCE',
+      );
+
+      await _pumpView(
+        tester,
+        links: [fromLine(91), fromLine(94), fromLine(98)],
+      );
+
+      expect(find.text('ראשונים א'), findsOneWidget);
+      expect(find.byType(ExpansionTile), findsOneWidget);
     });
 
     testWidgets('סינון לפי צ׳יפ סוג מציג רק את הסוג הנבחר', (tester) async {

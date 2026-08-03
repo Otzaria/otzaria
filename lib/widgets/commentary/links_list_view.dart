@@ -68,6 +68,24 @@ String buildSelectedLinkInstanceKey(Link link) {
   return '${link.path2}_${link.index1}_${link.index2}_${link.index2End ?? ''}_${link.heRef}_${link.start}_${link.end}_${link.connectionType}_$target';
 }
 
+/// זהות פריט התצוגה — [buildSelectedLinkInstanceKey] בלי שורת המקור (index1).
+@visibleForTesting
+String buildSelectedLinkTargetKey(Link link) {
+  final target =
+      '${link.targetIsUserBook ? 'u' : 'o'}_${link.targetCategoryId ?? ''}';
+  return '${link.path2}_${link.index2}_${link.index2End ?? ''}_${link.start}_${link.end}_${link.connectionType}_$target';
+}
+
+/// מסיר קישורים כפולים לאותו קטע-יעד. הקטע המוצג פורש כמה שורות מקור, ואותו
+/// קטע-יעד מקושר לעיתים מכמה מהן — בלי המיזוג הוא מופיע ברשימה כמה פעמים.
+@visibleForTesting
+List<Link> dedupeLinksByTarget(List<Link> links) {
+  final seen = <String>{};
+  return links
+      .where((link) => seen.add(buildSelectedLinkTargetKey(link)))
+      .toList();
+}
+
 @visibleForTesting
 String buildSelectedLinksSearchKey({
   required String searchQuery,
@@ -339,7 +357,7 @@ class _LinksListViewState extends State<LinksListView> {
 
   @override
   Widget build(BuildContext context) {
-    final links = widget.links;
+    final links = dedupeLinksByTarget(widget.links);
     final openBookTitle = widget.openBookTitle;
     final chipKeys = _chipKeysFor(widget.chipSourceLinks, openBookTitle);
     final effectiveTypes = effectiveSelectedLinkTypes(
@@ -431,7 +449,9 @@ class _LinksListViewState extends State<LinksListView> {
                   if (chipAxes.eras.isNotEmpty && chipAxes.types.isNotEmpty)
                     const VerticalDivider(
                       key: chipAxesDividerKey,
-                      width: 1,
+                      // width הוא הרוחב הכולל והקו מצויר במרכזו — כך נוצר
+                      // ריווח משני צדיו וצ׳יפ בקצה הציר אינו נצמד אליו.
+                      width: AppTokens.spaceSM * 2 + 1,
                       thickness: 1,
                       indent: AppTokens.spaceXS,
                       endIndent: AppTokens.spaceXS,
@@ -597,26 +617,23 @@ class _LinksListViewState extends State<LinksListView> {
       _filteredLinksFuture = _filterLinksAsync(typeFilteredLinks);
     }
 
-    return Container(
-      color: Theme.of(context).colorScheme.surface,
-      child: AppFutureBuilder<List<Link>>(
-        future: _filteredLinksFuture,
-        builder: (context, data) {
-          final filteredLinks = data;
-          if (filteredLinks.isEmpty) {
-            return _buildEmptyMessage('לא נמצאו קישורים התואמים לחיפוש');
-          }
+    return AppFutureBuilder<List<Link>>(
+      future: _filteredLinksFuture,
+      builder: (context, data) {
+        final filteredLinks = data;
+        if (filteredLinks.isEmpty) {
+          return _buildEmptyMessage('לא נמצאו קישורים התואמים לחיפוש');
+        }
 
-          return ListView.builder(
-            controller: _scrollController,
-            itemCount: filteredLinks.length,
-            itemBuilder: (context, index) {
-              final link = filteredLinks[index];
-              return _buildExpansionTile(link);
-            },
-          );
-        },
-      ),
+        return ListView.builder(
+          controller: _scrollController,
+          itemCount: filteredLinks.length,
+          itemBuilder: (context, index) {
+            final link = filteredLinks[index];
+            return _buildExpansionTile(link);
+          },
+        );
+      },
     );
   }
 
@@ -719,8 +736,6 @@ class _LinksListViewState extends State<LinksListView> {
           color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
       title: BlocBuilder<SettingsBloc, SettingsState>(
         builder: (context, settingsState) {
           String displayTitle = utils.getTitleFromPath(link.path2);
