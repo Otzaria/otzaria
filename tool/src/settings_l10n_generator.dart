@@ -10,7 +10,10 @@ import 'dart:io';
 const String l10nDirRelativePath = 'lib/settings/l10n';
 const String l10nOutputRelativePath =
     'lib/settings/l10n/settings_catalogs.g.dart';
-const String l10nScanRootRelativePath = 'lib/settings';
+
+/// כל `lib/` ולא רק `lib/settings` — הקטלוג משרת גם את סרגל הניווט ופס
+/// הכותרת, וקריאה ל-`settingsText` בכל מקום חייבת תרגום.
+const String l10nScanRootRelativePath = 'lib';
 
 /// שפת המקור: הטקסטים בקוד כתובים בה ומשמשים כמפתח, ולכן אין לה קובץ ARB.
 const String sourceLanguageCode = 'he';

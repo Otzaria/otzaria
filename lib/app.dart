@@ -63,7 +63,16 @@ class App extends StatelessWidget {
               ? ThemeMode.system
               : (state.isDarkMode ? ThemeMode.dark : ThemeMode.light),
           builder: (context, child) {
-            Widget content = child ?? const SizedBox.shrink();
+            // שפת ההגדרות זמינה לכל האפליקציה כדי שגם סרגל הניווט ופס
+            // הכותרת יתורגמו. הכיווניות נשארת RTL — רק מסך ההגדרות עובר
+            // ל-LTR מקומית.
+            Widget content = BlocSelector<SettingsBloc, SettingsState, String>(
+              selector: (state) => state.settingsLanguageCode,
+              builder: (context, languageCode) => SettingsTextScope(
+                language: resolveSettingsLanguage(languageCode),
+                child: child ?? const SizedBox.shrink(),
+              ),
+            );
 
             // קביעת צבע אייקוני פס הסטטוס לפי התמה הפעילה.
             // האפליקציה אינה משתמשת ב-AppBar רגיל, ולכן systemOverlayStyle

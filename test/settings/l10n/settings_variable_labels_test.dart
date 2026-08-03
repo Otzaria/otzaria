@@ -39,6 +39,40 @@ void main() {
     });
   });
 
+  group('סרגל הניווט ופס הכותרת', () {
+    // `_navData` פרטי ל-State, ולכן הרשימה כאן מפורשת — והבדיקה שאחריה
+    // מאמתת שהיא עדיין מכסה אותו, כדי שפריט ניווט חדש לא יישאר בעברית.
+    const navLabels = [
+      'ספרייה',
+      'איתור',
+      'עיון',
+      'חיפוש',
+      'כלים',
+      'הגדרות',
+    ];
+
+    test('כל תווית ניווט מתורגמת', () {
+      for (final label in [...navLabels, 'אוצריא']) {
+        expect(catalog, contains(label), reason: label);
+      }
+    });
+
+    test('הרשימה כאן מכסה את _navData', () {
+      final source = File(
+        'lib/navigation/view/main_window_screen.dart',
+      ).readAsStringSync();
+      final block = RegExp(
+        r'static const _navData = \[(.*?)\n  \];',
+        dotAll: true,
+      ).firstMatch(source);
+      expect(block, isNotNull, reason: '_navData לא נמצא — עדכן את הבדיקה');
+      final labels = RegExp(
+        r"label: '([^']*)'",
+      ).allMatches(block!.group(1)!).map((m) => m.group(1)!).toList();
+      expect(labels, navLabels);
+    });
+  });
+
   group('אורך תוויות בפקד סגמנטד', () {
     // AppSegmentedControl עוטף כל תווית ב-FittedBox, שמקטין אותה בנפרד.
     // תרגום ארוך מוצג לכן בגופן קטן משכניו, כפי שקרה ל"שם וכותרת".
