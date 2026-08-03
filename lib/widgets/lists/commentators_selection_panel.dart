@@ -408,7 +408,9 @@ class _CommentatorsSelectionPanelState
             if (types.isNotEmpty) ...[
               const VerticalDivider(
                 key: commentatorChipAxesDividerKey,
-                width: 1,
+                // width הוא הרוחב הכולל והקו מצויר במרכזו — כך נוצר ריווח
+                // משני צדיו וצ׳יפ בקצה הציר אינו נצמד אליו.
+                width: AppTokens.spaceSM * 2 + 1,
                 thickness: 1,
                 indent: AppTokens.spaceXS,
                 endIndent: AppTokens.spaceXS,
