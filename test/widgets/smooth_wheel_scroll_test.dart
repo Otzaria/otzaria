@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -115,6 +117,31 @@ void main() {
       expect(offset(), closeTo(_notch, 0.01));
     });
 
+    // מלכודת: דעיכה מונחת-מרחק נותנת את המהירות המקסימלית בפריים הראשון —
+    // נמדד 44 מתוך 100 פיקסלים בפריים אחד, וזו בדיוק הקפיצה שיש להחליק.
+    testWidgets('התנועה מאיצה ואז מאטה — הפריים הראשון אינו הגדול', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildList());
+      await tester.pumpAndSettle();
+
+      final steps = <double>[];
+      var previous = offset();
+      wheel(tester);
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        final current = offset();
+        steps.add(current - previous);
+        previous = current;
+      }
+
+      final peak = steps.reduce(math.max);
+      final peakIndex = steps.indexOf(peak);
+      expect(peakIndex, greaterThan(0), reason: 'שיא בפריים הראשון = קפיצה');
+      expect(steps.first, lessThan(peak * 0.75));
+      expect(steps.last, lessThan(peak), reason: 'הסיום חייב להאט');
+    });
+
     testWidgets('התנועה מונוטונית — אין ריצוד או חזרה אחורה', (tester) async {
       await tester.pumpWidget(buildList());
       await tester.pumpAndSettle();
@@ -205,6 +232,126 @@ void main() {
 
       expect(offset(), closeTo(_notch * 3, 0.01));
     });
+
+    // מלכודת: מהירות שנשמרת בין פריימים דוחפת צעד לכיוון הקודם אחרי
+    // שהמשתמש הפך כיוון — נמדד +30 פיקסלים למטה אחרי גלילה למעלה.
+    testWidgets('היפוך אחרי שנצברה מהירות אינו זז לכיוון הקודם', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildList());
+      await tester.pumpAndSettle();
+
+      for (var n = 0; n < 8; n++) {
+        wheel(tester);
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      for (var n = 0; n < 5; n++) {
+        wheel(tester, dy: -_notch);
+      }
+
+      var previous = offset();
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        final current = offset();
+        expect(
+          current,
+          lessThanOrEqualTo(previous + 0.01),
+          reason: 'תזוזה למטה בפריים $i אחרי היפוך למעלה',
+        );
+        previous = current;
+      }
+    });
+  });
+
+  // מלכודת: ScrollablePositionedList מחשב minScrollExtent כאומדן מגבהי הפריטים
+  // שכרגע בזיכרון, ובגבהים משתנים האומדן מתנדנד בכל פריים. מי שמפרש נדנוד
+  // כהחלפת עוגן ומבטל את ההחלקה איבד 68% מהגלילה — הספר נראה קפיצי.
+  group('גבהים משתנים', () {
+    // 40..190 — פיזור כמו שורות בספר אמיתי.
+    double heightOf(int index) => _itemHeight + (index % 7) * 25.0;
+
+    double absoluteOffset(ItemPosition first) {
+      var top = 0.0;
+      for (var i = 0; i < first.index; i++) {
+        top += heightOf(i);
+      }
+      return top - first.itemLeadingEdge * _viewportHeight;
+    }
+
+    Widget buildVariedList({
+      bool Function(ScrollNotification)? onNotification,
+    }) {
+      positions = ItemPositionsListener.create();
+      Widget scrollable = SmoothWheelScroll(
+        child: ScrollablePositionedList.builder(
+          initialScrollIndex: 250,
+          itemPositionsListener: positions,
+          itemCount: _itemCount,
+          itemBuilder: (context, index) => SizedBox(
+            height: heightOf(index),
+            child: Text('שורה $index'),
+          ),
+        ),
+      );
+      if (onNotification != null) {
+        scrollable = NotificationListener<ScrollNotification>(
+          onNotification: onNotification,
+          child: scrollable,
+        );
+      }
+      return MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: _viewportHeight,
+            width: 400,
+            child: scrollable,
+          ),
+        ),
+      );
+    }
+
+    double variedOffset() => absoluteOffset(
+      positions.itemPositions.value.reduce((a, b) => a.index < b.index ? a : b),
+    );
+
+    testWidgets('שלושים נקישות גוללות את כל המרחק', (tester) async {
+      await tester.pumpWidget(buildVariedList());
+      await tester.pumpAndSettle();
+      final start = variedOffset();
+
+      for (var n = 0; n < 30; n++) {
+        wheel(tester);
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await tester.pumpAndSettle();
+
+      expect(variedOffset() - start, closeTo(_notch * 30, 1.0));
+    });
+
+    testWidgets('הגלילה נשארת פעילות אחת ואינה נקטעת באמצע', (tester) async {
+      var starts = 0;
+      var ends = 0;
+      await tester.pumpWidget(
+        buildVariedList(
+          onNotification: (notification) {
+            if (notification.depth != 0) return false;
+            if (notification is ScrollStartNotification) starts++;
+            if (notification is ScrollEndNotification) ends++;
+            return false;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      for (var n = 0; n < 30; n++) {
+        wheel(tester);
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await tester.pumpAndSettle();
+
+      expect(starts, 1);
+      expect(ends, 1);
+    });
   });
 
   group('קצות הרשימה', () {
@@ -216,6 +363,24 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(offset(), 0.0);
+    });
+
+    // מלכודת: היעד המצטבר נחתך לקצה לפני שהמיקום הגיע לשם. מי שבודק רק את
+    // היעד דוחה את הנקישות הבאות, הן חוזרות לקפיצה גולמית של Flutter,
+    // וההחלקה נהרגת עם יתרת הדרך — נמדד: עצירה 200 פיקסלים לפני הראש.
+    testWidgets('נקישות עודפות לקראת הראש נוחתות עליו בדיוק', (tester) async {
+      await tester.pumpWidget(buildList());
+      await tester.pumpAndSettle();
+      itemController.jumpTo(index: 25);
+      await tester.pumpAndSettle();
+
+      for (var n = 0; n < 11; n++) {
+        wheel(tester, dy: -_notch);
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await tester.pumpAndSettle();
+
+      expect(offset(), closeTo(0.0, 0.01));
     });
 
     testWidgets('בסוף הרשימה נעצר בקצה בלי חריגה', (tester) async {
