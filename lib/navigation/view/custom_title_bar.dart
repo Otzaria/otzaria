@@ -400,7 +400,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
             category == null || identical(category, libraryState.library);
         return _buildPanelTitle(
           context,
-          'ספריה',
+          // הקשר 'titleBar' — כאן זה שם המסך ("Library" כמו בסרגל), ולא
+          // לשונית ההגדרות שמתורגמת "Seforim Library".
+          context.settingsText('ספריה', context: 'titleBar'),
           subtitle: isRoot ? null : category.title,
         );
       },

@@ -52,9 +52,18 @@ void main() {
     ];
 
     test('כל תווית ניווט מתורגמת', () {
-      for (final label in [...navLabels, 'אוצריא']) {
+      for (final label in navLabels) {
         expect(catalog, contains(label), reason: label);
       }
+    });
+
+    // שמות המסכים בפס הכותרת. 'ספריה' שם הוא שם המסך, ולכן הקשר נפרד
+    // מלשונית ההגדרות שנושאת את אותה מילה.
+    test('שמות המסכים בפס הכותרת מתורגמים', () {
+      for (final key in ['אוצריא', 'ספריה|titleBar']) {
+        expect(catalog, contains(key), reason: key);
+      }
+      expect(catalog['ספריה|titleBar'], catalog['ספרייה']);
     });
 
     test('הרשימה כאן מכסה את _navData', () {

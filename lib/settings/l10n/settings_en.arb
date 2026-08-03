@@ -11,6 +11,7 @@
   "מראה": "Appearance",
   "כתב": "Text",
   "ספריה": "Seforim Library",
+  "ספריה|titleBar": "Library",
   "כלים": "Tools",
   "קיצורי מקשים": "Keyboard shortcuts",
   "מערכת": "System",
@@ -50,7 +51,7 @@
   "התוכנה תשתמש בצבעים כהים": "The app will use dark colors",
 
   "תצוגה": "Display",
-  "צפיפות ממשק": "density",
+  "צפיפות ממשק": "Toolbar Density",
   "רגיל": "Normal",
   "הצג פריטים במרווחים נוחים ללחיצה": "Show items with comfortable spacing",
   "מצומצם": "Compact",
