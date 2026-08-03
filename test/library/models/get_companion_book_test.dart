@@ -105,4 +105,253 @@ void main() {
       expect(library.getCompanionBook(sourceText, PdfBook), same(bavliPdf));
     });
   });
+
+  // תיקיית ספרים אישיים בעלת אותם שמות (למשל "תלמוד בבלי" שהורדה מתוסף
+  // הורדת מאגר) הפכה את הבחירה לתלוית סדר העץ: המהדורה האישית נבחרה,
+  // הסימניות שלה לא התאימו לתוכן העניינים, וה-PDF נפתח בעמוד הראשון.
+  group('Library.getCompanionBook — מקור הספר', () {
+    test('בחיפוש גלובלי — מעדיף מהדורה מובנית על ספר אישי בשם זהה', () {
+      final bavli = _category('תלמוד בבלי');
+      final seder = _category('סדר זרעים', parent: bavli);
+      final userRoot = _category('אישיים');
+      final userBavli = _category('תלמוד בבלי', parent: userRoot);
+
+      final sourceText = TextBook(title: 'ברכות', category: seder);
+      final builtInPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\otzaria\תלמוד בבלי\ברכות.pdf',
+        category: bavli,
+      );
+      final userPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\אישיים\תלמוד בבלי\ברכות.pdf',
+        category: userBavli,
+        isUserBook: true,
+      );
+      seder.books.add(sourceText);
+      bavli.books.add(builtInPdf);
+      userBavli.books.add(userPdf);
+
+      // האישי ראשון בעץ — בלי העדפת המקור הוא היה נבחר.
+      final library = Library(categories: [userRoot, bavli]);
+
+      expect(library.getCompanionBook(sourceText, PdfBook), same(builtInPdf));
+    });
+
+    test('אין מהדורה מובנית — ספר אישי בעל שם זהה כן מוחזר', () {
+      final bavli = _category('תלמוד בבלי');
+      final seder = _category('סדר זרעים', parent: bavli);
+      final userRoot = _category('אישיים');
+
+      final sourceText = TextBook(title: 'ברכות', category: seder);
+      final userPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\אישיים\ברכות.pdf',
+        category: userRoot,
+        isUserBook: true,
+      );
+      seder.books.add(sourceText);
+      userRoot.books.add(userPdf);
+
+      final library = Library(categories: [bavli, userRoot]);
+
+      expect(library.getCompanionBook(sourceText, PdfBook), same(userPdf));
+    });
+
+    test('ספר מקור אישי — מעדיף מלווה אישי על המובנה בקטגוריה אחרת', () {
+      final bavli = _category('תלמוד בבלי');
+      final userRoot = _category('אישיים');
+      final userBavli = _category('תלמוד בבלי', parent: userRoot);
+
+      final sourceText = TextBook(
+        title: 'ברכות',
+        category: userRoot,
+        isUserBook: true,
+      );
+      final builtInPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\otzaria\תלמוד בבלי\ברכות.pdf',
+        category: bavli,
+      );
+      final userPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\אישיים\תלמוד בבלי\ברכות.pdf',
+        category: userBavli,
+        isUserBook: true,
+      );
+      userRoot.books.add(sourceText);
+      bavli.books.add(builtInPdf);
+      userBavli.books.add(userPdf);
+
+      // המובנה ראשון בעץ — בלי העדפת המקור הוא היה נבחר.
+      final library = Library(categories: [bavli, userRoot]);
+
+      expect(library.getCompanionBook(sourceText, PdfBook), same(userPdf));
+    });
+
+    test('מועמד באותה קטגוריה קודם למועמד מאותו מקור בקטגוריה אחרת', () {
+      final bavli = _category('תלמוד בבלי');
+      final seder = _category('סדר זרעים', parent: bavli);
+      final other = _category('אחר');
+
+      final sourceText = TextBook(title: 'ברכות', category: seder);
+      final userPdfSameCategory = PdfBook(
+        title: 'ברכות',
+        path: r'C:\אישיים\ברכות.pdf',
+        category: seder,
+        isUserBook: true,
+      );
+      final builtInPdfElsewhere = PdfBook(
+        title: 'ברכות',
+        path: r'C:\otzaria\אחר\ברכות.pdf',
+        category: other,
+      );
+      seder.books.addAll([sourceText, userPdfSameCategory]);
+      other.books.add(builtInPdfElsewhere);
+
+      final library = Library(categories: [bavli, other]);
+
+      expect(
+        library.getCompanionBook(sourceText, PdfBook),
+        same(userPdfSameCategory),
+      );
+    });
+
+    test('שני מועמדים אישיים באותה קטגוריה — מוותר ולא מנחש', () {
+      final bavli = _category('תלמוד בבלי');
+      final seder = _category('סדר זרעים', parent: bavli);
+
+      final sourceText = TextBook(title: 'ברכות', category: seder);
+      final userPdfA = PdfBook(
+        title: 'ברכות',
+        path: r'C:\אישיים\א\ברכות.pdf',
+        category: seder,
+        isUserBook: true,
+      );
+      final userPdfB = PdfBook(
+        title: 'ברכות',
+        path: r'C:\אישיים\ב\ברכות.pdf',
+        category: seder,
+        isUserBook: true,
+      );
+      seder.books.addAll([sourceText, userPdfA, userPdfB]);
+
+      final library = Library(categories: [bavli]);
+
+      expect(library.getCompanionBook(sourceText, PdfBook), isNull);
+    });
+
+    test('מובנה ואישי באותה קטגוריה — מחזיר את המובנה ולא מוותר', () {
+      final bavli = _category('תלמוד בבלי');
+      final seder = _category('סדר זרעים', parent: bavli);
+
+      final sourceText = TextBook(title: 'ברכות', category: seder);
+      final userPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\אישיים\ברכות.pdf',
+        category: seder,
+        isUserBook: true,
+      );
+      final builtInPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\otzaria\ברכות.pdf',
+        category: seder,
+      );
+      seder.books.addAll([sourceText, userPdf, builtInPdf]);
+
+      final library = Library(categories: [bavli]);
+
+      expect(library.getCompanionBook(sourceText, PdfBook), same(builtInPdf));
+    });
+
+    // הבסיס לאבחון: הודעת הכשל בפתיחת PDF מבחינה בין "אין מיקום תואם" לבין
+    // כפילות שם, לפי מספר המהדורות שמוחזר כאן.
+    test('getCompanionBooks מחזיר את כל המהדורות בעלות אותו שם', () {
+      final bavli = _category('תלמוד בבלי');
+      final seder = _category('סדר זרעים', parent: bavli);
+      final userRoot = _category('אישיים');
+
+      final sourceText = TextBook(title: 'ברכות', category: seder);
+      final builtInPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\otzaria\תלמוד בבלי\ברכות.pdf',
+        category: bavli,
+      );
+      final userPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\אישיים\ברכות.pdf',
+        category: userRoot,
+        isUserBook: true,
+      );
+      seder.books.add(sourceText);
+      bavli.books.add(builtInPdf);
+      userRoot.books.add(userPdf);
+
+      final library = Library(categories: [bavli, userRoot]);
+
+      expect(library.getCompanionBooks(sourceText, PdfBook), [
+        builtInPdf,
+        userPdf,
+      ]);
+      // מהדורה יחידה אינה כפילות.
+      expect(library.getCompanionBooks(builtInPdf, TextBook), [sourceText]);
+    });
+
+    test('getCompanionBooks מסנן התנגשות בבלי/ירושלמי', () {
+      final bavli = _category('תלמוד בבלי');
+      final bavliSeder = _category('סדר זרעים', parent: bavli);
+      final yerushalmi = _category('תלמוד ירושלמי');
+
+      final sourceText = TextBook(
+        title: 'ברכות',
+        category: bavliSeder,
+        categoryPath: 'תלמוד בבלי, סדר זרעים',
+      );
+      final bavliPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\תלמוד בבלי\ברכות.pdf',
+        category: bavli,
+      );
+      final yerushalmiPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\תלמוד ירושלמי\ברכות.pdf',
+        category: yerushalmi,
+        categoryPath: 'תלמוד ירושלמי',
+      );
+      bavliSeder.books.add(sourceText);
+      bavli.books.add(bavliPdf);
+      yerushalmi.books.add(yerushalmiPdf);
+
+      final library = Library(categories: [bavli, yerushalmi]);
+
+      // הירושלמי אינו מהדורה נוספת של הבבלי, ולכן אינו כפילות.
+      expect(library.getCompanionBooks(sourceText, PdfBook), [bavliPdf]);
+    });
+
+    test('ספר מקטלוג חיצוני — לא נבחר עבור ספר מקומי בשם זהה', () {
+      final bavli = _category('תלמוד בבלי');
+      final seder = _category('סדר זרעים', parent: bavli);
+      final externalRoot = _category('קטלוג חיצוני');
+
+      final sourceText = TextBook(title: 'ברכות', category: seder);
+      final externalPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\external\ברכות.pdf',
+        category: externalRoot,
+        externalLibraryId: 'hebrewbooks',
+      );
+      final builtInPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\otzaria\תלמוד בבלי\ברכות.pdf',
+        category: bavli,
+      );
+      seder.books.add(sourceText);
+      externalRoot.books.add(externalPdf);
+      bavli.books.add(builtInPdf);
+
+      final library = Library(categories: [externalRoot, bavli]);
+
+      expect(library.getCompanionBook(sourceText, PdfBook), same(builtInPdf));
+    });
+  });
 }

@@ -2514,10 +2514,16 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     final currentIndex = _topmostVisibleSourceLine(state);
     widget.tab.index = currentIndex;
 
-    final index = await textToPdfPage(state.book, currentIndex);
-
+    final index = await textToPdfPage(
+      state.book,
+      currentIndex,
+      pdfBook: _pdfBook is PdfBook ? _pdfBook as PdfBook : null,
+    );
     if (!context.mounted) return;
 
+    if (index == null) {
+      UiSnack.show(TextBookMessages.pdfLocationNotFoundOpeningAtStart);
+    }
     openBook(
       context,
       _pdfBook!,
@@ -3262,13 +3268,19 @@ void _togglePdfView(
     return;
   }
 
+  // אותו מופע שנפתח הוא זה שלפיו מחושב המיפוי — אחרת שני PDF באותה כותרת
+  // היו נותנים מיפוי של האחד ופתיחה של האחר.
   final index = await textToPdfPage(
     state.book,
     currentIndex,
+    pdfBook: book is PdfBook ? book : null,
   );
 
   if (!context.mounted) return;
 
+  if (index == null) {
+    UiSnack.show(TextBookMessages.pdfLocationNotFoundOpeningAtStart);
+  }
   openBook(
     context,
     book,

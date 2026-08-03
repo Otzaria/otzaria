@@ -56,12 +56,89 @@ class PageMap {
 
 /// Normalizes a ref string for comparison (collapses whitespace, strips
 /// characters that differ only in punctuation style, lowercases).
+///
+/// Dashes are folded to ASCII `-` first: stripping a maqaf or en-dash instead
+/// would glue "דף כב־א" into "דף כבא" and read it as daf 23.
 String normalizeRef(String s) {
   return s
+      .replaceAll(RegExp(r'[־‐-―]'), '-')
       .replaceAll(RegExp(r'\s+'), ' ')
       .replaceAll(RegExp(r'[^\p{L}\p{N}\s/.-]', unicode: true), '')
       .toLowerCase()
       .trim();
+}
+
+/// ערכי אותיות הגימטריה (כולל אותיות סופיות).
+const _hebrewNumeralValues = <String, int>{
+  'א': 1,
+  'ב': 2,
+  'ג': 3,
+  'ד': 4,
+  'ה': 5,
+  'ו': 6,
+  'ז': 7,
+  'ח': 8,
+  'ט': 9,
+  'י': 10,
+  'כ': 20,
+  'ך': 20,
+  'ל': 30,
+  'מ': 40,
+  'ם': 40,
+  'נ': 50,
+  'ן': 50,
+  'ס': 60,
+  'ע': 70,
+  'פ': 80,
+  'ף': 80,
+  'צ': 90,
+  'ץ': 90,
+  'ק': 100,
+  'ר': 200,
+  'ש': 300,
+  'ת': 400,
+};
+
+/// ערך הגימטריה של [letters], או null אם אינו מספר עברי תקין.
+///
+/// תקינות = ערכי האותיות אינם עולים, כמו בכתיב גימטריה ("כב"). זה דוחה את רוב
+/// המילים, אך לא את כולן ("תמיד"=454) — ולכן [canonicalDafKey] דורש בנוסף
+/// קידומת "דף" או סימן עמוד.
+int? hebrewNumeralValue(String letters) {
+  if (letters.isEmpty || letters.length > 4) return null;
+  var sum = 0;
+  var previous = 400;
+  for (final ch in letters.split('')) {
+    final value = _hebrewNumeralValues[ch];
+    if (value == null || value > previous) return null;
+    sum += value;
+    previous = value;
+  }
+  return sum;
+}
+
+/// A "דף" label: the literal prefix, a numeral, and an optional amud marker.
+final _dafLabelPattern = RegExp(
+  r'^דף\s+([א-ת]{1,4})\s*(?:-\s*)?(\.|ע?[אב]|עמוד\s*[אב])?$',
+);
+
+/// Canonical key for a Talmud daf from a **normalized** ([normalizeRef]) label —
+/// "22a"/"22b", or null when the label is not a daf.
+///
+/// Unifies spellings of the same daf: "דף כב.", "דף כב ע\"א", "דף כב - א" → "22a".
+/// [normalizeRef] strips the colon, so a missing marker means amud bet.
+///
+/// The literal "דף" prefix is required: without it, chapter/siman labels
+/// ("א.", "ב.") and words whose gematria is valid ("תמיד.") would be read as
+/// dafim and produce a plausible-looking but wrong map.
+String? canonicalDafKey(String ref) {
+  final match = _dafLabelPattern.firstMatch(ref.trim());
+  if (match == null) return null;
+  final number = hebrewNumeralValue(match.group(1)!);
+  if (number == null) return null;
+  final marker = match.group(2);
+  final isAmudAlef = marker == '.' || (marker != null && marker.endsWith('א'));
+  return '$number${isAmudAlef ? 'a' : 'b'}';
 }
 
 /// Builds a [PageMap] from pre-collected anchor lists.
@@ -76,6 +153,10 @@ String normalizeRef(String s) {
 ///      Text "ברכות/ב."   ← matched via 2-component suffix
 ///    Ambiguous leaves ("הקדמה", "א", "ב" appearing in many tractates) are
 ///    safely skipped because they map to more than one text index.
+/// 3. Canonical daf fallback ([canonicalDafKey]) — bridges editions that spell
+///    the same daf differently ("דף כב." בצד אחד, "דף כב - א" בשני), שאחרת
+///    נותנות אפס התאמות. רץ כמעבר שני ורק כששלבים 1-2 לא הפיקו מיפוי שמיש,
+///    כדי שספר שההתאמה בו כבר עובדת לא ייגע בהיוריסטיקה הזאת.
 PageMap buildPageMapFromAnchors(
   List<({int page, String ref})> anchorsPdf,
   List<({int index, String ref})> anchorsText,
@@ -92,40 +173,68 @@ PageMap buildPageMapFromAnchors(
     }
   }
 
-  final pdfPages = <int>[];
-  final textIndices = <int>[];
-
-  for (final p in anchorsPdf) {
-    int? idx = mapTextByRef[p.ref];
-
-    if (idx == null) {
-      final pdfParts = p.ref.split('/');
-      for (var i = 0; i < pdfParts.length && idx == null; i++) {
-        final suffix = pdfParts.sublist(i).join('/');
-        final matches = mapTextBySuffix[suffix];
-        if (matches != null && matches.length == 1) {
-          idx = matches.first;
-        }
+  int? matchByPath(String ref) {
+    final exact = mapTextByRef[ref];
+    if (exact != null) return exact;
+    final parts = ref.split('/');
+    for (var i = 0; i < parts.length; i++) {
+      final matches = mapTextBySuffix[parts.sublist(i).join('/')];
+      if (matches != null && matches.length == 1) {
+        return matches.first;
       }
     }
-
-    if (idx != null &&
-        !pdfPages.contains(p.page) &&
-        !textIndices.contains(idx)) {
-      pdfPages.add(p.page);
-      textIndices.add(idx);
-    }
+    return null;
   }
 
-  // Sort by PDF page number so interpolation works correctly.
-  final zipped = List.generate(
-    pdfPages.length,
-    (i) => (page: pdfPages[i], idx: textIndices[i]),
-  );
-  zipped.sort((a, b) => a.page.compareTo(b.page));
+  final byPath = _zipAnchors(anchorsPdf, matchByPath);
+  if (byPath.hasReliableAnchors) {
+    return byPath;
+  }
 
+  final mapTextByDaf = <String, List<int>>{};
+  for (final a in anchorsText) {
+    final daf = canonicalDafKey(a.ref.split('/').last);
+    if (daf != null) {
+      (mapTextByDaf[daf] ??= []).add(a.index);
+    }
+  }
+  if (mapTextByDaf.isEmpty) {
+    return byPath;
+  }
+
+  final withDaf = _zipAnchors(anchorsPdf, (ref) {
+    final path = matchByPath(ref);
+    if (path != null) return path;
+    final daf = canonicalDafKey(ref.split('/').last);
+    final matches = daf == null ? null : mapTextByDaf[daf];
+    return matches != null && matches.length == 1 ? matches.first : null;
+  });
+  return withDaf.hasReliableAnchors ? withDaf : byPath;
+}
+
+/// מזווג עוגני PDF לאינדקסי טקסט לפי [resolve], בלי כפילויות בשני הצדדים,
+/// וממוין לפי עמוד ה-PDF כדי שהאינטרפולציה תעבוד.
+PageMap _zipAnchors(
+  List<({int page, String ref})> anchorsPdf,
+  int? Function(String ref) resolve,
+) {
+  final usedPages = <int>{};
+  final usedIndices = <int>{};
+  final matched = <({int page, int idx})>[];
+
+  for (final p in anchorsPdf) {
+    final idx = resolve(p.ref);
+    if (idx == null || !usedPages.add(p.page)) continue;
+    if (!usedIndices.add(idx)) {
+      usedPages.remove(p.page);
+      continue;
+    }
+    matched.add((page: p.page, idx: idx));
+  }
+
+  matched.sort((a, b) => a.page.compareTo(b.page));
   return PageMap(
-    zipped.map((e) => e.page).toList(),
-    zipped.map((e) => e.idx).toList(),
+    matched.map((e) => e.page).toList(),
+    matched.map((e) => e.idx).toList(),
   );
 }

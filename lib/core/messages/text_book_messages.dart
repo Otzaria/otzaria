@@ -45,6 +45,9 @@ abstract class TextBookMessages {
   static String pdfNotFoundForBook(String bookTitle) =>
       'לא נמצא ספר PDF עבור "$bookTitle"';
 
+  static const String pdfLocationNotFoundOpeningAtStart =
+      'לא נמצא מיקום תואם ב-PDF — הספר נפתח מתחילתו';
+
   // ── תצוגה, העתקה והערות ─────────────────────────────────────────────────
 
   static const String perBookSettingsReset = 'ההגדרות הפר-ספריות אופסו בהצלחה';
