@@ -1,6 +1,6 @@
 ; המתקין של אוצריא.
-; שדרוג מגרסה 0.9.88 ומעלה מזוהה אוטומטית ומותקן מיידית ברקע (שיגור-עצמי
-; ב-/VERYSILENT): ההגדרות, קיצורי הדרך ונתיב ההתקנה הקודם נשמרים כפי שהם.
+; שדרוג מגרסה 0.9.88 ומעלה מזוהה אוטומטית ומותקן ללא שאלות, עם חלון התקדמות.
+; ההגדרות, קיצורי הדרך ונתיב ההתקנה הקודם נשמרים כפי שהם.
 ; התקנה חדשה או שדרוג מגרסה ישנה מקבלים את האשף המלא.
 ; עמוד "סוג ההתקנה" באשף מציע שלוש אפשרויות: למשתמש הנוכחי (ברירת מחדל,
 ; ללא UAC), לכל המשתמשים (שיגור-מחדש מורם עם /ALLUSERS — מצב ההתקנה של
@@ -691,8 +691,8 @@ begin
 
   if IsUpgradeFromModernVersion() then
   begin
-    // שדרוג מגרסה מודרנית — משגרים את עצמנו מחדש ב-/VERYSILENT. בריצה
-    // השנייה WizardSilent יהיה True והקוד הזה לא ירוץ שוב.
+    // ‎/SILENT מדלג על האשף אך משאיר חלון התקדמות; בריצה השנייה
+    // WizardSilent יהיה True והקוד הזה לא ירוץ שוב.
     if IsAdmin then
     begin
       PrivilegeFlag := '/ALLUSERS';
@@ -702,8 +702,8 @@ begin
       // ההתקנה הקודמת בנתיב הדורש הרשאות מנהל. משגרים מחדש עם 'runas'
       // כדי לקבל UAC; המתקין המורם ירוץ עם /ALLUSERS.
       Launched := RelaunchSetupElevated(
-        '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS' + PropagatedParams(),
-        SW_HIDE, ResultCode);
+        '/SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS' + PropagatedParams(),
+        SW_SHOWNORMAL, ResultCode);
 
       if Launched then
       begin
@@ -729,9 +729,9 @@ begin
     end;
 
     Launched := RelaunchSetup('open',
-         '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART ' + PrivilegeFlag +
+         '/SILENT /SUPPRESSMSGBOXES /NORESTART ' + PrivilegeFlag +
          PropagatedParams(),
-         SW_HIDE, ResultCode);
+         SW_SHOWNORMAL, ResultCode);
 
     if Launched then
     begin

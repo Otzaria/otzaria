@@ -6,14 +6,14 @@ void main() {
     test('silent install for the current user, relaunches the app', () {
       expect(
         perUserSilentInstallerArguments(relaunchApp: true),
-        '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER',
+        '/SILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER',
       );
     });
 
     test('adds /NOLAUNCH=1 when the app must not reopen', () {
       expect(
         perUserSilentInstallerArguments(relaunchApp: false),
-        '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER /NOLAUNCH=1',
+        '/SILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER /NOLAUNCH=1',
       );
     });
   });
