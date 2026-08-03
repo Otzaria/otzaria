@@ -6,6 +6,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart'
     hide SwitchSettingsTile;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
+import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
@@ -283,11 +284,13 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
       return [
         SettingsActionTile.text(
           icon: FluentIcons.folder_add_24_regular,
-          title: 'מיקום הספרייה',
-          subtitle: 'לא זוהתה ספרייה — הגדר מיקום, הורד או ייבא ספרייה',
+          title: context.settingsText('מיקום הספרייה'),
+          subtitle: context.settingsText(
+            'לא זוהתה ספרייה — הגדר מיקום, הורד או ייבא ספרייה',
+          ),
           actions: [
             ActionButton.recommended(
-              text: 'הגדרת ספריה',
+              text: context.settingsText('הגדרת ספריה'),
               onPressed: () => _openLibraryDialog(''),
             ),
           ],
@@ -333,22 +336,28 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
 
     return SettingsActionTile.pathTile(
       icon: FluentIcons.folder_24_regular,
-      title: 'מיקום הספרייה והאינדקס',
+      title: context.settingsText('מיקום הספרייה והאינדקס'),
       currentPath: rootPath,
-      placeholder: 'בחר מיקום עבור מאגר הספרים',
+      placeholder: context.settingsText('בחר מיקום עבור מאגר הספרים'),
       onFolderChanged: (root) async {
         if (!context.mounted) return;
         await _applyLibraryRootChange(root);
       },
       requestChangeLocation: (_) => _openLibraryDialog(booksPath),
-      changeLocationLabel: 'מתקדם',
+      changeLocationLabel: context.settingsText('מתקדם'),
       onOpenFolder: () => _openInFileManager(rootPath),
       onOpenPath: _openInFileManager,
       pathTargets: [
-        PathTarget(label: 'תיקייה ראשית', path: rootPath),
-        PathTarget(label: 'ספרייה', path: booksPath),
-        PathTarget(label: 'אינדקס', path: indexPath),
-        PathTarget(label: 'נתוני משתמש', path: databasesPath),
+        PathTarget(
+          label: context.settingsText('תיקייה ראשית'),
+          path: rootPath,
+        ),
+        PathTarget(label: context.settingsText('ספרייה'), path: booksPath),
+        PathTarget(label: context.settingsText('אינדקס'), path: indexPath),
+        PathTarget(
+          label: context.settingsText('נתוני משתמש'),
+          path: databasesPath,
+        ),
       ],
     );
   }
@@ -362,9 +371,11 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
 
     return SettingsActionTile.pathTile(
       icon: FluentIcons.folder_24_regular,
-      title: 'מיקום ספרי היברובוקס',
+      title: context.settingsText('מיקום ספרי היברובוקס'),
       currentPath: hasPath ? pathStr : '',
-      placeholder: 'במידה וקיימים ברשותך ספרים ממאגר זה',
+      placeholder: context.settingsText(
+        'במידה וקיימים ברשותך ספרים ממאגר זה',
+      ),
       onFolderChanged: (path) async {
         if (!context.mounted) return;
         await _showExtractionDialog(context, path, isLibraryPath: false);
@@ -438,8 +449,10 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                     if (!(Platform.isAndroid || Platform.isIOS)) ...[
                       SettingsCard(
                         cardId: 'library.repository',
-                        title: 'מאגר הספרים וחיפוש',
-                        subtitle: 'התיקיה שבה נמצאים תיקיות הספרים והאינדקס',
+                        title: context.settingsText('מאגר הספרים וחיפוש'),
+                        subtitle: context.settingsText(
+                          'התיקיה שבה נמצאים תיקיות הספרים והאינדקס',
+                        ),
                         children: [
                           ..._buildRepositoryCardChildren(
                             context,
@@ -466,8 +479,10 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                       kSettingsCardSpacing,
                       SettingsCard(
                         cardId: 'library.personal_books_import',
-                        title: 'ספרים אישיים',
-                        subtitle: 'ייבוא ספרים משלך אל תוך הספרייה',
+                        title: context.settingsText('ספרים אישיים'),
+                        subtitle: context.settingsText(
+                          'ייבוא ספרים משלך אל תוך הספרייה',
+                        ),
                         children: const [
                           PersonalBooksImportPanel(),
                         ],
@@ -480,10 +495,16 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                       CustomFoldersPanel(
                         mergeToggle: SettingsActionTile.switchTile(
                           icon: FluentIcons.person_24_regular,
-                          title: 'מיזוג ספרים אישיים לעץ הספרייה',
+                          title: context.settingsText(
+                            'מיזוג ספרים אישיים לעץ הספרייה',
+                          ),
                           subtitle: state.mergeUserBooksIntoLibrary
-                              ? 'תת-התיקיות של התיקייה הנבחרת ימוזגו לקטגוריות הראשיות לפי שם'
-                              : 'תיקיות אישיות יוצגו תחת קטגוריית "ספרים אישיים"',
+                              ? context.settingsText(
+                                  'תת-התיקיות של התיקייה הנבחרת ימוזגו לקטגוריות הראשיות לפי שם',
+                                )
+                              : context.settingsText(
+                                  'תיקיות אישיות יוצגו תחת קטגוריית "ספרים אישיים"',
+                                ),
                           value: state.mergeUserBooksIntoLibrary,
                           onChanged: (value) {
                             // ה-RefreshLibrary מופעל ב-listener למעלה,
@@ -498,9 +519,12 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                       kSettingsCardSpacing,
                       SettingsCard(
                         cardId: 'library.user_content_import',
-                        title: 'דורות וקישורים לספרים אישיים',
-                        subtitle:
-                            'ייבוא קובצי CSV/JSON של סדר דורות וקישורים לספרים האישיים.',
+                        title: context.settingsText(
+                          'דורות וקישורים לספרים אישיים',
+                        ),
+                        subtitle: context.settingsText(
+                          'ייבוא קובצי CSV/JSON של סדר דורות וקישורים לספרים האישיים.',
+                        ),
                         children: [
                           const UserContentImportTile(),
                         ],
@@ -513,7 +537,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                       kSettingsCardSpacing,
                       SettingsCard(
                         cardId: 'library.repository',
-                        title: 'חיפוש ואינדקס',
+                        title: context.settingsText('חיפוש ואינדקס'),
                         children: _buildSearchChildren(
                           context,
                           state,
@@ -539,10 +563,10 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
     return [
       SettingsActionTile.switchTile(
         icon: FluentIcons.arrow_clockwise_24_regular,
-        title: 'עדכון אינדקס אוטומטי',
+        title: context.settingsText('עדכון אינדקס אוטומטי'),
         subtitle: state.autoUpdateIndex
-            ? 'אינדקס החיפוש יתעדכן אוטומטית'
-            : 'אינדקס החיפוש לא יתעדכן אוטומטית',
+            ? context.settingsText('אינדקס החיפוש יתעדכן אוטומטית')
+            : context.settingsText('אינדקס החיפוש לא יתעדכן אוטומטית'),
         value: state.autoUpdateIndex,
         onChanged: (value) {
           context.read<SettingsBloc>().add(UpdateAutoUpdateIndex(value));
@@ -561,34 +585,45 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
           final library = libraryState.library;
           final hasBooks = library?.getAllBooks().isNotEmpty ?? false;
           if (libraryPath == null || libraryPath.isEmpty) {
-            subtitleText = 'לא קיימת ספרייה לאינדוקס';
+            subtitleText = context.settingsText('לא קיימת ספרייה לאינדוקס');
           } else if (!hasBooks) {
-            subtitleText = 'הספרייה ריקה – אין ספרים לאינדוקס';
+            subtitleText = context.settingsText(
+              'הספרייה ריקה – אין ספרים לאינדוקס',
+            );
           } else if (isCheckingManualReindex) {
-            subtitleText = 'בודק אם נדרש איפוס ואינדוקס מחדש';
+            subtitleText = context.settingsText(
+              'בודק אם נדרש איפוס ואינדוקס מחדש',
+            );
           } else if (_requiresManualReindex == true) {
-            subtitleText = 'נדרש איפוס ואינדוקס מחדש באישור המשתמש';
+            subtitleText = context.settingsText(
+              'נדרש איפוס ואינדוקס מחדש באישור המשתמש',
+            );
           } else if (isActive) {
-            subtitleText = 'התקדמות האינדקס: $processed/$total';
+            subtitleText = context.settingsText(
+              'התקדמות האינדקס: {processed}/{total}',
+              args: {'processed': processed, 'total': total},
+            );
           } else if (indexingState is IndexingComplete) {
-            subtitleText = 'האינדקס מעודכן';
+            subtitleText = context.settingsText('האינדקס מעודכן');
           } else {
-            subtitleText = 'האינדקס לא מעודכן';
+            subtitleText = context.settingsText('האינדקס לא מעודכן');
           }
           return SettingsActionTile.text(
             icon: FluentIcons.table_24_regular,
-            title: 'אינדקס חיפוש',
+            title: context.settingsText('אינדקס חיפוש'),
             subtitle: subtitleText,
             actions: [
               if (isActive)
                 ActionButton.neutral(
-                  text: 'עצור',
+                  text: context.settingsText('עצור'),
                   onPressed: () async {
                     final result = await showWarningDialog(
                       context: context,
-                      title: 'עצירת עדכון',
-                      content: 'האם לעצור את תהליך עדכון האינדקס?',
-                      confirmText: 'עצור',
+                      title: context.settingsText('עצירת עדכון'),
+                      content: context.settingsText(
+                        'האם לעצור את תהליך עדכון האינדקס?',
+                      ),
+                      confirmText: context.settingsText('עצור'),
                     );
                     if (!context.mounted) return;
                     if (result == true) {
@@ -604,7 +639,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                 )
               else if (_requiresManualReindex == true)
                 ActionButton.recommended(
-                  text: 'אפס ועדכן',
+                  text: context.settingsText('אפס ועדכן'),
                   onPressed: () async {
                     if (library == null) return;
                     final indexingBloc = context.read<IndexingBloc>();
@@ -616,14 +651,15 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                 )
               else if (indexingState is IndexingComplete)
                 ActionButton.ghost(
-                  text: 'איפוס',
+                  text: context.settingsText('איפוס'),
                   onPressed: () async {
                     final result = await showWarningDialog(
                       context: context,
-                      title: 'איפוס אינדקס',
-                      content:
-                          'האם למחוק את אינדקס החיפוש? תצטרך לבנות אותו מחדש כדי להשתמש בחיפוש.',
-                      confirmText: 'אפס',
+                      title: context.settingsText('איפוס אינדקס'),
+                      content: context.settingsText(
+                        'האם למחוק את אינדקס החיפוש? תצטרך לבנות אותו מחדש כדי להשתמש בחיפוש.',
+                      ),
+                      confirmText: context.settingsText('אפס'),
                     );
                     if (!context.mounted) return;
                     if (result == true) {
@@ -633,7 +669,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                 )
               else
                 ActionButton.recommended(
-                  text: 'עדכן',
+                  text: context.settingsText('עדכן'),
                   onPressed: () {
                     final library = context.read<LibraryBloc>().state.library;
                     if (library != null) {
