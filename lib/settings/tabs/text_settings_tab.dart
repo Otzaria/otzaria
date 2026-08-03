@@ -538,33 +538,45 @@ class TextSettingsTab extends StatelessWidget {
             entries: [
               AppMenuEntry(
                 value: 'same_line_after_brackets',
-                label: 'אותה שורה אחרי (עם סוגריים)',
-                subtitle: 'הכותרת תופיע באותה שורה אחרי הטקסט (עם סוגריים)',
+                label: context.settingsText('אותה שורה אחרי (עם סוגריים)'),
+                subtitle: context.settingsText(
+                  'הכותרת תופיע באותה שורה אחרי הטקסט (עם סוגריים)',
+                ),
               ),
               AppMenuEntry(
                 value: 'same_line_after_no_brackets',
-                label: 'אותה שורה אחרי (בלי סוגריים)',
-                subtitle: 'הכותרת תופיע באותה שורה אחרי הטקסט (בלי סוגריים)',
+                label: context.settingsText('אותה שורה אחרי (בלי סוגריים)'),
+                subtitle: context.settingsText(
+                  'הכותרת תופיע באותה שורה אחרי הטקסט (בלי סוגריים)',
+                ),
               ),
               AppMenuEntry(
                 value: 'same_line_before_brackets',
-                label: 'אותה שורה לפני (עם סוגריים)',
-                subtitle: 'הכותרת תופיע באותה שורה לפני הטקסט (עם סוגריים)',
+                label: context.settingsText('אותה שורה לפני (עם סוגריים)'),
+                subtitle: context.settingsText(
+                  'הכותרת תופיע באותה שורה לפני הטקסט (עם סוגריים)',
+                ),
               ),
               AppMenuEntry(
                 value: 'same_line_before_no_brackets',
-                label: 'אותה שורה לפני (בלי סוגריים)',
-                subtitle: 'הכותרת תופיע באותה שורה לפני הטקסט (בלי סוגריים)',
+                label: context.settingsText('אותה שורה לפני (בלי סוגריים)'),
+                subtitle: context.settingsText(
+                  'הכותרת תופיע באותה שורה לפני הטקסט (בלי סוגריים)',
+                ),
               ),
               AppMenuEntry(
                 value: 'separate_line_after',
-                label: 'פסקה נפרדת אחרי',
-                subtitle: 'הכותרת תופיע בפסקה נפרדת אחרי הטקסט',
+                label: context.settingsText('פסקה נפרדת אחרי'),
+                subtitle: context.settingsText(
+                  'הכותרת תופיע בפסקה נפרדת אחרי הטקסט',
+                ),
               ),
               AppMenuEntry(
                 value: 'separate_line_before',
-                label: 'פסקה נפרדת לפני',
-                subtitle: 'הכותרת תופיע בפסקה נפרדת לפני הטקסט',
+                label: context.settingsText('פסקה נפרדת לפני'),
+                subtitle: context.settingsText(
+                  'הכותרת תופיע בפסקה נפרדת לפני הטקסט',
+                ),
               ),
             ],
             onSelected: (value) {

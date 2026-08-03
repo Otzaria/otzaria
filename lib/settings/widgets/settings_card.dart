@@ -3,6 +3,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
+import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/search/settings_anchor.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -1052,7 +1053,7 @@ class _PathMenuButtonState extends State<_PathMenuButton> {
       if (widget.onClearPath != null)
         AppMenuEntry(
           value: _PathMenuAction.clearPath,
-          label: 'הסרת מיקום שמור',
+          label: context.settingsText('הסרת מיקום שמור'),
           icon: FluentIcons.dismiss_24_regular,
           enabled: widget.clearPathEnabled,
         ),
@@ -1141,7 +1142,7 @@ class _PathMenuButtonState extends State<_PathMenuButton> {
   Widget build(BuildContext context) {
     if (widget.currentPath.isEmpty && widget.simpleButtonWhenEmpty) {
       return ActionButton.recommended(
-        text: 'הגדר מיקום',
+        text: context.settingsText('הגדר מיקום'),
         isLoading: _isLoading,
         // דיאלוג שינוי המיקום ברור יותר מבורר תיקייה ישיר; כשאין
         // requestChangeLocation נופלים לבורר. בלי מיקום נוכחי הדיאלוג
@@ -1152,7 +1153,7 @@ class _PathMenuButtonState extends State<_PathMenuButton> {
     }
     return Builder(
       builder: (buttonContext) => ActionButton.neutral(
-        text: 'אפשרויות מיקום',
+        text: context.settingsText('אפשרויות מיקום'),
         icon: FluentIcons.folder_arrow_right_24_regular,
         isLoading: _isLoading,
         onPressed: _isLoading ? null : () => _showMenu(buttonContext),

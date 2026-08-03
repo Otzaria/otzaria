@@ -103,6 +103,17 @@
   "היברובוקס בלבד": "HebrewBooks only",
   "יוצגו ספרים מהיברובוקס בתוצאות החיפוש במסך הספרייה": "Seforim from HebrewBooks will show in the library search results",
 
+  "הזן סיסמה": "Enter password",
+  "הנך במצב סייפר.\nהזן את הסיסמה כדי לגשת להגדרות": "You are in safer mode.\nEnter the password to reach the settings",
+  "הנך במצב סייפר.\nהזן את הסיסמה כדי לבצע פעולה זו": "You are in safer mode.\nEnter the password to do this",
+  "הסרת מיקום שמור": "Remove the saved location",
+  "הגדר מיקום": "Set a location",
+  "אפשרויות מיקום": "Location options",
+  "קבצי הספרייה הקיימת יועברו לתיקיית היעד": "The current library files move to the target folder",
+  "מחיקה וייבוא ספרייה": "Delete and import a library",
+  "הספרייה הקיימת תוחלף (עם גיבוי אוטומטי עד להצלחה)": "The current library is replaced (with an automatic backup until it succeeds)",
+  "קיצורים לפתיחה מהירה של כלי מתוך מסך הכלים": "Shortcuts to quickly open a tool from the tools screen",
+
   "צבע מותאם אישית": "Custom color",
   "שינוי צבע": "Change color",
   "בחר צבע בסיס": "Choose a base color",

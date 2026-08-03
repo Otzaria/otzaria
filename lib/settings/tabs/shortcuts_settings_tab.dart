@@ -806,7 +806,9 @@ class ShortcutsSettingsTab extends StatelessWidget {
           kSettingsCardSpacing,
           SettingsCard(
             title: context.settingsText('פתיחת כלים'),
-            subtitle: 'קיצורים לפתיחה מהירה של כלי מתוך מסך הכלים',
+            subtitle: context.settingsText(
+              'קיצורים לפתיחה מהירה של כלי מתוך מסך הכלים',
+            ),
             children: openToolTiles,
           ),
         ],

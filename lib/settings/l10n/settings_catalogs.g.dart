@@ -60,6 +60,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'אפס הגדרות': 'Reset settings',
     'אפס ועדכן': 'Reset and rebuild',
     'אפשרויות': 'Options',
+    'אפשרויות מיקום': 'Location options',
     'ארכיון': 'archive',
     'באם שמכם אינו מופיע ברשימה או שאתם מעוניינים בשינוי, אנא פנו למייל המערכת.':
         'If your name is missing from the list, or you would like it changed, please email us.',
@@ -167,6 +168,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הארכיון מאחד את כל הגיבויים הישנים, ולכן הוא כולל גם פריטים (סימניות, הערות, תוספים ועוד) שנמחקו מאז בכוונה — הם ישוחזרו גם הם.':
         'The archive merges every old backup, so it also holds items (bookmarks, notes, plugins and more) you deleted on purpose since — those come back too.',
     'הגדר': 'Set',
+    'הגדר מיקום': 'Set a location',
     'הגדר סיסמה להגנה על ההגדרות': 'Set a password to protect the settings',
     'הגדרות': 'Settings',
     'הגדרות גופן ועיצוב': 'Font and layout',
@@ -209,6 +211,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
         'Enter the password to turn safer mode on',
     'הזן את הסיסמה כדי להשבית את המצב המוגן':
         'Enter the password to turn safer mode off',
+    'הזן סיסמה': 'Enter password',
     'הזן שוב את הסיסמה': 'Enter the password again',
     'החזר את כל קיצורי המקשים לברירת המחדל':
         'Put every shortcut back to its default',
@@ -258,11 +261,17 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הניקוד יוצג בכל הספרים': 'Nekudos show in every sefer',
     'הניקוד יוצג בספרי התנ"ך בלבד': 'Nekudos show in Tanach only',
     'הניקוד לא יוצג בכלל': 'Nekudos do not show at all',
+    'הנך במצב סייפר.\nהזן את הסיסמה כדי לבצע פעולה זו':
+        'You are in safer mode.\nEnter the password to do this',
+    'הנך במצב סייפר.\nהזן את הסיסמה כדי לגשת להגדרות':
+        'You are in safer mode.\nEnter the password to reach the settings',
     'הנתונים שוחזרו בהצלחה. האפליקציה תיטען מחדש כעת.':
         'The data was restored. The app will reload now.',
     'הספרייה הועברה': 'The library was moved',
     'הספרייה הועברה בהצלחה למיקום החדש. התוכנה תיטען מחדש כעת, והספרים הפתוחים ייטענו מהמיקום החדש.':
         'The library moved to its new location. The app will reload now, and open seforim will load from there.',
+    'הספרייה הקיימת תוחלף (עם גיבוי אוטומטי עד להצלחה)':
+        'The current library is replaced (with an automatic backup until it succeeds)',
     'הספרייה עודכנה במיקום החדש, אך חלק מהקבצים הישנים לא נמחקו. ניתן למחוק אותם ידנית מהמיקום הישן.':
         'The library was updated at the new location, but some old files were not deleted. You can remove them by hand from the old location.',
     'הספרייה ריקה – אין ספרים לאינדוקס':
@@ -282,6 +291,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הסר מסרגל הניווט': 'Unpin from the navigation bar',
     'הסר סיסמה': 'Remove password',
     'הסר תיקייה': 'Remove folder',
+    'הסרת מיקום שמור': 'Remove the saved location',
     'הסרת סיסמה': 'Remove the password',
     'הסרת תיקייה': 'Remove folder',
     'הסתר': 'Hide',
@@ -534,6 +544,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'מושבת': 'Disabled',
     'מושבת במצב מנותק': 'Off in offline mode',
     'מותאם אישית': 'Custom',
+    'מחיקה וייבוא ספרייה': 'Delete and import a library',
     'מחיקת דורות וקישורים': 'Delete doros and links',
     'מחיקת כל ההגדרות וחזרה למצב ההתחלתי':
         'Delete every setting and start fresh',
@@ -743,10 +754,14 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'קבצי PDF ו-Word': 'PDF and Word files',
     'קבצי PDF/Word — נקראים ישירות מהקבצים':
         'PDF/Word files — always read straight from disk',
+    'קבצי הספרייה הקיימת יועברו לתיקיית היעד':
+        'The current library files move to the target folder',
     'קיצורי מקשים': 'Keyboard shortcuts',
     'קיצורי מקשים זמינים רק בדסקטופ': 'Keyboard shortcuts are desktop only',
     'קיצורים להעתקת קישור ישיר לספר, למקטע/לעמוד ולהדגשות':
         'Shortcuts for copying a direct link to a sefer, to a section or page, and to highlights',
+    'קיצורים לפתיחה מהירה של כלי מתוך מסך הכלים':
+        'Shortcuts to quickly open a tool from the tools screen',
     'קיצורים לפתיחה מהירה של תוסף מותקן':
         'Shortcuts to quickly open an installed plugin',
     'רבינו תם': 'Rabbeinu Tam',

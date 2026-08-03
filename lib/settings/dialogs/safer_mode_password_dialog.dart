@@ -395,7 +395,7 @@ class _SaferModeSetPasswordDialogState extends State<SaferModeSetPasswordDialog>
         ),
         actions: [
           ActionButton.neutral(
-            text: 'ביטול',
+            text: context.settingsText('ביטול'),
             focusNode: _cancelButtonFocusNode,
             onPressed: !_isSaving
                 ? () => Navigator.of(context).pop(false)

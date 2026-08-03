@@ -1329,12 +1329,12 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         _buildReportActions(
           children: [
             ActionButton.neutral(
-              text: 'צפה',
+              text: context.settingsText('צפה'),
               icon: FluentIcons.eye_24_regular,
               onPressed: () => _showReportDetails(report, sent: true),
             ),
             ActionButton.neutral(
-              text: 'מחק',
+              text: context.settingsText('מחק'),
               icon: FluentIcons.delete_24_regular,
               onPressed: () => _deleteSentReport(report),
             ),

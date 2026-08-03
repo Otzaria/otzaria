@@ -586,7 +586,9 @@ class _LibrarySetupDialogContentState
               ? [
                   SettingsActionTile.radioOption(
                     title: context.settingsText('העברת תוכן התיקייה'),
-                    subtitle: 'קבצי הספרייה הקיימת יועברו לתיקיית היעד',
+                    subtitle: context.settingsText(
+                      'קבצי הספרייה הקיימת יועברו לתיקיית היעד',
+                    ),
                     selected: moveSelected,
                     onTap: () =>
                         setState(() => _action = _LibraryAction.moveContents),
@@ -594,9 +596,10 @@ class _LibrarySetupDialogContentState
                   // הורדה/בחירת קובץ מחליפות את הספרייה הקיימת — מקובצות תחת
                   // מקטע נפרש כדי להבליט שהן פעולות מחיקה-והחלפה.
                   ExpandableSection(
-                    title: 'מחיקה וייבוא ספרייה',
-                    subtitle:
-                        'הספרייה הקיימת תוחלף (עם גיבוי אוטומטי עד להצלחה)',
+                    title: context.settingsText('מחיקה וייבוא ספרייה'),
+                    subtitle: context.settingsText(
+                      'הספרייה הקיימת תוחלף (עם גיבוי אוטומטי עד להצלחה)',
+                    ),
                     isExpanded:
                         _replaceExpanded ||
                         downloadSelected ||
