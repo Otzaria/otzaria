@@ -193,34 +193,38 @@ class Library extends Category {
     }
 
     // 2. חיפוש גלובלי (מאפשר התאמה לפי נרמול הכותרת כפי שמקובל):
-    final candidates = getAllBooks()
-        .where(
-          (b) =>
-              b.runtimeType == companionType &&
-              _normalizeTitle(b.title) == normalizedTitle,
-        )
-        .toList();
-
-    // סינון התנגשויות ידועות (ירושלמי <-> בבלי)
-    final filtered = candidates.where((candidate) {
-      final bookCat =
-          book.categoryPath ??
-          book.heCategories ??
-          (book is FileBook ? book.path : '');
-      final candCat =
-          candidate.categoryPath ??
-          candidate.heCategories ??
-          (candidate is FileBook ? candidate.path : '');
-
-      if (bookCat.contains('ירושלמי') && candCat.contains('בבלי')) return false;
-      if (bookCat.contains('בבלי') && candCat.contains('ירושלמי')) return false;
-      return true;
-    }).toList();
+    final candidates = getCompanionBooks(book, companionType);
 
     // מהדורה ממקור אחר משמשת רק כשאין אחת מאותו מקור — אחרת מהדורה אישית
     // שנוספה בשם זהה גונבת את הבחירה, ומיפוי העמודים שלה נכשל ופותח בעמוד 1.
-    return filtered.where((c) => _isSameBookSource(book, c)).firstOrNull ??
-        filtered.firstOrNull;
+    return candidates.where((c) => _isSameBookSource(book, c)).firstOrNull ??
+        candidates.firstOrNull;
+  }
+
+  /// כל מהדורות ה-[companionType] בספרייה שכותרתן זהה ל-[book], אחרי סינון
+  /// ההתנגשויות. יותר מאחת = כפילות שם, שבה זהות המלווה אינה חד-משמעית.
+  List<Book> getCompanionBooks(Book book, Type companionType) {
+    final normalizedTitle = _normalizeTitle(book.title);
+    return getAllBooks()
+        .where(
+          (b) =>
+              b.runtimeType == companionType &&
+              _normalizeTitle(b.title) == normalizedTitle &&
+              !_isCrossTraditionConflict(book, b),
+        )
+        .toList();
+  }
+
+  /// מסכתות בבלי וירושלמי חולקות שמות — ואינן מלוות זו את זו.
+  bool _isCrossTraditionConflict(Book book, Book candidate) {
+    String categoryOf(Book b) =>
+        b.categoryPath ?? b.heCategories ?? (b is FileBook ? b.path : '');
+    final bookCat = categoryOf(book);
+    final candCat = categoryOf(candidate);
+
+    if (bookCat.contains('ירושלמי') && candCat.contains('בבלי')) return true;
+    if (bookCat.contains('בבלי') && candCat.contains('ירושלמי')) return true;
+    return false;
   }
 
   /// האם [candidate] בא מאותו מקור ספרים כמו [book] — ספריית אוצריא, הספרים

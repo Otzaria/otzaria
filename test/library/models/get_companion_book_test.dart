@@ -264,6 +264,70 @@ void main() {
       expect(library.getCompanionBook(sourceText, PdfBook), same(builtInPdf));
     });
 
+    // הבסיס לאבחון: הודעת הכשל בפתיחת PDF מבחינה בין "אין מיקום תואם" לבין
+    // כפילות שם, לפי מספר המהדורות שמוחזר כאן.
+    test('getCompanionBooks מחזיר את כל המהדורות בעלות אותו שם', () {
+      final bavli = _category('תלמוד בבלי');
+      final seder = _category('סדר זרעים', parent: bavli);
+      final userRoot = _category('אישיים');
+
+      final sourceText = TextBook(title: 'ברכות', category: seder);
+      final builtInPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\otzaria\תלמוד בבלי\ברכות.pdf',
+        category: bavli,
+      );
+      final userPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\אישיים\ברכות.pdf',
+        category: userRoot,
+        isUserBook: true,
+      );
+      seder.books.add(sourceText);
+      bavli.books.add(builtInPdf);
+      userRoot.books.add(userPdf);
+
+      final library = Library(categories: [bavli, userRoot]);
+
+      expect(library.getCompanionBooks(sourceText, PdfBook), [
+        builtInPdf,
+        userPdf,
+      ]);
+      // מהדורה יחידה אינה כפילות.
+      expect(library.getCompanionBooks(builtInPdf, TextBook), [sourceText]);
+    });
+
+    test('getCompanionBooks מסנן התנגשות בבלי/ירושלמי', () {
+      final bavli = _category('תלמוד בבלי');
+      final bavliSeder = _category('סדר זרעים', parent: bavli);
+      final yerushalmi = _category('תלמוד ירושלמי');
+
+      final sourceText = TextBook(
+        title: 'ברכות',
+        category: bavliSeder,
+        categoryPath: 'תלמוד בבלי, סדר זרעים',
+      );
+      final bavliPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\תלמוד בבלי\ברכות.pdf',
+        category: bavli,
+      );
+      final yerushalmiPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\תלמוד ירושלמי\ברכות.pdf',
+        category: yerushalmi,
+        categoryPath: 'תלמוד ירושלמי',
+      );
+      bavliSeder.books.add(sourceText);
+      bavli.books.add(bavliPdf);
+      yerushalmi.books.add(yerushalmiPdf);
+
+      final library = Library(categories: [bavli, yerushalmi]);
+
+      // הירושלמי אינו מהדורה נוספת של הבבלי, ולכן אינו כפילות.
+      expect(library.getCompanionBooks(sourceText, PdfBook), [bavliPdf]);
+    });
+
     test('ספר מקטלוג חיצוני — לא נבחר עבור ספר מקומי בשם זהה', () {
       final bavli = _category('תלמוד בבלי');
       final seder = _category('סדר זרעים', parent: bavli);

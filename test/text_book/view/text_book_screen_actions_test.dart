@@ -8,6 +8,7 @@ import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_state.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
@@ -544,6 +545,38 @@ void main() {
         );
       },
     );
+  });
+
+  // כשל המיפוי נראה זהה למשתמש בשני המצבים, אך רק אחד מהם בשליטתו: מהדורת
+  // PDF כפולה בשם זהה. בלי ההבחנה אין לו רמז מה לתקן.
+  group('pdfLocationFailureMessage', () {
+    test('מהדורה אחת — הודעת היעדר מיקום תואם', () {
+      expect(
+        pdfLocationFailureMessage('ברכות', 1),
+        TextBookMessages.pdfLocationNotFoundOpeningAtStart,
+      );
+    });
+
+    test('אין מהדורה — הודעת היעדר מיקום תואם', () {
+      expect(
+        pdfLocationFailureMessage('ברכות', 0),
+        TextBookMessages.pdfLocationNotFoundOpeningAtStart,
+      );
+    });
+
+    test('שתי מהדורות — הודעת כפילות הכוללת את שם הספר', () {
+      final message = pdfLocationFailureMessage('ברכות', 2);
+
+      expect(
+        message,
+        TextBookMessages.pdfDuplicateEditionsOpeningAtStart('ברכות'),
+      );
+      expect(message, contains('ברכות'));
+      expect(
+        message,
+        isNot(TextBookMessages.pdfLocationNotFoundOpeningAtStart),
+      );
+    });
   });
 }
 

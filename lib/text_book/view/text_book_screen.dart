@@ -2519,11 +2519,20 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       currentIndex,
       pdfBook: _pdfBook is PdfBook ? _pdfBook as PdfBook : null,
     );
+    // הספרייה נדרשת רק לניסוח הודעת הכשל, ולכן נטענת רק כשהמיפוי נכשל.
+    final library = index == null
+        ? await DataRepository.instance.library
+        : null;
 
     if (!context.mounted) return;
 
-    if (index == null) {
-      UiSnack.show(TextBookMessages.pdfLocationNotFoundOpeningAtStart);
+    if (library != null) {
+      UiSnack.show(
+        pdfLocationFailureMessage(
+          state.book.title,
+          library.getCompanionBooks(state.book, PdfBook).length,
+        ),
+      );
     }
     openBook(
       context,
@@ -3252,6 +3261,14 @@ Future<void> _addNoteFromKeyboard(
 //   context.read<TextBookBloc>().add(const CloseEditor());
 // }
 
+/// ניסוח כשל מיפוי המיקום ל-PDF. כפילות שם היא סיבה שונה מהיעדר מיקום תואם,
+/// והיחידה שהמשתמש יכול לתקן — ולכן היא נאמרת במפורש.
+@visibleForTesting
+String pdfLocationFailureMessage(String bookTitle, int companionEditions) =>
+    companionEditions > 1
+    ? TextBookMessages.pdfDuplicateEditionsOpeningAtStart(bookTitle)
+    : TextBookMessages.pdfLocationNotFoundOpeningAtStart;
+
 void _togglePdfView(
   BuildContext context,
   TextBookLoaded state,
@@ -3280,7 +3297,12 @@ void _togglePdfView(
   if (!context.mounted) return;
 
   if (index == null) {
-    UiSnack.show(TextBookMessages.pdfLocationNotFoundOpeningAtStart);
+    UiSnack.show(
+      pdfLocationFailureMessage(
+        state.book.title,
+        library.getCompanionBooks(state.book, PdfBook).length,
+      ),
+    );
   }
   openBook(
     context,
