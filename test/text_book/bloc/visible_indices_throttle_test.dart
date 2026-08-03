@@ -134,10 +134,21 @@ void main() {
         isTrue,
       );
     });
+
+    test('גלילה רגילה אינה נחסמת', () {
+      expect(
+        TextBookBloc.shouldDispatchVisibleIndicesNow(
+          sinceLastDispatch: Duration.zero,
+          continuousReadingMode: false,
+          throttleInterval: interval,
+        ),
+        isTrue,
+      );
+    });
   });
 
   group('התנהגות ה-bloc בגלילה', () {
-    test('רצף מהיר של אירועי גלילה מצמצם את מספר ה-emit', () async {
+    test('רצף מהיר של אירועי גלילה רגילה משדר כל שינוי', () async {
       final positionsListener = ItemPositionsListener.create();
       final bloc = await _loadedBloc(positionsListener);
 
@@ -148,21 +159,18 @@ void main() {
         }
       });
 
-      // 30 אירועי גלילה בזה אחר זה, בקצב של פריימים (~8ms) — כמו גלילה
-      // חלקה בתוך פסקה ממוזגת אחת.
       for (var i = 0; i < 30; i++) {
         _pushSingleVisibleSegment(positionsListener, index: 5 + i % 20);
         await Future<void>.delayed(const Duration(milliseconds: 8));
       }
 
-      // המתנה לטיימר הנגרר (160ms) + מרווח ל-emit האסינכרוני.
       await Future<void>.delayed(const Duration(milliseconds: 500));
       await subscription.cancel();
 
       expect(
         emittedVisibleIndices.length,
-        lessThan(30),
-        reason: 'הגבלת הקצב אמורה לחסוך emit-ים ביחס למספר אירועי הגלילה',
+        30,
+        reason: 'גלילה רגילה אינה כפופה להגבלת הקצב',
       );
       expect(
         emittedVisibleIndices,
@@ -217,6 +225,32 @@ void main() {
       await bloc.close();
     });
 
+    test('גלילה רגילה מעדכנת גם בתוך חלון ההגבלה', () async {
+      final positionsListener = ItemPositionsListener.create();
+      final bloc = await _loadedBloc(positionsListener);
+
+      _pushSingleVisibleSegment(positionsListener, index: 12);
+      await _waitFor(
+        () {
+          final state = bloc.state;
+          return state is TextBookLoaded && state.visibleIndices.first == 12;
+        },
+        description: 'המיקום הראשון (12) משודר',
+      );
+
+      _pushSingleVisibleSegment(positionsListener, index: 20);
+      await _waitFor(
+        () {
+          final state = bloc.state;
+          return state is TextBookLoaded && state.visibleIndices.first == 20;
+        },
+        timeout: const Duration(milliseconds: 120),
+        description: 'המיקום השני (20) משודר מיידית במצב רגיל',
+      );
+
+      await bloc.close();
+    });
+
     test('גלילה איטית מהחלון לא נחסמת כלל', () async {
       final positionsListener = ItemPositionsListener.create();
       final bloc = await _loadedBloc(positionsListener);
@@ -264,10 +298,7 @@ void main() {
       await bloc.close();
     });
 
-    // ההבטחה אינה "האירוע הראשון בכל פרץ" — אחרי הפוגה הטיימר הנגרר כבר
-    // שידר, ולכן האירוע הבא עשוי ליפול בתוך חלון החסימה. ההבטחה היא שכל
-    // פרץ מסתיים במיקום הנכון, ושמספר השידורים קטן ממספר האירועים.
-    test('כל פרץ גלילה מסתיים במיקום הנכון, בפחות שידורים מאירועים', () async {
+    test('כל פרץ גלילה רגילה משדר את כל האירועים', () async {
       final positionsListener = ItemPositionsListener.create();
       final bloc = await _loadedBloc(positionsListener);
 
@@ -303,8 +334,8 @@ void main() {
       expect(seen.last, 27, reason: 'המיקום הסופי חייב להגיע');
       expect(
         seen.length,
-        lessThan(bursts.expand((b) => b).length),
-        reason: 'ההגבלה אמורה לחסוך שידורים',
+        bursts.expand((b) => b).length,
+        reason: 'גלילה רגילה אינה כפופה להגבלת הקצב',
       );
 
       await bloc.close();

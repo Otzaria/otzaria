@@ -310,9 +310,11 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   @visibleForTesting
   static bool shouldDispatchVisibleIndicesNow({
     required Duration? sinceLastDispatch,
+    bool continuousReadingMode = true,
     Duration throttleInterval = _visibleIndicesThrottleInterval,
   }) {
-    return sinceLastDispatch == null ||
+    return !continuousReadingMode ||
+        sinceLastDispatch == null ||
         sinceLastDispatch.isNegative ||
         sinceLastDispatch >= throttleInterval;
   }
@@ -876,6 +878,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
         final lastDispatchAt = _lastVisibleIndicesDispatchAt;
         if (shouldDispatchVisibleIndicesNow(
+          continuousReadingMode: currentState.continuousReadingMode,
           sinceLastDispatch: lastDispatchAt == null
               ? null
               : DateTime.now().difference(lastDispatchAt),
