@@ -19,6 +19,11 @@ class ScrollablePositionedListScrollbar extends StatefulWidget {
   /// אינדקס→תוכן עניינים).
   final String Function(int index)? labelForIndex;
 
+  /// ה-ScrollOffsetController של אותה רשימה. בלעדיו הסרגל יכול לנחות רק על
+  /// גבולות פריטים; חובה לספקו כשפריט בודד גבוה מה-viewport (חלונית המפרשים —
+  /// פריט = מפרש שלם), אחרת גרירת האגודל אינה מזיזה כלום.
+  final ScrollOffsetController? offsetController;
+
   const ScrollablePositionedListScrollbar({
     super.key,
     required this.scrollController,
@@ -26,6 +31,7 @@ class ScrollablePositionedListScrollbar extends StatefulWidget {
     required this.itemCount,
     required this.child,
     this.labelForIndex,
+    this.offsetController,
   });
 
   @override
@@ -49,13 +55,18 @@ class _ScrollablePositionedListScrollbarState
   // הגיעה לסוף הספר.
   double _maxScrollableIndex = 1;
 
+  // גובה ה-viewport בפיקסלים (= גובה המסילה) — להמרת חלק-פריט לגלילה בפועל.
+  double _viewportHeight = 0;
+
   // להחלקת הקפיצות במיקום
-  int _lastFirstIndex = 0;
+  double _lastJumpTarget = 0.0;
 
   // jumpTo בונה מחדש את החלון הנראה, ולכן קפיצות הגרירה מווסתות.
   static const Duration _dragJumpInterval = Duration(milliseconds: 50);
+  // animateTo טוען ש-duration חייב להיות חיובי, ולכן לא Duration.zero.
+  static const Duration _withinItemJump = Duration(milliseconds: 1);
   final Stopwatch _sinceLastDragJump = Stopwatch();
-  int? _pendingDragTarget;
+  double? _pendingDragTarget;
 
   // גובהי הפריטים שנמדדו (אינדקס → גובה ביחידות מסך). ממוצע גלובלי עליהם נותן
   // אומדן תוכן יציב, במקום ממוצע מקומי מתנודד על הגלויים כרגע.
@@ -150,7 +161,7 @@ class _ScrollablePositionedListScrollbarState
       0.0,
       1.0 - _thumbHeight,
     );
-    return _indexFromThumbPosition(thumbPos);
+    return _targetFromThumbPosition(thumbPos).round();
   }
 
   void _updateScrollPosition() {
@@ -180,11 +191,11 @@ class _ScrollablePositionedListScrollbarState
       }
     }
 
-    // בזמן גרירה, _lastFirstIndex מנוהל בתוך _onDragUpdate על פי היעד שאליו
+    // בזמן גרירה, _lastJumpTarget מנוהל בתוך _onDragUpdate על פי היעד שאליו
     // קפצנו. אסור לדרוס אותו פה לפי הפוזיציה הנוכחית של הרשימה אחרת קפיצות
     // הביניים יפסיקו כי "השינוי קטן מדי".
     if (!_isDragging) {
-      _lastFirstIndex = minIndex;
+      _lastJumpTarget = minIndex.toDouble();
     }
 
     // גובה פריט קבוע תחת גלילה; אם פריט שכבר נמדד מופיע בגובה שונה, ה-layout
@@ -239,15 +250,18 @@ class _ScrollablePositionedListScrollbarState
     final fractionalVisible = localItemHeight > 0
         ? 1.0 / localItemHeight
         : visibleItems.toDouble();
-    final maxScrollableIndex = max(widget.itemCount - fractionalVisible, 1.0);
+    // בלי רצפה של פריט שלם: כשפריט בודד גבוה מהמסך (מפרש ארוך) הטווח הנגלל
+    // קטן מ-1, וכל הגרירה מתרחשת בתוך אותו פריט.
+    final maxScrollableIndex = max(widget.itemCount - fractionalVisible, 0.0);
     // הכפלה ב-(1 - newHeight) שומרת עקביות עם המיפוי ההפוך
-    // ב-_indexFromThumbPosition (שמחלק ב-(1 - _thumbHeight)); בלעדיה האגודל
+    // ב-_targetFromThumbPosition (שמחלק ב-(1 - _thumbHeight)); בלעדיה האגודל
     // "ירד" אחרי קפיצה ליעד, בעוצמה שגדלה ככל שמתקדמים בספר.
-    final newPosition =
-        ((continuousIndex / maxScrollableIndex) * (1.0 - newHeight)).clamp(
-          0.0,
-          1.0 - newHeight,
-        );
+    final newPosition = maxScrollableIndex > 0
+        ? ((continuousIndex / maxScrollableIndex) * (1.0 - newHeight)).clamp(
+            0.0,
+            1.0 - newHeight,
+          )
+        : 0.0;
 
     // כל התוכן נראה אם הפריט הראשון מתחיל בתוך המסך, האחרון מסתיים בתוכו,
     // וכל הפריטים בטווח הזה מיוצגים — במצב כזה אין מה לגלול ואין טעם
@@ -273,16 +287,21 @@ class _ScrollablePositionedListScrollbarState
     });
   }
 
-  // הופך את מיקום האגודל (0.0–(1.0 - _thumbHeight)) לאינדקס יעד בטווח
-  // [0, _maxScrollableIndex]. שימוש ב-_maxScrollableIndex ולא ב-itemCount
-  // מבטיח שגרירה לתחתית באמת מגיעה לסוף הספר גם כש-_thumbHeight מקובל
-  // למינימום (לדוגמה כשמפרש פתוח מתחת ומעט סגמנטים גלויים).
-  int _indexFromThumbPosition(double position) {
+  // הופך את מיקום האגודל (0.0–(1.0 - _thumbHeight)) ליעד רציף בטווח
+  // [0, _maxScrollableIndex] — אינדקס פריט ועוד החלק שנגלל בתוכו. שימוש
+  // ב-_maxScrollableIndex ולא ב-itemCount מבטיח שגרירה לתחתית באמת מגיעה
+  // לסוף הספר גם כש-_thumbHeight מקובל למינימום.
+  double _targetFromThumbPosition(double position) {
     final maxPosition = 1.0 - _thumbHeight;
     if (maxPosition <= 0) return 0;
     final ratio = (position / maxPosition).clamp(0.0, 1.0);
-    return (ratio * _maxScrollableIndex).round();
+    return ratio * _maxScrollableIndex;
   }
+
+  /// גובה פריט ביחידות viewport — המדוד שלו, ואחרת הממוצע הגלובלי.
+  double _itemHeight(int index) =>
+      _itemHeights[index] ??
+      (_itemHeights.isNotEmpty ? _itemHeightSum / _itemHeights.length : 0.0);
 
   /// בודק אם נקודה אנכית על המסילה נמצאת מחוץ לאגודל. רק נקודה כזו מצדיקה
   /// קפיצה מוחלטת; לחיצה/גרירה שמתחילה על האגודל עצמו נועדה לגרירה יחסית
@@ -311,21 +330,43 @@ class _ScrollablePositionedListScrollbarState
     setState(() {
       _thumbPosition = newThumbPos;
     });
-    final int targetIndex = _indexFromThumbPosition(_thumbPosition);
-    _jumpDuringDrag(targetIndex);
+    final double target = _targetFromThumbPosition(_thumbPosition);
+    _jumpDuringDrag(target);
     if (globalPosition != null) {
-      _showLabelForIndex(targetIndex, globalPosition);
+      _showLabelForIndex(target.round(), globalPosition);
     }
   }
 
-  /// מבצע קפיצה ומאפס את שעון הוויסות.
-  void _jumpDuringDrag(int targetIndex) {
+  /// מבצע קפיצה ומאפס את שעון הוויסות. [target] רציף: החלק השלם הוא הפריט
+  /// שאליו קופצים, והשארית נגללת בתוכו — בלעדיה פריט הגבוה מהמסך אינו נגלל
+  /// כלל דרך הסרגל (חלונית המפרשים).
+  void _jumpDuringDrag(double target) {
     _pendingDragTarget = null;
-    _lastFirstIndex = targetIndex;
+    _lastJumpTarget = target;
     _sinceLastDragJump
       ..reset()
       ..start();
-    widget.scrollController.jumpTo(index: targetIndex);
+
+    final int maxIndex = max(widget.itemCount - 1, 0);
+    final offsetController = widget.offsetController;
+    if (offsetController == null) {
+      widget.scrollController.jumpTo(index: target.round().clamp(0, maxIndex));
+      return;
+    }
+
+    final int index = target.floor().clamp(0, maxIndex);
+    widget.scrollController.jumpTo(index: index);
+    final double withinItem =
+        (target - index) * _itemHeight(index) * _viewportHeight;
+    if (withinItem <= 0) return;
+    // ה-jumpTo מזמין פריסה מחדש; גלילה בתוך הפריט לפניה נמדדת מול המיקום הישן.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !widget.scrollController.isAttached) return;
+      offsetController.animateScroll(
+        offset: withinItem,
+        duration: _withinItemJump,
+      );
+    });
   }
 
   void _onDragUpdate(
@@ -339,23 +380,23 @@ class _ScrollablePositionedListScrollbarState
       _thumbPosition = _thumbPosition.clamp(0.0, 1.0 - _thumbHeight);
     });
 
-    final int targetIndex = _indexFromThumbPosition(_thumbPosition);
+    final double target = _targetFromThumbPosition(_thumbPosition);
 
-    if (targetIndex != _lastFirstIndex) {
+    if (target != _lastJumpTarget) {
       // התזוזה הראשונה קופצת מיד; אחריה מוותרים על קפיצות הביניים ושומרים את
       // היעד האחרון, כדי שהשחרור ינחת בדיוק במקום שאליו כוונה הגרירה.
       if (!_sinceLastDragJump.isRunning ||
           _sinceLastDragJump.elapsed >= _dragJumpInterval) {
-        _jumpDuringDrag(targetIndex);
+        _jumpDuringDrag(target);
       } else {
-        _pendingDragTarget = targetIndex;
+        _pendingDragTarget = target;
       }
     } else {
       _pendingDragTarget = null;
     }
 
     if (globalPosition != null) {
-      _showLabelForIndex(targetIndex, globalPosition);
+      _showLabelForIndex(target.round(), globalPosition);
     }
   }
 
@@ -391,6 +432,8 @@ class _ScrollablePositionedListScrollbarState
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final trackHeight = constraints.maxHeight;
+                // המסילה והרשימה חולקות שורה, ולכן זהו גם גובה ה-viewport.
+                _viewportHeight = trackHeight;
                 final thumbPixelHeight = trackHeight * _thumbHeight;
                 final thumbPixelTop = trackHeight * _thumbPosition;
                 final colorScheme = Theme.of(context).colorScheme;
