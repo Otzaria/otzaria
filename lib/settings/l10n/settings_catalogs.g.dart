@@ -6,6 +6,7 @@
 /// תרגומי מסך ההגדרות לפי קוד שפה, ממופים מהמקור העברי.
 const Map<String, Map<String, String>> kSettingsCatalogs = {
   'en': {
+    '12 בלילה': 'Midnight',
     '{count} נבחרו': '{count} selected',
     '{count} ספרים מיובאים': '{count} seforim imported',
     '{count} תיקיות': '{count} folders',
@@ -28,9 +29,13 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'איפוס': 'Reset',
     'איפוס אינדקס': 'Reset the index?',
     'איפוס הגדרות לפי ספר': 'Reset per-sefer settings',
+    'אירועים ותזכורות': 'Events and reminders',
+    'אישור': 'OK',
     'אישור איפוס הגדרות לפי ספר': 'Reset per-sefer settings?',
     'אישור גישה לרשת': 'Allow network access',
     'אל תציג': 'Never show',
+    'אל תציג התראות עבור אירועים בלוח השנה':
+        'Do not show alerts for luach events',
     'אפס': 'Reset',
     'אפס ועדכן': 'Reset and rebuild',
     'אפשרויות': 'Options',
@@ -38,7 +43,10 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'בודק אם נדרש איפוס ואינדוקס מחדש':
         'Checking whether a reset and re-index is needed',
     'בחירה': 'Select',
+    'בחירת עיר לחישובי זמני היום והלוח':
+        'Choose a city for the zmanim and the luach',
     'בחר הכל': 'Select all',
+    'בחר לוחות שנה': 'Choose calendars',
     'בחר מיקום עבור מאגר הספרים': 'Choose where the seforim are kept',
     'בחר קבצי ספרים לייבוא': 'Choose sefer files to import',
     'בחר קובצי "דורות.csv", "<שם הספר>.links.csv" או קובצי קישורים של אוצריא ("<שם הספר>_links.json") והם יכנסו לספרייה. ייבוא חוזר מעדכן ערכים קיימים ומוסיף חדשים.':
@@ -97,6 +105,13 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
         'The text is copied with the sefer name and the full mareh makom',
     'הטקסט ימלא את כל הרוחב הזמין': 'The text fills the full width',
     'היברובוקס בלבד': 'HebrewBooks only',
+    'היום בלוח יתחלף בזמן השקיעה של העיר הנבחרת':
+        'The day changes at shkiah in the chosen city',
+    'היום בלוח יתחלף בצאת הכוכבים לרבינו תם':
+        'The day changes at tzeis according to Rabbeinu Tam',
+    'היום בלוח יתחלף בצאת הכוכבים של העיר הנבחרת':
+        'The day changes at tzeis hakochavim in the chosen city',
+    'היום בלוח יתחלף בשעה 12 בלילה': 'The day changes at midnight',
     'הכותרת תופיע באותה שורה אחרי הטקסט (בלי סוגריים)':
         'The mareh makom comes after the text on the same line, without parentheses',
     'הכותרת תופיע באותה שורה אחרי הטקסט (עם סוגריים)':
@@ -142,6 +157,10 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הצג בממשק': 'Show in interface',
     'הצג בתנ"ך': 'Only in Tanach',
     'הצג הכל': 'Show all',
+    'הצג התראות על המסך והשמע את צליל המערכת':
+        'Show alerts on screen and play the system sound',
+    'הצג התראות על המסך ללא השמעת צליל':
+        'Show alerts on screen without a sound',
     'הצג יותר תוכן על ידי הקטנת המרווחים':
         'Show more content by reducing spacing',
     'הצג פריטים במרווחים נוחים ללחיצה':
@@ -180,13 +199,16 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'התוכנה תשתמש בצבעים כהים': 'The app will use dark colors',
     'התוכנה תתאים את המראה באופן אוטומטי להגדרות מערכת ההפעלה':
         'The app will match your operating system\'s appearance automatically',
+    'התחברות לחשבון': 'Connect an account',
     'התיקיה שבה נמצאים תיקיות הספרים והאינדקס':
         'The folder holding the seforim and the search index',
     'התיקיות והספרים יוצגו ברשימה נפתחת (עץ מתרחב)':
         'Folders and seforim show as an expanding tree',
     'התיקיות והספרים יוצגו בתוך כרטיסים ברשת':
         'Folders and seforim show as cards in a grid',
+    'התנתק': 'Disconnect',
     'התקדמות האינדקס: {processed}/{total}': 'Indexing: {processed}/{total}',
+    'התראות': 'Alerts',
     'חזור (Esc)': 'Back (Esc)',
     'חיפוש בהגדרות': 'Search settings',
     'חיפוש בכל הספרים': 'Search every sefer',
@@ -200,15 +222,20 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'חלוניות עזר': 'Side panels',
     'חלונית ניווט בין כותרות': 'Heading navigation panel',
     'חסימת גישה לרשת': 'Block network access',
+    'חפש לוח שנה...': 'Search calendars...',
     'טעינה בעליה': 'Load at startup',
     'טעינה רגילה': 'Load normally',
     'טקסט': 'Text',
+    'יוצג לוח השנה הלועזי בלבד': 'Show the secular calendar only',
+    'יוצג לוח השנה העברי בלבד': 'Show the Hebrew luach only',
     'יוצגו ספרים מאוצר החכמה בתוצאות החיפוש במסך הספרייה':
         'Seforim from Otzar HaChochma will show in the library search results',
     'יוצגו ספרים מאוצר החכמה ומהיברובוקס בתוצאות החיפוש במסך הספרייה':
         'Seforim from Otzar HaChochma and HebrewBooks will show in the library search results',
     'יוצגו ספרים מהיברובוקס בתוצאות החיפוש במסך הספרייה':
         'Seforim from HebrewBooks will show in the library search results',
+    'יוצגו תאריכים מהלוח העברי והלועזי יחד':
+        'Show Hebrew and secular dates together',
     'ייבוא דורות וקישורים': 'Import doros and links',
     'ייבוא ספרים': 'Import seforim',
     'ייבוא ספרים משלך אל תוך הספרייה':
@@ -217,6 +244,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
         'Import TXT, PDF, Word and EPUB files into the library',
     'ייבוא קובצי CSV/JSON של סדר דורות וקישורים לספרים האישיים.':
         'Import CSV/JSON files with seder hadoros and links for your own seforim.',
+    'כבוי': 'Off',
     'כהה': 'Dark',
     'כל אות מחושבת לפי ספרה אחת': 'Each letter counts as a single digit',
     'כל הספרים ישתמשו בהגדרות הכלליות': 'Every sefer uses the general settings',
@@ -234,7 +262,15 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'לא זוהתה ספרייה — הגדר מיקום, הורד או ייבא ספרייה':
         'No library found — set a location, download one, or import one',
     'לא נמצאו הגדרות תואמות': 'No matching settings found',
+    'לא נמצאו לוחות שנה': 'No calendars found',
+    'לא נמצאו פריטים': 'Nothing found',
+    'לא נמצאו תוצאות': 'No results',
     'לא קיימת ספרייה לאינדוקס': 'There is no library to index',
+    'לוח שנה': 'Luach',
+    'לוח שנה ראשי': 'Main calendar',
+    'לוח שנה של Google': 'Google Calendar',
+    'לוחות שנה ({count})': 'Calendars ({count})',
+    'לועזי': 'Secular',
     'לחץ להוספת תיקיות אישיות': 'Tap to add your own folders',
     'לייבוא סדר דורות וקישורים לספרים האישיים השתמש בכפתור "ייבוא דורות וקישורים" שבהמשך.':
         'To import seder hadoros and links for your own seforim, use the "Import doros and links" button below.',
@@ -243,6 +279,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'מאגר הספרים וחיפוש': 'Seforim and search',
     'מוסתר': 'Hidden',
     'מושבת': 'Disabled',
+    'מושבת במצב מנותק': 'Off in offline mode',
     'מחיקת דורות וקישורים': 'Delete doros and links',
     'מחיקת כל ההתאמות שנשמרו לכל ספר בנפרד':
         'Delete everything saved for individual seforim',
@@ -266,6 +303,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
         'Masechtos will open in the text edition (from the library, search results, mareh mekomos and links)',
     'מספר תוצאות': 'Number of results',
     'מעבר בין מצב בהיר למצב כהה': 'Switch between light and dark mode',
+    'מעבר יום': 'When the day changes',
     'מעקב אחר צבע המערכת': 'Follow system color',
     'מערכת': 'System',
     'מפרשים בחלונית מפוצלת או בתוך הטקסט':
@@ -277,6 +315,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'מקורות אחרים לספרים': 'Other sources for seforim',
     'מראה': 'Appearance',
     'מרווח בין שורות': 'Line spacing',
+    'משולב': 'Both',
     'משתמש ברשת': 'Uses the network',
     'מתקדם': 'Advanced',
     'נדרש איפוס ואינדוקס מחדש באישור המשתמש':
@@ -291,11 +330,15 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'נקה חיפוש': 'Clear search',
     'נתוני משתמש': 'User data',
     'סגור': 'Close',
+    'סוג לוח שנה': 'Luach type',
     'סוג תצוגה': 'View style',
     'סימני הפיסוק יוצגו בכל הספרים': 'Punctuation shows in every sefer',
     'סימני הפיסוק לא יוצגו (למעט בתנ"ך)':
         'Punctuation is hidden (except in Tanach)',
     'סינון תוצאות כפולות': 'Filter duplicate results',
+    'סנכרון אחרון: {time}': 'Last sync: {time}',
+    'סנכרן': 'Sync',
+    'סנכרן אירועים עם Google Calendar': 'Sync events with Google Calendar',
     'ספרי PDF ייפתחו בתצוגה רגילה': 'PDF seforim will open in the regular view',
     'ספרי PDF ייפתחו בתצוגת ספר': 'PDF seforim will open in sefer view',
     'ספריה': 'Seforim Library',
@@ -305,12 +348,14 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'ספרים חיצוניים לא יוצגו בתוצאות החיפוש במסך הספרייה':
         'Outside seforim will not show in the library search results',
     'סרוק מחדש תיקיות אישיות': 'Rescan my folders',
+    'עברי': 'Hebrew',
     'עדכון אינדקס אוטומטי': 'Update the index automatically',
     'עדכן': 'Update',
     'עוד פעולות': 'More actions',
     'עותק של תוכן הספרים יישמר בתוך התוכנה, כך שהם יעבדו גם אם הקבצים המקוריים יוזזו או יימחקו.\nהקבצים המקוריים יישארו במקומם.\n\nשים לב: אם תערוך קובץ בעתיד, יהיה עליך ללחוץ "סרוק מחדש" כדי שהשינוי יתעדכן.\n\nהאם להמשיך?':
         'A copy of the seforim is kept inside the app, so they keep working even if the original files are moved or deleted.\nThe original files stay where they are.\n\nNote: if you edit a file later, you will have to press "Rescan" for the change to show up.\n\nGo ahead?',
     'עיצוב כותרות': 'Mareh makom format',
+    'עיר נבחרת': 'City',
     'עם הכולל': 'Im hakollel',
     'עצור': 'Stop',
     'עצירת עדכון': 'Stop the update?',
@@ -334,13 +379,16 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'פתיחת ספרי PDF בתצוגת ספר או רגילה':
         'Open PDF seforim in sefer view or the regular view',
     'פתיחת פאנל המפרשים בפתיחת ספר': 'Open the meforshim panel with a sefer',
+    'צאה"כ': 'Tzeis',
     'צבע בסיס': 'Base color',
     'צבע ראשי של ערכת הנושא': 'Primary color of the theme',
+    'צליל': 'With sound',
     'צפיפות ממשק': 'Interface density',
     'קבצי PDF ו-Word': 'PDF and Word files',
     'קבצי PDF/Word — נקראים ישירות מהקבצים':
         'PDF/Word files — always read straight from disk',
     'קיצורי מקשים': 'Keyboard shortcuts',
+    'רבינו תם': 'Rabbeinu Tam',
     'רגיל': 'Normal',
     'רוחב הטקסט': 'Text width',
     'רצף': 'Running text',
@@ -363,6 +411,8 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
         'Display language for the settings screen only',
     'שפת התצוגה של מסך ההגדרות בלבד; שאר התוכנה נשארת בעברית':
         'Display language for the settings screen only; the rest of the app stays in Hebrew',
+    'שקט': 'Silent',
+    'שקיעה': 'Shkiah',
     'תוספים מותקנים': 'Installed plugins',
     'תוצאות זהות יוצגו פעם אחת בלבד': 'Identical results show only once',
     'תוצאות חיפוש': 'Search results',
