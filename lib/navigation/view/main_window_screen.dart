@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:collection/collection.dart';
@@ -323,22 +324,22 @@ class MainWindowScreenState extends State<MainWindowScreen>
     ),
     (
       screen: Screen.find,
-      icon: FluentIcons.book_search_24_regular,
-      iconFilled: FluentIcons.book_search_24_filled,
+      icon: OtzariaIcons.book_search_24_regular,
+      iconFilled: OtzariaIcons.book_search_24_filled,
       label: 'איתור',
       shortcutKey: 'key-shortcut-open-find-ref',
     ),
     (
       screen: Screen.reading,
-      icon: FluentIcons.book_open_24_regular,
-      iconFilled: FluentIcons.book_open_24_filled,
+      icon: OtzariaIcons.book_open_large_24_regular,
+      iconFilled: OtzariaIcons.book_open_large_24_filled,
       label: 'עיון',
       shortcutKey: 'key-shortcut-open-reading-screen',
     ),
     (
       screen: Screen.search,
-      icon: FluentIcons.search_24_regular,
-      iconFilled: FluentIcons.search_24_filled,
+      icon: OtzariaIcons.search_24_regular,
+      iconFilled: OtzariaIcons.search_24_filled,
       label: 'חיפוש',
       shortcutKey: 'key-shortcut-open-new-search',
     ),
@@ -1361,9 +1362,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
           preferBelow: false,
           message: (ShortcutValidator.getShortcutValue(item.shortcutKey) ?? '')
               .toUpperCase(),
-          child: RtlIcon(item.icon),
+          child: _navigationIcon(item.icon),
         ),
-        selectedIcon: RtlIcon(item.iconFilled),
+        selectedIcon: _navigationIcon(item.iconFilled),
         label: item.label,
       );
     }
@@ -1382,6 +1383,12 @@ class MainWindowScreenState extends State<MainWindowScreen>
       for (final item in pinnedItems) buildPinnedItemDestination(item),
       buildNavDataDestination(_settingsNavIndex),
     ];
+  }
+
+  Widget _navigationIcon(IconData icon) {
+    return icon.fontPackage == OtzariaIcons.fontPackage
+        ? Icon(icon)
+        : RtlIcon(icon);
   }
 
   /// סדר העמודים במהלך slide חוצה: מחליף (swap) בין מסך היעד ([targetIndex])

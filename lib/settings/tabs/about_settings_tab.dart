@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/widgets/layout/adaptive_row.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -235,13 +236,13 @@ class AboutSettingsTab extends StatelessWidget {
                       _InfoChipSection(
                         label: aboutTopEditorsLabel,
                         items: aboutTopEditors,
-                        icon: FluentIcons.person_24_regular,
+                        icon: OtzariaIcons.person_24_filled,
                       ),
                       const SizedBox(height: 20),
                       _InfoChipSection(
                         label: aboutRegularEditorsLabel,
                         items: aboutRegularEditors,
-                        icon: FluentIcons.person_24_regular,
+                        icon: OtzariaIcons.person_24_filled,
                       ),
                       const SizedBox(height: 16),
                       const _SubtitleText(
@@ -546,8 +547,8 @@ class _ClosingQuote extends StatelessWidget {
           child: Column(
             children: [
               Icon(
-                FluentIcons.book_open_24_regular,
-                size: 32,
+                OtzariaIcons.otzaria_icon_24_regular,
+                size: 48,
                 color: colorScheme.primary,
               ),
               const SizedBox(height: 12),

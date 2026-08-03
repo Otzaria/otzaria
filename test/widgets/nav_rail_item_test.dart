@@ -1,6 +1,7 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/navigation/nav_rail_item.dart';
 
@@ -204,6 +205,28 @@ void main() {
   });
 
   group('NavRailItem — RTL icon rendering (regression: no mirrorIcon)', () {
+    testWidgets('אייקון Otzaria מוצג ישירות ללא RtlIcon', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: NavRailItem(
+              icon: OtzariaIcons.book_open_large_24_regular,
+              label: 'עיון',
+              isSelected: false,
+              onTap: () {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byType(RtlIcon), findsNothing);
+      expect(
+        find.byIcon(OtzariaIcons.book_open_large_24_regular),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('משתמש ב-RtlIcon לניהול כיווניות', (tester) async {
       await tester.pumpWidget(
         MaterialApp(

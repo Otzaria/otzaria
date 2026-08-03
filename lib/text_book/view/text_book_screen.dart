@@ -11,6 +11,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
@@ -1251,7 +1252,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                             AppTopBarItem(
                               widget: BarButton.icon(
                                 tooltip: 'ניווט וחיפוש',
-                                icon: FluentIcons.navigation_24_regular,
+                                icon: OtzariaIcons.text_continuous_24_regular,
                                 compact: isCompact,
                                 onPressed: () {},
                               ),
@@ -1519,7 +1520,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     return BarButton.icon(
       key: widget.enableTourTargets ? textBookNavigationTourTargetKey : null,
       tooltip: 'ניווט וחיפוש',
-      icon: FluentIcons.navigation_24_regular,
+      icon: state.showLeftPane
+          ? OtzariaIcons.text_continuous_24_filled
+          : OtzariaIcons.text_continuous_24_regular,
       compact: isCompact,
       onPressed: () =>
           context.read<TextBookBloc>().add(ToggleLeftPane(!state.showLeftPane)),
@@ -1609,7 +1612,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           ),
           ActionButtonData(
             widget: const SizedBox.shrink(),
-            icon: FluentIcons.book_open_24_regular,
+            icon: OtzariaIcons.book_open_tzurat_hadaf_24_regular,
             tooltip: 'צורת הדף',
             onPressed: () => _onViewModeSelected(context, state, _viewModePage),
           ),
@@ -1627,8 +1630,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       ActionButtonData(
         widget: _buildNikudButton(context, state),
         icon: state.removeNikud
-            ? FluentIcons.text_font_24_regular
-            : FluentIcons.text_font_info_24_regular,
+            ? OtzariaIcons.alef_with_score_24_regular
+            : OtzariaIcons.alef_deletion_24_regular,
         tooltip: state.removeNikud ? 'הצג ניקוד' : 'הסתר ניקוד',
         onPressed: () async {
           final newValue = !state.removeNikud;
@@ -1646,8 +1649,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         ActionButtonData(
           widget: _buildPunctuationButton(context, state),
           icon: state.removePunctuation
-              ? FluentIcons.text_quote_24_regular
-              : FluentIcons.text_clear_formatting_24_regular,
+              ? OtzariaIcons.alef_with_punctuation_24_regular
+              : OtzariaIcons.alef_with_eraser_24_regular,
           tooltip: state.removePunctuation ? 'הצג פיסוק' : 'הסתר פיסוק',
           onPressed: () => _toggleAndSavePunctuation(context, state),
         ),
@@ -1657,7 +1660,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         ActionButtonData(
           widget: _buildContinuousReadingButton(context, state),
           icon: state.continuousReadingMode
-              ? FluentIcons.text_align_justify_24_filled
+              ? OtzariaIcons.list_24_regular
               : FluentIcons.text_align_justify_24_regular,
           tooltip: state.continuousReadingMode
               ? 'הצג כשורות בודדות'
@@ -1905,7 +1908,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   /// קבלת האייקון המתאים למצב התצוגה הנוכחי
   IconData _getViewModeIcon(TextBookLoaded state) {
     if (state.showPageShapeView) {
-      return FluentIcons.book_open_24_filled;
+      return OtzariaIcons.book_open_tzurat_hadaf_24_filled;
     }
     if (state.showSplitView) {
       return FluentIcons.panel_left_24_regular;
@@ -2008,8 +2011,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           value: _viewModePage,
           label: 'צורת הדף',
           icon: isPage
-              ? FluentIcons.book_open_24_filled
-              : FluentIcons.book_open_24_regular,
+              ? OtzariaIcons.book_open_tzurat_hadaf_24_filled
+              : OtzariaIcons.book_open_tzurat_hadaf_24_regular,
         ),
         const AppMenuEntry(
           value: _actionOpenCommentatorsTab,
@@ -2025,8 +2028,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     return BarButton.icon(
       tooltip: state.removeNikud ? 'הצג ניקוד' : 'הסתר ניקוד',
       icon: state.removeNikud
-          ? FluentIcons.text_font_24_regular
-          : FluentIcons.text_font_info_24_regular,
+          ? OtzariaIcons.alef_with_score_24_regular
+          : OtzariaIcons.alef_deletion_24_regular,
       compact: isCompact,
       onPressed: () async {
         final newValue = !state.removeNikud;
@@ -2054,8 +2057,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     return BarButton.icon(
       tooltip: state.removePunctuation ? 'הצג פיסוק' : 'הסתר פיסוק',
       icon: state.removePunctuation
-          ? FluentIcons.text_quote_24_regular
-          : FluentIcons.text_clear_formatting_24_regular,
+          ? OtzariaIcons.alef_with_punctuation_24_regular
+          : OtzariaIcons.alef_with_eraser_24_regular,
       compact: isCompact,
       onPressed: () => _toggleAndSavePunctuation(context, state),
     );
@@ -2084,7 +2087,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           ? 'הצג כשורות בודדות'
           : 'הצג כטקסט רציף',
       icon: state.continuousReadingMode
-          ? FluentIcons.text_align_justify_24_filled
+          ? OtzariaIcons.list_24_regular
           : FluentIcons.text_align_justify_24_regular,
       compact: isCompact,
       onPressed: () => _toggleAndSaveContinuousReading(context, state),
@@ -2700,14 +2703,14 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           controller: tabController,
           tabs: [
             (
-              icon: FluentIcons.navigation_24_regular,
-              iconFilled: FluentIcons.navigation_24_filled,
+              icon: OtzariaIcons.list_24_regular,
+              iconFilled: OtzariaIcons.list_24_filled,
               label: 'ניווט',
             ),
             if (_hasAltTitles)
               (
-                icon: FluentIcons.list_24_regular,
-                iconFilled: FluentIcons.list_24_filled,
+                icon: OtzariaIcons.text_bullet_list_24_regular,
+                iconFilled: OtzariaIcons.text_bullet_list_24_filled,
                 label: 'כותרות',
               ),
             (

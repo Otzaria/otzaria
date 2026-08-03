@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart'
     hide SettingsGroup, SwitchSettingsTile;
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -1029,7 +1030,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             final hasReports = pendingCount > 0;
 
             return ExpandableSection(
-              icon: FluentIcons.task_list_ltr_24_regular,
+              icon: OtzariaIcons.task_list_24_regular,
               title: 'ניהול דיווחים שמורים',
               subtitle: pendingCount == 0
                   ? 'אין כרגע דיווחים שמורים בתור'

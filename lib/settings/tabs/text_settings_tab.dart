@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
@@ -246,7 +247,7 @@ class TextSettingsTab extends StatelessWidget {
           child: AdaptiveRow(
             children: [
               _FontSizeSlider(
-                icon: FluentIcons.text_font_size_24_regular,
+                icon: OtzariaIcons.alef_near_alef_24_regular,
                 label: 'גודל גופן הספר',
                 value: state.fontSize.clamp(15, 60),
                 min: 15,
@@ -256,7 +257,7 @@ class TextSettingsTab extends StatelessWidget {
                 },
               ),
               _FontDropdown(
-                icon: FluentIcons.text_font_24_regular,
+                icon: OtzariaIcons.alef_near_alef_24_regular,
                 label: 'גופן טקסט',
                 value: state.fontFamily,
                 onChanged: (value) {
@@ -280,7 +281,7 @@ class TextSettingsTab extends StatelessWidget {
             children: [
               if (!hideCommentaryFontSize)
                 _FontSizeSlider(
-                  icon: FluentIcons.text_font_size_24_regular,
+                  icon: OtzariaIcons.beit_near_alef_24_regular,
                   label: 'גודל גופן מפרשים',
                   value: state.commentatorsFontSize.clamp(10, 40),
                   min: 10,
@@ -292,7 +293,7 @@ class TextSettingsTab extends StatelessWidget {
                   },
                 ),
               _FontDropdown(
-                icon: FluentIcons.book_24_regular,
+                icon: OtzariaIcons.beit_near_alef_24_regular,
                 label: 'גופן מפרשים',
                 value: state.commentatorsFontFamily,
                 onChanged: (value) {
@@ -402,7 +403,7 @@ class TextSettingsTab extends StatelessWidget {
       title: 'כתרי אותיות',
       children: [
         SettingsActionTile.segmentedTile<String>(
-          icon: FluentIcons.text_font_info_24_regular,
+          icon: OtzariaIcons.alef_with_score_24_regular,
           title: 'הצגת הניקוד',
           options: const [
             SegmentOption(
@@ -449,7 +450,7 @@ class TextSettingsTab extends StatelessWidget {
           },
         ),
         SettingsActionTile.switchTile(
-          icon: FluentIcons.text_clear_formatting_24_regular,
+          icon: OtzariaIcons.alef_with_punctuation_24_regular,
           title: 'הצגת סימני פיסוק',
           subtitle: state.defaultRemovePunctuation
               ? 'סימני הפיסוק לא יוצגו (למעט בתנ"ך)'
@@ -473,7 +474,7 @@ class TextSettingsTab extends StatelessWidget {
           },
         ),
         SettingsActionTile.switchTile(
-          icon: FluentIcons.text_more_24_regular,
+          icon: OtzariaIcons.alef_with_flavors_24_regular,
           title: 'הצגת טעמי המקרא',
           subtitle: state.showTeamim
               ? 'המקרא יוצג עם טעמים'
@@ -711,9 +712,9 @@ const String _kFontSampleText = 'אבגד הוזח';
 IconData? _fontCategoryIcon(FontCategory category) {
   switch (category) {
     case FontCategory.serif:
-      return FluentIcons.text_font_24_regular;
+      return OtzariaIcons.alef_behind_alef_24_regular;
     case FontCategory.sansSerif:
-      return FluentIcons.text_t_24_regular;
+      return OtzariaIcons.alef_behind_alef_24_regular;
     case FontCategory.unknown:
       return null;
   }

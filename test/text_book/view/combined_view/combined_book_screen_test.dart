@@ -28,6 +28,66 @@ void main() {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
+  group('shouldOpenPreviewLinkInBook', () {
+    Link link(String type) => Link(
+      heRef: 'יעד',
+      index1: 1,
+      path2: 'יעד.txt',
+      index2: 2,
+      connectionType: type,
+    );
+
+    test('משאיר קישור Linker במסלול פתיחת הספר', () {
+      expect(shouldOpenPreviewLinkInBook(link('linker')), isTrue);
+    });
+
+    test('מפנה מפרש וקישור רגיל לחלוניות הצד', () {
+      expect(shouldOpenPreviewLinkInBook(link('COMMENTARY')), isFalse);
+      expect(shouldOpenPreviewLinkInBook(link('REFERENCE')), isFalse);
+    });
+  });
+
+  group('activatePreviewCommentator', () {
+    final link = Link(
+      heRef: 'טורי זהב',
+      index1: 1,
+      path2: r'מפרשים\טורי זהב.txt',
+      index2: 2,
+      connectionType: 'COMMENTARY',
+    );
+
+    test('מעביר את מפרש הקישור לראש הבחירה הפעילה', () {
+      expect(
+        activatePreviewCommentator(
+          activeCommentators: const ['שפתי כהן'],
+          link: link,
+        ),
+        ['טורי זהב', 'שפתי כהן'],
+      );
+    });
+
+    test('מעביר מפרש פעיל מאוחר לראש בלי לשכפל אותו', () {
+      expect(
+        activatePreviewCommentator(
+          activeCommentators: const ['שפתי כהן', 'טורי זהב', 'באר היטב'],
+          link: link,
+        ),
+        ['טורי זהב', 'שפתי כהן', 'באר היטב'],
+      );
+    });
+
+    test('אינו משנה את הרשימה כשהמפרש כבר ראשון', () {
+      const active = ['טורי זהב'];
+      expect(
+        activatePreviewCommentator(
+          activeCommentators: active,
+          link: link,
+        ),
+        same(active),
+      );
+    });
+  });
+
   group('buildCombinedViewContextMenuLinksForParagraph', () {
     test('מחזירה רק קישורים רגילים של הפסקה שנלחצה', () {
       final linksByLine = <int, List<Link>>{

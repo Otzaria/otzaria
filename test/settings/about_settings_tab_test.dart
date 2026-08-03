@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/settings/tabs/about_settings_tab.dart';
 
 void main() {
@@ -29,6 +30,11 @@ void main() {
       expect(find.byIcon(FluentIcons.fire_24_filled), findsNWidgets(2));
       expect(find.byIcon(FluentIcons.heart_24_filled), findsNothing);
       expect(find.byIcon(FluentIcons.heart_24_regular), findsOneWidget);
+      final quoteIcon = tester.widget<Icon>(
+        find.byIcon(OtzariaIcons.otzaria_icon_24_regular),
+      );
+      expect(quoteIcon.size, 48);
+      expect(find.byIcon(OtzariaIcons.person_24_filled), findsWidgets);
     });
   });
 }

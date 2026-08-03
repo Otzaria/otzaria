@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart'
     hide SwitchSettingsTile;
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -292,6 +293,7 @@ class DesignSettingsTab extends StatelessWidget {
                         SegmentOption(
                           value: 'text',
                           label: 'טקסט',
+                          icon: OtzariaIcons.book_alef_24_regular,
                           subtitle:
                               'מסכתות הבבלי ייפתחו במהדורת הטקסט '
                               '(מהספרייה, מתוצאות חיפוש, מאיתור מקורות '
@@ -300,6 +302,7 @@ class DesignSettingsTab extends StatelessWidget {
                         SegmentOption(
                           value: 'pdf',
                           label: 'PDF',
+                          icon: OtzariaIcons.book_pdf_24_regular,
                           subtitle:
                               'מסכתות הבבלי ייפתחו במהדורת ה-PDF '
                               'בדף המתאים, גם בפתיחה מהספרייה',
