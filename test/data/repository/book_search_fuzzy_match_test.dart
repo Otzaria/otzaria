@@ -255,6 +255,139 @@ void main() {
       );
     });
 
+    test('מילות השאילתה לפי הסדר בכותרת גוברות על כינוי רציף (issue #687)', () {
+      // הרמב"ם (ראשונים) בלי כינוי קצר מול מפרש (אחרונים) שלכינויו השאילתה
+      // ברצף — מילות הכותרת לפי הסדר מעלות את הרמב"ם מעל שכבת הכינוי.
+      const melachim = [
+        BookSearchEntry(
+          index: 0,
+          title: 'שער המלך על משנה תורה, הלכות מלכים ומלחמות',
+          author: '',
+          topics: '',
+          acronyms: ['שער המלך על משנה תורה מלכים'],
+          eraOrder: 3,
+        ),
+        BookSearchEntry(
+          index: 1,
+          title: 'משנה תורה, הלכות מלכים ומלחמות',
+          author: '',
+          topics: '',
+          eraOrder: 2,
+        ),
+      ];
+      final results = filterBookSearchEntries(
+        entries: melachim,
+        queryWords: 'משנה תורה מלכים'.split(' '),
+        topics: const [],
+        sortByRatio: true,
+        normalizedQuery: 'משנה תורה מלכים',
+      );
+      expect(
+        results,
+        equals([1, 0]),
+        reason: 'ספר היסוד קודם למפרש שרק לכינויו התאמה רציפה',
+      );
+    });
+
+    test('שכבת המילים-לפי-הסדר דורשת שוויון מילים מדויק, לא תחיליות', () {
+      // 'הרמבם' אינו 'רמבם' — אחרת מפרש היה מקודם מעל ההתאמה בכינוי
+      // של ספר היסוד עצמו.
+      const withPrefix = [
+        BookSearchEntry(
+          index: 0,
+          title: 'מקורי הרמב"ם לרש"ש על משנה תורה, הלכות מלכים ומלחמות',
+          author: '',
+          topics: '',
+          eraOrder: 3,
+        ),
+        BookSearchEntry(
+          index: 1,
+          title: 'משנה תורה, הלכות מלכים ומלחמות',
+          author: '',
+          topics: '',
+          acronyms: ['רמבם מלכים ומלחמות'],
+          eraOrder: 2,
+        ),
+      ];
+      final results = filterBookSearchEntries(
+        entries: withPrefix,
+        queryWords: 'רמבם מלכים'.split(' '),
+        topics: const [],
+        sortByRatio: true,
+        normalizedQuery: 'רמבם מלכים',
+      );
+      expect(
+        results,
+        equals([1, 0]),
+        reason: "התאמת כינוי גוברת על 'הרמבם' שאינו שוויון מילה מדויק",
+      );
+    });
+
+    test('הכלה רציפה בכותרת גוברת על מילים לפי הסדר, גם מול דור מוקדם', () {
+      const contiguousVsOrdered = [
+        BookSearchEntry(
+          index: 0,
+          title: 'לחם על משנה תורה',
+          author: '',
+          topics: '',
+          eraOrder: 2,
+        ),
+        BookSearchEntry(
+          index: 1,
+          title: 'לחם משנה על משנה תורה',
+          author: '',
+          topics: '',
+          eraOrder: 3,
+        ),
+      ];
+      final results = filterBookSearchEntries(
+        entries: contiguousVsOrdered,
+        queryWords: 'לחם משנה'.split(' '),
+        topics: const [],
+        sortByRatio: true,
+        normalizedQuery: 'לחם משנה',
+      );
+      expect(
+        results,
+        equals([1, 0]),
+        reason: 'רצף מלא בכותרת קודם למילים מפוזרות לפי הסדר',
+      );
+    });
+
+    test('סדר המילים בכותרת מחייב — סדר הפוך לא מקודם', () {
+      // בכותרת של 0 המילים בסדר הפוך לשאילתה — נשאר בשכבת ה-fuzzy,
+      // מתחת להתאמת הכינוי של 1.
+      const reversed = [
+        BookSearchEntry(
+          index: 0,
+          title: 'תורה של משנה',
+          author: '',
+          topics: '',
+          eraOrder: 2,
+        ),
+        BookSearchEntry(
+          index: 1,
+          title: 'חומש',
+          author: '',
+          topics: '',
+          acronyms: ['משנה תורה'],
+          eraOrder: 3,
+        ),
+      ];
+      final results = filterBookSearchEntries(
+        entries: reversed,
+        queryWords: 'משנה תורה'.split(' '),
+        topics: const [],
+        sortByRatio: true,
+        normalizedQuery: 'משנה תורה',
+      );
+      expect(
+        results,
+        equals([1, 0]),
+        reason: 'סדר מילים הפוך אינו מקודם מעל התאמת כינוי',
+      );
+    });
+
     test('כותרת מדויקת מדורגת לפני כותרת ארוכה שמכילה את השאילתה', () {
       const withExactAndLong = [
         BookSearchEntry(
