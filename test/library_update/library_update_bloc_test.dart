@@ -431,7 +431,7 @@ void main() {
     );
 
     blocTest<LibraryUpdateBloc, LibraryUpdateState>(
-      'כשל ב-apply בלי אינטרנט → מנותק ולא שגיאה',
+      'כשל ב-apply בלי אינטרנט נשאר שגיאה מקומית',
       build: () => _bloc(
         _FakeService(deltaPlan, throwOnApply: true),
         hasInternet: false,
@@ -446,13 +446,13 @@ void main() {
         isA<LibraryUpdateState>().having(
           (s) => s.status,
           'status',
-          LibraryUpdateStatus.disconnected,
+          LibraryUpdateStatus.error,
         ),
       ],
     );
 
     blocTest<LibraryUpdateBloc, LibraryUpdateState>(
-      'כשל בהורדה מלאה בלי אינטרנט → מנותק ולא שגיאה',
+      'כשל בהורדה מלאה בלי אינטרנט נשאר שגיאה מקומית',
       build: () =>
           _bloc(_FakeService(fullPlan, throwOnApply: true), hasInternet: false),
       seed: () => LibraryUpdateState(
@@ -469,7 +469,7 @@ void main() {
         isA<LibraryUpdateState>().having(
           (s) => s.status,
           'status',
-          LibraryUpdateStatus.disconnected,
+          LibraryUpdateStatus.error,
         ),
       ],
     );

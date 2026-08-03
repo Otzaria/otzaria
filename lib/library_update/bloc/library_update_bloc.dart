@@ -142,15 +142,17 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
       // אם בוטל/הוחלף במהלך הבדיקה — לא לדרוס state של ריצה חדשה בשגיאה.
       if (_isStale(opId)) return;
       _logUpdateError('checkForUpdate', e, st);
-      final failure = await _failureState('שגיאה בבדיקת עדכונים', e);
+      final failure = await _checkFailureState('שגיאה בבדיקת עדכונים', e);
       if (isClosed || _isStale(opId)) return;
       emit(failure);
     }
   }
 
-  /// המצב שיש לפלוט אחרי כשל: בלי אינטרנט זו אינה תקלה אלא מצב מנותק — סימון
-  /// שקט בכפתור העדכון במקום כשל שקופץ למשתמש שאין לו מה לתקן.
-  Future<LibraryUpdateState> _failureState(String message, Object error) async {
+  /// בכשל בבדיקת הזמינות בלבד, היעדר רשת אינו שגיאה למשתמש.
+  Future<LibraryUpdateState> _checkFailureState(
+    String message,
+    Object error,
+  ) async {
     if (await hasInternet()) {
       return LibraryUpdateState(
         status: LibraryUpdateStatus.error,
@@ -195,9 +197,13 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     } catch (e, st) {
       if (_isStale(opId)) return;
       _logUpdateError('applyDeltaPlan', e, st);
-      final failure = await _failureState('שגיאה בהחלת העדכון', e);
-      if (isClosed || _isStale(opId)) return;
-      emit(failure);
+      emit(
+        LibraryUpdateState(
+          status: LibraryUpdateStatus.error,
+          message: 'שגיאה בהחלת העדכון',
+          errorMessage: e.toString(),
+        ),
+      );
     }
   }
 
@@ -240,9 +246,13 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     } catch (e, st) {
       if (_isStale(opId)) return;
       _logUpdateError('applyFullDownload', e, st);
-      final failure = await _failureState('שגיאה בהורדה המלאה', e);
-      if (isClosed || _isStale(opId)) return;
-      emit(failure);
+      emit(
+        LibraryUpdateState(
+          status: LibraryUpdateStatus.error,
+          message: 'שגיאה בהורדה המלאה',
+          errorMessage: e.toString(),
+        ),
+      );
     }
   }
 
