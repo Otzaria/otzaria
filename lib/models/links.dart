@@ -106,6 +106,11 @@ class Link {
   /// קישור-טווח: אינדקס (1-based) של השורה האחרונה בטווח בצד המקושר, או null.
   final int? index2End;
 
+  /// מהימנות כיוון הקישור (עמודת `baseProvenance` במסד): 2 = יחס בסיס מוצהר,
+  /// 1 = הוסק מכותרת "X על Y", 0 = ציטוט לטרלי. מבדיל את המקור האמיתי מציטוט
+  /// כשלשורה אחת יש כמה קישורי SOURCE.
+  final int baseProvenance;
+
   /// Creates a new instance of [Link] with the provided parameters.
   Link({
     required this.heRef,
@@ -126,6 +131,7 @@ class Link {
     this.anchorSpans = const [],
     this.heRefEnd,
     this.index2End,
+    this.baseProvenance = 0,
   });
 
   static final LinkedHashMap<String, Future<String>> _contentCache =
@@ -313,7 +319,8 @@ class Link {
       anchorSpans = const [],
       // קישורי-טווח מגיעים רק ממסד הנתונים (link_range), לא מקבצי JSON.
       heRefEnd = null,
-      index2End = null;
+      index2End = null,
+      baseProvenance = 0;
 }
 
 /// Retrieves a list of [Link] objects for the given list of [indexes] and the [links] to be processed.

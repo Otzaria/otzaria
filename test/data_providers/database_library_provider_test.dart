@@ -335,6 +335,76 @@ void main() {
       }
     });
 
+    test('SOURCE inverse נושא את baseProvenance של הקישור כשהעמודה קיימת', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'otzaria_db_provenance',
+      );
+      final dbPath = path.join(tempDir.path, 'db.sqlite');
+      final db = sqlite3.sqlite3.open(dbPath);
+
+      try {
+        db.execute(
+          'CREATE TABLE book (id INTEGER PRIMARY KEY, title TEXT, categoryId INTEGER, fileType TEXT)',
+        );
+        db.execute(
+          'CREATE TABLE line (id INTEGER PRIMARY KEY, lineIndex INTEGER, heRef TEXT)',
+        );
+        db.execute(
+          'CREATE TABLE connection_type (id INTEGER PRIMARY KEY, name TEXT)',
+        );
+        db.execute(
+          'CREATE TABLE link (id INTEGER PRIMARY KEY, sourceBookId INTEGER, sourceLineId INTEGER, targetLineId INTEGER, targetBookId INTEGER, connectionTypeId INTEGER, baseProvenance INTEGER NOT NULL DEFAULT 0)',
+        );
+
+        // רש"י (3) מקושר גם מהבסיס (1, יחס מוצהר) וגם מספר תלוי ששמור בכיוון
+        // ההפוך (2, ציטוט לטרלי) — שני קישורי SOURCE לאותה שורה.
+        db.execute(
+          "INSERT INTO book (id, title, categoryId, fileType) VALUES (1, 'בבא קמא', 7, 'txt')",
+        );
+        db.execute(
+          "INSERT INTO book (id, title, categoryId, fileType) VALUES (2, 'אוצר לעזי רש''י', 9, 'txt')",
+        );
+        db.execute(
+          "INSERT INTO book (id, title, categoryId, fileType) VALUES (3, 'רש''י על בבא קמא', 8, 'txt')",
+        );
+        db.execute(
+          "INSERT INTO line (id, lineIndex, heRef) VALUES (10, 0, 'א')",
+        );
+        db.execute(
+          "INSERT INTO line (id, lineIndex, heRef) VALUES (20, 4, 'ה')",
+        );
+        db.execute(
+          "INSERT INTO line (id, lineIndex, heRef) VALUES (30, 7, 'ז')",
+        );
+        db.execute(
+          "INSERT INTO connection_type (id, name) VALUES (1, 'COMMENTARY')",
+        );
+        db.execute(
+          'INSERT INTO link (sourceBookId, sourceLineId, targetLineId, targetBookId, connectionTypeId, baseProvenance) VALUES (2, 30, 20, 3, 1, 0)',
+        );
+        db.execute(
+          'INSERT INTO link (sourceBookId, sourceLineId, targetLineId, targetBookId, connectionTypeId, baseProvenance) VALUES (1, 10, 20, 3, 1, 2)',
+        );
+
+        final rows = DatabaseLibraryProvider.loadBookLinksRowsForTesting(
+          dbPath: dbPath,
+          title: 'רש\'י על בבא קמא',
+          categoryId: 8,
+          fileType: 'txt',
+        );
+
+        final provenanceByTitle = {
+          for (final row in rows)
+            row['targetBookTitle'] as String: row['baseProvenance'],
+        };
+        expect(provenanceByTitle['בבא קמא'], 2);
+        expect(provenanceByTitle['אוצר לעזי רש\'י'], 0);
+      } finally {
+        db.close();
+        await tempDir.delete(recursive: true);
+      }
+    });
+
     test('חלון שורות חלקי וסיכום כלל־ספרי נשארים עקביים', () async {
       final tempDir = await Directory.systemTemp.createTemp('otzaria_db_range');
       final dbPath = path.join(tempDir.path, 'db.sqlite');

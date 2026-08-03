@@ -39,13 +39,19 @@ class SiblingCommentariesController {
 
   /// מאתר את קישור ה-SOURCE הווירטואלי של השורה (הקפיצה מפרש→מקור). מוחזר null
   /// כשהשורה אינה בספר מפרש — ואז אין להציג את הפריט כלל.
+  /// לשורה יכולים להיות כמה קישורי SOURCE; נבחר בעל ה-[Link.baseProvenance]
+  /// הגבוה — יחס הבסיס המוצהר ולא ציטוט לטרלי שנשמר במסד בכיוון ההפוך.
   Link? sourceLinkForLine(Map<int, List<Link>> linksByLine, int lineIndex) {
     final links = linksByLine[lineIndex];
     if (links == null) return null;
+    Link? best;
     for (final link in links) {
-      if (LinkTypes.isVirtualSource(link.connectionType)) return link;
+      if (!LinkTypes.isVirtualSource(link.connectionType)) continue;
+      if (best == null || link.baseProvenance > best.baseProvenance) {
+        best = link;
+      }
     }
-    return null;
+    return best;
   }
 
   /// בונה את פריט התפריט "מפרשים נוספים על <כתובת המקור>", או null כשאין מקור
