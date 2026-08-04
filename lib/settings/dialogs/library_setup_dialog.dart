@@ -27,6 +27,8 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 // כרטיס "פעולה" בוחר את *מקור* הקבצים: הורדה מהאינטרנט, בחירת קובץ מהמחשב,
 // ובמצב עדכון גם העברת תוכן הספרייה הקיימת. מקטע "תיקיית היעד" בוחר *לאן*
 // הקבצים ילכו — תחת התיקייה שתיבחר נוצרות "books" (הספרייה) ו-"index" (אינדקס).
+// "שימוש בספרייה קיימת במקומה" הוא היוצא מן הכלל: אין העתקה ואין יעד — הנתיב
+// שנבחר נשמר כמות שהוא, והאינדקס נקבע תחת השורש שלו.
 // כשיש ספרייה קיימת והיעד נשאר במקום הנוכחי — עדכון במקום עם גיבוי בטוח;
 // כשהיעד שונה — רלוקציה: הקבצים נכתבים ליעד החדש, והישנים נמחקים בהצלחה.
 
@@ -57,7 +59,13 @@ Future<bool> showLibrarySetupDialog({
   return result ?? false;
 }
 
-enum _LibraryAction { moveContents, download, chooseFile, chooseArchive }
+enum _LibraryAction {
+  moveContents,
+  useInPlace,
+  download,
+  chooseFile,
+  chooseArchive,
+}
 
 const _kSeforimAssetLabel = 'ספריית הספרים (seforim.db)';
 const _kCatalogAssetLabel = 'קטלוג אוצר החכמה';
@@ -141,6 +149,11 @@ class _LibrarySetupDialogContentState
 
   String? _sourceArchive;
 
+  /// תיקייה שנבחרה לשימוש במקומה, והאם נמצא בה seforim.db לא-דחוס. שימוש
+  /// במקום דורש DB מוכן — גרסה דחוסה מחייבת חילוץ, כלומר ייבוא רגיל.
+  String? _inPlaceFolder;
+  bool _inPlaceHasDatabase = false;
+
   /// הנכסים הקיימים כבר בספרייה הנוכחית (רלוונטי בעדכון במקום — הם יישמרו).
   List<String> _systemAssets = const [];
 
@@ -151,6 +164,10 @@ class _LibrarySetupDialogContentState
   String? _oldIndexPath;
 
   bool get _hasLibrary => (widget.currentLibraryPath ?? '').isNotEmpty;
+
+  /// שימוש במקום מוצע בשולחן העבודה בלבד: ב-Android/iOS ספרייה בתיקייה שאינה
+  /// של האפליקציה אינה נגישה ל-sqlite3 native, וה-DB נאלץ להיות מועתק פנימה.
+  bool get _inPlaceSupported => !Platform.isAndroid && !Platform.isIOS;
 
   /// שורש הספרייה הקיימת (ההורה של books/index), או null במצב הגדרה.
   String? get _currentRoot =>
@@ -238,6 +255,23 @@ class _LibrarySetupDialogContentState
     });
   }
 
+  /// בוחר תיקיית ספרייה קיימת לשימוש במקומה (ללא העתקה).
+  Future<void> _pickInPlaceFolder() async {
+    final folder = await FilePicker.getDirectoryPath(
+      lockParentWindow: true,
+      dialogTitle: context.settingsText('בחר את תיקיית הספרייה הקיימת'),
+    );
+    if (folder == null || !mounted) return;
+    final hasDb = await File(
+      p.join(folder, DatabaseConstants.databaseFileName),
+    ).exists();
+    if (!mounted) return;
+    setState(() {
+      _inPlaceFolder = folder;
+      _inPlaceHasDatabase = hasDb;
+    });
+  }
+
   Future<void> _pickSourceArchive() async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
@@ -261,22 +295,44 @@ class _LibrarySetupDialogContentState
   }
 
   bool _canConfirm(EmptyLibraryState state) {
-    if (_targetRoot == null) return false;
     switch (_action) {
+      case _LibraryAction.useInPlace:
+        // שימוש במקום אינו כותב לשום מקום — תיקיית היעד אינה רלוונטית לו.
+        return _inPlaceFolder != null && _inPlaceHasDatabase;
       case _LibraryAction.moveContents:
         // העברת תוכן ליעד זהה למיקום הנוכחי היא no-op — דורש יעד שונה.
-        return _isRelocating;
+        return _targetRoot != null && _isRelocating;
       case _LibraryAction.download:
-        return state.downloadDisabledReason == null;
+        return _targetRoot != null && state.downloadDisabledReason == null;
       case _LibraryAction.chooseFile:
+        if (_targetRoot == null) return false;
         if (_sourceFolder == null || _detectedAssets.isEmpty) return false;
         // חובה שקובץ הספרייה יהיה קיים לאחר הייבוא (מהתיקייה או מספרייה קיימת).
         return _presentAfterImport(_kSeforimAssetLabel);
       case _LibraryAction.chooseArchive:
-        return _sourceArchive != null;
+        return _targetRoot != null && _sourceArchive != null;
       case null:
         return false;
     }
+  }
+
+  /// תת-כותרת לאפשרות "שימוש בספרייה קיימת": לפני בחירה — הנחיה; אחרי בחירה —
+  /// הנתיב שנבחר, או הסבר מדוע התיקייה אינה מתאימה.
+  String _inPlaceSubtitle() {
+    final folder = _inPlaceFolder;
+    if (folder == null) {
+      return context.settingsText(
+        'בחר תיקייה שמכילה את {file} — הקבצים יישארו במקומם ולא יועתקו',
+        args: {'file': DatabaseConstants.databaseFileName},
+      );
+    }
+    if (!_inPlaceHasDatabase) {
+      return context.settingsText(
+        'לא נמצא {file} בתיקייה שנבחרה',
+        args: {'file': DatabaseConstants.databaseFileName},
+      );
+    }
+    return folder;
   }
 
   /// תת-כותרת לאפשרות "בחירת תיקייה": לפני בחירה — הנחיה; אחרי בחירה —
@@ -319,6 +375,8 @@ class _LibrarySetupDialogContentState
     switch (_action) {
       case _LibraryAction.moveContents:
         _moveExisting();
+      case _LibraryAction.useInPlace:
+        _useInPlace();
       case _LibraryAction.download:
         _download();
       case _LibraryAction.chooseFile:
@@ -328,6 +386,12 @@ class _LibrarySetupDialogContentState
       case null:
         break;
     }
+  }
+
+  void _useInPlace() {
+    final folder = _inPlaceFolder;
+    if (folder == null) return;
+    context.read<EmptyLibraryBloc>().add(UseLibraryInPlaceRequested(folder));
   }
 
   void _moveExisting() {
@@ -438,6 +502,16 @@ class _LibrarySetupDialogContentState
     return BlocConsumer<EmptyLibraryBloc, EmptyLibraryState>(
       listener: (context, state) async {
         if (state is! EmptyLibraryDirectorySelected) return;
+        // שימוש במקום אינו מעביר קבצים — הספרייה הישנה נשארת ואינה נמחקת,
+        // והאינדקס נקבע לפי השורש של התיקייה שנבחרה.
+        if (_action == _LibraryAction.useInPlace) {
+          await Settings.setValue<String>(
+            SettingsRepository.keyIndexPath,
+            p.join(AppPaths.libraryRootOf(state.selectedPath!), 'index'),
+          );
+          if (context.mounted) Navigator.of(context).pop(true);
+          return;
+        }
         final relocating = _isRelocating;
         // יעד שורש חדש (הגדרה או רלוקציה) — האינדקס יושב תחת אותו שורש.
         if ((!_hasLibrary || relocating) && _targetRoot != null) {
@@ -530,10 +604,27 @@ class _LibrarySetupDialogContentState
   Widget _buildSelection(BuildContext context, EmptyLibraryState state) {
     final downloadDisabled = state.downloadDisabledReason;
     final moveSelected = _action == _LibraryAction.moveContents;
+    final inPlaceSelected = _action == _LibraryAction.useInPlace;
     final downloadSelected = _action == _LibraryAction.download;
     final chooseFileSelected = _action == _LibraryAction.chooseFile;
     final chooseArchiveSelected = _action == _LibraryAction.chooseArchive;
 
+    final useInPlaceOption = SettingsActionTile.radioOption(
+      title: context.settingsText('שימוש בספרייה קיימת במקומה'),
+      subtitle: _inPlaceSubtitle(),
+      subtitleLtr: _inPlaceFolder != null && _inPlaceHasDatabase,
+      selected: inPlaceSelected,
+      onTap: () => setState(() => _action = _LibraryAction.useInPlace),
+      actions: [
+        ActionButton.neutral(
+          text: context.settingsText(
+            _inPlaceFolder == null ? 'בחר תיקייה קיימת' : 'שנה תיקייה',
+          ),
+          onPressed: inPlaceSelected ? _pickInPlaceFolder : null,
+          icon: FluentIcons.folder_open_24_regular,
+        ),
+      ],
+    );
     final downloadOption = SettingsActionTile.radioOption(
       title: context.settingsText(
         _hasLibrary ? 'הורדת הספרייה מחדש' : 'הורדת הספרייה',
@@ -583,7 +674,7 @@ class _LibrarySetupDialogContentState
           subtitle: context.settingsText(
             _hasLibrary
                 ? 'בחר כיצד לעדכן או להעביר את הספרייה, ולאחר מכן אשר'
-                : 'בחר להוריד את הספרייה מהאינטרנט, או לייבא ספרייה קיימת',
+                : 'בחר להוריד את הספרייה מהאינטרנט, להצביע על ספרייה קיימת או לייבא אותה',
           ),
           children: _hasLibrary
               ? [
@@ -596,6 +687,7 @@ class _LibrarySetupDialogContentState
                     onTap: () =>
                         setState(() => _action = _LibraryAction.moveContents),
                   ),
+                  if (_inPlaceSupported) useInPlaceOption,
                   // הורדה/בחירת קובץ מחליפות את הספרייה הקיימת — מקובצות תחת
                   // מקטע נפרש כדי להבליט שהן פעולות מחיקה-והחלפה.
                   ExpandableSection(
@@ -617,20 +709,27 @@ class _LibrarySetupDialogContentState
                     ],
                   ),
                 ]
-              : [downloadOption, chooseFileOption, chooseArchiveOption],
+              : [
+                  downloadOption,
+                  if (_inPlaceSupported) useInPlaceOption,
+                  chooseFileOption,
+                  chooseArchiveOption,
+                ],
         ),
-        TargetFolderSection(
-          folderName: widget.folderName,
-          isSetup: !_hasLibrary,
-          selectedPath: _targetRoot,
-          defaultPath: widget.defaultTargetPath.isEmpty
-              ? null
-              : widget.defaultTargetPath,
-          isAtDefault: _isAtDefaultRoot,
-          onPickFolder: _pickTargetRoot,
-          onUseDefault: () =>
-              setState(() => _targetRoot = widget.defaultTargetPath),
-        ),
+        // שימוש במקום אינו כותב קבצים — אין לו יעד לבחור.
+        if (!inPlaceSelected)
+          TargetFolderSection(
+            folderName: widget.folderName,
+            isSetup: !_hasLibrary,
+            selectedPath: _targetRoot,
+            defaultPath: widget.defaultTargetPath.isEmpty
+                ? null
+                : widget.defaultTargetPath,
+            isAtDefault: _isAtDefaultRoot,
+            onPickFolder: _pickTargetRoot,
+            onUseDefault: () =>
+                setState(() => _targetRoot = widget.defaultTargetPath),
+          ),
         if (state is EmptyLibraryError && state.errorMessage != null)
           MoveContentsWarning(text: state.errorMessage!),
         if (downloadSelected && downloadDisabled != null)

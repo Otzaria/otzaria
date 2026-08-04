@@ -18,6 +18,62 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('EmptyLibraryBloc', () {
+    test('UseLibraryInPlaceRequested שומר את הנתיב בלי להעתיק דבר', () async {
+      final libDir = await Directory.systemTemp.createTemp('otzaria-inplace-');
+      addTearDown(() async {
+        if (await libDir.exists()) await libDir.delete(recursive: true);
+      });
+
+      final dbName = DatabaseConstants.databaseFileName;
+      await File(path.join(libDir.path, dbName)).writeAsString('existing-db');
+
+      await Settings.init(cacheProvider: _MemoryCacheProvider());
+
+      final bloc = EmptyLibraryBloc();
+      addTearDown(bloc.close);
+
+      final selectedFuture = bloc.stream
+          .where((s) => s is EmptyLibraryDirectorySelected)
+          .cast<EmptyLibraryDirectorySelected>()
+          .first;
+
+      bloc.add(UseLibraryInPlaceRequested(libDir.path));
+
+      final selected = await selectedFuture.timeout(const Duration(seconds: 5));
+
+      expect(selected.selectedPath, libDir.path);
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+        libDir.path,
+      );
+      // התיקייה נשארה כפי שהייתה — אין תת-תיקיית "books" ואין עותק נוסף.
+      expect(libDir.listSync().map((e) => path.basename(e.path)), [dbName]);
+    });
+
+    test('UseLibraryInPlaceRequested נכשל כשאין seforim.db בתיקייה', () async {
+      final emptyDir = await Directory.systemTemp.createTemp(
+        'otzaria-inplace-empty-',
+      );
+      addTearDown(() async {
+        if (await emptyDir.exists()) await emptyDir.delete(recursive: true);
+      });
+
+      await Settings.init(cacheProvider: _MemoryCacheProvider());
+
+      final bloc = EmptyLibraryBloc();
+      addTearDown(bloc.close);
+
+      final errorFuture = bloc.stream
+          .where((s) => s is EmptyLibraryError && s.errorMessage != null)
+          .cast<EmptyLibraryError>()
+          .first;
+
+      bloc.add(UseLibraryInPlaceRequested(emptyDir.path));
+
+      final error = await errorFuture.timeout(const Duration(seconds: 5));
+      expect(error.errorMessage, contains(DatabaseConstants.databaseFileName));
+    });
+
     test('parseLatestDatabaseAsset מחזיר את asset של seforim.db.zst', () {
       final asset = EmptyLibraryBloc.parseLatestDatabaseAsset({
         'assets': [

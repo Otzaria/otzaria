@@ -78,11 +78,32 @@ void main() {
       expect(find.text('העברת תוכן התיקייה'), findsNothing);
     });
 
-    testWidgets('פעולות המקור: הורדה, תיקייה וארכיון', (tester) async {
+    testWidgets('פעולות המקור: הורדה, שימוש במקום, תיקייה וארכיון', (
+      tester,
+    ) async {
       await _openSetup(tester);
       expect(find.text('הורדת הספרייה'), findsOneWidget);
+      expect(find.text('שימוש בספרייה קיימת במקומה'), findsOneWidget);
       expect(find.text('בחירת תיקייה מהמחשב'), findsOneWidget);
       expect(find.text('בחירת קובץ דחוס'), findsOneWidget);
+    });
+
+    testWidgets('בחירת "שימוש במקום" מסתירה את מקטע היעד', (tester) async {
+      await _openSetup(tester, defaultTargetPath: '/default/library');
+      expect(find.text('תיקיית היעד לספריית אוצריא'), findsOneWidget);
+
+      await _select(tester, 'שימוש בספרייה קיימת במקומה');
+      expect(find.text('תיקיית היעד לספריית אוצריא'), findsNothing);
+      expect(find.text('מיקום ברירת מחדל'), findsNothing);
+    });
+
+    testWidgets('"שימוש במקום": אישור מושבת עד שנבחרת תיקייה', (tester) async {
+      await _openSetup(tester, defaultTargetPath: '/default/library');
+      await _select(tester, 'שימוש בספרייה קיימת במקומה');
+      // יעד ברירת המחדל קיים, אך לשימוש במקום הוא לא רלוונטי — נדרשת תיקייה.
+      expect(_actionOnPressed(tester, 'אישור'), isNull);
+      expect(_actionOnPressed(tester, 'בחר תיקייה קיימת'), isNotNull);
+      expect(find.textContaining('הקבצים יישארו במקומם'), findsOneWidget);
     });
 
     testWidgets('מקטע היעד: "תיקיית היעד לספריית אוצריא" עם ברירת מחדל', (
@@ -133,6 +154,8 @@ void main() {
       await _openUpdate(tester);
       expect(find.text('פעולה'), findsOneWidget);
       expect(find.text('העברת תוכן התיקייה'), findsOneWidget);
+      // שימוש במקום אינו מחיקה-והחלפה — הוא יושב מחוץ למקטע הנפרש.
+      expect(find.text('שימוש בספרייה קיימת במקומה'), findsOneWidget);
       expect(find.text('מחיקה וייבוא ספרייה'), findsOneWidget);
       // המקטע מקופל כברירת מחדל — אפשרויות ההחלפה מוסתרות.
       expect(find.text('הורדת הספרייה מחדש'), findsNothing);

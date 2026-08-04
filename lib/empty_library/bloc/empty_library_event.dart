@@ -7,6 +7,17 @@ abstract class EmptyLibraryEvent extends Equatable {
 
 class PickDirectoryRequested extends EmptyLibraryEvent {}
 
+/// שימוש בספרייה קיימת במקומה: [folderPath] נשמר כנתיב הספרייה כמות שהוא,
+/// ללא העתקה או חילוץ. חוסך שכפול של קובץ ה-DB כשהוא כבר יושב במקום מתאים.
+class UseLibraryInPlaceRequested extends EmptyLibraryEvent {
+  final String folderPath;
+
+  UseLibraryInPlaceRequested(this.folderPath);
+
+  @override
+  List<Object?> get props => [folderPath];
+}
+
 class DownloadLibraryRequested extends EmptyLibraryEvent {
   /// מיקום היעד שאליו תורד הספרייה. null → נתיב ברירת המחדל של האפליקציה.
   final String? targetPath;

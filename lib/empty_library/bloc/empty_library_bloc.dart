@@ -53,6 +53,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
        ) {
     HttpClientRegistry.register(_httpClient.close);
     on<PickDirectoryRequested>(_onPickDirectoryRequested);
+    on<UseLibraryInPlaceRequested>(_onUseLibraryInPlaceRequested);
     on<DownloadLibraryRequested>(_onDownloadLibraryRequested);
     on<ImportLibraryFolderRequested>(_onImportLibraryFolderRequested);
     on<ImportLibraryArchiveRequested>(_onImportLibraryArchiveRequested);
@@ -113,6 +114,16 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
 
     emit(EmptyLibraryLoading(selectedPath: result));
     await _handleDirectorySelection(result, emit);
+  }
+
+  /// מצביע על ספרייה קיימת בלי להעתיק דבר — מאמת שיש seforim.db בתיקייה
+  /// ושומר אותה כנתיב הספרייה.
+  Future<void> _onUseLibraryInPlaceRequested(
+    UseLibraryInPlaceRequested event,
+    Emitter<EmptyLibraryState> emit,
+  ) async {
+    emit(EmptyLibraryLoading(selectedPath: event.folderPath));
+    await _handleDirectorySelection(event.folderPath, emit);
   }
 
   /// מייבא נכסי ספרייה מתיקייה שנבחרה: מזהה כל נכס (seforim.db, קטלוג, מילון,

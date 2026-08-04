@@ -190,6 +190,12 @@
   "שנה מיקום": "Change location",
 
   "בחר את תיקיית היעד לספרייה": "Choose the target folder for the library",
+  "בחר את תיקיית הספרייה הקיימת": "Choose the folder of the library you already have",
+  "שימוש בספרייה קיימת במקומה": "Use a library you already have, where it is",
+  "בחר תיקייה שמכילה את {file} — הקבצים יישארו במקומם ולא יועתקו": "Choose a folder that holds {file} — the files stay where they are and are not copied",
+  "לא נמצא {file} בתיקייה שנבחרה": "{file} was not found in the folder you chose",
+  "בחר תיקייה קיימת": "Choose existing folder",
+  "שנה תיקייה": "Change folder",
   "בחר תיקייה המכילה את קבצי הספרייה": "Choose a folder that holds the library files",
   "בחר את קובץ {file}": "Choose the {file} file",
   "יש לבחור את {file}": "You need to choose {file}",
@@ -212,7 +218,7 @@
   "בחירת קובץ דחוס": "Choose a compressed file",
   "בחר קובץ דחוס": "Choose compressed file",
   "בחר כיצד לעדכן או להעביר את הספרייה, ולאחר מכן אשר": "Choose how to update or move the library, then confirm",
-  "בחר להוריד את הספרייה מהאינטרנט, או לייבא ספרייה קיימת": "Choose to download the library, or to import one you already have",
+  "בחר להוריד את הספרייה מהאינטרנט, להצביע על ספרייה קיימת או לייבא אותה": "Choose to download the library, to point at one you already have, or to import it",
   "העברת תוכן התיקייה": "Move the folder's contents",
 
   "עדכוני מערכת": "System updates",

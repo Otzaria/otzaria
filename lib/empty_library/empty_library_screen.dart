@@ -78,8 +78,8 @@ class _LibrarySetupViewState extends State<LibrarySetupView> {
             ),
             const SizedBox(height: 16),
             Text(
-              'ניתן להוריד את הספרייה מהאינטרנט, או לבחור קובץ מהמחשב.\n'
-              'ניתן לבחור תיקייה המכילה קובץ ספרייה או קובץ דחוס.',
+              'ניתן להוריד את הספרייה מהאינטרנט, או להצביע על ספרייה קיימת\n'
+              'שכבר יש במחשב — וגם לייבא אותה מתיקייה או מקובץ דחוס.',
               style: TextStyle(fontSize: 16, color: cs.onSurfaceVariant),
               textAlign: TextAlign.center,
             ),
