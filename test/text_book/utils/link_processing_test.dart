@@ -10,6 +10,7 @@ Link makeLink({
   String connectionType = 'reference',
   int? start,
   int? end,
+  int baseProvenance = 0,
 }) {
   return Link(
     heRef: heRef,
@@ -19,6 +20,7 @@ Link makeLink({
     connectionType: connectionType,
     start: start,
     end: end,
+    baseProvenance: baseProvenance,
   );
 }
 
@@ -42,6 +44,16 @@ void main() {
 
       expect(merged, hasLength(1));
       expect(merged.first.heRef, 'חדש');
+    });
+
+    test('קישור חלש אינו דורס provenance גבוה באותה זהות', () {
+      final existing = [makeLink(baseProvenance: 2)];
+      final incoming = [makeLink(baseProvenance: 0)];
+
+      final merged = mergeLinksByIdentity(existing, incoming);
+
+      expect(merged, hasLength(1));
+      expect(merged.single.baseProvenance, 2);
     });
 
     test('קישורים עם start/end שונים נחשבים נפרדים', () {
@@ -212,6 +224,24 @@ void main() {
       expect(result.links, hasLength(300));
       expect(result.visibleLinks, hasLength(1));
       expect(result.visibleLinks.first.index1, 1);
+    });
+
+    test('מסלול isolate שומר provenance גבוה מול קישור נכנס זהה', () async {
+      final result = await processLinksForState(
+        existingLinks: [
+          makeLink(index1: 1, baseProvenance: 2),
+          for (var i = 2; i <= 251; i++) makeLink(index1: i, index2: i),
+        ],
+        incomingLinks: [makeLink(index1: 1, baseProvenance: 0)],
+        replaceExisting: false,
+        visibleIndices: [0],
+        selectedIndices: const {},
+      );
+
+      expect(
+        result.links.singleWhere((link) => link.index1 == 1).baseProvenance,
+        2,
+      );
     });
   });
 
