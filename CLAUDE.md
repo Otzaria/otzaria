@@ -677,6 +677,8 @@ dart format lib/file.dart    # Format ONLY files you modified
 | Note draft service | `test/personal_notes/personal_note_draft_service_test.dart` |
 | Note content view | `test/personal_notes/personal_note_content_view_test.dart` |
 | Notes export | `test/personal_notes/personal_notes_export_test.dart` |
+| סינון "הצג רק הערות לטקסט הנראה" (BLoC) | `test/personal_notes/bloc/personal_notes_visible_filter_test.dart` |
+| שורות גלויות בחלונית ההערות (הרכבה, גלילה, PDF) | `test/personal_notes/widgets/personal_notes_sidebar_visible_lines_test.dart` |
 
 **Settings**
 | Area | Test File |

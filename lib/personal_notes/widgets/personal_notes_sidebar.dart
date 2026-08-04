@@ -70,13 +70,30 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
         LoadPersonalNotes(widget.bookId, categoryId: widget.categoryId),
       );
       _restorePendingNewNoteDraftIfNeeded();
-      final visibleLineIndices = widget.visibleLineIndices;
-      if (visibleLineIndices != null) {
-        context.read<PersonalNotesBloc>().add(
-          UpdateVisibleLines(visibleLineIndices),
-        );
-      }
+      _syncVisibleLines();
     });
+  }
+
+  bool get _hasTextBookBloc =>
+      context.findAncestorWidgetOfExactType<BlocProvider<TextBookBloc>>() !=
+      null;
+
+  /// שידור השורות הגלויות הנוכחיות ל-BLoC. חובה לקרוא לזה בהרכבה: ה-BlocListener
+  /// על TextBookBloc מגיב רק לשינוי הבא, ועד אז הסינון "הצג רק הערות לטקסט
+  /// הנראה" עבד על רשימה ריקה — כלומר הציג את כל הספר.
+  void _syncVisibleLines() {
+    final fromWidget = widget.visibleLineIndices;
+    if (fromWidget != null) {
+      context.read<PersonalNotesBloc>().add(UpdateVisibleLines(fromWidget));
+      return;
+    }
+    if (!_hasTextBookBloc) return;
+    final textBookState = context.read<TextBookBloc>().state;
+    if (textBookState is TextBookLoaded) {
+      context.read<PersonalNotesBloc>().add(
+        UpdateVisibleLines(textBookState.visibleIndices),
+      );
+    }
   }
 
   @override
@@ -89,6 +106,8 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
         LoadPersonalNotes(widget.bookId, categoryId: widget.categoryId),
       );
       _restorePendingNewNoteDraftIfNeeded();
+      _syncVisibleLines();
+      return;
     }
 
     if (!listEquals(oldWidget.visibleLineIndices, widget.visibleLineIndices) &&
@@ -164,10 +183,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    // בודקים אם TextBookBloc זמין בהקשר הנוכחי
-    final hasTextBookBloc =
-        context.findAncestorWidgetOfExactType<BlocProvider<TextBookBloc>>() !=
-        null;
+    final hasTextBookBloc = _hasTextBookBloc;
 
     final child = BlocBuilder<PersonalNotesBloc, PersonalNotesState>(
       buildWhen: (previous, current) {
@@ -252,10 +268,12 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
         listeners: [
           BlocListener<TextBookBloc, TextBookState>(
             listener: (context, state) {
+              final notesBloc = context.read<PersonalNotesBloc>();
+              // ה-BLoC של ההערות הוא גלובלי אחד: גלילה בטאב רקע הייתה מחליפה
+              // את השורות הגלויות ומסננת את הערות הספר שמוצג לפי ספר אחר.
+              if (notesBloc.state.bookId != widget.bookId) return;
               if (state is TextBookLoaded) {
-                context.read<PersonalNotesBloc>().add(
-                  UpdateVisibleLines(state.visibleIndices),
-                );
+                notesBloc.add(UpdateVisibleLines(state.visibleIndices));
               }
             },
           ),

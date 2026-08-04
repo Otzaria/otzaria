@@ -34,15 +34,19 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
     LoadPersonalNotes event,
     Emitter<PersonalNotesState> emit,
   ) async {
+    // רענון אותו ספר חייב לשמר את השורות הגלויות; איפוסן היה מבטל את הסינון
+    // "הצג רק הערות לטקסט הנראה" ומציג את כל הספר עד הגלילה הבאה.
+    final isSameBook =
+        state.bookId == event.bookId && state.categoryId == event.categoryId;
+
     emit(
       state.copyWith(
         isLoading: true,
         bookId: event.bookId,
         categoryId: event.categoryId,
         errorMessage: null,
-        // איפוס החיפוש כשטוענים ספר חדש
-        searchQuery: '',
-        visibleLineIndices: [],
+        searchQuery: isSameBook ? state.searchQuery : '',
+        visibleLineIndices: isSameBook ? state.visibleLineIndices : [],
         // איפוס בקשת פתיחת הערה, כדי שלא תיפתח אוטומטית הערה באותה שורה בספר החדש
         clearExpandRequest: true,
       ),
