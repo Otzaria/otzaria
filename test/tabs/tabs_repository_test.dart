@@ -10,6 +10,7 @@ import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
+import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
 
@@ -41,6 +42,18 @@ void main() {
   });
 
   group('TabsRepository', () {
+    test('saveTabs מוחק מצב פיצול ישן', () async {
+      final box = Hive.box<dynamic>('tabs');
+      await box.put('key-side-by-side-mode', {
+        'leftTabIndex': 0,
+        'rightTabIndex': 1,
+      });
+
+      await repository.saveTabs(const [], 0);
+
+      expect(box.containsKey('key-side-by-side-mode'), isFalse);
+    });
+
     test('saveTabs/loadTabs משחזרים CommentatorsTab', () async {
       final sourceTab = TextBookTab(
         book: TextBook(title: 'ספר בדיקה'),
@@ -345,6 +358,111 @@ void main() {
       await repository.saveCurrentTabIndex(tabs, 2);
 
       expect(repository.loadCurrentTabIndex(), 2);
+    });
+  });
+
+  group('שחזור פיצול מגרסה קודמת', () {
+    /// JSON של טאב מפוצל, כפי שנכתב לדיסק.
+    Map<String, dynamic> splitJson(
+      Map<String, dynamic> right,
+      Map<String, dynamic> left, {
+      String? axis,
+    }) => {
+      'type': 'CombinedTab',
+      'rightTab': right,
+      'leftTab': left,
+      'splitRatio': 0.5,
+      'isPinned': false,
+      'axis': ?axis,
+    };
+
+    Map<String, dynamic> pdfJson(String title) => PdfBookTab(
+      book: PdfBook(title: title, path: '/tmp/$title.pdf'),
+      pageNumber: 1,
+    ).toJson();
+
+    /// הנירמול חל אצל הקורא, כי רק לו יש גם את האינדקס הפעיל שהוא מזיז.
+    ({List<OpenedTab> tabs, int currentIndex}) restore() {
+      final restored = flattenRestoredSplits(
+        repository.loadTabs(),
+        currentIndex: repository.loadCurrentTabIndex(),
+      );
+      addTearDown(() {
+        for (final tab in restored.tabs) {
+          tab.dispose();
+        }
+      });
+      return restored;
+    }
+
+    test('פיצול מקונן נטען כפיצול אחד והשאר ככרטיסיות', () async {
+      await Hive.box('tabs').put('key-tabs', [
+        splitJson(
+          pdfJson('א'),
+          splitJson(pdfJson('ב'), pdfJson('ג')),
+        ),
+      ]);
+
+      final loaded = restore().tabs;
+
+      expect(loaded, hasLength(2));
+      expect(loaded[0], isA<CombinedTab>());
+      expect(leafPanes(loaded[0]).map((p) => p.title).toList(), ['א', 'ב']);
+      expect(loaded[1].title, 'ג');
+    });
+
+    test('הכרטיסייה הפעילה נשארת אותה כרטיסייה אחרי פירוק הקינון', () async {
+      await Hive.box('tabs').put('key-tabs', [
+        splitJson(
+          pdfJson('א'),
+          splitJson(pdfJson('ב'), pdfJson('ג')),
+        ),
+        pdfJson('אחרון'),
+      ]);
+      await Hive.box('tabs').put('key-current-tab', 1);
+
+      final restored = restore();
+
+      expect(restored.tabs[restored.currentIndex].title, 'אחרון');
+    });
+
+    test('פיצול אנכי שמור נטען כפיצול רגיל', () async {
+      await Hive.box('tabs').put('key-tabs', [
+        splitJson(pdfJson('א'), pdfJson('ב'), axis: 'vertical'),
+      ]);
+
+      final loaded = restore().tabs;
+
+      expect(loaded, hasLength(1));
+      expect(leafPanes(loaded.single).map((p) => p.title).toList(), ['א', 'ב']);
+    });
+
+    test('הלוך-ושוב של פיצול רגיל אינו משנה דבר', () async {
+      final right = PdfBookTab(
+        book: PdfBook(title: 'ימין', path: '/tmp/right.pdf'),
+        pageNumber: 1,
+      );
+      final left = PdfBookTab(
+        book: PdfBook(title: 'שמאל', path: '/tmp/left.pdf'),
+        pageNumber: 1,
+      );
+      final split = CombinedTab(
+        rightTab: right,
+        leftTab: left,
+        splitRatio: 0.3,
+      );
+      addTearDown(split.dispose);
+
+      await repository.saveTabs([split], 0);
+      final loaded = restore().tabs;
+
+      expect(loaded, hasLength(1));
+      final restored = loaded.single as CombinedTab;
+      expect(restored.splitRatio, 0.3);
+      expect(leafPanes(restored).map((p) => p.title).toList(), [
+        'ימין',
+        'שמאל',
+      ]);
     });
   });
 }

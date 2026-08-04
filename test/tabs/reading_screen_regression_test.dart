@@ -19,6 +19,7 @@ import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/reading_screen.dart';
+import 'package:otzaria/tabs/view/split_pane_view.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -310,9 +311,12 @@ void main() {
   group('reading_screen — שוליים חיצוניים בתצוגה זה-לצד-זה', () {
     // רגרסיה: הטקסט בתצוגה המפוצלת נצמד לדופן החלון. התיקון מזריק שוליים של 12
     // (רוחב המפריד) לתוך *תוכן* כל חלונית בלבד, דרך SplitPaneContentInset,
-    // כך שהחלונית עצמה נשארת צמודה לדופן — ידית פתיחת החלונית
-    // (Positioned(left:0)) יושבת בדיוק על הדופן, בעוד הטקסט שומר 12px.
+    // כך שכרטיס החלונית עצמו נשאר על הדופן — ידית פתיחת החלונית
+    // (Positioned(left:0)) יושבת עליו, בעוד הטקסט שומר 12px.
     const dividerWidth = 12.0;
+
+    /// שולי הכרטיס מהדופן: [kPaneCardMargin] ועוד עובי המסגרת.
+    const cardEdge = kPaneCardMargin + 1.0;
 
     setUpAll(() async {
       await Settings.init(cacheProvider: MemorySettingsCache());
@@ -339,6 +343,8 @@ void main() {
 
         await tester.pumpWidget(
           MaterialApp(
+            // עובי המפריד (וממילא השוליים) רחב יותר במגע; כאן נבדק דסקטופ.
+            theme: ThemeData(platform: TargetPlatform.windows),
             home: Directionality(
               // כמו באפליקציה האמיתית (locale he) — כדי שהחלפת start/end
               // בשוליי SplitPaneContentInset תתגלה בכיוון הייצור.
@@ -377,15 +383,15 @@ void main() {
 
         expect(
           paneLeft,
-          0,
+          cardEdge,
           reason:
-              'החלונית הקיצונית חייבת להיצמד לדופן החלון כדי שהידית '
-              '(Positioned(left:0)) תשב בדיוק על הדופן',
+              'הכרטיס הקיצוני יושב על הדופן עד כדי שוליו הדקים; יותר מזה '
+              'דוחק את הידית (Positioned(left:0)) פנימה',
         );
         expect(
-          paneRight,
-          1600,
-          reason: 'החלונית הקיצונית חייבת להיצמד לדופן החלון',
+          1600 - paneRight,
+          paneLeft,
+          reason: 'המסגור סימטרי בשני צדי החלון',
         );
 
         // תוכן הקריאה (AdaptiveSidePane) מוזרק 12px פנימה מדופן החלון.
@@ -404,15 +410,15 @@ void main() {
 
         expect(
           contentLeft,
-          dividerWidth,
+          cardEdge + dividerWidth,
           reason:
-              'תוכן הקריאה חייב לשמור 12px מדופן החלון; 0 פירושו '
-              'שה-SplitPaneContentInset לא הוזרק לתוכן',
+              'תוכן הקריאה חייב לשמור 12px מקצה הכרטיס; בלעדיהם '
+              'ה-SplitPaneContentInset לא הוזרק לתוכן',
         );
         expect(
           contentRight,
-          1600 - dividerWidth,
-          reason: 'תוכן הקריאה חייב לשמור 12px מדופן החלון',
+          1600 - cardEdge - dividerWidth,
+          reason: 'תוכן הקריאה חייב לשמור 12px מקצה הכרטיס',
         );
       },
     );

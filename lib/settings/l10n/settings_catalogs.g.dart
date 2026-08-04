@@ -575,7 +575,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'נקה הכל': 'Clear all',
     'נקה חיפוש': 'Clear search',
     'נקה עכשיו': 'Clean now',
-    'נראה שאתה מדלג שוב ושוב בין אותם ספרים. לחץ לחיצה ימנית על אחת הלשוניות כאן ובחר "הצג לצד".': 'It looks like you keep jumping between the same two seforim. Right-click one of the tabs here and choose "הצג לצד".',
+    'נראה שאתה מדלג שוב ושוב בין אותם ספרים. גרור אחת הלשוניות כאן אל צד אזור הקריאה, או לחץ עליה לחיצה ימנית ובחר "הצג לצד".': 'It looks like you keep jumping between the same two seforim. Drag one of the tabs here to the side of the reading area, or right-click it and choose "הצג לצד".',
     'נשמרו {count} דיווחים שנשלחו': '{count} sent reports saved',
     'נתוני משתמש': 'User data',
     'נתחיל בהגדרת הספרייה': 'Let\'s set up the library first',

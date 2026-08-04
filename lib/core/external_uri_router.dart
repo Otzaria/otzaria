@@ -137,9 +137,14 @@ class OpenInspectionAction extends ExternalUriAction {
   const OpenInspectionAction();
 }
 
-/// פתיחת דיאלוג ניהול התוספים (PluginSidePanel).
+/// פתיחת מסך ניהול התוספים (הגדרות ← כלים).
 class OpenSdkAction extends ExternalUriAction {
   const OpenSdkAction();
+}
+
+/// פתיחת פאנל הכלים (רשת הקוביות) — הכלים עצמם נפתחים ככרטיסיות בעיון.
+class OpenToolsLauncherAction extends ExternalUriAction {
+  const OpenToolsLauncherAction();
 }
 
 /// פתיחת הדף היומי — פותח את ספר ה-PDF של התלמוד הבבלי בדף הנכון ליום.
@@ -170,15 +175,15 @@ class OpenDailyPageAction extends ExternalUriAction {
 /// * `otzaria://open/settings/shortcuts`    – הגדרות › קיצורים
 /// * `otzaria://open/settings/system`       – הגדרות › מערכת
 /// * `otzaria://open/settings/about`        – הגדרות › אודות
-/// * `otzaria://open/tools`                 – מסך הכלים
+/// * `otzaria://open/tools`                 – פותח את פאנל הכלים
 /// * `otzaria://open/history`               – פותח את דיאלוג ההיסטוריה
 /// * `otzaria://open/bookmarks`             – פותח את דיאלוג הסימניות
 /// * `otzaria://open/detection`             – פותח דיאלוג איתור מקורות ריק
 /// * `otzaria://open/detection?q=<text>`    – פותח דיאלוג איתור מקורות עם טקסט מילוי-מראש
 /// * `otzaria://open/inspection`            – פותח מסך עיון בספר האחרון שנפתח
-/// * `otzaria://open/sdk`                   – פותח דיאלוג ניהול התוספים
+/// * `otzaria://open/sdk`                   – פותח הגדרות ← כלים (ניהול תוספים)
 /// * `otzaria://open/daily_page`            – פותח את הדף היומי (PDF תלמוד בבלי בדף הנכון)
-/// * `otzaria://open/tool/<tool-id>`        – לשונית כלי לפי מזהה מלא
+/// * `otzaria://open/tool/<tool-id>`        – כרטיסיית כלי בעיון לפי מזהה מלא
 /// * `otzaria://open/plugin/<plugin-id>`    – פתיחת תוסף ישירות לפי מזהה (גם לא-מוצמד)
 /// * `otzaria://open/tab/<index>`           – מעבר לטאב פתוח לפי מיקומו (0-based; Jump List)
 /// * `otzaria://open/book/<id>`             – פתיחת ספר טקסט בעיון לפי מזהה DB
@@ -212,7 +217,6 @@ class ExternalUriRouter {
   static const Map<String, Screen> _screenAliases = {
     'library': Screen.library,
     'search': Screen.search,
-    'tools': Screen.more,
   };
 
   /// מיפוי הפרמטר `mode=` של `open/search` ל-[SearchMode].
@@ -393,6 +397,9 @@ class ExternalUriRouter {
       final toolId = _toolAliases[firstLower];
       if (toolId != null) {
         return OpenToolAction(toolId);
+      }
+      if (firstLower == 'tools') {
+        return const OpenToolsLauncherAction();
       }
       final screen = _screenAliases[firstLower];
       if (screen != null) {

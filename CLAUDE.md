@@ -737,6 +737,18 @@ dart format lib/file.dart    # Format ONLY files you modified
 | External catalog | `test/external_catalog/external_catalog_repository_test.dart`, `…settings_helper_test.dart` |
 | Plugins | `test/plugins/utils/reader_location_resolver_test.dart`, `…plugin_store_link_parser_test.dart`, `…plugin_bridge_adapter_test.dart` |
 | Plugin highlights / reader section tracking | `test/plugins/services/plugin_highlight_registry_test.dart`, `…reader_section_content_tracker_test.dart`, `…reader_section_sync_gate_test.dart` |
+| Plugin foreground suspend/resume | `test/plugins/services/plugin_runtime_dispatcher_test.dart` |
+
+**Tools & plugins as reading tabs**
+| Area | Test File |
+|------|-----------|
+| ToolTab model (JSON, clone, dedupe) | `test/tabs/models/tool_tab_test.dart` |
+| Tool catalog + availability reasons | `test/tools/tool_catalog_test.dart` |
+| Tools launcher panel (search, grouping, grid columns, tile layout) | `test/tools/tools_launcher_panel_test.dart` |
+| Tool tab focus (WebView regression) | `test/tools/tool_tab_focus_test.dart` |
+| Tool tab dedupe / focus-existing | `test/tabs/bloc/tool_tab_dedupe_test.dart` |
+| `readingPane` (plugin reader API context) | `test/tabs/reading_pane_test.dart` |
+
 | Shamor Zachor | `test/shamor_zachor/shamor_zachor_test.dart` (+ 4 more in that dir) |
 | Dictionary lookup | `test/tools/dictionary/dictionary_lookup_repository_test.dart` |
 | Laaz Rashi commentary line-lookup | `test/tools/dictionary/laaz_rashi_line_lookup_test.dart` |

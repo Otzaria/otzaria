@@ -51,10 +51,8 @@ void main() {
           Screen.search,
         );
         expect(
-          (ExternalUriRouter.parseUri(Uri.parse('otzaria://open/tools'))
-                  as OpenScreenAction)
-              .screen,
-          Screen.more,
+          ExternalUriRouter.parseUri(Uri.parse('otzaria://open/tools')),
+          isA<OpenToolsLauncherAction>(),
         );
       });
 

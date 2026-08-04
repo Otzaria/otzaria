@@ -11,6 +11,7 @@ import 'package:otzaria/history/history_repository.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
+import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
@@ -200,6 +201,32 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     return updatedHistory;
   }
 
+  /// רשומות ההיסטוריה של טאב: אחת לכל חלונית בטאב מפוצל, בסדר התצוגה.
+  ///
+  /// טאב מפוצל אינו ספר ולכן `_bookmarkFromTab` מחזיר עליו `null` — בלי הפירוק
+  /// הזה כל מפגש קריאה בפיצול לא נרשם כלל.
+  Future<List<Bookmark>> _bookmarksFromTab(
+    OpenedTab tab, {
+    List<String>? scopeFacetsOverride,
+    SearchScope? proximityScopeOverride,
+  }) async {
+    final panes = leafPanes(tab);
+    // ה-override מתאר את הטאב הנכנס, ובטאב מפוצל אין חלונית אחת שהוא שייך לה.
+    final isSplit = panes.length > 1;
+    final bookmarks = <Bookmark>[];
+    // בסדר הפוך: `_updateAndSaveHistory` דוחף כל רשומה לראש ההיסטוריה, ולכן
+    // כך החלונית הראשונה בסדר התצוגה היא זו שנשארת בראש.
+    for (final pane in panes.reversed) {
+      final bookmark = await _bookmarkFromTab(
+        pane,
+        scopeFacetsOverride: isSplit ? null : scopeFacetsOverride,
+        proximityScopeOverride: isSplit ? null : proximityScopeOverride,
+      );
+      if (bookmark != null) bookmarks.add(bookmark);
+    }
+    return bookmarks;
+  }
+
   Future<Bookmark?> _bookmarkFromTab(
     OpenedTab tab, {
     List<String>? scopeFacetsOverride,
@@ -375,8 +402,7 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     Emitter<HistoryState> emit,
   ) async {
     _debounce?.cancel();
-    final bookmark = await _bookmarkFromTab(event.tab);
-    if (bookmark != null) {
+    for (final bookmark in await _bookmarksFromTab(event.tab)) {
       _pendingSnapshots[bookmark.historyKey] = bookmark;
     }
     _debounce = Timer(const Duration(milliseconds: 1500), () {
@@ -425,13 +451,13 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     Emitter<HistoryState> emit,
   ) async {
     try {
-      final bookmark = await _bookmarkFromTab(
+      final bookmarks = await _bookmarksFromTab(
         event.tab,
         scopeFacetsOverride: event.scopeFacets,
         proximityScopeOverride: event.proximityScope,
       );
-      if (bookmark == null) return;
-      add(BulkAddHistory([bookmark]));
+      if (bookmarks.isEmpty) return;
+      add(BulkAddHistory(bookmarks));
     } catch (e) {
       emit(HistoryError(state.history, e.toString()));
     }
@@ -444,8 +470,7 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     try {
       final snapshots = <Bookmark>[];
       for (final tab in event.tabs) {
-        final bookmark = await _bookmarkFromTab(tab);
-        if (bookmark != null) snapshots.add(bookmark);
+        snapshots.addAll(await _bookmarksFromTab(tab));
       }
       if (snapshots.isEmpty) return;
       add(BulkAddHistory(snapshots));

@@ -73,8 +73,10 @@ void main() {
       final source = File(
         'lib/navigation/view/main_window_screen.dart',
       ).readAsStringSync();
+      // בלי `static const` בתבנית: הערת טיפוס מפורשת ל-_navData נפרסת
+      // ב-dart format על כמה שורות, ואז ההצהרה אינה שורה אחת.
       final block = RegExp(
-        r'static const _navData = \[(.*?)\n  \];',
+        r'_navData = \[(.*?)\n  \];',
         dotAll: true,
       ).firstMatch(source);
       expect(block, isNotNull, reason: '_navData לא נמצא — עדכן את הבדיקה');

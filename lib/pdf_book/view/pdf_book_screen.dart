@@ -48,6 +48,7 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/settings/services/nikud_display_service.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
+import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
@@ -113,16 +114,40 @@ final GlobalKey pdfBookOverflowPrintTourTargetKey = GlobalKey(
   debugLabel: 'pdf_book_overflow_print_tour_target',
 );
 
+/// תקציב מטמון התמונות של ה-renderer לטאב שלם, מתחלק בין חלוניותיו.
+///
+/// ברירת המחדל של pdfrx 2.4.3 היא 100MB לכל viewer; מהודק כאן בגלל תרחיש
+/// ה-OOM במחשבי 8GB, ובטאב מפוצל כל חלונית הייתה לוקחת את התקציב במלואו.
+const int kPdfImageCacheBudgetBytes = 48 * 1024 * 1024;
+
+/// רצפה לכל חלונית — מתחתיה עמוד בודד אינו נכנס למטמון והגלילה מתנתקת.
+const int kPdfImageCacheMinBytesPerPane = 16 * 1024 * 1024;
+
+/// חלקו של viewer בודד בתקציב, לפי מספר חלוניות ה-PDF בטאב.
+///
+/// חלוניות טקסט אינן נספרות — הן אינן צורכות מטמון תמונות, וספירתן הייתה
+/// מקטינה את התקציב בלי תמורה.
+int pdfImageCacheBytesForPanes(int pdfPaneCount) {
+  final perPane = kPdfImageCacheBudgetBytes ~/ pdfPaneCount.clamp(1, 8);
+  return perPane < kPdfImageCacheMinBytesPerPane
+      ? kPdfImageCacheMinBytesPerPane
+      : perPane;
+}
+
 class PdfBookScreen extends StatefulWidget {
   final PdfBookTab tab;
   final bool isInCombinedView;
   final bool enableTourTargets;
+
+  /// מספר חלוניות ה-PDF בטאב — קובע את חלקו של ה-viewer בתקציב הזיכרון.
+  final int pdfPaneCount;
 
   const PdfBookScreen({
     super.key,
     required this.tab,
     this.isInCombinedView = false,
     this.enableTourTargets = false,
+    this.pdfPaneCount = 1,
   });
 
   @override
@@ -545,6 +570,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   @override
   void initState() {
     super.initState();
+    // ה-listener ב-build יורה רק על שינוי; המצב ההתחלתי נקבע כאן, אחרת חלונית
+    // שנפתחה כלא-פעילה הייתה מורשית לתפוס פוקוס עד השינוי הראשון.
+    _pdfViewFocusNode.canRequestFocus = _isActivePane(
+      context.read<TabsBloc>().state,
+    );
     _resolveIsTanachBook();
     _pageTurnController = AnimationController(
       vsync: this,
@@ -1316,10 +1346,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       backgroundColor: _pdfViewerBgColor(),
       pageDropShadow: _pageDropShadow,
       sizeDelegateProvider: PdfViewerSizeDelegateProviderLegacy(maxScale: 20),
-      // חסימת הזיכרון של ה-renderer: ברירת המחדל של pdfrx 2.4.3 היא
-      // 100MB; מהודק ל-48MB כדי לצמצם לחץ זיכרון במחשבים עם 8GB RAM
-      // (תרחיש ה-OOM ב-Microsoft Store).
-      maxImageBytesCachedOnMemory: 48 * 1024 * 1024,
+      maxImageBytesCachedOnMemory: pdfImageCacheBytesForPanes(
+        widget.pdfPaneCount,
+      ),
       horizontalCacheExtent: 0,
       // בזמן stability tracking לא מרנדרים שכנים — חוסך עבודה בזמן
       // שהמטא-דאטה של עמודי הרקע עוד נטענת. אחרי שמתייצב חוזרים לערך
@@ -3694,12 +3723,23 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     return BlocProvider.value(
       value: _bloc,
-      child: BlocListener<PdfBookBloc, PdfBookState>(
-        listener: _onBlocStateChanged,
-        child: _buildContent(context),
+      child: BlocListener<TabsBloc, TabsState>(
+        // חסימה במקום אחד: לתצוגת ה-PDF יש עשרות מסלולים שמבקשים פוקוס
+        // (ריחוף, גלגלת, טעינת מסמך), וכולם חטפו את המקלדת מהחלונית שנקראה.
+        listenWhen: (previous, current) =>
+            _isActivePane(previous) != _isActivePane(current),
+        listener: (context, state) =>
+            _pdfViewFocusNode.canRequestFocus = _isActivePane(state),
+        child: BlocListener<PdfBookBloc, PdfBookState>(
+          listener: _onBlocStateChanged,
+          child: _buildContent(context),
+        ),
       ),
     );
   }
+
+  bool _isActivePane(TabsState state) =>
+      identical(state.activePane, widget.tab);
 
   void _onBlocStateChanged(BuildContext context, PdfBookState state) {
     final mode = switch (state) {

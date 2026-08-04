@@ -5,6 +5,7 @@ import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
+import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 
@@ -145,6 +146,9 @@ abstract class OpenedTab {
     throw UnsupportedError("Unsupported book type: ${book.runtimeType}");
   }
 
+  /// טיפוס לא מוכר זורק ולא נופל בשקט ל-[SearchingTab]: נפילה כזו יצרה טאב
+  /// רפאים בשם הכלי/הספר בכל ירידת גרסה, וההצפה נשמרה חזרה לדיסק. הקוראים
+  /// (`TabsRepository.loadTabs`, `Workspace.decodeTab`) מדלגים על טאב שנכשל.
   factory OpenedTab.fromJson(Map<String, dynamic> json) {
     String type = json['type'];
     if (type == 'TextBookTab') {
@@ -152,9 +156,13 @@ abstract class OpenedTab {
     } else if (type == 'PdfBookTab') {
       return PdfBookTab.fromJson(json);
     } else if (type == 'CombinedTab') {
-      return CombinedTab.fromJson(json);
+      return decodeCombinedTab(json);
+    } else if (type == 'ToolTab') {
+      return ToolTab.fromJson(json);
+    } else if (type == 'SearchingTabWindow' || type == 'SearchingTab') {
+      return SearchingTab.fromJson(json);
     }
-    return SearchingTab.fromJson(json);
+    throw FormatException('Unknown tab type: $type');
   }
   Map<String, dynamic> toJson();
 }

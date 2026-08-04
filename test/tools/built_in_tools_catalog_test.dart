@@ -5,9 +5,7 @@ import 'package:otzaria/tools/built_in_tools_catalog.dart';
 void main() {
   group('kBuiltInToolsCatalog invariants', () {
     test('catalog is non-empty', () {
-      // הקטלוג הוא מקור סמכותי לכל המקומות שמציגים כלים מובנים
-      // (ToolsScreen, ToolsManagementPanel, main_window_screen nav rail).
-      // אם הוא ריק — אין כלים מובנים בכלל ⇒ באג קריטי.
+      // אם הקטלוג ריק — אין כלים מובנים בכלל.
       expect(kBuiltInToolsCatalog, isNotEmpty);
     });
 
@@ -19,7 +17,7 @@ void main() {
         reason:
             'duplicate toolIds would cause both rows to collapse into one '
             'entry in ToolsManagementPanel (selection state mixed up) '
-            'and would create duplicate tabs in ToolsScreen',
+            'and would create duplicate built-in tool tabs',
       );
     });
 

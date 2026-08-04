@@ -112,11 +112,7 @@ class _FakeTabsRepository extends TabsRepository {
   ) async {}
 
   @override
-  Future<void> saveTabs(
-    List<OpenedTab> tabs,
-    int currentTabIndex, [
-    SideBySideMode? sideBySideMode,
-  ]) async {}
+  Future<void> saveTabs(List<OpenedTab> tabs, int currentTabIndex) async {}
 }
 
 void main() {

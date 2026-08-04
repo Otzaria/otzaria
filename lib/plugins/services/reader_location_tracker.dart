@@ -59,7 +59,9 @@ class ReaderLocationTracker {
   }
 
   void _handleTabsStateChange(TabsState state) {
-    final currentTab = state.currentTab;
+    // החלונית הפעילה ולא הטאב: על טאב מפוצל אין למה להאזין, ולכן אירועי
+    // שינוי מיקום לא נשלחו כלל בזמן קריאה בפיצול.
+    final currentTab = state.activePane;
 
     // אם הטאב השתנה, צריך לנתק listeners ישנים ולהתחבר לחדש
     if (currentTab != _lastTab) {
@@ -126,7 +128,7 @@ class ReaderLocationTracker {
   }
 
   Future<void> _checkAndDispatchLocationChange() async {
-    final currentTab = _tabsBloc.state.currentTab;
+    final currentTab = _tabsBloc.state.activePane;
     final generationAtStart = _generation; // שמירת generation לפני async
 
     // אם אין טאב פעיל, מאפסים את ה-signature כדי שפתיחה מחדש תשלח event

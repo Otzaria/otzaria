@@ -8,6 +8,7 @@ import 'package:otzaria/plugins/services/reader_location_tracker.dart';
 import 'package:otzaria/plugins/utils/reader_location_resolver.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -290,6 +291,95 @@ void main() {
     test('resolves null snapshot for null tab', () async {
       final snapshot = await resolveReaderLocation(null);
       expect(snapshot, isNull);
+    });
+
+    group('טאב מפוצל', () {
+      test('עוקב אחרי החלונית הפעילה ולא אחרי הצומת העוטף', () async {
+        final first = TextBookTab(book: TextBook(title: 'ראשון'), index: 1)
+          ..currentTitle.value = 'פרק א';
+        final second = TextBookTab(book: TextBook(title: 'שני'), index: 2)
+          ..currentTitle.value = 'פרק ב';
+        final split = CombinedTab(rightTab: first, leftTab: second);
+
+        // בלי החלונית הפעילה הצומת העוטף אינו ספר, ואף אירוע לא נשלח.
+        final tracker = buildTracker(
+          initialState: TabsState(tabs: [split], currentTabIndex: 0),
+        );
+        await settle();
+
+        expect(dispatchedEvents, hasLength(1));
+        expect(dispatchedEvents.single.payload['currentBook'], 'ראשון');
+        expect(dispatchedEvents.single.payload['currentRef'], 'פרק א');
+
+        tracker.dispose();
+      });
+
+      test('מעבר חלונית פעילה שולח אירוע על הספר החדש', () async {
+        final first = TextBookTab(book: TextBook(title: 'ראשון'), index: 1)
+          ..currentTitle.value = 'פרק א';
+        final second = TextBookTab(book: TextBook(title: 'שני'), index: 2)
+          ..currentTitle.value = 'פרק ב';
+        final split = CombinedTab(rightTab: first, leftTab: second);
+        final baseState = TabsState(tabs: [split], currentTabIndex: 0);
+
+        final tracker = buildTracker(initialState: baseState);
+        await settle();
+
+        final switched = baseState.copyWith(rawActivePane: second);
+        setCurrentState(switched);
+        tabsStateController.add(switched);
+        await settle();
+
+        expect(dispatchedEvents, hasLength(2));
+        expect(dispatchedEvents.last.payload['currentBook'], 'שני');
+        expect(dispatchedEvents.last.payload['currentRef'], 'פרק ב');
+
+        tracker.dispose();
+      });
+
+      test('שינוי כותרת בחלונית שאינה פעילה אינו שולח אירוע', () async {
+        final first = TextBookTab(book: TextBook(title: 'ראשון'), index: 1)
+          ..currentTitle.value = 'פרק א';
+        final second = TextBookTab(book: TextBook(title: 'שני'), index: 2)
+          ..currentTitle.value = 'פרק ב';
+        final split = CombinedTab(rightTab: first, leftTab: second);
+
+        final tracker = buildTracker(
+          initialState: TabsState(tabs: [split], currentTabIndex: 0),
+        );
+        await settle();
+        final countAfterInit = dispatchedEvents.length;
+
+        second.currentTitle.value = 'פרק ג';
+        await settle();
+
+        expect(dispatchedEvents, hasLength(countAfterInit));
+
+        tracker.dispose();
+      });
+
+      test('החלונית השנייה בפיצול נעקבת כרגיל', () async {
+        final second = TextBookTab(book: TextBook(title: 'שנייה'), index: 5)
+          ..currentTitle.value = 'פרק ה';
+        final split = CombinedTab(
+          rightTab: TextBookTab(book: TextBook(title: 'ראשונה'), index: 1),
+          leftTab: second,
+        );
+
+        final tracker = buildTracker(
+          initialState: TabsState(
+            tabs: [split],
+            currentTabIndex: 0,
+            rawActivePane: second,
+          ),
+        );
+        await settle();
+
+        expect(dispatchedEvents.single.payload['currentBook'], 'שנייה');
+        expect(dispatchedEvents.single.payload['currentRef'], 'פרק ה');
+
+        tracker.dispose();
+      });
     });
   });
 }

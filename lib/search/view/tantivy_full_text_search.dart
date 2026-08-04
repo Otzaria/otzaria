@@ -11,6 +11,7 @@ import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/core/focus_repository.dart';
@@ -305,14 +306,21 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
     _requestSearchFieldFocus();
   }
 
+  /// האם זו החלונית שהמשתמש עובד בה. חלונית שאינה פעילה אסור לה לתפוס את
+  /// שדה החיפוש, אחרת חיצים ורווח מוקלדים לשדה במקום לגלול את הספר שנקרא.
+  bool _isTabDisplayed(TabsState state) {
+    if (!state.hasOpenTabs || state.currentTabIndex >= state.tabs.length) {
+      return false;
+    }
+    return identical(state.activePane, widget.tab);
+  }
+
   void _requestSearchFieldFocus() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && widget.tab.searchFieldFocusNode.canRequestFocus) {
         // Check if this tab is the currently selected tab
         final tabsState = context.read<TabsBloc>().state;
-        if (tabsState.hasOpenTabs &&
-            tabsState.currentTabIndex < tabsState.tabs.length &&
-            tabsState.tabs[tabsState.currentTabIndex] == widget.tab) {
+        if (_isTabDisplayed(tabsState)) {
           widget.tab.searchFieldFocusNode.requestFocus();
           // Register as screen-level restorer so window events restore focus here
           FocusRepository().setScreenRestorer(
@@ -326,10 +334,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                   !widget.tab.searchFieldFocusNode.canRequestFocus) {
                 return false;
               }
-              final state = context.read<TabsBloc>().state;
-              return state.hasOpenTabs &&
-                  state.currentTabIndex < state.tabs.length &&
-                  state.tabs[state.currentTabIndex] == widget.tab;
+              return _isTabDisplayed(context.read<TabsBloc>().state);
             },
           );
         }

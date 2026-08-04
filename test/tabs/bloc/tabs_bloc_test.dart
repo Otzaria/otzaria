@@ -6,7 +6,6 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
-import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/resolving_tab.dart';
@@ -29,7 +28,7 @@ void main() {
       await Settings.init(cacheProvider: _MemoryCacheProvider());
     });
 
-    test('יוצר CombinedTab עם עותקים נפרדים של הטאבים', () async {
+    test('מיזוג לתצוגה מפוצלת משמר את אותן חלוניות ואינו משחרר אותן', () async {
       final bloc = TabsBloc(repository: _FakeTabsRepository());
       final rightTab = _createTextTab('ספר ימין', categoryId: 1);
       final leftTab = _createTextTab('ספר שמאל', categoryId: 2);
@@ -38,65 +37,74 @@ void main() {
       bloc.add(AddTab(leftTab));
       await bloc.stream.firstWhere((s) => s.tabs.length == 2);
 
-      bloc.add(EnableSideBySideMode(rightTab: rightTab, leftTab: leftTab));
+      bloc.add(CreateCombinedTab(rightTab: rightTab, leftTab: leftTab));
       await bloc.stream.firstWhere(
         (s) => s.tabs.length == 1 && s.currentTab is CombinedTab,
       );
 
-      final currentState = bloc.state;
-      expect(currentState.tabs, hasLength(1));
-      expect(currentState.currentTab, isA<CombinedTab>());
+      final combinedTab = bloc.state.currentTab! as CombinedTab;
+      expect(bloc.state.tabs, hasLength(1));
 
-      final combinedTab = currentState.currentTab! as CombinedTab;
-      expect(combinedTab.rightTab, isNot(same(rightTab)));
-      expect(combinedTab.leftTab, isNot(same(leftTab)));
+      // אותם אובייקטים נכנסים לטאב המפוצל: המפתח היציב של כל חלונית מעביר
+      // את המסך שלה במקום לבנות אותו מחדש, ולכן מצב הקריאה נשמר. שכפול
+      // היה מאבד אותו, ו-scrollController משותף בין שני מסכים חיים היה
+      // קורס — מה שמונע כאן על ידי כך שהחלונית עוברת ולא משוכפלת.
+      expect(combinedTab.rightTab, same(rightTab));
+      expect(combinedTab.leftTab, same(leftTab));
 
-      final combinedRightTab = combinedTab.rightTab as TextBookTab;
-      final combinedLeftTab = combinedTab.leftTab as TextBookTab;
-
-      expect(
-        combinedRightTab.scrollController,
-        isNot(same(rightTab.scrollController)),
-      );
-      expect(
-        combinedLeftTab.scrollController,
-        isNot(same(leftTab.scrollController)),
-      );
+      // המתנה מעבר לחלון השחרור הדחוי, שבו הקוד הישן היה הורג את הטאבים.
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      expect(rightTab.bloc.isClosed, isFalse);
+      expect(leftTab.bloc.isClosed, isFalse);
 
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
 
-    test(
-      'פירוק CombinedTab מחזיר טאבים חדשים ולא את מופעי המשנה הישנים',
-      () async {
-        final bloc = TabsBloc(repository: _FakeTabsRepository());
-        final rightTab = _createTextTab('ספר א', categoryId: 1);
-        final leftTab = _createTextTab('ספר ב', categoryId: 2);
+    test('פירוק תצוגה מפוצלת מחזיר את אותן חלוניות לרשימה', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final rightTab = _createTextTab('ספר א', categoryId: 1);
+      final leftTab = _createTextTab('ספר ב', categoryId: 2);
 
-        bloc.add(AddTab(rightTab));
-        bloc.add(AddTab(leftTab));
-        await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+      bloc.add(AddTab(rightTab));
+      bloc.add(AddTab(leftTab));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
 
-        bloc.add(EnableSideBySideMode(rightTab: rightTab, leftTab: leftTab));
-        await bloc.stream.firstWhere(
-          (s) => s.tabs.length == 1 && s.currentTab is CombinedTab,
-        );
+      bloc.add(CreateCombinedTab(rightTab: rightTab, leftTab: leftTab));
+      await bloc.stream.firstWhere(
+        (s) => s.tabs.length == 1 && s.currentTab is CombinedTab,
+      );
 
-        final combinedTab = bloc.state.currentTab! as CombinedTab;
-        final combinedRightTab = combinedTab.rightTab;
-        final combinedLeftTab = combinedTab.leftTab;
+      bloc.add(const ExpandCombinedTab(0));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
 
-        bloc.add(const DisableSideBySideMode(0));
-        await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+      expect(bloc.state.tabs[0], same(rightTab));
+      expect(bloc.state.tabs[1], same(leftTab));
 
-        final restoredState = bloc.state;
-        expect(restoredState.tabs, hasLength(2));
-        expect(restoredState.tabs[0], isNot(same(combinedRightTab)));
-        expect(restoredState.tabs[1], isNot(same(combinedLeftTab)));
+      // שחרור הצומת העוטף היה הורג רקורסיבית את שתי החלוניות ששבו לרשימה.
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      expect(rightTab.bloc.isClosed, isFalse);
+      expect(leftTab.bloc.isClosed, isFalse);
 
-        await _closeBlocAndAllowDeferredDispose(bloc);
-      },
-    );
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('פירוק מחזיר את החלוניות במקום הטאב המפוצל ולא בסופו', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final before = _createTextTab('לפני', categoryId: 1);
+      final right = _createTextTab('ימין', categoryId: 2);
+      final left = _createTextTab('שמאל', categoryId: 3);
+
+      bloc.add(AddTab(before));
+      bloc.add(AddTab(CombinedTab(rightTab: right, leftTab: left)));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      bloc.add(const ExpandCombinedTab(1));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 3);
+
+      expect(bloc.state.tabs, [same(before), same(right), same(left)]);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
   });
 
   group('TabsBloc open or focus', () {
@@ -221,6 +229,72 @@ void main() {
       expect(bloc.state.tabs, hasLength(1));
       expect(bloc.state.currentTabIndex, 0);
       expect(bloc.state.currentTab, same(combinedTab));
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('פתיחה חוזרת של ספר טקסט בחלונית השנייה ממקדת אותה', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final targetPane = _createTextTab('ספר שמאל', index: 0, categoryId: 2)
+        ..currentTitle.value = 'פרק ג';
+      final combinedTab = CombinedTab(
+        rightTab: _createTextTab('ספר ימין', index: 0, categoryId: 1)
+          ..currentTitle.value = 'פרק א',
+        leftTab: targetPane,
+      );
+
+      bloc.add(AddTab(combinedTab));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+
+      bloc.add(
+        OpenOrFocusTab(
+          _createTextTab('ספר שמאל', index: 99, categoryId: 2),
+          targetTitle: 'ספר שמאל, פרק ג',
+        ),
+      );
+      await bloc.stream.firstWhere(
+        (state) => identical(state.activePane, targetPane),
+      );
+
+      expect(bloc.state.currentTab, same(combinedTab));
+      expect(bloc.state.activePane, same(targetPane));
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('ניווט לספר PDF בחלונית השנייה ממקד ומעדכן אותה', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final targetPane = PdfBookTab(
+        book: PdfBook(title: 'ספר PDF שמאל', path: 'left.pdf'),
+        pageNumber: 10,
+      );
+      final combinedTab = CombinedTab(
+        rightTab: PdfBookTab(
+          book: PdfBook(title: 'ספר PDF ימין', path: 'right.pdf'),
+          pageNumber: 1,
+        ),
+        leftTab: targetPane,
+      );
+
+      bloc.add(AddTab(combinedTab));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+
+      bloc.add(
+        OpenOrFocusTab(
+          PdfBookTab(
+            book: PdfBook(title: 'ספר PDF שמאל', path: 'left.pdf'),
+            pageNumber: 25,
+          ),
+          navigateToPositionIfReused: true,
+        ),
+      );
+      await bloc.stream.firstWhere(
+        (state) => identical(state.activePane, targetPane),
+      );
+
+      expect(bloc.state.currentTab, same(combinedTab));
+      expect(bloc.state.activePane, same(targetPane));
+      expect(targetPane.pageNumber, 25);
 
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
@@ -828,35 +902,6 @@ void main() {
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
 
-    test('RemoveTabs שסוגר צד של side-by-side מבטל את המצב', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
-      final first = _createTextTab('ספר א', categoryId: 1);
-      final second = _createTextTab('ספר ב', categoryId: 2);
-      final third = _createTextTab('ספר ג', categoryId: 3);
-
-      bloc.add(AddTab(first));
-      bloc.add(AddTab(second));
-      bloc.add(AddTab(third));
-      await bloc.stream.firstWhere((s) => s.tabs.length == 3);
-
-      // side-by-side נשמר כאינדקסים ב-state (בנפרד מ-CombinedTab).
-      bloc.emit(
-        bloc.state.copyWith(
-          sideBySideMode: const SideBySideMode(
-            leftTabIndex: 0,
-            rightTabIndex: 1,
-          ),
-        ),
-      );
-
-      bloc.add(RemoveTabs([second, third]));
-      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
-
-      expect(bloc.state.sideBySideMode, isNull);
-
-      await _closeBlocAndAllowDeferredDispose(bloc);
-    });
-
     test('שחזור אחרי RemoveTabs מחזיר את הטאבים שנסגרו', () async {
       final bloc = TabsBloc(repository: _FakeTabsRepository());
       final first = _createTextTab('ספר א', categoryId: 1);
@@ -1070,7 +1115,7 @@ void main() {
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
 
-    test('EnableSideBySideMode מנרמל בחירה שכללה את הטאבים שאוחדו', () async {
+    test('CreateCombinedTab מנרמל בחירה שכללה את הטאבים שאוחדו', () async {
       final tabs = [
         _createTextTab('ספר א', categoryId: 1),
         _createTextTab('ספר ב', categoryId: 2),
@@ -1083,7 +1128,7 @@ void main() {
       bloc.add(SelectTabRange(tabs[2]));
       await bloc.stream.firstWhere((s) => s.selectedTabs.length == 3);
 
-      bloc.add(EnableSideBySideMode(rightTab: tabs[0], leftTab: tabs[1]));
+      bloc.add(CreateCombinedTab(rightTab: tabs[0], leftTab: tabs[1]));
       await bloc.stream.firstWhere((s) => s.currentTab is CombinedTab);
 
       expect(
@@ -1778,7 +1823,6 @@ Future<void> _closeBlocAndAllowDeferredDispose(TabsBloc bloc) async {
 class _FakeTabsRepository extends TabsRepository {
   List<Map<String, dynamic>> _tabsJson = const [];
   int _currentTabIndex = 0;
-  SideBySideMode? _sideBySideMode;
 
   @override
   List<OpenedTab> loadTabs() =>
@@ -1788,19 +1832,11 @@ class _FakeTabsRepository extends TabsRepository {
   int loadCurrentTabIndex() => _currentTabIndex;
 
   @override
-  SideBySideMode? loadSideBySideMode() => _sideBySideMode;
-
-  @override
-  Future<void> saveTabs(
-    List<OpenedTab> tabs,
-    int currentTabIndex, [
-    SideBySideMode? sideBySideMode,
-  ]) async {
+  Future<void> saveTabs(List<OpenedTab> tabs, int currentTabIndex) async {
     _tabsJson = tabs
         .map<Map<String, dynamic>>((tab) => tab.toJson())
         .toList(growable: false);
     _currentTabIndex = currentTabIndex;
-    _sideBySideMode = sideBySideMode;
   }
 
   @override
@@ -1818,13 +1854,9 @@ class _ThrowingSaveTabsRepository extends _FakeTabsRepository {
   bool armed = false;
 
   @override
-  Future<void> saveTabs(
-    List<OpenedTab> tabs,
-    int currentTabIndex, [
-    SideBySideMode? sideBySideMode,
-  ]) async {
+  Future<void> saveTabs(List<OpenedTab> tabs, int currentTabIndex) async {
     if (armed) throw Exception('save failed');
-    return super.saveTabs(tabs, currentTabIndex, sideBySideMode);
+    return super.saveTabs(tabs, currentTabIndex);
   }
 }
 

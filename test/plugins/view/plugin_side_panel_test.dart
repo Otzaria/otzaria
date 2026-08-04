@@ -507,7 +507,7 @@ void main() {
           find.text('תוסף לא בכלים'),
           findsOneWidget,
           reason:
-              'showInTools only hides from tools screen, not from side panel',
+              'showInTools only hides from the tools launcher, not the side panel',
         );
       },
     );
@@ -695,9 +695,7 @@ void main() {
       );
       addTearDown(pluginBloc.close);
 
-      // מדמים את המסגרת האמיתית בה הפאנל נמצא ב-ToolsScreen: עטוף
-      // ב-LayoutBuilder (FloatingPanel/ContextOverlayPanel) ובלי Material
-      // ישיר. אם הקריסה תחזור — היא תתפוס פה לפני שתגיע למשתמש.
+      // הפאנל עטוף ב-LayoutBuilder בלי Material ישיר, כמו במשגר הכלים.
       await tester.pumpWidget(
         MaterialApp(
           navigatorKey: navigatorKey,

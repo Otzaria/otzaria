@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/tools/tools_screen.dart';
+import 'package:otzaria/tools/view/tool_tab_screen.dart';
 
 /// בדיקות רגרסיה לבאג "לא ניתן להקליד בתוך תוסף" (אחרי 0.9.95).
 ///
@@ -12,12 +12,26 @@ import 'package:otzaria/tools/tools_screen.dart';
 /// מכאן שכל קריאת `requestFocus` על צומת **אב** של ה-WebView מוחקת את סמן
 /// הכתיבה מהשדה שהמשתמש מקליד בו.
 void main() {
-  group('shouldRestoreToolsContentFocus', () {
+  group('shouldRequestToolContentFocus', () {
+    test('תוסף — לעולם לא ממקדים את צומת האב', () {
+      // ההגנה החזקה: בטאב של תוסף לא ניגעים בפוקוס בכלל, גם כשהצומת מחובר
+      // ואינו ממוקד — פוקוס ה-WebView חי מחוץ לעץ של Flutter.
+      expect(
+        shouldRequestToolContentFocus(
+          isPlugin: true,
+          contentIsAttached: true,
+          contentHasFocus: false,
+        ),
+        isFalse,
+      );
+    });
+
     test('הפוקוס כבר בתוך התוכן — אין שחזור (הבאג המקורי)', () {
       // hasFocus כולל צאצאים, ולכן true גם כשהפוקוס בשדה קלט שב-WebView.
       // שחזור כאן היה גוזל את הפוקוס לצומת האב → blur() → הסמן נעלם.
       expect(
-        shouldRestoreToolsContentFocus(
+        shouldRequestToolContentFocus(
+          isPlugin: false,
           contentIsAttached: true,
           contentHasFocus: true,
         ),
@@ -27,7 +41,8 @@ void main() {
 
     test('התוכן מחובר ואינו ממוקד — משחזרים', () {
       expect(
-        shouldRestoreToolsContentFocus(
+        shouldRequestToolContentFocus(
+          isPlugin: false,
           contentIsAttached: true,
           contentHasFocus: false,
         ),
@@ -37,7 +52,8 @@ void main() {
 
     test('התוכן אינו מחובר לעץ (תפריט מובייל) — אין שחזור', () {
       expect(
-        shouldRestoreToolsContentFocus(
+        shouldRequestToolContentFocus(
+          isPlugin: false,
           contentIsAttached: false,
           contentHasFocus: false,
         ),
@@ -50,8 +66,8 @@ void main() {
     testWidgets(
       'requestFocus על צומת האב גוזל פוקוס מה-WebView ומפעיל blur',
       (tester) async {
-        // מדמה את מבנה tools_screen: Focus(_contentFocusNode) עוטף את
-        // IndexedStack שבתוכו ה-WebView של התוסף.
+        // מדמה את מבנה ToolTabScreen: Focus(_contentFocusNode) עוטף את
+        // ה-WebView של התוסף.
         final content = FocusNode(debugLabel: 'content', skipTraversal: true);
         final webView = FocusNode(debugLabel: 'webview');
         addTearDown(content.dispose);
@@ -123,8 +139,9 @@ void main() {
       await tester.pump();
       nativeCalls.clear();
 
-      // אותו שחזור, הפעם דרך ה-predicate האמיתי של מסך הכלים.
-      if (shouldRestoreToolsContentFocus(
+      // אותו שחזור, הפעם דרך ה-predicate האמיתי של טאב הכלי.
+      if (shouldRequestToolContentFocus(
+        isPlugin: false,
         contentIsAttached: content.enclosingScope != null,
         contentHasFocus: content.hasFocus,
       )) {
@@ -159,7 +176,8 @@ void main() {
       await tester.pump();
       expect(content.hasFocus, isFalse);
 
-      if (shouldRestoreToolsContentFocus(
+      if (shouldRequestToolContentFocus(
+        isPlugin: false,
         contentIsAttached: content.enclosingScope != null,
         contentHasFocus: content.hasFocus,
       )) {

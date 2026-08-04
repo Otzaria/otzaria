@@ -4,8 +4,7 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 
 /// מטא-דאטה לתצוגה של כלי מובנה.
 ///
-/// אינו כולל את [pageBuilder] של ה-`BuiltInToolDescriptor` המלא — רק מזהה,
-/// תווית, סדר, ואייקונים לתצוגה (רגיל + filled לנבחר).
+/// כולל מזהה, תווית, סדר ואייקונים לתצוגה (רגיל + filled לנבחר).
 class BuiltInToolMeta {
   final String toolId;
   final String label;
@@ -32,9 +31,8 @@ class BuiltInToolMeta {
 
 /// קטלוג הכלים המובנים — **מקור סמכותי יחיד** למזהה, תווית, סדר ואייקונים.
 ///
-/// `ToolsScreen` בונה את ה-`BuiltInToolDescriptor` המלאים מרשימה זו ומוסיף רק
-/// את ה-`pageBuilder` (שתלוי במצב המסך). מסך ההגדרות וסרגל הניווט צורכים אותה
-/// ישירות. סדר התצוגה בכלים נקבע לפי [BuiltInToolMeta.order].
+/// מסך ההגדרות וסרגל הניווט צורכים אותה ישירות. סדר התצוגה בכלים נקבע לפי
+/// [BuiltInToolMeta.order].
 const List<BuiltInToolMeta> kBuiltInToolsCatalog = [
   BuiltInToolMeta(
     toolId: 'builtin.calendar',

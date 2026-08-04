@@ -1374,7 +1374,9 @@ class _PersonalNotesManagerScreenState
       if (!mounted) return;
       final tabsState = tabsBloc.state;
       if (tabsState.tabs.isEmpty) return;
-      final currentTab = tabsState.tabs[tabsState.currentTabIndex];
+      // החלונית הפעילה ולא הטאב: בטאב מפוצל הצומת העוטף אינו ספר, ולחיצה על
+      // הערה לא הדגישה את השורה ולא פתחה את הסרגל.
+      final currentTab = tabsState.activePane;
       if (currentTab is TextBookTab) {
         currentTab.bloc.add(UpdateSelectedIndex(lineIndex));
         currentTab.bloc.add(HighlightLine(lineIndex));

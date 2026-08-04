@@ -12,6 +12,7 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
@@ -69,43 +70,34 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     );
     on<SaveTabs>(_onSaveTabs, transformer: sequential());
     on<TogglePinTab>(_onTogglePinTab, transformer: sequential());
-    on<EnableSideBySideMode>(
-      _onEnableSideBySideMode,
+    on<CreateCombinedTab>(
+      _onCreateCombinedTab,
       transformer: sequential(),
     );
-    on<DisableSideBySideMode>(
-      _onDisableSideBySideMode,
+    on<ExpandCombinedTab>(
+      _onExpandCombinedTab,
       transformer: sequential(),
     );
     on<UpdateSplitRatio>(_onUpdateSplitRatio, transformer: sequential());
     on<SwapSideBySideTabs>(_onSwapSideBySideTabs, transformer: sequential());
+    on<ClosePane>(_onClosePane, transformer: sequential());
+    on<SetActivePane>(_onSetActivePane);
   }
 
   void _onLoadTabs(LoadTabs event, Emitter<TabsState> emit) {
-    final tabs = _repository.loadTabs();
-    final savedIndex = _repository.loadCurrentTabIndex();
-    final currentTabIndex = tabs.isEmpty
-        ? 0
-        : savedIndex.clamp(0, tabs.length - 1);
-    final sideBySideMode = _repository.loadSideBySideMode();
-
-    // וידוא שהאינדקסים של side-by-side תקינים
-    SideBySideMode? validatedMode;
-    if (sideBySideMode != null && tabs.isNotEmpty) {
-      if (sideBySideMode.leftTabIndex < tabs.length &&
-          sideBySideMode.rightTabIndex < tabs.length &&
-          sideBySideMode.leftTabIndex != sideBySideMode.rightTabIndex) {
-        validatedMode = sideBySideMode;
-      } else {
-        debugPrint('DEBUG: מצב side-by-side לא תקין, מתעלם');
-      }
-    }
+    // הטאבים והאינדקס מנורמלים יחד כדי לשמור על הטאב הפעיל.
+    final restored = flattenRestoredSplits(
+      _repository.loadTabs(),
+      currentIndex: _repository.loadCurrentTabIndex(),
+    );
+    final tabs = restored.tabs;
 
     emit(
       state.copyWith(
         tabs: tabs,
-        currentTabIndex: currentTabIndex,
-        sideBySideMode: validatedMode,
+        currentTabIndex: tabs.isEmpty
+            ? 0
+            : restored.currentIndex.clamp(0, tabs.length - 1),
       ),
     );
   }
@@ -142,11 +134,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
           ).every((i) => identical(remapped[i], state.tabs[i]));
       if (!unchanged) {
         emit(state.copyWith(tabs: remapped));
-        await _repository.saveTabs(
-          remapped,
-          state.currentTabIndex,
-          state.sideBySideMode,
-        );
+        await _repository.saveTabs(remapped, state.currentTabIndex);
       }
       event.completer?.complete();
     } catch (e, st) {
@@ -172,11 +160,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       state.copyWith(
         tabs: event.tabs,
         currentTabIndex: event.currentTabIndex,
-        clearSideBySide: true,
         selectedTabs: const <OpenedTab>[],
       ),
     );
-    await _repository.saveTabs(event.tabs, event.currentTabIndex, null);
+    await _repository.saveTabs(event.tabs, event.currentTabIndex);
 
     for (final tab in tabsToDispose) {
       _disposeTabLater(tab);
@@ -184,11 +171,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   }
 
   Future<void> _onSaveTabs(SaveTabs event, Emitter<TabsState> emit) async {
-    await _repository.saveTabs(
-      state.tabs,
-      state.currentTabIndex,
-      state.sideBySideMode,
-    );
+    await _repository.saveTabs(state.tabs, state.currentTabIndex);
   }
 
   Future<void> _onAddTab(AddTab event, Emitter<TabsState> emit) async {
@@ -199,34 +182,13 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         : newTabs.length;
     newTabs.insert(newIndex, event.tab);
 
-    // עדכון אינדקסים במצב side-by-side אם קיים
-    SideBySideMode? newSideBySideMode = state.sideBySideMode;
-    if (state.sideBySideMode != null) {
-      var newLeftIndex = state.sideBySideMode!.leftTabIndex;
-      var newRightIndex = state.sideBySideMode!.rightTabIndex;
-
-      // אם הטאב החדש נוסף לפני אחד מהטאבים במצב side-by-side, מעדכנים את האינדקס
-      if (newIndex <= newLeftIndex) newLeftIndex++;
-      if (newIndex <= newRightIndex) newRightIndex++;
-
-      newSideBySideMode = state.sideBySideMode!.copyWith(
-        leftTabIndex: newLeftIndex,
-        rightTabIndex: newRightIndex,
-      );
-
-      debugPrint(
-        'DEBUG: עדכון אינדקסים במצב side-by-side: left=$newLeftIndex, right=$newRightIndex',
-      );
-    }
-
     emit(
       state.copyWith(
         tabs: newTabs,
         currentTabIndex: newIndex,
-        sideBySideMode: newSideBySideMode,
       ),
     );
-    await _repository.saveTabs(newTabs, newIndex, newSideBySideMode);
+    await _repository.saveTabs(newTabs, newIndex);
   }
 
   Future<void> _onOpenOrFocusTab(
@@ -261,11 +223,22 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
           incomingTab: event.tab,
         );
       }
+      final matchingPane = await _matchingPaneIn(
+        state.tabs[matchingIndex],
+        event.tab,
+        targetTitle,
+        ignoreLocation: event.navigateToPositionIfReused,
+      );
       event.tab.dispose();
       final tabsToSave = state.tabs;
-      final modeToSave = state.sideBySideMode;
-      emit(state.copyWith(currentTabIndex: matchingIndex));
-      await _repository.saveTabs(tabsToSave, matchingIndex, modeToSave);
+      // התאמה בחלונית מפוצלת דורשת גם עדכון של החלונית הפעילה.
+      emit(
+        state.copyWith(
+          currentTabIndex: matchingIndex,
+          rawActivePane: matchingPane,
+        ),
+      );
+      await _repository.saveTabs(tabsToSave, matchingIndex);
       return;
     }
 
@@ -294,11 +267,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         selectedTabs: _normalizedSelection(newTabs),
       ),
     );
-    await _repository.saveTabs(
-      newTabs,
-      state.currentTabIndex,
-      state.sideBySideMode,
-    );
+    await _repository.saveTabs(newTabs, state.currentTabIndex);
     _disposeTabLater(event.oldTab);
   }
 
@@ -362,17 +331,12 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     if (existingTab is TextBookTab) {
       return existingTab;
     }
-    // ב‑side‑by‑side צריך להחיל את ה‑pinpoint על הצד שמתאים בזהות חזקה (book id
-    // / category id), לא רק כותרת — כדי שלא לעדכן בטעות צד עם ספר שונה
-    // ששם הקובץ שלו זהה.
+    // בפיצול מזהים ספר לפי מזהה, כדי לא לעדכן ספר בעל כותרת זהה.
     if (existingTab is CombinedTab) {
-      final right = existingTab.rightTab;
-      if (right is TextBookTab && _isSameBook(right, incomingTab)) {
-        return right;
-      }
-      final left = existingTab.leftTab;
-      if (left is TextBookTab && _isSameBook(left, incomingTab)) {
-        return left;
+      for (final pane in leafPanes(existingTab)) {
+        if (pane is TextBookTab && _isSameBook(pane, incomingTab)) {
+          return pane;
+        }
       }
     }
     return null;
@@ -386,13 +350,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       return existingTab;
     }
     if (existingTab is CombinedTab) {
-      final right = existingTab.rightTab;
-      if (right is PdfBookTab && _isSameBook(right, incomingTab)) {
-        return right;
-      }
-      final left = existingTab.leftTab;
-      if (left is PdfBookTab && _isSameBook(left, incomingTab)) {
-        return left;
+      for (final pane in leafPanes(existingTab)) {
+        if (pane is PdfBookTab && _isSameBook(pane, incomingTab)) {
+          return pane;
+        }
       }
     }
     return null;
@@ -497,18 +458,16 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     }
 
     if (openTab is CombinedTab) {
-      return await _singleTabMatches(
-            openTab.rightTab,
-            targetTab,
-            normalizedTargetTitle,
-            ignoreLocation,
-          ) ||
-          await _singleTabMatches(
-            openTab.leftTab,
-            targetTab,
-            normalizedTargetTitle,
-            ignoreLocation,
-          );
+      for (final pane in leafPanes(openTab)) {
+        if (await _singleTabMatches(
+          pane,
+          targetTab,
+          normalizedTargetTitle,
+          ignoreLocation,
+        )) {
+          return true;
+        }
+      }
     }
 
     return false;
@@ -540,6 +499,42 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       openTab: openTab,
       targetTab: targetTab,
     );
+  }
+
+  /// החלונית המתאימה בתוך [openTab], או `null` כשהטאב עצמו הוא ההתאמה.
+  Future<OpenedTab?> _matchingPaneIn(
+    OpenedTab openTab,
+    OpenedTab targetTab,
+    String? normalizedTargetTitle, {
+    required bool ignoreLocation,
+  }) async {
+    if (openTab is! CombinedTab) return null;
+    for (final pane in leafPanes(openTab)) {
+      if (await _singleTabMatches(
+        pane,
+        targetTab,
+        normalizedTargetTitle,
+        ignoreLocation,
+      )) {
+        return pane;
+      }
+    }
+    return null;
+  }
+
+  /// אינדקס הכרטיסיה העליונה שחולקת `dedupeKey` עם [tab], או `null`.
+  int? _indexOfMatchingDedupeKey(OpenedTab tab) {
+    if (tab.dedupeKey == null) return null;
+    for (var i = 0; i < state.tabs.length; i++) {
+      if (_hasMatchingDedupeKey(state.tabs[i], tab)) return i;
+      final openTab = state.tabs[i];
+      if (openTab is CombinedTab) {
+        for (final pane in leafPanes(openTab)) {
+          if (_hasMatchingDedupeKey(pane, tab)) return i;
+        }
+      }
+    }
+    return null;
   }
 
   bool _hasMatchingDedupeKey(OpenedTab openTab, OpenedTab targetTab) {
@@ -729,29 +724,6 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
     final newTabs = List<OpenedTab>.from(state.tabs)..remove(event.tab);
 
-    // בדיקה אם הטאב שנסגר היה חלק ממצב side-by-side
-    SideBySideMode? newSideBySideMode = state.sideBySideMode;
-    if (state.sideBySideMode != null) {
-      if (removedTabIndex == state.sideBySideMode!.leftTabIndex ||
-          removedTabIndex == state.sideBySideMode!.rightTabIndex) {
-        // אם סגרנו אחד מהטאבים במצב side-by-side, מבטלים את המצב
-        debugPrint('DEBUG: ביטול מצב side-by-side כי נסגר טאב שהיה חלק ממנו');
-        newSideBySideMode = null;
-      } else {
-        // עדכון האינדקסים אם הם השתנו
-        var newLeftIndex = state.sideBySideMode!.leftTabIndex;
-        var newRightIndex = state.sideBySideMode!.rightTabIndex;
-
-        if (removedTabIndex < newLeftIndex) newLeftIndex--;
-        if (removedTabIndex < newRightIndex) newRightIndex--;
-
-        newSideBySideMode = state.sideBySideMode!.copyWith(
-          leftTabIndex: newLeftIndex,
-          rightTabIndex: newRightIndex,
-        );
-      }
-    }
-
     final prunedSelection = _normalizedSelection(newTabs);
 
     // אם אין טאבים נותרים, נשאיר את האינדקס ב-0
@@ -760,11 +732,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         state.copyWith(
           tabs: newTabs,
           currentTabIndex: 0,
-          clearSideBySide: true,
           selectedTabs: prunedSelection,
         ),
       );
-      await _repository.saveTabs(newTabs, 0, null);
+      await _repository.saveTabs(newTabs, 0);
       _disposeTabLater(event.tab);
       return;
     }
@@ -782,12 +753,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       state.copyWith(
         tabs: newTabs,
         currentTabIndex: newIndex,
-        sideBySideMode: newSideBySideMode,
-        clearSideBySide: newSideBySideMode == null,
         selectedTabs: prunedSelection,
       ),
     );
-    await _repository.saveTabs(newTabs, newIndex, newSideBySideMode);
+    await _repository.saveTabs(newTabs, newIndex);
     _disposeTabLater(event.tab);
   }
 
@@ -804,21 +773,6 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     }
 
     final newTabs = state.tabs.where((t) => !toRemove.contains(t)).toList();
-
-    // side-by-side: אם אחד מצדדיו נסגר המצב מבוטל, אחרת האינדקסים מתעדכנים.
-    SideBySideMode? newSideBySideMode = state.sideBySideMode;
-    if (newSideBySideMode != null) {
-      final leftTab = state.tabs[newSideBySideMode.leftTabIndex];
-      final rightTab = state.tabs[newSideBySideMode.rightTabIndex];
-      if (toRemove.contains(leftTab) || toRemove.contains(rightTab)) {
-        newSideBySideMode = null;
-      } else {
-        newSideBySideMode = newSideBySideMode.copyWith(
-          leftTabIndex: newTabs.indexOf(leftTab),
-          rightTabIndex: newTabs.indexOf(rightTab),
-        );
-      }
-    }
 
     // הטאב הפעיל נשאר אם שרד; אחרת עוברים לטאב שנכנס תחת אותו אינדקס
     // (כמו בסגירה בודדת), בניכוי הטאבים שנסגרו לפניו.
@@ -843,12 +797,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       state.copyWith(
         tabs: newTabs,
         currentTabIndex: newIndex,
-        sideBySideMode: newSideBySideMode,
-        clearSideBySide: newSideBySideMode == null,
         selectedTabs: _normalizedSelection(newTabs),
       ),
     );
-    await _repository.saveTabs(newTabs, newIndex, newSideBySideMode);
+    await _repository.saveTabs(newTabs, newIndex);
 
     for (final tab in toRemove) {
       _disposeTabLater(tab);
@@ -899,8 +851,6 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     Emitter<TabsState> emit,
   ) async {
     if (event.index >= 0 && event.index < state.tabs.length) {
-      // לא מבטלים את מצב side-by-side - פשוט עוברים לטאב
-      // הפונקציה _shouldShowSideBySideView תחליט אם להציג side-by-side או TabBarView
       final tabsToSave = state.tabs;
       emit(state.copyWith(currentTabIndex: event.index));
       // מעבר טאב לא משנה את רשימת הטאבים — שומרים רק את האינדקס הנוכחי
@@ -929,6 +879,15 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     if (_recentlyClosedTabs.isEmpty) return;
 
     final closedEntry = _recentlyClosedTabs.removeLast();
+    // תוסף פתוח ממוקד במקום ליצור מופע WebView נוסף.
+    final existingIndex = _indexOfMatchingDedupeKey(closedEntry.tab);
+    if (existingIndex != null) {
+      closedEntry.tab.dispose();
+      final tabsToSave = state.tabs;
+      emit(state.copyWith(currentTabIndex: existingIndex));
+      await _repository.saveCurrentTabIndex(tabsToSave, existingIndex);
+      return;
+    }
     final restoredTabs = List<OpenedTab>.from(state.tabs);
     final restoreIndex = closedEntry.originalIndex.clamp(
       0,
@@ -936,32 +895,13 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     );
     restoredTabs.insert(restoreIndex, closedEntry.tab);
 
-    SideBySideMode? newSideBySideMode = state.sideBySideMode;
-    if (newSideBySideMode != null) {
-      var newLeftIndex = newSideBySideMode.leftTabIndex;
-      var newRightIndex = newSideBySideMode.rightTabIndex;
-
-      if (restoreIndex <= newLeftIndex) newLeftIndex++;
-      if (restoreIndex <= newRightIndex) newRightIndex++;
-
-      newSideBySideMode = newSideBySideMode.copyWith(
-        leftTabIndex: newLeftIndex,
-        rightTabIndex: newRightIndex,
-      );
-    }
-
     emit(
       state.copyWith(
         tabs: restoredTabs,
         currentTabIndex: restoreIndex,
-        sideBySideMode: newSideBySideMode,
       ),
     );
-    await _repository.saveTabs(
-      restoredTabs,
-      restoreIndex,
-      newSideBySideMode,
-    );
+    await _repository.saveTabs(restoredTabs, restoreIndex);
   }
 
   Future<void> _onCloseAllTabs(
@@ -981,16 +921,14 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     // אם יש טאבים מוצמדים, נשאיר אותם
     final newIndex = pinnedTabs.isNotEmpty ? 0 : 0;
 
-    // ביטול מצב side-by-side כי סגרנו טאבים
     emit(
       state.copyWith(
         tabs: pinnedTabs,
         currentTabIndex: newIndex,
-        clearSideBySide: true,
         selectedTabs: const <OpenedTab>[],
       ),
     );
-    await _repository.saveTabs(pinnedTabs, newIndex, null);
+    await _repository.saveTabs(pinnedTabs, newIndex);
 
     for (final tab in tabsToDispose) {
       _disposeTabLater(tab);
@@ -1013,16 +951,14 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
     final newTabs = [event.keepTab];
 
-    // ביטול מצב side-by-side כי נשאר רק טאב אחד
     emit(
       state.copyWith(
         tabs: newTabs,
         currentTabIndex: 0,
-        clearSideBySide: true,
         selectedTabs: const <OpenedTab>[],
       ),
     );
-    await _repository.saveTabs(newTabs, 0, null);
+    await _repository.saveTabs(newTabs, 0);
 
     for (final tab in tabsToDispose) {
       _disposeTabLater(tab);
@@ -1030,54 +966,24 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   }
 
   void _onCloneTab(CloneTab event, Emitter<TabsState> emit) {
+    if (event.tab is ToolTab && (event.tab as ToolTab).isPlugin) return;
     add(AddTab(OpenedTab.from(event.tab), insertAdjacent: true));
   }
 
   Future<void> _onMoveTab(MoveTab event, Emitter<TabsState> emit) async {
     final newTabs = List<OpenedTab>.from(state.tabs);
     final currentTab = newTabs[state.currentTabIndex];
-    final oldIndex = newTabs.indexOf(event.tab);
     newTabs.remove(event.tab);
     newTabs.insert(event.newIndex, event.tab);
     final newIndex = newTabs.indexOf(currentTab);
-
-    // עדכון אינדקסים במצב side-by-side אם קיים
-    SideBySideMode? newSideBySideMode = state.sideBySideMode;
-    if (state.sideBySideMode != null) {
-      var newLeftIndex = state.sideBySideMode!.leftTabIndex;
-      var newRightIndex = state.sideBySideMode!.rightTabIndex;
-
-      // עדכון האינדקסים לפי התזוזה
-      if (oldIndex == newLeftIndex) {
-        newLeftIndex = event.newIndex;
-      } else if (oldIndex < newLeftIndex && event.newIndex >= newLeftIndex) {
-        newLeftIndex--;
-      } else if (oldIndex > newLeftIndex && event.newIndex <= newLeftIndex) {
-        newLeftIndex++;
-      }
-
-      if (oldIndex == newRightIndex) {
-        newRightIndex = event.newIndex;
-      } else if (oldIndex < newRightIndex && event.newIndex >= newRightIndex) {
-        newRightIndex--;
-      } else if (oldIndex > newRightIndex && event.newIndex <= newRightIndex) {
-        newRightIndex++;
-      }
-
-      newSideBySideMode = state.sideBySideMode!.copyWith(
-        leftTabIndex: newLeftIndex,
-        rightTabIndex: newRightIndex,
-      );
-    }
 
     emit(
       state.copyWith(
         tabs: newTabs,
         currentTabIndex: newIndex,
-        sideBySideMode: newSideBySideMode,
       ),
     );
-    await _repository.saveTabs(newTabs, newIndex, newSideBySideMode);
+    await _repository.saveTabs(newTabs, newIndex);
   }
 
   Future<void> _onNavigateToNextTab(
@@ -1134,8 +1040,8 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     await _repository.saveTabs(newTabs, indexToSave);
   }
 
-  Future<void> _onEnableSideBySideMode(
-    EnableSideBySideMode event,
+  Future<void> _onCreateCombinedTab(
+    CreateCombinedTab event,
     Emitter<TabsState> emit,
   ) async {
     final rightIndex = state.tabs.indexOf(event.rightTab);
@@ -1146,24 +1052,23 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       return;
     }
 
-    debugPrint(
-      'DEBUG: הפעלת מצב side-by-side: right=${event.rightTab.title}, left=${event.leftTab.title}',
-    );
+    // פיצול הוא לשתי חלוניות בלבד: מיזוג טאב שכבר מפוצל היה מקנן אותו.
+    if (event.rightTab is CombinedTab || event.leftTab is CombinedTab) return;
+    // אותו טאב בשני הצדדים יוצר מפתח חלונית כפול.
+    if (identical(event.rightTab, event.leftTab)) return;
 
-    // יצירת עותקים נפרדים כדי לא לשתף controllers עם הטאבים שעדיין מפורקים מהעץ.
+    // שומרים על זהות החלוניות כדי לשמר את מצב הקריאה.
     final combinedTab = CombinedTab(
-      rightTab: OpenedTab.from(event.rightTab),
-      leftTab: OpenedTab.from(event.leftTab),
+      rightTab: event.rightTab,
+      leftTab: event.leftTab,
       isPinned: event.rightTab.isPinned || event.leftTab.isPinned,
     );
 
-    // הסרת שני הטאבים המקוריים והוספת הטאב המשולב במקומם
     final newTabs = List<OpenedTab>.from(state.tabs);
 
-    // מוצאים את האינדקס הנמוך יותר כדי להכניס שם את הטאב המשולב
     final insertIndex = rightIndex < leftIndex ? rightIndex : leftIndex;
 
-    // מסירים את שני הטאבים (מהגבוה לנמוך כדי לא לשבש אינדקסים)
+    // הסרה מהאינדקס הגבוה שומרת על האינדקס הנמוך.
     if (rightIndex > leftIndex) {
       newTabs.removeAt(rightIndex);
       newTabs.removeAt(leftIndex);
@@ -1172,32 +1077,25 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       newTabs.removeAt(rightIndex);
     }
 
-    // מוסיפים את הטאב המשולב
     newTabs.insert(insertIndex, combinedTab);
 
-    // האינדקס הנוכחי יהיה האינדקס של הטאב המשולב
     final newCurrentIndex = insertIndex;
 
     emit(
       state.copyWith(
         tabs: newTabs,
         currentTabIndex: newCurrentIndex,
-        clearSideBySide: true,
         forceUpdate: true,
         selectedTabs: _normalizedSelection(newTabs),
       ),
     );
-    await _repository.saveTabs(newTabs, newCurrentIndex, null);
-
-    _disposeTabLater(event.rightTab);
-    _disposeTabLater(event.leftTab);
+    await _repository.saveTabs(newTabs, newCurrentIndex);
   }
 
-  Future<void> _onDisableSideBySideMode(
-    DisableSideBySideMode event,
+  Future<void> _onExpandCombinedTab(
+    ExpandCombinedTab event,
     Emitter<TabsState> emit,
   ) async {
-    // אם הטאב המבוקש הוא CombinedTab, נפרק אותו לשני טאבים נפרדים
     if (event.tabIndex >= 0 &&
         event.tabIndex < state.tabs.length &&
         state.tabs[event.tabIndex] is CombinedTab) {
@@ -1205,39 +1103,33 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       final newTabs = List<OpenedTab>.from(state.tabs);
       final combinedIndex = event.tabIndex;
 
-      // מסירים את הטאב המשולב
+      // החלוניות חוזרות לרשימה בזהותן כדי לשמר את מצב הקריאה.
+      final panes = leafPanes(combinedTab);
+      // ההצמדה עוברת לשתי החלוניות.
+      if (combinedTab.isPinned) {
+        for (final pane in panes) {
+          pane.isPinned = true;
+        }
+      }
       newTabs.removeAt(combinedIndex);
+      newTabs.insertAll(combinedIndex, panes);
 
-      // מוסיפים עותקים נפרדים כדי לא לשתף controllers עם ה-combined view
-      newTabs.insert(combinedIndex, OpenedTab.from(combinedTab.rightTab));
-      newTabs.insert(combinedIndex + 1, OpenedTab.from(combinedTab.leftTab));
-
-      // האינדקס הנוכחי יהיה הטאב הימני
-      final newCurrentIndex = combinedIndex;
+      final activePaneIndex = panes.indexWhere(
+        (pane) => identical(pane, state.activePane),
+      );
+      final newCurrentIndex =
+          combinedIndex + (activePaneIndex < 0 ? 0 : activePaneIndex);
 
       emit(
         state.copyWith(
           tabs: newTabs,
           currentTabIndex: newCurrentIndex,
-          clearSideBySide: true,
           forceUpdate: true,
           selectedTabs: _normalizedSelection(newTabs),
         ),
       );
-      await _repository.saveTabs(newTabs, newCurrentIndex, null);
-
-      _disposeTabLater(combinedTab);
-    } else {
-      // אם זה לא טאב משולב, פשוט מנקים את המצב
-      final tabsToSave = state.tabs;
-      final indexToSave = state.currentTabIndex;
-      emit(
-        state.copyWith(
-          clearSideBySide: true,
-          forceUpdate: true,
-        ),
-      );
-      await _repository.saveTabs(tabsToSave, indexToSave, null);
+      await _repository.saveTabs(newTabs, newCurrentIndex);
+      // אין לשחרר את העוטף, כי החלוניות ממשיכות להיות מוצגות.
     }
   }
 
@@ -1245,56 +1137,84 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     UpdateSplitRatio event,
     Emitter<TabsState> emit,
   ) async {
-    // עדכון היחס של הטאב המשולב
-    if (state.currentTab is CombinedTab) {
-      final combinedTab = state.currentTab as CombinedTab;
-      combinedTab.splitRatio = event.ratio;
+    final current = state.currentTab;
+    if (current is! CombinedTab) return;
 
-      // שמירת השינוי
-      final tabsToSave = state.tabs;
-      final indexToSave = state.currentTabIndex;
-      emit(
-        state.copyWith(
-          forceUpdate: true,
-        ),
-      );
-      await _repository.saveTabs(tabsToSave, indexToSave, null);
-    }
+    current.splitRatio = event.ratio;
+
+    final tabsToSave = state.tabs;
+    final indexToSave = state.currentTabIndex;
+    emit(state.copyWith(forceUpdate: true));
+    await _repository.saveTabs(tabsToSave, indexToSave);
+  }
+
+  /// אינדקס הטאב שאירוע חלונית פועל עליו, או `null` אם אינו קיים.
+  int? _paneEventTabIndex(int? requested) {
+    final index = requested ?? state.currentTabIndex;
+    if (index < 0 || index >= state.tabs.length) return null;
+    return index;
   }
 
   Future<void> _onSwapSideBySideTabs(
     SwapSideBySideTabs event,
     Emitter<TabsState> emit,
   ) async {
-    // החלפת צדדים בטאב המשולב
-    if (state.currentTab is CombinedTab) {
-      final combinedTab = state.currentTab as CombinedTab;
+    final tabIndex = _paneEventTabIndex(event.tabIndex);
+    if (tabIndex == null) return;
+    final current = state.tabs[tabIndex];
+    if (current is! CombinedTab) return;
 
-      debugPrint('DEBUG: החלפת צדדים במצב side-by-side');
+    // החלפה בזהות שומרת על מצב הקריאה של החלוניות.
+    final newTabs = List<OpenedTab>.from(state.tabs);
+    newTabs[tabIndex] = current.copyWith(
+      rightTab: current.leftTab,
+      leftTab: current.rightTab,
+      splitRatio: 1.0 - current.splitRatio,
+    );
 
-      // יצירת טאב משולב חדש עם עותקים נפרדים של הטאבים המוחלפים.
-      final newCombinedTab = CombinedTab(
-        rightTab: OpenedTab.from(combinedTab.leftTab),
-        leftTab: OpenedTab.from(combinedTab.rightTab),
-        splitRatio: 1.0 - combinedTab.splitRatio,
-        isPinned: combinedTab.isPinned,
-      );
+    emit(
+      state.copyWith(
+        tabs: newTabs,
+        forceUpdate: true,
+        selectedTabs: _normalizedSelection(newTabs),
+      ),
+    );
+    await _repository.saveTabs(newTabs, state.currentTabIndex);
+  }
 
-      // עדכון הרשימה
-      final newTabs = List<OpenedTab>.from(state.tabs);
-      newTabs[state.currentTabIndex] = newCombinedTab;
+  void _onSetActivePane(SetActivePane event, Emitter<TabsState> emit) {
+    final current = state.currentTab;
+    if (current == null) return;
+    // החלונית הפעילה חייבת להיות בטאב המוצג.
+    if (!leafPanes(current).any((pane) => identical(pane, event.pane))) return;
+    if (identical(state.activePane, event.pane)) return;
+    emit(state.copyWith(rawActivePane: event.pane));
+  }
 
-      final indexToSave = state.currentTabIndex;
-      emit(
-        state.copyWith(
-          tabs: newTabs,
-          forceUpdate: true,
-          selectedTabs: _normalizedSelection(newTabs),
-        ),
-      );
-      await _repository.saveTabs(newTabs, indexToSave, null);
+  Future<void> _onClosePane(ClosePane event, Emitter<TabsState> emit) async {
+    final index = state.tabs.indexWhere(
+      (tab) => tab is CombinedTab && tab.sibling(event.pane) != null,
+    );
+    if (index == -1) return;
 
-      _disposeTabLater(combinedTab);
-    }
+    final combined = state.tabs[index] as CombinedTab;
+    final survivor = combined.sibling(event.pane)!;
+    // החלונית השורדת יורשת את ההצמדה.
+    if (combined.isPinned) survivor.isPinned = true;
+
+    final newTabs = List<OpenedTab>.from(state.tabs);
+    newTabs[index] = survivor;
+
+    emit(
+      state.copyWith(
+        tabs: newTabs,
+        forceUpdate: true,
+        selectedTabs: _normalizedSelection(newTabs),
+      ),
+    );
+    await _repository.saveTabs(newTabs, state.currentTabIndex);
+
+    // אין לשחרר את הטאב המפוצל כי האחות ממשיכה להיות מוצגת.
+    _disposeTabLater(event.pane);
   }
 }

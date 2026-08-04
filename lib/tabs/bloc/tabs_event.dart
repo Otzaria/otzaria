@@ -204,27 +204,33 @@ class TogglePinTab extends TabsEvent {
   List<Object?> get props => [tab];
 }
 
-class EnableSideBySideMode extends TabsEvent {
+/// מיזוג שני טאבים פתוחים לטאב אחד המציג אותם זה לצד זה.
+///
+/// שניהם יוצאים משורת הכרטיסיות והטאב המפוצל נכנס במקומם, בלי לשכפל אותם —
+/// כך מיקום הקריאה בכל אחד מהם נשמר.
+class CreateCombinedTab extends TabsEvent {
+  /// הטאב שיוצג בחלונית הראשונה (הימנית ב-RTL).
   final OpenedTab rightTab;
+
+  /// הטאב שיוצג בחלונית השנייה (השמאלית ב-RTL).
   final OpenedTab leftTab;
 
-  const EnableSideBySideMode({
-    required this.rightTab,
-    required this.leftTab,
-  });
+  const CreateCombinedTab({required this.rightTab, required this.leftTab});
 
   @override
   List<Object?> get props => [rightTab, leftTab];
 }
 
-class DisableSideBySideMode extends TabsEvent {
+/// פירוק טאב מפוצל לשתי כרטיסיות עצמאיות.
+class ExpandCombinedTab extends TabsEvent {
   final int tabIndex;
-  const DisableSideBySideMode(this.tabIndex);
+  const ExpandCombinedTab(this.tabIndex);
 
   @override
   List<Object?> get props => [tabIndex];
 }
 
+/// חלקה של החלונית הראשונה מרוחב הטאב המפוצל הנוכחי.
 class UpdateSplitRatio extends TabsEvent {
   final double ratio;
 
@@ -234,6 +240,39 @@ class UpdateSplitRatio extends TabsEvent {
   List<Object?> get props => [ratio];
 }
 
+/// החלפת הצדדים בטאב מפוצל.
 class SwapSideBySideTabs extends TabsEvent {
-  const SwapSideBySideTabs();
+  /// הטאב שצדדיו יוחלפו. `null` = הטאב הפעיל.
+  final int? tabIndex;
+
+  const SwapSideBySideTabs({this.tabIndex});
+
+  @override
+  List<Object?> get props => [tabIndex];
+}
+
+/// סימון החלונית שהמשתמש עובד בה בטאב הנוכחי.
+///
+/// נשלח בלחיצה בתוך חלונית. הפוקוס, ניווט מסימניה ושכבת התוספים נגזרים ממנה —
+/// בלעדיה כל חלוניות הטאב נחשבו "בחזית" והתחרו על פוקוס המקלדת.
+///
+/// החלונית עצמה ולא נתיבה: נתיב מתיישן בכל שינוי מבנה.
+class SetActivePane extends TabsEvent {
+  final OpenedTab pane;
+
+  const SetActivePane(this.pane);
+
+  @override
+  List<Object?> get props => [pane];
+}
+
+/// סגירת חלונית אחת מטאב מפוצל; אחותה נשארת ככרטיסייה רגילה במקומו.
+class ClosePane extends TabsEvent {
+  /// החלונית עצמה ולא מיקומה: מיקום מתיישן בכל שינוי בשורת הכרטיסיות.
+  final OpenedTab pane;
+
+  const ClosePane(this.pane);
+
+  @override
+  List<Object?> get props => [pane];
 }

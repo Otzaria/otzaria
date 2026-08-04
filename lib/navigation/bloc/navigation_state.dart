@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-enum Screen { library, find, reading, search, more, settings }
+enum Screen { library, find, reading, search, settings }
 
 class NavigationState extends Equatable {
   final Screen currentScreen;
