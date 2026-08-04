@@ -64,6 +64,9 @@ class SmartTextWidget extends StatelessWidget {
   final String? highlightBookId;
   final int? highlightSectionIndex;
   final String? highlightSourceText;
+  final int? highlightBookDbId;
+  final String? highlightBookType;
+  final String? highlightBookSource;
 
   const SmartTextWidget({
     super.key,
@@ -79,6 +82,9 @@ class SmartTextWidget extends StatelessWidget {
     this.highlightBookId,
     this.highlightSectionIndex,
     this.highlightSourceText,
+    this.highlightBookDbId,
+    this.highlightBookType,
+    this.highlightBookSource,
   });
 
   @override
@@ -128,6 +134,9 @@ class SmartTextWidget extends StatelessWidget {
       // לפריים הקודם, וזה המצב בכמעט כל פריים גלילה.
       if (ReaderSectionSyncGate.instance.claimSync(
         bookId: bookId,
+        bookDbId: highlightBookDbId,
+        bookType: highlightBookType,
+        bookSource: highlightBookSource,
         sectionIndex: sectionIndex,
         rawSourceHtml: rawSourceHtml,
         processedHtml: processedHtml,
@@ -145,6 +154,9 @@ class SmartTextWidget extends StatelessWidget {
           unawaited(
             _recordSectionContentSnapshot(
               bookId: bookId,
+              bookDbId: highlightBookDbId,
+              bookType: highlightBookType,
+              bookSource: highlightBookSource,
               sectionIndex: sectionIndex,
               sourceText: sourceText,
               renderedText: renderedText,
@@ -267,10 +279,7 @@ class SmartTextWidget extends StatelessWidget {
           // נצבע בגוון הנושא כדי לרמז שאפשר לרחף עליו.
           if (element.localName == 'a' &&
               element.classes.contains('numbered-note-marker')) {
-            return {
-              'color': anchorLinkColorCss,
-              'text-decoration': 'none',
-            };
+            return {'color': anchorLinkColorCss, 'text-decoration': 'none'};
           }
           // סמן-אות של מפרש (עוגן-נקודה): אות קטנה מורמת בצבע ה-primary, עם
           // וריאנט טיפוגרפי קבוע לכל מפרש (ראו anchorStyleIndexByCommentator).
@@ -433,6 +442,9 @@ class _SmartTextWidgetFactory extends WidgetFactory {
 /// במקום RenderSettings - נוחה למקרים פשוטים
 Future<void> _recordSectionContentSnapshot({
   required String bookId,
+  int? bookDbId,
+  String? bookType,
+  String? bookSource,
   required int sectionIndex,
   required String sourceText,
   required String renderedText,
@@ -441,6 +453,9 @@ Future<void> _recordSectionContentSnapshot({
   try {
     await ReaderSectionContentTracker.instance.recordSnapshot(
       bookId: bookId,
+      bookDbId: bookDbId,
+      bookType: bookType,
+      bookSource: bookSource,
       sectionIndex: sectionIndex,
       sourceText: sourceText,
       renderedText: renderedText,

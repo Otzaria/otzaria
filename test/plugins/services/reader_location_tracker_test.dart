@@ -108,6 +108,9 @@ void main() {
         expect(dispatchedEvents.single.payload, {
           'currentBook': 'בראשית',
           'currentBookId': 'בראשית',
+          'currentId': null,
+          'currentType': 'text',
+          'currentSource': 'library',
           'currentIndex': 42,
           'currentRef': 'פרק ג',
         });
@@ -134,6 +137,9 @@ void main() {
         expect(dispatchedEvents.single.payload, {
           'currentBook': 'מסילת ישרים',
           'currentBookId': 'מסילת ישרים',
+          'currentId': null,
+          'currentType': 'pdf',
+          'currentSource': 'library',
           'currentIndex': 17,
           'currentRef': 'פרק ב',
         });
@@ -225,6 +231,8 @@ void main() {
               const ReaderLocationSnapshot(
                 currentBook: 'שמות',
                 currentBookId: 'שמות',
+                currentId: null,
+                currentType: 'text',
                 currentIndex: 10,
                 currentRef: 'פרק א',
               ),
@@ -247,6 +255,8 @@ void main() {
         const ReaderLocationSnapshot(
           currentBook: 'בראשית',
           currentBookId: 'בראשית',
+          currentId: null,
+          currentType: 'text',
           currentIndex: 42,
           currentRef: 'פרק ג',
         ),

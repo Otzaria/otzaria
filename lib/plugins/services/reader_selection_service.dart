@@ -53,8 +53,14 @@ class ReaderSelectionService {
     required int? renderedStartUtf16,
     required int? renderedEndUtf16,
     String? currentRef,
+    int? bookDbId,
+    String? bookType,
+    String? bookSource,
   }) {
     final legacy = <String, dynamic>{
+      'id': ?bookDbId,
+      'type': ?bookType,
+      'source': ?bookSource,
       'text': selectedText,
       'start': renderedStartUtf16,
       'end': renderedEndUtf16,
@@ -73,6 +79,9 @@ class ReaderSelectionService {
       renderedStartUtf16: renderedStartUtf16,
       renderedEndUtf16: renderedEndUtf16,
       currentRef: currentRef,
+      bookDbId: bookDbId,
+      bookType: bookType,
+      bookSource: bookSource,
     );
     return selection == null ? legacy : {...legacy, ...selection.toJson()};
   }
@@ -88,6 +97,9 @@ class ReaderSelectionService {
     String? currentRef,
     String? tabId,
     DateTime? createdAt,
+    int? bookDbId,
+    String? bookType,
+    String? bookSource,
   }) {
     final map = _sourceMapService.build(
       bookId: bookId,
@@ -130,6 +142,9 @@ class ReaderSelectionService {
     return PluginReaderSelection(
       selectionId: selectionId,
       bookId: bookId,
+      id: bookDbId,
+      type: bookType,
+      source: bookSource,
       bookTitle: bookTitle,
       tabId: tabId,
       sectionIndex: sectionIndex,
@@ -256,11 +271,7 @@ class ReaderSelectionService {
     );
   }
 
-  PluginAnchorContext _context(
-    _GraphemeBoundaries text,
-    int start,
-    int end,
-  ) {
+  PluginAnchorContext _context(_GraphemeBoundaries text, int start, int end) {
     final raw = text.slice(start, end);
     return PluginAnchorContext(
       raw: raw,

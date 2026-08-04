@@ -100,6 +100,9 @@ Future<void> _dispatchItemClick({
     'currentBook': selection['bookTitle'] ?? selection['currentBook'],
     'currentBookId': selection['bookId'] ?? selection['currentBookId'],
     'currentIndex': selection['sectionIndex'] ?? selection['currentIndex'],
+    if (selection['id'] != null) 'id': selection['id'],
+    if (selection['type'] != null) 'type': selection['type'],
+    if (selection['source'] != null) 'source': selection['source'],
     'param': item.param,
   };
   if (item.openPlugin) {

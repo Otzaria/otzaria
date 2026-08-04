@@ -22,21 +22,27 @@ class _CountingTracker extends ReaderSectionContentTracker {
 
   @override
   Future<PluginSectionContentChange?> recordSnapshot({
+    int? bookDbId,
     required String bookId,
-    required int sectionIndex,
-    required String sourceText,
+    String? bookSource,
+    String? bookType,
+    String? reason,
     String? renderedText,
     Object? renderingSignature,
-    String? reason,
+    required int sectionIndex,
+    required String sourceText,
   }) {
     snapshots++;
     return super.recordSnapshot(
+      bookDbId: bookDbId,
       bookId: bookId,
-      sectionIndex: sectionIndex,
-      sourceText: sourceText,
+      bookSource: bookSource,
+      bookType: bookType,
+      reason: reason,
       renderedText: renderedText,
       renderingSignature: renderingSignature,
-      reason: reason,
+      sectionIndex: sectionIndex,
+      sourceText: sourceText,
     );
   }
 }

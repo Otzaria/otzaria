@@ -246,4 +246,87 @@ void main() {
 
     expect(events, isEmpty);
   });
+
+  test('שני ספרים בעלי אותו שם — bookDbId שונה, אין התנגשות ב-cache', () async {
+    // ספר טקסט id=1 — baseline
+    await tracker.recordSnapshot(
+      bookId: 'ספר',
+      bookDbId: 1,
+      bookType: 'text',
+      sectionIndex: 0,
+      sourceText: 'version A',
+    );
+    // ספר PDF id=2 עם אותו שם — baseline נפרד
+    await tracker.recordSnapshot(
+      bookId: 'ספר',
+      bookDbId: 2,
+      bookType: 'pdf',
+      sectionIndex: 0,
+      sourceText: 'version A',
+    );
+    expect(events, isEmpty);
+
+    // עדכון טקסט id=1 — אמור לייצר אירוע רק עבורו
+    await tracker.recordSnapshot(
+      bookId: 'ספר',
+      bookDbId: 1,
+      bookType: 'text',
+      sectionIndex: 0,
+      sourceText: 'version B',
+    );
+    expect(events, hasLength(1));
+    expect(events.single['bookId'], 'ספר');
+    expect(events.single['id'], 1);
+    expect(events.single['type'], 'text');
+
+    // ספר PDF id=2 נשאר ללא שינוי — אין אירוע נוסף
+    await tracker.recordSnapshot(
+      bookId: 'ספר',
+      bookDbId: 2,
+      bookType: 'pdf',
+      sectionIndex: 0,
+      sourceText: 'version A',
+    );
+    expect(events, hasLength(1));
+  });
+
+  test('forgetBook עם bookDbId — מוחק רק ספר ספציפי, לא שניהם', () async {
+    await tracker.recordSnapshot(
+      bookId: 'ספר',
+      bookDbId: 1,
+      bookType: 'text',
+      sectionIndex: 0,
+      sourceText: 'old text',
+    );
+    await tracker.recordSnapshot(
+      bookId: 'ספר',
+      bookDbId: 2,
+      bookType: 'pdf',
+      sectionIndex: 0,
+      sourceText: 'old pdf',
+    );
+
+    // מוחק רק id=1
+    tracker.forgetBook('ספר', bookDbId: 1, bookType: 'text');
+
+    // id=1 — snapshot נמחק, אין אירוע על snapshot זהה
+    await tracker.recordSnapshot(
+      bookId: 'ספר',
+      bookDbId: 1,
+      bookType: 'text',
+      sectionIndex: 0,
+      sourceText: 'old text',
+    );
+    expect(events, isEmpty);
+
+    // id=2 — snapshot קיים, text זהה — אין אירוע
+    await tracker.recordSnapshot(
+      bookId: 'ספר',
+      bookDbId: 2,
+      bookType: 'pdf',
+      sectionIndex: 0,
+      sourceText: 'old pdf',
+    );
+    expect(events, isEmpty);
+  });
 }

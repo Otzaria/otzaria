@@ -30,13 +30,22 @@ class ReaderSectionSyncGate {
   /// highlight חדש שנוסף לקטע לא היה מקבל עיגון מחדש.
   bool claimSync({
     required String bookId,
+    int? bookDbId,
+    String? bookType,
+    String? bookSource,
     required int sectionIndex,
     required String rawSourceHtml,
     required String processedHtml,
     required Object renderingSignature,
     required int highlightsRevision,
   }) {
-    final key = (bookId: bookId, sectionIndex: sectionIndex);
+    final key = (
+      bookId: bookId,
+      bookDbId: bookDbId,
+      bookType: bookType,
+      bookSource: bookSource,
+      sectionIndex: sectionIndex,
+    );
     final previous = _synced[key];
     // מסודר מהזול ליקר; השוואת המחרוזות נופלת בדרך כלל על מסלול הזהות של
     // `String ==`, כי גם הטקסט הגולמי וגם התוצר המעובד ממוחזרים בין פריימים.
@@ -62,7 +71,9 @@ class ReaderSectionSyncGate {
 
   /// מבטל סימון של קטע בודד, כך שהבנייה הבאה תסנכרן אותו שוב.
   void forget({required String bookId, required int sectionIndex}) {
-    _synced.remove((bookId: bookId, sectionIndex: sectionIndex));
+    _synced.removeWhere(
+      (key, _) => key.bookId == bookId && key.sectionIndex == sectionIndex,
+    );
   }
 
   void forgetBook(String bookId) {
@@ -72,7 +83,13 @@ class ReaderSectionSyncGate {
   void clear() => _synced.clear();
 }
 
-typedef _SectionKey = ({String bookId, int sectionIndex});
+typedef _SectionKey = ({
+  String bookId,
+  int? bookDbId,
+  String? bookType,
+  String? bookSource,
+  int sectionIndex,
+});
 typedef _SyncedInputs = ({
   String rawSourceHtml,
   String processedHtml,

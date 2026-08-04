@@ -3,6 +3,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
+import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 
 /// Snapshot של מיקום הקריאה הנוכחי
 ///
@@ -10,26 +11,35 @@ import 'package:otzaria/utils/text/ref_helper.dart';
 class ReaderLocationSnapshot {
   final String? currentBook;
   final String? currentBookId;
+  final int? currentId;
+  final String? currentType;
+  final String? currentSource;
   final int currentIndex;
   final String? currentRef;
 
   const ReaderLocationSnapshot({
     required this.currentBook,
     required this.currentBookId,
+    required this.currentId,
+    required this.currentType,
+    this.currentSource,
     required this.currentIndex,
     required this.currentRef,
   });
 
-  /// יוצר signature ייחודי למיקום זה
-  ///
-  /// משמש ל-dedupe - אם ה-signature זהה, המיקום לא השתנה
+  /// יוצר signature ייחודי למיקום זה.
+  /// כולל currentId ו-currentType כדי ששני ספרים בעלי אותו שם לא יתנגשו.
   String signature() =>
+      '${currentId ?? ''}|${currentType ?? ''}|'
       '${currentBook ?? ''}|$currentIndex|${currentRef ?? ''}';
 
   /// ממיר ל-JSON לשליחה לתוספים
   Map<String, dynamic> toJson() => {
     'currentBook': currentBook,
     'currentBookId': currentBookId,
+    'currentId': currentId,
+    'currentType': currentType,
+    'currentSource': currentSource,
     'currentIndex': currentIndex,
     'currentRef': currentRef,
   };
@@ -56,12 +66,10 @@ Future<ReaderLocationSnapshot?> resolveReaderLocation(
     return null;
   }
 
-  // טיפול בספר טקסט
   if (currentTab is TextBookTab) {
     return await _resolveTextBookLocation(currentTab);
   }
 
-  // טיפול ב-PDF
   if (currentTab is PdfBookTab) {
     return _resolvePdfBookLocation(currentTab);
   }
@@ -85,12 +93,16 @@ Future<ReaderLocationSnapshot?> _resolveTextBookLocation(
                 ? state.visibleIndices.first
                 : tab.index)
       : tab.index;
+
   // ניסיון ראשון: currentTitle מה-ValueNotifier
   final notifierTitle = tab.currentTitle.value.trim();
   if (notifierTitle.isNotEmpty) {
     return ReaderLocationSnapshot(
       currentBook: tab.title,
       currentBookId: tab.title,
+      currentId: tab.book.id,
+      currentType: PluginBookIdentity.typeOf(tab.book),
+      currentSource: PluginBookIdentity.sourceOf(tab.book),
       currentIndex: resolvedIndex,
       currentRef: notifierTitle,
     );
@@ -103,6 +115,9 @@ Future<ReaderLocationSnapshot?> _resolveTextBookLocation(
       return ReaderLocationSnapshot(
         currentBook: tab.title,
         currentBookId: tab.title,
+        currentId: tab.book.id,
+        currentType: PluginBookIdentity.typeOf(tab.book),
+        currentSource: PluginBookIdentity.sourceOf(tab.book),
         currentIndex: resolvedIndex,
         currentRef: stateTitle,
       );
@@ -118,24 +133,31 @@ Future<ReaderLocationSnapshot?> _resolveTextBookLocation(
       return ReaderLocationSnapshot(
         currentBook: tab.title,
         currentBookId: tab.title,
+        currentId: tab.book.id,
+        currentType: PluginBookIdentity.typeOf(tab.book),
+        currentSource: PluginBookIdentity.sourceOf(tab.book),
         currentIndex: resolvedIndex,
         currentRef: normalizedRef.isEmpty ? null : normalizedRef,
       );
     } catch (_) {
-      // אם נכשל, נחזיר בלי ref
       return ReaderLocationSnapshot(
         currentBook: tab.title,
         currentBookId: tab.title,
+        currentId: tab.book.id,
+        currentType: PluginBookIdentity.typeOf(tab.book),
+        currentSource: PluginBookIdentity.sourceOf(tab.book),
         currentIndex: resolvedIndex,
         currentRef: null,
       );
     }
   }
 
-  // אם אין state טעון, נחזיר מידע בסיסי
   return ReaderLocationSnapshot(
     currentBook: tab.title,
     currentBookId: tab.title,
+    currentId: tab.book.id,
+    currentType: PluginBookIdentity.typeOf(tab.book),
+    currentSource: PluginBookIdentity.sourceOf(tab.book),
     currentIndex: tab.index,
     currentRef: null,
   );
@@ -143,23 +165,27 @@ Future<ReaderLocationSnapshot?> _resolveTextBookLocation(
 
 /// פותר מיקום עבור PDF
 ReaderLocationSnapshot _resolvePdfBookLocation(PdfBookTab tab) {
-  // ניסיון ראשון: currentTitle מה-ValueNotifier
   final currentTitle = tab.currentTitle.value.trim();
   if (currentTitle.isNotEmpty) {
     return ReaderLocationSnapshot(
       currentBook: tab.title,
       currentBookId: tab.title,
+      currentId: tab.book.id,
+      currentType: PluginBookIdentity.typeOf(tab.book),
+      currentSource: PluginBookIdentity.sourceOf(tab.book),
       currentIndex: tab.pageNumber,
       currentRef: currentTitle,
     );
   }
 
-  // ניסיון שני: ref ברירת מחדל לפי מספר עמוד
   final defaultRef = tab.pageNumber > 0 ? 'עמוד ${tab.pageNumber}' : null;
 
   return ReaderLocationSnapshot(
     currentBook: tab.title,
     currentBookId: tab.title,
+    currentId: tab.book.id,
+    currentType: PluginBookIdentity.typeOf(tab.book),
+    currentSource: PluginBookIdentity.sourceOf(tab.book),
     currentIndex: tab.pageNumber,
     currentRef: defaultRef,
   );

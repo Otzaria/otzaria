@@ -32,6 +32,7 @@ import 'package:otzaria/plugins/services/plugin_file_download_service.dart';
 import 'package:otzaria/plugins/services/plugin_fs_service.dart';
 import 'package:otzaria/plugins/services/plugin_file_server.dart';
 import 'package:otzaria/plugins/services/plugin_network_fetch_service.dart';
+import 'package:otzaria/plugins/utils/reader_location_resolver.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -41,6 +42,8 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/tools/calendar/utils/calendar_cubit.dart';
 import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
+import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/tabs/models/tab.dart';
 
 class _MockHistoryBloc extends Mock implements HistoryBloc {}
 
@@ -1842,10 +1845,453 @@ void main() {
       expect(item.param, isNull);
     });
   });
+
+  group('PluginBridgeAdapter — book identity (id + type + bookId)', () {
+    late _MockBookOpenCoordinator mockCoordinator;
+    late _StubTabsBloc tabsBloc;
+
+    PluginBridgeAdapter buildAdapter({
+      required List<Book> books,
+      List<OpenedTab> tabs = const [],
+      int currentTabIndex = 0,
+    }) {
+      tabsBloc = _StubTabsBloc();
+      if (tabs.isNotEmpty) {
+        tabsBloc.currentState = TabsState(
+          tabs: tabs,
+          currentTabIndex: currentTabIndex,
+        );
+      }
+      mockCoordinator = _MockBookOpenCoordinator();
+      final category = Category(
+        title: 'בדיקה',
+        description: '',
+        shortDescription: '',
+        order: 0,
+        subCategories: const [],
+        books: books,
+        parent: null,
+      );
+      final library = Library(categories: [category]);
+      category.parent = library;
+      DataRepository.instance.library = Future.value(library);
+
+      return PluginBridgeAdapter(
+        _buildInstalledPlugin(
+          permissions: const ['reader.open', 'library.read'],
+        ),
+        dependencies: PluginBridgeDependencies(
+          historyBloc: _MockHistoryBloc(),
+          tabsBloc: tabsBloc,
+          navigationBloc: _MockNavigationBloc(),
+          calendarCubit: _StubCalendarCubit(
+            _buildCalendarState(DateTime(2026, 1, 1), inIsrael: true),
+          ),
+          workspaceBloc: _MockWorkspaceBloc(),
+          searchRepository: _MockSearchRepository(),
+          personalNotesRepository: _MockPersonalNotesRepository(),
+          bookOpenCoordinator: mockCoordinator,
+          themePayloadBuilder: () => <String, dynamic>{},
+          showConfirmDialog: ({required title, required content}) async => true,
+          showWarningDialog:
+              ({required title, required content, required subtitle}) async =>
+                  true,
+        ),
+        pluginRepository: _StubPluginRegistryRepository(),
+      );
+    }
+
+    // --- library.findBooks ---
+
+    test('library.findBooks מחזיר id ו-type לכל תוצאה', () async {
+      final adapter = buildAdapter(
+        books: [
+          TextBook(id: 10, title: 'בראשית'),
+          PdfBook(id: 20, title: 'ספר PDF', path: '/tmp/a.pdf'),
+        ],
+      );
+
+      final results = await adapter.execute('library', 'findBooks', {}) as List;
+
+      final text = results.firstWhere((r) => r['bookId'] == 'בראשית') as Map;
+      expect(text['id'], 10);
+      expect(text['type'], 'text');
+
+      final pdf = results.firstWhere((r) => r['bookId'] == 'ספר PDF') as Map;
+      expect(pdf['id'], 20);
+      expect(pdf['type'], 'pdf');
+    });
+
+    // --- library.getBookMetadata ---
+
+    test('library.getBookMetadata תומך בחיפוש לפי id בלבד', () async {
+      final adapter = buildAdapter(
+        books: [
+          TextBook(id: 42, title: 'שמות'),
+        ],
+      );
+
+      final result =
+          await adapter.execute(
+                'library',
+                'getBookMetadata',
+                {'id': 42},
+              )
+              as Map;
+
+      expect(result['bookId'], 'שמות');
+      expect(result['id'], 42);
+      expect(result['type'], 'text');
+    });
+
+    test('library.getBookMetadata: id נכון + שם שגוי → null', () async {
+      final adapter = buildAdapter(
+        books: [
+          TextBook(id: 42, title: 'שמות'),
+        ],
+      );
+
+      final result = await adapter.execute(
+        'library',
+        'getBookMetadata',
+        {'id': 42, 'bookId': 'שם_שגוי'},
+      );
+
+      expect(result, isNull);
+    });
+
+    test('library.getBookMetadata: שם נכון + id שגוי → null', () async {
+      final adapter = buildAdapter(
+        books: [
+          TextBook(id: 42, title: 'שמות'),
+        ],
+      );
+
+      final result = await adapter.execute(
+        'library',
+        'getBookMetadata',
+        {'bookId': 'שמות', 'id': 99},
+      );
+
+      expect(result, isNull);
+    });
+
+    test('library.getBookMetadata: type שגוי → null', () async {
+      final adapter = buildAdapter(
+        books: [
+          TextBook(id: 42, title: 'שמות'),
+        ],
+      );
+
+      final result = await adapter.execute(
+        'library',
+        'getBookMetadata',
+        {'bookId': 'שמות', 'type': 'pdf'},
+      );
+
+      expect(result, isNull);
+    });
+
+    test(
+      'library.getBookMetadata: קריאה ישנה עם bookId בלבד ממשיכה לעבוד',
+      () async {
+        final adapter = buildAdapter(
+          books: [
+            TextBook(id: 42, title: 'שמות'),
+          ],
+        );
+
+        final result =
+            await adapter.execute(
+                  'library',
+                  'getBookMetadata',
+                  {'bookId': 'שמות'},
+                )
+                as Map;
+
+        expect(result['bookId'], 'שמות');
+        expect(result['id'], 42);
+      },
+    );
+
+    // --- reader.openBook ---
+
+    test('reader.openBook פותח לפי id בלבד', () async {
+      final book = TextBook(id: 5, title: 'ויקרא');
+      final adapter = buildAdapter(books: [book]);
+
+      final result = await adapter.execute(
+        'reader',
+        'openBook',
+        {'id': 5, 'index': 0},
+      );
+
+      expect(result, isTrue);
+      verify(
+        mockCoordinator.openBook(book, 0, '', ignoreHistory: true),
+      ).called(1);
+    });
+
+    test('reader.openBook: id נכון + שם שגוי → false, לא פותח', () async {
+      final book = TextBook(id: 5, title: 'ויקרא');
+      final adapter = buildAdapter(books: [book]);
+
+      final result = await adapter.execute(
+        'reader',
+        'openBook',
+        {'id': 5, 'bookId': 'שם_שגוי'},
+      );
+
+      expect(result, isFalse);
+      verifyZeroInteractions(mockCoordinator);
+    });
+
+    test('reader.openBook: שם נכון + id שגוי → false, לא פותח', () async {
+      final book = TextBook(id: 5, title: 'ויקרא');
+      final adapter = buildAdapter(books: [book]);
+
+      final result = await adapter.execute(
+        'reader',
+        'openBook',
+        {'bookId': 'ויקרא', 'id': 999},
+      );
+
+      expect(result, isFalse);
+      verifyZeroInteractions(mockCoordinator);
+    });
+
+    test('reader.openBook: type שגוי → false, לא פותח', () async {
+      final book = TextBook(id: 5, title: 'ויקרא');
+      final adapter = buildAdapter(books: [book]);
+
+      final result = await adapter.execute(
+        'reader',
+        'openBook',
+        {'bookId': 'ויקרא', 'type': 'pdf'},
+      );
+
+      expect(result, isFalse);
+      verifyZeroInteractions(mockCoordinator);
+    });
+
+    test('reader.openBook: קריאה ישנה עם bookId בלבד ממשיכה לעבוד', () async {
+      final book = TextBook(id: 5, title: 'ויקרא');
+      final adapter = buildAdapter(books: [book]);
+
+      final result = await adapter.execute(
+        'reader',
+        'openBook',
+        {'bookId': 'ויקרא'},
+      );
+
+      expect(result, isTrue);
+      verify(
+        mockCoordinator.openBook(book, 0, '', ignoreHistory: true),
+      ).called(1);
+    });
+
+    test('reader.openBook: id + bookId + type תואמים — פותח בהצלחה', () async {
+      final book = TextBook(id: 5, title: 'ויקרא');
+      final adapter = buildAdapter(books: [book]);
+
+      final result = await adapter.execute(
+        'reader',
+        'openBook',
+        {'id': 5, 'bookId': 'ויקרא', 'type': 'text'},
+      );
+
+      expect(result, isTrue);
+      verify(
+        mockCoordinator.openBook(book, 0, '', ignoreHistory: true),
+      ).called(1);
+    });
+
+    // --- reader.getCurrentState ---
+
+    test('reader.getCurrentState מחזיר id ו-type לכל טאב', () async {
+      final textTab = TextBookTab(
+        book: TextBook(id: 100, title: 'בראשית'),
+        index: 5,
+      )..currentTitle.value = 'פרק א';
+      final pdfTab = PdfBookTab(
+        book: PdfBook(id: 200, title: 'ספר PDF', path: '/tmp/b.pdf'),
+        pageNumber: 3,
+      )..currentTitle.value = 'עמוד 3';
+
+      final adapter = buildAdapter(
+        books: [],
+        tabs: [textTab, pdfTab],
+        currentTabIndex: 0,
+      );
+
+      final result =
+          await adapter.execute('reader', 'getCurrentState', {})
+              as Map<String, dynamic>;
+
+      final openTabs = result['openTabs'] as List;
+      final textEntry = openTabs[0] as Map;
+      expect(textEntry['id'], 100);
+      expect(textEntry['type'], 'text');
+      expect(textEntry['bookId'], 'בראשית');
+
+      final pdfEntry = openTabs[1] as Map;
+      expect(pdfEntry['id'], 200);
+      expect(pdfEntry['type'], 'pdf');
+      expect(pdfEntry['bookId'], 'ספר PDF');
+
+      // ספר פעיל
+      expect(result['currentId'], 100);
+      expect(result['currentType'], 'text');
+    });
+
+    test('reader.getCurrentRef מחזיר currentId ו-currentType', () async {
+      final tab = PdfBookTab(
+        book: PdfBook(id: 77, title: 'תנ"ך', path: '/tmp/c.pdf'),
+        pageNumber: 10,
+      )..currentTitle.value = 'עמוד 10';
+
+      final adapter = buildAdapter(
+        books: [],
+        tabs: [tab],
+        currentTabIndex: 0,
+      );
+
+      final result =
+          await adapter.execute('reader', 'getCurrentRef', {})
+              as Map<String, dynamic>;
+
+      expect(result['currentId'], 77);
+      expect(result['currentType'], 'pdf');
+    });
+
+    // --- שני ספרים בעלי אותו שם ---
+
+    test('שני ספרים בעלי אותו שם — signature שונה בגלל id שונה', () {
+      final snap1 = ReaderLocationSnapshot(
+        currentBook: 'ספר',
+        currentBookId: 'ספר',
+        currentId: 1,
+        currentType: 'text',
+        currentIndex: 0,
+        currentRef: 'פרק א',
+      );
+      final snap2 = ReaderLocationSnapshot(
+        currentBook: 'ספר',
+        currentBookId: 'ספר',
+        currentId: 2,
+        currentType: 'text',
+        currentIndex: 0,
+        currentRef: 'פרק א',
+      );
+
+      expect(snap1.signature(), isNot(snap2.signature()));
+    });
+
+    test(
+      'library.getBookMetadata: שני ספרים בעלי אותו שם — מחזיר את הנכון',
+      () async {
+        final text = TextBook(id: 1, title: 'ספר');
+        final pdf = PdfBook(id: 2, title: 'ספר', path: '/tmp/d.pdf');
+        final adapter = buildAdapter(books: [text, pdf]);
+
+        final resultPdf =
+            await adapter.execute(
+                  'library',
+                  'getBookMetadata',
+                  {'bookId': 'ספר', 'type': 'pdf'},
+                )
+                as Map;
+        expect(resultPdf['id'], 2);
+        expect(resultPdf['type'], 'pdf');
+
+        final resultText =
+            await adapter.execute(
+                  'library',
+                  'getBookMetadata',
+                  {'bookId': 'ספר', 'type': 'text'},
+                )
+                as Map;
+        expect(resultText['id'], 1);
+        expect(resultText['type'], 'text');
+      },
+    );
+
+    test('_pluginBookType — כל סוגי הספרים', () async {
+      final adapter = buildAdapter(
+        books: [
+          TextBook(id: 1, title: 'טקסט'),
+          PdfBook(id: 2, title: 'PDF', path: '/tmp/a.pdf'),
+          DocxBook(id: 3, title: 'Docx', path: '/tmp/b.docx'),
+          EpubBook(id: 4, title: 'Epub', path: '/tmp/c.epub'),
+          ExternalLibraryBook(id: 5, title: 'External', link: 'https://x'),
+        ],
+      );
+
+      final results = await adapter.execute('library', 'findBooks', {}) as List;
+
+      expect(
+        results.firstWhere((r) => r['bookId'] == 'טקסט')['type'],
+        'text',
+      );
+      expect(
+        results.firstWhere((r) => r['bookId'] == 'PDF')['type'],
+        'pdf',
+      );
+      expect(
+        results.firstWhere((r) => r['bookId'] == 'Docx')['type'],
+        'docx',
+      );
+      expect(
+        results.firstWhere((r) => r['bookId'] == 'Epub')['type'],
+        'epub',
+      );
+      expect(
+        results.firstWhere((r) => r['bookId'] == 'External')['type'],
+        'external',
+      );
+    });
+
+    test('getCurrentState: SearchingTab → id/type = null', () async {
+      final searchTab = SearchingTab('חיפוש', 'בראשית');
+      final adapter = buildAdapter(
+        books: [],
+        tabs: [searchTab],
+        currentTabIndex: 0,
+      );
+
+      final result =
+          await adapter.execute('reader', 'getCurrentState', {})
+              as Map<String, dynamic>;
+
+      final openTabs = result['openTabs'] as List;
+      expect(openTabs[0]['id'], isNull);
+      expect(openTabs[0]['type'], isNull);
+
+      expect(result['currentId'], isNull);
+      expect(result['currentType'], isNull);
+    });
+
+    test('search.fullText אינו מחזיר id — type תלוי ב-isPdf', () {
+      const result = {
+        'type': 'text',
+        'book': 'בראשית',
+        'text': 'snippet',
+        'index': 42,
+      };
+      expect(result.containsKey('id'), isFalse);
+      expect(result['type'], 'text');
+
+      const pdfResult = {
+        'type': 'pdf',
+        'book': 'ספר PDF',
+        'text': 'snippet',
+        'index': 1,
+      };
+      expect(pdfResult['type'], 'pdf');
+    });
+  });
 }
 
-/// Provider פיקטיבי שמחזיר טקסט לפי מפתחות מוגדרים מראש.
-/// משמש לבדיקת ה-routing דרך LibraryProviderManager בלי לגשת ל-DB אמיתי.
 class _FakeBookProvider implements LibraryProvider {
   final Map<BookCompositeKey, String> _bookTextByKey;
 
