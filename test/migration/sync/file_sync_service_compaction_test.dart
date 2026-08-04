@@ -109,6 +109,45 @@ void main() {
     );
   });
 
+  test('מחיקת תיקייה מותאמת מקטינה את user_books.db', () async {
+    await setFolderStorage(addToDatabase: true);
+    await sync();
+    final sizeWithContent = await dbFileSize();
+    expect(sizeWithContent, greaterThan(2 * 1024 * 1024));
+
+    FileSyncService.resetSingletonForTesting();
+    final service = await FileSyncService.getInstance(
+      repository,
+      userBooksRepository: repository,
+    );
+    await service!.deleteFolderFromDatabase(customFolderPath);
+
+    final db = await database.database;
+    expect(db.select('SELECT count(*) FROM book').first.values.first, 0);
+    expect(
+      await dbFileSize(),
+      lessThan(sizeWithContent ~/ 2),
+      reason: 'הסרת תיקייה היא הפעולה שמשחררת הכי הרבה — חייבת לכווץ',
+    );
+  });
+
+  test('מחיקה שלא הסירה ספרים אינה מכווצת', () async {
+    await setFolderStorage(addToDatabase: true);
+    await sync();
+    final sizeWithContent = await dbFileSize();
+
+    FileSyncService.resetSingletonForTesting();
+    final service = await FileSyncService.getInstance(
+      repository,
+      userBooksRepository: repository,
+    );
+    await service!.deleteFolderFromDatabase('/תיקייה/שלא/קיימת');
+
+    final db = await database.database;
+    expect(db.select('SELECT count(*) FROM book').first.values.first, 1);
+    expect(await dbFileSize(), sizeWithContent);
+  });
+
   test('prune של תיקייה שהוסרה ברענון ספרייה מקטין את user_books.db', () async {
     await setFolderStorage(addToDatabase: true);
     await sync();
