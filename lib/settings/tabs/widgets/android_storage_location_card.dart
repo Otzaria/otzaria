@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/empty_library/services/android_storage_service.dart';
 import 'package:otzaria/settings/dialogs/change_location_dialog.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
@@ -60,19 +61,28 @@ class _AndroidStorageLocationCardState
     if (booksPath.isEmpty) return;
     final target = _targetRoot(option, view.internalRoot);
     final removalWarning = option.isRemovable
-        ? ' אם הכרטיס יוסר, האפליקציה לא תוכל לגשת לספרים עד שיוחזר.'
+        ? context.settingsText(
+            ' אם הכרטיס יוסר, האפליקציה לא תוכל לגשת לספרים עד שיוחזר.',
+          )
         : '';
 
     final confirmed = await showWarningDialog(
       context: context,
-      title: 'העברת הספרייה אל ${option.label}',
-      content:
-          'הספרייה, האינדקס ומסדי הנתונים יועברו אל ${option.label}. '
-          'בזמן ההעברה התוכנה תיטען מחדש ולא תהיה זמינה עד לסיום הפעולה.'
-          '$removalWarning',
-      subtitle: 'העברה של ספרייה גדולה עשויה לקחת מספר דקות.',
-      cancelText: 'ביטול',
-      confirmText: 'העבר',
+      title: context.settingsText(
+        'העברת הספרייה אל {target}',
+        args: {'target': option.label},
+      ),
+      content: context.settingsText(
+        'הספרייה, האינדקס ומסדי הנתונים יועברו אל {target}. '
+        'בזמן ההעברה התוכנה תיטען מחדש ולא תהיה זמינה עד לסיום הפעולה.'
+        '{warning}',
+        args: {'target': option.label, 'warning': removalWarning},
+      ),
+      subtitle: context.settingsText(
+        'העברה של ספרייה גדולה עשויה לקחת מספר דקות.',
+      ),
+      cancelText: context.settingsText('ביטול'),
+      confirmText: context.settingsText('העבר'),
     );
     if (confirmed != true || !mounted) return;
 
@@ -92,8 +102,10 @@ class _AndroidStorageLocationCardState
         }
         return SettingsCard(
           cardId: 'library.android_storage',
-          title: 'מיקום אחסון הספרייה',
-          subtitle: 'בחר אם לשמור את הספרייה באחסון הפנימי או על כרטיס SD',
+          title: context.settingsText('מיקום אחסון הספרייה'),
+          subtitle: context.settingsText(
+            'בחר אם לשמור את הספרייה באחסון הפנימי או על כרטיס SD',
+          ),
           children: [
             for (final option in view.options)
               _buildOptionTile(context, option, view),
@@ -111,21 +123,30 @@ class _AndroidStorageLocationCardState
     final cs = Theme.of(context).colorScheme;
     final isCurrent = _isCurrent(option, view);
     final freeText = option.freeBytes >= 0
-        ? '${(option.freeBytes / 1024 / 1024 / 1024).toStringAsFixed(1)} GB פנוי'
+        ? context.settingsText(
+            '{size} GB פנוי',
+            args: {
+              'size': (option.freeBytes / 1024 / 1024 / 1024).toStringAsFixed(
+                1,
+              ),
+            },
+          )
         : null;
     final subtitle = option.supportsLargeFiles
         ? freeText
-        : 'לא נתמך — הכרטיס מפורמט ב-FAT32 (מגבלת 4GB לקובץ)';
+        : context.settingsText(
+            'לא נתמך — הכרטיס מפורמט ב-FAT32 (מגבלת 4GB לקובץ)',
+          );
 
     Widget? trailing;
     if (isCurrent) {
       trailing = Text(
-        'בשימוש',
+        context.settingsText('בשימוש'),
         style: TextStyle(color: cs.primary, fontWeight: FontWeight.w600),
       );
     } else if (option.supportsLargeFiles) {
       trailing = ActionButton.recommended(
-        text: 'העבר לכאן',
+        text: context.settingsText('העבר לכאן'),
         onPressed: () => _changeLocation(option, view),
       );
     }

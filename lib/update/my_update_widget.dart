@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/core/internet_connectivity.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/app_paths.dart';
@@ -433,6 +434,29 @@ bool updateCheckBlocked({
   required bool updatesEnabled,
 }) => isOfflineMode || !updatesEnabled;
 
+/// הודעת הכשל להצגה אחרי בדיקת עדכון שנכשלה, או `null` כשאין להציג דבר:
+/// בלי אינטרנט זו אינה תקלה של אוצריא ואין למשתמש מה לעשות איתה.
+@visibleForTesting
+String? updateCheckFailureMessage({
+  required bool isNetworkError,
+  required bool hasInternet,
+}) {
+  if (!hasInternet) return null;
+  return isNetworkError
+      ? LibraryMessages.updateCheckNetworkError
+      : LibraryMessages.updateCheckError;
+}
+
+/// השהיה עד הניסיון החוזר ה-[attempt] אחרי בדיקה שנכשלה בהיעדר אינטרנט;
+/// `null` = די בניסיונות.
+@visibleForTesting
+Duration? offlineRecheckDelay(int attempt) => switch (attempt) {
+  0 => const Duration(minutes: 2),
+  1 => const Duration(minutes: 5),
+  2 => const Duration(minutes: 15),
+  _ => null,
+};
+
 /// האם להריץ בדיקת עדכון מחדש לאחר שינוי הגדרות: רק במעבר מחסימה לזמינות,
 /// וכשאין בדיקה/הורדה/התקנה בעיצומן (upToDate הוא גם המצב שנקבע בעת חסימה).
 @visibleForTesting
@@ -492,6 +516,10 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
   StreamSubscription<SettingsState>? _settingsSubscription;
   late bool _updateCheckWasBlocked;
 
+  /// ניסיונות חוזרים לבדיקה שנכשלה בהיעדר אינטרנט — ראה [_scheduleOfflineRecheck].
+  Timer? _offlineRecheckTimer;
+  int _offlineRecheckAttempt = 0;
+
   @override
   void initState() {
     super.initState();
@@ -547,6 +575,7 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
   void dispose() {
     _tourSubscription?.cancel();
     _settingsSubscription?.cancel();
+    _offlineRecheckTimer?.cancel();
     if (_windowCloseHookInstalled) {
       windowManager.removeListener(_windowListener);
       _windowCloseHookInstalled = false;
@@ -643,6 +672,8 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
       final latestVersion = await _getLatestVersion();
 
       if (!mounted) return;
+      // הבדיקה עברה — ניתוק עתידי יקבל שוב מכסת ניסיונות מלאה.
+      _offlineRecheckAttempt = 0;
 
       if (latestVersion == null) {
         setState(() {
@@ -682,12 +713,36 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
           e is SocketException ||
           e is TimeoutException ||
           e is http.ClientException;
-      _showUpdateError(
-        isNetwork
-            ? LibraryMessages.updateCheckNetworkError
-            : LibraryMessages.updateCheckError,
+      // גם כשל שאינו רשת נבדק: captive portal מחזיר HTML תקין שנופל ב-parsing,
+      // ובלי הבדיקה הוא היה מוצג כתקלה למי שאין לו אינטרנט בכלל.
+      final message = updateCheckFailureMessage(
+        isNetworkError: isNetwork,
+        hasInternet: await hasInternetConnection(),
       );
+      if (!mounted) return;
+      if (message == null) {
+        setState(() {
+          _status = UpdatStatus.upToDate;
+        });
+        _scheduleOfflineRecheck();
+        return;
+      }
+      _showUpdateError(message);
     }
+  }
+
+  /// מנותק בפתיחה אינו סוף פסוק: בודקים שוב בהשהיות עולות, כדי שמי שהתחבר
+  /// אחרי הפתיחה יקבל את העדכון בלי להפעיל מחדש את אוצריא.
+  void _scheduleOfflineRecheck() {
+    final delay = offlineRecheckDelay(_offlineRecheckAttempt);
+    if (delay == null) return;
+    _offlineRecheckAttempt++;
+    _offlineRecheckTimer?.cancel();
+    _offlineRecheckTimer = Timer(delay, () {
+      // upToDate הוא המצב שנקבע בכשל המנותק — כל מצב אחר מסמן בדיקה/הורדה
+      // חדשה שאין להפריע לה.
+      if (mounted && _status == UpdatStatus.upToDate) _checkForUpdate();
+    });
   }
 
   Future<String?> _getLatestVersion() async {

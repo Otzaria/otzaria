@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -26,6 +27,7 @@ import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
+import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -959,8 +961,9 @@ class _PersonalNotesManagerScreenState
     });
 
     if (displayNotes.isEmpty) {
-      return const Center(
-        child: Text('אין הערות להצגה'),
+      return const ToolEmptyState(
+        icon: OtzariaIcons.icon_x_24_regular,
+        message: 'אין הערות להצגה',
       );
     }
 

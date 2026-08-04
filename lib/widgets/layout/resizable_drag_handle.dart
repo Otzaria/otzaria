@@ -5,15 +5,30 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
-/// מחזיר את החצי של hitSize שגולש מחוץ לפאנל (overhang).
-/// 12px במצב רחב, 9px במצב קומפקט.
-double handleHitOverhang(BuildContext context) {
+/// כמה משטח המגע של הידית נכנס פנימה לתוך הפאנל. בקצה הפנימי יושב גם פס
+/// הגלילה, והידית מצוירת מעליו ב-Stack — כניסה גדולה קוברת אותו. 4px היה
+/// הערך בפועל עד שהגדלת שטח המגע מיקמה חצי ממנו בתוך הפאנל; היתרה גולשת
+/// החוצה, אל הרווח שבין הפאנל לתוכן.
+const double kPaneHandleInnerReach = 4;
+
+/// שטח המגע המלא של הידית: 24px רגיל, 18px במצב קומפקטי.
+double handleHitSize(BuildContext context) {
   final isCompact =
       context.read<SettingsBloc?>()?.state.compactMenuMode ?? false;
-  final hitSize = isCompact
+  return isCompact
       ? AppTokens.dragHandleCompactHitSize
       : AppTokens.dragHandleRegularHitSize;
-  return hitSize / 2;
+}
+
+/// היתרה שגולשת החוצה מהפאנל, אל הרווח שבינו לתוכן.
+double handleHitOutreach(BuildContext context) =>
+    handleHitSize(context) - kPaneHandleInnerReach;
+
+/// בכמה להזיז את הקו הנראה כדי שיישב על דופן הפאנל: שטח המגע אינו ממורכז
+/// עליה אלא גולש החוצה, ובלי ההזזה הקו מרחף מנותק ממנה.
+double paneHandleGripOffset(BuildContext context, {required bool paneOnRight}) {
+  final shift = handleHitSize(context) / 2 - kPaneHandleInnerReach;
+  return paneOnRight ? shift : -shift;
 }
 
 class ResizableDragHandle extends StatefulWidget {
@@ -26,6 +41,7 @@ class ResizableDragHandle extends StatefulWidget {
     this.onDragStart,
     this.onDragEnd,
     this.showDivider = true,
+    this.gripOffset = 0,
   });
 
   /// True for a vertical handle (between left/right panes), false for horizontal.
@@ -46,6 +62,9 @@ class ResizableDragHandle extends StatefulWidget {
 
   /// Whether to show the divider line in idle state. If false, the line only appears on hover/drag.
   final bool showDivider;
+
+  /// הזזת הקו הנראה בפיקסלים לאורך ציר השינוי. ראה [paneHandleGripOffset].
+  final double gripOffset;
 
   @override
   State<ResizableDragHandle> createState() => _ResizableDragHandleState();
@@ -154,7 +173,7 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
                             ? constraints.maxWidth
                             : gripLength);
 
-                  return Stack(
+                  final grip = Stack(
                     alignment: Alignment.center,
                     children: [
                       if (widget.showDivider)
@@ -196,6 +215,16 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
                         ),
                       ),
                     ],
+                  );
+
+                  if (widget.gripOffset == 0) return grip;
+                  // שטח המגע גולש החוצה ואינו ממורכז על דופן הפאנל; ההזזה
+                  // מחזירה את הקו הנראה אל הדופן עצמה.
+                  return Transform.translate(
+                    offset: widget.isVertical
+                        ? Offset(widget.gripOffset, 0)
+                        : Offset(0, widget.gripOffset),
+                    child: grip,
                   );
                 },
               ),

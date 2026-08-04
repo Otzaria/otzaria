@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 
 /// שורת הגדרה לבחירת צבע בסיס.
 ///
-/// מציגה את הצבע הנבחר ושמו בעברית. בלחיצה נפתח דיאלוג עם עיגולי הצבע.
+/// מציגה את הצבע הנבחר ואת שמו. בלחיצה נפתח דיאלוג עם עיגולי הצבע.
 class ColorPickerTile extends StatelessWidget {
   final Color currentColor;
   final Color defaultColor;
@@ -17,16 +18,20 @@ class ColorPickerTile extends StatelessWidget {
     required this.onChanged,
   });
 
-  String get _colorName =>
-      AppSeedColors.nameOf(currentColor) ?? 'צבע מותאם אישית';
+  String _colorName(BuildContext context) => context.settingsText(
+    AppSeedColors.nameOf(currentColor) ?? 'צבע מותאם אישית',
+  );
 
   void _showPicker(BuildContext context) {
     showDialog<void>(
       context: context,
-      builder: (_) => _ColorPickerDialog(
-        currentColor: currentColor,
-        defaultColor: defaultColor,
-        onChanged: onChanged,
+      builder: settingsDialogBuilder(
+        context,
+        (_) => _ColorPickerDialog(
+          currentColor: currentColor,
+          defaultColor: defaultColor,
+          onChanged: onChanged,
+        ),
       ),
     );
   }
@@ -36,14 +41,14 @@ class ColorPickerTile extends StatelessWidget {
     return ListTile(
       hoverColor: Colors.transparent,
       leading: const Icon(FluentIcons.color_24_regular),
-      title: const Text('צבע בסיס'),
+      title: Text(context.settingsText('צבע בסיס')),
       subtitle: Text(
-        _colorName,
+        _colorName(context),
         style: AppTextStyles.settingSubtitle,
       ),
       trailing: FilledButton(
         onPressed: () => _showPicker(context),
-        child: const Text('שינוי צבע'),
+        child: Text(context.settingsText('שינוי צבע')),
       ),
     );
   }
@@ -78,8 +83,9 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
     widget.onChanged(color);
   }
 
-  String get _selectedName =>
-      AppSeedColors.nameOf(_selected) ?? 'צבע מותאם אישית';
+  String get _selectedName => context.settingsText(
+    AppSeedColors.nameOf(_selected) ?? 'צבע מותאם אישית',
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -90,10 +96,9 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // שורת כותרת — RTL: צבע נבחר בשמאל, כותרת בימין
           Row(
             children: [
-              const Text('בחר צבע בסיס'),
+              Text(context.settingsText('בחר צבע בסיס')),
               const Spacer(),
               Container(
                 width: 22,
@@ -115,12 +120,11 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
             ],
           ),
           const SizedBox(height: AppTokens.spaceMD),
-          // כפתור ברירת מחדל — מתחת לכותרת, טקסט בימין וכפתור בסוף השורה
           Row(
             children: [
-              const Text(
-                'בחר בצבע ברירת מחדל',
-                style: TextStyle(
+              Text(
+                context.settingsText('בחר בצבע ברירת מחדל'),
+                style: const TextStyle(
                   fontSize: AppTokens.fontMD,
                   fontWeight: FontWeight.normal,
                 ),
@@ -129,49 +133,64 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
               OutlinedButton.icon(
                 onPressed: () => _select(widget.defaultColor),
                 icon: const Icon(FluentIcons.arrow_reset_24_regular, size: 16),
-                label: const Text('איפוס'),
+                label: Text(context.settingsText('איפוס')),
               ),
             ],
           ),
         ],
       ),
-      content: SizedBox(
-        width: 320,
-        child: SingleChildScrollView(
-          child: Wrap(
-            spacing: AppTokens.spaceSM,
-            runSpacing: AppTokens.spaceSM,
-            alignment: WrapAlignment.center,
-            children: AppSeedColors.options.map((entry) {
-              final isSelected = _selected.toARGB32() == entry.color.toARGB32();
-              return Tooltip(
-                message: entry.name,
-                child: GestureDetector(
-                  onTap: () => _select(entry.color),
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: entry.color,
-                      shape: BoxShape.circle,
-                      border: isSelected
-                          ? Border.all(color: cs.onSurface, width: 3)
-                          : null,
+      // heightFactor מונע מ-AlertDialog למתוח את הרוחב לפי הכותרת: אחרת כותרת
+      // ארוכה יותר (למשל באנגלית) הייתה משנה את מספר העיגולים בשורה.
+      content: Align(
+        heightFactor: 1,
+        child: SizedBox(
+          width: 320,
+          child: SingleChildScrollView(
+            // לוח הצבעים אינו טקסט — כיוון קבוע כדי שסדר העיגולים לא יתהפך
+            // כשההגדרות מוצגות בשפה LTR.
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Wrap(
+                spacing: AppTokens.spaceSM,
+                runSpacing: AppTokens.spaceSM,
+                alignment: WrapAlignment.center,
+                children: AppSeedColors.options.map((entry) {
+                  final isSelected =
+                      _selected.toARGB32() == entry.color.toARGB32();
+                  return Tooltip(
+                    message: context.settingsText(entry.name),
+                    child: GestureDetector(
+                      onTap: () => _select(entry.color),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: entry.color,
+                          shape: BoxShape.circle,
+                          border: isSelected
+                              ? Border.all(color: cs.onSurface, width: 3)
+                              : null,
+                        ),
+                        child: isSelected
+                            ? const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 20,
+                              )
+                            : null,
+                      ),
                     ),
-                    child: isSelected
-                        ? const Icon(Icons.check, color: Colors.white, size: 20)
-                        : null,
-                  ),
-                ),
-              );
-            }).toList(),
+                  );
+                }).toList(),
+              ),
+            ),
           ),
         ),
       ),
       actions: [
         FilledButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('סגור'),
+          child: Text(context.settingsText('סגור')),
         ),
       ],
     );

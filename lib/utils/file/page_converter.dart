@@ -46,11 +46,13 @@ Future<int?> textToPdfPage(
 
   try {
     final anchorsPdf = await _getPdfAnchors(pdfBook.path);
-    final map = _pageMapCache[key] ??= await _buildPageMap(
-      pdfBook,
-      anchorsPdf,
-      textBook,
-    );
+    final anchorsText = collectTextAnchors(await textBook.tableOfContents);
+    final map = _buildPageMap(pdfBook, anchorsPdf, anchorsText);
+    // גם מפה לא אמינה נשמרת, אחרת דפדוף בונה אותה מחדש בכל עמוד. תוכן עניינים
+    // ריק הוא המצב היחיד שעשוי להיות זמני (ה-DB טרם נטען) ולכן אינו נשמר.
+    if (anchorsText.isNotEmpty) {
+      _pageMapCache[key] = map;
+    }
     if (!map.hasReliableAnchors) {
       return null;
     }
@@ -177,11 +179,11 @@ int _nowMillis() => DateTime.now().millisecondsSinceEpoch;
 /// Converts a PDF page number to the corresponding text book index.
 ///
 /// This function uses a cached, anchor-based map with local interpolation for accuracy and performance.
+/// [outline] - ה-outline של הטאב אם כבר נטען; אחרת הסימניות נקראות מהקובץ.
 Future<int?> pdfToTextPage(
   PdfBook pdfBook,
   List<PdfOutlineNode> outline,
   int pdfPage,
-  BuildContext ctx,
 ) async {
   final textBook =
       (await DataRepository.instance.library).getCompanionBook(
@@ -193,27 +195,44 @@ Future<int?> pdfToTextPage(
     return null;
   }
   final key = '${pdfBook.path}::${textBook.title}';
-  final map = _pageMapCache[key] ??= await _buildPageMap(
-    pdfBook,
-    collectPdfAnchors(outline),
-    textBook,
-  );
-  if (!map.hasReliableAnchors) {
-    return null;
+  final cached = _pageMapCache[key];
+  if (cached != null) {
+    if (!cached.hasReliableAnchors) {
+      return null;
+    }
+    return cached.pdfToText(pdfPage);
   }
 
-  return map.pdfToText(pdfPage);
+  try {
+    // ה-outline של הטאב נטען ברקע; עד שיגיע קוראים את הסימניות מהקובץ.
+    // outline שנטען וריק מעוגנים אינו מצב זמני, ולכן אינו נקרא שוב.
+    final anchorsPdf = outline.isEmpty
+        ? await _getPdfAnchors(pdfBook.path)
+        : collectPdfAnchors(outline);
+    final anchorsText = collectTextAnchors(await textBook.tableOfContents);
+    final map = _buildPageMap(pdfBook, anchorsPdf, anchorsText);
+    if (anchorsText.isNotEmpty) {
+      _pageMapCache[key] = map;
+    }
+    if (!map.hasReliableAnchors) {
+      return null;
+    }
+
+    return map.pdfToText(pdfPage);
+  } catch (e, st) {
+    debugPrint(
+      '[PageConverter] pdfToTextPage failed for "${pdfBook.path}": $e\n$st',
+    );
+    return null;
+  }
 }
 
 /// Builds the synchronized anchor map from PDF anchors and text Table of Contents.
-Future<PageMap> _buildPageMap(
+PageMap _buildPageMap(
   PdfBook pdf,
   List<({int page, String ref})> anchorsPdf,
-  TextBook text,
-) async {
-  final toc = await text.tableOfContents;
-  final anchorsText = collectTextAnchors(toc);
-
+  List<({int index, String ref})> anchorsText,
+) {
   final map = buildPageMapFromAnchors(anchorsPdf, anchorsText);
 
   debugPrint(
@@ -233,11 +252,6 @@ Future<PageMap> _buildPageMap(
     debugPrint(
       '🗺️ [PDF-DEBUG] ⚠️ Text sample refs: ${anchorsText.take(3).map((a) => '"${a.ref}"').join(", ")}',
     );
-  }
-
-  // Fallback: if no anchors matched, anchor to page 1 / index 0.
-  if (map.pdfPages.isEmpty) {
-    return PageMap([1], [0]);
   }
 
   return map;

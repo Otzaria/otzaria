@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_state.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
@@ -103,6 +104,15 @@ void main() {
         isInCombinedView: false,
       );
 
+      expect(
+        find.byIcon(OtzariaIcons.text_continuous_24_regular),
+        findsOneWidget,
+      );
+      expect(
+        find.byIcon(OtzariaIcons.alef_deletion_24_regular),
+        findsOneWidget,
+      );
+
       final overflowButton = find.byIcon(FluentIcons.more_vertical_24_regular);
       expect(overflowButton, findsOneWidget);
       await tester.tap(overflowButton);
@@ -159,7 +169,10 @@ void main() {
         await tester.tap(viewModeButton);
         await tester.pumpAndSettle();
 
-        // ודא שזה התפריט הנכון (מצבי התצוגה) ושנוסף פריט הפעולה החדש
+        expect(
+          find.byIcon(OtzariaIcons.book_open_tzurat_hadaf_24_regular),
+          findsOneWidget,
+        );
         expect(find.text('מפרשים בצד'), findsOneWidget);
         expect(find.text('צורת הדף'), findsOneWidget);
         expect(find.text('פתח כרטיסיית מפרשים'), findsOneWidget);

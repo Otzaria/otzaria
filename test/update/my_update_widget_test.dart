@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/update/my_update_widget.dart';
 import 'package:updat/updat.dart';
 
@@ -69,6 +70,62 @@ void main() {
       expect(
         updateCheckBlocked(isOfflineMode: false, updatesEnabled: true),
         isFalse,
+      );
+    });
+  });
+
+  group('updateCheckFailureMessage', () {
+    // בלי אינטרנט אין תקלה לדווח עליה — הודעה כזו בפתיחת התוכנה היא רעש
+    // שהמשתמש אינו יכול לעשות איתו דבר.
+    test('בלי אינטרנט אין הודעה כלל — גם לכשל רשת וגם לכשל אחר', () {
+      expect(
+        updateCheckFailureMessage(isNetworkError: true, hasInternet: false),
+        isNull,
+      );
+      expect(
+        updateCheckFailureMessage(isNetworkError: false, hasInternet: false),
+        isNull,
+      );
+    });
+
+    test('עם אינטרנט — כשל רשת מקבל את הודעת הרשת', () {
+      expect(
+        updateCheckFailureMessage(isNetworkError: true, hasInternet: true),
+        LibraryMessages.updateCheckNetworkError,
+      );
+    });
+
+    test('עם אינטרנט — כשל שאינו רשת מקבל את ההודעה הכללית', () {
+      expect(
+        updateCheckFailureMessage(isNetworkError: false, hasInternet: true),
+        LibraryMessages.updateCheckError,
+      );
+    });
+  });
+
+  group('offlineRecheckDelay', () {
+    test('שלושה ניסיונות בהשהיות עולות, ואז די', () {
+      expect(offlineRecheckDelay(0), const Duration(minutes: 2));
+      expect(offlineRecheckDelay(1), const Duration(minutes: 5));
+      expect(offlineRecheckDelay(2), const Duration(minutes: 15));
+      expect(offlineRecheckDelay(3), isNull);
+      expect(offlineRecheckDelay(50), isNull);
+    });
+
+    test('ההשהיה תמיד עולה — אין הצפת בדיקות רשת', () {
+      var previous = Duration.zero;
+      for (var attempt = 0; offlineRecheckDelay(attempt) != null; attempt++) {
+        final delay = offlineRecheckDelay(attempt)!;
+        expect(delay, greaterThan(previous));
+        previous = delay;
+      }
+    });
+
+    test('הניסיון הראשון אינו מיידי — חיבור לא חוזר תוך שניות', () {
+      expect(
+        offlineRecheckDelay(0)!.inMinutes,
+        greaterThanOrEqualTo(1),
+        reason: 'ניסיון מיידי היה מבזבז רשת בלי סיכוי אמיתי להצליח',
       );
     });
   });

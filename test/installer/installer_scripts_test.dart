@@ -70,8 +70,7 @@ void main() {
         expect(
           match,
           isNotNull,
-          reason:
-              'בלי מחיקה, מסמן מהתקנת מנהל קודמת שורד מעבר להתקנת משתמש '
+          reason: 'בלי מחיקה, מסמן מהתקנת מנהל קודמת שורד מעבר להתקנת משתמש '
               'ו-AppPaths.detectInstallMode ימשיך להחזיר systemWide',
         );
         expect(
@@ -132,8 +131,7 @@ void main() {
       expect(
         body,
         contains('GetCustomLibraryPath()'),
-        reason:
-            'בלי זה שינוי מצב ההתקנה מזיז את יעד החילוץ בעוד האפליקציה '
+        reason: 'בלי זה שינוי מצב ההתקנה מזיז את יעד החילוץ בעוד האפליקציה '
             'ממשיכה לקרוא מהנתיב הישן',
       );
       expect(
@@ -335,6 +333,32 @@ void main() {
           'function RelaunchSetupElevated(',
         );
         expect(body, contains("RelaunchSetup('runas'"));
+      });
+
+      test('$name: שדרוג אוטומטי מציג חלון התקדמות', () {
+        final body = _routine(_script(name), 'function InitializeSetup()');
+        final upgradeStart = body.indexOf(
+          'if IsUpgradeFromModernVersion() then',
+        );
+        final upgradeEnd = body.indexOf(
+          'if (not IsAdmin) and RequiresAdmin then',
+          upgradeStart,
+        );
+        final upgrade = body.substring(upgradeStart, upgradeEnd);
+        final relaunches = RegExp(
+          r'Launched := RelaunchSetup(?:Elevated)?\(([\s\S]*?),\s*ResultCode\);',
+        ).allMatches(upgrade).map((match) => match.group(0)!).toList();
+
+        expect(relaunches, hasLength(2));
+        for (final relaunch in relaunches) {
+          expect(
+            relaunch,
+            contains("'/SILENT /SUPPRESSMSGBOXES /NORESTART"),
+          );
+          expect(relaunch, isNot(contains('/VERYSILENT')));
+          expect(relaunch, contains('SW_SHOWNORMAL'));
+          expect(relaunch, isNot(contains('SW_HIDE')));
+        }
       });
     }
   });

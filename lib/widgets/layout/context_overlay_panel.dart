@@ -278,7 +278,7 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
     // centerEnd = שמאל פיזי ב-RTL, centerStart = ימין פיזי
     final isLeft = widget.alignment == AlignmentDirectional.centerEnd;
     final showHandle = widget.isOpen;
-    final overhang = showHandle ? handleHitOverhang(context) : 0.0;
+    final overhang = showHandle ? kPaneHandleInnerReach : 0.0;
     // בחלון צר מצמצמים את הרוחב כדי להשאיר שוליים משני הצדדים
     const sideMargin = 10.0;
     final maxPanelWidth = (constraints.maxWidth - sideMargin * 2).clamp(
@@ -363,6 +363,7 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
               child: ResizableDragHandle(
                 isVertical: true,
                 showDivider: false,
+                gripOffset: paneHandleGripOffset(context, paneOnRight: !isLeft),
                 onDragDelta: (delta) {
                   final d = isLeft ? delta : -delta;
                   setState(() {

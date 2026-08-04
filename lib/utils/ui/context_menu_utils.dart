@@ -7,14 +7,18 @@ import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/personal_notes/personal_notes_system.dart';
+import 'package:otzaria/services/target_line_links_service.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
+import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/text/copy_utils.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+import 'package:otzaria/widgets/misc/direct_link_menu_entries.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
 
 /// פונקציות עזר לתפריטי הקשר במפרשים
@@ -32,6 +36,10 @@ class ContextMenuUtils {
   ///
   /// מחזיר [List<AppContextMenuEntry>] לשימוש עם [AppContextMenuRegion].
   ///
+  /// [onNavigateToLink] — ניווט אל יעד קישור. כשהוא מסופק נוספים תתי-התפריטים
+  /// "מפרשים" ו"קישורים" של קטע היעד ([TargetLineLinksService]); בלעדיו התפריט
+  /// מכיל רק את פעולות ההעתקה, הפתיחה והדיווח.
+  ///
   /// דוגמה:
   /// ```dart
   /// AppContextMenuRegion(
@@ -44,6 +52,7 @@ class ContextMenuUtils {
   ///     removePunctuation: removePunctuation,
   ///     savedSelectedText: _savedText,
   ///     onCopySelected: _copy,
+  ///     onNavigateToLink: _navigateToLink,
   ///   ),
   ///   child: myCommentaryWidget,
   /// )
@@ -57,8 +66,31 @@ class ContextMenuUtils {
     required bool removePunctuation,
     String? savedSelectedText,
     required VoidCallback onCopySelected,
+    void Function(Link link)? onNavigateToLink,
   }) {
+    final linksService = TargetLineLinksService.instance;
     final entries = <AppContextMenuEntry>[
+      AppContextMenuEntry(
+        label: 'הוסף הערה אישית',
+        icon: FluentIcons.note_add_24_regular,
+        onTap: () => _createCommentaryNote(
+          context: context,
+          link: link,
+          savedSelectedText: savedSelectedText,
+        ),
+      ),
+      if (!link.targetIsUserBook)
+        AppContextMenuEntry(
+          label: 'דווח על טעות בספר',
+          icon: FluentIcons.error_circle_24_regular,
+          onTap: () => _reportCommentaryError(
+            context: context,
+            link: link,
+            fontSize: fontSize,
+            savedSelectedText: savedSelectedText,
+          ),
+        ),
+      const AppContextMenuEntry.divider(),
       AppContextMenuEntry(
         label: 'העתק',
         icon: FluentIcons.copy_24_regular,
@@ -77,6 +109,21 @@ class ContextMenuUtils {
           removePunctuation: removePunctuation,
         ),
       ),
+      if (onNavigateToLink != null) ...[
+        const AppContextMenuEntry.divider(),
+        linksService.buildCommentariesEntry(
+          link: link,
+          onNavigate: onNavigateToLink,
+          removeNikud: removeNikud,
+          removePunctuation: removePunctuation,
+        ),
+        linksService.buildLinksEntry(
+          link: link,
+          onNavigate: onNavigateToLink,
+          removeNikud: removeNikud,
+          removePunctuation: removePunctuation,
+        ),
+      ],
       const AppContextMenuEntry.divider(),
       AppContextMenuEntry(
         label: 'פתח ספר זה בחלון נפרד',
@@ -96,23 +143,77 @@ class ContextMenuUtils {
       ),
     ];
 
-    if (!link.targetIsUserBook) {
+    if (link.targetCategoryId != null) {
       entries.add(const AppContextMenuEntry.divider());
       entries.add(
         AppContextMenuEntry(
-          label: 'דווח על טעות בספר',
-          icon: FluentIcons.error_circle_24_regular,
-          onTap: () => _reportCommentaryError(
-            context: context,
-            link: link,
-            fontSize: fontSize,
-            savedSelectedText: savedSelectedText,
+          label: 'העתק קישור ישיר',
+          icon: FluentIcons.link_24_regular,
+          childrenBuilder: () => buildDirectLinkContextMenuEntries(
+            bookId: link.targetCategoryId!,
+            index: link.index2 - 1,
+            selectedText: savedSelectedText,
           ),
         ),
       );
     }
 
     return entries;
+  }
+
+  static Future<void> _createCommentaryNote({
+    required BuildContext context,
+    required Link link,
+    String? savedSelectedText,
+  }) async {
+    final bookTitle = utils.getTitleFromPath(link.path2);
+    final selectedText = savedSelectedText?.trim();
+    final rawContent = await link.content;
+    if (!context.mounted) return;
+
+    final referenceText = selectedText?.isNotEmpty == true
+        ? utils.removeVolwels(selectedText!)
+        : utils.stripHtmlIfNeeded(rawContent);
+    final draftService = PersonalNoteDraftService();
+    final draft = await draftService.loadDraft(
+      bookId: bookTitle,
+      categoryId: link.targetCategoryId,
+      lineNumber: link.index2,
+    );
+    if (!context.mounted) return;
+
+    final result = await showDialog<PersonalNoteEditorResult>(
+      context: context,
+      builder: (_) => PersonalNoteEditorDialog(
+        title: 'הערה חדשה - $bookTitle',
+        referenceText: referenceText,
+        icon: FluentIcons.note_add_24_regular,
+        bookId: bookTitle,
+        categoryId: link.targetCategoryId,
+        draftLineNumber: link.index2,
+        initialContent: draft?.content ?? '',
+        initialContentFormat:
+            draft?.contentFormat ?? PersonalNoteContentFormat.plain,
+      ),
+    );
+    if (result == null || result.contentPlain.trim().isEmpty) return;
+
+    try {
+      await PersonalNotesRepository().addNote(
+        bookId: bookTitle,
+        lineNumber: link.index2,
+        content: result.content,
+        contentPlain: result.contentPlain,
+        contentFormat: result.contentFormat,
+        selectedText: selectedText,
+        categoryId: link.targetCategoryId,
+      );
+      if (context.mounted) UiSnack.showSuccess(TextBookMessages.noteSaved);
+    } catch (e) {
+      if (context.mounted) {
+        UiSnack.showError(TextBookMessages.noteSaveError(e));
+      }
+    }
   }
 
   /// ממפה מפרש ([link] + תוכנו [rawContent]) לפרמטרי דיווח הטעות: הדיווח מופנה

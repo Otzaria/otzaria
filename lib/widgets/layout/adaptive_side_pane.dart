@@ -243,6 +243,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     return ResizableDragHandle(
       isVertical: true,
       showDivider: false,
+      gripOffset: paneHandleGripOffset(context, paneOnRight: paneOnRight),
       onDragStart: () => _onDragStart(currentlyWide),
       onDragDelta: (delta) => _onDragDelta(delta, paneOnRight),
       onDragEnd: _onDragEnd,
@@ -314,15 +315,17 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
         widget.isResizable &&
         widget.onPaneWidthChanged != null;
 
-    final overhang = showHandle ? handleHitOverhang(context) : 0.0;
+    // כאן ה-Positioned נמדד מהקצה שמעבר לדופן הפנימית של הפאנל (בשונה מהפריסה
+    // הצרה), ולכן המרחק הוא הגלישה החוצה ולא הכניסה פנימה.
+    final outreach = showHandle ? handleHitOutreach(context) : 0.0;
 
     // ה-handle לא תלוי ברוחב — מוגדר מחוץ ל-ValueListenableBuilder
     final handleWidget = showHandle
         ? Positioned(
             top: _kWideTopGap,
             bottom: _kWideBottomGap,
-            left: paneOnRight ? _kWideOuterSideGap - overhang : null,
-            right: paneOnRight ? null : _kWideOuterSideGap - overhang,
+            left: paneOnRight ? _kWideOuterSideGap - outreach : null,
+            right: paneOnRight ? null : _kWideOuterSideGap - outreach,
             child: _buildResizeHandle(paneOnRight, true),
           )
         : null;
@@ -460,9 +463,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
                   final currentWidth = liveWidth > maxPaneWidth
                       ? maxPaneWidth
                       : liveWidth;
-                  final overhang = showHandle
-                      ? handleHitOverhang(context)
-                      : 0.0;
+                  final overhang = showHandle ? kPaneHandleInnerReach : 0.0;
 
                   return Stack(
                     children: [

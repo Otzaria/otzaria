@@ -1,7 +1,8 @@
 // בדיקת רגרסיה לבאג מפורום https://otzaria.org/forum/topic/1488:
 // פס גלילה בהגדרות/TOC לא הגיב ללחיצה כי ידית הגרירה (ResizableDragHandle)
-// חפפה אותו. תוקן בקומיט c8950aa81 ע"י צמצום שטח הלחיצה של הידית
-// (48/36 -> 24/18), שממנו נגזר ה-overhang החודר לתוך הפאנל.
+// חפפה אותו. הצמצום ב-c8950aa81 (48/36 -> 24/18) רק חצה את החדירה פנימה,
+// ובחלונית המפרשים היא עדיין כיסתה את המסילה במלואה. כעת החדירה מנותקת
+// משטח המגע וקבועה ב-kPaneHandleInnerReach.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -47,44 +48,56 @@ void main() {
     expect(AppTokens.dragHandleCompactHitSize, lessThan(36));
   });
 
-  testWidgets(
-    'handleHitOverhang במצב רגיל שווה למחצית dragHandleRegularHitSize',
-    (tester) async {
-      late double overhang;
-      await tester.pumpWidget(
-        _wrap(
-          Builder(
-            builder: (context) {
-              overhang = handleHitOverhang(context);
-              return const SizedBox();
-            },
-          ),
+  test('החדירה לתוך הפאנל משאירה את אגודל פס הגלילה תפיס', () {
+    // המסילה 12px והאגודל מרוּוח 2px מכל צד, כלומר תופס [2, 10] מהקצה.
+    // חדירה של 6px ומעלה בולעת את מרכזו — שם המשתמש מכוון.
+    expect(kPaneHandleInnerReach, lessThan(6));
+  });
+
+  testWidgets('הכניסה פנימה והגלישה החוצה מרכיבות יחד את שטח המגע המלא', (
+    tester,
+  ) async {
+    late double outreach;
+    late double hitSize;
+    await tester.pumpWidget(
+      _wrap(
+        Builder(
+          builder: (context) {
+            outreach = handleHitOutreach(context);
+            hitSize = handleHitSize(context);
+            return const SizedBox();
+          },
         ),
-      );
+      ),
+    );
 
-      expect(overhang, AppTokens.dragHandleRegularHitSize / 2);
-    },
-  );
+    // החדירה קבועה ואינה נגזרת מ-hitSize; הגדלת שטח המגע מוסיפה רק החוצה.
+    expect(hitSize, AppTokens.dragHandleRegularHitSize);
+    expect(kPaneHandleInnerReach + outreach, hitSize);
+  });
 
-  testWidgets(
-    'handleHitOverhang במצב קומפקטי שווה למחצית dragHandleCompactHitSize',
-    (tester) async {
-      late double overhang;
-      await tester.pumpWidget(
-        _wrap(
-          Builder(
-            builder: (context) {
-              overhang = handleHitOverhang(context);
-              return const SizedBox();
-            },
-          ),
-          compactMenuMode: true,
+  testWidgets('הקו הנראה מוזז אל דופן הפאנל ולא נשאר במרכז שטח המגע', (
+    tester,
+  ) async {
+    late double offsetLeftPane;
+    late double offsetRightPane;
+    await tester.pumpWidget(
+      _wrap(
+        Builder(
+          builder: (context) {
+            offsetLeftPane = paneHandleGripOffset(context, paneOnRight: false);
+            offsetRightPane = paneHandleGripOffset(context, paneOnRight: true);
+            return const SizedBox();
+          },
         ),
-      );
+      ),
+    );
 
-      expect(overhang, AppTokens.dragHandleCompactHitSize / 2);
-    },
-  );
+    final expected =
+        AppTokens.dragHandleRegularHitSize / 2 - kPaneHandleInnerReach;
+    expect(offsetLeftPane, -expected);
+    expect(offsetRightPane, expected);
+  });
 
   testWidgets(
     'שטח הלחיצה בפועל של ResizableDragHandle תואם לטוקן dragHandleRegularHitSize',

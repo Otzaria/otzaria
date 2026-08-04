@@ -225,7 +225,7 @@ class AppContextMenuEntry {
 }
 
 bool hasEnabledAppContextMenuEntries(List<AppContextMenuEntry> entries) {
-  return entries.any((entry) => !entry.isDivider);
+  return entries.any((entry) => !entry.isDivider && entry.enabled);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

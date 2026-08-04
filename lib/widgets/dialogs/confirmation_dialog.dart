@@ -46,11 +46,15 @@ Future<bool?> showConfirmationDialog({
 }) => showDialog<bool>(
   context: context,
   barrierDismissible: barrierDismissible,
-  builder: (_) => ConfirmationDialog(
-    title: title,
-    content: content,
-    cancelText: cancelText,
-    confirmText: confirmText,
-    isDangerous: isDangerous,
+  // הדיאלוג נבנה ב-Overlay ולכן אינו יורש את הכיווניות של המסך שפתח אותו.
+  builder: (_) => Directionality(
+    textDirection: Directionality.of(context),
+    child: ConfirmationDialog(
+      title: title,
+      content: content,
+      cancelText: cancelText,
+      confirmText: confirmText,
+      isDangerous: isDangerous,
+    ),
   ),
 );

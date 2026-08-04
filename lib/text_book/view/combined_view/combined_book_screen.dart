@@ -117,6 +117,26 @@ class CombinedView extends StatefulWidget {
 }
 
 @visibleForTesting
+bool shouldOpenPreviewLinkInBook(Link link) =>
+    LinkTypes.normalize(link.connectionType) == LinkTypes.linker;
+
+@visibleForTesting
+List<String> activatePreviewCommentator({
+  required List<String> activeCommentators,
+  required Link link,
+}) {
+  final title = utils.getTitleFromPath(link.path2);
+  if (title.isEmpty ||
+      (activeCommentators.isNotEmpty && activeCommentators.first == title)) {
+    return activeCommentators;
+  }
+  return [
+    title,
+    ...activeCommentators.where((commentator) => commentator != title),
+  ];
+}
+
+@visibleForTesting
 List<Link> buildCombinedViewContextMenuLinksForParagraph({
   required Map<int, List<Link>> linksByLine,
   required int paragraphIndex,
@@ -364,9 +384,40 @@ class _CombinedViewState extends State<CombinedView> {
     return (link: anchorLinks[i], line: line, index: i);
   }
 
-  /// פתיחת ספר-היעד של קישור-עוגן בטאב חדש (לחיצה על כותרת חלונית התצוגה).
-  Future<void> _openAnchorTarget(Link link) async {
+  /// פתיחת יעד התצוגה המקדימה: חלונית מתאימה, או ספר עבור Linker.
+  Future<void> _openPreviewDestination(Link link, {int? sourceLine}) async {
     LinkPreviewOverlay.dismiss();
+    if (!shouldOpenPreviewLinkInBook(link)) {
+      if (sourceLine != null) {
+        _addTextBookEventIfOpen(UpdateSelectedIndex(sourceLine));
+      }
+      if (LinkTypes.isDependentTextLink(link.connectionType)) {
+        final state = _textBookBloc.state;
+        if (state is TextBookLoaded) {
+          final commentators = activatePreviewCommentator(
+            activeCommentators: state.activeCommentators,
+            link: link,
+          );
+          if (!identical(commentators, state.activeCommentators)) {
+            _addTextBookEventIfOpen(UpdateCommentators(commentators));
+          }
+        }
+        if (widget.showCommentaryAsExpansionTiles) {
+          return;
+        }
+        final openPane = widget.onOpenCommentatorsPane;
+        if (openPane != null) {
+          openPane();
+          return;
+        }
+      } else {
+        final openPane = widget.onOpenLinksPane;
+        if (openPane != null) {
+          openPane();
+          return;
+        }
+      }
+    }
     final tab = await buildLinkTargetTab(link);
     if (_disposed || !mounted) return;
     widget.openBookCallback(tab);
@@ -393,7 +444,8 @@ class _CombinedViewState extends State<CombinedView> {
       hoverMode: hoverMode,
       removeNikud: loaded?.removeNikud,
       removePunctuation: loaded?.removePunctuation,
-      onOpen: () => _openAnchorTarget(link),
+      onOpen: () =>
+          _openPreviewDestination(link, sourceLine: activeAnchor?.line),
       onDismissed: activeAnchor == null
           ? null
           : () => _setActiveAnchor(null, null),
@@ -403,12 +455,12 @@ class _CombinedViewState extends State<CombinedView> {
     }
   }
 
-  /// לחיצה על עוגן מנווטת ישירות לספר-היעד, כמו טווחי הציטוט של הלינקר.
+  /// לחיצה על עוגן מנתבת אותו כמו לחיצה על כותרת חלונית התצוגה.
   bool _handleAnchorTap(String url) {
     final anchor = _anchorLinkFromUrl(url);
     if (anchor == null) return false;
     _cancelPendingAnchorHover();
-    _openAnchorTarget(anchor.link);
+    _openPreviewDestination(anchor.link, sourceLine: anchor.line);
     return true;
   }
 

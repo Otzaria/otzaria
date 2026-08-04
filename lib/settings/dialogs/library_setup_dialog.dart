@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -41,12 +42,15 @@ Future<bool> showLibrarySetupDialog({
   final result = await showDialog<bool>(
     context: context,
     barrierDismissible: false,
-    builder: (_) => BlocProvider<EmptyLibraryBloc>(
-      create: (_) => EmptyLibraryBloc(),
-      child: _LibrarySetupDialogContent(
-        defaultTargetPath: defaultTargetPath,
-        currentLibraryPath: currentLibraryPath,
-        folderName: folderName,
+    builder: settingsDialogBuilder(
+      context,
+      (_) => BlocProvider<EmptyLibraryBloc>(
+        create: (_) => EmptyLibraryBloc(),
+        child: _LibrarySetupDialogContent(
+          defaultTargetPath: defaultTargetPath,
+          currentLibraryPath: currentLibraryPath,
+          folderName: folderName,
+        ),
       ),
     ),
   );
@@ -186,7 +190,7 @@ class _LibrarySetupDialogContentState
   Future<void> _pickTargetRoot() async {
     final path = await FilePicker.getDirectoryPath(
       lockParentWindow: true,
-      dialogTitle: 'בחר את תיקיית היעד לספרייה',
+      dialogTitle: context.settingsText('בחר את תיקיית היעד לספרייה'),
     );
     if (path != null && mounted) setState(() => _targetRoot = path);
   }
@@ -195,7 +199,7 @@ class _LibrarySetupDialogContentState
   Future<void> _pickSourceFolder() async {
     final folder = await FilePicker.getDirectoryPath(
       lockParentWindow: true,
-      dialogTitle: 'בחר תיקייה המכילה את קבצי הספרייה',
+      dialogTitle: context.settingsText('בחר תיקייה המכילה את קבצי הספרייה'),
     );
     if (folder == null || !mounted) return;
     final detected = await _scanFolderAssets(folder);
@@ -211,13 +215,21 @@ class _LibrarySetupDialogContentState
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['db'],
-      dialogTitle: 'בחר את קובץ ${DatabaseConstants.databaseFileName}',
+      dialogTitle: context.settingsText(
+        'בחר את קובץ {file}',
+        args: {'file': DatabaseConstants.databaseFileName},
+      ),
       lockParentWindow: true,
     );
     final file = result?.files.singleOrNull;
     if (file?.path == null || !mounted) return;
     if (file!.name != DatabaseConstants.databaseFileName) {
-      UiSnack.showError('יש לבחור את ${DatabaseConstants.databaseFileName}');
+      UiSnack.showError(
+        context.settingsText(
+          'יש לבחור את {file}',
+          args: {'file': DatabaseConstants.databaseFileName},
+        ),
+      );
       return;
     }
     setState(() {
@@ -230,7 +242,7 @@ class _LibrarySetupDialogContentState
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['zip', 'zst'],
-      dialogTitle: 'בחר ארכיון ספרייה (ZIP או ZST)',
+      dialogTitle: context.settingsText('בחר ארכיון ספרייה (ZIP או ZST)'),
       lockParentWindow: true,
     );
     final file = result?.files.singleOrNull;
@@ -271,23 +283,36 @@ class _LibrarySetupDialogContentState
   /// "כל הקבצים זוהו", או אזהרה תמציתית רק על קבצים שיישארו חסרים לאחר הייבוא.
   String _importSubtitle() {
     if (_sourceFolder == null) {
-      return 'בחר תיקייה שקיימים בה קובצי הספרייה והמערכת';
+      return context.settingsText(
+        'בחר תיקייה שקיימים בה קובצי הספרייה והמערכת',
+      );
     }
     final missing = _kLibraryAssets
         .where((a) => !_presentAfterImport(a.label))
         .toList();
-    if (missing.isEmpty) return 'כל הקבצים זוהו';
+    if (missing.isEmpty) return context.settingsText('כל הקבצים זוהו');
     if (missing.any((a) => a.label == _kSeforimAssetLabel)) {
-      return 'חסר קובץ הספרייה (seforim.db) — לא ניתן להמשיך בלי הספרייה';
+      return context.settingsText(
+        'חסר קובץ הספרייה (seforim.db) — לא ניתן להמשיך בלי הספרייה',
+      );
     }
     if (missing.length == 1) {
-      return '${missing.first.label} חסר — ${missing.first.consequence}';
+      return context.settingsText(
+        '{label} חסר — {consequence}',
+        args: {
+          'label': missing.first.label,
+          'consequence': missing.first.consequence,
+        },
+      );
     }
-    return 'יישארו חסרים: ${missing.map((a) => a.label).join(", ")}';
+    return context.settingsText(
+      'יישארו חסרים: {items}',
+      args: {'items': missing.map((a) => a.label).join(", ")},
+    );
   }
 
   String _archiveSubtitle() => _sourceArchive == null
-      ? 'בחר קובץ ZIP או ZST המכיל את seforim.db'
+      ? context.settingsText('בחר קובץ ZIP או ZST המכיל את seforim.db')
       : p.basename(_sourceArchive!);
 
   void _confirm() {
@@ -375,6 +400,10 @@ class _LibrarySetupDialogContentState
   /// הספרייה המנוהלים ואת האינדקס במיקום הישן. best-effort — קבצי משתמש
   /// שאינם מנוהלים נשמרים, וכשל במחיקה מציג אזהרה בלבד.
   Future<void> _deleteOldAfterRelocation() async {
+    final leftoverWarning = context.settingsText(
+      'הספרייה עודכנה במיקום החדש, אך חלק מהקבצים הישנים לא נמחקו. '
+      'ניתן למחוק אותם ידנית מהמיקום הישן.',
+    );
     final oldBooks = widget.currentLibraryPath!;
     final oldIndex = _oldIndexPath;
     final newIndex = p.join(_targetRoot!, 'index');
@@ -400,10 +429,7 @@ class _LibrarySetupDialogContentState
       }
     }
     if (leftover != null || indexDeleteFailed) {
-      UiSnack.showWarning(
-        'הספרייה עודכנה במיקום החדש, אך חלק מהקבצים הישנים לא נמחקו. '
-        'ניתן למחוק אותם ידנית מהמיקום הישן.',
-      );
+      UiSnack.showWarning(leftoverWarning);
     }
   }
 
@@ -428,19 +454,25 @@ class _LibrarySetupDialogContentState
         final canConfirm = !working && _canConfirm(state);
         return AppCustomContentDialog(
           title: _hasLibrary
-              ? 'עדכון ${widget.folderName}'
-              : 'הגדרת ${widget.folderName}',
+              ? context.settingsText(
+                  'עדכון {folder}',
+                  args: {'folder': widget.folderName},
+                )
+              : context.settingsText(
+                  'הגדרת {folder}',
+                  args: {'folder': widget.folderName},
+                ),
           onConfirm: canConfirm ? _confirm : null,
           handleEnterKey: canConfirm,
           actions: working
               ? null
               : [
                   ActionButton.ghost(
-                    text: 'ביטול',
+                    text: context.settingsText('ביטול'),
                     onPressed: () => Navigator.of(context).pop(false),
                   ),
                   ActionButton.recommended(
-                    text: 'אישור',
+                    text: context.settingsText('אישור'),
                     onPressed: canConfirm ? _confirm : null,
                   ),
                 ],
@@ -457,7 +489,7 @@ class _LibrarySetupDialogContentState
         ? state.message
         : state is EmptyLibraryExtracting
         ? state.message
-        : 'מעבד...';
+        : context.settingsText('מעבד...');
     final progress = state is EmptyLibraryDownloading
         ? (state.progress > 0 ? state.progress : null)
         : state is EmptyLibraryExtracting
@@ -503,37 +535,39 @@ class _LibrarySetupDialogContentState
     final chooseArchiveSelected = _action == _LibraryAction.chooseArchive;
 
     final downloadOption = SettingsActionTile.radioOption(
-      title: _hasLibrary ? 'הורדת הספרייה מחדש' : 'הורדת הספרייה',
-      subtitle: 'הספרייה תורד ותחולץ אל תיקיית היעד',
+      title: context.settingsText(
+        _hasLibrary ? 'הורדת הספרייה מחדש' : 'הורדת הספרייה',
+      ),
+      subtitle: context.settingsText('הספרייה תורד ותחולץ אל תיקיית היעד'),
       selected: downloadSelected,
       onTap: () => setState(() => _action = _LibraryAction.download),
     );
     final chooseFileOption = SettingsActionTile.radioOption(
-      title: 'בחירת תיקייה מהמחשב',
+      title: context.settingsText('בחירת תיקייה מהמחשב'),
       subtitle: _importSubtitle(),
       selected: chooseFileSelected,
       onTap: () => setState(() => _action = _LibraryAction.chooseFile),
       actions: [
         ActionButton.neutral(
-          text: 'בחר תיקייה',
+          text: context.settingsText('בחר תיקייה'),
           onPressed: chooseFileSelected ? _pickSourceFolder : null,
           icon: FluentIcons.folder_open_24_regular,
         ),
         ActionButton.neutral(
-          text: 'בחר קובץ ספרייה',
+          text: context.settingsText('בחר קובץ ספרייה'),
           onPressed: chooseFileSelected ? _pickSourceDatabaseFile : null,
           icon: FluentIcons.document_24_regular,
         ),
       ],
     );
     final chooseArchiveOption = SettingsActionTile.radioOption(
-      title: 'בחירת קובץ דחוס',
+      title: context.settingsText('בחירת קובץ דחוס'),
       subtitle: _archiveSubtitle(),
       selected: chooseArchiveSelected,
       onTap: () => setState(() => _action = _LibraryAction.chooseArchive),
       actions: [
         ActionButton.neutral(
-          text: 'בחר קובץ דחוס',
+          text: context.settingsText('בחר קובץ דחוס'),
           onPressed: chooseArchiveSelected ? _pickSourceArchive : null,
           icon: FluentIcons.archive_24_regular,
         ),
@@ -545,15 +579,19 @@ class _LibrarySetupDialogContentState
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SettingsCard(
-          title: 'פעולה',
-          subtitle: _hasLibrary
-              ? 'בחר כיצד לעדכן או להעביר את הספרייה, ולאחר מכן אשר'
-              : 'בחר להוריד את הספרייה מהאינטרנט, או לייבא ספרייה קיימת',
+          title: context.settingsText('פעולה'),
+          subtitle: context.settingsText(
+            _hasLibrary
+                ? 'בחר כיצד לעדכן או להעביר את הספרייה, ולאחר מכן אשר'
+                : 'בחר להוריד את הספרייה מהאינטרנט, או לייבא ספרייה קיימת',
+          ),
           children: _hasLibrary
               ? [
                   SettingsActionTile.radioOption(
-                    title: 'העברת תוכן התיקייה',
-                    subtitle: 'קבצי הספרייה הקיימת יועברו לתיקיית היעד',
+                    title: context.settingsText('העברת תוכן התיקייה'),
+                    subtitle: context.settingsText(
+                      'קבצי הספרייה הקיימת יועברו לתיקיית היעד',
+                    ),
                     selected: moveSelected,
                     onTap: () =>
                         setState(() => _action = _LibraryAction.moveContents),
@@ -561,9 +599,10 @@ class _LibrarySetupDialogContentState
                   // הורדה/בחירת קובץ מחליפות את הספרייה הקיימת — מקובצות תחת
                   // מקטע נפרש כדי להבליט שהן פעולות מחיקה-והחלפה.
                   ExpandableSection(
-                    title: 'מחיקה וייבוא ספרייה',
-                    subtitle:
-                        'הספרייה הקיימת תוחלף (עם גיבוי אוטומטי עד להצלחה)',
+                    title: context.settingsText('מחיקה וייבוא ספרייה'),
+                    subtitle: context.settingsText(
+                      'הספרייה הקיימת תוחלף (עם גיבוי אוטומטי עד להצלחה)',
+                    ),
                     isExpanded:
                         _replaceExpanded ||
                         downloadSelected ||

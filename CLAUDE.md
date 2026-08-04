@@ -586,6 +586,7 @@ dart format lib/file.dart    # Format ONLY files you modified
 | Background content loading | `test/text_book/bloc/background_full_content_loading_test.dart` |
 | Continuous reading mode | `test/text_book/bloc/continuous_reading_mode_test.dart` |
 | Selected link types persistence | `test/text_book/bloc/selected_link_types_persistence_test.dart` |
+| visibleIndices throttling (scroll perf) | `test/text_book/bloc/visible_indices_throttle_test.dart` |
 
 **Data / Database**
 | Area | Test File |

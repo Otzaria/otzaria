@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/dialogs/safer_mode_password_dialog.dart';
 
 /// Wrapper שבודק סיסמה לפני כניסה למסך מוגן במצב סייפר
@@ -69,12 +70,17 @@ class _SaferModeGuardState extends State<SaferModeGuard> {
     final verified = await showDialog<bool>(
       context: context,
       barrierDismissible: true,
-      builder: (dialogContext) => SaferModePasswordDialog(
-        title: 'הזן סיסמה',
-        hint: 'הנך במצב סייפר.\nהזן את הסיסמה כדי לגשת להגדרות',
-        onVerify: (password) async {
-          return repository.verifyProtectedModePassword(password);
-        },
+      builder: settingsDialogBuilder(
+        context,
+        (dialogContext) => SaferModePasswordDialog(
+          title: dialogContext.settingsText('הזן סיסמה'),
+          hint: dialogContext.settingsText(
+            'הנך במצב סייפר.\nהזן את הסיסמה כדי לגשת להגדרות',
+          ),
+          onVerify: (password) async {
+            return repository.verifyProtectedModePassword(password);
+          },
+        ),
       ),
     );
 
@@ -203,12 +209,17 @@ Future<bool> verifySaferModePassword(BuildContext context) async {
 
   final verified = await showDialog<bool>(
     context: context,
-    builder: (context) => SaferModePasswordDialog(
-      title: 'אמת סיסמה',
-      hint: 'הנך במצב סייפר.\nהזן את הסיסמה כדי לבצע פעולה זו',
-      onVerify: (password) async {
-        return repository.verifyProtectedModePassword(password);
-      },
+    builder: settingsDialogBuilder(
+      context,
+      (ctx) => SaferModePasswordDialog(
+        title: ctx.settingsText('אמת סיסמה'),
+        hint: ctx.settingsText(
+          'הנך במצב סייפר.\nהזן את הסיסמה כדי לבצע פעולה זו',
+        ),
+        onVerify: (password) async {
+          return repository.verifyProtectedModePassword(password);
+        },
+      ),
     ),
   );
 

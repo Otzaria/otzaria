@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
@@ -70,14 +71,14 @@ class SettingsSearchResultsView extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'לא נמצאו הגדרות תואמות',
+                    context.settingsText('לא נמצאו הגדרות תואמות'),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'נסה לחפש מילים אחרות',
+                    context.settingsText('נסה לחפש מילים אחרות'),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
@@ -133,7 +134,7 @@ class _SearchResultTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _HighlightedText(
-                      text: entry.title,
+                      text: context.settingsText(entry.title),
                       query: query,
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w600,
@@ -142,7 +143,7 @@ class _SearchResultTile extends StatelessWidget {
                     if (entry.subtitle.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       _HighlightedText(
-                        text: entry.subtitle,
+                        text: context.settingsText(entry.subtitle),
                         query: query,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
@@ -163,7 +164,7 @@ class _SearchResultTile extends StatelessWidget {
                   borderRadius: AppTokens.borderRadiusAll,
                 ),
                 child: Text(
-                  _tabLabel(entry.tab),
+                  context.settingsText(_tabLabel(entry.tab)),
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: colorScheme.primary,
                     fontWeight: FontWeight.w600,

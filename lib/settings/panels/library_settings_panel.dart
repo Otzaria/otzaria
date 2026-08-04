@@ -4,6 +4,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/external_catalog/repository/external_catalog_repository.dart';
 import 'package:otzaria/external_catalog/view/external_catalog_settings_helper.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
+import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
@@ -103,22 +104,26 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
             // הגדרות תצוגה
             SettingsCard(
               cardId: 'library.display',
-              title: 'תצוגת ספרייה',
+              title: context.settingsText('תצוגת ספרייה'),
               children: [
                 SettingsActionTile.segmentedTile<String>(
-                  title: 'סוג תצוגה',
-                  options: const [
+                  title: context.settingsText('סוג תצוגה'),
+                  options: [
                     SegmentOption(
                       value: 'grid',
-                      label: 'רשת',
+                      label: context.settingsText('רשת'),
                       icon: FluentIcons.grid_24_regular,
-                      subtitle: 'התיקיות והספרים יוצגו בתוך כרטיסים ברשת',
+                      subtitle: context.settingsText(
+                        'התיקיות והספרים יוצגו בתוך כרטיסים ברשת',
+                      ),
                     ),
                     SegmentOption(
                       value: 'list',
-                      label: 'רשימה',
+                      label: context.settingsText('רשימה'),
                       rtlIcon: FluentIcons.list_24_regular,
-                      subtitle: 'התיקיות והספרים יוצגו ברשימה נפתחת (עץ מתרחב)',
+                      subtitle: context.settingsText(
+                        'התיקיות והספרים יוצגו ברשימה נפתחת (עץ מתרחב)',
+                      ),
                     ),
                   ],
                   currentValue: state.libraryViewMode,
@@ -130,10 +135,12 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
                 ),
                 SettingsActionTile.switchTile(
                   icon: FluentIcons.eye_24_regular,
-                  title: 'הצג תצוגה מקדימה',
-                  subtitle: state.libraryShowPreview
-                      ? 'תצוגה מקדימה מוצגת'
-                      : 'תצוגה מקדימה מוסתרת',
+                  title: context.settingsText('הצג תצוגה מקדימה'),
+                  subtitle: context.settingsText(
+                    state.libraryShowPreview
+                        ? 'תצוגה מקדימה מוצגת'
+                        : 'תצוגה מקדימה מוסתרת',
+                  ),
                   value: state.libraryShowPreview,
                   onChanged: (value) {
                     context.read<SettingsBloc>().add(
@@ -149,17 +156,18 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
             // ספרים נוספים (משלב מיקום היברובוקס וספרים חיצוניים)
             SettingsCard(
               cardId: 'library.external',
-              title: 'ספריות חיצוניות',
-              subtitle:
-                  'ניתן לחפש ספר במסך ספריה או להציג ספרים מתיקיית ספרים של אוצר החכמה והיברובוקס\n'
-                  'החיפוש בספריה מתבצע מתוך קטלוג, הגדרות מיקום והעדכונים לקטלוג מוגדרים דרך ספריית אוצריא',
+              title: context.settingsText('ספריות חיצוניות'),
+              subtitle: context.settingsText(
+                'ניתן לחפש ספר במסך ספריה או להציג ספרים מתיקיית ספרים של אוצר החכמה והיברובוקס\n'
+                'החיפוש בספריה מתבצע מתוך קטלוג, הגדרות מיקום והעדכונים לקטלוג מוגדרים דרך ספריית אוצריא',
+              ),
               children: [
                 // מיקום היברובוקס (יוצג ראשון במידה והועבר לו ווידג'ט - דסקטופ בלבד)
                 ?widget.hebrewBooksPathWidget,
 
                 // כשהקטלוג חסר מוצג כפתור הורדה במקום תפריט המקורות.
                 if (_catalogExists == false)
-                  _buildMissingCatalogTile()
+                  _buildMissingCatalogTile(context)
                 else if (_catalogExists == true)
                   _buildSourceModeTile(context, state),
               ],
@@ -170,15 +178,16 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
     );
   }
 
-  Widget _buildMissingCatalogTile() {
+  Widget _buildMissingCatalogTile(BuildContext context) {
     return SettingsActionTile.text(
       icon: FluentIcons.cloud_arrow_down_24_regular,
-      title: 'מקורות אחרים לספרים',
-      subtitle:
-          'הקטלוג של אוצר החכמה והיברובוקס חסר במערכת. יש להוריד אותו כדי להציג ולחפש ספרים ממקורות אלו.',
+      title: context.settingsText('מקורות אחרים לספרים'),
+      subtitle: context.settingsText(
+        'הקטלוג של אוצר החכמה והיברובוקס חסר במערכת. יש להוריד אותו כדי להציג ולחפש ספרים ממקורות אלו.',
+      ),
       actions: [
         ActionButton.recommended(
-          text: 'הורד קטלוג',
+          text: context.settingsText('הורד קטלוג'),
           isLoading: _isDownloadingCatalog,
           onPressed: _downloadCatalog,
         ),
@@ -189,29 +198,36 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
   Widget _buildSourceModeTile(BuildContext context, SettingsState state) {
     return SettingsActionTile.dropdownTile<String>(
       icon: FluentIcons.globe_24_regular,
-      title: 'מקורות אחרים לספרים',
+      title: context.settingsText('מקורות אחרים לספרים'),
       value: _externalSourceMode(state),
-      entries: const [
+      entries: [
         AppMenuEntry(
           value: 'none',
-          label: 'אל תציג',
-          subtitle: 'ספרים חיצוניים לא יוצגו בתוצאות החיפוש במסך הספרייה',
+          label: context.settingsText('אל תציג'),
+          subtitle: context.settingsText(
+            'ספרים חיצוניים לא יוצגו בתוצאות החיפוש במסך הספרייה',
+          ),
         ),
         AppMenuEntry(
           value: 'all',
-          label: 'הצג הכל',
-          subtitle:
-              'יוצגו ספרים מאוצר החכמה ומהיברובוקס בתוצאות החיפוש במסך הספרייה',
+          label: context.settingsText('הצג הכל'),
+          subtitle: context.settingsText(
+            'יוצגו ספרים מאוצר החכמה ומהיברובוקס בתוצאות החיפוש במסך הספרייה',
+          ),
         ),
         AppMenuEntry(
           value: 'otzar',
-          label: 'אוצר החכמה בלבד',
-          subtitle: 'יוצגו ספרים מאוצר החכמה בתוצאות החיפוש במסך הספרייה',
+          label: context.settingsText('אוצר החכמה בלבד'),
+          subtitle: context.settingsText(
+            'יוצגו ספרים מאוצר החכמה בתוצאות החיפוש במסך הספרייה',
+          ),
         ),
         AppMenuEntry(
           value: 'hebrewbooks',
-          label: 'היברובוקס בלבד',
-          subtitle: 'יוצגו ספרים מהיברובוקס בתוצאות החיפוש במסך הספרייה',
+          label: context.settingsText('היברובוקס בלבד'),
+          subtitle: context.settingsText(
+            'יוצגו ספרים מהיברובוקס בתוצאות החיפוש במסך הספרייה',
+          ),
         ),
       ],
       onSelected: (value) async {

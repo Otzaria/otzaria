@@ -36,6 +36,44 @@ class ContinuousReadingParagraphLine {
   });
 }
 
+/// תקרת המטמון — גדולה מפסקה ממוזגת טיפוסית, וחסומה כדי שספר שלם לא ייצבר.
+const int _maxCachedFragments = 1024;
+
+/// מטמון DOM מפורק לפי מחרוזת ה-HTML. הפירוק תלוי אך ורק במחרוזת, והמעבר
+/// ב-[_nodesToSpans] הוא קריאה בלבד — ולכן בטוח לחלוק את אותו DOM בין builds.
+final Map<String, dom.DocumentFragment> _fragmentCache =
+    <String, dom.DocumentFragment>{};
+
+int _fragmentParseCount = 0;
+
+/// מספר הפירוקים שבוצעו בפועל — לאימות שהמטמון פוגע.
+@visibleForTesting
+int get inlineHtmlParseCount => _fragmentParseCount;
+
+@visibleForTesting
+void resetInlineHtmlCacheForTesting() {
+  _fragmentCache.clear();
+  _fragmentParseCount = 0;
+}
+
+/// פירוק HTML עם מטמון LRU. `Map` ב-Dart שומר סדר הכנסה, ולכן הסרה+הכנסה
+/// מחדש מקדמת ערך לסוף, ו-`keys.first` הוא הישן ביותר.
+dom.DocumentFragment _parseFragmentCached(String htmlText) {
+  final cached = _fragmentCache.remove(htmlText);
+  if (cached != null) {
+    _fragmentCache[htmlText] = cached;
+    return cached;
+  }
+
+  final fragment = html_parser.parseFragment(htmlText);
+  _fragmentParseCount++;
+  if (_fragmentCache.length >= _maxCachedFragments) {
+    _fragmentCache.remove(_fragmentCache.keys.first);
+  }
+  _fragmentCache[htmlText] = fragment;
+  return fragment;
+}
+
 List<InlineSpan> buildInlineHtmlSpans(
   String htmlText,
   TextStyle baseStyle, {
@@ -46,7 +84,7 @@ List<InlineSpan> buildInlineHtmlSpans(
   Color? anchorActiveBackground,
   List<TapGestureRecognizer>? recognizerSink,
 }) {
-  final fragment = html_parser.parseFragment(htmlText);
+  final fragment = _parseFragmentCached(htmlText);
   return _nodesToSpans(
     fragment.nodes,
     baseStyle,
@@ -156,20 +194,11 @@ class _ContinuousReadingParagraphState
     }
 
     final textSpan = TextSpan(style: widget.baseStyle, children: spans);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final text = Text.rich(
-          textSpan,
-          textAlign: _effectiveTextAlign(
-            textSpan: textSpan,
-            constraints: constraints,
-            textScaler: MediaQuery.textScalerOf(context),
-          ),
-        );
-        if (frameRanges.isEmpty) return text;
-        return PluginHighlightFrameOverlay(ranges: frameRanges, child: text);
-      },
-    );
+    // justify אינו מותח שורה אחרונה, ולכן גם לא פסקה בת שורה חזותית אחת.
+    // מדידה מוקדמת של מספר השורות = layout שני על כל הפסקה, ומייקרת גלילה.
+    final text = Text.rich(textSpan, textAlign: widget.textAlign);
+    if (frameRanges.isEmpty) return text;
+    return PluginHighlightFrameOverlay(ranges: frameRanges, child: text);
   }
 
   List<InlineSpan> _buildLineSpans(ContinuousReadingParagraphLine line) {
@@ -188,28 +217,6 @@ class _ContinuousReadingParagraphState
       anchorActiveBackground: widget.anchorActiveBackground,
       recognizerSink: _linkRecognizers,
     );
-  }
-
-  TextAlign _effectiveTextAlign({
-    required InlineSpan textSpan,
-    required BoxConstraints constraints,
-    required TextScaler textScaler,
-  }) {
-    if (widget.textAlign != TextAlign.justify || !constraints.hasBoundedWidth) {
-      return widget.textAlign;
-    }
-
-    final textPainter = TextPainter(
-      text: textSpan,
-      textAlign: TextAlign.start,
-      textDirection: TextDirection.rtl,
-      textScaler: textScaler,
-    )..layout(maxWidth: constraints.maxWidth);
-
-    final visualLineCount = textPainter.computeLineMetrics().length;
-    textPainter.dispose();
-
-    return visualLineCount <= 1 ? TextAlign.start : widget.textAlign;
   }
 
   void _rebuildLineRecognizers() {

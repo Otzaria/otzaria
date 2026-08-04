@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/models/books.dart';
@@ -198,7 +199,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              FluentIcons.book_24_regular,
+              OtzariaIcons.otzaria_icon_2_page_line_24_regular,
               size: 64,
               color: Theme.of(
                 context,

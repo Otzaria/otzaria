@@ -400,7 +400,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
             category == null || identical(category, libraryState.library);
         return _buildPanelTitle(
           context,
-          'ספריה',
+          // הקשר 'titleBar' — כאן זה שם המסך ("Library" כמו בסרגל), ולא
+          // לשונית ההגדרות שמתורגמת "Seforim Library".
+          context.settingsText('ספריה', context: 'titleBar'),
           subtitle: isRoot ? null : category.title,
         );
       },
@@ -417,7 +419,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       Screen.search => 'חיפוש',
       _ => 'אוצריא',
     };
-    return _buildPanelTitle(context, title);
+    return _buildPanelTitle(context, context.settingsText(title));
   }
 
   Widget _buildToolsTitle(BuildContext context) {
@@ -432,7 +434,10 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
           activeToolId: activeToolId,
           plugins: plugins,
         );
-        return _buildPanelTitle(context, pluginName ?? 'כלים');
+        return _buildPanelTitle(
+          context,
+          pluginName ?? context.settingsText('כלים'),
+        );
       },
     );
   }
@@ -471,7 +476,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
           return DragToMoveArea(
             child: Center(
               child: Text(
-                'עיון',
+                context.settingsText('עיון'),
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),

@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/widgets/layout/adaptive_row.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/tabs/about_settings_data.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
@@ -133,15 +135,19 @@ class AboutSettingsTab extends StatelessWidget {
             // ── סיוע ──
             SettingsCard(
               cardId: 'about.aid',
-              title: 'סיוע ללומדי תורה',
+              title: context.settingsText('סיוע ללומדי תורה'),
               children: [
                 SettingsActionTile.text(
                   icon: FluentIcons.shield_task_24_filled,
-                  title: 'אוצריא מתגייסת לעזרת לומדי התורה',
-                  subtitle: 'מרכז המידע על ארגוני סיוע ללומדי התורה',
+                  title: context.settingsText(
+                    'אוצריא מתגייסת לעזרת לומדי התורה',
+                  ),
+                  subtitle: context.settingsText(
+                    'מרכז המידע על ארגוני סיוע ללומדי התורה',
+                  ),
                   actions: [
                     ActionButton.recommended(
-                      text: 'למידע נוסף',
+                      text: context.settingsText('למידע נוסף'),
                       onPressed: () => _openAdPopup(context),
                     ),
                   ],
@@ -162,7 +168,7 @@ class AboutSettingsTab extends StatelessWidget {
             // ── תורמים ──
             SettingsCard(
               cardId: 'about.donors',
-              title: 'תורמים',
+              title: context.settingsText('תורמים'),
               children: [
                 _padded(
                   _MemorialCardsGrid(
@@ -171,7 +177,7 @@ class AboutSettingsTab extends StatelessWidget {
                 ),
                 SettingsActionTile(
                   title: Text(
-                    'תרמו מהונם ומזמנם',
+                    context.settingsText('תרמו מהונם ומזמנם'),
                     style: SettingsCard.titleStyleOf(context),
                   ),
                   actions: [
@@ -189,9 +195,9 @@ class AboutSettingsTab extends StatelessWidget {
             // ── מפתחים ──
             SettingsCard(
               cardId: 'about.dev',
-              title: 'אודות פיתוח התוכנה',
+              title: context.settingsText('אודות פיתוח התוכנה'),
               children: [
-                _cardTitle(context, 'מפתחים'),
+                _cardTitle(context, context.settingsText('מפתחים')),
                 _padded(
                   _InfoChipSection(
                     items: aboutDevelopers,
@@ -200,11 +206,15 @@ class AboutSettingsTab extends StatelessWidget {
                 ),
                 SettingsActionTile.text(
                   icon: FluentIcons.chat_24_regular,
-                  title: 'נתקלת בבאג? יש לך שאלה או משוב?',
-                  subtitle: 'מוזמנים לבקר בפורום התמיכה והמשוב של אוצריא',
+                  title: context.settingsText(
+                    'נתקלת בבאג? יש לך שאלה או משוב?',
+                  ),
+                  subtitle: context.settingsText(
+                    'מוזמנים לבקר בפורום התמיכה והמשוב של אוצריא',
+                  ),
                   actions: [
                     ActionButton.recommended(
-                      text: 'כניסה לפורום',
+                      text: context.settingsText('כניסה לפורום'),
                       onPressed: () => _openUrl('https://otzaria.org/forum'),
                     ),
                   ],
@@ -217,17 +227,18 @@ class AboutSettingsTab extends StatelessWidget {
             // ── אודות ספריית אוצריא ──
             SettingsCard(
               cardId: 'about.library',
-              title: 'אודות ספריית אוצריא',
+              title: context.settingsText('אודות ספריית אוצריא'),
               children: [
                 _cardTitle(
                   context,
-                  'מקור הספרים',
-                  subtitle:
-                      'הספרים הותאמו במיוחד עבור אוצריא, וכן נוספו ספרים רבים '
-                      'נוספים בזכות עבודתם המסורה של מהדירי הספרים.',
+                  context.settingsText('מקור הספרים'),
+                  subtitle: context.settingsText(
+                    'הספרים הותאמו במיוחד עבור אוצריא, וכן נוספו ספרים רבים '
+                    'נוספים בזכות עבודתם המסורה של מהדירי הספרים.',
+                  ),
                 ),
                 _padded(_BookSourcesSection()),
-                _cardTitle(context, 'מהדירי ספרים'),
+                _cardTitle(context, context.settingsText('מהדירי ספרים')),
                 _padded(
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -235,29 +246,35 @@ class AboutSettingsTab extends StatelessWidget {
                       _InfoChipSection(
                         label: aboutTopEditorsLabel,
                         items: aboutTopEditors,
-                        icon: FluentIcons.person_24_regular,
+                        icon: OtzariaIcons.person_24_filled,
                       ),
                       const SizedBox(height: 20),
                       _InfoChipSection(
                         label: aboutRegularEditorsLabel,
                         items: aboutRegularEditors,
-                        icon: FluentIcons.person_24_regular,
+                        icon: OtzariaIcons.person_24_filled,
                       ),
                       const SizedBox(height: 16),
-                      const _SubtitleText(
-                        'באם שמכם אינו מופיע ברשימה או שאתם מעוניינים בשינוי, '
-                        'אנא פנו למייל המערכת.',
+                      _SubtitleText(
+                        context.settingsText(
+                          'באם שמכם אינו מופיע ברשימה או שאתם מעוניינים בשינוי, '
+                          'אנא פנו למייל המערכת.',
+                        ),
                       ),
                     ],
                   ),
                 ),
                 SettingsActionTile.text(
                   icon: FluentIcons.edit_24_regular,
-                  title: 'הצטרף לצוות העריכה ומהדירי הספרים',
-                  subtitle: 'עזור לנו להוסיף ספרים חדשים לספריית אוצריא',
+                  title: context.settingsText(
+                    'הצטרף לצוות העריכה ומהדירי הספרים',
+                  ),
+                  subtitle: context.settingsText(
+                    'עזור לנו להוסיף ספרים חדשים לספריית אוצריא',
+                  ),
                   actions: [
                     ActionButton.recommended(
-                      text: 'הצטרף לעריכה',
+                      text: context.settingsText('הצטרף לעריכה'),
                       onPressed: () =>
                           _openUrl('https://www.otzaria.org/library'),
                     ),
@@ -302,7 +319,9 @@ class AboutSettingsTab extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'מאגר תורני חינמי, רחב ומהיר לשימוש בכל מקום.',
+                  context.settingsText(
+                    'מאגר תורני חינמי, רחב ומהיר לשימוש בכל מקום.',
+                  ),
                   style: kSettingsSubtitleStyle,
                 ),
               ],
@@ -355,8 +374,11 @@ class AboutSettingsTab extends StatelessWidget {
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (context) => const AdPopupDialog(
-        title: 'אוצריא מתגייסת לעזרת לומדי התורה',
+      builder: settingsDialogBuilder(
+        context,
+        (ctx) => AdPopupDialog(
+          title: ctx.settingsText('אוצריא מתגייסת לעזרת לומדי התורה'),
+        ),
       ),
     );
   }
@@ -426,7 +448,7 @@ class _InfoChipSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (label != null) ...[
-          _SubtitleText(label!),
+          _SubtitleText(context.settingsText(label!)),
           const SizedBox(height: 10),
         ],
         _InfoChipWrap(items: items, icon: icon),
@@ -546,14 +568,16 @@ class _ClosingQuote extends StatelessWidget {
           child: Column(
             children: [
               Icon(
-                FluentIcons.book_open_24_regular,
-                size: 32,
+                OtzariaIcons.otzaria_icon_24_regular,
+                size: 48,
                 color: colorScheme.primary,
               ),
               const SizedBox(height: 12),
               Text(
                 'וְצִדְקָתוֹ עֹמֶדֶת לָעַד',
                 textAlign: TextAlign.center,
+                // ציטוט תורני נשאר עברי גם כשההגדרות באנגלית.
+                textDirection: TextDirection.rtl,
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -565,6 +589,7 @@ class _ClosingQuote extends StatelessWidget {
               Text(
                 '(תהילים קיב, ג)',
                 textAlign: TextAlign.center,
+                textDirection: TextDirection.rtl,
                 style: TextStyle(
                   fontSize: 12,
                   color: colorScheme.onSurfaceVariant,
@@ -602,6 +627,7 @@ class _ClosingQuote extends StatelessWidget {
               Text(
                 'זֶה הַכּוֹתֵב סְפָרִים וּמַשְׁאִילָן לַאֲחֵרִים',
                 textAlign: TextAlign.center,
+                textDirection: TextDirection.rtl,
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -613,6 +639,7 @@ class _ClosingQuote extends StatelessWidget {
               Text(
                 '(כתובות נ.)',
                 textAlign: TextAlign.center,
+                textDirection: TextDirection.rtl,
                 style: TextStyle(
                   fontSize: 12,
                   color: colorScheme.onSurfaceVariant,
@@ -693,7 +720,7 @@ class _MemorialCardsGrid extends StatelessWidget {
       children: [
         _MemorialCard.donor(
           title: "לע\"נ ר' משה בן יהודה ראה ז\"ל",
-          description: 'סכום משמעותי לפיתוח התוכנה',
+          description: context.settingsText('סכום משמעותי לפיתוח התוכנה'),
         ),
         _MemorialCard.donor(
           title:
@@ -759,7 +786,7 @@ class _MemorialCard extends StatelessWidget {
             Icon(icon, color: iconColor, size: 24),
             const SizedBox(height: 6),
             Text(
-              title,
+              context.settingsText(title),
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: titleFontSize,

@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:collection/collection.dart';
@@ -65,6 +66,7 @@ import 'package:otzaria/history/view/history_screen.dart';
 import 'package:otzaria/bookmarks/view/bookmark_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
+import 'package:otzaria/library_update/library_update_work_status.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
@@ -323,22 +325,22 @@ class MainWindowScreenState extends State<MainWindowScreen>
     ),
     (
       screen: Screen.find,
-      icon: FluentIcons.book_search_24_regular,
-      iconFilled: FluentIcons.book_search_24_filled,
+      icon: OtzariaIcons.book_search_24_regular,
+      iconFilled: OtzariaIcons.book_search_24_filled,
       label: 'איתור',
       shortcutKey: 'key-shortcut-open-find-ref',
     ),
     (
       screen: Screen.reading,
-      icon: FluentIcons.book_open_24_regular,
-      iconFilled: FluentIcons.book_open_24_filled,
+      icon: OtzariaIcons.book_open_large_24_regular,
+      iconFilled: OtzariaIcons.book_open_large_24_filled,
       label: 'עיון',
       shortcutKey: 'key-shortcut-open-reading-screen',
     ),
     (
       screen: Screen.search,
-      icon: FluentIcons.search_24_regular,
-      iconFilled: FluentIcons.search_24_filled,
+      icon: OtzariaIcons.search_24_regular,
+      iconFilled: OtzariaIcons.search_24_filled,
       label: 'חיפוש',
       shortcutKey: 'key-shortcut-open-new-search',
     ),
@@ -1361,10 +1363,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
           preferBelow: false,
           message: (ShortcutValidator.getShortcutValue(item.shortcutKey) ?? '')
               .toUpperCase(),
-          child: RtlIcon(item.icon),
+          child: _navigationIcon(item.icon),
         ),
-        selectedIcon: RtlIcon(item.iconFilled),
-        label: item.label,
+        selectedIcon: _navigationIcon(item.iconFilled),
+        label: context.settingsText(item.label),
       );
     }
 
@@ -1382,6 +1384,12 @@ class MainWindowScreenState extends State<MainWindowScreen>
       for (final item in pinnedItems) buildPinnedItemDestination(item),
       buildNavDataDestination(_settingsNavIndex),
     ];
+  }
+
+  Widget _navigationIcon(IconData icon) {
+    return icon.fontPackage == OtzariaIcons.fontPackage
+        ? Icon(icon)
+        : RtlIcon(icon);
   }
 
   /// סדר העמודים במהלך slide חוצה: מחליף (swap) בין מסך היעד ([targetIndex])
@@ -2382,44 +2390,16 @@ class MainWindowScreenState extends State<MainWindowScreen>
                 previous.applyProgress != current.applyProgress,
             listener: (context, state) {
               final cubit = context.read<WorkStatusCubit>();
-              if (state.isBusy) {
-                // מד הבתים תקף רק בזמן ההורדה — בשלבים הבאים הוא שארית דבוקה
-                // על 100%. ב-apply המדד הוא applyProgress (null = אין מדידה).
-                final double? progress;
-                switch (state.status) {
-                  case LibraryUpdateStatus.downloading:
-                    final total = state.bytesTotal ?? 0;
-                    progress = total > 0
-                        ? ((state.bytesDownloaded ?? 0) / total).clamp(0.0, 1.0)
-                        : null;
-                  case LibraryUpdateStatus.applying:
-                    progress = state.applyProgress;
-                  default:
-                    progress = null;
-                }
-                cubit.upsert(
-                  WorkStatusItem(
-                    id: 'library_update',
-                    title: 'עדכון ספרייה',
-                    message: state.message,
-                    progress: progress,
-                  ),
-                );
-              } else if (state.status == LibraryUpdateStatus.error) {
-                cubit.upsert(
-                  WorkStatusItem(
-                    id: 'library_update',
-                    title: 'עדכון ספרייה',
-                    message: state.message,
-                    detail: 'לחץ לניסיון חוזר',
-                    kind: WorkStatusKind.failed,
-                    onTap: () => context.read<LibraryUpdateBloc>().add(
-                      const StartLibraryUpdate(),
-                    ),
-                  ),
-                );
+              final item = libraryUpdateWorkStatusItem(
+                state,
+                onRetry: () => context.read<LibraryUpdateBloc>().add(
+                  const StartLibraryUpdate(),
+                ),
+              );
+              if (item == null) {
+                cubit.remove(kLibraryUpdateWorkStatusId);
               } else {
-                cubit.remove('library_update');
+                cubit.upsert(item);
               }
             },
           ),
@@ -3546,7 +3526,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     return NavRailItem(
       icon: item.icon,
       iconFilled: item.iconFilled,
-      label: item.label,
+      label: context.settingsText(item.label),
       isSelected: isSelected,
       onTap: () => _onNavTap(context, index, currentScreen),
       tooltip: tooltip,

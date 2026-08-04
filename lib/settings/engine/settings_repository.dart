@@ -3,6 +3,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/settings/engine/settings_wrapper.dart';
+import 'package:otzaria/settings/l10n/settings_language.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 
@@ -136,6 +137,7 @@ class SettingsRepository {
       'key-google-calendar-sync-future-days';
   static const String keyGoogleCalendarLastSync =
       'key-google-calendar-last-sync';
+  static const String keySettingsLanguage = 'key-settings-language';
 
   final SettingsWrapper _settings;
 
@@ -406,7 +408,17 @@ class SettingsRepository {
         keyGoogleCalendarLastSync,
         defaultValue: 0,
       ),
+
+      // שפת מסך ההגדרות בלבד. משתמש קיים שאין לו את המפתח מקבל זיהוי אוטומטי.
+      'settingsLanguageCode': _settings.getValue<String>(
+        keySettingsLanguage,
+        defaultValue: kDefaultSettingsLanguageCode,
+      ),
     };
+  }
+
+  Future<void> updateSettingsLanguageCode(String value) async {
+    await _settings.setValue(keySettingsLanguage, value);
   }
 
   Future<void> updateDarkMode(bool value) async {

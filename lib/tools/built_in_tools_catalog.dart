@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 
 /// מטא-דאטה לתצוגה של כלי מובנה.
 ///
@@ -76,8 +77,8 @@ const List<BuiltInToolMeta> kBuiltInToolsCatalog = [
     toolId: 'builtin.aramaic_dictionary',
     label: 'מילון ארמי-עברי',
     order: 60,
-    icon: FluentIcons.translate_24_regular,
-    iconFilled: FluentIcons.translate_24_filled,
+    icon: OtzariaIcons.beit_behind_alef_24_regular,
+    iconFilled: OtzariaIcons.beit_behind_alef_24_regular,
   ),
   BuiltInToolMeta(
     toolId: 'builtin.acronyms_dictionary',

@@ -8,6 +8,7 @@ import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
+import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/settings/services/custom_folders/personal_books_import_service.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/theme/app_tokens.dart';
@@ -81,7 +82,7 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['txt', 'pdf', 'docx', 'epub'],
-      dialogTitle: 'בחר קבצי ספרים לייבוא',
+      dialogTitle: context.settingsText('בחר קבצי ספרים לייבוא'),
     );
     if (result == null) return null;
     return result.paths.whereType<String>().toList();
@@ -136,10 +137,13 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
     final title = p.basenameWithoutExtension(file.path);
     final confirmed = await showWarningDialog(
       context: context,
-      title: 'מחיקת ספר',
-      content: 'האם למחוק את "$title" מהספרים האישיים?',
-      cancelText: 'ביטול',
-      confirmText: 'מחק',
+      title: context.settingsText('מחיקת ספר'),
+      content: context.settingsText(
+        'האם למחוק את "{title}" מהספרים האישיים?',
+        args: {'title': title},
+      ),
+      cancelText: context.settingsText('ביטול'),
+      confirmText: context.settingsText('מחק'),
     );
     if (confirmed != true || !mounted) return;
 
@@ -169,7 +173,7 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
       case '.epub':
         return 'EPUB';
       default:
-        return 'טקסט';
+        return context.settingsText('טקסט');
     }
   }
 
@@ -192,12 +196,15 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
             DatabaseLibraryProvider.operationQueue.isBusy;
         return ExpandableSection(
           icon: FluentIcons.book_add_24_regular,
-          title: 'הספרים שלי',
+          title: context.settingsText('הספרים שלי'),
           subtitle: _importedFiles.isEmpty
-              ? 'ייבוא קבצי TXT, PDF, Word ו-EPUB לספרייה'
-              : '${_importedFiles.length} ספרים מיובאים',
+              ? context.settingsText('ייבוא קבצי TXT, PDF, Word ו-EPUB לספרייה')
+              : context.settingsText(
+                  '{count} ספרים מיובאים',
+                  args: {'count': _importedFiles.length},
+                ),
           trailing: ActionButton.recommended(
-            text: 'ייבוא ספרים',
+            text: context.settingsText('ייבוא ספרים'),
             icon: FluentIcons.book_add_24_regular,
             onPressed: _importBooks,
             isLoading: isBusy,
@@ -248,7 +255,7 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
       trailing: IconButton(
         icon: const Icon(FluentIcons.delete_24_regular, size: 18),
         onPressed: isBusy ? null : () => _deleteBook(file),
-        tooltip: 'מחק ספר',
+        tooltip: context.settingsText('מחק ספר'),
       ),
     );
   }

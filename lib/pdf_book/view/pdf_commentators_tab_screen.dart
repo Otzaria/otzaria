@@ -3,6 +3,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
@@ -434,7 +435,11 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
       int best = 0;
       while (lo <= hi) {
         final mid = (lo + hi) ~/ 2;
-        final page = await textToPdfPage(textBook, headings[mid].value);
+        final page = await textToPdfPage(
+          textBook,
+          headings[mid].value,
+          pdfBook: widget.tab.sourceTab.book,
+        );
         if (page == null) return; // אין מיפוי אמין — נשארים בברירת המחדל
         if (page <= targetPage) {
           best = mid;
@@ -767,6 +772,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
           final mapped = await textToPdfPage(
             textBook,
             headings[_selectedHeadingIdx].value,
+            pdfBook: sourceTab.book,
           );
           if (mapped != null) page = mapped;
         }
@@ -798,7 +804,9 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
         AppTopBarItem(
           widget: BarButton.icon(
             tooltip: 'ניווט',
-            icon: FluentIcons.navigation_24_regular,
+            icon: _navPaneOpen
+                ? OtzariaIcons.text_continuous_24_filled
+                : OtzariaIcons.text_continuous_24_regular,
             compact: isCompact,
             onPressed: () {
               setState(() => _navPaneOpen = !_navPaneOpen);
@@ -837,14 +845,14 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                 widget: BarButton.icon(
                   tooltip: _removeNikud ? 'הצג ניקוד' : 'הסתר ניקוד',
                   icon: _removeNikud
-                      ? FluentIcons.text_font_24_regular
-                      : FluentIcons.text_font_info_24_regular,
+                      ? OtzariaIcons.alef_with_score_24_regular
+                      : OtzariaIcons.alef_deletion_24_regular,
                   compact: isCompact,
                   onPressed: _toggleRemoveNikud,
                 ),
                 icon: _removeNikud
-                    ? FluentIcons.text_font_24_regular
-                    : FluentIcons.text_font_info_24_regular,
+                    ? OtzariaIcons.alef_with_score_24_regular
+                    : OtzariaIcons.alef_deletion_24_regular,
                 tooltip: _removeNikud ? 'הצג ניקוד' : 'הסתר ניקוד',
                 onPressed: _toggleRemoveNikud,
               ),
@@ -853,14 +861,14 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                 widget: BarButton.icon(
                   tooltip: _removePunctuation ? 'הצג פיסוק' : 'הסתר פיסוק',
                   icon: _removePunctuation
-                      ? FluentIcons.text_quote_24_regular
-                      : FluentIcons.text_clear_formatting_24_regular,
+                      ? OtzariaIcons.alef_with_punctuation_24_regular
+                      : OtzariaIcons.alef_with_eraser_24_regular,
                   compact: isCompact,
                   onPressed: () => _toggleRemovePunctuation(),
                 ),
                 icon: _removePunctuation
-                    ? FluentIcons.text_quote_24_regular
-                    : FluentIcons.text_clear_formatting_24_regular,
+                    ? OtzariaIcons.alef_with_punctuation_24_regular
+                    : OtzariaIcons.alef_with_eraser_24_regular,
                 tooltip: _removePunctuation ? 'הצג פיסוק' : 'הסתר פיסוק',
                 onPressed: () => _toggleRemovePunctuation(),
               ),
@@ -996,7 +1004,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                     controller: _navTabController,
                     tabs: const [
                       Tab(
-                        icon: Icon(FluentIcons.navigation_24_regular, size: 16),
+                        icon: Icon(OtzariaIcons.list_24_regular, size: 16),
                         iconMargin: EdgeInsets.only(bottom: 1),
                         height: 44,
                         child: Text(

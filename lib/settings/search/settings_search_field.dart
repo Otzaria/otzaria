@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
 /// שדה חיפוש בהגדרות, מעל אזור התוכן.
@@ -61,7 +62,7 @@ class _SettingsSearchFieldState extends State<SettingsSearchField> {
         style: const TextStyle(fontSize: 13),
         textAlignVertical: TextAlignVertical.center,
         decoration: InputDecoration(
-          hintText: 'חיפוש בהגדרות',
+          hintText: context.settingsText('חיפוש בהגדרות'),
           hintStyle: TextStyle(
             fontSize: 13,
             color: colorScheme.onSurfaceVariant,
@@ -78,7 +79,7 @@ class _SettingsSearchFieldState extends State<SettingsSearchField> {
           suffixIcon: hasText
               ? IconButton(
                   icon: const Icon(FluentIcons.dismiss_24_regular, size: 14),
-                  tooltip: 'נקה חיפוש',
+                  tooltip: context.settingsText('נקה חיפוש'),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(
                     minWidth: 28,
@@ -104,7 +105,7 @@ class _SettingsSearchFieldState extends State<SettingsSearchField> {
           ),
           isDense: true,
         ),
-        textAlign: TextAlign.right,
+        textAlign: TextAlign.start,
       ),
     );
   }
