@@ -265,7 +265,10 @@ void main() {
 
   /// מריץ [probe] עד שהוא מחזיר ערך שאינו null — הכתיבות למטמון המתמיד
   /// יוצאות ב-`unawaited` ולכן אינן מסונכרנות עם החזרת ההמרה.
-  Future<T?> waitFor<T>(Future<T?> Function() probe, {int attempts = 40}) async {
+  Future<T?> waitFor<T>(
+    Future<T?> Function() probe, {
+    int attempts = 40,
+  }) async {
     for (var i = 0; i < attempts; i++) {
       final value = await probe();
       if (value != null) return value;
@@ -296,20 +299,23 @@ void main() {
       expect(await textToPdfPage(books.texts.first, 20, pdfBook: books.pdf), 2);
     });
 
-    test('תוכן עניינים ריק אינו נשמר — הקריאה אחרי טעינת ה-DB מצליחה', () async {
-      // רגרסיה: תוכן עניינים ריק הוא מצב זמני (ה-DB טרם נטען). אם הוא נשמר
-      // במטמון, כל מעבר טקסט↔PDF נופל לתחילת הספר עד להפעלה מחדש.
-      final books = seedLibrary(
-        textTitles: const ['שבת-מטמון'],
-        pdfPath: p.join(tempDir.path, 'toc-later.pdf'),
-        withToc: false,
-      );
+    test(
+      'תוכן עניינים ריק אינו נשמר — הקריאה אחרי טעינת ה-DB מצליחה',
+      () async {
+        // רגרסיה: תוכן עניינים ריק הוא מצב זמני (ה-DB טרם נטען). אם הוא נשמר
+        // במטמון, כל מעבר טקסט↔PDF נופל לתחילת הספר עד להפעלה מחדש.
+        final books = seedLibrary(
+          textTitles: const ['שבת-מטמון'],
+          pdfPath: p.join(tempDir.path, 'toc-later.pdf'),
+          withToc: false,
+        );
 
-      expect(await pdfToTextPage(books.pdf, _matchingOutline(), 3), isNull);
+        expect(await pdfToTextPage(books.pdf, _matchingOutline(), 3), isNull);
 
-      books.provider.toc = _tractateToc('שבת-מטמון');
-      expect(await pdfToTextPage(books.pdf, _matchingOutline(), 3), 30);
-    });
+        books.provider.toc = _tractateToc('שבת-מטמון');
+        expect(await pdfToTextPage(books.pdf, _matchingOutline(), 3), 30);
+      },
+    );
 
     test('מפה לא אמינה נשמרת בכוונה כשתוכן העניינים כבר נטען', () async {
       // מיפוי שנכשל מול תוכן עניינים קיים הוא עובדה על המהדורות, ולא מצב
@@ -362,36 +368,43 @@ void main() {
       expect(entry.fileSize, await File(pdfPath).length());
     });
 
-    test('רשומה תקפה משמשת מחדש — createdAt נשמר ו-accessedAt מתעדכן', () async {
-      // שתי כותרות טקסט מול אותו PDF: מפתח מפת-העמודים שונה, ולכן הקריאה
-      // השנייה חוזרת למטמון המתמיד במקום להתקצר במטמון שבזיכרון.
-      final pdfPath = p.join(tempDir.path, 'reused.pdf');
-      await File(pdfPath).writeAsBytes(
-        buildMinimalPdf(pageCount: 3, bookmarks: _pdfBookmarks),
-      );
-      final books = seedLibrary(
-        textTitles: const ['יומא-א', 'יומא-ב'],
-        pdfPath: pdfPath,
-      );
+    test(
+      'רשומה תקפה משמשת מחדש — createdAt נשמר ו-accessedAt מתעדכן',
+      () async {
+        // שתי כותרות טקסט מול אותו PDF: מפתח מפת-העמודים שונה, ולכן הקריאה
+        // השנייה חוזרת למטמון המתמיד במקום להתקצר במטמון שבזיכרון.
+        final pdfPath = p.join(tempDir.path, 'reused.pdf');
+        await File(pdfPath).writeAsBytes(
+          buildMinimalPdf(pageCount: 3, bookmarks: _pdfBookmarks),
+        );
+        final books = seedLibrary(
+          textTitles: const ['יומא-א', 'יומא-ב'],
+          pdfPath: pdfPath,
+        );
 
-      expect(await textToPdfPage(books.texts[0], 20, pdfBook: books.pdf), 2);
-      final first = await waitFor(() => anchorRow(pdfPath));
-      expect(first, isNotNull);
+        expect(await textToPdfPage(books.texts[0], 20, pdfBook: books.pdf), 2);
+        final first = await waitFor(() => anchorRow(pdfPath));
+        expect(first, isNotNull);
 
-      await Future<void>.delayed(const Duration(milliseconds: 60));
-      expect(await textToPdfPage(books.texts[1], 20, pdfBook: books.pdf), 2);
+        await Future<void>.delayed(const Duration(milliseconds: 60));
+        expect(await textToPdfPage(books.texts[1], 20, pdfBook: books.pdf), 2);
 
-      final touched = await waitFor(() async {
-        final row = await anchorRow(pdfPath);
-        return row != null && row.accessedAt > first!.accessedAt ? row : null;
-      });
-      expect(touched, isNotNull, reason: 'accessedAt אמור להתעדכן בקריאה חוזרת');
-      expect(
-        touched!.createdAt,
-        first!.createdAt,
-        reason: 'הרשומה שוחזרה מהמטמון ולא נבנתה מחדש',
-      );
-    });
+        final touched = await waitFor(() async {
+          final row = await anchorRow(pdfPath);
+          return row != null && row.accessedAt > first!.accessedAt ? row : null;
+        });
+        expect(
+          touched,
+          isNotNull,
+          reason: 'accessedAt אמור להתעדכן בקריאה חוזרת',
+        );
+        expect(
+          touched!.createdAt,
+          first!.createdAt,
+          reason: 'הרשומה שוחזרה מהמטמון ולא נבנתה מחדש',
+        );
+      },
+    );
 
     test('החלפת הקובץ פוסלת את הרשומה ומרעננת את העוגנים', () async {
       final pdfPath = p.join(tempDir.path, 'replaced.pdf');
