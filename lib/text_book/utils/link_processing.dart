@@ -12,7 +12,12 @@ List<Link> mergeLinksByIdentity(
   };
 
   for (final link in incoming) {
-    merged[_linkIdentityKey(link)] = link;
+    final key = _linkIdentityKey(link);
+    final existingLink = merged[key];
+    if (existingLink == null ||
+        link.baseProvenance >= existingLink.baseProvenance) {
+      merged[key] = link;
+    }
   }
 
   final links = merged.values.toList();

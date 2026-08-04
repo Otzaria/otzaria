@@ -5,14 +5,19 @@ import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/text_book/view/sibling_commentaries_menu.dart';
 
-Link _sourceLink({int index1 = 5}) => Link(
+Link _sourceLink({
+  int index1 = 5,
+  String path2 = 'ברכות',
+  int baseProvenance = 0,
+}) => Link(
   heRef: 'ברכות ד ב',
   index1: index1,
-  path2: 'ברכות',
+  path2: path2,
   index2: 10,
   connectionType: LinkTypes.source,
   targetCategoryId: 3,
   targetFileType: 'text',
+  baseProvenance: baseProvenance,
 );
 
 Link _commentaryLink(String title) => Link(
@@ -37,6 +42,31 @@ void main() {
         LinkTypes.source,
       );
       expect(c.sourceLinkForLine(linksByLine, 6), isNull);
+      c.dispose();
+    });
+
+    test('sourceLinkForLine מעדיף את יחס הבסיס המוצהר על ציטוט לטרלי', () {
+      final c = SiblingCommentariesController(loadSiblings: (_) async => []);
+      // סדר הקישורים בשורה אלפביתי לפי path2, ולכן הציטוט הלטרלי קודם.
+      final linksByLine = {
+        5: [
+          _sourceLink(path2: 'אוצר לעזי רש"י'),
+          _sourceLink(path2: 'בבא קמא', baseProvenance: 2),
+        ],
+      };
+      expect(c.sourceLinkForLine(linksByLine, 5)?.path2, 'בבא קמא');
+      c.dispose();
+    });
+
+    test('sourceLinkForLine שומר על הראשון כשה-provenance שווה', () {
+      final c = SiblingCommentariesController(loadSiblings: (_) async => []);
+      final linksByLine = {
+        5: [
+          _sourceLink(path2: 'ברכות', baseProvenance: 2),
+          _sourceLink(path2: 'שבת', baseProvenance: 2),
+        ],
+      };
+      expect(c.sourceLinkForLine(linksByLine, 5)?.path2, 'ברכות');
       c.dispose();
     });
 
