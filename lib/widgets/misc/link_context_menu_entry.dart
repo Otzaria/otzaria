@@ -39,11 +39,11 @@ AppContextMenuEntry buildLinkContextMenuEntry({
 
 /// תוכן חלונית התצוגה המקדימה של קישור — כותרת (כתובת היעד) ותוכן הקטע,
 /// מעוצב לפי הגדרות תצוגת המפרשים (גופן, ניקוד, טעמים).
-class LinkHoverPreviewContent extends StatelessWidget {
+class LinkHoverPreviewContent extends StatefulWidget {
   final Link link;
 
-  /// כשמסופק — תוכן המפרש נחתך לגובה של [maxContentLines] שורות, ומופיע "…"
-  /// כשהתוכן ארוך מהחיתוך.
+  /// כשמסופק — תוכן המפרש נחתך לגובה של [maxContentLines] שורות, ומופיע לחצן
+  /// "…" כשהתוכן ארוך מהחיתוך; לחיצה עליו פורשת אותו לתצוגה נגללת מלאה.
   final int? maxContentLines;
 
   /// כותרת זעירה ומרווחים צמודים — לחלונית קופצת קטנה (עוגן-מילה).
@@ -66,6 +66,31 @@ class LinkHoverPreviewContent extends StatelessWidget {
     this.removeNikud,
     this.removePunctuation,
   });
+
+  @override
+  State<LinkHoverPreviewContent> createState() =>
+      _LinkHoverPreviewContentState();
+}
+
+class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
+  /// חלק מגובה המסך שהתוכן הפרוש מוגבל אליו, לפני הגלילה הפנימית.
+  static const double _expandedScreenFraction = 0.6;
+  static const double _expandedMaxHeight = 420;
+
+  bool _expanded = false;
+
+  Link get link => widget.link;
+  int? get maxContentLines => widget.maxContentLines;
+  bool get compact => widget.compact;
+  VoidCallback? get onOpen => widget.onOpen;
+  bool? get removeNikud => widget.removeNikud;
+  bool? get removePunctuation => widget.removePunctuation;
+
+  double get _expandedHeight =>
+      (MediaQuery.sizeOf(context).height * _expandedScreenFraction).clamp(
+        0.0,
+        _expandedMaxHeight,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -189,6 +214,14 @@ class LinkHoverPreviewContent extends StatelessWidget {
                       ),
                     );
                     if (maxContentLines == null) return content;
+                    if (_expanded) {
+                      return ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: _expandedHeight,
+                        ),
+                        child: SingleChildScrollView(child: content),
+                      );
+                    }
                     final fontSize = settingsState.commentatorsFontSize;
                     final lineHeight = settingsState.lineHeight;
                     final maxHeight = fontSize * lineHeight * maxContentLines!;
@@ -234,18 +267,13 @@ class LinkHoverPreviewContent extends StatelessWidget {
                             Positioned(
                               bottom: 0,
                               left: 0,
-                              child: ColoredBox(
-                                color: colorScheme.surface,
-                                child: Text(
-                                  '…',
-                                  style: TextStyle(
-                                    fontSize: fontSize,
-                                    fontFamily:
-                                        settingsState.commentatorsFontFamily,
-                                    height: lineHeight,
-                                    color: colorScheme.onSurface,
-                                  ),
-                                ),
+                              child: _ExpandContentButton(
+                                fontSize: fontSize,
+                                fontFamily:
+                                    settingsState.commentatorsFontFamily,
+                                lineHeight: lineHeight,
+                                onPressed: () =>
+                                    setState(() => _expanded = true),
                               ),
                             ),
                           ],
@@ -259,6 +287,48 @@ class LinkHoverPreviewContent extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// לחצן "…" בתחתית תוכן חתוך — לחיצה פורשת את התוכן לתצוגה נגללת.
+class _ExpandContentButton extends StatelessWidget {
+  final double fontSize;
+  final String fontFamily;
+  final double lineHeight;
+  final VoidCallback onPressed;
+
+  const _ExpandContentButton({
+    required this.fontSize,
+    required this.fontFamily,
+    required this.lineHeight,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      color: colorScheme.surface,
+      child: Tooltip(
+        message: 'הצגת כל התוכן',
+        child: InkWell(
+          onTap: onPressed,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              '…',
+              style: TextStyle(
+                fontSize: fontSize,
+                fontFamily: fontFamily,
+                height: lineHeight,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.primary,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
