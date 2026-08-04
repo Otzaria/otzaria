@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
-import '../sql/sqlite3_utils.dart';
+import '../sqlite3_utils.dart';
 import '../../models/category.dart';
-import '../sql/query_loader.dart';
+import '../query_loader.dart';
 import 'database.dart';
 
 class CategoryDao {

@@ -2,7 +2,7 @@ import 'package:otzaria/data/sqlite/sqlite3_api.dart';
 
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
-import 'package:otzaria/migration/database/sql/sqlite3_utils.dart';
+import 'package:otzaria/migration/database/sqlite3_utils.dart';
 
 /// SQLite database for storing personal notes.
 ///

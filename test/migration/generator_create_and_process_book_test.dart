@@ -16,7 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/migration/models/category.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
-import 'package:otzaria/migration/database/sql/sqlite3_utils.dart';
+import 'package:otzaria/migration/database/sqlite3_utils.dart';
 import 'package:otzaria/migration/generator/generator.dart';
 import 'package:path/path.dart' as p;
 

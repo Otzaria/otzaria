@@ -4,7 +4,7 @@ import 'dart:isolate';
 import '../../data/data_providers/database_library_provider.dart';
 import '../database/daos/database.dart';
 import '../database/repository/seforim_repository.dart';
-import '../database/sql/query_loader.dart';
+import '../database/query_loader.dart';
 import '../../settings/services/custom_folders/custom_folder.dart';
 import 'file_sync_service.dart';
 

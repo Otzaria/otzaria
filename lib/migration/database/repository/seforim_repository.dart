@@ -22,7 +22,7 @@ import '../../models/toc_text.dart';
 import '../../models/topic.dart';
 import '../daos/connection_type_dao.dart';
 import '../daos/database.dart';
-import '../sql/sqlite3_utils.dart';
+import '../sqlite3_utils.dart';
 
 /// Repository class for accessing and manipulating the Seforim database.
 /// Provides methods for CRUD operations on books, categories, lines, TOC entries, and links.

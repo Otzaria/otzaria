@@ -18,7 +18,7 @@ import 'search_dao.dart';
 import 'toc_dao.dart';
 import 'toc_text_dao.dart';
 import 'topic_dao.dart';
-import '../sql/query_loader.dart';
+import '../query_loader.dart';
 
 class MyDatabase {
   // הקובץ מוחזק ברמת המופע, לא static. זה מאפשר ליצור כמה מופעים

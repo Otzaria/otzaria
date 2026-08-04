@@ -1,6 +1,6 @@
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
-import '../sql/query_loader.dart';
-import '../sql/sqlite3_utils.dart';
+import '../query_loader.dart';
+import '../sqlite3_utils.dart';
 import 'database.dart';
 
 class BookAcronymDao {

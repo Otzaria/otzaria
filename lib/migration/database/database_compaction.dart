@@ -4,7 +4,7 @@ import 'dart:isolate';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 
 import 'daos/database.dart';
-import 'sql/sqlite3_utils.dart';
+import 'sqlite3_utils.dart';
 
 /// כיווץ כותב את כל הקובץ מחדש, ולכן רץ רק כשיש מה להרוויח: לפחות 1MB
 /// פנוי (256 דפים של 4KB) וגם לפחות רבע מהקובץ.
