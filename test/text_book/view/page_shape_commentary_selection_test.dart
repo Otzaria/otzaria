@@ -42,6 +42,15 @@ void main() {
       );
     });
 
+    test('תווית בחירה מרובה מציגה את כל המפרשים שנבחרו', () {
+      final encoded = encodePageShapeCommentatorsSelection(
+        const ['רש"י', 'תוספות'],
+        forceMultipleMode: true,
+      );
+
+      expect(formatPageShapeCommentatorSelection(encoded), 'רש"י, תוספות');
+    });
+
     test('preserves explicit multi mode without initial selection', () {
       final encoded = encodePageShapeCommentatorsSelection(
         const [],
@@ -59,19 +68,24 @@ void main() {
       );
     });
 
-    test('בחירה מרובה שמורה מתכווצת למפרש הראשון הזמין', () {
-      // האפשרות "מפרשים מרובים" הוסרה; הגדרה שנשמרה לפני כן לא מתרוקנת אלא
-      // נטענת כמפרש בודד.
+    test('בחירה מרובה שמורה נשארת במצב מרובה עם כל המפרשים הזמינים', () {
       final encoded = encodePageShapeCommentatorsSelection(
         const ['רש"י', 'רמב"ן'],
       );
 
-      final resolved = resolvePageShapeSelectedCommentators(
+      final resolved = resolvePageShapeCommentatorSelection(
         selection: encoded,
         availableCommentators: const ['רש"י על ברכות', 'תוספות', 'רמב"ן'],
       );
 
-      expect(resolved, ['רש"י על ברכות']);
+      expect(isPageShapeMultipleCommentatorsMode(resolved), isTrue);
+      expect(
+        resolvePageShapeSelectedCommentators(
+          selection: resolved,
+          availableCommentators: const ['רש"י על ברכות', 'תוספות', 'רמב"ן'],
+        ),
+        ['רש"י על ברכות', 'רמב"ן'],
+      );
     });
 
     test(
@@ -92,14 +106,14 @@ void main() {
       },
     );
 
-    test('מצב מרובה שמור נטען כמפרש הבודד שנותר זמין', () {
+    test('שדה בחירה בודדת מציג את המפרש הראשון מבחירה מרובה', () {
       final encoded = encodePageShapeCommentatorsSelection(
         const ['רש"י'],
         forceMultipleMode: true,
       );
 
       expect(
-        resolvePageShapeCommentatorSelection(
+        resolvePageShapeSingleCommentatorSelection(
           selection: encoded,
           availableCommentators: const ['רש"י על ברכות', 'תוספות'],
         ),

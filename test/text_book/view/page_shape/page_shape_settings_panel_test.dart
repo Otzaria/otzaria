@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_settings_panel.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as text_utils;
 
@@ -31,6 +32,7 @@ void main() {
     WidgetTester tester, {
     VoidCallback? onSettingsChanged,
     String? currentWorkspaceId,
+    String? currentRight,
     List<String> availableCommentators = const ['רש"י על בראשית'],
   }) async {
     await tester.pumpWidget(
@@ -43,6 +45,7 @@ void main() {
                 availableCommentators: availableCommentators,
                 bookTitle: 'בראשית',
                 currentWorkspaceId: currentWorkspaceId,
+                currentRight: currentRight,
                 onSettingsChanged: onSettingsChanged,
               ),
             ),
@@ -231,6 +234,39 @@ void main() {
     expect(
       PageShapeSettingsManager.loadConfiguration('בראשית')?['left'],
       isNull,
+    );
+  });
+
+  testWidgets('שמירת הגדרה אחרת אינה מוחקת בחירה מרובה מהחלונית', (
+    tester,
+  ) async {
+    final selection = encodePageShapeCommentatorsSelection(
+      const ['רש"י על בראשית', 'רמב"ן על בראשית'],
+      forceMultipleMode: true,
+    );
+    await pumpPanel(
+      tester,
+      currentRight: selection,
+      availableCommentators: const ['רש"י על בראשית', 'רמב"ן על בראשית'],
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.widgetWithText(FilledButton, 'רש"י על בראשית'),
+      findsOneWidget,
+    );
+
+    final highlightSwitch = find.widgetWithText(
+      SwitchListTile,
+      'הדגש פרשנים קשורים',
+    );
+    await tester.ensureVisible(highlightSwitch);
+    await tester.tap(highlightSwitch);
+    await tester.pumpAndSettle();
+
+    expect(
+      PageShapeSettingsManager.loadConfiguration('בראשית')?['right'],
+      selection,
     );
   });
 

@@ -8,8 +8,7 @@ const String pageShapeRemainingCommentatorsValue =
 /// התווית המוצגת למשתמש עבור אפשרות שאר המפרשים.
 const String pageShapeRemainingCommentatorsLabel = 'שאר המפרשים';
 
-/// ערך מיוחד שסימן בעבר טור עם בחירת מפרשים מרובים. האפשרות הוסרה, והערך
-/// נשאר רק כדי לזהות הגדרות שמורות ולהמיר אותן למפרש בודד.
+/// ערך מיוחד שמציין טור עם בחירת מפרשים מרובים מהחלונית.
 const String pageShapeMultipleCommentatorsModeValue =
     '__PAGE_SHAPE_MULTIPLE_COMMENTATORS_MODE__';
 
@@ -111,10 +110,7 @@ List<String> decodePageShapeCommentatorsSelection(String? value) {
   return _decodeMultiCommentators(value);
 }
 
-/// ממיר בחירה שמורה לשם מלא מתוך רשימת המפרשים הזמינים.
-///
-/// בחירה מרובה שנשמרה לפני שהאפשרות הוסרה מתכווצת למפרש הראשון שבה, כדי
-/// שהטור לא יתרוקן למי שכבר הגדיר אותו.
+/// ממיר בחירה שמורה לשמות המלאים מתוך רשימת המפרשים הזמינים.
 String? resolvePageShapeCommentatorSelection({
   required String? selection,
   required List<String> availableCommentators,
@@ -130,12 +126,52 @@ String? resolvePageShapeCommentatorSelection({
         selection;
   }
 
+  final resolved = <String>[];
+  final seen = <String>{};
   for (final commentator in decodePageShapeCommentatorsSelection(selection)) {
     final match = findMatchingPageShapeCommentator(
       commentator,
       availableCommentators,
     );
-    if (match != null) return match;
+    if (match != null && seen.add(match)) {
+      resolved.add(match);
+    }
+  }
+
+  if (resolved.isEmpty) {
+    return null;
+  }
+
+  return encodePageShapeCommentatorsSelection(
+    resolved,
+    forceMultipleMode: true,
+  );
+}
+
+/// מחזיר את המפרש הראשון להצגה בשדה שמקבל בחירה בודדת בלבד.
+String? resolvePageShapeSingleCommentatorSelection({
+  required String? selection,
+  required List<String> availableCommentators,
+}) {
+  if (selection == null ||
+      isPageShapeRemainingCommentatorsValue(selection) ||
+      selection == pageShapeMultipleCommentatorsModeValue) {
+    return null;
+  }
+
+  if (!isPageShapeMultiCommentatorsValue(selection)) {
+    return findMatchingPageShapeCommentator(selection, availableCommentators) ??
+        selection;
+  }
+
+  for (final commentator in decodePageShapeCommentatorsSelection(selection)) {
+    final match = findMatchingPageShapeCommentator(
+      commentator,
+      availableCommentators,
+    );
+    if (match != null) {
+      return match;
+    }
   }
 
   return null;
@@ -276,14 +312,19 @@ String formatPageShapeCommentatorSelection(String? value) {
     return pageShapeRemainingCommentatorsLabel;
   }
 
-  // בחירה מרובה שנשמרה בעבר מוצגת לפי המפרש הראשון שבה, כמו שהיא נטענת.
   if (value == pageShapeMultipleCommentatorsModeValue) {
-    return 'ללא מפרש';
+    return 'מפרשים מרובים';
   }
 
   if (isPageShapeMultiCommentatorsValue(value)) {
     final commentators = decodePageShapeCommentatorsSelection(value);
-    return commentators.isEmpty ? 'ללא מפרש' : commentators.first;
+    if (commentators.isEmpty) {
+      return 'מפרשים מרובים';
+    }
+    if (commentators.length <= 2) {
+      return commentators.join(', ');
+    }
+    return '${commentators.length} מפרשים';
   }
 
   return value ?? 'ללא מפרש';

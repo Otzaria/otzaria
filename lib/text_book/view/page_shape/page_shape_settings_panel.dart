@@ -63,6 +63,7 @@ class PageShapeSettingsPanel extends StatefulWidget {
 
 class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
   String? _leftCommentator;
+  String? _rightCommentatorSelection;
   String? _rightSingleCommentator;
   String? _bottomCommentator;
   String? _bottomRightCommentator;
@@ -129,7 +130,8 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
 
     setState(() {
       _leftCommentator = widget.currentLeft;
-      _rightSingleCommentator = resolvePageShapeCommentatorSelection(
+      _rightCommentatorSelection = widget.currentRight;
+      _rightSingleCommentator = resolvePageShapeSingleCommentatorSelection(
         selection: widget.currentRight,
         availableCommentators: widget.availableCommentators,
       );
@@ -167,7 +169,7 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
     // שמירת הגדרות מפרשים - לספר או לקטגוריה לפי הבחירה
     final config = {
       'left': _leftCommentator,
-      'right': _rightSingleCommentator,
+      'right': _rightCommentatorSelection,
       'bottom': _bottomCommentator,
       'bottomRight': _bottomRightCommentator,
     };
@@ -603,11 +605,16 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
         _buildCommentatorDropdown(
           label: 'מפרש שמאלי',
           value: _rightSingleCommentator,
-          onChanged: (value) => _onCommentatorChanged(
-            value,
-            (v) => _rightSingleCommentator = v,
-            visibilityKey: 'right',
-          ),
+          onChanged: (value) {
+            _onCommentatorChanged(
+              value,
+              (v) {
+                _rightSingleCommentator = v;
+                _rightCommentatorSelection = v;
+              },
+              visibilityKey: 'right',
+            );
+          },
           visibilityKey: 'right',
         ),
         const SizedBox(height: 12),
