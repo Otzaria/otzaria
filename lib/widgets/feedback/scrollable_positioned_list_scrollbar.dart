@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
@@ -46,8 +47,9 @@ class _ScrollablePositionedListScrollbarState
   double _thumbPosition = 0.0;
   double _thumbHeight = 0.1; // יחס גובה ברירת מחדל
   bool _isDragging = false;
-  // ברירת מחדל false כדי שלא נציג את ה-track בספרים קטנים שכל תוכנם נכנס במסך.
-  // יתעדכן ל-true ברגע שה-positions מראים שיש פריט מחוץ למסך.
+  // נקבע ממטריקות ה-Scrollable ולא מ-itemPositions: הן מתעדכנות רק בגלילה או
+  // בבנייה מחדש, וכשגובה פריט גדל אחרי הדיווח האחרון (תוכן מפרש שנטען) הן
+  // נשארות ישנות — והמסילה נעלמה לגמרי בחלונית המפרשים.
   bool _canScroll = false;
   // האינדקס המקסימלי שאפשר לקפוץ אליו (itemCount - visibleItems) — נשמר כדי
   // שמיפוי הגרירה לאינדקס יישאר עקבי גם כש-_thumbHeight מקובל למינימום
@@ -152,6 +154,18 @@ class _ScrollablePositionedListScrollbarState
     _labelController.hide();
   }
 
+  /// עוקב אחרי מידות התוכן של הרשימה כדי לדעת אם יש בכלל מה לגלול.
+  /// depth אחר מאפס הוא גלילה מקוננת בתוך פריט ואינו רלוונטי למסילה.
+  bool _onScrollMetrics(ScrollMetricsNotification notification) {
+    if (notification.depth != 0) return false;
+    final canScroll =
+        notification.metrics.maxScrollExtent > precisionErrorTolerance;
+    if (canScroll != _canScroll && mounted) {
+      setState(() => _canScroll = canScroll);
+    }
+    return false;
+  }
+
   /// ממפה מיקום אנכי על המסילה לאינדקס היעד — בדיוק כמו חישוב הקפיצה
   /// ב-[_jumpToTrackPosition], כדי שהתווית תציג את היעד האמיתי של לחיצה.
   int _indexFromTrackDy(double localDy, double trackHeight) {
@@ -170,9 +184,8 @@ class _ScrollablePositionedListScrollbarState
     final positions = widget.itemPositionsListener.itemPositions.value;
     if (positions.isEmpty || widget.itemCount == 0) return;
 
-    // מציאת האינדקסים הראשונים והאחרונים הנראים, יחד עם הקצוות שלהם —
-    // הקצוות נחוצים כדי להחליט אם באמת יש מה לגלול (ראה חישוב _canScroll
-    // בהמשך הפונקציה).
+    // האינדקסים הראשון והאחרון הנראים והקצוות שלהם — מהם נגזרים גובה האגודל
+    // ומיקומו.
     int minIndex = positions.first.index;
     int maxIndex = positions.first.index;
     double leadingAtMin = positions.first.itemLeadingEdge;
@@ -263,17 +276,7 @@ class _ScrollablePositionedListScrollbarState
           )
         : 0.0;
 
-    // כל התוכן נראה אם הפריט הראשון מתחיל בתוך המסך, האחרון מסתיים בתוכו,
-    // וכל הפריטים בטווח הזה מיוצגים — במצב כזה אין מה לגלול ואין טעם
-    // להציג את הפס.
-    final allVisible =
-        minIndex == 0 &&
-        maxIndex == widget.itemCount - 1 &&
-        leadingAtMin >= 0 &&
-        trailingAtMax <= 1.0;
-
     setState(() {
-      _canScroll = !allVisible;
       // _maxScrollableIndex חייב להתעדכן גם תוך כדי גרירה: כשהמשתמש גורר
       // לתוך אזור עם פריטים גדולים יותר (לדוגמה — אזור שבו מפרש פתוח, או
       // כותרות עם הרבה תוכן) מספר הפריטים הגלויים יורד והאינדקס המקסימלי
@@ -532,11 +535,14 @@ class _ScrollablePositionedListScrollbarState
             ),
           ),
         Expanded(
-          child: ScrollConfiguration(
-            behavior: ScrollConfiguration.of(
-              context,
-            ).copyWith(scrollbars: false),
-            child: widget.child,
+          child: NotificationListener<ScrollMetricsNotification>(
+            onNotification: _onScrollMetrics,
+            child: ScrollConfiguration(
+              behavior: ScrollConfiguration.of(
+                context,
+              ).copyWith(scrollbars: false),
+              child: widget.child,
+            ),
           ),
         ),
       ],

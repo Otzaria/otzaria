@@ -16,6 +16,69 @@ class _RecordingItemScrollController extends ItemScrollController {
   }
 }
 
+/// פריט שגדל אחרי הפריים הראשון בלי שהרשימה נבנית מחדש — כמו מפרש שתוכנו
+/// נטען לתוכו. במצב הזה itemPositions נשאר עם הדיווח הראשון.
+class _GrowingItem extends StatefulWidget {
+  const _GrowingItem();
+
+  @override
+  State<_GrowingItem> createState() => _GrowingItemState();
+}
+
+class _GrowingItemState extends State<_GrowingItem> {
+  double _height = 40;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _height = 900);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox(height: _height);
+}
+
+/// ילד שמדווח [ScrollMetricsNotification] בלי Scrollable אמיתי. הסרגל נשען על
+/// המטריקות כדי להחליט אם להציג את המסילה, והטסטים כאן מזינים את הפוזיציות
+/// בעצמם ולכן אין להם רשימה שתדווח אותן.
+class _ScrollableStub extends StatefulWidget {
+  const _ScrollableStub({super.key, this.height, this.maxScrollExtent = 1000});
+
+  final double? height;
+  final double maxScrollExtent;
+
+  @override
+  State<_ScrollableStub> createState() => _ScrollableStubState();
+}
+
+class _ScrollableStubState extends State<_ScrollableStub> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScrollMetricsNotification(
+        metrics: FixedScrollMetrics(
+          minScrollExtent: 0,
+          maxScrollExtent: widget.maxScrollExtent,
+          pixels: 0,
+          viewportDimension: 100,
+          axisDirection: AxisDirection.down,
+          devicePixelRatio: 1,
+        ),
+        context: context,
+      ).dispatch(context);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.height == null
+      ? const SizedBox.expand()
+      : SizedBox(height: widget.height, width: double.infinity);
+}
+
 void main() {
   testWidgets('פס הגלילה שומר רצועה נפרדת מהתוכן כשצריך לגלול', (tester) async {
     final listener = ItemPositionsListener.create();
@@ -29,7 +92,7 @@ void main() {
             scrollController: controller,
             itemPositionsListener: listener,
             itemCount: 10,
-            child: Container(key: contentKey),
+            child: const _ScrollableStub(key: contentKey),
           ),
         ),
       ),
@@ -46,6 +109,52 @@ void main() {
     expect(tester.getTopLeft(find.byKey(contentKey)).dx, 12.0);
   });
 
+  testWidgets('פריט שגדל אחרי הפריים הראשון מחזיר את המסילה (חלונית המפרשים)', (
+    tester,
+  ) async {
+    // רגרסיה: תוכן המפרשים נטען לתוך פריט קיים, בלי שהרשימה נבנית מחדש, ולכן
+    // itemPositions נשאר עם הדיווח הראשון שבו הכול נכנס במסך. הסרגל הסתמך רק
+    // עליו וכך המסילה לא הופיעה כלל בחלונית המפרשים.
+    final listener = ItemPositionsListener.create();
+    final controller = ItemScrollController();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ScrollablePositionedListScrollbar(
+            scrollController: controller,
+            itemPositionsListener: listener,
+            itemCount: 4,
+            child: ScrollablePositionedList.builder(
+              itemScrollController: controller,
+              itemPositionsListener: listener,
+              itemCount: 4,
+              itemBuilder: (context, i) => const _GrowingItem(),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byType(ScrollablePositionedList),
+      findsOneWidget,
+      reason: 'הרשימה עצמה חייבת להיות שם',
+    );
+    final thumb = find.descendant(
+      of: find.byType(ScrollablePositionedListScrollbar),
+      matching: find.byWidgetPredicate(
+        (w) => w is Container && w.decoration is BoxDecoration,
+      ),
+    );
+    expect(
+      thumb,
+      findsOneWidget,
+      reason: 'התוכן גדל וחורג מהמסך — המסילה חייבת להופיע',
+    );
+  });
+
   testWidgets('פס הגלילה מוסתר כשכל התוכן נראה במסך', (tester) async {
     final listener = ItemPositionsListener.create();
     final controller = ItemScrollController();
@@ -58,7 +167,7 @@ void main() {
             scrollController: controller,
             itemPositionsListener: listener,
             itemCount: 2,
-            child: Container(key: contentKey),
+            child: const _ScrollableStub(key: contentKey, maxScrollExtent: 0),
           ),
         ),
       ),
@@ -92,7 +201,7 @@ void main() {
                 scrollController: controller,
                 itemPositionsListener: listener,
                 itemCount: 10,
-                child: const SizedBox(key: contentKey, height: 100),
+                child: const _ScrollableStub(key: contentKey, height: 100),
               ),
             ),
           ),
@@ -127,7 +236,7 @@ void main() {
             scrollController: controller,
             itemPositionsListener: listener,
             itemCount: 100,
-            child: const SizedBox.expand(),
+            child: const _ScrollableStub(),
           ),
         ),
       ),
@@ -177,7 +286,7 @@ void main() {
             scrollController: controller,
             itemPositionsListener: listener,
             itemCount: 100,
-            child: const SizedBox.expand(),
+            child: const _ScrollableStub(),
           ),
         ),
       ),
@@ -237,7 +346,7 @@ void main() {
             scrollController: controller,
             itemPositionsListener: listener,
             itemCount: 100,
-            child: const SizedBox.expand(),
+            child: const _ScrollableStub(),
           ),
         ),
       ),
@@ -290,7 +399,7 @@ void main() {
             scrollController: controller,
             itemPositionsListener: listener,
             itemCount: 10,
-            child: const SizedBox.expand(),
+            child: const _ScrollableStub(),
           ),
         ),
       ),
@@ -339,7 +448,7 @@ void main() {
               scrollController: controller,
               itemPositionsListener: listener,
               itemCount: 100,
-              child: const SizedBox.expand(),
+              child: const _ScrollableStub(),
             ),
           ),
         ),
@@ -411,7 +520,7 @@ void main() {
               scrollController: controller,
               itemPositionsListener: listener,
               itemCount: 40,
-              child: const SizedBox.expand(),
+              child: const _ScrollableStub(),
             ),
           ),
         ),
@@ -467,7 +576,7 @@ void main() {
             scrollController: controller,
             itemPositionsListener: listener,
             itemCount: 100,
-            child: const SizedBox.expand(),
+            child: const _ScrollableStub(),
           ),
         ),
       ),
@@ -519,7 +628,7 @@ void main() {
             scrollController: controller,
             itemPositionsListener: listener,
             itemCount: 100,
-            child: const SizedBox.expand(),
+            child: const _ScrollableStub(),
           ),
         ),
       ),
@@ -563,7 +672,7 @@ void main() {
           scrollController: controller,
           itemPositionsListener: listener,
           itemCount: 10,
-          child: const SizedBox.expand(),
+          child: const _ScrollableStub(),
         ),
       );
     }
@@ -604,7 +713,7 @@ void main() {
               requestedIndices.add(index);
               return 'יעד $index';
             },
-            child: const SizedBox.expand(),
+            child: const _ScrollableStub(),
           ),
         ),
       ),
@@ -652,7 +761,7 @@ void main() {
             itemPositionsListener: listener,
             itemCount: 100,
             labelForIndex: (index) => 'יעד $index',
-            child: const SizedBox.expand(),
+            child: const _ScrollableStub(),
           ),
         ),
       ),
@@ -699,7 +808,7 @@ void main() {
             itemPositionsListener: listener,
             itemCount: 100,
             labelForIndex: (index) => 'יעד $index',
-            child: const SizedBox.expand(),
+            child: const _ScrollableStub(),
           ),
         ),
       ),
@@ -750,7 +859,7 @@ void main() {
             scrollController: controller,
             itemPositionsListener: listener,
             itemCount: 100,
-            child: const SizedBox.expand(),
+            child: const _ScrollableStub(),
           ),
         ),
       ),
@@ -855,7 +964,7 @@ void main() {
               scrollController: controller,
               itemPositionsListener: listener,
               itemCount: 1000,
-              child: const SizedBox.expand(),
+              child: const _ScrollableStub(),
             ),
           ),
         ),
@@ -946,7 +1055,7 @@ void main() {
               scrollController: controller,
               itemPositionsListener: listener,
               itemCount: 1000,
-              child: const SizedBox.expand(),
+              child: const _ScrollableStub(),
             ),
           ),
         ),
@@ -1001,7 +1110,7 @@ void main() {
             scrollController: controller,
             itemPositionsListener: listener,
             itemCount: 120,
-            child: const SizedBox.expand(),
+            child: const _ScrollableStub(),
           ),
         ),
       ),
@@ -1262,7 +1371,7 @@ void main() {
             scrollController: controller,
             itemPositionsListener: listener,
             itemCount: itemCount,
-            child: const SizedBox.expand(),
+            child: const _ScrollableStub(),
           ),
         ),
       ),
