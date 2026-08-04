@@ -296,7 +296,7 @@ void main() {
       await bloc.close();
     });
 
-    test('פירוק הטאב מותיר חלונית פעילה תקינה', () async {
+    test('פירוק הטאב משאיר את החלונית השמאלית הפעילה כטאב הנוכחי', () async {
       final second = pdf('ב');
       final split = CombinedTab(rightTab: pdf('א'), leftTab: second);
       final bloc = await blocWith([split]);
@@ -307,7 +307,9 @@ void main() {
       bloc.add(const ExpandCombinedTab(0));
       await bloc.stream.firstWhere((s) => s.tabs.length == 2);
 
-      expect(bloc.state.activePane, same(bloc.state.currentTab));
+      expect(bloc.state.currentTabIndex, 1);
+      expect(bloc.state.currentTab, same(second));
+      expect(bloc.state.activePane, same(second));
 
       await bloc.close();
     });

@@ -1114,7 +1114,11 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       newTabs.removeAt(combinedIndex);
       newTabs.insertAll(combinedIndex, panes);
 
-      final newCurrentIndex = combinedIndex;
+      final activePaneIndex = panes.indexWhere(
+        (pane) => identical(pane, state.activePane),
+      );
+      final newCurrentIndex =
+          combinedIndex + (activePaneIndex < 0 ? 0 : activePaneIndex);
 
       emit(
         state.copyWith(
