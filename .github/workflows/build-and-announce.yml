@@ -1046,6 +1046,10 @@ jobs:
           zstd -d -c --long=31 --memory=2048MB full_installer/library_db/seforim.db.zst > "$BUNDLE_ROOT/אוצריא/seforim.db"
           zstd -d -c --long=31 --memory=2048MB full_installer/library_db/otzar-HB_catalog.db.zst > "$BUNDLE_ROOT/אוצריא/otzar-HB_catalog.db"
           zstd -d -c --long=31 --memory=2048MB full_installer/library_db/talmud_bavli_latest.tar.zst | tar -xf - -C "$BUNDLE_ROOT/אוצריא"
+          # בלי קובץ הגרסה בתיקייה, בדיקת העדכון הראשונה של האפליקציה מורידה את
+          # התלמוד (~440MB) מחדש; ה-sha256 של הארכיון הוא ה-digest שהיא משווה מולו.
+          sha256sum full_installer/library_db/talmud_bavli_latest.tar.zst \
+            | cut -d' ' -f1 > "$BUNDLE_ROOT/אוצריא/תלמוד בבלי/.version"
           # מילון החיפוש המקורב (lexical.db) — אינו דחוס, מועתק כמות שהוא ליד seforim.db.
           cp full_installer/library_db/lexical.db "$BUNDLE_ROOT/אוצריא/lexical.db"
           # קובץ marker שמסמן לאפליקציה שהתיקייה היא ספרייה מצורפת של חבילת FULL.
@@ -1601,6 +1605,10 @@ jobs:
           zstd -d -c --long=31 --memory=2048MB full_installer/library_db/seforim.db.zst > "$BUNDLE_ROOT/אוצריא/seforim.db"
           zstd -d -c --long=31 --memory=2048MB full_installer/library_db/otzar-HB_catalog.db.zst > "$BUNDLE_ROOT/אוצריא/otzar-HB_catalog.db"
           zstd -d -c --long=31 --memory=2048MB full_installer/library_db/talmud_bavli_latest.tar.zst | tar -xf - -C "$BUNDLE_ROOT/אוצריא"
+          # בלי קובץ הגרסה בתיקייה, בדיקת העדכון הראשונה של האפליקציה מורידה את
+          # התלמוד (~440MB) מחדש; ה-sha256 של הארכיון הוא ה-digest שהיא משווה מולו.
+          shasum -a 256 full_installer/library_db/talmud_bavli_latest.tar.zst \
+            | cut -d' ' -f1 > "$BUNDLE_ROOT/אוצריא/תלמוד בבלי/.version"
           # מילון החיפוש המקורב (lexical.db) — אינו דחוס, מועתק כמות שהוא ליד seforim.db.
           cp full_installer/library_db/lexical.db "$BUNDLE_ROOT/אוצריא/lexical.db"
           # קובץ marker שמסמן לאפליקציה שהתיקייה היא ספרייה מצורפת של חבילת FULL.

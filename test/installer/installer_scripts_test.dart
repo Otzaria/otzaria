@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 
 /// טסטים על סקריפטי ה-Inno Setup. הם אינם נבנים ב-CI של הטסטים, ולכן ההגנה
@@ -70,7 +71,8 @@ void main() {
         expect(
           match,
           isNotNull,
-          reason: 'בלי מחיקה, מסמן מהתקנת מנהל קודמת שורד מעבר להתקנת משתמש '
+          reason:
+              'בלי מחיקה, מסמן מהתקנת מנהל קודמת שורד מעבר להתקנת משתמש '
               'ו-AppPaths.detectInstallMode ימשיך להחזיר systemWide',
         );
         expect(
@@ -131,7 +133,8 @@ void main() {
       expect(
         body,
         contains('GetCustomLibraryPath()'),
-        reason: 'בלי זה שינוי מצב ההתקנה מזיז את יעד החילוץ בעוד האפליקציה '
+        reason:
+            'בלי זה שינוי מצב ההתקנה מזיז את יעד החילוץ בעוד האפליקציה '
             'ממשיכה לקרוא מהנתיב הישן',
       );
       expect(
@@ -419,4 +422,49 @@ void main() {
       });
     }
   });
+
+  group('סימון גרסת התלמוד בחבילות FULL', () {
+    // בלי הסימון האפליקציה מורידה מחדש ~440MB בבדיקת העדכון הראשונה.
+    final versionFile = DatabaseConstants.talmudBavliVersionFileName;
+
+    test('$_full: החילוץ כותב את הסימון מ-sha256 של הארכיון', () {
+      final body = _routine(
+        _script(_full),
+        'procedure ExtractBundledTarArchive(',
+      );
+
+      expect(body, contains("TargetDir + '\\$versionFile'"));
+      expect(body, contains('Lowercase(GetSHA256OfFile(ArchivePath))'));
+      expect(
+        body.indexOf('SaveStringToFile'),
+        lessThan(body.indexOf('DeleteFile(ArchivePath)')),
+        reason: 'ה-sha256 מחושב על הארכיון — לפני מחיקתו',
+      );
+    });
+
+    for (final entry in const {
+      'Create Linux FULL portable bundle': 'sha256sum',
+      'Create macOS FULL portable bundle': 'shasum -a 256',
+    }.entries) {
+      test('${entry.key}: הסימון נכתב לתיקיית התלמוד', () {
+        final step = _workflowStep(entry.key);
+        final talmudDir =
+            '\$BUNDLE_ROOT/אוצריא/${DatabaseConstants.talmudBavliFolderName}';
+
+        expect(step, contains(entry.value));
+        expect(step, contains('$talmudDir/$versionFile'));
+      });
+    }
+  });
+}
+
+/// גוף שלב [name] ב-workflow הראשי, עד השלב הבא.
+String _workflowStep(String name) {
+  final workflow = File(
+    '.github/workflows/build-and-announce.yml',
+  ).readAsStringSync().replaceAll('\r\n', '\n');
+  final start = workflow.indexOf('- name: $name');
+  expect(start, greaterThanOrEqualTo(0), reason: 'לא נמצא השלב $name');
+  final next = workflow.indexOf('\n      - name: ', start + 1);
+  return next < 0 ? workflow.substring(start) : workflow.substring(start, next);
 }

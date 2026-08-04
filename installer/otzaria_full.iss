@@ -1633,6 +1633,15 @@ begin
   end;
 
   DeleteFile(TarPath);
+  // בלי קובץ הגרסה בתיקייה, בדיקת העדכון הראשונה של האפליקציה מורידה את
+  // התלמוד (~440MB) מחדש; ה-sha256 של הארכיון הוא ה-digest שהיא משווה מולו.
+  // GetSHA256OfFile זורק חריגה על כשל קריאה — סימון חסר אינו מכשיל התקנה שהצליחה.
+  try
+    SaveStringToFile(TargetDir + '\.version',
+      Lowercase(GetSHA256OfFile(ArchivePath)), False);
+  except
+    Log('Talmud version marker was not written: ' + GetExceptionMessage);
+  end;
   DeleteFile(ArchivePath);
 end;
 
