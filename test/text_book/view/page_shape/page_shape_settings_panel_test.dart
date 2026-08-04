@@ -4,7 +4,7 @@
 // 2. עדכון חי: כל שינוי (גופן, גודל, הדגשה) נשמר מיידית ומפעיל את
 //    onSettingsChanged כדי שהמסך יתרענן בלי לסגור את הפאנל.
 // 3. שדות המפרשים נפתחים כתפריט חיפוש מוצמד (לא דיאלוג): בחירה נשמרת מיידית,
-//    "ללא מפרש" ממופה ל-null, "מפרשים מרובים" עובר למצב מרובה, וחיפוש מסנן.
+//    "ללא מפרש" ממופה ל-null, וחיפוש מסנן את הרשימה.
 // הפאנל נגלל ע"י ContextOverlayPanel העוטף; כאן עוטפים ב-SingleChildScrollView.
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -234,34 +234,25 @@ void main() {
     );
   });
 
-  testWidgets(
-    'בחירת "מפרשים מרובים" בשדה השמאלי עוברת למצב מרובה ומציגה את פאנל המידע',
-    (tester) async {
-      await pumpPanel(tester);
-      await tester.pumpAndSettle();
+  testWidgets('השדה השמאלי אינו מציע עוד "מפרשים מרובים"', (tester) async {
+    await pumpPanel(tester);
+    await tester.pumpAndSettle();
 
-      // "מפרש שמאלי" הוא השדה היחיד שמציע את מצב הבחירה המרובה.
-      final leftPaneField = find.descendant(
-        of: find
-            .ancestor(of: find.text('מפרש שמאלי'), matching: find.byType(Row))
-            .first,
-        matching: find.byType(FilledButton),
-      );
-      await tester.ensureVisible(leftPaneField);
-      await tester.pumpAndSettle();
-      await tester.tap(leftPaneField);
-      await tester.pumpAndSettle();
+    final leftPaneField = find.descendant(
+      of: find
+          .ancestor(of: find.text('מפרש שמאלי'), matching: find.byType(Row))
+          .first,
+      matching: find.byType(FilledButton),
+    );
+    await tester.ensureVisible(leftPaneField);
+    await tester.pumpAndSettle();
+    await tester.tap(leftPaneField);
+    await tester.pumpAndSettle();
 
-      await tester.tap(menuItem('מפרשים מרובים'));
-      await tester.pumpAndSettle();
-
-      // מצב מרובה נכנס לתוקף → _buildRightPaneInfo מוצג.
-      expect(
-        find.text('הבחירה המפורטת נעשית מתוך החלונית עצמה.'),
-        findsOneWidget,
-      );
-    },
-  );
+    expect(menuItem('מפרשים מרובים'), findsNothing);
+    expect(menuItem('ללא מפרש'), findsOneWidget);
+    expect(menuItem('רש"י על בראשית'), findsOneWidget);
+  });
 
   testWidgets('הקלדה בשדה החיפוש מסננת את רשימת המפרשים בתפריט', (
     tester,

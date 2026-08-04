@@ -64,8 +64,6 @@ class PageShapeSettingsPanel extends StatefulWidget {
 class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
   String? _leftCommentator;
   String? _rightSingleCommentator;
-  bool _rightUsesMultipleSelection = false;
-  List<String> _rightCommentators = [];
   String? _bottomCommentator;
   String? _bottomRightCommentator;
   String _bottomFontFamily = AppFonts.defaultFont;
@@ -131,33 +129,9 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
 
     setState(() {
       _leftCommentator = widget.currentLeft;
-      final resolvedRightSelection = resolvePageShapeCommentatorSelection(
+      _rightSingleCommentator = resolvePageShapeCommentatorSelection(
         selection: widget.currentRight,
         availableCommentators: widget.availableCommentators,
-      );
-      _rightUsesMultipleSelection = isPageShapeMultipleCommentatorsMode(
-        resolvedRightSelection,
-      );
-      _rightSingleCommentator = _rightUsesMultipleSelection
-          ? null
-          : resolvedRightSelection;
-      _rightCommentators = resolvePageShapeSelectedCommentators(
-        selection: widget.currentRight,
-        availableCommentators: widget.availableCommentators,
-        excludedCommentators: [
-          resolvePageShapeCommentatorSelection(
-            selection: widget.currentLeft,
-            availableCommentators: widget.availableCommentators,
-          ),
-          resolvePageShapeCommentatorSelection(
-            selection: widget.currentBottom,
-            availableCommentators: widget.availableCommentators,
-          ),
-          resolvePageShapeCommentatorSelection(
-            selection: widget.currentBottomRight,
-            availableCommentators: widget.availableCommentators,
-          ),
-        ],
       );
       _bottomCommentator = widget.currentBottom;
       _bottomRightCommentator = widget.currentBottomRight;
@@ -193,12 +167,7 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
     // שמירת הגדרות מפרשים - לספר או לקטגוריה לפי הבחירה
     final config = {
       'left': _leftCommentator,
-      'right': _rightUsesMultipleSelection
-          ? encodePageShapeCommentatorsSelection(
-              _rightCommentators,
-              forceMultipleMode: true,
-            )
-          : _rightSingleCommentator,
+      'right': _rightSingleCommentator,
       'bottom': _bottomCommentator,
       'bottomRight': _bottomRightCommentator,
     };
@@ -273,20 +242,6 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
     // גופן מערכת (שאינו מוטמע באפליקציה) חייב להיטען לפני השמירה,
     // אחרת העדכון החי יציג fallback במקום הגופן שנבחר.
     AppFonts.ensureFontLoaded(value).then((_) => _saveSettings());
-  }
-
-  void _onRightCommentatorModeChanged(String? value) {
-    final isMultipleMode = value == pageShapeMultipleCommentatorsModeValue;
-
-    setState(() {
-      _rightUsesMultipleSelection = isMultipleMode;
-      _rightSingleCommentator = isMultipleMode ? null : value;
-      if ((isMultipleMode || value != null) &&
-          _columnVisibility['right'] == false) {
-        _columnVisibility['right'] = true;
-      }
-    });
-    _saveSettings();
   }
 
   void _onFontSizeChanged(double value) {
@@ -647,17 +602,14 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
         const SizedBox(height: 12),
         _buildCommentatorDropdown(
           label: 'מפרש שמאלי',
-          value: _rightUsesMultipleSelection
-              ? pageShapeMultipleCommentatorsModeValue
-              : _rightSingleCommentator,
-          onChanged: _onRightCommentatorModeChanged,
+          value: _rightSingleCommentator,
+          onChanged: (value) => _onCommentatorChanged(
+            value,
+            (v) => _rightSingleCommentator = v,
+            visibilityKey: 'right',
+          ),
           visibilityKey: 'right',
-          allowMultipleCommentatorsSelection: true,
         ),
-        if (_rightUsesMultipleSelection) ...[
-          const SizedBox(height: 8),
-          _buildRightPaneInfo(),
-        ],
         const SizedBox(height: 12),
         _buildCommentatorDropdown(
           label: 'מפרש תחתון',
@@ -773,7 +725,6 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
     required ValueChanged<String?> onChanged,
     String? visibilityKey,
     bool allowRemainingCommentatorsSelection = false,
-    bool allowMultipleCommentatorsSelection = false,
   }) {
     final isVisible = visibilityKey != null
         ? (_columnVisibility[visibilityKey] ?? true)
@@ -781,7 +732,6 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
 
     final menuData = _buildCommentatorMenuData(
       allowRemaining: allowRemainingCommentatorsSelection,
-      allowMultiple: allowMultipleCommentatorsSelection,
     );
 
     return Row(
@@ -842,7 +792,6 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
   })
   _buildCommentatorMenuData({
     required bool allowRemaining,
-    required bool allowMultiple,
   }) {
     if (_isLoadingGroups) {
       return (
@@ -853,14 +802,6 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
     }
 
     final entries = <AppMenuEntry<String>>[];
-    if (allowMultiple) {
-      entries.add(
-        const AppMenuEntry(
-          value: pageShapeMultipleCommentatorsModeValue,
-          label: pageShapeMultipleCommentatorsModeLabel,
-        ),
-      );
-    }
     if (allowRemaining) {
       entries.add(
         const AppMenuEntry(
@@ -899,43 +840,6 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
       entries: entries,
       filterLabels: filterLabels,
       filterPredicates: filterPredicates,
-    );
-  }
-
-  Widget _buildRightPaneInfo() {
-    final selectionLabel = _rightCommentators.isEmpty
-        ? 'לא נבחרו מפרשים'
-        : formatPageShapeCommentatorSelection(
-            encodePageShapeCommentatorsSelection(
-              _rightCommentators,
-              forceMultipleMode: true,
-            ),
-          );
-
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(start: 40),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            selectionLabel,
-            style: TextStyle(
-              fontSize: 13,
-              color: _rightCommentators.isEmpty
-                  ? Theme.of(context).hintColor
-                  : Theme.of(context).textTheme.bodyLarge?.color,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'הבחירה המפורטת נעשית מתוך החלונית עצמה.',
-            style: TextStyle(
-              fontSize: 12,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

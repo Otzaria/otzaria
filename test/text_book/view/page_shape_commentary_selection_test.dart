@@ -59,21 +59,20 @@ void main() {
       );
     });
 
-    test(
-      'resolves explicit multi selection against available commentators',
-      () {
-        final encoded = encodePageShapeCommentatorsSelection(
-          const ['רש"י', 'רמב"ן'],
-        );
+    test('בחירה מרובה שמורה מתכווצת למפרש הראשון הזמין', () {
+      // האפשרות "מפרשים מרובים" הוסרה; הגדרה שנשמרה לפני כן לא מתרוקנת אלא
+      // נטענת כמפרש בודד.
+      final encoded = encodePageShapeCommentatorsSelection(
+        const ['רש"י', 'רמב"ן'],
+      );
 
-        final resolved = resolvePageShapeSelectedCommentators(
-          selection: encoded,
-          availableCommentators: const ['רש"י על ברכות', 'תוספות', 'רמב"ן'],
-        );
+      final resolved = resolvePageShapeSelectedCommentators(
+        selection: encoded,
+        availableCommentators: const ['רש"י על ברכות', 'תוספות', 'רמב"ן'],
+      );
 
-        expect(resolved, ['רש"י על ברכות', 'רמב"ן']);
-      },
-    );
+      expect(resolved, ['רש"י על ברכות']);
+    });
 
     test(
       'does not keep multiple mode when no selected commentator is available',
@@ -93,21 +92,18 @@ void main() {
       },
     );
 
-    test('keeps multiple mode when one selected commentator still matches', () {
+    test('מצב מרובה שמור נטען כמפרש הבודד שנותר זמין', () {
       final encoded = encodePageShapeCommentatorsSelection(
         const ['רש"י'],
         forceMultipleMode: true,
       );
 
-      final resolved = resolvePageShapeCommentatorSelection(
-        selection: encoded,
-        availableCommentators: const ['רש"י על ברכות', 'תוספות'],
-      );
-
-      expect(isPageShapeMultipleCommentatorsMode(resolved), isTrue);
       expect(
-        decodePageShapeCommentatorsSelection(resolved),
-        ['רש"י על ברכות'],
+        resolvePageShapeCommentatorSelection(
+          selection: encoded,
+          availableCommentators: const ['רש"י על ברכות', 'תוספות'],
+        ),
+        'רש"י על ברכות',
       );
     });
 
