@@ -59,9 +59,6 @@ const double _kCommentaryPaneWidthFactor = 0.17;
 /// רוחב הכותרת האנכית + רווחים + מפריד (20 לכותרת + 4 לרווח + 8 למפריד)
 const double _kCommentaryLabelAndSpacingWidth = 32.0;
 
-/// מספר הלשוניות בחלונית הצד (מפרשים / קישורים / הערות)
-const int _kSidebarTabCount = 3;
-
 /// מסך תצוגת צורת הדף - מציג את הטקסט המרכזי עם מפרשים מסביב
 class PageShapeScreen extends StatefulWidget {
   final Function(OpenedTab) openBookCallback;
@@ -103,10 +100,11 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
   int _settingsPaneKey = 0;
   final SelectionSyncController _selectionSyncController =
       SelectionSyncController();
-  final ValueNotifier<int> _openFilterRequest = ValueNotifier<int>(0);
   final ValueNotifier<int> _openCommentatorsFilterNotifier = ValueNotifier<int>(
     0,
   );
+  final ValueNotifier<int> _closeCommentatorsFilterNotifier =
+      ValueNotifier<int>(0);
 
   // גדלים לחלוניות - יחושבו לפי גודל המסך
   double? _leftSidebarWidth;
@@ -674,7 +672,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
   }
 
   void _openLeftSidebarTab(int index) {
-    final validIndex = index.clamp(0, _kSidebarTabCount - 1);
+    final validIndex = index.clamp(0, kSidebarTabCount - 1);
     if (_isLeftSidebarOpen && _leftSidebarTabIndex == validIndex) {
       return;
     }
@@ -733,15 +731,24 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
   }
 
   /// פתיחת חלונית הצד על לשונית המפרשים (מתפריט ההקשר של גוף הספר).
-  void _openCommentatorsPane() => _openLeftSidebarTab(kCommentaryTabIndex);
+  /// מקפלת מסך בחירה שנשאר פרוש מפעם קודמת — תוכן החלונית נשמר ב-tree.
+  void _openCommentatorsPane() {
+    _openLeftSidebarTab(kCommentaryTabIndex);
+    _notifyCommentatorsFilter(_closeCommentatorsFilterNotifier);
+  }
 
   /// פתיחת לשונית המפרשים עם חלונית בחירת המפרשים פרושה.
   void _openCommentatorsPaneWithFilter() {
     _openLeftSidebarTab(kCommentaryTabIndex);
-    _openCommentatorsFilterNotifier.value++;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    _notifyCommentatorsFilter(_openCommentatorsFilterNotifier);
+  }
+
+  /// המעבר ללשונית המפרשים מרכיב מחדש את CommentaryListBase תוך כדי אנימציית
+  /// הלשוניות; יריה לפני שהמאזין שלו נרשם נבלעת בשקט, ולכן ממתינים לסופה.
+  void _notifyCommentatorsFilter(ValueNotifier<int> notifier) {
+    Future.delayed(kTabScrollDuration, () {
       if (!mounted) return;
-      _openFilterRequest.value++;
+      notifier.value++;
     });
   }
 
@@ -811,8 +818,8 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
       _onToggleCommentatorsPaneRequest,
     );
     _selectionSyncController.dispose();
-    _openFilterRequest.dispose();
     _openCommentatorsFilterNotifier.dispose();
+    _closeCommentatorsFilterNotifier.dispose();
     super.dispose();
   }
 
@@ -905,9 +912,10 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                           fontSize: state.fontSize,
                           showSearch: true,
                           selectionSyncController: _selectionSyncController,
-                          openFilterRequest: _openFilterRequest,
                           openCommentatorsFilterNotifier:
                               _openCommentatorsFilterNotifier,
+                          closeCommentatorsFilterNotifier:
+                              _closeCommentatorsFilterNotifier,
                           tab: widget.tab,
                           onNavigateToLine: (lineNumber) =>
                               _navigateToLine(state, lineNumber),

@@ -1678,16 +1678,14 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
 
     if (entries.isNotEmpty) entries.add(const AppContextMenuEntry.divider());
     if (widget.isMainText) {
-      if (widget.onOpenCommentatorsPane != null) {
-        entries.add(
-          AppContextMenuEntry(
-            label: 'מפרשים',
-            icon: FluentIcons.book_24_regular,
-            enabled: state.availableCommentators.isNotEmpty,
-            childrenBuilder: () => _buildCommentatorsMenuItems(state),
-          ),
-        );
-      }
+      entries.add(
+        AppContextMenuEntry(
+          label: 'מפרשים',
+          icon: FluentIcons.book_24_regular,
+          enabled: state.availableCommentators.isNotEmpty,
+          childrenBuilder: () => _buildCommentatorsMenuItems(state, index),
+        ),
+      );
       entries.add(
         AppContextMenuEntry(
           label: 'קישורים',
@@ -1848,6 +1846,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   ) {
     final book = widget.reportBook;
     if (book == null) return const [];
+    // בלי categoryId השאילתה על ספר המפרש נכשלת, ותת-התפריט היה נתקע על
+    // "שגיאה בטעינה" במקום פשוט לא להופיע.
+    if (book.categoryId == null && !book.isUserBook) return const [];
 
     final targetLink = Link(
       heRef: book.title,
@@ -1887,7 +1888,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
 
   /// פריטי תת-התפריט "מפרשים" — זהים לתצוגה הרגילה, ומשנים את בחירת המפרשים
   /// שמוצגת בלשונית המפרשים בחלונית הצד (לא את טורי צורת הדף).
-  List<AppContextMenuEntry> _buildCommentatorsMenuItems(TextBookLoaded state) {
+  List<AppContextMenuEntry> _buildCommentatorsMenuItems(
+    TextBookLoaded state,
+    int index,
+  ) {
     final showOpenPane = shouldShowOpenCommentatorsPaneEntry(
       hasSelectedCommentators: state.activeCommentators.isNotEmpty,
       showCommentaryAsExpansionTiles: false,
@@ -1899,15 +1903,31 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       isCommentatorsTabActive: widget.isCommentatorsTabActive,
     );
 
+    // חלונית המפרשים נגזרת מ-selectedIndex; בלי הסנכרון הזה לחיצה ימנית על
+    // שורה רחוקה הייתה מציגה את המפרשים של השורה שנבחרה קודם בלחיצה שמאלית.
+    void selectClickedLine() {
+      if (!mounted || state.selectedIndex == index) return;
+      context.read<TextBookBloc>().add(UpdateSelectedIndex(index));
+    }
+
     return buildCommentatorsContextMenuChildren(
       activeCommentators: state.activeCommentators,
       availableCommentators: state.availableCommentators,
       commentatorGroups: state.commentatorGroups,
-      onOpenPane: showOpenPane ? widget.onOpenCommentatorsPane : null,
+      onOpenPane: showOpenPane && widget.onOpenCommentatorsPane != null
+          ? () {
+              selectClickedLine();
+              widget.onOpenCommentatorsPane!();
+            }
+          : null,
       onSelectMultiple: showSelect
-          ? widget.onOpenCommentatorsPaneWithFilter
+          ? () {
+              selectClickedLine();
+              widget.onOpenCommentatorsPaneWithFilter!();
+            }
           : null,
       onCommentatorsChanged: (commentators, {required isAdding}) {
+        selectClickedLine();
         context.read<TextBookBloc>().add(UpdateCommentators(commentators));
         if (isAdding) widget.onOpenCommentatorsPane?.call();
       },

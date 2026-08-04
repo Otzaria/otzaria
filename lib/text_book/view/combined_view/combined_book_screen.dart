@@ -63,10 +63,6 @@ import 'package:otzaria/text_book/utils/commentators_context_menu.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
     as inline_notes;
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
-// מיוצא כאן כדי שצרכני התצוגה המשולבת (ובדיקותיה) יגיעו למדיניות התפריט
-// מנקודה אחת.
-export 'package:otzaria/text_book/utils/commentators_context_menu.dart'
-    show shouldShowOpenCommentatorsPaneEntry, shouldShowSelectCommentatorsEntry;
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
 import 'package:otzaria/text_book/utils/numbered_note_markers.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';

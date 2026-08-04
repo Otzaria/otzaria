@@ -16,6 +16,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
+import 'package:otzaria/text_book/utils/commentators_context_menu.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/view/selection/enhanced_gesture_detector.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
@@ -155,55 +156,6 @@ void main() {
     });
   });
 
-  group('shouldShowOpenCommentatorsPaneEntry', () {
-    test(
-      'מחזירה true כשיש מפרשים נבחרים, החלונית בצד וטאב המפרשים אינו פעיל',
-      () {
-        expect(
-          shouldShowOpenCommentatorsPaneEntry(
-            hasSelectedCommentators: true,
-            showCommentaryAsExpansionTiles: false,
-            isCommentatorsTabActive: false,
-          ),
-          isTrue,
-        );
-      },
-    );
-
-    test('מחזירה false כשאין מפרשים נבחרים', () {
-      expect(
-        shouldShowOpenCommentatorsPaneEntry(
-          hasSelectedCommentators: false,
-          showCommentaryAsExpansionTiles: false,
-          isCommentatorsTabActive: false,
-        ),
-        isFalse,
-      );
-    });
-
-    test('מחזירה false כשהמפרשים מוצגים כהרחבה מתחת לטקסט', () {
-      expect(
-        shouldShowOpenCommentatorsPaneEntry(
-          hasSelectedCommentators: true,
-          showCommentaryAsExpansionTiles: true,
-          isCommentatorsTabActive: false,
-        ),
-        isFalse,
-      );
-    });
-
-    test('מחזירה false כשטאב המפרשים כבר פעיל', () {
-      expect(
-        shouldShowOpenCommentatorsPaneEntry(
-          hasSelectedCommentators: true,
-          showCommentaryAsExpansionTiles: false,
-          isCommentatorsTabActive: true,
-        ),
-        isFalse,
-      );
-    });
-  });
-
   group('shouldShowPersonalNotePreview', () {
     test('מציג תצוגה מקדימה כשטאב ההערות אינו פעיל', () {
       expect(
@@ -250,61 +202,6 @@ void main() {
         isFalse,
       );
     });
-  });
-
-  group('shouldShowSelectCommentatorsEntry', () {
-    test('מחזירה true כשיש callback וטאב המפרשים אינו פעיל', () {
-      expect(
-        shouldShowSelectCommentatorsEntry(
-          hasOpenCommentatorsPaneWithFilterCallback: true,
-          isCommentatorsTabActive: false,
-        ),
-        isTrue,
-      );
-    });
-
-    test('מחזירה false כשטאב המפרשים פעיל', () {
-      expect(
-        shouldShowSelectCommentatorsEntry(
-          hasOpenCommentatorsPaneWithFilterCallback: true,
-          isCommentatorsTabActive: true,
-        ),
-        isFalse,
-      );
-    });
-
-    test('מחזירה false כשאין callback', () {
-      expect(
-        shouldShowSelectCommentatorsEntry(
-          hasOpenCommentatorsPaneWithFilterCallback: false,
-          isCommentatorsTabActive: false,
-        ),
-        isFalse,
-      );
-    });
-
-    test(
-      'בניגוד ל-shouldShowOpenCommentatorsPaneEntry, מציג גם בלי מפרשים נבחרים',
-      () {
-        // הלוגיקה כאן לא תלויה ב-hasSelectedCommentators כלל — היחס בין
-        // שני ה-predicates אמור להישאר עקבי גם כשהבחירה ריקה.
-        expect(
-          shouldShowOpenCommentatorsPaneEntry(
-            hasSelectedCommentators: false,
-            showCommentaryAsExpansionTiles: false,
-            isCommentatorsTabActive: false,
-          ),
-          isFalse,
-        );
-        expect(
-          shouldShowSelectCommentatorsEntry(
-            hasOpenCommentatorsPaneWithFilterCallback: true,
-            isCommentatorsTabActive: false,
-          ),
-          isTrue,
-        );
-      },
-    );
   });
 
   group('shouldRebuildSelectionAreaOnExternalChange', () {

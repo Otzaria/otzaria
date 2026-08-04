@@ -24,6 +24,8 @@ import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 const int kCommentaryTabIndex = 0;
 const int kLinksTabIndex = 1;
 const int kNotesTabIndex = 2;
+const int kSidebarTabCount = 3;
+const int _kLastTabIndex = kSidebarTabCount - 1;
 
 /// Widget שמציג כרטיסיות עם מפרשים וקישורים בחלונית הצד
 class TabbedCommentaryPanel extends StatefulWidget {
@@ -76,27 +78,29 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
 
   // פונקציה ציבורית לעבור לכרטיסיית הקישורים
   void switchToLinksTab() {
-    if (_tabController.index != 1) {
-      _tabController.animateTo(1);
+    if (_tabController.index != kLinksTabIndex) {
+      _tabController.animateTo(kLinksTabIndex);
     }
   }
 
   @override
   void initState() {
     super.initState();
-    // וידוא שהאינדקס ההתחלתי תקף (בין 0 ל-2)
-    final validInitialIndex = (widget.initialTabIndex ?? 0).clamp(0, 2);
+    final validInitialIndex = (widget.initialTabIndex ?? 0).clamp(
+      0,
+      _kLastTabIndex,
+    );
     _tabController = TabController(
-      length: 3, // 3 טאבים: מפרשים, קישורים והערות אישיות
+      length: kSidebarTabCount, // מפרשים, קישורים והערות אישיות
       vsync: this,
-      initialIndex: validInitialIndex, // כרטיסייה ראשונית
+      initialIndex: validInitialIndex,
     );
 
     // מאזין לשינויים בטאב ושומר אותם
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging &&
           _tabController.index >= 0 &&
-          _tabController.index < 3) {
+          _tabController.index < kSidebarTabCount) {
         widget.onTabChanged?.call(_tabController.index);
       }
     });
@@ -108,7 +112,7 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
     // אם יש אינדקס חדש, עובר אליו (עם וידוא שהוא תקף)
     if (widget.initialTabIndex != null &&
         widget.initialTabIndex != oldWidget.initialTabIndex) {
-      final validIndex = widget.initialTabIndex!.clamp(0, 2);
+      final validIndex = widget.initialTabIndex!.clamp(0, _kLastTabIndex);
       // וודא שהאינדקס שונה מהנוכחי לפני שמנסים לעבור אליו
       if (_tabController.index != validIndex) {
         _tabController.animateTo(validIndex);
@@ -240,15 +244,15 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                     fontSize: widget.fontSize,
                     selectionSyncController: widget.selectionSyncController,
                     showVisibleLinksIfNoSelection:
-                        widget.initialTabIndex == 1, // אם נפתח ישירות לקישורים
+                        widget.initialTabIndex == kLinksTabIndex,
                   ),
                   // כרטיסיית ההערות האישיות
                   PersonalNotesSidebar(
                     bookId: state.book.title,
                     categoryId: state.book.categoryId,
-                    onNavigateToLine: (line) => widget.onNavigateToLine != null
-                        ? widget.onNavigateToLine!(line)
-                        : _handleNoteNavigation(context, state, line),
+                    onNavigateToLine:
+                        widget.onNavigateToLine ??
+                        (line) => _handleNoteNavigation(context, state, line),
                   ),
                 ],
               ),

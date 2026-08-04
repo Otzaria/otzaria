@@ -22,6 +22,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_screen.dart';
 import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
@@ -48,12 +49,30 @@ void main() {
     await Settings.setValue<bool>('page_shape_global_visibility_bottom', false);
   });
 
-  Future<TextBookTab> pumpScreen(WidgetTester tester) async {
-    await tester.binding.setSurfaceSize(const Size(2000, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+  Future<TextBookTab> pumpScreen(
+    WidgetTester tester, {
+    ValueNotifier<int?>? sidebarTabNotifier,
+    List<String> availableCommentators = const [],
+    List<String> activeCommentators = const [],
+    List<CommentatorGroup> commentatorGroups = const [],
+    List<Link> links = const [],
+  }) async {
+    // חלונית הצד היא 22% מרוחב המסך; בברירת המחדל (800px) היא צרה מדי
+    // ושורת הלחצנים של המפרשים גולשת.
+    tester.view.physicalSize = const Size(2000, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
 
     final book = TextBook(title: bookTitle);
-    final textBookBloc = _TestTextBookBloc(_loadedState(book));
+    final textBookBloc = _TestTextBookBloc(
+      _loadedState(
+        book,
+        availableCommentators: availableCommentators,
+        activeCommentators: activeCommentators,
+        commentatorGroups: commentatorGroups,
+        links: links,
+      ),
+    );
     final personalNotesBloc = _TestPersonalNotesBloc(
       const PersonalNotesState.initial(),
     );
@@ -88,7 +107,11 @@ void main() {
               BlocProvider<NavigationBloc>.value(value: navigationBloc),
               BlocProvider<TabsBloc>.value(value: tabsBloc),
             ],
-            child: PageShapeScreen(openBookCallback: (_) {}, tab: tab),
+            child: PageShapeScreen(
+              openBookCallback: (_) {},
+              tab: tab,
+              sidebarTabNotifier: sidebarTabNotifier,
+            ),
           ),
         ),
       ),
@@ -102,6 +125,9 @@ void main() {
     of: find.byType(PanelTabHeader),
     matching: find.byIcon(icon),
   );
+
+  int activeTabIndex(WidgetTester tester) =>
+      tester.widget<TabBar>(find.byType(TabBar)).controller!.index;
 
   testWidgets('הידית הצדדית פותחת את חלונית הצד על שלוש הלשוניות', (
     tester,
@@ -143,6 +169,32 @@ void main() {
     expect(find.text('לא נמצאו קישורים לקטע הנבחר'), findsOneWidget);
   });
 
+  testWidgets('בקשה חיצונית לפתיחת ההערות נוחתת על לשונית ההערות', (
+    tester,
+  ) async {
+    // המיפוי השתנה (הערות עברו מ-1 ל-2); זה המסלול שנשבר בשקט אם מישהו
+    // יחזיר ליטרל.
+    final notifier = ValueNotifier<int?>(null);
+    addTearDown(notifier.dispose);
+    await pumpScreen(tester, sidebarTabNotifier: notifier);
+
+    notifier.value = kNotesTabIndex;
+    await tester.pumpAndSettle();
+
+    expect(activeTabIndex(tester), kNotesTabIndex);
+  });
+
+  testWidgets('בקשה לאינדקס מחוץ לתחום נחתכת ללשונית האחרונה', (tester) async {
+    final notifier = ValueNotifier<int?>(null);
+    addTearDown(notifier.dispose);
+    await pumpScreen(tester, sidebarTabNotifier: notifier);
+
+    notifier.value = 5;
+    await tester.pumpAndSettle();
+
+    expect(activeTabIndex(tester), kSidebarTabCount - 1);
+  });
+
   testWidgets('הקיצור Ctrl+Shift+C פותח את לשונית המפרשים וסוגר בשנייה', (
     tester,
   ) async {
@@ -159,16 +211,22 @@ void main() {
   });
 }
 
-TextBookLoaded _loadedState(TextBook book) => TextBookLoaded(
+TextBookLoaded _loadedState(
+  TextBook book, {
+  List<String> availableCommentators = const [],
+  List<String> activeCommentators = const [],
+  List<CommentatorGroup> commentatorGroups = const [],
+  List<Link> links = const [],
+}) => TextBookLoaded(
   book: book,
   showLeftPane: false,
   content: const ['שורה א'],
   fontSize: 18,
   showSplitView: false,
   showPageShapeView: true,
-  activeCommentators: const [],
-  commentatorGroups: const [],
-  availableCommentators: const [],
+  activeCommentators: activeCommentators,
+  commentatorGroups: commentatorGroups,
+  availableCommentators: availableCommentators,
   links: const <Link>[],
   visibleLinks: const <Link>[],
   linksByLine: const {},

@@ -3,16 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
-/// סדר הקבוצות בתת-התפריט "מפרשים" — לפי דורות, כמו בחלונית בחירת המפרשים.
-const List<String> _kGroupOrder = <String>[
-  'תורה שבכתב',
-  'חז"ל',
-  'ראשונים',
-  'אחרונים',
-  'מחברי זמננו',
-  'שאר מפרשים',
-];
-
 /// פריט "פתח את חלונית המפרשים" יוצג כשיש מפרשים נבחרים, המפרשים אינם מוצגים
 /// inline מתחת לטקסט, וטאב המפרשים אינו כבר פעיל בחלונית הצד.
 bool shouldShowOpenCommentatorsPaneEntry({
@@ -126,13 +116,13 @@ List<AppContextMenuEntry> buildCommentatorsContextMenuChildren({
     ),
   ];
 
-  for (final title in _kGroupOrder) {
-    final group = buildGroup(
-      CommentatorGroup.groupByTitle(commentatorGroups, title),
-    );
-    if (group.isEmpty) continue;
+  // הקבוצות מגיעות מה-BLoC כשהן כבר ממוינות לפי דורות; מפריד מתווסף רק לפני
+  // קבוצה שיש בה מפרשים, כדי שקבוצה ריקה באמצע לא תדביק שתי קבוצות זו לזו.
+  for (final group in commentatorGroups) {
+    final items = buildGroup(group);
+    if (items.isEmpty) continue;
     entries.add(const AppContextMenuEntry.divider());
-    entries.addAll(group);
+    entries.addAll(items);
   }
 
   return entries;

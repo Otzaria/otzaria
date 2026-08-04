@@ -1022,7 +1022,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     }
 
     setState(() {
-      _sidebarTabIndex = 2;
+      _sidebarTabIndex = kNotesTabIndex;
     });
     // Fire the notifier directly so SplitedViewScreen always opens the panel,
     // even when showSplitView is already true and the bloc won't emit a new state

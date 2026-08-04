@@ -17,6 +17,7 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
+import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria/widgets/misc/app_context_menu.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -141,11 +142,17 @@ void main() {
       expect(openedFilter, 0);
     });
 
-    testWidgets('בלי callback לפתיחת החלונית — אין תת-תפריט "מפרשים"', (
+    testWidgets('בלי callbacks — התפריט קיים אך בלי פריטי פתיחת החלונית', (
       tester,
     ) async {
       final bloc = _RecordingTextBookBloc(
-        _loadedState(availableCommentators: const ['רש"י']),
+        _loadedState(
+          availableCommentators: const ['רש"י'],
+          activeCommentators: const ['רש"י'],
+          commentatorGroups: const [
+            CommentatorGroup(title: 'ראשונים', commentators: ['רש"י']),
+          ],
+        ),
       );
       addTearDown(bloc.close);
 
@@ -161,8 +168,89 @@ void main() {
       );
 
       await openContextMenu(tester);
-      expect(find.text('מפרשים'), findsNothing);
-      expect(find.text('קישורים'), findsOneWidget);
+      await tester.tap(find.text('מפרשים'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('פתח את חלונית המפרשים'), findsNothing);
+      expect(find.text('בחר מפרשים מרובים'), findsNothing);
+      expect(find.text('הצג את כל המפרשים'), findsOneWidget);
+    });
+
+    testWidgets('בחירת מפרש מסנכרנת את הקטע לשורה שנלחצה בכפתור הימני', (
+      tester,
+    ) async {
+      // רגרסיה: חלונית המפרשים נגזרת מ-selectedIndex, ולכן בחירה מהתפריט על
+      // שורה אחרת חייבת להזיז אותו — אחרת מוצגים המפרשים של השורה הקודמת.
+      final bloc = _RecordingTextBookBloc(
+        _loadedState(
+          availableCommentators: const ['רש"י'],
+          commentatorGroups: const [
+            CommentatorGroup(title: 'ראשונים', commentators: ['רש"י']),
+          ],
+        ),
+      );
+      addTearDown(bloc.close);
+
+      await pumpViewer(
+        tester,
+        textBookBloc: bloc,
+        viewer: SimpleTextViewer(
+          content: const ['שורה א', 'שורה ב', 'שורה ג'],
+          fontSize: 18,
+          openBookCallback: (_) {},
+          isMainText: true,
+          onOpenCommentatorsPane: () {},
+        ),
+      );
+
+      await openContextMenu(tester, lineIndex: 2);
+      await tester.tap(find.text('מפרשים'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('רש"י'));
+      await tester.pumpAndSettle();
+
+      final selected = bloc.received.whereType<UpdateSelectedIndex>().single;
+      expect(selected.index, 2);
+    });
+
+    testWidgets('"פתח חלונית קישורים" פותח את לשונית הקישורים', (tester) async {
+      final bloc = _RecordingTextBookBloc(
+        _loadedState(
+          linksByLine: {
+            1: [
+              Link(
+                heRef: 'בראשית א א',
+                index1: 1,
+                path2: 'בראשית',
+                index2: 1,
+                connectionType: 'reference',
+              ),
+            ],
+          },
+        ),
+      );
+      addTearDown(bloc.close);
+      var openedTab = -1;
+
+      await pumpViewer(
+        tester,
+        textBookBloc: bloc,
+        viewer: SimpleTextViewer(
+          content: const ['שורה א'],
+          fontSize: 18,
+          openBookCallback: (_) {},
+          isMainText: true,
+          onOpenSidebarTab: (index) => openedTab = index,
+        ),
+      );
+
+      await openContextMenu(tester);
+      await tester.tap(find.text('קישורים'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('פתח חלונית קישורים'));
+      await tester.pumpAndSettle();
+
+      expect(openedTab, kLinksTabIndex);
     });
 
     testWidgets('כשלשונית המפרשים פתוחה — פריטי הפתיחה מוסתרים', (
@@ -242,7 +330,7 @@ void main() {
           openBookCallback: (_) {},
           isMainText: false,
           bookTitle: 'רש"י',
-          reportBook: TextBook(title: 'רש"י'),
+          reportBook: TextBook(title: 'רש"י', categoryId: 7),
         ),
       );
 
@@ -263,6 +351,38 @@ void main() {
         1,
         reason: 'קטע היעד הוא השורה בספר המפרש, לא שורת הספר הראשי',
       );
+    });
+
+    testWidgets('בלי categoryId אין תתי-תפריטים — השאילתה לא תצליח', (
+      tester,
+    ) async {
+      var loaderCalls = 0;
+      TargetLineLinksService.resetInstanceForTesting(
+        loader: (book, start, end) async {
+          loaderCalls++;
+          return const [];
+        },
+      );
+      final bloc = _RecordingTextBookBloc(_loadedState());
+      addTearDown(bloc.close);
+
+      await pumpViewer(
+        tester,
+        textBookBloc: bloc,
+        viewer: SimpleTextViewer(
+          content: const ['שורת מפרש'],
+          fontSize: 18,
+          openBookCallback: (_) {},
+          isMainText: false,
+          bookTitle: 'רש"י',
+          reportBook: TextBook(title: 'רש"י'),
+        ),
+      );
+
+      await openContextMenu(tester);
+      expect(find.text('מפרשים'), findsNothing);
+      expect(find.text('קישורים'), findsNothing);
+      expect(loaderCalls, 0);
     });
 
     testWidgets('בלי reportBook אין תתי-תפריטים של קטע היעד', (tester) async {
@@ -293,6 +413,7 @@ TextBookLoaded _loadedState({
   List<String> availableCommentators = const [],
   List<String> activeCommentators = const [],
   List<CommentatorGroup> commentatorGroups = const [],
+  Map<int, List<Link>> linksByLine = const {},
 }) => TextBookLoaded(
   book: TextBook(title: 'ספר בדיקה'),
   showLeftPane: false,
@@ -305,7 +426,7 @@ TextBookLoaded _loadedState({
   availableCommentators: availableCommentators,
   links: const [],
   visibleLinks: const [],
-  linksByLine: const {},
+  linksByLine: linksByLine,
   tableOfContents: const [],
   removeNikud: false,
   visibleIndices: const [0],

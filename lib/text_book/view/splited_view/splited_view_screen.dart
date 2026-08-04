@@ -51,10 +51,6 @@ class SplitedViewScreen extends StatefulWidget {
 }
 
 class _SplitedViewScreenState extends State<SplitedViewScreen> {
-  static const int _commentaryTabIndex = kCommentaryTabIndex;
-  static const int _linksTabIndex = kLinksTabIndex;
-  static const int _notesTabIndex = kNotesTabIndex;
-
   late final MultiSplitViewController _controller;
   bool _paneOpen = false;
   // פתיחה אוטומטית של פאנל המפרשים מתבצעת פעם אחת בלבד לכל טעינת מסך.
@@ -109,7 +105,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     if (!mounted) return;
     setState(() {
       _paneOpen = true;
-      _currentTabIndex = _notesTabIndex;
+      _currentTabIndex = kNotesTabIndex;
     });
   }
 
@@ -117,7 +113,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     if (!mounted) return;
     // במצב מפרשים מתחת לטקסט הקיצור לא רלוונטי — המפרשים תמיד גלויים inline.
     if (!widget.showSplitView) return;
-    final isOnCommentary = _paneOpen && _currentTabIndex == _commentaryTabIndex;
+    final isOnCommentary = _paneOpen && _currentTabIndex == kCommentaryTabIndex;
     if (isOnCommentary) {
       setState(() {
         _paneOpen = false;
@@ -133,7 +129,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
       );
       setState(() {
         _paneOpen = true;
-        _currentTabIndex = _commentaryTabIndex;
+        _currentTabIndex = kCommentaryTabIndex;
       });
     }
   }
@@ -178,13 +174,13 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     if (widget.initialTabIndex != null) {
       debugPrint('DEBUG: Using initialTabIndex: ${widget.initialTabIndex}');
       // וידוא שהאינדקס תקף (0-2)
-      return widget.initialTabIndex!.clamp(0, 2);
+      return widget.initialTabIndex!.clamp(0, kSidebarTabCount - 1);
     } else {
       // ברירת מחדל - מפרשים (0)
       final saved = Settings.getValue<int>('key-sidebar-tab-index-combined');
       debugPrint('DEBUG: saved: $saved, returning: ${saved ?? 0}');
       // וידוא שהערך השמור תקף (0-2)
-      return (saved ?? 0).clamp(0, 2);
+      return (saved ?? 0).clamp(0, kSidebarTabCount - 1);
     }
   }
 
@@ -238,14 +234,14 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
 
     if (widget.showSplitView) {
       // מצב "מפרשים בצד" - תמיד פתח על מפרשים
-      targetTab = _commentaryTabIndex;
+      targetTab = kCommentaryTabIndex;
     } else {
       // מצב "מפרשים מתחת הטקסט" - פתח קישורים (אם יש)
       final hasLinks = state.visibleLinks.isNotEmpty;
       if (hasLinks) {
-        targetTab = _linksTabIndex;
+        targetTab = kLinksTabIndex;
       } else {
-        targetTab = _notesTabIndex;
+        targetTab = kNotesTabIndex;
       }
     }
 
@@ -282,7 +278,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     _didAutoOpenCommentary = true;
     setState(() {
       _paneOpen = true;
-      _currentTabIndex = _commentaryTabIndex;
+      _currentTabIndex = kCommentaryTabIndex;
     });
     // פתיחה אוטומטית נחשבת כ"שימוש במפרשים" — מדכאת את טיפ "כדאי לפתוח מפרשים".
     context.read<TourCubit>().recordInteraction(
@@ -319,7 +315,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     }
     setState(() {
       _paneOpen = true;
-      _currentTabIndex = _commentaryTabIndex;
+      _currentTabIndex = kCommentaryTabIndex;
     });
   }
 
@@ -448,7 +444,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                         onOpenPersonalNotes: () {
                           setState(() {
                             _paneOpen = true;
-                            _currentTabIndex = _notesTabIndex;
+                            _currentTabIndex = kNotesTabIndex;
                           });
                         },
                         onOpenCommentatorsPane: () {
@@ -459,14 +455,14 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                             if (!mounted) return;
                             _closeCommentatorsFilterNotifier.value++;
                             setState(() {
-                              _currentTabIndex = _commentaryTabIndex;
+                              _currentTabIndex = kCommentaryTabIndex;
                             });
                           });
                         },
                         onOpenCommentatorsPaneWithFilter: () {
                           setState(() {
                             _paneOpen = true;
-                            _currentTabIndex = _commentaryTabIndex;
+                            _currentTabIndex = kCommentaryTabIndex;
                           });
                           _openCommentatorsFilterNotifier.value++;
                           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -477,16 +473,16 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                         onOpenLinksPane: () {
                           setState(() {
                             _paneOpen = true;
-                            _currentTabIndex = _linksTabIndex;
+                            _currentTabIndex = kLinksTabIndex;
                           });
                         },
                         isCommentatorsTabActive: () =>
                             _paneOpen &&
-                            _currentTabIndex == _commentaryTabIndex,
+                            _currentTabIndex == kCommentaryTabIndex,
                         isLinksTabActive: () =>
-                            _paneOpen && _currentTabIndex == _linksTabIndex,
+                            _paneOpen && _currentTabIndex == kLinksTabIndex,
                         isPersonalNotesTabActive: () =>
-                            _paneOpen && _currentTabIndex == _notesTabIndex,
+                            _paneOpen && _currentTabIndex == kNotesTabIndex,
                       ),
                     ),
                     if (!_paneOpen)
