@@ -1,7 +1,32 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
+
 /// המקום המזערי שחייב להישאר לכל חלונית — בפיצול ובגרירת המפריד כאחד.
 const double kMinPaneExtent = 140;
+
+/// עובי רצועת המפריד בעכבר.
+const double kPaneDividerThickness = 12;
+
+/// עובי רצועת המפריד במגע — אצבע אינה מדייקת ל-12 פיקסלים.
+const double kPaneDividerThicknessTouch = 24;
+
+/// שוליים סביב כרטיס החלונית, מעבר לרצועת המפריד.
+const double kPaneCardMargin = 3;
+
+/// עובי רצועת המפריד לפי אמצעי הקלט של הפלטפורמה.
+double paneDividerThicknessFor(TargetPlatform platform) {
+  return platform == TargetPlatform.android || platform == TargetPlatform.iOS
+      ? kPaneDividerThicknessTouch
+      : kPaneDividerThickness;
+}
+
+/// הרוחב המזערי לשתי חלוניות, כולל המפריד והשוליים החיצוניים.
+double minimumSplitPaneWidthFor(TargetPlatform platform) {
+  return kMinPaneExtent * 2 +
+      paneDividerThicknessFor(platform) +
+      kPaneCardMargin * 2;
+}
 
 /// הצד שאליו נכנסת הכרטיסייה הנגררת בפיצול.
 enum PaneDropSide {
@@ -31,7 +56,9 @@ PaneDropSide dropSideFor({
 }
 
 /// האם יש מקום לפצל שטח בגודל [size] לשתי חלוניות קריאות.
-bool canSplitPane(Size size) => size.width >= kMinPaneExtent * 2;
+bool canSplitPane(Size size, {required TargetPlatform platform}) {
+  return size.width >= minimumSplitPaneWidthFor(platform);
+}
 
 /// המלבן שהכרטיסייה הנגררת תתפוס — הבסיס לחיווי הוויזואלי.
 Rect previewRectFor({

@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/tabs/view/pane_drop_geometry.dart';
 
@@ -55,12 +56,28 @@ void main() {
   });
 
   group('מקום מזערי לפיצול', () {
-    test('רוחב שמספיק לשתי חלוניות מאפשר פיצול', () {
-      expect(canSplitPane(const Size(kMinPaneExtent * 2, 600)), isTrue);
+    test('בעכבר כולל את המפריד והשוליים', () {
+      const platform = TargetPlatform.windows;
+      final minimum = minimumSplitPaneWidthFor(platform);
+
+      expect(minimum, 298);
+      expect(canSplitPane(Size(minimum, 600), platform: platform), isTrue);
+      expect(
+        canSplitPane(Size(minimum - 1, 600), platform: platform),
+        isFalse,
+      );
     });
 
-    test('רוחב צר מכך אינו מציע פיצול', () {
-      expect(canSplitPane(const Size(kMinPaneExtent * 2 - 1, 600)), isFalse);
+    test('במגע כולל רצועת מפריד רחבה יותר', () {
+      const platform = TargetPlatform.android;
+      final minimum = minimumSplitPaneWidthFor(platform);
+
+      expect(minimum, 310);
+      expect(canSplitPane(Size(minimum, 600), platform: platform), isTrue);
+      expect(
+        canSplitPane(Size(minimum - 1, 600), platform: platform),
+        isFalse,
+      );
     });
   });
 

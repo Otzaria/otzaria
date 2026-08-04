@@ -8,11 +8,12 @@ import 'package:otzaria/tabs/view/pane_drop_geometry.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/layout/split_pane_content_inset.dart';
 
-/// עובי רצועת המפריד בעכבר.
-const double kPaneDividerThickness = 12;
-
-/// עובי רצועת המפריד במגע — אצבע אינה מדייקת ל-12 פיקסלים.
-const double kPaneDividerThicknessTouch = 24;
+export 'pane_drop_geometry.dart'
+    show
+        kPaneCardMargin,
+        kPaneDividerThickness,
+        kPaneDividerThicknessTouch,
+        paneDividerThicknessFor;
 
 /// עובי ידית המפריד.
 const double _kDividerHandleThickness = 4;
@@ -23,9 +24,6 @@ const double _kDividerHandleLength = 40;
 /// עיגול פינות כרטיס החלונית.
 const double kPaneCardRadius = 10;
 
-/// שוליים סביב כרטיס החלונית, מעבר לרצועת המפריד.
-const double kPaneCardMargin = 3;
-
 /// סכום ה-flex בין שתי החלוניות.
 const int _kFlexResolution = 1000;
 
@@ -34,13 +32,6 @@ const double _kKeyboardNudge = 24;
 
 /// השהיית השמירה אחרי הקשות מקלדת, כדי שהקשה ממושכת תישמר פעם אחת.
 const Duration _kKeyboardCommitDelay = Duration(milliseconds: 250);
-
-/// עובי רצועת המפריד לפי אמצעי הקלט של הפלטפורמה.
-double paneDividerThicknessFor(TargetPlatform platform) {
-  return platform == TargetPlatform.android || platform == TargetPlatform.iOS
-      ? kPaneDividerThicknessTouch
-      : kPaneDividerThickness;
-}
 
 /// מציג טאב בחלונית אחת או בשתי חלוניות עם מפריד ניתן לגרירה.
 /// [paneBuilder] עטוף במפתח זהות כדי לשמר את מצב החלונית בפיצול ובפירוק.

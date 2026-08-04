@@ -37,8 +37,10 @@ void main() {
     OpenedTab? tab,
     TextDirection textDirection = TextDirection.rtl,
     double paneWidth = 800,
+    TargetPlatform platform = TargetPlatform.windows,
   }) {
     return MaterialApp(
+      theme: ThemeData(platform: platform),
       home: Directionality(
         textDirection: textDirection,
         child: Scaffold(
@@ -214,7 +216,7 @@ void main() {
         host(
           log: log,
           dragged: _LeafTab('נגרר'),
-          paneWidth: kMinPaneExtent * 2 - 20,
+          paneWidth: minimumSplitPaneWidthFor(TargetPlatform.windows) - 1,
         ),
       );
 
@@ -222,6 +224,37 @@ void main() {
       await dragTo(tester, rect.center);
 
       expect(log.count, 0);
+    });
+
+    testWidgets('רוחב הסף בעכבר מאפשר פיצול', (tester) async {
+      final log = _DropLog();
+      await tester.pumpWidget(
+        host(
+          log: log,
+          dragged: _LeafTab('נגרר'),
+          paneWidth: minimumSplitPaneWidthFor(TargetPlatform.windows),
+        ),
+      );
+
+      await dragTo(tester, paneRect(tester).center);
+
+      expect(log.count, 1);
+    });
+
+    testWidgets('רוחב הסף במגע מאפשר פיצול', (tester) async {
+      final log = _DropLog();
+      await tester.pumpWidget(
+        host(
+          log: log,
+          dragged: _LeafTab('נגרר'),
+          platform: TargetPlatform.android,
+          paneWidth: minimumSplitPaneWidthFor(TargetPlatform.android),
+        ),
+      );
+
+      await dragTo(tester, paneRect(tester).center);
+
+      expect(log.count, 1);
     });
   });
 

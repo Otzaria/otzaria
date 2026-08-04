@@ -39,7 +39,7 @@ class _PaneDropTargetState extends State<PaneDropTarget> {
     if (box == null || !box.hasSize) return;
 
     // אין מקום לשתי חלוניות קריאות.
-    final next = canSplitPane(box.size)
+    final next = canSplitPane(box.size, platform: Theme.of(context).platform)
         ? dropSideFor(
             localPosition: box.globalToLocal(globalOffset),
             size: box.size,
