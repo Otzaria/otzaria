@@ -223,13 +223,19 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
           incomingTab: event.tab,
         );
       }
+      final matchingPane = await _matchingPaneIn(
+        state.tabs[matchingIndex],
+        event.tab,
+        targetTitle,
+        ignoreLocation: event.navigateToPositionIfReused,
+      );
       event.tab.dispose();
       final tabsToSave = state.tabs;
       // התאמה בחלונית מפוצלת דורשת גם עדכון של החלונית הפעילה.
       emit(
         state.copyWith(
           currentTabIndex: matchingIndex,
-          rawActivePane: _matchingPaneIn(state.tabs[matchingIndex], event.tab),
+          rawActivePane: matchingPane,
         ),
       );
       await _repository.saveTabs(tabsToSave, matchingIndex);
@@ -495,12 +501,23 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     );
   }
 
-  /// החלונית בתוך [openTab] שחולקת `dedupeKey` עם [targetTab], או `null`
-  /// כשהטאב עצמו הוא ההתאמה (ואז אין צורך לשנות חלונית פעילה).
-  OpenedTab? _matchingPaneIn(OpenedTab openTab, OpenedTab targetTab) {
+  /// החלונית המתאימה בתוך [openTab], או `null` כשהטאב עצמו הוא ההתאמה.
+  Future<OpenedTab?> _matchingPaneIn(
+    OpenedTab openTab,
+    OpenedTab targetTab,
+    String? normalizedTargetTitle, {
+    required bool ignoreLocation,
+  }) async {
     if (openTab is! CombinedTab) return null;
     for (final pane in leafPanes(openTab)) {
-      if (_hasMatchingDedupeKey(pane, targetTab)) return pane;
+      if (await _singleTabMatches(
+        pane,
+        targetTab,
+        normalizedTargetTitle,
+        ignoreLocation,
+      )) {
+        return pane;
+      }
     }
     return null;
   }

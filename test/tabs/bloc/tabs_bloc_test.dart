@@ -233,6 +233,72 @@ void main() {
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
 
+    test('פתיחה חוזרת של ספר טקסט בחלונית השנייה ממקדת אותה', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final targetPane = _createTextTab('ספר שמאל', index: 0, categoryId: 2)
+        ..currentTitle.value = 'פרק ג';
+      final combinedTab = CombinedTab(
+        rightTab: _createTextTab('ספר ימין', index: 0, categoryId: 1)
+          ..currentTitle.value = 'פרק א',
+        leftTab: targetPane,
+      );
+
+      bloc.add(AddTab(combinedTab));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+
+      bloc.add(
+        OpenOrFocusTab(
+          _createTextTab('ספר שמאל', index: 99, categoryId: 2),
+          targetTitle: 'ספר שמאל, פרק ג',
+        ),
+      );
+      await bloc.stream.firstWhere(
+        (state) => identical(state.activePane, targetPane),
+      );
+
+      expect(bloc.state.currentTab, same(combinedTab));
+      expect(bloc.state.activePane, same(targetPane));
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('ניווט לספר PDF בחלונית השנייה ממקד ומעדכן אותה', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final targetPane = PdfBookTab(
+        book: PdfBook(title: 'ספר PDF שמאל', path: 'left.pdf'),
+        pageNumber: 10,
+      );
+      final combinedTab = CombinedTab(
+        rightTab: PdfBookTab(
+          book: PdfBook(title: 'ספר PDF ימין', path: 'right.pdf'),
+          pageNumber: 1,
+        ),
+        leftTab: targetPane,
+      );
+
+      bloc.add(AddTab(combinedTab));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+
+      bloc.add(
+        OpenOrFocusTab(
+          PdfBookTab(
+            book: PdfBook(title: 'ספר PDF שמאל', path: 'left.pdf'),
+            pageNumber: 25,
+          ),
+          navigateToPositionIfReused: true,
+        ),
+      );
+      await bloc.stream.firstWhere(
+        (state) => identical(state.activePane, targetPane),
+      );
+
+      expect(bloc.state.currentTab, same(combinedTab));
+      expect(bloc.state.activePane, same(targetPane));
+      expect(targetPane.pageNumber, 25);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
     test('ממקד טאב טקסט קיים גם בלי targetTitle לפי אינדקס', () async {
       final bloc = TabsBloc(repository: _FakeTabsRepository());
       final existingTab = _createTextTab('ספר א', index: 12, categoryId: 1);
