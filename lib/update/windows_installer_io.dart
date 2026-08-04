@@ -20,7 +20,7 @@ bool _isAdminInstall() {
 /// מספיק לרוץ. לכן הוא נוצר ב-CreateProcess עם CREATE_BREAKAWAY_FROM_JOB
 /// (ה-Job מתיר זאת) — מנותק מה-Job ושורד.
 ///
-/// per-user מקבל /VERYSILENT ישירות. admin מושגר **ללא** /VERYSILENT —
+/// per-user מקבל /SILENT ישירות. admin מושגר **ללא** דגלי שקט —
 /// המתקין (שכבר מנותק מה-Job) מסליק את עצמו ב-runas מתוך InitializeSetup,
 /// ותהליך ה-runas שלו שורד כי האב כבר מחוץ ל-Job. מחזיר true אם היצירה הצליחה.
 bool launchWindowsSilentInstaller({
@@ -34,13 +34,20 @@ bool launchWindowsSilentInstaller({
   return _createBreakawayProcess(commandLine);
 }
 
-/// יוצר תהליך מנותק מה-Job של אוצריא כך שישרוד את סגירתה. אם ה-Job אינו מתיר
-/// breakaway — נסיגה ליצירה רגילה כדי לא להישבר לגמרי.
-bool _createBreakawayProcess(String commandLine) {
-  final base = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP;
-  return _createProcess(commandLine, base | CREATE_BREAKAWAY_FROM_JOB) ||
-      _createProcess(commandLine, base);
-}
+/// יוצר תהליך מנותק מה-Job של אוצריא כך שישרוד את סגירתה.
+///
+/// אין נסיגה ליצירה רגילה: תהליך שנשאר בתוך ה-Job נהרג ברגע שאוצריא יוצאת
+/// (KILL_ON_JOB_CLOSE), ו"הצלחה" כזו רק סוגרת את התוכנה בלי שהמתקין ירוץ.
+/// עדיף להיכשל כאן — הקורא ישאיר את החלון פתוח עם הודעת שגיאה.
+bool _createBreakawayProcess(String commandLine) => _createProcess(
+  commandLine,
+  DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB,
+);
+
+/// משגר קובץ הרצה של Windows מנותק מה-Job, בלי ארגומנטים של מתקין.
+/// מחזיר true אם היצירה הצליחה.
+bool launchWindowsDetachedProcess(String executablePath) =>
+    _createBreakawayProcess('"$executablePath"');
 
 /// עוטף CreateProcess עם מאגרים טריים. כל קריאה מקבלת מאגר commandLine משלה
 /// כי CreateProcessW עלול לשנות את תוכנו (ולא לשחזרו אם הקריאה נכשלת),

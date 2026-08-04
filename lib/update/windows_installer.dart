@@ -13,3 +13,8 @@ bool launchWindowsSilentInstaller({
   installerPath: installerPath,
   relaunchApp: relaunchApp,
 );
+
+/// משגר קובץ הרצה של Windows כך שישרוד את סגירת אוצריא (חבילת ה-zip הניידת).
+/// מחזיר true אם היצירה הצליחה; בפלטפורמות ללא dart:io תמיד false.
+bool launchWindowsDetachedProcess(String executablePath) =>
+    impl.launchWindowsDetachedProcess(executablePath);

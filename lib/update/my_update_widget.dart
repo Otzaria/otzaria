@@ -16,8 +16,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as p;
-import 'package:updat/utils/file_handler.dart'
-    show getDownloadFileLocation, openInstaller;
+import 'package:updat/utils/file_handler.dart' show openInstaller;
 import 'package:window_manager/window_manager.dart';
 import 'hebrew_update_widgets.dart';
 import 'linux_installer.dart';
@@ -426,6 +425,31 @@ String changelogBetweenVersionsForUpdateDialog({
     return 'לא נמצאו פריטי יומן שינויים בין גרסה $currentVersion לגרסה $latestVersion.';
   }
   return result;
+}
+
+/// תיקיית העבודה של מנגנון העדכון. קובץ ההתקנה הוא קובץ זמני של אוצריא ולא
+/// הורדה של המשתמש — הורדה לתיקיית ההורדות שלו הותירה שם קבצי מתקין כבדים
+/// שאיש אינו מנקה.
+@visibleForTesting
+Directory updateWorkingDirectory() =>
+    Directory(p.join(Directory.systemTemp.path, 'otzaria_update'));
+
+/// מחזירה נתיב חדש לקובץ העדכון, ומנקה תחילה שאריות מהורדות קודמות.
+@visibleForTesting
+Future<File> prepareUpdateInstallerFile({
+  required String version,
+  required String extension,
+}) async {
+  final dir = updateWorkingDirectory();
+  if (dir.existsSync()) {
+    try {
+      dir.deleteSync(recursive: true);
+    } catch (_) {
+      // שארית נעולה (מתקין קודם שעדיין רץ) אינה סיבה להכשיל את העדכון.
+    }
+  }
+  await dir.create(recursive: true);
+  return File(p.join(dir.path, 'otzaria-$version.$extension'));
 }
 
 /// האם בדיקת עדכונים חסומה כרגע (מצב מנותק או שעדכוני תוכנה כובו בהגדרות).
@@ -888,11 +912,10 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
 
     try {
       final url = await _getBinaryUrl(_latestVersion!).timeout(_kGithubTimeout);
-      final installerFile = await getDownloadFileLocation(
-        _latestVersion!,
-        'otzaria',
-        url.split('.').last,
-      ).timeout(_kGithubTimeout);
+      final installerFile = await prepareUpdateInstallerFile(
+        version: _latestVersion!,
+        extension: url.split('.').last,
+      );
       await _downloadRelease(
         installerFile,
         url,
@@ -976,7 +999,27 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
       }
     }
 
+    // ב-Windows גם החבילה הניידת חייבת את מסלול ה-breakaway: openInstaller
+    // משגר דרך המעטפת, והתהליך שנוצר חי בתוך ה-Job של אוצריא ונהרג ביציאתה.
+    if (Platform.isWindows && lowerPath.endsWith('.zip')) {
+      final executable = _extractedWindowsExecutable(installer);
+      if (!launchWindowsDetachedProcess(executable.absolute.path)) {
+        throw Exception('Failed to launch the extracted update');
+      }
+      return;
+    }
+
     await openInstaller(installer, 'otzaria');
+  }
+
+  /// מאתרת את קובץ ההרצה בתוך חבילת ה-zip שחולצה ליד קובץ ההורדה
+  /// (ראה [_downloadRelease]).
+  File _extractedWindowsExecutable(File zipFile) {
+    final outDir = Directory(p.join(p.dirname(zipFile.path), 'otzaria'));
+    final entry = outDir.listSync().firstWhere(
+      (e) => e.path.toLowerCase().endsWith('.exe'),
+    );
+    return File(entry.path);
   }
 
   void _dismissUpdate() {

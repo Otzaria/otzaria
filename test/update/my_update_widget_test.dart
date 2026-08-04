@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:path/path.dart' as p;
 import 'package:otzaria/update/my_update_widget.dart';
 import 'package:updat/updat.dart';
 
@@ -395,6 +398,42 @@ void main() {
         ),
         isFalse,
       );
+    });
+  });
+
+  group('prepareUpdateInstallerFile', () {
+    tearDown(() {
+      final dir = updateWorkingDirectory();
+      if (dir.existsSync()) dir.deleteSync(recursive: true);
+    });
+
+    test(
+      'downloads into a private temp folder, not the user Downloads',
+      () async {
+        final file = await prepareUpdateInstallerFile(
+          version: '0.9.96',
+          extension: 'exe',
+        );
+
+        expect(p.basename(file.path), 'otzaria-0.9.96.exe');
+        expect(p.dirname(file.path), updateWorkingDirectory().path);
+        expect(file.path.toLowerCase(), isNot(contains('downloads')));
+      },
+    );
+
+    test('clears leftovers from a previous download', () async {
+      final dir = updateWorkingDirectory();
+      dir.createSync(recursive: true);
+      final stale = File(p.join(dir.path, 'otzaria-0.9.95.exe'))
+        ..writeAsStringSync('stale');
+      final staleExtract = Directory(p.join(dir.path, 'otzaria'))
+        ..createSync(recursive: true);
+
+      await prepareUpdateInstallerFile(version: '0.9.96', extension: 'exe');
+
+      expect(stale.existsSync(), isFalse);
+      expect(staleExtract.existsSync(), isFalse);
+      expect(dir.existsSync(), isTrue);
     });
   });
 }
