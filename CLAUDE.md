@@ -620,7 +620,9 @@ dart format lib/file.dart    # Format ONLY files you modified
 | Combined view helpers (shouldShow…) | `test/text_book/view/combined_view/combined_book_screen_test.dart` |
 | TabbedCommentaryPanel tab switching / onTabChanged | `test/text_book/view/tabbed_commentary_panel_test.dart` |
 | Page shape commentary selection | `test/text_book/view/page_shape_commentary_selection_test.dart` |
-| LinksNotesSidebar (page shape) | `test/text_book/view/page_shape/links_notes_sidebar_test.dart` |
+| חלונית הצד של צורת הדף (3 לשוניות) | `test/text_book/view/page_shape/page_shape_sidebar_tabs_test.dart` |
+| תפריט הקשר בצורת הדף (מפרשים / קטע היעד) | `test/text_book/view/page_shape/simple_text_viewer_context_menu_test.dart` |
+| תת-תפריט "מפרשים" המשותף + מדיניות הצגה | `test/text_book/utils/commentators_context_menu_test.dart` |
 | SimpleTextViewer | `test/text_book/view/page_shape/simple_text_viewer_test.dart` |
 | Selected text copy/restore | `test/text_book/view/selection/selected_text_copy_test.dart`, `…selected_text_restore_test.dart` |
 | SelectionSyncController | `test/text_book/view/selection/selection_sync_controller_test.dart` |

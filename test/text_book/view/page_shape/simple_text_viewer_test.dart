@@ -28,6 +28,7 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
+import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria/widgets/misc/app_context_menu.dart';
 import 'package:otzaria/widgets/misc/link_context_menu_entry.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
@@ -94,7 +95,7 @@ void main() {
     mainText.onNoteTap!(0);
     await tester.pumpAndSettle();
 
-    expect(openedTab, 1);
+    expect(openedTab, kNotesTabIndex);
   });
 
   testWidgets('בצורת הדף ריחוף על עוגן נקודה ועל עוגן טווח מציג פופאפ', (

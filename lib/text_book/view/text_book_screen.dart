@@ -45,6 +45,7 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/printing/word_export_service.dart';
+import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria/text_book/view/text_book_scaffold.dart';
 import 'package:otzaria/text_book/view/text_book_search_screen.dart';
 import 'package:otzaria/text_book/view/toc_navigator_screen.dart';
@@ -1016,12 +1017,12 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   void _openPersonalNotesForCurrentView(TextBookLoaded state) {
     if (state.showPageShapeView) {
-      _pageShapeSidebarTabNotifier.value = 1;
+      _pageShapeSidebarTabNotifier.value = kNotesTabIndex;
       return;
     }
 
     setState(() {
-      _sidebarTabIndex = 2;
+      _sidebarTabIndex = kNotesTabIndex;
     });
     // Fire the notifier directly so SplitedViewScreen always opens the panel,
     // even when showSplitView is already true and the bloc won't emit a new state

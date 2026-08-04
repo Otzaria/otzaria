@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -15,9 +16,11 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
+import 'package:otzaria/text_book/utils/commentators_context_menu.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/view/selection/enhanced_gesture_detector.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
+import 'package:otzaria/widgets/misc/app_context_menu.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../../../test_helpers/memory_cache_provider.dart';
 
@@ -153,55 +156,6 @@ void main() {
     });
   });
 
-  group('shouldShowOpenCommentatorsPaneEntry', () {
-    test(
-      'מחזירה true כשיש מפרשים נבחרים, החלונית בצד וטאב המפרשים אינו פעיל',
-      () {
-        expect(
-          shouldShowOpenCommentatorsPaneEntry(
-            hasSelectedCommentators: true,
-            showCommentaryAsExpansionTiles: false,
-            isCommentatorsTabActive: false,
-          ),
-          isTrue,
-        );
-      },
-    );
-
-    test('מחזירה false כשאין מפרשים נבחרים', () {
-      expect(
-        shouldShowOpenCommentatorsPaneEntry(
-          hasSelectedCommentators: false,
-          showCommentaryAsExpansionTiles: false,
-          isCommentatorsTabActive: false,
-        ),
-        isFalse,
-      );
-    });
-
-    test('מחזירה false כשהמפרשים מוצגים כהרחבה מתחת לטקסט', () {
-      expect(
-        shouldShowOpenCommentatorsPaneEntry(
-          hasSelectedCommentators: true,
-          showCommentaryAsExpansionTiles: true,
-          isCommentatorsTabActive: false,
-        ),
-        isFalse,
-      );
-    });
-
-    test('מחזירה false כשטאב המפרשים כבר פעיל', () {
-      expect(
-        shouldShowOpenCommentatorsPaneEntry(
-          hasSelectedCommentators: true,
-          showCommentaryAsExpansionTiles: false,
-          isCommentatorsTabActive: true,
-        ),
-        isFalse,
-      );
-    });
-  });
-
   group('shouldShowPersonalNotePreview', () {
     test('מציג תצוגה מקדימה כשטאב ההערות אינו פעיל', () {
       expect(
@@ -248,61 +202,6 @@ void main() {
         isFalse,
       );
     });
-  });
-
-  group('shouldShowSelectCommentatorsEntry', () {
-    test('מחזירה true כשיש callback וטאב המפרשים אינו פעיל', () {
-      expect(
-        shouldShowSelectCommentatorsEntry(
-          hasOpenCommentatorsPaneWithFilterCallback: true,
-          isCommentatorsTabActive: false,
-        ),
-        isTrue,
-      );
-    });
-
-    test('מחזירה false כשטאב המפרשים פעיל', () {
-      expect(
-        shouldShowSelectCommentatorsEntry(
-          hasOpenCommentatorsPaneWithFilterCallback: true,
-          isCommentatorsTabActive: true,
-        ),
-        isFalse,
-      );
-    });
-
-    test('מחזירה false כשאין callback', () {
-      expect(
-        shouldShowSelectCommentatorsEntry(
-          hasOpenCommentatorsPaneWithFilterCallback: false,
-          isCommentatorsTabActive: false,
-        ),
-        isFalse,
-      );
-    });
-
-    test(
-      'בניגוד ל-shouldShowOpenCommentatorsPaneEntry, מציג גם בלי מפרשים נבחרים',
-      () {
-        // הלוגיקה כאן לא תלויה ב-hasSelectedCommentators כלל — היחס בין
-        // שני ה-predicates אמור להישאר עקבי גם כשהבחירה ריקה.
-        expect(
-          shouldShowOpenCommentatorsPaneEntry(
-            hasSelectedCommentators: false,
-            showCommentaryAsExpansionTiles: false,
-            isCommentatorsTabActive: false,
-          ),
-          isFalse,
-        );
-        expect(
-          shouldShowSelectCommentatorsEntry(
-            hasOpenCommentatorsPaneWithFilterCallback: true,
-            isCommentatorsTabActive: false,
-          ),
-          isTrue,
-        );
-      },
-    );
   });
 
   group('shouldRebuildSelectionAreaOnExternalChange', () {
@@ -502,6 +401,95 @@ void main() {
     expect(textBookBloc.addWasCalled, isFalse);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'תת-תפריט "מפרשים" בתצוגה המשולבת נבנה מהבונה המשותף ומעדכן את הבחירה',
+    (tester) async {
+      // רגרסיה לחילוץ הבונה המשותף עם צורת הדף: הפריטים והתנהגותם בתצוגה
+      // המשולבת חייבים להישאר כשהיו.
+      await tester.binding.setSurfaceSize(const Size(900, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final textBookBloc = _RecordingTextBookBloc(
+        _loadedState().copyWith(
+          availableCommentators: const ['רש"י', 'רמב"ן'],
+          activeCommentators: const ['רש"י'],
+          commentatorGroups: const [
+            CommentatorGroup(
+              title: 'ראשונים',
+              commentators: ['רש"י', 'רמב"ן'],
+            ),
+          ],
+        ),
+      );
+      addTearDown(textBookBloc.close);
+      final personalNotesBloc = _TestPersonalNotesBloc(
+        const PersonalNotesState.initial(),
+      );
+      addTearDown(personalNotesBloc.close);
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      addTearDown(settingsBloc.close);
+      final tab = TextBookTab(book: TextBook(title: 'ספר בדיקה'), index: 0);
+      addTearDown(tab.dispose);
+      var openedPane = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<TextBookBloc>.value(value: textBookBloc),
+              BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
+              BlocProvider<SettingsBloc>.value(value: settingsBloc),
+            ],
+            child: Scaffold(
+              body: CombinedView(
+                data: const ['שורה א'],
+                openBookCallback: (_) {},
+                openLeftPaneTab: (_, {searchText}) {},
+                textSize: 18,
+                showCommentaryAsExpansionTiles: false,
+                tab: tab,
+                onOpenCommentatorsPane: () => openedPane++,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryButton,
+      );
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      final center = tester.getCenter(find.byType(AppContextMenuRegion).first);
+      await gesture.moveTo(center);
+      await gesture.down(center);
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('מפרשים'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('פתח את חלונית המפרשים'), findsOneWidget);
+      expect(find.text('הצג את כל המפרשים'), findsOneWidget);
+      expect(find.text('הצג את כל ראשונים'), findsOneWidget);
+
+      await tester.tap(find.text('רמב"ן'));
+      await tester.pumpAndSettle();
+
+      expect(
+        textBookBloc.received
+            .whereType<UpdateCommentators>()
+            .single
+            .commentators,
+        ['רש"י', 'רמב"ן'],
+      );
+      expect(openedPane, 1);
+    },
+  );
 
   group('applyDisplayTextPreferences', () {
     // קמץ (ניקוד) — נמצא ב-vowelsAndCantillation אך לא ב-cantillationOnly
@@ -738,6 +726,18 @@ class _ClosedTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     addWasCalled = true;
     throw StateError('add לא אמור להיקרא כשה-bloc סגור');
   }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _RecordingTextBookBloc extends Bloc<TextBookEvent, TextBookState>
+    implements TextBookBloc {
+  _RecordingTextBookBloc(super.initialState) {
+    on<TextBookEvent>((event, emit) => received.add(event));
+  }
+
+  final List<TextBookEvent> received = [];
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

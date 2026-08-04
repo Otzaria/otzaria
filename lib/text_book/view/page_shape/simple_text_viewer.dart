@@ -23,6 +23,7 @@ import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/services/commentary_service.dart';
+import 'package:otzaria/services/target_line_links_service.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
@@ -46,6 +47,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/view/widgets/book_source_banner.dart';
 import 'package:otzaria/text_book/view/sibling_commentaries_menu.dart';
+import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/widgets/misc/direct_link_menu_entries.dart';
@@ -67,6 +69,7 @@ import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/services/reader_selection_service.dart';
 import 'package:otzaria/plugins/utils/plugin_context_menu_entries.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
+import 'package:otzaria/text_book/utils/commentators_context_menu.dart';
 import 'package:otzaria/text_book/utils/note_inline_render.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
     as inline_notes;
@@ -335,6 +338,17 @@ class SimpleTextViewer extends StatefulWidget {
   /// repository לשמירת הערות מפרשים. ניתן להזרקה בבדיקות; בייצור נוצר ברירת מחדל.
   final PersonalNotesRepository? notesRepository;
   final bool isPersonalNotesTabActive;
+
+  /// לשונית המפרשים פתוחה כרגע בחלונית הצד — פריטי הפתיחה בתפריט ההקשר
+  /// מיותרים במצב זה.
+  final bool isCommentatorsTabActive;
+
+  /// פתיחת לשונית המפרשים בחלונית הצד. כש-null תת-התפריט "מפרשים" לא יוצג.
+  final VoidCallback? onOpenCommentatorsPane;
+
+  /// פתיחת לשונית המפרשים עם חלונית בחירת המפרשים פרושה.
+  final VoidCallback? onOpenCommentatorsPaneWithFilter;
+
   const SimpleTextViewer({
     super.key,
     required this.content,
@@ -357,6 +371,9 @@ class SimpleTextViewer extends StatefulWidget {
     this.labelForIndex,
     this.notesRepository,
     this.isPersonalNotesTabActive = false,
+    this.isCommentatorsTabActive = false,
+    this.onOpenCommentatorsPane,
+    this.onOpenCommentatorsPaneWithFilter,
   });
 
   /// האם חלונית מפרש זה עתה טיפלה בקיצור "הוסף הערה".
@@ -1540,7 +1557,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           AppContextMenuEntry(
             label: 'פתח חלונית קישורים',
             icon: FluentIcons.panel_right_24_regular,
-            onTap: () => widget.onOpenSidebarTab!(0),
+            onTap: () => widget.onOpenSidebarTab!(kLinksTabIndex),
           ),
         );
         items.add(const AppContextMenuEntry.divider());
@@ -1660,14 +1677,26 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
 
     if (entries.isNotEmpty) entries.add(const AppContextMenuEntry.divider());
-    entries.add(
-      AppContextMenuEntry(
-        label: 'קישורים',
-        icon: FluentIcons.link_24_regular,
-        enabled: hasLinkItems,
-        childrenBuilder: buildLinksItems,
-      ),
-    );
+    if (widget.isMainText) {
+      entries.add(
+        AppContextMenuEntry(
+          label: 'מפרשים',
+          icon: FluentIcons.book_24_regular,
+          enabled: state.availableCommentators.isNotEmpty,
+          childrenBuilder: () => _buildCommentatorsMenuItems(state, index),
+        ),
+      );
+      entries.add(
+        AppContextMenuEntry(
+          label: 'קישורים',
+          icon: FluentIcons.link_24_regular,
+          enabled: hasLinkItems,
+          childrenBuilder: buildLinksItems,
+        ),
+      );
+    } else {
+      entries.addAll(_buildTargetLineEntries(state, index));
+    }
 
     if (widget.isMainText && _siblingController != null) {
       final sourceLink = _siblingController!.sourceLinkForLine(
@@ -1808,6 +1837,103 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     return _normalizeEntries(entries);
   }
 
+  /// תתי-התפריטים "מפרשים" ו"קישורים" של שורת המפרש שנלחצה — כמו בלחיצה ימנית
+  /// על מפרש בחלונית הצד. נגזרים מספר המפרש עצמו, לא מקישורי הספר הראשי:
+  /// [index] הוא שורה בתוך ספר המפרש, ו-`state.linksByLine` שייך לספר הראשי.
+  List<AppContextMenuEntry> _buildTargetLineEntries(
+    TextBookLoaded state,
+    int index,
+  ) {
+    final book = widget.reportBook;
+    if (book == null) return const [];
+    // בלי categoryId השאילתה על ספר המפרש נכשלת, ותת-התפריט היה נתקע על
+    // "שגיאה בטעינה" במקום פשוט לא להופיע.
+    if (book.categoryId == null && !book.isUserBook) return const [];
+
+    final targetLink = Link(
+      heRef: book.title,
+      index1: 0,
+      path2: book.title,
+      index2: index + 1,
+      connectionType: 'commentary',
+      targetCategoryId: book.categoryId,
+      targetFileType: book.fileType,
+      targetIsUserBook: book.isUserBook,
+    );
+
+    Future<void> navigate(Link link) async {
+      final tab = await buildLinkTargetTab(link);
+      if (!mounted) return;
+      widget.openBookCallback(tab);
+    }
+
+    final service = TargetLineLinksService.instance;
+    // טעינה כבר בפתיחת התפריט, כדי שתת-התפריט לא ייפתח על "טוען…".
+    service.prefetch(targetLink);
+    return [
+      service.buildCommentariesEntry(
+        link: targetLink,
+        onNavigate: navigate,
+        removeNikud: state.removeNikud,
+        removePunctuation: state.removePunctuation,
+      ),
+      service.buildLinksEntry(
+        link: targetLink,
+        onNavigate: navigate,
+        removeNikud: state.removeNikud,
+        removePunctuation: state.removePunctuation,
+      ),
+    ];
+  }
+
+  /// פריטי תת-התפריט "מפרשים" — זהים לתצוגה הרגילה, ומשנים את בחירת המפרשים
+  /// שמוצגת בלשונית המפרשים בחלונית הצד (לא את טורי צורת הדף).
+  List<AppContextMenuEntry> _buildCommentatorsMenuItems(
+    TextBookLoaded state,
+    int index,
+  ) {
+    final showOpenPane = shouldShowOpenCommentatorsPaneEntry(
+      hasSelectedCommentators: state.activeCommentators.isNotEmpty,
+      showCommentaryAsExpansionTiles: false,
+      isCommentatorsTabActive: widget.isCommentatorsTabActive,
+    );
+    final showSelect = shouldShowSelectCommentatorsEntry(
+      hasOpenCommentatorsPaneWithFilterCallback:
+          widget.onOpenCommentatorsPaneWithFilter != null,
+      isCommentatorsTabActive: widget.isCommentatorsTabActive,
+    );
+
+    // חלונית המפרשים נגזרת מ-selectedIndex; בלי הסנכרון הזה לחיצה ימנית על
+    // שורה רחוקה הייתה מציגה את המפרשים של השורה שנבחרה קודם בלחיצה שמאלית.
+    void selectClickedLine() {
+      if (!mounted || state.selectedIndex == index) return;
+      context.read<TextBookBloc>().add(UpdateSelectedIndex(index));
+    }
+
+    return buildCommentatorsContextMenuChildren(
+      activeCommentators: state.activeCommentators,
+      availableCommentators: state.availableCommentators,
+      commentatorGroups: state.commentatorGroups,
+      onOpenPane: showOpenPane && widget.onOpenCommentatorsPane != null
+          ? () {
+              selectClickedLine();
+              widget.onOpenCommentatorsPane!();
+            }
+          : null,
+      onSelectMultiple: showSelect
+          ? () {
+              selectClickedLine();
+              widget.onOpenCommentatorsPaneWithFilter!();
+            }
+          : null,
+      onCommentatorsChanged: (commentators, {required isAdding}) {
+        selectClickedLine();
+        context.read<TextBookBloc>().add(UpdateCommentators(commentators));
+        if (isAdding) widget.onOpenCommentatorsPane?.call();
+      },
+    );
+  }
+
   List<AppContextMenuEntry> _normalizeEntries(
     List<AppContextMenuEntry> entries,
   ) {
@@ -1886,7 +2012,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       RequestExpandNotesForLine(lineIndex + 1),
     );
     if (widget.onOpenSidebarTab != null) {
-      widget.onOpenSidebarTab!(1);
+      widget.onOpenSidebarTab!(kNotesTabIndex);
     } else {
       context.read<TextBookBloc>().add(const ToggleLeftPane(true));
     }

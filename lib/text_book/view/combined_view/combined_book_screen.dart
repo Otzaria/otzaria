@@ -59,6 +59,7 @@ import 'package:otzaria/plugins/services/plugin_highlight_reveal_service.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
 import 'package:otzaria/plugins/services/reader_selection_service.dart';
 import 'package:otzaria/plugins/utils/plugin_context_menu_entries.dart';
+import 'package:otzaria/text_book/utils/commentators_context_menu.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
     as inline_notes;
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
@@ -154,17 +155,6 @@ List<Link> buildCombinedViewContextMenuLinksForParagraph({
 }
 
 @visibleForTesting
-bool shouldShowOpenCommentatorsPaneEntry({
-  required bool hasSelectedCommentators,
-  required bool showCommentaryAsExpansionTiles,
-  required bool isCommentatorsTabActive,
-}) {
-  return hasSelectedCommentators &&
-      !showCommentaryAsExpansionTiles &&
-      !isCommentatorsTabActive;
-}
-
-@visibleForTesting
 bool shouldShowOpenLinksPaneEntry({
   required bool hasLinks,
   required bool isLinksTabActive,
@@ -208,20 +198,6 @@ bool hasCommentariesForLine({
     }
     return lastTitle != null && activeCommentatorsSet.contains(lastTitle!);
   });
-}
-
-/// פריט "בחר מפרשים מרובים" יוצג כשיש callback `onOpenCommentatorsPaneWithFilter`
-/// וטאב המפרשים אינו פעיל בחלונית הצד. הכלל זהה גם במצב "מפרשים מתחת":
-/// אם המשתמש כבר פתח את חלונית הצד על המפרשים, אין צורך בפריט.
-///
-/// בניגוד ל-[shouldShowOpenCommentatorsPaneEntry], הפריט הזה לא תלוי
-/// ב-`hasSelectedCommentators` — מטרתו לאפשר בחירה גם כשהבחירה ריקה.
-@visibleForTesting
-bool shouldShowSelectCommentatorsEntry({
-  required bool hasOpenCommentatorsPaneWithFilterCallback,
-  required bool isCommentatorsTabActive,
-}) {
-  return hasOpenCommentatorsPaneWithFilterCallback && !isCommentatorsTabActive;
 }
 
 /// מעבד טקסט גולמי לפי הגדרות התצוגה (טעמים/ניקוד/פיסוק), כך שפעולת
@@ -1008,56 +984,6 @@ class _CombinedViewState extends State<CombinedView> {
     }
   }
 
-  /// helper קטן שמחזיר רשימת AppContextMenuEntry מקבוצה אחת
-  List<AppContextMenuEntry> _buildGroup(
-    String groupName,
-    List<String>? group,
-    TextBookLoaded st,
-    int paragraphIndex,
-  ) {
-    if (group == null || group.isEmpty) return const [];
-    final bool groupActive = group.every(
-      (title) => st.activeCommentators.contains(title),
-    );
-    return [
-      AppContextMenuEntry(
-        label: 'הצג את כל $groupName',
-        isSelected: groupActive,
-        onTap: () {
-          _selectParagraphForContextMenu(paragraphIndex);
-          final current = List<String>.from(st.activeCommentators);
-          final isAdding = !groupActive;
-          if (groupActive) {
-            current.removeWhere(group.contains);
-          } else {
-            for (final title in group) {
-              if (!current.contains(title)) current.add(title);
-            }
-          }
-          context.read<TextBookBloc>().add(UpdateCommentators(current));
-          _openCommentatorsPane(isAdding: isAdding);
-        },
-      ),
-      ...group.map((title) {
-        final bool isActive = st.activeCommentators.contains(title);
-        return AppContextMenuEntry(
-          label: title,
-          isSelected: isActive,
-          onTap: () {
-            _selectParagraphForContextMenu(paragraphIndex);
-            final current = List<String>.from(st.activeCommentators);
-            final isAdding = !current.contains(title);
-            current.contains(title)
-                ? current.remove(title)
-                : current.add(title);
-            context.read<TextBookBloc>().add(UpdateCommentators(current));
-            _openCommentatorsPane(isAdding: isAdding);
-          },
-        );
-      }),
-    ];
-  }
-
   // בניית תפריט קונטקסט לאינדקס ספציפי של פסקה
   List<AppContextMenuEntry> _buildContextMenuForIndex(
     TextBookLoaded state,
@@ -1078,17 +1004,6 @@ class _CombinedViewState extends State<CombinedView> {
       ];
     }
 
-    final groups = state.commentatorGroups;
-    final tanachGroup = CommentatorGroup.groupByTitle(groups, 'תורה שבכתב');
-    final chazalGroup = CommentatorGroup.groupByTitle(groups, 'חז"ל');
-    final rishonimGroup = CommentatorGroup.groupByTitle(groups, 'ראשונים');
-    final acharonimGroup = CommentatorGroup.groupByTitle(groups, 'אחרונים');
-    final modernGroup = CommentatorGroup.groupByTitle(groups, 'מחברי זמננו');
-    final ungroupedGroup = CommentatorGroup.groupByTitle(groups, 'שאר מפרשים');
-
-    final allActive = state.activeCommentators.toSet().containsAll(
-      state.availableCommentators,
-    );
     final paragraphLinks = buildCombinedViewContextMenuLinksForParagraph(
       linksByLine: state.linksByLine,
       paragraphIndex: paragraphIndex,
@@ -1106,101 +1021,28 @@ class _CombinedViewState extends State<CombinedView> {
       isCommentatorsTabActive: isCommentatorsTabActive,
     );
 
-    final commentatorChildren = <AppContextMenuEntry>[
-      if (shouldShowOpenPaneEntry)
-        AppContextMenuEntry(
-          label: 'פתח את חלונית המפרשים',
-          icon: FluentIcons.panel_right_24_regular,
-          isHighlighted: true,
-          onTap: () {
-            _selectParagraphForContextMenu(paragraphIndex);
-            _openCommentatorsPane(isAdding: true);
-          },
-        ),
-      if (shouldShowSelectEntry)
-        AppContextMenuEntry(
-          label: 'בחר מפרשים מרובים',
-          icon: FluentIcons.filter_24_regular,
-          isHighlighted: true,
-          onTap: () {
-            _selectParagraphForContextMenu(paragraphIndex);
-            widget.onOpenCommentatorsPaneWithFilter!();
-          },
-        ),
-      if (shouldShowOpenPaneEntry || shouldShowSelectEntry)
-        const AppContextMenuEntry.divider(),
-      AppContextMenuEntry(
-        label: 'הצג את כל המפרשים',
-        isSelected: allActive,
-        onTap: () {
-          _selectParagraphForContextMenu(paragraphIndex);
-          context.read<TextBookBloc>().add(
-            UpdateCommentators(
-              allActive
-                  ? <String>[]
-                  : List<String>.from(state.availableCommentators),
-            ),
-          );
-          _openCommentatorsPane(isAdding: !allActive);
-        },
-      ),
-      const AppContextMenuEntry.divider(),
-      ..._buildGroup(
-        tanachGroup.title,
-        tanachGroup.commentators,
-        state,
-        paragraphIndex,
-      ),
-      if (tanachGroup.commentators.isNotEmpty &&
-          chazalGroup.commentators.isNotEmpty)
-        const AppContextMenuEntry.divider(),
-      ..._buildGroup(
-        chazalGroup.title,
-        chazalGroup.commentators,
-        state,
-        paragraphIndex,
-      ),
-      if (chazalGroup.commentators.isNotEmpty &&
-          rishonimGroup.commentators.isNotEmpty)
-        const AppContextMenuEntry.divider(),
-      ..._buildGroup(
-        rishonimGroup.title,
-        rishonimGroup.commentators,
-        state,
-        paragraphIndex,
-      ),
-      if (rishonimGroup.commentators.isNotEmpty &&
-          acharonimGroup.commentators.isNotEmpty)
-        const AppContextMenuEntry.divider(),
-      ..._buildGroup(
-        acharonimGroup.title,
-        acharonimGroup.commentators,
-        state,
-        paragraphIndex,
-      ),
-      if (acharonimGroup.commentators.isNotEmpty &&
-          modernGroup.commentators.isNotEmpty)
-        const AppContextMenuEntry.divider(),
-      ..._buildGroup(
-        modernGroup.title,
-        modernGroup.commentators,
-        state,
-        paragraphIndex,
-      ),
-      if ((tanachGroup.commentators.isNotEmpty ||
-              chazalGroup.commentators.isNotEmpty ||
-              rishonimGroup.commentators.isNotEmpty ||
-              acharonimGroup.commentators.isNotEmpty ||
-              modernGroup.commentators.isNotEmpty) &&
-          ungroupedGroup.commentators.isNotEmpty)
-        const AppContextMenuEntry.divider(),
-      ..._buildGroup(
-        ungroupedGroup.title,
-        ungroupedGroup.commentators,
-        state,
-        paragraphIndex,
-      ),
-    ];
+    final commentatorChildren = buildCommentatorsContextMenuChildren(
+      activeCommentators: state.activeCommentators,
+      availableCommentators: state.availableCommentators,
+      commentatorGroups: state.commentatorGroups,
+      onOpenPane: shouldShowOpenPaneEntry
+          ? () {
+              _selectParagraphForContextMenu(paragraphIndex);
+              _openCommentatorsPane(isAdding: true);
+            }
+          : null,
+      onSelectMultiple: shouldShowSelectEntry
+          ? () {
+              _selectParagraphForContextMenu(paragraphIndex);
+              widget.onOpenCommentatorsPaneWithFilter!();
+            }
+          : null,
+      onCommentatorsChanged: (commentators, {required isAdding}) {
+        _selectParagraphForContextMenu(paragraphIndex);
+        context.read<TextBookBloc>().add(UpdateCommentators(commentators));
+        _openCommentatorsPane(isAdding: isAdding);
+      },
+    );
 
     final showOpenLinksPaneEntry = shouldShowOpenLinksPaneEntry(
       hasLinks: paragraphLinks.isNotEmpty,
