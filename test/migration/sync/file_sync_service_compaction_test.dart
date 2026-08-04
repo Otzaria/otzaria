@@ -108,6 +108,30 @@ void main() {
       reason: 'הקובץ חייב להתכווץ, לא רק להשתחרר ל-freelist',
     );
   });
+
+  test('prune של תיקייה שהוסרה ברענון ספרייה מקטין את user_books.db', () async {
+    await setFolderStorage(addToDatabase: true);
+    await sync();
+    final sizeWithContent = await dbFileSize();
+    expect(sizeWithContent, greaterThan(2 * 1024 * 1024));
+
+    // המסלול של LibraryBloc ברענון רגיל: התיקייה כבר לא בהגדרות, וה-prune
+    // מסיר את ספריה מה-DB.
+    FileSyncService.resetSingletonForTesting();
+    final service = await FileSyncService.getInstance(
+      repository,
+      userBooksRepository: repository,
+    );
+    await service!.refreshSourcesAndPruneRemovedCustomFolders(const []);
+
+    final db = await database.database;
+    expect(db.select('SELECT count(*) FROM book').first.values.first, 0);
+    expect(
+      await dbFileSize(),
+      lessThan(sizeWithContent ~/ 2),
+      reason: 'גם מסלול ה-prune הישיר חייב לכווץ, לא רק זרימת הסנכרון',
+    );
+  });
 }
 
 class _MemoryCacheProvider extends CacheProvider {

@@ -257,30 +257,6 @@ class SeforimRepository {
     _logger.info('Normal performance mode restored');
   }
 
-  /// מכווץ את קובץ ה-DB אם הצטברו בו הרבה דפים פנויים; מחזיר האם כווץ בפועל.
-  ///
-  /// מחיקות (prune, [clearBookContent]) משחררות דפים ל-freelist אך משאירות
-  /// את הקובץ בגודל השיא ההיסטורי שלו — רק VACUUM מקטין אותו.
-  ///
-  /// חיבור read-only חוזר מיד. `seforim.db` נפתח תמיד read-only, ולכן
-  /// לעולם לא ייכתב מכאן.
-  ///
-  /// ה-VACUUM סינכרוני וחוסם את ה-isolate — יש לקרוא מ-isolate רקע בלבד.
-  Future<bool> compactIfFragmented() async {
-    if (_database.isReadOnly) return false;
-
-    try {
-      final compacted = vacuumIfFragmented(await _database.database);
-      if (compacted) _logger.info('Compacted ${_database.path}');
-      return compacted;
-    } catch (e) {
-      // כיווץ הוא אופטימיזציה בלבד — כשל בו (נעילה, אין מקום בדיסק) לא
-      // אמור להפיל את הפעולה שקראה לו.
-      _logger.warning('VACUUM failed for ${_database.path}: $e');
-      return false;
-    }
-  }
-
   /// Rebuilds the category_closure table from the current category tree.
   Future<void> rebuildCategoryClosure() async {
     final db = await _database.database;

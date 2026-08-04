@@ -1,12 +1,8 @@
-import 'dart:io';
-import 'dart:isolate';
-
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/app_paths.dart';
-import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
-import 'package:otzaria/migration/database/sql/sqlite3_utils.dart';
+import 'package:otzaria/migration/database/database_compaction.dart';
 
 /// סינגלטון שמחזיק את ה-DB וה-repository הכתיבים למטמונים תפעוליים.
 ///
@@ -50,17 +46,7 @@ class CacheDatabaseHolder {
   /// רץ ב-isolate נפרד: VACUUM הוא סינכרוני, ועל מטמון של מאות MB הוא היה
   /// מקפיא את ה-UI לשניות. אינו יוצר את הקובץ אם עדיין אין כזה — משתמש
   /// שלא פתח ספר חיצוני מעולם לא יקבל cache.db ריק בגללו.
-  Future<bool> compactIfFragmented() async {
-    final dbPath = await resolveDbPath();
-    final file = File(dbPath);
-    if (!await file.exists()) return false;
-    // סינון זול לפני spawn של isolate: הסף לכיווץ הוא 1MB פנוי, ולכן בקובץ
-    // קטן ממילא אין מה להרוויח.
-    if (await file.length() < _minSizeToConsiderCompaction) return false;
-    return Isolate.run(() => _vacuumCacheDb(dbPath));
-  }
-
-  static const int _minSizeToConsiderCompaction = 4 * 1024 * 1024;
+  Future<bool> compactIfFragmented() => resolveDbPath().then(compactSqliteFile);
 
   Future<SeforimRepository> _initialize() async {
     final dbPath = await AppPaths.resolveCacheDbPath();
@@ -85,24 +71,5 @@ class CacheDatabaseHolder {
     _database = null;
     _repository = null;
     _initFuture = null;
-  }
-}
-
-/// גוף הכיווץ, רץ ב-isolate של [CacheDatabaseHolder.compactIfFragmented].
-///
-/// פותח חיבור משלו ב-sqlite3 גולמי — בלי סכמה ובלי DAOs, כדי שלא יידרש
-/// QueryLoader (שנשען על assets ואינו זמין ב-isolate נקי).
-bool _vacuumCacheDb(String dbPath) {
-  final db = sqlite3.sqlite3.open(dbPath);
-  try {
-    // ה-isolate הראשי מחזיק את cache.db פתוח; בלי המתנה על הנעילה הכיווץ
-    // היה נכשל מיד בכל פעם שמשהו קורא במקביל.
-    db.execute('PRAGMA busy_timeout=5000');
-    return vacuumIfFragmented(db);
-  } catch (e) {
-    debugPrint('🗂️ [CacheDB] VACUUM failed: $e');
-    return false;
-  } finally {
-    db.close();
   }
 }
