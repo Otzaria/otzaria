@@ -35,6 +35,7 @@ import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/library/view/library_browser.dart';
 import 'package:otzaria/tabs/reading_screen.dart';
 import 'package:otzaria/text_book/view/text_book_screen.dart';
+import 'package:otzaria/text_book/view/widgets/nav_panel_tour_target.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -1938,7 +1939,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
       final buttonRect =
           _rectForGlobalKey(textBookNavigationTourTargetKey) ??
           _rectForGlobalKey(pdfBookNavigationTourTargetKey);
-      final panelRect = _rectForGlobalKey(textBookNavPanelTourTargetKey);
+      final panelRect = _rectForGlobalKey(
+        activeTextBookNavPanelTourTargetKey,
+      );
       return [
         ?buttonRect,
         ?panelRect,
@@ -2116,8 +2119,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
     return _navData.indexWhere((item) => item.screen == screen);
   }
 
-  Rect? _rectForGlobalKey(GlobalKey key, {double inflate = 4}) {
-    final context = key.currentContext;
+  Rect? _rectForGlobalKey(GlobalKey? key, {double inflate = 4}) {
+    final context = key?.currentContext;
     if (context == null || !context.mounted) {
       return null;
     }

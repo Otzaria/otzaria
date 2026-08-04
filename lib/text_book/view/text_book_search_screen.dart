@@ -210,6 +210,15 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     });
   }
 
+  /// [TickerMode] כבוי מסמן שהטאב עבר לרקע (ראו `TickerMode` ב-`ReadingScreen`).
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!TickerMode.valuesOf(context).enabled) {
+      _releaseContentCache();
+    }
+  }
+
   @override
   void didUpdateWidget(TextBookSearchView oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -298,8 +307,8 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     _searchTextUpdated();
   }
 
-  /// טוען את תוכן הספר פעם אחת ושומר אותו לחיי החלונית. כישלון מאפס את
-  /// ה-Future כדי לאפשר ניסיון חוזר בחיפוש הבא.
+  /// טוען את תוכן הספר פעם אחת ושומר אותו עד לשחרור. כישלון — או שחרור בזמן
+  /// הטעינה — מאפס את ה-Future כדי לאפשר ניסיון חוזר בחיפוש הבא.
   Future<List<String>> _ensureContent() async {
     final existing = _contentFuture;
     if (existing != null) {
@@ -309,7 +318,9 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     _contentFuture = future;
     try {
       final lines = await future;
-      _content = lines;
+      if (identical(_contentFuture, future)) {
+        _content = lines;
+      }
       return lines;
     } catch (_) {
       if (identical(_contentFuture, future)) {
@@ -317,6 +328,13 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       }
       rethrow;
     }
+  }
+
+  /// משחרר את עותק שורות הספר שנטען לחיפוש, כך שטאבי רקע אינם מחזיקים עותק כל
+  /// אחד. התוצאות שעל המסך נשמרות, והחיפוש הבא יטען מחדש לפי הצורך.
+  void _releaseContentCache() {
+    _content = null;
+    _contentFuture = null;
   }
 
   Future<void> _searchTextUpdated() async {
@@ -594,7 +612,10 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     }
     final lineText = _lineTextAt(result.index, loadedState);
     final intraLineFraction = lineText == null
-        ? 0.0
+        ? matchFractionFromLineLength(
+            matchOffset: result.matchOffset,
+            lineLength: result.lineLength,
+          )
         : matchFractionInLine(
             lineText,
             result.query,
@@ -646,19 +667,22 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     _scrollResultsToIndex(nextIndex, onlyIfNotVisible: true);
   }
 
-  /// טקסט השורה לצורך דיוק גלילה אל המילה: קודם התוכן שנטען לחיפוש, ואם
-  /// אינו זמין — התוכן שב-state (מלא בטאב פעיל אחרי חימום). null אם השורה
-  /// לא זמינה — ואז נופלים לגלילה לתחילת השורה.
+  /// טקסט השורה לצורך דיוק גלילה אל המילה: קודם התוכן שנטען לחיפוש, ואם אינו
+  /// זמין — התוכן שב-state. null כשהשורה אינה זמינה.
+  ///
+  /// שורה שתוכנה שוחרר מוחזרת מה-state כ-placeholder ריק, ולכן ריק נחשב כאן
+  /// כלא-זמין — אחרת החישוב היה נותן שבר 0 ומאבד את הגלילה אל ההופעה.
   String? _lineTextAt(int index, TextBookLoaded loadedState) {
     if (index < 0) {
       return null;
     }
     final content = _content;
     if (content != null && index < content.length) {
-      return content[index];
+      return content[index].isEmpty ? null : content[index];
     }
     if (index < loadedState.content.length) {
-      return loadedState.content[index];
+      final line = loadedState.content[index];
+      return line.isEmpty ? null : line;
     }
     return null;
   }

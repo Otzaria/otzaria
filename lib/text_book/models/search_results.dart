@@ -8,11 +8,16 @@ class TextSearchResult {
   /// לצורך גלילה מדויקת. null בתוצאות ממנוע החיפוש, שאינו מוסר מיקום.
   final int? matchOffset;
 
+  /// אורך השורה הנקייה, בקואורדינטות של [matchOffset]. מאפשר לגלול אל ההופעה
+  /// גם כשתוכן הספר שוחרר מהזיכרון ואינו זמין לחישוב.
+  final int? lineLength;
+
   TextSearchResult({
     required this.snippet,
     required this.index,
     required this.query,
     required this.address,
     this.matchOffset,
+    this.lineLength,
   });
 }
