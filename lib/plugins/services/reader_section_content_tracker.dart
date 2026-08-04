@@ -5,10 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 
 typedef ReaderSectionChangeDispatcher =
-    Future<void> Function(
-      String topic,
-      Map<String, dynamic> payload,
-    );
+    Future<void> Function(String topic, Map<String, dynamic> payload);
 
 class ReaderSectionContentTracker {
   static ReaderSectionContentTracker _instance =
@@ -41,6 +38,7 @@ class ReaderSectionContentTracker {
     String? reason,
     int? bookDbId,
     String? bookType,
+    String? bookSource,
   }) async {
     if (bookId.isEmpty || sectionIndex < 0) {
       throw ArgumentError(
@@ -53,6 +51,7 @@ class ReaderSectionContentTracker {
       bookId: bookId,
       bookDbId: bookDbId,
       bookType: bookType,
+      bookSource: bookSource,
       sectionIndex: sectionIndex,
     );
     final current = (
@@ -70,6 +69,7 @@ class ReaderSectionContentTracker {
       bookId: bookId,
       bookDbId: bookDbId,
       bookType: bookType,
+      bookSource: bookSource,
       sectionIndex: sectionIndex,
       oldSourceTextHash: previous.sourceTextHash,
       newSourceTextHash: current.sourceTextHash,
@@ -94,6 +94,7 @@ class ReaderSectionContentTracker {
       return true;
     });
   }
+
   void clear() => _snapshots.clear();
 
   void _trimCache() {
@@ -125,6 +126,7 @@ class PluginSectionContentChange {
   final String bookId;
   final int? bookDbId;
   final String? bookType;
+  final String? bookSource;
   final int sectionIndex;
   final String? oldSourceTextHash;
   final String newSourceTextHash;
@@ -137,6 +139,7 @@ class PluginSectionContentChange {
     required this.bookId,
     this.bookDbId,
     this.bookType,
+    this.bookSource,
     required this.sectionIndex,
     this.oldSourceTextHash,
     required this.newSourceTextHash,
@@ -151,6 +154,7 @@ class PluginSectionContentChange {
     'bookId': bookId,
     if (bookDbId != null) 'id': bookDbId,
     if (bookType != null) 'type': bookType,
+    if (bookSource != null) 'source': bookSource,
     'sectionIndex': sectionIndex,
     if (oldSourceTextHash != null) 'oldSourceTextHash': oldSourceTextHash,
     'newSourceTextHash': newSourceTextHash,
@@ -161,7 +165,13 @@ class PluginSectionContentChange {
   };
 }
 
-typedef _SectionKey = ({String bookId, int? bookDbId, String? bookType, int sectionIndex});
+typedef _SectionKey = ({
+  String bookId,
+  int? bookDbId,
+  String? bookType,
+  String? bookSource,
+  int sectionIndex,
+});
 typedef _SectionSnapshot = ({
   String sourceTextHash,
   String? renderedTextHash,

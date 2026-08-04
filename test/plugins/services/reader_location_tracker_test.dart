@@ -110,6 +110,7 @@ void main() {
           'currentBookId': 'בראשית',
           'currentId': null,
           'currentType': 'text',
+          'currentSource': 'library',
           'currentIndex': 42,
           'currentRef': 'פרק ג',
         });
@@ -138,6 +139,7 @@ void main() {
           'currentBookId': 'מסילת ישרים',
           'currentId': null,
           'currentType': 'pdf',
+          'currentSource': 'library',
           'currentIndex': 17,
           'currentRef': 'פרק ב',
         });

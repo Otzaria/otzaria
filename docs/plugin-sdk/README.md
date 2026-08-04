@@ -217,7 +217,7 @@ Otzaria.off('calendar.date_changed', handler); // חייב להיות אותו r
 | `plugin.resumed` | 🔁 חוזר | (ללא) — ראה §השהיה ברקע |
 | `theme.changed` | 🔁 חוזר | `ThemePayload` |
 | `navigation.changed` | 🔁 חוזר | `{ screen: string }` |
-| `reader.current_book_changed` | 🔁 חוזר | `{ bookId: string, index: number }` |
+| `reader.current_book_changed` | 🔁 חוזר | `{ bookId: string, id: number?, type: string?, source: string?, index: number }` |
 | `calendar.date_changed` | 🔁 חוזר | `{ date: string }` |
 | `workspace.changed` | 🔁 חוזר | `{ workspaceId: string }` |
 | `settings.changed` | 🔁 חוזר | `{ key: string, newValue: * }` |

@@ -57,6 +57,7 @@ import 'package:otzaria/plugins/services/reader_selection_service.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_reveal_service.dart';
 import 'package:otzaria/plugins/models/plugin_text_normalization.dart';
+import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/plugins/services/plugin_section_text_map_service.dart';
 import 'package:otzaria/plugins/services/plugin_text_occurrence_service.dart';
 import 'package:otzaria/plugins/services/text_source_map_service.dart';
@@ -247,10 +248,7 @@ class PluginBridgeDependencies {
   final PersonalNotesRepository personalNotesRepository;
   final BookOpenCoordinator bookOpenCoordinator;
   final Map<String, dynamic> Function() themePayloadBuilder;
-  final Future<bool> Function({
-    required String title,
-    required String content,
-  })
+  final Future<bool> Function({required String title, required String content})
   showConfirmDialog;
   final Future<bool> Function({
     required String title,
@@ -389,7 +387,7 @@ class PluginBridgeAdapter {
 
   // bookId → טקסט מלא של הספר (מטמון LRU קצר, per adapter instance) עבור
   // getBookContent. ראה _loadBookRawText.
-  final Map<String, String> _bookContentCache = {};
+  final Map<PluginBookIdentityKey, String> _bookContentCache = {};
   static const int _bookContentCacheMaxEntries = 4;
 
   void dispose() {
@@ -410,28 +408,25 @@ class PluginBridgeAdapter {
   /// ה-adapter (טעינה/השבתה מחדש של התוסף). לכן ייתכן חלון קצר של תוכן
   /// לא-מעודכן אם המשתמש עורך ספר בזמן שתוסף קורא אותו — מקרה קצה נדיר
   /// בנתיב קריאה-בלבד.
-  Future<String> _loadBookRawText(String bookId, Library library) async {
-    final cached = _bookContentCache.remove(bookId);
+  Future<String> _loadBookRawText(Book book) async {
+    final key = PluginBookIdentity.keyOf(book);
+    final cached = _bookContentCache.remove(key);
     if (cached != null) {
-      _bookContentCache[bookId] = cached; // רענון מיקום ב-LRU
+      _bookContentCache[key] = cached; // רענון מיקום ב-LRU
       return cached;
     }
     // איתור ה-TextBook מהקטלוג כדי לקבל categoryId/fileType נכונים מה-metadata.
     // בלי זה, השכבה התחתונה מקבעת fileType='txt' ונכשלת לגבי ספרים בפורמט אחר
     // אצל משתמשים שאין להם קבצי טקסט נפרדים בדיסק (רק seforim.db).
-    final cataloged = library.getAllBooks().cast<dynamic>().firstWhere(
-      (b) => b?.title == bookId,
-      orElse: () => null,
-    );
     final String rawText;
-    if (cataloged is TextBook) {
+    if (book is TextBook) {
       rawText = await TextBookRepository(
         fileSystem: FileSystemData.instance,
-      ).getBookContent(cataloged);
+      ).getBookContent(book);
     } else {
-      rawText = await DataRepository.instance.getBookText(bookId);
+      rawText = await DataRepository.instance.getBookText(book.title);
     }
-    _bookContentCache[bookId] = rawText;
+    _bookContentCache[key] = rawText;
     if (_bookContentCache.length > _bookContentCacheMaxEntries) {
       _bookContentCache.remove(_bookContentCache.keys.first);
     }
@@ -533,9 +528,7 @@ class PluginBridgeAdapter {
         }
         return true;
       case 'getGrantedPermissions':
-        return {
-          'permissions': await _getGrantedPermissions(),
-        };
+        return {'permissions': await _getGrantedPermissions()};
       default:
         throw Exception("Unknown action in app: $action");
     }
@@ -565,7 +558,7 @@ class PluginBridgeAdapter {
             // spec: returns [{id, type, bookId, title, author?, topics?}]
             .map(
               (b) => {
-                ..._pluginBookIdentity(b as Book),
+                ...PluginBookIdentity.toJson(b as Book),
                 'title': b.title,
               },
             )
@@ -574,31 +567,15 @@ class PluginBridgeAdapter {
         // spec: accepts id, bookId (= title in otzaria), type — all optional,
         // all supplied fields must match the same book.
         {
-          final rawId = args['id'];
-          final int? id = switch (rawId) {
-            int v => v,
-            num v => v.toInt(),
-            String v => int.tryParse(v),
-            _ => null,
-          };
           final bookId = (args['bookId'] ?? args['title']) as String?;
-          final type = (args['type'] as String?)?.trim().toLowerCase();
-          if (id == null && bookId == null) {
+          if (PluginBookIdentity.parseId(args['id']) == null &&
+              bookId == null) {
             throw Exception('id or bookId required');
           }
-          final allBooks = library.getAllBooks();
-          final book = allBooks.cast<dynamic>().firstWhere(
-            (b) => _matchesPluginBookIdentity(
-              b as Book,
-              id: id,
-              bookId: bookId,
-              type: type,
-            ),
-            orElse: () => null,
-          );
+          final book = _findPluginBook(library, args);
           if (book == null) return null;
           return {
-            ..._pluginBookIdentity(book as Book),
+            ...PluginBookIdentity.toJson(book),
             'title': book.title,
             'topics': book.topics,
           };
@@ -611,16 +588,21 @@ class PluginBridgeAdapter {
             .take(20)
             .map(
               (b) => {
-                ..._pluginBookIdentity(b.book),
+                ...PluginBookIdentity.toJson(b.book),
                 'title': b.book.title,
                 'ref': b.ref,
               },
             )
             .toList();
       case 'getBookContent':
+        final book = _findPluginBook(library, args);
         final bookId = (args['bookId'] ?? args['title']) as String?;
-        if (bookId == null) throw Exception('bookId required');
-        final rawText = await _loadBookRawText(bookId, library);
+        if (book == null && bookId == null) {
+          throw Exception('error.not_found: book not found');
+        }
+        final rawText = book == null
+            ? await DataRepository.instance.getBookText(bookId!)
+            : await _loadBookRawText(book);
         final limit = args['limit'] as int? ?? 1000;
         final offset = args['offset'] as int? ?? 0;
         final section = args['section'] as String?;
@@ -634,14 +616,8 @@ class PluginBridgeAdapter {
         final end = (startIndex + clampedLimit).clamp(0, rawText.length);
         return rawText.substring(startIndex.clamp(0, rawText.length), end);
       case 'getBookToc':
-        final bookId = (args['bookId'] ?? args['title']) as String?;
-        if (bookId == null) throw Exception('bookId required');
-        final allBooks = library.getAllBooks();
-        final book = allBooks.cast<dynamic>().firstWhere(
-          (b) => b?.title == bookId,
-          orElse: () => null,
-        );
-        if (book != null && book is TextBook) {
+        final book = _findPluginBook(library, args);
+        if (book is TextBook) {
           final toc = flattenToc(await book.tableOfContents);
           return toc
               .map((e) => {'text': e.text, 'index': e.index, 'level': e.level})
@@ -658,11 +634,7 @@ class PluginBridgeAdapter {
           // ה-id הפנימי של ה-DB אינו יציב בין גרסאות ספרייה — לא נחשף לתוסף.
           return structures
               .map(
-                (s) => {
-                  'key': s.key,
-                  'title': s.title,
-                  'heTitle': s.heTitle,
-                },
+                (s) => {'key': s.key, 'title': s.title, 'heTitle': s.heTitle},
               )
               .toList();
         }
@@ -799,7 +771,7 @@ class PluginBridgeAdapter {
   /// ממפה ספר לרשומה בעץ: id, type, bookId (= title באוצריא), title, author?, topics?.
   Map<String, dynamic> _bookToTreeEntry(Book book) {
     final entry = <String, dynamic>{
-      ..._pluginBookIdentity(book),
+      ...PluginBookIdentity.toJson(book),
       'title': book.title,
     };
     if (book.author != null && book.author!.isNotEmpty) {
@@ -816,34 +788,27 @@ class PluginBridgeAdapter {
   // ----------------------------------------------------------------
 
   /// מחזיר את סוג הספר כמחרוזת עבור ה-Plugin SDK.
-  static String _pluginBookType(Book book) => switch (book) {
-    PdfBook() => 'pdf',
-    DocxBook() => 'docx',
-    EpubBook() => 'epub',
-    ExternalLibraryBook() => 'external',
-    TextBook() => 'text',
-    _ => 'unknown',
-  };
-
-  /// בונה את שלושת שדות זהות הספר האחידים לשליחה לתוסף.
-  static Map<String, dynamic> _pluginBookIdentity(Book book) => {
-    'id': book.id,
-    'type': _pluginBookType(book),
-    'bookId': book.title,
-  };
-
-  /// מאמת שספר תואם לשדות הזהות שנשלחו מהתוסף.
-  /// null = "לא נשלח, אין דרישה". מחזיר false אם אחד השדות לא תואם.
-  static bool _matchesPluginBookIdentity(
-    Book book, {
-    int? id,
-    String? bookId,
-    String? type,
-  }) {
-    if (id != null && book.id != id) return false;
-    if (bookId != null && book.title != bookId) return false;
-    if (type != null && _pluginBookType(book) != type) return false;
-    return true;
+  Book? _findPluginBook(Library library, Map<String, dynamic> args) {
+    final id = PluginBookIdentity.parseId(args['id']);
+    final bookId = (args['bookId'] ?? args['title']) as String?;
+    final type = args['type'] as String?;
+    final source = args['source'] as String?;
+    if (id == null && bookId == null) return null;
+    final matches = library.getAllBooks().where(
+      (book) => PluginBookIdentity.matches(
+        book,
+        id: id,
+        bookId: bookId,
+        type: type,
+        source: source,
+      ),
+    );
+    final found = matches.toList();
+    if (found.isEmpty) return null;
+    if ((id != null || type != null || source != null) && found.length != 1) {
+      return null;
+    }
+    return found.first;
   }
 
   // ----------------------------------------------------------------
@@ -907,35 +872,22 @@ class PluginBridgeAdapter {
         // spec: openBook({ id?, bookId?, type?, index?, searchQuery?, navigateToPositionIfReused? })
         // also accepts legacy 'title' for back-compat; all supplied identity fields must match.
         {
-          final rawId = args['id'];
-          final int? id = switch (rawId) {
-            int v => v,
-            num v => v.toInt(),
-            String v => int.tryParse(v),
-            _ => null,
-          };
           final bookId = (args['bookId'] ?? args['title']) as String?;
-          final type = (args['type'] as String?)?.trim().toLowerCase();
           final index = (args['index'] as num?)?.toInt() ?? 0;
           final searchQuery = args['searchQuery'] as String? ?? '';
           final navigateToPositionIfReused =
               args['navigateToPositionIfReused'] as bool? ?? false;
-          if (id == null && bookId == null) {
+          if (PluginBookIdentity.parseId(args['id']) == null &&
+              bookId == null) {
             throw Exception('id or bookId required');
           }
-          final allBooks = (await DataRepository.instance.library).getAllBooks();
-          final book = allBooks.cast<dynamic>().firstWhere(
-            (b) => _matchesPluginBookIdentity(
-              b as Book,
-              id: id,
-              bookId: bookId,
-              type: type,
-            ),
-            orElse: () => null,
+          final book = _findPluginBook(
+            await DataRepository.instance.library,
+            args,
           );
           if (book == null) return false;
           _dependencies.bookOpenCoordinator.openBook(
-            book as Book,
+            book,
             index,
             searchQuery,
             ignoreHistory: true,
@@ -947,33 +899,20 @@ class PluginBridgeAdapter {
       case 'openBookAtRef':
         // spec: openBookAtRef({ id?, bookId?, type?, ref, index?, highlight? })
         {
-          final rawId = args['id'];
-          final int? id = switch (rawId) {
-            int v => v,
-            num v => v.toInt(),
-            String v => int.tryParse(v),
-            _ => null,
-          };
           final bookId = (args['bookId'] ?? args['title']) as String?;
-          final type = (args['type'] as String?)?.trim().toLowerCase();
           final ref = args['ref'] as String?;
           int index = (args['index'] as num?)?.toInt() ?? 0;
           final highlight = args['highlight'] as bool? ?? false;
-          if (id == null && bookId == null) {
+          if (PluginBookIdentity.parseId(args['id']) == null &&
+              bookId == null) {
             throw Exception('id or bookId required');
           }
-          final allBooks = (await DataRepository.instance.library).getAllBooks();
-          final book = allBooks.cast<dynamic>().firstWhere(
-            (b) => _matchesPluginBookIdentity(
-              b as Book,
-              id: id,
-              bookId: bookId,
-              type: type,
-            ),
-            orElse: () => null,
+          final book = _findPluginBook(
+            await DataRepository.instance.library,
+            args,
           );
           if (book == null) return false;
-          final resolvedBookId = (book as Book).title;
+          final resolvedBookId = book.title;
           var refFound = false;
           if (ref != null && ref.isNotEmpty && book is TextBook) {
             // רזולוציה לרמת שורה (פסוק/סעיף) דרך heRef — מדויקת מתחת ל-TOC,
@@ -1052,7 +991,10 @@ class PluginBridgeAdapter {
               : (t is PdfBookTab ? t.book : null);
           return {
             'id': tabBook?.id,
-            'type': tabBook != null ? _pluginBookType(tabBook) : null,
+            'type': tabBook != null ? PluginBookIdentity.typeOf(tabBook) : null,
+            'source': tabBook != null
+                ? PluginBookIdentity.sourceOf(tabBook)
+                : null,
             'bookId': t.title,
             'book': t.title,
             'index': t is TextBookTab
@@ -1066,6 +1008,7 @@ class PluginBridgeAdapter {
             'currentBook': null,
             'currentId': null,
             'currentType': null,
+            'currentSource': null,
             'currentIndex': 0,
             'currentRef': null,
             'openTabs': openTabs,
@@ -1083,7 +1026,10 @@ class PluginBridgeAdapter {
           'currentBookId': currentTab.title,
           'currentId': currentTabBook?.id,
           'currentType': currentTabBook != null
-              ? _pluginBookType(currentTabBook)
+              ? PluginBookIdentity.typeOf(currentTabBook)
+              : null,
+          'currentSource': currentTabBook != null
+              ? PluginBookIdentity.sourceOf(currentTabBook)
               : null,
           'currentIndex': currentTab is TextBookTab
               ? currentTab.index
@@ -1101,6 +1047,7 @@ class PluginBridgeAdapter {
             'currentBookId': null,
             'currentId': null,
             'currentType': null,
+            'currentSource': null,
             'currentIndex': 0,
             'currentRef': null,
           };
@@ -1313,10 +1260,8 @@ class PluginBridgeAdapter {
     );
     final normalizeJson = _normalizationJson(
       args['normalize'],
-      (message) => throw PluginTextOccurrenceException(
-        'error.invalid_params',
-        message,
-      ),
+      (message) =>
+          throw PluginTextOccurrenceException('error.invalid_params', message),
     );
     try {
       final options = _normalizationOptions(normalizeJson, section.settings);
@@ -1373,9 +1318,7 @@ class PluginBridgeAdapter {
               !(Settings.getValue<bool>(SettingsRepository.keyShowTeamim) ??
                   true),
           replaceHolyNames:
-              Settings.getValue<bool>(
-                SettingsRepository.keyReplaceHolyNames,
-              ) ??
+              Settings.getValue<bool>(SettingsRepository.keyReplaceHolyNames) ??
               false,
         ),
         currentRef: snapshot?.currentRef,
@@ -1415,9 +1358,7 @@ class PluginBridgeAdapter {
             !(Settings.getValue<bool>(SettingsRepository.keyShowTeamim) ??
                 true),
         replaceHolyNames:
-            Settings.getValue<bool>(
-              SettingsRepository.keyReplaceHolyNames,
-            ) ??
+            Settings.getValue<bool>(SettingsRepository.keyReplaceHolyNames) ??
             false,
       ),
       currentRef: null,
@@ -1459,10 +1400,8 @@ class PluginBridgeAdapter {
     }
     final normalizeJson = _normalizationJson(
       args['normalize'],
-      (message) => throw PluginSectionTextMapException(
-        'error.invalid_params',
-        message,
-      ),
+      (message) =>
+          throw PluginSectionTextMapException('error.invalid_params', message),
     );
     final section = await _loadPluginTextSection(bookId, sectionIndex);
     final map = const TextSourceMapService().build(
@@ -1686,10 +1625,7 @@ class PluginBridgeAdapter {
 
   /// בורר התיקיות המוגדר כברירת מחדל — דיאלוג המערכת דרך [FilePicker].
   Future<String?> _defaultPickFolder({String? title}) =>
-      FilePicker.getDirectoryPath(
-        lockParentWindow: true,
-        dialogTitle: title,
-      );
+      FilePicker.getDirectoryPath(lockParentWindow: true, dialogTitle: title);
 
   /// בודקת אם [targetPath] נמצא בתוך תיקייה שהמשתמש אישר דרך `ui.pickFolder`.
   ///
@@ -2231,7 +2167,7 @@ class PluginBridgeAdapter {
             .take(limit)
             .map(
               (b) => {
-                ..._pluginBookIdentity(b.book),
+                ...PluginBookIdentity.toJson(b.book),
                 'title': b.book.title,
                 'ref': b.ref,
                 'index': b.index,
@@ -2263,15 +2199,10 @@ class PluginBridgeAdapter {
 
       case 'remove':
         {
-          final rawId = args['id'];
-          final int? id = switch (rawId) {
-            int v => v,
-            num v => v.toInt(),
-            String v => int.tryParse(v),
-            _ => null,
-          };
+          final id = PluginBookIdentity.parseId(args['id']);
           final bookId = args['bookId'] as String?;
           final type = (args['type'] as String?)?.trim().toLowerCase();
+          final source = (args['source'] as String?)?.trim().toLowerCase();
           final index = (args['index'] as num?)?.toInt();
           if (id == null && bookId == null) {
             throw Exception('id or bookId required');
@@ -2284,11 +2215,12 @@ class PluginBridgeAdapter {
 
           for (int i = 0; i < historyList.length; i++) {
             final item = historyList[i];
-            if (!_matchesPluginBookIdentity(
+            if (!PluginBookIdentity.matches(
               item.book,
               id: id,
               bookId: bookId,
               type: type,
+              source: source,
             )) {
               continue;
             }
@@ -2649,10 +2581,7 @@ class PluginBridgeAdapter {
     }
 
     if (jewishCalendar.isRoshChodesh()) {
-      addHoliday(
-        formatter.formatRoshChodesh(jewishCalendar),
-        'roshChodesh',
-      );
+      addHoliday(formatter.formatRoshChodesh(jewishCalendar), 'roshChodesh');
     }
 
     return holidays;
@@ -2708,7 +2637,8 @@ class PluginBridgeAdapter {
 
     final legacySelection = <String, dynamic>{
       'id': currentTab.book.id,
-      'type': 'text',
+      'type': PluginBookIdentity.typeOf(currentTab.book),
+      'source': PluginBookIdentity.sourceOf(currentTab.book),
       'text': selectedText,
       'start': state.selectedTextStart,
       'end': state.selectedTextEnd,
@@ -2740,9 +2670,7 @@ class PluginBridgeAdapter {
             !(Settings.getValue<bool>(SettingsRepository.keyShowTeamim) ??
                 true),
         replaceHolyNames:
-            Settings.getValue<bool>(
-              SettingsRepository.keyReplaceHolyNames,
-            ) ??
+            Settings.getValue<bool>(SettingsRepository.keyReplaceHolyNames) ??
             false,
       ),
       renderedStartUtf16: start,
@@ -2903,11 +2831,7 @@ class PluginBridgeAdapter {
           headers: headers.isEmpty ? null : headers,
           body: requestBody,
         );
-        return {
-          'status': result.status,
-          'ok': result.ok,
-          'body': result.body,
-        };
+        return {'status': result.status, 'ok': result.ok, 'body': result.body};
 
       case 'download':
         // הורדה רגילה של קובץ מ-URL מותר אל תיקיית ההורדות של המערכת.

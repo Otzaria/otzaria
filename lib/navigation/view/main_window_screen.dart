@@ -74,6 +74,7 @@ import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 import 'package:otzaria/widgets/navigation/nav_rail_item.dart';
 import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/services/windows_jump_list_service.dart';
@@ -972,9 +973,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
         unawaited(_processPendingExternalActivations());
       },
       onError: (error, stackTrace) {
-        debugPrint(
-          'External activation watch failed: $error\n$stackTrace',
-        );
+        debugPrint('External activation watch failed: $error\n$stackTrace');
       },
     );
 
@@ -1098,16 +1097,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
         );
         return true;
       case OpenHistoryAction():
-        showDialog(
-          context: context,
-          builder: (_) => const HistoryDialog(),
-        );
+        showDialog(context: context, builder: (_) => const HistoryDialog());
         return true;
       case OpenBookmarksAction():
-        showDialog(
-          context: context,
-          builder: (_) => const BookmarksDialog(),
-        );
+        showDialog(context: context, builder: (_) => const BookmarksDialog());
         return true;
       case OpenSettingsTabAction(:final tab):
         context.read<NavigationBloc>().add(
@@ -1640,9 +1633,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
           });
         }
       case TourStepAction.openTools:
-        context.read<NavigationBloc>().add(
-          const NavigateToScreen(Screen.more),
-        );
+        context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
       case TourStepAction.openSettings:
         context.read<NavigationBloc>().add(
           const NavigateToScreen(Screen.settings),
@@ -1724,9 +1715,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
       }
       _bringTourOverlayToFront();
       _tourOverlayEntry?.markNeedsBuild();
-      _scheduleBringTourOverlayToFront(
-        remainingFrames: remainingFrames - 1,
-      );
+      _scheduleBringTourOverlayToFront(remainingFrames: remainingFrames - 1);
     });
   }
 
@@ -1920,32 +1909,21 @@ class MainWindowScreenState extends State<MainWindowScreen>
     if (step.id == 'advanced_search') {
       final dialogRect = _rectForGlobalKey(tourSearchDialogTargetKey);
       final navSearchRect = _navItemTourRectForScreen(Screen.search);
-      return [
-        ?dialogRect,
-        ?navSearchRect,
-      ];
+      return [?dialogRect, ?navSearchRect];
     }
 
     if (step.id == 'find_ref') {
       final dialogRect = _findRefDialogTourRect();
       final navFindRefRect = _navItemTourRectForScreen(Screen.find);
-      return [
-        ?dialogRect,
-        ?navFindRefRect,
-      ];
+      return [?dialogRect, ?navFindRefRect];
     }
 
     if (step.id == 'toc') {
       final buttonRect =
           _rectForGlobalKey(textBookNavigationTourTargetKey) ??
           _rectForGlobalKey(pdfBookNavigationTourTargetKey);
-      final panelRect = _rectForGlobalKey(
-        activeTextBookNavPanelTourTargetKey,
-      );
-      return [
-        ?buttonRect,
-        ?panelRect,
-      ];
+      final panelRect = _rectForGlobalKey(activeTextBookNavPanelTourTargetKey);
+      return [?buttonRect, ?panelRect];
     }
 
     if (step.id == 'bookmark') {
@@ -1957,11 +1935,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
       );
       final directRect = _directReadingTourTargetRect(step.area);
       if (directRect != null) {
-        return [
-          directRect,
-          ?titleBarHistoryRect,
-          ?titleBarBookmarkRect,
-        ];
+        return [directRect, ?titleBarHistoryRect, ?titleBarBookmarkRect];
       }
       final overflowRect =
           _rectForGlobalKey(textBookOverflowTourTargetKey) ??
@@ -1989,10 +1963,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
         _rectForGlobalKey(textBookOverflowTourTargetKey) ??
         _rectForGlobalKey(pdfBookOverflowTourTargetKey);
     final menuItemRect = _readingOverflowMenuItemRect(step.area);
-    return [
-      ?overflowRect,
-      ?menuItemRect,
-    ];
+    return [?overflowRect, ?menuItemRect];
   }
 
   Rect? _readingTourTargetRect(TourSpotlightArea area) {
@@ -2230,9 +2201,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
             listener: (context, state) {
               PluginRuntimeDispatcher.instance.dispatchEvent(
                 'navigation.changed',
-                {
-                  'screen': state.currentScreen.name,
-                },
+                {'screen': state.currentScreen.name},
               );
               _handleNavigationChange(context, state);
             },
@@ -2244,9 +2213,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
             listener: (context, state) {
               PluginRuntimeDispatcher.instance.dispatchEvent(
                 'workspace.changed',
-                {
-                  'workspaceId': state.activeWorkspaceId,
-                },
+                {'workspaceId': state.activeWorkspaceId},
               );
               // עדכון שם שולחן העבודה הנוכחי ב-HistoryBloc
               final currentId = state.activeWorkspaceId;
@@ -2355,9 +2322,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
                 (previous is IndexingInProgress) !=
                 (current is IndexingInProgress),
             listener: (context, state) {
-              _startupWorkGate.markIndexingRunning(
-                state is IndexingInProgress,
-              );
+              _startupWorkGate.markIndexingRunning(state is IndexingInProgress);
               _tryStartDeferredStartupWork();
             },
           ),
@@ -2615,9 +2580,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
                     ),
                   );
                 }
-                PluginRuntimeDispatcher.instance.dispatchEvent(
-                  'reader.current_book_changed',
-                  {
+                PluginRuntimeDispatcher.instance
+                    .dispatchEvent('reader.current_book_changed', {
                     'book': currentTab.title,
                     'bookId': currentTab.title,
                     'id': currentTab is TextBookTab
@@ -2626,11 +2590,15 @@ class MainWindowScreenState extends State<MainWindowScreen>
                             ? currentTab.book.id
                             : null),
                     'type': currentTab is TextBookTab
-                        ? 'text'
+                          ? PluginBookIdentity.typeOf(currentTab.book)
                         : (currentTab is PdfBookTab ? 'pdf' : null),
+                      'source': currentTab is TextBookTab
+                          ? PluginBookIdentity.sourceOf(currentTab.book)
+                          : (currentTab is PdfBookTab
+                                ? PluginBookIdentity.sourceOf(currentTab.book)
+                                : null),
                     'index': tabIndex,
-                  },
-                );
+                    });
               }
             },
           ),
@@ -2654,22 +2622,18 @@ class MainWindowScreenState extends State<MainWindowScreen>
               _prevCalendarState = current;
               if (previous == null) return;
               if (previous.selectedCity != current.selectedCity) {
-                PluginRuntimeDispatcher.instance.dispatchEvent(
-                  'settings.changed',
-                  {
+                PluginRuntimeDispatcher.instance
+                    .dispatchEvent('settings.changed', {
                     'key': SettingsRepository.keySelectedCity,
                     'newValue': current.selectedCity,
-                  },
-                );
+                    });
               }
               if (previous.calendarType != current.calendarType) {
-                PluginRuntimeDispatcher.instance.dispatchEvent(
-                  'settings.changed',
-                  {
+                PluginRuntimeDispatcher.instance
+                    .dispatchEvent('settings.changed', {
                     'key': SettingsRepository.keyCalendarType,
                     'newValue': current.calendarType.toString(),
-                  },
-                );
+                    });
               }
             },
           ),
@@ -3202,9 +3166,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
                           preserveChildStateOnClose: true,
                           width: 400,
                           title: 'הגדרות תצוגת הספרים',
-                          child: const Expanded(
-                            child: ReadingSettingsPanel(),
-                          ),
+                          child: const Expanded(child: ReadingSettingsPanel()),
                         ),
                       ],
                     ),
@@ -3224,10 +3186,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
       children: [
         Opacity(
           opacity: _initialContentReady ? 1.0 : 0.0,
-          child: IgnorePointer(
-            ignoring: !_initialContentReady,
-            child: content,
-          ),
+          child: IgnorePointer(ignoring: !_initialContentReady, child: content),
         ),
         if (_splashOverlayVisible)
           const Positioned.fill(child: _StartupSplashOverlay()),
@@ -3237,9 +3196,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
   void _openIndexingSettings() {
     _settingsScreenController.openTab(SettingsTab.library);
-    context.read<NavigationBloc>().add(
-      const NavigateToScreen(Screen.settings),
-    );
+    context.read<NavigationBloc>().add(const NavigateToScreen(Screen.settings));
   }
 
   int? _pageIndexForScreen(Screen screen) {
@@ -3294,10 +3251,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     });
   }
 
-  void _handleFindRefOpen(
-    BuildContext context, {
-    bool closeIfOpen = true,
-  }) {
+  void _handleFindRefOpen(BuildContext context, {bool closeIfOpen = true}) {
     if (_isFindRefOpen) {
       if (closeIfOpen) {
         Navigator.of(context).pop();
@@ -3418,10 +3372,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
   }
 
   /// פותח פריט מוצמד-לסרגל במסך הכלים.
-  void _openPinnedItemInTools(
-    BuildContext context,
-    _PinnedToolNavItem item,
-  ) {
+  void _openPinnedItemInTools(BuildContext context, _PinnedToolNavItem item) {
     // נקה hidden plugin פעיל לפני פתיחת פריט אחר (אלא אם זה אותו תוסף)
     final toolsState = moreScreenKey.currentState;
     if (toolsState != null &&
@@ -3504,9 +3455,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     } else if (item.screen == Screen.find) {
       _handleFindRefOpen(context);
     } else {
-      context.read<NavigationBloc>().add(
-        NavigateToScreen(item.screen),
-      );
+      context.read<NavigationBloc>().add(NavigateToScreen(item.screen));
     }
 
     if (item.screen == Screen.library) {
@@ -3580,10 +3529,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
       if (attemptsLeft <= 0) return;
       Future<void>.delayed(const Duration(milliseconds: 50), () {
         if (!mounted) return;
-        _openPluginInToolsWhenAvailable(
-          plugin,
-          attemptsLeft: attemptsLeft - 1,
-        );
+        _openPluginInToolsWhenAvailable(plugin, attemptsLeft: attemptsLeft - 1);
       });
     });
   }

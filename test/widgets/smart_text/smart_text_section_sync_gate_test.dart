@@ -24,6 +24,7 @@ class _CountingTracker extends ReaderSectionContentTracker {
   Future<PluginSectionContentChange?> recordSnapshot({
     int? bookDbId,
     required String bookId,
+    String? bookSource,
     String? bookType,
     String? reason,
     String? renderedText,
@@ -35,6 +36,7 @@ class _CountingTracker extends ReaderSectionContentTracker {
     return super.recordSnapshot(
       bookDbId: bookDbId,
       bookId: bookId,
+      bookSource: bookSource,
       bookType: bookType,
       reason: reason,
       renderedText: renderedText,

@@ -12,7 +12,8 @@
 {
   "id": 183,
   "type": "pdf",
-  "bookId": "שם הספר"
+  "bookId": "שם הספר",
+  "source": "library"
 }
 ```
 
@@ -21,6 +22,7 @@
 | `id` | המזהה המספרי של הספר במסד הנתונים (`int?` — יכול להיות `null` לספרים ללא מזהה. אם ה-id לא זמין, ניתן לחפש לפי `bookId` + `type`) |
 | `type` | סוג הספר: `"text"` \| `"pdf"` \| `"docx"` \| `"epub"` \| `"external"`. `null` עבור טאבים שאינם ספרים (SearchingTab, CombinedTab) |
 | `bookId` | שם הספר — נשמר לצורך תאימות לאחור ולאימות כאשר נשלח יחד עם `id` |
+| `source` | מקור הספר: `"library"` לספרייה המובנית, `"user"` ל־`user_books.db`, או `"external"` לקטלוג חיצוני. חובה לשלוח אותו עם `id` כאשר ה־ID עלול להתנגש בין מסדי נתונים. |
 
 ### APIs שמחזירים זהות מלאה
 
@@ -44,10 +46,10 @@
 
 > **הערה על `search.fullText`:** מנוע החיפוש (Tantivy) אינו שומר את ה-`id` מה-DB. כדי לקבל `id` — קרא ל-`library.getBookMetadata({ bookId, type })` עם התוצאה.
 
-> **הערה על DocxBook / EpubBook:** ספרים בפורמטים אלו נפתחים בתצוגת טקסט (type: `"text"`), כי האפליקציה ממירה אותם פנימית לפני הצגה.
+> **הערה על DocxBook / EpubBook:** ספרים בפורמטים אלו נפתחים בתצוגת טקסט, אך `type` נשאר `"docx"` או `"epub"` כדי לשמור על הזהות הקנונית.
 
 - **`bookId` לא השתנה** — תוספים קיימים שמסתמכים עליו ימשיכו לעבוד.
-- **כאשר שולחים כמה שדות זהות** (למשל `id` + `bookId` + `type`), כולם חייבים להתאים לאותו ספר. אם יש סתירה, ה-API מחזיר `null` / `false`.
+- **כאשר שולחים כמה שדות זהות** (למשל `id` + `bookId` + `type` + `source`), כולם חייבים להתאים לאותו ספר. אם יש סתירה או שהזהות אינה חד-משמעית, ה-API מחזיר `null` / `false`.
 - **חיפוש לפי `id` בלבד** — נתמך ב-`library.getBookMetadata`, `reader.openBook`, `reader.openBookAtRef`.
 - **חיפוש לפי `bookId` בלבד** — נשמר לתאימות לאחור בכל API.
 - **שני ספרים בעלי אותו שם** — ניתן להבדיל ביניהם בעזרת `id` + `type`.
@@ -576,6 +578,7 @@ const { data } = await Otzaria.call('reader.getCurrentState');
 //   currentBookId: "בראשית",
 //   currentId: 183,           // מזהה מספרי של הספר הפעיל
 //   currentType: "text",      // סוג הספר הפעיל
+//   currentSource: "library",  // מקור הספר הפעיל
 //   currentIndex: 42,
 //   currentRef: "בראשית פרק ג",
 //   openTabs: [
@@ -611,6 +614,7 @@ const { data } = await Otzaria.call('reader.getCurrentRef');
 //   currentBookId: "בראשית",
 //   currentId: 183,        // מזהה מספרי
 //   currentType: "text",   // סוג הספר
+//   currentSource: "library",
 //   currentIndex: 42,
 //   currentRef: "בראשית פרק ג"
 // }

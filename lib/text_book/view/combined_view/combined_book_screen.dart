@@ -58,6 +58,7 @@ import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_reveal_service.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
 import 'package:otzaria/plugins/services/reader_selection_service.dart';
+import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/plugins/utils/plugin_context_menu_entries.dart';
 import 'package:otzaria/text_book/utils/commentators_context_menu.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
@@ -1236,7 +1237,8 @@ class _CombinedViewState extends State<CombinedView> {
           renderedEndUtf16: localRange?.end,
           currentRef: state.currentTitle,
           bookDbId: state.book.id,
-          bookType: 'text',
+          bookType: PluginBookIdentity.typeOf(state.book),
+          bookSource: PluginBookIdentity.sourceOf(state.book),
         );
         return <AppContextMenuEntry>[
           const AppContextMenuEntry.divider(),
@@ -1625,16 +1627,14 @@ class _CombinedViewState extends State<CombinedView> {
                     final selectionText = fixedPlain?.trim() ?? '';
                     if (selectionText.isNotEmpty && loadedState != null) {
                       unawaited(
-                        PluginRuntimeDispatcher.instance.dispatchEvent(
-                          'reader.selection_changed',
-                          {
+                        PluginRuntimeDispatcher.instance
+                            .dispatchEvent('reader.selection_changed', {
                             'text': selectionText,
                             'currentRef': loadedState.currentTitle ?? '',
                             'currentBook': loadedState.book.title,
                             'currentBookId': loadedState.book.title,
                             'currentIndex': foundIndex ?? 0,
-                          },
-                        ),
+                            }),
                       );
                     }
                   }
@@ -2135,6 +2135,13 @@ class _CombinedViewState extends State<CombinedView> {
                           final textWidget = SmartTextWidget(
                             text: dataWithLinks,
                             highlightBookId: widget.tab.book.title,
+                            highlightBookDbId: widget.tab.book.id,
+                            highlightBookType: PluginBookIdentity.typeOf(
+                              widget.tab.book,
+                            ),
+                            highlightBookSource: PluginBookIdentity.sourceOf(
+                              widget.tab.book,
+                            ),
                             highlightSectionIndex: primaryLineIndex,
                             highlightSourceText: widget.data[primaryLineIndex],
                             widgetKey: ValueKey(

@@ -3,6 +3,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
+import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 
 /// Snapshot של מיקום הקריאה הנוכחי
 ///
@@ -12,6 +13,7 @@ class ReaderLocationSnapshot {
   final String? currentBookId;
   final int? currentId;
   final String? currentType;
+  final String? currentSource;
   final int currentIndex;
   final String? currentRef;
 
@@ -20,6 +22,7 @@ class ReaderLocationSnapshot {
     required this.currentBookId,
     required this.currentId,
     required this.currentType,
+    this.currentSource,
     required this.currentIndex,
     required this.currentRef,
   });
@@ -36,6 +39,7 @@ class ReaderLocationSnapshot {
     'currentBookId': currentBookId,
     'currentId': currentId,
     'currentType': currentType,
+    'currentSource': currentSource,
     'currentIndex': currentIndex,
     'currentRef': currentRef,
   };
@@ -97,7 +101,8 @@ Future<ReaderLocationSnapshot?> _resolveTextBookLocation(
       currentBook: tab.title,
       currentBookId: tab.title,
       currentId: tab.book.id,
-      currentType: 'text',
+      currentType: PluginBookIdentity.typeOf(tab.book),
+      currentSource: PluginBookIdentity.sourceOf(tab.book),
       currentIndex: resolvedIndex,
       currentRef: notifierTitle,
     );
@@ -111,7 +116,8 @@ Future<ReaderLocationSnapshot?> _resolveTextBookLocation(
         currentBook: tab.title,
         currentBookId: tab.title,
         currentId: tab.book.id,
-        currentType: 'text',
+        currentType: PluginBookIdentity.typeOf(tab.book),
+        currentSource: PluginBookIdentity.sourceOf(tab.book),
         currentIndex: resolvedIndex,
         currentRef: stateTitle,
       );
@@ -128,7 +134,8 @@ Future<ReaderLocationSnapshot?> _resolveTextBookLocation(
         currentBook: tab.title,
         currentBookId: tab.title,
         currentId: tab.book.id,
-        currentType: 'text',
+        currentType: PluginBookIdentity.typeOf(tab.book),
+        currentSource: PluginBookIdentity.sourceOf(tab.book),
         currentIndex: resolvedIndex,
         currentRef: normalizedRef.isEmpty ? null : normalizedRef,
       );
@@ -137,7 +144,8 @@ Future<ReaderLocationSnapshot?> _resolveTextBookLocation(
         currentBook: tab.title,
         currentBookId: tab.title,
         currentId: tab.book.id,
-        currentType: 'text',
+        currentType: PluginBookIdentity.typeOf(tab.book),
+        currentSource: PluginBookIdentity.sourceOf(tab.book),
         currentIndex: resolvedIndex,
         currentRef: null,
       );
@@ -148,7 +156,8 @@ Future<ReaderLocationSnapshot?> _resolveTextBookLocation(
     currentBook: tab.title,
     currentBookId: tab.title,
     currentId: tab.book.id,
-    currentType: 'text',
+    currentType: PluginBookIdentity.typeOf(tab.book),
+    currentSource: PluginBookIdentity.sourceOf(tab.book),
     currentIndex: tab.index,
     currentRef: null,
   );
@@ -162,7 +171,8 @@ ReaderLocationSnapshot _resolvePdfBookLocation(PdfBookTab tab) {
       currentBook: tab.title,
       currentBookId: tab.title,
       currentId: tab.book.id,
-      currentType: 'pdf',
+      currentType: PluginBookIdentity.typeOf(tab.book),
+      currentSource: PluginBookIdentity.sourceOf(tab.book),
       currentIndex: tab.pageNumber,
       currentRef: currentTitle,
     );
@@ -174,7 +184,8 @@ ReaderLocationSnapshot _resolvePdfBookLocation(PdfBookTab tab) {
     currentBook: tab.title,
     currentBookId: tab.title,
     currentId: tab.book.id,
-    currentType: 'pdf',
+    currentType: PluginBookIdentity.typeOf(tab.book),
+    currentSource: PluginBookIdentity.sourceOf(tab.book),
     currentIndex: tab.pageNumber,
     currentRef: defaultRef,
   );

@@ -67,6 +67,7 @@ import 'package:otzaria/plugins/services/plugin_highlight_reveal_service.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/services/reader_selection_service.dart';
+import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/plugins/utils/plugin_context_menu_entries.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 import 'package:otzaria/text_book/utils/commentators_context_menu.dart';
@@ -1805,7 +1806,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           renderedEndUtf16: localRange?.end,
           currentRef: state.currentTitle,
           bookDbId: state.book.id,
-          bookType: 'text',
+          bookType: PluginBookIdentity.typeOf(state.book),
+          bookSource: PluginBookIdentity.sourceOf(state.book),
         );
         entries.add(const AppContextMenuEntry.divider());
         entries.addAll(
@@ -2701,6 +2703,13 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                 final textWidget = SmartTextWidget(
                   text: annotatedData,
                   highlightBookId: widget.isMainText ? state.book.title : null,
+                  highlightBookDbId: widget.isMainText ? state.book.id : null,
+                  highlightBookType: widget.isMainText
+                      ? PluginBookIdentity.typeOf(state.book)
+                      : null,
+                  highlightBookSource: widget.isMainText
+                      ? PluginBookIdentity.sourceOf(state.book)
+                      : null,
                   highlightSectionIndex: widget.isMainText
                       ? primaryLineIndex
                       : null,
