@@ -69,6 +69,7 @@ import 'package:otzaria/text_book/utils/numbered_note_markers.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/text_book/utils/note_inline_render.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
+import 'package:otzaria/text_book/utils/anchor_keyboard_navigator.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
@@ -541,6 +542,150 @@ class _CombinedViewState extends State<CombinedView> {
     LinkPreviewOverlay.scheduleHide();
   }
 
+  // ── מצב סמנים במקלדת ─────────────────────────────────────────────────────
+  //
+  // מסלול קלט *נוסף* לאותה חלונית, לצד הריחוף — קוד הריחוף שלמעלה אינו
+  // משתנה, והעכבר ממשיך לעבוד גם כשהמצב דלוק. שני ההבדלים היחידים: המיקום
+  // נגזר מהשורה במקום ממיקום העכבר, והחלונית נפתחת ב-`hoverMode: false` —
+  // כלומר נשארת פתוחה עד Escape במקום להיסגר ביציאת סמן שאינו קיים.
+
+  /// כניסה/יציאה ממצב סמנים. בכניסה נפתחת חלונית על הסמן הקרוב לשורה
+  /// הנוכחית; אם אין בספר סמנים כלל — הודעה, והמצב אינו נדלק.
+  void _onAnchorPreviewToggle() {
+    if (_disposed || !mounted) return;
+    if (_anchorKeyboardMode) {
+      _exitAnchorKeyboardMode();
+      return;
+    }
+    final state = _textBookBloc.state;
+    if (state is! TextBookLoaded) return;
+    final cursor = anchorNearLine(
+      state.linksByLine,
+      state.content.length,
+      state.selectedIndices.isNotEmpty
+          ? state.selectedIndices.first
+          : widget.tab.index,
+    );
+    if (cursor == null) {
+      UiSnack.show('אין סמני הערות או קישורים בספר זה');
+      return;
+    }
+    setState(() => _anchorKeyboardMode = true);
+    widget.tab.anchorPreviewActive.value = true;
+    unawaited(_goToAnchor(cursor));
+  }
+
+  void _onAnchorPreviewNext() => unawaited(_stepAnchor(forward: true));
+
+  void _onAnchorPreviewPrev() => unawaited(_stepAnchor(forward: false));
+
+  /// פתיחת יעד הסמן הפעיל — זהה ללחיצה על כותרת החלונית.
+  void _onAnchorPreviewOpen() {
+    if (_disposed || !mounted || !_anchorKeyboardMode) return;
+    final cursor = _anchorKeyboardCursor;
+    if (cursor == null) return;
+    final anchor = _anchorLinkFromUrl(anchorUrlFor(cursor));
+    if (anchor == null) return;
+    _exitAnchorKeyboardMode();
+    unawaited(_openPreviewDestination(anchor.link, sourceLine: anchor.line));
+  }
+
+  void _exitAnchorKeyboardMode() {
+    _cancelPendingAnchorHover();
+    LinkPreviewOverlay.dismiss();
+    _setActiveAnchor(null, null);
+    _anchorKeyboardCursor = null;
+    widget.tab.anchorPreviewActive.value = false;
+    if (mounted) setState(() => _anchorKeyboardMode = false);
+  }
+
+  /// מעבר לסמן הבא/הקודם. הקיצור פועל גם כשהמצב כבוי — אז הוא מדליק אותו —
+  /// כדי שקיצור אחד יספיק למי שלא רוצה לזכור שניים.
+  Future<void> _stepAnchor({required bool forward}) async {
+    if (_disposed || !mounted) return;
+    final state = _textBookBloc.state;
+    if (state is! TextBookLoaded) return;
+    if (!_anchorKeyboardMode) {
+      _onAnchorPreviewToggle();
+      return;
+    }
+    final lineCount = state.content.length;
+    final next = forward
+        ? nextAnchor(state.linksByLine, lineCount, from: _anchorKeyboardCursor)
+        : previousAnchor(
+            state.linksByLine,
+            lineCount,
+            from: _anchorKeyboardCursor,
+          );
+    if (next == null) {
+      UiSnack.show(forward ? 'זה הסמן האחרון בספר' : 'זה הסמן הראשון בספר');
+      return;
+    }
+    await _goToAnchor(next);
+  }
+
+  /// גלילה אל הסמן (אם אינו גלוי), ואז פתיחת החלונית עליו.
+  ///
+  /// הפתיחה נדחית לסוף הפריים שאחרי הגלילה, כי `itemPositions` מתעדכן רק
+  /// כשה-layout כבר סופי — לפני זה נקודת העיגון תהיה של המיקום הקודם.
+  Future<void> _goToAnchor(AnchorCursor cursor) async {
+    final state = _textBookBloc.state;
+    if (state is! TextBookLoaded) return;
+    final anchor = _anchorLinkFromUrl(anchorUrlFor(cursor));
+    if (anchor == null) return;
+
+    _anchorKeyboardCursor = cursor;
+    _cancelPendingAnchorHover();
+    prefetchLinkPreview(anchor.link);
+
+    if (_visibleSegmentPosition(state, cursor.line) == null) {
+      await _scrollToSourceLine(state, cursor.line);
+      if (_disposed || !mounted) return;
+    }
+    await WidgetsBinding.instance.endOfFrame;
+    // הקיצור נלחץ שוב בזמן הגלילה — הסמן הזה כבר לא הרלוונטי.
+    if (_disposed || !mounted || _anchorKeyboardCursor != cursor) return;
+
+    final position = _anchorPreviewPosition(state, cursor.line);
+    if (position == null) return;
+    _showLinkPreview(
+      anchor.link,
+      position,
+      hoverMode: false,
+      activeAnchor: (line: anchor.line, index: anchor.index),
+    );
+  }
+
+  /// המיקום המוצג של ה-segment שמכיל את שורת [line], או null אם אינו גלוי.
+  ItemPosition? _visibleSegmentPosition(TextBookLoaded state, int line) {
+    final target = state.readingSegments.isNotEmpty
+        ? segmentIndexForLine(state.readingSegments, line)
+        : line;
+    for (final position in widget.tab.positionsListener.itemPositions.value) {
+      if (position.index == target) return position;
+    }
+    return null;
+  }
+
+  /// נקודת העיגון של החלונית: הקצה הימני-תחתון של השורה בתוך אזור הקריאה
+  /// (RTL — `_offsetNearPoint` מצמיד את קצה החלונית הימני לנקודה ומציב אותה
+  /// מתחתיה). כשהשורה עדיין אינה במיקומים — מרכז אזור הקריאה, כדי שהחלונית
+  /// תיפתח במקום סביר ולא תיעלם.
+  Offset? _anchorPreviewPosition(TextBookLoaded state, int line) {
+    final box = _anchorViewportKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return null;
+    final height = box.size.height;
+    final position = _visibleSegmentPosition(state, line);
+    final dy = position == null
+        ? height / 2
+        : (position.itemTrailingEdge * height).clamp(0.0, height);
+    final dx = (box.size.width - _kAnchorPreviewInset).clamp(
+      0.0,
+      box.size.width,
+    );
+    return box.localToGlobal(Offset(dx, dy));
+  }
+
   // מצב הרצף האחרון שנצפה — לזיהוי החלפת מצב שמחייבת שחזור מיקום.
   bool? _lastContinuousReadingMode;
 
@@ -581,6 +726,16 @@ class _CombinedViewState extends State<CombinedView> {
   ScrollController? _previewScrollController;
   final DictionaryLookupRepository _dictionaryLookupRepository =
       DictionaryLookupRepository.instance;
+
+  // ── מצב סמנים במקלדת ─────────────────────────────────────────────────────
+  // חלופה לריחוף בעכבר: מעבר בין סמני-העוגן של הספר ופתיחת אותה חלונית
+  // תצוגה מקדימה. אחיזה ב-RenderBox של הרשימה — ממנו נגזר מיקום החלונית.
+  final GlobalKey _anchorViewportKey = GlobalKey();
+  bool _anchorKeyboardMode = false;
+  AnchorCursor? _anchorKeyboardCursor;
+
+  /// מרווח מהקצה הימני של אזור הקריאה לנקודת העיגון של החלונית (RTL).
+  static const double _kAnchorPreviewInset = 24;
 
   @override
   void initState() {
@@ -633,6 +788,12 @@ class _CombinedViewState extends State<CombinedView> {
         LoadPersonalNotes(widget.tab.book.title),
       );
     });
+
+    // מצב סמנים במקלדת — הקיצורים הגלובליים מגלגלים counter בטאב.
+    widget.tab.anchorPreviewToggleNotifier.addListener(_onAnchorPreviewToggle);
+    widget.tab.anchorPreviewNextNotifier.addListener(_onAnchorPreviewNext);
+    widget.tab.anchorPreviewPrevNotifier.addListener(_onAnchorPreviewPrev);
+    widget.tab.anchorPreviewOpenNotifier.addListener(_onAnchorPreviewOpen);
 
     // האזנה לשינויים במיקומי הפריטים כדי לאפס את הבחירה בגלילה
     widget.tab.positionsListener.itemPositions.addListener(_onScroll);
@@ -755,6 +916,15 @@ class _CombinedViewState extends State<CombinedView> {
     );
     _disposed = true;
     _cancelPendingAnchorHover();
+    widget.tab.anchorPreviewToggleNotifier.removeListener(
+      _onAnchorPreviewToggle,
+    );
+    widget.tab.anchorPreviewNextNotifier.removeListener(_onAnchorPreviewNext);
+    widget.tab.anchorPreviewPrevNotifier.removeListener(_onAnchorPreviewPrev);
+    widget.tab.anchorPreviewOpenNotifier.removeListener(_onAnchorPreviewOpen);
+    // הטאב שורד את המסך (החלפת כרטיסייה) — המצב חייב להתאפס איתו, אחרת
+    // Escape ייבלע בכרטיסייה הבאה בלי שיש מה לסגור.
+    widget.tab.anchorPreviewActive.value = false;
     LinkPreviewOverlay.dismiss();
     _previewScrollController?.dispose();
     widget.tab.positionsListener.itemPositions.removeListener(_onScroll);
@@ -1793,39 +1963,45 @@ class _CombinedViewState extends State<CombinedView> {
 
     // המצב ב-key מאלץ יצירת רשימה חדשה בהחלפת מצב רציף, כך שהפריים הראשון
     // כבר מצויר ב-initialScrollIndex הנכון — בלי הבזק של מיקום שגוי.
-    return ScrollablePositionedList.builder(
-      key: ValueKey(
-        'combined-${widget.tab.book.title}-${state.continuousReadingMode}',
-      ),
-      initialScrollIndex: clampedInitial,
-      initialAlignment: kReadingAnchorAlignment,
-      itemPositionsListener: widget.tab.positionsListener,
-      itemScrollController: widget.tab.scrollController,
-      scrollOffsetController: widget.tab.mainOffsetController,
-      itemCount: itemCount,
-      itemBuilder: (context, index) {
-        ExpansibleController controller = ExpansibleController();
-        // מבודד את שכבת הצביעה של כל פריט - rebuild של פריט בודד (בחירה/
-        // הדגשה) או emit של warming לא יצבע מחדש את כל ה-viewport.
-        final tile = RepaintBoundary(
-          child: buildExpansiomTile(controller, index, state, noteMap),
-        );
-        final sourceBannerKind = _sourceBannerKind;
-        if (index == 0 && sourceBannerKind != null) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              BookSourceBanner(
-                kind: sourceBannerKind,
-                bookTitle: widget.tab.book.title,
-                fontSize: widget.textSize,
-              ),
-              tile,
-            ],
+    // KeyedSubtree אינו מוסיף RenderObject ולכן אינו משנה layout — הוא רק
+    // נותן ל-[_anchorViewportKey] אחיזה ב-RenderBox של הרשימה, שממנו נגזר
+    // מיקום החלונית בפתיחה מהמקלדת (שבה אין מיקום עכבר).
+    return KeyedSubtree(
+      key: _anchorViewportKey,
+      child: ScrollablePositionedList.builder(
+        key: ValueKey(
+          'combined-${widget.tab.book.title}-${state.continuousReadingMode}',
+        ),
+        initialScrollIndex: clampedInitial,
+        initialAlignment: kReadingAnchorAlignment,
+        itemPositionsListener: widget.tab.positionsListener,
+        itemScrollController: widget.tab.scrollController,
+        scrollOffsetController: widget.tab.mainOffsetController,
+        itemCount: itemCount,
+        itemBuilder: (context, index) {
+          ExpansibleController controller = ExpansibleController();
+          // מבודד את שכבת הצביעה של כל פריט - rebuild של פריט בודד (בחירה/
+          // הדגשה) או emit של warming לא יצבע מחדש את כל ה-viewport.
+          final tile = RepaintBoundary(
+            child: buildExpansiomTile(controller, index, state, noteMap),
           );
-        }
-        return tile;
-      },
+          final sourceBannerKind = _sourceBannerKind;
+          if (index == 0 && sourceBannerKind != null) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                BookSourceBanner(
+                  kind: sourceBannerKind,
+                  bookTitle: widget.tab.book.title,
+                  fontSize: widget.textSize,
+                ),
+                tile,
+              ],
+            );
+          }
+          return tile;
+        },
+      ),
     );
   }
 

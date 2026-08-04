@@ -84,6 +84,19 @@ class TextBookTab extends OpenedTab {
   final ValueNotifier<int> navPreviousTocNotifier = ValueNotifier<int>(0);
   final ValueNotifier<int> navNextTocNotifier = ValueNotifier<int>(0);
 
+  /// counter-ים לתצוגה מקדימה של סמני-עוגן מהמקלדת (חלופה לריחוף בעכבר).
+  /// המאזין הוא מסך הספר; כל הגדלה = פעולה יחידה.
+  /// toggle — כניסה/יציאה ממצב סמנים; next/prev — מעבר לסמן ופתיחת החלונית;
+  /// open — פתיחת יעד הסמן הפעיל (כמו לחיצה על כותרת החלונית).
+  final ValueNotifier<int> anchorPreviewToggleNotifier = ValueNotifier<int>(0);
+  final ValueNotifier<int> anchorPreviewNextNotifier = ValueNotifier<int>(0);
+  final ValueNotifier<int> anchorPreviewPrevNotifier = ValueNotifier<int>(0);
+  final ValueNotifier<int> anchorPreviewOpenNotifier = ValueNotifier<int>(0);
+
+  /// האם מצב הסמנים פעיל כרגע (מצב, לא counter). המסך כותב, שכבת הקיצורים
+  /// קוראת — כדי ש-Escape ייסגר את המצב רק כשהוא פתוח ולא ייבלע לחינם.
+  final ValueNotifier<bool> anchorPreviewActive = ValueNotifier<bool>(false);
+
   List<String>? commentators;
   bool _lastSplitView = false;
   bool _lastShowPageShapeView = false;
@@ -200,6 +213,11 @@ class TextBookTab extends OpenedTab {
     navNextSegmentNotifier.dispose();
     navPreviousTocNotifier.dispose();
     navNextTocNotifier.dispose();
+    anchorPreviewToggleNotifier.dispose();
+    anchorPreviewNextNotifier.dispose();
+    anchorPreviewPrevNotifier.dispose();
+    anchorPreviewOpenNotifier.dispose();
+    anchorPreviewActive.dispose();
     bloc.close();
     super.dispose();
   }

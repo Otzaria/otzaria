@@ -8,6 +8,16 @@ class ShortcutValidator {
   static const String openAdvancedSearchKey =
       'key-shortcut-open-advanced-search';
 
+  /// תצוגה מקדימה של סמני-עוגן במקלדת — חלופה לריחוף בעכבר.
+  /// ה-toggle מקבל ברירת מחדל (F2, מקש שאינו נחסם בזמן הקלדה); הניווט
+  /// בתוך המצב נעשה בחיצים שנתפסים במסך עצמו ולא כקיצור גלובלי, ולכן
+  /// next/prev/open אופציונליים וברירת המחדל שלהם ריקה.
+  static const String anchorPreviewToggleKey =
+      'key-shortcut-anchor-preview-toggle';
+  static const String anchorPreviewNextKey = 'key-shortcut-anchor-preview-next';
+  static const String anchorPreviewPrevKey = 'key-shortcut-anchor-preview-prev';
+  static const String anchorPreviewOpenKey = 'key-shortcut-anchor-preview-open';
+
   static const Set<Set<String>> _compatibleShortcutGroups = {
     {
       'key-shortcut-add-note',
@@ -111,6 +121,10 @@ class ShortcutValidator {
     'key-shortcut-next-segment',
     'key-shortcut-prev-toc',
     'key-shortcut-next-toc',
+    anchorPreviewToggleKey,
+    anchorPreviewNextKey,
+    anchorPreviewPrevKey,
+    anchorPreviewOpenKey,
     // פתיחת כלים — אופציונלי, ללא ברירת מחדל (ראה openToolShortcutKeys).
     'key-shortcut-open-tool-calendar',
     'key-shortcut-open-tool-shamor-zachor',
@@ -159,6 +173,11 @@ class ShortcutValidator {
     'key-shortcut-next-segment': 'alt+arrowdown',
     'key-shortcut-prev-toc': 'alt+pageup',
     'key-shortcut-next-toc': 'alt+pagedown',
+    anchorPreviewToggleKey: 'f2',
+    // RTL: קדימה בסדר הקריאה = שמאלה.
+    anchorPreviewNextKey: 'alt+arrowleft',
+    anchorPreviewPrevKey: 'alt+arrowright',
+    anchorPreviewOpenKey: 'alt+enter',
     'key-shortcut-open-tool-calendar': '',
     'key-shortcut-open-tool-shamor-zachor': '',
     'key-shortcut-open-tool-measurements': '',
@@ -210,6 +229,10 @@ class ShortcutValidator {
     'key-shortcut-next-segment': 'הקטע הבא',
     'key-shortcut-prev-toc': 'הדף/פרק הקודם',
     'key-shortcut-next-toc': 'הדף/פרק הבא',
+    anchorPreviewToggleKey: 'מצב סמנים: הצגת הערות וקישורים במקלדת',
+    anchorPreviewNextKey: 'מצב סמנים: הסמן הבא',
+    anchorPreviewPrevKey: 'מצב סמנים: הסמן הקודם',
+    anchorPreviewOpenKey: 'מצב סמנים: פתיחת היעד',
     'key-shortcut-open-tool-calendar': 'פתיחת לוח שנה',
     'key-shortcut-open-tool-shamor-zachor': 'פתיחת שמור וזכור',
     'key-shortcut-open-tool-measurements': 'פתיחת מדות ושיעורים',

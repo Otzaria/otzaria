@@ -172,6 +172,18 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     final nextSegmentShortcut = shortcutOf('key-shortcut-next-segment');
     final prevTocShortcut = shortcutOf('key-shortcut-prev-toc');
     final nextTocShortcut = shortcutOf('key-shortcut-next-toc');
+    final anchorPreviewToggleShortcut = shortcutOf(
+      ShortcutValidator.anchorPreviewToggleKey,
+    );
+    final anchorPreviewNextShortcut = shortcutOf(
+      ShortcutValidator.anchorPreviewNextKey,
+    );
+    final anchorPreviewPrevShortcut = shortcutOf(
+      ShortcutValidator.anchorPreviewPrevKey,
+    );
+    final anchorPreviewOpenShortcut = shortcutOf(
+      ShortcutValidator.anchorPreviewOpenKey,
+    );
 
     // דיאלוג/תפריט פתוח = route מעל מסך הבית ב-root Navigator. קיצורי ניווט
     // סוגרים אותו לפני המעבר; קיצורי טאבים מנוטרלים כדי לא לפעול על מסך שברקע.
@@ -263,6 +275,18 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
         navNotifier = navTab.navPreviousTocNotifier;
       } else if (ShortcutHelper.matchesShortcut(event, nextTocShortcut)) {
         navNotifier = navTab.navNextTocNotifier;
+      } else if (anchorPreviewToggleShortcut.isNotEmpty &&
+          ShortcutHelper.matchesShortcut(event, anchorPreviewToggleShortcut)) {
+        navNotifier = navTab.anchorPreviewToggleNotifier;
+      } else if (anchorPreviewNextShortcut.isNotEmpty &&
+          ShortcutHelper.matchesShortcut(event, anchorPreviewNextShortcut)) {
+        navNotifier = navTab.anchorPreviewNextNotifier;
+      } else if (anchorPreviewPrevShortcut.isNotEmpty &&
+          ShortcutHelper.matchesShortcut(event, anchorPreviewPrevShortcut)) {
+        navNotifier = navTab.anchorPreviewPrevNotifier;
+      } else if (anchorPreviewOpenShortcut.isNotEmpty &&
+          ShortcutHelper.matchesShortcut(event, anchorPreviewOpenShortcut)) {
+        navNotifier = navTab.anchorPreviewOpenNotifier;
       }
       if (navNotifier != null) {
         navNotifier.value++;
@@ -481,6 +505,16 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
       final settingsBloc = context.read<SettingsBloc>();
       final newFullscreenState = !settingsBloc.state.isFullscreen;
       FullscreenHelper.toggleFullscreen(context, newFullscreenState);
+      return KeyEventResult.handled;
+    }
+
+    // ESC - סגירת מצב הסמנים (לפני יציאה ממסך מלא: זו הפעולה ה"קרובה" יותר
+    // למשתמש כשהמצב פתוח). נבלע רק כשהמצב אכן פעיל.
+    if (isReadingScreen &&
+        navTab is TextBookTab &&
+        navTab.anchorPreviewActive.value &&
+        ShortcutHelper.matchesShortcut(event, 'escape')) {
+      navTab.anchorPreviewToggleNotifier.value++;
       return KeyEventResult.handled;
     }
 
