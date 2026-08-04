@@ -42,6 +42,15 @@ void main() {
       );
     });
 
+    test('תווית בחירה מרובה מציגה את כל המפרשים שנבחרו', () {
+      final encoded = encodePageShapeCommentatorsSelection(
+        const ['רש"י', 'תוספות'],
+        forceMultipleMode: true,
+      );
+
+      expect(formatPageShapeCommentatorSelection(encoded), 'רש"י, תוספות');
+    });
+
     test('preserves explicit multi mode without initial selection', () {
       final encoded = encodePageShapeCommentatorsSelection(
         const [],
@@ -59,21 +68,25 @@ void main() {
       );
     });
 
-    test(
-      'resolves explicit multi selection against available commentators',
-      () {
-        final encoded = encodePageShapeCommentatorsSelection(
-          const ['רש"י', 'רמב"ן'],
-        );
+    test('בחירה מרובה שמורה נשארת במצב מרובה עם כל המפרשים הזמינים', () {
+      final encoded = encodePageShapeCommentatorsSelection(
+        const ['רש"י', 'רמב"ן'],
+      );
 
-        final resolved = resolvePageShapeSelectedCommentators(
-          selection: encoded,
+      final resolved = resolvePageShapeCommentatorSelection(
+        selection: encoded,
+        availableCommentators: const ['רש"י על ברכות', 'תוספות', 'רמב"ן'],
+      );
+
+      expect(isPageShapeMultipleCommentatorsMode(resolved), isTrue);
+      expect(
+        resolvePageShapeSelectedCommentators(
+          selection: resolved,
           availableCommentators: const ['רש"י על ברכות', 'תוספות', 'רמב"ן'],
-        );
-
-        expect(resolved, ['רש"י על ברכות', 'רמב"ן']);
-      },
-    );
+        ),
+        ['רש"י על ברכות', 'רמב"ן'],
+      );
+    });
 
     test(
       'does not keep multiple mode when no selected commentator is available',
@@ -93,21 +106,18 @@ void main() {
       },
     );
 
-    test('keeps multiple mode when one selected commentator still matches', () {
+    test('שדה בחירה בודדת מציג את המפרש הראשון מבחירה מרובה', () {
       final encoded = encodePageShapeCommentatorsSelection(
         const ['רש"י'],
         forceMultipleMode: true,
       );
 
-      final resolved = resolvePageShapeCommentatorSelection(
-        selection: encoded,
-        availableCommentators: const ['רש"י על ברכות', 'תוספות'],
-      );
-
-      expect(isPageShapeMultipleCommentatorsMode(resolved), isTrue);
       expect(
-        decodePageShapeCommentatorsSelection(resolved),
-        ['רש"י על ברכות'],
+        resolvePageShapeSingleCommentatorSelection(
+          selection: encoded,
+          availableCommentators: const ['רש"י על ברכות', 'תוספות'],
+        ),
+        'רש"י על ברכות',
       );
     });
 

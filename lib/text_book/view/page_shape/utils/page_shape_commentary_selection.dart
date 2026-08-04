@@ -8,12 +8,9 @@ const String pageShapeRemainingCommentatorsValue =
 /// התווית המוצגת למשתמש עבור אפשרות שאר המפרשים.
 const String pageShapeRemainingCommentatorsLabel = 'שאר המפרשים';
 
-/// ערך מיוחד שמציין שהטור משתמש בבחירת מפרשים מרובים מתוך החלונית.
+/// ערך מיוחד שמציין טור עם בחירת מפרשים מרובים מהחלונית.
 const String pageShapeMultipleCommentatorsModeValue =
     '__PAGE_SHAPE_MULTIPLE_COMMENTATORS_MODE__';
-
-/// התווית המוצגת למשתמש עבור מצב בחירה מרובה.
-const String pageShapeMultipleCommentatorsModeLabel = 'מפרשים מרובים';
 
 const String _pageShapeMultiCommentatorsPrefix =
     '__PAGE_SHAPE_MULTI_COMMENTATORS__:';
@@ -121,7 +118,7 @@ String? resolvePageShapeCommentatorSelection({
   if (selection == null ||
       isPageShapeRemainingCommentatorsValue(selection) ||
       selection == pageShapeMultipleCommentatorsModeValue) {
-    return selection;
+    return isPageShapeRemainingCommentatorsValue(selection) ? selection : null;
   }
 
   if (!isPageShapeMultiCommentatorsValue(selection)) {
@@ -149,6 +146,35 @@ String? resolvePageShapeCommentatorSelection({
     resolved,
     forceMultipleMode: true,
   );
+}
+
+/// מחזיר את המפרש הראשון להצגה בשדה שמקבל בחירה בודדת בלבד.
+String? resolvePageShapeSingleCommentatorSelection({
+  required String? selection,
+  required List<String> availableCommentators,
+}) {
+  if (selection == null ||
+      isPageShapeRemainingCommentatorsValue(selection) ||
+      selection == pageShapeMultipleCommentatorsModeValue) {
+    return null;
+  }
+
+  if (!isPageShapeMultiCommentatorsValue(selection)) {
+    return findMatchingPageShapeCommentator(selection, availableCommentators) ??
+        selection;
+  }
+
+  for (final commentator in decodePageShapeCommentatorsSelection(selection)) {
+    final match = findMatchingPageShapeCommentator(
+      commentator,
+      availableCommentators,
+    );
+    if (match != null) {
+      return match;
+    }
+  }
+
+  return null;
 }
 
 /// מחזיר את רשימת המפרשים שיש להציג בפועל עבור הבחירה השמורה.
@@ -287,13 +313,13 @@ String formatPageShapeCommentatorSelection(String? value) {
   }
 
   if (value == pageShapeMultipleCommentatorsModeValue) {
-    return pageShapeMultipleCommentatorsModeLabel;
+    return 'מפרשים מרובים';
   }
 
   if (isPageShapeMultiCommentatorsValue(value)) {
     final commentators = decodePageShapeCommentatorsSelection(value);
     if (commentators.isEmpty) {
-      return pageShapeMultipleCommentatorsModeLabel;
+      return 'מפרשים מרובים';
     }
     if (commentators.length <= 2) {
       return commentators.join(', ');
