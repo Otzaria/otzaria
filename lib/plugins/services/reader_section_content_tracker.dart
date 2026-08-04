@@ -39,6 +39,8 @@ class ReaderSectionContentTracker {
     String? renderedText,
     Object? renderingSignature,
     String? reason,
+    int? bookDbId,
+    String? bookType,
   }) async {
     if (bookId.isEmpty || sectionIndex < 0) {
       throw ArgumentError(
@@ -47,7 +49,12 @@ class ReaderSectionContentTracker {
     }
     _validateReason(reason);
 
-    final key = (bookId: bookId, sectionIndex: sectionIndex);
+    final key = (
+      bookId: bookId,
+      bookDbId: bookDbId,
+      bookType: bookType,
+      sectionIndex: sectionIndex,
+    );
     final current = (
       sourceTextHash: _hash(sourceText),
       renderedTextHash: renderedText == null ? null : _hash(renderedText),
@@ -61,6 +68,8 @@ class ReaderSectionContentTracker {
     final sourceChanged = previous.sourceTextHash != current.sourceTextHash;
     final change = PluginSectionContentChange(
       bookId: bookId,
+      bookDbId: bookDbId,
+      bookType: bookType,
       sectionIndex: sectionIndex,
       oldSourceTextHash: previous.sourceTextHash,
       newSourceTextHash: current.sourceTextHash,
@@ -73,10 +82,18 @@ class ReaderSectionContentTracker {
     return change;
   }
 
-  void forgetBook(String bookId) {
-    _snapshots.removeWhere((key, _) => key.bookId == bookId);
+  /// מוחק את כל ה-snapshots של ספר.
+  ///
+  /// אם [bookDbId] או [bookType] מסופקים — מוחק רק entries שתואמות גם אותם.
+  /// ללא שניהם — מוחק לפי [bookId] בלבד (תאימות לאחור).
+  void forgetBook(String bookId, {int? bookDbId, String? bookType}) {
+    _snapshots.removeWhere((key, _) {
+      if (key.bookId != bookId) return false;
+      if (bookDbId != null && key.bookDbId != bookDbId) return false;
+      if (bookType != null && key.bookType != bookType) return false;
+      return true;
+    });
   }
-
   void clear() => _snapshots.clear();
 
   void _trimCache() {
@@ -106,6 +123,8 @@ class ReaderSectionContentTracker {
 
 class PluginSectionContentChange {
   final String bookId;
+  final int? bookDbId;
+  final String? bookType;
   final int sectionIndex;
   final String? oldSourceTextHash;
   final String newSourceTextHash;
@@ -116,6 +135,8 @@ class PluginSectionContentChange {
 
   const PluginSectionContentChange({
     required this.bookId,
+    this.bookDbId,
+    this.bookType,
     required this.sectionIndex,
     this.oldSourceTextHash,
     required this.newSourceTextHash,
@@ -128,6 +149,8 @@ class PluginSectionContentChange {
   Map<String, dynamic> toJson() => {
     'schemaVersion': 1,
     'bookId': bookId,
+    if (bookDbId != null) 'id': bookDbId,
+    if (bookType != null) 'type': bookType,
     'sectionIndex': sectionIndex,
     if (oldSourceTextHash != null) 'oldSourceTextHash': oldSourceTextHash,
     'newSourceTextHash': newSourceTextHash,
@@ -138,7 +161,7 @@ class PluginSectionContentChange {
   };
 }
 
-typedef _SectionKey = ({String bookId, int sectionIndex});
+typedef _SectionKey = ({String bookId, int? bookDbId, String? bookType, int sectionIndex});
 typedef _SectionSnapshot = ({
   String sourceTextHash,
   String? renderedTextHash,

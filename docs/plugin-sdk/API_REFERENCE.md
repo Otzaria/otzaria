@@ -2,6 +2,58 @@
 
 מסמך זה מרכז את כל ה-APIs הזמינים לתוספים באוצריא.
 
+---
+
+## זהות ספר אחידה
+
+ב־APIs ובאירועים המפורטים להלן, אוצריא מחזירה שדות זהות נוספים לספר:
+
+```json
+{
+  "id": 183,
+  "type": "pdf",
+  "bookId": "שם הספר"
+}
+```
+
+| שדה | משמעות |
+|-----|--------|
+| `id` | המזהה המספרי של הספר במסד הנתונים (`int?` — יכול להיות `null` לספרים ללא מזהה. אם ה-id לא זמין, ניתן לחפש לפי `bookId` + `type`) |
+| `type` | סוג הספר: `"text"` \| `"pdf"` \| `"docx"` \| `"epub"` \| `"external"`. `null` עבור טאבים שאינם ספרים (SearchingTab, CombinedTab) |
+| `bookId` | שם הספר — נשמר לצורך תאימות לאחור ולאימות כאשר נשלח יחד עם `id` |
+
+### APIs שמחזירים זהות מלאה
+
+| API | id | type | bookId |
+|-----|-----|------|--------|
+| `library.findBooks` | ✓ | ✓ | ✓ |
+| `library.getBookMetadata` | ✓ | ✓ | ✓ |
+| `library.listRecentBooks` | ✓ | ✓ | ✓ |
+| `library.getTree` | ✓ | ✓ | ✓ |
+| `reader.openBook` | קלט | קלט | קלט |
+| `reader.openBookAtRef` | קלט | קלט | קלט |
+| `reader.getCurrentState` | ✓ | ✓ | ✓ |
+| `reader.getCurrentRef` | ✓ | ✓ | ✓ |
+| `reader.getSelection` | ✓ | ✓ | ✓ |
+| `history.list` | ✓ | ✓ | ✓ |
+| `history.remove` | קלט | קלט | קלט |
+| `search.fullText` | ✗ (ראה הערה) | ✓ | — |
+| `library.getBookContent` | ✗ | ✗ | ✓ |
+| `library.getBookToc` | ✗ | ✗ | ✓ |
+| `library.getBookAltToc` | ✗ | ✗ | ✓ |
+
+> **הערה על `search.fullText`:** מנוע החיפוש (Tantivy) אינו שומר את ה-`id` מה-DB. כדי לקבל `id` — קרא ל-`library.getBookMetadata({ bookId, type })` עם התוצאה.
+
+> **הערה על DocxBook / EpubBook:** ספרים בפורמטים אלו נפתחים בתצוגת טקסט (type: `"text"`), כי האפליקציה ממירה אותם פנימית לפני הצגה.
+
+- **`bookId` לא השתנה** — תוספים קיימים שמסתמכים עליו ימשיכו לעבוד.
+- **כאשר שולחים כמה שדות זהות** (למשל `id` + `bookId` + `type`), כולם חייבים להתאים לאותו ספר. אם יש סתירה, ה-API מחזיר `null` / `false`.
+- **חיפוש לפי `id` בלבד** — נתמך ב-`library.getBookMetadata`, `reader.openBook`, `reader.openBookAtRef`.
+- **חיפוש לפי `bookId` בלבד** — נשמר לתאימות לאחור בכל API.
+- **שני ספרים בעלי אותו שם** — ניתן להבדיל ביניהם בעזרת `id` + `type`.
+
+---
+
 ## שימוש בסיסי
 
 ```javascript
@@ -446,8 +498,16 @@ const { data } = await Otzaria.call('search.fullText', {
   query: 'ואהבת לרעך כמוך',
   limit: 50  // אופציונלי, ברירת מחדל: 50
 });
-// [{ book: "ויקרא", text: "ואהבת לרעך כמוך...", index: 1234 }, ...]
+// [{ type: "text", book: "ויקרא", text: "ואהבת לרעך כמוך...", index: 1234 }, ...]
 ```
+
+פלט כל תוצאה:
+- `type` — סוג הספר: `"text"` לספר טקסט, `"pdf"` ל-PDF
+- `book` — שם הספר
+- `text` — קטע הטקסט
+- `index` — אינדקס השורה/עמוד בספר
+
+> **הערה:** `search.fullText` אינו מחזיר `id` כי מנוע החיפוש (Tantivy) אינו שומר את מזהה הספר מה-DB. כדי לקבל את `id` — יש לקרוא ל-`library.getBookMetadata({ bookId, type })` עם התוצאה.
 
 ---
 
@@ -459,13 +519,22 @@ const { data } = await Otzaria.call('search.fullText', {
 פתיחת ספר במיקום מסוים.
 
 ```javascript
-const { data } = await Otzaria.call('reader.openBook', {
-  bookId: 'בראשית',
-  index: 0,           // אופציונלי, ברירת מחדל: 0
-  searchQuery: ''     // אופציונלי, הדגשת טקסט
+// קריאה ישנה — עדיין עובדת:
+await Otzaria.call('reader.openBook', { bookId: 'בראשית', index: 0 });
+
+// קריאה חדשה עם זהות מלאה:
+await Otzaria.call('reader.openBook', {
+  id: 183,              // מזהה מספרי (אופציונלי)
+  bookId: 'בראשית',    // נדרש אחד מ-id / bookId
+  type: 'text',         // אופציונלי — מוודא שמדובר בסוג הנכון
+  index: 0,             // אופציונלי, ברירת מחדל: 0
+  searchQuery: '',      // אופציונלי, הדגשת טקסט
+  navigateToPositionIfReused: false  // אופציונלי — אם הטאב פתוח, נווט אליו
 });
-// true
+// true — פתח בהצלחה; false — הספר לא נמצא או הזהות לא תואמת
 ```
+
+**כאשר נשלחים מספר שדות זהות (id + bookId + type), כולם חייבים להתאים לאותו ספר. אי-התאמה מחזירה `false`.**
 
 ### `reader.openBookAtRef`
 **הרשאה:** `reader.open`
@@ -505,11 +574,27 @@ const { data } = await Otzaria.call('reader.getCurrentState');
 // {
 //   currentBook: "בראשית",
 //   currentBookId: "בראשית",
+//   currentId: 183,           // מזהה מספרי של הספר הפעיל
+//   currentType: "text",      // סוג הספר הפעיל
 //   currentIndex: 42,
-//   currentRef: "בראשית פרק ג",   // כותרת נוכחית, או null אם לא ידועה
+//   currentRef: "בראשית פרק ג",
 //   openTabs: [
-//     { bookId: "בראשית", book: "בראשית", index: 42, currentRef: "בראשית פרק ג" },
-//     { bookId: "שמות",   book: "שמות",   index: 0,  currentRef: null }
+//     {
+//       id: 183,        // מזהה מספרי
+//       type: "text",   // סוג הספר
+//       bookId: "בראשית",
+//       book: "בראשית",
+//       index: 42,
+//       currentRef: "בראשית פרק ג"
+//     },
+//     {
+//       id: 204,
+//       type: "pdf",
+//       bookId: "שמות",
+//       book: "שמות",
+//       index: 0,
+//       currentRef: null
+//     }
 //   ]
 // }
 ```
@@ -517,13 +602,15 @@ const { data } = await Otzaria.call('reader.getCurrentState');
 ### `reader.getCurrentRef`
 **הרשאה:** `reader.open`
 
-מחזיר את ה-reference הנוכחי של הטאב הפעיל, יחד עם הספר וה-index. אם עדיין אין reference אמין, `currentRef` יהיה `null`.
+מחזיר את ה-reference הנוכחי של הטאב הפעיל. `currentRef` יהיה `null` אם עדיין אין reference אמין.
 
 ```javascript
 const { data } = await Otzaria.call('reader.getCurrentRef');
 // {
 //   currentBook: "בראשית",
 //   currentBookId: "בראשית",
+//   currentId: 183,        // מזהה מספרי
+//   currentType: "text",   // סוג הספר
 //   currentIndex: 42,
 //   currentRef: "בראשית פרק ג"
 // }
@@ -539,6 +626,8 @@ const { data } = await Otzaria.call('reader.getCurrentRef');
 ```javascript
 const { data } = await Otzaria.call('reader.getSelection');
 // {
+//   id: 183,               // מזהה מספרי של הספר
+//   type: "text",          // סוג הספר
 //   text: "ויאמר אלהים",
 //   start: 120,
 //   end: 131,
@@ -552,19 +641,7 @@ const { data } = await Otzaria.call('reader.getSelection');
 //   sectionIndex: 42,
 //   renderedSelectedText: "ויאמר אלהים",
 //   sourceSelectedText: "וַיֹּאמֶר אֱלֹהִים",
-//   sourceRange: {
-//     type: "text-range-v1",
-//     schemaVersion: 1,
-//     layer: "source",
-//     sourceTextHash: "...",
-//     start: { grapheme: 10, codePoint: 10, utf16: 10 },
-//     end: { grapheme: 23, codePoint: 27, utf16: 27 },
-//     exactText: "וַיֹּאמֶר אֱלֹהִים",
-//     beforeText: { raw: "...", normalized: "...", maxGraphemes: 30, actualGraphemes: 10, truncatedAtBoundary: true },
-//     afterText: { raw: "...", normalized: "...", maxGraphemes: 30, actualGraphemes: 30, truncatedAtBoundary: false },
-//     occurrenceIndexInSection: 0,
-//     occurrenceCountInSection: 1
-//   }
+//   sourceRange: { ... }
 // }
 ```
 

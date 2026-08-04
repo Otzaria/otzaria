@@ -1804,6 +1804,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           renderedStartUtf16: localRange?.start,
           renderedEndUtf16: localRange?.end,
           currentRef: state.currentTitle,
+          bookDbId: state.book.id,
+          bookType: 'text',
         );
         entries.add(const AppContextMenuEntry.divider());
         entries.addAll(

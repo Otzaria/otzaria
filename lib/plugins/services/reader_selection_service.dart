@@ -53,8 +53,12 @@ class ReaderSelectionService {
     required int? renderedStartUtf16,
     required int? renderedEndUtf16,
     String? currentRef,
+    int? bookDbId,
+    String? bookType,
   }) {
     final legacy = <String, dynamic>{
+      'id': ?bookDbId,
+      'type': ?bookType,
       'text': selectedText,
       'start': renderedStartUtf16,
       'end': renderedEndUtf16,
@@ -73,6 +77,8 @@ class ReaderSelectionService {
       renderedStartUtf16: renderedStartUtf16,
       renderedEndUtf16: renderedEndUtf16,
       currentRef: currentRef,
+      bookDbId: bookDbId,
+      bookType: bookType,
     );
     return selection == null ? legacy : {...legacy, ...selection.toJson()};
   }
@@ -88,6 +94,8 @@ class ReaderSelectionService {
     String? currentRef,
     String? tabId,
     DateTime? createdAt,
+    int? bookDbId,
+    String? bookType,
   }) {
     final map = _sourceMapService.build(
       bookId: bookId,
@@ -130,6 +138,8 @@ class ReaderSelectionService {
     return PluginReaderSelection(
       selectionId: selectionId,
       bookId: bookId,
+      id: bookDbId,
+      type: bookType,
       bookTitle: bookTitle,
       tabId: tabId,
       sectionIndex: sectionIndex,

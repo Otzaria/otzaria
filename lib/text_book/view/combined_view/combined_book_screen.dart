@@ -1235,6 +1235,8 @@ class _CombinedViewState extends State<CombinedView> {
           renderedStartUtf16: localRange?.start,
           renderedEndUtf16: localRange?.end,
           currentRef: state.currentTitle,
+          bookDbId: state.book.id,
+          bookType: 'text',
         );
         return <AppContextMenuEntry>[
           const AppContextMenuEntry.divider(),

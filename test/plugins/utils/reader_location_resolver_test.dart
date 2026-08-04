@@ -18,6 +18,8 @@ void main() {
       final snapshot1 = ReaderLocationSnapshot(
         currentBook: 'בראשית',
         currentBookId: 'בראשית',
+        currentId: 1,
+        currentType: 'text',
         currentIndex: 42,
         currentRef: 'פרק ג',
       );
@@ -25,6 +27,8 @@ void main() {
       final snapshot2 = ReaderLocationSnapshot(
         currentBook: 'בראשית',
         currentBookId: 'בראשית',
+        currentId: 1,
+        currentType: 'text',
         currentIndex: 42,
         currentRef: 'פרק ג',
       );
@@ -37,6 +41,8 @@ void main() {
       final snapshot1 = ReaderLocationSnapshot(
         currentBook: 'בראשית',
         currentBookId: 'בראשית',
+        currentId: 1,
+        currentType: 'text',
         currentIndex: 42,
         currentRef: 'פרק ג',
       );
@@ -44,6 +50,8 @@ void main() {
       final snapshot2 = ReaderLocationSnapshot(
         currentBook: 'בראשית',
         currentBookId: 'בראשית',
+        currentId: 1,
+        currentType: 'text',
         currentIndex: 43,
         currentRef: 'פרק ד',
       );
@@ -52,10 +60,34 @@ void main() {
       expect(snapshot1, isNot(snapshot2));
     });
 
-    test('toJson returns correct structure', () {
+    test('signature differs for same name different id — no collision', () {
+      final snapshot1 = ReaderLocationSnapshot(
+        currentBook: 'ספר',
+        currentBookId: 'ספר',
+        currentId: 1,
+        currentType: 'text',
+        currentIndex: 0,
+        currentRef: 'פרק א',
+      );
+      final snapshot2 = ReaderLocationSnapshot(
+        currentBook: 'ספר',
+        currentBookId: 'ספר',
+        currentId: 2,
+        currentType: 'pdf',
+        currentIndex: 0,
+        currentRef: 'פרק א',
+      );
+
+      expect(snapshot1.signature(), isNot(snapshot2.signature()));
+      expect(snapshot1, isNot(snapshot2));
+    });
+
+    test('toJson returns correct structure including id and type', () {
       final snapshot = ReaderLocationSnapshot(
         currentBook: 'בראשית',
         currentBookId: 'בראשית',
+        currentId: 183,
+        currentType: 'text',
         currentIndex: 42,
         currentRef: 'פרק ג',
       );
@@ -64,6 +96,8 @@ void main() {
 
       expect(json['currentBook'], 'בראשית');
       expect(json['currentBookId'], 'בראשית');
+      expect(json['currentId'], 183);
+      expect(json['currentType'], 'text');
       expect(json['currentIndex'], 42);
       expect(json['currentRef'], 'פרק ג');
     });
@@ -72,6 +106,8 @@ void main() {
       final snapshot = ReaderLocationSnapshot(
         currentBook: null,
         currentBookId: null,
+        currentId: null,
+        currentType: null,
         currentIndex: 0,
         currentRef: null,
       );
@@ -80,6 +116,8 @@ void main() {
 
       expect(json['currentBook'], isNull);
       expect(json['currentBookId'], isNull);
+      expect(json['currentId'], isNull);
+      expect(json['currentType'], isNull);
       expect(json['currentIndex'], 0);
       expect(json['currentRef'], isNull);
     });
@@ -93,7 +131,7 @@ void main() {
 
     test('resolves location for PDF tab with currentTitle', () async {
       final pdfTab = PdfBookTab(
-        book: PdfBook(title: 'מסילת ישרים', path: '/tmp/mesilat.pdf'),
+        book: PdfBook(id: 7, title: 'מסילת ישרים', path: '/tmp/mesilat.pdf'),
         pageNumber: 17,
       )..currentTitle.value = 'פרק ב';
 
@@ -102,13 +140,15 @@ void main() {
       expect(result, isNotNull);
       expect(result!.currentBook, 'מסילת ישרים');
       expect(result.currentBookId, 'מסילת ישרים');
+      expect(result.currentId, 7);
+      expect(result.currentType, 'pdf');
       expect(result.currentIndex, 17);
       expect(result.currentRef, 'פרק ב');
     });
 
     test('resolves location for PDF tab without currentTitle', () async {
       final pdfTab = PdfBookTab(
-        book: PdfBook(title: 'מסילת ישרים', path: '/tmp/mesilat.pdf'),
+        book: PdfBook(id: 7, title: 'מסילת ישרים', path: '/tmp/mesilat.pdf'),
         pageNumber: 17,
       );
 
@@ -117,8 +157,20 @@ void main() {
       expect(result, isNotNull);
       expect(result!.currentBook, 'מסילת ישרים');
       expect(result.currentBookId, 'מסילת ישרים');
+      expect(result.currentId, 7);
+      expect(result.currentType, 'pdf');
       expect(result.currentIndex, 17);
       expect(result.currentRef, 'עמוד 17');
+    });
+
+    test('PDF tab with null book id returns null currentId', () async {
+      final pdfTab = PdfBookTab(
+        book: PdfBook(title: 'ספר ללא id', path: '/tmp/book.pdf'),
+        pageNumber: 3,
+      );
+      final result = await resolveReaderLocation(pdfTab);
+      expect(result!.currentId, isNull);
+      expect(result.currentType, 'pdf');
     });
 
     test('resolves location for PDF tab at page 0', () async {
@@ -137,7 +189,7 @@ void main() {
 
     test('resolves location for text tab with currentTitle', () async {
       final textTab = TextBookTab(
-        book: TextBook(title: 'בראשית'),
+        book: TextBook(id: 42, title: 'בראשית'),
         index: 42,
       )..currentTitle.value = 'פרק ג';
 
@@ -146,13 +198,15 @@ void main() {
       expect(result, isNotNull);
       expect(result!.currentBook, 'בראשית');
       expect(result.currentBookId, 'בראשית');
+      expect(result.currentId, 42);
+      expect(result.currentType, 'text');
       expect(result.currentIndex, 42);
       expect(result.currentRef, 'פרק ג');
     });
 
     test('resolves location for text tab with state currentTitle', () async {
       final textTab = TextBookTab(
-        book: TextBook(title: 'בראשית'),
+        book: TextBook(id: 5, title: 'בראשית'),
         index: 42,
       );
 
@@ -173,6 +227,8 @@ void main() {
       expect(result, isNotNull);
       expect(result!.currentBook, 'בראשית');
       expect(result.currentBookId, 'בראשית');
+      expect(result.currentId, 5);
+      expect(result.currentType, 'text');
       expect(result.currentIndex, 42);
       expect(result.currentRef, 'פרק ג');
     });
@@ -188,8 +244,8 @@ void main() {
       expect(result, isNotNull);
       expect(result!.currentBook, 'בראשית');
       expect(result.currentBookId, 'בראשית');
+      expect(result.currentType, 'text');
       expect(result.currentIndex, 42);
-      // currentRef יכול להיות null אם אין state טעון
       expect(result.currentRef, isNull);
     });
 
@@ -262,35 +318,8 @@ class _MemoryCacheProvider extends CacheProvider {
   @override
   T? getValue<T>(String key, {T? defaultValue}) {
     final value = _values[key];
-    if (value is T) {
-      return value;
-    }
+    if (value is T) return value;
     return defaultValue;
-  }
-
-  @override
-  Future<void> remove(String key) async {
-    _values.remove(key);
-  }
-
-  @override
-  Future<void> removeAll() async {
-    _values.clear();
-  }
-
-  @override
-  Future<void> setBool(String key, bool? value) async {
-    _values[key] = value;
-  }
-
-  @override
-  Future<void> setDouble(String key, double? value) async {
-    _values[key] = value;
-  }
-
-  @override
-  Future<void> setInt(String key, int? value) async {
-    _values[key] = value;
   }
 
   @override
@@ -299,7 +328,22 @@ class _MemoryCacheProvider extends CacheProvider {
   }
 
   @override
-  Future<void> setString(String key, String? value) async {
-    _values[key] = value;
-  }
+  Future<void> setBool(String key, bool? value) async => _values[key] = value;
+
+  @override
+  Future<void> setDouble(String key, double? value) async =>
+      _values[key] = value;
+
+  @override
+  Future<void> setInt(String key, int? value) async => _values[key] = value;
+
+  @override
+  Future<void> setString(String key, String? value) async =>
+      _values[key] = value;
+
+  @override
+  Future<void> remove(String key) async => _values.remove(key);
+
+  @override
+  Future<void> removeAll() async => _values.clear();
 }

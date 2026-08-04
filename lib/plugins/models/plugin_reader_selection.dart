@@ -177,6 +177,8 @@ class PluginTextRangeAnchor {
 class PluginReaderSelection {
   final String selectionId;
   final String bookId;
+  final int? id;
+  final String? type;
   final String? bookTitle;
   final String? tabId;
   final int sectionIndex;
@@ -193,6 +195,8 @@ class PluginReaderSelection {
   const PluginReaderSelection({
     required this.selectionId,
     required this.bookId,
+    this.id,
+    this.type,
     this.bookTitle,
     this.tabId,
     required this.sectionIndex,
@@ -211,6 +215,8 @@ class PluginReaderSelection {
     'schemaVersion': 1,
     'selectionId': selectionId,
     'bookId': bookId,
+    if (id != null) 'id': id,
+    if (type != null) 'type': type,
     if (bookTitle != null) 'bookTitle': bookTitle,
     if (tabId != null) 'tabId': tabId,
     'sectionIndex': sectionIndex,

@@ -2619,6 +2619,15 @@ class MainWindowScreenState extends State<MainWindowScreen>
                   'reader.current_book_changed',
                   {
                     'book': currentTab.title,
+                    'bookId': currentTab.title,
+                    'id': currentTab is TextBookTab
+                        ? currentTab.book.id
+                        : (currentTab is PdfBookTab
+                            ? currentTab.book.id
+                            : null),
+                    'type': currentTab is TextBookTab
+                        ? 'text'
+                        : (currentTab is PdfBookTab ? 'pdf' : null),
                     'index': tabIndex,
                   },
                 );
