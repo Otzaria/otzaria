@@ -95,6 +95,14 @@ double matchFractionInLine(
   return (offset / clean.length).clamp(0.0, 1.0);
 }
 
+/// שבר המיקום של ההופעה בשורה כשטקסט השורה עצמו אינו זמין — למשל אחרי ששוחרר
+/// עותק שורות הספר. מחזיר 0 כשאין נתונים, ואז הגלילה מתייחסת לתחילת הקטע.
+double matchFractionFromLineLength({int? matchOffset, int? lineLength}) {
+  if (matchOffset == null || lineLength == null) return 0;
+  if (matchOffset <= 0 || lineLength <= 0) return 0;
+  return (matchOffset / lineLength).clamp(0.0, 1.0);
+}
+
 /// האם תוצאת החיפוש [query] נחתה בגוף הערת שוליים של [rawLine] בלבד —
 /// המונח נמצא בהערה אך לא בטקסט הראשי. משמש לפתיחת חלונית ההערות בפתיחת
 /// תוצאה, כשהספר לבדו אינו מציג את ההתאמה (גוף ההערה מוסר מהטקסט הראשי).
@@ -249,6 +257,7 @@ class _SearchWorkerHost {
                   address: raw['address'] as String,
                   query: raw['query'] as String,
                   matchOffset: raw['matchOffset'] as int?,
+                  lineLength: raw['lineLength'] as int?,
                 ),
               )
               .toList(growable: false),
@@ -408,6 +417,7 @@ class SectionSearchWorkerRuntime {
                 'address': cleanAddress,
                 'query': query,
                 'matchOffset': match.start,
+                'lineLength': cleanLines[i].length,
               });
               if (results.length >= _maxSearchResults) {
                 break;

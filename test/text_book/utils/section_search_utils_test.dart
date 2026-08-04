@@ -177,6 +177,31 @@ void main() {
       expect(results[1].index, 0);
     });
 
+    test('כל תוצאה נושאת את אורך השורה הנקייה לגלילה בלי התוכן', () async {
+      const line = 'אמר רבי יהודה דבר אחד ועוד אמר יהודה בן גרוש דבר אחר';
+      final results = await searchInContent(
+        content: [line],
+        query: 'יהודה',
+        patternSource: literalPatternSource('יהודה'),
+      );
+      expect(results.length, 2);
+      for (final result in results) {
+        expect(result.lineLength, line.length);
+        expect(
+          matchFractionFromLineLength(
+            matchOffset: result.matchOffset,
+            lineLength: result.lineLength,
+          ),
+          matchFractionInLine(
+            line,
+            'יהודה',
+            matchOffset: result.matchOffset,
+            pattern: literalPattern('יהודה'),
+          ),
+        );
+      }
+    });
+
     test('הופעות קרובות — כל snippet מכיל רק את ההופעה שלו', () async {
       final results = await searchInContent(
         content: ['אמר רבי יהודה דבר אחד ועוד אמר יהודה בן גרוש דבר אחר'],
@@ -411,6 +436,47 @@ void main() {
         pattern: literalPattern('ברא אלהים'),
       );
       expect(fraction, greaterThan(0));
+    });
+  });
+
+  group('matchFractionFromLineLength', () {
+    test('שבר מחושב מההיסט ומאורך השורה', () {
+      expect(
+        matchFractionFromLineLength(matchOffset: 25, lineLength: 100),
+        0.25,
+      );
+    });
+
+    test('היסט בתחילת השורה — שבר 0', () {
+      expect(matchFractionFromLineLength(matchOffset: 0, lineLength: 100), 0);
+    });
+
+    test('נתונים חסרים — שבר 0', () {
+      expect(matchFractionFromLineLength(matchOffset: 25, lineLength: null), 0);
+      expect(
+        matchFractionFromLineLength(matchOffset: null, lineLength: 100),
+        0,
+      );
+      expect(matchFractionFromLineLength(matchOffset: 25, lineLength: 0), 0);
+    });
+
+    test('היסט מעבר לאורך השורה נחתך ל-1', () {
+      expect(matchFractionFromLineLength(matchOffset: 200, lineLength: 100), 1);
+    });
+
+    test('מסכים עם החישוב מטקסט השורה כשהשורה זמינה', () {
+      const line = 'יהודה אמר ועוד אמר יהודה דבר';
+      final fromText = matchFractionInLine(
+        line,
+        'יהודה',
+        matchOffset: 19,
+        pattern: literalPattern('יהודה'),
+      );
+      final fromLength = matchFractionFromLineLength(
+        matchOffset: 19,
+        lineLength: line.length,
+      );
+      expect(fromLength, closeTo(fromText, 0.001));
     });
   });
 
