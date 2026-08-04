@@ -338,12 +338,16 @@ List<int> filterBookSearchEntries({
           for (final entry in filtered)
             _ScoredBookSearchEntry(
               index: entry.index,
-              // שכבות עדיפות שאינן חופפות (כותרת מדויקת > מכילה > כינוי > fuzzy).
-              // התאמה מדויקת קודמת לדור כדי שספר יסוד נטול-דור ('קידושין') לא ייקבר
-              // מתחת לפירושים מתוארכים. בתוך כל שכבה: דור ואז ratio.
+              // שכבות עדיפות (כותרת מדויקת > מכילה ברצף > מילותיה לפי הסדר > כינוי
+              // > fuzzy); בתוך כל שכבה: דור ואז ratio, כך ספר יסוד לא נקבר תחת פירושים.
               tier: entry.normalizedTitle == normalizedQuery
-                  ? 3
+                  ? 4
                   : entry.normalizedTitle.contains(normalizedQuery)
+                  ? 3
+                  : _titleHasQueryWordsInOrder(
+                      entry.normalizedTitle,
+                      queryWords,
+                    )
                   ? 2
                   : entry.acronyms.any((a) => a.contains(normalizedQuery))
                   ? 1
@@ -369,6 +373,20 @@ List<int> filterBookSearchEntries({
   return [
     for (final entry in filtered) entry.index,
   ];
+}
+
+/// האם כל מילות השאילתה מופיעות כמילים שלמות בכותרת, לפי סדרן.
+/// שוויון מדויק בכוונה — התאמה סלחנית מקדמת 'הרמבם' עבור שאילתת 'רמבם'.
+bool _titleHasQueryWordsInOrder(
+  String normalizedTitle,
+  List<String> queryWords,
+) {
+  if (queryWords.isEmpty) return false;
+  var i = 0;
+  for (final titleWord in normalizedTitle.split(' ')) {
+    if (titleWord == queryWords[i] && ++i == queryWords.length) return true;
+  }
+  return false;
 }
 
 class _PreparedBookSearchEntry {

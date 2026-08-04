@@ -10,6 +10,7 @@ import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 import 'package:otzaria/plugins/services/plugin_dev_loader_service.dart';
 import 'package:otzaria/plugins/services/plugin_dev_watch_service.dart';
 import 'package:otzaria/plugins/services/plugin_download_service.dart';
+import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
@@ -187,6 +188,23 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     }
   }
 
+  /// מדווח את תוצאת ההתקנה לאתר, כשההקשר צמוד לבקשה שהסתיימה.
+  /// fire-and-forget — הדיווח לעולם אינו מעכב או מכשיל את הזרימה.
+  void _reportInstallResult(
+    PluginInstallReportContext? report, {
+    required bool success,
+    String? errorMessage,
+  }) {
+    if (report == null) return;
+    unawaited(
+      PluginInstallReportService.report(
+        report,
+        success: success,
+        errorMessage: errorMessage,
+      ),
+    );
+  }
+
   Future<void> _onInstallPluginRequested(
     InstallPluginRequested event,
     Emitter<PluginSystemState> emit,
@@ -226,6 +244,13 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
   ) async {
     String? archivePath;
 
+    // אישור קבלה מיידי לאתר החנות — עוד לפני ההורדה ודיאלוג ההרשאות,
+    // כדי שהדף יידע מהר שאוצריא קיבלה את הבקשה (fire-and-forget).
+    final ack = event.reportContext;
+    if (ack != null) {
+      unawaited(PluginInstallReportService.acknowledge(ack));
+    }
+
     try {
       archivePath = await _downloadService.downloadPluginArchive(
         Uri.parse(event.downloadUrl),
@@ -243,6 +268,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
           previousVersion: prepareInfo.previousVersion,
           previousAllowOrderBeforeBuiltInsGranted:
               prepareInfo.previousAllowOrderBeforeBuiltInsGranted,
+          reportContext: event.reportContext,
         ),
       );
     } on PluginOverwriteException catch (e) {
@@ -250,14 +276,29 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       debugPrint(
         'Plugin overwrite required for "${e.pluginName}" version ${e.version}',
       );
+      _reportInstallResult(
+        event.reportContext,
+        success: false,
+        errorMessage: 'התוסף כבר מותקן בגרסה זו',
+      );
       add(LoadPlugins());
     } on PluginNewerVersionInstalledException catch (e) {
       UiSnack.show(
         PluginMessages.newerVersionInstalled(e.pluginName, e.installedVersion),
       );
+      _reportInstallResult(
+        event.reportContext,
+        success: false,
+        errorMessage: 'מותקנת כבר גרסה חדשה יותר (${e.installedVersion})',
+      );
       add(LoadPlugins());
     } catch (e) {
       UiSnack.showError(PluginMessages.installRemotePluginError(e));
+      _reportInstallResult(
+        event.reportContext,
+        success: false,
+        errorMessage: 'שגיאה בהורדה או בפתיחת קובץ התוסף',
+      );
       add(LoadPlugins());
     } finally {
       if (archivePath != null) {
@@ -289,10 +330,16 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       }
 
       UiSnack.showSuccess(PluginMessages.pluginInstalledSuccess);
+      _reportInstallResult(event.reportContext, success: true);
       add(LoadPlugins());
     } catch (e) {
       await _installerService.cancelInstall(event.tempDirPath);
       UiSnack.showError(PluginMessages.confirmInstallError(e));
+      _reportInstallResult(
+        event.reportContext,
+        success: false,
+        errorMessage: 'שגיאה בהשלמת ההתקנה',
+      );
       add(LoadPlugins());
     }
   }
@@ -302,6 +349,11 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     Emitter<PluginSystemState> emit,
   ) async {
     await _installerService.cancelInstall(event.tempDirPath);
+    _reportInstallResult(
+      event.reportContext,
+      success: false,
+      errorMessage: 'ההתקנה בוטלה על ידי המשתמש',
+    );
     add(LoadPlugins());
   }
 

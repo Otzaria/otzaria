@@ -263,6 +263,14 @@ begin
     exit;
   end;
 
+  // התקנות מנהל ממתקינים ישנים (32-ביט) נרשמו תחת WOW6432Node — גם מערכתיות.
+  if TryGetInstallDirFromRegistry(HKLM32, UninstallRegKey, InstallDir) then
+  begin
+    Result := InstallDir;
+    RequiresAdmin := True;
+    exit;
+  end;
+
   // בדרך כלל HKCU = התקנת משתמש. אם הנתיב בפועל תחת Program Files,
   // מבקשים UAC מראש כדי לא ליפול לכשל כתיבה מאוחר יותר.
   if TryGetInstallDirFromRegistry(HKCU, UninstallRegKey, InstallDir) then
@@ -372,6 +380,9 @@ end;
 function GetPreviousDisplayVersion(): String;
 begin
   if RegQueryStringValue(HKLM64, UninstallRegKey, 'DisplayVersion', Result) and (Result <> '') then
+    exit;
+  // התקנות מנהל ממתקינים ישנים (32-ביט) נרשמו תחת WOW6432Node.
+  if RegQueryStringValue(HKLM32, UninstallRegKey, 'DisplayVersion', Result) and (Result <> '') then
     exit;
   if RegQueryStringValue(HKCU, UninstallRegKey, 'DisplayVersion', Result) and (Result <> '') then
     exit;
@@ -1177,8 +1188,13 @@ end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
-  Result := False;
-  if not PortableMode then
+  // שיגור-מחדש עם מצב מפורש (מעמוד "סוג ההתקנה") — עמודי הפתיחה והמצב כבר
+  // נענו בריצה הקודמת; ממשיכים ישר לעמוד המיקום.
+  Result :=
+    (CmdLineParamExists('/ALLUSERS') or CmdLineParamExists('/CURRENTUSER')) and
+    (((FeaturesPage <> nil) and (PageID = FeaturesPage.ID)) or
+     ((ModePage <> nil) and (PageID = ModePage.ID)));
+  if Result or (not PortableMode) then
     exit;
   // במצב נייד: אין קיצורי דרך/איפוס (עמוד המשימות), והספרייה תמיד בתוך
   // התיקייה הניידת (עמוד בחירת תיקיית הספרים).

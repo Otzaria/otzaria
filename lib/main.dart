@@ -83,10 +83,13 @@ import 'package:otzaria/plugins/database/plugin_database_bootstrap.dart';
 import 'package:logging/logging.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/widgets/misc/app_cursors.dart';
 import 'package:otzaria/widgets/misc/restart_widget.dart';
 import 'package:otzaria/core/splash_screen.dart';
 import 'package:otzaria/plugins/services/plugin_crash_guard.dart';
+import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 import 'package:otzaria/plugins/services/plugin_packager_cli.dart';
+import 'package:otzaria/plugins/services/plugin_store_link_parser.dart';
 import 'package:otzaria/plugins/services/plugin_protocol_registration_service.dart';
 import 'package:otzaria/plugins/view/webview_environment_holder.dart';
 import 'package:otzaria/core/sentry_event_filter.dart';
@@ -257,6 +260,12 @@ bool _isIgnorableHardwareKeyboardAssertion(String errorString) {
 /// 4. Calls [initialize] to set up required services and configurations
 /// 5. Launches the main application widget
 void main(List<String> args) async {
+  // debugPrint פזור במאות נקודות קריאה בלי עטיפת kDebugMode; ב-release הפלט
+  // עדיין מפורמט ונשלח ל-stdout שאיש לא רואה — מנוטרל כאן במרוכז לכל התוכנה.
+  if (kReleaseMode) {
+    debugPrint = (String? message, {int? wrapWidth}) {};
+  }
+
   // טיפול בפקודות CLI שאינן דורשות אתחול GUI (כגון אריזת תוסף).
   // חייב לרוץ לפני SentryWidgetsFlutterBinding.ensureInitialized() כדי שלא
   // ייפתח חלון Flutter ולא יתבצע אתחול מסד נתונים מיותר.
@@ -266,9 +275,17 @@ void main(List<String> args) async {
 
   SentryWidgetsFlutterBinding.ensureInitialized();
 
+  // אישור קבלה מוקדם לאתר החנות עבור קישורי התקנת תוסף שהגיעו כארגומנטים —
+  // נורה כאן, לפני כל אתחול כבד ולפני עליית החלון, כדי שדף החנות יידע תוך
+  // שנייה-שתיים שאוצריא קיבלה את הבקשה (גם בעלייה קרה). במופע משני (כשאוצריא
+  // כבר רצה) ההמתנה לסיום נעשית לפני exit ב-_runAppBootstrap.
+  _sendEarlyInstallAcks(args);
+
   // מנטרל את ההבהוב המובנה (הפרטי ב-EditableTextState) כדי ש-RtlTextField
   // ינהל אותו בעצמו. ראו "ניהול הבהוב הסמן" ב-rtl_text_field.dart.
   EditableText.debugDeterministicCursor = true;
+
+  unawaited(AppCursors.ensureInitialized());
 
   await _initializeDataRootForEarlyLogging();
   await _initializeLogMetadata();
@@ -399,6 +416,14 @@ Future<void> _runAppBootstrap() async {
     FlutterSingleInstance flutterSingleInstance = FlutterSingleInstance();
     bool isFirstInstance = await flutterSingleInstance.isFirstInstance();
     if (!isFirstInstance) {
+      // אם נשלח ack מוקדם לאתר החנות — ממתינים לסיומו לפני היציאה, אחרת
+      // התהליך מת לפני שהבקשה יוצאת (לשירות יש timeout פנימי של 10 שניות).
+      final ackFuture = _earlyInstallAckFuture;
+      if (ackFuture != null) {
+        try {
+          await ackFuture;
+        } catch (_) {}
+      }
       exit(0);
     }
   }
@@ -629,6 +654,7 @@ Future<void> _initializeRestartableRuntime() async {
   // _runDeferredAutoBackup ו-_runDeferredProtocolRegistration למטה.
   unawaited(_runDeferredAutoBackup());
   unawaited(_runDeferredProtocolRegistration());
+  unawaited(_logJobObjectContainmentFailure());
 
   // פרי-וורם של WebView2 environment ברקע. הפעם הראשונה שיוצרים סביבת
   // WebView2 ב-Windows מצמיחה כמה תהליכי-בן של Edge ולוקחת 1-2 שניות
@@ -645,6 +671,26 @@ Future<void> _initializeRestartableRuntime() async {
   // עלות: ~100MB RAM לתהליכי Edge הילדים, מנוקים ע"י ה-Job Object
   // בעת סגירת התהליך — אז לא יוותרו זומבים גם אם המשתמש לעולם לא יפתח תוסף.
   unawaited(_preWarmWebViewEnvironment());
+}
+
+/// כשקונטיינמנט ה-Job Object לא הוקם, תהליכי msedgewebview2.exe שורדים את
+/// סגירת התוכנה ונועלים את פרופיל ה-WebView2 (תוספים ריקים) — נרשם ל-errors.txt.
+Future<void> _logJobObjectContainmentFailure() async {
+  if (kIsWeb || !Platform.isWindows || kDebugMode) return;
+  try {
+    final status = await AppWindowListener.jobObjectStatus();
+    if (status.ready) return;
+    _appendUnhandledErrorToLocalLog(
+      title: 'Job Object containment unavailable',
+      error: status.failure ?? 'unknown failure',
+      details: const {
+        'Phase': 'initialize',
+        'Component': 'Job Object (WebView2 process containment)',
+      },
+    );
+  } catch (error, stackTrace) {
+    _logNonFatalInitializationError('Job Object status', error, stackTrace);
+  }
 }
 
 Future<void> _runDeferredNotificationService() async {
@@ -832,6 +878,30 @@ void scheduleAfterTwoFrames(
       action();
     });
   });
+}
+
+/// ה-ack המוקדם שנשלח מ-[_sendEarlyInstallAcks] — נשמר כדי שמופע משני יוכל
+/// להמתין לסיומו לפני exit(0) (אחרת התהליך מת לפני שהבקשה יוצאת).
+Future<void>? _earlyInstallAckFuture;
+
+/// סורק את ארגומנטי ההפעלה אחר קישורי `otzaria://plugin/install` עם token,
+/// ושולח לכל אחד אישור קבלה (fire-and-forget). האישור נשלח שוב גם מה-bloc
+/// בעת הטיפול בבקשה — השרת אידמפוטנטי לכך.
+void _sendEarlyInstallAcks(List<String> args) {
+  final futures = <Future<void>>[];
+  for (final raw in args) {
+    final arg = raw.trim();
+    if (!arg.toLowerCase().startsWith('otzaria:')) continue;
+    final uri = Uri.tryParse(arg);
+    if (uri == null) continue;
+    final reportContext = PluginStoreLinkParser.parseUri(uri)?.reportContext;
+    if (reportContext != null) {
+      futures.add(PluginInstallReportService.acknowledge(reportContext));
+    }
+  }
+  if (futures.isNotEmpty) {
+    _earlyInstallAckFuture = Future.wait(futures);
+  }
 }
 
 Future<void> _enqueueExternalActivationArgs(List<String> args) async {

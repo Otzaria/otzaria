@@ -422,4 +422,55 @@ void main() {
       expect(split, (first: 'שער — מבוא', second: 'פרק א'));
     });
   });
+
+  group('spreadTargetCenterY — שימור מיקום גלילה בין זוגות', () {
+    // חלון תצוגה בגובה 400; זוגות בגובה 1000 (ניתן לגלילה) או 300 (נכנס בשלמותו).
+    Rect spread(double top, double height) =>
+        Rect.fromLTWH(0, top, 800, height);
+    Rect visible(double top, [double height = 400]) =>
+        Rect.fromLTWH(0, top, 800, height);
+
+    test('זוג גבוה מהחלון — ראש הזוג נשמר בראש', () {
+      final centerY = spreadTargetCenterY(
+        currentSpreadRect: spread(0, 1000),
+        newSpreadRect: spread(2000, 1000),
+        visibleRect: visible(0),
+      );
+      // גלילה יחסית 0 => ראש הזוג החדש בראש החלון.
+      expect(centerY, 2000 + 200);
+    });
+
+    test('גלילה לתחתית הזוג נשמרת בזוג הבא', () {
+      final centerY = spreadTargetCenterY(
+        currentSpreadRect: spread(0, 1000),
+        newSpreadRect: spread(2000, 1000),
+        visibleRect: visible(600),
+      );
+      // גלילה יחסית 1 => תחתית הזוג החדש בתחתית החלון.
+      expect(centerY, 2000 + 1000 - 200);
+    });
+
+    test('גלילה יחסית נשמרת גם כשגובה הזוג החדש שונה', () {
+      final centerY = spreadTargetCenterY(
+        currentSpreadRect: spread(0, 1000),
+        newSpreadRect: spread(2000, 1600),
+        visibleRect: visible(300),
+      );
+      // גלילה יחסית 0.5 => אמצע הטווח הניתן לגלילה בזוג החדש.
+      expect(centerY, 2000 + 0.5 * (1600 - 400) + 200);
+    });
+
+    test('זוג שנכנס בשלמותו — התוצאה עומדת בכלל ההצמדה של הנרמול', () {
+      // גובה הזוג הנוכחי קטן מהחלון: אין גלילה, והמרכז נגזר מגובה הזוג
+      // הנוכחי. הערך חייב להישאר בתוך הזוג החדש כדי שלא ייווצר תיקון-קפיצה.
+      final newSpread = spread(2000, 320);
+      final centerY = spreadTargetCenterY(
+        currentSpreadRect: spread(0, 300),
+        newSpreadRect: newSpread,
+        visibleRect: visible(0),
+      );
+      expect(centerY, greaterThanOrEqualTo(newSpread.top));
+      expect(centerY, lessThanOrEqualTo(newSpread.bottom));
+    });
+  });
 }

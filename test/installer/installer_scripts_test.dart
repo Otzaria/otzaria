@@ -362,4 +362,61 @@ void main() {
       });
     }
   });
+
+  group('זיהוי התקנה קודמת — כיסוי כל אזורי הרישום', () {
+    for (final name in _scripts) {
+      test('$name: GetPreviousDisplayVersion בודק HKLM64, HKLM32 ו-HKCU', () {
+        // התקנות מנהל ממתקינים ישנים נרשמו תחת WOW6432Node (HKLM32);
+        // דילוג עליו מפיל שדרוג-שקט לאשף מלא.
+        final body = _routine(
+          _script(name),
+          'function GetPreviousDisplayVersion(): String;',
+        );
+        final hklm64 = body.indexOf('HKLM64');
+        final hklm32 = body.indexOf('HKLM32');
+        final hkcu = body.indexOf('HKCU');
+        expect(hklm64, greaterThanOrEqualTo(0));
+        expect(hklm32, greaterThan(hklm64));
+        expect(
+          hkcu,
+          greaterThan(hklm32),
+          reason: 'רישום מערכתי (שני ה-HKLM) קודם לרישום פר-משתמש',
+        );
+      });
+
+      test('$name: FindPreviousInstallDir מזהה HKLM32 כהתקנה מערכתית', () {
+        final body = _routine(
+          _script(name),
+          'function FindPreviousInstallDir(',
+        );
+        final hklm32 = body.indexOf(
+          'TryGetInstallDirFromRegistry(HKLM32, UninstallRegKey',
+        );
+        expect(hklm32, greaterThanOrEqualTo(0));
+        final block = body.substring(hklm32, body.indexOf('exit;', hklm32));
+        expect(
+          block,
+          contains('RequiresAdmin := True'),
+          reason: 'התקנה תחת HKLM דורשת הרשאות מנהל לשדרוג',
+        );
+      });
+    }
+  });
+
+  group('שיגור-מחדש עם מצב מפורש — בלי לשאול שוב', () {
+    for (final name in _scripts) {
+      test('$name: ShouldSkipPage מדלג על עמודי הפתיחה והמצב', () {
+        // בלי הדילוג, בחירת "לכל המשתמשים" מציגה את אותן שאלות פעמיים —
+        // פעם בריצה המקורית ופעם בריצה המשוגרת-מחדש.
+        final body = _routine(
+          _script(name),
+          'function ShouldSkipPage(',
+        );
+        expect(body, contains("CmdLineParamExists('/ALLUSERS')"));
+        expect(body, contains("CmdLineParamExists('/CURRENTUSER')"));
+        expect(body, contains('FeaturesPage.ID'));
+        expect(body, contains('ModePage.ID'));
+      });
+    }
+  });
 }

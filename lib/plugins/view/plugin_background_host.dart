@@ -28,6 +28,7 @@ import 'package:otzaria/plugins/services/plugin_ref_line_resolver.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/view/plugin_drop_guard_script.dart';
+import 'package:otzaria/plugins/services/plugin_webview_failure_log.dart';
 import 'package:otzaria/plugins/view/webview_environment_holder.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -428,8 +429,13 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
                 ) ==
                 true;
           },
-      requestPluginInstall: (downloadUrl) {
-        _pluginSystemBloc.add(InstallRemotePluginRequested(downloadUrl));
+      requestPluginInstall: (downloadUrl, {reportContext}) {
+        _pluginSystemBloc.add(
+          InstallRemotePluginRequested(
+            downloadUrl,
+            reportContext: reportContext,
+          ),
+        );
       },
       pickFolder: ({String? title}) async {
         final ctx = navigatorKey.currentContext;
@@ -562,6 +568,19 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
             'Background plugin [${widget.plugin.pluginId}] init error: $e',
           );
         }
+      },
+      onProcessFailed: (controller, detail) {
+        // תוסף רקע מוסתר — בלי הרישום אין לכשל הזה שום עדות נראית.
+        logPluginWebViewFailure(
+          'Background plugin WebView2 process failed',
+          detail.kind,
+          details: {
+            'Plugin': widget.plugin.pluginId,
+            'Reason': detail.reason?.toString(),
+            'ExitCode': detail.exitCode?.toString(),
+            'Process': detail.processDescription,
+          },
+        );
       },
       shouldOverrideUrlLoading: (controller, navigationAction) async {
         try {
