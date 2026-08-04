@@ -205,6 +205,9 @@ class FileSyncService {
       otherConfiguredFolderPaths: otherConfiguredFolderPaths,
     );
     _log.info('Folder deleted from DB ($removed books removed)');
+    if (removed > 0) {
+      await _customFoldersRepo.compactIfFragmented();
+    }
   }
 
   String _normalizeFolderPath(String folderPath) =>
@@ -878,6 +881,10 @@ class FileSyncService {
         if (onlyFolderPath == null) {
           await pruneRemovedCustomFoldersFromDatabase(customFolders);
         }
+
+        // כיבוי "הוסף למסד הנתונים" ומחיקת ספרים משחררים דפים ב-user_books.db
+        // אך לא מקטינים את הקובץ. הכיווץ מדלג על עצמו כשאין מספיק פנוי.
+        await _customFoldersRepo.compactIfFragmented();
       }
 
       _reportProgress(1.0, 'הסנכרון הושלם');
