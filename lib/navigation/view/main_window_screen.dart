@@ -257,10 +257,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
   Widget? _cachedReadingPage;
   Widget? _cachedSettingsPage;
 
-  // GlobalKeys יציבים למסכי עיון והגדרות. במהלך slide חוצה (buildTransitionPages)
-  // המסכים זזים בעץ דרך swap; ה-keys מאפשרים ל-Flutter לזהות שמדובר באותם מסכים
-  // ולהעביר (reparent) את ה-State במקום לפרק ולבנות מחדש. (מסך הכלים כבר מותג
-  // ב-moreScreenKey; מסך הספרייה ב-libraryBrowserKey.)
+  // GlobalKeys יציבים משמרים את מצב העיון וההגדרות בעת מעבר חוצה.
   final GlobalKey _readingScreenKey = GlobalKey();
   final GlobalKey _settingsScreenKey = GlobalKey();
 
@@ -1340,10 +1337,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
   /// סדר העמודים במהלך slide חוצה: מחליף (swap) בין מסך היעד ([targetIndex])
   /// למסך שיושב בעמוד-השכן ([slotIndex]), כך שמסך היעד מוצג בשכן לצורך ההחלקה.
   ///
-  /// כל ארבעת המסכים נשארים בעץ (התוצאה היא תמורה של [canonical]) — כך אף מסך
-  /// עם keep-alive כמו `ToolsScreen` אינו נדחק מהעץ ונבנה מחדש, וה-WebView שלו
-  /// אינו נטען מחדש. מסך שכן מעורב ב-swap (עם GlobalKey) רק *זז* בעץ ולכן ה-State
-  /// שלו נשמר דרך reparenting. כל GlobalKey יושב בעמוד אחד בלבד.
+  /// כל העמודים נשארים בעץ, וה-State של עמוד שמחליף מקום נשמר דרך reparenting.
   ///
   /// במנוחה ([targetIndex] או [slotIndex] הם null) — מוחזר הסדר הקנוני כמות שהוא.
   @visibleForTesting
@@ -1381,8 +1375,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
   /// הטכניקה: מציבים זמנית את מסך היעד בעמוד-השכן בכיוון התנועה ([slot]),
   /// מחליקים מרחק עמוד אחד בלבד (כך נראים רק המסך היוצא והיעד — לא הביניים),
   /// ובסיום קופצים למיקום האמיתי של היעד. ה-GlobalKey של מסך היעד גורם ל-Flutter
-  /// להעביר (reparent) את ה-Element החי מ-[slot] ל-[to] בלי בנייה מחדש, כך
-  /// שה-WebView של מסך הכלים אינו נטען מחדש ואין הבהוב.
+  /// להעביר (reparent) את ה-Element החי מ-[slot] ל-[to] בלי בנייה מחדש.
   Future<void> _slideToDistantPage(int from, int to) async {
     final slot = from + (to > from ? 1 : -1);
     setState(() {

@@ -240,10 +240,8 @@ class PluginSystemDatabase {
   /// המפתחות הם plugin_id והערכים הם מספרי סדר (קטן יותר = מוקדם יותר).
   /// העדכון מתבצע ב-transaction כדי לשמור על עקביות.
   ///
-  /// הערה: אין עדכון של `updated_at` — סדר התצוגה אינו מאפיין של ההתקנה
-  /// עצמה, ועדכון `updated_at` היה גורם ל-`ToolsScreen` לבנות מחדש את כל
-  /// ה-`PluginTabPage` (כולל ה-WebView), מה שגרם לקריסה בעת dispose
-  /// ב-Windows.
+  /// אין עדכון של `updated_at`: סדר התצוגה אינו מאפיין של ההתקנה, ועדכון כזה
+  /// בונה מחדש את דף התוסף עם ה-WebView בזמן dispose ב-Windows.
   Future<void> updatePluginsUserOrder(Map<String, int> ordering) async {
     if (ordering.isEmpty) return;
     final db = await database;
