@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
+import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 
 PluginManifest _manifest(String id) {
   return PluginManifest.fromJson({
@@ -40,6 +41,29 @@ InstalledPlugin _plugin({
 }
 
 void main() {
+  group('PluginSystemInstallRequiresPermissions', () {
+    test('keeps distinct callback URLs as distinct installation states', () {
+      final first = PluginSystemInstallRequiresPermissions(
+        manifest: _manifest('plugin'),
+        tempDirPath: '/tmp/plugin',
+        reportContext: PluginInstallReportContext(
+          token: 'same-token',
+          callbackUrl: Uri.parse('https://store.example.com/first'),
+        ),
+      );
+      final second = PluginSystemInstallRequiresPermissions(
+        manifest: _manifest('plugin'),
+        tempDirPath: '/tmp/plugin',
+        reportContext: PluginInstallReportContext(
+          token: 'same-token',
+          callbackUrl: Uri.parse('https://store.example.com/second'),
+        ),
+      );
+
+      expect(first, isNot(equals(second)));
+    });
+  });
+
   group('PluginSystemLoaded.pluginsPinnedToNavRail', () {
     test('returns empty list when there are no plugins', () {
       const state = PluginSystemLoaded([]);

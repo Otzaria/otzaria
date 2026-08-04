@@ -29,6 +29,31 @@ void main() {
       expect(request!.forceOverwrite, isTrue);
     });
 
+    test('keeps a same-origin callback context', () {
+      final request = PluginStoreLinkParser.parseUri(
+        Uri.parse(
+          'otzaria://plugin/install?url=https%3A%2F%2Fstore.example.com%2Fplugin.otzplugin&token=one-time&callback=https%3A%2F%2Fstore.example.com%2Fapi%2Finstall-result',
+        ),
+      );
+
+      expect(request?.reportContext?.token, 'one-time');
+      expect(
+        request?.reportContext?.callbackUrl.toString(),
+        'https://store.example.com/api/install-result',
+      );
+    });
+
+    test('drops a callback from a different origin', () {
+      final request = PluginStoreLinkParser.parseUri(
+        Uri.parse(
+          'otzaria://plugin/install?url=https%3A%2F%2Fstore.example.com%2Fplugin.otzplugin&token=one-time&callback=https%3A%2F%2Fevil.example.com%2Fcollect',
+        ),
+      );
+
+      expect(request, isNotNull);
+      expect(request!.reportContext, isNull);
+    });
+
     test('rejects links without download url', () {
       final request = PluginStoreLinkParser.parseUri(
         Uri.parse('otzaria://plugin/install'),

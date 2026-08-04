@@ -7,6 +7,7 @@ import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/models/plugin_permission_labels.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
+import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/settings/widgets/settings_card.dart';
@@ -22,6 +23,7 @@ class PluginInstallScreen extends StatefulWidget {
   /// בחירה קודמת של המשתמש לגבי הקדמת התוסף לפני כלים מובנים.
   /// `null` = אין החלטה קודמת (התקנה ראשונה או תוסף ישן לפני הפיצ'ר).
   final bool? previousAllowOrderBeforeBuiltInsGranted;
+  final PluginInstallReportContext? reportContext;
 
   /// כאשר מסופק, נקרא במקום שליחת ConfirmPluginInstall לבלוק (למשל בתוסף פיתוח).
   final void Function(
@@ -42,6 +44,7 @@ class PluginInstallScreen extends StatefulWidget {
     required this.tempDirPath,
     this.previousVersion,
     this.previousAllowOrderBeforeBuiltInsGranted,
+    this.reportContext,
     this.onConfirm,
     this.onCancel,
     this.isOfflineMode = false,
@@ -98,6 +101,7 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
           widget.manifest,
           Map.unmodifiable(_permissionToggles),
           _allowOrderBeforeBuiltInsGranted,
+          reportContext: widget.reportContext,
         ),
       );
     }
@@ -109,7 +113,10 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
       widget.onCancel!();
     } else {
       context.read<PluginSystemBloc>().add(
-        CancelPluginInstall(widget.tempDirPath),
+        CancelPluginInstall(
+          widget.tempDirPath,
+          reportContext: widget.reportContext,
+        ),
       );
     }
     Navigator.of(context).pop();

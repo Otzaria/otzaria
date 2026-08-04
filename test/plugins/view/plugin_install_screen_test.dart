@@ -13,6 +13,7 @@ import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_permission_grant.dart';
 import 'package:otzaria/plugins/services/plugin_installer_service.dart';
+import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/controls/custom_switch.dart';
 
@@ -53,11 +54,13 @@ class _FakeInstallerService extends PluginInstallerService {
 /// מאפשר emit ידני מחוץ לבלוק בטסטים בלבד.
 /// מאחסן את כל האירועים שנשלחים ב-[capturedEvents] לאימות ב-payload tests.
 class _TestableBloc extends PluginSystemBloc {
-  _TestableBloc()
+  _TestableBloc({this.processEvents = true})
     : super(
         repository: _FakeRepo(),
         installerService: _FakeInstallerService(),
       );
+  final bool processEvents;
+
   void testEmit(PluginSystemState state) => emit(state);
 
   final List<PluginSystemEvent> capturedEvents = [];
@@ -65,7 +68,9 @@ class _TestableBloc extends PluginSystemBloc {
   @override
   void add(PluginSystemEvent event) {
     capturedEvents.add(event);
-    super.add(event);
+    if (processEvents) {
+      super.add(event);
+    }
   }
 }
 
@@ -104,6 +109,7 @@ Future<void> _openDialog(
   PluginManifest manifest, {
   String? previousVersion,
   bool? previousAllowOrderBeforeBuiltInsGranted,
+  PluginInstallReportContext? reportContext,
   bool isOfflineMode = false,
   double screenHeight = 900,
 }) async {
@@ -134,6 +140,7 @@ Future<void> _openDialog(
                       previousVersion: previousVersion,
                       previousAllowOrderBeforeBuiltInsGranted:
                           previousAllowOrderBeforeBuiltInsGranted,
+                      reportContext: reportContext,
                       isOfflineMode: isOfflineMode,
                     ),
                   ),
@@ -220,6 +227,51 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(Dialog), findsNothing);
+  });
+
+  testWidgets('הקשר דיווח נשמר באירועי אישור וביטול ההתקנה', (tester) async {
+    final captureOnlyBloc = _TestableBloc(processEvents: false);
+    addTearDown(captureOnlyBloc.close);
+    final reportContext = PluginInstallReportContext(
+      token: 'one-time',
+      callbackUrl: Uri(scheme: 'https', host: 'store.example.com'),
+    );
+
+    await _openDialog(
+      tester,
+      captureOnlyBloc,
+      _manifest(),
+      reportContext: reportContext,
+    );
+    await tester.ensureVisible(find.text('התקן'));
+    await tester.tap(find.text('התקן'));
+    await tester.pumpAndSettle();
+
+    expect(
+      captureOnlyBloc.capturedEvents
+          .whereType<ConfirmPluginInstall>()
+          .single
+          .reportContext,
+      reportContext,
+    );
+
+    await _openDialog(
+      tester,
+      captureOnlyBloc,
+      _manifest(),
+      reportContext: reportContext,
+    );
+    await tester.ensureVisible(find.text('ביטול'));
+    await tester.tap(find.text('ביטול'));
+    await tester.pumpAndSettle();
+
+    expect(
+      captureOnlyBloc.capturedEvents
+          .whereType<CancelPluginInstall>()
+          .single
+          .reportContext,
+      reportContext,
+    );
   });
 
   // ── BlocListener פותח Dialog ──

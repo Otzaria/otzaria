@@ -25,11 +25,6 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
   final PluginDevWatchService devWatchService;
   StreamSubscription<PluginDevFsChange>? _devWatchSub;
 
-  /// הקשר דיווח של התקנת החנות הפעילה (טוקן + callback לאתר). נשמר מרגע
-  /// בקשת ההתקנה המרוחקת ועד אישור/ביטול/כשל, כי הזרימה עוברת דרך דיאלוג
-  /// הרשאות (state נפרד). התקנה חדשה דורסת אותו — יש לכל היותר זרימה אחת.
-  PluginInstallReportContext? _pendingInstallReport;
-
   PluginSystemBloc({
     required this.repository,
     PluginInstallerService? installerService,
@@ -193,12 +188,14 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     }
   }
 
-  /// מדווח את תוצאת ההתקנה לאתר (אם יש הקשר דיווח פעיל) ומנקה אותו.
+  /// מדווח את תוצאת ההתקנה לאתר, כשההקשר צמוד לבקשה שהסתיימה.
   /// fire-and-forget — הדיווח לעולם אינו מעכב או מכשיל את הזרימה.
-  void _reportInstallResult({required bool success, String? errorMessage}) {
-    final report = _pendingInstallReport;
+  void _reportInstallResult(
+    PluginInstallReportContext? report, {
+    required bool success,
+    String? errorMessage,
+  }) {
     if (report == null) return;
-    _pendingInstallReport = null;
     unawaited(
       PluginInstallReportService.report(
         report,
@@ -212,9 +209,6 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     InstallPluginRequested event,
     Emitter<PluginSystemState> emit,
   ) async {
-    // התקנה מקומית פותחת זרימה חדשה — הקשר דיווח של התקנת חנות קודמת
-    // שלא הושלמה אינו רלוונטי יותר.
-    _pendingInstallReport = null;
     try {
       final prepareInfo = await _installerService.prepareInstall(
         event.archivePath,
@@ -249,7 +243,6 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     Emitter<PluginSystemState> emit,
   ) async {
     String? archivePath;
-    _pendingInstallReport = event.reportContext;
 
     // אישור קבלה מיידי לאתר החנות — עוד לפני ההורדה ודיאלוג ההרשאות,
     // כדי שהדף יידע מהר שאוצריא קיבלה את הבקשה (fire-and-forget).
@@ -275,6 +268,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
           previousVersion: prepareInfo.previousVersion,
           previousAllowOrderBeforeBuiltInsGranted:
               prepareInfo.previousAllowOrderBeforeBuiltInsGranted,
+          reportContext: event.reportContext,
         ),
       );
     } on PluginOverwriteException catch (e) {
@@ -283,6 +277,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
         'Plugin overwrite required for "${e.pluginName}" version ${e.version}',
       );
       _reportInstallResult(
+        event.reportContext,
         success: false,
         errorMessage: 'התוסף כבר מותקן בגרסה זו',
       );
@@ -292,6 +287,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
         PluginMessages.newerVersionInstalled(e.pluginName, e.installedVersion),
       );
       _reportInstallResult(
+        event.reportContext,
         success: false,
         errorMessage: 'מותקנת כבר גרסה חדשה יותר (${e.installedVersion})',
       );
@@ -299,6 +295,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     } catch (e) {
       UiSnack.showError(PluginMessages.installRemotePluginError(e));
       _reportInstallResult(
+        event.reportContext,
         success: false,
         errorMessage: 'שגיאה בהורדה או בפתיחת קובץ התוסף',
       );
@@ -333,12 +330,13 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       }
 
       UiSnack.showSuccess(PluginMessages.pluginInstalledSuccess);
-      _reportInstallResult(success: true);
+      _reportInstallResult(event.reportContext, success: true);
       add(LoadPlugins());
     } catch (e) {
       await _installerService.cancelInstall(event.tempDirPath);
       UiSnack.showError(PluginMessages.confirmInstallError(e));
       _reportInstallResult(
+        event.reportContext,
         success: false,
         errorMessage: 'שגיאה בהשלמת ההתקנה',
       );
@@ -352,6 +350,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
   ) async {
     await _installerService.cancelInstall(event.tempDirPath);
     _reportInstallResult(
+      event.reportContext,
       success: false,
       errorMessage: 'ההתקנה בוטלה על ידי המשתמש',
     );

@@ -549,6 +549,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
                 InstallRemotePluginRequested(
                   request.downloadUri.toString(),
                   forceOverwrite: request.forceOverwrite,
+                  reportContext: request.reportContext,
                 ),
               );
             }

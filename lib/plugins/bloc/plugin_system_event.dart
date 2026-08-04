@@ -38,6 +38,7 @@ class InstallRemotePluginRequested extends PluginSystemEvent {
     downloadUrl,
     forceOverwrite,
     reportContext?.token,
+    reportContext?.callbackUrl,
   ];
 }
 
@@ -48,13 +49,15 @@ class ConfirmPluginInstall extends PluginSystemEvent {
   /// מיפוי הרשאה → האם הוענקה. הרשאות עם ערך false יישמרו כחסומות.
   final Map<String, bool> grantedPermissions;
   final bool allowOrderBeforeBuiltInsGranted;
+  final PluginInstallReportContext? reportContext;
 
   const ConfirmPluginInstall(
     this.tempDirPath,
     this.manifest,
     this.grantedPermissions,
-    this.allowOrderBeforeBuiltInsGranted,
-  );
+    this.allowOrderBeforeBuiltInsGranted, {
+    this.reportContext,
+  });
 
   @override
   List<Object?> get props => [
@@ -62,15 +65,22 @@ class ConfirmPluginInstall extends PluginSystemEvent {
     manifest,
     grantedPermissions,
     allowOrderBeforeBuiltInsGranted,
+    reportContext?.token,
+    reportContext?.callbackUrl,
   ];
 }
 
 class CancelPluginInstall extends PluginSystemEvent {
   final String tempDirPath;
-  const CancelPluginInstall(this.tempDirPath);
+  final PluginInstallReportContext? reportContext;
+  const CancelPluginInstall(this.tempDirPath, {this.reportContext});
 
   @override
-  List<Object?> get props => [tempDirPath];
+  List<Object?> get props => [
+    tempDirPath,
+    reportContext?.token,
+    reportContext?.callbackUrl,
+  ];
 }
 
 class UninstallPluginRequested extends PluginSystemEvent {

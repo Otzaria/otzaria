@@ -2688,6 +2688,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
                       previousVersion: state.previousVersion,
                       previousAllowOrderBeforeBuiltInsGranted:
                           state.previousAllowOrderBeforeBuiltInsGranted,
+                      reportContext: state.reportContext,
                       isOfflineMode: isOfflineMode,
                     ),
                   ),

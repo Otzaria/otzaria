@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
+import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 
 sealed class PluginSystemState extends Equatable {
   const PluginSystemState();
@@ -98,12 +99,14 @@ class PluginSystemInstallRequiresPermissions extends PluginSystemState {
   /// גרסה מותקנת קודמת — null אם זו התקנה ראשונה.
   final String? previousVersion;
   final bool? previousAllowOrderBeforeBuiltInsGranted;
+  final PluginInstallReportContext? reportContext;
 
   const PluginSystemInstallRequiresPermissions({
     required this.manifest,
     required this.tempDirPath,
     this.previousVersion,
     this.previousAllowOrderBeforeBuiltInsGranted,
+    this.reportContext,
   });
 
   bool get isUpdate => previousVersion != null;
@@ -114,5 +117,7 @@ class PluginSystemInstallRequiresPermissions extends PluginSystemState {
     tempDirPath,
     previousVersion,
     previousAllowOrderBeforeBuiltInsGranted,
+    reportContext?.token,
+    reportContext?.callbackUrl,
   ];
 }
