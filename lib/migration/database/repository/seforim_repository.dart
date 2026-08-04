@@ -257,11 +257,6 @@ class SeforimRepository {
     _logger.info('Normal performance mode restored');
   }
 
-  /// כיווץ כותב את כל הקובץ מחדש, ולכן רץ רק כשיש מה להרוויח: לפחות 1MB
-  /// פנוי (256 דפים של 4KB) וגם לפחות רבע מהקובץ.
-  static const int _compactionMinFreePages = 256;
-  static const double _compactionMinFreeRatio = 0.25;
-
   /// מכווץ את קובץ ה-DB אם הצטברו בו הרבה דפים פנויים; מחזיר האם כווץ בפועל.
   ///
   /// מחיקות (prune, [clearBookContent]) משחררות דפים ל-freelist אך משאירות
@@ -269,40 +264,21 @@ class SeforimRepository {
   ///
   /// חיבור read-only חוזר מיד. `seforim.db` נפתח תמיד read-only, ולכן
   /// לעולם לא ייכתב מכאן.
+  ///
+  /// ה-VACUUM סינכרוני וחוסם את ה-isolate — יש לקרוא מ-isolate רקע בלבד.
   Future<bool> compactIfFragmented() async {
     if (_database.isReadOnly) return false;
 
-    final db = await _database.database;
-    final freePages = firstIntValue(db.select('PRAGMA freelist_count')) ?? 0;
-    final totalPages = firstIntValue(db.select('PRAGMA page_count')) ?? 0;
-    if (freePages < _compactionMinFreePages ||
-        freePages < totalPages * _compactionMinFreeRatio) {
-      return false;
-    }
-
     try {
-      // VACUUM בונה עותק זמני של כל ה-DB, ו-temp_store=MEMORY (מ-[_initialize])
-      // היה ממקם אותו ב-RAM — כגודל הקובץ כולו.
-      db.execute('PRAGMA temp_store=FILE');
-      try {
-        db.execute('VACUUM');
-        // ב-WAL תוצאת ה-VACUUM יושבת ביומן; בלי checkpoint הקובץ הראשי נשאר
-        // בגודלו הקודם והכיווץ לא נראה כלל.
-        db.execute('PRAGMA wal_checkpoint(TRUNCATE)');
-      } finally {
-        db.execute('PRAGMA temp_store=MEMORY');
-      }
+      final compacted = vacuumIfFragmented(await _database.database);
+      if (compacted) _logger.info('Compacted ${_database.path}');
+      return compacted;
     } catch (e) {
       // כיווץ הוא אופטימיזציה בלבד — כשל בו (נעילה, אין מקום בדיסק) לא
       // אמור להפיל את הפעולה שקראה לו.
       _logger.warning('VACUUM failed for ${_database.path}: $e');
       return false;
     }
-
-    _logger.info(
-      'Compacted ${_database.path}: freed $freePages of $totalPages pages',
-    );
-    return true;
   }
 
   /// Rebuilds the category_closure table from the current category tree.
