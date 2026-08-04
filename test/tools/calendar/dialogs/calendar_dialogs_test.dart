@@ -281,7 +281,7 @@ void main() {
 
       // העורך מוצג (מפריד ':') והצ'יפ נעלם
       expect(find.text('הוספת שעה'), findsNothing);
-      expect(find.text(':'), findsOneWidget);
+      expect(find.text(':'), findsNWidgets(2));
 
       // הקלדה מעדכנת את התאים: 09:45. pump בין הקשות כדי שהמעבר האוטומטי
       // שעה→דקות ייכנס לתוקף (כמו פריים בין הקשות אמיתיות).
@@ -349,6 +349,8 @@ void main() {
           );
       recurrenceDropdown.onSelected!(RecurrenceType.annualHebrew);
       await tester.pumpAndSettle();
+
+      expect(find.text('החזרה מסתיימת'), findsOneWidget);
 
       final recurringLimitToggle = tester.widget<CheckboxListTile>(
         find.byType(CheckboxListTile),

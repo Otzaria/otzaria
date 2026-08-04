@@ -19,7 +19,23 @@ class CalendarEventColors {
     (color: Color(0xFF8E24AA), name: 'סגול'),
     (color: Color(0xFF795548), name: 'חום'),
     (color: Color(0xFF616161), name: 'אפור'),
+    (color: Color(0xFFE67C73), name: 'ורוד'),
+    (color: Color(0xFFF4511E), name: 'כתום אדמדם'),
   ];
+
+  static const Map<String, int> _googleColorIdToIndex = {
+    '1': 7,
+    '2': 3,
+    '3': 8,
+    '4': 11,
+    '5': 2,
+    '6': 12,
+    '7': 5,
+    '8': 10,
+    '9': 6,
+    '10': 4,
+    '11': 0,
+  };
 
   static int get count => palette.length;
 
@@ -48,4 +64,46 @@ class CalendarEventColors {
 
   /// תווית תצוגה לצבע — שם הגוון, או [noColorLabel] עבור null/מחוץ לטווח.
   static String labelOf(int? index) => nameOf(index) ?? noColorLabel;
+
+  /// ממיר מזהה צבע של אירוע Google לאינדקס הצבע המקביל בלוח.
+  static int? indexForGoogleColorId(String? colorId) =>
+      _googleColorIdToIndex[colorId];
+
+  /// מתאים צבע ששבץ Google ביומן לצבע הקרוב ביותר בפלטה המקומית.
+  static int? indexForGoogleColorHex(String? color) {
+    final value = color?.trim();
+    if (value == null || !RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(value)) {
+      return null;
+    }
+    final source = int.parse(value.substring(1), radix: 16);
+    final red = (source >> 16) & 0xFF;
+    final green = (source >> 8) & 0xFF;
+    final blue = source & 0xFF;
+    var closest = 0;
+    var smallestDistance = double.infinity;
+    for (var index = 0; index < palette.length; index++) {
+      final candidate = palette[index].color;
+      final candidateRed = (candidate.r * 255).round();
+      final candidateGreen = (candidate.g * 255).round();
+      final candidateBlue = (candidate.b * 255).round();
+      final distance =
+          (candidateRed - red) * (candidateRed - red) +
+          (candidateGreen - green) * (candidateGreen - green) +
+          (candidateBlue - blue) * (candidateBlue - blue);
+      if (distance < smallestDistance) {
+        smallestDistance = distance.toDouble();
+        closest = index;
+      }
+    }
+    return closest;
+  }
+
+  /// ממיר אינדקס צבע בלוח למזהה צבע של אירוע Google.
+  static String? googleColorIdForIndex(int? index) {
+    if (index == null) return null;
+    for (final entry in _googleColorIdToIndex.entries) {
+      if (entry.value == index) return entry.key;
+    }
+    return null;
+  }
 }

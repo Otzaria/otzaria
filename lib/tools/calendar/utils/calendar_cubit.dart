@@ -17,6 +17,7 @@ import 'package:otzaria/tools/calendar/models/calendar_location.dart'
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/plugins/adapters/plugin_calendar_adapter.dart';
+import 'package:otzaria/theme/calendar_event_colors.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 enum CalendarType { hebrew, gregorian, combined }
@@ -1310,8 +1311,12 @@ class CalendarCubit extends Cubit<CalendarState> {
           Duration(days: state.googleCalendarSyncFutureDays),
         );
 
-        // Fetch events from all selected calendars with pagination
-        List<cal.Event> allGoogleEvents = [];
+        final calendarColorIndices = await _loadGoogleCalendarColorIndices(
+          apiClient.api,
+        );
+        var merged = List<CustomEvent>.from(state.events);
+
+        // Fetch events from all selected calendars with pagination.
         for (final calendarId in state.googleCalendarSelectedIds) {
           try {
             String? pageToken;
@@ -1325,7 +1330,11 @@ class CalendarCubit extends Cubit<CalendarState> {
                 maxResults: 2500, // Google's max per request
                 pageToken: pageToken,
               );
-              allGoogleEvents.addAll(result.items ?? []);
+              merged = mergeGoogleEvents(
+                merged,
+                result.items ?? const [],
+                inheritedColorIndex: calendarColorIndices[calendarId],
+              );
               pageToken = result.nextPageToken;
             } while (pageToken != null);
           } catch (e) {
@@ -1334,7 +1343,6 @@ class CalendarCubit extends Cubit<CalendarState> {
           }
         }
 
-        final merged = mergeGoogleEvents(state.events, allGoogleEvents);
         final syncTime = DateTime.now();
         emit(
           state.copyWith(
@@ -1370,6 +1378,29 @@ class CalendarCubit extends Cubit<CalendarState> {
         ),
       );
     }
+  }
+
+  Future<Map<String, int>> _loadGoogleCalendarColorIndices(
+    cal.CalendarApi api,
+  ) async {
+    final colors = <String, int>{};
+    try {
+      String? pageToken;
+      do {
+        final page = await api.calendarList.list(pageToken: pageToken);
+        for (final calendar in page.items ?? []) {
+          final id = calendar.id;
+          final color = CalendarEventColors.indexForGoogleColorHex(
+            calendar.backgroundColor,
+          );
+          if (id != null && color != null) colors[id] = color;
+        }
+        pageToken = page.nextPageToken;
+      } while (pageToken != null);
+    } catch (error) {
+      debugPrint('Failed to load Google calendar colors: $error');
+    }
+    return colors;
   }
 
   Future<void> _refreshGoogleConnectionStatus() async {
@@ -1456,8 +1487,9 @@ class CalendarCubit extends Cubit<CalendarState> {
   @visibleForTesting
   List<CustomEvent> mergeGoogleEvents(
     List<CustomEvent> existing,
-    List<cal.Event> googleEvents,
-  ) {
+    List<cal.Event> googleEvents, {
+    int? inheritedColorIndex,
+  }) {
     final updated = List<CustomEvent>.from(existing);
     final byGoogleId = <String, int>{};
     final byLocalId = <String, int>{};
@@ -1473,7 +1505,10 @@ class CalendarCubit extends Cubit<CalendarState> {
     for (final gEvent in googleEvents) {
       if (gEvent.status == 'cancelled') continue;
 
-      final mapped = fromGoogleEvent(gEvent);
+      final mapped = fromGoogleEvent(
+        gEvent,
+        inheritedColorIndex: inheritedColorIndex,
+      );
       if (mapped == null) continue;
 
       final otzariaId = gEvent.extendedProperties?.private?['otzaria_event_id'];
@@ -1489,6 +1524,9 @@ class CalendarCubit extends Cubit<CalendarState> {
           baseJewishMonth: mapped.baseJewishMonth,
           baseJewishDay: mapped.baseJewishDay,
           endGregorianDate: () => mapped.endGregorianDate,
+          eventTime: () => mapped.eventTime,
+          endTime: () => mapped.endTime,
+          colorIndex: () => mapped.colorIndex ?? updated[index].colorIndex,
         );
         continue;
       }
@@ -1504,6 +1542,9 @@ class CalendarCubit extends Cubit<CalendarState> {
           baseJewishDay: mapped.baseJewishDay,
           googleEventId: googleId.isEmpty ? null : googleId,
           endGregorianDate: () => mapped.endGregorianDate,
+          eventTime: () => mapped.eventTime,
+          endTime: () => mapped.endTime,
+          colorIndex: () => mapped.colorIndex ?? updated[index].colorIndex,
         );
         continue;
       }
@@ -1518,7 +1559,10 @@ class CalendarCubit extends Cubit<CalendarState> {
   }
 
   @visibleForTesting
-  CustomEvent? fromGoogleEvent(cal.Event gEvent) {
+  CustomEvent? fromGoogleEvent(
+    cal.Event gEvent, {
+    int? inheritedColorIndex,
+  }) {
     final start = gEvent.start?.dateTime ?? gEvent.start?.date;
     if (start == null) return null;
 
@@ -1526,19 +1570,13 @@ class CalendarCubit extends Cubit<CalendarState> {
     final jewishDate = JewishDate.fromDateTime(date);
     final otzariaId = gEvent.extendedProperties?.private?['otzaria_event_id'];
 
-    // באירוע יום-שלם ה-end של גוגל בלעדי (day after) — מחסירים יום להצגת היום האחרון בפועל
+    final isAllDay =
+        gEvent.start?.date != null && gEvent.start?.dateTime == null;
     DateTime? endDate;
     final rawEnd = gEvent.end?.dateTime ?? gEvent.end?.date;
     if (rawEnd != null) {
-      final isAllDay = gEvent.end?.date != null && gEvent.end?.dateTime == null;
-      // end עם שעה שנופל בדיוק בחצות = סוף היום הקודם, לא יום נוסף
-      final endsAtMidnight =
-          !isAllDay &&
-          rawEnd.hour == 0 &&
-          rawEnd.minute == 0 &&
-          rawEnd.second == 0;
-      // חשבון קלנדרי (לא Duration) — ביום מעבר שעון subtract של 24ש מקצר יום
-      final inclusiveEnd = (isAllDay || endsAtMidnight)
+      // באירוע יום-שלם ה-end של גוגל בלעדי (day after).
+      final inclusiveEnd = isAllDay
           ? DateTime(rawEnd.year, rawEnd.month, rawEnd.day - 1)
           : DateTime(rawEnd.year, rawEnd.month, rawEnd.day);
       if (inclusiveEnd.isAfter(date)) {
@@ -1546,24 +1584,24 @@ class CalendarCubit extends Cubit<CalendarState> {
       }
     }
 
-    // Parse recurrence from Google event
     RecurrenceType recurrenceType = RecurrenceType.none;
+    final recurrenceRule = gEvent.recurrence?.isNotEmpty == true
+        ? gEvent.recurrence!.first
+        : null;
 
-    if (gEvent.recurrence != null && gEvent.recurrence!.isNotEmpty) {
-      final rrule = gEvent.recurrence!.first;
-
-      if (rrule.contains('FREQ=WEEKLY')) {
+    if (recurrenceRule != null) {
+      if (recurrenceRule.contains('FREQ=WEEKLY')) {
         recurrenceType = RecurrenceType.weekly;
-      } else if (rrule.contains('FREQ=MONTHLY')) {
+      } else if (recurrenceRule.contains('FREQ=MONTHLY')) {
         // Check for Hebrew monthly marker
-        if (rrule.contains('X-OTZARIA-TYPE=otzaria_hebrew_monthly')) {
+        if (recurrenceRule.contains('X-OTZARIA-TYPE=otzaria_hebrew_monthly')) {
           recurrenceType = RecurrenceType.monthlyHebrew;
         } else {
           recurrenceType = RecurrenceType.monthlyGregorian;
         }
-      } else if (rrule.contains('FREQ=YEARLY')) {
+      } else if (recurrenceRule.contains('FREQ=YEARLY')) {
         // Check for Hebrew yearly marker
-        if (rrule.contains('X-OTZARIA-TYPE=otzaria_hebrew_yearly')) {
+        if (recurrenceRule.contains('X-OTZARIA-TYPE=otzaria_hebrew_yearly')) {
           recurrenceType = RecurrenceType.annualHebrew;
         } else {
           recurrenceType = RecurrenceType.annualGregorian;
@@ -1583,7 +1621,31 @@ class CalendarCubit extends Cubit<CalendarState> {
       recurrenceType: recurrenceType,
       recurringYears: null, // Not used in current implementation
       googleEventId: gEvent.id,
-      endGregorianDate: endDate,
+      eventTime: isAllDay
+          ? null
+          : TimeOfDay(hour: start.hour, minute: start.minute),
+      endGregorianDate: recurrenceType == RecurrenceType.none
+          ? endDate
+          : _parseGoogleRecurrenceEnd(recurrenceRule),
+      endTime: isAllDay || rawEnd == null
+          ? null
+          : TimeOfDay(hour: rawEnd.hour, minute: rawEnd.minute),
+      colorIndex:
+          CalendarEventColors.indexForGoogleColorId(gEvent.colorId) ??
+          inheritedColorIndex,
+    );
+  }
+
+  DateTime? _parseGoogleRecurrenceEnd(String? recurrenceRule) {
+    final match = RegExp(
+      r'(?:^|;)UNTIL=(\d{8})',
+    ).firstMatch(recurrenceRule ?? '');
+    if (match == null) return null;
+    final date = match.group(1)!;
+    return DateTime(
+      int.parse(date.substring(0, 4)),
+      int.parse(date.substring(4, 6)),
+      int.parse(date.substring(6, 8)),
     );
   }
 
@@ -1598,16 +1660,16 @@ class CalendarCubit extends Cubit<CalendarState> {
   cal.Event toGoogleEvent(CustomEvent event, String timeZoneId) {
     final baseDate = event.baseGregorianDate;
     final startDate = DateTime(baseDate.year, baseDate.month, baseDate.day);
-    // גוגל מצפה ל-end בלעדי (day after) באירוע יום-שלם — מוסיפים יום מעבר ליום האחרון בפועל
-    final lastDay = event.endGregorianDate != null
+    final isTimed = event.eventTime != null;
+    final lastDay =
+        event.recurrenceType == RecurrenceType.none &&
+            event.endGregorianDate != null
         ? DateTime(
             event.endGregorianDate!.year,
             event.endGregorianDate!.month,
             event.endGregorianDate!.day,
           )
         : startDate;
-    // חשבון קלנדרי (לא Duration) — ביום מעבר שעון add של 24ש מאריך יום
-    final endDate = DateTime(lastDay.year, lastDay.month, lastDay.day + 1);
 
     final extendedProps = {
       'otzaria_event_id': event.id,
@@ -1622,14 +1684,27 @@ class CalendarCubit extends Cubit<CalendarState> {
     final googleEvent = cal.Event()
       ..summary = event.title
       ..description = event.description
-      ..start = (cal.EventDateTime()
-        ..date = startDate
-        ..timeZone = timeZoneId)
-      ..end = (cal.EventDateTime()
-        ..date = endDate
-        ..timeZone = timeZoneId)
+      ..start = _googleEventDateTime(
+        date: startDate,
+        time: event.eventTime,
+        timeZoneId: timeZoneId,
+      )
+      ..end = _googleEventDateTime(
+        date: isTimed
+            ? lastDay
+            : DateTime(lastDay.year, lastDay.month, lastDay.day + 1),
+        time: event.endTime,
+        timeZoneId: timeZoneId,
+        fallbackStartTime: event.eventTime,
+        moveToNextDayWhenEarlier:
+            isTimed && _isSameDateOnly(lastDay, startDate),
+      )
       ..extendedProperties = (cal.EventExtendedProperties()
         ..private = extendedProps);
+
+    googleEvent.colorId = CalendarEventColors.googleColorIdForIndex(
+      event.colorIndex,
+    );
 
     final recurrence = _googleRecurrenceRule(event);
     if (recurrence != null) {
@@ -1637,6 +1712,41 @@ class CalendarCubit extends Cubit<CalendarState> {
     }
 
     return googleEvent;
+  }
+
+  cal.EventDateTime _googleEventDateTime({
+    required DateTime date,
+    required String timeZoneId,
+    TimeOfDay? time,
+    TimeOfDay? fallbackStartTime,
+    bool moveToNextDayWhenEarlier = false,
+  }) {
+    final value = cal.EventDateTime()..timeZone = timeZoneId;
+    if (time == null && fallbackStartTime == null) {
+      value.date = date;
+      return value;
+    }
+
+    final resolvedTime =
+        time ??
+        TimeOfDay(
+          hour: (fallbackStartTime!.hour + 1) % 24,
+          minute: fallbackStartTime.minute,
+        );
+    final location = tz.getLocation(timeZoneId);
+    final movesToNextDay =
+        moveToNextDayWhenEarlier &&
+        (resolvedTime.hour * 60 + resolvedTime.minute) <=
+            (fallbackStartTime!.hour * 60 + fallbackStartTime.minute);
+    value.dateTime = tz.TZDateTime(
+      location,
+      date.year,
+      date.month,
+      date.day + (movesToNextDay ? 1 : 0),
+      resolvedTime.hour,
+      resolvedTime.minute,
+    );
+    return value;
   }
 
   String? _googleRecurrenceRule(CustomEvent event) {
@@ -1674,11 +1784,20 @@ class CalendarCubit extends Cubit<CalendarState> {
       buffer.write(';X-OTZARIA-TYPE=$marker');
     }
 
-    if (event.recurringYears != null && event.recurringYears! > 0) {
+    final recurrenceEnd =
+        event.endGregorianDate ??
+        (event.recurringYears != null && event.recurringYears! > 0
+            ? DateTime(
+                event.baseGregorianDate.year + event.recurringYears!,
+                event.baseGregorianDate.month,
+                event.baseGregorianDate.day,
+              )
+            : null);
+    if (recurrenceEnd != null) {
       final until = DateTime(
-        event.baseGregorianDate.year + event.recurringYears!,
-        event.baseGregorianDate.month,
-        event.baseGregorianDate.day,
+        recurrenceEnd.year,
+        recurrenceEnd.month,
+        recurrenceEnd.day,
         23,
         59,
         59,
@@ -1709,6 +1828,7 @@ class CalendarCubit extends Cubit<CalendarState> {
     int? recurringYears,
     TimeOfDay? eventTime,
     DateTime? endGregorianDate,
+    TimeOfDay? endTime,
     int? colorIndex,
     int? notificationMinutes,
   }) async {
@@ -1736,6 +1856,7 @@ class CalendarCubit extends Cubit<CalendarState> {
               endGregorianDate.day,
             )
           : null,
+      endTime: endTime,
       colorIndex: colorIndex,
       notificationMinutes: notificationMinutes,
     );
@@ -1796,6 +1917,12 @@ class CalendarCubit extends Cubit<CalendarState> {
 
     return state.events.where((e) {
       if (e.recurrenceType != RecurrenceType.none) {
+        final current = DateTime(gY, gM, gD);
+        final recurrenceEnd = e.endGregorianDate;
+        if (current.isBefore(e.baseGregorianDate) ||
+            (recurrenceEnd != null && current.isAfter(recurrenceEnd))) {
+          return false;
+        }
         // בדוק אם האירוע החוזר עדיין בתוקף
         if (e.recurringYears != null && e.recurringYears! > 0) {
           bool expired = false;
@@ -2204,8 +2331,9 @@ class CustomEvent extends Equatable {
   final int? recurringYears; // כמה שנים האירוע יחזור
   final String? googleEventId;
   final TimeOfDay? eventTime; // שעת האירוע (אופציונלי)
-  // תאריך סיום לאירוע מרובה-ימים; null = אירוע של יום אחד. רלוונטי רק לאירוע חד-פעמי
+  /// תאריך הסיום: סוף טווח באירוע חד-פעמי, או מועד הפסקת החזרה באירוע חוזר.
   final DateTime? endGregorianDate;
+  final TimeOfDay? endTime;
   // אינדקס לפלטת CalendarEventColors; null = ללא צבע מיוחד
   final int? colorIndex;
   // דקות לפני האירוע להצגת ההתראה. null = השתמש בהגדרה הגלובלית.
@@ -2230,6 +2358,7 @@ class CustomEvent extends Equatable {
     this.googleEventId,
     this.eventTime,
     this.endGregorianDate,
+    this.endTime,
     this.colorIndex,
     this.notificationMinutes,
   });
@@ -2247,9 +2376,10 @@ class CustomEvent extends Equatable {
     RecurrenceType? recurrenceType,
     int? recurringYears,
     String? googleEventId,
-    TimeOfDay? eventTime,
+    ValueGetter<TimeOfDay?>? eventTime,
     // עטוף ב-ValueGetter כדי לאפשר איפוס מפורש ל-null (לביטול טווח)
     ValueGetter<DateTime?>? endGregorianDate,
+    ValueGetter<TimeOfDay?>? endTime,
     // עטוף ב-ValueGetter כדי לאפשר איפוס מפורש ל-null (הסרת צבע)
     ValueGetter<int?>? colorIndex,
     int? notificationMinutes,
@@ -2266,10 +2396,11 @@ class CustomEvent extends Equatable {
       recurrenceType: recurrenceType ?? this.recurrenceType,
       recurringYears: recurringYears ?? this.recurringYears,
       googleEventId: googleEventId ?? this.googleEventId,
-      eventTime: eventTime ?? this.eventTime,
+      eventTime: eventTime != null ? eventTime() : this.eventTime,
       endGregorianDate: endGregorianDate != null
           ? endGregorianDate()
           : this.endGregorianDate,
+      endTime: endTime != null ? endTime() : this.endTime,
       colorIndex: colorIndex != null ? colorIndex() : this.colorIndex,
       notificationMinutes: notificationMinutes ?? this.notificationMinutes,
     );
@@ -2293,6 +2424,9 @@ class CustomEvent extends Equatable {
           ? {'hour': eventTime!.hour, 'minute': eventTime!.minute}
           : null,
       'endGregorianDate': endGregorianDate?.millisecondsSinceEpoch,
+      'endTime': endTime != null
+          ? {'hour': endTime!.hour, 'minute': endTime!.minute}
+          : null,
       'colorIndex': colorIndex,
       'notificationMinutes': notificationMinutes,
     };
@@ -2326,6 +2460,13 @@ class CustomEvent extends Equatable {
     }
 
     final endMillis = json['endGregorianDate'] as int?;
+    TimeOfDay? endTime;
+    if (json['endTime'] case final Map<String, dynamic> timeMap) {
+      endTime = TimeOfDay(
+        hour: timeMap['hour'] as int,
+        minute: timeMap['minute'] as int,
+      );
+    }
 
     return CustomEvent(
       id: json['id'] as String,
@@ -2345,6 +2486,7 @@ class CustomEvent extends Equatable {
       endGregorianDate: endMillis != null
           ? DateTime.fromMillisecondsSinceEpoch(endMillis)
           : null,
+      endTime: endTime,
       colorIndex: json['colorIndex'] as int?,
       notificationMinutes: json['notificationMinutes'] as int?,
     );
@@ -2365,6 +2507,7 @@ class CustomEvent extends Equatable {
     googleEventId,
     eventTime,
     endGregorianDate,
+    endTime,
     colorIndex,
     notificationMinutes,
   ];

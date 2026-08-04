@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:googleapis/calendar/v3.dart' as cal;
 import 'package:otzaria/settings/settings_exports.dart';
@@ -493,6 +494,41 @@ void main() {
     });
   });
 
+  group('CustomEvent JSON — שעת סיום', () {
+    test('roundtrip שומר endTime', () {
+      final event = _buildUserEvent().copyWith(
+        eventTime: () => const TimeOfDay(hour: 9, minute: 30),
+        endTime: () => const TimeOfDay(hour: 11, minute: 15),
+      );
+
+      final decoded = CustomEvent.fromJson(
+        jsonDecode(jsonEncode(event.toJson())),
+      );
+      expect(decoded.eventTime, const TimeOfDay(hour: 9, minute: 30));
+      expect(decoded.endTime, const TimeOfDay(hour: 11, minute: 15));
+    });
+
+    test('קובץ ישן ללא endTime נטען עם null', () {
+      final json = _buildUserEvent().toJson()..remove('endTime');
+      expect(CustomEvent.fromJson(json).endTime, isNull);
+    });
+
+    test('copyWith מאפשר להסיר במפורש את שעת ההתחלה והסיום', () {
+      final event = _buildUserEvent().copyWith(
+        eventTime: () => const TimeOfDay(hour: 9, minute: 30),
+        endTime: () => const TimeOfDay(hour: 11, minute: 15),
+      );
+
+      final cleared = event.copyWith(
+        eventTime: () => null,
+        endTime: () => null,
+      );
+
+      expect(cleared.eventTime, isNull);
+      expect(cleared.endTime, isNull);
+    });
+  });
+
   group('CustomEvent JSON — צבע אירוע (colorIndex)', () {
     test('roundtrip שומר colorIndex', () {
       final event = _buildUserEvent().copyWith(colorIndex: () => 3);
@@ -595,6 +631,35 @@ void main() {
 
       await cubit.close();
     });
+
+    test('אירוע חוזר נפסק בתאריך הסיום ואינו מופיע לפני תחילתו', () async {
+      final cubit = CalendarCubit(
+        settingsRepository: _InMemorySettingsRepository(),
+        notificationService: _FakeNotificationService(),
+      );
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      await cubit.addEvent(
+        title: 'שיעור שבועי',
+        baseGregorianDate: DateTime(2026, 5, 15),
+        recurrenceType: RecurrenceType.weekly,
+        endGregorianDate: DateTime(2026, 5, 29),
+        eventTime: const TimeOfDay(hour: 20, minute: 0),
+        endTime: const TimeOfDay(hour: 21, minute: 0),
+      );
+
+      bool hasEvent(DateTime date) => cubit
+          .eventsForDate(date)
+          .any((event) => event.title == 'שיעור שבועי');
+
+      expect(hasEvent(DateTime(2026, 5, 8)), isFalse);
+      expect(hasEvent(DateTime(2026, 5, 15)), isTrue);
+      expect(hasEvent(DateTime(2026, 5, 22)), isTrue);
+      expect(hasEvent(DateTime(2026, 5, 29)), isTrue);
+      expect(hasEvent(DateTime(2026, 6, 5)), isFalse);
+
+      await cubit.close();
+    });
   });
 
   group('CustomEvent.copyWith — endGregorianDate עם ValueGetter', () {
@@ -658,18 +723,19 @@ void main() {
       expect(mapped!.endGregorianDate, DateTime(2026, 5, 17));
     });
 
-    test('timed שמסתיים בדיוק בחצות: לא נוסף יום מיותר', () {
+    test('timed שמסתיים בדיוק בחצות שומר את תאריך הסיום', () {
       final mapped = cubit.fromGoogleEvent(
         timedEvent(DateTime(2026, 5, 15, 22), DateTime(2026, 5, 16)),
       );
-      expect(mapped!.endGregorianDate, isNull);
+      expect(mapped!.endGregorianDate, DateTime(2026, 5, 16));
+      expect(mapped.endTime, const TimeOfDay(hour: 0, minute: 0));
     });
 
-    test('timed רב-ימי שמסתיים בחצות: היום האחרון הוא היום הקודם', () {
+    test('timed רב-ימי שמסתיים בחצות שומר את יום הסיום המדויק', () {
       final mapped = cubit.fromGoogleEvent(
         timedEvent(DateTime(2026, 5, 15, 22), DateTime(2026, 5, 18)),
       );
-      expect(mapped!.endGregorianDate, DateTime(2026, 5, 17));
+      expect(mapped!.endGregorianDate, DateTime(2026, 5, 18));
     });
 
     test('כתיבה לגוגל: end = היום האחרון + יום (בלעדי)', () {
@@ -685,7 +751,7 @@ void main() {
       expect(gEvent.end!.date, DateTime(2026, 5, 16));
     });
 
-    test('מיזוג אירוע גוגל מעודכן משמר colorIndex ואת הטווח', () {
+    test('מיזוג אירוע Google מעדכן צבע אירוע ואת הטווח', () {
       final local = _buildUserEvent().copyWith(
         googleEventId: 'g-1',
         colorIndex: () => 4,
@@ -695,7 +761,8 @@ void main() {
       // אירוע גוגל יום-שלם עם end בלעדי 18 = יום אחרון 17 (אותו טווח)
       final gEvent = allDayEvent(DateTime(2026, 5, 15), DateTime(2026, 5, 18))
         ..id = 'g-1'
-        ..summary = 'כותרת מעודכנת';
+        ..summary = 'כותרת מעודכנת'
+        ..colorId = '7';
 
       final merged = cubit.mergeGoogleEvents([local], [gEvent]);
 
@@ -703,8 +770,8 @@ void main() {
       expect(merged.first.title, 'כותרת מעודכנת');
       expect(
         merged.first.colorIndex,
-        4,
-        reason: 'המיזוג לא מעביר colorIndex מגוגל — הצבע המקומי נשמר',
+        5,
+        reason: 'colorId=7 של Google הוא תכלת בפלטה המקומית',
       );
       expect(merged.first.endGregorianDate, DateTime(2026, 5, 17));
     });
@@ -740,6 +807,46 @@ void main() {
         allDayEvent(DateTime(2026, 3, 26), DateTime(2026, 3, 28)),
       );
       expect(mapped!.endGregorianDate, DateTime(2026, 3, 27));
+    });
+
+    test('אירוע מתוזמן חוזר נכתב עם שעת סיום וצבע ל-Google', () {
+      final event = _buildUserEvent().copyWith(
+        recurrenceType: RecurrenceType.weekly,
+        eventTime: () => const TimeOfDay(hour: 9, minute: 30),
+        endTime: () => const TimeOfDay(hour: 11, minute: 15),
+        colorIndex: () => 5,
+        endGregorianDate: () => DateTime(2026, 8, 31),
+      );
+
+      final googleEvent = cubit.toGoogleEvent(event, 'Asia/Jerusalem');
+
+      expect(googleEvent.start!.dateTime, isNotNull);
+      expect(googleEvent.start!.dateTime!.hour, 9);
+      expect(googleEvent.start!.dateTime!.minute, 30);
+      expect(googleEvent.end!.dateTime!.hour, 11);
+      expect(googleEvent.end!.dateTime!.minute, 15);
+      expect(googleEvent.colorId, '7');
+      expect(googleEvent.recurrence!.single, contains('UNTIL=20260831'));
+    });
+
+    test('צבע יומן יורש רק כשלא הוגדר צבע באירוע Google', () {
+      final mapped = cubit.fromGoogleEvent(
+        allDayEvent(DateTime(2026, 5, 15), DateTime(2026, 5, 16)),
+        inheritedColorIndex: 3,
+      );
+      expect(mapped!.colorIndex, 3);
+    });
+
+    test('תאריך UNTIL של Google מגביל אירוע חוזר', () {
+      final event = timedEvent(
+        DateTime(2026, 5, 15, 9),
+        DateTime(2026, 5, 15, 10),
+      )..recurrence = ['RRULE:FREQ=WEEKLY;UNTIL=20260831T205959Z'];
+
+      final mapped = cubit.fromGoogleEvent(event);
+
+      expect(mapped!.recurrenceType, RecurrenceType.weekly);
+      expect(mapped.endGregorianDate, DateTime(2026, 8, 31));
     });
   });
 

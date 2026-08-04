@@ -74,6 +74,7 @@ class CalendarEventDialogResult {
   final RecurrenceType recurrenceType;
   final int? recurringYears;
   final TimeOfDay? eventTime;
+  final TimeOfDay? endTime;
   final int notificationMinutes;
   final DateTime? endGregorianDate;
   final int? colorIndex;
@@ -85,6 +86,7 @@ class CalendarEventDialogResult {
     required this.recurrenceType,
     required this.recurringYears,
     required this.eventTime,
+    required this.endTime,
     required this.notificationMinutes,
     required this.endGregorianDate,
     required this.colorIndex,
@@ -129,6 +131,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
   late bool _recurForever;
   late RecurrenceType _selectedRecurrenceType;
   TimeOfDay? _selectedTime;
+  TimeOfDay? _selectedEndTime;
   late int _notificationMinutes;
   // מונע דריסת ברירת מחדל חכמה כשהמשתמש בחר ידנית
   bool _userOverrodeNotification = false;
@@ -154,6 +157,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
     _selectedRecurrenceType = ev?.recurrenceType ?? RecurrenceType.none;
     _recurForever = ev?.recurringYears == null;
     _selectedTime = ev?.eventTime;
+    _selectedEndTime = ev?.endTime;
     _selectedEndDate = ev?.endGregorianDate;
     _selectedColorIndex = ev?.colorIndex;
 
@@ -396,22 +400,31 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
 
   /// תווית לכפתור השעה: 'כל היום' או HH:MM.
   String _formatTimeLabel() =>
-      _selectedTime == null ? 'כל היום' : _formatTimeValue();
+      _selectedTime == null ? 'כל היום' : _formatTimeValue(_selectedTime);
 
   /// HH:MM של השעה הנבחרת (ריק אם אין).
-  String _formatTimeValue() {
-    final t = _selectedTime;
+  String _formatTimeValue(TimeOfDay? time) {
+    final t = time;
     if (t == null) return '';
     return '${t.hour.toString().padLeft(2, '0')}:'
         '${t.minute.toString().padLeft(2, '0')}';
   }
 
   void _setTime(TimeOfDay time) {
-    setState(() => _selectedTime = time);
+    setState(() {
+      _selectedTime = time;
+      _selectedEndTime ??= TimeOfDay(
+        hour: (time.hour + 1) % 24,
+        minute: time.minute,
+      );
+    });
   }
 
   void _setAllDay() {
-    setState(() => _selectedTime = null);
+    setState(() {
+      _selectedTime = null;
+      _selectedEndTime = null;
+    });
   }
 
   /// מובייל: בורר השעה הסטנדרטי (showTimePicker).
@@ -422,6 +435,19 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
     );
     if (time == null || !mounted) return;
     _setTime(time);
+  }
+
+  void _setEndTime(TimeOfDay time) {
+    setState(() => _selectedEndTime = time);
+  }
+
+  Future<void> _pickEndTimeWithDialog() async {
+    final time = await showTimePicker(
+      context: context,
+      initialTime: _selectedEndTime ?? _selectedTime ?? TimeOfDay.now(),
+    );
+    if (time == null || !mounted) return;
+    _setEndTime(time);
   }
 
   // ── שינוי סוג חזרה ───────────────────────────────────────────────────────
@@ -557,9 +583,9 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
     }
 
     final isRecurring = _selectedRecurrenceType != RecurrenceType.none;
-    // תאריך סיום זמין רק לאירוע חד-פעמי; טווח של יום בודד נשמר כ-null
+    // באירוע חוזר התאריך מגביל את החזרה; באירוע בודד הוא סוף הטווח.
     DateTime? endDate;
-    if (!isRecurring && _selectedEndDate != null) {
+    if (_selectedEndDate != null) {
       final start = DateTime(
         _selectedDate.year,
         _selectedDate.month,
@@ -574,7 +600,18 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
         UiSnack.showError('תאריך הסיום חייב להיות אחרי תאריך ההתחלה.');
         return;
       }
-      endDate = end.isAfter(start) ? end : null;
+      endDate = isRecurring || end.isAfter(start) ? end : null;
+    }
+
+    if (_selectedTime != null && _selectedEndTime != null) {
+      final startsAt = _selectedTime!.hour * 60 + _selectedTime!.minute;
+      final endsAt = _selectedEndTime!.hour * 60 + _selectedEndTime!.minute;
+      final endsOnAnotherDate =
+          !isRecurring && endDate != null && endDate.isAfter(_selectedDate);
+      if (endsAt == startsAt && !endsOnAnotherDate) {
+        UiSnack.showError('שעת הסיום חייבת להיות אחרי שעת ההתחלה.');
+        return;
+      }
     }
 
     Navigator.of(context).pop(
@@ -585,6 +622,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
         recurrenceType: _selectedRecurrenceType,
         recurringYears: recurringYears,
         eventTime: _selectedTime,
+        endTime: _selectedEndTime,
         notificationMinutes: _notificationMinutes,
         endGregorianDate: endDate,
         colorIndex: _selectedColorIndex,
@@ -831,6 +869,33 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
     );
   }
 
+  Widget _buildEndTimeField() {
+    if (_selectedTime == null) return const SizedBox.shrink();
+    if (!_isDesktop) {
+      return _pickerButton(
+        icon: FluentIcons.clock_24_regular,
+        label: _selectedEndTime == null
+            ? 'הוספת שעת סיום'
+            : _formatTimeValue(_selectedEndTime),
+        onTap: _pickEndTimeWithDialog,
+      );
+    }
+    if (_selectedEndTime == null) {
+      return _pickerButton(
+        icon: FluentIcons.clock_24_regular,
+        label: 'הוספת שעת סיום',
+        onTap: () => _setEndTime(_selectedTime!),
+      );
+    }
+    return _InlineTimeEditor(
+      value: _selectedEndTime!,
+      onChanged: _setEndTime,
+      onClear: () => setState(() => _selectedEndTime = null),
+      keyPrefix: 'end-time',
+      clearTooltip: 'נקה שעת סיום',
+    );
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -909,28 +974,38 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
                 ],
               ),
 
-              // תאריך סיום — רק לאירוע חד-פעמי (אירוע חוזר אינו תומך בטווח ימים)
-              if (!isRecurring)
+              if (_selectedTime != null)
                 SettingsActionTile.text(
-                  icon: FluentIcons.calendar_arrow_right_24_regular,
-                  title: 'תאריך סיום',
-                  subtitle: _selectedEndDate != null
-                      ? 'סיום: ${_selectedEndDate!.day}/${_selectedEndDate!.month}/${_selectedEndDate!.year}'
-                      : 'אירוע של יום אחד',
-                  actions: [
-                    if (_selectedEndDate != null)
-                      _pickerButton(
-                        icon: FluentIcons.dismiss_24_regular,
-                        label: 'נקה',
-                        onTap: () => setState(() => _selectedEndDate = null),
-                      ),
-                    _pickerButton(
-                      icon: FluentIcons.calendar_24_regular,
-                      label: 'בחר',
-                      onTap: _pickEndDate,
-                    ),
-                  ],
+                  icon: FluentIcons.clock_24_regular,
+                  title: 'סיום האירוע',
+                  subtitle: _selectedEndTime == null
+                      ? 'משך ברירת המחדל הוא שעה'
+                      : 'שעת סיום: ${_formatTimeValue(_selectedEndTime)}',
+                  actions: [_buildEndTimeField()],
                 ),
+
+              SettingsActionTile.text(
+                icon: FluentIcons.calendar_arrow_right_24_regular,
+                title: isRecurring ? 'החזרה מסתיימת' : 'תאריך סיום',
+                subtitle: _selectedEndDate != null
+                    ? 'סיום: ${_selectedEndDate!.day}/${_selectedEndDate!.month}/${_selectedEndDate!.year}'
+                    : isRecurring
+                    ? 'חזרה ללא תאריך סיום'
+                    : 'אירוע של יום אחד',
+                actions: [
+                  if (_selectedEndDate != null)
+                    _pickerButton(
+                      icon: FluentIcons.dismiss_24_regular,
+                      label: 'נקה',
+                      onTap: () => setState(() => _selectedEndDate = null),
+                    ),
+                  _pickerButton(
+                    icon: FluentIcons.calendar_24_regular,
+                    label: 'בחר',
+                    onTap: _pickEndDate,
+                  ),
+                ],
+              ),
 
               // חזרה — DropDown כולל "ללא חזרה" כברירת מחדל
               SettingsActionTile.dropdownTile<RecurrenceType>(
@@ -1221,11 +1296,15 @@ class _InlineTimeEditor extends StatefulWidget {
   final TimeOfDay value;
   final ValueChanged<TimeOfDay> onChanged;
   final VoidCallback onClear;
+  final String keyPrefix;
+  final String clearTooltip;
 
   const _InlineTimeEditor({
     required this.value,
     required this.onChanged,
     required this.onClear,
+    this.keyPrefix = 'time',
+    this.clearTooltip = 'כל היום',
   });
 
   @override
@@ -1366,7 +1445,12 @@ class _InlineTimeEditorState extends State<_InlineTimeEditor> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _segment(const Key('time-hour'), _hourNode, _hour, _onHourKey),
+              _segment(
+                Key('${widget.keyPrefix}-hour'),
+                _hourNode,
+                _hour,
+                _onHourKey,
+              ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Text(
@@ -1379,14 +1463,14 @@ class _InlineTimeEditorState extends State<_InlineTimeEditor> {
                 ),
               ),
               _segment(
-                const Key('time-minute'),
+                Key('${widget.keyPrefix}-minute'),
                 _minuteNode,
                 _minute,
                 _onMinuteKey,
               ),
               IconButton(
                 icon: Icon(FluentIcons.dismiss_24_regular, size: 18),
-                tooltip: 'כל היום',
+                tooltip: widget.clearTooltip,
                 visualDensity: VisualDensity.compact,
                 onPressed: widget.onClear,
               ),

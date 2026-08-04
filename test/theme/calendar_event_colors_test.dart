@@ -49,4 +49,21 @@ void main() {
       expect(CalendarEventColors.nameOf(CalendarEventColors.count), isNull);
     });
   });
+
+  group('מיפוי צבעי Google Calendar', () {
+    test('כל מזהי הצבעים של אירועים ב-Google ממופים לפלטה המקומית', () {
+      for (var id = 1; id <= 11; id++) {
+        final index = CalendarEventColors.indexForGoogleColorId('$id');
+        expect(index, isNotNull, reason: 'colorId=$id');
+        expect(CalendarEventColors.googleColorIdForIndex(index), '$id');
+      }
+      expect(CalendarEventColors.indexForGoogleColorId('unknown'), isNull);
+    });
+
+    test('צבע רקע של יומן Google מותאם לצבע המקומי הקרוב', () {
+      expect(CalendarEventColors.indexForGoogleColorHex('#d50000'), 0);
+      expect(CalendarEventColors.indexForGoogleColorHex('not-a-color'), isNull);
+      expect(CalendarEventColors.indexForGoogleColorHex(null), isNull);
+    });
+  });
 }
