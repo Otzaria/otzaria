@@ -1,8 +1,8 @@
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 
 import '../../models/docx_text_cache_entry.dart';
-import '../sql/query_loader.dart';
-import '../sql/sqlite3_utils.dart';
+import '../query_loader.dart';
+import '../sqlite3_utils.dart';
 import 'database.dart';
 
 /// DAO למטמון התוכן הממומר של קובצי docx חיצוניים (טבלת `docx_text_cache`,

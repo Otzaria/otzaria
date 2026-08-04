@@ -6,7 +6,7 @@ import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
-import 'package:otzaria/migration/database/sql/query_loader.dart';
+import 'package:otzaria/migration/database/query_loader.dart';
 import 'package:otzaria/migration/models/toc_entry.dart';
 
 /// יעד סריקה יחיד עבור ה-isolate: נתיב DB ומזהי הספרים שבתוכו.

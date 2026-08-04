@@ -45,6 +45,7 @@ import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:otzaria/app_bloc_observer.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/data/data_providers/cache_database_holder.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
@@ -718,6 +719,16 @@ Future<void> _runDeferredCacheWarmups() async {
   } on TimeoutException {
     // ממשיכים בכל זאת — עדיף חימום מאוחר מאשר אף פעם.
   }
+  // כיווץ cache.db — ה-prune-ים של מטמוני ה-docx/PDF משחררים דפים במהלך
+  // הסשן אך לא מקטינים את הקובץ. רץ *לפני* החימומים ולא במקביל להם, כי
+  // ה-warmUp של ReferenceBooksCache מנקה את מטמון ה-PDF מול אותו קובץ —
+  // וכתיבה שנתקלת ב-VACUUM נחסמת סינכרונית עד ל-busy_timeout.
+  await CacheDatabaseHolder.instance.compactIfFragmented().catchError((
+    Object e,
+  ) {
+    if (kDebugMode) debugPrint('Failed to compact cache.db: $e');
+    return false;
+  });
   unawaited(
     DictionaryLookupRepository.instance.ensureLoaded().catchError((e) {
       if (kDebugMode) debugPrint('Failed to warm up dictionary: $e');

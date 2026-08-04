@@ -7,6 +7,7 @@ import 'package:logging/logging.dart';
 import 'package:path/path.dart' as path;
 
 import '../database/repository/seforim_repository.dart';
+import '../database/database_compaction.dart';
 import '../../settings/services/custom_folders/custom_folder.dart';
 import '../../settings/engine/settings_repository.dart';
 import '../generator/generator.dart';
@@ -205,6 +206,9 @@ class FileSyncService {
       otherConfiguredFolderPaths: otherConfiguredFolderPaths,
     );
     _log.info('Folder deleted from DB ($removed books removed)');
+    if (removed > 0) {
+      await _compactCustomFoldersDb();
+    }
   }
 
   String _normalizeFolderPath(String folderPath) =>
@@ -523,7 +527,16 @@ class FileSyncService {
     // לדיסק בכל עלייה. כיום insertCategory מתחזק את category_closure
     // אינקרמנטלית, כך שה-rebuild המלא הזה כבר לא נחוץ כאן.
     await pruneRemovedCustomFoldersFromDatabase(customFolders);
+    await _compactCustomFoldersDb();
   }
+
+  /// מכווץ את `user_books.db` אחרי מחיקות. ה-prune משחרר דפים ל-freelist
+  /// אך משאיר את הקובץ בגודל השיא — רק VACUUM מקטין אותו בפועל.
+  ///
+  /// חלק מהקוראים רצים על ה-main isolate (רענון ספרייה), ולכן ה-VACUUM
+  /// הסינכרוני מורחק ל-isolate נפרד.
+  Future<void> _compactCustomFoldersDb() =>
+      compactDatabaseIfFragmented(_customFoldersRepo.database);
 
   /// Internal method to scan a single path and import files
   Future<FileSyncResult> _scanAndImportPath({
@@ -878,6 +891,10 @@ class FileSyncService {
         if (onlyFolderPath == null) {
           await pruneRemovedCustomFoldersFromDatabase(customFolders);
         }
+
+        // כיבוי "הוסף למסד הנתונים" ומחיקת ספרים משחררים דפים ב-user_books.db
+        // אך לא מקטינים את הקובץ. הכיווץ מדלג על עצמו כשאין מספיק פנוי.
+        await _compactCustomFoldersDb();
       }
 
       _reportProgress(1.0, 'הסנכרון הושלם');

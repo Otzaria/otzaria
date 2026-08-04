@@ -1,7 +1,7 @@
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import '../../models/book.dart';
-import '../sql/sqlite3_utils.dart';
-import '../sql/query_loader.dart';
+import '../sqlite3_utils.dart';
+import '../query_loader.dart';
 import 'database.dart';
 
 class BookDao {

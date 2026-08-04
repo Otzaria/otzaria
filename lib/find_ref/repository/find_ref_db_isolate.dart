@@ -6,7 +6,7 @@ import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
-import 'package:otzaria/migration/database/sql/query_loader.dart';
+import 'package:otzaria/migration/database/query_loader.dart';
 import 'package:otzaria/services/commentary_service.dart';
 
 /// מריץ את שאילתות ה-DB הכבדות של "איתור מקורות" ב-isolate נפרד, כך שהן

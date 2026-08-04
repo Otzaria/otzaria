@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
+import 'package:otzaria/migration/database/database_compaction.dart';
 
 /// סינגלטון שמחזיק את ה-DB וה-repository הכתיבים למטמונים תפעוליים.
 ///
@@ -35,6 +36,17 @@ class CacheDatabaseHolder {
 
   /// נתיב ה-DB. שימושי בזרימות isolate שצריכות לפתוח את הקובץ ישירות.
   static Future<String> resolveDbPath() => AppPaths.resolveCacheDbPath();
+
+  /// מכווץ את `cache.db` אם הצטברו בו דפים פנויים; מחזיר האם כווץ בפועל.
+  ///
+  /// מטמון ה-docx/epub שומר את הטקסט המלא של כל ספר חיצוני שנפתח (כולל
+  /// base64 של תמונות), וה-prune לפי TTL משחרר את הדפים אך משאיר את הקובץ
+  /// בגודל השיא שלו.
+  ///
+  /// רץ ב-isolate נפרד: VACUUM הוא סינכרוני, ועל מטמון של מאות MB הוא היה
+  /// מקפיא את ה-UI לשניות. אינו יוצר את הקובץ אם עדיין אין כזה — משתמש
+  /// שלא פתח ספר חיצוני מעולם לא יקבל cache.db ריק בגללו.
+  Future<bool> compactIfFragmented() => resolveDbPath().then(compactSqliteFile);
 
   Future<SeforimRepository> _initialize() async {
     final dbPath = await AppPaths.resolveCacheDbPath();

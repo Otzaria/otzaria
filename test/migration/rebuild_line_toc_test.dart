@@ -15,7 +15,7 @@ import 'package:otzaria/migration/models/line.dart';
 import 'package:otzaria/migration/models/toc_entry.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
-import 'package:otzaria/migration/database/sql/sqlite3_utils.dart';
+import 'package:otzaria/migration/database/sqlite3_utils.dart';
 import 'package:path/path.dart' as path;
 
 void main() {

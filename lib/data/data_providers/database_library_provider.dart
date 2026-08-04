@@ -12,7 +12,7 @@ import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
-import 'package:otzaria/migration/database/sql/sqlite3_utils.dart';
+import 'package:otzaria/migration/database/sqlite3_utils.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 
 import 'package:otzaria/models/book_version.dart';
