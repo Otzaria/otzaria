@@ -253,7 +253,7 @@ class DayExtras extends StatelessWidget {
     var remainingSlots = maxVisibleItems - visibleItems.length;
     for (final e in events.take(remainingSlots.clamp(0, maxVisibleItems))) {
       final dotColor =
-          CalendarEventColors.colorForIndex(e.colorIndex, brightness) ??
+          CalendarEventColors.colorForIndex(e.displayColorIndex, brightness) ??
           Theme.of(context).colorScheme.onSurfaceVariant;
       visibleItems.add(
         Text.rich(

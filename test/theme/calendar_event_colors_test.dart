@@ -60,6 +60,16 @@ void main() {
       expect(CalendarEventColors.indexForGoogleColorId('unknown'), isNull);
     });
 
+    test('כל צבע מקומי נכתב לצבע Google נתמך', () {
+      for (var index = 0; index < CalendarEventColors.count; index++) {
+        expect(
+          CalendarEventColors.googleColorIdForIndex(index),
+          isNotNull,
+          reason: 'colorIndex=$index',
+        );
+      }
+    });
+
     test('צבע רקע של יומן Google מותאם לצבע המקומי הקרוב', () {
       expect(CalendarEventColors.indexForGoogleColorHex('#d50000'), 0);
       expect(CalendarEventColors.indexForGoogleColorHex('not-a-color'), isNull);

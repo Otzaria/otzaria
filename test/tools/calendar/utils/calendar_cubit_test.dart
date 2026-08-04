@@ -538,6 +538,20 @@ void main() {
       expect(decoded.colorIndex, 3);
     });
 
+    test('roundtrip שומר מזהה Google וצבע שעבר בירושה', () {
+      final event = _buildUserEvent().copyWith(
+        googleColorId: () => '7',
+        inheritedColorIndex: () => 3,
+      );
+      final decoded = CustomEvent.fromJson(
+        jsonDecode(jsonEncode(event.toJson())),
+      );
+
+      expect(decoded.googleColorId, '7');
+      expect(decoded.inheritedColorIndex, 3);
+      expect(decoded.displayColorIndex, 3);
+    });
+
     test('קובץ ישן ללא colorIndex נטען עם null (תאימות לאחור)', () {
       final oldJson = {
         'id': 'e3',
@@ -773,7 +787,37 @@ void main() {
         5,
         reason: 'colorId=7 של Google הוא תכלת בפלטה המקומית',
       );
+      expect(merged.first.googleColorId, '7');
       expect(merged.first.endGregorianDate, DateTime(2026, 5, 17));
+    });
+
+    test('מיזוג כמה דפים אינו משכפל אירוע שהופיע בשניהם', () {
+      final firstPageEvent =
+          allDayEvent(
+              DateTime(2026, 5, 15),
+              DateTime(2026, 5, 16),
+            )
+            ..id = 'g-paged'
+            ..summary = 'כותרת ראשונה';
+      final secondPageEvent =
+          allDayEvent(
+              DateTime(2026, 5, 15),
+              DateTime(2026, 5, 16),
+            )
+            ..id = 'g-paged'
+            ..summary = 'כותרת מעודכנת';
+
+      final merged = cubit.mergeGoogleEventPages(
+        const [],
+        [
+          [firstPageEvent],
+          [secondPageEvent],
+        ],
+      );
+
+      expect(merged, hasLength(1));
+      expect(merged.single.title, 'כותרת מעודכנת');
+      expect(merged.single.googleEventId, 'g-paged');
     });
 
     // רגרסיה ל-DST: חשבון Duration של 24ש סביב יום מעבר שעון מזיז יום.
@@ -834,7 +878,16 @@ void main() {
         allDayEvent(DateTime(2026, 5, 15), DateTime(2026, 5, 16)),
         inheritedColorIndex: 3,
       );
-      expect(mapped!.colorIndex, 3);
+      expect(mapped!.colorIndex, isNull);
+      expect(mapped.inheritedColorIndex, 3);
+      expect(mapped.displayColorIndex, 3);
+
+      final written = cubit.toGoogleEvent(mapped, 'Asia/Jerusalem');
+      expect(
+        written.colorId,
+        isNull,
+        reason: 'צבע יורש אינו הופך לצבע אירוע מפורש בעת כתיבה חזרה',
+      );
     });
 
     test('תאריך UNTIL של Google מגביל אירוע חוזר', () {

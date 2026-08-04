@@ -778,7 +778,13 @@ class CalendarWidgetState extends State<CalendarWidget> {
             eventTime: () => result.eventTime,
             endTime: () => result.endTime,
             endGregorianDate: () => result.endGregorianDate,
-            colorIndex: () => result.colorIndex,
+            colorIndex: result.colorChanged ? () => result.colorIndex : null,
+            inheritedColorIndex: result.colorChanged ? () => null : null,
+            googleColorId: result.colorChanged
+                ? () => CalendarEventColors.googleColorIdForIndex(
+                    result.colorIndex,
+                  )
+                : null,
             notificationMinutes: result.notificationMinutes,
           ),
         );

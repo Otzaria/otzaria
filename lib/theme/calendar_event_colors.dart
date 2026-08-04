@@ -37,6 +37,22 @@ class CalendarEventColors {
     '11': 0,
   };
 
+  static const Map<int, String> _indexToGoogleColorId = {
+    0: '11',
+    1: '6',
+    2: '5',
+    3: '2',
+    4: '10',
+    5: '7',
+    6: '9',
+    7: '1',
+    8: '3',
+    9: '8',
+    10: '8',
+    11: '4',
+    12: '6',
+  };
+
   static int get count => palette.length;
 
   /// מחזיר את צבע ההצגה עבור [index], מותאם לבהירות התצוגה.
@@ -100,10 +116,6 @@ class CalendarEventColors {
 
   /// ממיר אינדקס צבע בלוח למזהה צבע של אירוע Google.
   static String? googleColorIdForIndex(int? index) {
-    if (index == null) return null;
-    for (final entry in _googleColorIdToIndex.entries) {
-      if (entry.value == index) return entry.key;
-    }
-    return null;
+    return index == null ? null : _indexToGoogleColorId[index];
   }
 }

@@ -175,7 +175,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                 final iconOnlyDelete = width < 560;
                 final splitDate = width < 360;
                 final eventColor = CalendarEventColors.colorForIndex(
-                  event.colorIndex,
+                  event.displayColorIndex,
                   Theme.of(context).brightness,
                 );
 

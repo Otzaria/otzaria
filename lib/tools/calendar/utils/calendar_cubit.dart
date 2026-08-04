@@ -1314,7 +1314,10 @@ class CalendarCubit extends Cubit<CalendarState> {
         final calendarColorIndices = await _loadGoogleCalendarColorIndices(
           apiClient.api,
         );
-        var merged = List<CustomEvent>.from(state.events);
+        final merger = _GoogleEventsMerger(
+          existing: state.events,
+          mapper: fromGoogleEvent,
+        );
 
         // Fetch events from all selected calendars with pagination.
         for (final calendarId in state.googleCalendarSelectedIds) {
@@ -1330,8 +1333,7 @@ class CalendarCubit extends Cubit<CalendarState> {
                 maxResults: 2500, // Google's max per request
                 pageToken: pageToken,
               );
-              merged = mergeGoogleEvents(
-                merged,
+              merger.mergePage(
                 result.items ?? const [],
                 inheritedColorIndex: calendarColorIndices[calendarId],
               );
@@ -1346,7 +1348,7 @@ class CalendarCubit extends Cubit<CalendarState> {
         final syncTime = DateTime.now();
         emit(
           state.copyWith(
-            events: merged,
+            events: merger.events,
             googleCalendarConnected: true,
             googleCalendarSyncInProgress: false,
             googleCalendarLastSync: syncTime,
@@ -1356,7 +1358,7 @@ class CalendarCubit extends Cubit<CalendarState> {
         await _settingsRepository.updateGoogleCalendarLastSync(
           syncTime.millisecondsSinceEpoch,
         );
-        await _saveEventsToStorage(merged);
+        await _saveEventsToStorage(merger.events);
       } catch (e) {
         emit(
           state.copyWith(
@@ -1490,72 +1492,27 @@ class CalendarCubit extends Cubit<CalendarState> {
     List<cal.Event> googleEvents, {
     int? inheritedColorIndex,
   }) {
-    final updated = List<CustomEvent>.from(existing);
-    final byGoogleId = <String, int>{};
-    final byLocalId = <String, int>{};
+    return mergeGoogleEventPages(
+      existing,
+      [googleEvents],
+      inheritedColorIndex: inheritedColorIndex,
+    );
+  }
 
-    for (int i = 0; i < updated.length; i++) {
-      final e = updated[i];
-      byLocalId[e.id] = i;
-      if (e.googleEventId != null && e.googleEventId!.isNotEmpty) {
-        byGoogleId[e.googleEventId!] = i;
-      }
+  @visibleForTesting
+  List<CustomEvent> mergeGoogleEventPages(
+    List<CustomEvent> existing,
+    Iterable<List<cal.Event>> pages, {
+    int? inheritedColorIndex,
+  }) {
+    final merger = _GoogleEventsMerger(
+      existing: existing,
+      mapper: fromGoogleEvent,
+    );
+    for (final page in pages) {
+      merger.mergePage(page, inheritedColorIndex: inheritedColorIndex);
     }
-
-    for (final gEvent in googleEvents) {
-      if (gEvent.status == 'cancelled') continue;
-
-      final mapped = fromGoogleEvent(
-        gEvent,
-        inheritedColorIndex: inheritedColorIndex,
-      );
-      if (mapped == null) continue;
-
-      final otzariaId = gEvent.extendedProperties?.private?['otzaria_event_id'];
-      final googleId = gEvent.id ?? '';
-
-      if (googleId.isNotEmpty && byGoogleId.containsKey(googleId)) {
-        final index = byGoogleId[googleId]!;
-        updated[index] = updated[index].copyWith(
-          title: mapped.title,
-          description: mapped.description,
-          baseGregorianDate: mapped.baseGregorianDate,
-          baseJewishYear: mapped.baseJewishYear,
-          baseJewishMonth: mapped.baseJewishMonth,
-          baseJewishDay: mapped.baseJewishDay,
-          endGregorianDate: () => mapped.endGregorianDate,
-          eventTime: () => mapped.eventTime,
-          endTime: () => mapped.endTime,
-          colorIndex: () => mapped.colorIndex ?? updated[index].colorIndex,
-        );
-        continue;
-      }
-
-      if (otzariaId != null && byLocalId.containsKey(otzariaId)) {
-        final index = byLocalId[otzariaId]!;
-        updated[index] = updated[index].copyWith(
-          title: mapped.title,
-          description: mapped.description,
-          baseGregorianDate: mapped.baseGregorianDate,
-          baseJewishYear: mapped.baseJewishYear,
-          baseJewishMonth: mapped.baseJewishMonth,
-          baseJewishDay: mapped.baseJewishDay,
-          googleEventId: googleId.isEmpty ? null : googleId,
-          endGregorianDate: () => mapped.endGregorianDate,
-          eventTime: () => mapped.eventTime,
-          endTime: () => mapped.endTime,
-          colorIndex: () => mapped.colorIndex ?? updated[index].colorIndex,
-        );
-        continue;
-      }
-
-      updated.add(mapped);
-      if (googleId.isNotEmpty) {
-        byGoogleId[googleId] = updated.length - 1;
-      }
-    }
-
-    return updated;
+    return merger.events;
   }
 
   @visibleForTesting
@@ -1630,9 +1587,9 @@ class CalendarCubit extends Cubit<CalendarState> {
       endTime: isAllDay || rawEnd == null
           ? null
           : TimeOfDay(hour: rawEnd.hour, minute: rawEnd.minute),
-      colorIndex:
-          CalendarEventColors.indexForGoogleColorId(gEvent.colorId) ??
-          inheritedColorIndex,
+      colorIndex: CalendarEventColors.indexForGoogleColorId(gEvent.colorId),
+      inheritedColorIndex: gEvent.colorId == null ? inheritedColorIndex : null,
+      googleColorId: gEvent.colorId,
     );
   }
 
@@ -1702,9 +1659,9 @@ class CalendarCubit extends Cubit<CalendarState> {
       ..extendedProperties = (cal.EventExtendedProperties()
         ..private = extendedProps);
 
-    googleEvent.colorId = CalendarEventColors.googleColorIdForIndex(
-      event.colorIndex,
-    );
+    googleEvent.colorId =
+        event.googleColorId ??
+        CalendarEventColors.googleColorIdForIndex(event.colorIndex);
 
     final recurrence = _googleRecurrenceRule(event);
     if (recurrence != null) {
@@ -1858,6 +1815,7 @@ class CalendarCubit extends Cubit<CalendarState> {
           : null,
       endTime: endTime,
       colorIndex: colorIndex,
+      googleColorId: CalendarEventColors.googleColorIdForIndex(colorIndex),
       notificationMinutes: notificationMinutes,
     );
     final updated = List<CustomEvent>.from(state.events)..add(newEvent);
@@ -2334,8 +2292,12 @@ class CustomEvent extends Equatable {
   /// תאריך הסיום: סוף טווח באירוע חד-פעמי, או מועד הפסקת החזרה באירוע חוזר.
   final DateTime? endGregorianDate;
   final TimeOfDay? endTime;
+  final String? googleColorId;
+  final int? inheritedColorIndex;
   // אינדקס לפלטת CalendarEventColors; null = ללא צבע מיוחד
   final int? colorIndex;
+
+  int? get displayColorIndex => colorIndex ?? inheritedColorIndex;
   // דקות לפני האירוע להצגת ההתראה. null = השתמש בהגדרה הגלובלית.
   final int? notificationMinutes;
 
@@ -2359,6 +2321,8 @@ class CustomEvent extends Equatable {
     this.eventTime,
     this.endGregorianDate,
     this.endTime,
+    this.googleColorId,
+    this.inheritedColorIndex,
     this.colorIndex,
     this.notificationMinutes,
   });
@@ -2380,6 +2344,8 @@ class CustomEvent extends Equatable {
     // עטוף ב-ValueGetter כדי לאפשר איפוס מפורש ל-null (לביטול טווח)
     ValueGetter<DateTime?>? endGregorianDate,
     ValueGetter<TimeOfDay?>? endTime,
+    ValueGetter<String?>? googleColorId,
+    ValueGetter<int?>? inheritedColorIndex,
     // עטוף ב-ValueGetter כדי לאפשר איפוס מפורש ל-null (הסרת צבע)
     ValueGetter<int?>? colorIndex,
     int? notificationMinutes,
@@ -2401,6 +2367,12 @@ class CustomEvent extends Equatable {
           ? endGregorianDate()
           : this.endGregorianDate,
       endTime: endTime != null ? endTime() : this.endTime,
+      googleColorId: googleColorId != null
+          ? googleColorId()
+          : this.googleColorId,
+      inheritedColorIndex: inheritedColorIndex != null
+          ? inheritedColorIndex()
+          : this.inheritedColorIndex,
       colorIndex: colorIndex != null ? colorIndex() : this.colorIndex,
       notificationMinutes: notificationMinutes ?? this.notificationMinutes,
     );
@@ -2427,6 +2399,8 @@ class CustomEvent extends Equatable {
       'endTime': endTime != null
           ? {'hour': endTime!.hour, 'minute': endTime!.minute}
           : null,
+      'googleColorId': googleColorId,
+      'inheritedColorIndex': inheritedColorIndex,
       'colorIndex': colorIndex,
       'notificationMinutes': notificationMinutes,
     };
@@ -2487,6 +2461,8 @@ class CustomEvent extends Equatable {
           ? DateTime.fromMillisecondsSinceEpoch(endMillis)
           : null,
       endTime: endTime,
+      googleColorId: json['googleColorId'] as String?,
+      inheritedColorIndex: json['inheritedColorIndex'] as int?,
       colorIndex: json['colorIndex'] as int?,
       notificationMinutes: json['notificationMinutes'] as int?,
     );
@@ -2508,6 +2484,8 @@ class CustomEvent extends Equatable {
     eventTime,
     endGregorianDate,
     endTime,
+    googleColorId,
+    inheritedColorIndex,
     colorIndex,
     notificationMinutes,
   ];
@@ -2729,6 +2707,78 @@ bool _isSameDateOnly(DateTime first, DateTime second) {
   return first.year == second.year &&
       first.month == second.month &&
       first.day == second.day;
+}
+
+typedef _GoogleEventMapper =
+    CustomEvent? Function(cal.Event event, {int? inheritedColorIndex});
+
+class _GoogleEventsMerger {
+  _GoogleEventsMerger({
+    required List<CustomEvent> existing,
+    required this.mapper,
+  }) : events = List<CustomEvent>.from(existing) {
+    for (var index = 0; index < events.length; index++) {
+      final event = events[index];
+      _byLocalId[event.id] = index;
+      final googleId = event.googleEventId;
+      if (googleId != null && googleId.isNotEmpty) {
+        _byGoogleId[googleId] = index;
+      }
+    }
+  }
+
+  final _GoogleEventMapper mapper;
+  final List<CustomEvent> events;
+  final Map<String, int> _byGoogleId = {};
+  final Map<String, int> _byLocalId = {};
+
+  void mergePage(
+    List<cal.Event> googleEvents, {
+    int? inheritedColorIndex,
+  }) {
+    for (final googleEvent in googleEvents) {
+      if (googleEvent.status == 'cancelled') continue;
+
+      final mapped = mapper(
+        googleEvent,
+        inheritedColorIndex: inheritedColorIndex,
+      );
+      if (mapped == null) continue;
+
+      final googleId = googleEvent.id ?? '';
+      final localId =
+          googleEvent.extendedProperties?.private?['otzaria_event_id'];
+      final matchedIndex =
+          (googleId.isNotEmpty ? _byGoogleId[googleId] : null) ??
+          _byLocalId[localId];
+
+      if (matchedIndex != null) {
+        final existing = events[matchedIndex];
+        events[matchedIndex] = existing.copyWith(
+          title: mapped.title,
+          description: mapped.description,
+          baseGregorianDate: mapped.baseGregorianDate,
+          baseJewishYear: mapped.baseJewishYear,
+          baseJewishMonth: mapped.baseJewishMonth,
+          baseJewishDay: mapped.baseJewishDay,
+          googleEventId: googleId.isEmpty ? null : googleId,
+          endGregorianDate: () => mapped.endGregorianDate,
+          eventTime: () => mapped.eventTime,
+          endTime: () => mapped.endTime,
+          colorIndex: () => mapped.colorIndex,
+          inheritedColorIndex: () => mapped.inheritedColorIndex,
+          googleColorId: () => mapped.googleColorId,
+        );
+        if (googleId.isNotEmpty) _byGoogleId[googleId] = matchedIndex;
+        continue;
+      }
+
+      events.add(mapped);
+      final index = events.length - 1;
+      _byLocalId[mapped.id] = index;
+      if (googleId.isNotEmpty) _byGoogleId[googleId] = index;
+    }
+  }
 }
 
 // Google Calendar Info

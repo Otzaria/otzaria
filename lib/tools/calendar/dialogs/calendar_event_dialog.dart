@@ -78,6 +78,7 @@ class CalendarEventDialogResult {
   final int notificationMinutes;
   final DateTime? endGregorianDate;
   final int? colorIndex;
+  final bool colorChanged;
 
   const CalendarEventDialogResult({
     required this.title,
@@ -90,6 +91,7 @@ class CalendarEventDialogResult {
     required this.notificationMinutes,
     required this.endGregorianDate,
     required this.colorIndex,
+    required this.colorChanged,
   });
 }
 
@@ -137,6 +139,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
   bool _userOverrodeNotification = false;
   DateTime? _selectedEndDate;
   int? _selectedColorIndex;
+  bool _colorChanged = false;
 
   @override
   void initState() {
@@ -159,7 +162,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
     _selectedTime = ev?.eventTime;
     _selectedEndTime = ev?.endTime;
     _selectedEndDate = ev?.endGregorianDate;
-    _selectedColorIndex = ev?.colorIndex;
+    _selectedColorIndex = ev?.displayColorIndex;
 
     _dateShowHebrew = calendarDefaultShowHebrew(widget.state.calendarType);
     _dateController = TextEditingController(
@@ -626,6 +629,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
         notificationMinutes: _notificationMinutes,
         endGregorianDate: endDate,
         colorIndex: _selectedColorIndex,
+        colorChanged: _colorChanged,
       ),
     );
   }
@@ -706,7 +710,10 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
           selected: _selectedColorIndex == null,
           tooltip: CalendarEventColors.noColorLabel,
           onTap: () {
-            setState(() => _selectedColorIndex = null);
+            setState(() {
+              _selectedColorIndex = null;
+              _colorChanged = true;
+            });
             onSelected();
           },
         ),
@@ -716,7 +723,10 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
             selected: _selectedColorIndex == i,
             tooltip: CalendarEventColors.nameOf(i),
             onTap: () {
-              setState(() => _selectedColorIndex = i);
+              setState(() {
+                _selectedColorIndex = i;
+                _colorChanged = true;
+              });
               onSelected();
             },
           ),
