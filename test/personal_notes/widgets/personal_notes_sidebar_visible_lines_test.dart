@@ -17,9 +17,8 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
 
-/// חלונית ההערות מקבלת את השורות הגלויות מ-TextBookBloc. ה-BlocListener מגיב
-/// רק לשינוי הבא של ה-state, ולכן בלי סנכרון בהרכבה הסינון "הצג רק הערות
-/// לטקסט הנראה" לא היה מסנן כלום עד הגלילה הראשונה — כלומר הציג את כל הספר.
+/// השורות הגלויות נשמרות בכל חלונית בנפרד, כדי ששני טאבים של אותו ספר לא
+/// ידרסו זה את סינון ההערות של זה.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -54,7 +53,7 @@ void main() {
     );
   }
 
-  testWidgets('בהרכבה נשלחות השורות הגלויות הנוכחיות של TextBookBloc', (
+  testWidgets('בהרכבה השורות הגלויות אינן נכתבות ל-BLoC הגלובלי', (
     tester,
   ) async {
     final notesBloc = _RecordingNotesBloc();
@@ -69,14 +68,10 @@ void main() {
     );
     await tester.pump();
 
-    expect(
-      notesBloc.visibleLineUpdates,
-      contains(const [10, 11, 12]),
-      reason: 'בלי זה הסינון פועל על רשימה ריקה ומציג את כל הספר',
-    );
+    expect(notesBloc.visibleLineUpdates, isEmpty);
   });
 
-  testWidgets('השורות הגלויות נשלחות אחרי טעינת ההערות (שמאפסת אותן)', (
+  testWidgets('טעינת ההערות נשארת לפני העדכון המקומי של השורות', (
     tester,
   ) async {
     final notesBloc = _RecordingNotesBloc();
@@ -94,14 +89,11 @@ void main() {
     final loadIndex = notesBloc.received.indexWhere(
       (e) => e is LoadPersonalNotes,
     );
-    final visibleIndex = notesBloc.received.indexWhere(
-      (e) => e is UpdateVisibleLines,
-    );
     expect(loadIndex, isNonNegative);
-    expect(visibleIndex, greaterThan(loadIndex));
+    expect(notesBloc.visibleLineUpdates, isEmpty);
   });
 
-  testWidgets('גלילה (state חדש של TextBookBloc) מעדכנת את השורות הגלויות', (
+  testWidgets('גלילה אינה מעדכנת את ה-BLoC הגלובלי', (
     tester,
   ) async {
     final notesBloc = _RecordingNotesBloc();
@@ -119,7 +111,7 @@ void main() {
     textBookBloc.emitState(_loadedState(visibleIndices: const [40, 41]));
     await tester.pump();
 
-    expect(notesBloc.visibleLineUpdates.last, const [40, 41]);
+    expect(notesBloc.visibleLineUpdates, isEmpty);
   });
 
   testWidgets('גלילה בטאב של ספר אחר אינה דורסת את השורות הגלויות', (
@@ -160,7 +152,7 @@ void main() {
     expect(notesBloc.visibleLineUpdates, isEmpty);
   });
 
-  testWidgets('מסלול PDF: השורות מגיעות מהפרמטר ולא מ-TextBookBloc', (
+  testWidgets('מסלול PDF אינו כותב שורות גלויות ל-BLoC הגלובלי', (
     tester,
   ) async {
     final notesBloc = _RecordingNotesBloc();
@@ -175,7 +167,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(notesBloc.visibleLineUpdates, contains(const [7, 8]));
+    expect(notesBloc.visibleLineUpdates, isEmpty);
   });
 
   testWidgets('בלי TextBookBloc ובלי פרמטר — נטען בלי שגיאה ובלי עדכון שורות', (
@@ -280,6 +272,64 @@ void main() {
 
       expect(find.text('1/3'), findsOneWidget);
       expect(find.text('הערה בשורה 50'), findsNothing);
+    });
+
+    testWidgets('שני טאבים של אותו ספר שומרים על סינון נפרד', (tester) async {
+      final notesBloc = PersonalNotesBloc(
+        repository: _FakeRepository([note(1), note(5), note(50)]),
+      );
+      addTearDown(notesBloc.close);
+      final firstTabBloc = _TestTextBookBloc(
+        _loadedState(visibleIndices: const [4]),
+      );
+      final secondTabBloc = _TestTextBookBloc(
+        _loadedState(visibleIndices: const [49]),
+      );
+      addTearDown(firstTabBloc.close);
+      addTearDown(secondTabBloc.close);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BlocProvider<PersonalNotesBloc>.value(
+              value: notesBloc,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: BlocProvider<TextBookBloc>.value(
+                      value: firstTabBloc,
+                      child: PersonalNotesSidebar(
+                        bookId: 'ספר בדיקה',
+                        onNavigateToLine: (_) {},
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: BlocProvider<TextBookBloc>.value(
+                      value: secondTabBloc,
+                      child: PersonalNotesSidebar(
+                        bookId: 'ספר בדיקה',
+                        onNavigateToLine: (_) {},
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('הערה בשורה 5'), findsOneWidget);
+      expect(find.text('הערה בשורה 50'), findsOneWidget);
+
+      firstTabBloc.emitState(_loadedState(visibleIndices: const [0]));
+      await tester.pumpAndSettle();
+
+      expect(find.text('הערה בשורה 1'), findsOneWidget);
+      expect(find.text('הערה בשורה 50'), findsOneWidget);
+      expect(find.text('הערה בשורה 5'), findsNothing);
     });
   });
 }

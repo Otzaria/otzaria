@@ -11,6 +11,7 @@ import 'package:otzaria/core/messages/notes_messages.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/utils/note_location_ref.dart';
+import 'package:otzaria/personal_notes/utils/personal_notes_filter.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
@@ -60,6 +61,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
   @override
   bool get wantKeepAlive => true;
   final PersonalNoteDraftService _draftService = PersonalNoteDraftService();
+  final ValueNotifier<List<int>> _visibleLineIndices = ValueNotifier(const []);
 
   @override
   void initState() {
@@ -78,21 +80,22 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
       context.findAncestorWidgetOfExactType<BlocProvider<TextBookBloc>>() !=
       null;
 
-  /// שידור השורות הגלויות הנוכחיות ל-BLoC. חובה לקרוא לזה בהרכבה: ה-BlocListener
-  /// על TextBookBloc מגיב רק לשינוי הבא, ועד אז הסינון "הצג רק הערות לטקסט
-  /// הנראה" עבד על רשימה ריקה — כלומר הציג את כל הספר.
   void _syncVisibleLines() {
     final fromWidget = widget.visibleLineIndices;
     if (fromWidget != null) {
-      context.read<PersonalNotesBloc>().add(UpdateVisibleLines(fromWidget));
+      _setVisibleLines(fromWidget);
       return;
     }
     if (!_hasTextBookBloc) return;
     final textBookState = context.read<TextBookBloc>().state;
     if (textBookState is TextBookLoaded) {
-      context.read<PersonalNotesBloc>().add(
-        UpdateVisibleLines(textBookState.visibleIndices),
-      );
+      _setVisibleLines(textBookState.visibleIndices);
+    }
+  }
+
+  void _setVisibleLines(List<int> lines) {
+    if (!listEquals(_visibleLineIndices.value, lines)) {
+      _visibleLineIndices.value = List.unmodifiable(lines);
     }
   }
 
@@ -112,10 +115,14 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
 
     if (!listEquals(oldWidget.visibleLineIndices, widget.visibleLineIndices) &&
         widget.visibleLineIndices != null) {
-      context.read<PersonalNotesBloc>().add(
-        UpdateVisibleLines(widget.visibleLineIndices!),
-      );
+      _setVisibleLines(widget.visibleLineIndices!);
     }
+  }
+
+  @override
+  void dispose() {
+    _visibleLineIndices.dispose();
+    super.dispose();
   }
 
   Future<void> _restorePendingNewNoteDraftIfNeeded() async {
@@ -207,57 +214,68 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
           return const Center(child: CircularProgressIndicator());
         }
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            NotesSearchHeader(
-              bookId: widget.bookId,
-              categoryId: widget.categoryId,
-              isPdf: widget.isPdf,
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: hasTextBookBloc
-                  ? BlocBuilder<TextBookBloc, TextBookState>(
-                      buildWhen: (previous, current) {
-                        if (previous is TextBookLoaded &&
-                            current is TextBookLoaded) {
-                          return previous.selectedIndex !=
-                              current.selectedIndex;
-                        }
-                        return true;
-                      },
-                      builder: (context, textBookState) {
-                        final selectedLineNumber =
-                            textBookState is TextBookLoaded
-                            ? (textBookState.selectedIndex != null
-                                  ? textBookState.selectedIndex! + 1
-                                  : null)
-                            : null;
+        return ValueListenableBuilder<List<int>>(
+          valueListenable: _visibleLineIndices,
+          builder: (context, visibleLineIndices, _) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              NotesSearchHeader(
+                bookId: widget.bookId,
+                categoryId: widget.categoryId,
+                isPdf: widget.isPdf,
+                visibleLineIndices: visibleLineIndices,
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: hasTextBookBloc
+                    ? BlocBuilder<TextBookBloc, TextBookState>(
+                        buildWhen: (previous, current) {
+                          if (previous is TextBookLoaded &&
+                              current is TextBookLoaded) {
+                            return previous.selectedIndex !=
+                                current.selectedIndex;
+                          }
+                          return true;
+                        },
+                        builder: (context, textBookState) {
+                          final selectedLineNumber =
+                              textBookState is TextBookLoaded
+                              ? (textBookState.selectedIndex != null
+                                    ? textBookState.selectedIndex! + 1
+                                    : null)
+                              : null;
 
-                        return _buildContent(
+                          return _buildContent(
+                            context,
+                            state,
+                            visibleLineIndices: visibleLineIndices,
+                            selectedLineNumber: selectedLineNumber,
+                            tableOfContents: textBookState is TextBookLoaded
+                                ? textBookState.tableOfContents
+                                : null,
+                          );
+                        },
+                      )
+                    : widget.isPdf && widget.pdfOutline != null
+                    ? ValueListenableBuilder<List<PdfOutlineNode>?>(
+                        valueListenable: widget.pdfOutline!,
+                        builder: (context, outline, _) => _buildContent(
                           context,
                           state,
-                          selectedLineNumber: selectedLineNumber,
-                          tableOfContents: textBookState is TextBookLoaded
-                              ? textBookState.tableOfContents
-                              : null,
-                        );
-                      },
-                    )
-                  : widget.isPdf && widget.pdfOutline != null
-                  ? ValueListenableBuilder<List<PdfOutlineNode>?>(
-                      valueListenable: widget.pdfOutline!,
-                      builder: (context, outline, _) => _buildContent(
+                          visibleLineIndices: visibleLineIndices,
+                          selectedLineNumber: null,
+                          pdfOutline: outline,
+                        ),
+                      )
+                    : _buildContent(
                         context,
                         state,
+                        visibleLineIndices: visibleLineIndices,
                         selectedLineNumber: null,
-                        pdfOutline: outline,
                       ),
-                    )
-                  : _buildContent(context, state, selectedLineNumber: null),
-            ),
-          ],
+              ),
+            ],
+          ),
         );
       },
     );
@@ -268,12 +286,8 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
         listeners: [
           BlocListener<TextBookBloc, TextBookState>(
             listener: (context, state) {
-              final notesBloc = context.read<PersonalNotesBloc>();
-              // ה-BLoC של ההערות הוא גלובלי אחד: גלילה בטאב רקע הייתה מחליפה
-              // את השורות הגלויות ומסננת את הערות הספר שמוצג לפי ספר אחר.
-              if (notesBloc.state.bookId != widget.bookId) return;
               if (state is TextBookLoaded) {
-                notesBloc.add(UpdateVisibleLines(state.visibleIndices));
+                _setVisibleLines(state.visibleIndices);
               }
             },
           ),
@@ -314,6 +328,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
   Widget _buildContent(
     BuildContext context,
     PersonalNotesState state, {
+    required List<int> visibleLineIndices,
     int? selectedLineNumber,
     List<TocEntry>? tableOfContents,
     List<PdfOutlineNode>? pdfOutline,
@@ -337,6 +352,13 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
             ) ??
             true);
 
+    final filtered = filterPersonalNotes(
+      locatedNotes: state.locatedNotes,
+      missingNotes: state.missingNotes,
+      searchQuery: state.searchQuery,
+      showOnlyVisible: state.showOnlyVisible,
+      visibleLineIndices: visibleLineIndices,
+    );
     final items = <Widget>[];
 
     // עורך הערה חדשה — מוצג רק אם הטיוטה שייכת לספר של ה-sidebar הזה.
@@ -347,9 +369,9 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     }
 
     // הערות ממוקמות
-    if (state.filteredLocatedNotes.isNotEmpty) {
+    if (filtered.locatedNotes.isNotEmpty) {
       items.addAll(
-        state.filteredLocatedNotes.map(
+        filtered.locatedNotes.map(
           (note) => NoteTile(
             note: note,
             onTap: () => widget.onNavigateToLine(note.lineNumber!),
@@ -389,8 +411,8 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     }
 
     // הערות חסרות מיקום
-    if (state.filteredMissingNotes.isNotEmpty) {
-      if (state.filteredLocatedNotes.isNotEmpty) {
+    if (filtered.missingNotes.isNotEmpty) {
+      if (filtered.locatedNotes.isNotEmpty) {
         items.add(
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -406,7 +428,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
         );
       }
       items.addAll(
-        state.filteredMissingNotes.map(
+        filtered.missingNotes.map(
           (note) => NoteTile(
             note: note,
             onTap: () => _reposition(context, note),
@@ -449,8 +471,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     }
 
     if (items.isEmpty) {
-      final message =
-          state.showOnlyVisible && state.visibleLineIndices.isNotEmpty
+      final message = state.showOnlyVisible && visibleLineIndices.isNotEmpty
           ? (widget.isPdf
                 ? 'אין הערות לעמוד המוצג'
                 : 'אין הערות לטקסט הנראה במסך')

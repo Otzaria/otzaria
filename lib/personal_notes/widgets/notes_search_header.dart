@@ -6,18 +6,21 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
+import 'package:otzaria/personal_notes/utils/personal_notes_filter.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
 class NotesSearchHeader extends StatefulWidget {
   final String bookId;
   final int? categoryId;
   final bool isPdf;
+  final List<int> visibleLineIndices;
 
   const NotesSearchHeader({
     super.key,
     required this.bookId,
     this.categoryId,
     this.isPdf = false,
+    required this.visibleLineIndices,
   });
 
   @override
@@ -50,9 +53,15 @@ class _NotesSearchHeaderState extends State<NotesSearchHeader> {
       builder: (context, state) {
         final totalNotes =
             state.locatedNotes.length + state.missingNotes.length;
+        final filtered = filterPersonalNotes(
+          locatedNotes: state.locatedNotes,
+          missingNotes: state.missingNotes,
+          searchQuery: state.searchQuery,
+          showOnlyVisible: state.showOnlyVisible,
+          visibleLineIndices: widget.visibleLineIndices,
+        );
         final visibleNotes =
-            state.filteredLocatedNotes.length +
-            state.filteredMissingNotes.length;
+            filtered.locatedNotes.length + filtered.missingNotes.length;
 
         return Padding(
           padding: const EdgeInsets.all(8.0),
