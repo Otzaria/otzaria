@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
 import 'package:otzaria/tour/models/live_tip.dart';
+import 'package:otzaria/tour/models/tour_shortcuts.dart';
 import 'package:otzaria/tour/models/tour_step.dart';
 import 'package:otzaria/tour/models/tour_steps.dart';
 import 'package:otzaria/tour/view/tour_overlay_screen.dart';
@@ -70,19 +72,54 @@ void main() {
     expect(steps.last.title, 'הסיור המקוצר הסתיים');
   });
 
-  test('מציג קיצורי מקלדת לפי Settings ולא לפי ברירת מחדל קבועה', () async {
+  testWidgets('מציג קיצורי מקלדת לפי Settings ולא לפי ברירת מחדל קבועה', (
+    tester,
+  ) async {
     await Settings.setValue<String>(
       'key-shortcut-open-settings',
       'ctrl+comma',
     );
     await Settings.setValue<String>('key-shortcut-open-more', 'alt+m');
 
-    final navigationStep = TourSteps.build(
-      libraryLoaded: true,
-    ).firstWhere((step) => step.id == 'navigation');
+    late String navigation;
+    late String tools;
+    await tester.pumpWidget(
+      Builder(
+        builder: (context) {
+          navigation = tourShortcutText(
+            context,
+            TourShortcutHint.mainNavigation,
+          )!;
+          tools = tourShortcutText(context, TourShortcutHint.tools)!;
+          return const SizedBox.shrink();
+        },
+      ),
+    );
 
-    expect(navigationStep.body, contains('הגדרות Ctrl+,'));
-    expect(navigationStep.body, contains('כלים Alt+M'));
+    expect(navigation, contains('הגדרות Ctrl+,'));
+    expect(navigation, contains('כלים Alt+M'));
+    expect(tools, 'Alt+M');
+  });
+
+  testWidgets('תוויות הקיצורים מתורגמות לשפת ההגדרות', (tester) async {
+    late String navigation;
+    await tester.pumpWidget(
+      SettingsTextScope(
+        language: SettingsLanguage.english,
+        child: Builder(
+          builder: (context) {
+            navigation = tourShortcutText(
+              context,
+              TourShortcutHint.mainNavigation,
+            )!;
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    expect(navigation, contains('Settings Ctrl+,'));
+    expect(navigation, isNot(contains('הגדרות')));
   });
 
   test('TourCubit לא מתחיל אם tour_status כבר נשמר', () async {
@@ -990,6 +1027,54 @@ void main() {
 
     expect(resolveCalls, greaterThan(1));
     expect(resolvedLeftValues.last, 84);
+
+    await cubit.close();
+  });
+
+  testWidgets('כרטיס הסיור מוצג באנגלית, כולל הקיצור שבתוך הגוף', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await Settings.setValue<String>('key-shortcut-open-more', 'alt+m');
+
+    final cubit = TourCubit()..start(libraryLoaded: true);
+    cubit.goToStep(
+      cubit.state.steps.indexWhere((step) => step.id == 'tools'),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        // גופן הבדיקות רחב-קבוע ושורת הכפתורים נשפכת בו בשתי השפות. הקטנת
+        // הסקאלה בודקת את הטקסט בלי להיתלות בפריסה שאינה מציאותית.
+        home: MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(0.5)),
+          child: SettingsTextScope(
+            language: SettingsLanguage.english,
+            child: BlocProvider.value(
+              value: cubit,
+              child: Stack(
+                children: [
+                  TourOverlayScreen(
+                    onStepChanged: (_) {},
+                    targetRectResolver: (_) =>
+                        const Rect.fromLTWH(24, 40, 120, 48),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('More tools'), findsOneWidget);
+    expect(find.textContaining('Shortcut: Alt+M'), findsOneWidget);
+    expect(find.text('Next'), findsOneWidget);
+    expect(find.textContaining('{shortcut}'), findsNothing);
 
     await cubit.close();
   });

@@ -1,15 +1,20 @@
 // לתחזוקת כרטיסי הסיור המודרך ראו: docs/guided_tour_developer_guide.md
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/tour/models/tour_shortcuts.dart';
+import 'package:otzaria/tour/models/tour_step.dart';
 import 'package:otzaria/tour/widgets/tour_progress_dots.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 class TourTooltipCard extends StatelessWidget {
+  /// הטקסט העברי, שהוא גם מפתח התרגום.
   final String title;
   final String body;
+  final TourShortcutHint shortcut;
   final int currentIndex;
   final int totalSteps;
   final bool isLastStep;
@@ -26,6 +31,7 @@ class TourTooltipCard extends StatelessWidget {
     super.key,
     required this.title,
     required this.body,
+    this.shortcut = TourShortcutHint.none,
     required this.currentIndex,
     required this.totalSteps,
     required this.isLastStep,
@@ -43,6 +49,7 @@ class TourTooltipCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final shortcutText = tourShortcutText(context, shortcut);
 
     return Material(
       color: colorScheme.secondaryContainer,
@@ -81,7 +88,7 @@ class TourTooltipCard extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      title,
+                      context.settingsText(title),
                       style: textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: colorScheme.onSecondaryContainer,
@@ -92,7 +99,12 @@ class TourTooltipCard extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Text(
-                body,
+                context.settingsText(
+                  body,
+                  args: shortcutText == null
+                      ? null
+                      : {'shortcut': shortcutText},
+                ),
                 style: textTheme.bodyLarge?.copyWith(
                   height: 1.45,
                   color: colorScheme.onSecondaryContainer,
@@ -111,11 +123,13 @@ class TourTooltipCard extends StatelessWidget {
                   if (!isLastStep)
                     ActionButton.neutral(
                       icon: FluentIcons.dismiss_24_regular,
-                      text: isRestartEntry
-                          ? 'ביטול'
-                          : isWelcomeStep
-                          ? 'דלג — אגלה לבד'
-                          : 'דלג על הסיור',
+                      text: context.settingsText(
+                        isRestartEntry
+                            ? 'ביטול'
+                            : isWelcomeStep
+                            ? 'דלג — אגלה לבד'
+                            : 'דלג על הסיור',
+                      ),
                       onPressed: onSkip,
                     )
                   else
@@ -123,9 +137,11 @@ class TourTooltipCard extends StatelessWidget {
                   const Spacer(),
                   if (!isLastStep && !isWelcomeStep && !isRestartEntry) ...[
                     Tooltip(
-                      message: isAutoPlaying
-                          ? 'עצור הצגה אוטומטית'
-                          : 'הצגה אוטומטית — מעבר אוטומטי בין השלבים כל 4 שניות',
+                      message: context.settingsText(
+                        isAutoPlaying
+                            ? 'עצור הצגה אוטומטית'
+                            : 'הצגה אוטומטית — מעבר אוטומטי בין השלבים כל 4 שניות',
+                      ),
                       child: FilledButton.tonal(
                         onPressed: onToggleAutoPlay,
                         style: FilledButton.styleFrom(
@@ -145,13 +161,15 @@ class TourTooltipCard extends StatelessWidget {
                     icon: isLastStep
                         ? FluentIcons.checkmark_24_regular
                         : FluentIcons.arrow_left_24_regular,
-                    text: isLastStep
-                        ? 'סגור'
-                        : isRestartEntry
-                        ? 'אני מוכן'
-                        : isWelcomeStep
-                        ? 'בוא נתחיל'
-                        : 'הבא',
+                    text: context.settingsText(
+                      isLastStep
+                          ? 'סגור'
+                          : isRestartEntry
+                          ? 'אני מוכן'
+                          : isWelcomeStep
+                          ? 'בוא נתחיל'
+                          : 'הבא',
+                    ),
                     onPressed: onNext,
                   ),
                 ],

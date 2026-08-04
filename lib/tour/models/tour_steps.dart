@@ -1,6 +1,5 @@
 // לתחזוקת הסיור המודרך ראו: docs/guided_tour_developer_guide.md
 
-import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/tour/models/tour_step.dart';
 
 class TourSteps {
@@ -14,7 +13,6 @@ class TourSteps {
     required bool libraryLoaded,
     bool isRestart = false,
   }) {
-    final shortcuts = _ShortcutText();
     final steps = <TourStep>[
       if (isRestart)
         TourStep(
@@ -36,12 +34,13 @@ class TourSteps {
           area: TourSpotlightArea.center,
           isDialog: true,
         ),
-      TourStep(
+      const TourStep(
         id: 'navigation',
         title: 'הניווט הראשי',
         body:
-            'בחלק המואר תמצא את כל חלקי האפליקציה: ספרייה, איתור, עיון, חיפוש, כלים והגדרות.\n\nקיצורים: ${shortcuts.mainNavigation}',
+            'בחלק המואר תמצא את כל חלקי האפליקציה: ספרייה, איתור, עיון, חיפוש, כלים והגדרות.\n\nקיצורים: {shortcut}',
         area: TourSpotlightArea.navigation,
+        shortcut: TourShortcutHint.mainNavigation,
       ),
     ];
 
@@ -78,23 +77,25 @@ class TourSteps {
           area: TourSpotlightArea.bookCard,
           action: TourStepAction.openLibraryBookPreview,
         ),
-        TourStep(
+        const TourStep(
           id: 'find_ref',
           title: 'איתור מהיר',
           body:
-              'כשאתה יודע לאן להגיע, הקלד שם ספר, פרק או פסוק. איתור = נווט, חיפוש = גלה.\n\nקיצור: ${shortcuts.findRef}',
+              'כשאתה יודע לאן להגיע, הקלד שם ספר, פרק או פסוק. איתור = נווט, חיפוש = גלה.\n\nקיצור: {shortcut}',
           area: TourSpotlightArea.findRef,
           action: TourStepAction.openFindRef,
+          shortcut: TourShortcutHint.findRef,
         ),
-        TourStep(
+        const TourStep(
           id: 'reading',
           title: 'מסך הקריאה',
           body:
-              'כאן קוראים את הספרים שפתחת. ניתן לפתוח מספר ספרים בטאבים שונים ולעבור ביניהם.\n\nקיצור: ${shortcuts.reading}',
+              'כאן קוראים את הספרים שפתחת. ניתן לפתוח מספר ספרים בטאבים שונים ולעבור ביניהם.\n\nקיצור: {shortcut}',
           area: TourSpotlightArea.reading,
           action: TourStepAction.openReading,
+          shortcut: TourShortcutHint.reading,
         ),
-        TourStep(
+        const TourStep(
           id: 'tabs',
           title: 'טאבים — ספרים מרובים',
           body:
@@ -149,26 +150,31 @@ class TourSteps {
         id: 'advanced_search',
         title: 'חיפוש מתקדם בכל הספרייה',
         body: libraryLoaded
-            ? 'חפש כל מילה או ביטוי בכל הספרים בו-זמנית. ניתן לסנן לפי קטגוריות ולגשת לכל תוצאה.\n\nקיצור: ${shortcuts.search}'
+            ? 'חפש כל מילה או ביטוי בכל הספרים בו-זמנית. ניתן לסנן לפי קטגוריות ולגשת לכל תוצאה.\n\nקיצור: {shortcut}'
             : 'החיפוש המתקדם יהיה זמין לאחר טעינת הספרייה. הוא מיועד למציאת רעיון או מילה כשאינך יודע היכן הם מופיעים.',
         area: TourSpotlightArea.searchDialog,
         action: TourStepAction.openSearch,
+        shortcut: libraryLoaded
+            ? TourShortcutHint.search
+            : TourShortcutHint.none,
       ),
-      TourStep(
+      const TourStep(
         id: 'tools',
         title: 'כלים נוספים',
         body:
-            'כאן תמצא לוח שנה יהודי, גימטריות, מילון ארמי, ראשי תיבות, ממיר יחידות, תוכנית לימוד והערות אישיות.\n\nקיצור: ${shortcuts.tools}',
+            'כאן תמצא לוח שנה יהודי, גימטריות, מילון ארמי, ראשי תיבות, ממיר יחידות, תוכנית לימוד והערות אישיות.\n\nקיצור: {shortcut}',
         area: TourSpotlightArea.tools,
         action: TourStepAction.openTools,
+        shortcut: TourShortcutHint.tools,
       ),
-      TourStep(
+      const TourStep(
         id: 'settings',
         title: 'הגדרות',
         body:
-            'כאן תוכל להתאים אישית מראה, כתב, ספרייה, כלים, קיצורים, גיבוי ועוד.\n\nקיצור: ${shortcuts.settings}',
+            'כאן תוכל להתאים אישית מראה, כתב, ספרייה, כלים, קיצורים, גיבוי ועוד.\n\nקיצור: {shortcut}',
         area: TourSpotlightArea.settings,
         action: TourStepAction.openSettings,
+        shortcut: TourShortcutHint.settings,
       ),
       const TourStep(
         id: 'appearance',
@@ -205,44 +211,5 @@ class TourSteps {
     }
 
     return steps;
-  }
-}
-
-class _ShortcutText {
-  String get mainNavigation => [
-    'ספרייה ${_read('key-shortcut-open-library-browser', 'ctrl+l')}',
-    'איתור ${_read('key-shortcut-open-find-ref', 'ctrl+o')}',
-    'עיון ${_read('key-shortcut-open-reading-screen', 'ctrl+r')}',
-    'חיפוש ${_read('key-shortcut-open-new-search', 'ctrl+shift+f')}',
-    'כלים ${_read('key-shortcut-open-more', 'ctrl+m')}',
-    'הגדרות ${_read('key-shortcut-open-settings', 'ctrl+comma')}',
-  ].join(' · ');
-
-  String get findRef => _read('key-shortcut-open-find-ref', 'ctrl+o');
-  String get reading => _read('key-shortcut-open-reading-screen', 'ctrl+r');
-  String get search => _read('key-shortcut-open-new-search', 'ctrl+shift+f');
-  String get tools => _read('key-shortcut-open-more', 'ctrl+m');
-  String get settings => _read('key-shortcut-open-settings', 'ctrl+comma');
-
-  String _read(String key, String defaultValue) {
-    final value = Settings.getValue<String>(key) ?? defaultValue;
-    return _format(value);
-  }
-
-  String _format(String shortcut) {
-    return shortcut
-        .split('+')
-        .map((part) {
-          if (part == 'ctrl') return 'Ctrl';
-          if (part == 'shift') return 'Shift';
-          if (part == 'alt') return 'Alt';
-          if (part == 'comma') return ',';
-          if (part == 'tab') return 'Tab';
-          return part.isEmpty
-              ? part
-              : part[0].toUpperCase() + part.substring(1);
-        })
-        .join('+')
-        .replaceAll('Ctrl+,', 'Ctrl+,');
   }
 }

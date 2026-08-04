@@ -6,6 +6,7 @@
 
 - `lib/tour/models/tour_step.dart` - הגדרת `TourStep`, אזורי spotlight ופעולות מעבר.
 - `lib/tour/models/tour_steps.dart` - רשימת השלבים, הטקסטים והסדר.
+- `lib/tour/models/tour_shortcuts.dart` - הטקסט שממלא את `{shortcut}` בגוף שלב.
 - `lib/tour/bloc/tour_cubit.dart` - התחלה, מעבר שלבים, דילוג, סיום ו-autoplay.
 - `lib/tour/tour_target_keys.dart` - מזהי `GlobalKey` לאלמנטים שמסומנים בחלון השקוף.
 - `lib/tour/view/tour_overlay_screen.dart` - ציור ה-overlay, מיקום הכרטיס וחישוב rects.
@@ -18,7 +19,9 @@
 3. הוסף `TourStep` במקום המתאים ב-`TourSteps.build`.
 4. טפל בפעולה החדשה ב-`_handleTourStepChanged`.
 5. חבר `GlobalKey` או resolver אם צריך spotlight מדויק.
-6. עדכן או הוסף בדיקות ב-`test/tour/tour_cubit_test.dart`.
+6. הוסף את הכותרת ואת הגוף ל-`lib/settings/l10n/settings_en.arb` והרץ
+   `dart run tool/generate_settings_l10n.dart`. ראו "תרגום" למטה.
+7. עדכן או הוסף בדיקות ב-`test/tour/tour_cubit_test.dart`.
 
 ```dart
 const TourStep(
@@ -31,6 +34,30 @@ const TourStep(
 ```
 
 `id` חייב להיות יציב וייחודי. הוא משמש למעבר בין שלבים, בדיקות, resolver-ים ונקודות טיפול מיוחדות.
+
+## תרגום
+
+הסיור מוצג גם באנגלית. **הטקסט העברי הוא מפתח התרגום** — הכרטיסים מתרגמים
+אותו בעת הציור, והתרגום עצמו יושב ב-`lib/settings/l10n/settings_en.arb`.
+לכן כותרת או גוף חדשים חייבים ערך ב-ARB, ואחריו הרצת המחולל:
+
+```bash
+dart run tool/generate_settings_l10n.dart
+```
+
+הטקסט מגיע לכרטיס דרך `step.title` / `step.body`, כלומר דרך משתנה — והסורק
+של הולידציה רואה רק מחרוזות קבועות. הכיסוי נשמר לכן על ידי
+`test/settings/l10n/settings_variable_labels_test.dart`, שבונה את השלבים
+בפועל ונכשל על כותרת או גוף בלי תרגום. אין צורך לעדכן אותו בהוספת שלב.
+
+**הגוף חייב להישאר מחרוזת קבועה**, אחרת אין לו מפתח. ערך משתנה נמסר
+כ-placeholder: קיצור מקלדת דרך `shortcut:` שממלא את `{shortcut}` (הקיצור
+נפתר בעת הציור ב-`tour_shortcuts.dart`, כדי שתוויות הניווט שבתוכו יתורגמו
+גם הן).
+
+תווית ממשק שמצוטטת בתוך הטקסט ואינה מתורגמת בעצמה (למשל פריט בתפריט
+הימני) נשארת עברית גם בתרגום האנגלי — המשתמש צריך למצוא על המסך בדיוק את
+מה שכתוב בכרטיס. חץ מסלול `←` מתהפך ל-`→` בתרגום.
 
 ## סוגי שלבים
 

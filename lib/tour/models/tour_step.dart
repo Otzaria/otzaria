@@ -25,6 +25,21 @@ enum TourSpotlightArea {
   emptyLibrary,
 }
 
+/// קיצור המקלדת שממלא את ה-placeholder `{shortcut}` שב-[TourStep.body].
+/// הקיצור נפתר בעת הציור ולא בעת בניית השלב, כדי ש-[TourStep.body] יישאר
+/// מחרוזת קבועה — כלומר מפתח תרגום.
+enum TourShortcutHint {
+  none,
+
+  /// כל שש תוויות הניווט, כל אחת עם הקיצור שלה.
+  mainNavigation,
+  findRef,
+  reading,
+  search,
+  tools,
+  settings,
+}
+
 enum TourStepAction {
   none,
   openLibrary,
@@ -45,6 +60,7 @@ class TourStep extends Equatable {
   final TourSpotlightArea area;
   final TourStepAction action;
   final bool isDialog;
+  final TourShortcutHint shortcut;
 
   const TourStep({
     required this.id,
@@ -53,8 +69,17 @@ class TourStep extends Equatable {
     required this.area,
     this.action = TourStepAction.none,
     this.isDialog = false,
+    this.shortcut = TourShortcutHint.none,
   });
 
   @override
-  List<Object?> get props => [id, title, body, area, action, isDialog];
+  List<Object?> get props => [
+    id,
+    title,
+    body,
+    area,
+    action,
+    isDialog,
+    shortcut,
+  ];
 }

@@ -152,6 +152,7 @@ class _TourOverlayScreenState extends State<TourOverlayScreen> {
                 key: ValueKey(step.id),
                 title: step.title,
                 body: step.body,
+                shortcut: step.shortcut,
                 currentIndex: state.progressIndex,
                 totalSteps: state.progressSteps.length,
                 isLastStep: state.isLastStep,

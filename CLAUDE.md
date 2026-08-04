@@ -431,7 +431,10 @@ flutter test test/settings/l10n/
    showDialog(context: context, builder: settingsDialogBuilder(context, (_) => const MyDialog()));
    ```
 
-Strings outside `lib/settings/` are Hebrew-only by design — do **not** wrap them. The exceptions already wired to the catalog are the fixed navigation rail and the title-bar screen names (`lib/navigation/`), because the settings screen is reached from them.
+Strings outside `lib/settings/` are Hebrew-only by design — do **not** wrap them. Two areas are the exception and **do** go through the same catalog:
+
+- **`lib/navigation/`** — the fixed navigation rail and the title-bar screen names, because the settings screen is reached from them.
+- **`lib/tour/`** — the guided tour and the live tips. **Every new tour step title/body and every live-tip title/description needs an ARB entry**, same as a settings string; see `docs/guided_tour_developer_guide.md`. Two rules specific to the tour: a step's `body` must stay a plain string literal (a variable value goes in as a placeholder — a keyboard shortcut via `shortcut:` filling `{shortcut}`), and coverage is guarded by `test/settings/l10n/settings_variable_labels_test.dart`, which builds the steps for real, so a step with no translation fails there rather than rendering Hebrew.
 
 ## Code Guidelines
 
@@ -821,6 +824,7 @@ if (Platform.isAndroid || Platform.isIOS) {
 15. **Pre-commit trinity** - `analyze` + `test` + `format` = mandatory
 16. **Minimal comments** - Few comments, max 2 lines each, for the first-time reader only (explain *why* / prevent regressions) — never document history. Fix violating comments you encounter
 17. **Settings screen text** - Every user-visible string under `lib/settings/` goes through `context.settingsText('<Hebrew>')`, with the Hebrew as the key and the English in `settings_en.arb`; run `dart run tool/generate_settings_l10n.dart` after any change
+18. **Guided tour text** - Same rule for `lib/tour/`: every step title/body and live-tip title/description needs a `settings_en.arb` entry, and a step's `body` stays a literal (variables go in as placeholders)
 
 ### Common Mistakes to Avoid
 - Fixing a bug by adding code instead of finding and removing the root cause

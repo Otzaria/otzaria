@@ -1,11 +1,13 @@
 // לתחזוקת כרטיסי טיפים חיים ראו: docs/guided_tour_developer_guide.md
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 class LiveTipCard extends StatelessWidget {
+  /// הטקסט העברי, שהוא גם מפתח התרגום.
   final String title;
   final String description;
   final VoidCallback onDismiss;
@@ -42,7 +44,7 @@ class LiveTipCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    title,
+                    context.settingsText(title),
                     style: textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -51,13 +53,13 @@ class LiveTipCard extends StatelessWidget {
                 IconButton(
                   onPressed: onDismiss,
                   icon: const Icon(FluentIcons.dismiss_24_regular),
-                  tooltip: 'סגור',
+                  tooltip: context.settingsText('סגור'),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             Text(
-              description,
+              context.settingsText(description),
               style: textTheme.bodyMedium,
             ),
             const SizedBox(height: 14),
@@ -65,7 +67,7 @@ class LiveTipCard extends StatelessWidget {
               alignment: AlignmentDirectional.centerStart,
               child: ActionButton.neutral(
                 icon: FluentIcons.checkmark_24_regular,
-                text: 'הבנתי',
+                text: context.settingsText('הבנתי'),
                 onPressed: onDismiss,
               ),
             ),

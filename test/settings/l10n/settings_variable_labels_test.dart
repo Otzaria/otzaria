@@ -8,6 +8,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/tabs/about_settings_data.dart';
 import 'package:otzaria/theme/app_seed_colors.dart';
+import 'package:otzaria/tour/models/live_tip.dart';
+import 'package:otzaria/tour/models/tour_step.dart';
+import 'package:otzaria/tour/models/tour_steps.dart';
 
 import '../../../tool/src/settings_l10n_generator.dart';
 
@@ -80,6 +83,60 @@ void main() {
       ).allMatches(block!.group(1)!).map((m) => m.group(1)!).toList();
       expect(labels, navLabels);
     });
+  });
+
+  group('הסיור המודרך', () {
+    // הכרטיסים מקבלים את הטקסט מתוך TourStep / LiveTipSpec, ולכן הסורק אינו
+    // רואה אותו. השלבים נבנים כאן בפועל, כך שגם שלב חדש וגם שינוי נוסח
+    // בשלב קיים נתפסים.
+    final steps = [
+      ...TourSteps.build(libraryLoaded: true),
+      ...TourSteps.build(libraryLoaded: false),
+      ...TourSteps.build(libraryLoaded: true, isRestart: true),
+      ...TourSteps.build(libraryLoaded: false, isRestart: true),
+    ];
+
+    test('נבנו שלבים לכל הגלגולים', () {
+      expect(steps, isNotEmpty);
+    });
+
+    for (final id in steps.map((step) => step.id).toSet()) {
+      final step = steps.firstWhere((step) => step.id == id);
+      test('[$id] הכותרת והגוף מתורגמים', () {
+        for (final text
+            in steps
+                .where((other) => other.id == id)
+                .expand((other) => [other.title, other.body])
+                .toSet()) {
+          expect(catalog, contains(text), reason: '"$text"');
+        }
+      });
+
+      test('[$id] הגוף מכיל {shortcut} רק כשיש קיצור', () {
+        final hasPlaceholder = step.body.contains('{shortcut}');
+        expect(
+          hasPlaceholder,
+          step.shortcut != TourShortcutHint.none,
+          reason: hasPlaceholder
+              ? 'יש placeholder בלי קיצור — יוצג "{shortcut}" למשתמש'
+              : 'יש קיצור בלי placeholder — הקיצור לא יוצג',
+        );
+        if (hasPlaceholder) {
+          expect(
+            catalog[step.body],
+            contains('{shortcut}'),
+            reason: 'התרגום איבד את ה-placeholder',
+          );
+        }
+      });
+    }
+
+    for (final tip in liveTipSpecs) {
+      test('[${tip.id.name}] הטיפ מתורגם', () {
+        expect(catalog, contains(tip.title), reason: tip.title);
+        expect(catalog, contains(tip.description), reason: tip.description);
+      });
+    }
   });
 
   group('אורך תוויות בפקד סגמנטד', () {
