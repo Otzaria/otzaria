@@ -74,7 +74,7 @@ String buildSelectedLinkInstanceKey(Link link) {
 String buildSelectedLinkTargetKey(Link link) {
   final target =
       '${link.targetIsUserBook ? 'u' : 'o'}_${link.targetCategoryId ?? ''}';
-  return '${link.path2}_${link.index2}_${link.index2End ?? ''}_${link.start}_${link.end}_${link.connectionType}_$target';
+  return '${link.path2}_${link.index2}_${link.index2End ?? ''}_${link.start}_${link.end}_${link.connectionType}_${link.targetFileType ?? ''}_$target';
 }
 
 /// מסיר קישורים כפולים לאותו קטע-יעד. הקטע המוצג פורש כמה שורות מקור, ואותו
