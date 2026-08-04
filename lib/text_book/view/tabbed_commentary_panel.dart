@@ -20,6 +20,11 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 
+/// אינדקסי הלשוניות ב-[TabbedCommentaryPanel]
+const int kCommentaryTabIndex = 0;
+const int kLinksTabIndex = 1;
+const int kNotesTabIndex = 2;
+
 /// Widget שמציג כרטיסיות עם מפרשים וקישורים בחלונית הצד
 class TabbedCommentaryPanel extends StatefulWidget {
   final Function(OpenedTab) openBookCallback;
@@ -39,6 +44,10 @@ class TabbedCommentaryPanel extends StatefulWidget {
   /// שנחתה בהערה, כדי שיודגש כשהחלונית נפתחת אוטומטית.
   final ValueListenable<String>? highlightQueryListenable;
 
+  /// ניווט לשורה מתוך לשונית ההערות. כשהוא null נעשה ניווט ישיר ב-scrollController.
+  /// צורת הדף מספקת מימוש משלה, שממיר שורת מקור לסגמנט קריאה רציפה.
+  final ValueChanged<int>? onNavigateToLine;
+
   const TabbedCommentaryPanel({
     super.key,
     required this.openBookCallback,
@@ -54,6 +63,7 @@ class TabbedCommentaryPanel extends StatefulWidget {
     this.closeCommentatorsFilterNotifier,
     this.tab,
     this.highlightQueryListenable,
+    this.onNavigateToLine,
   });
 
   @override
@@ -236,8 +246,9 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                   PersonalNotesSidebar(
                     bookId: state.book.title,
                     categoryId: state.book.categoryId,
-                    onNavigateToLine: (line) =>
-                        _handleNoteNavigation(context, state, line),
+                    onNavigateToLine: (line) => widget.onNavigateToLine != null
+                        ? widget.onNavigateToLine!(line)
+                        : _handleNoteNavigation(context, state, line),
                   ),
                 ],
               ),

@@ -10,7 +10,7 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
-import 'package:otzaria/text_book/view/page_shape/links_notes_sidebar.dart';
+import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
@@ -59,9 +59,8 @@ const double _kCommentaryPaneWidthFactor = 0.17;
 /// רוחב הכותרת האנכית + רווחים + מפריד (20 לכותרת + 4 לרווח + 8 למפריד)
 const double _kCommentaryLabelAndSpacingWidth = 32.0;
 
-/// אינדקס לשונית "קישורים" ב-[LinksNotesSidebar] (0 = קישורים, 1 = הערות)
-const int _kLinksTabIndex = 0;
-const int _kNotesTabIndex = 1;
+/// מספר הלשוניות בחלונית הצד (מפרשים / קישורים / הערות)
+const int _kSidebarTabCount = 3;
 
 /// מסך תצוגת צורת הדף - מציג את הטקסט המרכזי עם מפרשים מסביב
 class PageShapeScreen extends StatefulWidget {
@@ -104,6 +103,10 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
   int _settingsPaneKey = 0;
   final SelectionSyncController _selectionSyncController =
       SelectionSyncController();
+  final ValueNotifier<int> _openFilterRequest = ValueNotifier<int>(0);
+  final ValueNotifier<int> _openCommentatorsFilterNotifier = ValueNotifier<int>(
+    0,
+  );
 
   // גדלים לחלוניות - יחושבו לפי גודל המסך
   double? _leftSidebarWidth;
@@ -671,7 +674,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
   }
 
   void _openLeftSidebarTab(int index) {
-    final validIndex = index.clamp(0, 1);
+    final validIndex = index.clamp(0, _kSidebarTabCount - 1);
     if (_isLeftSidebarOpen && _leftSidebarTabIndex == validIndex) {
       return;
     }
@@ -713,19 +716,32 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
     widget.sidebarTabNotifier?.value = null;
   }
 
-  /// טוגל חלונית הצד (קישורים/הערות) מקיצור Ctrl+Shift+C:
-  /// סגורה או פתוחה על "הערות" → פתח על "קישורים".
-  /// פתוחה על "קישורים" → סגור.
+  /// טוגל חלונית הצד מקיצור Ctrl+Shift+C:
+  /// סגורה או פתוחה על לשונית אחרת → פתח על "מפרשים".
+  /// פתוחה על "מפרשים" → סגור.
   void _onToggleCommentatorsPaneRequest() {
     if (!mounted) return;
     _reanchorMainText();
     setState(() {
-      if (_isLeftSidebarOpen && _leftSidebarTabIndex == _kLinksTabIndex) {
+      if (_isLeftSidebarOpen && _leftSidebarTabIndex == kCommentaryTabIndex) {
         _isLeftSidebarOpen = false;
       } else {
         _isLeftSidebarOpen = true;
-        _leftSidebarTabIndex = _kLinksTabIndex;
+        _leftSidebarTabIndex = kCommentaryTabIndex;
       }
+    });
+  }
+
+  /// פתיחת חלונית הצד על לשונית המפרשים (מתפריט ההקשר של גוף הספר).
+  void _openCommentatorsPane() => _openLeftSidebarTab(kCommentaryTabIndex);
+
+  /// פתיחת לשונית המפרשים עם חלונית בחירת המפרשים פרושה.
+  void _openCommentatorsPaneWithFilter() {
+    _openLeftSidebarTab(kCommentaryTabIndex);
+    _openCommentatorsFilterNotifier.value++;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _openFilterRequest.value++;
     });
   }
 
@@ -795,6 +811,8 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
       _onToggleCommentatorsPaneRequest,
     );
     _selectionSyncController.dispose();
+    _openFilterRequest.dispose();
+    _openCommentatorsFilterNotifier.dispose();
     super.dispose();
   }
 
@@ -841,7 +859,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
             final textBookState = context.read<TextBookBloc>().state;
             if (textBookState is! TextBookLoaded) return;
             if (state.newNoteBookId != textBookState.book.title) return;
-            _openLeftSidebarTab(1);
+            _openLeftSidebarTab(kNotesTabIndex);
           },
         ),
       ],
@@ -882,12 +900,15 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                           _leftSidebarWidth = width;
                         },
                         onPaneResizeEnd: _saveSizes,
-                        paneContent: LinksNotesSidebar(
-                          bookId: state.book.title,
-                          categoryId: state.book.categoryId,
+                        paneContent: TabbedCommentaryPanel(
                           openBookCallback: widget.openBookCallback,
                           fontSize: state.fontSize,
+                          showSearch: true,
                           selectionSyncController: _selectionSyncController,
+                          openFilterRequest: _openFilterRequest,
+                          openCommentatorsFilterNotifier:
+                              _openCommentatorsFilterNotifier,
+                          tab: widget.tab,
                           onNavigateToLine: (lineNumber) =>
                               _navigateToLine(state, lineNumber),
                           onClosePane: _toggleLeftSidebar,
@@ -1046,7 +1067,15 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                   isPersonalNotesTabActive:
                                                       _isLeftSidebarOpen &&
                                                       _leftSidebarTabIndex ==
-                                                          _kNotesTabIndex,
+                                                          kNotesTabIndex,
+                                                  isCommentatorsTabActive:
+                                                      _isLeftSidebarOpen &&
+                                                      _leftSidebarTabIndex ==
+                                                          kCommentaryTabIndex,
+                                                  onOpenCommentatorsPane:
+                                                      _openCommentatorsPane,
+                                                  onOpenCommentatorsPaneWithFilter:
+                                                      _openCommentatorsPaneWithFilter,
                                                   tab: widget.tab,
                                                   labelForIndex:
                                                       state
@@ -1414,7 +1443,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                 left: 0,
                                 top: MediaQuery.of(context).size.height * 0.10,
                                 child: PanelOpenHandle(
-                                  onTap: () => _openLeftSidebarTab(0),
+                                  onTap: _openCommentatorsPane,
                                 ),
                               ),
                           ],

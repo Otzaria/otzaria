@@ -45,6 +45,7 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/printing/word_export_service.dart';
+import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria/text_book/view/text_book_scaffold.dart';
 import 'package:otzaria/text_book/view/text_book_search_screen.dart';
 import 'package:otzaria/text_book/view/toc_navigator_screen.dart';
@@ -1016,7 +1017,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   void _openPersonalNotesForCurrentView(TextBookLoaded state) {
     if (state.showPageShapeView) {
-      _pageShapeSidebarTabNotifier.value = 1;
+      _pageShapeSidebarTabNotifier.value = kNotesTabIndex;
       return;
     }
 

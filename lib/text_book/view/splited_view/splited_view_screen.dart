@@ -51,10 +51,9 @@ class SplitedViewScreen extends StatefulWidget {
 }
 
 class _SplitedViewScreenState extends State<SplitedViewScreen> {
-  // קבועים לאינדקסים של הטאבים
-  static const int _commentaryTabIndex = 0;
-  static const int _linksTabIndex = 1;
-  static const int _notesTabIndex = 2;
+  static const int _commentaryTabIndex = kCommentaryTabIndex;
+  static const int _linksTabIndex = kLinksTabIndex;
+  static const int _notesTabIndex = kNotesTabIndex;
 
   late final MultiSplitViewController _controller;
   bool _paneOpen = false;
@@ -449,7 +448,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                         onOpenPersonalNotes: () {
                           setState(() {
                             _paneOpen = true;
-                            _currentTabIndex = 2;
+                            _currentTabIndex = _notesTabIndex;
                           });
                         },
                         onOpenCommentatorsPane: () {
@@ -460,14 +459,14 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                             if (!mounted) return;
                             _closeCommentatorsFilterNotifier.value++;
                             setState(() {
-                              _currentTabIndex = 0;
+                              _currentTabIndex = _commentaryTabIndex;
                             });
                           });
                         },
                         onOpenCommentatorsPaneWithFilter: () {
                           setState(() {
                             _paneOpen = true;
-                            _currentTabIndex = 0;
+                            _currentTabIndex = _commentaryTabIndex;
                           });
                           _openCommentatorsFilterNotifier.value++;
                           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -482,7 +481,8 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                           });
                         },
                         isCommentatorsTabActive: () =>
-                            _paneOpen && _currentTabIndex == 0,
+                            _paneOpen &&
+                            _currentTabIndex == _commentaryTabIndex,
                         isLinksTabActive: () =>
                             _paneOpen && _currentTabIndex == _linksTabIndex,
                         isPersonalNotesTabActive: () =>
