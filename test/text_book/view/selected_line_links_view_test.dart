@@ -270,6 +270,7 @@ void main() {
       int index2 = 372,
       String type = 'reference',
       int? index2End,
+      String? targetFileType,
     }) => Link(
       heRef: 'הפניה',
       index1: index1,
@@ -277,6 +278,7 @@ void main() {
       index2: index2,
       index2End: index2End,
       connectionType: type,
+      targetFileType: targetFileType,
     );
 
     test('אותו קטע-יעד מכמה שורות מקור ממוזג לפריט אחד', () {
@@ -312,6 +314,15 @@ void main() {
       final deduped = dedupeLinksByTarget([
         linkTo(title: 'ראשונים א'),
         linkTo(title: 'ראשונים א', index2End: 375),
+      ]);
+
+      expect(deduped, hasLength(2));
+    });
+
+    test('מהדורות שונות של אותו קטע נשארות בנפרד', () {
+      final deduped = dedupeLinksByTarget([
+        linkTo(title: 'ראשונים א', targetFileType: 'txt'),
+        linkTo(title: 'ראשונים א', targetFileType: 'pdf'),
       ]);
 
       expect(deduped, hasLength(2));
