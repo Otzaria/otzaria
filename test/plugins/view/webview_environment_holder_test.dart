@@ -1,8 +1,3 @@
-// בדיקות ל-WebViewEnvironmentHolder.isRuntimeAvailable — נקודת ההחלטה
-// המשותפת לכל המסלולים שמחליטים אם לבנות WebView2 (טאב תוסף, host רקע,
-// pre-warm). הבדיקות מאמתות את ה-override hook שדרכו שאר המסלולים נשלטים
-// בטסטים, שכן הקריאה האמיתית תלויה ב-platform channel שאינו זמין בטסט.
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/view/webview_environment_holder.dart';
 
@@ -32,6 +27,24 @@ void main() {
         WebViewEnvironmentHolder.isRuntimeAvailable(),
         completes,
       );
+    });
+  });
+
+  group('WebViewEnvironmentHolder environment settings', () {
+    test('uses the requested user data folder', () {
+      final settings = WebViewEnvironmentHolder.debugEnvironmentSettings(
+        r'C:\app-data\webview2',
+      );
+
+      expect(settings.userDataFolder, r'C:\app-data\webview2');
+    });
+
+    test('requires exclusive access to the user data folder', () {
+      final settings = WebViewEnvironmentHolder.debugEnvironmentSettings(
+        r'C:\app-data\webview2',
+      );
+
+      expect(settings.exclusiveUserDataFolderAccess, isTrue);
     });
   });
 }

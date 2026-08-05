@@ -98,8 +98,10 @@ class WebViewEnvironmentHolder {
       // ובלעדיו 0%. מסלול מגע סינתטי נבחן ונפסל — סף תחילת-מחווה של ~34px
       // ב-WebView2 הורג מיקרו-גלילות. מדידות:
       // integration_test/webview_scroll_smoothness_probe_test.dart.
+      // מונע ממופע אחר לשתף את תהליך הדפדפן שמחזיק בתיקייה; במקרה של
+      // התנגשות WebView2 דוחה את יצירת ה-controller והכשל נרשם בדיאגנוסטיקה.
       _environment = await WebViewEnvironment.create(
-        settings: WebViewEnvironmentSettings(userDataFolder: webviewDataFolder),
+        settings: _environmentSettings(webviewDataFolder),
       );
     } catch (error, stackTrace) {
       // כשל כאן = כל התוספים יעלו ריקים; בלי הרישום אין לזה שום עקבות.
@@ -117,6 +119,18 @@ class WebViewEnvironmentHolder {
       _initializeFuture = null;
     }
   }
+
+  @visibleForTesting
+  static WebViewEnvironmentSettings debugEnvironmentSettings(
+    String userDataFolder,
+  ) => _environmentSettings(userDataFolder);
+
+  static WebViewEnvironmentSettings _environmentSettings(
+    String userDataFolder,
+  ) => WebViewEnvironmentSettings(
+    userDataFolder: userDataFolder,
+    exclusiveUserDataFolderAccess: true,
+  );
 
   /// Disposes the current Windows WebView environment after the old widget
   /// tree has been torn down during an in-process app restart.
