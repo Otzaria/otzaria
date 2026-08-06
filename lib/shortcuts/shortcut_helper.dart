@@ -72,7 +72,18 @@ class ShortcutHelper {
     final metaPressed =
         isMetaPressed ?? HardwareKeyboard.instance.isMetaPressed;
 
-    if (requiresCtrl != null && requiresCtrl != controlPressed) {
+    // AltGr: בפריסות לא-לטיניות (עברית, רוסית ועוד) מקש Alt הימני הוא AltGr,
+    // ו-Windows/Linux מדווחים עליו כ-Ctrl+Alt יחד. בלי ההתאמה הזו כל קיצור
+    // עם `alt` ובלי `ctrl` נשבר למי שלוחץ על Alt הימני — כולל קיצורי הניווט
+    // המוגדרים כברירת מחדל (`alt+arrowup/down`, `alt+pageup/down`).
+    //
+    // ההקלה צרה בכוונה: היא חלה רק כשהקיצור דורש `alt`, אינו דורש `ctrl`,
+    // ובפועל שני המקשים לחוצים — כלומר בדיוק חתימת AltGr.
+    final ctrlFromAltGr =
+        requiresAlt && !hasCtrlToken && controlPressed && altPressed;
+    final effectiveControlPressed = ctrlFromAltGr ? false : controlPressed;
+
+    if (requiresCtrl != null && requiresCtrl != effectiveControlPressed) {
       return false;
     }
     if (requiresShift != shiftPressed) {
