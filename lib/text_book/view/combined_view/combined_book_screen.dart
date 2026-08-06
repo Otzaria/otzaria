@@ -457,6 +457,19 @@ class _CombinedViewState extends State<CombinedView> {
     }
     LinkPreviewOverlay.cancelScheduledHide();
     _cancelPendingAnchorHover();
+
+    // הסמן שחלוניתו מוצגת מסומן כ"פעיל", והסימון מרנדר מחדש את השורה.
+    // הרינדור מחליף את ה-TextSpan ואת ה-MouseRegion שבתוכו, ולכן פלאטר
+    // מדווח onExit ואחריו onEnter למרות שהעכבר לא זז — מה שסוגר את החלונית
+    // ופותח אותה מחדש, ונראה כהבהוב. כניסה חוזרת לאותו סמן אינה כוונת
+    // משתמש אלא תוצר של הרינדור, ודי בביטול הסגירה המתוזמנת שנעשה למעלה.
+    final reentered = _anchorLinkFromUrl(url);
+    if (reentered != null &&
+        reentered.line == _activeAnchorLine &&
+        reentered.index == _activeAnchorIndex) {
+      return;
+    }
+
     final previewLink = _previewLinkFromUrl(url);
     if (previewLink != null) prefetchLinkPreview(previewLink);
     _anchorHoverTimer = Timer(const Duration(milliseconds: 280), () {
