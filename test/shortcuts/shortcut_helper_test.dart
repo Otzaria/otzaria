@@ -14,6 +14,81 @@ void main() {
   tearDown(() => ShortcutHelper.isMacForTesting = null);
 
   group('ShortcutHelper.matchesShortcut', () {
+    group('AltGr (Alt ימני בפריסה לא-לטינית) מדווח כ-Ctrl+Alt', () {
+      final arrowUp = KeyDownEvent(
+        physicalKey: PhysicalKeyboardKey.arrowUp,
+        logicalKey: LogicalKeyboardKey.arrowUp,
+        timeStamp: Duration.zero,
+      );
+
+      test('קיצור alt בלבד מותאם גם כשה-Ctrl מגיע מ-AltGr', () {
+        expect(
+          ShortcutHelper.matchesShortcut(
+            arrowUp,
+            'alt+arrowup',
+            isAltPressed: true,
+            isControlPressed: true,
+            isShiftPressed: false,
+            isMetaPressed: false,
+          ),
+          isTrue,
+        );
+      });
+
+      test('קיצור alt בלבד ממשיך להיות מותאם ללחיצת Alt רגילה', () {
+        expect(
+          ShortcutHelper.matchesShortcut(
+            arrowUp,
+            'alt+arrowup',
+            isAltPressed: true,
+            isControlPressed: false,
+            isShiftPressed: false,
+            isMetaPressed: false,
+          ),
+          isTrue,
+        );
+      });
+
+      test('Ctrl בלי Alt אינו נחשב AltGr ואינו מותאם לקיצור alt', () {
+        expect(
+          ShortcutHelper.matchesShortcut(
+            arrowUp,
+            'alt+arrowup',
+            isAltPressed: false,
+            isControlPressed: true,
+            isShiftPressed: false,
+            isMetaPressed: false,
+          ),
+          isFalse,
+        );
+      });
+
+      test('קיצור שדורש ctrl במפורש אינו מושפע מההקלה', () {
+        expect(
+          ShortcutHelper.matchesShortcut(
+            arrowUp,
+            'ctrl+arrowup',
+            isAltPressed: false,
+            isControlPressed: true,
+            isShiftPressed: false,
+            isMetaPressed: false,
+          ),
+          isTrue,
+        );
+        expect(
+          ShortcutHelper.matchesShortcut(
+            arrowUp,
+            'ctrl+arrowup',
+            isAltPressed: true,
+            isControlPressed: false,
+            isShiftPressed: false,
+            isMetaPressed: false,
+          ),
+          isFalse,
+        );
+      });
+    });
+
     test('מזהה meta רק כש-meta לחוץ', () {
       final event = KeyDownEvent(
         physicalKey: PhysicalKeyboardKey.keyV,
