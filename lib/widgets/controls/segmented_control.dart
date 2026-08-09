@@ -18,12 +18,16 @@ class SegmentOption<T> {
   /// [SettingsActionTile.segmentedTile] כשלא סופק subtitle מפורש.
   final String? subtitle;
 
+  /// הסבר שמוצג בריחוף — למקטעים שהתווית הקצרה שלהם אינה מספיקה.
+  final String? tooltip;
+
   const SegmentOption({
     required this.value,
     required this.label,
     this.icon,
     this.rtlIcon,
     this.subtitle,
+    this.tooltip,
   }) : assert(
          icon == null || rtlIcon == null,
          'העבר icon או rtlIcon — לא שניהם יחד',
@@ -78,6 +82,7 @@ class AppSegmentedControl<T> extends StatelessWidget {
               ),
             ),
             icon: hasIcons ? _buildOptionIcon(o) : null,
+            tooltip: o.tooltip,
           ),
         )
         .toList();

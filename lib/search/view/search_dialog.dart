@@ -32,6 +32,7 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/layout/edge_scrollbar_behavior.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
@@ -873,94 +874,51 @@ class _SearchDialogState extends State<SearchDialog> {
     );
   }
 
-  /// בורר מצב החיפוש — שלושה מקטעים ברוחב מלא, עם שורת תיאור קצרה
-  /// של המצב הנבחר מתחתיהם.
+  /// בורר מצב החיפוש — פקד הסגמנטים המשותף של אוצריא, עם שורת תיאור
+  /// קצרה של המצב הנבחר מתחתיו.
   Widget _buildModeSelector(BuildContext context, SearchState state) {
     final colorScheme = Theme.of(context).colorScheme;
     final currentMode = state.configuration.searchMode;
 
-    Widget buildSegment(IconData icon, SearchMode mode) {
-      final isSelected = currentMode == mode;
-      final foreground = isSelected
-          ? colorScheme.onSecondaryContainer
-          : colorScheme.onSurfaceVariant;
-      return Expanded(
-        child: Tooltip(
-          message: mode.tooltip,
-          waitDuration: const Duration(milliseconds: 400),
-          child: InkWell(
-            onTap: () {
-              final oldMode =
-                  _searchTab.searchBloc.state.configuration.searchMode;
-              _searchTab.searchBloc.add(
-                !_usesStagedSubmit
-                    ? SetSearchMode(mode)
-                    : SetSearchModeWithoutSearch(mode),
-              );
-              _swapGlobalOptionsForModeChange(oldMode, mode);
-              _searchTab.searchFieldFocusNode.requestFocus();
-            },
-            borderRadius: AppTokens.borderRadiusAll,
-            child: AnimatedContainer(
-              duration: AppTokens.animFast,
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? colorScheme.secondaryContainer
-                    : colorScheme.surfaceContainerHigh,
-                borderRadius: AppTokens.borderRadiusAll,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, size: 18, color: foreground),
-                  const SizedBox(width: 6),
-                  Text(
-                    mode.shortLabel,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: isSelected
-                          ? FontWeight.w600
-                          : FontWeight.w400,
-                      color: foreground,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Material(
-          color: colorScheme.surfaceContainerHigh,
-          borderRadius: AppTokens.borderRadiusAll,
-          clipBehavior: Clip.antiAlias,
-          child: Padding(
-            padding: const EdgeInsets.all(4),
-            child: SizedBox(
-              height: 36,
-              child: Row(
-                children: [
-                  buildSegment(
-                    FluentIcons.text_quote_24_regular,
-                    SearchMode.exact,
-                  ),
-                  buildSegment(
-                    FluentIcons.search_info_24_regular,
-                    SearchMode.advanced,
-                  ),
-                  buildSegment(
-                    FluentIcons.arrow_bidirectional_left_right_24_regular,
-                    SearchMode.fuzzy,
-                  ),
-                ],
-              ),
+        AppSegmentedControl<SearchMode>(
+          currentValue: currentMode,
+          expandToFillWidth: true,
+          showSelectedIcon: false,
+          height: 40,
+          options: [
+            SegmentOption(
+              value: SearchMode.exact,
+              label: SearchMode.exact.shortLabel,
+              icon: FluentIcons.text_quote_24_regular,
+              tooltip: SearchMode.exact.tooltip,
             ),
-          ),
+            SegmentOption(
+              value: SearchMode.advanced,
+              label: SearchMode.advanced.shortLabel,
+              icon: FluentIcons.search_info_24_regular,
+              tooltip: SearchMode.advanced.tooltip,
+            ),
+            SegmentOption(
+              value: SearchMode.fuzzy,
+              label: SearchMode.fuzzy.shortLabel,
+              icon: FluentIcons.arrow_bidirectional_left_right_24_regular,
+              tooltip: SearchMode.fuzzy.tooltip,
+            ),
+          ],
+          onChanged: (mode) {
+            final oldMode =
+                _searchTab.searchBloc.state.configuration.searchMode;
+            _searchTab.searchBloc.add(
+              !_usesStagedSubmit
+                  ? SetSearchMode(mode)
+                  : SetSearchModeWithoutSearch(mode),
+            );
+            _swapGlobalOptionsForModeChange(oldMode, mode);
+            _searchTab.searchFieldFocusNode.requestFocus();
+          },
         ),
         const SizedBox(height: 6),
         Text(
