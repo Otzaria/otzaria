@@ -799,6 +799,19 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
       if (n.facet.startsWith('$folderFacet/')) n,
   ];
 
+  /// סימון/ביטול של קבוצת ספרים כיחידה אחת.
+  void _toggleBooks(List<BookScopeNode> books, bool select) {
+    final tree = widget.tree;
+    if (tree == null || books.isEmpty) return;
+    var next = _categoryPart;
+    for (final book in books) {
+      next = select
+          ? tree.selectFacet(book.facet, next)
+          : tree.deselectFacet(book.facet, next);
+    }
+    _setCategorySelection(next);
+  }
+
   // ── ניווט drill-down ─────────────────────────────────────────────────────
 
   void _drillInto(ScopeNode node) {
@@ -933,6 +946,27 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
     );
   }
 
+  /// שורת תיקיה בתצוגת "ספרי יסוד". הסימון נוגע רק בספרי היסוד שתחתיה —
+  /// סימון התיקיה כולה היה מרחיב את החיפוש גם לספרים שאינם ספרי יסוד.
+  _MenuItem _baseFolderItem(ScopeNode node) {
+    final tree = widget.tree!;
+    final books = _baseUnder(node.facet);
+    final covered = books
+        .where((book) => tree.isFacetCovered(book.facet, _categoryPart))
+        .length;
+    return _MenuItem(
+      label: node.title,
+      icon: FluentIcons.folder_24_regular,
+      check: covered == 0
+          ? false
+          : covered == books.length
+          ? true
+          : null,
+      onToggle: (v) => _toggleBooks(books, v),
+      onDrill: () => _drillInto(node),
+    );
+  }
+
   /// רמת "כל הספרים": ילדי הרמה הנוכחית, עם קיפול שרשרת ילד-יחיד.
   List<_MenuItem> _categoryLevelItems() {
     final tree = widget.tree!;
@@ -966,7 +1000,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
       onlyBooks: _baseFacetSet,
     )) {
       final single = tree.singleBookOf(top, onlyBooks: _baseFacetSet);
-      out.add(single != null ? _bookItem(single) : _folderItem(top));
+      out.add(single != null ? _bookItem(single) : _baseFolderItem(top));
     }
     return out;
   }
