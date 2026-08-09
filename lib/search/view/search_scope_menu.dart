@@ -409,6 +409,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
               style: TextStyle(fontSize: fontSize),
               decoration: AppInputTokens.filledDecoration(
                 context,
+                height: widget.height,
                 // הרמז מתאר את המצב הנוכחי ולא את מה שמקלידים — זה מה
                 // שהמשתמש צריך לדעת כשהוא מסתכל על השורה.
                 hintText: filters.isEmpty ? 'כל הספרייה' : 'צמצום נוסף',

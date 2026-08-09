@@ -45,6 +45,9 @@ abstract class AppInputTokens {
   /// עיטור אחיד לשדות קלט משניים (מספר/טקסט קצר) — אותו מילוי ואותה
   /// פינה מעוגלת כמו שדה החיפוש, בלי מסגרת ובלי תווית פנימית.
   /// את התווית יש להציג מעל השדה ([LabeledInput]).
+  /// [height] — כשנמסר, השדה מקבל את אותן מטריקות פנימיות של שדה החיפוש:
+  /// בלי ריפוד אנכי משלו ועם אילוצי גובה לאייקונים, כדי ששני השדות ייראו
+  /// באותו גובה בדיוק כשהם יושבים באותה שורה.
   static InputDecoration filledDecoration(
     BuildContext context, {
     String? hintText,
@@ -52,6 +55,7 @@ abstract class AppInputTokens {
     Widget? prefixIcon,
     Widget? suffixIcon,
     bool enabled = true,
+    double? height,
   }) {
     // אותה פינה של שדה החיפוש (AppTokens.borderRadiusAll), כדי ששדות
     // שיושבים באותה שורה ייראו כמשפחה אחת.
@@ -66,8 +70,18 @@ abstract class AppInputTokens {
       hintStyle: hintStyle,
       prefixIcon: prefixIcon,
       suffixIcon: suffixIcon,
+      prefixIconConstraints: height == null
+          ? null
+          : BoxConstraints(minWidth: 44, minHeight: height),
+      suffixIconConstraints: height == null
+          ? null
+          : BoxConstraints(minWidth: 40, minHeight: height),
       isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      isCollapsed: false,
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: height == null ? 12 : 0,
+      ),
       border: border,
       enabledBorder: border,
       focusedBorder: border,
