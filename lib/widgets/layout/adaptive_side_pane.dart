@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/layout/edge_scrollbar_behavior.dart';
 import 'package:otzaria/widgets/layout/floating_panel.dart';
 import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
 
@@ -184,7 +185,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
         mainAxisMargin: widget.scrollbarTopMargin ?? _kWideTopGap,
       ),
       child: ScrollConfiguration(
-        behavior: _OuterEdgePaneScrollBehavior(
+        behavior: EdgeScrollbarBehavior(
           paneOnRight ? ScrollbarOrientation.right : ScrollbarOrientation.left,
         ),
         child: child,
@@ -516,42 +517,5 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
         ),
       ],
     );
-  }
-}
-
-/// התנהגות גלילה המציבה את פס הגלילה האנכי בקצה הנבחר של הפאנל במקום בקצה
-/// ה-trailing שנקבע אוטומטית לפי כיוון הטקסט. נחוץ כי ידית הגרירה לשינוי רוחב
-/// הפאנל יושבת בקצה הפנימי וחוסמת את הלחיצה על פס שנמצא באותו צד.
-///
-/// משכפלת את לוגיקת [MaterialScrollBehavior] (פס אנכי בדסקטופ בלבד) ומוסיפה
-/// רק את [scrollbarOrientation].
-class _OuterEdgePaneScrollBehavior extends MaterialScrollBehavior {
-  const _OuterEdgePaneScrollBehavior(this.orientation);
-
-  final ScrollbarOrientation orientation;
-
-  @override
-  Widget buildScrollbar(
-    BuildContext context,
-    Widget child,
-    ScrollableDetails details,
-  ) {
-    if (axisDirectionToAxis(details.direction) != Axis.vertical) {
-      return child;
-    }
-    switch (getPlatform(context)) {
-      case TargetPlatform.linux:
-      case TargetPlatform.macOS:
-      case TargetPlatform.windows:
-        return Scrollbar(
-          controller: details.controller,
-          scrollbarOrientation: orientation,
-          child: child,
-        );
-      case TargetPlatform.android:
-      case TargetPlatform.fuchsia:
-      case TargetPlatform.iOS:
-        return child;
-    }
   }
 }

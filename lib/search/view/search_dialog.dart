@@ -32,6 +32,7 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/layout/edge_scrollbar_behavior.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
@@ -1363,19 +1364,24 @@ class _SearchDialogState extends State<SearchDialog> {
                 Expanded(
                   child: BlocBuilder<SearchBloc, SearchState>(
                     builder: (context, state) {
-                      return Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          horizontalPadding,
-                          16,
-                          horizontalPadding,
-                          0,
+                      // המרווחים נמצאים בתוך הגולל ולא סביבו, כדי שפס הגלילה
+                      // יישב בקצה הדיאלוג ולא ייצבע על התוכן.
+                      return ScrollConfiguration(
+                        behavior: const EdgeScrollbarBehavior(
+                          ScrollbarOrientation.right,
                         ),
                         child: LayoutBuilder(
                           builder: (context, constraints) {
                             return SingleChildScrollView(
+                              padding: EdgeInsets.fromLTRB(
+                                horizontalPadding,
+                                16,
+                                horizontalPadding,
+                                0,
+                              ),
                               child: ConstrainedBox(
                                 constraints: BoxConstraints(
-                                  minHeight: constraints.maxHeight,
+                                  minHeight: constraints.maxHeight - 16,
                                 ),
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,

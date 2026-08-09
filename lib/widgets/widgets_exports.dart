@@ -25,6 +25,7 @@ export 'package:otzaria/widgets/controls/bar_button.dart';
 export 'package:otzaria/widgets/controls/custom_switch.dart';
 export 'package:otzaria/widgets/controls/segmented_control.dart';
 export 'package:otzaria/widgets/layout/app_card.dart';
+export 'package:otzaria/widgets/layout/edge_scrollbar_behavior.dart';
 export 'package:otzaria/widgets/layout/expandable_card.dart';
 export 'package:otzaria/widgets/misc/expanding_chevron.dart';
 export 'package:otzaria/widgets/misc/tool_ui_helpers.dart';

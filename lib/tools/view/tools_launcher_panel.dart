@@ -25,6 +25,7 @@ import 'package:otzaria/tools/tool_catalog_entry.dart';
 import 'package:otzaria/tools/tool_order.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
+import 'package:otzaria/widgets/layout/edge_scrollbar_behavior.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
@@ -626,7 +627,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
           autofocus: false,
           onKeyEvent: (_, event) => _handleKey(event, entries, columns),
           child: ScrollConfiguration(
-            behavior: const _RightScrollbarBehavior(),
+            behavior: const EdgeScrollbarBehavior(ScrollbarOrientation.right),
             child: ListView(
               controller: _gridScrollController,
               // הרווח בימין שמור לפס הגלילה, כדי שלא יעלה על הקוביות.
@@ -746,35 +747,6 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
         onTap: () => widget.onToolSelected(entry),
       ),
     );
-  }
-}
-
-/// פס הגלילה של רשת הכלים תמיד בקצה ימין, בתוך המרווח ששמור לו — כך אינו
-/// מצטייר על הקוביות ואינו מתנגש בידית שינוי הרוחב שבקצה שמאל.
-class _RightScrollbarBehavior extends MaterialScrollBehavior {
-  const _RightScrollbarBehavior();
-
-  @override
-  Widget buildScrollbar(
-    BuildContext context,
-    Widget child,
-    ScrollableDetails details,
-  ) {
-    if (axisDirectionToAxis(details.direction) != Axis.vertical) return child;
-    switch (getPlatform(context)) {
-      case TargetPlatform.linux:
-      case TargetPlatform.macOS:
-      case TargetPlatform.windows:
-        return Scrollbar(
-          controller: details.controller,
-          scrollbarOrientation: ScrollbarOrientation.right,
-          child: child,
-        );
-      case TargetPlatform.android:
-      case TargetPlatform.fuchsia:
-      case TargetPlatform.iOS:
-        return child;
-    }
   }
 }
 

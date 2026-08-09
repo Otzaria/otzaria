@@ -36,10 +36,10 @@ abstract class AppInputTokens {
       isCompact ? compactFontSize : regularFontSize;
 
   /// עיטור אחיד לשדות קלט משניים (מספר/טקסט קצר) — אותו מילוי ואותה
-  /// פינה מעוגלת כמו שדה החיפוש, עם תווית פנימית במקום מסגרת.
+  /// פינה מעוגלת כמו שדה החיפוש, בלי מסגרת ובלי תווית פנימית.
+  /// את התווית יש להציג מעל השדה ([LabeledInput]).
   static InputDecoration filledDecoration(
     BuildContext context, {
-    String? labelText,
     String? hintText,
     Widget? prefixIcon,
     Widget? suffixIcon,
@@ -55,12 +55,11 @@ abstract class AppInputTokens {
       fillColor: cs.onSurface.withValues(
         alpha: enabled ? unfocusedAlpha : disabledAlpha,
       ),
-      labelText: labelText,
       hintText: hintText,
       prefixIcon: prefixIcon,
       suffixIcon: suffixIcon,
       isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       border: border,
       enabledBorder: border,
       focusedBorder: border,

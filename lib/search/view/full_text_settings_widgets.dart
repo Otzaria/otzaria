@@ -7,6 +7,7 @@ import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+import 'package:otzaria/widgets/text/labeled_input.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
@@ -112,7 +113,6 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
               enabled: isEnabled,
               decoration: AppInputTokens.filledDecoration(
                 context,
-                labelText: label,
                 enabled: isEnabled,
               ),
               min: 0,
@@ -136,10 +136,7 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
           child: Focus(
             focusNode: _focusNode,
             child: SpinBox(
-              decoration: AppInputTokens.filledDecoration(
-                context,
-                labelText: 'מספר מילים',
-              ),
+              decoration: AppInputTokens.filledDecoration(context),
               min: 1,
               max: 30,
               value: state.wordMatchCount.toDouble(),
@@ -158,11 +155,12 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
         // בורר הטווח רלוונטי רק לחיפוש המתקדם: במדויק אין קרבה כלל,
         // ובמקורב המרווח משמש כמרחק עריכה.
         if (!state.isAdvancedSearchEnabled) {
-          return SizedBox(width: 140, child: spinBox);
+          return LabeledInput(label: label, width: 150, child: spinBox);
         }
 
         return Row(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             _ScopeAndMatchMenu(
               scope: scope,
@@ -184,7 +182,10 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
               },
             ),
             const SizedBox(width: 4),
-            SizedBox(
+            LabeledInput(
+              label: wordMatchMode == WordMatchMode.atLeast
+                  ? 'מספר מילים'
+                  : label,
               width: 150,
               child: wordMatchMode == WordMatchMode.atLeast
                   ? countBox

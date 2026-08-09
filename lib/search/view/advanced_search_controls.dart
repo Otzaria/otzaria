@@ -9,6 +9,7 @@ import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/widgets/text/labeled_input.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
 /// ווידג'ט לניהול אפשרויות חיפוש מתקדמות לכל מילה בנפרד.
@@ -544,95 +545,99 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: Opacity(
-                opacity: isEnabled ? 1.0 : 0.5,
-                child: RtlTextField(
-                  enabled: isEnabled,
-                  controller: spacingController,
-                  focusNode: isEnabled && _wordIndex != null
-                      ? _getSpacingFocusNode(_wordIndex!, _wordIndex! + 1)
-                      : null,
-                  decoration: AppInputTokens.filledDecoration(
-                    context,
-                    labelText: 'מרווח למילה הבאה',
-                    hintText: '0-30',
+              child: LabeledInput(
+                label: 'מרווח למילה הבאה',
+                child: Opacity(
+                  opacity: isEnabled ? 1.0 : 0.5,
+                  child: RtlTextField(
                     enabled: isEnabled,
-                    suffixIcon: IconButton(
-                      icon: const Icon(
-                        FluentIcons.dismiss_24_regular,
-                        size: 18,
+                    controller: spacingController,
+                    focusNode: isEnabled && _wordIndex != null
+                        ? _getSpacingFocusNode(_wordIndex!, _wordIndex! + 1)
+                        : null,
+                    decoration: AppInputTokens.filledDecoration(
+                      context,
+                      hintText: '0-30',
+                      enabled: isEnabled,
+                      suffixIcon: IconButton(
+                        icon: const Icon(
+                          FluentIcons.dismiss_24_regular,
+                          size: 18,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        onPressed: isEnabled && _wordIndex != null
+                            ? () {
+                                final key = '${_wordIndex!}-${_wordIndex! + 1}';
+                                _spacingValues.remove(key);
+                                _spacingValuesChanged.value++;
+                                _getSpacingController(
+                                  _wordIndex!,
+                                  _wordIndex! + 1,
+                                ).clear();
+                              }
+                            : null,
                       ),
-                      visualDensity: VisualDensity.compact,
-                      onPressed: isEnabled && _wordIndex != null
-                          ? () {
-                              final key = '${_wordIndex!}-${_wordIndex! + 1}';
-                              _spacingValues.remove(key);
-                              _spacingValuesChanged.value++;
-                              _getSpacingController(
-                                _wordIndex!,
-                                _wordIndex! + 1,
-                              ).clear();
-                            }
-                          : null,
                     ),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      FilteringTextInputFormatter.allow(
+                        RegExp(r'^([0-9]|[12][0-9]|30)$'),
+                      ),
+                    ],
+                    style: const TextStyle(fontSize: 14),
+                    textAlign: TextAlign.right,
+                    onChanged: (text) {
+                      if (isEnabled &&
+                          _wordIndex != null &&
+                          text.trim().isNotEmpty) {
+                        final key = '${_wordIndex!}-${_wordIndex! + 1}';
+                        _spacingValues[key] = text.trim();
+                        _spacingValuesChanged.value++;
+                      }
+                    },
+                    onSubmitted: (text) {
+                      if (text.trim().isNotEmpty && _wordIndex != null) {
+                        final key = '${_wordIndex!}-${_wordIndex! + 1}';
+                        _spacingValues[key] = text.trim();
+                        _spacingValuesChanged.value++;
+                        widget.onEmptySubmit?.call();
+                      } else {
+                        widget.onEmptySubmit?.call();
+                      }
+                    },
                   ),
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    FilteringTextInputFormatter.allow(
-                      RegExp(r'^([0-9]|[12][0-9]|30)$'),
-                    ),
-                  ],
-                  style: const TextStyle(fontSize: 14),
-                  textAlign: TextAlign.right,
-                  onChanged: (text) {
-                    if (isEnabled &&
-                        _wordIndex != null &&
-                        text.trim().isNotEmpty) {
-                      final key = '${_wordIndex!}-${_wordIndex! + 1}';
-                      _spacingValues[key] = text.trim();
-                      _spacingValuesChanged.value++;
-                    }
-                  },
-                  onSubmitted: (text) {
-                    if (text.trim().isNotEmpty && _wordIndex != null) {
-                      final key = '${_wordIndex!}-${_wordIndex! + 1}';
-                      _spacingValues[key] = text.trim();
-                      _spacingValuesChanged.value++;
-                      widget.onEmptySubmit?.call();
-                    } else {
-                      widget.onEmptySubmit?.call();
-                    }
-                  },
                 ),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: RtlTextField(
-                controller: _alternativeWordController,
-                focusNode: _alternativeWordFocusNode,
-                enabled: isEnabled,
-                decoration: AppInputTokens.filledDecoration(
-                  context,
-                  labelText: 'מילה חילופית',
-                  hintText: 'הקלד מילה...',
+              child: LabeledInput(
+                label: 'מילה חילופית',
+                child: RtlTextField(
+                  controller: _alternativeWordController,
+                  focusNode: _alternativeWordFocusNode,
                   enabled: isEnabled,
-                  prefixIcon: IconButton(
-                    icon: const Icon(FluentIcons.add_24_regular, size: 18),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: isEnabled ? _addAlternative : null,
+                  decoration: AppInputTokens.filledDecoration(
+                    context,
+                    hintText: 'הקלד מילה...',
+                    enabled: isEnabled,
+                    prefixIcon: IconButton(
+                      icon: const Icon(FluentIcons.add_24_regular, size: 18),
+                      visualDensity: VisualDensity.compact,
+                      onPressed: isEnabled ? _addAlternative : null,
+                    ),
                   ),
+                  style: const TextStyle(fontSize: 14),
+                  textAlign: TextAlign.right,
+                  onSubmitted: (text) {
+                    if (text.trim().isNotEmpty) {
+                      _addAlternative();
+                    } else {
+                      widget.onEmptySubmit?.call();
+                    }
+                  },
                 ),
-                style: const TextStyle(fontSize: 14),
-                textAlign: TextAlign.right,
-                onSubmitted: (text) {
-                  if (text.trim().isNotEmpty) {
-                    _addAlternative();
-                  } else {
-                    widget.onEmptySubmit?.call();
-                  }
-                },
               ),
             ),
           ],
