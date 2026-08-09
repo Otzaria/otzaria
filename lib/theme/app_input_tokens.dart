@@ -48,6 +48,7 @@ abstract class AppInputTokens {
   static InputDecoration filledDecoration(
     BuildContext context, {
     String? hintText,
+    TextStyle? hintStyle,
     Widget? prefixIcon,
     Widget? suffixIcon,
     bool enabled = true,
@@ -62,6 +63,7 @@ abstract class AppInputTokens {
       filled: true,
       fillColor: fillColor(context, enabled: enabled),
       hintText: hintText,
+      hintStyle: hintStyle,
       prefixIcon: prefixIcon,
       suffixIcon: suffixIcon,
       isDense: true,

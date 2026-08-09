@@ -933,17 +933,20 @@ class _SearchDialogState extends State<SearchDialog> {
     );
 
     // תפריט הסינון המאוחד רלוונטי רק לחיפוש בספרייה (לא בחיפוש בתוך ספר).
+    // התגיות מוצגות בשורה נפרדת מתחת ולא בתוך הפקד, ולכן showChips=false.
     final scopeButton = widget.bookTitle == null
         ? SearchScopeMenuButton(
             selected: _scopeSelection,
             onChanged: _onScopeChanged,
             width: double.infinity,
             height: controlHeight,
+            showChips: false,
           )
         : null;
 
     final modeSelector = LabeledInput(
       label: 'סוג החיפוש',
+      width: _kModeColumnWidth,
       child: BlocBuilder<SearchBloc, SearchState>(
         buildWhen: (p, c) =>
             p.configuration.searchMode != c.configuration.searchMode,
@@ -959,41 +962,62 @@ class _SearchDialogState extends State<SearchDialog> {
     final scopeField = scopeButton == null
         ? null
         : LabeledInput(label: 'היקף החיפוש', child: scopeButton);
+    final chips = SearchScopeChips(
+      selected: _scopeSelection,
+      onChanged: _onScopeChanged,
+    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
         // שלושת הפקדים בשורה אחת רק כשנשאר לשדה החיפוש מקום סביר.
-        if (constraints.maxWidth < 760) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              queryField,
-              const SizedBox(height: 10),
-              Row(
+        final narrow = constraints.maxWidth < 760;
+        final row = narrow
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  queryField,
+                  const SizedBox(height: 10),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      modeSelector,
+                      if (scopeField != null) ...[
+                        const SizedBox(width: 10),
+                        Expanded(child: scopeField),
+                      ],
+                    ],
+                  ),
+                ],
+              )
+            // השדות חולקים את מה שנשאר אחרי תפריט סוג החיפוש, ביחס קבוע —
+            // כך הטקסט בשני השדות נשאר קריא גם במסך צר.
+            : Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   modeSelector,
+                  const SizedBox(width: 10),
+                  Expanded(flex: 3, child: queryField),
                   if (scopeField != null) ...[
                     const SizedBox(width: 10),
-                    Expanded(child: scopeField),
+                    Expanded(flex: 2, child: scopeField),
                   ],
                 ],
-              ),
-            ],
-          );
-        }
-        // השדות חולקים את מה שנשאר אחרי תפריט סוג החיפוש, ביחס קבוע —
-        // כך הטקסט בשני השדות נשאר קריא גם במסך צר.
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+              );
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            modeSelector,
-            const SizedBox(width: 10),
-            Expanded(flex: 3, child: queryField),
-            if (scopeField != null) ...[
-              const SizedBox(width: 10),
-              Expanded(flex: 2, child: scopeField),
-            ],
+            row,
+            if (scopeButton != null)
+              Padding(
+                // התגיות מיושרות לתחילת עמודת "מה לחפש", ולא מתחת לתפריט
+                // סוג החיפוש שבקצה.
+                padding: EdgeInsetsDirectional.only(
+                  start: narrow ? 0 : _kModeColumnWidth + 10,
+                  top: 8,
+                ),
+                child: chips,
+              ),
           ],
         );
       },
@@ -1288,6 +1312,10 @@ class _SearchDialogState extends State<SearchDialog> {
 /// מפתח יציב לכפתור סוג החיפוש — נקודת האחיזה של הבדיקות.
 const Key searchModeButtonKey = ValueKey('search-mode-button');
 
+/// רוחב עמודת סוג החיפוש. קבוע כדי שתגיות ההיקף יתיישרו לתחילת עמודת
+/// "מה לחפש" שלצדה.
+const double _kModeColumnWidth = 128;
+
 class _SearchModeButton extends StatefulWidget {
   const _SearchModeButton({
     super.key,
@@ -1326,17 +1354,17 @@ class _SearchModeButtonState extends State<_SearchModeButton> {
     ),
   ];
 
-  IconData get _icon =>
-      _entries.firstWhere((e) => e.value == widget.mode).icon!;
-
   Future<void> _openMenu() async {
     final anchorContext = _anchorKey.currentContext;
     if (anchorContext == null) return;
+    // התפריט ברוחב השדה שמתחתיו, כמו תפריט היקף החיפוש שלצדו.
+    final anchorWidth =
+        (anchorContext.findRenderObject() as RenderBox?)?.size.width;
     final selected = await showAnchoredAppMenu<SearchMode>(
       context: context,
       anchorContext: anchorContext,
       initialValue: widget.mode,
-      minWidth: 180,
+      minWidth: anchorWidth,
       itemsBuilder: (metrics) => [
         for (final entry in _entries)
           buildAppPopupMenuItem<SearchMode>(
@@ -1375,22 +1403,18 @@ class _SearchModeButtonState extends State<_SearchModeButton> {
             child: Padding(
               padding: const EdgeInsetsDirectional.fromSTEB(12, 0, 8, 0),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    _icon,
-                    size: isSlim ? 18 : 20,
-                    color: cs.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _entries.firstWhere((e) => e.value == widget.mode).label,
-                    style: TextStyle(fontSize: fontSize, color: cs.onSurface),
+                  Expanded(
+                    child: Text(
+                      _entries.firstWhere((e) => e.value == widget.mode).label,
+                      style: TextStyle(fontSize: fontSize, color: cs.onSurface),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   const SizedBox(width: 4),
                   Icon(
-                    FluentIcons.chevron_down_24_regular,
-                    size: isSlim ? 16 : 18,
+                    FluentIcons.chevron_down_16_regular,
+                    size: 16,
                     color: cs.onSurfaceVariant,
                   ),
                 ],

@@ -16,10 +16,104 @@ import 'package:otzaria/search/utils/find_match_utils.dart';
 import 'package:otzaria/search/utils/foundational_book_classifier.dart';
 import 'package:otzaria/search/utils/scope_tree.dart';
 import 'package:otzaria/services/commentary_service.dart';
+import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/theme/app_input_tokens.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
+
+/// סינון פעיל אחד בהיקף החיפוש, כפי שהוא מוצג כתגית.
+typedef ScopeFilterEntry = ({
+  String label,
+  bool partial,
+  VoidCallback onRemove,
+});
+
+/// הסינונים הפעילים לתגיות / למונה שבשדה. בחירת קטגוריות/ספרים ספציפיים
+/// מיוצגת בפריט *אחד* ("כל הספרים") ולא שם לכל פריט. בחירת "ספרי יסוד"
+/// ככלל אינה מגיעה לכאן — היא facet ממדי (`/base`) ומתויגת בלופ שמתחת.
+List<ScopeFilterEntry> activeScopeFilters({
+  required Set<String> selected,
+  required ValueChanged<Set<String>> onChanged,
+}) {
+  final result = <ScopeFilterEntry>[];
+  final categories = FacetHelper.categoryFacetsOf(
+    selected,
+  ).where((f) => f != '/').toList();
+  final dimensions = FacetHelper.dimensionFacetsOf(selected).toList();
+
+  if (categories.isNotEmpty) {
+    result.add((
+      label: 'כל הספרים',
+      partial: true,
+      onRemove: () => onChanged(dimensions.toSet()),
+    ));
+  }
+
+  for (final facet in dimensions) {
+    final String label;
+    if (facet == FacetHelper.baseDimensionFacet) {
+      label = 'ספרי יסוד';
+    } else if (facet.startsWith(FacetHelper.eraDimensionPrefix)) {
+      label = facet.substring(FacetHelper.eraDimensionPrefix.length);
+    } else if (facet.startsWith(FacetHelper.authorDimensionPrefix)) {
+      label = facet.substring(FacetHelper.authorDimensionPrefix.length);
+    } else {
+      label = facet;
+    }
+    result.add((
+      label: label,
+      partial: false,
+      onRemove: () {
+        final next = Set<String>.from(selected)..remove(facet);
+        onChanged(next);
+      },
+    ));
+  }
+  return result;
+}
+
+/// תגיות הסינון הפעילות של היקף החיפוש. נפרד מהשדה כדי שאפשר יהיה
+/// למקם אותן בשורה משלהן ולא מתחת לשדה הצר.
+class SearchScopeChips extends StatelessWidget {
+  const SearchScopeChips({
+    super.key,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final Set<String> selected;
+  final ValueChanged<Set<String>> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final filters = activeScopeFilters(
+      selected: selected,
+      onChanged: onChanged,
+    );
+    if (filters.isEmpty) return const SizedBox.shrink();
+    return Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      children: [
+        for (final f in filters)
+          InputChip(
+            avatar: f.partial
+                ? Icon(
+                    FluentIcons.checkbox_indeterminate_24_regular,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  )
+                : null,
+            label: Text(f.label, style: const TextStyle(fontSize: 12)),
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            onDeleted: f.onRemove,
+          ),
+      ],
+    );
+  }
+}
 
 /// כפתור-שדה אחד המרכז את כל סינון היקף החיפוש: הקלדה מסננת בזמן אמת, ותפריט
 /// עם ניווט drill-down פנימי (עץ הקטגוריות/ספרים, ספרי יסוד, תקופה, מחבר).
@@ -291,9 +385,11 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
 
   Widget _buildField(BuildContext context, {required bool enabled}) {
     final colorScheme = Theme.of(context).colorScheme;
-    // המונה בשדה מחליף את ה-chips רק כשהם מוסתרים (בסרגל התוצאות).
     final filters = _activeFilters();
-    final showBadge = !widget.showChips && filters.isNotEmpty;
+    // אותו גודל טקסט של שדה החיפוש שלצדו.
+    final fontSize = AppInputTokens.fontSize(
+      context.read<SettingsBloc?>()?.state.compactMenuMode ?? false,
+    );
 
     return TapRegion(
       groupId: _tapGroup,
@@ -310,30 +406,23 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
               focusNode: _fieldFocus,
               enabled: enabled,
               textAlignVertical: TextAlignVertical.center,
-              style: const TextStyle(fontSize: 14),
+              style: TextStyle(fontSize: fontSize),
               decoration: AppInputTokens.filledDecoration(
                 context,
                 // הרמז מתאר את המצב הנוכחי ולא את מה שמקלידים — זה מה
                 // שהמשתמש צריך לדעת כשהוא מסתכל על השורה.
                 hintText: filters.isEmpty ? 'כל הספרייה' : 'צמצום נוסף',
-                prefixIcon: !showBadge
-                    ? Icon(
-                        FluentIcons.filter_24_regular,
-                        size: 20,
-                        color: colorScheme.onSurfaceVariant,
-                      )
-                    : Tooltip(
-                        message: filters.map((f) => f.label).join(', '),
-                        child: Badge(
-                          label: Text('${filters.length}'),
-                          offset: const Offset(-2, 2),
-                          child: Icon(
-                            FluentIcons.filter_24_regular,
-                            size: 20,
-                            color: colorScheme.primary,
-                          ),
-                        ),
-                      ),
+                hintStyle: TextStyle(
+                  fontSize: fontSize,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                prefixIcon: Icon(
+                  FluentIcons.filter_24_regular,
+                  size: 20,
+                  color: filters.isEmpty
+                      ? colorScheme.onSurfaceVariant
+                      : colorScheme.primary,
+                ),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
                         icon: const Icon(
@@ -358,73 +447,20 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   }
 
   Widget _buildActiveChips(BuildContext context) {
-    final filters = _activeFilters();
-    if (filters.isEmpty) return const SizedBox.shrink();
+    if (_activeFilters().isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: 6),
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 4,
-        children: [
-          for (final f in filters)
-            InputChip(
-              avatar: f.partial
-                  ? Icon(
-                      FluentIcons.checkbox_indeterminate_24_regular,
-                      size: 16,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    )
-                  : null,
-              label: Text(f.label, style: const TextStyle(fontSize: 12)),
-              visualDensity: VisualDensity.compact,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              onDeleted: f.onRemove,
-            ),
-        ],
+      child: SearchScopeChips(
+        selected: widget.selected,
+        onChanged: widget.onChanged,
       ),
     );
   }
 
-  /// הסינונים הפעילים ל-chips / למונה שבשדה. בחירת קטגוריות/ספרים ספציפיים
-  /// מיוצגת בפריט *אחד* ("כל הספרים") ולא שם לכל פריט. בחירת "ספרי יסוד"
-  /// ככלל אינה מגיעה לכאן — היא facet ממדי (`/base`) ומתויגת בלופ שמתחת.
-  List<({String label, bool partial, VoidCallback onRemove})> _activeFilters() {
-    final result = <({String label, bool partial, VoidCallback onRemove})>[];
-    final categories = FacetHelper.categoryFacetsOf(
-      widget.selected,
-    ).where((f) => f != '/').toList();
-    final dimensions = FacetHelper.dimensionFacetsOf(widget.selected).toList();
-
-    if (categories.isNotEmpty) {
-      result.add((
-        label: 'כל הספרים',
-        partial: true,
-        onRemove: () => widget.onChanged(dimensions.toSet()),
-      ));
-    }
-
-    for (final facet in dimensions) {
-      final String label;
-      if (facet == FacetHelper.baseDimensionFacet) {
-        label = 'ספרי יסוד';
-      } else if (facet.startsWith(FacetHelper.eraDimensionPrefix)) {
-        label = facet.substring(FacetHelper.eraDimensionPrefix.length);
-      } else if (facet.startsWith(FacetHelper.authorDimensionPrefix)) {
-        label = facet.substring(FacetHelper.authorDimensionPrefix.length);
-      } else {
-        label = facet;
-      }
-      result.add((
-        label: label,
-        partial: false,
-        onRemove: () {
-          final next = Set<String>.from(widget.selected)..remove(facet);
-          widget.onChanged(next);
-        },
-      ));
-    }
-    return result;
-  }
+  List<ScopeFilterEntry> _activeFilters() => activeScopeFilters(
+    selected: widget.selected,
+    onChanged: widget.onChanged,
+  );
 
   Widget _buildOverlay(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
