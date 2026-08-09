@@ -58,6 +58,9 @@ class AppSegmentedControl<T> extends StatelessWidget {
   final bool showSelectedIcon;
   final double? height;
 
+  /// כיוון סידור המקטעים. אנכי מתאים לטור צד עם אפשרויות ארוכות.
+  final Axis direction;
+
   const AppSegmentedControl({
     super.key,
     required this.options,
@@ -66,6 +69,7 @@ class AppSegmentedControl<T> extends StatelessWidget {
     this.expandToFillWidth = false,
     this.showSelectedIcon = true,
     this.height,
+    this.direction = Axis.horizontal,
   });
 
   List<ButtonSegment<T>> _segments() {
@@ -122,7 +126,12 @@ class AppSegmentedControl<T> extends StatelessWidget {
     return SegmentedButton<T>(
       segments: _segments(),
       selected: {currentValue},
-      expandedInsets: expandToFillWidth ? EdgeInsets.zero : null,
+      direction: direction,
+      // בכיוון אנכי expandedInsets מותח גם את הגובה, ובתוך גולל הגובה
+      // אינו חסום — המקטעים ממילא מקבלים את רוחב ההורה.
+      expandedInsets: expandToFillWidth && direction == Axis.horizontal
+          ? EdgeInsets.zero
+          : null,
       onSelectionChanged: (Set<T> selection) {
         if (selection.isNotEmpty) onChanged(selection.first);
       },

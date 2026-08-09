@@ -16,6 +16,7 @@ import 'package:otzaria/search/utils/find_match_utils.dart';
 import 'package:otzaria/search/utils/foundational_book_classifier.dart';
 import 'package:otzaria/search/utils/scope_tree.dart';
 import 'package:otzaria/services/commentary_service.dart';
+import 'package:otzaria/theme/app_input_tokens.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -32,6 +33,9 @@ class SearchScopeMenuButton extends StatefulWidget {
   /// [double.infinity] כדי להתרחב לרוחב הסרגל הניתן-לשינוי.
   final double width;
 
+  /// גובה קבוע לשדה — להשוואה לגובה שדה החיפוש שלצדו. null = לפי התוכן.
+  final double? height;
+
   /// האם להציג chips של הבחירה מתחת לשדה. בדיאלוג — כן; בסרגל התוצאות
   /// מועבר `false` (ה-chips היו מזיזים את העץ), ובמקומם מונה קומפקטי בשדה.
   final bool showChips;
@@ -41,6 +45,7 @@ class SearchScopeMenuButton extends StatefulWidget {
     required this.selected,
     required this.onChanged,
     this.width = 300,
+    this.height,
     this.showChips = true,
   });
 
@@ -292,62 +297,60 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
 
     return TapRegion(
       groupId: _tapGroup,
-      child: Focus(
-        canRequestFocus: false,
-        onKeyEvent: _handleFieldKey,
-        child: RtlTextField(
-          controller: _searchController,
-          focusNode: _fieldFocus,
-          enabled: enabled,
-          style: const TextStyle(fontSize: 14),
-          decoration: InputDecoration(
-            isDense: true,
-            filled: true,
-            fillColor: colorScheme.surfaceContainerHigh,
-            hintText: 'סינון לפי ספר או מחבר',
-            hintStyle: TextStyle(
-              fontSize: 14,
-              color: colorScheme.onSurfaceVariant,
-            ),
-            prefixIcon: !showBadge
-                ? Icon(
-                    FluentIcons.filter_24_regular,
-                    size: 20,
-                    color: colorScheme.onSurfaceVariant,
-                  )
-                : Tooltip(
-                    message: filters.map((f) => f.label).join(', '),
-                    child: Badge(
-                      label: Text('${filters.length}'),
-                      offset: const Offset(-2, 2),
-                      child: Icon(
+      child: Tooltip(
+        message: 'צמצום החיפוש לקטגוריה, לספר או למחבר',
+        waitDuration: const Duration(milliseconds: 500),
+        child: Focus(
+          canRequestFocus: false,
+          onKeyEvent: _handleFieldKey,
+          child: SizedBox(
+            height: widget.height,
+            child: RtlTextField(
+              controller: _searchController,
+              focusNode: _fieldFocus,
+              enabled: enabled,
+              textAlignVertical: TextAlignVertical.center,
+              style: const TextStyle(fontSize: 14),
+              decoration: AppInputTokens.filledDecoration(
+                context,
+                // הרמז מתאר את המצב הנוכחי ולא את מה שמקלידים — זה מה
+                // שהמשתמש צריך לדעת כשהוא מסתכל על השורה.
+                hintText: filters.isEmpty ? 'כל הספרייה' : 'צמצום נוסף',
+                prefixIcon: !showBadge
+                    ? Icon(
                         FluentIcons.filter_24_regular,
                         size: 20,
-                        color: colorScheme.primary,
+                        color: colorScheme.onSurfaceVariant,
+                      )
+                    : Tooltip(
+                        message: filters.map((f) => f.label).join(', '),
+                        child: Badge(
+                          label: Text('${filters.length}'),
+                          offset: const Offset(-2, 2),
+                          child: Icon(
+                            FluentIcons.filter_24_regular,
+                            size: 20,
+                            color: colorScheme.primary,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-            suffixIcon: _searchController.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(FluentIcons.dismiss_24_regular, size: 18),
-                    tooltip: 'ניקוי',
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => _searchController.clear(),
-                  )
-                : Icon(
-                    FluentIcons.chevron_down_16_regular,
-                    size: 16,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-            border: OutlineInputBorder(
-              borderRadius: AppTokens.borderRadiusAll,
-              borderSide: BorderSide(color: colorScheme.outlineVariant),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(
+                          FluentIcons.dismiss_24_regular,
+                          size: 18,
+                        ),
+                        tooltip: 'ניקוי',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => _searchController.clear(),
+                      )
+                    : Icon(
+                        FluentIcons.chevron_down_16_regular,
+                        size: 16,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+              ),
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: AppTokens.borderRadiusAll,
-              borderSide: BorderSide(color: colorScheme.outlineVariant),
-            ),
-            contentPadding: const EdgeInsets.symmetric(vertical: 12),
           ),
         ),
       ),

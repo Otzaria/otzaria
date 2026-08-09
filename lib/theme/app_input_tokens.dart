@@ -35,6 +35,13 @@ abstract class AppInputTokens {
   static double fontSize(bool isCompact) =>
       isCompact ? compactFontSize : regularFontSize;
 
+  /// מילוי הרקע האחיד של שדות הקלט — משמש גם פקדים שאינם שדה טקסט
+  /// (כפתור־תפריט בשורת החיפוש) כדי שיֵראו חלק מאותה שורה.
+  static Color fillColor(BuildContext context, {bool enabled = true}) =>
+      Theme.of(context).colorScheme.onSurface.withValues(
+        alpha: enabled ? unfocusedAlpha : disabledAlpha,
+      );
+
   /// עיטור אחיד לשדות קלט משניים (מספר/טקסט קצר) — אותו מילוי ואותה
   /// פינה מעוגלת כמו שדה החיפוש, בלי מסגרת ובלי תווית פנימית.
   /// את התווית יש להציג מעל השדה ([LabeledInput]).
@@ -45,16 +52,15 @@ abstract class AppInputTokens {
     Widget? suffixIcon,
     bool enabled = true,
   }) {
-    final cs = Theme.of(context).colorScheme;
-    final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(compactRadius),
+    // אותה פינה של שדה החיפוש (AppTokens.borderRadiusAll), כדי ששדות
+    // שיושבים באותה שורה ייראו כמשפחה אחת.
+    const border = OutlineInputBorder(
+      borderRadius: AppTokens.borderRadiusAll,
       borderSide: BorderSide.none,
     );
     return InputDecoration(
       filled: true,
-      fillColor: cs.onSurface.withValues(
-        alpha: enabled ? unfocusedAlpha : disabledAlpha,
-      ),
+      fillColor: fillColor(context, enabled: enabled),
       hintText: hintText,
       prefixIcon: prefixIcon,
       suffixIcon: suffixIcon,

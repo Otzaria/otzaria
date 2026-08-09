@@ -53,6 +53,16 @@ MockLibraryBloc _stubLibraryBloc() {
   return bloc;
 }
 
+/// בחירת סוג חיפוש: פתיחת התפריט שבשורת החיפוש ולחיצה על הפריט.
+/// הפריט בתפריט הוא ההופעה האחרונה של הטקסט — הכפתור עצמו מציג את
+/// המצב הנוכחי ועלול לשאת את אותו טקסט.
+Future<void> _selectSearchMode(WidgetTester tester, String mode) async {
+  await tester.tap(find.byKey(searchModeButtonKey));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(mode).last);
+  await tester.pumpAndSettle();
+}
+
 Widget _buildDialogHarness({
   required ThemeData theme,
   required HistoryBloc historyBloc,
@@ -82,6 +92,10 @@ Future<void> main() async {
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
+
+  // סגירת הדיאלוג זוכרת את מצב החיפוש לסשן; בלי איפוס, טסט שמסיים במצב
+  // אחר קובע את המצב שבו נפתח הדיאלוג של הטסט הבא.
+  setUp(() => SearchDefaults.rememberSessionMode(SearchMode.exact));
 
   testWidgets('תפריט ההיסטוריה משתמש ברקע של הדיאלוג', (
     WidgetTester tester,
@@ -205,9 +219,7 @@ Future<void> main() async {
     expect(find.byType(SearchScopeMenuButton), findsOneWidget);
 
     for (final mode in ['מתקדם', 'מקורב', 'מדויק']) {
-      await tester.ensureVisible(find.text(mode).first);
-      await tester.tap(find.text(mode).first);
-      await tester.pumpAndSettle();
+      await _selectSearchMode(tester, mode);
       expect(tester.takeException(), isNull, reason: 'המעבר אל $mode נכשל');
       expect(find.byType(SearchScopeMenuButton), findsOneWidget);
     }
@@ -731,7 +743,8 @@ Future<void> main() async {
 
     expect(find.text('מרווח בין מילים'), findsOneWidget);
 
-    await tester.longPress(find.text('מקורב').first);
+    await _selectSearchMode(tester, 'מקורב');
+    await tester.longPress(find.byKey(searchModeButtonKey));
     await tester.pumpAndSettle();
 
     expect(

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/theme/app_input_tokens.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/services.dart';
@@ -32,8 +34,9 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
-import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/layout/edge_scrollbar_behavior.dart';
+import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+import 'package:otzaria/widgets/text/labeled_input.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
@@ -874,65 +877,15 @@ class _SearchDialogState extends State<SearchDialog> {
     );
   }
 
-  /// בורר מצב החיפוש — פקד הסגמנטים המשותף של אוצריא, עם שורת תיאור
-  /// קצרה של המצב הנבחר מתחתיו.
-  Widget _buildModeSelector(BuildContext context, SearchState state) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final currentMode = state.configuration.searchMode;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AppSegmentedControl<SearchMode>(
-          currentValue: currentMode,
-          expandToFillWidth: true,
-          showSelectedIcon: false,
-          height: 40,
-          options: [
-            SegmentOption(
-              value: SearchMode.exact,
-              label: SearchMode.exact.shortLabel,
-              icon: FluentIcons.text_quote_24_regular,
-              tooltip: SearchMode.exact.tooltip,
-            ),
-            SegmentOption(
-              value: SearchMode.advanced,
-              label: SearchMode.advanced.shortLabel,
-              icon: FluentIcons.search_info_24_regular,
-              tooltip: SearchMode.advanced.tooltip,
-            ),
-            SegmentOption(
-              value: SearchMode.fuzzy,
-              label: SearchMode.fuzzy.shortLabel,
-              icon: FluentIcons.arrow_bidirectional_left_right_24_regular,
-              tooltip: SearchMode.fuzzy.tooltip,
-            ),
-          ],
-          onChanged: (mode) {
-            final oldMode =
-                _searchTab.searchBloc.state.configuration.searchMode;
-            _searchTab.searchBloc.add(
-              !_usesStagedSubmit
-                  ? SetSearchMode(mode)
-                  : SetSearchModeWithoutSearch(mode),
-            );
-            _swapGlobalOptionsForModeChange(oldMode, mode);
-            _searchTab.searchFieldFocusNode.requestFocus();
-          },
-        ),
-        const SizedBox(height: 6),
-        Text(
-          currentMode.tooltip,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 12,
-            color: colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
+  void _onModeSelected(SearchMode mode) {
+    final oldMode = _searchTab.searchBloc.state.configuration.searchMode;
+    _searchTab.searchBloc.add(
+      !_usesStagedSubmit
+          ? SetSearchMode(mode)
+          : SetSearchModeWithoutSearch(mode),
     );
+    _swapGlobalOptionsForModeChange(oldMode, mode);
+    _searchTab.searchFieldFocusNode.requestFocus();
   }
 
   /// שדה החיפוש עם כפתור ההיסטוריה, ולצדו פקד המרווח/המרחק.
@@ -974,10 +927,9 @@ class _SearchDialogState extends State<SearchDialog> {
       ),
     );
 
-    final distanceWidget = FuzzyDistance(
-      tab: _searchTab,
-      inputFocusNotifier: _advancedControlsHasFocus,
-      triggerSearch: !_usesStagedSubmit,
+    // שלושת הפקדים בשורה חולקים את גובה שדה החיפוש, כדי שייקראו כיחידה אחת.
+    final controlHeight = AppInputTokens.height(
+      context.read<SettingsBloc?>()?.state.compactMenuMode ?? false,
     );
 
     // תפריט הסינון המאוחד רלוונטי רק לחיפוש בספרייה (לא בחיפוש בתוך ספר).
@@ -985,59 +937,70 @@ class _SearchDialogState extends State<SearchDialog> {
         ? SearchScopeMenuButton(
             selected: _scopeSelection,
             onChanged: _onScopeChanged,
+            width: double.infinity,
+            height: controlHeight,
           )
         : null;
 
+    final modeSelector = LabeledInput(
+      label: 'סוג החיפוש',
+      child: BlocBuilder<SearchBloc, SearchState>(
+        buildWhen: (p, c) =>
+            p.configuration.searchMode != c.configuration.searchMode,
+        builder: (context, state) => _SearchModeButton(
+          key: searchModeButtonKey,
+          mode: state.configuration.searchMode,
+          onSelected: _onModeSelected,
+        ),
+      ),
+    );
+
+    final queryField = LabeledInput(label: 'מה לחפש', child: searchField);
+    final scopeField = scopeButton == null
+        ? null
+        : LabeledInput(label: 'היקף החיפוש', child: scopeButton);
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        final narrow = constraints.maxWidth < 560;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (narrow) ...[
-              searchField,
-              if (scopeButton != null) ...[
-                const SizedBox(height: 8),
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: scopeButton,
-                ),
-              ],
-            ] else
+        // שלושת הפקדים בשורה אחת רק כשנשאר לשדה החיפוש מקום סביר.
+        if (constraints.maxWidth < 760) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              queryField,
+              const SizedBox(height: 10),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: searchField),
-                  if (scopeButton != null) ...[
-                    const SizedBox(width: 8),
-                    scopeButton,
+                  modeSelector,
+                  if (scopeField != null) ...[
+                    const SizedBox(width: 10),
+                    Expanded(child: scopeField),
                   ],
                 ],
               ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: distanceWidget,
-            ),
+            ],
+          );
+        }
+        // השדות חולקים את מה שנשאר אחרי תפריט סוג החיפוש, ביחס קבוע —
+        // כך הטקסט בשני השדות נשאר קריא גם במסך צר.
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            modeSelector,
+            const SizedBox(width: 10),
+            Expanded(flex: 3, child: queryField),
+            if (scopeField != null) ...[
+              const SizedBox(width: 10),
+              Expanded(flex: 2, child: scopeField),
+            ],
           ],
         );
       },
     );
   }
 
-  Widget _buildSearchComposer(SearchState state) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _sectionLabel('מה לחפש'),
-        const SizedBox(height: 8),
-        _buildQueryRow(),
-        const SizedBox(height: 12),
-        _sectionLabel('סוג החיפוש'),
-        const SizedBox(height: 8),
-        _buildModeSelector(context, state),
-      ],
-    );
-  }
+  Widget _buildSearchComposer(SearchState state) => _buildQueryRow();
 
   /// שדה "ללא" — סינון תוצאות שמכילות מילים מסוימות (מצב מתקדם בלבד).
   /// מקופל כברירת מחדל; נפתח בלחיצה, ונסגר תוך ניקוי השדה כדי שלא תישאר
@@ -1109,20 +1072,6 @@ class _SearchDialogState extends State<SearchDialog> {
     );
   }
 
-  /// מסגרת אחידה לאזורי האפשרויות של המצבים השונים.
-  Widget _optionsCard({required Widget child}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppSurfaces.card(context),
-        borderRadius: AppTokens.borderRadiusAll,
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
-      child: child,
-    );
-  }
-
   Widget _sectionLabel(String text) {
     return Text(
       text,
@@ -1134,99 +1083,61 @@ class _SearchDialogState extends State<SearchDialog> {
     );
   }
 
-  Widget _buildFuzzyHint() {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.all(8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: colorScheme.secondaryContainer,
-              borderRadius: AppTokens.borderRadiusAll,
-            ),
-            child: Icon(
-              FluentIcons.arrow_bidirectional_left_right_24_regular,
-              size: 24,
-              color: colorScheme.onSecondaryContainer,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'חיפוש מקורב',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'מוצא גם כתיב שונה ושיבושי כתיב קלים. מרחק החיפוש קובע עד כמה התוצאה יכולה להיות שונה מהמילים שהוקלדו.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+  /// הגדרות המצב הנבחר: המרווח/המרחק ובוררי הסינון, ומתחתיהם אפשרויות
+  /// המילה. במצב המקורב המרחק לבדו — התיאור כבר בתפריט שבשורת החיפוש.
+  Widget _buildModeContent(SearchState state) {
+    final distanceWidget = Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: FuzzyDistance(
+        tab: _searchTab,
+        inputFocusNotifier: _advancedControlsHasFocus,
+        triggerSearch: !_usesStagedSubmit,
       ),
     );
-  }
 
-  /// תוכן האזור התחתון לפי מצב החיפוש: אפשרויות המילה (מדויק), פקדי
-  /// המצב המתקדם, או רמז למצב המקורב. בחירת ההיקף עברה כולה לתפריט הסינון.
-  Widget _buildModeContent(SearchState state) {
-    final Widget controls;
-    if (!state.isAdvancedSearchEnabled) {
-      final isExact = state.configuration.searchMode == SearchMode.exact;
-      controls = isExact
-          ? _optionsCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      _sectionLabel('אפשרויות מילה'),
-                      const Spacer(),
-                      _buildExactDefaultsMenu(state),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  _buildExactOptionsRow(),
-                ],
-              ),
-            )
-          : _optionsCard(child: _buildFuzzyHint());
-    } else {
-      controls = _optionsCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    final List<Widget> controls = [
+      _sectionLabel('הגדרות החיפוש'),
+      const SizedBox(height: 8),
+      distanceWidget,
+    ];
+
+    if (state.isAdvancedSearchEnabled) {
+      controls.addAll([
+        const SizedBox(height: 16),
+        AdvancedSearchControls(
+          tab: _searchTab,
+          onEmptySubmit: _performSearch,
+          inputFocusNotifier: _advancedControlsHasFocus,
+          supportsVocalized: _supportsVocalizedSearch,
+        ),
+        if (widget.onSearch == null && !widget.returnResultOnSubmit) ...[
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          _buildNegativeSection(),
+        ],
+      ]);
+    } else if (state.configuration.searchMode == SearchMode.exact) {
+      controls.addAll([
+        const SizedBox(height: 16),
+        Row(
           children: [
-            AdvancedSearchControls(
-              tab: _searchTab,
-              onEmptySubmit: _performSearch,
-              inputFocusNotifier: _advancedControlsHasFocus,
-              supportsVocalized: _supportsVocalizedSearch,
-            ),
-            if (widget.onSearch == null && !widget.returnResultOnSubmit) ...[
-              const SizedBox(height: 12),
-              const Divider(height: 1),
-              const SizedBox(height: 12),
-              _buildNegativeSection(),
-            ],
+            _sectionLabel('אפשרויות מילה'),
+            const Spacer(),
+            _buildExactDefaultsMenu(state),
           ],
         ),
-      );
+        const SizedBox(height: 4),
+        _buildExactOptionsRow(),
+      ]);
     }
 
     return KeyedSubtree(
       key: const ValueKey('search-mode-controls'),
-      child: controls,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: controls,
+      ),
     );
   }
 
@@ -1348,7 +1259,7 @@ class _SearchDialogState extends State<SearchDialog> {
                                   children: [
                                     _buildIndexWarning(),
                                     _buildSearchComposer(state),
-                                    const SizedBox(height: 12),
+                                    const SizedBox(height: 20),
                                     _buildModeContent(state),
                                     const SizedBox(height: 16),
                                   ],
@@ -1364,6 +1275,126 @@ class _SearchDialogState extends State<SearchDialog> {
                 const Divider(height: 1),
                 _buildFooter(),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// כפתור בחירת סוג החיפוש — באותו מילוי, גובה ופינה של שדה החיפוש שלצדו,
+/// כך שהשורה נקראת כיחידה אחת. פותח את תפריט האפליקציה הרגיל.
+/// מפתח יציב לכפתור סוג החיפוש — נקודת האחיזה של הבדיקות.
+const Key searchModeButtonKey = ValueKey('search-mode-button');
+
+class _SearchModeButton extends StatefulWidget {
+  const _SearchModeButton({
+    super.key,
+    required this.mode,
+    required this.onSelected,
+  });
+
+  final SearchMode mode;
+  final ValueChanged<SearchMode> onSelected;
+
+  @override
+  State<_SearchModeButton> createState() => _SearchModeButtonState();
+}
+
+class _SearchModeButtonState extends State<_SearchModeButton> {
+  final GlobalKey _anchorKey = GlobalKey();
+
+  static const List<AppMenuEntry<SearchMode>> _entries = [
+    AppMenuEntry(
+      value: SearchMode.exact,
+      label: 'מדויק',
+      icon: FluentIcons.text_quote_24_regular,
+      subtitle: 'כפי שהוקלד, בלי התאמות',
+    ),
+    AppMenuEntry(
+      value: SearchMode.advanced,
+      label: 'מתקדם',
+      icon: FluentIcons.search_info_24_regular,
+      subtitle: 'קידומות, חלופות ומרווחים',
+    ),
+    AppMenuEntry(
+      value: SearchMode.fuzzy,
+      label: 'מקורב',
+      icon: FluentIcons.arrow_bidirectional_left_right_24_regular,
+      subtitle: 'כתיב שונה ושיבושים קלים',
+    ),
+  ];
+
+  IconData get _icon =>
+      _entries.firstWhere((e) => e.value == widget.mode).icon!;
+
+  Future<void> _openMenu() async {
+    final anchorContext = _anchorKey.currentContext;
+    if (anchorContext == null) return;
+    final selected = await showAnchoredAppMenu<SearchMode>(
+      context: context,
+      anchorContext: anchorContext,
+      initialValue: widget.mode,
+      minWidth: 180,
+      itemsBuilder: (metrics) => [
+        for (final entry in _entries)
+          buildAppPopupMenuItem<SearchMode>(
+            context,
+            entry,
+            metrics,
+            widget.mode,
+          ),
+      ],
+    );
+    if (selected != null && selected != widget.mode) {
+      widget.onSelected(selected);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isSlim =
+        context.read<SettingsBloc?>()?.state.compactMenuMode ?? false;
+    final height = AppInputTokens.height(isSlim);
+    final fontSize = AppInputTokens.fontSize(isSlim);
+
+    return Tooltip(
+      message: widget.mode.tooltip,
+      waitDuration: const Duration(milliseconds: 400),
+      child: Material(
+        key: _anchorKey,
+        color: AppInputTokens.fillColor(context),
+        borderRadius: AppTokens.borderRadiusAll,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: _openMenu,
+          child: SizedBox(
+            height: height,
+            child: Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(12, 0, 8, 0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _icon,
+                    size: isSlim ? 18 : 20,
+                    color: cs.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _entries.firstWhere((e) => e.value == widget.mode).label,
+                    style: TextStyle(fontSize: fontSize, color: cs.onSurface),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    FluentIcons.chevron_down_24_regular,
+                    size: isSlim ? 16 : 18,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
