@@ -33,7 +33,6 @@ import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
-import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
@@ -113,6 +112,9 @@ class _SearchDialogState extends State<SearchDialog> {
   late final VoidCallback _queryListener;
   late final bool _ownsSearchTab;
 
+  /// קטע "החרגת תוצאות" — נפתח מראש רק בעריכת חיפוש שכבר יש בו החרגה.
+  late bool _showNegativeSection;
+
   bool get _usesStagedSubmit =>
       widget.onSearch != null ||
       widget.returnResultOnSubmit ||
@@ -161,6 +163,10 @@ class _SearchDialogState extends State<SearchDialog> {
       // (או מצב הסשן הנוכחי) — לכל מצב חיפוש ברירות מחדל משלו
       _searchTab.globalSearchOptions.addAll(_initialOptionsForMode(searchMode));
     }
+
+    _showNegativeSection = _searchTab.negativeQueryController.text
+        .trim()
+        .isNotEmpty;
 
     final persisted = SearchScopePreferences.load();
     final initialScopeFacets = _searchTab.searchBloc.state.searchScopeFacets;
@@ -261,83 +267,64 @@ class _SearchDialogState extends State<SearchDialog> {
   /// אבל עצמאי לחלוטין: קובע רק את ברירות המחדל של החיפוש הרגיל, ורק
   /// לפרמטרים הקיימים בו (חמש אפשרויות המילה והמרווח בין מילים). ברירות
   /// המחדל של המצב המתקדם נקבעות בתפריט המקביל שבמסך המתקדם.
-  Widget _buildExactDefaultsRow(SearchState state) {
+  Widget _buildExactDefaultsMenu(SearchState state) {
     final defaults = SearchDefaults.loadExactDefaults();
     final savedDistance = SearchDefaults.loadDistanceDefault();
-    return Align(
-      alignment: AlignmentDirectional.centerStart,
-      child: Wrap(
-        spacing: 4,
-        children: [
-          MenuAnchor(
-            menuChildren: [
-              for (final key in SearchQueryBuilder.exactWordOptionKeys)
-                CheckboxMenuButton(
-                  value: defaults[key] ?? false,
-                  closeOnActivate: false,
-                  onChanged: (checked) {
-                    setState(() {
-                      SearchDefaults.saveExactDefaults({
-                        ...defaults,
-                        key: checked ?? false,
-                      });
-                      // שינוי ברירת מחדל מוחל מיד גם על התיבה בחלונית הפתוחה
-                      _searchTab.globalSearchOptions[key] = checked ?? false;
-                      _searchTab.useGlobalSearchOptions.value = true;
-                    });
-                    _searchTab.searchOptionsChanged.value++;
-                  },
-                  child: Text(key),
-                ),
-              const Divider(height: 8),
-              MenuItemButton(
-                closeOnActivate: false,
-                onPressed: () {
-                  setState(() {
-                    SearchDefaults.saveDistanceDefault(state.distance);
-                  });
-                  UiSnack.show(
-                    LibraryMessages.distanceSetAsDefault(state.distance),
-                  );
-                },
-                child: Text(
-                  'קבע את המרווח הנוכחי (${state.distance}) כברירת מחדל',
-                ),
-              ),
-            ],
-            builder: (context, controller, _) => Tooltip(
-              message:
-                  'סמן אילו אפשרויות ואיזה מרווח יופעלו אוטומטית בכל חיפוש רגיל חדש',
-              child: ActionButton.ghost(
-                text: 'קביעת ברירת מחדל לחיפוש רגיל',
-                icon: FluentIcons.options_24_regular,
-                onPressed: () =>
-                    controller.isOpen ? controller.close() : controller.open(),
-              ),
-            ),
-          ),
-          Tooltip(
-            message:
-                'החזרת האפשרויות והמרווח ($savedDistance) לברירת המחדל השמורה',
-            child: ActionButton.ghost(
-              text: 'חזרה לברירת מחדל',
-              icon: FluentIcons.arrow_reset_24_regular,
-              onPressed: () {
-                setState(() {
-                  _searchTab.globalSearchOptions
-                    ..clear()
-                    ..addAll(SearchDefaults.loadExactDefaults());
+    return MenuAnchor(
+      menuChildren: [
+        for (final key in SearchQueryBuilder.exactWordOptionKeys)
+          CheckboxMenuButton(
+            value: defaults[key] ?? false,
+            closeOnActivate: false,
+            onChanged: (checked) {
+              setState(() {
+                SearchDefaults.saveExactDefaults({
+                  ...defaults,
+                  key: checked ?? false,
                 });
-                _searchTab.searchOptionsChanged.value++;
-                _searchTab.searchBloc.add(
-                  _usesStagedSubmit
-                      ? UpdateDistanceWithoutSearch(savedDistance)
-                      : UpdateDistance(savedDistance),
-                );
-              },
-            ),
+                // שינוי ברירת מחדל מוחל מיד גם על התיבה בחלונית הפתוחה
+                _searchTab.globalSearchOptions[key] = checked ?? false;
+                _searchTab.useGlobalSearchOptions.value = true;
+              });
+              _searchTab.searchOptionsChanged.value++;
+            },
+            child: Text(key),
           ),
-        ],
+        const Divider(height: 8),
+        MenuItemButton(
+          closeOnActivate: false,
+          onPressed: () {
+            setState(() {
+              SearchDefaults.saveDistanceDefault(state.distance);
+            });
+            UiSnack.show(LibraryMessages.distanceSetAsDefault(state.distance));
+          },
+          child: Text('קבע את המרווח הנוכחי (${state.distance}) כברירת מחדל'),
+        ),
+        MenuItemButton(
+          leadingIcon: const Icon(FluentIcons.arrow_reset_24_regular, size: 18),
+          onPressed: () {
+            setState(() {
+              _searchTab.globalSearchOptions
+                ..clear()
+                ..addAll(SearchDefaults.loadExactDefaults());
+            });
+            _searchTab.searchOptionsChanged.value++;
+            _searchTab.searchBloc.add(
+              _usesStagedSubmit
+                  ? UpdateDistanceWithoutSearch(savedDistance)
+                  : UpdateDistance(savedDistance),
+            );
+          },
+          child: const Text('חזרה לברירת המחדל השמורה'),
+        ),
+      ],
+      builder: (context, controller, _) => IconButton(
+        icon: const Icon(FluentIcons.options_24_regular, size: 20),
+        tooltip: 'ברירות מחדל לחיפוש רגיל',
+        visualDensity: VisualDensity.compact,
+        onPressed: () =>
+            controller.isOpen ? controller.close() : controller.open(),
       ),
     );
   }
@@ -849,67 +836,38 @@ class _SearchDialogState extends State<SearchDialog> {
   // ── שכבת התצוגה ─────────────────────────────────────────────────────
 
   Widget _buildHeader() {
-    final colorScheme = Theme.of(context).colorScheme;
     final title = widget.editTab != null
         ? 'עריכת חיפוש'
         : widget.bookTitle != null
         ? 'חיפוש ב${widget.bookTitle}'
         : 'חיפוש בספרייה';
-    final subtitle = widget.editTab != null
-        ? 'עדכן את השאילתה ואת אפשרויות החיפוש'
-        : widget.bookTitle != null
-        ? 'חיפוש ממוקד בתוך הספר הפתוח'
-        : 'בחר שאילתה, סוג חיפוש והיקף בספרייה';
-    return ColoredBox(
-      color: AppSurfaces.card(context),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.fromSTEB(24, 16, 12, 14),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(9),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer,
-                borderRadius: AppTokens.borderRadiusAll,
-              ),
-              child: Icon(
-                FluentIcons.search_24_filled,
-                size: 22,
-                color: colorScheme.onPrimaryContainer,
-              ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
+      // Stack ולא Row: הכותרת ממורכזת ביחס לדיאלוג כולו, ולא ביחס למקום
+      // שנשאר אחרי כפתור הסגירה.
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 48),
+            child: Text(
+              title,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            IconButton(
+          ),
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: IconButton(
               icon: const Icon(FluentIcons.dismiss_24_regular),
               onPressed: () => Navigator.of(context).pop(),
               tooltip: 'סגור',
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -1123,30 +1081,50 @@ class _SearchDialogState extends State<SearchDialog> {
   }
 
   /// שדה "ללא" — סינון תוצאות שמכילות מילים מסוימות (מצב מתקדם בלבד).
+  /// מקופל כברירת מחדל; נפתח בלחיצה, ונסגר תוך ניקוי השדה כדי שלא תישאר
+  /// החרגה פעילה שאינה נראית במסך.
   Widget _buildNegativeSection() {
+    if (!_showNegativeSection) {
+      return Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: ActionButton.ghost(
+          text: 'החרגת תוצאות',
+          icon: FluentIcons.subtract_24_regular,
+          onPressed: () => setState(() => _showNegativeSection = true),
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _sectionLabel('החרגת תוצאות'),
-        const SizedBox(height: 8),
-        RtlTextField(
-          controller: _searchTab.negativeQueryController,
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-            border: const OutlineInputBorder(),
-            labelText: 'ללא',
-            hintText: 'תוצאות שמכילות מילים אלו לא יופיעו',
-            prefixIcon: const Icon(FluentIcons.subtract_24_regular),
-            suffixIcon: IconButton(
-              icon: const Icon(FluentIcons.dismiss_24_regular),
+        Row(
+          children: [
+            _sectionLabel('החרגת תוצאות'),
+            const Spacer(),
+            IconButton(
+              icon: const Icon(FluentIcons.dismiss_24_regular, size: 18),
+              tooltip: 'בטל את ההחרגה',
+              visualDensity: VisualDensity.compact,
               onPressed: () {
                 _searchTab.negativeQueryController.clear();
-                setState(() {});
+                setState(() => _showNegativeSection = false);
               },
             ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        OtzariaSearchField(
+          controller: _searchTab.negativeQueryController,
+          hintText: 'מילים שלא יופיעו בתוצאות',
+          leading: Icon(
+            FluentIcons.subtract_24_regular,
+            size: 20,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
+          selectAllOnFocus: false,
           onChanged: (_) => setState(() {}),
+          onClear: () => setState(() {}),
           onSubmitted: (_) => _performSearch(),
         ),
         if (_searchTab.negativeQueryController.text.trim().isNotEmpty) ...[
@@ -1252,14 +1230,15 @@ class _SearchDialogState extends State<SearchDialog> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: _sectionLabel('אפשרויות מילה'),
+                  Row(
+                    children: [
+                      _sectionLabel('אפשרויות מילה'),
+                      const Spacer(),
+                      _buildExactDefaultsMenu(state),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  _buildExactOptionsRow(),
                   const SizedBox(height: 4),
-                  _buildExactDefaultsRow(state),
+                  _buildExactOptionsRow(),
                 ],
               ),
             )
@@ -1286,7 +1265,7 @@ class _SearchDialogState extends State<SearchDialog> {
       );
     }
 
-    return SingleChildScrollView(
+    return KeyedSubtree(
       key: const ValueKey('search-mode-controls'),
       child: controls,
     );
@@ -1295,50 +1274,47 @@ class _SearchDialogState extends State<SearchDialog> {
   Widget _buildFooter() {
     final colorScheme = Theme.of(context).colorScheme;
     final showKeyboardHint = MediaQuery.sizeOf(context).width >= 520;
-    return ColoredBox(
-      color: AppSurfaces.card(context),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
-        child: Row(
-          children: [
-            if (showKeyboardHint)
-              Expanded(
-                child: Text(
-                  'Enter מפעיל את החיפוש',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+      child: Row(
+        children: [
+          if (showKeyboardHint)
+            Expanded(
+              child: Text(
+                'Enter מפעיל את החיפוש',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colorScheme.onSurfaceVariant,
                 ),
-              )
-            else
-              const Spacer(),
-            ActionButton.neutral(
-              text: 'ביטול',
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            const SizedBox(width: 8),
-            ValueListenableBuilder<bool>(
-              valueListenable: TantivyDataProvider.instance.isInitialized,
-              builder: (context, providerInitialized, _) {
-                final blocked = isSearchBlockedByMissingIndex(
-                  providerInitialized: providerInitialized,
-                );
-                return Tooltip(
-                  message: blocked
-                      ? 'אינדקס לא קיים, לא ניתן לבצע חיפוש זה ללא אינדקס'
-                      : 'חפש',
-                  child: ActionButton.recommended(
-                    text: widget.editTab != null ? 'עדכן חיפוש' : 'חפש',
-                    icon: FluentIcons.search_24_regular,
-                    onPressed: blocked ? null : _performSearch,
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            )
+          else
+            const Spacer(),
+          ActionButton.neutral(
+            text: 'ביטול',
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          const SizedBox(width: 8),
+          ValueListenableBuilder<bool>(
+            valueListenable: TantivyDataProvider.instance.isInitialized,
+            builder: (context, providerInitialized, _) {
+              final blocked = isSearchBlockedByMissingIndex(
+                providerInitialized: providerInitialized,
+              );
+              return Tooltip(
+                message: blocked
+                    ? 'אינדקס לא קיים, לא ניתן לבצע חיפוש זה ללא אינדקס'
+                    : 'חפש',
+                child: ActionButton.recommended(
+                  text: widget.editTab != null ? 'עדכן חיפוש' : 'חפש',
+                  icon: FluentIcons.search_24_regular,
+                  onPressed: blocked ? null : _performSearch,
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -1409,10 +1385,7 @@ class _SearchDialogState extends State<SearchDialog> {
                                     _buildIndexWarning(),
                                     _buildSearchComposer(state),
                                     const SizedBox(height: 12),
-                                    SizedBox(
-                                      height: 260,
-                                      child: _buildModeContent(state),
-                                    ),
+                                    _buildModeContent(state),
                                     const SizedBox(height: 16),
                                   ],
                                 ),

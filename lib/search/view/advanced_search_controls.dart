@@ -8,7 +8,6 @@ import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
-import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
 /// ווידג'ט לניהול אפשרויות חיפוש מתקדמות לכל מילה בנפרד.
@@ -311,25 +310,26 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
       children: [
         navigationWithToggle,
         const SizedBox(height: 12),
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: Text(
-            'אפשרויות מילה',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Theme.of(context).colorScheme.primary,
+        Row(
+          children: [
+            Text(
+              'אפשרויות מילה',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
-          ),
+            const Spacer(),
+            _buildDefaultsMenu(),
+          ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         _buildOptionChips(optionsEnabled),
         if (perWordInputsEnabled) ...[
           const SizedBox(height: 12),
           _buildInputColumn(perWordInputsEnabled),
         ],
-        const SizedBox(height: 4),
-        _buildSaveDefaultsRow(),
       ],
     );
   }
@@ -384,68 +384,56 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
   }
 
   /// תפריט נפתח לסימון אילו אפשרויות מופעלות כברירת מחדל בחיפוש חדש,
-  /// ולצדו לחצן שמאפס את האפשרויות הנוכחיות לברירת המחדל השמורה.
-  Widget _buildSaveDefaultsRow() {
+  /// ולאיפוס האפשרויות הנוכחיות לברירת המחדל השמורה.
+  Widget _buildDefaultsMenu() {
     final defaults = SearchDefaults.loadDefaults();
-    return Align(
-      alignment: AlignmentDirectional.centerStart,
-      child: Wrap(
-        spacing: 4,
-        children: [
-          MenuAnchor(
-            menuChildren: [
-              // "ניקוד"/"טעמים" מוצעות רק במסלולים שתומכים בחיפוש מנוקד —
-              // כברירת מחדל הן מגבילות כל חיפוש חדש לטקסטים מנוקדים בלבד.
-              for (final key in [
-                ...SearchQueryBuilder.availableWordOptionKeys,
-                ...SearchQueryBuilder.advancedOnlyWordOptionKeys,
-                if (widget.supportsVocalized)
-                  ...SearchQueryBuilder.vocalizedWordOptionKeys,
-              ])
-                CheckboxMenuButton(
-                  value: defaults[key] ?? false,
-                  closeOnActivate: false,
-                  onChanged: (checked) {
-                    setState(() {
-                      SearchDefaults.saveDefaults({
-                        ...defaults,
-                        key: checked ?? false,
-                      });
-                      // שינוי ברירת מחדל מוחל מיד גם על הריבוע בחלונית הפתוחה
-                      _globalSearchOptions[key] = checked ?? false;
-                    });
-                    _searchOptionsChanged.value++;
-                  },
-                  child: Text(key),
-                ),
-            ],
-            builder: (context, controller, _) => Tooltip(
-              message: 'סמן אילו אפשרויות יופעלו אוטומטית בכל חיפוש חדש',
-              child: ActionButton.ghost(
-                text: 'ברירת מחדל לחיפוש חדש',
-                icon: FluentIcons.options_24_regular,
-                onPressed: () =>
-                    controller.isOpen ? controller.close() : controller.open(),
-              ),
-            ),
-          ),
-          Tooltip(
-            message: 'החזרת האפשרויות המסומנות למצב ברירת המחדל השמורה',
-            child: ActionButton.ghost(
-              text: 'חזרה לברירת מחדל',
-              icon: FluentIcons.arrow_reset_24_regular,
-              onPressed: () {
-                setState(() {
-                  _globalSearchOptions
-                    ..clear()
-                    ..addAll(SearchDefaults.loadDefaults());
-                  _searchOptions.clear();
+    return MenuAnchor(
+      menuChildren: [
+        // "ניקוד"/"טעמים" מוצעות רק במסלולים שתומכים בחיפוש מנוקד —
+        // כברירת מחדל הן מגבילות כל חיפוש חדש לטקסטים מנוקדים בלבד.
+        for (final key in [
+          ...SearchQueryBuilder.availableWordOptionKeys,
+          ...SearchQueryBuilder.advancedOnlyWordOptionKeys,
+          if (widget.supportsVocalized)
+            ...SearchQueryBuilder.vocalizedWordOptionKeys,
+        ])
+          CheckboxMenuButton(
+            value: defaults[key] ?? false,
+            closeOnActivate: false,
+            onChanged: (checked) {
+              setState(() {
+                SearchDefaults.saveDefaults({
+                  ...defaults,
+                  key: checked ?? false,
                 });
-                _searchOptionsChanged.value++;
-              },
-            ),
+                // שינוי ברירת מחדל מוחל מיד גם על הריבוע בחלונית הפתוחה
+                _globalSearchOptions[key] = checked ?? false;
+              });
+              _searchOptionsChanged.value++;
+            },
+            child: Text(key),
           ),
-        ],
+        const Divider(height: 8),
+        MenuItemButton(
+          leadingIcon: const Icon(FluentIcons.arrow_reset_24_regular, size: 18),
+          onPressed: () {
+            setState(() {
+              _globalSearchOptions
+                ..clear()
+                ..addAll(SearchDefaults.loadDefaults());
+              _searchOptions.clear();
+            });
+            _searchOptionsChanged.value++;
+          },
+          child: const Text('חזרה לברירת המחדל השמורה'),
+        ),
+      ],
+      builder: (context, controller, _) => IconButton(
+        icon: const Icon(FluentIcons.options_24_regular, size: 20),
+        tooltip: 'ברירות מחדל לחיפוש חדש',
+        visualDensity: VisualDensity.compact,
+        onPressed: () =>
+            controller.isOpen ? controller.close() : controller.open(),
       ),
     );
   }
