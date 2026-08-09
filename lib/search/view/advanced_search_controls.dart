@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_input_tokens.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -551,19 +552,17 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
                   focusNode: isEnabled && _wordIndex != null
                       ? _getSpacingFocusNode(_wordIndex!, _wordIndex! + 1)
                       : null,
-                  decoration: InputDecoration(
+                  decoration: AppInputTokens.filledDecoration(
+                    context,
                     labelText: 'מרווח למילה הבאה',
                     hintText: '0-30',
-                    border: const OutlineInputBorder(),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
+                    enabled: isEnabled,
                     suffixIcon: IconButton(
                       icon: const Icon(
                         FluentIcons.dismiss_24_regular,
-                        size: 20,
+                        size: 18,
                       ),
+                      visualDensity: VisualDensity.compact,
                       onPressed: isEnabled && _wordIndex != null
                           ? () {
                               final key = '${_wordIndex!}-${_wordIndex! + 1}';
@@ -614,16 +613,14 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
                 controller: _alternativeWordController,
                 focusNode: _alternativeWordFocusNode,
                 enabled: isEnabled,
-                decoration: InputDecoration(
+                decoration: AppInputTokens.filledDecoration(
+                  context,
                   labelText: 'מילה חילופית',
                   hintText: 'הקלד מילה...',
-                  border: const OutlineInputBorder(),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
+                  enabled: isEnabled,
                   prefixIcon: IconButton(
-                    icon: const Icon(FluentIcons.add_24_regular, size: 20),
+                    icon: const Icon(FluentIcons.add_24_regular, size: 18),
+                    visualDensity: VisualDensity.compact,
                     onPressed: isEnabled ? _addAlternative : null,
                   ),
                 ),

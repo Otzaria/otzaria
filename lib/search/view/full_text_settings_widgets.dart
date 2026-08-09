@@ -110,23 +110,10 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
             focusNode: _focusNode,
             child: SpinBox(
               enabled: isEnabled,
-              decoration: InputDecoration(
+              decoration: AppInputTokens.filledDecoration(
+                context,
                 labelText: label,
-                labelStyle: TextStyle(
-                  color:
-                      hasCustomSpacing ||
-                          scopeOverridesDistance ||
-                          modeOverridesDistance
-                      ? Theme.of(context).colorScheme.onSurfaceVariant
-                      : null,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: AppTokens.borderRadiusAll,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16.0,
-                  vertical: 16.0,
-                ),
+                enabled: isEnabled,
               ),
               min: 0,
               max: 30,
@@ -149,15 +136,9 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
           child: Focus(
             focusNode: _focusNode,
             child: SpinBox(
-              decoration: InputDecoration(
+              decoration: AppInputTokens.filledDecoration(
+                context,
                 labelText: 'מספר מילים',
-                border: OutlineInputBorder(
-                  borderRadius: AppTokens.borderRadiusAll,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16.0,
-                  vertical: 16.0,
-                ),
               ),
               min: 1,
               max: 30,
