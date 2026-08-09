@@ -79,7 +79,6 @@ dependencies:
   window_manager: ^0.5.2
   screen_retriever: ^0.2.2
   flutter_spinbox: ^0.13.1
-  toggle_switch: ^2.3.0
   logging: ^1.3.0
   sqlite3: ^3.5.0
   super_clipboard: ^0.9.1

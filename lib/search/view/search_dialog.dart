@@ -32,6 +32,7 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
@@ -1045,16 +1046,11 @@ class _SearchDialogState extends State<SearchDialog> {
         menuChildren: [
           SizedBox(width: historyMenuWidth, child: _buildHistoryDropdown()),
         ],
-        builder: (context, controller, _) => IconButton(
-          icon: Icon(
-            controller.isOpen
-                ? FluentIcons.chevron_up_24_regular
-                : FluentIcons.history_24_regular,
-            size: 24,
-          ),
+        builder: (context, controller, _) => OtzariaSearchAction.icon(
+          iconData: controller.isOpen
+              ? FluentIcons.chevron_up_24_regular
+              : FluentIcons.history_24_regular,
           tooltip: 'היסטוריית חיפושים',
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(),
           onPressed: () =>
               controller.isOpen ? controller.close() : controller.open(),
         ),
@@ -1112,26 +1108,17 @@ class _SearchDialogState extends State<SearchDialog> {
   }
 
   Widget _buildSearchComposer(SearchState state) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppSurfaces.card(context),
-        borderRadius: AppTokens.borderRadiusAll,
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _sectionLabel('מה לחפש'),
-          const SizedBox(height: 8),
-          _buildQueryRow(),
-          const SizedBox(height: 12),
-          _sectionLabel('סוג החיפוש'),
-          const SizedBox(height: 8),
-          _buildModeSelector(context, state),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _sectionLabel('מה לחפש'),
+        const SizedBox(height: 8),
+        _buildQueryRow(),
+        const SizedBox(height: 12),
+        _sectionLabel('סוג החיפוש'),
+        const SizedBox(height: 8),
+        _buildModeSelector(context, state),
+      ],
     );
   }
 

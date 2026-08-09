@@ -8,76 +8,10 @@ import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
-import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/search/view/tantivy_search_results.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
-import 'package:toggle_switch/toggle_switch.dart';
-
-class SearchModeToggle extends StatelessWidget {
-  const SearchModeToggle({super.key, required this.tab});
-
-  final SearchingTab tab;
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<SearchBloc, SearchState>(
-      builder: (context, state) {
-        int currentIndex;
-        switch (state.configuration.searchMode) {
-          case SearchMode.advanced:
-            currentIndex = 0;
-            break;
-          case SearchMode.exact:
-            currentIndex = 1;
-            break;
-          case SearchMode.fuzzy:
-            currentIndex = 2;
-            break;
-        }
-
-        return Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: ToggleSwitch(
-            minWidth: 108,
-            minHeight: 45,
-            inactiveBgColor: Colors.grey,
-            inactiveFgColor: Colors.white,
-            initialLabelIndex: currentIndex,
-            totalSwitches: 3,
-            labels: const [
-              'חיפוש מתקדם',
-              'חיפוש מדוייק',
-              'חיפוש מקורב',
-            ],
-            radiusStyle: true,
-            onToggle: (index) {
-              SearchMode newMode;
-              switch (index) {
-                case 0:
-                  newMode = SearchMode.advanced;
-                  break;
-                case 1:
-                  newMode = SearchMode.exact;
-                  break;
-                case 2:
-                  newMode = SearchMode.fuzzy;
-                  break;
-                default:
-                  newMode = SearchMode.advanced;
-              }
-              context.read<SearchBloc>().add(SetSearchMode(newMode));
-              // מעבר ידני נשמר לסשן הנוכחי; בהפעלה הבאה חיפוש חדש נפתח
-              // שוב בברירת המחדל (חיפוש רגיל).
-              SearchDefaults.rememberSessionMode(newMode);
-            },
-          ),
-        );
-      },
-    );
-  }
-}
 
 class FuzzyDistance extends StatefulWidget {
   const FuzzyDistance({

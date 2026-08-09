@@ -16,6 +16,8 @@ import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/view/enhanced_search_field.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/theme/app_input_tokens.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
 class MockNavigationBloc extends MockBloc<NavigationEvent, NavigationState>
     implements NavigationBloc {}
@@ -36,7 +38,7 @@ class _TestSearchDialogWrapper {
 }
 
 void main() {
-  testWidgets('שדה החיפוש מקבל רקע מלא מתוך ה-theme', (
+  testWidgets('שדה החיפוש הוא שדה החיפוש התקני של אוצריא', (
     WidgetTester tester,
   ) async {
     final tab = SearchingTab('חיפוש', 'בדיקה');
@@ -70,22 +72,28 @@ void main() {
           child: Scaffold(
             body: EnhancedSearchField(
               widget: _TestSearchDialogWrapper(tab),
-              showInlineSearchButton: false,
             ),
           ),
         ),
       ),
     );
 
-    final textField = tester.widget<TextField>(find.byType(TextField));
+    expect(find.byType(OtzariaSearchField), findsOneWidget);
 
-    expect(textField.decoration?.filled, isTrue);
+    final textField = tester.widget<TextField>(find.byType(TextField));
+    final decoration = textField.decoration!;
+
+    expect(decoration.filled, isTrue);
     expect(
-      textField.decoration?.fillColor,
-      theme.colorScheme.surfaceContainerHigh,
+      decoration.fillColor,
+      theme.colorScheme.onSurface.withValues(
+        alpha: AppInputTokens.unfocusedAlpha,
+      ),
     );
-    expect(textField.decoration?.labelText, 'חיפוש');
-    expect(textField.decoration?.hintText, 'הקלד מילות חיפוש');
+    // עיצוב אחיד עם שדה הספרייה: רמז בלבד, בלי תווית צפה ובלי מסגרת.
+    expect(decoration.labelText, isNull);
+    expect(decoration.hintText, 'הקלד מילות חיפוש');
+    expect(decoration.border?.borderSide, BorderSide.none);
   });
 
   testWidgets('שליחת חיפוש מעדכנת את כותרת הטאב', (tester) async {
@@ -136,7 +144,6 @@ void main() {
           child: Scaffold(
             body: EnhancedSearchField(
               widget: _TestSearchDialogWrapper(tab),
-              showInlineSearchButton: false,
             ),
           ),
         ),
