@@ -1146,11 +1146,14 @@ class IndexingRepository {
     return '${book.title}|$categoryKey|$fileTypeKey|$pathKey';
   }
 
+  static const String userBookKeyPrefix = 'uid:';
+  static const String officialBookKeyPrefix = 'id:';
+
   /// מפתח catalogueOrderKey לספר אישי (user_books.db) לפי id גולמי.
-  static String userBookKey(int id) => 'uid:$id';
+  static String userBookKey(int id) => '$userBookKeyPrefix$id';
 
   /// מפתח catalogueOrderKey לספר רשמי (seforim.db) לפי id גולמי.
-  static String officialBookKey(int id) => 'id:$id';
+  static String officialBookKey(int id) => '$officialBookKeyPrefix$id';
 
   static String buildIndexedBookFilePath(Book book) {
     if (book is PdfBook) {

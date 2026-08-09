@@ -11,6 +11,7 @@ import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/search/utils/base_books_scope.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/search/utils/find_match_utils.dart';
 import 'package:otzaria/search/utils/foundational_book_classifier.dart';
@@ -32,12 +33,12 @@ typedef ScopeFilterEntry = ({
 /// הסינונים הפעילים לתגיות / למונה שבשדה. בחירת קטגוריות/ספרים ספציפיים
 /// מיוצגת בפריט *אחד* ולא שם לכל פריט. בחירת "ספרי יסוד" ככלל אינה מגיעה
 /// לכאן — היא facet ממדי (`/base`) ומתויגת בלופ שמתחת.
-/// [baseBookFacets] — ה-facets של ספרי היסוד, כשהם ידועים. בחירה שכולה
-/// מתוכם מיוחסת ל"ספרי יסוד" ולא ל"כל הספרים".
+/// [baseScope] — זיהוי ספרי היסוד; בחירה שכולה מתוכם מיוחסת אליהם ולא
+/// ל"כל הספרים".
 List<ScopeFilterEntry> activeScopeFilters({
   required Set<String> selected,
   required ValueChanged<Set<String>> onChanged,
-  Set<String> baseBookFacets = const {},
+  BaseBooksScope baseScope = const BaseBooksScope(),
 }) {
   final result = <ScopeFilterEntry>[];
   final categories = FacetHelper.categoryFacetsOf(
@@ -49,8 +50,8 @@ List<ScopeFilterEntry> activeScopeFilters({
     // כש-/base כבר מסומן יש לו תגית משלו, ואין לתייג "ספרי יסוד" פעמיים.
     final onlyBaseBooks =
         !dimensions.contains(FacetHelper.baseDimensionFacet) &&
-        baseBookFacets.isNotEmpty &&
-        categories.every(baseBookFacets.contains);
+        !baseScope.isEmpty &&
+        categories.every(baseScope.covers);
     // התווית היא שם הקבוצה שממנה נבחרו הפריטים; הסימן החלקי אומר "חלק מ־".
     result.add((
       label: onlyBaseBooks ? 'כל ספרי יסוד' : 'כל הספרים',
@@ -89,21 +90,21 @@ class SearchScopeChips extends StatelessWidget {
     super.key,
     required this.selected,
     required this.onChanged,
-    this.baseBookFacets = const {},
+    this.baseScope = const BaseBooksScope(),
   });
 
   final Set<String> selected;
   final ValueChanged<Set<String>> onChanged;
 
-  /// ה-facets של ספרי היסוד — ראו [activeScopeFilters].
-  final Set<String> baseBookFacets;
+  /// זיהוי ספרי היסוד — ראו [activeScopeFilters].
+  final BaseBooksScope baseScope;
 
   @override
   Widget build(BuildContext context) {
     final filters = activeScopeFilters(
       selected: selected,
       onChanged: onChanged,
-      baseBookFacets: baseBookFacets,
+      baseScope: baseScope,
     );
     if (filters.isEmpty) return const SizedBox.shrink();
     return Wrap(
@@ -148,9 +149,9 @@ class SearchScopeMenuButton extends StatefulWidget {
   /// מועבר `false` (ה-chips היו מזיזים את העץ), ובמקומם מונה קומפקטי בשדה.
   final bool showChips;
 
-  /// מדווח את ה-facets של ספרי היסוד ברגע שסווגו, כדי שמי שמציג את התגיות
+  /// מדווח את זיהוי ספרי היסוד ברגע שהוא מתעדכן, כדי שמי שמציג את התגיות
   /// מחוץ לווידג'ט ([SearchScopeChips]) יוכל לייחס להם בחירה.
-  final ValueChanged<Set<String>>? onBaseBookFacetsResolved;
+  final ValueChanged<BaseBooksScope>? onBaseScopeResolved;
 
   const SearchScopeMenuButton({
     super.key,
@@ -159,7 +160,7 @@ class SearchScopeMenuButton extends StatefulWidget {
     this.width = 300,
     this.height,
     this.showChips = true,
-    this.onBaseBookFacetsResolved,
+    this.onBaseScopeResolved,
   });
 
   @override
@@ -174,14 +175,14 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   final GlobalKey<_ScopeMenuPanelState> _panelKey = GlobalKey();
   final Object _tapGroup = Object();
 
-  Set<int> _baseBookIds = const {};
-  Set<int> _baseUserBookIds = const {};
+  /// זיהוי ספרי היסוד. המזהים נטענים מיד (שאילתה זולה) ומספיקים לרוב
+  /// המכריע של הספרים; ה-facets מצטרפים רק אם הספרייה סווגה במלואה.
+  BaseBooksScope _baseScope = const BaseBooksScope();
 
   Library? _library;
   ScopeTree? _treeCache;
   Future<ScopeTree>? _treeFuture;
   List<BookScopeNode>? _baseBookNodesCache;
-  Set<String> _baseBookFacets = const {};
   Future<void>? _baseBookNodesFuture;
   int _baseBookGeneration = 0;
 
@@ -251,13 +252,34 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
         generation != _baseBookGeneration) {
       return;
     }
-    setState(() {
-      _baseBookNodesCache = result;
-      _baseBookFacets = tree.facetsFullyWithin({
+    _updateBaseScope(
+      nodes: result,
+      treeFacets: tree.facetsFullyWithin({
         for (final node in result) node.facet,
-      });
+      }),
+    );
+  }
+
+  void _updateBaseScope({
+    List<BookScopeNode>? nodes,
+    Set<String>? treeFacets,
+    Set<int>? officialIds,
+    Set<int>? userIds,
+  }) {
+    setState(() {
+      if (nodes != null) _baseBookNodesCache = nodes;
+      _baseScope = BaseBooksScope(
+        officialIds: officialIds ?? _baseScope.officialIds,
+        userIds: userIds ?? _baseScope.userIds,
+        treeFacets: treeFacets ?? _baseScope.treeFacets,
+      );
     });
-    widget.onBaseBookFacetsResolved?.call(_baseBookFacets);
+    // הדיווח נדחה לסוף הפריים: טעינת המזהים עשויה להסתיים בתוך initState,
+    // והמאזין (הדיאלוג) קורא setState.
+    final scope = _baseScope;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onBaseScopeResolved?.call(scope);
+    });
   }
 
   @override
@@ -305,15 +327,14 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
         userIds = <int>{};
       }
     }
-    if (mounted) {
-      setState(() {
-        _baseBookIds = ids;
-        _baseUserBookIds = userIds;
-        _baseBookGeneration++;
-        _baseBookNodesCache = null;
-        _baseBookFacets = const {};
-      });
-    }
+    if (!mounted) return;
+    _baseBookGeneration++;
+    _updateBaseScope(
+      officialIds: ids,
+      userIds: userIds,
+      treeFacets: const {},
+    );
+    setState(() => _baseBookNodesCache = null);
   }
 
   bool _isBaseBook(Book book) {
@@ -327,8 +348,8 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
     final id = book.id;
     if (id == null) return false;
     return book.isUserBook
-        ? _baseUserBookIds.contains(id)
-        : _baseBookIds.contains(id);
+        ? _baseScope.userIds.contains(id)
+        : _baseScope.officialIds.contains(id);
   }
 
   KeyEventResult _handleFieldKey(FocusNode node, KeyEvent event) {
@@ -379,7 +400,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
           _treeFuture = null;
           _baseBookGeneration++;
           _baseBookNodesCache = null;
-          _baseBookFacets = const {};
+          _baseScope = _baseScope.withTreeFacets(const {});
           _baseBookNodesFuture = null;
         }
 
@@ -482,7 +503,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
       child: SearchScopeChips(
         selected: widget.selected,
         onChanged: widget.onChanged,
-        baseBookFacets: _baseBookFacets,
+        baseScope: _baseScope,
       ),
     );
   }
@@ -490,7 +511,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   List<ScopeFilterEntry> _activeFilters() => activeScopeFilters(
     selected: widget.selected,
     onChanged: widget.onChanged,
-    baseBookFacets: _baseBookFacets,
+    baseScope: _baseScope,
   );
 
   Widget _buildOverlay(BuildContext context) {
@@ -528,6 +549,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
               key: _panelKey,
               tree: _treeCache,
               baseBookNodes: _baseBookNodesCache,
+              baseScope: _baseScope,
               onRequireTree: () => unawaited(_ensureTree()),
               onRequireBaseBooks: () => unawaited(_ensureBaseBookNodes()),
               searchController: _searchController,
@@ -661,6 +683,7 @@ class _MenuItem {
 class _ScopeMenuPanel extends StatefulWidget {
   final ScopeTree? tree;
   final List<BookScopeNode>? baseBookNodes;
+  final BaseBooksScope baseScope;
   final VoidCallback onRequireTree;
   final VoidCallback onRequireBaseBooks;
   final TextEditingController searchController;
@@ -672,6 +695,7 @@ class _ScopeMenuPanel extends StatefulWidget {
     super.key,
     required this.tree,
     required this.baseBookNodes,
+    required this.baseScope,
     required this.onRequireTree,
     required this.onRequireBaseBooks,
     required this.searchController,
@@ -699,10 +723,6 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
   List<String> _authorResults = const [];
   int _authorRequestId = 0;
   Set<String> _baseFacetSet = const {};
-
-  /// [_baseFacetSet] בתוספת תיקיות שכל ספריהן ספרי יסוד — הבחירה מתקפלת
-  /// לעתים ל-facet של תיקיה, ובלי זה היא לא הייתה מיוחסת לספרי היסוד.
-  Set<String> _baseCoveredFacets = const {};
 
   @override
   void initState() {
@@ -743,8 +763,6 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
       for (final node in widget.baseBookNodes ?? const <BookScopeNode>[])
         node.facet,
     };
-    _baseCoveredFacets =
-        widget.tree?.facetsFullyWithin(_baseFacetSet) ?? _baseFacetSet;
   }
 
   @override
@@ -1047,8 +1065,8 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
     final onlyBaseBooks =
         !baseSelected &&
         selectedBooks.isNotEmpty &&
-        _baseCoveredFacets.isNotEmpty &&
-        selectedBooks.every(_baseCoveredFacets.contains);
+        !widget.baseScope.isEmpty &&
+        selectedBooks.every(widget.baseScope.covers);
 
     return [
       if (!isEverything)

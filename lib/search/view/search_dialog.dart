@@ -13,6 +13,7 @@ import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/search/search_scope_preferences.dart';
+import 'package:otzaria/search/utils/base_books_scope.dart';
 import 'package:otzaria/search/view/search_menu_style.dart';
 import 'package:otzaria/search/view/search_scope_menu.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
@@ -114,9 +115,9 @@ class _SearchDialogState extends State<SearchDialog> {
   /// (תקופה/מחבר/ספרי יסוד) יחד. נשלט ע"י [SearchScopeMenuButton].
   Set<String> _scopeSelection = {'/'};
 
-  /// ה-facets של ספרי היסוד, כפי שדווחו מהתפריט — התגיות יושבות בשורה משלהן
-  /// מחוץ לתפריט ובלעדיהם אינן יודעות לייחס בחירה ל"ספרי יסוד".
-  Set<String> _baseBookFacets = const {};
+  /// זיהוי ספרי היסוד, כפי שדווח מהתפריט — התגיות יושבות בשורה משלהן מחוץ
+  /// לתפריט ובלעדיו אינן יודעות לייחס בחירה ל"ספרי יסוד".
+  BaseBooksScope _baseScope = const BaseBooksScope();
   final ValueNotifier<bool> _advancedControlsHasFocus = ValueNotifier(false);
   final MenuController _historyMenuController = MenuController();
   late final VoidCallback _queryListener;
@@ -946,8 +947,8 @@ class _SearchDialogState extends State<SearchDialog> {
             width: double.infinity,
             height: controlHeight,
             showChips: false,
-            onBaseBookFacetsResolved: (facets) {
-              if (mounted) setState(() => _baseBookFacets = facets);
+            onBaseScopeResolved: (scope) {
+              if (mounted) setState(() => _baseScope = scope);
             },
           )
         : null;
@@ -973,7 +974,7 @@ class _SearchDialogState extends State<SearchDialog> {
     final chips = SearchScopeChips(
       selected: _scopeSelection,
       onChanged: _onScopeChanged,
-      baseBookFacets: _baseBookFacets,
+      baseScope: _baseScope,
     );
 
     return LayoutBuilder(
@@ -1155,7 +1156,7 @@ class _SearchDialogState extends State<SearchDialog> {
         const SizedBox(height: 16),
         Row(
           children: [
-            _sectionLabel('אפשרויות מילה'),
+            _sectionLabel('הרחבת המילים'),
             const Spacer(),
             _buildExactDefaultsMenu(state),
           ],
