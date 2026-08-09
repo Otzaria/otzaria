@@ -13,6 +13,7 @@ import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/search/search_scope_preferences.dart';
+import 'package:otzaria/search/view/search_menu_style.dart';
 import 'package:otzaria/search/view/search_scope_menu.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_state.dart';
@@ -1354,24 +1355,36 @@ class _SearchModeButtonState extends State<_SearchModeButton> {
     ),
   ];
 
-  Future<void> _openMenu() async {
+  /// רוחב מינימלי לתפריט — הכפתור צר מכדי להכיל את תיאורי המצבים.
+  static const double _menuMinWidth = 260;
+
+  Future<void> _openMenu(BuildContext menuContext) async {
     final anchorContext = _anchorKey.currentContext;
     if (anchorContext == null) return;
-    // התפריט ברוחב השדה שמתחתיו, כמו תפריט היקף החיפוש שלצדו.
-    final anchorWidth =
-        (anchorContext.findRenderObject() as RenderBox?)?.size.width;
+    final cs = Theme.of(menuContext).colorScheme;
     final selected = await showAnchoredAppMenu<SearchMode>(
-      context: context,
+      context: menuContext,
       anchorContext: anchorContext,
       initialValue: widget.mode,
-      minWidth: anchorWidth,
-      itemsBuilder: (metrics) => [
+      minWidth: _menuMinWidth,
+      itemsBuilder: (_) => [
         for (final entry in _entries)
-          buildAppPopupMenuItem<SearchMode>(
-            context,
-            entry,
-            metrics,
-            widget.mode,
+          PopupMenuItem<SearchMode>(
+            value: entry.value,
+            height: SearchMenuRow.height,
+            padding: EdgeInsets.zero,
+            child: SearchMenuRow(
+              label: entry.label,
+              subtitle: entry.subtitle ?? '',
+              icon: entry.icon,
+              leading: entry.value == widget.mode
+                  ? Icon(
+                      FluentIcons.checkmark_circle_24_filled,
+                      size: 18,
+                      color: cs.primary,
+                    )
+                  : null,
+            ),
           ),
       ],
     );
@@ -1382,42 +1395,62 @@ class _SearchModeButtonState extends State<_SearchModeButton> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final isSlim =
         context.read<SettingsBloc?>()?.state.compactMenuMode ?? false;
     final height = AppInputTokens.height(isSlim);
     final fontSize = AppInputTokens.fontSize(isSlim);
 
-    return Tooltip(
-      message: widget.mode.tooltip,
-      waitDuration: const Duration(milliseconds: 400),
-      child: Material(
-        key: _anchorKey,
-        color: AppInputTokens.fillColor(context),
-        borderRadius: AppTokens.borderRadiusAll,
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: _openMenu,
-          child: SizedBox(
-            height: height,
-            child: Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(12, 0, 8, 0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _entries.firstWhere((e) => e.value == widget.mode).label,
-                      style: TextStyle(fontSize: fontSize, color: cs.onSurface),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+    // התפריט הנפתח לובש את עיטור תפריט היקף החיפוש שלצדו. ה-Theme חייב לעטוף
+    // את ההקשר שממנו נפתח התפריט — showMenu לוכד את ה-themes של הקשר הפתיחה.
+    return Theme(
+      data: theme.copyWith(
+        popupMenuTheme: theme.popupMenuTheme.copyWith(
+          color: SearchMenuSurface.background(cs),
+          elevation: SearchMenuSurface.elevation,
+          shape: SearchMenuSurface.shape(cs),
+          menuPadding: SearchMenuSurface.listPadding,
+        ),
+      ),
+      child: Builder(
+        builder: (menuContext) => Tooltip(
+          message: widget.mode.tooltip,
+          waitDuration: const Duration(milliseconds: 400),
+          child: Material(
+            key: _anchorKey,
+            color: AppInputTokens.fillColor(context),
+            borderRadius: AppTokens.borderRadiusAll,
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => _openMenu(menuContext),
+              child: SizedBox(
+                height: height,
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.fromSTEB(12, 0, 8, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _entries
+                              .firstWhere((e) => e.value == widget.mode)
+                              .label,
+                          style: TextStyle(
+                            fontSize: fontSize,
+                            color: cs.onSurface,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        FluentIcons.chevron_down_16_regular,
+                        size: 16,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    FluentIcons.chevron_down_16_regular,
-                    size: 16,
-                    color: cs.onSurfaceVariant,
-                  ),
-                ],
+                ),
               ),
             ),
           ),

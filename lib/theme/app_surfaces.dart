@@ -77,6 +77,12 @@ class AppSurfaces {
   static Color dragTargetHighlight(ColorScheme cs) =>
       cs.primary.withValues(alpha: 0.08);
 
+  /// רקע השורה שהמקלדת מסמנת בתפריט נפתח.
+  ///
+  /// 10% primary — מספיק כדי לעקוב אחרי החצים, בלי להיראות כבחירה.
+  static Color menuKeyboardHighlight(ColorScheme cs) =>
+      cs.primary.withValues(alpha: 0.10);
+
   /// מילוי חיווי ההפלה של חלונית קריאה — המלבן שמסמן היכן תיפול החלונית.
   ///
   /// 16% primary — קריא מעל תוכן ספר, ועדיין שקוף מספיק כדי לראות

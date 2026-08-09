@@ -15,10 +15,10 @@ import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/search/utils/find_match_utils.dart';
 import 'package:otzaria/search/utils/foundational_book_classifier.dart';
 import 'package:otzaria/search/utils/scope_tree.dart';
+import 'package:otzaria/search/view/search_menu_style.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/theme/app_input_tokens.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
@@ -487,13 +487,10 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
         groupId: _tapGroup,
         onTapOutside: (_) => _close(),
         child: Material(
-          elevation: 8,
-          color: colorScheme.surfaceContainerHigh,
+          elevation: SearchMenuSurface.elevation,
+          color: SearchMenuSurface.background(colorScheme),
           clipBehavior: Clip.antiAlias,
-          shape: RoundedRectangleBorder(
-            borderRadius: AppTokens.borderRadiusAll,
-            side: BorderSide(color: colorScheme.outlineVariant),
-          ),
+          shape: SearchMenuSurface.shape(colorScheme),
           // הפוקוס נשמר בשדה לאחר כל פעולה (onKeepFocus) כדי לאפשר הקלדה
           // וניווט מקלדת רציפים גם אחרי לחיצה בעכבר על פריט בתפריט.
           child: ExcludeFocus(
@@ -641,7 +638,7 @@ class _ScopeMenuPanel extends StatefulWidget {
 class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
   static const int _minSearchQueryLength = 2;
   static const int _authorSuggestionsLimit = 15;
-  static const double _rowHeight = 44;
+  static const double _rowHeight = SearchMenuRow.height;
 
   final ScrollController _scrollController = ScrollController();
 
@@ -1062,7 +1059,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
               : ListView.builder(
                   controller: _scrollController,
                   shrinkWrap: true,
-                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  padding: SearchMenuSurface.listPadding,
                   itemCount: items.length,
                   itemBuilder: (context, index) =>
                       _buildRow(context, items[index], index),
@@ -1191,72 +1188,31 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
     return InkWell(
       canRequestFocus: false,
       onTap: onRowTap,
-      child: Container(
-        constraints: const BoxConstraints(minHeight: _rowHeight),
-        color: highlighted ? colorScheme.primary.withValues(alpha: 0.10) : null,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        child: Row(
-          children: [
-            if (item.check != null)
-              SizedBox(
-                width: 28,
-                height: 28,
-                child: Checkbox(
-                  value: item.check,
-                  tristate: true,
-                  onChanged: (_) {
-                    item.onToggle?.call(!(item.check ?? false));
-                    widget.onKeepFocus();
-                  },
-                ),
-              )
-            else
-              const SizedBox(width: 28),
-            const SizedBox(width: 2),
-            if (item.icon != null) ...[
-              item.useRtlIcon
-                  ? RtlIcon(item.icon!, size: 18, color: iconColor)
-                  : Icon(item.icon, size: 18, color: iconColor),
-              const SizedBox(width: 8),
-            ],
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    item.label,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: colorScheme.onSurface,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (item.subtitle.isNotEmpty)
-                    Text(
-                      item.subtitle,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                ],
+      child: SearchMenuRow(
+        label: item.label,
+        subtitle: item.subtitle,
+        icon: item.icon,
+        useRtlIcon: item.useRtlIcon,
+        iconColor: iconColor,
+        highlighted: highlighted,
+        leading: item.check == null
+            ? null
+            : Checkbox(
+                value: item.check,
+                tristate: true,
+                onChanged: (_) {
+                  item.onToggle?.call(!(item.check ?? false));
+                  widget.onKeepFocus();
+                },
               ),
-            ),
-            if (item.isDrill) ...[
-              const SizedBox(width: 4),
-              // בכיוון RTL מתהפך ומצביע שמאלה — כיוון הכניסה פנימה.
-              RtlIcon(
+        trailing: item.isDrill
+            // בכיוון RTL מתהפך ומצביע שמאלה — כיוון הכניסה פנימה.
+            ? RtlIcon(
                 FluentIcons.chevron_left_24_regular,
                 size: 18,
                 color: colorScheme.onSurfaceVariant,
-              ),
-            ],
-          ],
-        ),
+              )
+            : null,
       ),
     );
   }
