@@ -426,6 +426,36 @@ class ScopeTree {
     return books;
   }
 
+  /// כל ה-facets שכל הספרים שתחתיהם שייכים ל-[bookFacets] — הספרים עצמם וגם
+  /// תיקיות שכולן כאלה. בלי התיקיות, בחירה שהתקפלה ל-facet של תיקיה
+  /// (`_consolidateSelection`) לא הייתה מזוהה כשייכת לקבוצה.
+  Set<String> facetsFullyWithin(Set<String> bookFacets) {
+    final result = <String>{};
+
+    /// (מספר הספרים תחת הצומת, כמה מהם ב-[bookFacets])
+    (int, int) visit(ScopeNode node) {
+      if (node.isBook) {
+        final within = bookFacets.contains(node.facet);
+        if (within) result.add(node.facet);
+        return (1, within ? 1 : 0);
+      }
+      var total = 0;
+      var within = 0;
+      for (final child in node.children) {
+        final counts = visit(child);
+        total += counts.$1;
+        within += counts.$2;
+      }
+      if (total > 0 && total == within) result.add(node.facet);
+      return (total, within);
+    }
+
+    for (final node in rootNodes) {
+      visit(node);
+    }
+    return result;
+  }
+
   // --- ניווט אקורדיון (ילדים גלויים + קיפול שרשרת יחיד) ---
 
   /// האם תחת [node] יש ספר מותר (או שהוא עצמו ספר כזה). [onlyBooks] = facets

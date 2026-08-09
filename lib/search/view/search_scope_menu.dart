@@ -252,7 +252,9 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
     }
     setState(() {
       _baseBookNodesCache = result;
-      _baseBookFacets = {for (final node in result) node.facet};
+      _baseBookFacets = tree.facetsFullyWithin({
+        for (final node in result) node.facet,
+      });
     });
     widget.onBaseBookFacetsResolved?.call(_baseBookFacets);
   }
@@ -606,7 +608,11 @@ class _MenuItem {
   final String subtitle;
   final IconData? icon;
   final bool useRtlIcon;
+
+  /// מצב התיבה: true/false, ו-null = סימון חלקי. "אין תיבה בכלל" מיוצג
+  /// ב-[showCheck] ולא ב-null, אחרת פריט חלקי היה מאבד את התיבה.
   final bool? check;
+  final bool showCheck;
   final ValueChanged<bool>? onToggle;
   final VoidCallback? onTap;
   final VoidCallback? onDrill;
@@ -621,15 +627,30 @@ class _MenuItem {
     this.useRtlIcon = false,
     required this.check,
     this.onToggle,
-    this.onTap,
     this.onDrill,
-  }) : isHeader = false;
+  }) : showCheck = true,
+       onTap = null,
+       isHeader = false;
+
+  /// שורת פעולה בלי תיבת סימון (למשל "נקה הכל").
+  const _MenuItem.action({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  }) : subtitle = '',
+       useRtlIcon = false,
+       check = null,
+       showCheck = false,
+       onToggle = null,
+       onDrill = null,
+       isHeader = false;
 
   const _MenuItem.header(this.label)
     : subtitle = '',
       icon = null,
       useRtlIcon = false,
       check = null,
+      showCheck = false,
       onToggle = null,
       onTap = null,
       onDrill = null,
@@ -678,6 +699,10 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
   int _authorRequestId = 0;
   Set<String> _baseFacetSet = const {};
 
+  /// [_baseFacetSet] בתוספת תיקיות שכל ספריהן ספרי יסוד — הבחירה מתקפלת
+  /// לעתים ל-facet של תיקיה, ובלי זה היא לא הייתה מיוחסת לספרי היסוד.
+  Set<String> _baseCoveredFacets = const {};
+
   @override
   void initState() {
     super.initState();
@@ -689,7 +714,8 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
   @override
   void didUpdateWidget(covariant _ScopeMenuPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.baseBookNodes, widget.baseBookNodes)) {
+    if (!identical(oldWidget.baseBookNodes, widget.baseBookNodes) ||
+        !identical(oldWidget.tree, widget.tree)) {
       _syncBaseFacetSet();
     }
     if (oldWidget.tree != null && widget.tree == null) {
@@ -716,6 +742,8 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
       for (final node in widget.baseBookNodes ?? const <BookScopeNode>[])
         node.facet,
     };
+    _baseCoveredFacets =
+        widget.tree?.facetsFullyWithin(_baseFacetSet) ?? _baseFacetSet;
   }
 
   @override
@@ -878,7 +906,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
     final item = items[_highlight];
     if (item.isDrill) {
       item.onDrill!();
-    } else if (item.check == null && item.onTap != null) {
+    } else if (item.onTap != null) {
       item.onTap!();
     } else {
       item.onToggle?.call(!(item.check ?? false));
@@ -1018,15 +1046,14 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
     final onlyBaseBooks =
         !baseSelected &&
         selectedBooks.isNotEmpty &&
-        _baseFacetSet.isNotEmpty &&
-        selectedBooks.every(_baseFacetSet.contains);
+        _baseCoveredFacets.isNotEmpty &&
+        selectedBooks.every(_baseCoveredFacets.contains);
 
     return [
       if (!isEverything)
-        _MenuItem(
+        _MenuItem.action(
           label: 'נקה הכל',
           icon: FluentIcons.arrow_reset_24_regular,
-          check: null,
           onTap: _clearAll,
         ),
       _MenuItem(
@@ -1249,7 +1276,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
     void onRowTap() {
       if (item.isDrill) {
         item.onDrill!();
-      } else if (item.check == null && item.onTap != null) {
+      } else if (item.onTap != null) {
         item.onTap!();
       } else {
         item.onToggle?.call(!(item.check ?? false));
@@ -1266,16 +1293,16 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
         useRtlIcon: item.useRtlIcon,
         iconColor: iconColor,
         highlighted: highlighted,
-        leading: item.check == null
-            ? null
-            : Checkbox(
+        leading: item.showCheck
+            ? Checkbox(
                 value: item.check,
                 tristate: true,
                 onChanged: (_) {
                   item.onToggle?.call(!(item.check ?? false));
                   widget.onKeepFocus();
                 },
-              ),
+              )
+            : null,
         trailing: item.isDrill
             // בכיוון RTL מתהפך ומצביע שמאלה — כיוון הכניסה פנימה.
             ? RtlIcon(
