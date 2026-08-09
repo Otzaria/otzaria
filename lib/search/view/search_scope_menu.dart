@@ -51,8 +51,9 @@ List<ScopeFilterEntry> activeScopeFilters({
         !dimensions.contains(FacetHelper.baseDimensionFacet) &&
         baseBookFacets.isNotEmpty &&
         categories.every(baseBookFacets.contains);
+    // התווית היא שם הקבוצה שממנה נבחרו הפריטים; הסימן החלקי אומר "חלק מ־".
     result.add((
-      label: onlyBaseBooks ? 'ספרי יסוד' : 'כל הספרים',
+      label: onlyBaseBooks ? 'כל ספרי יסוד' : 'כל הספרים',
       partial: true,
       onRemove: () => onChanged(dimensions.toSet()),
     ));
