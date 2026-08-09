@@ -30,11 +30,14 @@ typedef ScopeFilterEntry = ({
 });
 
 /// הסינונים הפעילים לתגיות / למונה שבשדה. בחירת קטגוריות/ספרים ספציפיים
-/// מיוצגת בפריט *אחד* ("כל הספרים") ולא שם לכל פריט. בחירת "ספרי יסוד"
-/// ככלל אינה מגיעה לכאן — היא facet ממדי (`/base`) ומתויגת בלופ שמתחת.
+/// מיוצגת בפריט *אחד* ולא שם לכל פריט. בחירת "ספרי יסוד" ככלל אינה מגיעה
+/// לכאן — היא facet ממדי (`/base`) ומתויגת בלופ שמתחת.
+/// [baseBookFacets] — ה-facets של ספרי היסוד, כשהם ידועים. בחירה שכולה
+/// מתוכם מיוחסת ל"ספרי יסוד" ולא ל"כל הספרים".
 List<ScopeFilterEntry> activeScopeFilters({
   required Set<String> selected,
   required ValueChanged<Set<String>> onChanged,
+  Set<String> baseBookFacets = const {},
 }) {
   final result = <ScopeFilterEntry>[];
   final categories = FacetHelper.categoryFacetsOf(
@@ -43,8 +46,13 @@ List<ScopeFilterEntry> activeScopeFilters({
   final dimensions = FacetHelper.dimensionFacetsOf(selected).toList();
 
   if (categories.isNotEmpty) {
+    // כש-/base כבר מסומן יש לו תגית משלו, ואין לתייג "ספרי יסוד" פעמיים.
+    final onlyBaseBooks =
+        !dimensions.contains(FacetHelper.baseDimensionFacet) &&
+        baseBookFacets.isNotEmpty &&
+        categories.every(baseBookFacets.contains);
     result.add((
-      label: 'כל הספרים',
+      label: onlyBaseBooks ? 'ספרי יסוד' : 'כל הספרים',
       partial: true,
       onRemove: () => onChanged(dimensions.toSet()),
     ));
@@ -80,16 +88,21 @@ class SearchScopeChips extends StatelessWidget {
     super.key,
     required this.selected,
     required this.onChanged,
+    this.baseBookFacets = const {},
   });
 
   final Set<String> selected;
   final ValueChanged<Set<String>> onChanged;
+
+  /// ה-facets של ספרי היסוד — ראו [activeScopeFilters].
+  final Set<String> baseBookFacets;
 
   @override
   Widget build(BuildContext context) {
     final filters = activeScopeFilters(
       selected: selected,
       onChanged: onChanged,
+      baseBookFacets: baseBookFacets,
     );
     if (filters.isEmpty) return const SizedBox.shrink();
     return Wrap(
@@ -134,6 +147,10 @@ class SearchScopeMenuButton extends StatefulWidget {
   /// מועבר `false` (ה-chips היו מזיזים את העץ), ובמקומם מונה קומפקטי בשדה.
   final bool showChips;
 
+  /// מדווח את ה-facets של ספרי היסוד ברגע שסווגו, כדי שמי שמציג את התגיות
+  /// מחוץ לווידג'ט ([SearchScopeChips]) יוכל לייחס להם בחירה.
+  final ValueChanged<Set<String>>? onBaseBookFacetsResolved;
+
   const SearchScopeMenuButton({
     super.key,
     required this.selected,
@@ -141,6 +158,7 @@ class SearchScopeMenuButton extends StatefulWidget {
     this.width = 300,
     this.height,
     this.showChips = true,
+    this.onBaseBookFacetsResolved,
   });
 
   @override
@@ -162,6 +180,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   ScopeTree? _treeCache;
   Future<ScopeTree>? _treeFuture;
   List<BookScopeNode>? _baseBookNodesCache;
+  Set<String> _baseBookFacets = const {};
   Future<void>? _baseBookNodesFuture;
   int _baseBookGeneration = 0;
 
@@ -231,7 +250,11 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
         generation != _baseBookGeneration) {
       return;
     }
-    setState(() => _baseBookNodesCache = result);
+    setState(() {
+      _baseBookNodesCache = result;
+      _baseBookFacets = {for (final node in result) node.facet};
+    });
+    widget.onBaseBookFacetsResolved?.call(_baseBookFacets);
   }
 
   @override
@@ -285,6 +308,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
         _baseUserBookIds = userIds;
         _baseBookGeneration++;
         _baseBookNodesCache = null;
+        _baseBookFacets = const {};
       });
     }
   }
@@ -352,6 +376,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
           _treeFuture = null;
           _baseBookGeneration++;
           _baseBookNodesCache = null;
+          _baseBookFacets = const {};
           _baseBookNodesFuture = null;
         }
 
@@ -454,6 +479,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
       child: SearchScopeChips(
         selected: widget.selected,
         onChanged: widget.onChanged,
+        baseBookFacets: _baseBookFacets,
       ),
     );
   }
@@ -461,6 +487,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   List<ScopeFilterEntry> _activeFilters() => activeScopeFilters(
     selected: widget.selected,
     onChanged: widget.onChanged,
+    baseBookFacets: _baseBookFacets,
   );
 
   Widget _buildOverlay(BuildContext context) {
@@ -951,6 +978,14 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
         (categoryPart.isEmpty || categoryPart.contains('/')) &&
         _dimensionPart.isEmpty;
     final baseSelected = _selection.contains(FacetHelper.baseDimensionFacet);
+    // בחירה של ספרים בודדים נשמרת כ-facets קטגוריאליים, בלי זכר לתצוגה שממנה
+    // נבחרו. כשכולם ספרי יסוד — הסימון החלקי שייך ל"ספרי יסוד", לא ל"כל הספרים".
+    final selectedBooks = categoryPart.where((f) => f != '/');
+    final onlyBaseBooks =
+        !baseSelected &&
+        selectedBooks.isNotEmpty &&
+        _baseFacetSet.isNotEmpty &&
+        selectedBooks.every(_baseFacetSet.contains);
 
     return [
       if (!isEverything)
@@ -963,7 +998,9 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
       _MenuItem(
         label: 'כל הספרים',
         icon: FluentIcons.library_24_regular,
-        check: isEverything,
+        check: isEverything
+            ? true
+            : (selectedBooks.isNotEmpty && !onlyBaseBooks ? null : false),
         onToggle: (_) => isEverything ? _clearAll() : _apply({'/'}),
         onDrill: () => _enterView(_View.categories),
       ),
@@ -971,7 +1008,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
         label: 'ספרי יסוד',
         icon: FluentIcons.book_star_24_regular,
         useRtlIcon: true,
-        check: baseSelected,
+        check: baseSelected ? true : (onlyBaseBooks ? null : false),
         onToggle: (v) => _toggleDimension(FacetHelper.baseDimensionFacet, v),
         onDrill: () => _enterView(_View.base),
       ),

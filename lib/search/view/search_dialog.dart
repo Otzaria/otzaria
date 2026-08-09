@@ -113,6 +113,10 @@ class _SearchDialogState extends State<SearchDialog> {
   /// בחירת היקף החיפוש המאוחדת — facets קטגוריאליים (עץ/ספרים) וממדיים
   /// (תקופה/מחבר/ספרי יסוד) יחד. נשלט ע"י [SearchScopeMenuButton].
   Set<String> _scopeSelection = {'/'};
+
+  /// ה-facets של ספרי היסוד, כפי שדווחו מהתפריט — התגיות יושבות בשורה משלהן
+  /// מחוץ לתפריט ובלעדיהם אינן יודעות לייחס בחירה ל"ספרי יסוד".
+  Set<String> _baseBookFacets = const {};
   final ValueNotifier<bool> _advancedControlsHasFocus = ValueNotifier(false);
   final MenuController _historyMenuController = MenuController();
   late final VoidCallback _queryListener;
@@ -942,6 +946,9 @@ class _SearchDialogState extends State<SearchDialog> {
             width: double.infinity,
             height: controlHeight,
             showChips: false,
+            onBaseBookFacetsResolved: (facets) {
+              if (mounted) setState(() => _baseBookFacets = facets);
+            },
           )
         : null;
 
@@ -966,6 +973,7 @@ class _SearchDialogState extends State<SearchDialog> {
     final chips = SearchScopeChips(
       selected: _scopeSelection,
       onChanged: _onScopeChanged,
+      baseBookFacets: _baseBookFacets,
     );
 
     return LayoutBuilder(
