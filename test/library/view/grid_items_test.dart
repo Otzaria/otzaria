@@ -6,6 +6,7 @@ import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/view/grid_items.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 
 class _FakeFileSystemData extends FileSystemData {
   _FakeFileSystemData({this.canDelete = false});
@@ -152,6 +153,266 @@ void main() {
       ),
     );
   }
+
+  /// מרנדר כרטיס בדיוק במידות שהרשת מקצה לו, כדי לבדוק שאין גלישה.
+  Widget buildTileSizedWidget({
+    required Book book,
+    required LibraryGridLayout layout,
+    required double availableWidth,
+    bool showTopics = false,
+    double textScale = 1.0,
+  }) {
+    return MaterialApp(
+      home: MediaQuery(
+        data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
+        child: Material(
+          child: Align(
+            alignment: Alignment.topRight,
+            child: SizedBox(
+              width: availableWidth - layout.horizontalPadding * 2,
+              height: layout.tileExtent,
+              child: BookGridItem(
+                book: book,
+                showTopics: showTopics,
+                onBookClickCallback: () {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  group('פריסת רשת הספרייה', () {
+    /// רשת דפדוף הקטגוריות (MyGridView) ברוחב נתון.
+    LibraryGridLayout category(double width, {double textScale = 1.0}) =>
+        LibraryGridLayout.resolve(
+          availableWidth: width,
+          textScale: textScale,
+          showTopics: false,
+          aspectRatio: width >= 1400
+              ? 2.1
+              : width >= 1100
+              ? 1.95
+              : width >= 800
+              ? 1.8
+              : 1.65,
+          widePadding: 30,
+        );
+
+    /// רשת תוצאות החיפוש.
+    LibraryGridLayout search(double width, {double textScale = 1.0}) =>
+        LibraryGridLayout.resolve(
+          availableWidth: width,
+          textScale: textScale,
+          showTopics: true,
+          aspectRatio: 2,
+          widePadding: 45,
+        );
+
+    /// הגובה שהיחס לרוחב היה נותן בלי החסם — התנהגות התצוגה לפני התיקון.
+    double uncappedExtent(
+      LibraryGridLayout layout,
+      double width,
+      double ratio,
+    ) {
+      final inner = width - layout.horizontalPadding * 2;
+      return (inner - kLibraryGridSpacing * (layout.crossAxisCount - 1)) /
+          layout.crossAxisCount /
+          ratio;
+    }
+
+    test('מעל הסף הצר הפריסה זהה למה שהייתה — התיקון אינו נוגע בה', () {
+      for (final width in [
+        600.0,
+        749.0,
+        800.0,
+        1100.0,
+        1400.0,
+        1920.0,
+        3000.0,
+      ]) {
+        final layout = category(width);
+        expect(
+          layout.tileExtent,
+          uncappedExtent(
+            layout,
+            width,
+            width >= 1400
+                ? 2.1
+                : width >= 1100
+                ? 1.95
+                : width >= 800
+                ? 1.8
+                : 1.65,
+          ),
+          reason: 'רשת קטגוריות ברוחב $width',
+        );
+        expect(layout.horizontalPadding, 30);
+
+        final searchLayout = search(width);
+        expect(
+          searchLayout.tileExtent,
+          uncappedExtent(searchLayout, width, 2),
+          reason: 'רשת חיפוש ברוחב $width',
+        );
+        expect(searchLayout.horizontalPadding, 45);
+      }
+    });
+
+    test('מספר העמודות נשמר כפי שהיה בכל רוחב', () {
+      for (final width in [
+        320.0,
+        414.0,
+        600.0,
+        800.0,
+        1100.0,
+        1400.0,
+        3000.0,
+      ]) {
+        final expected = (width ~/ kLibraryGridMinTileWidth).clamp(
+          1,
+          kLibraryGridMaxColumns,
+        );
+        expect(category(width).crossAxisCount, expected, reason: 'רוחב $width');
+        expect(search(width).crossAxisCount, expected, reason: 'רוחב $width');
+      }
+    });
+
+    test('מסך צר: הגובה נחתך לגובה התוכן במקום להתנפח עם הרוחב', () {
+      // issue #677 — עמודה בודדת ניפחה את הכרטיס בלי שהתוכן גדל.
+      final narrowSearch = search(414);
+      final narrowCategory = category(414);
+
+      expect(narrowSearch.crossAxisCount, 1);
+      expect(narrowSearch.tileExtent, lessThan(140));
+      expect(
+        narrowSearch.tileExtent,
+        lessThan(uncappedExtent(narrowSearch, 414, 2)),
+      );
+      expect(narrowCategory.tileExtent, lessThan(140));
+      expect(
+        narrowCategory.tileExtent,
+        lessThan(uncappedExtent(narrowCategory, 414, 1.65)),
+      );
+    });
+
+    test('ריפוד קומפקטי רק מתחת לסף הצר', () {
+      expect(search(599).horizontalPadding, LayoutPadding.compact);
+      expect(search(600).horizontalPadding, 45);
+      expect(category(599).horizontalPadding, LayoutPadding.compact);
+      expect(category(600).horizontalPadding, 30);
+    });
+
+    test('הגובה גדל עם מידת הטקסט', () {
+      expect(
+        category(414, textScale: 2.0).tileExtent,
+        greaterThan(category(414).tileExtent),
+      );
+      expect(
+        search(414, textScale: 2.0).tileExtent,
+        greaterThan(search(414).tileExtent),
+      );
+    });
+
+    test('במידת טקסט גדולה הרצפה מגדילה את הכרטיס גם במסך רחב', () {
+      // בלי הרצפה הטקסט המוגדל גולש מהכרטיס — באג קיים ביחס הקבוע.
+      final wide = search(1400, textScale: 2.0);
+      expect(wide.tileExtent, greaterThan(uncappedExtent(wide, 1400, 2)));
+    });
+  });
+
+  testWidgets('כרטיס ספר נכנס לגובה שהרשת מקצה לו — ללא גלישה', (tester) async {
+    FileSystemData.instance = _FakeFileSystemData(canDelete: true);
+
+    final book = TextBook(
+      title: 'ספר עם כותרת ארוכה מאוד שנשברת לשתי שורות בכרטיס הספרייה',
+      categoryId: 3,
+      isUserBook: true,
+      author: 'מחבר עם שם ארוך במיוחד לבדיקת שורת המחבר',
+      topics: 'תלמוד בבלי, סדר מועד, מסכת יומא',
+    );
+
+    for (final textScale in [1.0, 2.0]) {
+      for (final showTopics in [false, true]) {
+        for (final width in [414.0, 1400.0]) {
+          final layout = LibraryGridLayout.resolve(
+            availableWidth: width,
+            textScale: textScale,
+            showTopics: showTopics,
+            aspectRatio: showTopics ? 2 : 1.65,
+            widePadding: showTopics ? 45 : 30,
+          );
+
+          await tester.pumpWidget(
+            buildTileSizedWidget(
+              book: book,
+              layout: layout,
+              availableWidth: width / layout.crossAxisCount,
+              showTopics: showTopics,
+              textScale: textScale,
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(
+            tester.takeException(),
+            isNull,
+            reason: 'רוחב $width, מידת טקסט $textScale, נושאים $showTopics',
+          );
+        }
+      }
+    }
+  });
+
+  testWidgets('MyGridView במסך צר: עמודה אחת בגובה התוכן, לא בגובה הרוחב', (
+    tester,
+  ) async {
+    const width = 414.0;
+    final layout = LibraryGridLayout.resolve(
+      availableWidth: width,
+      textScale: 1.0,
+      showTopics: false,
+      aspectRatio: 1.65,
+      widePadding: 30,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Material(
+          child: Align(
+            alignment: Alignment.topRight,
+            child: SizedBox(
+              width: width,
+              height: 800,
+              child: SingleChildScrollView(
+                child: MyGridView(
+                  items: [
+                    for (var i = 0; i < 4; i++)
+                      BookGridItem(
+                        book: TextBook(title: 'ספר $i', categoryId: i),
+                        onBookClickCallback: () {},
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final cards = find.byType(BookGridItem);
+    expect(cards, findsNWidgets(4));
+
+    final cardSize = tester.getSize(cards.first);
+    expect(cardSize.height, layout.tileExtent);
+    expect(cardSize.width, width - layout.horizontalPadding * 2);
+    // הכרטיס לא נגזר מהרוחב: ביחס הישן הוא היה מתנפח ליותר מ-200px.
+    expect(cardSize.height, lessThan(cardSize.width / 2));
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('מציג tooltip כשהכותרת נחתכת עם ellipsis בתוך המילה האחרונה', (
     tester,

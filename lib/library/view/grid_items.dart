@@ -533,8 +533,13 @@ class _BookGridTextColumn extends StatelessWidget {
       color: theme.colorScheme.secondary,
     );
 
+    final textScale = MediaQuery.textScalerOf(context).scale(1.0);
+
     return LayoutBuilder(
       builder: (context, constraints) {
+        // הגובה נמדד ביחידות טקסט: גובה האריח גדל עם מידת הטקסט, ובלי הנרמול
+        // ספים קבועים בפיקסלים היו מרשים שורות נוספות שאינן נכנסות.
+        final availableHeight = constraints.maxHeight / textScale;
         final titleOverflow =
             titleStyle != null &&
             constraints.maxWidth.isFinite &&
@@ -562,9 +567,9 @@ class _BookGridTextColumn extends StatelessWidget {
         final hasTopics = showTopics && book.topics.trim().isNotEmpty;
         final topicsMaxLines = !hasTopics
             ? 0
-            : constraints.maxHeight < 110
+            : availableHeight < 110
             ? 1
-            : constraints.maxHeight < 140 ||
+            : availableHeight < 140 ||
                   hasAuthor ||
                   titleOverflow // || hasShortDescription
             ? 2
@@ -747,6 +752,81 @@ class _BookGridActionColumn extends StatelessWidget {
 /// ריווח אחיד בין כרטיסי הרשת — משותף לתצוגת הספרייה ולתוצאות החיפוש.
 const double kLibraryGridSpacing = 14;
 
+/// הרוחב המבוקש לכרטיס; ממנו נגזר מספר העמודות.
+const double kLibraryGridMinTileWidth = 250;
+
+/// מספר העמודות המרבי, גם במסך רחב מאוד.
+const int kLibraryGridMaxColumns = 5;
+
+/// גובה טור הפעולות (אייקון 32 + מידע 28 + תפריט 28) — קבוע, לא מתכווץ,
+/// ולכן הוא רצפת הגובה של הכרטיס בכל מידת טקסט.
+const double _kActionColumnHeight = 88;
+const double _kCardVerticalPadding = 20;
+const double _kCardBreathingRoom = 24;
+const double _kTitleLineHeight = 24; // titleMedium 16sp × 1.5
+const double _kMetaLineHeight = 16; // bodySmall 12sp × 1.33
+const double _kAuthorGap = 3;
+
+/// פריסת רשת הספרייה לרוחב נתון — עמודות, ריפוד אופקי וגובה אריח.
+///
+/// מעל הסף הצר הפריסה זהה למה שהייתה תמיד: הגובה נגזר מהיחס לרוחב. מתחת לסף
+/// היחס מנפח את הכרטיס לגובה כפול בלי שהתוכן גדל (issue #677), ולכן שם הגובה
+/// נחתך לגובה שהתוכן דורש.
+///
+/// הרצפה חלה בכל רוחב: במידת טקסט רגילה היחס תמיד מעליה, ובהגדלת גופן היא
+/// מונעת גלישה של הטקסט מחוץ לכרטיס.
+class LibraryGridLayout {
+  final int crossAxisCount;
+  final double horizontalPadding;
+  final double tileExtent;
+
+  const LibraryGridLayout({
+    required this.crossAxisCount,
+    required this.horizontalPadding,
+    required this.tileExtent,
+  });
+
+  factory LibraryGridLayout.resolve({
+    required double availableWidth,
+    required double textScale,
+    required bool showTopics,
+    required double aspectRatio,
+    required double widePadding,
+  }) {
+    final isCompact = availableWidth < LayoutBreakpoints.compact;
+    final horizontalPadding = isCompact ? LayoutPadding.compact : widePadding;
+    final columns = (availableWidth ~/ kLibraryGridMinTileWidth).clamp(
+      1,
+      kLibraryGridMaxColumns,
+    );
+    final innerWidth = max(0.0, availableWidth - horizontalPadding * 2);
+    final columnWidth =
+        (innerWidth - kLibraryGridSpacing * (columns - 1)) / columns;
+    final ratioExtent = columnWidth / aspectRatio;
+
+    // הצירוף הגבוה ביותר שהכרטיס מציג: כותרת בשתי שורות, מחבר, ושורת נושאים.
+    final textHeight =
+        (_kTitleLineHeight * 2 +
+            _kAuthorGap +
+            _kMetaLineHeight +
+            (showTopics ? _kMetaLineHeight : 0)) *
+        textScale;
+    final contentExtent =
+        max(_kActionColumnHeight, textHeight) + _kCardVerticalPadding;
+
+    return LibraryGridLayout(
+      crossAxisCount: columns,
+      horizontalPadding: horizontalPadding,
+      tileExtent: isCompact
+          ? ratioExtent.clamp(
+              contentExtent,
+              contentExtent + _kCardBreathingRoom,
+            )
+          : max(ratioExtent, contentExtent),
+    );
+  }
+}
+
 class MyGridView extends StatelessWidget {
   final List<Widget> items;
 
@@ -768,22 +848,27 @@ class MyGridView extends StatelessWidget {
         final textAdjustment = textScale <= 1.0
             ? 1.0
             : (1.0 / (1.0 + ((textScale - 1.0) * 0.65)));
-        final childAspectRatio = (baseRatio * textAdjustment).clamp(1.45, 2.15);
+        final layout = LibraryGridLayout.resolve(
+          availableWidth: width,
+          textScale: textScale,
+          showTopics: false,
+          aspectRatio: (baseRatio * textAdjustment).clamp(1.45, 2.15),
+          widePadding: 30,
+        );
 
         return FocusTraversalGroup(
           policy: ReadingOrderTraversalPolicy(),
           child: Padding(
-            // top: 8 או מרווח מתאים; horizontal: 45 או רוחב אף
-            padding: const EdgeInsets.only(
+            padding: EdgeInsets.only(
               top: 8,
-              left: 30,
-              right: 30,
+              left: layout.horizontalPadding,
+              right: layout.horizontalPadding,
               bottom: 8,
             ),
             child: GridView.builder(
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: max(1, min(constraints.maxWidth ~/ 250, 5)),
-                childAspectRatio: childAspectRatio,
+                crossAxisCount: layout.crossAxisCount,
+                mainAxisExtent: layout.tileExtent,
                 crossAxisSpacing: kLibraryGridSpacing,
                 mainAxisSpacing: kLibraryGridSpacing,
               ),

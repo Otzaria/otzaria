@@ -49,8 +49,13 @@ Future<void> main() async {
 
     tearDownAll(() {
       if (!engineReady) return;
-      if (indexDir.existsSync()) {
+      engine.dispose();
+      // Tantivy ממפה את קבצי האינדקס לזיכרון, וב-Windows המחיקה נכשלת עד
+      // ששחרור המיפוי מגיע בפועל; תיקיית ה-temp מנוקה ע"י המערכת ממילא.
+      try {
         indexDir.deleteSync(recursive: true);
+      } on FileSystemException {
+        return;
       }
     });
 

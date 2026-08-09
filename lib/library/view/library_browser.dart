@@ -2202,18 +2202,24 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   Widget _buildSearchResultsGrid(List<Book> books, int displayLimit) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final crossAxisCount = (constraints.maxWidth ~/ 250)
-            .clamp(1, 5)
-            .toInt();
+        final layout = LibraryGridLayout.resolve(
+          availableWidth: constraints.maxWidth,
+          textScale: MediaQuery.textScalerOf(context).scale(1.0),
+          showTopics: true,
+          aspectRatio: 2,
+          widePadding: 45,
+        );
 
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 45),
+          padding: EdgeInsets.symmetric(
+            horizontal: layout.horizontalPadding,
+          ),
           child: FocusTraversalGroup(
             policy: OrderedTraversalPolicy(),
             child: GridView.builder(
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: crossAxisCount,
-                childAspectRatio: 2,
+                crossAxisCount: layout.crossAxisCount,
+                mainAxisExtent: layout.tileExtent,
                 crossAxisSpacing: kLibraryGridSpacing,
                 mainAxisSpacing: kLibraryGridSpacing,
               ),

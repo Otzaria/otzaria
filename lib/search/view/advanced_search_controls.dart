@@ -314,12 +314,15 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
         const SizedBox(height: 12),
         Row(
           children: [
-            Text(
-              'אפשרויות מילה',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.primary,
+            Flexible(
+              child: Text(
+                _optionsTitle(useGlobal, isWordSelected),
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
             ),
             const Spacer(),
@@ -334,6 +337,17 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
         ],
       ],
     );
+  }
+
+  /// כותרת שורת ההרחבה, מצהירה על מה הסימון יחול. בלעדיה סימון גלובלי
+  /// נראה כאילו הוא חל על המילה שהסמן עליה בלבד.
+  String _optionsTitle(bool useGlobal, bool isWordSelected) {
+    if (useGlobal) return 'הרחבת כל המילים';
+    if (_selectedSpans.length > 1) {
+      return 'הרחבת ${_selectedSpans.length} המילים שנבחרו';
+    }
+    if (isWordSelected) return 'הרחבת המילה: $_currentWord';
+    return 'הרחבת המילה';
   }
 
   /// מתג הרחבת החיפוש בחלופות השמורות — כבוי בכל חיפוש חדש.

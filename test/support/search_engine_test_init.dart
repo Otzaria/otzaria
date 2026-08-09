@@ -27,17 +27,28 @@ String? _searchEnginePackageRoot() {
 /// ה-FRB המחולל חייב להתאים ל-DLL (בדיקת content hash באתחול), ו-build
 /// ישן בפרופיל אחד אסור שיסתיר build עדכני בפרופיל השני.
 List<String> searchEngineLibraryCandidates() {
-  final packageRoot = _searchEnginePackageRoot();
-  if (packageRoot == null) return const [];
   const names = [
     'search_engine.dll',
     'libsearch_engine.so',
     'libsearch_engine.dylib',
   ];
+  final packageRoot = _searchEnginePackageRoot();
+  // חבילה מ-pub מגיעה בלי `rust/target` — שם ה-DLL היחיד הוא זה ש-cargokit
+  // בנה לתוך פלט ה-build של Flutter, ובלעדיו כל הטסטים תלויי-המנוע נדלגים.
+  final directories = [
+    if (packageRoot != null) ...[
+      '$packageRoot/rust/target/release',
+      '$packageRoot/rust/target/debug',
+    ],
+    'build/windows/x64/runner/Release',
+    'build/windows/x64/runner/Debug',
+    'build/linux/x64/release/bundle/lib',
+    'build/linux/x64/debug/bundle/lib',
+  ];
   final candidates = <File>[];
-  for (final profile in ['release', 'debug']) {
+  for (final directory in directories) {
     for (final name in names) {
-      final path = '$packageRoot/rust/target/$profile/$name'
+      final path = '$directory/$name'
           .replaceAll('\\', '/')
           .replaceAll('//', '/');
       final file = File(path);
