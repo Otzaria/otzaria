@@ -162,6 +162,12 @@ static void BringWindowToFront(HWND hwnd) {
   if (hwnd == nullptr) return;
   if (IsIconic(hwnd)) {
     ShowWindow(hwnd, SW_RESTORE);
+  } else if (!IsWindowVisible(hwnd) && !splash::IsAnyInstanceShowing()) {
+    // חלון מוסתר בלי splash פעיל: המופע הראשון סיים את האתחול אך חלונו נעלם
+    // (קריסה אחרי החשיפה). בזמן אתחול אין לחשוף — presentMainWindow מדלג אז
+    // על ה-cloak ומחזיר בדיוק את ההבהוב שהוא נועד למנוע. ההבחנה תקפה כל עוד
+    // ה-splash חי, כלומר עד kMaxDisplayMs.
+    ShowWindow(hwnd, SW_SHOW);
   }
   SetForegroundWindow(hwnd);
 }

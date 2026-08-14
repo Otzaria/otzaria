@@ -28,6 +28,10 @@ constexpr int kFadeOutStep = 30;       // 178/30 ≈ 6 צעדים ≈ 90ms (fade
 // זמן תצוגה מינימלי (החזקה אחרי ה-fade-in): גם אם החשיפה (Close) מגיעה מוקדם
 // (האפליקציה נטענת מהר), הסמל יוחזק לפחות זמן זה לפני ה-fade-out — מונע "הבזק".
 constexpr ULONGLONG kMinDisplayMs = 800;
+// זמן תצוגה מרבי: Close מגיע רק מ-Dart, כך שקריסה לפני חשיפת החלון הראשי
+// הותירה את הסמל תלוי על המסך כל עוד התהליך חי. חייב להישאר גבוה מאתחול
+// תקין הארוך ביותר — שחזור seforim.db (כמה GB) על דיסק קר נמשך דקות.
+constexpr ULONGLONG kMaxDisplayMs = 300000;
 
 // g_splash_hwnd נכתב ע"י ה-thread *לפני* SetEvent(g_created_event) ונקרא ע"י
 // Close רק *אחרי* שה-WaitForSingleObject ב-Show חזר — האירוע מספק happens-before.
@@ -269,6 +273,9 @@ DWORD WINAPI SplashThreadProc(LPVOID) {
       if (!closing && WaitForSingleObject(g_close_event, 0) == WAIT_OBJECT_0) {
         closing = true;
       }
+      if (!closing && (GetTickCount64() - start) >= kMaxDisplayMs) {
+        closing = true;
+      }
       // מתחילים fade-out רק אחרי שעבר זמן התצוגה המינימלי (מונע הבזק).
       if (closing && (GetTickCount64() - start) >= kMinDisplayMs) {
         alpha -= kFadeOutStep;
@@ -283,10 +290,9 @@ DWORD WINAPI SplashThreadProc(LPVOID) {
     g_splash_hwnd = nullptr;
   }
 
-  if (g_close_event) {
-    CloseHandle(g_close_event);
-    g_close_event = nullptr;
-  }
+  // g_close_event אינו נסגר כאן: מאז שה-thread מסיים גם מעצמו (kMaxDisplayMs)
+  // ולא רק בעקבות Close, סגירה כאן עלולה להקדים SetEvent על ידית משוחררת.
+  // ידית בודדת לכל חיי התהליך — המערכת משחררת אותה ביציאה.
   if (SUCCEEDED(co)) {
     CoUninitialize();
   }
@@ -339,6 +345,10 @@ void Close() {
   }
   CloseHandle(g_splash_thread);
   g_splash_thread = nullptr;
+}
+
+bool IsAnyInstanceShowing() {
+  return FindWindowW(kSplashClassName, nullptr) != nullptr;
 }
 
 }  // namespace splash

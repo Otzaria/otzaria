@@ -29,6 +29,10 @@ void Show();
 // בעת חשיפת החלון הראשי.
 void Close();
 
+// האם קיים חלון splash של אוצריא כלשהי — גם של תהליך אחר. מופע שני משתמש בזה
+// כדי להבחין בין מופע ראשון שעדיין באתחול לבין כזה שחלונו מוסתר שלא כדין.
+bool IsAnyInstanceShowing();
+
 }  // namespace splash
 
 #endif  // RUNNER_SPLASH_WINDOW_H_
