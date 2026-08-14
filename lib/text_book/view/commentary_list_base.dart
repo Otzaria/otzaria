@@ -1371,7 +1371,17 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     if (rtlSelectionPriming) return;
     if (text != null && text.trim().isNotEmpty) {
       _savedSelectedText.value = text;
-      widget.selectionSyncController?.activate(_selectionOwner);
+      // פרסום הבחירה ב-controller: מטפל ההעתקה במקלדת (Ctrl+C) במצב
+      // 'מפרשים מתחת' עובד על ה-SelectionArea החיצוני של הטקסט ואינו רואה
+      // את הבחירה הפנימית — לכן ה-controller נושא עבורו את הטקסט ואת
+      // המפרש (לכותרות).
+      widget.selectionSyncController?.activate(
+        _selectionOwner,
+        selectionText: _restoreLineBreaks(text),
+        selectionLink: _selectionSpansMultipleItems()
+            ? null
+            : _lastSelectedLink.value,
+      );
     } else {
       _savedSelectedText.value = null;
       _lastSelectedLink.value = null;
@@ -1567,6 +1577,8 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                     state: state,
                     reportLineIndex:
                         state.selectedIndex ?? currentIndexes.first,
+                    selectionSyncController:
+                        widget.selectionSyncController,
                   );
                 } else if (selectedCommentators.isEmpty) {
                   notesWidget = Center(
@@ -1773,16 +1785,28 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                         _CopyCommentaryIntent:
                             CallbackAction<_CopyCommentaryIntent>(
                               onInvoke: (_) {
-                                // בחירה החוצה כמה מפרשים — לא מייחסים כותרת מקור
-                                // (היא הייתה משתייכת למפרש בודד בלבד).
-                                final link = _selectionSpansMultipleItems()
-                                    ? null
-                                    : _lastSelectedLink.value;
+                                // ה-controller נושא את הבחירה העדכנית ביותר
+                                // (גם מזו של 'הערות' או בחירה באזור פנימי אחר)
+                                // — מעדיפים אותו, ונופלים לטקסט המקומי בלעדיו.
+                                final controller =
+                                    widget.selectionSyncController;
+                                final controllerText =
+                                    controller?.activeSelectionText;
+                                final savedSelectedText =
+                                    controllerText ??
+                                    _restoreLineBreaks(
+                                      _savedSelectedText.value,
+                                    );
+                                // בחירה החוצה כמה מפרשים — לא מייחסים כותרת
+                                // מקור (היא הייתה משתייכת למפרש בודד בלבד).
+                                final link = controller != null
+                                    ? controller.activeSelectionLink
+                                    : (_selectionSpansMultipleItems()
+                                          ? null
+                                          : _lastSelectedLink.value);
                                 ContextMenuUtils.copyFormattedText(
                                   context: context,
-                                  savedSelectedText: _restoreLineBreaks(
-                                    _savedSelectedText.value,
-                                  ),
+                                  savedSelectedText: savedSelectedText,
                                   fontSize: widget.fontSize,
                                   link: link,
                                 );
@@ -2493,6 +2517,10 @@ class _NotesCommentaryWidget extends StatefulWidget {
   /// אינדקס השורה שאליה מיוחסות ההערות המוצגות — לדיווח הטעות.
   final int reportLineIndex;
 
+  /// לפרסום בחירת ההערות — כדי ש-Ctrl+C יעתיק אותן גם כשהפוקוס אינו בתוך
+  /// ה-SelectionArea שלהן (ראו [SelectionSyncController.activeSelectionText]).
+  final SelectionSyncController? selectionSyncController;
+
   const _NotesCommentaryWidget({
     required this.notes,
     required this.fontSize,
@@ -2500,6 +2528,7 @@ class _NotesCommentaryWidget extends StatefulWidget {
     required this.openBookCallback,
     required this.state,
     required this.reportLineIndex,
+    this.selectionSyncController,
   });
 
   @override
@@ -2508,6 +2537,21 @@ class _NotesCommentaryWidget extends StatefulWidget {
 
 class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
   String? _selectedText;
+
+  /// מזהה בעלות ייחודי לבחירת ההערות ב-[SelectionSyncController].
+  final Object _selectionOwner = Object();
+
+  void _onNotesSelectionChanged(String? text) {
+    _selectedText = text;
+    if (text != null && text.trim().isNotEmpty) {
+      widget.selectionSyncController?.activate(
+        _selectionOwner,
+        selectionText: text,
+      );
+    } else {
+      widget.selectionSyncController?.clear(_selectionOwner);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2521,7 +2565,7 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
             // ביטול תפריט ברירת המחדל של Flutter — נשתמש ב-AppContextMenuRegion.
             contextMenuBuilder: (context, _) => const SizedBox.shrink(),
             onSelectionChanged: (selection) =>
-                _selectedText = selection?.plainText,
+                _onNotesSelectionChanged(selection?.plainText),
             child: AppContextMenuRegion(
               // לחיצה ימנית על טקסט מסומן לא תשחרר את הבחירה (ברירת המחדל של
               // SelectableRegion ב-Windows); לחיצה מחוץ לבחירה מבטלת כרגיל.

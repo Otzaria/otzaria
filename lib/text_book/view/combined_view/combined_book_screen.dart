@@ -20,6 +20,7 @@ import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/text_book/view/sibling_commentaries_menu.dart';
+import 'package:otzaria/utils/ui/context_menu_utils.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/tabs/models/tab.dart';
@@ -1444,6 +1445,23 @@ class _CombinedViewState extends State<CombinedView> {
     debugPrint('_currentSelectedIndex: ${_currentSelectedIndex.value}');
 
     if (plainText == null || plainText.trim().isEmpty) {
+      // בחירה במפרשים מנוהלת ע"י SelectionArea פנימי (עטוף ב-
+      // SelectionContainer.disabled) — היא אינה נרשמת אצל ה-SelectionArea
+      // החיצוני של הטקסט, ולכן אין כאן טקסט שמור. ה-controller נושא את
+      // הבחירה העדכנית של המפרשים — נופלים אליה כדי ש-Ctrl+C יעבוד גם
+      // כשהפוקוס נמצא על אזור הקריאה החיצוני.
+      final controller = widget.selectionSyncController;
+      final commentaryText = controller?.activeSelectionText;
+      if (commentaryText != null && commentaryText.trim().isNotEmpty) {
+        final settingsState = context.read<SettingsBloc>().state;
+        await ContextMenuUtils.copyFormattedText(
+          context: context,
+          savedSelectedText: commentaryText,
+          fontSize: settingsState.commentatorsFontSize,
+          link: controller?.activeSelectionLink,
+        );
+        return;
+      }
       UiSnack.show(TextBookMessages.selectTextToCopy);
       return;
     }
@@ -1610,7 +1628,10 @@ class _CombinedViewState extends State<CombinedView> {
                     _selectionStartColumn = null;
                     return;
                   }
-                  widget.selectionSyncController?.activate(_selectionOwner);
+                  widget.selectionSyncController?.activate(
+                    _selectionOwner,
+                    selectionText: plain,
+                  );
                   // כניסה למצב בחירה כשיש טקסט נבחר
                   if (!_selectionManager.isInSelectionMode) {
                     // שימוש באינדקס העליון הנראה במקום 0
