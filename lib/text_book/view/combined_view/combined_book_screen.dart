@@ -1212,7 +1212,7 @@ class _CombinedViewState extends State<CombinedView> {
           state.linksByLine,
           paragraphIndex + 1,
         );
-        final entry = _siblingController.buildEntry(
+        return _siblingController.buildEntries(
           lineIndex: paragraphIndex,
           sourceLink: sourceLink,
           removeNikud: state.commentaryRemoveNikud,
@@ -1223,9 +1223,6 @@ class _CombinedViewState extends State<CombinedView> {
             widget.openBookCallback(tab);
           },
         );
-        return entry == null
-            ? const <AppContextMenuEntry>[]
-            : <AppContextMenuEntry>[entry];
       }(),
       ...(() {
         final dictionaryText = (selectedText?.trim().isNotEmpty == true)

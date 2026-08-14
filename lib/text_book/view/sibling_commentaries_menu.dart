@@ -9,7 +9,8 @@ import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/widgets/misc/link_context_menu_entry.dart';
 
-/// מנהל את תת-התפריט "מפרשים נוספים על …" בתפריט ההקשר של ספרי מפרש.
+/// מנהל את פריטי תפריט ההקשר של ספרי מפרש הקשורים לשורת המקור: תת-התפריט
+/// "מפרשים נוספים על …" ושורת הספר המקורי שפותחת את המקור במיקום הנוכחי.
 ///
 /// כשלומדים בתוך ספר מפרש (למשל רשב"א על ברכות), הקישור ההפוך (SOURCE) של כל
 /// שורה כבר נותן את שורת המקור בגמרא; מכאן נאספים שאר המפרשים על אותו קטע.
@@ -54,16 +55,43 @@ class SiblingCommentariesController {
     return best;
   }
 
-  /// בונה את פריט התפריט "מפרשים נוספים על <כתובת המקור>", או null כשאין מקור
-  /// (השורה אינה בספר מפרש).
-  AppContextMenuEntry? buildEntry({
+  /// בונה את פריטי התפריט של שורת מקור בספר מפרש: תת-התפריט
+  /// "מפרשים נוספים על <כתובת המקור>" ושורת הספר המקורי (שם הספר + הכתובת,
+  /// למשל "סנהדרין ב.") שפותחת את המקור במיקום הנוכחי. מחזיר רשימה ריקה
+  /// כשאין מקור (השורה אינה בספר מפרש).
+  List<AppContextMenuEntry> buildEntries({
     required int lineIndex,
     required Link? sourceLink,
     required void Function(Link link) onNavigate,
     bool? removeNikud,
     bool? removePunctuation,
   }) {
-    if (sourceLink == null) return null;
+    if (sourceLink == null) return const [];
+    return [
+      _buildSiblingsEntry(
+        lineIndex,
+        sourceLink,
+        onNavigate,
+        removeNikud: removeNikud,
+        removePunctuation: removePunctuation,
+      ),
+      _buildOriginalBookEntry(
+        sourceLink,
+        onNavigate,
+        removeNikud: removeNikud,
+        removePunctuation: removePunctuation,
+      ),
+    ];
+  }
+
+  /// פריט התפריט "מפרשים נוספים על <כתובת המקור>" — תת-תפריט שאר המפרשים.
+  AppContextMenuEntry _buildSiblingsEntry(
+    int lineIndex,
+    Link sourceLink,
+    void Function(Link link) onNavigate, {
+    bool? removeNikud,
+    bool? removePunctuation,
+  }) {
     // הכתובת המלאה (displayReference) מחושבת מה-TOC של המקור ולכן תואמת את
     // פורמט הכותרת ("ב."), בעוד fallbackDisplayReference מציג את ה-heRef הגולמי
     // ("ב א"). ה-fallback משמש עד שהחישוב האסינכרוני מסתיים.
@@ -87,6 +115,24 @@ class SiblingCommentariesController {
         removePunctuation: removePunctuation,
       ),
       childrenRefreshStream: _refresh.stream,
+    );
+  }
+
+  /// שורת הספר המקורי: שם הספר + הכתובת (למשל "סנהדרין ב.") שפותחת את ספר
+  /// המקור של המפרש במיקום הנוכחי. נבנית כמו קישור רגיל — כולל חלונית
+  /// תצוגה מקדימה צפה של הקטע ברפרוף.
+  AppContextMenuEntry _buildOriginalBookEntry(
+    Link sourceLink,
+    void Function(Link link) onNavigate, {
+    bool? removeNikud,
+    bool? removePunctuation,
+  }) {
+    return buildLinkContextMenuEntry(
+      link: sourceLink,
+      icon: FluentIcons.book_open_24_regular,
+      removeNikud: removeNikud,
+      removePunctuation: removePunctuation,
+      onTap: () => onNavigate(sourceLink),
     );
   }
 

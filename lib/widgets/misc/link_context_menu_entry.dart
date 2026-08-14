@@ -18,6 +18,7 @@ AppContextMenuEntry buildLinkContextMenuEntry({
   required VoidCallback onTap,
   bool? removeNikud,
   bool? removePunctuation,
+  IconData? icon,
 }) {
   return AppContextMenuEntry(
     label: link.fallbackDisplayReference,
@@ -29,6 +30,7 @@ AppContextMenuEntry buildLinkContextMenuEntry({
         overflow: TextOverflow.ellipsis,
       ),
     ),
+    icon: icon,
     onTap: onTap,
     hoverPreviewBuilder: (context) => LinkHoverPreviewContent(
       link: link,

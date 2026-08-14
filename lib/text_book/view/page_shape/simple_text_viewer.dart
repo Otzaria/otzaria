@@ -1733,18 +1733,19 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         state.linksByLine,
         index + 1,
       );
-      final siblingEntry = _siblingController!.buildEntry(
-        lineIndex: index,
-        sourceLink: sourceLink,
-        removeNikud: state.commentaryRemoveNikud,
-        removePunctuation: state.commentaryRemovePunctuation,
-        onNavigate: (link) async {
-          final tab = await buildLinkTargetTab(link);
-          if (!mounted) return;
-          widget.openBookCallback(tab);
-        },
+      entries.addAll(
+        _siblingController!.buildEntries(
+          lineIndex: index,
+          sourceLink: sourceLink,
+          removeNikud: state.commentaryRemoveNikud,
+          removePunctuation: state.commentaryRemovePunctuation,
+          onNavigate: (link) async {
+            final tab = await buildLinkTargetTab(link);
+            if (!mounted) return;
+            widget.openBookCallback(tab);
+          },
+        ),
       );
-      if (siblingEntry != null) entries.add(siblingEntry);
     }
 
     final dictionaryText = (capturedText?.trim().isNotEmpty == true)

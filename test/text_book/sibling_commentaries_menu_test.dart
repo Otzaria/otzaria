@@ -79,26 +79,50 @@ void main() {
       c.dispose();
     });
 
-    test('buildEntry מחזיר null כשאין קישור מקור', () {
+    test('buildEntries מחזיר רשימה ריקה כשאין קישור מקור', () {
       final c = SiblingCommentariesController(loadSiblings: (_) async => []);
       expect(
-        c.buildEntry(lineIndex: 1, sourceLink: null, onNavigate: (_) {}),
-        isNull,
+        c.buildEntries(lineIndex: 1, sourceLink: null, onNavigate: (_) {}),
+        isEmpty,
       );
       c.dispose();
     });
 
-    test('buildEntry בונה תווית "מפרשים נוספים על ..." עם תת-תפריט', () {
+    test('buildEntries בונה "מפרשים נוספים על ..." ושורת הספר המקורי', () {
       final c = SiblingCommentariesController(loadSiblings: (_) async => []);
-      final entry = c.buildEntry(
+      final entries = c.buildEntries(
         lineIndex: 1,
         sourceLink: _sourceLink(),
         onNavigate: (_) {},
       );
-      expect(entry, isNotNull);
-      expect(entry!.label, startsWith('מפרשים נוספים על'));
-      expect(entry.childrenBuilder, isNotNull);
-      expect(entry.childrenRefreshStream, isNotNull);
+      expect(entries.length, 2);
+
+      // הראשון: תת-התפריט "מפרשים נוספים על ..."
+      final siblings = entries[0];
+      expect(siblings.label, startsWith('מפרשים נוספים על'));
+      expect(siblings.childrenBuilder, isNotNull);
+      expect(siblings.childrenRefreshStream, isNotNull);
+
+      // השני: שורת הספר המקורי שפותחת את המקור במיקום הנוכחי.
+      final original = entries[1];
+      expect(original.label, contains('ברכות'));
+      expect(original.onTap, isNotNull);
+      c.dispose();
+    });
+
+    test('שורת הספר המקורי מנווטת לקישור המקור בעת לחיצה', () {
+      final c = SiblingCommentariesController(loadSiblings: (_) async => []);
+      Link? navigated;
+      final entries = c.buildEntries(
+        lineIndex: 1,
+        sourceLink: _sourceLink(),
+        onNavigate: (link) => navigated = link,
+      );
+      entries[1].onTap!();
+      expect(navigated, isNotNull);
+      expect(navigated!.connectionType, LinkTypes.source);
+      expect(navigated!.path2, 'ברכות');
+      expect(navigated!.index2, 10);
       c.dispose();
     });
 
@@ -112,11 +136,11 @@ void main() {
             return [_commentaryLink('ריטב"א'), _commentaryLink('רא"ש')];
           },
         );
-        final entry = c.buildEntry(
+        final entry = c.buildEntries(
           lineIndex: 1,
           sourceLink: _sourceLink(),
           onNavigate: (_) {},
-        )!;
+        )[0];
 
         final loading = entry.childrenBuilder!();
         expect(loading.length, 1);
@@ -133,11 +157,11 @@ void main() {
 
     test('childrenBuilder מציג "אין מפרשים נוספים" כשאין תוצאות', () async {
       final c = SiblingCommentariesController(loadSiblings: (_) async => []);
-      final entry = c.buildEntry(
+      final entry = c.buildEntries(
         lineIndex: 2,
         sourceLink: _sourceLink(),
         onNavigate: (_) {},
-      )!;
+      )[0];
 
       entry.childrenBuilder!();
       await Future<void>.delayed(const Duration(milliseconds: 10));
@@ -152,11 +176,11 @@ void main() {
     test('טעינה שהתחילה לפני clear() לא כותבת תוצאות ישנות למטמון', () async {
       final gate = Completer<List<Link>>();
       final c = SiblingCommentariesController(loadSiblings: (_) => gate.future);
-      final entry = c.buildEntry(
+      final entry = c.buildEntries(
         lineIndex: 1,
         sourceLink: _sourceLink(),
         onNavigate: (_) {},
-      )!;
+      )[0];
 
       entry.childrenBuilder!(); // מתחיל טעינה (Future תלוי)
       c.clear(); // מעבר ספר באמצע הטעינה
@@ -178,11 +202,11 @@ void main() {
           return [_commentaryLink('ריטב"א')];
         },
       );
-      final entry = c.buildEntry(
+      final entry = c.buildEntries(
         lineIndex: 1,
         sourceLink: _sourceLink(),
         onNavigate: (_) {},
-      )!;
+      )[0];
 
       entry.childrenBuilder!();
       await Future<void>.delayed(const Duration(milliseconds: 10));
