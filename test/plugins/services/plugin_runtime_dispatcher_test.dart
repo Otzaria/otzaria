@@ -32,6 +32,33 @@ class _FakeRegistryRepo extends Fake implements PluginRegistryRepository {
       this.permission;
 }
 
+// ── repository שמדמה סגירת טאב באמצע בדיקה אסינכרונית ─────────────────────
+// ה-await על getIsEnabled/getPermission הוא הנקודה שבה הדיספצ'ר משהה; ה-hook
+// מסיר בדיוק אז תוסף, כפי ש-unregisterController עושה בסגירת טאב.
+class _TabClosingRepo extends Fake implements PluginRegistryRepository {
+  _TabClosingRepo({this.onFirstEnabledCheck, this.onPermissionCheck});
+  final VoidCallback? onFirstEnabledCheck;
+  final void Function(String pluginId)? onPermissionCheck;
+  bool _enabledFired = false;
+
+  @override
+  Future<bool> getIsEnabled(String pluginId) async {
+    await Future<void>.delayed(Duration.zero);
+    if (!_enabledFired) {
+      _enabledFired = true;
+      onFirstEnabledCheck?.call();
+    }
+    return true;
+  }
+
+  @override
+  Future<bool?> getPermission(String pluginId, String permission) async {
+    await Future<void>.delayed(Duration.zero);
+    onPermissionCheck?.call(pluginId);
+    return true;
+  }
+}
+
 // ── fake repository לסנכרון תרומות עלייה (הרשאות מוענקות, בלי SQLite) ──────
 class _ContributionsRepo extends Fake implements PluginRegistryRepository {
   @override
@@ -1123,6 +1150,92 @@ void main() {
       );
 
       expect(opened, isEmpty);
+    });
+  });
+
+  // ── רגרסיה: סגירת טאב באמצע פעולה אסינכרונית ──────────────────────────────
+  //
+  // סגירת טאב עם תוסף קוראת ל-unregisterController, שמסיר סינכרונית גם
+  // מ-_controllersByPlugin וגם מ-_permissionCache. כל קריאה חוזרת אליהם אחרי
+  // await חשופה לכך.
+  group('סגירת טאב תוך כדי פעולה אסינכרונית', () {
+    tearDown(() => _d.repositoryForTesting = PluginRegistryRepository());
+
+    test('הסרת תוסף באמצע ה-await אינה מפילה את השידור', () async {
+      const pids = [
+        'crash.a',
+        'crash.b',
+        'crash.c',
+        'crash.d',
+        'crash.e',
+        'crash.f',
+      ];
+      final controllers = {
+        for (final pid in pids) pid: _FakeWebViewController(),
+      };
+      controllers.forEach(_d.registerController);
+      addTearDown(() {
+        for (final pid in pids) {
+          _d.unregisterController(pid);
+        }
+      });
+
+      _d.repositoryForTesting = _TabClosingRepo(
+        onFirstEnabledCheck: () => _d.unregisterController(pids.last),
+      );
+
+      await expectLater(
+        _d.dispatchEvent('navigation.changed', {'screen': 'library'}),
+        completes,
+      );
+
+      for (final pid in pids.take(pids.length - 1)) {
+        expect(controllers[pid]!.evaluateJavascriptCalls, 1, reason: pid);
+      }
+      expect(
+        controllers[pids.last]!.evaluateJavascriptCalls,
+        0,
+        reason: 'התוסף שהוסר באמצע אינו אמור לקבל את האירוע',
+      );
+    });
+
+    // סגירת הטאב מוחקת את _permissionCache של התוסף; קריאה חוזרת דרכו אחרי
+    // ה-await זרקה, והזריקה קטעה את _reconcileForeground באמצע — כך שתוסף
+    // *אחר* לא קיבל resume ונשאר קפוא.
+    test('הסרת תוסף בבדיקת ההרשאה אינה מונעת resume מתוסף אחר', () async {
+      const closing = 'perm.closing';
+      const survivor = 'perm.survivor';
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      _d.resetVisibilityForTesting();
+
+      // קובע את _lastThemePayload כדי ש-_resyncThemeOnResume ירוץ בהתעוררות.
+      // לפני רישום ה-controllers, כך שמטמון ההרשאות נשאר ריק.
+      await _d.dispatchEvent('theme.changed', {'mode': 'dark'});
+
+      final closingController = _LifecycleFakeController();
+      final survivorController = _LifecycleFakeController();
+      _d.registerController(closing, closingController);
+      _d.registerController(survivor, survivorController);
+      addTearDown(() {
+        _d.unregisterController(closing);
+        _d.unregisterController(survivor);
+      });
+
+      _d.repositoryForTesting = _TabClosingRepo(
+        onPermissionCheck: (pluginId) {
+          if (pluginId == closing) _d.unregisterController(closing);
+        },
+      );
+
+      _d.setVisiblePluginTabs({closing, survivor});
+      await pumpEventQueue();
+
+      expect(
+        survivorController.resumeCalls,
+        1,
+        reason: 'הזריקה בתוסף שנסגר קטעה את שרשרת ה-resume',
+      );
     });
   });
 }

@@ -430,15 +430,14 @@ class PluginRuntimeDispatcher {
     _enabledCache[pluginId] = isEnabled;
     if (!isEnabled) return false;
 
-    _permissionCache[pluginId] ??= {};
+    // מחזיקים את המפה הפנימית: סגירת טאב באמצע ה-await מוחקת את הרשומה
+    // מ-_permissionCache (unregisterController), וקריאה חוזרת דרכה תזרוק.
+    final permissions = _permissionCache[pluginId] ??= {};
     final permKey = 'events.subscribe:$topic';
-    if (!_permissionCache[pluginId]!.containsKey(permKey)) {
-      _permissionCache[pluginId]![permKey] = await _repository.getPermission(
-        pluginId,
-        permKey,
-      );
+    if (!permissions.containsKey(permKey)) {
+      permissions[permKey] = await _repository.getPermission(pluginId, permKey);
     }
-    return _permissionCache[pluginId]![permKey] == true;
+    return permissions[permKey] == true;
   }
 
   Future<void> dispatchEvent(String topic, Map<String, dynamic> payload) async {
@@ -447,7 +446,9 @@ class PluginRuntimeDispatcher {
     final jsonPayload = jsonEncode(payload);
     debugPrint('PluginRuntimeDispatcher: Dispatching $topic');
 
-    for (final entry in _controllersByPlugin.entries) {
+    // עותק: ה-await שבגוף הלולאה משחרר את לולאת האירועים, וסגירת טאב מסירה
+    // בינתיים את התוסף מהמפה (unregisterController) — איטרציה חיה קורסת.
+    for (final entry in _controllersByPlugin.entries.toList(growable: false)) {
       final pluginId = entry.key;
       final instances = entry.value;
       if (instances.isEmpty) continue;
