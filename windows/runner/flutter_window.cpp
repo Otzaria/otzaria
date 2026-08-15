@@ -147,6 +147,16 @@ bool FlutterWindow::OnCreate() {
              std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
                  result) {
         std::string error;
+        if (call.method_name() == "prepare") {
+          HWND container = nullptr;
+          if (!anki_native_host_->Prepare(&container, &error)) {
+            result->Error("native_host_failed", error);
+            return;
+          }
+          result->Success(flutter::EncodableValue(
+              static_cast<int64_t>(reinterpret_cast<intptr_t>(container))));
+          return;
+        }
         if (call.method_name() == "detach") {
           anki_native_host_->Detach();
           result->Success(flutter::EncodableValue(true));

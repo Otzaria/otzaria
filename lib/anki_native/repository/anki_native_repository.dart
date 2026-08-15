@@ -23,7 +23,7 @@ abstract class AnkiNativeRepository {
 
 class LocalAnkiNativeRepository implements AnkiNativeRepository {
   static const _baseUri = 'http://127.0.0.1:18765';
-  static const _protocolVersion = 6;
+  static const _protocolVersion = 7;
   static const _channel = MethodChannel('otzaria/anki_native_host');
 
   final http.Client _client;
@@ -115,9 +115,17 @@ class LocalAnkiNativeRepository implements AnkiNativeRepository {
     final attachmentKey = '$processId:$generation:${window.hwnd}';
     if (_attachedKey == attachmentKey) return false;
     await detach();
+    final container = await _nativeChannel.invokeMethod<int>('prepare');
+    if (container == null || container <= 0) {
+      throw PlatformException(
+        code: 'native_host_failed',
+        message: 'אוצריא לא הצליחה ליצור אזור אירוח עבור Anki.',
+      );
+    }
     await _post('/v1/native/attach-started', {
       'targetId': window.targetId,
       'clientId': _clientId,
+      'containerHwnd': container.toRadixString(16).toUpperCase(),
     });
     try {
       final attached = await _nativeChannel.invokeMethod<bool>('attach', {
@@ -138,6 +146,7 @@ class LocalAnkiNativeRepository implements AnkiNativeRepository {
       );
       return true;
     } catch (_) {
+      await _nativeChannel.invokeMethod<bool>('detach');
       await _endAttachment();
       rethrow;
     }
@@ -146,6 +155,13 @@ class LocalAnkiNativeRepository implements AnkiNativeRepository {
   @override
   Future<void> setBounds(AnkiNativeBounds bounds) async {
     await _nativeChannel.invokeMethod<bool>('setBounds', bounds.toJson());
+    if (_attachedTargetId != null) {
+      await _post('/v1/native/resize', {
+        'clientId': _clientId,
+        'width': bounds.width,
+        'height': bounds.height,
+      });
+    }
   }
 
   @override
@@ -168,9 +184,9 @@ class LocalAnkiNativeRepository implements AnkiNativeRepository {
     _attachedTargetId = null;
     _attachedKey = null;
     try {
-      await _nativeChannel.invokeMethod<bool>('detach');
-    } finally {
       if (hadAttachment) await _endAttachment();
+    } finally {
+      await _nativeChannel.invokeMethod<bool>('detach');
     }
   }
 
@@ -222,10 +238,15 @@ class LocalAnkiNativeRepository implements AnkiNativeRepository {
         response.statusCode >= 300 ||
         decoded['ok'] != true) {
       final error = decoded['error'];
+      final code = error is Map<String, dynamic> ? error['code'] : null;
       final message =
           error is Map<String, dynamic> && error['message'] is String
           ? error['message'] as String
           : 'הבקשה ל־Anki נכשלה';
+      if (code is String &&
+          (code.startsWith('native_') || code == 'stale_container')) {
+        throw PlatformException(code: code, message: message);
+      }
       throw StateError(message);
     }
     return decoded;

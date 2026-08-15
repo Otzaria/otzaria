@@ -7,23 +7,36 @@ void main() {
     'windows/runner/anki_native_window_host.cpp',
   ).readAsStringSync();
   final factory = File('lib/tools/tool_page_factory.dart').readAsStringSync();
+  final flutterWindow = File(
+    'windows/runner/flutter_window.cpp',
+  ).readAsStringSync();
+  final repository = File(
+    'lib/anki_native/repository/anki_native_repository.dart',
+  ).readAsStringSync();
+  final view = File(
+    'lib/anki_native/view/anki_native_host_view.dart',
+  ).readAsStringSync();
 
-  test('ה־host מאמת PID ואת anki.exe לפני SetParent', () {
+  test('ה־host מאמת PID ואת anki.exe לפני צירוף', () {
     expect(host, contains('GetWindowThreadProcessId'));
     expect(host, contains('QueryFullProcessImageNameW'));
     expect(host, contains('L"anki.exe"'));
-    expect(
-      host.indexOf('ValidateAnkiWindow'),
-      lessThan(host.indexOf('SetParent')),
-    );
+    expect(host, contains('GetParent(target) != container_'));
   });
 
-  test('ה־host שומר ומשחזר מצב חלון מקורי', () {
-    expect(host, contains('original_parent_'));
-    expect(host, contains('original_style_'));
-    expect(host, contains('original_extended_style_'));
-    expect(host, contains('original_placement_'));
-    expect(host, contains('SetWindowPlacement'));
+  test('הצירוף מוכן בליבה ומבוצע ב־Qt של Anki', () {
+    expect(flutterWindow, contains('call.method_name() == "prepare"'));
+    expect(repository, contains("invokeMethod<int>('prepare')"));
+    expect(repository, contains("'containerHwnd':"));
+    expect(repository, contains("'/v1/native/resize'"));
+    expect(repository, contains("code.startsWith('native_')"));
+    expect(repository, contains("code == 'stale_container'"));
+    expect(host, isNot(contains('SetParent(')));
+    expect(host, isNot(contains('SetWindowPos(target_')));
+    expect(host, isNot(contains('SetWindowLongPtr(target_')));
+    expect(view, contains('crossAxisAlignment: CrossAxisAlignment.stretch'));
+    expect(view, contains('context.findRenderObject()'));
+    expect(view, isNot(contains('_viewportKey.currentContext')));
     expect(host, contains('if (container_) ShowWindow(container_, SW_HIDE);'));
   });
 
@@ -33,10 +46,6 @@ void main() {
   });
 
   test('כשל בהטמעה חוזר למסלול PluginTabPage', () {
-    final view = File(
-      'lib/anki_native/view/anki_native_host_view.dart',
-    ).readAsStringSync();
-
     expect(view, contains('state.canUseFallback'));
     expect(view, contains('widget.onFallback()'));
     expect(factory, contains('if (_useMirrorFallback)'));

@@ -93,6 +93,7 @@ class _ReadyView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _WindowToolbar(state: state),
         Expanded(
@@ -179,7 +180,6 @@ class _NativeViewport extends StatefulWidget {
 
 class _NativeViewportState extends State<_NativeViewport>
     with WidgetsBindingObserver {
-  final GlobalKey _viewportKey = GlobalKey();
   bool _syncScheduled = false;
 
   @override
@@ -196,23 +196,27 @@ class _NativeViewportState extends State<_NativeViewport>
     _syncScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _syncScheduled = false;
-      if (!mounted) return;
-      final renderObject = _viewportKey.currentContext?.findRenderObject();
-      if (renderObject is! RenderBox || !renderObject.hasSize) return;
-      final offset = renderObject.localToGlobal(Offset.zero);
-      final ratio = View.of(context).devicePixelRatio;
-      final width = (renderObject.size.width * ratio).round();
-      final height = (renderObject.size.height * ratio).round();
-      if (width <= 0 || height <= 0) return;
-      widget.onBounds(
-        AnkiNativeBounds(
-          x: (offset.dx * ratio).round(),
-          y: (offset.dy * ratio).round(),
-          width: width,
-          height: height,
-        ),
-      );
+      _syncBounds();
     });
+  }
+
+  void _syncBounds() {
+    if (!mounted) return;
+    final renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) return;
+    final offset = renderObject.localToGlobal(Offset.zero);
+    final ratio = View.of(context).devicePixelRatio;
+    final width = (renderObject.size.width * ratio).round();
+    final height = (renderObject.size.height * ratio).round();
+    if (width <= 0 || height <= 0) return;
+    widget.onBounds(
+      AnkiNativeBounds(
+        x: (offset.dx * ratio).round(),
+        y: (offset.dy * ratio).round(),
+        width: width,
+        height: height,
+      ),
+    );
   }
 
   @override
@@ -224,10 +228,7 @@ class _NativeViewportState extends State<_NativeViewport>
   @override
   Widget build(BuildContext context) {
     _scheduleSync();
-    return ColoredBox(
-      key: _viewportKey,
-      color: Theme.of(context).colorScheme.surface,
-    );
+    return ColoredBox(color: Theme.of(context).colorScheme.surface);
   }
 }
 

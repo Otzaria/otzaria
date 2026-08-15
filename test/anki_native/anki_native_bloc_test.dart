@@ -27,6 +27,8 @@ const browserWindow = AnkiNativeWindow(
   closable: true,
 );
 
+const viewportBounds = AnkiNativeBounds(x: 10, y: 20, width: 1200, height: 800);
+
 class FakeAnkiNativeRepository implements AnkiNativeRepository {
   final List<AnkiNativeSnapshot> snapshots;
   Object? startupError;
@@ -97,7 +99,9 @@ void main() {
   blocTest<AnkiNativeBloc, AnkiNativeState>(
     'מפעיל את Anki ובוחר את החלון הפעיל',
     build: () => AnkiNativeBloc(repository: FakeAnkiNativeRepository()),
-    act: (bloc) => bloc.add(const StartAnkiNative()),
+    act: (bloc) => bloc
+      ..add(const StartAnkiNative())
+      ..add(const UpdateAnkiNativeBounds(viewportBounds)),
     expect: () => [
       const AnkiNativeLoading(),
       const AnkiNativeReady(
@@ -120,7 +124,8 @@ void main() {
     act: (bloc) {
       bloc
         ..add(const SetAnkiNativeVisibility(false))
-        ..add(const StartAnkiNative());
+        ..add(const StartAnkiNative())
+        ..add(const UpdateAnkiNativeBounds(viewportBounds));
     },
     expect: () => [
       const AnkiNativeLoading(),
@@ -164,9 +169,17 @@ void main() {
         ..attachError = PlatformException(code: 'native_attach_failed');
       return AnkiNativeBloc(repository: repository);
     },
-    act: (bloc) => bloc.add(const StartAnkiNative()),
+    act: (bloc) => bloc
+      ..add(const StartAnkiNative())
+      ..add(const UpdateAnkiNativeBounds(viewportBounds)),
     expect: () => [
       const AnkiNativeLoading(),
+      const AnkiNativeReady(
+        processId: 42,
+        generation: 'generation',
+        windows: [mainWindow, browserWindow],
+        selectedTargetId: 'main',
+      ),
       isA<AnkiNativeFailure>().having(
         (state) => state.canUseFallback,
         'canUseFallback',

@@ -11,6 +11,7 @@ class AnkiNativeWindowHost {
   explicit AnkiNativeWindowHost(HWND flutter_view);
   ~AnkiNativeWindowHost();
 
+  bool Prepare(HWND* container, std::string* error);
   bool Attach(HWND target, DWORD expected_process_id, std::string* error);
   bool SetBounds(int x, int y, int width, int height, std::string* error);
   void SetVisible(bool visible);
@@ -22,17 +23,10 @@ class AnkiNativeWindowHost {
   bool ValidateAnkiWindow(HWND target, DWORD expected_process_id,
                           std::string* error) const;
   void DetachUnlocked();
-  void ResizeAttachedWindow();
 
   HWND flutter_view_ = nullptr;
   HWND container_ = nullptr;
   HWND target_ = nullptr;
-  HWND original_parent_ = nullptr;
-  LONG_PTR original_style_ = 0;
-  LONG_PTR original_extended_style_ = 0;
-  RECT original_rect_{};
-  WINDOWPLACEMENT original_placement_{};
-  bool original_visible_ = false;
   bool visible_ = true;
   std::mutex mutex_;
 };

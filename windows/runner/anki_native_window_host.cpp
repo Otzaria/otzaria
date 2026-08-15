@@ -130,6 +130,13 @@ bool AnkiNativeWindowHost::ValidateAnkiWindow(
   return true;
 }
 
+bool AnkiNativeWindowHost::Prepare(HWND* container, std::string* error) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!EnsureContainer(error)) return false;
+  *container = container_;
+  return true;
+}
+
 bool AnkiNativeWindowHost::Attach(HWND target, DWORD expected_process_id,
                                   std::string* error) {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -138,41 +145,16 @@ bool AnkiNativeWindowHost::Attach(HWND target, DWORD expected_process_id,
     return false;
   }
   if (target_ == target) {
-    ResizeAttachedWindow();
     return true;
   }
   if (target_) DetachUnlocked();
 
-  target_ = target;
-  original_parent_ = GetParent(target_);
-  original_style_ = GetWindowLongPtr(target_, GWL_STYLE);
-  original_extended_style_ = GetWindowLongPtr(target_, GWL_EXSTYLE);
-  GetWindowRect(target_, &original_rect_);
-  original_placement_.length = sizeof(original_placement_);
-  GetWindowPlacement(target_, &original_placement_);
-  original_visible_ = IsWindowVisible(target_) != FALSE;
-
-  LONG_PTR child_style = original_style_;
-  child_style &= ~(WS_POPUP | WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX |
-                   WS_MAXIMIZEBOX | WS_SYSMENU);
-  child_style |= WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
-  LONG_PTR child_extended_style =
-      original_extended_style_ & ~(WS_EX_APPWINDOW | WS_EX_TOOLWINDOW);
-  SetWindowLongPtr(target_, GWL_STYLE, child_style);
-  SetWindowLongPtr(target_, GWL_EXSTYLE, child_extended_style);
-
-  SetLastError(ERROR_SUCCESS);
-  HWND previous_parent = SetParent(target_, container_);
-  if (!previous_parent && GetLastError() != ERROR_SUCCESS) {
-    *error = "SetParent failed: " + std::to_string(GetLastError());
-    SetWindowLongPtr(target_, GWL_STYLE, original_style_);
-    SetWindowLongPtr(target_, GWL_EXSTYLE, original_extended_style_);
-    target_ = nullptr;
+  if (GetParent(target) != container_) {
+    *error = "Anki window was not parented by Qt";
     return false;
   }
 
-  ShowWindow(target_, SW_SHOWNORMAL);
-  ResizeAttachedWindow();
+  target_ = target;
   ShowWindow(container_, visible_ ? SW_SHOW : SW_HIDE);
   return true;
 }
@@ -190,7 +172,6 @@ bool AnkiNativeWindowHost::SetBounds(int x, int y, int width, int height,
     *error = "SetWindowPos failed: " + std::to_string(GetLastError());
     return false;
   }
-  ResizeAttachedWindow();
   return true;
 }
 
@@ -198,15 +179,6 @@ void AnkiNativeWindowHost::SetVisible(bool visible) {
   std::lock_guard<std::mutex> lock(mutex_);
   visible_ = visible;
   if (container_) ShowWindow(container_, visible ? SW_SHOW : SW_HIDE);
-}
-
-void AnkiNativeWindowHost::ResizeAttachedWindow() {
-  if (!target_ || !container_ || !IsWindow(target_)) return;
-  RECT bounds{};
-  GetClientRect(container_, &bounds);
-  SetWindowPos(target_, HWND_TOP, 0, 0, bounds.right - bounds.left,
-               bounds.bottom - bounds.top,
-               SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
 }
 
 void AnkiNativeWindowHost::Detach() {
@@ -219,28 +191,6 @@ void AnkiNativeWindowHost::DetachUnlocked() {
   if (!target_) {
     return;
   }
-  HWND target = target_;
-  if (!IsWindow(target)) {
-    target_ = nullptr;
-    return;
-  }
-
-  ShowWindow(target, SW_HIDE);
-  SetLastError(ERROR_SUCCESS);
-  const HWND restored_parent = SetParent(target, original_parent_);
-  if (!restored_parent && GetLastError() != ERROR_SUCCESS) {
-    return;
-  }
-  SetWindowLongPtr(target, GWL_STYLE, original_style_);
-  SetWindowLongPtr(target, GWL_EXSTYLE, original_extended_style_);
-  SetWindowPos(target, nullptr, original_rect_.left, original_rect_.top,
-               original_rect_.right - original_rect_.left,
-               original_rect_.bottom - original_rect_.top,
-               SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
-  if (original_placement_.length == sizeof(original_placement_)) {
-    SetWindowPlacement(target, &original_placement_);
-  }
-  ShowWindow(target, original_visible_ ? original_placement_.showCmd : SW_HIDE);
   target_ = nullptr;
 }
 

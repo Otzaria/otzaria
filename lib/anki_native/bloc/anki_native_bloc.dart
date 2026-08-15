@@ -41,14 +41,6 @@ class AnkiNativeBloc extends Bloc<AnkiNativeEvent, AnkiNativeState> {
       await repository.ensureAnkiRunning();
       final snapshot = await repository.fetchWindows();
       final selected = _preferredWindow(snapshot.windows, null);
-      if (selected != null) {
-        await repository.attach(
-          selected,
-          snapshot.processId,
-          snapshot.generation,
-        );
-        await repository.setVisible(_desiredVisible);
-      }
       emit(
         AnkiNativeReady(
           processId: snapshot.processId,
@@ -80,7 +72,7 @@ class AnkiNativeBloc extends Bloc<AnkiNativeEvent, AnkiNativeState> {
         snapshot.windows,
         current.selectedTargetId,
       );
-      if (selected != null) {
+      if (selected != null && _lastBounds != null) {
         final attached = await repository.attach(
           selected,
           snapshot.processId,
@@ -117,8 +109,14 @@ class AnkiNativeBloc extends Bloc<AnkiNativeEvent, AnkiNativeState> {
         .firstOrNull;
     if (selected == null) return;
     try {
-      await repository.attach(selected, current.processId, current.generation);
-      if (_lastBounds != null) await repository.setBounds(_lastBounds!);
+      if (_lastBounds != null) {
+        await repository.attach(
+          selected,
+          current.processId,
+          current.generation,
+        );
+        await repository.setBounds(_lastBounds!);
+      }
       emit(current.copyWith(selectedTargetId: selected.targetId));
     } catch (error) {
       await _emitFailure(emit, error);
@@ -138,7 +136,7 @@ class AnkiNativeBloc extends Bloc<AnkiNativeEvent, AnkiNativeState> {
       await repository.closeWindow(selected.targetId);
       final snapshot = await repository.fetchWindows();
       final next = _preferredWindow(snapshot.windows, null);
-      if (next != null) {
+      if (next != null && _lastBounds != null) {
         await repository.attach(next, snapshot.processId, snapshot.generation);
       }
       if (_lastBounds != null) await repository.setBounds(_lastBounds!);
@@ -163,6 +161,15 @@ class AnkiNativeBloc extends Bloc<AnkiNativeEvent, AnkiNativeState> {
     if (_lastBounds == event.bounds) return;
     _lastBounds = event.bounds;
     try {
+      final current = state;
+      if (current is AnkiNativeReady && current.selectedWindow != null) {
+        await repository.attach(
+          current.selectedWindow!,
+          current.processId,
+          current.generation,
+        );
+        await repository.setVisible(_desiredVisible);
+      }
       await repository.setBounds(event.bounds);
     } catch (error) {
       await _emitFailure(emit, error);
