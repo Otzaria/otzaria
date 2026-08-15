@@ -31,6 +31,8 @@ void main() {
     expect(repository, contains("'/v1/native/resize'"));
     expect(repository, contains("code.startsWith('native_')"));
     expect(repository, contains("code == 'stale_container'"));
+    expect(repository, contains('_closeClient = _detachAndCloseClient'));
+    expect(repository, contains('await detach();'));
     expect(host, isNot(contains('SetParent(')));
     expect(host, isNot(contains('SetWindowPos(target_')));
     expect(host, isNot(contains('SetWindowLongPtr(target_')));

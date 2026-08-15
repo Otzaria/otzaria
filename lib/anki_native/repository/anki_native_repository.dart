@@ -28,7 +28,7 @@ class LocalAnkiNativeRepository implements AnkiNativeRepository {
 
   final http.Client _client;
   final MethodChannel _nativeChannel;
-  late final void Function() _closeClient;
+  late final FutureOr<void> Function() _closeClient;
   late final String _clientId =
       'otzaria-${DateTime.now().microsecondsSinceEpoch}-${identityHashCode(this)}';
   Timer? _heartbeatTimer;
@@ -40,8 +40,16 @@ class LocalAnkiNativeRepository implements AnkiNativeRepository {
     MethodChannel? nativeChannel,
   }) : _client = client ?? http.Client(),
        _nativeChannel = nativeChannel ?? _channel {
-    _closeClient = _client.close;
+    _closeClient = _detachAndCloseClient;
     HttpClientRegistry.register(_closeClient);
+  }
+
+  Future<void> _detachAndCloseClient() async {
+    try {
+      await detach();
+    } finally {
+      _client.close();
+    }
   }
 
   @override
