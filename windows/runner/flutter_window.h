@@ -11,6 +11,7 @@
 #include <string>
 
 #include "win32_window.h"
+#include "anki_native_window_host.h"
 
 // A window that does nothing but host a Flutter view.
 class FlutterWindow : public Win32Window {
@@ -43,6 +44,9 @@ class FlutterWindow : public Win32Window {
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
       process_control_channel_;
+  std::unique_ptr<AnkiNativeWindowHost> anki_native_host_;
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
+      anki_native_channel_;
   // ערוץ לסגירת חלון ה-splash הנייטיב (otzaria/splash) — Dart קורא "close"
   // בעת חשיפת החלון הראשי.
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>

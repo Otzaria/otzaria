@@ -6,14 +6,34 @@
 #include <chrono>
 #include <limits>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <thread>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "anki_native_window_host.h"
 #include "jump_list_manager.h"
 #include "splash_window.h"
 
 namespace {
+
+const flutter::EncodableMap* ArgumentsMap(
+    const flutter::MethodCall<flutter::EncodableValue>& call) {
+  return std::get_if<flutter::EncodableMap>(call.arguments());
+}
+
+const flutter::EncodableValue* MapValue(const flutter::EncodableMap& map,
+                                        const char* key) {
+  auto iterator = map.find(flutter::EncodableValue(key));
+  return iterator == map.end() ? nullptr : &iterator->second;
+}
+
+std::optional<int64_t> IntegerValue(const flutter::EncodableValue* value) {
+  if (!value) return std::nullopt;
+  if (const auto* integer = std::get_if<int32_t>(value)) return *integer;
+  if (const auto* integer = std::get_if<int64_t>(value)) return *integer;
+  return std::nullopt;
+}
 
 // מפעיל/מבטל DWM cloaking: החלון נשאר "מוצג" מבחינת המערכת (WS_VISIBLE,
 // מיקסום, פוקוס והצגת פריימים עובדים כרגיל) אבל ה-DWM לא מצייר אותו כלל.
@@ -115,6 +135,108 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  anki_native_host_ = std::make_unique<AnkiNativeWindowHost>(
+      flutter_controller_->view()->GetNativeWindow());
+  anki_native_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(),
+          "otzaria/anki_native_host",
+          &flutter::StandardMethodCodec::GetInstance());
+  anki_native_channel_->SetMethodCallHandler(
+      [this](const flutter::MethodCall<flutter::EncodableValue>& call,
+             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
+                 result) {
+        std::string error;
+        if (call.method_name() == "detach") {
+          anki_native_host_->Detach();
+          result->Success(flutter::EncodableValue(true));
+          return;
+        }
+        if (call.method_name() == "launchAnki") {
+          if (!anki_native_host_->LaunchAnki(&error)) {
+            result->Error("anki_launch_failed", error);
+            return;
+          }
+          result->Success(flutter::EncodableValue(true));
+          return;
+        }
+
+        const auto* arguments = ArgumentsMap(call);
+        if (!arguments) {
+          result->Error("invalid_arguments", "A map of arguments is required");
+          return;
+        }
+        if (call.method_name() == "setVisible") {
+          const auto* visible_value = MapValue(*arguments, "visible");
+          const auto* visible = visible_value
+                                    ? std::get_if<bool>(visible_value)
+                                    : nullptr;
+          if (!visible) {
+            result->Error("invalid_arguments", "visible must be a boolean");
+            return;
+          }
+          anki_native_host_->SetVisible(*visible);
+          result->Success(flutter::EncodableValue(true));
+          return;
+        }
+        if (call.method_name() == "setBounds") {
+          const auto x = IntegerValue(MapValue(*arguments, "x"));
+          const auto y = IntegerValue(MapValue(*arguments, "y"));
+          const auto width = IntegerValue(MapValue(*arguments, "width"));
+          const auto height = IntegerValue(MapValue(*arguments, "height"));
+          if (!x || !y || !width || !height || *width <= 0 || *height <= 0 ||
+              *x < std::numeric_limits<int>::min() ||
+              *x > std::numeric_limits<int>::max() ||
+              *y < std::numeric_limits<int>::min() ||
+              *y > std::numeric_limits<int>::max() ||
+              *width > std::numeric_limits<int>::max() ||
+              *height > std::numeric_limits<int>::max()) {
+            result->Error("invalid_arguments", "Invalid native host bounds");
+            return;
+          }
+          if (!anki_native_host_->SetBounds(
+                  static_cast<int>(*x), static_cast<int>(*y),
+                  static_cast<int>(*width), static_cast<int>(*height),
+                  &error)) {
+            result->Error("native_host_failed", error);
+            return;
+          }
+          result->Success(flutter::EncodableValue(true));
+          return;
+        }
+        if (call.method_name() == "attach") {
+          const auto* hwnd_value = MapValue(*arguments, "hwnd");
+          const auto* hwnd_hex = hwnd_value
+                                     ? std::get_if<std::string>(hwnd_value)
+                                     : nullptr;
+          const auto process_id =
+              IntegerValue(MapValue(*arguments, "processId"));
+          if (!hwnd_hex || !process_id || *process_id <= 0 ||
+              *process_id > std::numeric_limits<DWORD>::max()) {
+            result->Error("invalid_arguments", "Invalid Anki HWND or PID");
+            return;
+          }
+          uintptr_t handle_value = 0;
+          try {
+            size_t consumed = 0;
+            handle_value = static_cast<uintptr_t>(
+                std::stoull(*hwnd_hex, &consumed, 16));
+            if (consumed != hwnd_hex->size()) throw std::invalid_argument("hwnd");
+          } catch (...) {
+            result->Error("invalid_arguments", "HWND must be hexadecimal");
+            return;
+          }
+          if (!anki_native_host_->Attach(
+                  reinterpret_cast<HWND>(handle_value),
+                  static_cast<DWORD>(*process_id), &error)) {
+            result->Error("native_attach_failed", error);
+            return;
+          }
+          result->Success(flutter::EncodableValue(true));
+          return;
+        }
+        result->NotImplemented();
+      });
   process_control_channel_ =
       std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
           flutter_controller_->engine()->messenger(),
@@ -151,6 +273,7 @@ bool FlutterWindow::OnCreate() {
             result->Success(flutter::EncodableValue(false));
             return;
           }
+          if (anki_native_host_) anki_native_host_->Detach();
           // Instant process kill — skips C runtime atexit handlers (notably
           // sentry-native's pending-event flush, which adds several seconds
           // on plain exit(0) paths), DLL_PROCESS_DETACH, static destructors,
@@ -312,6 +435,8 @@ void FlutterWindow::OnDestroy() {
   splash_channel_.reset();
   jumplist_channel_.reset();
   process_control_channel_.reset();
+  anki_native_channel_.reset();
+  anki_native_host_.reset();
   if (flutter_controller_) {
     // Reset the controller properly - no need to call Shutdown explicitly
     flutter_controller_.reset();

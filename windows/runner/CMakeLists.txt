@@ -7,6 +7,7 @@ project(runner LANGUAGES CXX)
 #
 # Any new source files that you add to the application should be added here.
 add_executable(${BINARY_NAME} WIN32
+  "anki_native_window_host.cpp"
   "flutter_window.cpp"
   "jump_list_manager.cpp"
   "main.cpp"
