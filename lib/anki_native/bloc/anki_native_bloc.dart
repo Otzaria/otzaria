@@ -218,10 +218,10 @@ class AnkiNativeBloc extends Bloc<AnkiNativeEvent, AnkiNativeState> {
       if (window.modal && window.active) return window;
     }
     for (final window in windows) {
-      if (window.targetId == currentTargetId) return window;
+      if (window.active) return window;
     }
     for (final window in windows) {
-      if (window.active) return window;
+      if (window.targetId == currentTargetId) return window;
     }
     for (final window in windows) {
       if (window.kind == 'mainWindow') return window;

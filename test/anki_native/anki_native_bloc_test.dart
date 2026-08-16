@@ -27,6 +27,26 @@ const browserWindow = AnkiNativeWindow(
   closable: true,
 );
 
+const inactiveMainWindow = AnkiNativeWindow(
+  targetId: 'main',
+  hwnd: '0000000000000001',
+  title: 'Anki',
+  kind: 'mainWindow',
+  active: false,
+  modal: false,
+  closable: false,
+);
+
+const activeBrowserWindow = AnkiNativeWindow(
+  targetId: 'browser',
+  hwnd: '0000000000000002',
+  title: 'דפדוף',
+  kind: 'window',
+  active: true,
+  modal: false,
+  closable: true,
+);
+
 const viewportBounds = AnkiNativeBounds(x: 10, y: 20, width: 1200, height: 800);
 
 class FakeAnkiNativeRepository implements AnkiNativeRepository {
@@ -140,6 +160,49 @@ void main() {
     verify: (bloc) {
       final repository = bloc.repository as FakeAnkiNativeRepository;
       expect(repository.visibility, [false, false]);
+    },
+  );
+
+  blocTest<AnkiNativeBloc, AnkiNativeState>(
+    'עובר לחלון חדש שנעשה פעיל במקום להישאר בחלון הקודם',
+    build: () => AnkiNativeBloc(
+      repository: FakeAnkiNativeRepository(
+        snapshots: const [
+          AnkiNativeSnapshot(
+            processId: 42,
+            generation: 'generation',
+            windows: [mainWindow],
+          ),
+          AnkiNativeSnapshot(
+            processId: 42,
+            generation: 'generation',
+            windows: [inactiveMainWindow, activeBrowserWindow],
+          ),
+        ],
+      ),
+    ),
+    act: (bloc) => bloc
+      ..add(const StartAnkiNative())
+      ..add(const UpdateAnkiNativeBounds(viewportBounds))
+      ..add(const RefreshAnkiWindows()),
+    expect: () => [
+      const AnkiNativeLoading(),
+      const AnkiNativeReady(
+        processId: 42,
+        generation: 'generation',
+        windows: [mainWindow],
+        selectedTargetId: 'main',
+      ),
+      const AnkiNativeReady(
+        processId: 42,
+        generation: 'generation',
+        windows: [inactiveMainWindow, activeBrowserWindow],
+        selectedTargetId: 'browser',
+      ),
+    ],
+    verify: (bloc) {
+      final repository = bloc.repository as FakeAnkiNativeRepository;
+      expect(repository.attached, ['main', 'browser']);
     },
   );
 
