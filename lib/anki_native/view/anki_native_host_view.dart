@@ -9,8 +9,11 @@ import 'package:otzaria/anki_native/bloc/anki_native_event.dart';
 import 'package:otzaria/anki_native/bloc/anki_native_state.dart';
 import 'package:otzaria/anki_native/models/anki_native_window.dart';
 import 'package:otzaria/anki_native/repository/anki_native_repository.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/controls/bar_button.dart';
+import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 
 class AnkiNativeHostView extends StatefulWidget {
   final VoidCallback onFallback;
@@ -108,6 +111,8 @@ class _ReadyView extends StatelessWidget {
   }
 }
 
+/// סרגל בחירת חלונות Anki — נבנה מ-[AppTopBar] כדי שיהיה זהה לסרגל העליון של
+/// שאר המסכים: רקע `surfaceContainerHigh` וגובה 56/44 לפי מצב תצוגה מצומצמת.
 class _WindowToolbar extends StatelessWidget {
   final AnkiNativeReady state;
   const _WindowToolbar({required this.state});
@@ -115,54 +120,47 @@ class _WindowToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selected = state.selectedWindow;
-    return ColoredBox(
-      color: AppSurfaces.panelBackground(context),
-      child: SizedBox(
-        height: 56,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceMD),
-          child: Row(
-            children: [
-              const Text('חלונות Anki:'),
-              const SizedBox(width: AppTokens.spaceSM),
-              Expanded(
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: state.windows.length,
-                  separatorBuilder: (_, _) => const SizedBox(
-                    width: AppTokens.spaceSM,
-                  ),
-                  itemBuilder: (context, index) {
-                    final window = state.windows[index];
-                    final selected = window.targetId == state.selectedTargetId;
-                    void onPressed() => context.read<AnkiNativeBloc>().add(
-                      SelectAnkiWindow(window.targetId),
-                    );
-                    return selected
-                        ? ActionButton.recommended(
-                            text: _windowTitle(window),
-                            onPressed: onPressed,
-                          )
-                        : ActionButton.neutral(
-                            text: _windowTitle(window),
-                            onPressed: onPressed,
-                          );
-                  },
+    final isCompact = context.watch<SettingsBloc>().state.compactMenuMode;
+    return AppTopBar(
+      leadingItems: [
+        AppTopBarItem(
+          widget: Text('חלונות Anki', style: AppTopBar.titleStyle(context)),
+        ),
+      ],
+      center: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final window in state.windows)
+              BarButton.icon(
+                tooltip: _windowTitle(window),
+                icon: window.targetId == state.selectedTargetId
+                    ? FluentIcons.window_24_filled
+                    : FluentIcons.window_24_regular,
+                label: _windowTitle(window),
+                compact: isCompact,
+                selected: window.targetId == state.selectedTargetId,
+                onPressed: () => context.read<AnkiNativeBloc>().add(
+                  SelectAnkiWindow(window.targetId),
                 ),
               ),
-              if (selected?.closable == true) ...[
-                const SizedBox(width: AppTokens.spaceSM),
-                ActionButton.neutral(
-                  text: 'סגור חלון',
-                  onPressed: () => context.read<AnkiNativeBloc>().add(
-                    const CloseSelectedAnkiWindow(),
-                  ),
-                ),
-              ],
-            ],
-          ),
+          ],
         ),
       ),
+      trailingItems: [
+        if (selected?.closable == true)
+          AppTopBarItem(
+            widget: BarButton.icon(
+              tooltip: 'סגור חלון',
+              icon: FluentIcons.dismiss_24_regular,
+              compact: isCompact,
+              onPressed: () => context.read<AnkiNativeBloc>().add(
+                const CloseSelectedAnkiWindow(),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
