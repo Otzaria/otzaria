@@ -7,6 +7,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/toc_navigator_screen.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../support/search_engine_test_init.dart';
@@ -551,5 +552,47 @@ Future<void> main() async {
 
     expect(find.text('unique-a'), findsOneWidget);
     expect(find.text('unique-b'), findsOneWidget);
+  });
+
+  // ── אייקון שורות הכותרות תואם את אייקון לשונית "כותרות" ────────────────
+  testWidgets('שורת כותרת משתמשת בגליף המותאם-RTL, כמו לשונית "כותרות"', (
+    tester,
+  ) async {
+    // הבאג: לשונית "כותרות" משתמשת ב-OtzariaIcons (גליף מותאם-RTL) ואילו
+    // שורות הכותרות ב"ניווט" ציירו את גליף ה-LTR של Fluent — אותו סימן,
+    // הפוך כיוון, זה מול זה באותה חלונית.
+    final toc = [
+      TocEntry(text: 'הקדמה', index: 0, level: 1),
+      TocEntry(text: 'שער ראשון', index: 5, level: 1),
+    ];
+    final bloc = _TestTextBookBloc(
+      _loadedState(toc: toc, visibleIndices: const [0], selectedIndex: null),
+    );
+    addTearDown(bloc.close);
+    final focusNode = FocusNode();
+    addTearDown(focusNode.dispose);
+
+    await tester.pumpWidget(
+      _wrap(
+        TocViewer(
+          scrollController: ItemScrollController(),
+          closeLeftPaneCallback: () {},
+          focusNode: focusNode,
+        ),
+        bloc,
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.byIcon(OtzariaIcons.text_bullet_list_24_regular),
+      findsNWidgets(2),
+      reason: 'שורת כותרת חייבת את הגליף שמשמש את לשונית "כותרות" עצמה',
+    );
+    expect(
+      find.byIcon(FluentIcons.text_bullet_list_24_regular),
+      findsNothing,
+      reason: 'גליף ה-LTR של Fluent הפוך כיוון ביחס ללשונית',
+    );
   });
 }
