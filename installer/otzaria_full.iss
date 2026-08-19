@@ -1172,7 +1172,12 @@ begin
     CreateBooksPage;
 
     RegularInstallDirDefault := WizardForm.DirEdit.Text;
-    PortableInstallDirDefault := ExpandConstant('{userdocs}\OtzariaPortable');
+    // {userdocs} זורק כשלחשבון המנהל שאישר את ה-UAC אין פרופיל/Documents מלא.
+    try
+      PortableInstallDirDefault := ExpandConstant('{userdocs}\OtzariaPortable');
+    except
+      PortableInstallDirDefault := ExpandConstant('{sd}\OtzariaPortable');
+    end;
 
     // בחירה מוקדמת בעמוד סוג ההתקנה: ‎/PORTABLE — מצב נייד; ריצה במצב מנהל
     // (שיגור-מחדש עם /ALLUSERS) או תהליך מורם — לכל המשתמשים.
