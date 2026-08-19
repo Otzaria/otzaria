@@ -1863,7 +1863,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
             Icon(
               isAllChapter
                   ? FluentIcons.book_24_regular
-                  : FluentIcons.text_bullet_list_24_regular,
+                  : OtzariaIcons.text_bullet_list_24_regular,
               color: colorScheme.secondary,
               size: 18,
             ),

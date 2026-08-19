@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/search/utils/find_match_utils.dart';
@@ -427,7 +428,7 @@ class _OutlineViewState extends State<OutlineView>
                 // רמה 0 (רמה 1 בספירה רגילה) מקבלת אייקון ספר
                 level == 0
                     ? FluentIcons.book_24_regular
-                    : FluentIcons.text_bullet_list_24_regular,
+                    : OtzariaIcons.text_bullet_list_24_regular,
                 color: level == 0
                     ? Theme.of(context).colorScheme.primary
                     : Theme.of(context).colorScheme.secondary,
@@ -493,7 +494,7 @@ class _OutlineViewState extends State<OutlineView>
                             // רמה 0 (רמה 1 בספירה רגילה) מקבלת אייקון ספר
                             level == 0
                                 ? FluentIcons.book_24_regular
-                                : FluentIcons.text_bullet_list_24_regular,
+                                : OtzariaIcons.text_bullet_list_24_regular,
                             color: level == 0
                                 ? Theme.of(context).colorScheme.primary
                                 : Theme.of(context).colorScheme.secondary,

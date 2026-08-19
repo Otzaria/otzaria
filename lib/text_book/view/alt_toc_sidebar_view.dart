@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/migration/models/alt_toc_entry.dart';
@@ -646,7 +647,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
               child: Row(
                 children: [
                   Icon(
-                    FluentIcons.text_bullet_list_24_regular,
+                    OtzariaIcons.text_bullet_list_24_regular,
                     color: Theme.of(context).colorScheme.secondary,
                     size: 18,
                   ),
@@ -797,7 +798,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
                     child: Row(
                       children: [
                         Icon(
-                          FluentIcons.text_bullet_list_24_regular,
+                          OtzariaIcons.text_bullet_list_24_regular,
                           color: Theme.of(context).colorScheme.secondary,
                           size: 18,
                         ),

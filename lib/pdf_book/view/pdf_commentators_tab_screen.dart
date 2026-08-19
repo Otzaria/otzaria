@@ -1323,7 +1323,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
         child: Row(
           children: [
             Icon(
-              FluentIcons.text_bullet_list_24_regular,
+              OtzariaIcons.text_bullet_list_24_regular,
               color: colorScheme.secondary,
               size: 18,
             ),

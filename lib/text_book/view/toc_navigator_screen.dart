@@ -3,6 +3,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -371,7 +372,8 @@ class _TocViewerState extends State<TocViewer>
           child: Row(
             children: [
               Icon(
-                FluentIcons.text_bullet_list_24_regular,
+                // הגליף המותאם-RTL — זהה לזה של לשונית "כותרות".
+                OtzariaIcons.text_bullet_list_24_regular,
                 color: Theme.of(context).colorScheme.secondary,
                 size: 18,
               ),
@@ -428,7 +430,7 @@ class _TocViewerState extends State<TocViewer>
                       // רק רמה 1 מקבלת אייקון ספר, שאר הרמות מקבלות רשימה
                       entry.level == 1
                           ? FluentIcons.book_24_regular
-                          : FluentIcons.text_bullet_list_24_regular,
+                          : OtzariaIcons.text_bullet_list_24_regular,
                       color: entry.level == 1
                           ? Theme.of(context).colorScheme.primary
                           : Theme.of(context).colorScheme.secondary,
