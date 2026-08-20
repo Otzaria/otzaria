@@ -317,6 +317,15 @@ class UpdateLibraryShowPreview extends SettingsEvent {
   List<Object?> get props => [libraryShowPreview];
 }
 
+class UpdateToolsViewMode extends SettingsEvent {
+  final String toolsViewMode;
+
+  const UpdateToolsViewMode(this.toolsViewMode);
+
+  @override
+  List<Object?> get props => [toolsViewMode];
+}
+
 class RefreshShortcuts extends SettingsEvent {
   const RefreshShortcuts();
 

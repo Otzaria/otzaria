@@ -54,6 +54,7 @@ class SettingsRepository {
   static const String keyIsFullscreen = 'key-is-fullscreen';
   static const String keyLibraryViewMode = 'key-library-view-mode';
   static const String keyLibraryShowPreview = 'key-library-show-preview';
+  static const String keyToolsViewMode = 'key-tools-view-mode';
   static const String keyEnablePerBookSettings = 'key-enable-per-book-settings';
   static const String keyPdfBookViewByDefault = 'key-pdf-book-view-by-default';
   static const String keyTalmudBavliOpenFormat = 'key-talmud-bavli-open-format';
@@ -203,6 +204,7 @@ class SettingsRepository {
     keyIsFullscreen,
     keyLibraryViewMode,
     keyLibraryShowPreview,
+    keyToolsViewMode,
     keyEnablePerBookSettings,
     keyPdfBookViewByDefault,
     keyTalmudBavliOpenFormat,
@@ -411,6 +413,10 @@ class SettingsRepository {
       'libraryShowPreview': _settings.getValue<bool>(
         keyLibraryShowPreview,
         defaultValue: true,
+      ),
+      'toolsViewMode': _settings.getValue<String>(
+        keyToolsViewMode,
+        defaultValue: 'list',
       ),
       'shortcuts': await getShortcuts(),
       'enablePerBookSettings': _settings.getValue<bool>(
@@ -708,6 +714,10 @@ class SettingsRepository {
 
   Future<void> updateLibraryShowPreview(bool value) async {
     await _settings.setValue(keyLibraryShowPreview, value);
+  }
+
+  Future<void> updateToolsViewMode(String value) async {
+    await _settings.setValue(keyToolsViewMode, value);
   }
 
   Future<void> updateEnablePerBookSettings(bool value) async {
@@ -1108,6 +1118,7 @@ class SettingsRepository {
     await _settings.setValue(keyIsFullscreen, false);
     await _settings.setValue(keyLibraryViewMode, 'grid');
     await _settings.setValue(keyLibraryShowPreview, true);
+    await _settings.setValue(keyToolsViewMode, 'list');
     await _settings.setValue(keyEnablePerBookSettings, false);
     await _settings.setValue(keyPdfBookViewByDefault, false);
     await _settings.setValue(keyTalmudBavliOpenFormat, 'text');

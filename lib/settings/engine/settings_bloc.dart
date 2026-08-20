@@ -49,6 +49,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<UpdateIsFullscreen>(_onUpdateIsFullscreen);
     on<UpdateLibraryViewMode>(_onUpdateLibraryViewMode);
     on<UpdateLibraryShowPreview>(_onUpdateLibraryShowPreview);
+    on<UpdateToolsViewMode>(_onUpdateToolsViewMode);
     on<RefreshShortcuts>(_onRefreshShortcuts);
     on<ResetShortcuts>(_onResetShortcuts);
     on<UpdateShortcut>(_onUpdateShortcut);
@@ -134,6 +135,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         isFullscreen: settings['isFullscreen'],
         libraryViewMode: settings['libraryViewMode'],
         libraryShowPreview: settings['libraryShowPreview'],
+        toolsViewMode: settings['toolsViewMode'],
         shortcuts: Map<String, String>.unmodifiable(
           Map<String, String>.from(settings['shortcuts'] as Map),
         ),
@@ -643,6 +645,14 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     await _repository.updateLibraryShowPreview(event.libraryShowPreview);
     emit(state.copyWith(libraryShowPreview: event.libraryShowPreview));
+  }
+
+  Future<void> _onUpdateToolsViewMode(
+    UpdateToolsViewMode event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateToolsViewMode(event.toolsViewMode);
+    emit(state.copyWith(toolsViewMode: event.toolsViewMode));
   }
 
   Future<void> _onRefreshShortcuts(

@@ -166,6 +166,27 @@ int _selectedRowCount(WidgetTester tester) => tester
     .where((tile) => tile.isSelected)
     .length;
 
+bool _isGridTileSelected(WidgetTester tester, String label) => tester
+    .widget<ToolGridTile>(
+      find
+          .ancestor(of: find.text(label), matching: find.byType(ToolGridTile))
+          .first,
+    )
+    .isHighlighted;
+
+int _selectedGridTileCount(WidgetTester tester) => tester
+    .widgetList<ToolGridTile>(find.byType(ToolGridTile))
+    .where((tile) => tile.isHighlighted)
+    .length;
+
+/// מציאת כפתור ⋯ של קובייה לפי התווית שכתובה בה.
+Finder _gridMenuButtonOf(String label) => find.descendant(
+  of: find
+      .ancestor(of: find.text(label), matching: find.byType(ToolGridTile))
+      .first,
+  matching: find.byIcon(FluentIcons.more_vertical_24_regular),
+);
+
 /// מריץ גוף בדיקה כפלטפורמת שולחן עבודה. האיפוס חייב לקרות בתוך גוף הבדיקה,
 /// כי flutter_test מוודא שמשתני ה-debug נוקו לפני שה-tearDown רץ.
 Future<void> _asDesktop(Future<void> Function() body) async {
@@ -1718,6 +1739,201 @@ void main() {
         find.byType(ToolTile),
         findsNWidgets(kBuiltInToolsCatalog.length + 2),
       );
+    });
+  });
+
+  group('תצוגת קוביות', () {
+    late _RecordingSettingsBloc settingsBloc;
+    late _RecordingPluginSystemBloc pluginSystemBloc;
+    late _TestTabsBloc tabsBloc;
+    late List<ToolCatalogEntry> selected;
+
+    Future<void> pumpPanel(
+      WidgetTester tester, {
+      bool isGrid = true,
+      double width = 520,
+    }) async {
+      settingsBloc = _RecordingSettingsBloc(
+        SettingsState.initial().copyWith(
+          toolsViewMode: isGrid ? kToolsViewModeGrid : kToolsViewModeList,
+        ),
+      );
+      pluginSystemBloc = _RecordingPluginSystemBloc(
+        PluginSystemLoaded([_pluginEntry('com.example.a', 'תוסף א').plugin!]),
+      );
+      tabsBloc = _TestTabsBloc(TabsState.initial());
+      selected = [];
+      addTearDown(() async {
+        await settingsBloc.close();
+        await pluginSystemBloc.close();
+        await tabsBloc.close();
+      });
+
+      await tester.pumpWidget(
+        _launcherHost(
+          settingsBloc: settingsBloc,
+          pluginSystemBloc: pluginSystemBloc,
+          tabsBloc: tabsBloc,
+          onToolSelected: selected.add,
+          width: width,
+        ),
+      );
+      await tester.pump();
+    }
+
+    // ברירת המחדל אינה משתנה: מי שלא נגע בכפתור ממשיך לראות רשימה.
+    testWidgets('ברירת המחדל היא תצוגת רשימה', (tester) async {
+      expect(SettingsState.initial().toolsViewMode, kToolsViewModeList);
+
+      await pumpPanel(tester, isGrid: false);
+      expect(find.byType(NavTreeTile), findsWidgets);
+      expect(find.byType(ToolGridTile), findsNothing);
+    });
+
+    testWidgets('במצב רשת הכלים מוצגים כקוביות ולא כשורות', (tester) async {
+      await pumpPanel(tester);
+      expect(find.byType(ToolGridTile), findsWidgets);
+      expect(find.byType(NavTreeTile), findsNothing);
+    });
+
+    testWidgets('כותרות הקבוצות נשמרות גם ברשת', (tester) async {
+      await pumpPanel(tester);
+      expect(find.byType(NavTreeHeader), findsNWidgets(2));
+      expect(find.text(kBuiltInToolsGroupLabel), findsOneWidget);
+      expect(find.text(kPluginsGroupLabel), findsOneWidget);
+    });
+
+    testWidgets('הסרגל הצף התחתון מוצג גם ברשת', (tester) async {
+      await pumpPanel(tester);
+      expect(find.byTooltip('התקן תוסף חדש'), findsOneWidget);
+    });
+
+    testWidgets('הכפתור בתצוגת רשימה משגר מעבר לרשת', (tester) async {
+      await pumpPanel(tester, isGrid: false);
+      await tester.tap(find.byKey(kToolsViewModeToggleKey));
+      await tester.pump();
+
+      expect(
+        settingsBloc.recorded
+            .whereType<UpdateToolsViewMode>()
+            .single
+            .toolsViewMode,
+        kToolsViewModeGrid,
+      );
+    });
+
+    testWidgets('הכפתור בתצוגת רשת משגר חזרה לרשימה', (tester) async {
+      await pumpPanel(tester);
+      await tester.tap(find.byKey(kToolsViewModeToggleKey));
+      await tester.pump();
+
+      expect(
+        settingsBloc.recorded
+            .whereType<UpdateToolsViewMode>()
+            .single
+            .toolsViewMode,
+        kToolsViewModeList,
+      );
+    });
+
+    testWidgets('לחיצה על קובייה פותחת את הכלי', (tester) async {
+      await pumpPanel(tester);
+      await tester.tap(find.text('לוח שנה'));
+      await tester.pump();
+
+      expect(selected.single.toolId, 'builtin.calendar');
+    });
+
+    // ב-RTL הקובייה הבאה נמצאת משמאל, ולכן חץ שמאל מקדם את הסימון.
+    testWidgets('ברשת החצים האופקיים מזיזים את הסימון', (tester) async {
+      await pumpPanel(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      expect(_isGridTileSelected(tester, 'לוח שנה'), isTrue);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      expect(_isGridTileSelected(tester, 'לוח שנה'), isFalse);
+      expect(_selectedGridTileCount(tester), 1);
+    });
+
+    // ברשימה חץ אופקי אינו אמור להזיז דבר — אין עמודות.
+    testWidgets('ברשימה החצים האופקיים אינם מזיזים סימון', (tester) async {
+      await pumpPanel(tester, isGrid: false);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+
+      expect(_selectedRowCount(tester), 0);
+    });
+
+    // חץ למטה ברשת מדלג שורה שלמה של קוביות, לא קובייה אחת.
+    testWidgets('חץ למטה ברשת מדלג בעמודות', (tester) async {
+      await pumpPanel(tester, width: _kDefaultPanelContentWidth);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(_isGridTileSelected(tester, 'לוח שנה'), isTrue);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      // ברוחב הזה נכנסות ארבע קוביות בשורה, ולכן הסימון עובר לחמישית.
+      expect(_isGridTileSelected(tester, 'לוח שנה'), isFalse);
+      expect(_selectedGridTileCount(tester), 1);
+    });
+
+    testWidgets('כפתור ⋯ בקובייה נראה רק בריחוף', (tester) async {
+      await _asDesktop(() async {
+        await pumpPanel(tester);
+
+        double opacityOf(String label) => tester
+            .widget<AnimatedOpacity>(
+              find
+                  .descendant(
+                    of: find.ancestor(
+                      of: find.text(label),
+                      matching: find.byType(ToolGridTile),
+                    ),
+                    matching: find.byType(AnimatedOpacity),
+                  )
+                  .first,
+            )
+            .opacity;
+        expect(opacityOf('לוח שנה'), 0);
+
+        final gesture = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        await gesture.addPointer(location: Offset.zero);
+        addTearDown(gesture.removePointer);
+        await gesture.moveTo(
+          tester.getCenter(
+            find
+                .ancestor(
+                  of: find.text('לוח שנה'),
+                  matching: find.byType(ToolGridTile),
+                )
+                .first,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(opacityOf('לוח שנה'), 1);
+      });
+    });
+
+    testWidgets('תפריט הקובייה נפתח ומכיל את פעולות הכלי', (tester) async {
+      await pumpPanel(tester);
+      await tester.tap(_gridMenuButtonOf('לוח שנה'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('הזזה'), findsOneWidget);
+      expect(find.text('הצמד לסרגל הניווט'), findsOneWidget);
+      expect(find.text('הסתר מהממשק'), findsOneWidget);
+    });
+
+    // הקוביות עוברות באותו עוטף סידור של השורות, ולכן הגרירה עובדת גם ברשת.
+    testWidgets('הקוביות עטופות ביעד גרירה לסידור מחדש', (tester) async {
+      await pumpPanel(tester);
+      expect(find.byType(DragTarget<ToolCatalogEntry>), findsWidgets);
     });
   });
 

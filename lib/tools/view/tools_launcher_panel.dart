@@ -94,6 +94,26 @@ List<ToolCatalogEntry> orderedToolEntries(List<ToolCatalogEntry> entries) => [
   for (final group in groupToolEntries(entries)) ...group.entries,
 ];
 
+/// תצוגת הפאנל: שורות עץ ניווט, או רשת קוביות בסגנון משגר אפליקציות.
+@visibleForTesting
+const String kToolsViewModeList = 'list';
+
+@visibleForTesting
+const String kToolsViewModeGrid = 'grid';
+
+/// כפתור החלפת התצוגה שבשורת החיפוש.
+@visibleForTesting
+const Key kToolsViewModeToggleKey = Key('tools-view-mode-toggle');
+
+/// רוחב היעד לקובייה — ברוחב הפאנל שבברירת מחדל נכנסות ארבע קוביות בשורה.
+@visibleForTesting
+const double kToolTileTargetWidth = 88;
+
+/// מספר העמודות ברשת לרוחב נתון.
+@visibleForTesting
+int toolGridColumns(double width) =>
+    (width / kToolTileTargetWidth).floor().clamp(2, 5);
+
 /// האינדקס המסומן הבא בניווט מקלדת. `-1` = אין סימון, והחץ הראשון מסמן את
 /// השורה הראשונה.
 @visibleForTesting
@@ -174,6 +194,11 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
   /// `-1` = אין סימון, כדי שלא ייראה כאילו הכלי הראשון נבחר.
   int _highlightedIndex = -1;
   List<ToolCatalogEntry> _keyboardEntries = const [];
+
+  /// מספר העמודות ברשת — קובע בכמה קוביות מדלגים בחץ למעלה/למטה.
+  /// בתצוגת רשימה תמיד 1.
+  int _keyboardColumns = 1;
+  bool _isGrid = false;
 
   /// הכלי שזז אחרון ומספר ההזזה — מריצים פעימת הדגשה על השורה שזזה.
   String? _movedToolId;
@@ -260,9 +285,19 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
         widget.onClose();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowDown:
-        _moveHighlight(1, entries.length);
+        _moveHighlight(_keyboardColumns, entries.length);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowUp:
+        _moveHighlight(-_keyboardColumns, entries.length);
+        return KeyEventResult.handled;
+      // ברשת הקובייה הבאה נמצאת משמאל ב-RTL, ולכן החיצים מתהפכים ביחס ל-LTR.
+      // ברשימה אין תזוזה אופקית.
+      case LogicalKeyboardKey.arrowLeft:
+        if (!_isGrid) return KeyEventResult.ignored;
+        _moveHighlight(1, entries.length);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowRight:
+        if (!_isGrid) return KeyEventResult.ignored;
         _moveHighlight(-1, entries.length);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.enter:
@@ -488,6 +523,10 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     if (_highlightedIndex >= entries.length) _highlightedIndex = -1;
     final openToolIds = _openToolIds(context.watch<TabsBloc>().state);
     _keyboardEntries = entries;
+    final isGrid = settingsState.toolsViewMode == kToolsViewModeGrid;
+    _isGrid = isGrid;
+    // ברשימה אין תזוזה אופקית; ברשת הערך נקבע ב-LayoutBuilder לפי הרוחב.
+    if (!isGrid) _keyboardColumns = 1;
 
     return PluginDropZone(
       child: Column(
@@ -495,7 +534,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
         children: [
           _buildHeader(),
           const SizedBox(height: AppTokens.spaceSM),
-          _buildSearchField(entries),
+          _buildSearchField(entries, isGrid),
           const SizedBox(height: AppTokens.spaceMD),
           Expanded(
             child: Stack(
@@ -506,9 +545,10 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
                           settingsState.isOfflineMode,
                           allEntries,
                         )
-                      : _buildList(
+                      : _buildContent(
                           entries,
                           openToolIds,
+                          isGrid: isGrid,
                           bottomInset:
                               AppInputTokens.height(
                                 settingsState.compactMenuMode,
@@ -563,7 +603,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     );
   }
 
-  Widget _buildSearchField(List<ToolCatalogEntry> entries) {
+  Widget _buildSearchField(List<ToolCatalogEntry> entries, bool isGrid) {
     final field = OtzariaSearchField(
       controller: _searchController,
       focusNode: _searchFocusNode,
@@ -575,18 +615,31 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
       onSubmitted: (_) => _activateHighlighted(entries),
     );
 
-    if (!(widget.showDevTools ?? PluginDevToolsMode.enabled)) return field;
-
     return Row(
       children: [
         Expanded(child: field),
         const SizedBox(width: AppTokens.spaceXS),
         SquareIconButton.field(
-          icon: FluentIcons.arrow_sync_24_regular,
-          tooltip: 'רענן תוספים',
-          onPressed: () =>
-              context.read<PluginSystemBloc>().add(RefreshPlugins()),
+          key: kToolsViewModeToggleKey,
+          icon: isGrid
+              ? OtzariaIcons.list_24_regular
+              : FluentIcons.grid_24_regular,
+          tooltip: isGrid ? 'תצוגת רשימה' : 'תצוגת קוביות',
+          onPressed: () => context.read<SettingsBloc>().add(
+            UpdateToolsViewMode(
+              isGrid ? kToolsViewModeList : kToolsViewModeGrid,
+            ),
+          ),
         ),
+        if (widget.showDevTools ?? PluginDevToolsMode.enabled) ...[
+          const SizedBox(width: AppTokens.spaceXS),
+          SquareIconButton.field(
+            icon: FluentIcons.arrow_sync_24_regular,
+            tooltip: 'רענן תוספים',
+            onPressed: () =>
+                context.read<PluginSystemBloc>().add(RefreshPlugins()),
+          ),
+        ],
       ],
     );
   }
@@ -613,6 +666,28 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     );
   }
 
+  /// עוטף את שתי התצוגות באותו טיפול מקלדת וגלילה — ההבדל ביניהן הוא בגוף
+  /// הרשימה בלבד.
+  Widget _buildContent(
+    List<ToolCatalogEntry> entries,
+    Set<String> openToolIds, {
+    required bool isGrid,
+    required double bottomInset,
+  }) {
+    return Focus(
+      autofocus: false,
+      onKeyEvent: (_, event) => _handleKey(event, entries),
+      child: NavTreeFocusGroup(
+        child: ScrollConfiguration(
+          behavior: const EdgeScrollbarBehavior.right(),
+          child: isGrid
+              ? _buildGrid(entries, openToolIds, bottomInset: bottomInset)
+              : _buildList(entries, openToolIds, bottomInset: bottomInset),
+        ),
+      ),
+    );
+  }
+
   Widget _buildList(
     List<ToolCatalogEntry> entries,
     Set<String> openToolIds, {
@@ -621,41 +696,86 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     final groups = groupToolEntries(entries);
     var runningIndex = 0;
 
-    return Focus(
-      autofocus: false,
-      onKeyEvent: (_, event) => _handleKey(event, entries),
-      child: NavTreeFocusGroup(
-        child: ScrollConfiguration(
-          behavior: const EdgeScrollbarBehavior.right(),
-          child: ListView(
-            controller: _listScrollController,
-            padding: kNavTreeListPadding + EdgeInsets.only(bottom: bottomInset),
-            children: [
-              for (var i = 0; i < groups.length; i++) ...[
-                // קבוצות עוקבות באותה תווית (תוספים לפני/אחרי הכלים המובנים)
-                // נראות כמקטע אחד — הכותרת מוצגת רק במעבר תווית.
-                if (i == 0 || groups[i].label != groups[i - 1].label)
-                  NavTreeHeader(title: groups[i].label),
-                for (var j = 0; j < groups[i].entries.length; j++)
-                  _buildRow(
-                    group: groups[i].entries,
-                    indexInGroup: j,
-                    flatIndex: runningIndex++,
-                    openToolIds: openToolIds,
-                  ),
-              ],
-            ],
-          ),
-        ),
-      ),
+    return ListView(
+      controller: _listScrollController,
+      padding: kNavTreeListPadding + EdgeInsets.only(bottom: bottomInset),
+      children: [
+        for (var i = 0; i < groups.length; i++) ...[
+          // קבוצות עוקבות באותה תווית (תוספים לפני/אחרי הכלים המובנים)
+          // נראות כמקטע אחד — הכותרת מוצגת רק במעבר תווית.
+          if (i == 0 || groups[i].label != groups[i - 1].label)
+            NavTreeHeader(title: groups[i].label),
+          for (var j = 0; j < groups[i].entries.length; j++)
+            _buildEntryTile(
+              group: groups[i].entries,
+              indexInGroup: j,
+              flatIndex: runningIndex++,
+              openToolIds: openToolIds,
+              isGrid: false,
+            ),
+        ],
+      ],
     );
   }
 
-  Widget _buildRow({
+  /// רשת קוביות בסגנון משגר אפליקציות: אייקון גדול, תווית מתחתיו, ורקע
+  /// שעולה רק בריחוף.
+  Widget _buildGrid(
+    List<ToolCatalogEntry> entries,
+    Set<String> openToolIds, {
+    required double bottomInset,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = toolGridColumns(
+          constraints.maxWidth - kNavTreeSideInset * 2,
+        );
+        _keyboardColumns = columns;
+        final groups = groupToolEntries(entries);
+        var runningIndex = 0;
+
+        return ListView(
+          controller: _listScrollController,
+          padding: kNavTreeListPadding + EdgeInsets.only(bottom: bottomInset),
+          children: [
+            for (var i = 0; i < groups.length; i++) ...[
+              if (i == 0 || groups[i].label != groups[i - 1].label)
+                NavTreeHeader(title: groups[i].label),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: kNavTreeSideInset,
+                ),
+                child: GridView.count(
+                  crossAxisCount: columns,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: AppTokens.spaceXS,
+                  crossAxisSpacing: AppTokens.spaceXS,
+                  children: [
+                    for (var j = 0; j < groups[i].entries.length; j++)
+                      _buildEntryTile(
+                        group: groups[i].entries,
+                        indexInGroup: j,
+                        flatIndex: runningIndex++,
+                        openToolIds: openToolIds,
+                        isGrid: true,
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildEntryTile({
     required List<ToolCatalogEntry> group,
     required int indexInGroup,
     required int flatIndex,
     required Set<String> openToolIds,
+    required bool isGrid,
   }) {
     final entry = group[indexInGroup];
     final canReorder = _isReorderEnabled;
@@ -673,47 +793,63 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
           )
         : null;
 
+    final actions = _tileActions(
+      entry,
+      onMoveEarlier: moveTo(
+        indexInGroup - 1,
+        enabled: canReorder && !isFirst,
+        placeAfter: false,
+      ),
+      onMoveLater: moveTo(
+        indexInGroup + 1,
+        enabled: canReorder && !isLast,
+        placeAfter: true,
+      ),
+      onMoveToStart: moveTo(
+        0,
+        enabled: canReorder && !isFirst,
+        placeAfter: false,
+      ),
+      onMoveToEnd: moveTo(
+        group.length - 1,
+        enabled: canReorder && !isLast,
+        placeAfter: true,
+      ),
+    );
+    final isOpen = openToolIds.contains(entry.toolId);
+    final isHighlighted = flatIndex == _highlightedIndex;
+    final movePulse = entry.toolId == _movedToolId ? _moveNonce : 0;
+    // בלי זה הפוקוס נשאר על מסלול התפריט שנסגר, ומקשי הפאנל (Escape, חצים,
+    // Enter) מפסיקים לעבוד עד לחיצה על שדה החיפוש.
+    void onMenuClosed() => _searchFocusNode.requestFocus();
+
     return _ReorderableToolTile(
       key: ValueKey(entry.toolId),
       entry: entry,
       canDrag: canReorder,
       onAcceptSource: (source, {required placeAfter}) =>
           _reorder(source: source, target: entry, placeAfter: placeAfter),
-      tile: ToolTile(
-        entry: entry,
-        isOpen: openToolIds.contains(entry.toolId),
-        isHighlighted: flatIndex == _highlightedIndex,
-        isGroupStart: isFirst,
-        isGroupEnd: isLast,
-        movePulse: entry.toolId == _movedToolId ? _moveNonce : 0,
-        // בלי זה הפוקוס נשאר על מסלול התפריט שנסגר, ומקשי הפאנל (Escape,
-        // חצים, Enter) מפסיקים לעבוד עד לחיצה על שדה החיפוש.
-        onMenuClosed: () => _searchFocusNode.requestFocus(),
-        actions: _tileActions(
-          entry,
-          onMoveEarlier: moveTo(
-            indexInGroup - 1,
-            enabled: canReorder && !isFirst,
-            placeAfter: false,
-          ),
-          onMoveLater: moveTo(
-            indexInGroup + 1,
-            enabled: canReorder && !isLast,
-            placeAfter: true,
-          ),
-          onMoveToStart: moveTo(
-            0,
-            enabled: canReorder && !isFirst,
-            placeAfter: false,
-          ),
-          onMoveToEnd: moveTo(
-            group.length - 1,
-            enabled: canReorder && !isLast,
-            placeAfter: true,
-          ),
-        ),
-        onTap: () => widget.onToolSelected(entry),
-      ),
+      tile: isGrid
+          ? ToolGridTile(
+              entry: entry,
+              isOpen: isOpen,
+              isHighlighted: isHighlighted,
+              movePulse: movePulse,
+              onMenuClosed: onMenuClosed,
+              actions: actions,
+              onTap: () => widget.onToolSelected(entry),
+            )
+          : ToolTile(
+              entry: entry,
+              isOpen: isOpen,
+              isHighlighted: isHighlighted,
+              isGroupStart: isFirst,
+              isGroupEnd: isLast,
+              movePulse: movePulse,
+              onMenuClosed: onMenuClosed,
+              actions: actions,
+              onTap: () => widget.onToolSelected(entry),
+            ),
     );
   }
 }
@@ -772,7 +908,9 @@ class _PluginsToolbar extends StatelessWidget {
 /// במגע הגרירה מתחילה בלחיצה ארוכה, כדי לא לחטוף את הגלילה.
 class _ReorderableToolTile extends StatefulWidget {
   final ToolCatalogEntry entry;
-  final ToolTile tile;
+
+  /// [ToolTile] בתצוגת רשימה, [ToolGridTile] בתצוגת רשת.
+  final Widget tile;
   final bool canDrag;
   final void Function(ToolCatalogEntry source, {required bool placeAfter})
   onAcceptSource;
@@ -1074,26 +1212,49 @@ class ToolTile extends StatelessWidget {
             padding: const EdgeInsetsDirectional.only(end: AppTokens.spaceXS),
             child: _Badge(label: 'DEV', color: cs.tertiary),
           ),
-        if (actions.isNotEmpty) _buildMenuButton(cs),
+        if (actions.isNotEmpty)
+          _ToolActionsMenuButton(
+            actions: actions,
+            onMenuClosed: onMenuClosed,
+            buttonSize: menuButtonSize,
+            iconSize: menuIconSize,
+          ),
       ],
     );
   }
+}
 
-  Widget _buildMenuButton(ColorScheme cs) {
+/// כפתור ⋯ ותפריט הפעולות שלו — משותף לשורה ולקובייה.
+class _ToolActionsMenuButton extends StatelessWidget {
+  final List<ToolTileAction> actions;
+  final VoidCallback? onMenuClosed;
+  final double buttonSize;
+  final double iconSize;
+
+  const _ToolActionsMenuButton({
+    required this.actions,
+    required this.onMenuClosed,
+    required this.buttonSize,
+    required this.iconSize,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return SizedBox(
-      width: menuButtonSize,
-      height: menuButtonSize,
+      width: buttonSize,
+      height: buttonSize,
       child: AppPopupMenuButton<VoidCallback>(
         tooltip: 'אפשרויות נוספות',
         icon: Icon(
           FluentIcons.more_vertical_24_regular,
-          size: menuIconSize,
+          size: iconSize,
           color: cs.secondary,
         ),
         padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(
-          minWidth: menuButtonSize,
-          minHeight: menuButtonSize,
+        constraints: BoxConstraints(
+          minWidth: buttonSize,
+          minHeight: buttonSize,
         ),
         onSelected: (action) => action(),
         onMenuClosed: onMenuClosed,
@@ -1143,6 +1304,175 @@ class ToolTile extends StatelessWidget {
       ),
       metrics,
       null,
+    );
+  }
+}
+
+/// קובייה ברשת הכלים: אייקון גדול, תווית מתחתיו, ורקע שעולה רק בריחוף או
+/// בסימון מקלדת. כפתור ⋯ דוהה פנימה בריחוף, כדי שהרשת תישאר נקייה.
+class ToolGridTile extends StatefulWidget {
+  static const double maxIconSize = 32;
+  static const double minIconSize = 20;
+  static const double menuButtonSize = 24;
+  static const double menuIconSize = 13;
+
+  static const double labelFontSize = 12;
+  static const double labelLineHeight = 1.25;
+  static const double labelBlockHeight = labelFontSize * labelLineHeight * 2;
+
+  /// גודל האייקון לגובה הפנוי בקובייה: כל מה שנשאר אחרי שתי שורות התווית.
+  /// כך פאנל מצומצם מקטין את האייקון במקום לחתוך את הכתב.
+  static double iconSizeFor(double availableHeight) {
+    if (!availableHeight.isFinite) return maxIconSize;
+    return (availableHeight - AppTokens.spaceXS - labelBlockHeight).clamp(
+      minIconSize,
+      maxIconSize,
+    );
+  }
+
+  final ToolCatalogEntry entry;
+  final bool isOpen;
+  final bool isHighlighted;
+  final VoidCallback onTap;
+  final List<ToolTileAction> actions;
+  final int movePulse;
+  final VoidCallback? onMenuClosed;
+
+  const ToolGridTile({
+    super.key,
+    required this.entry,
+    required this.isOpen,
+    required this.isHighlighted,
+    required this.onTap,
+    this.actions = const [],
+    this.movePulse = 0,
+    this.onMenuClosed,
+  });
+
+  @override
+  State<ToolGridTile> createState() => _ToolGridTileState();
+}
+
+class _ToolGridTileState extends State<ToolGridTile> {
+  bool _isHovered = false;
+
+  /// במגע אין ריחוף, ולכן כפתור הפעולות מוצג תמיד.
+  bool get _isTouch => switch (defaultTargetPlatform) {
+    TargetPlatform.android || TargetPlatform.iOS => true,
+    _ => false,
+  };
+
+  ToolCatalogEntry get entry => widget.entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final showMenuButton = _isHovered || _isTouch;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: _MovePulse(
+        nonce: widget.movePulse,
+        child: Material(
+          color: widget.isHighlighted
+              ? AppSurfaces.selectedItem(cs)
+              : Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          borderRadius: AppTokens.borderRadiusAll,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: widget.onTap,
+            mouseCursor: SystemMouseCursors.click,
+            hoverDuration: Durations.medium1,
+            child: Stack(
+              children: [
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppTokens.spaceXS),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) => Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildIcon(
+                            cs,
+                            ToolGridTile.iconSizeFor(constraints.maxHeight),
+                          ),
+                          const SizedBox(height: AppTokens.spaceXS),
+                          Flexible(
+                            child: Text(
+                              entry.label,
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontSize: ToolGridTile.labelFontSize,
+                                height: ToolGridTile.labelLineHeight,
+                                fontWeight: FontWeight.w600,
+                                color: cs.onSurface,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                if (widget.actions.isNotEmpty)
+                  PositionedDirectional(
+                    top: 0,
+                    end: 0,
+                    // דוהה ואינו מוסר מהעץ: הסרה בזמן שהתפריט פתוח הייתה הורגת
+                    // את הכפתור שמנהל אותו. נשאר לחיץ — בעכבר לחיצה תמיד באה
+                    // אחרי ריחוף, ולכן הוא כבר גלוי.
+                    child: AnimatedOpacity(
+                      opacity: showMenuButton ? 1 : 0,
+                      duration: AppTokens.animFast,
+                      child: _ToolActionsMenuButton(
+                        actions: widget.actions,
+                        onMenuClosed: widget.onMenuClosed,
+                        buttonSize: ToolGridTile.menuButtonSize,
+                        iconSize: ToolGridTile.menuIconSize,
+                      ),
+                    ),
+                  ),
+                if (entry.isDevelopment)
+                  PositionedDirectional(
+                    bottom: 2,
+                    start: 4,
+                    child: _Badge(label: 'DEV', color: cs.tertiary),
+                  ),
+                if (widget.isOpen)
+                  PositionedDirectional(
+                    top: 4,
+                    start: 4,
+                    child: Icon(
+                      FluentIcons.checkmark_circle_16_filled,
+                      size: 12,
+                      color: cs.primary,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIcon(ColorScheme cs, double iconSize) {
+    if (entry.imageIcon != null) {
+      return ImageIcon(
+        AssetImage(entry.imageIcon!),
+        size: iconSize,
+        color: cs.primary,
+      );
+    }
+    return Icon(
+      entry.icon ?? FluentIcons.puzzle_piece_24_regular,
+      size: iconSize,
+      color: cs.primary,
     );
   }
 }

@@ -69,6 +69,7 @@ void main() {
         'isFullscreen': false,
         'libraryViewMode': 'grid',
         'libraryShowPreview': true,
+        'toolsViewMode': 'list',
         'enablePerBookSettings': true,
         'pdfBookViewByDefault': false,
         'shortcuts': <String, String>{},
@@ -130,6 +131,7 @@ void main() {
             isFullscreen: mockSettings['isFullscreen'] as bool,
             libraryViewMode: mockSettings['libraryViewMode'] as String,
             libraryShowPreview: mockSettings['libraryShowPreview'] as bool,
+            toolsViewMode: mockSettings['toolsViewMode'] as String,
             shortcuts: const {},
             enablePerBookSettings:
                 mockSettings['enablePerBookSettings'] as bool,
