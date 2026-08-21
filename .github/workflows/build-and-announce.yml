@@ -203,7 +203,7 @@ jobs:
               libglib-2.0.so*|libgobject-2.0.so*|libgio-2.0.so*|libgmodule-2.0.so*|libgthread-2.0.so*|\
               libgtk-3.so*|libgdk-3.so*|libatk*.so*|\
               libcairo*.so*|libpango*.so*|libharfbuzz*.so*|libgdk_pixbuf*.so*|libfreetype.so*|libfontconfig.so*|\
-              libdbus-1.so*|libsystemd.so*|libudev.so*|libselinux.so*) return 0;;
+              libdbus-1.so*|libsystemd.so*|libudev.so*|libselinux.so*|libexpat.so*) return 0;;
             esac
             return 1
           }
@@ -238,6 +238,20 @@ jobs:
               rm -v "$f"
             fi
           done
+          APPDIR="$(dirname "$LIBDIR")"
+          if [ -x "$APPDIR/otzaria" ] && [ ! -e "$APPDIR/otzaria.bin" ]; then
+            mv "$APPDIR/otzaria" "$APPDIR/otzaria.bin"
+            cat > "$APPDIR/otzaria" <<'LAUNCHER'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          APP_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+          export LD_LIBRARY_PATH="$APP_DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          export WEBKIT_EXEC_PATH="$APP_DIR/lib"
+          export WEBKIT_INJECTED_BUNDLE_PATH="$APP_DIR/lib"
+          exec "$APP_DIR/otzaria.bin" "$@"
+          LAUNCHER
+            chmod 755 "$APPDIR/otzaria"
+          fi
           echo "bundle_wpe: injected helper processes + $copied transitive libs into $LIBDIR"
           SCRIPT
           chmod +x /tmp/bundle_wpe.sh
@@ -264,6 +278,16 @@ jobs:
           # Generate the settings .g.dart files: search index + translation catalog.
           dart run tool/generate_search_index.dart
           dart run tool/generate_settings_l10n.dart
+
+      - name: Build the search engine inside the compatibility container
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.cargokit"
+          printf '%s\n' \
+            'use_precompiled_binaries: false' \
+            'verbose_logging: true' \
+            > "$HOME/.cargokit/config.yaml"
 
       # התוסף קורא ל-webkit_web_view_get_theme_color (קיים רק מ-WebKit 2.50) בלי guard גרסה;
       # ה-SDK הוא 2.48 — עוטפים ב-WEBKIT_CHECK_VERSION עד שיתוקן בחבילה.
@@ -326,6 +350,19 @@ jobs:
             echo "::error::הפלאגין נפל ל-backend הישן (FDO) במקום WPEPlatform"
             exit 1
           fi
+
+      - name: Verify search engine glibc compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          search_lib="build/linux/x64/release/bundle/lib/libsearch_engine.so"
+          test -f "$search_lib"
+          if strings "$search_lib" | grep -Eq 'GLIBC_2\.(3[7-9]|[4-9][0-9])'; then
+            echo "::error::libsearch_engine.so requires a glibc newer than Bookworm"
+            strings "$search_lib" | grep -Eo 'GLIBC_[0-9]+\.[0-9]+' | sort -Vu | tail
+            exit 1
+          fi
+          strings "$search_lib" | grep -Eo 'GLIBC_[0-9]+\.[0-9]+' | sort -Vu | tail -n 1
 
       - name: Dump CMake error log on failure
         if: failure()
@@ -501,6 +538,19 @@ jobs:
           fi
 
           verify_tree "raw-bundle" "build/linux/x64/release/bundle"
+
+          verify_launcher() {
+            local label="$1" root="$2" launcher
+            launcher=$(find "$root" -type f -name otzaria -print -quit)
+            [ -n "$launcher" ] || { echo "::error::$label: launcher חסר"; exit 1; }
+            grep -q 'WEBKIT_EXEC_PATH' "$launcher" \
+              || { echo "::error::$label: launcher אינו מגדיר נתיבי WPE"; exit 1; }
+            [ -x "$(dirname "$launcher")/otzaria.bin" ] \
+              || { echo "::error::$label: otzaria.bin חסר או אינו בר־הרצה"; exit 1; }
+          }
+          [ -z "$DEB_FILE" ] || verify_launcher "deb" /tmp/verify-deb
+          [ -z "$RPM_FILE" ] || verify_launcher "rpm" /tmp/verify-rpm
+          verify_launcher "raw-bundle" "build/linux/x64/release/bundle"
 
       - name: Find and prepare Linux packages
         id: find_packages
