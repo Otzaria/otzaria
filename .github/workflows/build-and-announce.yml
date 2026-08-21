@@ -283,11 +283,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$HOME/.cargokit"
           printf '%s\n' \
             'use_precompiled_binaries: false' \
             'verbose_logging: true' \
-            > "$HOME/.cargokit/config.yaml"
+            > cargokit_options.yaml
 
       # התוסף קורא ל-webkit_web_view_get_theme_color (קיים רק מ-WebKit 2.50) בלי guard גרסה;
       # ה-SDK הוא 2.48 — עוטפים ב-WEBKIT_CHECK_VERSION עד שיתוקן בחבילה.
@@ -357,9 +356,12 @@ jobs:
           set -euo pipefail
           search_lib="build/linux/x64/release/bundle/lib/libsearch_engine.so"
           test -f "$search_lib"
-          if strings "$search_lib" | grep -Eq 'GLIBC_2\.(3[7-9]|[4-9][0-9])'; then
+          incompatible=$(strings "$search_lib" \
+            | grep -Eo 'GLIBC_2\.(3[7-9]|[4-9][0-9])' \
+            | sort -Vu || true)
+          if [ -n "$incompatible" ]; then
             echo "::error::libsearch_engine.so requires a glibc newer than Bookworm"
-            strings "$search_lib" | grep -Eo 'GLIBC_[0-9]+\.[0-9]+' | sort -Vu | tail
+            printf '%s\n' "$incompatible"
             exit 1
           fi
           strings "$search_lib" | grep -Eo 'GLIBC_[0-9]+\.[0-9]+' | sort -Vu | tail -n 1
