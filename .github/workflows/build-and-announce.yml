@@ -624,12 +624,12 @@ jobs:
           WPE_RUNTIME_VERSION: "2.48.7"
           # digest שמפרסם GitHub לנכס של tag זה. עדכון גרסה מחייב עדכון מפורש
           # של ה-hash, כדי שנכס שהוחלף ב-release לא ייכנס לבנייה בשקט.
-          WPE_RUNTIME_SHA256: "d89fa37074898afe3fb6087628f3c8b983f962c53651c393efafbed8556de49d"
+          WPE_RUNTIME_SHA256: "6890a2fe09735440316f4418fdc56b746d4b3f1a1d5a2d6a1dc608f8fa05d3b8"
         run: |
           set -euo pipefail
           # pin ל-tag מפורש (לא latest) — גרסת ה-SDK נגזרת רק מ-WPE_RUNTIME_VERSION.
           # מוסכמת ה-tag בריפו otzaria-wpe-runtime: wpe-<version>.
-          tag="wpe-${WPE_RUNTIME_VERSION}"
+          tag="candidate-wpe-2.48.7-dmabuf-20260821"
           asset="wpe-runtime-${WPE_RUNTIME_VERSION}-linux-x86_64.tar.zst"
           base="https://github.com/Otzaria/otzaria-wpe-runtime/releases/download/${tag}"
           echo "Downloading ${asset} ..."
