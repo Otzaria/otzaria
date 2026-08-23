@@ -129,7 +129,6 @@ List<FlatLibraryRow> buildFlatLibraryRows({
   required Category category,
   required Set<String> expandedPaths,
   required int Function(Category) topCategoryOrder,
-  required int Function(int) normalizeOrder,
   Set<String> talmudTextTitles = const {},
 }) {
   final rows = <FlatLibraryRow>[];
@@ -141,41 +140,41 @@ List<FlatLibraryRow> buildFlatLibraryRows({
               (b) => !isTalmudBavliPdfLibraryDuplicate(b, talmudTextTitles),
             )
             .toList()
-          ..sort((a, b) => a.order.compareTo(b.order));
-    final subs = current.subCategories.where((c) => c.hasBooks).toList();
-    if (current is Library) {
-      subs.sort((a, b) => topCategoryOrder(a).compareTo(topCategoryOrder(b)));
-    } else {
-      subs.sort(
-        (a, b) => normalizeOrder(a.order).compareTo(normalizeOrder(b.order)),
-      );
-    }
+          ..sort((a, b) => a.title.compareTo(b.title));
+    final entries = orderedCategoryChildren(
+      category: current,
+      books: books,
+      topCategoryOrder: topCategoryOrder,
+    );
 
-    for (final sub in subs) {
-      rows.add(
-        FlatLibraryRow(
-          kind: FlatLibraryRowKind.categoryHeader,
-          category: sub,
-          level: level,
-          parentPath: current.path,
-          isGroupStart: level == 0,
-        ),
-      );
-      if (expandedPaths.contains(sub.path)) {
-        collect(sub, level + 1);
+    var shownBooks = 0;
+    for (final entry in entries) {
+      if (entry is Category) {
+        rows.add(
+          FlatLibraryRow(
+            kind: FlatLibraryRowKind.categoryHeader,
+            category: entry,
+            level: level,
+            parentPath: current.path,
+            isGroupStart: level == 0,
+          ),
+        );
+        if (expandedPaths.contains(entry.path)) {
+          collect(entry, level + 1);
+        }
+        if (level == 0) {
+          rows.last.isGroupEnd = true;
+        }
+        continue;
       }
-      if (level == 0) {
-        rows.last.isGroupEnd = true;
-      }
-    }
-
-    for (int i = 0; i < books.length && i < _kCategoryBooksCap; i++) {
+      if (shownBooks >= _kCategoryBooksCap) continue;
+      shownBooks++;
       rows.add(
         FlatLibraryRow(
           kind: level == 0
               ? FlatLibraryRowKind.rootBook
               : FlatLibraryRowKind.book,
-          book: books[i],
+          book: entry as Book,
           level: level,
           parentPath: current.path,
         ),
@@ -196,6 +195,29 @@ List<FlatLibraryRow> buildFlatLibraryRows({
   collect(category, 0);
   return rows;
 }
+
+/// מאחד ספרים ותת-קטגוריות של קטגוריה אחת לרשימת פריטים מוינת אחת: בשורש
+/// הספרייה תתי-הקטגוריות שומרות על הסדר המסורתי הקבוע; בכל קטגוריה אחרת
+/// הפריטים ממוינים יחד לפי הא"ב של הכותרת, בלי הבדל בין תיקייה לספר בודד.
+@visibleForTesting
+List<Object> orderedCategoryChildren({
+  required Category category,
+  required List<Book> books,
+  required int Function(Category) topCategoryOrder,
+}) {
+  final subs = category.subCategories.where((c) => c.hasBooks).toList();
+  if (category is Library) {
+    subs.sort((a, b) => topCategoryOrder(a).compareTo(topCategoryOrder(b)));
+    final sortedBooks = books.toList()
+      ..sort((a, b) => a.order.compareTo(b.order));
+    return [...subs, ...sortedBooks];
+  }
+  return <Object>[...books, ...subs]
+    ..sort((a, b) => _categoryChildTitle(a).compareTo(_categoryChildTitle(b)));
+}
+
+String _categoryChildTitle(Object child) =>
+    child is Book ? child.title : (child as Category).title;
 
 /// מחשב רוחב תקין לחלונית התצוגה המקדימה לפי הרוחב הפנוי בספרייה.
 @visibleForTesting
@@ -1351,44 +1373,34 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   }
 
   List<Widget> _buildCategoryContent(Category category) {
-    final List<Widget> items = [];
-    final filteredBooks = _visibleBooks(category.books);
-    final filteredSubCategories = category.subCategories
-        .where((c) => c.hasBooks)
-        .toList();
-    filteredBooks.sort((a, b) => a.order.compareTo(b.order));
-    if (category is Library) {
-      filteredSubCategories.sort(
-        (a, b) => _getTopCategoryOrder(a).compareTo(_getTopCategoryOrder(b)),
-      );
-    } else {
-      filteredSubCategories.sort(
-        (a, b) => _normalizeOrder(a.order).compareTo(_normalizeOrder(b.order)),
-      );
-    }
+    final filteredBooks = _visibleBooks(category.books)
+      ..sort((a, b) => a.title.compareTo(b.title));
+    final entries = orderedCategoryChildren(
+      category: category,
+      books: filteredBooks,
+      topCategoryOrder: _getTopCategoryOrder,
+    );
 
     // הפריט הראשון ברשת מקבל את צומת הפוקוס — כניסה מהחיפוש ב-Tab/חץ-מטה.
-    final allItems = <Widget>[
-      ...filteredSubCategories.indexed.map(
-        ((int, Category) entry) => KeyedSubtree(
-          key: _tourCategoryKeys.putIfAbsent(entry.$2.path, GlobalKey.new),
-          child: CategoryGridItem(
-            category: entry.$2,
-            onCategoryClickCallback: () => _openCategory(entry.$2),
-            focusNode: entry.$1 == 0 ? _firstGridItemFocusNode : null,
-          ),
-        ),
-      ),
-    ];
-
+    final allItems = <Widget>[];
     var attachedTourKey = false;
-    for (final (bookIndex, book) in filteredBooks.indexed) {
-      final item = _buildBookItem(
-        book,
-        focusNode: filteredSubCategories.isEmpty && bookIndex == 0
-            ? _firstGridItemFocusNode
-            : null,
-      );
+    for (final (index, entry) in entries.indexed) {
+      final focusNode = index == 0 ? _firstGridItemFocusNode : null;
+      if (entry is Category) {
+        allItems.add(
+          KeyedSubtree(
+            key: _tourCategoryKeys.putIfAbsent(entry.path, GlobalKey.new),
+            child: CategoryGridItem(
+              category: entry,
+              onCategoryClickCallback: () => _openCategory(entry),
+              focusNode: focusNode,
+            ),
+          ),
+        );
+        continue;
+      }
+      final book = entry as Book;
+      final item = _buildBookItem(book, focusNode: focusNode);
       final isTourBook =
           _tourPreviewBook != null &&
           !attachedTourKey &&
@@ -1405,13 +1417,12 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         attachedTourKey = true;
       }
     }
-    items.add(
+    return [
       MyGridView(
         items: allItems,
         onExitTop: () => _refocusSearchBar(selectAll: true),
       ),
-    );
-    return items;
+    ];
   }
 
   Widget _buildBookItem(
@@ -1506,7 +1517,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         category: category,
         expandedPaths: _expandedCategories,
         topCategoryOrder: _getTopCategoryOrder,
-        normalizeOrder: _normalizeOrder,
         talmudTextTitles: _talmudTextTitles(),
       );
 
@@ -1596,46 +1606,45 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   }
 
   List<Widget> _buildCategoryTree(Category category, int level) {
-    final List<Widget> widgets = [];
+    final widgets = <Widget>[];
     final filteredBooks = _visibleBooks(category.books)
-      ..sort((a, b) => a.order.compareTo(b.order));
-    final filteredSubs = category.subCategories
-        .where((c) => c.hasBooks)
-        .toList();
-    if (category is Library) {
-      filteredSubs.sort(
-        (a, b) => _getTopCategoryOrder(a).compareTo(_getTopCategoryOrder(b)),
-      );
-    } else {
-      filteredSubs.sort(
-        (a, b) => _normalizeOrder(a.order).compareTo(_normalizeOrder(b.order)),
-      );
-    }
-    for (final sub in filteredSubs) {
-      final isExpanded = _expandedCategories.contains(sub.path);
-      final subChildren = isExpanded
-          ? _buildCategoryTree(sub, level + 1)
-          : <Widget>[];
-      if (level == 0) {
+      ..sort((a, b) => a.title.compareTo(b.title));
+    final entries = orderedCategoryChildren(
+      category: category,
+      books: filteredBooks,
+      topCategoryOrder: _getTopCategoryOrder,
+    );
+
+    var shownBooks = 0;
+    for (final entry in entries) {
+      if (entry is Category) {
+        final isExpanded = _expandedCategories.contains(entry.path);
+        final subChildren = isExpanded
+            ? _buildCategoryTree(entry, level + 1)
+            : <Widget>[];
         widgets.add(
-          ExpandableCard(
-            key: ValueKey(sub.path),
-            header: _buildCategoryHeaderRow(sub, level, isExpanded),
-            isExpanded: isExpanded,
-            margin: const EdgeInsets.symmetric(vertical: 2),
-            children: subChildren,
-          ),
+          level == 0
+              ? ExpandableCard(
+                  key: ValueKey(entry.path),
+                  header: _buildCategoryHeaderRow(entry, level, isExpanded),
+                  isExpanded: isExpanded,
+                  margin: const EdgeInsets.symmetric(vertical: 2),
+                  children: subChildren,
+                )
+              : _buildNestedCategorySection(
+                  entry,
+                  level,
+                  isExpanded,
+                  subChildren,
+                ),
         );
-      } else {
-        widgets.add(
-          _buildNestedCategorySection(sub, level, isExpanded, subChildren),
-        );
+        continue;
       }
-    }
-    for (int i = 0; i < filteredBooks.length && i < _kCategoryBooksCap; i++) {
+      if (shownBooks >= _kCategoryBooksCap) continue;
+      shownBooks++;
       widgets.add(
         _buildListBookItem(
-          filteredBooks[i],
+          entry as Book,
           level,
           itemStyle: level == 0
               ? _LibraryListItemStyle.root
@@ -2100,21 +2109,15 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   /// מחזיר את הספר הראשון שיוצג בפועל בקטגוריה, לפי אותו סדר תצוגה כמו _buildCategoryContent
   Book? _getFirstDisplayedBook(Category category) {
     final books = _visibleBooks(category.books)
-      ..sort((a, b) => a.order.compareTo(b.order));
-    if (books.isNotEmpty) return books.first;
-
-    final subs = category.subCategories.toList();
-    if (category is Library) {
-      subs.sort(
-        (a, b) => _getTopCategoryOrder(a).compareTo(_getTopCategoryOrder(b)),
-      );
-    } else {
-      subs.sort(
-        (a, b) => _normalizeOrder(a.order).compareTo(_normalizeOrder(b.order)),
-      );
-    }
-    for (final sub in subs) {
-      final book = _getFirstDisplayedBook(sub);
+      ..sort((a, b) => a.title.compareTo(b.title));
+    final entries = orderedCategoryChildren(
+      category: category,
+      books: books,
+      topCategoryOrder: _getTopCategoryOrder,
+    );
+    for (final entry in entries) {
+      if (entry is Book) return entry;
+      final book = _getFirstDisplayedBook(entry as Category);
       if (book != null) return book;
     }
     return null;

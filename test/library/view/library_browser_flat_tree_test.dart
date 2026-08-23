@@ -42,8 +42,6 @@ int Function(Category) _topOrderOf(List<String> orderedTitles) => (category) {
   return idx >= 0 ? idx : orderedTitles.length + category.order;
 };
 
-int _normalizeOrder(int order) => order >= 0 ? order : 1000 + order.abs();
-
 List<FlatLibraryRow> _rows(
   Category root, {
   Set<String> expanded = const {},
@@ -53,7 +51,6 @@ List<FlatLibraryRow> _rows(
   category: root,
   expandedPaths: expanded,
   topCategoryOrder: _topOrderOf(topOrder),
-  normalizeOrder: _normalizeOrder,
   talmudTextTitles: talmudTextTitles,
 );
 
@@ -98,7 +95,7 @@ void main() {
     });
 
     test(
-      'קטגוריה מורחבת: תת-קטגוריות לפני ספרים, ממוינים, ודגלי קצה נכונים',
+      'קטגוריה מורחבת: ספרים ותתי-קטגוריות ממוינים יחד לפי הא"ב, ודגלי קצה נכונים',
       () {
         final expanded = _category(
           'הלכה',
@@ -119,16 +116,19 @@ void main() {
           rows.map((r) => r.kind).toList(),
           [
             FlatLibraryRowKind.categoryHeader, // הלכה
-            FlatLibraryRowKind.categoryHeader, // פסק (order 1)
-            FlatLibraryRowKind.categoryHeader, // שו"ת (order 2)
-            FlatLibraryRowKind.book, // ספר מוקדם
             FlatLibraryRowKind.book, // ספר מאוחר
+            FlatLibraryRowKind.book, // ספר מוקדם
+            FlatLibraryRowKind.categoryHeader, // פסק
+            FlatLibraryRowKind.categoryHeader, // שו"ת
           ],
+          reason:
+              'הסדר לפי הא"ב של הכותרת — "order" הכתוב היה נותן פסק לפני שו"ת '
+              'וספר מוקדם לפני ספר מאוחר, ולא זה הסדר שהתקבל',
         );
-        expect(rows[1].category!.title, 'פסק');
-        expect(rows[2].category!.title, 'שו"ת');
-        expect(rows[3].book!.title, 'ספר מוקדם');
-        expect(rows[4].book!.title, 'ספר מאוחר');
+        expect(rows[1].book!.title, 'ספר מאוחר');
+        expect(rows[2].book!.title, 'ספר מוקדם');
+        expect(rows[3].category!.title, 'פסק');
+        expect(rows[4].category!.title, 'שו"ת');
 
         expect(rows.first.isGroupStart, isTrue);
         expect(rows.first.isGroupEnd, isFalse);
@@ -169,20 +169,23 @@ void main() {
       final root = _library([big]);
 
       final rows = _rows(root, expanded: {big.path});
+      final sortedTitles = books.map((b) => b.title).toList()..sort();
 
       final bookRows = rows
           .where((r) => r.kind == FlatLibraryRowKind.book)
           .toList();
       expect(bookRows, hasLength(500));
-      expect(bookRows.first.book!.title, 'ספר 0');
-      expect(bookRows.last.book!.title, 'ספר 499');
+      expect(
+        bookRows.map((r) => r.book!.title).toList(),
+        sortedTitles.take(500),
+      );
 
       final showMore = rows.last;
       expect(showMore.kind, FlatLibraryRowKind.showMore);
       expect(
-        showMore.showMoreBooks,
-        hasLength(502),
-        reason: 'דיאלוג "הצג עוד" מקבל את הרשימה המלאה',
+        showMore.showMoreBooks!.map((b) => b.title).toList(),
+        sortedTitles,
+        reason: 'דיאלוג "הצג עוד" מקבל את הרשימה המלאה, ממוינת לפי הא"ב',
       );
       expect(
         showMore.isGroupEnd,
