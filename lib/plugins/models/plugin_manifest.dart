@@ -24,6 +24,11 @@ class PluginManifest {
   final String minAppVersion;
   final String? maxAppVersion;
   final String sdkVersion;
+
+  /// דרגת יציבות התוסף כפי שמוצגת בחנות: `stable` / `beta` / `experimental`.
+  /// שדה חובה בחנות (נגזר ל-status); כאן אופציונלי עם ברירת מחדל `stable`.
+  final String stability;
+
   final List<String> permissions;
   final bool networkEnabled;
   final List<String> networkAllowlist;
@@ -66,6 +71,7 @@ class PluginManifest {
     required this.minAppVersion,
     this.maxAppVersion,
     required this.sdkVersion,
+    this.stability = 'stable',
     required this.permissions,
     required this.networkEnabled,
     required this.networkAllowlist,
@@ -104,6 +110,7 @@ class PluginManifest {
       minAppVersion: json['minAppVersion'] as String? ?? '0.0.0',
       maxAppVersion: json['maxAppVersion'] as String?,
       sdkVersion: json['sdkVersion'] as String? ?? '1.x',
+      stability: json['stability'] as String? ?? 'stable',
       permissions:
           (json['permissions'] as List<dynamic>?)
               ?.map((e) => e as String)
@@ -151,6 +158,7 @@ class PluginManifest {
       'minAppVersion': minAppVersion,
       'maxAppVersion': maxAppVersion,
       'sdkVersion': sdkVersion,
+      'stability': stability,
       'permissions': permissions,
       'network': {
         'enabled': networkEnabled,

@@ -87,6 +87,7 @@ import 'package:otzaria/tabs/services/windows_jump_list_service.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
@@ -603,10 +604,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
             .read<WorkspaceBloc>()
             .state
             .activeWorkspaceId;
-        final bookId = context.read<TabsBloc>().state.currentTab?.title;
+        final currentTab = context.read<TabsBloc>().state.currentTab;
         _calendarCubit.refreshPluginEvents(
           currentWorkspaceId: workspaceId,
-          currentBookId: bookId,
+          currentBookId: currentTab?.title,
+          currentBookUid: _readingPaneBookUid(currentTab),
         );
       } catch (e) {
         debugPrint('⚠️ refreshPluginEvents failed after init: $e');
@@ -2326,6 +2328,13 @@ class MainWindowScreenState extends State<MainWindowScreen>
     });
   }
 
+  /// מזהה יציב של הספר בחלונית הקריאה, ל-scope של `book:<bookUid>` בלוח.
+  static String? _readingPaneBookUid(OpenedTab? pane) {
+    if (pane is TextBookTab) return PluginBookIdentity.uidOf(pane.book);
+    if (pane is PdfBookTab) return PluginBookIdentity.uidOf(pane.book);
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final Widget content = MultiBlocProvider(
@@ -2843,13 +2852,14 @@ class MainWindowScreenState extends State<MainWindowScreen>
             listenWhen: (previous, current) =>
                 previous.readingPane?.title != current.readingPane?.title,
             listener: (context, state) {
-              final bookId = state.readingPane?.title;
+              final pane = state.readingPane;
               final workspaceId = context
                   .read<WorkspaceBloc>()
                   .state
                   .activeWorkspaceId;
               _calendarCubit.refreshPluginEvents(
-                currentBookId: bookId,
+                currentBookId: pane?.title,
+                currentBookUid: _readingPaneBookUid(pane),
                 currentWorkspaceId: workspaceId,
               );
             },
@@ -2860,10 +2870,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
                 previous.activeWorkspaceId != current.activeWorkspaceId,
             listener: (context, state) {
               final workspaceId = state.activeWorkspaceId;
-              final bookId = context.read<TabsBloc>().state.readingPane?.title;
+              final pane = context.read<TabsBloc>().state.readingPane;
               _calendarCubit.refreshPluginEvents(
                 currentWorkspaceId: workspaceId,
-                currentBookId: bookId,
+                currentBookId: pane?.title,
+                currentBookUid: _readingPaneBookUid(pane),
               );
             },
           ),
@@ -2885,16 +2896,14 @@ class MainWindowScreenState extends State<MainWindowScreen>
             listenWhen: (_, current) => current is PluginSystemLoaded,
             listener: (context, _) async {
               try {
+                final pane = context.read<TabsBloc>().state.readingPane;
                 await _calendarCubit.refreshPluginEvents(
                   currentWorkspaceId: context
                       .read<WorkspaceBloc>()
                       .state
                       .activeWorkspaceId,
-                  currentBookId: context
-                      .read<TabsBloc>()
-                      .state
-                      .readingPane
-                      ?.title,
+                  currentBookId: pane?.title,
+                  currentBookUid: _readingPaneBookUid(pane),
                 );
               } catch (error) {
                 debugPrint('Plugin calendar refresh failed: $error');

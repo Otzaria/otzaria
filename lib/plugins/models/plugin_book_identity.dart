@@ -1,3 +1,4 @@
+import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/file/document_format.dart';
 
@@ -43,6 +44,12 @@ class PluginBookIdentity {
     _ => 'library',
   };
 
+  /// מזהה ספר יציב חוצה-ספקים, יציב בין עדכוני ספרייה והעברת ספרייה.
+  ///
+  /// זהו בדיוק המפתח שמנוע החיפוש כבר משתמש בו — נגזר מ-`book.id` + תיוג
+  /// המקור, ולכן שורד שינויי כותרת. תוסף מומלץ לאחסן ערך זה במקום כותרת.
+  static String uidOf(Book book) => IndexingRepository.catalogueOrderKey(book);
+
   static PluginBookIdentityKey keyOf(Book book) => (
     bookId: book.title,
     id: book.id,
@@ -75,13 +82,26 @@ class PluginBookIdentity {
       'external': {'provider': external.provider, 'id': external.id},
   };
 
+  /// כמו [toJson] בתוספת `bookUid`. משמש את שכבת ה-bridge שחושפת את המזהה
+  /// היציב; [toJson] עצמו נשאר רזה כי צרכנים אחרים (למשל round-trip דקלרטיבי
+  /// עם רשימת שדות מותרת) אינם מכירים את השדה.
+  static Map<String, dynamic> toJsonWithUid(Book book) => {
+    ...toJson(book),
+    'bookUid': uidOf(book),
+  };
+
   static bool matches(
     Book book, {
     int? id,
     String? bookId,
+    String? bookUid,
     String? type,
     String? source,
   }) {
+    // `bookUid` הוא זהות מדויקת וחד-משמעית — אם סופק, הוא מכריע לבדו.
+    if (bookUid != null && bookUid.trim().isNotEmpty) {
+      return uidOf(book) == bookUid.trim();
+    }
     if (id != null && book.id != id) return false;
     if (bookId != null && book.title != bookId) return false;
     if (type != null && typeOf(book) != type.trim().toLowerCase()) {

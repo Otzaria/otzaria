@@ -105,7 +105,7 @@ dependencies:
 
 dependency_overrides:
   matcher: ^0.12.20
-  analyzer: any
+  analyzer: ^12.1.0
   device_info_plus: ^13.2.0
   # הגרסה שב-pub.dev חסרה את תיקון גלילת הטאצ'פד.
   flutter_inappwebview_windows:
@@ -135,6 +135,9 @@ flutter_launcher_icons:
 
 dev_dependencies:
   sentry_dart_plugin: ^3.4.0
+  # מחולל spec.json של התוספים (tool/plugins) מפרסר AST של קוד המקור.
+  # מוצמד ל-major: צורת ה-AST משתנה בין גרסאות ראשיות ושוברת את המחולל.
+  analyzer: ^12.1.0
   # לטעינת ספריית המנוע הנייטיבית בטסטים (ExternalLibrary).
   flutter_rust_bridge: ^2.12.0
   flutter_test:

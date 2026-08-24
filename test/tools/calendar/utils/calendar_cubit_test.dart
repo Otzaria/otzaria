@@ -26,11 +26,32 @@ class _SequencedPluginAdapter implements CalendarPluginSource {
     List<CustomEvent> existingEvents, {
     String? currentWorkspaceId,
     String? currentBookId,
+    String? currentBookUid,
   }) async {
     final idx = _call < _responses.length ? _call : _responses.length - 1;
     _call++;
     final pluginEvents = await _responses[idx];
     return [...existingEvents, ...pluginEvents];
+  }
+}
+
+/// מתעד את הארגומנטים שהגיעו למתאם — זו החוליה שנבדקת כאן.
+class _RecordingPluginAdapter implements CalendarPluginSource {
+  String? lastWorkspaceId;
+  String? lastBookId;
+  String? lastBookUid;
+
+  @override
+  Future<List<CustomEvent>> loadAndMergePluginEvents(
+    List<CustomEvent> existingEvents, {
+    String? currentWorkspaceId,
+    String? currentBookId,
+    String? currentBookUid,
+  }) async {
+    lastWorkspaceId = currentWorkspaceId;
+    lastBookId = currentBookId;
+    lastBookUid = currentBookUid;
+    return existingEvents;
   }
 }
 
@@ -470,6 +491,30 @@ void main() {
     );
   });
 
+  group('refreshPluginEvents — העברת זהות הספר', () {
+    test('currentBookUid מועבר למתאם התוספים', () async {
+      final adapter = _RecordingPluginAdapter();
+      final cubit = CalendarCubit(
+        settingsRepository: _InMemorySettingsRepository(),
+        notificationService: _FakeNotificationService(),
+        pluginCalendarAdapter: adapter,
+      );
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      await cubit.refreshPluginEvents(
+        currentWorkspaceId: 'ws-1',
+        currentBookId: 'גיטין',
+        currentBookUid: 'id:10',
+      );
+
+      expect(adapter.lastBookId, 'גיטין');
+      expect(adapter.lastBookUid, 'id:10');
+      expect(adapter.lastWorkspaceId, 'ws-1');
+
+      await cubit.close();
+    });
+  });
+
   group('setZmanEnabled — הפעלה/כיבוי זמנים', () {
     test('הפעלה וכיבוי מעדכנים את ה-state ושומרים ל-prefs', () async {
       final settings = _InMemorySettingsRepository();
@@ -695,7 +740,7 @@ void main() {
         title: 'שיעור שבועי',
         baseGregorianDate: DateTime(2026, 5, 15),
         recurrenceType: RecurrenceType.weekly,
-        endGregorianDate: DateTime(2026, 5, 29),
+        recurrenceEndDate: DateTime(2026, 5, 29),
         eventTime: const TimeOfDay(hour: 20, minute: 0),
         endTime: const TimeOfDay(hour: 21, minute: 0),
       );
@@ -711,6 +756,164 @@ void main() {
       expect(hasEvent(DateTime(2026, 6, 5)), isFalse);
 
       await cubit.close();
+    });
+
+    test(
+      'אירוע שנתי חוזר עם טווח ימים מופיע בכל הטווח וגם בשנים הבאות',
+      () async {
+        final cubit = CalendarCubit(
+          settingsRepository: _InMemorySettingsRepository(),
+          notificationService: _FakeNotificationService(),
+        );
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        await cubit.addEvent(
+          title: 'בין הזמנים',
+          baseGregorianDate: DateTime(2026, 8, 3),
+          recurrenceType: RecurrenceType.annualGregorian,
+          endGregorianDate: DateTime(2026, 8, 13),
+        );
+
+        bool has(DateTime d) =>
+            cubit.eventsForDate(d).any((e) => e.title == 'בין הזמנים');
+
+        expect(has(DateTime(2026, 8, 2)), isFalse);
+        expect(has(DateTime(2026, 8, 3)), isTrue);
+        expect(has(DateTime(2026, 8, 8)), isTrue);
+        expect(has(DateTime(2026, 8, 13)), isTrue);
+        expect(has(DateTime(2026, 8, 14)), isFalse);
+        expect(has(DateTime(2027, 8, 3)), isTrue);
+        expect(has(DateTime(2027, 8, 10)), isTrue);
+        expect(has(DateTime(2027, 8, 14)), isFalse);
+
+        await cubit.close();
+      },
+    );
+
+    test(
+      'אירוע שנתי-עברי חוזר עם טווח ימים מופיע בטווח גם בשנה העברית הבאה',
+      () async {
+        final cubit = CalendarCubit(
+          settingsRepository: _InMemorySettingsRepository(),
+          notificationService: _FakeNotificationService(),
+        );
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        final base = DateTime(2026, 7, 24);
+        await cubit.addEvent(
+          title: 'בין הזמנים עברי',
+          baseGregorianDate: base,
+          recurrenceType: RecurrenceType.annualHebrew,
+          endGregorianDate: base.add(const Duration(days: 3)),
+        );
+
+        bool has(DateTime d) =>
+            cubit.eventsForDate(d).any((e) => e.title == 'בין הזמנים עברי');
+
+        expect(has(base.subtract(const Duration(days: 1))), isFalse);
+        expect(has(base), isTrue);
+        expect(has(base.add(const Duration(days: 3))), isTrue);
+        expect(has(base.add(const Duration(days: 4))), isFalse);
+
+        // אותו יום עברי בשנה הבאה, כולל הטווח שאחריו
+        final baseJd = JewishDate.fromDateTime(base);
+        final nextYearStart =
+            (JewishDate()..setJewishDate(
+                  baseJd.getJewishYear() + 1,
+                  baseJd.getJewishMonth(),
+                  baseJd.getJewishDayOfMonth(),
+                ))
+                .getGregorianCalendar();
+        expect(has(nextYearStart), isTrue);
+        expect(has(nextYearStart.add(const Duration(days: 3))), isTrue);
+        expect(has(nextYearStart.add(const Duration(days: 4))), isFalse);
+
+        await cubit.close();
+      },
+    );
+
+    test('סוף החזרה חוסם מופעים עתידיים אך לא את טווח המופע האחרון', () async {
+      final cubit = CalendarCubit(
+        settingsRepository: _InMemorySettingsRepository(),
+        notificationService: _FakeNotificationService(),
+      );
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      await cubit.addEvent(
+        title: 'טווח שבועי',
+        baseGregorianDate: DateTime(2026, 5, 15),
+        recurrenceType: RecurrenceType.weekly,
+        endGregorianDate: DateTime(2026, 5, 17),
+        recurrenceEndDate: DateTime(2026, 5, 22),
+      );
+
+      bool has(DateTime d) =>
+          cubit.eventsForDate(d).any((e) => e.title == 'טווח שבועי');
+
+      expect(has(DateTime(2026, 5, 16)), isTrue);
+      // המופע שמתחיל ב-22/5 עוד בתוקף, וטווחו נמשך אחרי סוף החזרה
+      expect(has(DateTime(2026, 5, 24)), isTrue);
+      // המופע הבא (29/5) כבר אחרי סוף החזרה
+      expect(has(DateTime(2026, 5, 29)), isFalse);
+
+      await cubit.close();
+    });
+  });
+
+  group('הגירת JSON ישן — endGregorianDate ששימש כסוף חזרה', () {
+    test('טווח ארוך מהמחזור נודד ל-recurrenceEndDate', () {
+      final json =
+          _buildUserEvent()
+              .copyWith(
+                recurrenceType: RecurrenceType.weekly,
+                endGregorianDate: () => DateTime(2026, 5, 29),
+              )
+              .toJson()
+            ..remove('recurrenceEndDate');
+      final decoded = CustomEvent.fromJson(json);
+      expect(decoded.recurrenceEndDate, DateTime(2026, 5, 29));
+      expect(decoded.endGregorianDate, isNull);
+    });
+
+    test('טווח קצר מהמחזור נשאר כמשך האירוע', () {
+      final json =
+          _buildUserEvent()
+              .copyWith(
+                recurrenceType: RecurrenceType.annualGregorian,
+                endGregorianDate: () => DateTime(2026, 5, 20),
+              )
+              .toJson()
+            ..remove('recurrenceEndDate');
+      final decoded = CustomEvent.fromJson(json);
+      expect(decoded.endGregorianDate, DateTime(2026, 5, 20));
+      expect(decoded.recurrenceEndDate, isNull);
+    });
+
+    test('פורמט חדש (המפתח קיים) אינו מוגר', () {
+      final decoded = CustomEvent.fromJson(
+        _buildUserEvent()
+            .copyWith(
+              recurrenceType: RecurrenceType.weekly,
+              endGregorianDate: () => DateTime(2026, 5, 17),
+            )
+            .toJson(),
+      );
+      expect(decoded.endGregorianDate, DateTime(2026, 5, 17));
+      expect(decoded.recurrenceEndDate, isNull);
+    });
+
+    test('roundtrip שומר recurrenceEndDate', () {
+      final decoded = CustomEvent.fromJson(
+        jsonDecode(
+          _encodeEvent(
+            _buildUserEvent().copyWith(
+              recurrenceType: RecurrenceType.weekly,
+              recurrenceEndDate: () => DateTime(2026, 8, 31),
+            ),
+          ),
+        ),
+      );
+      expect(decoded.recurrenceEndDate, DateTime(2026, 8, 31));
     });
   });
 
@@ -728,6 +931,15 @@ void main() {
       final renamed = event.copyWith(title: 'שם חדש');
       expect(renamed.endGregorianDate, DateTime(2026, 5, 18));
       expect(renamed.title, 'שם חדש');
+    });
+
+    test('recurringYears מתאפס במפורש ל-null', () {
+      final limited = event.copyWith(recurringYears: () => 5);
+      expect(limited.recurringYears, 5);
+      expect(
+        limited.copyWith(recurringYears: () => null).recurringYears,
+        isNull,
+      );
     });
   });
 
@@ -897,7 +1109,7 @@ void main() {
         eventTime: () => const TimeOfDay(hour: 9, minute: 30),
         endTime: () => const TimeOfDay(hour: 11, minute: 15),
         colorIndex: () => 5,
-        endGregorianDate: () => DateTime(2026, 8, 31),
+        recurrenceEndDate: () => DateTime(2026, 8, 31),
       );
 
       final googleEvent = cubit.toGoogleEvent(event, 'Asia/Jerusalem');
@@ -937,7 +1149,8 @@ void main() {
       final mapped = cubit.fromGoogleEvent(event);
 
       expect(mapped!.recurrenceType, RecurrenceType.weekly);
-      expect(mapped.endGregorianDate, DateTime(2026, 8, 31));
+      expect(mapped.recurrenceEndDate, DateTime(2026, 8, 31));
+      expect(mapped.endGregorianDate, isNull);
     });
   });
 

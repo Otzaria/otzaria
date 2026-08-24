@@ -15,10 +15,12 @@ List<PluginHighlight> resolveClickedHighlights({
   required int sectionIndex,
   required String rawText,
   required RenderSettings settings,
+  String? bookUid,
 }) {
   final highlights = PluginHighlightRegistry.instance.getAllHighlights(
     bookId: bookId,
     sectionIndex: sectionIndex,
+    bookUid: bookUid,
   );
   if (highlights.isEmpty) return const [];
 
@@ -114,6 +116,7 @@ Map<String, dynamic> buildClickedHighlightsPayload({
   int? bookDbId,
   String? bookType,
   String? bookSource,
+  String? bookUid,
 }) => {
   'id': ?bookDbId,
   'type': ?bookType,
@@ -122,6 +125,7 @@ Map<String, dynamic> buildClickedHighlightsPayload({
   'currentRef': currentRef,
   'currentBook': bookTitle,
   'currentBookId': bookId,
+  'bookUid': ?bookUid,
   'currentIndex': sectionIndex,
   'clickedHighlights': [
     for (final highlight in highlights)

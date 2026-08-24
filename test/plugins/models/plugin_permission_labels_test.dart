@@ -15,6 +15,42 @@ PluginManifest _manifest({Map<String, dynamic>? startup}) =>
     });
 
 void main() {
+  test('לכל הרשאה תקפה יש תווית עברית — לא נופלת ל-fallback', () {
+    final missing = pluginValidPermissions.where((permission) {
+      final info = getPermissionInfo(permission);
+      return info.label == permission ||
+          info.description.startsWith('גישה לפונקציונליות');
+    }).toList();
+
+    expect(missing, isEmpty, reason: 'הרשאות ללא תווית ב-_permissionLabels');
+  });
+
+  test('הרשאות הסימניות וכלי העזר מסבירות את ההשלכה בפועל', () {
+    expect(getPermissionInfo('bookmarks.read').label, contains('סימניות'));
+    final write = getPermissionInfo(pluginBookmarksWritePermission);
+    expect(write.description, contains('מחיקה'));
+    expect(
+      getPermissionInfo(pluginToolsReadPermission).label,
+      isNot('tools.read'),
+    );
+  });
+
+  test('כתיבה לנתוני המשתמש מתחילה מאושרת — עקבי עם notes.write', () {
+    for (final permission in [
+      'notes.write',
+      'history.write',
+      pluginBookmarksWritePermission,
+      pluginToolsReadPermission,
+      pluginBookmarksReadPermission,
+    ]) {
+      expect(
+        pluginPermissionDefaultGrant(permission, isOfflineMode: false),
+        isTrue,
+        reason: permission,
+      );
+    }
+  });
+
   test('sensitive startup permissions are off by default', () {
     expect(
       pluginPermissionDefaultGrant(

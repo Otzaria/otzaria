@@ -18,15 +18,19 @@ class PluginDownloadService {
   /// מורידה את ארכיון התוסף. [appVersion] — גרסת האוצריא הנוכחית; כשהכתובת
   /// היא של החנות היא נשלחת אליה כדי לקבל גרסת תוסף תואמת (ראו
   /// [PluginStoreLinkParser.appendAppVersion]).
+  /// [storeOnly] — לאכוף שכל hop הוא מארח של החנות. נדרש כשההתקנה יזומה
+  /// ע"י תוסף (`plugin.requestInstall`); בקישור שהמשתמש לחץ עליו במודע
+  /// הגבלה כזו הייתה שוברת התקנה לגיטימית מכתובת אחרת.
   Future<String> downloadPluginArchive(
     Uri downloadUri, {
     String? appVersion,
+    bool storeOnly = false,
   }) async {
     final resolvedUri = PluginStoreLinkParser.appendAppVersion(
       downloadUri,
       appVersion,
     );
-    var response = await _client.send(http.Request('GET', resolvedUri));
+    var response = await _sendFollowingRedirects(resolvedUri, storeOnly);
 
     if (response.statusCode >= 400 && resolvedUri != downloadUri) {
       final body = await response.stream.bytesToString();
@@ -38,7 +42,7 @@ class PluginDownloadService {
       }
       // סירוב מסיבה אחרת (למשל שילוב פרמטרים שהשרת דוחה) — מנסים שוב
       // בכתובת המקורית, כדי לא לשבור התקנה שעבדה לפני הוספת appVersion.
-      response = await _client.send(http.Request('GET', downloadUri));
+      response = await _sendFollowingRedirects(downloadUri, storeOnly);
     }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -89,6 +93,35 @@ class PluginDownloadService {
     if (await directory.exists()) {
       await directory.delete(recursive: true);
     }
+  }
+
+  /// תקרת ההפניות. חמש מספיקות לכל שרשרת סבירה של החנות.
+  static const int _maxRedirects = 5;
+
+  /// שולחת GET ועוקבת אחרי הפניות **ידנית**. מעקב אוטומטי היה מאפשר
+  /// ל-redirect מהחנות להוציא את ההורדה לשרת זר, ובכך לרוקן את הגידור
+  /// שנעשה בנקודת הקריאה.
+  Future<http.StreamedResponse> _sendFollowingRedirects(
+    Uri uri,
+    bool storeOnly,
+  ) async {
+    var current = uri;
+    for (var hop = 0; hop <= _maxRedirects; hop++) {
+      if (storeOnly && !PluginStoreLinkParser.isStoreDownloadUri(current)) {
+        throw Exception('הורדת תוסף מותרת רק מכתובת של חנות התוספים');
+      }
+      final request = http.Request('GET', current)..followRedirects = false;
+      final response = await _client.send(request);
+      final location = response.headers['location'];
+      final isRedirect =
+          response.statusCode >= 300 &&
+          response.statusCode < 400 &&
+          location != null;
+      if (!isRedirect) return response;
+      await response.stream.drain<void>();
+      current = current.resolve(location);
+    }
+    throw Exception('יותר מדי הפניות בהורדת התוסף');
   }
 
   String _resolveFileStem(Uri uri) {

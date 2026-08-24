@@ -61,6 +61,8 @@ abstract class ToolsMessages {
       'יש להזין מספר שנים חיובי עבור אירוע חוזר.';
   static const String eventEndBeforeStart =
       'תאריך הסיום חייב להיות שווה או מאוחר מתאריך ההתחלה.';
+  static const String eventRangeLongerThanRecurrence =
+      'טווח הימים של האירוע חייב להיות קצר מתדירות החזרה.';
 
   // ── דף יומי — ניווט ──
   static const String libraryStillLoading =

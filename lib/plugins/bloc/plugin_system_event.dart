@@ -27,10 +27,15 @@ class InstallRemotePluginRequested extends PluginSystemEvent {
   /// הקשר דיווח תוצאה חזרה לאתר החנות (טוקן + callback). null = ללא דיווח.
   final PluginInstallReportContext? reportContext;
 
+  /// ההתקנה יזומה ע"י תוסף (`plugin.requestInstall`) ולא ע"י המשתמש. במצב
+  /// כזה ההורדה מוגבלת למארחי החנות בכל hop, כולל אחרי redirect.
+  final bool storeOnly;
+
   const InstallRemotePluginRequested(
     this.downloadUrl, {
     this.forceOverwrite = false,
     this.reportContext,
+    this.storeOnly = false,
   });
 
   @override
@@ -39,6 +44,7 @@ class InstallRemotePluginRequested extends PluginSystemEvent {
     forceOverwrite,
     reportContext?.token,
     reportContext?.callbackUrl,
+      storeOnly,
   ];
 }
 

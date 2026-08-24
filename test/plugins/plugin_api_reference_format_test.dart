@@ -17,6 +17,7 @@ import 'package:flutter_test/flutter_test.dart';
 ///
 /// אם הטסט נכשל: בדקו שהקובץ עדיין כולל את התבניות הבאות:
 ///   * כותרות שיטה: ``` ### \`namespace.method\` ```
+///   * כותרות אירוע: ``` ### Event: \`event.name\` ``` — לא בתבנית של שיטה
 ///   * דוגמאות קריאה: `Otzaria.call('namespace.method', …)`
 ///   * רישום אירוע: `Otzaria.on('event.name', …)`
 ///   * הרשאות ב-inline-code (backticked) כמו `` `library.books.read` ``
@@ -157,6 +158,21 @@ void main() {
           md.contains('plugin.ready'),
           isTrue,
           reason: 'plugin.ready חייב להופיע במסמך כדי שייכלל ברשימת האירועים.',
+        );
+      });
+
+      test('אירועים אינם נכנסים לרשימת ה-methods', () {
+        final methods = _parseApiMethods(md);
+        final events = _parseEvents(md, _parsePermissions(md));
+        final leaked = events.where(methods.contains).toList()..sort();
+        expect(
+          leaked,
+          isEmpty,
+          reason:
+              'אירועים שנפענחו גם כ-methods: $leaked. כותרת אירוע חייבת '
+              'להיות ``### Event: `event.name``` — התבנית '
+              '``### `event.name``` מסמנת method, וה-website יכריז על '
+              'האירוע כ-API תקף לקריאה.',
         );
       });
 

@@ -1,4 +1,9 @@
+import 'dart:convert' show utf8;
+import 'dart:typed_data' show BytesBuilder;
+
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:otzaria/utils/file/text_encoding.dart'
+    show decodeTextBytesSmart;
 import 'package:path/path.dart' as p;
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/plugins/models/plugin_store_install_request.dart';
@@ -314,6 +319,46 @@ class ExternalUriRouter {
     return null;
   }
 
+  /// כמו [Uri.queryParameters], אבל שורד אחוזי-קידוד שאינם UTF-8. מאקרו/VBA
+  /// ותיק ב-Windows מקודד עברית ב-Windows-1255 (למשל `?q=%F9%EC%E5%ED`),
+  /// ו-[Uri.queryParameters] זורק עליו FormatException שממית את הקישור כולו.
+  static Map<String, String> _queryParametersOf(Uri uri) {
+    try {
+      return uri.queryParameters;
+    } on FormatException {
+      final params = <String, String>{};
+      for (final pair in uri.query.split('&')) {
+        if (pair.isEmpty) continue;
+        final split = pair.indexOf('=');
+        final rawKey = split < 0 ? pair : pair.substring(0, split);
+        final rawValue = split < 0 ? '' : pair.substring(split + 1);
+        params[_decodeLegacyComponent(rawKey)] = _decodeLegacyComponent(
+          rawValue,
+        );
+      }
+      return params;
+    }
+  }
+
+  /// פענוח רכיב query עם אחוזי-קידוד בקידוד לא ידוע: אוספים את הבייטים
+  /// הגולמיים ומזהים את הקידוד (UTF-8 / Windows-1255 / ISO-8859-8 / CP862).
+  static String _decodeLegacyComponent(String component) {
+    final bytes = BytesBuilder(copy: false);
+    for (var i = 0; i < component.length; i++) {
+      final char = component[i];
+      if (char == '%' && i + 2 < component.length) {
+        final code = int.tryParse(component.substring(i + 1, i + 3), radix: 16);
+        if (code != null) {
+          bytes.addByte(code);
+          i += 2;
+          continue;
+        }
+      }
+      bytes.add(utf8.encode(char == '+' ? ' ' : char));
+    }
+    return decodeTextBytesSmart(bytes.takeBytes());
+  }
+
   static String? _parseLocalInstall(Uri uri) {
     final segments = uri.pathSegments
         .where((segment) => segment.isNotEmpty)
@@ -323,7 +368,7 @@ class ExternalUriRouter {
         segments.length == 1 && segments.first == 'install-local';
     if (!isLocalInstall) return null;
 
-    final rawPath = uri.queryParameters['path']?.trim();
+    final rawPath = _queryParametersOf(uri)['path']?.trim();
     if (rawPath == null || rawPath.isEmpty) return null;
     if (!_isSafeLocalPluginPath(rawPath)) return null;
 
@@ -362,14 +407,16 @@ class ExternalUriRouter {
       return null;
     }
 
+    final queryParameters = _queryParametersOf(uri);
+
     final firstLower = segments.first.toLowerCase();
 
     if (segments.length == 1) {
       // search?q=<text> מקבל טיפול מיוחד — יוצר לשונית ומפעיל חיפוש.
       if (firstLower == 'search') {
-        final rawQuery = uri.queryParameters['q']?.trim();
+        final rawQuery = queryParameters['q']?.trim();
         if (rawQuery != null && rawQuery.isNotEmpty) {
-          final rawMode = uri.queryParameters['mode']?.trim().toLowerCase();
+          final rawMode = queryParameters['mode']?.trim().toLowerCase();
           return RunSearchAction(rawQuery, mode: _searchModeAliases[rawMode]);
         }
       }
@@ -377,7 +424,7 @@ class ExternalUriRouter {
       // detection?q=<text> — פותח דיאלוג איתור מקורות עם טקסט מילוי-מראש.
       // ללא q — פותח דיאלוג איתור ריק.
       if (firstLower == 'detection') {
-        final rawQuery = uri.queryParameters['q']?.trim() ?? '';
+        final rawQuery = queryParameters['q']?.trim() ?? '';
         return RunDetectionAction(rawQuery);
       }
 
@@ -465,7 +512,7 @@ class ExternalUriRouter {
         return null;
       }
 
-      final indexParam = uri.queryParameters['index']?.trim();
+      final indexParam = queryParameters['index']?.trim();
       final parsedIndex = indexParam == null || indexParam.isEmpty
           ? null
           : int.tryParse(indexParam);
@@ -473,16 +520,16 @@ class ExternalUriRouter {
           ? parsedIndex
           : null;
 
-      final rawQuery = uri.queryParameters['q']?.trim();
+      final rawQuery = queryParameters['q']?.trim();
       final rawSearchQuery = (rawQuery == null || rawQuery.isEmpty)
           ? null
           : rawQuery;
 
       // mark — דגל בוליאני: קיים ב-queryParameters גם ללא ערך (?mark) וגם עם ערך ריק (?mark=)
-      final markSection = uri.queryParameters.containsKey('mark');
+      final markSection = queryParameters.containsKey('mark');
 
       // m — טקסט ספציפי לסימון; מתעלמים מערך ריק או רווחים בלבד
-      final rawMark = uri.queryParameters['m']?.trim();
+      final rawMark = queryParameters['m']?.trim();
       final markText = (rawMark == null || rawMark.isEmpty) ? null : rawMark;
 
       // אכיפת עדיפות m > mark > q: אם יש סימון מקומי (m או mark), q מתעלם
@@ -507,7 +554,7 @@ class ExternalUriRouter {
         return null;
       }
 
-      final indexParam = uri.queryParameters['index']?.trim();
+      final indexParam = queryParameters['index']?.trim();
       final parsedIndex = int.tryParse(indexParam ?? '');
       final page = (parsedIndex != null && parsedIndex >= 1)
           ? parsedIndex

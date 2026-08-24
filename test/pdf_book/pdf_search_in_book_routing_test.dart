@@ -43,6 +43,9 @@ Future<void> main() async {
     Map<String, Map<String, bool>> searchOptions = const {},
     SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard,
     ValueNotifier<ReadingTabSearchState?>? incomingSearchConfiguration,
+    int? bookId,
+    bool isUserBook = false,
+    String? externalLibraryId,
   }) async {
     final settingsBloc = _MockSettingsBloc();
     whenListen(
@@ -82,6 +85,9 @@ Future<void> main() async {
               focusNode: focusNode,
               bookTitle: 'ספר בדיקה',
               bookTopics: 'תנך',
+              bookId: bookId,
+              isUserBook: isUserBook,
+              externalLibraryId: externalLibraryId,
               pdfFilePath: '/nonexistent/test.pdf',
               initialSearchMode: searchMode,
               initialSearchDistance: searchDistance,
@@ -111,6 +117,57 @@ Future<void> main() async {
     expect(repository.requests, isNotEmpty);
     expect(repository.requests.last.distance, 3);
     expect(repository.requests.last.query, 'תדע זרעך');
+
+    await tester.pump(const Duration(milliseconds: 800));
+  }, skip: !engineReady);
+
+  // הרגרסיה של issue #936: החלונית בנתה את ה-facet בלי מזהי הספר בעוד
+  // האינדוקס משתמש בהם (id:/uid:/ext:) — מסלול המנוע החזיר תמיד "אין תוצאות"
+  // לספר מזוהה, גם כשהחיפוש הגלובלי מצא בו התאמות.
+  testWidgets('ה-facet של ספר עם מזהה נבנה עם מפתח id: כמו באינדוקס', (
+    tester,
+  ) async {
+    final repository = await pumpPdfSearch(
+      tester,
+      query: 'תדע זרעך',
+      searchMode: SearchMode.exact,
+      searchDistance: 3,
+      bookId: 12,
+    );
+
+    expect(repository.requests, isNotEmpty);
+    expect(repository.requests.last.facets, ['/תנך/id:12']);
+
+    await tester.pump(const Duration(milliseconds: 800));
+  }, skip: !engineReady);
+
+  testWidgets('ספר אישי עם מזהה מקבל מפתח uid:', (tester) async {
+    final repository = await pumpPdfSearch(
+      tester,
+      query: 'תדע זרעך',
+      searchMode: SearchMode.exact,
+      searchDistance: 3,
+      bookId: 7,
+      isUserBook: true,
+    );
+
+    expect(repository.requests, isNotEmpty);
+    expect(repository.requests.last.facets, ['/תנך/uid:7']);
+
+    await tester.pump(const Duration(milliseconds: 800));
+  }, skip: !engineReady);
+
+  testWidgets('ספר מקטלוג חיצוני מקבל מפתח ext:', (tester) async {
+    final repository = await pumpPdfSearch(
+      tester,
+      query: 'תדע זרעך',
+      searchMode: SearchMode.exact,
+      searchDistance: 3,
+      externalLibraryId: 'HB_12345',
+    );
+
+    expect(repository.requests, isNotEmpty);
+    expect(repository.requests.last.facets, ['/תנך/ext:HB_12345']);
 
     await tester.pump(const Duration(milliseconds: 800));
   }, skip: !engineReady);
@@ -271,12 +328,14 @@ class _SearchRequest {
     required this.distance,
     required this.scope,
     required this.wordMatchMode,
+    required this.facets,
   });
 
   final String query;
   final int distance;
   final SearchScope scope;
   final WordMatchMode wordMatchMode;
+  final List<String> facets;
 }
 
 class _RecordingSearchRepository extends SearchRepository {
@@ -314,6 +373,7 @@ class _RecordingSearchRepository extends SearchRepository {
         distance: distance,
         scope: scope,
         wordMatchMode: wordMatchMode,
+        facets: facets,
       ),
     );
     return const [];

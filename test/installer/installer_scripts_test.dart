@@ -624,6 +624,33 @@ void main() {
         );
       });
 
+      test('$name: בחירת המשימות לא נדבקת מהתקנה קודמת (issue #941)', () {
+        expect(
+          _section(_script(name), 'Setup'),
+          contains('UsePreviousTasks=no'),
+          reason:
+              'ברירת המחדל של Inno שומרת את המשימות ברישום — "איפוס הגדרות" '
+              'שסומן פעם רץ שוב בכל שדרוג שקט ומוחק את נתוני המשתמש',
+        );
+      });
+
+      test('$name: איפוס בריצה שקטה רק עם /TASKS מפורש (issue #941)', () {
+        final script = _script(name);
+        final guard = _routine(script, 'function ShouldResetSettings(');
+
+        expect(guard, contains('WizardSilent'));
+        expect(guard, contains('{param:TASKS|}'));
+        expect(guard, contains('{param:MERGETASKS|}'));
+
+        final body = _routine(script, 'procedure CurStepChanged(');
+        expect(body, contains('ShouldResetSettings()'));
+        expect(
+          body,
+          isNot(contains("WizardIsTaskSelected('resetsettings')")),
+          reason: 'מחיקת הנתונים חייבת לעבור דרך השער, לא ישירות דרך המשימה',
+        );
+      });
+
       test('$name: תיאור משימת האיפוס מוביל באזהרה ולא ממליץ עליה', () {
         final tasks = _section(_script(name), 'Tasks');
         final line = tasks

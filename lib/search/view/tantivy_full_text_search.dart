@@ -20,6 +20,7 @@ import 'package:otzaria/search/view/full_text_settings_widgets.dart';
 import 'package:otzaria/search/view/tantivy_search_results.dart';
 import 'package:otzaria/search/view/full_text_facet_filtering.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
+import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
@@ -497,6 +498,9 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
       child: TantivySearchResults(
         tab: widget.tab,
         onEditSearch: _openEditDialog,
+        // חלונית התצוגה המקדימה מוצגת רק בפריסה הרחבה; במסך צר לחיצה
+        // אחת ממשיכה לפתוח את התוצאה בעיון.
+        showPreviewPane: true,
       ),
     );
   }
@@ -642,6 +646,12 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                   collapsed: collapseMenus,
                 ),
               ),
+              // לחצן העין קיים רק בפריסה הרחבה — שם יש חלונית תצוגה מקדימה.
+              if (showPaneSearchBar)
+                AppTopBarItem(
+                  dividerBefore: true,
+                  widget: _buildPreviewToggleButton(),
+                ),
               AppTopBarItem(
                 dividerBefore: true,
                 widget: _animatedBarControl(
@@ -669,6 +679,33 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
               ),
             ]
           : const [],
+    );
+  }
+
+  /// לחצן עין לכיבוי/הפעלה קבועים של התצוגה המקדימה של תוצאות — כמו בספרייה.
+  Widget _buildPreviewToggleButton() {
+    return BlocBuilder<SettingsBloc, SettingsState>(
+      buildWhen: (p, c) =>
+          p.searchShowPreview != c.searchShowPreview ||
+          p.compactMenuMode != c.compactMenuMode,
+      builder: (context, settingsState) {
+        final showPreview = settingsState.searchShowPreview;
+        return BarButton.icon(
+          compact: settingsState.compactMenuMode,
+          tooltip: showPreview ? 'הסתר תצוגה מקדימה' : 'הצג תצוגה מקדימה',
+          icon: showPreview
+              ? FluentIcons.eye_24_filled
+              : FluentIcons.eye_24_regular,
+          selected: showPreview,
+          onPressed: () {
+            final next = !showPreview;
+            context.read<SettingsBloc>().add(UpdateSearchShowPreview(next));
+            if (!next) {
+              widget.tab.previewTarget.value = null;
+            }
+          },
+        );
+      },
     );
   }
 

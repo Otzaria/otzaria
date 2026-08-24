@@ -15,7 +15,7 @@ import 'package:otzaria/tools/calendar/utils/calendar_cubit.dart';
 /// |---------------------|--------------------------------|
 /// | `global`            | הצג תמיד בלוח                  |
 /// | `workspace:<id>`    | הצג רק כשה-workspaceId תואם    |
-/// | `book:<bookId>`     | הצג רק כשה-bookId תואם         |
+/// | `book:<bookUid>`    | הצג רק כשה-bookUid/כותרת תואם  |
 ///
 /// currentWorkspaceId / currentBookId מוזנקים מבחוץ (ראה [loadAndMergePluginEvents]).
 class PluginCalendarAdapter {
@@ -29,6 +29,7 @@ class PluginCalendarAdapter {
     List<CustomEvent> existingEvents, {
     String? currentWorkspaceId,
     String? currentBookId,
+    String? currentBookUid,
   }) async {
     try {
       final records = await PluginSystemDatabase.instance
@@ -49,6 +50,7 @@ class PluginCalendarAdapter {
             scope: scope,
             currentWorkspaceId: currentWorkspaceId,
             currentBookId: currentBookId,
+            currentBookUid: currentBookUid,
           )) {
             continue;
           }
@@ -72,6 +74,7 @@ class PluginCalendarAdapter {
     required String scope,
     String? currentWorkspaceId,
     String? currentBookId,
+    String? currentBookUid,
   }) {
     if (scope == 'global') return true;
 
@@ -81,8 +84,10 @@ class PluginCalendarAdapter {
     }
 
     if (scope.startsWith('book:')) {
+      // מזוהה גם scope חדש (`book:<bookUid>`) וגם ישן (`book:<כותרת>`).
       final bookId = scope.substring('book:'.length);
-      return currentBookId != null && currentBookId == bookId;
+      return (currentBookId != null && currentBookId == bookId) ||
+          (currentBookUid != null && currentBookUid == bookId);
     }
 
     // scope לא מוכר — בטח לא להציג

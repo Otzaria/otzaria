@@ -885,6 +885,7 @@ dart format lib/file.dart    # Format ONLY files you modified
 | Plugin highlights / reader section tracking | `test/plugins/services/plugin_highlight_registry_test.dart`, `…reader_section_content_tracker_test.dart`, `…reader_section_sync_gate_test.dart` |
 | Plugin foreground suspend/resume | `test/plugins/services/plugin_runtime_dispatcher_test.dart` |
 | פוקוס מקלדת ל-WebView של תוסף (הקלדה מיד בפתיחה) | `test/plugins/services/plugin_webview_focus_test.dart`, `…plugin_keyboard_focus_test.dart` |
+| בדיקת עדכוני תוספים מהחנות (שירות batch, קוביט, צ'יפ "עדכון זמין") | `test/plugins/services/plugin_update_check_service_test.dart`, `test/plugins/bloc/plugin_updates_cubit_test.dart`, `test/plugins/view/plugin_update_chip_test.dart` |
 
 **Tools & plugins as reading tabs**
 | Area | Test File |

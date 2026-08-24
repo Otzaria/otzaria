@@ -82,6 +82,7 @@ class PluginHighlightRegistry extends ChangeNotifier {
       const {
         'highlightId',
         'bookId',
+        'bookUid',
         'sectionIndex',
         'currentRef',
         'range',
@@ -91,6 +92,7 @@ class PluginHighlightRegistry extends ChangeNotifier {
       'setHighlight',
     );
     final bookId = _requiredString(payload, 'bookId', maxLength: 500);
+    final bookUid = _optionalText(payload['bookUid'], maxLength: 500);
     final sectionIndex = payload['sectionIndex'];
     if (sectionIndex is! int || sectionIndex < 0) {
       throw const PluginHighlightException(
@@ -130,6 +132,7 @@ class PluginHighlightRegistry extends ChangeNotifier {
       highlightId: highlightId,
       ownerPluginId: ownerPluginId,
       bookId: bookId,
+      bookUid: bookUid == null || bookUid.isEmpty ? null : bookUid,
       sectionIndex: sectionIndex,
       currentRef: _optionalText(payload['currentRef'], maxLength: 500),
       range: range,
@@ -148,6 +151,7 @@ class PluginHighlightRegistry extends ChangeNotifier {
     required String ownerPluginId,
     required String bookId,
     required int sectionIndex,
+    String? bookUid,
     String ownerInstanceId = PluginInstanceIds.defaultForeground,
     String? color,
     String? label,
@@ -198,6 +202,9 @@ class PluginHighlightRegistry extends ChangeNotifier {
           existing?.highlightId ?? _generateId(ownerPluginId, timestamp),
       ownerPluginId: ownerPluginId,
       bookId: bookId,
+      bookUid: (bookUid != null && bookUid.isNotEmpty)
+          ? bookUid
+          : existing?.bookUid,
       sectionIndex: sectionIndex,
       range: legacyRange,
       style: style,
@@ -281,6 +288,7 @@ class PluginHighlightRegistry extends ChangeNotifier {
       highlightId: existing.highlightId,
       ownerPluginId: existing.ownerPluginId,
       bookId: existing.bookId,
+      bookUid: existing.bookUid,
       sectionIndex: existing.sectionIndex,
       currentRef: existing.currentRef,
       range: existing.range,
@@ -334,15 +342,28 @@ class PluginHighlightRegistry extends ChangeNotifier {
   List<PluginHighlight> getAllHighlights({
     required String bookId,
     required int sectionIndex,
+    String? bookUid,
   }) {
-    final records =
-        _recordsBySection[(bookId: bookId, sectionIndex: sectionIndex)];
-    if (records == null) return const [];
+    // נשאלים שני המפתחות: הכותרת (הדגשות ישנות) והמזהה היציב (הדגשות חדשות).
+    // עותק זהה שנרשם תחת שניהם מסונן ב-dedup לפי (ownerPluginId, highlightId).
+    final uid = (bookUid != null && bookUid.isNotEmpty) ? bookUid : null;
+    final bookKeys = <String>{bookId, ?uid};
+    final records = <_PluginHighlightRecordKey, PluginHighlight>{
+      for (final key in bookKeys)
+        ...?_recordsBySection[(bookId: key, sectionIndex: sectionIndex)],
+    };
+    if (records.isEmpty) return const [];
     final deduped = <(String, String), PluginHighlight>{};
     final fromVisibleOwner = <(String, String)>{};
     for (final entry in records.entries) {
       final record = entry.value;
       if (record.status != 'active') continue;
+      // כשנמסר bookUid — הדגשה של ספר אחר (uid שונה) שהגיעה דרך מפתח הכותרת
+      // המשותף מסוננת החוצה; הדגשה ישנה ללא uid נשמרת (best-effort, לא ניתן
+      // לפתור את הכותרת הדו-משמעית שלה).
+      if (uid != null && record.bookUid != null && record.bookUid != uid) {
+        continue;
+      }
       final dedupeKey = (record.ownerPluginId, record.highlightId);
       final visible = _isInstanceVisible((
         pluginId: entry.key.ownerPluginId,
@@ -367,15 +388,25 @@ class PluginHighlightRegistry extends ChangeNotifier {
     required String bookId,
     required int sectionIndex,
     required String sourceText,
+    String? bookUid,
     DateTime? now,
   }) {
     final changed = <PluginHighlight>[];
     final timestamp = (now ?? DateTime.now()).toUtc();
+    final uid = (bookUid != null && bookUid.isNotEmpty) ? bookUid : null;
     for (final ownerEntry in _recordsByOwner.entries.toList(growable: false)) {
       final records = ownerEntry.value;
       for (final entry in records.entries.toList(growable: false)) {
         final existing = entry.value;
-        if (existing.bookId != bookId ||
+        // הדגשה של ספר אחר בעל אותה כותרת נפסלת לפי ה-uid, אחרת היא הייתה
+        // מעוגנת מחדש מול טקסט זר ומסומנת ככושלת.
+        final bookMatches =
+            (existing.bookId == bookId ||
+                (uid != null && existing.bookUid == uid)) &&
+            !(uid != null &&
+                existing.bookUid != null &&
+                existing.bookUid != uid);
+        if (!bookMatches ||
             existing.sectionIndex != sectionIndex ||
             existing.range.exactText.isEmpty) {
           continue;
@@ -404,6 +435,7 @@ class PluginHighlightRegistry extends ChangeNotifier {
           highlightId: existing.highlightId,
           ownerPluginId: existing.ownerPluginId,
           bookId: existing.bookId,
+          bookUid: existing.bookUid,
           sectionIndex: existing.sectionIndex,
           currentRef: existing.currentRef,
           range: nextRange,
@@ -494,21 +526,33 @@ class PluginHighlightRegistry extends ChangeNotifier {
     }
   }
 
+  /// מפתחות הספר שתחתם הרשומה נרשמת במפת הסקציות: תמיד הכותרת ([bookId]),
+  /// ובנוסף ה-[bookUid] כשקיים. כך הדגשה חדשה נמצאת גם דרך המזהה היציב
+  /// וגם דרך הכותרת (migrate-on-read), והדגשה ישנה נמצאת דרך הכותרת כמקודם.
+  List<String> _sectionBookKeys(PluginHighlight record) {
+    final uid = record.bookUid;
+    if (uid != null && uid.isNotEmpty && uid != record.bookId) {
+      return [record.bookId, uid];
+    }
+    return [record.bookId];
+  }
+
   void _store(PluginInstanceKey ownerKey, PluginHighlight record) {
     final records = _recordsByOwner.putIfAbsent(ownerKey, () => {});
     final previous = records[record.highlightId];
     if (previous != null) _removeFromSection(ownerKey, previous);
     records[record.highlightId] = record;
-    final sectionKey = (
-      bookId: record.bookId,
-      sectionIndex: record.sectionIndex,
+    final recordKey = (
+      ownerPluginId: ownerKey.pluginId,
+      ownerInstanceId: ownerKey.instanceId,
+      highlightId: record.highlightId,
     );
-    _recordsBySection.putIfAbsent(sectionKey, () => {})[(
-          ownerPluginId: ownerKey.pluginId,
-          ownerInstanceId: ownerKey.instanceId,
-          highlightId: record.highlightId,
-        )] =
-        record;
+    for (final bookKey in _sectionBookKeys(record)) {
+      _recordsBySection.putIfAbsent(
+        (bookId: bookKey, sectionIndex: record.sectionIndex),
+        () => {},
+      )[recordKey] = record;
+    }
   }
 
   PluginHighlight? _remove(PluginInstanceKey ownerKey, String highlightId) {
@@ -521,17 +565,17 @@ class PluginHighlightRegistry extends ChangeNotifier {
   }
 
   void _removeFromSection(PluginInstanceKey ownerKey, PluginHighlight record) {
-    final sectionKey = (
-      bookId: record.bookId,
-      sectionIndex: record.sectionIndex,
-    );
-    final records = _recordsBySection[sectionKey];
-    records?.remove((
+    final recordKey = (
       ownerPluginId: ownerKey.pluginId,
       ownerInstanceId: ownerKey.instanceId,
       highlightId: record.highlightId,
-    ));
-    if (records?.isEmpty ?? false) _recordsBySection.remove(sectionKey);
+    );
+    for (final bookKey in _sectionBookKeys(record)) {
+      final sectionKey = (bookId: bookKey, sectionIndex: record.sectionIndex);
+      final records = _recordsBySection[sectionKey];
+      records?.remove(recordKey);
+      if (records?.isEmpty ?? false) _recordsBySection.remove(sectionKey);
+    }
   }
 
   String _generateId(String pluginId, DateTime timestamp) {

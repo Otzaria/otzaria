@@ -62,7 +62,9 @@ class PluginRpcError {
       code == 'error.timeout' || code == 'error.rate_limited';
 
   static String _categoryFor(String code) {
-    if (code == 'permission_denied' || code == 'error.permission_denied') {
+    if (code == 'permission_denied' ||
+        code == 'error.permission_denied' ||
+        code == 'error.forbidden') {
       return 'permission';
     }
     if (code == 'error.timeout') return 'timeout';
@@ -75,9 +77,13 @@ class PluginRpcError {
         code == 'error.rate_limited') {
       return 'too_large';
     }
+    // unknown_method/unavailable אינם קלט שגוי — הם "אין דבר כזה כאן",
+    // אותה משמעות של unsupported מבחינת התוסף.
     if (code == 'error.unsupported_context' ||
         code == 'error.unsupported_layer' ||
-        code == 'error.unsupported') {
+        code == 'error.unsupported' ||
+        code == 'error.unknown_method' ||
+        code == 'error.unavailable') {
       return 'unsupported';
     }
     if (code == 'error.internal') return 'internal';

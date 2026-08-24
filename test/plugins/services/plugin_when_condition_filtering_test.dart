@@ -20,6 +20,17 @@ class _FakeRepo implements PluginRegistryRepository {
       kv['$pluginId|$namespace|$key'];
 
   @override
+  Future<Map<String, String>> getKVMany(
+    String pluginId,
+    String namespace,
+    Iterable<String> keys,
+  ) async => {
+    for (final key in keys)
+      if (kv['$pluginId|$namespace|$key'] != null)
+        key: kv['$pluginId|$namespace|$key']!,
+  };
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 

@@ -498,5 +498,166 @@ void main() {
         ),
       );
     });
+
+    // ── כללי החרגת מטא-דאטה (חייבים להישאר זהים ל-zipWriter.js בוולידטור) ──
+
+    test('metadata files and dirs are excluded and reported', () async {
+      final pluginDir = _writePluginDir(
+        tempDir,
+        extraFiles: {
+          'readme.md': 'x', // *.md בכל אות רישית
+          'HELP.MD': 'x',
+          'LICENSE.txt': 'x',
+          'licence': 'x',
+          'package-lock.json': 'x',
+          'yarn.lock': 'x',
+          'pnpm-lock.yaml': 'x',
+          '.editorconfig': 'x',
+          'screenshots/shot.png': 'x',
+          '.well-known/keys.json': 'x',
+          '.github/workflows/ci.yml': 'x',
+          'app.js': 'x', // הקובץ היחיד שאינו מטא-דאטה
+        },
+      );
+
+      final result = await PluginPackager.packDirectory(
+        directoryPath: pluginDir,
+        outputPath: p.join(tempDir.path, 'out.otzplugin'),
+      );
+
+      final archive = ZipDecoder().decodeBytes(
+        File(result.outputPath).readAsBytesSync(),
+      );
+      final names = archive.files.map((f) => f.name).toSet();
+
+      expect(names, <String>{'manifest.json', 'index.html', 'app.js'});
+      // בלי כללי `!` תיקיות המטא-דאטה נגזמות, ולכן אינן נמנות פרטנית.
+      expect(
+        result.excludedMetadata,
+        containsAll(<String>[
+          'readme.md',
+          'HELP.MD',
+          'LICENSE.txt',
+          'licence',
+          'package-lock.json',
+          'yarn.lock',
+          'pnpm-lock.yaml',
+          '.editorconfig',
+        ]),
+      );
+      expect(result.excludedCount, 0); // החרגת מטא-דאטה נמנית בנפרד
+    });
+
+    test(
+      'a ! line re-includes a metadata file and a screenshots asset',
+      () async {
+        final pluginDir = _writePluginDir(
+          tempDir,
+          extraFiles: {
+            'help.md': 'x',
+            'CHANGELOG.md': 'x', // לא הוחזר — נשאר מוחרג
+            'screenshots/logo.png': 'x',
+            'screenshots/store-1.png': 'x', // לא הוחזר
+            '.well-known/keys.json': 'x',
+          },
+        );
+        File(p.join(pluginDir, '.otzignore')).writeAsStringSync(
+          '!help.md\n'
+          '!screenshots/logo.png\n'
+          '!.well-known/keys.json\n',
+        );
+
+        final result = await PluginPackager.packDirectory(
+          directoryPath: pluginDir,
+          outputPath: p.join(tempDir.path, 'out.otzplugin'),
+        );
+
+        final archive = ZipDecoder().decodeBytes(
+          File(result.outputPath).readAsBytesSync(),
+        );
+        final names = archive.files.map((f) => f.name).toSet();
+
+        expect(
+          names,
+          containsAll(<String>[
+            'help.md',
+            'screenshots/logo.png',
+            '.well-known/keys.json',
+          ]),
+        );
+        expect(names, isNot(contains('CHANGELOG.md')));
+        expect(names, isNot(contains('screenshots/store-1.png')));
+        expect(names, isNot(contains('.otzignore')));
+        expect(
+          result.excludedMetadata,
+          containsAll(<String>['CHANGELOG.md', 'screenshots/store-1.png']),
+        );
+      },
+    );
+
+    test('throws when the entrypoint is a metadata file', () async {
+      final manifest = _minimalManifest(entrypoint: 'index.md');
+      final pluginDir = _writePluginDir(
+        tempDir,
+        manifestOverride: manifest,
+        extraFiles: {'index.md': '<html></html>'},
+      );
+
+      await expectLater(
+        () => PluginPackager.packDirectory(directoryPath: pluginDir),
+        throwsA(
+          isA<PluginPackagerException>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('index.md'), contains('מטא-דאטה')),
+          ),
+        ),
+      );
+    });
+
+    test('a ! line makes a metadata entrypoint packable again', () async {
+      final manifest = _minimalManifest(entrypoint: 'index.md');
+      final pluginDir = _writePluginDir(
+        tempDir,
+        manifestOverride: manifest,
+        extraFiles: {'index.md': '<html></html>', '.otzignore': '!index.md\n'},
+      );
+
+      final result = await PluginPackager.packDirectory(
+        directoryPath: pluginDir,
+        outputPath: p.join(tempDir.path, 'out.otzplugin'),
+      );
+
+      final archive = ZipDecoder().decodeBytes(
+        File(result.outputPath).readAsBytesSync(),
+      );
+      expect(archive.files.map((f) => f.name), contains('index.md'));
+    });
+
+    test('throws when the background entrypoint is excluded', () async {
+      final manifest = _minimalManifest();
+      (manifest['contributes'] as Map<String, dynamic>)['background'] = {
+        'entrypoint': 'bg/worker.html',
+      };
+      final pluginDir = _writePluginDir(
+        tempDir,
+        manifestOverride: manifest,
+        extraFiles: {
+          'bg/worker.html': '<html></html>',
+          '.otzignore': 'bg/\n',
+        },
+      );
+
+      await expectLater(
+        () => PluginPackager.packDirectory(directoryPath: pluginDir),
+        throwsA(
+          isA<PluginPackagerException>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('bg/worker.html'), contains('.otzignore')),
+          ),
+        ),
+      );
+    });
   });
 }

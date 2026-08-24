@@ -66,6 +66,10 @@ class SmartTextWidget extends StatelessWidget {
 
   /// כאשר שניהם מסופקים, הווידג'ט מצייר Highlights זמניים של תוספים.
   final String? highlightBookId;
+
+  /// מזהה הספר היציב (`PluginBookIdentity.uidOf`). מבדיל בין שני ספרים בעלי
+  /// אותה כותרת; הדגשה ישנה ללא uid מצוירת כמקודם.
+  final String? highlightBookUid;
   final int? highlightSectionIndex;
   final String? highlightSourceText;
   final int? highlightBookDbId;
@@ -84,6 +88,7 @@ class SmartTextWidget extends StatelessWidget {
     this.widgetKey,
     this.renderMode = RenderMode.column,
     this.highlightBookId,
+    this.highlightBookUid,
     this.highlightSectionIndex,
     this.highlightSourceText,
     this.highlightBookDbId,
@@ -113,6 +118,7 @@ class SmartTextWidget extends StatelessWidget {
           ? PluginHighlightRegistry.instance.getAllHighlights(
               bookId: bookId,
               sectionIndex: sectionIndex,
+              bookUid: highlightBookUid,
             )
           : const [],
     );
@@ -154,6 +160,7 @@ class SmartTextWidget extends StatelessWidget {
             bookId: bookId,
             sectionIndex: sectionIndex,
             sourceText: sourceText,
+            bookUid: highlightBookUid,
           );
           unawaited(
             _recordSectionContentSnapshot(

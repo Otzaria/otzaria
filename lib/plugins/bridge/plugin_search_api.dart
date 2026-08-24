@@ -321,7 +321,7 @@ class PluginSearchApi {
     );
     return {
       if (resolved != null)
-        ...PluginBookIdentity.toJson(resolved)
+        ...PluginBookIdentity.toJsonWithUid(resolved)
       else ...{
         'id': null,
         'type': result.isPdf ? 'pdf' : 'text',
@@ -354,7 +354,7 @@ class PluginSearchApi {
     );
     return {
       if (book != null)
-        ...PluginBookIdentity.toJson(book)
+        ...PluginBookIdentity.toJsonWithUid(book)
       else ...{
         'id': null,
         'type': sibling.isPdf ? 'pdf' : 'text',
@@ -826,13 +826,13 @@ class PluginOpenSearchTabSettings {
   /// ברירות המחדל של הטאב — זהות ל-`SearchConfiguration()`.
   static const PluginOpenSearchTabSettings _defaults =
       PluginOpenSearchTabSettings(
-    searchMode: SearchMode.advanced,
-    distance: 0,
-    proximityScope: engine.SearchScope.wordDistance,
-    wordMatchMode: engine.WordMatchMode.all,
-    wordMatchCount: 2,
-    searchOptions: {},
-  );
+        searchMode: SearchMode.advanced,
+        distance: 0,
+        proximityScope: engine.SearchScope.wordDistance,
+        wordMatchMode: engine.WordMatchMode.all,
+        wordMatchCount: 2,
+        searchOptions: {},
+      );
 
   static PluginOpenSearchTabSettings parse(
     Object? raw, {
@@ -843,8 +843,9 @@ class PluginOpenSearchTabSettings {
       PluginSearchApi._invalid('settings must be an object');
     }
     final args = Map<String, dynamic>.from(raw);
-    final unknownKeys =
-        args.keys.where((key) => !_allowedKeys.contains(key)).toList();
+    final unknownKeys = args.keys
+        .where((key) => !_allowedKeys.contains(key))
+        .toList();
     if (unknownKeys.isNotEmpty) {
       PluginSearchApi._invalid(
         'unknown settings parameter "${unknownKeys.first}"',
@@ -859,8 +860,7 @@ class PluginOpenSearchTabSettings {
       if (args['distance'] != null) 'distance': args['distance'],
       if (args['proximityScope'] != null)
         'proximityScope': args['proximityScope'],
-      if (args['wordMatchMode'] != null)
-        'wordMatchMode': args['wordMatchMode'],
+      if (args['wordMatchMode'] != null) 'wordMatchMode': args['wordMatchMode'],
       if (args['wordMatchCount'] != null)
         'wordMatchCount': args['wordMatchCount'],
       if (args['options'] != null) 'options': args['options'],

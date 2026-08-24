@@ -237,6 +237,11 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
         return current.bookId == widget.bookId;
       },
       builder: (context, state) {
+        // rebuild מההורה עוקף את buildWhen, ולכן state של ספר אחר (למשל
+        // במעבר ספר באותו טאב) עלול להגיע לכאן — לא מציגים הערות זרות.
+        if (state.bookId != null && state.bookId != widget.bookId) {
+          return const Center(child: CircularProgressIndicator());
+        }
         if (state.isLoading && state.locatedNotes.isEmpty) {
           return const Center(child: CircularProgressIndicator());
         }

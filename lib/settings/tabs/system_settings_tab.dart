@@ -2678,11 +2678,16 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
           content: SizedBox(
             width: 600,
             height: 400,
-            child: Markdown(
-              data: changelog,
-              onTapLink: (text, href, title) {
-                if (href != null) launchUrl(Uri.parse(href));
-              },
+            // Markdown הגלילתי אומד את היקף התוכן מהפריטים הבנויים בלבד
+            // והאגודל "רוקד" בגלילה; היקף מדויק דרך SingleChildScrollView.
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: MarkdownBody(
+                data: changelog,
+                onTapLink: (text, href, title) {
+                  if (href != null) launchUrl(Uri.parse(href));
+                },
+              ),
             ),
           ),
           actions: [

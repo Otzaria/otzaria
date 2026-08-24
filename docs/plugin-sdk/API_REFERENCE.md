@@ -13,6 +13,7 @@
   "id": 183,
   "type": "pdf",
   "bookId": "שם הספר",
+  "bookUid": "id:183",
   "source": "library"
 }
 ```
@@ -21,39 +22,46 @@
 |-----|--------|
 | `id` | המזהה המספרי של הספר במסד הנתונים (`int?` — יכול להיות `null` לספרים ללא מזהה. אם ה-id לא זמין, ניתן לחפש לפי `bookId` + `type`) |
 | `type` | סוג הספר: `"text"` \| `"pdf"` \| `"docx"` \| `"epub"` \| `"external"`. `null` עבור טאבים שאינם ספרים (SearchingTab, CombinedTab) |
-| `bookId` | שם הספר — נשמר לצורך תאימות לאחור ולאימות כאשר נשלח יחד עם `id` |
+| `bookId` | שם הספר — נשמר לצורך תאימות לאחור ולאימות כאשר נשלח יחד עם `id`. **אינו מובטח ייחודי** (שני ספרים בעלי אותו שם, ספר אישי מול רשמי, נוסחאות) ואינו יציב (עלול להשתנות בעדכון ספרייה) — עדיף `bookUid`. |
+| `bookUid` | **המזהה היציב המומלץ** — מחרוזת חוצה-ספקים (`id:<n>` לספרייה, `uid:<n>` לספר אישי, `ext:<...>` לספר חיצוני). זהו המזהה שמנוע החיפוש כבר משתמש בו: יציב בין עדכוני ספרייה והעברת ספרייה, ושורד שינויי כותרת. **מומלץ לתוסף לאחסן אותו במקום כותרת.** |
 | `source` | מקור הספר: `"library"` לספרייה המובנית, `"user"` ל־`user_books.db`, או `"external"` לקטלוג חיצוני. חובה לשלוח אותו עם `id` כאשר ה־ID עלול להתנגש בין מסדי נתונים. |
+
+> **יציבות `bookUid` ו-fallback חינני:** גם `bookUid` עלול להתייתם במקרה קצה נדיר — ספר שגם משנה שם וגם עובר עריכה מסיבית באותה גרסת ספרייה (זיהוי שינוי-השם הוא היוריסטי). תוסף השומר `bookUid` צריך לשמור לצדו גם את הכותרת האחרונה שנראתה, וליפול אליה בחן אם ה-`bookUid` לא נמצא עוד.
 
 ### APIs שמחזירים זהות מלאה
 
-| API | id | type | bookId |
-|-----|-----|------|--------|
-| `library.findBooks` | ✓ | ✓ | ✓ |
-| `library.getBookMetadata` | ✓ | ✓ | ✓ |
-| `library.listRecentBooks` | ✓ | ✓ | ✓ |
-| `library.getTree` | ✓ | ✓ | ✓ |
-| `reader.openBook` | קלט | קלט | קלט |
-| `reader.openBookAtRef` | קלט | קלט | קלט |
-| `reader.getCurrentState` | ✓ | ✓ | ✓ |
-| `reader.getCurrentRef` | ✓ | ✓ | ✓ |
-| `reader.getSelection` | ✓ | ✓ | ✓ |
-| `history.list` | ✓ | ✓ | ✓ |
-| `history.remove` | קלט | קלט | קלט |
-| `search.fullText` | ✗ (ראה הערה) | ✓ | — |
-| `search.query` | ✓ | ✓ | ✓ |
-| `library.getBookContent` | ✗ | ✗ | ✓ |
-| `library.getBookToc` | ✗ | ✗ | ✓ |
-| `library.getBookAltToc` | ✗ | ✗ | ✓ |
+| API | id | type | bookId | bookUid |
+|-----|-----|------|--------|---------|
+| `library.findBooks` | ✓ | ✓ | ✓ | ✓ |
+| `library.getBookMetadata` | ✓ | ✓ | ✓ | ✓ |
+| `library.listRecentBooks` | ✓ | ✓ | ✓ | ✓ |
+| `library.getTree` | ✓ | ✓ | ✓ | ✓ |
+| `reader.openBook` | קלט | קלט | קלט | קלט |
+| `reader.openBookAtRef` | קלט | קלט | קלט | קלט |
+| `reader.getCurrentState` | ✓ | ✓ | ✓ | ✓ |
+| `reader.getCurrentRef` | ✓ | ✓ | ✓ | ✓ |
+| `reader.getSelection` | ✓ | ✓ | ✓ | ✓ |
+| `history.list` | ✓ | ✓ | ✓ | ✓ |
+| `history.remove` | קלט | קלט | קלט | קלט |
+| `bookmarks.list` | ✓ | ✓ | ✓ | ✓ |
+| `bookmarks.add` | קלט | קלט | קלט | קלט |
+| `bookmarks.remove` | קלט | קלט | קלט | קלט |
+| `search.fullText` | ✗ (ראה הערה) | ✓ | — | — |
+| `search.query` | ✓ | ✓ | ✓ | ✓ |
+| `library.getBookContent` | ✗ | ✗ | ✓ | — |
+| `library.getBookToc` | ✗ | ✗ | ✓ | — |
+| `library.getBookAltToc` | ✗ | ✗ | ✓ | — |
 
 > **הערה על `search.fullText`:** מנוע החיפוש (Tantivy) אינו שומר את ה-`id` מה-DB. כדי לקבל `id` — קרא ל-`library.getBookMetadata({ bookId, type })` עם התוצאה.
 
 > **הערה על DocxBook / EpubBook:** ספרים בפורמטים אלו נפתחים בתצוגת טקסט, אך `type` נשאר `"docx"` או `"epub"` כדי לשמור על הזהות הקנונית.
 
-- **`bookId` לא השתנה** — תוספים קיימים שמסתמכים עליו ימשיכו לעבוד.
-- **כאשר שולחים כמה שדות זהות** (למשל `id` + `bookId` + `type` + `source`), כולם חייבים להתאים לאותו ספר. אם יש סתירה או שהזהות אינה חד-משמעית, ה-API מחזיר `null` / `false`.
+- **`bookId` לא השתנה** — תוספים קיימים שמסתמכים עליו ימשיכו לעבוד. `bookUid` נוסף כשדה חדש; שום שדה קיים לא הוסר.
+- **`bookUid` כקלט** — כל API שמקבל זהות ספר (`reader.openBook`, `reader.openBookAtRef`, `library.getBookMetadata`, `history.remove`, `bookmarks.add`, `bookmarks.remove` ועוד) מקבל גם `bookUid`. כשהוא נשלח הוא פותר את הספר **ישירות וחד-משמעית**, ומתעלם מ-`id`/`bookId`/`type` שאולי נשלחו לצדו.
+- **כאשר שולחים כמה שדות זהות** (למשל `id` + `bookId` + `type` + `source`, בלי `bookUid`), כולם חייבים להתאים לאותו ספר. אם יש סתירה או שהזהות אינה חד-משמעית, ה-API מחזיר `null` / `false`.
+- **חיפוש לפי `bookUid` בלבד** — הנתיב המומלץ; חד-משמעי ואינו דורש שדות נוספים.
 - **חיפוש לפי `id` בלבד** — נתמך ב-`library.getBookMetadata`, `reader.openBook`, `reader.openBookAtRef`.
-- **חיפוש לפי `bookId` בלבד** — נשמר לתאימות לאחור בכל API.
-- **שני ספרים בעלי אותו שם** — ניתן להבדיל ביניהם בעזרת `id` + `type`.
+- **חיפוש לפי `bookId` בלבד** — נשמר לתאימות לאחור בכל API. כשקיימים שני ספרים בעלי אותו שם, העדיפו `bookUid`.
 
 ---
 
@@ -72,6 +80,38 @@ if (response.success) {
 ```
 
 כל שגיאה כוללת `schemaVersion: 1`,‏ `code`,‏ `message`,‏ `retryable` ו־`category`. השדות הקיימים נשמרו לתאימות לאחור.
+
+### קודי שגיאה נפוצים
+
+| קוד | קטגוריה | משמעות |
+|---|---|---|
+| `permission_denied` / `error.permission_denied` | `permission` | ההרשאה לא הוצהרה במניפסט או לא אושרה |
+| `error.forbidden` | `permission` | ההרשאה קיימת אך היעד עצמו חסום — נתיב מחוץ לתיקייה מאושרת, תיקייה מוגנת, או URL שאינו ב-allowlist |
+| `error.invalid_params` | `validation` | פרמטרים חסרים או שגויים |
+| `error.selection_empty` | `validation` | הבחירה שהתבקשה ריקה — אין טקסט לחפש בו התאמות |
+| `error.not_found` | `not_found` | הפריט המבוקש אינו קיים |
+| `error.conflict` | `conflict` | התנגשות — למשל שם ספק שכבר תפוס |
+| `error.timeout` | `timeout` | הפעולה לא הושלמה בזמן (`retryable: true`) |
+| `error.rate_limited` | `too_large` | דלי אסימונים בקיבולת 50 שמתמלא אסימון כל 10ms — 100 קריאות/שנייה בקצב מתמשך, אך פרץ גדול מ-50 נכשל מיד (`retryable: true`) |
+| `error.payload_too_large` / `error.section_too_large` | `too_large` | הקלט או הקטע גדולים מדי |
+| `error.unknown_method` | `unsupported` | ה-method אינו קיים במארח הזה — איות שגוי, או API חדש מ-`minAppVersion` שהוצהר |
+| `error.unavailable` | `unsupported` | ה-API קיים אך אינו זמין בהקשר הנוכחי (אין טאב קריאה פעיל, שירות כבוי) |
+| `error.unsupported_context` / `error.unsupported_layer` | `unsupported` | ההקשר או השכבה אינם נתמכים לפעולה הזו |
+| `error.internal` | `internal` | שגיאה פנימית בצד אוצריא |
+
+### ⚠️ הקריאות חייבות לצאת מה-frame הראשי
+
+הגשר נעול לדף התוסף עצמו: `Otzaria.call` נושא nonce שמוזרק רק ל-frame הראשי,
+ו-iframe חוצה-origin אינו יכול לקרוא בשמכם. שתי השלכות מעשיות:
+
+- **אל תקראו ל-`window.flutter_inappwebview.callHandler('otzaria_rpc', ...)` ישירות.**
+  קריאה כזו עוקפת את ה-nonce ותידחה. `Otzaria.call` הוא הממשק היחיד הנתמך.
+- **ה-nonce אינו מגן מפני iframe שיורש את ה-origin שלכם.** `iframe` מסוג
+  `srcdoc`, `about:blank` או `blob:` הוא same-origin עם הדף שלכם, ולכן יכול
+  לקרוא `parent.Otzaria.call(...)` בלי לדעת את ה-nonce. **תוסף שמרנדר HTML
+  מרוחק לתוך `iframe.srcdoc` מעניק לתוכן הזר את מלוא סמכות התוסף** — כל
+  ההרשאות שלכם, כולל רשת, קבצים והערות. הציגו תוכן שאינו שלכם רק כטקסט
+  מנוקה (sanitized), ואם אתם חייבים iframe — טענו אותו מ-URL עם origin נפרד.
 
 ---
 
@@ -117,8 +157,15 @@ if (response.success) {
 | `reader.getCurrentRef` | 0.9.89 |
 | `reader.getSelection` | 0.9.89 |
 | `reader.getActiveCommentators` | 0.9.97 |
+| `reader.setActiveCommentators` | 0.9.97 |
+| `reader.scrollToSection` | 0.9.97 |
+| `reader.getHighlightCapabilities` | 0.9.97 |
 | `reader.findTextOccurrences` | 0.9.95 |
 | `reader.getSectionTextMap` | 0.9.95 |
+| `reader.registerInBookSearchProvider` | 0.9.97 |
+| `reader.respondInBookSearch` | 0.9.97 |
+| `reader.registerExternalSearchProvider` | 0.9.97 |
+| `reader.respondExternalSearch` | 0.9.97 |
 | `reader.addContextMenuItem` | 0.9.89 |
 | `reader.removeContextMenuItem` | 0.9.89 |
 | `reader.updateContextMenuItem` | 0.9.95 |
@@ -152,6 +199,15 @@ if (response.success) {
 | `fs.resolveFileUrl` | 0.9.94 |
 | `fs.readTextFile` | 0.9.94 |
 | `fs.revokeFile` | 0.9.94 |
+| `fs.beginBinaryWrite` | 0.9.97 |
+| `fs.commitUserFileWrite` | 0.9.97 |
+| `fs.abortBinaryWrite` | 0.9.97 |
+| `fs.writeFile` | 0.9.97 |
+| `fs.readFile` | 0.9.97 |
+| `fs.listDir` | 0.9.97 |
+| `fs.makeDir` | 0.9.97 |
+| `fs.deleteEntry` | 0.9.97 |
+| `fs.stat` | 0.9.97 |
 | `feedback.sendEmail` | 0.9.89 |
 | `feedback.report` | 0.9.97 |
 | `feedback.hasReporterEmail` | 0.9.97 |
@@ -159,6 +215,11 @@ if (response.success) {
 | `history.listSearches` | 0.9.89 |
 | `history.clear` | 0.9.89 |
 | `history.remove` | 0.9.89 |
+| `bookmarks.list` | 0.9.97 |
+| `bookmarks.add` | 0.9.97 |
+| `bookmarks.remove` | 0.9.97 |
+| `tools.gematria` | 0.9.97 |
+| `tools.dictionary` | 0.9.97 |
 | `notifications.showInApp` | 0.9.89 |
 | `notifications.sendSystem` | 0.9.89 |
 | `notifications.scheduleSystem` | 0.9.89 |
@@ -173,11 +234,11 @@ if (response.success) {
 | `settings.get` | 0.9.89 |
 | `settings.getMany` | 0.9.89 |
 | `calendar.getSelectedDate` | 0.9.89 |
-| `calendar.getDailyTimes` | 0.9.97 |
-| `calendar.getHalachicTimes` | 0.9.97 |
+| `calendar.getDailyTimes` | 0.9.92 |
+| `calendar.getHalachicTimes` | 0.9.92 |
 | `calendar.getJewishDate` | 0.9.89 |
 | `calendar.getEvents` | 0.9.89 |
-| `calendar.getCities` | 0.9.97 |
+| `calendar.getCities` | 0.9.96 |
 | `publishedData.upsert` | 0.9.89 |
 | `publishedData.remove` | 0.9.89 |
 | `publishedData.listOwn` | 0.9.89 |
@@ -345,7 +406,7 @@ const { data } = await Otzaria.call('app.getConnectivity', { forceRefresh: true 
 - **תוצאת בדיקת הרשת נשמרת ל-30 שניות.** קריאות בתוך החלון הזה זולות ואינן פותחות חיבורים חדשים. לאחר מכן הקריאה הבאה מרעננת את המצב.
 - **`forceRefresh: true` עוקף תוצאה שמורה**, אבל עדיין מתלכד עם בדיקה שכבר רצה. השתמשו בו בנקודות מעבר משמעותיות, לא בכל רינדור.
 - **`isOfflineMode` נקרא מחדש בכל קריאה**, ולכן שינוי ההגדרה נכנס לתוקף מיד גם כשתוצאת הרשת עדיין שמורה.
-- **אל תקראו לזה מכל רינדור.** הקריאה עצמה זולה בצד אוצריא, אבל היא נספרת במגביל הקצב של ה-RPC (כ-50 קריאות בפרץ), וקריאה מכל פריים תחזיר `error.rate_limited`. שמרו את הערך במשתנה ורעננו לפי צורך.
+- **אל תקראו לזה מכל רינדור.** הקריאה עצמה זולה בצד אוצריא, אבל היא נספרת במגביל הקצב של ה-RPC (דלי של 50 אסימונים שמתמלא אסימון כל 10ms), וקריאה מכל פריים תחזיר `error.rate_limited`. שמרו את הערך במשתנה ורעננו לפי צורך.
 - **במצב מנותק לא מתבצעת בדיקת רשת כלל** — התשובה מיידית, `hasNetwork` תמיד `false`.
 - הבדיקה מנסה את `otzaria.org` וגם יעדים ניטרליים. די בכך שאחד עונה, ולכן תקלה זמנית בשרת של אוצריא לא מסמנת את כל המשתמשים כמנותקים.
 
@@ -894,6 +955,11 @@ for await (const chunk of chunks) {
 הפסקת הלולאה (`break` או `return`) מבטלת את החיפוש בצד אוצריא. ה־chunk הראשון
 נושא את הספירות, והבאים נושאים עד 50 תוצאות כל אחד.
 
+> **צרכן איטי קוטע את הזרם.** ה-SDK מחזיק תור של 256 chunks; אם הלולאה אינה
+> מדביקה את הקצב, הזרם נכשל עם `Stream consumer is too slow` והחיפוש מבוטל.
+> תוסף שמרנדר DOM בתוך הלולאה לכל תוצאה יראה חיפוש שנקטע ללא סיבה נראית —
+> אספו את התוצאות למערך ורנדרו מחוץ ללולאה, או ב-`requestAnimationFrame`.
+
 ```javascript
 {
   sequence: 0,
@@ -1224,8 +1290,9 @@ const { data } = await Otzaria.call('reader.getCurrentState');
 //   currentRef: "בראשית פרק ג",
 //   openTabs: [
 //     {
-//       id: 183,        // מזהה מספרי
-//       type: "text",   // סוג הספר
+//       id: 183,          // מזהה מספרי
+//       type: "text",     // סוג הספר
+//       source: "library", // מקור הספר
 //       bookId: "בראשית",
 //       book: "בראשית",
 //       index: 42,
@@ -1234,6 +1301,7 @@ const { data } = await Otzaria.call('reader.getCurrentState');
 //     {
 //       id: 204,
 //       type: "pdf",
+//       source: "library",
 //       bookId: "שמות",
 //       book: "שמות",
 //       index: 0,
@@ -1312,6 +1380,59 @@ const { data } = await Otzaria.call('reader.getActiveCommentators');
 // }
 ```
 
+### `reader.setActiveCommentators`
+**הרשאה:** `reader.open` · **מגרסה:** 0.9.97
+
+מוסיף ומסיר מפרשים בטאב הקריאה הנוכחי. הפעולה מצטברת על הבחירה הקיימת —
+`add` מוסיף בסוף הסדר הקיים ו-`remove` מסיר; יש להעביר לפחות אחד מהם.
+מחזיר את אותה מבנה של `reader.getActiveCommentators` אחרי השינוי, או `null`
+כשאין טאב טקסט טעון (כולל PDF — שם הבחירה אינה נתמכת לכתיבה).
+
+שם שאינו ב-`available` של הספר נדחה ב-`error.not_found`, כדי שלא תישמר
+בחירה שאין לה מפרש.
+
+```javascript
+await Otzaria.call('reader.setActiveCommentators', {
+  add: ['רש״י על בראשית'],
+  remove: ['רמב״ן על בראשית']
+});
+```
+
+### `reader.scrollToSection`
+**הרשאה:** `reader.open` · **מגרסה:** 0.9.97
+
+גולל את הספר ה**פתוח** לקטע, בלי לפתוח אותו מחדש ובלי לדרוש הדגשה. בספר
+טקסט `sectionIndex` הוא אינדקס השורה (מבוסס-0); ב-PDF זהו מספר העמוד
+(מבוסס-1) — אותה סמנטיקה של `currentIndex` ב-`reader.getCurrentState`.
+
+`highlight: true` מסמן גם את הקטע; ברירת המחדל `false` מנקה סימון קיים.
+מחזיר `false` כשאין חלונית קריאה, או ב-PDF שהצפיין שלו עדיין לא מוכן.
+
+```javascript
+await Otzaria.call('reader.scrollToSection', { sectionIndex: 42 });
+```
+
+### `reader.getHighlightCapabilities`
+**הרשאה:** `reader.open` · **מגרסה:** 0.9.97
+
+מה נתמך **בפועל** בהקשר הקריאה הנוכחי, כדי שתוסף לא ינסה פעולה שאינה
+קיימת במשטח שבו המשתמש נמצא. הדגשות מצוירות רק בטור הטקסט הראשי — לא
+בחלוניות המפרשים — ו-PDF אינו תומך בהדגשות, בבחירת טקסט ובפריטי תפריט הקשר.
+
+| שדה | משמעות |
+|-----|--------|
+| `surface` | `'combined'` \| `'pageShape'` \| `'pdf'` \| `null` |
+| `highlights` | האם `reader.setHighlight` ייראה במשטח הזה |
+| `selection` | האם `reader.getSelection` יכול להחזיר בחירה |
+| `contextMenu` | האזורים שבהם פריטי `reader.addContextMenuItem` מוצגים |
+
+```javascript
+const { data } = await Otzaria.call('reader.getHighlightCapabilities');
+if (data.highlights) { /* ... */ }
+// { surface: 'combined', highlights: true, selection: true,
+//   contextMenu: ['mainText'] }
+```
+
 ### `reader.findTextOccurrences`
 **הרשאה:** `reader.open`
 
@@ -1378,6 +1499,10 @@ const { data } = await Otzaria.call('reader.getSectionTextMap', {
 `WordToken` כולל offsets ועוגנים הן למקור והן לתצוגה כאשר ניתן למפות אותם. `CharToken` מייצג grapheme cluster אחד ומחזיר offsets בכל שלוש היחידות. טוקני מילים ותווים מחולקים לעמודים משותפים; `nextCursor` ממשיך בדיוק מאותה בקשה.
 
 המגבלות הן 2,000 טוקנים לעמוד ו־50,000 grapheme clusters למקטע. מקטעי מפת המקור משתמשים רק בסוגים `identity`,‏ `substitution`,‏ `hidden` ו־`inserted`.
+
+> **`includeDomRects` שמור לעתיד ואינו נתמך.** הפרמטר מתקבל ומאומת כבוליאני,
+> אך `true` נדחה תמיד ב-`error.unsupported_context`. השאירו אותו `false`
+> או השמיטו אותו.
 
 ---
 
@@ -1616,7 +1741,7 @@ await Otzaria.call('ui.showError', {
 });
 ```
 
-### `ui.messageClicked` (Event)
+### Event: `ui.messageClicked`
 **הרשאה:** אין צורך בהרשאה נוספת — נשלח רק לתוסף שהציג את ההודעה
 
 נורה כאשר המשתמש לוחץ על הודעה שהתוסף הציג עם `tapPayload`. שם האירוע
@@ -1666,6 +1791,18 @@ const { data } = await Otzaria.call('ui.showWarning', {
 אליה (`fs.extractZip`) ולמחוק קבצים בתוכה (`fs.deleteFile`). זהו גבול
 האבטחה לגישת התוסף לדיסק — היא נובעת מהסכמת המשתמש בדיאלוג, לא מהרשאת
 manifest. ההרשאה לתיקייה תקפה למשך ריצת התוסף.
+
+**תיקיות מוגנות:** בחירה בתיקייה רגישה נדחית עם `error.forbidden` — כלומר
+`ui.pickFolder` יכולה גם להיכשל, לא רק להחזיר `path: null`. נדחים:
+
+- שורש כונן (`C:\`, `/`), ותיקיית רשת (נתיב UNC).
+- תיקיית הבית של המשתמש עצמה (תת-תיקייה בתוכה, כמו `Documents\MyPlugin`, מותרת).
+- `Program Files`, `ProgramData`, `SystemRoot`, תיקיית ה-Startup — ובלינוקס/מק
+  `/etc`,‏ `/usr`,‏ `/bin`,‏ `/System`,‏ `/Library`,‏ `~/.ssh`,‏ `~/.config`.
+- תיקיית ההרצה של אוצריא, תיקיית הנתונים שלה ותיקיית הספרייה.
+- **כל אלה חלים גם על תת-תיקיותיהן** (למעט תיקיית הבית, שהיא בדיקה מדויקת).
+
+הפנו את המשתמש לתיקייה ייעודית — למשל תיקייה חדשה תחת `Documents`.
 
 ```javascript
 const res = await Otzaria.call('ui.pickFolder', {
@@ -1720,6 +1857,103 @@ await Otzaria.call('fs.deleteFile', {
 
 ---
 
+## fs.* - המרחב הפרטי של התוסף (מ-0.9.97)
+
+> **אין צורך בשום הרשאה.** לכל תוסף יש תיקייה פרטית משלו, והוא כותב וקורא בה
+> בחופשיות. **אל תבקשו `fs.folder_access` בשביל קבצי עבודה** — היא נועדה לעבוד
+> בתיקייה של המשתמש, וזו ההרשאה הרחבה ביותר במערכת.
+>
+> כל הנתיבים ב-API הזה הם **יחסיים לשורש הפרטי**, ומופרדים ב-`/`. נתיב שיוצא
+> מהשורש — `..`, נתיב מוחלט או כתובת רשת (UNC) — נדחה ב-`error.forbidden`.
+> **כל רכיב symlink בנתיב נדחה**, בין אם יעדו בתוך השורש ובין אם מחוצה לו.
+> הנתיב המוחלט על הדיסק אינו נחשף לתוסף.
+>
+> **מכסה:** 100MB לכל תוסף. חריגה מוחזרת כ-`error.too_large`. `writeFile`
+> ו-`listDir` מחזירים `usedBytes`/`quotaBytes` כדי לעקוב.
+>
+> **תקרת רשומות:** 10,000 קבצים ותיקיות, ועומק עד 32 רמות. קובץ ריק ותיקייה
+> אינם צורכים בתים, ולכן המכסה לבדה לא הגבילה את מספרם. חריגה מוחזרת
+> כ-`error.too_large`.
+>
+> **תקרת העברה:** 10MB לקריאה או כתיבה בודדת — הגשר מעביר את התוכן כמחרוזת
+> JSON. לקבצים גדולים יותר יש `fs.pickUserFile` ושרת הקבצים.
+>
+> התיקייה נמחקת בהסרת התוסף, ונכללת בגיבוי ובשחזור של אוצריא.
+
+### `fs.writeFile`
+**הרשאה:** (אין)
+
+כתיבת קובץ. תיקיות האב נוצרות לפי הצורך. `encoding` הוא `'utf8'` (ברירת מחדל)
+או `'base64'` לתוכן בינארי. `append: true` מוסיף לסוף קובץ קיים — גם אז המכסה
+נאכפת על סך המרחב.
+
+```javascript
+const { data } = await Otzaria.call('fs.writeFile', {
+  path: 'cache/index.json',
+  content: JSON.stringify({ updated: Date.now() })
+});
+// data = { path, size, usedBytes, quotaBytes }
+```
+
+### `fs.readFile`
+**הרשאה:** (אין)
+
+```javascript
+const { data } = await Otzaria.call('fs.readFile', { path: 'cache/index.json' });
+// data = { path, encoding: 'utf8', size, content: '{"updated":...}' }
+```
+
+`encoding: 'base64'` מחזיר את הבייטים כ-base64. קובץ שאינו קיים מוחזר עם
+`error.not_found`.
+
+### `fs.listDir`
+**הרשאה:** (אין)
+
+פירוט תיקייה. `path` ריק או חסר = שורש המרחב. תיקיות מופיעות לפני קבצים.
+
+```javascript
+const { data } = await Otzaria.call('fs.listDir', { path: 'cache' });
+// data.entries = [{ path: 'cache/index.json', name: 'index.json',
+//                   type: 'file', size: 42, modified: '2026-08-24T...Z' }]
+```
+
+### `fs.makeDir`
+**הרשאה:** (אין)
+
+יוצר תיקייה וכל האבות שלה. idempotent.
+
+```javascript
+await Otzaria.call('fs.makeDir', { path: 'cache/images' });
+// true
+```
+
+### `fs.deleteEntry`
+**הרשאה:** (אין)
+
+מוחק קובץ או תיקייה. מחזיר `true` אם נמחק משהו ו-`false` אם הנתיב לא היה
+קיים (idempotent). מחיקת תיקייה **לא ריקה** דורשת `recursive: true`, אחרת
+מוחזר `error.invalid_params`. מחיקת השורש עצמו אינה אפשרית.
+
+```javascript
+await Otzaria.call('fs.deleteEntry', { path: 'cache', recursive: true });
+```
+
+### `fs.stat`
+**הרשאה:** (אין)
+
+```javascript
+const { data } = await Otzaria.call('fs.stat', { path: 'cache/index.json' });
+// { exists: true, path, name, type: 'file', size, modified }
+// או { exists: false }
+```
+
+שגיאות אפשריות: `error.forbidden` (נתיב שיוצא מהשורש),
+`error.invalid_params` (פרמטר חסר, קידוד לא מוכר, נתיב שהוא תיקייה בכתיבה,
+תיקייה לא ריקה במחיקה), `error.not_found` (קריאה מקובץ שאינו קיים),
+`error.too_large` (חריגה מהמכסה או מתקרת ההעברה), `error.internal`.
+
+---
+
 ## fs.* - קבצים אישיים של המשתמש
 
 > פעולות אלו מאפשרות לתוסף לפתוח קובץ אישי (PDF / טקסט וכו') שהמשתמש בוחר
@@ -1743,14 +1977,20 @@ await Otzaria.call('fs.deleteFile', {
 ```javascript
 const res = await Otzaria.call('fs.pickUserFile', {
   title: 'בחר קובץ PDF',
-  extensions: ['pdf'] // אופציונלי
+  extensions: ['pdf'], // אופציונלי
+  access: 'read'       // אופציונלי: 'read' (ברירת מחדל) או 'readwrite'
 });
-// res.data = { cancelled: false, token, url, name, size }  — או { cancelled: true }
+// res.data = { cancelled: false, token, url, name, size, access }  — או { cancelled: true }
 if (res.success && !res.data.cancelled) {
   await Otzaria.call('storage.set', { key: 'lastFile', value: res.data.token });
   document.querySelector('iframe').src = res.data.url;
 }
 ```
+
+`access: 'readwrite'` (מגרסה 0.9.97) מבקש token שאפשר לכתוב אליו בחזרה דרך
+[`fs.commitUserFileWrite`](#fscommituserfilewrite), בלי דיאלוג נוסף. הוא דורש
+**גם** את ההרשאה `fs.user_files.write`, ובלעדיה מוחזר `error.permission_denied`.
+קריאה בלי `access` מקבלת token לקריאה בלבד, בדיוק כמו קודם.
 
 ### `fs.resolveFileUrl`
 **הרשאה:** `fs.user_files.read`
@@ -1758,6 +1998,9 @@ if (res.success && !res.data.cancelled) {
 בונה URL טרי לקובץ שכבר אושר, לפי ה-`token` שנשמר. נצרך אחרי טעינה מחדש של
 התוסף (הפורט של השרת משתנה בכל הפעלה). מחזיר `error.not_found` אם ה-`token`
 לא מוכר או שהקובץ נמחק.
+
+> שמרו את ה-`token` בלבד, לעולם לא את ה-`url` — מבנה ה-URL אינו חוזה יציב,
+> ו-URL שנשמר מהפעלה קודמת יפסיק לעבוד.
 
 ```javascript
 const { data: token } = await Otzaria.call('storage.get', { key: 'lastFile' });
@@ -1775,6 +2018,110 @@ const { data } = await Otzaria.call('fs.resolveFileUrl', { token });
 const { data } = await Otzaria.call('fs.readTextFile', { token });
 // "תוכן הקובץ..."
 ```
+
+### `fs.beginBinaryWrite`
+**הרשאה:** `fs.user_files.write` · מגרסה 0.9.97
+
+פותח העלאה ומחזיר לאן לשלוח את הבייטים. **הבייטים אינם עוברים בגשר ה-JS** —
+העברת קובץ כ-base64 ב-JSON-RPC מכפילה את הזיכרון ותוקעת את הממשק. במקום זה
+התוסף שולח `PUT` יחיד לשרת ה-loopback הפנימי, והכתיבה לדיסק נעשית רק
+ב-[`fs.commitUserFileWrite`](#fscommituserfilewrite).
+
+```javascript
+const { data } = await Otzaria.call('fs.beginBinaryWrite', {
+  purpose: 'user-file',      // הערך הנתמך היחיד כרגע
+  expectedSize: blob.size    // אופציונלי; נדחה מעל maxBytes
+});
+// data = { writeToken, uploadUrl, expiresAt, maxBytes }
+
+await fetch(data.uploadUrl, {
+  method: 'PUT',
+  headers: { 'Content-Type': blob.type },
+  body: blob
+});
+```
+
+מגבלות: 100MB להעלאה, שתי העלאות פעילות לכל תוסף, וה-`writeToken` פג תוך שתי
+דקות. העלאה שנמצאת ב-commit — כלומר דיאלוג „שמור בשם” פתוח — ממשיכה לתפוס
+מקום במכסה עד שה-commit מסתיים, ואינה פגה בזמן הזה: המשתמש יכול להשאיר את
+הדיאלוג פתוח כמה שירצה. ה-`PUT` חייב לכלול `Content-Length` (`fetch` עם `body: blob` עושה זאת
+לבד), הוא חד-פעמי, והוא היחיד שמותר על ה-URL הזה. גוף חלקי או חורג נמחק ואינו
+יכול להפוך למסמך שנשמר.
+
+`purpose` חסר נחשב `'user-file'`. `expectedSize` הוא אופציונלי ומשמש לדחייה
+מוקדמת בלבד — המגבלה נאכפת בכל מקרה על ה-`Content-Length` ועל הבייטים בפועל.
+
+שגיאות: `error.too_large` (`expectedSize` מעל המגבלה), `error.invalid_params`
+(`expectedSize` אינו חיובי), `error.too_many_requests` (יותר משתי העלאות),
+`error.unsupported` (`purpose` אחר), `error.permission_denied`.
+
+תשובות ה-`PUT`: `204` הצלחה · `404` token לא מוכר · `410` פג · `409` העלאה שנייה
+על אותו token · `411` חסר `Content-Length` · `413` מעל המגבלה · `400` גוף קטוע.
+
+### `fs.commitUserFileWrite`
+**הרשאה:** `fs.user_files.write` · מגרסה 0.9.97
+
+כותב העלאה שהושלמה אל קובץ של המשתמש. שני מסלולים:
+
+- **עם `targetToken`** — token שהתקבל מ-`pickUserFile({ access: 'readwrite' })`
+  או מ-commit קודם. נכתב במקום, בלי דיאלוג. זה „שמור”.
+- **בלי `targetToken`** — נפתח דיאלוג „שמור בשם”. זה גם המסלול של token
+  שנפתח לקריאה בלבד: הוא **אינו** יעד כתיבה חוקי ומוחזר עליו
+  `error.permission_denied`.
+
+```javascript
+// שמור בשם
+const { data } = await Otzaria.call('fs.commitUserFileWrite', {
+  writeToken: data.writeToken,
+  suggestedName: 'חידושים',
+  extension: 'docx',
+  title: 'שמירת המסמך'   // אופציונלי, כותרת הדיאלוג
+});
+// data = { cancelled: false, token, name, size }  — או { cancelled: true }
+
+// שמור (לאותו קובץ, בלי דיאלוג)
+await Otzaria.call('fs.commitUserFileWrite', {
+  writeToken: next.writeToken,
+  targetToken: data.token
+});
+```
+
+הכתיבה נעשית ל-staging באותה תיקייה כמו היעד, ואז מחליפה אותו ב-rename.
+**מה שמובטח: כשל אינו הורס את הקובץ הקיים.** אין מסלול שכותב ישירות על היעד —
+rename שנכשל מחזיר שגיאה, ולא מתדרדר להעתקה. אטומיות ההחלפה עצמה תלויה במערכת
+הקבצים ואינה מובטחת על ידי Dart; היא מתקיימת ב-POSIX באותו volume וב-Windows
+דרך החלפה. ביטול הדיאלוג מחזיר `{ cancelled: true }`,
+מוחק את ההעלאה ואינו משנה שום הרשאה. ההעלאה נשארת בבעלות המערכת עד שה-commit
+מסתיים — כולל כל הזמן שהדיאלוג פתוח — ולכן היא אינה פגה תחת ידיו של המשתמש
+ואינה נשארת יתומה אם התוסף נסגר באמצע. ה-token שחוזר הוא token לכתיבה, כך
+שהשמירה הבאה יכולה להשתמש בו כ-`targetToken`.
+
+`extension` חייב להיות סיומת ממש (אותיות/ספרות, עד 10 תווים); כל דבר אחר
+מתעלמים ממנו, כדי שלא ייקבע דרכו נתיב או שם מלא בדיאלוג.
+
+שגיאות: `error.not_found` (העלאה לא מוכרת, לא הושלמה, פגה או נצרכה כבר; או
+קובץ יעד שנמחק), `error.permission_denied` (token לקריאה בלבד),
+`error.invalid_params` (`writeToken` חסר, או נתיב יעד שלא ניתן לפתור).
+
+הערת תאימות: ברגע שקובץ נבחר בגרסה שתומכת ב-`access`, ה-grant שלו נשמר בצורה
+החדשה. גרסה קודמת של אוצריא תמשיך לקרוא grants ותיקים שלא נשמרו מחדש, אך לא את
+החדשים.
+
+### `fs.abortBinaryWrite`
+**הרשאה:** `fs.user_files.write` · מגרסה 0.9.97
+
+מבטל העלאה שטרם נכתבה, ומשחרר מיד את הקובץ הזמני ואת מקומה במכסה. נצרך כשהתוסף
+מחליט שההעלאה אינה רלוונטית יותר — למשל שמירה שהמסמך שלה הוחלף באמצע. בלי
+הקריאה הזאת ההעלאה נתפסת עד שה-`writeToken` פג (שתי דקות).
+
+```javascript
+await Otzaria.call('fs.abortBinaryWrite', { writeToken });
+// data = true
+```
+
+אידמפוטנטי: `true` גם כשלא היה מה לבטל. מחזיר `false` כשה-`writeToken` שייך
+לתוסף אחר, או כש-[`fs.commitUserFileWrite`](#fscommituserfilewrite) שלו כבר רץ —
+ביטול באמצע commit היה מוחק את הקובץ מתחת לדיאלוג „שמור בשם” פתוח.
 
 ### `fs.revokeFile`
 **הרשאה:** `fs.user_files.read`
@@ -1845,7 +2192,7 @@ const { data } = await Otzaria.call('feedback.report', {
 
 **תור שליחה מאוחרת:** במצב לא-מקוון או בכשל רשת זמני הדיווח נשמר בתור מקומי (באותו מנגנון של דיווחי הטעויות בספרים): ניסיון חוזר אוטומטי כל 5 דקות, והמשתמש יכול לנהל את התור בהגדרות — לשלוח ידנית, למחוק, או להוריד סקריפט שליחה למחשב מחובר.
 
-**שגיאות אפשריות:** `error.internal` — `details` חסר או ריק, דחייה קבועה של השרת (HTTP 400/422), או מצב לא-מקוון כשהמשתמש כיבה את תור הדיווחים בהגדרות. דחייה קבועה אינה נכנסת לתור.
+**שגיאות אפשריות:** `error.invalid_params` — `details` חסר או ריק. `error.internal` — דחייה קבועה של השרת (HTTP 400/422), או מצב לא-מקוון כשהמשתמש כיבה את תור הדיווחים בהגדרות. דחייה קבועה אינה נכנסת לתור.
 
 ### `feedback.hasReporterEmail`
 **הרשאה:** אינה נדרשת — מוחזר ביט קיום בלבד, בלי הכתובת עצמה.
@@ -1925,12 +2272,97 @@ const { data } = await Otzaria.call('history.remove', {
 
 ---
 
+## bookmarks.* - סימניות
+
+הסימניות של המשתמש. הקריאה והכתיבה הן שתי הרשאות נפרדות, כמו
+`notes.read`/`notes.write`.
+
+### `bookmarks.list`
+**הרשאה:** `bookmarks.read` · **מגרסה:** 0.9.97
+
+```javascript
+const { data } = await Otzaria.call('bookmarks.list', { limit: 50 });
+// [{ id, type, source, title: 'בראשית', ref: 'בראשית, פרק א',
+//    index: 0, label: 'בראשית ברא', targetKind: 'book',
+//    createdAt: '2026-08-24T10:00:00.000' }]
+```
+
+### `bookmarks.add`
+**הרשאה:** `bookmarks.write` · **מגרסה:** 0.9.97
+
+הספר מזוהה כמו בכל API אחר (`id` או `bookId`). כש-`ref` אינו נמסר הוא
+מחושב מתוכן העניינים של הספר, בדיוק כמו סימנייה שהמשתמש הוסיף מהתפריט.
+מחזיר `false` כשהספר לא נמצא **או** כשכבר קיימת סימנייה זהה (אותו ספר
+ואותו `index`) — אין כפילויות.
+
+```javascript
+await Otzaria.call('bookmarks.add', {
+  bookId: 'בראשית',
+  index: 12,
+  label: 'להמשיך מכאן'   // אופציונלי
+});
+```
+
+### `bookmarks.remove`
+**הרשאה:** `bookmarks.write` · **מגרסה:** 0.9.97
+
+מוחק את הסימנייה הראשונה שמתאימה לזהות. בלי `index` — הראשונה של הספר.
+
+```javascript
+await Otzaria.call('bookmarks.remove', { bookId: 'בראשית', index: 12 });
+// true או false
+```
+
+---
+
+## tools.* - כלי עזר מובנים
+
+**הרשאה:** `tools.read` — נתוני עזר של התוכנה בלבד, ללא גישה לנתוני המשתמש.
+
+### `tools.gematria`
+**מגרסה:** 0.9.97
+
+חישוב גימטריה של מחרוזת. `method` הוא `'regular'` (ברירת מחדל), `'small'`
+או `'finalLetters'`; `withKolel: true` מוסיף את מספר המילים ("עם הכולל").
+תווים שאינם אותיות עבריות מתעלמים. מגבלה: 2000 תווים.
+
+```javascript
+const { data } = await Otzaria.call('tools.gematria', { text: 'אברהם' });
+// { value: 248, method: 'regular', words: 1 }
+```
+
+> חיפוש הפוך (ערך → מילים) אינו נחשף: הוא סורק את ספרי הספרייה ואינו
+> פעולה זולה. לצורך זה השתמשו ב-`search.query`.
+
+### `tools.dictionary`
+**מגרסה:** 0.9.97
+
+חיפוש מונח במילוני העזר המצורפים לתוכנה: ראשי תיבות ומילון ארמית.
+`acronyms` מחזיר התאמה מדויקת, ואם אין — התאמות קידומת. `hebrew` בערכי
+הארמית הוא טקסט עם סימון מקורי. מגבלה: 200 תווים.
+
+```javascript
+const { data } = await Otzaria.call('tools.dictionary', { term: 'רמב״ם' });
+// { term: 'רמב״ם',
+//   acronyms: [{ acronym: 'רמב״ם', meanings: ['רבי משה בן מיימון'] }],
+//   aramaic: [] }
+```
+
+> לעזי רש"י אינם נכללים: הם נקראים ממסד הנתונים של הספרייה ומטבלת
+> הקישורים, ולא ממילון מצורף.
+
+---
+
 ## notifications.* - התראות
 
 ### `notifications.showInApp`
 **הרשאה:** `notifications.send`
 
 הצגת התראה בתוך האפליקציה (UiSnack).
+
+> **Alias:** זו למעשה כפילות של `ui.showMessage` (עם `type` שבוחר בין
+> info/success/error). היא נשמרת לתאימות אחורה; לקוד חדש עדיפות משפחת
+> `ui.show*`. שימו לב שההרשאה שונה — כאן `notifications.send` ולא `ui.feedback`.
 
 ```javascript
 const { data } = await Otzaria.call('notifications.showInApp', {
@@ -2054,6 +2486,13 @@ const { data } = await Otzaria.call('notifications.requestPermissions');
 
 ## storage.* - אחסון נתונים
 
+> ⚠️ **המסלול הוא `storage.*`, ההרשאה היא `plugin.storage.*`.** קל לטעות
+> ולקרוא ל-`plugin.storage.get`: הנתב מפצל על הנקודה הראשונה, אינו מוצא
+> מסלול, והקריאה נכשלת בשקט אם התוסף אינו בודק את `success` — כל ההעדפות
+> פשוט אינן נשמרות. **קראו תמיד `storage.get` / `storage.set` /
+> `storage.remove` / `storage.list`**; `plugin.storage.*` הוא שם ההרשאה
+> במניפסט בלבד.
+
 ### `storage.get`
 **הרשאה:** `plugin.storage.read`
 
@@ -2066,6 +2505,8 @@ const { data } = await Otzaria.call('storage.get', {
 // כל ערך JSON או null
 ```
 
+`data` הוא **הערך עצמו**, לא `{ value }` עטוף. מפתח שאינו קיים מחזיר `null`.
+
 ### `storage.set`
 **הרשאה:** `plugin.storage.write`
 
@@ -2077,6 +2518,10 @@ await Otzaria.call('storage.set', {
   value: { count: 42, name: 'test' }
 });
 ```
+
+> **אי אפשר לשמור `null`.** `value` חייב להיות שונה מ-`null`, אחרת חוזרת
+> `error.invalid_params`. למחיקת ערך השתמשו ב-`storage.remove` — `null`
+> חוזר ממילא מ-`storage.get` על מפתח שאינו קיים.
 
 ### `storage.remove`
 **הרשאה:** `plugin.storage.write`
@@ -2127,24 +2572,61 @@ const { data } = await Otzaria.call('settings.getMany', {
 // { "key-font-size": 25, "key-font-family": "Frank Ruhl Libre" }
 ```
 
-**מפתחות מורשים לקריאה:**
-- `key-dark-mode`
-- `key-follow-system-theme`
-- `key-swatch-color`, `key-dark-swatch-color`
-- `key-font-size`, `key-font-family`
-- `key-commentators-font-family`, `key-commentators-font-size`
-- `key-line-height`
-- `key-selected-city`
-- `key-calendar-type`
-- `key-settings-language` (מ-0.9.97 — שפת הממשק שנבחרה, או `system`)
-- `key-show-teamim`
-- `key-default-nikud`
-- `key-remove-nikud-tanach`
-- `key-replace-holy-names`
-- `key-library-view-mode`
-- `key-copy-with-headers`, `key-copy-header-format`
-- `key-hebrew-books-path` — נתיב ספרי HebrewBooks, או `null`/מחרוזת ריקה
-  כשלא הוגדר מיקום
+### מה מותר לקרוא (השתנה ב-0.9.97)
+
+עד 0.9.97 הייתה רשימת היתר סגורה של ~19 מפתחות. **מ-0.9.97 הכלל הפוך:** כל
+הגדרה קריאה, למעט מה שחסום מטעמי פרטיות ואבטחה. כך העדפת תצוגה חדשה זמינה
+לתוספים מיד, בלי להמתין לרליס.
+
+**חסום לקריאה:**
+
+- כל מפתח שבשמו `password`, `secret`, `credential`, `token`, `api-key`,
+  `client-id` — סודות ואסימונים.
+- כל מפתח שבשמו `path`, `folder`, `root` — נתיבים במערכת הקבצים (כולל
+  `key-library-path`, `key-index-path`, `key-backup-path`,
+  `key-hebrew-books-path`, `key-custom-folders`). נתיב חושף את שם המשתמש ואת
+  מבנה הדיסק; לעבודה על קבצים יש את המרחב הפרטי ואת `ui.pickFolder`.
+- כל מפתח שבשמו `email` — כתובת המייל של המשתמש. היא נקראת רק דרך
+  `app.getUserEmail` עם ההרשאה `app.user_email.read`.
+- `key-google-calendar-*` — חשבון Google של המשתמש.
+- `key-calendar-event*` — אירועי לוח השנה. נקראים דרך `calendar.getEvents`
+  עם ההרשאה `calendar.read`.
+- `key-protected-mode-*`, `sz:*` (ספרים במעקב והתקדמות "שמור וזכור").
+- `page_shape_book_*`, `page_shape_highlight_*`, `page_shape_visibility_*`,
+  `page_shape_use_book_settings_*`, `page_shape_view_mode_*`,
+  `page_shape_category_*` — שם הספר או הקטגוריה הוא חלק מהמפתח, ולכן קריאתם
+  חושפת מה המשתמש לומד. ‎`page_shape_global_visibility_*`‎ **כן** קריא — הוא
+  העדפת תצוגה גלובלית בלי זהות ספר.
+- `key-shortcut-open-plugin-*` — קיצור פר-תוסף. קריאתו הייתה מונה את התוספים
+  האחרים המותקנים; לאוצריא אין API כזה ואין הרשאה כזו.
+- תוכן אישי: `key-bookmarks`, `key-tabs`, `key-current-tab`, `key-workspaces`,
+  `key-current-workspace-id`, `key-saved-alternative-words`,
+  `key-plugin-search-selections`.
+
+`settings.get` על מפתח חסום מחזיר `error.forbidden` (ולא `null`, כדי שאפשר
+יהיה להבחין בינו לבין הגדרה שלא נקבעה). `settings.getMany` **מדלג** על מפתח
+חסום — הוא פשוט חסר מהמפה המוחזרת, ואין דרך להבחין בינו לבין מפתח שלא נקבע.
+זו אי-סימטריה מכוונת: `getMany` נועד לקריאת אצווה של העדפות תצוגה, שבה מפתח
+חסר אינו מצב שגיאה.
+
+> **⚠️ שינוי שובר — יש לבדוק לפני שדרוג ל-0.9.97**
+>
+> עד 0.9.97 `settings.get` על **כל** מפתח שלא היה ברשימת ההיתר החזיר `null`
+> בשקט. מ-0.9.97 הוא זורק `error.forbidden`, ולכן קוד כמו
+> `const v = (await Otzaria.call('settings.get', {key})).data` על מפתח חסום
+> מקבל promise **נדחה** — חריגה לא-מטופלת במקום `null`.
+>
+> יש לעטוף בדיקות כאלה ב-`try/catch`, או לעבור ל-`settings.getMany` שמדלג
+> בשקט. שים לב שגם מפתחות שלא נראו חסומים קודם נחסמו כאן (משפחות
+> `page_shape_*` פר-ספר ו-`key-shortcut-open-plugin-*`).
+
+מפתחות נפוצים שאפשר לקרוא: `key-dark-mode`, `key-follow-system-theme`,
+`key-swatch-color`, `key-dark-swatch-color`, `key-font-size`,
+`key-font-family`, `key-commentators-font-family`,
+`key-commentators-font-size`, `key-line-height`, `key-selected-city`,
+`key-calendar-type`, `key-settings-language`, `key-show-teamim`,
+`key-default-nikud`, `key-remove-nikud-tanach`, `key-replace-holy-names`,
+`key-library-view-mode`, `key-copy-with-headers`, `key-copy-header-format`.
 
 ---
 
@@ -2199,10 +2681,11 @@ const { data } = await Otzaria.call('calendar.getDailyTimes', {
 ### `calendar.getHalachicTimes`
 **הרשאה:** `calendar.read` · **מגרסה:** 0.9.97
 
-קבלת זמנים הלכתיים מלאים ליום (זהה ל-`getDailyTimes`).
+קבלת זמנים הלכתיים מלאים ליום.
 
-מקבל את אותם הפרמטרים האופציונליים (`date`, `city`, או `lat` ו-`lng`) כמו
-`calendar.getDailyTimes`.
+> **Alias:** מתודה זו היא כפילות מדויקת של `calendar.getDailyTimes` — אותה
+> תוצאה ואותם פרמטרים אופציונליים (`date`, `city`, או `lat` ו-`lng`). היא
+> קיימת לנוחות בלבד; אין הבדל התנהגותי בין השתיים.
 
 ```javascript
 const { data } = await Otzaria.call('calendar.getHalachicTimes');
@@ -2282,7 +2765,7 @@ const { data } = await Otzaria.call('calendar.getEvents', {
 ```javascript
 await Otzaria.call('publishedData.upsert', {
   type: 'calendar.event',  // 'calendar.event' | 'saved.query' | 'note.draft' | 'reference.link' | 'tool.badge'
-  scope: 'global',          // 'global' | 'workspace:<id>' | 'book:<bookId>'
+  scope: 'global',          // 'global' | 'workspace:<id>' | 'book:<bookUid>' (מזוהה גם 'book:<כותרת>')
   key: 'myPlugin:event1',
   payload: {
     title: 'שקיעה',
@@ -2345,10 +2828,71 @@ API זה מאפשר לתוסף לקרוא נתונים ממסדי נתונים S
 בכל רשומת `databaseSources` מותרים רק `id`,‏ `label` ו־`required`. נתיב הקובץ
 וה־policy נקבעים בלעדית על ידי אוצריא; שדה כמו `path` יגרום לדחיית המניפסט.
 
-המקור המובנה `external_catalog` חושף לקריאה את טבלת ההתאמה
-`otzaria_hebrew_books` ואת העמודות `id_book`,‏ `title`,‏ `author` של
-`hebrew_books`. הוא מוגבל ל־20 שורות ול־join יחיד על
-`otzaria_hebrew_books.hb_id = hebrew_books.id_book`.
+> **`required` אינו נאכף.** הוא מאומת כבוליאני בזמן אריזה, אך שום חלק
+> באוצריא אינו קורא את ערכו — תוסף שמצהיר `required: true` על מקור חסר
+> ייטען כרגיל. בדקו זמינות בעצמכם עם `database.listSources`.
+
+### מקורות הנתונים המובנים
+
+| `id` | תוכן | קובץ |
+|------|------|------|
+| `talmud_synopsis` | עדי נוסח לתלמוד הבבלי | `talmud_synopsis_pooled.db` |
+| `external_catalog` | מיפוי קטלוגים חיצוניים (HebrewBooks) | קטלוגים חיצוניים |
+
+#### `talmud_synopsis` — סכימה מנורמלת (pooled)
+
+**כל הטקסטים מרוכזים בטבלת `strings`.** אין עמודת טקסט ישירה בשום טבלה
+אחרת — כל שם, הפניה ונוסח מיוצגים כמזהה `*_text_id` שיש לחבר ל-`strings.id`
+ולקרוא מ-`strings.value`.
+
+| טבלה | עמודות |
+|------|--------|
+| `tractates` | `id`,‏ `sort_order`,‏ `name_text_id` |
+| `pages` | `id`,‏ `tractate_id`,‏ `sort_order`,‏ `name_text_id` |
+| `witnesses` | `id`,‏ `name_text_id` |
+| `alignments` | `id`,‏ `page_id`,‏ `kind`,‏ `sequence_number`,‏ `reference_text_id` |
+| `readings` | `alignment_id`,‏ `witness_id`,‏ `text_text_id` |
+| `strings` | `id`,‏ `value` |
+| `page_witnesses` | `page_id`,‏ `kind`,‏ `column_index`,‏ `witness_id` |
+
+**11 חוקי ה-join המותרים** (בשני הכיוונים):
+
+`tractates.id ↔ pages.tractate_id` · `pages.id ↔ alignments.page_id` ·
+`alignments.id ↔ readings.alignment_id` · `witnesses.id ↔ readings.witness_id` ·
+`pages.id ↔ page_witnesses.page_id` · `witnesses.id ↔ page_witnesses.witness_id` ·
+וחמישה חיבורים ל-`strings.id`: `tractates.name_text_id`,‏ `pages.name_text_id`,‏
+`witnesses.name_text_id`,‏ `alignments.reference_text_id`,‏ `readings.text_text_id`.
+
+**אותה טבלה מותרת כמה פעמים תחת aliases שונים.** שאילתה מלאה מחברת את
+`strings` חמש פעמים — פעם לכל שדה טקסט — ולכן `maxJoins` במקור הזה הוא **8**
+ולא ברירת המחדל 4.
+
+#### `external_catalog`
+
+| טבלה | עמודות |
+|------|--------|
+| `otzaria_hebrew_books` | `hb_id`,‏ `otzaria_id`,‏ `otzaria_title`,‏ `is_best`,‏ `confidence` |
+| `hebrew_books` | `id_book`,‏ `title`,‏ `author` |
+
+join יחיד מותר: `otzaria_hebrew_books.hb_id = hebrew_books.id_book`.
+
+### מגבלות ה-policy
+
+לכל מקור עשר מגבלות. שלוש מהן נחשפות ב-`database.describeSource`; השאר
+נאכפות בשקט ומחזירות `database.query_too_large` בחריגה.
+
+| מגבלה | ברירת מחדל | `talmud_synopsis` | `external_catalog` | מה חוסמת |
+|-------|-----------|-------------------|--------------------|----------|
+| `maxLimit` | 5000 | 5000 | 1000 | `limit` גדול מהערך → שגיאה (אינו נחתך) |
+| `maxBatchQueries` | 5 | 5 | 10 | מספר השאילתות ב-`database.batchQuery` |
+| `maxJoins` | 4 | **8** | 1 | מספר הרשומות במערך `joins` |
+| `maxColumns` | 32 | 32 | 8 | אורך `select`, ובנפרד אורך `orderBy` |
+| `maxOffset` | 10000 | 10000 | **0** | `offset` גדול מהערך → שגיאה |
+| `maxWhereConditions` | 32 | 32 | 8 | סך התנאים ב-`where`, כולל קבוצות `and`/`or` |
+| `maxInValues` | 100 | 100 | 1000 | אורך המערך ב-`{ op: 'in' }` |
+| `maxParameterBytes` | 64KB | 64KB | 16KB | גודל ערך פרמטר יחיד |
+| `maxResultBytes` | 4MB | 4MB | 256KB | גודל משוער של כלל התוצאה |
+| `maxQueryDuration` | 3 שניות | 3 שניות | 3 שניות | משך ריצה → `database.query_timeout` |
 
 ---
 
@@ -2365,6 +2909,14 @@ const { data } = await Otzaria.call('database.listSources');
 // }
 ```
 
+מוחזרים רק המקורות שהתוסף הצהיר עליהם במניפסט, בסדר ההצהרה.
+
+> **`available: false` מכסה שני מצבים שונים ואינו מבחין ביניהם:** מזהה שאוצריא
+> אינה מכירה כלל (בדרך כלל שגיאת כתיב ב-`id` שבמניפסט), וקובץ DB מוכר שאינו
+> קיים אצל המשתמש הזה. הסימן היחיד להבדל הוא ש-`label` נופל למזהה עצמו כשהמקור
+> אינו רשום — אבל אין להסתמך על כך. אל תציגו למשתמש "המסד חסר" על סמך
+> `available: false` בלבד; בדקו קודם את איות ה-`id` מול טבלת המקורות המובנים.
+
 ---
 
 ### `database.describeSource`
@@ -2379,14 +2931,18 @@ const { data } = await Otzaria.call('database.describeSource', {
 //   source: { id: "talmud_synopsis", label: "עדי נוסח בבלי" },
 //   schema: {
 //     tables: [
-//       { name: "line_alignments", columns: ["id", "page_id", "reference", "sequence_number"] },
-//       { name: "line_readings",   columns: ["alignment_id", "id", "text", "witness_id"] },
+//       { name: "alignments", columns: ["id", "kind", "page_id", "reference_text_id", "sequence_number"] },
+//       { name: "pages",      columns: ["id", "name_text_id", "sort_order", "tractate_id"] },
+//       { name: "readings",   columns: ["alignment_id", "text_text_id", "witness_id"] },
 //       ...
 //     ]
 //   },
-//   limits: { maxLimit: 5000, maxBatchQueries: 5 }
+//   limits: { maxLimit: 5000, maxBatchQueries: 5, maxQueryDurationMs: 3000 }
 // }
 ```
+
+הטבלאות והעמודות מוחזרות ממוינות אלפביתית. `limits` מחזיר שלושה שדות בלבד —
+שאר המגבלות אינן נחשפות (ראו הטבלה למעלה).
 
 ---
 
@@ -2410,45 +2966,48 @@ const { data } = await Otzaria.call('database.describeSource', {
 
 **דוגמה — קריאת עדי נוסח לדף:**
 
+הסכימה מנורמלת, ולכן כל שדה טקסט מחייב join נפרד ל-`strings` תחת alias משלו.
+הדוגמה מחברת את `strings` ארבע פעמים — `tn` (שם מסכת), `pn` (שם דף),
+`wn` (שם עד הנוסח) ו-`rt` (הנוסח עצמו).
+
 ```javascript
 const { data } = await Otzaria.call('database.query', {
   sourceId: 'talmud_synopsis',
   from: { table: 'tractates', alias: 't' },
   select: [
-    { expr: 'la.id',              as: 'alignment_id' },
-    { expr: 'la.sequence_number', as: 'sequence_number' },
-    { expr: 'la.reference',       as: 'reference' },
-    { expr: 'w.name',             as: 'witness_name' },
-    { expr: 'lr.text',            as: 'text' }
+    { expr: 'a.id',              as: 'alignment_id' },
+    { expr: 'a.sequence_number', as: 'sequence_number' },
+    { expr: 'wn.value',          as: 'witness_name' },
+    { expr: 'rt.value',          as: 'text' }
   ],
   joins: [
-    {
-      type: 'inner', table: 'pages', alias: 'p',
-      on: [{ left: 'p.tractate_id', op: '=', right: 't.id' }]
-    },
-    {
-      type: 'inner', table: 'line_alignments', alias: 'la',
-      on: [{ left: 'la.page_id', op: '=', right: 'p.id' }]
-    },
-    {
-      type: 'inner', table: 'line_readings', alias: 'lr',
-      on: [{ left: 'lr.alignment_id', op: '=', right: 'la.id' }]
-    },
-    {
-      type: 'inner', table: 'witnesses', alias: 'w',
-      on: [{ left: 'w.id', op: '=', right: 'lr.witness_id' }]
-    }
+    { type: 'inner', table: 'strings',    alias: 'tn',
+      on: [{ left: 'tn.id', op: '=', right: 't.name_text_id' }] },
+    { type: 'inner', table: 'pages',      alias: 'p',
+      on: [{ left: 'p.tractate_id', op: '=', right: 't.id' }] },
+    { type: 'inner', table: 'strings',    alias: 'pn',
+      on: [{ left: 'pn.id', op: '=', right: 'p.name_text_id' }] },
+    { type: 'inner', table: 'alignments', alias: 'a',
+      on: [{ left: 'a.page_id', op: '=', right: 'p.id' }] },
+    { type: 'inner', table: 'readings',   alias: 'r',
+      on: [{ left: 'r.alignment_id', op: '=', right: 'a.id' }] },
+    { type: 'inner', table: 'witnesses',  alias: 'w',
+      on: [{ left: 'w.id', op: '=', right: 'r.witness_id' }] },
+    { type: 'inner', table: 'strings',    alias: 'wn',
+      on: [{ left: 'wn.id', op: '=', right: 'w.name_text_id' }] },
+    { type: 'inner', table: 'strings',    alias: 'rt',
+      on: [{ left: 'rt.id', op: '=', right: 'r.text_text_id' }] }
   ],
   where: {
     op: 'and',
     conditions: [
-      { op: '=', left: 't.name', value: 'מסכת ברכות' },
-      { op: '=', left: 'p.name', value: 'ב' }
+      { op: '=', left: 'tn.value', value: 'מסכת ברכות' },
+      { op: '=', left: 'pn.value', value: 'ב' }
     ]
   },
   orderBy: [
-    { expr: 'la.sequence_number', direction: 'asc' },
-    { expr: 'w.name',             direction: 'asc' }
+    { expr: 'a.sequence_number', direction: 'asc' },
+    { expr: 'wn.value',          direction: 'asc' }
   ],
   limit: 2000,
   rowFormat: 'array'
@@ -2457,14 +3016,18 @@ const { data } = await Otzaria.call('database.query', {
 //   meta: { sourceId: "talmud_synopsis", rowCount: 240, limit: 2000, offset: 0, hasMore: false, elapsedMs: 12 },
 //   columns: [
 //     { name: "alignment_id" }, { name: "sequence_number" },
-//     { name: "reference" }, { name: "witness_name" }, { name: "text" }
+//     { name: "witness_name" }, { name: "text" }
 //   ],
 //   rows: [
-//     [1, 1, "ע\"א 1 - 14", "כ\"י מינכן 95", "..."],
+//     [1, 1, "כ\"י מינכן 95", "..."],
 //     ...
 //   ]
 // }
 ```
+
+הדוגמה משתמשת בשמונה joins — בדיוק ה-`maxJoins` של המקור הזה. הוספת
+`strings` חמישית (למשל עבור `a.reference_text_id`) תחזיר
+`database.query_too_large`; פצלו לשתי שאילתות או ל-`database.batchQuery`.
 
 **פורמט `object`:**
 
@@ -2483,12 +3046,37 @@ const { data } = await Otzaria.call('database.query', {
 
 | אופרטור | דוגמה |
 |---------|-------|
-| `=` `!=` `>` `>=` `<` `<=` | `{ op: '=', left: 'p.name', value: 'ב' }` |
-| `like` | `{ op: 'like', left: 'w.name', value: '%כ"י%' }` |
+| `=` `!=` `>` `>=` `<` `<=` | `{ op: '=', left: 'pn.value', value: 'ב' }` |
+| `like` | `{ op: 'like', left: 'wn.value', value: '%כ"י%' }` |
 | `in` | `{ op: 'in', left: 'p.id', value: [1, 2, 3] }` |
-| `between` | `{ op: 'between', left: 'la.sequence_number', value: [1, 50] }` |
-| `isNull` / `isNotNull` | `{ op: 'isNull', left: 'lr.text' }` |
+| `between` | `{ op: 'between', left: 'a.sequence_number', value: [1, 50] }` |
+| `isNull` / `isNotNull` | `{ op: 'isNull', left: 'r.text_text_id' }` |
 | `and` / `or` | `{ op: 'and', conditions: [...] }` |
+
+**כללי ולידציה שקל לפספס** — כולם מחזירים `database.invalid_spec`:
+
+- **שדה לא מוכר נדחה, ולא מתעלמים ממנו.** בכל רמה נאכפת רשימת מפתחות סגורה:
+  ברמת השאילתה רק `sourceId`,‏ `from`,‏ `select`,‏ `joins`,‏ `where`,‏ `orderBy`,‏
+  `limit`,‏ `offset`,‏ `rowFormat`; ב-`from` רק `table`/`alias`; ב-`join` רק
+  `type`/`table`/`alias`/`on`; ב-`select` רק `expr`/`as`; ב-`orderBy` רק
+  `expr`/`direction`. שגיאת כתיב בשם שדה מפילה את השאילתה.
+- **הפניה לעמודה חייבת להיות בדיוק `alias.column`** — שני חלקים, כל אחד מזהה
+  חוקי (`[a-zA-Z_][a-zA-Z0-9_]*`). `t.*`, שם טבלה ללא alias, או ביטוי SQL —
+  נדחים.
+- **האופרטור ב-`join.on` חייב להיות `=`.** אין תמיכה בשום אופרטור אחר, ולכל
+  join נדרש לפחות תנאי `on` אחד.
+- **כל join חייב לחבר את ה-alias החדש לטבלה שכבר נכנסה** — צד אחד של התנאי
+  ה-alias החדש, הצד השני alias קודם. alias כפול נדחה.
+- **`limit` מעבר ל-`maxLimit` זורק** `database.query_too_large` — הוא אינו
+  נחתך בשקט. כך גם `offset` מעבר ל-`maxOffset` (ב-`external_catalog` הוא 0,
+  כלומר כל `offset` חיובי נדחה). ערך שלילי בשניהם → `database.invalid_spec`.
+- **`select` ריק נדחה**, ושמות הפלט חייבים להיות ייחודיים — שתי עמודות
+  בשם זהה מחייבות `as` מבדיל. ב-`rowFormat: 'object'` כפילות מתגלה גם על
+  שמות העמודות שחוזרים מ-sqlite.
+- **`isNull`/`isNotNull` אסור שיכללו `value`**, וכל שאר האופרטורים חייבים
+  לכלול אותו. `in` דורש מערך לא ריק, `between` מערך בן שני איברים בדיוק.
+- **קינון `where` מוגבל ל-5 רמות**, וערכי פרמטר חייבים להיות סקלרים של JSON
+  (מחרוזת, מספר, בוליאני או `null`).
 
 ---
 
@@ -2521,7 +3109,8 @@ const { data } = await Otzaria.call('database.batchQuery', {
 ```
 
 **הגבלות:**
-- מקסימום 5 שאילתות ל-batch (ניתן לבדוק ב-`database.describeSource`)
+- מקסימום `maxBatchQueries` שאילתות ל-batch — 5 ב-`talmud_synopsis`,‏ 10
+  ב-`external_catalog` (ניתן לבדוק ב-`database.describeSource`)
 - כל שאילתה עוברת ולידציה נפרדת מול ה-policy
 - אין תמיכה ב-references בין תוצאות (כל שאילתה עצמאית)
 
@@ -2534,14 +3123,19 @@ const { data } = await Otzaria.call('database.batchQuery', {
 | `permission_denied` | חסרה הרשאת `database.read` (קוד גנרי של ה-RPC bridge) |
 | `database.source_not_found` | המקור לא הוצהר במניפסט |
 | `database.source_unavailable` | קובץ ה-DB לא קיים או לא רשום |
+| `database.source_not_read_only` | המקור רשום ככתיב — אוצריא מסרבת לפתוח אותו לתוסף |
 | `database.table_not_allowed` | טבלה לא מורשית |
 | `database.column_not_allowed` | עמודה לא מורשית |
 | `database.join_not_allowed` | join לא מורשה על פי ה-policy |
-| `database.query_too_large` | חריגה ממגבלת limit, joins, columns, או batch |
-| `database.invalid_spec` | בקשה לא תקינה (שדה חסר, ערך לא חוקי, alias כפול) |
-| `error.timeout` | השאילתה חרגה מ-30 שניות (מגבלת ה-RPC הכללית) |
+| `database.query_too_large` | חריגה מאחת ממגבלות ה-policy (ראו טבלת המגבלות) |
+| `database.invalid_spec` | בקשה לא תקינה (שדה לא מוכר, ערך לא חוקי, alias כפול) |
+| `database.query_timeout` | השאילתה חרגה מ-`maxQueryDuration` (3 שניות) |
+| `database.query_failed` | כשל ריצה ב-sqlite או ב-worker |
 
-> **הערה על timeout:** בגרסה נוכחית, שאילתות ש-sqlite3 מריץ באופן סינכרוני אינן ניתנות להפרעה. timeout נאכף על ידי מגבלת ה-RPC הכללית (30 שניות) שמחזירה `error.timeout`.
+> **timeout:** לשאילתות DB יש חסם זמן משלהן. השאילתה רצה ב-isolate נפרד
+> שנהרג בתום `maxQueryDuration` — 3 שניות כברירת מחדל — והשגיאה שחוזרת היא
+> `database.query_timeout`, לא `error.timeout` הגנרי. חסם 30 השניות של
+> ה-RPC לעולם אינו זה שנוגע בשאילתת DB.
 
 ---
 
@@ -2559,7 +3153,7 @@ Otzaria.on('event.name', (data) => {
 
 **הרשאה נדרשת:** כל אירוע מצריך הרשאה מתאימה מסוג `events.subscribe:<event_name>`
 
-- `plugin.boot` - נורה פעם אחת בטעינת התוסף (ללא הרשאה). ה-payload כולל `app.runMode: 'foreground' | 'background'` — ראה §ריצת רקע — וכן `connectivity` (מצב האינטרנט; ראה [`app.getConnectivity`](#appgetconnectivity)).
+- `plugin.boot` - נורה פעם אחת בטעינת התוסף (ללא הרשאה). ה-payload כולל `app.runMode: 'foreground' | 'background'` — ראה §ריצת רקע — וכן `connectivity` (מצב האינטרנט; ראה [`app.getConnectivity`](#appgetconnectivity)). שדה ה-`app` כולל גם `language` (קוד השפה, זהה ל-[`app.getLocale`](#appgetlocale)) ו-`devMode` (`true` רק כשהתוסף נטען כתוסף פיתוח). שים לב: `buildNumber` אינו נשלח ב-`plugin.boot` — לקבלתו יש לקרוא ל-[`app.getInfo`](#appgetinfo).
 - `plugin.ready` - נורה אחרי boot (ללא הרשאה)
 - `plugin.suspended` - התוסף הושהה (יציאה מלשונית התוסף / מעבר לרקע). ללא הרשאה — ראה §השהיה ברקע ב-README
 - `plugin.resumed` - התוסף חזר מהשהיה (ללא הרשאה)
@@ -2776,8 +3370,18 @@ async function scheduleReminder(title, body, dateTime) {
 
 החל מ־`minAppVersion: 0.9.96`, `startup.programs` מאפשר לחשב תרומת UI מתוך
 הקשר הקורא וממקורות DB שאוצריא אישרה. התכנית עוברת קומפילציה ואימות ב־Dart,
-ואינה טוענת HTML או JavaScript. בגרסה הנוכחית ה־trigger הנתמך הוא
-`reader.activeBookChanged` בלבד.
+ואינה טוענת HTML או JavaScript.
+
+ה־triggers הנתמכים:
+
+| trigger | מתי רץ | ההקשר (`$context`) |
+|---|---|---|
+| `reader.activeBookChanged` | בכל החלפת ספר/חלונית קריאה | `reader.context` ו־`reader.book` |
+| `app.startup` | פעם אחת לכל תוסף — בסיום סנכרון התוספים בעליית האפליקציה, וגם כשתוסף מותקן לאחר העלייה (בסיום ההתקנה שלו) | ריק, אלא אם ספר כבר פתוח |
+| `settings.changed` | בכל שינוי הגדרה, אחרי השהיית איחוד של 150ms | כנ"ל |
+
+שני האחרונים אינם נגזרים מהקשר הקריאה, ולכן `$context` יהיה ריק כשאין ספר
+פתוח — תכנית שנשענת על `reader.book` צריכה `reader.activeBookChanged`.
 
 דוגמה שמוצאת מהדורות היברובוקס המקבילות לספר הטקסט הפעיל:
 
@@ -2944,7 +3548,7 @@ async function scheduleReminder(title, body, dateTime) {
 | `data.choose` | — | מ־0.9.97: מחזיר `whenTrue` או `whenFalse` לפי `condition` מובנה |
 | `data.map` | — | מיפוי של עד 20 רשומות בעזרת `template` ו־`$row` |
 | `library.resolveBooks` | `library.books.read` | זהות קנונית רק להתאמה יחידה; עמימות מוחזרת כאי־התאמה |
-| `settings.get` | `settings.read` | מ־0.9.97: ערך הגדרת תוכנה לפי `key` (ליטרל מחרוזת). רק מפתחות שתוספים רשאים לקרוא — מפתח אחר נדחה כבר בהתקנה |
+| `settings.get` | `settings.read` | מ־0.9.97: ערך הגדרת תוכנה לפי `key` (ליטרל מחרוזת). רק מפתחות שתוספים רשאים לקרוא — מפתח חסום נכשל בזמן החישוב, לא בהתקנה |
 | `storage.get` | `plugin.storage.read` | מ־0.9.97: ערך מאחסון התוסף לפי `key` (ליטרל מחרוזת). נעול למרחב האחסון הרגיל של התוסף (אותו אחד של `storage.set`) — אין פרמטר namespace; מפתח שאינו קיים מחזיר `null` |
 | `library.parallelEditions` | `library.books.read` | מ־0.9.97: מהדורות מקבילות לזהות ספר — המהדורה המובנית בספרייה ואז מהדורות ספקים חיצוניים שנרשמו דרך `startup.externalEditions` ונפתחות מקומית; שורות `{title, isCompanion, identity}` |
 
@@ -2960,6 +3564,18 @@ async function scheduleReminder(title, body, dateTime) {
   `reader.openBookInSidePane` — אותם ארגומנטים ואותה הרשאה (`reader.open`),
   אלא שהספר נפתח כחלונית לצד הספר הנוכחי במקום להחליף אותו. בטאב שכבר מפוצל
   הפעולה יורדת לפתיחה ככרטיסייה רגילה.
+- מ־0.9.97 קיימות עוד שלוש פעולות host, כולן בלי להעיר את המנוע:
+  - `reader.scrollToRef` (‏`args: {ref, highlight?}`, הרשאה `reader.open`) —
+    גולל את הספר ה**פתוח** להפניה, בלי לפתוח אותו מחדש. ההפניה נפתרת מול
+    אותם מסלולים של `reader.openBookAtRef` (heRef פר-שורה, ואז תוכן
+    העניינים). נכשל כשאין ספר טקסט פתוח או שההפניה לא נפתרה.
+  - `search.open` (‏`args: {query, autoSearch?}`, הרשאה `reader.open`) —
+    פותח כרטיסיית חיפוש עם השאילתה. `autoSearch: false` ממלא את השדה בלי
+    להריץ, כמו ב-`reader.openSearchTab`.
+  - `ui.showSnack` (‏`args: {message, severity?}`, הרשאה `notifications.send`) —
+    הודעת מערכת. `severity`: `"info"` (ברירת מחדל), `"success"`, `"error"`.
+    ההודעה מוצגת עם ייחוס לתוסף — `<message> · מאת <שם התוסף>` — כדי שהמשתמש
+    ידע איזה תוסף פנה אליו; אין צורך להוסיף את שם התוסף ל-`message` בעצמכם.
 - מ־0.9.97 פעולה יכולה גם לכתוב לאחסון התוסף בלי להעיר את המנוע:
   `storage.set` (‏`args: {key, value}`) ו־`storage.remove` (‏`args: {key}`),
   בהרשאה `plugin.storage.write`. הכתיבה נעולה למרחב האחסון הרגיל של התוסף
@@ -3121,7 +3737,7 @@ Host — יצרפו את מהדורות הספק לספר הפתוח, אחרי �
 
 - **לחיצה על פקד/פריט** שנרשם דקלרטיבית: אם הוגדר `openPlugin: true` — נפתח דף התוסף והאירוע נמסר לו. אחרת: עם `app.run_on_startup` — אוצריא מרימה מופע רקע שקט באותו רגע ואירוע הלחיצה נמסר אחרי ה-boot; **בלי** ההרשאה — הלחיצה נופלת לפתיחת דף התוסף (כמו `openPlugin: true`), כך שהפקד תמיד עובד וההפעלה גלויה.
 - **`activationEvents`**: כשאירוע מהרשימה קורה ואין לתוסף מנוע חי — מופע הרקע קם והאירוע נמסר לו. דורש `app.run_on_startup`, וכל נושא רגיל דורש בנוסף את הרשאת `events.subscribe:<topic>` שלו.
-- **`app.startup`**: טריגר מיוחד — מופע הרקע קם פעם אחת, כמה שניות **אחרי** שעליית אוצריא הסתיימה (לא מתחרה בעלייה). מיועד לתוספים שחייבים קוד בעלייה (למשל בדיקת עדכונים). דורש `app.run_on_startup` כמו כל הפעלה שקטה.
+- **`app.startup`**: טריגר מיוחד — נורה **פעם אחת לכל תוסף**: מופע הרקע קם כמה שניות **אחרי** שעליית אוצריא הסתיימה (לא מתחרה בעלייה), וגם כשתוסף מותקן לאחר שהאפליקציה כבר עלתה — הוא נורה לו בסיום ההתקנה. מיועד לתוספים שחייבים קוד בעלייה (למשל בדיקת עדכונים). דורש `app.run_on_startup` כמו כל הפעלה שקטה.
 
 ### כיבוי אוטומטי אחרי חוסר פעילות
 
@@ -3130,6 +3746,17 @@ Host — יצרפו את מהדורות הספק לספר הפתוח, אחרי �
 - אל תסתמכו על `setTimeout`/`setInterval` ארוכים במופע הרקע — לתזמון השתמשו ב-`notifications.scheduleSystem`, ולמעקב מתמשך ב-`activationEvents`.
 - שמרו state שצריך לשרוד ב-`storage.set` (או ב-`localStorage`, שנשמר בפרופיל) — משתני JS בזיכרון אובדים בכיבוי.
 - מופעי `app.run_on_startup` במסלול הישן (טעינה בעלייה) אינם מכובים — רק מופעים שהוערו עצל.
+
+### תקרת מופעי רקע בו-זמניים
+
+אוצריא מחזיקה עד **4 מופעי רקע לפי-דרישה** בו-זמנית. כשמופע חמישי מתעורר,
+הוותיק ביותר שאינו `keepAlive`, אינו באמצע `plugin.boot` ואינו עסוק בקריאת
+API — מפונה. הפינוי שקוף באותו אופן ככיבוי אחרי חוסר פעילות: הטריגר הבא מעיר
+את התוסף מחדש, אבל **כל state שנשמר במשתני JS בזיכרון אובד**. לכן:
+
+- שמרו state ב-`storage.set` (או `localStorage`), לא בזיכרון.
+- תוסף שחייב רציפות (מנוע חיפוש ספק, מעקב מתמשך) יצהיר `"keepAlive": true`,
+  ואז אינו מועמד לפינוי.
 
 תוסף שחייב לשמור מנוע חי יכול להצהיר `"keepAlive": true`. עליו להצהיר גם על
 `app.background_keep_alive`, והמשתמש חייב לאשר אותה בנפרד. זו הרשאה רגישה,
@@ -3225,6 +3852,8 @@ Host — יצרפו את מהדורות הספק לספר הפתוח, אחרי �
 | `equals` | מחרוזת / מספר / בוליאני / `null` | שוויון מדויק לערך השמור |
 | `notEquals` | כנ"ל | היפוך של `equals` |
 | `exists` | `true` / `false` | האם קיים ערך שאינו `null` |
+| `contains` | מחרוזת / מספר / בוליאני | הכלה: במחרוזת — תת-מחרוזת; במערך — קיום איבר שווה. ערך שאינו מחרוזת ואינו מערך מוערך כ-`false` |
+| `greaterThan` | מספר | הערך השמור גדול ממנו. מחרוזת שנפרסת כמספר נבדקת כמספר; ערך שאינו מספרי מוערך כ-`false` |
 
 `exists` מבדיל בין "אין מפתח" ל"יש מפתח עם ערך": מפתח שלא נכתב מעולם ומפתח שערכו `null` מתנהגים שניהם כלא-קיימים, ולכן `{"exists": false}` מתקיים בשניהם ו-`{"equals": null}` מתקיים בשניהם.
 
@@ -3351,6 +3980,9 @@ Otzaria.on('plugin.boot', async (payload) => {
     "feedback.send_email",
     "history.read",
     "history.write",
+    "bookmarks.read",
+    "bookmarks.write",
+    "tools.read",
     "notifications.send",
     "notifications.system",
     "app.run_on_startup",
@@ -3582,7 +4214,7 @@ await Otzaria.call('reader.updateContextMenuItem', {
 
 ---
 
-### `reader.context_menu_item_clicked` (Event)
+### Event: `reader.context_menu_item_clicked`
 **הרשאה:** אין צורך בהרשאה נוספת — נשלח רק לפלאגין שרשם את הפריט
 
 נורה כאשר המשתמש לוחץ על פריט תפריט שהפלאגין רשם.
@@ -3707,7 +4339,7 @@ await Otzaria.call('reader.updateToolbarItem', {
 
 ---
 
-### `reader.toolbar_item_clicked` (Event)
+### Event: `reader.toolbar_item_clicked`
 **הרשאה:** אין צורך בהרשאה נוספת — נשלח רק לפלאגין שרשם את הפקד
 
 נורה כאשר המשתמש לוחץ על פקד (או על פריט בתפריט נפתח) שהפלאגין רשם.
@@ -3734,7 +4366,7 @@ Otzaria.on('reader.toolbar_item_clicked', (data) => {
 
 ---
 
-### `reader.selection_changed` (Event)
+### Event: `reader.selection_changed`
 **הרשאה:** `events.subscribe:reader.selection_changed`
 
 נורה כאשר המשתמש מסמן טקסט בקורא. **לא** נורה כאשר הסימון מתנקה.
@@ -3760,7 +4392,7 @@ Otzaria.on('reader.selection_changed', (data) => {
 
 ---
 
-### `reader.sectionContentChanged` (Event)
+### Event: `reader.sectionContentChanged`
 **הרשאה:** `events.subscribe:reader.sectionContentChanged`
 
 **זמין מגרסה:** `0.9.95`

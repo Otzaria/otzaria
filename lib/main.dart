@@ -58,8 +58,10 @@ import 'package:zstandard/zstandard.dart';
 import 'package:otzaria/work_status/work_status_cubit.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
+import 'package:otzaria/plugins/bloc/plugin_updates_cubit.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/declarative/services/declarative_library_book_access.dart';
+import 'package:otzaria/plugins/services/plugin_reader_actions.dart';
 import 'package:otzaria/plugins/declarative/services/declarative_plugin_host_service.dart';
 import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
 
@@ -1173,6 +1175,10 @@ class _AppBootstrapState extends State<AppBootstrap> {
               allowPrerelease: () => false,
             ),
           ),
+          BlocProvider<PluginUpdatesCubit>(
+            lazy: true,
+            create: (_) => PluginUpdatesCubit(),
+          ),
           BlocProvider<PluginSystemBloc>(
             create: (context) {
               final repository = PluginRegistryRepository();
@@ -1194,6 +1200,10 @@ class _AppBootstrapState extends State<AppBootstrap> {
                 bookResolver: bookAccess,
                 bookOpener: bookAccess,
                 parallelEditionsFinder: bookAccess.parallelEditionsForIdentity,
+                readerScroller: PluginDeclarativeReaderScroller(
+                  tabsBloc: tabsBloc,
+                ),
+                searchOpener: PluginDeclarativeSearchOpener(coordinator),
                 onError: (pluginId, error, stackTrace) => debugPrint(
                   'Declarative plugin host [$pluginId]: $error\n$stackTrace',
                 ),

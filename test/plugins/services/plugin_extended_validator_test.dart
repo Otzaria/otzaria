@@ -317,9 +317,16 @@ void main() {
       // fs.extractZip/deleteFile מגודרים ע"י ui.pickFolder, לא ע"י manifest.
       // plugin.backgroundDone הוא ניהול-עצמי של מופע הרקע — נטול הרשאה בכוונה.
       // feedback.report מגודר בדיאלוג האישור של המשתמש, לא ע"י manifest.
+      // פעולות המרחב הפרטי מגודרות בשורש הפרטי של התוסף, לא ע"י manifest.
       const noManifestPermission = {
         'fs.extractZip',
         'fs.deleteFile',
+        'fs.writeFile',
+        'fs.readFile',
+        'fs.listDir',
+        'fs.makeDir',
+        'fs.deleteEntry',
+        'fs.stat',
         'plugin.backgroundDone',
         'feedback.report',
         'feedback.hasReporterEmail',

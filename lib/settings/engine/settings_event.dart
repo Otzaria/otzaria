@@ -317,6 +317,15 @@ class UpdateLibraryShowPreview extends SettingsEvent {
   List<Object?> get props => [libraryShowPreview];
 }
 
+class UpdateSearchShowPreview extends SettingsEvent {
+  final bool searchShowPreview;
+
+  const UpdateSearchShowPreview(this.searchShowPreview);
+
+  @override
+  List<Object?> get props => [searchShowPreview];
+}
+
 class RefreshShortcuts extends SettingsEvent {
   const RefreshShortcuts();
 

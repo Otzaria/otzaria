@@ -5,6 +5,31 @@ permissions:
 
 on:
   workflow_dispatch:
+    inputs:
+      build_windows:
+        description: Build Windows artifacts
+        type: boolean
+        default: true
+      build_linux:
+        description: Build Linux artifacts
+        type: boolean
+        default: true
+      build_android:
+        description: Build Android artifacts
+        type: boolean
+        default: true
+      build_macos:
+        description: Build macOS artifacts
+        type: boolean
+        default: true
+      create_release:
+        description: Create a GitHub release
+        type: boolean
+        default: true
+      announce_release:
+        description: Publish the forum post and Yemot notification
+        type: boolean
+        default: true
 
   # טריגר לפרסום בלבד. published נשלח גם על prerelease —
   # הוספת prereleased לרשימה גורמת להרצה כפולה (שני פוסטים בפורום)
@@ -35,7 +60,7 @@ jobs:
           fi
 
   build_windows:
-    if: github.event_name != 'release' && github.event_name != 'pull_request'
+    if: github.event_name != 'release' && github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.build_windows)
     runs-on: windows-2022
     env:
       # VC++ Redistributable מקובע ב-URL ישיר של מיקרוסופט (לא aka.ms שזז),
@@ -494,12 +519,17 @@ jobs:
           path: otzaria-windows.zip
 
   build_linux:
+    name: Linux ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [deb, rpm, raw, full]
     # רץ בקונטיינר debian:bookworm — רצפת התאימות של ההפצה: glibc 2.36. רקע:
     # noble (Ubuntu 24.04) הסירה את wpewebkit מהארכיון, וה-WPE החבילתי (גם ב-trixie)
     # נבנה בלי DEVELOPER_MODE ולכן מתעלם מ-WEBKIT_EXEC_PATH — לא ניתן ל-self-contained.
     # לכן מורידים SDK של WPE 2.48.7 שנבנה מהמקור (Otzaria/otzaria-wpe-runtime על
     # bookworm, DEVELOPER_MODE=ON) ל-/opt/wpe-sdk ובונים מולו.
-    if: github.event_name != 'release' && github.event_name != 'pull_request'
+    if: github.event_name != 'release' && github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.build_linux)
     runs-on: ubuntu-latest
     container:
       image: debian:bookworm-slim
@@ -624,12 +654,12 @@ jobs:
           WPE_RUNTIME_VERSION: "2.48.7"
           # digest שמפרסם GitHub לנכס של tag זה. עדכון גרסה מחייב עדכון מפורש
           # של ה-hash, כדי שנכס שהוחלף ב-release לא ייכנס לבנייה בשקט.
-          WPE_RUNTIME_SHA256: "d89fa37074898afe3fb6087628f3c8b983f962c53651c393efafbed8556de49d"
+          WPE_RUNTIME_SHA256: "6890a2fe09735440316f4418fdc56b746d4b3f1a1d5a2d6a1dc608f8fa05d3b8"
         run: |
           set -euo pipefail
           # pin ל-tag מפורש (לא latest) — גרסת ה-SDK נגזרת רק מ-WPE_RUNTIME_VERSION.
           # מוסכמת ה-tag בריפו otzaria-wpe-runtime: wpe-<version>.
-          tag="wpe-${WPE_RUNTIME_VERSION}"
+          tag="candidate-wpe-2.48.7-dmabuf-20260821"
           asset="wpe-runtime-${WPE_RUNTIME_VERSION}-linux-x86_64.tar.zst"
           base="https://github.com/Otzaria/otzaria-wpe-runtime/releases/download/${tag}"
           echo "Downloading ${asset} ..."
@@ -690,7 +720,7 @@ jobs:
               libglib-2.0.so*|libgobject-2.0.so*|libgio-2.0.so*|libgmodule-2.0.so*|libgthread-2.0.so*|\
               libgtk-3.so*|libgdk-3.so*|libatk*.so*|\
               libcairo*.so*|libpango*.so*|libharfbuzz*.so*|libgdk_pixbuf*.so*|libfreetype.so*|libfontconfig.so*|\
-              libdbus-1.so*|libsystemd.so*|libudev.so*|libselinux.so*) return 0;;
+              libdbus-1.so*|libsystemd.so*|libudev.so*|libselinux.so*|libexpat.so*) return 0;;
             esac
             return 1
           }
@@ -725,12 +755,26 @@ jobs:
               rm -v "$f"
             fi
           done
+          APPDIR="$(dirname "$LIBDIR")"
+          if [ -x "$APPDIR/otzaria" ] && [ ! -e "$APPDIR/otzaria.bin" ]; then
+            mv "$APPDIR/otzaria" "$APPDIR/otzaria.bin"
+            cat > "$APPDIR/otzaria" <<'LAUNCHER'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          APP_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+          export LD_LIBRARY_PATH="$APP_DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          export WEBKIT_EXEC_PATH="$APP_DIR/lib"
+          export WEBKIT_INJECTED_BUNDLE_PATH="$APP_DIR/lib"
+          exec "$APP_DIR/otzaria.bin" "$@"
+          LAUNCHER
+            chmod 755 "$APPDIR/otzaria"
+          fi
           echo "bundle_wpe: injected helper processes + $copied transitive libs into $LIBDIR"
           SCRIPT
           chmod +x /tmp/bundle_wpe.sh
 
       - name: Download library assets for Linux FULL bundle
-        if: true
+        if: matrix.target == 'full'
         shell: bash
         run: |
           set -euo pipefail
@@ -741,6 +785,7 @@ jobs:
           curl -L --fail https://github.com/Otzaria/SeforimMagicIndexer/releases/latest/download/lexical.db -o full_installer/library_db/lexical.db
       
       - name: Install flutter_distributor
+        if: matrix.target == 'deb' || matrix.target == 'rpm'
         run: dart pub global activate flutter_distributor
 
       - name: Prepare Flutter dependencies for Linux release
@@ -751,6 +796,15 @@ jobs:
           # Generate the settings .g.dart files: search index + translation catalog.
           dart run tool/generate_search_index.dart
           dart run tool/generate_settings_l10n.dart
+
+      - name: Build the search engine inside the compatibility container
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' \
+            'use_precompiled_binaries: false' \
+            'verbose_logging: true' \
+            > cargokit_options.yaml
 
       # התוסף קורא ל-webkit_web_view_get_theme_color (קיים רק מ-WebKit 2.50) בלי guard גרסה;
       # ה-SDK הוא 2.48 — עוטפים ב-WEBKIT_CHECK_VERSION עד שיתוקן בחבילה.
@@ -814,6 +868,22 @@ jobs:
             exit 1
           fi
 
+      - name: Verify search engine glibc compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          search_lib="build/linux/x64/release/bundle/lib/libsearch_engine.so"
+          test -f "$search_lib"
+          incompatible=$(strings "$search_lib" \
+            | grep -Eo 'GLIBC_2\.(3[7-9]|[4-9][0-9])' \
+            | sort -Vu || true)
+          if [ -n "$incompatible" ]; then
+            echo "::error::libsearch_engine.so requires a glibc newer than Bookworm"
+            printf '%s\n' "$incompatible"
+            exit 1
+          fi
+          strings "$search_lib" | grep -Eo 'GLIBC_[0-9]+\.[0-9]+' | sort -Vu | tail -n 1
+
       - name: Dump CMake error log on failure
         if: failure()
         shell: bash
@@ -822,6 +892,7 @@ jobs:
           tail -n 40 build/linux/x64/release/CMakeFiles/CMakeConfigureLog.yaml 2>/dev/null || true
 
       - name: Build and Patch Linux DEB package
+        if: matrix.target == 'deb'
         shell: bash
         env:
           CC: clang
@@ -895,6 +966,7 @@ jobs:
           echo "Successfully patched and rebuilt the .deb package."
         
       - name: Build and Patch Linux RPM package
+        if: matrix.target == 'rpm'
         shell: bash
         env:
           CC: clang
@@ -1011,27 +1083,28 @@ jobs:
           touch linux-build/portable.marker
       
       - name: Upload Linux DEB package
-        if: steps.find_packages.outputs.deb_file != ''
+        if: matrix.target == 'deb' && steps.find_packages.outputs.deb_file != ''
         uses: actions/upload-artifact@v4.6.2
         with:
           name: otzaria-linux-deb
           path: ${{ steps.find_packages.outputs.deb_file }}
           
       - name: Upload Linux RPM package
-        if: steps.find_packages.outputs.rpm_file != ''
+        if: matrix.target == 'rpm' && steps.find_packages.outputs.rpm_file != ''
         uses: actions/upload-artifact@v4.6.2
         with:
           name: otzaria-linux-rpm
           path: ${{ steps.find_packages.outputs.rpm_file }}
        
       - name: Upload linux build (raw)
+        if: matrix.target == 'raw'
         uses: actions/upload-artifact@v4.6.2
         with:
           name: otzaria-linux-raw
           path: linux-build/*
 
       - name: Create Linux FULL portable bundle
-        if: true
+        if: matrix.target == 'full'
         shell: bash
         run: |
           set -euo pipefail
@@ -1125,7 +1198,7 @@ jobs:
           rm -f -- "$INDEXED_ARCHIVE"
 
       - name: Upload Linux FULL bundle
-        if: true
+        if: matrix.target == 'full'
         uses: actions/upload-artifact@v4.6.2
         with:
           name: otzaria-linux-full
@@ -1146,7 +1219,7 @@ jobs:
           path: indexed-release-parts/*.manifest.json
 
   build_android:
-    if: github.event_name != 'release' && github.event_name != 'pull_request'
+    if: github.event_name != 'release' && github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.build_android)
     runs-on: ubuntu-latest
     env:
       RUSTUP_HOME: ${{ github.workspace }}/.rustup
@@ -1408,7 +1481,7 @@ jobs:
           df -h
 
   build_macos:
-    if: github.event_name != 'release' && github.event_name != 'pull_request'
+    if: github.event_name != 'release' && github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.build_macos)
     runs-on: macos-latest
     env:
       # אחסון יציב בתוך ה-workspace כדי למנוע תקלות rename של rustup
@@ -1740,7 +1813,22 @@ jobs:
           path: installer/otzaria-*-windows-full-indexed.exe
 
   create_release:
-    if: "!cancelled() && github.event_name != 'release' && github.event_name != 'pull_request'"
+    if: >-
+      !cancelled() &&
+      github.event_name != 'release' &&
+      github.event_name != 'pull_request' &&
+      (github.event_name != 'workflow_dispatch' || inputs.create_release) &&
+      inputs.build_windows && inputs.build_linux &&
+      inputs.build_android && inputs.build_macos &&
+      needs.build_windows.result == 'success' &&
+      needs.build_linux.result == 'success' &&
+      needs.build_android.result == 'success' &&
+      needs.build_macos.result == 'success' &&
+      needs.build_windows_indexed_full.result == 'success'
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      title: ${{ steps.version.outputs.title }}
+      url: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }}
     needs: [build_windows, build_linux, build_android, build_macos, build_windows_indexed_full]
     runs-on: ubuntu-latest
 
@@ -2091,16 +2179,16 @@ jobs:
       
       - name: Create Release
         if: github.event_name == 'workflow_dispatch'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          token: ${{ secrets.GH_RELEASE_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: ${{ steps.version.outputs.tag }}
           name: ${{ steps.version.outputs.title }}
           prerelease: ${{ steps.version.outputs.prerelease }}
           files: release-files/*
           body_path: release-body.md
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   trigger_google_play_deploy:
     if: "!cancelled() && needs.check_version.outputs.is_version == 'true' && needs.build_android.result == 'success' && github.event_name != 'release' && github.event_name != 'pull_request'"
@@ -2110,8 +2198,12 @@ jobs:
 
   # --- הכרזה על גרסה שפורסמה ---
   announce_release:
-    # תנאי לריצה רק כשיש אירוע של פרסום release
-    if: github.event_name == 'release'
+    needs: [create_release]
+    if: >-
+      always() &&
+      (github.event_name == 'release' ||
+       (github.event_name == 'workflow_dispatch' && inputs.announce_release &&
+        needs.create_release.result == 'success'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -2125,13 +2217,22 @@ jobs:
       - name: Install dependencies for webhook script
         run: pip install bs4 requests pyluach yemot-api
 
+      - name: Load release assets for a manual run
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.create_release.outputs.tag }}
+        run: |
+          gh api "repos/${{ github.repository }}/releases/tags/${RELEASE_TAG}" \
+            | jq '{release: .}' > "$RUNNER_TEMP/release-event.json"
+
       - name: Run announcement script (Forum + Yemot)
         env:
           # פרטי ה-Release נלקחים מאירוע ה-Webhook של GitHub
-          RELEASE_TAG:  ${{ github.event.release.tag_name }}
-          RELEASE_NAME: ${{ github.event.release.name }}
-          RELEASE_URL:  ${{ github.event.release.html_url }}
-          GITHUB_EVENT_PATH: ${{ github.event_path }} # חיוני כדי שהסקריפט ימצא את קבצי ההורדה
+          RELEASE_TAG: ${{ github.event.release.tag_name || needs.create_release.outputs.tag }}
+          RELEASE_NAME: ${{ github.event.release.name || needs.create_release.outputs.title }}
+          RELEASE_URL: ${{ github.event.release.html_url || needs.create_release.outputs.url }}
+          GITHUB_EVENT_PATH: ${{ github.event_name == 'workflow_dispatch' && format('{0}/release-event.json', runner.temp) || github.event_path }}
 
           # סודות להתחברות לשירותים החיצוניים
           USER_NAME:  ${{ secrets.USER_NAME }}

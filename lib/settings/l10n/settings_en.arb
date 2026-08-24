@@ -38,7 +38,7 @@
   "צבע ראשי של ערכת הנושא": "Primary color of the Theme",
   "הצגת פריטים קומפקטית או מרווחת": "Show items compactly or spaciously",
   "פתיחת ספרי PDF בתצוגת ספר או רגילה": "Open PDF seforim in Sefer view or the regular view",
-  "פתיחת מסכתות הבבלי בטקסט או ב-PDF, מהספרייה ומכל מקום אחר": "Open Gemaros as text or PDF, from the library and everywhere else",
+  "פתיחת מסכתות הבבלי בטקסט או ב-PDF — בספרייה, בתצוגה המקדימה ובכל מקום אחר": "Open Gemaros as text or PDF — in the library, the preview pane, and everywhere else",
   "הצגה / אוטומטי / הסתרה של חלונית הניווט": "Show / Automatic / Hide for the navigation panel",
   "תצוגת רשימות הערות בפתיחה": "How note lists appear when opened",
   "מפרשים בחלונית מפוצלת או בתוך הטקסט": "Meforshim in a side panel or inside the text",
@@ -93,7 +93,7 @@
   "פורמט פתיחת תלמוד בבלי": "Default Gemara opening format",
   "טקסט": "Text",
   "מסכתות הבבלי ייפתחו במהדורת הטקסט (מהספרייה, מתוצאות חיפוש, מאיתור מקורות ומקישורים)": "Gemaros will open in text format",
-  "מסכתות הבבלי ייפתחו במהדורת ה-PDF בדף המתאים, גם בפתיחה מהספרייה": "Gemaros in PDF will open at the right daf, including from the library",
+  "מסכתות הבבלי ייפתחו במהדורת ה-PDF בדף המתאים, גם בפתיחה מהספרייה ובתצוגה המקדימה": "Gemaros in PDF will open at the right daf, including from the library and the preview pane",
 
   "חלוניות עזר": "Side Panels",
   "חלונית ניווט בין כותרות": "Navigation Panel",

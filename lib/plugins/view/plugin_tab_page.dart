@@ -1,3 +1,4 @@
+import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/foundation.dart';
@@ -39,11 +40,10 @@ import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
 import 'package:otzaria/plugins/services/plugin_crash_guard.dart';
 import 'package:otzaria/plugins/services/plugin_store_link_parser.dart';
 import 'package:otzaria/plugins/services/plugin_webview_failure_log.dart';
+import 'package:otzaria/plugins/services/plugin_network_gate.dart';
 import 'package:otzaria/plugins/view/plugin_crashed_view.dart';
 import 'package:otzaria/plugins/view/plugin_webview2_missing_view.dart';
-import 'package:otzaria/plugins/models/plugin_network_allowlist.dart';
 import 'package:otzaria/plugins/view/plugin_drop_guard_script.dart';
-import 'package:otzaria/plugins/services/plugin_network_access_resolver.dart';
 import 'package:otzaria/plugins/services/plugin_file_server.dart';
 import 'package:otzaria/plugins/services/plugin_download_handler.dart';
 import 'package:otzaria/settings/settings_exports.dart';
@@ -210,6 +210,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
     final navigationBloc = context.read<NavigationBloc>();
     final calendarCubit = context.read<CalendarCubit>();
     final workspaceBloc = context.read<WorkspaceBloc>();
+    final bookmarkBloc = context.read<BookmarkBloc>();
     final searchRepository = SearchRepository();
     final personalNotesRepository = PersonalNotesRepository();
     final pluginRegistryRepository = PluginRegistryRepository();
@@ -221,6 +222,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
       navigationBloc: navigationBloc,
       calendarCubit: calendarCubit,
       workspaceBloc: workspaceBloc,
+      bookmarkBloc: bookmarkBloc,
       searchRepository: searchRepository,
       personalNotesRepository: personalNotesRepository,
       bookOpenCoordinator: BookOpenCoordinator(
@@ -285,6 +287,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
           InstallRemotePluginRequested(
             downloadUrl,
             reportContext: reportContext,
+                      storeOnly: true,
           ),
         );
       },
@@ -556,6 +559,13 @@ class _PluginTabPageState extends State<PluginTabPage> {
     return reqPort == devPort;
   }
 
+  Future<bool> _isNetworkUriAllowed(Uri uri) => isPluginNetworkAccessAllowed(
+    uri: uri,
+    pluginId: widget.plugin.pluginId,
+    manifest: widget.plugin.manifest,
+    registry: _pluginRegistryRepository,
+  );
+
   Widget _buildWebView() {
     if (_creationWatchdog == null && webViewController == null) {
       _creationWatchdog = Timer(const Duration(seconds: 20), () {
@@ -674,25 +684,18 @@ class _PluginTabPageState extends State<PluginTabPage> {
             return NavigationActionPolicy.ALLOW;
           }
 
-          // שרת הקבצים הפנימי (loopback) שמגיש קבצים אישיים שהמשתמש בחר.
+          // שרת הקבצים הפנימי (loopback). זו נקודת האכיפה היחידה של בידוד בין
+          // תוספים — השרת אינו יכול לזהות מי הפונה.
           if (uri.scheme == 'http' &&
               PluginFileServer.instance.isServerUri(uri)) {
-            return NavigationActionPolicy.ALLOW;
+            return PluginFileServer.isUriForPlugin(uri, widget.plugin.pluginId)
+                ? NavigationActionPolicy.ALLOW
+                : NavigationActionPolicy.CANCEL;
           }
 
           if (uri.scheme == 'http' || uri.scheme == 'https') {
-            if (widget.plugin.manifest.networkEnabled) {
-              final granted = await _pluginRegistryRepository.getPermission(
-                widget.plugin.pluginId,
-                requiredNetworkPermissionFor(uri),
-              );
-              final allowed =
-                  granted == true &&
-                  await PluginNetworkAccessResolver.instance
-                      .isUriAllowedForPlugin(uri, widget.plugin.manifest);
-              if (allowed) {
-                return NavigationActionPolicy.ALLOW;
-              }
+            if (await _isNetworkUriAllowed(uri)) {
+              return NavigationActionPolicy.ALLOW;
             }
           }
 
@@ -725,24 +728,21 @@ class _PluginTabPageState extends State<PluginTabPage> {
               _isDevServerUri(uri)) {
             return null; // allow all localhost requests for localhost_dev
           }
-          // שרת הקבצים הפנימי (loopback) שמגיש קבצים אישיים שהמשתמש בחר.
+          // שרת הקבצים הפנימי (loopback). זו נקודת האכיפה היחידה של בידוד בין
+          // תוספים — השרת אינו יכול לזהות מי הפונה.
           if (uri.scheme == 'http' &&
               PluginFileServer.instance.isServerUri(uri)) {
-            return null;
+            if (PluginFileServer.isUriForPlugin(uri, widget.plugin.pluginId)) {
+              return null;
+            }
+            return WebResourceResponse(
+              statusCode: 403,
+              reasonPhrase: 'Forbidden',
+            );
           }
           if (uri.scheme == 'http' || uri.scheme == 'https') {
-            if (widget.plugin.manifest.networkEnabled) {
-              final granted = await _pluginRegistryRepository.getPermission(
-                widget.plugin.pluginId,
-                requiredNetworkPermissionFor(uri),
-              );
-              final allowed =
-                  granted == true &&
-                  await PluginNetworkAccessResolver.instance
-                      .isUriAllowedForPlugin(uri, widget.plugin.manifest);
-              if (allowed) {
-                return null;
-              }
+            if (await _isNetworkUriAllowed(uri)) {
+              return null;
             }
             return WebResourceResponse(
               statusCode: 403,
@@ -798,6 +798,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
               // בתוסף ארוז זה false — מאפשר לתוסף לדלג על שערים פיתוחיים
               // (כמו שער סיסמה) רק במצב פיתוח ולא בפרודקשן.
               'devMode': widget.plugin.isDevelopment,
+              'runMode': 'foreground',
             },
             'connectivity': ConnectivityStatusService.instance.bootPayload(),
             'theme': theme,
@@ -805,6 +806,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
           };
 
           final jsonPayload = jsonEncode(bootPayload);
+          final nonceJson = jsonEncode(_bridge.bridgeNonce);
           final fontFaceJson = jsonEncode(fontFaceCss);
 
           // Real SDK — injected after load, calls _boot() which re-plays queued
@@ -832,7 +834,8 @@ class _PluginTabPageState extends State<PluginTabPage> {
   var rpc = function (method, payload) {
     return window.flutter_inappwebview.callHandler('otzaria_rpc', {
       method: method,
-      payload: payload || {}
+      payload: payload || {},
+      nonce: $nonceJson
     });
   };
   window.addEventListener(_searchEvent, function (event) {

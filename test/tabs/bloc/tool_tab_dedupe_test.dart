@@ -37,11 +37,11 @@ void main() {
   TextBookTab book(String title) =>
       TextBookTab(book: TextBook(title: title), index: 0);
 
-  test('OpenOrFocusTab על תוסף פתוח ממקד ואינו מוסיף כרטיסיה', () async {
+  test('OpenOrFocusTab על כלי פתוח ממקד ואינו מוסיף כרטיסיה', () async {
     final toolOpened = bloc.stream.firstWhere(
       (state) => state.tabs.length == 1 && state.currentTabIndex == 0,
     );
-    bloc.add(OpenOrFocusTab(tool('com.example.plugin')));
+    bloc.add(OpenOrFocusTab(tool('builtin.calendar')));
     await toolOpened;
 
     final bookOpened = bloc.stream.firstWhere(
@@ -53,22 +53,11 @@ void main() {
     final toolFocused = bloc.stream.firstWhere(
       (state) => state.tabs.length == 2 && state.currentTabIndex == 0,
     );
-    bloc.add(OpenOrFocusTab(tool('com.example.plugin')));
+    bloc.add(OpenOrFocusTab(tool('builtin.calendar')));
     await toolFocused;
 
     expect(bloc.state.tabs.length, 2, reason: 'לא נפתחה כרטיסיה נוספת');
-    expect(bloc.state.currentTabIndex, 0, reason: 'המיקוד עבר לתוסף הקיים');
-  });
-
-  test('כלי מובנה פתוח נפתח שוב ככרטיסיה נפרדת', () async {
-    bloc.add(OpenOrFocusTab(tool('builtin.calendar')));
-    await pumpEventQueue();
-    bloc.add(OpenOrFocusTab(tool('builtin.calendar')));
-    await pumpEventQueue();
-
-    expect(bloc.state.tabs.length, 2);
-    expect(bloc.state.tabs.whereType<ToolTab>(), everyElement(isA<ToolTab>()));
-    expect(bloc.state.tabs.every((tab) => tab.dedupeKey == null), isTrue);
+    expect(bloc.state.currentTabIndex, 0, reason: 'המיקוד עבר לכלי הקיים');
   });
 
   // כלי שנמצא כחלונית בטאב מפוצל: מעבר טאב לבדו היה משאיר את הפוקוס על
@@ -122,7 +111,7 @@ void main() {
     expect((bloc.state.tabs.single as ToolTab).toolId, 'com.example.plugin');
   });
 
-  test('שחזור כלי מובנה מוסיף עותק כשהוא כבר פתוח', () async {
+  test('שחזור כלי מובנה ממקד אותו כשהוא כבר פתוח', () async {
     final t = tool('builtin.gematria');
     bloc.add(AddTab(t));
     await pumpEventQueue();
@@ -138,8 +127,8 @@ void main() {
     bloc.add(RestoreLastClosedTab());
     await pumpEventQueue();
 
-    expect(bloc.state.tabs.length, 2);
-    expect(bloc.state.tabs.whereType<ToolTab>().length, 2);
+    expect(bloc.state.tabs.length, 1);
+    expect((bloc.state.tabs.single as ToolTab).toolId, 'builtin.gematria');
   });
 
   test('CloneTab משכפל כלי מובנה', () async {

@@ -31,6 +31,9 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
   /// בדיקת חיבור אמיתי לאינטרנט — ניתנת להזרקה לבדיקות.
   final Future<bool> Function() hasInternet;
 
+  /// שעון — ניתן להזרקה לבדיקות ויסות ההתקדמות.
+  final DateTime Function() _now;
+
   // מזהה הריצה הפעילה. כל התחלה/ביטול/איפוס מגדילים אותו, כך שריצה ישנה
   // (Future שעדיין לא הסתיים) מזוהה כמבוטלת ולא פולטת state או מחליפה DB.
   int _operationId = 0;
@@ -52,13 +55,57 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     required this.allowPrerelease,
     this.companionAssets,
     this.hasInternet = hasInternetConnection,
-  }) : super(const LibraryUpdateState()) {
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now,
+       super(const LibraryUpdateState()) {
     on<StartLibraryUpdate>(_onStart);
     on<ConfirmFullDownload>(_onConfirmFull);
     on<DeclineFullDownload>(_onDeclineFull);
     on<CancelLibraryUpdate>(_onCancel);
     on<ResetLibraryUpdate>(_onReset);
     on<_LibraryUpdateProgressed>(_onProgressed);
+  }
+
+  /// הקצב המרבי של עדכוני התקדמות שוטפים (בייטים/אחוז) אל ה-state.
+  static const progressInterval = Duration(milliseconds: 200);
+
+  DateTime? _lastProgressAt;
+  LibraryUpdatePhase? _lastPhase;
+  int _lastStepIndex = -1;
+  String? _lastStage;
+
+  // onProgress נורה על כל chunk רשת; פליטת state לכל chunk מציפה את ה-UI
+  // בבניות-מחדש ומאיטה את כל התוכנה. שינוי שלב/סיום עוברים תמיד.
+  void _reportProgress(LibraryUpdateProgress p, int opId) {
+    final structural =
+        p.phase != _lastPhase ||
+        p.stepIndex != _lastStepIndex ||
+        p.stage != _lastStage ||
+        (p.bytesTotal != null && p.bytesDownloaded == p.bytesTotal);
+    if (!_throttleAllows(structural: structural)) return;
+    _lastPhase = p.phase;
+    _lastStepIndex = p.stepIndex;
+    _lastStage = p.stage;
+    add(_LibraryUpdateProgressed(p, opId));
+  }
+
+  bool _throttleAllows({required bool structural}) {
+    final now = _now();
+    final last = _lastProgressAt;
+    if (!structural &&
+        last != null &&
+        now.difference(last) < progressInterval) {
+      return false;
+    }
+    _lastProgressAt = now;
+    return true;
+  }
+
+  void _resetProgressThrottle() {
+    _lastProgressAt = null;
+    _lastPhase = null;
+    _lastStepIndex = -1;
+    _lastStage = null;
   }
 
   @override
@@ -84,6 +131,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     }
 
     final opId = ++_operationId;
+    _resetProgressThrottle();
     emit(
       const LibraryUpdateState(
         status: LibraryUpdateStatus.checking,
@@ -175,7 +223,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
       final changedBookIds = await repository.applyDeltaPlan(
         plan,
         isCancelled: () => _isStale(opId),
-        onProgress: (progress) => add(_LibraryUpdateProgressed(progress, opId)),
+        onProgress: (progress) => _reportProgress(progress, opId),
       );
       // הגענו לכאן ⇒ ה-apply וה-ריענון הצליחו וה-DB עודכן. אם בוטל/הוחלף
       // בינתיים — לא נדרוס את ה-state של הריצה החדשה (ה-DB כבר רוענן ממילא).
@@ -240,6 +288,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
       return;
     }
     final opId = ++_operationId;
+    _resetProgressThrottle();
     emit(
       state.copyWith(
         status: LibraryUpdateStatus.downloading,
@@ -250,7 +299,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
       await repository.applyFullDownload(
         plan,
         isCancelled: () => _isStale(opId),
-        onProgress: (progress) => add(_LibraryUpdateProgressed(progress, opId)),
+        onProgress: (progress) => _reportProgress(progress, opId),
       );
       if (_isStale(opId)) return;
       _pendingCompleted = state.copyWith(
@@ -306,6 +355,9 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
         },
         onDownloadProgress: (received, total) {
           if (_isStale(opId)) return;
+          // גם כאן ההתקדמות מגיעה על כל chunk — מוויסתת באותו מנגנון.
+          final isFinal = total != null && received == total;
+          if (!_throttleAllows(structural: isFinal)) return;
           emit(
             state.copyWith(
               status: LibraryUpdateStatus.downloading,

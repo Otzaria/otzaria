@@ -38,6 +38,9 @@ class PdfBookSearchView extends StatefulWidget {
     this.bookTitle,
     this.bookTopics,
     this.bookCategoryPath,
+    this.bookId,
+    this.isUserBook = false,
+    this.externalLibraryId,
     this.pdfFilePath,
     this.initialSearchText = '',
     this.initialSearchOptions = const {},
@@ -59,6 +62,12 @@ class PdfBookSearchView extends StatefulWidget {
   final String? bookTitle;
   final String? bookTopics;
   final String? bookCategoryPath;
+
+  /// מזהי הספר לבניית נתיב ה-facet — חייבים להיכלל בדיוק כמו באינדוקס
+  /// (id:/uid:/ext:), אחרת מסלול המנוע מחפש תחת facet שאינו קיים.
+  final int? bookId;
+  final bool isUserBook;
+  final String? externalLibraryId;
 
   /// Absolute path to the currently opened PDF file.
   ///
@@ -289,6 +298,8 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
       initialTopics: widget.bookTopics ?? '',
       type: PdfBook,
       categoryPath: widget.bookCategoryPath,
+      externalLibraryId: widget.externalLibraryId,
+      bookId: widget.bookId,
       fileType: 'pdf',
       filePath: widget.pdfFilePath,
     );
@@ -298,6 +309,9 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
     _bookPath = BookFacet.buildFacetPath(
       title: title,
       topics: topics,
+      bookId: widget.bookId,
+      isUserBook: widget.isUserBook,
+      externalLibraryId: widget.externalLibraryId,
       categoryPath: widget.bookCategoryPath,
       fileType: 'pdf',
       filePath: widget.pdfFilePath,

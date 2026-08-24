@@ -1,37 +1,90 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
-/// ציר ה-pan של צפיין ה-PDF: מחוות pan של לוח מגע מדויק עוקפות את
-/// [TrackpadAxisLock], לכן בדסקטופ ננעל לציר; במגע גרירה ישירה נשארת חופשית.
-PanAxis pdfPanAxis({required bool isMobile}) =>
-    isMobile ? PanAxis.free : PanAxis.aligned;
-
-/// נועלת את ציר הגלילה של לוח מגע ברגע שמתחילה גלילה משמעותית בציר
-/// אחד, ומחזירה אירוע "מקוצץ" לציר הנעול. הנעילה משתחררת אחרי הפסקה
-/// קצרה בזרם האירועים (= הרמת אצבעות מלוח המגע) - אותה התנהגות שיש
-/// בכל קורא PDF סטנדרטי, כדי שהצופה לא יזוז לצדדים בטעות בזמן גלילה
-/// אנכית.
+/// נעילת ציר "חכמה" לגלילת לוח מגע בצפיין ה-PDF (issues #821, #969).
 ///
-/// שימוש: יצירת מופע ושמירתו ב-state, וקריאה ל-[apply] על כל
-/// `PointerSignalEvent` לפני שמעבירים אותו ל-pdfrx.
+/// האיזון בין שתי הדרישות:
+/// - #821: גלילה אנכית תוך כדי זום לא צריכה להיסחף לצדדים.
+/// - #969: תנועה מכוונת לצדדים ולאלכסונים חייבת להישאר חופשית.
+///
+/// לכן ההכרעה מתקבלת פעם אחת לכל מחווה, מתוך המרחק המצטבר של תחילתה
+/// (ולא מהאירוע הבודד הראשון, שהוא רועש): רק מחווה שקרובה מאוד לציר
+/// (יחס של [lockRatio] בין הצירים, ברירת מחדל ~18°) ננעלת אליו; כל
+/// מחווה אלכסונית מוכרעת כחופשית ועוברת ללא קיצוץ עד סופה.
+///
+/// המחלקה משרתת שני מסלולי קלט:
+/// - אירועי `PointerScrollEvent` (גלגלת / לוח מגע שמדווח כגלילה) דרך
+///   [apply] - שם סוף המחווה מזוהה לפי הפסקה בזרם האירועים ([idleReset]).
+/// - מחוות pan של לוח מגע מדויק דרך [applyDelta] - שם גבולות המחווה
+///   ידועים במפורש, והקורא אחראי לקרוא ל-[reset] בסוף המחווה.
 class TrackpadAxisLock {
   TrackpadAxisLock({
     this.idleReset = const Duration(milliseconds: 150),
+    this.lockRatio = 3.0,
+    this.decisionDistance = 8.0,
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now;
 
-  /// זמן ההפסקה שאחריו הנעילה משתחררת. הפסקה זו מזהה הרמת אצבעות
-  /// מלוח המגע.
+  /// זמן ההפסקה שאחריו מחוות גלילה נחשבת כמסתיימת (הרמת אצבעות),
+  /// וההכרעה הבאה מתקבלת מחדש. רלוונטי רק למסלול [apply].
   final Duration idleReset;
+
+  /// פי כמה הציר הדומיננטי צריך לגבור על הציר השני כדי לנעול אליו.
+  /// 3.0 = זווית של עד ~18° מהציר. מחוות "רחבות" יותר נשארות חופשיות.
+  final double lockRatio;
+
+  /// המרחק המצטבר (בפיקסלים, לפני כל כפל-מהירות) שממנו מתקבלת ההכרעה.
+  /// עד אליו התנועה עוברת חופשי - הכרעה מדגימה בודדת רועשת היא בדיוק
+  /// מה שגרם ל"קפיצות לצדדים" שתוארו ב-#969.
+  final double decisionDistance;
+
   final DateTime Function() _clock;
 
   Axis? _lockedAxis;
+  bool _decidedFree = false;
+  Offset _accumulated = Offset.zero;
   int? _lastEventTimeMs;
 
-  /// הציר הנעול הנוכחי, או `null` אם אין נעילה פעילה.
+  /// הציר הנעול הנוכחי, או `null` כשאין נעילה (טרם הוכרע, או שהמחווה
+  /// הוכרעה כחופשית - ראו [isFreeGesture]).
   Axis? get lockedAxis => _lockedAxis;
 
-  /// מחזירה אירוע מתוקן - כשנעול ציר אנכי, רכיב ה-dx מתאפס, ולהפך.
+  /// האם המחווה הנוכחית הוכרעה כחופשית (אלכסונית) - בלי שום קיצוץ.
+  bool get isFreeGesture => _decidedFree;
+
+  /// ליבת הנעילה: מצטבר עד [decisionDistance], מכריע לפי [lockRatio],
+  /// ומחזיר את ה-delta מקוצץ לציר הנעול או כמו שהוא כשאין נעילה.
+  ///
+  /// מיועד לקריאה ישירה ממסלול מחוות ה-pan, שם יש אירוע סיום מפורש -
+  /// יש לקרוא ל-[reset] בסופה של כל מחווה.
+  Offset applyDelta(Offset delta) {
+    if (_decidedFree) {
+      return delta;
+    }
+    if (_lockedAxis == null) {
+      _accumulated += delta;
+      if (_accumulated.distance < decisionDistance) {
+        // עוד אין הכרעה - התנועה זורמת חופשי כדי לא לחסום את תחילת המחווה.
+        return delta;
+      }
+      final adx = _accumulated.dx.abs();
+      final ady = _accumulated.dy.abs();
+      if (ady >= adx * lockRatio) {
+        _lockedAxis = Axis.vertical;
+      } else if (adx >= ady * lockRatio) {
+        _lockedAxis = Axis.horizontal;
+      } else {
+        _decidedFree = true;
+        return delta;
+      }
+    }
+    return _lockedAxis == Axis.vertical
+        ? Offset(0, delta.dy)
+        : Offset(delta.dx, 0);
+  }
+
+  /// עטיפת [applyDelta] לאירועי גלילה: מזהה סוף מחווה לפי הפסקה בזרם
+  /// האירועים, ומחזירה אירוע "מקוצץ" כשנעול ציר.
   ///
   /// - אירועים שאינם `PointerScrollEvent` (כמו `PointerScaleEvent` של
   ///   pinch) מוחזרים כמו שהם.
@@ -52,24 +105,12 @@ class TrackpadAxisLock {
     final nowMs = _clock().millisecondsSinceEpoch;
     final lastMs = _lastEventTimeMs;
     if (lastMs == null || nowMs - lastMs > idleReset.inMilliseconds) {
-      _lockedAxis = null;
+      _resetGesture();
     }
     _lastEventTimeMs = nowMs;
 
-    final delta = event.scrollDelta;
-    if (_lockedAxis == null) {
-      if (delta.dx == 0 && delta.dy == 0) {
-        return event;
-      }
-      _lockedAxis = delta.dy.abs() >= delta.dx.abs()
-          ? Axis.vertical
-          : Axis.horizontal;
-    }
-
-    final Offset locked = _lockedAxis == Axis.vertical
-        ? Offset(0, delta.dy)
-        : Offset(delta.dx, 0);
-    if (locked == delta) {
+    final locked = applyDelta(event.scrollDelta);
+    if (locked == event.scrollDelta) {
       return event;
     }
 
@@ -84,9 +125,15 @@ class TrackpadAxisLock {
     );
   }
 
-  /// מאפסת את מצב הנעילה ידנית.
+  /// מאפסת את מצב הנעילה - נקראת בסוף מחווה מפורש (מסלול ה-pan) או ידנית.
   void reset() {
-    _lockedAxis = null;
+    _resetGesture();
     _lastEventTimeMs = null;
+  }
+
+  void _resetGesture() {
+    _lockedAxis = null;
+    _decidedFree = false;
+    _accumulated = Offset.zero;
   }
 }

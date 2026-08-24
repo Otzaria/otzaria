@@ -4,6 +4,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/plugins/services/reader_location_tracker.dart';
 import 'package:otzaria/plugins/utils/reader_location_resolver.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -94,8 +95,9 @@ void main() {
     test(
       'dispatches reader.current_ref_changed with correct payload for text tab',
       () async {
+        final textBook = TextBook(title: 'בראשית');
         final textTab = TextBookTab(
-          book: TextBook(title: 'בראשית'),
+          book: textBook,
           index: 42,
         )..currentTitle.value = 'פרק ג';
 
@@ -109,6 +111,7 @@ void main() {
         expect(dispatchedEvents.single.payload, {
           'currentBook': 'בראשית',
           'currentBookId': 'בראשית',
+          'bookUid': PluginBookIdentity.uidOf(textBook),
           'currentId': null,
           'currentType': 'text',
           'currentSource': 'library',
@@ -123,8 +126,9 @@ void main() {
     test(
       'dispatches reader.current_ref_changed with correct payload for pdf tab',
       () async {
+        final pdfBook = PdfBook(title: 'מסילת ישרים', path: '/tmp/mesilat.pdf');
         final pdfTab = PdfBookTab(
-          book: PdfBook(title: 'מסילת ישרים', path: '/tmp/mesilat.pdf'),
+          book: pdfBook,
           pageNumber: 17,
         )..currentTitle.value = 'פרק ב';
 
@@ -138,6 +142,7 @@ void main() {
         expect(dispatchedEvents.single.payload, {
           'currentBook': 'מסילת ישרים',
           'currentBookId': 'מסילת ישרים',
+          'bookUid': PluginBookIdentity.uidOf(pdfBook),
           'currentId': null,
           'currentType': 'pdf',
           'currentSource': 'library',

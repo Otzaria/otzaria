@@ -68,6 +68,13 @@ class PluginStoreLinkParser {
   /// מארחי החנות הרשמית — רק אליהם נשלחת גרסת האוצריא.
   static const _storeHosts = {'otzaria.org', 'www.otzaria.org'};
 
+  /// האם [uri] הוא כתובת הורדה של החנות הרשמית. `plugin.requestInstall` מגודר
+  /// בזה: בלעדיו כל תוסף היה גורם להורדה מכל כתובת, בלי הרשאת רשת.
+  /// https בלבד: המניפסט שמוצג בדיאלוג ההרשאות מגיע מתוך הארכיון, ולכן
+  /// MITM על http היה מציג מניפסט תמים ומתקין ארכיון אחר.
+  static bool isStoreDownloadUri(Uri uri) =>
+      uri.scheme == 'https' && _storeHosts.contains(uri.host.toLowerCase());
+
   /// גרסה שהשרת מקבל: X[.Y[.Z[.W]]] עם סיומת prerelease/build אופציונלית.
   static final _appVersionPattern = RegExp(
     r'^\d+(?:\.\d+){0,3}(?:[-+][A-Za-z0-9.]+)?$',

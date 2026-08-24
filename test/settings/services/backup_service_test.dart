@@ -509,6 +509,73 @@ void main() {
       expect(backupJson['plugins'], isEmpty);
     });
 
+    // ה-plugin_id מגיע מקובץ הגיבוי ומרכיב נתיב שנמחק ב-recursive; `..` היה
+    // מוחק את תיקיית האב של תיקיות התוספים.
+    test('שחזור דוחה plugin_id זדוני ואינו מוחק תיקייה שרירותית', () async {
+      const pluginId = 'evil.plugin';
+      await installTestPlugin(pluginId);
+      final backup = await createPluginsBackup();
+
+      final dataRoot = Directory(
+        p.dirname(await AppPaths.getPluginDataPath(pluginId)),
+      );
+      final bystander = File(p.join(dataRoot.path, 'bystander.txt'))
+        ..writeAsStringSync('חייב לשרוד');
+
+      final json =
+          jsonDecode(await File(backup.path).readAsString())
+              as Map<String, dynamic>;
+      final entry = (json['plugins'] as List).single as Map<String, dynamic>;
+      (entry['installation'] as Map)['plugin_id'] = '..';
+      await File(backup.path).writeAsString(jsonEncode(json));
+
+      final result = await BackupService.restoreFromBackup(backup.path);
+
+      expect(bystander.existsSync(), isTrue);
+      expect(bystander.readAsStringSync(), 'חייב לשרוד');
+      expect(dataRoot.existsSync(), isTrue);
+      expect(result.skippedSections, contains('plugins'));
+    });
+
+    test('גיבוי אינו עוקב אחרי symlink בתיקיית נתוני התוסף', () async {
+      const pluginId = 'link.plugin';
+      final paths = await installTestPlugin(pluginId);
+
+      final outside = Directory(p.join(tempDir.path, 'outside_secret'))
+        ..createSync(recursive: true);
+      File(p.join(outside.path, 'secret.txt')).writeAsStringSync('סוד');
+      try {
+        Link(p.join(paths.dataPath, 'leak')).createSync(outside.path);
+      } catch (_) {
+        markTestSkipped('יצירת symlink אינה נתמכת בסביבה זו');
+        return;
+      }
+
+      final backup = await createPluginsBackup();
+      final json =
+          jsonDecode(await File(backup.path).readAsString())
+              as Map<String, dynamic>;
+      final entry = (json['plugins'] as List).single as Map<String, dynamic>;
+      final data = (entry['data'] as Map).cast<String, dynamic>();
+
+      expect(data.keys, contains('state.bin'));
+      expect(data.keys.any((k) => k.contains('secret')), isFalse);
+    });
+
+    test('תוסף שחורג מתקרת הארכיון מדולג ומדווח כחלקי', () async {
+      await installTestPlugin('small.plugin');
+      BackupService.debugMaxPluginBytesOverride = 1; // כל תוסף חורג
+      addTearDown(() => BackupService.debugMaxPluginBytesOverride = null);
+
+      final backup = await createPluginsBackup();
+
+      expect(backup.skipped, contains('plugins'));
+      final json =
+          jsonDecode(await File(backup.path).readAsString())
+              as Map<String, dynamic>;
+      expect(json['plugins'], isEmpty);
+    });
+
     test(
       'שחזור מוחק הרשאות ו-KV שאינם בגיבוי (restore נאמן, לא merge)',
       () async {

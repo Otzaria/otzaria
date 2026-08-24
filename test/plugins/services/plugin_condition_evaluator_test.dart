@@ -13,6 +13,22 @@ class _FakeRepo implements PluginRegistryRepository {
   Future<String?> getKV(String pluginId, String namespace, String key) async =>
       kv['$pluginId|$namespace|$key'];
 
+  int bulkCalls = 0;
+
+  @override
+  Future<Map<String, String>> getKVMany(
+    String pluginId,
+    String namespace,
+    Iterable<String> keys,
+  ) async {
+    bulkCalls++;
+    return {
+      for (final key in keys)
+        if (kv['$pluginId|$namespace|$key'] != null)
+          key: kv['$pluginId|$namespace|$key']!,
+    };
+  }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -110,9 +126,90 @@ void main() {
       );
     });
 
-    test('notifySettingsChanged מודיע למאזינים', () {
+    test('notifySettingsChanged מודיע למאזינים ומקדם את גרסת ההגדרות', () {
       evaluator.notifySettingsChanged();
       expect(notifications, 1);
+      expect(evaluator.settingsRevision.value, 1);
+    });
+
+    test('greaterThan משווה מספרית בלבד', () {
+      settings[SettingsRepository.keyFontSize] = 25.0;
+      final condition = _when({
+        'setting': {'key': SettingsRepository.keyFontSize, 'greaterThan': 20},
+      });
+
+      expect(evaluator.evaluate('p1', condition), isTrue);
+
+      settings[SettingsRepository.keyFontSize] = 20;
+      expect(
+        evaluator.evaluate('p1', condition),
+        isFalse,
+        reason: 'שווה אינו גדול',
+      );
+      settings[SettingsRepository.keyFontSize] = 'ענק';
+      expect(evaluator.evaluate('p1', condition), isFalse);
+    });
+  });
+
+  group('contains', () {
+    test('מחרוזת מוערכת כתת-מחרוזת', () async {
+      repo.kv['p1|default|tags'] = jsonEncode('שבת ומועד');
+      await evaluator.registerStorageKeys('p1', {'tags'}, repo);
+
+      expect(
+        evaluator.evaluate(
+          'p1',
+          _when({
+            'storage': {'key': 'tags', 'contains': 'מועד'},
+          }),
+        ),
+        isTrue,
+      );
+      expect(
+        evaluator.evaluate(
+          'p1',
+          _when({
+            'storage': {'key': 'tags', 'contains': 'חול'},
+          }),
+        ),
+        isFalse,
+      );
+    });
+
+    test('רשימה מוערכת לפי איבר', () async {
+      repo.kv['p1|default|books'] = jsonEncode(['ברכות', 'שבת']);
+      await evaluator.registerStorageKeys('p1', {'books'}, repo);
+
+      expect(
+        evaluator.evaluate(
+          'p1',
+          _when({
+            'storage': {'key': 'books', 'contains': 'שבת'},
+          }),
+        ),
+        isTrue,
+      );
+      expect(
+        evaluator.evaluate(
+          'p1',
+          _when({
+            'storage': {'key': 'books', 'contains': 'עירובין'},
+          }),
+        ),
+        isFalse,
+      );
+    });
+
+    test('מפתח חסר או ערך שאינו מכיל מוערך כ-false', () {
+      expect(
+        evaluator.evaluate(
+          'p1',
+          _when({
+            'storage': {'key': 'missing', 'contains': 'x'},
+          }),
+        ),
+        isFalse,
+      );
     });
   });
 
@@ -128,6 +225,55 @@ void main() {
           'p1',
           _when({
             'storage': {'key': 'showButton', 'equals': 'yes'},
+          }),
+        ),
+        isTrue,
+      );
+    });
+
+    test('כל המפתחות נטענים בקריאה מרוכזת אחת', () async {
+      for (var i = 0; i < 12; i++) {
+        repo.kv['p1|default|k$i'] = jsonEncode(i);
+      }
+
+      await evaluator.registerStorageKeys(
+        'p1',
+        {for (var i = 0; i < 12; i++) 'k$i', 'missing'},
+        repo,
+      );
+
+      expect(repo.bulkCalls, 1);
+      expect(
+        evaluator.evaluate(
+          'p1',
+          _when({
+            'storage': {'key': 'k11', 'equals': 11},
+          }),
+        ),
+        isTrue,
+      );
+      expect(
+        evaluator.evaluate(
+          'p1',
+          _when({
+            'storage': {'key': 'missing', 'exists': false},
+          }),
+        ),
+        isTrue,
+        reason: 'מפתח חסר מדולג ואינו נשמר כ-null קיים',
+      );
+    });
+
+    test('ערך KV שאינו JSON תקין נשמר כמחרוזת גולמית', () async {
+      repo.kv['p1|default|raw'] = 'לא JSON';
+
+      await evaluator.registerStorageKeys('p1', {'raw'}, repo);
+
+      expect(
+        evaluator.evaluate(
+          'p1',
+          _when({
+            'storage': {'key': 'raw', 'equals': 'לא JSON'},
           }),
         ),
         isTrue,

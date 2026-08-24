@@ -298,6 +298,7 @@ abstract class CalendarPluginSource {
     List<CustomEvent> existingEvents, {
     String? currentWorkspaceId,
     String? currentBookId,
+    String? currentBookUid,
   });
 }
 
@@ -310,10 +311,12 @@ class _DefaultPluginSource implements CalendarPluginSource {
     List<CustomEvent> existingEvents, {
     String? currentWorkspaceId,
     String? currentBookId,
+    String? currentBookUid,
   }) => PluginCalendarAdapter().loadAndMergePluginEvents(
     existingEvents,
     currentWorkspaceId: currentWorkspaceId,
     currentBookId: currentBookId,
+    currentBookUid: currentBookUid,
   );
 }
 
@@ -480,9 +483,11 @@ class CalendarCubit extends Cubit<CalendarState> {
   /// מה-DB לאחר upsert / remove.
   ///
   /// [currentWorkspaceId] / [currentBookId] — לסינון workspace/book scope.
+  /// [currentBookUid] — המזהה היציב, שמאפשר scope מסוג `book:<uid>`.
   Future<void> refreshPluginEvents({
     String? currentWorkspaceId,
     String? currentBookId,
+    String? currentBookUid,
   }) async {
     // בולע קריאות ישנות: רק הקריאה האחרונה שמסיימת מורשית ל-emit.
     final generation = ++_pluginRefreshGeneration;
@@ -491,6 +496,7 @@ class CalendarCubit extends Cubit<CalendarState> {
       [],
       currentWorkspaceId: currentWorkspaceId,
       currentBookId: currentBookId,
+      currentBookUid: currentBookUid,
     );
 
     if (isClosed || generation != _pluginRefreshGeneration) return;
@@ -1591,8 +1597,9 @@ class CalendarCubit extends Cubit<CalendarState> {
       eventTime: isAllDay
           ? null
           : TimeOfDay(hour: start.hour, minute: start.minute),
-      endGregorianDate: recurrenceType == RecurrenceType.none
-          ? endDate
+      endGregorianDate: endDate,
+      recurrenceEndDate: recurrenceType == RecurrenceType.none
+          ? null
           : _parseGoogleRecurrenceEnd(recurrenceRule),
       endTime: isAllDay || rawEnd == null
           ? null
@@ -1628,9 +1635,7 @@ class CalendarCubit extends Cubit<CalendarState> {
     final baseDate = event.baseGregorianDate;
     final startDate = DateTime(baseDate.year, baseDate.month, baseDate.day);
     final isTimed = event.eventTime != null;
-    final lastDay =
-        event.recurrenceType == RecurrenceType.none &&
-            event.endGregorianDate != null
+    final lastDay = event.endGregorianDate != null
         ? DateTime(
             event.endGregorianDate!.year,
             event.endGregorianDate!.month,
@@ -1752,7 +1757,7 @@ class CalendarCubit extends Cubit<CalendarState> {
     }
 
     final recurrenceEnd =
-        event.endGregorianDate ??
+        event.recurrenceEndDate ??
         (event.recurringYears != null && event.recurringYears! > 0
             ? DateTime(
                 event.baseGregorianDate.year + event.recurringYears!,
@@ -1795,6 +1800,7 @@ class CalendarCubit extends Cubit<CalendarState> {
     int? recurringYears,
     TimeOfDay? eventTime,
     DateTime? endGregorianDate,
+    DateTime? recurrenceEndDate,
     TimeOfDay? endTime,
     int? colorIndex,
     int? notificationMinutes,
@@ -1821,6 +1827,13 @@ class CalendarCubit extends Cubit<CalendarState> {
               endGregorianDate.year,
               endGregorianDate.month,
               endGregorianDate.day,
+            )
+          : null,
+      recurrenceEndDate: recurrenceEndDate != null
+          ? DateTime(
+              recurrenceEndDate.year,
+              recurrenceEndDate.month,
+              recurrenceEndDate.day,
             )
           : null,
       endTime: endTime,
@@ -1876,72 +1889,8 @@ class CalendarCubit extends Cubit<CalendarState> {
   }
 
   List<CustomEvent> eventsForDate(DateTime date) {
-    final jd = JewishDate.fromDateTime(date);
-    final gY = date.year, gM = date.month, gD = date.day;
-    final hY = jd.getJewishYear(),
-        hM = jd.getJewishMonth(),
-        hD = jd.getJewishDayOfMonth();
-    final gWeekday = date.weekday;
-
-    return state.events.where((e) {
-      if (e.recurrenceType != RecurrenceType.none) {
-        final current = DateTime(gY, gM, gD);
-        final recurrenceEnd = e.endGregorianDate;
-        if (current.isBefore(e.baseGregorianDate) ||
-            (recurrenceEnd != null && current.isAfter(recurrenceEnd))) {
-          return false;
-        }
-        // בדוק אם האירוע החוזר עדיין בתוקף
-        if (e.recurringYears != null && e.recurringYears! > 0) {
-          bool expired = false;
-          if (e.recurrenceType == RecurrenceType.annualHebrew ||
-              e.recurrenceType == RecurrenceType.monthlyHebrew) {
-            if (hY >= e.baseJewishYear + e.recurringYears!) {
-              expired = true;
-            }
-          } else {
-            // Gregorian based (Weekly, MonthlyGregorian, AnnualGregorian)
-            if (gY >= e.baseGregorianDate.year + e.recurringYears!) {
-              expired = true;
-            }
-          }
-          if (expired) return false;
-        }
-
-        // בדיקת התאמה לפי סוג החזרה
-        switch (e.recurrenceType) {
-          case RecurrenceType.weekly:
-            return e.baseGregorianDate.weekday == gWeekday;
-          case RecurrenceType.monthlyHebrew:
-            return e.baseJewishDay == hD;
-          case RecurrenceType.monthlyGregorian:
-            return e.baseGregorianDate.day == gD;
-          case RecurrenceType.annualHebrew:
-            return e.baseJewishMonth == hM && e.baseJewishDay == hD;
-          case RecurrenceType.annualGregorian:
-            return e.baseGregorianDate.month == gM &&
-                e.baseGregorianDate.day == gD;
-          case RecurrenceType.none:
-            return false;
-        }
-      } else {
-        // אירוע חד-פעמי — מוצג בכל יום שבטווח [התחלה, סיום]
-        final start = DateTime(
-          e.baseGregorianDate.year,
-          e.baseGregorianDate.month,
-          e.baseGregorianDate.day,
-        );
-        final end = e.endGregorianDate != null
-            ? DateTime(
-                e.endGregorianDate!.year,
-                e.endGregorianDate!.month,
-                e.endGregorianDate!.day,
-              )
-            : start;
-        final current = DateTime(gY, gM, gD);
-        return !current.isBefore(start) && !current.isAfter(end);
-      }
-    }).toList()..sort(compareCalendarEventsByTime);
+    return state.events.where((e) => e.occursOn(date)).toList()
+      ..sort(compareCalendarEventsByTime);
   }
 
   List<CustomEvent> getFilteredEvents(String query) {
@@ -2255,6 +2204,18 @@ enum RecurrenceType {
   annualGregorian,
 }
 
+/// אורך המחזור המזערי בימים לכל סוג חזרה — טווח אירוע חוזר חייב להיות קצר ממנו.
+int minRecurrencePeriodDays(RecurrenceType type) {
+  return switch (type) {
+    RecurrenceType.weekly => 7,
+    RecurrenceType.monthlyGregorian => 28,
+    RecurrenceType.monthlyHebrew => 29,
+    RecurrenceType.annualGregorian => 365,
+    RecurrenceType.annualHebrew => 353,
+    RecurrenceType.none => 0,
+  };
+}
+
 /// ממיין אירועים בתוך יום אחד: אירועים ללא שעה תחילה, אחריהם לפי שעה עולה,
 /// ולבסוף לפי כותרת כשובר-שוויון.
 int compareCalendarEventsByTime(CustomEvent a, CustomEvent b) {
@@ -2299,8 +2260,11 @@ class CustomEvent extends Equatable {
   final int? recurringYears; // כמה שנים האירוע יחזור
   final String? googleEventId;
   final TimeOfDay? eventTime; // שעת האירוע (אופציונלי)
-  /// תאריך הסיום: סוף טווח באירוע חד-פעמי, או מועד הפסקת החזרה באירוע חוזר.
+  /// סוף טווח הימים של האירוע (המופע הראשון באירוע חוזר). null = יום אחד.
   final DateTime? endGregorianDate;
+
+  /// מועד הפסקת החזרה (UNTIL) באירוע חוזר; null = לפי recurringYears או לתמיד.
+  final DateTime? recurrenceEndDate;
   final TimeOfDay? endTime;
   final String? googleColorId;
   final int? inheritedColorIndex;
@@ -2316,6 +2280,66 @@ class CustomEvent extends Equatable {
       recurrenceType == RecurrenceType.annualHebrew ||
       recurrenceType == RecurrenceType.monthlyHebrew;
 
+  static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  /// האם האירוע חל בתאריך הנתון — כולל טווח רב-יומי, חזרתיות וסוף חזרה.
+  bool occursOn(DateTime date) {
+    final current = _dateOnly(date);
+    final start = _dateOnly(baseGregorianDate);
+    final durationDays = endGregorianDate == null
+        ? 0
+        : _dateOnly(endGregorianDate!).difference(start).inDays.clamp(0, 366);
+
+    if (recurrenceType == RecurrenceType.none) {
+      return !current.isBefore(start) &&
+          current.difference(start).inDays <= durationDays;
+    }
+
+    if (current.isBefore(start)) return false;
+    // מחפשים תחילת מופע שהתאריך הנוכחי בתוך טווח הימים שלו.
+    for (var back = 0; back <= durationDays; back++) {
+      final day = current.subtract(Duration(days: back));
+      if (day.isBefore(start)) break;
+      if (_isOccurrenceStart(day) && _occurrenceInEffect(day)) return true;
+    }
+    return false;
+  }
+
+  bool _isOccurrenceStart(DateTime day) {
+    switch (recurrenceType) {
+      case RecurrenceType.weekly:
+        return day.weekday == baseGregorianDate.weekday;
+      case RecurrenceType.monthlyGregorian:
+        return day.day == baseGregorianDate.day;
+      case RecurrenceType.annualGregorian:
+        return day.month == baseGregorianDate.month &&
+            day.day == baseGregorianDate.day;
+      case RecurrenceType.monthlyHebrew:
+        return JewishDate.fromDateTime(day).getJewishDayOfMonth() ==
+            baseJewishDay;
+      case RecurrenceType.annualHebrew:
+        final jd = JewishDate.fromDateTime(day);
+        return jd.getJewishMonth() == baseJewishMonth &&
+            jd.getJewishDayOfMonth() == baseJewishDay;
+      case RecurrenceType.none:
+        return false;
+    }
+  }
+
+  bool _occurrenceInEffect(DateTime occurrenceStart) {
+    if (recurrenceEndDate != null &&
+        occurrenceStart.isAfter(_dateOnly(recurrenceEndDate!))) {
+      return false;
+    }
+    final years = recurringYears;
+    if (years == null || years <= 0) return true;
+    if (recurOnHebrew) {
+      return JewishDate.fromDateTime(occurrenceStart).getJewishYear() <
+          baseJewishYear + years;
+    }
+    return occurrenceStart.year < baseGregorianDate.year + years;
+  }
+
   const CustomEvent({
     required this.id,
     required this.title,
@@ -2330,6 +2354,7 @@ class CustomEvent extends Equatable {
     this.googleEventId,
     this.eventTime,
     this.endGregorianDate,
+    this.recurrenceEndDate,
     this.endTime,
     this.googleColorId,
     this.inheritedColorIndex,
@@ -2348,11 +2373,12 @@ class CustomEvent extends Equatable {
     int? baseJewishMonth,
     int? baseJewishDay,
     RecurrenceType? recurrenceType,
-    int? recurringYears,
+    ValueGetter<int?>? recurringYears,
     String? googleEventId,
     ValueGetter<TimeOfDay?>? eventTime,
     // עטוף ב-ValueGetter כדי לאפשר איפוס מפורש ל-null (לביטול טווח)
     ValueGetter<DateTime?>? endGregorianDate,
+    ValueGetter<DateTime?>? recurrenceEndDate,
     ValueGetter<TimeOfDay?>? endTime,
     ValueGetter<String?>? googleColorId,
     ValueGetter<int?>? inheritedColorIndex,
@@ -2370,12 +2396,17 @@ class CustomEvent extends Equatable {
       baseJewishMonth: baseJewishMonth ?? this.baseJewishMonth,
       baseJewishDay: baseJewishDay ?? this.baseJewishDay,
       recurrenceType: recurrenceType ?? this.recurrenceType,
-      recurringYears: recurringYears ?? this.recurringYears,
+      recurringYears: recurringYears != null
+          ? recurringYears()
+          : this.recurringYears,
       googleEventId: googleEventId ?? this.googleEventId,
       eventTime: eventTime != null ? eventTime() : this.eventTime,
       endGregorianDate: endGregorianDate != null
           ? endGregorianDate()
           : this.endGregorianDate,
+      recurrenceEndDate: recurrenceEndDate != null
+          ? recurrenceEndDate()
+          : this.recurrenceEndDate,
       endTime: endTime != null ? endTime() : this.endTime,
       googleColorId: googleColorId != null
           ? googleColorId()
@@ -2406,6 +2437,7 @@ class CustomEvent extends Equatable {
           ? {'hour': eventTime!.hour, 'minute': eventTime!.minute}
           : null,
       'endGregorianDate': endGregorianDate?.millisecondsSinceEpoch,
+      'recurrenceEndDate': recurrenceEndDate?.millisecondsSinceEpoch,
       'endTime': endTime != null
           ? {'hour': endTime!.hour, 'minute': endTime!.minute}
           : null,
@@ -2444,6 +2476,31 @@ class CustomEvent extends Equatable {
     }
 
     final endMillis = json['endGregorianDate'] as int?;
+    DateTime? endGregorianDate = endMillis != null
+        ? DateTime.fromMillisecondsSinceEpoch(endMillis)
+        : null;
+    final recurrenceEndMillis = json['recurrenceEndDate'] as int?;
+    DateTime? recurrenceEndDate = recurrenceEndMillis != null
+        ? DateTime.fromMillisecondsSinceEpoch(recurrenceEndMillis)
+        : null;
+    // הגירה מפורמט ישן שבו endGregorianDate שימש כסוף החזרה באירוע חוזר.
+    // טווח קצר מהמחזור נועד כמשך האירוע ולכן נשאר כטווח.
+    if (!json.containsKey('recurrenceEndDate') &&
+        type != RecurrenceType.none &&
+        endGregorianDate != null) {
+      final base = DateTime.fromMillisecondsSinceEpoch(
+        json['baseGregorianDate'] as int,
+      );
+      final span = DateTime(
+        endGregorianDate.year,
+        endGregorianDate.month,
+        endGregorianDate.day,
+      ).difference(DateTime(base.year, base.month, base.day)).inDays;
+      if (span >= minRecurrencePeriodDays(type)) {
+        recurrenceEndDate = endGregorianDate;
+        endGregorianDate = null;
+      }
+    }
     TimeOfDay? endTime;
     if (json['endTime'] case final Map<String, dynamic> timeMap) {
       endTime = TimeOfDay(
@@ -2467,9 +2524,8 @@ class CustomEvent extends Equatable {
       recurringYears: json['recurringYears'] as int?,
       googleEventId: json['googleEventId'] as String?,
       eventTime: eventTime,
-      endGregorianDate: endMillis != null
-          ? DateTime.fromMillisecondsSinceEpoch(endMillis)
-          : null,
+      endGregorianDate: endGregorianDate,
+      recurrenceEndDate: recurrenceEndDate,
       endTime: endTime,
       googleColorId: json['googleColorId'] as String?,
       inheritedColorIndex: json['inheritedColorIndex'] as int?,
@@ -2493,6 +2549,7 @@ class CustomEvent extends Equatable {
     googleEventId,
     eventTime,
     endGregorianDate,
+    recurrenceEndDate,
     endTime,
     googleColorId,
     inheritedColorIndex,
@@ -2773,6 +2830,7 @@ class _GoogleEventsMerger {
           baseJewishDay: mapped.baseJewishDay,
           googleEventId: googleId.isEmpty ? null : googleId,
           endGregorianDate: () => mapped.endGregorianDate,
+          recurrenceEndDate: () => mapped.recurrenceEndDate,
           eventTime: () => mapped.eventTime,
           endTime: () => mapped.endTime,
           colorIndex: () => mapped.colorIndex,

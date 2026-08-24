@@ -17,7 +17,9 @@ import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
 import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
 
 class AramaicDictionaryScreen extends StatefulWidget {
-  const AramaicDictionaryScreen({super.key});
+  const AramaicDictionaryScreen({super.key, this.repository});
+
+  final DictionaryLookupRepository? repository;
 
   @override
   State<AramaicDictionaryScreen> createState() =>
@@ -27,12 +29,12 @@ class AramaicDictionaryScreen extends StatefulWidget {
 class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
-  final DictionaryLookupRepository _dictionaryRepository =
-      DictionaryLookupRepository.instance;
+  late final DictionaryLookupRepository _dictionaryRepository =
+      widget.repository ?? DictionaryLookupRepository.instance;
   List<Map<String, String>> _dictionaryData = [];
   List<Map<String, String>> _filteredResults = [];
   bool _isLoading = true;
-  bool _isHebrewToAramaic = true;
+  bool _isHebrewToAramaic = false;
 
   @override
   void initState() {
@@ -127,11 +129,9 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
   }
 
   void _toggleDirection() {
-    setState(() {
-      _isHebrewToAramaic = !_isHebrewToAramaic;
-      _searchController.clear();
-      _filteredResults = [];
-    });
+    setState(() => _isHebrewToAramaic = !_isHebrewToAramaic);
+    _performSearch(_searchController.text);
+    _searchFocusNode.requestFocus();
   }
 
   @override

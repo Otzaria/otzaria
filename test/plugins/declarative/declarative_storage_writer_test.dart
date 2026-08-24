@@ -72,6 +72,17 @@ class _FakeRegistryRepository extends PluginRegistryRepository {
   }
 
   @override
+  Future<Map<String, String>> getKVMany(
+    String pluginId,
+    String namespace,
+    Iterable<String> keys,
+  ) async => {
+    for (final key in keys)
+      if (values['$pluginId/$namespace/$key'] != null)
+        key: values['$pluginId/$namespace/$key']!,
+  };
+
+  @override
   Future<void> setKV(
     String pluginId,
     String namespace,

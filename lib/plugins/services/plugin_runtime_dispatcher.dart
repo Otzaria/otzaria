@@ -68,6 +68,10 @@ class PluginRuntimeDispatcher {
   final Map<String, bool> _enabledCache = {};
   final Map<String, Map<String, bool?>> _permissionCache = {};
 
+  /// controllers שאירוע שידור פג להם הזמן — מודרים ממסירה עד לרישום מחדש
+  /// או להחייאה, כדי שמופע תקוע לא יעלה 3 שניות בכל אירוע.
+  final Set<InAppWebViewController> _eventTimedOutControllers = Set.identity();
+
   // ה-payload האחרון של theme.changed — תוסף מושהה לא מקבל את האירוע
   // (ה-WebView מוקפא), ולכן מסנכרנים אותו מחדש בהתעוררות.
   Map<String, dynamic>? _lastThemePayload;
@@ -188,6 +192,7 @@ class PluginRuntimeDispatcher {
       return;
     }
     _shutdownMode = _PluginRuntimeShutdownMode.idle;
+    _eventTimedOutControllers.remove(controller);
     // בקשת פוקוס ממתינה אינה מבוצעת כאן אלא ב-onForegroundInstanceReady:
     // העברת פוקוס ל-WebView שהדף בו עוד לא נטען מקדימה את ה-autofocus שלו.
     _instanceFor(pluginId, instanceId).controller = controller;
@@ -267,6 +272,9 @@ class PluginRuntimeDispatcher {
     final key = _keyOf(pluginId, instanceId);
     final instance = _instances[key];
     if (instance != null) {
+      if (instance.controller != null) {
+        _eventTimedOutControllers.remove(instance.controller);
+      }
       instance.controller = null;
       instance.suspended = false;
       instance.pendingKeyboardFocus = false;
@@ -449,6 +457,7 @@ class PluginRuntimeDispatcher {
       }
     }
     instance.suspended = false;
+    _eventTimedOutControllers.remove(controller);
     await _dispatchLifecycleEvent(controller, key.pluginId, 'plugin.resumed');
     await _resyncThemeOnResume(controller, key.pluginId);
     await _flushPendingKeyboardFocus(key);
@@ -643,32 +652,19 @@ class PluginRuntimeDispatcher {
     final jsonPayload = jsonEncode(payload);
     debugPrint('PluginRuntimeDispatcher: Dispatching $topic');
 
-    for (final pluginId in _instancesByPlugin.keys.toList(growable: false)) {
-      try {
-        // אירועי עבודה שייכים למופע הרקע, שאינו מושהה ביציאה ממסך
-        // העיון. theme הוא אירוע UI ולכן מעדיפים עבורו את הקדמיים.
-        final targetControllers = _selectEventControllers(
+    // מסירה מקבילית: WebView תקוע של תוסף אחד לא יחסום את המסירה לשאר.
+    // אירועי עבודה שייכים למופע הרקע (אינו מושהה ביציאה ממסך העיון); theme
+    // הוא אירוע UI ולכן מעדיפים עבורו את הקדמיים.
+    final preferBackground = _backgroundEventTopics.contains(topic);
+    await Future.wait([
+      for (final pluginId in _instancesByPlugin.keys.toList(growable: false))
+        _broadcastEventToPlugin(
           pluginId,
-          preferBackground: _backgroundEventTopics.contains(topic),
-        );
-        if (targetControllers.isEmpty) continue;
-        if (!await _canReceiveEvent(pluginId, topic)) continue;
-
-        _notifyBackgroundActivity(pluginId, targetControllers);
-        for (final controller in targetControllers) {
-          try {
-            await controller.evaluateJavascript(
-              source:
-                  "window.dispatchEvent(new CustomEvent('$topic', { detail: $jsonPayload }));",
-            );
-          } catch (e) {
-            debugPrint('Failed to dispatch $topic to plugin $pluginId: $e');
-          }
-        }
-      } catch (e) {
-        debugPrint('Failed to dispatch $topic to plugin $pluginId: $e');
-      }
-    }
+          topic,
+          jsonPayload,
+          preferBackground: preferBackground,
+        ),
+    ]);
 
     // הערה עצלה: תוסף עם contributes.startup שהצהיר על הנושא ואין לו מופע
     // שמסוגל לקבל אותו — מקבל מנוע רק עכשיו, כשהאירוע באמת קרה.
@@ -695,6 +691,68 @@ class PluginRuntimeDispatcher {
         return false;
       },
     );
+  }
+
+  /// מסירת אירוע שידור לתוסף בודד — מבודדת כך שכשל/timeout באחד לא יחסום
+  /// את השאר (הקוראת עוטפת ב-Future.wait).
+  Future<void> _broadcastEventToPlugin(
+    String pluginId,
+    String topic,
+    String jsonPayload, {
+    required bool preferBackground,
+  }) async {
+    try {
+      // בחירה לפני ה-await, סינון אחריו: כך מופע שנרשם בינתיים לא גונב את
+      // האירוע (הוא עדיין דף ריק), ומופע שבוטל רישומו לא מקבל אותו.
+      final targets = _selectEventTargets(
+        pluginId,
+        preferBackground: preferBackground,
+      );
+      if (targets.isEmpty) return;
+      if (!await _canReceiveEvent(pluginId, topic)) return;
+      final targetControllers = [
+        for (final target in targets)
+          if (ownsController(
+            pluginId,
+            target.controller,
+            instanceId: target.instanceId,
+          ))
+            target.controller,
+      ];
+      if (targetControllers.isEmpty) return;
+      _notifyBackgroundActivity(pluginId, targetControllers);
+      await Future.wait([
+        for (final controller in targetControllers)
+          _evalEvent(controller, pluginId, topic, jsonPayload),
+      ]);
+    } catch (e) {
+      debugPrint('Failed to dispatch $topic to plugin $pluginId: $e');
+    }
+  }
+
+  /// משגר CustomEvent ל-WebView בודד עם timeout — WebView תקוע לא מקפיא את
+  /// הקוראת (ראו _dispatchLifecycleEvent).
+  Future<void> _evalEvent(
+    InAppWebViewController controller,
+    String pluginId,
+    String topic,
+    String jsonPayload,
+  ) async {
+    try {
+      await controller
+          .evaluateJavascript(
+            source:
+                "window.dispatchEvent(new CustomEvent('$topic', { detail: $jsonPayload }));",
+          )
+          .timeout(const Duration(seconds: 3));
+    } on TimeoutException catch (e) {
+      // בלי הסימון כל שידור הבא היה משלם שוב 3 שניות על אותו מופע תקוע,
+      // וזרם אירועי הקריאה היה נחנק לאירוע אחד ל-3 שניות.
+      _eventTimedOutControllers.add(controller);
+      debugPrint('Timed out dispatching $topic to plugin $pluginId: $e');
+    } catch (e) {
+      debugPrint('Failed to dispatch $topic to plugin $pluginId: $e');
+    }
   }
 
   /// שולח event לפלאגין ספציפי בלבד (ללא בדיקת הרשאת subscribe).
@@ -829,10 +887,12 @@ class PluginRuntimeDispatcher {
         return;
       }
       _notifyBackgroundActivity(pluginId, [controller]);
-      await controller.evaluateJavascript(
-        source:
-            "window.dispatchEvent(new CustomEvent('$topic', { detail: $jsonPayload }));",
-      );
+      await controller
+          .evaluateJavascript(
+            source:
+                "window.dispatchEvent(new CustomEvent('$topic', { detail: $jsonPayload }));",
+          )
+          .timeout(const Duration(seconds: 3));
     } catch (e) {
       debugPrint('Failed to dispatch $topic to plugin $pluginId: $e');
     }
@@ -974,27 +1034,39 @@ class PluginRuntimeDispatcher {
   /// שלו ומחזיק אותו חי לנצח). הרקע נבחר רק כשהנושא מועדף-רקע
   /// ([preferBackground]) או כשאין שום מופע קדמי שמיש. `evaluateJavascript`
   /// על WebView מוקפא נבלע בשקט, ולכן מופע מושהה הוא יעד אחרון בלבד.
-  List<InAppWebViewController> _selectEventControllers(
+  List<_EventTarget> _selectEventTargets(
     String pluginId, {
     bool preferBackground = false,
   }) {
     final keys = _instancesByPlugin[pluginId] ?? const <PluginInstanceKey>{};
-    InAppWebViewController? background;
-    final active = <InAppWebViewController>[];
-    final suspended = <InAppWebViewController>[];
+    _EventTarget? background;
+    final active = <_EventTarget>[];
+    final suspended = <_EventTarget>[];
     for (final key in keys) {
       final instance = _instances[key];
       final controller = instance?.controller;
       if (instance == null || controller == null) continue;
+      // מופע שאירוע קודם פג לו הזמן — כל שידור אליו עולה 3 שניות, ולכן הוא
+      // מודר עד לרישום/החייאה הבאים.
+      if (_eventTimedOutControllers.contains(controller)) continue;
+      final target = _EventTarget(key.instanceId, controller);
       if (instance.isBackground) {
-        background = controller;
+        background = target;
         continue;
       }
-      (instance.suspended ? suspended : active).add(controller);
+      (instance.suspended ? suspended : active).add(target);
     }
     if (preferBackground && background != null) return [background];
     if (active.isNotEmpty) return active;
     if (background != null) return [background];
     return suspended;
   }
+}
+
+/// יעד מסירה בודד — ה-instanceId נשמר כדי לאמת אחרי await שהמופע עדיין
+/// מחזיק באותו controller.
+class _EventTarget {
+  const _EventTarget(this.instanceId, this.controller);
+  final PluginInstanceId instanceId;
+  final InAppWebViewController controller;
 }

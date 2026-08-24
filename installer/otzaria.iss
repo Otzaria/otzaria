@@ -58,6 +58,9 @@ CreateUninstallRegKey=not IsPortableInstall
 ChangesEnvironment=yes
 ; לוג אוטומטי ל-%TEMP% של המשתמש המריץ — חיוני לאבחון עדכונים שקטים שנכשלים בשטח.
 SetupLogging=yes
+; בלי זה בחירת המשימות נשמרת ברישום — "איפוס הגדרות" שסומן פעם היה
+; רץ שוב בכל שדרוג שקט ומוחק את נתוני המשתמש (issue #941).
+UsePreviousTasks=no
 
 [InstallDelete]
 ; ניקוי מסד הנתונים הישן של Isar שהוחלף על ידי hive_ce — מחיקה מכוונת בעת שדרוג.
@@ -1154,6 +1157,17 @@ begin
   RemoveStaleScopeRegistration(HKLM32);
 end;
 
+// איפוס הרסני לא רץ בשדרוג שקט מבחירה שנשמרה ברישום (issue #941) —
+// בריצה שקטה הוא דורש /TASKS או /MERGETASKS מפורש בשורת הפקודה.
+function ShouldResetSettings(): Boolean;
+begin
+  Result := WizardIsTaskSelected('resetsettings');
+  if Result and WizardSilent then
+    Result := Pos('resetsettings',
+      Lowercase(ExpandConstant('{param:TASKS|}') + ' ' +
+                ExpandConstant('{param:MERGETASKS|}'))) > 0;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   AppDataPath: string;
@@ -1184,7 +1198,7 @@ begin
   if FileExists(ErrorLogPath) then
     DeleteFile(ErrorLogPath);
 
-  if WizardIsTaskSelected('resetsettings') then
+  if ShouldResetSettings() then
   begin
     // נקרא לפני מחיקת ה-prefs — מגן על ספרייה מותאמת שיושבת בתוך נתיב נמחק.
     ProtectedLibraryPath := RemoveBackslash(GetCustomLibraryPath());

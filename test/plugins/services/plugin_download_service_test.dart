@@ -153,6 +153,47 @@ void main() {
       expect(await File(path).readAsString(), 'latest-bytes');
     });
 
+    test('storeOnly חוסם redirect מהחנות אל מארח זר', () async {
+      final service = serviceReturning([
+        http.Response(
+          '',
+          302,
+          headers: {'location': 'https://evil.example.com/p.otzplugin'},
+        ),
+        http.Response('evil-bytes', 200),
+      ]);
+
+      await expectLater(
+        service.downloadPluginArchive(
+          Uri.parse('https://otzaria.org/api/plugins/abc/download'),
+          storeOnly: true,
+        ),
+        throwsA(isA<Exception>()),
+      );
+      // הבקשה השנייה לא נשלחה כלל — היעד נפסל לפני היציאה לרשת.
+      expect(requested, hasLength(1));
+    });
+
+    test('storeOnly עוקב אחרי redirect שנשאר בחנות', () async {
+      final service = serviceReturning([
+        http.Response(
+          '',
+          302,
+          headers: {'location': 'https://www.otzaria.org/files/p.otzplugin'},
+        ),
+        http.Response('archive-bytes', 200),
+      ]);
+
+      final path = await service.downloadPluginArchive(
+        Uri.parse('https://otzaria.org/api/plugins/abc/download'),
+        storeOnly: true,
+      );
+      addTearDown(() => service.cleanupDownloadedArchive(path));
+
+      expect(requested, hasLength(2));
+      expect(await File(path).readAsString(), 'archive-bytes');
+    });
+
     test('does not retry when no app version was added', () async {
       final service = serviceReturning([http.Response('missing', 404)]);
 

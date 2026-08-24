@@ -16,6 +16,10 @@ class PluginPackageResult {
 
   /// מספר הקבצים שהוחרגו ע"י `.otzignore` (0 אם אין קובץ כזה).
   final int excludedCount;
+
+  /// קבצי המטא-דאטה שהוחרגו (‎*.md‎, LICENSE, dotfiles, ‎screenshots/‎...) ולא
+  /// הוחזרו ע"י שורת `!` ב-`.otzignore`.
+  final List<String> excludedMetadata;
   final int bytes;
   final PluginManifest manifest;
   final PluginValidationReport validation;
@@ -24,6 +28,7 @@ class PluginPackageResult {
     required this.outputPath,
     required this.fileCount,
     this.excludedCount = 0,
+    this.excludedMetadata = const <String>[],
     required this.bytes,
     required this.manifest,
     required this.validation,
@@ -128,63 +133,82 @@ class PluginPackager {
       '.claude',
     };
 
-    // בדיקת תקינות: ה-entrypoint לא יכול לשבת בתוך תיקייה מוחרגת —
-    // אחרת הקובץ לא ייכלל ב-.otzplugin והפלאגין יישבר בשקט.
-    // resolve מוחלט ואז relative מבטיח טיפול נכון בנתיבים כמו ./node_modules/...
-    // חשוב: בדיקה זו רצה לפני יצירת תיקיות הפלט, כדי שלא ישארו תיקיות ריקות
-    // בדיסק אם הבדיקה נכשלת.
-    final entrypointRelativePath = p.relative(
-      p.normalize(p.absolute(p.join(dir.path, manifest.entrypoint))),
-      from: dir.path,
-    );
-    final blockedDir = p
-        .split(entrypointRelativePath)
-        .where(skipDirs.contains)
-        .firstOrNull;
-    if (blockedDir != null) {
-      throw PluginPackagerException(
-        'קובץ הכניסה "${manifest.entrypoint}" נמצא בתוך תיקייה מוחרגת מאריזה '
-        '("$blockedDir"). העבר את ה-entrypoint מחוץ לתיקיות: '
-        '${skipDirs.join(', ')}',
-      );
+    // תיקיות מטא-דאטה של המאגר שאינן חלק מהתוסף (הגדרות CI, צילומי מסך לחנות)
+    // וכל תיקייה נסתרת. מוחרגות מעבר ל-skipDirs. חייב להישאר זהה ל-knownApi.js
+    // (isMetadataDir) בוולידטור כדי ששתי הסביבות יפיקו אותו ארכיון בדיוק.
+    bool isMetadataDir(String base) {
+      if (base == '.' || base == '..') return false;
+      return base == '.github' || base == 'screenshots' || base.startsWith('.');
+    }
+
+    // קבצי מטא-דאטה שאינם נכס של התוסף (תיעוד, רישיונות, dotfiles, lockfiles).
+    // זהה ל-knownApi.js (isMetadataFile) בוולידטור.
+    bool isMetadataFile(String base) {
+      if (base.startsWith('.')) return true;
+      final lower = base.toLowerCase();
+      if (lower.endsWith('.md')) return true;
+      if (lower.startsWith('license') || lower.startsWith('licence')) {
+        return true;
+      }
+      return lower == 'package-lock.json' ||
+          lower == 'yarn.lock' ||
+          lower == 'pnpm-lock.yaml';
     }
 
     // קובץ החרגה אופציונלי (`.otzignore`) בשורש התוסף — מחריג קבצים נוספים
-    // מהארכיון. נטען כאן כדי לבדוק שה-entrypoint לא הוחרג בטעות (אחרת התוסף
-    // יישבר בשקט בדיוק כמו entrypoint בתוך תיקייה מוחרגת).
+    // מהארכיון, ושורת `!` מחזירה קובץ שהוחרג (כולל קובץ מטא-דאטה).
     final ignore = PluginIgnore.load(dir.path);
-    final entrypointForIgnore = entrypointRelativePath.replaceAll('\\', '/');
-    if (ignore.ignores(entrypointForIgnore)) {
+
+    // כלל אריזה יחיד: תיקיות פיתוח לעולם אינן נארזות, ומעליהן `!` מפורש
+    // ב-.otzignore גובר על החרגת מטא-דאטה (help.md, נכס מ-screenshots/...).
+    // מחזיר את סיבת ההחרגה, או null כשהקובץ נארז.
+    String? packBlockReason(String rel) {
+      final segments = p.split(rel);
+      for (var i = 0; i < segments.length - 1; i++) {
+        if (skipDirs.contains(segments[i])) {
+          return 'נמצא בתוך תיקייה מוחרגת מאריזה ("${segments[i]}")';
+        }
+      }
+      if (ignore.reIncludes(rel)) return null;
+      for (var i = 0; i < segments.length - 1; i++) {
+        if (isMetadataDir(segments[i])) {
+          return 'נמצא בתוך תיקייה מוחרגת מאריזה ("${segments[i]}")';
+        }
+      }
+      if (isMetadataFile(segments.last)) {
+        return 'מסווג כקובץ מטא-דאטה ולכן מוחרג מהאריזה';
+      }
+      if (ignore.ignores(rel)) return 'מוחרג ע"י $kOtzignoreFilename';
+      return null;
+    }
+
+    // בדיקת תקינות: ה-entrypoint (וקובץ הרקע) חייבים להיכלל בארכיון — אחרת
+    // התוסף יישבר בשקט אצל המשתמש.
+    // resolve מוחלט ואז relative מבטיח טיפול נכון בנתיבים כמו ./node_modules/...
+    // חשוב: בדיקה זו רצה לפני יצירת תיקיות הפלט, כדי שלא ישארו תיקיות ריקות
+    // בדיסק אם הבדיקה נכשלת.
+    String relOf(String declared) => p
+        .relative(
+          p.normalize(p.absolute(p.join(dir.path, declared))),
+          from: dir.path,
+        )
+        .replaceAll('\\', '/');
+
+    void assertPacked(String label, String declared) {
+      final rel = relOf(declared);
+      final reason = packBlockReason(rel);
+      if (reason == null) return;
       throw PluginPackagerException(
-        'קובץ הכניסה "${manifest.entrypoint}" מוחרג ע"י $kOtzignoreFilename. '
-        'הסר את הכלל שמתאים לו מ-$kOtzignoreFilename כדי שייכלל באריזה.',
+        '$label "$declared" $reason ולכן לא ייכלל ב-.otzplugin. '
+        'הוצא אותו מהתיקיות המוחרגות, או החזר אותו עם השורה "!$rel" '
+        'ב-$kOtzignoreFilename.',
       );
     }
 
-    // אותה בדיקה לקובץ הרקע (אם הוצהר) — אחרת תוסף רקע יישבר בשקט בעלייה.
+    assertPacked('קובץ הכניסה', manifest.entrypoint);
     final backgroundEntrypoint = manifest.backgroundEntrypoint;
     if (backgroundEntrypoint != null) {
-      final backgroundRelativePath = p.relative(
-        p.normalize(p.absolute(p.join(dir.path, backgroundEntrypoint))),
-        from: dir.path,
-      );
-      final blockedBackgroundDir = p
-          .split(backgroundRelativePath)
-          .where(skipDirs.contains)
-          .firstOrNull;
-      if (blockedBackgroundDir != null) {
-        throw PluginPackagerException(
-          'קובץ הרקע "$backgroundEntrypoint" נמצא בתוך תיקייה מוחרגת מאריזה '
-          '("$blockedBackgroundDir"). העבר אותו מחוץ לתיקיות: '
-          '${skipDirs.join(', ')}',
-        );
-      }
-      if (ignore.ignores(backgroundRelativePath.replaceAll('\\', '/'))) {
-        throw PluginPackagerException(
-          'קובץ הרקע "$backgroundEntrypoint" מוחרג ע"י $kOtzignoreFilename. '
-          'הסר את הכלל שמתאים לו מ-$kOtzignoreFilename כדי שייכלל באריזה.',
-        );
-      }
+      assertPacked('קובץ הרקע', backgroundEntrypoint);
     }
 
     final resolvedOutPath =
@@ -217,24 +241,35 @@ class PluginPackager {
     // ולא לבזבז זמן על סריקת תוכנן (node_modules יכולה להכיל עשרות אלפי קבצים).
     final filesToPack = <File>[];
     var excludedCount = 0;
-    void collectFiles(Directory currentDir) {
+    final excludedMetadata = <String>[];
+    void collectFiles(Directory currentDir, bool inMetadata) {
       for (final entity in currentDir.listSync(recursive: false)) {
         final base = p.basename(entity.path);
-        if (skipDirs.contains(base)) continue;
         final rel = p
             .relative(entity.path, from: dir.path)
             .replaceAll('\\', '/');
         if (entity is Directory) {
-          // גזימת תיקייה מוחרגת בשלמותה. מדלגים על הקיצור כשיש כללי `!`,
-          // כי ייתכן שקובץ-צאצא צריך להיכלל בכל זאת.
+          // תיקיות פיתוח לעולם אינן נארזות — זהה לכללי הוולידטור.
+          if (skipDirs.contains(base)) continue;
+          final meta = inMetadata || isMetadataDir(base);
+          // בלי כללי `!` שום דבר בתוך תיקיית מטא-דאטה לא יכול לחזור, אז גוזמים
+          // אותה — וכך גם תיקייה שהוחרגה במפורש.
+          if (meta && !ignore.hasNegation) continue;
           if (!ignore.hasNegation && ignore.ignores('$rel/')) continue;
-          collectFiles(entity);
+          collectFiles(entity, meta);
         } else if (entity is File) {
           // ה-.otzignore עצמו לעולם לא נארז.
           if (base == kOtzignoreFilename) continue;
           final entityAbs = p.normalize(p.absolute(entity.path));
           if (entityAbs == normalizedOutPath) continue;
-          if (ignore.ignores(rel)) {
+          // קובץ מטא-דאטה (dotfiles, *.md, LICENSE, lockfiles, screenshots/…)
+          // נארז רק אם שורת `!` ב-.otzignore מחזירה אותו במפורש.
+          if (inMetadata || isMetadataFile(base)) {
+            if (!ignore.reIncludes(rel)) {
+              excludedMetadata.add(rel);
+              continue;
+            }
+          } else if (ignore.ignores(rel)) {
             excludedCount++;
             continue;
           }
@@ -243,7 +278,15 @@ class PluginPackager {
       }
     }
 
-    collectFiles(dir);
+    collectFiles(dir, false);
+
+    if (excludedMetadata.isNotEmpty) {
+      onLog?.call(
+        '${excludedMetadata.length} קבצי מטא-דאטה הוחרגו: '
+        '${excludedMetadata.join(', ')} '
+        '(החזרה לארכיון: שורת "!<נתיב>" ב-$kOtzignoreFilename)',
+      );
+    }
 
     final encoder = ZipFileEncoder();
     encoder.create(resolvedOutPath);
@@ -265,6 +308,7 @@ class PluginPackager {
       outputPath: resolvedOutPath,
       fileCount: fileCount,
       excludedCount: excludedCount,
+      excludedMetadata: excludedMetadata,
       bytes: bytes,
       manifest: manifest,
       validation: report,

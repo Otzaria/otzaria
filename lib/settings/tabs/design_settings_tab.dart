@@ -109,8 +109,8 @@ class DesignSettingsTab extends StatelessWidget {
       id: 'design.pdf.talmud_bavli_format',
       title: 'פורמט פתיחת תלמוד בבלי',
       subtitle:
-          'פתיחת מסכתות הבבלי בטקסט או ב-PDF, '
-          'מהספרייה ומכל מקום אחר',
+          'פתיחת מסכתות הבבלי בטקסט או ב-PDF — '
+          'בספרייה, בתצוגה המקדימה ובכל מקום אחר',
       tab: SettingsTab.design,
       cardId: 'design.pdf',
       keywords: [
@@ -122,6 +122,7 @@ class DesignSettingsTab extends StatelessWidget {
         'טקסט',
         'מסכת',
         'ספרייה',
+        'תצוגה מקדימה',
       ],
     ),
     SettingsSearchEntry(
@@ -408,7 +409,8 @@ class DesignSettingsTab extends StatelessWidget {
                           icon: OtzariaIcons.book_pdf_24_regular,
                           subtitle: context.settingsText(
                             'מסכתות הבבלי ייפתחו במהדורת ה-PDF '
-                            'בדף המתאים, גם בפתיחה מהספרייה',
+                            'בדף המתאים, גם בפתיחה מהספרייה '
+                            'ובתצוגה המקדימה',
                           ),
                         ),
                       ],

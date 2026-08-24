@@ -25,14 +25,16 @@ class _CalendarPrintDialogState extends State<CalendarPrintDialog>
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    // שנה עברית מעוברת = 13 חודשים וטווח כולל (אייר–אייר) = 14, לכן שנתיים.
+    // שבועות: שנה מעוברת ארוכה = 385 ימים = 55 שבועות. ימים: שני חודשים מלאים.
     final (
       String periodName,
       String periodNamePlural,
       int maxCount,
     ) = switch (widget.calendarView) {
-      CalendarView.month => ('חודש', 'חודשים', 12),
-      CalendarView.week => ('שבוע', 'שבועות', 52),
-      CalendarView.day => ('יום', 'ימים', 30),
+      CalendarView.month => ('חודש', 'חודשים', 24),
+      CalendarView.week => ('שבוע', 'שבועות', 55),
+      CalendarView.day => ('יום', 'ימים', 62),
     };
 
     final dialog = AlertDialog(

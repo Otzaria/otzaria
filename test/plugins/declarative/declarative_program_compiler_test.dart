@@ -79,6 +79,25 @@ void main() {
       );
     });
 
+    test('settings.changed ו-app.startup נתמכים, גם יחד', () {
+      final program = _validProgram();
+      program['triggers'] = ['app.startup', 'settings.changed'];
+
+      final compiled = _compiler().compile(program);
+
+      expect(compiled.triggers, ['app.startup', 'settings.changed']);
+    });
+
+    test('reader.selectionChanged אינו נתמך', () {
+      final program = _validProgram();
+      program['triggers'] = ['reader.selectionChanged'];
+
+      expect(
+        () => _compiler().compile(program),
+        _throwsProgramError('declarative.invalid_trigger'),
+      );
+    });
+
     test('reference לפקודה עתידית נדחה', () {
       final program = _validProgram();
       (program['commands'] as List<dynamic>).insert(0, {

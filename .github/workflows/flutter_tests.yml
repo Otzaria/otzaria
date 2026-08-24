@@ -62,6 +62,11 @@ jobs:
       - name: Generate settings translation catalog
         run: dart run tool/generate_settings_l10n.dart
 
+      # מפרט ה-SDK לתוספים. --check נכשל אם spec.json שבדיסק מיושן, כדי
+      # שהוולידטורים החיצוניים לא יצרכו מפרט שאינו תואם את קוד האפליקציה.
+      - name: Check plugin SDK spec is fresh
+        run: dart run tool/plugins/generate_plugin_spec.dart --check
+
       # ה-trinity של CLAUDE.md: analyze + test (פורמט נבדק locally בlint).
       - name: Analyze
         run: flutter analyze

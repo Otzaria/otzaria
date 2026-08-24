@@ -748,7 +748,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
             baseJewishMonth: jd.getJewishMonth(),
             baseJewishDay: jd.getJewishDayOfMonth(),
             recurrenceType: result.recurrenceType,
-            recurringYears: result.recurringYears,
+            recurringYears: () => result.recurringYears,
             eventTime: () => result.eventTime,
             endTime: () => result.endTime,
             endGregorianDate: () => result.endGregorianDate,

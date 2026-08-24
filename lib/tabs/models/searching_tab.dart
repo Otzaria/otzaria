@@ -3,6 +3,7 @@ import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/models/external_search_status.dart';
 import 'package:otzaria/search/models/external_search_summary.dart';
+import 'package:otzaria/search/models/search_preview_target.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/search_query_builder.dart';
@@ -28,6 +29,10 @@ class SearchingTab extends OpenedTab {
   /// וספירות). נכתב ע"י מדור התוצאות החיצוני; null כשאין ספק פעיל.
   final ValueNotifier<ExternalSearchStatus?> externalSearchStatus =
       ValueNotifier(null);
+
+  /// התוצאה שמוצגת כרגע בתצוגה המקדימה (לחיצה אחת על תוצאה); null = סגורה.
+  /// מצב זמני של המסך — לא נשמר ב-JSON של הטאב.
+  final ValueNotifier<SearchPreviewTarget?> previewTarget = ValueNotifier(null);
 
   final ItemScrollController scrollController = ItemScrollController();
   List<Book> allBooks = [];
@@ -352,6 +357,7 @@ class SearchingTab extends OpenedTab {
     useGlobalNegativeSearchOptions.dispose();
     externalSearchSummary.dispose();
     externalSearchStatus.dispose();
+    previewTarget.dispose();
     // סגירת ה-bloc כדי למנוע דליפה
     searchBloc.close();
     super.dispose();

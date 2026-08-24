@@ -16,6 +16,7 @@ import 'package:otzaria/plugins/services/plugin_dev_loader_service.dart';
 import 'package:otzaria/plugins/services/plugin_dev_watch_service.dart';
 import 'package:otzaria/plugins/services/plugin_download_service.dart';
 import 'package:otzaria/plugins/services/plugin_external_search_service.dart';
+import 'package:otzaria/plugins/services/plugin_file_server.dart';
 import 'package:otzaria/plugins/services/plugin_in_book_search_service.dart';
 import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 import 'package:otzaria/plugins/declarative/services/declarative_plugin_host_service.dart';
@@ -24,6 +25,7 @@ import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/plugin_messages.dart';
@@ -38,6 +40,11 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
   final DeclarativePluginHost? declarativeHost;
   StreamSubscription<PluginDevFsChange>? _devWatchSub;
   StreamSubscription<TabsState>? _readerStateSub;
+
+  /// חתימת הקלט האחרון שסונכרן ל-declarativeHost. סנכרון מלא (קומפילציה מחדש
+  /// + שאילתות DB דקלרטיביות) יקר; רק שינוי בקלט שהוא נשען עליו מחייב אותו,
+  /// ולא פעולות זולות (נעיצה, סידור, showInTools) שגם הן גוררות LoadPlugins.
+  String? _lastDeclarativeSyncSignature;
 
   PluginSystemBloc({
     required this.repository,
@@ -133,7 +140,15 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
         plugins,
         repository,
       );
-      await declarativeHost?.syncPlugins(plugins);
+      if (declarativeHost != null) {
+        final signature = await _declarativeSyncSignature(plugins);
+        if (signature != _lastDeclarativeSyncSignature) {
+          // השמירה רק אחרי סנכרון מוצלח: כשל באמצע משאיר את הרישומים חסרים,
+          // וחתימה שמורה הייתה גורמת לכל LoadPlugins הבא לדלג על התיקון.
+          await declarativeHost!.syncPlugins(plugins);
+          _lastDeclarativeSyncSignature = signature;
+        }
+      }
       emit(PluginSystemLoaded(plugins));
     } catch (e) {
       emit(PluginSystemError(e.toString()));
@@ -150,6 +165,42 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
           ShortcutValidator.openPluginShortcutKey(p.pluginId):
               'פתיחת ${p.name}',
     });
+  }
+
+  /// חתימת הקלט ש-[DeclarativePluginHost.syncPlugins] נשען עליו: לכל תוסף
+  /// פעיל בעל `contributes.startup` — המניפסט כולו וההרשאות שהוענקו לו.
+  /// חותמים על המניפסט השלם ולא על שדות נבחרים, כי הקומפילציה נשענת גם על
+  /// permissions ו-databaseSources ועריכה שקטה שלהם הייתה מדלגת על הסנכרון.
+  Future<String> _declarativeSyncSignature(
+    List<InstalledPlugin> plugins,
+  ) async {
+    final parts = <String>[];
+    for (final plugin in plugins) {
+      if (!plugin.enabled) continue;
+      // אותו פרדיקט כמו ב-syncPlugins: startup ריק אך קיים עדיין נרשם.
+      if (plugin.manifest.startup == null) continue;
+      final granted = (await repository.getGrantedPermissionNames(
+        plugin.pluginId,
+      )).toList()..sort();
+      parts.add(
+        jsonEncode({
+          'id': plugin.pluginId,
+          'version': plugin.version,
+          'manifest': plugin.manifest.toJson(),
+          'granted': granted,
+        }),
+      );
+    }
+    parts.sort();
+    return parts.join('|');
+  }
+
+  /// מסיר את הרישומים הדקלרטיביים של תוסף ומאפס את החתימה — בלעדיה, שינוי
+  /// שאינו מהפך אותה (למשל setPermission שהוא no-op) היה מדלג על השחזור.
+  void _removeDeclarative(String pluginId) {
+    if (declarativeHost == null) return;
+    declarativeHost!.removePlugin(pluginId);
+    _lastDeclarativeSyncSignature = null;
   }
 
   void _syncDeclarativeReaderContext(TabsState state) {
@@ -328,6 +379,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       archivePath = await _downloadService.downloadPluginArchive(
         Uri.parse(event.downloadUrl),
         appVersion: appVersion,
+        storeOnly: event.storeOnly,
       );
 
       final prepareInfo = await _installerService.prepareInstall(
@@ -456,10 +508,11 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     Emitter<PluginSystemState> emit,
   ) async {
     try {
-      declarativeHost?.removePlugin(event.pluginId);
+      _removeDeclarative(event.pluginId);
       ContextMenuRegistry.instance.removeAll(event.pluginId);
       PluginToolbarRegistry.instance.removeAll(event.pluginId);
       PluginHighlightRegistry.instance.removePlugin(event.pluginId);
+      PluginFileServer.instance.revokeAllForPlugin(event.pluginId);
       _removeSearchProviders(event.pluginId);
       await _installerService.uninstallPlugin(event.pluginId);
       add(LoadPlugins());
@@ -489,10 +542,11 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     Emitter<PluginSystemState> emit,
   ) async {
     try {
-      declarativeHost?.removePlugin(event.pluginId);
+      _removeDeclarative(event.pluginId);
       ContextMenuRegistry.instance.removeAll(event.pluginId);
       PluginToolbarRegistry.instance.removeAll(event.pluginId);
       PluginHighlightRegistry.instance.removePlugin(event.pluginId);
+      PluginFileServer.instance.revokeAllForPlugin(event.pluginId);
       _removeSearchProviders(event.pluginId);
       final plugin = await repository.getPlugin(event.pluginId);
       if (plugin != null) {
@@ -510,7 +564,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     Emitter<PluginSystemState> emit,
   ) async {
     try {
-      declarativeHost?.removePlugin(event.pluginId);
+      _removeDeclarative(event.pluginId);
       await repository.setPermission(
         event.pluginId,
         event.permission,
@@ -522,6 +576,9 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
         } else if (event.permission == 'search.dialog' ||
             event.permission == pluginStartupContributionsPermission) {
           PluginExternalSearchService.instance.removePlugin(event.pluginId);
+        }
+        if (event.permission == 'fs.user_files.read') {
+          PluginFileServer.instance.revokeAllForPlugin(event.pluginId);
         }
         if (event.permission == 'reader.toolbar') {
           PluginToolbarRegistry.instance.removeAll(event.pluginId);
@@ -591,11 +648,12 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     Emitter<PluginSystemState> emit,
   ) async {
     try {
-      declarativeHost?.removePlugin(event.pluginId);
+      _removeDeclarative(event.pluginId);
       ContextMenuRegistry.instance.removeAll(event.pluginId);
       PluginToolbarRegistry.instance.removeAll(event.pluginId);
       PluginHighlightRegistry.instance.removePlugin(event.pluginId);
       _removeSearchProviders(event.pluginId);
+      PluginFileServer.instance.revokeAllForPlugin(event.pluginId);
       await repository.detachDevelopmentPlugin(event.pluginId);
       devWatchService.stopWatcher(event.pluginId);
       add(LoadPlugins());

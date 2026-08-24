@@ -1206,23 +1206,38 @@ class IndexingRepository {
     return (BigInt.from(catalogueOrder + 1) << 32) + BigInt.from(ordinal + 1);
   }
 
-  static String catalogueOrderKey(Book book) {
-    if (book.externalLibraryId != null && book.externalLibraryId!.isNotEmpty) {
-      return 'ext:${book.externalLibraryId}';
+  static String catalogueOrderKey(Book book) => catalogueOrderKeyFromParts(
+    title: book.title,
+    externalLibraryId: book.externalLibraryId,
+    bookId: book.id,
+    isUserBook: book.isUserBook,
+    categoryKey: book.category?.path ?? book.categoryPath,
+    fileTypeKey: book.fileType ?? book.runtimeType.toString(),
+    pathKey: book is FileBook ? book.path : book.filePath,
+  );
+
+  /// אותו מפתח מרכיבים גולמיים, למי שאין בידיו [Book] (נתיב ה-facet של
+  /// החיפוש). מקור אמת יחיד — כל סטייה כאן מפצלת ספר לשתי זהויות.
+  static String catalogueOrderKeyFromParts({
+    required String title,
+    String? externalLibraryId,
+    int? bookId,
+    bool isUserBook = false,
+    String? categoryKey,
+    String? fileTypeKey,
+    String? pathKey,
+  }) {
+    if (externalLibraryId != null && externalLibraryId.isNotEmpty) {
+      return 'ext:$externalLibraryId';
     }
 
-    if (book.id != null) {
+    if (bookId != null) {
       // id טבעי חופף בין seforim.db ל-user_books.db — בלי תיוג המקור
       // ספר אישי 'id:5' מתנגש בספר רשמי 'id:5' ומדולג באינדוקס.
-      return book.isUserBook
-          ? userBookKey(book.id!)
-          : officialBookKey(book.id!);
+      return isUserBook ? userBookKey(bookId) : officialBookKey(bookId);
     }
 
-    final categoryKey = book.category?.path ?? book.categoryPath ?? '';
-    final fileTypeKey = book.fileType ?? book.runtimeType.toString();
-    final pathKey = book is FileBook ? book.path : (book.filePath ?? '');
-    return '${book.title}|$categoryKey|$fileTypeKey|$pathKey';
+    return '$title|${categoryKey ?? ''}|${fileTypeKey ?? ''}|${pathKey ?? ''}';
   }
 
   /// מפתח catalogueOrderKey לספר אישי (user_books.db) לפי id גולמי.

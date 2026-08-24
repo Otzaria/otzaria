@@ -38,8 +38,8 @@ class PluginSectionTextMapService {
         'limit must be between 1 and 2000',
       );
     }
-    if (map.sourceText.characters.length > maxSectionGraphemes ||
-        map.renderedText.characters.length > maxSectionGraphemes) {
+    if (map.sourceGraphemeLength > maxSectionGraphemes ||
+        map.renderedGraphemeLength > maxSectionGraphemes) {
       throw const PluginSectionTextMapException(
         'error.section_too_large',
         'section exceeds the supported size',

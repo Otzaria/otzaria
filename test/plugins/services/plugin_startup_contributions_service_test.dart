@@ -97,6 +97,17 @@ class _FakeRepo implements PluginRegistryRepository {
       kv[_kvKey(pluginId, namespace, key)];
 
   @override
+  Future<Map<String, String>> getKVMany(
+    String pluginId,
+    String namespace,
+    Iterable<String> keys,
+  ) async => {
+    for (final key in keys)
+      if (kv[_kvKey(pluginId, namespace, key)] != null)
+        key: kv[_kvKey(pluginId, namespace, key)]!,
+  };
+
+  @override
   Future<void> setKV(
     String pluginId,
     String namespace,

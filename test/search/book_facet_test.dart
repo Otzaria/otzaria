@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/book_facet.dart';
 
@@ -156,5 +157,45 @@ void main() {
 
       expect(facetPath, '/תנ"ך/תורה/id:1');
     });
+  });
+
+  group('מפתח הספר ב-facet זהה ל-catalogueOrderKey', () {
+    String facetPathOf(Book book) => BookFacet.buildFacetPath(
+      title: book.title,
+      topics: book.topics,
+      externalLibraryId: book.externalLibraryId,
+      bookId: book.id,
+      isUserBook: book.isUserBook,
+      categoryPath: book.category?.path ?? book.categoryPath,
+      fileType: book.fileType,
+      filePath: book is FileBook ? book.path : book.filePath,
+    );
+
+    final books = <Book>[
+      TextBook(id: 5, title: 'שבת', categoryPath: '/תלמוד בבלי'),
+      TextBook(
+        id: 5,
+        title: 'שבת',
+        categoryPath: '/ספרים אישיים',
+        isUserBook: true,
+      ),
+      ExternalLibraryBook(
+        title: 'ספר חיצוני',
+        id: 1234,
+        link: 'https://example.org/1234',
+        externalLibraryId: 'hb:1234',
+        topics: 'הלכה',
+      ),
+      TextBook(title: 'ללא מזהה', categoryPath: '/הלכה', fileType: 'txt'),
+    ];
+
+    for (final book in books) {
+      test('${book.title} (${book.id ?? 'ללא id'})', () {
+        expect(
+          facetPathOf(book),
+          endsWith('/${IndexingRepository.catalogueOrderKey(book)}'),
+        );
+      });
+    }
   });
 }

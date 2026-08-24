@@ -411,7 +411,8 @@ void main() {
       recurrenceDropdown.onSelected!(RecurrenceType.annualHebrew);
       await tester.pumpAndSettle();
 
-      expect(find.text('החזרה מסתיימת'), findsOneWidget);
+      // גם באירוע חוזר תאריך הסיום נשאר סוף טווח הימים של האירוע.
+      expect(find.text('תאריך סיום'), findsOneWidget);
 
       final recurringLimitToggle = tester.widget<CheckboxListTile>(
         find.byType(CheckboxListTile),

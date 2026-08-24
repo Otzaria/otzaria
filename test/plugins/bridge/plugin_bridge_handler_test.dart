@@ -692,7 +692,7 @@ void main() {
         expect(resp['error']['message'], 'path outside a user-selected folder');
         expect(resp['error']['schemaVersion'], 1);
         expect(resp['error']['retryable'], isFalse);
-        expect(resp['error']['category'], 'validation');
+        expect(resp['error']['category'], 'permission');
       },
     );
 
@@ -806,6 +806,58 @@ void main() {
       expect(adapter.lastAction, 'pickUserFile');
     });
 
+    test('כתיבה דורשת fs.user_files.write, ולא מספיקה הרשאת קריאה', () async {
+      for (final method in ['fs.beginBinaryWrite', 'fs.commitUserFileWrite']) {
+        final adapter = _FakeAdapter();
+        final handler = PluginBridgeHandler(
+          // קריאה בלבד: מי שמצהיר על read אינו יכול לכתוב.
+          _buildInstalledPlugin(permissions: const ['fs.user_files.read']),
+          adapter: adapter,
+          registry: _StubRegistry(true),
+        );
+
+        final resp =
+            await handler.handleRpcForTesting([
+                  {'method': method, 'payload': const <String, dynamic>{}},
+                ])
+                as Map;
+
+        expect(resp['success'], isFalse, reason: method);
+        expect(resp['error']['code'], 'permission_denied', reason: method);
+        expect(adapter.executeCalls, 0, reason: method);
+      }
+    });
+
+    test('כתיבה עם ההרשאה המוצהרת והמוענקת → execute נקרא', () async {
+      final adapter = _FakeAdapter(result: {'cancelled': true});
+      final handler = PluginBridgeHandler(
+        _buildInstalledPlugin(
+          permissions: const ['fs.user_files.read', 'fs.user_files.write'],
+        ),
+        adapter: adapter,
+        registry: _StubRegistry(true),
+      );
+
+      final resp =
+          await handler.handleRpcForTesting([
+                {
+                  'method': 'fs.commitUserFileWrite',
+                  'payload': {'writeToken': 'x'},
+                },
+              ])
+              as Map;
+
+      expect(resp['success'], isTrue);
+      expect(adapter.lastAction, 'commitUserFileWrite');
+    });
+
+    test('commitUserFileWrite אינו כפוף ל-timeout הגנרי', () {
+      // הוא ממתין לדיאלוג „שמור בשם”; timeout גנרי היה מחזיר error.timeout
+      // בזמן שהמשתמש בוחר תיקייה, אחרי שהבייטים כבר עלו.
+      expect(PluginBridgeHandler.hasOwnTimeout('fs.commitUserFileWrite'), isTrue);
+      expect(PluginBridgeHandler.hasOwnTimeout('fs.beginBinaryWrite'), isFalse);
+    });
+
     test(
       'deleteFile נשאר ללא הרשאת manifest (execute נקרא גם בלי הרשאה)',
       () async {
@@ -829,5 +881,68 @@ void main() {
         expect(adapter.executeCalls, 1);
       },
     );
+  });
+
+  // iframe עוין יכול לקרוא ל-otzaria_rpc בלי ה-nonce; אסור שקריאה כזו תסמן
+  // "עבודה התחילה" (מחזיק מופע רקע חי) או תעקוף את מגביל הקצב.
+  group('PluginBridgeHandler — דחייה לפני onWorkStarted', () {
+    test('קריאה ללא nonce תקין אינה מסמנת תחילת עבודה ונספרת במגביל', () async {
+      var workStarted = 0;
+      final limiter = _BlockingRateLimiter();
+      final handler = PluginBridgeHandler(
+        _buildInstalledPlugin(),
+        adapter: _FakeAdapter(),
+        registry: _StubRegistry(true),
+        rateLimiter: limiter,
+        onWorkStarted: () => workStarted++,
+      );
+
+      final resp =
+          await handler.handleRpcForTesting(
+                _getBookContentRequest(),
+                nonce: 'wrong-nonce',
+              )
+              as Map<String, dynamic>;
+
+      expect(resp['error']['code'], 'error.rate_limited');
+      expect(limiter.consumeCalls, 1);
+      expect(workStarted, 0);
+    });
+
+    test('קריאה עם nonce תקין מסמנת תחילת עבודה וסיומה', () async {
+      var workStarted = 0;
+      var workEnded = 0;
+      final handler = PluginBridgeHandler(
+        _buildInstalledPlugin(permissions: const ['library.content.read']),
+        adapter: _FakeAdapter(result: const {'ok': true}),
+        registry: _StubRegistry(true),
+        onWorkStarted: () => workStarted++,
+        onWorkEnded: () => workEnded++,
+      );
+
+      await handler.handleRpcForTesting(_getBookContentRequest());
+
+      expect(workStarted, 1);
+      expect(workEnded, 1);
+    });
+
+    test('method לא מוכר נספר במגביל הקצב', () async {
+      final limiter = _BlockingRateLimiter();
+      final handler = PluginBridgeHandler(
+        _buildInstalledPlugin(),
+        adapter: _FakeAdapter(),
+        registry: _StubRegistry(true),
+        rateLimiter: limiter,
+      );
+
+      final resp =
+          await handler.handleRpcForTesting([
+                {'method': 'no.such_method', 'payload': {}},
+              ])
+              as Map<String, dynamic>;
+
+      expect(resp['error']['code'], 'error.rate_limited');
+      expect(limiter.consumeCalls, 1);
+    });
   });
 }

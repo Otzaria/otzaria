@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_state.dart';
@@ -25,16 +27,64 @@ class BookmarkBloc extends Cubit<BookmarkState> {
     }
   }
 
-  /// שמירה ברקע עם דיווח שגיאה למשתמש — בלי await כדי לא לחסום את ה-UI,
-  /// אבל עם טיפול בכישלון כך שסימניה שלא נשמרה לדיסק לא תיעלם בשקט.
-  void _persistBookmarks(List<Bookmark> bookmarks) {
-    _repository.saveBookmarks(bookmarks).catchError((Object e) {
+  /// שומר ומדווח שגיאה למשתמש. מחזיר האם השמירה לדיסק הצליחה, כדי שקורא
+  /// שצריך תשובה אמיתית (הגשר לתוספים) יוכל להמתין; מסלול ה-UI לא ממתין.
+  Future<bool> _persistBookmarks(List<Bookmark> bookmarks) async {
+    try {
+      await _repository.saveBookmarks(bookmarks);
+      return true;
+    } catch (e) {
       debugPrint('שגיאה בשמירת סימניות: $e');
       UiSnack.showError(NotesMessages.bookmarkSaveError);
-    });
+      return false;
+    }
+  }
+
+  /// מוסיף סימניה וממתין לשמירה לדיסק. מחזיר true רק אם הסימניה גם נוספה
+  /// וגם נשמרה — לשימוש הגשר, שאסור לו לדווח הצלחה על כתיבה שנכשלה.
+  Future<bool> addBookmarkAndSave({
+    required String ref,
+    required Book book,
+    required int index,
+    List<String>? commentatorsToShow,
+    BookmarkTargetKind targetKind = BookmarkTargetKind.book,
+    String? label,
+  }) async {
+    final save = _addBookmark(
+      ref: ref,
+      book: book,
+      index: index,
+      commentatorsToShow: commentatorsToShow,
+      targetKind: targetKind,
+      label: label,
+    );
+    if (save == null) return false;
+    return save;
   }
 
   bool addBookmark({
+    required String ref,
+    required Book book,
+    required int index,
+    List<String>? commentatorsToShow,
+    BookmarkTargetKind targetKind = BookmarkTargetKind.book,
+    String? label,
+  }) {
+    final save = _addBookmark(
+      ref: ref,
+      book: book,
+      index: index,
+      commentatorsToShow: commentatorsToShow,
+      targetKind: targetKind,
+      label: label,
+    );
+    if (save == null) return false;
+    unawaited(save);
+    return true;
+  }
+
+  /// מחזיר את Future השמירה, או null אם הסימניה לא נוספה (כפילות).
+  Future<bool>? _addBookmark({
     required String ref,
     required Book book,
     required int index,
@@ -63,13 +113,13 @@ class BookmarkBloc extends Cubit<BookmarkState> {
           bookIdentity(b.book) == newIdentity &&
           b.targetKind == bookmark.targetKind,
     )) {
-      return false;
+      return null;
     }
 
     final newBookmarks = [...state.bookmarks, bookmark];
-    _persistBookmarks(newBookmarks);
+    final save = _persistBookmarks(newBookmarks);
     emit(state.copyWith(bookmarks: newBookmarks));
-    return true;
+    return save;
   }
 
   /// מעדכן את טקסט התיאור המוצג של סימניה. [label] ריק מאפס לברירת המחדל
@@ -83,14 +133,31 @@ class BookmarkBloc extends Cubit<BookmarkState> {
       label: hasLabel ? trimmed : null,
       clearLabel: !hasLabel,
     );
-    _persistBookmarks(updated);
+    unawaited(_persistBookmarks(updated));
     emit(state.copyWith(bookmarks: updated));
   }
 
-  void removeBookmark(int index) {
+  /// מחזיר false אם [index] מחוץ לתחום ולכן לא נמחקה סימניה.
+  bool removeBookmark(int index) {
+    final save = _removeBookmark(index);
+    if (save == null) return false;
+    unawaited(save);
+    return true;
+  }
+
+  /// מסיר סימניה וממתין לשמירה לדיסק — המסלול של הגשר לתוספים.
+  Future<bool> removeBookmarkAndSave(int index) async {
+    final save = _removeBookmark(index);
+    if (save == null) return false;
+    return save;
+  }
+
+  Future<bool>? _removeBookmark(int index) {
+    if (index < 0 || index >= state.bookmarks.length) return null;
     final newBookmarks = [...state.bookmarks]..removeAt(index);
-    _persistBookmarks(newBookmarks);
+    final save = _persistBookmarks(newBookmarks);
     emit(state.copyWith(bookmarks: newBookmarks));
+    return save;
   }
 
   void clearBookmarks() {
@@ -112,7 +179,7 @@ class BookmarkBloc extends Cubit<BookmarkState> {
         .where((b) => bookIdentity(b.book) != targetIdentity)
         .toList();
     if (remaining.length == state.bookmarks.length) return false;
-    _persistBookmarks(remaining);
+    unawaited(_persistBookmarks(remaining));
     emit(state.copyWith(bookmarks: remaining));
     return true;
   }

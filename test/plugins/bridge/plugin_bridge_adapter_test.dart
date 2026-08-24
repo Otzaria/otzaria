@@ -14,6 +14,7 @@ import 'package:http/testing.dart';
 import 'package:kosher_dart/kosher_dart.dart';
 import 'package:path/path.dart' as p;
 import 'package:mockito/mockito.dart';
+import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/connectivity_status_service.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
@@ -289,6 +290,20 @@ class _StubPluginRegistryRepository extends PluginRegistryRepository {
   }
 
   @override
+  Future<Map<String, String>> getKVMany(
+    String pluginId,
+    String namespace,
+    Iterable<String> keys,
+  ) async {
+    final out = <String, String>{};
+    for (final key in keys) {
+      final value = kv['$namespace/$key'];
+      if (value != null) out[key] = value;
+    }
+    return out;
+  }
+
+  @override
   Future<void> removeKV(String pluginId, String namespace, String key) async {
     kv.remove('$namespace/$key');
   }
@@ -517,30 +532,197 @@ Future<void> main() async {
       );
     });
 
-    test('מחזיר את מיקום HebrewBooks שהוגדר', () async {
+    test('מחזיר הגדרת תצוגה שאינה חסומה', () async {
+      await Settings.setValue<double>(SettingsRepository.keyFontSize, 25);
+
+      final result = await adapter.execute('settings', 'get', {
+        'key': SettingsRepository.keyFontSize,
+      });
+
+      expect(result, 25);
+    });
+
+    test('מפתח חסום מוחזר כ-error.forbidden ולא כ-null', () async {
       await Settings.setValue<String>(
         SettingsRepository.keyHebrewBooksPath,
         '/books/hebrewbooks',
       );
 
-      final result = await adapter.execute('settings', 'get', {
-        'key': SettingsRepository.keyHebrewBooksPath,
-      });
-
-      expect(result, '/books/hebrewbooks');
+      await expectLater(
+        adapter.execute('settings', 'get', {
+          'key': SettingsRepository.keyHebrewBooksPath,
+        }),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('error.forbidden'),
+          ),
+        ),
+      );
     });
 
-    test('מחזיר מחרוזת ריקה כשהמיקום לא הוגדר', () async {
+    test('getMany מדלג על מפתח חסום ומחזיר את המותר', () async {
+      await Settings.setValue<double>(SettingsRepository.keyFontSize, 22);
       await Settings.setValue<String>(
-        SettingsRepository.keyHebrewBooksPath,
-        '',
+        SettingsRepository.keyLibraryPath,
+        '/library',
       );
 
-      final result = await adapter.execute('settings', 'get', {
-        'key': SettingsRepository.keyHebrewBooksPath,
-      });
+      final result =
+          await adapter.execute('settings', 'getMany', {
+                'keys': [
+                  SettingsRepository.keyFontSize,
+                  SettingsRepository.keyLibraryPath,
+                ],
+              })
+              as Map;
 
-      expect(result, '');
+      expect(result[SettingsRepository.keyFontSize], 22);
+      expect(result.containsKey(SettingsRepository.keyLibraryPath), isFalse);
+    });
+  });
+
+  group('PluginBridgeAdapter fs.* — המרחב הפרטי', () {
+    late Directory dataRoot;
+    late PluginBridgeAdapter adapter;
+
+    setUp(() async {
+      dataRoot = await Directory.systemTemp.createTemp('plugin_ws_adapter_');
+      AppPaths.debugOverrideDataRootPath(dataRoot.path);
+      // ללא הרשאות בכלל — המרחב הפרטי אינו דורש הרשאת manifest.
+      adapter = PluginBridgeAdapter(
+        _buildInstalledPlugin(permissions: const []),
+        dependencies: _buildNetworkDeps(),
+        pluginRepository: _StubPluginRegistryRepository(),
+      );
+    });
+
+    tearDown(() async {
+      AppPaths.debugOverrideDataRootPath(null);
+      if (await dataRoot.exists()) await dataRoot.delete(recursive: true);
+    });
+
+    test('כתיבה, stat, listDir וקריאה — סבב שלם', () async {
+      final written =
+          await adapter.execute('fs', 'writeFile', {
+                'path': 'cache/a.json',
+                'content': '{"a":1}',
+              })
+              as Map;
+      expect(written['size'], 7);
+      expect(written['quotaBytes'], isPositive);
+
+      final stat =
+          await adapter.execute('fs', 'stat', {'path': 'cache/a.json'}) as Map;
+      expect(stat['exists'], isTrue);
+      expect(stat['type'], 'file');
+
+      final listed =
+          await adapter.execute('fs', 'listDir', {'path': 'cache'}) as Map;
+      expect((listed['entries'] as List).single['name'], 'a.json');
+
+      final read =
+          await adapter.execute('fs', 'readFile', {'path': 'cache/a.json'})
+              as Map;
+      expect(read['content'], '{"a":1}');
+    });
+
+    test('base64 עובר סבב שלם ללא שינוי', () async {
+      final bytes = [0, 1, 2, 250, 255];
+      await adapter.execute('fs', 'writeFile', {
+        'path': 'bin/blob',
+        'content': base64Encode(bytes),
+        'encoding': 'base64',
+      });
+      final read =
+          await adapter.execute('fs', 'readFile', {
+                'path': 'bin/blob',
+                'encoding': 'base64',
+              })
+              as Map;
+      expect(base64Decode(read['content'] as String), bytes);
+    });
+
+    test('נתיב שיוצא מהשורש נדחה ב-error.forbidden', () async {
+      final victim = File(p.join(dataRoot.path, 'victim.txt'))
+        ..writeAsStringSync('חשוב');
+      await expectLater(
+        adapter.execute('fs', 'writeFile', {
+          'path': '../../../../victim.txt',
+          'content': 'נדרס',
+        }),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('error.forbidden'),
+          ),
+        ),
+      );
+      expect(victim.readAsStringSync(), 'חשוב');
+    });
+
+    test('deleteEntry idempotent, ו-makeDir יוצר תיקייה', () async {
+      expect(await adapter.execute('fs', 'makeDir', {'path': 'x/y'}), isTrue);
+      expect(
+        await adapter.execute('fs', 'deleteEntry', {
+          'path': 'x',
+          'recursive': true,
+        }),
+        isTrue,
+      );
+      expect(
+        await adapter.execute('fs', 'deleteEntry', {'path': 'x'}),
+        isFalse,
+      );
+    });
+
+    test('stat על נתיב שאינו קיים מחזיר exists:false', () async {
+      final stat = await adapter.execute('fs', 'stat', {'path': 'nope'}) as Map;
+      expect(stat, {'exists': false});
+    });
+
+    test('קידוד לא מוכר ותוכן שאינו מחרוזת נדחים', () async {
+      await expectLater(
+        adapter.execute('fs', 'writeFile', {
+          'path': 'a.txt',
+          'content': 'x',
+          'encoding': 'utf16',
+        }),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('error.invalid_params'),
+          ),
+        ),
+      );
+      await expectLater(
+        adapter.execute('fs', 'writeFile', {'path': 'a.txt', 'content': 5}),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('error.invalid_params'),
+          ),
+        ),
+      );
+    });
+
+    test('המרחב מבודד בין תוספים', () async {
+      await adapter.execute('fs', 'writeFile', {
+        'path': 'mine.txt',
+        'content': 'א',
+      });
+      final other = PluginBridgeAdapter(
+        _buildInstalledPlugin(pluginId: 'other.plugin', permissions: const []),
+        dependencies: _buildNetworkDeps(),
+        pluginRepository: _StubPluginRegistryRepository(),
+      );
+      final listed =
+          await other.execute('fs', 'listDir', <String, dynamic>{}) as Map;
+      expect(listed['entries'], isEmpty);
     });
   });
 
@@ -2158,6 +2340,36 @@ Future<void> main() async {
       expect(file.existsSync(), isFalse);
     });
 
+    test('ui.pickFolder דוחה תיקייה מוגנת ואינו מעניק הרשאה', () async {
+      final protectedFolder = p.dirname(Platform.resolvedExecutable);
+      final adapter = buildAdapter(
+        pickFolder: ({title}) async => protectedFolder,
+      );
+
+      await expectLater(
+        adapter.execute('ui', 'pickFolder', {}),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('error.forbidden'),
+          ),
+        ),
+      );
+
+      final file = File(p.join(protectedFolder, 'plugin_probe.tmp'));
+      await expectLater(
+        adapter.execute('fs', 'deleteFile', {'path': file.path}),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('forbidden'),
+          ),
+        ),
+      );
+    });
+
     test('ביטול ui.pickFolder מחזיר {path:null} ואינו מעניק הרשאה', () async {
       final adapter = buildAdapter(pickFolder: ({title}) async => null);
 
@@ -2363,9 +2575,19 @@ Future<void> main() async {
         String? title,
       })
       pickFile,
+      Future<String?> Function({
+        required String suggestedName,
+        List<String>? allowedExtensions,
+        String? title,
+      })?
+      pickSaveLocation,
+      List<String> permissions = const [
+        'fs.user_files.read',
+        'fs.user_files.write',
+      ],
     }) {
       return PluginBridgeAdapter(
-        _buildInstalledPlugin(permissions: const ['fs.user_files.read']),
+        _buildInstalledPlugin(permissions: permissions),
         dependencies: PluginBridgeDependencies(
           historyBloc: _MockHistoryBloc(),
           tabsBloc: _StubTabsBloc(),
@@ -2383,6 +2605,7 @@ Future<void> main() async {
               ({required title, required content, required subtitle}) async =>
                   true,
           pickFile: pickFile,
+          pickSaveLocation: pickSaveLocation,
         ),
         pluginRepository: registry,
         fileServer: fileServer,
@@ -2534,6 +2757,635 @@ Future<void> main() async {
           ),
         ),
       );
+    });
+
+    // ======================================================================
+    // כתיבה: beginBinaryWrite -> PUT -> commitUserFileWrite
+    // ======================================================================
+
+    /// שולח את הבייטים ל-uploadUrl, כמו ש-fetch עם body: blob עושה.
+    Future<int> upload(String url, String content) async {
+      final bytes = utf8.encode(content);
+      final request = await client.putUrl(Uri.parse(url));
+      request.headers.contentType = ContentType('application', 'octet-stream');
+      request.contentLength = bytes.length;
+      request.add(bytes);
+      final response = await request.close();
+      await response.drain();
+      return response.statusCode;
+    }
+
+    Map<String, dynamic> grants() =>
+        jsonDecode(registry.kv['_internal/user_file_grants']!)
+            as Map<String, dynamic>;
+
+    test('pickUserFile עם access קריאה-בלבד שומר grant לקריאה', () async {
+      final file = File(p.join(tempDir.path, 'a.docx'))..writeAsStringSync('x');
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => file.path,
+      );
+
+      final res = await adapter.execute('fs', 'pickUserFile', {}) as Map;
+
+      expect(res['access'], 'read');
+      final grant = grants()[res['token']] as Map;
+      expect(grant['access'], 'read');
+    });
+
+    test('pickUserFile עם readwrite שומר grant לכתיבה', () async {
+      final file = File(p.join(tempDir.path, 'a.docx'))..writeAsStringSync('x');
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => file.path,
+      );
+
+      final res =
+          await adapter.execute('fs', 'pickUserFile', {'access': 'readwrite'})
+              as Map;
+
+      expect(res['access'], 'readwrite');
+      expect((grants()[res['token']] as Map)['access'], 'readwrite');
+    });
+
+    test('readwrite בלי הרשאת כתיבה נדחה', () async {
+      registry.permissionGrant = null;
+      registry.permissionGrants = {
+        'fs.user_files.read': true,
+        'fs.user_files.write': false,
+      };
+      final file = File(p.join(tempDir.path, 'a.docx'))..writeAsStringSync('x');
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => file.path,
+      );
+
+      await expectLater(
+        adapter.execute('fs', 'pickUserFile', {'access': 'readwrite'}),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('permission_denied'),
+          ),
+        ),
+      );
+    });
+
+    test('access לא חוקי נדחה', () async {
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => null,
+      );
+
+      await expectLater(
+        adapter.execute('fs', 'pickUserFile', {'access': 'append'}),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('invalid_params'),
+          ),
+        ),
+      );
+    });
+
+    test('„שמור בשם”: העלאה נכתבת לקובץ חדש ומחזירה token לכתיבה', () async {
+      final target = p.join(tempDir.path, 'חידושים.docx');
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => null,
+        pickSaveLocation:
+            ({required suggestedName, allowedExtensions, title}) async {
+              expect(suggestedName, 'חידושים.docx');
+              expect(allowedExtensions, ['docx']);
+              return target;
+            },
+      );
+
+      final ticket =
+          await adapter.execute('fs', 'beginBinaryWrite', {
+                'purpose': 'user-file',
+                'expectedSize': 5,
+              })
+              as Map;
+      expect(ticket['maxBytes'], isA<int>());
+      expect(await upload(ticket['uploadUrl'] as String, 'DOCX1'), 204);
+
+      final res =
+          await adapter.execute('fs', 'commitUserFileWrite', {
+                'writeToken': ticket['writeToken'],
+                'suggestedName': 'חידושים',
+                'extension': 'docx',
+              })
+              as Map;
+
+      expect(res['cancelled'], isFalse);
+      expect(res['name'], 'חידושים.docx');
+      expect(res['size'], 5);
+      expect(File(target).readAsStringSync(), 'DOCX1');
+      // ה-token שחוזר ניתן לכתיבה, וגם משמש לקריאה.
+      expect((grants()[res['token']] as Map)['access'], 'readwrite');
+      final resolved =
+          await adapter.execute('fs', 'resolveFileUrl', {
+                'token': res['token'],
+              })
+              as Map;
+      expect(await fetch(resolved['url'] as String), 'DOCX1');
+      // ה-session שוחרר וה-temp נמחק. בלי האסרשן הזאת שמירה מוצלחת יכולה
+      // להדליף העלאה שנשארת committing לנצח — ואחרי שתיים התוסף חוסם את עצמו.
+      expect(fileServer.activeUploadsFor('test.plugin'), 0);
+      expect(
+        File(
+          '${Directory.systemTemp.path}/otzaria_plugin_uploads/'
+          '${ticket['writeToken']}.part',
+        ).existsSync(),
+        isFalse,
+      );
+      // אין שאריות staging בתיקייה.
+      expect(
+        Directory(tempDir.path)
+            .listSync()
+            .where((e) => e.path.endsWith('.otztmp'))
+            .toList(),
+        isEmpty,
+      );
+    });
+
+    test('„שמור”: כתיבה חוזרת ל-token דורסת את הקובץ בלי דיאלוג', () async {
+      final file = File(p.join(tempDir.path, 'a.docx'))
+        ..writeAsStringSync('גרסה ראשונה');
+      var saveDialogOpened = false;
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => file.path,
+        pickSaveLocation:
+            ({required suggestedName, allowedExtensions, title}) async {
+              saveDialogOpened = true;
+              return null;
+            },
+      );
+
+      final picked =
+          await adapter.execute('fs', 'pickUserFile', {'access': 'readwrite'})
+              as Map;
+      final ticket =
+          await adapter.execute('fs', 'beginBinaryWrite', {}) as Map;
+      await upload(ticket['uploadUrl'] as String, 'גרסה שנייה');
+
+      final res =
+          await adapter.execute('fs', 'commitUserFileWrite', {
+                'writeToken': ticket['writeToken'],
+                'targetToken': picked['token'],
+              })
+              as Map;
+
+      expect(res['cancelled'], isFalse);
+      expect(res['token'], picked['token']);
+      expect(file.readAsStringSync(), 'גרסה שנייה');
+      expect(saveDialogOpened, isFalse);
+      expect(fileServer.activeUploadsFor('test.plugin'), 0);
+      expect(
+        File(
+          '${Directory.systemTemp.path}/otzaria_plugin_uploads/'
+          '${ticket['writeToken']}.part',
+        ).existsSync(),
+        isFalse,
+      );
+    });
+
+    test('token לקריאה בלבד אינו יעד כתיבה, והקובץ אינו נוגע', () async {
+      final file = File(p.join(tempDir.path, 'a.docx'))
+        ..writeAsStringSync('מקורי');
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => file.path,
+      );
+
+      final picked = await adapter.execute('fs', 'pickUserFile', {}) as Map;
+      final ticket =
+          await adapter.execute('fs', 'beginBinaryWrite', {}) as Map;
+      await upload(ticket['uploadUrl'] as String, 'דריסה');
+
+      await expectLater(
+        adapter.execute('fs', 'commitUserFileWrite', {
+          'writeToken': ticket['writeToken'],
+          'targetToken': picked['token'],
+        }),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('permission_denied'),
+          ),
+        ),
+      );
+      expect(file.readAsStringSync(), 'מקורי');
+    });
+
+    test('grant בפורמט הישן נקרא כקריאה בלבד', () async {
+      final file = File(p.join(tempDir.path, 'legacy.docx'))
+        ..writeAsStringSync('מקורי');
+      // הפורמט שלפני הכתיבה: token -> path כמחרוזת.
+      registry.kv['_internal/user_file_grants'] = jsonEncode({
+        'legacytoken': file.path,
+      });
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => null,
+      );
+
+      // קריאה ממשיכה לעבוד.
+      final resolved =
+          await adapter.execute('fs', 'resolveFileUrl', {
+                'token': 'legacytoken',
+              })
+              as Map;
+      expect(await fetch(resolved['url'] as String), 'מקורי');
+
+      // כתיבה אליו נדחית, כי grant ישן אינו יכול להיות readwrite.
+      final ticket =
+          await adapter.execute('fs', 'beginBinaryWrite', {}) as Map;
+      await upload(ticket['uploadUrl'] as String, 'דריסה');
+      await expectLater(
+        adapter.execute('fs', 'commitUserFileWrite', {
+          'writeToken': ticket['writeToken'],
+          'targetToken': 'legacytoken',
+        }),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('permission_denied'),
+          ),
+        ),
+      );
+      expect(file.readAsStringSync(), 'מקורי');
+    });
+
+    test('ביטול „שמור בשם” אינו כותב קובץ ואינו יוצר grant', () async {
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => null,
+        pickSaveLocation:
+            ({required suggestedName, allowedExtensions, title}) async => null,
+      );
+
+      final ticket =
+          await adapter.execute('fs', 'beginBinaryWrite', {}) as Map;
+      await upload(ticket['uploadUrl'] as String, 'DOCX');
+
+      final res =
+          await adapter.execute('fs', 'commitUserFileWrite', {
+                'writeToken': ticket['writeToken'],
+                'suggestedName': 'מסמך',
+                'extension': 'docx',
+              })
+              as Map;
+
+      expect(res['cancelled'], isTrue);
+      expect(registry.kv['_internal/user_file_grants'], isNull);
+      expect(
+        Directory(tempDir.path).listSync().map((e) => p.basename(e.path)),
+        isNot(contains('מסמך.docx')),
+      );
+    });
+
+    test('abortBinaryWrite משחרר את ההעלאה ואת המכסה מיד', () async {
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => null,
+      );
+
+      final ticket =
+          await adapter.execute('fs', 'beginBinaryWrite', {}) as Map;
+      await upload(ticket['uploadUrl'] as String, 'DOCX');
+      final temp = File(
+        '${Directory.systemTemp.path}/otzaria_plugin_uploads/'
+        '${ticket['writeToken']}.part',
+      );
+      expect(temp.existsSync(), isTrue);
+      expect(fileServer.activeUploadsFor('test.plugin'), 1);
+
+      final aborted = await adapter.execute('fs', 'abortBinaryWrite', {
+        'writeToken': ticket['writeToken'],
+      });
+
+      expect(aborted, isTrue);
+      expect(temp.existsSync(), isFalse);
+      expect(fileServer.activeUploadsFor('test.plugin'), 0);
+      // ואחריו commit על אותו token נדחה — אין מה לכתוב.
+      await expectLater(
+        adapter.execute('fs', 'commitUserFileWrite', {
+          'writeToken': ticket['writeToken'],
+        }),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('not_found'),
+          ),
+        ),
+      );
+    });
+
+    test('abortBinaryWrite בלי writeToken נדחה', () async {
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => null,
+      );
+
+      await expectLater(
+        adapter.execute('fs', 'abortBinaryWrite', const <String, dynamic>{}),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('invalid_params'),
+          ),
+        ),
+      );
+    });
+
+    test('commit על writeToken לא מוכר נדחה', () async {
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => null,
+      );
+
+      await expectLater(
+        adapter.execute('fs', 'commitUserFileWrite', {
+          'writeToken': 'nosuchtoken',
+        }),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('not_found'),
+          ),
+        ),
+      );
+    });
+
+    test('commit שני על אותה העלאה נדחה', () async {
+      final target = p.join(tempDir.path, 'once.docx');
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => null,
+        pickSaveLocation:
+            ({required suggestedName, allowedExtensions, title}) async =>
+                target,
+      );
+
+      final ticket =
+          await adapter.execute('fs', 'beginBinaryWrite', {}) as Map;
+      await upload(ticket['uploadUrl'] as String, 'DOCX');
+      await adapter.execute('fs', 'commitUserFileWrite', {
+        'writeToken': ticket['writeToken'],
+      });
+
+      await expectLater(
+        adapter.execute('fs', 'commitUserFileWrite', {
+          'writeToken': ticket['writeToken'],
+        }),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('not_found'),
+          ),
+        ),
+      );
+    });
+
+    test('commit לפני שההעלאה הושלמה נדחה', () async {
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => null,
+      );
+
+      final ticket =
+          await adapter.execute('fs', 'beginBinaryWrite', {}) as Map;
+
+      await expectLater(
+        adapter.execute('fs', 'commitUserFileWrite', {
+          'writeToken': ticket['writeToken'],
+        }),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('not_found'),
+          ),
+        ),
+      );
+    });
+
+    test('purpose שאינו user-file נדחה', () async {
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => null,
+      );
+
+      await expectLater(
+        adapter.execute('fs', 'beginBinaryWrite', {'purpose': 'plugin-file'}),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('unsupported'),
+          ),
+        ),
+      );
+    });
+
+    test('כשל באמצע הכתיבה אינו פוגע בקובץ הקיים', () async {
+      final file = File(p.join(tempDir.path, 'protected.docx'))
+        ..writeAsStringSync('הגרסה שאסור לאבד');
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => file.path,
+      );
+      final picked =
+          await adapter.execute('fs', 'pickUserFile', {'access': 'readwrite'})
+              as Map;
+      final ticket =
+          await adapter.execute('fs', 'beginBinaryWrite', {}) as Map;
+      await upload(ticket['uploadUrl'] as String, 'גרסה חדשה');
+
+      // תיקייה לקריאה בלבד: ה-staging אינו יכול להיווצר, ולכן הכתיבה נכשלת
+      // בדיוק בשלב שבו הקובץ המקורי עוד שלם.
+      final dir = Directory(tempDir.path);
+      // ההרשאה משוחזרת לערך קבוע ולא לזו שנקראה מהדיסק: `stat -f '%Lp'` הוא
+      // תחביר BSD, וב-Linux הדגל `-f` מדפיס מידע על מערכת הקבצים ולא על
+      // הקובץ. שם ה-chmod המשחזר קיבל זבל, התיקייה נשארה 555, ומחיקת תיקיית
+      // ה-temp ב-tearDown נכשלה ב-EACCES — הבדיקה עברה במקומי ונפלה ב-CI.
+      // 700 הוא ההרשאה שתיקיית temp מקבלת מ-createTemp בלאו הכי.
+      const restoreMode = '700';
+      Process.runSync('chmod', ['555', dir.path]);
+      addTearDown(() => Process.runSync('chmod', [restoreMode, dir.path]));
+
+      await expectLater(
+        adapter.execute('fs', 'commitUserFileWrite', {
+          'writeToken': ticket['writeToken'],
+          'targetToken': picked['token'],
+        }),
+        throwsA(isA<Exception>()),
+      );
+
+      Process.runSync('chmod', [restoreMode, dir.path]);
+      expect(file.readAsStringSync(), 'הגרסה שאסור לאבד');
+      expect(
+        Directory(tempDir.path)
+            .listSync()
+            .where((e) => e.path.endsWith('.otztmp'))
+            .toList(),
+        isEmpty,
+      );
+    }, skip: Platform.isWindows ? 'chmod אינו זמין ב-Windows' : null);
+
+    test('אין מסלול שכותב ישירות על קובץ היעד', () {
+      // בדיקת מקור ולא בדיקת התנהגות, בכוונה: כדי לתפוס fallback של copy
+      // צריך מצב שבו rename נכשל ו-copy מצליח, ואת זה אי אפשר לביים מקומית
+      // (rename באותה תיקייה נכשל רק כשגם copy ייכשל). מה שכן אפשר לקבע הוא
+      // שהמסלול הזה לא קיים בקוד — וזאת הדרישה: כשל rename נכשל, ולא מתדרדר
+      // להעתקה לא אטומית על מסמך של המשתמש.
+      final source = File(
+        'lib/plugins/bridge/plugin_bridge_adapter.dart',
+      ).readAsStringSync();
+      final atomicWrite = source.substring(
+        source.indexOf('Future<void> _atomicWrite('),
+        source.indexOf('static const String _stagingExt'),
+      );
+
+      // קיבוע חיובי ולא רשימת איסורים: כל שורה שנוגעת ביעד מפורטת כאן, ולכן
+      // כל דרך חדשה לכתוב אליו — copy, writeAsBytes, openWrite — מפילה את
+      // הבדיקה. רשימת שלילות הייתה מפספסת בדיוק את הצורה שלא חשבנו עליה.
+      final targetLines = atomicWrite
+          .split('\n')
+          .map((line) => line.trim())
+          .where(
+            (line) =>
+                !line.startsWith('//') &&
+                !line.startsWith('///') &&
+                (line.contains('targetPath') || line.contains('target.')),
+          )
+          .toList();
+
+      expect(targetLines, [
+        'Future<void> _atomicWrite(File source, String targetPath) async {',
+        'final target = File(targetPath);',
+        "p.join(target.parent.path, '.\${p.basename(targetPath)}.\$suffix\$_stagingExt'),",
+        'await _sweepStagingLeftovers(target.parent);',
+        'await staging.rename(targetPath);',
+      ]);
+    });
+
+    test('כשל בהחלפת היעד אינו הורס אותו', () async {
+      // יעד שהוא תיקייה: ה-copy ל-staging מצליח וה-rename נכשל. זה בדיוק
+      // המסלול שבו fallback של copy היה כותב ישירות על היעד — כלומר על מסמך
+      // של המשתמש, בלי אטומיות.
+      final targetDir = Directory(p.join(tempDir.path, 'target-as-dir'))
+        ..createSync();
+      final marker = File(p.join(targetDir.path, 'inside.txt'))
+        ..writeAsStringSync('התוכן שאסור לאבד');
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => null,
+        pickSaveLocation:
+            ({required suggestedName, allowedExtensions, title}) async =>
+                targetDir.path,
+      );
+
+      final ticket =
+          await adapter.execute('fs', 'beginBinaryWrite', {}) as Map;
+      await upload(ticket['uploadUrl'] as String, 'DOCX');
+
+      await expectLater(
+        adapter.execute('fs', 'commitUserFileWrite', {
+          'writeToken': ticket['writeToken'],
+        }),
+        throwsA(isA<Exception>()),
+      );
+
+      // היעד לא נדרס, מה שבתוכו שלם, ואין שאריות staging.
+      expect(targetDir.existsSync(), isTrue);
+      expect(marker.readAsStringSync(), 'התוכן שאסור לאבד');
+      expect(
+        Directory(tempDir.path)
+            .listSync()
+            .where((e) => e.path.endsWith('.otztmp'))
+            .toList(),
+        isEmpty,
+      );
+    });
+
+    test('ביטול „שמור בשם” מוחק את קובץ ההעלאה', () async {
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => null,
+        pickSaveLocation:
+            ({required suggestedName, allowedExtensions, title}) async => null,
+      );
+
+      final ticket =
+          await adapter.execute('fs', 'beginBinaryWrite', {}) as Map;
+      await upload(ticket['uploadUrl'] as String, 'DOCX');
+      final temp = File(
+        '${Directory.systemTemp.path}/otzaria_plugin_uploads/'
+        '${ticket['writeToken']}.part',
+      );
+      expect(temp.existsSync(), isTrue);
+
+      await adapter.execute('fs', 'commitUserFileWrite', {
+        'writeToken': ticket['writeToken'],
+      });
+
+      // ה-session נסגר ב-finally, ולכן ה-temp אינו נשאר יתום.
+      expect(temp.existsSync(), isFalse);
+      expect(fileServer.activeUploadsFor('test.plugin'), 0);
+    });
+
+    test('extension עם מפרידי נתיב אינו מגיע לדיאלוג', () async {
+      String? seenName;
+      List<String>? seenExtensions;
+      final target = p.join(tempDir.path, 'clean.docx');
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => null,
+        pickSaveLocation:
+            ({required suggestedName, allowedExtensions, title}) async {
+              seenName = suggestedName;
+              seenExtensions = allowedExtensions;
+              return target;
+            },
+      );
+
+      final ticket =
+          await adapter.execute('fs', 'beginBinaryWrite', {}) as Map;
+      await upload(ticket['uploadUrl'] as String, 'DOCX');
+      await adapter.execute('fs', 'commitUserFileWrite', {
+        'writeToken': ticket['writeToken'],
+        'suggestedName': 'מסמך',
+        'extension': '../../Windows/System32/x',
+      });
+
+      // סיומת לא חוקית נזרקת לגמרי; אין מפרידי נתיב בשם ואין בסינון.
+      expect(seenName, 'מסמך');
+      expect(seenExtensions, isNull);
+    });
+
+    test('כתיבה ליעד שנמחק נדחית ומנקה את ה-grant', () async {
+      final file = File(p.join(tempDir.path, 'gone.docx'))
+        ..writeAsStringSync('x');
+      final adapter = buildAdapter(
+        pickFile: ({allowedExtensions, title}) async => file.path,
+      );
+
+      final picked =
+          await adapter.execute('fs', 'pickUserFile', {'access': 'readwrite'})
+              as Map;
+      file.deleteSync();
+
+      final ticket =
+          await adapter.execute('fs', 'beginBinaryWrite', {}) as Map;
+      await upload(ticket['uploadUrl'] as String, 'DOCX');
+
+      await expectLater(
+        adapter.execute('fs', 'commitUserFileWrite', {
+          'writeToken': ticket['writeToken'],
+          'targetToken': picked['token'],
+        }),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('not_found'),
+          ),
+        ),
+      );
+      expect(grants(), isNot(contains(picked['token'])));
     });
   });
 
@@ -2904,6 +3756,7 @@ Future<void> main() async {
           'id': 10,
           'type': 'text',
           'bookId': 'בראשית',
+          'bookUid': 'id:10',
           'source': 'library',
           'title': 'בראשית',
           'count': 812,

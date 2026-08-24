@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/messages/plugin_messages.dart';
 import 'package:otzaria/plugins/declarative/compiler/declarative_action_compiler.dart';
 import 'package:otzaria/plugins/declarative/models/declarative_program.dart';
 import 'package:otzaria/plugins/declarative/services/declarative_host_action_executor.dart';
@@ -346,7 +347,294 @@ void main() {
       );
     });
   });
+
+  group('ui.showSnack', () {
+    test('מציג את הטקסט של התוסף בדרגת החומרה שנבחרה', () async {
+      final presenter = _SnackPresenter();
+
+      final done =
+          await DeclarativeHostActionExecutor(
+            bookOpener: _BookOpener(),
+            snackPresenter: presenter,
+          ).execute(
+            action: _compileSnack(
+              args: {'message': 'הספר נשמר', 'severity': 'success'},
+            ),
+            plugin: _plugin(),
+            grantedPermissions: const {'notifications.send'},
+            currentContextSignature: 'book-7',
+            currentProgramGeneration: 7,
+          );
+
+      expect(done, isTrue);
+      expect(presenter.shown.single, (
+        message: 'הספר נשמר',
+        severity: 'success',
+        pluginName: 'Declarative',
+      ));
+    });
+
+    test('ההודעה מיוחסת לתוסף ואינה נראית כהודעת מערכת', () {
+      expect(
+        PluginMessages.declarativeSnack('הספר נשמר', 'Declarative'),
+        'הספר נשמר · מאת Declarative',
+      );
+    });
+
+    test('ברירת המחדל היא info', () async {
+      final presenter = _SnackPresenter();
+
+      await DeclarativeHostActionExecutor(
+        bookOpener: _BookOpener(),
+        snackPresenter: presenter,
+      ).execute(
+        action: _compileSnack(args: {'message': 'שלום'}),
+        plugin: _plugin(),
+        grantedPermissions: const {'notifications.send'},
+        currentContextSignature: 'book-7',
+        currentProgramGeneration: 7,
+      );
+
+      expect(presenter.shown.single.severity, 'info');
+    });
+
+    test('חתימת הקשר ישנה חוסמת גם הודעה', () async {
+      final presenter = _SnackPresenter();
+
+      await expectLater(
+        DeclarativeHostActionExecutor(
+          bookOpener: _BookOpener(),
+          snackPresenter: presenter,
+        ).execute(
+          action: _compileSnack(args: {'message': 'שלום'}),
+          plugin: _plugin(),
+          grantedPermissions: const {'notifications.send'},
+          currentContextSignature: 'book-8',
+          currentProgramGeneration: 7,
+        ),
+        _throwsProgramError('declarative.stale_action'),
+      );
+      expect(presenter.shown, isEmpty);
+    });
+
+    test('הרשאה שנשללה חוסמת את ההודעה', () async {
+      final presenter = _SnackPresenter();
+
+      await expectLater(
+        DeclarativeHostActionExecutor(
+          bookOpener: _BookOpener(),
+          snackPresenter: presenter,
+        ).execute(
+          action: _compileSnack(args: {'message': 'שלום'}),
+          plugin: _plugin(),
+          grantedPermissions: const {},
+          currentContextSignature: 'book-7',
+          currentProgramGeneration: 7,
+        ),
+        _throwsProgramError('declarative.permission_denied'),
+      );
+      expect(presenter.shown, isEmpty);
+    });
+
+    test('הרשאה שלא הוצהרה במניפסט נדחית בקומפילציה', () {
+      expect(
+        () => _compiler().compileResolved(
+          {
+            'type': 'ui.showSnack',
+            'args': {'message': 'שלום'},
+          },
+          contextSignature: 'book-7',
+          programGeneration: 7,
+        ),
+        _throwsProgramError('declarative.permission_not_declared'),
+      );
+    });
+
+    test('טקסט ריק, ארוך מדי או severity לא מוכר נדחים בקומפילציה', () {
+      expect(
+        () => _compileSnack(args: {'message': '   '}),
+        _throwsProgramError('declarative.invalid_args'),
+      );
+      expect(
+        () => _compileSnack(args: {'message': 'א' * 201}),
+        _throwsProgramError('declarative.invalid_args'),
+      );
+      expect(
+        () => _compileSnack(args: {'message': 'א\nב'}),
+        _throwsProgramError('declarative.invalid_args'),
+      );
+      expect(
+        () => _compileSnack(
+          args: {'message': 'שלום', 'severity': 'warning'},
+        ),
+        _throwsProgramError('declarative.invalid_args'),
+      );
+    });
+  });
+
+  group('reader.scrollToRef', () {
+    test('גולל בספר הפתוח בלי לפתוח אותו מחדש', () async {
+      final scroller = _ReaderScroller();
+      final opener = _BookOpener();
+
+      final done =
+          await DeclarativeHostActionExecutor(
+            bookOpener: opener,
+            readerScroller: scroller,
+          ).execute(
+            action: _compiler().compileResolved(
+              {
+                'type': 'reader.scrollToRef',
+                'args': {'ref': 'ברכות ב ע"א', 'highlight': true},
+              },
+              contextSignature: 'book-7',
+              programGeneration: 7,
+            ),
+            plugin: _plugin(),
+            grantedPermissions: const {'reader.open'},
+            currentContextSignature: 'book-7',
+            currentProgramGeneration: 7,
+          );
+
+      expect(done, isTrue);
+      expect(scroller.calls.single, (ref: 'ברכות ב ע"א', highlight: true));
+      expect(opener.identities, isEmpty);
+    });
+
+    test('בלי שירות מחובר הפעולה נכשלת סגור', () async {
+      await expectLater(
+        DeclarativeHostActionExecutor(bookOpener: _BookOpener()).execute(
+          action: _compiler().compileResolved(
+            {
+              'type': 'reader.scrollToRef',
+              'args': {'ref': 'ברכות ב'},
+            },
+            contextSignature: 'book-7',
+            programGeneration: 7,
+          ),
+          plugin: _plugin(),
+          grantedPermissions: const {'reader.open'},
+          currentContextSignature: 'book-7',
+          currentProgramGeneration: 7,
+        ),
+        _throwsProgramError('declarative.service_unavailable'),
+      );
+    });
+
+    test('ref ריק או ארוך מדי נדחה בקומפילציה', () {
+      for (final ref in ['', 'א' * 257]) {
+        expect(
+          () => _compiler().compileResolved(
+            {
+              'type': 'reader.scrollToRef',
+              'args': {'ref': ref},
+            },
+            contextSignature: 'book-7',
+            programGeneration: 7,
+          ),
+          _throwsProgramError('declarative.invalid_args'),
+        );
+      }
+    });
+  });
+
+  group('search.open', () {
+    test('פותח חיפוש עם השאילתה', () async {
+      final search = _SearchOpener();
+
+      final done =
+          await DeclarativeHostActionExecutor(
+            bookOpener: _BookOpener(),
+            searchOpener: search,
+          ).execute(
+            action: _compiler().compileResolved(
+              {
+                'type': 'search.open',
+                'args': {'query': 'שבת', 'autoSearch': false},
+              },
+              contextSignature: 'book-7',
+              programGeneration: 7,
+            ),
+            plugin: _plugin(),
+            grantedPermissions: const {'reader.open'},
+            currentContextSignature: 'book-7',
+            currentProgramGeneration: 7,
+          );
+
+      expect(done, isTrue);
+      expect(search.calls.single, (query: 'שבת', autoSearch: false));
+    });
+
+    test('שאילתה ארוכה מדי נדחית בקומפילציה', () {
+      expect(
+        () => _compiler().compileResolved(
+          {
+            'type': 'search.open',
+            'args': {'query': 'א' * 501},
+          },
+          contextSignature: 'book-7',
+          programGeneration: 7,
+        ),
+        _throwsProgramError('declarative.invalid_args'),
+      );
+    });
+
+    test('autoSearch שאינו בוליאני נדחה בקומפילציה', () {
+      expect(
+        () => _compiler().compileResolved(
+          {
+            'type': 'search.open',
+            'args': {'query': 'שבת', 'autoSearch': 'yes'},
+          },
+          contextSignature: 'book-7',
+          programGeneration: 7,
+        ),
+        _throwsProgramError('declarative.invalid_args'),
+      );
+    });
+  });
 }
+
+class _SnackPresenter implements DeclarativeSnackPresenter {
+  final shown = <({String message, String severity, String pluginName})>[];
+
+  @override
+  void show(String message, String severity, {required String pluginName}) {
+    shown.add((message: message, severity: severity, pluginName: pluginName));
+  }
+}
+
+class _ReaderScroller implements DeclarativeReaderScroller {
+  final calls = <({String ref, bool highlight})>[];
+
+  @override
+  Future<bool> scrollToRef(String ref, {bool highlight = false}) async {
+    calls.add((ref: ref, highlight: highlight));
+    return true;
+  }
+}
+
+class _SearchOpener implements DeclarativeSearchOpener {
+  final calls = <({String query, bool autoSearch})>[];
+
+  @override
+  Future<bool> openSearch(String query, {bool autoSearch = true}) async {
+    calls.add((query: query, autoSearch: autoSearch));
+    return true;
+  }
+}
+
+DeclarativeActionCompiler _snackCompiler() => const DeclarativeActionCompiler(
+  declaredPermissions: {'notifications.send'},
+);
+
+CompiledDeclarativeAction _compileSnack({
+  required Map<String, dynamic> args,
+}) => _snackCompiler().compileResolved(
+  {'type': 'ui.showSnack', 'args': args},
+  contextSignature: 'book-7',
+  programGeneration: 7,
+);
 
 class _BookOpener implements DeclarativeBookOpener {
   final identities = <Map<String, dynamic>>[];

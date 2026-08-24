@@ -10,6 +10,9 @@ class PluginSystemDatabase {
   PluginSystemDatabase._();
   static final PluginSystemDatabase instance = PluginSystemDatabase._();
 
+  /// גודל אצווה לשאילתה בודדת ב-`getPluginKVMany` — לא תקרה על סך המפתחות.
+  static const int maxKVBulkKeys = 200;
+
   Database? _database;
 
   Future<Database> get database async {
@@ -381,6 +384,49 @@ class PluginSystemDatabase {
     );
     if (results.isEmpty) return null;
     return results.first['value_json'] as String?;
+  }
+
+  /// קריאה מרוכזת של מפתחות KV בשאילתה אחת. מפתח שאינו קיים חסר מהמפה.
+  /// [keys] נחתך ל-[maxKVBulkKeys] כדי לא לבנות משפט SQL ענק.
+  Future<Map<String, String>> getPluginKVMany(
+    String pluginId,
+    String namespace,
+    Iterable<String> keys,
+  ) async {
+    if (keys.isEmpty) return const {};
+    return selectKVMany(await database, pluginId, namespace, keys);
+  }
+
+  /// הלוגיקה הטהורה של [getPluginKVMany] על Database נתון — חשוף לבדיקות.
+  @visibleForTesting
+  static Map<String, String> selectKVMany(
+    Database db,
+    String pluginId,
+    String namespace,
+    Iterable<String> keys,
+  ) {
+    final unique = keys.toSet().toList();
+    if (unique.isEmpty) return const {};
+    final values = <String, String>{};
+    // אצווה חוסמת את גודל משפט ה-SQL, אבל אף מפתח אינו נזרק: תנאי שנשען על
+    // מפתח שנחתך היה מוערך false בשקט.
+    for (var start = 0; start < unique.length; start += maxKVBulkKeys) {
+      final batch = unique.sublist(
+        start,
+        (start + maxKVBulkKeys).clamp(0, unique.length),
+      );
+      final placeholders = List.filled(batch.length, '?').join(', ');
+      final rows = db.select(
+        'SELECT key, value_json FROM plugin_kv_store '
+        'WHERE plugin_id = ? AND namespace = ? AND key IN ($placeholders)',
+        [pluginId, namespace, ...batch],
+      );
+      for (final row in rows) {
+        final value = row['value_json'];
+        if (value is String) values[row['key'] as String] = value;
+      }
+    }
+    return values;
   }
 
   Future<void> removePluginKV(

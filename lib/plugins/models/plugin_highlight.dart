@@ -51,6 +51,10 @@ class PluginHighlight {
   final String highlightId;
   final String ownerPluginId;
   final String bookId;
+
+  /// מזהה ספר יציב (אופציונלי). קיים בהדגשות שנשמרו לאחר תמיכת ה-SDK בו;
+  /// הדגשות ישנות נושאות רק [bookId] (כותרת) ונמצאות דרך מפתח הכותרת.
+  final String? bookUid;
   final int sectionIndex;
   final String? currentRef;
   final PluginTextRangeAnchor range;
@@ -65,6 +69,7 @@ class PluginHighlight {
     required this.highlightId,
     required this.ownerPluginId,
     required this.bookId,
+    this.bookUid,
     required this.sectionIndex,
     this.currentRef,
     required this.range,
@@ -84,6 +89,7 @@ class PluginHighlight {
     'ownerPluginId': ownerPluginId,
     'pluginId': ownerPluginId,
     'bookId': bookId,
+    if (bookUid != null) 'bookUid': bookUid,
     'sectionIndex': sectionIndex,
     'index': sectionIndex,
     'color': style.backgroundColor,

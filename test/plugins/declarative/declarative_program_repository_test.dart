@@ -90,6 +90,147 @@ void main() {
     expect(repository.getContextSignature(plugin.pluginId), 'new-book');
   });
 
+  test('טריגר אחד אינו מוחק את הפלט של טריגר אחר', () async {
+    final queue = _RunQueue();
+    final repository = DeclarativeProgramRepository(runProgram: queue.call);
+    final plugin = _plugin();
+    repository.syncPlugin(
+      plugin: plugin,
+      programs: [
+        _program('reader'),
+        _program('boot', triggers: const ['app.startup']),
+      ],
+      grantedPermissions: const {},
+    );
+
+    final boot = repository.runTrigger(
+      trigger: 'app.startup',
+      context: const {},
+      contextSignature: 'app:0',
+    );
+    queue.completeNext('boot', 'once');
+    await boot;
+
+    final reader = repository.runTrigger(
+      trigger: 'reader.activeBookChanged',
+      context: const {},
+      contextSignature: 'book-1',
+    );
+    // הפלט של app.startup חייב להישאר זמין גם בזמן שתכנית הקריאה רצה.
+    expect(
+      repository.getProgramOutputs(plugin.pluginId, 'boot'),
+      containsPair('value', 'once'),
+    );
+    queue.completeNext('reader', 'now');
+    await reader;
+
+    expect(repository.getPluginOutputs(plugin.pluginId).keys, {
+      'boot',
+      'reader',
+    });
+  });
+
+  test('יציאה מספר משאירה פלט של תכנית שאינה תלוית-הקשר', () async {
+    final queue = _RunQueue();
+    final repository = DeclarativeProgramRepository(runProgram: queue.call);
+    final plugin = _plugin();
+    repository.syncPlugin(
+      plugin: plugin,
+      programs: [
+        _program('reader'),
+        _program('boot', triggers: const ['app.startup']),
+      ],
+      grantedPermissions: const {},
+    );
+
+    final boot = repository.runTrigger(
+      trigger: 'app.startup',
+      context: const {},
+      contextSignature: 'app:0',
+    );
+    queue.completeNext('boot', 'once');
+    await boot;
+    final reader = repository.runTrigger(
+      trigger: 'reader.activeBookChanged',
+      context: const {},
+      contextSignature: 'book-1',
+    );
+    queue.completeNext('reader', 'now');
+    await reader;
+
+    repository.clearContexts();
+
+    expect(repository.getPluginOutputs(plugin.pluginId).keys, {'boot'});
+    expect(repository.getContextSignature(plugin.pluginId), isNull);
+  });
+
+  test('ריצת settings.changed אינה מוחקת פלט של ריצה שעדיין באוויר', () async {
+    final queue = _RunQueue();
+    final repository = DeclarativeProgramRepository(runProgram: queue.call);
+    final plugin = _plugin();
+    repository.syncPlugin(
+      plugin: plugin,
+      programs: [
+        _program('reader'),
+        _program('prefs', triggers: const ['settings.changed']),
+      ],
+      grantedPermissions: const {},
+    );
+
+    final reader = repository.runTrigger(
+      trigger: 'reader.activeBookChanged',
+      context: const {'reader': 1},
+      contextSignature: 'book-1',
+    );
+    await queue.waitForCalls(1);
+    final prefs = repository.runTrigger(
+      trigger: 'settings.changed',
+      context: const {'reader': 1},
+      contextSignature: 'book-1',
+    );
+    await queue.waitForCalls(2);
+    queue.completeAt(1, 'prefs', 'p');
+    await prefs;
+    queue.completeAt(0, 'reader', 'r');
+    await reader;
+
+    expect(
+      repository.getProgramOutputs(plugin.pluginId, 'reader'),
+      containsPair('value', 'r'),
+    );
+    expect(
+      repository.getProgramOutputs(plugin.pluginId, 'prefs'),
+      containsPair('value', 'p'),
+    );
+  });
+
+  test('פלט תלוי-הקשר של טריגר context-free נמחק ביציאה מספר', () async {
+    final queue = _RunQueue();
+    final repository = DeclarativeProgramRepository(runProgram: queue.call);
+    final plugin = _plugin();
+    repository.syncPlugin(
+      plugin: plugin,
+      programs: [
+        _program('prefs', triggers: const ['settings.changed']),
+      ],
+      grantedPermissions: const {},
+    );
+
+    // הריצה קיבלה ספר פתוח בהקשר, ולכן הפלט עלול לשאת את זהותו.
+    final run = repository.runTrigger(
+      trigger: 'settings.changed',
+      context: const {'reader': 1},
+      contextSignature: 'book-1',
+    );
+    queue.completeNext('prefs', 'from-book-1');
+    await run;
+    expect(repository.getProgramOutputs(plugin.pluginId, 'prefs'), isNotNull);
+
+    repository.clearContexts();
+
+    expect(repository.getPluginOutputs(plugin.pluginId), isEmpty);
+  });
+
   test('הסרת תוסף בזמן ריצה מבטלת את התוצאה המאוחרת', () async {
     final queue = _RunQueue();
     final repository = DeclarativeProgramRepository(runProgram: queue.call);
@@ -154,10 +295,13 @@ class _RunQueue {
   }
 }
 
-CompiledDeclarativeProgram _program(String id) => CompiledDeclarativeProgram(
+CompiledDeclarativeProgram _program(
+  String id, {
+  List<String> triggers = const ['reader.activeBookChanged'],
+}) => CompiledDeclarativeProgram(
   id: id,
   version: 1,
-  triggers: const ['reader.activeBookChanged'],
+  triggers: triggers,
   when: null,
   commands: const [],
   outputs: const {},

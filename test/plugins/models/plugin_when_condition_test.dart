@@ -18,6 +18,47 @@ void main() {
       expect(condition.storageKeys, isEmpty);
     });
 
+    test('מפרסר contains ו-greaterThan, כולל round-trip', () {
+      const raw = {
+        'all': [
+          {
+            'storage': {'key': 'tags', 'contains': 'שבת'},
+          },
+          {
+            'setting': {'key': 'key-font-size', 'greaterThan': 18},
+          },
+        ],
+      };
+
+      final condition = PluginWhenCondition.fromJson(raw);
+
+      expect(
+        condition.conditions.first.operator,
+        PluginWhenLeafOperator.contains,
+      );
+      expect(
+        condition.conditions.last.operator,
+        PluginWhenLeafOperator.greaterThan,
+      );
+      expect(jsonEncode(condition.toJson()), jsonEncode(raw));
+    });
+
+    test('greaterThan שאינו מספר ו-contains פסול נדחים', () {
+      for (final leaf in [
+        {'key': 'k', 'greaterThan': 'big'},
+        {'key': 'k', 'greaterThan': true},
+        {'key': 'k', 'contains': true},
+        {'key': 'k', 'contains': ''},
+        {'key': 'k', 'contains': 'א' * 101},
+      ]) {
+        expect(
+          () => PluginWhenCondition.fromJson({'storage': leaf}),
+          throwsA(isA<PluginWhenConditionException>()),
+          reason: '$leaf',
+        );
+      }
+    });
+
     test('אוסף מפתחות משני סוגי העלים בעץ מקונן', () {
       final condition = PluginWhenCondition.fromJson({
         'all': [

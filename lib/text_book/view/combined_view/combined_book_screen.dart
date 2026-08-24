@@ -1409,6 +1409,7 @@ class _CombinedViewState extends State<CombinedView> {
             bookDbId: state.book.id,
             bookType: PluginBookIdentity.typeOf(state.book),
             bookSource: PluginBookIdentity.sourceOf(state.book),
+            bookUid: PluginBookIdentity.uidOf(state.book),
           );
         }
         return <AppContextMenuEntry>[
@@ -1441,6 +1442,7 @@ class _CombinedViewState extends State<CombinedView> {
       root: root,
       globalPosition: tapPosition,
       bookId: state.book.title,
+      bookUid: PluginBookIdentity.uidOf(state.book),
       sectionIndex: paragraphIndex,
       rawText: widget.data[paragraphIndex],
       settings: settings,
@@ -1457,6 +1459,7 @@ class _CombinedViewState extends State<CombinedView> {
         bookDbId: state.book.id,
         bookType: PluginBookIdentity.typeOf(state.book),
         bookSource: PluginBookIdentity.sourceOf(state.book),
+        bookUid: PluginBookIdentity.uidOf(state.book),
       ),
       context: 'reader-highlight',
       selectionActionDispatcher: pluginSelectionActionDispatcherOf(menuContext),
@@ -1879,21 +1882,23 @@ class _CombinedViewState extends State<CombinedView> {
                         final selectionText = fixedPlain?.trim() ?? '';
                         if (selectionText.isNotEmpty && loadedState != null) {
                           unawaited(
-                            PluginRuntimeDispatcher.instance
-                                .dispatchEvent('reader.selection_changed', {
-                                  'text': selectionText,
-                                  'currentRef': loadedState.currentTitle ?? '',
-                                  'currentBook': loadedState.book.title,
-                                  'currentBookId': loadedState.book.title,
-                                  'currentIndex': foundIndex ?? 0,
-                                  'id': ?loadedState.book.id,
-                                  'type': PluginBookIdentity.typeOf(
-                                    loadedState.book,
-                                  ),
-                                  'source': PluginBookIdentity.sourceOf(
-                                    loadedState.book,
-                                  ),
-                                }),
+                            PluginRuntimeDispatcher.instance.dispatchEvent(
+                              'reader.selection_changed',
+                              {
+                                'text': selectionText,
+                                'currentRef': loadedState.currentTitle ?? '',
+                                'currentBook': loadedState.book.title,
+                                'currentBookId': loadedState.book.title,
+                                'currentIndex': foundIndex ?? 0,
+                                'id': ?loadedState.book.id,
+                                'type': PluginBookIdentity.typeOf(
+                                  loadedState.book,
+                                ),
+                                'source': PluginBookIdentity.sourceOf(
+                                  loadedState.book,
+                                ),
+                              },
+                            ),
                           );
                         }
                       }
@@ -2008,6 +2013,14 @@ class _CombinedViewState extends State<CombinedView> {
     final itemCount = state.readingSegments.isNotEmpty
         ? state.readingSegments.length
         : widget.data.length;
+    // כמו ב-buildOuterList: פתיחה במיקום הטאב (תצוגה מקדימה של תוצאת
+    // חיפוש נפתחת בקטע שנמצא, לא בראש הספר).
+    final initialIndex = state.readingSegments.isNotEmpty
+        ? segmentIndexForLine(state.readingSegments, widget.tab.index)
+        : widget.tab.index;
+    final clampedInitial = itemCount == 0
+        ? 0
+        : initialIndex.clamp(0, itemCount - 1);
 
     return ScrollablePositionedListScrollbar(
       scrollController: widget.tab.scrollController,
@@ -2016,6 +2029,7 @@ class _CombinedViewState extends State<CombinedView> {
       itemCount: itemCount,
       child: SmoothWheelScroll(
         child: ScrollablePositionedList.builder(
+          initialScrollIndex: clampedInitial,
           itemScrollController: widget.tab.scrollController,
           itemPositionsListener: widget.tab.positionsListener,
           scrollOffsetController: widget.tab.mainOffsetController,
@@ -2433,13 +2447,16 @@ class _CombinedViewState extends State<CombinedView> {
                           // הדגשת טקסט ממוקד: highlightText מופעל רק בשורה permanentHighlightLine
                           final textWidget = SmartTextWidget(
                             text: dataWithLinks,
-                            highlightBookId: widget.tab.book.title,
-                            highlightBookDbId: widget.tab.book.id,
+                            highlightBookId: state.book.title,
+                            highlightBookUid: PluginBookIdentity.uidOf(
+                              state.book,
+                            ),
+                            highlightBookDbId: state.book.id,
                             highlightBookType: PluginBookIdentity.typeOf(
-                              widget.tab.book,
+                              state.book,
                             ),
                             highlightBookSource: PluginBookIdentity.sourceOf(
-                              widget.tab.book,
+                              state.book,
                             ),
                             highlightSectionIndex: primaryLineIndex,
                             highlightSourceText: widget.data[primaryLineIndex],
@@ -2788,13 +2805,14 @@ class _CombinedViewState extends State<CombinedView> {
       renderSettings,
     );
     return const PluginHighlightRenderer().renderWithRanges(
-      bookId: widget.tab.book.title,
+      bookId: state.book.title,
       sectionIndex: lineIndex,
       rawText: rawText,
       processedHtml: processedHtml,
       highlights: PluginHighlightRegistry.instance.getAllHighlights(
-        bookId: widget.tab.book.title,
+        bookId: state.book.title,
         sectionIndex: lineIndex,
+        bookUid: PluginBookIdentity.uidOf(state.book),
       ),
       revealedHighlightId: PluginHighlightRevealService.instance.highlightId,
     );

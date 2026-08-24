@@ -8,7 +8,7 @@ To build Linux packages, you need:
 
 ### On Ubuntu/Debian:
 ```bash
-sudo apt-get install clang cmake git ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev rpm patchelf
+sudo apt-get install clang cmake git ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev libsecret-1-0 libharfbuzz-icu0 rpm patchelf
 ```
 
 ### Flutter Distributor:

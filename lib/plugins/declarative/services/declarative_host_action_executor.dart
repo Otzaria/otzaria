@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:otzaria/core/messages/plugin_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/plugins/declarative/models/declarative_program.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/plugin_constants.dart';
@@ -15,6 +17,38 @@ abstract interface class DeclarativeBookOpener {
     bool inSidePane,
     ExternalBookMatches? externalMatches,
   });
+}
+
+/// גלילת הספר **הפתוח** להפניה, בלי לפתוח אותו מחדש.
+abstract interface class DeclarativeReaderScroller {
+  Future<bool> scrollToRef(String ref, {bool highlight});
+}
+
+/// פתיחת כרטיסיית חיפוש עם שאילתה.
+abstract interface class DeclarativeSearchOpener {
+  Future<bool> openSearch(String query, {bool autoSearch});
+}
+
+/// הצגת הודעת מערכת. המימוש הדיפולטי הוא UiSnack.
+abstract interface class DeclarativeSnackPresenter {
+  void show(String message, String severity, {required String pluginName});
+}
+
+class UiSnackPresenter implements DeclarativeSnackPresenter {
+  const UiSnackPresenter();
+
+  @override
+  void show(String message, String severity, {required String pluginName}) {
+    final text = PluginMessages.declarativeSnack(message, pluginName);
+    switch (severity) {
+      case 'success':
+        UiSnack.showSuccess(text);
+      case 'error':
+        UiSnack.showError(text);
+      default:
+        UiSnack.show(text);
+    }
+  }
 }
 
 /// כתיבה לאחסון ה-KV של תוסף מפעולה דקלרטיבית — בלי מנוע JS.
@@ -57,10 +91,16 @@ class PluginKvStorageWriter implements DeclarativeStorageWriter {
 class DeclarativeHostActionExecutor {
   final DeclarativeBookOpener bookOpener;
   final DeclarativeStorageWriter? storageWriter;
+  final DeclarativeReaderScroller? readerScroller;
+  final DeclarativeSearchOpener? searchOpener;
+  final DeclarativeSnackPresenter snackPresenter;
 
   const DeclarativeHostActionExecutor({
     required this.bookOpener,
     this.storageWriter,
+    this.readerScroller,
+    this.searchOpener,
+    this.snackPresenter = const UiSnackPresenter(),
   });
 
   Future<bool> execute({
@@ -122,6 +162,37 @@ class DeclarativeHostActionExecutor {
       case 'storage.remove':
         final writer = storageWriter ?? PluginKvStorageWriter();
         await writer.remove(plugin.pluginId, action.args['key'] as String);
+        return true;
+      case 'reader.scrollToRef':
+        final scroller = readerScroller;
+        if (scroller == null) {
+          throw const DeclarativeProgramException(
+            'declarative.service_unavailable',
+            'reader.scrollToRef is not available',
+          );
+        }
+        return scroller.scrollToRef(
+          action.args['ref'] as String,
+          highlight: action.args['highlight'] as bool? ?? false,
+        );
+      case 'search.open':
+        final opener = searchOpener;
+        if (opener == null) {
+          throw const DeclarativeProgramException(
+            'declarative.service_unavailable',
+            'search.open is not available',
+          );
+        }
+        return opener.openSearch(
+          action.args['query'] as String,
+          autoSearch: action.args['autoSearch'] as bool? ?? true,
+        );
+      case 'ui.showSnack':
+        snackPresenter.show(
+          action.args['message'] as String,
+          action.args['severity'] as String? ?? 'info',
+          pluginName: plugin.name,
+        );
         return true;
       default:
         throw DeclarativeProgramException(

@@ -4,6 +4,13 @@ import 'package:otzaria/plugins/declarative/commands/declarative_command_registr
 import 'package:otzaria/plugins/declarative/models/declarative_program.dart';
 
 class DeclarativeActionCompiler {
+  /// תקרות אורך לפעולות שמזרימות טקסט של התוסף לממשק או לחיפוש.
+  static const int maxRefLength = 256;
+  static const int maxQueryLength = 500;
+  static const int maxSnackLength = 200;
+
+  static const Set<String> snackSeverities = {'info', 'success', 'error'};
+
   final Set<String> declaredPermissions;
 
   const DeclarativeActionCompiler({required this.declaredPermissions});
@@ -64,6 +71,33 @@ class DeclarativeActionCompiler {
       case 'storage.set':
       case 'storage.remove':
         _validateStorageArgs(args, requiresValue: type == 'storage.set');
+      case 'reader.scrollToRef':
+        _requiredShortString(
+          args['ref'],
+          'reader.scrollToRef.ref',
+          maxRefLength,
+        );
+        _optionalBool(args['highlight'], 'reader.scrollToRef.highlight');
+      case 'search.open':
+        _requiredShortString(
+          args['query'],
+          'search.open.query',
+          maxQueryLength,
+        );
+        _optionalBool(args['autoSearch'], 'search.open.autoSearch');
+      case 'ui.showSnack':
+        _requiredShortString(
+          args['message'],
+          'ui.showSnack.message',
+          maxSnackLength,
+        );
+        final severity = args['severity'];
+        if (severity != null && !snackSeverities.contains(severity)) {
+          throw const DeclarativeProgramException(
+            'declarative.invalid_args',
+            'ui.showSnack.severity must be info, success or error',
+          );
+        }
       default:
         throw DeclarativeProgramException(
           'declarative.invalid_phase',
@@ -149,6 +183,27 @@ class DeclarativeActionCompiler {
       throw const DeclarativeProgramException(
         'declarative.invalid_args',
         'reader.openBook.matchedTerms must be a list of short strings',
+      );
+    }
+  }
+
+  void _requiredShortString(Object? value, String context, int maxLength) {
+    if (value is! String ||
+        value.trim().isEmpty ||
+        value.length > maxLength ||
+        _hasControlChars(value)) {
+      throw DeclarativeProgramException(
+        'declarative.invalid_args',
+        '$context must be a non-empty string of up to $maxLength characters',
+      );
+    }
+  }
+
+  void _optionalBool(Object? value, String context) {
+    if (value != null && value is! bool) {
+      throw DeclarativeProgramException(
+        'declarative.invalid_args',
+        '$context must be a boolean',
       );
     }
   }

@@ -36,6 +36,7 @@ import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart' as pdf_events;
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/pdf_book/utils/pdf_spread_layout.dart';
 import 'package:otzaria/pdf_book/utils/trackpad_axis_lock.dart';
+import 'package:otzaria/pdf_book/utils/trackpad_pan_recognizer.dart';
 import 'package:otzaria/widgets/misc/app_cursors.dart';
 import 'package:otzaria/pdf_book/view/page_turn_geometry.dart';
 import 'package:otzaria/pdf_book/view/pdf_page_number_display.dart';
@@ -427,6 +428,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   bool _readerFocusAndHideQueued = false;
   bool _bookHasCommentaryLinks = false;
 
+  /// מצב יד — גרירת עכבר גוללת את הדף במקום לסמן טקסט (issue #916).
+  bool _isHandMode = false;
+
   /// פעיל רק בפתיחה לעמוד שאינו ראשון (דף יומי, חיפוש, היסטוריה,
   /// קישור מטקסט). כשהדגל true:
   ///   1. ה-overlay נשאר על המסך עד שה-layout מתייצב על עמוד היעד.
@@ -472,11 +476,18 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   // its queued turn play out).
   final Set<LogicalKeyboardKey> _heldArrowKeys = {};
 
-  // נעילת ציר לגלילת לוח מגע: כשמתחילים גלילה אנכית עם שתי אצבעות,
-  // הציר נשאר אנכי עד שמרימים את האצבעות (מזוהה לפי הפסקה בזרם
-  // האירועים). זה מונע "סחיפה" אופקית של הצופה תוך כדי גלילה רגילה -
-  // אותה התנהגות שיש בכל קורא PDF.
+  // נעילת ציר לגלילת לוח מגע (issues #821, #969): מחווה שקרובה מאוד
+  // לציר ננעלת אליו עד שמרימים את האצבעות, כדי שהצופה לא ייסחף לצדדים
+  // בזמן קריאה; מחווה אלכסונית מוכרעת כחופשית ועוברת ללא קיצוץ.
+  // מופע אחד למסלול אירועי הגלילה (סוף מחווה = הפסקה בזרם האירועים),
+  // ומופע נפרד למסלול מחוות ה-pan של לוח מגע מדויק (סוף מחווה מפורש).
   final TrackpadAxisLock _trackpadAxisLock = TrackpadAxisLock();
+  final TrackpadAxisLock _trackpadPanAxisLock = TrackpadAxisLock();
+
+  // מקדם המהירות שמוזן ל-pdfrx עבור גלילת גלגלת. מחוות pan של לוח מגע
+  // מדויק מוזרמות דרך אותו מסלול (ראו _handleTrackpadPanDelta), ושם
+  // מחלקים בו כדי שהתנועה תישאר 1:1 עם האצבעות.
+  static const double _kScrollByMouseWheel = 0.2;
 
   // Pre-rendered spread cache: lets the page-turn animation start instantly
   // because the target spread snapshot is already in memory at click time.
@@ -568,6 +579,32 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       return;
     }
     _bloc.add(pdf_events.ToggleLeftPane(show));
+  }
+
+  /// מחוות pan של לוח מגע מדויק (מ-TrackpadPanRecognizer): מעבירים את
+  /// ה-delta דרך נעילת הציר, ומזרימים כאירוע גלילה סינתטי לאותו מסלול
+  /// שאירועי הגלילה הרגילים עוברים בו (כולל זום ב-Ctrl והפיזיקה של
+  /// pdfrx). כיוון הגלילה הפוך לכיוון תנועת האצבעות, והחלוקה במקדם
+  /// הגלגלת משאירה את התנועה 1:1.
+  void _handleTrackpadPanDelta(Offset panDelta, Offset globalPosition) {
+    final Offset scrollDelta;
+    if (HardwareKeyboard.instance.isControlPressed) {
+      _trackpadPanAxisLock.reset();
+      scrollDelta = -panDelta;
+    } else {
+      scrollDelta = _trackpadPanAxisLock.applyDelta(-panDelta);
+      if (scrollDelta == Offset.zero) {
+        return;
+      }
+    }
+    widget.tab.pdfViewerController.handlePointerSignalEvent(
+      PointerScrollEvent(
+        kind: PointerDeviceKind.trackpad,
+        position: globalPosition,
+        scrollDelta: scrollDelta / _kScrollByMouseWheel,
+      ),
+    );
+    _scheduleReaderFocusAndHidePaneIfNeeded();
   }
 
   void _scheduleReaderFocusAndHidePaneIfNeeded() {
@@ -1383,8 +1420,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           : null,
       enableKeyboardNavigation: false,
       scrollByArrowKey: 25.0,
-      scrollByMouseWheel: 0.2,
-      panAxis: pdfPanAxis(isMobile: Platform.isAndroid || Platform.isIOS),
+      scrollByMouseWheel: _kScrollByMouseWheel,
+      textSelectionParams: PdfTextSelectionParams(enabled: !_isHandMode),
+      // גרירה ישירה (מגע, כלי היד) חופשית לכל הכיוונים; נעילת הציר
+      // לגלילת לוח מגע נאכפת ב-TrackpadAxisLock וב-TrackpadPanRecognizer
+      // (issues #821, #969) ולא דרך PanAxis, שמקצץ לציר אחד גם אלכסונים.
+      panAxis: PanAxis.free,
       interactionDelegateProvider:
           const PdfViewerScrollInteractionDelegateProviderPhysics(),
       onDocumentLoadFinished: (documentRef, succeeded) {
@@ -1472,7 +1513,27 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 );
                 _scheduleReaderFocusAndHidePaneIfNeeded();
               },
-              child: const SizedBox.expand(),
+              // בדסקטופ, גלילה בשתי אצבעות על לוח מגע מדויק מגיעה כמחוות
+              // PointerPanZoom שעוקפות את מסלול אירועי הגלילה - נתבעות
+              // כאן כדי שנעילת הציר החכמה תחול גם עליהן (issue #969).
+              child: Platform.isAndroid || Platform.isIOS
+                  ? const SizedBox.expand()
+                  : RawGestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      gestures: {
+                        TrackpadPanRecognizer:
+                            GestureRecognizerFactoryWithHandlers<
+                              TrackpadPanRecognizer
+                            >(
+                              () => TrackpadPanRecognizer(
+                                onPanDelta: _handleTrackpadPanDelta,
+                                onPanEnd: _trackpadPanAxisLock.reset,
+                              ),
+                              (recognizer) {},
+                            ),
+                      },
+                      child: const SizedBox.expand(),
+                    ),
             ),
           ),
         ),
@@ -1798,13 +1859,16 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                   onTap: () {
                     _pdfViewFocusNode.requestFocus();
                   },
-                  child: PdfViewer(
-                    _pdfDocumentRef,
-                    controller: widget.tab.pdfViewerController,
-                    initialPageNumber: widget.tab.pageNumber < 1
-                        ? 1
-                        : widget.tab.pageNumber,
-                    params: _buildPdfViewerParams(layoutMode),
+                  child: MouseRegion(
+                    cursor: _isHandMode ? AppCursors.grab : MouseCursor.defer,
+                    child: PdfViewer(
+                      _pdfDocumentRef,
+                      controller: widget.tab.pdfViewerController,
+                      initialPageNumber: widget.tab.pageNumber < 1
+                          ? 1
+                          : widget.tab.pageNumber,
+                      params: _buildPdfViewerParams(layoutMode),
+                    ),
                   ),
                 ),
         );
@@ -4383,6 +4447,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                             bookTitle: widget.tab.book.title,
                             bookTopics: widget.tab.book.topics,
                             bookCategoryPath: widget.tab.book.categoryPath,
+                            bookId: widget.tab.book.id,
+                            isUserBook: widget.tab.book.isUserBook,
+                            externalLibraryId:
+                                widget.tab.book.externalLibraryId,
                             pdfFilePath: _resolvedPdfPath,
                             initialSearchText: widget.tab.searchText,
                             initialSearchOptions: widget.tab.searchOptions,
@@ -4822,6 +4890,18 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         onPressed: _ensureSearchTabIsActive,
         compact: isCompact,
       ),
+      if (!Platform.isAndroid && !Platform.isIOS)
+        ActionButtonData.simple(
+          icon: _isHandMode
+              ? FluentIcons.hand_left_24_filled
+              : FluentIcons.hand_left_24_regular,
+          tooltip: _isHandMode
+              ? 'מצב יד פעיל — לחץ לחזרה לסימון טקסט'
+              : 'מצב יד — גלילה בגרירת העכבר',
+          selected: _isHandMode,
+          onPressed: () => setState(() => _isHandMode = !_isHandMode),
+          compact: isCompact,
+        ),
       ActionButtonData.simple(
         icon: FluentIcons.zoom_in_24_regular,
         tooltip: 'הגדל את התצוגה',

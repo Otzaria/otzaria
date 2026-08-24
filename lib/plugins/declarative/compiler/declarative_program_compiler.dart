@@ -14,7 +14,11 @@ class DeclarativeProgramCompiler {
   static const int maxDatabaseWhereDepth = 5;
   static const int maxKeyLength = 128;
 
-  static const supportedTriggers = {'reader.activeBookChanged'};
+  static const supportedTriggers = {
+    'reader.activeBookChanged',
+    'settings.changed',
+    'app.startup',
+  };
 
   static const contextValueKinds = {
     'reader.context': DeclarativeValueKind.scalar,

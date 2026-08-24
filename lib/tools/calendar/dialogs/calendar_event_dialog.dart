@@ -628,7 +628,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
     }
 
     final isRecurring = _selectedRecurrenceType != RecurrenceType.none;
-    // באירוע חוזר התאריך מגביל את החזרה; באירוע בודד הוא סוף הטווח.
+    // תאריך הסיום הוא תמיד סוף טווח הימים של האירוע (המופע הראשון כשחוזר).
     DateTime? endDate;
     if (_selectedEndDate != null) {
       final start = DateTime(
@@ -645,7 +645,13 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
         UiSnack.showError(ToolsMessages.eventEndBeforeStart);
         return;
       }
-      endDate = isRecurring || end.isAfter(start) ? end : null;
+      if (isRecurring &&
+          end.difference(start).inDays >=
+              minRecurrencePeriodDays(_selectedRecurrenceType)) {
+        UiSnack.showError(ToolsMessages.eventRangeLongerThanRecurrence);
+        return;
+      }
+      endDate = end.isAfter(start) ? end : null;
     }
 
     if (_selectedTime != null && _selectedEndTime != null) {
@@ -1085,11 +1091,9 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
 
               SettingsActionTile.text(
                 icon: FluentIcons.calendar_arrow_right_24_regular,
-                title: isRecurring ? 'החזרה מסתיימת' : 'תאריך סיום',
+                title: 'תאריך סיום',
                 subtitle: _selectedEndDate != null
                     ? 'סיום: ${_formatSecondaryDate(_selectedEndDate!)}'
-                    : isRecurring
-                    ? 'חזרה ללא תאריך סיום'
                     : 'אירוע של יום אחד',
                 actions: [
                   if (_selectedEndDate != null)

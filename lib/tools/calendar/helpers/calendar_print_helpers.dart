@@ -35,60 +35,8 @@ List<String> _jewishEventsForDate(DateTime date, bool inIsrael) {
 }
 
 List<CustomEvent> _eventsForDate(DateTime date, CalendarState state) {
-  final jewishDate = JewishDate.fromDateTime(date);
-  final gregorianYear = date.year;
-  final gregorianMonth = date.month;
-  final gregorianDay = date.day;
-  final hebrewYear = jewishDate.getJewishYear();
-  final hebrewMonth = jewishDate.getJewishMonth();
-  final hebrewDay = jewishDate.getJewishDayOfMonth();
-  final gregorianWeekday = date.weekday;
-
-  return state.events.where((event) {
-    if (event.recurrenceType != RecurrenceType.none) {
-      if (event.recurringYears != null && event.recurringYears! > 0) {
-        final expired = switch (event.recurrenceType) {
-          RecurrenceType.annualHebrew || RecurrenceType.monthlyHebrew =>
-            hebrewYear >= event.baseJewishYear + event.recurringYears!,
-          _ =>
-            gregorianYear >=
-                event.baseGregorianDate.year + event.recurringYears!,
-        };
-        if (expired) return false;
-      }
-
-      return switch (event.recurrenceType) {
-        RecurrenceType.weekly =>
-          event.baseGregorianDate.weekday == gregorianWeekday,
-        RecurrenceType.monthlyHebrew => event.baseJewishDay == hebrewDay,
-        RecurrenceType.monthlyGregorian =>
-          event.baseGregorianDate.day == gregorianDay,
-        RecurrenceType.annualHebrew =>
-          event.baseJewishMonth == hebrewMonth &&
-              event.baseJewishDay == hebrewDay,
-        RecurrenceType.annualGregorian =>
-          event.baseGregorianDate.month == gregorianMonth &&
-              event.baseGregorianDate.day == gregorianDay,
-        RecurrenceType.none => false,
-      };
-    }
-
-    // אירוע חד-פעמי — מוצג בכל יום שבטווח [התחלה, סיום]
-    final start = DateTime(
-      event.baseGregorianDate.year,
-      event.baseGregorianDate.month,
-      event.baseGregorianDate.day,
-    );
-    final end = event.endGregorianDate != null
-        ? DateTime(
-            event.endGregorianDate!.year,
-            event.endGregorianDate!.month,
-            event.endGregorianDate!.day,
-          )
-        : start;
-    final current = DateTime(gregorianYear, gregorianMonth, gregorianDay);
-    return !current.isBefore(start) && !current.isAfter(end);
-  }).toList()..sort(compareCalendarEventsByTime);
+  return state.events.where((event) => event.occursOn(date)).toList()
+    ..sort(compareCalendarEventsByTime);
 }
 
 /// יוצר PDF של לוח השנה עם האירועים

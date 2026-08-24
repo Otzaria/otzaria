@@ -2,7 +2,13 @@
 enum PluginWhenConditionKind { setting, storage, all, any, not }
 
 /// האופרטור של עלה בתנאי — בדיוק אחד מהם מותר בכל עלה.
-enum PluginWhenLeafOperator { equals, notEquals, exists }
+enum PluginWhenLeafOperator {
+  equals,
+  notEquals,
+  exists,
+  contains,
+  greaterThan,
+}
 
 /// תנאי `when` מפורסר: עץ של עלים (`setting` / `storage`) וקומבינטורים
 /// (`all` / `any` / `not`). הערכה מתבצעת ב-PluginConditionEvaluator.
@@ -14,6 +20,10 @@ class PluginWhenCondition {
   static const int maxLeaves = 20;
 
   static const int maxKeyLength = 128;
+
+  /// אורך מקסימלי למחרוזת ההשוואה של `contains` — חיפוש תת-מחרוזת רץ על
+  /// ערך שלם בכל הערכה, ולכן הוא חסום כמו רשימת המילים של showWhen.
+  static const int maxContainsLength = 100;
 
   final PluginWhenConditionKind kind;
 
@@ -173,6 +183,8 @@ class PluginWhenCondition {
       'equals': PluginWhenLeafOperator.equals,
       'notEquals': PluginWhenLeafOperator.notEquals,
       'exists': PluginWhenLeafOperator.exists,
+      'contains': PluginWhenLeafOperator.contains,
+      'greaterThan': PluginWhenLeafOperator.greaterThan,
     };
     final unknown = leaf.keys.where(
       (field) => field != 'key' && !operators.containsKey(field),
@@ -185,7 +197,7 @@ class PluginWhenCondition {
     final declared = operators.keys.where(leaf.containsKey).toList();
     if (declared.length != 1) {
       throw const PluginWhenConditionException(
-        'when leaf requires exactly one of equals, notEquals, exists',
+        'when leaf requires exactly one operator',
       );
     }
     final operator = operators[declared.single]!;
@@ -193,6 +205,24 @@ class PluginWhenCondition {
     if (operator == PluginWhenLeafOperator.exists) {
       if (value is! bool) {
         throw const PluginWhenConditionException('when exists must be a bool');
+      }
+    } else if (operator == PluginWhenLeafOperator.greaterThan) {
+      if (value is! num) {
+        throw const PluginWhenConditionException(
+          'when greaterThan must be a number',
+        );
+      }
+    } else if (operator == PluginWhenLeafOperator.contains) {
+      if (value is! String && value is! num) {
+        throw const PluginWhenConditionException(
+          'when contains must be a string or a number',
+        );
+      }
+      if (value is String &&
+          (value.isEmpty || value.length > maxContainsLength)) {
+        throw const PluginWhenConditionException(
+          'when contains must be a non-empty string of up to 100 characters',
+        );
       }
     } else if (value != null &&
         value is! String &&

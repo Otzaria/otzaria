@@ -60,9 +60,98 @@ Future<BookmarkBloc> _makeBloc({List<Bookmark>? initial}) async {
   return bloc;
 }
 
+/// מחסן שהכתיבה אליו נכשלת — למסלול שממתין לשמירה (הגשר לתוספים).
+class _FailingBookmarkRepository extends _FakeBookmarkRepository {
+  _FailingBookmarkRepository({super.initial});
+
+  @override
+  Future<void> saveBookmarks(List<Bookmark> bookmarks) async {
+    saveCallCount++;
+    throw Exception('disk full');
+  }
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 void main() {
+  // UiSnack בכשל שמירה נוגע ב-WidgetsBinding.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  group('BookmarkBloc מסלול שממתין לשמירה', () {
+    test('addBookmarkAndSave מחזיר false כשהשמירה לדיסק נכשלה', () async {
+      final bloc = BookmarkBloc(_FailingBookmarkRepository());
+      await Future<void>.delayed(Duration.zero);
+
+      final saved = await bloc.addBookmarkAndSave(
+        ref: 'בראשית א',
+        book: _book(),
+        index: 0,
+      );
+
+      expect(saved, isFalse);
+    });
+
+    test('addBookmarkAndSave מחזיר true כשהשמירה הצליחה', () async {
+      final bloc = await _makeBloc();
+
+      expect(
+        await bloc.addBookmarkAndSave(
+          ref: 'בראשית א',
+          book: _book(),
+          index: 0,
+        ),
+        isTrue,
+      );
+    });
+
+    test('addBookmarkAndSave מחזיר false על כפילות', () async {
+      final bloc = await _makeBloc(initial: [_bookmark(ref: 'בראשית א')]);
+
+      expect(
+        await bloc.addBookmarkAndSave(
+          ref: 'בראשית א',
+          book: _book(),
+          index: 0,
+        ),
+        isFalse,
+      );
+    });
+
+    test('מסלול ה-UI אינו חוסם — addBookmark מחזיר מיד true', () async {
+      final bloc = BookmarkBloc(_FailingBookmarkRepository());
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.addBookmark(ref: 'בראשית א', book: _book(), index: 0), true);
+      expect(bloc.state.bookmarks, hasLength(1));
+    });
+
+    test('removeBookmarkAndSave מחזיר false כשהשמירה נכשלה', () async {
+      final bloc = BookmarkBloc(
+        _FailingBookmarkRepository(initial: [_bookmark(ref: 'בראשית א')]),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(await bloc.removeBookmarkAndSave(0), isFalse);
+    });
+  });
+
+  group('BookmarkBloc removeBookmark גבולות', () {
+    test('אינדקס מחוץ לתחום מחזיר false ואינו משנה דבר', () async {
+      final bloc = await _makeBloc(initial: [_bookmark()]);
+
+      expect(bloc.removeBookmark(5), isFalse);
+      expect(bloc.removeBookmark(-1), isFalse);
+      expect(bloc.state.bookmarks, hasLength(1));
+    });
+
+    test('אינדקס תקף מחזיר true ומסיר', () async {
+      final bloc = await _makeBloc(initial: [_bookmark()]);
+
+      expect(bloc.removeBookmark(0), isTrue);
+      expect(bloc.state.bookmarks, isEmpty);
+    });
+  });
+
   group('BookmarkBloc', () {
     group('initial load', () {
       test('מתחיל עם רשימה ריקה כאשר אין סימניות', () async {

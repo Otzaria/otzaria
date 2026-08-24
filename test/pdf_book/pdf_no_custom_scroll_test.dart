@@ -37,6 +37,10 @@ void main() {
       final disabledPatterns = [
         RegExp(r'scrollByMouseWheel\s*:\s*0\.0\b'),
         RegExp(r'scrollByMouseWheel\s*:\s*0\b(?!\.)'),
+        // הערך עבר לקבוע _kScrollByMouseWheel (משמש גם לפיצוי מחוות
+        // ה-pan של לוח מגע מדויק) — גם אותו אסור לאפס.
+        RegExp(r'_kScrollByMouseWheel\s*=\s*0\.0\b'),
+        RegExp(r'_kScrollByMouseWheel\s*=\s*0\b(?!\.)'),
       ];
       for (final pattern in disabledPatterns) {
         expect(
@@ -48,10 +52,18 @@ void main() {
         );
       }
 
-      // ודא שהפרמטר אכן מוגדר עם ערך לא־אפס.
+      // ודא שהפרמטר אכן מוגדר עם ערך לא־אפס — כליטרל חיובי או דרך
+      // הקבוע _kScrollByMouseWheel שהוכרז עם ערך חיובי.
+      final positiveConst =
+          RegExp(r'_kScrollByMouseWheel\s*=\s*0?\.[1-9]').hasMatch(source) ||
+          RegExp(r'_kScrollByMouseWheel\s*=\s*[1-9]').hasMatch(source);
       expect(
         RegExp(r'scrollByMouseWheel\s*:\s*0?\.[1-9]').hasMatch(source) ||
-            RegExp(r'scrollByMouseWheel\s*:\s*[1-9]').hasMatch(source),
+            RegExp(r'scrollByMouseWheel\s*:\s*[1-9]').hasMatch(source) ||
+            (RegExp(
+                  r'scrollByMouseWheel\s*:\s*_kScrollByMouseWheel',
+                ).hasMatch(source) &&
+                positiveConst),
         isTrue,
         reason:
             'scrollByMouseWheel חייב להיות מוגדר עם ערך חיובי כדי שחבילת pdfrx '

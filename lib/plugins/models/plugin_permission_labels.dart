@@ -122,6 +122,10 @@ bool _contextMenuItemActivatesBackground(Map<String, dynamic> item) =>
     ).hasBackgroundActivationTrigger;
 
 /// האם הרשאה מתחילה מאושרת במסך ההתקנה.
+///
+/// הרשאות כתיבה לנתוני המשתמש (notes.write, history.write, bookmarks.write)
+/// מתחילות מאושרות ומסתמכות על התווית שמפרשת את ההשלכה; רק הרשאות בעלות
+/// עלות מתמשכת לתהליך (עלייה/רקע) ורשת במצב מנותק מתחילות כבויות.
 bool pluginPermissionDefaultGrant(
   String permission, {
   required bool isOfflineMode,
@@ -231,6 +235,26 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     description: 'פתיחת ספרים בקורא האפליקציה',
   ),
 
+  'reader.context_menu': PluginPermissionInfo(
+    label: 'פריטים בתפריט הטקסט',
+    icon: FluentIcons.text_bullet_list_square_24_regular,
+    description:
+        'הוספת פריטים לתפריט ההקשר של הטקסט. בלחיצה עליהם התוסף מקבל את '
+        'הטקסט שסימנת',
+  ),
+  'reader.toolbar': PluginPermissionInfo(
+    label: 'פקדים בשורת העיון',
+    icon: FluentIcons.app_title_24_regular,
+    description: 'הוספת לחצנים ותפריטים לשורת הפקדים של מסך העיון',
+  ),
+  'reader.highlight': PluginPermissionInfo(
+    label: 'הדגשות בטקסט',
+    icon: FluentIcons.highlight_24_regular,
+    description:
+        'הוספה, שינוי ומחיקה של הדגשות צבעוניות בטקסט הספר. אינה משנה את '
+        'תוכן הספר',
+  ),
+
   // ===== ניווט =====
   'navigation.write': PluginPermissionInfo(
     label: 'ניווט במסכים',
@@ -290,6 +314,13 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     description:
         'בחירה וקריאה של קבצים שתבחר במפורש בדיאלוג — לא גישה חופשית לדיסק',
   ),
+  'fs.user_files.write': PluginPermissionInfo(
+    label: 'שמירה לקבצים אישיים',
+    icon: FluentIcons.save_24_regular,
+    description:
+        'שמירה לקובץ שתבחר בדיאלוג, או יצירת קובץ חדש דרך „שמור בשם” — '
+        'לא כתיבה חופשית לדיסק',
+  ),
   'fs.folder_access': PluginPermissionInfo(
     label: 'גישה לתיקייה שתבחר',
     icon: FluentIcons.folder_24_regular,
@@ -348,6 +379,29 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     label: 'היסטוריית קריאה — עריכה',
     icon: FluentIcons.history_dismiss_24_regular,
     description: 'מחיקה ועריכה של היסטוריית הקריאה',
+  ),
+
+  // ===== סימניות =====
+  'bookmarks.read': PluginPermissionInfo(
+    label: 'סימניות — צפייה',
+    icon: OtzariaIcons.book_star_24_regular,
+    description: 'קריאת רשימת הסימניות שלך, כולל שמות הספרים והמיקומים בהם',
+  ),
+  'bookmarks.write': PluginPermissionInfo(
+    label: 'סימניות — הוספה ומחיקה',
+    icon: FluentIcons.bookmark_off_24_regular,
+    description:
+        'הוספת סימניות חדשות וגם מחיקה של סימניות קיימות שיצרת. מחיקה היא '
+        'סופית — אין שחזור.',
+  ),
+
+  // ===== כלי עזר =====
+  'tools.read': PluginPermissionInfo(
+    label: 'כלי עזר מובנים',
+    icon: FluentIcons.toolbox_24_regular,
+    description:
+        'שימוש בכלי הגימטריה והמילון של אוצריא. נתוני עזר של התוכנה בלבד, '
+        'ללא גישה לנתונים שלך',
   ),
 
   // ===== מסד נתונים =====

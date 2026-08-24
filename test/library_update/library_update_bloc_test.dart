@@ -76,6 +76,34 @@ class _FullVerifyingService extends _FakeService {
   }
 }
 
+/// שירות שמדמה הורדה המדווחת התקדמות על כל chunk — לבדיקת ויסות ההצפה.
+class _ChunkFloodService extends _FakeService {
+  final void Function(int chunk)? beforeChunk;
+
+  _ChunkFloodService(super.plan, {this.beforeChunk});
+
+  @override
+  Future<Set<int>> applyDeltaPlan(
+    LibraryUpdatePlan plan, {
+    LibraryUpdateProgressCallback? onProgress,
+    bool Function()? isCancelled,
+  }) async {
+    for (var i = 1; i <= 100; i++) {
+      beforeChunk?.call(i);
+      onProgress?.call(
+        LibraryUpdateProgress(
+          phase: LibraryUpdatePhase.downloading,
+          totalSteps: 1,
+          bytesDownloaded: i * 1000,
+          bytesTotal: 100000,
+        ),
+      );
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    return const {};
+  }
+}
+
 /// שירות שמדווח על שלב applying ואז נחסם — לבדיקת חסימת ביטול אחרי כתיבת DB.
 class _GatedAtApplyService implements LibraryUpdateService {
   final LibraryUpdatePlan plan;
@@ -272,6 +300,7 @@ LibraryUpdateBloc _bloc(
   CompanionAssetsService? companionAssets,
   // ברירת המחדל "מחובר" מונעת גישת רשת אמיתית בבדיקות מסלולי הכשל.
   bool hasInternet = true,
+  DateTime Function()? now,
 }) => LibraryUpdateBloc(
   repository: service,
   isOfflineMode: () => offline,
@@ -279,6 +308,7 @@ LibraryUpdateBloc _bloc(
   allowPrerelease: () => prerelease,
   companionAssets: companionAssets,
   hasInternet: () async => hasInternet,
+  now: now,
 );
 
 void main() {
@@ -1086,5 +1116,93 @@ void main() {
         ),
       ],
     );
+
+    group('ויסות דיווחי התקדמות', () {
+      blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+        '100 chunks באותו רגע → נפלטים רק הראשון והאחרון',
+        build: () => _bloc(
+          _ChunkFloodService(deltaPlan),
+          now: () => DateTime(2026, 1, 1),
+        ),
+        act: (b) => b.add(const StartLibraryUpdate()),
+        wait: const Duration(milliseconds: 50),
+        expect: () => [
+          isA<LibraryUpdateState>().having(
+            (s) => s.status,
+            'status',
+            LibraryUpdateStatus.checking,
+          ),
+          isA<LibraryUpdateState>()
+              .having(
+                (s) => s.status,
+                'status',
+                LibraryUpdateStatus.downloading,
+              )
+              .having((s) => s.bytesDownloaded, 'bytesDownloaded', 1000),
+          isA<LibraryUpdateState>()
+              .having(
+                (s) => s.status,
+                'status',
+                LibraryUpdateStatus.downloading,
+              )
+              .having((s) => s.bytesDownloaded, 'bytesDownloaded', 100000),
+          isA<LibraryUpdateState>().having(
+            (s) => s.status,
+            'status',
+            LibraryUpdateStatus.completed,
+          ),
+        ],
+      );
+
+      blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+        'chunk שמגיע אחרי progressInterval עובר את הוויסות',
+        build: () {
+          var clock = DateTime(2026, 1, 1);
+          return _bloc(
+            _ChunkFloodService(
+              deltaPlan,
+              beforeChunk: (i) {
+                if (i == 50) {
+                  clock = clock.add(
+                    LibraryUpdateBloc.progressInterval +
+                        const Duration(milliseconds: 1),
+                  );
+                }
+              },
+            ),
+            now: () => clock,
+          );
+        },
+        act: (b) => b.add(const StartLibraryUpdate()),
+        wait: const Duration(milliseconds: 50),
+        expect: () => [
+          isA<LibraryUpdateState>().having(
+            (s) => s.status,
+            'status',
+            LibraryUpdateStatus.checking,
+          ),
+          isA<LibraryUpdateState>().having(
+            (s) => s.bytesDownloaded,
+            'bytesDownloaded',
+            1000,
+          ),
+          isA<LibraryUpdateState>().having(
+            (s) => s.bytesDownloaded,
+            'bytesDownloaded',
+            50000,
+          ),
+          isA<LibraryUpdateState>().having(
+            (s) => s.bytesDownloaded,
+            'bytesDownloaded',
+            100000,
+          ),
+          isA<LibraryUpdateState>().having(
+            (s) => s.status,
+            'status',
+            LibraryUpdateStatus.completed,
+          ),
+        ],
+      );
+    });
   });
 }

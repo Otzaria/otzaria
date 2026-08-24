@@ -94,6 +94,12 @@ abstract class PluginMessages {
   static String detachDevPluginError(Object error) =>
       'שגיאה בניתוק התוסף: $error';
 
+  // ===== תרומות דקלרטיביות =====
+  /// הודעה שתוסף דקלרטיבי ביקש להציג (`ui.showSnack`). הייחוס לתוסף חובה —
+  /// בלעדיו הודעת תוסף נראית כהודעת מערכת של אוצריא.
+  static String declarativeSnack(String message, String pluginName) =>
+      pluginName.trim().isEmpty ? message : '$message · מאת $pluginName';
+
   // ===== WebView2 =====
   static const String downloadLinkOpenFailed = 'לא ניתן לפתוח את קישור ההורדה';
   static const String fileDownloadStarted = 'הורדת הקובץ החלה';

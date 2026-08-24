@@ -11,6 +11,15 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart'
 /// רגקס להסרת תגי HTML.
 final RegExp _htmlStripper = RegExp(r'<[^>]*>');
 
+/// תגי שבירה — מוצגים כמעבר שורה/גבול בלוק ולכן הופכים לרווח ולא נמחקים,
+/// אחרת מילים משני צדי `<br>` נדבקות (כמו strip_html_for_indexing במנוע).
+final RegExp _breakingTagStripper = RegExp(
+  r'</?(?:address|article|aside|blockquote|br|caption|center|dd|div|dl|dt'
+  r'|figcaption|figure|footer|h[1-6]|header|hr|li|main|nav|ol|p|pre|section'
+  r'|table|tbody|td|tfoot|th|thead|tr|ul)(?:[^>a-zA-Z0-9][^>]*)?>',
+  caseSensitive: false,
+);
+
 /// ישות HTML — שמית או מספרית (עשרונית/הקסדצימלית).
 final RegExp _htmlEntity = RegExp(r'&(#x?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);');
 
@@ -67,8 +76,11 @@ final RegExp _holyName = RegExp(
 );
 
 /// הפענוח אחרי הסרת התגים — אחרת `&lt;b&gt;` היה הופך ל-`<b>` ונמחק כתגית.
+/// תגי שבירה הופכים לרווח; תגי inline נמחקים נטו (`מי<b>לה` — מילה אחת).
 String stripHtmlIfNeeded(String text) {
-  return decodeHtmlEntities(text.replaceAll(_htmlStripper, ''));
+  return decodeHtmlEntities(
+    text.replaceAll(_breakingTagStripper, ' ').replaceAll(_htmlStripper, ''),
+  );
 }
 
 /// כמו [stripHtmlIfNeeded], אך ממיר תגי <br> למעבר שורה אמיתי לפני הסרת התגים,

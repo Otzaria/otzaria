@@ -8,40 +8,25 @@ import 'plugin_database_source.dart';
 ///
 /// ```dart
 /// PluginDatabaseRegistry.instance.register(PluginDatabaseSource(
-///   sourceId: 'talmud_synopsis',
-///   label: 'עדי נוסח בבלי',
-///   databasePath: '/path/to/talmud_synopsis.db',
+///   sourceId: 'my_source',
+///   label: 'שם לתצוגה',
+///   databasePath: '/path/to/my_source.db',
 ///   policy: PluginDatabasePolicy(
-///     tables: {'tractates', 'pages', 'witnesses', 'line_alignments',
-///              'line_readings', 'word_alignments', 'readings'},
+///     tables: {'items', 'strings'},
 ///     columnsByTable: {
-///       'tractates':      {'id', 'name'},
-///       'pages':          {'id', 'tractate_id', 'name'},
-///       'witnesses':      {'id', 'name'},
-///       'line_alignments': {'id', 'page_id', 'sequence_number', 'reference'},
-///       'line_readings':  {'id', 'alignment_id', 'witness_id', 'text'},
-///       'word_alignments': {'id', 'page_id', 'sequence_number', 'reference'},
-///       'readings':       {'id', 'alignment_id', 'witness_id', 'text'},
+///       'items': {'id', 'name_text_id'},
+///       'strings': {'id', 'value'},
 ///     },
 ///     allowedJoins: [
-///       PluginJoinRule(tableA: 'pages',           columnA: 'tractate_id',
-///                      tableB: 'tractates',        columnB: 'id'),
-///       PluginJoinRule(tableA: 'line_alignments', columnA: 'page_id',
-///                      tableB: 'pages',            columnB: 'id'),
-///       PluginJoinRule(tableA: 'line_readings',   columnA: 'alignment_id',
-///                      tableB: 'line_alignments', columnB: 'id'),
-///       PluginJoinRule(tableA: 'line_readings',   columnA: 'witness_id',
-///                      tableB: 'witnesses',        columnB: 'id'),
-///       PluginJoinRule(tableA: 'word_alignments', columnA: 'page_id',
-///                      tableB: 'pages',            columnB: 'id'),
-///       PluginJoinRule(tableA: 'readings',        columnA: 'alignment_id',
-///                      tableB: 'word_alignments', columnB: 'id'),
-///       PluginJoinRule(tableA: 'readings',        columnA: 'witness_id',
-///                      tableB: 'witnesses',        columnB: 'id'),
+///       PluginJoinRule(tableA: 'items', columnA: 'name_text_id',
+///                      tableB: 'strings', columnB: 'id'),
 ///     ],
 ///   ),
 /// ));
 /// ```
+///
+/// המקורות המובנים בפועל נרשמים ב-`plugin_database_bootstrap.dart` — הוא
+/// המקור היחיד לסכימות ולמגבלות שלהם.
 ///
 /// תוספים לא יכולים לגשת ישירות ל-registry — גישתם מתווכת דרך ה-service.
 class PluginDatabaseRegistry {

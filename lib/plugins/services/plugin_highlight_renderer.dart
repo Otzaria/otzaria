@@ -40,7 +40,7 @@ class PluginHighlightRenderer {
     if (highlights.isEmpty) {
       return (html: processedHtml, ranges: const []);
     }
-    final map = _sourceMapService.buildFromProcessedHtml(
+    final map = _sourceMapService.cachedFromProcessedHtml(
       bookId: bookId,
       sectionIndex: sectionIndex,
       rawText: rawText,
@@ -110,7 +110,7 @@ class PluginHighlightRenderer {
     required List<PluginHighlight> highlights,
   }) {
     if (highlights.isEmpty) return const [];
-    final map = _sourceMapService.buildFromProcessedHtml(
+    final map = _sourceMapService.cachedFromProcessedHtml(
       bookId: bookId,
       sectionIndex: sectionIndex,
       rawText: rawText,

@@ -166,6 +166,10 @@ class PluginLazyActivationService {
   /// האם המופע של [pluginId] בתהליך הרמה (הופעל אך טרם סיים boot).
   bool isBootPending(String pluginId) => _activating.containsKey(pluginId);
 
+  /// האם רץ כרגע RPC של [pluginId] — מופע כזה אסור בהריגה (פינוי LRU),
+  /// אחרת הפעולה נקטעת באמצע וה-Promise בתוסף לא נפתר.
+  bool isBusy(String pluginId) => (_busyCounts[pluginId] ?? 0) > 0;
+
   /// דור ההפעלה הנוכחי. משתנה בכל שלילת זכאות, כדי לבטל Future שכבר ממתין.
   int activationGeneration(String pluginId) =>
       _activationGenerations[pluginId] ?? 0;

@@ -12,9 +12,13 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
+import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/settings/settings_exports.dart' hide UpdateFontSize;
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:pdfrx/pdfrx.dart';
+import 'package:otzaria/utils/file/page_converter.dart';
+import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/widgets/dialogs/password_dialog.dart';
 import 'package:otzaria/pdf_book/view/pdf_scrollbar.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -25,10 +29,24 @@ class BookPreviewPanel extends StatefulWidget {
   final Book? book;
   final Function(int index)? onOpenInReader; // מקבל את המיקום הנוכחי
 
+  /// מיקום פתיחה בספר טקסט (אינדקס סעיף) — לתצוגה מקדימה של תוצאת חיפוש.
+  /// כשמסופק, גם מסכת בבלי מוצגת כטקסט (ולא במהדורת ה-PDF הנלווית), כדי
+  /// שהתצוגה תראה את הקטע שנמצא.
+  final int? initialTextIndex;
+
+  /// עמוד פתיחה בספר PDF (1-based) — לתצוגה מקדימה של תוצאת חיפוש.
+  final int? initialPdfPage;
+
+  /// טקסט להדגשה בסעיף היעד (שאילתת החיפוש שבוצעה).
+  final String? searchText;
+
   const BookPreviewPanel({
     super.key,
     this.book,
     this.onOpenInReader,
+    this.initialTextIndex,
+    this.initialPdfPage,
+    this.searchText,
   });
 
   @override
@@ -37,6 +55,7 @@ class BookPreviewPanel extends StatefulWidget {
 
 class _BookPreviewPanelState extends State<BookPreviewPanel> {
   TextBookTab? _currentTextTab;
+  PdfBook? _companionPdfBook;
   PdfViewerController? _pdfController;
   bool _isPdfViewerReady = false;
   bool _pdfFileExists = true;
@@ -51,12 +70,56 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
   void didUpdateWidget(BookPreviewPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // אם הספר השתנה, נצור tab חדש
+    // ספר אחר — נצור tab חדש
     if (widget.book != oldWidget.book) {
       _disposeCurrentTab();
       if (widget.book != null) {
         _createNewTab();
       }
+      return;
+    }
+
+    // אותו ספר, מיקום יעד אחר (מעבר בין תוצאות חיפוש) — גלילה בלבד,
+    // בלי לבנות את הספר מחדש.
+    if (widget.initialTextIndex != oldWidget.initialTextIndex &&
+        widget.initialTextIndex != null) {
+      if (_currentTextTab != null) {
+        _scrollPreviewToIndex(widget.initialTextIndex!);
+      } else {
+        _disposeCurrentTab();
+        _createNewTab();
+      }
+    }
+    if (widget.initialPdfPage != oldWidget.initialPdfPage &&
+        widget.initialPdfPage != null &&
+        _pdfController != null &&
+        _pdfController!.isReady) {
+      _pdfController!.goToPage(pageNumber: widget.initialPdfPage!);
+    }
+  }
+
+  /// גלילת התצוגה המקדימה הקיימת אל קטע יעד חדש באותו ספר, כולל העברת
+  /// סימון שורת התוצאה. אם התוכן עוד לא נטען — נופלים לבנייה מחדש.
+  void _scrollPreviewToIndex(int index) {
+    final tab = _currentTextTab!;
+    final state = tab.bloc.state;
+    if (state is! TextBookLoaded) {
+      _disposeCurrentTab();
+      _createNewTab();
+      return;
+    }
+    tab.index = index;
+    tab.bloc.add(UpdateSearchResultLines({index}));
+    final targetIndex = state.readingSegments.isNotEmpty
+        ? segmentIndexForLine(state.readingSegments, index)
+        : index;
+    if (tab.scrollController.isAttached) {
+      tab.scrollController.scrollTo(
+        index: targetIndex,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        alignment: kReadingAnchorAlignment,
+      );
     }
   }
 
@@ -79,9 +142,14 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
   void _disposeCurrentTab() {
     _currentTextTab?.dispose();
     _currentTextTab = null;
+    _companionPdfBook = null;
     _pdfController = null;
     _isPdfViewerReady = false;
   }
+
+  /// ה-PDF שמוצג בפועל: הספר עצמו, או מהדורת ה-PDF הנלווית של מסכת בבלי.
+  PdfBook? get _displayedPdfBook =>
+      widget.book is PdfBook ? widget.book as PdfBook : _companionPdfBook;
 
   void _createNewTab() {
     if (widget.book == null) return;
@@ -97,16 +165,17 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
         : null;
 
     if (textBook != null) {
-      setState(() {
-        _isPdfViewerReady = false;
-        _currentTextTab = TextBookTab(
-          book: textBook,
-          index: 0,
-          searchText: '',
-          openLeftPane: false,
-          splitedView: Settings.getValue<bool>('key-splited-view') ?? true,
-        );
-      });
+      // מסכת בבלי כשהגדרת הפורמט היא PDF — התצוגה המקדימה מציגה את
+      // מהדורת ה-PDF הנלווית, בהתאם לאופן שבו הספר ייפתח בעיון.
+      if (widget.initialTextIndex == null &&
+          !textBook.isUserBook &&
+          talmudBavliOpensInPdf() &&
+          isTalmudBavliBook(textBook)) {
+        setState(() => _isPdfViewerReady = false);
+        _resolveTalmudCompanionPdf(textBook);
+        return;
+      }
+      _createTextTab(textBook);
     } else if (book is PdfBook) {
       final fileExists = File(book.path).existsSync();
       setState(() {
@@ -117,11 +186,51 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
     }
   }
 
-  void _openCurrentPreviewInReader() {
-    if (widget.book is PdfBook) {
+  void _createTextTab(TextBook textBook) {
+    final targetIndex = widget.initialTextIndex;
+    setState(() {
+      _isPdfViewerReady = false;
+      _currentTextTab = TextBookTab(
+        book: textBook,
+        index: targetIndex ?? 0,
+        searchText: targetIndex != null ? (widget.searchText ?? '') : '',
+        initialSearchResultLines: targetIndex != null ? {targetIndex} : null,
+        openLeftPane: false,
+        splitedView: Settings.getValue<bool>('key-splited-view') ?? true,
+      );
+    });
+  }
+
+  Future<void> _resolveTalmudCompanionPdf(TextBook textBook) async {
+    final requested = widget.book;
+    final target = await resolveTalmudBavliPdfBook(textBook);
+    if (!mounted || !identical(widget.book, requested)) return;
+    if (target == null) {
+      _createTextTab(textBook);
+      return;
+    }
+    setState(() {
+      _isPdfViewerReady = false;
+      _pdfFileExists = File(target.pdfBook.path).existsSync();
+      _companionPdfBook = target.pdfBook;
+      _pdfController = PdfViewerController();
+    });
+  }
+
+  Future<void> _openCurrentPreviewInReader() async {
+    final pdfBook = _displayedPdfBook;
+    if (pdfBook != null) {
       final currentPage = (_pdfController != null && _pdfController!.isReady)
           ? (_pdfController!.pageNumber ?? 1)
           : 1;
+      // מהדורה נלווית: הקולבק מצפה לאינדקס טקסט, והפתיחה בעיון תמפה אותו
+      // חזרה לדף ה-PDF לפי הגדרת פורמט הבבלי.
+      if (_companionPdfBook != null) {
+        final textIndex = await pdfToTextPage(pdfBook, const [], currentPage);
+        if (!mounted) return;
+        widget.onOpenInReader?.call(textIndex ?? 0);
+        return;
+      }
       widget.onOpenInReader?.call(currentPage);
       return;
     }
@@ -258,15 +367,16 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
       );
     }
 
-    // תצוגת ספר PDF
-    if (widget.book is PdfBook && _pdfController != null) {
+    // תצוגת ספר PDF (או מהדורת ה-PDF הנלווית של מסכת בבלי)
+    final displayedPdf = _displayedPdfBook;
+    if (displayedPdf != null && _pdfController != null) {
       return BlocBuilder<SettingsBloc, SettingsState>(
         buildWhen: (p, c) => p.compactMenuMode != c.compactMenuMode,
         builder: (context, settingsState) {
           final compact = settingsState.compactMenuMode;
           return Stack(
             children: [
-              _buildPdfViewer((widget.book as PdfBook).path),
+              _buildPdfViewer(displayedPdf.path),
               Positioned(
                 top: compact ? 6 : 8,
                 left: compact ? 20 : 24,
@@ -326,7 +436,10 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                       );
                     }
                     if (state is TextBookLoaded) {
+                      // key לפי הטאב: החלפת יעד (ספר/מיקום) בונה רשימה
+                      // טרייה שנפתחת ב-initialScrollIndex של היעד החדש.
                       return CombinedView(
+                        key: ObjectKey(_currentTextTab),
                         data: state.content,
                         textSize: _fontSize,
                         openBookCallback: (tab) {},
@@ -380,7 +493,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
         PdfViewer.file(
           filePath,
           key: ValueKey('pdf_${widget.book!.title}'),
-          initialPageNumber: 1,
+          initialPageNumber: widget.initialPdfPage ?? 1,
           passwordProvider: () => passwordDialog(context),
           controller: _pdfController!,
           params: PdfViewerParams(

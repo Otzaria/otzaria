@@ -37,10 +37,8 @@ class ToolTab extends OpenedTab {
       '${DateTime.now().microsecondsSinceEpoch}-'
       '${_instanceCounter++}-${_instanceRandom.nextInt(0xffffff)}';
 
-  /// לתוסף מפתח מיקוד — פתיחה רגילה ממקדת את הטאב הקיים במקום לפתוח
-  /// חדש; כלי מובנה נפתח תמיד בכרטיסיה חדשה.
-  static String? dedupeKeyFor(String toolId) =>
-      isBuiltInToolId(toolId) ? null : 'tool:$toolId';
+  /// מפתח מיקוד — פתיחה רגילה ממקדת את הטאב הקיים במקום לפתוח חדש.
+  static String dedupeKeyFor(String toolId) => 'tool:$toolId';
 
   static bool isBuiltInToolId(String toolId) =>
       kBuiltInToolsCatalog.any((meta) => meta.toolId == toolId);

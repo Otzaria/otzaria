@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/plugins/declarative/models/declarative_program.dart';
@@ -153,6 +154,99 @@ void main() {
     expect(fixture.errors, hasLength(1));
   });
 
+  group('טריגרים שאינם תלויי-הקשר', () {
+    test('app.startup רץ בסנכרון, בלי שנפתח ספר', () async {
+      final fixture = _Fixture();
+      addTearDown(fixture.dispose);
+
+      await fixture.host.syncPlugins([fixture.plugin]);
+
+      expect(
+        fixture.host.programRepository.getProgramOutputs(
+          fixture.plugin.pluginId,
+          'boot',
+        ),
+        containsPair('ready', true),
+      );
+    });
+
+    test('הפלט של app.startup שורד יציאה ממסך הספר', () async {
+      final fixture = _Fixture();
+      addTearDown(fixture.dispose);
+      await fixture.host.syncPlugins([fixture.plugin]);
+      await fixture.host.readerBookChanged(
+        TextBook(id: 1, title: 'ספר נוכחי'),
+        context: 'reader-text',
+      );
+
+      await fixture.host.readerBookChanged(null, context: 'reader-text');
+
+      final outputs = fixture.host.programRepository.getPluginOutputs(
+        fixture.plugin.pluginId,
+      );
+      expect(outputs.keys, {'boot'});
+      expect(fixture.toolbar.getAll(), isEmpty);
+    });
+
+    test('app.startup אינו נורה שוב בסנכרון חוזר ללא שינוי', () async {
+      final fixture = _Fixture();
+      addTearDown(fixture.dispose);
+      await fixture.host.syncPlugins([fixture.plugin]);
+      final firstOutputs = fixture.host.programRepository.getProgramOutputs(
+        fixture.plugin.pluginId,
+        'boot',
+      );
+
+      await fixture.host.syncPlugins([fixture.plugin]);
+
+      // אותו מופע פלט בדיוק: התכנית לא רצה שוב והפקד לא נעלם בדרך.
+      expect(
+        fixture.host.programRepository.getProgramOutputs(
+          fixture.plugin.pluginId,
+          'boot',
+        ),
+        same(firstOutputs),
+      );
+    });
+
+    test('תוסף שנרשם אחרי העלייה מקבל app.startup בהתקנתו', () async {
+      final fixture = _Fixture();
+      addTearDown(fixture.dispose);
+      await fixture.host.syncPlugins(const []);
+      expect(fixture.runs, 0);
+
+      await fixture.host.syncPlugins([fixture.plugin]);
+
+      expect(
+        fixture.host.programRepository.getProgramOutputs(
+          fixture.plugin.pluginId,
+          'boot',
+        ),
+        containsPair('ready', true),
+      );
+    });
+
+    test('שינוי הגדרות מריץ מחדש את התכנית, מקובץ להשהיה אחת', () async {
+      final fixture = _Fixture();
+      addTearDown(fixture.dispose);
+      await fixture.host.syncPlugins([fixture.plugin]);
+      final baseline = fixture.runs;
+
+      fixture.settingsRevision.value++;
+      fixture.settingsRevision.value++;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+
+      expect(fixture.runs - baseline, 1);
+      expect(
+        fixture.host.programRepository.getProgramOutputs(
+          fixture.plugin.pluginId,
+          'boot',
+        ),
+        containsPair('ready', true),
+      );
+    });
+  });
+
   group('dispatchSelectionAction', () {
     final template = <String, dynamic>{
       'type': 'storage.set',
@@ -264,8 +358,12 @@ class _Fixture {
   final errors = <Object>[];
   final _BookAccess access = _BookAccess();
   final _StorageWriter storage = _StorageWriter();
+  final settingsRevision = ValueNotifier<int>(0);
   late final InstalledPlugin plugin;
   late final DeclarativePluginHostService host;
+
+  /// מספר הריצות שהמאגר סימן לתוסף — כל runTrigger מקדם דור אחד.
+  int get runs => host.programRepository.getGeneration(plugin.pluginId);
 
   _Fixture({
     bool invalidProgram = false,
@@ -283,11 +381,15 @@ class _Fixture {
       bookOpener: access,
       toolbarRegistry: toolbar,
       storageWriter: storage,
+      settingsRevision: settingsRevision,
       onError: (_, error, _) => errors.add(error),
     );
   }
 
-  void dispose() => host.dispose();
+  void dispose() {
+    host.dispose();
+    settingsRevision.dispose();
+  }
 }
 
 class _StorageWriter implements DeclarativeStorageWriter {
@@ -384,7 +486,7 @@ InstalledPlugin _plugin({
           ],
       'contributes': {
         'startup': {
-          'programs': [program],
+          'programs': [program, _bootProgram()],
           'toolbarItems': _toolbarItems(),
         },
       },
@@ -393,6 +495,27 @@ InstalledPlugin _plugin({
     updatedAt: now,
   );
 }
+
+/// תכנית שאינה תלוית-הקשר: רצה בעלייה ובכל שינוי הגדרות.
+Map<String, dynamic> _bootProgram() => {
+  'id': 'boot',
+  'version': 1,
+  'triggers': ['app.startup', 'settings.changed'],
+  'commands': [
+    {
+      'id': 'flag',
+      'type': 'data.first',
+      'args': {
+        'items': {
+          r'$literal': [true],
+        },
+      },
+    },
+  ],
+  'outputs': {
+    'ready': {r'$result': 'flag'},
+  },
+};
 
 List<Map<String, dynamic>> _toolbarItems() => [
   {

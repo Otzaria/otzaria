@@ -9,7 +9,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/library/view/book_preview_panel.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/search/models/search_preview_target.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
@@ -32,6 +34,7 @@ import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/utils/text/copy_utils.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show MergedSibling;
 
@@ -43,7 +46,18 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart'
 class TantivySearchResults extends StatefulWidget {
   final SearchingTab tab;
   final VoidCallback? onEditSearch;
-  const TantivySearchResults({super.key, required this.tab, this.onEditSearch});
+
+  /// האם לצרף חלונית תצוגה מקדימה לצד הרשימה (רק בפריסה הרחבה). כשפעילה
+  /// (יחד עם ההגדרה), לחיצה אחת על תוצאה פותחת/סוגרת תצוגה מקדימה ולחיצה
+  /// כפולה פותחת בעיון; אחרת לחיצה אחת פותחת בעיון כרגיל.
+  final bool showPreviewPane;
+
+  const TantivySearchResults({
+    super.key,
+    required this.tab,
+    this.onEditSearch,
+    this.showPreviewPane = false,
+  });
 
   @override
   State<TantivySearchResults> createState() => _TantivySearchResultsState();
@@ -60,6 +74,11 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
   /// משמשת להבחנה בין חיפוש חדש (חתימה משתנה → גלילה לראש) לבין טעינת המשך
   /// (אותה חתימה → שימור מיקום הגלילה).
   String? _lastSearchSignature;
+
+  int _previewRequestId = 0;
+
+  /// רוחב חי של חלונית התצוגה המקדימה בזמן גרירה (לא נשמר בין הפעלות).
+  double? _previewPaneWidthOverride;
 
   Widget _buildInformativeEmptyState({
     required IconData icon,
@@ -208,6 +227,86 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// לחיצה אחת על תוצאה: כשהתצוגה המקדימה פעילה — טוגל שלה (לחיצה חוזרת
+  /// על אותה תוצאה סוגרת); אחרת — פתיחה בעיון כמו לחיצה כפולה.
+  void _handleResultTap({
+    required bool previewEnabled,
+    required String title,
+    required String reference,
+    required int segment,
+    required bool isPdf,
+    required String filePath,
+    required Map<String, Map<String, bool>> effectiveOptions,
+  }) {
+    if (previewEnabled) {
+      _togglePreview(
+        title: title,
+        reference: reference,
+        segment: segment,
+        isPdf: isPdf,
+        filePath: filePath,
+      );
+      return;
+    }
+    _openResultLocation(
+      title: title,
+      reference: reference,
+      segment: segment,
+      isPdf: isPdf,
+      filePath: filePath,
+      effectiveOptions: effectiveOptions,
+    );
+  }
+
+  Future<void> _togglePreview({
+    required String title,
+    required String reference,
+    required int segment,
+    required bool isPdf,
+    required String filePath,
+  }) async {
+    final requestId = ++_previewRequestId;
+    final current = widget.tab.previewTarget.value;
+    if (current != null &&
+        current.matchesResult(
+          filePath: filePath,
+          segment: segment,
+          isPdf: isPdf,
+        )) {
+      widget.tab.previewTarget.value = null;
+      return;
+    }
+
+    // אותו אימות זהות כמו בפתיחה בעיון — אינדקס לא מסונכרן לא מציג ספר שגוי.
+    final resolution = await widget.tab.searchBloc.resolveBookForIndexedPath(
+      filePath,
+      indexedTitle: title,
+    );
+    if (!mounted || requestId != _previewRequestId) return;
+    if (resolution.isStale) {
+      UiSnack.showError(LibraryMessages.searchResultIndexOutOfDate);
+      return;
+    }
+    final resolvedBook = resolution.book;
+    final Book book = isPdf
+        ? (resolvedBook is PdfBook
+              ? resolvedBook
+              : PdfBook(title: title, path: filePath))
+        : switch (resolvedBook) {
+            final TextBook value => value,
+            final ConvertibleDocumentBook value => value.toTextBook(),
+            _ => TextBook(title: title),
+          };
+    widget.tab.previewTarget.value = SearchPreviewTarget(
+      book: book,
+      title: title,
+      reference: reference,
+      segment: segment,
+      isPdf: isPdf,
+      filePath: filePath,
+    );
   }
 
   /// פתיחת מיקום של תוצאה (או של תוצאה מאוחדת) בטאב קריאה — נתיב קוד
@@ -359,8 +458,74 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     }
   }
 
+  /// עוטף את אזור התוצאות בחלונית התצוגה המקדימה (בפריסה הרחבה בלבד).
+  Widget _wrapWithPreviewPane(Widget mainContent, BoxConstraints constraints) {
+    return BlocBuilder<SettingsBloc, SettingsState>(
+      buildWhen: (p, c) => p.searchShowPreview != c.searchShowPreview,
+      builder: (context, settings) {
+        return ValueListenableBuilder<SearchPreviewTarget?>(
+          valueListenable: widget.tab.previewTarget,
+          builder: (context, target, _) {
+            final available = constraints.maxWidth;
+            final minWidth = available < 280 ? available : 280.0;
+            final maxWidth = (available - 320).clamp(minWidth, available);
+            final paneWidth = (_previewPaneWidthOverride ?? available * 0.4)
+                .clamp(minWidth, maxWidth);
+            return AdaptiveSidePane(
+              isOpen: settings.searchShowPreview && target != null,
+              alignment: AlignmentDirectional.centerStart,
+              mainContent: mainContent,
+              paneContent: BookPreviewPanel(
+                book: target?.book,
+                initialTextIndex: target != null && !target.isPdf
+                    ? target.segment
+                    : null,
+                initialPdfPage: target != null && target.isPdf
+                    ? target.segment + 1
+                    : null,
+                searchText: widget.tab.searchBloc.state.searchQuery,
+                onOpenInReader: (_) {
+                  final openTarget = widget.tab.previewTarget.value;
+                  if (openTarget == null) return;
+                  _openResultLocation(
+                    title: openTarget.title,
+                    reference: openTarget.reference,
+                    segment: openTarget.segment,
+                    isPdf: openTarget.isPdf,
+                    filePath: openTarget.filePath,
+                    effectiveOptions: widget.tab.effectiveSearchOptions(
+                      query: widget.tab.searchBloc.state.searchQuery,
+                    ),
+                  );
+                },
+              ),
+              paneWidth: paneWidth,
+              minPaneWidth: minWidth,
+              maxPaneWidth: maxWidth,
+              minMainContentWidth: 300,
+              isResizable: true,
+              autoHandleResponsiveVisibility: false,
+              onPaneWidthChanged: (w) => _previewPaneWidthOverride = w,
+              onClose: () => widget.tab.previewTarget.value = null,
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constrains) {
+        final resultsArea = _buildListenerArea();
+        if (!widget.showPreviewPane) return resultsArea;
+        return _wrapWithPreviewPane(resultsArea, constrains);
+      },
+    );
+  }
+
+  Widget _buildListenerArea() {
     return LayoutBuilder(
       builder: (context, constrains) {
         return BlocListener<SearchBloc, SearchState>(
@@ -382,6 +547,10 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
             final signature = _searchSignature(state);
             if (signature != _lastSearchSignature) {
               _lastSearchSignature = signature;
+              _previewRequestId++;
+              // חיפוש חדש מחליף את התוצאות — התוצאה שבתצוגה המקדימה כבר
+              // אינה ברשימה, לכן החלונית נסגרת.
+              widget.tab.previewTarget.value = null;
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (mounted && _scrollController.hasClients) {
                   _scrollController.jumpTo(0);
@@ -657,6 +826,8 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
           return BlocBuilder<SettingsBloc, SettingsState>(
             builder: (context, settingsState) {
               final colorScheme = Theme.of(context).colorScheme;
+              final previewEnabled =
+                  widget.showPreviewPane && settingsState.searchShowPreview;
               String titleText = result.reference;
               String rawHtml = result.text;
               // Debug info removed for production
@@ -705,17 +876,34 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                 },
               );
 
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: colorScheme.outline.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                  borderRadius: AppTokens.borderRadiusAll,
-                ),
+              return ValueListenableBuilder<SearchPreviewTarget?>(
+                valueListenable: widget.tab.previewTarget,
+                builder: (context, previewTarget, child) {
+                  final isPreviewed =
+                      previewEnabled &&
+                      previewTarget != null &&
+                      previewTarget.matchesResult(
+                        filePath: result.filePath,
+                        segment: result.segment.toInt(),
+                        isPdf: result.isPdf,
+                      );
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: isPreviewed
+                            ? colorScheme.primary
+                            : colorScheme.outline.withValues(alpha: 0.3),
+                        width: isPreviewed ? 1.5 : 1,
+                      ),
+                      borderRadius: AppTokens.borderRadiusAll,
+                    ),
+                    child: child,
+                  );
+                },
                 child: InkWell(
-                  onTap: () => _openResultLocation(
+                  onTap: () => _handleResultTap(
+                    previewEnabled: previewEnabled,
                     title: result.title,
                     reference: result.reference,
                     segment: result.segment.toInt(),
@@ -723,6 +911,16 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                     filePath: result.filePath,
                     effectiveOptions: effectiveOptions,
                   ),
+                  onDoubleTap: previewEnabled
+                      ? () => _openResultLocation(
+                          title: result.title,
+                          reference: result.reference,
+                          segment: result.segment.toInt(),
+                          isPdf: result.isPdf,
+                          filePath: result.filePath,
+                          effectiveOptions: effectiveOptions,
+                        )
+                      : null,
                   borderRadius: AppTokens.borderRadiusAll,
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -904,6 +1102,15 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                                         filePath: sibling.filePath,
                                         effectiveOptions: effectiveOptions,
                                       ),
+                                  onPreviewSibling: previewEnabled
+                                      ? (sibling) => _togglePreview(
+                                          title: sibling.title,
+                                          reference: sibling.reference,
+                                          segment: sibling.segment.toInt(),
+                                          isPdf: sibling.isPdf,
+                                          filePath: sibling.filePath,
+                                        )
+                                      : null,
                                 ),
                             ],
                           ),
@@ -960,6 +1167,7 @@ class _MergedSiblingsSection extends StatefulWidget {
     required this.siblings,
     required this.groupingMode,
     required this.onOpenSibling,
+    this.onPreviewSibling,
   });
 
   /// גודל הקבוצה כולה (כולל הנציג המוצג בכרטיס).
@@ -970,6 +1178,10 @@ class _MergedSiblingsSection extends StatefulWidget {
 
   final ResultGroupingMode groupingMode;
   final ValueChanged<MergedSibling> onOpenSibling;
+
+  /// כשהתצוגה המקדימה פעילה: לחיצה אחת על שורה עוברת לכאן (טוגל תצוגה)
+  /// ולחיצה כפולה פותחת בעיון; null = לחיצה אחת פותחת בעיון כרגיל.
+  final ValueChanged<MergedSibling>? onPreviewSibling;
 
   @override
   State<_MergedSiblingsSection> createState() => _MergedSiblingsSectionState();
@@ -1040,7 +1252,12 @@ class _MergedSiblingsSectionState extends State<_MergedSiblingsSection> {
                 children: [
                   for (final sibling in widget.siblings)
                     InkWell(
-                      onTap: () => widget.onOpenSibling(sibling),
+                      onTap: () =>
+                          (widget.onPreviewSibling ?? widget.onOpenSibling)
+                              .call(sibling),
+                      onDoubleTap: widget.onPreviewSibling != null
+                          ? () => widget.onOpenSibling(sibling)
+                          : null,
                       borderRadius: AppTokens.borderRadiusAll,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(

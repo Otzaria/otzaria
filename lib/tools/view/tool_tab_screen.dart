@@ -5,7 +5,10 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
+import 'package:otzaria/plugins/bloc/plugin_updates_cubit.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/plugins/view/widgets/plugin_update_chip.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
@@ -196,6 +199,9 @@ class ToolTabScreenState extends State<ToolTabScreen>
       final ToolUnavailable unavailable => _buildUnavailable(unavailable),
     };
 
+    final plugin = lookup is ToolAvailable ? lookup.entry.plugin : null;
+    if (plugin != null) _requestUpdateCheck(pluginState);
+
     return Stack(
       children: [
         Positioned.fill(
@@ -210,8 +216,25 @@ class ToolTabScreenState extends State<ToolTabScreen>
         // WebView עלול לבלוע Escape במסך מלא.
         if (settingsState.isFullscreen)
           const Positioned(top: 8, right: 8, child: ExitFullscreenButton()),
+        if (plugin != null)
+          PositionedDirectional(
+            bottom: 16,
+            start: 16,
+            child: PluginUpdateChip(plugin: plugin),
+          ),
       ],
     );
+  }
+
+  /// בדיקת עדכונים עצלה בפתיחת טאב תוסף — הקוביט מתלכד וממטמן, כך שפתיחת
+  /// כמה טאבים גוררת לכל היותר קריאת רשת אחת לחלון זמן.
+  void _requestUpdateCheck(PluginSystemState pluginState) {
+    if (pluginState is! PluginSystemLoaded) return;
+    final cubit = context.read<PluginUpdatesCubit>();
+    final plugins = pluginState.plugins;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) cubit.ensureChecked(plugins);
+    });
   }
 
   Widget _buildToolContent(ToolCatalogEntry entry) {

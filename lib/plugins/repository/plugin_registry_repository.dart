@@ -182,6 +182,15 @@ class PluginRegistryRepository {
     return _db.getPluginKV(pluginId, namespace, key);
   }
 
+  /// קריאה מרוכזת: שאילתה אחת לכל המפתחות. מפתח חסר אינו במפה המוחזרת.
+  Future<Map<String, String>> getKVMany(
+    String pluginId,
+    String namespace,
+    Iterable<String> keys,
+  ) async {
+    return _db.getPluginKVMany(pluginId, namespace, keys);
+  }
+
   Future<void> removeKV(String pluginId, String namespace, String key) async {
     await _db.removePluginKV(pluginId, namespace, key);
   }

@@ -23,6 +23,13 @@ typedef DeclarativeProgramErrorHandler =
     );
 
 class DeclarativeProgramRepository extends ChangeNotifier {
+  /// טריגרים שאינם תלויים בהקשר הקריאה. תכנית שכל הטריגרים שלה כאן שומרת
+  /// את הפלט שלה ביציאה מספר — אחרת פקד שנקשר אליה לא היה חוזר.
+  static const Set<String> contextFreeTriggers = {
+    'app.startup',
+    'settings.changed',
+  };
+
   final DeclarativeProgramRun _runProgram;
   final DeclarativeProgramErrorHandler? onError;
 
@@ -39,11 +46,26 @@ class DeclarativeProgramRepository extends ChangeNotifier {
   final Map<String, int> _generations = {};
   final Map<String, String> _contextSignatures = {};
 
+  /// חתימת הריצה האחרונה של כל תכנית בנפרד. דור ברמת התוסף אינו מספיק:
+  /// ריצה של טריגר אחד הייתה מבטלת ריצה של טריגר אחר שעדיין באוויר.
+  final Map<String, Map<String, _RunStamp>> _programRuns = {};
+
+  /// [preserveOutputs] — התכניות וההרשאות זהות לרישום הקיים, ולכן הפלט שחושב
+  /// עדיין תקף ואין צורך להריץ מחדש (סנכרון של נעיצה/סדר).
   void syncPlugin({
     required InstalledPlugin plugin,
     required List<CompiledDeclarativeProgram> programs,
     required Set<String> grantedPermissions,
+    bool preserveOutputs = false,
   }) {
+    final existing = _registrations[plugin.pluginId];
+    if (preserveOutputs &&
+        existing != null &&
+        plugin.enabled &&
+        programs.isNotEmpty) {
+      existing.plugin = plugin;
+      return;
+    }
     _invalidate(plugin.pluginId);
     if (!plugin.enabled || programs.isEmpty) {
       _registrations.remove(plugin.pluginId);
@@ -62,23 +84,60 @@ class DeclarativeProgramRepository extends ChangeNotifier {
   }
 
   void clearContexts() {
-    final changed = _outputs.isNotEmpty || _contextSignatures.isNotEmpty;
+    var changed = _contextSignatures.isNotEmpty;
     for (final pluginId in _registrations.keys) {
       _generations[pluginId] = (_generations[pluginId] ?? 0) + 1;
     }
-    _outputs.clear();
+    for (final pluginId in {..._outputs.keys, ..._programRuns.keys}) {
+      final programs = _registrations[pluginId]?.programs ?? const [];
+      final retainedIds = {
+        for (final program in programs)
+          if (_isContextFree(program) && _ranWithoutContext(pluginId, program))
+            program.id,
+      };
+      _programRuns[pluginId]?.removeWhere(
+        (programId, _) => !retainedIds.contains(programId),
+      );
+      final outputs = _outputs[pluginId];
+      if (outputs == null) continue;
+      final retained = {
+        for (final programId in retainedIds)
+          if (outputs.containsKey(programId)) programId: outputs[programId]!,
+      };
+      if (retained.length != outputs.length) changed = true;
+      if (retained.isEmpty) {
+        _outputs.remove(pluginId);
+      } else {
+        _outputs[pluginId] = Map.unmodifiable(retained);
+      }
+    }
     _contextSignatures.clear();
     if (changed) notifyListeners();
   }
 
+  /// פלט של תכנית שרצה כשספר היה פתוח עלול לשאת את זהות אותו ספר, ולכן
+  /// אינו נשמר ביציאה ממנו — גם כשהטריגר עצמו אינו תלוי-הקשר.
+  bool _ranWithoutContext(
+    String pluginId,
+    CompiledDeclarativeProgram program,
+  ) => _programRuns[pluginId]?[program.id]?.contextBound == false;
+
+  bool _isContextFree(CompiledDeclarativeProgram program) =>
+      program.triggers.every(contextFreeTriggers.contains);
+
+  /// [pluginIds] מגביל את הריצה לתוספים מסוימים — לטריגר `app.startup`
+  /// שמופעל פעם אחת לכל תוסף.
   Future<void> runTrigger({
     required String trigger,
     required Map<String, dynamic> context,
     required String contextSignature,
+    Set<String>? pluginIds,
   }) async {
     final pending = <Future<void>>[];
     var clearedAny = false;
+    final contextBound = context.isNotEmpty;
     for (final entry in _registrations.entries.toList()) {
+      if (pluginIds != null && !pluginIds.contains(entry.key)) continue;
       final relevant = entry.value.programs
           .where((program) => program.triggers.contains(trigger))
           .toList();
@@ -87,19 +146,42 @@ class DeclarativeProgramRepository extends ChangeNotifier {
       final generation = (_generations[pluginId] ?? 0) + 1;
       _generations[pluginId] = generation;
       _contextSignatures[pluginId] = contextSignature;
-      if (_outputs.remove(pluginId) != null) clearedAny = true;
+      final runs = _programRuns.putIfAbsent(pluginId, () => {});
+      for (final program in relevant) {
+        runs[program.id] = _RunStamp(generation, contextBound);
+      }
+      if (_dropOutputs(pluginId, relevant)) clearedAny = true;
       pending.add(
         _runPluginGeneration(
           registration: entry.value,
           programs: relevant,
           generation: generation,
           context: Map.unmodifiable(context),
-          contextSignature: contextSignature,
         ),
       );
     }
     if (clearedAny) notifyListeners();
     await Future.wait(pending);
+  }
+
+  /// מפנה את הפלט של התכניות שמתחילות לרוץ; פלט של טריגר אחר נשמר.
+  bool _dropOutputs(
+    String pluginId,
+    List<CompiledDeclarativeProgram> programs,
+  ) {
+    final outputs = _outputs[pluginId];
+    if (outputs == null) return false;
+    final next = Map<String, Map<String, dynamic>>.from(outputs);
+    var changed = false;
+    for (final program in programs) {
+      if (next.remove(program.id) != null) changed = true;
+    }
+    if (next.isEmpty) {
+      _outputs.remove(pluginId);
+    } else if (changed) {
+      _outputs[pluginId] = Map.unmodifiable(next);
+    }
+    return changed;
   }
 
   Map<String, dynamic>? getProgramOutputs(
@@ -122,7 +204,6 @@ class DeclarativeProgramRepository extends ChangeNotifier {
     required List<CompiledDeclarativeProgram> programs,
     required int generation,
     required Map<String, dynamic> context,
-    required String contextSignature,
   }) async {
     final completed = <String, Map<String, dynamic>>{};
     for (final program in programs) {
@@ -146,28 +227,43 @@ class DeclarativeProgramRepository extends ChangeNotifier {
     }
 
     final pluginId = registration.plugin.pluginId;
-    if (_generations[pluginId] != generation ||
-        !identical(_registrations[pluginId], registration) ||
-        _contextSignatures[pluginId] != contextSignature) {
-      return;
-    }
-    _outputs[pluginId] = Map.unmodifiable(completed);
+    if (!identical(_registrations[pluginId], registration)) return;
+    // רק תכניות שהריצה הזו היא עדיין האחרונה שלהן מפרסמות פלט; ריצה של
+    // טריגר אחר, או יציאה מספר, מפקיעה את התכניות שלה בלבד.
+    final runs = _programRuns[pluginId];
+    final fresh = {
+      for (final entry in completed.entries)
+        if (runs?[entry.key]?.generation == generation) entry.key: entry.value,
+    };
+    if (fresh.isEmpty) return;
+    _outputs[pluginId] = Map.unmodifiable({...?_outputs[pluginId], ...fresh});
     notifyListeners();
   }
 
   void _invalidate(String pluginId) {
     _generations[pluginId] = (_generations[pluginId] ?? 0) + 1;
     _contextSignatures.remove(pluginId);
+    _programRuns.remove(pluginId);
     if (_outputs.remove(pluginId) != null) notifyListeners();
   }
 }
 
+class _RunStamp {
+  final int generation;
+
+  /// האם ההקשר שהועבר לריצה כלל ספר פתוח.
+  final bool contextBound;
+
+  const _RunStamp(this.generation, this.contextBound);
+}
+
 class _ProgramRegistration {
-  final InstalledPlugin plugin;
+  /// מתעדכן בסנכרון שאינו נוגע לתכניות, כדי לא לפסול פלט שחושב.
+  InstalledPlugin plugin;
   final List<CompiledDeclarativeProgram> programs;
   final Set<String> grantedPermissions;
 
-  const _ProgramRegistration({
+  _ProgramRegistration({
     required this.plugin,
     required this.programs,
     required this.grantedPermissions,

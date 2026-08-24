@@ -84,6 +84,11 @@ class PluginTextSourceMap {
   final String renderedTextHash;
   final List<PluginTextSourceMapSegment> mappings;
 
+  /// אורכי הגרפמות נשמרים כאן כי `String.characters.length` הוא סריקה מלאה,
+  /// ותרגום גבול בודד היה משלם אותה בכל קריאה.
+  final int sourceGraphemeLength;
+  final int renderedGraphemeLength;
+
   const PluginTextSourceMap({
     this.schemaVersion = 1,
     required this.bookId,
@@ -93,6 +98,8 @@ class PluginTextSourceMap {
     required this.sourceTextHash,
     required this.renderedTextHash,
     required this.mappings,
+    required this.sourceGraphemeLength,
+    required this.renderedGraphemeLength,
   });
 
   Map<String, dynamic> toJson() => {

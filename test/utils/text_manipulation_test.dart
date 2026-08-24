@@ -290,6 +290,26 @@ Future<void> main() async {
     test('ישות לא מוכרת נמחקת כמו כל markup', () {
       expect(stripHtmlIfNeeded('א&zzz;ב'), equals('אב'));
     });
+
+    test('תג שבירה הופך לרווח — מילים במעבר שורה לא נדבקות', () {
+      // Otzaria/otzaria#949 — כמו strip_html_for_indexing במנוע.
+      expect(stripHtmlIfNeeded('המורים<br>כי'), equals('המורים כי'));
+      expect(stripHtmlIfNeeded('המורים<br/>כי'), equals('המורים כי'));
+      expect(stripHtmlIfNeeded('המורים<BR />כי'), equals('המורים כי'));
+      expect(stripHtmlIfNeeded('א</p><p>ב'), equals('א  ב'));
+      expect(
+        stripHtmlIfNeeded('<h2 class="x">כותרת</h2>גוף'),
+        equals(' כותרת גוף'),
+      );
+    });
+
+    test('תג inline נמחק נטו — מילה שפוצלה בעיצוב נשארת אחת', () {
+      expect(stripHtmlIfNeeded('מי<b>לה'), equals('מילה'));
+      expect(stripHtmlIfNeeded('מי<big>לה'), equals('מילה'));
+      // שם ששבירה היא רק קידומת שלו אינו תג שבירה.
+      expect(stripHtmlIfNeeded('א<param>ב'), equals('אב'));
+      expect(stripHtmlIfNeeded('א<h7>ב'), equals('אב'));
+    });
   });
 
   group('stripHtmlPreservingBreaks', () {

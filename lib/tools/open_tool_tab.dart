@@ -17,8 +17,8 @@ import 'package:otzaria/tools/tool_catalog_entry.dart';
 
 /// פותח כלי ככרטיסיה במסך העיון.
 ///
-/// תוסף שכבר פתוח ממוקד (dedupeKey) וכלי מובנה נפתח בכרטיסיה חדשה;
-/// מופע נוסף של תוסף נפתח דרך [openNewToolTabInstance].
+/// כלי שכבר פתוח ממוקד (dedupeKey); מופע נוסף נפתח דרך
+/// [openNewToolTabInstance].
 void openToolTab(BuildContext context, ToolCatalogEntry entry) {
   context.read<TabsBloc>().add(
     OpenOrFocusTab(ToolTab(toolId: entry.toolId, title: entry.label)),

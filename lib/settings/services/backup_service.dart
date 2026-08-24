@@ -20,9 +20,12 @@ import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
+import 'package:otzaria/plugins/services/plugin_manifest_validator.dart';
 import 'package:otzaria/plugins/services/plugin_report_service.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/messages/settings_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/services/backup/backup_maintenance.dart';
 import 'package:otzaria/settings/services/backup/backup_store.dart';
 
@@ -41,6 +44,15 @@ class BackupStatus {
 class BackupService {
   static final Logger _logger = Logger('BackupService');
   static const String backupFolderName = 'backups';
+
+  /// תקרת סך תוכן התוספים בגיבוי אחד. עם [BackupStore] הבייטים נכתבים כ-blob
+  /// לדיסק ומוסרים מהזיכרון; בגיבוי ידני הם נכנסים כ-base64 (×1.33) למחרוזת
+  /// JSON יחידה (UTF-16 בזיכרון) — ולכן התקרה שם נמוכה בהרבה.
+  static const int maxPluginBytesWithStore = 500 * 1024 * 1024;
+  static const int maxPluginBytesInline = 100 * 1024 * 1024;
+
+  @visibleForTesting
+  static int? debugMaxPluginBytesOverride;
 
   /// Get the backup directory path
   static Future<String> getBackupDirectory() async {
@@ -443,13 +455,34 @@ class BackupService {
     final db = PluginSystemDatabase.instance;
     final plugins = await db.getAllInstalledPlugins();
     final result = <Map<String, dynamic>>[];
+    final budget =
+        debugMaxPluginBytesOverride ??
+        (store != null ? maxPluginBytesWithStore : maxPluginBytesInline);
+    var consumed = 0;
 
     for (final plugin in plugins) {
       if (plugin.isDevelopment) continue;
       try {
+        final dataPath = await AppPaths.getPluginDataPath(plugin.pluginId);
+        final size =
+            await _dirSizeBytes(plugin.installPath) +
+            await _dirSizeBytes(dataPath);
+        if (consumed + size > budget) {
+          _logger.warning(
+            'Skipping plugin ${plugin.pluginId} backup: exceeds archive budget',
+          );
+          UiSnack.showError(
+            SettingsMessages.backupPluginTooLarge(plugin.pluginId),
+          );
+          if (!skippedSections.contains('plugins')) {
+            skippedSections.add('plugins');
+          }
+          continue;
+        }
+        consumed += size;
+
         final aux = await db.exportPluginAuxData(plugin.pluginId);
         final files = await _readDirAsRefs(plugin.installPath, store);
-        final dataPath = await AppPaths.getPluginDataPath(plugin.pluginId);
         final data = await _readDirAsRefs(dataPath, store);
         result.add({
           'installation': plugin.toDbMap(),
@@ -478,6 +511,20 @@ class BackupService {
   ///
   /// כשל בקריאת קובץ אינו נבלע אלא מתפשט לקורא — כך גיבוי תוסף נכשל במלואו
   /// ומסומן כחלקי, במקום ליצור גיבוי עם קבצים חסרים בשתיקה.
+  /// סך הבתים בתיקייה. symlinks מדולגים — הם אינם תוכן של התוסף, ומעקב
+  /// אחריהם היה מזליג לארכיון קבצים מחוץ למרחב.
+  static Future<int> _dirSizeBytes(String dirPath) async {
+    final dir = Directory(dirPath);
+    if (!await dir.exists()) return 0;
+    var total = 0;
+    await for (final entity in dir.list(recursive: true, followLinks: false)) {
+      if (entity is File && !await FileSystemEntity.isLink(entity.path)) {
+        total += await entity.length();
+      }
+    }
+    return total;
+  }
+
   static Future<Map<String, String>> _readDirAsRefs(
     String dirPath,
     BackupStore? store,
@@ -486,7 +533,11 @@ class BackupService {
     if (!await dir.exists()) return {};
 
     final map = <String, String>{};
-    await for (final entity in dir.list(recursive: true)) {
+    await for (final entity in dir.list(
+      recursive: true,
+      followLinks: false,
+    )) {
+      if (await FileSystemEntity.isLink(entity.path)) continue;
       if (entity is File) {
         final relativePath = p.relative(entity.path, from: dir.path);
         final bytes = await entity.readAsBytes();
@@ -1051,6 +1102,11 @@ class BackupService {
         final installation = (entry['installation'] as Map)
             .cast<String, dynamic>();
         final pluginId = installation['plugin_id'] as String;
+        // המזהה מגיע מקובץ הגיבוי ומרכיב נתיב שנמחק ב-recursive; מזהה כמו `..`
+        // היה מוחק תיקייה שרירותית.
+        if (!PluginManifestValidator.isValidPluginId(pluginId)) {
+          throw Exception('מזהה תוסף לא תקין בגיבוי: $pluginId');
+        }
 
         final installPath = await AppPaths.getPluginInstallPath(pluginId);
         installation['install_path'] = installPath;

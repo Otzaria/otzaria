@@ -12,6 +12,7 @@ import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart' show Screen;
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
+import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
@@ -500,14 +501,19 @@ class _ReadingScreenState extends State<ReadingScreen>
           final content = ActivePaneMarker(
             pane: pane,
             enabled: isSplit,
-            child: _buildPaneContent(
-              pane,
-              isInCombinedView: isSplit,
-              enableTourTargets: enableTourTargets && !isSplit,
-              // חימום מטמון התוכן טוען את הספר כולו; בטאב מפוצל שתי החלוניות
-              // היו מחממות ספרים גדולים במקביל ומכפילות את צריכת הזיכרון.
-              allowBackgroundWarming: !isSplit,
-              pdfPaneCount: pdfPanes,
+            // bloc הערות פר-חלונית: bloc משותף בין טאבים הציג בחלונית ההערות
+            // את הערות הספר שנטען אחרון בטאב אחר (issue #870).
+            child: BlocProvider<PersonalNotesBloc>(
+              create: (_) => PersonalNotesBloc(),
+              child: _buildPaneContent(
+                pane,
+                isInCombinedView: isSplit,
+                enableTourTargets: enableTourTargets && !isSplit,
+                // חימום מטמון התוכן טוען את הספר כולו; בטאב מפוצל שתי החלוניות
+                // היו מחממות ספרים גדולים במקביל ומכפילות את צריכת הזיכרון.
+                allowBackgroundWarming: !isSplit,
+                pdfPaneCount: pdfPanes,
+              ),
             ),
           );
 

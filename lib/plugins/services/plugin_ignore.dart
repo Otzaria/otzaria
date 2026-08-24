@@ -47,6 +47,16 @@ class PluginIgnore {
     return excluded;
   }
 
+  /// האם הכלל *האחרון* שמתאים ל-[relPath] הוא `!` (החזרה). מאפשר ל-`!` מפורש
+  /// לגבור על החרגת קבצי/תיקיות המטא-דאטה באריזה.
+  bool reIncludes(String relPath) {
+    var negated = false;
+    for (final r in _rules) {
+      if (r.re.hasMatch(relPath)) negated = r.negate;
+    }
+    return negated;
+  }
+
   /// מספר הכללים הפעילים (ללא הערות ושורות ריקות).
   int get ruleCount => _rules.length;
 

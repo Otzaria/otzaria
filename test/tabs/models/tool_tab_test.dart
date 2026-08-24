@@ -19,10 +19,10 @@ void main() {
       );
     });
 
-    test('dedupeKey שייך רק לתוסף', () {
+    test('dedupeKey שייך לכל כלי', () {
       final calendar = ToolTab(toolId: 'builtin.calendar', title: 'לוח שנה');
       final plugin = ToolTab(toolId: 'com.example.plugin', title: 'תוסף');
-      expect(calendar.dedupeKey, isNull);
+      expect(calendar.dedupeKey, 'tool:builtin.calendar');
       expect(plugin.dedupeKey, 'tool:com.example.plugin');
     });
 
@@ -50,7 +50,7 @@ void main() {
       final restoredBuiltIn = ToolTab.fromJson(builtIn.toJson());
       final restoredPlugin = ToolTab.fromJson(plugin.toJson());
 
-      expect(restoredBuiltIn.dedupeKey, isNull);
+      expect(restoredBuiltIn.dedupeKey, 'tool:builtin.notes');
       expect(restoredPlugin.dedupeKey, 'tool:com.example.plugin');
       expect(restoredBuiltIn.isPinned, isTrue);
       expect(restoredPlugin.isPinned, isTrue);

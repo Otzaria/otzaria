@@ -1067,7 +1067,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     _ClosedTabEntry closedEntry,
     Emitter<TabsState> emit,
   ) async {
-    // תוסף פתוח ממוקד במקום ליצור מופע WebView נוסף.
+    // כלי פתוח ממוקד במקום ליצור מופע נוסף.
     final existingIndex = _indexOfMatchingDedupeKey(closedEntry.tab);
     if (existingIndex != null) {
       closedEntry.tab.dispose();

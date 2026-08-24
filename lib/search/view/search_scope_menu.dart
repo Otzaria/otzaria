@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -547,6 +548,9 @@ class _MenuItem {
   final ValueChanged<bool>? onToggle;
   final VoidCallback? onTap;
   final VoidCallback? onDrill;
+
+  /// פעולת "רק" — בחירת השורה הזו בלבד תוך ניקוי כל שאר הבחירה.
+  final VoidCallback? onOnly;
   final bool isHeader;
 
   bool get isDrill => onDrill != null;
@@ -560,6 +564,7 @@ class _MenuItem {
     this.onToggle,
     this.onTap,
     this.onDrill,
+    this.onOnly,
   }) : isHeader = false;
 
   const _MenuItem.header(this.label)
@@ -570,6 +575,7 @@ class _MenuItem {
       onToggle = null,
       onTap = null,
       onDrill = null,
+      onOnly = null,
       isHeader = true;
 }
 
@@ -610,6 +616,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
   _View _view = _View.root;
   final List<ScopeNode> _stack = [];
   int _highlight = 0;
+  int _hoveredRow = -1;
 
   List<String> _authorResults = const [];
   int _authorRequestId = 0;
@@ -729,6 +736,9 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
 
   /// מסיר את כל הסימונים (כולל "כל הספרים") — מאפשר לבחור למשל רק ספר יסוד אחד.
   void _clearAll() => _apply(<String>{});
+
+  /// בחירת "רק" — הבחירה מוחלפת ב-[facet] בלבד.
+  void _selectOnly(String facet) => _apply({facet});
 
   /// כל ספרי היסוד תחת [folderFacet], בסדר הספרייה.
   List<BookScopeNode> _baseUnder(String folderFacet) => [
@@ -965,6 +975,15 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
         if (normalizeFindText(era).contains(query)) era,
     ];
     return [
+      // ברירת המחדל ("כל הספרייה") מסמנת את כל התוצאות — בלי שורה זו הדרך
+      // היחידה לצמצם היא הורדת סימון שורה-שורה (issue #933).
+      if (_selection.isNotEmpty)
+        _MenuItem(
+          label: 'נקה הכל',
+          icon: FluentIcons.arrow_reset_24_regular,
+          check: null,
+          onTap: _clearAll,
+        ),
       for (final author in _authorResults)
         _MenuItem(
           label: author,
@@ -973,6 +992,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
           check: _selection.contains(FacetHelper.buildAuthorFacet(author)),
           onToggle: (v) =>
               _toggleDimension(FacetHelper.buildAuthorFacet(author), v),
+          onOnly: () => _selectOnly(FacetHelper.buildAuthorFacet(author)),
         ),
       for (final era in eraMatches)
         _MenuItem(
@@ -982,6 +1002,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
           useRtlIcon: true,
           check: _selection.contains(FacetHelper.buildEraFacet(era)),
           onToggle: (v) => _toggleDimension(FacetHelper.buildEraFacet(era), v),
+          onOnly: () => _selectOnly(FacetHelper.buildEraFacet(era)),
         ),
       for (final item in treeResults)
         _MenuItem(
@@ -993,6 +1014,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
           useRtlIcon: item.isBook,
           check: tree.isFacetCovered(item.facet, categoryPart),
           onToggle: (v) => _toggleCategoryFacet(item.facet, v),
+          onOnly: () => _selectOnly(item.facet),
         ),
     ];
   }
@@ -1153,9 +1175,25 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
       }
     }
 
+    // במגע אין hover — "רק" מוצג תמיד; בעכבר הוא נחשף בריחוף או בניווט מקלדת.
+    final showOnly =
+        item.onOnly != null &&
+        (Platform.isAndroid ||
+            Platform.isIOS ||
+            Platform.isWindows ||
+            index == _hoveredRow ||
+            highlighted);
+
     return InkWell(
       canRequestFocus: false,
       onTap: onRowTap,
+      onHover: (hovering) {
+        if (hovering) {
+          setState(() => _hoveredRow = index);
+        } else if (_hoveredRow == index) {
+          setState(() => _hoveredRow = -1);
+        }
+      },
       child: Container(
         constraints: const BoxConstraints(minHeight: _rowHeight),
         color: highlighted ? colorScheme.primary.withValues(alpha: 0.10) : null,
@@ -1213,6 +1251,30 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
                 ],
               ),
             ),
+            if (showOnly) ...[
+              const SizedBox(width: 4),
+              Tooltip(
+                message: 'בחר רק את זה',
+                child: TextButton(
+                  onPressed: () {
+                    item.onOnly!();
+                    widget.onKeepFocus();
+                  },
+                  style: TextButton.styleFrom(
+                    minimumSize: Size.zero,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text(
+                    'רק',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ],
             if (item.isDrill) ...[
               const SizedBox(width: 4),
               // בכיוון RTL מתהפך ומצביע שמאלה — כיוון הכניסה פנימה.

@@ -594,6 +594,38 @@ void main() {
         expect((action as OpenScreenAction).screen, Screen.search);
       });
 
+      test('q מקודד Windows-1255 (מאקרו/VBA ישן) — הקוורי מפוענח לעברית', () {
+        // "שלום" בקידוד ANSI עברי — כך FollowHyperlink של Office מקודד עברית
+        final action = ExternalUriRouter.parseUri(
+          Uri.parse('otzaria://open/search?q=%F9%EC%E5%ED'),
+        );
+
+        expect(action, isA<RunSearchAction>());
+        expect((action as RunSearchAction).query, 'שלום');
+      });
+
+      test('q בקידוד Windows-1255 עם רווח כ-+ ועם mode', () {
+        // "דבר תורה" ב-Windows-1255
+        final action = ExternalUriRouter.parseUri(
+          Uri.parse(
+            'otzaria://open/search?q=%E3%E1%F8+%FA%E5%F8%E4&mode=exact',
+          ),
+        );
+
+        expect(action, isA<RunSearchAction>());
+        expect((action as RunSearchAction).query, 'דבר תורה');
+        expect(action.mode, SearchMode.exact);
+      });
+
+      test('q בעברית גולמית לא מקודדת — עובר כמו שהוא', () {
+        final action = ExternalUriRouter.parseUri(
+          Uri.parse('otzaria://open/search?q=דבר תורה'),
+        );
+
+        expect(action, isA<RunSearchAction>());
+        expect((action as RunSearchAction).query, 'דבר תורה');
+      });
+
       test('q ריק/רווחים — נופל חזרה לפתיחת המסך בלבד', () {
         expect(
           (ExternalUriRouter.parseUri(Uri.parse('otzaria://open/search?q='))

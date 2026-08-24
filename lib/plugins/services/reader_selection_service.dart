@@ -56,11 +56,13 @@ class ReaderSelectionService {
     int? bookDbId,
     String? bookType,
     String? bookSource,
+    String? bookUid,
   }) {
     final legacy = <String, dynamic>{
       'id': ?bookDbId,
       'type': ?bookType,
       'source': ?bookSource,
+      'bookUid': ?bookUid,
       'text': selectedText,
       'start': renderedStartUtf16,
       'end': renderedEndUtf16,
