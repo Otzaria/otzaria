@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
+import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
@@ -98,6 +101,16 @@ class ToolTabScreenState extends State<ToolTabScreen>
     if (!mounted) return;
     if (widget.tab.toolId == 'builtin.calendar') {
       _requestCalendarFocus();
+      return;
+    }
+    if (widget.tab.isPlugin) {
+      // פוקוס ה-WebView חי מחוץ לעץ של Flutter, ולכן נדרשת העברה נייטיבית.
+      unawaited(
+        PluginRuntimeDispatcher.instance.requestKeyboardFocus(
+          widget.tab.toolId,
+          instanceId: widget.tab.instanceId,
+        ),
+      );
       return;
     }
     if (shouldRequestToolContentFocus(
