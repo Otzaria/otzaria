@@ -22,6 +22,12 @@ FindRefRepository buildFindRefRepository() {
         ),
     getAllAltTocFlatEntries: () async =>
         (await FindRefDbIsolate.instance()).getAllAltTocFlat(),
+    resolveLineRef: (bookId, bookTitle, refTokens) async =>
+        (await FindRefDbIsolate.instance()).resolveLineRef(
+          bookId,
+          bookTitle,
+          refTokens,
+        ),
     fetchCommentatorRows: (ref) async =>
         (await FindRefDbIsolate.instance()).getCommentatorRows(
           bookId: ref.bookId,

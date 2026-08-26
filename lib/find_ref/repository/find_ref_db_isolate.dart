@@ -142,6 +142,23 @@ class FindRefDbIsolate {
     return _castRows(res);
   }
 
+  /// רזולוציית הפניה ברמת שורה (פסוק/סעיף) — ראו
+  /// SeforimRepository.resolveLineRefForReference. רץ כולו ב-isolate כדי
+  /// שסריקת ה-heRef-ים של ספר גדול לא תקפיא את ההקלדה באיתור.
+  Future<Map<String, dynamic>?> resolveLineRef(
+    int bookId,
+    String bookTitle,
+    List<String> refTokens,
+  ) async {
+    final res = await _request('resolveLineRef', {
+      'bookId': bookId,
+      'bookTitle': bookTitle,
+      'refTokens': refTokens,
+    });
+    if (res is Map) return res.cast<String, dynamic>();
+    return null;
+  }
+
   Future<List<Map<String, dynamic>>> getAllAltTocFlat() async {
     final res = await _request('allAltTocFlat', const {});
     return _castRows(res);
@@ -347,6 +364,14 @@ void _workerMain(_Bootstrap bootstrap) {
         final repo = await ensureRepo();
         if (repo == null) return const <Map<String, dynamic>>[];
         return repo.getAllAltTocFlatEntries();
+      case 'resolveLineRef':
+        final repo = await ensureRepo();
+        if (repo == null) return null;
+        return repo.resolveLineRefForReference(
+          args['bookId'] as int,
+          args['bookTitle'] as String,
+          (args['refTokens'] as List).cast<String>(),
+        );
       case 'commentators':
         final repo = await ensureRepo();
         if (repo == null) return const <Map<String, dynamic>>[];

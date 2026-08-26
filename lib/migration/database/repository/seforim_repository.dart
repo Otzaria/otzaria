@@ -23,6 +23,7 @@ import '../../models/topic.dart';
 import '../daos/connection_type_dao.dart';
 import '../daos/database.dart';
 import '../sqlite3_utils.dart';
+import 'package:otzaria/utils/navigation/line_ref_matcher.dart';
 
 /// Repository class for accessing and manipulating the Seforim database.
 /// Provides methods for CRUD operations on books, categories, lines, TOC entries, and links.
@@ -1199,6 +1200,33 @@ class SeforimRepository {
   /// (ראה [LineDao.selectContentBytesByBookId]).
   Future<Uint8List> getLineContentBytes(int bookId) async {
     return await _database.lineDao.selectContentBytesByBookId(bookId);
+  }
+
+  /// רזולוציית הפניה ברמת שורה עבור "איתור מקורות" (issue #992): מאתר את
+  /// השורה שה-heRef שלה תואם את [refTokens] אחרי שם הספר ("ישעיהו לב יא" →
+  /// "ישעיהו לב, יא"). מילות-מיקום (פרק/פסוק/סעיף...) מסוננות משני הצדדים,
+  /// כך שהכלל רוחבי לכל ספר שהעמודה מאוכלסת בו.
+  ///
+  /// מחזיר `{lineIndex, dbLineId, heRef}` או null כשאין התאמה.
+  Future<Map<String, dynamic>?> resolveLineRefForReference(
+    int bookId,
+    String bookTitle,
+    List<String> refTokens,
+  ) async {
+    final rows = await _database.lineDao.selectRefsWithIdsByBookId(bookId);
+    if (rows.isEmpty) return null;
+    final idx = matchLineRefIndex(
+      heRefs: [for (final r in rows) r.heRef],
+      bookTitle: bookTitle,
+      refTokens: refTokens,
+    );
+    if (idx == null) return null;
+    final row = rows[idx];
+    return {
+      'lineIndex': row.lineIndex,
+      'dbLineId': row.dbLineId,
+      'heRef': row.heRef,
+    };
   }
 
   /// זוגות (lineIndex, heRef) של כל שורות הספר בעלות heRef — לרזולוציית

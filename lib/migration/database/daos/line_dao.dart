@@ -110,6 +110,23 @@ class LineDao {
         .toList();
   }
 
+  /// כמו [selectRefsByBookId] אבל כולל את ה-id הגלובלי של השורה — לתוצאת
+  /// "איתור מקורות" ברמת פסוק, שצריכה dbLineId לטעינת המפרשים.
+  Future<List<({int dbLineId, int lineIndex, String heRef})>>
+  selectRefsWithIdsByBookId(int bookId) async {
+    final db = await database;
+    return db
+        .select(_queries['selectRefsWithIdsByBookId']!, [bookId])
+        .map(
+          (row) => (
+            dbLineId: row['id'] as int,
+            lineIndex: row['lineIndex'] as int,
+            heRef: row['heRef'] as String,
+          ),
+        )
+        .toList();
+  }
+
   /// זוגות (lineIndex, heRef) של כל השורות בעלות heRef בספר, בסדר השורות.
   /// מסלול רזה — בלי content — לרזולוציית הפניה לרמת שורה.
   Future<List<({int lineIndex, String heRef})>> selectRefsByBookId(

@@ -53,6 +53,17 @@ class FindRefRepository {
   /// `reference` (נתיב מלא יחסי לספר), `segment`, `level`, `dbLineId`.
   final Future<List<Map<String, dynamic>>> Function()? getAllAltTocFlatEntries;
 
+  /// רזולוציית הפניה ברמת שורה (פסוק/סעיף) דרך עמודת ה-heRef — ראו
+  /// [SeforimRepository.resolveLineRefForReference]. מוזרק כדי לרוץ ב-DB
+  /// isolate בייצור וכ-fake בבדיקות. null = המסלול כבוי (ברירת מחדל
+  /// בבנאים ישנים), והאיתור מתנהג כמו קודם.
+  final Future<Map<String, dynamic>?> Function(
+    int bookId,
+    String bookTitle,
+    List<String> refTokens,
+  )?
+  resolveLineRef;
+
   /// Injection for testing: returns the category path string for a given bookId.
   /// In production this calls [ReferenceBooksCache.instance.getCategoryPathForBook].
   final Future<String> Function(int bookId)? getCategoryPath;
@@ -161,6 +172,7 @@ class FindRefRepository {
     this.getTocEntriesForReference,
     this.getAltTocEntriesForReference,
     this.getAllAltTocFlatEntries,
+    this.resolveLineRef,
     this.getCategoryPath,
     this.getPdfOutlineEntries,
     this.getAllUserBooks,
@@ -726,8 +738,8 @@ class FindRefRepository {
           );
         }
 
-        for (final entry in tocEntries) {
-          results.add(
+        final bookTocResults = <DbReferenceResult>[
+          for (final entry in tocEntries)
             DbReferenceResult(
               title: title,
               reference: entry['reference'] as String,
@@ -739,8 +751,7 @@ class FindRefRepository {
               bookId: bookId,
               sourceLineId: entry['dbLineId'] as int? ?? 0,
             ),
-          );
-        }
+        ];
 
         // חיפוש בכותרות-משנה (AltToc): עליות, פרשות ומבנים חלופיים נוספים.
         // ה-reference שמחזיר ה-DB עבור AltToc הוא יחסי — אינו כולל את שם
@@ -776,6 +787,86 @@ class FindRefRepository {
             ),
           );
         }
+
+        // איתור לפי פסוקים (issue #992): כשהכותרות שנמצאו לא מכסות את כל
+        // הטוקנים ("ישעיהו כ ד" — החיפוש ההיררכי מחזיר את "פרק כ" כהתאמה
+        // חלקית, אין TOC לפסוק), מנסים רזולוציה ברמת שורה דרך ה-heRef
+        // הפר-שורתי. נמצא פסוק — הוא מחליף את ההתאמה החלקית (כמו בכלל
+        // "כותרת עמוקה מסתירה את הרדודה"); לא נמצא — ההתאמה החלקית נשארת,
+        // כדי שהקלדת טוקן שאינו קיים לא "תמחק" את התוצאות. כשאין בכלל
+        // כותרות — נסיגה לפי ה-prefix הארוך ביותר של הטוקנים.
+        //
+        // כל ניסיון עומק צורך יחידה מתקציב ה-TOC (tocLookups) — אחרת שאילתה
+        // רב-מילים שמתאימה לעשרות ספרים דרך ראש-תיבות משותף הייתה מכפילה
+        // את מספר החיפושים ופורצת את התקרה.
+        bool tocEntryCoversAllTokens(Map<String, dynamic> entry) {
+          final refTokens = _tokenize(
+            _normalizeForMatch(entry['reference'] as String),
+          );
+          return remainingTokens.every(refTokens.contains);
+        }
+
+        if (!tocEntries.any(tocEntryCoversAllTokens) &&
+            altTocEntries.isEmpty &&
+            remainingTokens.length >= 2 &&
+            tocLookups < maxTocLookups) {
+          tocLookups++;
+          final lineHit = await resolveLineRef?.call(
+            bookId,
+            title,
+            remainingTokens,
+          );
+          if (lineHit != null) {
+            bookTocResults
+              ..clear()
+              ..add(
+                DbReferenceResult(
+                  title: title,
+                  reference: lineHit['heRef'] as String,
+                  segment: lineHit['lineIndex'] as int,
+                  isPdf: isPdf,
+                  filePath: hit.filePath,
+                  orderIndex: hit.orderIndex,
+                  // עמוק מכל כותרת קיימת — פסוק הוא "רמה 3 וירטואלית".
+                  tocLevel: 3,
+                  bookId: bookId,
+                  sourceLineId: lineHit['dbLineId'] as int? ?? 0,
+                ),
+              );
+          } else if (bookTocResults.isEmpty) {
+            // נסיגה לכותרת לפי ה-prefix הארוך ביותר של הטוקנים שנותרו.
+            for (
+              var k = remainingTokens.length - 1;
+              k >= 1 && tocLookups < maxTocLookups;
+              k--
+            ) {
+              tocLookups++;
+              final prefixEntries = await fetchTocEntries(
+                bookId,
+                title,
+                queryTokens: remainingTokens.take(k).toList(),
+              );
+              if (prefixEntries.isEmpty) continue;
+              for (final entry in prefixEntries) {
+                bookTocResults.add(
+                  DbReferenceResult(
+                    title: title,
+                    reference: entry['reference'] as String,
+                    segment: entry['segment'] as int,
+                    isPdf: isPdf,
+                    filePath: hit.filePath,
+                    orderIndex: hit.orderIndex,
+                    tocLevel: entry['level'] as int,
+                    bookId: bookId,
+                    sourceLineId: entry['dbLineId'] as int? ?? 0,
+                  ),
+                );
+              }
+              break;
+            }
+          }
+        }
+        results.addAll(bookTocResults);
       }
     }
 
