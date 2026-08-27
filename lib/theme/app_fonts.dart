@@ -830,6 +830,8 @@ class AppFonts {
 
   /// שם המשפחה מטבלת ה-name. מעדיף typographic family (nameID 16) על-פני
   /// שם המשפחה הבסיסי (nameID 1), כך ש-Regular ו-Bold מקבלים שם זהה.
+  /// בכל nameID מועדפת רשומת Windows (platform 3) — Windows מקבץ לפיה, ובגופני
+  /// Medium רבים רשומות פלטפורמה 0/1 נושאות את שם הבסיס וממזגות משפחות שונות.
   static String _readSfntFamilyName(
     Uint8List data,
     int nameOffset,
@@ -842,7 +844,9 @@ class AppFonts {
     final recordsBase = nameOffset + 6;
     if (recordsBase + count * 12 > data.length) return '';
 
+    String? typographicWindows;
     String? typographic;
+    String? basicWindows;
     String? basic;
     for (int i = 0; i < count; i++) {
       final rec = recordsBase + i * 12;
@@ -868,12 +872,21 @@ class AppFonts {
       }
       if (decoded.trim().isEmpty) continue;
       if (nameId == 16) {
-        typographic ??= decoded;
+        if (platformId == 3) {
+          typographicWindows ??= decoded;
+        } else {
+          typographic ??= decoded;
+        }
       } else {
-        basic ??= decoded;
+        if (platformId == 3) {
+          basicWindows ??= decoded;
+        } else {
+          basic ??= decoded;
+        }
       }
     }
-    return (typographic ?? basic ?? '').trim();
+    return (typographicWindows ?? typographic ?? basicWindows ?? basic ?? '')
+        .trim();
   }
 
   @visibleForTesting
