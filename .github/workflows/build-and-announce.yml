@@ -534,12 +534,22 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v4.2.2
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: 3.44.0
-          cache: true
+      # אין חבילת SDK רשמית של Flutter ל-Windows-ARM במניפסט של flutter-action —
+      # מתקינים מ-git באותו תג, כמו בלינוקס-ARM. ה-bootstrap מוריד Dart SDK
+      # נייטיבי ל-arm64, וזה קריטי: הכלי קובע את ארכיטקטורת היעד לפי
+      # Abi.current() של תהליך ה-Dart, כך ש-SDK של x64 באמולציה בונה x64.
+      - name: Set up Flutter (arm64, from git)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git clone --depth 1 --branch 3.44.0 https://github.com/flutter/flutter.git "$env:RUNNER_TEMP\flutter"
+          "$env:RUNNER_TEMP\flutter\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          & "$env:RUNNER_TEMP\flutter\bin\flutter.bat" --version
+          $dartVersion = & "$env:RUNNER_TEMP\flutter\bin\cache\dart-sdk\bin\dart.exe" --version 2>&1
+          Write-Host "Dart: $dartVersion"
+          if ("$dartVersion" -notmatch 'arm64') {
+            throw "Expected a native arm64 Dart SDK — got: $dartVersion"
+          }
 
       - name: Create Google Calendar Credentials
         shell: pwsh
@@ -577,7 +587,8 @@ jobs:
               choco install innosetup -y --no-progress
             }
           }
-          $iscc = (Get-ChildItem "C:\Program Files*\Inno Setup*\ISCC.exe" -Recurse -ErrorAction SilentlyContinue |
+          # הסקריפט של הפרויקט מתקין לעיתים per-user — מחפשים גם שם.
+          $iscc = (Get-ChildItem "C:\Program Files*\Inno Setup*\ISCC.exe", "$env:LOCALAPPDATA\Programs\Inno Setup*\ISCC.exe" -Recurse -ErrorAction SilentlyContinue |
                    Select-Object -First 1 -ExpandProperty FullName)
           if (-not $iscc) { throw "ISCC.exe not found after installation" }
           "ISCC=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append
