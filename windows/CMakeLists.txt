@@ -124,11 +124,18 @@ install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
 # to run at install time (so the regular installer, the silent installer,
 # and the portable ZIP all benefit, not just the full installer).
 #
-# Source DLLs live under installer/vcredist/x64 in the repo so they're a
+# Source DLLs live under installer/vcredist/<arch> in the repo so they're a
 # single source of truth across all distribution paths; the .iss files
-# pull from build\windows\x64\runner\Release\* and therefore inherit
-# them automatically.
-install(DIRECTORY "${CMAKE_SOURCE_DIR}/../installer/vcredist/x64/"
+# pull from build\windows\<arch>\runner\Release\* and therefore inherit
+# them automatically. The arch subdir must match the target platform —
+# bundling x64 runtime DLLs into an arm64 build would shadow the correct
+# System32 ones and break loading.
+if(DEFINED FLUTTER_TARGET_PLATFORM)
+  string(REPLACE "windows-" "" VCREDIST_ARCH "${FLUTTER_TARGET_PLATFORM}")
+else()
+  set(VCREDIST_ARCH "x64")
+endif()
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/../installer/vcredist/${VCREDIST_ARCH}/"
   DESTINATION "${CMAKE_INSTALL_PREFIX}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime

@@ -9,6 +9,7 @@ import 'package:otzaria/core/internet_connectivity.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/plugins/services/windows_arch_info.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
 import 'package:otzaria/tour/bloc/tour_state.dart';
 import 'package:updat/updat.dart';
@@ -70,13 +71,21 @@ bool shouldDestroyWindowAfterInstallNow({required bool installerLaunched}) =>
 /// ומתקין את עצמו ברקע ללא אשף, משמר את ההגדרות ומפעיל את אוצריא מחדש
 /// בסיום — כך שהעדכון מתבצע כולו מתוך התוכנה. קבצי `full` (עם ספרייה
 /// מצורפת) לעולם אינם נבחרים לעדכון.
+///
+/// [isArmMachine] — המעבד (לא התהליך) קובע את הארכיטקטורה: במחשב ARM
+/// מועדף נכס `arm64` וגם התקנת x64 קיימת תשודרג אליו (זה מסלול המעבר
+/// היחיד מהאמולציה); בהיעדרו נופלים ל-x64 שעובד באמולציה. במחשב x64
+/// נכסי `arm64` לעולם אינם נבחרים.
 @visibleForTesting
 String? pickWindowsAssetUrl(
   List<Map<String, dynamic>> assets, {
   required String preferredFormat, // 'exe' | 'zip'
+  required bool isArmMachine,
 }) {
   String? exe;
   String? zip;
+  String? armExe;
+  String? armZip;
 
   for (final asset in assets) {
     final name = (asset['name'] as String).toLowerCase();
@@ -88,11 +97,27 @@ String? pickWindowsAssetUrl(
     if (!isWindowsAsset) continue;
     if (name.contains('full')) continue;
 
+    final isArmAsset = name.contains('arm64') || name.contains('aarch64');
     if (name.endsWith('.exe')) {
-      exe ??= url;
+      if (isArmAsset) {
+        armExe ??= url;
+      } else {
+        exe ??= url;
+      }
     } else if (name.endsWith('.zip')) {
-      zip ??= url;
+      if (isArmAsset) {
+        armZip ??= url;
+      } else {
+        zip ??= url;
+      }
     }
+  }
+
+  if (isArmMachine) {
+    if (preferredFormat == 'zip') {
+      return armZip ?? armExe ?? zip ?? exe;
+    }
+    return armExe ?? armZip ?? exe ?? zip;
   }
 
   if (preferredFormat == 'zip') {
@@ -828,6 +853,7 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
       assetUrl = pickWindowsAssetUrl(
         assets,
         preferredFormat: _preferredWindowsFormat(),
+        isArmMachine: WindowsArchInfo.isWindowsOnArm,
       );
     } else if (platform == 'macos') {
       assetUrl = pickMacAssetUrl(

@@ -17,6 +17,13 @@
 #define MyAppURL "https://github.com/otzaria/otzaria"
 #define MyAppExeName "otzaria.exe"
 
+; ארכיטקטורת היעד: "x64" (ברירת מחדל) או "arm64", נקבעת מבחוץ עם
+; ‎ISCC /DAppArch=arm64‎. קובעת את תיקיית ה-build, את שם הקובץ ואת
+; הגבלת הארכיטקטורה של המתקין.
+#ifndef AppArch
+  #define AppArch "x64"
+#endif
+
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
@@ -27,8 +34,13 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
+#if AppArch == "arm64"
+ArchitecturesAllowed=arm64
+ArchitecturesInstallIn64BitMode=arm64
+#else
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+#endif
 ; lowest = לא מבקש UAC כשמפעילים רגיל; אם המשתמש בחר "Run as administrator"
 ; התהליך כבר מורם, IsAdmin=True, ואז משגרים מחדש עם /ALLUSERS.
 PrivilegesRequired=lowest
@@ -37,7 +49,11 @@ DefaultDirName={code:GetDefaultInstallDir}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=.\
+#if AppArch == "arm64"
+OutputBaseFilename=otzaria-{#MyAppVersion}-windows-arm64
+#else
 OutputBaseFilename=otzaria-{#MyAppVersion}-windows
+#endif
 SetupIconFile=white_sketch128x128.ico
 ; תמונת האשף בעמודי "ברוכים הבאים" ו"סיום" (אנכית, 164x314 + רזולוציות @2x/@3x ל-HiDPI)
 WizardImageFile=wizard_large.bmp,wizard_large@2x.bmp,wizard_large@3x.bmp
@@ -112,7 +128,7 @@ Filename: "{app}\{#MyAppExeName}"; Flags: nowait runasoriginaluser; Check: Shoul
 Name: "hebrew"; MessagesFile: "compiler:Languages\Hebrew.isl"
 
 [Files]
-Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\build\windows\{#AppArch}\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; קבצי הצגה לדף "תכונות עיקריות" - dontcopy = נארזים בתוך המתקין אבל לא מותקנים אצל המשתמש
 Source: "feature1.bmp"; Flags: dontcopy
 Source: "feature2.bmp"; Flags: dontcopy

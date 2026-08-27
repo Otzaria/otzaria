@@ -10,6 +10,10 @@ on:
         description: Build Windows artifacts
         type: boolean
         default: true
+      build_windows_arm64:
+        description: Build Windows ARM64 artifacts
+        type: boolean
+        default: true
       build_linux:
         description: Build Linux artifacts
         type: boolean
@@ -517,6 +521,146 @@ jobs:
         with:
           name: otzaria-windows-zip
           path: otzaria-windows.zip
+
+  # בניית Windows ARM64 נייטיבית — הפתרון לתוספים המתים באמולציית x64 על
+  # מכשירי Snapdragon (issue #1014): WebView2 מסרב ליצור controller במסלול
+  # הקומפוזיציה תחת אמולציה. חייבת לרוץ על רץ ARM — ל-Flutter אין
+  # קרוס-קומפילציה של Windows. בכוונה רזה מה-job של x64: מתקין רגיל ו-ZIP
+  # נייד בלבד, בלי מתקין FULL (יתווסף בהמשך לפי ביקוש).
+  build_windows_arm64:
+    if: github.event_name != 'release' && github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.build_windows_arm64)
+    runs-on: windows-11-arm
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.0
+          cache: true
+
+      - name: Create Google Calendar Credentials
+        shell: pwsh
+        run: |
+          $clientId = '${{ secrets.GOOGLE_CALENDAR_CLIENT_ID }}'
+          $clientSecret = '${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}'
+          if ([string]::IsNullOrWhiteSpace($clientId) -or [string]::IsNullOrWhiteSpace($clientSecret)) {
+            throw "Google Calendar secrets are missing. Please set GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET."
+          }
+          $credentialsContent = @"
+          class GoogleCalendarCredentials {
+            static const String clientId = '$clientId';
+            static const String clientSecret = '$clientSecret';
+          }
+          "@
+          $credentialsContent | Out-File -FilePath "lib/tools/calendar/services/google_calendar_credentials.dart" -Encoding UTF8
+          Write-Host "Google Calendar credentials file created"
+
+      - name: Install Inno Setup (project script + fallback)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (Test-Path .\installer\install_inno_setup.ps1) {
+            Write-Host "Running local installer script..."
+            .\installer\install_inno_setup.ps1
+          } else {
+            Write-Host "Local installer script not found, skipping."
+          }
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) {
+            if (Get-Command winget -ErrorAction SilentlyContinue) {
+              Write-Host "Installing Inno Setup via winget..."
+              winget install -e --id JRSoftware.InnoSetup --silent --accept-package-agreements --accept-source-agreements
+            } else {
+              Write-Host "winget not found, installing via Chocolatey..."
+              choco install innosetup -y --no-progress
+            }
+          }
+          $iscc = (Get-ChildItem "C:\Program Files*\Inno Setup*\ISCC.exe" -Recurse -ErrorAction SilentlyContinue |
+                   Select-Object -First 1 -ExpandProperty FullName)
+          if (-not $iscc) { throw "ISCC.exe not found after installation" }
+          "ISCC=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "ISCC resolved to: $iscc"
+
+      - name: Prepare Flutter dependencies for Windows release
+        shell: pwsh
+        run: |
+          flutter pub get
+          dart run tool/generate_search_index.dart
+          dart run tool/generate_settings_l10n.dart
+
+      - name: Bundle VC++ Redistributable runtime DLLs (app-local, ARM64)
+        shell: pwsh
+        run: |
+          # מקביל לשלב ה-x64, בהבדל אחד: אין redist ציבורי מוצמד ל-ARM64 עם
+          # SHA ידוע, ואין שם גרסה ידועה-כפגומה להתגונן מפניה (באג 14.36 היה
+          # x64). לכן מעתיקים את ה-DLLs הנייטיביים של רץ ה-ARM מ-System32 —
+          # תמיד עדכניים ב-runner image — ורושמים את גרסאותיהם ללוג.
+          $ErrorActionPreference = 'Stop'
+          $destDir = "installer\vcredist\arm64"
+          New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+          $dlls = @(
+            'msvcp140.dll', 'msvcp140_1.dll', 'msvcp140_2.dll',
+            'msvcp140_atomic_wait.dll', 'msvcp140_codecvt_ids.dll',
+            'vcruntime140.dll', 'vcruntime140_1.dll', 'vcruntime140_threads.dll',
+            'concrt140.dll', 'vccorlib140.dll'
+          )
+          $copied = 0
+          foreach ($d in $dlls) {
+            $src = Join-Path $env:SystemRoot "System32\$d"
+            if (Test-Path $src) {
+              Copy-Item -Path $src -Destination (Join-Path $destDir $d) -Force
+              $ver = (Get-Item $src).VersionInfo.FileVersion
+              Write-Host "  copied $d (v$ver)"
+              $copied++
+            } else {
+              Write-Host "::warning::$d not found in System32 — skipping"
+            }
+          }
+          if ($copied -eq 0) { throw "No VC++ runtime DLLs found in System32" }
+          Write-Host "VC++ runtime DLLs staged in $destDir"
+
+      - name: Build Flutter Windows app (ARM64)
+        shell: pwsh
+        env:
+          UseMultiToolTask: 'true'
+          EnforceProcessCountAcrossBuilds: 'true'
+          CMAKE_BUILD_PARALLEL_LEVEL: '4'
+        run: |
+          flutter build windows --release --verbose
+          if (-not (Test-Path 'build\windows\arm64\runner\Release\otzaria.exe')) {
+            throw 'Expected an arm64 build output — the tool built a different architecture'
+          }
+
+      - name: Zip Windows ARM64 build
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "build\windows\arm64\runner\Release\*" -DestinationPath otzaria-windows-arm64.zip
+          # portable.marker — ראה ההסבר בשלב המקביל ב-build_windows.
+          $marker = Join-Path $env:RUNNER_TEMP 'portable.marker'
+          New-Item -ItemType File -Path $marker -Force | Out-Null
+          Compress-Archive -Path $marker -Update -DestinationPath otzaria-windows-arm64.zip
+
+      - name: Build Inno Setup installer (ARM64)
+        shell: pwsh
+        run: |
+          & "$env:ISCC" /DAppArch=arm64 installer\otzaria.iss
+          if ($LASTEXITCODE -ne 0) {
+            throw "ARM64 installer build failed"
+          }
+
+      - name: Upload Windows ARM64 installer
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: otzaria-windows-arm64-installer
+          path: installer/otzaria-*-windows-arm64.exe
+
+      - name: Upload Windows ARM64 ZIP
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: otzaria-windows-arm64-zip
+          path: otzaria-windows-arm64.zip
 
   build_linux:
     name: Linux ${{ matrix.target }} ${{ matrix.arch }}
@@ -1866,12 +2010,13 @@ jobs:
       needs.build_linux.result == 'success' &&
       needs.build_android.result == 'success' &&
       needs.build_macos.result == 'success' &&
-      needs.build_windows_indexed_full.result == 'success'
+      needs.build_windows_indexed_full.result == 'success' &&
+      (needs.build_windows_arm64.result == 'success' || needs.build_windows_arm64.result == 'skipped')
     outputs:
       tag: ${{ steps.version.outputs.tag }}
       title: ${{ steps.version.outputs.title }}
       url: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }}
-    needs: [build_windows, build_linux, build_android, build_macos, build_windows_indexed_full]
+    needs: [build_windows, build_windows_arm64, build_linux, build_android, build_macos, build_windows_indexed_full]
     runs-on: ubuntu-latest
 
     steps:
@@ -1936,6 +2081,14 @@ jobs:
           # Windows ZIP
           if [ -d "artifacts/otzaria-windows-zip" ]; then
             cp artifacts/otzaria-windows-zip/*.zip release-files/ || true
+          fi
+
+          # Windows ARM64 installer + ZIP
+          if [ -d "artifacts/otzaria-windows-arm64-installer" ]; then
+            cp artifacts/otzaria-windows-arm64-installer/*.exe release-files/ || true
+          fi
+          if [ -d "artifacts/otzaria-windows-arm64-zip" ]; then
+            cp artifacts/otzaria-windows-arm64-zip/*.zip release-files/ || true
           fi
 
           # Linux DEB package
@@ -2028,6 +2181,7 @@ jobs:
           RELEASE_URL="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}"
 
           windows_installers=()
+          windows_arm64_installers=()
           windows_full=()
           windows_indexed_full=()
           android_apk=()
@@ -2070,6 +2224,9 @@ jobs:
                 ;;
               *windows-full*.exe)
                 windows_full+=("$file")
+                ;;
+              *windows-arm64*.exe)
+                windows_arm64_installers+=("$file")
                 ;;
               *windows*.exe)
                 windows_installers+=("$file")
@@ -2157,12 +2314,13 @@ jobs:
           EOF
           fi
 
-          if [ ${#windows_installers[@]} -gt 0 ] || [ ${#windows_full[@]} -gt 0 ] || [ ${#windows_indexed_full[@]} -gt 0 ]; then
+          if [ ${#windows_installers[@]} -gt 0 ] || [ ${#windows_arm64_installers[@]} -gt 0 ] || [ ${#windows_full[@]} -gt 0 ] || [ ${#windows_indexed_full[@]} -gt 0 ]; then
             printf "## ווינדוס\n\n" >> release-body.md
 
             if [ ${#windows_installers[@]} -gt 0 ]; then
               printf "### גרסת תוכנה בלבד\n\n" >> release-body.md
               emit_link_group "מתקין לווינדוס (שדרוג מגרסה קיימת מותקן אוטומטית ברקע; כולל אפשרות התקנה ניידת)" "${windows_installers[@]}"
+              emit_link_group "מתקין למחשבי ARM (מעבדי Snapdragon; במחשב רגיל הורידו את המתקין שמעל)" "${windows_arm64_installers[@]}"
               printf "\n" >> release-body.md
             fi
 

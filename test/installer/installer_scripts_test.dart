@@ -668,6 +668,61 @@ void main() {
     }
   });
 
+  group('פרמטריזציית ארכיטקטורה — Windows ARM64 (issue #1014)', () {
+    test('$_regular: ברירת המחדל x64 ווריאנט arm64 נשלט מבחוץ', () {
+      final script = _script(_regular);
+
+      expect(
+        script,
+        contains('#ifndef AppArch'),
+        reason: 'בלי ברירת מחדל, בניית x64 הקיימת נשברת',
+      );
+      expect(script, contains('#define AppArch "x64"'));
+      expect(script, contains('ArchitecturesAllowed=arm64'));
+      expect(script, contains('ArchitecturesAllowed=x64compatible'));
+      expect(
+        script,
+        contains('OutputBaseFilename=otzaria-{#MyAppVersion}-windows-arm64'),
+        reason: 'מנגנון העדכון מזהה את נכס ה-ARM לפי "arm64" בשם הקובץ',
+      );
+      expect(
+        script,
+        contains(r'..\build\windows\{#AppArch}\runner\Release\*'),
+        reason: 'נתיב build קשיח ל-x64 היה אורז קבצי x64 במתקין ה-ARM',
+      );
+    });
+
+    test('ה-workflow בונה arm64 על רץ ARM עם ISCC /DAppArch=arm64', () {
+      final workflow = File(
+        '.github/workflows/build-and-announce.yml',
+      ).readAsStringSync().replaceAll('\r\n', '\n');
+
+      expect(workflow, contains('build_windows_arm64:'));
+      expect(
+        workflow,
+        contains('runs-on: windows-11-arm'),
+        reason: 'ל-Flutter אין קרוס-קומפילציה של Windows — חובה מארח ARM',
+      );
+      expect(workflow, contains(r'/DAppArch=arm64 installer\otzaria.iss'));
+      expect(
+        workflow,
+        contains(r"Test-Path 'build\windows\arm64\runner\Release\otzaria.exe'"),
+        reason: 'בלי האימות, בנייה שנפלה לאמולציית x64 עוברת בשקט',
+      );
+    });
+
+    test('vcredist נבחר לפי ארכיטקטורת היעד ב-CMake', () {
+      final cmake = File('windows/CMakeLists.txt').readAsStringSync();
+
+      expect(cmake, contains('FLUTTER_TARGET_PLATFORM'));
+      expect(
+        cmake,
+        contains(r'installer/vcredist/${VCREDIST_ARCH}/'),
+        reason: 'DLLs של x64 בבניית arm64 היו מאפילים על אלה של System32',
+      );
+    });
+  });
+
   group('סימון גרסת התלמוד בחבילות FULL', () {
     // בלי הסימון האפליקציה מורידה מחדש ~440MB בבדיקת העדכון הראשונה.
     final versionFile = DatabaseConstants.talmudBavliVersionFileName;

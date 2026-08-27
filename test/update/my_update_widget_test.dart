@@ -269,15 +269,21 @@ void main() {
     // נכסי release מציאותיים, כפי שמועלים ע"י build-and-announce.yml.
     final fullReleaseAssets = [
       asset('otzaria-0.9.96-windows.exe'),
+      asset('otzaria-0.9.96-windows-arm64.exe'),
       asset('otzaria-0.9.96-windows-full.exe'),
       asset('otzaria-windows.zip'),
+      asset('otzaria-windows-arm64.zip'),
       asset('otzaria-0.9.96-linux.deb'),
       asset('otzaria-macos.dmg'),
     ];
 
     test('picks the installer for exe installs', () {
       expect(
-        pickWindowsAssetUrl(fullReleaseAssets, preferredFormat: 'exe'),
+        pickWindowsAssetUrl(
+          fullReleaseAssets,
+          preferredFormat: 'exe',
+          isArmMachine: false,
+        ),
         'https://example.com/otzaria-0.9.96-windows.exe',
       );
     });
@@ -286,12 +292,23 @@ void main() {
       final assets = [
         asset('otzaria-0.9.96-windows-full.exe'),
       ];
-      expect(pickWindowsAssetUrl(assets, preferredFormat: 'exe'), isNull);
+      expect(
+        pickWindowsAssetUrl(
+          assets,
+          preferredFormat: 'exe',
+          isArmMachine: false,
+        ),
+        isNull,
+      );
     });
 
     test('prefers zip for portable installs with exe as fallback', () {
       expect(
-        pickWindowsAssetUrl(fullReleaseAssets, preferredFormat: 'zip'),
+        pickWindowsAssetUrl(
+          fullReleaseAssets,
+          preferredFormat: 'zip',
+          isArmMachine: false,
+        ),
         'https://example.com/otzaria-windows.zip',
       );
 
@@ -299,7 +316,11 @@ void main() {
         asset('otzaria-0.9.96-windows.exe'),
       ];
       expect(
-        pickWindowsAssetUrl(withoutZip, preferredFormat: 'zip'),
+        pickWindowsAssetUrl(
+          withoutZip,
+          preferredFormat: 'zip',
+          isArmMachine: false,
+        ),
         'https://example.com/otzaria-0.9.96-windows.exe',
       );
     });
@@ -310,7 +331,63 @@ void main() {
         asset('otzaria-macos.dmg'),
         asset('otzaria-macos.zip'),
       ];
-      expect(pickWindowsAssetUrl(assets, preferredFormat: 'exe'), isNull);
+      expect(
+        pickWindowsAssetUrl(
+          assets,
+          preferredFormat: 'exe',
+          isArmMachine: false,
+        ),
+        isNull,
+      );
+    });
+
+    test('an x64 machine never receives an arm64 asset', () {
+      final assets = [
+        asset('otzaria-0.9.97-windows-arm64.exe'),
+        asset('otzaria-windows-arm64.zip'),
+      ];
+      expect(
+        pickWindowsAssetUrl(
+          assets,
+          preferredFormat: 'exe',
+          isArmMachine: false,
+        ),
+        isNull,
+      );
+    });
+
+    test('an ARM machine prefers the arm64 installer', () {
+      expect(
+        pickWindowsAssetUrl(
+          fullReleaseAssets,
+          preferredFormat: 'exe',
+          isArmMachine: true,
+        ),
+        'https://example.com/otzaria-0.9.96-windows-arm64.exe',
+      );
+      expect(
+        pickWindowsAssetUrl(
+          fullReleaseAssets,
+          preferredFormat: 'zip',
+          isArmMachine: true,
+        ),
+        'https://example.com/otzaria-windows-arm64.zip',
+      );
+    });
+
+    test('an ARM machine falls back to x64 when no arm64 asset exists', () {
+      final withoutArm = [
+        asset('otzaria-0.9.96-windows.exe'),
+        asset('otzaria-windows.zip'),
+      ];
+      expect(
+        pickWindowsAssetUrl(
+          withoutArm,
+          preferredFormat: 'exe',
+          isArmMachine: true,
+        ),
+        'https://example.com/otzaria-0.9.96-windows.exe',
+      );
     });
   });
 
