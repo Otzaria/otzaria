@@ -1195,8 +1195,7 @@ class SeforimRepository {
     return await _database.lineDao.selectContentByBookId(bookId);
   }
 
-  /// תוכן הספר כבייטים גולמיים (UTF-8) מאוחים ב-`\n` — מסלול האינדוקס
-  /// (ראה [LineDao.selectContentBytesByBookId]).
+  /// Stored book bytes: compact Zstd frame or legacy joined UTF-8.
   Future<Uint8List> getLineContentBytes(int bookId) async {
     return await _database.lineDao.selectContentBytesByBookId(bookId);
   }

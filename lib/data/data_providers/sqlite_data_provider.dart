@@ -446,9 +446,8 @@ class SqliteDataProvider {
     }
   }
 
-  /// כמו [getBookTextFromDb], אבל כבייטים גולמיים (UTF-8 כפי שמאוחסן),
-  /// מאוחים ב-`\n` — מסלול האינדוקס מעביר אותם למנוע כמות-שהם
-  /// (addTextBookBytes) בלי פענוח ל-String וקידוד חוזר על גשר ה-FFI.
+  /// Returns legacy UTF-8 or the stored Zstd frame for compact databases.
+  /// The Rust indexer accepts both representations directly.
   Future<Uint8List?> getBookTextBytesFromDb(
     String title, [
     int? categoryId,

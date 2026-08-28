@@ -1006,7 +1006,7 @@ void main() {
         expect(rows, isEmpty);
 
         // בקשת טקסט של מהדורה מול DB ישן — null, בלי ליפול לנוסח הממוזג.
-        final range = DatabaseLibraryProvider.loadBookTextRangeRowsForTesting(
+        final range = await DatabaseLibraryProvider.loadBookTextRangeRowsForTesting(
           dbPath: dbPath,
           title: 'טור',
           categoryId: 7,
@@ -1068,7 +1068,7 @@ void main() {
         );
 
         final versionRange =
-            DatabaseLibraryProvider.loadBookTextRangeRowsForTesting(
+            await DatabaseLibraryProvider.loadBookTextRangeRowsForTesting(
               dbPath: dbPath,
               title: 'טור',
               categoryId: 7,
@@ -1088,7 +1088,7 @@ void main() {
 
         // בלי versionTitle — הנוסח הממוזג הרגיל, ללא שינוי.
         final mergedRange =
-            DatabaseLibraryProvider.loadBookTextRangeRowsForTesting(
+            await DatabaseLibraryProvider.loadBookTextRangeRowsForTesting(
               dbPath: dbPath,
               title: 'טור',
               categoryId: 7,
@@ -1105,7 +1105,7 @@ void main() {
 
         // מהדורה שאינה קיימת — null, בלי ליפול לנוסח הממוזג.
         final unknownVersion =
-            DatabaseLibraryProvider.loadBookTextRangeRowsForTesting(
+            await DatabaseLibraryProvider.loadBookTextRangeRowsForTesting(
               dbPath: dbPath,
               title: 'טור',
               categoryId: 7,

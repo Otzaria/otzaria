@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart'
     show ValueNotifier, debugPrint, visibleForTesting;
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
+import 'package:otzaria/data/content/compressed_content.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
@@ -900,7 +903,15 @@ Future<List<Map<String, Object?>>> _runBookLinksInRangeInIsolate({
 
 /// Top-level worker לטעינת טווח שורות על חיבור RO חדש ב-isolate; ה-join+split
 /// מתבצע כאן כדי לא לחסום את ה-UI thread. ראה [_runAlternativeStructuresInIsolate].
-({int startLine, int endLine, int totalLines, List<String> lines})?
+Future<
+  ({
+    int startLine,
+    int endLine,
+    int totalLines,
+    List<String> lines,
+    bool compressed,
+  })?
+>
 _loadBookTextRangeRowsInIsolate({
   required String dbPath,
   required String title,
@@ -909,7 +920,7 @@ _loadBookTextRangeRowsInIsolate({
   required int startLine,
   required int endLine,
   String? versionTitle,
-}) {
+}) async {
   sqlite3.Database? db;
   try {
     db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
@@ -931,7 +942,37 @@ _loadBookTextRangeRowsInIsolate({
     final normalizedStart = startLine.clamp(0, totalLines - 1);
     final normalizedEnd = endLine.clamp(normalizedStart, totalLines - 1);
 
-    final List<Map<String, dynamic>> rows;
+    List<String>? compressedBaseLines;
+    final hasBookContent = db
+        .select(
+          "SELECT 1 FROM sqlite_master WHERE type='table' AND name='book_content' LIMIT 1",
+        )
+        .isNotEmpty;
+    if (hasBookContent) {
+      final packedRows = db.select(
+        'SELECT format, contentZstd, uncompressedSize, contentHash FROM book_content WHERE bookId = ? LIMIT 1',
+        [bookId],
+      ).toMapList();
+      if (packedRows.isNotEmpty) {
+        final packed = packedRows.first;
+        final format = packed['format'] as int? ?? 1;
+        if (format != 1) {
+          throw FormatException('Unsupported book-content format $format');
+        }
+        final payload = await decompressVerifiedContent(
+          compressed: packed['contentZstd'] as Uint8List,
+          uncompressedSize: packed['uncompressedSize'] as int,
+          contentHash: packed['contentHash'] as Uint8List,
+        );
+        compressedBaseLines = decodeBookContentPayload(
+          payload,
+          expectedLines: totalLines,
+        );
+      }
+    }
+
+    final List<String> lines;
+    var compressed = compressedBaseLines != null;
     if (versionTitle != null) {
       if (!_hasBookVersionTables(db)) return null;
       final versionRows = db.select(
@@ -940,38 +981,96 @@ _loadBookTextRangeRowsInIsolate({
       ).toMapList();
       if (versionRows.isEmpty) return null;
       final versionId = versionRows.first['id'] as int;
-      // מהדורה חלופית: שורות מבנה (heRef NULL — כותרות/מחברים) נשארות מהשלד;
-      // שורת תוכן מקבלת את נוסח המהדורה, וסגמנט שחסר בה מוצג ריק — לעולם לא
-      // נופלים בשקט לנוסח הממוזג.
-      rows = db
+      Map<int, String>? compressedVersionLines;
+      final hasVersionContent = db
           .select(
-            '''
-        SELECT CASE WHEN l.heRef IS NULL THEN l.content
-                    ELSE COALESCE(vl.content, '') END AS content
-        FROM line l
-        LEFT JOIN version_line vl ON vl.versionId = ? AND vl.lineId = l.id
-        WHERE l.bookId = ? AND l.lineIndex >= ? AND l.lineIndex <= ?
-        ORDER BY l.lineIndex
-      ''',
-            [versionId, bookId, normalizedStart, normalizedEnd],
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='version_content' LIMIT 1",
           )
-          .toMapList();
-    } else {
-      rows = db.select(
-        'SELECT content FROM line WHERE bookId = ? AND lineIndex >= ? AND lineIndex <= ? ORDER BY lineIndex',
-        [bookId, normalizedStart, normalizedEnd],
-      ).toMapList();
-    }
-    if (rows.isEmpty) {
-      return null;
-    }
+          .isNotEmpty;
+      if (hasVersionContent) {
+        final packedRows = db.select(
+          'SELECT format, contentZstd, uncompressedSize, contentHash FROM version_content WHERE versionId = ? LIMIT 1',
+          [versionId],
+        ).toMapList();
+        if (packedRows.isNotEmpty) {
+          final packed = packedRows.first;
+          final format = packed['format'] as int? ?? 1;
+          if (format != 1) {
+            throw FormatException(
+              'Unsupported version-content format $format',
+            );
+          }
+          final payload = await decompressVerifiedContent(
+            compressed: packed['contentZstd'] as Uint8List,
+            uncompressedSize: packed['uncompressedSize'] as int,
+            contentHash: packed['contentHash'] as Uint8List,
+          );
+          compressedVersionLines = decodeVersionContentPayload(payload);
+          compressed = true;
+        }
+      }
 
-    final text = rows.map((row) => row['content'] as String? ?? '').join('\n');
+      final queryStart = compressed ? 0 : normalizedStart;
+      final queryEnd = compressed ? totalLines - 1 : normalizedEnd;
+      final rows = db.select(
+        compressedVersionLines == null
+            ? '''
+              SELECT l.id, l.lineIndex, l.heRef, l.content,
+                     COALESCE(vl.content, '') AS versionContent
+              FROM line l
+              LEFT JOIN version_line vl ON vl.versionId = ? AND vl.lineId = l.id
+              WHERE l.bookId = ? AND l.lineIndex >= ? AND l.lineIndex <= ?
+              ORDER BY l.lineIndex
+              '''
+            : '''
+              SELECT l.id, l.lineIndex, l.heRef, l.content
+              FROM line l
+              WHERE l.bookId = ? AND l.lineIndex >= ? AND l.lineIndex <= ?
+              ORDER BY l.lineIndex
+              ''',
+        compressedVersionLines == null
+            ? [versionId, bookId, queryStart, queryEnd]
+            : [bookId, queryStart, queryEnd],
+      ).toMapList();
+      if (compressedVersionLines != null) {
+        final lineIds = rows.map((row) => row['id'] as int).toSet();
+        for (final lineId in compressedVersionLines.keys) {
+          if (!lineIds.contains(lineId)) {
+            throw FormatException(
+              'Version content references unknown line $lineId',
+            );
+          }
+        }
+      }
+      lines = [
+        for (final row in rows)
+          if (row['heRef'] == null)
+            compressedBaseLines?[row['lineIndex'] as int] ??
+                row['content'] as String? ??
+                ''
+          else
+            compressedVersionLines?[row['id'] as int] ??
+                row['versionContent'] as String? ??
+                '',
+      ];
+    } else {
+      lines =
+          compressedBaseLines ??
+          db
+              .select(
+                'SELECT content FROM line WHERE bookId = ? AND lineIndex >= ? AND lineIndex <= ? ORDER BY lineIndex',
+                [bookId, normalizedStart, normalizedEnd],
+              )
+              .map((row) => row['content'] as String? ?? '')
+              .toList();
+    }
+    if (lines.isEmpty) return null;
     return (
-      startLine: normalizedStart,
-      endLine: normalizedEnd,
+      startLine: compressed ? 0 : normalizedStart,
+      endLine: compressed ? totalLines - 1 : normalizedEnd,
       totalLines: totalLines,
-      lines: text.split('\n'),
+      lines: lines,
+      compressed: compressed,
     );
   } finally {
     db?.close();
@@ -980,7 +1079,15 @@ _loadBookTextRangeRowsInIsolate({
 
 /// Top-level wrapper עבור טעינת טווח תוכן ב-isolate.
 /// ראה ההסבר ב-[_runAlternativeStructuresInIsolate].
-Future<({int startLine, int endLine, int totalLines, List<String> lines})?>
+Future<
+  ({
+    int startLine,
+    int endLine,
+    int totalLines,
+    List<String> lines,
+    bool compressed,
+  })?
+>
 _runBookTextRangeInIsolate({
   required String dbPath,
   required String title,
@@ -1165,6 +1272,11 @@ class DatabaseLibraryProvider implements LibraryProvider {
   /// מפתחות "title\u0000categoryId" של ספרים שראוי להציג להם תפריט 'גרסאות'.
   /// ממוזמז — נטען פעם אחת ל-DB; מנוקה ב-[clearCache].
   Future<Set<String>>? _selectableVersionKeysFuture;
+  final LinkedHashMap<
+    String,
+    ({int totalLines, List<String> lines})
+  >
+  _compressedTextCache = LinkedHashMap();
 
   /// IDs **טבעיים** (native AUTOINCREMENT) של קטגוריות ב-`user_books.db`
   /// שצורפו ל-Library. שימושי כדי לדעת לאיזה DB לפנות בקריאות
@@ -1297,7 +1409,9 @@ class DatabaseLibraryProvider implements LibraryProvider {
   }
 
   @visibleForTesting
-  static ({int startLine, int endLine, int totalLines, List<String> lines})?
+  static Future<
+    ({int startLine, int endLine, int totalLines, List<String> lines})?
+  >
   loadBookTextRangeRowsForTesting({
     required String dbPath,
     required String title,
@@ -1306,8 +1420,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
     required int startLine,
     required int endLine,
     String? versionTitle,
-  }) {
-    return _loadBookTextRangeRowsInIsolate(
+  }) async {
+    final result = await _loadBookTextRangeRowsInIsolate(
       dbPath: dbPath,
       title: title,
       categoryId: categoryId,
@@ -1315,6 +1429,23 @@ class DatabaseLibraryProvider implements LibraryProvider {
       startLine: startLine,
       endLine: endLine,
       versionTitle: versionTitle,
+    );
+    if (result == null) return null;
+    if (!result.compressed) {
+      return (
+        startLine: result.startLine,
+        endLine: result.endLine,
+        totalLines: result.totalLines,
+        lines: result.lines,
+      );
+    }
+    final start = startLine.clamp(0, result.totalLines - 1);
+    final end = endLine.clamp(start, result.totalLines - 1);
+    return (
+      startLine: start,
+      endLine: end,
+      totalLines: result.totalLines,
+      lines: result.lines.sublist(start, end + 1),
     );
   }
 
@@ -2108,6 +2239,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     _bundledTalmudBavliPathCache = null;
     _bundledTalmudBavliExistsCache = null;
     _selectableVersionKeysFuture = null;
+    _compressedTextCache.clear();
     debugPrint('💾 Database cache cleared');
   }
 
@@ -3203,9 +3335,16 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
     // ראה הערה ב-_runAlternativeStructuresInIsolate.
     final dbPath = _sqliteProvider.dbPath;
+    final cacheKey = '$dbPath\u0000$title\u0000$categoryId\u0000${versionTitle ?? ''}';
 
     try {
-      return await _runBookTextRangeInIsolate(
+      final cached = _compressedTextCache.remove(cacheKey);
+      if (cached != null) {
+        _compressedTextCache[cacheKey] = cached;
+        return _sliceCompressedRange(cached, startLine, endLine);
+      }
+
+      final result = await _runBookTextRangeInIsolate(
         dbPath: dbPath,
         title: title,
         categoryId: categoryId,
@@ -3214,10 +3353,47 @@ class DatabaseLibraryProvider implements LibraryProvider {
         endLine: endLine,
         versionTitle: versionTitle,
       );
+      if (result == null) return null;
+      if (result.compressed) {
+        final full = (
+          totalLines: result.totalLines,
+          lines: result.lines,
+        );
+        _compressedTextCache[cacheKey] = full;
+        if (_compressedTextCache.length > 2) {
+          _compressedTextCache.remove(_compressedTextCache.keys.first);
+        }
+        return _sliceCompressedRange(full, startLine, endLine);
+      }
+      return (
+        startLine: result.startLine,
+        endLine: result.endLine,
+        totalLines: result.totalLines,
+        lines: result.lines,
+      );
     } catch (e) {
       debugPrint('⚠️ Error in getBookTextRange "$title": $e');
       return null;
     }
+  }
+
+  ({int startLine, int endLine, int totalLines, List<String> lines})?
+  _sliceCompressedRange(
+    ({int totalLines, List<String> lines}) full,
+    int startLine,
+    int endLine,
+  ) {
+    if (full.totalLines <= 0 || full.lines.length != full.totalLines) {
+      return null;
+    }
+    final start = startLine.clamp(0, full.totalLines - 1);
+    final end = endLine.clamp(start, full.totalLines - 1);
+    return (
+      startLine: start,
+      endLine: end,
+      totalLines: full.totalLines,
+      lines: full.lines.sublist(start, end + 1),
+    );
   }
 
   /// רשימת המהדורות (book_version) של ספר, מהדורות עם טקסט מלא תחילה.
