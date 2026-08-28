@@ -14,8 +14,11 @@ import 'package:otzaria/migration/models/line.dart';
 import 'package:path/path.dart' as path;
 import 'package:zstandard/zstandard.dart';
 
-void main() {
+import '../../support/zstandard_test_init.dart';
+
+Future<void> main() async {
   TestWidgetsFlutterBinding.ensureInitialized();
+  final zstdReady = await tryZstandardAvailable();
 
   test('book payload preserves empty lines and embedded newlines', () {
     final payload = _bookPayload(const ['first\ncontinued', '', 'last']);
@@ -51,7 +54,7 @@ void main() {
       ),
       throwsFormatException,
     );
-  });
+  }, skip: zstdReady ? false : zstandardSkipReason);
 
   test('LineDao reads compressed content and keeps legacy fallback', () async {
     final temp = await Directory.systemTemp.createTemp('otzaria-zstd-lines-');
@@ -114,7 +117,7 @@ void main() {
       database.close();
       await temp.delete(recursive: true);
     }
-  });
+  }, skip: zstdReady ? false : zstandardSkipReason);
 
   test('compressed edition overlays content on the base line skeleton', () async {
     final temp = await Directory.systemTemp.createTemp('otzaria-zstd-version-');
@@ -194,7 +197,7 @@ void main() {
       database.close();
       await temp.delete(recursive: true);
     }
-  });
+  }, skip: zstdReady ? false : zstandardSkipReason);
 }
 
 Future<int> _insertBook(
