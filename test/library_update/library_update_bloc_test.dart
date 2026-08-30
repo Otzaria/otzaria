@@ -1092,6 +1092,42 @@ void main() {
     );
 
     blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      'כשל apply שאינו סטיית תוכן (למשל סכמה לא נתמכת) → fallback להורדה מלאה',
+      build: () => _bloc(
+        _FakeService(
+          deltaWithFallbackPlan,
+          applyError: const PatchApplyException(
+            'גרסת סכמת ה-patch (5) חדשה מהנתמך (4) — נדרש עדכון תוכנה',
+          ),
+        ),
+      ),
+      act: (b) => b.add(const StartLibraryUpdate()),
+      expect: () => [
+        isA<LibraryUpdateState>().having(
+          (s) => s.status,
+          'status',
+          LibraryUpdateStatus.checking,
+        ),
+        isA<LibraryUpdateState>()
+            .having(
+              (s) => s.status,
+              'status',
+              LibraryUpdateStatus.needsFullConfirmation,
+            )
+            .having(
+              (s) => s.plan?.kind,
+              'plan.kind',
+              LibraryUpdatePlanKind.fullDownload,
+            )
+            .having(
+              (s) => s.message,
+              'message',
+              contains('החלת עדכון הדלתא נכשלה'),
+            ),
+      ],
+    );
+
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
       'סטיית תוכן בלי DB מלא בתוכנית → error',
       build: () => _bloc(
         _FakeService(

@@ -246,12 +246,19 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     } catch (e, st) {
       if (_isStale(opId)) return;
       _logUpdateError('applyDeltaPlan', e, st);
-      // אי-התאמת hash הופכת את מסלול הדלתא ללא בטוח; הורדה מלאה עוקפת אותו.
-      if (e is PatchApplyException && e.isContentMismatch) {
-        final mismatchReason =
-            e.hashMismatchStage == PatchHashMismatchStage.toContentHash
-            ? 'תוצאת עדכון הדלתא אינה תואמת לגרסה הצפויה'
-            : 'תוכן הספרייה המקומית שונה מהצפוי';
+      // כל כשל apply (אי-התאמת hash, גרסה/סכמה לא תואמת, patch פגום) הופך
+      // את מסלול הדלתא ללא בטוח; הורדה מלאה עוקפת אותו. בלי זה, כשל שאינו
+      // אי-התאמת תוכן — למשל patch בסכמה חדשה מהנתמכת — משאיר את המשתמש
+      // בלולאת שגיאה ללא מוצא עד עדכון אפליקציה.
+      if (e is PatchApplyException) {
+        final String mismatchReason;
+        if (!e.isContentMismatch) {
+          mismatchReason = 'החלת עדכון הדלתא נכשלה';
+        } else if (e.hashMismatchStage == PatchHashMismatchStage.toContentHash) {
+          mismatchReason = 'תוצאת עדכון הדלתא אינה תואמת לגרסה הצפויה';
+        } else {
+          mismatchReason = 'תוכן הספרייה המקומית שונה מהצפוי';
+        }
         final fallback = plan.toFullDownloadFallback(
           reason: mismatchReason,
         );
