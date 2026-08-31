@@ -49,6 +49,7 @@ class SettingsRepository {
   static const String keyCalendarDayTransition = 'key-calendar-day-transition';
   static const String keySelectedCity = 'key-selected-city';
   static const String keyCalendarEvents = 'key-calendar-events';
+  static const String keyCustomLocations = 'key-custom-locations';
   static const String keyCopyWithHeaders = 'key-copy-with-headers';
   static const String keyCopyHeaderFormat = 'key-copy-header-format';
   static const String keyIsFullscreen = 'key-is-fullscreen';
@@ -199,6 +200,7 @@ class SettingsRepository {
     keyCalendarDayTransition,
     keySelectedCity,
     keyCalendarEvents,
+    keyCustomLocations,
     keyCopyWithHeaders,
     keyCopyHeaderFormat,
     keyIsFullscreen,
@@ -392,6 +394,10 @@ class SettingsRepository {
       ),
       'calendarEvents': _settings.getValue<String>(
         keyCalendarEvents,
+        defaultValue: '[]',
+      ),
+      'customLocations': _settings.getValue<String>(
+        keyCustomLocations,
         defaultValue: '[]',
       ),
       'copyWithHeaders': _settings.getValue<String>(
@@ -694,6 +700,12 @@ class SettingsRepository {
 
   Future<void> updateCalendarEvents(String eventsJson) async {
     await _settings.setValue(keyCalendarEvents, eventsJson);
+  }
+
+  /// שומר את רשימת המיקומים המותאמים אישית (JSON) — נוצרים למשל מחיפוש
+  /// מיקוד/postal code. כל פריט: {name, lat, lng, elevation, timezone}.
+  Future<void> updateCustomLocations(String locationsJson) async {
+    await _settings.setValue(keyCustomLocations, locationsJson);
   }
 
   Future<void> updateCopyWithHeaders(String value) async {
@@ -1113,6 +1125,7 @@ class SettingsRepository {
     await _settings.setValue(keyCalendarDayTransition, 'sunset');
     await _settings.setValue(keySelectedCity, 'ירושלים');
     await _settings.setValue(keyCalendarEvents, '[]');
+    await _settings.setValue(keyCustomLocations, '[]');
     await _settings.setValue(keyCopyWithHeaders, 'none');
     await _settings.setValue(keyCopyHeaderFormat, 'same_line_after_brackets');
     await _settings.setValue(keyIsFullscreen, false);
