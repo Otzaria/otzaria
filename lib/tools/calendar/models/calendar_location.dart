@@ -904,17 +904,49 @@ const Map<String, int> candleLightingMinutesByCity = {
 int getCandleLightingMinutes(String cityName) =>
     candleLightingMinutesByCity[cityName] ?? 30;
 
-/// מחזיר את כל שמות הערים המוגדרות בלוח, ממוינים לפי א-ב.
-List<String> getCalendarCityNames() =>
-    cityCoordinates.values.expand((cities) => cities.keys).toList()..sort();
+/// מאגר מיקומים מותאמים אישית בזיכרון (runtime cache) — נטען מההגדרות
+/// (JSON, key-custom-locations) עם עליית האפליקציה ומתעדכן מיד עם כל
+/// הוספה/הסרה, כדי ש-getCityData/isCityInIsrael/getCalendarCityNames
+/// (הנקראים באופן סינכרוני מכל רחבי האפליקציה) יראו אותם בלי await.
+///
+/// כל ערך: {'lat': double, 'lng': double, 'elevation': double,
+/// 'timezone': String}. המפתח הוא שם התצוגה של המיקום (כפי שהוזן/נבחר
+/// ע"י המשתמש, למשל מתוצאת חיפוש מיקוד).
+Map<String, Map<String, dynamic>> _customLocations = {};
 
-/// בודק אם עיר נמצאת בארץ ישראל
+/// קובע מחדש את כל מאגר המיקומים המותאמים אישית — נקרא פעם אחת באתחול
+/// האפליקציה (אחרי טעינת ההגדרות) וכן בכל פעם שהמשתמש מוסיף/מוחק מיקום.
+void setCustomLocations(Map<String, Map<String, dynamic>> locations) {
+  _customLocations = locations;
+}
+
+/// שמות כל המיקומים המותאמים אישית שנשמרו כרגע.
+List<String> getCustomLocationNames() => _customLocations.keys.toList();
+
+/// מחזיר את כל שמות הערים המוגדרות בלוח (מובנות + מותאמות אישית),
+/// ממוינים לפי א-ב.
+List<String> getCalendarCityNames() =>
+    [
+      ...cityCoordinates.values.expand((cities) => cities.keys),
+      ..._customLocations.keys,
+    ].toList()..sort();
+
+/// בודק אם עיר (כולל מיקום מותאם אישית) נמצאת בארץ ישראל, לפי אזור הזמן
+/// השמור עבורה.
 bool isCityInIsrael(String cityName) {
+  final custom = _customLocations[cityName];
+  if (custom != null) {
+    return custom['timezone'] == 'Asia/Jerusalem';
+  }
   return cityCoordinates['ארץ ישראל']!.containsKey(cityName);
 }
 
-/// מחזיר נתוני קואורדינטות של עיר לפי שם
+/// מחזיר נתוני קואורדינטות של עיר לפי שם — בודק קודם מיקומים מותאמים
+/// אישית, ורק אחר-כך את מפת הערים הקבועה.
 Map<String, dynamic>? getCityData(String cityName) {
+  final custom = _customLocations[cityName];
+  if (custom != null) return custom;
+
   for (var country in cityCoordinates.values) {
     if (country.containsKey(cityName)) {
       return country[cityName];
