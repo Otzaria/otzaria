@@ -19,12 +19,16 @@ import 'package:otzaria/tools/calendar/dialogs/calendar_zman_alert_dialog.dart';
 import 'package:otzaria/tools/calendar/dialogs/zmanim_settings_dialog.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/settings/l10n/settings_language.dart';
+import 'package:otzaria/tools/calendar/widgets/zip_code_lookup_field.dart';
 import 'package:timezone/timezone.dart' as tz;
-
+ 
 class CalendarTimeEntry {
   final String id;
   final String name;
-
+ 
   /// תת-כותרת (פירוט השיטה) — מוצגת בשורה שנייה קטנה בכרטיס בודד.
   final String subtitle;
   final String time;
@@ -33,12 +37,12 @@ class CalendarTimeEntry {
   final String? trailingLabel;
   final String? leadingLabel;
   final List<CalendarTimeAlertOption> alertOptions;
-
+ 
   /// האם ניתן להפעיל התראה לזמן זה. זמנים המוצגים כתאריך עברי (קידוש
   /// לבנה) אינם זמני שעון נקודתיים ולכן לא ניתנים לתזמון — עבורם כפתור
   /// ההתראה אינו מוצג כלל.
   final bool canAlert;
-
+ 
   const CalendarTimeEntry({
     required this.id,
     required this.name,
@@ -52,19 +56,19 @@ class CalendarTimeEntry {
     this.canAlert = true,
   });
 }
-
+ 
 class CalendarTimeAlertOption {
   final String id;
   final String name;
   final String time;
-
+ 
   const CalendarTimeAlertOption({
     required this.id,
     required this.name,
     required this.time,
   });
 }
-
+ 
 /// בונה כרטיס בודד מתוך הגדרת זמן, על בסיס הזמן שחושב ל-dailyTimes.
 /// מחזיר null אם הזמן אינו זמין.
 CalendarTimeEntry? entryFromZmanDefinition(
@@ -87,7 +91,7 @@ CalendarTimeEntry? entryFromZmanDefinition(
         : const [],
   );
 }
-
+ 
 /// בונה כרטיס composite מזיווג שתי הגדרות — תצוגת הלוח הראשי בלבד.
 /// בטבלת "זמנים נוספים" כל הגדרה מופיעה בנפרד.
 CalendarTimeEntry? _pairedEntry(
@@ -100,14 +104,14 @@ CalendarTimeEntry? _pairedEntry(
   final ta = (rawA != null && rawA.isNotEmpty) ? rawA : null;
   final tb = (rawB != null && rawB.isNotEmpty) ? rawB : null;
   if (ta == null && tb == null) return null;
-
+ 
   final String sortTime;
   if (ta != null && tb != null) {
     sortTime = ta.compareTo(tb) < 0 ? ta : tb;
   } else {
     sortTime = ta ?? tb ?? '';
   }
-
+ 
   return CalendarTimeEntry(
     id: a.pairId ?? a.id,
     name: a.title,
@@ -124,27 +128,27 @@ CalendarTimeEntry? _pairedEntry(
     ],
   );
 }
-
+ 
 /// פאנל זמני היום.
 class CalendarTimesPanel extends StatefulWidget {
   final CalendarState state;
   final Future<void> Function(BuildContext context)
   onOpenCalendarCalculationPage;
-
+ 
   const CalendarTimesPanel({
     super.key,
     required this.state,
     required this.onOpenCalendarCalculationPage,
   });
-
+ 
   @override
   State<CalendarTimesPanel> createState() => _CalendarTimesPanelState();
 }
-
+ 
 class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
   late final List<String> _cityNames;
   static const double _infoButtonWidth = 40;
-
+ 
   /// בונה את רשימת כרטיסי הזמנים להצגה — לפי רישום הזמנים המרכזי,
   /// מסונן לזמנים שהמשתמש הפעיל ושרלוונטיים ליום הנבחר.
   List<CalendarTimeEntry> _buildCalendarTimeEntries(CalendarState state) {
@@ -153,7 +157,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
       state.selectedGregorianDate,
     );
     jewishCalendar.inIsrael = state.inIsrael;
-
+ 
     // אוספים את ההגדרות המופעלות והרלוונטיות, בסדר הרישום.
     final visible = <ZmanDefinition>[];
     for (final def in zmanim_helpers.kZmanimRegistry) {
@@ -161,7 +165,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
       if (def.isRelevant != null && !def.isRelevant!(jewishCalendar)) continue;
       visible.add(def);
     }
-
+ 
     // מזווגים בלוח שתי הגדרות מופעלות עם אותו pairId לכרטיס composite אחד.
     final entries = <CalendarTimeEntry>[];
     final consumed = <int>{};
@@ -180,7 +184,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
       final entry = entryFromZmanDefinition(def, dailyTimes);
       if (entry != null) entries.add(entry);
     }
-
+ 
     // סדר ההופעה הנוכחי (סדר הרישום) — שובר-שוויון יציב לזמנים שאינם
     // שעת-שעון (קידוש לבנה), שמחרוזת התצוגה שלהם אינה ברת-מיון כרונולוגי.
     final order = {for (final (i, e) in entries.indexed) e.id: i};
@@ -197,7 +201,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
     });
     return entries;
   }
-
+ 
   String? _buildOmerInfo(DateTime date) {
     final jewishCalendar = JewishCalendar.fromDateTime(date);
     final omerDay = jewishCalendar.getDayOfOmer();
@@ -206,7 +210,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
     }
     return _buildOmerCountingText(omerDay);
   }
-
+ 
   String _resolveOmerAlertTimeLabel() {
     final selectedDate = widget.state.selectedGregorianDate;
     final todayDate = widget.state.todayGregorianDate;
@@ -217,7 +221,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
         selectedDate.day != todayDate.day) {
       return widget.state.dailyTimes['omerCounting'] ?? '--:--';
     }
-
+ 
     final timeZoneId = cityData['timezone'] as String? ?? 'Asia/Jerusalem';
     final tzLocation = tz.getLocation(timeZoneId);
     final nowInCity = tz.TZDateTime.now(tzLocation);
@@ -234,7 +238,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
         widget.state.dailyTimes['omerCounting'] ??
         '--:--';
   }
-
+ 
   List<CalendarTimeEntry> _arrangeEntriesForGrid(
     List<CalendarTimeEntry> entries,
     int columnCount,
@@ -242,15 +246,15 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
     if (columnCount != 2) {
       return entries;
     }
-
+ 
     final arranged = <CalendarTimeEntry>[];
     final remaining = List<CalendarTimeEntry>.from(entries);
     int occupiedSlotsInRow = 0;
-
+ 
     while (remaining.isNotEmpty) {
       final current = remaining.removeAt(0);
       final currentWidth = current.isComposite ? 2 : 1;
-
+ 
       if (occupiedSlotsInRow == 1 && currentWidth == 2) {
         final replacementIndex = remaining.indexWhere(
           (entry) => entry.isComposite == false,
@@ -263,35 +267,35 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
           continue;
         }
       }
-
+ 
       arranged.add(current);
       occupiedSlotsInRow += currentWidth;
       if (occupiedSlotsInRow >= columnCount) {
         occupiedSlotsInRow = 0;
       }
     }
-
+ 
     return arranged;
   }
-
+ 
   String _buildOmerCountingText(int day) {
     final totalDaysText = _buildOmerDayCountText(day);
     final weeks = day ~/ 7;
     final extraDays = day % 7;
-
+ 
     if (weeks == 0) {
       return 'היום $totalDaysText בעומר';
     }
-
+ 
     final weeksText = _buildOmerWeekCountText(weeks);
     if (extraDays == 0) {
       return 'היום $totalDaysText שהם $weeksText בעומר';
     }
-
+ 
     final extraDaysText = _buildOmerDayCountText(extraDays);
     return 'היום $totalDaysText שהם $weeksText ו$extraDaysText בעומר';
   }
-
+ 
   String _buildOmerDayCountText(int day) {
     const ones = [
       '',
@@ -328,24 +332,24 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
       'שמונה',
       'תשעה',
     ];
-
+ 
     if (day <= 0 || day > 49) {
       return 'יום $day';
     }
-
+ 
     if (day < 20) {
       return ones[day];
     }
-
+ 
     final tensText = tens[day ~/ 10];
     final onesValue = day % 10;
     if (onesValue == 0) {
       return '$tensText יום';
     }
-
+ 
     return '${onesSimple[onesValue]} ו$tensText יום';
   }
-
+ 
   String _buildOmerWeekCountText(int weeks) {
     const oneToNine = [
       '',
@@ -359,7 +363,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
       'שמונה',
       'תשעה',
     ];
-
+ 
     if (weeks <= 0) {
       return '';
     }
@@ -369,16 +373,16 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
     if (weeks == 2) {
       return 'שני שבועות';
     }
-
+ 
     return '${oneToNine[weeks]} שבועות';
   }
-
+ 
   @override
   void initState() {
     super.initState();
     _cityNames = getCalendarCityNames();
   }
-
+ 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -390,23 +394,32 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
         children: [
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                BarButton.icon(
-                  tooltip: 'זמנים נוספים',
-                  icon: OtzariaIcons.clock_add_24_regular,
-                  compact: true,
-                  onPressed: () => showZmanimSettingsDialog(context),
-                ),
-                _CityDropdown(
-                  cityName: widget.state.selectedCity,
-                  cityNames: _cityNames,
-                ),
-              ],
+            child: BlocBuilder<SettingsBloc, SettingsState>(
+              builder: (context, settingsState) {
+                final isEnglish = resolveSettingsLanguage(
+                      settingsState.settingsLanguageCode,
+                    ) ==
+                    SettingsLanguage.english;
+                return Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    BarButton.icon(
+                      tooltip: 'זמנים נוספים',
+                      icon: OtzariaIcons.clock_add_24_regular,
+                      compact: true,
+                      onPressed: () => showZmanimSettingsDialog(context),
+                    ),
+                    _CityDropdown(
+                      cityName: widget.state.selectedCity,
+                      cityNames: _cityNames,
+                    ),
+                    if (isEnglish) const ZipCodeLookupField(),
+                  ],
+                );
+              },
             ),
           ),
           if (omerInfo != null)
@@ -483,7 +496,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
       ),
     );
   }
-
+ 
   Widget _buildTimesGrid(BuildContext context) {
     final filteredTimesList = _buildCalendarTimeEntries(widget.state);
     return LayoutBuilder(
@@ -498,7 +511,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
         final itemWidth =
             (constraints.maxWidth - (spacing * (columnCount - 1))) /
             columnCount;
-
+ 
         return Wrap(
           spacing: spacing,
           runSpacing: spacing,
@@ -551,7 +564,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
       },
     );
   }
-
+ 
   String _buildDafYomiButtonText(String tractate, String dafLabel) {
     final cleanLabel = dafLabel.trim().replaceAll('.', '');
     if (tractate == 'לא זמין' || cleanLabel.isEmpty) {
@@ -559,7 +572,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
     }
     return 'דף היומי: $tractate $cleanLabel';
   }
-
+ 
   String _buildDafNavigationTarget(String dafLabel) {
     final cleanLabel = dafLabel.trim().replaceAll('.', '');
     if (cleanLabel.isEmpty) {
@@ -567,7 +580,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
     }
     return ' $cleanLabel.';
   }
-
+ 
   Widget _buildDafYomiButtons(BuildContext context) {
     final jewishCalendar = JewishCalendar.fromDateTime(
       widget.state.selectedGregorianDate,
@@ -588,7 +601,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
               .replaceAll('״', '')
               .replaceAll('׳', '')
         : '';
-
+ 
     return ActionButton.recommended(
       text: _buildDafYomiButtonText(bavliTractate, dafLabel),
       icon: OtzariaIcons.book_24_regular,
@@ -601,12 +614,12 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
             ),
     );
   }
-
+ 
   Widget _buildOmerButton(BuildContext context, String text) {
     final existingAlert = widget.state.zmanAlerts['omerCounting'];
     final cubit = context.read<CalendarCubit>();
     final cs = Theme.of(context).colorScheme;
-
+ 
     final iconWidget = existingAlert != null
         ? Icon(FluentIcons.alert_24_filled)
         : SvgPicture.asset(
@@ -615,7 +628,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
             height: 20,
             colorFilter: ColorFilter.mode(cs.onPrimary, BlendMode.srcIn),
           );
-
+ 
     return ActionButton.recommended(
       text: text,
       iconWidget: iconWidget,
@@ -651,16 +664,16 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
     );
   }
 }
-
+ 
 class _CityDropdown extends StatelessWidget {
   final String cityName;
   final List<String> cityNames;
-
+ 
   const _CityDropdown({
     required this.cityName,
     required this.cityNames,
   });
-
+ 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -684,7 +697,7 @@ class _CityDropdown extends StatelessWidget {
     );
   }
 }
-
+ 
 /// מפעיל פעולת cubit ברקע (fire-and-forget) ומציג שגיאות דרך UiSnack
 /// במקום לבלוע אותן בשקט. נדרש כי await ישיר גורם לקפיאת UI בזמן
 /// שכלול ההתראות (חישוב זמנים יומי + תזמון notifications מערכת).
@@ -696,7 +709,7 @@ void _runZmanAlertOp(Future<void> future) {
     }),
   );
 }
-
+ 
 String _formatAlertMinutes(int minutes) {
   if (minutes < 60) return "$minutes דק'";
   final hours = minutes ~/ 60;
@@ -704,18 +717,18 @@ String _formatAlertMinutes(int minutes) {
   if (mins == 0) return hours == 1 ? 'שעה' : '$hours שעות';
   return hours == 1 ? "שעה ו$mins דק'" : "$hours שעות ו$mins דק'";
 }
-
+ 
 class _ZmanCard extends StatelessWidget {
   final CalendarTimeEntry timeData;
   final Map<String, ZmanAlertPreference?> zmanAlerts;
   final VoidCallback onAlertPressed;
-
+ 
   const _ZmanCard({
     required this.timeData,
     required this.zmanAlerts,
     required this.onAlertPressed,
   });
-
+ 
   ZmanAlertPreference? get _existingAlert {
     final direct = zmanAlerts[timeData.id];
     if (direct != null) return direct;
@@ -725,12 +738,12 @@ class _ZmanCard extends StatelessWidget {
     }
     return null;
   }
-
+ 
   String _tooltipForAlert(ZmanAlertPreference? alert, String fallback) {
     if (alert == null) return fallback;
     return 'התראה פעילה ל${_formatAlertMinutes(alert.minutesBefore)} לפני הזמן';
   }
-
+ 
   Widget _buildCompositeSegment({
     required BuildContext context,
     required String text,
@@ -749,7 +762,7 @@ class _ZmanCard extends StatelessWidget {
       menuEntries: const [],
       onOptionSelected: (_) {},
     );
-
+ 
     // הזמן עצמו ממורכז בחצי הכרטיס; שם הזמן (הכותרת) נשאר בקצה החיצוני
     // של הקטע. כל קטע תופס את כל רוחב חצי הכרטיס, ובו הכותרת/הזמן ומקש
     // ההתראה מוצבים זה לצד זה.
@@ -768,7 +781,7 @@ class _ZmanCard extends StatelessWidget {
       ],
     );
   }
-
+ 
   /// בונה שורת composite עם 2 ערכים והתראה צמודה לכל ערך.
   Widget _buildAlertedCompositeRow({
     required BuildContext context,
@@ -818,7 +831,7 @@ class _ZmanCard extends StatelessWidget {
       ],
     );
   }
-
+ 
   double _titleFontSizeFor(CalendarTimeEntry entry) {
     final base = entry.name.length > 28
         ? 11.0
@@ -829,7 +842,7 @@ class _ZmanCard extends StatelessWidget {
         : 14.0;
     return base + 1;
   }
-
+ 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -845,7 +858,7 @@ class _ZmanCard extends StatelessWidget {
     final secondaryTextColor = timeData.isHolidaySpecial
         ? scheme.onSecondaryContainer.withValues(alpha: isDark ? 0.94 : 0.78)
         : scheme.onSurfaceVariant;
-
+ 
     return Card(
       elevation: 0,
       color: bgColor,
@@ -984,7 +997,7 @@ class _ZmanCard extends StatelessWidget {
       ),
     );
   }
-
+ 
   Future<void> _openAlertDialogForOption(
     BuildContext context,
     CalendarTimeAlertOption option,
@@ -1012,7 +1025,7 @@ class _ZmanCard extends StatelessWidget {
     );
   }
 }
-
+ 
 class _AlertControl extends StatelessWidget {
   final bool hasAlert;
   final ZmanAlertPreference? existingAlert;
@@ -1030,14 +1043,14 @@ class _AlertControl extends StatelessWidget {
     required this.menuEntries,
     required this.onOptionSelected,
   });
-
+ 
   @override
   Widget build(BuildContext context) {
     final iconData = hasAlert
         ? FluentIcons.alert_24_filled
         : FluentIcons.alert_24_regular;
     final minutesBefore = existingAlert?.minutesBefore;
-
+ 
     final action = menuEntries.isEmpty
         ? BarButton.icon(
             tooltip: tooltip,
@@ -1070,7 +1083,7 @@ class _AlertControl extends StatelessWidget {
             ],
             onSelected: onOptionSelected,
           );
-
+ 
     // הטקסט תמיד תופס מקום (Opacity במקום if) — מצב פעיל לא משנה את גובה הווידג'ט
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1092,7 +1105,7 @@ class _AlertControl extends StatelessWidget {
     );
   }
 }
-
+ 
 bool _textOverflows({
   required BuildContext context,
   required String text,
@@ -1110,25 +1123,25 @@ bool _textOverflows({
     textAlign: textAlign,
     textScaler: MediaQuery.textScalerOf(context),
   )..layout(maxWidth: maxWidth);
-
+ 
   return textPainter.didExceedMaxLines;
 }
-
+ 
 class _OverflowAwareTooltipText extends StatelessWidget {
   final String text;
   final TextStyle? style;
   final int maxLines;
-
+ 
   const _OverflowAwareTooltipText({
     required this.text,
     this.style,
     this.maxLines = 2,
   });
-
+ 
   @override
   Widget build(BuildContext context) {
     final resolvedStyle = style ?? DefaultTextStyle.of(context).style;
-
+ 
     return LayoutBuilder(
       builder: (context, constraints) {
         final hasOverflow =
@@ -1142,7 +1155,7 @@ class _OverflowAwareTooltipText extends StatelessWidget {
               maxWidth: constraints.maxWidth,
               textAlign: TextAlign.right,
             );
-
+ 
         final child = Text(
           text,
           maxLines: maxLines,
@@ -1150,11 +1163,11 @@ class _OverflowAwareTooltipText extends StatelessWidget {
           textAlign: TextAlign.center,
           style: resolvedStyle,
         );
-
+ 
         if (!hasOverflow) {
           return child;
         }
-
+ 
         final scheme = Theme.of(context).colorScheme;
         return Tooltip(
           message: text,
@@ -1176,27 +1189,27 @@ class _OverflowAwareTooltipText extends StatelessWidget {
     );
   }
 }
-
+ 
 class _CompositeLabelValue extends StatelessWidget {
   final String text;
   final Color textColor;
-
+ 
   /// כשערכו true (קטע ימני ב-RTL) הכותרת מיושרת לקצה ההתחלה (ימין);
   /// כשערכו false (קטע שמאלי) — לקצה הסוף (שמאל). הזמן עצמו תמיד ממורכז.
   final bool titleAtStart;
-
+ 
   const _CompositeLabelValue({
     required this.text,
     required this.textColor,
     this.titleAtStart = true,
   });
-
+ 
   @override
   Widget build(BuildContext context) {
     final lastSpace = text.lastIndexOf(' ');
     final title = lastSpace == -1 ? text : text.substring(0, lastSpace);
     final value = lastSpace == -1 ? '' : text.substring(lastSpace + 1);
-
+ 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -1235,7 +1248,7 @@ class _CompositeLabelValue extends StatelessWidget {
     );
   }
 }
-
+ 
 String _moladReasonLabel(MoladDisplayReason reason) {
   switch (reason) {
     case MoladDisplayReason.shabbosMevorchim:
@@ -1246,16 +1259,16 @@ String _moladReasonLabel(MoladDisplayReason reason) {
       return 'יום המולד';
   }
 }
-
+ 
 class _MoladCard extends StatelessWidget {
   final MoladInfo info;
   const _MoladCard({required this.info});
-
+ 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-
+ 
     return AppCard(
       padding: const EdgeInsets.all(10),
       child: Column(
@@ -1314,3 +1327,4 @@ class _MoladCard extends StatelessWidget {
     );
   }
 }
+ 
