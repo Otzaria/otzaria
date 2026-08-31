@@ -381,6 +381,10 @@ class CalendarCubit extends Cubit<CalendarState> {
         ? todayJewishDate
         : JewishDate.fromDateTime(currentGregorianDate);
     final eventsJson = settings['calendarEvents'] as String;
+    final customLocationsJson = settings['customLocations'] as String;
+    calendar_location.setCustomLocations(
+      _parseCustomLocations(customLocationsJson),
+    );
     final bool inIsrael = _isCityInIsrael(selectedCity);
     final bool calendarNotificationsEnabled =
         settings['calendarNotificationsEnabled'] as bool;
@@ -550,6 +554,41 @@ class CalendarCubit extends Cubit<CalendarState> {
           result[key] = pref;
         }
       });
+      return result;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// פרסור רשימת מיקומים מותאמים אישית (JSON) לשימוש
+  /// ב-calendar_location.setCustomLocations. פריט פגום אחד לא מפיל את
+  /// כל הרשימה — פשוט מדולג.
+  static Map<String, Map<String, dynamic>> _parseCustomLocations(
+    String jsonStr,
+  ) {
+    try {
+      final decoded = jsonDecode(jsonStr);
+      if (decoded is! List) return {};
+      final result = <String, Map<String, dynamic>>{};
+      for (final item in decoded) {
+        if (item is! Map) continue;
+        final name = item['name'];
+        final lat = item['lat'];
+        final lng = item['lng'];
+        final timezone = item['timezone'];
+        if (name is! String ||
+            lat is! num ||
+            lng is! num ||
+            timezone is! String) {
+          continue;
+        }
+        result[name] = {
+          'lat': lat.toDouble(),
+          'lng': lng.toDouble(),
+          'elevation': (item['elevation'] as num?)?.toDouble() ?? 0.0,
+          'timezone': timezone,
+        };
+      }
       return result;
     } catch (_) {
       return {};
@@ -878,6 +917,44 @@ class CalendarCubit extends Cubit<CalendarState> {
     // Times shift with city, so reschedule zman alerts.
     await _rescheduleZmanAlerts();
     _scheduleTodayRefresh();
+  }
+
+  /// מוסיף מיקום מותאם אישית חדש (למשל מתוצאת חיפוש מיקוד/postal code),
+  /// שומר אותו בהגדרות, מעדכן את מאגר הזיכרון ומחליף אליו מיד — באותו
+  /// אופן כמו בחירת עיר קיימת מהרשימה.
+  Future<void> addCustomLocation({
+    required String name,
+    required double lat,
+    required double lng,
+    required String timezone,
+    double elevation = 0.0,
+  }) async {
+    final current = <String, Map<String, dynamic>>{};
+    for (final existingName in calendar_location.getCustomLocationNames()) {
+      final data = calendar_location.getCityData(existingName);
+      if (data != null) current[existingName] = data;
+    }
+    current[name] = {
+      'lat': lat,
+      'lng': lng,
+      'elevation': elevation,
+      'timezone': timezone,
+    };
+
+    final locationsJson = jsonEncode([
+      for (final entry in current.entries)
+        {
+          'name': entry.key,
+          'lat': entry.value['lat'],
+          'lng': entry.value['lng'],
+          'elevation': entry.value['elevation'],
+          'timezone': entry.value['timezone'],
+        },
+    ]);
+    await _settingsRepository.updateCustomLocations(locationsJson);
+    calendar_location.setCustomLocations(current);
+
+    await changeCity(name);
   }
 
   Future<void> changeCalendarType(CalendarType type) async {
