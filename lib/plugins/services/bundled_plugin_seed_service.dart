@@ -26,7 +26,8 @@ class BundledPluginSeedService {
   }) : _repository = repository ?? PluginRegistryRepository(),
        _installerService =
            installerService ?? PluginInstallerService(repository: repository),
-       _allowedIds = allowedIds ?? bundledPluginIds,
+       // הזהות בצד האפליקציה היא מזהי המניפסט; מזהי החנות משמשים רק להורדה.
+       _allowedIds = allowedIds ?? bundledPlugins.values.toSet(),
        _bundleDirPath = bundleDirPath ?? AppPaths.getBundledPluginsPath();
 
   /// מחזירה `true` אם נרשם תוסף חדש — ואז על הקורא לרענן את רשימת התוספים.

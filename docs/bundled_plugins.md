@@ -5,24 +5,31 @@
 
 ## איך מוסיפים תוסף
 
-מוסיפים את מזהה התוסף ל-`lib/plugins/services/bundled_plugin_ids.dart`,
-מזהה אחד בשורה:
+מוסיפים זוג מזהים ל-`lib/plugins/services/bundled_plugin_ids.dart`: מזהה
+החנות (מכתובת עמוד התוסף באתר, למשל `otzaria.org/plugins/6a1352f0...`)
+ממופה אל מזהה המניפסט (`id` שב-`manifest.json` של התוסף):
 
 ```dart
-const bundledPluginIds = <String>{
-  'my.plugin.id',
+const bundledPlugins = <String, String>{
+  '6a1352f061e95da124c280a3': 'com.tikkun.koraim',
 };
 ```
 
 זה הכל. הרשימה הזו היא גם רשימת ההיתר שהאפליקציה אוכפת וגם המקור שממנו
-ה-workflow יודע מה להוריד — מקור אחד, בלי סנכרון ידני.
+ה-workflow יודע מה להוריד — מקור אחד, בלי סנכרון ידני. שני המזהים נחוצים
+כי הם עולמות שונים: החנות מזהה תוסף לפי מזהה ה-DB שלה (זה שבכתובת האתר),
+ואילו הארכיון וההתקנה מזוהים לפי מזהה המניפסט. אם אינך יודע את מזהה
+המניפסט — סקריפט ההורדה יגיד לך אותו: הוא נכשל בבנייה עם הודעה שמציינת
+מה הארכיון מצהיר בפועל.
 
 ## איך זה עובד
 
 1. **בזמן ה-build בגיטהאב** — `installer/download_bundled_plugins.ps1` קורא את
-   הרשימה, מוריד כל תוסף מהחנות (`otzaria.org/api/plugins/<id>/download` עם
-   `appVersion` כדי לקבל גרסה תואמת), מאמת שהקובץ הוא ZIP, ומניח אותו
-   ב-`installer/bundled_plugins/<id>.otzplugin`. רשימה ריקה — השלב לא עושה דבר.
+   הרשימה, מוריד כל תוסף מהחנות (`otzaria.org/api/plugins/<מזהה-חנות>/download`
+   עם `appVersion` כדי לקבל גרסה תואמת), מאמת שהקובץ הוא ZIP ושמזהה המניפסט
+   שבארכיון תואם לרשומה, ומניח אותו
+   ב-`installer/bundled_plugins/<מזהה-מניפסט>.otzplugin`. רשימה ריקה — השלב
+   לא עושה דבר.
 2. **המתקין** מעתיק את התיקייה ל-`{app}\bundled_plugins` (עם
    `skipifsourcedoesntexist`, כך שבנייה מקומית בלי התוספים עובדת כרגיל).
    שדרוג מוחק קודם את התיקייה הישנה (`[InstallDelete]`).
@@ -30,7 +37,7 @@ const bundledPluginIds = <String>{
    `SeedBundledPlugins` ב-`PluginSystemBloc`) סורק את התיקייה ומתקין דרך
    מסלול ההתקנה הרגיל (`prepareInstall`/`finalizeInstall`, כולל ולידציית
    מניפסט מלאה) כל תוסף שעונה על כל התנאים:
-   - המזהה נמצא ב-`bundledPluginIds` המקומפל לתוך האפליקציה;
+   - מזהה המניפסט נמצא ב-`bundledPlugins` המקומפל לתוך האפליקציה;
    - המזהה שהמניפסט מצהיר זהה לשם הקובץ;
    - התוסף לא נרשם בעבר מהמנגנון הזה (`key-seeded-bundled-plugins`)
      ואינו מותקן כבר.
