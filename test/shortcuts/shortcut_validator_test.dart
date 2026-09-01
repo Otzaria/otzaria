@@ -65,6 +65,50 @@ void main() {
       );
     });
 
+    test(
+      'ערך ריק שנשמר במפורש מבטל את הקיצור ואינו נופל לברירת המחדל',
+      () async {
+        await Settings.setValue<String>(
+          'key-shortcut-open-library-browser',
+          '',
+        );
+        expect(
+          ShortcutValidator.getShortcutValue(
+            'key-shortcut-open-library-browser',
+          ),
+          isNull,
+        );
+      },
+    );
+
+    test('ביטול קיצור משחרר את הצירוף מרשימת הקונפליקטים', () async {
+      await Settings.setValue<String>('key-shortcut-open-library-browser', '');
+      await Settings.setValue<String>('key-shortcut-open-history', 'ctrl+l');
+
+      expect(ShortcutValidator.checkConflicts(), isEmpty);
+      expect(
+        ShortcutValidator.hasConflict('key-shortcut-open-history'),
+        isFalse,
+      );
+    });
+
+    test('ביטול קיצור אינו נופל למפתח legacy', () async {
+      await Settings.setValue<String>(
+        ShortcutValidator.legacySearchInBookKey,
+        'ctrl+g',
+      );
+      await Settings.setValue<String>(
+        ShortcutValidator.currentWindowSearchKey,
+        '',
+      );
+      expect(
+        ShortcutValidator.getShortcutValue(
+          ShortcutValidator.currentWindowSearchKey,
+        ),
+        isNull,
+      );
+    });
+
     test('שאילתה לפי המפתח הישן מנורמלת למפתח הנוכחי', () {
       expect(
         ShortcutValidator.getShortcutValue(

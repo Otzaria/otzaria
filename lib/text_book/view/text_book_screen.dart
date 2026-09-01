@@ -2295,11 +2295,13 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         ShortcutValidator.getShortcutValue(
           ShortcutValidator.currentWindowSearchKey,
         ) ??
-        'ctrl+f';
+        '';
     final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
     return BarButton.icon(
       key: key,
-      tooltip: 'חיפוש (${ShortcutHelper.formatShortcutForDisplay(shortcut)})',
+      tooltip: shortcut.isEmpty
+          ? 'חיפוש'
+          : 'חיפוש (${ShortcutHelper.formatShortcutForDisplay(shortcut)})',
       icon: FluentIcons.search_24_regular,
       compact: isCompact,
       onPressed: _openSearchFromToolbar,
@@ -3128,7 +3130,7 @@ bool _handleGlobalKeyEvent(
       ShortcutValidator.getShortcutValue(
         ShortcutValidator.currentWindowSearchKey,
       ) ??
-      'ctrl+f';
+      '';
   final printShortcut =
       Settings.getValue<String>('key-shortcut-print') ?? 'ctrl+p';
   final addBookmarkShortcut =

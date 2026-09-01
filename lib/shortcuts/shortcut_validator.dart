@@ -376,10 +376,10 @@ class ShortcutValidator {
     return matchingKeys.length > 1 && !_isCompatibleGroup(matchingKeys);
   }
 
-  /// מחזיר את ערך הקיצור הנוכחי עבור [settingKey] או את ברירת המחדל שלו.
+  /// מחזיר את ערך הקיצור הנוכחי עבור [settingKey], את ברירת המחדל שלו, או
+  /// `null` כשהמשתמש ביטל את הקיצור במפורש.
   /// עבור קיצורי תוספים ברירת המחדל היא הקיצור שהתוסף הצהיר עליו — אלא אם
-  /// המשתמש ביטל אותו במפורש, או שהוא מתנגש עם קיצור קיים (ואז התוסף מפנה
-  /// את מקומו ונהיה לא-מוגדר).
+  /// הוא מתנגש עם קיצור קיים (ואז התוסף מפנה את מקומו ונהיה לא-מוגדר).
   static String? getShortcutValue(String settingKey) {
     final normalizedKey = canonicalSettingKey(settingKey);
     final directValue = Settings.getValue<String>(normalizedKey);
@@ -388,9 +388,9 @@ class ShortcutValidator {
       return _normalizedShortcutValue(directValue);
     }
 
-    // קיצור תוסף שהוגדר לו במפורש ערך ריק (ביטול) — נשאר לא-מוגדר כדי
-    // לחזור לרשימת "פעולות זמינות לקיצור", במקום ליפול לברירת המחדל.
-    if (declared != null && directValue != null) {
+    // ערך ריק שנשמר במפורש = ביטול הקיצור. נשאר לא-מוגדר כדי לחזור לרשימת
+    // "פעולות זמינות לקיצור", במקום ליפול לברירת המחדל.
+    if (directValue != null) {
       return null;
     }
 
@@ -437,10 +437,6 @@ class ShortcutValidator {
     }
     return false;
   }
-
-  /// האם [settingKey] הוא קיצור שתוסף הצהיר עליו (ולא פעולה מובנית).
-  static bool isPluginShortcutKey(String settingKey) =>
-      _pluginShortcuts.containsKey(canonicalSettingKey(settingKey));
 
   static bool canShareShortcut(String firstKey, String secondKey) {
     final normalizedFirst = canonicalSettingKey(firstKey);

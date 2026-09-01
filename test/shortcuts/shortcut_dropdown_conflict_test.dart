@@ -163,6 +163,38 @@ void main() {
       ).called(1);
     });
 
+    testWidgets('מציע "ללא קיצור" גם לפעולה מובנית ושומר ערך ריק', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _buildTile(
+          bloc: settingsBloc,
+          settingKey: 'key-shortcut-open-library-browser',
+          selectedShortcut: 'ctrl+l',
+        ),
+      );
+      await tester.pump();
+
+      final field = tester.widget<AppDropdownField<String>>(
+        find.byType(AppDropdownField<String>),
+      );
+      expect(
+        field.entries.map((e) => e.label),
+        contains('ללא קיצור'),
+      );
+
+      field.onSelected?.call('__clear__');
+      await tester.pump();
+
+      final captured =
+          verify(
+                () => settingsBloc.add(captureAny(that: isA<UpdateShortcut>())),
+              ).captured.single
+              as UpdateShortcut;
+      expect(captured.key, 'key-shortcut-open-library-browser');
+      expect(captured.value, '');
+    });
+
     testWidgets(
       'אינו שומר קיצור מותאם אישית שנשמר ב-cache ותפוס על ידי הגדרה אחרת',
       (tester) async {
