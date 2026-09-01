@@ -33,7 +33,7 @@ class UserImportResult {
 /// מחיקה אינה נגזרת מהקבצים — לאיפוס משמשת פעולת "נקה הכל".
 ///
 /// סוג כל קובץ נקבע משמו:
-/// - `דורות.csv` / `generations.csv` — דורות (עמודות: ספר, דור).
+/// - `דורות.csv` / `generations.csv` — דורות (עמודות: ספר, דור, [מחבר]).
 /// - `קישורים.csv|json` / `links.csv|json` — קישורים רוחביים (עם ספר_מקור).
 /// - `<שם הספר>.links.csv` / `<שם הספר>.links.json` — קישורים לספר בודד.
 /// - `<שם הספר>_links.json` — פורמט ה-native של אוצריא (תיקיית links);
@@ -64,8 +64,9 @@ class UserContentImporter {
     final repo = UserContentRepository(userDb);
     final errors = <String>[];
 
-    // bookId → שם דור (אחרון מנצח); רשימת קישורים שטוחה לכל הקבצים.
+    // bookId → שם דור / שם מחבר (אחרון מנצח); רשימת קישורים שטוחה לכל הקבצים.
     final generationByBook = <int, String>{};
+    final authorByBook = <int, String>{};
     final links = <UserLinkRecord>[];
 
     for (final filePath in filePaths) {
@@ -77,7 +78,13 @@ class UserContentImporter {
       final name = _baseName(filePath);
       final lower = name.toLowerCase();
       if (_generationFileNames.contains(name)) {
-        await _ingestGenerations(file, repo, generationByBook, errors);
+        await _ingestGenerations(
+          file,
+          repo,
+          generationByBook,
+          authorByBook,
+          errors,
+        );
       } else if (_folderLinkFileNames.contains(name)) {
         await _ingestLinks(
           file,
@@ -133,6 +140,9 @@ class UserContentImporter {
     for (final entry in generationByBook.entries) {
       await repo.setBookGeneration(entry.key, entry.value);
     }
+    for (final entry in authorByBook.entries) {
+      await repo.setBookAuthor(entry.key, entry.value);
+    }
     // איחוד רשומות זהות מכל הקבצים (למשל שני צדי צמד דו-כיווני שנורמלו
     // לאותו כיוון) — עדיפות לרשומה עם targetRef להצגה.
     final unique = <String, UserLinkRecord>{};
@@ -177,6 +187,7 @@ class UserContentImporter {
     File file,
     UserContentRepository repo,
     Map<int, String> out,
+    Map<int, String> authorsOut,
     List<String> errors,
   ) async {
     final fileName = _baseName(file.path);
@@ -200,6 +211,10 @@ class UserContentImporter {
         continue;
       }
       out[bookId] = row.eraName;
+      final author = row.author?.trim();
+      if (author != null && author.isNotEmpty) {
+        authorsOut[bookId] = author;
+      }
     }
   }
 

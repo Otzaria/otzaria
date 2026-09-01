@@ -19,6 +19,8 @@ class UserContentRepository {
     final db = await _db.database;
     db.execute('DELETE FROM book_generation');
     db.execute('DELETE FROM user_link');
+    db.execute('DELETE FROM book_author');
+    db.execute('DELETE FROM author');
   }
 
   // ---- דורות ----
@@ -64,6 +66,23 @@ class UserContentRepository {
       'INSERT INTO book_generation (bookId, generationId) VALUES (?, ?)',
       [bookId, genId],
     );
+  }
+
+  /// קובע את מחבר הספר (מחליף מחבר קודם — idempotent). המחבר מוזרם משם
+  /// ל-`book.author` ומשתתף באיתור בספרייה (issue #1082).
+  Future<void> setBookAuthor(int bookId, String authorName) async {
+    final db = await _db.database;
+    db.execute('INSERT OR IGNORE INTO author (name) VALUES (?)', [authorName]);
+    final authorId =
+        db.select('SELECT id FROM author WHERE name = ? LIMIT 1', [
+              authorName,
+            ]).first['id']
+            as int;
+    db.execute('DELETE FROM book_author WHERE bookId = ?', [bookId]);
+    db.execute('INSERT INTO book_author (bookId, authorId) VALUES (?, ?)', [
+      bookId,
+      authorId,
+    ]);
   }
 
   // ---- קישורי-משתמש ----

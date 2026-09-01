@@ -86,6 +86,15 @@ void main() {
       );
       expect(genRow.single['name'], 'מחברי זמננו');
 
+      // עמודת "מחבר" נכתבת ל-book_author — ממנה מוזרם book.author לאיתור
+      // בספרייה (issue #1082).
+      final authorRow = raw.select(
+        'SELECT a.name FROM book_author ba '
+        'JOIN author a ON a.id = ba.authorId WHERE ba.bookId = ?',
+        [bookId],
+      );
+      expect(authorRow.single['name'], 'יוסף כהן');
+
       // פירוש נשמר בכיוון הקנוני (בסיס→מפרש): ברכות היא המקור.
       final commentary = await repo.forwardUserLinks(
         'ברכות',
@@ -533,7 +542,11 @@ void main() {
         'ביאורי יוסף.links.csv',
         'מקור,ספר_יעד,מיקום_יעד,סוג\n12,ברכות,5,פירוש\n',
       );
-      await UserContentImporter.importFiles([f], db);
+      final g = writeCsv(
+        'דורות.csv',
+        'ספר,דור,מחבר\nביאורי יוסף,מחברי זמננו,יוסף כהן\n',
+      );
+      await UserContentImporter.importFiles([f, g], db);
       expect(
         (await repo.forwardUserLinks('ברכות', sourceIsUserBook: false)).length,
         1,
@@ -543,6 +556,9 @@ void main() {
         await repo.forwardUserLinks('ברכות', sourceIsUserBook: false),
         isEmpty,
       );
+      final raw = await db.database;
+      expect(raw.select('SELECT * FROM book_author'), isEmpty);
+      expect(raw.select('SELECT * FROM author'), isEmpty);
     });
 
     test('inverseUserLinks מסנן לפי targetCategoryId', () async {
