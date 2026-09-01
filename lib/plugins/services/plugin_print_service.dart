@@ -55,8 +55,13 @@ class PluginPrintService {
   const PluginPrintService();
 
   /// הפלטפורמות שבהן `createPdf` ממומש בצד הנייטיב של ה-WebView.
+  /// בלינוקס דרך טלאי ה-runtime של אוצריא; על libWPEWebKit לא-מטולא
+  /// הקריאה מחזירה ריק ונזרקת שגיאה שהתוסף נופל ממנה לרסטר מקומי.
   static bool get isSupported =>
-      Platform.isWindows || Platform.isMacOS || Platform.isIOS;
+      Platform.isWindows ||
+      Platform.isMacOS ||
+      Platform.isIOS ||
+      Platform.isLinux;
 
   /// מייצר PDF מהדף הנטען ב-[controller]. זורק אם הייצור נכשל או חזר ריק.
   Future<Uint8List> createPdf(
