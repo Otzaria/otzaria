@@ -382,6 +382,8 @@ void main() {
       expect(bloc.state.tabs, hasLength(2));
       expect(bloc.state.tabs.map((t) => t.title), ['ב', 'א']);
       expect(bloc.state.currentTab, isNot(isA<CombinedTab>()));
+      // כמו בדפדפן: הכרטיסיה שנגררה נבחרת בתום הסידור (issue #1104).
+      expect(bloc.state.currentTab!.title, 'ב');
     });
 
     testWidgets('שחרור באזור הריק של הרצועה אינו מפצל ואינו מסדר', (

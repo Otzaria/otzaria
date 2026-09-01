@@ -576,8 +576,8 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       onExternalDrop: (tab, insertIndex) => context.read<TabsBloc>().add(
         DetachPane(tab, insertIndex: insertIndex),
       ),
-      // גרירה אינה בוחרת כרטיסיה: התצוגה נשארת על הספר שהמשתמש קורא, ומשתנה
-      // רק אם הוא משתהה מעל כרטיסיה אחרת.
+      // תחילת גרירה אינה בוחרת כרטיסיה — בחירה מיידית הייתה מפצלת את הנגררת
+      // עם עצמה בשחרור מעל אזור הקריאה; בסידור מחדש MoveTab בוחר את הנגררת.
       onDragStarted: () => _pendingTabSelection = null,
       onSpringOpen: (tab) {
         // ה-state שנתפס ב-build עלול להיות מיושן באמצע גרירה, ורק קריאה

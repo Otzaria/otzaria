@@ -377,7 +377,7 @@ void main() {
       expect(displayedPage(tester), 2);
     });
 
-    testWidgets('הזזה שלא נוגעת באינדקס הפעיל — התצוגה נשארת במקומה', (
+    testWidgets('הזזת טאב רקע — הנגרר נבחר והתצוגה עוברת אליו', (
       tester,
     ) async {
       final tabs = [_tab('א'), _tab('ב'), _tab('ג'), _tab('ד')];
@@ -389,16 +389,16 @@ void main() {
       final bloc = await pumpReadingScreen(tester, tabs);
       await visitAllTabs(tester, bloc, 0);
 
-      // "ד" מהסוף למקום 1 — הפעיל ("א") נשאר באינדקס 0.
+      // "ד" מהסוף למקום 1 — כמו בדפדפן, הנגרר הופך לטאב המוצג (issue #1104).
       bloc.add(MoveTab(tabs[3], 1));
       await tester.pumpAndSettle();
 
       expect(_titles(bloc), ['א', 'ד', 'ב', 'ג']);
-      expect(bloc.state.currentTabIndex, 0);
+      expect(bloc.state.currentTabIndex, 1);
       expect(
         displayedPage(tester),
-        0,
-        reason: 'הטאב הפעיל לא זז — התצוגה חייבת להישאר עליו',
+        1,
+        reason: 'הטאב שנגרר נבחר — התצוגה חייבת לעבור אליו',
       );
     });
   });

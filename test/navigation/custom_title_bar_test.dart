@@ -963,7 +963,9 @@ void main() {
       expect(tabsBloc.state.currentTabIndex, 1);
     });
 
-    testWidgets('סידור מחדש אינו מחליף את הכרטיסיה הפעילה', (tester) async {
+    testWidgets('סידור מחדש שולח MoveTab בלבד — הבחירה בנגררת נעשית ב-bloc', (
+      tester,
+    ) async {
       final first = _makeTextTab('ספר א');
       final second = _makeTextTab('ספר ב');
       final tabsBloc = _SelectingTabsBloc(
@@ -999,7 +1001,7 @@ void main() {
 
       final events = tabsBloc.addedEvents;
       expect(events.whereType<MoveTab>(), isNotEmpty);
-      // סידור מחדש הוא גרירה, וגרירה אינה מחליפה את הספר שקוראים בו.
+      // הבחירה בכרטיסיה הנגררת היא חלק מ-MoveTab עצמו, לא אירוע נפרד.
       expect(events.whereType<SetCurrentTab>(), isEmpty);
     });
 

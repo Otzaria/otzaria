@@ -1170,18 +1170,17 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
   Future<void> _onMoveTab(MoveTab event, Emitter<TabsState> emit) async {
     final newTabs = List<OpenedTab>.from(state.tabs);
-    final currentTab = newTabs[state.currentTabIndex];
     newTabs.remove(event.tab);
     newTabs.insert(event.newIndex, event.tab);
-    final newIndex = newTabs.indexOf(currentTab);
 
     emit(
       state.copyWith(
         tabs: newTabs,
-        currentTabIndex: newIndex,
+        // כמו בדפדפן: הכרטיסייה שנגררה היא שמוצגת בתום הסידור (issue #1104).
+        currentTabIndex: event.newIndex,
       ),
     );
-    _scheduleSave(newTabs, newIndex);
+    _scheduleSave(newTabs, event.newIndex);
   }
 
   Future<void> _onNavigateToNextTab(
