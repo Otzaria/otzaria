@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter/animation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:otzaria/models/books.dart';
@@ -200,7 +201,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<ApplyBookContentRanges>(_onApplyBookContentRanges);
     on<CreateNoteFromToolbar>(_onCreateNoteFromToolbar);
     on<UpdateSelectedTextForNote>(_onUpdateSelectedTextForNote);
-    on<UpdateLinks>(_onUpdateLinks);
+    // המיזוג רץ לעיתים ב-isolate; עיבוד מקבילי מאפשר לאצווה איטית לדרוס
+    // אצווה מהירה שהגיעה אחריה, והקישורים שאבדו לא ייטענו שוב (issue #1095).
+    on<UpdateLinks>(_onUpdateLinks, transformer: sequential());
     on<SetLinksLoading>(_onSetLinksLoading);
     on<UpdateAvailableCommentators>(_onUpdateAvailableCommentators);
     on<RefreshLinksForCurrentWindow>(_onRefreshLinksForCurrentWindow);
