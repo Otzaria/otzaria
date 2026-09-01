@@ -303,6 +303,12 @@ jobs:
             echo "is_version=false" >> $env:GITHUB_OUTPUT
           }
 
+      # תוספים מצורפים למתקין — הרשימה ב-lib/plugins/services/bundled_plugin_ids.dart
+      # (רשימה ריקה = השלב לא עושה דבר). ראה docs/bundled_plugins.md.
+      - name: Download bundled plugins for installers
+        shell: pwsh
+        run: .\installer\download_bundled_plugins.ps1
+
       - name: Download library assets for full installer
         if: true
         shell: pwsh
@@ -658,6 +664,10 @@ jobs:
           $marker = Join-Path $env:RUNNER_TEMP 'portable.marker'
           New-Item -ItemType File -Path $marker -Force | Out-Null
           Compress-Archive -Path $marker -Update -DestinationPath otzaria-windows-arm64.zip
+
+      - name: Download bundled plugins for installer (ARM64)
+        shell: pwsh
+        run: .\installer\download_bundled_plugins.ps1
 
       - name: Build Inno Setup installer (ARM64)
         shell: pwsh
@@ -2015,6 +2025,10 @@ jobs:
 
           Invoke-WebRequest -Uri 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' `
             -OutFile installer\MicrosoftEdgeWebview2Setup.exe
+
+      - name: Download bundled plugins for installer (indexed FULL)
+        shell: pwsh
+        run: .\installer\download_bundled_plugins.ps1
 
       - name: Build indexed FULL bootstrap installer
         shell: pwsh

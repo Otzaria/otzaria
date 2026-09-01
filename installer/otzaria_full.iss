@@ -15,6 +15,8 @@
 #define MyAppPublisher "sivan22"
 #define MyAppURL "https://github.com/otzaria/otzaria"
 #define MyAppExeName "otzaria.exe"
+; חייב להתאים ל-AppPaths.bundledPluginsFolderName.
+#define BundledPluginsDirName "bundled_plugins"
 
 #ifdef IndexedSplitFull
   #ifndef IndexedReleaseTag
@@ -83,6 +85,9 @@ Type: files; Name: "{app}\system_install.marker"; Check: (not IsAdminInstallMode
 ; המסמן מפעיל את המצב הנייד ומפנה את כל הנתונים ל-otzaria_data ליד ה-EXE — מסמן ששרד
 ; מעבר להתקנה רגילה משאיר את הנתונים תחת Program Files, שאינה כתיבה (issue #1031).
 Type: files; Name: "{app}\portable.marker"; Check: not IsPortableInstall
+; ניקוי ארכיוני תוספים של הגרסה הקודמת — הרשימה יכולה להשתנות בין גרסאות,
+; והארכיונים כבר נרשמו ואינם נדרשים.
+Type: filesandordirs; Name: "{app}\{#BundledPluginsDirName}"
 ; אין כאן מחיקה של תיקיית הספרים: בשני מצבי הבנייה הספרייה מוחלפת רק אחרי
 ; חילוץ מלא ומוצלח ל-staging — מחיקה מוקדמת השאירה משדרגים בלי ספרייה (issue #867).
 
@@ -2389,6 +2394,9 @@ Source: "..\build\windows\x64\runner\Release\*.dll"; DestDir: "{app}"; Flags: ig
 Source: "..\build\windows\x64\runner\Release\*"; \
   Excludes: "*.dll"; \
     DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; ארכיוני התוספים שנארזו במתקין (ראה docs/bundled_plugins.md). התיקייה נוצרת
+; ע"י ה-workflow ואינה קיימת בבנייה מקומית — skipifsourcedoesntexist.
+Source: "bundled_plugins\*"; DestDir: "{app}\{#BundledPluginsDirName}"; Flags: ignoreversion skipifsourcedoesntexist
 
 ; Compressed library assets + extraction tools staged in the setup temp dir —
 ; {tmp} is always writable by the installer process (unlike {app} under Program Files)

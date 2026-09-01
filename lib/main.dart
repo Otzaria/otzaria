@@ -1242,11 +1242,13 @@ class _AppBootstrapState extends State<AppBootstrap> {
                 ),
               );
               return PluginSystemBloc(
-                repository: repository,
-                declarativeHost: host,
-                readerStates: tabsBloc.stream,
-                initialReaderState: tabsBloc.state,
-              )..add(LoadPlugins());
+                  repository: repository,
+                  declarativeHost: host,
+                  readerStates: tabsBloc.stream,
+                  initialReaderState: tabsBloc.state,
+                )
+                ..add(const SeedBundledPlugins())
+                ..add(LoadPlugins());
             },
           ),
         ],

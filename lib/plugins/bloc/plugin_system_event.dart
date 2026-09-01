@@ -11,6 +11,11 @@ sealed class PluginSystemEvent extends Equatable {
 
 class LoadPlugins extends PluginSystemEvent {}
 
+/// רישום התוספים שהמתקין ארז, אם עדיין לא נרשמו.
+class SeedBundledPlugins extends PluginSystemEvent {
+  const SeedBundledPlugins();
+}
+
 class InstallPluginRequested extends PluginSystemEvent {
   final String archivePath;
   final bool forceOverwrite;
@@ -44,7 +49,7 @@ class InstallRemotePluginRequested extends PluginSystemEvent {
     forceOverwrite,
     reportContext?.token,
     reportContext?.callbackUrl,
-      storeOnly,
+    storeOnly,
   ];
 }
 

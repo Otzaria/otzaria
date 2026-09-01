@@ -115,6 +115,10 @@ class SettingsRepository {
   /// CSV של מזהי כלים מובנים שהמשתמש הסתיר מהממשק (לשונית הכלים).
   static const String keyHiddenBuiltInToolIds = 'key-hidden-builtin-tool-ids';
 
+  /// CSV של מזהי התוספים המצורפים למתקין שכבר נרשמו. בלעדיו תוסף מצורף
+  /// שהמשתמש הסיר היה חוזר ונרשם בעלייה הבאה.
+  static const String keySeededBundledPlugins = 'key-seeded-bundled-plugins';
+
   /// CSV של מזהי כלים מובנים שהמשתמש הצמיד לסרגל הניווט הראשי.
   static const String keyBuiltInToolsPinnedToNavRail =
       'key-builtin-tools-pinned-to-nav-rail';
@@ -241,6 +245,7 @@ class SettingsRepository {
     keyReadingTabsColumnWidth,
     keyReadingTabsColumnCollapsed,
     keyHiddenBuiltInToolIds,
+    keySeededBundledPlugins,
     keyBuiltInToolsPinnedToNavRail,
     keyBuiltInToolsOrder,
     keyProtectedModeEnabled,

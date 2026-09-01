@@ -16,6 +16,8 @@
 #define MyAppPublisher "sivan22"
 #define MyAppURL "https://github.com/otzaria/otzaria"
 #define MyAppExeName "otzaria.exe"
+; חייב להתאים ל-AppPaths.bundledPluginsFolderName.
+#define BundledPluginsDirName "bundled_plugins"
 
 ; ארכיטקטורת היעד: "x64" (ברירת מחדל) או "arm64", נקבעת מבחוץ עם
 ; ‎ISCC /DAppArch=arm64‎. קובעת את תיקיית ה-build, את שם הקובץ ואת
@@ -87,6 +89,9 @@ Type: files; Name: "{app}\system_install.marker"; Check: (not IsAdminInstallMode
 ; המסמן מפעיל את המצב הנייד ומפנה את כל הנתונים ל-otzaria_data ליד ה-EXE — מסמן ששרד
 ; מעבר להתקנה רגילה משאיר את הנתונים תחת Program Files, שאינה כתיבה (issue #1031).
 Type: files; Name: "{app}\portable.marker"; Check: not IsPortableInstall
+; ניקוי ארכיוני תוספים של הגרסה הקודמת — הרשימה יכולה להשתנות בין גרסאות,
+; והארכיונים כבר נרשמו ואינם נדרשים.
+Type: filesandordirs; Name: "{app}\{#BundledPluginsDirName}"
 
 [Dirs]
 ; במצב נייד הנתונים יושבים ב-otzaria_data ליד ה-EXE — האפליקציה יוצרת אותה בעצמה.
@@ -132,6 +137,9 @@ Name: "hebrew"; MessagesFile: "compiler:Languages\Hebrew.isl"
 
 [Files]
 Source: "..\build\windows\{#AppArch}\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; ארכיוני התוספים שנארזו במתקין (ראה docs/bundled_plugins.md). התיקייה נוצרת
+; ע"י ה-workflow ואינה קיימת בבנייה מקומית — skipifsourcedoesntexist.
+Source: "bundled_plugins\*"; DestDir: "{app}\{#BundledPluginsDirName}"; Flags: ignoreversion skipifsourcedoesntexist
 ; קבצי הצגה לדף "תכונות עיקריות" - dontcopy = נארזים בתוך המתקין אבל לא מותקנים אצל המשתמש
 Source: "feature1.bmp"; Flags: dontcopy
 Source: "feature2.bmp"; Flags: dontcopy

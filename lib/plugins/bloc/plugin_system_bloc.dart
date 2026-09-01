@@ -5,6 +5,7 @@ import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
+import 'package:otzaria/plugins/services/bundled_plugin_seed_service.dart';
 import 'package:otzaria/plugins/services/plugin_installer_service.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
@@ -36,6 +37,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
   final PluginRegistryRepository repository;
   final PluginInstallerService _installerService;
   final PluginDownloadService _downloadService;
+  final BundledPluginSeedService _bundledSeedService;
   final PluginDevLoaderService devLoader;
   final PluginDevWatchService devWatchService;
   final DeclarativePluginHost? declarativeHost;
@@ -53,16 +55,21 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     PluginDownloadService? downloadService,
     PluginDevLoaderService? devLoader,
     PluginDevWatchService? devWatchService,
+    BundledPluginSeedService? bundledSeedService,
     this.declarativeHost,
     Stream<TabsState>? readerStates,
     TabsState? initialReaderState,
   }) : _installerService =
            installerService ?? PluginInstallerService(repository: repository),
        _downloadService = downloadService ?? PluginDownloadService(),
+       _bundledSeedService =
+           bundledSeedService ??
+           BundledPluginSeedService(repository: repository),
        devLoader = devLoader ?? PluginDevLoaderService(repository: repository),
        devWatchService = devWatchService ?? PluginDevWatchService(),
        super(PluginSystemInitial()) {
     on<LoadPlugins>(_onLoadPlugins, transformer: sequential());
+    on<SeedBundledPlugins>(_onSeedBundledPlugins);
     on<InstallPluginRequested>(_onInstallPluginRequested);
     on<InstallRemotePluginRequested>(_onInstallRemotePluginRequested);
     on<ConfirmPluginInstall>(_onConfirmPluginInstall);
@@ -158,6 +165,17 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     } catch (e) {
       emit(PluginSystemError(e.toString()));
       UiSnack.showError(PluginMessages.loadPluginsError(e));
+    }
+  }
+
+  Future<void> _onSeedBundledPlugins(
+    SeedBundledPlugins event,
+    Emitter<PluginSystemState> emit,
+  ) async {
+    try {
+      if (await _bundledSeedService.seedPending()) add(LoadPlugins());
+    } catch (e) {
+      debugPrint('Bundled plugin seeding failed: $e');
     }
   }
 
