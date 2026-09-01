@@ -213,9 +213,14 @@ class ToolTabScreenState extends State<ToolTabScreen>
             ),
           ),
         ),
-        // WebView עלול לבלוע Escape במסך מלא.
+        // WebView עלול לבלוע Escape במסך מלא. הלחצן בפינה השמאלית —
+        // באותה פינה שבה יושב לחצן הכניסה למסך מלא בשורת הכותרת.
         if (settingsState.isFullscreen)
-          const Positioned(top: 8, right: 8, child: ExitFullscreenButton()),
+          const PositionedDirectional(
+            top: 8,
+            end: 8,
+            child: ExitFullscreenButton(),
+          ),
         if (plugin != null)
           PositionedDirectional(
             bottom: 16,

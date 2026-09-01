@@ -89,14 +89,27 @@ void main() {
         );
         addTearDown(settingsBloc.close);
 
+        const trailingKey = Key('trailing');
         await tester.pumpWidget(
           _buildBar(
             settingsBloc: settingsBloc,
             center: const SizedBox(width: 100, height: 8),
+            trailingItems: const [
+              AppTopBarItem(
+                widget: SizedBox(key: trailingKey, width: 40, height: 40),
+              ),
+            ],
           ),
         );
 
-        expect(find.byTooltip('צא ממסך מלא'), findsOneWidget);
+        final exitButton = find.byTooltip('צא ממסך מלא');
+        expect(exitButton, findsOneWidget);
+        // הלחצן בקצה החיצוני של צד ה-trailing — באותה פינה שבה לחצן
+        // הכניסה למסך מלא שבשורת הכותרת.
+        expect(
+          tester.getCenter(exitButton).dx,
+          greaterThan(tester.getCenter(find.byKey(trailingKey)).dx),
+        );
       },
     );
 
