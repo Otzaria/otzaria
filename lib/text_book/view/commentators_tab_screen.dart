@@ -1441,85 +1441,95 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
 
     return NavPanelSearchPublisher(
       delegate: delegate,
-      child: Column(
-        children: [
-          if (!NavPanelSearch.isHoisted(context))
-            NavPanelLocalSearchField(delegate: delegate),
-          Expanded(
-            child: ValueListenableBuilder<TextEditingValue>(
-              valueListenable: _tocSearchController,
-              builder: (context, val, _) {
-                final query = val.text;
-                final filteredChapters = query.isEmpty
-                    ? chapters
-                    : chapters.where((ch) => ch.text.contains(query)).toList();
-                final items = [
-                  _TocListItem.header(title),
-                  ..._buildVisibleTocItems(filteredChapters, chapters, content),
-                ];
-                _navItems = items;
-                return NavTreeFocusGroup(
-                  child: ScrollablePositionedList.builder(
-                    itemScrollController: _navScrollController,
-                    itemCount: items.length,
-                    padding: kNavTreeListPadding,
-                    itemBuilder: (context, index) {
-                      final item = items[index];
-                      if (item.isHeader) {
-                        return NavTreeHeader(title: item.text!);
-                      }
-                      final isGroupStart = index == 1;
-                      final isGroupEnd = index == items.length - 1;
-                      if (item.isChapter) {
-                        final ch = item.chapter!;
+      // Builder: הבדיקה חייבת context שמתחת ל-NavPanelSearchScope — ה-context
+      // של המסך שמגיע כפרמטר תמיד מחזיר "לא מורם" והשדה היה מוצג פעמיים.
+      child: Builder(
+        builder: (context) => Column(
+          children: [
+            if (!NavPanelSearch.isHoisted(context))
+              NavPanelLocalSearchField(delegate: delegate),
+            Expanded(
+              child: ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _tocSearchController,
+                builder: (context, val, _) {
+                  final query = val.text;
+                  final filteredChapters = query.isEmpty
+                      ? chapters
+                      : chapters
+                            .where((ch) => ch.text.contains(query))
+                            .toList();
+                  final items = [
+                    _TocListItem.header(title),
+                    ..._buildVisibleTocItems(
+                      filteredChapters,
+                      chapters,
+                      content,
+                    ),
+                  ];
+                  _navItems = items;
+                  return NavTreeFocusGroup(
+                    child: ScrollablePositionedList.builder(
+                      itemScrollController: _navScrollController,
+                      itemCount: items.length,
+                      padding: kNavTreeListPadding,
+                      itemBuilder: (context, index) {
+                        final item = items[index];
+                        if (item.isHeader) {
+                          return NavTreeHeader(title: item.text!);
+                        }
+                        final isGroupStart = index == 1;
+                        final isGroupEnd = index == items.length - 1;
+                        if (item.isChapter) {
+                          final ch = item.chapter!;
+                          return NavTreeGroupCard(
+                            isGroupStart: isGroupStart,
+                            isGroupEnd: isGroupEnd,
+                            child: NavTreeTile.category(
+                              title: ch.text,
+                              level: 0,
+                              isSelected: ch == _selectedChapter,
+                              isExpanded: ch == _navExpandedChapter,
+                              hasChildren: true,
+                              // לחיצה על גוף השורה בוחרת את הפרק (טעינת מפרשים);
+                              // הצ'ברן משנה רק את תצוגת תתי-הפריטים בניווט.
+                              onTap: () {
+                                // no-op כשהפרק כבר נבחר — מונע טעינה כפולה של links.
+                                final current = debugNavSelection;
+                                if (identical(
+                                  reduceChapterBodyTap(current, ch),
+                                  current,
+                                )) {
+                                  return;
+                                }
+                                _onChapterSelected(ch, chapters);
+                              },
+                              onToggleExpand: () => _applyNavSelection(
+                                reduceChevronTap(debugNavSelection, ch),
+                                clearMulti: false,
+                              ),
+                            ),
+                          );
+                        }
+
                         return NavTreeGroupCard(
                           isGroupStart: isGroupStart,
                           isGroupEnd: isGroupEnd,
-                          child: NavTreeTile.category(
-                            title: ch.text,
-                            level: 0,
-                            isSelected: ch == _selectedChapter,
-                            isExpanded: ch == _navExpandedChapter,
-                            hasChildren: true,
-                            // לחיצה על גוף השורה בוחרת את הפרק (טעינת מפרשים);
-                            // הצ'ברן משנה רק את תצוגת תתי-הפריטים בניווט.
-                            onTap: () {
-                              // no-op כשהפרק כבר נבחר — מונע טעינה כפולה של links.
-                              final current = debugNavSelection;
-                              if (identical(
-                                reduceChapterBodyTap(current, ch),
-                                current,
-                              )) {
-                                return;
-                              }
-                              _onChapterSelected(ch, chapters);
-                            },
-                            onToggleExpand: () => _applyNavSelection(
-                              reduceChevronTap(debugNavSelection, ch),
-                              clearMulti: false,
-                            ),
+                          child: _buildSubItem(
+                            context,
+                            text: item.text!,
+                            isSelected: item.isSelected,
+                            onTap: item.onTap!,
+                            isAllChapter: item.isAllChapter,
                           ),
                         );
-                      }
-
-                      return NavTreeGroupCard(
-                        isGroupStart: isGroupStart,
-                        isGroupEnd: isGroupEnd,
-                        child: _buildSubItem(
-                          context,
-                          text: item.text!,
-                          isSelected: item.isSelected,
-                          onTap: item.onTap!,
-                          isAllChapter: item.isAllChapter,
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
+                      },
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

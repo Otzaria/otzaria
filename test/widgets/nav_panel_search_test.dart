@@ -104,20 +104,37 @@ class _HostState extends State<_Host> with SingleTickerProviderStateMixin {
                             onArrowDown: widget.onArrowDown,
                             onArrowUp: widget.onArrowUp,
                           ),
-                          child: NavTreeFocusGroup(
-                            child: ListView(
+                          // כמו במסכי הייצור: שדה מקומי רק כשהלשונית אינה
+                          // מורמת, והבדיקה רצה על context שמתחת ל-Scope.
+                          child: Builder(
+                            builder: (context) => Column(
                               children: [
-                                for (var i = 0; i < 3; i++)
-                                  NavTreeGroupCard(
-                                    isGroupStart: i == 0,
-                                    isGroupEnd: i == 2,
-                                    child: NavTreeTile.category(
-                                      title: 'שורה $i',
-                                      level: 0,
-                                      isSelected: i == 1,
-                                      onTap: () {},
+                                if (!NavPanelSearch.isHoisted(context))
+                                  NavPanelLocalSearchField(
+                                    delegate: NavPanelSearchDelegate(
+                                      controller: navController,
+                                      hintText: 'איתור כותרת...',
                                     ),
                                   ),
+                                Expanded(
+                                  child: NavTreeFocusGroup(
+                                    child: ListView(
+                                      children: [
+                                        for (var i = 0; i < 3; i++)
+                                          NavTreeGroupCard(
+                                            isGroupStart: i == 0,
+                                            isGroupEnd: i == 2,
+                                            child: NavTreeTile.category(
+                                              title: 'שורה $i',
+                                              level: 0,
+                                              isSelected: i == 1,
+                                              onTap: () {},
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -324,6 +341,18 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(OtzariaSearchField), findsOneWidget);
+  });
+
+  testWidgets('לשונית מורמת אינה מציירת שדה מקומי — שדה יחיד בסרגל', (
+    tester,
+  ) async {
+    await tester.pumpWidget(wrap(const _Host()));
+    await tester.pumpAndSettle();
+
+    // רק השדה המורם שבסרגל — בלי כפילות בתוך החלונית (רגרסיה: בדיקת
+    // isHoisted על context שמעל ה-Scope ציירה את השדה פעמיים).
+    expect(find.byType(OtzariaSearchField), findsOneWidget);
+    expect(find.byType(NavPanelLocalSearchField), findsNothing);
   });
 
   testWidgets('לשונית בלי חיפוש — הסרגל נשאר מוצג ומושבת', (tester) async {
