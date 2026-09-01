@@ -648,6 +648,84 @@ void main() {
       expect(maxToolbarButtonsForWidth(1400), greaterThan(20));
     });
   });
+
+  group('תת-תפריט בתפריט ה-"..."', () {
+    testWidgets('בחלון צר התת-תפריט נשאר בגבולות המסך', (tester) async {
+      tester.view.physicalSize = const Size(420, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      const subLabels = [
+        'מפרשים בצד — אפשרות ארוכה',
+        'מפרשים מתחת לטקסט',
+        'כרטיסיית מפרשים נפרדת',
+      ];
+      final actions = [
+        ActionButtonData(
+          widget: const SizedBox.shrink(),
+          icon: OtzariaIcons.book_24_regular,
+          tooltip: 'מצב תצוגה',
+          onPressed: () {},
+          submenuItems: [
+            for (final label in subLabels)
+              ActionButtonData(
+                widget: const SizedBox.shrink(),
+                icon: OtzariaIcons.book_24_regular,
+                tooltip: label,
+                onPressed: () {},
+              ),
+          ],
+        ),
+        ActionButtonData(
+          widget: const SizedBox.shrink(),
+          icon: OtzariaIcons.search_24_regular,
+          tooltip: 'חיפוש',
+          onPressed: () {},
+        ),
+      ];
+
+      await tester.pumpWidget(
+        withSettings(
+          MaterialApp(
+            home: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Scaffold(
+                appBar: AppBar(
+                  actions: [
+                    ResponsiveActionBar(
+                      actions: actions,
+                      alwaysInMenu: const [],
+                      maxVisibleButtons: 0,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byIcon(FluentIcons.more_vertical_24_regular));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('מצב תצוגה'));
+      await tester.pumpAndSettle();
+
+      for (final label in subLabels) {
+        final rect = tester.getRect(find.text(label));
+        expect(
+          rect.left,
+          greaterThanOrEqualTo(0),
+          reason: 'הפריט "$label" נחתך בשמאל המסך',
+        );
+        expect(
+          rect.right,
+          lessThanOrEqualTo(420),
+          reason: 'הפריט "$label" נחתך בימין המסך',
+        );
+      }
+    });
+  });
 }
 
 class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>

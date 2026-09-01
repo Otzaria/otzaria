@@ -1491,11 +1491,6 @@ class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
     _submenuOpen = true;
     _completer = Completer<T?>();
 
-    // הצמדת התת-תפריט לפריט האב: בפתיחה ימינה הקצה השמאלי צמוד לימין הפריט;
-    // בפתיחה שמאלה הקצה הימני צמוד לשמאל הפריט (עיגון לפי הקצה, לא לפי רוחב
-    // משוער, כדי שלא ייווצר מרווח כשהתת-תפריט צר מ-estimatedSubmenuWidth).
-    final menuTop = itemRect.top.clamp(0.0, overlaySize.height - 10.0);
-
     _overlayEntry = OverlayEntry(
       builder: (overlayContext) {
         // לא משתמשים ב-Positioned.fill עם GestureDetector כשכבת סגירה: היא
@@ -1505,57 +1500,61 @@ class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
         // ה-overlay הזה). סגירה ביציאה מהעכבר עדיין מתבצעת ע"י _closeTimer.
         return Stack(
           children: [
-            Positioned(
-              left: openToRight ? itemRect.right : null,
-              right: openToRight ? null : (overlaySize.width - itemRect.left),
-              top: menuTop,
-              child: MouseRegion(
-                // כניסה לסאבמנו מבטלת את סגירת ה-hover
-                onEnter: (_) {
-                  _hoverTimer?.cancel();
-                  _hoverTimer = null;
-                  _closeTimer?.cancel();
-                  _closeTimer = null;
-                },
-                onExit: (_) {
-                  // יציאה מהסאבמנו — סגור אחרי עיכוב קצר
-                  _closeTimer?.cancel();
-                  _closeTimer = Timer(const Duration(milliseconds: 400), () {
-                    if (mounted && _submenuOpen) {
-                      _closeSubmenu();
-                    }
-                  });
-                },
-                child: Material(
-                  elevation: 8,
-                  borderRadius: menuBorderRadius,
-                  color: menuColor,
-                  child: Padding(
-                    padding: menuPadding,
-                    child: IntrinsicWidth(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: widget.menuChildren.map((menuEntry) {
-                          if (menuEntry is PopupMenuItem<T>) {
-                            return InkWell(
-                              borderRadius: AppTokens.borderRadiusAll,
-                              onTap: menuEntry.enabled
-                                  ? () {
-                                      final value = menuEntry.value;
-                                      _closeSubmenu();
-                                      if (value != null) {
-                                        if (mounted) {
-                                          Navigator.of(context).pop();
+            Positioned.fill(
+              child: CustomSingleChildLayout(
+                delegate: _SubmenuLayoutDelegate(
+                  itemRect: itemRect,
+                  openToRight: openToRight,
+                ),
+                child: MouseRegion(
+                  // כניסה לסאבמנו מבטלת את סגירת ה-hover
+                  onEnter: (_) {
+                    _hoverTimer?.cancel();
+                    _hoverTimer = null;
+                    _closeTimer?.cancel();
+                    _closeTimer = null;
+                  },
+                  onExit: (_) {
+                    // יציאה מהסאבמנו — סגור אחרי עיכוב קצר
+                    _closeTimer?.cancel();
+                    _closeTimer = Timer(const Duration(milliseconds: 400), () {
+                      if (mounted && _submenuOpen) {
+                        _closeSubmenu();
+                      }
+                    });
+                  },
+                  child: Material(
+                    elevation: 8,
+                    borderRadius: menuBorderRadius,
+                    color: menuColor,
+                    child: Padding(
+                      padding: menuPadding,
+                      child: IntrinsicWidth(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: widget.menuChildren.map((menuEntry) {
+                            if (menuEntry is PopupMenuItem<T>) {
+                              return InkWell(
+                                borderRadius: AppTokens.borderRadiusAll,
+                                onTap: menuEntry.enabled
+                                    ? () {
+                                        final value = menuEntry.value;
+                                        _closeSubmenu();
+                                        if (value != null) {
+                                          if (mounted) {
+                                            Navigator.of(context).pop();
+                                          }
+                                          widget.onSelected?.call(value);
                                         }
-                                        widget.onSelected?.call(value);
                                       }
-                                    }
-                                  : null,
-                              child: menuEntry.child ?? const SizedBox.shrink(),
-                            );
-                          }
-                          return const SizedBox.shrink();
-                        }).toList(),
+                                    : null,
+                                child:
+                                    menuEntry.child ?? const SizedBox.shrink(),
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          }).toList(),
+                        ),
                       ),
                     ),
                   ),
@@ -1606,6 +1605,37 @@ class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
       ),
     );
   }
+}
+
+/// ממקם את התת-תפריט צמוד לפריט האב לפי כיוון הפתיחה, מוצמד לגבולות ה-overlay
+/// לפי גודלו האמיתי — בחלון צר עיגון לקצה הפריט לבדו גולש מחוץ למסך.
+class _SubmenuLayoutDelegate extends SingleChildLayoutDelegate {
+  final Rect itemRect;
+  final bool openToRight;
+
+  _SubmenuLayoutDelegate({required this.itemRect, required this.openToRight});
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      BoxConstraints.loose(constraints.biggest);
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    final desiredX = openToRight
+        ? itemRect.right
+        : itemRect.left - childSize.width;
+    final maxX = (size.width - childSize.width).clamp(0.0, size.width);
+    final maxY = (size.height - childSize.height).clamp(0.0, size.height);
+    return Offset(
+      desiredX.clamp(0.0, maxX),
+      itemRect.top.clamp(0.0, maxY),
+    );
+  }
+
+  @override
+  bool shouldRelayout(covariant _SubmenuLayoutDelegate oldDelegate) =>
+      oldDelegate.itemRect != itemRect ||
+      oldDelegate.openToRight != openToRight;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
