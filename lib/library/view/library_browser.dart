@@ -20,6 +20,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/tools/calendar/helpers/daf_yomi_navigation.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
+import 'package:otzaria/library/view/library_breadcrumb_bar.dart';
 import 'package:otzaria/library/view/library_daf_yomi.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/widgets/feedback/edge_scrollbar_behavior.dart';
@@ -985,6 +986,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                     hint: 'לחיצה תחליף את הטקסט שהוקלד',
                     onApplied: _applyLibraryLayoutFix,
                   ),
+                  ?_buildBreadcrumbBar(context, state, settingsState),
                   Expanded(child: _buildContent(state)),
                 ],
               );
@@ -1026,6 +1028,37 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           ),
         );
       },
+    );
+  }
+
+  // ── Breadcrumb bar ────────────────────────────────────────────────────────
+
+  /// שרשרת הקטגוריות מהעליונה ועד הנוכחית, ללא קטגוריית השורש.
+  List<Category> _breadcrumbChain(LibraryState state) {
+    final chain = <Category>[];
+    for (
+      Category? c = state.currentCategory;
+      c != null && !identical(c, state.library) && !identical(c, c.parent);
+      c = c.parent
+    ) {
+      chain.insert(0, c);
+    }
+    return chain;
+  }
+
+  /// נתיב הניווט המלא בקטלוג (issue #1086); מוסתר בשורש ובתוצאות חיפוש.
+  Widget? _buildBreadcrumbBar(
+    BuildContext context,
+    LibraryState state,
+    SettingsState settingsState,
+  ) {
+    if (state.searchResults != null) return null;
+    final chain = _breadcrumbChain(state);
+    if (chain.isEmpty) return null;
+    return LibraryBreadcrumbBar(
+      chain: chain,
+      onNavigate: _openCategory,
+      onNavigateHome: () => _handleNavigateHome(context, state, settingsState),
     );
   }
 
