@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
 import 'package:otzaria/plugins/bloc/plugin_updates_cubit.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/services/plugin_update_check_service.dart';
@@ -28,68 +29,98 @@ bool shouldShowUpdateChip(PluginUpdateInfo? update, String installedVersion) {
 /// צ'יפ "עדכון זמין" בבעלות התוכנה, מוצג מעל ה-WebView של טאב תוסף.
 /// לחיצה מזרימה את מסלול ההתקנה הרגיל — דיאלוג ההרשאות ייפתח במצב עדכון.
 /// התוסף עצמו אינו מודע לצ'יפ ואינו יכול להפעיל או להסתיר אותו.
-class PluginUpdateChip extends StatelessWidget {
+class PluginUpdateChip extends StatefulWidget {
   final InstalledPlugin plugin;
 
   const PluginUpdateChip({super.key, required this.plugin});
 
   @override
+  State<PluginUpdateChip> createState() => _PluginUpdateChipState();
+}
+
+class _PluginUpdateChipState extends State<PluginUpdateChip> {
+  // בזמן ההורדה ה-bloc לא פולט state, לכן החיווי "מעדכן..." מקומי;
+  // כל פליטה שאחרי הלחיצה (דיאלוג הרשאות / שגיאה) מסיימת אותו.
+  bool _updating = false;
+
+  @override
   Widget build(BuildContext context) {
     final update = context.watch<PluginUpdatesCubit>().state.updateFor(
-      plugin.pluginId,
+      widget.plugin.pluginId,
     );
-    if (!shouldShowUpdateChip(update, plugin.version)) {
+    if (!shouldShowUpdateChip(update, widget.plugin.version)) {
       return const SizedBox.shrink();
     }
 
     final cs = Theme.of(context).colorScheme;
-    return Material(
-      color: cs.primaryContainer,
-      elevation: 3,
-      borderRadius: BorderRadius.circular(20),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(20),
-            onTap: () => context.read<PluginSystemBloc>().add(
-              InstallRemotePluginRequested(update!.downloadUrl),
-            ),
-            child: Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(12, 6, 4, 6),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    FluentIcons.arrow_sync_24_regular,
-                    size: 16,
-                    color: cs.onPrimaryContainer,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'עדכון זמין',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: cs.onPrimaryContainer,
-                      fontWeight: FontWeight.w600,
+    return BlocListener<PluginSystemBloc, PluginSystemState>(
+      listenWhen: (_, _) => _updating,
+      listener: (_, _) => setState(() => _updating = false),
+      child: Material(
+        color: cs.primaryContainer,
+        elevation: 3,
+        borderRadius: BorderRadius.circular(20),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: _updating
+                  ? null
+                  : () {
+                      setState(() => _updating = true);
+                      context.read<PluginSystemBloc>().add(
+                        InstallRemotePluginRequested(update!.downloadUrl),
+                      );
+                    },
+              child: Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(12, 6, 4, 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_updating)
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: cs.onPrimaryContainer,
+                        ),
+                      )
+                    else
+                      Icon(
+                        FluentIcons.arrow_sync_24_regular,
+                        size: 16,
+                        color: cs.onPrimaryContainer,
+                      ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _updating ? 'מעדכן...' : 'עדכון זמין',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: cs.onPrimaryContainer,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-          IconButton(
-            tooltip: 'הסתר',
-            iconSize: 14,
-            visualDensity: VisualDensity.compact,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-            icon: Icon(
-              FluentIcons.dismiss_24_regular,
-              color: cs.onPrimaryContainer,
-            ),
-            onPressed: () =>
-                context.read<PluginUpdatesCubit>().dismiss(plugin.pluginId),
-          ),
-        ],
+            if (!_updating)
+              IconButton(
+                tooltip: 'הסתר',
+                iconSize: 14,
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                icon: Icon(
+                  FluentIcons.dismiss_24_regular,
+                  color: cs.onPrimaryContainer,
+                ),
+                onPressed: () => context.read<PluginUpdatesCubit>().dismiss(
+                  widget.plugin.pluginId,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:bloc_test/bloc_test.dart';
@@ -108,6 +109,13 @@ void main() {
 
     expect(find.text('עדכון זמין'), findsOneWidget);
     await tester.tap(find.text('עדכון זמין'));
+    await tester.pump();
+
+    // חיווי מיידי: "מעדכן..." עם עיגול התקדמות, וה-X נעלם.
+    expect(find.text('מעדכן...'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(IconButton), findsNothing);
+
     verify(
       () => bloc.add(
         any(
@@ -119,6 +127,39 @@ void main() {
         ),
       ),
     ).called(1);
+    await cubit.close();
+  });
+
+  testWidgets('פליטת state מה-bloc (למשל שגיאה) מחזירה את הצ\'יפ ללחיץ', (
+    tester,
+  ) async {
+    final cubit = await cubitWithUpdate();
+    final bloc = MockPluginSystemBloc();
+    final states = StreamController<PluginSystemState>.broadcast();
+    whenListen(
+      bloc,
+      states.stream,
+      initialState: const PluginSystemLoaded([]),
+    );
+
+    await tester.pumpWidget(
+      harness(
+        cubit: cubit,
+        bloc: bloc,
+        child: PluginUpdateChip(plugin: buildPlugin(pluginId: 'org.a')),
+      ),
+    );
+
+    await tester.tap(find.text('עדכון זמין'));
+    await tester.pump();
+    expect(find.text('מעדכן...'), findsOneWidget);
+
+    states.add(const PluginSystemLoaded([]));
+    await tester.pump();
+    expect(find.text('מעדכן...'), findsNothing);
+    expect(find.text('עדכון זמין'), findsOneWidget);
+
+    await states.close();
     await cubit.close();
   });
 
