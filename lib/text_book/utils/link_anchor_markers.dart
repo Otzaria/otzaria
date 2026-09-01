@@ -19,13 +19,17 @@ String? anchorMarkerLetter(Link link) => _letterFor(link, link.anchorLabel);
 
 String? _letterFor(Link link, String? storedLabel) {
   final label = storedLabel?.trim();
-  if (label != null && label.isNotEmpty) return label;
+  if (label != null && label.isNotEmpty) return _textPresentation(label);
   final tail = link.heRef.split(',').last.trim();
   final letters = tail.replaceAll(RegExp(r'["׳״]'), '');
   if (letters.isEmpty || letters.length > 4) return null;
   if (!RegExp(r'^[א-ת]+$').hasMatch(letters)) return null;
   return tail;
 }
+
+/// ♦ (U+2666) נתפס ע"י גופן האימוג'י ומוצג כיהלום אדום גדול (issue #1106);
+/// ההחלפה ל-◆ (U+25C6), שאינו תו אימוג'י, שומרת את הצורה בצבע הטקסט.
+String _textPresentation(String label) => label.replaceAll('♦', '◆');
 
 /// הקצאת וריאנט טיפוגרפי קבוע לכל מפרש שיש לו עוגני-מילה — לסמני-האות
 /// (עוגן-נקודה) בלבד, כדי שאפשר יהיה להבדיל בין מפרשים על אותו דף.

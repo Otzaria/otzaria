@@ -50,6 +50,16 @@ void main() {
       expect(anchorMarkerLetter(link), 'קכ"ט');
     });
 
+    test('תווית ♦ מוחלפת ביהלום גיאומטרי שאינו אימוג\'י', () {
+      final link = _anchorLink(
+        heRef: 'עטרת זקנים על שולחן ערוך אורח חיים א, א',
+        path2: 'עטרת זקנים על שולחן ערוך אורח חיים',
+        anchorStart: 10,
+        anchorLabel: '♦',
+      );
+      expect(anchorMarkerLetter(link), '◆');
+    });
+
     test('רכיב אחרון שאינו גימטריה — אין אות', () {
       final link = _anchorLink(
         heRef: 'פירוש כלשהו, פסקה ארוכה מאוד שאינה אות',
