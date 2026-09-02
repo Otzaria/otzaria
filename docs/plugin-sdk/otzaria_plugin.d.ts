@@ -502,6 +502,38 @@ export interface SetActiveCommentatorsArgs {
   remove?: string[];
 }
 
+/**
+ * פריסת "צורת הדף" הנוכחית (`reader.getPageShapeLayout`) — שיבוץ מפרשים
+ * לטורים ונראותם. `null` כשאין טאב טקסט פתוח, כשהטאב אינו בתצוגת "צורת
+ * הדף" (למשל "משולב"), או כשהמסך עדיין טוען תצורה.
+ */
+export interface PageShapeLayout {
+  /** כל המפרשים הזמינים בספר, כמו ב-`ActiveCommentators.available`. */
+  available: string[];
+  /** המפרש בטור השמאלי, או `null` אם אין. */
+  left: string | null;
+  /** כל המפרשים המוצגים כרגע בטור הימני (יכול להיות אחד, כמה, או ריק). */
+  right: string[];
+  /** המפרש בטור התחתון, או `null` אם אין. */
+  bottom: string | null;
+  /** המפרש בטור התחתון-ימני, או `null` אם אין. */
+  bottomRight: string | null;
+  /** נראות כל טור. */
+  visibility: {
+    left: boolean;
+    right: boolean;
+    bottom: boolean;
+    bottomRight: boolean;
+  };
+}
+
+/** ארגומנטים ל-`reader.setPageShapeCommentatorVisibility`. */
+export interface SetPageShapeCommentatorVisibilityArgs {
+  /** שם המפרש כפי שמופיע ב-`PageShapeLayout` (זהה לשמות ב-`available`). */
+  commentator: string;
+  visible: boolean;
+}
+
 /** ארגומנטים ל-`reader.scrollToSection`. */
 export interface ScrollToSectionArgs {
   /** בטקסט — אינדקס שורה (מבוסס-0); ב-PDF — מספר עמוד (מבוסס-1). */
@@ -1694,6 +1726,8 @@ export type OtzariaMethod =
   | 'reader.getSelection'
   | 'reader.getActiveCommentators'
   | 'reader.setActiveCommentators'
+  | 'reader.getPageShapeLayout'
+  | 'reader.setPageShapeCommentatorVisibility'
   | 'reader.scrollToSection'
   | 'reader.getHighlightCapabilities'
   | 'reader.findTextOccurrences'

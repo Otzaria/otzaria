@@ -8,6 +8,7 @@ import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/reading_tab_search_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_bridge_models.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
@@ -90,6 +91,20 @@ class TextBookTab extends OpenedTab {
   final ValueNotifier<int> navNextSegmentNotifier = ValueNotifier<int>(0);
   final ValueNotifier<int> navPreviousTocNotifier = ValueNotifier<int>(0);
   final ValueNotifier<int> navNextTocNotifier = ValueNotifier<int>(0);
+
+  /// תמונת מצב עדכנית של פריסת "צורת הדף" (שיבוץ מפרשים לטורים ונראותם),
+  /// מפורסמת ע"י [PageShapeScreen] בכל שינוי תצורה. null כשאין מסך צורת-הדף
+  /// מורכב כרגע (כולל תצוגת "משולב", או שהתצורה עדיין נטענת).
+  /// משמש את גשר התוספים לקריאת המצב בלי תלות ב-BuildContext.
+  final ValueNotifier<PageShapeLayoutSnapshot?> pageShapeLayoutNotifier =
+      ValueNotifier<PageShapeLayoutSnapshot?>(null);
+
+  /// בקשה חיצונית (מגשר התוספים) לשנות נראות מפרש בצורת הדף. המאזין הוא
+  /// [PageShapeScreen] בלבד; הוא מטפל בבקשה באופן סינכרוני (ValueNotifier
+  /// מיידע מאזינים סינכרונית) ומאפס את הערך בחזרה ל-null.
+  final ValueNotifier<PageShapeVisibilityRequest?>
+  pageShapeVisibilityRequestNotifier =
+      ValueNotifier<PageShapeVisibilityRequest?>(null);
 
   List<String>? commentators;
   bool _lastSplitView = false;
@@ -209,6 +224,8 @@ class TextBookTab extends OpenedTab {
     navNextSegmentNotifier.dispose();
     navPreviousTocNotifier.dispose();
     navNextTocNotifier.dispose();
+    pageShapeLayoutNotifier.dispose();
+    pageShapeVisibilityRequestNotifier.dispose();
     bloc.close();
     super.dispose();
   }

@@ -60,6 +60,7 @@ import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/tools/tools_launcher_controller.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_bridge_models.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -2366,6 +2367,13 @@ class PluginBridgeAdapter {
       case 'setActiveCommentators':
         // spec: setActiveCommentators({ add?, remove? })
         return _setActiveCommentators(args);
+      case 'getPageShapeLayout':
+        // spec: getPageShapeLayout() -> { available, left, right, bottom,
+        //   bottomRight, visibility } | null
+        return _getPageShapeLayout();
+      case 'setPageShapeCommentatorVisibility':
+        // spec: setPageShapeCommentatorVisibility({ commentator, visible })
+        return _setPageShapeCommentatorVisibility(args);
       case 'getHighlightCapabilities':
         // spec: getHighlightCapabilities() -> { surface, highlights,
         //   selection, contextMenu }
@@ -5398,6 +5406,77 @@ class PluginBridgeAdapter {
       'rare': state.rareCommentators.toList()..sort(),
       'groups': _commentatorGroupsToJson(state.commentatorGroups),
     };
+  }
+
+  /// פריסת "צורת הדף" הנוכחית (שיבוץ מפרשים לטורים ונראותם), לשימוש תוספים.
+  ///
+  /// `null` כשאין טאב טקסט פתוח, כשהטאב אינו בתצוגת "צורת הדף" (למשל
+  /// "משולב"), או כשהמסך עדיין טוען תצורה. שיבוץ הטורים הוא מצב UI מקומי
+  /// של [PageShapeScreen] ולא חלק מ-TextBookState — ולכן נקרא מ-
+  /// [TextBookTab.pageShapeLayoutNotifier] שהמסך מפרסם אליו, ולא מה-bloc.
+  Map<String, dynamic>? _getPageShapeLayout() {
+    final pane = _dependencies.tabsBloc.state.readingPane;
+    if (pane is! TextBookTab) return null;
+    final state = pane.bloc.state;
+    if (state is! TextBookLoaded || !state.showPageShapeView) return null;
+    final snapshot = pane.pageShapeLayoutNotifier.value;
+    if (snapshot == null) return null;
+    return _pageShapeLayoutToJson(state, snapshot);
+  }
+
+  Map<String, dynamic> _pageShapeLayoutToJson(
+    TextBookLoaded state,
+    PageShapeLayoutSnapshot snapshot,
+  ) {
+    return {
+      'available': state.availableCommentators,
+      'left': snapshot.commentators['left'],
+      'right': snapshot.rightCommentators,
+      'bottom': snapshot.commentators['bottom'],
+      'bottomRight': snapshot.commentators['bottomRight'],
+      'visibility': snapshot.columnVisibility,
+    };
+  }
+
+  /// מציג/מסתיר מפרש בטור שהוא כבר משובץ אליו בצורת הדף. מחזיר את הפריסה
+  /// המעודכנת (כמו [_getPageShapeLayout]), או `null` כשאין טאב "צורת הדף"
+  /// פעיל. נכשל ב-`error.not_found` כשהמפרש אינו משובץ כרגע לאף טור —
+  /// שיבוץ ראשוני לטור נעשה היום רק ידנית דרך הגדרות צורת הדף.
+  ///
+  /// המימוש שולח בקשה ל-[TextBookTab.pageShapeVisibilityRequestNotifier];
+  /// [PageShapeScreen] המאזין לו מטפל בבקשה סינכרונית (ValueNotifier מיידע
+  /// מאזינים סינכרונית כש-`.value` משתנה), כך שקריאת [_getPageShapeLayout]
+  /// מיד לאחר מכן כבר משקפת את השינוי.
+  Map<String, dynamic>? _setPageShapeCommentatorVisibility(
+    Map<String, dynamic> args,
+  ) {
+    final commentator = args['commentator'];
+    if (commentator is! String || commentator.trim().isEmpty) {
+      throw Exception('error.invalid_params: commentator is required');
+    }
+    final visible = args['visible'];
+    if (visible is! bool) {
+      throw Exception('error.invalid_params: visible must be a boolean');
+    }
+
+    final pane = _dependencies.tabsBloc.state.readingPane;
+    if (pane is! TextBookTab) return null;
+    final state = pane.bloc.state;
+    if (state is! TextBookLoaded || !state.showPageShapeView) return null;
+
+    final snapshot = pane.pageShapeLayoutNotifier.value;
+    if (snapshot == null) return null;
+    if (snapshot.columnForCommentator(commentator) == null) {
+      throw Exception(
+        'error.not_found: commentator is not assigned to a page-shape column',
+      );
+    }
+
+    pane.pageShapeVisibilityRequestNotifier.value =
+        PageShapeVisibilityRequest(commentator, visible);
+
+    final updated = pane.pageShapeLayoutNotifier.value ?? snapshot;
+    return _pageShapeLayoutToJson(state, updated);
   }
 
   List<String> _commentatorNames(Object? raw) {

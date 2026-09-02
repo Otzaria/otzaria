@@ -167,6 +167,8 @@ if (response.success) {
 | `reader.getSelection` | 0.9.89 |
 | `reader.getActiveCommentators` | 0.9.97 |
 | `reader.setActiveCommentators` | 0.9.97 |
+| `reader.getPageShapeLayout` | 0.9.97 |
+| `reader.setPageShapeCommentatorVisibility` | 0.9.97 |
 | `reader.scrollToSection` | 0.9.97 |
 | `reader.getHighlightCapabilities` | 0.9.97 |
 | `reader.findTextOccurrences` | 0.9.95 |
@@ -1725,6 +1727,57 @@ const { data } = await Otzaria.call('reader.getActiveCommentators');
 await Otzaria.call('reader.setActiveCommentators', {
   add: ['רש״י על בראשית'],
   remove: ['רמב״ן על בראשית']
+});
+```
+
+> ⚠️ **אינו משפיע על תצוגת "צורת הדף".** `reader.setActiveCommentators`/
+> `reader.getActiveCommentators` שולטים ב-"בחירת מפרשים" בתצוגת "משולב"
+> בלבד. ב"צורת הדף" (שלושה טורים קבועים, כל אחד עם שיבוץ מפרש ונראות
+> משלו) יש להשתמש ב-`reader.getPageShapeLayout`/
+> `reader.setPageShapeCommentatorVisibility` להלן. תוסף שרוצה לתמוך
+> בשני המשטחים בודק את `reader.getHighlightCapabilities().surface`
+> ומפנה לזוג המתאים.
+
+### `reader.getPageShapeLayout`
+**הרשאה:** `reader.open` · **מגרסה:** 0.9.97
+
+פריסת "צורת הדף" הנוכחית: אילו מפרשים משובצים לכל טור (שמאלי/ימני/תחתון/
+תחתון-ימני) ומה נראותו של כל טור. `null` כשאין טאב טקסט טעון, כשהטאב אינו
+בתצוגת "צורת הדף" (למשל "משולב"), או כשהמסך עדיין טוען תצורה.
+
+הטור הימני יכול להציג כמה מפרשים בו-זמנית ("מצב בחירה מרובה"), ולכן
+מיוצג כמערך (`right`); שאר הטורים מציגים מפרש יחיד ומיוצגים כמחרוזת או
+`null`.
+
+```javascript
+const { data } = await Otzaria.call('reader.getPageShapeLayout');
+// {
+//   available: ["רש״י על בראשית", "ביאור הלכה", ...],
+//   left: "ביאור הלכה",
+//   right: ["רש״י על בראשית"],
+//   bottom: null,
+//   bottomRight: null,
+//   visibility: { left: false, right: true, bottom: true, bottomRight: true }
+// }
+```
+
+### `reader.setPageShapeCommentatorVisibility`
+**הרשאה:** `reader.open` · **מגרסה:** 0.9.97
+
+מציג/מסתיר מפרש בטור שהוא **כבר משובץ אליו** בצורת הדף — מקביל ללחיצה על
+סמל העין של אותו טור בהגדרות צורת הדף. מחזיר את אותה מבנה של
+`reader.getPageShapeLayout` אחרי השינוי, או `null` כשאין טאב "צורת הדף"
+פעיל.
+
+שיבוץ ראשוני של מפרש לטור (כשהוא עדיין אינו מופיע באף טור) אינו נתמך
+דרך ה-API הזה — נדחה ב-`error.not_found`. המשתמש צריך לשבץ את המפרש לטור
+פעם אחת דרך הגדרות צורת הדף; מאותה נקודה תוסף יכול להראות/להסתיר אותו
+לפי תוכן.
+
+```javascript
+await Otzaria.call('reader.setPageShapeCommentatorVisibility', {
+  commentator: 'ביאור הלכה',
+  visible: true
 });
 ```
 

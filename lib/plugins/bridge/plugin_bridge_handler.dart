@@ -363,6 +363,8 @@ class PluginBridgeHandler {
     'reader.getSelection': 'reader.open',
     'reader.getActiveCommentators': 'reader.open',
     'reader.setActiveCommentators': 'reader.open',
+    'reader.getPageShapeLayout': 'reader.open',
+    'reader.setPageShapeCommentatorVisibility': 'reader.open',
     'reader.scrollToSection': 'reader.open',
     'reader.getHighlightCapabilities': 'reader.open',
     'reader.findTextOccurrences': 'reader.open',

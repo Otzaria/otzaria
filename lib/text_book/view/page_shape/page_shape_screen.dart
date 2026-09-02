@@ -17,6 +17,7 @@ import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/commentary_anchor_links.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_bridge_models.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/commentary_sync_helper.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_workspace_scope.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_settings_panel.dart';
@@ -438,7 +439,86 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
         _isLoadingConfig = false;
       });
       _refreshLinksForCurrentConfiguration('page-shape configuration loaded');
+      _publishLayoutSnapshot(state);
     }
+  }
+
+  /// מפרסם ל-[TextBookTab.pageShapeLayoutNotifier] תמונת מצב עדכנית של
+  /// הפריסה, כדי שגשר התוספים יוכל לקרוא אותה בלי תלות ב-BuildContext.
+  /// נקרא בסוף כל פעולה שמשנה שיבוץ/נראות של טור.
+  void _publishLayoutSnapshot(TextBookLoaded state) {
+    final tab = widget.tab;
+    if (tab == null) return;
+    tab.pageShapeLayoutNotifier.value = PageShapeLayoutSnapshot(
+      commentators: {
+        'left': _leftCommentator,
+        'bottom': _bottomCommentator,
+        'bottomRight': _bottomRightCommentator,
+      },
+      rightCommentators: _selectedRightPaneCommentators(state),
+      columnVisibility: Map<String, bool>.from(_columnVisibility),
+    );
+  }
+
+  /// מטפל בבקשה חיצונית (מגשר התוספים) לשנות נראות מפרש. ה-ValueNotifier
+  /// מיידע מאזינים סינכרונית, ולכן הבקשה מטופלת באותה תזמון של קריאת הגשר.
+  void _handleExternalVisibilityRequest() {
+    final tab = widget.tab;
+    if (tab == null || !mounted) return;
+    final request = tab.pageShapeVisibilityRequestNotifier.value;
+    if (request == null) return;
+    // איפוס מיידי כדי שבקשה זהה עוקבת (אותו מפרש/ערך) עדיין תעורר אירוע.
+    tab.pageShapeVisibilityRequestNotifier.value = null;
+
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return;
+    final snapshot = tab.pageShapeLayoutNotifier.value;
+    final column = snapshot?.columnForCommentator(request.commentator);
+    if (column == null) {
+      // המפרש אינו משובץ כרגע לאף טור בצורת הדף — אין טור שאת נראותו לשנות.
+      return;
+    }
+
+    if (column == 'right' &&
+        (snapshot?.rightCommentators.length ?? 0) > 1) {
+      // כמה מפרשים בטור הימני בו-זמנית: הבקשה נוגעת רק למפרש הזה עצמו.
+      if (request.visible) return; // כבר מוצג
+      final updated = snapshot!.rightCommentators
+          .where((name) => name != request.commentator)
+          .toList();
+      _saveRightPaneCommentators(state, updated);
+      return;
+    }
+
+    if (_columnVisibility[column] == request.visible) return;
+    if (request.visible) {
+      _showColumn(column);
+    } else {
+      _hideColumn(column);
+    }
+  }
+
+  /// הראשה (ההופכי של [_hideColumn]) לפי תחום השמירה הפעיל בהגדרות צורת הדף.
+  void _showColumn(String column) {
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return;
+
+    setState(() {
+      _columnVisibility[column] = true;
+    });
+
+    final scope = _activeDisplaySettingsScope(state.book.title);
+    PageShapeSettingsManager.saveColumnVisibility(
+      state.book.title,
+      _columnVisibility,
+      scope: scope,
+      workspaceId: _activeWorkspaceId,
+    );
+
+    _refreshLinksForCurrentConfiguration(
+      'page-shape column visibility changed',
+    );
+    _publishLayoutSnapshot(state);
   }
 
   /// התאמת שמות מפרשים בסיסיים לשמות מלאים מתוך הקישורים הזמינים
@@ -564,6 +644,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
       );
     });
     _refreshLinksForCurrentConfiguration('right pane selection changed');
+    _publishLayoutSnapshot(state);
   }
 
   String? _rightPaneLabel(TextBookLoaded state) {
@@ -704,6 +785,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
     _refreshLinksForCurrentConfiguration(
       'page-shape column visibility changed',
     );
+    _publishLayoutSnapshot(state);
   }
 
   /// בניית widget למצב ריק של טור
@@ -920,6 +1002,9 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
     widget.tab?.toggleCommentatorsPaneNotifier.addListener(
       _onToggleCommentatorsPaneRequest,
     );
+    widget.tab?.pageShapeVisibilityRequestNotifier.addListener(
+      _handleExternalVisibilityRequest,
+    );
   }
 
   @override
@@ -942,6 +1027,12 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
       widget.tab?.toggleCommentatorsPaneNotifier.addListener(
         _onToggleCommentatorsPaneRequest,
       );
+      oldWidget.tab?.pageShapeVisibilityRequestNotifier.removeListener(
+        _handleExternalVisibilityRequest,
+      );
+      widget.tab?.pageShapeVisibilityRequestNotifier.addListener(
+        _handleExternalVisibilityRequest,
+      );
     }
   }
 
@@ -952,6 +1043,12 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
     widget.tab?.toggleCommentatorsPaneNotifier.removeListener(
       _onToggleCommentatorsPaneRequest,
     );
+    widget.tab?.pageShapeVisibilityRequestNotifier.removeListener(
+      _handleExternalVisibilityRequest,
+    );
+    // המסך נעלם (מעבר לתצוגת "משולב" או סגירת הטאב) — גשר התוספים לא אמור
+    // עוד לדווח על פריסת צורת-דף עבור טאב זה.
+    widget.tab?.pageShapeLayoutNotifier.value = null;
     _selectionSyncController.dispose();
     _openCommentatorsFilterNotifier.dispose();
     _closeCommentatorsFilterNotifier.dispose();
