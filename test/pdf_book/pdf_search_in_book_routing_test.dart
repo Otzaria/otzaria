@@ -340,11 +340,26 @@ Future<void> main() async {
     await tester.pumpAndSettle();
 
     expect(find.text('טווח: עמודים 3–5'), findsOneWidget);
-    expect(find.byTooltip('החיפוש מוגבל לטווח — לחץ לשינוי'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('חפש בכל הספר'));
+    // כשיש טווח פעיל הדיאלוג נפתח עם הערכים ומציע לחזור לכל הספר.
+    await tester.tap(find.byTooltip('החיפוש מוגבל לטווח — לחץ לשינוי'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(TextField, '3'), findsOneWidget);
+    await tester.tap(find.text('חזור לחפש בכל הספר'));
     await tester.pumpAndSettle();
     expect(find.text('טווח: עמודים 3–5'), findsNothing);
+
+    // בלי טווח פעיל אין את האפשרות; ה-X של התווית מסיר טווח שנבחר.
+    await tester.tap(find.byTooltip('הגבל את החיפוש לטווח בספר'));
+    await tester.pumpAndSettle();
+    expect(find.text('חזור לחפש בכל הספר'), findsNothing);
+    await tester.enterText(find.widgetWithText(TextField, 'מעמוד'), '7');
+    await tester.tap(find.text('חפש בטווח'));
+    await tester.pumpAndSettle();
+    expect(find.text('טווח: עמודים 7–10'), findsOneWidget);
+    await tester.tap(find.byTooltip('חפש בכל הספר'));
+    await tester.pumpAndSettle();
+    expect(find.text('טווח: עמודים 7–10'), findsNothing);
     expect(find.byTooltip('הגבל את החיפוש לטווח בספר'), findsOneWidget);
   });
 }

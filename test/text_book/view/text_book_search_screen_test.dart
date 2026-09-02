@@ -18,6 +18,7 @@ import 'package:otzaria/text_book/models/search_results.dart';
 import 'package:otzaria/text_book/models/text_search_range.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/text_book/view/text_book_search_screen.dart';
+import 'package:otzaria/text_book/view/text_search_range_picker.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../../support/search_engine_test_init.dart';
 import '../../test_helpers/memory_cache_provider.dart';
@@ -1177,12 +1178,27 @@ Future<void> main() async {
     expect(ranges.last!.endLine, 6, reason: 'עד "פרק ג" (לא כולל)');
     expect(find.text('טווח: פרק ב'), findsOneWidget);
 
-    // הסרת הצ'יפ מחזירה את החיפוש לכל הספר.
-    await tester.tap(find.byTooltip('חפש בכל הספר'));
+    // כשיש טווח פעיל, הדיאלוג מציע לחזור לכל הספר.
+    await tester.tap(find.byTooltip('החיפוש מוגבל לטווח — לחץ לשינוי'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(kSearchWholeBookLabel));
     await tester.pumpAndSettle();
     expect(ranges.length, 3);
     expect(ranges.last, isNull);
     expect(find.text('טווח: פרק ב'), findsNothing);
+
+    // בלי טווח פעיל האפשרות אינה מוצגת, וה-X של התווית מסיר טווח שנבחר.
+    await tester.tap(find.byTooltip('הגבל את החיפוש לטווח בספר'));
+    await tester.pumpAndSettle();
+    expect(find.text(kSearchWholeBookLabel), findsNothing);
+    await tester.tap(find.text('פרק ג'));
+    await tester.pumpAndSettle();
+    expect(ranges.length, 4);
+    expect(ranges.last!.startLine, 6);
+    await tester.tap(find.byTooltip('חפש בכל הספר'));
+    await tester.pumpAndSettle();
+    expect(ranges.length, 5);
+    expect(ranges.last, isNull);
   });
 }
 

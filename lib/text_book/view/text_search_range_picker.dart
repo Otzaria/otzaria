@@ -3,48 +3,68 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/models/text_search_range.dart';
 import 'package:otzaria/widgets/dialogs/selection_dialog.dart';
 
-/// בחירת הכותרת שסוגרת את הטווח; `entry` ריק — ענף ההתחלה בלבד.
-class _RangeEnd {
+/// תווית האפשרות שמחזירה את החיפוש לכל הספר.
+const String kSearchWholeBookLabel = 'כל הספר — ביטול הגבלת הטווח';
+
+/// בחירת כותרת בדיאלוג; `entry` ריק — "כל הספר" (בהתחלה) או "ענף ההתחלה
+/// בלבד" (בסיום).
+class _HeadingChoice {
   final TocEntry? entry;
-  const _RangeEnd(this.entry);
+  const _HeadingChoice(this.entry);
 }
 
-/// שני דיאלוגי בחירה עוקבים — כותרת ההתחלה ואז כותרת הסיום — ומחזיר את
-/// הטווח שנבחר, או `null` אם המשתמש ביטל באחד מהם.
-Future<TextSearchRange?> pickTextSearchRange({
+/// שני דיאלוגי בחירה עוקבים — כותרת ההתחלה ואז כותרת הסיום. מחזיר
+/// `(range: null)` כשנבחר "כל הספר", ו-`null` אם המשתמש ביטל באחד מהם.
+/// [hasActiveRange] מוסיף לדיאלוג הראשון את האפשרות לחזור לכל הספר.
+Future<({TextSearchRange? range})?> pickTextSearchRange({
   required BuildContext context,
   required List<TocEntry> toc,
+  bool hasActiveRange = false,
 }) async {
   final headings = searchRangeHeadings(toc);
   if (headings.isEmpty) return null;
 
-  final start = await showSelectionDialog<TocEntry>(
+  const wholeBook = _HeadingChoice(null);
+  final start = await showSelectionDialog<_HeadingChoice>(
     context: context,
     title: 'תחילת הטווח',
     searchHint: 'איתור כותרת...',
     items: [
+      if (hasActiveRange)
+        const SelectionItem(label: kSearchWholeBookLabel, value: wholeBook),
       for (final heading in headings)
-        SelectionItem(label: heading.fullText, value: heading),
+        SelectionItem(label: heading.fullText, value: _HeadingChoice(heading)),
     ],
   );
   if (start == null || !context.mounted) return null;
+  final startEntry = start.entry;
+  if (startEntry == null) return (range: null);
 
-  final following = headings.where((h) => h.index > start.index).toList();
-  var end = const _RangeEnd(null);
+  final following = headings.where((h) => h.index > startEntry.index).toList();
+  var end = const _HeadingChoice(null);
   if (following.isNotEmpty) {
-    final chosen = await showSelectionDialog<_RangeEnd>(
+    final chosen = await showSelectionDialog<_HeadingChoice>(
       context: context,
       title: 'סוף הטווח',
       searchHint: 'איתור כותרת...',
       items: [
-        SelectionItem(label: '"${start.text}" בלבד', value: end),
+        SelectionItem(label: '"${startEntry.text}" בלבד', value: end),
         for (final heading in following)
-          SelectionItem(label: heading.fullText, value: _RangeEnd(heading)),
+          SelectionItem(
+            label: heading.fullText,
+            value: _HeadingChoice(heading),
+          ),
       ],
     );
     if (chosen == null) return null;
     end = chosen;
   }
 
-  return TextSearchRange.fromToc(toc: toc, start: start, end: end.entry);
+  return (
+    range: TextSearchRange.fromToc(
+      toc: toc,
+      start: startEntry,
+      end: end.entry,
+    ),
+  );
 }

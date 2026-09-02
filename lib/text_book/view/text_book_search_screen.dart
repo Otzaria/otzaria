@@ -830,12 +830,13 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       UiSnack.show(TextBookMessages.noTocForSearchRange);
       return;
     }
-    final range = await pickTextSearchRange(
+    final picked = await pickTextSearchRange(
       context: context,
       toc: state.tableOfContents,
+      hasActiveRange: _searchRange != null,
     );
-    if (range == null || !mounted) return;
-    setState(() => _searchRange = range);
+    if (picked == null || !mounted) return;
+    setState(() => _searchRange = picked.range);
     _searchTextUpdated();
   }
 

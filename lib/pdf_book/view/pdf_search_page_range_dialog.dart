@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/pdf_book/models/pdf_search_page_range.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
@@ -21,9 +22,14 @@ Future<({PdfSearchPageRange? range})?> showPdfSearchPageRangeDialog({
     title: 'טווח החיפוש',
     content: '',
     confirmText: 'חפש בטווח',
-    customContent: _PageRangeFields(input: input, totalPages: totalPages),
+    customContent: _PageRangeFields(
+      input: input,
+      totalPages: totalPages,
+      showWholeBookOption: current != null,
+    ),
   );
   if (confirmed != true) return null;
+  if (input.wholeBook) return (range: null);
 
   return (
     range: PdfSearchPageRange.parse(
@@ -38,6 +44,7 @@ Future<({PdfSearchPageRange? range})?> showPdfSearchPageRangeDialog({
 class _PageRangeInput {
   String from;
   String to;
+  bool wholeBook = false;
 
   _PageRangeInput({required this.from, required this.to});
 }
@@ -45,8 +52,13 @@ class _PageRangeInput {
 class _PageRangeFields extends StatefulWidget {
   final _PageRangeInput input;
   final int totalPages;
+  final bool showWholeBookOption;
 
-  const _PageRangeFields({required this.input, required this.totalPages});
+  const _PageRangeFields({
+    required this.input,
+    required this.totalPages,
+    required this.showWholeBookOption,
+  });
 
   @override
   State<_PageRangeFields> createState() => _PageRangeFieldsState();
@@ -117,6 +129,17 @@ class _PageRangeFieldsState extends State<_PageRangeFields> {
               ),
             ],
           ),
+          if (widget.showWholeBookOption)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: ActionButton.ghost(
+                text: 'חזור לחפש בכל הספר',
+                onPressed: () {
+                  widget.input.wholeBook = true;
+                  Navigator.of(context).pop(true);
+                },
+              ),
+            ),
         ],
       ),
     );
