@@ -18,6 +18,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/search_results.dart';
+import 'package:otzaria/text_book/models/text_search_range.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/text_book/view/text_book_search_screen.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
@@ -55,7 +56,11 @@ Future<void> main() async {
     SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard,
     List<String> content = const ['שורה א'],
     bool bookLoaded = true,
-    Future<List<TextSearchResult>> Function(List<String>, String)?
+    Future<List<TextSearchResult>> Function(
+      List<String>,
+      String,
+      TextSearchRange?,
+    )?
     simpleSearchRunner,
     String bookTitle = 'ספר בדיקה',
   }) async {
@@ -130,7 +135,7 @@ Future<void> main() async {
         searchDistance: 3,
         bookTitle: 'בראשית',
         content: const ['ויאמר לאברם ידע תדע כי־גר יהיה זרעך בארץ לא להם'],
-        simpleSearchRunner: (content, query) async {
+        simpleSearchRunner: (content, query, range) async {
           simpleRunnerCalls++;
           return const [];
         },
@@ -159,7 +164,7 @@ Future<void> main() async {
         tester,
         searchRepository: repository,
         initialQuery: 'תדע',
-        simpleSearchRunner: (content, query) async {
+        simpleSearchRunner: (content, query, range) async {
           simpleRunnerCalls++;
           return const [];
         },

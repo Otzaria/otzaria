@@ -683,4 +683,56 @@ void main() {
       expect(queryMatchesInlineNoteOnly(noteLine, ''), isFalse);
     });
   });
+
+  group('searchInContent — טווח שורות (issue #1093)', () {
+    final content = [
+      '<h1>ספר</h1>',
+      '<h2>פרק א</h2>',
+      'שמים של פרק א',
+      '<h2>פרק ב</h2>',
+      'שמים של פרק ב',
+      'עוד שמים של פרק ב',
+      '<h2>פרק ג</h2>',
+      'שמים של פרק ג',
+    ];
+
+    test('נסרקות רק השורות שבטווח', () async {
+      final results = await searchInContent(
+        content: content,
+        query: 'שמים',
+        startLine: 3,
+        endLine: 6,
+        patternSource: literalPatternSource('שמים'),
+      );
+      expect(results.map((r) => r.index), [4, 5]);
+    });
+
+    test('כותרת שלפני הטווח עדיין בונה את כתובת התוצאות', () async {
+      final results = await searchInContent(
+        content: content,
+        query: 'שמים',
+        startLine: 4,
+        endLine: 6,
+        patternSource: literalPatternSource('שמים'),
+      );
+      expect(results.map((r) => r.address.trim()).toSet(), {'פרק ב'});
+    });
+
+    test('endLine ריק — עד סוף הספר; ברירת המחדל סורקת הכל', () async {
+      final tail = await searchInContent(
+        content: content,
+        query: 'שמים',
+        startLine: 6,
+        patternSource: literalPatternSource('שמים'),
+      );
+      expect(tail.map((r) => r.index), [7]);
+
+      final all = await searchInContent(
+        content: content,
+        query: 'שמים',
+        patternSource: literalPatternSource('שמים'),
+      );
+      expect(all.map((r) => r.index), [2, 4, 5, 7]);
+    });
+  });
 }

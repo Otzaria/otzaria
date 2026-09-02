@@ -10,8 +10,11 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
+import 'package:otzaria/pdf_book/models/pdf_search_page_range.dart';
+import 'package:otzaria/pdf_book/view/pdf_search_page_range_dialog.dart';
 import 'package:otzaria/search/book_facet.dart';
 import 'package:otzaria/search/in_book_search_preferences.dart';
+import 'package:otzaria/search/view/search_range_action.dart';
 import 'package:otzaria/search/view/whole_word_search_action.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_query_builder.dart';
@@ -204,8 +207,14 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
 
   bool _wholeWord = InBookSearchPreferences.loadWholeWord();
 
+  /// טווח העמודים שאליו מוגבל החיפוש; `null` — כל הספר.
+  PdfSearchPageRange? _pageRange;
+
   bool get _isSimpleSearch =>
       !_forceSearchEngine && _searchMode == SearchMode.exact;
+
+  bool _inPageRange(int pageNumber) =>
+      _pageRange == null || _pageRange!.contains(pageNumber);
 
   /// החלפת מצב ההתאמה: הסריקה של pdfrx רצה מחדש עם התבנית המתאימה.
   void _toggleWholeWord() {
@@ -339,6 +348,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
           final query = widget.searchController.text;
           _searchResults =
               widget.textSearcher.matches
+                  .where((m) => _inPageRange(m.pageNumber))
                   .map(
                     (m) => SearchResult(
                       id: BigInt.zero,
@@ -396,6 +406,36 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
       if (!_resultsScrollController.isAttached) return;
       _resultsScrollController.jumpTo(index: visualIdx, alignment: 0.0);
     });
+  }
+
+  Future<void> _pickPageRange() async {
+    final pdfState = context.read<PdfBookBloc>().state;
+    final totalPages = pdfState is PdfBookLoaded
+        ? pdfState.totalPages
+        : widget.textSearcher.controller?.pageCount ?? 0;
+    if (totalPages < 1) return;
+    final picked = await showPdfSearchPageRangeDialog(
+      context: context,
+      totalPages: totalPages,
+      current: _pageRange,
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _pageRange = picked.range);
+    _rerunForPageRange();
+  }
+
+  void _clearPageRange() {
+    setState(() => _pageRange = null);
+    _rerunForPageRange();
+  }
+
+  /// במסלול הפשוט התוצאות כבר אצל pdfrx — מסננים מחדש בלי סריקה נוספת.
+  void _rerunForPageRange() {
+    if (_isSimpleSearch) {
+      _onTextSearcherMatchesChanged();
+    } else {
+      _searchTextUpdated();
+    }
   }
 
   @override
@@ -558,6 +598,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
           rawResults
               .where((r) {
                 if (!r.isPdf) return false;
+                if (!_inPageRange(_getPdfPageNumber(r))) return false;
                 if (pdfPath == null || pdfPath.isEmpty) return true;
                 return r.filePath == pdfPath;
               })
@@ -725,6 +766,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
         setState(() {
           _searchResults = [];
           _searchErrorMessage = null;
+          _pageRange = null;
           _forceSearchEngine = false;
           _searchOptions = {};
           _alternativeWords = {};
@@ -752,8 +794,19 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
             wholeWord: _wholeWord,
             onToggle: _toggleWholeWord,
           ),
+        searchRangeAction(
+          context: context,
+          isActive: _pageRange != null,
+          onPressed: _pickPageRange,
+        ),
       ],
-      searchFieldActionsKey: (_isSimpleSearch, _wholeWord),
+      searchFieldActionsKey: (_isSimpleSearch, _wholeWord, _pageRange != null),
+      scopeIndicator: _pageRange == null
+          ? null
+          : SearchRangeChip(
+              label: _pageRange!.label,
+              onRemove: _clearPageRange,
+            ),
       hintText: 'חפש כאן..',
       onAdvancedSearch: () async {
         final pdfBookBloc = context.read<PdfBookBloc>();

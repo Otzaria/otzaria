@@ -156,6 +156,8 @@ class _SearchWorkerHost {
     required List<String> content,
     required String query,
     required String patternSource,
+    int startLine = 0,
+    int? endLine,
   }) async {
     await _ensureStarted();
 
@@ -176,6 +178,8 @@ class _SearchWorkerHost {
       'contentId': _lastContentId,
       'query': query,
       'patternSource': patternSource,
+      'startLine': startLine,
+      'endLine': endLine,
     };
     if (contentChanged) {
       message['content'] = content;
@@ -388,13 +392,26 @@ class SectionSearchWorkerRuntime {
 
           final cleanLines = _cachedCleanLines!;
           final sourceLines = _cachedRawContent!;
+          final startLine = (request['startLine'] as int?) ?? 0;
+          final scanEnd = ((request['endLine'] as int?) ?? cleanLines.length)
+              .clamp(0, cleanLines.length);
 
           final results = <Map<String, dynamic>>[];
           final address = <String>[];
           bool canceled = false;
           bool truncated = false;
 
-          for (int i = 0; i < cleanLines.length; i++) {
+          for (int i = 0; i < scanEnd; i++) {
+            // כותרות שלפני הטווח נסרקות רק כדי שכתובת התוצאות שבתוכו תהיה
+            // מלאה; הטקסט עצמו לא נבדק שם.
+            if (i < startLine) {
+              final rawLine = sourceLines[i];
+              if (rawLine.contains('<h') && !rawLine.startsWith('<h1')) {
+                _updateAddress(address, rawLine);
+              }
+              continue;
+            }
+
             if (results.length >= _maxSearchResults) {
               if (pattern
                   .allMatches(cleanLines[i])
@@ -525,10 +542,15 @@ class SectionSearchWorkerRuntime {
 /// בייצור התבנית נבנית מהמנוע ב-isolate הראשי ונשלחת ל-worker.
 ///
 /// [onTruncated] נקרא עם `true` כשנמצאו התאמות נוספות אחרי תקרת התוצאות.
+///
+/// [startLine]..[endLine] (לא כולל) מצמצמים את הסריקה לטווח שורות; [endLine]
+/// ריק — עד סוף הספר.
 Future<List<TextSearchResult>> searchInContent({
   required List<String> content,
   required String query,
   bool wholeWord = true,
+  int startLine = 0,
+  int? endLine,
   @visibleForTesting String? patternSource,
   ValueChanged<bool>? onTruncated,
 }) async {
@@ -542,6 +564,8 @@ Future<List<TextSearchResult>> searchInContent({
     content: content,
     query: query,
     patternSource: source,
+    startLine: startLine,
+    endLine: endLine,
   );
   onTruncated?.call(outcome.truncated);
   return outcome.results;

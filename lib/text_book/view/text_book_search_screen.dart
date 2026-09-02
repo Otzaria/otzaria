@@ -15,9 +15,12 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/search_results.dart';
+import 'package:otzaria/text_book/models/text_search_range.dart';
+import 'package:otzaria/text_book/view/text_search_range_picker.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/navigation/search_pane_base.dart';
 import 'package:otzaria/search/in_book_search_preferences.dart';
+import 'package:otzaria/search/view/search_range_action.dart';
 import 'package:otzaria/search/view/whole_word_search_action.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/search_query_builder.dart';
@@ -60,9 +63,13 @@ class TextBookSearchView extends StatefulWidget {
   final SearchMode initialSearchMode;
   final int initialSearchDistance;
   final SearchMatchPolicy initialMatchPolicy;
+
+  /// מריץ את המסלול הפשוט; מוזרק בבדיקות בלבד. [range] — טווח השורות
+  /// שאליו הוגבל החיפוש, או `null` לכל הספר.
   final Future<List<TextSearchResult>> Function(
     List<String> content,
     String query,
+    TextSearchRange? range,
   )?
   simpleSearchRunner;
 
@@ -113,6 +120,9 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   int _searchDistance = 0;
   SearchMatchPolicy _matchPolicy = SearchMatchPolicy.standard;
   bool _wholeWord = InBookSearchPreferences.loadWholeWord();
+
+  /// טווח השורות שאליו מוגבל החיפוש; `null` — כל הספר.
+  TextSearchRange? _searchRange;
   int? _selectedSearchResultIndex;
   // מספר השורה בספר של התוצאה הנבחרת — משמש לשמירת הבחירה לפי זהות בין
   // חיפושים. אינדקס סידורי לבדו אינו אמין כי תוכן הרשימה משתנה כשהשאילתה
@@ -433,11 +443,13 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
       var truncated = false;
       final effectiveResults = widget.simpleSearchRunner != null
-          ? await widget.simpleSearchRunner!(content, query)
+          ? await widget.simpleSearchRunner!(content, query, _searchRange)
           : await searchInContent(
               content: content,
               query: query,
               wholeWord: _wholeWord,
+              startLine: _searchRange?.startLine ?? 0,
+              endLine: _searchRange?.endLine,
               onTruncated: (t) => truncated = t,
             );
 
@@ -492,8 +504,10 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
       final expectedTitle = _bookTitle!.trim();
 
+      final range = _searchRange;
       final filtered = rawResults
           .where((r) => !r.isPdf && r.title.trim() == expectedTitle)
+          .where((r) => range == null || range.contains(r.segment.toInt()))
           .toList(growable: false);
 
       // In-book search should be presented in reading order (by segment/line),
@@ -809,6 +823,27 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     return converted;
   }
 
+  Future<void> _pickSearchRange() async {
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return;
+    if (searchRangeHeadings(state.tableOfContents).isEmpty) {
+      UiSnack.show(TextBookMessages.noTocForSearchRange);
+      return;
+    }
+    final range = await pickTextSearchRange(
+      context: context,
+      toc: state.tableOfContents,
+    );
+    if (range == null || !mounted) return;
+    setState(() => _searchRange = range);
+    _searchTextUpdated();
+  }
+
+  void _clearSearchRange() {
+    setState(() => _searchRange = null);
+    _searchTextUpdated();
+  }
+
   @override
   void dispose() {
     searchTextController.dispose();
@@ -1012,6 +1047,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           _selectedSearchResultIndex = null;
           _selectedResultLine = null;
           _selectedResultOffset = null;
+          _searchRange = null;
           _forceSearchEngine = false;
           _searchOptions = {};
           _alternativeWords = {};
@@ -1040,8 +1076,23 @@ class TextBookSearchViewState extends State<TextBookSearchView>
             wholeWord: _wholeWord,
             onToggle: _toggleWholeWord,
           ),
+        searchRangeAction(
+          context: context,
+          isActive: _searchRange != null,
+          onPressed: _pickSearchRange,
+        ),
       ],
-      searchFieldActionsKey: (_isSimpleSearch, _wholeWord),
+      searchFieldActionsKey: (
+        _isSimpleSearch,
+        _wholeWord,
+        _searchRange != null,
+      ),
+      scopeIndicator: _searchRange == null
+          ? null
+          : SearchRangeChip(
+              label: _searchRange!.label,
+              onRemove: _clearSearchRange,
+            ),
       hintText: 'חפש כאן...',
       onSubmitted: () => _moveBetweenResults(1),
       onArrowDown: () => _moveBetweenResults(1),

@@ -24,6 +24,11 @@ abstract class TextBookMessages {
   static String addBookToTrackingError(Object error) =>
       'שגיאה בהוספת הספר למעקב: $error';
 
+  // ── חיפוש בספר ──────────────────────────────────────────────────────────
+
+  static const String noTocForSearchRange =
+      'לספר זה אין תוכן עניינים, ולכן אי אפשר להגביל את החיפוש לטווח';
+
   // ── ייצוא והדפסה ────────────────────────────────────────────────────────
 
   static const String cannotCapturePageShapeForPrint =

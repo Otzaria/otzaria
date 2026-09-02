@@ -24,6 +24,7 @@ class SearchPaneBase extends StatefulWidget {
     this.onAdvancedSearch,
     this.searchFieldActions,
     this.searchFieldActionsKey,
+    this.scopeIndicator,
     this.collapsibleOnScroll = false,
     this.onSubmitted,
     this.onArrowDown,
@@ -56,6 +57,9 @@ class SearchPaneBase extends StatefulWidget {
   /// מזהה המצב החזותי של [searchFieldActions] — ראה
   /// [NavPanelSearchDelegate.actionsKey]. חובה כשפעולה מחליפה אייקון או צבע.
   final Object? searchFieldActionsKey;
+
+  /// חיווי צמצום החיפוש (למשל טווח בספר), מתחת לשדה — גם כשהשדה מורם לסרגל.
+  final Widget? scopeIndicator;
   final bool collapsibleOnScroll;
   final VoidCallback? onSubmitted;
 
@@ -215,6 +219,7 @@ class _SearchPaneBaseState extends State<SearchPaneBase> {
                 : AlignmentDirectional.center,
             child: searchField,
           ),
+        if (widget.scopeIndicator != null) widget.scopeIndicator!,
         if (shouldShowToolbarRow)
           Padding(
             padding: const EdgeInsets.symmetric(

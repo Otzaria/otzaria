@@ -320,6 +320,33 @@ Future<void> main() async {
 
     await tester.pump(const Duration(milliseconds: 800));
   }, skip: !engineReady);
+  testWidgets('טווח עמודים: הדיאלוג מגדיר את הטווח והתווית מסירה אותו', (
+    tester,
+  ) async {
+    await pumpPdfSearch(
+      tester,
+      query: '',
+      searchMode: SearchMode.exact,
+      searchDistance: 0,
+    );
+
+    await tester.tap(find.byTooltip('הגבל את החיפוש לטווח בספר'));
+    await tester.pumpAndSettle();
+    expect(find.text('טווח החיפוש'), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextField, 'מעמוד'), '3');
+    await tester.enterText(find.widgetWithText(TextField, 'עד עמוד'), '5');
+    await tester.tap(find.text('חפש בטווח'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('טווח: עמודים 3–5'), findsOneWidget);
+    expect(find.byTooltip('החיפוש מוגבל לטווח — לחץ לשינוי'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('חפש בכל הספר'));
+    await tester.pumpAndSettle();
+    expect(find.text('טווח: עמודים 3–5'), findsNothing);
+    expect(find.byTooltip('הגבל את החיפוש לטווח בספר'), findsOneWidget);
+  });
 }
 
 class _SearchRequest {

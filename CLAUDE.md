@@ -686,6 +686,7 @@ dart format lib/file.dart    # Format ONLY files you modified
 | יעד סיור לחלונית הניווט (מפתח יציב) | `test/text_book/view/widgets/nav_panel_tour_target_test.dart` |
 | Search controller sync | `test/text_book/text_book_search_query_sync_test.dart` |
 | Search screen | `test/text_book/view/text_book_search_screen_test.dart` |
+| טווח חיפוש לפי כותרות תוכן העניינים (מודל) | `test/text_book/models/text_search_range_test.dart` |
 | מסלול המנוע בחלונית החיפוש בספר (מרווח, זיהוי הספר) | `test/text_book/view/text_book_search_engine_route_test.dart` |
 | קאש שורות הספר לחיפוש (שחרור בטאב רקע) | `test/text_book/view/text_book_search_content_cache_test.dart` |
 | TOC navigator UI | `test/text_book/view/toc_navigator_screen_test.dart` |
@@ -830,6 +831,7 @@ dart format lib/file.dart    # Format ONLY files you modified
 | PDF isolate / rasterizer | `test/printing/pdf_isolate_test.dart`, `…pdf_text_rasterizer_test.dart` |
 | PDF in-book search highlight pattern | `test/pdf_book/pdf_search_highlight_pattern_test.dart` |
 | ניתוב החיפוש בתוך PDF (פשוט מול מנוע) | `test/pdf_book/pdf_search_in_book_routing_test.dart` |
+| טווח עמודים לחיפוש בתוך PDF (מודל) | `test/pdf_book/pdf_search_page_range_test.dart` |
 | Printing models | `test/printing/print_content_models_test.dart` |
 | File sync / background sync | `test/migration/sync/file_sync_service_prune_test.dart`, `…background_db_sync_worker_test.dart`, `…background_sync_initializer_test.dart` |
 | DB migration / generator | `test/migration/generator_create_and_process_book_test.dart`, `test/migration/dao/daos/database_locked_test.dart` |

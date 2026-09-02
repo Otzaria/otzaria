@@ -15,6 +15,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/search_results.dart';
+import 'package:otzaria/text_book/models/text_search_range.dart';
 import 'package:otzaria/text_book/view/text_book_search_screen.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -48,7 +49,11 @@ Future<void> main() async {
   Future<_Harness> pumpSearchView(
     WidgetTester tester, {
     required Future<List<String>> Function() contentLoader,
-    Future<List<TextSearchResult>> Function(List<String>, String)?
+    Future<List<TextSearchResult>> Function(
+      List<String>,
+      String,
+      TextSearchRange?,
+    )?
     simpleSearchRunner,
   }) async {
     final textBookBloc = _TestTextBookBloc(_loadedState());
@@ -218,7 +223,7 @@ Future<void> main() async {
       final harness = await pumpSearchView(
         tester,
         contentLoader: () async => const ['אב אברהם'],
-        simpleSearchRunner: (content, query) async {
+        simpleSearchRunner: (content, query, range) async {
           searchCount++;
           return const [];
         },
@@ -244,7 +249,7 @@ Future<void> main() async {
         final harness = await pumpSearchView(
           tester,
           contentLoader: () async => const ['אב אברהם'],
-          simpleSearchRunner: (content, query) async {
+          simpleSearchRunner: (content, query, range) async {
             searchCount++;
             return _resultsFor(query);
           },
@@ -270,7 +275,8 @@ Future<void> main() async {
         final harness = await pumpSearchView(
           tester,
           contentLoader: () async => const ['אב אברהם', 'יצחק'],
-          simpleSearchRunner: (content, query) async => _resultsFor(query),
+          simpleSearchRunner: (content, query, range) async =>
+              _resultsFor(query),
         );
 
         await harness.search('אב');
@@ -317,6 +323,7 @@ class _Harness {
 Future<List<TextSearchResult>> _noResultsSearchRunner(
   List<String> content,
   String query,
+  TextSearchRange? range,
 ) async => const [];
 
 List<TextSearchResult> _resultsFor(String query) {

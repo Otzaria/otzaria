@@ -15,6 +15,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/search_results.dart';
+import 'package:otzaria/text_book/models/text_search_range.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/text_book/view/text_book_search_screen.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -49,6 +50,7 @@ Future<void> main() async {
     Future<List<TextSearchResult>> simpleSearchRunner(
       List<String> content,
       String query,
+      TextSearchRange? range,
     ) async {
       queries.add(query);
       return const [];
@@ -115,6 +117,7 @@ Future<void> main() async {
     Future<List<TextSearchResult>> simpleSearchRunner(
       List<String> content,
       String query,
+      TextSearchRange? range,
     ) async {
       searchRuns++;
       return const [];
@@ -175,6 +178,7 @@ Future<void> main() async {
     Future<List<TextSearchResult>> simpleSearchRunner(
       List<String> content,
       String query,
+      TextSearchRange? range,
     ) async {
       if (query.isEmpty) return const [];
       return [
@@ -263,7 +267,7 @@ Future<void> main() async {
               focusNode: focusNode,
               closeLeftPaneCallback: () {},
               initialQuery: '',
-              simpleSearchRunner: (content, query) async => const [],
+              simpleSearchRunner: (content, query, range) async => const [],
             ),
           ),
         ),
@@ -296,6 +300,7 @@ Future<void> main() async {
       Future<List<TextSearchResult>> simpleSearchRunner(
         List<String> content,
         String query,
+        TextSearchRange? range,
       ) async {
         runnerCalls++;
         queriesSeen.add(query);
@@ -392,6 +397,7 @@ Future<void> main() async {
     Future<List<TextSearchResult>> simpleSearchRunner(
       List<String> content,
       String query,
+      TextSearchRange? range,
     ) async {
       if (query == 'אב') {
         await Future<void>.delayed(const Duration(milliseconds: 500));
@@ -469,6 +475,7 @@ Future<void> main() async {
     Future<List<TextSearchResult>> simpleSearchRunner(
       List<String> content,
       String query,
+      TextSearchRange? range,
     ) async {
       if (query.isEmpty) return const [];
       return results;
@@ -611,6 +618,7 @@ Future<void> main() async {
       Future<List<TextSearchResult>> simpleSearchRunner(
         List<String> content,
         String query,
+        TextSearchRange? range,
       ) async {
         if (query == 'xa') {
           // 3 תוצאות, line=50 באינדקס 1.
@@ -873,6 +881,7 @@ Future<void> main() async {
       Future<List<TextSearchResult>> simpleSearchRunner(
         List<String> content,
         String query,
+        TextSearchRange? range,
       ) async {
         if (query == 'xa') {
           // שתי הופעות באותה שורה (50) והופעה נוספת לפניהן.
@@ -999,6 +1008,7 @@ Future<void> main() async {
       Future<List<TextSearchResult>> simpleSearchRunner(
         List<String> content,
         String query,
+        TextSearchRange? range,
       ) async {
         if (query == 'xa') {
           return [
@@ -1091,9 +1101,95 @@ Future<void> main() async {
     },
     skip: !engineReady,
   );
+  testWidgets('הגבלת החיפוש לטווח כותרות מועברת למסלול הפשוט ומוצגת כתווית', (
+    tester,
+  ) async {
+    final book = TocEntry(text: 'ספר בדיקה', index: 0, level: 1);
+    final chapterA = TocEntry(text: 'פרק א', index: 1, level: 2, parent: book);
+    final chapterB = TocEntry(text: 'פרק ב', index: 3, level: 2, parent: book);
+    final chapterC = TocEntry(text: 'פרק ג', index: 6, level: 2, parent: book);
+    book.children = [chapterA, chapterB, chapterC];
+
+    final textBookBloc = _TestTextBookBloc(
+      _loadedState(tableOfContents: [book]),
+    );
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final focusNode = FocusNode();
+
+    addTearDown(textBookBloc.close);
+    addTearDown(settingsBloc.close);
+    addTearDown(focusNode.dispose);
+    addTearDown(resetSectionSearchWorkerForTesting);
+
+    final ranges = <TextSearchRange?>[];
+    Future<List<TextSearchResult>> simpleSearchRunner(
+      List<String> content,
+      String query,
+      TextSearchRange? range,
+    ) async {
+      ranges.add(range);
+      return const [];
+    }
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<TextBookBloc>.value(value: textBookBloc),
+            BlocProvider<SettingsBloc>.value(value: settingsBloc),
+          ],
+          child: Scaffold(
+            body: TextBookSearchView(
+              contentLoader: () async => const [
+                '<h1>ספר בדיקה</h1>',
+                '<h2>פרק א</h2>',
+                'שמים',
+                '<h2>פרק ב</h2>',
+                'שמים',
+                'שמים',
+                '<h2>פרק ג</h2>',
+                'שמים',
+              ],
+              scrollControler: ItemScrollController(),
+              focusNode: focusNode,
+              closeLeftPaneCallback: () {},
+              initialQuery: 'שמים',
+              simpleSearchRunner: simpleSearchRunner,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(ranges, [isNull], reason: 'ללא טווח — החיפוש הראשון על כל הספר');
+
+    await tester.tap(find.byTooltip('הגבל את החיפוש לטווח בספר'));
+    await tester.pumpAndSettle();
+    expect(find.text('תחילת הטווח'), findsOneWidget);
+    await tester.tap(find.text('פרק ב'));
+    await tester.pumpAndSettle();
+    expect(find.text('סוף הטווח'), findsOneWidget);
+    await tester.tap(find.text('"פרק ב" בלבד'));
+    await tester.pumpAndSettle();
+
+    expect(ranges.length, 2);
+    expect(ranges.last!.startLine, 3);
+    expect(ranges.last!.endLine, 6, reason: 'עד "פרק ג" (לא כולל)');
+    expect(find.text('טווח: פרק ב'), findsOneWidget);
+
+    // הסרת הצ'יפ מחזירה את החיפוש לכל הספר.
+    await tester.tap(find.byTooltip('חפש בכל הספר'));
+    await tester.pumpAndSettle();
+    expect(ranges.length, 3);
+    expect(ranges.last, isNull);
+    expect(find.text('טווח: פרק ב'), findsNothing);
+  });
 }
 
-TextBookLoaded _loadedState({List<int> visibleIndices = const [0]}) {
+TextBookLoaded _loadedState({
+  List<int> visibleIndices = const [0],
+  List<TocEntry> tableOfContents = const [],
+}) {
   return TextBookLoaded(
     book: TextBook(title: 'ספר בדיקה'),
     showLeftPane: false,
@@ -1106,7 +1202,7 @@ TextBookLoaded _loadedState({List<int> visibleIndices = const [0]}) {
     links: const [],
     visibleLinks: const [],
     linksByLine: const {},
-    tableOfContents: const [],
+    tableOfContents: tableOfContents,
     removeNikud: false,
     visibleIndices: visibleIndices,
     selectedIndex: 0,
