@@ -36,6 +36,10 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
   /// בדיקת נגישות שרת העדכונים — ניתנת להזרקה לבדיקות.
   final Future<bool> Function() isSourceReachable;
 
+  /// נקרא אחרי כל בדיקת עדכון שהצליחה (גם "אין עדכון") — משמש לרישום
+  /// חותמת הזמן שממנה נגזרת תדירות הבדיקה האוטומטית בעלייה.
+  final void Function()? onCheckSucceeded;
+
   /// שעון — ניתן להזרקה לבדיקות ויסות ההתקדמות.
   final DateTime Function() _now;
 
@@ -69,6 +73,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     this.companionAssets,
     this.hasInternet = hasInternetConnection,
     this.isSourceReachable = isUpdateSourceReachable,
+    this.onCheckSucceeded,
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now,
        super(const LibraryUpdateState()) {
@@ -159,6 +164,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
       );
       // אם המשתמש ביטל/התחיל ריצה חדשה במהלך הבדיקה — לא להמשיך.
       if (_isStale(opId)) return;
+      onCheckSucceeded?.call();
       switch (plan.kind) {
         case LibraryUpdatePlanKind.none:
           final assetsChanged =

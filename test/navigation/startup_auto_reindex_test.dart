@@ -14,6 +14,7 @@ void main() {
         final decision = decideStartupIndexing(
           requiresManualReindex: true,
           autoUpdateIndex: true,
+          hasUnindexedBooks: true,
         );
 
         expect(decision, StartupIndexingDecision.autoReindexThenStart);
@@ -24,24 +25,50 @@ void main() {
       final decision = decideStartupIndexing(
         requiresManualReindex: true,
         autoUpdateIndex: false,
+        hasUnindexedBooks: false,
       );
 
       expect(decision, StartupIndexingDecision.promptManualReindex);
     });
 
-    test('לא נדרש איפוס + עדכון אוטומטי דלוק -> אינדוקס רגיל', () {
+    test('נדרש איפוס -> איפוס גם כשכל הספרים מאונדקסים (סכמה ישנה)', () {
+      final decision = decideStartupIndexing(
+        requiresManualReindex: true,
+        autoUpdateIndex: true,
+        hasUnindexedBooks: false,
+      );
+
+      expect(decision, StartupIndexingDecision.autoReindexThenStart);
+    });
+
+    test('עדכון אוטומטי דלוק + יש ספרים לא מאונדקסים -> אינדוקס רגיל', () {
       final decision = decideStartupIndexing(
         requiresManualReindex: false,
         autoUpdateIndex: true,
+        hasUnindexedBooks: true,
       );
 
       expect(decision, StartupIndexingDecision.startIndexing);
     });
 
-    test('לא נדרש איפוס + עדכון אוטומטי כבוי -> בדיקת סטטוס בלבד', () {
+    test(
+      'עדכון אוטומטי דלוק אך הכל מאונדקס -> בדיקת סטטוס בלבד (לא אינדוקס בכל עלייה)',
+      () {
+        final decision = decideStartupIndexing(
+          requiresManualReindex: false,
+          autoUpdateIndex: true,
+          hasUnindexedBooks: false,
+        );
+
+        expect(decision, StartupIndexingDecision.checkIndexStatus);
+      },
+    );
+
+    test('עדכון אוטומטי כבוי -> בדיקת סטטוס בלבד, גם כשיש ספרים חסרים', () {
       final decision = decideStartupIndexing(
         requiresManualReindex: false,
         autoUpdateIndex: false,
+        hasUnindexedBooks: true,
       );
 
       expect(decision, StartupIndexingDecision.checkIndexStatus);

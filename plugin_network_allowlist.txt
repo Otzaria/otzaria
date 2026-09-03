@@ -76,3 +76,10 @@ https://github.com/yair-yair/mdy-images-updated
 https://api.github.com/repos/yair-yair/mdy-images-updated
 https://raw.githubusercontent.com/yair-yair/mdy-images-updated
 https://github.com/yair-yair/mdy-images-updated
+
+# תוסף "עינים למקרא" (com.chadbedera.madaeihatanach)
+https://raw.githubusercontent.com/e0548433917-gif/madaei-hatanach/main/manifest.json
+https://api.github.com/repos/e0548433917-gif/madaei-hatanach/contents/manifest.json
+https://script.google.com/macros/s/AKfycbxzlCAZzhaEM68jRqqekW8InrtbSiZrtiiIjgCKOInUvyBG43wLY29MYY6PrbHijpO6/exec
+https://script.googleusercontent.com/macros/echo
+https://docs.google.com/forms/d/e/1FAIpQLSd7NiGDUahnwpaestosEcDxPJoAkYXzVRUa2yB5EiXkLPSWvQ/formResponse

@@ -20,8 +20,8 @@ class CombinedTab extends OpenedTab {
     required this.rightTab,
     required this.leftTab,
     this.splitRatio = 0.5,
-    bool isPinned = false,
-  }) : super('', isPinned: isPinned) {
+    super.isPinned,
+  }) : super('') {
     if (_isSplit(rightTab) || _isSplit(leftTab)) {
       throw ArgumentError(
         'חלוניות של CombinedTab חייבות להיות טאבים שאינם מפוצלים',
@@ -142,8 +142,8 @@ class _RestoredCombinedTab extends OpenedTab {
     required this.rightTab,
     required this.leftTab,
     required this.splitRatio,
-    required bool isPinned,
-  }) : super('', isPinned: isPinned);
+    required super.isPinned,
+  }) : super('');
 
   @override
   String get title => 'משולב: ${rightTab.title} | ${leftTab.title}';

@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'dart:io' hide Link;
 import 'dart:math' as math;
 import 'package:file_picker/file_picker.dart';
+import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
+import 'package:otzaria/widgets/dialogs/input_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as p;
@@ -17,6 +19,7 @@ import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
+import 'package:otzaria/plugins/services/installed_fonts.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
@@ -35,12 +38,14 @@ import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/plugins/bridge/plugin_search_api.dart';
+import 'package:otzaria/plugins/bridge/plugin_save_target.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show SearchStreamUpdate;
 import 'package:otzaria/utils/file/text_encoding.dart';
 import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/plugins/services/plugin_external_search_service.dart';
 import 'package:otzaria/plugins/services/plugin_in_book_search_service.dart';
@@ -73,6 +78,9 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/l10n/settings_language.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
+import 'package:otzaria/workspaces/bloc/workspace_event.dart';
+import 'package:otzaria/workspaces/bloc/workspace_state.dart';
+import 'package:otzaria/workspaces/workspace.dart';
 import 'package:otzaria/plugins/database/plugin_database_service.dart';
 import 'package:otzaria/plugins/utils/reader_location_resolver.dart';
 import 'package:otzaria/plugins/utils/plugin_icon_resolver.dart';
@@ -223,14 +231,17 @@ String _fontFaceRule(String family, Uint8List bytes, String weight) {
 /// \u05d4-faces \u05e9\u05dc \u05d2\u05d5\u05e4\u05df \u05de\u05d5\u05d1\u05e0\u05d4: \u05d4-regular, \u05d5\u05d1\u05de\u05e9\u05e4\u05d7\u05d4 \u05e2\u05dd \u05e7\u05d5\u05d1\u05e5 \u05d1\u05d5\u05dc\u05d3 \u05e0\u05e4\u05e8\u05d3 \u05d2\u05dd \u05d4\u05d5\u05d0.
 /// \u05d2\u05d5\u05e4\u05df \u05de\u05e9\u05ea\u05e0\u05d4 \u05de\u05e7\u05d1\u05dc \u05d8\u05d5\u05d5\u05d7 \u05de\u05e9\u05e7\u05dc\u05d9\u05dd \u2014 \u05d1\u05dc\u05e2\u05d3\u05d9\u05d5 \u05d4-WebView \u05e0\u05e2\u05d5\u05dc \u05e2\u05dc \u05de\u05d5\u05e4\u05e2
 /// \u05d1\u05e8\u05d9\u05e8\u05ea \u05d4\u05de\u05d7\u05d3\u05dc \u05d5\u05de\u05e1\u05e0\u05ea\u05d6 \u05d1\u05d5\u05dc\u05d3 \u05de\u05dc\u05d0\u05db\u05d5\u05ea\u05d9 \u05d5\u05de\u05e8\u05d5\u05d7 \u05d1\u05de\u05e7\u05d5\u05dd \u05dc\u05d4\u05e9\u05ea\u05de\u05e9 \u05d1\u05e6\u05d9\u05e8 \u05d4-wght.
-Future<String> _bundledFontFaceCss(String family) async {
+/// [asFamily] מגיש את הבייטים תחת שם אחר. כך `fonts.resolveFamilies` עונה על
+/// בקשה לגופן שאינו במכונה: הבייטים של תחליף, בשם שהמסמך מבקש.
+Future<String> _bundledFontFaceCss(String family, {String? asFamily}) async {
   final assetPath = AppFonts.fontPaths[family];
   if (assetPath == null) return '';
+  final name = asFamily ?? family;
   final isVariable = AppFonts.variableWeightFonts.contains(family);
   final regular = await rootBundle.load(assetPath);
   final parts = <String>[
     _fontFaceRule(
-      family,
+      name,
       regular.buffer.asUint8List(),
       isVariable ? '100 900' : '400',
     ),
@@ -238,44 +249,102 @@ Future<String> _bundledFontFaceCss(String family) async {
   final boldPath = AppFonts.boldFontPaths[family];
   if (boldPath != null) {
     final bold = await rootBundle.load(boldPath);
-    parts.add(_fontFaceRule(family, bold.buffer.asUint8List(), '700'));
+    parts.add(_fontFaceRule(name, bold.buffer.asUint8List(), '700'));
   }
   return parts.join('\n');
 }
 
 /// \u05d4-faces \u05e9\u05dc \u05d2\u05d5\u05e4\u05df \u05de\u05e2\u05e8\u05db\u05ea \u05e9\u05e0\u05d1\u05d7\u05e8 \u05d1\u05d4\u05d2\u05d3\u05e8\u05d5\u05ea. \u05d0\u05d9\u05e0\u05d5 \u05de\u05d5\u05d1\u05e0\u05d4, \u05d5\u05dc\u05db\u05df \u05d4-WebView
 /// \u05d0\u05d9\u05e0\u05d5 \u05d9\u05db\u05d5\u05dc \u05dc\u05e4\u05ea\u05d5\u05e8 \u05d0\u05ea \u05e9\u05de\u05d5 \u05d0\u05dc\u05d0 \u05d0\u05dd \u05d4\u05d1\u05d9\u05d9\u05d8\u05d9\u05dd \u05e9\u05dc\u05d5 \u05e0\u05e9\u05dc\u05d7\u05d9\u05dd \u05d0\u05d9\u05ea\u05d5.
-Future<String> _systemFontFaceCss(String family) async {
+Future<String> _systemFontFaceCss(String family, {String? asFamily}) async {
   await AppFonts.warmUpSystemFontsCache();
-  final faces = AppFonts.systemFamilyFaces(family);
+  final faces = AppFonts.pluginSystemFamilyFaces(family);
   if (faces == null) return '';
   final regular = AppFonts.readFontBytes(faces.regularPath);
   if (regular == null) return '';
+  final name = asFamily ?? family;
   final parts = <String>[
-    _fontFaceRule(family, regular, faces.hasWeightAxis ? '100 900' : '400'),
+    _fontFaceRule(name, regular, faces.hasWeightAxis ? '100 900' : '400'),
   ];
   final boldPath = faces.boldPath;
   if (boldPath != null) {
     final bold = AppFonts.readFontBytes(boldPath);
-    if (bold != null) parts.add(_fontFaceRule(family, bold, '700'));
+    if (bold != null) parts.add(_fontFaceRule(name, bold, '700'));
   }
   return parts.join('\n');
 }
 
-Future<String> _loadFontFaceCss(String fontFamily) async {
+Future<String> _loadFontFaceCss(String fontFamily, {String? asFamily}) async {
   if (fontFamily.isEmpty) return '';
-  final cached = _fontFaceCache[fontFamily];
-  if (cached != null) return cached;
+  if (asFamily == null) {
+    final cached = _fontFaceCache[fontFamily];
+    if (cached != null) return cached;
+  }
   try {
     final css = AppFonts.fontPaths.containsKey(fontFamily)
-        ? await _bundledFontFaceCss(fontFamily)
-        : await _systemFontFaceCss(fontFamily);
-    if (css.isNotEmpty) _fontFaceCache[fontFamily] = css;
+        ? await _bundledFontFaceCss(fontFamily, asFamily: asFamily)
+        : await _systemFontFaceCss(fontFamily, asFamily: asFamily);
+    if (css.isNotEmpty && asFamily == null) {
+      _fontFaceCache[fontFamily] = css;
+    }
     return css;
   } catch (_) {
     return '';
   }
 }
+
+/// כמה משפחות ותחליפים בקשה אחת יכולה לבקש. גבול, לא מדיניות: כל גופן שמוגש
+/// הוא מאות קילובייטים ב-base64, ובקשה בלי תקרה היא דרך לנפח את ה-WebView.
+const int _maxResolveFamilies = 24;
+const int _maxResolveSubstitutes = 12;
+
+/// עונה על `fonts.resolveFamilies`: לכל משפחה מבוקשת, ה-`@font-face` הראשון
+/// שאפשר להרכיב מרשימת התחליפים שלה — **בשם שהמסמך מבקש**.
+///
+/// למה בכלל: `src: local()` ב-WebView רואה רק גופנים מותקנים במערכת, ולא את
+/// אלה שאוצריא מזריקה כ-`@font-face`. תוסף שפותח מסמך המבקש גופן שאינו מותקן
+/// אינו יכול להגיע לגופנים הארוזים כאן בלי הבייטים עצמם — וזה מה שמוחזר.
+///
+/// המדיניות — אילו תחליפים ובאיזה סדר — נשארת אצל הקורא: הוא זה שקרא את
+/// `word/fontTable.xml` ויודע מה המסמך באמת מבקש.
+Future<Map<String, dynamic>> _resolveFontFamilies(
+  List<dynamic> requested,
+) async {
+  final css = <String>[];
+  final resolved = <String>[];
+
+  for (final entry in requested.take(_maxResolveFamilies)) {
+    if (entry is! Map) continue;
+    final name = entry['name'];
+    if (name is! String || name.isEmpty) continue;
+
+    final substitutes = entry['substitutes'];
+    final candidates = substitutes is List
+        ? substitutes.whereType<String>().take(_maxResolveSubstitutes)
+        : const <String>[];
+
+    for (final candidate in candidates) {
+      final rule = await _loadFontFaceCss(candidate, asFamily: name);
+      if (rule.isEmpty) continue;
+      css.add(rule);
+      resolved.add(name);
+      break;
+    }
+  }
+
+  return {'css': css.join('\n'), 'resolved': resolved};
+}
+
+@visibleForTesting
+Future<Map<String, dynamic>> debugResolveFontFamilies(
+  List<dynamic> requested,
+) => _resolveFontFamilies(requested);
+
+@visibleForTesting
+void debugClearFontFaceCssCache() => _fontFaceCache.clear();
+
+@visibleForTesting
+int get debugFontFaceCssCacheSize => _fontFaceCache.length;
 
 /// \u05d1\u05d5\u05e0\u05d4 \u05d1\u05dc\u05d5\u05e7 CSS \u05e2\u05dd `@font-face` \u05dc\u05db\u05dc \u05d4\u05d2\u05d5\u05e4\u05e0\u05d9\u05dd \u05e9\u05ea\u05d5\u05e1\u05e3 \u05d9\u05db\u05d5\u05dc \u05dc\u05e0\u05e7\u05d5\u05d1 \u05d1\u05e9\u05de\u05dd:
 /// \u05d4\u05de\u05d5\u05d1\u05e0\u05d9\u05dd \u05e9\u05dc \u05d0\u05d5\u05e6\u05e8\u05d9\u05d0, \u05d5\u05d1\u05e0\u05d5\u05e1\u05e3 \u05d2\u05d5\u05e4\u05df \u05de\u05e2\u05e8\u05db\u05ea \u05e9\u05e0\u05d1\u05d7\u05e8 \u05d1\u05d4\u05d2\u05d3\u05e8\u05d5\u05ea. \u05de\u05e9\u05e4\u05d7\u05d4
@@ -423,7 +492,11 @@ class PluginBridgeDependencies {
 
   /// מייצר PDF מהדף של מופע התוסף (`ui.exportPdf`). אופציונלי — ברירת המחדל
   /// היא [PluginPrintService] מעל ה-WebView הרשום; קיים להזרקה בבדיקות.
-  final Future<Uint8List> Function(String pluginId, String instanceId)?
+  final Future<Uint8List> Function(
+    String pluginId,
+    String instanceId, {
+    PluginPdfLayout? layout,
+  })?
   capturePluginPagePdf;
 
   /// האם ל-WebView של המופע יש כרגע הפעלת-משתמש חולפת (`navigator
@@ -592,6 +665,14 @@ class PluginBridgeAdapter {
   final Map<PluginBookIdentityKey, String> _bookContentCache = {};
   static const int _bookContentCacheMaxEntries = 4;
 
+  /// אורך מקסימלי לשם שולחן עבודה שתוסף יוצר — השם מוצג בממשק המשתמש.
+  static const int _workspaceNameMaxLength = 100;
+
+  /// חסם ההמתנה לפעולת שולחן עבודה שעוברת דרך ה-WorkspaceBloc.
+  static const Duration _workspaceActionTimeout = Duration(seconds: 5);
+
+  static Future<void> _workspaceActionQueue = Future.value();
+
   Library? _bookIndexLibrary;
   Map<int, List<Book>> _booksById = const {};
   Map<String, List<Book>> _booksByTitle = const {};
@@ -698,12 +779,18 @@ class PluginBridgeAdapter {
     switch (domain) {
       case 'app':
         return await _handleApp(action, args);
+      case 'fonts':
+        return await _handleFonts(action, args);
       case 'library':
         return await _handleLibrary(action, args);
       case 'search':
         return await _handleSearch(action, args, eventSink: eventSink);
       case 'reader':
         return await _handleReader(action, args);
+      case 'workspace':
+        return await _enqueueWorkspaceAction(
+          () => _handleWorkspace(action, args),
+        );
       case 'navigation':
         return await _handleNavigation(action, args);
       case 'notes':
@@ -746,6 +833,24 @@ class PluginBridgeAdapter {
   // ----------------------------------------------------------------
   // app.*
   // ----------------------------------------------------------------
+  Future<dynamic> _handleFonts(
+    String action,
+    Map<String, dynamic> args,
+  ) async {
+    switch (action) {
+      case 'resolveFamilies':
+        final families = args['families'];
+        if (families is! List) {
+          throw Exception('error.invalid_params: families must be an array');
+        }
+        return await _resolveFontFamilies(families);
+      case 'listInstalled':
+        return InstalledFonts.list();
+      default:
+        throw Exception('error.not_supported: fonts.$action');
+    }
+  }
+
   Future<dynamic> _handleApp(String action, Map<String, dynamic> args) async {
     switch (action) {
       case 'getInfo':
@@ -1177,12 +1282,28 @@ class PluginBridgeAdapter {
     return values;
   }
 
+  /// רשימת-ההיתר של כותרות: כותרת עוברת אם היא ברשימה המפורשת או פותחת
+  /// באחת התחיליות. בלי שני הפילטרים — הכל עובר.
+  static bool _titleAllowed(
+    String title,
+    Set<String>? titles,
+    List<String>? prefixes,
+  ) {
+    if (titles == null && prefixes == null) return true;
+    if (titles != null && titles.contains(title)) return true;
+    return prefixes?.any(title.startsWith) ?? false;
+  }
+
   Future<dynamic> _getCommentators(
     Library library,
     Map<String, dynamic> args,
   ) async {
     final rawStart = args['startLine'];
     final rawEnd = args['endLine'];
+    final titlePrefixes = _optionalStringList(
+      args['titlePrefixes'],
+      'titlePrefixes',
+    );
     if ((rawStart == null) != (rawEnd == null)) {
       throw Exception(
         'error.invalid_params: startLine and endLine must be given together',
@@ -1191,7 +1312,7 @@ class PluginBridgeAdapter {
     final book = _findLinksTextBook(library, args);
     if (book == null) throw Exception('error.not_found: book not found');
 
-    final List<CommentatorInfo> commentators;
+    List<CommentatorInfo> commentators;
     Set<String> rare = const {};
     if (rawStart != null) {
       final startLine = _requireWireLine(rawStart, 'startLine');
@@ -1208,6 +1329,12 @@ class PluginBridgeAdapter {
       final detailed = await _linksRepository.getCommentatorsDetailed(book);
       commentators = detailed.commentators;
       rare = detailed.rare;
+    }
+    if (titlePrefixes != null) {
+      commentators = [
+        for (final c in commentators)
+          if (titlePrefixes.any(c.title.startsWith)) c,
+      ];
     }
 
     if (args['grouped'] as bool? ?? false) {
@@ -1257,6 +1384,10 @@ class PluginBridgeAdapter {
       args['targetTitles'],
       'targetTitles',
     );
+    final targetTitlePrefixes = _optionalStringList(
+      args['targetTitlePrefixes'],
+      'targetTitlePrefixes',
+    );
     final connectionTypes = _optionalStringList(
       args['connectionTypes'],
       'connectionTypes',
@@ -1270,12 +1401,15 @@ class PluginBridgeAdapter {
       book,
       startIndex: startLine,
       endIndex: endLine,
-      targetBookTitles: targetTitles,
+      // צמצום ב-SQL רק כשאין תחיליות — SQL מכיר רק כותרות מלאות, וצמצום
+      // לפי targetTitles לבדו היה מפיל את התאמות התחילית.
+      targetBookTitles: targetTitlePrefixes == null ? targetTitles : null,
     );
 
     final filtered = _filterLinkRecords(
       links,
       targetTitles: targetTitles,
+      targetTitlePrefixes: targetTitlePrefixes,
       connectionTypes: connectionTypes,
       maxRecords: _pluginLinksMaxRecords,
       // index1/index2 הם 1-based במודל; ה-wire של getLinks 0-based — זו
@@ -1335,6 +1469,10 @@ class PluginBridgeAdapter {
       args['targetTitles'],
       'targetTitles',
     );
+    final targetTitlePrefixes = _optionalStringList(
+      args['targetTitlePrefixes'],
+      'targetTitlePrefixes',
+    );
     final connectionTypes = _optionalStringList(
       args['connectionTypes'],
       'connectionTypes',
@@ -1347,12 +1485,13 @@ class PluginBridgeAdapter {
       book,
       startIndex: startLine,
       endIndex: endLine,
-      targetBookTitles: targetTitles,
+      targetBookTitles: targetTitlePrefixes == null ? targetTitles : null,
     );
 
     final filtered = _filterLinkRecords(
       links,
       targetTitles: targetTitles,
+      targetTitlePrefixes: targetTitlePrefixes,
       connectionTypes: connectionTypes,
       maxRecords: _pluginRawLinksMaxRecords,
       toRecord: (link, _) => link.toJson(),
@@ -1370,6 +1509,7 @@ class PluginBridgeAdapter {
   ({List<Map<String, dynamic>> records, bool truncated}) _filterLinkRecords(
     List<Link> links, {
     required List<String>? targetTitles,
+    required List<String>? targetTitlePrefixes,
     required List<String>? connectionTypes,
     required int maxRecords,
     required Map<String, dynamic> Function(Link link, String targetTitle)
@@ -1381,7 +1521,9 @@ class PluginBridgeAdapter {
     var truncated = false;
     for (final link in links) {
       final targetTitle = getTitleFromPath(link.path2);
-      if (titlesFilter != null && !titlesFilter.contains(targetTitle)) continue;
+      if (!_titleAllowed(targetTitle, titlesFilter, targetTitlePrefixes)) {
+        continue;
+      }
       if (typesFilter != null &&
           !typesFilter.contains(LinkTypes.normalize(link.connectionType)) &&
           !typesFilter.contains(LinkTypes.canonicalType(link.connectionType))) {
@@ -1413,6 +1555,14 @@ class PluginBridgeAdapter {
     Library library,
     Map<String, dynamic> args,
   ) async {
+    final targetTitles = _optionalStringList(
+      args['targetTitles'],
+      'targetTitles',
+    );
+    final targetTitlePrefixes = _optionalStringList(
+      args['targetTitlePrefixes'],
+      'targetTitlePrefixes',
+    );
     final book = _findLinksTextBook(library, args);
     if (book?.categoryId == null) {
       throw Exception('error.not_found: book not found');
@@ -1424,14 +1574,20 @@ class PluginBridgeAdapter {
     if (summary == null) {
       throw Exception('error.internal: link targets summary unavailable');
     }
+    final titlesFilter = targetTitles?.toSet();
     return {
       'targets': [
         for (final target in summary.targets)
-          {
-            'targetTitle': target.targetTitle,
-            'connectionType': target.connectionType,
-            'linkCount': target.linkCount,
-          },
+          if (_titleAllowed(
+            target.targetTitle,
+            titlesFilter,
+            targetTitlePrefixes,
+          ))
+            {
+              'targetTitle': target.targetTitle,
+              'connectionType': target.connectionType,
+              'linkCount': target.linkCount,
+            },
       ],
       // maxSourceLine מגיע 1-based מהמסד; ‎-1‎ = לספר אין קישורים כלל.
       'maxSourceLine': summary.maxSourceLine - 1,
@@ -2108,7 +2264,7 @@ class PluginBridgeAdapter {
         }
       case 'getCurrentState':
         final tabsState = _dependencies.tabsBloc.state;
-        final tabs = tabsState.tabs.where((tab) => tab is! ToolTab).toList();
+        final tabs = _pluginVisibleTabs();
         final panes = tabs.map(_paneForPlugins).toList();
         // Use the same resolver as getCurrentRef for consistent currentRef values
         final snapshots = await Future.wait(panes.map(resolveReaderLocation));
@@ -2172,6 +2328,22 @@ class PluginBridgeAdapter {
           'currentRef': currentSnapshot?.currentRef,
           'openTabs': openTabs,
         };
+      case 'closeTab':
+        // spec: closeTab({ index }) — האינדקס הוא ברשימה ש-getCurrentState
+        // מחזיר, לא ב-TabsBloc. הטאב עצמו נמסר לאירוע, ולכן אין המרת אינדקס.
+        _dependencies.tabsBloc.add(RemoveTab(_pluginVisibleTabAt(args)));
+        return true;
+      case 'activateTab':
+        // spec: activateTab({ index }) — כאן דרוש דווקא האינדקס הגולמי, ולכן
+        // הוא נגזר מזהות הטאב ולא מהאינדקס שהתוסף מסר.
+        {
+          final tabsBloc = _dependencies.tabsBloc;
+          final rawIndex = tabsBloc.state.tabs.indexOf(
+            _pluginVisibleTabAt(args),
+          );
+          tabsBloc.add(SetCurrentTab(rawIndex));
+          return true;
+        }
       case 'getCurrentRef':
         final snapshot = await resolveReaderLocation(
           _dependencies.tabsBloc.state.readingPane,
@@ -2757,6 +2929,145 @@ class PluginBridgeAdapter {
   }
 
   // ----------------------------------------------------------------
+  // workspace.*
+  // ----------------------------------------------------------------
+  Future<dynamic> _handleWorkspace(
+    String action,
+    Map<String, dynamic> args,
+  ) async {
+    final bloc = _dependencies.workspaceBloc;
+    switch (action) {
+      case 'list':
+        final activeId = bloc.state.activeWorkspaceId;
+        return bloc.state.workspaces
+            .map(
+              (workspace) => {
+                'id': workspace.id,
+                'name': workspace.name,
+                'isActive': workspace.id == activeId,
+                // בשולחן הפעיל הטאבים חיים ב-TabsBloc ונשמרים אליו רק במעבר,
+                // ולכן הספירה שלו חייבת לבוא משם ולא מהעותק השמור.
+                'tabCount': workspace.id == activeId
+                    ? _pluginVisibleTabs().length
+                    : workspace.tabs.where(_isPluginVisibleTab).length,
+              },
+            )
+            .toList();
+      case 'getActive':
+        final active = bloc.state.activeWorkspace;
+        return {'id': active?.id, 'name': active?.name};
+      case 'create':
+        final name = (args['name'] as String?)?.trim() ?? '';
+        if (name.isEmpty) {
+          throw Exception('error.invalid_params: name required');
+        }
+        if (name.length > _workspaceNameMaxLength) {
+          throw Exception(
+            'error.invalid_params: name exceeds '
+            '$_workspaceNameMaxLength characters',
+          );
+        }
+        final switchTo = args['switchTo'] as bool? ?? false;
+        final reuseExisting = args['reuseExisting'] as bool? ?? false;
+        if (reuseExisting) {
+          for (final workspace in bloc.state.workspaces) {
+            if (workspace.name.trim() != name) continue;
+            if (switchTo && !await _switchWorkspace(workspace.id)) {
+              throw Exception('error.internal: failed to switch workspace');
+            }
+            return {'id': workspace.id, 'created': false};
+          }
+        }
+        final created = await _createWorkspace(name);
+        if (created == null) {
+          throw Exception('error.internal: failed to create workspace');
+        }
+        if (switchTo && !await _switchWorkspace(created.id)) {
+          throw Exception('error.internal: failed to switch workspace');
+        }
+        return {'id': created.id, 'created': true};
+      case 'switch':
+        final id = (args['id'] as String?)?.trim() ?? '';
+        if (id.isEmpty) {
+          throw Exception('error.invalid_params: id required');
+        }
+        // שולחן שאינו קיים אינו שגיאת ארגומנט: תוסף שמסנכרן בין מחשבים מקבל
+        // מזהה מהצד השני ונופל בחזרה ל-create לפי השם.
+        if (!bloc.state.workspaces.any((workspace) => workspace.id == id)) {
+          return false;
+        }
+        return await _switchWorkspace(id);
+      default:
+        throw Exception(
+          'error.unknown_method: Unknown workspace action: $action',
+        );
+    }
+  }
+
+  /// יוצר שולחן עבודה חדש ומחזיר אותו. ה-`AddWorkspace` אינו מחזיר את המזהה
+  /// שנוצר, ולכן מאתרים אותו במצב הראשון שבו נוסף שולחן שלא היה קודם.
+  Future<Workspace?> _createWorkspace(String name) async {
+    final bloc = _dependencies.workspaceBloc;
+    final knownIds = bloc.state.workspaces
+        .map((workspace) => workspace.id)
+        .toSet();
+    bool hasNew(WorkspaceState state) =>
+        state.workspaces.any((workspace) => !knownIds.contains(workspace.id));
+    final state = await _awaitWorkspaceState(
+      hasNew,
+      () => bloc.add(
+        AddWorkspace(name: name, tabs: const [], currentTabIndex: 0),
+      ),
+    );
+    if (state == null) return null;
+    return state.workspaces.lastWhere(
+      (workspace) => !knownIds.contains(workspace.id),
+    );
+  }
+
+  /// מעבר לשולחן [id] באותו רצף שהדיאלוג מבצע
+  /// (`lib/workspaces/view/workspace_switcher_dialog.dart`): הטאבים הנוכחיים
+  /// נמסרים לאירוע כי ה-UI הוא מקור האמת עליהם — בלעדיהם המעבר מוחק אותם.
+  /// נמסרת רשימת הטאבים **המלאה**, כולל `ToolTab`, ולא הרשימה שהתוסף רואה.
+  Future<bool> _switchWorkspace(String id) async {
+    final bloc = _dependencies.workspaceBloc;
+    if (bloc.state.activeWorkspaceId == id) return true;
+    final tabsState = _dependencies.tabsBloc.state;
+    final state = await _awaitWorkspaceState(
+      (workspaceState) => workspaceState.activeWorkspaceId == id,
+      () => bloc.add(
+        SwitchToWorkspace(
+          targetWorkspaceId: id,
+          currentTabsToSave: tabsState.tabs,
+          currentTabIndexToSave: tabsState.currentTabIndex,
+        ),
+      ),
+    );
+    return state != null;
+  }
+
+  /// מפעיל [trigger] וממתין למצב הראשון שמקיים [test]. פעולות שולחן עבודה
+  /// עוברות דרך אירוע ואינן מחזירות ערך, ולכן ה-API ממתין למצב במקום להניח
+  /// שהאירוע כבר טופל. מחזיר `null` על שגיאה מהבלוק או על פסק זמן.
+  Future<WorkspaceState?> _awaitWorkspaceState(
+    bool Function(WorkspaceState state) test,
+    void Function() trigger,
+  ) async {
+    final bloc = _dependencies.workspaceBloc;
+    final settled = bloc.stream.firstWhere(
+      (state) => test(state) || state.error != null,
+      orElse: () => bloc.state,
+    );
+    trigger();
+    try {
+      final state = await settled.timeout(_workspaceActionTimeout);
+      return test(state) ? state : null;
+    } on TimeoutException {
+      return null;
+    }
+  }
+
+  // ----------------------------------------------------------------
   // navigation.*
   // ----------------------------------------------------------------
   Future<dynamic> _handleNavigation(
@@ -2944,12 +3255,17 @@ class PluginBridgeAdapter {
             _dependencies.capturePluginPagePdf ?? _defaultCapturePagePdf;
         final saver =
             _dependencies.pickSaveLocation ?? _defaultPickSaveLocation;
-        final suggested = _suggestedSaveName(
+        final suggested = pluginSaveFileName(
           args['fileName'] as String?,
           'pdf',
         );
+        final layout = _parsePdfLayout(args);
         return await _runUserGatedDialog(() async {
-          final pdf = await capture(plugin.pluginId, instanceId);
+          final pdf = await capture(
+            plugin.pluginId,
+            instanceId,
+            layout: layout,
+          );
           final chosen = await saver(
             suggestedName: suggested,
             allowedExtensions: const ['pdf'],
@@ -2958,7 +3274,7 @@ class PluginBridgeAdapter {
           if (chosen == null || chosen.isEmpty) {
             return {'saved': false, 'name': null};
           }
-          // file_picker בווינדוס אינו משלים את הסיומת שנבחרה בדיאלוג.
+          // בורר המיקום ניתן להזרקה, וחוזהו אינו מבטיח שהסיומת תושלם.
           final target = chosen.toLowerCase().endsWith('.pdf')
               ? chosen
               : '$chosen.pdf';
@@ -3007,7 +3323,11 @@ class PluginBridgeAdapter {
 
   /// בורר התיקיות המוגדר כברירת מחדל — דיאלוג המערכת דרך [FilePicker].
   Future<String?> _defaultPickFolder({String? title}) =>
-      FilePicker.getDirectoryPath(lockParentWindow: true, dialogTitle: title);
+      FilePicker.getDirectoryPath(
+        windowsOptions: kModalWindowsOptions,
+        linuxOptions: kModalLinuxOptions,
+        dialogTitle: title,
+      );
 
   /// דיאלוג הדפסה/שמירה פתוח כרגע עבור המופע הזה. שער חד-בו-זמנית: בלעדיו
   /// לולאה בתוסף מערימה דיאלוגים מודאליים עד שהחלון אינו שמיש.
@@ -3081,10 +3401,93 @@ class PluginBridgeAdapter {
 
   Future<Uint8List> _defaultCapturePagePdf(
     String pluginId,
-    String instanceId,
-  ) => const PluginPrintService().createPdf(
+    String instanceId, {
+    PluginPdfLayout? layout,
+  }) => const PluginPrintService().createPdf(
     _requireController(pluginId, instanceId),
+    layout: layout,
   );
+
+  /// גדלי דף נתמכים ב-`ui.exportPdf`, במילימטרים (רוחב, גובה) לאורך.
+  static const _pdfPageSizesMm = <String, (double, double)>{
+    'a4': (210, 297),
+    'a5': (148, 210),
+    'letter': (215.9, 279.4),
+    'legal': (215.9, 355.6),
+  };
+
+  /// מפרש את ארגומנטי העימוד של `ui.exportPdf`: `pageSize`, `orientation`,
+  /// `marginMm` (מספר או מפה לפי צד) ו-`printBackgrounds`. null כשלא סופק דבר.
+  PluginPdfLayout? _parsePdfLayout(Map<String, dynamic> args) {
+    final sizeName = (args['pageSize'] as String?)?.trim().toLowerCase();
+    final orientation = (args['orientation'] as String?)?.trim().toLowerCase();
+    final margin = args['marginMm'];
+    final backgrounds = args['printBackgrounds'];
+    if (sizeName == null &&
+        orientation == null &&
+        margin == null &&
+        backgrounds == null) {
+      return null;
+    }
+
+    (double, double)? size;
+    if (sizeName != null) {
+      size = _pdfPageSizesMm[sizeName];
+      if (size == null) {
+        throw Exception(
+          'error.invalid_params: unknown pageSize (supported: '
+          '${_pdfPageSizesMm.keys.join(', ')})',
+        );
+      }
+    }
+
+    bool? landscape;
+    if (orientation != null) {
+      if (orientation != 'portrait' && orientation != 'landscape') {
+        throw Exception(
+          "error.invalid_params: orientation must be 'portrait' or 'landscape'",
+        );
+      }
+      landscape = orientation == 'landscape';
+    }
+
+    double sideMm(Object? v, String name) {
+      if (v is! num || v.isNaN || v < 0 || v > 100) {
+        throw Exception('error.invalid_params: $name must be 0-100 (mm)');
+      }
+      return v.toDouble();
+    }
+
+    EdgeInsets? marginsMm;
+    if (margin != null) {
+      if (margin is num) {
+        marginsMm = EdgeInsets.all(sideMm(margin, 'marginMm'));
+      } else if (margin is Map) {
+        marginsMm = EdgeInsets.fromLTRB(
+          sideMm(margin['left'] ?? 0, 'marginMm.left'),
+          sideMm(margin['top'] ?? 0, 'marginMm.top'),
+          sideMm(margin['right'] ?? 0, 'marginMm.right'),
+          sideMm(margin['bottom'] ?? 0, 'marginMm.bottom'),
+        );
+      } else {
+        throw Exception(
+          'error.invalid_params: marginMm must be a number or a per-side map',
+        );
+      }
+    }
+
+    if (backgrounds != null && backgrounds is! bool) {
+      throw Exception('error.invalid_params: printBackgrounds must be a bool');
+    }
+
+    return PluginPdfLayout(
+      pageWidthMm: size?.$1,
+      pageHeightMm: size?.$2,
+      marginsMm: marginsMm,
+      landscape: landscape,
+      printBackgrounds: backgrounds as bool?,
+    );
+  }
 
   /// בודקת אם [targetPath] נמצא בתוך תיקייה שהמשתמש אישר דרך `ui.pickFolder`.
   ///
@@ -3311,13 +3714,14 @@ class PluginBridgeAdapter {
   }) async {
     final hasExtensions =
         allowedExtensions != null && allowedExtensions.isNotEmpty;
-    final result = await FilePicker.pickFiles(
+    final result = await FilePicker.pickFile(
       dialogTitle: title,
-      lockParentWindow: true,
+      windowsOptions: kModalWindowsOptions,
+      linuxOptions: kModalLinuxOptions,
       type: hasExtensions ? FileType.custom : FileType.any,
       allowedExtensions: hasExtensions ? allowedExtensions : null,
     );
-    return result?.files.single.path;
+    return result?.path;
   }
 
   /// `fs.pickUserFile` — פותח דיאלוג בחירת קובץ, רושם אותו כקובץ מאושר ומחזיר
@@ -3469,7 +3873,7 @@ class PluginBridgeAdapter {
               RegExp(r'^\.?[a-z0-9]{1,10}$').hasMatch(rawExtension)
           ? rawExtension.replaceAll('.', '')
           : null;
-      final suggested = _suggestedSaveName(
+      final suggested = pluginSaveFileName(
         args['suggestedName'] as String?,
         extension,
       );
@@ -3510,37 +3914,58 @@ class PluginBridgeAdapter {
     }
   }
 
-  /// שם ברירת מחדל לדיאלוג. תווים שאינם חוקיים בשם קובץ מוסרים כאן ולא
-  /// נסמכים על הדיאלוג, שמתנהג שונה בכל פלטפורמה.
-  String _suggestedSaveName(String? requested, String? extension) {
-    final cleaned = (requested ?? '')
-        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '')
-        .trim();
-    final base = cleaned.isEmpty ? 'מסמך' : cleaned;
-    if (extension == null || extension.isEmpty) return base;
-    return base.toLowerCase().endsWith('.$extension')
-        ? base
-        : '$base.$extension';
+  Future<T> _enqueueWorkspaceAction<T>(Future<T> Function() action) {
+    final result = _workspaceActionQueue.then((_) => action());
+    _workspaceActionQueue = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return result;
   }
 
+  /// „שמור בשם” בשני שלבים: בחירת תיקייה דרך דיאלוג המערכת, ואז שם הקובץ
+  /// בדיאלוג של התוכנה. **אינו נוגע ביעד** — הכתיבה כולה ב-[_atomicWrite].
+  ///
+  /// `FilePicker.saveFile` אינו משמש כאן: מאז 12.0 הוא כותב תמיד את הבייטים
+  /// שקיבל, ולכן בחירת קובץ קיים הייתה מרוקנת אותו עוד לפני הכתיבה האמיתית.
+  /// כשיתווסף אפסטרים בורר-מיקום שאינו כותב, המימוש הזה מתקפל בחזרה אליו:
+  /// https://github.com/vicajilau/flutter_file_picker/issues/2156
   Future<String?> _defaultPickSaveLocation({
     required String suggestedName,
     List<String>? allowedExtensions,
     String? title,
-  }) {
-    final hasExtensions =
-        allowedExtensions != null && allowedExtensions.isNotEmpty;
-    // bytes ריק בכוונה: הדיאלוג משמש כאן כבורר נתיב בלבד. file_picker מדלג על
-    // הכתיבה כשהמערך ריק, והכתיבה עצמה נעשית ב-_atomicWrite. אם גרסה עתידית
-    // תכתוב בכל זאת, ה-rename שאחריה עדיין מביא את היעד למצב הנכון.
-    return FilePicker.saveFile(
-      dialogTitle: title,
-      fileName: suggestedName,
-      lockParentWindow: true,
-      type: hasExtensions ? FileType.custom : FileType.any,
-      allowedExtensions: hasExtensions ? allowedExtensions : null,
-      bytes: Uint8List(0),
+  }) async {
+    final folder = await FilePicker.getDirectoryPath(
+      dialogTitle: title ?? 'בחירת תיקייה לשמירת הקובץ',
+      windowsOptions: kModalWindowsOptions,
+      linuxOptions: kModalLinuxOptions,
     );
+    if (folder == null) return null;
+
+    final context = navigatorKey.currentContext;
+    if (context == null || !context.mounted) return null;
+    final typed = await showInputDialog(
+      context: context,
+      title: title ?? 'שמירת קובץ',
+      labelText: 'שם הקובץ',
+      initialValue: suggestedName,
+      confirmText: 'שמור',
+    );
+    if (typed == null) return null;
+
+    final fileName = pluginSaveFileName(typed, allowedExtensions?.firstOrNull);
+    final target = pluginSaveTargetPath(folder: folder, fileName: fileName);
+    if (target == null) return null;
+
+    if (File(target).existsSync()) {
+      final replace = await _dependencies.showWarningDialog(
+        title: 'הקובץ כבר קיים',
+        content: 'הקובץ „$fileName” כבר קיים בתיקייה שנבחרה.',
+        subtitle: 'התוכן הקיים יוחלף.',
+      );
+      if (!replace) return null;
+    }
+    return target;
   }
 
   /// מעתיק את ההעלאה ליעד: staging באותה תיקייה, ואז rename.
@@ -5016,6 +5441,35 @@ class PluginBridgeAdapter {
       'selection': false,
       'contextMenu': const <String>[],
     };
+  }
+
+  /// טאב שה-API חושף לתוסף. טאבי הכלים (ToolTab) מסוננים, ולכן אינדקס
+  /// ברשימה שהתוסף רואה **אינו** האינדקס ב-tabsBloc.state.tabs.
+  static bool _isPluginVisibleTab(OpenedTab tab) => tab is! ToolTab;
+
+  /// הטאבים שה-API חושף, בסדר שבו התוסף מקבל אותם. כל פעולה לפי אינדקס
+  /// שהתוסף מסר חייבת לעבור דרך כאן — אינדקס גולמי יפגע בטאב הלא נכון.
+  List<OpenedTab> _pluginVisibleTabs() =>
+      _dependencies.tabsBloc.state.tabs.where(_isPluginVisibleTab).toList();
+
+  /// הטאב שבאינדקס `index` **ברשימה שהתוסף רואה** ([_pluginVisibleTabs]).
+  /// אינדקס חסר או מחוץ לתחום נדחה כשגיאת ארגומנטים ולא כחריגה.
+  OpenedTab _pluginVisibleTabAt(Map<String, dynamic> args) {
+    final rawIndex = args['index'];
+    if (rawIndex is! num ||
+        !rawIndex.isFinite ||
+        rawIndex != rawIndex.truncateToDouble()) {
+      throw Exception('error.invalid_params: index must be an integer');
+    }
+    final index = rawIndex.toInt();
+    final tabs = _pluginVisibleTabs();
+    if (index < 0 || index >= tabs.length) {
+      throw Exception(
+        'error.invalid_params: index $index out of range '
+        '(${tabs.length} open tabs)',
+      );
+    }
+    return tabs[index];
   }
 
   OpenedTab _paneForPlugins(OpenedTab tab) {

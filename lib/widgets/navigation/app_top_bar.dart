@@ -12,6 +12,7 @@
 // • הסרת הצורך להעביר isCompact מכל מסך
 
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -28,10 +29,12 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 class AppTopBarItem {
   final Widget widget;
   final bool dividerBefore;
+  final bool flexible;
 
   const AppTopBarItem({
     required this.widget,
     this.dividerBefore = false,
+    this.flexible = false,
   });
 }
 
@@ -63,6 +66,10 @@ class AppTopBar extends StatefulWidget {
   /// כשלא מועבר, נשאר `null` וחוזרים לברירת המחדל [AppSurfaces.topBarBackground].
   final Color? backgroundColor;
 
+  /// כשמוגדר, AppTopBar משתמש בפריסה אדפטיבית שמגבילה את שני הצדדים
+  /// ומשאירה לפחות את הרוחב הזה לאזור המרכז ככל שניתן.
+  final double? minCenterWidth;
+
   const AppTopBar({
     super.key,
     this.leadingItems = const [],
@@ -73,6 +80,7 @@ class AppTopBar extends StatefulWidget {
     this.totalHeightNotifier,
     this.scrollDebounceMs = 80,
     this.backgroundColor,
+    this.minCenterWidth,
   });
 
   /// גובה הסרגל לפי מצב compact
@@ -224,7 +232,14 @@ class _AppTopBarState extends State<AppTopBar>
       if (result.isNotEmpty) {
         result.add(SizedBox(width: buttonSpacing));
       }
-      result.add(item.widget);
+      result.add(
+        item.flexible
+            ? Flexible(
+                fit: FlexFit.loose,
+                child: item.widget,
+              )
+            : item.widget,
+      );
     }
     return result;
   }
@@ -286,6 +301,41 @@ class _AppTopBarState extends State<AppTopBar>
           ...widget.leadingItems,
         ];
 
+        final leadingWidget = leadingItems.isEmpty
+            ? null
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: _itemsToWidgets(context, leadingItems),
+              );
+
+        final trailingWidget = widget.trailingItems.isEmpty
+            ? null
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: _itemsToWidgets(
+                  context,
+                  widget.trailingItems,
+                ),
+              );
+
+        final Widget toolbar = widget.minCenterWidth == null
+            ? NavigationToolbar(
+                middleSpacing: 8.0,
+                leading: leadingWidget,
+                middle: widget.center,
+                trailing: trailingWidget,
+              )
+            : _AdaptiveTopBarToolbar(
+                leading: leadingWidget,
+                middle: widget.center,
+                trailing: trailingWidget,
+                middleSpacing: 8.0,
+                minMiddleWidth: widget.minCenterWidth!,
+                minTrailingWidth: trailingWidget == null
+                    ? 0.0
+                    : BarButton.toolbarWidth(isCompact),
+              );
+
         final mainBar = Material(
           color: barColor,
           elevation: 2.0,
@@ -295,27 +345,7 @@ class _AppTopBarState extends State<AppTopBar>
             height: barH,
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
-              // NavigationToolbar ממרכז את האמצע גאומטרית בסרגל, אך מגביל את
-              // רוחבו למקום הפנוי בין הצדדים — בלי חפיפה ובלי חסימת לחיצות.
-              child: NavigationToolbar(
-                middleSpacing: 8.0,
-                leading: leadingItems.isEmpty
-                    ? null
-                    : Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: _itemsToWidgets(context, leadingItems),
-                      ),
-                middle: widget.center,
-                trailing: widget.trailingItems.isEmpty
-                    ? null
-                    : Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: _itemsToWidgets(
-                          context,
-                          widget.trailingItems,
-                        ),
-                      ),
-              ),
+              child: toolbar,
             ),
           ),
         );
@@ -352,5 +382,196 @@ class _AppTopBarState extends State<AppTopBar>
         );
       },
     );
+  }
+}
+
+enum _AdaptiveTopBarSlot {
+  leading,
+  middle,
+  trailing,
+}
+
+class _AdaptiveTopBarToolbar extends StatelessWidget {
+  final Widget? leading;
+  final Widget? middle;
+  final Widget? trailing;
+  final double middleSpacing;
+  final double minMiddleWidth;
+  final double minTrailingWidth;
+
+  const _AdaptiveTopBarToolbar({
+    required this.leading,
+    required this.middle,
+    required this.trailing,
+    required this.middleSpacing,
+    required this.minMiddleWidth,
+    required this.minTrailingWidth,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomMultiChildLayout(
+      delegate: _AdaptiveTopBarLayout(
+        textDirection: Directionality.of(context),
+        middleSpacing: middleSpacing,
+        minMiddleWidth: minMiddleWidth,
+        minTrailingWidth: minTrailingWidth,
+      ),
+      children: [
+        if (leading != null)
+          LayoutId(
+            id: _AdaptiveTopBarSlot.leading,
+            child: leading!,
+          ),
+        if (middle != null)
+          LayoutId(
+            id: _AdaptiveTopBarSlot.middle,
+            child: middle!,
+          ),
+        if (trailing != null)
+          LayoutId(
+            id: _AdaptiveTopBarSlot.trailing,
+            child: trailing!,
+          ),
+      ],
+    );
+  }
+}
+
+class _AdaptiveTopBarLayout extends MultiChildLayoutDelegate {
+  final TextDirection textDirection;
+  final double middleSpacing;
+  final double minMiddleWidth;
+  final double minTrailingWidth;
+
+  _AdaptiveTopBarLayout({
+    required this.textDirection,
+    required this.middleSpacing,
+    required this.minMiddleWidth,
+    required this.minTrailingWidth,
+  });
+
+  @override
+  void performLayout(Size size) {
+    var leadingSize = Size.zero;
+    var trailingSize = Size.zero;
+    var middleSize = Size.zero;
+
+    final hasMiddle = hasChild(_AdaptiveTopBarSlot.middle);
+    final hasTrailing = hasChild(_AdaptiveTopBarSlot.trailing);
+
+    final middleReserve = hasMiddle ? minMiddleWidth : 0.0;
+    final spacingReserve = hasMiddle ? middleSpacing * 2 : 0.0;
+    final trailingReserve = hasTrailing ? minTrailingWidth : 0.0;
+
+    if (hasChild(_AdaptiveTopBarSlot.leading)) {
+      final maxLeadingWidth = math.max(
+        0.0,
+        size.width - middleReserve - spacingReserve - trailingReserve,
+      );
+
+      leadingSize = layoutChild(
+        _AdaptiveTopBarSlot.leading,
+        BoxConstraints(
+          maxWidth: maxLeadingWidth,
+          maxHeight: size.height,
+        ),
+      );
+    }
+
+    if (hasTrailing) {
+      final maxTrailingWidth = math.max(
+        0.0,
+        size.width - leadingSize.width - middleReserve - spacingReserve,
+      );
+
+      trailingSize = layoutChild(
+        _AdaptiveTopBarSlot.trailing,
+        BoxConstraints(
+          maxWidth: maxTrailingWidth,
+          maxHeight: size.height,
+        ),
+      );
+    }
+
+    if (hasMiddle) {
+      final maxMiddleWidth = math.max(
+        0.0,
+        size.width - leadingSize.width - trailingSize.width - spacingReserve,
+      );
+
+      middleSize = layoutChild(
+        _AdaptiveTopBarSlot.middle,
+        BoxConstraints(
+          maxWidth: maxMiddleWidth,
+          maxHeight: size.height,
+        ),
+      );
+    }
+
+    final leadingX = textDirection == TextDirection.rtl
+        ? size.width - leadingSize.width
+        : 0.0;
+
+    final trailingX = textDirection == TextDirection.rtl
+        ? 0.0
+        : size.width - trailingSize.width;
+
+    if (hasChild(_AdaptiveTopBarSlot.leading)) {
+      positionChild(
+        _AdaptiveTopBarSlot.leading,
+        Offset(
+          leadingX,
+          (size.height - leadingSize.height) / 2,
+        ),
+      );
+    }
+
+    if (hasTrailing) {
+      positionChild(
+        _AdaptiveTopBarSlot.trailing,
+        Offset(
+          trailingX,
+          (size.height - trailingSize.height) / 2,
+        ),
+      );
+    }
+
+    if (hasMiddle) {
+      final leftBoundary = textDirection == TextDirection.rtl
+          ? trailingSize.width + middleSpacing
+          : leadingSize.width + middleSpacing;
+
+      final rightBoundary = textDirection == TextDirection.rtl
+          ? size.width - leadingSize.width - middleSpacing
+          : size.width - trailingSize.width - middleSpacing;
+
+      final idealX = (size.width - middleSize.width) / 2;
+
+      final maxX = math.max(
+        leftBoundary,
+        rightBoundary - middleSize.width,
+      );
+
+      final middleX = idealX.clamp(leftBoundary, maxX).toDouble();
+
+      positionChild(
+        _AdaptiveTopBarSlot.middle,
+        Offset(
+          middleX,
+          (size.height - middleSize.height) / 2,
+        ),
+      );
+    }
+  }
+
+  @override
+  bool shouldRelayout(
+    covariant _AdaptiveTopBarLayout oldDelegate,
+  ) {
+    return oldDelegate.textDirection != textDirection ||
+        oldDelegate.middleSpacing != middleSpacing ||
+        oldDelegate.minMiddleWidth != minMiddleWidth ||
+        oldDelegate.minTrailingWidth != minTrailingWidth;
   }
 }

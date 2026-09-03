@@ -369,6 +369,11 @@ class SimpleTextViewer extends StatefulWidget {
   /// פתיחת לשונית המפרשים עם חלונית בחירת המפרשים פרושה.
   final VoidCallback? onOpenCommentatorsPaneWithFilter;
 
+  /// קישורי עוגן של ספר המפרש עצמו אל מפרשי-העל שלו (מפתח: מספר שורה
+  /// 1-based) — סמני אותיות שער הציון וכד' בעמודת מפרש בצורת הדף.
+  /// בטקסט הראשי נשאר null: העוגנים שם נקראים מ-state.linksByLine.
+  final Map<int, List<Link>>? anchorLinksByLine;
+
   const SimpleTextViewer({
     super.key,
     required this.content,
@@ -396,6 +401,7 @@ class SimpleTextViewer extends StatefulWidget {
     this.isCommentatorsTabActive = false,
     this.onOpenCommentatorsPane,
     this.onOpenCommentatorsPaneWithFilter,
+    this.anchorLinksByLine,
   });
 
   /// האם חלונית מפרש זה עתה טיפלה בקיצור "הוסף הערה".
@@ -498,6 +504,41 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     return _anchorStyleCache;
   }
 
+  Map<int, List<Link>>? _ownAnchorStyleSource;
+  Map<String, int> _ownAnchorStyleCache = const {};
+
+  Map<String, int> _ownAnchorStyles() {
+    final source = widget.anchorLinksByLine;
+    if (source == null) return const {};
+    if (!identical(_ownAnchorStyleSource, source)) {
+      _ownAnchorStyleSource = source;
+      _ownAnchorStyleCache = anchorStyleIndexByCommentator(
+        source.values.expand((links) => links),
+      );
+    }
+    return _ownAnchorStyleCache;
+  }
+
+  List<Link> _ownAnchorLinksAt(int lineIndex) {
+    final links = widget.anchorLinksByLine?[lineIndex + 1];
+    if (links == null || links.isEmpty) return const [];
+    return links.where((link) => link.anchorStart != null).toList();
+  }
+
+  /// סמני עוגן של מפרש-על (שער הציון וכד') בעמודת מפרש — מקור הקישורים הוא
+  /// המפה שסופקה לחלונית, לא ה-state של הספר הראשי.
+  String _injectOwnAnchorMarkers(String rawLine, int lineIndex) {
+    final anchorLinks = _ownAnchorLinksAt(lineIndex);
+    if (anchorLinks.isEmpty) return rawLine;
+    return injectLinkAnchorMarkers(
+      rawLine: rawLine,
+      anchorLinks: anchorLinks,
+      styleIndexByCommentator: _ownAnchorStyles(),
+      lineIndex: lineIndex,
+      activeIndex: lineIndex == _activeAnchorLine ? _activeAnchorIndex : null,
+    );
+  }
+
   String _injectPreviewMarkers(
     String rawLine,
     int lineIndex,
@@ -537,9 +578,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     final line = int.tryParse(parts[0]);
     final index = int.tryParse(parts[1]);
     if (line == null || index == null) return null;
-    final anchorLinks = (state.linksByLine[line + 1] ?? const <Link>[])
-        .where((link) => link.anchorStart != null)
-        .toList();
+    final anchorLinks = widget.anchorLinksByLine != null
+        ? _ownAnchorLinksAt(line)
+        : (state.linksByLine[line + 1] ?? const <Link>[])
+              .where((link) => link.anchorStart != null)
+              .toList();
     if (index < 0 || index >= anchorLinks.length) return null;
     return (link: anchorLinks[index], line: line, index: index);
   }
@@ -2868,9 +2911,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                   );
                 }
 
+                final hasOwnAnchors = widget.anchorLinksByLine != null;
                 var data = widget.content[primaryLineIndex];
                 if (widget.isMainText) {
                   data = _injectPreviewMarkers(data, primaryLineIndex, state);
+                } else if (hasOwnAnchors) {
+                  data = _injectOwnAnchorMarkers(data, primaryLineIndex);
                 }
 
                 // הדגשת טקסט ממוקד: highlightText מופעל רק בשורה permanentHighlightLine
@@ -2995,9 +3041,13 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                             );
                           }
                         },
-                  onAnchorTap: widget.isMainText ? _handlePreviewTap : null,
-                  onAnchorHover: widget.isMainText ? _handlePreviewHover : null,
-                  onAnchorHoverExit: widget.isMainText
+                  onAnchorTap: widget.isMainText || hasOwnAnchors
+                      ? _handlePreviewTap
+                      : null,
+                  onAnchorHover: widget.isMainText || hasOwnAnchors
+                      ? _handlePreviewHover
+                      : null,
+                  onAnchorHoverExit: widget.isMainText || hasOwnAnchors
                       ? _handlePreviewHoverExit
                       : null,
                 );

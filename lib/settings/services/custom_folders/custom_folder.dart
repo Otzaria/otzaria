@@ -32,26 +32,42 @@ class CustomFolder {
   /// האם להכניס את תוכן התיקייה ל-DB
   final bool addToDatabase;
 
+  /// האם למזג את תוכן התיקייה לעץ הספרייה הראשי. `null` = ללכת אחרי
+  /// ההגדרה הגלובלית, וזו ברירת המחדל לכל תיקייה שלא נקבעה לה חריגה.
+  final bool? mergeIntoLibrary;
+
   /// תאריך הוספה
   final DateTime addedAt;
 
   const CustomFolder({
     required this.path,
     this.addToDatabase = false,
+    this.mergeIntoLibrary,
     required this.addedAt,
   });
+
+  /// האם התיקייה ממוזגת בפועל, בהינתן ההגדרה הגלובלית [globalDefault].
+  bool resolveMergeIntoLibrary(bool globalDefault) =>
+      mergeIntoLibrary ?? globalDefault;
 
   /// שם התיקייה (ללא הנתיב המלא)
   String get name => path.split(RegExp(r'[/\\]')).last;
 
+  /// [clearMergeIntoLibrary] מחזיר את התיקייה לברירת המחדל הגלובלית —
+  /// `mergeIntoLibrary: null` לבדו אינו מבחין בין "אל תשנה" ל"נקה".
   CustomFolder copyWith({
     String? path,
     bool? addToDatabase,
+    bool? mergeIntoLibrary,
+    bool clearMergeIntoLibrary = false,
     DateTime? addedAt,
   }) {
     return CustomFolder(
       path: path ?? this.path,
       addToDatabase: addToDatabase ?? this.addToDatabase,
+      mergeIntoLibrary: clearMergeIntoLibrary
+          ? null
+          : (mergeIntoLibrary ?? this.mergeIntoLibrary),
       addedAt: addedAt ?? this.addedAt,
     );
   }
@@ -60,6 +76,7 @@ class CustomFolder {
     return {
       'path': path,
       'addToDatabase': addToDatabase,
+      if (mergeIntoLibrary != null) 'mergeIntoLibrary': mergeIntoLibrary,
       'addedAt': addedAt.toIso8601String(),
     };
   }
@@ -68,18 +85,25 @@ class CustomFolder {
     return CustomFolder(
       path: json['path'] as String,
       addToDatabase: json['addToDatabase'] as bool? ?? false,
+      mergeIntoLibrary: json['mergeIntoLibrary'] as bool?,
       addedAt: DateTime.parse(json['addedAt'] as String),
     );
   }
 
+  /// השוואה לפי הנתיב וההגדרות שהמשתמש משנה. בלי ההגדרות, שינוי הגדרה
+  /// בתיקייה לא היה נחשב שינוי ב-state של ה-bloc והממשק לא היה מתעדכן.
+  /// `addedAt` מחוץ להשוואה — הוא חותמת ולא זהות.
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is CustomFolder && other.path == path;
+    return other is CustomFolder &&
+        other.path == path &&
+        other.addToDatabase == addToDatabase &&
+        other.mergeIntoLibrary == mergeIntoLibrary;
   }
 
   @override
-  int get hashCode => path.hashCode;
+  int get hashCode => Object.hash(path, addToDatabase, mergeIntoLibrary);
 }
 
 /// מנהל תיקיות מותאמות אישית
@@ -134,6 +158,27 @@ class CustomFoldersManager {
     String path,
   ) {
     return folders.where((f) => f.path != path).toList();
+  }
+
+  /// קביעת חריגת המיזוג לכל התיקיות שחולקות קטגוריית-שורש.
+  static List<CustomFolder> updateFolderMergeSetting(
+    List<CustomFolder> folders,
+    String path,
+    bool? mergeIntoLibrary,
+  ) {
+    final folderName = folders
+        .where((folder) => folder.path == path)
+        .firstOrNull
+        ?.name;
+    if (folderName == null) return folders;
+
+    return folders.map((f) {
+      if (f.name != folderName) return f;
+      return f.copyWith(
+        mergeIntoLibrary: mergeIntoLibrary,
+        clearMergeIntoLibrary: mergeIntoLibrary == null,
+      );
+    }).toList();
   }
 
   /// עדכון הגדרת addToDatabase לתיקייה

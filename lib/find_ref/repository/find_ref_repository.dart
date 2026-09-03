@@ -719,6 +719,22 @@ class FindRefRepository {
       }
     }
 
+    // "זוהר בראשית דף לו": הצירוף הוא ראש-תיבות של מהדורה אחת ("הזוהר המתורגם -
+    // בראשית") ולכן הלולאה נעצרת עליו, אבל בציטוט דף הטוקן השני יכול להיות
+    // פרשה בתוך ספר שכותרתו הטוקן הראשון לבדו. מצרפים גם את הפירוש הקצר.
+    if (bookQueryTokenCount > 1 &&
+        _isSectionThenDafCitation(queryTokens.sublist(1))) {
+      final seen = {
+        for (final hit in [...bookHits, ...secondaryHits])
+          (hit.bookId, hit.filePath),
+      };
+      for (final hit in searchBooks(queryTokens.first, limit: 50)) {
+        if (!seen.add((hit.bookId, hit.filePath))) continue;
+        secondaryHits.add(hit);
+        secondaryPhraseTokenCount[hit] = 1;
+      }
+    }
+
     // צרף את ה-secondary hits בסוף, כך שיופיעו אחרי ה-primary בדירוג.
     // ההצמדה היא בכל מקרה — בין אם נמצאו hits ראשיים ובין אם לא.
     if (secondaryHits.isNotEmpty) {
@@ -792,17 +808,19 @@ class FindRefRepository {
     // עבור כל השאר (חוסך עד ~50 קריאות isolate בכל הקלדה).
     final altBookIds = await _getAltBookIds();
 
-    final remainingByHit = {
-      for (final hit in bookHits)
-        hit: _getRemainingTokens(
-          queryTokens,
-          _tokenize(hit.normalizedTitle),
-          stripLeadingTokensCount: hit.matchRank >= 3 ? bookQueryTokenCount : 0,
-          prefixMatchTokensCount: hit.matchRank >= 3
-              ? 0
-              : (secondaryPhraseTokenCount[hit] ?? bookQueryTokenCount),
-        ),
-    };
+    // אורך ה-phrase שזיהה כל hit: זה שנקבע בלולאה, או קצר יותר ל-hits שנאספו
+    // בפירוש חלופי — חיתוך לפי האורך הגלובלי היה בולע להם טוקן-קטע.
+    final remainingByHit = <ReferenceBookHit, List<String>>{};
+    for (final hit in bookHits) {
+      final phraseTokenCount =
+          secondaryPhraseTokenCount[hit] ?? bookQueryTokenCount;
+      remainingByHit[hit] = _getRemainingTokens(
+        queryTokens,
+        _tokenize(hit.normalizedTitle),
+        stripLeadingTokensCount: hit.matchRank >= 3 ? phraseTokenCount : 0,
+        prefixMatchTokensCount: hit.matchRank >= 3 ? 0 : phraseTokenCount,
+      );
+    }
     final exactLines = await _resolveExactLines(
       bookHits,
       remainingByHit,
@@ -826,8 +844,12 @@ class FindRefRepository {
       // ואז חיפוש TOC לפיו יוצר התאמות-שווא חוצות-ספרים. אבל אם הטוקן הוא חלק
       // מכותרת הספר הנוכחי ("ברכות" בתוך "פסקי הרא"ש על ברכות") — אין חציית ספר,
       // ומותר לרדת לכותרות הפנימיות.
+      // ציטוט דף בזנב ("זהר בראשית דף לו") מכריע שהטוקן הוא קטע פנימי ולא ספר
+      // אחר — בלי החריג הזה כל פרשה ששמה גם שם ספר חוסמת את הירידה לכותרות.
       final suppressTocForCrossBook =
-          hasExactNextTokenMatch && !titleTokens.contains(nextToken);
+          hasExactNextTokenMatch &&
+          !titleTokens.contains(nextToken) &&
+          !_isSectionThenDafCitation(remainingTokens);
 
       // bookId == -1: file-system PDF not in DB — use PDF outline as TOC,
       // mirroring the regular book flow as closely as possible.
@@ -1477,6 +1499,11 @@ class FindRefRepository {
     final after = queryTokens.length - head.length;
     return after > 0 ? after : 0;
   }
+
+  /// האם [tokens] הם שם-קטע ואחריו ציטוט דף ("בראשית דף לו") — הצורה שבה
+  /// מציינים פרשה בזוהר ואת הדף שבתוכה.
+  static bool _isSectionThenDafCitation(List<String> tokens) =>
+      tokens.length >= 2 && parseDafCitation(tokens.sublist(1)) != null;
 
   /// סדר הספציפיות בתוך אותו ספר: שורת מקור מדויקת < TOC L1 < TOC L2 <
   /// AltToc < TOC L3+.

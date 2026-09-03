@@ -523,7 +523,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
         fileType: companion.fileType ?? 'txt',
       );
       if (provider is! DatabaseLibraryProvider) return null;
-      return provider.getBookLinkTargetsSummary(
+      return await provider.getBookLinkTargetsSummary(
         companion.title,
         companion.categoryId!,
       );

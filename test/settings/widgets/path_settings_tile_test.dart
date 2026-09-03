@@ -1,7 +1,25 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/widgets/settings_card.dart';
+// ignore: depend_on_referenced_packages
+import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+
+/// בלי מימוש פלטפורמה רשום, `getDirectoryPath` זורק `UnimplementedError`
+/// בבדיקות. מחזיר null — כמו משתמש שביטל את הדיאלוג.
+class _CancellingFilePickerPlatform extends FilePickerPlatform
+    with MockPlatformInterfaceMixin {
+  @override
+  Future<String?> getDirectoryPath({
+    String? dialogTitle,
+    String? initialDirectory,
+    AndroidOptions androidOptions = const AndroidOptions(),
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
+  }) async => null;
+}
 
 // Helper: עטיפת MaterialApp+RTL סטנדרטית לטסטי widgets
 Widget _wrap(Widget child) => MaterialApp(
@@ -14,6 +32,10 @@ Widget _wrap(Widget child) => MaterialApp(
 );
 
 void main() {
+  setUpAll(() {
+    FilePickerPlatform.instance = _CancellingFilePickerPlatform();
+  });
+
   const icon = FluentIcons.folder_24_regular;
   const title = 'תיקיית בדיקה';
   const placeholder = 'לא נבחר מיקום';

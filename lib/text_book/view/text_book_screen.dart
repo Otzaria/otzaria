@@ -1409,7 +1409,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                     }
                   });
 
-                  final wideScreen = MediaQuery.of(context).size.width >= 600;
                   return KeyboardListener(
                     focusNode: _bookContentFocusNode,
                     autofocus: false,
@@ -1428,7 +1427,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                     child: Scaffold(
                       body: Column(
                         children: [
-                          _buildAppBar(context, state, wideScreen),
+                          _buildAppBar(context, state),
                           Expanded(child: _buildBody(context, state)),
                         ],
                       ),
@@ -1449,11 +1448,14 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   Widget _buildAppBar(
     BuildContext context,
     TextBookLoaded state,
-    bool wideScreen,
   ) {
     return AppTopBar(
+      minCenterWidth: ReaderNavCenter.minTitleWidth,
       leadingItems: [
-        AppTopBarItem(widget: _buildPaneSearchBar(state)),
+        AppTopBarItem(
+          flexible: true,
+          widget: _buildPaneSearchBar(state),
+        ),
         AppTopBarItem(widget: _buildMenuButton(context, state)),
         if (state.showPageShapeView)
           AppTopBarItem(widget: _buildPageShapeSettingsButton(context, state)),
@@ -1473,10 +1475,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             ),
       trailingItems: [
         AppTopBarItem(
-          widget: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: _buildActions(context, state, wideScreen),
-          ),
+          flexible: true,
+          widget: _buildActions(context, state),
         ),
       ],
     );
@@ -1639,53 +1639,42 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     );
   }
 
-  List<Widget> _buildActions(
+  Widget _buildActions(
     BuildContext context,
     TextBookLoaded state,
-    bool wideScreen,
   ) {
-    final maxButtons = maxToolbarButtonsForWidth(
-      MediaQuery.of(context).size.width,
-    );
-
-    return [
-      ListenableBuilder(
-        listenable: PluginToolbarRegistry.instance,
-        builder: (context, _) => Consumer<ShamorZachorDataProvider>(
-          builder: (context, _, _) => ResponsiveActionBar(
-            key: const ValueKey('responsive_actions'),
-            overflowMenuOffset: const Offset(0, 8),
-            overflowButtonKey: widget.enableTourTargets
-                ? textBookOverflowTourTargetKey
-                : null,
-            menuItemKeysByTooltip: widget.enableTourTargets
-                ? {
-                    _getViewModeTooltip(state):
-                        textBookOverflowCommentatorsTourTargetKey,
-                    'סימניות בספר זה': textBookOverflowBookmarkTourTargetKey,
-                    'חיפוש': textBookOverflowSearchTourTargetKey,
-                    'הדפסה': textBookOverflowPrintTourTargetKey,
-                  }
-                : null,
-            actions: [
-              ..._buildDisplayOrderActions(context, state),
-              ..._buildPluginActions(context),
-            ],
-            // מיזוג לפי משקל: פריטי תוסף עם order משתבצים בין המובנים.
-            alwaysInMenu: mergeOrderedMenuActions(
-              _buildAlwaysInMenuActions(context, state),
-              _buildOrderedPluginOverflowActions(context),
-            ),
-            // בתצוגה מפוצלת אין מקום לניווט במרכז הסרגל — הוא עובר לשורת
-            // הכפתורים שבראש תפריט ה-"...".
-            menuHeaderActions: widget.isInCombinedView
-                ? _buildNavigationActions()
-                : null,
-            maxVisibleButtons: maxButtons,
+    return ListenableBuilder(
+      listenable: PluginToolbarRegistry.instance,
+      builder: (context, _) => Consumer<ShamorZachorDataProvider>(
+        builder: (context, _, _) => ResponsiveActionBar(
+          key: const ValueKey('responsive_actions'),
+          overflowMenuOffset: const Offset(0, 8),
+          overflowButtonKey: widget.enableTourTargets
+              ? textBookOverflowTourTargetKey
+              : null,
+          menuItemKeysByTooltip: widget.enableTourTargets
+              ? {
+                  _getViewModeTooltip(state):
+                      textBookOverflowCommentatorsTourTargetKey,
+                  'סימניות בספר זה': textBookOverflowBookmarkTourTargetKey,
+                  'חיפוש': textBookOverflowSearchTourTargetKey,
+                  'הדפסה': textBookOverflowPrintTourTargetKey,
+                }
+              : null,
+          actions: [
+            ..._buildDisplayOrderActions(context, state),
+            ..._buildPluginActions(context),
+          ],
+          alwaysInMenu: mergeOrderedMenuActions(
+            _buildAlwaysInMenuActions(context, state),
+            _buildOrderedPluginOverflowActions(context),
           ),
+          menuHeaderActions: widget.isInCombinedView
+              ? _buildNavigationActions()
+              : null,
         ),
       ),
-    ];
+    );
   }
 
   List<ActionButtonData> _buildPluginActions(BuildContext context) {
@@ -1744,6 +1733,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         ),
         icon: _getViewModeIcon(state),
         tooltip: _getViewModeTooltip(state),
+        actionId: ToolbarActionId.viewMode,
         // ב-overflow הכפתור עצמו לא בנוי בעץ, לכן המצבים מוצגים כתת-תפריט
         submenuItems: [
           ActionButtonData(
@@ -1783,6 +1773,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             ? OtzariaIcons.alef_with_score_24_regular
             : OtzariaIcons.alef_deletion_24_regular,
         tooltip: state.removeNikud ? 'הצג ניקוד' : 'הסתר ניקוד',
+        actionId: ToolbarActionId.nikud,
         onPressed: () async {
           final newValue = !state.removeNikud;
           context.read<TextBookBloc>().add(ToggleNikud(newValue));
@@ -1802,6 +1793,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
               ? OtzariaIcons.alef_with_punctuation_24_regular
               : OtzariaIcons.alef_with_eraser_24_regular,
           tooltip: state.removePunctuation ? 'הצג פיסוק' : 'הסתר פיסוק',
+          actionId: ToolbarActionId.punctuation,
           onPressed: () => _toggleAndSavePunctuation(context, state),
         ),
 
@@ -1815,6 +1807,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           tooltip: state.continuousReadingMode
               ? 'הצג כשורות בודדות'
               : 'הצג כטקסט רציף',
+          actionId: ToolbarActionId.continuousReading,
           onPressed: () => _toggleAndSaveContinuousReading(context, state),
         ),
 
@@ -1828,6 +1821,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         icon: FluentIcons.search_24_regular,
         tooltip: 'חיפוש',
         onPressed: _openSearchFromToolbar,
+        actionId: ToolbarActionId.search,
       ),
 
       // 5) Zoom In Button
@@ -1835,6 +1829,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         widget: _buildZoomInButton(context, state),
         icon: FluentIcons.zoom_in_24_regular,
         tooltip: 'הגדל את גודל הטקסט',
+        actionId: ToolbarActionId.zoomIn,
         onPressed: () async {
           final newSize = min(50.0, state.fontSize + 3);
           context.read<TextBookBloc>().add(UpdateFontSize(newSize));
@@ -1847,6 +1842,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         widget: _buildZoomOutButton(context, state),
         icon: FluentIcons.zoom_out_24_regular,
         tooltip: 'הקטן את גודל הטקסט',
+        actionId: ToolbarActionId.zoomOut,
         onPressed: () async {
           final newSize = max(15.0, state.fontSize - 3);
           context.read<TextBookBloc>().add(UpdateFontSize(newSize));
@@ -2668,6 +2664,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         ),
         icon: OtzariaIcons.book_pdf_24_regular,
         tooltip: tooltip,
+        actionId: ToolbarActionId.parallelEdition,
         onPressed: () => _openParallelEdition(context, state, primary),
       );
     }
@@ -2675,6 +2672,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       icon: OtzariaIcons.book_pdf_24_regular,
       tooltip: tooltip,
       compact: compact,
+      actionId: ToolbarActionId.parallelEdition,
       onPressed: () => _openParallelEdition(context, state, primary),
       menuItems: [
         for (final edition in _parallelEditions)

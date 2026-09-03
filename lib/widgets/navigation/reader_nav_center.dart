@@ -9,6 +9,8 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 /// [title] — ווידג'ט הכותרת (Text, SelectionArea, LayoutBuilder וכו').
 /// [afterTitle] — ווידג'ט אופציונלי אחרי הכותרת (למשל PageNumberDisplay ב-PDF).
 class ReaderNavCenter extends StatelessWidget {
+  static const double minTitleWidth = 80.0;
+
   final Widget title;
   final VoidCallback onPrevMajor;
   final VoidCallback onPrevMinor;
@@ -38,9 +40,6 @@ class ReaderNavCenter extends StatelessWidget {
   Widget build(BuildContext context) {
     final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
     const gap = 4.0;
-    const minTitleWidth = 80.0;
-    // כל BarButton.icon עטוף ב-Padding(horizontal:2) → 4px לרוחב הכולל.
-    const buttonPadding = 4.0;
     return LayoutBuilder(
       builder: (context, constraints) {
         final available = constraints.hasBoundedWidth
@@ -49,11 +48,12 @@ class ReaderNavCenter extends StatelessWidget {
 
         // כשהמרחב צר, עוברים ל-compact (36px לכפתור במקום 40px).
         final forceCompact = available < 240 || isCompact;
-        final buttonWidth = (forceCompact ? 36.0 : 40.0) + buttonPadding;
+        final buttonWidth = BarButton.toolbarWidth(forceCompact);
 
         // כפתורי major מוסתרים כשאין מקום ל-4 כפתורים + כותרת מינימלית.
         final showMajor =
-            available >= 4 * buttonWidth + 2 * gap + minTitleWidth;
+            available >=
+            4 * buttonWidth + 2 * gap + ReaderNavCenter.minTitleWidth;
         // כשאין מקום אף לשני כפתורי minor (הצדדים בלעו את הסרגל) — מוותרים
         // גם עליהם, אחרת ה-Row גולש ומצייר את פס האזהרה (issue #891).
         final showMinor = available >= 2 * buttonWidth + 2 * gap;
@@ -65,7 +65,10 @@ class ReaderNavCenter extends StatelessWidget {
           340.0,
         );
         // כשהמרחב קטן מ-minTitleWidth, מאפשרים לכותרת להתכווץ עוד יותר.
-        final effectiveMinTitle = remainingForTitle.clamp(0.0, minTitleWidth);
+        final effectiveMinTitle = remainingForTitle.clamp(
+          0.0,
+          ReaderNavCenter.minTitleWidth,
+        );
 
         return Row(
           mainAxisSize: MainAxisSize.min,

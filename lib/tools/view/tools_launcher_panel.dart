@@ -2,13 +2,14 @@ import 'dart:async';
 
 import 'package:collection/collection.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
@@ -31,7 +32,7 @@ import 'package:otzaria/tools/tool_order.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/feedback/edge_scrollbar_behavior.dart';
-import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
@@ -90,14 +91,28 @@ List<ToolGroup> groupToolEntries(List<ToolCatalogEntry> entries) {
   return groups;
 }
 
-/// סדר השורות כפי שהן מוצגות בפועל.
+/// סדר הקוביות כפי שהן מוצגות בפועל.
 @visibleForTesting
 List<ToolCatalogEntry> orderedToolEntries(List<ToolCatalogEntry> entries) => [
   for (final group in groupToolEntries(entries)) ...group.entries,
 ];
 
+/// רוחב היעד לקובייה — ברוחב הפאנל שבברירת מחדל נכנסות ארבע קוביות בשורה.
+@visibleForTesting
+const double kToolTileTargetWidth = 88;
+
+/// המרווח בקצה ימין שמפנה מקום לפס הגלילה, כדי שלא יעלה על הקוביות.
+@visibleForTesting
+const double kToolGridScrollbarGutter = 14;
+
+/// מספר העמודות ברשת לרוחב נתון. הרוחב שמועבר הוא זה שנשאר לקוביות — כלומר
+/// לאחר הפחתת [kToolGridScrollbarGutter].
+@visibleForTesting
+int toolGridColumns(double width) =>
+    (width / kToolTileTargetWidth).floor().clamp(2, 5);
+
 /// האינדקס המסומן הבא בניווט מקלדת. `-1` = אין סימון, והחץ הראשון מסמן את
-/// השורה הראשונה.
+/// הקובייה הראשונה.
 @visibleForTesting
 int nextHighlightIndex({
   required int current,
@@ -105,7 +120,7 @@ int nextHighlightIndex({
   required int total,
 }) {
   if (total <= 0) return 0;
-  // ממצב "אין סימון" כל חץ מסמן את השורה הראשונה, ולא מדלג delta שורות.
+  // ממצב "אין סימון" כל חץ מסמן את הקובייה הראשונה, ולא מדלג delta קוביות.
   if (current < 0) return 0;
   return (current + delta).clamp(0, total - 1);
 }
@@ -120,7 +135,7 @@ bool canReorderBetween(ToolCatalogEntry source, ToolCatalogEntry target) =>
     source.isPlugin == target.isPlugin &&
     source.sortGroupPriority == target.sortGroupPriority;
 
-/// פעולה בתפריט השורה. מקור אמת אחד — נצרך גם בכפתור ⋯ וגם בבדיקות.
+/// פעולה בתפריט הקובייה. מקור אמת אחד — נצרך גם בכפתור ⋯ וגם בבדיקות.
 /// [onTap] ריק (`null`) = הפעולה מוצגת מעומעמת (למשל הזזה בקצה הקבוצה).
 /// [children] הופך את הפעולה לתת-תפריט, ואז [onTap] אינו בשימוש.
 @visibleForTesting
@@ -145,7 +160,7 @@ class ToolTileAction {
   });
 }
 
-/// תוכן פאנל הכלים: חיפוש למעלה, ומתחתיו רשימת עץ ניווט מקובצת.
+/// תוכן פאנל הכלים: חיפוש למעלה, ומתחתיו רשת קוביות מקובצת.
 class ToolsLauncherPanel extends StatefulWidget {
   final ValueChanged<ToolCatalogEntry> onToolSelected;
   final VoidCallback onClose;
@@ -166,18 +181,19 @@ class ToolsLauncherPanel extends StatefulWidget {
 
 class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
   final TextEditingController _searchController = TextEditingController();
-  final ScrollController _listScrollController = ScrollController();
+  final ScrollController _gridScrollController = ScrollController();
   late final FocusNode _searchFocusNode = FocusNode(
     onKeyEvent: _handleSearchFieldKey,
   );
   String _query = '';
 
-  /// השורה המסומנת בניווט מקלדת, כאינדקס ברשימה המסוננת השטוחה.
+  /// הקובייה המסומנת בניווט מקלדת, כאינדקס ברשימה המסוננת השטוחה.
   /// `-1` = אין סימון, כדי שלא ייראה כאילו הכלי הראשון נבחר.
   int _highlightedIndex = -1;
   List<ToolCatalogEntry> _keyboardEntries = const [];
+  int _keyboardColumns = 2;
 
-  /// הכלי שזז אחרון ומספר ההזזה — מריצים פעימת הדגשה על השורה שזזה.
+  /// הכלי שזז אחרון ומספר ההזזה — מריצים פעימת הדגשה על הקובייה שזזה.
   String? _movedToolId;
   int _moveNonce = 0;
 
@@ -186,17 +202,17 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
   List<String>? _pendingBuiltInOrder;
   List<String>? _pendingPluginOrder;
 
-  /// אזור הרשימה כולו — קצוותיו הם אזורי גלילת הקצה בזמן גרירה.
-  final GlobalKey _listAreaKey = GlobalKey();
+  /// אזור הרשת כולו — קצוותיו הם אזורי גלילת הקצה בזמן גרירה.
+  final GlobalKey _gridAreaKey = GlobalKey();
 
-  /// מסמן אפס-גובה אחרי השורה האחרונה — הגבול שמתחתיו שחרור הוא "לסוף".
-  final GlobalKey _listEndKey = GlobalKey();
+  /// מסמן אפס-גובה אחרי הקובייה האחרונה — הגבול שמתחתיו שחרור הוא "לסוף".
+  final GlobalKey _gridEndKey = GlobalKey();
 
   /// גלילת הקצה בגרירה: הכיוון (1- למעלה, 1 למטה) והשעון שמניע אותה.
   double _autoScrollDirection = 0;
   Timer? _autoScrollTimer;
 
-  /// השורה שמציגה קו "אחרי" כשהגרירה מרחפת בשטח הריק שמתחת לרשימה.
+  /// הקובייה שמציגה קו "אחרי" כשהגרירה מרחפת בשטח הריק שמתחת לרשת.
   String? _endDropIndicatorId;
 
   @override
@@ -213,7 +229,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
   void dispose() {
     _autoScrollTimer?.cancel();
     _searchController.dispose();
-    _listScrollController.dispose();
+    _gridScrollController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
   }
@@ -221,12 +237,13 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
   Future<void> _installPlugin() async {
     final verified = await verifySaferModePassword(context);
     if (!verified || !mounted) return;
-    final result = await FilePicker.pickFiles(
+    final result = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['otzplugin'],
-      lockParentWindow: true,
+      windowsOptions: kModalWindowsOptions,
+      linuxOptions: kModalLinuxOptions,
     );
-    final path = result?.files.single.path;
+    final path = result?.path;
     if (path == null || !mounted) return;
     context.read<PluginSystemBloc>().add(InstallPluginRequested(path));
   }
@@ -234,7 +251,10 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
   Future<void> _loadDevPlugin() async {
     final verified = await verifySaferModePassword(context);
     if (!verified || !mounted) return;
-    final rootPath = await FilePicker.getDirectoryPath(lockParentWindow: true);
+    final rootPath = await FilePicker.getDirectoryPath(
+      windowsOptions: kModalWindowsOptions,
+      linuxOptions: kModalLinuxOptions,
+    );
     if (rootPath == null || !mounted) return;
     context.read<PluginSystemBloc>().add(
       LoadDevelopmentPluginRequested(rootPath),
@@ -276,8 +296,11 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     );
   }
 
-  /// חצי מעלה/מטה מזיזים את הסימון; חצי ימין/שמאל נשארים לטקסט שבשדה החיפוש.
-  KeyEventResult _handleKey(KeyEvent event, List<ToolCatalogEntry> entries) {
+  KeyEventResult _handleKey(
+    KeyEvent event,
+    List<ToolCatalogEntry> entries,
+    int columns,
+  ) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
@@ -286,9 +309,16 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
         widget.onClose();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowDown:
-        _moveHighlight(1, entries.length);
+        _moveHighlight(columns, entries.length);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowUp:
+        _moveHighlight(-columns, entries.length);
+        return KeyEventResult.handled;
+      // ב-RTL הקובייה הבאה נמצאת משמאל, ולכן החיצים מתהפכים ביחס ל-LTR.
+      case LogicalKeyboardKey.arrowLeft:
+        _moveHighlight(1, entries.length);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowRight:
         _moveHighlight(-1, entries.length);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.enter:
@@ -300,11 +330,11 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
   }
 
   KeyEventResult _handleSearchFieldKey(FocusNode _, KeyEvent event) =>
-      _handleKey(event, _keyboardEntries);
+      _handleKey(event, _keyboardEntries, _keyboardColumns);
 
   // ── סידור מחדש ──────────────────────────────────────────────────────────────
 
-  /// סידור אפשרי רק ברשימה המלאה: בחיפוש השורות מסוננות, ו"השכן" על המסך
+  /// סידור אפשרי רק ברשימה המלאה: בחיפוש הקוביות מסוננות, ו"השכן" על המסך
   /// אינו השכן האמיתי בסדר.
   bool get _isReorderEnabled => normalizeToolSearchText(_query).isEmpty;
 
@@ -317,8 +347,8 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     final pluginBloc = context.read<PluginSystemBloc>();
     final settingsBloc = context.read<SettingsBloc>();
 
-    // שיגור מושהה לפריים הבא: שיגור בזמן בניית הרשימה מפיל את Flutter על
-    // הפעלה-מחדש של רכיבי Overlay.
+    // שיגור מושהה לפריים הבא: הרשת נבנית בתוך LayoutBuilder, ושיגור בזמן
+    // הבנייה מפיל את Flutter על הפעלה-מחדש של רכיבי Overlay.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (source.isPlugin) {
@@ -354,6 +384,88 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     });
   }
 
+  // ── שחרור בשטח הריק וגלילת קצה בגרירה ───────────────────────────────────────
+
+  /// היעד לשחרור בשטח הריק: הקובייה האחרונה בקבוצה של [source], או `null`
+  /// כשהמקור כבר אחרון ואין מה להזיז.
+  ToolCatalogEntry? _endOfGroupTarget(ToolCatalogEntry source) {
+    final last = _keyboardEntries.lastWhereOrNull(
+      (entry) =>
+          entry.isPlugin == source.isPlugin &&
+          entry.sortGroupPriority == source.sortGroupPriority,
+    );
+    return (last == null || last.toolId == source.toolId) ? null : last;
+  }
+
+  /// האם הסמן מתחת לקובייה האחרונה — בשטח הריק של הרשת.
+  bool _isBelowGridTiles(Offset globalPointer) {
+    final box = _gridEndKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return false;
+    return globalPointer.dy >= box.localToGlobal(Offset.zero).dy;
+  }
+
+  bool _acceptEndOfGridDrop(DragTargetDetails<ToolCatalogEntry> details) {
+    final target = _isReorderEnabled && _isBelowGridTiles(details.offset)
+        ? _endOfGroupTarget(details.data)
+        : null;
+    _setEndDropIndicator(target?.toolId);
+    return target != null;
+  }
+
+  void _dropAtEndOfGroup(ToolCatalogEntry source) {
+    _onDragEnded();
+    final target = _endOfGroupTarget(source);
+    if (target == null) return;
+    _reorder(source: source, target: target, placeAfter: true);
+  }
+
+  void _setEndDropIndicator(String? toolId) {
+    if (toolId == _endDropIndicatorId) return;
+    setState(() => _endDropIndicatorId = toolId);
+  }
+
+  void _onDragEnded() {
+    _setEndDropIndicator(null);
+    _stopDragAutoScroll();
+  }
+
+  /// מזניק או עוצר את גלילת הקצה לפי מיקום הסמן באזור הרשת.
+  void _updateDragAutoScroll(Offset globalPointer) {
+    final box = _gridAreaKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return _stopDragAutoScroll();
+    final dy = box.globalToLocal(globalPointer).dy;
+    var direction = 0.0;
+    if (dy < _kGridAutoScrollEdge) {
+      direction = -1;
+    } else if (dy > box.size.height - _kGridAutoScrollEdge) {
+      direction = 1;
+    }
+    if (direction == 0) return _stopDragAutoScroll();
+    _autoScrollDirection = direction;
+    _autoScrollTimer ??= Timer.periodic(
+      _kGridAutoScrollTick,
+      _onAutoScrollTick,
+    );
+  }
+
+  void _onAutoScrollTick(Timer _) {
+    if (!_gridScrollController.hasClients) return _stopDragAutoScroll();
+    final position = _gridScrollController.position;
+    final target =
+        (position.pixels + _autoScrollDirection * _kGridAutoScrollStep).clamp(
+          position.minScrollExtent,
+          position.maxScrollExtent,
+        );
+    if (target == position.pixels) return _stopDragAutoScroll();
+    position.jumpTo(target);
+  }
+
+  void _stopDragAutoScroll() {
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = null;
+    _autoScrollDirection = 0;
+  }
+
   /// מנקה את הסדר הממתין ברגע שה-bloc התיישר עליו. חייב לקרות ב-build, כי שם
   /// מגיע ה-state המעודכן.
   void _clearSettledPendingOrders(
@@ -385,89 +497,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     }
   }
 
-  // ── שחרור בשטח הריק וגלילת קצה בגרירה ───────────────────────────────────────
-
-  /// היעד לשחרור בשטח הריק: השורה האחרונה בקבוצה של [source], או `null`
-  /// כשהמקור כבר אחרון ואין מה להזיז.
-  ToolCatalogEntry? _endOfGroupTarget(ToolCatalogEntry source) {
-    final last = _keyboardEntries.lastWhereOrNull(
-      (entry) =>
-          entry.isPlugin == source.isPlugin &&
-          entry.sortGroupPriority == source.sortGroupPriority,
-    );
-    return (last == null || last.toolId == source.toolId) ? null : last;
-  }
-
-  /// האם הסמן מתחת לשורה האחרונה — בשטח הריק של הרשימה.
-  bool _isBelowListRows(Offset globalPointer) {
-    final box = _listEndKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null || !box.hasSize) return false;
-    return globalPointer.dy >= box.localToGlobal(Offset.zero).dy;
-  }
-
-  bool _acceptEndOfListDrop(DragTargetDetails<ToolCatalogEntry> details) {
-    final target = _isReorderEnabled && _isBelowListRows(details.offset)
-        ? _endOfGroupTarget(details.data)
-        : null;
-    _setEndDropIndicator(target?.toolId);
-    return target != null;
-  }
-
-  void _dropAtEndOfGroup(ToolCatalogEntry source) {
-    _onDragEnded();
-    final target = _endOfGroupTarget(source);
-    if (target == null) return;
-    _reorder(source: source, target: target, placeAfter: true);
-  }
-
-  void _setEndDropIndicator(String? toolId) {
-    if (toolId == _endDropIndicatorId) return;
-    setState(() => _endDropIndicatorId = toolId);
-  }
-
-  void _onDragEnded() {
-    _setEndDropIndicator(null);
-    _stopDragAutoScroll();
-  }
-
-  /// מזניק או עוצר את גלילת הקצה לפי מיקום הסמן באזור הרשימה.
-  void _updateDragAutoScroll(Offset globalPointer) {
-    final box = _listAreaKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null || !box.hasSize) return _stopDragAutoScroll();
-    final dy = box.globalToLocal(globalPointer).dy;
-    var direction = 0.0;
-    if (dy < _kListAutoScrollEdge) {
-      direction = -1;
-    } else if (dy > box.size.height - _kListAutoScrollEdge) {
-      direction = 1;
-    }
-    if (direction == 0) return _stopDragAutoScroll();
-    _autoScrollDirection = direction;
-    _autoScrollTimer ??= Timer.periodic(
-      _kListAutoScrollTick,
-      _onAutoScrollTick,
-    );
-  }
-
-  void _onAutoScrollTick(Timer _) {
-    if (!_listScrollController.hasClients) return _stopDragAutoScroll();
-    final position = _listScrollController.position;
-    final target =
-        (position.pixels + _autoScrollDirection * _kListAutoScrollStep).clamp(
-          position.minScrollExtent,
-          position.maxScrollExtent,
-        );
-    if (target == position.pixels) return _stopDragAutoScroll();
-    position.jumpTo(target);
-  }
-
-  void _stopDragAutoScroll() {
-    _autoScrollTimer?.cancel();
-    _autoScrollTimer = null;
-    _autoScrollDirection = 0;
-  }
-
-  /// פעולות השורה, בסדר שבו הן מוצגות בתפריט ⋯.
+  /// פעולות הקובייה, בסדר שבו הן מוצגות בתפריט ⋯.
   List<ToolTileAction> _tileActions(
     ToolCatalogEntry entry, {
     required VoidCallback? onMoveEarlier,
@@ -482,23 +512,24 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
         label: 'הזזה',
         onTap: null,
         children: [
+          // RtlIcon בשורת התפריט מהפך את החץ, כך שיצביע לכיוון ההזזה בפועל.
           ToolTileAction(
-            icon: FluentIcons.arrow_up_24_regular,
-            label: 'הזז למעלה',
+            icon: FluentIcons.arrow_left_24_regular,
+            label: 'הזז אחורה',
             onTap: onMoveEarlier,
           ),
           ToolTileAction(
-            icon: FluentIcons.arrow_down_24_regular,
-            label: 'הזז למטה',
+            icon: FluentIcons.arrow_right_24_regular,
+            label: 'הזז קדימה',
             onTap: onMoveLater,
           ),
           ToolTileAction(
-            icon: FluentIcons.arrow_upload_24_regular,
+            icon: FluentIcons.arrow_previous_24_regular,
             label: 'הזז לתחילה',
             onTap: onMoveToStart,
           ),
           ToolTileAction(
-            icon: FluentIcons.arrow_download_24_regular,
+            icon: FluentIcons.arrow_next_24_regular,
             label: 'הזז לסוף',
             onTap: onMoveToEnd,
           ),
@@ -612,7 +643,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
                           settingsState.isOfflineMode,
                           allEntries,
                         )
-                      : _buildList(
+                      : _buildGrid(
                           entries,
                           openToolIds,
                           bottomInset:
@@ -624,7 +655,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
                 ),
                 PositionedDirectional(
                   bottom: AppTokens.spaceSM,
-                  start: kNavTreeSideInset,
+                  start: kToolGridScrollbarGutter,
                   child: _PluginsToolbar(
                     showDevTools:
                         widget.showDevTools ?? PluginDevToolsMode.enabled,
@@ -718,56 +749,138 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
     );
   }
 
-  Widget _buildList(
+  Widget _buildGrid(
     List<ToolCatalogEntry> entries,
     Set<String> openToolIds, {
     required double bottomInset,
   }) {
-    final groups = groupToolEntries(entries);
-    var runningIndex = 0;
-
-    return Focus(
-      autofocus: false,
-      onKeyEvent: (_, event) => _handleKey(event, entries),
-      child: NavTreeFocusGroup(
-        // היעד מאחורי הרשימה כולה: קולט שחרור בשטח הריק שמתחת לשורות, ומזין
-        // את גלילת הקצה בכל מקום שאין בו שורה קולטת.
-        child: DragTarget<ToolCatalogEntry>(
-          key: _listAreaKey,
-          onWillAcceptWithDetails: _acceptEndOfListDrop,
-          onMove: (details) => _updateDragAutoScroll(details.offset),
-          onLeave: (_) => _onDragEnded(),
-          onAcceptWithDetails: (details) => _dropAtEndOfGroup(details.data),
-          builder: (context, _, _) => ScrollConfiguration(
-            behavior: const EdgeScrollbarBehavior.right(),
-            child: ListView(
-              controller: _listScrollController,
-              padding:
-                  kNavTreeListPadding + EdgeInsets.only(bottom: bottomInset),
-              children: [
-                for (var i = 0; i < groups.length; i++) ...[
-                  // קבוצות עוקבות באותה תווית (תוספים לפני/אחרי הכלים המובנים)
-                  // נראות כמקטע אחד — הכותרת מוצגת רק במעבר תווית.
-                  if (i == 0 || groups[i].label != groups[i - 1].label)
-                    NavTreeHeader(title: groups[i].label),
-                  for (var j = 0; j < groups[i].entries.length; j++)
-                    _buildRow(
-                      group: groups[i].entries,
-                      indexInGroup: j,
-                      flatIndex: runningIndex++,
-                      openToolIds: openToolIds,
-                    ),
-                ],
-                SizedBox(key: _listEndKey, height: 0),
-              ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = toolGridColumns(
+          constraints.maxWidth - kToolGridScrollbarGutter,
+        );
+        _keyboardColumns = columns;
+        final groups = groupToolEntries(entries);
+        final theme = Theme.of(context);
+        return Focus(
+          autofocus: false,
+          onKeyEvent: (_, event) => _handleKey(event, entries, columns),
+          // היעד מאחורי הרשת כולה: קולט שחרור בשטח הריק שמתחת לקוביות, ומזין
+          // את גלילת הקצה בכל מקום שאין בו קובייה קולטת.
+          child: DragTarget<ToolCatalogEntry>(
+            key: _gridAreaKey,
+            onWillAcceptWithDetails: _acceptEndOfGridDrop,
+            onMove: (details) => _updateDragAutoScroll(details.offset),
+            onLeave: (_) => _onDragEnded(),
+            onAcceptWithDetails: (details) => _dropAtEndOfGroup(details.data),
+            builder: (context, _, _) => ScrollConfiguration(
+              behavior: const EdgeScrollbarBehavior.right(),
+              child: CustomScrollView(
+                controller: _gridScrollController,
+                slivers: _buildGridSlivers(
+                  groups: groups,
+                  columns: columns,
+                  openToolIds: openToolIds,
+                  bottomInset: bottomInset,
+                  theme: theme,
+                ),
+              ),
             ),
+          ),
+        );
+      },
+    );
+  }
+
+  List<Widget> _buildGridSlivers({
+    required List<ToolGroup> groups,
+    required int columns,
+    required Set<String> openToolIds,
+    required double bottomInset,
+    required ThemeData theme,
+  }) {
+    final slivers = <Widget>[];
+    var runningIndex = 0;
+    for (var i = 0; i < groups.length; i++) {
+      final group = groups[i];
+      final isNewLabel = i == 0 || group.label != groups[i - 1].label;
+      if (i > 0 && isNewLabel) {
+        slivers.add(
+          const SliverPadding(
+            padding: EdgeInsets.only(
+              top: AppTokens.spaceMD,
+              right: kToolGridScrollbarGutter,
+              bottom: AppTokens.spaceSM,
+            ),
+            sliver: SliverToBoxAdapter(child: Divider(height: 1)),
+          ),
+        );
+      }
+      if (isNewLabel) {
+        slivers.add(
+          SliverPadding(
+            padding: const EdgeInsets.only(
+              top: AppTokens.spaceSM,
+              right: kToolGridScrollbarGutter,
+              bottom: AppTokens.spaceSM,
+            ),
+            sliver: SliverToBoxAdapter(
+              child: Text(
+                group.label,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: theme.colorScheme.secondary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+      final groupStartIndex = runningIndex;
+      runningIndex += group.entries.length;
+      slivers.add(
+        SliverPadding(
+          padding: const EdgeInsets.only(right: kToolGridScrollbarGutter),
+          sliver: SliverGrid(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              mainAxisSpacing: AppTokens.spaceSM,
+              crossAxisSpacing: AppTokens.spaceSM,
+              childAspectRatio: 1.0,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => _buildTile(
+                group: group.entries,
+                indexInGroup: index,
+                flatIndex: groupStartIndex + index,
+                openToolIds: openToolIds,
+              ),
+              childCount: group.entries.length,
+            ),
+          ),
+        ),
+      );
+    }
+    slivers.add(
+      SliverPadding(
+        padding: EdgeInsets.only(
+          right: kToolGridScrollbarGutter,
+          bottom: bottomInset,
+        ),
+        sliver: SliverToBoxAdapter(
+          child: Column(
+            children: [
+              SizedBox(key: _gridEndKey, height: 0),
+              const SizedBox(height: AppTokens.spaceMD),
+            ],
           ),
         ),
       ),
     );
+    return slivers;
   }
 
-  Widget _buildRow({
+  Widget _buildTile({
     required List<ToolCatalogEntry> group,
     required int indexInGroup,
     required int flatIndex,
@@ -802,8 +915,6 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
         entry: entry,
         isOpen: openToolIds.contains(entry.toolId),
         isHighlighted: flatIndex == _highlightedIndex,
-        isGroupStart: isFirst,
-        isGroupEnd: isLast,
         movePulse: entry.toolId == _movedToolId ? _moveNonce : 0,
         // בלי זה הפוקוס נשאר על מסלול התפריט שנסגר, ומקשי הפאנל (Escape,
         // חצים, Enter) מפסיקים לעבוד עד לחיצה על שדה החיפוש.
@@ -886,23 +997,23 @@ class _PluginsToolbar extends StatelessWidget {
   }
 }
 
-/// עוטף שורה ביכולת גרירה לסידור מחדש: גוררים שורה, וקו ההוספה מראה בין אילו
-/// שורות היא תיפול — לפי חצי השורה שהסמן נמצא בו, כמו סידור לשוניות בדפדפן.
-/// במגע הגרירה מתחילה בלחיצה ארוכה, כדי לא לחטוף את הגלילה.
+/// עוטף קובייה ביכולת גרירה לסידור מחדש: גוררים קובייה, וקו ההוספה מראה בין
+/// אילו קוביות היא תיפול — לפי חצי הקובייה שהסמן נמצא בו, כמו סידור לשוניות
+/// בדפדפן. במגע הגרירה מתחילה בלחיצה ארוכה, כדי לא לחטוף את הגלילה.
 class _ReorderableToolTile extends StatefulWidget {
   final ToolCatalogEntry entry;
   final ToolTile tile;
   final bool canDrag;
 
-  /// קו "אחרי" כפוי — כשגרירה מרחפת בשטח הריק והשורה היא סוף קבוצת היעד.
+  /// קו "אחרי" כפוי — כשגרירה מרחפת בשטח הריק והקובייה היא סוף קבוצת היעד.
   final bool showEndIndicator;
   final void Function(ToolCatalogEntry source, {required bool placeAfter})
   onAcceptSource;
 
-  /// תזוזת גרירה מעל השורה — מזינה את גלילת הקצה של הרשימה.
+  /// תזוזת גרירה מעל הקובייה — מזינה את גלילת הקצה של הרשת.
   final ValueChanged<Offset> onDragOver;
 
-  /// הגרירה עזבה את השורה או הסתיימה — עוצרת את גלילת הקצה.
+  /// הגרירה עזבה את הקובייה או הסתיימה — עוצרת את גלילת הקצה.
   final VoidCallback onDragEnded;
 
   const _ReorderableToolTile({
@@ -921,7 +1032,7 @@ class _ReorderableToolTile extends StatefulWidget {
 }
 
 class _ReorderableToolTileState extends State<_ReorderableToolTile> {
-  /// `true` = השורה הנגררת תיפול *אחרי* השורה הזאת בסדר.
+  /// `true` = הקובייה הנגררת תיפול *אחרי* הקובייה הזאת בסדר.
   bool _placeAfter = false;
 
   bool get _isTouch => switch (defaultTargetPlatform) {
@@ -929,14 +1040,17 @@ class _ReorderableToolTileState extends State<_ReorderableToolTile> {
     _ => false,
   };
 
-  /// ברשימה אנכית סמן בחצי העליון של השורה מציב לפניה, ובחצי התחתון אחריה.
+  /// בכיוון RTL "לפני" הוא הצד הימני של הקובייה, ולכן סמן בחצי הימני מציב
+  /// לפניה וסמן בחצי השמאלי מציב אחריה.
   void _updateSide(ToolCatalogEntry source, Offset globalPointer) {
-    // Flutter מדווח על תזוזה גם ליעדים שנדחו, כולל השורה הנגררת עצמה.
+    // Flutter מדווח על תזוזה גם ליעדים שנדחו, כולל הקובייה הנגררת עצמה.
     if (!canReorderBetween(source, widget.entry)) return;
     final box = context.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return;
     final local = box.globalToLocal(globalPointer);
-    final placeAfter = local.dy >= box.size.height / 2;
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+    final inLeadingHalf = local.dx < box.size.width / 2;
+    final placeAfter = isRtl ? inLeadingHalf : !inLeadingHalf;
     if (placeAfter != _placeAfter) setState(() => _placeAfter = placeAfter);
   }
 
@@ -988,16 +1102,16 @@ class _ReorderableToolTileState extends State<_ReorderableToolTile> {
 /// מרחק התזוזה שממנו לחיצה נחשבת גרירה.
 ///
 /// ה-`Draggable` הרגיל תופס את המחווה כבר בפיקסל אחד בעכבר, ואז לחיצה שבה
-/// היד רעדה קלות אינה מגיעה ללחצן שבשורה — הכלי לא נפתח והתפריט לא נפתח.
+/// היד רעדה קלות אינה מגיעה ללחצן שבקובייה — הכלי לא נפתח והתפריט לא נפתח.
 const double _kToolDragSlop = 12;
 
-/// עומק אזור הקצה שגרירה בתוכו גוללת את הרשימה, כמו ברצועת הכרטיסיות.
-const double _kListAutoScrollEdge = 40;
+/// עומק אזור הקצה שגרירה בתוכו גוללת את הרשת, כמו ברצועת הכרטיסיות.
+const double _kGridAutoScrollEdge = 40;
 
 /// קצב גלילת הקצה — פיקסלים לכל פעימה (פעימה לכל פריים בקירוב).
-const double _kListAutoScrollStep = 8;
+const double _kGridAutoScrollStep = 8;
 
-const Duration _kListAutoScrollTick = Duration(milliseconds: 16);
+const Duration _kGridAutoScrollTick = Duration(milliseconds: 16);
 
 /// מזהה גרירה מיידי עם סף תזוזה גדול מברירת המחדל. תומך במצביע מדויק בלבד:
 /// במגע הגרירה מתחילה בלחיצה ארוכה, כדי לא לחטוף את הגלילה.
@@ -1051,13 +1165,13 @@ class _SlopDraggable<T extends Object> extends Draggable<T> {
   ) => _SlopMultiDragGestureRecognizer(debugOwner: this)..onStart = onStart;
 }
 
-/// מפתח קו ההוספה שמוצג בגרירה, בצד שאליו השורה תיפול.
+/// מפתח קו ההוספה שמוצג בגרירה, בצד שאליו הקובייה תיפול.
 @visibleForTesting
 const Key kToolDropIndicatorKey = Key('tool-drop-indicator');
 
-/// קו ההוספה בקצה השורה. [placeAfter] ריק = הגרירה אינה מעל השורה הזאת.
+/// קו ההוספה בקצה הקובייה. [placeAfter] ריק = הגרירה אינה מעל הקובייה הזאת.
 class _DropInsertionIndicator extends StatelessWidget {
-  static const double lineHeight = 3;
+  static const double lineWidth = 3;
 
   final bool? placeAfter;
   final Widget child;
@@ -1077,17 +1191,16 @@ class _DropInsertionIndicator extends StatelessWidget {
       children: [
         child,
         PositionedDirectional(
-          // הקו נעצר בשוליים האופקיים של הכרטיס, ולא נמשך אל דופן החלונית.
-          start: kNavTreeSideInset,
-          end: kNavTreeSideInset,
-          top: side ? null : 0,
-          bottom: side ? 0 : null,
+          top: 2,
+          bottom: 2,
+          start: side ? null : 0,
+          end: side ? 0 : null,
           child: Container(
             key: kToolDropIndicatorKey,
-            height: lineHeight,
+            width: lineWidth,
             decoration: BoxDecoration(
               color: cs.primary,
-              borderRadius: BorderRadius.circular(lineHeight),
+              borderRadius: BorderRadius.circular(lineWidth),
             ),
           ),
         ),
@@ -1096,7 +1209,7 @@ class _DropInsertionIndicator extends StatelessWidget {
   }
 }
 
-/// מה שצף מתחת לסמן בזמן גרירת שורה.
+/// מה שצף מתחת לסמן בזמן גרירת קובייה.
 class _ToolDragFeedback extends StatelessWidget {
   final ToolCatalogEntry entry;
 
@@ -1138,21 +1251,34 @@ class _ToolDragFeedback extends StatelessWidget {
   }
 }
 
-/// שורת כלי בעץ הניווט של הפאנל, בעיצוב שורות מסך הספרייה.
+/// קובייה בודדת ברשת הכלים.
 class ToolTile extends StatelessWidget {
-  static const double menuButtonSize = 26;
-  static const double menuIconSize = 15;
+  static const double maxIconSize = 36;
+  static const double minIconSize = 20;
+  static const double menuButtonSize = 24;
+  static const double menuIconSize = 13;
+
+  /// התווית קטנה ובשתי שורות, כדי שרוב הקובייה תישאר לאייקון.
+  static const double labelFontSize = 11;
+  static const double labelLineHeight = 1.2;
+  static const double labelBlockHeight = labelFontSize * labelLineHeight * 2;
+
+  /// גודל האייקון לגובה הפנוי בקובייה: כל מה שנשאר אחרי שתי שורות התווית.
+  /// כך פאנל מצומצם מקטין את האייקון במקום לחתוך את הכתב.
+  static double iconSizeFor(double availableHeight) {
+    if (!availableHeight.isFinite) return maxIconSize;
+    return (availableHeight - AppTokens.spaceXS - labelBlockHeight).clamp(
+      minIconSize,
+      maxIconSize,
+    );
+  }
 
   final ToolCatalogEntry entry;
   final bool isOpen;
   final bool isHighlighted;
   final VoidCallback onTap;
 
-  /// קצות הכרטיס המקובץ — כל קבוצה (כלים / תוספים) נראית ככרטיס אחד רציף.
-  final bool isGroupStart;
-  final bool isGroupEnd;
-
-  /// פעולות תפריט ⋯. ריק = השורה מוצגת בלי כפתור פעולות.
+  /// פעולות תפריט ⋯. ריק = הקובייה מוצגת בלי כפתור פעולות.
   final List<ToolTileAction> actions;
 
   /// מזהה פעימת ההזזה: כל שינוי מריץ אנימציית הדגשה קצרה. 0 = ללא פעימה.
@@ -1167,8 +1293,6 @@ class ToolTile extends StatelessWidget {
     required this.isOpen,
     required this.isHighlighted,
     required this.onTap,
-    this.isGroupStart = true,
-    this.isGroupEnd = true,
     this.actions = const [],
     this.movePulse = 0,
     this.onMenuClosed,
@@ -1176,54 +1300,70 @@ class ToolTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     return _MovePulse(
       nonce: movePulse,
-      child: NavTreeGroupCard(
-        isGroupStart: isGroupStart,
-        isGroupEnd: isGroupEnd,
-        child: NavTreeTile.book(
-          title: entry.label,
-          level: 0,
-          isSelected: isHighlighted,
-          icon: entry.icon ?? FluentIcons.puzzle_piece_24_regular,
-          leading: entry.imageIcon == null ? null : _buildImageLeading(context),
-          trailing: _buildTrailing(cs),
-          onTap: onTap,
+      child: AppCard(
+        onTap: onTap,
+        selected: isHighlighted,
+        child: Stack(
+          children: [
+            // האייקון והכותרת ממורכזים כגוש אחד.
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(AppTokens.spaceXS),
+                child: LayoutBuilder(
+                  builder: (context, constraints) => Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      _buildIcon(cs, iconSizeFor(constraints.maxHeight)),
+                      const SizedBox(height: AppTokens.spaceXS),
+                      Flexible(
+                        child: Text(
+                          entry.label,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontSize: labelFontSize,
+                            height: labelLineHeight,
+                            fontWeight: FontWeight.w600,
+                            color: cs.onSurface,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (actions.isNotEmpty)
+              PositionedDirectional(
+                top: 0,
+                end: 0,
+                child: _buildMenuButton(cs),
+              ),
+            if (entry.isDevelopment)
+              PositionedDirectional(
+                bottom: 2,
+                start: 4,
+                child: _Badge(label: 'DEV', color: cs.tertiary),
+              ),
+            if (isOpen)
+              PositionedDirectional(
+                top: 4,
+                start: 4,
+                child: Icon(
+                  FluentIcons.checkmark_circle_16_filled,
+                  size: 12,
+                  color: cs.primary,
+                ),
+              ),
+          ],
         ),
       ),
-    );
-  }
-
-  Widget _buildImageLeading(BuildContext context) => NavTreeTile.iconBox(
-    context,
-    child: ImageIcon(
-      AssetImage(entry.imageIcon!),
-      size: NavTreeTile.iconContentSize,
-      color: Theme.of(context).colorScheme.onSecondaryContainer,
-    ),
-  );
-
-  Widget _buildTrailing(ColorScheme cs) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (isOpen)
-          Padding(
-            padding: const EdgeInsetsDirectional.only(end: AppTokens.spaceXS),
-            child: Icon(
-              FluentIcons.checkmark_circle_16_filled,
-              size: 14,
-              color: cs.primary,
-            ),
-          ),
-        if (entry.isDevelopment)
-          Padding(
-            padding: const EdgeInsetsDirectional.only(end: AppTokens.spaceXS),
-            child: _Badge(label: 'DEV', color: cs.tertiary),
-          ),
-        if (actions.isNotEmpty) _buildMenuButton(cs),
-      ],
     );
   }
 
@@ -1293,9 +1433,20 @@ class ToolTile extends StatelessWidget {
       null,
     );
   }
+
+  Widget _buildIcon(ColorScheme cs, double iconSize) {
+    if (entry.imageIcon != null) {
+      return ImageIcon(
+        AssetImage(entry.imageIcon!),
+        size: iconSize,
+        color: cs.primary,
+      );
+    }
+    return Icon(entry.icon, size: iconSize, color: cs.primary);
+  }
 }
 
-/// פעימת הדגשה קצרה על שורה שזזה — מראה למשתמש לאן היא נחתה.
+/// פעימת הדגשה קצרה על קובייה שזזה — מראה למשתמש לאן היא נחתה.
 class _MovePulse extends StatefulWidget {
   final int nonce;
   final Widget child;
@@ -1338,20 +1489,23 @@ class _MovePulseState extends State<_MovePulse>
     return AnimatedBuilder(
       animation: _progress,
       // מבנה העץ קבוע גם במנוחה: החלפת מבנה בתחילת הפעימה ובסופה הייתה בונה
-      // את השורה מחדש ומאפסת את מצב הריחוף שלה.
+      // את הקובייה מחדש ומאפסת את מצב הריחוף שלה.
       builder: (context, child) {
         final remaining = 1.0 - _progress.value;
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: AppTokens.borderRadiusAll,
-            boxShadow: [
-              BoxShadow(
-                color: cs.primary.withValues(alpha: 0.35 * remaining),
-                blurRadius: 12 * remaining,
-              ),
-            ],
+        return Transform.scale(
+          scale: 1.0 - 0.06 * remaining,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: AppTokens.borderRadiusAll,
+              boxShadow: [
+                BoxShadow(
+                  color: cs.primary.withValues(alpha: 0.35 * remaining),
+                  blurRadius: 12 * remaining,
+                ),
+              ],
+            ),
+            child: child,
           ),
-          child: child,
         );
       },
       child: widget.child,

@@ -62,6 +62,52 @@ void main() {
     });
   });
 
+  group('fonts.resolveFamilies', () {
+    setUp(debugClearFontFaceCssCache);
+
+    test('מחזיר את בייטי התחליף תחת השם שהמסמך ביקש', () async {
+      final result = await debugResolveFontFamilies([
+        {
+          'name': 'Missing Document Font',
+          'substitutes': ['FrankRuhlCLM'],
+        },
+      ]);
+
+      expect(result['resolved'], ['Missing Document Font']);
+      expect(
+        result['css'],
+        contains("font-family:'Missing Document Font'"),
+      );
+    });
+
+    test('כינויי מסמך אינם נשמרים במטמון הגלובלי', () async {
+      await debugResolveFontFamilies([
+        {
+          'name': 'First Alias',
+          'substitutes': ['FrankRuhlCLM'],
+        },
+        {
+          'name': 'Second Alias',
+          'substitutes': ['FrankRuhlCLM'],
+        },
+      ]);
+
+      expect(debugFontFaceCssCacheSize, isZero);
+    });
+
+    test('מגביל את מספר המשפחות בבקשה אחת', () async {
+      final result = await debugResolveFontFamilies([
+        for (var i = 0; i < 25; i++)
+          {
+            'name': 'Missing $i',
+            'substitutes': ['FrankRuhlCLM'],
+          },
+      ]);
+
+      expect(result['resolved'], hasLength(24));
+    });
+  });
+
   group('typography ב-theme payload', () {
     test('ברירת המחדל היא משפחה שנשלחת בפועל כ-@font-face', () async {
       final css = await buildPluginFontFaceCss();

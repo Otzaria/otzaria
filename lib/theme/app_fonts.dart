@@ -157,6 +157,7 @@ class AppFonts {
 
   static List<FontInfo>? _systemFontsHebrewCache;
   static Map<String, SystemFontFamilyFaces>? _systemFamiliesCache;
+  static Map<String, SystemFontFamilyFaces>? _pluginSystemFamiliesCache;
   static Map<String, String>? _systemFontAliasCache;
   static Future<void>? _warmUpFuture;
 
@@ -250,6 +251,7 @@ class AppFonts {
     _systemFontsHebrewCache = scan.fonts;
     _taamimSupportByFamily = null;
     _systemFamiliesCache = scan.families;
+    _pluginSystemFamiliesCache = scan.allFamilies;
     _systemFontAliasCache = scan.aliases;
   }
 
@@ -281,16 +283,15 @@ class AppFonts {
     }
   }
 
-  /// מקבץ קבצי גופן למשפחות לפי שם המשפחה מטבלת ה-name (לא לפי שם הקובץ —
-  /// התקנה פר-משתמש שומרת שמות קבצים שרירותיים שהמשתמש אינו מזהה).
+  /// מקבץ קבצי גופן למשפחות לפי שם המשפחה מטבלת ה-name.
   static SystemFontScanResult _buildScan(
     Iterable<MapEntry<String, Uint8List>> faces,
   ) {
     final builders = <String, _FamilyAccumulator>{};
+    final allBuilders = <String, _FamilyAccumulator>{};
     final aliases = <String, String>{};
     for (final face in faces) {
       final bytes = face.value;
-      if (!_sfntSupportsHebrew(bytes)) continue;
       final info = _sfntFaceInfo(bytes);
       if (info == null || info.italic) continue;
       // p.windows מפרק גם נתיבי \ וגם / — נתיבי ה-registry של Windows מגיעים
@@ -298,6 +299,17 @@ class AppFonts {
       final family = info.family.trim().isNotEmpty
           ? info.family.trim()
           : p.windows.basenameWithoutExtension(face.key);
+      final allAcc = allBuilders.putIfAbsent(
+        family.toLowerCase(),
+        () => _FamilyAccumulator(family),
+      );
+      allAcc.addFace(
+        path: face.key,
+        info: info,
+        category: FontCategory.unknown,
+        supportsTaamim: false,
+      );
+      if (!_sfntSupportsHebrew(bytes)) continue;
       final acc = builders.putIfAbsent(
         family.toLowerCase(),
         () => _FamilyAccumulator(family),
@@ -312,6 +324,10 @@ class AppFonts {
           family;
     }
 
+    final allFamilies = <String, SystemFontFamilyFaces>{
+      for (final entry in allBuilders.entries)
+        entry.value.family: (builders[entry.key] ?? entry.value).build(),
+    };
     final fonts = <FontInfo>[];
     final families = <String, SystemFontFamilyFaces>{};
     for (final acc in builders.values) {
@@ -332,6 +348,7 @@ class AppFonts {
     return SystemFontScanResult(
       fonts: fonts,
       families: families,
+      allFamilies: allFamilies,
       aliases: aliases,
     );
   }
@@ -661,6 +678,10 @@ class AppFonts {
   /// דורש שהקאש יהיה חם — ראו [warmUpSystemFontsCache].
   static SystemFontFamilyFaces? systemFamilyFaces(String fontFamily) =>
       _systemFamiliesCache?[fontFamily];
+
+  /// ה-faces של כל גופן מערכת שהסריקה יכולה לקרוא, לתוספים שמבקשים את הבייטים.
+  static SystemFontFamilyFaces? pluginSystemFamilyFaces(String fontFamily) =>
+      _pluginSystemFamiliesCache?[fontFamily];
 
   /// בייטים של קובץ גופן מהדיסק, או null כשאינו קריא.
   static Uint8List? readFontBytes(String path) => _readFontBytesSync(path);
@@ -1007,6 +1028,7 @@ class AppFonts {
     _systemFontsHebrewCache = null;
     _taamimSupportByFamily = null;
     _systemFamiliesCache = null;
+    _pluginSystemFamiliesCache = null;
     _systemFontAliasCache = null;
     _warmUpFuture = null;
     _variableSystemFonts.clear();
@@ -1082,17 +1104,20 @@ class _FontFaceInfo {
 class SystemFontScanResult {
   final List<FontInfo> fonts;
   final Map<String, SystemFontFamilyFaces> families;
+  final Map<String, SystemFontFamilyFaces> allFamilies;
   final Map<String, String> aliases;
 
   const SystemFontScanResult({
     required this.fonts,
     required this.families,
+    required this.allFamilies,
     required this.aliases,
   });
 
   const SystemFontScanResult.empty()
     : fonts = const [],
       families = const {},
+      allFamilies = const {},
       aliases = const {};
 }
 

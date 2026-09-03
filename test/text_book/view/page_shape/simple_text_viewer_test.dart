@@ -200,6 +200,123 @@ void main() {
     expect(find.byType(LinkHoverPreviewContent), findsOneWidget);
   });
 
+  testWidgets('עמודת מפרש עם anchorLinksByLine מזריקה סמני מפרש-על עם פופאפ', (
+    tester,
+  ) async {
+    // עוגן של שער הציון בתוך שורת המשנה ברורה (issue #1069) — הקישורים
+    // שייכים לספר המפרש עצמו, לא ל-state של הספר הראשי.
+    final superLink = Link(
+      heRef: 'שער הציון, לב, ה',
+      index1: 1,
+      path2: 'שער הציון',
+      index2: 1,
+      connectionType: 'SUPER_COMMENTARY',
+      anchorStart: 3,
+      anchorLabel: 'ה',
+    );
+    final textBookBloc = _TestTextBookBloc(_loadedState());
+    final personalNotesBloc = _TestPersonalNotesBloc(
+      const PersonalNotesState(
+        isLoading: false,
+        bookId: 'ספר בדיקה',
+        locatedNotes: [],
+        missingNotes: [],
+        errorMessage: null,
+        filteredLocatedNotes: [],
+        filteredMissingNotes: [],
+      ),
+    );
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    addTearDown(LinkPreviewOverlay.dismiss);
+
+    await tester.pumpWidget(
+      MultiBlocProvider(
+        providers: [
+          BlocProvider<TextBookBloc>.value(value: textBookBloc),
+          BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
+          BlocProvider<SettingsBloc>.value(value: settingsBloc),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SimpleTextViewer(
+              content: const ['שורת משנה ברורה'],
+              fontSize: 18,
+              openBookCallback: (_) {},
+              isMainText: false,
+              bookTitle: 'משנה ברורה',
+              anchorLinksByLine: {
+                1: [superLink],
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final smartText = tester
+        .widgetList<SmartTextWidget>(find.byType(SmartTextWidget))
+        .firstWhere((widget) => widget.onAnchorHover != null);
+    expect(smartText.text, contains('otzaria://anchor?ref=0_0'));
+    expect(smartText.text, contains('(ה)'));
+
+    smartText.onAnchorHover!(
+      'otzaria://anchor?ref=0_0',
+      const Offset(100, 100),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(LinkHoverPreviewContent), findsOneWidget);
+  });
+
+  testWidgets('עמודת מפרש בלי anchorLinksByLine נשארת ללא סמנים', (
+    tester,
+  ) async {
+    final textBookBloc = _TestTextBookBloc(_loadedState());
+    final personalNotesBloc = _TestPersonalNotesBloc(
+      const PersonalNotesState(
+        isLoading: false,
+        bookId: 'ספר בדיקה',
+        locatedNotes: [],
+        missingNotes: [],
+        errorMessage: null,
+        filteredLocatedNotes: [],
+        filteredMissingNotes: [],
+      ),
+    );
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+    await tester.pumpWidget(
+      MultiBlocProvider(
+        providers: [
+          BlocProvider<TextBookBloc>.value(value: textBookBloc),
+          BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
+          BlocProvider<SettingsBloc>.value(value: settingsBloc),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SimpleTextViewer(
+              content: const ['שורת מפרש רגילה'],
+              fontSize: 18,
+              openBookCallback: (_) {},
+              isMainText: false,
+              bookTitle: 'מפרש רגיל',
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final smartTexts = tester
+        .widgetList<SmartTextWidget>(find.byType(SmartTextWidget))
+        .toList();
+    expect(smartTexts, isNotEmpty);
+    for (final widget in smartTexts) {
+      expect(widget.onAnchorHover, isNull);
+      expect(widget.text, isNot(contains('otzaria://anchor')));
+    }
+  });
+
   group('ריחוף על סמן-מספר', () {
     tearDown(() {
       LinkPreviewOverlay.dismiss();

@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/pdf_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
+import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
@@ -135,13 +136,13 @@ class PdfBookSearchView extends StatefulWidget {
   /// בלעדיה "אין תוצאות" הגנרי מסתיר מהמשתמש את הסיבה האמיתית.
   @visibleForTesting
   static String? missingFromIndexNotice({
-    required String? pdfFilePath,
+    required String? indexedFilePath,
     required bool indexInitialized,
     required Set<String> indexedFilePaths,
   }) {
-    if (pdfFilePath == null || pdfFilePath.isEmpty) return null;
+    if (indexedFilePath == null || indexedFilePath.isEmpty) return null;
     if (!indexInitialized) return null;
-    if (indexedFilePaths.contains(pdfFilePath)) return null;
+    if (indexedFilePaths.contains(indexedFilePath)) return null;
     return PdfMessages.bookNotInSearchIndex;
   }
 
@@ -215,6 +216,13 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
 
   bool _inPageRange(int pageNumber) =>
       _pageRange == null || _pageRange!.contains(pageNumber);
+
+  /// המפתח שבו רשומות מסמכי הספר באינדקס. לספר בעל מזהה חיצוני זה אינו
+  /// נתיב הקובץ, ולכן השוואה ל-[pdfFilePath] הייתה משליכה את כל התוצאות.
+  String get _indexedFilePath => IndexingRepository.indexedPdfFilePath(
+    externalLibraryId: widget.externalLibraryId,
+    filePath: widget.pdfFilePath,
+  );
 
   /// החלפת מצב ההתאמה: הסריקה של pdfrx רצה מחדש עם התבנית המתאימה.
   void _toggleWholeWord() {
@@ -593,14 +601,14 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
         order: ResultsOrder.catalogue,
       );
 
-      final pdfPath = widget.pdfFilePath;
+      final indexedFilePath = _indexedFilePath;
       final results =
           rawResults
               .where((r) {
                 if (!r.isPdf) return false;
                 if (!_inPageRange(_getPdfPageNumber(r))) return false;
-                if (pdfPath == null || pdfPath.isEmpty) return true;
-                return r.filePath == pdfPath;
+                if (indexedFilePath.isEmpty) return true;
+                return r.filePath == indexedFilePath;
               })
               .toList(growable: true)
             ..sort((a, b) {
@@ -616,7 +624,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
         _isSearching = false;
         if (results.isEmpty) {
           _searchErrorMessage = PdfBookSearchView.missingFromIndexNotice(
-            pdfFilePath: widget.pdfFilePath,
+            indexedFilePath: _indexedFilePath,
             indexInitialized: TantivyDataProvider.instance.isInitialized.value,
             indexedFilePaths: TantivyDataProvider.instance.indexedFilePaths,
           );

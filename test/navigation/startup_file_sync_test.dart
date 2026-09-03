@@ -26,12 +26,14 @@ void main() {
     required StartupWorkGate gate,
     bool autoSyncEnabled = true,
     bool updatesAllowed = true,
+    bool updateCheckDue = true,
   }) {
     return tryStartDeferredStartupWork(
       gate: gate,
       startBackgroundSync: () => backgroundSyncCalls++,
       isAutoSyncEnabled: () => autoSyncEnabled,
       canUseSoftwareAndBookUpdates: () => updatesAllowed,
+      isLibraryUpdateCheckDue: () => updateCheckDue,
       libraryUpdateBloc: () => libraryUpdateBloc,
     );
   }
@@ -74,6 +76,17 @@ void main() {
     gate.markIndexingDecisionResolved(expectIndexing: false);
 
     expect(tryStart(gate: gate, autoSyncEnabled: false), isTrue);
+
+    expect(backgroundSyncCalls, 1);
+    verifyNever(() => libraryUpdateBloc.add(const StartLibraryUpdate()));
+  });
+
+  test('מתחיל סנכרון רקע אך לא עדכון ספרייה כשתדירות הבדיקה טרם חלפה', () {
+    final gate = StartupWorkGate();
+    gate.markLibraryLoaded();
+    gate.markIndexingDecisionResolved(expectIndexing: false);
+
+    expect(tryStart(gate: gate, updateCheckDue: false), isTrue);
 
     expect(backgroundSyncCalls, 1);
     verifyNever(() => libraryUpdateBloc.add(const StartLibraryUpdate()));

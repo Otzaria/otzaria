@@ -7,11 +7,22 @@ import '../../models/books.dart';
 import '../../utils/navigation/otzar_utils.dart';
 import '../../core/ui_snack.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/data/data_providers/external_catalog_mapper.dart';
+import 'package:otzaria/library/services/hebrew_books_download_service.dart';
+import 'package:otzaria/utils/file/save_file_with_extension.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 
 class OtzarBookDialog extends StatelessWidget {
   final ExternalLibraryBook book;
 
   const OtzarBookDialog({super.key, required this.book});
+
+  bool get _isHebrewBook =>
+      ExternalCatalogMapper.catalogFromLinkOrId(
+        link: book.link,
+        externalLibraryId: book.externalLibraryId,
+      ) ==
+      ExternalCatalogType.hebrew;
 
   @override
   Widget build(BuildContext context) {
@@ -21,10 +32,12 @@ class OtzarBookDialog extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 400),
         child: FutureBuilder<(bool, bool)>(
-          future: Future.wait([
-            OtzarUtils.canLaunchLocally(),
-            OtzarUtils.checkBookExistence(book.id!),
-          ]).then((results) => (results[0], results[1])),
+          future: _isHebrewBook
+              ? Future.value((false, false))
+              : Future.wait([
+                  OtzarUtils.canLaunchLocally(),
+                  OtzarUtils.checkBookExistence(book.id!),
+                ]).then((results) => (results[0], results[1])),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
@@ -180,6 +193,8 @@ class OtzarBookDialog extends StatelessWidget {
             foregroundColor: Theme.of(context).colorScheme.onSecondary,
           ),
         ),
+        if (_isHebrewBook && book.id != null)
+          _HebrewBookDownloadButton(bookId: book.id!),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           style: TextButton.styleFrom(
@@ -189,5 +204,78 @@ class OtzarBookDialog extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+class _HebrewBookDownloadButton extends StatefulWidget {
+  final int bookId;
+
+  const _HebrewBookDownloadButton({required this.bookId});
+
+  @override
+  State<_HebrewBookDownloadButton> createState() =>
+      _HebrewBookDownloadButtonState();
+}
+
+class _HebrewBookDownloadButtonState extends State<_HebrewBookDownloadButton> {
+  bool _isDownloading = false;
+  int? _percent;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = _isDownloading
+        ? (_percent == null ? 'מוריד...' : 'מוריד... $_percent%')
+        : 'הורדת הקובץ';
+    return ActionButton.neutral(
+      text: label,
+      icon: FluentIcons.arrow_download_24_regular,
+      isLoading: _isDownloading,
+      onPressed: _isDownloading ? null : _download,
+    );
+  }
+
+  Future<void> _download() async {
+    setState(() {
+      _isDownloading = true;
+      _percent = null;
+    });
+    final service = HebrewBooksDownloadService();
+    try {
+      final result = await service.download(
+        widget.bookId,
+        onProgress: (received, total) {
+          if (!mounted || total == null || total <= 0) return;
+          final percent = (received * 100 ~/ total).clamp(0, 100);
+          if (percent == _percent) return;
+          setState(() => _percent = percent);
+        },
+      );
+
+      var savedPath = await HebrewBooksDownloadService.saveToConfiguredFolder(
+        widget.bookId,
+        result.bytes,
+      );
+      savedPath ??= await saveFileWithExtension(
+        fileName: result.fileName,
+        extension: 'pdf',
+        bytes: result.bytes,
+      );
+
+      if (savedPath == null) {
+        UiSnack.show(LibraryMessages.hebrewBookDownloadCanceled);
+        return;
+      }
+      UiSnack.show(LibraryMessages.hebrewBookDownloaded(savedPath));
+    } catch (e) {
+      UiSnack.showError(LibraryMessages.hebrewBookDownloadError(e));
+    } finally {
+      service.dispose();
+      if (mounted) {
+        setState(() {
+          _isDownloading = false;
+          _percent = null;
+        });
+      }
+    }
   }
 }

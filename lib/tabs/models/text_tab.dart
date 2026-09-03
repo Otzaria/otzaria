@@ -121,8 +121,8 @@ class TextBookTab extends OpenedTab {
     bool openLeftPane = false,
     bool? splitedView,
     bool? showPageShapeView,
-    bool isPinned = false,
-    String? dedupeKey,
+    super.isPinned,
+    super.dedupeKey,
     this.pinpointHighlight,
     this.pinpointHighlightSectionIndex,
     @visibleForTesting TextBookBloc? blocOverride,
@@ -131,8 +131,6 @@ class TextBookTab extends OpenedTab {
          book.versionDisplayTitle == null
              ? book.title
              : '${book.title} (${book.versionDisplayTitle})',
-         isPinned: isPinned,
-         dedupeKey: dedupeKey,
        ) {
     // קביעת ברירת המחדל של splitedView מההגדרות אם לא סופק
     final bool effectiveSplitedView =

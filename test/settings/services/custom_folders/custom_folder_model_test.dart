@@ -86,18 +86,19 @@ void main() {
       expect(copy.addedAt, original.addedAt);
     });
 
-    test('שוויון נקבע לפי הנתיב בלבד', () {
-      // הזהות היא הנתיב: אותה תיקייה שנוספה שוב או שהדגל שלה השתנה אינה
-      // רשומה חדשה. addFolder מסתמך על כך למניעת כפילות.
+    test('addedAt אינו חלק מהזהות', () {
       final a = CustomFolder(path: '/same', addedAt: DateTime(2026, 1, 1));
-      final b = CustomFolder(
-        path: '/same',
-        addToDatabase: true,
-        addedAt: DateTime(2030, 12, 31),
-      );
+      final b = CustomFolder(path: '/same', addedAt: DateTime(2030, 12, 31));
 
       expect(a, equals(b));
       expect(a.hashCode, b.hashCode);
+    });
+
+    test('שינוי הגדרה יוצר ערך שונה — אחרת ה-state לא היה נפלט', () {
+      final a = CustomFolder(path: '/same', addedAt: DateTime(2026, 1, 1));
+
+      expect(a, isNot(equals(a.copyWith(addToDatabase: true))));
+      expect(a, isNot(equals(a.copyWith(mergeIntoLibrary: false))));
     });
 
     test('נתיבים שונים אינם שווים', () {
@@ -289,6 +290,93 @@ void main() {
         CustomFolderSource.legacyExternalSourceName,
         isNot(startsWith(CustomFolderSource.prefix)),
       );
+    });
+  });
+
+  group('CustomFolder חריגת מיזוג', () {
+    test('ברירת המחדל היא null — הליכה אחרי ההגדרה הגלובלית', () {
+      final folder = CustomFolder(path: '/books', addedAt: DateTime(2026));
+      expect(folder.mergeIntoLibrary, isNull);
+      expect(folder.resolveMergeIntoLibrary(true), isTrue);
+      expect(folder.resolveMergeIntoLibrary(false), isFalse);
+    });
+
+    test('חריגה מפורשת גוברת על ההגדרה הגלובלית', () {
+      final folder = CustomFolder(
+        path: '/books',
+        mergeIntoLibrary: false,
+        addedAt: DateTime(2026),
+      );
+      expect(folder.resolveMergeIntoLibrary(true), isFalse);
+    });
+
+    test('רשומה ישנה ללא המפתח נטענת כ-null', () {
+      final folder = CustomFolder.fromJson({
+        'path': '/books',
+        'addToDatabase': true,
+        'addedAt': DateTime(2026).toIso8601String(),
+      });
+      expect(folder.mergeIntoLibrary, isNull);
+    });
+
+    test('הלוך-ושוב ב-JSON משמר את החריגה', () {
+      final folder = CustomFolder(
+        path: '/books',
+        mergeIntoLibrary: true,
+        addedAt: DateTime(2026),
+      );
+      expect(
+        CustomFolder.fromJson(folder.toJson()).mergeIntoLibrary,
+        isTrue,
+      );
+    });
+
+    test('updateFolderMergeSetting עם null מנקה את החריגה', () {
+      final folders = [
+        CustomFolder(
+          path: '/a',
+          mergeIntoLibrary: true,
+          addedAt: DateTime(2026),
+        ),
+        CustomFolder(
+          path: '/b',
+          mergeIntoLibrary: true,
+          addedAt: DateTime(2026),
+        ),
+      ];
+      final updated = CustomFoldersManager.updateFolderMergeSetting(
+        folders,
+        '/a',
+        null,
+      );
+      expect(updated.first.mergeIntoLibrary, isNull);
+      expect(updated.last.mergeIntoLibrary, isTrue);
+    });
+
+    test('updateFolderMergeSetting מעדכן תיקיות בעלות אותו שם-בסיס יחד', () {
+      final folders = [
+        CustomFolder(
+          path: '/alpha/shared',
+          mergeIntoLibrary: true,
+          addedAt: DateTime(2026),
+        ),
+        CustomFolder(path: '/beta/shared', addedAt: DateTime(2026)),
+        CustomFolder(
+          path: '/gamma/other',
+          mergeIntoLibrary: true,
+          addedAt: DateTime(2026),
+        ),
+      ];
+
+      final updated = CustomFoldersManager.updateFolderMergeSetting(
+        folders,
+        '/alpha/shared',
+        false,
+      );
+
+      expect(updated[0].mergeIntoLibrary, isFalse);
+      expect(updated[1].mergeIntoLibrary, isFalse);
+      expect(updated[2].mergeIntoLibrary, isTrue);
     });
   });
 }

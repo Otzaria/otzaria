@@ -2236,12 +2236,7 @@ void main() {
         await provider.initialize();
         final library = await provider.buildLibraryCatalog({}, libraryPath);
 
-        // אין קטגוריית "ספרים אישיים" וגם לא "מסמכים" — שתיהן נעקפו.
-        expect(
-          library.subCategories.where((c) => c.title == 'ספרים אישיים'),
-          isEmpty,
-          reason: 'במצב מיזוג אין צומת "ספרים אישיים" עליון',
-        );
+        // "מסמכים" נעקפה. "ספרים אישיים" נשארת רק כבית לספרים בודדים.
         expect(
           library.subCategories.where((c) => c.title == 'מסמכים'),
           isEmpty,
@@ -2291,11 +2286,25 @@ void main() {
           contains('שיעור שבועי'),
         );
 
-        // קובץ שיושב ישירות בתוך התיקייה הנבחרת — מופיע בשורש הספרייה.
+        // קובץ שיושב ישירות בתוך התיקייה הנבחרת — אין לו תת-תיקייה
+        // להתמזג אליה, ולכן הוא מקבל בית תחת "ספרים אישיים".
         expect(
           library.books.map((b) => b.title),
+          isNot(contains('מכתב אישי')),
+          reason: 'ספר בודד לא אמור להתפזר בשורש הספרייה',
+        );
+        final personalCategories = library.subCategories.where(
+          (c) => c.title == 'ספרים אישיים',
+        );
+        expect(personalCategories, hasLength(1));
+        expect(
+          personalCategories.single.books.map((b) => b.title),
           contains('מכתב אישי'),
-          reason: 'קובץ ישירות תחת התיקייה הנבחרת אמור להגיע לשורש הספרייה',
+        );
+        expect(
+          personalCategories.single.subCategories,
+          isEmpty,
+          reason: 'התיקיות עצמן ממוזגות — רק הספר הבודד נשאר כאן',
         );
       },
     );

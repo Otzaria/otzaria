@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/indexing/models/catalogue_order_resolver.dart';
 import 'package:otzaria/indexing/models/indexing_run_result.dart';
@@ -135,8 +136,69 @@ void main() {
     });
   });
 
+  group('IndexingRepository.hasUnindexedBooks', () {
+    test(
+      'מחזיר false כשכל הספרים מאונדקסים - מונע אינדוקס מלא בכל עלייה',
+      () async {
+        final provider = _RecordingTantivyDataProvider(
+          _RecordingSearchEngine(),
+        );
+        final library = _buildLibrary(bavliBooks: const [('שבת', 1)]);
+        provider.indexedFilePaths.addAll(
+          library
+              .getAllBooks()
+              .where(IndexingRepository.isIndexableBook)
+              .map(IndexingRepository.buildIndexedBookFilePath),
+        );
+
+        expect(
+          await IndexingRepository(provider).hasUnindexedBooks(library),
+          isFalse,
+        );
+      },
+    );
+
+    test('מחזיר true כשספר אינדקסבילי חסר מהאינדקס', () async {
+      final provider = _RecordingTantivyDataProvider(_RecordingSearchEngine());
+      final library = _buildLibrary(bavliBooks: const [('שבת', 1)]);
+
+      expect(
+        await IndexingRepository(provider).hasUnindexedBooks(library),
+        isTrue,
+      );
+    });
+
+    test('מחזיר false בספרייה ריקה - אין עבודה להריץ', () async {
+      final provider = _RecordingTantivyDataProvider(_RecordingSearchEngine());
+
+      expect(
+        await IndexingRepository(
+          provider,
+        ).hasUnindexedBooks(Library(categories: [])),
+        isFalse,
+      );
+    });
+
+    test('ספר שאינו בר-אינדוקס אינו נספר כחסר', () async {
+      final provider = _RecordingTantivyDataProvider(_RecordingSearchEngine());
+      final library = Library(categories: []);
+      library.books.add(
+        ExternalLibraryBook(
+          title: 'ספר חיצוני',
+          id: 902,
+          link: 'https://example.com/ext',
+        ),
+      );
+
+      expect(
+        await IndexingRepository(provider).hasUnindexedBooks(library),
+        isFalse,
+      );
+    });
+  });
+
   group('IndexingRepository.hasPathKeyedIndexEntry', () {
-    test('PdfBook תמיד מאונדקס לפי נתיב (גם עם id)', () {
+    test('PdfBook בלי מזהה חיצוני מאונדקס לפי נתיב (גם עם id)', () {
       expect(
         IndexingRepository.hasPathKeyedIndexEntry(
           PdfBook(title: 'ברכות', path: r'C:\lib\ברכות.pdf'),
@@ -148,6 +210,20 @@ void main() {
           PdfBook(title: 'ברכות', path: r'C:\lib\ברכות.pdf', id: 5),
         ),
         isTrue,
+        reason: 'id של PDF תלמוד שאול מספר הטקסט — אינו זהות משלו',
+      );
+    });
+
+    test('PdfBook עם מזהה חיצוני שורד העברה', () {
+      expect(
+        IndexingRepository.hasPathKeyedIndexEntry(
+          PdfBook(
+            title: 'שער המלך',
+            path: r'C:\lib\external\שער המלך.pdf',
+            externalLibraryId: 'hb:14127',
+          ),
+        ),
+        isFalse,
       );
     });
 
@@ -169,6 +245,162 @@ void main() {
     test('TextBook מ-DB — לא לפי נתיב', () {
       expect(
         IndexingRepository.hasPathKeyedIndexEntry(TextBook(title: 'שבת')),
+        isFalse,
+      );
+    });
+  });
+
+  group('IndexingRepository.buildIndexedBookFilePath', () {
+    test('ספר עם מזהה חיצוני מאונדקס לפי המזהה ולא לפי הנתיב', () {
+      final onBuildMachine = PdfBook(
+        title: 'שער המלך',
+        path: r'D:\build\library\שער המלך.pdf',
+        externalLibraryId: 'hb:14127',
+      );
+      final afterInstall = PdfBook(
+        title: 'שער המלך',
+        path: r'C:\Users\dovid\otzaria\library\שער המלך.pdf',
+        externalLibraryId: 'hb:14127',
+      );
+
+      expect(
+        IndexingRepository.buildIndexedBookFilePath(onBuildMachine),
+        'ext:hb:14127',
+      );
+      expect(
+        IndexingRepository.buildIndexedBookFilePath(afterInstall),
+        IndexingRepository.buildIndexedBookFilePath(onBuildMachine),
+        reason: 'אינדקס בנוי מראש חייב להתאים גם כשנתיב ההתקנה שונה',
+      );
+    });
+
+    test('‏PDF של תלמוד אינו מתנגש בספר הטקסט ששאל ממנו את ה-id', () {
+      final pdf = PdfBook(id: 42, title: 'ברכות', path: r'C:\lib\ברכות.pdf');
+      final text = TextBook(id: 42, title: 'ברכות');
+
+      expect(IndexingRepository.buildIndexedBookFilePath(pdf), pdf.path);
+      expect(IndexingRepository.buildIndexedBookFilePath(text), 'id:42');
+    });
+
+    test('מסכת PDF מהתיקייה המצורפת שורדת נתיב התקנה אחר', () {
+      PdfBook masechet(String path) => PdfBook(
+        id: 42,
+        title: 'ברכות',
+        path: path,
+        externalLibraryId: DatabaseConstants.talmudBavliPdfExternalLibraryId(
+          'ברכות',
+        ),
+      );
+
+      expect(
+        IndexingRepository.buildIndexedBookFilePath(
+          masechet(r'D:\build\library\תלמוד בבלי\ברכות.pdf'),
+        ),
+        'ext:talmud-pdf:ברכות',
+      );
+      expect(
+        IndexingRepository.buildIndexedBookFilePath(
+          masechet(r'C:\Users\dovid\otzaria\תלמוד בבלי\ברכות.pdf'),
+        ),
+        'ext:talmud-pdf:ברכות',
+      );
+      expect(
+        IndexingRepository.buildIndexedBookFilePath(
+          TextBook(id: 42, title: 'ברכות'),
+        ),
+        'id:42',
+        reason: 'ה-id שאול מספר הטקסט — שני הספרים חייבים מפתחות נפרדים',
+      );
+    });
+
+    test('indexedPdfFilePath מסכים עם buildIndexedBookFilePath', () {
+      final withExternalId = PdfBook(
+        id: 42,
+        title: 'ברכות',
+        path: r'C:\otzaria\תלמוד בבלי\ברכות.pdf',
+        externalLibraryId: DatabaseConstants.talmudBavliPdfExternalLibraryId(
+          'ברכות',
+        ),
+      );
+      final pathKeyed = PdfBook(
+        title: 'ספר סרוק',
+        path: r'C:\otzaria\אישי\ספר סרוק.pdf',
+      );
+
+      for (final book in [withExternalId, pathKeyed]) {
+        expect(
+          IndexingRepository.indexedPdfFilePath(
+            externalLibraryId: book.externalLibraryId,
+            filePath: book.path,
+          ),
+          IndexingRepository.buildIndexedBookFilePath(book),
+          reason: 'שני המפתחות מפצלים את הספר לשתי זהויות אם הם נפרדים',
+        );
+      }
+    });
+
+    test('ספר DOCX עם מזהה חיצוני מאונדקס לפי המזהה', () {
+      expect(
+        IndexingRepository.buildIndexedBookFilePath(
+          DocxBook(
+            title: 'אבן הבורר',
+            path: r'D:\build\library\אבן הבורר.docx',
+            externalLibraryId: 'hb:20553',
+          ),
+        ),
+        'ext:hb:20553',
+      );
+    });
+  });
+
+  group('אינדקס בנוי מראש אחרי התקנה', () {
+    List<Book> shippedLibraryAt(String root) => [
+      TextBook(id: 7, title: 'בראשית'),
+      TextBook(id: 8, title: 'שמות'),
+      PdfBook(
+        id: 42,
+        title: 'ברכות',
+        path: '$root/תלמוד בבלי/ברכות.pdf',
+        externalLibraryId: DatabaseConstants.talmudBavliPdfExternalLibraryId(
+          'ברכות',
+        ),
+      ),
+      PdfBook(
+        id: 43,
+        title: 'שבת',
+        path: '$root/תלמוד בבלי/שבת.pdf',
+        externalLibraryId: DatabaseConstants.talmudBavliPdfExternalLibraryId(
+          'שבת',
+        ),
+      ),
+    ];
+
+    test('כל ספר בחבילה מאונדקס, ולכן אין אינדוקס אצל המשתמש', () {
+      // ‏אינדקס שנבנה במכונת ה-CI, ואותה ספרייה בנתיב שהמשתמש בחר.
+      final indexedOnBuildMachine = shippedLibraryAt(
+        '/ci/full_installer/books',
+      ).map(IndexingRepository.buildIndexedBookFilePath).toSet();
+
+      expect(
+        IndexingRepository.areAllIndexableBooksIndexed(
+          shippedLibraryAt(r'D:\אוצריא\books'),
+          indexedOnBuildMachine,
+        ),
+        isTrue,
+        reason: 'מפתח שתלוי בנתיב ההתקנה מחזיר את המשתמש לאינדוקס מלא',
+      );
+    });
+
+    test('ספר PDF שנוסף אחרי הבנייה כן דורש אינדוקס', () {
+      final indexedOnBuildMachine = shippedLibraryAt(
+        '/ci/full_installer/books',
+      ).map(IndexingRepository.buildIndexedBookFilePath).toSet();
+
+      expect(
+        IndexingRepository.areAllIndexableBooksIndexed([
+          ...shippedLibraryAt(r'D:\אוצריא\books'),
+          PdfBook(title: 'ספר שהמשתמש הוסיף', path: r'D:\אוצריא\books\א.pdf'),
+        ], indexedOnBuildMachine),
         isFalse,
       );
     });

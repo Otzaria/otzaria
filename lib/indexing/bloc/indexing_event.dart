@@ -111,6 +111,17 @@ class IndexingFinalizing extends IndexingEvent {
   List<Object?> get props => [workId];
 }
 
+/// התקדמות שלב איחוד קבצי האינדקס, כשבר בין 0 ל-1.
+class IndexingFinalizeProgress extends IndexingEvent {
+  final int workId;
+  final double fraction;
+
+  const IndexingFinalizeProgress(this.workId, this.fraction);
+
+  @override
+  List<Object?> get props => [workId, fraction];
+}
+
 class UpdateIndexingProgress extends IndexingEvent {
   final int workId;
   final int processed;

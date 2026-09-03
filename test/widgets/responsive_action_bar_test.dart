@@ -43,18 +43,21 @@ void main() {
 
       final actions = [
         ActionButtonData(
+          actionId: ToolbarActionId.plugin,
           widget: buildAction(OtzariaIcons.book_24_regular, 'ספר'),
           icon: OtzariaIcons.book_24_regular,
           tooltip: 'ספר',
           onPressed: () {},
         ),
         ActionButtonData(
+          actionId: ToolbarActionId.search,
           widget: buildAction(OtzariaIcons.search_24_regular, 'חיפוש'),
           icon: OtzariaIcons.search_24_regular,
           tooltip: 'חיפוש',
           onPressed: () {},
         ),
         ActionButtonData(
+          actionId: ToolbarActionId.viewMode,
           widget: buildAction(FluentIcons.settings_24_regular, 'הגדרות'),
           icon: FluentIcons.settings_24_regular,
           tooltip: 'הגדרות',
@@ -64,6 +67,7 @@ void main() {
 
       final alwaysInMenu = [
         ActionButtonData(
+          actionId: ToolbarActionId.openCommentatorsTab,
           widget: buildAction(FluentIcons.more_horizontal_24_regular, 'נוסף'),
           icon: FluentIcons.more_horizontal_24_regular,
           tooltip: 'נוסף',
@@ -93,9 +97,9 @@ void main() {
       );
 
       expect(find.byIcon(FluentIcons.more_vertical_24_regular), findsOneWidget);
-      expect(find.byIcon(OtzariaIcons.book_24_regular), findsOneWidget);
+      expect(find.byIcon(OtzariaIcons.book_24_regular), findsNothing);
       expect(find.byIcon(OtzariaIcons.search_24_regular), findsOneWidget);
-      expect(find.byIcon(FluentIcons.settings_24_regular), findsNothing);
+      expect(find.byIcon(FluentIcons.settings_24_regular), findsOneWidget);
     },
   );
 
@@ -116,6 +120,7 @@ void main() {
       bool enabled = true,
     }) {
       return ActionButtonData(
+        actionId: ToolbarActionId.plugin,
         widget: IconButton(
           onPressed: () {},
           icon: Icon(icon),
@@ -624,28 +629,6 @@ void main() {
       expect(find.byIcon(FluentIcons.settings_24_regular), findsOneWidget);
       // אייקוני הניווט מופיעים רק אחרי פתיחת התפריט
       expect(find.byIcon(FluentIcons.chevron_right_24_regular), findsNothing);
-    });
-  });
-
-  group('maxToolbarButtonsForWidth', () {
-    test('מסך צר מאוד מחזיר 0 כפתורים (רק overflow)', () {
-      expect(maxToolbarButtonsForWidth(260), 0);
-      expect(maxToolbarButtonsForWidth(200), 0);
-    });
-
-    test('מסכי מובייל מציגים יותר כפתורים ככל שהרוחב גדל', () {
-      // ככל שהרוחב גדל, מספר הכפתורים לא יורד
-      final w360 = maxToolbarButtonsForWidth(360);
-      final w400 = maxToolbarButtonsForWidth(400);
-      final w500 = maxToolbarButtonsForWidth(500);
-      expect(w360, lessThanOrEqualTo(w400));
-      expect(w400, lessThanOrEqualTo(w500));
-      // 360px: (360-260)/44 = 2
-      expect(w360, 2);
-    });
-
-    test('מסך רחב מציג הרבה כפתורים', () {
-      expect(maxToolbarButtonsForWidth(1400), greaterThan(20));
     });
   });
 }

@@ -385,6 +385,7 @@ LibraryUpdateBloc _bloc(
   bool hasInternet = true,
   bool? sourceReachable,
   DateTime Function()? now,
+  void Function()? onCheckSucceeded,
 }) => LibraryUpdateBloc(
   repository: service,
   isOfflineMode: () => offline,
@@ -393,8 +394,11 @@ LibraryUpdateBloc _bloc(
   companionAssets: companionAssets,
   hasInternet: () async => hasInternet,
   isSourceReachable: () async => sourceReachable ?? hasInternet,
+  onCheckSucceeded: onCheckSucceeded,
   now: now,
 );
+
+int _checkSucceededCalls = 0;
 
 void main() {
   final nonePlan = LibraryUpdatePlan.none(localVersion: 3, targetVersion: 3);
@@ -431,6 +435,29 @@ void main() {
   );
 
   group('LibraryUpdateBloc', () {
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      'בדיקה שהצליחה (גם "אין עדכון") מדווחת ל-onCheckSucceeded',
+      build: () => _bloc(
+        _FakeService(nonePlan),
+        onCheckSucceeded: () => _checkSucceededCalls++,
+      ),
+      setUp: () => _checkSucceededCalls = 0,
+      act: (b) => b.add(const StartLibraryUpdate()),
+      verify: (_) => expect(_checkSucceededCalls, 1),
+    );
+
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      'בדיקה שנכשלה אינה מדווחת ל-onCheckSucceeded - הניסיון הבא בעלייה הבאה',
+      build: () => _bloc(
+        _FakeService(nonePlan, throwOnCheck: true),
+        onCheckSucceeded: () => _checkSucceededCalls++,
+      ),
+      setUp: () => _checkSucceededCalls = 0,
+      act: (b) => b.add(const StartLibraryUpdate()),
+      wait: const Duration(milliseconds: 20),
+      verify: (_) => expect(_checkSucceededCalls, 0),
+    );
+
     blocTest<LibraryUpdateBloc, LibraryUpdateState>(
       'מצב לא מקוון → idle עם הודעה, לא בודק',
       build: () => _bloc(_FakeService(nonePlan), offline: true),

@@ -1248,7 +1248,9 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     required String indexedTitle,
   }) async {
     final isStableKey =
-        indexedFilePath.startsWith('id:') || indexedFilePath.startsWith('uid:');
+        indexedFilePath.startsWith('id:') ||
+        indexedFilePath.startsWith('uid:') ||
+        indexedFilePath.startsWith('ext:');
     final library = await DataRepository.instance.library;
     final book = _booksByIndexedFilePathFor(library)[indexedFilePath];
     if (book == null) return (book: null, isStale: isStableKey);

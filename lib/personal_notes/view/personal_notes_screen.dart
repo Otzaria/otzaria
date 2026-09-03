@@ -37,6 +37,7 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/settings/settings_exports.dart';
@@ -601,14 +602,16 @@ class _PersonalNotesManagerScreenState
   Future<void> _importNotes() async {
     if (!await verifySaferModePassword(context)) return;
     if (!mounted) return;
-    final picked = await FilePicker.pickFiles(
+    final picked = await FilePicker.pickFile(
       dialogTitle: 'בחר קובץ ייבוא',
       allowedExtensions: ['json'],
       type: FileType.custom,
-      lockParentWindow: true,
+      windowsOptions: kModalWindowsOptions,
+      linuxOptions: kModalLinuxOptions,
     );
     if (!mounted) return;
-    if (picked == null || picked.files.isEmpty) return;
+    final pickedPath = picked?.path;
+    if (pickedPath == null) return;
 
     final strategy = await showDialog<NotesImportConflictStrategy>(
       context: context,
@@ -644,7 +647,7 @@ class _PersonalNotesManagerScreenState
     if (strategy == null) return;
 
     final summary = await _importExportService.importFromFile(
-      path: picked.files.first.path!,
+      path: pickedPath,
       strategy: strategy,
     );
 

@@ -2,11 +2,14 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
 
 /// שומר קובץ דרך דיאלוג המערכת ומבטיח שהנתיב מקבל את הסיומת המבוקשת.
 ///
-/// דיאלוג השמירה ב-Windows אינו משלים סיומת לשם שהמשתמש מקליד
-/// (file_picker אינו מציב lpstrDefExt), לכן משלימים אותה כאן אחרי הכתיבה.
+/// מחזיר את מיקום הקובץ שנשמר, או `null` אם המשתמש ביטל.
+///
+/// [fileName] חייב לכלול את הסיומת — הדיאלוג גוזר ממנה את סיומת ברירת המחדל
+/// (`type`/`allowedExtensions` של `saveFile` אינם מועברים הלאה ב-file_picker).
 Future<String?> saveFileWithExtension({
   required String fileName,
   required String extension,
@@ -14,17 +17,18 @@ Future<String?> saveFileWithExtension({
   String? dialogTitle,
   String? initialDirectory,
 }) async {
-  final path = await FilePicker.saveFile(
+  final uri = await FilePicker.saveFile(
     dialogTitle: dialogTitle,
     fileName: fileName,
     initialDirectory: initialDirectory,
-    type: FileType.custom,
-    allowedExtensions: [extension],
     bytes: bytes,
-    lockParentWindow: true,
+    windowsOptions: kModalWindowsOptions,
+    linuxOptions: kModalLinuxOptions,
   );
-  if (path == null) return null;
-  return ensureFileExtension(path, extension);
+  if (uri == null) return null;
+  // ב-Android השמירה חוזרת כ-content:// — אין נתיב מקומי לתקן, אבל היא הצליחה.
+  if (uri.scheme != 'file') return uri.toString();
+  return ensureFileExtension(uri.toFilePath(), extension);
 }
 
 /// אם הקובץ שנכתב ב-[path] חסר את הסיומת [extension] — משנה את שמו בהתאם.

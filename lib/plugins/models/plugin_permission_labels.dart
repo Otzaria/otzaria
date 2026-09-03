@@ -242,9 +242,11 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
 
   // ===== קורא =====
   'reader.open': PluginPermissionInfo(
-    label: 'פתיחת ספרים',
+    label: 'פתיחת ספרים וניהול כרטיסיות',
     icon: OtzariaIcons.otzaria_icon_2_page_24_regular,
-    description: 'פתיחת ספרים בקורא האפליקציה',
+    description:
+        'פתיחת ספרים בקורא האפליקציה, מעבר בין הכרטיסיות הפתוחות וסגירתן. '
+        'אינה משנה את תוכן הספרים',
   ),
 
   'reader.context_menu': PluginPermissionInfo(
@@ -279,6 +281,23 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     description:
         'פתיחת דף של תוסף אחר שמותקן אצלך, כולל הפעלת הקוד שלו. התוסף הנפתח '
         'פועל בהרשאות שלו בלבד',
+  ),
+
+  // ===== שולחנות עבודה =====
+  'workspace.read': PluginPermissionInfo(
+    label: 'שולחנות עבודה — צפייה',
+    icon: FluentIcons.tab_desktop_multiple_24_regular,
+    description:
+        'קריאת רשימת שולחנות העבודה שלך, כולל שמותיהם ומספר הכרטיסיות בכל '
+        'אחד. השם שנתת לשולחן עבודה עשוי לרמז על מה שאתה לומד',
+  ),
+  'workspace.manage': PluginPermissionInfo(
+    label: 'שולחנות עבודה — יצירה ומעבר',
+    icon: FluentIcons.window_new_24_regular,
+    description:
+        'יצירת שולחן עבודה חדש והחלפת השולחן הפעיל. מעבר שולחן מחליף את כל '
+        'הכרטיסיות הפתוחות (הן נשמרות בשולחן שממנו יצאת). אינה כוללת מחיקת '
+        'שולחן או שינוי שמו',
   ),
 
   // ===== הערות אישיות =====

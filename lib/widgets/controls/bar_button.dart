@@ -12,6 +12,14 @@ enum _Variant { icon, text }
 /// - [BarButton.icon] — כפתור אייקון (עם [label] אופציונלי) ומצב נבחר [selected].
 /// - [BarButton.text] — כפתור טקסט ghost בצבע מושתק המתאים לאייקונים הלא-נבחרים.
 class BarButton extends StatelessWidget {
+  static const double compactIconButtonSize = 36.0;
+  static const double regularIconButtonSize = 40.0;
+  static const double outerHorizontalPadding = 2.0;
+
+  static double toolbarWidth(bool compact) =>
+      (compact ? compactIconButtonSize : regularIconButtonSize) +
+      outerHorizontalPadding * 2;
+
   final _Variant _variant;
 
   // null → הכפתור מוצג מושבת (עמעום ולחיצה מנוטרלת).
@@ -106,7 +114,9 @@ class BarButton extends StatelessWidget {
 
     const double iconSize = 20;
     final double fontSize = compact ? 12 : 14;
-    final double minSize = compact ? 36 : 40;
+    final double minSize = compact
+        ? compactIconButtonSize
+        : regularIconButtonSize;
     final EdgeInsets padding = compact
         ? const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0)
         : const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0);
@@ -160,7 +170,9 @@ class BarButton extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
+      padding: const EdgeInsets.symmetric(
+        horizontal: outerHorizontalPadding,
+      ),
       child: Tooltip(
         message: tooltip,
         child: AnimatedContainer(

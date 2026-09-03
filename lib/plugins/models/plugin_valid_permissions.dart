@@ -31,6 +31,8 @@ const Map<String, String> apiCallToPermissionHint = {
   'app.getLocale': 'app.info.read',
   'app.getGrantedPermissions': 'app.info.read',
   'app.getConnectivity': 'app.info.read',
+  'fonts.resolveFamilies': 'app.info.read',
+  'fonts.listInstalled': 'app.info.read',
   'app.registerShortcut': 'app.shortcuts',
   'app.unregisterShortcut': 'app.shortcuts',
   'app.updateShortcut': 'app.shortcuts',
@@ -100,6 +102,14 @@ const Map<String, String> apiCallToPermissionHint = {
   'reader.setActiveCommentators': 'reader.open',
   'reader.scrollToSection': 'reader.open',
   'reader.getHighlightCapabilities': 'reader.open',
+  'reader.closeTab': 'reader.open',
+  'reader.activateTab': 'reader.open',
+
+  // workspace.*
+  'workspace.list': pluginWorkspaceReadPermission,
+  'workspace.getActive': pluginWorkspaceReadPermission,
+  'workspace.create': pluginWorkspaceManagePermission,
+  'workspace.switch': pluginWorkspaceManagePermission,
 
   // network.* — הגישה נבדקת באדפטר לפי היעד; יעד localhost בלבד דורש
   // `network.localhost` במקום `network.access`.
@@ -128,6 +138,14 @@ const Set<String> apiCallsWithoutPermission = {
   'ui.print',
   'ui.exportPdf',
 };
+
+/// קריאת רשימת שולחנות העבודה ושמותיהם. נפרדת מהניהול, כי השם עצמו הוא
+/// תוכן אישי: הוא מסגיר מה המשתמש לומד. מטעם זה `key-workspaces` ו-
+/// `key-current-workspace-id` חסומים ל-`settings.get`.
+const pluginWorkspaceReadPermission = 'workspace.read';
+
+/// יצירת שולחן עבודה ומעבר בין שולחנות. אינה כוללת מחיקה או שינוי שם.
+const pluginWorkspaceManagePermission = 'workspace.manage';
 
 /// קריאת רשימת הסימניות של המשתמש. נפרדת מהכתיבה, בעקבות התקדים של
 /// `notes.read`/`notes.write`.
@@ -279,6 +297,13 @@ const pluginValidPermissions = <String>[
 
   /// פתיחת דף של תוסף אחר המותקן אצל המשתמש
   pluginOpenOtherPermission,
+
+  // ===== שולחנות עבודה =====
+  /// קריאת רשימת שולחנות העבודה, כולל שמותיהם
+  pluginWorkspaceReadPermission,
+
+  /// יצירת שולחן עבודה ומעבר בין שולחנות
+  pluginWorkspaceManagePermission,
 
   // ===== הערות אישיות =====
   /// קריאת הערות אישיות

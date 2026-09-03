@@ -73,6 +73,7 @@ import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/view/history_screen.dart';
 import 'package:otzaria/bookmarks/view/bookmark_screen.dart';
+import 'package:otzaria/core/update_check_frequency.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
 import 'package:otzaria/library_update/library_update_work_status.dart';
@@ -834,6 +835,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
           Settings.getValue<bool>(SettingsRepository.keyAutoSync) ?? true,
       canUseSoftwareAndBookUpdates: () =>
           context.read<SettingsBloc>().state.canUseSoftwareAndBookUpdates,
+      isLibraryUpdateCheckDue: () =>
+          isAutoUpdateCheckDue(SettingsRepository.keyLastLibraryUpdateCheck),
       libraryUpdateBloc: context.read<LibraryUpdateBloc>,
     );
   }
@@ -952,6 +955,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
     final requiresManualReindex = await _indexingRepository
         .requiresManualReindex(library);
+    // בדיקה זולה שמונעת ריצת אינדוקס מלאה בכל עלייה כשאין עבודה אמיתית.
+    final hasUnindexedBooks = await _indexingRepository.hasUnindexedBooks(
+      library,
+    );
     if (!mounted || !context.mounted) {
       return;
     }
@@ -959,6 +966,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     final decision = decideStartupIndexing(
       requiresManualReindex: requiresManualReindex,
       autoUpdateIndex: autoUpdateIndex,
+      hasUnindexedBooks: hasUnindexedBooks,
     );
 
     switch (decision) {
@@ -3130,8 +3138,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                           onClose: _closeToolsLauncher,
                                           alignment:
                                               AlignmentDirectional.centerStart,
-                                          // רחב מספיק שתוויות הכלים הארוכות
-                                          // ייכנסו בשורה בלי קיצור.
+                                          // רחב מספיק שארבע הקוביות שבשורה יהיו
+                                          // מרווחות, ועדיין לא חמש.
                                           width: 440,
                                           deferChildBuildOnOpen: true,
                                           child: ToolsLauncherPanel(

@@ -181,13 +181,10 @@ class _NavPanelContentFocus extends StatelessWidget {
 class NavPanelSearchScope extends InheritedWidget {
   final NavPanelSearchHost host;
 
-  NavPanelSearchScope({
-    super.key,
-    required this.host,
-    required Widget child,
-  }) : super(
-         child: _NavPanelContentFocus(host: host, child: child),
-       );
+  NavPanelSearchScope({super.key, required this.host, required Widget child})
+    : super(
+        child: _NavPanelContentFocus(host: host, child: child),
+      );
 
   static NavPanelSearchHost? hostOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<NavPanelSearchScope>()?.host;
@@ -396,72 +393,82 @@ class _NavPanelSearchBarState extends State<NavPanelSearchBar> {
         : (kNavTreeSideInset - barInset).clamp(0.0, double.infinity);
     final fieldEndInset = hasPin ? AppTokens.spaceXS : kNavTreeSideInset;
 
-    // IntrinsicHeight: ה-OverflowBox דורש גובה חסום, וסרגל עליון עשוי לתת
-    // גובה חופשי (Row בתוך Column).
-    return IntrinsicHeight(
-      child: AnimatedContainer(
-        duration: AppTokens.animPanelSlide,
-        curve: Curves.easeInOut,
-        width: widget.isOpen ? width : 0,
-        child: ClipRect(
-          child: OverflowBox(
-            maxWidth: width,
-            minWidth: 0,
-            alignment: AlignmentDirectional.centerStart,
-            child: SizedBox(
-              width: width,
-              child: Row(
-                children: [
-                  // רק תוכן השדה מתחלף לפי הלשונית — הסרגל עצמו נשאר מוצג
-                  // ומורכב כל עוד החלונית פתוחה, ואינו נבנה מחדש.
-                  Expanded(
-                    child: Padding(
-                      padding: EdgeInsetsDirectional.only(
-                        start: fieldStartInset,
-                        end: fieldEndInset,
-                      ),
-                      // חץ למטה/למעלה מעביר את הפוקוס אל שורות החלונית; ימין
-                      // ושמאל נשארים לעריכת הטקסט. ה-handler יושב מעל השדה
-                      // ולכן הוא מקבל את המקש לפני קיצורי עריכת הטקסט.
-                      child: Focus(
-                        canRequestFocus: false,
-                        onKeyEvent: _handleFieldKey,
-                        child: ListenableBuilder(
-                          listenable: widget.host,
-                          builder: (context, _) {
-                            final delegate = widget.host.active;
-                            return OtzariaSearchField(
-                              controller:
-                                  delegate?.controller ?? _idleController,
-                              focusNode: delegate?.focusNode,
-                              enabled: delegate != null,
-                              hintText:
-                                  delegate?.hintText ?? 'אין חיפוש בלשונית זו',
-                              onChanged: delegate?.onChanged,
-                              onSubmitted: delegate?.onSubmitted,
-                              onClear: delegate?.onClear,
-                              trailingActions:
-                                  delegate == null ||
-                                      delegate.trailingActions.isEmpty
-                                  ? null
-                                  : delegate.trailingActions,
-                            );
-                          },
+    // בסרגל צפוף (פריט flexible) השדה מקבל פחות מרוחב החלונית — מתכווצים
+    // אליו, אחרת ה-ClipRect חותך את כפתורי הקצה (נעיצה, ניקוי) מהשדה.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final effectiveWidth = constraints.hasBoundedWidth
+            ? width.clamp(0.0, constraints.maxWidth)
+            : width;
+        // IntrinsicHeight: ה-OverflowBox דורש גובה חסום, וסרגל עליון עשוי לתת
+        // גובה חופשי (Row בתוך Column).
+        return IntrinsicHeight(
+          child: AnimatedContainer(
+            duration: AppTokens.animPanelSlide,
+            curve: Curves.easeInOut,
+            width: widget.isOpen ? effectiveWidth : 0,
+            child: ClipRect(
+              child: OverflowBox(
+                maxWidth: effectiveWidth,
+                minWidth: 0,
+                alignment: AlignmentDirectional.centerStart,
+                child: SizedBox(
+                  width: effectiveWidth,
+                  child: Row(
+                    children: [
+                      // רק תוכן השדה מתחלף לפי הלשונית — הסרגל עצמו נשאר מוצג
+                      // ומורכב כל עוד החלונית פתוחה, ואינו נבנה מחדש.
+                      Expanded(
+                        child: Padding(
+                          padding: EdgeInsetsDirectional.only(
+                            start: fieldStartInset,
+                            end: fieldEndInset,
+                          ),
+                          // חץ למטה/למעלה מעביר את הפוקוס אל שורות החלונית; ימין
+                          // ושמאל נשארים לעריכת הטקסט. ה-handler יושב מעל השדה
+                          // ולכן הוא מקבל את המקש לפני קיצורי עריכת הטקסט.
+                          child: Focus(
+                            canRequestFocus: false,
+                            onKeyEvent: _handleFieldKey,
+                            child: ListenableBuilder(
+                              listenable: widget.host,
+                              builder: (context, _) {
+                                final delegate = widget.host.active;
+                                return OtzariaSearchField(
+                                  controller:
+                                      delegate?.controller ?? _idleController,
+                                  focusNode: delegate?.focusNode,
+                                  enabled: delegate != null,
+                                  hintText:
+                                      delegate?.hintText ??
+                                      'אין חיפוש בלשונית זו',
+                                  onChanged: delegate?.onChanged,
+                                  onSubmitted: delegate?.onSubmitted,
+                                  onClear: delegate?.onClear,
+                                  trailingActions:
+                                      delegate == null ||
+                                          delegate.trailingActions.isEmpty
+                                      ? null
+                                      : delegate.trailingActions,
+                                );
+                              },
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      if (hasPin)
+                        NavPanelPinButton(
+                          isPinned: widget.isPinned,
+                          onToggle: widget.onTogglePin,
+                        ),
+                    ],
                   ),
-                  if (hasPin)
-                    NavPanelPinButton(
-                      isPinned: widget.isPinned,
-                      onToggle: widget.onTogglePin,
-                    ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

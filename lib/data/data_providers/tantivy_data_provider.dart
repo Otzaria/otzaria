@@ -77,6 +77,10 @@ class TantivyDataProvider {
   /// לאנדקס — הכתיבות היו הולכות לתיקייה זמנית שנזרקת בהפעלה הבאה.
   bool isTempFallback = false;
 
+  /// התיקייה שהמנוע נפתח עליה בפועל. שונה מ-[AppPaths.getIndexPath] כשהפתיחה
+  /// נפלה למסלול חלופי (הסגר אינדקס פגום, או fallback זמני).
+  String? activeIndexPath;
+
   /// מסמן שקריאת מצב האינדקס מהאינדקס עצמו ([indexedFilePaths]) הסתיימה.
   /// עד שהערך הופך ל-true, אסור להסיק "אין אינדקס" מ-indexedFilePaths.isEmpty.
   final ValueNotifier<bool> isInitialized = ValueNotifier(false);
@@ -358,6 +362,7 @@ class TantivyDataProvider {
     String? indexPath;
     File? sentinelFile;
     isTempFallback = false;
+    activeIndexPath = null;
 
     try {
       indexPath = await AppPaths.getIndexPath();
@@ -419,6 +424,7 @@ class TantivyDataProvider {
       final engine = SearchEngine(path: indexPath);
 
       // הפתיחה הנייטיבית הצליחה — האינדקס תקין, הסנטינל מוסר מיד.
+      activeIndexPath = indexPath;
       try {
         await sentinelFile.delete();
       } catch (_) {}
@@ -453,6 +459,7 @@ class TantivyDataProvider {
         );
         final tempEngine = SearchEngine(path: tempDir.path);
         isTempFallback = true;
+        activeIndexPath = tempDir.path;
         return tempEngine;
       } catch (e2) {
         debugPrint('❌ CRITICAL: Failed to create temp index: $e2');

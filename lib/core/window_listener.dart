@@ -285,14 +285,22 @@ class AppWindowListener extends WindowListener {
 
   @override
   void onWindowFocus() {
-    if (kDebugMode) {
-      //print('Window focused');
+    // מקש שהוחזק במעבר חלון ושוחרר בחוץ נשאר "תקוע" (אין KeyUpEvent) וגורם
+    // ל-assertion במקש הבא. משחררים אותו דרך מסלול האירועים הרגיל — לא
+    // clearState(), שמוחק את כל ה-handlers (קיצורי המפרשים, issue #1071).
+    final keyboard = HardwareKeyboard.instance;
+    for (final physicalKey in keyboard.physicalKeysPressed.toList()) {
+      final logicalKey = keyboard.lookUpLayout(physicalKey);
+      if (logicalKey == null) continue;
+      keyboard.handleKeyEvent(
+        KeyUpEvent(
+          physicalKey: physicalKey,
+          logicalKey: logicalKey,
+          timeStamp: Duration.zero,
+          synthesized: true,
+        ),
+      );
     }
-    // איפוס מצב המקלדת בעת קבלת פוקוס, למנוע AssertionError ב-HardwareKeyboard
-    // כאשר המשתמש מחזיק מקש, מחליף חלון, ומשחרר - Flutter לא מקבל KeyUpEvent
-    // ובעת חזרה לחלון, מקש ה-KeyDown הבא גורם ל-assertion failure
-    // ignore: invalid_use_of_visible_for_testing_member
-    HardwareKeyboard.instance.clearState();
   }
 
   @override

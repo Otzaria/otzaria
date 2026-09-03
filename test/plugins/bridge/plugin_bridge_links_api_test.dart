@@ -453,6 +453,74 @@ void main() {
         'תרגום אונקלוס',
       );
     });
+
+    test('targetTitlePrefixes מסנן לפי תחילית הכותרת', () async {
+      repository.links = [
+        Link(
+          heRef: 'a',
+          index1: 1,
+          path2: 'הערות על בראשית',
+          index2: 1,
+          connectionType: 'COMMENTARY',
+        ),
+        Link(
+          heRef: 'b',
+          index1: 1,
+          path2: 'רש״י על בראשית',
+          index2: 1,
+          connectionType: 'COMMENTARY',
+        ),
+      ];
+
+      final result =
+          await adapter.execute('library', 'getLinks', {
+                'bookId': 'בראשית',
+                'startLine': 0,
+                'endLine': 0,
+                'targetTitlePrefixes': ['הערות '],
+              })
+              as Map<String, dynamic>;
+
+      final links = result['links'] as List;
+      expect(links, hasLength(1));
+      expect(
+        (links.single as Map<String, dynamic>)['targetTitle'],
+        'הערות על בראשית',
+      );
+    });
+
+    test('targetTitles ו-targetTitlePrefixes יחד — איחוד', () async {
+      repository.links = [
+        for (final title in const [
+          'הערות על בראשית',
+          'רש״י על בראשית',
+          'תרגום אונקלוס',
+        ])
+          Link(
+            heRef: title,
+            index1: 1,
+            path2: title,
+            index2: 1,
+            connectionType: 'COMMENTARY',
+          ),
+      ];
+
+      final result =
+          await adapter.execute('library', 'getLinks', {
+                'bookId': 'בראשית',
+                'startLine': 0,
+                'endLine': 0,
+                'targetTitles': ['רש״י על בראשית'],
+                'targetTitlePrefixes': ['הערות '],
+              })
+              as Map<String, dynamic>;
+
+      final titles = [
+        for (final link in result['links'] as List)
+          (link as Map<String, dynamic>)['targetTitle'],
+      ];
+      expect(titles, ['הערות על בראשית', 'רש״י על בראשית']);
+    });
   });
 
   group('library.getRawLinks', () {
@@ -657,6 +725,45 @@ void main() {
         'רש״י על בראשית',
       );
     });
+
+    test(
+      'עם targetTitlePrefixes אין צמצום ב-SQL — הסינון כולו בזיכרון',
+      () async {
+        repository.links = [
+          Link(
+            heRef: 'a',
+            index1: 1,
+            path2: 'הערות על בראשית',
+            index2: 1,
+            connectionType: 'COMMENTARY',
+          ),
+          Link(
+            heRef: 'b',
+            index1: 1,
+            path2: 'שולחן ערוך',
+            index2: 1,
+            connectionType: 'REFERENCE',
+          ),
+        ];
+
+        final result =
+            await adapter.execute('library', 'getRawLinks', {
+                  'bookId': 'בראשית',
+                  'targetTitles': ['רש״י על בראשית'],
+                  'targetTitlePrefixes': ['הערות '],
+                })
+                as Map<String, dynamic>;
+
+        // צמצום לפי targetTitles לבדו היה מפיל את התאמות התחילית.
+        expect(repository.capturedTargetBookTitles, isNull);
+        final links = result['links'] as List;
+        expect(links, hasLength(1));
+        expect(
+          (links.single as Map<String, dynamic>)['path_2'],
+          'הערות על בראשית',
+        );
+      },
+    );
 
     test('connectionTypes מסנן לפי סוג מנורמל', () async {
       repository.links = [
@@ -947,6 +1054,26 @@ void main() {
       expect((result['commentators'] as List), hasLength(1));
     });
 
+    test('titlePrefixes מסנן לפי תחילית שם המפרש', () async {
+      repository.commentators = const [
+        CommentatorInfo(title: 'הערות על בראשית', linkCount: 10),
+        CommentatorInfo(title: 'הגהות הב״ח על בראשית', linkCount: 4),
+        CommentatorInfo(title: 'רש״י על בראשית', linkCount: 50),
+      ];
+
+      final result =
+          await adapter.execute('library', 'getCommentators', {
+                'bookId': 'בראשית',
+                'titlePrefixes': ['הערות ', 'הגהות '],
+              })
+              as Map<String, dynamic>;
+
+      final titles = [
+        for (final c in result['commentators'] as List) (c as Map)['title'],
+      ];
+      expect(titles, ['הערות על בראשית', 'הגהות הב״ח על בראשית']);
+    });
+
     test('startLine בלי endLine נדחה', () async {
       expect(
         () => adapter.execute('library', 'getCommentators', {
@@ -1004,6 +1131,40 @@ void main() {
       final targets = result['targets'] as List;
       expect((targets.single as Map)['linkCount'], 120);
     });
+
+    test(
+      'targetTitlePrefixes מסנן יעדים; maxSourceLine נשאר של הספר',
+      () async {
+        final localAdapter = buildAdapter(
+          linkTargetsSummaryProvider: (title, categoryId) async => (
+            targets: const [
+              LinkTargetSummary(
+                targetTitle: 'הערות על בראשית',
+                connectionType: 'COMMENTARY',
+                linkCount: 12,
+              ),
+              LinkTargetSummary(
+                targetTitle: 'רש״י על בראשית',
+                connectionType: 'COMMENTARY',
+                linkCount: 120,
+              ),
+            ],
+            maxSourceLine: 900,
+          ),
+        );
+
+        final result =
+            await localAdapter.execute('library', 'getLinkTargetsSummary', {
+                  'bookId': 'בראשית',
+                  'targetTitlePrefixes': ['הערות '],
+                })
+                as Map<String, dynamic>;
+
+        final targets = result['targets'] as List;
+        expect((targets.single as Map)['targetTitle'], 'הערות על בראשית');
+        expect(result['maxSourceLine'], 899);
+      },
+    );
   });
 
   group('library.getLinkContent', () {

@@ -83,7 +83,8 @@ void main() {
           .toList();
 
       final onkelos = entries.firstWhere((b) => b.id == 1);
-      expect(onkelos.name, 'אונקלוס');
+      // הכינוי משלים שם חסר-משפחה, כמו בתצוגת אתר תא שמע.
+      expect(onkelos.name, 'אונקלוס הגר');
       expect(onkelos.summary, 'תנא, מתרגם התורה.');
       expect(onkelos.appelations, ['הגר']);
       expect(onkelos.generation, 'תנאים');

@@ -525,6 +525,42 @@ export interface HighlightCapabilities {
   contextMenu: string[];
 }
 
+/**
+ * שולחן עבודה — אוסף הכרטיסיות הפתוחות (`workspace.list`).
+ */
+export interface WorkspaceListEntry {
+  id: string;
+  name: string;
+  isActive: boolean;
+  /**
+   * מספר הכרטיסיות שה-API חושף — אותן כרטיסיות שב-`ReaderState.openTabs`.
+   * כרטיסיות של כלים ותוספים אינן נמנות. בשולחן הפעיל זו הספירה החיה.
+   */
+  tabCount: number;
+}
+
+/** השולחן הפעיל (`workspace.getActive`). `null` כשעדיין לא נטען שולחן. */
+export interface ActiveWorkspace {
+  id: string | null;
+  name: string | null;
+}
+
+/** ארגומנטים ל-`workspace.create`. */
+export interface WorkspaceCreateArgs {
+  /** עד 100 תווים; שם ריק נדחה ב-`error.invalid_params`. */
+  name: string;
+  /** מעבר לשולחן מיד לאחר היצירה. ברירת מחדל `false`. */
+  switchTo?: boolean;
+  /** החזרת שולחן קיים באותו שם במקום יצירת כפילות. ברירת מחדל `false`. */
+  reuseExisting?: boolean;
+}
+
+/** תוצאת `workspace.create`. `created: false` = הוחזר שולחן קיים. */
+export interface WorkspaceCreateResult {
+  id: string;
+  created: boolean;
+}
+
 /** סימנייה (`bookmarks.list`). */
 export interface BookmarkEntry extends BookIdentity {
   title: string;
@@ -535,6 +571,16 @@ export interface BookmarkEntry extends BookIdentity {
   targetKind: 'book' | 'commentators';
   /** ISO 8601; null בסימניות מגרסאות קודמות. */
   createdAt: string | null;
+}
+
+/**
+ * ארגומנטים ל-`reader.closeTab` ול-`reader.activateTab`.
+ *
+ * ה-index הוא המקום ב-`ReaderState.openTabs` — לא מקומה של הכרטיסייה בשורת
+ * הכרטיסיות. אינדקס מחוץ לתחום מוחזר כ-`error.invalid_params`.
+ */
+export interface ReaderTabIndexArgs {
+  index: number;
 }
 
 /** ארגומנטים ל-`bookmarks.add`. הספר מזוהה ב-`id` או ב-`bookId`. */
@@ -1535,6 +1581,71 @@ export interface PluginCommandPayload {
   /** The shortcut id that triggered the command. */
   shortcutId: string;
 }
+/**
+ * One entry of `fonts.resolveFamilies`: a family the document asks for, and the
+ * fonts that may stand in for it, best first.
+ */
+export interface FontFamilyRequest {
+  /** The family name as the document writes it. The returned face carries it. */
+  name: string;
+  /** Stand-ins to try in order; the first one the host can supply wins. */
+  substitutes: string[];
+}
+
+/**
+ * Result of `fonts.resolveFamilies`: ready-to-inject `@font-face` rules whose
+ * bytes come from Otzaria's bundled or system fonts, each declared under the
+ * requested `name`.
+ *
+ * Needed because `src: local()` inside a plugin WebView resolves only fonts
+ * installed on the machine — never the faces Otzaria injects itself. A plugin
+ * that renders a document asking for a font nobody installed cannot reach the
+ * bundled fonts without the bytes.
+ */
+export interface ResolveFontFamiliesResult {
+  /** The `@font-face` rules, newline-separated. Empty when nothing matched. */
+  css: string;
+  /** The requested names that got a face. */
+  resolved: string[];
+}
+
+/**
+ * One installed font family, from `fonts.listInstalled`.
+ */
+export interface InstalledFontFamily {
+  /**
+   * Exactly what CSS `font-family` accepts — not a file name, not "David Bold".
+   *
+   * On Windows GDI truncates a family name at 31 characters, so
+   * `Bahnschrift SemiBold SemiCondensed` arrives as
+   * `Bahnschrift SemiBold SemiConden`.
+   */
+  name: string;
+  /** Which writing systems the family covers. */
+  scripts: Array<
+    'latin' | 'hebrew' | 'arabic' | 'cyrillic' | 'greek' | 'cjk' | 'thai' | 'symbol'
+  >;
+  /** `true` for a fixed-pitch family such as Consolas. */
+  monospace: boolean;
+}
+
+/**
+ * Result of `fonts.listInstalled`: the font families present on this machine.
+ *
+ * Lets a plugin see what actually exists before it picks a substitute, instead
+ * of guessing or probing `fonts.resolveFamilies` family by family. A platform
+ * with no implementation returns an empty `families` — that is not an error.
+ *
+ * Legacy Windows raster fonts (`.fon`) are excluded: a WebView cannot render
+ * them, so their names would not be usable in CSS.
+ */
+export interface ListInstalledFontsResult {
+  /** The installed families, sorted by name, each name appearing once. */
+  families: InstalledFontFamily[];
+  /** The host platform, e.g. `'windows'`. */
+  platform: string;
+}
+
 export type OtzariaMethod =
   | 'app.getInfo'
   | 'app.getTheme'
@@ -1543,6 +1654,8 @@ export type OtzariaMethod =
   | 'app.getGrantedPermissions'
   | 'app.getConnectivity'
   | 'app.openUrl'
+  | 'fonts.resolveFamilies'
+  | 'fonts.listInstalled'
   | 'app.registerShortcut'
   | 'app.unregisterShortcut'
   | 'app.updateShortcut'
@@ -1576,6 +1689,8 @@ export type OtzariaMethod =
   | 'reader.respondExternalSearch'
   | 'reader.getCurrentState'
   | 'reader.getCurrentRef'
+  | 'reader.closeTab'
+  | 'reader.activateTab'
   | 'reader.getSelection'
   | 'reader.getActiveCommentators'
   | 'reader.setActiveCommentators'
@@ -1583,6 +1698,10 @@ export type OtzariaMethod =
   | 'reader.getHighlightCapabilities'
   | 'reader.findTextOccurrences'
   | 'reader.getSectionTextMap'
+  | 'workspace.list'
+  | 'workspace.getActive'
+  | 'workspace.create'
+  | 'workspace.switch'
   | 'navigation.goTo'
   | 'notes.list'
   | 'notes.getBookNotesSummary'

@@ -1,4 +1,5 @@
 import 'package:file_picker/file_picker.dart';
+import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/widgets/misc/app_cursors.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -48,17 +49,15 @@ class _PluginSidePanelState extends State<PluginSidePanel> {
     final verified = await verifySaferModePassword(context);
     if (!verified || !context.mounted) return;
 
-    final result = await FilePicker.pickFiles(
+    final result = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['otzplugin'],
-      lockParentWindow: true,
+      windowsOptions: kModalWindowsOptions,
+      linuxOptions: kModalLinuxOptions,
     );
-    if (result != null && result.files.single.path != null) {
-      if (context.mounted) {
-        context.read<PluginSystemBloc>().add(
-          InstallPluginRequested(result.files.single.path!),
-        );
-      }
+    final path = result?.path;
+    if (path != null && context.mounted) {
+      context.read<PluginSystemBloc>().add(InstallPluginRequested(path));
     }
   }
 
@@ -66,7 +65,10 @@ class _PluginSidePanelState extends State<PluginSidePanel> {
     final verified = await verifySaferModePassword(context);
     if (!verified || !context.mounted) return;
 
-    final rootPath = await FilePicker.getDirectoryPath(lockParentWindow: true);
+    final rootPath = await FilePicker.getDirectoryPath(
+      windowsOptions: kModalWindowsOptions,
+      linuxOptions: kModalLinuxOptions,
+    );
     if (rootPath != null) {
       if (context.mounted) {
         context.read<PluginSystemBloc>().add(

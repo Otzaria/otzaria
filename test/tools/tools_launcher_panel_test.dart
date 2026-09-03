@@ -12,7 +12,6 @@ import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
-import 'package:otzaria/plugins/view/widgets/plugin_drop_zone.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -23,8 +22,8 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/built_in_tools_catalog.dart';
 import 'package:otzaria/tools/tool_catalog_entry.dart';
 import 'package:otzaria/tools/view/tools_launcher_panel.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
-import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
@@ -45,7 +44,7 @@ ToolCatalogEntry _entry(
   toolId: toolId,
   label: label,
   order: 10,
-  icon: icon ?? OtzariaIcons.calendar_24_regular,
+  icon: icon ?? FluentIcons.calendar_24_regular,
   imageIcon: imageIcon,
 );
 
@@ -99,14 +98,15 @@ ToolCatalogEntry _pluginEntry(
   ),
 );
 
-/// עוטף שורה בודדת ברוחב פאנל, כמו שהרשימה נותנת לה.
-Widget _tileHost(ToolTile tile, {double width = 320}) => MaterialApp(
+/// עוטף קובייה בודדת בקופסה מרובעת, כדי שהבדיקות ימדדו את אותן אילוצים
+/// שהרשת נותנת (childAspectRatio: 1.0).
+Widget _tileHost(ToolTile tile, {double size = 100}) => MaterialApp(
   theme: ThemeData(colorSchemeSeed: Colors.blue),
   home: Directionality(
     textDirection: TextDirection.rtl,
     child: Scaffold(
       body: Center(
-        child: SizedBox(width: width, child: tile),
+        child: SizedBox(width: size, height: size, child: tile),
       ),
     ),
   ),
@@ -148,23 +148,21 @@ Widget _launcherHost({
   ),
 );
 
-/// מציאת כפתור ⋯ של שורה לפי התווית שכתובה בה.
+/// מציאת כפתור ⋯ של קובייה לפי התווית שכתובה בה.
 Finder _menuButtonOf(String label) => find.descendant(
   of: find.ancestor(of: find.text(label), matching: find.byType(ToolTile)),
   matching: find.byIcon(FluentIcons.more_vertical_24_regular),
 );
 
-bool _isRowSelected(WidgetTester tester, String label) => tester
-    .widget<NavTreeTile>(
-      find
-          .ancestor(of: find.text(label), matching: find.byType(NavTreeTile))
-          .first,
+bool _isCardSelected(WidgetTester tester, String label) => tester
+    .widget<AppCard>(
+      find.ancestor(of: find.text(label), matching: find.byType(AppCard)).first,
     )
-    .isSelected;
+    .selected;
 
-int _selectedRowCount(WidgetTester tester) => tester
-    .widgetList<NavTreeTile>(find.byType(NavTreeTile))
-    .where((tile) => tile.isSelected)
+int _selectedCardCount(WidgetTester tester) => tester
+    .widgetList<AppCard>(find.byType(AppCard))
+    .where((card) => card.selected)
     .length;
 
 /// מריץ גוף בדיקה כפלטפורמת שולחן עבודה. האיפוס חייב לקרות בתוך גוף הבדיקה,
@@ -275,7 +273,7 @@ void main() {
     expect(backgroundFocusNode.hasFocus, isFalse);
   });
 
-  testWidgets('חצים ו-Enter פותחים את השורה המסומנת משדה החיפוש', (
+  testWidgets('חצים ו-Enter פותחים את הקובייה המסומנת משדה החיפוש', (
     tester,
   ) async {
     final settingsBloc = _MockSettingsBloc();
@@ -314,7 +312,7 @@ void main() {
 
     await tester.enterText(find.byType(TextField), 'ה');
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump();
@@ -535,6 +533,26 @@ void main() {
     });
   });
 
+  group('toolGridColumns', () {
+    test('רוחב צר נעצר על מינימום 2 עמודות', () {
+      expect(toolGridColumns(0), 2);
+      expect(toolGridColumns(kToolTileTargetWidth), 2);
+    });
+
+    test('גדל עם הרוחב', () {
+      expect(toolGridColumns(kToolTileTargetWidth * 3), 3);
+      expect(toolGridColumns(kToolTileTargetWidth * 4), 4);
+    });
+
+    test('רוחב גדול נעצר על מקסימום 5 עמודות', () {
+      expect(toolGridColumns(kToolTileTargetWidth * 20), 5);
+    });
+
+    test('רוחב חלקי מעגל כלפי מטה', () {
+      expect(toolGridColumns(kToolTileTargetWidth * 3.9), 3);
+    });
+  });
+
   group('nextHighlightIndex', () {
     test('זז בתוך הטווח', () {
       expect(nextHighlightIndex(current: 0, delta: 1, total: 5), 1);
@@ -560,8 +578,8 @@ void main() {
     });
 
     // ממצב "אין סימון" כל חץ מסמן את הראשונה; בלי זה חץ למטה היה מדלג שורה
-    // שלמה ומסמן את השורה החמישית.
-    test('ממצב ללא סימון כל חץ מסמן את השורה הראשונה', () {
+    // שלמה ומסמן את הקובייה החמישית.
+    test('ממצב ללא סימון כל חץ מסמן את הקובייה הראשונה', () {
       expect(nextHighlightIndex(current: -1, delta: 1, total: 7), 0);
       expect(nextHighlightIndex(current: -1, delta: 5, total: 7), 0);
       expect(nextHighlightIndex(current: -1, delta: -5, total: 7), 0);
@@ -573,8 +591,6 @@ void main() {
       ToolCatalogEntry? entry,
       bool isOpen = false,
       bool isHighlighted = false,
-      bool isGroupStart = true,
-      bool isGroupEnd = true,
       VoidCallback? onTap,
       List<ToolTileAction> actions = const [],
       int movePulse = 0,
@@ -582,8 +598,6 @@ void main() {
       entry: entry ?? _entry('builtin.calendar', 'לוח שנה'),
       isOpen: isOpen,
       isHighlighted: isHighlighted,
-      isGroupStart: isGroupStart,
-      isGroupEnd: isGroupEnd,
       onTap: onTap ?? () {},
       actions: actions,
       movePulse: movePulse,
@@ -594,52 +608,101 @@ void main() {
       expect(find.text('לוח שנה'), findsOneWidget);
     });
 
-    // השורה היא שורת עץ ניווט בכרטיס מקובץ, כמו בעץ הספרייה ובחלוניות הניווט.
-    testWidgets('בנויה מ-NavTreeTile בתוך NavTreeGroupCard', (tester) async {
+    // אותו כרטיס כמו בקוביות הספרייה — צבע הכרטיס שבערכת הנושא, בלי מסגרת.
+    testWidgets('הקובייה על צבע הכרטיס של הספרייה', (tester) async {
       await tester.pumpWidget(_tileHost(buildTile()));
-      expect(find.byType(NavTreeGroupCard), findsOneWidget);
-      expect(find.byType(NavTreeTile), findsOneWidget);
+      expect(find.byType(AppCard), findsOneWidget);
+
+      final context = tester.element(find.byType(ToolTile));
+      final material = tester.widget<Material>(
+        find.descendant(
+          of: find.byType(AppCard),
+          matching: find.byType(Material),
+        ),
+      );
+      expect(material.color, AppSurfaces.card(context));
+      expect(material.shape, isNull);
     });
 
-    // קצות הכרטיס נקבעים בקצות הקבוצה — שורה באמצע נשארת מחוברת לשכנותיה.
-    testWidgets('קצות הכרטיס עוברים לשורה', (tester) async {
-      await tester.pumpWidget(
-        _tileHost(buildTile(isGroupStart: false, isGroupEnd: false)),
+    // סדר גודל של סמל תוכנה: בקובייה רגילה האייקון מגיע לגודלו המרבי.
+    testWidgets('האייקון מגיע לגודל המרבי בקובייה רגילה', (tester) async {
+      await tester.pumpWidget(_tileHost(buildTile()));
+
+      final icon = tester.widget<Icon>(
+        find.byIcon(FluentIcons.calendar_24_regular),
       );
-      final card = tester.widget<NavTreeGroupCard>(
-        find.byType(NavTreeGroupCard),
-      );
-      expect(card.isGroupStart, isFalse);
-      expect(card.isGroupEnd, isFalse);
+      expect(icon.size, ToolTile.iconSizeFor(100 - AppTokens.spaceXS * 2));
+      expect(icon.size, ToolTile.maxIconSize);
     });
 
-    // האייקון יושב בקופסת האייקון של שורת העץ, ולא כסמל גדול על רקע החלונית.
-    testWidgets('האייקון בקופסת האייקון של שורת העץ', (tester) async {
+    // בפאנל מצומצם האייקון מתכווץ, אחרת שתי שורות התווית נחתכות.
+    testWidgets('קובייה קטנה מקבלת אייקון קטן ללא חריגת פריסה', (tester) async {
+      await tester.pumpWidget(_tileHost(buildTile(), size: 70));
+      expect(tester.takeException(), isNull);
+
+      final icon = tester.widget<Icon>(
+        find.byIcon(FluentIcons.calendar_24_regular),
+      );
+      expect(icon.size, lessThan(ToolTile.maxIconSize));
+      expect(icon.size, greaterThanOrEqualTo(ToolTile.minIconSize));
+    });
+
+    // התווית קטנה מברירת המחדל של bodySmall, כדי לפנות מקום לאייקון.
+    testWidgets('תווית הקובייה בגודל 11', (tester) async {
+      await tester.pumpWidget(_tileHost(buildTile()));
+      final label = tester.widget<Text>(find.text('לוח שנה'));
+      expect(label.style?.fontSize, ToolTile.labelFontSize);
+    });
+
+    // האייקון עומד על רקע הכרטיס עצמו — בלי מעטפת מרובעת סביבו.
+    testWidgets('האייקון בצבע primary ובלי מעטפת מרובעת', (tester) async {
       await tester.pumpWidget(_tileHost(buildTile()));
       final context = tester.element(find.byType(ToolTile));
       final cs = Theme.of(context).colorScheme;
 
       final icon = tester.widget<Icon>(
-        find.byIcon(OtzariaIcons.calendar_24_regular),
+        find.byIcon(FluentIcons.calendar_24_regular),
       );
-      expect(icon.color, cs.onSecondaryContainer);
-      expect(icon.size, NavTreeTile.iconContentSize);
+      expect(icon.color, cs.primary);
+      expect(
+        find.ancestor(
+          of: find.byIcon(FluentIcons.calendar_24_regular),
+          matching: find.byType(Container),
+        ),
+        findsNothing,
+      );
     });
 
-    // בשורה האייקון מוביל את הטקסט — ב-RTL הוא מימינו.
-    testWidgets('האייקון מימין לתווית ובאותו גובה', (tester) async {
+    testWidgets('האייקון והטקסט ממורכזים אופקית בקובייה', (tester) async {
       await tester.pumpWidget(_tileHost(buildTile()));
 
+      final tileCenter = tester.getCenter(find.byType(ToolTile));
       final iconCenter = tester.getCenter(
-        find.byIcon(OtzariaIcons.calendar_24_regular),
+        find.byIcon(FluentIcons.calendar_24_regular),
       );
       final textCenter = tester.getCenter(find.text('לוח שנה'));
 
-      expect(iconCenter.dx, greaterThan(textCenter.dx));
-      expect(iconCenter.dy, moreOrLessEquals(textCenter.dy, epsilon: 1));
+      expect(iconCenter.dx, moreOrLessEquals(tileCenter.dx, epsilon: 0.5));
+      expect(textCenter.dx, moreOrLessEquals(tileCenter.dx, epsilon: 0.5));
     });
 
-    testWidgets('תווית ארוכה אינה גולשת מהשורה', (tester) async {
+    // גוש האייקון+טקסט ממורכז אנכית כיחידה אחת — לא כל רכיב לחוד.
+    testWidgets('גוש התוכן ממורכז אנכית', (tester) async {
+      await tester.pumpWidget(_tileHost(buildTile()));
+
+      final tileCenter = tester.getCenter(find.byType(ToolTile));
+      final iconBoxRect = tester.getRect(
+        find.byIcon(FluentIcons.calendar_24_regular),
+      );
+      final textRect = tester.getRect(find.text('לוח שנה'));
+
+      final blockCenter = (iconBoxRect.top + textRect.bottom) / 2;
+      expect(iconBoxRect.top, lessThan(tileCenter.dy));
+      expect(textRect.bottom, greaterThan(tileCenter.dy));
+      expect(blockCenter, moreOrLessEquals(tileCenter.dy, epsilon: 1));
+    });
+
+    testWidgets('תווית ארוכה אינה גולשת מהקובייה', (tester) async {
       await tester.pumpWidget(
         _tileHost(
           buildTile(
@@ -664,7 +727,7 @@ void main() {
       );
       expect(find.byType(ImageIcon), findsOneWidget);
       final imageIcon = tester.widget<ImageIcon>(find.byType(ImageIcon));
-      expect(imageIcon.size, NavTreeTile.iconContentSize);
+      expect(imageIcon.size, ToolTile.iconSizeFor(100 - AppTokens.spaceXS * 2));
     });
 
     testWidgets('לחיצה מפעילה את onTap', (tester) async {
@@ -721,8 +784,8 @@ void main() {
       expect(find.text('DEV'), findsOneWidget);
     });
 
-    // התווית כתובה בשורה — טולטיפ ריחוף עליה היה כפילות מציקה.
-    testWidgets('אין טולטיפ ריחוף על השורה', (tester) async {
+    // התווית כתובה בקובייה — טולטיפ ריחוף עליה היה כפילות מציקה.
+    testWidgets('אין טולטיפ ריחוף על הקובייה', (tester) async {
       await tester.pumpWidget(_tileHost(buildTile()));
       expect(find.byType(Tooltip), findsNothing);
 
@@ -734,7 +797,7 @@ void main() {
       expect(find.byType(Tooltip), findsNothing);
     });
 
-    // הטולטיפ היחיד שנשאר בשורה הוא של כפתור הפעולות, כמו בספרייה.
+    // הטולטיפ היחיד שנשאר בקובייה הוא של כפתור הפעולות, כמו בספרייה.
     testWidgets('הטולטיפ היחיד הוא של כפתור הפעולות', (tester) async {
       await tester.pumpWidget(
         _tileHost(
@@ -755,12 +818,12 @@ void main() {
       );
     });
 
-    testWidgets('סימון מקלדת מסמן את השורה כנבחרת', (tester) async {
+    testWidgets('סימון מקלדת מסמן את הכרטיס כנבחר', (tester) async {
       await tester.pumpWidget(_tileHost(buildTile()));
-      expect(_isRowSelected(tester, 'לוח שנה'), isFalse);
+      expect(tester.widget<AppCard>(find.byType(AppCard)).selected, isFalse);
 
       await tester.pumpWidget(_tileHost(buildTile(isHighlighted: true)));
-      expect(_isRowSelected(tester, 'לוח שנה'), isTrue);
+      expect(tester.widget<AppCard>(find.byType(AppCard)).selected, isTrue);
     });
 
     testWidgets('בלי פעולות אין כפתור ⋯', (tester) async {
@@ -784,6 +847,7 @@ void main() {
               ),
             ],
           ),
+          size: 140,
         ),
       );
 
@@ -797,7 +861,7 @@ void main() {
     });
 
     // לחיצה על ⋯ אינה אמורה לפתוח את הכלי.
-    testWidgets('לחיצה על ⋯ אינה מפעילה את onTap של השורה', (tester) async {
+    testWidgets('לחיצה על ⋯ אינה מפעילה את onTap של הקובייה', (tester) async {
       var taps = 0;
       await tester.pumpWidget(
         _tileHost(
@@ -811,6 +875,7 @@ void main() {
               ),
             ],
           ),
+          size: 140,
         ),
       );
 
@@ -826,11 +891,12 @@ void main() {
             actions: const [
               ToolTileAction(
                 icon: FluentIcons.arrow_left_24_regular,
-                label: 'הזז למעלה',
+                label: 'הזז אחורה',
                 onTap: null,
               ),
             ],
           ),
+          size: 140,
         ),
       );
 
@@ -838,15 +904,15 @@ void main() {
       await tester.pumpAndSettle();
       final item = tester.widget<PopupMenuItem<VoidCallback>>(
         find.ancestor(
-          of: find.text('הזז למעלה'),
+          of: find.text('הזז אחורה'),
           matching: find.byType(PopupMenuItem<VoidCallback>),
         ),
       );
       expect(item.enabled, isFalse);
     });
 
-    // סדר הזנב: סימן "פתוח" ואחריו הכפתור, בקצה השמאלי של השורה ב-RTL.
-    testWidgets('כפתור ⋯ בקצה השורה, וסימן "פתוח" לפניו', (tester) async {
+    // מקום הכפתור נבחר כך שלא יתנגש בסימן "פתוח" שבפינה הנגדית.
+    testWidgets('כפתור ⋯ יושב בפינה השמאלית-עליונה של הקובייה', (tester) async {
       await tester.pumpWidget(
         _tileHost(
           buildTile(
@@ -859,6 +925,7 @@ void main() {
               ),
             ],
           ),
+          size: 140,
         ),
       );
 
@@ -870,11 +937,11 @@ void main() {
         find.byIcon(FluentIcons.checkmark_circle_16_filled),
       );
       expect(button.center.dx, lessThan(tile.center.dx));
-      expect(button.center.dy, moreOrLessEquals(tile.center.dy, epsilon: 2));
+      expect(button.center.dy, lessThan(tile.center.dy));
       expect(
         button.center.dx,
         lessThan(openMark.center.dx),
-        reason: 'סימן "פתוח" קודם לכפתור בזנב השורה',
+        reason: 'סימן "פתוח" יושב בפינה הנגדית ואינו מתנגש בכפתור',
       );
       // האייקון קטן משטח הלחיצה — הכפתור נשאר נוח ללחיצה גם כשהנקודות זעירות.
       expect(button.width, lessThan(ToolTile.menuButtonSize));
@@ -899,24 +966,25 @@ void main() {
                 children: [
                   ToolTileAction(
                     icon: FluentIcons.arrow_left_24_regular,
-                    label: 'הזז למעלה',
+                    label: 'הזז אחורה',
                     onTap: () => moved++,
                   ),
                 ],
               ),
             ],
           ),
+          size: 140,
         ),
       );
 
       await tester.tap(find.byIcon(FluentIcons.more_vertical_24_regular));
       await tester.pumpAndSettle();
       expect(find.text('הזזה'), findsOneWidget);
-      expect(find.text('הזז למעלה'), findsNothing);
+      expect(find.text('הזז אחורה'), findsNothing);
 
       await tester.tap(find.text('הזזה'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('הזז למעלה'));
+      await tester.tap(find.text('הזז אחורה'));
       await tester.pumpAndSettle();
       expect(moved, 1);
     });
@@ -933,13 +1001,14 @@ void main() {
                 children: [
                   ToolTileAction(
                     icon: FluentIcons.arrow_left_24_regular,
-                    label: 'הזז למעלה',
+                    label: 'הזז אחורה',
                     onTap: null,
                   ),
                 ],
               ),
             ],
           ),
+          size: 140,
         ),
       );
 
@@ -951,7 +1020,7 @@ void main() {
       // היא מרונדרת כשורה רגילה מעומעמת — בלי תת-פעולות בכלל.
       await tester.tap(find.text('הזזה'));
       await tester.pumpAndSettle();
-      expect(find.text('הזז למעלה'), findsNothing);
+      expect(find.text('הזז אחורה'), findsNothing);
     });
 
     testWidgets('פעימת הזזה אינה זורקת ומתייצבת', (tester) async {
@@ -1020,43 +1089,30 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    /// פותח את תפריט השורה ואת תת-תפריט "הזזה" שבתוכו.
+    /// פותח את תפריט הקובייה ואת תת-תפריט "הזזה" שבתוכו.
     Future<void> openMoveSubmenu(WidgetTester tester, String label) async {
       await openMenu(tester, label);
       await tester.tap(find.text('הזזה'));
       await tester.pumpAndSettle();
     }
 
-    testWidgets('עיצוב הרשימה נשאר בתוך אזור השלכת תוספים', (tester) async {
-      await pumpPanel(tester);
+    // ── סימון מקלדת ─────────────────────────────────────────────────────────
 
-      expect(find.byType(PluginDropZone), findsOneWidget);
-      expect(
-        find.descendant(
-          of: find.byType(PluginDropZone),
-          matching: find.byType(NavTreeTile),
-        ),
-        findsWidgets,
-      );
-    });
-
-    // ── סימון מקלדת ────────────────────────────────────────────────────────
-
-    testWidgets('בפתיחה אין שורה מסומנת — לוח שנה לא נראה נבחר', (
+    testWidgets('בפתיחה אין קובייה מסומנת — לוח שנה לא נראה נבחר', (
       tester,
     ) async {
       await pumpPanel(tester);
-      expect(_selectedRowCount(tester), 0);
-      expect(_isRowSelected(tester, 'לוח שנה'), isFalse);
+      expect(_selectedCardCount(tester), 0);
+      expect(_isCardSelected(tester, 'לוח שנה'), isFalse);
     });
 
-    testWidgets('החץ הראשון מסמן את השורה הראשונה', (tester) async {
+    testWidgets('החץ הראשון מסמן את הקובייה הראשונה', (tester) async {
       await pumpPanel(tester);
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
       await tester.pump();
 
-      expect(_selectedRowCount(tester), 1);
-      expect(_isRowSelected(tester, 'לוח שנה'), isTrue);
+      expect(_selectedCardCount(tester), 1);
+      expect(_isCardSelected(tester, 'לוח שנה'), isTrue);
     });
 
     testWidgets('חיפוש מסמן את התוצאה הראשונה', (tester) async {
@@ -1064,8 +1120,8 @@ void main() {
       await tester.enterText(find.byType(TextField), 'גימ');
       await tester.pump();
 
-      expect(_selectedRowCount(tester), 1);
-      expect(_isRowSelected(tester, 'גימטריה'), isTrue);
+      expect(_selectedCardCount(tester), 1);
+      expect(_isCardSelected(tester, 'גימטריה'), isTrue);
     });
 
     testWidgets('ניקוי החיפוש מחזיר למצב ללא סימון', (tester) async {
@@ -1075,7 +1131,7 @@ void main() {
       await tester.enterText(find.byType(TextField), '');
       await tester.pump();
 
-      expect(_selectedRowCount(tester), 0);
+      expect(_selectedCardCount(tester), 0);
     });
 
     testWidgets('Enter בלי סימון פותח את הכלי הראשון', (tester) async {
@@ -1088,62 +1144,67 @@ void main() {
 
     // ── פס הגלילה ───────────────────────────────────────────────────────────
 
-    // השוליים האופקיים נמצאים בכרטיסי העץ עצמם, ולכן הרשימה מוסיפה רק את
-    // שולי העץ האנכיים ואת המקום לסרגל הצף.
-    testWidgets('הרשימה מקבלת את שולי העץ ומרווח מתחת לסרגל הצף', (
+    testWidgets('הרשת שומרת מרווח בימין לפס הגלילה ומתחת לסרגל הצף', (
       tester,
     ) async {
       await pumpPanel(tester);
-      final listView = tester.widget<ListView>(find.byType(ListView));
-      expect(
-        listView.padding,
-        kNavTreeListPadding +
-            EdgeInsets.only(
-              bottom: AppInputTokens.height(false) + AppTokens.spaceMD,
-            ),
+      final padding = tester.widget<SliverPadding>(
+        find.byType(SliverPadding).last,
       );
-    });
-
-    // ברוחב הפאנל שבברירת מחדל השורות תופסות את כל רוחב הרשימה, פחות שוליי
-    // כרטיסי העץ.
-    testWidgets('השורות תופסות את רוחב הפאנל פחות שולי העץ', (tester) async {
-      await pumpPanel(tester, width: _kDefaultPanelContentWidth);
-      expect(tester.takeException(), isNull);
-
-      final rowWidth = tester.getSize(find.byType(NavTreeTile).first).width;
       expect(
-        rowWidth,
-        moreOrLessEquals(
-          _kDefaultPanelContentWidth - kNavTreeSideInset * 2,
-          epsilon: 0.5,
+        padding.padding,
+        EdgeInsets.only(
+          right: kToolGridScrollbarGutter,
+          bottom: AppInputTokens.height(false) + AppTokens.spaceMD,
         ),
       );
     });
 
-    testWidgets('כל קבוצה מוצגת תחת כותרת עץ אחת', (tester) async {
-      await pumpPanel(tester);
-      expect(find.byType(NavTreeHeader), findsNWidgets(2));
-      expect(find.text(kBuiltInToolsGroupLabel), findsOneWidget);
-      expect(find.text(kPluginsGroupLabel), findsOneWidget);
+    // ברוחב הפאנל שבברירת מחדל נכנסות ארבע קוביות בשורה, הקובייה נשארת
+    // ריבוע, והאייקון נכנס בה בשלמותו יחד עם שתי שורות התווית.
+    testWidgets('ברוחב הפאנל שבברירת מחדל — 4 קוביות בשורה', (tester) async {
+      await pumpPanel(tester, width: _kDefaultPanelContentWidth);
+      expect(tester.takeException(), isNull);
+
+      for (final grid in tester.widgetList<SliverGrid>(
+        find.byType(SliverGrid),
+      )) {
+        final delegate =
+            grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+        expect(delegate.crossAxisCount, 4);
+        expect(delegate.childAspectRatio, 1.0);
+      }
+
+      final tileSize = tester.getSize(find.byType(ToolTile).first);
+      expect(tileSize.width, moreOrLessEquals(tileSize.height, epsilon: 0.01));
+      final tileHeight = tileSize.height;
+      final icon = tester.widget<Icon>(
+        find.descendant(
+          of: find.byType(ToolTile).first,
+          matching: find.byIcon(OtzariaIcons.calendar_24_regular),
+        ),
+      );
+      expect(icon.size, ToolTile.maxIconSize);
+      expect(
+        ToolTile.maxIconSize + AppTokens.spaceXS + ToolTile.labelBlockHeight,
+        lessThan(tileHeight - AppTokens.spaceXS * 2),
+      );
     });
 
-    // קצות הכרטיס מסמנים גם את קצות הקבוצה — הקבוצה נראית ככרטיס אחד רציף.
-    testWidgets('רק השורה הראשונה והאחרונה בקבוצה מעוגלות', (tester) async {
-      await pumpPanel(tester);
-      final cards = tester
-          .widgetList<NavTreeGroupCard>(find.byType(NavTreeGroupCard))
-          .toList();
-      final builtIns = cards.take(kBuiltInToolsCatalog.length).toList();
-
-      expect(builtIns.first.isGroupStart, isTrue);
-      expect(builtIns.last.isGroupEnd, isTrue);
-      expect(
-        builtIns.sublist(1).every((card) => !card.isGroupStart),
-        isTrue,
+    testWidgets('רשת ארוכה בונה רק קוביות באזור הנראה', (tester) async {
+      const pluginCount = 120;
+      await pumpPanel(
+        tester,
+        pluginState: PluginSystemLoaded([
+          for (var i = 0; i < pluginCount; i++)
+            _pluginEntry('com.example.p$i', 'תוסף מספר $i').plugin!,
+        ]),
       );
+
+      expect(find.byType(ToolTile).evaluate().length, greaterThan(0));
       expect(
-        builtIns.sublist(0, builtIns.length - 1).every((c) => !c.isGroupEnd),
-        isTrue,
+        find.byType(ToolTile).evaluate().length,
+        lessThan(kBuiltInToolsCatalog.length + pluginCount),
       );
     });
 
@@ -1165,7 +1226,7 @@ void main() {
 
     // ── תוכן תפריט ⋯ ────────────────────────────────────────────────────────
 
-    testWidgets('לכל שורה יש כפתור ⋯', (tester) async {
+    testWidgets('לכל קובייה יש כפתור ⋯', (tester) async {
       await pumpPanel(tester);
       expect(
         find.byIcon(FluentIcons.more_vertical_24_regular),
@@ -1184,7 +1245,7 @@ void main() {
       expect(find.text('מחק תוסף'), findsNothing);
       expect(find.text('השבת'), findsNothing);
       // פעולות ההזזה עצמן חבויות בתת-תפריט ואינן מציפות את התפריט הראשי.
-      expect(find.text('הזז למטה'), findsNothing);
+      expect(find.text('הזז אחורה'), findsNothing);
       expect(find.text('הזז לסוף'), findsNothing);
     });
 
@@ -1192,8 +1253,8 @@ void main() {
       await pumpPanel(tester);
       await openMoveSubmenu(tester, 'גימטריה');
 
-      expect(find.text('הזז למטה'), findsOneWidget);
-      expect(find.text('הזז למעלה'), findsOneWidget);
+      expect(find.text('הזז אחורה'), findsOneWidget);
+      expect(find.text('הזז קדימה'), findsOneWidget);
       expect(find.text('הזז לתחילה'), findsOneWidget);
       expect(find.text('הזז לסוף'), findsOneWidget);
     });
@@ -1238,11 +1299,11 @@ void main() {
       expect(find.text('הסר מסרגל הניווט'), findsOneWidget);
     });
 
-    // בראש הקבוצה אין "קדימה" — הלחיצה על פריט מושבת אינה משנה סדר.
-    testWidgets('בראש הקבוצה "הזז למעלה" אינו עושה דבר', (tester) async {
+    // בראש הקבוצה אין "אחורה" — הלחיצה על פריט מושבת אינה משנה סדר.
+    testWidgets('בראש הקבוצה "הזז אחורה" אינו עושה דבר', (tester) async {
       await pumpPanel(tester);
       await openMoveSubmenu(tester, 'לוח שנה');
-      await tapMenuItem(tester, 'הזז למעלה');
+      await tapMenuItem(tester, 'הזז אחורה');
 
       expect(
         settingsBloc.recorded.whereType<UpdateBuiltInToolsOrder>(),
@@ -1250,10 +1311,10 @@ void main() {
       );
     });
 
-    testWidgets('בסוף הקבוצה "הזז למטה" אינו עושה דבר', (tester) async {
+    testWidgets('בסוף הקבוצה "הזז קדימה" אינו עושה דבר', (tester) async {
       await pumpPanel(tester);
       await openMoveSubmenu(tester, 'ביוגרפיות');
-      await tapMenuItem(tester, 'הזז למטה');
+      await tapMenuItem(tester, 'הזז קדימה');
 
       expect(
         settingsBloc.recorded.whereType<UpdateBuiltInToolsOrder>(),
@@ -1263,10 +1324,10 @@ void main() {
 
     // ── פעולות בפועל ────────────────────────────────────────────────────────
 
-    testWidgets('"הזז למטה" על כלי מובנה שומר סדר חדש', (tester) async {
+    testWidgets('"הזז קדימה" על כלי מובנה שומר סדר חדש', (tester) async {
       await pumpPanel(tester);
       await openMoveSubmenu(tester, 'לוח שנה');
-      await tapMenuItem(tester, 'הזז למטה');
+      await tapMenuItem(tester, 'הזז קדימה');
 
       final event = settingsBloc.recorded.whereType<UpdateBuiltInToolsOrder>();
       expect(event, hasLength(1));
@@ -1281,10 +1342,10 @@ void main() {
       );
     });
 
-    testWidgets('"הזז למעלה" על כלי מובנה מקדים אותו לשכנו', (tester) async {
+    testWidgets('"הזז אחורה" על כלי מובנה מקדים אותו לשכנו', (tester) async {
       await pumpPanel(tester);
       await openMoveSubmenu(tester, 'הערות אישיות');
-      await tapMenuItem(tester, 'הזז למעלה');
+      await tapMenuItem(tester, 'הזז אחורה');
 
       final order = settingsBloc.recorded
           .whereType<UpdateBuiltInToolsOrder>()
@@ -1381,10 +1442,10 @@ void main() {
       expect(event.builtInToolsPinnedToNavRail, {'builtin.gematria'});
     });
 
-    testWidgets('"הזז למטה" על תוסף משגר סידור תוספים', (tester) async {
+    testWidgets('"הזז קדימה" על תוסף משגר סידור תוספים', (tester) async {
       await pumpPanel(tester);
       await openMoveSubmenu(tester, 'תוסף א');
-      await tapMenuItem(tester, 'הזז למטה');
+      await tapMenuItem(tester, 'הזז קדימה');
 
       final event = pluginSystemBloc.recorded
           .whereType<ReorderPluginsRequested>()
@@ -1408,8 +1469,8 @@ void main() {
 
     // ── גרירה לסידור ────────────────────────────────────────────────────────
 
-    /// לחיצה, גרירה ועזיבה. [beforeTarget] קובע לאיזה חצי של שורת היעד
-    /// מגיעים — החצי העליון מציב לפניה והתחתון אחריה.
+    /// לחיצה, גרירה ועזיבה. [beforeTarget] קובע לאיזה חצי של קוביית היעד
+    /// מגיעים — בכיוון RTL החצי הימני מציב לפניה והשמאלי אחריה.
     Future<TestGesture> dragTileTo(
       WidgetTester tester,
       String from,
@@ -1418,7 +1479,7 @@ void main() {
       bool release = true,
     }) async {
       // עכבר ולא מגע: בשולחן העבודה הגרירה מוגבלת למצביע מדויק, כדי שהחלקה
-      // במגע תמשיך לגלול את הרשימה.
+      // במגע תמשיך לגלול את הרשת.
       final gesture = await tester.startGesture(
         tester.getCenter(find.text(from)),
         kind: PointerDeviceKind.mouse,
@@ -1427,8 +1488,8 @@ void main() {
       final target = tester.getRect(
         find.ancestor(of: find.text(to), matching: find.byType(ToolTile)),
       );
-      final dy = beforeTarget ? -target.height / 4 : target.height / 4;
-      await gesture.moveTo(target.center + Offset(0, dy));
+      final dx = beforeTarget ? target.width / 4 : -target.width / 4;
+      await gesture.moveTo(target.center + Offset(dx, 0));
       await tester.pump();
       if (release) {
         await gesture.up();
@@ -1437,7 +1498,7 @@ void main() {
       return gesture;
     }
 
-    testWidgets('גרירה לחצי העליון של היעד מציבה לפניו', (tester) async {
+    testWidgets('גרירה לחצי הימני של היעד מציבה לפניו', (tester) async {
       await _asDesktop(() async {
         await pumpPanel(tester);
         await dragTileTo(tester, 'ראשי תיבות', 'גימטריה', beforeTarget: true);
@@ -1453,7 +1514,7 @@ void main() {
       });
     });
 
-    testWidgets('גרירה לחצי התחתון של היעד מציבה אחריו', (tester) async {
+    testWidgets('גרירה לחצי השמאלי של היעד מציבה אחריו', (tester) async {
       await _asDesktop(() async {
         await pumpPanel(tester);
         await dragTileTo(tester, 'לוח שנה', 'גימטריה', beforeTarget: false);
@@ -1470,8 +1531,8 @@ void main() {
       });
     });
 
-    // קו ההוספה הוא החיווי שהמשתמש רואה — היכן השורה תיפול.
-    testWidgets('בגרירה מוצג קו הוספה אחד בצד שאליו תיפול השורה', (
+    // קו ההוספה הוא החיווי שהמשתמש רואה — היכן הקובייה תיפול.
+    testWidgets('בגרירה מוצג קו הוספה אחד בצד שאליו תיפול הקובייה', (
       tester,
     ) async {
       await _asDesktop(() async {
@@ -1493,9 +1554,9 @@ void main() {
           ),
         );
         expect(
-          line.center.dy,
-          lessThan(target.center.dy),
-          reason: '"לפני" הוא הקצה העליון של שורת היעד',
+          line.center.dx,
+          greaterThan(target.center.dx),
+          reason: 'ב-RTL "לפני" הוא הקצה הימני של קובייית היעד',
         );
 
         await gesture.up();
@@ -1564,7 +1625,18 @@ void main() {
 
     // ── issue #929: שחרור בשטח הריק וגלילת קצה ──────────────────────────────
 
-    /// גורר שורה אל השטח הריק שמתחת לרשימה, בלי לשחרר.
+    ScrollPosition gridPosition(WidgetTester tester) => tester
+        .state<ScrollableState>(
+          find
+              .descendant(
+                of: find.byType(CustomScrollView),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        )
+        .position;
+
+    /// גורר קובייה אל השטח הריק שמתחת לרשת, בלי לשחרר.
     Future<TestGesture> dragTileToEmptySpace(
       WidgetTester tester,
       String from,
@@ -1574,13 +1646,13 @@ void main() {
         kind: PointerDeviceKind.mouse,
       );
       await tester.pump(const Duration(milliseconds: 50));
-      final list = tester.getRect(find.byType(ListView));
-      await gesture.moveTo(Offset(list.center.dx, list.bottom - 8));
+      final grid = tester.getRect(find.byType(CustomScrollView));
+      await gesture.moveTo(Offset(grid.center.dx, grid.bottom - 8));
       await tester.pump();
       return gesture;
     }
 
-    testWidgets('שחרור בשטח הריק שמתחת לרשימה מעביר תוסף לסוף קבוצתו', (
+    testWidgets('שחרור בשטח הריק שמתחת לרשת מעביר תוסף לסוף קבוצתו', (
       tester,
     ) async {
       await _asDesktop(() async {
@@ -1589,16 +1661,17 @@ void main() {
         await pumpPanel(tester, height: 900);
         final gesture = await dragTileToEmptySpace(tester, 'תוסף א');
 
-        // קו ההוספה מוצג על סוף קבוצת התוספים — חיווי שהשחרור יתקבל.
+        // קו ההוספה מוצג בקצה ה-end של הקובייה האחרונה בקבוצה — ב-RTL
+        // הצד השמאלי, כלומר "אחריה".
         expect(find.byKey(kToolDropIndicatorKey), findsOneWidget);
         final line = tester.getRect(find.byKey(kToolDropIndicatorKey));
-        final lastRow = tester.getRect(
+        final lastTile = tester.getRect(
           find.ancestor(
             of: find.text('תוסף ב'),
             matching: find.byType(ToolTile),
           ),
         );
-        expect(line.center.dy, greaterThan(lastRow.center.dy));
+        expect(line.center.dx, lessThan(lastTile.center.dx));
 
         await gesture.up();
         await tester.pumpAndSettle();
@@ -1655,9 +1728,7 @@ void main() {
       });
     });
 
-    testWidgets('גרירה אל הקצה התחתון גוללת את הרשימה אוטומטית', (
-      tester,
-    ) async {
+    testWidgets('גרירה אל הקצה התחתון גוללת את הרשת אוטומטית', (tester) async {
       await _asDesktop(() async {
         await pumpPanel(
           tester,
@@ -1666,14 +1737,7 @@ void main() {
               _pluginEntry('com.example.p$i', 'תוסף מספר $i').plugin!,
           ]),
         );
-        final position = tester
-            .state<ScrollableState>(
-              find.descendant(
-                of: find.byType(ListView),
-                matching: find.byType(Scrollable),
-              ),
-            )
-            .position;
+        final position = gridPosition(tester);
         expect(position.pixels, 0);
 
         final gesture = await tester.startGesture(
@@ -1681,8 +1745,8 @@ void main() {
           kind: PointerDeviceKind.mouse,
         );
         await tester.pump(const Duration(milliseconds: 50));
-        final list = tester.getRect(find.byType(ListView));
-        await gesture.moveTo(Offset(list.center.dx, list.bottom - 10));
+        final grid = tester.getRect(find.byType(CustomScrollView));
+        await gesture.moveTo(Offset(grid.center.dx, grid.bottom - 10));
         await tester.pump();
         for (var i = 0; i < 10; i++) {
           await tester.pump(const Duration(milliseconds: 16));
@@ -1695,7 +1759,7 @@ void main() {
       });
     });
 
-    testWidgets('גרירה אל הקצה העליון גוללת את הרשימה חזרה למעלה', (
+    testWidgets('גרירה אל הקצה העליון גוללת את הרשת חזרה למעלה', (
       tester,
     ) async {
       await _asDesktop(() async {
@@ -1706,26 +1770,25 @@ void main() {
               _pluginEntry('com.example.p$i', 'תוסף מספר $i').plugin!,
           ]),
         );
-        final position = tester
-            .state<ScrollableState>(
-              find.descendant(
-                of: find.byType(ListView),
-                matching: find.byType(Scrollable),
-              ),
-            )
-            .position;
+        final position = gridPosition(tester);
         position.jumpTo(200);
         await tester.pump();
 
-        // שורה רחוקה מהקצה — גרירה מהשורה העליונה אל הקצה קצרה מסף ה-slop
-        // והמחווה אינה מזוהה כגרירה.
+        final grid = tester.getRect(find.byType(CustomScrollView));
+        final tiles = find.byType(ToolTile);
+        final index = List.generate(tiles.evaluate().length, (i) => i)
+            .firstWhere(
+              (i) {
+                final dy = tester.getRect(tiles.at(i)).center.dy;
+                return dy > grid.top + 80 && dy < grid.bottom - 80;
+              },
+            );
         final gesture = await tester.startGesture(
-          tester.getCenter(find.byType(ToolTile).at(3)),
+          tester.getCenter(tiles.at(index)),
           kind: PointerDeviceKind.mouse,
         );
         await tester.pump(const Duration(milliseconds: 50));
-        final list = tester.getRect(find.byType(ListView));
-        await gesture.moveTo(Offset(list.center.dx, list.top + 10));
+        await gesture.moveTo(Offset(grid.center.dx, grid.top + 10));
         await tester.pump();
         for (var i = 0; i < 10; i++) {
           await tester.pump(const Duration(milliseconds: 16));
@@ -1805,19 +1868,19 @@ void main() {
         final searchField = tester.widget<TextField>(find.byType(TextField));
         expect(searchField.focusNode!.hasFocus, isTrue);
 
-        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
         await tester.pump();
-        expect(_selectedRowCount(tester), 1);
+        expect(_selectedCardCount(tester), 1);
       });
     });
 
     testWidgets('סימון שיצא מהטווח מתאפס כשהרשימה מתקצרת', (tester) async {
       await pumpPanel(tester);
       for (var i = 0; i < kBuiltInToolsCatalog.length + 2; i++) {
-        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
       }
       await tester.pump();
-      expect(_selectedRowCount(tester), 1);
+      expect(_selectedCardCount(tester), 1);
 
       await pumpPanel(
         tester,
@@ -1826,7 +1889,7 @@ void main() {
           hiddenBuiltInToolIds: const {'builtin.acronyms_dictionary'},
         ),
       );
-      expect(_selectedRowCount(tester), 0);
+      expect(_selectedCardCount(tester), 0);
       expect(tester.takeException(), isNull);
     });
 
@@ -1838,7 +1901,7 @@ void main() {
       });
     });
 
-    // בחיפוש השורות מסוננות, ולכן "השכן" על המסך אינו השכן האמיתי בסדר.
+    // בחיפוש הקוביות מסוננות, ולכן "השכן" על המסך אינו השכן האמיתי בסדר.
     testWidgets('בחיפוש פעיל הסידור מושבת', (tester) async {
       await pumpPanel(tester);
       await tester.enterText(find.byType(TextField), 'ו');
@@ -1852,13 +1915,13 @@ void main() {
     });
 
     // שאילתה של פיסוק בלבד מתנרמלת לריקה ואינה מסננת דבר, ולכן אין סיבה
-    // להשבית את הסידור או לסמן שורה.
+    // להשבית את הסידור או לסמן קובייה.
     testWidgets('שאילתת פיסוק בלבד אינה מצב חיפוש', (tester) async {
       await pumpPanel(tester);
       await tester.enterText(find.byType(TextField), '״');
       await tester.pump();
 
-      expect(_selectedRowCount(tester), 0);
+      expect(_selectedCardCount(tester), 0);
       expect(
         find.byType(ToolTile),
         findsNWidgets(kBuiltInToolsCatalog.length + 2),
@@ -1867,15 +1930,15 @@ void main() {
       expect(_menuItemEnabled(tester, 'הזזה'), isTrue);
     });
 
-    testWidgets('חץ למטה ראשון מסמן את השורה הראשונה', (
+    testWidgets('חץ למטה ראשון מסמן את הקובייה הראשונה, לא את השורה הבאה', (
       tester,
     ) async {
       await pumpPanel(tester);
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
       await tester.pump();
 
-      expect(_selectedRowCount(tester), 1);
-      expect(_isRowSelected(tester, 'לוח שנה'), isTrue);
+      expect(_selectedCardCount(tester), 1);
+      expect(_isCardSelected(tester, 'לוח שנה'), isTrue);
     });
 
     testWidgets('הפאנל מצייר את הסדר השמור', (tester) async {
@@ -1944,7 +2007,7 @@ void main() {
     ) async {
       await pumpPanel(tester);
       await openMoveSubmenu(tester, 'לוח שנה');
-      await tapMenuItem(tester, 'הזז למטה');
+      await tapMenuItem(tester, 'הזז קדימה');
 
       expect(tester.takeException(), isNull);
       expect(

@@ -129,12 +129,12 @@ class PdfBookTab extends OpenedTab {
     this.matchPolicy = SearchMatchPolicy.standard,
     this.pdfSearchMatches,
     this.pdfSearchCurrentMatchIndex,
-    bool isPinned = false,
-    String? dedupeKey,
+    super.isPinned,
+    super.dedupeKey,
     this.requiresStableLayout = false,
     ExternalBookMatches? externalMatches,
   }) : externalMatches = ValueNotifier<ExternalBookMatches?>(externalMatches),
-       super(book.title, isPinned: isPinned, dedupeKey: dedupeKey) {
+       super(book.title) {
     debugPrint(
       '🔧 PdfBookTab created: book=${book.title}, pageNumber=$pageNumber',
     );

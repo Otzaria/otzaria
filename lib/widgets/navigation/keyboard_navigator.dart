@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:otzaria/utils/ui/editable_focus.dart';
 
 /// Widget גנרי לניהול ניווט מקלדת
 /// תומך ב-Ctrl+Tab / Ctrl+Shift+Tab למעבר בין טאבים
@@ -44,9 +45,7 @@ class KeyboardNavigator extends StatelessWidget {
         // Backspace - חזרה (רק אם אין TextField ממוקד)
         if (event.logicalKey == LogicalKeyboardKey.backspace &&
             onBack != null) {
-          final focusedWidget =
-              FocusManager.instance.primaryFocus?.context?.widget;
-          if (focusedWidget is! EditableText && focusedWidget is! TextField) {
+          if (!isEditableTextFocusTarget()) {
             onBack!();
             return KeyEventResult.handled;
           }

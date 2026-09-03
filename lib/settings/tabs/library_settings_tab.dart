@@ -21,6 +21,7 @@ import 'package:otzaria/widgets/dialogs/zip_extraction_progress_dialog.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
+import 'package:otzaria/indexing/indexing_work_status.dart';
 import 'package:otzaria/indexing/bloc/indexing_state.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
@@ -664,9 +665,13 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
               'נדרש איפוס ואינדוקס מחדש באישור המשתמש',
             );
           } else if (isActive && indexingState.isFinalizing) {
-            subtitleText = context.settingsText(
-              'מסיים ומאחד את קבצי האינדקס',
-            );
+            final fraction = indexingState.finalizingProgress;
+            subtitleText = fraction == null
+                ? context.settingsText('מסיים ומאחד את קבצי האינדקס')
+                : context.settingsText(
+                    'מסיים ומאחד את קבצי האינדקס: {percent}',
+                    args: {'percent': formatFinalizingPercent(fraction)},
+                  );
           } else if (isActive) {
             subtitleText = context.settingsText(
               'התקדמות האינדקס: {processed}/{total}',

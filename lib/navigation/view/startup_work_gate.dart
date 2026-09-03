@@ -41,12 +41,15 @@ class StartupWorkGate {
 
 /// מתחיל עבודות אתחול מושהות פעם אחת לאחר פתיחת [gate].
 ///
-/// עדכון הספרייה נשלח רק כשהסנכרון האוטומטי ועדכוני הרשת מותרים.
+/// עדכון הספרייה נשלח רק כשהסנכרון האוטומטי ועדכוני הרשת מותרים,
+/// ורק כשתדירות הבדיקה שנבחרה בהגדרות מתירה בדיקה בעלייה זו
+/// ([isLibraryUpdateCheckDue]).
 bool tryStartDeferredStartupWork({
   required StartupWorkGate gate,
   required VoidCallback startBackgroundSync,
   required bool Function() isAutoSyncEnabled,
   required bool Function() canUseSoftwareAndBookUpdates,
+  required bool Function() isLibraryUpdateCheckDue,
   required LibraryUpdateBloc Function() libraryUpdateBloc,
 }) {
   if (!gate.consumeStartPermission()) {
@@ -54,7 +57,9 @@ bool tryStartDeferredStartupWork({
   }
 
   startBackgroundSync();
-  if (isAutoSyncEnabled() && canUseSoftwareAndBookUpdates()) {
+  if (isAutoSyncEnabled() &&
+      canUseSoftwareAndBookUpdates() &&
+      isLibraryUpdateCheckDue()) {
     try {
       libraryUpdateBloc().add(const StartLibraryUpdate());
     } catch (error) {

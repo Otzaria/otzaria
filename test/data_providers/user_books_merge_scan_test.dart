@@ -13,6 +13,7 @@ import 'package:otzaria/migration/models/category.dart' as migration_models;
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:path/path.dart' as path;
 
 class _MemoryCacheProvider extends CacheProvider {
@@ -196,8 +197,234 @@ void main() {
         contains('שיעור שבועי'),
       );
 
-      // הקובץ שישירות בתיקייה הנבחרת — בשורש הספרייה.
-      expect(library.books.map((b) => b.title), contains('מכתב אישי'));
+      // הקובץ שישירות בתיקייה הנבחרת — תחת "ספרים אישיים", לא בשורש.
+      expect(library.books.map((b) => b.title), isNot(contains('מכתב אישי')));
+      final personal = library.subCategories
+          .where((c) => c.title == 'ספרים אישיים')
+          .toList();
+      expect(personal, hasLength(1));
+      expect(personal.single.books.map((b) => b.title), contains('מכתב אישי'));
+    },
+  );
+
+  test(
+    'חריגה פר-תיקייה: מיזוג גלובלי דולק, אך התיקייה מוגדרת "לא ממוזגת"',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'otzaria_user_books_merge_override',
+      );
+      final libraryPath = path.join(tempDir.path, 'library');
+      final dataRootPath = path.join(tempDir.path, 'data_root');
+      final dbPath = path.join(libraryPath, DatabaseConstants.databaseFileName);
+      final database = MyDatabase.withPath(dbPath);
+      final repository = SeforimRepository(database);
+      final provider = DatabaseLibraryProvider.instance;
+      final previousDataRootPath = AppPaths.cachedDataRootPath;
+
+      addTearDown(() => tempDir.delete(recursive: true));
+      addTearDown(() => database.close());
+      addTearDown(() => provider.clearCache());
+      addTearDown(() => provider.sqliteProvider.dispose());
+      addTearDown(
+        () => AppPaths.debugOverrideDataRootPath(previousDataRootPath),
+      );
+      addTearDown(() => UserBooksDatabaseHolder.instance.close());
+      addTearDown(() async {
+        await Settings.setValue<bool>(
+          SettingsRepository.keyMergeUserBooksIntoLibrary,
+          false,
+        );
+      });
+
+      await Directory(libraryPath).create(recursive: true);
+      await provider.sqliteProvider.dispose();
+      provider.clearCache();
+      await UserBooksDatabaseHolder.instance.close();
+      AppPaths.debugOverrideDataRootPath(dataRootPath);
+      await repository.ensureInitialized();
+
+      await Settings.setValue<String>(
+        SettingsRepository.keyLibraryPath,
+        libraryPath,
+      );
+      await Settings.setValue<String>(
+        SettingsRepository.keyLibraryFolderName,
+        '',
+      );
+      await Settings.setValue<String>(
+        SettingsRepository.keyDbEffectivePath,
+        '',
+      );
+      await Settings.setValue<bool>(
+        SettingsRepository.keyMergeUserBooksIntoLibrary,
+        true,
+      );
+
+      final sourceId = await repository.insertSource('local-test', -10);
+      final hasidutCategoryId = await repository.insertCategory(
+        const migration_models.Category(
+          title: 'חסידות',
+          parentId: null,
+          level: 0,
+          orderIndex: 1,
+        ),
+      );
+      await repository.insertBook(
+        migration_models.Book(
+          id: 1,
+          categoryId: hasidutCategoryId,
+          sourceId: sourceId,
+          title: 'ליקוטי מוהר"ן',
+          filePath: path.join(tempDir.path, 'main_book.txt'),
+          fileType: 'txt',
+        ),
+      );
+
+      final pickedFolder = Directory(path.join(tempDir.path, 'מסמכים'));
+      final unmatchedDir = Directory(path.join(pickedFolder.path, 'שיעורים'));
+      await unmatchedDir.create(recursive: true);
+      await File(
+        path.join(unmatchedDir.path, 'שיעור שבועי.txt'),
+      ).writeAsString('שורה ראשונה\nשורה שניה\n');
+
+      // החריגה שהמשתמש קבע לתיקייה זו — גוברת על המתג הגלובלי.
+      await Settings.setValue<String>(
+        SettingsRepository.keyCustomFolders,
+        CustomFoldersManager.saveFolders([
+          CustomFolder(
+            path: pickedFolder.path,
+            mergeIntoLibrary: false,
+            addedAt: DateTime(2026, 1, 1),
+          ),
+        ]),
+      );
+
+      final userBooksRepository =
+          await UserBooksDatabaseHolder.instance.repository;
+      final scanResult = await provider.scanAndAddExternalBooksFromFolder(
+        pickedFolder.path,
+        'מסמכים',
+        userBooksRepository,
+      );
+      expect(scanResult.fatalError, isNull);
+
+      await provider.initialize();
+      final library = await provider.buildLibraryCatalog({}, libraryPath);
+
+      expect(
+        library.subCategories.where((c) => c.title == 'שיעורים'),
+        isEmpty,
+        reason: 'התיקייה החריגה לא אמורה להתמזג לשורש',
+      );
+      final personal = library.subCategories
+          .where((c) => c.title == 'ספרים אישיים')
+          .toList();
+      expect(personal, hasLength(1));
+      final picked = personal.single.subCategories
+          .where((c) => c.title == 'מסמכים')
+          .toList();
+      expect(picked, hasLength(1));
+      expect(
+        picked.single.subCategories.map((c) => c.title),
+        contains('שיעורים'),
+      );
+    },
+  );
+
+  test(
+    'תיקיות בעלות אותו שם עם מצבי מיזוג חלוקים חוזרות לברירת המחדל',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'otzaria_user_books_merge_same_name',
+      );
+      final libraryPath = path.join(tempDir.path, 'library');
+      final dataRootPath = path.join(tempDir.path, 'data_root');
+      final dbPath = path.join(libraryPath, DatabaseConstants.databaseFileName);
+      final database = MyDatabase.withPath(dbPath);
+      final repository = SeforimRepository(database);
+      final provider = DatabaseLibraryProvider.instance;
+      final previousDataRootPath = AppPaths.cachedDataRootPath;
+
+      addTearDown(() => tempDir.delete(recursive: true));
+      addTearDown(() => database.close());
+      addTearDown(() => provider.clearCache());
+      addTearDown(() => provider.sqliteProvider.dispose());
+      addTearDown(
+        () => AppPaths.debugOverrideDataRootPath(previousDataRootPath),
+      );
+      addTearDown(() => UserBooksDatabaseHolder.instance.close());
+      addTearDown(() async {
+        await Settings.setValue<bool>(
+          SettingsRepository.keyMergeUserBooksIntoLibrary,
+          false,
+        );
+      });
+
+      await Directory(libraryPath).create(recursive: true);
+      await provider.sqliteProvider.dispose();
+      provider.clearCache();
+      await UserBooksDatabaseHolder.instance.close();
+      AppPaths.debugOverrideDataRootPath(dataRootPath);
+      await repository.ensureInitialized();
+
+      await Settings.setValue<String>(
+        SettingsRepository.keyLibraryPath,
+        libraryPath,
+      );
+      await Settings.setValue<String>(
+        SettingsRepository.keyLibraryFolderName,
+        '',
+      );
+      await Settings.setValue<String>(
+        SettingsRepository.keyDbEffectivePath,
+        '',
+      );
+      await Settings.setValue<bool>(
+        SettingsRepository.keyMergeUserBooksIntoLibrary,
+        true,
+      );
+
+      final pickedFolder = Directory(
+        path.join(tempDir.path, 'alpha', 'shared'),
+      );
+      final unmatchedDir = Directory(path.join(pickedFolder.path, 'שיעורים'));
+      await unmatchedDir.create(recursive: true);
+      await File(
+        path.join(unmatchedDir.path, 'שיעור שבועי.txt'),
+      ).writeAsString('שורה ראשונה\nשורה שניה\n');
+
+      await Settings.setValue<String>(
+        SettingsRepository.keyCustomFolders,
+        CustomFoldersManager.saveFolders([
+          CustomFolder(
+            path: pickedFolder.path,
+            mergeIntoLibrary: false,
+            addedAt: DateTime(2026, 1, 1),
+          ),
+          CustomFolder(
+            path: path.join(tempDir.path, 'beta', 'shared'),
+            addedAt: DateTime(2026, 1, 2),
+          ),
+        ]),
+      );
+
+      final userBooksRepository =
+          await UserBooksDatabaseHolder.instance.repository;
+      final scanResult = await provider.scanAndAddExternalBooksFromFolder(
+        pickedFolder.path,
+        'shared',
+        userBooksRepository,
+      );
+      expect(scanResult.fatalError, isNull);
+
+      await provider.initialize();
+      final library = await provider.buildLibraryCatalog({}, libraryPath);
+
+      expect(library.subCategories.map((c) => c.title), contains('שיעורים'));
+      expect(
+        library.subCategories.where((c) => c.title == 'ספרים אישיים'),
+        isEmpty,
+      );
     },
   );
 }

@@ -685,12 +685,14 @@ void main() {
       expect(scan.families['TehilaMedium']!.regularPath, contains('medium'));
     });
 
-    test('גופן ללא עברית אינו נכלל', () {
+    test('גופן ללא עברית אינו נכלל ב-UI אך נשמר לתוספים', () {
       final scan = AppFonts.debugBuildScan([
         MapEntry(r'C:\fonts\latin.ttf', _buildSfnt(hebrewRange: false)),
       ]);
 
       expect(scan.fonts, isEmpty);
+      expect(scan.families, isEmpty);
+      expect(scan.allFamilies['latin']!.regularPath, contains('latin'));
     });
 
     test('גופן עברי בלי טבלת name נופל לשם הקובץ', () {

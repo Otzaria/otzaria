@@ -29,6 +29,14 @@ class DatabaseConstants {
   static const String talmudBavliArchiveFileName =
       'talmud_bavli_latest.tar.zst';
 
+  /// מזהה חיצוני יציב למסכת PDF מהתיקייה המצורפת, לפי שם המסכת.
+  ///
+  /// בלי מזהה כזה רשומת האינדקס של PDF נשמרת לפי נתיב מוחלט ונשברת בכל
+  /// התקנה שנתיבה שונה מזה של מכונת הבנייה. ה-id של PDF כזה שאול מספר
+  /// הטקסט המקביל ולכן אינו יכול לשמש זהות.
+  static String talmudBavliPdfExternalLibraryId(String title) =>
+      'talmud-pdf:$title';
+
   /// שם קובץ הגרסה בתיקיית התלמוד, וערך הסימון בזמן חילוץ שטרם הסתיים.
   static const String talmudBavliVersionFileName = '.version';
   static const String talmudBavliInstallingMarker = 'installing';

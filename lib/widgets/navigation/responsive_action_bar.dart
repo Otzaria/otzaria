@@ -1,21 +1,102 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
-/// מחשב כמה כפתורי פעולה ניתן להציג בסרגל הקריאה לפי רוחב המסך.
+/// זהות לוגית של פעולה שיכולה להופיע בשורת הכלים של הקורא.
 ///
-/// מנכה את הרוחב הקבוע של אזור המרכז (כפתורי הניווט + כותרת) והכפתור המוביל,
-/// כי ה-AppTopBar מקצה להם את גודלם הטבעי לפני ה-actions. בלי הניכוי הכפתורים
-/// היו גולשים במסכים צרים.
-int maxToolbarButtonsForWidth(double screenWidth) {
-  // center (4 כפתורי ניווט ~168 + כותרת) + leading + ריווחים ≈ 260px קבועים
-  const reservedWidth = 260.0;
-  const buttonWidth = 44.0; // כפתור ~40 + ריווח
-  final available = screenWidth - reservedWidth;
-  if (available <= 0) return 0;
-  return (available / buttonWidth).floor().clamp(0, 999);
+/// המיקום של הערך ב-[toolbarOverflowOrder] קובע מתי הפעולה
+/// עוברת לתפריט "...".
+enum ToolbarActionId {
+  plugin,
+  search,
+  handMode,
+  zoomOut,
+  zoomIn,
+  continuousReading,
+  punctuation,
+  nikud,
+  viewMode,
+  openCommentatorsTab,
+  parallelEdition,
+  // כרטיסיות מפרשים (טקסט ו-PDF)
+  expandAll,
+  bookmarkAdd,
+  print,
+  // ספרייה
+  navigateUp,
+  navigateHome,
+  sync,
+  refresh,
+}
+
+/// סדר ההעברה לתפריט overflow.
+///
+/// הערך הראשון עובר ראשון ל-"...".
+/// הערך האחרון נשאר בשורת הכלים זמן רב ככל האפשר.
+///
+/// כדי לשנות את מדיניות הקדימות יש לשנות רק את הרשימה הזאת.
+/// בעת הוספת סוג חדש של כפתור לשורת הכלים יש:
+/// 1. להוסיף ערך ל-[ToolbarActionId].
+/// 2. להוסיף אותו בדיוק פעם אחת לרשימה הזאת.
+const List<ToolbarActionId> toolbarOverflowOrder = [
+  ToolbarActionId.plugin,
+  ToolbarActionId.search,
+  ToolbarActionId.handMode,
+  ToolbarActionId.zoomOut,
+  ToolbarActionId.zoomIn,
+  ToolbarActionId.continuousReading,
+  ToolbarActionId.punctuation,
+  ToolbarActionId.nikud,
+  ToolbarActionId.viewMode,
+  ToolbarActionId.openCommentatorsTab,
+  ToolbarActionId.parallelEdition,
+  // כרטיסיות מפרשים
+  ToolbarActionId.expandAll,
+  ToolbarActionId.bookmarkAdd,
+  ToolbarActionId.print,
+  // ספרייה — משתמשת ב-originalOrder (מצב ישן), הסדר כאן לא פעיל
+  ToolbarActionId.navigateUp,
+  ToolbarActionId.navigateHome,
+  ToolbarActionId.sync,
+  ToolbarActionId.refresh,
+];
+
+final Map<ToolbarActionId, int> toolbarOverflowRank = {
+  for (var i = 0; i < toolbarOverflowOrder.length; i++)
+    toolbarOverflowOrder[i]: i,
+};
+
+int toolbarOverflowRankOf(ToolbarActionId id) {
+  final rank = toolbarOverflowRank[id];
+
+  if (rank == null) {
+    throw StateError(
+      'ToolbarActionId.$id is missing from toolbarOverflowOrder',
+    );
+  }
+
+  return rank;
+}
+
+/// פעולות שחייבות לעבור לתפריט overflow יחד — לעולם לא נשאיר רק חלק מהקבוצה גלוי.
+///
+/// כדי להוסיף קבוצה אטומית חדשה: הוסף Set נוסף לרשימה.
+/// אין צורך לשנות ActionButtonData.
+const List<Set<ToolbarActionId>> toolbarAtomicOverflowGroups = [
+  {ToolbarActionId.zoomOut, ToolbarActionId.zoomIn},
+];
+
+/// מחזיר את קבוצת ה-IDs שאליה שייך [id], כולל עצמו.
+/// אם [id] אינו שייך לאף קבוצה אטומית, מחזיר קבוצה של איבר יחיד.
+Set<ToolbarActionId> atomicGroupOf(ToolbarActionId id) {
+  for (final group in toolbarAtomicOverflowGroups) {
+    if (group.contains(id)) return group;
+  }
+  return {id};
 }
 
 /// רכיב שמציג כפתורי פעולה עם יכולת הסתרה במסכים צרים
@@ -41,7 +122,7 @@ class ResponsiveActionBar extends StatefulWidget {
   final List<ActionButtonData>? menuHeaderActions;
 
   /// מספר מקסימלי של כפתורים להציג לפני מעבר לתפריט "..."
-  final int maxVisibleButtons;
+  final int? maxVisibleButtons;
 
   /// האם כפתור "..." יהיה בצד ימין (ברירת מחדל: false - שמאל)
   final bool overflowOnRight;
@@ -58,7 +139,7 @@ class ResponsiveActionBar extends StatefulWidget {
     this.alwaysInMenu,
     this.originalOrder,
     this.menuHeaderActions,
-    required this.maxVisibleButtons,
+    this.maxVisibleButtons,
     this.overflowOnRight = false,
     this.overflowMenuOffset = const Offset(0, 4),
     this.overflowButtonKey,
@@ -71,6 +152,168 @@ class ResponsiveActionBar extends StatefulWidget {
 
   @override
   State<ResponsiveActionBar> createState() => _ResponsiveActionBarState();
+}
+
+@visibleForTesting
+({List<ActionButtonData> visible, List<ActionButtonData> hidden})
+partitionToolbarActionsForWidth({
+  required List<ActionButtonData> actions,
+  required double maxWidth,
+  required double standardButtonWidth,
+  required double overflowButtonWidth,
+  required bool overflowAlreadyRequired,
+  int? maxVisibleButtons,
+}) {
+  double widthOf(ActionButtonData action) =>
+      action.toolbarWidth ?? standardButtonWidth;
+
+  // Validation מפורש: כל action חייב actionId לפני כל לוגיקה. // validate
+  for (final action in actions) {
+    if (action.actionId == null) {
+      throw StateError('Every toolbar action must define an actionId.');
+    }
+  }
+
+  int rankOf(ActionButtonData action) {
+    final id = action.actionId;
+
+    if (id == null) {
+      throw StateError(
+        'Toolbar action "${action.tooltip ?? '<unknown>'}" '
+        'is missing actionId. '
+        'Add a ToolbarActionId and place it in toolbarOverflowOrder.',
+      );
+    }
+
+    return toolbarOverflowRankOf(id);
+  }
+
+  final indexed = <(int, ActionButtonData)>[
+    for (var i = 0; i < actions.length; i++) (i, actions[i]),
+  ];
+
+  final candidates = [...indexed]
+    ..sort((a, b) {
+      final byRank = rankOf(a.$2).compareTo(rankOf(b.$2));
+
+      if (byRank != 0) {
+        return byRank;
+      }
+
+      // באותה עדיפות מסתירים קודם את המאוחר יותר בסדר התצוגה.
+      return b.$1.compareTo(a.$1);
+    });
+
+  final hiddenIndexes = <int>{};
+
+  // היסטוריית קבוצות ההסרה לפי סדר ההסרה — לשחזור LIFO.
+  final removedGroups = <List<int>>[];
+
+  var visibleWidth = indexed.fold<double>(
+    0,
+    (sum, entry) => sum + widthOf(entry.$2),
+  );
+
+  var overflowRequired = overflowAlreadyRequired;
+
+  bool mustHideMore() {
+    final visibleCount = actions.length - hiddenIndexes.length;
+
+    if (maxVisibleButtons != null && visibleCount > maxVisibleButtons) {
+      return true;
+    }
+
+    if (!maxWidth.isFinite) {
+      return false;
+    }
+
+    final requiredWidth =
+        visibleWidth + (overflowRequired ? overflowButtonWidth : 0.0);
+
+    return requiredWidth > maxWidth;
+  }
+
+  var cursor = 0;
+
+  while (mustHideMore() && cursor < candidates.length) {
+    final candidate = candidates[cursor++];
+
+    if (hiddenIndexes.contains(candidate.$1)) {
+      continue;
+    }
+
+    // וידוא שה-candidate מחזיק actionId תקין (נזרק StateError אם לא).
+    rankOf(candidate.$2);
+
+    // מצא את כל חברי הקבוצה האטומית של ה-candidate שעדיין גלויים.
+    // קבוצת singleton (group.length == 1) → רק ה-candidate עצמו.
+    // קבוצה אמיתית (group.length > 1) → כל חברי הקבוצה הגלויים.
+    final group = atomicGroupOf(candidate.$2.actionId!);
+    final groupMembers = group.length > 1
+        ? indexed
+              .where(
+                (e) =>
+                    !hiddenIndexes.contains(e.$1) &&
+                    e.$2.actionId != null &&
+                    group.contains(e.$2.actionId),
+              )
+              .toList()
+        : [candidate];
+
+    // הסתר את כל חברי הקבוצה ותעד אותה בהיסטוריה.
+    final removedIndexes = <int>[];
+    for (final member in groupMembers) {
+      hiddenIndexes.add(member.$1);
+      visibleWidth -= widthOf(member.$2);
+      removedIndexes.add(member.$1);
+    }
+    removedGroups.add(removedIndexes);
+
+    overflowRequired = true;
+
+    // Rebalance LIFO: נסה להחזיר קבוצות שהוסרו לפני הקבוצה הנוכחית, מהאחרונה ראשונה.
+    // הקבוצה הנוכחית (האחרונה ב-removedGroups) לא נבדקת — היא זו שגרמה לפינוי המקום.
+    for (var gi = removedGroups.length - 2; gi >= 0; gi--) {
+      final groupIndexes = removedGroups[gi];
+
+      // דלג על קבוצה שכבר הוחזרה (כל חבריה כבר גלויים).
+      if (groupIndexes.every((idx) => !hiddenIndexes.contains(idx))) {
+        continue;
+      }
+
+      // בדוק אם כל חברי הקבוצה שעדיין נסתרים יכולים להיכנס יחד.
+      final stillHidden = groupIndexes
+          .where((idx) => hiddenIndexes.contains(idx))
+          .toList();
+      final groupWidth = stillHidden.fold<double>(
+        0,
+        (sum, idx) => sum + widthOf(indexed[idx].$2),
+      );
+      final requiredWithRestore =
+          visibleWidth + groupWidth + overflowButtonWidth;
+
+      if (!maxWidth.isFinite || requiredWithRestore <= maxWidth) {
+        for (final idx in stillHidden) {
+          hiddenIndexes.remove(idx);
+          visibleWidth += widthOf(indexed[idx].$2);
+        }
+        // הקבוצה הוחזרה — לא נוספת מחדש להיסטוריה.
+      }
+    }
+  }
+
+  final visible = <ActionButtonData>[];
+  final hidden = <ActionButtonData>[];
+
+  for (final (index, action) in indexed) {
+    if (hiddenIndexes.contains(index)) {
+      hidden.add(action);
+    } else {
+      visible.add(action);
+    }
+  }
+
+  return (visible: visible, hidden: hidden);
 }
 
 class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
@@ -111,64 +354,62 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
     }
   }
 
-  /// מצב חדש: כפתורים נעלמים בסדר ההצגה, תמיד יש תפריט עם כפתורים קבועים
+  /// מצב חדש: כפתורים נעלמים לפי רוחב אמיתי ועדיפות, תמיד יש תפריט עם כפתורים קבועים
   Widget _buildNewMode(BuildContext context) {
-    final totalButtons = widget.actions.length;
-    int effectiveMaxVisible = widget.maxVisibleButtons;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact =
+            context.read<SettingsBloc?>()?.state.compactMenuMode ?? false;
 
-    // כפתור יחיד נשאר גלוי, אלא אם התפריט נדרש ממילא ואז הוא עלול לגרום לגלישה.
-    if (totalButtons - widget.maxVisibleButtons == 1 &&
-        widget.alwaysInMenu!.isEmpty &&
-        _headerActions.isEmpty) {
-      effectiveMaxVisible = totalButtons;
-    }
+        final standardButtonWidth = BarButton.toolbarWidth(isCompact);
 
-    List<ActionButtonData> visibleActions;
-    List<ActionButtonData> hiddenActions;
+        final partition = partitionToolbarActionsForWidth(
+          actions: widget.actions,
+          maxWidth: constraints.hasBoundedWidth
+              ? constraints.maxWidth
+              : double.infinity,
+          standardButtonWidth: standardButtonWidth,
+          overflowButtonWidth: standardButtonWidth,
+          overflowAlreadyRequired:
+              widget.alwaysInMenu!.isNotEmpty || _headerActions.isNotEmpty,
+          maxVisibleButtons: widget.maxVisibleButtons,
+        );
 
-    // אם יש מקום לכל הכפתורים, נציג את כולם
-    if (effectiveMaxVisible >= totalButtons) {
-      visibleActions = List.from(widget.actions);
-      hiddenActions = [];
-    } else {
-      // מסתירים כפתורים מהסוף לתחילה (הימני ביותר יעלם אחרון)
-      final numToShow = effectiveMaxVisible;
-      visibleActions = widget.actions.take(numToShow).toList();
-      hiddenActions = widget.actions.skip(numToShow).toList();
-    }
+        final visibleActions = partition.visible;
+        final hiddenActions = partition.hidden;
 
-    // תמיד מוסיפים את הכפתורים שצריכים להיות בתפריט
-    final allHiddenActions = [...hiddenActions, ...widget.alwaysInMenu!];
+        final allHiddenActions = [...hiddenActions, ...widget.alwaysInMenu!];
 
-    final visibleWidgets = visibleActions
-        .map((action) => action.widget)
-        .toList();
-    final List<Widget> children = [];
+        final visibleWidgets = visibleActions
+            .map((action) => action.widget)
+            .toList();
 
-    // מסך הספר: תפריט בצד שמאל, כפתורים מימין לשמאל (RTL)
-    // תמיד מציגים כפתור "..." אם יש כפתורים בתפריט
-    if (allHiddenActions.isNotEmpty || _headerActions.isNotEmpty) {
-      children.add(_buildOverflowButton(allHiddenActions));
-    }
-    // הופכים את הסדר כך שהכפתור הראשון ברשימה (PDF) יהיה ימני ביותר
-    children.addAll(visibleWidgets.reversed);
+        final children = <Widget>[];
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      textDirection: TextDirection.ltr,
-      children: children,
+        if (allHiddenActions.isNotEmpty || _headerActions.isNotEmpty) {
+          children.add(_buildOverflowButton(allHiddenActions));
+        }
+
+        children.addAll(visibleWidgets.reversed);
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          textDirection: TextDirection.ltr,
+          children: children,
+        );
+      },
     );
   }
 
   /// מצב ישן: כפתורים נעלמים לפי עדיפות, ותפריט רק אם צריך
   Widget _buildOldMode(BuildContext context) {
     final totalButtons = widget.originalOrder!.length;
-    int effectiveMaxVisible = widget.maxVisibleButtons;
+    final configuredMaxVisible = widget.maxVisibleButtons ?? totalButtons;
+    int effectiveMaxVisible = configuredMaxVisible;
 
     // אם צריך להסתיר רק כפתור אחד, אין טעם להציג תפריט שתופס מקום בעצמו —
     // אלא אם התפריט קיים ממילא בשביל שורת הניווט.
-    if (totalButtons - widget.maxVisibleButtons == 1 &&
-        _headerActions.isEmpty) {
+    if (totalButtons - configuredMaxVisible == 1 && _headerActions.isEmpty) {
       effectiveMaxVisible = totalButtons;
     }
 
@@ -265,9 +506,7 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
                 ),
               );
               if (hiddenActions.isNotEmpty) {
-                items.add(
-                  PopupMenuDivider(height: menuMetrics.dividerHeight),
-                );
+                items.add(PopupMenuDivider(height: menuMetrics.dividerHeight));
               }
             }
 
@@ -407,12 +646,25 @@ class ActionButtonData {
   /// רשימת פריטי תת-תפריט (אם קיימת, זה יהיה submenu)
   final List<ActionButtonData>? submenuItems;
 
+  /// הרוחב בפיקסלים שהפעולה תופסת כשהיא מוצגת בשורת הכלים.
+  /// null = רוחב BarButton רגיל.
+  final double? toolbarWidth;
+
+  /// הזהות של הפעולה לצורך קביעת מיקומה בסדר ה-overflow.
+  ///
+  /// נדרש לכל ActionButtonData שמועבר לרשימת `actions` של
+  /// ResponsiveActionBar במצב width-aware.
+  /// אינו נדרש לפריטים שקיימים רק בתוך submenu/alwaysInMenu.
+  final ToolbarActionId? actionId;
+
   const ActionButtonData({
     required this.widget,
     this.icon,
     this.tooltip,
     this.onPressed,
     this.submenuItems,
+    this.toolbarWidth,
+    this.actionId,
   });
 
   /// אופן הבנייה של כפתור פשוט.
@@ -428,6 +680,7 @@ class ActionButtonData {
     bool selected = false,
     Key? key,
     ActionButtonVisual visual = defaultVisual,
+    ToolbarActionId? actionId,
   }) {
     return ActionButtonData(
       widget: switch (visual) {
@@ -449,6 +702,11 @@ class ActionButtonData {
       icon: icon,
       tooltip: tooltip,
       onPressed: onPressed,
+      toolbarWidth: switch (visual) {
+        ActionButtonVisual.toolbar => BarButton.toolbarWidth(compact),
+        ActionButtonVisual.iconButton => kMinInteractiveDimension,
+      },
+      actionId: actionId,
     );
   }
 
@@ -463,6 +721,7 @@ class ActionButtonData {
     bool selected = false,
     String? menuTooltip,
     Key? key,
+    ToolbarActionId? actionId,
   }) {
     return ActionButtonData(
       // הערך הוא אינדקס ולא ActionButtonData, כי השוואת ActionButtonData היא
@@ -489,6 +748,8 @@ class ActionButtonData {
       icon: icon,
       tooltip: tooltip,
       onPressed: onPressed,
+      toolbarWidth: BarSplitButton.toolbarWidth(compact),
+      actionId: actionId,
       submenuItems: [
         ActionButtonData(
           widget: const SizedBox.shrink(),
@@ -512,7 +773,4 @@ class ActionButtonData {
   int get hashCode => tooltip.hashCode;
 }
 
-enum ActionButtonVisual {
-  toolbar,
-  iconButton,
-}
+enum ActionButtonVisual { toolbar, iconButton }

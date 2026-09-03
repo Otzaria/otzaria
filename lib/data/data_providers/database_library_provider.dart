@@ -974,8 +974,9 @@ Map<int, String> _loadInlineSectionMarkersInIsolate({
     // hasChildren = 0 — רק העלים. רשומות הביניים של המבנה משכפלות
     // כותרות פרשה/פרק/סימן שכבר גלויות בטקסט (ובקוהלת רבה המבנה
     // תלת-רמתי: פרשה → פרק → סימן).
-    final markerRows = db.select(
-      '''
+    final markerRows = db
+        .select(
+          '''
       SELECT l.lineIndex AS lineIndex, t.text AS label
       FROM alt_toc_structure s
       JOIN alt_toc_entry e ON e.structureId = s.id
@@ -984,8 +985,9 @@ Map<int, String> _loadInlineSectionMarkersInIsolate({
       WHERE s.bookId = ? AND s.key IN ('Simanim', 'Seifim')
         AND e.hasChildren = 0
       ''',
-      [bookId],
-    ).toMapList();
+          [bookId],
+        )
+        .toMapList();
 
     final markers = <int, String>{};
     for (final row in markerRows) {
@@ -1574,6 +1576,9 @@ class DatabaseLibraryProvider implements LibraryProvider {
           .firstOrNull;
       final pdfBook = PdfBook(
         id: matchingTextBook?.id,
+        externalLibraryId: DatabaseConstants.talmudBavliPdfExternalLibraryId(
+          title,
+        ),
         title: title,
         category: targetCategory,
         path: entity.path,
@@ -2753,13 +2758,17 @@ class DatabaseLibraryProvider implements LibraryProvider {
       _userBooksCategoryIds.add(personalRootId);
 
       // הגדרה: האם למזג תיקיות מותאמות אישית ישירות לעץ הראשי לפי שם
-      // (במקום להציג אותן תחת קטגוריית "ספרים אישיים" נפרדת).
-      final mergeIntoLibraryRoot =
+      // (במקום להציג אותן תחת קטגוריית "ספרים אישיים" נפרדת). זו ברירת
+      // המחדל — תיקייה בודדת יכולה לדרוס אותה.
+      final mergeDefault =
           Settings.getValue<bool>(
             SettingsRepository.keyMergeUserBooksIntoLibrary,
             defaultValue: false,
           ) ??
           false;
+      final mergeOverridesByFolderName = _mergeOverridesByFolderName(
+        mergeDefault,
+      );
 
       // ילדים ישירים של "ספרים אישיים" — אלו התיקיות שהמשתמש בחר בדיאלוג
       // הוספת תיקייה (למשל "מסמכים", "הורדות"). השם שלהן כשלעצמו אינו
@@ -2777,157 +2786,152 @@ class DatabaseLibraryProvider implements LibraryProvider {
             return orderA.compareTo(orderB);
           });
 
-      if (mergeIntoLibraryRoot) {
+      // "ספרים אישיים" נוצרת רק אם יש לה תוכן: תיקייה שאינה ממוזגת, או
+      // ספרים בודדים שאין להם תת-תיקייה להתמזג אליה.
+      Category? personalCategoryInLibrary;
+      Category ensurePersonalCategory() {
+        return personalCategoryInLibrary ??=
+            library.subCategories
+                .where((c) => c.title == 'ספרים אישיים')
+                .firstOrNull ??
+            () {
+              final created = Category(
+                title: 'ספרים אישיים',
+                description: metadata['ספרים אישיים']?['heDesc'] ?? '',
+                shortDescription:
+                    metadata['ספרים אישיים']?['heShortDesc'] ?? '',
+                order: personalRootInUserDb.orderIndex,
+                subCategories: [],
+                books: [],
+                parent: library,
+              );
+              library.subCategories.add(created);
+              return created;
+            }();
+      }
+
+      // ספר בודד אינו קטגוריה שאפשר למזג לפי שם. גם במיזוג מלא הוא מקבל
+      // בית תחת "ספרים אישיים" ולא מתפזר בשורש הספרייה.
+      for (final dbBook in directBooksUnderRoot) {
+        final directBooksParent = ensurePersonalCategory();
+        final book = _convertMinimalBookMapToBook(
+          dbBook,
+          directBooksParent,
+          metadata,
+          authorFromDatabase: userAuthors[dbBook['id'] as int? ?? 0],
+          isUserBook: true,
+          idOverride: dbBook['id'] as int? ?? 0,
+          categoryIdOverride: personalRootId,
+        );
+        if (book == null) continue;
+        directBooksParent.books.add(book);
+        _userBooksCachedKeys.add(
+          BookCompositeKey.create(
+            title: book.title,
+            categoryId: personalRootId,
+            fileType: book.fileType,
+            isUserBook: true,
+          ),
+        );
+      }
+
+      for (final pickedFolder in pickedFolders) {
+        final merged =
+            mergeOverridesByFolderName[pickedFolder.title] ?? mergeDefault;
+
+        if (!merged) {
+          // התיקייה הנבחרת מוצגת כקטגוריה תחת "ספרים אישיים", עם שמה.
+          final personal = ensurePersonalCategory();
+          final existing = personal.subCategories
+              .where((c) => c.title == pickedFolder.title)
+              .firstOrNull;
+          if (existing == null) {
+            personal.subCategories.add(
+              _buildUserBooksCatalogCategoryRecursive(
+                pickedFolder,
+                booksByCategory,
+                categoriesByParent,
+                userAuthors,
+                personal,
+                metadata,
+              ),
+            );
+          } else {
+            existing.parent = personal;
+            _appendUserBooksContentToCategoryRecursive(
+              existing,
+              pickedFolder,
+              booksByCategory,
+              categoriesByParent,
+              userAuthors,
+              metadata,
+            );
+          }
+          continue;
+        }
+
         // במצב מיזוג: גם "ספרים אישיים" וגם שם התיקייה שהמשתמש בחר
         // (pickedFolder) לא יופיעו בעץ. הבנייה מתחילה מתת-התיקיות של
         // התיקייה הנבחרת, וקטגוריות מתמזגות בשורש הספרייה לפי שם.
-        // ספרים שיושבים ישירות תחת "ספרים אישיים" או תחת תיקייה נבחרת
-        // נכנסים לרשימת ספרי השורש של הספרייה (`library.books`).
-        for (final dbBook in directBooksUnderRoot) {
+        // הקטגוריה עצמה נדלגת ולכן ה-id שלה נרשם כאן ולא ע"י הבנייה
+        // הרקורסיבית.
+        _userBooksCategoryIds.add(pickedFolder.id);
+
+        // ספרים בתוך התיקייה הנבחרת עצמה — אין להם תת-תיקייה להתמזג
+        // אליה, ולכן הם מצטרפים ל"ספרים אישיים".
+        final booksInPickedFolder = (booksByCategory[pickedFolder.id] ?? [])
+          ..sort((a, b) {
+            final orderA = (a['orderIndex'] as num?)?.toDouble() ?? 999.0;
+            final orderB = (b['orderIndex'] as num?)?.toDouble() ?? 999.0;
+            return orderA.compareTo(orderB);
+          });
+        for (final dbBook in booksInPickedFolder) {
+          final looseBooksParent = ensurePersonalCategory();
           final book = _convertMinimalBookMapToBook(
             dbBook,
-            library,
+            looseBooksParent,
             metadata,
             authorFromDatabase: userAuthors[dbBook['id'] as int? ?? 0],
             isUserBook: true,
             idOverride: dbBook['id'] as int? ?? 0,
-            categoryIdOverride: personalRootId,
+            categoryIdOverride: pickedFolder.id,
           );
           if (book == null) continue;
-          library.books.add(book);
+          looseBooksParent.books.add(book);
           _userBooksCachedKeys.add(
             BookCompositeKey.create(
               title: book.title,
-              categoryId: personalRootId,
+              categoryId: pickedFolder.id,
               fileType: book.fileType,
               isUserBook: true,
             ),
           );
         }
 
-        for (final pickedFolder in pickedFolders) {
-          _userBooksCategoryIds.add(pickedFolder.id);
-
-          // ספרים בתוך התיקייה הנבחרת עצמה — לשורש הספרייה.
-          final booksInPickedFolder = (booksByCategory[pickedFolder.id] ?? [])
-            ..sort((a, b) {
-              final orderA = (a['orderIndex'] as num?)?.toDouble() ?? 999.0;
-              final orderB = (b['orderIndex'] as num?)?.toDouble() ?? 999.0;
-              return orderA.compareTo(orderB);
-            });
-          for (final dbBook in booksInPickedFolder) {
-            final book = _convertMinimalBookMapToBook(
-              dbBook,
-              library,
-              metadata,
-              authorFromDatabase: userAuthors[dbBook['id'] as int? ?? 0],
-              isUserBook: true,
-              idOverride: dbBook['id'] as int? ?? 0,
-              categoryIdOverride: pickedFolder.id,
-            );
-            if (book == null) continue;
-            library.books.add(book);
-            _userBooksCachedKeys.add(
-              BookCompositeKey.create(
-                title: book.title,
-                categoryId: pickedFolder.id,
-                fileType: book.fileType,
-                isUserBook: true,
-              ),
-            );
-          }
-
-          // תת-תיקיות של התיקייה הנבחרת — מתמזגות בשורש הספרייה לפי שם.
-          final grandchildren = [
-            ...?categoriesByParent[pickedFolder.id],
-          ]..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
-          for (final grandchild in grandchildren) {
-            final existing = library.subCategories
-                .where((c) => c.title == grandchild.title)
-                .firstOrNull;
-            if (existing == null) {
-              final built = _buildUserBooksCatalogCategoryRecursive(
+        // תת-תיקיות של התיקייה הנבחרת — מתמזגות בשורש הספרייה לפי שם.
+        final grandchildren = [
+          ...?categoriesByParent[pickedFolder.id],
+        ]..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+        for (final grandchild in grandchildren) {
+          final existing = library.subCategories
+              .where((c) => c.title == grandchild.title)
+              .firstOrNull;
+          if (existing == null) {
+            library.subCategories.add(
+              _buildUserBooksCatalogCategoryRecursive(
                 grandchild,
                 booksByCategory,
                 categoriesByParent,
                 userAuthors,
                 library,
                 metadata,
-              );
-              library.subCategories.add(built);
-            } else {
-              existing.parent = library;
-              _appendUserBooksContentToCategoryRecursive(
-                existing,
-                grandchild,
-                booksByCategory,
-                categoriesByParent,
-                userAuthors,
-                metadata,
-              );
-            }
-          }
-        }
-      } else {
-        // הזרימה הקיימת — עוטף את כל ספרי המשתמש תחת "ספרים אישיים".
-        Category? personalCategoryInLibrary = library.subCategories
-            .where((c) => c.title == 'ספרים אישיים')
-            .firstOrNull;
-        personalCategoryInLibrary ??= () {
-          final created = Category(
-            title: 'ספרים אישיים',
-            description: metadata['ספרים אישיים']?['heDesc'] ?? '',
-            shortDescription: metadata['ספרים אישיים']?['heShortDesc'] ?? '',
-            order: personalRootInUserDb.orderIndex,
-            subCategories: [],
-            books: [],
-            parent: library,
-          );
-          library.subCategories.add(created);
-          return created;
-        }();
-
-        for (final dbBook in directBooksUnderRoot) {
-          final book = _convertMinimalBookMapToBook(
-            dbBook,
-            personalCategoryInLibrary,
-            metadata,
-            authorFromDatabase: userAuthors[dbBook['id'] as int? ?? 0],
-            isUserBook: true,
-            idOverride: dbBook['id'] as int? ?? 0,
-            categoryIdOverride: personalRootId,
-          );
-          if (book == null) continue;
-          personalCategoryInLibrary.books.add(book);
-          _userBooksCachedKeys.add(
-            BookCompositeKey.create(
-              title: book.title,
-              categoryId: personalRootId,
-              fileType: book.fileType,
-              isUserBook: true,
-            ),
-          );
-        }
-
-        for (final child in pickedFolders) {
-          final existing = personalCategoryInLibrary.subCategories
-              .where((c) => c.title == child.title)
-              .firstOrNull;
-          if (existing == null) {
-            final builtSubCategory = _buildUserBooksCatalogCategoryRecursive(
-              child,
-              booksByCategory,
-              categoriesByParent,
-              userAuthors,
-              personalCategoryInLibrary,
-              metadata,
+              ),
             );
-            personalCategoryInLibrary.subCategories.add(builtSubCategory);
           } else {
-            existing.parent = personalCategoryInLibrary;
+            existing.parent = library;
             _appendUserBooksContentToCategoryRecursive(
               existing,
-              child,
+              grandchild,
               booksByCategory,
               categoriesByParent,
               userAuthors,
@@ -2942,6 +2946,27 @@ class DatabaseLibraryProvider implements LibraryProvider {
       // שבור או הרשאות חסרות.
       unawaited(Sentry.captureException(e, stackTrace: stackTrace));
     }
+  }
+
+  /// מצב המיזוג לפי קטגוריית-השורש. תיקיות בעלות אותו שם חולקות קטגוריה,
+  /// ולכן כשמצביהן האפקטיביים חלוקים חוזרים לברירת המחדל הגלובלית.
+  Map<String, bool> _mergeOverridesByFolderName(bool mergeDefault) {
+    final folders = CustomFoldersManager.loadFolders(
+      Settings.getValue<String>(SettingsRepository.keyCustomFolders),
+    );
+    final result = <String, bool>{};
+    final conflicting = <String>{};
+    for (final folder in folders) {
+      final value = folder.resolveMergeIntoLibrary(mergeDefault);
+      if (result.containsKey(folder.name) && result[folder.name] != value) {
+        conflicting.add(folder.name);
+      }
+      result[folder.name] = value;
+    }
+    for (final name in conflicting) {
+      result.remove(name);
+    }
+    return result;
   }
 
   @visibleForTesting

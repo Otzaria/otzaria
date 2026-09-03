@@ -17,6 +17,7 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/app_runtime_reset.dart';
+import 'package:otzaria/core/update_check_frequency.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
@@ -1008,6 +1009,36 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                   );
                 },
         ),
+        if (state.canUseSoftwareAndBookUpdates)
+          SettingsActionTile.segmentedTile<String>(
+            icon: FluentIcons.clock_24_regular,
+            title: context.settingsText('תדירות בדיקת עדכונים'),
+            subtitle: context.settingsText(
+              'חל על הבדיקה האוטומטית של עדכוני התוכנה והספרייה בעליית התוכנה',
+            ),
+            options: [
+              SegmentOption<String>(
+                value: UpdateCheckFrequency.everyLaunch.storageValue,
+                label: context.settingsText('בכל הפעלה'),
+              ),
+              SegmentOption<String>(
+                value: UpdateCheckFrequency.daily.storageValue,
+                label: context.settingsText('פעם ביום'),
+              ),
+              SegmentOption<String>(
+                value: UpdateCheckFrequency.weekly.storageValue,
+                label: context.settingsText('פעם בשבוע'),
+              ),
+            ],
+            currentValue: currentUpdateCheckFrequency().storageValue,
+            onChanged: (value) {
+              Settings.setValue<String>(
+                SettingsRepository.keyUpdateCheckFrequency,
+                value,
+              );
+              setState(() {});
+            },
+          ),
         if (!(Platform.isAndroid || Platform.isIOS) &&
             state.canUseSoftwareAndBookUpdates) ...[
           SettingsActionTile.switchTile(
@@ -2071,11 +2102,11 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   /// שחזור מקובץ גיבוי שהמשתמש בוחר — הדרך היחידה לשחזר אחרי התקנה מחדש
   /// במובייל, שבו תיקיית הגיבוי הפנימית נמחקת עם האפליקציה.
   Future<void> _restoreFromPickedFile() async {
-    final result = await FilePicker.pickFiles(
+    final result = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['json'],
     );
-    final filePath = result?.files.single.path;
+    final filePath = result?.path;
     if (filePath == null || !mounted) return;
 
     final confirmed = await showWarningDialog(

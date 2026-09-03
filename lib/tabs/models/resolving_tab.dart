@@ -17,8 +17,8 @@ class ResolvingTab extends OpenedTab {
   ResolvingTab({
     required this.fallbackTab,
     required this.resolve,
-    String? dedupeKey,
-  }) : super(fallbackTab.title, dedupeKey: dedupeKey);
+    super.dedupeKey,
+  }) : super(fallbackTab.title);
 
   /// מתחיל את הרזולוציה (פעם אחת) ומחזיר את הטאב הסופי.
   /// בכשל מוחזר עותק טרי של טאב היעד החלופי.

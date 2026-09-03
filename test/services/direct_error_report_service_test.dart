@@ -145,6 +145,11 @@ void main() {
       expect(script.content, contains('report-42'));
       // הסמן המלא לא מופיע בשורת הפקודה (נבנה שם מ-[char]35).
       expect(script.content, contains('[char]35'));
+      // עמידה במגבלת הקצב בשרת (8 לדקה): המתנה בין אצוות + הסבר בפלט.
+      expect(script.content, contains('Start-Sleep -Seconds 65'));
+      expect(script.content, contains('% 8'));
+      expect(script.content, contains('עד 8 דיווחים בדקה'));
+      expect(script.content, contains('להריץ קובץ זה שוב בבטחה'));
     });
 
     test('unix target builds an sh script with curl and a graphical popup', () {
@@ -166,6 +171,11 @@ void main() {
       expect(script.content, contains('osascript'));
       expect(script.content, contains("'report-42'"));
       expect(script.content, isNot(contains('FromBase64String')));
+      // עמידה במגבלת הקצב בשרת (8 לדקה): המתנה בין אצוות + הסבר בפלט.
+      expect(script.content, contains('sleep 65'));
+      expect(script.content, contains('% 8'));
+      expect(script.content, contains('עד 8 דיווחים בדקה'));
+      expect(script.content, contains('להריץ קובץ זה שוב בבטחה'));
     });
   });
 

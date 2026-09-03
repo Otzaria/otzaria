@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -206,7 +207,8 @@ class _LibrarySetupDialogContentState
 
   Future<void> _pickTargetRoot() async {
     final path = await FilePicker.getDirectoryPath(
-      lockParentWindow: true,
+      windowsOptions: kModalWindowsOptions,
+      linuxOptions: kModalLinuxOptions,
       dialogTitle: context.settingsText('בחר את תיקיית היעד לספרייה'),
     );
     if (path != null && mounted) setState(() => _targetRoot = path);
@@ -215,7 +217,8 @@ class _LibrarySetupDialogContentState
   /// בוחר תיקיית מקור לייבוא וסורק אילו נכסי ספרייה זוהו בה (דחוסים או רגילים).
   Future<void> _pickSourceFolder() async {
     final folder = await FilePicker.getDirectoryPath(
-      lockParentWindow: true,
+      windowsOptions: kModalWindowsOptions,
+      linuxOptions: kModalLinuxOptions,
       dialogTitle: context.settingsText('בחר תיקייה המכילה את קבצי הספרייה'),
     );
     if (folder == null || !mounted) return;
@@ -229,16 +232,16 @@ class _LibrarySetupDialogContentState
 
   /// בחירת הקובץ ישירות מספקת נתיב נגיש גם מ-Android Scoped Storage.
   Future<void> _pickSourceDatabaseFile() async {
-    final result = await FilePicker.pickFiles(
+    final file = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: const ['db'],
       dialogTitle: context.settingsText(
         'בחר את קובץ {file}',
         args: {'file': DatabaseConstants.databaseFileName},
       ),
-      lockParentWindow: true,
+      windowsOptions: kModalWindowsOptions,
+      linuxOptions: kModalLinuxOptions,
     );
-    final file = result?.files.singleOrNull;
     if (file?.path == null || !mounted) return;
     if (file!.name != DatabaseConstants.databaseFileName) {
       UiSnack.showError(
@@ -258,7 +261,8 @@ class _LibrarySetupDialogContentState
   /// בוחר תיקיית ספרייה קיימת לשימוש במקומה (ללא העתקה).
   Future<void> _pickInPlaceFolder() async {
     final folder = await FilePicker.getDirectoryPath(
-      lockParentWindow: true,
+      windowsOptions: kModalWindowsOptions,
+      linuxOptions: kModalLinuxOptions,
       dialogTitle: context.settingsText('בחר את תיקיית הספרייה הקיימת'),
     );
     if (folder == null || !mounted) return;
@@ -273,13 +277,13 @@ class _LibrarySetupDialogContentState
   }
 
   Future<void> _pickSourceArchive() async {
-    final result = await FilePicker.pickFiles(
+    final file = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: const ['zip', 'zst'],
       dialogTitle: context.settingsText('בחר ארכיון ספרייה (ZIP או ZST)'),
-      lockParentWindow: true,
+      windowsOptions: kModalWindowsOptions,
+      linuxOptions: kModalLinuxOptions,
     );
-    final file = result?.files.singleOrNull;
     if (file?.path == null || !mounted) return;
     setState(() => _sourceArchive = file!.path);
   }

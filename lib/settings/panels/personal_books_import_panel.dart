@@ -80,13 +80,12 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
     final override = widget.pickFilesOverride;
     if (override != null) return override();
 
-    final result = await FilePicker.pickFiles(
+    final files = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: kSupportedBookExtensions,
       dialogTitle: context.settingsText('בחר קבצי ספרים לייבוא'),
     );
-    if (result == null) return null;
-    return result.paths.whereType<String>().toList();
+    return files.map((f) => f.path).whereType<String>().toList();
   }
 
   Future<void> _importBooks() async {

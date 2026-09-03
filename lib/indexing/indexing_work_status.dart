@@ -6,6 +6,11 @@ import 'package:otzaria/work_status/work_status_item.dart';
 /// מזהה פריט חיווי העבודה של האינדוקס.
 const kIndexingWorkStatusId = 'indexing';
 
+/// אחוז התקדמות האיחוד כמחרוזת תצוגה. מעוגל כלפי מטה כדי שלא יוצג 100%
+/// לפני שהשלב באמת נגמר.
+String formatFinalizingPercent(double fraction) =>
+    '${(fraction.clamp(0.0, 1.0) * 100).floor()}%';
+
 /// פריט חיווי העבודה לאינדוקס, כולל לחצני השהיה/המשך ומצב חסכוני
 /// (issue #834).
 WorkStatusItem indexingWorkStatusItem(
@@ -16,14 +21,18 @@ WorkStatusItem indexingWorkStatusItem(
 }) {
   final total = state.totalBooks ?? 0;
   final processed = state.booksProcessed ?? 0;
-  // שלב האיחוד ארוך וללא התקדמות מדידה; מונה קפוא על הספר האחרון נראה
-  // כתקיעה (issue #1021), ולכן הוא מוחלף בהודעה ובמד בלתי-מוגדר.
+  // שלב האיחוד ארוך; מונה קפוא על הספר האחרון נראה כתקיעה (issue #1021),
+  // ולכן הוא מוחלף בהודעה ובהתקדמות האיחוד עצמו.
   if (state.isFinalizing) {
+    final fraction = state.finalizingProgress;
     return WorkStatusItem(
       id: kIndexingWorkStatusId,
       title: 'אינדוקס ספרים',
       message: 'מסיים ומאחד את קבצי האינדקס',
-      detail: 'כל הספרים אונדקסו; הפעולה עשויה להימשך מספר דקות',
+      detail: fraction == null
+          ? 'כל הספרים אונדקסו; הפעולה עשויה להימשך מספר דקות'
+          : 'כל הספרים אונדקסו; האיחוד הושלם ב-${formatFinalizingPercent(fraction)}',
+      progress: fraction,
       onTap: onTap,
     );
   }

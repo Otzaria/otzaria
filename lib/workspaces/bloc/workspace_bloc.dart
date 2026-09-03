@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_event.dart';
@@ -22,7 +24,7 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
 
   /// Callback function to notify when workspace tabs should be loaded.
   /// The UI should provide this to coordinate with TabsBloc.
-  final void Function(List<OpenedTab> tabs, int activeIndex)?
+  final FutureOr<void> Function(List<OpenedTab> tabs, int activeIndex)?
   onWorkspaceTabsChanged;
 
   List<OpenedTab> _cloneTabs(List<OpenedTab> tabs) {
@@ -164,15 +166,7 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
         (w) => w.id == event.targetWorkspaceId,
       );
 
-      // 3. Emit new state (UI updates immediately, not blocked by disk I/O)
-      emit(
-        state.copyWith(
-          workspaces: updatedWorkspaces,
-          activeWorkspaceId: event.targetWorkspaceId,
-        ),
-      );
-
-      // 4. Notify UI to update TabsBloc
+      // 3. Notify UI to update TabsBloc before exposing the new workspace.
       if (onWorkspaceTabsChanged != null) {
         int newCurrentTab = 0;
         if (targetWorkspace.tabs.isNotEmpty) {
@@ -181,11 +175,19 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
               ? targetWorkspace.activeTabIndex
               : 0;
         }
-        onWorkspaceTabsChanged!(
+        await onWorkspaceTabsChanged!(
           _cloneTabs(targetWorkspace.tabs),
           newCurrentTab,
         );
       }
+
+      // 4. Emit new state (UI updates immediately, not blocked by disk I/O)
+      emit(
+        state.copyWith(
+          workspaces: updatedWorkspaces,
+          activeWorkspaceId: event.targetWorkspaceId,
+        ),
+      );
 
       // 5. Save to repository
       await _repository.saveWorkspaces(

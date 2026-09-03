@@ -71,6 +71,7 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/data_root_writability_warning.dart';
 import 'package:otzaria/core/cli_command.dart';
 import 'package:otzaria/core/error_log_file.dart';
+import 'package:otzaria/core/update_check_frequency.dart';
 import 'package:otzaria/core/info/app_info_cli.dart';
 import 'package:otzaria/core/info/app_install_timeline.dart';
 import 'package:otzaria/core/external_activation_queue.dart';
@@ -319,9 +320,9 @@ void main(List<String> args) async {
     }
 
     // Skip HardwareKeyboard assertion error - happens when window loses focus while
-    // a key is held down; fixed by clearState() in onWindowFocus but filter as fallback
+    // a key is held down; onWindowFocus releases stuck keys but filter as fallback
     if (_isIgnorableHardwareKeyboardAssertion(errorString)) {
-      return; // Silently ignore - handled by HardwareKeyboard.instance.clearState() on focus
+      return; // Silently ignore - stuck keys are released on window focus
     }
 
     // Log all other errors normally
@@ -346,7 +347,7 @@ void main(List<String> args) async {
       return true; // Silently ignore these errors
     }
 
-    // Skip HardwareKeyboard assertion error - handled by clearState() on window focus
+    // Skip HardwareKeyboard assertion error - stuck keys are released on window focus
     if (_isIgnorableHardwareKeyboardAssertion(errorString)) {
       return true; // Silently ignore
     }
@@ -1156,8 +1157,14 @@ class _AppBootstrapState extends State<AppBootstrap> {
               return WorkspaceBloc(
                 repository: WorkspaceRepository(),
                 onWorkspaceTabsChanged:
-                    (List<OpenedTab> tabs, int activeIndex) {
+                    (List<OpenedTab> tabs, int activeIndex) async {
+                      final replaced = tabsBloc.stream.firstWhere(
+                        (state) =>
+                            identical(state.tabs, tabs) &&
+                            state.currentTabIndex == activeIndex,
+                      );
                       tabsBloc.add(ReplaceAllTabs(tabs, activeIndex));
+                      await replaced;
                     },
               )..add(LoadWorkspaces());
             },
@@ -1196,6 +1203,9 @@ class _AppBootstrapState extends State<AppBootstrap> {
               // עדכוני ספרייה תמיד ליציב בלבד — מנותק מערוץ הפיתוח, שמשפיע רק
               // על עדכוני התוכנה.
               allowPrerelease: () => false,
+              onCheckSucceeded: () => recordSuccessfulUpdateCheck(
+                SettingsRepository.keyLastLibraryUpdateCheck,
+              ),
             ),
           ),
           BlocProvider<PluginUpdatesCubit>(

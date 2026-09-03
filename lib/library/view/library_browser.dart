@@ -46,6 +46,7 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/core/external_uri_router.dart';
 import 'package:otzaria/utils/ui/book_format_icon.dart';
+import 'package:otzaria/utils/ui/editable_focus.dart';
 
 // ── קבועים ────────────────────────────────────────────────────────────────────
 
@@ -1097,6 +1098,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       ),
       icon: FluentIcons.arrow_sync_24_regular,
       tooltip: 'עדכון ספרייה',
+      actionId: ToolbarActionId.sync,
       onPressed: () {
         final b = context.read<LibraryUpdateBloc>();
         if (!b.state.isBusy) {
@@ -1124,6 +1126,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         compact: compact,
         tooltip: 'חזרה לתיקיה הקודמת',
         icon: FluentIcons.arrow_up_24_regular,
+        actionId: ToolbarActionId.navigateUp,
         onPressed: isLibraryEmpty
             ? null
             : () => _handleNavigateUp(context, state, settingsState),
@@ -1132,6 +1135,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         compact: compact,
         tooltip: 'חזרה לתיקיה הראשית',
         icon: FluentIcons.home_24_regular,
+        actionId: ToolbarActionId.navigateHome,
         onPressed: isLibraryEmpty
             ? null
             : () => _handleNavigateHome(context, state, settingsState),
@@ -1142,6 +1146,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         compact: compact,
         tooltip: 'טעינה מחדש',
         icon: FluentIcons.arrow_clockwise_24_regular,
+        actionId: ToolbarActionId.refresh,
         onPressed: isLibraryEmpty ? null : _refreshWithPersonalFolders,
       ),
     ];
@@ -1159,6 +1164,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         compact: compact,
         tooltip: 'חזרה לתיקיה הקודמת',
         icon: FluentIcons.arrow_up_24_regular,
+        actionId: ToolbarActionId.navigateUp,
         onPressed: isLibraryEmpty
             ? null
             : () => _handleNavigateUp(context, state, settingsState),
@@ -1169,6 +1175,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         compact: compact,
         tooltip: 'חזרה לתיקיה הראשית',
         icon: FluentIcons.home_24_regular,
+        actionId: ToolbarActionId.navigateHome,
         onPressed: isLibraryEmpty
             ? null
             : () => _handleNavigateHome(context, state, settingsState),
@@ -1177,6 +1184,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         compact: compact,
         tooltip: 'טעינה מחדש',
         icon: FluentIcons.arrow_clockwise_24_regular,
+        actionId: ToolbarActionId.refresh,
         onPressed: isLibraryEmpty ? null : _refreshWithPersonalFolders,
       ),
     ];
@@ -1235,9 +1243,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     }
 
     final repo = context.read<FocusRepository>();
-    final focusedWidget = FocusManager.instance.primaryFocus?.context?.widget;
-    final isEditableTextFocused =
-        focusedWidget is EditableText || focusedWidget is TextField;
+    final isEditableTextFocused = isEditableTextFocusTarget();
 
     if (_arrowKeys.contains(event.logicalKey)) {
       if (isEditableTextFocused) return KeyEventResult.ignored;

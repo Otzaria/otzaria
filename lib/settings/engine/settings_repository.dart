@@ -63,6 +63,11 @@ class SettingsRepository {
   static const String keyAutoSync = 'key-auto-sync';
   static const String keySoftwareAndBookUpdatesEnabled =
       'key-software-and-book-updates-enabled';
+  static const String keyUpdateCheckFrequency = 'key-update-check-frequency';
+  static const String keyLastSoftwareUpdateCheck =
+      'key-last-software-update-check';
+  static const String keyLastLibraryUpdateCheck =
+      'key-last-library-update-check';
   static const String keyErrorReportSenderEmail =
       'key-error-report-sender-email';
   static const String keyQueueErrorReportsWhenOffline =
@@ -213,6 +218,9 @@ class SettingsRepository {
     keyOfflineMode,
     keyAutoSync,
     keySoftwareAndBookUpdatesEnabled,
+    keyUpdateCheckFrequency,
+    keyLastSoftwareUpdateCheck,
+    keyLastLibraryUpdateCheck,
     keyErrorReportSenderEmail,
     keyQueueErrorReportsWhenOffline,
     keyLibraryPath,

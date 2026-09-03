@@ -181,9 +181,8 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   void _scrollNavToSelectedHeading() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_navScrollController.isAttached) return;
-      final headingIdx = _navFilteredIndices(
-        _navSearchController.text,
-      ).indexOf(_selectedHeadingIdx);
+      final headingIdx = _navFilteredIndices(_navSearchController.text)
+          .indexOf(_selectedHeadingIdx);
       if (headingIdx < 0) return;
       _navScrollController.scrollTo(
         // +1: פריט 0 הוא הכותרת הראשית.
@@ -402,9 +401,10 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     if (headings == null || headings.isEmpty) return;
     try {
       final library = await DataRepository.instance.library;
-      final textBook =
-          library.getCompanionBook(widget.tab.sourceTab.book, TextBook)
-              as TextBook?;
+      final textBook = library.getCompanionBook(
+        widget.tab.sourceTab.book,
+        TextBook,
+      ) as TextBook?;
       if (textBook == null) return;
 
       int lo = 0;
@@ -776,8 +776,10 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   Widget _buildAppTopBar(BuildContext context) {
     final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
     return AppTopBar(
+      minCenterWidth: ReaderNavCenter.minTitleWidth,
       leadingItems: [
         AppTopBarItem(
+          flexible: true,
           widget: NavPanelSearchBar(
             host: _searchHost,
             isOpen: _navPaneOpen || _pinLeftPane,
@@ -817,9 +819,9 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
       ),
       trailingItems: [
         AppTopBarItem(
+          flexible: true,
           widget: ResponsiveActionBar(
             overflowMenuOffset: const Offset(0, 8),
-            maxVisibleButtons: 999,
             actions: [
               // ניקוד
               ActionButtonData(
@@ -835,6 +837,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                     ? OtzariaIcons.alef_with_score_24_regular
                     : OtzariaIcons.alef_deletion_24_regular,
                 tooltip: _removeNikud ? 'הצג ניקוד' : 'הסתר ניקוד',
+                actionId: ToolbarActionId.nikud,
                 onPressed: _toggleRemoveNikud,
               ),
               // פיסוק
@@ -851,6 +854,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                     ? OtzariaIcons.alef_with_punctuation_24_regular
                     : OtzariaIcons.alef_with_eraser_24_regular,
                 tooltip: _removePunctuation ? 'הצג פיסוק' : 'הסתר פיסוק',
+                actionId: ToolbarActionId.punctuation,
                 onPressed: () => _toggleRemovePunctuation(),
               ),
               // הדפסת המפרשים המוצגים
@@ -864,6 +868,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                 ),
                 icon: FluentIcons.print_24_regular,
                 tooltip: 'הדפסה',
+                actionId: ToolbarActionId.print,
                 onPressed: () =>
                     _panelKey.currentState?.printDisplayedCommentaries(),
               ),
@@ -877,6 +882,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                 ),
                 icon: OtzariaIcons.search_24_regular,
                 tooltip: 'חיפוש',
+                actionId: ToolbarActionId.search,
                 onPressed: _openSearchPanel,
               ),
               // כיווץ/הרחבת כל המפרשים
@@ -903,6 +909,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                 tooltip: _allExpandedInChild.value
                     ? 'כווץ את כל המפרשים'
                     : 'הרחב את כל המפרשים',
+                actionId: ToolbarActionId.expandAll,
                 onPressed: () => _panelKey.currentState?.toggleAllExpanded(),
               ),
               // הוסף סימניה
@@ -915,6 +922,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                 ),
                 icon: FluentIcons.bookmark_add_24_regular,
                 tooltip: 'הוסף סימניה',
+                actionId: ToolbarActionId.bookmarkAdd,
                 onPressed: () => _addBookmark(context),
               ),
               // הגדל גופן
@@ -927,6 +935,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                 ),
                 icon: FluentIcons.zoom_in_24_regular,
                 tooltip: 'הגדל את גודל הטקסט',
+                actionId: ToolbarActionId.zoomIn,
                 onPressed: () => _zoomIn(context),
               ),
               // הקטן גופן
@@ -939,6 +948,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                 ),
                 icon: FluentIcons.zoom_out_24_regular,
                 tooltip: 'הקטן את גודל הטקסט',
+                actionId: ToolbarActionId.zoomOut,
                 onPressed: () => _zoomOut(context),
               ),
             ],
@@ -1046,9 +1056,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
           ),
           selectedTypeChips: effectiveTypes,
           typeChipLabelBuilder: LinkTypes.hebrewLabel,
-          commentatorsByType: CommentaryTypeFilter.commentatorsByType(
-            allLinks,
-          ),
+          commentatorsByType: CommentaryTypeFilter.commentatorsByType(allLinks),
           onTypeChipsChanged: (types) => _typeSelection.value = types,
           onSelectionChanged: (list) async {
             setState(() {
@@ -1081,9 +1089,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   Widget _buildNavPanel() {
     final headings = _sortedHeadings;
     if (headings == null || headings.isEmpty) {
-      return const Center(
-        child: Text('אין ניווט'),
-      );
+      return const Center(child: Text('אין ניווט'));
     }
 
     return ValueListenableBuilder<TextEditingValue>(

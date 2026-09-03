@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/core/update_check_frequency.dart';
 import 'package:otzaria/core/update_source_reachability.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
@@ -609,7 +610,7 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
     final tourCubit = context.read<TourCubit>();
     if (!tourCubit.state.isActive) {
       _initialCheckTriggered = true;
-      _checkForUpdate();
+      _runInitialCheckIfDue();
       return;
     }
     _tourSubscription ??= tourCubit.stream.listen((tourState) {
@@ -617,8 +618,20 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
       _initialCheckTriggered = true;
       _tourSubscription?.cancel();
       _tourSubscription = null;
-      if (mounted) _checkForUpdate();
+      if (mounted) _runInitialCheckIfDue();
     });
+  }
+
+  /// הבדיקה האוטומטית בעלייה כפופה לתדירות שנבחרה בהגדרות; בדיקה יזומה
+  /// (הצ'יפ בשורת הכותרת) קוראת ל-[_checkForUpdate] ישירות ואינה מושפעת.
+  void _runInitialCheckIfDue() {
+    if (!isAutoUpdateCheckDue(SettingsRepository.keyLastSoftwareUpdateCheck)) {
+      setState(() {
+        _status = UpdatStatus.upToDate;
+      });
+      return;
+    }
+    _checkForUpdate();
   }
 
   @override
@@ -724,6 +737,11 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
       if (!mounted) return;
       // הבדיקה עברה — ניתוק עתידי יקבל שוב מכסת ניסיונות מלאה.
       _offlineRecheckAttempt = 0;
+      unawaited(
+        recordSuccessfulUpdateCheck(
+          SettingsRepository.keyLastSoftwareUpdateCheck,
+        ),
+      );
 
       if (latestVersion == null) {
         setState(() {

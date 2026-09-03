@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/models/books.dart';
@@ -98,6 +100,43 @@ void main() {
 
       await bloc.close();
       targetTab.dispose();
+    });
+
+    test('מחליף מצב פעיל רק אחרי שה-UI החליף את הטאבים', () async {
+      final sourceWorkspace = Workspace(name: 'א', tabs: const []);
+      final targetWorkspace = Workspace(name: 'ב', tabs: const []);
+      final repository = _FakeWorkspaceRepository(
+        workspaces: [sourceWorkspace, targetWorkspace],
+        activeWorkspaceId: sourceWorkspace.id,
+      );
+      final callbackStarted = Completer<void>();
+      final allowTabReplacement = Completer<void>();
+      final bloc = WorkspaceBloc(
+        repository: repository,
+        onWorkspaceTabsChanged: (_, _) {
+          callbackStarted.complete();
+          return allowTabReplacement.future;
+        },
+      )..add(LoadWorkspaces());
+
+      await bloc.stream.firstWhere((state) => !state.isLoading);
+      final switched = bloc.stream.firstWhere(
+        (state) => state.activeWorkspaceId == targetWorkspace.id,
+      );
+      bloc.add(
+        SwitchToWorkspace(
+          targetWorkspaceId: targetWorkspace.id,
+          currentTabsToSave: const [],
+          currentTabIndexToSave: 0,
+        ),
+      );
+
+      await callbackStarted.future;
+      expect(bloc.state.activeWorkspaceId, sourceWorkspace.id);
+
+      allowTabReplacement.complete();
+      await switched;
+      await bloc.close();
     });
   });
 }

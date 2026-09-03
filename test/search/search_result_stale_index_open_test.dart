@@ -181,6 +181,19 @@ void main() {
     expect(tab, isNull);
   });
 
+  testWidgets('מפתח חיצוני שנעלם מהקטלוג אינו נפתח לפי הכותרת', (
+    tester,
+  ) async {
+    final tab = await openResultAgainstLibrary(
+      tester,
+      catalogue: [TextBook(id: 7, title: 'ברכות')],
+      resultTitle: 'ברכות',
+      indexedFilePath: 'ext:talmud-pdf:ברכות',
+      expectOpen: false,
+    );
+    expect(tab, isNull);
+  });
+
   testWidgets('מפתח legacy בפורמט נתיב ממשיך להיפתח לפי הכותרת', (
     tester,
   ) async {

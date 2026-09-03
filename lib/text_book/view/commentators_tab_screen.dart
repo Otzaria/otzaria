@@ -1000,8 +1000,10 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     List<TocEntry> chapters,
   ) {
     return AppTopBar(
+      minCenterWidth: ReaderNavCenter.minTitleWidth,
       leadingItems: [
         AppTopBarItem(
+          flexible: true,
           widget: NavPanelSearchBar(
             host: _searchHost,
             isOpen: _navPaneOpen || _pinLeftPane,
@@ -1040,9 +1042,9 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
       ),
       trailingItems: [
         AppTopBarItem(
+          flexible: true,
           widget: ResponsiveActionBar(
             overflowMenuOffset: const Offset(0, 8),
-            maxVisibleButtons: 999,
             actions: [
               // ניקוד
               ActionButtonData(
@@ -1062,6 +1064,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
                 tooltip: state.commentaryRemoveNikud
                     ? 'הצג ניקוד'
                     : 'הסתר ניקוד',
+                actionId: ToolbarActionId.nikud,
                 onPressed: () => _toggleCommentaryNikud(context, state),
               ),
               // פיסוק — מוצג גם בתנ"ך, כי התוכן כאן הוא מפרשים
@@ -1082,6 +1085,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
                 tooltip: state.commentaryRemovePunctuation
                     ? 'הצג פיסוק'
                     : 'הסתר פיסוק',
+                actionId: ToolbarActionId.punctuation,
                 onPressed: () => _toggleCommentaryPunctuation(context, state),
               ),
               // הדפסת המפרשים המוצגים
@@ -1095,6 +1099,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
                 ),
                 icon: FluentIcons.print_24_regular,
                 tooltip: 'הדפסה',
+                actionId: ToolbarActionId.print,
                 onPressed: () =>
                     _commentaryKey.currentState?.printDisplayedCommentaries(),
               ),
@@ -1108,6 +1113,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
                 ),
                 icon: OtzariaIcons.search_24_regular,
                 tooltip: 'חיפוש',
+                actionId: ToolbarActionId.search,
                 onPressed: _openSearchPane,
               ),
               // כיווץ/הרחבת כל המפרשים — שולט במצב הגלובלי בתוך CommentaryListBase
@@ -1137,6 +1143,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
                 tooltip: _allExpandedInChild.value
                     ? 'כווץ את כל המפרשים'
                     : 'הרחב את כל המפרשים',
+                actionId: ToolbarActionId.expandAll,
                 onPressed: () =>
                     _commentaryKey.currentState?.toggleAllExpanded(),
               ),
@@ -1158,6 +1165,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
                 ),
                 icon: FluentIcons.bookmark_add_24_regular,
                 tooltip: 'הוסף סימניה',
+                actionId: ToolbarActionId.bookmarkAdd,
                 onPressed: () => _addBookmark(
                   context,
                   state,
@@ -1181,6 +1189,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
                 ),
                 icon: FluentIcons.zoom_in_24_regular,
                 tooltip: 'הגדל את גודל הטקסט',
+                actionId: ToolbarActionId.zoomIn,
                 onPressed: () => context.read<TextBookBloc>().add(
                   UpdateFontSize((state.fontSize + 3).clamp(15, 50)),
                 ),
@@ -1197,6 +1206,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
                 ),
                 icon: FluentIcons.zoom_out_24_regular,
                 tooltip: 'הקטן את גודל הטקסט',
+                actionId: ToolbarActionId.zoomOut,
                 onPressed: () => context.read<TextBookBloc>().add(
                   UpdateFontSize((state.fontSize - 3).clamp(15, 50)),
                 ),
@@ -1428,9 +1438,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     required String title,
   }) {
     if (chapters.isEmpty) {
-      return const Center(
-        child: Text('אין תוכן עניינים'),
-      );
+      return const Center(child: Text('אין תוכן עניינים'));
     }
 
     final delegate = NavPanelSearchDelegate(

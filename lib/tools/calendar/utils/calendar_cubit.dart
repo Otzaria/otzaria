@@ -1210,7 +1210,7 @@ class CalendarCubit extends Cubit<CalendarState> {
 
   Future<List<GoogleCalendarInfo>> getAvailableCalendars() async {
     final apiClient = await _googleCalendarService.getApiClient(
-      interactive: false,
+      interactive: true,
     );
     if (apiClient == null) return [];
 

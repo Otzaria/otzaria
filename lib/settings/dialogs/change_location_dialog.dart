@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -629,7 +630,10 @@ class _ChangeLocationDialogContentState
       (_selectedPath ?? widget.currentPath) == widget.defaultPath;
 
   Future<void> _pickFolder() async {
-    final path = await FilePicker.getDirectoryPath(lockParentWindow: true);
+    final path = await FilePicker.getDirectoryPath(
+      windowsOptions: kModalWindowsOptions,
+      linuxOptions: kModalLinuxOptions,
+    );
     if (path != null && mounted) setState(() => _selectedPath = path);
   }
 

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -22,6 +23,8 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:mockito/mockito.dart';
+// ignore: depend_on_referenced_packages
+import 'package:cross_file/cross_file.dart';
 // ignore: depend_on_referenced_packages
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -147,35 +150,57 @@ class FakeFilePickerPlatform extends FilePickerPlatform
   FakeFilePickerPlatform(this.fakeDirectoryPath);
 
   @override
-  Future<FilePickerResult?> pickFiles({
+  Future<PlatformFile?> pickFile({
     String? dialogTitle,
     String? initialDirectory,
     FileType type = FileType.any,
     List<String>? allowedExtensions,
     Function(FilePickerStatus)? onFileLoading,
     int compressionQuality = 0,
-    bool allowMultiple = false,
-    bool withData = false,
-    bool withReadStream = false,
-    bool lockParentWindow = false,
-    bool readSequential = false,
-    bool cancelUploadOnWindowBlur = true,
-    AndroidSAFOptions? androidSafOptions,
-  }) async {
-    return FilePickerResult([
-      PlatformFile(path: fakeDirectoryPath, name: 'dir', size: 0),
-    ]);
-  }
+    AndroidOptions androidOptions = const AndroidOptions(),
+    DarwinOptions darwinOptions = const DarwinOptions(),
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
+  }) async => _FakePlatformFile(fakeDirectoryPath);
 
   @override
   Future<String?> getDirectoryPath({
     String? dialogTitle,
     String? initialDirectory,
-    bool lockParentWindow = false,
-    AndroidSAFOptions? androidSafOptions,
+    AndroidOptions androidOptions = const AndroidOptions(),
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
   }) async {
     return fakeDirectoryPath;
   }
+}
+
+/// [PlatformFile] מופשטת מאז 12.0 — הבדיקה מספקת מימוש מינימלי מעל נתיב.
+base class _FakePlatformFile extends PlatformFile {
+  _FakePlatformFile(String path) : uri = Uri.file(path);
+
+  @override
+  final Uri uri;
+
+  @override
+  String get name => p.basename(uri.toFilePath());
+
+  @override
+  XFile get xFile => XFile(uri.toFilePath(), name: name);
+
+  @override
+  Future<int> length() async => 0;
+
+  @override
+  int? lengthSync() => 0;
+
+  @override
+  Future<Uint8List> readAsBytes() async => Uint8List(0);
+
+  @override
+  Stream<Uint8List> readAsByteStream() => const Stream.empty();
 }
 
 class FakePluginRegistryRepository extends Mock

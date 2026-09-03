@@ -9,6 +9,8 @@ import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
+import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/indexing/services/index_merge_progress.dart';
 import 'package:otzaria/indexing/utils/book_facet_metadata_cache.dart';
 import 'package:otzaria/indexing/utils/pdf_extraction_prefetcher.dart';
 import 'package:otzaria/indexing/models/catalogue_order_resolver.dart';
@@ -232,18 +234,30 @@ class IndexingRepository {
     return _tantivyDataProvider.requiresManualReindex;
   }
 
+  /// האם קיימים ספרים בני-אינדוקס שאינם באינדקס. השוואה בזיכרון מול
+  /// הרשימה שנקראה מהאינדקס עצמו - זולה מספיק לרוץ בכל עלייה.
+  Future<bool> hasUnindexedBooks(Library library) async {
+    await _tantivyDataProvider.engine;
+    return library
+        .getAllBooks()
+        .where(isIndexableBook)
+        .any((book) => !isBookIndexed(book));
+  }
+
   /// Indexes all books in the provided library.
   ///
   /// [library] The library containing books to index
   /// [onProgress] Callback function to report progress
   /// [onFinalizing] נקרא כשכל הספרים אונדקסו והמנוע ניגש לאחד את קבצי
-  /// האינדקס — שלב ארוך וללא התקדמות מדידה.
+  /// האינדקס.
+  /// [onFinalizingProgress] מדווח את התקדמות האיחוד כשבר בין 0 ל-1.
   /// מבצע אינדוקס ומחזיר תוצאה מפורטת, כולל ביטול וכשלים פר-ספר.
   Future<IndexingRunResult> indexAllBooks(
     Library library, {
     void Function()? onActualIndexingStarted,
     required void Function(int processed, int total) onProgress,
     void Function()? onFinalizing,
+    void Function(double fraction)? onFinalizingProgress,
     bool includePdfBooks = true,
   }) async {
     if (await _blockIndexingOnTempFallback()) {
@@ -476,13 +490,11 @@ class IndexingRepository {
           }
 
           processedBooks++;
-          // commit רק כשבאמת נוספו מסמכים מאז ה-commit הקודם: הסף הישן
-          // (processedBooks % 25) ספר גם ספרים מדולגים, כך שסריקה של
-          // ספרייה כמעט-מאונדקסת ביצעה מאות commit-ים ריקים — כל אחד
-          // מסריאל סגמנטים וטוען reader מחדש לחינם. הסף 100 נבחר לפי
-          // הלוגים (~680ms ל-commit; כל 25 ספרים ⇒ ‏9% מזמן האינדוקס) —
-          // ה-commit הוא רק נקודת שמירה להתאוששות, לא נדרש תכוף יותר.
-          if (indexedSinceCommit >= 100) {
+          // כל commit יוצר סגמנט לכל thread של המנוע, וכולם ממוזגים
+          // בסוף ב-optimize סדרתי אחד — כך שסף נמוך מייקר את הסיום פי
+          // כמה. ה-commit הוא רק נקודת שמירה להתאוששות: קריסה מאבדת את
+          // הספרים שאונדקסו מאז האחרון, ולכן הסף חוסם גם מלמעלה.
+          if (indexedSinceCommit >= 200) {
             commitStopwatch
               ..reset()
               ..start();
@@ -554,7 +566,18 @@ class IndexingRepository {
         debugPrint('💾 commit סופי: ${commitStopwatch.elapsedMilliseconds}ms');
         _stampCatalogueOrderAfterCommit();
         final optimizeStopwatch = Stopwatch()..start();
-        await optimizeIndexBestEffort(index.optimize);
+        final mergeProgress = onFinalizingProgress == null
+            ? null
+            : IndexMergeProgress.start(
+                _tantivyDataProvider.activeIndexPath ??
+                    await AppPaths.getIndexPath(),
+                onFinalizingProgress,
+              );
+        try {
+          await optimizeIndexBestEffort(index.optimize);
+        } finally {
+          mergeProgress?.stop();
+        }
         debugPrint('⚙️ optimize: ${optimizeStopwatch.elapsedMilliseconds}ms');
         debugPrint('⏱️ סה"כ אינדוקס: ${totalStopwatch.elapsed}');
       }
@@ -1248,6 +1271,10 @@ class IndexingRepository {
     return (BigInt.from(catalogueOrder + 1) << 32) + BigInt.from(ordinal + 1);
   }
 
+  /// האם לספר מזהה חיצוני יציב, שאינו תלוי ב-DB ואינו נשען על נתיב הקובץ.
+  static bool _hasExternalIdentity(Book book) =>
+      book.externalLibraryId != null && book.externalLibraryId!.isNotEmpty;
+
   static String catalogueOrderKey(Book book) => catalogueOrderKeyFromParts(
     title: book.title,
     externalLibraryId: book.externalLibraryId,
@@ -1270,7 +1297,7 @@ class IndexingRepository {
     String? pathKey,
   }) {
     if (externalLibraryId != null && externalLibraryId.isNotEmpty) {
-      return 'ext:$externalLibraryId';
+      return externalIdentityKey(externalLibraryId);
     }
 
     if (bookId != null) {
@@ -1288,8 +1315,25 @@ class IndexingRepository {
   /// מפתח catalogueOrderKey לספר רשמי (seforim.db) לפי id גולמי.
   static String officialBookKey(int id) => 'id:$id';
 
+  /// מפתח catalogueOrderKey לספר בעל מזהה חיצוני יציב.
+  static String externalIdentityKey(String externalLibraryId) =>
+      'ext:$externalLibraryId';
+
+  /// מפתח האינדקס של ספר PDF, למי שאין בידיו [Book] (מסך החיפוש בתוך
+  /// PDF). חייב להישאר תואם ל-[buildIndexedBookFilePath] — סטייה כאן
+  /// מפצלת את הספר לשתי זהויות, והחיפוש בתוכו חוזר ריק.
+  static String indexedPdfFilePath({
+    required String? externalLibraryId,
+    required String? filePath,
+  }) => externalLibraryId != null && externalLibraryId.isNotEmpty
+      ? externalIdentityKey(externalLibraryId)
+      : (filePath ?? '');
+
   static String buildIndexedBookFilePath(Book book) {
-    if (book is PdfBook) {
+    // ‏PDF בלי מזהה חיצוני: ה-id שלו עשוי להיות שאול מספר הטקסט המקביל
+    // (תלמוד בבלי) ולהתנגש בו, או להיעדר (סריקת תיקייה) — ולכן הנתיב הוא
+    // הזהות היחידה שיש לו.
+    if (book is PdfBook && !_hasExternalIdentity(book)) {
       return book.path;
     }
     return catalogueOrderKey(book);
@@ -1340,13 +1384,13 @@ class IndexingRepository {
   }
 
   /// האם רשומת הספר באינדקס מאוחסנת לפי נתיב מוחלט (ולכן תישבר בהעברת
-  /// הספרייה ותדרוש ניקוי). PDF תמיד; שאר ספרי הקובץ רק כשאין להם
-  /// id/externalLibraryId יציב — אחרת הם מאונדקסים לפי מפתח id ושורדים העברה.
+  /// הספרייה ותדרוש ניקוי). ‏PDF כשאין לו מזהה חיצוני; שאר ספרי הקובץ רק
+  /// כשאין להם id/externalLibraryId יציב — אחרת הם מאונדקסים לפי מפתח
+  /// זהות ושורדים העברה.
   static bool hasPathKeyedIndexEntry(Book book) {
-    if (book is PdfBook) return true;
+    if (book is PdfBook) return !_hasExternalIdentity(book);
     if (book is! FileBook) return false;
-    return book.id == null &&
-        (book.externalLibraryId == null || book.externalLibraryId!.isEmpty);
+    return book.id == null && !_hasExternalIdentity(book);
   }
 
   /// Indexes a specific list of books (e.g. newly added personal books).

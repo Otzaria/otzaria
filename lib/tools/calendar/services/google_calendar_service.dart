@@ -22,8 +22,11 @@ class GoogleCalendarService {
     SettingsRepository? settingsRepository,
   }) : _settingsRepository = settingsRepository ?? SettingsRepository();
 
-  static const List<String> _scopes = <String>[
+  // calendarList.list דורש scope נפרד מ-calendar.events — בלעדיו בחירת
+  // היומנים מחזירה תמיד רשימה ריקה (403, issue #1075)
+  static const List<String> scopes = <String>[
     cal.CalendarApi.calendarEventsScope,
+    cal.CalendarApi.calendarCalendarlistReadonlyScope,
   ];
 
   final SettingsRepository _settingsRepository;
@@ -70,15 +73,13 @@ class GoogleCalendarService {
     final storedJson = _settingsRepository.getGoogleCalendarCredentialsJson();
 
     if (storedJson.isNotEmpty) {
-      try {
-        final decoded = jsonDecode(storedJson) as Map<String, dynamic>;
-        final creds = auth.AccessCredentials.fromJson(decoded);
+      final creds = _parseStoredCredentials(storedJson);
+      if (creds != null &&
+          canUseStoredCredentials(creds, interactive: interactive)) {
         return auth_io.autoRefreshingClient(id, creds, http.Client());
-      } catch (e) {
-        // fall through to interactive flow if parsing failed
-        // Clear invalid credentials
-        await _settingsRepository.updateGoogleCalendarCredentialsJson('');
       }
+      // JSON פגום או טוקן שאינו מכסה את כל ה-scopes — הסכמה מחדש
+      await _settingsRepository.updateGoogleCalendarCredentialsJson('');
     }
 
     if (!interactive) return null;
@@ -86,7 +87,7 @@ class GoogleCalendarService {
     try {
       final authClient = await auth_io.clientViaUserConsent(
         id,
-        _scopes,
+        scopes,
         (url) async {
           await launchUrl(
             Uri.parse(url),
@@ -99,6 +100,23 @@ class GoogleCalendarService {
       return authClient;
     } catch (e) {
       throw Exception('Failed to authenticate with Google: $e');
+    }
+  }
+
+  /// האם להשתמש בהרשאות השמורות במקום לפתוח מסך הסכמה מחדש. טוקן שנשמר
+  /// לפני הוספת scope נדחה רק בפעולה יזומה, כדי לא לנתק סנכרון רקע תקין.
+  static bool canUseStoredCredentials(
+    auth.AccessCredentials credentials, {
+    required bool interactive,
+  }) => !interactive || scopes.every(credentials.scopes.contains);
+
+  static auth.AccessCredentials? _parseStoredCredentials(String storedJson) {
+    try {
+      return auth.AccessCredentials.fromJson(
+        jsonDecode(storedJson) as Map<String, dynamic>,
+      );
+    } catch (_) {
+      return null;
     }
   }
 

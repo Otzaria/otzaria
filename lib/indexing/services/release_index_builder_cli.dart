@@ -7,7 +7,6 @@ import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
-import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:path/path.dart' as p;
@@ -167,10 +166,7 @@ class ReleaseIndexBuilderCli {
       const {},
       config.libraryPath,
     );
-    final books = library
-        .getAllBooks()
-        .where((book) => book is! PdfBook)
-        .toList();
+    final books = library.getAllBooks();
     if (books.isEmpty) {
       throw StateError('מסד הספרייה אינו מכיל ספרים לאינדוקס');
     }
@@ -186,7 +182,6 @@ class ReleaseIndexBuilderCli {
           log('התקדמות אינדוקס: $processed/$total');
         }
       },
-      includePdfBooks: false,
     );
     if (!result.completed) {
       throw StateError('האינדוקס בוטל או לא הושלם');

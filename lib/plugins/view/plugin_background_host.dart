@@ -48,6 +48,7 @@ import 'package:otzaria/find_ref/repository/find_ref_factory.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
@@ -666,7 +667,8 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
         if (ctx == null) return null;
         if (!await verifySaferModePassword(ctx)) return null;
         return FilePicker.getDirectoryPath(
-          lockParentWindow: true,
+          windowsOptions: kModalWindowsOptions,
+          linuxOptions: kModalLinuxOptions,
           dialogTitle: title,
         );
       },
@@ -678,13 +680,14 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
         if (!await verifySaferModePassword(ctx)) return null;
         final hasExtensions =
             allowedExtensions != null && allowedExtensions.isNotEmpty;
-        final result = await FilePicker.pickFiles(
+        final result = await FilePicker.pickFile(
           dialogTitle: title,
-          lockParentWindow: true,
+          windowsOptions: kModalWindowsOptions,
+          linuxOptions: kModalLinuxOptions,
           type: hasExtensions ? FileType.custom : FileType.any,
           allowedExtensions: hasExtensions ? allowedExtensions : null,
         );
-        return result?.files.single.path;
+        return result?.path;
       },
     );
 

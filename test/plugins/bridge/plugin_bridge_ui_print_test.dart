@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -12,6 +13,7 @@ import 'package:otzaria/plugins/bridge/plugin_bridge_handler.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
+import 'package:otzaria/plugins/services/plugin_print_service.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tools/calendar/utils/calendar_cubit.dart';
@@ -76,6 +78,7 @@ void main() {
   late bool printResult;
   late bool userActivated;
   late List<String> savedNames;
+  late List<PluginPdfLayout?> capturedLayouts;
   late String? saveLocation;
   late Directory tempDir;
   late PluginBridgeAdapter adapter;
@@ -85,6 +88,7 @@ void main() {
     printResult = true;
     userActivated = true;
     savedNames = [];
+    capturedLayouts = [];
     tempDir = Directory.systemTemp.createTempSync('otzaria_export_pdf');
     saveLocation = '${tempDir.path}/דף.pdf';
     adapter = PluginBridgeAdapter(
@@ -112,8 +116,10 @@ void main() {
           ));
           return printResult;
         },
-        capturePluginPagePdf: (pluginId, instanceId) async =>
-            Uint8List.fromList(const [37, 80, 68, 70]),
+        capturePluginPagePdf: (pluginId, instanceId, {layout}) async {
+          capturedLayouts.add(layout);
+          return Uint8List.fromList(const [37, 80, 68, 70]);
+        },
         hasUserActivation: (pluginId, instanceId) async => userActivated,
         pickSaveLocation:
             ({required suggestedName, allowedExtensions, title}) async {
@@ -185,6 +191,77 @@ void main() {
         await adapter.execute('ui', 'exportPdf', {}) as Map<String, dynamic>;
     expect(result['name'], 'ללא-סיומת.pdf');
     expect(File('${tempDir.path}/ללא-סיומת.pdf').existsSync(), isTrue);
+  });
+
+  test('בלי ארגומנטי עימוד לא נבנה layout', () async {
+    await adapter.execute('ui', 'exportPdf', {});
+    expect(capturedLayouts.single, isNull);
+  });
+
+  test('ארגומנטי עימוד מפורשים ומועברים ללכידה', () async {
+    await adapter.execute('ui', 'exportPdf', {
+      'pageSize': 'A5',
+      'orientation': 'landscape',
+      'marginMm': 10,
+      'printBackgrounds': true,
+    });
+
+    final layout = capturedLayouts.single!;
+    expect(layout.pageWidthMm, 148);
+    expect(layout.pageHeightMm, 210);
+    expect(layout.landscape, isTrue);
+    expect(layout.marginsMm!.top, 10);
+    expect(layout.marginsMm!.left, 10);
+    expect(layout.printBackgrounds, isTrue);
+  });
+
+  test('marginMm כמפה לפי צד; צד חסר הוא אפס', () async {
+    await adapter.execute('ui', 'exportPdf', {
+      'marginMm': {'top': 20, 'bottom': 15.5},
+    });
+
+    final layout = capturedLayouts.single!;
+    expect(layout.pageWidthMm, isNull);
+    expect(layout.landscape, isNull);
+    expect(layout.marginsMm!.top, 20);
+    expect(layout.marginsMm!.bottom, 15.5);
+    expect(layout.marginsMm!.left, 0);
+    expect(layout.marginsMm!.right, 0);
+  });
+
+  test('ערכי עימוד פסולים נדחים בלי לפתוח דיאלוג', () async {
+    for (final args in [
+      {'pageSize': 'a3'},
+      {'orientation': 'diagonal'},
+      {'marginMm': -1},
+      {'marginMm': 500},
+      {'marginMm': 'wide'},
+      {'printBackgrounds': 'yes'},
+    ]) {
+      await expectLater(
+        adapter.execute('ui', 'exportPdf', args),
+        throwsA(
+          predicate((e) => e.toString().contains('error.invalid_params')),
+        ),
+      );
+    }
+    expect(capturedLayouts, isEmpty);
+    expect(savedNames, isEmpty);
+  });
+
+  test('ההמרה לאינצ׳ים של מנוע ההדפסה נכונה', () {
+    const layout = PluginPdfLayout(
+      pageWidthMm: 210,
+      pageHeightMm: 297,
+      marginsMm: EdgeInsets.all(25.4),
+      landscape: false,
+      printBackgrounds: false,
+    );
+    final settings = layout.toPdfConfiguration().settings!;
+    expect(settings.pageWidth, closeTo(8.2677, 0.001));
+    expect(settings.pageHeight, closeTo(11.6929, 0.001));
+    expect(settings.margins!.top, 1.0);
+    expect(settings.shouldPrintBackgrounds, isFalse);
   });
 
   test('בלי פעולת משתמש — print ו-exportPdf נדחים ולא נכתב דבר', () async {

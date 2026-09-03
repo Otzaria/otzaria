@@ -137,6 +137,7 @@ ActionButtonData _buildAction({
         tooltip: item.title,
         compact: compact,
         menuItems: childActions,
+        actionId: ToolbarActionId.plugin,
         onPressed: () => _dispatchItemClick(
           dispatcher: dispatcher,
           pluginId: pluginId,
@@ -164,6 +165,7 @@ ActionButtonData _buildAction({
       ),
       icon: icon,
       tooltip: item.title,
+      actionId: ToolbarActionId.plugin,
       // ב-overflow הפקד עצמו לא בנוי בעץ, לכן הילדים מוצגים כתת-תפריט
       submenuItems: childActions,
     );
@@ -172,6 +174,7 @@ ActionButtonData _buildAction({
     icon: icon,
     tooltip: item.title,
     compact: compact,
+    actionId: ToolbarActionId.plugin,
     onPressed: () => _dispatchItemClick(
       dispatcher: dispatcher,
       pluginId: pluginId,

@@ -29,7 +29,7 @@ environment:
   sdk: ">=3.12.0 <4.0.0"
 
 dependencies:
-  sentry_flutter: ^9.25.0
+  sentry_flutter: ^9.28.0
   flutter:
     sdk: flutter
   flutter_bloc: ^9.1.1
@@ -41,10 +41,10 @@ dependencies:
   flutter_settings_screens: ^0.3.4
   hive_ce: ^2.19.3
   path_provider: ^2.1.6
-  html: ^0.15.6
-  pdfrx: ^2.4.7
+  html: ^0.15.7
+  pdfrx: ^2.5.0
   url_launcher: ^6.3.2
-  flutter_widget_from_html: ^0.17.2
+  flutter_widget_from_html: ^0.17.3
   scrollable_positioned_list: ^0.3.8
   fuzzywuzzy: ^1.2.0
   flutter_svg: ^2.3.0  
@@ -53,7 +53,7 @@ dependencies:
     git:
       url: https://github.com/Otzaria/otzaria_icons
       ref: 72c04ce47812c4258e56cd345b433aecc57d83c9
-  file_picker: 12.0.0-beta.7
+  file_picker: 12.1.3
   provider: ^6.1.5+1
   multi_split_view: ^3.6.2
   updat: ^1.4.0
@@ -71,11 +71,11 @@ dependencies:
   ffi: ^2.2.0
   win32: ^6.3.0
   win32_registry: ^3.0.3
-  googleapis: ^16.0.0
+  googleapis: ^17.0.0
   googleapis_auth: ^2.3.3
   characters: ^1.4.1
   collection: ^1.19.1
-  otzaria_search_engine: ^0.7.5
+  otzaria_search_engine: ^0.7.7
   seforim_library_updater:
     git:
       url: https://github.com/Otzaria/otzaria_library_updater
@@ -87,7 +87,7 @@ dependencies:
   logging: ^1.3.0
   sqlite3: ^3.5.0
   super_clipboard: ^0.9.1
-  flutter_local_notifications: ^22.2.0
+  flutter_local_notifications: ^22.3.0
   timezone: ^0.11.1
   flutter_single_instance: ^1.7.0
   xml: ^7.0.1
@@ -103,11 +103,11 @@ dependencies:
   # נדרש ישירות עבור WindowsFileDropManager (גרירת קבצים אל החלון).
   flutter_inappwebview_windows: any
   custom_mouse_cursor: ^1.1.3
-  wakelock_plus: ^1.2.10
+  wakelock_plus: ^1.8.0
 
 dependency_overrides:
   matcher: ^0.12.20
-  analyzer: ^12.1.0
+  analyzer: ^14.2.0
   device_info_plus: ^13.2.0
   # הגרסה שב-pub.dev חסרה את תיקון גלילת הטאצ'פד.
   flutter_inappwebview_windows:
@@ -154,7 +154,7 @@ dev_dependencies:
   sentry_dart_plugin: ^3.4.0
   # מחולל spec.json של התוספים (tool/plugins) מפרסר AST של קוד המקור.
   # מוצמד ל-major: צורת ה-AST משתנה בין גרסאות ראשיות ושוברת את המחולל.
-  analyzer: ^12.1.0
+  analyzer: ^14.2.0
   # לטעינת ספריית המנוע הנייטיבית בטסטים (ExternalLibrary).
   flutter_rust_bridge: ^2.12.0
   fake_async: ^1.3.3

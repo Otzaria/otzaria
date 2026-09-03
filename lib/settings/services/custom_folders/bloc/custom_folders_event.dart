@@ -33,6 +33,16 @@ class ToggleAddToDatabase extends CustomFoldersEvent {
   List<Object> get props => [folder, value];
 }
 
+/// קביעת חריגת מיזוג לתיקייה בודדת. [value] `null` מחזיר אותה לברירת
+/// המחדל הגלובלית.
+class SetFolderMergeMode extends CustomFoldersEvent {
+  const SetFolderMergeMode(this.folder, this.value);
+  final CustomFolder folder;
+  final bool? value;
+  @override
+  List<Object?> get props => [folder, value];
+}
+
 class RescanCustomFolders extends CustomFoldersEvent {
   const RescanCustomFolders({
     this.showNoChangesMessage = true,

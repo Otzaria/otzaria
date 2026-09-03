@@ -54,6 +54,7 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
     on<AddCustomFolder>(_onAdd);
     on<RemoveCustomFolder>(_onRemove);
     on<ToggleAddToDatabase>(_onToggleAddToDatabase);
+    on<SetFolderMergeMode>(_onSetFolderMergeMode);
     on<RescanCustomFolders>(_onRescan);
     on<ImportUserContentFiles>(_onImportUserFiles);
     on<ClearUserContent>(_onClearUserContent);
@@ -193,6 +194,24 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
       );
     }
     _addLibraryEvent(RefreshLibrary());
+  }
+
+  /// שינוי מיקום התיקייה בעץ בלבד — הספרים כבר ב-DB, לכן רק בונים מחדש
+  /// את הספרייה ולא סורקים את הדיסק.
+  Future<void> _onSetFolderMergeMode(
+    SetFolderMergeMode event,
+    Emitter<CustomFoldersState> emit,
+  ) async {
+    final newFolders = CustomFoldersManager.updateFolderMergeSetting(
+      _loadFolders(),
+      event.folder.path,
+      event.value,
+    );
+    await _saveFolders(newFolders);
+    emit(state.copyWith(folders: newFolders, message: null, error: null));
+    _addLibraryEvent(
+      const RefreshLibrary(source: RefreshSource.customFoldersScan),
+    );
   }
 
   Future<void> _onToggleAddToDatabase(

@@ -15,6 +15,7 @@ import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dar
 import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/commentary_anchor_links.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/commentary_sync_helper.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_workspace_scope.dart';
@@ -1766,6 +1767,12 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   final ScrollOffsetController _scrollOffsetController =
       ScrollOffsetController();
   List<Link> _relevantLinks = [];
+
+  // עוגני מפרשי-המפרש (שער הציון וכד') בתוך טקסט המפרש — נטענים פר-חלון
+  // שורות רק לספרי DB שיש להם מפרשים משלהם. null עד שהסיכום נבדק.
+  Set<String>? _commentaryAnchorTargets;
+  Map<int, List<Link>> _anchorLinksByLine = const {};
+  List<({int startLine, int endLine})> _anchorLoadedRanges = const [];
   int? _lastSyncedIndex; // האינדקס האחרון שסונכרן
   int? _lastSyncedMainIndex; // השורה הנבחרת שממנה נגזר הסנכרון האחרון
   int _initialSyncAttempts = 0; // ניסיונות סנכרון ראשוני עד שה-controller מחובר
@@ -1864,6 +1871,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
         startLine: range.startLine,
         endLine: range.endLine,
       );
+      unawaited(_ensureAnchorLinksLoaded(range.startLine, range.endLine, book));
 
       final lines = range.text.split('\n');
       var changed = false;
@@ -2008,6 +2016,80 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
 
   String _commentaryCacheKey(TextBook book, {required bool preferDatabase}) {
     return '${book.title}|${book.categoryId}|${book.categoryPath ?? ''}|$preferDatabase';
+  }
+
+  /// בודק אם לספר המפרש יש מפרשים משלו (שער הציון על המשנה ברורה וכד'), ואם
+  /// כן טוען את עוגניהם לטווחים שכבר בזיכרון. בלי יעדים כאלה — אין עוד שליפות.
+  Future<void> _initCommentaryAnchors(TextBook book) async {
+    final requested = widget.commentatorName;
+    final categoryId = book.categoryId;
+    if (categoryId == null) return;
+    final provider = LibraryProviderManager.instance.databaseProvider;
+    final summary = await provider.getBookLinkTargetsSummary(
+      book.title,
+      categoryId,
+    );
+    if (!mounted || widget.commentatorName != requested) return;
+    final targets = commentaryAnchorTargetTitles(
+      summary?.targets ?? const <LinkTargetSummary>[],
+    );
+    _commentaryAnchorTargets = targets;
+    final content = _content;
+    if (targets.isEmpty || content == null || content.isEmpty) return;
+    if (_useWindowedLoading) {
+      for (final range in _loadedRanges) {
+        unawaited(
+          _ensureAnchorLinksLoaded(range.startLine, range.endLine, book),
+        );
+      }
+    } else {
+      unawaited(_ensureAnchorLinksLoaded(0, content.length - 1, book));
+    }
+  }
+
+  /// טוען את עוגני מפרשי-העל לטווח שורות, אם עוד לא נטענו. השאילתה מסוננת
+  /// בצד המסד לספרי היעד בלבד, ולכן זולה גם במפרשים עתירי קישורים.
+  Future<void> _ensureAnchorLinksLoaded(
+    int startLine,
+    int endLine,
+    TextBook book,
+  ) async {
+    final targets = _commentaryAnchorTargets;
+    final categoryId = book.categoryId;
+    if (targets == null || targets.isEmpty || categoryId == null) return;
+    final start = startLine < 0 ? 0 : startLine;
+    if (endLine < start || _isAnchorRangeLoaded(start, endLine)) return;
+    final requested = widget.commentatorName;
+    final provider = LibraryProviderManager.instance.databaseProvider;
+    final links = await provider.getLinksForBookRange(
+      book.title,
+      categoryId,
+      'txt',
+      startLineIndex: start,
+      endLineIndex: endLine,
+      targetBookTitles: targets,
+    );
+    if (!mounted || widget.commentatorName != requested) return;
+    _anchorLoadedRanges = TextBookBloc.mergeLoadedContentRanges(
+      _anchorLoadedRanges,
+      startLine: start,
+      endLine: endLine,
+    );
+    final anchorLinks = filterCommentaryAnchorLinks(links);
+    if (anchorLinks.isEmpty) return;
+    setState(() {
+      _anchorLinksByLine = mergeAnchorLinksByLine(
+        _anchorLinksByLine,
+        anchorLinks,
+      );
+    });
+  }
+
+  bool _isAnchorRangeLoaded(int start, int end) {
+    for (final range in _anchorLoadedRanges) {
+      if (start >= range.startLine && end <= range.endLine) return true;
+    }
+    return false;
   }
 
   /// נקודת הייחוס לסנכרון — כשליש מגובה ה-viewport מלמעלה (לא במרכז ולא
@@ -2191,6 +2273,9 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     _useWindowedLoading = false;
     _rangeBook = null;
     _loadedRanges = const [];
+    _commentaryAnchorTargets = null;
+    _anchorLinksByLine = const {};
+    _anchorLoadedRanges = const [];
 
     try {
       // המתנה לכך שה-state יהיה TextBookLoaded
@@ -2299,6 +2384,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
           targetIndex,
           requestedCommentatorName,
         )) {
+          unawaited(_initCommentaryAnchors(book));
           return;
         }
         if (!mounted || widget.commentatorName != requestedCommentatorName) {
@@ -2314,6 +2400,11 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
         fullCommentaryFuture,
         requestedCommentatorName,
       );
+      if (useDatabaseSource &&
+          mounted &&
+          widget.commentatorName == requestedCommentatorName) {
+        unawaited(_initCommentaryAnchors(book));
+      }
     } catch (e) {
       if (kDebugMode) {
         debugPrint(
@@ -2543,6 +2634,9 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
               highlightedIndices: _highlightedIndices, // הדגשות מקומיות
               onCommentatorChanged: _reloadCommentary, // callback לרענון
               onOpenCommentaryPersonalNote: widget.onOpenPersonalNote,
+              anchorLinksByLine: _anchorLinksByLine.isEmpty
+                  ? null
+                  : _anchorLinksByLine,
             );
           },
         );
