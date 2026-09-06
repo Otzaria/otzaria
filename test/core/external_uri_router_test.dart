@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/core/external_uri_router.dart';
 import 'package:otzaria/core/info/info_topic.dart';
+import 'package:otzaria/core/info/personal_folders_info.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/search/models/search_configuration.dart'
     show SearchMode;
@@ -1549,12 +1550,64 @@ void main() {
         }
       });
 
+      test('ברירת המחדל של files', () {
+        final action =
+            ExternalUriRouter.parseUri(Uri.parse('otzaria://info/folders'))
+                as ShowInfoAction;
+
+        expect(action.fileLimit, PersonalFoldersInfo.defaultFileLimit);
+      });
+
+      test('files תקין נשמר, ו-0 הוא ערך משמעותי', () {
+        for (final entry in {'12': 12, '0': 0}.entries) {
+          final action =
+              ExternalUriRouter.parseUri(
+                    Uri.parse('otzaria://info/folders?files=${entry.key}'),
+                  )
+                  as ShowInfoAction;
+
+          expect(action.fileLimit, entry.value, reason: 'files=${entry.key}');
+        }
+      });
+
+      test('files נחתך לתקרה', () {
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://info/folders?files=9999'),
+                )
+                as ShowInfoAction;
+
+        expect(action.fileLimit, ExternalUriRouter.maxInfoFileLimit);
+      });
+
+      test('files לא חוקי נופל לברירת המחדל', () {
+        for (final raw in ['-3', 'abc', '']) {
+          final action =
+              ExternalUriRouter.parseUri(
+                    Uri.parse('otzaria://info/folders?files=$raw'),
+                  )
+                  as ShowInfoAction;
+
+          expect(
+            action.fileLimit,
+            PersonalFoldersInfo.defaultFileLimit,
+            reason: 'files=$raw',
+          );
+        }
+      });
+
       test('aliases של נושאים', () {
         expect(
           (ExternalUriRouter.parseUri(Uri.parse('otzaria://info/software'))
                   as ShowInfoAction)
               .topic,
           InfoTopic.app,
+        );
+        expect(
+          (ExternalUriRouter.parseUri(Uri.parse('otzaria://info/personal'))
+                  as ShowInfoAction)
+              .topic,
+          InfoTopic.folders,
         );
         expect(
           (ExternalUriRouter.parseUri(Uri.parse('otzaria://info/logs'))

@@ -113,6 +113,109 @@ void main() {
     });
   });
 
+  group('מקטע התיקיות האישיות', () {
+    Map<String, Map<String, dynamic>> foldersSection({
+      required List<Map<String, dynamic>> folders,
+    }) => {
+      'folders': {
+        'configuredCount': folders.length,
+        'existingCount': folders.where((f) => f['exists'] == true).length,
+        'totalFiles': folders.fold<int>(
+          0,
+          (sum, f) => sum + (f['fileCount'] as int? ?? 0),
+        ),
+        'totalSizeBytes': 1536,
+        'folders': folders,
+      },
+    };
+
+    testWidgets('כל תיקייה מוצגת עם נתיב, תקציר ופירוט סיומות', (tester) async {
+      await pumpContent(
+        tester,
+        reportOf(
+          InfoTopic.folders,
+          foldersSection(
+            folders: [
+              {
+                'path': r'D:\ספרים שלי',
+                'exists': true,
+                'hidden': false,
+                'fileCount': 3,
+                'sizeBytes': 1536,
+                'filesByType': {'pdf': 1, 'txt': 2},
+                'files': [
+                  {'name': 'בראשית.txt'},
+                  {'name': 'ויקרא.txt'},
+                  {'name': 'שולחן ערוך.pdf'},
+                ],
+              },
+            ],
+          ),
+        ),
+      );
+
+      expect(find.text('תיקיות ספרים אישיים'), findsOneWidget);
+      expect(find.text(r'D:\ספרים שלי'), findsOneWidget);
+      expect(find.text('3 קבצים · 1.5 KB'), findsOneWidget);
+      expect(find.text('pdf 1 · txt 2'), findsOneWidget);
+      expect(find.text('בראשית.txt'), findsOneWidget);
+      expect(find.text('שולחן ערוך.pdf'), findsOneWidget);
+    });
+
+    testWidgets('רשימת קבצים ארוכה מקוצרת עם "ועוד"', (tester) async {
+      await pumpContent(
+        tester,
+        reportOf(
+          InfoTopic.folders,
+          foldersSection(
+            folders: [
+              {
+                'path': r'D:\רבים',
+                'exists': true,
+                'fileCount': 40,
+                'sizeBytes': 0,
+                'filesByType': {'txt': 40},
+                'files': [
+                  for (var i = 0; i < 25; i++) {'name': 'ספר$i.txt'},
+                ],
+              },
+            ],
+          ),
+        ),
+      );
+
+      expect(find.text('ספר0.txt'), findsOneWidget);
+      // 10 מוצגים מתוך 40 שנספרו — ההפרש נמדד מול הספירה, לא מול הרשימה.
+      expect(find.text('ספר10.txt'), findsNothing);
+      expect(find.text('ועוד 30…'), findsOneWidget);
+    });
+
+    testWidgets('תיקייה חסרה מסומנת במקום להיראות ריקה', (tester) async {
+      await pumpContent(
+        tester,
+        reportOf(
+          InfoTopic.folders,
+          foldersSection(
+            folders: [
+              {'path': r'E:\נותק', 'exists': false, 'fileCount': 0},
+            ],
+          ),
+        ),
+      );
+
+      expect(find.text('התיקייה לא נמצאה'), findsOneWidget);
+    });
+
+    testWidgets('בלי תיקיות מוגדרות מוצגת הודעה ולא רשימה ריקה', (tester) async {
+      await pumpContent(
+        tester,
+        reportOf(InfoTopic.folders, foldersSection(folders: const [])),
+      );
+
+      expect(find.text('לא הוגדרו תיקיות ספרים אישיים'), findsOneWidget);
+    });
+  });
+
   group('מקטע התוספים', () {
     testWidgets('רשימת מזהי התוספים עם הגרסה המותקנת', (tester) async {
       await pumpContent(
@@ -195,12 +298,13 @@ void main() {
   });
 
   group('דוח מלא', () {
-    testWidgets('all מציג את כל ארבעת המקטעים', (tester) async {
+    testWidgets('all מציג את כל חמשת המקטעים', (tester) async {
       await pumpContent(
         tester,
         reportOf(InfoTopic.all, {
           'app': {'version': '0.3.2'},
           'library': {'version': '3.1.4'},
+          'folders': {'configuredCount': 0, 'folders': const []},
           'plugins': {'installedCount': 0, 'installed': const []},
           'errors': {'totalEntries': 0, 'recent': const []},
         }),
@@ -208,6 +312,7 @@ void main() {
 
       expect(find.text('מידע על התוכנה'), findsOneWidget);
       expect(find.text('מידע על הספרייה'), findsOneWidget);
+      expect(find.text('תיקיות ספרים אישיים'), findsOneWidget);
       expect(find.text('מידע על התוספים'), findsOneWidget);
       expect(find.text('השגיאות האחרונות'), findsOneWidget);
     });
@@ -238,6 +343,25 @@ void main() {
         'databaseSizeBytes': 3221225472,
         'path': r'D:\אוצריא\books',
         'indexPath': r'D:\אוצריא\index',
+      },
+      'folders': {
+        'configuredCount': 1,
+        'existingCount': 1,
+        'totalFiles': 128,
+        'totalSizeBytes': 78643200,
+        'folders': [
+          {
+            'path': r'D:\אוצריא\ספרים אישיים ארוכים במיוחד\תיקייה',
+            'exists': true,
+            'hidden': false,
+            'fileCount': 128,
+            'sizeBytes': 78643200,
+            'filesByType': {'docx': 8, 'pdf': 20, 'txt': 100},
+            'files': [
+              {'name': 'שולחן ערוך אורח חיים עם נושאי כלים.docx'},
+            ],
+          },
+        ],
       },
       'plugins': {
         'webViewVersion': '141.0.3537.85',

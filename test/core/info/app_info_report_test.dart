@@ -63,13 +63,13 @@ void main() {
       }
     });
 
-    test('all מייצר בדיוק את ארבעת המקטעים', () {
+    test('all מייצר בדיוק את חמשת המקטעים', () {
       final json = reportFor(InfoTopic.all).toJson();
 
-      for (final slug in ['app', 'library', 'plugins', 'errors']) {
+      for (final slug in ['app', 'library', 'folders', 'plugins', 'errors']) {
         expect(json.containsKey(slug), isTrue, reason: slug);
       }
-      expect(json.keys, hasLength(3 + 4));
+      expect(json.keys, hasLength(3 + 5));
     });
 
     test('שם מקטע אינו מתנגש עם שדה שורש', () {

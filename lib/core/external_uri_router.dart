@@ -7,6 +7,7 @@ import 'package:otzaria/utils/file/text_encoding.dart'
     show decodeTextBytesSmart;
 import 'package:path/path.dart' as p;
 import 'package:otzaria/core/info/info_topic.dart';
+import 'package:otzaria/core/info/personal_folders_info.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/plugins/models/plugin_store_install_request.dart';
 import 'package:otzaria/plugins/services/plugin_store_link_parser.dart';
@@ -169,12 +170,15 @@ class ReindexLibraryAction extends ExternalUriAction {
 /// אותו בפופאפ. בשונה מכל שאר הפעולות אינה מנווטת לשום מקום.
 ///
 /// [errorLimit] — מספר רשומות השגיאה האחרונות שייכללו בדוח.
+/// [fileLimit] — מספר קובצי הספרים שיפורטו לכל תיקייה אישית במקטע `folders`.
 class ShowInfoAction extends ExternalUriAction {
   final InfoTopic topic;
   final int errorLimit;
+  final int fileLimit;
   const ShowInfoAction(
     this.topic, {
     this.errorLimit = ExternalUriRouter.defaultInfoErrorLimit,
+    this.fileLimit = PersonalFoldersInfo.defaultFileLimit,
   });
 }
 
@@ -232,6 +236,9 @@ class ShowInfoAction extends ExternalUriAction {
 /// * `otzaria://info`                       – דוח JSON מלא (תוכנה + ספרייה + תוספים + שגיאות)
 /// * `otzaria://info/app`                   – מידע על התוכנה (גרסה, תאריכי התקנה/עדכון, סוג התקנה)
 /// * `otzaria://info/library`               – מידע על הספרייה (גרסה, תאריך עדכון, מספרי ספרים)
+/// * `otzaria://info/folders`               – התיקיות שהוגדרו כספרים אישיים וקובצי הספרים שבהן
+///   - `?files=<n>` מספר הקבצים המפורטים לכל תיקייה (0..[ExternalUriRouter.maxInfoFileLimit]);
+///     `0` = ספירות בלבד
 /// * `otzaria://info/plugins`               – מידע על התוספים (גרסת WebView, מזהים וגרסאות)
 /// * `otzaria://info/errors`                – השגיאות האחרונות מקובצי הלוג
 ///   - `?limit=<n>` מספר הרשומות (1..[ExternalUriRouter.maxInfoErrorLimit])
@@ -243,6 +250,10 @@ class ExternalUriRouter {
 
   /// תקרה ל-`limit=` — דוח ארוך מזה אינו קריא בפופאפ ומכביד על קריאת הלוג.
   static const int maxInfoErrorLimit = 50;
+
+  /// תקרה ל-`files=` — פירוט ארוך מזה לכל תיקייה הופך את הפופאפ לבלתי-קריא.
+  /// ה-CLI אינו כפוף לה: הקורא בשורת הפקודה מהימן ומקבל בדיוק מה שביקש.
+  static const int maxInfoFileLimit = 500;
 
   static const Map<String, String> _toolAliases = {
     'calendar': 'builtin.calendar',
@@ -389,7 +400,7 @@ class ExternalUriRouter {
     return decodeTextBytesSmart(bytes.takeBytes());
   }
 
-  /// `otzaria://info[/<topic>][?limit=<n>]`. נתיב ריק שווה ל-`all`.
+  /// `otzaria://info[/<topic>][?limit=<n>][?files=<n>]`. נתיב ריק שווה ל-`all`.
   static ExternalUriAction? _parseInfo(Uri uri) {
     final segments = uri.pathSegments
         .where((segment) => segment.isNotEmpty)
@@ -401,12 +412,21 @@ class ExternalUriRouter {
         : InfoTopic.fromSlug(segments.first);
     if (topic == null) return null;
 
-    final rawLimit = int.tryParse(uri.queryParameters['limit']?.trim() ?? '');
+    final parameters = _queryParametersOf(uri);
+
+    final rawLimit = int.tryParse(parameters['limit']?.trim() ?? '');
     final errorLimit = (rawLimit == null || rawLimit <= 0)
         ? defaultInfoErrorLimit
         : math.min(rawLimit, maxInfoErrorLimit);
 
-    return ShowInfoAction(topic, errorLimit: errorLimit);
+    // `files=0` הוא ערך משמעותי — ספירות בלי רשימת קבצים — ולכן רק ערך
+    // שלילי או לא-מספרי נופל לברירת המחדל.
+    final rawFiles = int.tryParse(parameters['files']?.trim() ?? '');
+    final fileLimit = (rawFiles == null || rawFiles < 0)
+        ? PersonalFoldersInfo.defaultFileLimit
+        : math.min(rawFiles, maxInfoFileLimit);
+
+    return ShowInfoAction(topic, errorLimit: errorLimit, fileLimit: fileLimit);
   }
 
   static String? _parseLocalInstall(Uri uri) {

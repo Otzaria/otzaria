@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/info/app_info_cli.dart';
 import 'package:otzaria/core/info/app_info_service.dart';
 import 'package:otzaria/core/info/info_topic.dart';
+import 'package:otzaria/core/info/personal_folders_info.dart';
 
 void main() {
   late StringBuffer out;
@@ -41,6 +42,7 @@ void main() {
 
       expect(request.topic, InfoTopic.all);
       expect(request.errorLimit, 5);
+      expect(request.fileLimit, PersonalFoldersInfo.defaultFileLimit);
       expect(request.compact, isFalse);
       expect(request.help, isFalse);
     });
@@ -94,6 +96,29 @@ void main() {
         final localErr = StringBuffer();
         expect(AppInfoCli.parseArgs([raw], localErr), isNull, reason: raw);
         expect(localErr.toString(), contains('--limit'));
+      }
+    });
+
+    test('--files קולט מספר, כולל 0', () {
+      expect(
+        AppInfoCli.parseArgs(['folders', '--files=200'], err)!.fileLimit,
+        200,
+      );
+      expect(
+        AppInfoCli.parseArgs(['folders', '--files=0'], err)!.fileLimit,
+        0,
+      );
+    });
+
+    test('--files אינו כפוף לתקרת ה-URI', () {
+      expect(AppInfoCli.parseArgs(['--files=100000'], err)!.fileLimit, 100000);
+    });
+
+    test('--files לא חוקי נדחה', () {
+      for (final raw in ['--files=-1', '--files=abc', '--files=']) {
+        final localErr = StringBuffer();
+        expect(AppInfoCli.parseArgs([raw], localErr), isNull, reason: raw);
+        expect(localErr.toString(), contains('--files'));
       }
     });
 

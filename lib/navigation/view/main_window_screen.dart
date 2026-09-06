@@ -1396,6 +1396,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
           ? pluginState.plugins
           : await PluginRegistryRepository().getAllPlugins(),
       errorLimit: action.errorLimit,
+      fileLimit: action.fileLimit,
     );
     if (!mounted) {
       _isShowingInfoReport = false;
