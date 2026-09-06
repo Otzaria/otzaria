@@ -42,7 +42,8 @@ class AppPaths {
   /// שם הקובץ שבו נרשם נתיב הספרייה הפעיל עבור ה-uninstaller.
   static const String libraryPathRecordFileName = 'library_path.txt';
 
-  /// שם תיקיית ארכיוני התוספים שהמתקין מניח ליד ה-executable.
+  /// שם תיקיית ארכיוני התוספים שהמתקין מניח ליד ה-executable — ובמק
+  /// ב-`Contents/Resources`.
   static const String bundledPluginsFolderName = 'bundled_plugins';
 
   static bool? _isPortableCache;
@@ -270,11 +271,20 @@ class AppPaths {
   static Future<String> getPersonalBooksImportPath() async =>
       p.join(await getDataRootPath(), 'הספרים שלי');
 
-  /// תיקיית ארכיוני התוספים שחבילת ההתקנה ארזה, ליד ה-executable. `null`
-  /// במובייל, שאין בו חבילה כזו. התיקייה אינה קיימת כשהחבילה נבנתה בלי תוספים.
+  /// תיקיית ארכיוני התוספים שחבילת ההתקנה ארזה, ליד ה-executable — ובמק
+  /// ב-`Contents/Resources` שבתוך ה-`.app`. `null` במובייל, שאין בו חבילה
+  /// כזו. התיקייה אינה קיימת כשהחבילה נבנתה בלי תוספים.
   static String? getBundledPluginsPath() {
     if (Platform.isAndroid || Platform.isIOS) return null;
-    return p.join(p.dirname(_resolvedExecutable), bundledPluginsFolderName);
+    final exeDir = p.dirname(_resolvedExecutable);
+    // Contents/MacOS מיועדת לקוד בלבד: קובץ נתונים שם נחתם כקוד לא חתום,
+    // ו-Gatekeeper פוסל את ה-bundle כולו ("האפליקציה פגומה").
+    if (Platform.isMacOS) {
+      return p.normalize(
+        p.join(exeDir, '..', 'Resources', bundledPluginsFolderName),
+      );
+    }
+    return p.join(exeDir, bundledPluginsFolderName);
   }
 
   /// מזהה תיקיית ספרייה מצורפת ליד ה-executable עבור חבילות FULL.

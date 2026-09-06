@@ -179,9 +179,9 @@ jobs:
       #     path: |
       #       ${{ env.CARGO_HOME }}\registry
       #       ${{ env.CARGO_HOME }}\git
-      #     key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      #     key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('pubspec.yaml') }}
       #     restore-keys: |
-      #       ${{ runner.os }}-cargo-
+      #       ${{ runner.os }}-${{ runner.arch }}-cargo-
 
       # - name: Add cargo to PATH & verify toolchain
       #   shell: pwsh
@@ -876,10 +876,12 @@ jobs:
           path: |
             ${{ env.CARGO_HOME }}/registry
             ${{ env.CARGO_HOME }}/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          # אין Cargo.lock ב-repo (מנוע החיפוש מגיע כחבילת pub), לכן hashFiles עליו
+          # מחזיר ריק והמפתח נשאר קבוע — ומפתח מטמון שנשמר לא מתעדכן לעולם.
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('pubspec.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
-      
+            ${{ runner.os }}-${{ runner.arch }}-cargo-
+
       - name: Install Linux build dependencies
         shell: bash
         run: |
@@ -1184,7 +1186,9 @@ jobs:
 
           # 1. הרץ את פקודת הבנייה, אבל תפוס את הכישלון כדי שנוכל לתקן אחריו
           echo "Attempting to build with flutter_distributor, it might fail..."
-          flutter_distributor release --name=production --jobs=release-linux-deb || true
+          # --skip-clean: בלעדיו ה-distributor מריץ flutter clean ובונה מאפס
+          # (Rust + CMake) את מה שכבר נבנה בשלב הקודם — ~9 דקות לפח.
+          flutter_distributor release --name=production --jobs=release-linux-deb --skip-clean || true
 
           # 2. שני מסלולים: אם ה-distributor הצליח (Depends תקין) — נפרק את ה-deb
           # שיצר כדי להזריק את ה-WPE runtime; אם נכשל — נשאר עץ מפורק עם control.
@@ -1273,7 +1277,8 @@ jobs:
 
           # 1. הרץ את פקודת הבנייה הבעייתית, ותפוס את הכישלון
           echo "Attempting to build with flutter_distributor, expecting it to fail..."
-          flutter_distributor release --name=production --jobs=release-linux-rpm || true
+          # --skip-clean: ראה ההסבר בשלב ה-deb — בלעדיו זו בנייה מלאה נוספת.
+          flutter_distributor release --name=production --jobs=release-linux-rpm --skip-clean || true
 
           # 2. מצא את קובץ ה-spec הפגום שהכלי יצר
           SPEC_FILE=$(find dist -type f -name "*.spec" | head -n 1)
@@ -1457,12 +1462,19 @@ jobs:
           Start the app using ./run-otzaria.sh so the app can detect the bundled library folder.
           EOF
 
+          # gzip הביא את החבילה ל-2.5GB, מעל מגבלת 2 GiB לקובץ ב-GitHub Releases.
+          # ‏--long=27 הוא חלון שכל zstd מחלץ בלי דגלים נוספים.
+          pack_full_bundle() {
+            tar -C full_installer -cf - otzaria-linux-full | zstd -19 -T0 --long=27 -o "$1"
+            [ "$(stat -c '%s' "$1")" -lt 2147483648 ] \
+              || { echo "::error::$1 exceeds GitHub's 2 GiB release-asset limit"; exit 1; }
+          }
           if [ "${{ matrix.arch }}" = "aarch64" ]; then
-            tar -czf otzaria-linux-full-arm64.tar.gz -C full_installer otzaria-linux-full
+            pack_full_bundle otzaria-linux-full-arm64.tar.zst
             # הספרייה המאונדקסת חוצת-פלטפורמות — עותק אחד נבנה ב-x86_64 בלבד.
             exit 0
           fi
-          tar -czf otzaria-linux-full.tar.gz -C full_installer otzaria-linux-full
+          pack_full_bundle otzaria-linux-full.tar.zst
 
           # חבילת ספרייה נוספת עם אינדקס טקסט מוכן מאותו מנוע של האפליקציה.
           # כולל ספרי PDF: מפתח האינדקס שלהם הוא מזהה יציב ולא נתיב ההתקנה.
@@ -1517,7 +1529,7 @@ jobs:
         uses: actions/upload-artifact@v7.0.1
         with:
           name: otzaria-linux-full${{ matrix.arch == 'aarch64' && '-arm64' || '' }}
-          path: otzaria-linux-full${{ matrix.arch == 'aarch64' && '-arm64' || '' }}.tar.gz
+          path: otzaria-linux-full${{ matrix.arch == 'aarch64' && '-arm64' || '' }}.tar.zst
 
       - name: Upload indexed FULL library parts
         if: matrix.target == 'full' && matrix.arch == 'x86_64'
@@ -1603,9 +1615,10 @@ jobs:
             ${{ env.CARGO_HOME }}/registry
             ${{ env.CARGO_HOME }}/git
             ${{ env.RUSTUP_HOME }}
-          key: ${{ runner.os }}-rust-android-${{ hashFiles('**/Cargo.lock') }}
+          # אין Cargo.lock ב-repo — ראה ההסבר בשלב המקביל ב-build_linux.
+          key: ${{ runner.os }}-${{ runner.arch }}-rust-android-${{ hashFiles('pubspec.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-rust-android-
+            ${{ runner.os }}-${{ runner.arch }}-rust-android-
 
       - name: Pre-install Android Rust targets (with retry)
         run: |
@@ -1662,9 +1675,9 @@ jobs:
         with:
           path: |
             ~/.pub-cache
-          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pub-${{ hashFiles('pubspec.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-pub-
+            ${{ runner.os }}-${{ runner.arch }}-pub-
       
       - name: Create Google Calendar Credentials
         shell: bash
@@ -1890,9 +1903,10 @@ jobs:
           path: |
             ${{ env.CARGO_HOME }}/registry
             ${{ env.CARGO_HOME }}/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          # אין Cargo.lock ב-repo — ראה ההסבר בשלב המקביל ב-build_linux.
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('pubspec.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-${{ runner.arch }}-cargo-
 
       - name: Fetch biographies data
         uses: ./.github/actions/fetch-biographies
@@ -1963,8 +1977,8 @@ jobs:
         run: bash installer/download_bundled_plugins.sh macos
 
       # רץ לפני יצירת ה-DMG — כך הארכיונים מגיעים גם ל-zip העדכון ולחבילת
-      # ה-FULL, שמעתיקים את אותו .app. התיקייה יושבת ליד ה-executable
-      # (Contents/MacOS), הנתיב ש-AppPaths.getBundledPluginsPath מחפש.
+      # ה-FULL, שמעתיקים את אותו .app. Contents/Resources היא מקום הנתונים
+      # ב-bundle, הנתיב ש-AppPaths.getBundledPluginsPath מחפש במק.
       - name: Bundle plugins into the app bundle
         shell: bash
         run: |
@@ -1975,7 +1989,22 @@ jobs:
           fi
           APP_PATH=$(find build/macos/Build/Products/Release -maxdepth 1 -name "*.app" | head -1)
           [ -n "$APP_PATH" ] || { echo "::error::No .app bundle found for plugin bundling"; exit 1; }
-          cp -R installer/bundled_plugins "$APP_PATH/Contents/MacOS/bundled_plugins"
+          cp -R installer/bundled_plugins "$APP_PATH/Contents/Resources/bundled_plugins"
+
+      # כל שינוי בתוכן ה-bundle מבטל את חותם _CodeSignature, ואז Gatekeeper
+      # מכריז אצל המשתמש "האפליקציה פגומה". חייב לרוץ לפני ה-DMG וה-zip-ים.
+      - name: Re-sign and verify the app bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_PATH=$(find build/macos/Build/Products/Release -maxdepth 1 -name "*.app" | head -1)
+          [ -n "$APP_PATH" ] || { echo "::error::No .app bundle found for re-signing"; exit 1; }
+          # אותה חתימה ad-hoc שה-Xcode עושה (CODE_SIGN_IDENTITY = "-"); בלי
+          # --entitlements החתימה מחדש מוחקת את ההרשאות שהבינארי קיבל.
+          codesign --force --sign - \
+            --entitlements macos/Runner/Release.entitlements \
+            "$APP_PATH"
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 
       - name: Create DMG installer
         run: |
@@ -2071,7 +2100,10 @@ jobs:
           Start the app using Run Otzaria.command so the app can detect the bundled library folder.
           EOF
 
-          ditto -c -k --sequesterRsrc --keepParent "$BUNDLE_ROOT" otzaria-macos-full.zip
+          # zip הביא את החבילה ל-2.5GB, מעל מגבלת 2 GiB לקובץ ב-GitHub Releases.
+          tar -C full_installer -cf - otzaria-macos-full | zstd -19 -T0 --long=27 -o otzaria-macos-full.tar.zst
+          [ "$(stat -f '%z' otzaria-macos-full.tar.zst)" -lt 2147483648 ] \
+            || { echo "::error::otzaria-macos-full.tar.zst exceeds GitHub's 2 GiB release-asset limit"; exit 1; }
 
       - name: Upload macOS DMG
         if: always()
@@ -2092,7 +2124,7 @@ jobs:
         uses: actions/upload-artifact@v7.0.1
         with:
           name: otzaria-macos-full
-          path: otzaria-macos-full.zip
+          path: otzaria-macos-full.tar.zst
 
   build_windows_indexed_full:
     if: github.event_name != 'release' && github.event_name != 'pull_request'
@@ -2311,12 +2343,12 @@ jobs:
 
           # Linux FULL bundle (arm64)
           if [ -d "artifacts/otzaria-linux-full-arm64" ]; then
-            cp artifacts/otzaria-linux-full-arm64/*.tar.gz release-files/ || true
+            cp artifacts/otzaria-linux-full-arm64/*.tar.zst release-files/ || true
           fi
 
           # Linux FULL bundle
           if [ -d "artifacts/otzaria-linux-full" ]; then
-            cp artifacts/otzaria-linux-full/*.tar.gz release-files/ || true
+            cp artifacts/otzaria-linux-full/*.tar.zst release-files/ || true
           fi
 
           # Cross-platform indexed FULL library (multipart; every part is below 2 GiB)
@@ -2346,7 +2378,7 @@ jobs:
 
           # macOS FULL bundle
           if [ -d "artifacts/otzaria-macos-full" ]; then
-            cp artifacts/otzaria-macos-full/*.zip release-files/ || true
+            cp artifacts/otzaria-macos-full/*.tar.zst release-files/ || true
           fi
           
           # List files for debugging
@@ -2428,7 +2460,7 @@ jobs:
               *.apk)
                 android_apk+=("$file")
                 ;;
-              *linux-full*.tar.gz|*linux-full*.tar.*)
+              *linux-full*.tar.*)
                 linux_full+=("$file")
                 ;;
               *.deb)
@@ -2443,7 +2475,7 @@ jobs:
               *.dmg)
                 mac_dmg+=("$file")
                 ;;
-              *macos-full*.zip)
+              *macos-full*.tar.*)
                 mac_full+=("$file")
                 ;;
               *)
@@ -2551,7 +2583,7 @@ jobs:
             if [ ${#linux_full[@]} -gt 0 ]; then
               printf "### גרסת ספרייה מלאה\n\n" >> release-body.md
               emit_link_group "חבילה מלאה ללינוקס" "${linux_full[@]}"
-              printf "\n" >> release-body.md
+              printf "\nחילוץ: %star --zstd -xf <הקובץ>%s ואז %s./run-otzaria.sh%s.\n\n" '`' '`' '`' '`' >> release-body.md
             fi
 
           fi
@@ -2568,7 +2600,7 @@ jobs:
             if [ ${#mac_full[@]} -gt 0 ]; then
               printf "### גרסת ספרייה מלאה\n\n" >> release-body.md
               emit_link_group "חבילה מלאה למק" "${mac_full[@]}"
-              printf "\n" >> release-body.md
+              printf "\nחילוץ בטרמינל: %star --zstd -xf <הקובץ>%s (אם חסר zstd: %sbrew install zstd%s) ואז %sRun Otzaria.command%s.\n\n" '`' '`' '`' '`' '`' '`' >> release-body.md
             fi
           fi
 

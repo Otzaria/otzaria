@@ -591,7 +591,10 @@ class _FakeIndexingBloc extends IndexingBloc {
     : this._(repository ?? _FakeIndexingRepository());
 
   _FakeIndexingBloc._(this.repository)
-    : super(repository, reportFailures: repository.reportedResults.add);
+    : super(
+        repository,
+        reportFailures: (result, _) => repository.reportedResults.add(result),
+      );
 
   final _FakeIndexingRepository repository;
 }

@@ -114,4 +114,31 @@ void main() {
       false,
     );
   });
+
+  test('ריצה נקייה שחרגה מסף העלייה האיטית נרשמת עם משכה', () {
+    final tempDir = Directory.systemTemp.createTempSync(
+      'otzaria-indexing-slow-',
+    );
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+
+    IndexingFailureReporter.writeForTesting(
+      const IndexingRunResult.completed(
+        processedBooks: 8124,
+        totalBooks: 8124,
+        indexedBooks: 39,
+      ),
+      tempPath: tempDir.path,
+      elapsed: const Duration(minutes: 3),
+    );
+
+    final contents = ErrorLogFile.resolveFile(
+      environment: const {},
+      platform: ErrorLogPlatform.other,
+      tempPath: tempDir.path,
+    ).readAsStringSync();
+    expect(contents, contains('=== Indexing run '));
+    expect(contents, isNot(contains('Indexing failures')));
+    expect(contents, contains('Duration: 180s'));
+    expect(contents, contains('Processed: 8124/8124'));
+  });
 }

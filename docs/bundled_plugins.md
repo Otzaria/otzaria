@@ -50,17 +50,21 @@ const bundledPlugins = <String, String>{
    `installer/download_bundled_plugins.ps1`; בלינוקס ובמק —
    `installer/download_bundled_plugins.sh` (אותה לוגיקה; בקונטיינר הלינוקס
    אין pwsh). שינוי בפורמט הרשימה או בכתובת ההורדה מחייב עדכון **שניהם**.
-2. **האריזה** מניחה את התיקייה ליד ה-executable, הנתיב
-   ש-`AppPaths.getBundledPluginsPath` מחפש:
+2. **האריזה** מניחה את התיקייה ליד ה-executable — ובמק בתוך ה-`.app`,
+   ב-`Contents/Resources` — הנתיב ש-`AppPaths.getBundledPluginsPath` מחפש:
    - **Windows** — המתקין מעתיק ל-`{app}\bundled_plugins` (עם
      `skipifsourcedoesntexist`, כך שבנייה מקומית בלי התוספים עובדת כרגיל).
      שדרוג מוחק קודם את התיקייה הישנה (`[InstallDelete]`).
    - **לינוקס** — ה-workflow מעתיק אל שורש ה-bundle (ליד הבינארי) בכל ארבע
      החבילות: לעץ ה-deb וה-rpm לפני ה-repack, ול-bundle הראשי שממנו נגזרות
      raw ו-FULL.
-   - **מק** — ה-workflow מעתיק אל `Contents/MacOS/bundled_plugins` בתוך
+   - **מק** — ה-workflow מעתיק אל `Contents/Resources/bundled_plugins` בתוך
      ה-`.app` לפני יצירת ה-DMG, ולכן זה מגיע גם ל-zip העדכון ולחבילת
-     ה-FULL שמעתיקים את אותו bundle.
+     ה-FULL שמעתיקים את אותו bundle. מיד אחרי ההעתקה ה-bundle נחתם מחדש
+     (ad-hoc) ונבדק ב-`codesign --verify --deep --strict` — הזרקת קבצים
+     מבטלת את חותם `_CodeSignature`, ו-Gatekeeper פוסל אז את האפליקציה.
+     `Contents/MacOS` אינה מתאימה: היא שמורה לקוד, וקובצי נתונים בה נחתמים
+     כקוד לא חתום ומפילים את האימות (TN2206).
    - **אנדרואיד** — ה-workflow מעתיק אל `assets/bundled_plugins/` לפני
      `flutter build apk`; התיקייה מוצהרת ב-pubspec.yaml (בריפו היא ריקה —
      מאוכלסת רק ב-CI) והארכיונים נארזים כ-assets בתוך ה-APK.

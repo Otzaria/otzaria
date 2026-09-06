@@ -85,9 +85,9 @@ jobs:
             ${{ env.CARGO_HOME }}/registry
             ${{ env.CARGO_HOME }}/git
             ${{ env.RUSTUP_HOME }}
-          key: ${{ runner.os }}-rust-android-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-rust-android-${{ hashFiles('pubspec.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-rust-android-
+            ${{ runner.os }}-${{ runner.arch }}-rust-android-
 
       - name: Pre-install Android Rust targets (with retry)
         run: |
@@ -139,9 +139,9 @@ jobs:
         with:
           path: |
             ~/.pub-cache
-          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pub-${{ hashFiles('pubspec.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-pub-
+            ${{ runner.os }}-${{ runner.arch }}-pub-
 
       - name: Create Google Calendar Credentials
         shell: bash
@@ -233,5 +233,5 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: org.otzaria.otzaria
           releaseFiles: build/app/outputs/bundle/release/app-release.aab
-          track: production
+          tracks: production
           status: completed

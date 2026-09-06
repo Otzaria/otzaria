@@ -133,8 +133,8 @@
 ```sudo apt-get install libgtk-3-0 libblkid1 liblzma5```
 #### התקנה
 * הורידו את גרסת Linux מ-releases, חלצו והריצו את Otzaria.
-* עבור גרסאות רשמיות קיים גם חבילה מלאה (FULL): `otzaria-linux-full.tar.gz`.
-* החבילה המלאה כוללת את האפליקציה והספרייה יחד. חלצו אותה והריצו את `run-otzaria.sh`.
+* עבור גרסאות רשמיות קיים גם חבילה מלאה (FULL): `otzaria-linux-full.tar.zst`.
+* החבילה המלאה כוללת את האפליקציה והספרייה יחד. חלצו אותה (`tar --zstd -xf otzaria-linux-full.tar.zst`) והריצו את `run-otzaria.sh`.
 * בהרצה הראשונה של האפליקציה, תתבקשו להוריד את הספרייה.
 * לחלופין, ניתן להוריד את הספרייה ידנית מ-[כאן](https://github.com/Otzaria/SeforimLibrary/releases), לחלץ אותה ולספק את הנתיב שלה לאפליקציה.
 
@@ -152,8 +152,8 @@
 
 ### macOS
 * הורידו את גרסת MacOS האחרונה מדף ה-releases.
-* עבור גרסאות רשמיות קיים גם חבילה מלאה (FULL): `otzaria-macos-full.zip`.
-* החבילה המלאה כוללת את האפליקציה והספרייה יחד. חלצו אותה והפעילו את `Run Otzaria.command`.
+* עבור גרסאות רשמיות קיים גם חבילה מלאה (FULL): `otzaria-macos-full.tar.zst`.
+* החבילה המלאה כוללת את האפליקציה והספרייה יחד. חלצו אותה בטרמינל (`tar --zstd -xf otzaria-macos-full.tar.zst`; אם חסר zstd: `brew install zstd`) והפעילו את `Run Otzaria.command`.
 * הריצו את האפליקציה תוך לחיצה על מקש ctrl.
 * בהרצה הראשונה של האפליקציה, תתבקשו להוריד את הספרייה.
 * לחלופין, ניתן להוריד את הספרייה ידנית מ-[כאן](https://github.com/Otzaria/SeforimLibrary/releases), לחלץ אותה ולספק את הנתיב שלה לאפליקציה.

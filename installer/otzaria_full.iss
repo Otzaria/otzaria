@@ -1582,8 +1582,9 @@ begin
       else
         ErrorMessage := GetExceptionMessage;
       Log('Indexed library download failed: ' + ErrorMessage);
-      SuppressibleMsgBox('הורדת הספרייה המלאה נכשלה.' +
-        #13#10#13#10 + ErrorMessage, mbCriticalError, MB_OK, IDOK);
+      // ‏# בתחילת שורה נקרא כדירקטיבת preprocessor — קבועי תווים חייבים להמשיך שורה קיימת.
+      SuppressibleMsgBox('הורדת הספרייה המלאה נכשלה.' + #13#10#13#10 +
+        ErrorMessage, mbCriticalError, MB_OK, IDOK);
     end;
   finally
     IndexedDownloadPage.Hide;

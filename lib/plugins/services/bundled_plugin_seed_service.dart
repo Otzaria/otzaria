@@ -12,7 +12,8 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as p;
 
 /// רושמת את התוספים שחבילת ההתקנה ארזה, כדי שיהיו מותקנים כבר בפתיחה
-/// הראשונה. בדסקטופ הארכיונים יושבים ליד ה-executable; במובייל אין תיקייה
+/// הראשונה. בדסקטופ הארכיונים יושבים ליד ה-executable (במק ב-Contents/
+/// Resources); במובייל אין תיקייה
 /// כזו והם נארזים כ-assets בתוך החבילה. ראה docs/bundled_plugins.md.
 class BundledPluginSeedService {
   /// מבחין בין "לא הועבר" (ברירת המחדל של הפלטפורמה) לבין `null` מפורש

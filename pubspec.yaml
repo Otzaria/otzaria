@@ -84,7 +84,7 @@ dependencies:
   seforim_library_updater:
     git:
       url: https://github.com/Otzaria/otzaria_library_updater
-      ref: a6fb3451d6f5be87df4f7bb5495f5ab90e9a1790
+      ref: main
   window_manager: ^0.5.2
   screen_retriever: ^0.2.2
   flutter_spinbox: ^0.13.1
@@ -207,6 +207,11 @@ flutter:
     - assets/export_restricted_books.json
 
   fonts:
+    # החבילה מספקת את הגופן אך אינה מצהירה עליו, ולכן שני אייקוני ה-light
+    # שבמפת התוספים היו נטענים כריבוע ריק.
+    - family: FluentSystemIcons-Light
+      fonts:
+        - asset: packages/fluentui_system_icons/fonts/FluentSystemIcons-Light.ttf
     - family: TaameyAshkenaz
       fonts:
         - asset: fonts/TaameyAshkenaz-Medium.ttf

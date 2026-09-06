@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
+import 'package:otzaria/core/startup_timeline.dart';
 import 'package:otzaria/core/windowing/multi_window_service.dart';
 import 'package:otzaria/core/windowing/tab_drag_preview.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
@@ -685,10 +686,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
     // רשת ביטחון: אם תוכן הספר לא ייטען (bloc תקוע) — לא נשאיר את המשתמש
     // תקוע במסך הפתיחה. failsafe בלבד; מבוטל בזרימה תקינה וב-dispose.
-    _splashFailsafeTimer = Timer(
-      const Duration(seconds: 8),
-      _revealMainWindowOnce,
-    );
+    _splashFailsafeTimer = Timer(const Duration(seconds: 8), () {
+      StartupTimeline.instance.mark('reveal:failsafe');
+      _revealMainWindowOnce();
+    });
   }
 
   /// מתזמן את חשיפת החלון המלא, תוך מתן עדיפות לטעינת הספר הפעיל: אם נפתח ספר
@@ -728,6 +729,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
       return;
     }
 
+    StartupTimeline.instance.mark('waitingForActiveBook');
     final bloc = pendingPane.bloc;
     late final StreamSubscription<TextBookState> sub;
     var done = false;
@@ -735,6 +737,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
       if (done) return;
       done = true;
       sub.cancel();
+      StartupTimeline.instance.mark('activeBookLoaded');
       _revealMainWindowOnce();
     }
 

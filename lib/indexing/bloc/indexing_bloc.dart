@@ -16,7 +16,8 @@ import 'package:otzaria/models/books.dart';
 
 class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
   final IndexingRepository _repository;
-  final void Function(IndexingRunResult result) _reportFailures;
+  final void Function(IndexingRunResult result, Duration elapsed)
+  _reportFailures;
   int _nextWorkId = 0;
   int? _activeWorkId;
   bool _isPaused = false;
@@ -26,7 +27,7 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
 
   IndexingBloc(
     this._repository, {
-    void Function(IndexingRunResult result)? reportFailures,
+    void Function(IndexingRunResult result, Duration elapsed)? reportFailures,
   }) : _reportFailures = reportFailures ?? IndexingFailureReporter.write,
        super(IndexingInitial()) {
     on<IndexingWorkEvent>(_onIndexingWork, transformer: sequential());
@@ -119,6 +120,7 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     Emitter<IndexingState> emit,
   ) async {
     final workId = ++_nextWorkId;
+    final runClock = Stopwatch()..start();
     _activeWorkId = workId;
 
     final totalCandidates = event.library
@@ -172,7 +174,7 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
         return;
       }
       _activeWorkId = null;
-      _reportRunFailures(result);
+      _reportRunFailures(result, runClock.elapsed);
       if (result.completed) {
         emit(IndexingComplete(failures: result.failures));
       } else {
@@ -199,6 +201,7 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     Emitter<IndexingState> emit,
   ) async {
     final workId = ++_nextWorkId;
+    final runClock = Stopwatch()..start();
     _activeWorkId = workId;
 
     // Set initial state
@@ -238,7 +241,7 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
         return;
       }
       _activeWorkId = null;
-      _reportRunFailures(result);
+      _reportRunFailures(result, runClock.elapsed);
       if (result.completed && totalBooks > 0) {
         emit(IndexingComplete(failures: result.failures));
       } else {
@@ -321,6 +324,7 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     required bool reindex,
   }) async {
     final workId = ++_nextWorkId;
+    final runClock = Stopwatch()..start();
     _activeWorkId = workId;
 
     if (books.isEmpty) {
@@ -357,7 +361,7 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
         return;
       }
       _activeWorkId = null;
-      _reportRunFailures(result);
+      _reportRunFailures(result, runClock.elapsed);
       if (result.completed) {
         emit(IndexingComplete(failures: result.failures));
       } else {
@@ -378,8 +382,11 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     }
   }
 
-  void _reportRunFailures(IndexingRunResult result) {
-    if (result.failures.isNotEmpty) _reportFailures(result);
+  void _reportRunFailures(IndexingRunResult result, Duration elapsed) {
+    if (result.failures.isNotEmpty ||
+        IndexingFailureReporter.isSlowRun(elapsed)) {
+      _reportFailures(result, elapsed);
+    }
   }
 
   Future<void> _onCheckIndexStatus(
