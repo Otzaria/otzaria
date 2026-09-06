@@ -523,6 +523,13 @@ SystemDragResult DragWithSystem() {
   ::SendMessageW(g_window, WM_NCLBUTTONDOWN, HTCAPTION,
                  MAKELPARAM(cursor.x, cursor.y));
 
+  // ⚠️ לולאת ההזזה יוצאת באותו אופן בשחרור ובביטול ב-ESC. בלי הבדיקה
+  // הביטול דווח כשחרור מוצלח, והכרטיסיה עברה בניגוד לרצון המשתמש.
+  if (::GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
+    g_system_dragging.store(false);
+    return out;  // ran=false — Dart מטפל בו כ"אל תעשה כלום"
+  }
+
   g_system_dragging.store(false);
   out.ran = true;
   ::GetWindowRect(g_window, &out.rect);

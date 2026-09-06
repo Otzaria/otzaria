@@ -12,6 +12,8 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
+import 'package:otzaria/tabs/models/commentators_tab.dart';
+import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/resolving_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
@@ -2121,6 +2123,105 @@ void main() {
       expect(bloc.state.currentTab, same(existing));
       expect(duplicate.bloc.isClosed, isFalse);
 
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+  });
+
+  group('MoveTab', () {
+    setUp(() async {
+      await Settings.init(cacheProvider: _MemoryCacheProvider());
+    });
+
+    test('אינדקס שחורג מהרשימה מהודק במקום לזרוק', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final first = _createTextTab('ספר א', categoryId: 1);
+      final second = _createTextTab('ספר ב', categoryId: 2);
+      bloc.add(AddTab(first));
+      bloc.add(AddTab(second));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      // הרצועה הצטמקה בין הריחוף לשחרור — האינדקס שחושב אז כבר אינו קיים.
+      bloc.add(MoveTab(first, 5));
+      await bloc.stream.firstWhere((s) => s.tabs.last == first);
+
+      expect(bloc.state.tabs, [second, first]);
+      expect(bloc.state.currentTabIndex, 1);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('MoveTab על כרטיסיה שאינה ברשימה אינו מחדיר אותה', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final kept = _createTextTab('ספר א', categoryId: 1);
+      final removed = _createTextTab('ספר ב', categoryId: 2);
+      bloc.add(AddTab(kept));
+      bloc.add(AddTab(removed));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      bloc.add(RemoveTab(removed));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+
+      // ⚠️ ה-`dispose` של `removed` כבר מתוזמן; החדרה חוזרת שלה מכניסה
+      // לרשימה כרטיסיה שעומדת להשתחרר.
+      bloc.add(MoveTab(removed, 0));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(bloc.state.tabs, [kept]);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+  });
+
+  group('כרטיסיית מפרשים ששרדה יורשת את טאב הספר', () {
+    setUp(() async {
+      await Settings.init(cacheProvider: _MemoryCacheProvider());
+    });
+
+    test('סגירת טאב הספר אינה משחררת אותו מתחת לכרטיסיית המפרשים', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final book = _createTextTab('ספר א', categoryId: 1);
+      final commentators = CommentatorsTab(sourceTab: book);
+
+      bloc.add(AddTab(book));
+      bloc.add(AddTab(commentators));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      bloc.add(RemoveTab(book));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+
+      // רצועת הכרטיסיות קוראת את `sourceTab.currentTitle` דרך
+      // `LiveTabTitleBuilder` — notifier משוחרר שם הוא מסך אדום.
+      expect(book.bloc.isClosed, isFalse);
+      expect(() => book.currentTitle.value, returnsNormally);
+
+      // הבעלות עברה: שחרור כרטיסיית המפרשים משחרר גם את טאב הספר.
+      commentators.dispose();
+      await Future<void>.delayed(Duration.zero);
+      expect(book.bloc.isClosed, isTrue);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('סגירת טאב PDF אינה משחררת אותו מתחת לכרטיסיית מפרשי PDF', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final book = PdfBookTab(
+        book: PdfBook(title: 'ספר PDF', path: 'a.pdf'),
+        pageNumber: 1,
+      );
+      final commentators = PdfCommentatorsTab(sourceTab: book);
+
+      bloc.add(AddTab(book));
+      bloc.add(AddTab(commentators));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      bloc.add(RemoveTab(book));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+
+      expect(() => book.currentTitle.value, returnsNormally);
+
+      commentators.dispose();
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
   });

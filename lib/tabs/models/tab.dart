@@ -134,6 +134,9 @@ abstract class OpenedTab {
         isPinned: tab.isPinned,
         dedupeKey: tab.dedupeKey,
         requiresStableLayout: tab.requiresStableLayout,
+        // `ExternalBookMatches` מחזיק `List.unmodifiable` בלבד, ולכן שיתוף
+        // המופע בטוח.
+        externalMatches: tab.externalMatches.value,
       );
       // ⚠️ שדות שנקבעים **אחרי** הבנייה, ולכן אינם עוברים בפרמטרים.
       // בלעדיהם שיכפול כרטיסיה, מעבר שולחן עבודה ופיצול לשתי חלוניות

@@ -63,4 +63,12 @@ abstract class NotesMessages {
   static const String cannotDeleteActiveWorkspace =
       'לא ניתן למחוק שולחן עבודה פעיל';
   static const String workspaceDeleted = 'שולחן העבודה נמחק';
+
+  static const String workspacesLoadFailed = 'טעינת שולחנות העבודה נכשלה';
+
+  /// ⚠️ הכרטיסיות **לא** הוחלפו — השמירה קודמת לחשיפה בדיוק כדי שזה יהיה נכון.
+  static const String workspaceSwitchFailed =
+      'החלפת שולחן העבודה נכשלה. הכרטיסיות הפתוחות נשארו כפי שהיו.';
+
+  static const String workspaceSaveFailed = 'שמירת שולחנות העבודה נכשלה';
 }

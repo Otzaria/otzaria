@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/tabs/models/external_book_matches.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/tabs/models/tab.dart';
@@ -69,5 +70,42 @@ void main() {
     expect(restored.activeCommentators, tab.activeCommentators);
     expect(restored.savedZoom, tab.savedZoom);
     expect(restored.savedLayoutMode, tab.savedLayoutMode);
+  });
+
+  group('externalMatches', () {
+    PdfBookTab withMatches() {
+      final tab = PdfBookTab(
+        book: PdfBook(title: 'ספר PDF', path: 'a.pdf'),
+        pageNumber: 1,
+        externalMatches: ExternalBookMatches(
+          pages: const [3, 8, 12],
+          matchedTerms: const ['אברהם'],
+          query: 'אברהם',
+        ),
+      );
+      return tab;
+    }
+
+    test('OpenedTab.from משמר את עמודי ההתאמה', () {
+      final tab = withMatches();
+      final copy = OpenedTab.from(tab) as PdfBookTab;
+
+      expect(copy.externalMatches.value?.pages, const [3, 8, 12]);
+      expect(copy.externalMatches.value?.query, 'אברהם');
+    });
+
+    test('clone() משמר את עמודי ההתאמה', () {
+      final tab = withMatches();
+      final copy = tab.clone() as PdfBookTab;
+
+      expect(copy.externalMatches.value?.pages, const [3, 8, 12]);
+    });
+
+    test('toJson -> fromJson משמר (בקרה)', () {
+      final tab = withMatches();
+      final restored = PdfBookTab.fromJson(tab.toJson());
+
+      expect(restored.externalMatches.value?.pages, const [3, 8, 12]);
+    });
   });
 }

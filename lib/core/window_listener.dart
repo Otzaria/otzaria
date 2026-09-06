@@ -11,6 +11,7 @@ import 'package:otzaria/core/windowing/app_window_id.dart';
 import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart';
 import 'package:otzaria/core/windowing/last_active_window.dart';
 import 'package:otzaria/core/windowing/multi_window_service.dart';
+import 'package:otzaria/core/windowing/window_bus.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/plugins/services/plugin_crash_guard.dart';
@@ -165,9 +166,10 @@ class AppWindowListener extends WindowListener {
   /// האם זה החלון האחרון, כלומר האם סגירתו היא סגירת התהליך.
   ///
   /// ⚠️ ה-runner הוא מקור האמת. ה-isolate של כל חלון רואה רק את עצמו,
-  /// ולכן חלון אינו יכול לדעת מ-Dart בלבד אם נותרו אחרים. כשהשאלה נכשלת
-  /// מניחים "כן" — התנהגות חלון יחיד, שהיא הבטוחה מבין השתיים: כיבוי
-  /// מלא ששוטף הכול, במקום תהליך שנשאר תלוי בלי חלונות.
+  /// ולכן חלון אינו יכול לדעת מ-Dart בלבד אם נותרו אחרים. כשהתשובה אינה
+  /// ידועה נופלים ל-[WindowBus.hasOtherWindows] — בדיקה סינכרונית שאינה
+  /// יכולה לפקוע — ולא להנחה, שהרי "אני האחרון" מסתיים ב-`exit(0)` שהורג
+  /// גם את החלונות האחרים.
   Future<bool> _isLastWindowClosing() async {
     try {
       // ⚠️ timeout חובה. השאלה הזו יושבת **לפני** חימוש שעון היציאה הכפויה
@@ -177,11 +179,11 @@ class AppWindowListener extends WindowListener {
       final info = await const MultiWindowService().windowCount().timeout(
         const Duration(seconds: 2),
       );
-      return info.count <= 1;
+      if (info != null) return info.count <= 1;
     } catch (e) {
-      debugPrint('windowCount failed during close, assuming last: $e');
-      return true;
+      debugPrint('windowCount failed during close: $e');
     }
+    return !WindowBus.instance.hasOtherWindows;
   }
 
   @override
@@ -205,6 +207,11 @@ class AppWindowListener extends WindowListener {
       return;
     }
     _isClosing = true;
+
+    // ⚠️ **לפני** ההכרעה מי האחרון. סגירה של כמה חלונות יחד יכולה לגמור
+    // ב-`TerminateProcess` של ה-runner בלי ששום חלון ריץ את הכיבוי המסודר,
+    // ואז ה-canary נשאר וההפעלה הבאה מסרבת לטעון את התוספים. אידמפוטנטי.
+    PluginCrashGuard.markCleanShutdownSync();
 
     // ⚠️ הפיצול הוא לפי *בעלות* — מה פר-חלון ומה פר-תהליך — ולא לפי סדר.
     // הצעד הפר-חלוני היחיד הוא ה-flush, והוא יושב באמצע רצף פר-תהליכי:
@@ -245,10 +252,6 @@ class AppWindowListener extends WindowListener {
 
   /// הצעדים שקודמים ל-flush — כולם פר-תהליך.
   Future<void> _shutdownProcessUpToFlush() async {
-    // סגירה יזומה אינה קריסה — לנקות canaries של טעינות תוספים שבטיסה
-    // לפני שה-WebViews נהרסים (dispose של הטאבים לא רץ במסלול היציאה).
-    PluginCrashGuard.markCleanShutdownSync();
-
     if (kDebugMode) {
       debugPrint('Window close requested');
     }
@@ -419,13 +422,15 @@ class AppWindowListener extends WindowListener {
             // יציאה שדווחה הייתה בתצורה המסוכנת.
             final live = await const MultiWindowService().windowCount().timeout(
               const Duration(seconds: 1),
-              onTimeout: () => (count: 1, max: 1, engines: 1),
+              onTimeout: () => null,
             );
+            final engines = live?.engines;
             _logForceTerminateFailure(
               'Job Object not ready in native runner — degraded close, '
-              'WebView2 children may still orphan (pre-fix behavior); '
-              'live engines=${live.engines} visible windows=${live.count}'
-              '${live.engines > 1 ? ' — exit() teardown is unsafe here (P-2 §3)' : ''}',
+              'WebView2 children may still orphan; '
+              'live engines=${engines ?? 'unknown'} '
+              'visible windows=${live?.count ?? 'unknown'}'
+              '${engines != null && engines > 1 ? ' — exit() teardown is unsafe here' : ''}',
               null,
             );
             await Future<void>.delayed(const Duration(milliseconds: 500));

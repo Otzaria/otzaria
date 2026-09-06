@@ -248,22 +248,6 @@ std::atomic<int> g_live_window_count{0};
 // ה-thread הראשי מפילה — ראו `CreateSecondaryWindowOnThisThread`).
 std::atomic<int> g_live_engine_count{0};
 
-// יוצר חלון אוצריא נוסף **על ה-thread הקורא**, ומשתמש בלולאת ההודעות
-// הקיימת שלו.
-//
-// ⚠️ ה-thread אינו שרירותי. ניסיון ליצור את המנוע על thread ייעודי חדש
-// קרס באופן עקבי ברגע שהחלון הראשון כבר רץ:
-//
-//   "Isolate main is already scheduled on mutator thread ...,
-//    failed to schedule from os thread ..."   isolate=(nil)
-//
-// הכשל אינו תלוי בתוספים (נבדק בלי `RegisterPlugins` כלל) ולא ב-
-// `RustLib.init` — כלומר הוא ביצירת המנוע עצמה. זהו גם מה שעושה
-// `desktop_multi_window`, מימוש ההתייחסות: כל המנועים על ה-thread הראשי.
-//
-// המחיר ידוע ומדוד: ה-platform thread וה-UI thread ממוזגים ב-3.47, ולכן
-// כל המנועים חולקים scheduler אחד — חלון עסוק מקפיא את השני
-// (ראו docs/multi-window.md). זה חוב פתוח, לא פתרון סופי.
 // מיקום החלון החדש: פינתו **בנקודה שנמסרה**, מהודקת למסך שתחתיה.
 //
 // ⚠️ הפינה, ולא חישוב סביבה. הגרסה הקודמת הזיזה את החלון
@@ -359,6 +343,16 @@ flutter::EncodableValue DescribeSystemDrag(
   return flutter::EncodableValue(info);
 }
 
+// יוצר חלון אוצריא נוסף **על ה-thread הקורא**, ומשתמש בלולאת ההודעות
+// הקיימת שלו.
+//
+// ⚠️ ה-thread אינו שרירותי. יצירת מנוע על thread ייעודי חדש קורסת
+// בעקביות כשהחלון הראשון כבר רץ ("Isolate main is already scheduled on
+// mutator thread"), בלי קשר לתוספים או ל-`RustLib.init`. כך גם עושה
+// `desktop_multi_window`: כל המנועים על ה-thread הראשי.
+//
+// המחיר: ה-platform thread וה-UI thread ממוזגים, ולכן כל המנועים חולקים
+// scheduler אחד — חלון עסוק מקפיא את השני. ראו docs/multi-window.md.
 bool CreateSecondaryWindowOnThisThread(const flutter::DartProject& base,
                                        const std::string& payload,
                                        int inherited_width,
@@ -734,7 +728,7 @@ bool FlutterWindow::OnCreate() {
   KeepWebViewWindowClassesAlive();
   // ── ריבוי חלונות ──
   // Dart קורא `openWindow` עם מטען JSON (בדרך כלל טאב מסוריאל), וה-runner
-  // פותח חלון נוסף על thread ייעודי. המטען עובר כארגומנט לנקודת הכניסה
+  // יוצר חלון נוסף על ה-thread הראשי. המטען עובר כארגומנט לנקודת הכניסה
   // `secondaryWindowMain`, ולא דרך ערוץ — החלון החדש עוד לא קיים בזמן
   // הקריאה, ואין למי לשלוח.
   multiwindow_channel_ =
@@ -761,11 +755,6 @@ bool FlutterWindow::OnCreate() {
           result->Success(flutter::EncodableValue(info));
           return;
         }
-        // מביא את החלון הזה לחזית.
-        //
-        // ⚠️ נדרש כי חלון משני נוצר **מוסתר** (כדי שלא יראו אותו מצטייר),
-        // ו-`ShowWindow` על חלון מוסתר אינו מפעיל אותו — הוא נחשף מאחורי
-        // החלון שפתח אותו, וזה נראה כאילו הראשון "תמיד עליון".
         // סוגר את החלון הזה, בדחייה לאיטרציה הבאה של לולאת ההודעות.
         //
         // ⚠️ `windowManager.destroy()` קורא ל-`DestroyWindow` מתוך טיפול
@@ -948,6 +937,10 @@ bool FlutterWindow::OnCreate() {
           return;
         }
 
+        // מביא את החלון הזה לחזית.
+        //
+        // ⚠️ נדרש כי חלון משני נוצר **מוסתר**, ו-`ShowWindow` על חלון
+        // מוסתר אינו מפעיל אותו — הוא נחשף מאחורי החלון שפתח אותו.
         if (call.method_name() == "raiseSelf") {
           const HWND self = GetHandle();
           if (self) {
@@ -1372,7 +1365,16 @@ void FlutterWindow::ReviveWith(const std::string& payload, int width,
   // (`windowManager.getSize` מחלק ב-DPR), אבל `SetWindowPos` מצפה
   // לפיקסלים פיזיים. בלי ההמרה חלון שהוחזר לשימוש במסך 150% קיבל 733
   // פיקסלים לוגיים במקום 1100 — כלומר התכווץ בכל פתיחה חוזרת.
-  const double scale = ::GetDpiForWindow(self) / 96.0;
+  // ⚠️ ה-DPI של המסך שתחת נקודת השחרור, כמו במסלול היצירה — ולא של המסך
+  // שבו החלון המוסתר הזדמן להיות. בלעדיו שחרור למסך 150% יצר חלון בגודל
+  // 1.0×, וההידוק לאזור העבודה חושב על מידות קטנות מדי.
+  UINT dpi = ::GetDpiForWindow(self);
+  if (origin_x != 0 || origin_y != 0) {
+    const POINT drop{origin_x, origin_y};
+    dpi = FlutterDesktopGetDpiForMonitor(
+        ::MonitorFromPoint(drop, MONITOR_DEFAULTTONEAREST));
+  }
+  const double scale = dpi / 96.0;
   const int final_width =
       width > 400 ? static_cast<int>(width * scale) : 0;
   const int final_height =
@@ -1503,10 +1505,17 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     PendingSecondaryWindow pending =
         std::move(pending_secondary_windows_.front());
     pending_secondary_windows_.pop();
-    const bool created = CreateSecondaryWindowOnThisThread(
-        project_, pending.payload, pending.width, pending.height,
-        pending.origin_x, pending.origin_y,
-        pending.has_bounds ? &pending.bounds : nullptr);
+    // ⚠️ ה-try אינו קוסמטי: הפונקציה `noexcept`, ובתוכה נוצר מנוע Flutter
+    // ורצים `RegisterPlugins` של עשר DLL. חריגה כאן = `std::terminate`.
+    bool created = false;
+    try {
+      created = CreateSecondaryWindowOnThisThread(
+          project_, pending.payload, pending.width, pending.height,
+          pending.origin_x, pending.origin_y,
+          pending.has_bounds ? &pending.bounds : nullptr);
+    } catch (...) {
+      created = false;
+    }
     // יצירה שנכשלה — אין מה להחליף את הרוח, והיא לא יכולה להישאר תלויה.
     if (!created) drag_preview::End();
     // ⚠️ **כאן** נענה Dart, ולא בטיפול בערוץ. זו התשובה שעל פיה הוא מוחק
@@ -1523,8 +1532,19 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     if (pending_system_drags_.empty()) return 0;
     auto pending = std::move(pending_system_drags_.front());
     pending_system_drags_.pop();
-    const auto drag = drag_preview::DragWithSystem();
-    if (pending) pending->Success(DescribeSystemDrag(drag, GetHandle()));
+    // אותו נימוק כמו למעלה: `noexcept`, ובפנים לולאה מודאלית של המערכת.
+    bool replied = false;
+    try {
+      const auto drag = drag_preview::DragWithSystem();
+      if (pending) {
+        replied = true;
+        pending->Success(DescribeSystemDrag(drag, GetHandle()));
+      }
+    } catch (...) {
+      drag_preview::End();
+      // `null` ל-Dart פירושו "לא ידוע", והוא מטפל בו כ"אל תעשה כלום".
+      if (pending && !replied) pending->Success(flutter::EncodableValue());
+    }
     return 0;
   }
 

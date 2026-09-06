@@ -221,8 +221,11 @@ class WindowBus {
   /// ⚠️ נשאלים בפועל ולא רק נבדק אם השם רשום: משבצת יכולה להישאר רשומה
   /// אחרי שחלון נסגר בלי לשחרר אותה (קריסה, סגירה כפויה), ואז הרישום
   /// קיים אבל אין מאזין. השאלה עצמה היא הבדיקה.
+  /// ⚠️ ה-timeout רחב מ-800ms שהיה כאן: תפיסת ה-thread המשותף בטעינת קטלוג
+  /// נמדדה ב-~2,100ms, ולכן חלון עסוק נעלם מ"העבר לחלון קיים". נשאר מתחת
+  /// לפעימת הרענון (3 שניות) כדי ששתי סריקות לא יחפפו.
   Future<List<WindowPeer>> peers({
-    Duration timeout = const Duration(milliseconds: 800),
+    Duration timeout = const Duration(milliseconds: 2500),
   }) async {
     final futures = <Future<WindowPeer?>>[];
     for (var candidate = 1; candidate <= slotCount; candidate++) {

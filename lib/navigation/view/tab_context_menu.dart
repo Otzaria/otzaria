@@ -285,11 +285,15 @@ Future<void> _moveTabToExistingWindow(
   // שנסגר בדיוק עכשיו לא יאשר — ואז הכרטיסיה נשארת כאן במקום להיעלם משני
   // הצדדים.
   final sent = await const MultiWindowService().sendTabToWindow(slot, tab);
-  if (sent) {
+  if (sent == true) {
     tabsBloc.add(RemoveTab(tab));
-  } else {
-    UiSnack.showError(WindowMessages.transferFailed);
+    return;
   }
+  UiSnack.showError(
+    sent == false
+        ? WindowMessages.transferFailed
+        : WindowMessages.transferUnconfirmed,
+  );
 }
 
 /// החלפה בין רצועת הכרטיסיות שבכותרת לעמודה האנכית שבצד.

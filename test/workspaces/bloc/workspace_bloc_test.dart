@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/core/windowing/window_role.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_event.dart';
+import 'package:otzaria/workspaces/bloc/workspace_state.dart';
 import 'package:otzaria/workspaces/workspace.dart';
 import 'package:otzaria/workspaces/workspace_repository.dart';
 
@@ -138,6 +140,87 @@ void main() {
       await switched;
       await bloc.close();
     });
+
+    test('כשל שמירה משאיר את הכרטיסיות במקומן ואינו מחליף שולחן', () async {
+      final firstWorkspace = Workspace(name: 'א', tabs: const []);
+      final secondWorkspace = Workspace(name: 'ב', tabs: const []);
+      final repository = _FakeWorkspaceRepository(
+        workspaces: [firstWorkspace, secondWorkspace],
+        activeWorkspaceId: firstWorkspace.id,
+      )..failMutate = false;
+
+      var callbackCalls = 0;
+      final bloc = WorkspaceBloc(
+        repository: repository,
+        onWorkspaceTabsChanged: (_, _, _) => callbackCalls++,
+      )..add(LoadWorkspaces());
+      await bloc.stream.firstWhere((s) => !s.isLoading);
+
+      repository.failMutate = true;
+      final liveTab = _createTextTab('ספר חי');
+      bloc.add(
+        SwitchToWorkspace(
+          targetWorkspaceId: secondWorkspace.id,
+          currentTabsToSave: [liveTab],
+          currentTabIndexToSave: 0,
+        ),
+      );
+
+      await bloc.stream.firstWhere((s) => s.error != null);
+
+      // ⚠️ זה הלב: ההחלפה משחררת את הכרטיסיות של השולחן הנעזב, ולכן היא
+      // אסורה כשהשמירה נכשלה — אחרת הן אינן בשום box ובשום state.
+      expect(callbackCalls, 0);
+      expect(bloc.state.activeWorkspaceId, firstWorkspace.id);
+
+      await bloc.close();
+      liveTab.dispose();
+    });
+
+    test('שגיאה אינה נמחקת ב-emit הבא, ו-clearError מאפס אותה', () {
+      final state = WorkspaceState(workspaces: const [], error: 'boom');
+
+      expect(state.copyWith(isLoading: true).error, 'boom');
+      expect(state.copyWith(clearError: true).error, isNull);
+    });
+
+    test('copyWith יכול לאפס את השולחן הפעיל ל-null', () {
+      final state = WorkspaceState(
+        workspaces: const [],
+        activeWorkspaceId: 'w1',
+      );
+
+      expect(state.copyWith(activeWorkspaceId: null).activeWorkspaceId, 'w1');
+      expect(
+        state.copyWith(clearActiveWorkspaceId: true).activeWorkspaceId,
+        isNull,
+      );
+    });
+  });
+
+  group('WorkspaceBloc בחלון משני', () {
+    setUp(() async {
+      await Settings.init(cacheProvider: _MemoryCacheProvider());
+      WindowRole.isSecondary = true;
+    });
+
+    tearDown(() => WindowRole.isSecondary = false);
+
+    test('אינו ננעל על השולחן של הבעלים כשהרשימה חוזרת לא ריקה', () async {
+      // המרוץ: `load` מחזיר רשימה ריקה כי הבעלים עוד טוען, אבל עד ה-`mutate`
+      // הרשימה שלו כבר קיימת — וה-`apply` מחזיר את השולחנות שלו.
+      final ownerWorkspace = Workspace(name: 'של הבעלים', tabs: const []);
+      final repository = _FakeWorkspaceRepository.empty()
+        ..workspacesOnMutate = [ownerWorkspace];
+
+      final bloc = WorkspaceBloc(repository: repository)..add(LoadWorkspaces());
+      await bloc.stream.firstWhere((s) => !s.isLoading);
+
+      expect(bloc.state.workspaces, hasLength(1));
+      expect(bloc.state.activeWorkspaceId, isNull);
+
+      await bloc.close();
+    });
   });
 }
 
@@ -154,8 +237,19 @@ class _FakeWorkspaceRepository extends WorkspaceRepository {
     required String this._activeWorkspaceId,
   }) : _workspaces = List<Workspace>.from(workspaces);
 
+  /// רשימה ריקה בטעינה — כמו חלון משני שנפתח בזמן שהבעלים עוד טוען.
+  _FakeWorkspaceRepository.empty()
+    : _workspaces = <Workspace>[],
+      _activeWorkspaceId = null;
+
   List<Workspace> _workspaces;
   String? _activeWorkspaceId;
+
+  /// `mutateWorkspaces` זורק — כמו `SharedHiveUnavailable` בחלון משני.
+  bool failMutate = false;
+
+  /// מה שיהיה ברשימה ברגע ה-`mutate`, גם אם הטעינה החזירה ריק.
+  List<Workspace>? workspacesOnMutate;
 
   @override
   Future<(List<Workspace>, String?)> loadWorkspaces() async =>
@@ -165,9 +259,10 @@ class _FakeWorkspaceRepository extends WorkspaceRepository {
   Future<List<Workspace>> mutateWorkspaces(
     List<Workspace> Function(List<Workspace> current) apply,
   ) async {
-    _workspaces = List<Workspace>.from(
-      apply(List<Workspace>.from(_workspaces)),
-    );
+    if (failMutate) throw StateError('shared store unavailable');
+    final current = workspacesOnMutate ?? _workspaces;
+    _workspaces = List<Workspace>.from(apply(List<Workspace>.from(current)));
+    workspacesOnMutate = null;
     return List<Workspace>.from(_workspaces);
   }
 

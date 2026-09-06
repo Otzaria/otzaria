@@ -113,6 +113,15 @@ void main() {
     expect(peer.received, isEmpty);
   });
 
+  test('מצב מסך מלא אינו משודר', () async {
+    // ⚠️ המפתח אינו נושא את התחילית `window_is_`. שידורו הפשיט את סרגל
+    // הכותרת בחלונות האחרים בלי ששום מעבר נייטיב קרה.
+    SettingsSync.instance.broadcastChange('key-is-fullscreen', true);
+
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    expect(peer.received, isEmpty);
+  });
+
   test('בקשה שאינה שלנו מוחזרת כ-null', () async {
     expect(
       await SettingsSync.instance.handleRequest({'type': 'somethingElse'}),

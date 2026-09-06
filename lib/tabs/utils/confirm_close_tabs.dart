@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/windowing/window_bus.dart';
 import 'package:otzaria/plugins/services/plugin_unsaved_changes_registry.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
@@ -40,6 +41,8 @@ const String unsavedChangesDialogTitle = 'שינויים שלא נשמרו';
 const String unsavedChangesDialogSubtitle = 'הסגירה תמחק את השינויים שלא נשמרו';
 const String unsavedChangesAppCloseSubtitle =
     'סגירת התוכנה תמחק את השינויים שלא נשמרו';
+const String unsavedChangesWindowCloseSubtitle =
+    'סגירת החלון תמחק את השינויים שלא נשמרו';
 const String unsavedChangesCloseAnyway = 'סגור בכל זאת';
 
 /// גוף הדיאלוג: שורה לכל כרטיסיה, ואחריה ההודעה שהתוסף צירף.
@@ -86,7 +89,11 @@ Future<bool> confirmAppCloseWithUnsavedChanges() {
   final future = confirmCloseTabs(
     context,
     context.read<TabsBloc>().state.tabs,
-    subtitle: unsavedChangesAppCloseSubtitle,
+    // ⚠️ סינכרוני ולא שאלה ל-runner: שני מאזינים קוראים לכאן, והראשון
+    // שמגיע קובע את הנוסח — נוסח שנגזר מ-`await` היה תלוי בסדר ביניהם.
+    subtitle: WindowBus.instance.hasOtherWindows
+        ? unsavedChangesWindowCloseSubtitle
+        : unsavedChangesAppCloseSubtitle,
   ).whenComplete(() => _pendingAppClose = null);
   _pendingAppClose = future;
   return future;

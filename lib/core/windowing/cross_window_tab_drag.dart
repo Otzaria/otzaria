@@ -198,6 +198,9 @@ class CrossWindowTabDrag {
   void dispose() {
     _timer?.cancel();
     _timer = null;
+    // ⚠️ בלי זה הרוח הנייטיבית נשארת חיה ומצוירת אחרי שהרצועה ירדה מהעץ.
+    // המסירה למערכת מנקה בעצמה, ולכן רק גרירה שלא נמסרה מטופלת כאן.
+    if (_draggedTitle != null && !_handedOff) _hidePreview();
     // ⚠️ המחלקה חיה יותר מגרירה בודדת (היא שדה של הרצועה). החזקה של
     // כרטיסיה שאולי כבר `dispose`-ה היא הפניה תלויה.
     _draggedTitle = null;
@@ -370,7 +373,11 @@ class CrossWindowTabDrag {
 
     // כרטיסיה אחרונה בחלון: הוצאתה הייתה משאירה חלון ריק ופותחת חדש —
     // תזוזה בלי תועלת.
-    if (bloc.state.tabs.length <= 1) return _hidePreview();
+    if (bloc.state.tabs.length <= 1) {
+      _hidePreview();
+      UiSnack.show(WindowMessages.cannotTransferLastTab);
+      return;
+    }
 
     // ⚠️ מסגרת מדויקת **רק** אחרי הצמדה. התצוגה היא בגודל כרטיסיה, ולכן
     // שימוש עיוור במסגרת שלה היה יוצר חלון אוצריא של 176×40.
@@ -418,13 +425,17 @@ class CrossWindowTabDrag {
         await _service.notifyDragOver(slot, x, y, tab.title);
     _remoteDropIndex = null;
     final moved = await _service.sendTabToWindow(slot, tab, index: index);
-    if (moved) {
+    if (moved == true) {
       bloc.add(RemoveTab(tab));
-    } else {
-      // החיווי ביעד הודלק על ידי `notifyDragOver` — יש לכבות אותו.
-      _service.notifyDragLeave(slot);
-      UiSnack.showError(WindowMessages.transferFailed);
+      return;
     }
+    // החיווי ביעד הודלק על ידי `notifyDragOver` — יש לכבות אותו.
+    _service.notifyDragLeave(slot);
+    UiSnack.showError(
+      moved == false
+          ? WindowMessages.transferFailed
+          : WindowMessages.transferUnconfirmed,
+    );
   }
 
   /// כרטיסיה שוחררה מחוץ לכל יעד הפלה — ייתכן מחוץ לחלון.

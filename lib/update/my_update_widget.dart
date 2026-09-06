@@ -23,6 +23,7 @@ import 'package:updat/utils/file_handler.dart' show openInstaller;
 import 'package:window_manager/window_manager.dart';
 import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
+import 'package:otzaria/core/windowing/window_role.dart';
 import 'hebrew_update_widgets.dart';
 import 'linux_installer.dart';
 import 'macos_installer.dart';
@@ -529,7 +530,11 @@ class MyUpdatWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     // אסור שצורת העץ תלויה בהגדרות משתנות (מנותק/עדכונים) — החלפת העוטף
     // בזמן ריצה בונה מחדש את כל תת-העץ וה-PageView מאבד את העמוד הפעיל.
+    //
+    // ⚠️ החלון הראשון בלבד: בדיקת עדכון, הורדה והתקנה הן פר-תהליך, וכל חלון
+    // נוסף היה בודק, מוריד לאותו נתיב ומתקין במקביל.
     if (kDebugMode ||
+        WindowRole.isSecondary ||
         !supportsManagedUpdatePlatform(
           isWeb: kIsWeb,
           operatingSystem: Platform.operatingSystem,
@@ -691,22 +696,21 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
     handleWindowClose: _handleWindowClose,
   );
 
+  /// ⚠️ **אינו סוגר את החלון.** `AppWindowListener` רץ על אותו אירוע סגירה
+  /// ומכריע בין כיבוי התהליך לבין `closeSelf`; הריסה מכאן הפילה את התהליך.
   Future<void> _handleWindowClose() async {
     // אותה הבטחה שהמאזין הראשי ממתין לה — ביטול שם מבטל גם את ההתקנה.
     if (!await confirmAppCloseWithUnsavedChanges()) return;
-    try {
-      if (shouldLaunchInstallerOnExit(
-        status: _status,
-        hasInstallerFile: _installerFile != null,
-      )) {
-        // המשתמש סוגר את התוכנה — העדכון מותקן ברקע, אך אין להפעיל את
-        // אוצריא מחדש בסיום בניגוד לכוונתו.
-        final launched = await _launchInstaller(relaunchApp: false);
-        if (launched) _installerFile = null;
-      }
-    } finally {
-      await _appWindow.destroy();
+    if (!shouldLaunchInstallerOnExit(
+      status: _status,
+      hasInstallerFile: _installerFile != null,
+    )) {
+      return;
     }
+    // המשתמש סוגר את התוכנה — העדכון מותקן ברקע, אך אין להפעיל את
+    // אוצריא מחדש בסיום בניגוד לכוונתו.
+    final launched = await _launchInstaller(relaunchApp: false);
+    if (launched) _installerFile = null;
   }
 
   /// מפעיל את ההתקנה ביוזמת המשתמש (כפתור "מוכן להתקנה"): משגר את המתקין
@@ -714,17 +718,17 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
   /// לפני היציאה — אוצריא כבר אינה רצה כשהמתקין מעתיק קבצים, ולכן אין צורך
   /// שהמתקין יבקש לסגור אותה ואין מצב שבו סגירה ידנית קוטעת מתקין שרץ.
   ///
-  /// בשונה מ-[_handleWindowClose] (שמופעל כשהמשתמש סוגר את החלון ולכן חייב
-  /// לסגור בכל מקרה), כאן אם השיגור נכשל אנו משאירים את החלון פתוח כדי
-  /// שהמשתמש יראה את מצב השגיאה ויוכל לנסות שוב.
+  /// אם השיגור נכשל החלון נשאר פתוח כדי שהמשתמש יראה את מצב השגיאה ויוכל
+  /// לנסות שוב.
   Future<void> _installNow() async {
     if (_installerFile == null) return;
     final launched = await _launchInstaller(relaunchApp: true);
     if (shouldDestroyWindowAfterInstallNow(installerLaunched: launched)) {
-      // איפוס הקובץ מונע שיגור מתקין כפול אם יגיע אירוע סגירת חלון נוסף
-      // (למשל מהמתקין עצמו) לפני שה-destroy מסתיים.
+      // איפוס הקובץ מונע שיגור מתקין כפול כשאירוע הסגירה יגיע ל-hook.
       _installerFile = null;
-      await _appWindow.destroy();
+      // ⚠️ סגירה מנומסת ולא `destroy()`: הריסה מתוך ריצת ה-Dart של החלון
+      // מפילה את התהליך כשיש עוד מנוע חי.
+      await _appWindow.close();
     }
   }
 

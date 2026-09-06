@@ -3,6 +3,10 @@ import 'dart:async';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/core/messages/notes_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/windowing/window_role.dart';
 import 'package:otzaria/workspaces/bloc/workspace_event.dart';
 import 'package:otzaria/workspaces/bloc/workspace_state.dart';
 import 'package:otzaria/workspaces/workspace.dart';
@@ -75,7 +79,7 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
     LoadWorkspaces event,
     Emitter<WorkspaceState> emit,
   ) async {
-    emit(state.copyWith(isLoading: true));
+    emit(state.copyWith(isLoading: true, clearError: true));
     try {
       final (workspaces, activeId) = await _repository.loadWorkspaces();
 
@@ -94,8 +98,14 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
         finalWorkspaces = await _repository.mutateWorkspaces(
           (current) => current.isEmpty ? [defaultWorkspace] : current,
         );
-        finalActiveId = finalWorkspaces.first.id;
-        await _repository.saveActiveWorkspaceId(finalActiveId);
+        // ⚠️ חלון משני מתחיל **בלי** שולחן פעיל — ראו
+        // [WorkspaceRepository.loadWorkspaces]. במרוץ עם הבעלים ה-`mutate`
+        // מחזיר את השולחנות **שלו**, וקיבוע כאן היה נועל את שני החלונות על
+        // אותו שולחן — ואז כל החלפה דורסת את ה-stash של השני.
+        if (!WindowRole.isSecondary) {
+          finalActiveId = finalWorkspaces.first.id;
+          await _repository.saveActiveWorkspaceId(finalActiveId);
+        }
       }
 
       // Ensure the active ID exists in the list
@@ -108,10 +118,13 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
         state.copyWith(
           workspaces: finalWorkspaces,
           activeWorkspaceId: finalActiveId,
+          clearActiveWorkspaceId: finalActiveId == null,
           isLoading: false,
+          clearError: true,
         ),
       );
     } catch (e) {
+      UiSnack.showError(NotesMessages.workspacesLoadFailed);
       emit(
         state.copyWith(
           isLoading: false,
@@ -137,8 +150,9 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
         (current) => [...current, newWorkspace],
       );
 
-      emit(state.copyWith(workspaces: saved));
+      emit(state.copyWith(workspaces: saved, clearError: true));
     } catch (e) {
+      UiSnack.showError(NotesMessages.workspaceSaveFailed);
       emit(state.copyWith(error: 'Failed to add workspace: $e'));
     }
   }
@@ -150,7 +164,10 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
     try {
       // Can't remove the active workspace
       if (state.activeWorkspaceId == event.workspaceId) {
-        emit(state.copyWith(error: 'לא ניתן למחוק שולחן עבודה פעיל'));
+        UiSnack.showError(NotesMessages.cannotDeleteActiveWorkspace);
+        emit(
+          state.copyWith(error: NotesMessages.cannotDeleteActiveWorkspace),
+        );
         return;
       }
 
@@ -158,8 +175,9 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
         (current) => current.where((w) => w.id != event.workspaceId).toList(),
       );
 
-      emit(state.copyWith(workspaces: saved));
+      emit(state.copyWith(workspaces: saved, clearError: true));
     } catch (e) {
+      UiSnack.showError(NotesMessages.workspaceSaveFailed);
       emit(state.copyWith(error: 'Failed to remove workspace: $e'));
     }
   }
@@ -168,31 +186,41 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
     SwitchToWorkspace event,
     Emitter<WorkspaceState> emit,
   ) async {
+    // 1. Save current tabs to the currently active workspace
+    final currentId = state.activeWorkspaceId;
+    List<Workspace> stash(List<Workspace> current) => current.map((w) {
+      if (w.id == currentId) {
+        return w.withTabs(
+          tabs: _cloneTabs(event.currentTabsToSave),
+          activeTabIndex: event.currentTabIndexToSave,
+          activePane: event.currentActivePaneToSave,
+        );
+      }
+      return w;
+    }).toList();
+
+    // ⚠️ **השמירה קודמת לחשיפה.** החלפת הכרטיסיות החיות משחררת את הכרטיסיות
+    // של השולחן הנעזב, ולכן כשל שמירה אחריה מוחק אותן לצמיתות.
+    final List<Workspace> saved;
     try {
-      // 1. Save current tabs to the currently active workspace
-      final currentId = state.activeWorkspaceId;
-      List<Workspace> stash(List<Workspace> current) => current.map((w) {
-        if (w.id == currentId) {
-          return w.withTabs(
-            tabs: _cloneTabs(event.currentTabsToSave),
-            activeTabIndex: event.currentTabIndexToSave,
-            activePane: event.currentActivePaneToSave,
-          );
-        }
-        return w;
-      }).toList();
+      saved = await _repository.mutateWorkspaces(stash);
+    } catch (e) {
+      UiSnack.showError(NotesMessages.workspaceSwitchFailed);
+      emit(state.copyWith(error: 'Failed to switch workspace: $e'));
+      return;
+    }
 
-      final updatedWorkspaces = stash(state.workspaces);
-
-      // 2. Get the target workspace
+    try {
+      // 2. Get the target workspace, from the authoritative list.
       //
       // ⚠️ `firstWhereOrNull`: השולחן יכול להיעלם בין בניית התפריט
       // לבחירה, אם חלון אחר מחק אותו. `firstWhere` זרק `StateError`.
-      final targetWorkspace = updatedWorkspaces.firstWhereOrNull(
+      final targetWorkspace = saved.firstWhereOrNull(
         (w) => w.id == event.targetWorkspaceId,
       );
       if (targetWorkspace == null) {
-        emit(state.copyWith(workspaces: updatedWorkspaces));
+        UiSnack.showError(LibraryMessages.workspaceNoLongerExists);
+        emit(state.copyWith(workspaces: saved, clearError: true));
         return;
       }
 
@@ -216,22 +244,22 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
         );
       }
 
-      // 4. Emit new state (UI updates immediately, not blocked by disk I/O)
+      await _repository.saveActiveWorkspaceId(event.targetWorkspaceId);
       emit(
         state.copyWith(
-          workspaces: updatedWorkspaces,
+          workspaces: saved,
           activeWorkspaceId: event.targetWorkspaceId,
+          clearError: true,
         ),
       );
-
-      // 5. Save to repository
-      final saved = await _repository.mutateWorkspaces(stash);
-      await _repository.saveActiveWorkspaceId(event.targetWorkspaceId);
-      // התצוגה מיושרת לרשימה המוסמכת, אבל השולחן הפעיל נשאר זה שנבחר כאן —
-      // הוא מצב של החלון הזה.
-      emit(state.copyWith(workspaces: saved));
     } catch (e) {
-      emit(state.copyWith(error: 'Failed to switch workspace: $e'));
+      UiSnack.showError(NotesMessages.workspaceSwitchFailed);
+      emit(
+        state.copyWith(
+          workspaces: saved,
+          error: 'Failed to switch workspace: $e',
+        ),
+      );
     }
   }
 
@@ -250,8 +278,9 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
             .toList(),
       );
 
-      emit(state.copyWith(workspaces: saved));
+      emit(state.copyWith(workspaces: saved, clearError: true));
     } catch (e) {
+      UiSnack.showError(NotesMessages.workspaceSaveFailed);
       emit(state.copyWith(error: 'Failed to rename workspace: $e'));
     }
   }
@@ -278,9 +307,11 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
         state.copyWith(
           workspaces: saved,
           activeWorkspaceId: defaultWorkspace.id,
+          clearError: true,
         ),
       );
     } catch (e) {
+      UiSnack.showError(NotesMessages.workspaceSaveFailed);
       emit(state.copyWith(error: 'Failed to clear workspaces: $e'));
     }
   }
@@ -305,8 +336,9 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
           return w;
         }).toList(),
       );
-      emit(state.copyWith(workspaces: saved));
+      emit(state.copyWith(workspaces: saved, clearError: true));
     } catch (e) {
+      UiSnack.showError(NotesMessages.workspaceSaveFailed);
       emit(state.copyWith(error: 'Failed to update workspace tabs: $e'));
     }
   }
@@ -340,8 +372,9 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
           return w;
         }).toList(),
       );
-      emit(state.copyWith(workspaces: saved));
+      emit(state.copyWith(workspaces: saved, clearError: true));
     } catch (e) {
+      UiSnack.showError(NotesMessages.workspaceSaveFailed);
       emit(state.copyWith(error: 'Failed to move tab to workspace: $e'));
     }
   }

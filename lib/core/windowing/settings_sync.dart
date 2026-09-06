@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/core/windowing/multi_window_service.dart';
 import 'package:otzaria/core/windowing/window_bus.dart';
 
 /// סנכרון הגדרות **חי** בין חלונות אוצריא.
@@ -77,11 +78,19 @@ class SettingsSync {
     'window_is_',
   };
 
+  /// ⚠️ מסך מלא הוא מצב חלון שאינו נושא את התחילית. שידורו הפשיט את סרגל
+  /// הכותרת בחלונות האחרים בלי ששום מעבר נייטיב קרה, ובלי דרך לצאת.
+  static const Set<String> _windowScopedKeys = {'key-is-fullscreen'};
+
   static bool _isWindowScoped(String key) =>
+      _windowScopedKeys.contains(key) ||
       _windowScopedPrefixes.any(key.startsWith);
 
   /// נקרא מכל setter של `HiveCache` אחרי הכתיבה המקומית.
   void broadcastChange(String key, Object? value) {
+    // בפלטפורמה בלי ריבוי חלונות אין למי לשדר, וכל שמירת הגדרה שילמה
+    // `Timer` ו-`ReceivePort` בשביל יכולת שאינה קיימת שם.
+    if (!MultiWindowService.isSupported) return;
     if (_applyingRemote) return;
     if (_isWindowScoped(key)) return;
     if (!_isSyncable(value)) return;
@@ -103,6 +112,7 @@ class SettingsSync {
   /// ⚠️ בלי זה החלון השני ממשיך עם הערכים הישנים בזיכרון וכותב אותם בחזרה
   /// בשמירה הבאה — כלומר האיפוס מתבטל מעצמו.
   void broadcastReset() {
+    if (!MultiWindowService.isSupported) return;
     if (_applyingRemote) return;
     // הכתיבות התלויות מתייתרות: הן עומדות להימחק בכל מקרה.
     dispose();
