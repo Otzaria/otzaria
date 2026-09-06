@@ -14,7 +14,7 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 /// אך פועל לגמרי בנפרד ואינו משפיע על sourceTab כלל.
 class CommentatorsTab extends OpenedTab {
   final TextBookTab sourceTab;
-  final bool _disposeSourceTabOnDispose;
+  bool _disposeSourceTabOnDispose;
   late final TextBookBloc bloc;
   final ItemScrollController scrollController = ItemScrollController();
   final ItemPositionsListener positionsListener =
@@ -27,9 +27,19 @@ class CommentatorsTab extends OpenedTab {
   /// נשמר ב-toJson — בלעדיו הבחירה אבדה בסגירת התוכנה ושוחזרו "כל המפרשים".
   List<String>? selectedCommentators;
 
+  /// מיקום הפתיחה של הכרטיסיה הזו. עצמאי מזה של [sourceTab] — זו כל מטרתה.
+  final int startIndex;
+
   static int? _resolveSelectedLine(TextBookTab tab) {
     final s = tab.bloc.state;
     return s is TextBookLoaded ? s.selectedIndex : null;
+  }
+
+  static int _resolveStartIndex(TextBookTab tab) {
+    final s = tab.bloc.state;
+    if (s is! TextBookLoaded) return tab.index;
+    return s.selectedIndex ??
+        (s.visibleIndices.isNotEmpty ? s.visibleIndices.first : tab.index);
   }
 
   CommentatorsTab({
@@ -39,22 +49,19 @@ class CommentatorsTab extends OpenedTab {
     // העברה מפורשת _resolveSelectedLine היה מחזיר null והשורה הנבחרת
     // הייתה נעלמת בשכפול. null = "גזור מה-sourceTab", כמו קודם.
     int? initialSelectedLine,
+    // ⚠️ בשחזור ובשכפול ה-`sourceTab` הטרי עדיין ב-`TextBookInitial`, ולכן
+    // הגזירה ממנו מחזירה את מיקום **הספר** ומיקום הכרטיסיה אובד.
+    int? startIndex,
     @visibleForTesting TextBookBloc? blocOverride,
   }) : initialSelectedLine =
            initialSelectedLine ?? _resolveSelectedLine(sourceTab),
+       startIndex = startIndex ?? _resolveStartIndex(sourceTab),
        super('מפרשים | ${sourceTab.title}') {
-    // קורא מיקום התחלתי מה-state הנוכחי של sourceTab
     final sourceState = sourceTab.bloc.state;
     if (sourceState is TextBookLoaded &&
         sourceState.activeCommentators.isNotEmpty) {
       selectedCommentators = List<String>.from(sourceState.activeCommentators);
     }
-    final int startIndex = sourceState is TextBookLoaded
-        ? (sourceState.selectedIndex ??
-              (sourceState.visibleIndices.isNotEmpty
-                  ? sourceState.visibleIndices.first
-                  : sourceTab.index))
-        : sourceTab.index;
 
     // ב-production תמיד נבנה bloc חדש; blocOverride קיים רק לטסטים שצריכים
     // להזריק bloc עם repository מזויף ולהביאו ל-Loaded ללא תשתית קבצים אמיתית.
@@ -66,7 +73,7 @@ class CommentatorsTab extends OpenedTab {
           ),
           initialState: TextBookInitial.named(
             sourceTab.book,
-            startIndex,
+            this.startIndex,
             false, // openLeftPane
             const [], // commentators — ייטען אחרי availableCommentators
           ),
@@ -93,6 +100,7 @@ class CommentatorsTab extends OpenedTab {
     final tab = CommentatorsTab(
       sourceTab: sourceTab,
       disposeSourceTabOnDispose: true,
+      startIndex: json['initialIndex'] as int?,
     )..isPinned = json['isPinned'] ?? false;
     if (json.containsKey('selectedCommentators')) {
       final saved = json['selectedCommentators'];
@@ -122,11 +130,20 @@ class CommentatorsTab extends OpenedTab {
           // שלו לא משוחררים לעולם.
           disposeSourceTabOnDispose: true,
           initialSelectedLine: initialSelectedLine,
+          startIndex: currentIndex,
         )
         ..isPinned = isPinned
         ..selectedCommentators = selectedCommentators == null
             ? null
             : List<String>.from(selectedCommentators!);
+
+  /// יורש את הבעלות על [sourceTab] כשטאב הספר שהחזיק אותו נסגר.
+  ///
+  /// ⚠️ בלי זה שחרור טאב הספר משאיר את הכרטיסיה הזו מצביעה על `bloc`
+  /// ו-`currentTitle` משוחררים — ורצועת הכרטיסיות עצמה מאזינה להם.
+  void assumeSourceTabOwnership() {
+    _disposeSourceTabOnDispose = true;
+  }
 
   @override
   void dispose() {
@@ -137,14 +154,19 @@ class CommentatorsTab extends OpenedTab {
     super.dispose();
   }
 
+  /// המיקום שהכרטיסיה מוצגת בו כרגע. נופל ל-[startIndex] כל עוד ה-bloc
+  /// לא נטען — ולא ל-`sourceTab.index`, שהוא המיקום של הספר ולא שלה.
+  int get currentIndex {
+    final s = bloc.state;
+    if (s is TextBookLoaded && s.visibleIndices.isNotEmpty) {
+      return s.visibleIndices.first;
+    }
+    return startIndex;
+  }
+
   @override
   Map<String, dynamic> toJson() {
     // שמור את ה-sourceTab כדי לשחזר אחרי הפעלה מחדש
-    int currentIndex = sourceTab.index;
-    if (bloc.state is TextBookLoaded) {
-      final s = bloc.state as TextBookLoaded;
-      if (s.visibleIndices.isNotEmpty) currentIndex = s.visibleIndices.first;
-    }
     return {
       'title': title,
       'type': 'CommentatorsTab',

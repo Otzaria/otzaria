@@ -2,6 +2,7 @@ import 'dart:isolate';
 import 'dart:ui' as ui show IsolateNameServer;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/windowing/multi_window_service.dart';
 import 'package:otzaria/core/windowing/settings_sync.dart';
 import 'package:otzaria/core/windowing/window_bus.dart';
 
@@ -13,6 +14,9 @@ void main() {
   late Map<String, Object?> applied;
 
   setUp(() {
+    // ⚠️ בלי זה `broadcastChange` יוצא מיד: הוא מגודר ב-`isSupported`, שהוא
+    // `Platform.isWindows` — כלומר ב-ubuntu של ה-CI הסוויטה בדקה כלום.
+    MultiWindowService.debugSupportedOverride = true;
     WindowBus.namespace = _namespace;
     applied = {};
     SettingsSync.instance.applyLocally = (key, value) async {
@@ -23,6 +27,7 @@ void main() {
   });
 
   tearDown(() {
+    MultiWindowService.debugSupportedOverride = null;
     SettingsSync.instance.dispose();
     SettingsSync.instance.applyLocally = null;
     peer.dispose();
@@ -108,6 +113,15 @@ void main() {
     SettingsSync.instance.broadcastChange('window_bounds_left', 120.0);
     SettingsSync.instance.broadcastChange('window_bounds_width', 900.0);
     SettingsSync.instance.broadcastChange('window_is_maximized', true);
+
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    expect(peer.received, isEmpty);
+  });
+
+  test('מצב מסך מלא אינו משודר', () async {
+    // ⚠️ המפתח אינו נושא את התחילית `window_is_`. שידורו הפשיט את סרגל
+    // הכותרת בחלונות האחרים בלי ששום מעבר נייטיב קרה.
+    SettingsSync.instance.broadcastChange('key-is-fullscreen', true);
 
     await Future<void>.delayed(const Duration(milliseconds: 250));
     expect(peer.received, isEmpty);

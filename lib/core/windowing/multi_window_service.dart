@@ -175,13 +175,16 @@ class MultiWindowService {
   /// נשאר חי — כלומר "נסגר החלון האחרון" יכול לקרות בעוד שלושה מנועים
   /// רצים. ההבדל קובע אם `exit()` בטוח: P-2 מדד ש-`exit()` בזמן שמנוע אחר
   /// חי מפיל בדיקה של ה-Dart VM ב-~1% מהיציאות.
-  Future<({int count, int max, int engines})> windowCount() async {
+  ///
+  /// ⚠️ מחזיר `null` כש**לא ידוע** (הערוץ זרק). "חלון יחיד" מוחזר רק כשזו
+  /// באמת התשובה — הנחת "אני האחרון" בכשל הרגה את שאר החלונות ב-`exit(0)`.
+  Future<({int count, int max, int engines})?> windowCount() async {
     if (!isSupported) return _singleWindow;
     try {
       final info = await channel.invokeMapMethod<String, dynamic>(
         'windowCount',
       );
-      if (info == null) return _singleWindow;
+      if (info == null) return null;
       return (
         count: (info['count'] as int?) ?? 1,
         max: (info['max'] as int?) ?? 1,
@@ -189,8 +192,9 @@ class MultiWindowService {
       );
     } on PlatformException catch (e) {
       debugPrint('windowCount failed: ${e.code} ${e.message}');
-      return _singleWindow;
+      return null;
     } on MissingPluginException {
+      // הפלטפורמה אינה מכירה את הערוץ — כאן "חלון יחיד" הוא באמת התשובה.
       return _singleWindow;
     }
   }
@@ -432,9 +436,9 @@ class MultiWindowService {
 
   /// סוגר את החלון הנוכחי בלי לסיים את התהליך.
   ///
-  /// ⚠️ ולא `windowManager.destroy()`: הוא קורא ל-`DestroyWindow` מתוך
-  /// טיפול בערוץ, כלומר מתוך ריצת ה-Dart של החלון. הריסת מנוע משם היא
-  /// ריאנטרנטית, ונמדד שהיא מפילה את התהליך כולו בכל סגירת חלון.
+  /// ⚠️ ולא `AppWindowController.quitApplication`: ב-Windows הוא
+  /// `PostQuitMessage(0)` בלבד — לולאת ההודעות של **התהליך** יוצאת, כל
+  /// החלונות נסגרים, והמנוע נהרס בעוד Dart רץ עליו. ראו התיעוד שם.
   Future<void> closeSelf() async {
     if (!isSupported) return;
     try {
@@ -555,18 +559,25 @@ class MultiWindowService {
   /// מחזיר true רק אם החלון היעד **אישר** שקיבל את הכרטיסיה. זה חשוב:
   /// המעביר מסיר את הכרטיסיה מעצמו רק אחרי אישור, אחרת כרטיסיה שנשלחה
   /// לחלון שנסגר בדיוק אז הייתה נעלמת משני הצדדים.
+  ///
+  /// ⚠️ שלושה מצבים ולא שניים: `true` אושר, `false` סורב במפורש, ו-`null`
+  /// **לא ידוע** — היעד לא ענה בזמן, וייתכן שקלט את הכרטיסיה בכל זאת.
   /// [index] הוא מיקום ההכנסה ברצועת היעד, כשהשחרור היה מעליה. `null`
   /// מוסיף בסוף — התנהגות "העבר לחלון קיים" מהתפריט.
   /// ⚠️ **אינו** קורא ל-[canTransfer]. הקורא בדק כבר — בתחילת הגרירה או
   /// לפני פעולת התפריט — ובדיקה חוזרת כאן פירושה בניית כרטיסיה שלמה שנייה
   /// לכל העברה.
-  Future<bool> sendTabToWindow(int slot, OpenedTab tab, {int? index}) async {
-    final result = await WindowBus.instance.request(slot, {
-      'type': requestReceiveTab,
-      'tab': tab.toJson(),
-      'index': ?index,
-    });
-    return result == true;
+  Future<bool?> sendTabToWindow(int slot, OpenedTab tab, {int? index}) async {
+    final result = await WindowBus.instance.request(
+      slot,
+      {'type': requestReceiveTab, 'tab': tab.toJson(), 'index': ?index},
+      // ⚠️ היעד מוסיף את הכרטיסיה ומנווט **לפני** שהוא עונה, וחלון עסוק
+      // נמדד ב-2,092ms בטעינת קטלוג. ברירת המחדל של 3 שניות פקעה בעוד
+      // היעד כבר קלט — והמשתמש ראה את הכרטיסיה בשני החלונות.
+      timeout: const Duration(seconds: 8),
+    );
+    if (result is bool) return result;
+    return null;
   }
 
   /// החלונות האחרים שעונים על האפיק, עם סימון נראות.
@@ -602,17 +613,13 @@ class MultiWindowService {
     _knownPeers.value = peers;
   }
 
-  /// אות לשינוי ברשימה, למי שמציג אותה.
-  static ValueListenable<List<WindowPeer>> get knownPeersListenable =>
-      _knownPeers;
-
   /// כשל בפתיחת חלון — מברר אם הסיבה היא התקרה ומדווח בהתאם.
   ///
   /// ⚠️ מקום אחד. הלוגיקה `windowCount → count >= max` והמחרוזות שלה
   /// שוכפלו בשלושה אתרי קריאה, ובכל אחד מהם נוסחו מחדש.
   Future<void> reportOpenWindowFailure() async {
     final info = await windowCount();
-    if (info.count >= info.max) {
+    if (info != null && info.count >= info.max) {
       UiSnack.show(WindowMessages.windowLimitReached(info.max));
     } else {
       UiSnack.showError(WindowMessages.openWindowFailed);
@@ -627,6 +634,9 @@ class MultiWindowService {
   Future<bool> canOpenAnotherWindow() async {
     if (!isSupported) return false;
     final info = await windowCount();
+    // כשלא ידוע — לתת ל-runner להכריע. הוא אוכף את התקרה ממילא, וחסימה על
+    // סמך כשל ערוץ הייתה מונעת פתיחת חלון בלי סיבה.
+    if (info == null) return true;
     return info.count < info.max;
   }
 

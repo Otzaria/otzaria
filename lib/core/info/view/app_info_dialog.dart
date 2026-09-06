@@ -175,7 +175,28 @@ class _InfoSectionCard extends StatelessWidget {
     );
   }
 
+  /// מספר שמות הקבצים שמוצגים בפופאפ לכל תיקייה. הרשימה המלאה (עד `files=`)
+  /// נשארת ב-JSON — עשרות שורות לכל תיקייה היו מטביעות את שאר הדוח.
+  static const int _maxFileNamesPerFolder = 10;
+
   List<Widget> _buildLists(BuildContext context) {
+    if (topic == InfoTopic.folders) {
+      final folders = (data['folders'] as List?) ?? const [];
+      if (folders.isEmpty) {
+        return const [
+          _InfoRow(label: 'תיקיות', value: 'לא הוגדרו תיקיות ספרים אישיים'),
+        ];
+      }
+      return [
+        const _SubHeader('התיקיות המוגדרות'),
+        for (final folder in folders.whereType<Map>())
+          _FolderEntryTile(
+            folder: folder,
+            maxFileNames: _maxFileNamesPerFolder,
+          ),
+      ];
+    }
+
     if (topic == InfoTopic.plugins) {
       final plugins = (data['installed'] as List?) ?? const [];
       if (plugins.isEmpty) return const [];
@@ -292,6 +313,80 @@ class _InfoRow extends StatelessWidget {
               style: const TextStyle(fontSize: 12),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// תיקיית ספרים אישיים בודדת: הנתיב, תקציר הקבצים, ושמות הקבצים הראשונים.
+class _FolderEntryTile extends StatelessWidget {
+  const _FolderEntryTile({required this.folder, required this.maxFileNames});
+
+  final Map<dynamic, dynamic> folder;
+  final int maxFileNames;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final files = (folder['files'] as List?)?.whereType<Map>().toList() ?? [];
+    final shown = files.take(maxFileNames).toList();
+    // ההפרש נמדד מול הספירה המלאה ולא מול אורך הרשימה: `files=` כבר קיצץ
+    // אותה, ו"ועוד 0" היה מסתיר קבצים שקיימים בתיקייה. כש-`files=0` אין
+    // רשימה בכלל, והספירה שבשורת התקציר כבר אומרת את מה ש"ועוד" היה אומר.
+    final fileCount = folder['fileCount'];
+    final remaining = (shown.isNotEmpty && fileCount is int)
+        ? fileCount - shown.length
+        : 0;
+    final types = InfoValueFormat.folderTypes(folder);
+    final scanError = folder['scanError'];
+
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SelectableText(
+            '${folder['path']}',
+            textDirection: TextDirection.ltr,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+          ),
+          Text(
+            InfoValueFormat.folderSummary(folder),
+            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+          ),
+          if (types.isNotEmpty)
+            Text(
+              types,
+              textDirection: TextDirection.ltr,
+              style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+            ),
+          if (scanError != null)
+            Text(
+              'שגיאת סריקה: $scanError',
+              style: TextStyle(fontSize: 11, color: cs.error),
+            ),
+          for (final file in shown)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(top: 2, start: 8),
+              child: SelectableText(
+                '${file['name']}',
+                style: const TextStyle(fontSize: 11),
+              ),
+            ),
+          if (remaining > 0)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(top: 2, start: 8),
+              child: Text(
+                'ועוד ${InfoValueFormat.count(remaining)}…',
+                style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+              ),
+            ),
         ],
       ),
     );

@@ -11,6 +11,8 @@ import 'package:otzaria/core/windowing/app_window_id.dart';
 import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart';
 import 'package:otzaria/core/windowing/last_active_window.dart';
 import 'package:otzaria/core/windowing/multi_window_service.dart';
+import 'package:otzaria/core/windowing/window_bus.dart';
+import 'package:otzaria/core/windowing/window_role.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/plugins/services/plugin_crash_guard.dart';
@@ -165,9 +167,10 @@ class AppWindowListener extends WindowListener {
   /// האם זה החלון האחרון, כלומר האם סגירתו היא סגירת התהליך.
   ///
   /// ⚠️ ה-runner הוא מקור האמת. ה-isolate של כל חלון רואה רק את עצמו,
-  /// ולכן חלון אינו יכול לדעת מ-Dart בלבד אם נותרו אחרים. כשהשאלה נכשלת
-  /// מניחים "כן" — התנהגות חלון יחיד, שהיא הבטוחה מבין השתיים: כיבוי
-  /// מלא ששוטף הכול, במקום תהליך שנשאר תלוי בלי חלונות.
+  /// ולכן חלון אינו יכול לדעת מ-Dart בלבד אם נותרו אחרים. כשהתשובה אינה
+  /// ידועה נופלים ל-[WindowBus.hasOtherWindows] — בדיקה סינכרונית שאינה
+  /// יכולה לפקוע — ולא להנחה, שהרי "אני האחרון" מסתיים ב-`exit(0)` שהורג
+  /// גם את החלונות האחרים.
   Future<bool> _isLastWindowClosing() async {
     try {
       // ⚠️ timeout חובה. השאלה הזו יושבת **לפני** חימוש שעון היציאה הכפויה
@@ -177,11 +180,11 @@ class AppWindowListener extends WindowListener {
       final info = await const MultiWindowService().windowCount().timeout(
         const Duration(seconds: 2),
       );
-      return info.count <= 1;
+      if (info != null) return info.count <= 1;
     } catch (e) {
-      debugPrint('windowCount failed during close, assuming last: $e');
-      return true;
+      debugPrint('windowCount failed during close: $e');
     }
+    return !WindowBus.instance.hasOtherWindows;
   }
 
   @override
@@ -205,6 +208,11 @@ class AppWindowListener extends WindowListener {
       return;
     }
     _isClosing = true;
+
+    // ⚠️ **לפני** ההכרעה מי האחרון. סגירה של כמה חלונות יחד יכולה לגמור
+    // ב-`TerminateProcess` של ה-runner בלי ששום חלון ריץ את הכיבוי המסודר,
+    // ואז ה-canary נשאר וההפעלה הבאה מסרבת לטעון את התוספים. אידמפוטנטי.
+    PluginCrashGuard.markCleanShutdownSync();
 
     // ⚠️ הפיצול הוא לפי *בעלות* — מה פר-חלון ומה פר-תהליך — ולא לפי סדר.
     // הצעד הפר-חלוני היחיד הוא ה-flush, והוא יושב באמצע רצף פר-תהליכי:
@@ -232,9 +240,8 @@ class AppWindowListener extends WindowListener {
       // `Ctrl+Shift+T` אינו נשען עליו אלא על המנוע שנשאר חי בזיכרון.
       await TabsRepository().discardWindowSession();
 
-      // ⚠️ דרך ה-runner ולא `_window.destroy()`: זה האחרון הורס את החלון
-      // מתוך טיפול בערוץ, והריסת מנוע משם היא ריאנטרנטית ומפילה את
-      // התהליך. ה-runner דוחה את ההריסה לאיטרציה הבאה של לולאת ההודעות.
+      // ⚠️ דרך ה-runner ולא `quitApplication()`: האחרון הוא
+      // `PostQuitMessage` — הוא סוגר את התוכנה כולה ולא את החלון הזה.
       await const MultiWindowService().closeSelf();
       // ⚠️ החלון מוסתר ולא נהרס, וה-listener שלו חי. חלון שיוחזר לשימוש
       // (`ReviveWith` / Ctrl+Shift+T) חייב שסגירה חוזרת שלו תעבוד — עם
@@ -243,12 +250,20 @@ class AppWindowListener extends WindowListener {
     }
   }
 
+  /// סוגר חלון משני שנותר בלי כרטיסיות, כמו כרטיסייה אחרונה בדפדפן.
+  ///
+  /// ⚠️ לא כשזה החלון הגלוי האחרון: [handleWindowClose] היה מזהה אותו כאחרון
+  /// ומכבה את התהליך, בעוד המשתמש רק רוקן חלון וציפה לראות את הספרייה.
+  Future<void> closeIfEmptied() async {
+    if (!WindowRole.isSecondary || _isClosing) return;
+    // `null` הוא "לא ידוע" — חלון ריק עדיף על סגירה בניחוש.
+    final info = await const MultiWindowService().windowCount();
+    if (info == null || info.count <= 1) return;
+    await handleWindowClose();
+  }
+
   /// הצעדים שקודמים ל-flush — כולם פר-תהליך.
   Future<void> _shutdownProcessUpToFlush() async {
-    // סגירה יזומה אינה קריסה — לנקות canaries של טעינות תוספים שבטיסה
-    // לפני שה-WebViews נהרסים (dispose של הטאבים לא רץ במסלול היציאה).
-    PluginCrashGuard.markCleanShutdownSync();
-
     if (kDebugMode) {
       debugPrint('Window close requested');
     }
@@ -394,9 +409,9 @@ class AppWindowListener extends WindowListener {
           if (terminateAttempted == false) {
             // job_object_ready=false ב-runner — סביבה sandboxed / debugger
             // / MDM שמנעה את ה-Job Object containment. אין כאן fallback
-            // מקסימלי באמת: `windowManager.destroy()` ידוע שעוצר את ה-
-            // Engine מיד וזה מסוכן בנתיב הזה (ראה ההערה המקורית למטה),
-            // ואין דרך אחרת להבטיח הריגה אטומית של תהליכי WebView2 ילדים.
+            // מקסימלי באמת: `quitApplication()` הוא `PostQuitMessage`, שמפיל
+            // את המנוע תחת Dart רץ, ואין דרך אחרת להבטיח הריגה אטומית של
+            // תהליכי WebView2 ילדים.
             //
             // מה שאנחנו עושים: נותנים ל-IPC של WebView2 SDK חלון של ~500ms
             // לסיים את ה-shutdown של תהליכי Edge — `shutdownForAppExit`
@@ -419,20 +434,21 @@ class AppWindowListener extends WindowListener {
             // יציאה שדווחה הייתה בתצורה המסוכנת.
             final live = await const MultiWindowService().windowCount().timeout(
               const Duration(seconds: 1),
-              onTimeout: () => (count: 1, max: 1, engines: 1),
+              onTimeout: () => null,
             );
+            final engines = live?.engines;
             _logForceTerminateFailure(
               'Job Object not ready in native runner — degraded close, '
-              'WebView2 children may still orphan (pre-fix behavior); '
-              'live engines=${live.engines} visible windows=${live.count}'
-              '${live.engines > 1 ? ' — exit() teardown is unsafe here (P-2 §3)' : ''}',
+              'WebView2 children may still orphan; '
+              'live engines=${engines ?? 'unknown'} '
+              'visible windows=${live?.count ?? 'unknown'}'
+              '${engines != null && engines > 1 ? ' — exit() teardown is unsafe here' : ''}',
               null,
             );
             await Future<void>.delayed(const Duration(milliseconds: 500));
           }
-          // Windows path מאז ומעולם — exit(0) במקום windowManager.destroy.
-          // כשה-Job Object כן הוקם (המצב הרגיל), TerminateProcess כבר
-          // הרג אותנו ולא נגיע לכאן.
+          // ב-Windows `exit(0)` ולא `quitApplication()`. כשה-Job Object הוקם
+          // (המצב הרגיל) TerminateProcess כבר הרג אותנו ולא נגיע לכאן.
           exit(0);
         }
 
@@ -442,8 +458,9 @@ class AppWindowListener extends WindowListener {
         // "סיים משימה") עוברים דרך Dart. זו הסיבה שהמעבר ל"מוסתר ולא
         // נהרס" לא השאיר את התהליך תלוי.
         await windowManager.setPreventClose(false);
-        // סגירה רגילה דרך ה-WindowManager
-        await _window.destroy();
+        // ⚠️ macOS/Linux בלבד. ב-Windows המסלול הסתיים ב-`exit(0)` שמעל —
+        // ראו האזהרה בתיעוד של `quitApplication`.
+        await _window.quitApplication();
       }
     } catch (e) {
       if (kDebugMode) {

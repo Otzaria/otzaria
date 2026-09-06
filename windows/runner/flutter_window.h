@@ -78,7 +78,7 @@ class FlutterWindow : public Win32Window {
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
       process_control_channel_;
   // ערוץ ריבוי החלונות (otzaria/multiwindow). Dart קורא "openWindow" עם
-  // מטען JSON, וה-runner פותח חלון נוסף על thread ייעודי משלו.
+  // מטען JSON, וה-runner יוצר חלון נוסף על ה-thread הראשי.
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
       multiwindow_channel_;
   // בקשת פתיחת חלון שממתינה לאיטרציה הבאה של לולאת ההודעות.

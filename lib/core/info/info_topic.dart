@@ -4,6 +4,7 @@
 enum InfoTopic {
   app('app', 'מידע על התוכנה'),
   library('library', 'מידע על הספרייה'),
+  folders('folders', 'תיקיות ספרים אישיים'),
   plugins('plugins', 'מידע על התוספים'),
   errors('errors', 'השגיאות האחרונות'),
   all('all', 'מידע מלא');
@@ -26,6 +27,13 @@ enum InfoTopic {
       case 'library':
       case 'books':
         return InfoTopic.library;
+      case 'folders':
+      case 'folder':
+      case 'personal':
+      case 'personal_books':
+      case 'personal_folders':
+      case 'custom_folders':
+        return InfoTopic.folders;
       case 'plugins':
       case 'plugin':
         return InfoTopic.plugins;
@@ -46,6 +54,7 @@ enum InfoTopic {
       ? const [
           InfoTopic.app,
           InfoTopic.library,
+          InfoTopic.folders,
           InfoTopic.plugins,
           InfoTopic.errors,
         ]

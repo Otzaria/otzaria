@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/core/error_log_file.dart';
+import 'package:otzaria/core/messages/window_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/windowing/external_tab_drag.dart';
 import 'package:otzaria/core/windowing/multi_window_service.dart';
 import 'package:otzaria/core/windowing/settings_sync.dart';
 import 'package:otzaria/core/windowing/shared_hive_store.dart';
-import 'package:otzaria/core/windowing/thread_contention_probe.dart';
 import 'package:otzaria/core/windowing/window_bus.dart';
 import 'package:otzaria/core/windowing/window_role.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
@@ -99,7 +101,24 @@ class _WindowBusHostState extends State<WindowBusHost> {
   /// ונסגר נחת בספרייה במקום על הכרטיסיה שנגררה אליו.
   Future<void> _adoptPayload(String payload) async {
     final tab = MultiWindowService.decodePayload(payload);
-    if (tab == null || !mounted) return;
+    if (tab == null) {
+      // ⚠️ המקור כבר מחק את הכרטיסיה על סמך `openWindow` שהחזיר true. כשל
+      // שקט כאן פירושו כרטיסיה שנעלמה בלי שום סימן.
+      if (MultiWindowService.payloadHasTab(payload)) {
+        UiSnack.showError(WindowMessages.transferredTabDecodeFailed);
+        try {
+          ErrorLogFile.append(
+            title: 'פענוח כרטיסיה שהועברה לחלון שהוחזר לשימוש נכשל',
+            error: 'decodePayload returned null for a payload with a tab',
+            stackTrace: StackTrace.current,
+          );
+        } catch (_) {
+          // רישום הוא best-effort ולעולם אינו חוסם את החזרת החלון.
+        }
+      }
+      return;
+    }
+    if (!mounted) return;
     context.read<TabsBloc>().add(AdoptTab(tab));
     context.read<NavigationBloc>().add(
       const NavigateToScreen(Screen.reading),
@@ -124,13 +143,9 @@ class _WindowBusHostState extends State<WindowBusHost> {
     _peerRefresh?.cancel();
     unawaited(_settingsChanged?.cancel());
     SettingsSync.instance.dispose();
-    MultiWindowService.channel.setMethodCallHandler(null);
-    // ⚠️ **המשבצת וה-`onRequest` אינם משוחררים כאן.** ה-widget מתפרק גם
-    // כשהוא רק נבנה מחדש (`RestartWidget`, למשל בשינוי נתיב הספרייה),
-    // וה-isolate ממשיך לחיות עם קובצי ה-Hive פתוחים. שחרור הכינוי `owner`
-    // לאורך האתחול מחדש הפיל כל `mutate` בחלונות המשניים
-    // ל-`SharedHiveUnavailable`. חלון שנסגר גם הוא אינו משחרר, במכוון —
-    // ראו [WindowBus.unregister].
+    // ⚠️ המשבצת, ה-`onRequest` ומטפל הערוץ **אינם** משוחררים כאן: ב-
+    // `RestartWidget` ה-`initState` החדש רץ לפני ה-`dispose` הזה, ושחרור
+    // כאן היה מוחק את הרישום שהוא בדיוק עשה.
     MultiWindowService.publishKnownPeers(const []);
     super.dispose();
   }
@@ -149,12 +164,6 @@ class _WindowBusHostState extends State<WindowBusHost> {
       case SettingsSync.requestChanged:
         // הגדרה שונתה בחלון אחר — מוחלת על ה-box המקומי ומרעננת את ה-state.
         return SettingsSync.instance.handleRequest(request);
-      case ThreadContentionProbe.requestBurn:
-        // ⚠️ מגודר במשתנה סביבה. בקשה שמקפיאה חלון אחר אסור שתהיה נגישה
-        // בבנייה רגילה — זו בדיקה 10 של P-2 ולא יכולת של המוצר.
-        if (!ThreadContentionProbe.isEnabled) return null;
-        ThreadContentionProbe.burnCpu((request['ms'] as int?) ?? 2000);
-        return true;
       default:
         // המאגרים המשותפים מנותבים לחלון הראשון; הבקשות שלהם מטופלות שם.
         return SharedHiveStore.instance.handleRequest(request);

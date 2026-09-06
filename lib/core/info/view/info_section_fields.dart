@@ -84,6 +84,26 @@ class InfoValueFormat {
         : rendered;
   }
 
+  /// תקציר תיקייה אישית לשורה בפופאפ: כמות הקבצים, נפחם, ומצבים שהמשתמש
+  /// חייב לראות כדי להבין מדוע ספרים אינם מופיעים (תיקייה חסרה או מוסתרת).
+  static String folderSummary(Map<dynamic, dynamic> folder) {
+    if (folder['exists'] == false) return 'התיקייה לא נמצאה';
+    final parts = <String>[
+      '${count(folder['fileCount'])} קבצים',
+      bytes(folder['sizeBytes']),
+      if (folder['hidden'] == true) 'מוסתרת',
+      if (folder['scanTruncated'] == true) 'סריקה חלקית',
+    ];
+    return parts.join(' · ');
+  }
+
+  /// פירוט הסיומות של תיקייה — `txt 8 · pdf 4`. ריק כשאין קבצים.
+  static String folderTypes(Map<dynamic, dynamic> folder) {
+    final byType = folder['filesByType'];
+    if (byType is! Map || byType.isEmpty) return '';
+    return byType.entries.map((e) => '${e.key} ${count(e.value)}').join(' · ');
+  }
+
   static String pluginVersion(Map<dynamic, dynamic> plugin) {
     final version = text(plugin['version']);
     return plugin['enabled'] == false ? '$version (מושבת)' : version;
@@ -129,6 +149,7 @@ class InfoSectionFields {
   static List<InfoField> of(InfoTopic topic) => switch (topic) {
     InfoTopic.app => app,
     InfoTopic.library => library,
+    InfoTopic.folders => folders,
     InfoTopic.plugins => plugins,
     InfoTopic.errors => errors,
     InfoTopic.all => const [],
@@ -209,6 +230,30 @@ class InfoSectionFields {
     ),
     InfoField('path', 'נתיב הספרייה', isLtr: true, isBlock: true),
     InfoField('indexPath', 'נתיב האינדקס', isLtr: true, isBlock: true),
+  ];
+
+  static final List<InfoField> folders = [
+    InfoField(
+      'configuredCount',
+      'תיקיות מוגדרות',
+      format: (value, _) => InfoValueFormat.count(value),
+    ),
+    InfoField(
+      'existingCount',
+      'מהן קיימות בדיסק',
+      format: (value, _) => InfoValueFormat.count(value),
+    ),
+    InfoField(
+      'totalFiles',
+      'סך קובצי ספרים',
+      format: (value, _) => InfoValueFormat.count(value),
+    ),
+    InfoField(
+      'totalSizeBytes',
+      'נפח כולל',
+      isLtr: true,
+      format: (value, _) => InfoValueFormat.bytes(value),
+    ),
   ];
 
   static final List<InfoField> plugins = [

@@ -9,7 +9,7 @@ import 'package:otzaria/tabs/models/pdf_tab.dart';
 /// החסרים. במצב זה הטאב הוא הבעלים של ה-sourceTab ומשחרר אותו ב-dispose.
 class PdfCommentatorsTab extends OpenedTab {
   final PdfBookTab sourceTab;
-  final bool _disposeSourceTabOnDispose;
+  bool _disposeSourceTabOnDispose;
 
   PdfCommentatorsTab({
     required this.sourceTab,
@@ -57,6 +57,14 @@ class PdfCommentatorsTab extends OpenedTab {
       // וה-ValueNotifier-ים שלו לא משוחררים לעולם.
       disposeSourceTabOnDispose: true,
     )..isPinned = isPinned;
+  }
+
+  /// יורש את הבעלות על [sourceTab] כשטאב הספר שהחזיק אותו נסגר.
+  ///
+  /// ⚠️ בלי זה שחרור טאב הספר משאיר את הכרטיסיה הזו מצביעה על
+  /// `currentTitle` משוחרר — ורצועת הכרטיסיות עצמה מאזינה לו.
+  void assumeSourceTabOwnership() {
+    _disposeSourceTabOnDispose = true;
   }
 
   @override

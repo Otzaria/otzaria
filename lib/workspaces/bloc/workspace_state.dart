@@ -46,17 +46,23 @@ class WorkspaceState extends Equatable {
     return index >= 0 ? index : null;
   }
 
+  /// ⚠️ [clearError] ו-[clearActiveWorkspaceId] הם הדרך היחידה לאפס שדה:
+  /// `null` בפרמטר פירושו "אל תיגע", ובלעדיהם כל `emit` מחק את השגיאה.
   WorkspaceState copyWith({
     List<Workspace>? workspaces,
     bool? isLoading,
     String? error,
+    bool clearError = false,
     String? activeWorkspaceId,
+    bool clearActiveWorkspaceId = false,
   }) {
     return WorkspaceState(
       workspaces: workspaces ?? this.workspaces,
       isLoading: isLoading ?? this.isLoading,
-      error: error,
-      activeWorkspaceId: activeWorkspaceId ?? this.activeWorkspaceId,
+      error: clearError ? null : (error ?? this.error),
+      activeWorkspaceId: clearActiveWorkspaceId
+          ? null
+          : (activeWorkspaceId ?? this.activeWorkspaceId),
     );
   }
 

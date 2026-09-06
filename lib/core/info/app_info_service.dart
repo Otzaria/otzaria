@@ -7,6 +7,7 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/info/app_install_timeline.dart';
 import 'package:otzaria/core/info/error_log_reader.dart';
 import 'package:otzaria/core/info/info_topic.dart';
+import 'package:otzaria/core/info/personal_folders_info.dart';
 import 'package:otzaria/core/info/system_account_info.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
@@ -61,6 +62,7 @@ class AppInfoService {
     InfoTopic topic, {
     Future<List<InstalledPlugin>> Function()? pluginsLoader,
     int errorLimit = 5,
+    int fileLimit = PersonalFoldersInfo.defaultFileLimit,
     DateTime? now,
     bool settingsLoaded = true,
   }) async {
@@ -72,6 +74,9 @@ class AppInfoService {
         () => switch (section) {
           InfoTopic.app => _collectApp(),
           InfoTopic.library => _collectLibrary(),
+          InfoTopic.folders => PersonalFoldersInfo.collect(
+            fileLimit: fileLimit,
+          ),
           InfoTopic.plugins => _collectPlugins(pluginsLoader),
           InfoTopic.errors => _collectErrors(errorLimit),
           InfoTopic.all => throw StateError('all מורחב ל-sections'),

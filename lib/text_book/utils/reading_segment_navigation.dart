@@ -136,6 +136,9 @@ Future<void> scrollToSourceLine({
   var previousDistance = double.infinity;
   var confirming = false;
   for (var attempt = 0; attempt < 5; attempt++) {
+    // הרשימה יורדת מהעץ באמצע האנימציה (מעבר כרטיסיה, סגירתה, העברתה לחלון
+    // אחר), ו-positionsListener שומר מדידה ישנה — רק isAttached מעיד שהיא חיה.
+    if (!scrollController.isAttached) return;
     final measured = _findPosition(positionsListener, segmentIndex);
     if (measured == null) {
       return;

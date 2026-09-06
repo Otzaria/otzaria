@@ -227,6 +227,54 @@ void main() {
       expect(tab.selectedCommentators, ['רש"י']);
     });
 
+    test('fromJson קורא את מיקום הכרטיסיה ולא את זה של ספר המקור', () {
+      // ⚠️ שני ערכים **שונים** בכוונה: מיקום זהה אינו יכול להבחין מי נקרא.
+      final restored = CommentatorsTab.fromJson({
+        'type': 'CommentatorsTab',
+        'isPinned': false,
+        'initialIndex': 40,
+        'bookTitle': 'ספר משוחזר',
+        'sourceTab': {
+          'type': 'TextBookTab',
+          'title': 'ספר משוחזר',
+          'initalIndex': 1,
+          'commentators': const <String>[],
+          'book': TextBook(title: 'ספר משוחזר').toJson(),
+          'splitedView': true,
+          'showPageShapeView': false,
+          'showLeftPane': false,
+          'isPinned': false,
+        },
+      });
+      addTearDown(restored.dispose);
+
+      expect(restored.startIndex, 40);
+      expect((restored.bloc.state as TextBookInitial).index, 40);
+      // שמירה חוזרת אינה מחזירה את המיקום לאחור.
+      expect(restored.toJson()['initialIndex'], 40);
+    });
+
+    test('clone משמר את מיקום הכרטיסיה ולא נופל למיקום ספר המקור', () {
+      final sourceTab = TextBookTab(
+        book: TextBook(title: 'ספר בדיקה'),
+        index: 1,
+        blocOverride: _LoadedTextBookBloc(
+          _loadedState(selectedIndex: 40, visibleIndices: const [40]),
+        ),
+      );
+      addTearDown(sourceTab.dispose);
+
+      final tab = CommentatorsTab(sourceTab: sourceTab);
+      addTearDown(tab.dispose);
+      expect(tab.startIndex, 40);
+
+      final copy = tab.clone() as CommentatorsTab;
+      addTearDown(copy.dispose);
+
+      expect(copy.startIndex, 40);
+      expect((copy.bloc.state as TextBookInitial).index, 40);
+    });
+
     test('toJson שומר sourceTab ואת סוג הטאב', () {
       final sourceTab = TextBookTab(
         book: TextBook(title: 'ספר בדיקה'),

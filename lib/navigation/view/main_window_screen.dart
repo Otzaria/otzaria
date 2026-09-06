@@ -625,10 +625,14 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
       _tourCubit.registerSession();
 
-      AdPopupDialog.showIfNeeded(
-        context,
-        shouldSkip: () => _tourStartedAutomaticallyThisLaunch,
-      );
+      // ⚠️ פר-תהליך: מונה ההפעלות שמכתיב מתי הפופאפ מוצג עולה פר-חלון,
+      // והפופאפ עצמו הופיע בכל חלון שנפתח.
+      if (!WindowRole.isSecondary) {
+        AdPopupDialog.showIfNeeded(
+          context,
+          shouldSkip: () => _tourStartedAutomaticallyThisLaunch,
+        );
+      }
 
       // רענון plugin calendar events עם scope אמיתי לאחר שה-context מוכן.
       // הטעינה הראשונית ב-_initializeCalendar נקראה בלי workspace/book IDs —
@@ -827,6 +831,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
   /// Initialize background file sync AFTER library is loaded.
   /// This avoids DB lock contention that caused 17s delays.
   void _initializeBackgroundSync() {
+    // ⚠️ פר-תהליך: הסנכרון כותב ל-`seforim.db` ול-`user_books.db` המשותפים.
+    if (WindowRole.isSecondary) return;
     BackgroundSyncInitializer.initializeAfterDelay(
       delaySeconds: 2, // Small delay to let UI settle after library load
       onComplete: (result) {
@@ -868,7 +874,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
           Settings.getValue<bool>(SettingsRepository.keyAutoSync) ?? true,
       canUseSoftwareAndBookUpdates: () =>
           context.read<SettingsBloc>().state.canUseSoftwareAndBookUpdates,
+      // ⚠️ פר-תהליך: עדכון הספרייה מוריד את אותם קבצים לאותו נתיב, ושני
+      // חלונות שמתחילים אותו במקביל נלחמים על אותו `seforim.db`.
       isLibraryUpdateCheckDue: () =>
+          !WindowRole.isSecondary &&
           isAutoUpdateCheckDue(SettingsRepository.keyLastLibraryUpdateCheck),
       libraryUpdateBloc: context.read<LibraryUpdateBloc>,
     );
@@ -984,6 +993,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
     BuildContext context,
     library_model.Library library,
   ) async {
+    // ⚠️ החלטה פר-תהליך: הענף `autoReindexThenStart` מוחק את האינדקס שכל
+    // החלונות חולקים. החלון המשני רק מדווח על מצב האינדקס ופותח את השער.
     if (WindowRole.isSecondary) {
       _startupWorkGate.markIndexingDecisionResolved(expectIndexing: false);
       _tryStartDeferredStartupWork();
@@ -1388,6 +1399,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
           ? pluginState.plugins
           : await PluginRegistryRepository().getAllPlugins(),
       errorLimit: action.errorLimit,
+      fileLimit: action.fileLimit,
     );
     if (!mounted) {
       _isShowingInfoReport = false;
@@ -2944,6 +2956,18 @@ class MainWindowScreenState extends State<MainWindowScreen>
                 tabCount: state.tabs.length,
               ),
             ),
+          ),
+          // חלון משני שהתרוקן מכרטיסיות נסגר, כמו כרטיסייה אחרונה בדפדפן.
+          // ⚠️ מעבר-מצב ולא `!hasOpenTabs`: בעלייה הרשימה עדיין ריקה.
+          BlocListener<TabsBloc, TabsState>(
+            listenWhen: (previous, current) =>
+                previous.hasOpenTabs && !current.hasOpenTabs,
+            listener: (context, state) {
+              final windowListener = appWindowListener;
+              if (windowListener != null) {
+                unawaited(windowListener.closeIfEmptied());
+              }
+            },
           ),
           // settings.changed עבור selectedCity ו-calendarType —
           // שדות אלה נמצאים ב-CalendarState ולא ב-SettingsState

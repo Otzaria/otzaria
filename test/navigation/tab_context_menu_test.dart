@@ -1,6 +1,11 @@
+import 'dart:isolate';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/windowing/multi_window_service.dart';
+import 'package:otzaria/core/windowing/window_bus.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
@@ -12,6 +17,7 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_state.dart';
@@ -121,6 +127,129 @@ void main() {
       same(tabs[1]),
     );
   });
+
+  /// מיזוג חלון של כרטיסיה אחת חזרה לחלון המקור — המחווה הטבעית של
+  /// issue #1187. חלון משני שהתרוקן נסגר, ולכן אין מה לחסום.
+  group('העברת הכרטיסיה האחרונה בחלון', () {
+    late _FakeRunner runner;
+
+    setUp(() {
+      MultiWindowService.debugSupportedOverride = true;
+      WindowBus.namespace = _namespace;
+      runner = _FakeRunner()..install();
+    });
+
+    tearDown(() {
+      runner.uninstall();
+      MultiWindowService.debugSupportedOverride = null;
+      MultiWindowService.publishKnownPeers(const []);
+      WindowBus.namespace = 'otzaria.window';
+    });
+
+    testWidgets('לחלון קיים — עוברת', (tester) async {
+      final peer = _FakePeer(2)..register();
+      addTearDown(peer.dispose);
+      MultiWindowService.publishKnownPeers(const [
+        WindowPeer(slot: 2, title: 'חלון שני', tabCount: 1),
+      ]);
+      final tab = ToolTab(toolId: 'builtin.calendar', title: 'לוח שנה');
+      final entries = await buildEntries(
+        tester,
+        tab: tab,
+        state: TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+
+      await tester.runAsync(() async {
+        entryOf(entries, 'העבר לחלון קיים').children!.single.onTap!();
+        // ⚠️ המסירה עוברת ב-ReceivePort אמיתי, ש-FakeAsync של pumpAndSettle
+        // אינו מקדם — ההמתנה חייבת להיות בזמן אמת.
+        for (var i = 0; i < 200 && peer.receivedTabs == 0; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+      });
+      await tester.pump();
+
+      expect(peer.receivedTabs, 1);
+      expect(tabsBloc.addedEvents.whereType<RemoveTab>().single.tab, same(tab));
+    });
+
+    testWidgets('לחלון חדש — נחסמת, כי היא רק מחליפה חלון בחלון', (
+      tester,
+    ) async {
+      final tab = ToolTab(toolId: 'builtin.calendar', title: 'לוח שנה');
+      final entries = await buildEntries(
+        tester,
+        tab: tab,
+        state: TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+
+      entryOf(entries, 'העבר לחלון חדש').onTap!();
+      await tester.pumpAndSettle();
+
+      expect(runner.openWindowCalls, 0);
+      expect(tabsBloc.addedEvents.whereType<RemoveTab>(), isEmpty);
+    });
+  });
+}
+
+/// ⚠️ קידומת ייחודית לסוויטה — [ui.IsolateNameServer] גלובלי לתהליך.
+const String _namespace = 'otzaria.test.tabcontextmenu';
+
+class _FakeRunner {
+  int openWindowCalls = 0;
+
+  void install() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(MultiWindowService.channel, (call) async {
+          switch (call.method) {
+            case 'windowCount':
+              return {'count': 2, 'max': 4, 'engines': 2};
+            case 'openWindow':
+              openWindowCalls++;
+              return true;
+            default:
+              return null;
+          }
+        });
+  }
+
+  void uninstall() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(MultiWindowService.channel, null);
+  }
+}
+
+/// חלון יעד מדומה על האפיק.
+class _FakePeer {
+  _FakePeer(this.slot);
+
+  final int slot;
+  int receivedTabs = 0;
+  late final ReceivePort _port;
+
+  void register() {
+    _port = ReceivePort();
+    ui.IsolateNameServer.registerPortWithName(
+      _port.sendPort,
+      '$_namespace.$slot',
+    );
+    _port.listen((message) {
+      final map = message as Map;
+      final reply = map['reply'] as SendPort;
+      final body = Map<String, dynamic>.from(map['body'] as Map);
+      if (body['type'] == MultiWindowService.requestReceiveTab) {
+        receivedTabs++;
+        reply.send({'ok': true, 'result': true});
+        return;
+      }
+      reply.send({'ok': true, 'result': null});
+    });
+  }
+
+  void dispose() {
+    ui.IsolateNameServer.removePortNameMapping('$_namespace.$slot');
+    _port.close();
+  }
 }
 
 class _TestTabsBloc extends Cubit<TabsState> implements TabsBloc {

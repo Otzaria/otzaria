@@ -20,6 +20,9 @@ void main() {
       expect(InfoTopic.fromSlug('books'), InfoTopic.library);
       expect(InfoTopic.fromSlug('plugin'), InfoTopic.plugins);
       expect(InfoTopic.fromSlug('logs'), InfoTopic.errors);
+      expect(InfoTopic.fromSlug('personal'), InfoTopic.folders);
+      expect(InfoTopic.fromSlug('personal_books'), InfoTopic.folders);
+      expect(InfoTopic.fromSlug('custom_folders'), InfoTopic.folders);
     });
 
     test('נושא לא מוכר מוחזר null', () {
@@ -33,6 +36,7 @@ void main() {
       expect(InfoTopic.all.sections, [
         InfoTopic.app,
         InfoTopic.library,
+        InfoTopic.folders,
         InfoTopic.plugins,
         InfoTopic.errors,
       ]);

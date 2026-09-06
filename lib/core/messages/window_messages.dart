@@ -13,9 +13,9 @@ abstract class WindowMessages {
 
   static const String transferFailed = 'העברת הכרטיסיה לחלון נכשלה.';
 
-  /// הכרטיסיה נשלחה אבל היעד לא הצליח לפענח אותה — היא נשארת במקומה.
-  static const String transferDecodeFailed =
-      'החלון היעד לא הצליח לפתוח את הכרטיסיה, והיא נשארה כאן.';
+  /// היעד לא ענה בזמן. הכרטיסיה **לא** הוסרה כאן, אך ייתכן שנקלטה גם שם.
+  static const String transferUnconfirmed =
+      'החלון היעד לא השיב בזמן. הכרטיסיה נשארה כאן — בדוק אם היא נפתחה גם שם.';
 
   // ── פתיחת חלון ─────────────────────────────────────────────────────────
 
@@ -47,6 +47,9 @@ abstract class WindowMessages {
       'הראשי ונסה שוב.';
 
   /// כרטיסיית חלון אחר בתת-התפריט "העבר לחלון קיים".
-  static String peerWithTabs(String title, int tabCount) =>
-      '$title ($tabCount כרטיסיות)';
+  static String peerWithTabs(String title, int tabCount) => switch (tabCount) {
+    1 => '$title (כרטיסיה אחת)',
+    2 => '$title (שתי כרטיסיות)',
+    _ => '$title ($tabCount כרטיסיות)',
+  };
 }

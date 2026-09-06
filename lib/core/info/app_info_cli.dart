@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 import 'package:otzaria/core/info/app_info_service.dart';
 import 'package:otzaria/core/info/info_topic.dart';
+import 'package:otzaria/core/info/personal_folders_info.dart';
 import 'package:otzaria/core/info/settings_snapshot.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 
@@ -18,6 +19,9 @@ class AppInfoCliExitCode {
 class AppInfoCliRequest {
   final InfoTopic topic;
   final int errorLimit;
+
+  /// מספר קובצי הספרים המפורטים לכל תיקייה אישית. `0` = ספירות בלבד.
+  final int fileLimit;
   final bool compact;
   final bool help;
 
@@ -27,6 +31,7 @@ class AppInfoCliRequest {
   const AppInfoCliRequest({
     this.topic = InfoTopic.all,
     this.errorLimit = 5,
+    this.fileLimit = PersonalFoldersInfo.defaultFileLimit,
     this.compact = false,
     this.help = false,
     this.outPath,
@@ -41,6 +46,7 @@ class AppInfoCliRequest {
 ///     otzaria.exe info                 # דוח מלא
 ///     otzaria.exe info app             # מקטע אחד
 ///     otzaria.exe info errors --limit=20
+///     otzaria.exe info folders --files=0  # ספירות בלי רשימת קבצים
 ///     otzaria.exe info --compact       # שורה אחת, ידידותי לצינור
 ///     otzaria.exe info --out=r.json    # מטען נקי לקובץ
 ///
@@ -116,6 +122,7 @@ class AppInfoCli {
       request.topic,
       pluginsLoader: () => PluginRegistryRepository().getAllPlugins(),
       errorLimit: request.errorLimit,
+      fileLimit: request.fileLimit,
       settingsLoaded: settingsLoaded,
     );
   }
@@ -125,6 +132,7 @@ class AppInfoCli {
     var topic = InfoTopic.all;
     var topicGiven = false;
     var errorLimit = 5;
+    var fileLimit = PersonalFoldersInfo.defaultFileLimit;
     var compact = false;
     String? outPath;
 
@@ -157,6 +165,16 @@ class AppInfoCli {
         errorLimit = parsed;
         continue;
       }
+      if (arg.startsWith('--files=')) {
+        // 0 מותר כאן ומשמעו "ספירות בלבד", בשונה מ---limit שבו 0 חסר משמעות.
+        final parsed = int.tryParse(arg.substring('--files='.length).trim());
+        if (parsed == null || parsed < 0) {
+          err.writeln('ערך --files חייב להיות מספר אי-שלילי: $arg');
+          return null;
+        }
+        fileLimit = parsed;
+        continue;
+      }
       if (arg.startsWith('-')) {
         err.writeln('דגל לא מוכר: $arg');
         return null;
@@ -178,6 +196,7 @@ class AppInfoCli {
     return AppInfoCliRequest(
       topic: topic,
       errorLimit: errorLimit,
+      fileLimit: fileLimit,
       compact: compact,
       outPath: outPath,
     );
@@ -186,20 +205,26 @@ class AppInfoCli {
   static void printUsage(StringSink out) {
     out
       ..writeln(
-        'שימוש: otzaria info [<נושא>] [--limit=<n>] [--compact] [--out=<path>]',
+        'שימוש: otzaria info [<נושא>] [--limit=<n>] [--files=<n>] '
+        '[--compact] [--out=<path>]',
       )
       ..writeln()
       ..writeln('מדפיס דוח JSON על ההתקנה ל-stdout ויוצא. ללא חלון וללא ממשק.')
       ..writeln()
       ..writeln('נושאים:')
-      ..writeln('  all       (ברירת מחדל) תוכנה + ספרייה + תוספים + שגיאות')
+      ..writeln('  all       (ברירת מחדל) כל המקטעים שלהלן')
       ..writeln('  app       גרסה, תאריכי התקנה/עדכון, סוג התקנה וחשבון')
       ..writeln('  library   גרסת ספרייה, תאריך עדכון ומספרי ספרים')
+      ..writeln('  folders   תיקיות הספרים האישיים וקובצי הספרים שבהן')
       ..writeln('  plugins   גרסת WebView ורשימת התוספים המותקנים')
       ..writeln('  errors    רשומות השגיאה האחרונות מקובצי הלוג')
       ..writeln()
       ..writeln('דגלים:')
       ..writeln('  --limit=<n>  מספר רשומות השגיאה (ברירת מחדל 5)')
+      ..writeln(
+        '  --files=<n>  מספר הקבצים לכל תיקייה אישית '
+        '(ברירת מחדל ${PersonalFoldersInfo.defaultFileLimit}; 0 = ספירות בלבד)',
+      )
       ..writeln('  --compact    JSON בשורה אחת')
       ..writeln('  --out=<path> כתיבת ה-JSON לקובץ במקום ל-stdout')
       ..writeln('  -h, --help   הצגת עזרה זו')

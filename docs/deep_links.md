@@ -169,6 +169,8 @@ otzaria://library/reindex
 otzaria.exe info                     # דוח מלא
 otzaria.exe info app                 # מקטע אחד
 otzaria.exe info errors --limit=20
+otzaria.exe info folders             # תיקיות אישיות + קובצי הספרים שבהן
+otzaria.exe info folders --files=0   # ספירות בלבד, בלי רשימת קבצים
 otzaria.exe info --compact           # שורה אחת, לצינור לתוך מפענח
 otzaria.exe info --out=report.json   # מטען נקי לקובץ
 otzaria.exe info --help
@@ -177,6 +179,7 @@ otzaria.exe info --help
 | דגל | משמעות |
 |--------|--------|
 | `--limit=<n>` | מספר רשומות השגיאה. **אין תקרה כאן** — בשונה מ-`?limit=` בכתובת ה-URI שנחסם ב-50, הקורא בשורת הפקודה מהימן ומקבל בדיוק מה שביקש |
+| `--files=<n>` | מספר הקבצים לכל תיקייה אישית (ברירת מחדל 50; `0` = ספירות בלבד). גם כאן **אין תקרה**, בשונה מ-`?files=` שנחסם ב-500 |
 | `--compact` | JSON בשורה אחת |
 | `--out=<path>` | כתיבת ה-JSON לקובץ במקום ל-stdout |
 | `-h`, `--help` | מסך עזרה |
@@ -211,7 +214,7 @@ var json2 = File.ReadAllText(path);   // רק ה-JSON, בלי newline נגרר
 
 הפלט זהה בדיוק לזה שבפופאפ — שני הערוצים קוראים ל-[`AppInfoService.collect`](../lib/core/info/app_info_service.dart), ורק מקור רשימת התוספים שונה (BLoC בממשק, `PluginRegistryRepository` ב-CLI).
 
-**בחירת הנושא היא גם בקרת הביצועים:** `app`, `plugins` ו-`errors` אינם נוגעים בספרייה ומחזירים מיד. `library` (וגם `all`) טוענים את קטלוג הספרייה מ-`seforim.db`, ולכן לוקחים כמה שניות.
+**בחירת הנושא היא גם בקרת הביצועים:** `app`, `plugins` ו-`errors` אינם נוגעים בספרייה ומחזירים מיד. `library` טוען את קטלוג הספרייה מ-`seforim.db`, ולכן לוקח כמה שניות. `folders` אינו נוגע ב-DB כלל אך **סורק את הדיסק** — הוא עובר רקורסיבית על כל תיקייה אישית, ולכן משכו נגזר ממספר הקבצים שבהן. `all` כולל את שניהם. להאצה: `--files=0` (או `?files=0`) חוסך את בניית רשימת הקבצים, אבל לא את המעבר עצמו — הספירות דורשות אותו.
 
 **איך ה-CLI קורא את ההגדרות בזמן שאוצריא פתוחה:** Hive נועל את תיבת ההגדרות בלעדית לכל התהליך (`app_preferences.lock` לצד הקובץ), ולכן תהליך שני שינסה לפתוח אותה ייכשל. [`SettingsSnapshot`](../lib/core/info/settings_snapshot.dart) מעתיק את קובץ התיבה לתיקייה זמנית ופותח את **העותק**; ה-`Settings` שנבנה מעליו הוא קריאה-בלבד (`ReadOnlySettingsCache`, כל ה-setters הם no-op). התיבה החיה אינה נפתחת ואינה משתנה. אם אין תיבה או שהקריאה נכשלה — `Settings` מאותחל ריק, הדוח נופל לנתיבי ברירת המחדל, ו-`settingsLoaded: false` מסמן זאת.
 
@@ -223,15 +226,17 @@ var json2 = File.ReadAllText(path);   // רק ה-JSON, בלי newline נגרר
 
 | כתובת | תוצאה |
 |--------|--------|
-| `otzaria://info` | דוח מלא — תוכנה + ספרייה + תוספים + שגיאות |
+| `otzaria://info` | דוח מלא — תוכנה + ספרייה + תיקיות אישיות + תוספים + שגיאות |
 | `otzaria://info/all` | זהה ל-`otzaria://info` |
 | `otzaria://info/app` | מידע על התוכנה |
 | `otzaria://info/library` | מידע על הספרייה |
+| `otzaria://info/folders` | התיקיות שהוגדרו כספרים אישיים, וקובצי הספרים הנתמכים שקיימים בהן בפועל |
 | `otzaria://info/plugins` | מידע על התוספים |
 | `otzaria://info/errors` | השגיאות האחרונות מקובצי הלוג |
 | `?limit=<n>` | מספר רשומות השגיאה — ברירת מחדל 5, תקרה 50; ערך לא חוקי → ברירת המחדל. מתקבל בכל נושא, אך משפיע רק על מקטע `errors` |
+| `?files=<n>` | מספר הקבצים המפורטים **לכל תיקייה** — ברירת מחדל 50, תקרה 500. `0` הוא ערך תקף ומשמעו ספירות בלבד בלי רשימת קבצים; ערך שלילי או לא-מספרי → ברירת המחדל. מתקבל בכל נושא, אך משפיע רק על מקטע `folders` |
 
-**Aliases לנושאים:** `software`/`version` → `app`, `books` → `library`, `plugin` → `plugins`, `error`/`log`/`logs` → `errors`. נושא לא מוכר או נתיב עמוק (`info/app/extra`) מוחזרים `null` ומתעלמים בשקט, כמו כל כתובת לא מוכרת.
+**Aliases לנושאים:** `software`/`version` → `app`, `books` → `library`, `folder`/`personal`/`personal_books`/`personal_folders`/`custom_folders` → `folders`, `plugin` → `plugins`, `error`/`log`/`logs` → `errors`. נושא לא מוכר או נתיב עמוק (`info/app/extra`) מוחזרים `null` ומתעלמים בשקט, כמו כל כתובת לא מוכרת.
 
 **שדות השורש** (בכל דוח, בשני הערוצים): `topic`, `generatedAt` (UTC עם סיומת `Z`), ו-`settingsLoaded` — `false` מסמן שהגדרות המשתמש לא נקראו ולכן כל הנתיבים והספירות הם ברירות מחדל ולא המצב בפועל. **מקטע שאיסופו נכשל מוחזר כ-`{"error": "<סיבה>"}`** במקום שדותיו, ובפופאפ מוצג כשורת "שגיאה באיסוף" — כך כשל בחלק אחד אינו מבטל את שאר הדוח.
 
@@ -241,10 +246,30 @@ var json2 = File.ReadAllText(path);   // רק ה-JSON, בלי newline נגרר
 |--------|--------|
 | `app` | `version`, `buildNumber`, `fullVersion` (`version+build` — הפורמט שבו נשמר `previousVersion`), `installedAt` + `installedAtSource`, `updatedAt`, `previousVersion`, `installType` (`portable`/`allUsers`/`perUser`), `accountType` (`administrator`/`standard`/`unknown`), `elevated`, `platform`, `operatingSystem`, `dataRootPath`, `name`, `packageName` |
 | `library` | `version` (מ-`schema_meta.db_version`), `lastUpdatedAt`, `totalBooks`, `personalBooks`, `officialBooks`, `pdfBooks`, `path`, `indexPath`, `databasePath`, `databaseExists`, `databaseSizeBytes` |
+| `folders` | `configuredCount`, `existingCount`, `totalFiles`, `totalSizeBytes`, `fileLimit`, `supportedExtensions[]`, `folders[]` |
 | `plugins` | `webViewVersion` (WebView2 — Windows בלבד), `installedCount`, `enabledCount`, `installed[]` עם `id`, `name`, `version`, `enabled`, `source`, `installedAt`, `updatedAt` |
 | `errors` | `totalEntries`, `returnedEntries`, `files[]`, `recent[]` |
 
 `files[]` — `path` ו-`exists` תמיד; `sizeBytes`, `modifiedAt`, `entryCount` רק לקובץ קיים; `readError` רק כשקובץ קיים לא נקרא/נפענח (בלעדיו מכונה שקורסת הייתה מקבלת דוח שמצהיר "אין שגיאות"). `recent[]` — `source` ו-`title` תמיד; `timestamp`, `version`, `message`, `stack` (3 פריימים ראשונים) מושמטים כשאין להם ערך, ולא מוחזרים כ-`null`.
+
+**מקטע `folders` — רשומה לכל תיקייה** ב-`folders[]`:
+
+| שדה | משמעות |
+|--------|--------|
+| `path`, `name` | הנתיב כפי שהמשתמש הגדיר אותו, ושם התיקייה בלבד (זהו גם שם הקטגוריה בעץ) |
+| `exists` | האם התיקייה קיימת בדיסק כרגע. `false` = כונן חיצוני מנותק או תיקייה שנמחקה, והספירות שלה אפסיות |
+| `addToDatabase` | האם תוכן התיקייה נסרק לתוך `user_books.db` (מול קריאה ישירה מהקבצים) |
+| `mergeIntoLibrary` | הערך **האפקטיבי** — חריגת התיקייה, ובהיעדרה ההגדרה הגלובלית. `mergeIntoLibrarySource` מבחין בין השניים (`folder`/`default`), כי `null` גולמי אינו ניתן לפענוח בלי ההגדרה |
+| `hidden` | התיקייה מוסתרת מעץ הספרייה (הספרים נשארים ב-DB) |
+| `addedAt` | מתי נוספה, UTC |
+| `fileCount`, `sizeBytes` | ספירת קובצי הספרים ונפחם — **תמיד מלאות**, גם כש-`files[]` קוצץ |
+| `filesByType` | ספירה לפי סיומת, ממוינת: `{"pdf": 20, "txt": 100}` |
+| `files[]` | הקבצים עצמם (עד `files=`), ממוינים לפי נתיב: `path`, `name`, `fileType`, `sizeBytes`, `modifiedAt`. מושמט לגמרי כש-`files=0` |
+| `filesTruncated` | `true` כשיש בתיקייה יותר קבצים משפורטו |
+| `scanTruncated` | הסריקה נעצרה בתקרת הרשומות של התיקייה — הספירות חלקיות. מוחזר רק כשקרה |
+| `scanError` | שגיאת מערכת קבצים ראשונה (הרשאות וכד'). תת-תיקייה שנחסמה אינה מבטלת את שאר הסריקה. מוחזר רק כשקרה |
+
+**מה נחשב "קובץ ספר" כאן:** אותם כללים בדיוק של סורק הספרייה, ולא רשימת סיומות מקבילה — הסיומות נגזרות מ-[`kProductionBookFormats`](../lib/utils/file/document_format.dart) (מוחזרות ב-`supportedExtensions`), קבצים ותיקיות מוסתרים/מערכת מדולגים, ו-‎.xml‎/‎.wbk‎ נספרים רק אם **תוכנם** אכן מסמך Word. בלי ההצמדה הזו הדוח היה מבטיח ספרים שהסורק לעולם לא יקלוט.
 
 כל חותמות הזמן ב-JSON הן UTC עם סיומת `Z`. הפופאפ ממיר אותן לשעון מקומי לתצוגה.
 
@@ -262,6 +287,9 @@ var json2 = File.ReadAllText(path);   // רק ה-JSON, בלי newline נגרר
 otzaria://info
 otzaria://info/app
 otzaria://info/library
+otzaria://info/folders
+otzaria://info/folders?files=0
+otzaria://info/folders?files=200
 otzaria://info/plugins
 otzaria://info/errors
 otzaria://info/errors?limit=20
@@ -416,7 +444,7 @@ _externalActivationWatchSub = queueFile.parent.watch().listen((event) {
 | `OpenInspectionAction()` | `otzaria://open/inspection` | מסך העיון (ספר אחרון) |
 | `OpenSdkAction()` | `otzaria://open/sdk` | פתיחת דיאלוג ניהול תוספים |
 | `OpenDailyPageAction()` | `otzaria://open/daily_page` | פתיחת ה-PDF של תלמוד בבלי בדף הנכון ליום |
-| `ShowInfoAction(InfoTopic topic, {int errorLimit})` | `otzaria://info`, `otzaria://info/app`, `/library`, `/plugins`, `/errors?limit=<n>` | שאילתת מידע — אוסף דוח JSON ומציג בפופאפ, ללא ניווט |
+| `ShowInfoAction(InfoTopic topic, {int errorLimit, int fileLimit})` | `otzaria://info`, `otzaria://info/app`, `/library`, `/folders?files=<n>`, `/plugins`, `/errors?limit=<n>` | שאילתת מידע — אוסף דוח JSON ומציג בפופאפ, ללא ניווט |
 | `InstallPluginAction(PluginStoreInstallRequest)` | `otzaria://plugin/install?url=...` | התקנת תוסף מהחנות |
 | `InstallLocalPluginAction(String archivePath)` | `otzaria://plugin/install-local?path=<abs>` | התקנת תוסף מקובץ `.otzplugin` מקומי (לחיצה כפולה על קובץ משויך) |
 
@@ -495,7 +523,8 @@ case OpenMyFeatureAction():
 - **אין התקנה אוטומטית של תוספים ללא אישור משתמש.** גם עם `overwrite=true`, המשתמש רואה את שמות הקבצים והרשאות התוסף לפני ההתקנה בפועל.
 - **`plugin/install` (הורדה מרשת)** מקבל רק `url=` בסכמת `http`/`https` — `file://` וכל סכמה אחרת נדחות בכוונה.
 - **`plugin/install-local` (קובץ מקומי)** מקבל `path=` שחייב להיות **נתיב מוחלט**, להסתיים ב‑`.otzplugin`, ואינו נתיב UNC/התקן (`\\server\share`, `\\.\`, `\\?\`, `//host`). מאחר שקישור `otzaria://` ניתן להפעלה מדף אינטרנט, החסימה מונעת קריאת קובץ שרירותי מהדיסק, שימוש בנתיב יחסי בלתי-צפוי (הנפתר מול תיקיית העבודה), ודליפת אישורי SMB בעצם הגישה לנתיב.
-- **`otzaria://info` אינו ערוץ יציאה.** הדוח נאסף ומוצג בפופאפ מקומי בלבד — הוא אינו נשלח לשום מקום, ו-`_parseInfo` קורא רק `limit=` (בשונה מ-`plugin/install`, אין כאן `callback=`/`token=`). דף אינטרנט יכול לפתוח את הפופאפ אבל לא לקרוא את תוכנו; ההוצאה היחידה היא העתקה שהמשתמש יוזם בעצמו. הפעולה היא קריאה בלבד ואינה משנה שום מצב באפליקציה. **`--out=` של ה-CLI כן כותב לקובץ — אבל הוא אינו נגיש מכתובת `otzaria://`:** שני הפרסרים בודקים רק את הארגומנט הראשון, ובהפעלת URI הוא תמיד מתחיל ב-`otzaria:`, כך שאין כאן primitive של כתיבת קובץ שרירותי מהרשת.
+- **`otzaria://info` אינו ערוץ יציאה.** הדוח נאסף ומוצג בפופאפ מקומי בלבד — הוא אינו נשלח לשום מקום, ו-`_parseInfo` קורא רק `limit=` ו-`files=` (בשונה מ-`plugin/install`, אין כאן `callback=`/`token=`). דף אינטרנט יכול לפתוח את הפופאפ אבל לא לקרוא את תוכנו; ההוצאה היחידה היא העתקה שהמשתמש יוזם בעצמו. הפעולה היא קריאה בלבד ואינה משנה שום מצב באפליקציה.
+- **מקטע `folders` סורק את הדיסק, ולכן הוא היחיד ש-URI חיצוני יכול לגרום לו לעבוד קשה.** התיקיות הן אלו שהמשתמש הגדיר בלבד — אין כאן פרמטר נתיב שדף אינטרנט יכול לכוון לתיקייה שרירותית — והסריקה עצמה מוגבלת: עומק (`maxDepth`) חוסם לולאות junction, ותקרת רשומות לתיקייה (`maxEntriesPerFolder`) חוסמת תיקייה חריגה ומסמנת `scanTruncated`. `files=` נחסם ב-500 כדי שדף לא יבנה פופאפ ענק. הפעולה נשארת קריאה בלבד: אין כאן `stat`+פתיחה של תוכן קובץ, למעט חלון הכותרת של ‎.xml‎/‎.wbk‎ שנדרש כדי לא לספור קובצי הגדרות כספרים. **`--out=` של ה-CLI כן כותב לקובץ — אבל הוא אינו נגיש מכתובת `otzaria://`:** שני הפרסרים בודקים רק את הארגומנט הראשון, ובהפעלת URI הוא תמיד מתחיל ב-`otzaria:`, כך שאין כאן primitive של כתיבת קובץ שרירותי מהרשת.
 - **`otzaria://info` הוא הקישור הראשון שמריץ תהליך** (`whoami`/`id` לזיהוי סוג החשבון). שמות ההרצה מוסמכים לנתיב מוחלט — `%SystemRoot%\System32\whoami.exe` ו-`/usr/bin/id` — כי `Process.run` עם שם לא מוסמך מחפש קודם בתיקיית ה-exe וב-CWD, ובהתקנה פר-משתמש התיקייה כתיבה למשתמש. כמו כן פופאפ מידע אחד פתוח חוסם פתיחת נוספים, כדי שדף לא יערים עשרות פופאפים.
 - **קישור ל‑URL לא קיים** (למשל `otzaria://open/banana`) פשוט מוחזר `null` ואוצריא מתעלמת בשקט. אין הודעת שגיאה — זה עיצובית מכוון, כדי לא להפחיד משתמשים שלחצו על קישור עתידי.
 - **קישור לספר עם ID לא קיים** מציג `UiSnack.showError` בעברית. זאת בכוונה כדי שהמשתמש יבין שהקישור לא תקף בספרייה שלו.
@@ -508,6 +537,7 @@ case OpenMyFeatureAction():
 | [`lib/plugins/services/plugin_store_link_parser.dart`](../lib/plugins/services/plugin_store_link_parser.dart) | פענוח פנימי של `plugin/install` (משמש את הראוטר) |
 | [`lib/core/info/info_topic.dart`](../lib/core/info/info_topic.dart) | `InfoTopic` — נושאי `otzaria://info/<topic>`, ה‑aliases והפריסה של `all` |
 | [`lib/core/info/app_info_service.dart`](../lib/core/info/app_info_service.dart) | `AppInfoService` — איסוף דוח המידע (`AppInfoReport`), מקטע‑מקטע ועמיד לכשלים |
+| [`lib/core/info/personal_folders_info.dart`](../lib/core/info/personal_folders_info.dart) | `PersonalFoldersInfo` — מקטע `folders`: קריאת התיקיות מההגדרות וסריקת קובצי הספרים שבהן |
 | [`lib/core/info/app_install_timeline.dart`](../lib/core/info/app_install_timeline.dart) | רישום/קריאה של תאריך ההתקנה, תאריך העדכון והגרסה הקודמת |
 | [`lib/core/info/system_account_info.dart`](../lib/core/info/system_account_info.dart) | זיהוי סוג חשבון המשתמש (מנהל/רגיל) וריצה elevated |
 | [`lib/core/info/error_log_reader.dart`](../lib/core/info/error_log_reader.dart) | קריאה ופענוח של קובצי הלוג לרשומות השגיאה האחרונות |

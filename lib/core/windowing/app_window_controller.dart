@@ -26,8 +26,21 @@ abstract interface class AppWindowController {
   /// סגירה מנומסת — עוברת דרך ה-handshake של `onWindowClose`.
   Future<void> close();
 
-  /// הריסה מיידית, בלי handshake. עוקפת את שטיפת הכתיבות התלויות.
-  Future<void> destroy();
+  /// מסיים את **התוכנה**, לא את החלון הזה.
+  ///
+  /// השם בספרייה הוא `destroy`, וההטעיה שבו כבר עלתה בקריסת יציאה בייצור:
+  /// ב-Windows המימוש הוא `PostQuitMessage(0)` בלבד — לולאת ההודעות של
+  /// התהליך יוצאת, ו-`~FlutterWindow` הורס את המנוע. ב-Linux הוא
+  /// `gtk_window_close` על החלון הראשי, שסוגר את התוכנה באותה מידה.
+  ///
+  /// ⚠️ **אין לקרוא לזה ב-Windows.** הריסת המנוע בעוד Dart רץ עליו מפילה
+  /// את התהליך (`0xc0000409` ב-`flutter_windows.dll`), וכשפתוחים עוד
+  /// חלונות הם נסגרים איתו. מסלול היציאה שם הוא `forceTerminate` של
+  /// ה-runner, וסגירת חלון בודד היא `MultiWindowService.closeSelf`.
+  ///
+  /// הקורא היחיד המותר הוא `AppWindowListener`, בענף שאינו Windows —
+  /// אינווריאנטה שנאכפת ב-`test/core/windowing/quit_application_call_sites_test.dart`.
+  Future<void> quitApplication();
 
   Future<bool> isVisible();
   Future<bool> isMaximized();
