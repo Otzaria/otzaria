@@ -146,6 +146,69 @@ void main() {
     },
   );
 
+  testWidgets(
+    'scrollToSourceLine: רשימה שירדה מהעץ באמצע האנימציה לא זורקת',
+    (tester) async {
+      final itemScrollController = ItemScrollController();
+      final scrollOffsetController = ScrollOffsetController();
+      final positionsListener = ItemPositionsListener.create();
+
+      final lines = List.generate(20, (i) => 'שורה מספר $i');
+      final segments = buildReadingSegments(lines, continuous: false);
+
+      Widget app({required bool withList}) => MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 400,
+            child: withList
+                ? ScrollablePositionedList.builder(
+                    itemScrollController: itemScrollController,
+                    scrollOffsetController: scrollOffsetController,
+                    itemPositionsListener: positionsListener,
+                    itemCount: lines.length,
+                    // פריט גבוה מה-viewport: היעד גלוי, ולכן הגלילה עוברת
+                    // ב-animateScroll ולא בקפיצה שנוחתת מיד על העוגן.
+                    itemBuilder: (context, index) =>
+                        SizedBox(height: 600, child: Text(lines[index])),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(app(withList: true));
+      await tester.pumpAndSettle();
+
+      final scrollFuture = scrollToSourceLine(
+        scrollController: itemScrollController,
+        scrollOffsetController: scrollOffsetController,
+        positionsListener: positionsListener,
+        segments: segments,
+        lineIndex: 0,
+        viewportExtent: 400,
+        duration: const Duration(milliseconds: 250),
+        intraLineFraction: 0.5,
+      );
+
+      // הפריים הראשון מתניע את האנימציה; השני מקדם אותה לאמצע.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      // הכרטיסיה נסגרה / עברה לחלון אחר באמצע האנימציה.
+      await tester.pumpWidget(app(withList: false));
+      await tester.pumpAndSettle();
+
+      expect(itemScrollController.isAttached, isFalse);
+      expect(
+        positionsListener.itemPositions.value,
+        isNotEmpty,
+        reason:
+            'המדידה האחרונה נשארת אחרי הניתוק — ולכן היא אינה עדות לרשימה חיה',
+      );
+      await expectLater(scrollFuture, completes);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   group('closePaneAfterNavigation', () {
     test('לא סוגר את החלונית לפני שהגלילה הסתיימה', () async {
       final navigation = Completer<void>();
