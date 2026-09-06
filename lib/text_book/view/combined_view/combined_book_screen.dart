@@ -22,6 +22,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/text_book/models/commentary_scroll_request.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/text_book/view/sibling_commentaries_menu.dart';
 import 'package:otzaria/utils/ui/context_menu_utils.dart';
@@ -105,6 +106,7 @@ class CombinedView extends StatefulWidget {
     this.onOpenCommentaryPersonalNote,
     this.onOpenCommentatorsPane,
     this.onOpenCommentatorsPaneWithFilter,
+    this.onCommentaryPaneScrollRequested,
     this.onOpenLinksPane,
     this.isCommentatorsTabActive,
     this.isLinksTabActive,
@@ -125,6 +127,11 @@ class CombinedView extends StatefulWidget {
   final void Function(Link link, int lineNumber)? onOpenCommentaryPersonalNote;
   final VoidCallback? onOpenCommentatorsPane;
   final VoidCallback? onOpenCommentatorsPaneWithFilter;
+
+  /// לחיצה על עוגן-אות במצב "מפרשים בצד": ההורה מזרים את שם המפרש ואת
+  /// [commentaryLinkKey] של הקטע אל פאנל המפרשים, שאינו בעץ הזה.
+  final void Function(String title, String linkKey, int? sourceLine)?
+  onCommentaryPaneScrollRequested;
   final VoidCallback? onOpenLinksPane;
   final bool Function()? isCommentatorsTabActive;
   final bool Function()? isLinksTabActive;
@@ -257,7 +264,13 @@ bool shouldHandleCommentaryScrollTarget({
   required int targetLineIndex,
 }) => cardIndex == targetLineIndex;
 
-typedef _CommentaryScrollTarget = ({int lineIndex, String title});
+/// יעד הגלילה בכרטיס המפרשים שמתחת לשורה: השורה שממנה נלחץ העוגן, המפרש,
+/// ומפתח הקטע המדויק שהעוגן מקשר אליו ([commentaryLinkKey]).
+typedef _CommentaryScrollTarget = ({
+  int lineIndex,
+  String title,
+  String? linkKey,
+});
 
 class _CombinedViewState extends State<CombinedView> {
   bool _anchorHandledCurrentTap = false;
@@ -406,7 +419,7 @@ class _CombinedViewState extends State<CombinedView> {
         if (state is TextBookLoaded) {
           if (widget.showCommentaryAsExpansionTiles) {
             // במצב מפרשים-מתחת: מוודאים שהמפרש פעיל אם צריך, ושומרים את
-            // שמו לגלילה מיידית ב-_CommentaryCard.
+            // שמו ואת מפתח הקטע לגלילה מיידית ב-_CommentaryCard.
             // חשוב: לא משנים סדר — שינוי סדר גורם לריבילד+ריצוד.
             final title = utils.getTitleFromPath(link.path2);
             if (title.isNotEmpty) {
@@ -419,7 +432,11 @@ class _CombinedViewState extends State<CombinedView> {
                 );
               }
               if (sourceLine != null) {
-                final target = (lineIndex: sourceLine, title: title);
+                final target = (
+                  lineIndex: sourceLine,
+                  title: title,
+                  linkKey: commentaryLinkKey(link),
+                );
                 _anchorScrollTargetNotifier.value = null;
                 _anchorScrollTargetNotifier.value = target;
                 WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -440,6 +457,11 @@ class _CombinedViewState extends State<CombinedView> {
               UpdateCommentators(commentators, displayOrderOnly: true),
             );
           }
+          // מפרשים בצד: הפאנל הוא ווידג'ט אחר בעץ, ולכן הבקשה עוברת דרך
+          // ההורה. `activatePreviewCommentator` מביא את המפרש לראש הרשימה,
+          // אבל בלי בקשה מפורשת הקטע המקושר עדיין לא היה מוצג כשיש למפרש
+          // כמה קטעים על אותה שורה — הרשימה הייתה נעצרת על הראשון.
+          _requestPaneCommentaryScroll(link, sourceLine);
         }
         if (widget.showCommentaryAsExpansionTiles) {
           return;
@@ -460,6 +482,16 @@ class _CombinedViewState extends State<CombinedView> {
     final tab = await buildLinkTargetTab(link);
     if (_disposed || !mounted) return;
     widget.openBookCallback(tab);
+  }
+
+  /// מבקש מפאנל המפרשים שבצד לגלול לקטע שהעוגן מקשר אליו. שקט כשההורה לא
+  /// חיבר קולבק (למשל תצוגה מקדימה של ספר), שם הפאנל אינו קיים כלל.
+  void _requestPaneCommentaryScroll(Link link, int? sourceLine) {
+    final request = widget.onCommentaryPaneScrollRequested;
+    final title = utils.getTitleFromPath(link.path2);
+    if (request == null) return;
+    if (title.isEmpty) return;
+    request(title, commentaryLinkKey(link), sourceLine);
   }
 
   Future<void> _openLinkTarget(Link link) async {
@@ -2973,7 +3005,11 @@ class _CommentaryCardState extends State<_CommentaryCard> {
         )) {
       return;
     }
-    _commentaryKey.currentState?.scrollToCommentator(target.title);
+    _commentaryKey.currentState?.scrollToCommentator(
+      target.title,
+      linkKey: target.linkKey,
+      sourceLine: target.lineIndex,
+    );
   }
 
   @override
@@ -2990,7 +3026,11 @@ class _CommentaryCardState extends State<_CommentaryCard> {
         )) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          _commentaryKey.currentState?.scrollToCommentator(initialTarget.title);
+          _commentaryKey.currentState?.scrollToCommentator(
+            initialTarget.title,
+            linkKey: initialTarget.linkKey,
+            sourceLine: initialTarget.lineIndex,
+          );
         }
       });
     }

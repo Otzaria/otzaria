@@ -21,6 +21,7 @@ import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/text_book/models/commentary_scroll_request.dart';
 
 class SplitedViewScreen extends StatefulWidget {
   const SplitedViewScreen({
@@ -76,6 +77,24 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   );
   final ValueNotifier<int> _closeCommentatorsFilterNotifier =
       ValueNotifier<int>(0);
+
+  /// יעד הגלילה בפאנל המפרשים, מלחיצה על עוגן-אות בטקסט הראשי. הפאנל
+  /// והטקסט הם שני תת-עצים נפרדים תחת AdaptiveSidePane, ולכן הבקשה עוברת
+  /// דרך המסך הזה ולא בקריאה ישירה.
+  final ValueNotifier<CommentaryScrollRequest?> _commentaryScrollTarget =
+      ValueNotifier<CommentaryScrollRequest?>(null);
+  int _commentaryScrollRequestId = 0;
+
+  /// רושם בקשת גלילה חדשה. מזהה עולה — לחיצה חוזרת על אותו עוגן חייבת
+  /// להיחשב בקשה חדשה, אחרת הערך זהה ואין הודעה.
+  void _requestCommentaryScroll(String title, String linkKey, int? sourceLine) {
+    _commentaryScrollTarget.value = CommentaryScrollRequest(
+      title: title,
+      linkKey: linkKey,
+      sourceLine: sourceLine,
+      requestId: ++_commentaryScrollRequestId,
+    );
+  }
 
   @override
   void initState() {
@@ -364,6 +383,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     _openFilterRequest.dispose();
     _openCommentatorsFilterNotifier.dispose();
     _closeCommentatorsFilterNotifier.dispose();
+    _commentaryScrollTarget.dispose();
     super.dispose();
   }
 
@@ -441,6 +461,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                     notesBookIdOverride: _notesBookIdOverride,
                     notesCategoryIdOverride: _notesCategoryIdOverride,
                     notesFocusLineNumber: _notesFocusLineNumber,
+                    commentaryScrollTarget: _commentaryScrollTarget,
                     onTabChanged: (index) {
                       debugPrint(
                         'DEBUG: Tab changed to $index, showSplitView: ${widget.showSplitView}',
@@ -503,6 +524,8 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                             },
                           );
                         },
+                        onCommentaryPaneScrollRequested:
+                            _requestCommentaryScroll,
                         onOpenCommentatorsPaneWithFilter: () {
                           setState(() {
                             _paneOpen = true;

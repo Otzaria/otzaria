@@ -21,6 +21,7 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/text_book/models/commentary_scroll_request.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 
@@ -58,6 +59,10 @@ class TabbedCommentaryPanel extends StatefulWidget {
   final int? notesCategoryIdOverride;
   final int? notesFocusLineNumber;
 
+  /// בקשות גלילה לקטע מפרש מלחיצה על עוגן-אות בטקסט הראשי. מועבר כמות שהוא
+  /// לרשימת המפרשים; רלוונטי רק במצב המפוצל, שבו היא בכלל מוצגת כאן.
+  final ValueListenable<CommentaryScrollRequest?>? commentaryScrollTarget;
+
   const TabbedCommentaryPanel({
     super.key,
     required this.openBookCallback,
@@ -78,6 +83,7 @@ class TabbedCommentaryPanel extends StatefulWidget {
     this.notesBookIdOverride,
     this.notesCategoryIdOverride,
     this.notesFocusLineNumber,
+    this.commentaryScrollTarget,
   });
 
   @override
@@ -247,6 +253,7 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                               ),
                         onOpenPersonalNote: widget.onOpenPersonalNote,
                         personalNotesLoader: loadStoredPersonalNotes,
+                        scrollTargetListenable: widget.commentaryScrollTarget,
                       ),
                     )
                   else

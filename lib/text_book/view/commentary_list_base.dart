@@ -21,6 +21,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/widgets/commentary/commentary_content.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
+import 'package:otzaria/text_book/models/commentary_scroll_request.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
@@ -109,6 +110,18 @@ bool isCommentarySectionChange({
   return previous.first != current.first;
 }
 
+/// האם מעבר קטע רשאי לאפס את הגלילה לראש הרשימה.
+///
+/// לחיצה על אות-עוגן שולחת קודם `UpdateSelectedIndex(sourceLine)`, ולכן
+/// *אותה לחיצה* נחשבת גם מעבר קטע. האיפוס מתוזמן מה-build שנגרם ממנה —
+/// כלומר **אחרי** הגלילה לעוגן — והיה מוחק אותה ב-`jumpTo(0)`. בממשק זה
+/// נראה כאילו נפתח הקטע הראשון של המפרש, שהוא גם היעד של האות הראשונה,
+/// ומכאן הרושם ש"רק האות הראשונה עובדת".
+@visibleForTesting
+bool shouldResetScrollForSectionChange({
+  required bool hasPendingAnchorScroll,
+}) => !hasPendingAnchorScroll;
+
 class CommentaryListBase extends StatefulWidget {
   final Function(OpenedTab) openBookCallback;
   final double fontSize;
@@ -171,6 +184,12 @@ class CommentaryListBase extends StatefulWidget {
   /// בתוך פס הגלילה, כדי שהפס יישאר צמוד לדופן החלון ולא יידחק פנימה עם הטקסט.
   final double? contentMaxWidth;
 
+  /// בקשות גלילה לקטע מפרש, מלחיצה על עוגן-אות בטקסט הראשי. משמש את מסלול
+  /// "מפרשים בצד", שבו הרשימה יושבת בפאנל נפרד ואין להורה גישה ישירה אליה
+  /// (במסלול "מפרשים מתחת" הכרטיס קורא ל-[CommentaryListBaseState.scrollToCommentator]
+  /// דרך GlobalKey).
+  final ValueListenable<CommentaryScrollRequest?>? scrollTargetListenable;
+
   const CommentaryListBase({
     super.key,
     required this.openBookCallback,
@@ -204,6 +223,7 @@ class CommentaryListBase extends StatefulWidget {
     this.onOpenPersonalNote,
     this.personalNotesLoader,
     this.contentMaxWidth,
+    this.scrollTargetListenable,
   });
 
   @override
@@ -303,13 +323,26 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     setState(() => _localCommentaryTypes = types);
   }
 
-  String _getLinkKey(Link link) =>
-      '${link.index1}_${link.path2}_${link.index2}';
+  String _getLinkKey(Link link) => commentaryLinkKey(link);
 
   // רשימה של כל ה-links לפי סדר הופעתם (נבנית מחדש בכל build)
   List<Link> _orderedLinks = [];
-  String? _pendingCommentatorScrollTitle;
+
+  /// היעד שממתין לגלילה: שם המפרש, ואופציונלית מפתח הקטע המדויק.
+  ({String title, String? linkKey})? _pendingScrollTarget;
   bool _commentatorScrollScheduled = false;
+  bool _commentatorScrollRunning = false;
+
+  /// מזהה הבקשה הפעילה. בקשה חדשה מבטלת לולאת ניסיונות שעדיין רצה, אחרת
+  /// היעד הישן היה ממשיך למשוך את הרשימה אחרי לחיצה על עוגן אחר.
+  int _commentatorScrollGeneration = 0;
+
+  /// מזהה הבקשה החיצונית האחרונה שטופלה (מסלול "מפרשים בצד").
+  int _lastHandledScrollRequestId = 0;
+
+  /// שורת המקור שממנה נלחץ העוגן האחרון. מעבר קטע *אליה* אינו מאפס את
+  /// הגלילה — הוא נגרם מאותה לחיצה שביקשה אותה.
+  int? _anchorScrollSectionLine;
 
   List<String> _allSelectedCommentators(TextBookLoaded state) {
     if (widget.selectedCommentatorsOverride != null) {
@@ -846,6 +879,10 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     // חיפוש חיצוני
     widget.externalSearchController?.addListener(_onExternalSearchChanged);
     widget.highlightQueryListenable?.addListener(_onHighlightQueryChanged);
+    widget.scrollTargetListenable?.addListener(_onExternalScrollTargetChanged);
+    // בקשה שנקבעה לפני שהרשימה נבנתה (הפאנל נפתח בעקבות אותה לחיצה) —
+    // בלי הבדיקה הזו היא הייתה אובדת, כי ה-listener מגיב רק לשינוי.
+    _onExternalScrollTargetChanged();
     if (widget.externalTotalResultsNotifier != null) {
       _totalSearchResultsNotifier.addListener(() {
         widget.externalTotalResultsNotifier!.value =
@@ -897,6 +934,15 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
       );
       widget.highlightQueryListenable?.addListener(_onHighlightQueryChanged);
     }
+    if (oldWidget.scrollTargetListenable != widget.scrollTargetListenable) {
+      oldWidget.scrollTargetListenable?.removeListener(
+        _onExternalScrollTargetChanged,
+      );
+      widget.scrollTargetListenable?.addListener(
+        _onExternalScrollTargetChanged,
+      );
+      _onExternalScrollTargetChanged();
+    }
     if (oldWidget.typeSelection != widget.typeSelection) {
       oldWidget.typeSelection?.removeListener(_onTypeSelectionChanged);
       widget.typeSelection?.addListener(_onTypeSelectionChanged);
@@ -918,16 +964,39 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
   /// מציג את הרשימה מתחילתה. `jumpTo` ולא גלילה מונפשת: התוכן שמתחתיה מוחלף,
   /// ואנימציה על תוכן חדש נראית כתקלה. הקפיצה נדחית לסוף הפריים כדי שאפשר
   /// יהיה לקרוא לזה גם מתוך build.
+  ///
+  /// בקשת עוגן ממתינה גוברת: לחיצה על אות-עוגן שולחת קודם
+  /// `UpdateSelectedIndex(sourceLine)`, ולכן *אותה לחיצה* נחשבת גם מעבר קטע.
+  /// האיפוס מתוזמן מה-build שנגרם ממנה — כלומר **אחרי** הגלילה לעוגן — והיה
+  /// מוחק אותה ב-`jumpTo(0)`. בממשק זה נראה כאילו נפתח הקטע הראשון של המפרש,
+  /// שהוא גם היעד של האות הראשונה; לכן הבאג התחזה ל"רק א עובד".
   void scrollToTop() {
+    // המיקום המשוחזר לבנייה הבאה מתאפס בכל מקרה — היסט הקטע הקודם אינו
+    // מתאים לתוכן החדש, ובקשת העוגן ממילא תמקם מחדש.
     _lastScrollIndex = 0;
+    if (!shouldResetScrollForSectionChange(
+      hasPendingAnchorScroll: _hasPendingAnchorScroll,
+    )) {
+      return;
+    }
     if (_scrollToTopScheduled) return;
     _scrollToTopScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToTopScheduled = false;
       if (!mounted || !_itemScrollController.isAttached) return;
+      // גם בסדר ההפוך: הקפיצה תוזמנה, ורק אז הגיעה בקשת העוגן.
+      if (!shouldResetScrollForSectionChange(
+        hasPendingAnchorScroll: _hasPendingAnchorScroll,
+      )) {
+        return;
+      }
       _itemScrollController.jumpTo(index: 0);
     });
   }
+
+  /// האם יש בקשת גלילה לעוגן שטרם הושלמה — ממתינה או באמצע לולאת הניסיונות.
+  bool get _hasPendingAnchorScroll =>
+      _pendingScrollTarget != null || _commentatorScrollRunning;
 
   /// מעבר לקטע מקור אחר מציג את המפרשים מתחילתם — היסט הגלילה של הקטע הקודם
   /// אינו מתאים לתוכן החדש (issue #846).
@@ -936,18 +1005,49 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     if (previous != null && listEquals(previous, currentIndexes)) return;
     _sectionIndexes = List<int>.unmodifiable(currentIndexes);
     if (previous == null) return;
-    if (isCommentarySectionChange(
+    if (!isCommentarySectionChange(
       previous: previous,
       current: currentIndexes,
     )) {
-      scrollToTop();
+      return;
     }
+    // מעבר הקטע שנגרם מלחיצת העוגן עצמה אינו סיבה לאפס: `UpdateSelectedIndex`
+    // מגיע דרך ה-bloc ולכן נוחת *אחרי* שהגלילה כבר הסתיימה, כשאין עוד בקשה
+    // ממתינה לחסום אותו. בלי החריג הזה כל לחיצה נגמרה ב-jumpTo(0) מאוחר.
+    if (currentIndexes.isNotEmpty &&
+        currentIndexes.first == _anchorScrollSectionLine) {
+      return;
+    }
+    // מעבר לקטע אחר מבטל את החריג: מכאן ואילך איפוס רגיל.
+    _anchorScrollSectionLine = null;
+    scrollToTop();
   }
 
-  /// גולל כדי שהמפרש בעל [title] יהיה גלוי, אם הוא ברשימה.
-  /// נקרא מ-[_CommentaryCard] כשנפתח דרך anchor על מפרש ספציפי.
-  void scrollToCommentator(String title) {
-    _pendingCommentatorScrollTitle = title;
+  /// בקשת גלילה חיצונית (מסלול "מפרשים בצד"). מזהה הבקשה מונע טיפול כפול
+  /// באותה לחיצה — ה-listener ובדיקת ה-initState/didUpdateWidget עלולים
+  /// שניהם לראות את אותו ערך.
+  void _onExternalScrollTargetChanged() {
+    if (!mounted) return;
+    final request = widget.scrollTargetListenable?.value;
+    if (request == null || request.requestId <= _lastHandledScrollRequestId) {
+      return;
+    }
+    _lastHandledScrollRequestId = request.requestId;
+    scrollToCommentator(
+      request.title,
+      linkKey: request.linkKey,
+      sourceLine: request.sourceLine,
+    );
+  }
+
+  /// גולל אל המפרש בעל [title], ואם [linkKey] מסופק — אל הקטע המדויק שלו.
+  ///
+  /// נקרא משני מסלולי העוגן: `_CommentaryCard` (מפרשים מתחת לטקסט) ו-
+  /// [CommentaryListBase.scrollTargetListenable] (מפרשים בצד).
+  void scrollToCommentator(String title, {String? linkKey, int? sourceLine}) {
+    _pendingScrollTarget = (title: title, linkKey: linkKey);
+    _commentatorScrollGeneration++;
+    if (sourceLine != null) _anchorScrollSectionLine = sourceLine;
     _schedulePendingCommentatorScroll();
   }
 
@@ -956,22 +1056,189 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     _commentatorScrollScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _commentatorScrollScheduled = false;
-      if (!mounted || !_itemScrollController.isAttached) return;
-      final title = _pendingCommentatorScrollTitle;
-      if (title == null) return;
-      final headerIndex = _groupHeaderFlatIndex[title];
-      if (headerIndex == null) return;
-      _pendingCommentatorScrollTitle = null;
-      if (_expansionStates[title] == false) {
-        setState(() => _expansionStates[title] = true);
-      }
-      _itemScrollController.scrollTo(
-        index: headerIndex,
-        alignment: 0.0,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-      );
+      unawaited(_runPendingCommentatorScroll());
     });
+    // addPostFrameCallback אינו מבקש פריים בעצמו. בפועל תמיד הגיע פריים
+    // (הלחיצה על העוגן משנה את הבחירה), אבל ההסתמכות הזו שקטה ושבירה —
+    // מסלול שלא יגרור פריים היה מותיר את הבקשה תלויה בלי שום סימן.
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  /// מספר ניסיונות הגלילה עד ויתור. הניסיון הראשון נצרך בדרך כלל לייצוב
+  /// האינדקס (ראו הדרישה לשתי פתירות זהות), ולכן התקרה נדיבה.
+  static const int _maxCommentatorScrollAttempts = 6;
+
+  /// המתנה אחרי כל ניסיון, לפני מדידת המיקום שהתקבל.
+  static const Duration _commentatorScrollSettle = Duration(milliseconds: 220);
+
+  /// היעד: ראש אזור הגלילה.
+  static const double _commentatorScrollAlignment = 0.0;
+
+  /// סטייה נסבלת מ-[_commentatorScrollAlignment], כשבר מגובה אזור הגלילה.
+  static const double _commentatorScrollTolerance = 0.02;
+
+  /// גולל אל היעד הממתין, מודד, וחוזר עד שהוא באמת שם.
+  ///
+  /// ניסיון יחיד אינו מספיק: `ScrollablePositionedList` גולל לפריט שכבר בנוי
+  /// דרך `animateTo` לאופסט **פיקסלים** שחושב מהפריסה שברגע ההתחלה, וגובהו
+  /// של כל קטע מפרש נקבע רק אחרי ש-`link.content` נפתר ו-`CommentaryContent`
+  /// מחליף את שלד הטעינה בטקסט. ככל שיש יותר מפרשים על הקטע כך גדל הפער
+  /// שנפתח מעל היעד תוך כדי האנימציה — ולכן הגלילה נעצרה *לפני* המפרש
+  /// המקושר. כאן מודדים את המיקום שהתקבל וגוללים שוב עד שהוא מתייצב.
+  Future<void> _runPendingCommentatorScroll() async {
+    // רץ יחיד. הרשימה מתזמנת בנייה מחדש גם באמצע ריצה (הקבוצות נבנות
+    // אסינכרונית), ושתי לולאות במקביל היו מריצות שתי אנימציות גלילה זו
+    // מול זו על אותו controller.
+    if (_commentatorScrollRunning) {
+      return;
+    }
+    _commentatorScrollRunning = true;
+    try {
+      // בקשה חדשה שנרשמה תוך כדי ריצה פותחת סבב חדש במקום להיבלע.
+      for (var generation = -1; generation != _commentatorScrollGeneration;) {
+        generation = _commentatorScrollGeneration;
+        await _runCommentatorScrollAttempts(generation);
+        if (!mounted) return;
+      }
+    } finally {
+      _commentatorScrollRunning = false;
+    }
+  }
+
+  Future<void> _runCommentatorScrollAttempts(int generation) async {
+    var previousEdge = double.nan;
+    int? lastResolvedIndex;
+
+    for (var attempt = 0; attempt < _maxCommentatorScrollAttempts; attempt++) {
+      if (!mounted || generation != _commentatorScrollGeneration) return;
+      final target = _pendingScrollTarget;
+      if (target == null) return;
+      // הבקר מתנתק לרגע כשהרשימה נבנית מחדש — למשל כששינוי סדר המפרשים
+      // מחליף את ה-key של SPL. יציאה כאן הייתה מאבדת את הבקשה בשקט, כי
+      // הסבב הנוכחי מסתיים ואיש אינו מתזמן מחדש.
+      if (!_itemScrollController.isAttached) {
+        await Future<void>.delayed(_commentatorScrollSettle);
+        continue;
+      }
+
+      // קבוצה מכווצת אינה פולטת פריטי קטע כלל, ולכן מפתח הקטע לא יימצא
+      // לפני שהיא נפתחת. הפתיחה נכנסת לתוקף רק בפריים הבא.
+      if (_expansionStates[target.title] == false) {
+        setState(() => _expansionStates[target.title] = true);
+        _schedulePendingCommentatorScroll();
+        return;
+      }
+
+      // הרשימה טרם נמדדה — הפריים הראשון שלה. גלילה לפני שיש פריסה אינה
+      // יכולה להצליח, ו-ScrollablePositionedList אף נופל עליה בפריסה
+      // בלתי-חסומה. קורה כשהפאנל נפתח באותה לחיצה שיצרה את הבקשה.
+      if (_itemPositionsListener.itemPositions.value.isEmpty) {
+        await Future<void>.delayed(_commentatorScrollSettle);
+        continue;
+      }
+
+      // מפתח הקטע טרם מופיע במיפוי: הרשימה עדיין מציגה את הקטע הקודם
+      // ומיפויי האינדקסים שלה מיושנים. גלילה עכשיו הייתה קופצת לאינדקס של
+      // הקטע הקודם — ובנוסף מפילה את SPL, שנדרש לפרוס פריט בזמן שהתוכן
+      // מתחלף. ממתינים לפריים הבא במקום. נפילה-אחורה לכותרת נשמרת לניסיון
+      // האחרון, שאז זה כבר באמת מפרש שאינו ברשימה.
+      final isLastAttempt = attempt == _maxCommentatorScrollAttempts - 1;
+      final index = _resolveCommentatorScrollIndex(
+        target,
+        allowHeaderFallback: target.linkKey == null || isLastAttempt,
+      );
+      if (index == null) {
+        // מפה ריקה = הקבוצות עדיין נבנות (Future). בנייתן מתזמנת אותנו
+        // מחדש, ולכן משאירים את היעד ממתין. מפה מלאה בלי המפרש בניסיון
+        // האחרון = הוא אינו ברשימה כלל (סונן/הוסתר), ואין למה לחכות.
+        if (_groupHeaderFlatIndex.isEmpty || !isLastAttempt) {
+          await Future<void>.delayed(_commentatorScrollSettle);
+          continue;
+        }
+        _pendingScrollTarget = null;
+        return;
+      }
+
+      // הלחיצה על העוגן גם מסדרת מחדש את הרשימה (המפרש שנלחץ עולה לראש),
+      // ולכן האינדקס שנפתר מיד אחריה עדיין שייך לסדר הישן. גלילה אליו לא
+      // רק מיותרת — היא רצה בזמן שהעץ נבנה מחדש, ומייצרת שגיאות פריסה
+      // אמיתיות (GlobalKey כפול, RenderBox ללא פריסה). לכן דורשים שתי
+      // פתירות רצופות שמסכימות לפני שגוללים בפועל.
+      // בניסיון האחרון גוללים בלי לדרוש יציבות — אחרת הדרישה בולעת את
+      // ההזדמנות האחרונה, והנפילה-אחורה לכותרת לא מגיעה לגלול כלל.
+      if (index != lastResolvedIndex && !isLastAttempt) {
+        lastResolvedIndex = index;
+        await Future<void>.delayed(_commentatorScrollSettle);
+        continue;
+      }
+
+      // `jumpTo` ולא `scrollTo` מונפש, משלוש סיבות שכולן נצפו בשדה:
+      //
+      // 1. כשהיעד אינו בנוי, `scrollTo` בונה **רשימה שנייה** למעבר
+      //    המונפש. הרשימה מקצה GlobalKey לכל קטע (`_itemKeys`), ואותו
+      //    פריט שנבנה בשתי הרשימות בו-זמנית מייצר `Duplicate GlobalKey`
+      //    ואחריו מפל שגיאות פריסה.
+      // 2. ה-Future של אותו מעבר אינו מושלם לעולם אם הרשימה נבנית מחדש
+      //    באמצעו — וזה בדיוק מה שקורה כשהמפרש שנלחץ עולה לראש.
+      // 3. המעבר המונפש נעשה ב-`animateTo` לאופסט **פיקסלים** שחושב מראש,
+      //    ולכן גדילת קטעים מעל היעד (תוכן שנטען) משאירה אותו קצר.
+      //    `jumpTo` עוגן-לפי-אינדקס חסין לכל אלה.
+      //
+      // גם `scrollToTop` כאן כבר משתמש ב-`jumpTo` מאותו טעם — אנימציה על
+      // תוכן שמתחלף נראית כתקלה.
+      _itemScrollController.jumpTo(
+        index: index,
+        alignment: _commentatorScrollAlignment,
+      );
+      await Future<void>.delayed(_commentatorScrollSettle);
+      if (!mounted || generation != _commentatorScrollGeneration) {
+        return;
+      }
+
+      final edge = _leadingEdgeOfItem(index);
+      if (edge == null) continue; // הפריט לא דווח עדיין — ניסיון נוסף
+      if ((edge - _commentatorScrollAlignment).abs() <=
+          _commentatorScrollTolerance) {
+        break;
+      }
+      // אותו מיקום פעמיים = הרשימה בקצה ואינה יכולה להתקדם. ללא הבלם הזה
+      // קטע אחרון קצר היה מייצר חמישה ניסיונות עקרים.
+      if (!previousEdge.isNaN && (edge - previousEdge).abs() < 0.001) break;
+      previousEdge = edge;
+    }
+
+    if (generation == _commentatorScrollGeneration) _pendingScrollTarget = null;
+  }
+
+  /// האינדקס ברשימה השטוחה שאליו יש לגלול.
+  ///
+  /// הקטע המדויק גובר על כותרת הקבוצה — זה מה שמבדיל בין שני קטעים של אותו
+  /// מפרש על אותה שורה. יוצא מן הכלל: הקטע הראשון בקבוצה, שעבורו גוללים
+  /// לכותרת כדי ששם המפרש יישאר גלוי מעל הטקסט.
+  ///
+  /// [allowHeaderFallback] — כשכבוי, מפתח קטע שאינו במיפוי מחזיר null במקום
+  /// את הכותרת. הקורא ממתין אז לרשימה שתתעדכן, במקום לגלול לכותרת של
+  /// הקטע — שהיא בדיוק הקטע הראשון של המפרש, כלומר הבאג המקורי.
+  int? _resolveCommentatorScrollIndex(
+    ({String title, String? linkKey}) target, {
+    bool allowHeaderFallback = true,
+  }) {
+    final headerIndex = _groupHeaderFlatIndex[target.title];
+    final linkKey = target.linkKey;
+    final linkIndex = linkKey == null ? null : _linkFlatIndex[linkKey];
+    if (linkIndex == null) return allowHeaderFallback ? headerIndex : null;
+    if (headerIndex != null && linkIndex == headerIndex + 1) return headerIndex;
+    return linkIndex;
+  }
+
+  /// הקצה העליון של הפריט [index] כשבר מגובה אזור הגלילה, או null אם הפריט
+  /// אינו בנוי כלל. ערך מחוץ ל-[0,1] פירושו שהפריט מחוץ למסך — וזה בדיוק
+  /// המצב שהלולאה מתקנת.
+  double? _leadingEdgeOfItem(int index) {
+    for (final position in _itemPositionsListener.itemPositions.value) {
+      if (position.index == index) return position.itemLeadingEdge;
+    }
+    return null;
   }
 
   void _updateLastScrollIndex() {
@@ -1066,6 +1333,9 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     widget.closeFilterNotifier?.removeListener(_onCloseFilterRequest);
     widget.externalSearchController?.removeListener(_onExternalSearchChanged);
     widget.highlightQueryListenable?.removeListener(_onHighlightQueryChanged);
+    widget.scrollTargetListenable?.removeListener(
+      _onExternalScrollTargetChanged,
+    );
     widget.typeSelection?.removeListener(_onTypeSelectionChanged);
     _searchFocusNode.removeListener(_handleSearchFocusChange);
     _searchController.dispose();
@@ -1784,7 +2054,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
 
                   // שומר את הסדר של ה-links לצורך חישוב אינדקס החיפוש
                   _orderedLinks = data;
-                  if (_pendingCommentatorScrollTitle != null) {
+                  if (_pendingScrollTarget != null) {
                     _schedulePendingCommentatorScroll();
                   }
 
@@ -1885,6 +2155,13 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                             );
                           }
                           final flatItems = _buildFlatItems(groups);
+                          // רק כאן מיפויי האינדקסים קיימים. ה-FutureBuilder
+                          // החיצוני כבר לא יבנה מחדש כשה-Future של הקבוצות
+                          // נפתר, ולכן בקשה שהגיעה לפני שהרשימה נבנתה הייתה
+                          // נשארת תלויה בלי הרענון הזה.
+                          if (_pendingScrollTarget != null) {
+                            _schedulePendingCommentatorScroll();
+                          }
 
                           final listView = ScrollablePositionedList.builder(
                             itemScrollController: _itemScrollController,
