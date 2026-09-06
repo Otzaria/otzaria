@@ -12,6 +12,7 @@ import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart
 import 'package:otzaria/core/windowing/last_active_window.dart';
 import 'package:otzaria/core/windowing/multi_window_service.dart';
 import 'package:otzaria/core/windowing/window_bus.dart';
+import 'package:otzaria/core/windowing/window_role.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/plugins/services/plugin_crash_guard.dart';
@@ -248,6 +249,18 @@ class AppWindowListener extends WindowListener {
       // דגל שנשאר דלוק לחיצה על X פשוט לא הייתה עושה כלום.
       _isClosing = false;
     }
+  }
+
+  /// סוגר חלון משני שנותר בלי כרטיסיות, כמו כרטיסייה אחרונה בדפדפן.
+  ///
+  /// ⚠️ לא כשזה החלון הגלוי האחרון: [handleWindowClose] היה מזהה אותו כאחרון
+  /// ומכבה את התהליך, בעוד המשתמש רק רוקן חלון וציפה לראות את הספרייה.
+  Future<void> closeIfEmptied() async {
+    if (!WindowRole.isSecondary || _isClosing) return;
+    // `null` הוא "לא ידוע" — חלון ריק עדיף על סגירה בניחוש.
+    final info = await const MultiWindowService().windowCount();
+    if (info == null || info.count <= 1) return;
+    await handleWindowClose();
   }
 
   /// הצעדים שקודמים ל-flush — כולם פר-תהליך.

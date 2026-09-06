@@ -2954,6 +2954,18 @@ class MainWindowScreenState extends State<MainWindowScreen>
               ),
             ),
           ),
+          // חלון משני שהתרוקן מכרטיסיות נסגר, כמו כרטיסייה אחרונה בדפדפן.
+          // ⚠️ מעבר-מצב ולא `!hasOpenTabs`: בעלייה הרשימה עדיין ריקה.
+          BlocListener<TabsBloc, TabsState>(
+            listenWhen: (previous, current) =>
+                previous.hasOpenTabs && !current.hasOpenTabs,
+            listener: (context, state) {
+              final windowListener = appWindowListener;
+              if (windowListener != null) {
+                unawaited(windowListener.closeIfEmptied());
+              }
+            },
+          ),
           // settings.changed עבור selectedCity ו-calendarType —
           // שדות אלה נמצאים ב-CalendarState ולא ב-SettingsState
           BlocListener<CalendarCubit, CalendarState>(

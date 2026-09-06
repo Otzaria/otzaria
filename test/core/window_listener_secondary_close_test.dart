@@ -112,18 +112,59 @@ void main() {
     expect(box.containsKey('key-tabs'), isTrue);
     expect(box.get('key-tabs'), isEmpty);
   });
+
+  /// חלון שהתרוקן מכרטיסיות — בגרירת הכרטיסיה האחרונה לחלון אחר, או
+  /// בסגירתה ב-X. עד כאן הוא נשאר פתוח על מסך הספרייה (issue #1187).
+  group('closeIfEmptied', () {
+    void asSecondaryWindow() {
+      final owner = _FakeOwner(1)..register();
+      addTearDown(owner.dispose);
+      WindowRole.isSecondary = true;
+      WindowBus.instance.register();
+    }
+
+    test('חלון משני שהתרוקן ואינו האחרון — נסגר', () async {
+      asSecondaryWindow();
+
+      await AppWindowListener().closeIfEmptied();
+
+      expect(runner.closeSelfCalls, 1);
+    });
+
+    test('החלון הגלוי האחרון נשאר פתוח על מסך הספרייה', () async {
+      asSecondaryWindow();
+      runner.visibleWindows = 1;
+
+      await AppWindowListener().closeIfEmptied();
+
+      expect(
+        runner.closeSelfCalls,
+        0,
+        reason: 'סגירתו הייתה מכבה את התוכנה בעוד המשתמש רק רוקן חלון',
+      );
+    });
+
+    test('החלון הראשי נשאר פתוח — אפס כרטיסיות הוא מצב הספרייה שלו', () async {
+      await AppWindowListener().closeIfEmptied();
+
+      expect(runner.closeSelfCalls, 0);
+    });
+  });
 }
 
 /// ה-runner המדומה. `windowCount` מחזיר שניים — כלומר "אינך האחרון".
 class _FakeRunner {
   int closeSelfCalls = 0;
 
+  /// מספר החלונות **הגלויים**. `1` הוא "אתה האחרון".
+  int visibleWindows = 2;
+
   void install() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(MultiWindowService.channel, (call) async {
           switch (call.method) {
             case 'windowCount':
-              return {'count': 2, 'max': 4, 'engines': 2};
+              return {'count': visibleWindows, 'max': 4, 'engines': 2};
             case 'closeSelf':
               closeSelfCalls++;
               return null;
