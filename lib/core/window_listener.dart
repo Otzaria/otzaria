@@ -240,9 +240,8 @@ class AppWindowListener extends WindowListener {
       // `Ctrl+Shift+T` אינו נשען עליו אלא על המנוע שנשאר חי בזיכרון.
       await TabsRepository().discardWindowSession();
 
-      // ⚠️ דרך ה-runner ולא `_window.destroy()`: זה האחרון הורס את החלון
-      // מתוך טיפול בערוץ, והריסת מנוע משם היא ריאנטרנטית ומפילה את
-      // התהליך. ה-runner דוחה את ההריסה לאיטרציה הבאה של לולאת ההודעות.
+      // ⚠️ דרך ה-runner ולא `quitApplication()`: האחרון הוא
+      // `PostQuitMessage` — הוא סוגר את התוכנה כולה ולא את החלון הזה.
       await const MultiWindowService().closeSelf();
       // ⚠️ החלון מוסתר ולא נהרס, וה-listener שלו חי. חלון שיוחזר לשימוש
       // (`ReviveWith` / Ctrl+Shift+T) חייב שסגירה חוזרת שלו תעבוד — עם
@@ -410,9 +409,9 @@ class AppWindowListener extends WindowListener {
           if (terminateAttempted == false) {
             // job_object_ready=false ב-runner — סביבה sandboxed / debugger
             // / MDM שמנעה את ה-Job Object containment. אין כאן fallback
-            // מקסימלי באמת: `windowManager.destroy()` ידוע שעוצר את ה-
-            // Engine מיד וזה מסוכן בנתיב הזה (ראה ההערה המקורית למטה),
-            // ואין דרך אחרת להבטיח הריגה אטומית של תהליכי WebView2 ילדים.
+            // מקסימלי באמת: `quitApplication()` הוא `PostQuitMessage`, שמפיל
+            // את המנוע תחת Dart רץ, ואין דרך אחרת להבטיח הריגה אטומית של
+            // תהליכי WebView2 ילדים.
             //
             // מה שאנחנו עושים: נותנים ל-IPC של WebView2 SDK חלון של ~500ms
             // לסיים את ה-shutdown של תהליכי Edge — `shutdownForAppExit`
@@ -448,9 +447,8 @@ class AppWindowListener extends WindowListener {
             );
             await Future<void>.delayed(const Duration(milliseconds: 500));
           }
-          // Windows path מאז ומעולם — exit(0) במקום windowManager.destroy.
-          // כשה-Job Object כן הוקם (המצב הרגיל), TerminateProcess כבר
-          // הרג אותנו ולא נגיע לכאן.
+          // ב-Windows `exit(0)` ולא `quitApplication()`. כשה-Job Object הוקם
+          // (המצב הרגיל) TerminateProcess כבר הרג אותנו ולא נגיע לכאן.
           exit(0);
         }
 
@@ -460,8 +458,9 @@ class AppWindowListener extends WindowListener {
         // "סיים משימה") עוברים דרך Dart. זו הסיבה שהמעבר ל"מוסתר ולא
         // נהרס" לא השאיר את התהליך תלוי.
         await windowManager.setPreventClose(false);
-        // סגירה רגילה דרך ה-WindowManager
-        await _window.destroy();
+        // ⚠️ macOS/Linux בלבד. ב-Windows המסלול הסתיים ב-`exit(0)` שמעל —
+        // ראו האזהרה בתיעוד של `quitApplication`.
+        await _window.quitApplication();
       }
     } catch (e) {
       if (kDebugMode) {

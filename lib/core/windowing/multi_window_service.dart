@@ -436,9 +436,9 @@ class MultiWindowService {
 
   /// סוגר את החלון הנוכחי בלי לסיים את התהליך.
   ///
-  /// ⚠️ ולא `windowManager.destroy()`: הוא קורא ל-`DestroyWindow` מתוך
-  /// טיפול בערוץ, כלומר מתוך ריצת ה-Dart של החלון. הריסת מנוע משם היא
-  /// ריאנטרנטית, ונמדד שהיא מפילה את התהליך כולו בכל סגירת חלון.
+  /// ⚠️ ולא `AppWindowController.quitApplication`: ב-Windows הוא
+  /// `PostQuitMessage(0)` בלבד — לולאת ההודעות של **התהליך** יוצאת, כל
+  /// החלונות נסגרים, והמנוע נהרס בעוד Dart רץ עליו. ראו התיעוד שם.
   Future<void> closeSelf() async {
     if (!isSupported) return;
     try {

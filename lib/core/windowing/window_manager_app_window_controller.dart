@@ -42,7 +42,7 @@ final class WindowManagerAppWindowController
   Future<void> close() => windowManager.close();
 
   @override
-  Future<void> destroy() => windowManager.destroy();
+  Future<void> quitApplication() => windowManager.destroy();
 
   @override
   Future<bool> isVisible() => windowManager.isVisible();

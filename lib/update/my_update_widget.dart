@@ -55,6 +55,28 @@ bool supportsManagedUpdatePlatform({
       operatingSystem == 'linux';
 }
 
+/// האם החלון הזה מריץ את מסלול העדכון — בדיקה, הורדה, ו-hook סגירת החלון.
+///
+/// ⚠️ הפרדיקט חשוף כדי שיהיה **ניתן לבדיקה**. בתוך `build` הוא היה מגודר
+/// ב-[kDebugMode], שהוא `true` בכל הרצת בדיקה — כלומר כל מה שהעוטף מתקין
+/// קיים ב-release בלבד, ואף בדיקה לא יכלה לגעת בו.
+@visibleForTesting
+bool managesUpdatesInThisWindow({
+  required bool isDebug,
+  required bool isSecondaryWindow,
+  required bool isWeb,
+  required String operatingSystem,
+}) {
+  if (isDebug) return false;
+  // בדיקה, הורדה והתקנה הן פר-תהליך: חלון נוסף היה בודק, מוריד לאותו נתיב
+  // ומתקין במקביל לראשון.
+  if (isSecondaryWindow) return false;
+  return supportsManagedUpdatePlatform(
+    isWeb: isWeb,
+    operatingSystem: operatingSystem,
+  );
+}
+
 @visibleForTesting
 bool shouldLaunchInstallerOnExit({
   required UpdatStatus status,
@@ -530,15 +552,12 @@ class MyUpdatWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     // אסור שצורת העץ תלויה בהגדרות משתנות (מנותק/עדכונים) — החלפת העוטף
     // בזמן ריצה בונה מחדש את כל תת-העץ וה-PageView מאבד את העמוד הפעיל.
-    //
-    // ⚠️ החלון הראשון בלבד: בדיקת עדכון, הורדה והתקנה הן פר-תהליך, וכל חלון
-    // נוסף היה בודק, מוריד לאותו נתיב ומתקין במקביל.
-    if (kDebugMode ||
-        WindowRole.isSecondary ||
-        !supportsManagedUpdatePlatform(
-          isWeb: kIsWeb,
-          operatingSystem: Platform.operatingSystem,
-        )) {
+    if (!managesUpdatesInThisWindow(
+      isDebug: kDebugMode,
+      isSecondaryWindow: WindowRole.isSecondary,
+      isWeb: kIsWeb,
+      operatingSystem: Platform.operatingSystem,
+    )) {
       return child;
     }
     return _ManagedUpdatWidget(child: child);
@@ -726,8 +745,8 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
     if (shouldDestroyWindowAfterInstallNow(installerLaunched: launched)) {
       // איפוס הקובץ מונע שיגור מתקין כפול כשאירוע הסגירה יגיע ל-hook.
       _installerFile = null;
-      // ⚠️ סגירה מנומסת ולא `destroy()`: הריסה מתוך ריצת ה-Dart של החלון
-      // מפילה את התהליך כשיש עוד מנוע חי.
+      // ⚠️ סגירה מנומסת ולא `quitApplication()`: האחרון הוא `PostQuitMessage`
+      // ומפיל את המנוע תחת Dart רץ. ראו התיעוד ב-`AppWindowController`.
       await _appWindow.close();
     }
   }

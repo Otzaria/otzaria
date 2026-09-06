@@ -120,7 +120,9 @@ void main() {
     await expectReachesChannel(controller.unmaximize, 'unmaximize');
     await expectReachesChannel(controller.startDragging, 'startDragging');
     await expectReachesChannel(controller.close, 'close');
-    await expectReachesChannel(controller.destroy, 'destroy');
+    // שם המתודה בערוץ נשאר `destroy` — זו הספרייה. השם אצלנו שונה כי הוא
+    // מסיים את התוכנה, וההטעיה כבר עלתה בקריסת יציאה בייצור.
+    await expectReachesChannel(controller.quitApplication, 'destroy');
     // אין מתודת ערוץ בשם center — הספרייה מחשבת מיקום ומזיזה את החלון.
     await expectReachesChannel(controller.center, 'setBounds');
   });

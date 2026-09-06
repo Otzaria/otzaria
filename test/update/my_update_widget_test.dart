@@ -54,6 +54,47 @@ void main() {
     });
   });
 
+  group('managesUpdatesInThisWindow', () {
+    // ⚠️ רגרסיה (#1188, #1190): ה-hook שהעוטף מתקין קרא ל-quitApplication
+    // בכל סגירה והפיל את התהליך — ב-release בלבד, כי ב-debug הוא מדולג.
+    bool manages({
+      bool isDebug = false,
+      bool isSecondaryWindow = false,
+      bool isWeb = false,
+      String operatingSystem = 'windows',
+    }) => managesUpdatesInThisWindow(
+      isDebug: isDebug,
+      isSecondaryWindow: isSecondaryWindow,
+      isWeb: isWeb,
+      operatingSystem: operatingSystem,
+    );
+
+    test('חלון ראשי ב-release על שולחן עבודה — מנהל', () {
+      expect(manages(), isTrue);
+      expect(manages(operatingSystem: 'macos'), isTrue);
+      expect(manages(operatingSystem: 'linux'), isTrue);
+    });
+
+    test('חלון משני אינו מנהל — בדיקה, הורדה והתקנה הן פר-תהליך', () {
+      expect(manages(isSecondaryWindow: true), isFalse);
+      expect(
+        manages(isSecondaryWindow: true, operatingSystem: 'macos'),
+        isFalse,
+      );
+    });
+
+    test('ב-debug אין ניהול — ולכן מה שהעוטף מתקין קיים ב-release בלבד', () {
+      expect(manages(isDebug: true), isFalse);
+      expect(manages(isDebug: true, isSecondaryWindow: true), isFalse);
+    });
+
+    test('פלטפורמה שאינה נתמכת אינה מנהלת', () {
+      expect(manages(operatingSystem: 'android'), isFalse);
+      expect(manages(operatingSystem: 'ios'), isFalse);
+      expect(manages(isWeb: true), isFalse);
+    });
+  });
+
   group('updateCheckBlocked', () {
     // מצב מנותק חוסם את *בדיקת* העדכון בלבד — אסור שישנה את צורת עץ
     // הווידג'טים, אחרת ה-PageView הראשי נבנה מחדש ומציג מסך שגוי.

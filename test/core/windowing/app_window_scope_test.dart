@@ -90,7 +90,7 @@ class _FakeWindow implements AppWindowController, AppWindowGeometry {
   @override
   Future<void> close() async {}
   @override
-  Future<void> destroy() async {}
+  Future<void> quitApplication() async {}
   @override
   Future<void> focus() async {}
   @override
