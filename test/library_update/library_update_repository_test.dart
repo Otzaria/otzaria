@@ -8,6 +8,8 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -507,6 +509,40 @@ void main() {
   );
 
   test(
+    'נסיגה מ-WAL לסגירת חיבור ה-RO נרשמת ל-errors.txt',
+    () async {
+      final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
+      _writeDb(dbPath, version: 1, marker: 'old');
+      AppPaths.debugOverrideDataRootPath(tmp.path);
+      // קובץ לקריאה-בלבד: SQLite פותח אותו RO בשקט וההמרה ל-WAL לא תופסת.
+      await _setReadOnly(dbPath, true);
+
+      final repository = LibraryUpdateRepository(
+        discovery: _unusedDiscovery(),
+        downloader: _LocalPatchDownloader(p.join(tmp.path, 'patch.db')),
+        refreshService: _NoopRefreshService(),
+        dbPathProvider: () => dbPath,
+        dataRootProvider: () async => tmp.path,
+        nowTimestamp: () => '2026-09-07T00:00:00Z',
+      );
+
+      try {
+        await expectLater(
+          repository.applyDeltaPlan(_deltaPlan()),
+          throwsA(anything),
+        );
+        final log = ErrorLogFile.resolveFile().readAsStringSync();
+        expect(log, contains('journal_mode=WAL failed'));
+        expect(log, contains('readonly database'));
+      } finally {
+        await _setReadOnly(dbPath, false);
+        AppPaths.debugOverrideDataRootPath(null);
+      }
+    },
+    timeout: const Timeout(Duration(seconds: 30)),
+  );
+
+  test(
     'applyDeltaPlan מסמן reconcile מלא כשמשתנה תוכן שאינו ניתן למיפוי לספר',
     () async {
       final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
@@ -659,6 +695,13 @@ void main() {
     },
     timeout: const Timeout(Duration(seconds: 30)),
   );
+}
+
+Future<void> _setReadOnly(String path, bool readOnly) async {
+  final result = Platform.isWindows
+      ? await Process.run('attrib', [readOnly ? '+R' : '-R', path])
+      : await Process.run('chmod', [readOnly ? '444' : '644', path]);
+  expect(result.exitCode, 0, reason: result.stderr.toString());
 }
 
 String _journalMode(String dbPath) {

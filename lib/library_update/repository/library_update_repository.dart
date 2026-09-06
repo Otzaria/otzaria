@@ -3,6 +3,7 @@ import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -599,8 +600,10 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       // WAL מאפשר לקוראים להמשיך לקרוא את ה-snapshot שלפני העדכון בזמן
       // שהאיזולייט כותב — בלי לסגור את חיבור ה-RO (שחסם פתיחת ספרים לדקות).
       // אם ההמרה נכשלת, נסוגים למסלול הישן: סגירת ה-RO למשך הכתיבה.
-      final concurrentReads = _trySetJournalMode(dbPath, 'WAL');
+      final walFailure = _trySetJournalMode(dbPath, 'WAL');
+      final concurrentReads = walFailure == null;
       if (!concurrentReads) {
+        _logJournalModeFailure('WAL', walFailure);
         await SqliteDataProvider.instance.closeForExternalWrite();
       }
       try {
@@ -631,10 +634,9 @@ class LibraryUpdateRepository implements LibraryUpdateService {
           // היציאה מ-WAL דורשת שאין חיבורים אחרים — סוגרים לרגע את ה-RO,
           // אחרת ההמרה נתקעת על מלוא ה-busy_timeout ונכשלת.
           await SqliteDataProvider.instance.closeForExternalWrite();
-          if (!_trySetJournalMode(dbPath, 'DELETE')) {
-            debugPrint(
-              '[LibraryUpdate] failed to revert journal_mode to DELETE',
-            );
+          final revertFailure = _trySetJournalMode(dbPath, 'DELETE');
+          if (revertFailure != null) {
+            _logJournalModeFailure('DELETE', revertFailure);
           }
         }
         await SqliteDataProvider.instance.reopenAfterExternalWrite();
@@ -642,9 +644,20 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     });
   }
 
-  /// ממיר את מצב היומן של [dbPath] ומחזיר האם ההמרה הצליחה. ההמרה דורשת
-  /// נעילה בלעדית קצרה — busy_timeout מכסה קריאות קצרות שבאמצע.
-  bool _trySetJournalMode(String dbPath, String mode) {
+  // ב-release אין debugPrint, ורק errors.txt יכול להסביר למה פתיחת ספרים
+  // נחסמה בזמן העדכון (נסיגה לסגירת חיבור ה-RO).
+  void _logJournalModeFailure(String mode, String reason) {
+    try {
+      ErrorLogFile.append(
+        title: 'Library Update: journal_mode=$mode failed',
+        error: reason,
+      );
+    } catch (_) {}
+  }
+
+  /// ממיר את מצב היומן של [dbPath]; מחזיר null בהצלחה, אחרת את סיבת הכשל.
+  /// ההמרה דורשת נעילה בלעדית קצרה — busy_timeout מכסה קריאות קצרות שבאמצע.
+  String? _trySetJournalMode(String dbPath, String mode) {
     try {
       final db = sqlite3.sqlite3.open(dbPath);
       try {
@@ -653,14 +666,17 @@ class LibraryUpdateRepository implements LibraryUpdateService {
           db.execute('PRAGMA wal_checkpoint(TRUNCATE)');
         }
         final result = db.select('PRAGMA journal_mode=$mode');
-        return result.isNotEmpty &&
-            result.first.values.first?.toString().toLowerCase() ==
-                mode.toLowerCase();
+        final actual = result.isEmpty
+            ? null
+            : result.first.values.first?.toString().toLowerCase();
+        return actual == mode.toLowerCase()
+            ? null
+            : 'journal_mode stayed ${actual ?? 'unknown'}';
       } finally {
         db.close();
       }
-    } catch (_) {
-      return false;
+    } catch (e) {
+      return e.toString();
     }
   }
 
