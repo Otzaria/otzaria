@@ -294,6 +294,37 @@ void main() {
       expect('הערה'.allMatches(out).length, 1);
     });
 
+    test('קישור פנימי (w:anchor) לכותרת עם סימניה תואמת', () {
+      final out = _convert(
+        _wordMl2003(
+          '<w:p><w:pPr><w:pStyle w:val="1"/></w:pPr>'
+          '<w:bookmarkStart w:id="1" w:name="_Toc1"/>'
+          '<w:r><w:t>כותרת יעד</w:t></w:r>'
+          '<w:bookmarkEnd w:id="1"/></w:p>'
+          '<w:p><w:hyperlink w:anchor="_Toc1"><w:r><w:t>לכותרת</w:t></w:r>'
+          '</w:hyperlink></w:p>',
+          extra:
+              '<w:styles><w:style w:type="paragraph" w:styleId="1">'
+              '<w:name w:val="heading 1"/></w:style></w:styles>',
+        ),
+      );
+      expect(out, contains('<h1 id="_Toc1">כותרת יעד</h1>'));
+      expect(out, contains('<a href="#_Toc1">לכותרת</a>'));
+    });
+
+    test('קישור חיצוני (r:id) בלי קובץ יחסים נשאר טקסט לא-עטוף', () {
+      // בדיאלקט הזה אין word/_rels/document.xml.rels — היעד אינו נפתר,
+      // אך טקסט הקישור לא אובד (כמו הפורמטים האחרים לפני התיקון).
+      final out = _convert(
+        _wordMl2003(
+          '<w:p><w:hyperlink r:id="rId9"><w:r><w:t>קישור</w:t></w:r>'
+          '</w:hyperlink></w:p>',
+        ),
+      );
+      expect(out, '<h1>ספר</h1>\nקישור');
+      expect(out, isNot(contains('<a ')));
+    });
+
     test('תמונה מ-w:binData לפי src של wordml://', () {
       final out = _convert(
         _wordMl2003(
