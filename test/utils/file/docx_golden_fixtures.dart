@@ -116,6 +116,39 @@ String relsXml(Map<String, String> targets) {
       'relationships">$entries</Relationships>';
 }
 
+/// document.xml.rels הממפה rId → יעד קישור חיצוני (`w:hyperlink r:id`).
+String hyperlinkRelsXml(Map<String, String> targets) {
+  final entries = targets.entries
+      .map(
+        (e) =>
+            '<Relationship Id="${e.key}" Target="${e.value}" '
+            'TargetMode="External" Type="http://schemas.openxmlformats.org/'
+            'officeDocument/2006/relationships/hyperlink"/>',
+      )
+      .join();
+  return '<?xml version="1.0" encoding="UTF-8"?>'
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/'
+      'relationships">$entries</Relationships>';
+}
+
+/// פסקה עם קישור חיצוני (`r:id`) עוטף run יחיד.
+String hyperlinkExternal(String relId, String text) =>
+    '<w:p><w:hyperlink r:id="$relId"><w:r><w:t>$text</w:t></w:r>'
+    '</w:hyperlink></w:p>';
+
+/// פסקה עם קישור פנימי (`w:anchor`) עוטף run יחיד.
+String hyperlinkInternal(String anchor, String text) =>
+    '<w:p><w:hyperlink w:anchor="$anchor"><w:r><w:t>$text</w:t></w:r>'
+    '</w:hyperlink></w:p>';
+
+/// כותרת עם סימניה (`w:bookmarkStart`/`w:bookmarkEnd`) — היעד של קישור פנימי,
+/// בדיוק כפי שתוכן-עניינים אוטומטי של Word ("Insert TOC") בונה.
+String headingWithBookmark(String styleId, String anchor, String text) =>
+    '<w:p><w:pPr><w:pStyle w:val="$styleId"/></w:pPr>'
+    '<w:bookmarkStart w:id="1" w:name="$anchor"/>'
+    '<w:r><w:t>$text</w:t></w:r>'
+    '<w:bookmarkEnd w:id="1"/></w:p>';
+
 /// גרפיקת DrawingML inline המפנה ל-[relId].
 String drawingImage(String relId) =>
     '<w:r><w:drawing><wp:inline><a:graphic><a:graphicData>'
@@ -333,6 +366,18 @@ Map<String, Uint8List> buildGoldenScenarios() {
         '${table([
           [para('תא בבקרה')],
         ])}</w:sdtContent></w:sdt>',
+      ),
+    ),
+
+    'hyperlink external': buildDocx(
+      document: documentXml(hyperlinkExternal('rId2', 'לאתר')),
+      rels: hyperlinkRelsXml({'rId2': 'https://otzaria.org'}),
+    ),
+
+    'hyperlink internal': buildDocx(
+      document: documentXml(
+        '${headingWithBookmark('Heading1', '_Toc1', 'כותרת יעד')}'
+        '${hyperlinkInternal('_Toc1', 'לכותרת')}',
       ),
     ),
   };

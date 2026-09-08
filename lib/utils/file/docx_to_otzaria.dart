@@ -38,7 +38,12 @@ import 'package:xml/xml.dart' as xml;
 /// הזרקת תגיות לגוף הספר), גוף הערת שוליים רב-פסקתית מופרד ברווח,
 /// `w:customXml` שקוף, כל תיבות הטקסט בשייף מקובץ מרונדרות, `w:vMerge` בלי
 /// תא פותח אינו נמחק, וכותרת עוברת trim.
-const int kOoxmlWordConverterVersion = 14;
+/// v15: `w:hyperlink` הופך ל-`<a href="…">` אמיתי במקום לפלוט רק את טקסט
+/// הקישור. יעד חיצוני (`r:id`) נפתר דרך `document.xml.rels` ומסונן ב-
+/// `safeLinkTarget` (מקור יחיד, משותף עם ODT/HTML); יעד פנימי (`w:anchor`)
+/// הופך ל-`href="#שם"`, וכותרת שסימניה (`w:bookmarkStart`) באותה פסקה שלה
+/// היא היעד מקבלת `id` תואם — בדיוק המבנה שתוכן-עניינים אוטומטי של Word כותב.
+const int kOoxmlWordConverterVersion = 15;
 
 /// שם ותיק ל-[kOoxmlWordConverterVersion]. הערך משותף לכל פורמטי OOXML —
 /// הם חולקים מנוע אחד, ולכן שינוי בפלט פוסל את המטמון של כולם יחד.
@@ -100,6 +105,14 @@ class _DocxContext {
   /// `styleId` → רמת כותרת 1–6, מקובץ styles.xml.
   final Map<String, int> headingStyles;
 
+  /// `rId` → כתובת יעד, מיחסי `hyperlink` ב-document.xml.rels.
+  final Map<String, String> hyperlinkRels;
+
+  /// שמות סימניה (`w:bookmarkStart`) שקישור פנימי (`w:anchor`) כלשהו במסמך
+  /// מפנה אליהם. משמש כדי לפלוט `id` רק על כותרות שבאמת משמשות יעד — לא על
+  /// כל סימניה במסמך (ראו את אותו עיקרון ב-HTML, `otzaria_markup.dart`).
+  final Set<String> referencedAnchors;
+
   final _FootnoteCounter footnoteCounter = _FootnoteCounter();
 
   /// מונים רצים לרשימות: `numId` → (`ilvl` → הערך הנוכחי).
@@ -110,6 +123,8 @@ class _DocxContext {
     this.images,
     this.numbering,
     this.headingStyles,
+    this.hyperlinkRels,
+    this.referencedAnchors,
   );
 
   /// מחזיר את תווית המספור/תבליט לפריט רשימה (למשל `1.`, `1.1.`, `א.`, `•`).
@@ -362,6 +377,46 @@ Map<String, String> _extractImages(Archive archive, {bool embedImages = true}) {
     }
   });
   return images;
+}
+
+/// בונה מפת `rId` → כתובת יעד עבור יחסי `hyperlink` ב-document.xml.rels.
+///
+/// חבילת WordML 2003 (הדיאלקט "אמיתי", לא Flat OPC) אינה מחזיקה קובץ יחסים
+/// נפרד — קישור חיצוני שם אינו נפתר, ומוחזרת מפה ריקה; קישור פנימי
+/// (`w:anchor`) עדיין עובד, כי הוא אינו תלוי ביחסים.
+Map<String, String> _extractHyperlinkRels(Archive archive) {
+  for (final file in archive) {
+    if (file.isFile && file.name == 'word/_rels/document.xml.rels') {
+      try {
+        final doc = xml.XmlDocument.parse(
+          _decodeXmlBytes(readArchiveEntry(file, format: DocumentFormat.docx)),
+        );
+        final rels = <String, String>{};
+        for (final rel in doc.findAllElements('Relationship')) {
+          if ((rel.getAttribute('Type') ?? '').endsWith('/hyperlink')) {
+            final id = rel.getAttribute('Id');
+            final target = rel.getAttribute('Target');
+            if (id != null && target != null) rels[id] = target;
+          }
+        }
+        return rels;
+      } catch (_) {
+        return const {}; // rels פגום — ממשיכים בלי קישורים חיצוניים.
+      }
+    }
+  }
+  return const {};
+}
+
+/// אוסף את שמות הסימניות (`w:anchor`) שקישור פנימי כלשהו ב-[body] מפנה
+/// אליהן, כדי שכותרת תקבל `id` רק כשהיא באמת יעד של קישור פנימי.
+Set<String> _collectHyperlinkAnchors(xml.XmlElement body) {
+  final anchors = <String>{};
+  for (final link in body.findAllElements('w:hyperlink')) {
+    final anchor = link.getAttribute('w:anchor');
+    if (anchor != null && anchor.isNotEmpty) anchors.add(anchor);
+  }
+  return anchors;
 }
 
 /// האם האלמנט הוא תוכן של תיבת-טקסט, בלי תלות בקידומת ה-namespace.
@@ -699,63 +754,11 @@ _Seg? _processRunSeg(xml.XmlElement node) {
   return _Seg(opens.reversed.join(), closes.join(), text);
 }
 
-/// מרנדר את תוכן הפסקה (כל ה-runs לפי הסדר) כולל הערות שוליים inline
-/// בפורמט שהקורא של אוצריא מציג כמפרש בצד:
-///   `<sup class="footnote-marker">N</sup><i class="footnote">גוף</i>`
-String _renderParagraphInline(xml.XmlElement paragraph, _DocxContext ctx) {
-  // runs של תיבת-טקסט ושל הערה inline מעובדים בתוך היחידה שלהם; בלי דילוג
-  // כאן `findAllElements` תופס אותם שוב והתוכן נפלט פעמיים.
-  final nestedRuns = <xml.XmlElement>{};
-  for (final tb in _textBoxContents(paragraph)) {
-    nestedRuns.addAll(tb.findAllElements('w:r'));
-  }
-  for (final note in paragraph.findAllElements('w:footnote')) {
-    nestedRuns.addAll(note.findAllElements('w:r'));
-  }
-
-  // שלב 1: איסוף מקטעים (segments) מכל ה-runs לפי הסדר.
-  final segs = <_Seg>[];
-  for (final run in paragraph.findAllElements('w:r')) {
-    if (nestedRuns.contains(run)) continue; // מעובד בתיבת-הטקסט / בהערה
-
-    final footnoteRef = run.getElement('w:footnoteReference');
-    if (footnoteRef != null) {
-      final id = footnoteRef.getAttribute('w:id');
-      if (id != null && ctx.footnotes.containsKey(id)) {
-        final n = ctx.footnoteCounter.next();
-        segs.add(
-          _Seg.raw(otzariaFootnote('$n', escapeHtmlText(ctx.footnotes[id]!))),
-        );
-      }
-      continue;
-    }
-
-    // WordML 2003 אינו מפריד את ההערות לחלק משלהן — גוף ההערה יושב בתוך
-    // ה-run עצמו. בלי הטיפול כאן הוא היה זולג לגוף הפסקה כטקסט רגיל.
-    final inlineFootnote = run.getElement('w:footnote');
-    if (inlineFootnote != null) {
-      final body = escapeHtmlText(inlineFootnote.innerText).trim();
-      if (body.isNotEmpty) {
-        final n = ctx.footnoteCounter.next();
-        segs.add(_Seg.raw(otzariaFootnote('$n', body)));
-      }
-      continue;
-    }
-
-    // גרפיקה: תיבת-טקסט (במסגרת, אולי על תמונת-רקע) או תמונה — מקטע raw.
-    final drawingHtml = _drawingHtmlFromRun(run, ctx);
-    if (drawingHtml != null) {
-      segs.add(_Seg.raw(drawingHtml));
-      continue;
-    }
-
-    final seg = _processRunSeg(run);
-    if (seg != null) segs.add(seg);
-  }
-
-  // שלב 2: בנייה עם מיזוג מקטעים סמוכים בעלי עטיפה זהה — תגיות העיצוב
-  // נכתבות פעם אחת לכל רצף, במקום לכל run בנפרד (מונע ניפוח HTML/זיכרון
-  // מ-runs מפוצלים של Word). מקטע raw (הערת שוליים) אינו ממוזג.
+/// בונה HTML ממקטעים (`_Seg`) עם מיזוג מקטעים סמוכים בעלי עטיפה זהה —
+/// תגיות העיצוב נכתבות פעם אחת לכל רצף, במקום לכל run בנפרד (מונע ניפוח
+/// HTML/זיכרון מ-runs מפוצלים של Word). מקטע raw (הערת שוליים, קישור) אינו
+/// ממוזג. נקרא גם על תוכן פנימי של קישור, ולכן עומד לבד מ-[_renderParagraphInline].
+String _buildSegsHtml(List<_Seg> segs) {
   final buf = StringBuffer();
   var i = 0;
   while (i < segs.length) {
@@ -775,8 +778,145 @@ String _renderParagraphInline(xml.XmlElement paragraph, _DocxContext ctx) {
     buf.write(s.close);
     i = j;
   }
+  return buf.toString();
+}
+
+/// מוצא את `w:hyperlink` המכיל את [run], אם יש, בלי לחצות את גבול [paragraph]
+/// (תיבת-טקסט מרונדרת בקריאה נפרדת שהפסקה שלה היא כבר `w:p` הפנימי, ולכן
+/// הקישור העוטף את התיבה כולה אינו נראה משם — מחוץ לתחום המשימה הזו).
+xml.XmlElement? _hyperlinkAncestor(
+  xml.XmlElement run,
+  xml.XmlElement paragraph,
+) {
+  xml.XmlNode? node = run.parent;
+  while (node != null && node != paragraph) {
+    if (node is xml.XmlElement && node.name.qualified == 'w:hyperlink') {
+      return node;
+    }
+    node = node.parent;
+  }
+  return null;
+}
+
+/// כתובת היעד של `w:hyperlink`, מסוננת דרך [safeLinkTarget] (מקור יחיד
+/// לאימות סכימה, משותף עם ODT ו-HTML) — או `null` אם אין יעד תקין.
+///
+/// `w:anchor` (סימניה פנימית) גובר: קישור עם שני המאפיינים אינו תקין ב-Word,
+/// אך אם קרה — יעד פנימי עדיף על יעד שאולי אינו נפתר בכלל.
+String? _resolveHyperlinkHref(xml.XmlElement hyperlink, _DocxContext ctx) {
+  final anchor = hyperlink.getAttribute('w:anchor');
+  if (anchor != null && anchor.isNotEmpty) {
+    return safeLinkTarget('#$anchor');
+  }
+  final rId = hyperlink.getAttribute('r:id');
+  final target = rId == null ? null : ctx.hyperlinkRels[rId];
+  return target == null ? null : safeLinkTarget(target);
+}
+
+/// מרנדר את תוכן הפסקה (כל ה-runs לפי הסדר) כולל הערות שוליים inline
+/// בפורמט שהקורא של אוצריא מציג כמפרש בצד:
+///   `<sup class="footnote-marker">N</sup><i class="footnote">גוף</i>`
+///
+/// `w:hyperlink` עוטף היגד ב-`<a href="…">` (ראו [_resolveHyperlinkHref]):
+/// ה-runs שבתוכו מזוהים לפי ההורה הקרוב ביותר ([_hyperlinkAncestor]) ונאספים
+/// לקבוצה נפרדת, שתוכנה נבנה ונעטף כמקטע raw יחיד במקומו המקורי ברצף.
+String _renderParagraphInline(xml.XmlElement paragraph, _DocxContext ctx) {
+  // runs של תיבת-טקסט ושל הערה inline מעובדים בתוך היחידה שלהם; בלי דילוג
+  // כאן `findAllElements` תופס אותם שוב והתוכן נפלט פעמיים.
+  final nestedRuns = <xml.XmlElement>{};
+  for (final tb in _textBoxContents(paragraph)) {
+    nestedRuns.addAll(tb.findAllElements('w:r'));
+  }
+  for (final note in paragraph.findAllElements('w:footnote')) {
+    nestedRuns.addAll(note.findAllElements('w:r'));
+  }
+
+  // שלב 1: איסוף מקטעים (segments) מכל ה-runs לפי הסדר.
+  final segs = <_Seg>[];
+  xml.XmlElement? currentLink;
+  var linkSegs = <_Seg>[];
+
+  void flushLink() {
+    if (currentLink == null) return;
+    final inner = _buildSegsHtml(linkSegs);
+    if (inner.isNotEmpty) {
+      final href = _resolveHyperlinkHref(currentLink!, ctx);
+      segs.add(
+        _Seg.raw(
+          href == null
+              ? inner
+              : '<a href="${escapeHtmlAttribute(href)}">$inner</a>',
+        ),
+      );
+    }
+    currentLink = null;
+    linkSegs = <_Seg>[];
+  }
+
+  for (final run in paragraph.findAllElements('w:r')) {
+    if (nestedRuns.contains(run)) continue; // מעובד בתיבת-הטקסט / בהערה
+
+    final link = _hyperlinkAncestor(run, paragraph);
+    if (link != currentLink) {
+      flushLink();
+      currentLink = link;
+    }
+    final target = currentLink != null ? linkSegs : segs;
+
+    final footnoteRef = run.getElement('w:footnoteReference');
+    if (footnoteRef != null) {
+      final id = footnoteRef.getAttribute('w:id');
+      if (id != null && ctx.footnotes.containsKey(id)) {
+        final n = ctx.footnoteCounter.next();
+        target.add(
+          _Seg.raw(otzariaFootnote('$n', escapeHtmlText(ctx.footnotes[id]!))),
+        );
+      }
+      continue;
+    }
+
+    // WordML 2003 אינו מפריד את ההערות לחלק משלהן — גוף ההערה יושב בתוך
+    // ה-run עצמו. בלי הטיפול כאן הוא היה זולג לגוף הפסקה כטקסט רגיל.
+    final inlineFootnote = run.getElement('w:footnote');
+    if (inlineFootnote != null) {
+      final body = escapeHtmlText(inlineFootnote.innerText).trim();
+      if (body.isNotEmpty) {
+        final n = ctx.footnoteCounter.next();
+        target.add(_Seg.raw(otzariaFootnote('$n', body)));
+      }
+      continue;
+    }
+
+    // גרפיקה: תיבת-טקסט (במסגרת, אולי על תמונת-רקע) או תמונה — מקטע raw.
+    final drawingHtml = _drawingHtmlFromRun(run, ctx);
+    if (drawingHtml != null) {
+      target.add(_Seg.raw(drawingHtml));
+      continue;
+    }
+
+    final seg = _processRunSeg(run);
+    if (seg != null) target.add(seg);
+  }
+  flushLink(); // קישור שנמצא בסוף הפסקה, בלי run רגיל אחריו שיסגור אותו.
+
   // תגיות אוצריא שהוקלדו כטקסט במסמך (הדבקה מפורמט אוצריא) מופעלות כעיצוב.
-  return _unescapeOtzariaTags(buf.toString());
+  return _unescapeOtzariaTags(_buildSegsHtml(segs));
+}
+
+/// שם הסימניה (`w:bookmarkStart`) שבתוך [paragraph], אם היא יעד של קישור
+/// פנימי כלשהו במסמך (`w:anchor` ב-[referencedAnchors]) — כדי לפלוט `id` על
+/// הכותרת עצמה. תוכן העניינים האוטומטי של Word עוטף בדיוק כך: `bookmarkStart`
+/// באותה פסקה של הכותרת שהוא מסמן.
+String? _headingBookmarkId(
+  xml.XmlElement paragraph,
+  Set<String> referencedAnchors,
+) {
+  if (referencedAnchors.isEmpty) return null;
+  for (final bookmark in paragraph.findAllElements('w:bookmarkStart')) {
+    final name = bookmark.getAttribute('w:name');
+    if (name != null && referencedAnchors.contains(name)) return name;
+  }
+  return null;
 }
 
 /// מעבד פסקה בודדת ומוסיף אותה ל-[output] (אם אינה ריקה).
@@ -804,7 +944,11 @@ void _processParagraph(
   if (level != null) {
     // trim: תווית תוכן העניינים נגזרת מטקסט הכותרת, ורווח מוביל/עוקב
     // (`xml:space="preserve"`) היה מייצר ערך TOC שונה לאותה כותרת בדיוק.
-    output.add('<h$level>${text.trim()}</h$level>');
+    final bookmarkId = _headingBookmarkId(paragraph, ctx.referencedAnchors);
+    final idAttr = bookmarkId == null
+        ? ''
+        : ' id="${escapeHtmlAttribute(bookmarkId)}"';
+    output.add('<h$level$idAttr>${text.trim()}</h$level>');
     return;
   }
 
@@ -1155,12 +1299,6 @@ String ooxmlWordArchiveToText(
   required DocumentFormat format,
   bool embedImages = true,
 }) {
-  final ctx = _DocxContext(
-    _extractFootnotes(archive),
-    _extractImages(archive, embedImages: embedImages),
-    _extractNumbering(archive),
-    _extractHeadingStyles(archive),
-  );
   final List<String> list = [
     otzariaInlineText('<h1>${escapeHtmlText(title)}</h1>'),
   ];
@@ -1195,6 +1333,15 @@ String ooxmlWordArchiveToText(
       cause: 'ל-word/document.xml אין w:body',
     );
   }
+
+  final ctx = _DocxContext(
+    _extractFootnotes(archive),
+    _extractImages(archive, embedImages: embedImages),
+    _extractNumbering(archive),
+    _extractHeadingStyles(archive),
+    _extractHyperlinkRels(archive),
+    _collectHyperlinkAnchors(body),
+  );
   _processBlockChildren(body.childElements, ctx, list);
 
   return list.join('\n');
@@ -1234,6 +1381,9 @@ String wordMl2003ToText(
     _extractWordMlImages(root, embedImages: embedImages),
     _extractWordMlNumbering(root),
     _headingStylesFrom(document),
+    // אין קובץ יחסים בדיאלקט הזה — קישור חיצוני (r:id) אינו נפתר, רק פנימי.
+    const {},
+    _collectHyperlinkAnchors(body),
   );
 
   final list = <String>[

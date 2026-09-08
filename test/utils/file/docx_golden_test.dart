@@ -76,6 +76,13 @@ void main() {
     'w:sdt':
         '<h1>ספר</h1>\nבתוך בקרת תוכן\n$table'
         '${row(cell('תא בבקרה'))}</table>',
+
+    'hyperlink external':
+        '<h1>ספר</h1>\n<a href="https://otzaria.org">לאתר</a>',
+
+    'hyperlink internal':
+        '<h1>ספר</h1>\n<h1 id="_Toc1">כותרת יעד</h1>\n'
+        '<a href="#_Toc1">לכותרת</a>',
   };
 
   final scenarios = buildGoldenScenarios();
@@ -126,6 +133,25 @@ void main() {
       expect(out, isNot(contains('<img')));
       expect(out, isNot(contains('<div')));
       expect(out, contains('טקסט אחרי הסימן'));
+    });
+
+    test('קישור עם סכימה חסומה (safeLinkTarget) נשאר טקסט לא-עטוף', () {
+      final bytes = buildDocx(
+        document: documentXml(hyperlinkExternal('rId9', 'חסום')),
+        rels: hyperlinkRelsXml({'rId9': 'javascript:alert(1)'}),
+      );
+      final out = docxToText(bytes, title);
+      expect(out, '<h1>ספר</h1>\nחסום');
+      expect(out, isNot(contains('<a ')));
+    });
+
+    test('קישור עם r:id שאינו נמצא ב-rels נשאר טקסט לא-עטוף', () {
+      final bytes = buildDocx(
+        document: documentXml(hyperlinkExternal('rIdMissing', 'קישור')),
+      );
+      final out = docxToText(bytes, title);
+      expect(out, '<h1>ספר</h1>\nקישור');
+      expect(out, isNot(contains('<a ')));
     });
 
     test('המרה חוזרת דטרמיניסטית', () {

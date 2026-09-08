@@ -28,8 +28,8 @@ import 'package:otzaria/utils/text/inline_style.dart';
 /// ‎`ooxml`‎ ו-‎`word-xml`‎ חולקים טביעה — Flat OPC מגיע לאותו מנוע ומייצר פלט
 /// זהה בייט-בבייט. אי-שוויון ביניהם הוא סימן שהמנוע הותקף מכיוון אחד בלבד.
 const Map<String, ({int version, String fingerprint})> _pinned = {
-  'ooxml': (version: 14, fingerprint: 'f6749e468f69bdcc'),
-  'word-xml': (version: 1014, fingerprint: 'f6749e468f69bdcc'),
+  'ooxml': (version: 15, fingerprint: '1361c1a44610eac7'),
+  'word-xml': (version: 1015, fingerprint: '1361c1a44610eac7'),
   'odt': (version: 7, fingerprint: 'e7114c864beedc1d'),
   'rtf': (version: 6, fingerprint: 'cfa322a43935a572'),
   'legacy-word': (version: 9, fingerprint: 'e39829bc7e2dd94f'),
@@ -57,7 +57,9 @@ Uint8List _zip(Map<String, String> entries) {
 /// מסמך דגימה שנוגע בכל שורה בחוזה ה-markup שיש לה ייצוג בפורמט.
 const _ooxmlBody =
     '<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr>'
-    '<w:r><w:t>כותרת</w:t></w:r></w:p>'
+    '<w:bookmarkStart w:id="1" w:name="_Toc1"/>'
+    '<w:r><w:t>כותרת</w:t></w:r>'
+    '<w:bookmarkEnd w:id="1"/></w:p>'
     '<w:p><w:pPr><w:bidi/><w:jc w:val="end"/></w:pPr>'
     '<w:r><w:rPr><w:b/><w:i/><w:u w:val="double"/>'
     '<w:color w:val="C00000"/><w:highlight w:val="yellow"/></w:rPr>'
@@ -66,6 +68,10 @@ const _ooxmlBody =
     '<w:p><w:r><w:rPr><w:vanish/></w:rPr><w:t>מוסתר</w:t></w:r></w:p>'
     // עטיפה שקופה: תוכנה חייב להישמר.
     '<w:customXml><w:p><w:r><w:t>בעטיפה</w:t></w:r></w:p></w:customXml>'
+    // קישור פנימי לכותרת (תוכן-עניינים אוטומטי) וחיצוני, זה לצד זה בפסקה.
+    '<w:p><w:hyperlink w:anchor="_Toc1"><w:r><w:t>לכותרת</w:t></w:r>'
+    '</w:hyperlink> <w:hyperlink r:id="rId1"><w:r><w:t>לאתר</w:t></w:r>'
+    '</w:hyperlink></w:p>'
     '<w:tbl><w:tr><w:trPr><w:tblHeader/></w:trPr>'
     '<w:tc><w:tcPr><w:gridSpan w:val="2"/>'
     '<w:shd w:fill="EEEEEE"/><w:vAlign w:val="center"/></w:tcPr>'
@@ -73,6 +79,15 @@ const _ooxmlBody =
     // ‏vMerge המשך בלי תא פותח מעליו — תוכנו אינו נמחק.
     '<w:tr><w:tc><w:tcPr><w:vMerge/></w:tcPr>'
     '<w:p><w:r><w:t>המשך</w:t></w:r></w:p></w:tc></w:tr></w:tbl>';
+
+/// document.xml.rels עם יחס hyperlink יחיד — היעד החיצוני של `rId1` לעיל.
+const _ooxmlRels =
+    '<?xml version="1.0" encoding="UTF-8"?>'
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/'
+    'relationships"><Relationship Id="rId1" '
+    'Type="http://schemas.openxmlformats.org/officeDocument/2006/'
+    'relationships/hyperlink" Target="https://otzaria.org" '
+    'TargetMode="External"/></Relationships>';
 
 /// הערת שוליים בת שתי פסקאות — גבול הפסקה חייב להיות רווח.
 const _ooxmlFootnotes =
@@ -84,7 +99,8 @@ const _ooxmlFootnotes =
 String _wordDocument(String body) =>
     '<?xml version="1.0" encoding="UTF-8"?>'
     '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/'
-    '2006/main"><w:body>$body</w:body></w:document>';
+    '2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/'
+    '2006/relationships"><w:body>$body</w:body></w:document>';
 
 const _ooxmlStyles =
     '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/'
@@ -95,6 +111,7 @@ Uint8List _sampleOoxml() => _zip({
   'word/document.xml': _wordDocument(_ooxmlBody),
   'word/styles.xml': _ooxmlStyles,
   'word/footnotes.xml': _ooxmlFootnotes,
+  'word/_rels/document.xml.rels': _ooxmlRels,
 });
 
 Uint8List _sampleWordXml() => _utf8(
@@ -111,6 +128,11 @@ Uint8List _sampleWordXml() => _utf8(
   '<pkg:part pkg:name="/word/footnotes.xml" '
   'pkg:contentType="application/xml">'
   '<pkg:xmlData>$_ooxmlFootnotes</pkg:xmlData></pkg:part>'
+  '<pkg:part pkg:name="/word/_rels/document.xml.rels" '
+  'pkg:contentType="application/vnd.openxmlformats-package.'
+  'relationships+xml"><pkg:xmlData>'
+  '${_ooxmlRels.replaceFirst(RegExp(r'^<\?xml[^>]*\?>'), '')}'
+  '</pkg:xmlData></pkg:part>'
   '</pkg:package>',
 );
 
