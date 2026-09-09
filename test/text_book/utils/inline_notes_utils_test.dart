@@ -218,4 +218,20 @@ void main() {
       expect(notesForLines(content, [0, 1]), isEmpty);
     });
   });
+
+  // issue #1236 — ספרות-עיליות יוניקוד מעל 3 חסרות ברוב גופני המערכת.
+  group('מרקר הערה מוטבעת מספרי (issue #1236)', () {
+    test('נשאר ספרות רגילות בקישור הערה מורם רגיל', () {
+      const line =
+          'גוף<sup class="footnote-marker">14</sup>'
+          '<i class="footnote">תוכן</i>';
+
+      final result = addInlineNotePreviewLinks(line, lineIndex: 7);
+
+      expect(result, contains('class="book-note-marker"'));
+      expect(result, isNot(contains('book-note-marker-sup')));
+      expect(result, contains('14</a>'));
+      expect(result, isNot(matches(RegExp('[⁰¹²³⁴⁵⁶⁷⁸⁹]'))));
+    });
+  });
 }

@@ -306,4 +306,34 @@ Future<void> main() async {
     },
     skip: engineReady ? false : searchEngineSkipReason,
   );
+
+  // issue #1236 — ¹²³ יושבות בבלוק Latin-1 שיש בכל גופן, ⁰⁴–⁹ בבלוק
+  // Superscripts שחסר ברוב גופני המערכת: Flutter נופל לגופן אחר עבורן, ומרקרי
+  // 4 ומעלה נראו שונה מ-1–3. הספרות חייבות להישאר ספרות רגילות של גופן הספר,
+  // מוקטנות ומורמות בציור כמו מרקר-אות.
+  group('TextRendererService - מרקר מספרי בגופן הספר (issue #1236)', () {
+    const settings = RenderSettings();
+    final superscriptGlyphs = RegExp('[⁰¹²³⁴⁵⁶⁷⁸⁹]');
+
+    test('מרקר הערה מספרי נפלט כ-span עם ספרות רגילות', () {
+      const line = 'מילה<sup class="footnote-marker">14</sup> עוד';
+
+      final out = TextRendererService.processText(line, settings);
+
+      expect(out, isNot(contains('<sup')));
+      expect(out, isNot(matches(superscriptGlyphs)));
+      expect(out, contains('<span class="footnote-marker-number">'));
+      expect(out, contains('14'));
+    });
+
+    test('sup מספרי חשוף נפלט כ-raised-sup עם ספרות רגילות', () {
+      const line = 'שורה<sup>7</sup> המשך';
+
+      final out = TextRendererService.processText(line, settings);
+
+      expect(out, isNot(contains('<sup')));
+      expect(out, isNot(matches(superscriptGlyphs)));
+      expect(out, contains('class="raised-sup"'));
+    });
+  });
 }
