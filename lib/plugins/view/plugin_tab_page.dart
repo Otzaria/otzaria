@@ -143,6 +143,52 @@ bool shouldHandleCreationFailure({
   return failureUrl == expectedUrl;
 }
 
+/// בונה את הפונקציה שמחברת `library.resolveRef` של תוסף למנוע `find_ref`
+/// המלא — אותו מנוע שמאחורי דיאלוג "איתור מקורות" באוצריא עצמו.
+///
+/// `includePersonalBooks: true` תמיד: תוסף עם הרשאת `library.books.read`
+/// כבר מקבל ספרים אישיים ללא סינון דרך `library.findBooks`
+/// (`Library.getAllBooks()` כולל אותם) — הטוגל "כלול ספרים אישיים" בדיאלוג
+/// הוא שיקול רלוונטיות/ביצועים לחיפוש אינטראקטיבי, לא בקרת הרשאות.
+@visibleForTesting
+Future<
+  List<
+    ({
+      String title,
+      int index,
+      bool isPdf,
+      int bookId,
+      String reference,
+      String bookPath,
+      bool isSourceLine,
+      bool isUserBook,
+    })
+  >
+>
+Function(String)
+buildResolveReference(FindRefRepository findRefRepository) {
+  return (reference) async {
+    final results = await findRefRepository.findRefs(
+      reference,
+      includePersonalBooks: true,
+    );
+    return results
+        .map(
+          (r) => (
+            title: r.title,
+            index: r.segment.toInt(),
+            isPdf: r.isPdf,
+            bookId: r.bookId,
+            reference: r.reference,
+            bookPath: r.bookPath,
+            isSourceLine: r.isSourceLine,
+            isUserBook: r.isUserBook,
+          ),
+        )
+        .toList();
+  };
+}
+
 InAppWebViewSettings buildPluginTabWebViewSettings({
   required bool isDevelopment,
 }) {
@@ -284,23 +330,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
         historyBloc: historyBloc,
         navigationBloc: navigationBloc,
       ),
-      resolveReference: (reference) async {
-        final results = await findRefRepository.findRefs(reference);
-        return results
-            .map(
-              (r) => (
-                title: r.title,
-                index: r.segment.toInt(),
-                isPdf: r.isPdf,
-                bookId: r.bookId,
-                reference: r.reference,
-                bookPath: r.bookPath,
-                isSourceLine: r.isSourceLine,
-                isUserBook: r.isUserBook,
-              ),
-            )
-            .toList();
-      },
+      resolveReference: buildResolveReference(findRefRepository),
       resolveRefToLine: (book, ref) =>
           PluginRefLineResolver().resolve(book: book, ref: ref),
       themePayloadBuilder: () {
