@@ -391,12 +391,6 @@ List<InlineSpan> _nodeToSpans(
           ? childStyle
           : node.classes.contains('numbered-note-marker')
           ? childStyle.copyWith(color: linkStyle?.color)
-          // מרקר ספרות-עיליות: צבע עוגן בלי קו תחתון (הגליף כבר מוגבה).
-          : node.classes.contains('book-note-marker-sup')
-          ? childStyle.copyWith(
-              color: linkStyle?.color,
-              decoration: TextDecoration.none,
-            )
           : node.classes.contains('link-anchor-range')
           ? childStyle.copyWith(
               decoration: TextDecoration.none,

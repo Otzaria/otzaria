@@ -2,7 +2,6 @@ import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
-import 'package:otzaria/utils/text/superscript_digits.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/smart_text/raised_markers.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
@@ -135,10 +134,8 @@ class TextRendererService {
   /// באותה פסקה — ה*תכנים* שלהם מוצגים בסדר הפוך (2 לפני 1), בעוד מיקומי
   /// העוגנים נשארים נכונים. סימון בודד בשורה אינו מושפע.
   ///
-  /// הפתרון: sup *מספרי* (עם או בלי class — שניהם משמשים כמרקרים בספרים)
-  /// מומר לספרות-עיליות יוניקוד (¹²³…) — טקסט טהור שמוצג מוגבה ומוקטן בכל
-  /// הגופנים, ללא WidgetSpan. sup פשוט ולא-מספרי נפלט כ-span טקסט טהור, בשני
-  /// טעמים ששומרים על המטריקות המקוריות של כל אחד:
+  /// הפתרון: sup פשוט (מספרי או לא) נפלט כ-span טקסט טהור ללא WidgetSpan,
+  /// בשני טעמים ששומרים על המטריקות המקוריות של כל אחד:
   ///   * מרקר הערה (`class="footnote-marker"`) → `footnote-marker-number`,
   ///     מוקטן ל-0.75em ונטוי.
   ///   * sup חשוף — אות הפניה מקובץ משתמש או superscript תוכני
@@ -176,14 +173,8 @@ class TextRendererService {
         return '<sup$attrs>$wrappedInner</sup>';
       }
 
-      // מספר טהור → ספרות-עיליות יוניקוד (מוגבה ומוקטן מטבעו, ללא תגית).
-      // חל גם על <sup>1</sup> חשוף בלי class: חלק מספרי ההערות-inline
-      // מקודדים כך את המרקרים, וההמרה חסרת-אובדן גם ל-superscript מספרי אמיתי.
-      final superscript = superscriptDigitsOrNull(innerText.trim());
-      if (superscript != null) {
-        return _wrapWithBidiIsolate(superscript);
-      }
-
+      // גם מרקר מספרי נשאר ספרות רגילות בגופן הספר: ⁰⁴–⁹ (בלוק Superscripts)
+      // חסרות ברוב גופני המערכת ונפלו לגופן אחר, בשונה מ-¹²³ (issue #1236).
       // מרקר הערה מסומן — 0.75em ונטוי.
       if (isFootnoteMarker) {
         return '<span class="$kFootnoteMarkerClass">$wrappedInner</span>';

@@ -252,10 +252,6 @@ class SmartTextWidget extends StatelessWidget {
     String toCssHex(Color color) =>
         '#${(color.toARGB32() & 0x00FFFFFF).toRadixString(16).padLeft(6, '0')}';
     final anchorLinkColorCss = toCssHex(colorScheme.primary);
-    // מרקר-עילי נצבע בצבע הטקסט הסביבתי — fwfh צובע <a> ב-primary כברירת מחדל.
-    final anchorColorCss = toCssHex(
-      DefaultTextStyle.of(context).style.color ?? colorScheme.onSurface,
-    );
     final markdownSurfaceCss = toCssHex(colorScheme.surfaceContainerHighest);
     final markdownBorderCss = toCssHex(colorScheme.outlineVariant);
     final hasMarkdownBlock = processedHtml.contains(kMarkdownBlockClass);
@@ -321,11 +317,6 @@ class SmartTextWidget extends StatelessWidget {
                 'font-size': '${kHtmlSmallerFontScale}em',
                 'color': 'transparent',
               };
-            }
-            // מרקר מספרי שהומר לספרות-עיליות — הגליפים כבר מוגבהים ומוקטנים.
-            if (element.localName == 'a' &&
-                element.classes.contains('book-note-marker-sup')) {
-              return {'color': anchorColorCss, 'text-decoration': 'none'};
             }
             // סימון הערה מוטמעת לחיץ: כמו מרקר הערה — הגליף שקוף ומורם בשכבה;
             // ה-recognizer והריחוף נשארים על הספאן, והשכבה מפנה אליו לחיצות.

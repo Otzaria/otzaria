@@ -16,7 +16,7 @@ Future<void> main() async {
     const settings = RenderSettings();
 
     test(
-      'סימון מספרי נפלט כספרות-עיליות ולא כ-sup (מניעת WidgetSpan שמתהפך ב-RTL)',
+      'סימון מספרי נפלט כ-span טקסט טהור ולא כ-sup (מניעת WidgetSpan שמתהפך ב-RTL)',
       () {
         const line =
             'יתגבר כארי<sup class="footnote-marker">1</sup> לעמוד עד'
@@ -27,8 +27,7 @@ Future<void> main() async {
         // אסור שיישאר <sup>: HtmlWidget מממש אותו כ-WidgetSpan, ומנוע Flutter
         // משבץ placeholders בפסקת RTL בסדר ויזואלי הפוך — המספרים מתחלפים.
         expect(out, isNot(contains('<sup')));
-        expect(out, contains('¹'));
-        expect(out, contains('²'));
+        expect(out, contains('<span class="footnote-marker-number">'));
       },
     );
 
@@ -41,17 +40,9 @@ Future<void> main() async {
       final out = TextRendererService.processText(line, settings);
 
       final digits = RegExp(
-        '[¹²³]',
-      ).allMatches(out).map((m) => m.group(0)).toList();
-      expect(digits, ['¹', '²', '³']);
-    });
-
-    test('סימון דו-ספרתי מומר במלואו', () {
-      const line = 'מילה<sup class="footnote-marker">14</sup> עוד';
-
-      final out = TextRendererService.processText(line, settings);
-
-      expect(out, contains('¹⁴'));
+        'footnote-marker-number">\u2066(\\d)\u2069',
+      ).allMatches(out).map((m) => m.group(1)).toList();
+      expect(digits, ['1', '2', '3']);
     });
 
     test('תוכן הסימון עטוף בסימני בידוד דו-כיווניים (LRI/PDI)', () {
@@ -59,7 +50,7 @@ Future<void> main() async {
 
       final out = TextRendererService.processText(line, settings);
 
-      expect(out, contains('\u2066⁷\u2069'));
+      expect(out, contains('\u20667\u2069'));
     });
 
     test('סימון אות עברית נפלט כ-span מעוצב (אין ספרות-עיליות לעברית)', () {
@@ -71,7 +62,7 @@ Future<void> main() async {
       expect(out, contains('<span class="footnote-marker-number">'));
     });
 
-    test('sup מספרי חשוף (בלי class) מומר אף הוא לספרות-עיליות', () {
+    test('sup מספרי חשוף (בלי class) נפלט אף הוא כ-span טקסט טהור', () {
       // חלק מספרי ההערות-inline מקודדים מרקרים כ-<sup>1</sup> ללא class,
       // והם חשופים לאותו באג היפוך — מקבלים את אותו טיפול.
       const line = 'שורה<sup>1</sup> המשך<sup>2</sup> סוף';
@@ -79,8 +70,7 @@ Future<void> main() async {
       final out = TextRendererService.processText(line, settings);
 
       expect(out, isNot(contains('<sup')));
-      expect(out, contains('¹'));
-      expect(out, contains('²'));
+      expect(out, contains('class="raised-sup"'));
     });
 
     // sup חשוף היה נשאר `<sup>` ונרנדר ב-WidgetSpan של fwfh — מה שהפך את סדר

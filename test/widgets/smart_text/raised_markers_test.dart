@@ -49,11 +49,11 @@ void main() {
       expect(out, isNot(contains('<sup')));
     });
 
-    test('sup מספרי נשאר ספרת-עילית יוניקוד (בלי span)', () {
+    test('sup מספרי גם הוא span (ספרות רגילות בגופן הספר, issue #1236)', () {
       final out = process('ברא<sup>12</sup>');
-      expect(out, contains('¹²'));
-      expect(out, isNot(contains(kFootnoteMarkerClass)));
-      expect(out, isNot(contains(kRaisedSupClass)));
+      expect(out, contains('class="$kRaisedSupClass"'));
+      expect(out, contains('12'));
+      expect(out, isNot(contains('¹²')));
     });
 
     test('מרקר הערה נטוי ומוקטן 0.75, sup חשוף 5/6 בלי נטייה', () {
@@ -538,7 +538,7 @@ void main() {
       );
     });
 
-    testWidgets('סימון מספרי לא עובר בשכבה (ספרת-עילית יוניקוד)', (
+    testWidgets('סימון מספרי עובר בשכבה כמו סימון-אות (issue #1236)', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -555,8 +555,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.byType(RaisedMarkerOverlay), findsNothing);
-      expect(find.textContaining('¹'), findsOneWidget);
+      expect(find.byType(RaisedMarkerOverlay), findsOneWidget);
+      expect(find.textContaining('¹'), findsNothing);
     });
   });
 
