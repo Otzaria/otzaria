@@ -3137,7 +3137,7 @@ extension BookAcronymRepository on SeforimRepository {
     final tocEntries = db
         .select(
           '''
-        SELECT t.id, tt.text, t.level,
+        SELECT t.id, tt.text, t.level, t.textId,
                COALESCE(l.lineIndex, t.lineId) as lineIndex,
                COALESCE(t.lineId, 0) as dbLineId,
                t.parentId
@@ -3178,6 +3178,7 @@ extension BookAcronymRepository on SeforimRepository {
     final built = <_CachedTocEntry>[];
     final childrenByParentId = <int, List<_CachedTocEntry>>{};
     final rootEntries = <_CachedTocEntry>[];
+    final tokensByTextId = <int, List<String>>{};
 
     for (final e in tocEntries) {
       final id = e['id'] as int;
@@ -3192,9 +3193,15 @@ extension BookAcronymRepository on SeforimRepository {
       final ancestorPath = buildPath(parentId);
       final fullRef = text.isNotEmpty ? '$ancestorPath $text' : ancestorPath;
 
-      final ownTokens = normalizeForFindRefMatch(
-        text,
-      ).split(' ').where((t) => t.isNotEmpty).toList(growable: false);
+      // `tocText` ייחודי, וכותרת חוזרת ("פרק א") מופיעה באלפי ערכים באותו
+      // ספר — 30 אלף ערכים חולקים כ-1,000 טקסטים. בלי המטמון אותה מחרוזת
+      // מנורמלת מחדש בכל ערך.
+      final ownTokens = tokensByTextId.putIfAbsent(
+        e['textId'] as int,
+        () => normalizeForFindRefMatch(
+          text,
+        ).split(' ').where((t) => t.isNotEmpty).toList(growable: false),
+      );
 
       final entry = _CachedTocEntry(
         id: id,
