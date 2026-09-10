@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -102,6 +103,11 @@ bool libraryUpdateButtonResets(LibraryUpdateStatus status) =>
     status == LibraryUpdateStatus.completed ||
     status == LibraryUpdateStatus.error ||
     status == LibraryUpdateStatus.blocked;
+
+/// פוקוס אוטומטי לשדה החיפוש נוח עם מקלדת פיזית; במכשיר מגע הוא פותח את
+/// המקלדת הווירטואלית בכל כניסה למסך (issue #1317).
+bool shouldAutofocusLibrarySearch(TargetPlatform platform) =>
+    platform != TargetPlatform.android && platform != TargetPlatform.iOS;
 
 /// פעולת לחצני "חזור"/"בית" במצב "אין תוצאות".
 enum LibraryEmptyStateAction {
@@ -884,7 +890,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               icon: OtzariaIcons.search_in_the_library_24_regular,
               controller: focusRepository.librarySearchController,
               focusNode: focusRepository.librarySearchFocusNode,
-              autofocus: true,
+              autofocus: shouldAutofocusLibrarySearch(defaultTargetPlatform),
               slim: isCompact,
               hintText: context.settingsText(
                 'איתור ספר או מחבר ב{category}',
