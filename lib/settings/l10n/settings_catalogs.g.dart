@@ -426,7 +426,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'השבת': 'Disable',
     'השורות יוצגו ברצף עד הכותרת הבאה': 'The lines run together until the next heading',
     'השחזור הושלם': 'Restore Complete',
-    'השתמש בברירת מחדל': 'Use the Lefault',
+    'השתמש בברירת מחדל': 'Use the Default',
     'התאמות נוספות': 'Additional Adjustments',
     'התאמת ערכת הנושא לצבע מערכת ההפעלה': 'Match the theme to your device\'s color',
     'התוכן נשמר בתוך התוכנה ועובד גם אם הקבצים יוסרו. אחרי עריכת קובץ לחץ "סרוק מחדש" לעדכון; מחיקה רק דרך הספרייה.': 'Content kept inside the database will still work if the original files are removed. After editing a file, click "Rescan" to update; deletion only through the library.',
