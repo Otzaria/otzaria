@@ -3011,9 +3011,9 @@ extension BookAcronymRepository on SeforimRepository {
   ///   - תוצאת כותרת/דף ([sourceLineId] > 0): כל המפרשים מ-[startLineIndex]
   ///     ועד הכותרת הבאה ברמה <= [level] (לא כולל) — כלומר כל תוכן הקטע,
   ///     כולל תת-כותרות (רמה עמוקה יותר), ללא קישורי הקטע הבא.
-  ///   - תוצאת ספר ([sourceLineId] == 0): אם לספר יש כותרות פנימיות (level >= 2)
-  ///     מוחזר ריק — על המשתמש לבחור כותרת ספציפית. אם אין כותרות פנימיות
-  ///     מוחזרים כל מפרשי הספר (טווח מלא), כל אחד במיקומו הראשון.
+  ///   - תוצאת ספר ([sourceLineId] == 0): אם לספר יש יותר מכותרת פנימית אחת
+  ///     מוחזר ריק — על המשתמש לבחור כותרת ספציפית. אחרת מוחזרים כל מפרשי
+  ///     הספר (טווח מלא), כל אחד במיקומו הראשון.
   ///
   /// [isAltToc] בוחר את מבנה הכותרות שלפיו נחשב הגבול (TOC רגיל מול AltToc).
   Future<List<Map<String, dynamic>>> getCommentatorsForReference({
@@ -3045,7 +3045,10 @@ extension BookAcronymRepository on SeforimRepository {
       // תוצאת ספר: אם יש כותרות פנימיות — אין קטע נבחר, מחזירים ריק.
       // אחרת — כל הספר (ספר ללא TOC פנימי, כל מפרשיו רלוונטיים).
       final cache = await _buildTocCacheForBook(bookId, bookTitle);
-      final hasInnerToc = cache.all.any((e) => e.level >= 2);
+      // כותרת אחת אינה מחלקת את הספר (לרוב הכותרת עצמה); שתיים ומעלה כן.
+      // ספירה ולא `level >= 2` — שולחן ערוך מחלק ל-698 סימנים ברמה 1, וכל
+      // הספר נסרק (130 אלף קישורים, ~2 שניות) בכל הקלדה.
+      final hasInnerToc = cache.all.length > 1;
       if (hasInnerToc) return const [];
       startIdx = 0;
       endIdx = maxLineIndex;
