@@ -11,6 +11,7 @@ import 'package:otzaria/indexing/models/indexing_run_result.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -702,7 +703,10 @@ class _FakeIndexingRepository extends IndexingRepository {
   }
 
   @override
-  Future<int> dropOrphanedIndexEntries(Library library) async {
+  Future<int> dropOrphanedIndexEntries(
+    Library library, {
+    List<CustomFolder>? customFolders,
+  }) async {
     dropOrphanedCalls++;
     return 0;
   }

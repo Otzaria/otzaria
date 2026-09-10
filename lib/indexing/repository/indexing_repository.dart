@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'package:flutter/foundation.dart' hide Category;
+import 'package:otzaria/core/info/personal_folders_info.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/messages/window_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -23,6 +24,7 @@ import 'package:otzaria/pdf_book/utils/pdf_viewer_activity.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/book_facet.dart';
+import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/search/utils/search_catalogue_order_helper.dart';
 import 'package:otzaria/search/utils/foundational_book_classifier.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
@@ -1770,7 +1772,10 @@ class IndexingRepository {
   /// הספרייה הרשמית לא תגרור מחיקת אינדקס המונית ואינדוקס-מחדש של שעות.
   ///
   /// מחזיר את מספר הספרים שהוסרו.
-  Future<int> dropOrphanedIndexEntries(Library library) async {
+  Future<int> dropOrphanedIndexEntries(
+    Library library, {
+    @visibleForTesting List<CustomFolder>? customFolders,
+  }) async {
     if (WindowRole.isSecondary) return 0;
     final books = library.getAllBooks();
     if (books.isEmpty) return 0;
@@ -1782,13 +1787,30 @@ class IndexingRepository {
       for (final book in books) buildIndexedBookFilePath(book),
     };
 
+    // כונן חיצוני מנותק: השורש אינו קיים, ולכן הקבצים שתחתיו אינם יתומים
+    // אלא בלתי-נגישים — מחיקתם הייתה מאנדקסת אותם מחדש בכל חיבור.
+    final folders =
+        customFolders ?? PersonalFoldersInfo.readConfiguredFolders();
+    final unreachableRoots = <String>[];
+    for (final folder in folders) {
+      if (!await Directory(folder.path).exists()) {
+        unreachableRoots.add(folder.path);
+      }
+    }
+
+    // תיקייה מוסתרת מדולגת בבניית העץ, ולכן ספריה אינם ב-getAllBooks ונראים
+    // יתומים — מחיקתם הייתה שוברת את ההבטחה שההחזרה אינה דורשת אינדוקס מחדש.
+    final hasHiddenFolder = folders.any((folder) => folder.hidden);
+
     final orphans = <String>{};
     // snapshot — הלולאה מכילה await ואסור שהסט החי ישתנה תחתיה.
     for (final key in _tantivyDataProvider.indexedFilePaths.toList()) {
       if (libraryKeys.contains(key)) continue;
       if (key.startsWith('uid:')) {
-        orphans.add(key);
-      } else if (p.isAbsolute(key) && !await File(key).exists()) {
+        if (!hasHiddenFolder) orphans.add(key);
+      } else if (p.isAbsolute(key) &&
+          !unreachableRoots.any((root) => p.isWithin(root, key)) &&
+          !await File(key).exists()) {
         orphans.add(key);
       }
     }

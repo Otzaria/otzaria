@@ -15,7 +15,9 @@ import 'package:otzaria/indexing/utils/pdf_extraction_prefetcher.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/file/document_conversion_exceptions.dart';
+import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/utils/file/document_format.dart';
+import 'package:path/path.dart' as p;
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -568,6 +570,82 @@ void main() {
       expect(removed, 1);
       expect(engine.removedFilePaths, [missingPath]);
       expect(provider.indexedFilePaths, {existingFilePath});
+    });
+
+    test('מפתח תחת תיקייה אישית שאינה נגישה — לא נמחק', () async {
+      // רגרסיה (issue #1295): כונן חיצוני מנותק ⇒ הקובץ לא קיים והספר אינו
+      // בספרייה, והמפתח נמחק — כל חיבור גרר אינדוקס מחדש.
+      final engine = _RecordingSearchEngine();
+      final provider = _RecordingTantivyDataProvider(engine);
+      final library = _buildLibrary(bavliBooks: const [('שבת', 1)]);
+
+      final sep = io.Platform.pathSeparator;
+      final detachedRoot =
+          '${io.Directory.systemTemp.path}${sep}detached-drive';
+      final detachedKey =
+          '$detachedRoot$sep'
+          'ספר.pdf';
+      final missingKey =
+          '${io.Directory.systemTemp.path}${sep}definitely-missing$sep'
+          'אחר.pdf';
+      provider.indexedFilePaths.addAll({detachedKey, missingKey});
+      final repository = IndexingRepository(provider);
+
+      final removed = await repository.dropOrphanedIndexEntries(
+        library,
+        customFolders: [
+          CustomFolder(path: detachedRoot, addedAt: DateTime(2026)),
+        ],
+      );
+
+      expect(removed, 1);
+      expect(engine.removedFilePaths, [missingKey]);
+      expect(provider.indexedFilePaths, {detachedKey});
+    });
+
+    test('קובץ שנמחק בתוך תיקייה אישית קיימת — נמחק כרגיל', () async {
+      final engine = _RecordingSearchEngine();
+      final provider = _RecordingTantivyDataProvider(engine);
+      final library = _buildLibrary(bavliBooks: const [('שבת', 1)]);
+
+      final root = await io.Directory.systemTemp.createTemp('otzaria-folder');
+      addTearDown(() => root.delete(recursive: true));
+      final deletedKey = p.join(root.path, 'נמחק.pdf');
+      provider.indexedFilePaths.add(deletedKey);
+      final repository = IndexingRepository(provider);
+
+      final removed = await repository.dropOrphanedIndexEntries(
+        library,
+        customFolders: [CustomFolder(path: root.path, addedAt: DateTime(2026))],
+      );
+
+      expect(removed, 1);
+      expect(engine.removedFilePaths, [deletedKey]);
+      expect(provider.indexedFilePaths, isEmpty);
+    });
+
+    test('תיקייה אישית מוסתרת — מפתחות uid: אינם נמחקים', () async {
+      // ספרי תיקייה מוסתרת מדולגים בבניית העץ ולכן נראים יתומים; מחיקתם
+      // הייתה גוררת אינדוקס מלא בהחזרת התיקייה.
+      final engine = _RecordingSearchEngine();
+      final provider = _RecordingTantivyDataProvider(engine);
+      final library = _buildLibrary(bavliBooks: const [('שבת', 1)]);
+
+      final root = await io.Directory.systemTemp.createTemp('otzaria-hidden');
+      addTearDown(() => root.delete(recursive: true));
+      provider.indexedFilePaths.addAll({'uid:99', 'uid:100'});
+      final repository = IndexingRepository(provider);
+
+      final removed = await repository.dropOrphanedIndexEntries(
+        library,
+        customFolders: [
+          CustomFolder(path: root.path, hidden: true, addedAt: DateTime(2026)),
+        ],
+      );
+
+      expect(removed, 0);
+      expect(engine.removedFilePaths, isEmpty);
+      expect(provider.indexedFilePaths, {'uid:99', 'uid:100'});
     });
 
     test('ספרייה ריקה — לא נוגע באינדקס', () async {
