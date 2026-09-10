@@ -1419,8 +1419,14 @@ class DatabaseLibraryProvider implements LibraryProvider {
       isUserBook: true,
     );
     if (_userBooksCachedKeys.contains(key)) return true;
-    // נפילה לסיגנל החלש יותר — קטגוריה רשומה כקטגוריית user_books, ואין
-    // כבר מפתח חזק יותר שאומר ההפך.
+    // שני המסדים מונים קטגוריות מ-1, ולכן מזהה קטגוריה לבדו אינו מכריע:
+    // ספר שמוכר ל-seforim באותה קטגוריה נשאר רשמי.
+    final seforimKey = BookCompositeKey.create(
+      title: title,
+      categoryId: categoryId,
+      fileType: fileType,
+    );
+    if (_cachedKeys.contains(seforimKey)) return false;
     return _isUserBooksCategoryId(categoryId);
   }
 
