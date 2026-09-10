@@ -13,7 +13,11 @@ typedef SeedBook = ({int id, String title, List<String> acronyms});
 
 /// זורע את הספרים ל-[BooksCache], [AcronymsCache] ו-[ReferenceBooksCache].
 /// ה-`orderIndex` נקבע לפי מקום הספר ברשימה, כדי שסדר התוצאות יהיה צפוי.
-void seedLibrary(List<SeedBook> books) {
+/// [categoryPaths] — נתיב קטגוריה אמיתי לספר, לבדיקות שתלויות בו.
+void seedLibrary(
+  List<SeedBook> books, {
+  Map<int, String> categoryPaths = const {},
+}) {
   BooksCache.instance.setBooksForTesting([
     for (var i = 0; i < books.length; i++)
       BookCacheEntry(
@@ -34,7 +38,9 @@ void seedLibrary(List<SeedBook> books) {
       normalizedTitles: {
         for (final b in books) b.id: normalizeForFindRefMatch(b.title),
       },
-      categoryPaths: {for (final b in books) b.id: 'ספרייה'},
+      categoryPaths: {
+        for (final b in books) b.id: categoryPaths[b.id] ?? 'ספרייה',
+      },
     );
 }
 

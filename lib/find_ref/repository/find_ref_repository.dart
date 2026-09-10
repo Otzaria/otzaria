@@ -965,6 +965,7 @@ class FindRefRepository {
         if (tocLookups >= maxTocLookups) continue;
         tocLookups++;
 
+        final resultsBeforeToc = results.length;
         var tocEntries = await fetchTocEntries(
           bookId,
           title,
@@ -1030,6 +1031,24 @@ class FindRefRepository {
               isAltToc: true,
               bookId: bookId,
               sourceLineId: entry['dbLineId'] as int? ?? 0,
+            ),
+          );
+        }
+
+        // מפלט אחרון: הזנב הוא שם הקטגוריה שהספר יושב בה ("רמבם המדע" —
+        // "מדע" אינו בשום כותרת או ראש-תיבות, רק בקטגוריה "ספר מדע"). רק
+        // כשה-TOC לא החזיר כלום, כדי שכותרת פנימית תמיד תגבר.
+        if (results.length == resultsBeforeToc &&
+            _remainingTokensAreLeafCategory(bookId, remainingTokens)) {
+          results.add(
+            DbReferenceResult(
+              title: title,
+              reference: title,
+              segment: 0,
+              isPdf: isPdf,
+              filePath: hit.filePath,
+              orderIndex: hit.orderIndex,
+              bookId: bookId,
             ),
           );
         }
@@ -1522,6 +1541,31 @@ class FindRefRepository {
     if (r.isSourceLine) return 0;
     if (r.isAltToc) return 4;
     return r.tocLevel <= 2 ? r.tocLevel + 1 : r.tocLevel + 2;
+  }
+
+  /// האם כל [remainingTokens] הם מילים בשם הקטגוריה *הישירה* של הספר. רק
+  /// העלה נבדק — segment אב ("הלכה", "מפרשים") משותף לאלפי ספרים והיה מחזיר
+  /// כל אחד מהם. טוקן בן אות-שתיים הוא טוקן מיקום ולא שם קטגוריה.
+  bool _remainingTokensAreLeafCategory(
+    int bookId,
+    List<String> remainingTokens,
+  ) {
+    if (remainingTokens.isEmpty) return false;
+    if (remainingTokens.any((t) => t.length < 3)) return false;
+
+    final resolver =
+        getCategoryPathSync ??
+        ReferenceBooksCache.instance.getCategoryPathForBookSync;
+    final path = resolver(bookId);
+    if (path == null || path.isEmpty) return false;
+
+    final leaf = path.split(', ').last;
+    final leafTokens = titleMatchTokens(_normalizeForMatch(leaf));
+    return remainingTokens.every((qt) {
+      if (leafTokens.contains(qt)) return true;
+      final bare = titleTokenWithoutConjunction(qt, allowVav: true);
+      return bare != null && leafTokens.contains(bare);
+    });
   }
 
   List<String> _getRemainingTokens(
