@@ -9,6 +9,9 @@ abstract class PdfMessages {
   static const String searchError = 'שגיאה בחיפוש';
   static const String noTextLayer =
       'ספר זה הוא סריקה בלבד ואינו מכיל טקסט, ולכן לא ניתן לחפש בתוכו';
+  static const String advancedSearchUnavailableInTalmudPdf =
+      'חיפוש מתקדם אינו זמין במהדורת ה-PDF של התלמוד הבבלי. '
+      'ניתן לחפש בגרסת הטקסט של המסכת, ולפתוח משם את התוצאה.';
   static const String bookNotInSearchIndex =
       'הספר אינו נמצא באינדקס החיפוש, ולכן חיפוש מתקדם אינו זמין בו. עדכון האינדקס מתבצע בהגדרות הספרייה.';
   static const String pageRangeRenderFailed = 'עיבוד טווח העמודים שנבחר נכשל';

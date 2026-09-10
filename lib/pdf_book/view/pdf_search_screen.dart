@@ -5,6 +5,7 @@ import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/pdf_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/models/books.dart';
@@ -261,6 +262,13 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
 
   bool get _isSimpleSearch =>
       !_forceSearchEngine && _searchMode == SearchMode.exact;
+
+  /// מסכת PDF מצורפת אינה מאונדקסת בכוונה, ולכן מסלול המנוע ריק בה תמיד.
+  bool get _isBundledTalmudPdf =>
+      !widget.isUserBook &&
+      DatabaseConstants.isTalmudBavliPdfExternalLibraryId(
+        widget.externalLibraryId,
+      );
 
   /// המפתח שבו רשומות מסמכי הספר באינדקס. לספר בעל מזהה חיצוני זה אינו
   /// נתיב הקובץ, ולכן השוואה ל-[pdfFilePath] הייתה משליכה את כל התוצאות.
@@ -617,6 +625,22 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
     // תדליק אותו מחדש אם תרוץ.
     _simpleSearchReversed = false;
     final searchable = _searchableQuery(widget.searchController.text);
+
+    // בלי ההודעה הזו מסלול המנוע במסכת PDF מצורפת מציג "אין תוצאות" גנרי.
+    if (searchable != null && !_isSimpleSearch && _isBundledTalmudPdf) {
+      _pendingSimpleSearchScrollFor = null;
+      _lastAdvancedHighlightPattern = null;
+      _schedulePdfHighlight(null);
+      if (mounted) {
+        setState(() {
+          _searchResults = [];
+          _isSearching = false;
+          _searchErrorMessage =
+              PdfMessages.advancedSearchUnavailableInTalmudPdf;
+        });
+      }
+      return;
+    }
 
     if (searchable == null || (!_isSimpleSearch && _bookPath == null)) {
       // איפוס גלילה ממתינה כדי שתוצאות מיושנות לא יגרמו לקפיצה אחרי

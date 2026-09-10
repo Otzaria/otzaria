@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/messages/pdf_messages.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
@@ -171,6 +172,28 @@ Future<void> main() async {
 
     await tester.pump(const Duration(milliseconds: 800));
   }, skip: !engineReady);
+
+  // מסכת PDF מצורפת מוחרגת מהאינדוקס בכוונה, ולכן מסלול המנוע בה החזיר
+  // "אין תוצאות" גנרי במקום להסביר שהחיפוש המתקדם אינו זמין במהדורה הזו.
+  testWidgets('מסכת PDF מצורפת: מסלול המנוע מציג הודעה במקום ריק', (
+    tester,
+  ) async {
+    final repository = await pumpPdfSearch(
+      tester,
+      query: 'תדע זרעך',
+      searchMode: SearchMode.exact,
+      searchDistance: 3,
+      externalLibraryId: 'talmud-pdf:ברכות',
+    );
+
+    expect(repository.requests, isEmpty);
+    expect(
+      find.text(PdfMessages.advancedSearchUnavailableInTalmudPdf),
+      findsOneWidget,
+    );
+
+    await tester.pump(const Duration(milliseconds: 800));
+  });
 
   testWidgets('שאילתה בלי תוספות אינה פונה למנוע', (tester) async {
     final repository = await pumpPdfSearch(
