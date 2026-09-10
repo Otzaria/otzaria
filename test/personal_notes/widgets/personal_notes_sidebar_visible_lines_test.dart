@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
@@ -357,6 +358,49 @@ void main() {
       expect(find.text('הערה בשורה 1'), findsOneWidget);
       expect(find.text('הערה בשורה 50'), findsOneWidget);
       expect(find.text('הערה בשורה 5'), findsNothing);
+    });
+  });
+  // issue #1303 — ה-X בכותרת "הערה חדשה" ביטל ישירות דרך ה-BLoC ועקף את
+  // שאלת השינויים-שלא-נשמרו של העורך.
+  group('X של הערה חדשה בחלונית הצד (issue #1303)', () {
+    testWidgets('אחרי הקלדה — ה-X פותח אישור והטיוטה נשארת פתוחה', (
+      tester,
+    ) async {
+      final notesBloc = PersonalNotesBloc(
+        repository: _FakeRepository(const []),
+      );
+      addTearDown(notesBloc.close);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BlocProvider<PersonalNotesBloc>.value(
+              value: notesBloc,
+              child: PersonalNotesSidebar(
+                bookId: 'ספר בדיקה',
+                onNavigateToLine: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      notesBloc.add(
+        const StartCreatingPersonalNote(bookId: 'ספר בדיקה', lineNumber: 3),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('הערה חדשה - שורה 3'), findsOneWidget);
+
+      final editor = tester.widget<quill.QuillEditor>(
+        find.byType(quill.QuillEditor),
+      );
+      editor.controller.document.insert(0, 'טקסט שטרם נשמר');
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('ביטול'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('שמור טיוטה'), findsOneWidget);
+      expect(notesBloc.state.isCreatingNewNote, isTrue);
     });
   });
 }
