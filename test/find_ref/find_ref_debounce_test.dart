@@ -155,6 +155,57 @@ void main() {
 
       await bloc.close();
     });
+
+    test('רווח נגרר אינו מריץ חיפוש מחדש ואינו מהבהב ספינר', () async {
+      final repo = _RecordingRepo();
+      final bloc = FindRefBloc(findRefRepository: repo);
+      final states = <FindRefState>[];
+      final sub = bloc.stream.listen(states.add);
+
+      bloc.add(const SearchRefRequested('שולחן'));
+      await Future.delayed(_kPastDebounce);
+      expect(repo.calls, ['שולחן']);
+      expect(states.whereType<FindRefLoading>(), hasLength(1));
+
+      // רווח, גרשיים ופיסוק נעלמים בנרמול — אותה שאילתה בדיוק.
+      bloc.add(const SearchRefRequested('שולחן '));
+      bloc.add(const SearchRefRequested('שולחן  '));
+      bloc.add(const SearchRefRequested('שולחן",'));
+      await Future.delayed(_kPastDebounce);
+
+      expect(repo.calls, ['שולחן'], reason: 'אין fetch נוסף');
+      expect(
+        states.whereType<FindRefLoading>(),
+        hasLength(1),
+        reason: 'אין ספינר שני על אותן תוצאות',
+      );
+
+      // שינוי אמיתי כן מריץ.
+      bloc.add(const SearchRefRequested('שולחן ערוך'));
+      await Future.delayed(_kPastDebounce);
+      expect(repo.calls, ['שולחן', 'שולחן ערוך']);
+
+      await sub.cancel();
+      await bloc.close();
+    });
+
+    test('אותה שאילתה כן רצה שוב כשהמצב אינו תוצאות', () async {
+      final repo = _RecordingRepo();
+      final bloc = FindRefBloc(findRefRepository: repo);
+
+      bloc.add(const SearchRefRequested('שולחן'));
+      await Future.delayed(_kPastDebounce);
+      expect(repo.calls, ['שולחן']);
+
+      // ניקוי מחזיר את המצב ל-Initial — הקלדה חוזרת חייבת לטעון מחדש.
+      bloc.add(ClearSearchRequested());
+      await Future.delayed(const Duration(milliseconds: 20));
+      bloc.add(const SearchRefRequested('שולחן'));
+      await Future.delayed(_kPastDebounce);
+      expect(repo.calls, ['שולחן', 'שולחן']);
+
+      await bloc.close();
+    });
   });
 }
 
