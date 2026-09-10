@@ -12,6 +12,15 @@ import 'package:otzaria/migration/database/query_loader.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
+/// נזרק כשבקשה נזרקה מתור ה-worker בגלל הקלדה חדשה. אינו שגיאה — הקורא
+/// אמור לנטוש בשקט את השאילתה שהתיישנה.
+class FindRefQueryCancelled implements Exception {
+  const FindRefQueryCancelled();
+
+  @override
+  String toString() => 'FindRefQueryCancelled';
+}
+
 /// מריץ את שאילתות ה-DB הכבדות של "איתור מקורות" ב-isolate נפרד, כך שהן
 /// אינן חוסמות את ה-thread של ה-UI בזמן הקלדה.
 ///
@@ -128,6 +137,7 @@ class FindRefDbIsolate {
   Isolate? _isolate;
   SendPort? _commandPort;
   int _nextId = 0;
+  int _epoch = 0;
   bool _disposed = false;
 
   // ── Public query API (מופעל מתוך ה-proxy hooks של FindRefRepository) ────────
@@ -141,7 +151,7 @@ class FindRefDbIsolate {
       'bookId': bookId,
       'bookTitle': bookTitle,
       'queryTokens': queryTokens,
-    });
+    }, cancellable: true);
     return _castRows(res);
   }
 
@@ -154,7 +164,7 @@ class FindRefDbIsolate {
       'bookId': bookId,
       'bookTitle': bookTitle,
       'queryTokens': queryTokens,
-    });
+    }, cancellable: true);
     return _castRows(res);
   }
 
@@ -172,7 +182,7 @@ class FindRefDbIsolate {
     final res = await _request('searchAltTocFlat', {
       'queryTokens': queryTokens,
       'maxRefTokens': maxRefTokens,
-    });
+    }, cancellable: true);
     return _castRows(res);
   }
 
@@ -197,7 +207,7 @@ class FindRefDbIsolate {
     final res = await _request('lineRefs', {
       'bookIds': bookIds,
       'refKey': refKey,
-    });
+    }, cancellable: true);
     return {
       for (final row in _castRows(res))
         row['bookId'] as int: (
@@ -225,14 +235,20 @@ class FindRefDbIsolate {
       'level': level,
       'isAltToc': isAltToc,
       'isSourceLine': isSourceLine,
-    });
+    }, cancellable: true);
     return _castRows(res);
   }
 
   /// מחזיר את דור המפרש לפי שמו. הזיהוי מתבצע בתוך ה-isolate מול ה-DB שלו,
   /// וחוזר כ-`order` (int); ההמרה חזרה ל-[CommentaryEra] נעשית כאן.
   Future<CommentaryEra> getBookEra(String bookTitle) async {
-    final order = await _request('era', {'bookTitle': bookTitle}) as int;
+    final order =
+        await _request(
+              'era',
+              {'bookTitle': bookTitle},
+              cancellable: true,
+            )
+            as int;
     return CommentaryEra.values.firstWhere(
       (e) => e.order == order,
       orElse: () => CommentaryEra.other,
@@ -351,12 +367,28 @@ class FindRefDbIsolate {
     }
   }
 
+  /// גרסה סטטית של [beginSearchEpoch] — בטוחה לקריאה סינכרונית גם כשה-worker
+  /// עוד לא נוצר (אין אז דבר בתור).
+  static void beginSearchEpochIfRunning() {
+    final service = _instance;
+    if (service == null || service._disposed) return;
+    service.beginSearchEpoch();
+  }
+
   /// בדיקות בלבד — סוגר את ה-isolate ומשחרר את ה-singleton, כדי שקובץ בדיקה
   /// לא ישאיר worker חי אחרי סיומו.
   @visibleForTesting
   void disposeForTesting() => _tearDown();
 
-  Future<dynamic> _request(String method, Map<String, Object?> args) async {
+  /// שולח בקשה ל-worker. [cancellable] מסמן אותה כשייכת לשאילתת ההקלדה
+  /// הנוכחית ([_epoch]) — ההקלדה הבאה תזרוק אותה מהתור דרך [beginSearchEpoch].
+  /// בקשות שאינן שייכות לאיתור מקורות (קאש הספרים, TOC בפתיחת ספר) נשלחות
+  /// בלי epoch ולעולם אינן מבוטלות.
+  Future<dynamic> _request(
+    String method,
+    Map<String, Object?> args, {
+    bool cancellable = false,
+  }) async {
     if (_disposed) {
       throw StateError('FindRefDbIsolate was disposed');
     }
@@ -364,8 +396,27 @@ class FindRefDbIsolate {
     final id = _nextId++;
     final completer = Completer<dynamic>();
     _pending[id] = completer;
-    _commandPort!.send({'id': id, 'method': method, 'args': args});
+    _commandPort!.send({
+      'id': id,
+      'method': method,
+      'args': args,
+      // ה-epoch נקרא בזמן השליחה ולא בזמן הקריאה: בקשות שנשלחות אחרי שההקלדה
+      // התקדמה שייכות ממילא לשאילתה החדשה.
+      if (cancellable) 'epoch': _epoch,
+    });
     return completer.future;
+  }
+
+  /// מקדם את מחזור השאילתות ומורה ל-worker לזרוק כל בקשה **ממתינה** של
+  /// מחזורים קודמים. הבקשה שכבר רצה ב-worker מסתיימת (sqlite3 סינכרוני), אבל
+  /// היא אחת — ולא עשרות שאילתות TOC של ההקלדה הקודמת.
+  ///
+  /// נקרא בתחילת כל חיפוש. בטוח לקריאה גם לפני ש-spawn הסתיים.
+  void beginSearchEpoch() {
+    _epoch++;
+    final port = _commandPort;
+    if (port == null || _disposed) return;
+    port.send({'method': 'cancel', 'epoch': _epoch});
   }
 
   void _handleMessage(dynamic message) {
@@ -379,7 +430,9 @@ class FindRefDbIsolate {
     if (id == null) return;
     final completer = _pending.remove(id);
     if (completer == null || completer.isCompleted) return;
-    if (message.containsKey('error')) {
+    if (message['cancelled'] == true) {
+      completer.completeError(const FindRefQueryCancelled());
+    } else if (message.containsKey('error')) {
       completer.completeError(StateError(message['error'].toString()));
     } else {
       completer.complete(message['result']);
@@ -650,28 +703,89 @@ void _workerMain(_Bootstrap bootstrap) {
     }
   }
 
-  // הבקשות מעובדות **בזו אחר זו** דרך השרשרת הזו, לפי סדר ההגעה. בלי זה,
-  // בקשות מקבילות (למשל כמה `era` ב-Future.wait, או טעינת מפרשים לכמה שורות
-  // במקביל) היו נכנסות ל-ensureRepo יחד ופותחות יותר מחיבור DB אחד, ו-reset
-  // היה יכול לסגור את החיבור באמצע שאילתה אחרת בנקודת await. עיבוד עוקב מבטל
-  // את שני ה-races בלי לפגוע ב-throughput (sqlite3 סינכרוני — ממילא לא רץ
-  // במקביל על אותו חיבור), וה-main isolate נשאר פנוי כך או כך.
-  var processingChain = Future<void>.value();
+  // הבקשות מעובדות **בזו אחר זו** מהתור הזה, לפי סדר ההגעה. בלי זה, בקשות
+  // מקבילות (למשל כמה `era` ב-Future.wait, או טעינת מפרשים לכמה שורות במקביל)
+  // היו נכנסות ל-ensureRepo יחד ופותחות יותר מחיבור DB אחד, ו-reset היה יכול
+  // לסגור את החיבור באמצע שאילתה אחרת בנקודת await. עיבוד עוקב מבטל את שני
+  // ה-races בלי לפגוע ב-throughput (sqlite3 סינכרוני — ממילא לא רץ במקביל על
+  // אותו חיבור), וה-main isolate נשאר פנוי כך או כך.
+  //
+  // תור מפורש ולא שרשרת `Future.then`: שרשרת אינה ניתנת לגזירה, ולכן שאילתה
+  // של הקלדה חדשה הייתה ממתינה שכל עבודת ההקלדה הקודמת תתרוקן.
+  final queue = <Map<String, Object?>>[];
+  var draining = false;
+
+  // בקשות שנשלחו עם `epoch` קטן מזה נזרקות מהתור. הבקשה שכבר רצה אינה
+  // ניתנת לקטיעה — sqlite3 סינכרוני.
+  var minEpoch = 0;
+
+  void reply(int id, {Object? result, String? error, bool cancelled = false}) {
+    bootstrap.mainSendPort.send({
+      'id': id,
+      'error': ?error,
+      if (cancelled) 'cancelled': true,
+      if (error == null && !cancelled) 'result': result,
+    });
+  }
+
+  Future<void> drain() async {
+    if (draining) return;
+    draining = true;
+    try {
+      while (queue.isNotEmpty) {
+        // חובה למסור את התור לתור-האירועים בין בקשה לבקשה: `await` על
+        // dispatch מתוזמן כ-microtask, וכל עוד יש microtasks הודעות ה-
+        // ReceivePort אינן נמסרות — פקודת 'cancel' הייתה מגיעה רק אחרי
+        // שהתור התרוקן, כלומר בדיוק מתי שהיא כבר חסרת תועלת.
+        await Future<void>.delayed(Duration.zero);
+        if (queue.isEmpty) break;
+        final message = queue.removeAt(0);
+        final id = message['id'] as int;
+        final epoch = message['epoch'] as int?;
+        if (epoch != null && epoch < minEpoch) {
+          reply(id, cancelled: true);
+          continue;
+        }
+        final method = message['method'] as String;
+        final args =
+            (message['args'] as Map?)?.cast<String, Object?>() ?? const {};
+        try {
+          reply(id, result: await dispatch(method, args));
+        } catch (e) {
+          reply(id, error: e.toString());
+        }
+      }
+    } finally {
+      draining = false;
+    }
+  }
 
   receivePort.listen((dynamic message) {
     if (message is! Map) return;
+
+    // 'cancel' מטופלת **מיד** ולא נכנסת לתור — אחרת היא הייתה ממתינה בדיוק
+    // מאחורי העבודה שהיא באה לבטל.
+    if (message['method'] == 'cancel') {
+      final epoch = message['epoch'] as int? ?? 0;
+      if (epoch > minEpoch) minEpoch = epoch;
+      queue.removeWhere((queued) {
+        final queuedEpoch = queued['epoch'] as int?;
+        if (queuedEpoch == null || queuedEpoch >= minEpoch) return false;
+        reply(queued['id'] as int, cancelled: true);
+        return true;
+      });
+      return;
+    }
+
     final id = message['id'] as int?;
     final method = message['method'] as String?;
     if (id == null || method == null) return;
-    final args = (message['args'] as Map?)?.cast<String, Object?>() ?? const {};
-
-    processingChain = processingChain.then((_) async {
-      try {
-        final result = await dispatch(method, args);
-        bootstrap.mainSendPort.send({'id': id, 'result': result});
-      } catch (e) {
-        bootstrap.mainSendPort.send({'id': id, 'error': e.toString()});
-      }
+    queue.add({
+      'id': id,
+      'method': method,
+      'args': message['args'],
+      'epoch': message['epoch'],
     });
+    drain();
   });
 }

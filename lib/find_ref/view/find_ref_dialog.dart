@@ -14,6 +14,7 @@ import 'package:otzaria/find_ref/bloc/find_ref_event.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_state.dart';
 import 'package:otzaria/find_ref/find_ref_recent_store.dart';
 import 'package:otzaria/find_ref/repository/db_reference_result.dart';
+import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/core/focus_repository.dart';
@@ -347,6 +348,10 @@ class _FindRefDialogState extends State<FindRefDialog> {
         setState(() {
           _commentatorsByRef[key] = entries;
         });
+      } on FindRefQueryCancelled {
+        // הקלדה חדשה זרקה את הטעינה מהתור. מסירים את ה-sentinel כדי שהשורה
+        // תנסה שוב — אחרת האייקון לא היה מופיע יותר לתוצאה הזו.
+        _commentatorsByRef.remove(key);
       } catch (e) {
         debugPrint('[FindRef] commentators load failed: $e');
         if (!mounted) return;

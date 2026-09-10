@@ -1,6 +1,7 @@
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_event.dart';
+import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_state.dart';
 import 'package:otzaria/find_ref/repository/db_reference_result.dart';
@@ -59,6 +60,10 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
     } on ReferenceLibraryNotReadyException {
       if (emit.isDone) return;
       emit(const FindRefNotReady());
+    } on FindRefQueryCancelled {
+      // הקלדה חדשה זרקה את השאילתה מתור ה-worker. ה-handler של אותה הקלדה
+      // יעדכן את המצב — אין להציג כאן שגיאה ואין לכתוב תוצאות חלקיות.
+      return;
     } catch (e) {
       if (emit.isDone) return;
       emit(FindRefError(e.toString()));

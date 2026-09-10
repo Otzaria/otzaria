@@ -146,6 +146,10 @@ class FindRefRepository {
   /// קטגוריית הספר. In production: [ReferenceBooksCache.instance.getCategoryPathForBookSync].
   final String? Function(int bookId)? getCategoryPathSync;
 
+  /// פותח מחזור שאילתה חדש ומורה ל-worker לזרוק את הבקשות הממתינות של
+  /// המחזור הקודם. In production: [FindRefDbIsolate.beginSearchEpoch].
+  final void Function()? beginSearchEpoch;
+
   /// Injection for testing: חיפוש מצב "דור + נושא". In production:
   /// [ReferenceBooksCache.instance.searchByEraAndTopic].
   final List<ReferenceBookHit> Function(
@@ -219,6 +223,7 @@ class FindRefRepository {
     this.resolveLineRefs,
     this.getBookEra,
     this.getCategoryPathSync,
+    this.beginSearchEpoch,
     this.searchByEraAndTopic,
   }) {
     _liveInstances.add(this);
@@ -455,6 +460,8 @@ class FindRefRepository {
           ),
         );
       }
+    } on FindRefQueryCancelled {
+      rethrow; // הקלדה חדשה — התוצאה החלקית הזו כבר לא רלוונטית.
     } catch (e, st) {
       debugPrint('[FindRef] Global AltToc fallback failed: $e\n$st');
     }
@@ -556,6 +563,10 @@ class FindRefRepository {
     String ref, {
     bool includePersonalBooks = false,
   }) async {
+    // ההקלדה הזו מבטלת את מה שנשאר בתור מההקלדה הקודמת — אחרת שאילתה חדשה
+    // ממתינה מאחורי עשרות שאילתות TOC/מפרשים שתוצאותיהן כבר לא רלוונטיות.
+    beginSearchEpoch?.call();
+
     final cleanedQuery = _normalizeForMatch(ref);
     if (cleanedQuery.isEmpty) {
       return const [];

@@ -49,7 +49,12 @@ void main() {
   });
 
   tearDown(() async {
-    await tempDir.delete(recursive: true);
+    try {
+      await tempDir.delete(recursive: true);
+    } on FileSystemException {
+      // ב-Windows שחרור ה-handle של ה-worker אינו מיידי אחרי kill; תיקיית
+      // ה-temp אינה חלק מהנבדק.
+    }
   });
 
   test('בלי worker פעיל ההשהיה מדווחת שחרור — אין handle לשחרר', () async {
@@ -156,5 +161,92 @@ void main() {
       isolate.getBookTocRows(1),
       throwsA(isA<StateError>()),
     );
+  });
+
+  test('הקלדה חדשה זורקת מהתור את בקשות ההקלדה הקודמת', () async {
+    final dbPath = await seedDb('seforim', 'בראשית');
+    // ספר עם TOC גדול — בניית המטמון שלו היא הבקשה ה"ארוכה" שתופסת את
+    // ה-worker, כך שהבקשות שאחריה ממתינות בתור בזמן שהביטול מגיע.
+    final database = MyDatabase.withPath(dbPath);
+    final db = await database.database;
+    db.execute(
+      "INSERT INTO book (id, categoryId, sourceId, title, orderIndex, "
+      "filePath, fileType) VALUES (2, 7, 1, 'ספר גדול', 4, '/b/c.txt', 'txt')",
+    );
+    db.execute(
+      'INSERT INTO tocText (id, text) '
+      'WITH RECURSIVE n(i) AS (SELECT 100 UNION ALL SELECT i+1 FROM n '
+      "WHERE i < 20100) SELECT i, 'סימן ' || i FROM n",
+    );
+    db.execute(
+      'INSERT INTO line (id, bookId, lineIndex, content) '
+      'WITH RECURSIVE n(i) AS (SELECT 100 UNION ALL SELECT i+1 FROM n '
+      "WHERE i < 20100) SELECT i + 1000, 2, i - 100, 'x' FROM n",
+    );
+    db.execute(
+      'INSERT INTO tocEntry (id, bookId, parentId, textId, level, lineId) '
+      'WITH RECURSIVE n(i) AS (SELECT 100 UNION ALL SELECT i+1 FROM n '
+      'WHERE i < 20100) SELECT i, 2, NULL, i, 1, i + 1000 FROM n',
+    );
+    database.close();
+
+    await Settings.setValue<String>(
+      SettingsRepository.keyDbEffectivePath,
+      dbPath,
+    );
+
+    final isolate = await FindRefDbIsolate.instance();
+    addTearDown(isolate.disposeForTesting);
+    // מוודא שה-worker מוכן ושהחיבור פתוח, כדי שהמדידה תמדוד רק את התור.
+    expect(await isolate.getAllLocalBooksSlim(), hasLength(2));
+
+    // חימום מטמון ה-TOC של הספר, כדי שהמחיר שנמדד יהיה של התור ולא של בנייה
+    // חד-פעמית. גם אחרי החימום כל שאילתה מחזירה 20 אלף ערכים — יקרה דיה
+    // שהתור לא יתרוקן לפני שהביטול מגיע.
+    expect(
+      await isolate.getTocEntries(2, 'ספר גדול', queryTokens: ['סימן']),
+      hasLength(20001),
+    );
+
+    final queued = [
+      for (var i = 0; i < 40; i++)
+        isolate.getTocEntries(2, 'ספר גדול', queryTokens: ['סימן']),
+    ];
+    // נותנים לכל השליחות לצאת, ואז מקדמים מחזור — כמו הקלדה חדשה.
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    isolate.beginSearchEpoch();
+
+    var cancelled = 0;
+    for (final future in queued) {
+      try {
+        await future;
+      } on FindRefQueryCancelled {
+        cancelled++;
+      }
+    }
+    expect(
+      cancelled,
+      greaterThan(0),
+      reason: 'בקשות ממתינות של המחזור הקודם חייבות להיזרק',
+    );
+
+    // הבקשה של המחזור החדש עוברת כרגיל.
+    final after = await isolate.getTocEntries(1, 'בראשית');
+    expect(after, isNotEmpty);
+  });
+
+  test('בקשה שאינה של איתור מקורות אינה מבוטלת בהקלדה חדשה', () async {
+    final dbPath = await seedDb('seforim', 'בראשית');
+    await Settings.setValue<String>(
+      SettingsRepository.keyDbEffectivePath,
+      dbPath,
+    );
+
+    final isolate = await FindRefDbIsolate.instance();
+    addTearDown(isolate.disposeForTesting);
+
+    final shared = isolate.getAllLocalBooksSlim();
+    isolate.beginSearchEpoch();
+    expect(await shared, hasLength(1));
   });
 }
