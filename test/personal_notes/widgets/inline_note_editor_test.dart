@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/personal_notes/widgets/inline_note_editor.dart';
 import '../../test_helpers/memory_cache_provider.dart';
@@ -78,5 +79,68 @@ void main() {
 
     final primary = FocusManager.instance.primaryFocus;
     expect(primary?.debugLabel, equals('InlineNoteEditor'));
+  });
+  // issue #1303 — ה-X של הערה חדשה בחלונית הצד מחק את מה שהוקלד בלי אזהרה,
+  // בשונה מעורך ההערות בדיאלוג ששואל לפני סגירה.
+  group('ביטול עם שינויים שלא נשמרו (issue #1303)', () {
+    testWidgets('ביטול אחרי הקלדה פותח אישור ואינו סוגר מיד', (tester) async {
+      final cancelRequest = ValueNotifier<int>(0);
+      addTearDown(cancelRequest.dispose);
+      var cancelled = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: InlineNoteEditor(
+              bookId: 'ספר מבחן',
+              draftLineNumber: 3,
+              linkableNotes: const [],
+              cancelRequest: cancelRequest,
+              onSave: (_) {},
+              onCancel: () => cancelled++,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final editor = tester.widget<quill.QuillEditor>(
+        find.byType(quill.QuillEditor),
+      );
+      editor.controller.document.insert(0, 'הערה שטרם נשמרה');
+      await tester.pump();
+
+      cancelRequest.value++;
+      await tester.pumpAndSettle();
+
+      expect(cancelled, 0);
+      expect(find.text('שמור טיוטה'), findsOneWidget);
+    });
+
+    testWidgets('ביטול בלי שינויים סוגר מיד', (tester) async {
+      final cancelRequest = ValueNotifier<int>(0);
+      addTearDown(cancelRequest.dispose);
+      var cancelled = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: InlineNoteEditor(
+              bookId: 'ספר מבחן',
+              draftLineNumber: 4,
+              linkableNotes: const [],
+              cancelRequest: cancelRequest,
+              onSave: (_) {},
+              onCancel: () => cancelled++,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      cancelRequest.value++;
+      await tester.pumpAndSettle();
+
+      expect(cancelled, 1);
+      expect(find.text('שמור טיוטה'), findsNothing);
+    });
   });
 }
