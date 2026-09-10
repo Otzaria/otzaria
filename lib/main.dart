@@ -22,6 +22,7 @@ import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/bookmarks/repository/bookmark_repository.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_bloc.dart';
 import 'package:otzaria/find_ref/repository/find_ref_factory.dart';
+import 'package:otzaria/core/user_certificates.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/history_repository.dart';
@@ -1632,6 +1633,8 @@ Future<void> _loadCerts() async {
       certBytes.buffer.asUint8List(),
     );
   }
+  // תעודת סינון שאינה ברשימה המצורפת אך הותקנה במכשיר (issue #1305).
+  await trustUserInstalledCertificates(SecurityContext.defaultContext);
 }
 
 /// Clean up resources when the app is closing
