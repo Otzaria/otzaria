@@ -206,7 +206,7 @@ Set<String> talmudBavliTextTitles(Category library) => {
 bool isTalmudBavliPdfLibraryDuplicate(Book book, Set<String> textTitles) =>
     book is PdfBook &&
     !book.isUserBook &&
-    book.externalLibraryId == null &&
+    DatabaseConstants.isBundledLibrarySource(book.externalLibraryId) &&
     textTitles.contains(normalizeBookTitle(book.title)) &&
     isTalmudBavliBook(book);
 

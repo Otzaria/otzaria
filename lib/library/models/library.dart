@@ -1,6 +1,7 @@
 /* a representation of the library , every entry could be a category or a book, and a category can
 contain other categories and books */
 
+import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/models/books.dart';
 
 /// Represents a category in the library.
@@ -231,7 +232,13 @@ class Library extends Category {
   /// האישיים, או אותו קטלוג חיצוני. שם זהה ממקור אחר אינו אותו ספר.
   bool _isSameBookSource(Book book, Book candidate) =>
       candidate.isUserBook == book.isUserBook &&
-      candidate.externalLibraryId == book.externalLibraryId;
+      _bookSourceKey(candidate) == _bookSourceKey(book);
+
+  /// מסכת PDF מצורפת נושאת מזהה חיצוני אך מגיעה מספריית אוצריא עצמה.
+  String? _bookSourceKey(Book book) =>
+      DatabaseConstants.isBundledLibrarySource(book.externalLibraryId)
+      ? null
+      : book.externalLibraryId;
 
   /// מחפש ספר לפי כותרת עם חיפוש גמיש יותר.
   ///

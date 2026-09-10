@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 
@@ -326,6 +327,64 @@ void main() {
 
       // הירושלמי אינו מהדורה נוספת של הבבלי, ולכן אינו כפילות.
       expect(library.getCompanionBooks(sourceText, PdfBook), [bavliPdf]);
+    });
+
+    test('PDF מצורף של הבבלי (מזהה חיצוני) נחשב אותו מקור כמו ספר הטקסט', () {
+      final bavli = _category('תלמוד בבלי');
+      final seder = _category('סדר זרעים', parent: bavli);
+      final userRoot = _category('אישיים');
+
+      final sourceText = TextBook(title: 'ברכות', category: seder);
+      final bundledPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\otzaria\תלמוד בבלי\ברכות.pdf',
+        category: bavli,
+        externalLibraryId: DatabaseConstants.talmudBavliPdfExternalLibraryId(
+          'ברכות',
+        ),
+      );
+      final userPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\אישיים\ברכות.pdf',
+        category: userRoot,
+        isUserBook: true,
+      );
+      seder.books.add(sourceText);
+      bavli.books.add(bundledPdf);
+      userRoot.books.add(userPdf);
+
+      // האישי ראשון בעץ — בלי זיהוי המזהה המצורף הוא היה נבחר.
+      final library = Library(categories: [userRoot, bavli]);
+
+      expect(library.getCompanionBook(sourceText, PdfBook), same(bundledPdf));
+    });
+
+    test('מ-PDF מצורף אל הטקסט — מהדורת הספרייה ולא ספר אישי בשם זהה', () {
+      final bavli = _category('תלמוד בבלי');
+      final seder = _category('סדר זרעים', parent: bavli);
+      final userRoot = _category('אישיים');
+
+      final bundledPdf = PdfBook(
+        title: 'ברכות',
+        path: r'C:\otzaria\תלמוד בבלי\ברכות.pdf',
+        category: bavli,
+        externalLibraryId: DatabaseConstants.talmudBavliPdfExternalLibraryId(
+          'ברכות',
+        ),
+      );
+      final userText = TextBook(
+        title: 'ברכות',
+        category: userRoot,
+        isUserBook: true,
+      );
+      final libraryText = TextBook(title: 'ברכות', category: seder);
+      bavli.books.add(bundledPdf);
+      userRoot.books.add(userText);
+      seder.books.add(libraryText);
+
+      final library = Library(categories: [userRoot, bavli]);
+
+      expect(library.getCompanionBook(bundledPdf, TextBook), same(libraryText));
     });
 
     test('ספר מקטלוג חיצוני — לא נבחר עבור ספר מקומי בשם זהה', () {

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
@@ -190,6 +191,39 @@ void main() {
         isTalmudBavliPdfLibraryDuplicate(
           PdfBook(title: 'רש"י', path: r'C:\books\תלמוד בבלי\מפרשים\רשי.pdf'),
           {'רש"י', ...textTitles},
+        ),
+        isFalse,
+      );
+    });
+
+    test('PDF מצורף עם מזהה חיצוני של הבבלי — עדיין כפילות-תצוגה', () {
+      expect(
+        isTalmudBavliPdfLibraryDuplicate(
+          PdfBook(
+            title: 'ברכות',
+            path: r'C:\books\תלמוד בבלי\ברכות.pdf',
+            externalLibraryId:
+                DatabaseConstants.talmudBavliPdfExternalLibraryId(
+                  'ברכות',
+                ),
+          ),
+          textTitles,
+        ),
+        isTrue,
+      );
+      // אישי עם אותו מזהה אינו ה-PDF המובנה.
+      expect(
+        isTalmudBavliPdfLibraryDuplicate(
+          PdfBook(
+            title: 'ברכות',
+            path: r'C:\אישיים\ברכות.pdf',
+            isUserBook: true,
+            externalLibraryId:
+                DatabaseConstants.talmudBavliPdfExternalLibraryId(
+                  'ברכות',
+                ),
+          ),
+          textTitles,
         ),
         isFalse,
       );

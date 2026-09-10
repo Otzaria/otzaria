@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/view/library_browser.dart';
 import 'package:otzaria/models/books.dart';
@@ -195,10 +196,16 @@ void main() {
       final pdf = PdfBook(
         title: 'ברכות',
         path: r'C:\books\תלמוד בבלי\ברכות.pdf',
+        externalLibraryId: DatabaseConstants.talmudBavliPdfExternalLibraryId(
+          'ברכות',
+        ),
       );
       final orphanPdf = PdfBook(
         title: 'שבת',
         path: r'C:\books\תלמוד בבלי\שבת.pdf',
+        externalLibraryId: DatabaseConstants.talmudBavliPdfExternalLibraryId(
+          'שבת',
+        ),
       );
       final seder = _category('סדר זרעים', books: [_book('ברכות')]);
       final bavli = _category(
