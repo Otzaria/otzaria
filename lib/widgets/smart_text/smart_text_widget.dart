@@ -15,6 +15,7 @@ import 'package:otzaria/widgets/smart_text/exact_line_height.dart';
 import 'package:otzaria/widgets/misc/inline_link_targets.dart';
 import 'package:otzaria/widgets/smart_text/raised_markers.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
+import 'package:otzaria/widgets/smart_text/selection_fill_text.dart';
 import 'package:otzaria/widgets/smart_text/simple_inline_html.dart';
 import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 import 'package:otzaria/plugins/models/plugin_highlight.dart';
@@ -232,7 +233,7 @@ class SmartTextWidget extends StatelessWidget {
             SizedBox(
               key: widgetKey,
               width: double.infinity,
-              child: Text.rich(
+              child: SelectionFillText.rich(
                 simpleSpan,
                 style: textStyle,
                 strutStyle: exactLineHeightStrut(textStyle, simpleSpan),
@@ -580,8 +581,8 @@ class _SmartTextWidgetFactory extends WidgetFactory {
   }
 
   /// ה-RichText של fwfh נבנה בלי strut ואין פרמטר להעביר אחד מבחוץ, לכן
-  /// בונים מחדש את מה ש-fwfh בנה עם [exactLineHeightStrut]. מבנה אחר מהצפוי
-  /// (גרסת fwfh חדשה) פשוט נשאר כפי שהוא — בלי קיבוע.
+  /// בונים מחדש את מה ש-fwfh בנה עם [exactLineHeightStrut] ועם מילוי הבחירה.
+  /// מבנה אחר מהצפוי (גרסת fwfh חדשה) פשוט נשאר כפי שהוא.
   @override
   Widget? buildText(
     BuildTree tree,
@@ -589,49 +590,16 @@ class _SmartTextWidgetFactory extends WidgetFactory {
     InlineSpan text,
   ) {
     final built = super.buildText(tree, resolved, text);
-    final strutStyle = exactLineHeightStrut(resolved.prepareTextStyle(), text);
-    if (strutStyle == null || built is! Builder) {
+    if (built is! Builder) {
       return built;
     }
+    final strutStyle = exactLineHeightStrut(resolved.prepareTextStyle(), text);
 
     return Builder(
-      builder: (context) {
-        final child = built.builder(context);
-        if (child is RichText) {
-          return _withStrutStyle(child, strutStyle);
-        }
-        if (child is MouseRegion && child.child is RichText) {
-          return MouseRegion(
-            onEnter: child.onEnter,
-            onExit: child.onExit,
-            onHover: child.onHover,
-            cursor: child.cursor,
-            opaque: child.opaque,
-            hitTestBehavior: child.hitTestBehavior,
-            child: _withStrutStyle(child.child! as RichText, strutStyle),
-          );
-        }
-        return child;
-      },
-    );
-  }
-
-  static RichText _withStrutStyle(RichText source, StrutStyle strutStyle) {
-    return RichText(
-      key: source.key,
-      text: source.text,
-      textAlign: source.textAlign,
-      textDirection: source.textDirection,
-      softWrap: source.softWrap,
-      overflow: source.overflow,
-      textScaler: source.textScaler,
-      maxLines: source.maxLines,
-      locale: source.locale,
-      strutStyle: strutStyle,
-      textWidthBasis: source.textWidthBasis,
-      textHeightBehavior: source.textHeightBehavior,
-      selectionRegistrar: source.selectionRegistrar,
-      selectionColor: source.selectionColor,
+      builder: (context) => withSelectionFillRichText(
+        built.builder(context),
+        strutStyle: strutStyle,
+      ),
     );
   }
 

@@ -11,6 +11,7 @@ import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
 import 'package:otzaria/plugins/view/plugin_highlight_frame_overlay.dart';
 import 'package:otzaria/widgets/smart_text/exact_line_height.dart';
 import 'package:otzaria/widgets/smart_text/raised_markers.dart';
+import 'package:otzaria/widgets/smart_text/selection_fill_text.dart';
 import 'package:otzaria/widgets/smart_text/simple_inline_html.dart';
 
 /// תגובה ללחיצה על קישור inline בתוך פסקה של מצב טקסט רציף.
@@ -212,7 +213,7 @@ class _ContinuousReadingParagraphState
     final textSpan = TextSpan(style: widget.baseStyle, children: spans);
     // justify אינו מותח שורה אחרונה, ולכן גם לא פסקה בת שורה חזותית אחת.
     // מדידה מוקדמת של מספר השורות = layout שני על כל הפסקה, ומייקרת גלילה.
-    Widget result = Text.rich(
+    Widget result = SelectionFillText.rich(
       textSpan,
       textAlign: widget.textAlign,
       strutStyle: exactLineHeightStrut(widget.baseStyle, textSpan),
