@@ -30,6 +30,8 @@ class ToolsSettingsTab extends StatelessWidget {
             SizedBox(height: 16),
             CalendarSettingsTab(),
             GematriaSettingsTab(),
+            SizedBox(height: 16),
+            TikkunKorimSettingsTab(),
             // [EDITING DISABLED] EditorSettingsTab(),
             SizedBox(height: 16),
           ],

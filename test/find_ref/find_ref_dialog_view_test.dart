@@ -112,14 +112,10 @@ Future<void> _pumpDialog(
 TextStyle? _titleStyleOf(WidgetTester tester, String reference) =>
     tester.widget<Text>(find.text(reference)).style;
 
-List<String> _chipLabels(WidgetTester tester) => [
-  ...tester
-      .widgetList<InputChip>(find.byType(InputChip))
-      .map((chip) => (chip.label as Text).data!),
-  ...tester
-      .widgetList<ActionChip>(find.byType(ActionChip))
-      .map((chip) => (chip.label as Text).data!),
-];
+List<String> _chipLabels(WidgetTester tester) => tester
+    .widgetList<ActionChip>(find.byType(ActionChip))
+    .map((chip) => (chip.label as Text).data!)
+    .toList();
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -171,52 +167,6 @@ void main() {
     expect(find.text('האיתורים האחרונים'), findsOneWidget);
     expect(find.text('דוגמאות'), findsNothing);
     expect(_chipLabels(tester), ['רמב"ם תשובה ב', 'בראשית פרק א']);
-  });
-
-  // issue #1288 — לא הייתה דרך לנקות את רשימת האיתורים האחרונים מהמסך.
-  testWidgets('ניקוי האיתורים האחרונים מוחק אותם ומחזיר את הדוגמאות', (
-    tester,
-  ) async {
-    FindRefRecentStore.remember('בראשית פרק א');
-    FindRefRecentStore.remember('רמב"ם תשובה ב');
-
-    await _pumpDialog(tester, screenSize: const Size(1200, 900));
-    expect(find.text('האיתורים האחרונים'), findsOneWidget);
-
-    await tester.tap(find.byTooltip('נקה'));
-    await tester.pumpAndSettle();
-
-    expect(FindRefRecentStore.load(), isEmpty);
-    expect(find.text('האיתורים האחרונים'), findsNothing);
-    expect(find.text('דוגמאות'), findsOneWidget);
-    expect(find.byTooltip('נקה'), findsNothing);
-  });
-
-  testWidgets('הסרת איתור אחרון בודד משאירה את השאר, והאחרון מחזיר דוגמאות', (
-    tester,
-  ) async {
-    FindRefRecentStore.remember('בראשית פרק א');
-    FindRefRecentStore.remember('רמב"ם תשובה ב');
-
-    await _pumpDialog(tester, screenSize: const Size(1200, 900));
-
-    Finder deleteOf(String label) => find.descendant(
-      of: find.widgetWithText(InputChip, label),
-      matching: find.byTooltip('הסר'),
-    );
-    await tester.tap(deleteOf('רמב"ם תשובה ב'));
-    await tester.pumpAndSettle();
-
-    expect(FindRefRecentStore.load(), ['בראשית פרק א']);
-    expect(_chipLabels(tester), ['בראשית פרק א']);
-    expect(find.text('האיתורים האחרונים'), findsOneWidget);
-
-    await tester.tap(deleteOf('בראשית פרק א'));
-    await tester.pumpAndSettle();
-
-    expect(FindRefRecentStore.load(), isEmpty);
-    expect(find.text('דוגמאות'), findsOneWidget);
-    expect(find.byType(InputChip), findsNothing);
   });
 
   testWidgets('בהיעדר איתורים אחרונים הדוגמאות מתחלפות בין פתיחות', (

@@ -238,6 +238,7 @@ void main() {
         'builtin.shamor_zachor',
         'builtin.notes',
         'builtin.measurements',
+        'builtin.tikkun_korim',
         'builtin.gematria',
         'builtin.aramaic_dictionary',
         'builtin.acronyms_dictionary',

@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
-import 'package:otzaria/personal_notes/widgets/note_draft_decision_dialog.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
@@ -88,14 +87,35 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
       return true;
     }
 
-    final result = await showNoteDraftDecisionDialog(context);
+    final result = await showDialog<_DraftDecision>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('אזהרה'),
+        content: const Text('ההערה לא נשמרה. לשמור טיוטה?'),
+        actions: [
+          FilledButton.tonal(
+            onPressed: () => Navigator.of(context).pop(_DraftDecision.cancel),
+            child: const Text('ביטול'),
+          ),
+          FilledButton.tonal(
+            onPressed: () => Navigator.of(context).pop(_DraftDecision.discard),
+            child: const Text('סגור בלי לשמור'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(context).pop(_DraftDecision.saveDraft),
+            child: const Text('שמור טיוטה'),
+          ),
+        ],
+      ),
+    );
 
-    if (result == NoteDraftDecision.saveDraft) {
+    if (result == _DraftDecision.saveDraft) {
       await _saveDraftIfPossible();
       return true;
     }
 
-    if (result == NoteDraftDecision.discard) {
+    if (result == _DraftDecision.discard) {
       return true;
     }
 
@@ -299,4 +319,10 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
       );
     }
   }
+}
+
+enum _DraftDecision {
+  saveDraft,
+  discard,
+  cancel,
 }
