@@ -69,6 +69,21 @@ class AppPaths {
     _cachedDataRootPath = path;
   }
 
+  /// דורס את זיהוי Android לצורכי בדיקה של כללי מיקום האינדקס.
+  @visibleForTesting
+  static bool? debugIsAndroidOverride;
+
+  static bool get _isAndroid => debugIsAndroidOverride ?? Platform.isAndroid;
+
+  /// באנדרואיד האינדקס יושב תמיד באחסון הפנימי: Tantivy נועל קבצים ב-flock,
+  /// ומערכת הקבצים FUSE של כרטיס SD מחזירה ENOSYS (issue #1126).
+  static Future<String> androidInternalIndexPath() async =>
+      p.join(await getDataRootPath(), 'index');
+
+  /// האם [indexPath] נגיש למנוע החיפוש באנדרואיד — רק תחת [dataRoot] הפנימי.
+  static bool isIndexPathAllowedOnAndroid(String indexPath, String dataRoot) =>
+      p.equals(indexPath, dataRoot) || p.isWithin(dataRoot, indexPath);
+
   /// דורס את [Platform.resolvedExecutable] לצורכי בדיקה — נדרש כדי לדמות
   /// מבנה תיקיות של חבילת FULL ב-tmpdir.
   @visibleForTesting
@@ -359,6 +374,8 @@ class AppPaths {
     if (systemWideRoot != null) {
       return p.join(systemWideRoot, 'index');
     }
+    // ספרייה על כרטיס SD אינה מושכת אחריה את האינדקס (ראה androidInternalIndexPath).
+    if (_isAndroid) return androidInternalIndexPath();
 
     final libraryPath = await getLibraryPath();
     final adjacentPath = p.join(p.dirname(libraryPath), 'index');
@@ -488,7 +505,15 @@ class AppPaths {
     final savedIndex = Settings.getValue<String>(
       SettingsRepository.keyIndexPath,
     );
-    if (savedIndex != null && savedIndex.isNotEmpty) return savedIndex;
+    if (savedIndex != null && savedIndex.isNotEmpty) {
+      if (_isAndroid &&
+          !isIndexPathAllowedOnAndroid(savedIndex, await getDataRootPath())) {
+        // אינדקס שהועבר לכרטיס בגרסה קודמת אינו נפתח — חוזרים לפנימי ומנקים.
+        await Settings.setValue<String>(SettingsRepository.keyIndexPath, '');
+        return androidInternalIndexPath();
+      }
+      return savedIndex;
+    }
 
     return _getDefaultIndexPath();
   }

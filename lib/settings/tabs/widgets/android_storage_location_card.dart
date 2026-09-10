@@ -75,7 +75,7 @@ class _AndroidStorageLocationCardState
         args: {'target': option.label},
       ),
       content: context.settingsText(
-        'הספרייה, האינדקס ומסדי הנתונים יועברו אל {target}. '
+        'הספרייה ומסדי הנתונים יועברו אל {target}; אינדקס החיפוש נשאר באחסון הפנימי. '
         'בזמן ההעברה התוכנה תיטען מחדש ולא תהיה זמינה עד לסיום הפעולה.'
         '{warning}',
         args: {'target': option.label, 'warning': removalWarning},
