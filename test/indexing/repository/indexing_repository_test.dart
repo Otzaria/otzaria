@@ -22,6 +22,40 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 void main() {
+  group('IndexingRepository.shouldCommitCancelledRun', () {
+    test('ביטול רגיל — הספרים שכבר נכתבו נחתמים', () {
+      // רגרסיה: בלי commit בביטול, כל ריצה שנקטעה התחילה מה-commit
+      // האחרון ואינדקסה מאפס עד מאות ספרים.
+      expect(
+        IndexingRepository.shouldCommitCancelledRun(
+          pendingBooks: 42,
+          writeBufferDiscarded: false,
+        ),
+        isTrue,
+      );
+    });
+
+    test('כשל כתיבה — החוצץ הושלך ואסור לחתום מצב חלקי', () {
+      expect(
+        IndexingRepository.shouldCommitCancelledRun(
+          pendingBooks: 42,
+          writeBufferDiscarded: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('אין מה לחתום — לא נוגעים במנוע', () {
+      expect(
+        IndexingRepository.shouldCommitCancelledRun(
+          pendingBooks: 0,
+          writeBufferDiscarded: false,
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('IndexingRepository.shouldSkipManualReindexCheck', () {
     test('מחזיר true עבור ספרייה ריקה - מונע דיאלוג איפוס בלי ספרים', () {
       expect(
