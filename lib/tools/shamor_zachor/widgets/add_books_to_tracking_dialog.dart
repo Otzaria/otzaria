@@ -4,11 +4,13 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
+import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -54,6 +56,25 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
     _searchController.dispose();
     super.dispose();
   }
+
+  Category? _talmudTextTitlesLibrary;
+  Set<String>? _talmudTextTitlesCache;
+
+  /// כותרות מהדורות הטקסט של מסכתות הבבלי, ממוטמנות פר-מופע ספרייה.
+  Set<String> _talmudTextTitles(Library library) {
+    if (!identical(library, _talmudTextTitlesLibrary)) {
+      _talmudTextTitlesLibrary = library;
+      _talmudTextTitlesCache = talmudBavliTextTitles(library);
+    }
+    return _talmudTextTitlesCache!;
+  }
+
+  /// מסתיר מהרשימה מהדורת PDF מצורפת של מסכת בבלי — היא שואלת את מזהה ספר
+  /// הטקסט, ולכן מעקב עליה היה כפילות של אותה שורה בדיוק.
+  List<Book> _visibleBooks(List<Book> books, Set<String> talmudTextTitles) =>
+      books
+          .where((b) => !isTalmudBavliPdfLibraryDuplicate(b, talmudTextTitles))
+          .toList();
 
   bool _isTracked(Book book) =>
       book.id != null && widget.dataProvider.isBookTrackedById(book.id!);
@@ -230,11 +251,13 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
     final topCategories = [...library.subCategories]
       ..sort((a, b) => a.order.compareTo(b.order));
 
+    final talmudTextTitles = _talmudTextTitles(library);
+
     return ListView(
       padding: EdgeInsets.zero,
       children: [
         for (final category in topCategories)
-          _buildCategoryNode(category, colorScheme, 0),
+          _buildCategoryNode(category, colorScheme, 0, talmudTextTitles),
       ],
     );
   }
@@ -243,6 +266,7 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
     Category category,
     ColorScheme colorScheme,
     int level,
+    Set<String> talmudTextTitles,
   ) {
     final hasChildren =
         category.subCategories.isNotEmpty || category.books.isNotEmpty;
@@ -303,10 +327,11 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
           for (final sub in [
             ...category.subCategories,
           ]..sort((a, b) => a.order.compareTo(b.order)))
-            _buildCategoryNode(sub, colorScheme, level + 1),
-          for (final book in [
-            ...category.books,
-          ]..sort((a, b) => a.order.compareTo(b.order)))
+            _buildCategoryNode(sub, colorScheme, level + 1, talmudTextTitles),
+          for (final book in _visibleBooks(
+            category.books,
+            talmudTextTitles,
+          )..sort((a, b) => a.order.compareTo(b.order)))
             _buildBookTile(book, colorScheme, level + 1),
         ],
       ],
@@ -317,11 +342,16 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
     final isSelectable = _isOfficialSeforimBook(book);
     final alreadyTracked = isSelectable && _isTracked(book);
     final isSelected = isSelectable && _selectedBooks.containsKey(book.id);
+    final external = book.externalLibraryId;
+    final isExternalCatalog =
+        external != null &&
+        external.isNotEmpty &&
+        !DatabaseConstants.isBundledLibrarySource(external);
     final disabledReason = isSelectable
         ? null
         : book.isUserBook
         ? 'ספר אישי — לא נתמך במעקב'
-        : (book.externalLibraryId != null && book.externalLibraryId!.isNotEmpty)
+        : isExternalCatalog
         ? 'ספר חיצוני — לא נתמך במעקב'
         : 'ספר ללא מזהה — לא נתמך במעקב';
 
@@ -357,9 +387,10 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
 
   Widget _buildSearchResults(Library library, ColorScheme colorScheme) {
     final query = _query;
-    final matches =
-        library.getAllBooks().where((b) => b.title.contains(query)).toList()
-          ..sort((a, b) => a.title.compareTo(b.title));
+    final matches = _visibleBooks(
+      library.getAllBooks().where((b) => b.title.contains(query)).toList(),
+      _talmudTextTitles(library),
+    )..sort((a, b) => a.title.compareTo(b.title));
 
     if (matches.isEmpty) {
       return Center(
