@@ -188,7 +188,7 @@
 
   " אם הכרטיס יוסר, האפליקציה לא תוכל לגשת לספרים עד שיוחזר.\n\nשים לב: תיקיית האפליקציה שבכרטיס נספרת כמטמון של האפליקציה — \"ניקוי מטמון\" בהגדרות המכשיר ימחק ממנה את הספרייה.": " If the SD card is removed, Otzaria will not be able to access the seforim until it is back.\n\nNote: the app folder on the card is counted as app cache — clearing the app's cache in the device settings will delete the library stored there.",
   "העברת הספרייה אל {target}": "Move the library to {target}",
-  "הספרייה, האינדקס ומסדי הנתונים יועברו אל {target}. בזמן ההעברה התוכנה תיטען מחדש ולא תהיה זמינה עד לסיום הפעולה.{warning}": "The library, the index and the databases will move to {target}. During the move Otzaria will reload and will not be available until the operation finishes.{warning}",
+  "הספרייה ומסדי הנתונים יועברו אל {target}; אינדקס החיפוש נשאר באחסון הפנימי. בזמן ההעברה התוכנה תיטען מחדש ולא תהיה זמינה עד לסיום הפעולה.{warning}": "The library and the databases will move to {target}; the search index stays in internal storage. During the move Otzaria will reload and will not be available until the operation finishes.{warning}",
   "העברה של ספרייה גדולה עשויה לקחת מספר דקות.": "Moving a large library can take a few minutes.",
   "העבר": "Move",
   "מיקום אחסון הספרייה": "Where the Library is Stored",

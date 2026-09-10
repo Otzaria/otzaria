@@ -1296,6 +1296,58 @@ void main() {
       expect(AppPaths.libraryRootOf(bundle), bundle);
     });
   });
+
+  group('אנדרואיד: האינדקס נשאר באחסון הפנימי (issue #1126)', () {
+    late Directory dataRoot;
+    late Directory sdRoot;
+
+    setUp(() async {
+      dataRoot = await Directory.systemTemp.createTemp('otzaria_data_');
+      sdRoot = await Directory.systemTemp.createTemp('otzaria_sd_');
+      AppPaths.debugOverrideDataRootPath(dataRoot.path);
+      AppPaths.debugIsAndroidOverride = true;
+      await Settings.setValue(
+        SettingsRepository.keyLibraryPath,
+        p.join(sdRoot.path, 'books'),
+      );
+    });
+
+    tearDown(() async {
+      AppPaths.debugIsAndroidOverride = null;
+      await Settings.setValue(SettingsRepository.keyIndexPath, '');
+      for (final dir in [dataRoot, sdRoot]) {
+        if (await dir.exists()) await dir.delete(recursive: true);
+      }
+    });
+
+    test('ספרייה על כרטיס SD: ברירת המחדל של האינדקס פנימית', () async {
+      expect(await AppPaths.getIndexPath(), p.join(dataRoot.path, 'index'));
+    });
+
+    test('נתיב אינדקס שמור על הכרטיס נדחה ומתנקה', () async {
+      final sdIndex = p.join(sdRoot.path, 'index');
+      await Settings.setValue(SettingsRepository.keyIndexPath, sdIndex);
+
+      expect(await AppPaths.getIndexPath(), p.join(dataRoot.path, 'index'));
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyIndexPath),
+        isEmpty,
+      );
+    });
+
+    test('נתיב אינדקס שמור תחת האחסון הפנימי נשמר', () async {
+      final internal = p.join(dataRoot.path, 'my_index');
+      await Settings.setValue(SettingsRepository.keyIndexPath, internal);
+
+      expect(await AppPaths.getIndexPath(), internal);
+    });
+
+    test('שלא באנדרואיד: האינדקס ליד הספרייה כמו קודם', () async {
+      AppPaths.debugIsAndroidOverride = false;
+
+      expect(await AppPaths.getIndexPath(), p.join(sdRoot.path, 'index'));
+    });
+  });
 }
 
 class _MemoryCacheProvider extends CacheProvider {

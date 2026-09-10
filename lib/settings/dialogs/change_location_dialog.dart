@@ -333,7 +333,10 @@ Future<void> performLibraryMove({
   final scan = await _scanLibraryMove(from);
   final include = scan.include;
   final oldIndex = await AppPaths.getIndexPath();
-  final newIndex = p.join(to, p.basename(oldIndex));
+  // באנדרואיד האינדקס אינו עובר לכרטיס SD — Tantivy אינו נפתח שם (issue #1126).
+  final newIndex = Platform.isAndroid
+      ? await AppPaths.androidInternalIndexPath()
+      : p.join(to, p.basename(oldIndex));
   final oldDatabases = await AppPaths.getDatabasesPath();
   final newDatabases = p.join(to, p.basename(oldDatabases));
   final indexNeedsMove =
