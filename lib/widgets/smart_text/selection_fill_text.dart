@@ -55,33 +55,22 @@ class SelectionFillRichText extends RichText {
 
 /// `Text.rich` שהדגשת הבחירה בו ממלאת את גובה השורה.
 ///
-/// כשיש בחירה `Text` עוטף את ה-`RichText` שלו במיכל פנימי שמסדר בחירה של
-/// `WidgetSpan`, ואין דרך להחליף דרכו את ה-render object. הספאנים כאן הם טקסט
-/// טהור, ולכן המיכל אינו נדרש ואפשר לבנות את ה-`RichText` ישירות.
-class SelectionFillText extends StatelessWidget {
+/// יורש מ-`Text` כדי שהעץ יכיל `Text` (אחרת `find.text` בטסטים לא מוצא כלום),
+/// ודורס את `build` בלבד: הספאנים כאן טקסט טהור, ולכן המיכל של `Text` מיותר.
+class SelectionFillText extends Text {
   const SelectionFillText.rich(
-    this.textSpan, {
+    super.textSpan, {
     super.key,
-    this.style,
-    this.strutStyle,
-    this.textAlign,
-  });
-
-  final InlineSpan textSpan;
-  final TextStyle? style;
-  final StrutStyle? strutStyle;
-  final TextAlign? textAlign;
+    super.style,
+    super.strutStyle,
+    super.textAlign,
+  }) : super.rich();
 
   @override
   Widget build(BuildContext context) {
     final registrar = SelectionContainer.maybeOf(context);
     if (registrar == null) {
-      return Text.rich(
-        textSpan,
-        style: style,
-        strutStyle: strutStyle,
-        textAlign: textAlign,
-      );
+      return super.build(context);
     }
 
     final defaultTextStyle = DefaultTextStyle.of(context);
@@ -93,7 +82,7 @@ class SelectionFillText extends StatelessWidget {
           style: style == null || style!.inherit
               ? defaultTextStyle.style.merge(style)
               : style,
-          children: [textSpan],
+          children: [textSpan!],
         ),
         textAlign: textAlign ?? defaultTextStyle.textAlign ?? TextAlign.start,
         softWrap: defaultTextStyle.softWrap,
