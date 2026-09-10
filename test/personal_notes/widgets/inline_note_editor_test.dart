@@ -142,5 +142,45 @@ void main() {
       expect(cancelled, 1);
       expect(find.text('שמור טיוטה'), findsNothing);
     });
+
+    testWidgets('ביטול אחרי שינוי עיצוב פותח אישור ואינו סוגר מיד', (
+      tester,
+    ) async {
+      final cancelRequest = ValueNotifier<int>(0);
+      addTearDown(cancelRequest.dispose);
+      var cancelled = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: InlineNoteEditor(
+              bookId: 'ספר מבחן',
+              draftLineNumber: 5,
+              initialContent: 'הערה קיימת',
+              linkableNotes: const [],
+              cancelRequest: cancelRequest,
+              onSave: (_) {},
+              onCancel: () => cancelled++,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final editor = tester.widget<quill.QuillEditor>(
+        find.byType(quill.QuillEditor),
+      );
+      editor.controller.updateSelection(
+        const TextSelection(baseOffset: 0, extentOffset: 10),
+        quill.ChangeSource.local,
+      );
+      await tester.tap(find.byTooltip('מודגש'));
+      await tester.pump();
+
+      cancelRequest.value++;
+      await tester.pumpAndSettle();
+
+      expect(cancelled, 0);
+      expect(find.text('שמור טיוטה'), findsOneWidget);
+    });
   });
 }

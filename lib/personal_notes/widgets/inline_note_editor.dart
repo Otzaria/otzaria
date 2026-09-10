@@ -138,17 +138,7 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
   Future<void> _persistDraft() async {
     if (_isDone) return;
     final result = _controller.buildResult();
-    final normalizedInitialContent = _initialResult.content.trimRight();
-    final normalizedCurrentContent = result.content.trimRight();
-    final normalizedInitialPlain = _initialResult.contentPlain.trim();
-    final normalizedCurrentPlain = result.contentPlain.trim();
-
-    final matchesInitial =
-        normalizedInitialContent == normalizedCurrentContent &&
-        normalizedInitialPlain == normalizedCurrentPlain &&
-        _initialResult.contentFormat == result.contentFormat;
-
-    if (matchesInitial || normalizedCurrentPlain.isEmpty) {
+    if (_matchesInitial(result) || result.contentPlain.trim().isEmpty) {
       await _clearDraft();
       return;
     }
@@ -168,6 +158,12 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
         referenceText: widget.referenceText ?? widget.note?.displayTitle,
       ),
     );
+  }
+
+  bool _matchesInitial(PersonalNoteEditorResult result) {
+    return _initialResult.content.trimRight() == result.content.trimRight() &&
+        _initialResult.contentPlain.trim() == result.contentPlain.trim() &&
+        _initialResult.contentFormat == result.contentFormat;
   }
 
   Future<void> _clearDraft() {
@@ -197,8 +193,8 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
   }
 
   bool _hasUnsavedChanges() {
-    final current = _controller.buildResult().contentPlain.trim();
-    return current.isNotEmpty && current != _initialResult.contentPlain.trim();
+    final current = _controller.buildResult();
+    return current.contentPlain.trim().isNotEmpty && !_matchesInitial(current);
   }
 
   void _handleCancelRequest() {
