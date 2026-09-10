@@ -121,7 +121,12 @@ class TourTooltipCard extends StatelessWidget {
                     onDotTap: onDotTap,
                   ),
                 const SizedBox(height: 18),
-                Row(
+                // במסך צר הכפתורים יורדים שורה במקום לגלוש מהכרטיס (issue #1318).
+                OverflowBar(
+                  alignment: MainAxisAlignment.spaceBetween,
+                  overflowAlignment: OverflowBarAlignment.end,
+                  spacing: 8,
+                  overflowSpacing: 8,
                   children: [
                     if (!isLastStep)
                       ActionButton.neutral(
@@ -134,46 +139,50 @@ class TourTooltipCard extends StatelessWidget {
                               : 'דלג על הסיור',
                         ),
                         onPressed: onSkip,
-                      )
-                    else
-                      const SizedBox.shrink(),
-                    const Spacer(),
-                    if (!isLastStep && !isWelcomeStep && !isRestartEntry) ...[
-                      Tooltip(
-                        message: context.settingsText(
-                          isAutoPlaying
-                              ? 'עצור הצגה אוטומטית'
-                              : 'הצגה אוטומטית — מעבר אוטומטי בין השלבים כל 4 שניות',
-                        ),
-                        child: FilledButton.tonal(
-                          onPressed: onToggleAutoPlay,
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size(44, 44),
-                            padding: EdgeInsets.zero,
-                          ),
-                          child: Icon(
-                            isAutoPlaying
-                                ? FluentIcons.pause_circle_24_regular
-                                : FluentIcons.play_circle_24_regular,
-                          ),
-                        ),
                       ),
-                      const SizedBox(width: 8),
-                    ],
-                    _TourNextButton(
-                      icon: isLastStep
-                          ? FluentIcons.checkmark_24_regular
-                          : FluentIcons.arrow_left_24_regular,
-                      text: context.settingsText(
-                        isLastStep
-                            ? 'סגור'
-                            : isRestartEntry
-                            ? 'אני מוכן'
-                            : isWelcomeStep
-                            ? 'בוא נתחיל'
-                            : 'הבא',
-                      ),
-                      onPressed: onNext,
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (!isLastStep &&
+                            !isWelcomeStep &&
+                            !isRestartEntry) ...[
+                          Tooltip(
+                            message: context.settingsText(
+                              isAutoPlaying
+                                  ? 'עצור הצגה אוטומטית'
+                                  : 'הצגה אוטומטית — מעבר אוטומטי בין השלבים כל 4 שניות',
+                            ),
+                            child: FilledButton.tonal(
+                              onPressed: onToggleAutoPlay,
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size(44, 44),
+                                padding: EdgeInsets.zero,
+                              ),
+                              child: Icon(
+                                isAutoPlaying
+                                    ? FluentIcons.pause_circle_24_regular
+                                    : FluentIcons.play_circle_24_regular,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        _TourNextButton(
+                          icon: isLastStep
+                              ? FluentIcons.checkmark_24_regular
+                              : FluentIcons.arrow_left_24_regular,
+                          text: context.settingsText(
+                            isLastStep
+                                ? 'סגור'
+                                : isRestartEntry
+                                ? 'אני מוכן'
+                                : isWelcomeStep
+                                ? 'בוא נתחיל'
+                                : 'הבא',
+                          ),
+                          onPressed: onNext,
+                        ),
+                      ],
                     ),
                   ],
                 ),
