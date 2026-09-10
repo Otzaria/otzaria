@@ -8,15 +8,13 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/user_content_import/services/user_links_loader.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/data/book_locator.dart';
+import 'package:otzaria/data/repository/book_toc_loader.dart';
 import 'package:otzaria/utils/file/document_converter.dart';
-import 'package:otzaria/utils/file/document_format.dart';
-import 'package:otzaria/utils/file/toc_parser.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'dart:io';
 import 'package:otzaria/utils/file/markdown_to_otzaria.dart';
-import 'dart:isolate';
 
 class BookContentRange {
   final int startLine;
@@ -305,66 +303,8 @@ class TextBookRepository {
     return const [];
   }
 
-  Future<List<TocEntry>> getTableOfContents(TextBook book) async {
-    final title = book.title;
-    final categoryId = book.categoryId;
-    final fileType = book.fileType ?? 'txt';
-
-    final providerToc = await LibraryProviderManager.instance.getBookToc(
-      title,
-      categoryId: categoryId,
-      fileType: fileType,
-      preferUserBooks: book.isUserBook,
-    );
-    if (providerToc != null && providerToc.isNotEmpty) {
-      return providerToc;
-    }
-
-    // Fallback: fetch TOC directly from DB or parse it for external books.
-    final dbBook = await BookLocator.getBookFromDatabase(
-      title,
-      category: book.category,
-      categoryId: book.categoryId,
-      fileType: book.fileType,
-    );
-    if (dbBook != null) {
-      book.fileType ??= dbBook.fileType;
-      book.filePath ??= dbBook.filePath;
-
-      if (dbBook.isFileBacked && dbBook.filePath != null) {
-        final file = File(dbBook.filePath!);
-        if (await file.exists()) {
-          final format = documentFormatOf(
-            fileType: dbBook.fileType,
-            path: file.path,
-          );
-          // PDF הוא file-backed אך אינו טקסט — הוא בונה TOC מה-outline שלו
-          // במסלול נפרד, ושליחתו לממיר טקסט זורקת.
-          final content = format == null || !format.isTextual
-              ? ''
-              // בלי תמונות: לתוכן העניינים נדרש רק מבנה הכותרות.
-              : await convertDocumentForIndex(file, title, format);
-          if (content.isNotEmpty) {
-            return await Isolate.run(
-              () => TocParser.parseEntriesFromContent(content),
-            );
-          }
-        }
-      }
-
-      final dbToc = await _sqliteProvider.getBookTocFromDb(
-        title,
-        dbBook.categoryId,
-        dbBook.fileType,
-        book.isUserBook,
-      );
-      if (dbToc != null && dbToc.isNotEmpty) {
-        return dbToc;
-      }
-    }
-
-    return [];
-  }
+  Future<List<TocEntry>> getTableOfContents(TextBook book) =>
+      loadBookToc(book, sqliteProvider: _sqliteProvider);
 
   /// מחזיר רשימת פרשנים זמינים לספר מה-DB
   Future<List<String>> getAvailableCommentators(TextBook book) async {

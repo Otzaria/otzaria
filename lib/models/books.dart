@@ -1,7 +1,9 @@
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
+import 'package:otzaria/data/repository/book_toc_loader.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/utils/file/document_format.dart';
+
 //import 'package:pdfrx/pdfrx.dart';
 
 /// Represents a book in the application.
@@ -172,15 +174,7 @@ class TextBook extends Book {
   ///
   /// Returns a [Future] that resolves to a [List] of [TocEntry] objects representing
   /// the table of contents of the book.
-  Future<List<TocEntry>> get tableOfContents async {
-    final toc = await LibraryProviderManager.instance.getBookToc(
-      title,
-      categoryId: categoryId,
-      fileType: fileType ?? 'txt',
-      preferUserBooks: isUserBook,
-    );
-    return toc ?? [];
-  }
+  Future<List<TocEntry>> get tableOfContents => loadBookToc(this);
 
   /// Retrieves all the links for the book.
   ///
