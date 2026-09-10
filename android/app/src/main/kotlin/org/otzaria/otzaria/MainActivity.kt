@@ -5,6 +5,9 @@ import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.security.KeyStore
+import java.security.cert.X509Certificate
+import android.util.Base64
 
 class MainActivity : FlutterActivity() {
     private var externalActivationChannel: MethodChannel? = null
@@ -14,6 +17,7 @@ class MainActivity : FlutterActivity() {
     private var foregroundWorkChannel: ForegroundWorkChannel? = null
     private var androidUpdateChannel: AndroidUpdateChannel? = null
     private var downloadNetworkChannel: DownloadNetworkChannel? = null
+    private var userCertificatesChannel: MethodChannel? = null
     private var dartActivationListenerReady = false
     private val pendingActivationUris = mutableListOf<String>()
 
@@ -46,6 +50,24 @@ class MainActivity : FlutterActivity() {
 
         downloadNetworkChannel = DownloadNetworkChannel(this, flutterEngine.dartExecutor.binaryMessenger)
 
+        // dart:io סומך רק על תעודות המערכת; תעודת סינון שהמשתמש התקין (נטפרי
+        // וכדומה) חיה במאגר המשתמש ומועברת ל-Dart כ-PEM (issue #1305).
+        userCertificatesChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            USER_CERTIFICATES_CHANNEL,
+        ).apply {
+            setMethodCallHandler { call, result ->
+                when (call.method) {
+                    GET_USER_CERTIFICATES_METHOD -> Thread {
+                        // קריאת מאגר התעודות היא I/O — לא על ה-thread הראשי.
+                        val pems = userInstalledCertificatesPem()
+                        runOnUiThread { result.success(pems) }
+                    }.start()
+                    else -> result.notImplemented()
+                }
+            }
+        }
+
         enqueueIntentUriIfNeeded(intent)
     }
 
@@ -65,6 +87,23 @@ class MainActivity : FlutterActivity() {
         hangMonitorChannel?.onPause()
         androidUpdateChannel?.onPause()
         super.onPause()
+    }
+
+    private fun userInstalledCertificatesPem(): List<String> {
+        val pems = mutableListOf<String>()
+        try {
+            val store = KeyStore.getInstance("AndroidCAStore").apply { load(null, null) }
+            for (alias in store.aliases()) {
+                if (!alias.startsWith("user:")) continue
+                val cert = store.getCertificate(alias) as? X509Certificate ?: continue
+                val body = Base64.encodeToString(cert.encoded, Base64.NO_WRAP)
+                    .chunked(64).joinToString("\n")
+                pems.add("-----BEGIN CERTIFICATE-----\n$body\n-----END CERTIFICATE-----\n")
+            }
+        } catch (_: Exception) {
+            // בלי מאגר תעודות נגיש ממשיכים עם תעודות המערכת בלבד.
+        }
+        return pems
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -98,6 +137,8 @@ class MainActivity : FlutterActivity() {
         androidUpdateChannel = null
         downloadNetworkChannel?.dispose()
         downloadNetworkChannel = null
+        userCertificatesChannel?.setMethodCallHandler(null)
+        userCertificatesChannel = null
         dartActivationListenerReady = false
         super.cleanUpFlutterEngine(flutterEngine)
     }
@@ -127,5 +168,7 @@ class MainActivity : FlutterActivity() {
         private const val GET_PENDING_URI_STRINGS_METHOD = "getPendingUriStrings"
         private const val EXTERNAL_ACTIVATION_METHOD = "externalActivation"
         private const val OTZARIA_SCHEME = "otzaria"
+        private const val USER_CERTIFICATES_CHANNEL = "otzaria/user_certificates"
+        private const val GET_USER_CERTIFICATES_METHOD = "getUserInstalledCertificates"
     }
 }
