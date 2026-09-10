@@ -210,6 +210,9 @@ class _SlowController extends Fake implements InAppWebViewController {
   Completer<void>? pauseGate;
   Completer<void>? resumeGate;
 
+  /// מעכב את אירוע ה-JS 'plugin.suspended' (מדמה תוסף שמאחר להשלים אותו).
+  Completer<void>? jsGate;
+
   @override
   Future<void> pause() async {
     log.add('$name:pause:start');
@@ -234,6 +237,7 @@ class _SlowController extends Fake implements InAppWebViewController {
         : source.contains('resumed')
         ? 'resumed'
         : 'other';
+    if (kind == 'suspended' && jsGate != null) await jsGate!.future;
     log.add('$name:js:$kind');
     return null;
   }
@@ -1102,14 +1106,40 @@ void main() {
             'a:resume:start',
             'a:resume:end',
             'a:js:resumed',
-            'a:js:suspended',
-            'a:pause:start',
-            'a:pause:end',
             'b:resume:start',
             'b:resume:end',
             'b:js:resumed',
+            'a:js:suspended',
+            'a:pause:start',
+            'a:pause:end',
           ]),
         );
+      },
+    );
+
+    test(
+      'מעבר מתוסף לתוסף: המופע הנכנס מתחדש לפני שהיוצא מושהה (בלי הבזק שחור)',
+      () async {
+        final log = <String>[];
+        final a = _SlowController('a', log);
+        final b = _SlowController('b', log);
+        _d.registerController(pidA, a);
+        _d.registerController(pidB, b);
+        _d.setVisiblePluginInstances({_fg(pidA)});
+        await pumpEventQueue();
+        log.clear();
+
+        // משהים את ה-JS של A כדי לוודא שהחידוש של B אינו ממתין לו.
+        a.jsGate = Completer<void>();
+        _d.setVisiblePluginInstances({_fg(pidB)});
+        await pumpEventQueue();
+
+        expect(log, containsAllInOrder(['b:resume:start', 'b:resume:end']));
+        expect(log, isNot(contains('a:pause:start')));
+
+        a.jsGate!.complete();
+        await pumpEventQueue();
+        expect(log.last, 'a:pause:end');
       },
     );
   });

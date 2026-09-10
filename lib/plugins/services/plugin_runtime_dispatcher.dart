@@ -418,11 +418,13 @@ class PluginRuntimeDispatcher {
     if (setEquals(desired, _runningForegroundKeys)) return;
     final previous = _runningForegroundKeys;
     _runningForegroundKeys = Set.unmodifiable(desired);
-    for (final key in previous) {
-      if (!desired.contains(key)) await _suspendForeground(key);
-    }
+    // חידוש לפני השהיה: המופע החדש כבר על המסך, וכל עוד הוא מוקפא הוא נראה
+    // שחור. ההשהיה של המופע שעזבו יכולה לחכות — היא לא נראית למשתמש.
     for (final key in desired) {
       if (!previous.contains(key)) await _resumeForeground(key);
+    }
+    for (final key in previous) {
+      if (!desired.contains(key)) await _suspendForeground(key);
     }
   }
 
