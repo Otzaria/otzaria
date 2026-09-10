@@ -450,6 +450,73 @@ void main() {
       expect(after!.fileSize, await file.length());
     });
 
+    test('רשימת עוגנים ריקה אינה נשמרת — הקריאה הבאה חוזרת לקובץ', () async {
+      // רגרסיה (issue #1296): כשל חולף שהחזיר outline ריק נשמר לצמיתות
+      // (המפתח הוא נתיב+גודל+mtime), והספר לא נפתח שוב במיקום המבוקש.
+      final pdfPath = p.join(tempDir.path, 'transient-empty.pdf');
+      await writePdf(pdfPath, bookmarks: _pdfBookmarks);
+      final previousReader = pdfAnchorsReaderForTesting!;
+      var reads = 0;
+      pdfAnchorsReaderForTesting = (path) async {
+        if (path != pdfPath) return previousReader(path);
+        reads++;
+        return const [];
+      };
+      final books = seedLibrary(
+        textTitles: const ['תענית-א', 'תענית-ב'],
+        pdfPath: pdfPath,
+      );
+
+      expect(
+        await textToPdfPage(books.texts[0], 20, pdfBook: books.pdf),
+        isNull,
+      );
+      expect(reads, 1);
+
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(await anchorRow(pdfPath), isNull);
+
+      expect(
+        await textToPdfPage(books.texts[1], 20, pdfBook: books.pdf),
+        isNull,
+      );
+      expect(reads, 2, reason: 'הקריאה השנייה אמורה לחזור לקובץ');
+      expect(await anchorRow(pdfPath), isNull);
+    });
+
+    test('רשומה ריקה שנשמרה בעבר — נפסלת והעוגנים נבנים מחדש', () async {
+      // ה-touch בקריאה מרענן את ה-accessedAt, ולכן רשומה ריקה מורעלת לא
+      // הייתה נגרפת גם ב-TTL — חובה לפסול אותה בקריאה.
+      final pdfPath = p.join(tempDir.path, 'poisoned-empty.pdf');
+      await writePdf(pdfPath, bookmarks: _pdfBookmarks);
+      final stat = await File(pdfPath).stat();
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await (await CacheDatabaseHolder.instance.repository)
+          .upsertPdfAnchorCacheEntry(
+            PdfAnchorCacheEntry(
+              filePath: pdfPath,
+              fileSize: stat.size,
+              lastModified: stat.modified.millisecondsSinceEpoch,
+              anchorsJson: PdfAnchorCacheEntry.encode(const []),
+              createdAt: now,
+              accessedAt: now,
+            ),
+          );
+
+      final books = seedLibrary(
+        textTitles: const ['מגילה-א'],
+        pdfPath: pdfPath,
+      );
+
+      expect(await textToPdfPage(books.texts[0], 20, pdfBook: books.pdf), 2);
+
+      final rebuilt = await waitFor(() async {
+        final row = await anchorRow(pdfPath);
+        return row != null && row.decodeAnchors().length == 3 ? row : null;
+      });
+      expect(rebuilt, isNotNull, reason: 'הרשומה הריקה אמורה להיבנות מחדש');
+    });
+
     test('outline ריק מהטאב — הסימניות נקראות מהקובץ', () async {
       // ה-outline של הטאב נטען ברקע; לחיצה לפני שהגיע חייבת ליפול לקובץ.
       final pdfPath = p.join(tempDir.path, 'tab-outline-empty.pdf');

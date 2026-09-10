@@ -94,12 +94,16 @@ Future<List<({int page, String ref})>> _getPdfAnchors(String pdfPath) async {
         if (matchesCurrentFile) {
           try {
             final anchors = entry.decodeAnchors();
-            unawaited(
-              repository
-                  .touchPdfAnchorCacheEntry(pdfPath, _nowMillis())
-                  .catchError((_) {}),
-            );
-            return anchors;
+            // רשומה ריקה שנשמרה לפני התיקון — נמחקת ונבנית מחדש, אחרת
+            // ה-touch מרענן את ה-TTL והכשל החולף נשאר לצמיתות.
+            if (anchors.isNotEmpty) {
+              unawaited(
+                repository
+                    .touchPdfAnchorCacheEntry(pdfPath, _nowMillis())
+                    .catchError((_) {}),
+              );
+              return anchors;
+            }
           } on FormatException {
             // רשומה מגרסת סכמה ישנה — self-healing: מחיקה ובנייה מחדש.
           }
@@ -128,8 +132,9 @@ Future<List<({int page, String ref})>> _getPdfAnchors(String pdfPath) async {
     }
   }
 
-  // גם רשימה ריקה נשמרת — PDF ללא outline לא ייפתח וייסרק מחדש בכל המרה.
-  if (repository != null && metadata != null) {
+  // רשימה ריקה אינה נשמרת: כשל חולף בקריאת ה-outline היה נקבע לצמיתות
+  // (המפתח הוא נתיב+גודל+mtime) והספר לא היה נפתח לעולם במיקום המבוקש.
+  if (anchors.isNotEmpty && repository != null && metadata != null) {
     unawaited(_savePdfAnchors(repository, pdfPath, metadata, anchors));
   }
   return anchors;
@@ -254,6 +259,14 @@ PageMap _buildPageMap(
   if (map.pdfPages.isNotEmpty) {
     debugPrint(
       '🗺️ [PDF-DEBUG] First 5 matches: ${List.generate(map.pdfPages.length > 5 ? 5 : map.pdfPages.length, (i) => "pdf${map.pdfPages[i]}→txt${map.textIndices[i]}").join(", ")}',
+    );
+  }
+  // הבחנה בלוג: TOC ריק אינו "אין התאמה" אלא ספר בלי תוכן עניינים או כשל
+  // בטעינתו — שני המצבים מחזירים null לקורא.
+  if (anchorsText.isEmpty) {
+    debugPrint(
+      '🗺️ [PDF-DEBUG] ⚠️ EMPTY TOC for "${pdf.title}" — no text anchors to '
+      'match (TOC missing or failed to load), not a matching failure',
     );
   }
   if (anchorsPdf.isNotEmpty &&
