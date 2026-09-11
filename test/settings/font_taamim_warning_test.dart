@@ -42,13 +42,13 @@ void main() {
   testWidgets('גופן ללא טעמים מסומן באזהרה בשדה הסגור', (tester) async {
     await pumpTab(tester, 'Rubik');
 
-    expect(find.byIcon(FluentIcons.warning_24_regular), findsOneWidget);
+    expect(find.byIcon(FluentIcons.info_16_regular), findsOneWidget);
   });
 
   testWidgets('גופן תומך אינו מסומן', (tester) async {
     await pumpTab(tester, 'FrankRuhlCLM');
 
-    expect(find.byIcon(FluentIcons.warning_24_regular), findsNothing);
+    expect(find.byIcon(FluentIcons.info_16_regular), findsNothing);
   });
 }
 
