@@ -594,6 +594,11 @@ bool _wordPairMatches(String queryWord, String textWord) {
   return _editDistanceAtMost(queryWord, textWord, allowed);
 }
 
+/// [bookSearchWordMatchesFuzzy] על מילה בודדת. מסננת אוצר-המילים של איתור
+/// מקורות היא קבוצת-על רק כל עוד ההתאמה כאן נשארת בין מילה למילה.
+bool bookSearchWordPairMatches(String queryWord, String textWord) =>
+    _wordPairMatches(queryWord, textWord);
+
 /// התאמת מילת שאילתה לטקסט שלם (כותרת/מחבר מנורמלים) עם סלחנות לשגיאות כתיב.
 /// משמשת גם את תחביר `@` בחיפוש (ראה `parseCategoryQuery`).
 bool bookSearchWordMatchesFuzzy(String queryWord, String text) {

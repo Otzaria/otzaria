@@ -706,6 +706,14 @@ class FindRefRepository {
           primaryHits.add(hit);
           continue;
         }
+        // התאמה מקורבת מצטרפת כמשנית בלבד, ובלי דרישת רצף-הטוקנים שהיא
+        // נכשלת בה מעצם היותה מקורבת. אסור שתכריע אילו טוקנים הם שם הספר —
+        // "חדושי הלכות" היה מקצץ אז את הטוקנים הלא-נכונים.
+        if (hit.matchRank == ReferenceBooksCache.fuzzyMatchRank) {
+          secondaryHits.add(hit);
+          secondaryPhraseTokenCount[hit] = n;
+          continue;
+        }
         if (hit.matchRank >= 4) {
           if (hit.matchRank == 4 && hit.acronymTailIsTitleWords) {
             joinablePrefixHits.add(hit);
