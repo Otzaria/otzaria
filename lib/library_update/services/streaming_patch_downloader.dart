@@ -208,10 +208,8 @@ Future<String> _sha256OfFile(
     onProgress?.call(done, total);
     if (isCancelled != null && isCancelled()) cancelPort?.send(null);
   });
-  // הסגור נשלח ל-isolate — מותר לו להחזיק SendPort בלבד, לא את ה-ReceivePort.
-  final progressSink = progressPort.sendPort;
   try {
-    final hash = await Isolate.run(() => _hashWorker(path, progressSink));
+    final hash = await _hashInIsolate(path, progressPort.sendPort);
     // קובץ קטן מסתיים לפני דיווח הביניים הראשון — הביטול נבדק גם בסיום.
     if (hash == null || (isCancelled != null && isCancelled())) {
       throw const PatchDownloadCancelled();
@@ -223,6 +221,11 @@ Future<String> _sha256OfFile(
     progressPort.close();
   }
 }
+
+// מבודד מ-[_sha256OfFile]: הסגור לוכד את כל ה-scope של המתודה, ושם
+// onProgress/isCancelled גוררים את ה-bloc הלא-sendable ל-spawn.
+Future<String?> _hashInIsolate(String path, SendPort progress) =>
+    Isolate.run(() => _hashWorker(path, progress));
 
 /// גוף ה-isolate: מחשב sha256, מדווח כל [_kVerifyReportEvery] בייטים, ועוצר
 /// (מחזיר null) כשמגיעה הודעת ביטול על ה-port שהוא שולח בתחילה.
