@@ -22,6 +22,15 @@ abstract class ToolsMessages {
       'קלט לא תקין. יש להזין אותיות עבריות או מספרים בלבד.';
   static String gematriaSearchError(Object error) => 'שגיאה בחיפוש: $error';
 
+  // ── תיקון קוראים ──
+  static String tikkunLoadError(Object error) => 'שגיאה בטעינת התיקון: $error';
+  static const String tikkunNoData = 'אין נתונים להצגה';
+  static const String tikkunNoHaftarahForNusach = 'אין הפטרה במנהג זה';
+  static const String tikkunExportNoContent = 'אין תוכן לייצוא';
+  static String tikkunExportSaved(String path) => 'הקובץ נשמר: $path';
+  static String tikkunExportFailed(Object error) => 'ייצוא ה-PDF נכשל: $error';
+  static String tikkunPrintFailed(Object error) => 'ההדפסה נכשלה: $error';
+
   // ── שמור וזכור ──
   static String bookRemovedFromTracking(String bookName) =>
       'הספר "$bookName" הוסר מרשימת המעקב';

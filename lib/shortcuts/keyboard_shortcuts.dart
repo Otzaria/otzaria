@@ -108,20 +108,14 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     LogicalKeyboardKey.numpad9.keyId: 9,
   };
 
-  /// בודק אם הפוקוס הנוכחי נמצא על שדה טקסט — כל widget שה-State שלו מקבל
-  /// קלט מהמקלדת (EditableText, וגם עורך Quill של ההערות; issue #1302).
+  /// בודק אם הפוקוס הנוכחי נמצא על שדה טקסט
   bool _isEditing() {
-    final context = FocusManager.instance.primaryFocus?.context;
-    if (context == null) return false;
-    if (context is StatefulElement && context.state is TextInputClient) {
-      return true;
-    }
-    var found = false;
-    context.visitAncestorElements((element) {
-      found = element is StatefulElement && element.state is TextInputClient;
-      return !found;
-    });
-    return found;
+    final focusNode = FocusManager.instance.primaryFocus;
+    if (focusNode == null || focusNode.context == null) return false;
+    // בדיקה מעמיקה יותר - האם הוידג'ט שמחזיק את הפוקוס הוא צאצא של EditableText
+    return focusNode.context!.widget is EditableText ||
+        focusNode.context!.findAncestorWidgetOfExactType<EditableText>() !=
+            null;
   }
 
   /// מטפל באירועי מקלדת ברמה הגלובלית - עובד גם כשיש TextField עם focus

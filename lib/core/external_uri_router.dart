@@ -268,6 +268,7 @@ class ExternalUriRouter {
     'notes': 'builtin.notes',
     'shamor_zachor': 'builtin.shamor_zachor',
     'measurements': 'builtin.measurements',
+    'tikkun_korim': 'builtin.tikkun_korim',
     'aramaic_dictionary': 'builtin.aramaic_dictionary',
     'acronyms_dictionary': 'builtin.acronyms_dictionary',
   };

@@ -882,6 +882,27 @@ class ShortcutsSettingsTab extends StatelessWidget {
           ]),
         ),
 
+        kSettingsCardSpacing,
+
+        // ── תיקון קוראים ──────────────────────────────────────────────
+        SettingsCard(
+          title: context.settingsText('תיקון קוראים'),
+          children: _onlyConfigured([
+            _ShortcutTile(
+              settingKey: ShortcutValidator.tikkunPrevPageKey,
+              label: context.settingsText('תיקון קוראים: העמוד הקודם'),
+              icon: FluentIcons.arrow_previous_24_regular,
+              allShortcuts: _shortcutsList,
+            ),
+            _ShortcutTile(
+              settingKey: ShortcutValidator.tikkunNextPageKey,
+              label: context.settingsText('תיקון קוראים: העמוד הבא'),
+              icon: FluentIcons.arrow_next_24_regular,
+              allShortcuts: _shortcutsList,
+            ),
+          ]),
+        ),
+
         // ── פתיחת כלים (אופציונלי) — מוצג רק כשהוגדר קיצור לכלי אחד לפחות ──
         if (openToolTiles.isNotEmpty) ...[
           kSettingsCardSpacing,

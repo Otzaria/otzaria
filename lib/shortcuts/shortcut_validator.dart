@@ -24,6 +24,10 @@ class ShortcutValidator {
   /// דיווח על טעות בספר — פועל רק כשיש בחירה בטקסט או קטע נבחר.
   static const String reportErrorKey = 'key-shortcut-report-error';
 
+  /// דפדוף בין עמודי תיקון קוראים.
+  static const String tikkunPrevPageKey = 'key-shortcut-tikkun-prev-page';
+  static const String tikkunNextPageKey = 'key-shortcut-tikkun-next-page';
+
   static const Set<Set<String>> _compatibleShortcutGroups = {
     {'key-shortcut-add-note', 'key-shortcut-calendar-toggle-events'},
     {
@@ -197,6 +201,8 @@ class ShortcutValidator {
     'key-shortcut-calendar-create-event',
     'key-shortcut-calendar-toggle-view',
     'key-shortcut-shamor-zachor-cycle-filter',
+    tikkunPrevPageKey,
+    tikkunNextPageKey,
     'key-shortcut-toggle-nav-pane',
     'key-shortcut-toggle-commentators-pane',
     'key-shortcut-open-commentators-tab',
@@ -266,6 +272,8 @@ class ShortcutValidator {
     'key-shortcut-calendar-create-event': 'ctrl+shift+n',
     'key-shortcut-calendar-toggle-view': 'ctrl+shift+e',
     'key-shortcut-shamor-zachor-cycle-filter': 'ctrl+s',
+    tikkunPrevPageKey: 'ctrl+pageup',
+    tikkunNextPageKey: 'ctrl+pagedown',
     'key-shortcut-toggle-nav-pane': 'ctrl+shift+l',
     'key-shortcut-toggle-commentators-pane': 'ctrl+shift+c',
     'key-shortcut-open-commentators-tab': '',
@@ -325,6 +333,8 @@ class ShortcutValidator {
     'key-shortcut-calendar-create-event': 'לוח שנה: יצירת אירוע',
     'key-shortcut-calendar-toggle-view': 'לוח שנה: מעבר בין תצוגות',
     'key-shortcut-shamor-zachor-cycle-filter': 'שמור וזכור: מעבר בין הסינונים',
+    tikkunPrevPageKey: 'תיקון קוראים: העמוד הקודם',
+    tikkunNextPageKey: 'תיקון קוראים: העמוד הבא',
     'key-shortcut-toggle-nav-pane': 'פתח/סגור חלונית ניווט',
     'key-shortcut-toggle-commentators-pane': 'פתח/סגור חלונית מפרשים',
     'key-shortcut-open-commentators-tab': 'פתח כרטיסיית מפרשים',
