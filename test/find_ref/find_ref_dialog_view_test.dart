@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -47,6 +49,41 @@ class _FakeRepository implements FindRefRepository {
   dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
 
+/// מחזיר את התוצאות הראשונות מיד, ועוצר את החיפוש הבא עד שה-gate נפתח —
+/// כדי שאפשר יהיה לבדוק מה מוצג בזמן שהשאילתה החדשה עוד רצה.
+class _GatedRepository implements FindRefRepository {
+  _GatedRepository({required this.first, required this.second});
+
+  final List<DbReferenceResult> first;
+  final List<DbReferenceResult> second;
+  final Completer<void> gate = Completer<void>();
+  int calls = 0;
+
+  @override
+  Future<List<DbReferenceResult>> findRefs(
+    String ref, {
+    bool includePersonalBooks = false,
+  }) async {
+    if (calls++ == 0) return first;
+    await gate.future;
+    return second;
+  }
+
+  @override
+  Future<List<DbCommentatorEntry>> getCommentatorsForResult(
+    DbReferenceResult ref,
+  ) async => const [];
+
+  @override
+  Future<void> prewarmGlobalAltToc() async {}
+
+  @override
+  void dispose() {}
+
+  @override
+  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
+}
+
 DbReferenceResult _ref(String reference, {String path = 'תנ"ך, תורה'}) =>
     DbReferenceResult(
       title: 'בראשית',
@@ -65,6 +102,7 @@ Future<void> _pumpDialog(
   Size? screenSize,
   double textScale = 1.0,
   Object? error,
+  FindRefRepository? repository,
 }) async {
   if (screenSize != null) {
     tester.view.physicalSize = screenSize;
@@ -73,7 +111,7 @@ Future<void> _pumpDialog(
   }
   FocusRepository().findRefSearchController.clear();
   final bloc = FindRefBloc(
-    findRefRepository: _FakeRepository(results, error: error),
+    findRefRepository: repository ?? _FakeRepository(results, error: error),
   );
   addTearDown(bloc.close);
 
@@ -423,6 +461,63 @@ void main() {
       final panel = tester.getRect(find.byKey(tourFindRefDialogTargetKey));
       expect(panel.height, lessThanOrEqualTo(720 - 300));
       expect(find.text('סגור'), findsOneWidget);
+    });
+
+    testWidgets('תוצאות קודמות נשארות על המסך בזמן שהשאילתה החדשה רצה', (
+      tester,
+    ) async {
+      final repo = _GatedRepository(
+        first: [_ref('בראשית פרק א')],
+        second: [_ref('בראשית פרק ב')],
+      );
+      await _pumpDialog(tester, repository: repo);
+
+      await tester.enterText(find.byType(TextField), 'בראשית');
+      await tester.pump(_pastDebounce);
+      expect(find.text('בראשית פרק א'), findsOneWidget);
+
+      // הקלדה נוספת — השאילתה החדשה תקועה ב-gate.
+      await tester.enterText(find.byType(TextField), 'בראשית פרק');
+      await tester.pump(_pastDebounce);
+
+      expect(
+        find.text('בראשית פרק א'),
+        findsOneWidget,
+        reason: 'הרשימה הקודמת אינה נעלמת בזמן טעינה',
+      );
+      expect(
+        find.byType(CircularProgressIndicator),
+        findsOneWidget,
+        reason: 'חיווי עבודה שקט ליד מספר התוצאות',
+      );
+
+      repo.gate.complete();
+      await tester.pump(_pastDebounce);
+      expect(find.text('בראשית פרק ב'), findsOneWidget);
+      expect(find.text('בראשית פרק א'), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets('מקום כפתור המפרשים שמור מהפריים הראשון', (tester) async {
+      await _pumpDialog(tester, results: [_ref('בראשית פרק א')]);
+      await tester.enterText(find.byType(TextField), 'בראשית');
+      await tester.pump(_pastDebounce);
+
+      // ה-fake מחזיר רשימת מפרשים ריקה, ולכן הכפתור לא יופיע לעולם — ובכל
+      // זאת מקומו שמור, כדי שהופעתו בשורה אמיתית לא תזיז את הטקסט.
+      final trailing = find.descendant(
+        of: find.byType(ListTile),
+        matching: find.byType(Visibility),
+      );
+      expect(trailing, findsOneWidget);
+      final visibility = tester.widget<Visibility>(trailing);
+      expect(visibility.visible, isFalse);
+      expect(visibility.maintainSize, isTrue);
+      expect(
+        tester.getSize(trailing).width,
+        greaterThan(0),
+        reason: 'המקום נשמר גם כשאין מפרשים',
+      );
     });
 
     testWidgets('מקלדת פתוחה בטלפון לרוחב — שדה ההקלדה נשאר, בלי חריגה', (

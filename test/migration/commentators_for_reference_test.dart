@@ -378,6 +378,81 @@ void main() {
       },
     );
 
+    test(
+      'כותרות רמה 1 בלבד (שולחן ערוך) + sourceLineId=0 → ריק',
+      () async {
+        final catId = await createCategory();
+        final bookId = await createBook(catId, 'שולחן ערוך, אורח חיים');
+        final lines = await insertLinesAndGetIds(bookId, [
+          'סימן א',
+          'סימן ב',
+        ]);
+        await insertToc(
+          bookId: bookId,
+          lineIndex: 0,
+          text: 'סימן א',
+          level: 1,
+        );
+        await insertToc(
+          bookId: bookId,
+          lineIndex: 1,
+          text: 'סימן ב',
+          level: 1,
+        );
+        final rashi = await buildRashiBook();
+        await insertCommentaryLink(
+          sourceBookId: bookId,
+          sourceLineId: lines[0],
+          targetBookId: rashi.bookId,
+          targetLineId: rashi.lineIds[0],
+        );
+
+        final rows = await repository.getCommentatorsForReference(
+          bookId: bookId,
+          bookTitle: 'שולחן ערוך, אורח חיים',
+          sourceLineId: 0,
+          startLineIndex: 0,
+          level: 1,
+        );
+
+        expect(
+          rows,
+          isEmpty,
+          reason: 'סימנים ברמה 1 הם כותרות פנימיות — אין לסרוק את כל הספר',
+        );
+      },
+    );
+
+    test('כותרת פנימית אחת + sourceLineId=0 → כל מפרשי הספר', () async {
+      final catId = await createCategory();
+      final bookId = await createBook(catId, 'מסילת ישרים');
+      final lines = await insertLinesAndGetIds(bookId, ['פתיחה', 'פרק']);
+      await insertToc(
+        bookId: bookId,
+        lineIndex: 0,
+        text: 'מסילת ישרים',
+        level: 1,
+      );
+      final rashi = await buildRashiBook();
+      await insertCommentaryLink(
+        sourceBookId: bookId,
+        sourceLineId: lines[1],
+        targetBookId: rashi.bookId,
+        targetLineId: rashi.lineIds[1],
+      );
+
+      final rows = await repository.getCommentatorsForReference(
+        bookId: bookId,
+        bookTitle: 'מסילת ישרים',
+        sourceLineId: 0,
+        startLineIndex: 0,
+        level: 1,
+      );
+
+      expect(rows, hasLength(1));
+      expect(rows.first['targetBookTitle'], 'רש"י על ברכות');
+    });
+
     test('ספר ללא כותרות פנימיות + sourceLineId=0 → כל מפרשי הספר', () async {
       // ספר מקור קצר ללא TOC פנימי.
       final catId = await createCategory();

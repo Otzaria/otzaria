@@ -14,6 +14,7 @@ import 'package:otzaria/find_ref/bloc/find_ref_event.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_state.dart';
 import 'package:otzaria/find_ref/find_ref_recent_store.dart';
 import 'package:otzaria/find_ref/repository/db_reference_result.dart';
+import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/core/focus_repository.dart';
@@ -196,6 +197,10 @@ class _FindRefDialogState extends State<FindRefDialog> {
   late bool _suggestionsAreRecent;
 
   int _selectedIndex = 0;
+
+  /// התוצאות שמוצגות כרגע. נשמרות כדי שהקלדה של אות נוספת לא תרוקן את
+  /// הרשימה ותחזיר אותה — הרשימה הקודמת נשארת עד שהחדשה מגיעה.
+  List<DbReferenceResult> _shownRefs = const <DbReferenceResult>[];
   bool _includePersonalBooks =
       Settings.getValue<bool>(
         FindRefDialog._keyIncludePersonalBooks,
@@ -347,6 +352,10 @@ class _FindRefDialogState extends State<FindRefDialog> {
         setState(() {
           _commentatorsByRef[key] = entries;
         });
+      } on FindRefQueryCancelled {
+        // הקלדה חדשה זרקה את הטעינה מהתור. מסירים את ה-sentinel כדי שהשורה
+        // תנסה שוב — אחרת האייקון לא היה מופיע יותר לתוצאה הזו.
+        _commentatorsByRef.remove(key);
       } catch (e) {
         debugPrint('[FindRef] commentators load failed: $e');
         if (!mounted) return;
@@ -793,9 +802,10 @@ class _FindRefDialogState extends State<FindRefDialog> {
   /// כרטיס ההקלדה: שדה המקור, מתג הספרים האישיים ומספר התוצאות.
   Widget _buildQueryCard(FindRefState state, bool isShort) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isLoading = state is FindRefLoading;
     final refs = state is FindRefSuccess
         ? state.refs
-        : const <DbReferenceResult>[];
+        : (isLoading ? _shownRefs : const <DbReferenceResult>[]);
     return Container(
       padding: EdgeInsets.all(isShort ? 12 : 16),
       decoration: BoxDecoration(
@@ -838,6 +848,12 @@ class _FindRefDialogState extends State<FindRefDialog> {
             runSpacing: 4,
             children: [
               _buildPersonalBooksToggle(),
+              if (isLoading)
+                const SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
               if (refs.isNotEmpty)
                 Text(
                   refs.length == 1
@@ -1022,13 +1038,20 @@ class _FindRefDialogState extends State<FindRefDialog> {
       // בלי ListView אין מי שישלח notification, ולכן בלי איפוס יזום החץ היה
       // נשאר דלוק מהחיפוש הקודם מעל spinner או מצב ריק.
       listener: (context, state) {
-        final hasListView = state is FindRefSuccess && state.refs.isNotEmpty;
-        if (!hasListView && _hasMoreBelow.value) {
+        if (state is FindRefSuccess) {
+          _shownRefs = state.refs;
+        } else if (state is! FindRefLoading) {
+          _shownRefs = const <DbReferenceResult>[];
+        }
+        if (_shownRefs.isEmpty && _hasMoreBelow.value) {
           _hasMoreBelow.value = false;
         }
       },
       builder: (context, state) {
         if (state is FindRefLoading) {
+          if (_shownRefs.isNotEmpty) {
+            return _buildResultsList(_shownRefs, horizontalPadding);
+          }
           return const _DelayedLoader();
         }
         if (state is FindRefNotReady) {
@@ -1149,12 +1172,23 @@ class _FindRefDialogState extends State<FindRefDialog> {
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ),
-          trailing: showButton
-              ? IconButton(
-                  key: menuButtonKey,
-                  icon: const Icon(FluentIcons.library_24_regular),
-                  tooltip: context.settingsText('הצג מפרשים זמינים'),
-                  onPressed: () => _showCommentatorsMenu(menuButtonKey, cached),
+          // רשימת המפרשים נטענת אחרי הרינדור, ולכן הופעת הכפתור הייתה מצמצמת
+          // את רוחב הכותרת ומזיזה את הטקסט. השורה שומרת את מקומו מהפריים
+          // הראשון לפי `eligible`, שידוע סינכרונית.
+          trailing: eligible
+              ? Visibility(
+                  visible: showButton,
+                  maintainSize: true,
+                  maintainAnimation: true,
+                  maintainState: true,
+                  child: IconButton(
+                    key: menuButtonKey,
+                    icon: const Icon(FluentIcons.library_24_regular),
+                    tooltip: context.settingsText('הצג מפרשים זמינים'),
+                    onPressed: showButton
+                        ? () => _showCommentatorsMenu(menuButtonKey, cached)
+                        : null,
+                  ),
                 )
               : null,
           onTap: () {

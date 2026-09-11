@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -98,6 +99,23 @@ void main() {
     expect(verify.first, (0, uncompressed.length));
     expect(verify.last, (uncompressed.length, uncompressed.length));
     expect(verify.every((e) => e.$2 == uncompressed.length), isTrue);
+  });
+
+  // ב-bloc ה-callbacks לוכדים Emitter עם Completer — אסור שייגררו ל-isolate.
+  test('callbacks שלוכדים אובייקט לא-sendable לא מפילים את האימות', () async {
+    final extractedPath = p.join(tmp.path, 'patch-v1-v2.db');
+    File(extractedPath).writeAsBytesSync(uncompressed, flush: true);
+    final unsendable = Completer<void>();
+
+    final path = await buildNoNetwork().downloadAndExtract(
+      patchFile: entry(),
+      downloadUrl: 'https://x/patch-v1-v2.db.zst',
+      destDir: tmp,
+      onVerifyProgress: (d, t) => unsendable.isCompleted,
+      isCancelled: () => unsendable.isCompleted,
+    );
+
+    expect(path, extractedPath);
   });
 
   test(

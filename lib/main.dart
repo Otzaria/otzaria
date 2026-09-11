@@ -1625,7 +1625,13 @@ Future<void>? _loadCertsFuture;
 Future<void> loadCerts() => _loadCertsFuture ??= _loadCerts();
 
 Future<void> _loadCerts() async {
-  final certs = ['assets/ca/netfree_cas.pem'];
+  // נטפרי עברו לשורש אחיד (גירסה 1 ואז X2), אבל ספקים שטרם הועברו עדיין
+  // חותמים בתעודה הישנה לכל ספק — לכן טוענים את שלוש הקבוצות.
+  final certs = [
+    'assets/ca/netfree_cas.pem',
+    'assets/ca/netfree_root_ca_unified_v1.pem',
+    'assets/ca/netfree_root_ca_x2.pem',
+  ];
   for (var cert in certs) {
     final certBytes = await rootBundle.load(cert);
     SecurityContext.defaultContext.setTrustedCertificatesBytes(

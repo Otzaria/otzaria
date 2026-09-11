@@ -69,6 +69,55 @@ const _rashiBereshitRabba = (
 void main() {
   tearDown(resetSeededLibrary);
 
+  group('findRefs — כתיב מלא וחסר (issue #1310)', () {
+    test('"רמב״ם תפלה" מחזיר גם את הלכות תפילה, לא רק את סדר התפילה', () async {
+      // ל"סדר התפילה" יש כינוי בכתיב חסר ("רמב״ם תפלה"), ולהלכות תפילה רק
+      // כינויים בכתיב מלא — ולכן הכתיב החסר החזיר את הספר הלא נכון לבדו.
+      seedLibrary(const [_rambamTefila, _rambamSederTefila]);
+      final titles = (await buildFindRefRepo().findRefs(
+        'רמב״ם תפלה',
+      )).map((r) => r.title).toList();
+
+      expect(titles, contains('משנה תורה, הלכות תפילה וברכת כהנים'));
+    });
+
+    test('"חדושי" מוצא ספר שכתוב "חידושי", ולהיפך', () async {
+      seedLibrary(const [
+        (id: 9001, title: 'חידושי הלכות', acronyms: []),
+        (id: 9002, title: 'חדושי אגדות', acronyms: []),
+      ]);
+      final repo = buildFindRefRepo();
+      expect(
+        (await repo.findRefs('חדושי')).map((r) => r.title),
+        contains('חידושי הלכות'),
+      );
+      expect(
+        (await buildFindRefRepo().findRefs('חידושי')).map((r) => r.title),
+        contains('חדושי אגדות'),
+      );
+    });
+
+    test(
+      'אותה מילה אחרי טעינה מחדש של הספרייה מוצאת את הספרים החדשים',
+      () async {
+        // מסננת אוצר-המילים ממטמנת את הספרים לכל מילת שאילתה. מטמון ששרד
+        // טעינה מחדש היה משבית את ההתאמה המקורבת בשקט.
+        seedLibrary(const [(id: 9001, title: 'חידושי הלכות', acronyms: [])]);
+        expect(
+          (await buildFindRefRepo().findRefs('חדושי')).map((r) => r.title),
+          contains('חידושי הלכות'),
+        );
+
+        resetSeededLibrary();
+        seedLibrary(const [(id: 9002, title: 'חידושי אגדות', acronyms: [])]);
+        expect(
+          (await buildFindRefRepo().findRefs('חדושי')).map((r) => r.title),
+          contains('חידושי אגדות'),
+        );
+      },
+    );
+  });
+
   group('findRefs — ראש-תיבות שהוא תחילית של ראש-תיבות ארוך יותר', () {
     test('"רמב״ם תפילה" מחזיר גם את הלכות תפילה וברכת כהנים וגם את סדר '
         'התפילה', () async {

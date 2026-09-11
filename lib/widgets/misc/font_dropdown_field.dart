@@ -142,7 +142,7 @@ class FontDropdownField extends StatelessWidget {
   }
 }
 
-/// שם הגופן, ולצידו סימן אזהרה כשהגופן אינו ממפה את טעמי המקרא.
+/// שם הגופן, ולצידו סימן מידע כשהגופן אינו ממפה את טעמי המקרא.
 class _FontEntryLabel extends StatelessWidget {
   final Widget preview;
   final bool supportsTaamim;
@@ -162,9 +162,9 @@ class _FontEntryLabel extends StatelessWidget {
             'הגופן אינו תומך בטעמי המקרא; בטקסט עם טעמים יוצג גופן ברירת המחדל',
           ),
           child: Icon(
-            FluentIcons.warning_24_regular,
+            FluentIcons.info_16_regular,
             size: 16,
-            color: Theme.of(context).colorScheme.error,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
       ],

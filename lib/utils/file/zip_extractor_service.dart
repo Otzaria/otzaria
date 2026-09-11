@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:archive/archive_io.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:otzaria/utils/file/archive_extractor.dart';
 import 'package:otzaria/utils/text/byte_size_text.dart';
 import 'package:path/path.dart' as path;
@@ -89,7 +90,7 @@ class ZipExtractorService {
             0.1,
             'קורא קובץ דחוס (${formatMegabytesLtr(fileSize)})...',
           );
-          await _extractManuallyInIsolate(zipFile.path, targetDir, onProgress);
+          await extractManuallyInIsolate(zipFile.path, targetDir, onProgress);
         }
 
         onProgress?.call(0.95, 'משלים חילוץ...');
@@ -148,7 +149,8 @@ class ZipExtractorService {
 
   /// המסלול החלופי במלואו — קריאה, פענוח ופרישה — ב-isolate נפרד. פענוח
   /// ה-ZIP ופרישת הקבצים סינכרוניים, ועל isolate שיש בו UI הם מקפיאים אותו.
-  static Future<void> _extractManuallyInIsolate(
+  @visibleForTesting
+  static Future<void> extractManuallyInIsolate(
     String zipPath,
     String targetDir,
     Function(double progress, String message)? onProgress,
@@ -159,16 +161,23 @@ class ZipExtractorService {
         onProgress?.call(message[0] as double, message[1] as String);
       }
     });
-    final sendPort = progressPort.sendPort;
     try {
-      await Isolate.run(
-        () => _readDecodeAndExtract(zipPath, targetDir, sendPort),
-      );
+      await _runExtractIsolate(zipPath, targetDir, progressPort.sendPort);
     } finally {
       await sub.cancel();
       progressPort.close();
     }
   }
+
+  // מבודד מ-[extractManuallyInIsolate]: הסגור לוכד את כל ה-scope, ושם
+  // onProgress גורר את ה-State של הדיאלוג הלא-sendable ל-spawn.
+  static Future<void> _runExtractIsolate(
+    String zipPath,
+    String targetDir,
+    SendPort progressPort,
+  ) => Isolate.run(
+    () => _readDecodeAndExtract(zipPath, targetDir, progressPort),
+  );
 
   static Future<void> _readDecodeAndExtract(
     String zipPath,

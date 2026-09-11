@@ -45,5 +45,6 @@ FindRefRepository buildFindRefRepository() {
         (await FindRefDbIsolate.instance()).resolveLineRefs(bookIds, refKey),
     getBookEra: (bookTitle) async =>
         (await FindRefDbIsolate.instance()).getBookEra(bookTitle),
+    beginSearchEpoch: FindRefDbIsolate.beginSearchEpochIfRunning,
   );
 }

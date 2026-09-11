@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/windowing/window_role.dart';
@@ -8,6 +9,8 @@ import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/cache_database_holder.dart';
+import 'package:otzaria/data/repository/data_repository.dart'
+    show bookSearchWordMatchesFuzzy, bookSearchWordPairMatches;
 import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
@@ -40,6 +43,17 @@ class ReferenceBooksCache {
 
   // Normalized titles cache (computed from BooksCache)
   final Map<int, String> _normalizedTitles = <int, String>{};
+
+  /// כל המילים השונות שבכותרות ובכינויים, ומזהי הספרים לכל מילה. הספרייה
+  /// כולה מכילה ~6,900 מילים שונות בלבד, ולכן ההתאמה המקורבת רצה עליהן פעם
+  /// אחת לכל מילת שאילתה במקום על ~190,000 המילים שבספרים.
+  final List<String> _fuzzyVocabulary = <String>[];
+  final List<Uint32List> _fuzzyVocabularyBooks = <Uint32List>[];
+
+  /// מטמון חסום של המסננת לפי מילת שאילתה: `findRefs` קורא ל-[search] עד
+  /// ארבע פעמים על אותה שאילתה, וההקלדה הבאה חוזרת על כל המילים חוץ מהאחרונה.
+  final Map<String, Set<int>> _fuzzyWordCandidates = <String, Set<int>>{};
+  static const int _fuzzyWordCandidatesLimit = 128;
 
   // PDF books from file system (not in DB) — stored as (normalizedTitle, hit)
   final List<(String, ReferenceBookHit)> _fsPdfBooks =
@@ -191,6 +205,9 @@ class ReferenceBooksCache {
         ..addAll(localFsPdfBooks);
       _categoryPaths.clear();
 
+      if (!await _prewarmFuzzyVocabulary(localNormalizedTitles, myGen)) return;
+      if (myGen != _generation) return;
+
       // Pre-warm category paths **לפני** סימון הקאש כ-loaded — דירוג ה-FindRef
       // מסתמך על resolver סינכרוני שיחזיר null אם הקאש עוד לא מוכן, ואז
       // כל הסיווג "ספר יסוד" מבוטל בחיפוש הראשון. שאילתה אחת + walk בזיכרון
@@ -248,6 +265,9 @@ class ReferenceBooksCache {
       // retry ב-warmUp הבא, במקום קאש ריק שמחזיר "לא נמצא ספר" לכל ה-session.
       if (myGen == _generation) {
         _normalizedTitles.clear();
+        _fuzzyVocabulary.clear();
+        _fuzzyVocabularyBooks.clear();
+        _fuzzyWordCandidates.clear();
         _fsPdfBooks.clear();
         _categoryPaths.clear();
         _isLoaded = false;
@@ -258,6 +278,9 @@ class ReferenceBooksCache {
   void clear() {
     _generation++;
     _normalizedTitles.clear();
+    _fuzzyVocabulary.clear();
+    _fuzzyVocabularyBooks.clear();
+    _fuzzyWordCandidates.clear();
     _fsPdfBooks.clear();
     _pdfOutlineCache.clear();
     _categoryPaths.clear();
@@ -531,6 +554,9 @@ class ReferenceBooksCache {
     _categoryPaths
       ..clear()
       ..addAll(categoryPaths);
+    final booksByWord = <String, List<int>>{};
+    _collectFuzzyWords(booksByWord, normalizedTitles.entries);
+    _installFuzzyVocabulary(booksByWord);
     _isLoaded = true;
   }
 
@@ -556,6 +582,11 @@ class ReferenceBooksCache {
     // מסננת הביגרמים חוסכת את המעבר על כינויי כל הספרים בכל הקלדה — היא
     // קבוצת-על, ולכן הלולאה שמתחתיה נשארת הפוסקת היחידה על הדירוג.
     final acronymCandidates = AcronymsCache.instance.candidatesFor(q);
+
+    // מסננת אוצר-המילים של ההתאמה המקורבת. בלעדיה כל הקלדה הייתה מריצה
+    // מרחק-עריכה על הכותרת ועל כל כינוי של כל ספר שלא הותאם מילולית.
+    final queryWords = q.split(' ');
+    final fuzzyCandidates = _fuzzyCandidateBooks(queryWords);
 
     for (final book in BooksCache.instance.books) {
       final t = _normalizedTitles[book.id] ?? '';
@@ -603,6 +634,18 @@ class ReferenceBooksCache {
               matchedTerm = a;
             }
           }
+        }
+      }
+
+      // מפלט אחרון: התאמה מקורבת, שמכסה כתיב מלא/חסר ושגיאות הקלדה
+      // (issue #1310). רצה רק כשכל ההתאמות המילוליות נכשלו, ומדורגת מתחת
+      // לכולן — כך סדר התוצאות הקיים אינו זז.
+      if (matchRank == null && fuzzyCandidates.contains(book.id)) {
+        final matched = _fuzzyMatchedTerm(queryWords, t, book.id);
+        if (matched != null) {
+          matchRank = fuzzyMatchRank;
+          // כותרת שהותאמה אינה "מונח" — matchedTerm שמור לראשי-תיבות.
+          if (matched != t) matchedTerm = matched;
         }
       }
 
@@ -762,6 +805,148 @@ class ReferenceBooksCache {
       if (aTokens[i] != qTokens[i]) return false;
     }
     return aTokens.skip(qTokens.length).every(titleTokens.contains);
+  }
+
+  /// אורך המילה המינימלי להתאמה מקורבת.
+  static const int _minFuzzyWordLength = 3;
+
+  /// דירוג ההתאמה המקורבת — מתחת לכל ההתאמות המילוליות (0–5).
+  /// חשוף כי `findRefs` צריך להבחין בו: התאמה מקורבת מצטרפת כמשנית בלבד.
+  static const int fuzzyMatchRank = 6;
+
+  /// אוסף ל-[booksByWord] את מילות הכותרת והכינויים של [entries]. כל ספר
+  /// נסרק במלואו בבת אחת, ולכן מזההו תמיד בקצה הרשימה — כפילות נמנעת
+  /// בהשוואה לאחרון, בלי Set לכל מילה.
+  void _collectFuzzyWords(
+    Map<String, List<int>> booksByWord,
+    Iterable<MapEntry<int, String>> entries,
+  ) {
+    void addWords(int bookId, String text) {
+      for (final word in text.split(' ')) {
+        if (word.isEmpty) continue;
+        final books = booksByWord.putIfAbsent(word, () => <int>[]);
+        if (books.isEmpty || books.last != bookId) books.add(bookId);
+      }
+    }
+
+    for (final entry in entries) {
+      addWords(entry.key, entry.value);
+      final acronyms = AcronymsCache.instance.getAcronymsForBook(entry.key);
+      if (acronyms == null) continue;
+      for (final term in acronyms) {
+        addWords(entry.key, term);
+      }
+    }
+  }
+
+  void _installFuzzyVocabulary(Map<String, List<int>> booksByWord) {
+    _fuzzyWordCandidates.clear();
+    _fuzzyVocabulary
+      ..clear()
+      ..addAll(booksByWord.keys);
+    _fuzzyVocabularyBooks
+      ..clear()
+      ..addAll(booksByWord.values.map(Uint32List.fromList));
+  }
+
+  /// בונה את מסננת אוצר-המילים בפרוסות. `false` = בוטל (דור התחלף), ואז
+  /// הקורא חייב לא לסמן את הקאש כ-loaded. בסביבות 140ms על ספרייה מלאה —
+  /// רצף כזה על ה-isolate של ה-UI היה מקפיא פריימים.
+  Future<bool> _prewarmFuzzyVocabulary(
+    Map<int, String> normalizedTitles,
+    int myGen,
+  ) async {
+    final entries = normalizedTitles.entries.toList(growable: false);
+    final booksByWord = <String, List<int>>{};
+    const batch = 500;
+
+    for (var i = 0; i < entries.length; i += batch) {
+      final end = i + batch < entries.length ? i + batch : entries.length;
+      _collectFuzzyWords(booksByWord, entries.getRange(i, end));
+      await Future<void>.delayed(Duration.zero);
+      if (myGen != _generation) return false;
+    }
+
+    _installFuzzyVocabulary(booksByWord);
+    return true;
+  }
+
+  /// מזהי הספרים שבהם לכל אחת מ-[queryWords] יש מילה מתאימה — קבוצת-העל של
+  /// ההתאמה המקורבת. [_fuzzyMatchedTerm] נשאר הפוסק, כי הוא דורש שכל המילים
+  /// יימצאו ב**אותו** טקסט; כאן הן עשויות לבוא מכינויים שונים.
+  Set<int> _fuzzyCandidateBooks(List<String> queryWords) {
+    if (!queryWords.any((w) => w.length >= _minFuzzyWordLength)) {
+      return const <int>{};
+    }
+
+    Set<int>? candidates;
+    for (final word in queryWords) {
+      if (word.isEmpty) continue;
+      final forWord = _fuzzyCandidatesForWord(word);
+
+      // העתקה ולא שימוש חוזר: הרשימה מגיעה מהמטמון, ו-retainAll היה פוגם בה.
+      candidates == null
+          ? candidates = <int>{...forWord}
+          : candidates.retainAll(forWord);
+      if (candidates.isEmpty) return const <int>{};
+    }
+    return candidates ?? const <int>{};
+  }
+
+  /// מזהי הספרים שיש בהם מילה המתאימה ל-[word], מהמטמון או בסריקת האוצר.
+  Set<int> _fuzzyCandidatesForWord(String word) {
+    final cached = _fuzzyWordCandidates[word];
+    if (cached != null) return cached;
+
+    // מילה קצרה נדרשת כמילה שלמה ולא בקירוב, ולכן גם המסננת מדויקת —
+    // `contains` עליה היה מחזיר כמעט כל מילה באוצר.
+    final exact = word.length < _minFuzzyWordLength;
+    final books = <int>{};
+    for (var i = 0; i < _fuzzyVocabulary.length; i++) {
+      final vocabWord = _fuzzyVocabulary[i];
+      final matches = exact
+          ? vocabWord == word
+          : bookSearchWordPairMatches(word, vocabWord);
+      if (matches) books.addAll(_fuzzyVocabularyBooks[i]);
+    }
+
+    if (_fuzzyWordCandidates.length >= _fuzzyWordCandidatesLimit) {
+      _fuzzyWordCandidates.remove(_fuzzyWordCandidates.keys.first);
+    }
+    _fuzzyWordCandidates[word] = books;
+    return books;
+  }
+
+  /// מחזיר את הכותרת או המונח שכל [queryWords] נמצאו בו, או `null`.
+  ///
+  /// כל מילות השאילתה חייבות להיכנס ב**אותו** טקסט — אחרת "חדושי הלכות" היה
+  /// מותאם לספר שרק "הלכות" מופיע בו. הכותרת נבדקת ראשונה, ואם נכשלה נבדק
+  /// כל כינוי, כי "רמבם תפלה" חי בכינוי ולא בכותרת.
+  ///
+  /// טוקן קצר ("ב" של פרק ב) נדרש כמילה שלמה ולא בקירוב: בלעדיו
+  /// "רמב"ם תפילה ב" היה נראה כזיהוי מלא של הספר, וטוקן המיקום לא היה מגיע
+  /// לחיפוש הכותרות הפנימיות.
+  String? _fuzzyMatchedTerm(List<String> queryWords, String title, int bookId) {
+    bool allWordsIn(String text) {
+      List<String>? textWords;
+      for (final word in queryWords) {
+        if (word.length < _minFuzzyWordLength) {
+          textWords ??= text.split(' ');
+          if (!textWords.contains(word)) return false;
+        } else if (!bookSearchWordMatchesFuzzy(word, text)) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    if (allWordsIn(title)) return title;
+    final acronyms = AcronymsCache.instance.getAcronymsForBook(bookId);
+    if (acronyms == null) return null;
+    for (final term in acronyms) {
+      if (allWordsIn(term)) return term;
+    }
+    return null;
   }
 
   static String _normalizeForMatch(String input) =>
