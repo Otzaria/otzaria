@@ -45,42 +45,47 @@ void main() {
         .setMockMethodCallHandler(channel, null);
   });
 
-  test('תעודות המשתמש נוספות ל-SecurityContext; תעודה פגומה מדולגת', () async {
-    mockCertificates([_testCaPem, 'not a certificate', _testCaPem]);
-    final context = SecurityContext();
-    final added = await trustUserInstalledCertificates(
-      context,
-      channel: channel,
-      isAndroid: true,
+  group('תעודות CA שהותקנו במכשיר (issue #1305)', () {
+    test(
+      'תעודות המשתמש נוספות ל-SecurityContext; תעודה פגומה מדולגת',
+      () async {
+        mockCertificates([_testCaPem, 'not a certificate', _testCaPem]);
+        final context = SecurityContext();
+        final added = await trustUserInstalledCertificates(
+          context,
+          channel: channel,
+          isAndroid: true,
+        );
+        expect(added, 2);
+      },
     );
-    expect(added, 2);
-  });
 
-  test('מחוץ לאנדרואיד לא פונים לערוץ', () async {
-    var called = false;
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (call) async {
-          called = true;
-          return <Object?>[];
-        });
-    final added = await trustUserInstalledCertificates(
-      SecurityContext(),
-      channel: channel,
-      isAndroid: false,
-    );
-    expect(added, 0);
-    expect(called, isFalse);
-  });
-
-  test('ערוץ שאינו מיושם או ריק → 0 בלי חריגה', () async {
-    mockCertificates(null);
-    expect(
-      await trustUserInstalledCertificates(
+    test('מחוץ לאנדרואיד לא פונים לערוץ', () async {
+      var called = false;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            called = true;
+            return <Object?>[];
+          });
+      final added = await trustUserInstalledCertificates(
         SecurityContext(),
         channel: channel,
-        isAndroid: true,
-      ),
-      0,
-    );
+        isAndroid: false,
+      );
+      expect(added, 0);
+      expect(called, isFalse);
+    });
+
+    test('ערוץ שאינו מיושם או ריק → 0 בלי חריגה', () async {
+      mockCertificates(null);
+      expect(
+        await trustUserInstalledCertificates(
+          SecurityContext(),
+          channel: channel,
+          isAndroid: true,
+        ),
+        0,
+      );
+    });
   });
 }
