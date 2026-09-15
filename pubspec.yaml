@@ -258,6 +258,12 @@ flutter:
     - family: NotoSerifHebrew
       fonts:
         - asset: fonts/NotoSerifHebrew-VariableFont_wdth,wght.ttf
+    - family: AshkenaziStam
+      fonts:
+        - asset: fonts/tikkun_korim/Ashkenazi-Stam.ttf
+    - family: SefardiStam
+      fonts:
+        - asset: fonts/tikkun_korim/Sefardi-Stam.ttf
 
 sentry:
   upload_debug_symbols: true
