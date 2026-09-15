@@ -91,15 +91,23 @@ void main() {
   });
 
   group('AppFonts.headingFontSizeOverride', () {
-    test('h3 ו-h4 מוגדלות בגופן עם face בולד נפרד', () {
+    test('h3-h6 מדורגות מעל הגוף בגופן עם face בולד נפרד', () {
       expect(AppFonts.headingFontSizeOverride('h3', 'FrankRuhlCLM'), '1.25em');
       expect(AppFonts.headingFontSizeOverride('h4', 'FrankRuhlCLM'), '1.1em');
+      expect(AppFonts.headingFontSizeOverride('h5', 'FrankRuhlCLM'), '1.05em');
+      expect(AppFonts.headingFontSizeOverride('h6', 'FrankRuhlCLM'), '1.02em');
     });
 
-    // h1/h2 גדולות דיין בברירת המחדל של fwfh (2em/1.5em), ו-h5/h6 קטנות
-    // מהגוף (0.83em/0.67em) — כולן נבדלות ממנו גם בלי ההדגשה.
-    test('שאר רמות הכותרת אינן משתנות', () {
-      for (final tag in const ['h1', 'h2', 'h5', 'h6']) {
+    test('h5-h6 בגודל הגוף בגופן שההדגשה בו נשמרת', () {
+      for (final font in _sameFaceFonts) {
+        expect(AppFonts.headingFontSizeOverride('h5', font), '1em');
+        expect(AppFonts.headingFontSizeOverride('h6', font), '1em');
+      }
+    });
+
+    // h1/h2 גדולות דיין בברירת המחדל של fwfh (2em/1.5em).
+    test('h1-h2 אינן משתנות', () {
+      for (final tag in const ['h1', 'h2']) {
         expect(
           AppFonts.headingFontSizeOverride(tag, 'FrankRuhlCLM'),
           isNull,
@@ -241,6 +249,28 @@ void main() {
       expect(style?.fontWeight, FontWeight.bold);
       expect(style?.fontSize, closeTo(20 * 1.17, 0.01));
     });
+
+    // issue #1378: ברירת המחדל של fwfh ל-h5/h6 היא 0.83em/0.67em — קטנה מהגוף.
+    for (final font in const ['FrankRuhlCLM', 'TaameyDavidCLM']) {
+      testWidgets('h4-h6 ב-$font אינן קטנות מהטקסט', (tester) async {
+        for (final tag in const ['h4', 'h5', 'h6']) {
+          await tester.pumpWidget(
+            _wrap(
+              SmartTextWidget(
+                text: '<$tag>דף ה.</$tag>',
+                settings: RenderSettings(fontSize: 20, fontFamily: font),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(
+            _findHeading(tester, 'דף ה.').text.style?.fontSize,
+            greaterThanOrEqualTo(20),
+            reason: tag,
+          );
+        }
+      });
+    }
 
     testWidgets('טקסט רגיל (ללא כותרת) אינו מושפע', (tester) async {
       await tester.pumpWidget(
