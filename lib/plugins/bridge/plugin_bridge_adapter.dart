@@ -31,9 +31,7 @@ import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/core/connectivity_status_service.dart';
-import 'package:otzaria/core/messages/window_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/core/windowing/window_role.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/link_types.dart';
@@ -3316,12 +3314,6 @@ class PluginBridgeAdapter {
         _grantedFolders.add(p.normalize(p.absolute(path)));
         return {'path': path};
       case 'print':
-        // ⚠️ פלאגין ההדפסה נרשם בחלון הראשון בלבד, ובלי הגידור התוסף קיבל
-        // `MissingPluginException` אטומה והמשתמש לא ראה דבר.
-        if (WindowRole.isSecondary) {
-          UiSnack.show(WindowMessages.printOnlyInMainWindow);
-          return {'printed': false};
-        }
         final printer = _dependencies.printPluginPage ?? _defaultPrintPage;
         final jobName = (args['jobName'] as String?)?.trim();
         final printLayout = _parsePdfLayout(args);

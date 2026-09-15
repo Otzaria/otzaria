@@ -11,9 +11,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/core/messages/pdf_messages.dart';
-import 'package:otzaria/core/messages/window_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/core/windowing/window_role.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
@@ -1515,15 +1513,6 @@ class _PrintingScreenState extends State<PrintingScreen> {
   Future<void> _performDestinationAction(BuildContext context) async {
     switch (_destination) {
       case _PrintDestination.printer:
-        // ⚠️ פלאגין ההדפסה נרשם בחלון הראשון בלבד (החלטה מתועדת
-        // ב-`docs/multi-window.md`: הרישום שלו אינו בטוח פעמיים בתהליך).
-        // בלי ההודעה הזו לחיצה על "הדפס" בחלון משני נכשלה ב-
-        // `MissingPluginException` ולא קרה שום דבר נראה. שמירה ל-PDF/Word
-        // כן עובדת בכל חלון, וזו החלופה.
-        if (WindowRole.isSecondary) {
-          UiSnack.show(WindowMessages.printOnlyInMainWindow);
-          return;
-        }
         final printed = await printPdfWithSaferMode(
           context: context,
           name: widget.bookId,

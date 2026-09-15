@@ -7,27 +7,11 @@
 #include <chrono>
 #include <limits>
 #include <map>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <thread>
 
 #include <cstdlib>
-
-// נדרשים ל-`RegisterPluginsMasked`, שרושם תת-קבוצה של התוספים לחלונות
-// משניים. `generated_plugin_registrant.h` לבדו רושם הכול או כלום.
-#include <file_selector_windows/file_selector_windows.h>
-#include <flutter_inappwebview_windows/flutter_inappwebview_windows_plugin_c_api.h>
-#include <irondash_engine_context/irondash_engine_context_plugin_c_api.h>
-#include <printing/printing_plugin.h>
-#include <screen_retriever_windows/screen_retriever_windows_plugin_c_api.h>
-// ⚠️ `sentry_flutter_plugin.h` מגדיר את ה-registrar inline, ולכן הכללתו
-// כאן **וגם** ב-generated_plugin_registrant.cc יוצרת LNK2005. הוא ממילא
-// stub ריק ב-Windows (כפי שהמסמך קובע), ולכן הוא מדולג במסכה.
-#include <super_native_extensions/super_native_extensions_plugin_c_api.h>
-#include <url_launcher_windows/url_launcher_windows.h>
-#include <window_manager/window_manager_plugin.h>
-#include <zstandard_windows/zstandard_windows_plugin_c_api.h>
 
 #include "flutter/generated_plugin_registrant.h"
 #include "jump_list_manager.h"
@@ -617,14 +601,6 @@ FlutterWindow::~FlutterWindow() {
 
 namespace {
 
-// האם כבר נרשמו תוספים למנוע כלשהו בתהליך. במודל A יש מנוע לכל חלון,
-// והחלון הראשון מקבל את מסלול היצור המלא בעוד הנוספים מקבלים תת-קבוצה.
-std::atomic<bool> g_first_engine_registered{false};
-
-// מסכת כל התוספים ב-`RegisterPluginsMasked`, וביט ה-`printing` בתוכה.
-constexpr unsigned long kAllPluginsMask = 0x3FF;  // עשרה תוספים
-constexpr unsigned long kPrintingPluginBit = 1UL << 3;
-
 // מונע מ-`flutter_inappwebview_windows` לבטל רישום של מחלקות חלון שחלונות
 // אחרים עדיין צריכים.
 //
@@ -671,43 +647,6 @@ void KeepWebViewWindowClassesAlive() {
   });
 }
 
-// רושם תת-קבוצה של התוספים לפי מסכת ביטים, בסדר של
-// `generated_plugin_registrant.cc`.
-//
-// ⚠️ נדרש כי תוספים מסוימים אינם בטוחים לרישום פעמיים באותו תהליך —
-// ראו ההערה על `printing` באתר הקריאה.
-void RegisterPluginsMasked(flutter::PluginRegistry* registry,
-                           unsigned long mask) {
-  struct Entry {
-    const char* name;
-    void (*fn)(FlutterDesktopPluginRegistrarRef);
-  };
-  static const Entry kEntries[] = {
-      {"FileSelectorWindows", FileSelectorWindowsRegisterWithRegistrar},
-      {"FlutterInappwebviewWindowsPluginCApi",
-       FlutterInappwebviewWindowsPluginCApiRegisterWithRegistrar},
-      {"IrondashEngineContextPluginCApi",
-       IrondashEngineContextPluginCApiRegisterWithRegistrar},
-      {"PrintingPlugin", PrintingPluginRegisterWithRegistrar},
-      {"ScreenRetrieverWindowsPluginCApi",
-       ScreenRetrieverWindowsPluginCApiRegisterWithRegistrar},
-      {"SentryFlutterPlugin", nullptr},  // stub ריק — ראו ההערה בהכללות
-      {"SuperNativeExtensionsPluginCApi",
-       SuperNativeExtensionsPluginCApiRegisterWithRegistrar},
-      {"UrlLauncherWindows", UrlLauncherWindowsRegisterWithRegistrar},
-      {"WindowManagerPlugin", WindowManagerPluginRegisterWithRegistrar},
-      {"ZstandardWindowsPluginCApi",
-       ZstandardWindowsPluginCApiRegisterWithRegistrar},
-  };
-  for (size_t i = 0; i < sizeof(kEntries) / sizeof(kEntries[0]); ++i) {
-    if ((mask & (1UL << i)) && kEntries[i].fn != nullptr) {
-      kEntries[i].fn(registry->GetRegistrarForPlugin(kEntries[i].name));
-      printf("[plugin] registered %s\n", kEntries[i].name);
-    }
-  }
-  fflush(stdout);
-}
-
 }  // namespace
 
 bool FlutterWindow::OnCreate() {
@@ -725,36 +664,7 @@ bool FlutterWindow::OnCreate() {
   if (!flutter_controller_->engine() || !flutter_controller_->view()) {
     return false;
   }
-  // ⚠️ רישום התוספים מסוריאלי בין חלונות.
-  //
-  // רבים מה-registrar-ים כותבים למצב process-global (`printing_plugin.cpp:35`
-  // הוא הדוגמה המובהקת, אך לא היחידה). כששני חלונות נוצרים על שני threads
-  // בו-זמנית, שתי הכתיבות מתערבבות והתוצאה שנמדדה היא קריסה בשיעור ~1%:
-  // "Isolate main is owned by os thread X, failed to schedule from os
-  // thread Y" — thread אחד שמנסה להריץ Dart של ה-isolate של האחר.
-  // ראו docs/multi-window.md.
-  static std::mutex plugin_registration_mutex;
-  std::lock_guard<std::mutex> plugin_registration_lock(
-      plugin_registration_mutex);
-
-  if (!g_first_engine_registered.exchange(true)) {
-    // החלון הראשון עובר במסלול היצור המדויק, ללא שינוי.
-    RegisterPlugins(flutter_controller_->engine());
-  } else {
-    // ⚠️ חלון נוסף — `printing` מדולג.
-    //
-    // `printing_plugin.cpp:35` מחזיק `std::unique_ptr<MethodChannel> channel`
-    // יחיד ב-**namespace scope**, ומשייך אליו מחדש בכל `RegisterWithRegistrar`
-    // (:41). `printing.cpp:24` מכריז עליו `extern` ושולח דרכו את כל
-    // הקולבקים — `onLayout` (:102) ועוד שלושה (:43, :66, :137). עם מנוע לכל
-    // חלון, רישום המנוע השני דורס את הערוץ, וכל קולבק הדפסה — גם של החלון
-    // הראשון — מנותב ל-isolate שנרשם אחרון. התוצאה: הדפסה שנתקעת בשקט.
-    //
-    // עד שההדפסה תנותב ל-host (פרק 3), עדיף שהדפסה מחלון משני תיכשל מיד
-    // מאשר שתשבור את החלון הראשון.
-    RegisterPluginsMasked(flutter_controller_->engine(),
-                          kAllPluginsMask & ~kPrintingPluginBit);
-  }
+  RegisterPlugins(flutter_controller_->engine());
   g_live_window_count.fetch_add(1);
   g_live_engine_count.fetch_add(1);
   KeepWebViewWindowClassesAlive();
