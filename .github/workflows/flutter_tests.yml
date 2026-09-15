@@ -327,12 +327,12 @@ jobs:
       # מדולגת בלי להיכשל — כלומר ה-job היה ירוק ולא בודק כלום.
       #
       # ההיקף מכוון וצר: הסוללה המלאה רצה על Linux ב-6 shards. כאן רצות
-      # רק הקבוצות שאומתו כירוקות ב-Windows (1,073 בדיקות), והקבוצות
-      # הידועות כתלויות-סביבה או flaky (migration, installer, personal_notes,
-      # tools/calendar) נשארות ל-Linux בלבד. הרחבת ההיקף מחייבת אימות
+      # רק הקבוצות שאומתו כירוקות ב-Windows (1,073 בדיקות, ועוד 146 של
+      # personal_notes), והקבוצות הידועות כתלויות-סביבה או flaky (migration,
+      # installer, tools/calendar) נשארות ל-Linux בלבד. הרחבת ההיקף מחייבת אימות
       # מקומי ב-Windows קודם — אחרת ה-job נהיה רועש ומתחילים להתעלם ממנו.
       - name: Run Windows-relevant tests
-        run: flutter test test/core/ test/tabs/ test/navigation/ test/workspaces/
+        run: flutter test test/core/ test/tabs/ test/navigation/ test/workspaces/ test/personal_notes/
 
       # רץ גם בכישלון: כשהבנייה נופלת, הלוג של MSBuild הוא הדבר היחיד
       # שמסביר למה — ההודעה ב-stdout מפנה לכיוון הלא נכון בדרך כלל.

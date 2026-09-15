@@ -13,6 +13,7 @@ import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/search/search_scope_preferences.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/search/utils/find_match_utils.dart';
 import 'package:otzaria/search/utils/foundational_book_classifier.dart';
@@ -20,6 +21,7 @@ import 'package:otzaria/search/utils/scope_tree.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/dialogs/input_dialog.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
@@ -61,6 +63,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
 
   Set<int> _baseBookIds = const {};
   Set<int> _baseUserBookIds = const {};
+  List<SavedSearchScope> _savedScopes = const [];
 
   Library? _library;
   ScopeTree? _treeCache;
@@ -142,6 +145,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   void initState() {
     super.initState();
     _loadBaseBookIds();
+    _savedScopes = SearchScopePreferences.loadSavedScopes();
     _fieldFocus.addListener(_onFocusChanged);
     _searchController.addListener(_onTextChanged);
   }
@@ -170,6 +174,30 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   }
 
   void _onTextChanged() => setState(() {});
+
+  Future<void> _saveCurrentScope() async {
+    // התפריט נסגר לפני הדיאלוג — לחיצה בדיאלוג נחשבת "מחוץ לתפריט".
+    _close();
+    final facets = Set<String>.from(widget.selected);
+    final name = await showInputDialog(
+      context: context,
+      title: context.settingsText('שמירת היקף החיפוש'),
+      subtitle: context.settingsText(
+        'הבחירה הנוכחית תישמר ותוכל לחזור אליה בלחיצה אחת',
+      ),
+      labelText: context.settingsText('שם ההיקף'),
+      cancelText: context.settingsText('ביטול'),
+      confirmText: context.settingsText('שמור'),
+    );
+    if (name == null || name.isEmpty) return;
+    final next = await SearchScopePreferences.addSavedScope(name, facets);
+    if (mounted) setState(() => _savedScopes = next);
+  }
+
+  Future<void> _deleteSavedScope(String name) async {
+    final next = await SearchScopePreferences.removeSavedScope(name);
+    if (mounted) setState(() => _savedScopes = next);
+  }
 
   Future<void> _loadBaseBookIds() async {
     final repo = SqliteDataProvider.instance.repository;
@@ -470,6 +498,9 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
               selected: widget.selected,
               onChanged: widget.onChanged,
               onKeepFocus: () => _fieldFocus.requestFocus(),
+              savedScopes: _savedScopes,
+              onSaveCurrent: () => unawaited(_saveCurrentScope()),
+              onDeleteSaved: (name) => unawaited(_deleteSavedScope(name)),
             ),
           ),
         ),
@@ -552,6 +583,7 @@ class _MenuItem {
 
   /// פעולת "רק" — בחירת השורה הזו בלבד תוך ניקוי כל שאר הבחירה.
   final VoidCallback? onOnly;
+  final VoidCallback? onDelete;
   final bool isHeader;
 
   bool get isDrill => onDrill != null;
@@ -566,6 +598,7 @@ class _MenuItem {
     this.onTap,
     this.onDrill,
     this.onOnly,
+    this.onDelete,
   }) : isHeader = false;
 
   const _MenuItem.header(this.label)
@@ -577,6 +610,7 @@ class _MenuItem {
       onTap = null,
       onDrill = null,
       onOnly = null,
+      onDelete = null,
       isHeader = true;
 }
 
@@ -589,6 +623,9 @@ class _ScopeMenuPanel extends StatefulWidget {
   final Set<String> selected;
   final ValueChanged<Set<String>> onChanged;
   final VoidCallback onKeepFocus;
+  final List<SavedSearchScope> savedScopes;
+  final VoidCallback onSaveCurrent;
+  final ValueChanged<String> onDeleteSaved;
 
   const _ScopeMenuPanel({
     super.key,
@@ -600,6 +637,9 @@ class _ScopeMenuPanel extends StatefulWidget {
     required this.selected,
     required this.onChanged,
     required this.onKeepFocus,
+    required this.savedScopes,
+    required this.onSaveCurrent,
+    required this.onDeleteSaved,
   });
 
   @override
@@ -963,6 +1003,25 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
           check: _selection.contains(FacetHelper.buildEraFacet(era)),
           onToggle: (v) => _toggleDimension(FacetHelper.buildEraFacet(era), v),
         ),
+      if (widget.savedScopes.isNotEmpty || !isEverything)
+        _MenuItem.header(context.settingsText('היקפים שמורים')),
+      for (final scope in widget.savedScopes)
+        _MenuItem(
+          label: scope.name,
+          icon: FluentIcons.bookmark_24_regular,
+          check:
+              scope.facets.length == _selection.length &&
+              scope.facets.containsAll(_selection),
+          onToggle: (v) => v ? _apply(Set.of(scope.facets)) : _clearAll(),
+          onDelete: () => widget.onDeleteSaved(scope.name),
+        ),
+      if (!isEverything)
+        _MenuItem(
+          label: context.settingsText('שמור את הבחירה הנוכחית…'),
+          icon: FluentIcons.save_24_regular,
+          check: null,
+          onTap: widget.onSaveCurrent,
+        ),
     ];
   }
 
@@ -1276,6 +1335,16 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
                 ),
               ),
             ],
+            if (item.onDelete != null)
+              IconButton(
+                icon: const Icon(FluentIcons.delete_24_regular, size: 18),
+                tooltip: context.settingsText('מחק היקף שמור'),
+                visualDensity: VisualDensity.compact,
+                onPressed: () {
+                  item.onDelete!();
+                  widget.onKeepFocus();
+                },
+              ),
             if (item.isDrill) ...[
               const SizedBox(width: 4),
               // בכיוון RTL מתהפך ומצביע שמאלה — כיוון הכניסה פנימה.

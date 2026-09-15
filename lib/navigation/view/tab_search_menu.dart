@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/history/view/history_screen.dart';
 import 'package:otzaria/navigation/view/tab_context_menu.dart';
 import 'package:otzaria/navigation/view/tab_visuals.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
@@ -281,9 +282,55 @@ class _TabSearchPanelState extends State<TabSearchPanel> {
                         ],
                       ),
               ),
+              const Divider(height: 1),
+              _HistoryFooter(onTap: _openHistory),
             ],
           );
         },
+      ),
+    );
+  }
+
+  void _openHistory() {
+    // הדיאלוג נפתח מה-Navigator עצמו: הקונטקסט של החלונית נהרס עם סגירתה.
+    final navigator = Navigator.of(context);
+    navigator.pop();
+    showDialog(
+      context: navigator.context,
+      builder: (_) => const HistoryDialog(),
+    );
+  }
+}
+
+class _HistoryFooter extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _HistoryFooter({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        height: 36,
+        padding: const EdgeInsetsDirectional.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            Icon(
+              FluentIcons.history_24_regular,
+              size: 16,
+              color: cs.onSurfaceVariant,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              context.settingsText('הצג את כל ההיסטוריה'),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: cs.onSurface),
+            ),
+          ],
+        ),
       ),
     );
   }

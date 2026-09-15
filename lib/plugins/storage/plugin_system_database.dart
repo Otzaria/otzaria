@@ -673,7 +673,8 @@ class PluginSystemDatabase {
 
   /// סוגר ומאפס את חיבור ה-DB כדי לאפשר החלפת תיקיית נתונים בזמן ריצה.
   Future<void> close() async {
-    _database?.close();
+    final db = _database;
+    if (db != null) closeWithCheckpoint(db);
     _database = null;
   }
 

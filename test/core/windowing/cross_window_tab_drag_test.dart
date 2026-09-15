@@ -1,6 +1,6 @@
 // ⚠️ רצה בכל פלטפורמה, ובמכוון.
 //
-// כל מסלול הגרירה מגודר ב-`MultiWindowService.isSupported`, שהוא
+// כל מסלול הגרירה מגודר ב-`MultiWindowService.canOpenWindows`, שהוא
 // `Platform.isWindows`, ולכן הקובץ היה מסומן `@TestOn('windows')` — וה-CI
 // רץ על ubuntu. כלומר כל הבדיקות כאן היו ירוקות על מכונת המפתח בלבד.
 // ההיגיון שנבדק אינו תלוי פלטפורמה: מה שמעבר לערוץ מדומה ב-[_FakeRunner],

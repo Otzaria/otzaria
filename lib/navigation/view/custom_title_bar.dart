@@ -445,9 +445,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       if (stacked || _useSideTabs(context, navState, settingsState)) {
         return Row(
           children: [
-            const Expanded(child: DragToMoveArea(child: SizedBox.expand())),
             // במצב "בצד" כפתור חיפוש הכרטיסיות יושב בראש העמודה עצמה.
             if (stacked) TabSearchButton(style: _kIconButtonStyle),
+            const Expanded(child: DragToMoveArea(child: SizedBox.expand())),
             _buildReadingSettingsButton(context),
           ],
         );
@@ -534,8 +534,8 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
         return Row(
           children: [
-            Expanded(child: _buildScrollableTabsArea(state)),
             TabSearchButton(style: _kIconButtonStyle),
+            Expanded(child: _buildScrollableTabsArea(state)),
             const SizedBox(width: 8),
             _buildReadingSettingsButton(context),
           ],
@@ -635,7 +635,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
           _crossWindowDrag.applySnapshot(snapshot, generation),
       onDragFinishedAnywhere: _crossWindowDrag.end,
       onDragLeftStrip: _crossWindowDrag.notePointerLeftStrip,
-      onDroppedOutside: MultiWindowService.isSupported
+      onDroppedOutside: MultiWindowService.canDragTabsOut
           ? (tab) => _crossWindowDrag.handleDroppedOutside(
               tab,
               context.read<TabsBloc>(),

@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:http/http.dart' as http;
 import 'package:otzaria/core/http_client_registry.dart';
-import 'package:otzaria/data/repository/hive_list_repository.dart';
+import 'package:otzaria/core/user_state/pending_report_store.dart';
 import 'package:otzaria/plugins/models/plugin_report_record.dart';
 import 'package:otzaria/services/offline_report_script_builder.dart';
 import 'package:otzaria/services/sent_reports_counter.dart';
@@ -20,19 +20,21 @@ enum PluginReportDeliveryStatus { sent, queued }
 /// שליחת דיווח משתמש על תוסף לאתר אוצריא, שמאתר את מפתח התוסף ומעביר לו.
 ///
 /// באותו דפוס של דיווחי הטעויות בספרים: כשל זמני או מצב לא-מקוון שומרים
-/// את הדיווח בתור Hive ייעודי עם ניסיון חוזר אוטומטי; דחייה קבועה של
+/// את הדיווח בתור המשותף לכל החלונות עם ניסיון חוזר אוטומטי; דחייה קבועה של
 /// השרת (400/422) נזרקת לתוסף ואינה נכנסת לתור.
 class PluginReportService {
   PluginReportService({
     http.Client? client,
-    HiveListRepository<PluginReportRecord>? queueRepository,
-    HiveListRepository<PluginReportRecord>? sentRepository,
+    PendingReportStore? reportStore,
     SentReportsCounter? sentCounter,
   }) : _client = client ?? _shared,
-       _queueRepository =
-           queueRepository ?? _defaultRepository(pendingReportsKey),
-       _sentRepository = sentRepository ?? _defaultRepository(sentReportsKey),
-       _sentCounter = sentCounter ?? SentReportsCounter(boxName: queueBoxName);
+       _reports = reportStore ?? PendingReportStore.instance,
+       _sentCounter =
+           sentCounter ??
+           SentReportsCounter(
+             boxName: queueBoxName,
+             database: reportStore?.database,
+           );
 
   static final Uri endpoint = Uri.parse(
     'https://otzaria.org/api/plugin-reports',
@@ -64,9 +66,12 @@ class PluginReportService {
     await _flushInFlight?.future;
   }
 
+  /// סוגי התור במסד המשותף — זהים למפתחות שהמיגרציה מ-Hive יצרה.
+  static const String pendingKind = '$queueBoxName/$pendingReportsKey';
+  static const String sentKind = '$queueBoxName/$sentReportsKey';
+
   final http.Client _client;
-  final HiveListRepository<PluginReportRecord> _queueRepository;
-  final HiveListRepository<PluginReportRecord> _sentRepository;
+  final PendingReportStore _reports;
   final SentReportsCounter _sentCounter;
 
   static final http.Client _shared = _createClient();
@@ -76,17 +81,6 @@ class PluginReportService {
     final client = http.Client();
     HttpClientRegistry.register(client.close);
     return client;
-  }
-
-  static HiveListRepository<PluginReportRecord> _defaultRepository(
-    String key,
-  ) {
-    return HiveListRepository<PluginReportRecord>(
-      boxName: queueBoxName,
-      key: key,
-      fromJson: PluginReportRecord.fromJson,
-      toJson: (record) => record.toJson(),
-    );
   }
 
   /// מזהה דיווח בפורמט UUID v4 — מאפשר לשרת לזהות שליחה כפולה בניסיון חוזר.
@@ -190,30 +184,26 @@ class PluginReportService {
     return submitReport(record);
   }
 
-  Future<int> getPendingReportsCount() async {
-    final records = await _queueRepository.load();
-    return records.length;
-  }
+  Future<int> getPendingReportsCount() => _reports.countByKind(pendingKind);
 
   Future<List<PluginReportRecord>> getPendingReports() async {
-    return _queueRepository.load();
+    return (await _reports.listByKind(pendingKind)).map(_decode).toList();
   }
 
+  /// היסטוריית הנשלחים מוצגת מהחדש לישן, ולכן הפוכה לסדר ההוספה.
   Future<List<PluginReportRecord>> getSentReports() async {
-    return _sentRepository.load();
+    return (await _reports.listByKind(sentKind)).reversed.map(_decode).toList();
   }
 
   /// כל הדיווחים שנשלחו אי-פעם — לא רק אלה שנשארו בהיסטוריה.
   Future<int> getSentReportsTotal() async {
     final total = await _sentCounter.read();
-    final kept = (await _sentRepository.load()).length;
+    final kept = await _reports.countByKind(sentKind);
     return total > kept ? total : kept;
   }
 
   Future<void> deletePendingReport(String reportId) async {
-    final records = await _queueRepository.load();
-    records.removeWhere((record) => record.reportId == reportId);
-    await _queueRepository.overwrite(records);
+    await _reports.deleteIds(await _rowIdsOf(pendingKind, reportId));
   }
 
   /// מעדכן סוג ופירוט של דיווח בתור. שינוי בתוכן מקבל `reportId` חדש: השרת
@@ -223,11 +213,12 @@ class PluginReportService {
     required String reportType,
     required String details,
   }) async {
-    final records = await _queueRepository.load();
-    final index = records.indexWhere((record) => record.reportId == reportId);
-    if (index == -1) return;
+    final row = (await _reports.listByKind(
+      pendingKind,
+    )).where((row) => row.payload['reportId'] == reportId).firstOrNull;
+    if (row == null) return;
 
-    final current = records[index];
+    final current = _decode(row);
     final type = normalizeReportType(reportType);
     final trimmed = details.trim();
     final text = trimmed.length > maxDetailsLength
@@ -238,27 +229,36 @@ class PluginReportService {
     }
     if (type == current.reportType && text == current.details) return;
 
-    records[index] = current.copyWith(
+    final updated = current.copyWith(
       reportId: generateReportId(),
       reportType: type,
       details: text,
     );
-    await _queueRepository.overwrite(records);
+    await _reports.updatePayload(row.id, updated.toJson());
   }
 
   Future<void> clearPendingReports() async {
-    await _queueRepository.clear();
+    await _reports.deleteAllOfKind(pendingKind);
   }
 
   Future<void> deleteSentReport(String reportId) async {
-    final records = await _sentRepository.load();
-    records.removeWhere((record) => record.reportId == reportId);
-    await _sentRepository.overwrite(records);
+    await _reports.deleteIds(await _rowIdsOf(sentKind, reportId));
   }
 
   Future<void> clearSentReports() async {
-    await _sentRepository.clear();
+    await _reports.deleteAllOfKind(sentKind);
     await _sentCounter.reset();
+  }
+
+  static PluginReportRecord _decode(PendingReport row) =>
+      PluginReportRecord.fromJson(row.payload);
+
+  Future<List<int>> _rowIdsOf(String kind, String reportId) async {
+    final rows = await _reports.listByKind(kind);
+    return rows
+        .where((row) => row.payload['reportId'] == reportId)
+        .map((row) => row.id)
+        .toList();
   }
 
   /// מנסה לשלוח את הדיווחים השמורים; עוצר בכשל זמני ראשון, ומסיר מהתור
@@ -271,24 +271,20 @@ class PluginReportService {
     _isFlushing = true;
     final inFlight = _flushInFlight = Completer<void>();
     try {
-      final pendingRecords = await _queueRepository.load();
-      if (pendingRecords.isEmpty) {
+      final rows = await _reports.listByKind(pendingKind);
+      if (rows.isEmpty) {
         return 0;
       }
 
-      final recordsToAttempt = pendingRecords
-          .take(_maxQueuedFlushPerRun)
-          .toList();
-      final remainingRecords = List<PluginReportRecord>.from(pendingRecords);
+      final rowsToAttempt = rows.take(_maxQueuedFlushPerRun).toList();
       var sentCount = 0;
 
-      for (final record in recordsToAttempt) {
+      for (final row in rowsToAttempt) {
+        final record = _decode(row);
         final attemptResult = await _trySend(record);
 
         if (attemptResult.isSuccess) {
-          remainingRecords.removeWhere(
-            (item) => item.reportId == record.reportId,
-          );
+          await _reports.deleteIds([row.id]);
           await _saveSentReport(record);
           sentCount++;
           continue;
@@ -299,16 +295,13 @@ class PluginReportService {
             'Plugin report permanently failed and was removed from queue: '
             '${record.reportId}',
           );
-          remainingRecords.removeWhere(
-            (item) => item.reportId == record.reportId,
-          );
+          await _reports.deleteIds([row.id]);
           continue;
         }
 
         break;
       }
 
-      await _queueRepository.overwrite(remainingRecords);
       return sentCount;
     } finally {
       _isFlushing = false;
@@ -344,31 +337,25 @@ class PluginReportService {
   }
 
   Future<void> _enqueueIfNeeded(PluginReportRecord record) async {
-    final pendingRecords = await _queueRepository.load();
-    final alreadyQueued = pendingRecords.any(
-      (item) => item.reportId == record.reportId,
-    );
-    if (alreadyQueued) {
+    if ((await _rowIdsOf(pendingKind, record.reportId)).isNotEmpty) {
       return;
     }
 
-    pendingRecords.add(record);
-    await _queueRepository.overwrite(pendingRecords);
+    await _reports.add(pendingKind, record.toJson());
   }
 
   Future<void> _saveSentReport(PluginReportRecord record) async {
-    final sentRecords = await _sentRepository.load();
-    final kept = sentRecords.length;
-    final isNew = sentRecords.every(
-      (item) => item.reportId != record.reportId,
-    );
-    sentRecords.removeWhere((item) => item.reportId == record.reportId);
-    sentRecords.insert(0, record);
-    if (sentRecords.length > maxSentReportsToKeep) {
-      sentRecords.removeRange(maxSentReportsToKeep, sentRecords.length);
+    final sentRows = await _reports.listByKind(sentKind);
+    final existing = sentRows
+        .where((row) => row.payload['reportId'] == record.reportId)
+        .map((row) => row.id)
+        .toList();
+    await _reports.deleteIds(existing);
+    await _reports.add(sentKind, record.toJson());
+    await _reports.trimKind(sentKind, maxSentReportsToKeep);
+    if (existing.isEmpty) {
+      await _sentCounter.increment(floor: sentRows.length);
     }
-    await _sentRepository.overwrite(sentRecords);
-    if (isNew) await _sentCounter.increment(floor: kept);
   }
 
   Future<_SendAttemptResult> _trySend(PluginReportRecord record) async {

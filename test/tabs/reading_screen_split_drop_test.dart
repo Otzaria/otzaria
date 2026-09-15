@@ -224,7 +224,9 @@ class _FakeTabsRepository implements TabsRepository {
   dynamic noSuchMethod(Invocation invocation) {
     if (invocation.isMethod) {
       final name = invocation.memberName.toString();
-      if (name.contains('save') || name.contains('remap')) {
+      if (name.contains('save') ||
+          name.contains('remap') ||
+          name.contains('flush')) {
         return Future<void>.value();
       }
       if (name.contains('loadTabs')) return <OpenedTab>[];

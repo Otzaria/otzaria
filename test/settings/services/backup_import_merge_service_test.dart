@@ -6,6 +6,10 @@ import 'package:hive_ce/hive.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/bookmarks/repository/bookmark_repository.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/user_state/user_state_database.dart';
+import 'package:otzaria/core/user_state/user_state_slot.dart';
+import 'package:otzaria/core/user_state/window_session_store.dart';
+import 'package:otzaria/core/windowing/multi_window_service.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
 import 'package:otzaria/history/history_repository.dart';
 import 'package:otzaria/models/books.dart';
@@ -17,7 +21,6 @@ import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/backup/backup_import_merge.dart';
 import 'package:otzaria/settings/services/backup_service.dart';
-import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/workspaces/workspace.dart';
 import 'package:otzaria/workspaces/workspace_repository.dart';
 import 'package:path/path.dart' as p;
@@ -36,9 +39,13 @@ void main() {
     await Hive.openBox<dynamic>('workspaces');
     await Hive.openBox<dynamic>('bookmarks');
     await Hive.openBox<dynamic>('history');
-    await Hive.openBox<dynamic>(TabsRepository.boxName);
     await Hive.openBox<dynamic>(DirectErrorReportService.queueBoxName);
     await Hive.openBox<dynamic>(PluginReportService.queueBoxName);
+    // בלי אפיק חלונות, ולכן המשבצת היא של החלון היחיד.
+    MultiWindowService.debugSupportedOverride = false;
+    UserStateDatabase.instance.overridePath(
+      p.join(tempDir.path, 'user_state.db'),
+    );
     await Settings.init(cacheProvider: HiveCache());
     await Settings.setValue<String>(
       SettingsRepository.keyBackupPath,
@@ -56,6 +63,8 @@ void main() {
     await PersonalNotesDatabase.instance.close();
     PluginSystemDatabase.instance.resetForTests();
     await Hive.close();
+    UserStateDatabase.instance.close();
+    MultiWindowService.debugSupportedOverride = null;
     AppPaths.debugOverrideDataRootPath(null);
     try {
       await tempDir.delete(recursive: true);
@@ -139,17 +148,28 @@ void main() {
 
   test('ההגדרות והכרטיסיות הפתוחות אינן משתנות', () async {
     await Settings.setValue<double>('key-font-size', 20);
-    final tabs = Hive.box<dynamic>(TabsRepository.boxName);
-    await tabs.put('key-tabs', ['טאב מהגיבוי']);
+    final sessions = WindowSessionStore.instance;
+    await sessions.save(
+      UserStateSlot.single,
+      tabsJson: '["טאב מהגיבוי"]',
+      currentIndex: 0,
+    );
     final path = await createFullBackup();
 
     await Settings.setValue<double>('key-font-size', 30);
-    await tabs.put('key-tabs', ['טאב מקומי']);
+    await sessions.save(
+      UserStateSlot.single,
+      tabsJson: '["טאב מקומי"]',
+      currentIndex: 0,
+    );
 
     await importMerge(path);
 
     expect(Settings.getValue<double>('key-font-size'), 30);
-    expect(tabs.get('key-tabs'), ['טאב מקומי']);
+    expect(
+      (await sessions.load(UserStateSlot.single))!.tabsJson,
+      '["טאב מקומי"]',
+    );
   });
 
   test('שולחן עבודה מיובא נוסף ואינו מחליף את הקיימים', () async {

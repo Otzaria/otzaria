@@ -1771,7 +1771,7 @@ class IndexingRepository {
   /// Clears the index and resets the list of indexed books.
   Future<bool> clearIndex() async {
     if (WindowRole.isSecondary) {
-      UiSnack.show(WindowMessages.indexingOnlyInMainWindow);
+      UiSnack.show(WindowMessages.indexResetOnlyInMainWindow);
       return false;
     }
     await _tantivyDataProvider.clear();

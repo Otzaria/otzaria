@@ -193,7 +193,7 @@ class ContextMenuUtils {
         icon: FluentIcons.tab_add_24_regular,
         onTap: () => openLinkTargetInBackground(context, link),
       ),
-      if (MultiWindowService.isSupported)
+      if (MultiWindowService.canOpenWindows)
         AppContextMenuEntry(
           label: 'פתח בחלון חדש',
           icon: FluentIcons.window_new_24_regular,

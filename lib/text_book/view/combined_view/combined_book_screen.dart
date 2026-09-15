@@ -663,6 +663,9 @@ class _CombinedViewState extends State<CombinedView> {
   /// סמני חלוקה לפי lineIndex — אותיות פסקה במדרש רבה, סעיפים בנושאי-כלים.
   Map<int, String> _sectionMarkersByLine = const {};
 
+  /// כותרות נושא (מבנה `Topic`) לפי lineIndex, שאינן כתובות בגוף הספר.
+  Map<int, List<String>> _sectionHeadingsByLine = const {};
+
   // מנהל בחירת טקסט משופר
   late final TextSelectionManager _selectionManager;
 
@@ -907,13 +910,21 @@ class _CombinedViewState extends State<CombinedView> {
       fileType: book.fileType,
     );
     if (provider is! DatabaseLibraryProvider) return;
-    final markers = await DatabaseLibraryProvider.instance
-        .getInlineSectionMarkersByLineIndex(book.title);
+    final marks = await DatabaseLibraryProvider.instance
+        .getInlineSectionMarksByLineIndex(book.title);
     // כמו ב-_loadSourceBanner: מעבר מהיר בין ספרים עלול לסיים await זה
     // אחרי החלפת הספר.
     if (!mounted || !sameSourceIdentity(book, widget.tab.book)) return;
-    if (markers.isEmpty && _sectionMarkersByLine.isEmpty) return;
-    setState(() => _sectionMarkersByLine = markers);
+    if (marks.markers.isEmpty &&
+        marks.headings.isEmpty &&
+        _sectionMarkersByLine.isEmpty &&
+        _sectionHeadingsByLine.isEmpty) {
+      return;
+    }
+    setState(() {
+      _sectionMarkersByLine = marks.markers;
+      _sectionHeadingsByLine = marks.headings;
+    });
   }
 
   @override
@@ -2575,6 +2586,12 @@ class _CombinedViewState extends State<CombinedView> {
                           data = prependSectionMarker(
                             data,
                             _sectionMarkersByLine[primaryLineIndex],
+                          );
+                          // רק כאן ולא בקריאה רציפה — שם השורות זורמות
+                          // בפסקה אחת ובלוק כותרת היה נבלע בתוכה.
+                          data = prependSectionHeadings(
+                            data,
+                            _sectionHeadingsByLine[primaryLineIndex],
                           );
 
                           // איסוף קישורי inline (start/end מתייחסים לטקסט המקורי)

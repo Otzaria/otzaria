@@ -123,17 +123,20 @@ void main() {
   });
 
   group('collect — חוזה ה-JSON', () {
-    test('supportedExtensions נגזר מה-registry היחיד ולא מרשימה מקומית', () async {
-      final section = await PersonalFoldersInfo.collect(
-        foldersOverride: const [],
-      );
+    test(
+      'supportedExtensions נגזר מה-registry היחיד ולא מרשימה מקומית',
+      () async {
+        final section = await PersonalFoldersInfo.collect(
+          foldersOverride: const [],
+        );
 
-      expect(section['supportedExtensions'], kSupportedBookExtensions);
-      expect(section['configuredCount'], 0);
-      expect(section['existingCount'], 0);
-      expect(section['totalFiles'], 0);
-      expect(section['folders'], isEmpty);
-    });
+        expect(section['supportedExtensions'], kSupportedBookExtensions);
+        expect(section['configuredCount'], 0);
+        expect(section['existingCount'], 0);
+        expect(section['totalFiles'], 0);
+        expect(section['folders'], isEmpty);
+      },
+    );
 
     test('רשומת תיקייה נושאת את ההגדרות ואת תוצאות הסריקה', () async {
       write('ספר.txt', 'אבג');

@@ -490,7 +490,7 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     }
 
     // חלון אוצריא נוסף — רק בפלטפורמה תומכת, אחרת הקיצור ממשיך הלאה.
-    if (MultiWindowService.isSupported &&
+    if (MultiWindowService.canOpenWindows &&
         newWindowShortcut.isNotEmpty &&
         ShortcutHelper.matchesShortcut(event, newWindowShortcut)) {
       unawaited(const MultiWindowService().openEmptyWindow());

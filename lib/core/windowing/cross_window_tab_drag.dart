@@ -91,7 +91,7 @@ class CrossWindowTabDrag {
     TabsBloc? tabsBloc,
     VoidCallback? cancelDrag,
   }) {
-    if (!MultiWindowService.isSupported) return;
+    if (!MultiWindowService.canDragTabsOut) return;
     _draggedTitle = tab.title;
     _draggedTab = tab;
     _sourceBloc = tabsBloc;
@@ -135,7 +135,7 @@ class CrossWindowTabDrag {
   /// 3. `snapped` גובר על היעד שתחת הסמן, ולכן שחרור מעל חלון אוצריא אחר
   ///    פתח חלון **חדש** במסגרת של 176×40 במקום להעביר אליו.
   void applySnapshot(TabWindowPreview preview, int generation) {
-    if (!MultiWindowService.isSupported || generation != _dragGeneration) {
+    if (!MultiWindowService.canDragTabsOut || generation != _dragGeneration) {
       preview.image.dispose();
       return;
     }
@@ -203,7 +203,7 @@ class CrossWindowTabDrag {
   ///
   /// ⚠️ [_remoteDropIndex] **אינו** מתאפס כאן: השחרור צריך את המיקום.
   void end() {
-    if (!MultiWindowService.isSupported) return;
+    if (!MultiWindowService.canDragTabsOut) return;
     // ⚠️ הגרירה כבר בידי Windows. `freezeTabDrag` כאן היה מחזיר את הרוח
     // אחרי שהחלון האמיתי הסתיר אותה, ו-`notifyDragLeave` היה מנקה חיווי
     // של חלון שכבר אינו רלוונטי.

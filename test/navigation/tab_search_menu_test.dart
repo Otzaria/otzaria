@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
+import 'package:otzaria/history/view/history_screen.dart';
 import 'package:otzaria/navigation/view/tab_search_menu.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
@@ -148,6 +149,18 @@ void main() {
       findsOneWidget,
       reason: 'שלוש הקשות רצופות אינן משאירות שתי חלוניות',
     );
+  });
+
+  testWidgets('"הצג את כל ההיסטוריה" סוגר את החלונית ופותח את ההיסטוריה', (
+    tester,
+  ) async {
+    await openMenu(tester);
+
+    await tester.tap(find.text('הצג את כל ההיסטוריה'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TabSearchPanel), findsNothing);
+    expect(find.byType(HistoryDialog), findsOneWidget);
   });
 
   testWidgets('לחיצה על כרטיסיה שנסגרה משחזרת אותה', (tester) async {

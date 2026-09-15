@@ -902,6 +902,7 @@ dart format lib/file.dart    # Format ONLY files you modified
 | Backup store (blobs, dedup, GC) + maintenance helpers | `test/unit/settings/backup/backup_store_test.dart` |
 | Backup rotation (GFS) | `test/unit/settings/backup/backup_rotation_test.dart` |
 | Backup archive merge rules | `test/unit/settings/backup/backup_merge_test.dart` |
+| ייבוא ספרים אישיים במובייל (קבצים, ותיקייה שלמה באנדרואיד דרך SAF) | `test/settings/panels/personal_books_import_panel_test.dart`, `test/settings/services/custom_folders/personal_books_import_service_test.dart`, `…android_folder_import_channel_test.dart` |
 | SegmentedSettingsTile | `test/settings/widgets/segmented_settings_tile_test.dart` |
 | SwitchSettingsTile | `test/settings/widgets/switch_settings_tile_test.dart` |
 

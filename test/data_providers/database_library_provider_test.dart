@@ -2413,6 +2413,70 @@ void main() {
       },
     );
 
+    test('תיקייה אישית "תנך" מתמזגת לקטגוריה "תנ״ך" (issue #1382)', () {
+      final provider = DatabaseLibraryProvider.instance;
+      provider.clearCache();
+
+      final library = library_models.Library(categories: []);
+      final parentCategory = library_models.Category(
+        title: 'שורש',
+        description: '',
+        shortDescription: '',
+        order: 1,
+        subCategories: [],
+        books: [],
+        parent: library,
+      );
+      final tanachCategory = library_models.Category(
+        title: 'תנ״ך',
+        description: '',
+        shortDescription: '',
+        order: 1,
+        subCategories: [],
+        books: [],
+        parent: parentCategory,
+      );
+      parentCategory.subCategories.add(tanachCategory);
+
+      provider.populateUserBooksCategoryForTesting(
+        targetCategory: parentCategory,
+        dbCategory: const migration_models.Category(
+          id: 20,
+          parentId: null,
+          title: 'שורש',
+          level: 0,
+          orderIndex: 1,
+        ),
+        booksByCategory: {
+          21: [
+            {
+              'id': 200,
+              'title': 'פירוש אישי',
+              'categoryId': 21,
+              'orderIndex': 1,
+              'fileType': 'txt',
+            },
+          ],
+        },
+        categoriesByParent: {
+          20: const [
+            migration_models.Category(
+              id: 21,
+              parentId: 20,
+              title: 'תנך',
+              level: 1,
+              orderIndex: 1,
+            ),
+          ],
+        },
+        authorsByBookId: const {},
+        metadata: const {},
+      );
+
+      expect(parentCategory.subCategories, hasLength(1));
+      expect(tanachCategory.books.map((b) => b.title), ['פירוש אישי']);
+    });
+
     test(
       'mergeLinksForTesting ממזג קישורים בלי כפילויות ושומר קישורים קודמים',
       () {

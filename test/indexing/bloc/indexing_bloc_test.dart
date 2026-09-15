@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:isolate';
+import 'dart:ui';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
+import 'package:otzaria/core/windowing/multi_window_service.dart';
+import 'package:otzaria/core/windowing/window_bus.dart';
 import 'package:otzaria/core/windowing/window_role.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
@@ -12,6 +16,10 @@ import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
+
+/// ⚠️ קידומת ייחודית לסוויטה: [IsolateNameServer] גלובלי לתהליך, ושתי
+/// סוויטות שרצות יחד היו תופסות את אותו כינוי בעלים.
+const String _busNamespace = 'otzaria.test.indexingbloc';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -163,7 +171,18 @@ void main() {
   });
 
   group('חלון משני', () {
-    setUp(() => WindowRole.isSecondary = true);
+    late _FakeOwnerWindow owner;
+
+    setUp(() {
+      WindowRole.isSecondary = true;
+      WindowBus.namespace = _busNamespace;
+      owner = _FakeOwnerWindow()..register();
+    });
+
+    tearDown(() {
+      owner.dispose();
+      WindowBus.namespace = 'otzaria.window';
+    });
 
     blocTest<IndexingBloc, IndexingState>(
       'אינדוקס מלא אינו מגיע למאגר',
@@ -252,6 +271,38 @@ void main() {
       build: _FakeIndexingBloc.new,
       act: (bloc) => bloc.add(ClearIndex()),
       expect: () => [IndexingInitial()],
+    );
+
+    // כל חלון יכול ליזום; המארח הוא שמבצע.
+    blocTest<IndexingBloc, IndexingState>(
+      'אינדוקס מלא שהמשתמש ביקש נשלח למארח ולא מתבצע מקומית',
+      build: _FakeIndexingBloc.new,
+      act: (bloc) => bloc.add(StartIndexing(libraryWithBooks())),
+      wait: const Duration(milliseconds: 100),
+      verify: (bloc) {
+        expect(owner.receivedOps, [MultiWindowService.indexOpAll]);
+        expect(repositoryOf(bloc).indexAllCalls, 0);
+      },
+    );
+
+    blocTest<IndexingBloc, IndexingState>(
+      'איפוס אינדקס שהמשתמש ביקש נשלח למארח ולא מתבצע מקומית',
+      build: _FakeIndexingBloc.new,
+      act: (bloc) => bloc.add(ClearIndex()),
+      wait: const Duration(milliseconds: 100),
+      verify: (bloc) {
+        expect(owner.receivedOps, [MultiWindowService.indexOpClear]);
+        expect(repositoryOf(bloc).clearCalls, 0);
+      },
+    );
+
+    // עבודת התחזוקה רצה במארח בכל טעינת ספרייה — העברה הייתה מכפילה אותה.
+    blocTest<IndexingBloc, IndexingState>(
+      'עבודת רקע אינה נשלחת למארח',
+      build: _FakeIndexingBloc.new,
+      act: (bloc) => bloc.add(ReconcileIndex(libraryWithBooks())),
+      wait: const Duration(milliseconds: 100),
+      verify: (_) => expect(owner.receivedOps, isEmpty),
     );
   });
 
@@ -762,5 +813,35 @@ class _UnusedTantivyDataProvider implements TantivyDataProvider {
   @override
   dynamic noSuchMethod(Invocation invocation) {
     throw UnimplementedError('Unexpected provider call: $invocation');
+  }
+}
+
+/// המארח המדומה: תופס את כינוי הבעלים באפיק ומתעד את הפעולות שהתבקשו.
+///
+/// [WindowBus] הוא סינגלטון פר-isolate ואינו יכול לשמש כשני חלונות, ולכן
+/// הצד המרוחק נרשם ישירות מול [IsolateNameServer] — אותו מנגנון בדיוק.
+class _FakeOwnerWindow {
+  final receivedOps = <String>[];
+  late final ReceivePort _port;
+
+  void register() {
+    _port = ReceivePort();
+    IsolateNameServer.registerPortWithName(
+      _port.sendPort,
+      '$_busNamespace.owner',
+    );
+    _port.listen((message) {
+      final map = message as Map;
+      final reply = map['reply'] as SendPort;
+      final body = Map<String, dynamic>.from(map['body'] as Map);
+      final accepted = body['type'] == MultiWindowService.requestIndex;
+      if (accepted) receivedOps.add(body['op'] as String);
+      reply.send({'ok': true, 'result': accepted});
+    });
+  }
+
+  void dispose() {
+    IsolateNameServer.removePortNameMapping('$_busNamespace.owner');
+    _port.close();
   }
 }

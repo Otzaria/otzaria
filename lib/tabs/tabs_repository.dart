@@ -1,7 +1,8 @@
 import 'dart:async';
-import 'package:hive_ce/hive.dart';
+import 'dart:convert';
 import 'package:path/path.dart' as p;
-import 'package:otzaria/core/windowing/shared_hive_store.dart';
+import 'package:otzaria/core/user_state/user_state_slot.dart';
+import 'package:otzaria/core/user_state/window_session_store.dart';
 import 'package:otzaria/core/windowing/window_bus.dart';
 import 'package:otzaria/core/windowing/window_role.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
@@ -10,74 +11,75 @@ import 'package:otzaria/utils/file/hive_utils.dart';
 import 'package:flutter/foundation.dart';
 
 class TabsRepository {
+  TabsRepository({this.sessions});
+
+  /// שם ה-box ההיסטורי. נשאר ככינוי שהגיבוי משתמש בו בשמות הסעיפים.
   static const String boxName = 'tabs';
-  static const String _tabsBoxKey = 'key-tabs';
-  static const String _currentTabKey = 'key-current-tab';
-  static const String _legacySplitModeKey = 'key-side-by-side-mode';
 
-  /// המשבצת שקובעת את מפתחות הסשן, או null בחלון הראשון.
-  int? get _windowSlot =>
-      WindowRole.isSecondary ? WindowBus.instance.slot : null;
+  /// השהיית הכתיבה של האינדקס הפעיל. זו הפעולה השכיחה ביותר, וכתיבת
+  /// SQLite סינכרונית על ה-UI — מעבר מהיר בין כרטיסיות מתמזג לכתיבה אחת.
+  static const Duration _indexDebounce = Duration(milliseconds: 300);
 
-  /// המפתח שהחלון הזה **כותב** אליו.
+  /// מאגר הסשנים שכל המופעים ייפלו אליו; לבדיקות בלבד.
+  @visibleForTesting
+  static WindowSessionStore? debugSessions;
+
+  /// מאגר הסשנים של המופע הזה; null = המאגר הגלובלי.
+  final WindowSessionStore? sessions;
+
+  WindowSessionStore get _store =>
+      sessions ?? debugSessions ?? WindowSessionStore.instance;
+
+  static WindowSessionStore get _staticStore =>
+      debugSessions ?? WindowSessionStore.instance;
+
+  /// המשבצת שהחלון הזה כותב אליה, או null כשאינו יכול לשמור.
   ///
-  /// ⚠️ חלון משני כותב תחת מפתח משלו, ב-box של הבעלים. קודם לכן הוא כתב
-  /// ל-`Hive.box('tabs')` — כלומר לשורש ה-Hive הפרטי שלו, שנוצר מחדש בכל
-  /// הפעלה ואינו נקרא אף פעם. התוצאה: הכרטיסיות שלו לא נשמרו כלל, וספר
-  /// שהועבר אליו נעלם משני החלונות אחרי סגירת התוכנה.
-  String get _sessionTabsKey =>
-      SharedHiveStore.tabsKeyForWindow(_windowSlot, _tabsBoxKey);
+  /// ⚠️ חלון בלי משבצת אינו שומר, ובשום מצב אינו נופל למשבצת של חלון אחר
+  /// — זו הייתה דריסת הכרטיסיות שלו.
+  static int? get _sessionSlot => UserStateSlot.current;
 
-  String get _sessionCurrentKey =>
-      SharedHiveStore.tabsKeyForWindow(_windowSlot, _currentTabKey);
+  /// המשבצת של החלון הראשון בתהליך — הסשן שנטען בהפעלה קרה.
+  static const int _hostSlot = UserStateSlot.single;
 
-  /// האם החלון הזה יכול לשמור.
-  ///
-  /// ⚠️ חלון משני בלי משבצת באפיק אינו שומר, ובשום מצב אינו נופל למפתח של
-  /// החלון הראשון — זו הייתה דריסת הכרטיסיות שלו.
-  bool get _canPersist =>
-      !WindowRole.isSecondary || WindowBus.instance.slot != null;
+  /// דור הסשן של החלון הזה: עולה בכל [importRaw]. `TabsBloc` שנבנה לפני
+  /// הייבוא אינו שומר יותר — אחרת סגירתו בעת ההפעלה מחדש הייתה כותבת את
+  /// הכרטיסיות שבזיכרונו על אלה ששוחזרו.
+  static int get sessionGeneration => _sessionGeneration;
+  static int _sessionGeneration = 0;
 
-  /// הטאבים הפתוחים והטאב הפעיל, גולמיים, לגיבוי.
+  /// הטאבים הפתוחים והטאב הפעיל, גולמיים, לגיבוי; null כשאין משבצת.
   ///
   /// גולמי (ה-JSON כפי שנשמר) ולא [OpenedTab]: טאב שאינו נטען במחשב היעד
   /// (ספר חסר) מדולג בטעינה על ידי [loadTabs], ואין להשמיט אותו מהגיבוי מראש.
-  ///
-  /// ⚠️ תמיד הסשן של החלון **הראשון**, גם כשהגיבוי מופעל מחלון משני: גיבוי
-  /// הוא של התוכנה ולא של החלון, ומה שנטען בהפעלה קרה הוא המפתח ההיסטורי.
-  Future<Map<String, dynamic>> exportRaw() async {
-    final tabs = await SharedHiveStore.instance.read(boxName, _tabsBoxKey);
-    final current = await SharedHiveStore.instance.read(
-      boxName,
-      _currentTabKey,
-    );
-    // ⚠️ "לא הצלחנו לשאול" אינו "אין כרטיסיות". בלי הבדיקה גיבוי שנוצר
-    // בחלון משני בזמן שהבעלים עסוק כתב `openTabs: {tabs: []}` בלי שגיאה,
-    // ושחזור ממנו סגר את כל הכרטיסיות של המשתמש.
-    if (!tabs.authoritative || !current.authoritative) {
-      throw SharedHiveUnavailable.report(
-        SharedHiveKey(boxName, _tabsBoxKey),
-        (tabs.authoritative ? current.reason : tabs.reason)!,
-      );
-    }
+  Future<Map<String, dynamic>?> exportRaw() async {
+    final slot = _sessionSlot;
+    if (slot == null) return null;
+    final session = await _store.load(slot);
     return {
-      'tabs': tabs.value ?? <dynamic>[],
-      'currentTab': current.value ?? 0,
+      'tabs': session == null ? <dynamic>[] : _decodeTabs(session.tabsJson),
+      'currentTab': session?.currentIndex ?? 0,
     };
   }
 
-  /// כתיבת הטאבים מגיבוי, בדריסת הטאבים השמורים.
+  /// כתיבת הטאבים מגיבוי לסשן של החלון הזה, בדריסת הטאבים השמורים.
   Future<void> importRaw(Map<String, dynamic> data) async {
-    await SharedHiveStore.instance.write(
-      boxName,
-      _tabsBoxKey,
-      data['tabs'] ?? <dynamic>[],
+    final slot = _sessionSlot;
+    if (slot == null) return;
+    final tabs = data['tabs'];
+    final current = data['currentTab'];
+    _cancelPendingIndex();
+    await _store.save(
+      slot,
+      tabsJson: jsonEncode(tabs is List ? tabs : <dynamic>[]),
+      currentIndex: current is int ? current : 0,
     );
-    await SharedHiveStore.instance.write(
-      boxName,
-      _currentTabKey,
-      data['currentTab'] ?? 0,
-    );
+    _sessionGeneration++;
+  }
+
+  static List<dynamic> _decodeTabs(String tabsJson) {
+    final decoded = jsonDecode(tabsJson);
+    return decoded is List ? decoded : const [];
   }
 
   int _resolvePersistedCurrentTabIndex(
@@ -109,22 +111,24 @@ class TabsRepository {
   Future<void> remapBookPaths(String fromDir, String toDir) async {
     // ⚠️ הסשן של החלון הראשון, גם כשההעברה מופעלת מחלון משני: העברת
     // הספרייה היא פעולה של התוכנה, וזה הסשן שנטען בהפעלה קרה.
-    final stored = await SharedHiveStore.instance.read(boxName, _tabsBoxKey);
-    final rawTabs = stored.value;
-    if (rawTabs is! List) return;
+    final session = await _store.load(_hostSlot);
+    if (session == null) return;
     var changed = false;
-    final remapped = rawTabs
-        .map((e) => _remapNode(e, fromDir, toDir, () => changed = true))
-        .toList();
-    if (changed) {
-      await SharedHiveStore.instance.write(boxName, _tabsBoxKey, remapped);
-    }
+    final remapped = _decodeTabs(
+      session.tabsJson,
+    ).map((e) => _remapNode(e, fromDir, toDir, () => changed = true)).toList();
+    if (!changed) return;
+    await _store.save(
+      _hostSlot,
+      tabsJson: jsonEncode(remapped),
+      currentIndex: session.currentIndex,
+    );
   }
 
   /// ממפה נתיבי קבצים של טאבים פתוחים *בזיכרון* מ-[fromDir] ל-[toDir].
   /// טאב שהנתיב שלו לא משתנה מוחזר כאובייקט המקורי (ללא בנייה מחדש);
   /// טאב ששונה נבנה מחדש דרך toJson→fromJson עם הנתיב החדש.
-  /// נדרש בנוסף ל-[remapBookPaths]: שמירה ל-Hive בלבד נדרסת ע"י שמירת
+  /// נדרש בנוסף ל-[remapBookPaths]: שמירה למסד בלבד נדרסת ע"י שמירת
   /// הטאבים שבזיכרון בעת dispose, ולכן ספר PDF היה נטען מהנתיב הישן.
   List<OpenedTab> remapTabsInMemory(
     List<OpenedTab> tabs,
@@ -172,21 +176,23 @@ class TabsRepository {
     return node;
   }
 
-  /// הטאבים כפי שנשמרו. פיצול מקונן מגרסה קודמת מנורמל אצל הקורא דרך
-  /// [flattenRestoredSplits], יחד עם האינדקס הפעיל — שהנירמול מזיז.
+  /// הטאבים כפי שנשמרו בסשן של החלון הזה. פיצול מקונן מגרסה קודמת מנורמל
+  /// אצל הקורא דרך [flattenRestoredSplits], יחד עם האינדקס הפעיל.
   ///
-  /// ⚠️ **חלון משני אינו משחזר כרטיסיות, ומחזיר רשימה ריקה.** הוא נפתח עם
-  /// הכרטיסיה שהועברה אליו, וזה מה שהמשתמש ביקש לראות. מפתח הסשן שלו קיים
-  /// כדי **לשמור** — כדי שכיבוי התוכנה לא יאבד את מה שפתוח בו — ולא כדי
-  /// שחלון חדש יקבל את השרידים של קודמו באותה משבצת.
+  /// ⚠️ **כל חלון משחזר את הסשן של המשבצת שלו**, משני כראשי: סשן שנשאר
+  /// במשבצת פירושו חלון שמת בלי סגירה מסודרת, והכרטיסיות שבו פתוחות
+  /// מבחינת המשתמש. סגירה יזומה מוחקת אותו ([discardWindowSession]),
+  /// ולכן חלון חדש אינו יורש שרידים של חלון שנסגר.
+  ///
+  /// ⚠️ סינכרוני — נקרא מבנאי של bloc. מחייב שהמסד כבר נפתח באתחול.
   List<OpenedTab> loadTabs() {
-    if (WindowRole.isSecondary) return const [];
+    final slot = _sessionSlot;
+    if (slot == null) return const [];
     try {
-      final box = Hive.box('tabs');
-      unawaited(box.delete(_legacySplitModeKey));
-      final rawTabs = box.get(_tabsBoxKey, defaultValue: []) as List;
+      final session = _store.loadOpened(slot);
+      if (session == null) return const [];
       final tabs = <OpenedTab>[];
-      for (final e in rawTabs) {
+      for (final e in _decodeTabs(session.tabsJson)) {
         try {
           tabs.add(OpenedTab.fromJson(castMap(e)));
         } catch (tabError) {
@@ -201,146 +207,138 @@ class TabsRepository {
   }
 
   int loadCurrentTabIndex() {
-    if (WindowRole.isSecondary) return 0;
-    return Hive.box('tabs').get(_currentTabKey, defaultValue: 0);
+    final slot = _sessionSlot;
+    if (slot == null) return 0;
+    try {
+      return _store.loadOpened(slot)?.currentIndex ?? 0;
+    } catch (e) {
+      debugPrint('⚠️ Error loading current tab index: $e');
+      return 0;
+    }
   }
 
   Future<void> saveTabs(List<OpenedTab> tabs, int currentTabIndex) async {
-    if (!_canPersist) {
-      debugPrint('⚠️ saveTabs: אין משבצת אפיק לחלון הזה — הסשן לא נשמר');
+    final slot = _sessionSlot;
+    if (slot == null) {
+      debugPrint('⚠️ saveTabs: אין משבצת לחלון הזה — הסשן לא נשמר');
       return;
     }
-    final persistedTabs = <OpenedTab>[];
     final persistedIndexByOriginalIndex = <int, int>{};
-
     for (var i = 0; i < tabs.length; i++) {
-      persistedIndexByOriginalIndex[i] = persistedTabs.length;
-      persistedTabs.add(tabs[i]);
+      persistedIndexByOriginalIndex[i] = i;
     }
-
     final persistedCurrentIndex = _resolvePersistedCurrentTabIndex(
       persistedIndexByOriginalIndex,
       currentTabIndex,
       tabs.length,
     );
-    await SharedHiveStore.instance.write(
-      boxName,
-      _sessionTabsKey,
-      persistedTabs.map((tab) => tab.toJson()).toList(),
+    // הכתיבה המלאה נושאת גם את האינדקס, ולכן היא מחליפה כתיבה ממתינה.
+    _cancelPendingIndex();
+    await _store.save(
+      slot,
+      tabsJson: jsonEncode(tabs.map((tab) => tab.toJson()).toList()),
+      currentIndex: persistedCurrentIndex,
     );
-    await SharedHiveStore.instance.write(
-      boxName,
-      _sessionCurrentKey,
-      persistedCurrentIndex,
-    );
-    if (_windowSlot == null) {
-      await Hive.box(boxName).delete(_legacySplitModeKey);
-    }
   }
 
-  /// מוחק את סשן החלון הזה.
-  ///
-  /// ⚠️ נקרא כשהמשתמש **סוגר** חלון שאינו האחרון, אחרי ה-flush. בלי המחיקה
-  /// הסשן היה נשאר על הדיסק, ו-[adoptOrphanWindowSessions] היה מחזיר
-  /// בהפעלה הבאה כרטיסיות שהמשתמש סגר במכוון. מה שכן צריך לשרוד סגירה הוא
-  /// `Ctrl+Shift+T`, והוא נשען על המנוע שנשאר חי בזיכרון ולא על הדיסק.
-  ///
-  /// ⚠️ **חל גם על החלון הראשון**, וההצדקה זהה: הוא נסגר במכוון בעוד
-  /// חלונות אחרים נשארו פתוחים, ולכן הכרטיסיות שלו אינן "פתוחות" יותר.
-  /// מפתח הסשן שלו הוא ההיסטורי, ולכן הוא נכתב כרשימה ריקה ואינו נמחק:
-  /// `loadTabs` ו-`NavigationBloc` קוראים אותו בהפעלה קרה, ומפתח חסר אינו
-  /// מבחין בין "אין כרטיסיות" לבין "טרם נשמר".
+  /// מוחק את סשן החלון הזה — כשהמשתמש סוגר חלון שאינו האחרון, אחרי
+  /// ה-flush. בלי המחיקה ההפעלה הבאה הייתה מחזירה כרטיסיות שנסגרו במכוון.
   Future<void> discardWindowSession() async {
+    final slot = _sessionSlot;
+    if (slot == null) return;
     try {
-      if (_windowSlot == null) {
-        await SharedHiveStore.instance.write(
-          boxName,
-          _sessionTabsKey,
-          const [],
-        );
-        await SharedHiveStore.instance.write(boxName, _sessionCurrentKey, 0);
-        return;
-      }
-      await SharedHiveStore.instance.delete(boxName, _sessionTabsKey);
-      await SharedHiveStore.instance.delete(boxName, _sessionCurrentKey);
+      _cancelPendingIndex();
+      await _store.delete(slot);
     } catch (e) {
       debugPrint('⚠️ discardWindowSession failed: $e');
     }
   }
 
-  /// מצרף לחלון הראשון סשנים של חלונות שלא ייפתחו שוב.
+  /// מצרף לחלון הראשון סשנים שנשארו מחלונות שמתו בלי סגירה מסודרת —
+  /// הכרטיסיות שבהם פתוחות מבחינת המשתמש. מחזיר את מספר הכרטיסיות.
   ///
-  /// ⚠️ בהפעלה קרה נפתח חלון אחד בלבד, ולכן כרטיסיות שנשמרו תחת מפתח של
-  /// חלון משני לא ייטענו על ידי אף אחד. מפתח כזה נשאר רק כשהתהליך מת בלי
-  /// שהחלון עבר סגירה מסודרת — קריסה, כיבוי מערכת, "סיים משימה" — ולכן
-  /// **הן פתוחות מבחינת המשתמש** ואין להשמיט אותן.
-  ///
-  /// רץ **פעם אחת בהפעלה, לפני שה-blocs נבנים**, וכותב לתוך המפתח
-  /// ההיסטורי. שני קוראים שונים ([loadTabs] ו-`NavigationBloc`) קוראים
-  /// אחריו ורואים בדיוק אותו דבר.
-  ///
-  /// מחזיר את מספר הכרטיסיות שאומצו.
+  /// ⚠️ רץ פעם אחת בהפעלה קרה, לפני שה-blocs נבנים: `TabsBloc`
+  /// ו-`NavigationBloc` טוענים שניהם אחריו ורואים אותו דבר.
   static Future<int> adoptOrphanWindowSessions() async {
-    if (WindowRole.isSecondary) return 0;
+    if (WindowRole.isSecondary || WindowBus.instance.hasOtherWindows) return 0;
+    final host = _sessionSlot;
+    if (host == null) return 0;
     try {
-      final box = Hive.box<dynamic>(boxName);
-      final orphanKeys = box.keys
-          .whereType<String>()
-          .where((k) => k.startsWith('$_tabsBoxKey-window-'))
-          .toList();
-      if (orphanKeys.isEmpty) return 0;
-
-      final adopted = <dynamic>[];
-      for (final key in orphanKeys) {
-        final raw = box.get(key);
-        if (raw is List) adopted.addAll(raw);
-        await box.delete(key);
-        await box.delete(
-          key.replaceFirst(_tabsBoxKey, _currentTabKey),
-        );
+      final adopted = await _staticStore.adoptInto(host);
+      if (adopted > 0) {
+        debugPrint('אומצו $adopted כרטיסיות מחלונות שנסגרו בלי סגירה מסודרת');
       }
-      if (adopted.isEmpty) return 0;
-
-      final own = box.get(_tabsBoxKey, defaultValue: <dynamic>[]) as List;
-      await box.put(_tabsBoxKey, [...own, ...adopted]);
-      debugPrint(
-        'אומצו ${adopted.length} כרטיסיות מ-${orphanKeys.length} '
-        'חלונות שנסגרו בלי סגירה מסודרת',
-      );
-      return adopted.length;
+      return adopted;
     } catch (e) {
       debugPrint('⚠️ adoptOrphanWindowSessions failed: $e');
       return 0;
     }
   }
 
+  /// החלופה ל-[adoptOrphanWindowSessions] כש"שחזר את כל החלונות" דלוק:
+  /// הסשנים נשארים נפרדים, במשבצות רצופות אחרי המארח, כדי שכל חלון חדש —
+  /// שתופס את המשבצת הפנויה הראשונה — ימצא במשבצת שלו את הסשן שנועד לו.
+  /// מחזיר את המשבצות שיש לפתוח להן חלון, לפי הסדר.
+  static Future<List<int>> compactWindowSessions() async {
+    if (WindowRole.isSecondary || WindowBus.instance.hasOtherWindows) {
+      return const [];
+    }
+    final host = _sessionSlot;
+    if (host == null) return const [];
+    try {
+      return await _staticStore.compactAround(host, WindowBus.slotCount);
+    } catch (e) {
+      debugPrint('⚠️ compactWindowSessions failed: $e');
+      return const [];
+    }
+  }
+
+  /// האינדקס הפעיל שממתין לכתיבה, והמשבצת שאליה.
+  static Timer? _indexTimer;
+  static int? _pendingIndex;
+  static int? _pendingIndexSlot;
+
   /// שומר רק את אינדקס הטאב הנוכחי, בלי לקודד מחדש את כל הטאבים.
   ///
-  /// מיועד למעבר בין טאבים, שבו רשימת הטאבים עצמה לא משתנה — אין טעם
-  /// להריץ `toJson()` על כל הטאבים בכל מעבר. מבצע רק מיפוי אינדקסים קל
-  /// ושומר ערך בודד. הכתיבה ל-Hive אסינכרונית ואינה חוסמת את ה-UI.
+  /// מיועד למעבר בין טאבים, שבו רשימת הטאבים עצמה לא משתנה. הכתיבה
+  /// מושהית ב-[_indexDebounce]: מעבר מהיר בין כרטיסיות מתמזג לכתיבה אחת.
+  /// [flushPendingWrites] מוציא כתיבה ממתינה מיד.
   Future<void> saveCurrentTabIndex(
     List<OpenedTab> tabs,
     int currentTabIndex,
   ) async {
-    if (!_canPersist) return;
+    final slot = _sessionSlot;
+    if (slot == null) return;
     final persistedIndexByOriginalIndex = <int, int>{};
-    var persistedCount = 0;
     for (var i = 0; i < tabs.length; i++) {
-      persistedIndexByOriginalIndex[i] = persistedCount;
-      persistedCount++;
+      persistedIndexByOriginalIndex[i] = i;
     }
-
-    final persistedCurrentIndex = _resolvePersistedCurrentTabIndex(
+    _pendingIndex = _resolvePersistedCurrentTabIndex(
       persistedIndexByOriginalIndex,
       currentTabIndex,
       tabs.length,
     );
+    _pendingIndexSlot = slot;
+    _indexTimer?.cancel();
+    _indexTimer = Timer(_indexDebounce, () => unawaited(flushPendingWrites()));
+  }
 
-    await SharedHiveStore.instance.write(
-      boxName,
-      _sessionCurrentKey,
-      persistedCurrentIndex,
-    );
+  /// מוציא כתיבה מושהית של האינדקס הפעיל מיד. נקרא לפני סגירת החלון.
+  Future<void> flushPendingWrites() async {
+    _indexTimer?.cancel();
+    _indexTimer = null;
+    final index = _pendingIndex;
+    final slot = _pendingIndexSlot;
+    _pendingIndex = null;
+    _pendingIndexSlot = null;
+    if (index == null || slot == null) return;
+    await _store.saveCurrentIndex(slot, index);
+  }
+
+  static void _cancelPendingIndex() {
+    _indexTimer?.cancel();
+    _indexTimer = null;
+    _pendingIndex = null;
+    _pendingIndexSlot = null;
   }
 }

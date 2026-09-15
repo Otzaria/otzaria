@@ -85,6 +85,10 @@ import 'package:otzaria/core/startup_timeline.dart';
 import 'package:otzaria/core/window_listener.dart';
 import 'package:otzaria/core/window_persistence.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
+import 'package:otzaria/core/user_state/hive_to_user_state_migration.dart';
+import 'package:otzaria/core/user_state/user_state_database.dart';
+import 'package:otzaria/core/user_state/window_bounds.dart';
+import 'package:otzaria/core/user_state/window_session_store.dart';
 import 'package:otzaria/core/windowing/multi_window_service.dart';
 import 'package:otzaria/core/windowing/window_bus_host.dart';
 import 'package:otzaria/core/windowing/window_bus.dart';
@@ -291,6 +295,11 @@ bool _isIgnorableHardwareKeyboardAssertion(String errorString) {
 /// 4. Calls [initialize] to set up required services and configurations
 /// 5. Launches the main application widget
 void main(List<String> args) async {
+  // לינוקס: ה-runner מסמן חלון משני בארגומנטים, כי ל-`FlDartProject` אין
+  // נקודת כניסה שאינה `main`.
+  if (args.isNotEmpty && args.first == MultiWindowService.secondaryWindowArg) {
+    return secondaryWindowMain(args.sublist(1));
+  }
   // debugPrint פזור במאות נקודות קריאה בלי עטיפת kDebugMode; ב-release הפלט
   // עדיין מפורמט ונשלח ל-stdout שאיש לא רואה — מנוטרל כאן במרוכז לכל התוכנה.
   if (kReleaseMode) {
@@ -648,11 +657,8 @@ Future<void> _initializeProcessSingletons() async {
 
     if (!kIsWeb &&
         (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-      // ⚠️ חלון משני אינו משחזר גבולות שמורים.
-      //
-      // הגבולות השמורים הם של החלון הראשי, ובדרך כלל ממוקסמים — ולכן כל
-      // חלון נוסף נפתח על מסך מלא ובאותו מקום בדיוק, ומכסה את הקודם.
-      // ה-runner כבר יצר אותו בגודל ובהיסט סבירים, וזה מה שצריך להישאר.
+      // ⚠️ חלון משני אינו משחזר גבולות: ה-runner כבר יצר אותו בגבולות
+      // שנמסרו לו (גרירה, שחזור כל החלונות, או היסט מדורג מהפותח).
       if (!WindowRole.isSecondary) {
         await WindowPersistence.restoreIfAny();
       }
@@ -848,6 +854,7 @@ Future<void> _initializeRestartableRuntime() async {
   // מה שמוסיף כמה שניות עד שהטאבים השמורים נטענים. ראה
   // _runDeferredAutoBackup ו-_runDeferredProtocolRegistration למטה.
   unawaited(_runDeferredAutoBackup());
+  unawaited(_runDeferredRestoreWindows());
   unawaited(_runDeferredProtocolRegistration());
   unawaited(_logJobObjectContainmentFailure());
   unawaited(_runDeferredDataRootWritabilityWarning());
@@ -1600,24 +1607,76 @@ Future<void> initHive() async {
   if (!WindowRole.isSecondary && !WindowBus.instance.hasOtherWindows) {
     await deleteStaleWindowRoots();
   }
-  // ⚠️ `hiveRootPath` ולא `getDataRootPath`: בחלון משני קובצי ה-Hive
-  // יושבים בתיקייה נפרדת, אבל שאר שורש הנתונים — תוספים, WebView2,
-  // מסדי נתונים — נשאר משותף. ראו `configureHiveRootForWindow`.
-  Hive.init(await hiveRootPath());
-  // כל box הוא קובץ נפרד ועצמאי — הפתיחות רצות במקביל במקום בזו אחר זו.
-  await Future.wait([
-    Hive.openBox<dynamic>('tabs'),
-    Hive.openBox<dynamic>('workspaces'),
-    Hive.openBox<dynamic>('history'),
-    Hive.openBox<dynamic>('bookmarks'),
-    Hive.openBox<dynamic>(DirectErrorReportService.queueBoxName),
-    Hive.openBox<dynamic>(PluginReportService.queueBoxName),
-  ]);
+  // ⚠️ `hiveRootPath` ולא `getDataRootPath`: בחלון משני box ההגדרות יושב
+  // בתיקייה נפרדת, אבל שאר שורש הנתונים נשאר משותף. ראו
+  // `configureHiveRootForWindow`.
+  final hiveRoot = await hiveRootPath();
+  Hive.init(hiveRoot);
+  // המסד נפתח כאן ולא בעצלות: `TabsRepository.loadTabs` קורא אותו
+  // סינכרונית מבנאי של bloc.
+  await UserStateDatabase.instance.database;
+  // פר-תהליך: המיגרציה משנה שמות של קבצים בשורש המשותף, ולחלון משני אין
+  // שם מה להעביר.
+  if (!WindowRole.isSecondary) {
+    await HiveToUserStateMigration(hiveRoot: hiveRoot).run();
+  }
   // ⚠️ כאן ולא ב-`TabsBloc`. שני קוראים שונים טוענים את הכרטיסיות
   // (`TabsBloc` דרך `LoadTabs`, ו-`NavigationBloc` בקונסטרוקטור שלו), והסדר
-  // ביניהם תלוי בתזמון של תור האירועים. איחוד שמוחק מפתחות חייב לרוץ פעם
+  // ביניהם תלוי בתזמון של תור האירועים. איחוד שמוחק סשנים חייב לרוץ פעם
   // אחת, לפני שניהם.
-  await TabsRepository.adoptOrphanWindowSessions();
+  if (_restoresAllWindows) {
+    _windowSlotsToRestore = await TabsRepository.compactWindowSessions();
+  } else {
+    await TabsRepository.adoptOrphanWindowSessions();
+  }
+}
+
+/// "שחזר את כל החלונות בהפעלה" — כל סשן שנשאר נפתח בחלון משלו במקום
+/// להתמזג לחלון הראשון. רק בהפעלה קרה של התהליך.
+bool get _restoresAllWindows =>
+    !WindowRole.isSecondary &&
+    MultiWindowService.canOpenWindows &&
+    !WindowBus.instance.hasOtherWindows &&
+    (Settings.getValue<bool>(SettingsRepository.keyRestoreAllWindows) ?? false);
+
+/// המשבצות שסשנים ממתינים בהן לחלון, כפי ש-[initHive] סידר אותן.
+List<int> _windowSlotsToRestore = const [];
+
+/// פותח חלון לכל סשן שנשאר מההפעלה הקודמת, בזה אחר זה.
+///
+/// ⚠️ בזה אחר זה, וממתין שכל חלון יתפוס את המשבצת שלו: חלון חדש תופס את
+/// המשבצת הפנויה הראשונה, ופתיחה מקבילה הייתה נותנת לחלון את הסשן של
+/// חברו.
+Future<void> _runDeferredRestoreWindows() async {
+  // פר-תהליך: חלון משני אינו פותח חלונות בשם ההפעלה.
+  if (WindowRole.isSecondary || _windowSlotsToRestore.isEmpty) return;
+  final slots = _windowSlotsToRestore;
+  _windowSlotsToRestore = const [];
+  try {
+    await _mainWindowRevealedCompleter.future.timeout(
+      const Duration(seconds: 20),
+    );
+  } on TimeoutException {
+    // ממשיכים בכל זאת — אחרת המשימה לא תרוץ כלל.
+  }
+  try {
+    const service = MultiWindowService();
+    for (final slot in slots) {
+      final session = await WindowSessionStore.instance.load(slot);
+      final bounds = WindowBounds.decode(session?.boundsJson)?.toPhysical();
+      if (!await service.openWindow(bounds: bounds)) {
+        debugPrint('שחזור חלונות נעצר: פתיחת חלון למשבצת $slot נכשלה');
+        return;
+      }
+      final deadline = DateTime.now().add(const Duration(seconds: 15));
+      while (!WindowBus.instance.isSlotRegistered(slot)) {
+        if (DateTime.now().isAfter(deadline)) return;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    }
+  } catch (error, stackTrace) {
+    _logNonFatalInitializationError('Restore windows', error, stackTrace);
+  }
 }
 
 Future<void>? _loadCertsFuture;
@@ -1659,13 +1718,12 @@ void cleanup() {
 /// מופע יחיד (היא הייתה סוגרת את החלון מיד), אין splash נייטיב, ואין תור
 /// הפעלות חיצוניות — כל אלה שייכים לתהליך, וכבר רצו בחלון הראשון.
 ///
-/// ⚠️ שורש Hive פרטי. `hive_ce` נועל את קובצי ה-`.lock` בלעדית, והנעילה
-/// היא פר-handle ולא פר-תהליך: שני isolates באותו תהליך נכשלים באותו
-/// errno 33 כמו שני תהליכים. לכן ההיסטוריה, הסימניות, שולחנות העבודה
-/// והכרטיסיות **מנותבים לחלון הראשון** (`SharedHiveStore`), וההגדרות
-/// נזרעות פעם אחת ומסונכרנות חי (`SettingsSync`). הספרייה עצמה —
-/// הספרים, SQLite ואינדקס Tantivy — משותפת, כי אלה **כן** נפתחים פעמיים
-/// בהצלחה. ראו `docs/multi-window.md`.
+/// ⚠️ שורש Hive פרטי ל-box ההגדרות בלבד. `hive_ce` נועל את קובצי
+/// ה-`.lock` בלעדית, והנעילה היא פר-handle ולא פר-תהליך: שני isolates
+/// באותו תהליך נכשלים באותו errno 33 כמו שני תהליכים. ההגדרות נזרעות פעם
+/// אחת ומסונכרנות חי (`SettingsSync`); כל שאר מצב המשתמש — היסטוריה,
+/// סימניות, שולחנות, כרטיסיות, דיווחים — יושב ב-`user_state.db` שכל חלון
+/// פותח ישירות, כמו הספרייה עצמה. ראו `docs/multi-window.md`.
 @pragma('vm:entry-point')
 void secondaryWindowMain(List<String> args) async {
   if (kReleaseMode) {
@@ -1920,7 +1978,7 @@ Future<void> _installWindowCloseHandling() async {
 void _claimWindowBusSlot() {
   // ⚠️ מגודר בפלטפורמה: בלי זה גם מובייל פתח `ReceivePort` ורשם כינוי
   // בעלים בשביל אפיק שאף אחד לא ידבר בו.
-  if (!MultiWindowService.isSupported) return;
+  if (!MultiWindowService.canOpenWindows) return;
   final slot = WindowBus.instance.register(asOwner: !WindowRole.isSecondary);
   if (slot == null) {
     debugPrint('⚠️ כל משבצות האפיק תפוסות — החלון הזה לא יוכל לשתף מצב');

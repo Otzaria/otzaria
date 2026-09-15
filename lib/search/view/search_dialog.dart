@@ -14,7 +14,10 @@ import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/search/search_scope_preferences.dart';
 import 'package:otzaria/search/view/search_scope_menu.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
+import 'package:otzaria/indexing/bloc/indexing_event.dart';
 import 'package:otzaria/indexing/bloc/indexing_state.dart';
+import 'package:otzaria/navigation/view/main_window_screen.dart';
+import 'package:otzaria/widgets/layout/centered_scrollable_state.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
@@ -119,7 +122,7 @@ class SearchDialog extends StatefulWidget {
 class _SearchDialogState extends State<SearchDialog> {
   late SearchingTab _searchTab;
   FocusRestorer? _focusRestorer;
-  bool _showIndexInProgressWarning = false;
+  bool _indexInProgressWarningDismissed = false;
 
   /// בחירת היקף החיפוש המאוחדת — facets קטגוריאליים (עץ/ספרים) וממדיים
   /// (תקופה/מחבר/ספרי יסוד) יחד. נשלט ע"י [SearchScopeMenuButton].
@@ -227,10 +230,6 @@ class _SearchDialogState extends State<SearchDialog> {
     }
     _scopeSelection = {...categories, ...dimensions};
 
-    // בדיקה אם האינדקס בתהליך בנייה - האזהרה ניתנת לסגירה ואינה חוסמת חיפוש
-    final indexingState = context.read<IndexingBloc>().state;
-    _showIndexInProgressWarning = indexingState is IndexingInProgress;
-
     // מאזין לשינויים בתיבת החיפוש כדי לעדכן את האפשרויות ולשמור את ההקלדה
     _queryListener = () {
       if (!mounted) return;
@@ -262,8 +261,97 @@ class _SearchDialogState extends State<SearchDialog> {
 
   Widget _buildIndexWarning() {
     return IndexingWarningContainer(
-      inProgressDismissed: !_showIndexInProgressWarning,
-      onDismiss: () => setState(() => _showIndexInProgressWarning = false),
+      inProgressDismissed: _indexInProgressWarningDismissed,
+      onDismiss: () => setState(() => _indexInProgressWarningDismissed = true),
+    );
+  }
+
+  /// מסך ריק במקום פקדי החיפוש כשאין אינדקס — עם בניית אינדקס או מעבר
+  /// להגדרות הספרייה.
+  Widget _buildIndexMissingState(IndexingState indexingState) {
+    final cs = Theme.of(context).colorScheme;
+    final isBuilding = indexingState is IndexingInProgress;
+    final processed = indexingState.booksProcessed ?? 0;
+    final total = indexingState.totalBooks ?? 0;
+    return CenteredScrollableState(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              FluentIcons.search_24_regular,
+              size: 64,
+              color: cs.onSurfaceVariant,
+            ),
+            const SizedBox(height: 24),
+            Text(
+              isBuilding
+                  ? context.settingsText('אינדקס החיפוש בבנייה')
+                  : context.settingsText('אינדקס החיפוש לא קיים'),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              isBuilding
+                  ? context.settingsText(
+                      'החיפוש יתאפשר כשבניית האינדקס תסתיים. ניתן להמשיך לעיין בספרים בינתיים.',
+                    )
+                  : context.settingsText(
+                      'כדי לחפש בתוכן הספרים יש לבנות תחילה את אינדקס החיפוש. הבנייה רצה ברקע, וניתן להמשיך לעיין בספרים בינתיים.',
+                    ),
+              style: TextStyle(fontSize: 16, color: cs.onSurfaceVariant),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            if (isBuilding) ...[
+              LinearProgressIndicator(
+                value: total > 0 ? processed / total : null,
+              ),
+              if (total > 0) ...[
+                const SizedBox(height: 8),
+                Text(
+                  context.settingsText(
+                    '{processed} מתוך {total} ספרים',
+                    args: {'processed': processed, 'total': total},
+                  ),
+                  style: TextStyle(color: cs.onSurfaceVariant),
+                ),
+              ],
+              const SizedBox(height: 24),
+            ] else ...[
+              SizedBox(
+                width: double.infinity,
+                child: ActionButton.recommended(
+                  text: context.settingsText('בנה אינדקס'),
+                  icon: FluentIcons.play_24_regular,
+                  onPressed: () {
+                    final library = context.read<LibraryBloc>().state.library;
+                    if (library != null) {
+                      context.read<IndexingBloc>().add(StartIndexing(library));
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            SizedBox(
+              width: double.infinity,
+              child: ActionButton.neutral(
+                text: context.settingsText('הגדרות ספרייה'),
+                icon: FluentIcons.settings_24_regular,
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  mainWindowScreenKey.currentState?.handleInternalDeepLink(
+                    'otzaria://settings/library',
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1653,45 +1741,48 @@ class _SearchDialogState extends State<SearchDialog> {
                 _buildHeader(),
                 const Divider(height: 1),
                 Expanded(
-                  child: ListenableBuilder(
-                    listenable: _pluginSearchDialogRegistry,
-                    builder: (context, _) =>
-                        BlocBuilder<SearchBloc, SearchState>(
-                          builder: (context, state) {
-                            return Padding(
-                              padding: EdgeInsets.fromLTRB(
-                                horizontalPadding,
-                                16,
-                                horizontalPadding,
-                                0,
-                              ),
-                              child: LayoutBuilder(
-                                builder: (context, constraints) {
-                                  return SingleChildScrollView(
-                                    child: ConstrainedBox(
-                                      constraints: BoxConstraints(
-                                        minHeight: constraints.maxHeight,
+                  child: _IndexMissingGate(
+                    missingBuilder: _buildIndexMissingState,
+                    child: ListenableBuilder(
+                      listenable: _pluginSearchDialogRegistry,
+                      builder: (context, _) =>
+                          BlocBuilder<SearchBloc, SearchState>(
+                            builder: (context, state) {
+                              return Padding(
+                                padding: EdgeInsets.fromLTRB(
+                                  horizontalPadding,
+                                  16,
+                                  horizontalPadding,
+                                  0,
+                                ),
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    return SingleChildScrollView(
+                                      child: ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          minHeight: constraints.maxHeight,
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            _buildIndexWarning(),
+                                            _buildSearchComposer(state),
+                                            const SizedBox(height: 12),
+                                            _buildModeContent(state),
+                                            _buildPluginSearchRows(state),
+                                            const SizedBox(height: 16),
+                                          ],
+                                        ),
                                       ),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: [
-                                          _buildIndexWarning(),
-                                          _buildSearchComposer(state),
-                                          const SizedBox(height: 12),
-                                          _buildModeContent(state),
-                                          _buildPluginSearchRows(state),
-                                          const SizedBox(height: 16),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            );
-                          },
-                        ),
+                                    );
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+                    ),
                   ),
                 ),
                 const Divider(height: 1),
@@ -1701,6 +1792,31 @@ class _SearchDialogState extends State<SearchDialog> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// מציג את [missingBuilder] במקום [child] כל עוד אין אינדקס חיפוש; מתעדכן
+/// גם כשהאינדוקס מסתיים (רשימת הספרים המאונדקסים אינה ניתנת להאזנה).
+class _IndexMissingGate extends StatelessWidget {
+  const _IndexMissingGate({required this.missingBuilder, required this.child});
+
+  final Widget Function(IndexingState state) missingBuilder;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: TantivyDataProvider.instance.isInitialized,
+      builder: (context, providerInitialized, _) =>
+          BlocBuilder<IndexingBloc, IndexingState>(
+            builder: (context, state) =>
+                isSearchBlockedByMissingIndex(
+                  providerInitialized: providerInitialized,
+                )
+                ? missingBuilder(state)
+                : child,
+          ),
     );
   }
 }

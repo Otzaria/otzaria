@@ -5,10 +5,14 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/user_state/pending_report_store.dart';
+import 'package:otzaria/core/user_state/user_state_database.dart';
+import 'package:otzaria/core/user_state/user_state_slot.dart';
+import 'package:otzaria/core/user_state/window_session_store.dart';
+import 'package:otzaria/core/windowing/multi_window_service.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
-import 'package:otzaria/plugins/services/plugin_report_service.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/services/sent_reports_counter.dart';
@@ -17,7 +21,6 @@ import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/backup_service.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
-import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/workspaces/workspace_repository.dart';
 import 'package:path/path.dart' as p;
 
@@ -34,7 +37,11 @@ void main() {
     tempDir = await Directory.systemTemp.createTemp('backup_service_test_');
     Hive.init(tempDir.path);
     box = await Hive.openBox<dynamic>(HiveCache.keyName);
-    await Hive.openBox<dynamic>('workspaces');
+    // בלי אפיק חלונות, ולכן המשבצת היא של החלון היחיד.
+    MultiWindowService.debugSupportedOverride = false;
+    UserStateDatabase.instance.overridePath(
+      p.join(tempDir.path, 'user_state.db'),
+    );
     await Settings.init(cacheProvider: HiveCache());
     await Settings.setValue<String>(
       SettingsRepository.keyBackupPath,
@@ -44,9 +51,11 @@ void main() {
 
   tearDown(() async {
     await Hive.close();
-    // סוגר את חיבור ה-DB של התוספים כדי שמחיקת התיקייה תצליח (Windows נועל
-    // קבצים פתוחים), ומאפס את ה-override של נתיב הנתונים.
+    // סוגר את חיבורי ה-DB כדי שמחיקת התיקייה תצליח (Windows נועל קבצים
+    // פתוחים), ומאפס את ה-override של נתיב הנתונים.
     PluginSystemDatabase.instance.resetForTests();
+    UserStateDatabase.instance.close();
+    MultiWindowService.debugSupportedOverride = null;
     AppPaths.debugOverrideDataRootPath(null);
     await tempDir.delete(recursive: true);
   });
@@ -1090,10 +1099,21 @@ void main() {
   // הטאבים יושבים ב-box נפרד ולא היו בגיבוי כלל: אחרי שחזור התוכנה נפתחה
   // בלי הספרים שהיו פתוחים.
   group('גיבוי ושחזור הטאבים הפתוחים', () {
-    late Box<dynamic> tabsBox;
+    late WindowSessionStore sessions;
 
-    setUp(() async {
-      tabsBox = await Hive.openBox<dynamic>(TabsRepository.boxName);
+    /// הכרטיסיות בסשן של החלון הזה, כפי שנשמרו.
+    Future<List<dynamic>> storedTabs() async =>
+        jsonDecode((await sessions.load(UserStateSlot.single))!.tabsJson)
+            as List<dynamic>;
+
+    Future<void> putTabs(List<dynamic> tabs, int currentIndex) => sessions.save(
+      UserStateSlot.single,
+      tabsJson: jsonEncode(tabs),
+      currentIndex: currentIndex,
+    );
+
+    setUp(() {
+      sessions = WindowSessionStore.instance;
     });
 
     Future<String> createWorkspacesBackup() async =>
@@ -1112,17 +1132,15 @@ void main() {
         {'type': 'TextBookTab', 'title': 'בראשית'},
         {'type': 'TextBookTab', 'title': 'שמות'},
       ];
-      await tabsBox.put('key-tabs', tabs);
-      await tabsBox.put('key-current-tab', 1);
+      await putTabs(tabs, 1);
 
       final path = await createWorkspacesBackup();
-      await tabsBox.put('key-tabs', <dynamic>[]);
-      await tabsBox.put('key-current-tab', 0);
+      await putTabs(const [], 0);
 
       await BackupService.restoreFromBackup(path);
 
-      expect((tabsBox.get('key-tabs') as List), hasLength(2));
-      expect(tabsBox.get('key-current-tab'), 1);
+      expect(await storedTabs(), hasLength(2));
+      expect((await sessions.load(UserStateSlot.single))!.currentIndex, 1);
     });
 
     test('גיבוי בלי סעיף טאבים אינו מרוקן את הטאבים הקיימים', () async {
@@ -1133,23 +1151,20 @@ void main() {
       json.remove('openTabs');
       await backupFile.writeAsString(jsonEncode(json));
 
-      await tabsBox.put('key-tabs', [
+      await putTabs([
         {'type': 'TextBookTab', 'title': 'ויקרא'},
-      ]);
+      ], 0);
       await BackupService.restoreFromBackup(path);
 
-      expect((tabsBox.get('key-tabs') as List), hasLength(1));
+      expect(await storedTabs(), hasLength(1));
     });
   });
 
   group('גיבוי ושחזור דיווחי טעות שמורים', () {
-    late Box<dynamic> reportsBox;
+    late PendingReportStore reports;
 
-    setUp(() async {
-      reportsBox = await Hive.openBox<dynamic>(
-        DirectErrorReportService.queueBoxName,
-      );
-      await Hive.openBox<dynamic>(PluginReportService.queueBoxName);
+    setUp(() {
+      reports = PendingReportStore.instance;
     });
 
     Map<String, dynamic> report(String id) => {
@@ -1161,6 +1176,10 @@ void main() {
       'lineNumber': 1,
       'createdAt': '2026-08-20T10:00:00.000',
     };
+
+    Future<List<Object?>> pendingIds() async => (await reports.listByKind(
+      DirectErrorReportService.pendingKind,
+    )).map((r) => r.payload['id']).toList();
 
     Future<String> createSettingsBackup() async =>
         (await BackupService.createBackup(
@@ -1174,20 +1193,20 @@ void main() {
         )).path;
 
     test('הדיווחים הממתינים וההיסטוריה עוברים גיבוי ושחזור', () async {
-      await reportsBox.put(DirectErrorReportService.pendingReportsKey, [
+      await reports.add(
+        DirectErrorReportService.pendingKind,
         report('pending-1'),
-      ]);
-      await reportsBox.put(DirectErrorReportService.sentReportsKey, [
-        report('sent-1'),
-      ]);
+      );
+      await reports.add(DirectErrorReportService.sentKind, report('sent-1'));
 
       final path = await createSettingsBackup();
       // איפוס הגדרות מוחק את התור — זה בדיוק המצב שבו השחזור נדרש.
-      await reportsBox.clear();
+      await reports.deleteAllOfKind(DirectErrorReportService.pendingKind);
+      await reports.deleteAllOfKind(DirectErrorReportService.sentKind);
 
       await BackupService.restoreFromBackup(path);
 
-      // דרך השירות ולא רק דרך ה-box: מאמת שהצורה ששוחזרה נטענת למודל.
+      // דרך השירות ולא רק דרך המסד: מאמת שהצורה ששוחזרה נטענת למודל.
       final service = DirectErrorReportService();
       expect((await service.getPendingReports()).single.id, 'pending-1');
       expect((await service.getSentReports()).single.id, 'sent-1');
@@ -1202,19 +1221,14 @@ void main() {
         await before.queueReport(report);
         await before.closeHttpClient();
 
-        // "הפעלה מחדש": סגירת ה-box ופתיחתו מהדיסק, ומופע שירות חדש.
-        await reportsBox.close();
-        reportsBox = await Hive.openBox<dynamic>(
-          DirectErrorReportService.queueBoxName,
-        );
-
+        // "הפעלה מחדש": מופע שירות חדש שקורא מהמסד.
         final afterRestart = DirectErrorReportService();
         final reloaded = (await afterRestart.getPendingReports()).single;
         expect(reloaded, equals(report));
         expect(reloaded.toApiPayload(), report.toApiPayload());
 
         final path = await createSettingsBackup();
-        await reportsBox.clear();
+        await reports.deleteAllOfKind(DirectErrorReportService.pendingKind);
         await BackupService.restoreFromBackup(path);
 
         final restored = (await afterRestart.getPendingReports()).single;
@@ -1230,81 +1244,50 @@ void main() {
     );
 
     test('מונה הנשלחים עובר גיבוי ושחזור, והגדול מבין השניים נשמר', () async {
-      await reportsBox.put(DirectErrorReportService.sentReportsKey, [
-        report('sent-1'),
-      ]);
-      await reportsBox.put(SentReportsCounter.defaultKey, 250);
+      final counter = SentReportsCounter(
+        boxName: DirectErrorReportService.queueBoxName,
+      );
+      await reports.add(DirectErrorReportService.sentKind, report('sent-1'));
+      await counter.raiseTo(250);
       final path = await createSettingsBackup();
 
-      await reportsBox.clear();
-      await reportsBox.put(SentReportsCounter.defaultKey, 3);
+      await reports.deleteAllOfKind(DirectErrorReportService.sentKind);
+      await counter.reset();
+      await counter.raiseTo(3);
       await BackupService.restoreFromBackup(path);
 
-      expect(reportsBox.get(SentReportsCounter.defaultKey), 250);
+      expect(await counter.read(), 250);
       final service = DirectErrorReportService();
       expect(await service.getSentReportsTotal(), 250);
       await service.closeHttpClient();
     });
 
     test('דיווח שנשלח מאז אינו חוזר לתור בשחזור', () async {
-      await reportsBox.put(DirectErrorReportService.pendingReportsKey, [
-        report('r-1'),
-      ]);
+      await reports.add(DirectErrorReportService.pendingKind, report('r-1'));
       final path = await createSettingsBackup();
 
       // הדיווח נשלח בין הגיבוי לשחזור: עבר לרשימת הנשלחים והתור התרוקן.
-      await reportsBox.put(
-        DirectErrorReportService.pendingReportsKey,
-        <dynamic>[],
-      );
-      await reportsBox.put(DirectErrorReportService.sentReportsKey, [
-        report('r-1'),
-      ]);
+      await reports.deleteAllOfKind(DirectErrorReportService.pendingKind);
+      await reports.add(DirectErrorReportService.sentKind, report('r-1'));
 
       await BackupService.restoreFromBackup(path);
 
+      expect(await pendingIds(), isEmpty);
       expect(
-        reportsBox.get(DirectErrorReportService.pendingReportsKey),
-        isEmpty,
-      );
-      expect(
-        (reportsBox.get(DirectErrorReportService.sentReportsKey) as List),
+        await reports.listByKind(DirectErrorReportService.sentKind),
         hasLength(1),
       );
     });
 
     test('דיווח שנוצר אחרי הגיבוי שורד את השחזור', () async {
-      await reportsBox.put(DirectErrorReportService.pendingReportsKey, [
-        report('old'),
-      ]);
+      await reports.add(DirectErrorReportService.pendingKind, report('old'));
       final path = await createSettingsBackup();
 
-      await reportsBox.put(DirectErrorReportService.pendingReportsKey, [
-        report('new'),
-      ]);
+      await reports.deleteAllOfKind(DirectErrorReportService.pendingKind);
+      await reports.add(DirectErrorReportService.pendingKind, report('new'));
       await BackupService.restoreFromBackup(path);
 
-      final ids =
-          (reportsBox.get(DirectErrorReportService.pendingReportsKey) as List)
-              .map((e) => (e as Map)['id'])
-              .toList();
-      expect(ids, containsAll(['new', 'old']));
-    });
-
-    test('box סגור בזמן הגיבוי מסמן את הסעיף כחלקי', () async {
-      await reportsBox.close();
-
-      final result = await BackupService.createBackup(
-        includeSettings: true,
-        includeBookmarks: false,
-        includeHistory: false,
-        includeNotes: false,
-        includeWorkspaces: false,
-        includeShamorZachor: false,
-        includePlugins: false,
-      );
-
-      expect(result.skippedSections, contains('reportQueues'));
+      expect(await pendingIds(), containsAll(['new', 'old']));
     });
   });
 }

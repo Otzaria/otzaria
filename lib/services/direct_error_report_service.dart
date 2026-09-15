@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:http/http.dart' as http;
 import 'package:otzaria/core/messages/report_messages.dart';
-import 'package:otzaria/data/repository/hive_list_repository.dart';
+import 'package:otzaria/core/user_state/pending_report_store.dart';
 import 'package:otzaria/models/direct_error_report.dart';
 import 'package:otzaria/services/offline_report_script_builder.dart';
 import 'package:otzaria/services/sent_reports_counter.dart';
@@ -102,33 +102,25 @@ class DirectErrorReportService {
     await _flushInFlight?.future;
   }
 
+  /// סוגי התור במסד המשותף — זהים למפתחות שהמיגרציה מ-Hive יצרה.
+  static const String pendingKind = '$queueBoxName/$pendingReportsKey';
+  static const String sentKind = '$queueBoxName/$sentReportsKey';
+
   final http.Client _client;
-  final HiveListRepository<DirectErrorReport> _queueRepository;
-  final HiveListRepository<DirectErrorReport> _sentRepository;
+  final PendingReportStore _reports;
   final SentReportsCounter _sentCounter;
 
   DirectErrorReportService({
     http.Client? client,
-    HiveListRepository<DirectErrorReport>? queueRepository,
-    HiveListRepository<DirectErrorReport>? sentRepository,
+    PendingReportStore? reportStore,
     SentReportsCounter? sentCounter,
   }) : _client = client ?? http.Client(),
-       _sentCounter = sentCounter ?? SentReportsCounter(boxName: queueBoxName),
-       _queueRepository =
-           queueRepository ??
-           HiveListRepository<DirectErrorReport>(
+       _reports = reportStore ?? PendingReportStore.instance,
+       _sentCounter =
+           sentCounter ??
+           SentReportsCounter(
              boxName: queueBoxName,
-             key: pendingReportsKey,
-             fromJson: DirectErrorReport.fromJson,
-             toJson: (report) => report.toJson(),
-           ),
-       _sentRepository =
-           sentRepository ??
-           HiveListRepository<DirectErrorReport>(
-             boxName: queueBoxName,
-             key: sentReportsKey,
-             fromJson: DirectErrorReport.fromJson,
-             toJson: (report) => report.toJson(),
+             database: reportStore?.database,
            );
 
   /// לקריאה לפני onWindowClose במופע הארוך-טווח (של `startAutomaticFlush`):
@@ -171,53 +163,48 @@ class DirectErrorReportService {
     );
   }
 
-  Future<int> getPendingReportsCount() async {
-    final reports = await _queueRepository.load();
-    return reports.length;
-  }
+  Future<int> getPendingReportsCount() => _reports.countByKind(pendingKind);
 
   Future<List<DirectErrorReport>> getPendingReports() async {
-    return _queueRepository.load();
+    return (await _reports.listByKind(pendingKind)).map(_decode).toList();
   }
 
+  /// היסטוריית הנשלחים מוצגת מהחדש לישן, ולכן הפוכה לסדר ההוספה.
   Future<List<DirectErrorReport>> getSentReports() async {
-    return _sentRepository.load();
+    return (await _reports.listByKind(sentKind)).reversed.map(_decode).toList();
   }
 
   Future<void> deleteSentReport(String reportId) async {
-    final reports = await _sentRepository.load();
-    reports.removeWhere((report) => report.id == reportId);
-    await _sentRepository.overwrite(reports);
+    await _reports.deleteIds(await _rowIdsOf(sentKind, reportId));
   }
 
   /// כל הדיווחים שנשלחו אי-פעם — לא רק אלה שנשארו בהיסטוריה.
   Future<int> getSentReportsTotal() async {
     final total = await _sentCounter.read();
-    final kept = _sentReportsCount(await _sentRepository.load());
+    final kept = _sentReportsCount(await _reports.listByKind(sentKind));
     return total > kept ? total : kept;
   }
 
   Future<void> clearSentReports() async {
-    await _sentRepository.clear();
+    await _reports.deleteAllOfKind(sentKind);
     await _sentCounter.reset();
   }
 
   /// מעדכן דיווח בתור. תוכן ששונה מקבל `report_id` חדש: ייתכן שהגרסה הקודמת
   /// כבר נקלטה בשרת, ואותו מזהה עם תוכן אחר נדחה שם ב-409.
   Future<void> updatePendingReport(DirectErrorReport report) async {
-    final reports = await _queueRepository.load();
-    final index = reports.indexWhere((item) => item.id == report.id);
-    if (index == -1) {
+    final row = await _rowOf(pendingKind, report.id);
+    if (row == null) {
       return;
     }
 
-    final previousDigest = _digestOrNull(reports[index]);
+    final previousDigest = _digestOrNull(_decode(row));
     final contentChanged =
         previousDigest == null || previousDigest != _digestOrNull(report);
-    reports[index] = contentChanged
+    final updated = contentChanged
         ? report.withId(DirectErrorReport.generateId(report.id))
         : report;
-    await _queueRepository.overwrite(reports);
+    await _reports.updatePayload(row.id, updated.toJson());
   }
 
   /// 409 = התוכן הזה לא נקלט; שליחתו מחדש היא הגשה חדשה, ולכן במזהה חדש (§2.3).
@@ -237,9 +224,23 @@ class DirectErrorReportService {
   }
 
   Future<void> deletePendingReport(String reportId) async {
-    final reports = await _queueRepository.load();
-    reports.removeWhere((report) => report.id == reportId);
-    await _queueRepository.overwrite(reports);
+    await _reports.deleteIds(await _rowIdsOf(pendingKind, reportId));
+  }
+
+  static DirectErrorReport _decode(PendingReport row) =>
+      DirectErrorReport.fromJson(row.payload);
+
+  Future<List<int>> _rowIdsOf(String kind, String reportId) async {
+    final rows = await _reports.listByKind(kind);
+    return rows
+        .where((row) => row.payload['id'] == reportId)
+        .map((row) => row.id)
+        .toList();
+  }
+
+  Future<PendingReport?> _rowOf(String kind, String reportId) async {
+    final rows = await _reports.listByKind(kind);
+    return rows.where((row) => row.payload['id'] == reportId).firstOrNull;
   }
 
   /// מסמן דיווח מהתור כנשלח ידנית: מעביר אותו להיסטוריית הנשלחים
@@ -257,7 +258,7 @@ class DirectErrorReportService {
   }
 
   Future<void> clearPendingReports() async {
-    await _queueRepository.clear();
+    await _reports.deleteAllOfKind(pendingKind);
   }
 
   Future<DirectReportDeliveryResult> submitPendingReport(
@@ -267,11 +268,12 @@ class DirectErrorReportService {
     if (result.isSent) {
       await deletePendingReport(report.id);
     } else if (result.isIdConflict) {
-      final reports = await _queueRepository.load();
-      final index = reports.indexWhere((item) => item.id == report.id);
-      if (index != -1) {
-        reports[index] = _withNewIdAfterConflict(reports[index]);
-        await _queueRepository.overwrite(reports);
+      final row = await _rowOf(pendingKind, report.id);
+      if (row != null) {
+        await _reports.updatePayload(
+          row.id,
+          _withNewIdAfterConflict(_decode(row)).toJson(),
+        );
       }
       return DirectReportDeliveryResult.failed(
         ReportMessages.pendingReportIdConflict,
@@ -384,48 +386,46 @@ class DirectErrorReportService {
     _isFlushing = true;
     final inFlight = _flushInFlight = Completer<void>();
     try {
-      final pendingReports = await _queueRepository.load();
-      if (pendingReports.isEmpty) {
+      final rows = await _reports.listByKind(pendingKind);
+      if (rows.isEmpty) {
         return 0;
       }
 
-      final reportsToAttempt = onlyAutomaticRetry
-          ? pendingReports
+      final rowsToAttempt = onlyAutomaticRetry
+          ? rows
                 .where(
-                  (report) =>
-                      report.queueType ==
+                  (row) =>
+                      _decode(row).queueType ==
                       DirectErrorReportQueueType.automaticRetry,
                 )
                 .take(_maxQueuedFlushPerRun)
                 .toList()
-          : pendingReports.take(_maxQueuedFlushPerRun).toList();
+          : rows.take(_maxQueuedFlushPerRun).toList();
 
-      if (reportsToAttempt.isEmpty) {
-        return 0;
-      }
-
-      final remainingReports = List<DirectErrorReport>.from(pendingReports);
       var sentCount = 0;
 
-      for (final report in reportsToAttempt) {
+      for (final row in rowsToAttempt) {
+        final report = _decode(row);
         final attemptResult = await _trySend(report);
 
         if (attemptResult.isSuccess) {
-          remainingReports.removeWhere((item) => item.id == report.id);
+          await _reports.deleteIds([row.id]);
           await _saveSentReport(_sentRecord(report, attemptResult));
           sentCount++;
           continue;
         }
 
         if (attemptResult.isIdConflict) {
-          final index = remainingReports.indexWhere((r) => r.id == report.id);
-          remainingReports[index] = _withNewIdAfterConflict(report);
+          await _reports.updatePayload(
+            row.id,
+            _withNewIdAfterConflict(report).toJson(),
+          );
           continue;
         }
 
         if (attemptResult.isPermanentFailure) {
           // לא חוזר לתור (§2.4), אבל נשמר בהיסטוריה כנדחה — אחרת ההצעה אובדת בשקט.
-          remainingReports.removeWhere((item) => item.id == report.id);
+          await _reports.deleteIds([row.id]);
           await _saveSentReport(
             report.copyWith(rejectionReason: attemptResult.message),
             countAsSent: false,
@@ -436,7 +436,6 @@ class DirectErrorReportService {
         break;
       }
 
-      await _queueRepository.overwrite(remainingReports);
       return sentCount;
     } finally {
       _isFlushing = false;
@@ -469,34 +468,33 @@ class DirectErrorReportService {
     DirectErrorReport report, {
     required DirectErrorReportQueueType queueType,
   }) async {
-    final pendingReports = await _queueRepository.load();
-    final alreadyQueued = pendingReports.any((item) => item.id == report.id);
-    if (alreadyQueued) {
+    if ((await _rowIdsOf(pendingKind, report.id)).isNotEmpty) {
       return;
     }
 
-    pendingReports.add(report.copyWith(queueType: queueType));
-    await _queueRepository.overwrite(pendingReports);
+    await _reports.add(
+      pendingKind,
+      report.copyWith(queueType: queueType).toJson(),
+    );
   }
 
   Future<void> _saveSentReport(
     DirectErrorReport report, {
     bool countAsSent = true,
   }) async {
-    final sentReports = await _sentRepository.load();
-    final kept = _sentReportsCount(sentReports);
-    final isNew = sentReports.every((item) => item.id != report.id);
-    sentReports.removeWhere((item) => item.id == report.id);
-    sentReports.insert(0, report);
-    if (sentReports.length > maxSentReportsToKeep) {
-      sentReports.removeRange(maxSentReportsToKeep, sentReports.length);
+    final sentRows = await _reports.listByKind(sentKind);
+    final kept = _sentReportsCount(sentRows);
+    final existing = sentRows.where((row) => row.payload['id'] == report.id);
+    await _reports.deleteIds(existing.map((row) => row.id));
+    await _reports.add(sentKind, report.toJson());
+    await _reports.trimKind(sentKind, maxSentReportsToKeep);
+    if (countAsSent && existing.isEmpty) {
+      await _sentCounter.increment(floor: kept);
     }
-    await _sentRepository.overwrite(sentReports);
-    if (countAsSent && isNew) await _sentCounter.increment(floor: kept);
   }
 
-  static int _sentReportsCount(List<DirectErrorReport> reports) =>
-      reports.where((report) => report.rejectionReason == null).length;
+  static int _sentReportsCount(List<PendingReport> rows) =>
+      rows.where((row) => row.payload['rejectionReason'] == null).length;
 
   /// הרשומה להיסטוריית הנשלחים: הצעת תיקון מסומנת אם השרת תמך בה.
   DirectErrorReport _sentRecord(

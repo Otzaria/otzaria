@@ -5,7 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:otzaria/data/repository/hive_list_repository.dart';
+import 'package:otzaria/core/user_state/pending_report_store.dart';
+import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/plugins/models/plugin_report_record.dart';
 import 'package:otzaria/plugins/services/plugin_report_service.dart';
 import 'package:otzaria/services/offline_report_script_builder.dart';
@@ -27,7 +28,21 @@ void main() {
     await Settings.init(cacheProvider: _MemoryCacheProvider());
   });
 
+  late Directory tmp;
+  late UserStateDatabase db;
+  late PendingReportStore store;
+
+  tearDown(() {
+    db.close();
+    tmp.deleteSync(recursive: true);
+  });
+
   setUp(() async {
+    tmp = Directory.systemTemp.createTempSync('otzaria_plugin_reports_');
+    db = UserStateDatabase.openAt(
+      '${tmp.path}${Platform.pathSeparator}user_state.db',
+    );
+    store = PendingReportStore(database: db);
     await Settings.setValue<bool>(SettingsRepository.keyOfflineMode, false);
     await Settings.setValue<bool>(
       SettingsRepository.keyQueueErrorReportsWhenOffline,
@@ -37,15 +52,12 @@ void main() {
 
   PluginReportService buildService({
     required http.Client client,
-    required _InMemoryPluginReportRepository queue,
-    required _InMemoryPluginReportRepository sent,
     SentReportsCounter? counter,
   }) {
     return PluginReportService(
       client: client,
-      queueRepository: queue,
-      sentRepository: sent,
-      sentCounter: counter ?? SentReportsCounter.inMemory(),
+      reportStore: store,
+      sentCounter: counter,
     );
   }
 
@@ -66,9 +78,8 @@ void main() {
   group('PluginReportService.buildRecord', () {
     test('בונה רשומה עם כל שדות החוזה, נרמול וחיתוך', () async {
       final service = PluginReportService(
+        reportStore: store,
         client: MockClient((_) async => http.Response('{}', 200)),
-        queueRepository: _InMemoryPluginReportRepository(),
-        sentRepository: _InMemoryPluginReportRepository(),
       );
 
       final record = await service.buildRecord(
@@ -107,9 +118,8 @@ void main() {
 
     test('פירוט ריק נדחה, ומייל ריק מושמט מה-payload', () async {
       final service = PluginReportService(
+        reportStore: store,
         client: MockClient((_) async => http.Response('{}', 200)),
-        queueRepository: _InMemoryPluginReportRepository(),
-        sentRepository: _InMemoryPluginReportRepository(),
       );
 
       await expectLater(
@@ -136,16 +146,14 @@ void main() {
   group('PluginReportService.submitReport', () {
     test('הצלחה: נשלח, נשמר בהיסטוריה ולא בתור', () async {
       late Map<String, dynamic> body;
-      final queue = _InMemoryPluginReportRepository();
-      final sent = _InMemoryPluginReportRepository();
+      final queue = _Queue(store, PluginReportService.pendingKind);
+      final sent = _Queue(store, PluginReportService.sentKind);
       final service = buildService(
         client: MockClient((request) async {
           body = jsonDecode(request.body) as Map<String, dynamic>;
           expect(request.url, PluginReportService.endpoint);
           return http.Response('{"success":true}', 200);
         }),
-        queue: queue,
-        sent: sent,
       );
 
       final status = await service.submitReport(_buildRecord('r-1'));
@@ -157,14 +165,12 @@ void main() {
     });
 
     test('כשל זמני: נכנס לתור עם אותו reportId', () async {
-      final queue = _InMemoryPluginReportRepository();
-      final sent = _InMemoryPluginReportRepository();
+      final queue = _Queue(store, PluginReportService.pendingKind);
+      final sent = _Queue(store, PluginReportService.sentKind);
       final service = buildService(
         client: MockClient((_) async {
           throw const SocketException('no route to host');
         }),
-        queue: queue,
-        sent: sent,
       );
 
       final status = await service.submitReport(_buildRecord('r-2'));
@@ -175,11 +181,9 @@ void main() {
     });
 
     test('דחייה קבועה (400): נזרקת ולא נכנסת לתור', () async {
-      final queue = _InMemoryPluginReportRepository();
+      final queue = _Queue(store, PluginReportService.pendingKind);
       final service = buildService(
         client: MockClient((_) async => http.Response('bad', 400)),
-        queue: queue,
-        sent: _InMemoryPluginReportRepository(),
       );
 
       await expectLater(
@@ -196,11 +200,9 @@ void main() {
     });
 
     test('429 נחשב זמני ונכנס לתור', () async {
-      final queue = _InMemoryPluginReportRepository();
+      final queue = _Queue(store, PluginReportService.pendingKind);
       final service = buildService(
         client: MockClient((_) async => http.Response('rate limited', 429)),
-        queue: queue,
-        sent: _InMemoryPluginReportRepository(),
       );
 
       final status = await service.submitReport(_buildRecord('r-4'));
@@ -212,14 +214,12 @@ void main() {
     test('מצב לא-מקוון: נכנס לתור בלי ניסיון רשת', () async {
       await Settings.setValue<bool>(SettingsRepository.keyOfflineMode, true);
       var called = false;
-      final queue = _InMemoryPluginReportRepository();
+      final queue = _Queue(store, PluginReportService.pendingKind);
       final service = buildService(
         client: MockClient((_) async {
           called = true;
           return http.Response('{}', 200);
         }),
-        queue: queue,
-        sent: _InMemoryPluginReportRepository(),
       );
 
       final status = await service.submitReport(_buildRecord('r-5'));
@@ -235,11 +235,9 @@ void main() {
         SettingsRepository.keyQueueErrorReportsWhenOffline,
         false,
       );
-      final queue = _InMemoryPluginReportRepository();
+      final queue = _Queue(store, PluginReportService.pendingKind);
       final service = buildService(
         client: MockClient((_) async => http.Response('{}', 200)),
-        queue: queue,
-        sent: _InMemoryPluginReportRepository(),
       );
 
       await expectLater(
@@ -250,13 +248,11 @@ void main() {
     });
 
     test('שליחה חוזרת של אותו דיווח לא יוצרת כפילות בתור', () async {
-      final queue = _InMemoryPluginReportRepository();
+      final queue = _Queue(store, PluginReportService.pendingKind);
       final service = buildService(
         client: MockClient((_) async {
           throw const SocketException('down');
         }),
-        queue: queue,
-        sent: _InMemoryPluginReportRepository(),
       );
 
       final record = _buildRecord('r-7');
@@ -269,20 +265,19 @@ void main() {
 
   group('PluginReportService.submitPendingReport', () {
     test('הרשומה מוסרת מהתור לפני השליחה — אין שליחה כפולה מה-flush', () async {
-      final queue = _InMemoryPluginReportRepository()
-        ..seed([_buildRecord('p-1')]);
-      final sent = _InMemoryPluginReportRepository();
+      final queue = _Queue(store, PluginReportService.pendingKind);
+      await queue.seed([_buildRecord('p-1')]);
+      final sent = _Queue(store, PluginReportService.sentKind);
       var calls = 0;
       late final PluginReportService service;
       service = PluginReportService(
+        reportStore: store,
         client: MockClient((request) async {
           calls++;
           // בזמן השליחה הרשומה כבר לא בתור — כך flush מקביל לא ימצא אותה.
           expect(await queue.load(), isEmpty);
           return http.Response('{"success":true}', 200);
         }),
-        queueRepository: queue,
-        sentRepository: sent,
       );
 
       final status = await service.submitPendingReport(_buildRecord('p-1'));
@@ -294,14 +289,12 @@ void main() {
     });
 
     test('כשל זמני בשליחה ידנית מחזיר את הרשומה לתור', () async {
-      final queue = _InMemoryPluginReportRepository()
-        ..seed([_buildRecord('p-2')]);
+      final queue = _Queue(store, PluginReportService.pendingKind);
+      await queue.seed([_buildRecord('p-2')]);
       final service = buildService(
         client: MockClient((_) async {
           throw const SocketException('down');
         }),
-        queue: queue,
-        sent: _InMemoryPluginReportRepository(),
       );
 
       final status = await service.submitPendingReport(_buildRecord('p-2'));
@@ -313,9 +306,9 @@ void main() {
 
   group('PluginReportService.flushPendingReports', () {
     test('שולח את התור, מעביר להיסטוריה ושומר reportId יציב', () async {
-      final queue = _InMemoryPluginReportRepository()
-        ..seed([_buildRecord('q-1'), _buildRecord('q-2')]);
-      final sent = _InMemoryPluginReportRepository();
+      final queue = _Queue(store, PluginReportService.pendingKind);
+      await queue.seed([_buildRecord('q-1'), _buildRecord('q-2')]);
+      final sent = _Queue(store, PluginReportService.sentKind);
       final sentIds = <String>[];
       final service = buildService(
         client: MockClient((request) async {
@@ -323,8 +316,6 @@ void main() {
           sentIds.add(body['reportId'] as String);
           return http.Response('{"success":true}', 200);
         }),
-        queue: queue,
-        sent: sent,
       );
 
       final sentCount = await service.flushPendingReports();
@@ -336,16 +327,14 @@ void main() {
     });
 
     test('עוצר בכשל זמני ראשון ומשאיר את השאר בתור', () async {
-      final queue = _InMemoryPluginReportRepository()
-        ..seed([_buildRecord('q-1'), _buildRecord('q-2')]);
+      final queue = _Queue(store, PluginReportService.pendingKind);
+      await queue.seed([_buildRecord('q-1'), _buildRecord('q-2')]);
       var calls = 0;
       final service = buildService(
         client: MockClient((_) async {
           calls++;
           throw const SocketException('down');
         }),
-        queue: queue,
-        sent: _InMemoryPluginReportRepository(),
       );
 
       final sentCount = await service.flushPendingReports();
@@ -356,8 +345,8 @@ void main() {
     });
 
     test('דחייה קבועה מוסרת מהתור בלי להיספר כנשלחה', () async {
-      final queue = _InMemoryPluginReportRepository()
-        ..seed([_buildRecord('q-bad'), _buildRecord('q-good')]);
+      final queue = _Queue(store, PluginReportService.pendingKind);
+      await queue.seed([_buildRecord('q-bad'), _buildRecord('q-good')]);
       final service = buildService(
         client: MockClient((request) async {
           final body = jsonDecode(request.body) as Map<String, dynamic>;
@@ -365,8 +354,6 @@ void main() {
               ? http.Response('bad', 400)
               : http.Response('{"success":true}', 200);
         }),
-        queue: queue,
-        sent: _InMemoryPluginReportRepository(),
       );
 
       final sentCount = await service.flushPendingReports();
@@ -377,16 +364,14 @@ void main() {
 
     test('במצב לא-מקוון לא שולח כלום', () async {
       await Settings.setValue<bool>(SettingsRepository.keyOfflineMode, true);
-      final queue = _InMemoryPluginReportRepository()
-        ..seed([_buildRecord('q-1')]);
+      final queue = _Queue(store, PluginReportService.pendingKind);
+      await queue.seed([_buildRecord('q-1')]);
       var called = false;
       final service = buildService(
         client: MockClient((_) async {
           called = true;
           return http.Response('{}', 200);
         }),
-        queue: queue,
-        sent: _InMemoryPluginReportRepository(),
       );
 
       expect(await service.flushPendingReports(), 0);
@@ -395,20 +380,19 @@ void main() {
   });
 
   group('PluginReportService.updatePendingReport (issue #1340)', () {
-    PluginReportService serviceFor(_InMemoryPluginReportRepository queue) =>
-        buildService(
-          client: MockClient((_) async => http.Response('{}', 200)),
-          queue: queue,
-          sent: _InMemoryPluginReportRepository(),
-        );
+    PluginReportService serviceFor() => buildService(
+      client: MockClient((_) async => http.Response('{}', 200)),
+    );
 
     test('שינוי בתוכן: סוג ופירוט מתעדכנים ומתקבל reportId חדש', () async {
-      final queue = _InMemoryPluginReportRepository()
-        ..seed([_buildRecord('q-1'), _buildRecord('q-2')]);
+      final queue = _Queue(store, PluginReportService.pendingKind);
+      await queue.seed([_buildRecord('q-1'), _buildRecord('q-2')]);
 
-      await serviceFor(
-        queue,
-      ).updatePendingReport('q-1', reportType: 'crash', details: '  חדש  ');
+      await serviceFor().updatePendingReport(
+        'q-1',
+        reportType: 'crash',
+        details: '  חדש  ',
+      );
 
       final records = await queue.load();
       expect(records, hasLength(2));
@@ -421,9 +405,10 @@ void main() {
 
     test('בלי שינוי: המזהה נשמר', () async {
       final original = _buildRecord('q-1');
-      final queue = _InMemoryPluginReportRepository()..seed([original]);
+      final queue = _Queue(store, PluginReportService.pendingKind);
+      await queue.seed([original]);
 
-      await serviceFor(queue).updatePendingReport(
+      await serviceFor().updatePendingReport(
         'q-1',
         reportType: original.reportType,
         details: original.details,
@@ -433,25 +418,29 @@ void main() {
     });
 
     test('פירוט ריק נדחה והדיווח לא משתנה', () async {
-      final queue = _InMemoryPluginReportRepository()
-        ..seed([_buildRecord('q-1')]);
+      final queue = _Queue(store, PluginReportService.pendingKind);
+      await queue.seed([_buildRecord('q-1')]);
 
       await expectLater(
-        serviceFor(
-          queue,
-        ).updatePendingReport('q-1', reportType: 'bug', details: '   '),
+        serviceFor().updatePendingReport(
+          'q-1',
+          reportType: 'bug',
+          details: '   ',
+        ),
         throwsException,
       );
       expect((await queue.load()).single.reportId, 'q-1');
     });
 
     test('סוג לא מוכר מנורמל ל-other', () async {
-      final queue = _InMemoryPluginReportRepository()
-        ..seed([_buildRecord('q-1')]);
+      final queue = _Queue(store, PluginReportService.pendingKind);
+      await queue.seed([_buildRecord('q-1')]);
 
-      await serviceFor(
-        queue,
-      ).updatePendingReport('q-1', reportType: 'weird', details: 'אחר');
+      await serviceFor().updatePendingReport(
+        'q-1',
+        reportType: 'weird',
+        details: 'אחר',
+      );
 
       expect((await queue.load()).single.reportType, 'other');
     });
@@ -460,13 +449,13 @@ void main() {
   group('PluginReportService — ספירת הנשלחים מעבר לתקרה (issue #1343)', () {
     test('המונה ממשיך מעבר לתקרת ההיסטוריה', () async {
       final max = PluginReportService.maxSentReportsToKeep;
-      final queue = _InMemoryPluginReportRepository()
-        ..seed([for (var i = 0; i < max + 5; i++) _buildRecord('q-$i')]);
-      final sent = _InMemoryPluginReportRepository();
+      final queue = _Queue(store, PluginReportService.pendingKind);
+      await queue.seed([
+        for (var i = 0; i < max + 5; i++) _buildRecord('q-$i'),
+      ]);
+      final sent = _Queue(store, PluginReportService.sentKind);
       final service = buildService(
         client: MockClient((_) async => http.Response('{}', 200)),
-        queue: queue,
-        sent: sent,
       );
 
       while ((await queue.load()).isNotEmpty) {
@@ -481,8 +470,6 @@ void main() {
       final counter = SentReportsCounter.inMemory();
       final service = buildService(
         client: MockClient((_) async => http.Response('{}', 200)),
-        queue: _InMemoryPluginReportRepository(),
-        sent: _InMemoryPluginReportRepository(),
         counter: counter,
       );
 
@@ -493,12 +480,12 @@ void main() {
     });
 
     test('מתקין בלי מונה: מתחיל מגודל ההיסטוריה, וניקוי מאפס', () async {
-      final sent = _InMemoryPluginReportRepository()
-        ..seed([_buildRecord('old-1'), _buildRecord('old-2')]);
+      await _Queue(
+        store,
+        PluginReportService.sentKind,
+      ).seed([_buildRecord('old-1'), _buildRecord('old-2')]);
       final service = buildService(
         client: MockClient((_) async => http.Response('{}', 200)),
-        queue: _InMemoryPluginReportRepository(),
-        sent: sent,
       );
 
       expect(await service.getSentReportsTotal(), 2);
@@ -510,12 +497,60 @@ void main() {
     });
   });
 
+  group('שני חלונות על אותו מסד', () {
+    test('דיווחים משני חיבורים נשמרים יחד, ושליחה מוחקת רק את הנשלח', () async {
+      final secondDb = UserStateDatabase.openAt(
+        '${tmp.path}${Platform.pathSeparator}user_state.db',
+      );
+      addTearDown(secondDb.close);
+      final first = PluginReportService(
+        client: MockClient((_) async {
+          throw const SocketException('down');
+        }),
+        reportStore: store,
+      );
+      final second = PluginReportService(
+        client: MockClient((_) async {
+          throw const SocketException('down');
+        }),
+        reportStore: PendingReportStore(database: secondDb),
+      );
+
+      await first.submitReport(_buildRecord('w1-a'));
+      await second.submitReport(_buildRecord('w2-a'));
+      await first.submitReport(_buildRecord('w1-b'));
+
+      expect((await second.getPendingReports()).map((r) => r.reportId), [
+        'w1-a',
+        'w2-a',
+        'w1-b',
+      ]);
+      expect(await first.getPendingReportsCount(), 3);
+
+      // רק w2-a נשלח; שאר התור נכשל זמנית, כך שה-flush שברקע אינו מרוקן אותו.
+      final sender = PluginReportService(
+        client: MockClient((request) async {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          if (body['reportId'] != 'w2-a') throw const SocketException('down');
+          return http.Response('{"success":true}', 200);
+        }),
+        reportStore: store,
+      );
+      await sender.submitPendingReport(_buildRecord('w2-a'));
+      await pumpEventQueue();
+
+      expect((await second.getPendingReports()).map((r) => r.reportId), [
+        'w1-a',
+        'w1-b',
+      ]);
+      expect((await first.getSentReports()).single.reportId, 'w2-a');
+    });
+  });
+
   group('PluginReportService.buildOfflineSendScript', () {
     test('סקריפט Windows נבנה עם CRLF ומכיל את ה-payload והמזהה', () {
       final service = buildService(
         client: MockClient((_) async => http.Response('{}', 200)),
-        queue: _InMemoryPluginReportRepository(),
-        sent: _InMemoryPluginReportRepository(),
       );
 
       final script = service.buildOfflineSendScript(
@@ -535,8 +570,6 @@ void main() {
     test('סקריפט Unix נשאר LF ומכיל את המזהה', () {
       final service = buildService(
         client: MockClient((_) async => http.Response('{}', 200)),
-        queue: _InMemoryPluginReportRepository(),
-        sent: _InMemoryPluginReportRepository(),
       );
 
       final script = service.buildOfflineSendScript(
@@ -579,35 +612,23 @@ PluginReportRecord _buildRecord(String id) {
   );
 }
 
-class _InMemoryPluginReportRepository
-    extends HiveListRepository<PluginReportRecord> {
-  List<PluginReportRecord> _items = [];
+/// מציג סוג אחד בתור המשותף כרשימה, כדי שהבדיקות יזרעו וייבדקו בנוחות.
+class _Queue {
+  _Queue(this._store, this._kind);
 
-  _InMemoryPluginReportRepository()
-    : super(
-        boxName: 'in_memory',
-        key: 'pending_reports',
-        fromJson: PluginReportRecord.fromJson,
-        toJson: (record) => record.toJson(),
-      );
+  final PendingReportStore _store;
+  final String _kind;
 
-  void seed(List<PluginReportRecord> items) {
-    _items = List<PluginReportRecord>.from(items);
+  Future<void> seed(List<PluginReportRecord> records) async {
+    await _store.deleteAllOfKind(_kind);
+    for (final record in records) {
+      await _store.add(_kind, record.toJson());
+    }
   }
 
-  @override
   Future<List<PluginReportRecord>> load() async {
-    return List<PluginReportRecord>.from(_items);
-  }
-
-  @override
-  Future<void> overwrite(List<PluginReportRecord> items) async {
-    _items = List<PluginReportRecord>.from(items);
-  }
-
-  @override
-  Future<void> clear() async {
-    _items = [];
+    final rows = await _store.listByKind(_kind);
+    return rows.map((row) => PluginReportRecord.fromJson(row.payload)).toList();
   }
 }
 

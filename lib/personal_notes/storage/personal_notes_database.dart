@@ -10,8 +10,6 @@ import 'package:otzaria/migration/database/sqlite3_utils.dart';
 /// - personal_notes table: stores all note metadata and content
 /// - Indexed by book_id and line_number for fast queries
 class PersonalNotesDatabase {
-  static const _databaseName = 'personal_notes.db';
-
   static const _tableNotes = 'personal_notes';
 
   // Column names
@@ -48,7 +46,7 @@ class PersonalNotesDatabase {
 
   /// Initialize the database
   Future<Database> _initDatabase() async {
-    final dbPath = await AppPaths.resolveNotesDbPath(_databaseName);
+    final dbPath = await AppPaths.resolveNotesDbPath('personal_notes.db');
 
     final db = sqlite3.open(dbPath);
     enableWalBestEffort(db, 'PersonalNotesDatabase');
@@ -277,7 +275,7 @@ class PersonalNotesDatabase {
   Future<void> close() async {
     final db = _database;
     if (db != null) {
-      db.close();
+      closeWithCheckpoint(db);
       _database = null;
     }
   }

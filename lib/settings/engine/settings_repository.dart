@@ -59,11 +59,15 @@ class SettingsRepository {
   static const String keyCopyWithHeaders = 'key-copy-with-headers';
   static const String keyCopyHeaderFormat = 'key-copy-header-format';
   static const String keyIsFullscreen = 'key-is-fullscreen';
+  static const String keyRestoreAllWindows = 'key-restore-all-windows';
   static const String keyLibraryViewMode = 'key-library-view-mode';
   static const String keyLibraryShowPreview = 'key-library-show-preview';
   static const String keySearchShowPreview = 'key-search-show-preview';
   static const String keyEnablePerBookSettings = 'key-enable-per-book-settings';
   static const String keyPdfBookViewByDefault = 'key-pdf-book-view-by-default';
+
+  /// הבחירה האחרונה במצב היד בצפיין ה-PDF — חלה על כל ספר שנפתח.
+  static const String keyPdfHandMode = 'key-pdf-hand-mode';
   static const String keyTalmudBavliOpenFormat = 'key-talmud-bavli-open-format';
   static const String keyOfflineMode = 'key-offline-mode';
   static const String keyAutoSync = 'key-auto-sync';
@@ -224,11 +228,13 @@ class SettingsRepository {
     keyCopyWithHeaders,
     keyCopyHeaderFormat,
     keyIsFullscreen,
+    keyRestoreAllWindows,
     keyLibraryViewMode,
     keyLibraryShowPreview,
     keySearchShowPreview,
     keyEnablePerBookSettings,
     keyPdfBookViewByDefault,
+    keyPdfHandMode,
     keyTalmudBavliOpenFormat,
     keyOfflineMode,
     keyAutoSync,

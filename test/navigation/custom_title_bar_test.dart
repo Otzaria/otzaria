@@ -29,6 +29,7 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/navigation/view/reading_tab_strip.dart';
+import 'package:otzaria/navigation/view/tab_search_menu.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -2280,6 +2281,44 @@ void main() {
     });
   });
 
+  testWidgets('חיפוש הכרטיסיות בתחילת הרצועה, צמוד לכפתורי הפעולה', (
+    tester,
+  ) async {
+    final tab = _makeTextTab('ספר א');
+    final tabsBloc = _TestTabsBloc(
+      TabsState(tabs: [tab], currentTabIndex: 0),
+    );
+    final navigationBloc = _TestNavigationBloc(
+      const NavigationState(currentScreen: Screen.reading),
+    );
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+    addTearDown(() async {
+      tab.dispose();
+      await tabsBloc.close();
+      await navigationBloc.close();
+      await settingsBloc.close();
+    });
+
+    await _setSurfaceSize(tester, const Size(1200, 800));
+    await _pumpTitleBar(
+      tester,
+      tabsBloc: tabsBloc,
+      navigationBloc: navigationBloc,
+      settingsBloc: settingsBloc,
+    );
+
+    final bookmarkX = tester
+        .getCenter(find.byIcon(FluentIcons.bookmark_24_regular))
+        .dx;
+    final searchX = tester.getCenter(find.byType(TabSearchButton)).dx;
+    final tabX = tester.getCenter(find.text('ספר א')).dx;
+
+    // בין כפתורי הפעולה לכרטיסיה הראשונה — בלי תלות בכיווניות.
+    expect((searchX - bookmarkX).sign, (tabX - bookmarkX).sign);
+    expect((searchX - bookmarkX).abs(), lessThan((tabX - bookmarkX).abs()));
+  });
+
   testWidgets('כפתורי החלון המותאמים מוצגים גם במק', (tester) async {
     final tab = _makeTextTab('ספר א');
     final tabsBloc = _TestTabsBloc(
@@ -2307,7 +2346,6 @@ void main() {
 
     expect(find.byType(WindowCaption), findsOneWidget);
   });
-
 }
 
 /// לחיצה כפולה במיקום נתון: שתי הקשות עם השהיה תקפה ל-double-tap, ואז המתנה

@@ -545,9 +545,13 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                       SettingsCard(
                         cardId: 'library.personal_books_import',
                         title: context.settingsText('ספרים אישיים'),
-                        subtitle: context.settingsText(
-                          'הוספת ספרים משלך לספרייה — TXT, PDF, Word, EPUB ועוד. כאן בוחרים קבצים, ולא תיקייה כמו במחשב',
-                        ),
+                        subtitle: Platform.isAndroid
+                            ? context.settingsText(
+                                'הוספת ספרים משלך לספרייה — TXT, PDF, Word, EPUB ועוד. בוחרים קבצים או תיקייה שלמה, והם מועתקים לספרייה',
+                              )
+                            : context.settingsText(
+                                'הוספת ספרים משלך לספרייה — TXT, PDF, Word, EPUB ועוד. כאן בוחרים קבצים, ולא תיקייה כמו במחשב',
+                              ),
                         children: const [
                           PersonalBooksImportPanel(),
                         ],

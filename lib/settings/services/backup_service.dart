@@ -25,6 +25,7 @@ import 'package:otzaria/plugins/services/plugin_report_service.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/services/sent_reports_counter.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/user_state/pending_report_store.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/services/backup/backup_import_merge.dart';
@@ -138,7 +139,7 @@ class BackupService {
         if (perBookSettings.hadFailures) {
           skippedSections.add('perBookSettings');
         }
-        backupData['reportQueues'] = _backupReportQueues(skippedSections);
+        backupData['reportQueues'] = await _backupReportQueues();
       }
 
       // Backup bookmarks
@@ -210,21 +211,17 @@ class BackupService {
     }
   }
 
-  /// מקומות השמירה שהגיבוי מכסה: Hive boxes ותיקיות תחת שורש הנתונים.
-  ///
-  /// `databases` מכוסה חלקית — `personal_notes.db` ו-`plugins_host.db` מגובים,
-  /// ו-`user_books.db`/`cache.db` נבנים מחדש מסריקת הספרים.
+  /// מקומות השמירה שהגיבוי מכסה: Hive boxes, מסדי נתונים ותיקיות תחת שורש
+  /// הנתונים. `databases` היא התיקייה; כל קובץ בה מוכרע בנפרד.
   static const Set<String> backedUpStores = {
     'app_preferences',
-    'bookmarks',
-    'history',
-    'workspaces',
-    'tabs',
     'databases',
+    // הרשימות, סשני החלונות ותורי הדיווחים — כל אחד בסעיף משלו בקובץ.
+    'user_state.db',
+    'personal_notes.db',
+    'plugins_host.db',
     'plugins',
     'per_book_settings',
-    'error_reports_queue',
-    'plugin_reports_queue',
   };
 
   /// מקומות שמירה שאינם מגובים במכוון, עם הסיבה לכל אחד.
@@ -246,8 +243,10 @@ class BackupService {
         'סימון מקומי שספרייה נטענה במכשיר זה — שחזורו למכשיר אחר מטעה',
     'biographies.tsb': 'נתוני ביוגרפיות ארוזים באפליקציה ומתעדכנים מהרשת',
     windowRootsDirName:
-        'שורשי Hive פרטיים של חלונות נוספים; נמחקים בהפעלה קרה '
-        '(deleteStaleWindowRoots) ואין בהם נתונים שאינם אצל החלון הראשון',
+        'עותקי box ההגדרות של חלונות נוספים; נמחקים בהפעלה קרה '
+        '(deleteStaleWindowRoots) ומסונכרנים חי עם ההגדרות של החלון הראשון',
+    'user_books.db': 'קטלוג הספרים האישיים, נבנה מחדש מסריקת התיקיות',
+    'cache.db': 'קאש חישובים, נבנה מחדש לפי הצורך',
     AppPaths.libraryPathRecordFileName:
         'נתיב הספרייה עבור ה-uninstaller; נגזר מההגדרות ונרשם מחדש בכל '
         'עלייה, ושחזור נתיב ממכשיר אחר מטעה אותו',
@@ -573,61 +572,49 @@ class BackupService {
   /// הטאבים הפתוחים, כחלק מסעיף שולחנות העבודה — אותו סוג נתון (סידור
   /// הספרים הפתוחים), ולכן אין להם העדפת גיבוי נפרדת.
   ///
-  /// היעדר ה-box אינו מסמן את השחזור כחלקי: הטאבים הפתוחים הם מצב רגעי
-  /// שמשתנה בכל פתיחת ספר, ואין להבהיל את המשתמש בגללם.
-  static Future<Map<String, dynamic>?> _backupOpenTabs() async {
-    if (!Hive.isBoxOpen(TabsRepository.boxName)) {
-      _logger.warning('_backupOpenTabs: tabs box not open — skipping');
-      return null;
-    }
-    return TabsRepository().exportRaw();
-  }
+  static Future<Map<String, dynamic>?> _backupOpenTabs() =>
+      TabsRepository().exportRaw();
 
-  /// תורי הדיווחים השמורים. לשני ה-boxes מבנה זהה — רשימת ממתינים ורשימת
-  /// נשלחים — ולכן אותו גיבוי ושחזור משרת את שניהם.
+  /// תורי הדיווחים השמורים. לשני השירותים מבנה זהה — ממתינים ונשלחים —
+  /// ולכן אותו גיבוי ושחזור משרת את שניהם. שם הסעיף בקובץ הוא שם ה-box
+  /// ההיסטורי, כדי שגיבויים ישנים ימשיכו להיקרא.
   static const List<
-    ({String box, String pendingKey, String sentKey, int maxSent})
+    ({String section, String pendingKind, String sentKind, int maxSent})
   >
   _reportQueues = [
     (
-      box: DirectErrorReportService.queueBoxName,
-      pendingKey: DirectErrorReportService.pendingReportsKey,
-      sentKey: DirectErrorReportService.sentReportsKey,
+      section: DirectErrorReportService.queueBoxName,
+      pendingKind: DirectErrorReportService.pendingKind,
+      sentKind: DirectErrorReportService.sentKind,
       maxSent: DirectErrorReportService.maxSentReportsToKeep,
     ),
     (
-      box: PluginReportService.queueBoxName,
-      pendingKey: PluginReportService.pendingReportsKey,
-      sentKey: PluginReportService.sentReportsKey,
+      section: PluginReportService.queueBoxName,
+      pendingKind: PluginReportService.pendingKind,
+      sentKind: PluginReportService.sentKind,
       maxSent: PluginReportService.maxSentReportsToKeep,
     ),
   ];
 
   /// גיבוי הדיווחים השמורים — הממתינים לשליחה וההיסטוריה שנשלחה. נכנסים
   /// לסעיף ההגדרות, שבו נשמרת כבר כתובת המייל שאליה הם משויכים.
-  static Map<String, dynamic> _backupReportQueues(
-    List<String> skippedSections,
-  ) {
+  static Future<Map<String, dynamic>> _backupReportQueues() async {
+    final store = PendingReportStore.instance;
     final queues = <String, dynamic>{};
     for (final queue in _reportQueues) {
-      if (!Hive.isBoxOpen(queue.box)) {
-        _logger.warning(
-          '_backupReportQueues: ${queue.box} not open — skipping (partial backup)',
-        );
-        if (!skippedSections.contains('reportQueues')) {
-          skippedSections.add('reportQueues');
-        }
-        continue;
-      }
-      final box = Hive.box<dynamic>(queue.box);
-      queues[queue.box] = {
-        'pending': _reportList(box.get(queue.pendingKey)),
-        'sent': _reportList(box.get(queue.sentKey)),
-        'sentTotal': _sentTotal(box.get(SentReportsCounter.defaultKey)),
+      queues[queue.section] = {
+        'pending': await _storedReports(store, queue.pendingKind),
+        'sent': await _storedReports(store, queue.sentKind),
+        'sentTotal': await SentReportsCounter(boxName: queue.section).read(),
       };
     }
     return queues;
   }
+
+  static Future<List<Map<String, dynamic>>> _storedReports(
+    PendingReportStore store,
+    String kind,
+  ) async => (await store.listByKind(kind)).map((r) => r.payload).toList();
 
   /// המרת רשימת דיווחים מ-Hive/JSON לרשימת מפות עם מפתחות מחרוזת.
   static List<Map<String, dynamic>> _reportList(Object? raw) {
@@ -744,10 +731,9 @@ class BackupService {
           settings,
           backupData['settingsSource'],
         );
-        final reportsSkipped = await _restoreReportQueues(
+        await _restoreReportQueues(
           (backupData['reportQueues'] as Map?)?.cast<String, dynamic>(),
         );
-        if (reportsSkipped) runtimeSkipped.add('reportQueues');
       }
       final perBookHadFailures = await _restorePerBookSettings(
         (backupData['perBookSettings'] as Map?)?.cast<String, dynamic>() ??
@@ -883,52 +869,60 @@ class BackupService {
 
   /// שחזור הדיווחים השמורים (ראה [_backupReportQueues]). ממזג ולא מחליף:
   /// דיווח שנשלח מאז אינו חוזר לתור, אחרת היה נשלח שוב לצוות אוצריא.
-  static Future<bool> _restoreReportQueues(Map<String, dynamic>? queues) async {
-    if (queues == null || queues.isEmpty) return false;
+  static Future<void> _restoreReportQueues(Map<String, dynamic>? queues) async {
+    if (queues == null || queues.isEmpty) return;
 
-    // השליחה האוטומטית כותבת לאותם מפתחות אחרי בקשת רשת; בלי עצירה שלה
+    // השליחה האוטומטית כותבת לאותם תורים אחרי בקשת רשת; בלי עצירה שלה
     // הכתיבה כאן עלולה לדרוס את רשומת הנשלחים ולהחזיר דיווח שכבר נמסר.
     await DirectErrorReportService.suspendAutomaticFlush();
     await PluginReportService.suspendAutomaticFlush();
 
-    var skipped = false;
+    final store = PendingReportStore.instance;
     for (final queue in _reportQueues) {
-      final backedUp = (queues[queue.box] as Map?)?.cast<String, dynamic>();
+      final backedUp = (queues[queue.section] as Map?)?.cast<String, dynamic>();
       if (backedUp == null) continue;
-      if (!Hive.isBoxOpen(queue.box)) {
-        _logger.warning(
-          '_restoreReportQueues: ${queue.box} not open — skipping (partial restore)',
-        );
-        skipped = true;
-        continue;
-      }
 
-      final box = Hive.box<dynamic>(queue.box);
+      // מהחדש לישן לפני הגזירה, כדי שהמכסה תשמיט את הישנים ולא את החדשים.
       final sent = _mergeReports(
-        _reportList(box.get(queue.sentKey)),
+        await _storedReports(store, queue.sentKind),
         _reportList(backedUp['sent']),
-      );
+      )..sort((a, b) => _reportTime(b).compareTo(_reportTime(a)));
       if (sent.length > queue.maxSent) {
         sent.removeRange(queue.maxSent, sent.length);
       }
       final sentIds = sent.map(_reportId).whereType<String>().toSet();
       final pending = _mergeReports(
-        _reportList(box.get(queue.pendingKey)),
+        await _storedReports(store, queue.pendingKind),
         _reportList(backedUp['pending']),
       ).where((report) => !sentIds.contains(_reportId(report))).toList();
 
-      await box.put(queue.pendingKey, pending);
-      await box.put(queue.sentKey, sent);
+      await _replaceReports(store, queue.pendingKind, pending);
+      await _replaceReports(store, queue.sentKind, sent);
       // המונה אינו ניתן למיזוג לפי מזהה; הגדול מבין השניים הוא הקירוב הטוב.
-      final total = [
-        _sentTotal(box.get(SentReportsCounter.defaultKey)),
-        _sentTotal(backedUp['sentTotal']),
-        sent.length,
-      ].reduce((a, b) => a > b ? a : b);
-      await box.put(SentReportsCounter.defaultKey, total);
+      final backedUpTotal = _sentTotal(backedUp['sentTotal']);
+      await SentReportsCounter(boxName: queue.section).raiseTo(
+        backedUpTotal > sent.length ? backedUpTotal : sent.length,
+      );
     }
-    return skipped;
   }
+
+  /// כותב מהישן לחדש: התור ממוין לפי סדר ההוספה, והתצוגה הופכת אותו.
+  static Future<void> _replaceReports(
+    PendingReportStore store,
+    String kind,
+    List<Map<String, dynamic>> reports,
+  ) async {
+    await store.deleteAllOfKind(kind);
+    final oldestFirst = [...reports]
+      ..sort((a, b) => _reportTime(a).compareTo(_reportTime(b)));
+    for (final report in oldestFirst) {
+      await store.add(kind, report);
+    }
+  }
+
+  static DateTime _reportTime(Map<String, dynamic> report) =>
+      DateTime.tryParse('${report['createdAt'] ?? ''}') ??
+      DateTime.fromMillisecondsSinceEpoch(0);
 
   /// איחוד שתי רשימות דיווחים לפי מזהה — המקומי מנצח, כי הוא העדכני.
   /// דיווח בלי מזהה נשמר כמות שהוא: אין דרך לזהות אותו ככפול.
@@ -1338,10 +1332,6 @@ class BackupService {
   /// הטאבים הקיימים — עדיף מלרוקן את המסך על סמך מה שאין בקובץ.
   static Future<void> _restoreOpenTabs(Map<String, dynamic>? openTabs) async {
     if (openTabs == null) return;
-    if (!Hive.isBoxOpen(TabsRepository.boxName)) {
-      _logger.warning('_restoreOpenTabs: tabs box not open — skipping');
-      return;
-    }
     await TabsRepository().importRaw(openTabs);
   }
 

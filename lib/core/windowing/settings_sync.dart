@@ -90,7 +90,7 @@ class SettingsSync {
   void broadcastChange(String key, Object? value) {
     // בפלטפורמה בלי ריבוי חלונות אין למי לשדר, וכל שמירת הגדרה שילמה
     // `Timer` ו-`ReceivePort` בשביל יכולת שאינה קיימת שם.
-    if (!MultiWindowService.isSupported) return;
+    if (!MultiWindowService.canOpenWindows) return;
     if (_applyingRemote) return;
     if (_isWindowScoped(key)) return;
     if (!_isSyncable(value)) return;
@@ -112,7 +112,7 @@ class SettingsSync {
   /// ⚠️ בלי זה החלון השני ממשיך עם הערכים הישנים בזיכרון וכותב אותם בחזרה
   /// בשמירה הבאה — כלומר האיפוס מתבטל מעצמו.
   void broadcastReset() {
-    if (!MultiWindowService.isSupported) return;
+    if (!MultiWindowService.canOpenWindows) return;
     if (_applyingRemote) return;
     // הכתיבות התלויות מתייתרות: הן עומדות להימחק בכל מקרה.
     dispose();

@@ -41,6 +41,49 @@ class PersonalBooksImportService {
   Future<String> getFolderPath() async =>
       _folderPathOverride ?? await AppPaths.getPersonalBooksImportPath();
 
+  /// תיקיית היעד לייבוא תיקייה שלמה: תת-תיקייה בשם [folderName], כך
+  /// שמבנה התיקייה נשמר כקטגוריה בעץ הספרייה.
+  Future<String> folderImportTarget(String folderName) async {
+    final name = folderName.replaceAll(RegExp(r'[\\/]'), '_').trim();
+    return p.join(
+      await getFolderPath(),
+      name.isEmpty || name == '..' ? 'תיקייה מיובאת' : name,
+    );
+  }
+
+  /// מוחק מבין הקבצים שהועתקו מתיקייה את מה שאינו ספר תקין לפי תוכנו —
+  /// ההעתקה הנייטיבית מסננת לפי סיומת בלבד.
+  Future<PersonalBooksImportResult> keepValidCopiedFiles(
+    List<String> copiedPaths,
+  ) async {
+    var copied = 0;
+    var skippedUnsupported = 0;
+    for (final path in copiedPaths) {
+      if (await isSupportedBookFileByContent(path)) {
+        copied++;
+      } else {
+        skippedUnsupported++;
+        await File(path).delete();
+      }
+    }
+    return PersonalBooksImportResult(
+      copied: copied,
+      skippedUnsupported: skippedUnsupported,
+    );
+  }
+
+  /// הודעת שגיאה למשתמש על קובץ שלא הועתק.
+  static String describeCopyError(String fileName, Object error) {
+    final text = error.toString();
+    final isNoSpace =
+        (error is FileSystemException && error.osError?.errorCode == 28) ||
+        text.contains('No space') ||
+        text.contains('ENOSPC');
+    return isNoSpace
+        ? '"$fileName": אין מספיק מקום פנוי באחסון המכשיר'
+        : '"$fileName": $text';
+  }
+
   /// בדיקת סיומת בלבד, לרשימת הקבצים שכבר יובאו. לשער הכניסה משמש
   /// `isSupportedBookFileByContent`, שבודק גם את תוכן הקובץ.
   static bool isSupportedFile(String filePath) =>
@@ -77,15 +120,7 @@ class PersonalBooksImportService {
         await File(sourcePath).openRead().pipe(File(targetPath).openWrite());
         copied++;
       } catch (e) {
-        final isNoSpace =
-            (e is FileSystemException && e.osError?.errorCode == 28) ||
-            e.toString().contains('No space') ||
-            e.toString().contains('ENOSPC');
-        errors.add(
-          isNoSpace
-              ? '"$fileName": אין מספיק מקום פנוי באחסון המכשיר'
-              : '"$fileName": $e',
-        );
+        errors.add(describeCopyError(fileName, e));
       }
     }
 

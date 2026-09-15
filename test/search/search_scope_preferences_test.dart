@@ -81,6 +81,60 @@ void main() {
       expect(loaded.searchAllCategories, isFalse);
       expect(loaded.manualFacets, isEmpty);
     });
+
+    group('היקפים שמורים (issue #1083)', () {
+      test('שמירה וטעינה משמרות שם, facets וסדר', () async {
+        await SearchScopePreferences.addSavedScope('ראשונים וקבלה', {
+          '/ראשונים',
+          '/קבלה',
+          '/era/אחרונים',
+        });
+        await SearchScopePreferences.addSavedScope('תורה', {'/תנ"ך/תורה'});
+
+        final loaded = SearchScopePreferences.loadSavedScopes();
+
+        expect(loaded.map((s) => s.name), ['ראשונים וקבלה', 'תורה']);
+        expect(loaded.first.facets, {'/ראשונים', '/קבלה', '/era/אחרונים'});
+      });
+
+      test('שם קיים מוחלף במקומו ולא נוסף שוב', () async {
+        await SearchScopePreferences.addSavedScope('א', {'/x'});
+        await SearchScopePreferences.addSavedScope('ב', {'/y'});
+        await SearchScopePreferences.addSavedScope(' א ', {'/z'});
+
+        final loaded = SearchScopePreferences.loadSavedScopes();
+
+        expect(loaded.map((s) => s.name), ['א', 'ב']);
+        expect(loaded.first.facets, {'/z'});
+      });
+
+      test('מחיקה מסירה רק את ההיקף בשם הנתון', () async {
+        await SearchScopePreferences.addSavedScope('א', {'/x'});
+        await SearchScopePreferences.addSavedScope('ב', {'/y'});
+
+        final next = await SearchScopePreferences.removeSavedScope('א');
+
+        expect(next.map((s) => s.name), ['ב']);
+        expect(
+          SearchScopePreferences.loadSavedScopes().map((s) => s.name),
+          ['ב'],
+        );
+      });
+
+      test('JSON פגום או רשומות חסרות-שם מדולגים', () async {
+        await Settings.setValue<String>(
+          'key-search-saved-scopes',
+          '[{"name":"","facets":["/x"]},{"name":"טוב","facets":["/y",3]},'
+              '{"facets":["/z"]},"garbage"]',
+        );
+        final loaded = SearchScopePreferences.loadSavedScopes();
+        expect(loaded.map((s) => s.name), ['טוב']);
+        expect(loaded.single.facets, {'/y'});
+
+        await Settings.setValue<String>('key-search-saved-scopes', '{not json');
+        expect(SearchScopePreferences.loadSavedScopes(), isEmpty);
+      });
+    });
   });
 }
 

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -155,8 +157,10 @@ Future<void> main() async {
         await pumpMenu(tester, {'/'});
         await typeQuery(tester, 'בראשית');
 
-        // בלי ריחוף — "רק" מוסתר (השורה המודגשת היא "נקה הכל", בלי onOnly).
-        expect(find.text('רק'), findsNothing);
+        // ב-Windows ובמגע "רק" מוצג תמיד; בשאר — מוסתר עד ריחוף.
+        final alwaysShown =
+            Platform.isWindows || Platform.isAndroid || Platform.isIOS;
+        expect(find.text('רק'), alwaysShown ? findsOneWidget : findsNothing);
 
         await hoverOver(tester, 'בראשית');
         expect(find.text('רק'), findsOneWidget);

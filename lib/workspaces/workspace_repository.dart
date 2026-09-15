@@ -1,71 +1,59 @@
-import 'dart:async';
 import 'dart:developer' as developer;
-import 'package:hive_ce/hive.dart';
-import 'package:otzaria/core/windowing/window_role.dart';
-import 'package:otzaria/data/repository/hive_list_repository.dart';
-import 'package:otzaria/utils/file/hive_utils.dart';
+
+import 'package:otzaria/core/user_state/user_state_list_store.dart';
+import 'package:otzaria/core/user_state/user_state_slot.dart';
+import 'package:otzaria/core/user_state/window_session_store.dart';
+import 'package:otzaria/data/repository/user_state_list_repository.dart';
 import 'package:otzaria/workspaces/workspace.dart';
 
-/// Repository for persisting and loading workspaces.
+/// שמירה וטעינה של שולחנות העבודה.
 ///
-/// ## מה משותף בין החלונות ומה לא
+/// **רשימת השולחנות משותפת** לכל החלונות — במסד מצב המשתמש.
 ///
-/// **רשימת השולחנות משותפת** — שולחן שנשמר בחלון אחד צריך להיות פתיח מכל
-/// חלון, ולכן היא עוברת דרך [HiveListRepository] אל הבעלים.
-///
-/// **השולחן הפעיל הוא מצב פר-חלון**, ונשמר מקומית. "על איזה שולחן אני עובד
-/// עכשיו" הוא בדיוק כמו "אילו כרטיסיות פתוחות לי": ניתוב שלו לבעלים היה
-/// גורם למעבר שולחן בחלון אחד להחליף את התוכן של השני.
+/// **השולחן הפעיל הוא מצב פר-חלון**, ונשמר בסשן של החלון
+/// (`window_sessions.active_workspace_id`). "על איזה שולחן אני עובד" הוא
+/// בדיוק כמו "אילו כרטיסיות פתוחות לי".
 class WorkspaceRepository {
+  WorkspaceRepository({
+    UserStateListStore? store,
+    WindowSessionStore? sessions,
+    int? Function()? slot,
+  }) : _list = UserStateListRepository<Workspace>(
+         boxName: boxName,
+         key: workspacesKey,
+         fromJson: Workspace.fromJson,
+         toJson: (workspace) => workspace.toJson(),
+         store: store,
+       ),
+       _sessions = sessions ?? WindowSessionStore.instance,
+       _slot = slot ?? (() => UserStateSlot.current);
+
   static const String boxName = 'workspaces';
   static const String workspacesKey = 'key-workspaces';
-  static const String _currentWorkspaceIdKey = 'key-current-workspace-id';
-  // Legacy key - kept for migration
-  static const String _legacyCurrentWorkspaceKey = 'key-current-workspace';
 
-  final HiveListRepository<Workspace> _list = HiveListRepository<Workspace>(
-    boxName: boxName,
-    key: workspacesKey,
-    fromJson: Workspace.fromJson,
-    toJson: (workspace) => workspace.toJson(),
-  );
+  final UserStateListRepository<Workspace> _list;
+  final WindowSessionStore _sessions;
+  final int? Function() _slot;
 
   /// אות שרשימת השולחנות שונתה בחלון אחר.
   Stream<void> get remoteChanges => _list.remoteChanges;
 
-  Box _getBox() => Hive.box(boxName);
-
-  /// Loads all workspaces and returns tuple of (workspaces, activeWorkspaceId).
+  /// טוען את השולחנות ואת מזהה השולחן הפעיל של החלון הזה.
   ///
-  /// Handles migration from old index-based storage to new ID-based storage.
+  /// ⚠️ כשל קריאה מתפשט ואינו הופך לרשימה ריקה: גיבוי שכתב `workspaces: []`
+  /// בגלל קריאה שלא הצליחה נראה תקין, ושחזור ממנו מוחק את כל השולחנות.
   Future<(List<Workspace>, String?)> loadWorkspaces() async {
-    // ⚠️ [SharedHiveUnavailable] מתפשט במכוון ואינו הופך לרשימה ריקה —
-    // ראו [HiveListRepository.load]. גיבוי שכתב `workspaces: []` בגלל
-    // קריאה שלא הצליחה נראה תקין, ושחזור ממנו מוחק את כל השולחנות.
-    // רשומה פגומה בודדת כן מדולגת ואינה מוחקת את השאר.
     final workspaces = await _list.load();
     try {
-      // Try new ID-based key first
-      String? currentId = _readLocal(_currentWorkspaceIdKey) as String?;
-
-      // ⚠️ **לא** בחלון משני. ה-box המקומי שלו ריק תמיד (שורש Hive פרטי
-      // חדש בכל פתיחה), ולכן המיגרציה קיבעה אותו על השולחן הראשון — אותו
-      // שולחן שהחלון הראשון עומד עליו. שני חלונות על אותו שולחן דורסים זה
-      // לזה את ה-stash, וכרטיסיה נעלמת. חלון משני מתחיל **בלי** שולחן
-      // פעיל, ומקבל אחד רק אם המשתמש בחר בו במפורש.
-      if (currentId == null &&
-          !WindowRole.isSecondary &&
-          workspaces.isNotEmpty) {
-        currentId = _migrateLegacyActiveIndex(workspaces);
-      }
-
-      // Validate that the ID exists in the list
+      final slot = _slot();
+      var currentId = slot == null
+          ? null
+          : (await _sessions.load(slot))?.activeWorkspaceId;
+      // חלון ללא שולחן פעיל מתחיל על הראשון; חלון חדש מקבל אחד רק כשהמשתמש
+      // בוחר — כך שני חלונות אינם נועלים על אותו שולחן בלי כוונה.
       if (currentId != null && !workspaces.any((w) => w.id == currentId)) {
-        currentId = WindowRole.isSecondary || workspaces.isEmpty
-            ? null
-            : workspaces.first.id;
+        currentId = workspaces.isEmpty ? null : workspaces.first.id;
       }
-
       return (workspaces, currentId);
     } catch (e, stackTrace) {
       developer.log(
@@ -79,55 +67,20 @@ class WorkspaceRepository {
     }
   }
 
-  /// מיגרציה מהמפתח הישן, שהחזיק **אינדקס** ולא מזהה.
-  ///
-  /// ⚠️ קוראת את הרשימה הגולמית מה-box המקומי ולא את הרשימה המפוענחת:
-  /// האינדקס הישן מתייחס למקומות המקוריים, ורשומה פגומה שקדמה לשולחן
-  /// הפעיל הייתה מזיזה אותו.
-  String? _migrateLegacyActiveIndex(List<Workspace> workspaces) {
-    final legacyIndex = _readLocal(_legacyCurrentWorkspaceKey) as int?;
-    Workspace? atLegacy;
-    if (legacyIndex != null) {
-      final raw = _readLocal(workspacesKey);
-      if (raw is List && legacyIndex >= 0 && legacyIndex < raw.length) {
-        try {
-          atLegacy = Workspace.fromJson(castMap(raw[legacyIndex]));
-        } catch (_) {
-          // רשומה פגומה במקום הישן — נופלים לראשון.
-        }
-      }
-    }
-    final resolved = (atLegacy ?? workspaces.first).id;
-    unawaited(saveActiveWorkspaceId(resolved));
-    return resolved;
-  }
-
-  Object? _readLocal(String key) {
-    try {
-      return _getBox().get(key);
-    } catch (e) {
-      developer.log(
-        'Error reading $key',
-        error: e,
-        name: 'WorkspaceRepository',
-      );
-      return null;
-    }
-  }
-
   /// מחיל [apply] על רשימת השולחנות **הטרייה** ושומר. מחזיר את מה שנשמר.
   ///
-  /// ⚠️ [apply] חייב להיות טהור — הוא עשוי לרוץ שוב אם חלון אחר כתב
-  /// בינתיים. חישוב מ-`state` בתוכו מחזיר בדיוק את הבאג שהוא בא למנוע.
+  /// ⚠️ [apply] חייב להיות טהור — חישוב מ-`state` בתוכו מחזיר בדיוק את
+  /// הבאג שהוא בא למנוע.
   Future<List<Workspace>> mutateWorkspaces(
     List<Workspace> Function(List<Workspace> current) apply,
   ) => _list.mutate(apply);
 
-  /// שומר את מזהה השולחן הפעיל **של החלון הזה**. מקומי, לא מנותב.
+  /// שומר את מזהה השולחן הפעיל **של החלון הזה**.
   Future<void> saveActiveWorkspaceId(String? id) async {
-    if (id == null) return;
+    final slot = _slot();
+    if (id == null || slot == null) return;
     try {
-      await _getBox().put(_currentWorkspaceIdKey, id);
+      await _sessions.saveActiveWorkspace(slot, id);
     } catch (e, stackTrace) {
       developer.log(
         'Error saving active workspace id',

@@ -6,6 +6,7 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:path/path.dart' as path;
+import 'package:sqlite3/sqlite3.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -50,6 +51,28 @@ void main() {
         identical(first, second),
         isFalse,
         reason: 'אחרי close, האתחול הבא מייצר repository חדש',
+      );
+    });
+
+    test('close() ממזג את ה-WAL גם כשחיבור אחר עדיין פתוח', () async {
+      final repo = await UserBooksDatabaseHolder.instance.repository;
+      final db = await repo.database.database;
+      db.execute('CREATE TABLE wal_probe(x INTEGER)');
+      db.execute('INSERT INTO wal_probe VALUES (1)');
+
+      final dbPath = await UserBooksDatabaseHolder.resolveDbPath();
+      // חיבור של חלון מוסתר: בזכותו הסגירה אינה האחרונה.
+      final other = sqlite3.open(dbPath);
+      addTearDown(other.close);
+      other.select('SELECT 1');
+
+      await UserBooksDatabaseHolder.instance.close();
+
+      final wal = File('$dbPath-wal');
+      expect(
+        !wal.existsSync() || wal.lengthSync() == 0,
+        isTrue,
+        reason: 'השינויים חייבים להיכנס לקובץ הראשי בסגירה',
       );
     });
 

@@ -316,3 +316,29 @@ int? closestTocEntryIndex(List<TocEntry> entries, int targetIndex) {
   search(entries);
   return closest?.index;
 }
+
+/// הקטע שתחת הכותרת הקרובה ל-[line] (מעליה או בה): מהכותרת ועד הכותרת הבאה
+/// באותה רמה או גבוהה ממנה. `end` null = עד סוף הספר; null כשאין כותרת מעל.
+({int start, int? end, String title})? tocSectionAt(
+  List<TocEntry> entries,
+  int line,
+) {
+  final flat = flattenToc(entries);
+  int? closestPos;
+  for (var i = 0; i < flat.length; i++) {
+    if (flat[i].index <= line &&
+        (closestPos == null || flat[i].index >= flat[closestPos].index)) {
+      closestPos = i;
+    }
+  }
+  if (closestPos == null) return null;
+  final heading = flat[closestPos];
+  int? end;
+  for (var i = closestPos + 1; i < flat.length; i++) {
+    if (flat[i].level <= heading.level && flat[i].index > heading.index) {
+      end = flat[i].index;
+      break;
+    }
+  }
+  return (start: heading.index, end: end, title: heading.text);
+}

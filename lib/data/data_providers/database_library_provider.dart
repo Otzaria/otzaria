@@ -21,6 +21,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/text_book/utils/inline_section_markers.dart';
 import 'package:otzaria/migration/models/category.dart' as db_models;
 import 'package:otzaria/migration/models/book.dart' as db_models;
 import 'package:otzaria/migration/models/toc_entry.dart' as db_models;
@@ -949,11 +950,11 @@ Future<List<Map<String, dynamic>>> _runAlternativeStructuresInIsolate({
   );
 }
 
-/// סמני חלוקה בגוף הטקסט של ספר, ממופתחים לפי `lineIndex` — עלי מבני
-/// alt-TOC של סמנים: `Simanim` (אותיות פסקה במדרש רבה וחבריו, תווית "א")
-/// ו-`Seifim` (סעיפים בנושאי-כלים על השולחן ערוך, תווית "סעיף ג";
-/// מסונתז בגנרטור של SeforimLibrary וקיים מגרסת ספרייה 24 ואילך).
-Map<int, String> _loadInlineSectionMarkersInIsolate({
+/// סמני חלוקה וכותרות נושא בגוף הטקסט של ספר, ממופתחים לפי `lineIndex`.
+/// [markers] — עלי `Simanim` (אותיות פסקה במדרש רבה, "א") ו-`Seifim`
+/// (סעיפים בנושאי-כלים, "סעיף ג"; מגרסת ספרייה 24).
+/// [headings] — רשומות `Topic` ("הלכות ציצית"), רק כשאינן כבר גלויות בטקסט.
+InlineSectionMarks _loadInlineSectionMarksInIsolate({
   required String dbPath,
   required String bookTitle,
 }) {
@@ -967,7 +968,7 @@ Map<int, String> _loadInlineSectionMarkersInIsolate({
     ).toMapList();
 
     if (bookResults.isEmpty) {
-      return const {};
+      return (markers: const {}, headings: const {});
     }
 
     final bookId = bookResults.first['id'] as int;
@@ -998,20 +999,65 @@ Map<int, String> _loadInlineSectionMarkersInIsolate({
         markers[lineIndex] = label;
       }
     }
-    return markers;
+
+    // כל הרמות, לא רק עלים: בערוך השולחן "הלכות X" החסרה היא צומת ביניים,
+    // והעלה ("סימן א") נופל בבדיקת הנראוּת.
+    final headingRows = db
+        .select(
+          '''
+      SELECT l.lineIndex AS lineIndex, t.text AS label, l.content AS line0,
+        (SELECT p.content FROM line p
+          WHERE p.bookId = l.bookId AND p.lineIndex = l.lineIndex - 1) AS line1,
+        (SELECT p.content FROM line p
+          WHERE p.bookId = l.bookId AND p.lineIndex = l.lineIndex - 2) AS line2
+      FROM alt_toc_structure s
+      JOIN alt_toc_entry e ON e.structureId = s.id
+      JOIN tocText t ON t.id = e.textId
+      JOIN line l ON l.id = e.lineId
+      WHERE s.bookId = ? AND s.key = 'Topic'
+      ORDER BY l.lineIndex, e.level
+      ''',
+          [bookId],
+        )
+        .toMapList();
+
+    final headings = <int, List<String>>{};
+    for (final row in headingRows) {
+      final lineIndex = row['lineIndex'];
+      final rawLabel = row['label'];
+      if (lineIndex is! int || rawLabel is! String) continue;
+      final label = cleanSectionHeadingLabel(rawLabel);
+      if (label.isEmpty) continue;
+      final linesAbove = [row['line1'] as String?, row['line2'] as String?];
+      if (isSectionHeadingVisible(label, [
+        row['line0'] as String?,
+        ...linesAbove,
+      ])) {
+        continue;
+      }
+      final anchor = lineIndex - sectionHeadingLinesAbove(linesAbove);
+      headings.putIfAbsent(anchor, () => []).add(label);
+    }
+    return (markers: markers, headings: headings);
   } finally {
     db?.close();
   }
 }
 
+/// סמני חלוקה ([markers]) וכותרות נושא ([headings]) לפי `lineIndex`.
+typedef InlineSectionMarks = ({
+  Map<int, String> markers,
+  Map<int, List<String>> headings,
+});
+
 /// Top-level wrapper עבור טעינת סמני החלוקה ב-isolate.
 /// ראה ההסבר ב-[_runAlternativeStructuresInIsolate].
-Future<Map<int, String>> _runInlineSectionMarkersInIsolate({
+Future<InlineSectionMarks> _runInlineSectionMarksInIsolate({
   required String dbPath,
   required String bookTitle,
 }) {
   return Isolate.run(
-    () => _loadInlineSectionMarkersInIsolate(
+    () => _loadInlineSectionMarksInIsolate(
       dbPath: dbPath,
       bookTitle: bookTitle,
     ),
@@ -3000,9 +3046,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
           ...?categoriesByParent[pickedFolder.id],
         ]..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
         for (final grandchild in grandchildren) {
-          final existing = library.subCategories
-              .where((c) => c.title == grandchild.title)
-              .firstOrNull;
+          final existing = _findMergeTarget(
+            library.subCategories,
+            grandchild.title,
+          );
           if (existing == null) {
             library.subCategories.add(
               _buildUserBooksCatalogCategoryRecursive(
@@ -3034,6 +3081,16 @@ class DatabaseLibraryProvider implements LibraryProvider {
       unawaited(Sentry.captureException(e, stackTrace: stackTrace));
     }
   }
+
+  /// קטגוריית היעד למיזוג תיקייה אישית, בהשוואה שמתעלמת מגרשיים וגרש:
+  /// שם תיקייה ב-Windows לא יכול להכיל `"`, ולכן "תנך" חייב להתאים ל"תנ״ך".
+  Category? _findMergeTarget(List<Category> candidates, String folderTitle) {
+    final key = _mergeTitleKey(folderTitle);
+    return candidates.where((c) => _mergeTitleKey(c.title) == key).firstOrNull;
+  }
+
+  static String _mergeTitleKey(String title) =>
+      title.replaceAll(RegExp('''['"״׳’”“`]'''), '').trim();
 
   /// מצב המיזוג לפי קטגוריית-השורש. תיקיות בעלות אותו שם חולקות קטגוריה,
   /// ולכן כשמצביהן האפקטיביים חלוקים חוזרים לברירת המחדל הגלובלית.
@@ -3155,9 +3212,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
       ...?categoriesByParent[dbCategory.id],
     ]..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
     for (final child in children) {
-      final existingSubCategory = category.subCategories
-          .where((subCategory) => subCategory.title == child.title)
-          .firstOrNull;
+      final existingSubCategory = _findMergeTarget(
+        category.subCategories,
+        child.title,
+      );
       if (existingSubCategory == null) {
         final subCategory = _buildUserBooksCatalogCategoryRecursive(
           child,
@@ -3653,29 +3711,28 @@ class DatabaseLibraryProvider implements LibraryProvider {
     }
   }
 
-  /// סמני חלוקה בגוף הטקסט של ספר, ממופתחים לפי `lineIndex` של שורת התוכן:
-  /// אותיות פסקה במדרש רבה וחבריו (מבנה `Simanim`), ו"סעיף X" בנושאי-כלים
-  /// על השולחן ערוך (מבנה `Seifim`, מגרסת ספרייה 24). לכל ספר אחר מוחזרת
-  /// מפה ריקה. משמש להצגת הסמן בגוף הטקסט (issue #773).
-  Future<Map<int, String>> getInlineSectionMarkersByLineIndex(
+  /// סמני חלוקה וכותרות נושא להצגה בגוף הטקסט, לפי `lineIndex` של שורת
+  /// התוכן (issues #773, #1121). לספר בלי מבנים כאלה — מפות ריקות.
+  Future<InlineSectionMarks> getInlineSectionMarksByLineIndex(
     String bookTitle,
   ) async {
+    const empty = (markers: <int, String>{}, headings: <int, List<String>>{});
     if (!_sqliteProvider.isInitialized || _sqliteProvider.repository == null) {
-      return const {};
+      return empty;
     }
 
     final dbPath = _sqliteProvider.dbPath;
 
     try {
-      return await _runInlineSectionMarkersInIsolate(
+      return await _runInlineSectionMarksInIsolate(
         dbPath: dbPath,
         bookTitle: bookTitle,
       );
     } catch (e) {
       debugPrint(
-        '⚠️ Error in getInlineSectionMarkersByLineIndex "$bookTitle": $e',
+        '⚠️ Error in getInlineSectionMarksByLineIndex "$bookTitle": $e',
       );
-      return const {};
+      return empty;
     }
   }
 

@@ -48,6 +48,23 @@ void main() {
       );
     });
 
+    test('הבחירה נזכרת ברמת התוכנה ולא מתאפסת בפתיחת ספר', () {
+      expect(
+        source.contains(
+          'Settings.getValue<bool>(SettingsRepository.keyPdfHandMode)',
+        ),
+        isTrue,
+        reason: 'מצב היד מאותחל מהבחירה האחרונה (issue #1119).',
+      );
+      expect(
+        source.contains(
+          'Settings.setValue<bool>(SettingsRepository.keyPdfHandMode, _isHandMode)',
+        ),
+        isTrue,
+        reason: 'כל החלפה של המתג נשמרת לספר הבא.',
+      );
+    });
+
     test('כפתור המתג קיים ואינו מוצג במובייל', () {
       final buttonBlock = RegExp(
         r'if \(!Platform\.isAndroid && !Platform\.isIOS\)\s*'

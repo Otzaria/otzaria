@@ -2,22 +2,30 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/core/app_runtime_reset.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/messages/window_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/windowing/external_tab_drag.dart';
 import 'package:otzaria/core/windowing/multi_window_service.dart';
+import 'package:otzaria/core/user_state/user_state_list_store.dart';
 import 'package:otzaria/core/windowing/settings_sync.dart';
-import 'package:otzaria/core/windowing/shared_hive_store.dart';
 import 'package:otzaria/core/windowing/window_bus.dart';
 import 'package:otzaria/core/windowing/window_role.dart';
+import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
+import 'package:otzaria/indexing/bloc/indexing_event.dart';
+import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
+import 'package:otzaria/plugins/view/webview_environment_holder.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/widgets/misc/restart_widget.dart';
+import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 
@@ -48,7 +56,7 @@ class _WindowBusHostState extends State<WindowBusHost> {
     // ⚠️ כל השכבה הזו מגודרת בפלטפורמה. בלי הגידור מובייל שילם
     // `Timer.periodic` של שלוש שניות, `ReceivePort` פתוח ושלוש שאילתות
     // אפיק בכל פעימה — בשביל יכולת שאינה קיימת שם בכלל.
-    if (!MultiWindowService.isSupported) return;
+    if (!MultiWindowService.canOpenWindows) return;
 
     // ⚠️ החלון הראשון רושם גם את כינוי הבעלים. בלעדיו איתור מחזיק המאגרים
     // המשותפים היה סריקת `describe` עם timeout — והבעלים דווקא עסוק בזמן
@@ -161,15 +169,58 @@ class _WindowBusHostState extends State<WindowBusHost> {
         return _dragOver(request);
       case MultiWindowService.requestOpenUri:
         return _openUri(request['uri']);
+      case MultiWindowService.requestIndex:
+        return _runIndexRequest(request['op']);
       case MultiWindowService.requestDragLeave:
         externalTabDrag.value = null;
         return true;
+      case UserStateListStore.requestChanged:
+        return UserStateListStore.instance.handleRequest(request);
       case SettingsSync.requestChanged:
         // הגדרה שונתה בחלון אחר — מוחלת על ה-box המקומי ומרעננת את ה-state.
         return SettingsSync.instance.handleRequest(request);
+      case MultiWindowService.requestRestart:
+        return _restartSelf();
       default:
-        // המאגרים המשותפים מנותבים לחלון הראשון; הבקשות שלהם מטופלות שם.
-        return SharedHiveStore.instance.handleRequest(request);
+        return null;
+    }
+  }
+
+  /// חלון אחר שחזר גיבוי או ייבא נתונים: העץ נבנה מחדש כדי לטעון אותם.
+  ///
+  /// ⚠️ חלון מוסתר (שנסגר ומחכה ל-Ctrl+Shift+T) אינו נבנה מחדש: סגירת
+  /// ה-`TabsBloc` שלו הייתה כותבת מחדש את הסשן שהמשתמש מחק בסגירה.
+  Future<bool> _restartSelf() async {
+    if (!mounted) return false;
+    if (!await AppWindowScope.controllerOf(context).isVisible()) return false;
+    if (!mounted) return false;
+    await resetRuntimeStateForAppRestart();
+    if (!mounted) return false;
+    RestartWidget.restartApp(
+      context,
+      afterRestart: WebViewEnvironmentHolder.disposeForAppRestart,
+    );
+    return true;
+  }
+
+  /// בקשת אינדוקס מחלון משני. רק המארח מבצע — Tantivy נועל את ה-writer
+  /// בלעדית, והנעילה שלו.
+  ///
+  /// מחזיר true רק אחרי שהאירוע נשלח בפועל, כי השולח מדווח למשתמש לפיו.
+  bool _runIndexRequest(Object? op) {
+    if (!mounted || WindowRole.isSecondary) return false;
+    final indexing = context.read<IndexingBloc>();
+    switch (op) {
+      case MultiWindowService.indexOpAll:
+        final library = context.read<LibraryBloc>().state.library;
+        if (library == null) return false;
+        indexing.add(StartIndexing(library));
+        return true;
+      case MultiWindowService.indexOpClear:
+        indexing.add(ClearIndex());
+        return true;
+      default:
+        return false;
     }
   }
 
@@ -216,6 +267,10 @@ class _WindowBusHostState extends State<WindowBusHost> {
       'tabCount': state.tabs.length,
       // מאפשר לחלונות משניים לאתר את הבעלים של המאגרים המשותפים.
       'isOwner': !WindowRole.isSecondary,
+      'activeWorkspaceId': context
+          .read<WorkspaceBloc>()
+          .state
+          .activeWorkspaceId,
     };
   }
 

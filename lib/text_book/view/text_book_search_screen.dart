@@ -33,6 +33,8 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/text_book/utils/search_query_sync.dart';
+import 'package:otzaria/utils/text/ref_helper.dart' show tocSectionAt;
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
 class _GroupedResultItem {
   final String? header;
@@ -113,6 +115,10 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   int _searchDistance = 0;
   SearchMatchPolicy _matchPolicy = SearchMatchPolicy.standard;
   bool _wholeWord = InBookSearchPreferences.loadWholeWord();
+
+  /// חיפוש רק בקטע שתחת הכותרת הקרובה למקום הקריאה (issue #1093).
+  bool _limitToSection = false;
+  ({int start, int? end, String title})? _activeSection;
   int? _selectedSearchResultIndex;
   // מספר השורה בספר של התוצאה הנבחרת — משמש לשמירת הבחירה לפי זהות בין
   // חיפושים. אינדקס סידורי לבדו אינו אמין כי תוכן הרשימה משתנה כשהשאילתה
@@ -223,6 +229,19 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     unawaited(InBookSearchPreferences.saveWholeWord(_wholeWord));
     _syncBlocSearchTextState();
     _searchTextUpdated();
+  }
+
+  void _toggleLimitToSection() {
+    setState(() => _limitToSection = !_limitToSection);
+    _searchTextUpdated();
+  }
+
+  /// הקטע שתחת הכותרת הקרובה למקום הקריאה הנוכחי, כשההגבלה פעילה.
+  ({int start, int? end, String title})? _resolveActiveSection() {
+    if (!_limitToSection) return null;
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded || state.visibleIndices.isEmpty) return null;
+    return tocSectionAt(state.tableOfContents, state.visibleIndices.first);
   }
 
   @override
@@ -404,8 +423,10 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     }
 
     final query = searchable;
+    final section = _resolveActiveSection();
 
     setState(() {
+      _activeSection = section;
       _isSearching = true;
       _searchErrorMessage = null;
     });
@@ -437,6 +458,9 @@ class TextBookSearchViewState extends State<TextBookSearchView>
               content: content,
               query: query,
               wholeWord: _wholeWord,
+              range: section == null
+                  ? null
+                  : (start: section.start, end: section.end),
               onTruncated: (t) => truncated = t,
             );
 
@@ -493,6 +517,12 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
       final filtered = rawResults
           .where((r) => !r.isPdf && r.title.trim() == expectedTitle)
+          .where((r) {
+            if (section == null) return true;
+            final line = r.segment.toInt();
+            final end = section.end;
+            return line >= section.start && (end == null || line < end);
+          })
           .toList(growable: false);
 
       // In-book search should be presented in reading order (by segment/line),
@@ -845,8 +875,9 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           : null,
       resultCountString: searchResults.isNotEmpty
           ? (_resultsTruncated
-                ? 'מוצגות ${searchResults.length} התוצאות הראשונות'
-                : 'נמצאו ${searchResults.length} תוצאות')
+                    ? 'מוצגות ${searchResults.length} התוצאות הראשונות'
+                    : 'נמצאו ${searchResults.length} תוצאות') +
+                (_activeSection != null ? ' בקטע הנוכחי' : '')
           : null,
       // כשתבנית ההדגשה מבוססת-האינדקס מגיעה (אסינכרונית), ה-snippets מחושבים
       // מחדש כדי לכלול את הווריאנטים שה-fallback החמיץ.
@@ -1039,8 +1070,25 @@ class TextBookSearchViewState extends State<TextBookSearchView>
             wholeWord: _wholeWord,
             onToggle: _toggleWholeWord,
           ),
+        OtzariaSearchAction.icon(
+          iconData: _limitToSection
+              ? FluentIcons.document_header_20_filled
+              : FluentIcons.document_header_20_regular,
+          onPressed: _toggleLimitToSection,
+          tooltip: _limitToSection
+              ? (_activeSection != null
+                    ? 'מחפש רק תחת "${_activeSection!.title}" — לחץ לכל הספר'
+                    : 'מחפש רק בקטע הנוכחי — לחץ לכל הספר')
+              : 'חפש רק בקטע הנוכחי',
+          color: _limitToSection ? Theme.of(context).colorScheme.primary : null,
+        ),
       ],
-      searchFieldActionsKey: (_isSimpleSearch, _wholeWord),
+      searchFieldActionsKey: (
+        _isSimpleSearch,
+        _wholeWord,
+        _limitToSection,
+        _activeSection?.title,
+      ),
       hintText: 'חפש כאן...',
       onSubmitted: () => _moveBetweenResults(1),
       onArrowDown: () => _moveBetweenResults(1),

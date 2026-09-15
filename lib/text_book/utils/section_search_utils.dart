@@ -193,6 +193,7 @@ class _SearchWorkerHost {
     required List<String> content,
     required String query,
     required String patternSource,
+    ({int start, int? end})? range,
   }) async {
     await _ensureStarted();
 
@@ -213,6 +214,8 @@ class _SearchWorkerHost {
       'contentId': _lastContentId,
       'query': query,
       'patternSource': patternSource,
+      'rangeStart': range?.start,
+      'rangeEnd': range?.end,
     };
     if (contentChanged) {
       message['content'] = content;
@@ -431,7 +434,22 @@ class SectionSearchWorkerRuntime {
           bool canceled = false;
           bool truncated = false;
 
-          for (int i = 0; i < cleanLines.length; i++) {
+          final rangeStart = request['rangeStart'] as int? ?? 0;
+          final requestedEnd = request['rangeEnd'] as int?;
+          final rangeEnd =
+              requestedEnd == null || requestedEnd > cleanLines.length
+              ? cleanLines.length
+              : requestedEnd;
+
+          for (int i = 0; i < rangeEnd; i++) {
+            if (i < rangeStart) {
+              // הכותרות שלפני הטווח עדיין בונות את כתובת התוצאות שבתוכו.
+              final rawLine = sourceLines[i];
+              if (rawLine.contains('<h') && !rawLine.startsWith('<h1')) {
+                _updateAddress(address, rawLine);
+              }
+              continue;
+            }
             if (results.length >= _maxSearchResults) {
               if (pattern
                   .allMatches(cleanLines[i])
@@ -562,10 +580,12 @@ class SectionSearchWorkerRuntime {
 /// בייצור התבנית נבנית מהמנוע ב-isolate הראשי ונשלחת ל-worker.
 ///
 /// [onTruncated] נקרא עם `true` כשנמצאו התאמות נוספות אחרי תקרת התוצאות.
+/// [range] מצמצם את הסריקה לשורות `[start, end)`; `end` null = עד סוף הספר.
 Future<List<TextSearchResult>> searchInContent({
   required List<String> content,
   required String query,
   bool wholeWord = true,
+  ({int start, int? end})? range,
   @visibleForTesting String? patternSource,
   ValueChanged<bool>? onTruncated,
 }) async {
@@ -579,6 +599,7 @@ Future<List<TextSearchResult>> searchInContent({
     content: content,
     query: query,
     patternSource: source,
+    range: range,
   );
   onTruncated?.call(outcome.truncated);
   return outcome.results;

@@ -125,6 +125,45 @@ void main() {
     });
   });
 
+  group('ייבוא תיקייה', () {
+    test('יעד הייבוא הוא תת-תיקייה בשם התיקייה, בלי מפרידי נתיב', () async {
+      expect(
+        await service.folderImportTarget('ספרי מוסר'),
+        p.join(importPath, 'ספרי מוסר'),
+      );
+      expect(
+        await service.folderImportTarget('a/b'),
+        p.join(importPath, 'a_b'),
+      );
+      expect(
+        await service.folderImportTarget('  '),
+        p.join(importPath, 'תיקייה מיובאת'),
+      );
+    });
+
+    test('קובץ שהועתק ואינו ספר לפי תוכנו נמחק ונספר כמדולג', () async {
+      final txt = await createSourceFile('ספר.txt', 'תוכן');
+      final xml = await createSourceFile('לא-וורד.xml', '<root/>');
+
+      final result = await service.keepValidCopiedFiles([txt, xml]);
+
+      expect(result.copied, 1);
+      expect(result.skippedUnsupported, 1);
+      expect(File(txt).existsSync(), isTrue);
+      expect(File(xml).existsSync(), isFalse);
+    });
+
+    test('שגיאת חוסר מקום מתורגמת להודעה ברורה', () {
+      expect(
+        PersonalBooksImportService.describeCopyError(
+          'ספר.pdf',
+          'write failed: ENOSPC (No space left on device)',
+        ),
+        '"ספר.pdf": אין מספיק מקום פנוי באחסון המכשיר',
+      );
+    });
+  });
+
   group('deleteImportedFile', () {
     test('מוחק קובץ מתוך תיקיית הייבוא', () async {
       await service.copyFiles([await createSourceFile('ספר.txt', 'x')]);

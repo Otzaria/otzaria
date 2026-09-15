@@ -11,7 +11,8 @@ import 'package:otzaria/settings/services/backup_service.dart';
 /// שיושבות בקבצי JSON מחוץ ל-Hive ולכן לא נתפסו על ידי שומר מפתחות ההגדרות.
 ///
 /// היקף הסריקה: Hive boxes (בשם מילולי או דרך קבוע, גם `Class.const` מקובץ
-/// אחר), ומקומות שנבנים מ*שורש הנתונים* דרך `p.join`. שני דפוסים אינם בתחום
+/// אחר), מסדי נתונים שנפתחים דרך `resolveNotesDbPath('name.db')` (מילולי
+/// בלבד), ומקומות שנבנים מ*שורש הנתונים* דרך `p.join`. שני דפוסים אינם בתחום
 /// ולא ייתפסו: נתיב שנבנה באינטרפולציה (`'$root/x'`), ו-`p.join` על משתנה
 /// שאין בשמו `dataRoot`. יעד שנבנה מנתיב בסיס אחר (יומני הריצה, שנופלים
 /// ל-temp כשאין שורש נתונים) אינו בתחום אף הוא.
@@ -44,6 +45,9 @@ void main() {
     r"""p\.join\(\s*(?:await\s+)?[\w.]*(?:[dD]ataRoot|dataRoot)\w*(?:\(\))?\s*,\s*(?:[A-Za-z_]\w*\s*\.\s*)?([A-Za-z_]\w*)\s*[,)]""",
   );
 
+  /// מסדי נתונים בתיקיית `databases`: `resolveNotesDbPath('name.db')`.
+  final databaseFilePattern = RegExp(r"""resolveNotesDbPath\(\s*'([^']+)'""");
+
   /// ה-box של ההגדרות נפתח דרך `HiveCache.keyName` ולא כמילולית.
   const settingsBoxName = 'app_preferences';
 
@@ -73,7 +77,11 @@ void main() {
 
     final names = <String>{settingsBoxName};
     for (final source in sources) {
-      for (final pattern in [boxPattern, dataRootDirPattern]) {
+      for (final pattern in [
+        boxPattern,
+        dataRootDirPattern,
+        databaseFilePattern,
+      ]) {
         for (final match in pattern.allMatches(source)) {
           names.add(match.group(1)!);
         }
@@ -96,16 +104,10 @@ void main() {
       discovered,
       containsAll(<String>[
         settingsBoxName,
-        'bookmarks',
-        'history',
-        'workspaces',
-        'tabs',
+        'user_state.db',
+        'personal_notes.db',
         'per_book_settings',
         'plugins',
-        // נפתח דרך `DirectErrorReportService.queueBoxName` /
-        // `PluginReportService.queueBoxName` — פתירת קבוע בין קבצים.
-        'error_reports_queue',
-        'plugin_reports_queue',
       ]),
     );
   });

@@ -6,7 +6,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/core/windowing/window_role.dart';
+import 'package:otzaria/core/messages/window_messages.dart';
+import 'package:otzaria/core/windowing/multi_window_service.dart';
 import 'package:otzaria/workspaces/bloc/workspace_event.dart';
 import 'package:otzaria/workspaces/bloc/workspace_state.dart';
 import 'package:otzaria/workspaces/workspace.dart';
@@ -69,6 +70,16 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
     on<MoveTabToWorkspace>(_onMoveTabToWorkspace, transformer: sequential());
   }
 
+  /// שולחן שחלון אחר עומד עליו: שני חלונות דורסים זה לזה את ה-stash, ולכן
+  /// מזהירים — אבל לא חוסמים; זו בחירה של המשתמש.
+  void _warnIfOpenElsewhere(String workspaceId) {
+    if (!MultiWindowService.canOpenWindows) return;
+    final taken = MultiWindowService.knownPeers.any(
+      (peer) => peer.isVisible && peer.activeWorkspaceId == workspaceId,
+    );
+    if (taken) UiSnack.show(WindowMessages.workspaceOpenInOtherWindow);
+  }
+
   @override
   Future<void> close() {
     _remoteChanges?.cancel();
@@ -98,11 +109,9 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
         finalWorkspaces = await _repository.mutateWorkspaces(
           (current) => current.isEmpty ? [defaultWorkspace] : current,
         );
-        // ⚠️ חלון משני מתחיל **בלי** שולחן פעיל — ראו
-        // [WorkspaceRepository.loadWorkspaces]. במרוץ עם הבעלים ה-`mutate`
-        // מחזיר את השולחנות **שלו**, וקיבוע כאן היה נועל את שני החלונות על
-        // אותו שולחן — ואז כל החלפה דורסת את ה-stash של השני.
-        if (!WindowRole.isSecondary) {
+        // ⚠️ במרוץ עם חלון אחר ה-`mutate` מחזיר את השולחנות **שלו**; לכן
+        // הראשון נבחר רק אם השולחן שנוצר כאן הוא זה שברשימה.
+        if (finalWorkspaces.first.id == defaultWorkspace.id) {
           finalActiveId = finalWorkspaces.first.id;
           await _repository.saveActiveWorkspaceId(finalActiveId);
         }
@@ -252,6 +261,7 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
           clearError: true,
         ),
       );
+      _warnIfOpenElsewhere(event.targetWorkspaceId);
     } catch (e) {
       UiSnack.showError(NotesMessages.workspaceSwitchFailed);
       emit(

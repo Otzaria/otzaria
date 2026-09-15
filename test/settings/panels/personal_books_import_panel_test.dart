@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/migration/sync/file_sync_service.dart';
 import 'package:otzaria/settings/panels/personal_books_import_panel.dart';
+import 'package:otzaria/settings/services/custom_folders/android_folder_import_channel.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/settings/services/custom_folders/personal_books_import_service.dart';
@@ -50,6 +52,60 @@ class _FakeImportService extends PersonalBooksImportService {
   @override
   Future<void> deleteImportedFile(String filePath) async {
     fileNames.remove(p.basename(filePath));
+  }
+
+  @override
+  Future<PersonalBooksImportResult> keepValidCopiedFiles(
+    List<String> copiedPaths,
+  ) async {
+    fileNames.addAll(copiedPaths.map(p.basename));
+    return PersonalBooksImportResult(copied: copiedPaths.length);
+  }
+}
+
+class _FakeFolderImport extends AndroidFolderImportChannel {
+  _FakeFolderImport({this.fileCount = 2, this.holdCopy = false});
+
+  final int fileCount;
+
+  /// ההעתקה נשארת פתוחה עד [cancelCopy] — לבדיקת כפתור הביטול.
+  final bool holdCopy;
+  String? copiedTo;
+  bool cancelCalled = false;
+  Completer<FolderCopyResult>? _pendingCopy;
+
+  @override
+  Future<void> cancelCopy() async {
+    cancelCalled = true;
+    _pendingCopy?.complete(
+      FolderCopyResult(
+        copiedPaths: [p.join(copiedTo!, 'מסילת ישרים.txt')],
+        errors: const [],
+        cancelled: true,
+      ),
+    );
+  }
+
+  @override
+  Future<PickedFolder?> pickFolder() async =>
+      const PickedFolder(uri: 'content://tree/x', name: 'ספרי מוסר');
+
+  @override
+  Future<FolderScan> scanFolder(String uri, List<String> extensions) async =>
+      FolderScan(fileCount: fileCount, totalBytes: 3 * 1024 * 1024);
+
+  @override
+  Future<FolderCopyResult> copyFolder(
+    String uri,
+    String destDir,
+    List<String> extensions,
+  ) async {
+    copiedTo = destDir;
+    if (holdCopy) return (_pendingCopy = Completer()).future;
+    return FolderCopyResult(
+      copiedPaths: [p.join(destDir, 'מסילת ישרים.txt')],
+      errors: const [],
+    );
   }
 }
 
@@ -107,6 +163,8 @@ void main() {
     WidgetTester tester, {
     required CustomFoldersBloc bloc,
     Future<List<String>?> Function()? pickFiles,
+    AndroidFolderImportChannel? folderImport,
+    bool showFolderImport = false,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -117,6 +175,8 @@ void main() {
               child: PersonalBooksImportPanel(
                 service: service,
                 pickFilesOverride: pickFiles,
+                folderImport: folderImport,
+                showFolderImport: showFolderImport,
               ),
             ),
           ),
@@ -179,6 +239,110 @@ void main() {
     expect(service.fileNames, ['אורחות צדיקים.txt']);
     expect(saveCalls, hasLength(1));
     expect(saveCalls.single.single.path, _FakeImportService._folderPath);
+  });
+
+  testWidgets('ייבוא תיקייה: אישור עם ספירה, העתקה לתת-תיקייה וסריקה', (
+    tester,
+  ) async {
+    final syncCalls = <List<CustomFolder>>[];
+    final bloc = buildBloc(folderRegistered: true, syncCalls: syncCalls);
+    final folderImport = _FakeFolderImport();
+
+    await pumpPanel(
+      tester,
+      bloc: bloc,
+      folderImport: folderImport,
+      showFolderImport: true,
+    );
+    await tester.tap(find.text('ייבוא תיקייה'));
+    await settle(tester);
+
+    expect(
+      find.text('נמצאו 2 קבצי ספרים (3.0 MB). להעתיק אותם לספרייה?'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('ייבא'));
+    await settle(tester);
+
+    expect(
+      folderImport.copiedTo,
+      p.join(_FakeImportService._folderPath, 'ספרי מוסר'),
+    );
+    expect(service.fileNames, ['מסילת ישרים.txt']);
+    expect(syncCalls, hasLength(1));
+  });
+
+  testWidgets('בטל ייבוא עוצר את ההעתקה ומשאיר את מה שכבר הועתק', (
+    tester,
+  ) async {
+    final syncCalls = <List<CustomFolder>>[];
+    final bloc = buildBloc(folderRegistered: true, syncCalls: syncCalls);
+    final folderImport = _FakeFolderImport(holdCopy: true);
+
+    await pumpPanel(
+      tester,
+      bloc: bloc,
+      folderImport: folderImport,
+      showFolderImport: true,
+    );
+    await tester.tap(find.text('ייבוא תיקייה'));
+    await settle(tester);
+    await tester.tap(find.text('ייבא'));
+    await settle(tester);
+
+    expect(find.text('ייבוא תיקייה'), findsNothing);
+    await tester.tap(find.text('בטל ייבוא'));
+    await settle(tester);
+
+    expect(folderImport.cancelCalled, isTrue);
+    expect(find.text('בטל ייבוא'), findsNothing);
+    expect(service.fileNames, ['מסילת ישרים.txt']);
+    expect(syncCalls, hasLength(1));
+  });
+
+  testWidgets('ביטול באישור לא מעתיק דבר', (tester) async {
+    final syncCalls = <List<CustomFolder>>[];
+    final bloc = buildBloc(folderRegistered: true, syncCalls: syncCalls);
+    final folderImport = _FakeFolderImport();
+
+    await pumpPanel(
+      tester,
+      bloc: bloc,
+      folderImport: folderImport,
+      showFolderImport: true,
+    );
+    await tester.tap(find.text('ייבוא תיקייה'));
+    await settle(tester);
+    await tester.tap(find.text('ביטול'));
+    await settle(tester);
+
+    expect(folderImport.copiedTo, isNull);
+    expect(syncCalls, isEmpty);
+  });
+
+  testWidgets('תיקייה בלי ספרים לא פותחת אישור ולא מעתיקה', (tester) async {
+    final bloc = buildBloc(folderRegistered: true, syncCalls: []);
+    final folderImport = _FakeFolderImport(fileCount: 0);
+
+    await pumpPanel(
+      tester,
+      bloc: bloc,
+      folderImport: folderImport,
+      showFolderImport: true,
+    );
+    await tester.tap(find.text('ייבוא תיקייה'));
+    await settle(tester);
+
+    expect(find.text('ייבא'), findsNothing);
+    expect(folderImport.copiedTo, isNull);
+  });
+
+  testWidgets('בלי תמיכה בתיקייה הכפתור אינו מוצג', (tester) async {
+    final bloc = buildBloc(folderRegistered: true, syncCalls: []);
+
+    await pumpPanel(tester, bloc: bloc);
+
+    expect(find.text('ייבוא תיקייה'), findsNothing);
   });
 
   testWidgets('מחיקת ספר מוחקת את הקובץ ומפעילה סריקה (prune)', (tester) async {

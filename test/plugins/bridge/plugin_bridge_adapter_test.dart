@@ -43,7 +43,8 @@ import 'package:otzaria/plugins/services/plugin_file_download_service.dart';
 import 'package:otzaria/plugins/services/plugin_fs_service.dart';
 import 'package:otzaria/plugins/services/plugin_file_server.dart';
 import 'package:otzaria/plugins/services/plugin_network_fetch_service.dart';
-import 'package:otzaria/data/repository/hive_list_repository.dart';
+import 'package:otzaria/core/user_state/pending_report_store.dart';
+import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/plugins/models/plugin_report_record.dart';
 import 'package:otzaria/plugins/services/plugin_report_service.dart';
 import 'package:otzaria/plugins/utils/reader_location_resolver.dart';
@@ -4660,8 +4661,7 @@ Future<void> main() async {
         pluginRepository: _StubPluginRegistryRepository(),
         reportService: PluginReportService(
           client: client,
-          queueRepository: queue ?? _InMemoryPluginReportQueue(),
-          sentRepository: _InMemoryPluginReportQueue(),
+          reportStore: (queue ?? _InMemoryPluginReportQueue()).store,
         ),
       );
     }
@@ -5517,30 +5517,26 @@ CalendarState _buildCalendarState(
   );
 }
 
-class _InMemoryPluginReportQueue
-    extends HiveListRepository<PluginReportRecord> {
-  List<PluginReportRecord> _items = [];
-
+/// תור דיווחי תוספים על מסד מצב זמני, שנמחק בסוף הבדיקה.
+class _InMemoryPluginReportQueue {
   _InMemoryPluginReportQueue()
-    : super(
-        boxName: 'in_memory',
-        key: 'pending_reports',
-        fromJson: PluginReportRecord.fromJson,
-        toJson: (record) => record.toJson(),
-      );
+    : _tmp = Directory.systemTemp.createTempSync('otzaria_plugin_reports_') {
+    _db = UserStateDatabase.openAt(
+      '${_tmp.path}${Platform.pathSeparator}user_state.db',
+    );
+    store = PendingReportStore(database: _db);
+    addTearDown(() {
+      _db.close();
+      _tmp.deleteSync(recursive: true);
+    });
+  }
 
-  @override
+  final Directory _tmp;
+  late final UserStateDatabase _db;
+  late final PendingReportStore store;
+
   Future<List<PluginReportRecord>> load() async {
-    return List<PluginReportRecord>.from(_items);
-  }
-
-  @override
-  Future<void> overwrite(List<PluginReportRecord> items) async {
-    _items = List<PluginReportRecord>.from(items);
-  }
-
-  @override
-  Future<void> clear() async {
-    _items = [];
+    final rows = await store.listByKind(PluginReportService.pendingKind);
+    return rows.map((row) => PluginReportRecord.fromJson(row.payload)).toList();
   }
 }

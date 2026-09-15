@@ -4,13 +4,16 @@ import 'package:file_picker/file_picker.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/settings/l10n/settings_text.dart';
+import 'package:otzaria/settings/services/custom_folders/android_folder_import_channel.dart';
 import 'package:otzaria/settings/services/custom_folders/personal_books_import_service.dart';
+import 'package:otzaria/settings/services/orphan_library_service.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/utils/file/document_format.dart';
 import 'package:otzaria/theme/app_tokens.dart';
@@ -27,6 +30,8 @@ class PersonalBooksImportPanel extends StatefulWidget {
     super.key,
     this.service,
     this.pickFilesOverride,
+    this.folderImport,
+    this.showFolderImport,
   });
 
   /// לצורכי בדיקה — שירות עם תיקייה זמנית.
@@ -35,6 +40,12 @@ class PersonalBooksImportPanel extends StatefulWidget {
   /// לצורכי בדיקה — עוקף את בורר הקבצים של המערכת.
   final Future<List<String>?> Function()? pickFilesOverride;
 
+  /// לצורכי בדיקה — ערוץ ייבוא תיקייה מדומה.
+  final AndroidFolderImportChannel? folderImport;
+
+  /// הצגת "ייבוא תיקייה"; ברירת המחדל — באנדרואיד בלבד.
+  final bool? showFolderImport;
+
   @override
   State<PersonalBooksImportPanel> createState() =>
       _PersonalBooksImportPanelState();
@@ -42,8 +53,10 @@ class PersonalBooksImportPanel extends StatefulWidget {
 
 class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
   late final PersonalBooksImportService _service;
+  late final AndroidFolderImportChannel _folderImport;
   bool _isExpanded = false;
   bool _isCopying = false;
+  bool _isCopyingFolder = false;
   List<File> _importedFiles = const [];
 
   // מאזין לתור הגלובלי כדי שהכפתורים ייחסמו גם כשמסלול אחר (כגון file_sync)
@@ -56,6 +69,7 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
   void initState() {
     super.initState();
     _service = widget.service ?? PersonalBooksImportService();
+    _folderImport = widget.folderImport ?? const AndroidFolderImportChannel();
     DatabaseLibraryProvider.operationQueue.busyCount.addListener(
       _onQueueBusyChanged,
     );
@@ -92,11 +106,80 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
     final bloc = context.read<CustomFoldersBloc>();
     final paths = await _pickFiles();
     if (!mounted || paths == null || paths.isEmpty) return;
+    await _runImport(bloc, () => _service.copyFiles(paths));
+  }
 
+  Future<void> _importFolder() async {
+    final bloc = context.read<CustomFoldersBloc>();
+    final folder = await _folderImport.pickFolder();
+    if (!mounted || folder == null) return;
+    await _runImport(bloc, () => _copyFolder(folder));
+  }
+
+  /// מחזיר null כשאין בתיקייה ספרים או שהמשתמש לא אישר.
+  Future<PersonalBooksImportResult?> _copyFolder(PickedFolder folder) async {
+    final scan = await _folderImport.scanFolder(
+      folder.uri,
+      kSupportedBookExtensions,
+    );
+    if (!mounted) return null;
+    if (scan.fileCount == 0) {
+      UiSnack.show(SettingsMessages.folderHasNoBooks);
+      return null;
+    }
+    final confirmed = await showTwoActionsDialog(
+      context: context,
+      title: context.settingsText('ייבוא תיקייה'),
+      content: context.settingsText(
+        'נמצאו {count} קבצי ספרים ({size}). להעתיק אותם לספרייה?',
+        args: {
+          'count': scan.fileCount,
+          'size': OrphanLibraryService.formatBytes(scan.totalBytes),
+        },
+      ),
+      cancelText: context.settingsText('ביטול'),
+      confirmText: context.settingsText('ייבא'),
+    );
+    if (confirmed != true) return null;
+
+    final target = await _service.folderImportTarget(folder.name);
+    if (!mounted) return null;
+    setState(() => _isCopyingFolder = true);
+    final FolderCopyResult copy;
+    try {
+      copy = await _folderImport.copyFolder(
+        folder.uri,
+        target,
+        kSupportedBookExtensions,
+      );
+    } finally {
+      if (mounted) setState(() => _isCopyingFolder = false);
+    }
+    final kept = await _service.keepValidCopiedFiles(copy.copiedPaths);
+    if (copy.cancelled) {
+      UiSnack.show(SettingsMessages.folderImportCancelled(kept.copied));
+    }
+    return PersonalBooksImportResult(
+      copied: kept.copied,
+      skippedUnsupported: kept.skippedUnsupported,
+      errors: [
+        for (final error in copy.errors)
+          PersonalBooksImportService.describeCopyError(
+            error.path,
+            error.message,
+          ),
+      ],
+    );
+  }
+
+  Future<void> _runImport(
+    CustomFoldersBloc bloc,
+    Future<PersonalBooksImportResult?> Function() copy,
+  ) async {
     setState(() => _isCopying = true);
     try {
-      final result = await _service.copyFiles(paths);
-      if (!mounted) return;
+      final result = await copy();
+      if (!mounted || result == null) return;
 
       if (result.errors.isNotEmpty) {
         UiSnack.showError(
@@ -127,6 +210,8 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
               )
             : AddCustomFolder(folderPath),
       );
+    } on PlatformException catch (e) {
+      UiSnack.showError(SettingsMessages.importErrors(e.message ?? e.code));
     } finally {
       if (mounted) setState(() => _isCopying = false);
     }
@@ -199,11 +284,30 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
                   '{count} ספרים מיובאים',
                   args: {'count': _importedFiles.length},
                 ),
-          trailing: ActionButton.recommended(
-            text: context.settingsText('ייבוא ספרים'),
-            icon: FluentIcons.book_add_24_regular,
-            onPressed: _importBooks,
-            isLoading: isBusy,
+          trailing: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ActionButton.recommended(
+                text: context.settingsText('ייבוא ספרים'),
+                icon: FluentIcons.book_add_24_regular,
+                onPressed: _importBooks,
+                isLoading: isBusy,
+              ),
+              if (_isCopyingFolder)
+                ActionButton.warning(
+                  text: context.settingsText('בטל ייבוא'),
+                  icon: FluentIcons.dismiss_24_regular,
+                  onPressed: _folderImport.cancelCopy,
+                )
+              else if (widget.showFolderImport ?? Platform.isAndroid)
+                ActionButton.neutral(
+                  text: context.settingsText('ייבוא תיקייה'),
+                  icon: FluentIcons.folder_add_24_regular,
+                  onPressed: _importFolder,
+                  isLoading: isBusy,
+                ),
+            ],
           ),
           isExpanded: _isExpanded,
           onTap: () => setState(() => _isExpanded = !_isExpanded),

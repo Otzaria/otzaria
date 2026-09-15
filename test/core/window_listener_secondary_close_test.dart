@@ -3,11 +3,11 @@ import 'dart:isolate';
 import 'dart:ui' as ui show IsolateNameServer;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hive_ce/hive.dart';
 import 'package:otzaria/core/pre_close_registry.dart';
+import 'package:otzaria/core/user_state/user_state_database.dart';
+import 'package:otzaria/core/user_state/window_session_store.dart';
 import 'package:otzaria/core/window_listener.dart';
 import 'package:otzaria/core/windowing/multi_window_service.dart';
-import 'package:otzaria/core/windowing/shared_hive_store.dart';
 import 'package:otzaria/core/windowing/window_bus.dart';
 import 'package:otzaria/core/windowing/window_role.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
@@ -31,12 +31,14 @@ void main() {
 
   late Directory tmp;
   late _FakeRunner runner;
+  late UserStateDatabase database;
+  late WindowSessionStore sessions;
 
   setUp(() async {
     WindowBus.namespace = _namespace;
     WindowRole.isSecondary = false;
     // ⚠️ בלי זה כל הסוויטה בודקת את מסלול חלון-יחיד. `windowCount` ו-
-    // `closeSelf` מגודרים ב-`MultiWindowService.isSupported`, שהוא
+    // `closeSelf` מגודרים ב-`MultiWindowService.canOpenWindows`, שהוא
     // `Platform.isWindows` — כלומר על ubuntu (ה-CI) `windowCount` מחזיר
     // 1 בלי לגעת בערוץ המדומה, `_isLastWindowClosing` עונה "כן", והרצף
     // פונה לכיבוי התהליך במקום לסגירת החלון הבודד. הבדיקות היו ירוקות
@@ -45,23 +47,26 @@ void main() {
     MultiWindowService.debugSupportedOverride = true;
     runner = _FakeRunner()..install();
     tmp = Directory.systemTemp.createTempSync('otzaria_secclose_');
-    Hive.init(tmp.path);
-    await Hive.openBox<dynamic>('tabs');
+    database = UserStateDatabase.openAt('${tmp.path}/user_state.db');
+    await database.database;
+    sessions = WindowSessionStore(database: database);
+    TabsRepository.debugSessions = sessions;
   });
 
   tearDown(() async {
+    TabsRepository.debugSessions = null;
+    database.close();
     runner.uninstall();
     MultiWindowService.debugSupportedOverride = null;
     WindowRole.isSecondary = false;
     WindowBus.instance.onRequest = null;
     WindowBus.instance.unregister();
-    SharedHiveStore.instance.resetForTest();
     for (var i = 1; i <= WindowBus.slotCount; i++) {
       ui.IsolateNameServer.removePortNameMapping('$_namespace.$i');
     }
     ui.IsolateNameServer.removePortNameMapping('$_namespace.owner');
     WindowBus.namespace = 'otzaria.window';
-    await Hive.deleteFromDisk();
+    if (tmp.existsSync()) tmp.deleteSync(recursive: true);
   });
 
   test('חלון משני שאינו האחרון: flush רץ, הסשן נמחק, ורק הוא נסגר', () async {
@@ -75,42 +80,35 @@ void main() {
 
     WindowRole.isSecondary = true;
     WindowBus.instance.register();
-    // כרטיסיות שמורות תחת המפתח של החלון הזה.
+    // כרטיסיות שמורות בסשן של החלון הזה.
     await TabsRepository().saveTabs(const [], 0);
-    final sessionKey = SharedHiveStore.tabsKeyForWindow(
-      WindowBus.instance.slot,
-      'key-tabs',
-    );
-    expect(owner.box.containsKey(sessionKey), isTrue);
+    final slot = WindowBus.instance.slot!;
+    expect(await sessions.load(slot), isNotNull);
 
     await AppWindowListener().handleWindowClose();
 
     expect(flushed, isTrue, reason: 'הכתיבות התלויות נשטפו');
     expect(runner.closeSelfCalls, 1, reason: 'רק החלון הזה נסגר');
     expect(
-      owner.box.containsKey(sessionKey),
-      isFalse,
+      await sessions.load(slot),
+      isNull,
       reason:
           'הסשן נמחק — בלעדיו `adoptOrphanWindowSessions` היה מחזיר '
           'בהפעלה הבאה כרטיסיות שהמשתמש סגר במכוון',
     );
   });
 
-  test('החלון הראשון שאינו האחרון: הסשן נכתב ריק ולא נמחק', () async {
+  test('החלון הראשון שאינו האחרון: הסשן שלו נמחק כמו של כל חלון', () async {
     // ⚠️ ההצדקה זהה לזו של חלון משני — הוא נסגר במכוון בעוד אחרים
-    // פתוחים — אבל המפתח שלו הוא ההיסטורי, ולכן הוא נכתב כרשימה ריקה:
-    // `loadTabs` ו-`NavigationBloc` קוראים אותו בהפעלה קרה, ומפתח חסר
-    // אינו מבחין בין "אין כרטיסיות" לבין "טרם נשמר".
-    final box = Hive.box<dynamic>('tabs');
-    await box.put('key-tabs', [
-      {'type': 'ToolTab', 'toolId': 'builtin.calendar', 'title': 'לוח שנה'},
-    ]);
+    // פתוחים — ולכן הכרטיסיות שלו אינן "פתוחות" יותר.
+    WindowBus.instance.register();
+    final slot = WindowBus.instance.slot!;
+    await TabsRepository().saveTabs(const [], 0);
 
     await AppWindowListener().handleWindowClose();
 
     expect(runner.closeSelfCalls, 1);
-    expect(box.containsKey('key-tabs'), isTrue);
-    expect(box.get('key-tabs'), isEmpty);
+    expect(await sessions.load(slot), isNull);
   });
 }
 
@@ -141,15 +139,12 @@ class _FakeRunner {
   }
 }
 
-/// בעלים אמיתי — מריץ את `handleRequest`, הקוד שמשרת כל חלון משני.
+/// החלון הראשון של התהליך — תופס משבצת ואת כינוי המארח, ועונה לכל בקשה.
 class _FakeOwner {
   _FakeOwner(this.slot);
 
   final int slot;
-  final SharedHiveStore store = SharedHiveStore.owner();
   late final ReceivePort _port;
-
-  Box<dynamic> get box => Hive.box<dynamic>('tabs');
 
   void register() {
     _port = ReceivePort();
@@ -161,15 +156,9 @@ class _FakeOwner {
       _port.sendPort,
       '$_namespace.owner',
     );
-    _port.listen((message) async {
+    _port.listen((message) {
       final map = message as Map;
-      final reply = map['reply'] as SendPort;
-      final body = Map<String, dynamic>.from(map['body'] as Map);
-      try {
-        reply.send({'ok': true, 'result': await store.handleRequest(body)});
-      } catch (e) {
-        reply.send({'ok': false, 'error': '$e'});
-      }
+      (map['reply'] as SendPort).send({'ok': true, 'result': null});
     });
   }
 

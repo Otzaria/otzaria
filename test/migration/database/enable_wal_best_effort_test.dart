@@ -36,6 +36,24 @@ void main() {
     expect(db.select('PRAGMA journal_mode').first.values.first, 'wal');
   });
 
+  test('closeWithCheckpoint ממזג את ה-WAL גם כשחיבור אחר פתוח', () {
+    final dir = Directory.systemTemp.createTempSync('close_checkpoint');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final path = p.join(dir.path, 'personal_notes.db');
+    final db = sqlite3.open(path);
+    enableWalBestEffort(db, 'test');
+    db.execute('CREATE TABLE t(x INTEGER)');
+    db.execute('INSERT INTO t VALUES (1)');
+    // חיבור של חלון מוסתר: בזכותו הסגירה אינה האחרונה.
+    final other = sqlite3.open(path)..select('SELECT 1');
+    addTearDown(other.close);
+
+    closeWithCheckpoint(db);
+
+    final wal = File('$path-wal');
+    expect(!wal.existsSync() || wal.lengthSync() == 0, isTrue);
+  });
+
   test('כשל בקטימת ה-journal אינו מפיל את פתיחת ה-DB', () {
     final db = _TruncateBlockedDatabase();
 

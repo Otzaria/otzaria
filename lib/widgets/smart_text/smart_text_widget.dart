@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/text_book/utils/inline_section_markers.dart';
 import 'package:otzaria/text_book/utils/link_anchor_variants.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
 import 'package:otzaria/theme/app_fonts.dart';
@@ -365,6 +366,22 @@ class SmartTextWidget extends StatelessWidget {
                 'text-decoration': 'none',
                 'color': anchorLinkColorCss,
               };
+            }
+            if (element.localName == 'h3' &&
+                element.classes.contains(kSectionHeadingClass)) {
+              return {
+                ...headingCss,
+                'color': toCssHex(colorScheme.onSurfaceVariant),
+                // הכותרת צמודה לתוכן שהיא פותחת — באותה שורה.
+                'margin-bottom': '0',
+              };
+            }
+            // כותרת הסימן שמתחת לכותרת נושא — צמודה אליה, בלי השוליים העליונים.
+            if (element.previousElementSibling?.classes.contains(
+                  kSectionHeadingClass,
+                ) ??
+                false) {
+              return {...headingCss, 'margin-top': '0'};
             }
             if (!hasMarkdownBlock) {
               return headingCss.isEmpty ? null : headingCss;

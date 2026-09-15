@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/data/data_providers/cache_database_holder.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
@@ -15,6 +16,7 @@ import 'package:otzaria/migration/models/book.dart' as migration_models;
 import 'package:otzaria/migration/models/category.dart' as migration_models;
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
+import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as p;
 
@@ -77,6 +79,9 @@ void main() {
   tearDown(() async {
     await SqliteDataProvider.instance.dispose();
     await UserBooksDatabaseHolder.instance.close();
+    // שני המסדים יושבים בתיקייה הזמנית; פתוחים — Windows מסרב למחוק אותה.
+    await CacheDatabaseHolder.instance.close();
+    await PersonalNotesDatabase.instance.close();
     seforimDb.close();
     AppPaths.debugOverrideDataRootPath(null);
     if (await tempDir.exists()) {

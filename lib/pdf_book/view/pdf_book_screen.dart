@@ -569,7 +569,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   bool _rightPaneUsesPushLayout = false;
 
   /// מצב יד — גרירת עכבר גוללת את הדף במקום לסמן טקסט (issue #916).
-  bool _isHandMode = false;
+  bool _isHandMode =
+      Settings.getValue<bool>(SettingsRepository.keyPdfHandMode) ?? false;
+
+  void _toggleHandMode() {
+    setState(() => _isHandMode = !_isHandMode);
+    Settings.setValue<bool>(SettingsRepository.keyPdfHandMode, _isHandMode);
+  }
 
   /// פעיל רק בפתיחה לעמוד שאינו ראשון (דף יומי, חיפוש, היסטוריה,
   /// קישור מטקסט). כשהדגל true:
@@ -5191,7 +5197,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               ? 'מצב יד פעיל — לחץ לחזרה לסימון טקסט'
               : 'מצב יד — גלילה בגרירת העכבר',
           selected: _isHandMode,
-          onPressed: () => setState(() => _isHandMode = !_isHandMode),
+          onPressed: _toggleHandMode,
           compact: isCompact,
           actionId: ToolbarActionId.handMode,
         ),

@@ -12,8 +12,12 @@ import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart
 import 'package:otzaria/core/windowing/last_active_window.dart';
 import 'package:otzaria/core/windowing/multi_window_service.dart';
 import 'package:otzaria/core/windowing/window_bus.dart';
+import 'package:otzaria/core/user_state/user_state_database.dart';
+import 'package:otzaria/data/data_providers/cache_database_holder.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
+import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/services/plugin_crash_guard.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/view/webview_environment_holder.dart';
@@ -174,6 +178,13 @@ class AppWindowListener extends WindowListener {
         debugPrint('WebView shutdown step failed ($stepName): $e');
       }
     }
+  }
+
+  Future<void> _closeWritableDatabases() async {
+    await CacheDatabaseHolder.instance.close();
+    await PersonalNotesDatabase.instance.close();
+    await PluginSystemDatabase.instance.close();
+    UserStateDatabase.instance.close();
   }
 
   Future<void> _armForceExitWatchdog() async {
@@ -377,6 +388,13 @@ class AppWindowListener extends WindowListener {
     //     hive_ce שורד dirty shutdown מעיצוב (checksum על כל record).
     //     `PreCloseRegistry.runAll()` ב-step2 כבר flushed את ההיסטוריה.
     try {
+      // אחרי ה-flush, שכותב ל-user_state.db — אחרת הוא היה פותח אותו מחדש.
+      await _runBestEffortShutdownStep(
+        'closeWritableDatabases',
+        _closeWritableDatabases,
+        timeout: const Duration(seconds: 2),
+      );
+
       if (flushFailure != null) {
         // Report BEFORE Sentry.close() so the event can still be sent.
         try {

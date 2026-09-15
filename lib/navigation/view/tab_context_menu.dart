@@ -134,14 +134,14 @@ List<AppContextMenuEntry> buildTabContextMenuEntries(
     // הכרטיסיה עוברת לחלון חדש: היא נפתחת שם ונסגרת כאן. הסדר חשוב —
     // פותחים תחילה, וסוגרים רק אחרי שהבקשה נמסרה ל-runner, כדי שכשל
     // בפתיחה לא יאבד את הכרטיסיה.
-    if (MultiWindowService.isSupported)
+    if (MultiWindowService.canOpenWindows)
       AppContextMenuEntry(
         label: context.settingsText('העבר לחלון חדש'),
         onTap: () => _moveTabToNewWindow(context, tab),
       ),
     // תת-תפריט של החלונות הפתוחים האחרים, בדיוק כמו "הצג לצד". מופיע רק
     // כשיש לאן להעביר — פריט מושבת לא היה מוסיף מידע.
-    if (MultiWindowService.isSupported &&
+    if (MultiWindowService.canOpenWindows &&
         MultiWindowService.transferTargets.isNotEmpty)
       AppContextMenuEntry(
         label: context.settingsText('העבר לחלון קיים'),
@@ -155,7 +155,7 @@ List<AppContextMenuEntry> buildTabContextMenuEntries(
             ),
         ],
       ),
-    if (MultiWindowService.isSupported)
+    if (MultiWindowService.canOpenWindows)
       AppContextMenuEntry(
         label: context.settingsText('חלון חדש'),
         onTap: () => unawaited(const MultiWindowService().openEmptyWindow()),

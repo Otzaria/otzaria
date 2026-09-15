@@ -694,7 +694,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
               icon: FluentIcons.grid_24_regular,
               allShortcuts: _shortcutsList,
             ),
-            if (MultiWindowService.isSupported)
+            if (MultiWindowService.canOpenWindows)
               _ShortcutTile(
                 settingKey: ShortcutValidator.openNewWindowKey,
                 label: context.settingsText('חלון חדש'),

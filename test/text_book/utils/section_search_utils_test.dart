@@ -8,6 +8,39 @@ void main() {
     await resetSectionSearchWorkerForTesting();
   });
 
+  group('searchInContent - הגבלה לטווח (issue #1093)', () {
+    const content = [
+      '<h2>פרק א</h2>',
+      'שמים ראשון',
+      '<h2>פרק ב</h2>',
+      'שמים שני',
+      'שמים שלישי',
+      '<h2>פרק ג</h2>',
+      'שמים רביעי',
+    ];
+
+    test('מוצאות רק הופעות שבתוך הטווח, עם כתובת הקטע', () async {
+      final results = await searchInContent(
+        content: content,
+        query: 'שמים',
+        patternSource: literalPatternSource('שמים'),
+        range: (start: 2, end: 5),
+      );
+      expect(results.map((r) => r.index), [3, 4]);
+      expect(results.first.address.trim(), 'פרק ב');
+    });
+
+    test('end null — עד סוף הספר', () async {
+      final results = await searchInContent(
+        content: content,
+        query: 'שמים',
+        patternSource: literalPatternSource('שמים'),
+        range: (start: 5, end: null),
+      );
+      expect(results.map((r) => r.index), [6]);
+    });
+  });
+
   group('searchInContent - התאמה חלקית (issue #1046)', () {
     test('"שמים" נמצא בתוך "השמים"', () async {
       final results = await searchInContent(

@@ -1,4 +1,5 @@
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/data/cache/generation_cache.dart';
 import 'package:otzaria/data/cache/books_cache.dart';
@@ -25,6 +26,7 @@ Future<void> resetRuntimeStateForAppRestart() async {
   await CacheDatabaseHolder.instance.close();
   await PersonalNotesDatabase.instance.close();
   await PluginSystemDatabase.instance.close();
+  await UserStateDatabase.instance.reopen();
 
   final libraryPath = await AppPaths.getLibraryPath();
   FileSystemData.instance.libraryPath = libraryPath;

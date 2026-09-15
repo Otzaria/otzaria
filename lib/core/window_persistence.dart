@@ -3,9 +3,11 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/core/user_state/user_state_slot.dart';
+import 'package:otzaria/core/user_state/window_bounds.dart';
+import 'package:otzaria/core/user_state/window_session_store.dart';
 import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart';
-import 'package:otzaria/core/windowing/window_role.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:screen_retriever/screen_retriever.dart';
 
@@ -16,6 +18,30 @@ class WindowPersistence {
   static const _kHeight = 'window_bounds_height';
   static const _kDpr = 'window_bounds_dpr';
   static const _kIsMaximized = 'window_is_maximized';
+
+  /// הגבולות של החלון הזה מהסשן שלו; בהיעדרם — מפתחות ההגדרות הישנים,
+  /// שבהם נשמרו גבולות החלון היחיד לפני שכל חלון קיבל סשן.
+  static Future<WindowBounds> _loadSavedBounds() async {
+    final slot = UserStateSlot.current;
+    // בהפעלה ראשונה אין עדיין ספרייה, ופתיחת המסד הייתה יוצרת אותו במיקום
+    // ברירת מחדל לפני שהמשתמש בחר; גם אין שם גבולות לקרוא.
+    final hasLibrary =
+        (Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '')
+            .isNotEmpty;
+    if (slot != null && hasLibrary) {
+      final session = await WindowSessionStore.instance.load(slot);
+      final bounds = WindowBounds.decode(session?.boundsJson);
+      if (bounds != null) return bounds;
+    }
+    return WindowBounds(
+      left: Settings.getValue<double>(_kLeft),
+      top: Settings.getValue<double>(_kTop),
+      width: Settings.getValue<double>(_kWidth),
+      height: Settings.getValue<double>(_kHeight),
+      dpr: Settings.getValue<double>(_kDpr),
+      maximized: Settings.getValue<bool>(_kIsMaximized) ?? false,
+    );
+  }
 
   static const double _minWidth = 420;
   static const double _minHeight = 400;
@@ -80,14 +106,14 @@ class WindowPersistence {
     _isRestoring = true;
 
     try {
-      final isMaximized = Settings.getValue<bool>(_kIsMaximized) ?? false;
-      final left = Settings.getValue<double>(_kLeft);
-      final top = Settings.getValue<double>(_kTop);
-      final width = Settings.getValue<double>(_kWidth);
-      final height = Settings.getValue<double>(_kHeight);
-      final savedDpr = Settings.getValue<double>(_kDpr);
+      final saved = await _loadSavedBounds();
+      final left = saved.left;
+      final top = saved.top;
+      final width = saved.width;
+      final height = saved.height;
+      final savedDpr = saved.dpr;
 
-      _pendingMaximize = isMaximized;
+      _pendingMaximize = saved.maximized;
       // מצב מסך מלא משוחזר אף הוא רק אחרי show() (ב-applyPendingFullscreen):
       // קריאה ל-setFullScreen בעוד החלון מוסתר גורמת ל-plugin לצלם את סגנון
       // החלון ללא WS_VISIBLE, וביציאה ממסך מלא הסגנון השמור מוחל כלשונו —
@@ -277,23 +303,7 @@ class WindowPersistence {
     }
   }
 
-  /// ⚠️ **חלון משני אינו שומר גבולות.**
-  ///
-  /// המפתחות גלובליים, והשחזור מגודר ב-`!isSecondaryWindow` מזמן — אבל
-  /// השמירה לא הייתה. התוצאה: הזזה או שינוי גודל של חלון שני דרסו את
-  /// הגבולות של החלון **הראשי**, ובהפעלה הבאה הוא נפתח במקום ובגודל של
-  /// החלון המשני.
-  ///
-  /// גידור כאן ולא באתרי הקריאה: `onWindowMoved`, `onWindowResized`,
-  /// `onWindowMaximize` ו-`onWindowUnmaximize` כולם קוראים לכאן, וגידור פר
-  /// אתר היה משאיר את הבא בתור חשוף.
-  ///
-  /// אין מה לשחזר בשבילו ממילא: בהפעלה קרה נפתח חלון אחד, וה-runner יוצר
-  /// כל חלון נוסף בגודל שהוא יורש מהפותח ובהיסט מדורג.
-  static bool get _persistsBounds => !WindowRole.isSecondary;
-
   static void scheduleSave() {
-    if (!_persistsBounds) return;
     // אין לשמור את גודל חלון ה-splash הקטן.
     if (_splashMode) return;
     _debounce?.cancel();
@@ -304,7 +314,6 @@ class WindowPersistence {
   }
 
   static Future<void> saveNow() async {
-    if (!_persistsBounds) return;
     if (_splashMode) return;
     _debounce?.cancel();
     _debounce = null;
@@ -316,28 +325,39 @@ class WindowPersistence {
     }
   }
 
+  /// שומר לסשן של החלון הזה. חלון בלי משבצת אינו שומר — ובשום מצב אינו
+  /// כותב על הגבולות של חלון אחר.
   static Future<void> _saveNow() async {
+    final slot = UserStateSlot.current;
+    if (slot == null) return;
     // חלון ממוזער "חונה" ב-(-32000,-32000) ו-isMaximized מחזיר בו false —
     // שמירה במצב הזה מרעילה גם את הגבולות וגם את דגל המיקסום. לא שומרים.
     if (await _window.isMinimized()) return;
 
     final isFullscreen = await _window.isFullScreen();
     final isMaximized = await _window.isMaximized();
-    await Settings.setValue(_kIsMaximized, isMaximized);
+    final store = WindowSessionStore.instance;
+    var next =
+        (WindowBounds.decode((await store.load(slot))?.boundsJson) ??
+                const WindowBounds())
+            .copyWith(maximized: isMaximized);
 
     // When fullscreen or maximized, don't overwrite the last "normal" bounds.
     // getBounds() while maximized returns the full-screen rect, not the
     // windowed size — saving that would cause a visible jump on the next launch
     // (setBounds to full-screen rect, then maximize).
-    if (isFullscreen || isMaximized) return;
-
-    final bounds = await _geometry.getBounds();
-    await Settings.setValue(_kLeft, bounds.left);
-    await Settings.setValue(_kTop, bounds.top);
-    await Settings.setValue(_kWidth, bounds.width);
-    await Settings.setValue(_kHeight, bounds.height);
-    // getBounds מחזיר לוגי (פיזי חלקי ה-DPR הנוכחי); שמירת ה-DPR לצד הערכים
-    // מאפשרת לשחזר את הפיזי במדויק בהפעלה הבאה גם אם ה-DPR ישתנה.
-    await Settings.setValue(_kDpr, _currentDevicePixelRatio());
+    if (!isFullscreen && !isMaximized) {
+      final bounds = await _geometry.getBounds();
+      // getBounds מחזיר לוגי (פיזי חלקי ה-DPR הנוכחי); שמירת ה-DPR לצד הערכים
+      // מאפשרת לשחזר את הפיזי במדויק בהפעלה הבאה גם אם ה-DPR ישתנה.
+      next = next.copyWith(
+        left: bounds.left,
+        top: bounds.top,
+        width: bounds.width,
+        height: bounds.height,
+        dpr: _currentDevicePixelRatio(),
+      );
+    }
+    await store.saveBounds(slot, next.encode());
   }
 }

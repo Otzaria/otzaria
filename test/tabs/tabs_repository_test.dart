@@ -1,10 +1,14 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hive_ce/hive.dart';
 import 'package:path/path.dart' as p;
+import 'package:otzaria/core/user_state/user_state_database.dart';
+import 'package:otzaria/core/user_state/user_state_slot.dart';
+import 'package:otzaria/core/user_state/window_session_store.dart';
+import 'package:otzaria/core/windowing/multi_window_service.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
@@ -20,7 +24,17 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
   late Directory tempDir;
+  late UserStateDatabase database;
+  late WindowSessionStore sessions;
   late TabsRepository repository;
+
+  /// כותב סשן גולמי למשבצת של החלון הזה, כמו שמירה קודמת על הדיסק.
+  Future<void> putSession(List<dynamic> tabs, {int currentIndex = 0}) =>
+      sessions.save(
+        UserStateSlot.single,
+        tabsJson: jsonEncode(tabs),
+        currentIndex: currentIndex,
+      );
 
   setUpAll(() async {
     await Settings.init(cacheProvider: MemorySettingsCache());
@@ -28,32 +42,23 @@ void main() {
 
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('tabs_repository_test');
-    Hive.init(tempDir.path);
-    await Hive.openBox<dynamic>('tabs');
-    repository = TabsRepository();
+    // בלי אפיק חלונות, ולכן המשבצת היא של החלון היחיד.
+    MultiWindowService.debugSupportedOverride = false;
+    database = UserStateDatabase.openAt(p.join(tempDir.path, 'user_state.db'));
+    await database.database;
+    sessions = WindowSessionStore(database: database);
+    repository = TabsRepository(sessions: sessions);
   });
 
   tearDown(() async {
-    await Hive.box('tabs').clear();
-    await Hive.close();
+    database.close();
+    MultiWindowService.debugSupportedOverride = null;
     if (await tempDir.exists()) {
       await tempDir.delete(recursive: true);
     }
   });
 
   group('TabsRepository', () {
-    test('saveTabs מוחק מצב פיצול ישן', () async {
-      final box = Hive.box<dynamic>('tabs');
-      await box.put('key-side-by-side-mode', {
-        'leftTabIndex': 0,
-        'rightTabIndex': 1,
-      });
-
-      await repository.saveTabs(const [], 0);
-
-      expect(box.containsKey('key-side-by-side-mode'), isFalse);
-    });
-
     test('saveTabs/loadTabs משחזרים CommentatorsTab', () async {
       final sourceTab = TextBookTab(
         book: TextBook(title: 'ספר בדיקה'),
@@ -215,6 +220,7 @@ void main() {
 
         await repository.saveTabs([firstTab, secondTab], 0);
         await repository.saveCurrentTabIndex([firstTab, secondTab], 1);
+        await repository.flushPendingWrites();
 
         // האינדקס התעדכן...
         expect(repository.loadCurrentTabIndex(), 1);
@@ -355,7 +361,9 @@ void main() {
       final tabs = [firstTab, pdfCommentatorsTab, thirdTab];
 
       // כל הטאבים נשמרים, כולל PdfCommentatorsTab — לכן האינדקס נשמר כמות שהוא.
+      await repository.saveTabs(tabs, 0);
       await repository.saveCurrentTabIndex(tabs, 2);
+      await repository.flushPendingWrites();
 
       expect(repository.loadCurrentTabIndex(), 2);
     });
@@ -396,7 +404,7 @@ void main() {
     }
 
     test('פיצול מקונן נטען כפיצול אחד והשאר ככרטיסיות', () async {
-      await Hive.box('tabs').put('key-tabs', [
+      await putSession([
         splitJson(
           pdfJson('א'),
           splitJson(pdfJson('ב'), pdfJson('ג')),
@@ -412,14 +420,13 @@ void main() {
     });
 
     test('הכרטיסייה הפעילה נשארת אותה כרטיסייה אחרי פירוק הקינון', () async {
-      await Hive.box('tabs').put('key-tabs', [
+      await putSession([
         splitJson(
           pdfJson('א'),
           splitJson(pdfJson('ב'), pdfJson('ג')),
         ),
         pdfJson('אחרון'),
-      ]);
-      await Hive.box('tabs').put('key-current-tab', 1);
+      ], currentIndex: 1);
 
       final restored = restore();
 
@@ -427,7 +434,7 @@ void main() {
     });
 
     test('פיצול אנכי שמור נטען כפיצול רגיל', () async {
-      await Hive.box('tabs').put('key-tabs', [
+      await putSession([
         splitJson(pdfJson('א'), pdfJson('ב'), axis: 'vertical'),
       ]);
 

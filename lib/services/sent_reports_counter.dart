@@ -1,24 +1,33 @@
 import 'package:flutter/foundation.dart';
-import 'package:otzaria/core/windowing/shared_hive_store.dart';
+import 'package:otzaria/core/user_state/user_state_database.dart';
+import 'package:otzaria/core/user_state/user_state_list_store.dart';
 
 /// מונה כל הדיווחים שנשלחו, בנפרד מההיסטוריה שנחתכת למספר קבוע של רשומות.
 ///
 /// הספירה היא תצוגה בלבד: כשל בה נרשם ביומן ואינו מכשיל את שמירת הדיווח.
 class SentReportsCounter {
-  SentReportsCounter({required this.boxName, this.key = defaultKey})
-    : _memory = null;
+  SentReportsCounter({
+    required this.boxName,
+    this.key = defaultKey,
+    UserStateDatabase? database,
+  }) : _lists = database == null
+           ? UserStateListStore.instance
+           : UserStateListStore(database: database),
+       _memory = null;
 
-  /// מונה בזיכרון, לבדיקות שאין בהן Hive.
+  /// מונה בזיכרון, לבדיקות שאין בהן מסד.
   @visibleForTesting
   SentReportsCounter.inMemory([int initial = 0])
     : boxName = '',
       key = defaultKey,
+      _lists = null,
       _memory = _MemoryValue(initial);
 
   static const String defaultKey = 'sent_reports_total';
 
   final String boxName;
   final String key;
+  final UserStateListStore? _lists;
   final _MemoryValue? _memory;
 
   /// הערך השמור, או 0 כשאין ערך או שהקריאה נכשלה.
@@ -26,8 +35,7 @@ class SentReportsCounter {
     final memory = _memory;
     if (memory != null) return memory.value;
     try {
-      final value = (await SharedHiveStore.instance.read(boxName, key)).value;
-      return value is int ? value : 0;
+      return _valueOf(await _lists!.read(boxName, key));
     } catch (e) {
       debugPrint('SentReportsCounter.read($boxName) failed: $e');
       return 0;
@@ -36,25 +44,31 @@ class SentReportsCounter {
 
   /// מקדם את המונה. [floor] הוא גודל ההיסטוריה לפני ההוספה: מתקין שעוד לא
   /// היה לו מונה מתחיל ממנו ולא מאפס.
-  Future<void> increment({required int floor}) async {
-    final current = await read();
-    await _write((current > floor ? current : floor) + 1);
-  }
+  Future<void> increment({required int floor}) =>
+      _update((current) => (current > floor ? current : floor) + 1);
 
-  Future<void> reset() => _write(0);
+  /// מעלה את המונה ל-[value] לפחות (שחזור מגיבוי).
+  Future<void> raiseTo(int value) =>
+      _update((current) => current > value ? current : value);
 
-  Future<void> _write(int value) async {
+  Future<void> reset() => _update((_) => 0);
+
+  /// read-modify-write בטרנזקציה אחת, כדי ששני חלונות לא יאבדו ספירה.
+  Future<void> _update(int Function(int current) apply) async {
     final memory = _memory;
     if (memory != null) {
-      memory.value = value;
+      memory.value = apply(memory.value);
       return;
     }
     try {
-      await SharedHiveStore.instance.write(boxName, key, value);
+      await _lists!.mutate(boxName, key, (list) => [apply(_valueOf(list))]);
     } catch (e) {
       debugPrint('SentReportsCounter.write($boxName) failed: $e');
     }
   }
+
+  static int _valueOf(List<dynamic> list) =>
+      list.isNotEmpty && list.first is int ? list.first as int : 0;
 }
 
 class _MemoryValue {

@@ -28,6 +28,15 @@ void withTransaction(Database db, void Function() fn) {
   }
 }
 
+/// סוגר חיבור כתיבה אחרי מיזוג ה-WAL לקובץ הראשי. בלי המיזוג, חיבור פתוח
+/// של חלון מוסתר הופך את הסגירה ללא-אחרונה, והשינויים נשארים בקובץ ה-WAL.
+void closeWithCheckpoint(Database db) {
+  try {
+    db.execute('PRAGMA wal_checkpoint(TRUNCATE)');
+  } catch (_) {}
+  db.close();
+}
+
 /// מפעיל WAL כשאפשר, ולא מפיל את פתיחת ה-DB כשלא.
 ///
 /// המעבר ל-WAL קוטם את קובץ ה-journal, וקטימה חסומה (נעילה שנשארה מסגירה

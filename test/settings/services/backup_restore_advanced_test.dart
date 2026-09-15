@@ -7,6 +7,8 @@ import 'package:hive_ce/hive.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/bookmarks/repository/bookmark_repository.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/user_state/user_state_database.dart';
+import 'package:otzaria/core/windowing/multi_window_service.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
 import 'package:otzaria/history/history_repository.dart';
 import 'package:otzaria/models/books.dart';
@@ -49,6 +51,11 @@ void main() {
     // מסמן את עצמו כחלקי ולא רק "בלי דיווחים".
     await Hive.openBox<dynamic>(DirectErrorReportService.queueBoxName);
     await Hive.openBox<dynamic>(PluginReportService.queueBoxName);
+    // בלי אפיק חלונות, ולכן המשבצת היא של החלון היחיד.
+    MultiWindowService.debugSupportedOverride = false;
+    UserStateDatabase.instance.overridePath(
+      p.join(tempDir.path, 'user_state.db'),
+    );
     await Settings.init(cacheProvider: HiveCache());
     await Settings.setValue<String>(
       SettingsRepository.keyBackupPath,
@@ -66,6 +73,8 @@ void main() {
     await PersonalNotesDatabase.instance.close();
     PluginSystemDatabase.instance.resetForTests();
     await Hive.close();
+    UserStateDatabase.instance.close();
+    MultiWindowService.debugSupportedOverride = null;
     AppPaths.debugOverrideDataRootPath(null);
     try {
       await tempDir.delete(recursive: true);

@@ -59,7 +59,15 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   ///
   /// כל שמירה מקודדת את *כל* הטאבים, ולכן בקשות שמגיעות בזמן שכתיבה רצה
   /// מתמזגות לכתיבה אחת שאחריה.
+  /// הסשן שה-bloc הזה נבנה עליו. ייבוא מגיבוי מקדם את הדור, ומאותו רגע
+  /// ה-bloc הישן — שעומד להיזרק ב-`RestartWidget` — אינו שומר יותר.
+  final int _sessionGeneration = TabsRepository.sessionGeneration;
+
+  bool get _sessionReplaced =>
+      TabsRepository.sessionGeneration != _sessionGeneration;
+
   void _scheduleSave(List<OpenedTab> tabs, int currentTabIndex) {
+    if (_sessionReplaced) return;
     _pendingSaveTabs = tabs;
     _pendingSaveIndex = currentTabIndex;
     _saveDrain ??= _drainSaves();
@@ -112,10 +120,12 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
   /// שומר את מצב הטאבים הנוכחי וממתין לכתיבה, לפני סגירת התוכנה. בלי
   /// [_scheduleSave] אין מה לנקז: קריאה בתוך טאב אינה מפעילה SaveTabs.
-  Future<void> _flushPendingSaves() {
+  Future<void> _flushPendingSaves() async {
+    if (_sessionReplaced) return;
     _scheduleSave(state.tabs, state.currentTabIndex);
-    return _saveDrain?.timeout(const Duration(seconds: 5), onTimeout: () {}) ??
-        Future<void>.value();
+    await _saveDrain?.timeout(const Duration(seconds: 5), onTimeout: () {});
+    // האינדקס הפעיל נשמר בהשהיה, וטיימר ממתין לא היה מספיק לסגירה.
+    await _repository.flushPendingWrites();
   }
 
   /// מעביר בעלות משותפת על [pane] לכרטיסיות המפרשים ששורדות.

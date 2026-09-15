@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:otzaria/data/repository/hive_list_repository.dart';
+import 'package:otzaria/core/user_state/pending_report_store.dart';
+import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/models/direct_error_report.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
@@ -15,8 +17,25 @@ import 'package:otzaria/core/messages/report_messages.dart';
 import '../models/direct_error_report_text_correction_test.dart'
     show buildCorrectionReport, trickyLine;
 
+late Directory tmp;
+late UserStateDatabase db;
+late PendingReportStore store;
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    tmp = Directory.systemTemp.createTempSync('otzaria_reports_');
+    db = UserStateDatabase.openAt(
+      '${tmp.path}${Platform.pathSeparator}user_state.db',
+    );
+    store = PendingReportStore(database: db);
+  });
+
+  tearDown(() {
+    db.close();
+    tmp.deleteSync(recursive: true);
+  });
 
   setUpAll(() async {
     await Settings.init(cacheProvider: _MemoryCacheProvider());
@@ -187,15 +206,14 @@ void main() {
   group('DirectErrorReportService — ספירת הנשלחים (issue #1343)', () {
     test('המונה ממשיך מעבר לתקרת ההיסטוריה', () async {
       const max = DirectErrorReportService.maxSentReportsToKeep;
-      final repository = InMemoryDirectErrorReportRepository();
-      final sentRepository = InMemoryDirectErrorReportRepository();
+      final repository = _Queue(store, DirectErrorReportService.pendingKind);
+      final sentRepository = _Queue(store, DirectErrorReportService.sentKind);
       await repository.overwrite([
         for (var i = 0; i < max + 3; i++) _buildReport(id: 'r-$i'),
       ]);
       final service = DirectErrorReportService(
         client: MockClient((_) async => http.Response('', 200)),
-        queueRepository: repository,
-        sentRepository: sentRepository,
+        reportStore: store,
         sentCounter: SentReportsCounter.inMemory(),
       );
 
@@ -213,8 +231,8 @@ void main() {
 
   group('DirectErrorReportService.flushPendingReports', () {
     test('automatic flush sends only retryable queued reports', () async {
-      final repository = InMemoryDirectErrorReportRepository();
-      final sentRepository = InMemoryDirectErrorReportRepository();
+      final repository = _Queue(store, DirectErrorReportService.pendingKind);
+      final sentRepository = _Queue(store, DirectErrorReportService.sentKind);
 
       await repository.overwrite([
         _buildReport(
@@ -229,13 +247,12 @@ void main() {
 
       final sentReportIds = <String>[];
       final service = DirectErrorReportService(
+        reportStore: store,
         client: MockClient((request) async {
           final payload = jsonDecode(request.body) as Map<String, dynamic>;
           sentReportIds.add(payload['report_id'] as String);
           return http.Response('', 200);
         }),
-        queueRepository: repository,
-        sentRepository: sentRepository,
       );
 
       final sentCount = await service.flushPendingReports(
@@ -255,8 +272,7 @@ void main() {
     test(
       'permanent failure is removed and does not block later reports',
       () async {
-        final repository = InMemoryDirectErrorReportRepository();
-        final sentRepository = InMemoryDirectErrorReportRepository();
+        final repository = _Queue(store, DirectErrorReportService.pendingKind);
 
         await repository.overwrite([
           _buildReport(
@@ -276,6 +292,7 @@ void main() {
         final attemptedReportIds = <String>[];
         final sentCounter = SentReportsCounter.inMemory();
         final service = DirectErrorReportService(
+          reportStore: store,
           client: MockClient((request) async {
             final payload = jsonDecode(request.body) as Map<String, dynamic>;
             final reportId = payload['report_id'] as String;
@@ -287,8 +304,6 @@ void main() {
 
             return http.Response('', 200);
           }),
-          queueRepository: repository,
-          sentRepository: sentRepository,
           sentCounter: sentCounter,
         );
 
@@ -304,7 +319,7 @@ void main() {
           reason: 'דיווח שנדחה נשמר בהיסטוריה אך אינו נספר כנשלח',
         );
         expect(attemptedReportIds, ['invalid-report', 'valid-report']);
-        final history = await sentRepository.load();
+        final history = await service.getSentReports();
         expect(history.map((r) => r.id), ['valid-report', 'invalid-report']);
         expect(history.first.rejectionReason, isNull);
         expect(
@@ -322,8 +337,8 @@ void main() {
 
   group('DirectErrorReportService.suspendAutomaticFlush', () {
     test('ממתינה לשליחה שבאמצע, כדי שכתיבה חיצונית לא תדרוס אותה', () async {
-      final repository = InMemoryDirectErrorReportRepository();
-      final sentRepository = InMemoryDirectErrorReportRepository();
+      final repository = _Queue(store, DirectErrorReportService.pendingKind);
+      final sentRepository = _Queue(store, DirectErrorReportService.sentKind);
       await repository.overwrite([
         _buildReport(
           id: 'r-1',
@@ -333,9 +348,8 @@ void main() {
 
       final networkGate = Completer<http.Response>();
       final service = DirectErrorReportService(
+        reportStore: store,
         client: MockClient((_) => networkGate.future),
-        queueRepository: repository,
-        sentRepository: sentRepository,
       );
 
       final flush = service.flushPendingReports(onlyAutomaticRetry: true);
@@ -365,12 +379,10 @@ void main() {
     test(
       'success message uses sefaria label for sefaria sourced books',
       () async {
-        final repository = InMemoryDirectErrorReportRepository();
-        final sentRepository = InMemoryDirectErrorReportRepository();
+        final sentRepository = _Queue(store, DirectErrorReportService.sentKind);
         final service = DirectErrorReportService(
+          reportStore: store,
           client: MockClient((request) async => http.Response('', 200)),
-          queueRepository: repository,
-          sentRepository: sentRepository,
         );
 
         final result = await service.submitReport(
@@ -395,8 +407,7 @@ void main() {
         Future<String?> messageFor(String sourceFolder) async {
           final service = DirectErrorReportService(
             client: MockClient((request) async => http.Response('', 200)),
-            queueRepository: InMemoryDirectErrorReportRepository(),
-            sentRepository: InMemoryDirectErrorReportRepository(),
+            reportStore: store,
           );
           final result = await service.submitReport(
             _buildReport(id: 'r-$sourceFolder', sourceFolder: sourceFolder),
@@ -421,17 +432,15 @@ void main() {
     test(
       '200 with duplicate:true is sent-as-duplicate with a dedicated message',
       () async {
-        final repository = InMemoryDirectErrorReportRepository();
-        final sentRepository = InMemoryDirectErrorReportRepository();
+        final sentRepository = _Queue(store, DirectErrorReportService.sentKind);
         final service = DirectErrorReportService(
+          reportStore: store,
           client: MockClient(
             (request) async => http.Response(
               jsonEncode({'success': true, 'duplicate': true}),
               200,
             ),
           ),
-          queueRepository: repository,
-          sentRepository: sentRepository,
         );
 
         final result = await service.submitReport(
@@ -455,9 +464,8 @@ void main() {
           jsonEncode({'duplicate': false}),
         ]) {
           final service = DirectErrorReportService(
+            reportStore: store,
             client: MockClient((request) async => http.Response(body, 200)),
-            queueRepository: InMemoryDirectErrorReportRepository(),
-            sentRepository: InMemoryDirectErrorReportRepository(),
           );
 
           final result = await service.submitReport(
@@ -471,14 +479,13 @@ void main() {
     );
 
     test('submitPendingReport removes sent report from queue', () async {
-      final repository = InMemoryDirectErrorReportRepository();
-      final sentRepository = InMemoryDirectErrorReportRepository();
+      final repository = _Queue(store, DirectErrorReportService.pendingKind);
+      final sentRepository = _Queue(store, DirectErrorReportService.sentKind);
       final report = _buildReport(id: 'pending-report');
       await repository.overwrite([report]);
       final service = DirectErrorReportService(
+        reportStore: store,
         client: MockClient((request) async => http.Response('', 200)),
-        queueRepository: repository,
-        sentRepository: sentRepository,
       );
 
       final result = await service.submitPendingReport(report);
@@ -489,11 +496,11 @@ void main() {
     });
 
     test('updatePendingReport edits a saved queued report', () async {
-      final repository = InMemoryDirectErrorReportRepository();
+      final repository = _Queue(store, DirectErrorReportService.pendingKind);
       final report = _buildReport(id: 'editable-report');
       await repository.overwrite([report]);
       final service = DirectErrorReportService(
-        queueRepository: repository,
+        reportStore: store,
       );
 
       await service.updatePendingReport(
@@ -507,16 +514,15 @@ void main() {
     test(
       'markPendingReportAsSent moves a queued report to sent history',
       () async {
-        final repository = InMemoryDirectErrorReportRepository();
-        final sentRepository = InMemoryDirectErrorReportRepository();
+        final repository = _Queue(store, DirectErrorReportService.pendingKind);
+        final sentRepository = _Queue(store, DirectErrorReportService.sentKind);
         final report = _buildReport(id: 'manual-sent-report');
         await repository.overwrite([
           report,
           _buildReport(id: 'other-report'),
         ]);
         final service = DirectErrorReportService(
-          queueRepository: repository,
-          sentRepository: sentRepository,
+          reportStore: store,
         );
 
         await service.markPendingReportAsSent(report);
@@ -530,13 +536,13 @@ void main() {
     );
 
     test('deleteSentReport removes a report from sent history', () async {
-      final sentRepository = InMemoryDirectErrorReportRepository();
+      final sentRepository = _Queue(store, DirectErrorReportService.sentKind);
       await sentRepository.overwrite([
         _buildReport(id: 'sent-a'),
         _buildReport(id: 'sent-b'),
       ]);
       final service = DirectErrorReportService(
-        sentRepository: sentRepository,
+        reportStore: store,
       );
 
       await service.deleteSentReport('sent-a');
@@ -548,13 +554,13 @@ void main() {
     });
 
     test('clearSentReports clears sent history', () async {
-      final sentRepository = InMemoryDirectErrorReportRepository();
+      final sentRepository = _Queue(store, DirectErrorReportService.sentKind);
       await sentRepository.overwrite([
         _buildReport(id: 'sent-a'),
         _buildReport(id: 'sent-b'),
       ]);
       final service = DirectErrorReportService(
-        sentRepository: sentRepository,
+        reportStore: store,
       );
 
       await service.clearSentReports();
@@ -563,12 +569,12 @@ void main() {
     });
 
     test('permanent failure does not queue the current report', () async {
-      final repository = InMemoryDirectErrorReportRepository();
+      final repository = _Queue(store, DirectErrorReportService.pendingKind);
       final service = DirectErrorReportService(
+        reportStore: store,
         client: MockClient(
           (request) async => http.Response('bad request', 400),
         ),
-        queueRepository: repository,
       );
 
       final result = await service.submitReport(
@@ -585,10 +591,10 @@ void main() {
     });
 
     test('404 is treated as transient and queues the current report', () async {
-      final repository = InMemoryDirectErrorReportRepository();
+      final repository = _Queue(store, DirectErrorReportService.pendingKind);
       final service = DirectErrorReportService(
+        reportStore: store,
         client: MockClient((request) async => http.Response('not found', 404)),
-        queueRepository: repository,
       );
 
       final result = await service.submitReport(
@@ -613,12 +619,11 @@ void main() {
     test(
       'transient failure queue message uses sefaria label for sefaria source',
       () async {
-        final repository = InMemoryDirectErrorReportRepository();
         final service = DirectErrorReportService(
+          reportStore: store,
           client: MockClient(
             (request) async => http.Response('not found', 404),
           ),
-          queueRepository: repository,
         );
 
         final result = await service.submitReport(
@@ -633,6 +638,45 @@ void main() {
         expect(result.message, contains('לספריא'));
       },
     );
+  });
+
+  group('שני חלונות על אותו מסד', () {
+    test('דיווחים משני חיבורים נשמרים יחד, ושליחה מוחקת רק את הנשלח', () async {
+      final path = '${tmp.path}${Platform.pathSeparator}user_state.db';
+      final secondDb = UserStateDatabase.openAt(path);
+      addTearDown(secondDb.close);
+      final first = DirectErrorReportService(reportStore: store);
+      final second = DirectErrorReportService(
+        reportStore: PendingReportStore(database: secondDb),
+      );
+
+      await first.queueReport(_buildReport(id: 'w1-a'));
+      await second.queueReport(_buildReport(id: 'w2-a'));
+      await first.queueReport(_buildReport(id: 'w1-b'));
+      await second.queueReport(_buildReport(id: 'w2-b'));
+
+      expect((await first.getPendingReports()).map((r) => r.id), [
+        'w1-a',
+        'w2-a',
+        'w1-b',
+        'w2-b',
+      ]);
+      expect(await second.getPendingReportsCount(), 4);
+
+      final sender = DirectErrorReportService(
+        client: MockClient((_) async => http.Response('', 200)),
+        reportStore: store,
+      );
+      await sender.submitPendingReport(_buildReport(id: 'w2-a'));
+      await pumpEventQueue();
+
+      expect((await second.getPendingReports()).map((r) => r.id), [
+        'w1-a',
+        'w1-b',
+        'w2-b',
+      ]);
+      expect((await second.getSentReports()).single.id, 'w2-a');
+    });
   });
 
   _textCorrectionServiceTests();
@@ -657,10 +701,10 @@ void _textCorrectionServiceTests() {
   group('חוזה A — סיווג תשובות (§2.4)', () {
     for (final status in [400, 409, 413, 422]) {
       test('[T7/T9] $status הוא כשל קבוע — לא נכנס לתור', () async {
-        final repository = InMemoryDirectErrorReportRepository();
+        final repository = _Queue(store, DirectErrorReportService.pendingKind);
         final service = DirectErrorReportService(
           client: MockClient((_) async => http.Response('{}', status)),
-          queueRepository: repository,
+          reportStore: store,
         );
 
         final result = await service.submitReport(
@@ -677,10 +721,10 @@ void _textCorrectionServiceTests() {
 
     for (final status in [408, 429, 500, 503]) {
       test('[T10] $status הוא כשל זמני — נשמר בתור לניסיון חוזר', () async {
-        final repository = InMemoryDirectErrorReportRepository();
+        final repository = _Queue(store, DirectErrorReportService.pendingKind);
         final service = DirectErrorReportService(
           client: MockClient((_) async => http.Response('{}', status)),
-          queueRepository: repository,
+          reportStore: store,
         );
 
         final report = buildCorrectionReport(id: 'transient-$status');
@@ -694,13 +738,12 @@ void _textCorrectionServiceTests() {
     }
 
     test('[T7] 409 בשליחה מהתור משאיר את הדיווח בתור', () async {
-      final repository = InMemoryDirectErrorReportRepository();
+      final repository = _Queue(store, DirectErrorReportService.pendingKind);
       final report = buildCorrectionReport(id: 'conflict');
       await repository.overwrite([report]);
       final service = DirectErrorReportService(
         client: MockClient((_) async => http.Response('{}', 409)),
-        queueRepository: repository,
-        sentRepository: InMemoryDirectErrorReportRepository(),
+        reportStore: store,
       );
 
       final result = await service.submitPendingReport(report);
@@ -714,7 +757,7 @@ void _textCorrectionServiceTests() {
     });
 
     test('[T7] אחרי 409, "שלח" שוב שולח במזהה החדש ונקלט', () async {
-      final repository = InMemoryDirectErrorReportRepository();
+      final repository = _Queue(store, DirectErrorReportService.pendingKind);
       await repository.overwrite([buildCorrectionReport(id: 'conflict')]);
       final sentIds = <String>[];
       final service = DirectErrorReportService(
@@ -725,8 +768,7 @@ void _textCorrectionServiceTests() {
               ? http.Response('{}', 409)
               : _utf8Response(supportedBody());
         }),
-        queueRepository: repository,
-        sentRepository: InMemoryDirectErrorReportRepository(),
+        reportStore: store,
       );
 
       await service.submitPendingReport((await repository.load()).single);
@@ -743,8 +785,8 @@ void _textCorrectionServiceTests() {
     test(
       '[T7] 409 בשליחה האוטומטית: מזהה חדש, נשאר בתור ולא נשלח שוב לבד',
       () async {
-        final repository = InMemoryDirectErrorReportRepository();
-        final sentRepository = InMemoryDirectErrorReportRepository();
+        final repository = _Queue(store, DirectErrorReportService.pendingKind);
+        final sentRepository = _Queue(store, DirectErrorReportService.sentKind);
         await repository.overwrite([
           buildCorrectionReport(id: 'conflict').copyWith(
             queueType: DirectErrorReportQueueType.automaticRetry,
@@ -756,8 +798,7 @@ void _textCorrectionServiceTests() {
             calls++;
             return http.Response('{}', 409);
           }),
-          queueRepository: repository,
-          sentRepository: sentRepository,
+          reportStore: store,
         );
 
         await service.flushPendingReports(onlyAutomaticRetry: true);
@@ -786,13 +827,13 @@ void _textCorrectionServiceTests() {
 
     test('גוף גדול מדי אינו נשלח, וההודעה ייעודית', () async {
       var calls = 0;
-      final repository = InMemoryDirectErrorReportRepository();
+      final repository = _Queue(store, DirectErrorReportService.pendingKind);
       final service = DirectErrorReportService(
         client: MockClient((_) async {
           calls++;
           return http.Response('{}', 200);
         }),
-        queueRepository: repository,
+        reportStore: store,
       );
 
       final result = await service.submitReport(
@@ -806,14 +847,13 @@ void _textCorrectionServiceTests() {
     });
 
     test('בשליחה מהתור: נשמר בהיסטוריה כנדחה עם ההצעה', () async {
-      final repository = InMemoryDirectErrorReportRepository();
-      final sentRepository = InMemoryDirectErrorReportRepository();
+      final repository = _Queue(store, DirectErrorReportService.pendingKind);
+      final sentRepository = _Queue(store, DirectErrorReportService.sentKind);
       final big = buildCorrectionReport(id: 'big', errorDetails: 'א' * 140000);
       await repository.overwrite([big]);
       final service = DirectErrorReportService(
         client: MockClient((_) async => http.Response('{}', 200)),
-        queueRepository: repository,
-        sentRepository: sentRepository,
+        reportStore: store,
       );
 
       await service.flushPendingReports();
@@ -828,14 +868,13 @@ void _textCorrectionServiceTests() {
   group('כשל קבוע בשליחה מהתור אינו מאבד את ההצעה', () {
     for (final status in [400, 413, 422]) {
       test('$status: לא חוזר לתור, נשמר בהיסטוריה כנדחה עם ההצעה', () async {
-        final repository = InMemoryDirectErrorReportRepository();
-        final sentRepository = InMemoryDirectErrorReportRepository();
+        final repository = _Queue(store, DirectErrorReportService.pendingKind);
+        final sentRepository = _Queue(store, DirectErrorReportService.sentKind);
         final report = buildCorrectionReport(id: 'rejected-$status');
         await repository.overwrite([report]);
         final service = DirectErrorReportService(
           client: MockClient((_) async => http.Response('{}', status)),
-          queueRepository: repository,
-          sentRepository: sentRepository,
+          reportStore: store,
         );
 
         await service.flushPendingReports();
@@ -862,8 +901,8 @@ void _textCorrectionServiceTests() {
       () async {
         final bodies = <String>[];
         var calls = 0;
-        final repository = InMemoryDirectErrorReportRepository();
-        final sentRepository = InMemoryDirectErrorReportRepository();
+        final repository = _Queue(store, DirectErrorReportService.pendingKind);
+        final sentRepository = _Queue(store, DirectErrorReportService.sentKind);
         final service = DirectErrorReportService(
           client: MockClient((request) async {
             bodies.add(request.body);
@@ -872,8 +911,7 @@ void _textCorrectionServiceTests() {
                 ? http.Response('{}', 503)
                 : _utf8Response(supportedBody(replay: true));
           }),
-          queueRepository: repository,
-          sentRepository: sentRepository,
+          reportStore: store,
         );
 
         final first = await service.submitReport(
@@ -893,10 +931,10 @@ void _textCorrectionServiceTests() {
 
   group('[T7] עריכה בתור מקבלת מזהה חדש', () {
     test('[T7] שינוי תוכן = report_id ו-digest חדשים; ההצעה נשמרת', () async {
-      final repository = InMemoryDirectErrorReportRepository();
+      final repository = _Queue(store, DirectErrorReportService.pendingKind);
       final report = buildCorrectionReport(id: 'editable');
       await repository.overwrite([report]);
-      final service = DirectErrorReportService(queueRepository: repository);
+      final service = DirectErrorReportService(reportStore: store);
 
       await service.updatePendingReport(
         report.copyWith(errorDetails: 'הסבר חדש'),
@@ -913,14 +951,14 @@ void _textCorrectionServiceTests() {
     test(
       'surrogate בודד בדיווח שמור אינו מפיל עריכה או ייצוא סקריפט',
       () async {
-        final repository = InMemoryDirectErrorReportRepository();
+        final repository = _Queue(store, DirectErrorReportService.pendingKind);
         final broken = buildCorrectionReport(
           id: 'broken',
           errorDetails: 'x\uD83D',
         );
         final valid = buildCorrectionReport(id: 'valid');
         await repository.overwrite([broken, valid]);
-        final service = DirectErrorReportService(queueRepository: repository);
+        final service = DirectErrorReportService(reportStore: store);
 
         await service.updatePendingReport(
           broken.copyWith(errorDetails: 'תקין'),
@@ -939,10 +977,10 @@ void _textCorrectionServiceTests() {
     );
 
     test('[T7] עריכה שלא שינתה תוכן שומרת את המזהה', () async {
-      final repository = InMemoryDirectErrorReportRepository();
+      final repository = _Queue(store, DirectErrorReportService.pendingKind);
       final report = buildCorrectionReport(id: 'same');
       await repository.overwrite([report]);
-      final service = DirectErrorReportService(queueRepository: repository);
+      final service = DirectErrorReportService(reportStore: store);
 
       await service.updatePendingReport(
         report.copyWith(queueType: DirectErrorReportQueueType.manual),
@@ -954,11 +992,10 @@ void _textCorrectionServiceTests() {
 
   group('correction_supported — אתר חדש מול אתר ישן', () {
     test('אתר חדש: "נקלט" ודגל serverAcceptedCorrection=true', () async {
-      final sentRepository = InMemoryDirectErrorReportRepository();
+      final sentRepository = _Queue(store, DirectErrorReportService.sentKind);
       final service = DirectErrorReportService(
         client: MockClient((_) async => _utf8Response(supportedBody())),
-        queueRepository: InMemoryDirectErrorReportRepository(),
-        sentRepository: sentRepository,
+        reportStore: store,
       );
 
       final result = await service.submitReport(buildCorrectionReport());
@@ -977,14 +1014,13 @@ void _textCorrectionServiceTests() {
       'אתר ישן בלי correction_supported: ההצעה לא אובדת — נשמרת עם דגל והודעה',
       () async {
         final bodies = <Map<String, dynamic>>[];
-        final sentRepository = InMemoryDirectErrorReportRepository();
+        final sentRepository = _Queue(store, DirectErrorReportService.sentKind);
         final service = DirectErrorReportService(
           client: MockClient((request) async {
             bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
             return http.Response('{"success":true}', 200);
           }),
-          queueRepository: InMemoryDirectErrorReportRepository(),
-          sentRepository: sentRepository,
+          reportStore: store,
         );
 
         final report = buildCorrectionReport();
@@ -1005,11 +1041,10 @@ void _textCorrectionServiceTests() {
     );
 
     test('דיווח חופשי אינו מסומן גם בלי correction_supported', () async {
-      final sentRepository = InMemoryDirectErrorReportRepository();
+      final sentRepository = _Queue(store, DirectErrorReportService.sentKind);
       final service = DirectErrorReportService(
         client: MockClient((_) async => http.Response('{"success":true}', 200)),
-        queueRepository: InMemoryDirectErrorReportRepository(),
-        sentRepository: sentRepository,
+        reportStore: store,
       );
 
       final result = await service.submitReport(_buildReport(id: 'free'));
@@ -1022,8 +1057,8 @@ void _textCorrectionServiceTests() {
     });
 
     test('שליחה אוטומטית מהתור מסמנת גם היא את הדגל', () async {
-      final repository = InMemoryDirectErrorReportRepository();
-      final sentRepository = InMemoryDirectErrorReportRepository();
+      final repository = _Queue(store, DirectErrorReportService.pendingKind);
+      final sentRepository = _Queue(store, DirectErrorReportService.sentKind);
       await repository.overwrite([
         buildCorrectionReport(
           id: 'queued',
@@ -1031,8 +1066,7 @@ void _textCorrectionServiceTests() {
       ]);
       final service = DirectErrorReportService(
         client: MockClient((_) async => http.Response('', 200)),
-        queueRepository: repository,
-        sentRepository: sentRepository,
+        reportStore: store,
       );
 
       await service.flushPendingReports(onlyAutomaticRetry: true);
@@ -1051,8 +1085,7 @@ void _textCorrectionServiceTests() {
         bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
         return http.Response('', 200);
       }),
-      queueRepository: InMemoryDirectErrorReportRepository(),
-      sentRepository: InMemoryDirectErrorReportRepository(),
+      reportStore: store,
     );
 
     final legacy = DirectErrorReport.fromJson({
@@ -1095,31 +1128,23 @@ DirectErrorReport _buildReport({
   );
 }
 
-class InMemoryDirectErrorReportRepository
-    extends HiveListRepository<DirectErrorReport> {
-  List<DirectErrorReport> _items = [];
+/// מציג סוג אחד בתור המשותף כרשימה, כדי שהבדיקות יזרעו וייבדקו בנוחות.
+class _Queue {
+  _Queue(this._store, this._kind);
 
-  InMemoryDirectErrorReportRepository()
-    : super(
-        boxName: 'in_memory',
-        key: 'pending_reports',
-        fromJson: DirectErrorReport.fromJson,
-        toJson: (report) => report.toJson(),
-      );
+  final PendingReportStore _store;
+  final String _kind;
 
-  @override
   Future<List<DirectErrorReport>> load() async {
-    return List<DirectErrorReport>.from(_items);
+    final rows = await _store.listByKind(_kind);
+    return rows.map((row) => DirectErrorReport.fromJson(row.payload)).toList();
   }
 
-  @override
-  Future<void> overwrite(List<DirectErrorReport> items) async {
-    _items = List<DirectErrorReport>.from(items);
-  }
-
-  @override
-  Future<void> clear() async {
-    _items = [];
+  Future<void> overwrite(List<DirectErrorReport> reports) async {
+    await _store.deleteAllOfKind(_kind);
+    for (final report in reports) {
+      await _store.add(_kind, report.toJson());
+    }
   }
 }
 

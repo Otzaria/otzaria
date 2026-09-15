@@ -8,6 +8,7 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private var externalActivationChannel: MethodChannel? = null
+    private var folderImportChannel: FolderImportChannel? = null
     private var dartActivationListenerReady = false
     private val pendingActivationUris = mutableListOf<String>()
 
@@ -32,7 +33,14 @@ class MainActivity : FlutterActivity() {
             }
         }
 
+        folderImportChannel = FolderImportChannel(this, flutterEngine.dartExecutor.binaryMessenger)
+
         enqueueIntentUriIfNeeded(intent)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (folderImportChannel?.onActivityResult(requestCode, resultCode, data) == true) return
+        super.onActivityResult(requestCode, resultCode, data)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -54,6 +62,8 @@ class MainActivity : FlutterActivity() {
     override fun cleanUpFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         externalActivationChannel?.setMethodCallHandler(null)
         externalActivationChannel = null
+        folderImportChannel?.dispose()
+        folderImportChannel = null
         dartActivationListenerReady = false
         super.cleanUpFlutterEngine(flutterEngine)
     }

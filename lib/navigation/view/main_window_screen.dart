@@ -1172,7 +1172,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     final uri = Uri.tryParse(uriString);
     final action = uri == null ? null : ExternalUriRouter.parseUri(uri);
     // "חלון חדש" לא ביקש חלון קיים — אין למי להפנות.
-    if (action is OpenNewWindowAction || !MultiWindowService.isSupported) {
+    if (action is OpenNewWindowAction || !MultiWindowService.canOpenWindows) {
       await _handleExternalActivationUriString(uriString);
       return;
     }
@@ -1228,7 +1228,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     if (kIsWeb) return;
     if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS) return;
     if (!mounted) return;
-    if (MultiWindowService.isSupported) {
+    if (MultiWindowService.canOpenWindows) {
       await const MultiWindowService().raiseSelf();
       return;
     }

@@ -38,6 +38,9 @@ class _FakeTabsRepository implements TabsRepository {
   List<OpenedTab> loadTabs() => hasTabs ? [_DummyTab()] : [];
 
   @override
+  Future<void> flushPendingWrites() async {}
+
+  @override
   dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
 

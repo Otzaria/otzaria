@@ -65,6 +65,10 @@ class WindowBus {
     return false;
   }
 
+  /// האם משבצת רשומה, כלומר חלון תפס אותה. סינכרוני, בלי סבב אפיק.
+  bool isSlotRegistered(int slot) =>
+      IsolateNameServer.lookupPortByName(_slotName(slot)) != null;
+
   /// מטפל בבקשות נכנסות. נקבע פעם אחת על ידי החלון.
   ///
   /// מקבל את גוף הבקשה ומחזיר תשובה שתישלח חזרה לשולח. חריגה בתוכו
@@ -256,6 +260,7 @@ class WindowBus {
               title: (result['title'] as String?) ?? 'חלון $candidate',
               tabCount: (result['tabCount'] as int?) ?? 0,
               isOwner: result['isOwner'] == true,
+              activeWorkspaceId: result['activeWorkspaceId'] as String?,
             );
           },
         ),
@@ -284,6 +289,7 @@ class WindowPeer {
     required this.tabCount,
     this.isOwner = false,
     this.isVisible = true,
+    this.activeWorkspaceId,
   });
 
   WindowPeer copyWith({bool? isVisible}) => WindowPeer(
@@ -292,7 +298,11 @@ class WindowPeer {
     tabCount: tabCount,
     isOwner: isOwner,
     isVisible: isVisible ?? this.isVisible,
+    activeWorkspaceId: activeWorkspaceId,
   );
+
+  /// השולחן שהחלון עומד עליו, אם בחר אחד.
+  final String? activeWorkspaceId;
 
   final int slot;
 
@@ -322,8 +332,10 @@ class WindowPeer {
       other.title == title &&
       other.tabCount == tabCount &&
       other.isOwner == isOwner &&
-      other.isVisible == isVisible;
+      other.isVisible == isVisible &&
+      other.activeWorkspaceId == activeWorkspaceId;
 
   @override
-  int get hashCode => Object.hash(slot, title, tabCount, isOwner, isVisible);
+  int get hashCode =>
+      Object.hash(slot, title, tabCount, isOwner, isVisible, activeWorkspaceId);
 }
