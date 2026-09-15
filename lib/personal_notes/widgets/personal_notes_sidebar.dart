@@ -69,7 +69,6 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
   bool get wantKeepAlive => true;
   final PersonalNoteDraftService _draftService = PersonalNoteDraftService();
   final ValueNotifier<List<int>> _visibleLineIndices = ValueNotifier(const []);
-  final ValueNotifier<int> _newNoteCancelRequest = ValueNotifier<int>(0);
   final ItemScrollController _itemScrollController = ItemScrollController();
   final ItemPositionsListener _itemPositionsListener =
       ItemPositionsListener.create();
@@ -137,7 +136,6 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
   @override
   void dispose() {
     _visibleLineIndices.dispose();
-    _newNoteCancelRequest.dispose();
     super.dispose();
   }
 
@@ -190,7 +188,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     );
   }
 
-  void _cancelNewNote() {
+  Future<void> _cancelNewNote({bool confirmIfDirty = true}) async {
     if (!mounted) return;
     context.read<PersonalNotesBloc>().add(const CancelCreatingPersonalNote());
   }
@@ -586,8 +584,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
               IconButton(
                 tooltip: 'ביטול',
                 icon: const Icon(FluentIcons.dismiss_24_regular),
-                // דרך העורך, כדי שישאל על שינויים שלא נשמרו (issue #1303).
-                onPressed: () => _newNoteCancelRequest.value++,
+                onPressed: _cancelNewNote,
                 iconSize: 20,
               ),
             ],
@@ -610,7 +607,6 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
               ...state.locatedNotes,
               ...state.missingNotes,
             ],
-            cancelRequest: _newNoteCancelRequest,
             onSave: _saveNewNote,
             onCancel: _cancelNewNote,
           ),

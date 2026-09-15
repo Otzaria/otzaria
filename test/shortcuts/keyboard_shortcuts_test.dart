@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
@@ -319,125 +318,6 @@ void main() {
         expect(tab.toggleTextViewNotifier.value, 1);
       },
     );
-  });
-
-  // issue #1302 — קיצור של אות בודדת ("פ" לחלונית המפרשים) נורה בזמן הקלדה
-  // בעורך ההערות האישיות: הזיהוי של "שדה טקסט בפוקוס" הכיר רק ב-EditableText,
-  // ועורך Quill מטפל בקלט בעצמו.
-  group('KeyboardShortcuts - קיצור של מקש בודד בעורך Quill (issue #1302)', () {
-    late MockSettingsBloc settingsBlocLocal;
-    late StreamController<SettingsState> settingsControllerLocal;
-
-    setUpAll(() async {
-      await Settings.init(cacheProvider: MemorySettingsCache());
-    });
-
-    setUp(() {
-      FocusRepository().resetForTesting();
-      settingsBlocLocal = MockSettingsBloc();
-      settingsControllerLocal = StreamController<SettingsState>.broadcast();
-      whenListen(
-        settingsBlocLocal,
-        settingsControllerLocal.stream,
-        initialState: SettingsState.initial().copyWith(
-          shortcuts: const {'key-shortcut-toggle-commentators-pane': 'p'},
-        ),
-      );
-    });
-
-    tearDown(() async {
-      await settingsControllerLocal.close();
-      FocusRepository().resetForTesting();
-    });
-
-    Future<TextBookTab> pumpEditor(
-      WidgetTester tester, {
-      required Widget child,
-    }) async {
-      final tab = TextBookTab(
-        book: TextBook(title: 'ספר בדיקה'),
-        index: 0,
-        blocOverride: _StubTextBookBloc(),
-      );
-      addTearDown(tab.dispose);
-      final tabsBloc = _StubTabsBloc(
-        TabsState(tabs: [tab], currentTabIndex: 0),
-      );
-      final historyBloc = _StubHistoryBloc();
-      final navigationBloc = _StubNavigationBloc();
-      addTearDown(() async {
-        await tabsBloc.close();
-        await historyBloc.close();
-        await navigationBloc.close();
-      });
-      await tester.pumpWidget(
-        MultiBlocProvider(
-          providers: [
-            BlocProvider<SettingsBloc>.value(value: settingsBlocLocal),
-            BlocProvider<TabsBloc>.value(value: tabsBloc),
-            BlocProvider<HistoryBloc>.value(value: historyBloc),
-            BlocProvider<NavigationBloc>.value(value: navigationBloc),
-            Provider<FocusRepository>.value(value: FocusRepository()),
-          ],
-          child: MaterialApp(
-            home: Scaffold(
-              body: KeyboardShortcuts(
-                onFindRefRequested: () {},
-                child: child,
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-      return tab;
-    }
-
-    testWidgets('בלי שדה טקסט — המקש הבודד מגלגל את החלונית', (tester) async {
-      final focusNode = FocusNode();
-      addTearDown(focusNode.dispose);
-      final tab = await pumpEditor(
-        tester,
-        child: Focus(
-          focusNode: focusNode,
-          child: const SizedBox(width: 100, height: 100),
-        ),
-      );
-      focusNode.requestFocus();
-      await tester.pump();
-
-      await tester.sendKeyEvent(LogicalKeyboardKey.keyP);
-      await tester.pump();
-
-      expect(tab.toggleCommentatorsPaneNotifier.value, 1);
-    });
-
-    testWidgets('בעורך Quill בפוקוס — המקש הבודד נשאר הקלדה', (tester) async {
-      final controller = quill.QuillController.basic();
-      final focusNode = FocusNode();
-      final scrollController = ScrollController();
-      addTearDown(() {
-        controller.dispose();
-        focusNode.dispose();
-        scrollController.dispose();
-      });
-      final tab = await pumpEditor(
-        tester,
-        child: quill.QuillEditor(
-          controller: controller,
-          focusNode: focusNode,
-          scrollController: scrollController,
-          config: const quill.QuillEditorConfig(autoFocus: true),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(focusNode.hasFocus, isTrue);
-
-      await tester.sendKeyEvent(LogicalKeyboardKey.keyP);
-      await tester.pump();
-
-      expect(tab.toggleCommentatorsPaneNotifier.value, 0);
-    });
   });
 
   group('KeyboardShortcuts - חיפוש מתקדם אופציונלי', () {

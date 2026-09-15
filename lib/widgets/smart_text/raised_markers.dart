@@ -683,7 +683,14 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
       );
       if (boxes.isEmpty) continue;
 
-      final anchorRect = sameLineAnchorRect(boxes)!.shift(info.offset);
+      // סימון כמעט תמיד בשורה אחת; אם נשבר, נצמדים לחלק שבשורה הראשונה.
+      final firstTop = boxes.first.top;
+      var anchorRect = boxes.first.toRect();
+      for (final box in boxes.skip(1)) {
+        if ((box.top - firstTop).abs() > 2) break;
+        anchorRect = anchorRect.expandToInclude(box.toRect());
+      }
+      anchorRect = anchorRect.shift(info.offset);
 
       final painter = _painterFor(marker);
       final raise = _fontSizeOf(marker) * kRaisedMarkerRaiseFactor;
@@ -717,29 +724,6 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
 
   @visibleForTesting
   List<RaisedMarkerPlacement> debugPlacements() => _resolvePlacements();
-}
-
-/// מאחד את תיבות הבחירה של סימון אחד למלבן עוגן אחד — רק אלו שבשורה
-/// הראשונה, כי סימון שנשבר בין שורות נצמד לחלק שבראשונה.
-///
-/// "אותה שורה" נקבעת בחפיפה אנכית ולא בהשוואת `top`: תווי בידוד הכיווניות
-/// (RLI/PDI) שעוטפים את הסימון חסרים בגופני הקריאה ונופלים לגופן גיבוי גבוה
-/// יותר, ולכן התיבה שלהם מתחילה כמה פיקסלים מעל תיבת האותיות באותה שורה.
-/// השוואת top הפילה כך את העוגן לתיבת בקרה ברוחב 0.3px, והסימון צויר ממורכז
-/// עליה — מוזז כחצי רוחב שמאלה, מעל הרווח והמילה הבאה.
-@visibleForTesting
-Rect? sameLineAnchorRect(List<TextBox> boxes) {
-  if (boxes.isEmpty) return null;
-  final first = boxes.first;
-  var rect = first.toRect();
-  for (final box in boxes.skip(1)) {
-    final overlap =
-        math.min(first.bottom, box.bottom) - math.max(first.top, box.top);
-    final shorter = math.min(first.bottom - first.top, box.bottom - box.top);
-    if (overlap <= shorter / 2) break;
-    rect = rect.expandToInclude(box.toRect());
-  }
-  return rect;
 }
 
 class _ParagraphInfo {

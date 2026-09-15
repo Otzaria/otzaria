@@ -10,7 +10,6 @@
 /// זוג אחד בכל שורה. סקריפטי ההורדה קוראים את הרשימה הזו, ולכן הפורמט חייב
 /// להישאר `'מזהה-חנות': 'מזהה-מניפסט[@פלטפורמות]',` בשורה אחת.
 const bundledPlugins = <String, String>{
-  '6a1352f061e95da124c280a3': 'com.tikkun.koraim',
   '6a9342ce60ff32edf765ec31': 'com.otzaria_word_editor.superdoc',
 };
 

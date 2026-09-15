@@ -14,7 +14,7 @@ FULL) וה-APK של אנדרואיד — להגיע עם תוספים מהחנו
 
 ```dart
 const bundledPlugins = <String, String>{
-  '6a1352f061e95da124c280a3': 'com.tikkun.koraim',
+  '6a9342ce60ff32edf765ec31': 'com.otzaria_word_editor.superdoc',
 };
 ```
 

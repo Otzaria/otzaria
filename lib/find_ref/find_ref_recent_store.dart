@@ -44,12 +44,6 @@ class FindRefRecentStore {
     Settings.setValue<String>(_key, jsonEncode(entries));
   }
 
-  /// מוחק שאילתה אחת.
-  static void forget(String query) {
-    final entries = load().where((entry) => entry != query).toList();
-    Settings.setValue<String>(_key, jsonEncode(entries));
-  }
-
   /// מוחק את כל השאילתות השמורות.
   static void clear() => Settings.setValue<String>(_key, jsonEncode(const []));
 }

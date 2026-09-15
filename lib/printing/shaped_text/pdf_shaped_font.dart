@@ -174,6 +174,7 @@ class PdfShapedFont extends PdfFont {
     required double x,
     required double y,
     required double fontSize,
+    PdfTextRenderingMode mode = PdfTextRenderingMode.fill,
   }) {
     if (run.isEmpty) {
       return;
@@ -198,6 +199,7 @@ class PdfShapedFont extends PdfFont {
           '',
           x + segmentPenUnits * unitScale,
           y,
+          mode: mode,
           rise: rise == 0 ? null : rise,
         );
       } finally {

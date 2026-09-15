@@ -70,6 +70,10 @@ class AppTopBar extends StatefulWidget {
   /// ומשאירה לפחות את הרוחב הזה לאזור המרכז ככל שניתן.
   final double? minCenterWidth;
 
+  /// הרוחב שנשמר לפריטי הסיום בפריסה האדפטיבית, כשפריטי ההתחלה גמישים
+  /// ועלולים לגלוש מתחתיהם. ברירת המחדל: לחצן אחד.
+  final double? minTrailingWidth;
+
   const AppTopBar({
     super.key,
     this.leadingItems = const [],
@@ -81,6 +85,7 @@ class AppTopBar extends StatefulWidget {
     this.scrollDebounceMs = 80,
     this.backgroundColor,
     this.minCenterWidth,
+    this.minTrailingWidth,
   });
 
   /// גובה הסרגל לפי מצב compact
@@ -90,6 +95,9 @@ class AppTopBar extends StatefulWidget {
   /// הריווח האופקי בקצות הסרגל. ווידג'ט שצריך להתיישר לתוכן שמתחתיו
   /// (כמו סרגל חלונית הניווט) מפחית אותו מהרוחב/מהשוליים שלו.
   static double horizontalPadding(bool isCompact) => isCompact ? 6.0 : 8.0;
+
+  /// הרווח בין פריטים סמוכים בסרגל.
+  static double itemSpacing(bool isCompact) => isCompact ? 4.0 : 8.0;
 
   /// סגנון טקסט אחיד לכותרת הסרגל העליון — ישמש בכל מסכי הקריאה.
   static TextStyle titleStyle(BuildContext context) {
@@ -242,7 +250,7 @@ class _AppTopBarState extends State<AppTopBar>
   ) {
     final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
     final List<Widget> result = [];
-    final double buttonSpacing = isCompact ? 4.0 : 8.0;
+    final double buttonSpacing = AppTopBar.itemSpacing(isCompact);
     for (int i = 0; i < items.length; i++) {
       final item = items[i];
       if (item.dividerBefore && result.isNotEmpty) {
@@ -341,7 +349,8 @@ class _AppTopBarState extends State<AppTopBar>
                 ),
               );
 
-        final Widget toolbar = widget.minCenterWidth == null
+        final Widget toolbar =
+            widget.minCenterWidth == null && widget.minTrailingWidth == null
             ? NavigationToolbar(
                 middleSpacing: 8.0,
                 leading: leadingWidget,
@@ -353,10 +362,11 @@ class _AppTopBarState extends State<AppTopBar>
                 middle: widget.center,
                 trailing: trailingWidget,
                 middleSpacing: 8.0,
-                minMiddleWidth: widget.minCenterWidth!,
+                minMiddleWidth: widget.minCenterWidth ?? 0.0,
                 minTrailingWidth: trailingWidget == null
                     ? 0.0
-                    : BarButton.toolbarWidth(isCompact),
+                    : widget.minTrailingWidth ??
+                          BarButton.toolbarWidth(isCompact),
               );
 
         final mainBar = ClipRect(
