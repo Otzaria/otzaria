@@ -89,23 +89,31 @@ class AppFonts {
     return hasSeparateBoldFace(fontFamily) ? '400' : null;
   }
 
-  /// ברירת המחדל של fwfh נותנת ל-`<h4>` את גודל הגוף בדיוק ול-`<h3>` גדול
-  /// ב-17% בלבד — משהוסרה מהן ההדגשה הן מתמזגות בטקסט. הסולם לקוח מכותרות
-  /// המרקדאון שכבר בשימוש ב-SmartTextWidget.
+  /// ברירת המחדל של fwfh (כמו בדפדפן) נותנת ל-`<h5>`/`<h6>` 0.83em/0.67em —
+  /// קטנות מהגוף. כותרת מודגשת נבדלת בהדגשה, ולכן די בגודל הגוף.
+  static const Map<String, String> _boldHeadingFontSize = {
+    'h5': '1em',
+    'h6': '1em',
+  };
+
+  /// בלי ההדגשה `<h3>`-`<h6>` מתמזגות בטקסט, ולכן מדורגות מעליו.
   static const Map<String, String> _boldlessHeadingFontSize = {
     'h3': '1.25em',
     'h4': '1.1em',
+    'h5': '1.05em',
+    'h6': '1.02em',
   };
 
   /// גודל הכותרת ל-`customStylesBuilder` של fwfh, או null כשאין מה לשנות.
-  /// חל רק במשפחות שבהן [headingFontWeightOverride] מנטרל את ההדגשה, ורק
-  /// ברמות שבלעדיה אינן נבדלות מהטקסט.
+  /// מבטיח שאף רמת כותרת לא תיראה קטנה מהטקסט או זהה לו.
   static String? headingFontSizeOverride(
     String? elementTag,
     String? fontFamily,
   ) {
-    if (elementTag == null || !hasSeparateBoldFace(fontFamily)) return null;
-    return _boldlessHeadingFontSize[elementTag];
+    if (elementTag == null) return null;
+    return hasSeparateBoldFace(fontFamily)
+        ? _boldlessHeadingFontSize[elementTag]
+        : _boldHeadingFontSize[elementTag];
   }
 
   static bool get _supportsSystemFonts {
