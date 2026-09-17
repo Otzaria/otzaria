@@ -210,8 +210,24 @@ class NavPanelToggleButton extends StatelessWidget {
     required this.onToggle,
   });
 
+  /// האם לשקף את הגליף אופקית, כך שהחץ שבו יצביע לכיוון שאליו החלונית תזוז
+  /// בלחיצה (issue #1417).
+  ///
+  /// הגליף מצויר עם חץ שמאלה: חלונית סגורה בצד הסוף של ממשק RTL (ימין)
+  /// נפתחת שמאלה, ולכן שם הוא מוצג כפי שהוא. חלונית פתוחה נסגרת לכיוון
+  /// ההפוך — החץ מתהפך; ובממשק LTR, שבו צד הסוף הוא שמאל, שני המצבים
+  /// מתהפכים.
+  static bool shouldMirror({
+    required bool isOpen,
+    required TextDirection textDirection,
+  }) => isOpen == (textDirection == TextDirection.rtl);
+
   @override
   Widget build(BuildContext context) {
+    final mirror = shouldMirror(
+      isOpen: isOpen,
+      textDirection: Directionality.of(context),
+    );
     return IconButton(
       tooltip: isOpen ? 'הסתר ניווט' : 'הצג ניווט',
       onPressed: onToggle,
@@ -220,12 +236,15 @@ class NavPanelToggleButton extends StatelessWidget {
       color: Theme.of(context).colorScheme.onSecondaryContainer,
       icon: AnimatedSwitcher(
         duration: AppTokens.animFast,
-        child: Icon(
-          isOpen
-              ? OtzariaIcons.text_continuous_24_filled
-              : OtzariaIcons.text_continuous_24_regular,
+        child: Transform.flip(
           key: ValueKey(isOpen),
-          size: 24,
+          flipX: mirror,
+          child: Icon(
+            isOpen
+                ? OtzariaIcons.text_continuous_24_filled
+                : OtzariaIcons.text_continuous_24_regular,
+            size: 24,
+          ),
         ),
       ),
     );
