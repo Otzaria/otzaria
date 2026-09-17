@@ -10,6 +10,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/reading_tab_search_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_plugin_api.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
@@ -171,9 +172,14 @@ class TextBookTab extends OpenedTab {
     final bool effectiveSplitedView =
         splitedView ?? (Settings.getValue<bool>('key-splited-view') ?? true);
 
-    // מצב צורת הדף הוא פר-ספר - ברירת המחדל היא false (תצוגה רגילה)
-    // רק אם הספר כבר היה פתוח במצב צורת הדף, הוא יישאר כך
-    final bool effectiveShowPageShapeView = showPageShapeView ?? false;
+    // מצב צורת הדף הוא פר-ספר: כשהקורא לא קבע במפורש (למשל שחזור טאב
+    // שמור), נופלים להעדפה שנשמרה לספר בהחלפת התצוגה — כך ספר שהמשתמש
+    // קורא בצורת הדף נפתח כך מכל מקום (ספרייה, היסטוריה, סימניות, קישור),
+    // ולא רק מהמסלולים שזכרו לשאול (issue #1424). בלי העדפה — תצוגה רגילה.
+    final bool effectiveShowPageShapeView =
+        showPageShapeView ??
+        PageShapeSettingsManager.getViewModePreference(book.title) ??
+        false;
 
     _lastSplitView = effectiveSplitedView;
     _lastShowPageShapeView = effectiveShowPageShapeView;
