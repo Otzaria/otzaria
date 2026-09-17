@@ -60,7 +60,7 @@ String? categoryInfoText(Category category) {
 /// הקובץ, שעלול להכיל את המחרוזת `otzaria` ולגרום לזיהוי שגוי של כל ספר מקומי.
 String? externalCatalogLogoAsset(Book book) {
   final id = book.externalLibraryId;
-  final link = book is ExternalLibraryBook ? book.link.toString() : null;
+  final link = book is ExternalLibraryBook ? book.link : null;
   if ((id == null || id.isEmpty) && (link == null || link.isEmpty)) {
     return null;
   }

@@ -178,22 +178,23 @@ class OtzarBookDialog extends StatelessWidget {
               foregroundColor: Theme.of(context).colorScheme.onPrimary,
             ),
           ),
-        ElevatedButton.icon(
-          icon: const Icon(FluentIcons.open_24_regular),
-          label: const Text('פתח באתר'),
-          onPressed: () async {
-            Navigator.of(context).pop();
-            if (await OtzarUtils.launchOtzarWeb(book.link)) {
-              // Success
-            } else {
-              UiSnack.showError(LibraryMessages.cannotOpenLinkInBrowser);
-            }
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.secondary,
-            foregroundColor: Theme.of(context).colorScheme.onSecondary,
+        if (book.link case final url?)
+          ElevatedButton.icon(
+            icon: const Icon(FluentIcons.open_24_regular),
+            label: const Text('פתח באתר'),
+            onPressed: () async {
+              Navigator.of(context).pop();
+              if (await OtzarUtils.launchOtzarWeb(url)) {
+                // Success
+              } else {
+                UiSnack.showError(LibraryMessages.cannotOpenLinkInBrowser);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.secondary,
+              foregroundColor: Theme.of(context).colorScheme.onSecondary,
+            ),
           ),
-        ),
         if (_isHebrewBook && book.id != null)
           _HebrewBookDownloadButton(bookId: book.id!),
         TextButton(

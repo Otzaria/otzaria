@@ -61,7 +61,10 @@ class DeclarativeLibraryBookAccess
         inSidePane: inSidePane,
         externalMatches: externalMatches,
       ),
-      externalBookOpener: (book) => OtzarUtils.launchOtzarWeb(book.link),
+      externalBookOpener: (book) async {
+        final url = book.link;
+        return url != null && await OtzarUtils.launchOtzarWeb(url);
+      },
     );
   }
 

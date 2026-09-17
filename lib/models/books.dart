@@ -319,13 +319,17 @@ class TextBook extends Book {
 /// This class extends the [Book] class and includes additional properties
 /// specific to Otzar HaChochma books, such as the Otzar ID and online link.
 class ExternalLibraryBook extends Book {
-  /// The online link to access the book in the Otzar HaChochma system.
-  final String link;
+  /// קישור לפתיחת הספר באתר הספק, או `null` לספק ללא נוכחות ברשת.
+  ///
+  /// `null` הוא ערך תקף ולא ייצוג של מידע חסר: לספרי פרויקט השו"ת אין
+  /// URL כלל. אין להמציא כתובת מזויפת — צרכן שצריך לדעת אם יש פתיחה
+  /// באתר שואל את יכולות הספק, לא את השדה הזה.
+  final String? link;
 
   /// Creates an [ExternalLibraryBook] instance.
   ///
   /// [title] and [id] are required. Other parameters are optional.
-  /// [link] is required for online access to the book.
+  /// [link] נדרש במפורש — גם כשהוא `null` — כדי שספק חדש לא ישכח אותו.
   ExternalLibraryBook({
     required super.title,
     required int id,
@@ -364,7 +368,7 @@ class ExternalLibraryBook extends Book {
       pubDate: json['pubDate'],
       topics: json['topics'] ?? '',
       categoryPath: json['categoryPath'],
-      link: json['link'],
+      link: json['link'] as String?,
       heCategories: json['heCategories'],
       source: BookSource.fromJson(json),
       externalLibraryId: json['externalLibraryId'],

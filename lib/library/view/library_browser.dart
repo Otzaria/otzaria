@@ -2308,7 +2308,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           mainAxisSize: MainAxisSize.min,
           children: [
             Image.asset(
-              book.link.toString().contains('tablet.otzar.org')
+              (book.link ?? '').contains('tablet.otzar.org')
                   ? 'assets/logos/otzar.ico'
                   : 'assets/logos/hebrew_books.png',
               width: iconSize,
