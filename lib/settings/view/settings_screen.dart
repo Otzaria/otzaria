@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/core/scroll_diagnostics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -657,6 +658,9 @@ class _SettingsContentPaneState extends State<_SettingsContentPane> {
     // בקשת focus כדי שניווט מקלדת יעבוד מיד
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) widget.focusNode.requestFocus();
+      // אבחון זמני ל-issue #1386 — להסיר עם סגירת ה-issue.
+      ScrollDiagnostics.start();
+      ScrollDiagnostics.watch(widget.scrollController);
     });
   }
 
