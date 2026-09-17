@@ -64,17 +64,10 @@ String? externalCatalogLogoAsset(Book book) {
   if ((id == null || id.isEmpty) && (link == null || link.isEmpty)) {
     return null;
   }
-  switch (ExternalCatalogMapper.catalogFromLinkOrId(
+  return ExternalCatalogMapper.providerOf(
     externalLibraryId: id,
     link: link,
-  )) {
-    case ExternalCatalogType.otzar:
-      return 'assets/logos/otzar.ico';
-    case ExternalCatalogType.hebrew:
-      return 'assets/logos/hebrew_books.png';
-    case null:
-      return null;
-  }
+  )?.iconAsset;
 }
 
 /// בונה את תוכן אייקון הספר: לוגו הקטלוג החיצוני אם קיים, אחרת אייקון לפי סוג הקובץ.

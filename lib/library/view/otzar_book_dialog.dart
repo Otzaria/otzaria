@@ -8,6 +8,7 @@ import '../../utils/navigation/otzar_utils.dart';
 import '../../core/ui_snack.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/data/data_providers/external_catalog_mapper.dart';
+import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
 import 'package:otzaria/library/services/hebrew_books_download_service.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
@@ -18,12 +19,12 @@ class OtzarBookDialog extends StatelessWidget {
 
   const OtzarBookDialog({super.key, required this.book});
 
-  bool get _isHebrewBook =>
-      ExternalCatalogMapper.catalogFromLinkOrId(
-        link: book.link,
-        externalLibraryId: book.externalLibraryId,
-      ) ==
-      ExternalCatalogType.hebrew;
+  ExternalProviderDescriptor? get _provider => ExternalCatalogMapper.providerOf(
+    link: book.link,
+    externalLibraryId: book.externalLibraryId,
+  );
+
+  bool get _isHebrewBook => _provider?.kind == ExternalProviderKind.hebrewBooks;
 
   @override
   Widget build(BuildContext context) {

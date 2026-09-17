@@ -1,105 +1,52 @@
-// כלי עזר למיפוי ספרי קטלוגים חיצוניים.
-enum ExternalCatalogType { otzar, hebrew }
+import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
 
+/// כלי עזר למיפוי ספרי קטלוגים חיצוניים.
+///
+/// כל הזיהוי כאן נשען על [ExternalProviderRegistry]; המחלקה הזו היא
+/// שכבת תאימות דקה לקוראים הקיימים.
 class ExternalCatalogMapper {
-  /// קובע את סוג הקטלוג לפי קישור/מזהה חיצוני/נתיב קובץ.
-  static ExternalCatalogType? catalogFromLinkOrId({
+  ExternalCatalogMapper._();
+
+  /// קובע את הספק לפי מזהה חיצוני, ובהיעדרו לפי קישור.
+  ///
+  /// הסדר חשוב: `externalLibraryId` הוא המקור האמין. ספר היברובוקס
+  /// שהורד מקומית מומר ל-`PdfBook` ושומר `hb:123` — נתיב הקובץ שלו
+  /// עלול להכיל את המחרוזת `otzaria` ולהטעות.
+  static ExternalProviderDescriptor? providerOf({
     String? link,
     String? externalLibraryId,
-    String? filePath,
   }) {
-    final linkValue = link?.toLowerCase() ?? '';
-    final externalValue = externalLibraryId?.toLowerCase() ?? '';
-    final fileValue = filePath?.toLowerCase() ?? '';
-
-    if (linkValue.contains('hebrewbooks') ||
-        externalValue.contains('hebrewbooks') ||
-        fileValue.contains('hebrewbooks')) {
-      return ExternalCatalogType.hebrew;
-    }
-    if (linkValue.contains('otzar') ||
-        linkValue.contains('otzaria') ||
-        externalValue.contains('otzar') ||
-        externalValue.contains('otzaria') ||
-        fileValue.contains('otzar') ||
-        fileValue.contains('otzaria')) {
-      return ExternalCatalogType.otzar;
-    }
-    if (linkValue.contains('hb:') ||
-        linkValue.contains('hebrew:') ||
-        externalValue.contains('hb:') ||
-        externalValue.contains('hebrew:') ||
-        fileValue.contains('hb:') ||
-        fileValue.contains('hebrew:')) {
-      return ExternalCatalogType.hebrew;
-    }
-    if (linkValue.contains('otz:') ||
-        linkValue.contains('otzar:') ||
-        linkValue.contains('oh:') ||
-        externalValue.contains('otz:') ||
-        externalValue.contains('otzar:') ||
-        externalValue.contains('oh:') ||
-        fileValue.contains('otz:') ||
-        fileValue.contains('otzar:') ||
-        fileValue.contains('oh:')) {
-      return ExternalCatalogType.otzar;
-    }
-    return null;
+    final parsed = ExternalProviderRegistry.parse(externalLibraryId);
+    if (parsed != null) return parsed.provider;
+    return ExternalProviderRegistry.fromLink(link);
   }
 
-  /// מנסה לחלץ מזהה מספרי מתוך מזהה חיצוני או קישור.
-  static int? extractExternalId({
-    String? externalLibraryId,
-    String? link,
-  }) {
-    final raw = externalLibraryId?.trim();
-    if (raw != null && raw.isNotEmpty) {
-      final digitsOnly = RegExp(r'\d+').firstMatch(raw)?.group(0);
-      if (digitsOnly != null) {
-        return int.tryParse(digitsOnly);
-      }
-    }
+  /// מפענח `externalLibraryId` לספק ולערך.
+  static ExternalBookRef? parse(String? externalLibraryId) =>
+      ExternalProviderRegistry.parse(externalLibraryId);
 
-    final url = link?.trim();
-    if (url == null || url.isEmpty) return null;
-
-    // Fallback: first numeric segment in URL
-    final fallback = RegExp(r'(\d+)').firstMatch(url);
-    if (fallback != null) {
-      return int.tryParse(fallback.group(1)!);
-    }
-
-    return null;
+  /// מחלץ את המזהה המספרי של הספר אצל הספק.
+  ///
+  /// רק מתוך מזהה חיצוני תקין או מתוך קישור של ספק מוכר — ולא על ידי
+  /// שליפת הספרות הראשונות מכל מחרוזת. `"ספר 3 חלקים"` אינו `3`.
+  static int? extractExternalId({String? externalLibraryId, String? link}) {
+    final parsed = ExternalProviderRegistry.parse(externalLibraryId);
+    if (parsed != null) return parsed.numericValue;
+    return _idFromKnownLink(link);
   }
 
-  /// מחזיר קישור מתאים מתוך filePath או externalLibraryId אם הם URL.
-  static String? resolveLink({
-    String? filePath,
-    String? externalLibraryId,
-  }) {
-    final fromExternalId = _linkFromExternalLibraryId(externalLibraryId);
-    if (fromExternalId != null) return fromExternalId;
-    return null;
+  /// מחזיר קישור לאתר הספק מתוך `externalLibraryId`, או `null` לספק
+  /// שאין לו נוכחות ברשת.
+  static String? resolveLink({String? filePath, String? externalLibraryId}) {
+    final parsed = ExternalProviderRegistry.parse(externalLibraryId);
+    if (parsed == null) return null;
+    return parsed.provider.webLinkFor(parsed.value);
   }
 
-  static String? _linkFromExternalLibraryId(String? externalLibraryId) {
-    if (externalLibraryId == null) return null;
-    final trimmed = externalLibraryId.trim();
-    if (trimmed.isEmpty) return null;
-
-    final lower = trimmed.toLowerCase();
-    if (lower.startsWith('oh:')) {
-      final id = trimmed.substring(3).trim();
-      if (id.isEmpty) return null;
-      return 'https://tablet.otzar.org/book/book.php?book=$id';
-    }
-
-    if (lower.startsWith('hb:')) {
-      final id = trimmed.substring(3).trim();
-      if (id.isEmpty) return null;
-      return 'https://hebrewbooks.org/$id';
-    }
-
-    return null;
+  static int? _idFromKnownLink(String? link) {
+    final provider = ExternalProviderRegistry.fromLink(link);
+    if (provider == null) return null;
+    final match = RegExp(r'(\d+)').firstMatch(link!);
+    return match == null ? null : int.tryParse(match.group(1)!);
   }
 }
