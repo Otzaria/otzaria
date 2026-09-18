@@ -42,7 +42,8 @@ class CategoryDao {
   /// Must be called synchronously inside a [withTransaction] block.
   List<Map<String, dynamic>> getAllCategoryRows(sqlite3.Database db) {
     final capabilities = DbCapabilities.forDatabase(_db.path, db);
-    if (!capabilities.hasCategories) return const [];
+    // בלי book.categoryId הספרים אינם משויכים לאף קטגוריה, והעץ נבנה משורש יחיד.
+    if (!capabilities.hasBookCategories) return const [];
     final order = capabilities.hasColumn('category', 'orderIndex')
         ? 'orderIndex, title'
         : 'title';

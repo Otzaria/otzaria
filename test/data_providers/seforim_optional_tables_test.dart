@@ -13,6 +13,7 @@ import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
+import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
 import '../helpers/seforim_fixture_db.dart';
 import '../test_helpers/memory_cache_provider.dart';
@@ -249,6 +250,87 @@ void main() {
     });
   }
 
+  group('טבלה בודדת חסרה במסד מלא', () {
+    late Directory tempDir;
+    late MyDatabase database;
+    late SeforimRepository repo;
+    late String dbPath;
+
+    Future<void> openWithout(String table) async {
+      tempDir = await Directory.systemTemp.createTemp('otzaria_single_drop');
+      dbPath = SeforimFixtureDb.create(tempDir, SeforimFixtureVariant.full);
+      final db = sqlite3.sqlite3.open(dbPath);
+      try {
+        db.execute('DROP TABLE $table');
+      } finally {
+        db.close();
+      }
+      database = MyDatabase.withPath(dbPath, readOnly: true);
+      repo = SeforimRepository(database);
+      await repo.ensureInitialized();
+    }
+
+    tearDown(() async {
+      database.close();
+      try {
+        await tempDir.delete(recursive: true);
+      } catch (_) {}
+    });
+
+    test('tocText חסר — אין תוכן עניינים ואין מבנים חלופיים', () async {
+      await openWithout('tocText');
+      expect(await repo.getBookToc(_Ids.bereshitId), isEmpty);
+      expect(await repo.getLineBreadcrumb(_Ids.bereshitId, 0), isNull);
+      expect(await repo.getAllAltTocFlatEntries(), isEmpty);
+      expect(
+        await repo.getTocEntriesForReference(
+          _Ids.bereshitId,
+          _Ids.bereshitTitle,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('connection_type חסר — אין קישורים ואין מפרשים', () async {
+      await openWithout('connection_type');
+      expect(
+        await repo.database.linkDao.selectCommentatorsByBook(_Ids.bereshitId),
+        isEmpty,
+      );
+      expect(await repo.getAvailableCommentators(_Ids.bereshitId), isEmpty);
+      expect(
+        DatabaseLibraryProvider.loadBookLinksRowsInRangeForTesting(
+          dbPath: dbPath,
+          title: _Ids.bereshitTitle,
+          categoryId: _Ids.torahCategoryId,
+          fileType: 'txt',
+          startLineIndex: 0,
+          endLineIndex: 2,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('alt_toc_entry חסר — רשימת המבנים נשארת, הערכים ריקים', () async {
+      await openWithout('alt_toc_entry');
+      expect(
+        DatabaseLibraryProvider.loadAlternativeStructuresRowsForTesting(
+          dbPath: dbPath,
+          bookTitle: _Ids.bereshitTitle,
+          categoryId: _Ids.torahCategoryId,
+        ),
+        hasLength(1),
+      );
+      expect(await repo.getAllAltTocFlatEntries(), isEmpty);
+      final marks = DatabaseLibraryProvider.loadInlineSectionMarksForTesting(
+        dbPath: dbPath,
+        bookTitle: _Ids.bereshitTitle,
+        categoryId: _Ids.torahCategoryId,
+      );
+      expect(marks.markers, isEmpty);
+    });
+  });
+
   group('ספר לפי כותרת וקטגוריה במסד עם קטגוריות', () {
     late Directory tempDir;
     late String dbPath;
@@ -296,11 +378,22 @@ void main() {
     late Directory tempDir;
     late String libraryPath;
 
-    Future<void> openLibrary(SeforimFixtureVariant variant) async {
+    Future<void> openLibrary(
+      SeforimFixtureVariant variant, {
+      void Function(sqlite3.Database db)? mutate,
+    }) async {
       tempDir = await Directory.systemTemp.createTemp('otzaria_optional_lib');
       libraryPath = path.join(tempDir.path, 'library');
       await Directory(libraryPath).create(recursive: true);
       final fixture = SeforimFixtureDb.create(tempDir, variant);
+      if (mutate != null) {
+        final db = sqlite3.sqlite3.open(fixture);
+        try {
+          mutate(db);
+        } finally {
+          db.close();
+        }
+      }
       await File(
         fixture,
       ).copy(path.join(libraryPath, DatabaseConstants.databaseFileName));
@@ -355,6 +448,22 @@ void main() {
         expect(titlesUnder(root), [_Ids.bereshitTitle, _Ids.rashiTitle]);
       });
     }
+
+    test('טבלת קטגוריות בלי book.categoryId — הספרים תחת שורש יחיד', () async {
+      await openLibrary(
+        SeforimFixtureVariant.minimal,
+        mutate: (db) => db.execute(
+          'CREATE TABLE category (id INTEGER PRIMARY KEY, parentId INTEGER, '
+          "title TEXT NOT NULL); INSERT INTO category VALUES (1, NULL, 'x')",
+        ),
+      );
+      final library = await DatabaseLibraryProvider.instance
+          .buildLibraryCatalog({}, libraryPath);
+
+      final root = library.subCategories.single;
+      expect(root.title, kUncategorizedCategoryTitle);
+      expect(titlesUnder(root), [_Ids.bereshitTitle, _Ids.rashiTitle]);
+    });
 
     test('מסד מלא: הקטלוג בנוי לפי הקטגוריות', () async {
       await openLibrary(SeforimFixtureVariant.full);
