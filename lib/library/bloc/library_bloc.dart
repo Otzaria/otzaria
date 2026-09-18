@@ -157,6 +157,31 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     }
   }
 
+  /// הספרים שתוכנם השתנה: לפי מפתח, או כל ספרי מסד מצורף שהקובץ שלו השתנה.
+  @visibleForTesting
+  static List<Book> booksToReindex(
+    Iterable<Book> books, {
+    required Set<String> changedBookKeys,
+    required Set<String> changedAttachedSlugs,
+  }) {
+    if (changedBookKeys.isEmpty && changedAttachedSlugs.isEmpty) {
+      return const [];
+    }
+    return [
+      for (final book in books)
+        if (changedBookKeys.contains(
+              IndexingRepository.catalogueOrderKey(book),
+            ) ||
+            switch (book.source) {
+              AttachedBookSource(:final slug) => changedAttachedSlugs.contains(
+                slug,
+              ),
+              _ => false,
+            })
+          book,
+    ];
+  }
+
   Future<void> _runRefresh(
     RefreshLibrary event,
     Emitter<LibraryState> emit,
@@ -216,23 +241,11 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
           .toList();
 
       // מיפוי מפתחות הספרים שהשתנו (שדווחו ע"י הקורא) לספרים מהקטלוג הטרי
-      final changedBooksToIndex =
-          event.changedBookKeys.isEmpty && event.changedAttachedSlugs.isEmpty
-          ? const <Book>[]
-          : library
-                .getAllBooks()
-                .where(
-                  (b) =>
-                      event.changedBookKeys.contains(
-                        IndexingRepository.catalogueOrderKey(b),
-                      ) ||
-                      switch (b.source) {
-                        AttachedBookSource(:final slug) =>
-                          event.changedAttachedSlugs.contains(slug),
-                        _ => false,
-                      },
-                )
-                .toList();
+      final changedBooksToIndex = booksToReindex(
+        library.getAllBooks(),
+        changedBookKeys: event.changedBookKeys,
+        changedAttachedSlugs: event.changedAttachedSlugs,
+      );
 
       // חזרה לאותה תיקייה שהיתה פתוחה קודם
       final targetCategory = _findCategoryByPath(library, currentCategoryPath);

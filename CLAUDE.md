@@ -871,6 +871,11 @@ dart format lib/file.dart    # Format ONLY files you modified
 | נתיב קובץ ספר במסד מצורף (יחסי בלבד, בלי `..`/מוחלט/UNC) + החלת יומן מוקשחת על עותק | `test/attached_libraries/attached_file_path_test.dart` |
 | כרטיס "מסדי ספרים אישיים" בהגדרות | `test/attached_libraries/attached_libraries_panel_test.dart` |
 | מסד עוין (VIEW/טריגר/ATTACH, ZIP, library_id עם `../`, נתיבי קובץ בורחים, סכמה זבל), חיבור מוקשח (בלי mmap), שחרור נעילה, לא-זמין וחזרה, סדר במיזוג | `test/attached_libraries/attached_library_security_test.dart` |
+| אינדקס החיפוש למסד מצורף: מפתח `db:`, סדר הקטלוג בסוף (צירוף אינו מזיז ספרים), יתומים (הוסר ⇒ נמחק, לא-זמין/מוסתר ⇒ נשמר) | `test/indexing/repository/attached_library_index_test.dart` |
+| קובץ מסד שהשתנה ⇒ אינדוקס מחדש רק של ספריו | `test/attached_libraries/attached_libraries_repository_test.dart`, `test/library/bloc/library_attached_reindex_test.dart` |
+| איתור מקורות בספר ממסד מצורף (כותרת, כינוי, line_ref של המסד, תוכן עניינים, הפרדה מספר רשמי) | `test/find_ref/find_ref_attached_library_test.dart` |
+| כינויים ודורות פר-מסד (AcronymsCache / GenerationCache) | `test/data/cache/attached_library_caches_test.dart` |
+| חיפוש הספרייה: כינויים ודור לפי מקור, דירוג אחרי רשמי ואישי | `test/data/repository/book_search_fuzzy_match_test.dart` |
 
 **Search**
 | Area | Test File |
