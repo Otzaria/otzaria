@@ -45,6 +45,8 @@ windows/runner/*
 !windows/runner/drag_preview_window.h
 !windows/runner/startup_watchdog.cpp
 !windows/runner/startup_watchdog.h
+!windows/runner/phantom_mouse_button_filter.cpp
+!windows/runner/phantom_mouse_button_filter.h
 # ⚠️ `windows/runner/*` מעל מסנן **הכול**, וכל קובץ מקור חדש חייב חריגה
 # מפורשת כאן. קבצים שכבר tracked ממשיכים להיות tracked ולכן הבעיה אינה
 # נראית — אבל קובץ **חדש** נבלע בשקט: `git add -A` מדלג עליו בלי מילה,
