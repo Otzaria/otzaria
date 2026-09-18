@@ -140,9 +140,7 @@ void main() {
         expect(settings['textMaxWidth'], -1.0);
         expect(settings['fontSize'], 25.0);
         expect(settings['fontFamily'], 'FrankRuhlCLM');
-        expect(settings['showOtzarHachochma'], false);
-        expect(settings['showHebrewBooks'], false);
-        expect(settings['showExternalBooks'], false);
+        expect(settings['enabledExternalProviders'], isEmpty);
         expect(settings['autoUpdateIndex'], true);
         expect(
           settings['textDisplayPolicy'],
@@ -283,9 +281,8 @@ void main() {
       expect(settings['textMaxWidth'], 800.0);
       expect(settings['fontSize'], 20.0);
       expect(settings['fontFamily'], 'Rubik');
-      expect(settings['showOtzarHachochma'], true);
-      expect(settings['showHebrewBooks'], true);
-      expect(settings['showExternalBooks'], true);
+      // המתגים הישנים דלוקים והמפתח החדש לא נכתב → מיגרציה.
+      expect(settings['enabledExternalProviders'], {'otzar', 'hebrewbooks'});
       expect(settings['autoUpdateIndex'], false);
       expect(
         settings['textDisplayPolicy'],

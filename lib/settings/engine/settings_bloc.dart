@@ -48,10 +48,9 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       transformer: sequential(),
     );
     on<UpdateLineHeight>(_onUpdateLineHeight);
-    on<UpdateShowOtzarHachochma>(_onUpdateShowOtzarHachochma);
-    on<UpdateShowHebrewBooks>(_onUpdateShowHebrewBooks);
+    on<UpdateEnabledExternalProviders>(_onUpdateEnabledExternalProviders);
+    on<UpdateEnableResponsaBridge>(_onUpdateEnableResponsaBridge);
     on<UpdateShowLocalHebrewBooks>(_onUpdateShowLocalHebrewBooks);
-    on<UpdateShowExternalBooks>(_onUpdateShowExternalBooks);
     on<UpdateAutoUpdateIndex>(_onUpdateAutoUpdateIndex);
     on<UpdateTextDisplayPolicy>(_onUpdateTextDisplayPolicy);
     on<UpdateDefaultContinuousReadingMode>(
@@ -142,10 +141,10 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       commentatorsFontBold: settings['commentatorsFontBold'] ?? false,
       commentatorsFontSize: settings['commentatorsFontSize'],
       lineHeight: settings['lineHeight'],
-      showOtzarHachochma: settings['showOtzarHachochma'],
-      showHebrewBooks: settings['showHebrewBooks'],
+      enabledExternalProviders:
+          settings['enabledExternalProviders'] as Set<String>? ?? const {},
+      enableResponsaBridge: settings['enableResponsaBridge'] ?? false,
       showLocalHebrewBooks: settings['showLocalHebrewBooks'] ?? true,
-      showExternalBooks: settings['showExternalBooks'],
       autoUpdateIndex: settings['autoUpdateIndex'],
       textDisplayPolicy: settings['textDisplayPolicy'] as TextDisplayPolicy?,
       defaultContinuousReadingMode:
@@ -484,20 +483,20 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     emit(state.copyWith(lineHeight: event.lineHeight));
   }
 
-  Future<void> _onUpdateShowOtzarHachochma(
-    UpdateShowOtzarHachochma event,
+  Future<void> _onUpdateEnabledExternalProviders(
+    UpdateEnabledExternalProviders event,
     Emitter<SettingsState> emit,
   ) async {
-    await _repository.updateShowOtzarHachochma(event.showOtzarHachochma);
-    emit(state.copyWith(showOtzarHachochma: event.showOtzarHachochma));
+    await _repository.updateEnabledExternalProviders(event.providers);
+    emit(state.copyWith(enabledExternalProviders: event.providers));
   }
 
-  Future<void> _onUpdateShowHebrewBooks(
-    UpdateShowHebrewBooks event,
+  Future<void> _onUpdateEnableResponsaBridge(
+    UpdateEnableResponsaBridge event,
     Emitter<SettingsState> emit,
   ) async {
-    await _repository.updateShowHebrewBooks(event.showHebrewBooks);
-    emit(state.copyWith(showHebrewBooks: event.showHebrewBooks));
+    await _repository.updateEnableResponsaBridge(event.enabled);
+    emit(state.copyWith(enableResponsaBridge: event.enabled));
   }
 
   Future<void> _onUpdateShowLocalHebrewBooks(
@@ -506,14 +505,6 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     await _repository.updateShowLocalHebrewBooks(event.showLocalHebrewBooks);
     emit(state.copyWith(showLocalHebrewBooks: event.showLocalHebrewBooks));
-  }
-
-  Future<void> _onUpdateShowExternalBooks(
-    UpdateShowExternalBooks event,
-    Emitter<SettingsState> emit,
-  ) async {
-    await _repository.updateShowExternalBooks(event.showExternalBooks);
-    emit(state.copyWith(showExternalBooks: event.showExternalBooks));
   }
 
   Future<void> _onUpdateAutoUpdateIndex(

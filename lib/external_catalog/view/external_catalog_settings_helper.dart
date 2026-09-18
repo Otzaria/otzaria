@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
 import 'package:otzaria/external_catalog/repository/external_catalog_repository.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
@@ -15,11 +16,16 @@ class ExternalCatalogSettingsHelper {
     String mode,
   ) async {
     final settingsBloc = context.read<SettingsBloc>();
+    final current = settingsBloc.state.enabledExternalProviders;
+    // ספקים שאינם חלק מתפריט הקטלוג המשותף (פרויקט השו"ת) אינם מושפעים
+    // ממנו — הבחירה כאן היא על אוצר החכמה והיברובוקס בלבד.
+    final untouched = current.difference({
+      ExternalProviderRegistry.otzar.id,
+      ExternalProviderRegistry.hebrewBooks.id,
+    });
 
     if (mode == 'none') {
-      settingsBloc.add(const UpdateShowExternalBooks(false));
-      settingsBloc.add(const UpdateShowOtzarHachochma(false));
-      settingsBloc.add(const UpdateShowHebrewBooks(false));
+      settingsBloc.add(UpdateEnabledExternalProviders(untouched));
       return;
     }
 
@@ -27,12 +33,13 @@ class ExternalCatalogSettingsHelper {
       return;
     }
 
-    settingsBloc.add(const UpdateShowExternalBooks(true));
     settingsBloc.add(
-      UpdateShowOtzarHachochma(mode == 'all' || mode == 'otzar'),
-    );
-    settingsBloc.add(
-      UpdateShowHebrewBooks(mode == 'all' || mode == 'hebrewbooks'),
+      UpdateEnabledExternalProviders({
+        ...untouched,
+        if (mode == 'all' || mode == 'otzar') ExternalProviderRegistry.otzar.id,
+        if (mode == 'all' || mode == 'hebrewbooks')
+          ExternalProviderRegistry.hebrewBooks.id,
+      }),
     );
   }
 

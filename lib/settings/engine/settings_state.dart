@@ -1,3 +1,4 @@
+import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
 import 'package:flutter/material.dart';
 import 'package:equatable/equatable.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -26,13 +27,29 @@ class SettingsState extends Equatable {
   final double commentatorsFontSize;
   final double
   lineHeight; // מרווח בין שורות (1.0 = רגיל, 1.5 = מרווח וחצי, וכו')
-  final bool showOtzarHachochma;
-  final bool showHebrewBooks;
+  /// מזהי הספקים החיצוניים המופעלים (`otzar`, `hebrewbooks`, `responsa`).
+  ///
+  /// מחליף שדה bool נפרד לכל ספק: ספק חדש נוסף לקבוצה ואינו דורש שדה,
+  /// אירוע ו-copyWith משלו.
+  final Set<String> enabledExternalProviders;
+
+  /// האם גשר פרויקט השו"ת רשאי לעלות. בלתי תלוי בהצגת הספרים בחיפוש.
+  final bool enableResponsaBridge;
+
+  bool isExternalProviderEnabled(ExternalProviderDescriptor provider) =>
+      enabledExternalProviders.contains(provider.id);
+
+  bool get showOtzarHachochma =>
+      isExternalProviderEnabled(ExternalProviderRegistry.otzar);
+  bool get showHebrewBooks =>
+      isExternalProviderEnabled(ExternalProviderRegistry.hebrewBooks);
+  bool get showResponsaInLibrary =>
+      isExternalProviderEnabled(ExternalProviderRegistry.responsa);
+  bool get showExternalBooks => enabledExternalProviders.isNotEmpty;
 
   /// הצגת ספרי היברובוקס שירדו לתיקייה המקומית בתוצאות איתור הספר, גם
   /// כשהצגת הקטלוג החיצוני כבויה (issue #1143).
   final bool showLocalHebrewBooks;
-  final bool showExternalBooks;
 
   /// המדיניות הגלובלית של תצוגת הטקסט (ניקוד, טעמים, פיסוק, שם הוי"ה,
   /// ציונים) — מקור האמת היחיד. הגטרים שאחריה הם תאימות למפתחות הישנים.
@@ -114,10 +131,9 @@ class SettingsState extends Equatable {
     this.commentatorsFontBold = false,
     required this.commentatorsFontSize,
     required this.lineHeight,
-    required this.showOtzarHachochma,
-    required this.showHebrewBooks,
+    this.enabledExternalProviders = const {},
+    this.enableResponsaBridge = false,
     this.showLocalHebrewBooks = true,
-    required this.showExternalBooks,
     TextDisplayPolicy? textDisplayPolicy,
     required this.autoUpdateIndex,
     this.defaultContinuousReadingMode = false,
@@ -169,10 +185,9 @@ class SettingsState extends Equatable {
       commentatorsFontFamily: 'NotoRashiHebrew',
       commentatorsFontSize: 22,
       lineHeight: 1.5,
-      showOtzarHachochma: false,
-      showHebrewBooks: false,
+      enabledExternalProviders: const {},
+      enableResponsaBridge: false,
       showLocalHebrewBooks: true,
-      showExternalBooks: false,
       autoUpdateIndex: true,
       defaultContinuousReadingMode: false,
       defaultSidebarOpen: false,
@@ -214,10 +229,9 @@ class SettingsState extends Equatable {
     bool? commentatorsFontBold,
     double? commentatorsFontSize,
     double? lineHeight,
-    bool? showOtzarHachochma,
-    bool? showHebrewBooks,
+    Set<String>? enabledExternalProviders,
+    bool? enableResponsaBridge,
     bool? showLocalHebrewBooks,
-    bool? showExternalBooks,
     TextDisplayPolicy? textDisplayPolicy,
     bool? showTeamim,
     bool? replaceHolyNames,
@@ -296,10 +310,10 @@ class SettingsState extends Equatable {
       commentatorsFontBold: commentatorsFontBold ?? this.commentatorsFontBold,
       commentatorsFontSize: commentatorsFontSize ?? this.commentatorsFontSize,
       lineHeight: lineHeight ?? this.lineHeight,
-      showOtzarHachochma: showOtzarHachochma ?? this.showOtzarHachochma,
-      showHebrewBooks: showHebrewBooks ?? this.showHebrewBooks,
+      enabledExternalProviders:
+          enabledExternalProviders ?? this.enabledExternalProviders,
+      enableResponsaBridge: enableResponsaBridge ?? this.enableResponsaBridge,
       showLocalHebrewBooks: showLocalHebrewBooks ?? this.showLocalHebrewBooks,
-      showExternalBooks: showExternalBooks ?? this.showExternalBooks,
       autoUpdateIndex: autoUpdateIndex ?? this.autoUpdateIndex,
       defaultContinuousReadingMode:
           defaultContinuousReadingMode ?? this.defaultContinuousReadingMode,
@@ -373,10 +387,9 @@ class SettingsState extends Equatable {
     commentatorsFontBold,
     commentatorsFontSize,
     lineHeight,
-    showOtzarHachochma,
-    showHebrewBooks,
+    enabledExternalProviders,
+    enableResponsaBridge,
     showLocalHebrewBooks,
-    showExternalBooks,
     textDisplayPolicy,
     autoUpdateIndex,
     defaultContinuousReadingMode,

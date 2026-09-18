@@ -1,3 +1,4 @@
+import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
@@ -28,6 +29,17 @@ class SettingsRepository {
   static const String keyShowHebrewBooks = 'key-show-hebrew-books';
   static const String keyShowLocalHebrewBooks = 'key-show-local-hebrew-books';
   static const String keyShowExternalBooks = 'key-show-external-books';
+
+  /// קבוצת הספקים החיצוניים המופעלים, בפורמט `v1:<id>,<id>`.
+  ///
+  /// התחילית `v1:` הכרחית: בלעדיה מחרוזת ריקה הייתה דו-משמעית — "אף ספק"
+  /// מול "ההגדרה מעולם לא נכתבה", ומיגרציה הייתה רצה שוב בכל עלייה.
+  static const String keyEnabledExternalProviders =
+      'key-enabled-external-providers';
+
+  /// הפעלת גשר פרויקט השו"ת. נפרד מהצגת הספרים בכוונה: אפשר לראות ספרי
+  /// שו"ת בחיפוש בלי להריץ מופע של התוכנה ברקע.
+  static const String keyEnableResponsaBridge = 'key-enable-responsa-bridge';
   static const String keyShowTeamim = 'key-show-teamim';
   static const String keyReplaceHolyNames = 'key-replace-holy-names';
   static const String keyHolyNameStyle = 'key-holy-name-style';
@@ -224,6 +236,8 @@ class SettingsRepository {
     keyShowHebrewBooks,
     keyShowLocalHebrewBooks,
     keyShowExternalBooks,
+    keyEnabledExternalProviders,
+    keyEnableResponsaBridge,
     keyShowTeamim,
     keyReplaceHolyNames,
     keyHolyNameStyle,
@@ -387,8 +401,9 @@ class SettingsRepository {
         keyShowLocalHebrewBooks,
         defaultValue: true,
       ),
-      'showExternalBooks': _settings.getValue<bool>(
-        keyShowExternalBooks,
+      'enabledExternalProviders': loadEnabledExternalProviders(),
+      'enableResponsaBridge': _settings.getValue<bool>(
+        keyEnableResponsaBridge,
         defaultValue: false,
       ),
       'autoUpdateIndex': _settings.getValue<bool>(
@@ -668,20 +683,64 @@ class SettingsRepository {
     await _settings.setValue(keyLineHeight, value);
   }
 
-  Future<void> updateShowOtzarHachochma(bool value) async {
-    await _settings.setValue(keyShowOtzarHachochma, value);
-  }
-
-  Future<void> updateShowHebrewBooks(bool value) async {
-    await _settings.setValue(keyShowHebrewBooks, value);
-  }
-
   Future<void> updateShowLocalHebrewBooks(bool value) async {
     await _settings.setValue(keyShowLocalHebrewBooks, value);
   }
 
-  Future<void> updateShowExternalBooks(bool value) async {
-    await _settings.setValue(keyShowExternalBooks, value);
+  /// טוען את הספקים החיצוניים המופעלים.
+  ///
+  /// בהיעדר הערך החדש נגזרת הקבוצה מהמפתחות הישנים (`showExternalBooks`
+  /// כמתג-אב, ושני המתגים לכל ספק) — מיגרציה שקטה שנשמרת בכתיבה הבאה.
+  Set<String> loadEnabledExternalProviders() {
+    final raw = _settings.getValue<String>(
+      keyEnabledExternalProviders,
+      defaultValue: '',
+    );
+    if (raw.startsWith(_providersPrefix)) {
+      return _decodeProviders(raw);
+    }
+    return _legacyEnabledProviders();
+  }
+
+  Future<void> updateEnabledExternalProviders(Set<String> providers) async {
+    await _settings.setValue(
+      keyEnabledExternalProviders,
+      _encodeProviders(providers),
+    );
+  }
+
+  Future<void> updateEnableResponsaBridge(bool value) async {
+    await _settings.setValue(keyEnableResponsaBridge, value);
+  }
+
+  static const String _providersPrefix = 'v1:';
+
+  static String _encodeProviders(Set<String> providers) {
+    final ordered = [
+      for (final provider in ExternalProviderRegistry.all)
+        if (providers.contains(provider.id)) provider.id,
+    ];
+    return '$_providersPrefix${ordered.join(',')}';
+  }
+
+  static Set<String> _decodeProviders(String raw) {
+    return {
+      for (final part in raw.substring(_providersPrefix.length).split(','))
+        if (ExternalProviderRegistry.byId(part) case final provider?)
+          provider.id,
+    };
+  }
+
+  Set<String> _legacyEnabledProviders() {
+    if (!_settings.getValue<bool>(keyShowExternalBooks, defaultValue: false)) {
+      return const {};
+    }
+    return {
+      if (_settings.getValue<bool>(keyShowOtzarHachochma, defaultValue: false))
+        ExternalProviderRegistry.otzar.id,
+      if (_settings.getValue<bool>(keyShowHebrewBooks, defaultValue: false))
+        ExternalProviderRegistry.hebrewBooks.id,
+    };
   }
 
   Future<void> updateAutoUpdateIndex(bool value) async {

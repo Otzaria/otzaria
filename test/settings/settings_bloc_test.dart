@@ -209,9 +209,9 @@ void main() {
             commentatorsFontSize:
                 mockSettings['commentatorsFontSize'] as double? ?? 22.0,
             lineHeight: mockSettings['lineHeight'] as double? ?? 1.5,
-            showOtzarHachochma: mockSettings['showOtzarHachochma'] as bool,
-            showHebrewBooks: mockSettings['showHebrewBooks'] as bool,
-            showExternalBooks: mockSettings['showExternalBooks'] as bool,
+            enabledExternalProviders:
+                mockSettings['enabledExternalProviders'] as Set<String>? ??
+                const {},
             autoUpdateIndex: mockSettings['autoUpdateIndex'] as bool,
             defaultContinuousReadingMode:
                 mockSettings['defaultContinuousReadingMode'] as bool,

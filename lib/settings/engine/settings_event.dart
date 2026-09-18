@@ -132,22 +132,23 @@ class UpdateLineHeight extends SettingsEvent {
   List<Object?> get props => [lineHeight];
 }
 
-class UpdateShowOtzarHachochma extends SettingsEvent {
-  final bool showOtzarHachochma;
+/// מעדכן במכה אחת אילו ספקים חיצוניים מופעלים.
+class UpdateEnabledExternalProviders extends SettingsEvent {
+  final Set<String> providers;
 
-  const UpdateShowOtzarHachochma(this.showOtzarHachochma);
+  const UpdateEnabledExternalProviders(this.providers);
 
   @override
-  List<Object?> get props => [showOtzarHachochma];
+  List<Object?> get props => [providers];
 }
 
-class UpdateShowHebrewBooks extends SettingsEvent {
-  final bool showHebrewBooks;
+class UpdateEnableResponsaBridge extends SettingsEvent {
+  final bool enabled;
 
-  const UpdateShowHebrewBooks(this.showHebrewBooks);
+  const UpdateEnableResponsaBridge(this.enabled);
 
   @override
-  List<Object?> get props => [showHebrewBooks];
+  List<Object?> get props => [enabled];
 }
 
 class UpdateShowLocalHebrewBooks extends SettingsEvent {
@@ -157,15 +158,6 @@ class UpdateShowLocalHebrewBooks extends SettingsEvent {
 
   @override
   List<Object?> get props => [showLocalHebrewBooks];
-}
-
-class UpdateShowExternalBooks extends SettingsEvent {
-  final bool showExternalBooks;
-
-  const UpdateShowExternalBooks(this.showExternalBooks);
-
-  @override
-  List<Object?> get props => [showExternalBooks];
 }
 
 class UpdateAutoUpdateIndex extends SettingsEvent {

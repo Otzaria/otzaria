@@ -192,42 +192,6 @@ class MockSettingsRepository extends _i1.Mock
           as _i3.Future<void>);
 
   @override
-  _i3.Future<void> updateShowOtzarHachochma(bool? value) =>
-      (super.noSuchMethod(
-            Invocation.method(
-              #updateShowOtzarHachochma,
-              [value],
-            ),
-            returnValue: _i3.Future<void>.value(),
-            returnValueForMissingStub: _i3.Future<void>.value(),
-          )
-          as _i3.Future<void>);
-
-  @override
-  _i3.Future<void> updateShowHebrewBooks(bool? value) =>
-      (super.noSuchMethod(
-            Invocation.method(
-              #updateShowHebrewBooks,
-              [value],
-            ),
-            returnValue: _i3.Future<void>.value(),
-            returnValueForMissingStub: _i3.Future<void>.value(),
-          )
-          as _i3.Future<void>);
-
-  @override
-  _i3.Future<void> updateShowExternalBooks(bool? value) =>
-      (super.noSuchMethod(
-            Invocation.method(
-              #updateShowExternalBooks,
-              [value],
-            ),
-            returnValue: _i3.Future<void>.value(),
-            returnValueForMissingStub: _i3.Future<void>.value(),
-          )
-          as _i3.Future<void>);
-
-  @override
   _i3.Future<void> updateAutoUpdateIndex(bool? value) =>
       (super.noSuchMethod(
             Invocation.method(

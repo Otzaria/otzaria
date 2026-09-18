@@ -7,6 +7,7 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 
 import '../../helpers/memory_settings_cache.dart';
 
+import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -17,26 +18,22 @@ class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
   final List<SettingsEvent> dispatched = [];
 
   _FakeSettingsBloc({
-    bool showExternalBooks = false,
     bool showOtzarHachochma = false,
     bool showHebrewBooks = false,
     bool showLocalHebrewBooks = true,
   }) : super(
          SettingsState.initial().copyWith(
-           showExternalBooks: showExternalBooks,
-           showOtzarHachochma: showOtzarHachochma,
-           showHebrewBooks: showHebrewBooks,
+           enabledExternalProviders: {
+             if (showOtzarHachochma) ExternalProviderRegistry.otzar.id,
+             if (showHebrewBooks) ExternalProviderRegistry.hebrewBooks.id,
+           },
            showLocalHebrewBooks: showLocalHebrewBooks,
          ),
        ) {
     on<SettingsEvent>((event, emit) {
       dispatched.add(event);
-      if (event is UpdateShowExternalBooks) {
-        emit(state.copyWith(showExternalBooks: event.showExternalBooks));
-      } else if (event is UpdateShowOtzarHachochma) {
-        emit(state.copyWith(showOtzarHachochma: event.showOtzarHachochma));
-      } else if (event is UpdateShowHebrewBooks) {
-        emit(state.copyWith(showHebrewBooks: event.showHebrewBooks));
+      if (event is UpdateEnabledExternalProviders) {
+        emit(state.copyWith(enabledExternalProviders: event.providers));
       } else if (event is UpdateShowLocalHebrewBooks) {
         emit(state.copyWith(showLocalHebrewBooks: event.showLocalHebrewBooks));
       }
@@ -92,7 +89,6 @@ void main() {
     await tester.pumpWidget(
       _wrap(
         _FakeSettingsBloc(
-          showExternalBooks: true,
           showOtzarHachochma: true,
           showHebrewBooks: true,
         ),
@@ -113,7 +109,6 @@ void main() {
     await tester.pumpWidget(
       _wrap(
         _FakeSettingsBloc(
-          showExternalBooks: true,
           showOtzarHachochma: true,
         ),
       ),
@@ -127,7 +122,6 @@ void main() {
     await tester.pumpWidget(
       _wrap(
         _FakeSettingsBloc(
-          showExternalBooks: true,
           showHebrewBooks: true,
         ),
       ),
@@ -141,7 +135,6 @@ void main() {
     'בחירת "אל תציג" מכבה את כל המקורות',
     (tester) async {
       final settingsBloc = _FakeSettingsBloc(
-        showExternalBooks: true,
         showOtzarHachochma: true,
         showHebrewBooks: true,
       );
@@ -188,7 +181,7 @@ void main() {
 
     await tester.pumpWidget(
       _wrap(
-        _FakeSettingsBloc(showExternalBooks: true, showHebrewBooks: true),
+        _FakeSettingsBloc(showHebrewBooks: true),
       ),
     );
     await tester.pumpAndSettle();
