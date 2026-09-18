@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/user_content_import/services/user_import_parser.dart';
 
 void main() {
@@ -222,6 +223,55 @@ void main() {
       final result = UserImportParser.parseLinksJson(json);
       expect(result.rows.length, 1);
       expect(result.errors.length, 1);
+    });
+  });
+
+  group('UserImportParser.parseVersions', () {
+    test('קובץ ישן בלי עמודות מקור — ראשי אישי', () {
+      final result = UserImportParser.parseVersions(
+        'ראשי,גרסה,שם,הערות,עדיפות\nרשבא.txt,רשבא קוק.txt,מוסד הרב קוק,,5\n',
+      );
+
+      expect(result.errors, isEmpty);
+      final row = result.rows.single;
+      expect(row.primary, 'רשבא.txt');
+      expect(row.version, 'רשבא קוק.txt');
+      expect(row.label, 'מוסד הרב קוק');
+      expect(row.priority, 5);
+      expect(row.primarySource, BookSource.user);
+      expect(row.primaryCategoryPath, isNull);
+    });
+
+    test('ראשי רשמי עם קטגוריה, ראשי ממסד מצורף ומקור "אישי" מפורש', () {
+      final result = UserImportParser.parseVersions(
+        'ראשי,גרסה,שם,מקור_ראשי,קטגוריית_ראשי\n'
+        'בראשית,בראשית כתב יד.txt,כתב יד,רשמי,תנך/תורה\n'
+        'בראשית,בראשית מצורף.txt,,מסד:ספרייה,\n'
+        'ראשי.txt,משני.txt,,אישי,תנך\n',
+      );
+
+      expect(result.errors, isEmpty);
+      final [official, attached, user] = result.rows;
+      expect(official.primarySource, BookSource.official);
+      expect(official.primaryCategoryPath, 'תנך/תורה');
+      expect(attached.primarySource, BookSource.attached('ספרייה'));
+      expect(attached.primaryCategoryPath, isNull);
+      expect(user.primarySource, BookSource.user);
+      // קטגוריה רלוונטית רק לראשי שאינו אישי.
+      expect(user.primaryCategoryPath, isNull);
+    });
+
+    test('מקור ראשי לא מוכר נדחה עם מספר השורה, ושאר השורות נקלטות', () {
+      final result = UserImportParser.parseVersions(
+        'ראשי,גרסה,מקור_ראשי\n'
+        'בראשית,א.txt,ספריא\n'
+        'בראשית,ב.txt,official\n'
+        'בראשית,ג.txt,מסד:\n',
+      );
+
+      expect(result.rows.single.version, 'ב.txt');
+      expect(result.errors.map((e) => e.lineNumber), [2, 4]);
+      expect(result.errors.first.message, contains('מקור ראשי לא חוקי'));
     });
   });
 }

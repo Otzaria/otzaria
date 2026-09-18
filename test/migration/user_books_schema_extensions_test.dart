@@ -202,5 +202,70 @@ void main() {
       expect(cols, contains('generationId'));
       expect(indexes, contains('idx_author_generation'));
     });
+
+    test('user_book_version ישנה משודרגת, ושורות אישי↔אישי נשמרות', () async {
+      final setupDb = sqlite3.sqlite3.open(dbPath);
+      setupDb.execute('''
+        CREATE TABLE user_book_version (
+          versionBookId INTEGER PRIMARY KEY,
+          primaryBookId INTEGER NOT NULL,
+          versionTitle TEXT NOT NULL,
+          versionNotes TEXT,
+          priority REAL,
+          source TEXT NOT NULL
+        );
+      ''');
+      setupDb.execute(
+        "INSERT INTO user_book_version VALUES (2, 1, 'מוסד הרב קוק', 'הערה', 5, 'a.csv')",
+      );
+      setupDb.close();
+
+      final db = await database.database;
+      final row = db.select('SELECT * FROM user_book_version').single;
+      expect(row['versionBookId'], 2);
+      expect(row['primaryBookId'], 1);
+      expect(row['primarySource'], 'u');
+      expect(row['primaryTitle'], isNull);
+      expect(row['versionTitle'], 'מוסד הרב קוק');
+      expect(row['versionNotes'], 'הערה');
+      expect(row['priority'], 5);
+      expect(row['source'], 'a.csv');
+
+      // ראשי ממקור אחר נשמר בלי מזהה.
+      db.execute(
+        'INSERT INTO user_book_version (versionBookId, primarySource, '
+        "primaryTitle, versionTitle, source) VALUES (3, 'o', 'בראשית', 'כ\"י', 'b.csv')",
+      );
+      final indexes = db
+          .select(
+            "SELECT name FROM sqlite_master WHERE type = 'index' "
+            "AND tbl_name = 'user_book_version'",
+          )
+          .map((r) => r['name'] as String)
+          .toSet();
+      expect(
+        indexes,
+        containsAll([
+          'idx_user_book_version_primary',
+          'idx_user_book_version_source',
+        ]),
+      );
+    });
+
+    test('שדרוג user_book_version אידמפוטנטי בפתיחה חוזרת', () async {
+      final db = await database.database;
+      db.execute(
+        'INSERT INTO user_book_version (versionBookId, primarySource, '
+        "primaryTitle, primaryCategoryPath, versionTitle, source) "
+        "VALUES (4, 'd:ספרייה', 'בראשית', 'תורה', 'גרסה', 'c.csv')",
+      );
+      database.close();
+
+      database = MyDatabase.withPath(dbPath);
+      final reopened = await database.database;
+      final row = reopened.select('SELECT * FROM user_book_version').single;
+      expect(row['primarySource'], 'd:ספרייה');
+      expect(row['primaryCategoryPath'], 'תורה');
+    });
   });
 }

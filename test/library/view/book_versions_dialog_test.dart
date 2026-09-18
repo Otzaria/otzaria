@@ -151,6 +151,96 @@ void main() {
 
       expect(selected, same(kook));
     });
+
+    group('ספר רשמי עם גרסה אישית', () {
+      final personal = TextBook(
+        id: 7,
+        title: 'כתובות - כתב יד',
+        source: BookSource.user,
+      );
+      final personalVersion = BookVersionInfo(
+        versionTitle: 'כתב יד מינכן',
+        hasContent: true,
+        separateBook: personal,
+      );
+
+      Future<Book?> pumpAndPick(
+        WidgetTester tester,
+        TextBook opened,
+        String pick, {
+        void Function()? beforePick,
+      }) async {
+        Book? selected;
+        await tester.pumpWidget(
+          _wrap(
+            Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showBookVersionsDialog(
+                  context,
+                  opened,
+                  onVersionSelected: (target) => selected = target,
+                ),
+                child: const Text('פתח'),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.text('פתח'));
+        await tester.pumpAndSettle();
+        beforePick?.call();
+        await tester.tap(find.text(pick));
+        await tester.pumpAndSettle();
+        return selected;
+      }
+
+      testWidgets(
+        'הגרסה האישית מוצגת לצד המהדורות, ובחירתה פותחת את הספר האישי',
+        (
+          tester,
+        ) async {
+          bookVersionsListProbeForTesting = (_) async => [
+            davidson,
+            wikisource,
+            personalVersion,
+          ];
+
+          final selected = await pumpAndPick(
+            tester,
+            book.copyWith(versionTitle: davidson.versionTitle),
+            'כתב יד מינכן',
+          );
+
+          expect(find.text(davidson.displayTitle), findsNothing);
+          expect(selected, same(personal));
+        },
+      );
+
+      testWidgets('גרסה אישית אינה הופכת מהדורה יחידה בלי טקסט ללא-זמינה', (
+        tester,
+      ) async {
+        const metadataOnly = BookVersionInfo(
+          versionTitle: 'Vilna Edition',
+          heVersionTitle: 'דפוס וילנא',
+          hasContent: false,
+        );
+        bookVersionsListProbeForTesting = (_) async => [
+          metadataOnly,
+          personalVersion,
+        ];
+
+        final selected = await pumpAndPick(
+          tester,
+          book,
+          'דפוס וילנא',
+          beforePick: () => expect(
+            find.text('הנוסח המוצג בספרייה'),
+            findsOneWidget,
+          ),
+        );
+
+        expect(selected, same(book));
+      });
+    });
   });
 
   testWidgets('onSelected מקבל את הספר בנוסח שנבחר במקום לפתוח כרטיסייה', (
