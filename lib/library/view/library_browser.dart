@@ -2309,14 +2309,22 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.asset(
-              (book.link ?? '').contains('tablet.otzar.org')
-                  ? 'assets/logos/otzar.ico'
-                  : 'assets/logos/hebrew_books.png',
-              width: iconSize,
-              height: iconSize,
-              fit: BoxFit.contain,
-            ),
+            // הזיהוי לפי הספק ולא לפי הקישור: לפרויקט השו"ת אין קישור
+            // כלל, ובמבחן הישן הוא היה מקבל את הלוגו של היברובוקס.
+            if (externalCatalogLogoAsset(book) case final logo?)
+              Image.asset(
+                logo,
+                width: iconSize,
+                height: iconSize,
+                fit: BoxFit.contain,
+              )
+            else
+              Icon(
+                externalProviderFallbackIcon(book) ??
+                    FluentIcons.book_24_regular,
+                color: cs.onSecondaryContainer,
+                size: iconSize,
+              ),
             const SizedBox(width: 4),
             Icon(
               FluentIcons.open_24_regular,

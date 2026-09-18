@@ -6,6 +6,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/data_providers/external_catalog_mapper.dart';
+import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'dart:math';
 import 'package:otzaria/core/ui_snack.dart';
@@ -70,6 +71,22 @@ String? externalCatalogLogoAsset(Book book) {
   )?.iconAsset;
 }
 
+/// אייקון מובנה לספק חיצוני שאין לו קובץ לוגו בחבילה.
+///
+/// פרויקט השו"ת הוא תוכנה מותקנת ולא אתר, ואין בחבילה קובץ לוגו שלו.
+/// בלי אייקון משלו ספריו נראים בתוצאות כמו ספר מקומי רגיל, והמשתמש
+/// אינו יודע שלחיצה עליו תפתח תוכנה אחרת.
+IconData? externalProviderFallbackIcon(Book book) {
+  final provider = ExternalCatalogMapper.providerOf(
+    externalLibraryId: book.externalLibraryId,
+    link: book is ExternalLibraryBook ? book.link : null,
+  );
+  return switch (provider?.kind) {
+    ExternalProviderKind.responsa => FluentIcons.library_24_filled,
+    _ => null,
+  };
+}
+
 /// בונה את תוכן אייקון הספר: לוגו הקטלוג החיצוני אם קיים, אחרת אייקון לפי סוג הקובץ.
 Widget _buildBookIconChild(Book book, ColorScheme cs, double iconSize) {
   final logoAsset = externalCatalogLogoAsset(book);
@@ -80,6 +97,9 @@ Widget _buildBookIconChild(Book book, ColorScheme cs, double iconSize) {
       height: iconSize,
       fit: BoxFit.contain,
     );
+  }
+  if (externalProviderFallbackIcon(book) case final icon?) {
+    return Icon(icon, size: iconSize, color: cs.onSecondaryContainer);
   }
   return BookFormatIcon(
     book: book,

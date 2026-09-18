@@ -103,14 +103,14 @@ class ExternalBookDialog extends StatelessWidget {
                       _buildInfoRow(
                         context,
                         FluentIcons.library_24_regular,
-                        'מקור',
+                        'מקור הספר',
                         provider.displayName,
                       ),
                     if (book.categoryPath?.isNotEmpty ?? false)
                       _buildInfoRow(
                         context,
                         FluentIcons.folder_24_regular,
-                        'הקשר',
+                        'קטגוריה',
                         book.categoryPath!.replaceAll('/', ' › '),
                       ),
                     // שדה שאין לו מקור אצל הספק אינו מוצג כ"לא ידוע" —
@@ -223,7 +223,11 @@ class ExternalBookDialog extends StatelessWidget {
             ),
           ),
         if (!_isOtzar && capabilities.localOpen && onOpenLocally != null)
-          _OpenInSoftwareButton(book: book, onOpen: onOpenLocally!),
+          _OpenInSoftwareButton(
+            book: book,
+            onOpen: onOpenLocally!,
+            label: _provider?.localOpenLabel ?? 'פתח בתוכנה',
+          ),
         if (capabilities.webOpen)
           if (book.link case final url?)
             ElevatedButton.icon(
@@ -256,7 +260,7 @@ class ExternalBookDialog extends StatelessWidget {
   }
 }
 
-/// "פתח בתוכנה" לספק שפתיחתו מקומית ואיטית (פרויקט השו"ת: 3–25 שניות).
+/// כפתור פתיחה מקומית לספק שפתיחתו איטית (בר אילן: 3–25 שניות).
 ///
 /// הכפתור ננעל בזמן הפתיחה ומציג מצב טעינה. אין כאן "ביטול": הוא ייווסף
 /// רק כשהוא באמת יעצור את הפעולה, ולא כדי להסתיר את מחוון הטעינה.
@@ -264,7 +268,15 @@ class _OpenInSoftwareButton extends StatefulWidget {
   final ExternalLibraryBook book;
   final Future<String?> Function(ExternalLibraryBook book) onOpen;
 
-  const _OpenInSoftwareButton({required this.book, required this.onOpen});
+  /// הכיתוב על הכפתור, מהספק. "פתח בבר אילן" אומר למשתמש מה יקרה;
+  /// "פתח בתוכנה" משאיר אותו לנחש איזו.
+  final String label;
+
+  const _OpenInSoftwareButton({
+    required this.book,
+    required this.onOpen,
+    required this.label,
+  });
 
   @override
   State<_OpenInSoftwareButton> createState() => _OpenInSoftwareButtonState();
@@ -276,7 +288,7 @@ class _OpenInSoftwareButtonState extends State<_OpenInSoftwareButton> {
   @override
   Widget build(BuildContext context) {
     return ActionButton.recommended(
-      text: _isOpening ? 'פותח...' : 'פתח בתוכנה',
+      text: _isOpening ? 'פותח...' : widget.label,
       icon: FluentIcons.desktop_24_regular,
       isLoading: _isOpening,
       onPressed: _isOpening ? null : _open,

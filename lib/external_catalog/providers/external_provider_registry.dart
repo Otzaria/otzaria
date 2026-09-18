@@ -24,6 +24,12 @@ class ExternalProviderDescriptor {
 
   final String? iconAsset;
 
+  /// הכיתוב על כפתור הפתיחה המקומית.
+  ///
+  /// "פתח בתוכנה" הוא נכון ומעורפל: המשתמש יודע איזו תוכנה מותקנת אצלו
+  /// ורוצה לראות את שמה.
+  final String localOpenLabel;
+
   final ExternalProviderCapabilities capabilities;
 
   /// בונה קישור לאתר הספק, או `null` לספק ללא נוכחות ברשת.
@@ -37,6 +43,7 @@ class ExternalProviderDescriptor {
     required this.capabilities,
     this.aliasPrefixes = const {},
     this.iconAsset,
+    this.localOpenLabel = 'פתח בתוכנה',
     this.linkBuilder,
   });
 
@@ -113,9 +120,12 @@ class ExternalProviderRegistry {
   static const ExternalProviderDescriptor responsa = ExternalProviderDescriptor(
     kind: ExternalProviderKind.responsa,
     id: 'responsa',
-    displayName: 'פרויקט השו"ת',
+    // השם שהמשתמשים מכירים הוא "בר אילן"; "פרויקט השו"ת" לבדו אינו
+    // מזוהה אצל רבים.
+    displayName: 'פרויקט השו"ת (בר אילן)',
     idPrefix: 'rp',
     aliasPrefixes: {'responsa'},
+    localOpenLabel: 'פתח בבר אילן',
     capabilities: ExternalProviderCapabilities(
       localOpen: true,
       locationOpen: true,
