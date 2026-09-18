@@ -79,9 +79,10 @@ class AttachedLibraryRegistry {
       _scheduleIdleCheck();
       return Future.value(open.repository);
     }
-    return _opening[slug] ??= _openLibrary(library).whenComplete(
-      () => _opening.remove(slug),
-    );
+    // גוף בלוק: callback שמחזיר את ה-Future שהוסר היה ממתין לעצמו לנצח.
+    return _opening[slug] ??= _openLibrary(library).whenComplete(() {
+      _opening.remove(slug);
+    });
   }
 
   Future<SeforimRepository?> repositoryForSource(BookSource source) =>
