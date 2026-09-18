@@ -943,7 +943,6 @@ class _CombinedViewState extends State<CombinedView> {
     // הסימנים ממופים ל-lineIndex של הטקסט הממוזג במסד — מהדורה חלופית
     // (version_line) או ספר שתוכנו מוגש מקבצים ממוספרים אחרת.
     if (book.versionTitle != null) return;
-    if (book.source.isAttached) return;
     final InlineSectionMarks marks;
     if (book.isUserBook) {
       marks = await DatabaseLibraryProvider.instance.getUserInlineSectionMarks(
@@ -951,16 +950,20 @@ class _CombinedViewState extends State<CombinedView> {
         _loadedLineAt,
       );
     } else {
-      final provider = LibraryProviderManager.instance.getProviderForBook(
-        book.title,
-        categoryId: book.categoryId,
-        fileType: book.fileType,
-      );
-      if (provider is! DatabaseLibraryProvider) return;
+      if (book.source.isOfficial &&
+          LibraryProviderManager.instance.getProviderForBook(
+                book.title,
+                categoryId: book.categoryId,
+                fileType: book.fileType,
+              )
+              is! DatabaseLibraryProvider) {
+        return;
+      }
       marks = await DatabaseLibraryProvider.instance
           .getInlineSectionMarksByLineIndex(
             book.title,
             categoryId: book.categoryId,
+            source: book.source,
           );
     }
     // כמו ב-_loadSourceBanner: מעבר מהיר בין ספרים עלול לסיים await זה

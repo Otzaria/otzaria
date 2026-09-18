@@ -18,10 +18,11 @@ Future<List<BookVersionInfo>> loadBookVersions(Book book) async {
   if (book.isUserBook) {
     return DatabaseLibraryProvider.instance.getUserBookVersions(book);
   }
-  if (!book.isOfficialLibraryBook) return const [];
+  if (!book.isOfficialLibraryBook && !book.source.isAttached) return const [];
   return DatabaseLibraryProvider.instance.getBookVersions(
     book.title,
     book.categoryId ?? -1,
+    source: book.source,
   );
 }
 

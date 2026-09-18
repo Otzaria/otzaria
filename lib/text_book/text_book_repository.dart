@@ -1,3 +1,4 @@
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
@@ -132,10 +133,10 @@ class TextBookRepository {
       return null;
     }
 
-    // ספרי seforim.db בלבד: השאילתה וה-split רצים ב-isolate (כמו הקישורים),
-    // כדי שלא יחסמו את ה-UI thread בזמן גלילה. ה-isolate פותח רק את seforim.db,
-    // לכן ספרי משתמש נשארים במסלול ה-drift, וכישלון נופל אליו (file-backed וכו').
-    if (categoryId != null && book.source.isOfficial) {
+    // ספרי seforim.db ומסדים מצורפים: השאילתה וה-split רצים ב-isolate (כמו
+    // הקישורים), כדי שלא יחסמו את ה-UI thread בזמן גלילה. ספרי משתמש נשארים
+    // במסלול ה-drift, וכישלון נופל אליו (file-backed וכו').
+    if (categoryId != null && !book.source.isUser) {
       // getProviderForBook מסתכל רק ב-_bookToProvider שמתמלא אחרי buildLibraryCatalog.
       // בסטרטאפ (לפני buildLibraryCatalog) הוא מחזיר null — ולכן פונים ישירות
       // ל-DatabaseLibraryProvider שיכול לפתוח seforim.db ב-isolate גם בלי catalog.
@@ -155,6 +156,7 @@ class TextBookRepository {
         startLine: startLine,
         endLine: endLine,
         versionTitle: book.versionTitle,
+        source: book.source,
       );
       if (range != null && range.lines.isNotEmpty) {
         return BookContentRange(
@@ -241,12 +243,24 @@ class TextBookRepository {
     int normalizedEnd,
     List<String>? normalizedTargetBookTitles,
   ) async {
-    // קישורים של מסד מצורף טרם נטענים; השאילתות למטה פונות ל-seforim.db
-    // לפי כותרת וקטגוריה, ובספר מצורף היו מחזירות קישורים של ספר אחר.
-    if (book.source.isAttached) return const [];
     final title = book.title;
     final categoryId = book.categoryId;
     final fileType = book.fileType ?? 'txt';
+
+    // ספר ממסד מצורף: קישוריו במסד שלו בלבד — ספר בשם זהה ב-seforim.db
+    // הוא ספר אחר.
+    if (book.source.isAttached) {
+      if (categoryId == null) return const [];
+      return DatabaseLibraryProvider.instance.getLinksForBookRange(
+        title,
+        categoryId,
+        fileType,
+        startLineIndex: normalizedStart,
+        endLineIndex: normalizedEnd,
+        targetBookTitles: normalizedTargetBookTitles,
+        source: book.source,
+      );
+    }
 
     final provider = LibraryProviderManager.instance.getProviderForBook(
       title,
@@ -348,11 +362,8 @@ class TextBookRepository {
       rare: const <String>{},
     );
 
-    // ספר שאינו רשמי אינו כלול בקישורי המפרשים של המסד הרשמי; חיפוש לפי
-    // book.id ב-seforim.db יחזיר מפרשים של ספר רשמי עם אותו ID.
-    if (!book.source.isOfficial) return userOnly();
-
-    final repository = _sqliteProvider.repository;
+    // קישורי המפרשים במסד של הספר בלבד; ספר אישי — רק מקישורי-משתמש.
+    final repository = await _linksRepositoryFor(book.source);
     if (repository == null) return userOnly();
 
     // מקבל את ה-book ישירות מה-repository (אותו DB שממנו נשלוף את המפרשים)
@@ -410,8 +421,8 @@ class TextBookRepository {
     required int startLine,
     required int endLine,
   }) async {
-    final repository = _sqliteProvider.repository;
-    if (repository == null || !book.source.isOfficial) return const [];
+    final repository = await _linksRepositoryFor(book.source);
+    if (repository == null) return const [];
 
     final dbBook = book.categoryId != null
         ? await repository.getBookByTitleAndCategory(
@@ -461,9 +472,9 @@ class TextBookRepository {
     BookSource sourceBookSource = BookSource.official,
     BookSource currentBookSource = BookSource.official,
   }) async {
-    final repository = _sqliteProvider.repository;
-    // קישורי המפרשים קיימים רק במסד הרשמי; ספר ממקור אחר בשם זהה אינו אותו ספר.
-    if (repository == null || !sourceBookSource.isOfficial) return [];
+    // קישורי המפרשים במסד של ספר המקור; ספר ממקור אחר בשם זהה אינו אותו ספר.
+    final repository = await _linksRepositoryFor(sourceBookSource);
+    if (repository == null) return [];
 
     final sourceBook = sourceCategoryId != null
         ? await repository.getBookByTitleAndCategory(
@@ -473,7 +484,7 @@ class TextBookRepository {
         : await repository.getBookByTitle(sourceBookTitle);
     if (sourceBook == null) return [];
 
-    final currentBook = !currentBookSource.isOfficial
+    final currentBook = currentBookSource != sourceBookSource
         ? null
         : currentCategoryId != null
         ? await repository.getBookByTitleAndCategory(
@@ -514,12 +525,23 @@ class TextBookRepository {
         targetCategoryId: row['targetCategoryId'] as int?,
         targetBookId: row['targetBookId'] as int?,
         targetFileType: row['targetFileType'] as String?,
+        targetSource: sourceBookSource,
       );
     }).toList();
 
     // מיון לפי דורות (ראשונים→אחרונים→…) לצורך פסי ההפרדה בתת-התפריט.
     return CommentaryService.sortLinksByEra(links);
   }
+
+  /// המאגר שבו יושבים קישורי [source]: seforim.db או המסד המצורף. לספר
+  /// אישי — null (קישוריו ב-user_link).
+  Future<SeforimRepository?> _linksRepositoryFor(BookSource source) =>
+      switch (source) {
+        OfficialBookSource() => Future.value(_sqliteProvider.repository),
+        UserBookSource() => Future.value(),
+        AttachedBookSource(:final slug) =>
+          AttachedLibraryRegistry.instance.repositoryFor(slug),
+      };
 
   Future<bool> bookExists(String title) async {
     return await _fileSystem.bookExists(title);

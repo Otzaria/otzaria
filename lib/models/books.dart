@@ -1,4 +1,5 @@
 import 'package:otzaria/data/constants/database_constants.dart';
+import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/repository/book_toc_loader.dart';
 import 'package:otzaria/library/models/library.dart';
@@ -194,8 +195,15 @@ class TextBook extends Book {
   ///
   /// Returns a [Future] that resolves to a [List] of [Link] objects.
   Future<List<Link>> get links async {
-    // השאילתה פונה ל-seforim.db לפי כותרת וקטגוריה — לא לספר ממסד מצורף.
-    if (source.isAttached) return [];
+    if (source is AttachedBookSource) {
+      if (categoryId == null) return [];
+      return DatabaseLibraryProvider.instance.getAllLinksForBook(
+        title,
+        categoryId!,
+        fileType ?? 'txt',
+        source: source,
+      );
+    }
     final provider = LibraryProviderManager.instance.getProviderForBook(
       title,
       categoryId: categoryId,

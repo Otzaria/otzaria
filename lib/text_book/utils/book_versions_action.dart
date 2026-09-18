@@ -16,7 +16,7 @@ Future<bool> hasBookVersionsToOpen(Book book) async {
     return DatabaseLibraryProvider.instance.getUserBookVersions(book).length >
         1;
   }
-  if (!book.isOfficialLibraryBook) return false;
+  if (!book.isOfficialLibraryBook && !book.source.isAttached) return false;
   final categoryId = book.categoryId;
   if (book is! TextBook || categoryId == null) return false;
   if (book.versionTitle != null) {
@@ -26,12 +26,14 @@ Future<bool> hasBookVersionsToOpen(Book book) async {
             DatabaseLibraryProvider.instance.getBookVersions(
               book.title,
               categoryId,
+              source: book.source,
             ));
     return versions.any((version) => version.versionTitle != book.versionTitle);
   }
   return DatabaseLibraryProvider.instance.hasSelectableBookVersions(
     book.title,
     categoryId,
+    source: book.source,
   );
 }
 
