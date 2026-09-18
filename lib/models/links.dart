@@ -21,10 +21,14 @@ class LinkTargetSummary {
   /// מספר הקישורים מסוג זה אל ספר היעד.
   final int linkCount;
 
+  /// המסד של ספר היעד; null — המסד של הספר הנקרא.
+  final BookSource? targetSource;
+
   const LinkTargetSummary({
     required this.targetTitle,
     required this.connectionType,
     required this.linkCount,
+    this.targetSource,
   });
 }
 

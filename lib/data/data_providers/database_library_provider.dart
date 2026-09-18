@@ -7,6 +7,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
+import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/attached_libraries/utils/attached_file_path.dart';
 import 'package:otzaria/data/cache/books_cache.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
@@ -4251,6 +4252,12 @@ class DatabaseLibraryProvider implements LibraryProvider {
         title: title,
         categoryId: categoryId,
       );
+      final external = await ExternalLinkRepository.instance.targetsSummary(
+        title: title,
+        categoryId: categoryId,
+        source: source,
+      );
+      final maxSourceLine = (result.maxSourceLineIndex ?? -1) + 1;
       return (
         targets: [
           for (final row in result.rows)
@@ -4260,8 +4267,11 @@ class DatabaseLibraryProvider implements LibraryProvider {
                   row['connectionTypeName'] as String? ?? 'reference',
               linkCount: (row['linkCount'] as int?) ?? 0,
             ),
+          ...external.targets,
         ],
-        maxSourceLine: (result.maxSourceLineIndex ?? -1) + 1,
+        maxSourceLine: external.maxSourceLine > maxSourceLine
+            ? external.maxSourceLine
+            : maxSourceLine,
       );
     } catch (e) {
       debugPrint('⚠️ Error in getBookLinkTargetsSummary "$title": $e');

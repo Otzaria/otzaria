@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
@@ -242,7 +243,27 @@ class TextBookRepository {
       targetBookTitles: normalizedTargetBookTitles,
     );
     if (userLinks.isEmpty && externalLinks.isEmpty) return base;
-    return [...base, ...userLinks, ...externalLinks];
+    return mergeExtraLinks(base, [...userLinks, ...externalLinks]);
+  }
+
+  /// מוסיף ל-[base] את [extra] בלי כפילויות: קישור הדדי בין שני מסדים (A→B
+  /// ו-B→A) או שורה כפולה ב-`external_link` מופיעים פעם אחת.
+  @visibleForTesting
+  static List<Link> mergeExtraLinks(List<Link> base, List<Link> extra) {
+    (int, String, int, BookSource?) keyOf(Link link) =>
+        (link.index1, link.path2, link.index2, link.targetSource);
+    final seen = {for (final link in base) keyOf(link)};
+    return [
+      ...base,
+      for (final link in extra)
+        if (seen.add((
+          link.index1,
+          link.path2,
+          link.index2,
+          link.targetSource,
+        )))
+          link,
+    ];
   }
 
   /// מפרשים שמקורם בקישורים חוצי-מסדים (`external_link`), עם המסד של כל אחד —
@@ -443,8 +464,26 @@ class TextBookRepository {
     required int startLine,
     required int endLine,
   }) async {
+    final byTitle = <String, CommentatorInfo>{};
+    final externalCounts = <String, int>{};
+    for (final link in await ExternalLinkRepository.instance.linksInRange(
+      title: book.title,
+      categoryId: book.categoryId,
+      source: book.source,
+      startLineIndex: startLine,
+      endLineIndex: endLine,
+    )) {
+      if (!LinkTypes.isDependentTextLink(link.connectionType)) continue;
+      externalCounts[link.path2] = (externalCounts[link.path2] ?? 0) + 1;
+    }
+    for (final MapEntry(key: title, value: count) in externalCounts.entries) {
+      byTitle[title] = CommentatorInfo(title: title, linkCount: count);
+    }
+    List<CommentatorInfo> sorted() =>
+        byTitle.values.toList()..sort((a, b) => a.title.compareTo(b.title));
+
     final repository = await _linksRepositoryFor(book.source);
-    if (repository == null) return const [];
+    if (repository == null) return sorted();
 
     final dbBook = book.categoryId != null
         ? await repository.getBookByTitleAndCategory(
@@ -452,7 +491,7 @@ class TextBookRepository {
             book.categoryId!,
           )
         : await repository.getBookByTitle(book.title);
-    if (dbBook == null) return const [];
+    if (dbBook == null) return sorted();
 
     // הגבול העליון בשאילתה בלעדי, בעוד ש-[endLine] כולל את שורת הסיום.
     final rows = await repository.database.linkDao
@@ -462,7 +501,6 @@ class TextBookRepository {
           endLine + 1,
         );
 
-    final byTitle = <String, CommentatorInfo>{};
     for (final row in rows) {
       final title = row['targetBookTitle'] as String;
       final count = (row['linkCount'] as int?) ?? 0;
@@ -475,7 +513,7 @@ class TextBookRepository {
         );
       }
     }
-    return byTitle.values.toList()..sort((a, b) => a.title.compareTo(b.title));
+    return sorted();
   }
 
   /// מחזיר את "המפרשים הנוספים" על הקטע שבו יושבת שורת המקור [sourceLineIndex]
@@ -494,9 +532,24 @@ class TextBookRepository {
     BookSource sourceBookSource = BookSource.official,
     BookSource currentBookSource = BookSource.official,
   }) async {
+    // מפרשים ממסדים אחרים על אותה שורת מקור, דרך `external_link`.
+    final external = [
+      for (final link in await ExternalLinkRepository.instance.linksInRange(
+        title: sourceBookTitle,
+        categoryId: sourceCategoryId,
+        source: sourceBookSource,
+        startLineIndex: sourceLineIndex,
+        endLineIndex: sourceLineIndex,
+      ))
+        if (LinkTypes.isDependentTextLink(link.connectionType) &&
+            !(link.path2 == currentBookTitle &&
+                link.targetSource == currentBookSource))
+          link,
+    ];
+
     // קישורי המפרשים במסד של ספר המקור; ספר ממקור אחר בשם זהה אינו אותו ספר.
     final repository = await _linksRepositoryFor(sourceBookSource);
-    if (repository == null) return [];
+    if (repository == null) return CommentaryService.sortLinksByEra(external);
 
     final sourceBook = sourceCategoryId != null
         ? await repository.getBookByTitleAndCategory(
@@ -504,7 +557,7 @@ class TextBookRepository {
             sourceCategoryId,
           )
         : await repository.getBookByTitle(sourceBookTitle);
-    if (sourceBook == null) return [];
+    if (sourceBook == null) return CommentaryService.sortLinksByEra(external);
 
     final currentBook = currentBookSource != sourceBookSource
         ? null
@@ -552,7 +605,7 @@ class TextBookRepository {
     }).toList();
 
     // מיון לפי דורות (ראשונים→אחרונים→…) לצורך פסי ההפרדה בתת-התפריט.
-    return CommentaryService.sortLinksByEra(links);
+    return CommentaryService.sortLinksByEra(mergeExtraLinks(links, external));
   }
 
   /// המאגר שבו יושבים קישורי [source]: seforim.db או המסד המצורף. לספר

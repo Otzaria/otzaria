@@ -6,6 +6,7 @@ import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_probe.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
+import 'package:otzaria/attached_libraries/repository/external_link_core.dart';
 import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
@@ -15,6 +16,7 @@ import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/migration/database/untrusted_database.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
@@ -393,6 +395,202 @@ void main() {
       await links.sync();
       expect(indexRows(library.slug), 1);
       expect(await externalIn(book), isEmpty);
+    });
+  });
+
+  group('חיווט לסיכומים, למפרשים בטווח ולמפרשים נוספים', () {
+    test('כיוון הפוך — סיכום, מפרשים בטווח ומפרשים נוספים', () async {
+      final library = await attach(
+        attachedDb(
+          'ext',
+          rows: [
+            _row(0, targetRef: officialRef(1)),
+            _row(1, targetLineIndex: 2),
+          ],
+        ),
+      );
+      await links.sync();
+      final book = await bookOf(
+        BookSource.official,
+        SeforimFixtureIds.bereshitTitle,
+      );
+      final source = BookSource.attached(library.slug);
+
+      final summary = await provider.getBookLinkTargetsSummary(
+        book.title,
+        book.categoryId!,
+      );
+      final entry = summary!.targets.singleWhere(
+        (t) => t.targetTitle == _commentaryTitle,
+      );
+      expect(entry.linkCount, 2);
+      expect(entry.targetSource, source);
+      expect(summary.maxSourceLine, greaterThanOrEqualTo(3));
+
+      final repository = TextBookRepository(
+        fileSystem: FileSystemData.instance,
+      );
+      final inRange = await repository.getCommentatorsInLineRange(
+        book,
+        startLine: 0,
+        endLine: 5,
+      );
+      expect(inRange.map((c) => c.title), contains(_commentaryTitle));
+
+      final siblings = await repository.getSiblingCommentaries(
+        sourceBookTitle: book.title,
+        sourceCategoryId: book.categoryId,
+        sourceLineIndex: 1,
+        currentBookTitle: 'no such book',
+        currentCategoryId: null,
+      );
+      expect(
+        siblings.where((l) => l.path2 == _commentaryTitle).single.targetSource,
+        source,
+      );
+    });
+
+    test('כיוון ישיר — סיכום, ויעד מסומן במקור שלו', () async {
+      final library = await attach(
+        attachedDb('ext', rows: [_row(0, targetLineIndex: 1)]),
+      );
+      final book = await bookOf(
+        BookSource.attached(library.slug),
+        _commentaryTitle,
+      );
+      final summary = await provider.getBookLinkTargetsSummary(
+        book.title,
+        book.categoryId!,
+        source: book.source,
+      );
+      final entry = summary!.targets.singleWhere(
+        (t) => t.targetSource == BookSource.official,
+      );
+      expect(entry.targetTitle, SeforimFixtureIds.bereshitTitle);
+      expect(entry.linkCount, 1);
+    });
+
+    test('targetSource מנורמל כמו ה-slug של המסד', () async {
+      final target = await attach(attachedDb('ext'));
+      final library = await attach(
+        attachedDb(
+          'src',
+          rows: [
+            _row(
+              0,
+              targetSource: 'EXT!',
+              targetTitle: _baseTitle,
+              targetLineIndex: 1,
+            ),
+          ],
+        ),
+      );
+      expect(target.slug, 'ext');
+      final book = await bookOf(
+        BookSource.attached(library.slug),
+        _commentaryTitle,
+      );
+      final external = await externalIn(book);
+      expect(external.single.targetSource, BookSource.attached('ext'));
+    });
+
+    test('כיוון ישיר נשמר בזיכרון — גלילה אינה פותחת מחדש את המסד', () async {
+      final path = attachedDb('ext', rows: [_row(0, targetLineIndex: 1)]);
+      final library = await attach(path);
+      final book = await bookOf(
+        BookSource.attached(library.slug),
+        _commentaryTitle,
+      );
+      final cached = ExternalLinkRepository(
+        registry: registry,
+        cacheDbPath: () async => cachePath(),
+        officialTarget: () => trustedDbTarget(officialPath),
+      );
+      Future<List<Link>> window(int start) => cached.linksInRange(
+        title: book.title,
+        categoryId: book.categoryId,
+        source: book.source,
+        startLineIndex: start,
+        endLineIndex: start + 10,
+      );
+      expect(await window(0), hasLength(1));
+
+      await registry.closeAll();
+      await provider.sqliteProvider.dispose();
+      final bytes = File(path).readAsBytesSync();
+      File(path).writeAsStringSync('not a database');
+      addTearDown(() => File(path).writeAsBytesSync(bytes));
+      expect(await window(0), hasLength(1));
+      expect(await window(5), isEmpty);
+    });
+
+    test('קישור כפול או הדדי מופיע פעם אחת', () {
+      Link link(int index2, BookSource target) => Link(
+        heRef: 'x',
+        index1: 1,
+        path2: 'p',
+        index2: index2,
+        connectionType: 'COMMENTARY',
+        targetSource: target,
+      );
+      final merged = TextBookRepository.mergeExtraLinks(
+        [link(1, BookSource.official)],
+        [
+          link(1, BookSource.official),
+          link(2, BookSource.attached('a')),
+          link(2, BookSource.attached('a')),
+          link(2, BookSource.attached('b')),
+        ],
+      );
+      expect(merged.map((l) => (l.index2, l.targetSource)), [
+        (1, BookSource.official),
+        (2, BookSource.attached('a')),
+        (2, BookSource.attached('b')),
+      ]);
+    });
+  });
+
+  group('מסד עוין או ענק', () {
+    test('מעל תקרת השורות — מדולג, מסומן, ולא נבנה שוב עד שינוי', () async {
+      final previous = ExternalLinkRepository.maxIndexRows;
+      addTearDown(() => ExternalLinkRepository.maxIndexRows = previous);
+      ExternalLinkRepository.maxIndexRows = 1;
+      final path = attachedDb(
+        'ext',
+        rows: [_row(0, targetLineIndex: 1), _row(1, targetLineIndex: 2)],
+      );
+      final library = await attach(path);
+      expect(await links.sync(), isEmpty);
+      expect(indexRows(library.slug), 0);
+      expect(await links.sync(), isEmpty);
+
+      ExternalLinkRepository.maxIndexRows = previous;
+      expect(await links.sync(), isEmpty);
+      touch(path);
+      await attached.rescan();
+      expect(await links.sync(), {library.slug});
+      expect(indexRows(library.slug), 2);
+    });
+
+    test('כותרת יעד ארוכה מדי אינה נפתרת', () async {
+      final library = await attach(
+        attachedDb(
+          'ext',
+          rows: [
+            _row(
+              0,
+              targetTitle: 'x' * (kMaxExternalTextLength + 1),
+              targetLineIndex: 1,
+            ),
+            _row(1, targetLineIndex: 2),
+          ],
+        ),
+      );
+      final book = await bookOf(
+        BookSource.attached(library.slug),
+        _commentaryTitle,
+      );
+      expect(await externalIn(book), hasLength(1));
     });
   });
 }

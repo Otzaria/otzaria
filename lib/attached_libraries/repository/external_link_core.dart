@@ -1,3 +1,4 @@
+import 'package:otzaria/attached_libraries/repository/attached_library_probe.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/migration/database/db_capabilities.dart';
 import 'package:otzaria/migration/database/untrusted_database.dart';
@@ -74,16 +75,17 @@ class ExternalTargetResolver {
           if (t.wireKey != excludeWireKey) t,
       ];
     }
-    final lower = requested.toLowerCase();
-    if (lower == kExternalTargetOfficial) {
+    if (requested.toLowerCase() == kExternalTargetOfficial) {
       return [
         for (final t in targets)
           if (t.slug == null) t,
       ];
     }
+    // אותה נורמליזציה שבה נגזר ה-slug של המסד מ-library_id.
+    final slug = AttachedLibraryProbe.sanitizeSlug(requested);
     return [
       for (final t in targets)
-        if (t.slug != null && t.slug == lower) t,
+        if (t.slug != null && t.slug == slug) t,
     ];
   }
 
@@ -98,23 +100,37 @@ class ExternalTargetResolver {
     });
   }
 
+  /// תקרת הכותרות שנשמרות בזיכרון — מסד עוין עם מיליוני יעדים שונים.
+  static const maxCachedTitles = 4096;
+
   List<(int, int?)> _booksByTitle(ExternalTargetDb target, String title) {
-    return _books.putIfAbsent((target.wireKey, title), () {
-      final connection = _connection(target);
-      if (connection == null) return const [];
-      final (db, caps) = connection;
-      if (!caps.hasBooks) return const [];
-      final category = caps.hasBookCategories ? 'categoryId' : 'NULL';
+    final key = (target.wireKey, title);
+    final cached = _books[key];
+    if (cached != null) return cached;
+    if (_books.length >= maxCachedTitles) _books.clear();
+    return _books[key] = _queryBooks(target, title);
+  }
+
+  List<(int, int?)> _queryBooks(ExternalTargetDb target, String title) {
+    final connection = _connection(target);
+    if (connection == null) return const [];
+    final (db, caps) = connection;
+    if (!caps.hasBooks) return const [];
+    final category = caps.hasBookCategories ? 'categoryId' : 'NULL';
+    try {
       return [
         for (final row in db.select(
           'SELECT id, $category AS categoryId FROM book WHERE title = ? '
-          'ORDER BY id',
+          'ORDER BY id LIMIT 64',
           [title],
         ))
           if (_int(row['id']) != null)
             (row['id'] as int, _int(row['categoryId'])),
       ];
-    });
+    } catch (_) {
+      // מסד יעד פגום אינו מפיל את פתרון שאר הקישורים.
+      return const [];
+    }
   }
 
   /// המסד הראשון מבין המועמדים שיש בו ספר בשם [targetTitle].
@@ -143,10 +159,33 @@ class ExternalTargetResolver {
     // הספר נמצא במסד הראשון — לא ממשיכים למסד אחר גם אם השורה לא נפתרה.
     final target = bookDatabase(targetSource, targetTitle);
     if (target == null) return null;
+    try {
+      return _resolveIn(target, targetTitle, targetRef, targetLineIndex);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  ({
+    ExternalTargetDb target,
+    int bookId,
+    int? categoryId,
+    int lineIndex,
+    String? heRef,
+  })?
+  _resolveIn(
+    ExternalTargetDb target,
+    String targetTitle,
+    String? targetRef,
+    int? targetLineIndex,
+  ) {
     final books = _booksByTitle(target, targetTitle);
     final (db, caps) = _connection(target)!;
     final ref = _text(targetRef);
-    if (ref != null && caps.hasLineRef) {
+    if (ref != null &&
+        caps.hasLineRef &&
+        caps.hasColumn('line', 'heRef') &&
+        caps.hasColumn('line_ref', 'refKeyHash')) {
       final hit = _byRef(db, books, targetTitle, ref);
       if (hit != null) {
         return (
@@ -235,6 +274,7 @@ List<ResolvedExternalLink> readResolvedExternalLinks({
   required List<ExternalTargetDb> targets,
   ({String title, int? categoryId})? book,
   (int, int)? lineRange,
+  int maxRows = kMaxExternalLinkRows,
 }) {
   final db = openReadOnlyTarget(source);
   final resolver = ExternalTargetResolver(
@@ -256,8 +296,8 @@ List<ResolvedExternalLink> readResolvedExternalLinks({
         ? '(SELECT heRef FROM line l WHERE l.bookId = e.sourceBookId '
               'AND l.lineIndex = e.sourceLineIndex LIMIT 1)'
         : 'NULL';
-    final rows = db.select(
-      '''
+    // קריאה בזרם עם תקרה: מסד עוין או ענק לא ימלא את הזיכרון ויפיל את התהליך.
+    final statement = db.prepare('''
       SELECT e.sourceBookId AS sourceBookId, e.sourceLineIndex AS sourceLineIndex,
         b.title AS sourceTitle, $category AS sourceCategoryId,
         $heRef AS sourceHeRef, e.targetTitle AS targetTitle,
@@ -268,53 +308,89 @@ List<ResolvedExternalLink> readResolvedExternalLinks({
         ${bookId != null ? 'AND e.sourceBookId = ?' : ''}
         ${lineRange != null ? 'AND e.sourceLineIndex BETWEEN ? AND ?' : ''}
       ORDER BY e.sourceBookId, e.sourceLineIndex
-      ''',
-      [
+      LIMIT ?
+      ''');
+    final result = <ResolvedExternalLink>[];
+    try {
+      final cursor = statement.selectCursor([
         ?bookId,
         if (lineRange != null) ...[lineRange.$1, lineRange.$2],
-      ],
-    );
-
-    final result = <ResolvedExternalLink>[];
-    for (final row in rows) {
-      final sourceBook = _int(row['sourceBookId']);
-      final sourceLine = _int(row['sourceLineIndex']);
-      final sourceTitle = _text(row['sourceTitle']);
-      final targetTitle = _text(row['targetTitle']);
-      if (sourceBook == null ||
-          sourceLine == null ||
-          sourceTitle == null ||
-          targetTitle == null) {
-        continue;
+        maxRows + 1,
+      ]);
+      var count = 0;
+      while (cursor.moveNext()) {
+        if (++count > maxRows) {
+          throw const ExternalLinksTooLargeException();
+        }
+        final resolved = _resolveRow(cursor.current, resolver);
+        if (resolved != null) result.add(resolved);
       }
-      final resolved = resolver.resolve(
-        targetSource: _text(row['targetSource']),
-        targetTitle: targetTitle,
-        targetRef: _text(row['targetRef']),
-        targetLineIndex: _int(row['targetLineIndex']),
-      );
-      if (resolved == null) continue;
-      final type = LinkTypes.normalize(_text(row['connectionType']));
-      result.add((
-        sourceBookId: sourceBook,
-        sourceTitle: sourceTitle,
-        sourceCategoryId: _int(row['sourceCategoryId']),
-        sourceLineIndex: sourceLine,
-        sourceHeRef: _text(row['sourceHeRef']),
-        targetWireKey: resolved.target.wireKey,
-        targetTitle: targetTitle,
-        targetCategoryId: resolved.categoryId,
-        targetBookId: resolved.bookId,
-        targetLineIndex: resolved.lineIndex,
-        targetHeRef: resolved.heRef,
-        connectionType: type.isEmpty ? LinkTypes.reference : type,
-      ));
+    } finally {
+      statement.close();
     }
     return result;
   } finally {
     resolver.close();
     db.close();
   }
+}
+
+/// תקרת השורות שנקראות מ-`external_link` של מסד אחד; מעליה המסד מדולג.
+const kMaxExternalLinkRows = 500000;
+
+/// תקרת אורך לכותרת ולהפניה של יעד — ערך עוין ארוך אינו נשמר ואינו נפתר.
+const kMaxExternalTextLength = 512;
+
+/// `external_link` של המסד עובר את תקרת השורות.
+class ExternalLinksTooLargeException implements Exception {
+  const ExternalLinksTooLargeException();
+
+  @override
+  String toString() => 'external_link exceeds the row limit';
+}
+
+String? _boundedText(Object? value) {
+  final text = _text(value);
+  if (text == null || text.length <= kMaxExternalTextLength) return text;
+  return text.substring(0, kMaxExternalTextLength);
+}
+
+ResolvedExternalLink? _resolveRow(
+  sqlite3.Row row,
+  ExternalTargetResolver resolver,
+) {
+  final sourceBook = _int(row['sourceBookId']);
+  final sourceLine = _int(row['sourceLineIndex']);
+  final sourceTitle = _boundedText(row['sourceTitle']);
+  final targetTitle = _boundedText(row['targetTitle']);
+  if (sourceBook == null ||
+      sourceLine == null ||
+      sourceTitle == null ||
+      targetTitle == null) {
+    return null;
+  }
+  final resolved = resolver.resolve(
+    targetSource: _boundedText(row['targetSource']),
+    targetTitle: targetTitle,
+    targetRef: _boundedText(row['targetRef']),
+    targetLineIndex: _int(row['targetLineIndex']),
+  );
+  if (resolved == null) return null;
+  final type = LinkTypes.normalize(_boundedText(row['connectionType']));
+  return (
+    sourceBookId: sourceBook,
+    sourceTitle: sourceTitle,
+    sourceCategoryId: _int(row['sourceCategoryId']),
+    sourceLineIndex: sourceLine,
+    sourceHeRef: _boundedText(row['sourceHeRef']),
+    targetWireKey: resolved.target.wireKey,
+    targetTitle: targetTitle,
+    targetCategoryId: resolved.categoryId,
+    targetBookId: resolved.bookId,
+    targetLineIndex: resolved.lineIndex,
+    targetHeRef: _boundedText(resolved.heRef),
+    connectionType: type.isEmpty ? LinkTypes.reference : type,
+  );
 }
 
 int? _selectBookId(
@@ -326,59 +402,10 @@ int? _selectBookId(
   final byCategory = categoryId != null && caps.hasBookCategories;
   final rows = db.select(
     byCategory
-        ? 'SELECT id FROM book WHERE title = ? AND categoryId = ? LIMIT 1'
-        : 'SELECT id FROM book WHERE title = ? LIMIT 1',
+        ? 'SELECT id FROM book WHERE title = ? AND categoryId = ? '
+              'ORDER BY id LIMIT 1'
+        : 'SELECT id FROM book WHERE title = ? ORDER BY id LIMIT 1',
     [title, if (byCategory) categoryId],
   );
   return rows.isEmpty ? null : _int(rows.first['id']);
-}
-
-/// היעדים שספר [book] במסד [source] מקושר אליהם ב-`external_link`, ברמת ספר
-/// בלבד (בלי פתרון שורות) — לבניית רשימת המפרשים.
-List<({String targetTitle, String targetWireKey, String connectionType})>
-readExternalLinkTargets({
-  required ReadOnlyDbTarget source,
-  required String sourceWireKey,
-  required List<ExternalTargetDb> targets,
-  required String title,
-  required int? categoryId,
-}) {
-  final db = openReadOnlyTarget(source);
-  final resolver = ExternalTargetResolver(
-    targets,
-    excludeWireKey: sourceWireKey,
-  );
-  try {
-    final caps = DbCapabilities.probe(db);
-    if (!caps.hasExternalLinks) return const [];
-    final bookId = _selectBookId(db, caps, title, categoryId);
-    if (bookId == null) return const [];
-    final rows = db.select(
-      'SELECT DISTINCT ${caps.column('external_link', 'targetSource')}, '
-      'targetTitle, ${caps.column('external_link', 'connectionType')} '
-      'FROM external_link WHERE sourceBookId = ?',
-      [bookId],
-    );
-    final result =
-        <({String targetTitle, String targetWireKey, String connectionType})>[];
-    for (final row in rows) {
-      final targetTitle = _text(row['targetTitle']);
-      if (targetTitle == null) continue;
-      final target = resolver.bookDatabase(
-        _text(row['targetSource']),
-        targetTitle,
-      );
-      if (target == null) continue;
-      final type = LinkTypes.normalize(_text(row['connectionType']));
-      result.add((
-        targetTitle: targetTitle,
-        targetWireKey: target.wireKey,
-        connectionType: type.isEmpty ? LinkTypes.reference : type,
-      ));
-    }
-    return result;
-  } finally {
-    resolver.close();
-    db.close();
-  }
 }

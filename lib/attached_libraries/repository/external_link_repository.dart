@@ -72,20 +72,28 @@ class ExternalLinkRepository {
   }
 
   Future<String?> _currentOfficialVersion() {
-    return _officialVersion ??= () async {
-      final target = _officialDb();
-      String? version;
-      if (target != null) {
-        try {
-          version = await _inIsolate(_readOfficialVersion, target);
-        } catch (e) {
-          debugPrint('[ExternalLinks] official version: $e');
-        }
+    final existing = _officialVersion;
+    if (existing != null) return existing;
+    final future = _readCurrentOfficialVersion();
+    _officialVersion = future;
+    // אין מסד — לא שומרים null לתמיד; ננסה שוב בפעם הבאה.
+    future.then((version) {
+      if (version == null && identical(_officialVersion, future)) {
+        _officialVersion = null;
       }
-      // אין מסד — לא שומרים null לתמיד; ננסה שוב בפעם הבאה.
-      if (version == null) _officialVersion = null;
-      return version;
-    }();
+    });
+    return future;
+  }
+
+  Future<String?> _readCurrentOfficialVersion() async {
+    final target = _officialDb();
+    if (target == null) return null;
+    try {
+      return await _inIsolate(_readOfficialVersion, target);
+    } catch (e) {
+      debugPrint('[ExternalLinks] official version: $e');
+      return null;
+    }
   }
 
   Future<List<ExternalTargetDb>> _targets() async {
@@ -141,20 +149,17 @@ class ExternalLinkRepository {
     try {
       if (_withExternalLinks.isEmpty) return const [];
       final links = [
-        ...await _forwardLinks(
+        for (final row in await _forwardBookRows(title, categoryId, source))
+          if (row.sourceLineIndex >= startLineIndex &&
+              row.sourceLineIndex <= endLineIndex)
+            _forwardLink(row),
+        for (final row in await _reverseRows(
           title,
           categoryId,
           source,
-          startLineIndex,
-          endLineIndex,
-        ),
-        ...await _reverseLinks(
-          title,
-          categoryId,
-          source,
-          startLineIndex,
-          endLineIndex,
-        ),
+          lineRange: (startLineIndex, endLineIndex),
+        ))
+          _reverseLink(row),
       ];
       return _filterCommentators(links, targetBookTitles);
     } catch (e) {
@@ -163,12 +168,89 @@ class ExternalLinkRepository {
     }
   }
 
-  Future<List<Link>> _forwardLinks(
+  static Link _forwardLink(ResolvedExternalLink row) => Link(
+    heRef: row.targetHeRef ?? row.targetTitle,
+    index1: row.sourceLineIndex + 1,
+    path2: row.targetTitle,
+    index2: row.targetLineIndex + 1,
+    connectionType: row.connectionType,
+    targetCategoryId: row.targetCategoryId,
+    targetBookId: row.targetBookId,
+    targetSource: BookSource.tryParse(row.targetWireKey) ?? BookSource.official,
+  );
+
+  static Link _reverseLink(_ReverseRow row) => Link(
+    heRef: row.sourceHeRef ?? row.sourceTitle,
+    index1: row.targetLineIndex + 1,
+    path2: row.sourceTitle,
+    index2: row.sourceLineIndex + 1,
+    connectionType: inverseExternalConnectionType(row.connectionType),
+    targetCategoryId: row.sourceCategoryId,
+    targetBookId: row.sourceBookId,
+    targetSource: BookSource.attached(row.sourceSlug),
+  );
+
+  /// סיכום הקישורים החיצוניים של הספר כולו לפי (יעד, סוג), מנקודת המבט של
+  /// הספר הנקרא, והשורה הגבוהה ביותר שיש עליה קישור (1-based; 0 אם אין).
+  Future<({List<LinkTargetSummary> targets, int maxSourceLine})>
+  targetsSummary({
+    required String title,
+    required int? categoryId,
+    required BookSource source,
+  }) async {
+    const empty = (targets: <LinkTargetSummary>[], maxSourceLine: 0);
+    if (source.isUser) return empty;
+    try {
+      if (_withExternalLinks.isEmpty) return empty;
+      final counts = <(String, String, BookSource), int>{};
+      var maxLine = -1;
+      void add(String target, String type, BookSource targetSource, int line) {
+        final key = (target, type, targetSource);
+        counts[key] = (counts[key] ?? 0) + 1;
+        if (line > maxLine) maxLine = line;
+      }
+
+      for (final row in await _forwardBookRows(title, categoryId, source)) {
+        add(
+          row.targetTitle,
+          row.connectionType,
+          BookSource.tryParse(row.targetWireKey) ?? BookSource.official,
+          row.sourceLineIndex,
+        );
+      }
+      for (final row in await _reverseRows(title, categoryId, source)) {
+        add(
+          row.sourceTitle,
+          inverseExternalConnectionType(row.connectionType),
+          BookSource.attached(row.sourceSlug),
+          row.targetLineIndex,
+        );
+      }
+      return (
+        targets: [
+          for (final MapEntry(key: (target, type, targetSource), :value)
+              in counts.entries)
+            LinkTargetSummary(
+              targetTitle: target,
+              connectionType: type,
+              linkCount: value,
+              targetSource: targetSource,
+            ),
+        ],
+        maxSourceLine: maxLine + 1,
+      );
+    } catch (e) {
+      debugPrint('[ExternalLinks] summary "$title": $e');
+      return empty;
+    }
+  }
+
+  /// הקישורים הישירים של הספר כולו, פתורים — נשמרים לפי ספר וגרסאות המסדים,
+  /// כך שגלילה אינה פותחת מחדש את מסדי היעד בכל חלון.
+  Future<List<ResolvedExternalLink>> _forwardBookRows(
     String title,
     int? categoryId,
     BookSource source,
-    int start,
-    int end,
   ) async {
     final slug = source.attachedSlug;
     final library = slug == null ? null : _registry.libraryFor(slug);
@@ -179,68 +261,107 @@ class ExternalLinkRepository {
       return const [];
     }
     final targets = await _targets();
+    final key = _cacheKey([
+      source.wireKey,
+      library.path,
+      if (library.fingerprint case final fingerprint?)
+        fingerprintKey(fingerprint),
+      for (final t in targets) '${t.wireKey}=${t.version}',
+      title,
+      '$categoryId',
+    ]);
+    final cached = _forwardCache.remove(key);    if (cached != null) return _forwardCache[key] = cached;
+
     final sourceTarget = (
       path: library.path,
       untrusted: true,
       immutable: library.immutable,
     );
-    final sourceWireKey = source.wireKey;
-    final rows = await _inIsolate(
+    final future = _inIsolate(
       _forwardRows,
-      (sourceTarget, sourceWireKey, targets, title, categoryId, (start, end)),
+      (sourceTarget, source.wireKey, targets, title, categoryId),
     );
-    return [
-      for (final row in rows)
-        Link(
-          heRef: row.targetHeRef ?? row.targetTitle,
-          index1: row.sourceLineIndex + 1,
-          path2: row.targetTitle,
-          index2: row.targetLineIndex + 1,
-          connectionType: row.connectionType,
-          targetCategoryId: row.targetCategoryId,
-          targetBookId: row.targetBookId,
-          targetSource:
-              BookSource.tryParse(row.targetWireKey) ?? BookSource.official,
-        ),
-    ];
+    _forwardCache[key] = future;
+    if (_forwardCache.length > _forwardCacheSize) {
+      _forwardCache.remove(_forwardCache.keys.first);
+    }
+    future.then<void>(
+      (_) {},
+      onError: (Object _) {
+        if (identical(_forwardCache[key], future)) _forwardCache.remove(key);
+      },
+    );
+    return future;
   }
 
-  Future<List<Link>> _reverseLinks(
+  static const _forwardCacheSize = 8;
+  final Map<String, Future<List<ResolvedExternalLink>>> _forwardCache = {};
+
+  /// שורות האינדקס ההפוך שמצביעות אל הספר. בלי [lineRange] — הספר כולו.
+  Future<List<_ReverseRow>> _reverseRows(
     String title,
     int? categoryId,
-    BookSource source,
-    int start,
-    int end,
-  ) async {
+    BookSource source, {
+    (int, int)? lineRange,
+    String? connectionType,
+  }) async {
     _maybeSyncAfterReset();
     final served = _servedSources(exclude: source);
+    if (served.isEmpty) return const [];
     final version = await _versionOf(source);
-    if (served.isEmpty || version == null) return const [];
+    if (version == null) return const [];
     final path = await _cacheDbPath();
     final targetWireKey = source.wireKey;
-    final rows = await _inIsolate(_queryReverseRows, (
+    // יציאה מוקדמת בלי isolate על cache.db לספר שאין אליו קישור הפוך.
+    final indexed = await _indexedTargets(path, served);
+    if (!indexed.contains(_targetKey(targetWireKey, title))) return const [];
+    return _inIsolate(_queryReverseRows, (
       path: path,
       served: served,
       targetWireKey: targetWireKey,
       targetVersion: version,
       targetTitle: title,
       targetCategoryId: categoryId,
-      lineRange: (start, end),
-      connectionType: null,
+      lineRange: lineRange,
+      connectionType: connectionType,
     ));
-    return [
-      for (final row in rows)
-        Link(
-          heRef: row.sourceHeRef ?? row.sourceTitle,
-          index1: row.targetLineIndex + 1,
-          path2: row.sourceTitle,
-          index2: row.sourceLineIndex + 1,
-          connectionType: inverseExternalConnectionType(row.connectionType),
-          targetCategoryId: row.sourceCategoryId,
-          targetBookId: row.sourceBookId,
-          targetSource: BookSource.attached(row.sourceSlug),
-        ),
-    ];
+  }
+
+  static String _targetKey(String wireKey, String title) =>
+      _cacheKey([wireKey, title]);
+
+  /// מפתח מטמון מרכיבים שעשויים להכיל כל תו — מופרדים בתו NUL.
+  static String _cacheKey(List<String> parts) => parts.join('\u0000');
+
+  Future<Set<String>> _indexedTargets(
+    String path,
+    Map<String, String> served,
+  ) {
+    final key = [
+      for (final entry in served.entries) '${entry.key}=${entry.value}',
+    ].join(';');
+    final cached = _indexedTargetsCache;
+    if (cached != null && cached.key == key) return cached.titles;
+    final titles = _inIsolate(_queryIndexedTargets, (path, served));
+    _indexedTargetsCache = (key: key, titles: titles);
+    titles.then<void>(
+      (_) {},
+      onError: (Object _) {
+        if (identical(_indexedTargetsCache?.titles, titles)) {
+          _indexedTargetsCache = null;
+        }
+      },
+    );
+    return titles;
+  }
+
+  ({String key, Future<Set<String>> titles})? _indexedTargetsCache;
+
+  /// מה שנגזר מהאינדקס ההפוך מתאפס כשהוא נבנה מחדש. המטמון הישיר אינו תלוי
+  /// בו — המפתח שלו כולל את גרסאות המסדים.
+  void _invalidateIndexCaches() {
+    _indexedTargetsCache = null;
+    _commentatorSourcesCache.clear();
   }
 
   /// slug → טביעת האצבע, לכל מסד מצורף תקין שאינו [exclude]. שורות של מסד לא
@@ -252,61 +373,57 @@ class ExternalLinkRepository {
   };
 
   /// המפרשים שמקורם בקישורים חיצוניים, עם המסד שממנו כל אחד — לסיווג לדורות
-  /// לפי המסד שלו.
+  /// לפי המסד שלו. פתיחת ספר מבקשת אותם פעמיים, ולכן התוצאה נשמרת.
   Future<Map<String, BookSource>> commentatorSources({
     required String title,
     required int? categoryId,
     required BookSource source,
-  }) async {
-    if (source.isUser) return const {};
+  }) {
+    if (source.isUser || _withExternalLinks.isEmpty) {
+      return Future.value(const {});
+    }
+    final key = _cacheKey([
+      source.wireKey,
+      title,
+      '$categoryId',
+      for (final entry in _servedSources(exclude: source).entries)
+        '${entry.key}=${entry.value}',
+    ]);
+    final cached = _commentatorSourcesCache.remove(key);
+    if (cached != null) return _commentatorSourcesCache[key] = cached;
+    final future = _readCommentatorSources(title, categoryId, source);
+    _commentatorSourcesCache[key] = future;
+    if (_commentatorSourcesCache.length > _forwardCacheSize) {
+      _commentatorSourcesCache.remove(_commentatorSourcesCache.keys.first);
+    }
+    return future;
+  }
+
+  final Map<String, Future<Map<String, BookSource>>> _commentatorSourcesCache =
+      {};
+
+  Future<Map<String, BookSource>> _readCommentatorSources(
+    String title,
+    int? categoryId,
+    BookSource source,
+  ) async {
     final result = <String, BookSource>{};
     try {
-      if (_withExternalLinks.isEmpty) return const {};
-      final slug = source.attachedSlug;
-      final library = slug == null ? null : _registry.libraryFor(slug);
-      if (library != null &&
-          library.capabilities.contains(
-            AttachedLibraryCapability.externalLinks,
-          )) {
-        final targets = await _targets();
-        final sourceTarget = (
-          path: library.path,
-          untrusted: true,
-          immutable: library.immutable,
-        );
-        final sourceWireKey = source.wireKey;
-        final rows = await _inIsolate(
-          _forwardTargets,
-          (sourceTarget, sourceWireKey, targets, title, categoryId),
-        );
-        for (final row in rows) {
-          if (!LinkTypes.isDependentTextLink(row.connectionType)) continue;
-          final target = BookSource.tryParse(row.targetWireKey);
-          if (target != null) result.putIfAbsent(row.targetTitle, () => target);
-        }
+      for (final row in await _forwardBookRows(title, categoryId, source)) {
+        if (!LinkTypes.isDependentTextLink(row.connectionType)) continue;
+        final target = BookSource.tryParse(row.targetWireKey);
+        if (target != null) result.putIfAbsent(row.targetTitle, () => target);
       }
-
-      final served = _servedSources(exclude: source);
-      final version = await _versionOf(source);
-      if (served.isNotEmpty && version != null) {
-        final path = await _cacheDbPath();
-        final targetWireKey = source.wireKey;
-        final rows = await _inIsolate(_queryReverseRows, (
-          path: path,
-          served: served,
-          targetWireKey: targetWireKey,
-          targetVersion: version,
-          targetTitle: title,
-          targetCategoryId: categoryId,
-          lineRange: null,
-          connectionType: LinkTypes.source,
-        ));
-        for (final row in rows) {
-          result.putIfAbsent(
-            row.sourceTitle,
-            () => BookSource.attached(row.sourceSlug),
-          );
-        }
+      for (final row in await _reverseRows(
+        title,
+        categoryId,
+        source,
+        connectionType: LinkTypes.source,
+      )) {
+        result.putIfAbsent(
+          row.sourceTitle,
+          () => BookSource.attached(row.sourceSlug),
+        );
       }
     } catch (e) {
       debugPrint('[ExternalLinks] commentators "$title": $e');
@@ -336,9 +453,10 @@ class ExternalLinkRepository {
 
   Future<Set<String>> _sync() async {
     final libraries = _registry.libraries;
+    // בלי מסדים מצורפים — ניקוי בלבד, ורק אם נבנה אי-פעם אינדקס.
+    if (libraries.isEmpty && _indexKnownAbsent) return const {};
     final path = await _cacheDbPath();
     if (libraries.isEmpty && !await File(path).exists()) return const {};
-    final targets = await _targets();
     final jobs = [
       for (final library in libraries)
         (
@@ -360,12 +478,32 @@ class ExternalLinkRepository {
           ),
         ),
     ];
-    return _inIsolate(_syncIndexEntry, (
-      path,
-      jobs,
-      targets,
-    ));
+    // פתיחת המסדים לחישוב הגרסאות — רק כשיש מה לבנות.
+    final targets = jobs.any((job) => job.status == _SyncStatus.build)
+        ? await _targets()
+        : const <ExternalTargetDb>[];
+    try {
+      final result = await _inIsolate(_syncIndexEntry, (
+        path,
+        jobs,
+        targets,
+        maxIndexRows,
+      ));
+      _indexKnownAbsent = jobs.isEmpty && result.hadIndex == false;
+      if (result.rebuilt.isNotEmpty) _invalidateIndexCaches();
+      return result.rebuilt;
+    } catch (_) {
+      _invalidateIndexCaches();
+      rethrow;
+    }
   }
+
+  /// תקרת השורות למסד אחד בבניית האינדקס — עוברת ל-isolate כארגומנט.
+  @visibleForTesting
+  static int maxIndexRows = kMaxExternalLinkRows;
+
+  /// אחרי סנכרון שמצא cache.db בלי אינדקס ובלי מסדים — אין מה לנקות עוד.
+  bool _indexKnownAbsent = false;
 }
 
 /// מריץ את [computation] ב-isolate. הסגור נבנה כאן, מחוץ למתודת מופע, כדי
@@ -374,37 +512,51 @@ Future<R> _inIsolate<A, R>(R Function(A) computation, A argument) =>
     Isolate.run(() => computation(argument));
 
 List<ResolvedExternalLink> _forwardRows(
-  (
-    ReadOnlyDbTarget,
-    String,
-    List<ExternalTargetDb>,
-    String,
-    int?,
-    (int, int),
-  )
-  args,
+  (ReadOnlyDbTarget, String, List<ExternalTargetDb>, String, int?) args,
 ) => readResolvedExternalLinks(
   source: args.$1,
   sourceWireKey: args.$2,
   targets: args.$3,
   book: (title: args.$4, categoryId: args.$5),
-  lineRange: args.$6,
 );
 
-List<({String targetTitle, String targetWireKey, String connectionType})>
-_forwardTargets(
-  (ReadOnlyDbTarget, String, List<ExternalTargetDb>, String, int?) args,
-) => readExternalLinkTargets(
-  source: args.$1,
-  sourceWireKey: args.$2,
-  targets: args.$3,
-  title: args.$4,
-  categoryId: args.$5,
-);
+/// כל היעדים (wireKey + כותרת) שיש אליהם שורות מוגשות באינדקס ההפוך.
+Set<String> _queryIndexedTargets((String, Map<String, String>) args) {
+  final (path, served) = args;
+  if (!File(path).existsSync()) return const {};
+  final db = _openCacheDb(path);
+  try {
+    if (!_hasTable(db, _indexTable) || !_hasTable(db, _metaTable)) {
+      return const {};
+    }
+    final pairs = served.entries.toList();
+    final pairPlaceholders = List.filled(pairs.length, '(?, ?)').join(', ');
+    return {
+      for (final row in db.select(
+        '''
+        WITH served(slug, fingerprint) AS (VALUES $pairPlaceholders)
+        SELECT DISTINCT i.targetSource, i.targetTitle
+        FROM $_indexTable i
+        JOIN $_metaTable m ON m.sourceSlug = i.sourceSlug
+        JOIN served s ON s.slug = m.sourceSlug AND s.fingerprint = m.fingerprint
+        ''',
+        [
+          for (final pair in pairs) ...[pair.key, pair.value],
+        ],
+      ))
+        ExternalLinkRepository._targetKey(
+          row['targetSource'] as String,
+          row['targetTitle'] as String,
+        ),
+    };
+  } finally {
+    db.close();
+  }
+}
 
-Set<String> _syncIndexEntry(
-  (String, List<_SyncJob>, List<ExternalTargetDb>) args,
-) => _syncIndex(args.$1, args.$2, args.$3);
+_SyncResult _syncIndexEntry(
+  (String, List<_SyncJob>, List<ExternalTargetDb>, int) args,
+) => _syncIndex(args.$1, args.$2, args.$3, maxRows: args.$4);
 
 enum _SyncStatus { build, clear, keep }
 
@@ -578,15 +730,26 @@ List<_ReverseRow> _queryReverseRows(_ReverseQuery query) {
   }
 }
 
-Set<String> _syncIndex(
+typedef _SyncResult = ({Set<String> rebuilt, bool hadIndex});
+
+/// גודל מנת הכנסה — טרנזקציה קצרה, כדי שכותבים אחרים ל-cache.db לא יקבלו BUSY.
+const _insertBatchSize = 5000;
+
+/// סימון שנכתב ל-meta לפני הבנייה: אם הוא נשאר (קריסה, מסד גדול מדי), הבנייה
+/// לא תנוסה שוב עד שהקובץ או מסדי היעד ישתנו.
+String _buildingMarker(String signature) => '!building:$signature';
+
+_SyncResult _syncIndex(
   String path,
   List<_SyncJob> jobs,
-  List<ExternalTargetDb> targets,
-) {
+  List<ExternalTargetDb> targets, {
+  int maxRows = kMaxExternalLinkRows,
+}) {
   final db = _openCacheDb(path);
   try {
+    final hadIndex = _hasTable(db, _metaTable);
     // בלי מסדים מצורפים לא יוצרים טבלאות ב-cache.db של משתמש שלא צירף מעולם.
-    if (jobs.isEmpty && !_hasTable(db, _metaTable)) return const {};
+    if (jobs.isEmpty && !hadIndex) return (rebuilt: const {}, hadIndex: false);
     _ensureSchema(db);
     final known = {for (final job in jobs) job.slug};
     final stored = {
@@ -604,6 +767,13 @@ Set<String> _syncIndex(
       db.execute('DELETE FROM $_targetTable WHERE sourceSlug = ?', [slug]);
       db.execute('DELETE FROM $_metaTable WHERE sourceSlug = ?', [slug]);
     }
+
+    void writeMeta(String slug, String fingerprint, String signature) =>
+        db.execute('INSERT OR REPLACE INTO $_metaTable VALUES (?, ?, ?)', [
+          slug,
+          fingerprint,
+          signature,
+        ]);
 
     for (final slug in stored.keys) {
       if (!known.contains(slug)) _transaction(db, () => clear(slug));
@@ -633,47 +803,59 @@ Set<String> _syncIndex(
       final previous = stored[job.slug];
       if (previous != null &&
           previous.$1 == job.fingerprint &&
-          previous.$2 == signature) {
+          (previous.$2 == signature ||
+              previous.$2 == _buildingMarker(signature))) {
         continue;
       }
+      _transaction(
+        db,
+        () => writeMeta(job.slug, job.fingerprint, _buildingMarker(signature)),
+      );
       List<ResolvedExternalLink> rows;
       try {
         rows = readResolvedExternalLinks(
           source: job.source,
           sourceWireKey: wireKey,
           targets: jobTargets,
+          maxRows: maxRows,
         );
+      } on ExternalLinksTooLargeException {
+        // הסימון נשאר — לא ננסה שוב עד שהקובץ ישתנה.
+        _transaction(db, () {
+          clear(job.slug);
+          writeMeta(job.slug, job.fingerprint, _buildingMarker(signature));
+        });
+        continue;
       } catch (_) {
         // מסד שלא נקרא כעת — נשאר עם השורות הקודמות, וננסה בסנכרון הבא.
+        _transaction(db, () {
+          if (previous == null) {
+            db.execute('DELETE FROM $_metaTable WHERE sourceSlug = ?', [
+              job.slug,
+            ]);
+          } else {
+            writeMeta(job.slug, previous.$1, previous.$2);
+          }
+        });
         continue;
       }
+      // שורות בלי שורת יעד ב-_targetTable אינן מוגשות, ולכן הבנייה במנות
+      // אינה חושפת אינדקס חלקי.
       _transaction(db, () {
-        clear(job.slug);
-        final insert = db.prepare(
-          'INSERT INTO $_indexTable (sourceSlug, sourceBookId, sourceTitle, '
-          'sourceCategoryId, sourceLineIndex, sourceHeRef, targetSource, '
-          'targetTitle, targetCategoryId, targetLineIndex, connectionType) '
-          'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        );
-        try {
-          for (final r in rows) {
-            insert.execute([
-              job.slug,
-              r.sourceBookId,
-              r.sourceTitle,
-              r.sourceCategoryId,
-              r.sourceLineIndex,
-              r.sourceHeRef,
-              r.targetWireKey,
-              r.targetTitle,
-              r.targetCategoryId,
-              r.targetLineIndex,
-              r.connectionType,
-            ]);
-          }
-        } finally {
-          insert.close();
-        }
+        db.execute('DELETE FROM $_indexTable WHERE sourceSlug = ?', [
+          job.slug,
+        ]);
+        db.execute('DELETE FROM $_targetTable WHERE sourceSlug = ?', [
+          job.slug,
+        ]);
+      });
+      for (var start = 0; start < rows.length; start += _insertBatchSize) {
+        final end = start + _insertBatchSize < rows.length
+            ? start + _insertBatchSize
+            : rows.length;
+        _transaction(db, () => _insertRows(db, job.slug, rows, start, end));
+      }
+      _transaction(db, () {
         for (final t in jobTargets) {
           db.execute('INSERT INTO $_targetTable VALUES (?, ?, ?)', [
             job.slug,
@@ -681,17 +863,48 @@ Set<String> _syncIndex(
             t.version,
           ]);
         }
-        db.execute('INSERT INTO $_metaTable VALUES (?, ?, ?)', [
-          job.slug,
-          job.fingerprint,
-          signature,
-        ]);
+        writeMeta(job.slug, job.fingerprint, signature);
       });
       rebuilt.add(job.slug);
     }
-    return rebuilt;
+    return (rebuilt: rebuilt, hadIndex: true);
   } finally {
     db.close();
+  }
+}
+
+void _insertRows(
+  sqlite3.Database db,
+  String slug,
+  List<ResolvedExternalLink> rows,
+  int start,
+  int end,
+) {
+  final insert = db.prepare(
+    'INSERT INTO $_indexTable (sourceSlug, sourceBookId, sourceTitle, '
+    'sourceCategoryId, sourceLineIndex, sourceHeRef, targetSource, '
+    'targetTitle, targetCategoryId, targetLineIndex, connectionType) '
+    'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  );
+  try {
+    for (var i = start; i < end; i++) {
+      final r = rows[i];
+      insert.execute([
+        slug,
+        r.sourceBookId,
+        r.sourceTitle,
+        r.sourceCategoryId,
+        r.sourceLineIndex,
+        r.sourceHeRef,
+        r.targetWireKey,
+        r.targetTitle,
+        r.targetCategoryId,
+        r.targetLineIndex,
+        r.connectionType,
+      ]);
+    }
+  } finally {
+    insert.close();
   }
 }
 
