@@ -42,6 +42,11 @@ void main() {
       'a\u0000.pdf',
       r'\\?\C:\a.pdf',
       r'pdf\../../a.pdf',
+      '.. /a.pdf',
+      '../../a.pdf',
+      '.../a.pdf',
+      'pdf/ .. /a.pdf',
+      'a.pdf:stream',
     ]) {
       test('נדחה: $rejected', () {
         expect(resolveAttachedBookFilePath(db, rejected), isNull);

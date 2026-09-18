@@ -18,7 +18,11 @@ String? resolveAttachedBookFilePath(String databasePath, String? rawPath) {
     return null;
   }
   final segments = unified.split('/');
-  if (segments.any((segment) => segment == '..')) return null;
+  // Windows מקצץ נקודות ורווחים בסוף רכיב, ו-':' פותח stream חלופי.
+  if (unified.contains(':') ||
+      segments.any((s) => s != '.' && RegExp(r'^[. ]+$').hasMatch(s))) {
+    return null;
+  }
 
   final folder = p.dirname(p.absolute(databasePath));
   final resolved = p.normalize(p.joinAll([folder, ...segments]));
