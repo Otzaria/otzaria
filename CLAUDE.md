@@ -992,6 +992,7 @@ dart format lib/file.dart    # Format ONLY files you modified
 | קליטת `<ספר>.כותרות.csv` / `גרסאות.csv` מתיקיית הספרים והייבוא מההגדרות, ניקוי במחיקת ספר | `test/user_content_import/user_sidecar_sync_test.dart` |
 | קריאת לשונית 'כותרות' של ספר אישי (ניווט, כותרת פעילה, סימני חלוקה) | `test/user_content_import/user_alt_toc_repository_test.dart` |
 | קבוצת הגרסאות של ספר אישי + דיאלוג 'גרסאות' | `test/user_content_import/user_book_versions_test.dart`, `test/library/view/book_versions_dialog_test.dart` |
+| גרסה אישית של ספר רשמי/ממסד מצורף (קישור לפי כותרת, ראשי שלא נמצא, בורר הנוסחאות, מהדורה מקבילה, קריאה; שדרוג הטבלה) | `test/user_content_import/user_book_versions_catalog_test.dart`, `test/migration/user_books_schema_extensions_test.dart`, `test/user_content_import/user_import_parser_test.dart` |
 | DB migration / generator | `test/migration/generator_create_and_process_book_test.dart`, `test/migration/dao/daos/database_locked_test.dart` |
 | Indexing repository | `test/indexing/repository/indexing_repository_test.dart` |
 | External catalog | `test/external_catalog/external_catalog_repository_test.dart`, `…settings_helper_test.dart` |
