@@ -524,6 +524,32 @@ void main() {
       expect(await window(5), isEmpty);
     });
 
+    test('מסד רשמי שלא היה זמין נקלט כשהוא נפתח', () async {
+      final library = await attach(
+        attachedDb('ext', rows: [_row(0, targetLineIndex: 1)]),
+      );
+      final book = await bookOf(
+        BookSource.attached(library.slug),
+        _commentaryTitle,
+      );
+      var available = false;
+      final repository = ExternalLinkRepository(
+        registry: registry,
+        cacheDbPath: () async => cachePath(),
+        officialTarget: () => available ? trustedDbTarget(officialPath) : null,
+      );
+      Future<List<Link>> window() => repository.linksInRange(
+        title: book.title,
+        categoryId: book.categoryId,
+        source: book.source,
+        startLineIndex: 0,
+        endLineIndex: 10,
+      );
+      expect(await window(), isEmpty);
+      available = true;
+      expect(await window(), hasLength(1));
+    });
+
     test('קישור כפול או הדדי מופיע פעם אחת', () {
       Link link(int index2, BookSource target) => Link(
         heRef: 'x',
