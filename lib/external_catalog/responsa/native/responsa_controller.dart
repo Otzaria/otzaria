@@ -120,10 +120,15 @@ class ResponsaController {
   }
 
   /// פותח ספר. [references] הוא סולם ההפניות מהקטלוג, לא הכותרת.
+  ///
+  /// [installPath] הוא נתיב ההתקנה שממנה נבנה הקטלוג. הוא אינו קישוט:
+  /// הפניה שנבנתה ממאגר אחד אינה בהכרח מוליכה לאותו ספר במאגר אחר, ועל
+  /// מחשב עם שתי התקנות אפשר בקלות לפתוח את הספר הלא-נכון.
   Future<ResponsaOpenReport> openBook(
     List<String> references, {
     String? expectedTitle,
     int? siman,
+    String? installPath,
   }) async {
     if (!Platform.isWindows) {
       return const ResponsaOpenReport(
@@ -133,7 +138,7 @@ class ResponsaController {
       );
     }
 
-    final launch = await _ensureRunning();
+    final launch = await _ensureRunning(installPath);
     if (launch != null) return launch;
 
     return _runCancellable(
@@ -141,6 +146,7 @@ class ResponsaController {
         references: references,
         expectedTitle: expectedTitle,
         siman: siman,
+        installPath: installPath,
         cancelFlagAddress: flagAddress,
       ),
       _openBookInIsolate,
@@ -183,7 +189,7 @@ class ResponsaController {
   /// **לעולם בלי ארגומנטים.** ארגומנט שאינו מתג מפיל את `RESPONSA.exe`
   /// מיד ב-`0xC000041D`, בלי חלון ובלי הודעה — וזה נראה למשתמש כאילו
   /// אוצריא הפילה את התוכנה.
-  Future<ResponsaOpenReport?> _ensureRunning() async {
+  Future<ResponsaOpenReport?> _ensureRunning(String? installPath) async {
     final current = await status();
     if (current.running) return null;
     if (!current.installed) {
@@ -201,9 +207,18 @@ class ResponsaController {
       );
     }
 
-    final installation = current.installations.firstWhere(
-      (i) => i.exists,
-      orElse: () => current.installations.first,
+    // ההתקנה שממנה נבנה הקטלוג, אם היא עדיין כאן. אחרת המועדפת.
+    final normalized = installPath?.toLowerCase().replaceAll(
+      RegExp(r'[\\/]+$'),
+      '',
+    );
+    final usable = current.installations.where((i) => i.exists);
+    final installation = usable.firstWhere(
+      (i) =>
+          normalized != null &&
+          i.installPath.toLowerCase().replaceAll(RegExp(r'[\\/]+$'), '') ==
+              normalized,
+      orElse: () => usable.isEmpty ? current.installations.first : usable.first,
     );
     try {
       await Process.start(
@@ -243,19 +258,18 @@ class ResponsaController {
   ) async {
     // המופעים של **ההתקנה שממנה נבנה הקטלוג** בלבד. מופע של התקנה אחרת
     // יכול להציג מאגר אחר, ולפתוח ספר שאינו זה שהמשתמש ביקש.
-    final installations = ResponsaInstallationDiscovery.discover()
-        .where((i) => i.exists)
-        .toList();
-    final live = installations.isEmpty
-        ? ResponsaWin32.topWindowsByClass('ResponsaProject')
-        : ResponsaInstallationDiscovery.instancesOf(
-            installations.first.installPath,
-          );
+    final selection = ResponsaInstallationDiscovery.selectInstallation(
+      preferredPath: request.installPath,
+    );
+    final live = selection?.instances ?? const <({int hwnd, int pid})>[];
     if (live.isEmpty) {
-      return const ResponsaOpenReport(
+      return ResponsaOpenReport(
         ok: false,
         failure: ResponsaFailure.responsaNotRunning,
-        message: 'בר אילן אינו פעיל.',
+        message: selection == null
+            ? 'בר אילן אינו מותקן במחשב הזה.'
+            : 'בר אילן (${selection.installation.displayName}) אינו פעיל. '
+                  'יש לפתוח אותו ולנסות שוב.',
       );
     }
 
@@ -327,6 +341,7 @@ class _OpenRequest {
   final List<String> references;
   final String? expectedTitle;
   final int? siman;
+  final String? installPath;
   final int cancelFlagAddress;
 
   const _OpenRequest({
@@ -334,5 +349,6 @@ class _OpenRequest {
     required this.cancelFlagAddress,
     this.expectedTitle,
     this.siman,
+    this.installPath,
   });
 }

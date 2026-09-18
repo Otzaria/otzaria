@@ -54,7 +54,14 @@ class _FakeController implements ResponsaController {
   _FakeController(this._report);
 
   final ResponsaOpenReport _report;
-  final List<({List<String> references, String? expectedTitle, int? siman})>
+  final List<
+    ({
+      List<String> references,
+      String? expectedTitle,
+      int? siman,
+      String? installPath,
+    })
+  >
   calls = [];
   bool cancelled = false;
 
@@ -79,11 +86,13 @@ class _FakeController implements ResponsaController {
     List<String> references, {
     String? expectedTitle,
     int? siman,
+    String? installPath,
   }) async {
     calls.add((
       references: references,
       expectedTitle: expectedTitle,
       siman: siman,
+      installPath: installPath,
     ));
     return _report;
   }

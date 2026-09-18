@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:otzaria/external_catalog/responsa/native/responsa_discovery.dart';
 import 'package:otzaria/external_catalog/responsa/text/responsa_hebrew.dart';
+import 'package:otzaria/external_catalog/responsa/text/responsa_names.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_profile.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_win32.dart';
 
@@ -345,9 +346,13 @@ class ResponsaAutomation {
 
   /// פותח ספר לפי סולם הפניות, ומאמת שהחלון שנפתח הוא הספר הנכון.
   ///
-  /// [references] מגיע מהקטלוג לפי סדר יורד של סיכוי. הראשונה שהמנתח
-  /// מזהה היא זו שנפתחת; אחרי שהסולם מוצה מנסים גם השמטת מילים
-  /// מההתחלה, שהיא ניחוש ולכן אחרונה.
+  /// [references] מגיע מהקטלוג לפי סדר יורד של סיכוי, והראשונה שהמנתח
+  /// מזהה היא זו שנפתחת.
+  ///
+  /// **אין כאן השמטת מילים מההתחלה.** היא הייתה כאן, והמדידה הראתה
+  /// שהיא אינה מוסיפה אף פתיחה מוצלחת: כל ההצלחות הגיעו מחוליה של
+  /// הקטלוג. מה שהיא כן עשתה הוא לייצר שברי שם גנריים (`פסחים`,
+  /// `פרשת קדושים`) שפותחים ספר אחר — עד 33 שניות מבוזבזות לכל כשל.
   ResponsaOpenOutcome openBook(
     List<String> references,
     ResponsaDeadline deadline, {
@@ -375,15 +380,19 @@ class ResponsaAutomation {
     var usedRef = openRef;
     DiscoveredDialog? dialog;
     var results = const <String>[];
-    for (final candidate in [...ladder, ...shorterReferences(ladder.last)]) {
+    for (final candidate in ladder) {
       if (tried.contains(candidate)) continue;
       tried.add(candidate);
       // ניסיון חוזר רק לחוליה הראשונה: הניסיונות החוזרים קיימים בשביל
       // טעינה קרה, ואחריה הדיאלוג כבר חם.
+      //
+      // שניים ולא שלושה: לחיצת החיפוש היא שליחה סינכרונית, והתוכנה
+      // מבצעת את החיפוש לפני שהיא חוזרת. כל ניסיון נוסף על הפניה
+      // שהמנתח אינו מכיר עולה כ-5 שניות ומעולם לא שינה את התוצאה.
       final attempt = parseReference(
         candidate,
         deadline,
-        attempts: tried.length == 1 ? 3 : 1,
+        attempts: tried.length == 1 ? 2 : 1,
       );
       if (attempt.results.isNotEmpty) {
         usedRef = candidate;
@@ -444,16 +453,32 @@ class ResponsaAutomation {
 
     // שתי בדיקות בלתי-תלויות: שהחלון הוא **השורה שבחרנו**, ושהוא הספר
     // **שביקשנו**. אחת בלבד אינה מספיקה.
+    //
+    // הכותרת המצופה נבדקת בלי ההסתייגות שבסוגריים: היא מטא-דאטה של
+    // הקטלוג ולא חלק מהשם שהתוכנה מציגה. `היכלות (עמ' 108-126)` נפתח
+    // ככותרת `אוצר מדרשים (אייזנשטיין) היכלות`, והשוואה מילולית פסלה
+    // פתיחה תקינה לחלוטין.
     final checks = <String, ResponsaMatchLevel>{
       'selectedResult': ResponsaHebrew.matchLevel(chosen, title),
       'requestedRef': ResponsaHebrew.matchLevel(usedRef, title),
-      if (expectedTitle != null)
-        'expectedTitle': ResponsaHebrew.matchLevel(expectedTitle, title),
     };
     final failed = checks.entries
         .where((e) => e.value == ResponsaMatchLevel.none)
         .map((e) => e.key)
         .toList();
+    // הכותרת המצופה נבדקת **לשני הכיוונים**, בניגוד לשתי הבדיקות
+    // שמעליה. היא מחרוזת תצוגה של אוצריא ולא של התוכנה, ולכן היא יכולה
+    // גם להוסיף הקשר שהתוכנה משמיטה (`תיבת גמא דברים פרשת האזינו` מול
+    // `תיבת גמא פרשת האזינו`) וגם להשמיט מיקום שהתוכנה מוסיפה
+    // (`הון עשיר אבות` מול `הון עשיר מסכת אבות הקדמה`). דרישה חד-כיוונית
+    // פסלה פתיחות תקינות לחלוטין.
+    if (expectedTitle != null) {
+      final expected = ResponsaNames.withoutQualifier(expectedTitle);
+      final covers =
+          ResponsaHebrew.titlesMatch(expected, title) ||
+          ResponsaHebrew.titlesMatch(title, expected);
+      if (!covers) failed.add('expectedTitle');
+    }
     if (failed.isNotEmpty) {
       throw ResponsaAutomationException(
         ResponsaFailure.openedWrongBook,
@@ -504,13 +529,6 @@ class ResponsaAutomation {
       }
     }
     return bestIndex;
-  }
-
-  /// גרסאות קצרות יותר של ההפניה, בהשמטת מילים מההתחלה.
-  static List<String> shorterReferences(String reference, {int limit = 2}) {
-    final words = reference.split(' ').where((w) => w.isNotEmpty).toList();
-    final take = limit < words.length - 1 ? limit : words.length - 1;
-    return [for (var i = 1; i <= take; i++) words.sublist(i).join(' ')];
   }
 
   /// ממתין לחלון MDI מתאים.

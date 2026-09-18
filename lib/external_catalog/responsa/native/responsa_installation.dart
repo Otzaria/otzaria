@@ -356,6 +356,60 @@ class ResponsaInstallationDiscovery {
     ];
   }
 
+  /// בוחר את ההתקנה שיש לעבוד מולה, יחד עם המופעים החיים שלה.
+  ///
+  /// סדר ההכרעה, וכל שלב בו נובע מכשל שנצפה:
+  ///
+  /// 1. **ההתקנה שנתיבה [preferredPath]** — זו שממנה נבנה הקטלוג.
+  ///    הפניה שנבנתה ממאגר אחד אינה בהכרח מוליכה לאותו ספר במאגר אחר.
+  /// 2. **ההתקנה הראשונה שיש לה מופע חי.** על מחשב עם שתי התקנות, אחת
+  ///    מהן פתוחה, בחירה בשנייה מסתיימת ב"התוכנה אינה פעילה" בזמן
+  ///    שהמשתמש רואה אותה פתוחה מולו.
+  /// 3. ההתקנה המועדפת לפי דירוג הגילוי, גם בלי מופע חי — כדי שאפשר
+  ///    יהיה להעלות אותה.
+  ///
+  /// `null` רק כשאין אף התקנה שימושית.
+  static ({
+    ResponsaInstallation installation,
+    List<({int hwnd, int pid})> instances,
+  })?
+  selectInstallation({String? preferredPath}) {
+    final installations = discover().where((i) => i.exists).toList();
+    if (installations.isEmpty) return null;
+
+    final wanted = preferredPath?.toLowerCase().replaceAll(
+      RegExp(r'[\\/]+$'),
+      '',
+    );
+    ResponsaInstallation? preferred;
+    if (wanted != null && wanted.isNotEmpty) {
+      for (final installation in installations) {
+        final path = installation.installPath.toLowerCase().replaceAll(
+          RegExp(r'[\\/]+$'),
+          '',
+        );
+        if (path == wanted) {
+          preferred = installation;
+          break;
+        }
+      }
+    }
+    if (preferred != null) {
+      return (
+        installation: preferred,
+        instances: instancesOf(preferred.installPath),
+      );
+    }
+
+    for (final installation in installations) {
+      final instances = instancesOf(installation.installPath);
+      if (instances.isNotEmpty) {
+        return (installation: installation, instances: instances);
+      }
+    }
+    return (installation: installations.first, instances: const []);
+  }
+
   /// מופע שכבר רץ. מגלה גם התקנה שאינה רשומה ואינה תחת `Program Files`,
   /// ומוסר את הגרסה מכותרת החלון של התוכנה עצמה.
   static List<ResponsaInstallation> _fromRunningProcesses() {

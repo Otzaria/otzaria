@@ -93,6 +93,7 @@ class ResponsaLibraryProvider implements ExternalLibraryProvider {
       references,
       expectedTitle: book.title,
       siman: siman,
+      installPath: await catalog.sourceInstallPath(),
     );
     if (report.ok) return const ExternalOpenResult.success();
     return ExternalOpenResult.failure(

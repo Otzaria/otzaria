@@ -143,35 +143,29 @@ class ResponsaCatalogBuildService {
       // יכולים לרוץ כמה מופעים, ולכל אחד יכול להיות אתר נתונים אחר:
       // בנייה ממופע אחד שתויגה בטביעת אצבע של התקנה אחרת מתארת מאגר
       // שאינו קיים. זה קרה בפועל — קטלוג בן 2,179 ספרים במקום 8,523.
-      final installations = ResponsaInstallationDiscovery.discover()
-          .where((i) => i.exists)
-          .toList();
-      if (installations.isEmpty) {
+      final selection = ResponsaInstallationDiscovery.selectInstallation();
+      if (selection == null) {
         send.send(
           const ResponsaBuildProgress(
             stage: ResponsaBuildStage.failed,
-            error: 'לא נמצאה התקנה של פרויקט השו"ת.',
+            error: 'לא נמצאה התקנה של בר אילן (פרויקט השו"ת) במחשב.',
           ),
         );
         return;
       }
-      final installation = installations.first;
-
-      final matching = ResponsaInstallationDiscovery.instancesOf(
-        installation.installPath,
-      );
-      if (matching.isEmpty) {
+      final installation = selection.installation;
+      if (selection.instances.isEmpty) {
         send.send(
           ResponsaBuildProgress(
             stage: ResponsaBuildStage.failed,
             error:
-                'פרויקט השו"ת (${installation.displayName}) אינו פעיל. '
+                'בר אילן (${installation.displayName}) אינו פעיל. '
                 'יש לפתוח אותו ולנסות שוב.',
           ),
         );
         return;
       }
-      final instance = matching.first;
+      final instance = selection.instances.first;
       final version =
           ResponsaInstallationDiscovery.versionFromWindowTitle(
             ResponsaWin32.windowText(instance.hwnd),

@@ -179,6 +179,28 @@ class ResponsaCatalogRepository {
     }
   }
 
+  /// נתיב ההתקנה שממנה נבנה הקטלוג.
+  ///
+  /// נדרש בזמן פתיחה: על מחשב עם שתי התקנות, הפניה שנבנתה ממאגר אחד
+  /// יכולה להוליך לספר אחר במאגר השני.
+  Future<String?> sourceInstallPath() async {
+    final db = _open();
+    if (db == null) return null;
+    try {
+      final rows = db.select(
+        "SELECT value FROM db_meta WHERE key = 'install_path' LIMIT 1",
+      );
+      if (rows.isEmpty) return null;
+      final value = rows.first['value']?.toString();
+      return (value == null || value.isEmpty) ? null : value;
+    } catch (e) {
+      debugPrint('ResponsaCatalogRepository: sourceInstallPath failed: $e');
+      return null;
+    } finally {
+      db.close();
+    }
+  }
+
   Future<List<ExternalLibraryBook>> _select(
     String sql,
     List<Object?> arguments,

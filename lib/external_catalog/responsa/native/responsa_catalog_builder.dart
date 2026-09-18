@@ -183,7 +183,7 @@ class ResponsaCatalogBuilder {
       }
       if (still.isEmpty) break;
       final deepest = still
-          .map((i) => books[i].ancestors.length - books[i].baseLevels)
+          .map((i) => _maxExtra(books[i]))
           .reduce((a, b) => a > b ? a : b);
       if (extra >= deepest) {
         // אף אב נוסף אינו מפריד — הנתיב המלא הוא הטוב ביותר שיש.
@@ -202,13 +202,26 @@ class ResponsaCatalogBuilder {
     return openRefs;
   }
 
+  /// כמה אבות נוספים אפשר לצרף להפניה — **בלי שורש הקטגוריה**.
+  ///
+  /// שורש הקטגוריה הוא תווית מיון ולא חלק משם ספר, ומנתח ההפניות אינו
+  /// מכיר אותו: `ספרי שאלות ותשובות ... שאגת אריה` נדחה, ואילו
+  /// `שאגת אריה` נפתח. צירופו רק כדי להשיג ייחודיות בקטלוג מייצר הפניה
+  /// ייחודית שאיש אינו יכול לפתוח, ומוסיף חוליה כושלת לכל פתיחה.
+  static int _maxExtra(ResponsaBookRow book) {
+    final available = book.ancestors.length - book.baseLevels - 1;
+    return available < 0 ? 0 : available;
+  }
+
   /// ההפניה עם [extra] אבות **נוספים** מעבר לאלה שכבר נכללו בשם המלא.
   static String _referenceAt(ResponsaBookRow book, int extra) {
     final base = book.baseRef;
     if (extra <= 0) return base.join(' ');
     final ancestors = book.ancestors;
     final start = ancestors.length - book.baseLevels;
-    final take = extra > start ? start : extra;
+    final limit = _maxExtra(book);
+    final take = extra > limit ? limit : extra;
+    if (take <= 0) return base.join(' ');
     return [
       ...ancestors
           .sublist(start - take, start)
@@ -228,30 +241,33 @@ class ResponsaCatalogBuilder {
     final parent = book.ancestors.isEmpty
         ? ''
         : ResponsaNames.coreOf(book.ancestors.last);
-    final candidates = <String>[
-      base.join(' '),
-      if (base.length > 1) base.sublist(1).join(' '),
-      if (parent.isNotEmpty && parent != leaf) '$parent $leaf',
-      leaf,
+    final candidates = <List<String>>[
+      base,
+      // שם החיבור ושם היחידה, בלי מה שביניהם. נמדד שהתוכנה מקבלת
+      // `חומת אנך בראשית פרשת בראשית` אך דוחה `תיבת גמא דברים פרשת
+      // האזינו`, ואותו חיבור בדיוק נפתח בצורה הקצרה.
+      if (base.length > 2) [base.first, leaf],
+      if (base.length > 1) base.sublist(1),
+      if (parent.isNotEmpty && parent != leaf) [parent, leaf],
+      [leaf],
       // 19 שמות במאגר נושאים הסתייגות בסדר הגיוני ולכן אינם מפורקים
       // על ידי `coreOf` — `הלכות קטנות לרי"ף (מנחות) - הלכות ציצית`.
       // גרסה בלי הסוגריים היא החוליה האחרונה לפני כישלון.
-      _withoutParentheses(openRef),
-      _withoutParentheses(leaf),
+      [ResponsaNames.withoutQualifier(openRef)],
+      [ResponsaNames.withoutQualifier(leaf)],
     ];
     final seen = <String>{openRef};
     return [
       for (final candidate in candidates)
-        if (candidate.isNotEmpty && seen.add(candidate)) candidate,
+        // חוליה שמתחילה בשם יחידה אינה יכולה לזהות ספר: `פרשת קדושים`
+        // שייך לכל פרשן ו-`פסחים` לכל מסכת. נמדד שחוליות כאלה אינן
+        // מוסיפות הצלחות — הן פותחות ספר אחר, והאימות פוסל אותו אחרי
+        // שכבר שולם מחיר הזמן.
+        if (!ResponsaNames.isUnitName(candidate.first))
+          if (candidate.join(' ') case final reference)
+            if (reference.isNotEmpty && seen.add(reference)) reference,
     ];
   }
-
-  static final RegExp _parenthetical = RegExp(r'\([^)]*\)?|\)');
-
-  static String _withoutParentheses(String reference) => reference
-      .replaceAll(_parenthetical, ' ')
-      .replaceAll(RegExp(r'\s+'), ' ')
-      .trim();
 
   static String normalizedPath(String refPath) => refPath
       .split(ResponsaTreeReader.pathSeparator)
