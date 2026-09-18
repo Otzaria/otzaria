@@ -1285,5 +1285,6 @@
   "נמצאה התקנה בגרסה {version}. הבנייה סורקת את קטלוג התוכנה ואורכת מספר דקות; פרויקט השו\"ת צריך להיות פתוח.": "Found an installation of version {version}. Building scans the software's catalog and takes a few minutes; the Responsa Project must be open.",
   "בנה קטלוג": "Build catalog",
   "רענון קטלוג פרויקט השו\"ת": "Refresh the Responsa Project catalog",
-  "יש לרענן אחרי התקנת מהדורה אחרת של פרויקט השו\"ת": "Refresh after installing a different edition of the Responsa Project"
+  "יש לרענן אחרי התקנת מהדורה אחרת של פרויקט השו\"ת": "Refresh after installing a different edition of the Responsa Project",
+  "פרויקט השו\"ת (בר אילן)": "The Responsa Project (Bar-Ilan)"
 }

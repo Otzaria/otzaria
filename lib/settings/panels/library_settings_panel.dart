@@ -95,6 +95,37 @@ class LibrarySettingsPanel extends StatefulWidget {
         'לא מופעל',
       ],
     ),
+    SettingsSearchEntry(
+      id: 'library.responsa.show',
+      title: 'הצג ספרי פרויקט השו"ת בחיפוש',
+      subtitle: 'ספרים מפרויקט השו"ת (בר אילן) יופיעו באיתור הספר',
+      tab: SettingsTab.library,
+      cardId: 'library.responsa',
+      keywords: [
+        'פרויקט השו"ת',
+        'בר אילן',
+        'בר-אילן',
+        'responsa',
+        'שו"ת',
+        'מופעל',
+        'לא מופעל',
+      ],
+    ),
+    SettingsSearchEntry(
+      id: 'library.responsa.build',
+      title: 'בניית קטלוג פרויקט השו"ת',
+      subtitle: 'סריקת קטלוג התוכנה המותקנת כדי לאתר ולפתוח ספרים',
+      tab: SettingsTab.library,
+      cardId: 'library.responsa',
+      keywords: [
+        'פרויקט השו"ת',
+        'בר אילן',
+        'בר-אילן',
+        'קטלוג',
+        'בנייה',
+        'רענון',
+      ],
+    ),
   ];
 
   @override
@@ -286,7 +317,7 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
     final hasCatalog = info?.isUsable ?? false;
     return SettingsCard(
       cardId: 'library.responsa',
-      title: context.settingsText('פרויקט השו"ת'),
+      title: context.settingsText('פרויקט השו"ת (בר אילן)'),
       subtitle: context.settingsText('קטלוג מקומי שנבנה מההתקנה שבמחשב'),
       children: [
         if (!hasCatalog)

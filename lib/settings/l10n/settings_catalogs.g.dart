@@ -1024,6 +1024,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'פעם בשבוע': 'Once a week',
     'פרגמנט / בז\'': 'Parchment / Beige',
     'פרויקט השו"ת': 'The Responsa Project',
+    'פרויקט השו"ת (בר אילן)': 'The Responsa Project (Bar-Ilan)',
     'פרטי דיווח שמור': 'Saved Report Details',
     'פרטי דיווח שנשלח': 'Sent Report Details',
     'פרשת השבוע': 'Weekly Parashah',
