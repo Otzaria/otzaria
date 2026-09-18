@@ -1,23 +1,24 @@
 import 'dart:io';
 
-import 'package:otzaria/external_catalog/responsa/native/responsa_hebrew.dart';
+import 'package:otzaria/external_catalog/responsa/responsa_catalog_schema.dart';
+import 'package:otzaria/external_catalog/responsa/text/responsa_hebrew.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_installation.dart';
+import 'package:otzaria/external_catalog/responsa/text/responsa_names.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_tree_reader.dart';
 import 'package:sqlite3/sqlite3.dart';
 
-/// גרסת הסכמה של `responsa_catalog.db`.
-const int responsaCatalogSchemaVersion = 1;
-
 /// ספר אחד כפי שהסיווג מזהה אותו.
 class ResponsaBookRow {
-  final String title;
+  /// שם הצומת בעץ, כפי שהוא. זהו שם היחידה — `אבות`, לא `הון עשיר אבות`.
+  final String leafTitle;
+
   final String refPath;
   final String? category;
   final int treeParam;
   final int level;
 
-  const ResponsaBookRow({
-    required this.title,
+  ResponsaBookRow({
+    required this.leafTitle,
     required this.refPath,
     required this.category,
     required this.treeParam,
@@ -30,6 +31,22 @@ class ResponsaBookRow {
   }
 
   String get parentPath => ancestors.join(ResponsaTreeReader.pathSeparator);
+
+  ({String title, List<String> coreParts, int levels})? _names;
+  ({String title, List<String> coreParts, int levels}) get _resolved =>
+      _names ??= ResponsaNames.fullTitle(
+        rawTitle: leafTitle,
+        ancestors: ancestors,
+      );
+
+  /// השם שהמשתמש רואה ומחפש לפיו.
+  String get title => _resolved.title;
+
+  /// ההפניה הבסיסית — אותם רכיבים בשמות ליבה.
+  List<String> get baseRef => _resolved.coreParts;
+
+  /// כמה רמות נתיב כבר נצרכו לשם המלא.
+  int get baseLevels => _resolved.levels;
 }
 
 class ResponsaCatalogBuildResult {
@@ -77,16 +94,6 @@ class ResponsaCatalogBuilder {
     r"|הקדמ|פתיחה|תוכן|מפתח|ברייתא|נוסחא|סי'|עמ'|חלק [א-ת]'?$)",
   );
 
-  /// מילים שפותחות כותרת של יחידה בתוך חיבור, לא של חיבור עצמאי.
-  ///
-  /// כותרת כזו יכולה להיות ייחודית בקטלוג ועדיין **לא** ייחודית למנתח
-  /// ההפניות: `כלל יא` נפתח כ-`כלל ב סימן יא`. לכן היא מקבלת אב אחד
-  /// לפחות בכפייה.
-  static final RegExp _genericLead = RegExp(
-    r'''^["'׳״(\[]*(כלל|נתיב|שנה|מערכת|ערך|שורש|לאוין|עשין|חלק|שער|מאמר'''
-    r'|סימן|פרק|פרשת|מסכת|הלכות|דרוש|אות|תשובה|מצוה)\b',
-  );
-
   static bool isSection(String name, int param) =>
       ((param >> 16) & _sectionPlaneBits) != 0 || _sectionName.hasMatch(name);
 
@@ -107,9 +114,11 @@ class ResponsaCatalogBuilder {
         if (isSection(node.name, node.param)) continue;
         books.add(
           ResponsaBookRow(
-            title: node.name,
+            leafTitle: node.name,
             refPath: node.path,
-            category: node.path.split(ResponsaTreeReader.pathSeparator).first,
+            category: ResponsaNames.displayOf(
+              node.path.split(ResponsaTreeReader.pathSeparator).first,
+            ),
             treeParam: node.param,
             level: node.level,
           ),
@@ -133,9 +142,11 @@ class ResponsaCatalogBuilder {
       if (isSection(node.name, node.param)) continue;
       books.add(
         ResponsaBookRow(
-          title: node.name,
+          leafTitle: node.name,
           refPath: node.path,
-          category: node.path.split(ResponsaTreeReader.pathSeparator).first,
+          category: ResponsaNames.displayOf(
+            node.path.split(ResponsaTreeReader.pathSeparator).first,
+          ),
           treeParam: node.param,
           level: node.level,
         ),
@@ -146,32 +157,25 @@ class ResponsaCatalogBuilder {
 
   /// ההפניה הקצרה ביותר שעדיין חד-משמעית, לכל ספר.
   ///
-  /// הכותרת לבדה אינה מספיקה: שם גנרי מחזיר מאות תוצאות שהראשונה בהן
-  /// ספר אחר. מוסיפים אבות אחד-אחד עד לייחודיות בקטלוג. זהו **קירוב**
-  /// לחד-משמעיות של מנתח ההפניות, ולכן הפתיחה בזמן אמת מאמתת את כותרת
-  /// החלון שנפתח.
+  /// נקודת ההתחלה היא **השם המלא בשמות ליבה** — אותו שם שהמשתמש רואה,
+  /// בלי ההסתייגות שבסוגריים. משם מוסיפים אבות אחד-אחד עד לייחודיות
+  /// בקטלוג. זהו **קירוב** לחד-משמעיות של מנתח ההפניות, ולכן הפתיחה
+  /// בזמן אמת מאמתת את כותרת החלון שנפתח, ויש סולם נסיגה.
   static List<String> buildOpenRefs(List<ResponsaBookRow> books) {
     final openRefs = List<String>.filled(books.length, '');
-    final minimumDepth = [
-      for (final book in books)
-        _genericLead.hasMatch(book.title.trim()) ? 1 : 0,
-    ];
     var remaining = List<int>.generate(books.length, (i) => i);
-    var depth = 0;
+    var extra = 0;
 
     while (remaining.isNotEmpty) {
       final candidates = <String, List<int>>{};
       for (final index in remaining) {
-        final reference = _referenceAt(
-          books[index],
-          depth > minimumDepth[index] ? depth : minimumDepth[index],
-        );
-        candidates.putIfAbsent(reference, () => []).add(index);
+        candidates
+            .putIfAbsent(_referenceAt(books[index], extra), () => [])
+            .add(index);
       }
       final still = <int>[];
       for (final entry in candidates.entries) {
-        if (entry.value.length == 1 &&
-            depth >= minimumDepth[entry.value.single]) {
+        if (entry.value.length == 1) {
           openRefs[entry.value.single] = entry.key;
         } else {
           still.addAll(entry.value);
@@ -179,34 +183,75 @@ class ResponsaCatalogBuilder {
       }
       if (still.isEmpty) break;
       final deepest = still
-          .map((i) => books[i].ancestors.length)
+          .map((i) => books[i].ancestors.length - books[i].baseLevels)
           .reduce((a, b) => a > b ? a : b);
-      if (depth > deepest) {
+      if (extra >= deepest) {
         // אף אב נוסף אינו מפריד — הנתיב המלא הוא הטוב ביותר שיש.
         for (final index in still) {
-          openRefs[index] = _referenceAt(books[index], depth);
+          openRefs[index] = _referenceAt(books[index], extra);
         }
         break;
       }
       remaining = still;
-      depth++;
+      extra++;
     }
 
     for (var i = 0; i < openRefs.length; i++) {
-      if (openRefs[i].isEmpty) openRefs[i] = books[i].title;
+      if (openRefs[i].isEmpty) openRefs[i] = books[i].baseRef.join(' ');
     }
     return openRefs;
   }
 
-  static String _referenceAt(ResponsaBookRow book, int depth) {
-    if (depth <= 0) return book.title;
+  /// ההפניה עם [extra] אבות **נוספים** מעבר לאלה שכבר נכללו בשם המלא.
+  static String _referenceAt(ResponsaBookRow book, int extra) {
+    final base = book.baseRef;
+    if (extra <= 0) return base.join(' ');
     final ancestors = book.ancestors;
-    final take = depth > ancestors.length ? ancestors.length : depth;
+    final start = ancestors.length - book.baseLevels;
+    final take = extra > start ? start : extra;
     return [
-      ...ancestors.sublist(ancestors.length - take),
-      book.title,
+      ...ancestors
+          .sublist(start - take, start)
+          .map(ResponsaNames.coreOf)
+          .where((part) => part.isNotEmpty),
+      ...base,
     ].join(' ');
   }
+
+  /// הפניות חלופיות, לפי סדר יורד של סיכוי — סולם הנסיגה של הפתיחה.
+  ///
+  /// הסולם נבנה כאן ולא בזמן הפתיחה, מפני שרק כאן ידועים שמות הליבה
+  /// ומבנה הנתיב. בזמן הפתיחה נשארה רק השמטת מילים מההתחלה, שהיא ניחוש.
+  static List<String> alternativeRefs(ResponsaBookRow book, String openRef) {
+    final base = book.baseRef;
+    final leaf = base.last;
+    final parent = book.ancestors.isEmpty
+        ? ''
+        : ResponsaNames.coreOf(book.ancestors.last);
+    final candidates = <String>[
+      base.join(' '),
+      if (base.length > 1) base.sublist(1).join(' '),
+      if (parent.isNotEmpty && parent != leaf) '$parent $leaf',
+      leaf,
+      // 19 שמות במאגר נושאים הסתייגות בסדר הגיוני ולכן אינם מפורקים
+      // על ידי `coreOf` — `הלכות קטנות לרי"ף (מנחות) - הלכות ציצית`.
+      // גרסה בלי הסוגריים היא החוליה האחרונה לפני כישלון.
+      _withoutParentheses(openRef),
+      _withoutParentheses(leaf),
+    ];
+    final seen = <String>{openRef};
+    return [
+      for (final candidate in candidates)
+        if (candidate.isNotEmpty && seen.add(candidate)) candidate,
+    ];
+  }
+
+  static final RegExp _parenthetical = RegExp(r'\([^)]*\)?|\)');
+
+  static String _withoutParentheses(String reference) => reference
+      .replaceAll(_parenthetical, ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
 
   static String normalizedPath(String refPath) => refPath
       .split(ResponsaTreeReader.pathSeparator)
@@ -355,9 +400,11 @@ class ResponsaCatalogBuilder {
           book_pk        INTEGER PRIMARY KEY,
           external_key   TEXT    NOT NULL UNIQUE,
           title          TEXT    NOT NULL,
+          leaf_title     TEXT    NOT NULL,
           norm_title     TEXT    NOT NULL,
           ref_path       TEXT    NOT NULL,
           open_ref       TEXT    NOT NULL,
+          alt_refs       TEXT,
           volume         TEXT,
           category       TEXT,
           topics         TEXT,
@@ -370,19 +417,23 @@ class ResponsaCatalogBuilder {
       );
 
       final insert = db.prepare(
-        'INSERT INTO books(external_key, title, norm_title, ref_path, open_ref,'
-        ' volume, category, topics, tree_param, source_version)'
-        ' VALUES(?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO books(external_key, title, leaf_title, norm_title,'
+        ' ref_path, open_ref, alt_refs, volume, category, topics, tree_param,'
+        ' source_version)'
+        ' VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
       );
       db.execute('BEGIN');
       for (var i = 0; i < books.length; i++) {
         final book = books[i];
+        final alternatives = alternativeRefs(book, openRefs[i]);
         insert.execute([
           assignment.keys[i],
           book.title,
+          book.leafTitle,
           ResponsaHebrew.normalize(book.title),
           book.refPath,
           openRefs[i],
+          alternatives.isEmpty ? null : alternatives.join('\n'),
           // volume ו-topics נשארים ריקים: אין להם מקור בהתקנה, ואין
           // להמציא ערכים.
           null,

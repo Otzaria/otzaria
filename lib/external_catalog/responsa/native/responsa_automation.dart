@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:otzaria/external_catalog/responsa/native/responsa_discovery.dart';
-import 'package:otzaria/external_catalog/responsa/native/responsa_hebrew.dart';
+import 'package:otzaria/external_catalog/responsa/text/responsa_hebrew.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_profile.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_win32.dart';
 

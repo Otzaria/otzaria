@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
+import 'package:otzaria/external_catalog/responsa/responsa_catalog_schema.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_paths.dart';
+import 'package:otzaria/external_catalog/responsa/text/responsa_names.dart';
 import 'package:otzaria/models/books.dart';
 
 /// מטא-דאטה של קטלוג פרויקט השו"ת המקומי.
@@ -32,6 +34,12 @@ class ResponsaCatalogInfo {
   static const ResponsaCatalogInfo missing = ResponsaCatalogInfo(exists: false);
 
   bool get isUsable => exists && bookCount > 0;
+
+  /// קטלוג שנבנה בסכמה ישנה. הספרים בו עדיין נקראים — אחרת שדרוג היה
+  /// מוחק את הספרייה מהמסך — אבל הכותרות וההפניות בו נבנו בכללים ישנים,
+  /// ולכן מוצגת בקשה לרענון.
+  bool get isOutdated =>
+      exists && (schemaVersion ?? 1) < responsaCatalogSchemaVersion;
 }
 
 /// קורא את `responsa_catalog.db` — הקטלוג המקומי של פרויקט השו"ת.
@@ -136,19 +144,36 @@ class ResponsaCatalogRepository {
   ///
   /// הוא נפרד מהכותרת בכוונה: `openBook("רא\"ש")` מחזיר מאות תוצאות
   /// שהראשונה בהן ספר אחר לגמרי, ולכן הקטלוג שומר הפניה הכוללת הקשר.
-  Future<String?> openRefFor(String externalKey) async {
+  Future<String?> openRefFor(String externalKey) async =>
+      (await openRefsFor(externalKey)).firstOrNull;
+
+  /// סולם ההפניות של ספר: ההפניה הראשית ואחריה החלופות, לפי סדר.
+  ///
+  /// הסולם נבנה בזמן בניית הקטלוג, כשמבנה הנתיב ושמות הליבה ידועים.
+  /// נסיגה בזמן ריצה יכולה רק להשמיט מילים, וזה ניחוש: `היכלות` נפתח,
+  /// ואילו השם כפי שהוא במאגר — `(108-126 'היכלות (עמ` — אינו נפתח כלל.
+  Future<List<String>> openRefsFor(String externalKey) async {
     final db = _open();
-    if (db == null) return null;
+    if (db == null) return const [];
     try {
+      // `SELECT *` ולא רשימת עמודות: קטלוג בסכמה 1 אינו מכיר `alt_refs`,
+      // ושאילתה ששמה אותו במפורש הייתה נכשלת ומשאירה את הספר בלי הפניה
+      // כלל — כלומר משדרוג הקוד היה נובע שבר בפתיחה.
       final rows = db.select(
-        'SELECT open_ref FROM books WHERE external_key = ? LIMIT 1',
+        'SELECT * FROM books WHERE external_key = ? LIMIT 1',
         [externalKey],
       );
-      if (rows.isEmpty) return null;
-      return rows.first['open_ref']?.toString();
+      if (rows.isEmpty) return const [];
+      final primary = rows.first['open_ref']?.toString() ?? '';
+      final alternatives = rows.first['alt_refs']?.toString() ?? '';
+      return [
+        if (primary.isNotEmpty) primary,
+        for (final line in alternatives.split('\n'))
+          if (line.trim().isNotEmpty) line.trim(),
+      ];
     } catch (e) {
-      debugPrint('ResponsaCatalogRepository: openRefFor failed: $e');
-      return null;
+      debugPrint('ResponsaCatalogRepository: openRefsFor failed: $e');
+      return const [];
     } finally {
       db.close();
     }
@@ -196,16 +221,19 @@ class ResponsaCatalogRepository {
     );
   }
 
-  /// ההקשר שמוצג למשתמש: הנתיב בעץ הקטלוג **בלי** שם הספר עצמו.
+  /// הקטגוריה שמוצגת למשתמש: הנתיב בעץ הקטלוג **בלי** שם הספר עצמו.
   ///
   /// הכרחי, לא קישוט: היוריסטיקת הסיווג מזהה במבנים מסוימים את הכרך
-  /// כיחידת הספר, ולכן כותרת כמו `יבמות` מנותקת חסרת משמעות. עם ההקשר
-  /// היא מוצגת כ-`רא"ש › יבמות` והמשתמש יודע מה הוא מצא.
+  /// כיחידת הספר, ולכן גם אחרי שהכותרת הושלמה לשם המלא — `הון עשיר
+  /// אבות` — הקטגוריה היא שאומרת למשתמש היכן הספר יושב.
+  ///
+  /// כל רכיב עובר דרך [ResponsaNames.displayOf]: במאגר הם מאוחסנים עם
+  /// עטיפת סוגריים בסדר חזותי, ובלי הסידור הנתיב מוצג שבור.
   @visibleForTesting
   static String contextPathOf(String refPath) {
     final parts = refPath
         .split(pathSeparator)
-        .map((part) => part.trim())
+        .map((part) => ResponsaNames.displayOf(part))
         .where((part) => part.isNotEmpty)
         .toList();
     if (parts.length <= 1) return '';
