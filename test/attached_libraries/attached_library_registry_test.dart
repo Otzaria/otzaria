@@ -83,7 +83,26 @@ void main() {
         '[1, "", "C:/ok"]',
       );
       expect(store.loadLibraries(), isEmpty);
+      expect(store.loadLibrariesOrNull(), isNull);
       expect(store.loadFolders(), ['C:/ok']);
+    });
+
+    test('JSON שבור — הרשימה "לא ידועה" ברישום עד update', () async {
+      await Settings.setValue<String>(
+        SettingsRepository.keyAttachedLibraries,
+        '{"not": "a list"}',
+      );
+      final registry = AttachedLibraryRegistry(store: store, idleTimeout: null);
+      expect(registry.libraries, isEmpty);
+      expect(registry.librariesIfKnown, isNull);
+
+      registry.update(const []);
+      expect(registry.librariesIfKnown, isEmpty);
+    });
+
+    test('ערך חסר — רשימה ריקה וידועה', () {
+      final registry = AttachedLibraryRegistry(store: store, idleTimeout: null);
+      expect(registry.librariesIfKnown, isEmpty);
     });
 
     test('תיקייה נשמרת ב-origin ומשוחזרת', () {

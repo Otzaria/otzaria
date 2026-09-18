@@ -51,8 +51,21 @@ class AttachedLibraryRegistry {
   Timer? _idleTimer;
 
   /// כל המסדים הרשומים, לפי [AttachedLibrary.priority].
-  List<AttachedLibrary> get libraries =>
-      _libraries ??= _sorted(_store.loadLibraries());
+  List<AttachedLibrary> get libraries => _libraries ??= _load();
+
+  /// הרשימה, או null כשהערך השמור פגום ולא הוחלף מאז ב-[update].
+  List<AttachedLibrary>? get librariesIfKnown {
+    final list = libraries;
+    return _storeUnreadable ? null : list;
+  }
+
+  bool _storeUnreadable = false;
+
+  List<AttachedLibrary> _load() {
+    final loaded = _store.loadLibrariesOrNull();
+    _storeUnreadable = loaded == null;
+    return _sorted(loaded ?? const []);
+  }
 
   /// המסדים שספריהם מוצגים בעץ הספרייה, לפי הסדר.
   List<AttachedLibrary> get visibleLibraries => [
@@ -72,6 +85,7 @@ class AttachedLibraryRegistry {
   /// מחליף את הרשימה. חיבור למסד שנתיבו או מצבו השתנה נסגר.
   void update(List<AttachedLibrary> libraries) {
     _libraries = _sorted(libraries);
+    _storeUnreadable = false;
     for (final slug in _open.keys.toList()) {
       final library = libraryFor(slug);
       if (library == null || library.path != _open[slug]!.path) {

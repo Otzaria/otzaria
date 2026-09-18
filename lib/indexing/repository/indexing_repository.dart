@@ -1942,7 +1942,7 @@ class IndexingRepository {
   /// null — הרשימה לא נקראה, ואז אף מפתח `db:` אינו נמחק.
   static List<AttachedLibrary>? _registeredAttachedLibraries() {
     try {
-      return AttachedLibraryRegistry.instance.libraries;
+      return AttachedLibraryRegistry.instance.librariesIfKnown;
     } catch (error) {
       debugPrint('⚠️ לא ניתן לקרוא את רשימת המסדים המצורפים: $error');
       return null;

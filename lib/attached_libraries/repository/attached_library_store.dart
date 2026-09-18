@@ -10,12 +10,17 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 class AttachedLibraryStore {
   const AttachedLibraryStore();
 
-  List<AttachedLibrary> loadLibraries() {
-    final raw = Settings.getValue<String>(
-      SettingsRepository.keyAttachedLibraries,
+  List<AttachedLibrary> loadLibraries() => loadLibrariesOrNull() ?? [];
+
+  /// null כשהערך השמור פגום — "לא ידוע", ולא "אין מסדים": ניקוי יתומים אינו
+  /// רשאי למחוק על סמך רשימה ריקה שנולדה מכשל פענוח.
+  List<AttachedLibrary>? loadLibrariesOrNull() {
+    final decoded = _tryDecodeList(
+      Settings.getValue<String>(SettingsRepository.keyAttachedLibraries),
     );
+    if (decoded == null) return null;
     final libraries = <AttachedLibrary>[];
-    for (final item in _decodeList(raw)) {
+    for (final item in decoded) {
       try {
         libraries.add(
           AttachedLibrary.fromJson(Map<String, dynamic>.from(item as Map)),
@@ -46,14 +51,17 @@ class AttachedLibraryStore {
     jsonEncode(folders),
   );
 
-  static List<Object?> _decodeList(String? raw) {
+  static List<Object?> _decodeList(String? raw) =>
+      _tryDecodeList(raw) ?? const [];
+
+  static List<Object?>? _tryDecodeList(String? raw) {
     if (raw == null || raw.isEmpty) return const [];
     try {
       final decoded = jsonDecode(raw);
-      return decoded is List ? decoded : const [];
+      return decoded is List ? decoded : null;
     } catch (e) {
       debugPrint('[AttachedLibraryStore] JSON parse failed: $e');
-      return const [];
+      return null;
     }
   }
 }
