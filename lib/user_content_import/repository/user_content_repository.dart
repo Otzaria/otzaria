@@ -159,11 +159,15 @@ class UserContentRepository {
     for (final version in versions) {
       db.execute(
         'INSERT OR REPLACE INTO user_book_version '
-        '(versionBookId, primaryBookId, versionTitle, versionNotes, priority, source) '
-        'VALUES (?, ?, ?, ?, ?, ?)',
+        '(versionBookId, primaryBookId, primarySource, primaryTitle, '
+        'primaryCategoryPath, versionTitle, versionNotes, priority, source) '
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
           version.versionBookId,
           version.primaryBookId,
+          version.primarySource.wireKey,
+          version.primaryTitle,
+          version.primaryCategoryPath,
           version.versionTitle,
           version.versionNotes,
           version.priority,

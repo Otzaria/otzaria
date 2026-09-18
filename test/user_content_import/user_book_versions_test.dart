@@ -62,7 +62,7 @@ void main() {
       booksById: books,
     );
 
-    expect(versions.map((v) => v.userBook?.id), [1, 2, 3]);
+    expect(versions.map((v) => v.separateBook?.id), [1, 2, 3]);
     expect(versions.every((v) => v.hasContent), isTrue);
   });
 

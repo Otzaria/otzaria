@@ -1578,6 +1578,9 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
   List<UserBookVersionRecord> _userBookVersions = const [];
 
+  /// הספר הרשמי/המצורף שכל גרסה אישית שלו נפתרה אליו, לפי מזהה ספר הגרסה.
+  final Map<int, Book> _catalogVersionPrimaries = {};
+
   /// מפתחות ספרי המסדים המצורפים. מזהי הקטגוריות טבעיים לכל מסד, ולכן המקור
   /// (slug) הוא חלק מהמפתח ומנתיבי הקטגוריות.
   final Set<BookCompositeKey> _attachedCachedKeys = {};
@@ -1641,7 +1644,83 @@ class DatabaseLibraryProvider implements LibraryProvider {
       bookId: id,
       records: _userBookVersions,
       booksById: _userBooksById,
+      catalogPrimaries: _catalogVersionPrimaries,
     );
+  }
+
+  /// הגרסאות האישיות שהוצהרו על ספר רשמי או ממסד מצורף [book].
+  List<BookVersionInfo> getPersonalVersionsOf(Book book) {
+    if (book.isUserBook || _catalogVersionPrimaries.isEmpty) return const [];
+    return buildPersonalVersionsOfCatalogBook(
+      primary: book,
+      records: _userBookVersions,
+      booksById: _userBooksById,
+      catalogPrimaries: _catalogVersionPrimaries,
+    );
+  }
+
+  static UserBookVersionRecord? _userBookVersionFromRow(
+    Map<String, dynamic> row,
+  ) {
+    final versionBookId = row['versionBookId'] as int;
+    final versionTitle = row['versionTitle'] as String;
+    final versionNotes = row['versionNotes'] as String?;
+    final priority = (row['priority'] as num?)?.toDouble();
+    final source =
+        BookSource.tryParse(row['primarySource'] as String?) ?? BookSource.user;
+    if (source.isUser) {
+      final primaryId = row['primaryBookId'] as int?;
+      if (primaryId == null) return null;
+      return UserBookVersionRecord(
+        versionBookId: versionBookId,
+        primaryBookId: primaryId,
+        versionTitle: versionTitle,
+        versionNotes: versionNotes,
+        priority: priority,
+      );
+    }
+    final primaryTitle = row['primaryTitle'] as String?;
+    if (primaryTitle == null || primaryTitle.trim().isEmpty) return null;
+    return UserBookVersionRecord.ofCatalogBook(
+      versionBookId: versionBookId,
+      primarySource: source,
+      primaryTitle: primaryTitle,
+      primaryCategoryPath: row['primaryCategoryPath'] as String?,
+      versionTitle: versionTitle,
+      versionNotes: versionNotes,
+      priority: priority,
+    );
+  }
+
+  /// קושר גרסאות אישיות לספרים רשמיים/מצורפים לפי כותרת (ולא לפי מזהה, שמשתנה
+  /// בעדכון ספרייה). גרסה שהראשי שלה לא נמצא נשארת ספר אישי רגיל בעץ.
+  void _attachCatalogBookVersions(Library library) {
+    _catalogVersionPrimaries.clear();
+    final pending = _userBookVersions.where((v) => v.hasCatalogPrimary);
+    if (pending.isEmpty) return;
+
+    final catalogByTitle = <String, List<Book>>{};
+    for (final book in library.getAllBooks()) {
+      if (book.isUserBook) continue;
+      catalogByTitle
+          .putIfAbsent(normalizeVersionTitle(book.title), () => [])
+          .add(book);
+    }
+    for (final record in pending) {
+      final version = _userBooksById[record.versionBookId];
+      if (version == null) continue;
+      final primary = resolveCatalogPrimary(record, catalogByTitle);
+      if (primary == null) {
+        debugPrint(
+          '⚠️ [UserBookVersions] primary not found for book '
+          '${record.versionBookId} (${record.primarySource.wireKey})',
+        );
+        continue;
+      }
+      _catalogVersionPrimaries[record.versionBookId] = primary;
+      _hiddenUserVersionBookIds.add(record.versionBookId);
+      version.category?.books.remove(version);
+    }
   }
 
   bool _isUserBooksCategoryId(int categoryId) =>
@@ -2905,6 +2984,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     // "ספרים אישיים" באותו עץ.
     await _appendUserBooksToLibrary(library, metadata);
     await _appendAttachedLibraries(library, metadata);
+    _attachCatalogBookVersions(library);
 
     // NOTE: Sorting is now done during build (like Kotlin), no need for post-sort
     // _sortLibraryRecursive(library); // Removed - sorting happens in _buildCatalogCategoryRecursiveOptimized
@@ -3188,16 +3268,11 @@ class DatabaseLibraryProvider implements LibraryProvider {
         userAuthors = repo.database.bookDao.getBookAuthorsMap(db);
         userVersions = [
           for (final row in db.select(
-            'SELECT versionBookId, primaryBookId, versionTitle, versionNotes, '
-            'priority FROM user_book_version',
+            'SELECT versionBookId, primaryBookId, primarySource, primaryTitle, '
+            'primaryCategoryPath, versionTitle, versionNotes, priority '
+            'FROM user_book_version',
           ))
-            UserBookVersionRecord(
-              versionBookId: row['versionBookId'] as int,
-              primaryBookId: row['primaryBookId'] as int,
-              versionTitle: row['versionTitle'] as String,
-              versionNotes: row['versionNotes'] as String?,
-              priority: (row['priority'] as num?)?.toDouble(),
-            ),
+            ?_userBookVersionFromRow(row),
         ];
       });
 
@@ -3208,11 +3283,14 @@ class DatabaseLibraryProvider implements LibraryProvider {
       _userBooksCachedKeys.clear();
       _userBooksById.clear();
       _userBookVersions = userVersions;
+      _catalogVersionPrimaries.clear();
+      // גרסה של ספר רשמי/מצורף מוסתרת רק אחרי שהראשי נמצא בקטלוג.
       _hiddenUserVersionBookIds
         ..clear()
         ..addAll([
           for (final v in userVersions)
-            if (v.versionBookId != v.primaryBookId) v.versionBookId,
+            if (!v.hasCatalogPrimary && v.versionBookId != v.primaryBookId)
+              v.versionBookId,
         ]);
 
       if (userBooks.isEmpty && userCats.isEmpty) {

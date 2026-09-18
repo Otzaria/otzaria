@@ -82,7 +82,7 @@ class ParallelEditionsService {
     if (current.isUserBook) {
       for (final version
           in DatabaseLibraryProvider.instance.getUserBookVersions(current)) {
-        final book = version.userBook;
+        final book = version.separateBook;
         if (book == null || book.id == current.id) continue;
         editions.add(
           ParallelEdition(

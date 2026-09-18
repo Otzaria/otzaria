@@ -92,6 +92,32 @@ class UserSidecarSync {
       final records = <UserBookVersionRecord>[];
       final signature = StringBuffer(await _fileStamp(file));
       for (final row in parsed.rows) {
+        if (!row.primarySource.isUser) {
+          final version = await _bookAtRelativePath(repo, file, row.version);
+          if (version == null) {
+            errors.add(
+              '$name שורה ${row.rowNumber}: הספר "${row.version}" לא נמצא',
+            );
+            continue;
+          }
+          signature.write(
+            '|${row.primarySource.wireKey}:${row.primary}:'
+            '${row.primaryCategoryPath ?? ''}:${version.id}',
+          );
+          records.add(
+            UserBookVersionRecord.ofCatalogBook(
+              versionBookId: version.id,
+              primarySource: row.primarySource,
+              primaryTitle: row.primary,
+              primaryCategoryPath: row.primaryCategoryPath,
+              versionTitle:
+                  row.label ?? p.basenameWithoutExtension(row.version),
+              versionNotes: row.notes,
+              priority: row.priority,
+            ),
+          );
+          continue;
+        }
         final primary = await _bookAtRelativePath(repo, file, row.primary);
         final version = await _bookAtRelativePath(repo, file, row.version);
         if (primary == null || version == null) {

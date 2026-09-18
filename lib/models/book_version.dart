@@ -15,8 +15,9 @@ class BookVersionInfo {
   final String? heVersionNotes;
   final bool hasContent;
 
-  /// גרסה של ספר אישי: קובץ-ספר נפרד שנפתח במקום הנוסח (ולא דרך version_line).
-  final Book? userBook;
+  /// גרסה שהיא ספר נפרד בקטלוג (ספר אישי, או הראשי הרשמי של גרסה אישית),
+  /// שנפתח כמות שהוא ולא דרך version_line.
+  final Book? separateBook;
 
   const BookVersionInfo({
     required this.versionTitle,
@@ -27,7 +28,7 @@ class BookVersionInfo {
     this.versionNotes,
     this.heVersionNotes,
     required this.hasContent,
-    this.userBook,
+    this.separateBook,
   });
 
   /// שם התצוגה: הכותרת העברית כשקיימת (ולא ריקה), אחרת ה-versionTitle של ספריא.

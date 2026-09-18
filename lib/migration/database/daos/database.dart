@@ -241,6 +241,10 @@ class MyDatabase {
         _ensureAuthorSchema(db);
       } else if (script.contains('CREATE TABLE IF NOT EXISTS user_link')) {
         _ensureUserLinkSchema(db);
+      } else if (script.contains(
+        'CREATE TABLE IF NOT EXISTS user_book_version',
+      )) {
+        _ensureUserBookVersionSchema(db);
       }
     }
 
@@ -313,6 +317,39 @@ class MyDatabase {
     ''');
     db.execute('DROP TABLE user_link');
     db.execute('ALTER TABLE user_link_new RENAME TO user_link');
+  }
+
+  /// משדרג user_book_version לסכמה שבה הראשי יכול להיות ספר ממקור אחר
+  /// (רשמי/מסד מצורף) לפי כותרת. שורות קיימות נשמרות כראשי אישי לפי מזהה.
+  void _ensureUserBookVersionSchema(sqlite3.Database db) {
+    final columns = db
+        .select('PRAGMA table_info(user_book_version)')
+        .map((row) => row['name'] as String)
+        .toSet();
+    if (columns.contains('primarySource')) return;
+
+    db.execute('''
+      CREATE TABLE user_book_version_new (
+          versionBookId INTEGER PRIMARY KEY,
+          primaryBookId INTEGER,
+          primarySource TEXT NOT NULL DEFAULT 'u',
+          primaryTitle TEXT,
+          primaryCategoryPath TEXT,
+          versionTitle TEXT NOT NULL,
+          versionNotes TEXT,
+          priority REAL,
+          source TEXT NOT NULL
+      );
+    ''');
+    db.execute('''
+      INSERT INTO user_book_version_new (versionBookId, primaryBookId,
+          primarySource, versionTitle, versionNotes, priority, source)
+      SELECT versionBookId, primaryBookId, 'u', versionTitle, versionNotes,
+          priority, source
+      FROM user_book_version;
+    ''');
+    db.execute('DROP TABLE user_book_version');
+    db.execute('ALTER TABLE user_book_version_new RENAME TO user_book_version');
   }
 
   bool _retired = false;
@@ -864,13 +901,15 @@ class MyDatabase {
       ''',
       'CREATE INDEX IF NOT EXISTS idx_user_alt_toc_entry_structure ON user_alt_toc_entry(structureId, lineIndex);',
 
-      // גרסאות של ספר אישי: כל גרסה היא קובץ-ספר נפרד. הגרסה הראשית מוצגת
-      // בעץ, והשאר נגישות רק מתפריט 'גרסאות'. שורה שבה versionBookId =
-      // primaryBookId נותנת שם לגרסה הראשית עצמה.
+      // גרסאות של ספר אישי: כל גרסה היא קובץ-ספר נפרד, והראשית בלבד מוצגת בעץ.
+      // ראשי אישי — לפי primaryBookId; ראשי ממקור אחר — לפי כותרת (מזהה רשמי משתנה).
       '''
       CREATE TABLE IF NOT EXISTS user_book_version (
           versionBookId INTEGER PRIMARY KEY,
-          primaryBookId INTEGER NOT NULL,
+          primaryBookId INTEGER,
+          primarySource TEXT NOT NULL DEFAULT 'u',
+          primaryTitle TEXT,
+          primaryCategoryPath TEXT,
           versionTitle TEXT NOT NULL,
           versionNotes TEXT,
           priority REAL,

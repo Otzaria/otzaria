@@ -133,7 +133,9 @@ class _BookVersionsDialogState extends State<BookVersionsDialog> {
                 }
                 final book = widget.book;
                 final selectable = book.isUserBook
-                    ? versions.where((v) => v.userBook?.id != book.id).toList()
+                    ? versions
+                          .where((v) => v.separateBook?.id != book.id)
+                          .toList()
                     : selectableVersionsFor(
                         versions,
                         book is TextBook ? book.versionTitle : null,
@@ -262,7 +264,7 @@ class BookVersionTile extends StatelessWidget {
               // גרסת ספר אישי היא קובץ-ספר נפרד, ונפתחת כמות שהיא.
               final book = this.book;
               final target =
-                  version.userBook ??
+                  version.separateBook ??
                   (isDisplayedText || book is! TextBook
                       ? book
                       : book.copyWith(

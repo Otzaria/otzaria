@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart'
     show getTitleFromPath;
@@ -148,7 +149,10 @@ class UserImportParser {
     return ParseResult(rows, errors);
   }
 
-  /// מפענח קובץ גרסאות (עמודות: ראשי, גרסה, [שם], [הערות], [עדיפות]).
+  /// מפענח קובץ גרסאות (עמודות: ראשי, גרסה, [שם], [הערות], [עדיפות],
+  /// [מקור_ראשי], [קטגוריית_ראשי]). "מקור_ראשי" ריק/"אישי" — הראשי הוא ספר
+  /// אישי; "רשמי" — ספר בספריית אוצריא; "מסד:<מזהה>" — ספר ממסד מצורף. ראשי
+  /// שאינו אישי נכתב תמיד ככותרת ספר, ו"קטגוריית_ראשי" מפרקת כפילות כותרת.
   static ParseResult<ParsedBookVersion> parseVersions(String content) {
     final rows = <ParsedBookVersion>[];
     final errors = <ImportRowError>[];
@@ -161,6 +165,8 @@ class UserImportParser {
       'label': ['שם', 'שם_גרסה'],
       'notes': ['הערות'],
       'priority': ['עדיפות'],
+      'primarySource': ['מקור_ראשי'],
+      'primaryCategory': ['קטגוריית_ראשי'],
     });
     final primaryCol = header['primary'];
     final versionCol = header['version'];
@@ -196,6 +202,17 @@ class UserImportParser {
         );
         continue;
       }
+      final sourceRaw = _at(cells, header['primarySource']);
+      final primarySource = parseVersionPrimarySource(sourceRaw);
+      if (primarySource == null) {
+        errors.add(
+          ImportRowError(
+            record.lineNumber,
+            'מקור ראשי לא חוקי: "$sourceRaw" (צפוי "אישי", "רשמי" או "מסד:<מזהה>")',
+          ),
+        );
+        continue;
+      }
       rows.add(
         ParsedBookVersion(
           rowNumber: record.lineNumber,
@@ -204,10 +221,34 @@ class UserImportParser {
           label: _nullable(_at(cells, header['label'])),
           notes: _nullable(_at(cells, header['notes'])),
           priority: priority,
+          primarySource: primarySource,
+          primaryCategoryPath: primarySource.isUser
+              ? null
+              : _nullable(_at(cells, header['primaryCategory'])),
         ),
       );
     }
     return ParseResult(rows, errors);
+  }
+
+  /// ערך עמודת "מקור_ראשי" בקובץ הגרסאות; null לערך לא מוכר.
+  static BookSource? parseVersionPrimarySource(String raw) {
+    final value = raw.trim();
+    switch (value.toLowerCase()) {
+      case '':
+      case 'אישי':
+      case 'user':
+        return BookSource.user;
+      case 'רשמי':
+      case 'official':
+        return BookSource.official;
+    }
+    final separator = value.indexOf(':');
+    if (separator <= 0) return null;
+    final prefix = value.substring(0, separator).trim().toLowerCase();
+    if (prefix != 'מסד' && prefix != 'db') return null;
+    final slug = value.substring(separator + 1).trim();
+    return BookSource.isValidSlug(slug) ? BookSource.attached(slug) : null;
   }
 
   /// מפענח קובץ קישורים (עמודות: מקור, ספר_יעד, [מיקום_יעד], סוג,

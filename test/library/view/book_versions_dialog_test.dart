@@ -118,12 +118,12 @@ void main() {
         BookVersionInfo(
           versionTitle: 'דפוס ישן',
           hasContent: true,
-          userBook: primary,
+          separateBook: primary,
         ),
         BookVersionInfo(
           versionTitle: 'מוסד הרב קוק',
           hasContent: true,
-          userBook: kook,
+          separateBook: kook,
         ),
       ];
       Book? selected;

@@ -111,7 +111,13 @@ class UserContentImporter {
               : name.substring(0, name.length - perBookHeadingSuffix.length),
         );
       } else if (_versionFileNames.contains(name)) {
-        await _ingestVersions(file, repo, versions, errors);
+        await _ingestVersions(
+          file,
+          repo,
+          versions,
+          errors,
+          sourceExists: sourceExists,
+        );
       } else if (_generationFileNames.contains(name)) {
         await _ingestGenerations(
           file,
@@ -324,8 +330,9 @@ class UserContentImporter {
     File file,
     UserContentRepository repo,
     List<UserBookVersionRecord> out,
-    List<String> errors,
-  ) async {
+    List<String> errors, {
+    required UserLinkSourceChecker sourceExists,
+  }) async {
     final fileName = _baseName(file.path);
     final ParseResult<ParsedBookVersion> parsed;
     try {
@@ -338,6 +345,41 @@ class UserContentImporter {
       errors.add('$fileName ${err.message} (שורה ${err.lineNumber})');
     }
     for (final row in parsed.rows) {
+      if (!row.primarySource.isUser) {
+        final versionId = await repo.bookIdByTitle(row.version);
+        if (versionId == null) {
+          errors.add(
+            '$fileName: הספר "${row.version}" לא נמצא בספרייה האישית '
+            '(שורה ${row.rowNumber})',
+          );
+          continue;
+        }
+        // מסד מצורף עשוי להיות מנותק כרגע; הראשי שלו נפתר בטעינת הקטלוג.
+        if (row.primarySource.isOfficial &&
+            !await sourceExists(
+              title: row.primary,
+              categoryId: null,
+              isUserBook: false,
+            )) {
+          errors.add(
+            '$fileName: הספר "${row.primary}" לא נמצא בספריית אוצריא '
+            '(שורה ${row.rowNumber})',
+          );
+          continue;
+        }
+        out.add(
+          UserBookVersionRecord.ofCatalogBook(
+            versionBookId: versionId,
+            primarySource: row.primarySource,
+            primaryTitle: row.primary,
+            primaryCategoryPath: row.primaryCategoryPath,
+            versionTitle: row.label ?? row.version,
+            versionNotes: row.notes,
+            priority: row.priority,
+          ),
+        );
+        continue;
+      }
       final primaryId = await repo.bookIdByTitle(row.primary);
       final versionId = await repo.bookIdByTitle(row.version);
       if (primaryId == null || versionId == null) {

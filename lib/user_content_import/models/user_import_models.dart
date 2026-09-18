@@ -4,6 +4,8 @@
 /// כותבת אותם ל-user_books.db (דור → book_generation, קישור → user_link).
 library;
 
+import 'package:otzaria/models/book_source.dart';
+
 /// שמות הדורות הקנוניים שמותר להזין בקובץ הדורות.
 ///
 /// "שאר מפרשים" אינו ברשימה — הוא משמעו "בלי דור" ואין טעם לייבא אותו.
@@ -74,6 +76,7 @@ class ParsedHeading {
 
 /// שורת גרסה שפוענחה מקובץ גרסאות. בקובץ שבתיקיית הספרים [primary] ו-[version]
 /// הם נתיבי קבצים יחסיים לקובץ; בייבוא מההגדרות — כותרות ספרים.
+/// ראשי ממקור לא-אישי ([primarySource]) הוא תמיד כותרת ספר בקטלוג.
 class ParsedBookVersion {
   final int rowNumber;
   final String primary;
@@ -84,6 +87,12 @@ class ParsedBookVersion {
   final String? notes;
   final double? priority;
 
+  /// מקור הספר הראשי (עמודת "מקור_ראשי"); ברירת המחדל — ספר אישי.
+  final BookSource primarySource;
+
+  /// נתיב קטגוריה לפירוק כפילות כותרת של ראשי לא-אישי ("תנך/תורה").
+  final String? primaryCategoryPath;
+
   const ParsedBookVersion({
     required this.rowNumber,
     required this.primary,
@@ -91,24 +100,48 @@ class ParsedBookVersion {
     this.label,
     this.notes,
     this.priority,
+    this.primarySource = BookSource.user,
+    this.primaryCategoryPath,
   });
 }
 
 /// רשומת גרסה כפי שהיא נשמרת ב-user_book_version.
+///
+/// ראשי אישי מזוהה ב-[primaryBookId]; ראשי ממקור אחר — ב-[primarySource]
+/// ו-[primaryTitle] (+[primaryCategoryPath]), ונפתר מול הקטלוג בכל טעינה.
 class UserBookVersionRecord {
   final int versionBookId;
-  final int primaryBookId;
+  final int? primaryBookId;
   final String versionTitle;
   final String? versionNotes;
   final double? priority;
+  final BookSource primarySource;
+  final String? primaryTitle;
+  final String? primaryCategoryPath;
 
   const UserBookVersionRecord({
     required this.versionBookId,
-    required this.primaryBookId,
+    required int this.primaryBookId,
     required this.versionTitle,
     this.versionNotes,
     this.priority,
-  });
+  }) : primarySource = BookSource.user,
+       primaryTitle = null,
+       primaryCategoryPath = null;
+
+  /// גרסה אישית של ספר מהספרייה הרשמית או ממסד מצורף.
+  const UserBookVersionRecord.ofCatalogBook({
+    required this.versionBookId,
+    required this.primarySource,
+    required String this.primaryTitle,
+    this.primaryCategoryPath,
+    required this.versionTitle,
+    this.versionNotes,
+    this.priority,
+  }) : primaryBookId = null;
+
+  /// הראשי אינו ספר אישי, ולכן נפתר לפי כותרת.
+  bool get hasCatalogPrimary => !primarySource.isUser;
 }
 
 /// שורת דור שפוענחה מקובץ הדורות.
