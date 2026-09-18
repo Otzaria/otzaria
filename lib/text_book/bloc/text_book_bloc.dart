@@ -1286,8 +1286,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       } else {
         _userTouchedCommentators = true;
         // שמירה פר-ספר של בחירת המשתמש (כולל בחירה ריקה) — תמיד, כדי שתיטען
-        // בכל פתיחה. רק ספרים רשמיים נשמרים פר-ספר.
-        if (currentState.book.source.isOfficial) {
+        // בכל פתיחה. ספר אישי אינו נשמר פר-ספר.
+        if (!currentState.book.isUserBook) {
           unawaited(
             _saveActiveCommentatorsPerBook(
               currentState.book,
@@ -3053,7 +3053,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
       // בחירה שמורה פר-ספר גוברת על ברירת המחדל: אם המשתמש בחר בעבר (כולל
       // בחירה ריקה) — משחזרים אותה; אחרת בוחרים את מפרשי ברירת המחדל.
-      final saved = !book.source.isOfficial
+      final saved = book.isUserBook
           ? null
           : await TextBookPerBookSettings.load(book);
       if (isClosed) return;
