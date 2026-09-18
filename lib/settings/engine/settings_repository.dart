@@ -37,9 +37,6 @@ class SettingsRepository {
   static const String keyEnabledExternalProviders =
       'key-enabled-external-providers';
 
-  /// הפעלת גשר פרויקט השו"ת. נפרד מהצגת הספרים בכוונה: אפשר לראות ספרי
-  /// שו"ת בחיפוש בלי להריץ מופע של התוכנה ברקע.
-  static const String keyEnableResponsaBridge = 'key-enable-responsa-bridge';
   static const String keyShowTeamim = 'key-show-teamim';
   static const String keyReplaceHolyNames = 'key-replace-holy-names';
   static const String keyHolyNameStyle = 'key-holy-name-style';
@@ -237,7 +234,6 @@ class SettingsRepository {
     keyShowLocalHebrewBooks,
     keyShowExternalBooks,
     keyEnabledExternalProviders,
-    keyEnableResponsaBridge,
     keyShowTeamim,
     keyReplaceHolyNames,
     keyHolyNameStyle,
@@ -402,10 +398,6 @@ class SettingsRepository {
         defaultValue: true,
       ),
       'enabledExternalProviders': loadEnabledExternalProviders(),
-      'enableResponsaBridge': _settings.getValue<bool>(
-        keyEnableResponsaBridge,
-        defaultValue: false,
-      ),
       'autoUpdateIndex': _settings.getValue<bool>(
         keyAutoUpdateIndex,
         defaultValue: true,
@@ -709,11 +701,17 @@ class SettingsRepository {
     );
   }
 
-  Future<void> updateEnableResponsaBridge(bool value) async {
-    await _settings.setValue(keyEnableResponsaBridge, value);
-  }
-
   static const String _providersPrefix = 'v1:';
+
+  /// מפענח את ערך הספקים המופעלים כפי שהוא באחסון.
+  ///
+  /// ציבורי בשביל שכבת הספקים, שאין לה `BuildContext` ואינה מחזיקה
+  /// מופע של המאגר. ערך שאינו בפורמט החדש מוחזר כקבוצה ריקה — המיגרציה
+  /// מהמתגים הישנים לעולם אינה מדליקה ספק שלא היה לו מתג ישן.
+  static Set<String> decodeEnabledExternalProviders(String? raw) =>
+      raw != null && raw.startsWith(_providersPrefix)
+      ? _decodeProviders(raw)
+      : const {};
 
   static String _encodeProviders(Set<String> providers) {
     final ordered = [

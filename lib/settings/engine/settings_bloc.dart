@@ -49,7 +49,6 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     );
     on<UpdateLineHeight>(_onUpdateLineHeight);
     on<UpdateEnabledExternalProviders>(_onUpdateEnabledExternalProviders);
-    on<UpdateEnableResponsaBridge>(_onUpdateEnableResponsaBridge);
     on<UpdateShowLocalHebrewBooks>(_onUpdateShowLocalHebrewBooks);
     on<UpdateAutoUpdateIndex>(_onUpdateAutoUpdateIndex);
     on<UpdateTextDisplayPolicy>(_onUpdateTextDisplayPolicy);
@@ -143,7 +142,6 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       lineHeight: settings['lineHeight'],
       enabledExternalProviders:
           settings['enabledExternalProviders'] as Set<String>? ?? const {},
-      enableResponsaBridge: settings['enableResponsaBridge'] ?? false,
       showLocalHebrewBooks: settings['showLocalHebrewBooks'] ?? true,
       autoUpdateIndex: settings['autoUpdateIndex'],
       textDisplayPolicy: settings['textDisplayPolicy'] as TextDisplayPolicy?,
@@ -489,14 +487,6 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     await _repository.updateEnabledExternalProviders(event.providers);
     emit(state.copyWith(enabledExternalProviders: event.providers));
-  }
-
-  Future<void> _onUpdateEnableResponsaBridge(
-    UpdateEnableResponsaBridge event,
-    Emitter<SettingsState> emit,
-  ) async {
-    await _repository.updateEnableResponsaBridge(event.enabled);
-    emit(state.copyWith(enableResponsaBridge: event.enabled));
   }
 
   Future<void> _onUpdateShowLocalHebrewBooks(

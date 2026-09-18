@@ -9,6 +9,7 @@ import '../../helpers/memory_settings_cache.dart';
 
 import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_controller.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_profile.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_catalog_repository.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -22,12 +23,14 @@ class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
   _FakeSettingsBloc({
     bool showOtzarHachochma = false,
     bool showHebrewBooks = false,
+    bool showResponsa = false,
     bool showLocalHebrewBooks = true,
   }) : super(
          SettingsState.initial().copyWith(
            enabledExternalProviders: {
              if (showOtzarHachochma) ExternalProviderRegistry.otzar.id,
              if (showHebrewBooks) ExternalProviderRegistry.hebrewBooks.id,
+             if (showResponsa) ExternalProviderRegistry.responsa.id,
            },
            showLocalHebrewBooks: showLocalHebrewBooks,
          ),
@@ -46,7 +49,13 @@ class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
   dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
 
-Widget _wrap(SettingsBloc settingsBloc, {bool catalogExists = true}) {
+Widget _wrap(
+  SettingsBloc settingsBloc, {
+  bool catalogExists = true,
+  ResponsaCatalogInfo? responsaInfo,
+  ResponsaStatus? responsaStatus,
+  Future<void> Function()? responsaCatalogBuilder,
+}) {
   return MaterialApp(
     home: Directionality(
       textDirection: TextDirection.rtl,
@@ -58,8 +67,11 @@ Widget _wrap(SettingsBloc settingsBloc, {bool catalogExists = true}) {
               catalogExistsChecker: () async => catalogExists,
               // בלי ההזרקה הזו הפאנל היה קורא את הקטלוג האמיתי של
               // פרויקט השו"ת מהמחשב שמריץ את הבדיקה.
-              responsaInfoLoader: () async => ResponsaCatalogInfo.missing,
-              responsaStatusLoader: () async => ResponsaStatus.notInstalled,
+              responsaInfoLoader: () async =>
+                  responsaInfo ?? ResponsaCatalogInfo.missing,
+              responsaStatusLoader: () async =>
+                  responsaStatus ?? ResponsaStatus.notInstalled,
+              responsaCatalogBuilder: responsaCatalogBuilder,
             ),
           ),
         ),
@@ -211,5 +223,109 @@ void main() {
       find.text('ספרים מתיקיית היברובוקס לא יוצגו בתוצאות איתור הספר'),
       findsOneWidget,
     );
+  });
+
+  group('כרטיס בר אילן', () {
+    const installed = ResponsaStatus(
+      installed: true,
+      running: false,
+      version: 25,
+      confidence: ResponsaVersionConfidence.verified,
+    );
+    const withCatalog = ResponsaCatalogInfo(
+      exists: true,
+      bookCount: 8523,
+      sourceVersion: 25,
+      schemaVersion: 2,
+    );
+
+    testWidgets('אינו מוצג כשבר אילן אינו מותקן', (tester) async {
+      await tester.pumpWidget(_wrap(_FakeSettingsBloc()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('הצג ופתח ספרי בר אילן'), findsNothing);
+    });
+
+    testWidgets('מתג אחד לחיפוש ולפתיחה, לא שניים', (tester) async {
+      // המתג הנפרד ל"אפשר פתיחת ספרים בתוכנה" הוסר: ספר שנמצא בחיפוש
+      // ואי אפשר לפתוח אותו הוא תוצאה חסרת ערך.
+      await tester.pumpWidget(
+        _wrap(
+          _FakeSettingsBloc(showResponsa: true),
+          responsaStatus: installed,
+          responsaInfo: withCatalog,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('הצג ופתח ספרי בר אילן'), findsOneWidget);
+      expect(find.text('אפשר פתיחת ספרים בתוכנה'), findsNothing);
+    });
+
+    testWidgets('הדלקה ראשונה בלי קטלוג מתחילה בנייה', (tester) async {
+      var builds = 0;
+      final settingsBloc = _FakeSettingsBloc();
+
+      await tester.pumpWidget(
+        _wrap(
+          settingsBloc,
+          responsaStatus: installed,
+          responsaCatalogBuilder: () async => builds++,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('הצג ופתח ספרי בר אילן'));
+      await tester.pumpAndSettle();
+
+      expect(
+        settingsBloc.state.enabledExternalProviders,
+        contains(ExternalProviderRegistry.responsa.id),
+      );
+      expect(builds, 1);
+    });
+
+    testWidgets('הדלקה כשהקטלוג קיים אינה בונה מחדש', (tester) async {
+      var builds = 0;
+
+      await tester.pumpWidget(
+        _wrap(
+          _FakeSettingsBloc(),
+          responsaStatus: installed,
+          responsaInfo: withCatalog,
+          responsaCatalogBuilder: () async => builds++,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('הצג ופתח ספרי בר אילן'));
+      await tester.pumpAndSettle();
+
+      expect(builds, 0);
+    });
+
+    testWidgets('קטלוג בסכמה ישנה מבקש רענון', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          _FakeSettingsBloc(showResponsa: true),
+          responsaStatus: installed,
+          responsaInfo: const ResponsaCatalogInfo(
+            exists: true,
+            bookCount: 8523,
+            sourceVersion: 25,
+            schemaVersion: 1,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'הקטלוג נבנה בגרסה ישנה של אוצריא. רענון יעדכן את שמות הספרים '
+          'ואת אופן הפתיחה.',
+        ),
+        findsOneWidget,
+      );
+    });
   });
 }

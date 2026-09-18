@@ -33,9 +33,6 @@ class SettingsState extends Equatable {
   /// אירוע ו-copyWith משלו.
   final Set<String> enabledExternalProviders;
 
-  /// האם גשר פרויקט השו"ת רשאי לעלות. בלתי תלוי בהצגת הספרים בחיפוש.
-  final bool enableResponsaBridge;
-
   bool isExternalProviderEnabled(ExternalProviderDescriptor provider) =>
       enabledExternalProviders.contains(provider.id);
 
@@ -132,7 +129,6 @@ class SettingsState extends Equatable {
     required this.commentatorsFontSize,
     required this.lineHeight,
     this.enabledExternalProviders = const {},
-    this.enableResponsaBridge = false,
     this.showLocalHebrewBooks = true,
     TextDisplayPolicy? textDisplayPolicy,
     required this.autoUpdateIndex,
@@ -186,7 +182,6 @@ class SettingsState extends Equatable {
       commentatorsFontSize: 22,
       lineHeight: 1.5,
       enabledExternalProviders: const {},
-      enableResponsaBridge: false,
       showLocalHebrewBooks: true,
       autoUpdateIndex: true,
       defaultContinuousReadingMode: false,
@@ -230,7 +225,6 @@ class SettingsState extends Equatable {
     double? commentatorsFontSize,
     double? lineHeight,
     Set<String>? enabledExternalProviders,
-    bool? enableResponsaBridge,
     bool? showLocalHebrewBooks,
     TextDisplayPolicy? textDisplayPolicy,
     bool? showTeamim,
@@ -312,7 +306,6 @@ class SettingsState extends Equatable {
       lineHeight: lineHeight ?? this.lineHeight,
       enabledExternalProviders:
           enabledExternalProviders ?? this.enabledExternalProviders,
-      enableResponsaBridge: enableResponsaBridge ?? this.enableResponsaBridge,
       showLocalHebrewBooks: showLocalHebrewBooks ?? this.showLocalHebrewBooks,
       autoUpdateIndex: autoUpdateIndex ?? this.autoUpdateIndex,
       defaultContinuousReadingMode:
@@ -388,7 +381,6 @@ class SettingsState extends Equatable {
     commentatorsFontSize,
     lineHeight,
     enabledExternalProviders,
-    enableResponsaBridge,
     showLocalHebrewBooks,
     textDisplayPolicy,
     autoUpdateIndex,

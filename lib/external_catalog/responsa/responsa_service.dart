@@ -1,4 +1,5 @@
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_controller.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_catalog_repository.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_library_provider.dart';
@@ -25,17 +26,20 @@ class ResponsaService {
     controller: controller,
   );
 
-  /// האם המשתמש התיר להעלות מופע של פרויקט השו"ת כשאינו רץ.
+  /// האם המשתמש התיר להעלות מופע של בר אילן כשאינו רץ.
+  ///
+  /// **אותה הגדרה שמפעילה את החיפוש.** ספר שנמצא בחיפוש ואי אפשר
+  /// לפתוח אותו הוא תוצאה חסרת ערך, ולכן אין כאן מתג שני.
   ///
   /// נקרא ישירות מהאחסון ולא דרך ה-BLoC: הקריאה מגיעה משכבת הספקים,
   /// שאין לה `BuildContext`.
   static bool allowAutoStart() {
     if (!Settings.isInitialized) return false;
-    return Settings.getValue<bool>(
-          SettingsRepository.keyEnableResponsaBridge,
-          defaultValue: false,
-        ) ??
-        false;
+    return SettingsRepository.decodeEnabledExternalProviders(
+      Settings.getValue<String>(
+        SettingsRepository.keyEnabledExternalProviders,
+      ),
+    ).contains(ExternalProviderRegistry.responsa.id);
   }
 
   /// פותח ספר בתוכנה. מחזיר `null` בהצלחה, או הודעת שגיאה למשתמש.

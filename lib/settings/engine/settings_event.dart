@@ -142,15 +142,6 @@ class UpdateEnabledExternalProviders extends SettingsEvent {
   List<Object?> get props => [providers];
 }
 
-class UpdateEnableResponsaBridge extends SettingsEvent {
-  final bool enabled;
-
-  const UpdateEnableResponsaBridge(this.enabled);
-
-  @override
-  List<Object?> get props => [enabled];
-}
-
 class UpdateShowLocalHebrewBooks extends SettingsEvent {
   final bool showLocalHebrewBooks;
 
