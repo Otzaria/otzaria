@@ -234,9 +234,9 @@ class TargetLineLinksService {
   /// אלפביתית ואז מסתדרת מחדש מול העיניים. כישלון אינו פוסל את הקישורים.
   static Future<void> _preloadEras(TargetLineLinks data) async {
     try {
-      await CommentaryService.preloadEras([
-        for (final link in [...data.commentaries, ...data.references])
-          utils.getTitleFromPath(link.path2),
+      await CommentaryService.preloadErasForLinks([
+        ...data.commentaries,
+        ...data.references,
       ]);
     } catch (_) {
       return;

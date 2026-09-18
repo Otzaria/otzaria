@@ -1412,7 +1412,7 @@ class PluginBridgeAdapter {
 
     if (args['grouped'] as bool? ?? false) {
       final titles = [for (final c in commentators) c.title];
-      final eras = await splitByEra(titles);
+      final eras = await splitByEra(titles, source: book.source);
       return {
         'groups': _commentatorGroupsToJson(
           buildCommentatorGroups(eras, titles),

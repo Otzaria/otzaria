@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -33,6 +34,9 @@ class PageShapeSettingsPanel extends StatefulWidget {
   final List<String> availableCommentators;
   final String bookTitle;
   final String? heCategories; // קטגוריות הספר
+
+  /// המקור של הספר — מפרשי מסד מצורף מסווגים לפי הדורות של המסד שלו.
+  final BookSource bookSource;
   final String? currentLeft;
   final String? currentRight;
   final String? currentBottom;
@@ -50,6 +54,7 @@ class PageShapeSettingsPanel extends StatefulWidget {
     required this.availableCommentators,
     required this.bookTitle,
     this.heCategories,
+    this.bookSource = BookSource.official,
     this.currentLeft,
     this.currentRight,
     this.currentBottom,
@@ -166,7 +171,10 @@ class _PageShapeSettingsPanelState extends State<PageShapeSettingsPanel> {
   }
 
   Future<void> _loadCommentatorGroups() async {
-    final eras = await utils.splitByEra(widget.availableCommentators);
+    final eras = await utils.splitByEra(
+      widget.availableCommentators,
+      source: widget.bookSource,
+    );
     final groups = buildCommentatorGroups(eras, widget.availableCommentators);
 
     if (mounted) {

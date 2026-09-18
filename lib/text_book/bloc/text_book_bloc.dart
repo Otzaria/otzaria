@@ -2941,13 +2941,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
   /// טוען מראש את דורות ספרי היעד של הקישורים הרגילים (לא מפרשים)
   void _preloadLinkEras(List<Link> links) {
-    final titles = <String>{
+    final eraLinks = [
       for (final link in links)
-        if (!LinkTypes.isDependentTextLink(link.connectionType))
-          utils.getTitleFromPath(link.path2),
-    };
-    if (titles.isEmpty) return;
-    CommentaryService.preloadEras(titles);
+        if (!LinkTypes.isDependentTextLink(link.connectionType)) link,
+    ];
+    if (eraLinks.isEmpty) return;
+    CommentaryService.preloadErasForLinks(eraLinks);
   }
 
   void _onSetLinksLoading(
@@ -3022,7 +3021,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         book,
       );
 
-      final eras = await utils.splitByEra(availableCommentators);
+      final eras = await utils.splitByEra(
+        availableCommentators,
+        source: book.source,
+      );
       final groups = buildCommentatorGroups(
         eras,
         availableCommentators,

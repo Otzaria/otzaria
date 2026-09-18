@@ -126,6 +126,7 @@ class SiblingCommentariesController {
     for (final link in cached) {
       final era = CommentaryService.getCachedBookEra(
         utils.getTitleFromPath(link.path2),
+        source: link.targetSource,
       );
       if (lastEra != null && era != lastEra) {
         entries.add(const AppContextMenuEntry.divider());

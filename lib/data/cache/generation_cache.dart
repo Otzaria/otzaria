@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/models/book_source.dart';
@@ -24,6 +25,9 @@ class GenerationCache {
   /// דור לפי id ב-user_books.db — מרחב id נפרד, לכן מפה נפרדת.
   final Map<int, int> _orderByUserBookId = <int, int>{};
 
+  /// דור לפי id בכל מסד מצורף, לפי slug.
+  final Map<String, Map<int, int>> _orderByAttachedBookId = {};
+
   bool get isLoaded => _isLoaded;
 
   static const String _selectSql = '''
@@ -34,13 +38,14 @@ class GenerationCache {
       ''';
 
   /// מחזיר את סדר הדור של הספר (נמוך = מוקדם). ספר לא ידוע → סוף הרשימה.
-  /// [source] בוחר את מפת ה-id של המסד (מרחבי id נפרדים); מסד מצורף — סוף.
+  /// [source] בוחר את מפת ה-id של המסד (מרחבי id נפרדים).
   int getOrderForBook(int? bookId, BookSource source) {
     if (bookId == null) return CommentaryEra.other.order;
     final map = switch (source) {
       OfficialBookSource() => _orderByBookId,
       UserBookSource() => _orderByUserBookId,
-      AttachedBookSource() => const <int, int>{},
+      AttachedBookSource(:final slug) =>
+        _orderByAttachedBookId[slug] ?? const <int, int>{},
     };
     return map[bookId] ?? CommentaryEra.other.order;
   }
@@ -90,7 +95,31 @@ class GenerationCache {
         }
       }
 
+      final localAttached = <String, Map<int, int>>{};
+      for (final library in AttachedLibraryRegistry.instance.visibleLibraries) {
+        try {
+          final attachedRepo = await AttachedLibraryRegistry.instance
+              .repositoryFor(library.slug);
+          if (attachedRepo == null || myGen != _generation) continue;
+          if (!(await attachedRepo.database.capabilities).hasGenerations) {
+            continue;
+          }
+          final attachedDb = await attachedRepo.database.database;
+          _accumulate(
+            attachedDb.select(_selectSql),
+            localAttached[library.slug] = <int, int>{},
+          );
+        } catch (e) {
+          debugPrint(
+            '[GenerationCache] ${library.slug} generations skipped: $e',
+          );
+        }
+      }
+
       if (myGen != _generation) return;
+      _orderByAttachedBookId
+        ..clear()
+        ..addAll(localAttached);
       _orderByBookId
         ..clear()
         ..addAll(local);
@@ -130,6 +159,7 @@ class GenerationCache {
 
   void clear() {
     _generation++;
+    _orderByAttachedBookId.clear();
     _orderByBookId.clear();
     _orderByUserBookId.clear();
     _isLoaded = false;

@@ -1701,6 +1701,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                           availableCommentators: _availableCommentators(state),
                           bookTitle: state.book.title,
                           heCategories: state.book.heCategories,
+                          bookSource: state.book.source,
                           currentLeft: _leftCommentator,
                           currentRight: _rightCommentator,
                           currentBottom: _bottomCommentator,

@@ -2,6 +2,8 @@ import 'dart:collection';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/search/models/search_match_policy.dart';
@@ -1003,11 +1005,16 @@ int countMatches(
   return _findHighlightMatches(text, compiled, requireTokenBoundaries).length;
 }
 
-Future<bool> hasTopic(String title, String topic) async {
+Future<bool> hasTopic(
+  String title,
+  String topic, {
+  BookSource source = BookSource.official,
+}) async {
   // Load CSV data once and cache it (קריאות מקבילות חולקות את אותה טעינה)
   if (_shouldLoadCsvCache()) {
     await (_csvCacheLoading ??= _loadCsvCache());
   }
+  final overlay = await _eraOverlayFor(source);
 
   // For non-era topics (like 'על ברכות'), check if the commentator title contains the topic.
   // e.g. "רש"י על ברכות".contains("על ברכות") == true
@@ -1016,7 +1023,7 @@ Future<bool> hasTopic(String title, String topic) async {
   }
 
   // הטבלה עשויה להיות null אם הטעינה נכשלה; אז אין סיווג ידוע.
-  final generationRaw = _csvCache?[title];
+  final generationRaw = overlay[title] ?? _csvCache?[title];
   if (generationRaw != null) {
     return generationRaw
         .split(',')
@@ -1067,6 +1074,27 @@ Future<void> _loadCsvCache() async {
   }
 }
 
+/// דורות הספרים של מסד מצורף, לפי כותרת — נטען פעם אחת לכל מסד.
+final Map<String, Future<Map<String, String>>> _attachedEraMaps = {};
+
+/// מפת הדורות של המסד של [source] שגוברת על הרשמית: ספר ממסד מצורף מסווג
+/// קודם לפי book_generation של המסד שלו. לספר רשמי/אישי — ריקה.
+Future<Map<String, String>> _eraOverlayFor(BookSource source) {
+  if (source is! AttachedBookSource) return Future.value(const {});
+  return _attachedEraMaps[source.slug] ??= () async {
+    try {
+      final repo = await AttachedLibraryRegistry.instance.repositoryFor(
+        source.slug,
+      );
+      if (repo == null) return const <String, String>{};
+      return await repo.database.authorDao.getAllBookTitleToGeneration();
+    } catch (e) {
+      debugPrint('⚠️ attached era cache skipped (${source.slug}): $e');
+      return const <String, String>{};
+    }
+  }();
+}
+
 /// האם טבלת הדורות נטענה מה-DB.
 ///
 /// כשלא — כל סיווג דור יוצא "מפרשים נוספים", ואין לשמור אותו במטמון.
@@ -1074,6 +1102,7 @@ bool get isEraTableLoaded => _csvCache != null;
 
 /// מנקה את ה-cache של תקופות כדי לאלץ טעינה מחדש
 void clearCommentatorOrderCache() {
+  _attachedEraMaps.clear();
   _csvCache = null;
   _csvCacheLoading = null;
   _csvCacheUnavailable = false;
@@ -1448,14 +1477,19 @@ List<String> _refMatchTokens(String s) => normalizeForFindRefMatch(s)
     .toList();
 
 //פונקציה לחלוקת מפרשים לפי תקופה
+///
+/// [source] — המקור של הספר הפתוח: מפרשי מסד מצורף מסווגים קודם לפי הדורות
+/// של המסד שלו.
 Future<Map<String, List<String>>> splitByEra(
-  List<String> titles,
-) async {
+  List<String> titles, {
+  BookSource source = BookSource.official,
+}) async {
   // טעינת ה-cache פעם אחת בהתחלה (אם עדיין לא נטען).
   // קריאות מקבילות חולקות את אותה טעינה ולא רואות מפה ריקה באמצע.
   if (_shouldLoadCsvCache()) {
     await (_csvCacheLoading ??= _loadCsvCache());
   }
+  final overlay = await _eraOverlayFor(source);
 
   // יוצרים מבנה נתונים ריק לכל הקטגוריות
   final Map<String, List<String>> byEra = {
@@ -1465,7 +1499,7 @@ Future<Map<String, List<String>>> splitByEra(
 
   // ממיינים כל פרשן לקטגוריה הראשונה שמתאימה לו (סינכרוני!)
   for (final t in titles) {
-    final category = _getTopicSync(t);
+    final category = _getTopicSync(t, overlay);
     byEra[category]!.add(t);
   }
 
@@ -1474,10 +1508,10 @@ Future<Map<String, List<String>>> splitByEra(
 }
 
 /// גרסה סינכרונית של hasTopic - משתמשת ב-cache שכבר נטען
-String _getTopicSync(String title) {
+String _getTopicSync(String title, [Map<String, String> overlay = const {}]) {
   // הדור נלקח מטבלת book_generation ב-DB; ספר שאינו מתויג -> "מפרשים נוספים"
-  if (_csvCache != null && _csvCache!.containsKey(title)) {
-    final generationRaw = _csvCache![title]!;
+  final generationRaw = overlay[title] ?? _csvCache?[title];
+  if (generationRaw != null) {
     final parsedCategories = generationRaw
         .split(',')
         .map((e) => _mapGenerationToCategory(e.trim()))

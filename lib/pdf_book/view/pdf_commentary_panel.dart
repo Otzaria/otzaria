@@ -585,7 +585,10 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     }
 
     await eraPreload;
-    final eras = await utils.splitByEra(availableCommentators);
+    final eras = await utils.splitByEra(
+      availableCommentators,
+      source: widget.tab.book.source,
+    );
     final groups = buildCommentatorGroups(eras, availableCommentators);
     if (!mounted) return;
     setState(() {

@@ -537,8 +537,10 @@ class _LinksListViewState extends State<LinksListView> {
   /// מטמון הדורות נקרא סינכרונית ב-build; בלי טעינה מוקדמת כל הקישורים ייפלו
   /// לצ׳יפ "ספרים נוספים". הטעינה אסינכרונית ומרעננת את ה-build בסיומה.
   void _ensureErasPreloaded(List<Link> links) {
-    final titles = links
+    final eraLinks = links
         .where((link) => LinkTypes.isEraGroupedType(link.connectionType))
+        .toList();
+    final titles = eraLinks
         .map((link) => utils.getTitleFromPath(link.path2))
         .toSet();
     if (titles.isEmpty) return;
@@ -547,7 +549,7 @@ class _LinksListViewState extends State<LinksListView> {
     if (_preloadedEraTitles == signature) return;
     _preloadedEraTitles = signature;
 
-    CommentaryService.preloadEras(titles).then((_) {
+    CommentaryService.preloadErasForLinks(eraLinks).then((_) {
       // בחירת שורה מהירה מייתרת טעינה קודמת — rebuild מיותר.
       if (mounted && _preloadedEraTitles == signature) {
         setState(() => _eraGeneration++);
