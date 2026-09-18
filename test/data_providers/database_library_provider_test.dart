@@ -1196,6 +1196,9 @@ void main() {
             'CREATE TABLE alt_toc_structure (id INTEGER PRIMARY KEY, bookId INTEGER, key TEXT, title TEXT, heTitle TEXT)',
           );
           db.execute(
+            'CREATE TABLE category (id INTEGER PRIMARY KEY, title TEXT)',
+          );
+          db.execute(
             "INSERT INTO book (id, title, categoryId) VALUES (1, 'הקדמה', 5), (2, 'הקדמה', 7)",
           );
           db.execute(

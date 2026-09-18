@@ -39,6 +39,7 @@ Future<Map<int, String>> loadDibburimForBook(TextBook book) async {
   if (provider is! DatabaseLibraryProvider) return const {};
   return DatabaseLibraryProvider.instance.getDibburHamatchilByLineIndex(
     book.title,
+    categoryId: book.categoryId,
   );
 }
 

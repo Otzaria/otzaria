@@ -810,8 +810,9 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   }
 
   String? _textBookIdentity(TextBookTab tab) {
-    final base = _textBookBaseIdentity(tab);
-    if (base == null) return null;
+    final identity = _textBookBaseIdentity(tab);
+    if (identity == null) return null;
+    final base = '$identity${tab.book.sourceIdentitySuffix}';
     // מהדורה חלופית היא טאב נפרד מהנוסח הממוזג של אותו ספר.
     final versionTitle = tab.book.versionTitle;
     return versionTitle == null ? base : '$base|version:$versionTitle';

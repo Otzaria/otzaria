@@ -82,6 +82,26 @@ void main() {
           .toList();
       expect(refs, ['רגיל']);
     });
+
+    test('ספר אישי וספר רשמי עם אותו id אינם מתמזגים', () {
+      Map<String, dynamic> entry({required bool isUserBook}) => {
+        ...bookmark('דף ב'),
+        'book': {'id': 7, 'title': 'ספר', 'isUserBook': isUserBook},
+      };
+      final merged = merge(
+        {
+          'bookmarks': [entry(isUserBook: false)],
+          'history': [entry(isUserBook: false)],
+        },
+        {
+          'bookmarks': [entry(isUserBook: true)],
+          'history': [entry(isUserBook: true)],
+        },
+      );
+
+      expect(merged['bookmarks'] as List, hasLength(2));
+      expect(merged['history'] as List, hasLength(2));
+    });
   });
 
   group('הגדרות', () {

@@ -59,10 +59,15 @@ class BookFacetMetadataCache {
     }
     try {
       final db = await repository.database.database;
-      _accumulateAuthors(db.select(_authorsSql), _authorsByBookId);
-      for (final row in db.select(_baseBooksSql)) {
-        final id = row['id'] as int?;
-        if (id != null) _baseBookIds.add(id);
+      final capabilities = await repository.database.capabilities;
+      if (capabilities.hasAuthors) {
+        _accumulateAuthors(db.select(_authorsSql), _authorsByBookId);
+      }
+      if (capabilities.hasColumn('book', 'isBaseBook')) {
+        for (final row in db.select(_baseBooksSql)) {
+          final id = row['id'] as int?;
+          if (id != null) _baseBookIds.add(id);
+        }
       }
 
       // ספרים אישיים — רק אם ה-DB שלהם כבר פתוח, בלי לכפות יצירה.

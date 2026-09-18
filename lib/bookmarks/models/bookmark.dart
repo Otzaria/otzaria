@@ -10,7 +10,7 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 /// id/נתיב שונים) יקבלו זהויות שונות, כך שאפשר לסמן בהן סימניות נפרדות באותו
 /// אינדקס בלי שתידחה סימניה.
 String bookIdentity(Book book) {
-  final base = _baseBookIdentity(book);
+  final base = '${_baseBookIdentity(book)}${book.sourceIdentitySuffix}';
   // מהדורה חלופית (book_version) חולקת את אותו db id עם הנוסח הממוזג —
   // בלי הסיומת סימניות והיסטוריית מיקום היו מתערבבות בין המהדורות.
   final versionTitle = book is TextBook ? book.versionTitle : null;
@@ -87,7 +87,7 @@ class Bookmark {
   /// A stable key for history management, unique per book title (and edition).
   String get historyKey {
     if (isSearch) return ref;
-    final base = '${targetKind.name}:${book.title}';
+    final base = '${targetKind.name}:${book.title}${book.sourceIdentitySuffix}';
     // מהדורה חלופית מקבלת רשומת היסטוריה נפרדת — אחרת snapshot של מהדורה
     // אחת מוחק את מיקום הקריאה השמור של האחרת (הדחה לפי historyKey זהה).
     final b = book;

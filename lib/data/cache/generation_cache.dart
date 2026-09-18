@@ -65,7 +65,9 @@ class GenerationCache {
       if (myGen != _generation) return;
 
       final local = <int, int>{};
-      _accumulate(db.select(_selectSql), local);
+      if ((await repository.database.capabilities).hasGenerations) {
+        _accumulate(db.select(_selectSql), local);
+      }
 
       // דורות של ספרים אישיים (user_books.db) — רק אם ה-DB כבר פתוח, בלי
       // לכפות יצירתו. מרחב id נפרד, לכן מפה נפרדת.
@@ -75,7 +77,9 @@ class GenerationCache {
         try {
           final userDb = await userRepo.database.database;
           if (myGen != _generation) return;
-          _accumulate(userDb.select(_selectSql), localUser);
+          if ((await userRepo.database.capabilities).hasGenerations) {
+            _accumulate(userDb.select(_selectSql), localUser);
+          }
         } catch (e) {
           debugPrint('[GenerationCache] user_books generations skipped: $e');
         }

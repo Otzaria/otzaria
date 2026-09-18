@@ -19,6 +19,7 @@ import 'search_dao.dart';
 import 'toc_dao.dart';
 import 'toc_text_dao.dart';
 import 'topic_dao.dart';
+import '../db_capabilities.dart';
 import '../query_loader.dart';
 import '../sqlite3_utils.dart';
 
@@ -183,6 +184,10 @@ class MyDatabase {
     return _database!;
   }
 
+  /// מפת הטבלאות והעמודות של המסד — מקור יחיד לבדיקת קיום טבלה/עמודה.
+  Future<DbCapabilities> get capabilities async =>
+      DbCapabilities.forDatabase(_path, await database);
+
   sqlite3.Database _initDatabase() {
     if (_readOnly) {
       // Read-only open: never create WAL side-files (-wal/-shm) and never run
@@ -282,6 +287,7 @@ class MyDatabase {
   }
 
   void close() {
+    DbCapabilities.invalidate(_path);
     final db = _database;
     if (db != null) {
       _readOnly ? db.close() : closeWithCheckpoint(db);

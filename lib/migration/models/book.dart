@@ -202,8 +202,9 @@ class Book {
   factory Book.fromJson(Map<String, dynamic> json) {
     return Book(
       id: json['id'] as int? ?? 0,
-      categoryId: json['categoryId'] as int,
-      sourceId: json['sourceId'] as int,
+      // עמודות רשות: מסד שחסרות בו נותן 0 (שורש יחיד / מקור לא ידוע).
+      categoryId: json['categoryId'] as int? ?? 0,
+      sourceId: json['sourceId'] as int? ?? 0,
       title: json['title'] as String,
       authors:
           (json['authors'] as List<dynamic>?)

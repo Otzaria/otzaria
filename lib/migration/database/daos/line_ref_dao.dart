@@ -17,7 +17,6 @@ typedef LineRefCandidate = ({
 class LineRefDao {
   final MyDatabase _db;
   late final Map<String, String> _queries;
-  bool? _available;
 
   LineRefDao(this._db) {
     _queries = QueryLoader.loadQueries('LineRefQueries.sq');
@@ -25,15 +24,8 @@ class LineRefDao {
 
   Future<sqlite3.Database> get database => _db.database;
 
-  /// האם המסד הנוכחי מכיל את טבלת האינדקס. נבדק פעם אחת ונשמר.
-  Future<bool> isAvailable() async {
-    if (_available != null) return _available!;
-    final db = await database;
-    final rows = db.select(
-      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'line_ref' LIMIT 1",
-    );
-    return _available = rows.isNotEmpty;
-  }
+  /// האם המסד הנוכחי מכיל את טבלת האינדקס.
+  Future<bool> isAvailable() async => (await _db.capabilities).hasLineRef;
 
   /// המועמדים למפתח [refKeyHash] בכל אחד מ-[bookIds] — שאילתה מאוגדת אחת,
   /// כדי שהקלדה מול כמה ספרים מועמדים לא תייצר רצף פניות. ה-heRef מוחזר כדי

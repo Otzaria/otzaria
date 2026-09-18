@@ -1,6 +1,7 @@
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/repository/book_toc_loader.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/utils/file/document_format.dart';
 
@@ -125,6 +126,9 @@ abstract class Book {
     this.isUserBook = false,
     this.externalLibraryId,
   });
+
+  /// סיומת המקור במפתחות זהות: ספר רשמי וספר אישי עם אותו id אינם אותו ספר.
+  String get sourceIdentitySuffix => isUserBook ? kUserBookIdentitySuffix : '';
 }
 
 ///a representation of a text book (opposite PDF book).

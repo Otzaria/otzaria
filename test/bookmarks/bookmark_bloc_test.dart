@@ -587,6 +587,36 @@ void main() {
       expect(mergedEntry.historyKey, isNot(editionEntry.historyKey));
       expect(editionEntry.historyKey, contains('Warsaw 1861'));
     });
+
+    test('ספר אישי עם אותו id כמו ספר רשמי מקבל זהות נפרדת', () {
+      final official = TextBook(id: 7, title: 'טור', categoryId: 3);
+      final user = TextBook(
+        id: 7,
+        title: 'טור',
+        categoryId: 3,
+        isUserBook: true,
+      );
+
+      expect(bookIdentity(official), 'id:7');
+      expect(bookIdentity(user), isNot(bookIdentity(official)));
+      expect(
+        Bookmark(ref: 'טור א', book: user, index: 1).historyKey,
+        isNot(Bookmark(ref: 'טור א', book: official, index: 1).historyKey),
+      );
+      expect(
+        Bookmark(ref: 'טור א', book: official, index: 1).historyKey,
+        'book:טור',
+      );
+    });
+
+    test('זהות ספר אישי נשמרת אחרי סיבוב JSON', () {
+      final user = TextBook(id: 7, title: 'טור', isUserBook: true);
+      final entry = Bookmark(ref: 'טור א', book: user, index: 1);
+      final restored = Bookmark.fromJson(entry.toJson());
+
+      expect(bookIdentity(restored.book), bookIdentity(user));
+      expect(restored.historyKey, entry.historyKey);
+    });
   });
 
   group('Bookmark model', () {

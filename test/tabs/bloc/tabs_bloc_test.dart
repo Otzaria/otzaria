@@ -535,6 +535,52 @@ void main() {
       await _closeBlocAndAllowDeferredDispose(bloc);
     });
 
+    test('ספר אישי עם id של ספר רשמי נפתח בטאב נפרד', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final existingTab = TextBookTab(
+        book: TextBook(id: 101, title: 'משנה ברכות', categoryId: 7),
+        index: 0,
+      );
+
+      bloc.add(AddTab(existingTab));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+
+      final targetTab = TextBookTab(
+        book: TextBook(
+          id: 101,
+          title: 'משנה ברכות',
+          categoryId: 7,
+          isUserBook: true,
+        ),
+        index: 0,
+      );
+      bloc.add(OpenOrFocusTab(targetTab, navigateToPositionIfReused: true));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      expect(bloc.state.currentTabIndex, 1);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('ספר אישי שכבר פתוח ממוקד ולא נפתח שוב', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      TextBookTab userTab() => TextBookTab(
+        book: TextBook(id: 101, title: 'משנה ברכות', isUserBook: true),
+        index: 0,
+      );
+
+      bloc.add(AddTab(userTab()));
+      bloc.add(AddTab(_createTextTab('ספר אחר', categoryId: 2)));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      bloc.add(OpenOrFocusTab(userTab(), navigateToPositionIfReused: true));
+      await bloc.stream.firstWhere((s) => s.currentTabIndex == 0);
+
+      expect(bloc.state.tabs, hasLength(2));
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
     test('ממקד טאב PDF קיים גם כשהכותרת עוד לא נטענה לפי מספר עמוד', () async {
       final bloc = TabsBloc(repository: _FakeTabsRepository());
       final existingTab = PdfBookTab(

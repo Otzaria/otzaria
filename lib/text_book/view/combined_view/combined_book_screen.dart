@@ -957,7 +957,10 @@ class _CombinedViewState extends State<CombinedView> {
       );
       if (provider is! DatabaseLibraryProvider) return;
       marks = await DatabaseLibraryProvider.instance
-          .getInlineSectionMarksByLineIndex(book.title);
+          .getInlineSectionMarksByLineIndex(
+            book.title,
+            categoryId: book.categoryId,
+          );
     }
     // כמו ב-_loadSourceBanner: מעבר מהיר בין ספרים עלול לסיים await זה
     // אחרי החלפת הספר.
