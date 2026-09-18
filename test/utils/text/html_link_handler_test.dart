@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/external_uri_router.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/text/html_link_handler.dart';
@@ -207,6 +208,61 @@ void main() {
 
       expect(handled, isTrue);
       expect(launcher.launched, ['https://example.test/word-link']);
+    });
+  });
+
+  // תוכן ספר — כולל ספר ממסד מצורף — יכול רק לנווט: פעולות otzaria:// אינן מופעלות ממנו.
+  group('otzaria:// actions inside book content', () {
+    const actionLinks = [
+      'otzaria://plugin/install?url=https%3A%2F%2Fexample.com%2Fp.otzplugin',
+      'otzaria://plugin/install-local?path=C%3A%2Fp.otzplugin',
+      'otzaria://library/reindex',
+      'otzaria://open/book/7?source=db%3Alib-a',
+    ];
+
+    test('are real app actions, yet never external or book links', () {
+      for (final url in actionLinks) {
+        expect(
+          ExternalUriRouter.parseUri(Uri.parse(url)),
+          isNotNull,
+          reason: url,
+        );
+        expect(HtmlLinkHandler.externalUriFor(url), isNull, reason: url);
+        expect(HtmlLinkHandler.opensAnotherBook(url), isFalse, reason: url);
+      }
+    });
+
+    testWidgets('handleLink ignores them without launching anything', (
+      tester,
+    ) async {
+      final launcher = _RecordingUrlLauncher();
+      final previousLauncher = UrlLauncherPlatform.instance;
+      UrlLauncherPlatform.instance = launcher;
+      addTearDown(() => UrlLauncherPlatform.instance = previousLauncher);
+
+      late BuildContext context;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (builderContext) {
+              context = builderContext;
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+
+      for (final url in actionLinks) {
+        final opened = <Object>[];
+        final handled = await HtmlLinkHandler.handleLink(
+          context,
+          url,
+          opened.add,
+        );
+        expect(handled, isFalse, reason: url);
+        expect(opened, isEmpty, reason: url);
+      }
+      expect(launcher.launched, isEmpty);
     });
   });
 }

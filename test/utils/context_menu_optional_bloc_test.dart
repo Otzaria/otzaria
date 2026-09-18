@@ -134,6 +134,20 @@ void main() {
         isNot(contains('דווח על טעות בספר')),
       );
     });
+
+    testWidgets('attached-library commentary gets no report entry', (
+      tester,
+    ) async {
+      final entries = await buildMenu(
+        tester,
+        withTextBookBloc: false,
+        targetSource: BookSource.attached('lib-a'),
+      );
+      expect(
+        entries.map((e) => e.label),
+        isNot(contains('דווח על טעות בספר')),
+      );
+    });
   });
 
   test('סינון תוכן להעתקה מכבד ניקוד ופיסוק של התצוגה', () {
