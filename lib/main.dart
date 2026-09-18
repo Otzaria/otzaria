@@ -815,6 +815,13 @@ Future<void> _initializeRestartableRuntime() async {
   // העתקה של ~5.5GB פעמיים. החלון הראשון כבר ביצע אותם לפני שהחלון הזה
   // בכלל נוצר.
   if (!WindowRole.isSecondary) {
+    // ראשון: כל שאר השלבים כאן קוראים את נתיב ה-DB מההגדרות, וספרייה
+    // שהגיעה למחשב מחוץ לאוצריא עדיין אינה רשומה בהן (issue #1436).
+    // חלון משני מקבל את ההגדרה בזריעה מהחלון שפתח אותו.
+    await _timedPhase(
+      'adoptDefaultLibrary',
+      AppPaths.adoptLibraryAtDefaultPathIfNeeded,
+    );
     await _timedPhase(
       'recoverInterruptedUpdate',
       _recoverInterruptedLibraryUpdate,

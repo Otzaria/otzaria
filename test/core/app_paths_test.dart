@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:path/path.dart' as p;
 
@@ -1294,6 +1295,126 @@ void main() {
     test('נתיב שאינו books מחזיר את עצמו', () {
       final bundle = p.join(Directory.systemTemp.path, 'bundle', 'אוצריא');
       expect(AppPaths.libraryRootOf(bundle), bundle);
+    });
+  });
+
+  group('אימוץ ספרייה שיושבת במיקום ברירת המחדל (issue #1436)', () {
+    late Directory dataRoot;
+
+    setUp(() async {
+      dataRoot = await Directory.systemTemp.createTemp('otzaria_adopt_');
+      addTearDown(() async {
+        if (await dataRoot.exists()) await dataRoot.delete(recursive: true);
+      });
+      AppPaths.debugOverrideDataRootPath(dataRoot.path);
+      // בלי הדריסה ה-executable של הרצת הבדיקות מוכרע לפי מיקומו בפועל.
+      AppPaths.debugOverrideResolvedExecutable(
+        p.join(dataRoot.path, 'otzaria.exe'),
+      );
+    });
+
+    String defaultLibrary() => p.join(dataRoot.path, 'books');
+
+    Future<void> placeLibraryAt(String libraryPath) async {
+      await Directory(libraryPath).create(recursive: true);
+      await File(p.join(libraryPath, 'seforim.db')).writeAsString('db');
+    }
+
+    test('הגדרה ריקה + ספרייה בברירת המחדל — הנתיב נשמר', () async {
+      await placeLibraryAt(defaultLibrary());
+
+      expect(await AppPaths.adoptLibraryAtDefaultPathIfNeeded(), isTrue);
+
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+        defaultLibrary(),
+      );
+      expect(
+        DatabaseConstants.getDatabasePath(),
+        p.join(defaultLibrary(), 'seforim.db'),
+      );
+    });
+
+    test('הגדרה ריקה ואין ספרייה בברירת המחדל — נשארת ריקה', () async {
+      expect(await AppPaths.adoptLibraryAtDefaultPathIfNeeded(), isFalse);
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '',
+        isEmpty,
+      );
+    });
+
+    test('נתיב שמור תקף אינו מוחלף גם כשיש ספרייה בברירת המחדל', () async {
+      final chosen = p.join(dataRoot.path, 'ספרייה שלי');
+      await placeLibraryAt(chosen);
+      await placeLibraryAt(defaultLibrary());
+      await Settings.setValue(SettingsRepository.keyLibraryPath, chosen);
+
+      expect(await AppPaths.adoptLibraryAtDefaultPathIfNeeded(), isFalse);
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+        chosen,
+      );
+    });
+
+    test('נתיב שמור ששבר מוחלף בברירת המחדל שיש בה ספרייה', () async {
+      await Settings.setValue(
+        SettingsRepository.keyLibraryPath,
+        p.join(dataRoot.path, 'כונן שנותק'),
+      );
+      await placeLibraryAt(defaultLibrary());
+
+      expect(await AppPaths.adoptLibraryAtDefaultPathIfNeeded(), isTrue);
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+        defaultLibrary(),
+      );
+    });
+
+    test('נתיב שמור ששבר נשאר כשאין ספרייה בברירת המחדל', () async {
+      final broken = p.join(dataRoot.path, 'כונן שנותק');
+      await Settings.setValue(SettingsRepository.keyLibraryPath, broken);
+
+      expect(await AppPaths.adoptLibraryAtDefaultPathIfNeeded(), isFalse);
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+        broken,
+      );
+    });
+
+    test('folderName שנשאר מהגדרה קודמת מתאפס לפי מיקום המסד', () async {
+      await Settings.setValue(
+        SettingsRepository.keyLibraryFolderName,
+        'Otzaria',
+      );
+      await placeLibraryAt(defaultLibrary());
+
+      expect(await AppPaths.adoptLibraryAtDefaultPathIfNeeded(), isTrue);
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyLibraryFolderName),
+        isEmpty,
+      );
+      expect(
+        DatabaseConstants.getDatabasePath(),
+        p.join(defaultLibrary(), 'seforim.db'),
+      );
+    });
+
+    test('מסד בתת-תיקיית folderName מזוהה ומשמר את ההגדרה', () async {
+      await Settings.setValue(
+        SettingsRepository.keyLibraryFolderName,
+        'Otzaria',
+      );
+      await placeLibraryAt(p.join(defaultLibrary(), 'Otzaria'));
+
+      expect(await AppPaths.adoptLibraryAtDefaultPathIfNeeded(), isTrue);
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyLibraryFolderName),
+        'Otzaria',
+      );
+      expect(
+        DatabaseConstants.getDatabasePath(),
+        p.join(defaultLibrary(), 'Otzaria', 'seforim.db'),
+      );
     });
   });
 
