@@ -56,6 +56,24 @@ class ResponsaHebrew {
   static List<String> tokens(String? text) =>
       spellingKey(text).split(' ').where((w) => w.isNotEmpty).toList();
 
+  static final RegExp _abbreviationMark = RegExp("['׳]\$");
+
+  /// אסימונים, כשכל אחד מסומן אם הוא **ראשי-תיבות**.
+  ///
+  /// גרש בסוף מילה מקצר אותה: `ר'` הוא `רבי`. בלי הסימון הזה
+  /// `ר' אברהם מן ההר יבמות` אינו מתאים לכותרת
+  /// `רבי אברהם מן ההר (מהד' בלוי) מסכת יבמות` — כי `ר` ו-`רב` הם שני
+  /// אסימונים שונים — ופתיחה תקינה לחלוטין נפסלת.
+  static List<({String key, bool abbreviated})> markedTokens(String? text) {
+    if (text == null || text.isEmpty) return const [];
+    final cleaned = text.replaceAll(_invisible, ' ').replaceAll(_nikud, '');
+    return [
+      for (final word in cleaned.split(_whitespace))
+        if (spellingKey(word) case final key when key.isNotEmpty)
+          (key: key, abbreviated: _abbreviationMark.hasMatch(word.trim())),
+    ];
+  }
+
   // ------------------------------------------------------------ גימטריה
 
   static const List<String> _ones = [
@@ -172,9 +190,14 @@ class ResponsaHebrew {
         (gotKey.contains(wantKey) || wantKey.contains(gotKey))) {
       return ResponsaMatchLevel.substring;
     }
-    final wantWords = tokens(expected);
+    final wantWords = markedTokens(expected);
     final gotWords = tokens(actual).toSet();
-    if (wantWords.isNotEmpty && wantWords.every(gotWords.contains)) {
+    if (wantWords.isNotEmpty &&
+        wantWords.every(
+          (token) => token.abbreviated
+              ? gotWords.any((word) => word.startsWith(token.key))
+              : gotWords.contains(token.key),
+        )) {
       return ResponsaMatchLevel.contains;
     }
     return ResponsaMatchLevel.none;

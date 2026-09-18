@@ -163,6 +163,9 @@ class ResponsaNames {
       final core = firstLetter == null
           ? head
           : head.substring(firstLetter.start);
+      // שם שאין בו ליבה כלל — נשאר כפי שהוא. פירוק שמחזיר מחרוזת ריקה
+      // גרוע מלא לפרק: הוא מוחק את הספר מהתצוגה ומההפניה כאחד.
+      if (_trimMarks(core).isEmpty) return (core: value, qualifier: null);
       final pieces = [
         post,
         ...pre.split(' ').where((p) => p.isNotEmpty).toList().reversed,

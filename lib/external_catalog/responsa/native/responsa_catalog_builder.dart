@@ -197,7 +197,11 @@ class ResponsaCatalogBuilder {
     }
 
     for (var i = 0; i < openRefs.length; i++) {
-      if (openRefs[i].isEmpty) openRefs[i] = books[i].baseRef.join(' ');
+      if (openRefs[i].isNotEmpty) continue;
+      // שם הצומת הגולמי הוא מוצא אחרון. הפניה ריקה מפילה את האימות
+      // ואיתו את כל הבנייה, בגלל שם אחד חריג מתוך 8,523.
+      final fallback = books[i].baseRef.join(' ');
+      openRefs[i] = fallback.isEmpty ? books[i].leafTitle.trim() : fallback;
     }
     return openRefs;
   }

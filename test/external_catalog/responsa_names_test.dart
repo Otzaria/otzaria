@@ -35,6 +35,13 @@ void main() {
       expect(ResponsaNames.coreOf('*סימן רצז'), 'סימן רצז');
     });
 
+    test('שם שאין בו ליבה נשאר כפי שהוא', () {
+      // פירוק שמחזיר מחרוזת ריקה מוחק את הספר מהתצוגה ומההפניה כאחד.
+      expect(ResponsaNames.coreOf('(('), '((');
+      expect(ResponsaNames.displayOf('((123'), '((123');
+      expect(ResponsaNames.coreOf(''), '');
+    });
+
     test('שם תקין אינו משתנה', () {
       expect(ResponsaNames.displayOf('שולחן ערוך'), 'שולחן ערוך');
       expect(

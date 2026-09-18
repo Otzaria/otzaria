@@ -116,7 +116,11 @@ class ResponsaAutomation {
     final end = Stopwatch()..start();
     while (end.elapsed < duration) {
       _checkpoint(deadline);
+      // השעון נקרא שוב **אחרי** תנאי הלולאה, ולכן הוא יכול כבר לחרוג.
+      // `sleep` עם משך שלילי זורק, והחריגה עלתה מהאיזולט ככשל פתיחה
+      // בלתי מוסבר — נצפה פעם אחת ב-40 פתיחות.
       final left = duration - end.elapsed;
+      if (left <= Duration.zero) break;
       sleepFor(left < _poll ? left : _poll);
     }
     _checkpoint(deadline);

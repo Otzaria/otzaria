@@ -72,10 +72,20 @@ class ResponsaOpenReport {
 /// בכל נקודת המתנה. פורט הודעות לא היה עובד — האיזולט חסום בקוד
 /// סינכרוני ואינו מעבד הודעות.
 class ResponsaController {
-  ResponsaController({this.autoStart = true});
+  ResponsaController({bool Function()? allowAutoStart})
+    : _allowAutoStart = allowAutoStart ?? _always;
+
+  static bool _always() => true;
+
+  final bool Function() _allowAutoStart;
 
   /// האם מותר להעלות מופע של התוכנה כשאינה רצה.
-  final bool autoStart;
+  ///
+  /// **נקרא בכל פעם מחדש ולא נלכד בבנייה.** הבקר נוצר כשמסך ההגדרות
+  /// שואל על מצב ההתקנה — כלומר *לפני* שהמשתמש הדליק את ההגדרה — וערך
+  /// שנלכד אז היה נשאר `false` עד להפעלה מחדש של אוצריא, והפתיחה הייתה
+  /// נכשלת ב"ההפעלה כבויה בהגדרות" בזמן שהיא דלוקה.
+  bool get autoStart => _allowAutoStart();
 
   Pointer<Int32>? _cancelFlag;
   Isolate? _running;

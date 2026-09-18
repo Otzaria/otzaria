@@ -18,7 +18,7 @@ class ResponsaService {
   final ResponsaCatalogRepository catalog = ResponsaCatalogRepository.instance;
 
   late final ResponsaController controller = ResponsaController(
-    autoStart: allowAutoStart(),
+    allowAutoStart: allowAutoStart,
   );
 
   late final ResponsaLibraryProvider provider = ResponsaLibraryProvider(
